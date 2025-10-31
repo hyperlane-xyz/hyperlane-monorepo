@@ -659,11 +659,12 @@ impl AdaptsChain for EthereumAdapter {
         let hash = match send_result {
             Ok(hash) => hash,
             Err(e) => {
+                warn!(?e, "submitting transaction error");
                 return if e.to_string().contains(NONCE_TOO_LOW_ERROR) {
                     Err(TxAlreadyExists)
                 } else {
                     Err(e.into())
-                }
+                };
             }
         };
 
@@ -706,6 +707,60 @@ impl AdaptsChain for EthereumAdapter {
         }
 
         Ok(reverted)
+    }
+
+    fn reprocess_txs_poll_rate(&self) -> Option<Duration> {
+        // if the block time is too short, we want to cap it at 5s because we don't want
+        // to query the nonce too much. 5s should be quick enough for a reorg
+        Some((*self.estimated_block_time()).max(Duration::from_secs(5)))
+    }
+
+    async fn get_reprocess_txs(&self) -> Result<Vec<Transaction>, LanderError> {
+        let old_finalized_nonce = self
+            .nonce_manager
+            .state
+            .get_finalized_nonce()
+            .await?
+            .unwrap_or_default();
+        self.nonce_manager.nonce_updater.update_boundaries().await?;
+        let new_finalized_nonce = self
+            .nonce_manager
+            .state
+            .get_finalized_nonce()
+            .await?
+            .unwrap_or_default();
+
+        if new_finalized_nonce >= old_finalized_nonce {
+            return Ok(Vec::new());
+        }
+
+        warn!(
+            ?old_finalized_nonce,
+            ?new_finalized_nonce,
+            "New finalized nonce is lower than old finalized nonce"
+        );
+
+        let mut txs = Vec::new();
+        let mut nonce = new_finalized_nonce.saturating_add(U256::one());
+        while nonce <= old_finalized_nonce {
+            let tx_uuid = self.nonce_manager.state.get_tracked_tx_uuid(&nonce).await?;
+            if tx_uuid == TransactionUuid::default() {
+                debug!(
+                    ?nonce,
+                    "No tracked transaction UUID for nonce in reorg range"
+                );
+            } else if let Some(tx) = self.nonce_manager.state.get_tracked_tx(&tx_uuid).await? {
+                txs.push(tx);
+            } else {
+                debug!(
+                    ?nonce,
+                    ?tx_uuid,
+                    "No transaction found for nonce in reorg range"
+                );
+            }
+            nonce = nonce.saturating_add(U256::one());
+        }
+        Ok(txs)
     }
 
     fn estimated_block_time(&self) -> &std::time::Duration {

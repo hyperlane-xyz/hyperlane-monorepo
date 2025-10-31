@@ -65,6 +65,10 @@ impl InclusionStage {
         } = self;
         let futures = vec![
             tokio::spawn(
+                Self::receive_reprocess_txs(domain.clone(), pool.clone(), state.clone())
+                    .instrument(info_span!("receive_reprocess_txs")),
+            ),
+            tokio::spawn(
                 Self::receive_txs(tx_receiver, pool.clone(), state.clone(), domain.clone())
                     .instrument(info_span!("receive_txs")),
             ),
@@ -178,6 +182,45 @@ impl InclusionStage {
             }
         }
         Ok(())
+    }
+
+    #[instrument(skip_all, fields(domain))]
+    pub async fn receive_reprocess_txs(
+        domain: String,
+        pool: InclusionStagePool,
+        state: DispatcherState,
+    ) -> Result<(), LanderError> {
+        let poll_rate = match state.adapter.reprocess_txs_poll_rate() {
+            Some(s) => s,
+            // if no poll rate, then that means we don't worry about reprocessing txs
+            None => return Ok(()),
+        };
+        loop {
+            state.metrics.update_liveness_metric(
+                format!("{}::receive_reprocess_txs", STAGE_NAME).as_str(),
+                &domain,
+            );
+
+            tokio::time::sleep(poll_rate).await;
+            tracing::debug!(
+                domain,
+                "Checking for any transactions that needs reprocessing"
+            );
+
+            let txs = match state.adapter.get_reprocess_txs().await {
+                Ok(s) => s,
+                _ => continue,
+            };
+            if txs.is_empty() {
+                continue;
+            }
+
+            tracing::debug!(?txs, "Reprocessing transactions");
+            let mut locked_pool = pool.lock().await;
+            for tx in txs {
+                locked_pool.insert(tx.uuid.clone(), tx);
+            }
+        }
     }
 
     fn tx_ready_for_processing(

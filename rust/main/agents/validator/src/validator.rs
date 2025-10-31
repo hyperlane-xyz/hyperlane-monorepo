@@ -10,6 +10,7 @@ use itertools::Itertools;
 use serde::Serialize;
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{error, info, info_span, warn, Instrument};
+use url::Url;
 
 use hyperlane_base::{
     db::{HyperlaneDb, HyperlaneRocksDB, DB},
@@ -27,7 +28,9 @@ use hyperlane_core::{
 };
 use hyperlane_ethereum::{Signers, SingletonSigner, SingletonSignerHandle};
 
-use crate::reorg_reporter::{LatestCheckpointReorgReporter, ReorgReporter};
+use crate::reorg_reporter::{
+    LatestCheckpointReorgReporter, LatestCheckpointReorgReporterWithStorageWriter, ReorgReporter,
+};
 use crate::server::{self as validator_server, merkle_tree_insertions};
 use crate::{
     settings::ValidatorSettings,
@@ -66,8 +69,13 @@ pub struct Validator {
 #[derive(Debug, Serialize)]
 pub struct ValidatorMetadata {
     git_sha: String,
-    rpcs: Vec<H256>,
+    rpcs: Vec<ValidatorMetadataRpcEntry>,
     allows_public_rpcs: bool,
+}
+#[derive(Debug, Serialize)]
+pub struct ValidatorMetadataRpcEntry {
+    url_hash: H256,
+    host_hash: H256,
 }
 
 impl MetadataFromSettings<ValidatorSettings> for ValidatorMetadata {
@@ -77,7 +85,15 @@ impl MetadataFromSettings<ValidatorSettings> for ValidatorMetadata {
         let rpcs = settings
             .rpcs
             .iter()
-            .map(|rpc| H256::from_slice(&keccak256(&rpc.url)))
+            .map(|rpc| ValidatorMetadataRpcEntry {
+                url_hash: H256::from_slice(&keccak256(&rpc.url)),
+                host_hash: H256::from_slice(&keccak256(
+                    Url::parse(&rpc.url)
+                        .ok()
+                        .and_then(|url| url.host_str().map(str::to_string))
+                        .unwrap_or("".to_string()),
+                )),
+            })
             .collect();
         ValidatorMetadata {
             git_sha: git_sha(),
@@ -140,9 +156,20 @@ impl BaseAgent for Validator {
 
         // Be extra sure to panic when checkpoint syncer fails, which indicates
         // a fatal startup error.
-        let checkpoint_syncer = checkpoint_syncer_result
+        let checkpoint_syncer: Arc<dyn CheckpointSyncer> = checkpoint_syncer_result
             .expect("Failed to build checkpoint syncer")
             .into();
+
+        // If checkpoint syncer initialization was successful, use a reorg-reporter which
+        // writes to the storage location in addition to the logs.
+        let reorg_reporter_with_storage_writer =
+            LatestCheckpointReorgReporterWithStorageWriter::from_settings_with_storage_writer(
+                &settings,
+                &metrics,
+                checkpoint_syncer.clone(),
+            )
+            .await?;
+        let reorg_reporter = Arc::new(reorg_reporter_with_storage_writer) as Arc<dyn ReorgReporter>;
 
         let origin_chain_conf = core.settings.chain_setup(&settings.origin_chain)?.clone();
 

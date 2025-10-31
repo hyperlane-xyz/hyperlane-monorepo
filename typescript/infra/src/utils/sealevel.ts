@@ -1,21 +1,262 @@
-import {
-  ComputeBudgetProgram,
-  Connection,
-  Keypair,
-  Transaction,
-  TransactionInstruction,
-} from '@solana/web3.js';
-import { resolve } from 'path';
+import { PublicKey, TransactionInstruction } from '@solana/web3.js';
+import path, { resolve } from 'path';
 
 import {
-  SEALEVEL_PRIORITY_FEES,
+  ChainMap,
+  ChainName,
+  IsmType,
+  MultisigIsmConfig,
   SealevelRemoteGasData,
+  SvmMultiProtocolSignerAdapter,
 } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
+import { Contexts } from '../../config/contexts.js';
 import { DeployEnvironment } from '../config/environment.js';
 
 import { getMonorepoRoot, readJSONAtPath } from './utils.js';
+
+// ============================================================================
+// Solana Data Structure Sizes
+// ============================================================================
+
+/**
+ * Size of a Solana PublicKey in bytes
+ */
+export const SOLANA_PUBKEY_SIZE = 32;
+
+/**
+ * Size of a Solana u32 in bytes
+ */
+export const SOLANA_U32_SIZE = 4;
+
+/**
+ * Size of a Solana u8 in bytes
+ */
+export const SOLANA_U8_SIZE = 1;
+
+/**
+ * Size of a Solana u16 in bytes
+ */
+export const SOLANA_U16_SIZE = 2;
+
+/**
+ * Size of an Ethereum address (H160) in bytes
+ * Used for validator addresses in Hyperlane MultisigIsm
+ */
+export const ETHEREUM_ADDRESS_SIZE = 20;
+
+/**
+ * Discriminator value for Option::Some in Rust/Anchor
+ */
+export const OPTION_SOME_DISCRIMINATOR = 1;
+
+/**
+ * Discriminator value for Option::None in Rust/Anchor
+ */
+export const OPTION_NONE_DISCRIMINATOR = 0;
+
+// ============================================================================
+// Hyperlane Program Discriminator Lengths
+// ============================================================================
+
+/**
+ * Mailbox instruction discriminator size (4 byte Borsh u32 enum discriminator)
+ */
+export const MAILBOX_DISCRIMINATOR_SIZE = 4;
+
+/**
+ * Hyperlane Sealevel program instruction discriminator size
+ * (8-byte Anchor discriminator)
+ */
+export const HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE = 8;
+
+/**
+ * Maximum number of validators in MultisigIsm
+ * Must match Solidity: uint8 constant MAX_VALIDATORS = 20 in MultisigIsm.t.sol
+ */
+export const MAX_VALIDATORS = 20;
+
+// ============================================================================
+// Solana System Limits
+// ============================================================================
+
+/**
+ * Maximum number of account keys in a Solana transaction
+ */
+export const MAX_SOLANA_ACCOUNTS = 256;
+
+/**
+ * Maximum reasonable Solana account size (10KB)
+ * Accounts larger than this are suspicious
+ */
+export const MAX_SOLANA_ACCOUNT_SIZE = 10240;
+
+/**
+ * First real instruction index in Solana transactions
+ * (index 0 is typically a dummy instruction)
+ */
+export const FIRST_REAL_INSTRUCTION_INDEX = 1;
+
+// ============================================================================
+// Well-Known Solana Program IDs
+// ============================================================================
+
+/**
+ * Solana System Program ID
+ */
+export const SYSTEM_PROGRAM_ID = new PublicKey(
+  '11111111111111111111111111111111',
+);
+
+/**
+ * Solana Compute Budget Program ID
+ */
+export const COMPUTE_BUDGET_PROGRAM_ID = new PublicKey(
+  'ComputeBudget111111111111111111111111111111',
+);
+
+// ============================================================================
+// Program Names (for transaction parsing/display)
+// ============================================================================
+
+/**
+ * Program name enum for consistent labeling
+ */
+export enum ProgramName {
+  MAILBOX = 'Mailbox',
+  MULTISIG_ISM = 'MultisigIsmMessageId',
+  SQUADS_V4 = 'SquadsV4',
+  SYSTEM_PROGRAM = 'System Program',
+  COMPUTE_BUDGET = 'Compute Budget Program',
+  UNKNOWN = 'Unknown',
+}
+
+// ============================================================================
+// Instruction Type Labels (for transaction parsing/display)
+// ============================================================================
+
+/**
+ * Instruction type enum for consistent labeling
+ */
+export enum InstructionType {
+  UNKNOWN = 'Unknown',
+  SYSTEM_CALL = 'System Program Call',
+  COMPUTE_BUDGET = 'Compute Budget',
+  PARSE_FAILED = 'Failed to Parse',
+}
+
+// ============================================================================
+// Mailbox Instruction Types
+// ============================================================================
+
+/**
+ * Mailbox instruction discriminator values
+ * Matches rust/sealevel/programs/mailbox/src/instruction.rs
+ * Borsh enum serialization uses u32 discriminators
+ */
+export enum MailboxInstructionType {
+  INIT = 0,
+  INBOX_PROCESS = 1,
+  INBOX_SET_DEFAULT_ISM = 2,
+  INBOX_GET_RECIPIENT_ISM = 3,
+  OUTBOX_DISPATCH = 4,
+  OUTBOX_GET_COUNT = 5,
+  OUTBOX_GET_LATEST_CHECKPOINT = 6,
+  OUTBOX_GET_ROOT = 7,
+  GET_OWNER = 8,
+  TRANSFER_OWNERSHIP = 9,
+  CLAIM_PROTOCOL_FEES = 10,
+  SET_PROTOCOL_FEE_CONFIG = 11,
+}
+
+/**
+ * Human-readable names for Mailbox instructions
+ */
+export const MailboxInstructionName: Record<MailboxInstructionType, string> = {
+  [MailboxInstructionType.INIT]: 'Init',
+  [MailboxInstructionType.INBOX_PROCESS]: 'InboxProcess',
+  [MailboxInstructionType.INBOX_SET_DEFAULT_ISM]: 'InboxSetDefaultIsm',
+  [MailboxInstructionType.INBOX_GET_RECIPIENT_ISM]: 'InboxGetRecipientIsm',
+  [MailboxInstructionType.OUTBOX_DISPATCH]: 'OutboxDispatch',
+  [MailboxInstructionType.OUTBOX_GET_COUNT]: 'OutboxGetCount',
+  [MailboxInstructionType.OUTBOX_GET_LATEST_CHECKPOINT]:
+    'OutboxGetLatestCheckpoint',
+  [MailboxInstructionType.OUTBOX_GET_ROOT]: 'OutboxGetRoot',
+  [MailboxInstructionType.GET_OWNER]: 'GetOwner',
+  [MailboxInstructionType.TRANSFER_OWNERSHIP]: 'TransferOwnership',
+  [MailboxInstructionType.CLAIM_PROTOCOL_FEES]: 'ClaimProtocolFees',
+  [MailboxInstructionType.SET_PROTOCOL_FEE_CONFIG]: 'SetProtocolFeeConfig',
+};
+
+// ============================================================================
+// MultisigIsm Instruction Types
+// ============================================================================
+
+/**
+ * MultisigIsm instruction discriminator values
+ * Matches rust/sealevel/programs/ism/multisig-ism-message-id/src/instruction.rs
+ */
+export enum MultisigIsmInstructionType {
+  INIT = 0,
+  SET_VALIDATORS_AND_THRESHOLD = 1,
+  GET_OWNER = 2,
+  TRANSFER_OWNERSHIP = 3,
+}
+
+/**
+ * Human-readable names for MultisigIsm instructions
+ */
+export const MultisigIsmInstructionName: Record<
+  MultisigIsmInstructionType,
+  string
+> = {
+  [MultisigIsmInstructionType.INIT]: 'Init',
+  [MultisigIsmInstructionType.SET_VALIDATORS_AND_THRESHOLD]:
+    'SetValidatorsAndThreshold',
+  [MultisigIsmInstructionType.GET_OWNER]: 'GetOwner',
+  [MultisigIsmInstructionType.TRANSFER_OWNERSHIP]: 'TransferOwnership',
+};
+
+// ============================================================================
+// Error and Warning Messages (for transaction parsing)
+// ============================================================================
+
+/**
+ * Error message enum for instruction parsing
+ */
+export enum ErrorMessage {
+  INVALID_INSTRUCTION_LENGTH = 'Invalid instruction data length',
+  INSTRUCTION_TOO_SHORT = 'Instruction data too short',
+  INVALID_MULTISIG_ISM_DATA = 'Invalid MultisigIsm instruction data',
+  INVALID_SQUADS_DATA = 'Invalid Squads instruction data',
+}
+
+/**
+ * Warning message enum for security and parsing issues
+ */
+export enum WarningMessage {
+  OWNERSHIP_TRANSFER = '⚠️  OWNERSHIP TRANSFER DETECTED',
+  OWNERSHIP_RENUNCIATION = '⚠️  OWNERSHIP RENUNCIATION DETECTED',
+  UNKNOWN_SQUADS_INSTRUCTION = 'Unknown Squads instruction',
+}
+
+/**
+ * Format warning message for unknown program
+ */
+export function formatUnknownProgramWarning(programId: string): string {
+  return `⚠️  UNKNOWN PROGRAM: ${programId}`;
+}
+
+/**
+ * Format warning message for unknown instruction
+ */
+export function formatUnknownInstructionWarning(
+  programType: string,
+  discriminator: number,
+): string {
+  return `Unknown ${programType} instruction: ${discriminator}`;
+}
 
 export const svmGasOracleConfigPath = (environment: DeployEnvironment) =>
   resolve(
@@ -23,133 +264,34 @@ export const svmGasOracleConfigPath = (environment: DeployEnvironment) =>
     `rust/sealevel/environments/${environment}/gas-oracle-configs.json`,
   );
 
+export const multisigIsmConfigPath = (
+  environment: DeployEnvironment,
+  context: Contexts,
+  local: ChainName,
+) =>
+  path.resolve(
+    getMonorepoRoot(),
+    `rust/sealevel/environments/${environment}/multisig-ism-message-id/${local}/${context}/multisig-config.json`,
+  );
+
 /**
- * Build and send a transaction with priority fees and custom confirmation polling
- * This avoids WebSocket subscription issues with some RPC providers
+ * All multisig ISM configurations for a chain, keyed by remote chain name,
+ * restricted to config type MESSAGE_ID_MULTISIG
  */
-export async function buildAndSendTransaction(params: {
-  /** Solana RPC connection */
-  connection: Connection;
-  /** Transaction instructions to include */
-  instructions: TransactionInstruction[];
-  /** Keypair to sign the transaction */
-  signer: Keypair;
-  /** Chain name for logging and priority fees */
-  chain: string;
-}): Promise<string> {
-  const { connection, instructions, signer, chain } = params;
-  const tx = new Transaction();
-
-  // Add priority fee if configured
-  const priorityFee = SEALEVEL_PRIORITY_FEES[chain];
-  if (priorityFee) {
-    tx.add(
-      ComputeBudgetProgram.setComputeUnitPrice({
-        microLamports: priorityFee,
-      }),
-    );
-  }
-
-  // Add all instructions
-  for (const instruction of instructions) {
-    tx.add(instruction);
-  }
-
-  // Get recent blockhash with expiry tracking
-  let { blockhash, lastValidBlockHeight } =
-    await connection.getLatestBlockhash('confirmed');
-  tx.recentBlockhash = blockhash;
-  tx.feePayer = signer.publicKey;
-
-  // Sign and send transaction
-  tx.sign(signer);
-  let signature = await connection.sendRawTransaction(tx.serialize(), {
-    skipPreflight: false,
-    maxRetries: 3,
-  });
-
-  // Poll for confirmation using getSignatureStatus instead of confirmTransaction
-  let confirmed = false;
-  let attempts = 0;
-  const maxAttempts = 30; // 30 seconds timeout
-  let failureReason: Error | null = null;
-
-  while (!confirmed && attempts < maxAttempts) {
-    await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait 1 second
-    attempts++;
-
-    try {
-      // Check if blockhash expired and refresh if needed
-      const currentBlockHeight = await connection.getBlockHeight();
-      if (currentBlockHeight > lastValidBlockHeight && !confirmed) {
-        rootLogger.warn(
-          `[${chain}] Blockhash expired at block ${lastValidBlockHeight}, current block ${currentBlockHeight}. Refreshing and resubmitting...`,
-        );
-        ({ blockhash, lastValidBlockHeight } =
-          await connection.getLatestBlockhash('confirmed'));
-        tx.recentBlockhash = blockhash;
-        tx.sign(signer);
-        signature = await connection.sendRawTransaction(tx.serialize(), {
-          skipPreflight: false,
-          maxRetries: 3,
-        });
-        rootLogger.info(
-          `[${chain}] Resubmitted transaction with new signature: ${signature}`,
-        );
-        continue;
-      }
-
-      const status = await connection.getSignatureStatus(signature, {
-        searchTransactionHistory: true,
-      });
-
-      if (status.value) {
-        if (status.value.err) {
-          // Record the error and break out of the polling loop
-          failureReason = new Error(
-            `Transaction failed: ${JSON.stringify(status.value.err)}`,
-          );
-          break;
-        }
-        if (
-          status.value.confirmationStatus === 'confirmed' ||
-          status.value.confirmationStatus === 'finalized'
-        ) {
-          confirmed = true;
-        }
-      }
-    } catch (error) {
-      // Continue polling on error, might be temporary
-      rootLogger.warn(
-        `[${chain}] Polling attempt ${attempts} failed: ${error}`,
-      );
-    }
-  }
-
-  if (failureReason) {
-    throw failureReason;
-  }
-
-  if (!confirmed) {
-    throw new Error(
-      `Transaction confirmation timeout after ${maxAttempts} seconds`,
-    );
-  }
-
-  return signature;
-}
+export type SvmMultisigConfig = Omit<MultisigIsmConfig, 'type'> & {
+  type: IsmType.MESSAGE_ID_MULTISIG;
+};
+export type SvmMultisigConfigMap = ChainMap<SvmMultisigConfig>;
 
 // SOLANA_TX_SIZE_LIMIT = 1232 bytes
 // batches of 10 fill up about 60% of the limit
 export const DEFAULT_MAX_SEALEVEL_BATCH_SIZE = 10;
 
 export async function batchAndSendTransactions<T>(params: {
-  /** Solana RPC connection */
-  connection: Connection;
-  /** Chain name for logging and priority fees */
+  /** Chain name for logging */
   chain: string;
-  /** Keypair to sign transactions */
-  signerKeypair: Keypair;
+  /** Sealevel signer adapter */
+  adapter: SvmMultiProtocolSignerAdapter;
   /** Description of operation for logging */
   operationName: string;
   /** Items to process in batches */
@@ -164,9 +306,8 @@ export async function batchAndSendTransactions<T>(params: {
   dryRun?: boolean;
 }): Promise<void> {
   const {
-    connection,
     chain,
-    signerKeypair,
+    adapter,
     operationName,
     items,
     createInstruction,
@@ -190,12 +331,7 @@ export async function batchAndSendTransactions<T>(params: {
         `[${chain}] Batch ${batchNum}/${totalBatches}: Would send ${operationName} for ${batch.length} items: ${formatBatch(batch)}`,
       );
     } else {
-      const tx = await buildAndSendTransaction({
-        connection,
-        instructions: [instruction],
-        signer: signerKeypair,
-        chain,
-      });
+      const tx = await adapter.buildAndSendTransaction([instruction]);
 
       rootLogger.info(
         `[${chain}] Batch ${batchNum}/${totalBatches}: ${operationName} ${batch.length} items [${formatBatch(batch)}] - tx: ${tx}`,
@@ -304,8 +440,3 @@ export function serializeGasOracleDifference(
 
   return `Exchange rate: ${exchangeRate.toFixed(10)} (${exchangeRateDiff}), Gas price: ${gasPriceLamports.toLocaleString()} (${gasPriceDiff}), Product diff: ${productDiff}`;
 }
-
-/**
- * Constants
- */
-export const ZERO_SALT = new Uint8Array(32).fill(0);
