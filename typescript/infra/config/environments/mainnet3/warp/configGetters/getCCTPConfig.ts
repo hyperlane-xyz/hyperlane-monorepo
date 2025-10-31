@@ -23,6 +23,8 @@ import {
 
 const SERVICE_URL = 'https://offchain-lookup.services.hyperlane.xyz';
 
+export const CCTP_CHAINS = Object.keys(tokenMessengerV2Addresses);
+
 // TODO: remove this once the route has been updated to be owned by non-legacy ownership
 const owners: Record<ChainName, string> = {
   arbitrum: '0xaB547e6cde21a5cC3247b8F80e6CeC3a030FAD4A',
@@ -38,7 +40,7 @@ export const getCCTPWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
   _warpRouteId: string,
-  version: 'V1' | 'V2',
+  version: 'V1' | 'V2' = 'V1',
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const messengerAddresses =
     version === 'V1' ? tokenMessengerV1Addresses : tokenMessengerV2Addresses;
@@ -84,7 +86,7 @@ const safeSubmitter: SubmitterMetadata = {
 const icaChains = Object.keys(awIcasLegacy);
 
 export const getCCTPStrategyConfig = (
-  version: 'V1' | 'V2',
+  version: 'V1' | 'V2' = 'V1',
 ): ChainSubmissionStrategy => {
   const chains =
     version === 'V1'
