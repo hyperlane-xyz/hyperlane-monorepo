@@ -414,6 +414,16 @@ export class AleoProvider implements AltVM.IProvider {
   async getTransferTransaction(
     req: AltVM.ReqTransfer,
   ): Promise<AleoTransaction> {
+    if (req.denom) {
+      return {
+        programName: 'token_registry.aleo',
+        functionName: 'transfer_public',
+        priorityFee: 0,
+        privateFee: false,
+        inputs: [req.denom, req.recipient, `${req.amount}u128`],
+      };
+    }
+
     return {
       programName: 'credits.aleo',
       functionName: 'transfer_public',

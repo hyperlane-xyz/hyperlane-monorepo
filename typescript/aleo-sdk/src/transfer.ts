@@ -27,17 +27,23 @@ const main = async () => {
   const bobAddress = new Account().address().to_string();
   console.log('bobAddress', bobAddress);
 
+  const balanceBobBefore = await signer.getBalance({
+    address: bobAddress,
+    denom: '1field',
+  });
+  console.log('balance bob before: ', balanceBobBefore);
+
   await signer.transfer({
-    amount: '10',
+    amount: '1000000',
     recipient: bobAddress,
-    denom: '',
+    denom: '1field',
   });
 
   const balanceBob = await signer.getBalance({
     address: bobAddress,
-    denom: '',
+    denom: '1field',
   });
-  console.log('balance bob: ', balanceBob);
+  console.log('balance bob after: ', balanceBob);
 };
 
 main();
