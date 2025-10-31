@@ -317,8 +317,48 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
     return contractVerificationStatus;
   }
 
+  /**
+   * Validates the status of an owner address directly.
+   * Assumes the address parameter is an owner address (not a contract address).
+   * @param chain - The chain name
+   * @param ownerAddress - The owner address to validate
+   * @returns Record with owner address as key and OwnerStatus as value
+   */
+  async validateOwnerAddress(
+    chain: ChainName,
+    ownerAddress: Address,
+  ): Promise<Record<string, OwnerStatus>> {
+    const provider = this.multiProvider.getProvider(chain);
+    const ownerStatus: Record<string, OwnerStatus> = {};
+
+    // Check owner status (Active/Inactive/GnosisSafe)
+    ownerStatus[ownerAddress] = (await isAddressActive(provider, ownerAddress))
+      ? OwnerStatus.Active
+      : OwnerStatus.Inactive;
+
+    // Heuristically check if the owner could be a safe by calling expected functions
+    // This status will overwrite 'active' status
+    try {
+      const potentialGnosisSafe = ISafe__factory.connect(
+        ownerAddress,
+        provider,
+      );
+
+      await Promise.all([
+        potentialGnosisSafe.getThreshold(),
+        potentialGnosisSafe.nonce(),
+      ]);
+      ownerStatus[ownerAddress] = OwnerStatus.GnosisSafe;
+    } catch {
+      this.logger.debug(`${ownerAddress} may not be a safe`);
+    }
+
+    return ownerStatus;
+  }
+
   async getOwnerStatus(chain: ChainName, address: Address) {
     let ownerStatus: Record<string, OwnerStatus> = {};
+
     if (this.multiProvider.isLocalRpc(chain)) {
       this.logger.debug('Skipping owner verification for local endpoints');
       return {
@@ -329,23 +369,8 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
     const provider = this.multiProvider.getProvider(chain);
     const owner = await Ownable__factory.connect(address, provider).owner();
 
-    ownerStatus[owner] = (await isAddressActive(provider, owner))
-      ? OwnerStatus.Active
-      : OwnerStatus.Inactive;
-
-    // Heuristically check if the owner could be a safe by calling expected functions
-    // This status will overwrite 'active' status
-    try {
-      const potentialGnosisSafe = ISafe__factory.connect(owner, provider);
-
-      await Promise.all([
-        potentialGnosisSafe.getThreshold(),
-        potentialGnosisSafe.nonce(),
-      ]);
-      ownerStatus[owner] = OwnerStatus.GnosisSafe;
-    } catch {
-      this.logger.debug(`${owner} may not be a safe`);
-    }
+    // Use the extracted function to validate the owner
+    ownerStatus = await this.validateOwnerAddress(chain, owner);
 
     // Check Proxy admin and implementation recursively
     const contractType = (await isProxy(this.provider, address))
