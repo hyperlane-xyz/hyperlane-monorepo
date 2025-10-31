@@ -1,4 +1,10 @@
-import { Account, AleoNetworkClient, ProgramManager } from '@provablehq/sdk';
+import {
+  Account,
+  AleoNetworkClient,
+  BHP256,
+  Plaintext,
+  ProgramManager,
+} from '@provablehq/sdk';
 
 import { AltVM, assert, ensure0x } from '@hyperlane-xyz/utils';
 
@@ -38,6 +44,28 @@ export class AleoProvider implements AltVM.IProvider {
   }
 
   async getBalance(req: AltVM.ReqGetBalance): Promise<bigint> {
+    if (req.denom) {
+      const balanceKey = new BHP256()
+        .hash(
+          Plaintext.fromString(
+            `{account: ${req.address},token_id: ${req.denom}}`,
+          ).toBitsLe(),
+        )
+        .toString();
+
+      const result = await this.aleoClient.getProgramMappingValue(
+        'token_registry.aleo',
+        'authorized_balances',
+        balanceKey,
+      );
+
+      if (result === null) {
+        return 0n;
+      }
+
+      return Plaintext.fromString(result).toObject()['balance'];
+    }
+
     const balance = await this.aleoClient.getPublicBalance(req.address);
     return BigInt(balance);
   }

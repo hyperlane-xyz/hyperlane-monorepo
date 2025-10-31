@@ -17,7 +17,7 @@ const PROTOCOL_TO_ADDRESS: Record<ProtocolType, Address> = {
   [ProtocolType.Radix]:
     'account_sim0000000000000000000000000000000000000000000000000000000',
   [ProtocolType.Aleo]:
-    'aleo00000000000000000000000000000000000000000000000000000000000',
+    'aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc',
 };
 
 const PROTOCOL_TO_TX_HASH: Partial<Record<ProtocolType, Address>> = {
