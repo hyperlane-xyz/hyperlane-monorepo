@@ -8,6 +8,7 @@ import {
 
 import { AltVM, assert, ensure0x } from '@hyperlane-xyz/utils';
 
+import { getMessageKey } from '../utils/helper.js';
 import { AleoTransaction } from '../utils/types.js';
 
 export class AleoProvider implements AltVM.IProvider {
@@ -123,10 +124,23 @@ export class AleoProvider implements AltVM.IProvider {
     };
   }
 
-  async isMessageDelivered(
-    _req: AltVM.ReqIsMessageDelivered,
-  ): Promise<boolean> {
-    throw new Error(`TODO: implement`);
+  async isMessageDelivered(req: AltVM.ReqIsMessageDelivered): Promise<boolean> {
+    try {
+      // Message key needs to be separated into [u128, u128] using Little Endian.
+      const messageKey = getMessageKey(req.messageId);
+
+      const res = await this.aleoClient.getProgramMappingPlaintext(
+        'mailbox.aleo',
+        'deliveries',
+        `{ id: [ ${messageKey[0].toString()}, ${messageKey[1].toString()} ]}`,
+      );
+
+      const obj = res.toObject();
+
+      return Boolean(obj.processor && obj.block_number);
+    } catch {
+      return false;
+    }
   }
 
   async getIsmType(req: AltVM.ReqGetIsmType): Promise<AltVM.IsmType> {
@@ -141,8 +155,18 @@ export class AleoProvider implements AltVM.IProvider {
       throw new Error(`Found no ISM for address: ${req.ismAddress}`);
     }
 
-    // TODO: Switch ISM type
-    return res.toObject();
+    switch (res.toObject()) {
+      case 0:
+        return AltVM.IsmType.TEST_ISM;
+      case 1:
+        return AltVM.IsmType.ROUTING;
+      case 4:
+        return AltVM.IsmType.MERKLE_ROOT_MULTISIG;
+      case 5:
+        return AltVM.IsmType.MESSAGE_ID_MULTISIG;
+      default:
+        throw new Error(`Unknown ISM ModuleType: ${req.ismAddress}`);
+    }
   }
 
   async getMessageIdMultisigIsm(
@@ -184,7 +208,7 @@ export class AleoProvider implements AltVM.IProvider {
   }
 
   async getNoopIsm(_req: AltVM.ReqNoopIsm): Promise<AltVM.ResNoopIsm> {
-    throw new Error(`TODO: implement`);
+    throw new Error(`NoopIsm is currently not supported on Aleo`);
   }
 
   async getHookType(req: AltVM.ReqGetHookType): Promise<AltVM.HookType> {
@@ -196,7 +220,7 @@ export class AleoProvider implements AltVM.IProvider {
         req.hookAddress,
       );
     } catch {
-      throw new Error(`Found no ISM for address: ${req.hookAddress}`);
+      throw new Error(`Found no Hook for address: ${req.hookAddress}`);
     }
 
     // TODO: Switch Hook type
