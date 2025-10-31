@@ -7,6 +7,7 @@ import {
   ChainName,
   HyperlaneSmartProvider,
   ProviderRetryOptions,
+  safeApiKeyRequired,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
@@ -18,6 +19,7 @@ import {
 
 import { getChain, getRegistryWithOverrides } from '../../config/registry.js';
 import { getSecretRpcEndpoints } from '../agents/index.js';
+import { getSafeApiKey } from '../utils/safe.js';
 
 import { DeployEnvironment } from './environment.js';
 
@@ -171,6 +173,9 @@ export async function getSecretMetadataOverrides(
 ): Promise<ChainMap<Partial<ChainMetadata>>> {
   const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {};
 
+  // Fetch Safe API key once
+  const safeApiKey = await getSafeApiKey();
+
   const secretRpcUrls = await Promise.all(
     chains.map(async (chain) => {
       const rpcUrls = await getSecretRpcEndpoints(deployEnv, chain);
@@ -192,6 +197,13 @@ export async function getSecretMetadataOverrides(
     chainMetadataOverrides[chain] = {
       rpcUrls: metadataRpcUrls,
     };
+
+    // Add Safe API key if required
+    const chainMetadata = getChain(chain);
+    const txServiceUrl = chainMetadata.gnosisSafeTransactionServiceUrl;
+    if (txServiceUrl && safeApiKeyRequired(txServiceUrl)) {
+      chainMetadataOverrides[chain].gnosisSafeApiKey = safeApiKey;
+    }
   }
 
   return chainMetadataOverrides;

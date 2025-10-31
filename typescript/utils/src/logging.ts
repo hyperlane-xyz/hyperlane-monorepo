@@ -130,6 +130,9 @@ export function ethersBigNumberSerializer(key: string, value: any): any {
   ) {
     return BigNumber.from(value.hex).toString();
   }
+  if (typeof value === 'bigint') {
+    return value.toString();
+  }
   return value;
 }
 
