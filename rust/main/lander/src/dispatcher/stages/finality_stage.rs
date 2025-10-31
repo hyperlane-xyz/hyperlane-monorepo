@@ -204,15 +204,12 @@ impl FinalityStage {
         use PayloadDropReason::Reverted;
         use PayloadStatus::Dropped;
 
-        tracing::debug!("Checking reverted payloads");
-
         let reverted_payloads = call_until_success_or_nonretryable_error(
             || state.adapter.reverted_payloads(tx),
             "Checking reverted payloads",
             state,
         )
         .await?;
-
         state
             .update_status_for_payloads(&reverted_payloads, Dropped(Reverted))
             .await;
