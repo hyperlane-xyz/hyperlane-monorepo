@@ -131,27 +131,67 @@ export class AleoSigner
   }
 
   async setDefaultIsm(
-    _req: Omit<AltVM.ReqSetDefaultIsm, 'signer'>,
+    req: Omit<AltVM.ReqSetDefaultIsm, 'signer'>,
   ): Promise<AltVM.ResSetDefaultIsm> {
-    throw new Error(`TODO: implement`);
+    const tx = await this.getSetDefaultIsmTransaction({
+      signer: this.getSignerAddress(),
+      ...req,
+    });
+
+    const txId = await this.programManager.execute(tx);
+    await this.aleoClient.waitForTransactionConfirmation(txId);
+
+    return {
+      ismAddress: req.ismAddress,
+    };
   }
 
   async setDefaultHook(
-    _req: Omit<AltVM.ReqSetDefaultHook, 'signer'>,
+    req: Omit<AltVM.ReqSetDefaultHook, 'signer'>,
   ): Promise<AltVM.ResSetDefaultHook> {
-    throw new Error(`TODO: implement`);
+    const tx = await this.getSetDefaultHookTransaction({
+      signer: this.getSignerAddress(),
+      ...req,
+    });
+
+    const txId = await this.programManager.execute(tx);
+    await this.aleoClient.waitForTransactionConfirmation(txId);
+
+    return {
+      hookAddress: req.hookAddress,
+    };
   }
 
   async setRequiredHook(
-    _req: Omit<AltVM.ReqSetRequiredHook, 'signer'>,
+    req: Omit<AltVM.ReqSetRequiredHook, 'signer'>,
   ): Promise<AltVM.ResSetRequiredHook> {
-    throw new Error(`TODO: implement`);
+    const tx = await this.getSetRequiredHookTransaction({
+      signer: this.getSignerAddress(),
+      ...req,
+    });
+
+    const txId = await this.programManager.execute(tx);
+    await this.aleoClient.waitForTransactionConfirmation(txId);
+
+    return {
+      hookAddress: req.hookAddress,
+    };
   }
 
   async setMailboxOwner(
-    _req: Omit<AltVM.ReqSetMailboxOwner, 'signer'>,
+    req: Omit<AltVM.ReqSetMailboxOwner, 'signer'>,
   ): Promise<AltVM.ResSetMailboxOwner> {
-    throw new Error(`TODO: implement`);
+    const tx = await this.getSetMailboxOwnerTransaction({
+      signer: this.getSignerAddress(),
+      ...req,
+    });
+
+    const txId = await this.programManager.execute(tx);
+    await this.aleoClient.waitForTransactionConfirmation(txId);
+
+    return {
+      newOwner: req.newOwner,
+    };
   }
 
   async createMerkleRootMultisigIsm(

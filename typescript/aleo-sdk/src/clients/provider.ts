@@ -307,27 +307,51 @@ export class AleoProvider implements AltVM.IProvider {
   }
 
   async getSetDefaultIsmTransaction(
-    _req: AltVM.ReqSetDefaultIsm,
+    req: AltVM.ReqSetDefaultIsm,
   ): Promise<AleoTransaction> {
-    throw new Error(`TODO: implement`);
+    return {
+      programName: 'mailbox.aleo',
+      functionName: 'set_default_ism',
+      priorityFee: 0,
+      privateFee: false,
+      inputs: [req.ismAddress],
+    };
   }
 
   async getSetDefaultHookTransaction(
-    _req: AltVM.ReqSetDefaultHook,
+    req: AltVM.ReqSetDefaultHook,
   ): Promise<AleoTransaction> {
-    throw new Error(`TODO: implement`);
+    return {
+      programName: 'mailbox.aleo',
+      functionName: 'set_default_hook',
+      priorityFee: 0,
+      privateFee: false,
+      inputs: [req.hookAddress],
+    };
   }
 
   async getSetRequiredHookTransaction(
-    _req: AltVM.ReqSetRequiredHook,
+    req: AltVM.ReqSetRequiredHook,
   ): Promise<AleoTransaction> {
-    throw new Error(`TODO: implement`);
+    return {
+      programName: 'mailbox.aleo',
+      functionName: 'set_required_hook',
+      priorityFee: 0,
+      privateFee: false,
+      inputs: [req.hookAddress],
+    };
   }
 
   async getSetMailboxOwnerTransaction(
-    _req: AltVM.ReqSetMailboxOwner,
+    req: AltVM.ReqSetMailboxOwner,
   ): Promise<AleoTransaction> {
-    throw new Error(`TODO: implement`);
+    return {
+      programName: 'mailbox.aleo',
+      functionName: 'set_owner',
+      priorityFee: 0,
+      privateFee: false,
+      inputs: [req.newOwner],
+    };
   }
 
   async getCreateMerkleRootMultisigIsmTransaction(
