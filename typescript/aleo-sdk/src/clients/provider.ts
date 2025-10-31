@@ -1,7 +1,6 @@
 import { Account, AleoNetworkClient, ProgramManager } from '@provablehq/sdk';
-import { ethers } from 'ethers';
 
-import { AltVM, assert } from '@hyperlane-xyz/utils';
+import { AltVM, assert, ensure0x } from '@hyperlane-xyz/utils';
 
 import { AleoTransaction } from '../utils/types.js';
 
@@ -136,9 +135,7 @@ export class AleoProvider implements AltVM.IProvider {
 
     const validatorsHex: string[] = [];
     validators.forEach((v: any) => {
-      validatorsHex.push(
-        ethers.utils.getAddress(ethers.utils.hexlify(new Uint8Array(v.bytes))),
-      );
+      validatorsHex.push(ensure0x(Buffer.from(v.bytes).toString('hex')));
     });
 
     return {
