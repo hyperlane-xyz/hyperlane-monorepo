@@ -1,10 +1,13 @@
 import {
-  DataRequestBuilder,
-  generateRolaChallenge,
-} from '@radixdlt/radix-dapp-toolkit';
+  DecryptPermission,
+  Transaction,
+  WalletAdapterNetwork,
+  WalletNotConnectedError,
+} from '@demox-labs/aleo-wallet-adapter-base';
+import { useWallet } from '@demox-labs/aleo-wallet-adapter-react';
 import { useCallback, useMemo } from 'react';
 
-import { RadixSDKTransaction } from '@hyperlane-xyz/radix-sdk';
+import { AleoTransaction as AleoSDKTransaction } from '@hyperlane-xyz/aleo-sdk';
 import {
   ChainName,
   IToken,
@@ -13,12 +16,8 @@ import {
   TypedTransactionReceipt,
   WarpTypedTransaction,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert, retryAsync } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
-import { useAccount } from './radix/AccountContext.js';
-import { usePopup } from './radix/RadixProviders.js';
-import { useGatewayApi } from './radix/hooks/useGatewayApi.js';
-import { useRdt } from './radix/hooks/useRdt.js';
 import {
   AccountInfo,
   ActiveChainInfo,
@@ -31,22 +30,25 @@ import {
 export function useAleoAccount(
   _multiProvider: MultiProtocolProvider,
 ): AccountInfo {
-  const { accounts } = useAccount();
+  const { publicKey } = useWallet();
 
   return {
-    protocol: ProtocolType.Radix,
-    addresses: accounts.map((account) => ({
-      address: account.address,
-    })),
-    publicKey: undefined, // we don't need the public key for radix
-    isReady: !!accounts.length,
+    protocol: ProtocolType.Aleo,
+    addresses: [
+      {
+        address: publicKey || '',
+        chainName: 'Aleo',
+      },
+    ],
+    publicKey: undefined, // we don't need the public key for aleo
+    isReady: !!publicKey,
   };
 }
 
 export function useAleoWalletDetails() {
-  const name = 'Radix Wallet';
+  const name = 'Leo Wallet';
   const logoUrl =
-    'https://raw.githubusercontent.com/radixdlt/radix-dapp-toolkit/refs/heads/main/docs/radix-logo.png';
+    'https://cdn.prod.website-files.com/6559a97a91ac8fe073763dc8/656ef23110a6ecf0a7e2cf64_logo.svg';
 
   return useMemo<WalletDetails>(
     () => ({
@@ -58,56 +60,23 @@ export function useAleoWalletDetails() {
 }
 
 export function useAleoConnectFn(): () => void {
-  const rdt = useRdt();
-  assert(rdt, `radix dapp toolkit not defined`);
+  const { connect } = useWallet();
 
-  const popUp = usePopup();
-  assert(popUp, `radix wallet popup not defined`);
-
-  const { setAccounts } = useAccount();
-
-  rdt.walletApi.provideChallengeGenerator(async () => {
-    return generateRolaChallenge();
-  });
-
-  const connect = async () => {
-    popUp.setShowPopUp(true);
-
-    rdt.walletApi.setRequestData(
-      DataRequestBuilder.accounts().exactly(1).reset(),
-    );
-    const result = await rdt.walletApi.sendRequest();
-    if (result.isOk()) {
-      setAccounts(
-        result.value.accounts.map((p) => ({
-          address: p.address,
-        })),
-      );
-    }
-    popUp.setShowPopUp(false);
+  return () => {
+    connect(DecryptPermission.NoDecrypt, WalletAdapterNetwork.MainnetBeta);
   };
-
-  return connect;
 }
 
 export function useAleoDisconnectFn(): () => Promise<void> {
-  const rdt = useRdt();
-  assert(rdt, `radix dapp toolkit not defined`);
+  const { disconnect } = useWallet();
 
-  const { setAccounts } = useAccount();
-
-  const safeDisconnect = async () => {
-    rdt.disconnect();
-    setAccounts([]);
-  };
-
-  return safeDisconnect;
+  return disconnect;
 }
 
 export function useAleoActiveChain(
   _multiProvider: MultiProtocolProvider,
 ): ActiveChainInfo {
-  // Radix doesn't has the concept of an active chain
+  // Aleo doesn't has the concept of an active chain
   return useMemo(() => ({}) as ActiveChainInfo, []);
 }
 
@@ -118,9 +87,9 @@ export function useAleoSwitchNetwork(
     async (chainName: ChainName) => {
       const displayName =
         multiProvider.getChainMetadata(chainName).displayName || chainName;
-      // Radix does not have switch capability
+      // Aleo does not have switch capability
       throw new Error(
-        `Radix wallet must be connected to origin chain ${displayName}`,
+        `Aleo wallet must be connected to origin chain ${displayName}`,
       );
     },
     [multiProvider],
@@ -134,7 +103,7 @@ export function useAleoWatchAsset(
 ): WatchAssetFns {
   const onAddAsset = useCallback(
     async (_token: IToken, _activeChainName: ChainName) => {
-      throw new Error('Watch asset not available for Radix');
+      throw new Error('Watch asset not available for Aleo');
     },
     [],
   );
@@ -145,8 +114,7 @@ export function useAleoWatchAsset(
 export function useAleoTransactionFns(
   multiProvider: MultiProtocolProvider,
 ): ChainTransactionFns {
-  const rdt = useRdt();
-  const gatewayApi = useGatewayApi();
+  const { publicKey, requestTransaction, transactionStatus } = useWallet();
   const { switchNetwork } = useAleoSwitchNetwork(multiProvider);
 
   const onSendTx = useCallback(
@@ -159,48 +127,36 @@ export function useAleoTransactionFns(
       chainName: ChainName;
       activeChainName?: ChainName;
     }) => {
-      assert(rdt, `radix dapp toolkit is not defined`);
-      assert(gatewayApi, `gateway api is not defined`);
+      if (!publicKey) throw new WalletNotConnectedError();
 
-      const transaction = tx.transaction as RadixSDKTransaction;
-      assert(
-        typeof transaction.manifest === 'string',
-        `transaction manifests needs to be a string`,
+      const transaction = tx.transaction as AleoSDKTransaction;
+
+      const aleoTransaction = Transaction.createTransaction(
+        publicKey,
+        WalletAdapterNetwork.MainnetBeta,
+        transaction.programName,
+        transaction.functionName,
+        transaction.inputs,
+        transaction.priorityFee,
+        transaction.privateFee,
       );
 
-      const transactionResult = await rdt.walletApi.sendTransaction({
-        transactionManifest: transaction.manifest,
-        version: 1,
-      });
-
-      if (transactionResult.isErr()) {
-        throw transactionResult.error;
-      }
+      assert(requestTransaction, `requestTransaction not defined`);
+      const transactionId = await requestTransaction(aleoTransaction);
 
       const confirm = async (): Promise<TypedTransactionReceipt> => {
-        assert(
-          transactionResult.isOk(),
-          `Radix tx failed: ${transactionResult}`,
-        );
-
-        const receipt = await retryAsync(
-          () =>
-            gatewayApi.transaction.getCommittedDetails(
-              transactionResult.value.transactionIntentHash,
-            ),
-          5,
-          5000,
-        );
+        assert(transactionStatus, `transactionStatus not defined`);
+        const status = await transactionStatus(transactionId);
+        console.log('status', status);
 
         return {
-          type: tx.type as ProviderType.Radix,
+          type: tx.type as ProviderType.Aleo,
           receipt: {
-            ...receipt,
-            transactionHash: transactionResult.value.transactionIntentHash,
-          },
+            transactionHash: '',
+          } as any,
         };
       };
-      return { hash: transactionResult.value.transactionIntentHash, confirm };
+      return { hash: '', confirm };
     },
     [switchNetwork],
   );
@@ -215,7 +171,7 @@ export function useAleoTransactionFns(
       chainName: ChainName;
       activeChainName?: ChainName;
     }) => {
-      throw new Error('Multi Transactions not supported on Radix');
+      throw new Error('Multi Transactions not supported on Aleo');
     },
     [],
   );

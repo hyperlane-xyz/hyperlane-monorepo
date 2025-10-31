@@ -115,7 +115,7 @@ export class AleoSigner
 
       // const fee = await ProgramManagerBase.estimateDeploymentFee(program.toString());
       // console.log(`estimated fee ${fee} for program ${program.id()}`);
-      const fee = '20543910';
+      const fee = '20.543910';
 
       console.log('deploy', program.id(), program.toString().length);
 

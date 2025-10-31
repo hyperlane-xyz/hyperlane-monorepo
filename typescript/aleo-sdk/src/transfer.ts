@@ -18,6 +18,12 @@ const main = async () => {
   const address = signer.getSignerAddress();
   console.log('signer address: ', address);
 
+  const mailboxAddress = await signer.createMailbox({
+    domainId: 1337,
+    defaultIsmAddress: '',
+  });
+  console.log('mailboxAddress', mailboxAddress);
+
   const balance = await signer.getBalance({
     address,
     denom: '',
