@@ -1,7 +1,7 @@
 {
   "name": "@hyperlane-xyz/core",
   "description": "Core solidity contracts for Hyperlane",
-  "version": "10.0.0-beta.0",
+  "version": "9.0.17",
   "dependencies": {
     "@arbitrum/nitro-contracts": "^1.2.1",
     "@chainlink/contracts-ccip": "^1.5.0",
@@ -77,8 +77,8 @@
     "coverage": "yarn fixtures && ./coverage.sh",
     "docs": "forge doc",
     "fixtures": "mkdir -p ./fixtures/aggregation ./fixtures/multisig",
-    "hardhat-esm": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only --no-warnings=ExperimentalWarning' npx hardhat --config hardhat.config.cts",
-    "hardhat-zk": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only --no-warnings=ExperimentalWarning' npx hardhat --config zk-hardhat.config.cts",
+    "hardhat-esm": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only --no-warnings=ExperimentalWarning' hardhat --config hardhat.config.cts",
+    "hardhat-zk": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only --no-warnings=ExperimentalWarning' hardhat --config zk-hardhat.config.cts",
     "prettier": "prettier --write ./contracts ./test",
     "test": "yarn version:exhaustive && yarn hardhat-esm test && yarn test:forge",
     "test:hardhat": "yarn hardhat-esm test",
