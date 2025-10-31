@@ -6,12 +6,26 @@
  */
 import { PublicKey } from '@solana/web3.js';
 import { accounts, getTransactionPda, types } from '@sqds/multisig';
+import { deserializeUnchecked } from 'borsh';
 import chalk from 'chalk';
 import fs from 'fs';
 
 import {
   ChainName,
   MultiProtocolProvider,
+  SealevelInstructionWrapper,
+  SealevelMailboxInstructionName,
+  SealevelMailboxInstructionType,
+  SealevelMailboxSetDefaultIsmInstruction,
+  SealevelMailboxSetDefaultIsmInstructionSchema,
+  SealevelMailboxTransferOwnershipInstruction,
+  SealevelMailboxTransferOwnershipInstructionSchema,
+  SealevelMultisigIsmInstructionName,
+  SealevelMultisigIsmInstructionType,
+  SealevelMultisigIsmSetValidatorsInstruction,
+  SealevelMultisigIsmSetValidatorsInstructionSchema,
+  SealevelMultisigIsmTransferOwnershipInstruction,
+  SealevelMultisigIsmTransferOwnershipInstructionSchema,
   defaultMultisigConfigs,
 } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
@@ -20,7 +34,6 @@ import { Contexts } from '../../config/contexts.js';
 import { DeployEnvironment } from '../config/environment.js';
 import {
   COMPUTE_BUDGET_PROGRAM_ID,
-  ETHEREUM_ADDRESS_SIZE,
   ErrorMessage,
   FIRST_REAL_INSTRUCTION_INDEX,
   HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE,
@@ -28,16 +41,8 @@ import {
   MAILBOX_DISCRIMINATOR_SIZE,
   MAX_SOLANA_ACCOUNTS,
   MAX_SOLANA_ACCOUNT_SIZE,
-  MAX_VALIDATORS,
-  MailboxInstructionName,
-  MailboxInstructionType,
-  MultisigIsmInstructionName,
-  MultisigIsmInstructionType,
-  OPTION_SOME_DISCRIMINATOR,
   ProgramName,
   SOLANA_PUBKEY_SIZE,
-  SOLANA_U8_SIZE,
-  SOLANA_U32_SIZE,
   SYSTEM_PROGRAM_ID,
   SvmMultisigConfigMap,
   WarningMessage,
@@ -49,8 +54,6 @@ import {
 import {
   SQUADS_ACCOUNT_DISCRIMINATORS,
   SQUADS_ACCOUNT_DISCRIMINATOR_SIZE,
-  SQUADS_DISCRIMINATOR_SIZE,
-  SQUADS_INSTRUCTION_DISCRIMINATORS,
   SquadsAccountType,
   SquadsInstructionName,
   SquadsInstructionType,
@@ -135,7 +138,7 @@ export class SquadsTransactionReader {
   }
 
   /**
-   * Read and parse a Mailbox instruction
+   * Read and parse a Mailbox instruction using Borsh schemas
    */
   private readMailboxInstruction(
     instructionData: Buffer,
@@ -148,99 +151,89 @@ export class SquadsTransactionReader {
       };
     }
 
-    // Borsh enum discriminator is u32 little-endian
+    // Read discriminator to determine instruction type
     const discriminator = instructionData.readUInt32LE(0);
 
-    switch (discriminator) {
-      // Note: Parsing not implemented for the following Mailbox instructions:
-      // - INIT (0): Init(Init)
-      // - INBOX_PROCESS (1): InboxProcess(InboxProcess)
-      // - INBOX_GET_RECIPIENT_ISM (3): InboxGetRecipientIsm(Pubkey)
-      // - OUTBOX_DISPATCH (4): OutboxDispatch(OutboxDispatch)
-      // - OUTBOX_GET_COUNT (5): OutboxGetCount
-      // - OUTBOX_GET_LATEST_CHECKPOINT (6): OutboxGetLatestCheckpoint
-      // - OUTBOX_GET_ROOT (7): OutboxGetRoot
-      // - GET_OWNER (8): GetOwner
-      // - CLAIM_PROTOCOL_FEES (10): ClaimProtocolFees
-      // - SET_PROTOCOL_FEE_CONFIG (11): SetProtocolFeeConfig(ProtocolFee)
-      case MailboxInstructionType.INBOX_SET_DEFAULT_ISM: {
-        const instructionType = MailboxInstructionName[discriminator];
-        const minLength = MAILBOX_DISCRIMINATOR_SIZE + SOLANA_PUBKEY_SIZE;
-        if (instructionData.length < minLength) {
-          return {
-            instructionType,
-            data: { error: ErrorMessage.INVALID_INSTRUCTION_LENGTH },
-            warnings: [`Invalid ${instructionType} instruction data`],
-          };
-        }
-
-        const ismPubkey = new PublicKey(
-          instructionData.subarray(
-            MAILBOX_DISCRIMINATOR_SIZE,
-            MAILBOX_DISCRIMINATOR_SIZE + SOLANA_PUBKEY_SIZE,
-          ),
-        );
-        const ismAddress = ismPubkey.toBase58();
-
-        return {
-          instructionType,
-          data: {
-            newDefaultIsm: ismAddress,
-          },
-          insight: `Set default ISM to ${ismAddress}`,
-          warnings: [],
-        };
-      }
-
-      case MailboxInstructionType.TRANSFER_OWNERSHIP: {
-        const instructionType = MailboxInstructionName[discriminator];
-        const minLength = MAILBOX_DISCRIMINATOR_SIZE + SOLANA_U8_SIZE;
-        if (instructionData.length < minLength) {
-          return {
-            instructionType,
-            data: { error: ErrorMessage.INVALID_INSTRUCTION_LENGTH },
-            warnings: [`Invalid ${instructionType} instruction data`],
-          };
-        }
-
-        const hasNewOwner =
-          instructionData[MAILBOX_DISCRIMINATOR_SIZE] ===
-          OPTION_SOME_DISCRIMINATOR;
-        const minLengthWithOwner =
-          MAILBOX_DISCRIMINATOR_SIZE + SOLANA_U8_SIZE + SOLANA_PUBKEY_SIZE;
-        if (hasNewOwner && instructionData.length >= minLengthWithOwner) {
-          const ownerOffset = MAILBOX_DISCRIMINATOR_SIZE + SOLANA_U8_SIZE;
-          const newOwner = new PublicKey(
-            instructionData.subarray(
-              ownerOffset,
-              ownerOffset + SOLANA_PUBKEY_SIZE,
-            ),
+    try {
+      switch (discriminator) {
+        // Note: Parsing not implemented for the following Mailbox instructions:
+        // - INIT (0): Init(Init)
+        // - INBOX_PROCESS (1): InboxProcess(InboxProcess)
+        // - INBOX_GET_RECIPIENT_ISM (3): InboxGetRecipientIsm(Pubkey)
+        // - OUTBOX_DISPATCH (4): OutboxDispatch(OutboxDispatch)
+        // - OUTBOX_GET_COUNT (5): OutboxGetCount
+        // - OUTBOX_GET_LATEST_CHECKPOINT (6): OutboxGetLatestCheckpoint
+        // - OUTBOX_GET_ROOT (7): OutboxGetRoot
+        // - GET_OWNER (8): GetOwner
+        // - CLAIM_PROTOCOL_FEES (10): ClaimProtocolFees
+        // - SET_PROTOCOL_FEE_CONFIG (11): SetProtocolFeeConfig(ProtocolFee)
+        case SealevelMailboxInstructionType.INBOX_SET_DEFAULT_ISM: {
+          const wrapper = deserializeUnchecked(
+            SealevelMailboxSetDefaultIsmInstructionSchema,
+            SealevelInstructionWrapper,
+            instructionData,
           );
-          const newOwnerAddress = newOwner.toBase58();
+          const instruction =
+            wrapper.data as SealevelMailboxSetDefaultIsmInstruction;
+          const ismAddress = instruction.newIsmPubkey.toBase58();
+
           return {
-            instructionType,
+            instructionType: SealevelMailboxInstructionName[discriminator],
             data: {
-              newOwner: newOwnerAddress,
+              newDefaultIsm: ismAddress,
             },
-            insight: `Transfer ownership to ${newOwnerAddress}`,
-            warnings: [WarningMessage.OWNERSHIP_TRANSFER],
+            insight: `Set default ISM to ${ismAddress}`,
+            warnings: [],
           };
         }
 
-        return {
-          instructionType,
-          data: { newOwner: null },
-          insight: 'Renounce ownership',
-          warnings: [WarningMessage.OWNERSHIP_RENUNCIATION],
-        };
-      }
+        case SealevelMailboxInstructionType.TRANSFER_OWNERSHIP: {
+          const wrapper = deserializeUnchecked(
+            SealevelMailboxTransferOwnershipInstructionSchema,
+            SealevelInstructionWrapper,
+            instructionData,
+          );
+          const instruction =
+            wrapper.data as SealevelMailboxTransferOwnershipInstruction;
 
-      default:
-        return {
-          instructionType: `Unknown (discriminator: ${discriminator})`,
-          data: { rawData: instructionData.toString('hex') },
-          warnings: [formatUnknownInstructionWarning('Mailbox', discriminator)],
-        };
+          if (instruction.newOwnerPubkey) {
+            const newOwnerAddress = instruction.newOwnerPubkey.toBase58();
+            return {
+              instructionType: SealevelMailboxInstructionName[discriminator],
+              data: {
+                newOwner: newOwnerAddress,
+              },
+              insight: `Transfer ownership to ${newOwnerAddress}`,
+              warnings: [WarningMessage.OWNERSHIP_TRANSFER],
+            };
+          }
+
+          return {
+            instructionType: SealevelMailboxInstructionName[discriminator],
+            data: { newOwner: null },
+            insight: 'Renounce ownership',
+            warnings: [WarningMessage.OWNERSHIP_RENUNCIATION],
+          };
+        }
+
+        default:
+          return {
+            instructionType: `Unknown (discriminator: ${discriminator})`,
+            data: { rawData: instructionData.toString('hex') },
+            warnings: [
+              formatUnknownInstructionWarning('Mailbox', discriminator),
+            ],
+          };
+      }
+    } catch (error) {
+      return {
+        instructionType: InstructionType.UNKNOWN,
+        data: {
+          error: `Failed to deserialize: ${error}`,
+          rawData: instructionData.toString('hex'),
+        },
+        warnings: [`Borsh deserialization failed: ${error}`],
+      };
     }
   }
 
@@ -255,13 +248,16 @@ export class SquadsTransactionReader {
   }
 
   /**
-   * Read and parse a MultisigIsm instruction
+   * Read and parse a MultisigIsm instruction using Borsh schemas
+   *
+   * Note: MultisigIsm instructions have an 8-byte program discriminator prefix
+   * that must be handled before Borsh deserialization
    */
   private readMultisigIsmInstruction(
     chain: ChainName,
     instructionData: Buffer,
   ): Partial<ParsedInstruction> {
-    const minLength = HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE + SOLANA_U8_SIZE;
+    const minLength = HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE + 1; // 8 bytes program discriminator + at least 1 byte for enum
     if (instructionData.length < minLength) {
       return {
         instructionType: InstructionType.UNKNOWN,
@@ -270,253 +266,97 @@ export class SquadsTransactionReader {
       };
     }
 
+    // Skip 8-byte program discriminator, read enum discriminator
     const discriminator = instructionData[HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE];
 
-    switch (discriminator) {
-      // Note: Parsing not implemented for the following MultisigIsm instructions:
-      // - INIT (0): Initialize
-      // - GET_OWNER (2): GetOwner
-      case MultisigIsmInstructionType.SET_VALIDATORS_AND_THRESHOLD: {
-        // SetValidatorsAndThreshold instruction format (after 8-byte program discriminator):
-        // [enum_discriminator: u8, domain: u32, validators_len: u32, validators: Vec<[u8; 20]>, threshold: u8]
-        // Note: threshold comes AFTER validators in Borsh serialization of ValidatorsAndThreshold
-        const instructionType = MultisigIsmInstructionName[discriminator];
-        let offset = HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE + SOLANA_U8_SIZE;
-
-        // Minimum: discriminator(8) + enum(1) + domain(4) + validators_len(4) + validators(0) + threshold(1) = 18
-        const minInstructionLength =
-          HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE +
-          SOLANA_U8_SIZE +
-          SOLANA_U32_SIZE +
-          SOLANA_U32_SIZE +
-          SOLANA_U8_SIZE;
-        if (instructionData.length < minInstructionLength) {
-          return {
-            instructionType,
-            data: { error: ErrorMessage.INVALID_INSTRUCTION_LENGTH },
-            warnings: [ErrorMessage.INVALID_MULTISIG_ISM_DATA],
-          };
-        }
-
-        // Read domain (4 bytes, little-endian)
-        const domain = instructionData.readUInt32LE(offset);
-        offset += SOLANA_U32_SIZE;
-
-        // Read validators length (4 bytes, little-endian)
-        const validatorsLen = instructionData.readUInt32LE(offset);
-        offset += SOLANA_U32_SIZE;
-
-        if (validatorsLen > MAX_VALIDATORS) {
-          throw new Error(
-            `Invalid validators length: ${validatorsLen} (max ${MAX_VALIDATORS})`,
-          );
-        }
-
-        // Validate we have enough data for all validators + threshold
-        // 8 (program discrim) + 1 (enum discrim) + 4 (domain) + 4 (vec len) + N*20 (validators) + 1 (threshold)
-        const expectedSize =
-          HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE +
-          SOLANA_U8_SIZE +
-          SOLANA_U32_SIZE +
-          SOLANA_U32_SIZE +
-          validatorsLen * ETHEREUM_ADDRESS_SIZE +
-          SOLANA_U8_SIZE;
-
-        if (instructionData.length < expectedSize) {
-          throw new Error(
-            `Instruction size mismatch: expected ${expectedSize}, got ${instructionData.length}`,
-          );
-        }
-
-        // Read validators (20 bytes each, H160 addresses)
-        const validators: string[] = [];
-        for (let i = 0; i < validatorsLen; i++) {
-          const validatorBytes = instructionData.subarray(
-            offset,
-            offset + ETHEREUM_ADDRESS_SIZE,
-          );
-          validators.push(`0x${validatorBytes.toString('hex')}`);
-          offset += ETHEREUM_ADDRESS_SIZE;
-        }
-
-        // Read threshold (1 byte) - comes AFTER validators in Borsh serialization
-        const threshold = instructionData[offset];
-        offset += SOLANA_U8_SIZE;
-
-        const remoteChain = this.mpp.tryGetChainName(domain);
-        const chainInfo = remoteChain
-          ? `${remoteChain} (${domain})`
-          : `${domain}`;
-
-        const insight = `Set ${validatorsLen} validator${validatorsLen > 1 ? 's' : ''} with threshold ${threshold} for ${chainInfo}`;
-
-        return {
-          instructionType,
-          data: {
-            domain,
-            threshold,
-            validatorCount: validatorsLen,
-            validators,
-          },
-          insight,
-          warnings: [],
-        };
-      }
-
-      case MultisigIsmInstructionType.TRANSFER_OWNERSHIP: {
-        const instructionType = MultisigIsmInstructionName[discriminator];
-        let offset = HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE + SOLANA_U8_SIZE;
-
-        // TransferOwnership format: [program_discriminator(8), enum_variant(1), option_tag(1), pubkey(32)?]
-        if (instructionData.length < offset + SOLANA_U8_SIZE) {
-          return {
-            instructionType,
-            data: { error: ErrorMessage.INVALID_INSTRUCTION_LENGTH },
-            warnings: [ErrorMessage.INVALID_MULTISIG_ISM_DATA],
-          };
-        }
-
-        const hasNewOwner =
-          instructionData[offset] === OPTION_SOME_DISCRIMINATOR;
-        offset += SOLANA_U8_SIZE;
-
-        const minLengthWithOwner = offset + SOLANA_PUBKEY_SIZE;
-        if (hasNewOwner && instructionData.length >= minLengthWithOwner) {
-          const newOwner = new PublicKey(
-            instructionData.subarray(offset, offset + SOLANA_PUBKEY_SIZE),
-          );
-          const newOwnerAddress = newOwner.toBase58();
-          return {
-            instructionType,
-            data: {
-              newOwner: newOwnerAddress,
-            },
-            insight: `Transfer ownership to ${newOwnerAddress}`,
-            warnings: [WarningMessage.OWNERSHIP_TRANSFER],
-          };
-        }
-
-        return {
-          instructionType,
-          data: { newOwner: null },
-          insight: `Renounce ownership`,
-          warnings: [WarningMessage.OWNERSHIP_RENUNCIATION],
-        };
-      }
-
-      default:
-        return {
-          instructionType: `Unknown (discriminator: ${discriminator})`,
-          data: { rawData: instructionData.toString('hex') },
-          warnings: [
-            formatUnknownInstructionWarning('MultisigIsm', discriminator),
-          ],
-        };
-    }
-  }
-
-  /**
-   * Read and parse a Squads V4 instruction
-   */
-  private readSquadsV4Instruction(
-    instructionData: Buffer,
-  ): Partial<ParsedInstruction> {
-    if (instructionData.length < SQUADS_DISCRIMINATOR_SIZE) {
-      return {
-        instructionType: InstructionType.UNKNOWN,
-        data: { error: ErrorMessage.INSTRUCTION_TOO_SHORT },
-        warnings: [ErrorMessage.INVALID_SQUADS_DATA],
-      };
-    }
-
-    const discriminator = instructionData.subarray(
-      0,
-      SQUADS_DISCRIMINATOR_SIZE,
+    // Prepare buffer for Borsh deserialization (skip program discriminator)
+    const borshData = instructionData.subarray(
+      HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE,
     );
 
-    let instructionEnum: SquadsInstructionType | undefined;
-    for (const [enumValue, disc] of Object.entries(
-      SQUADS_INSTRUCTION_DISCRIMINATORS,
-    )) {
-      if (discriminator.equals(disc)) {
-        instructionEnum = Number(enumValue) as SquadsInstructionType;
-        break;
-      }
-    }
+    try {
+      switch (discriminator) {
+        // Note: Parsing not implemented for the following MultisigIsm instructions:
+        // - INIT (0): Initialize
+        // - GET_OWNER (2): GetOwner
+        case SealevelMultisigIsmInstructionType.SET_VALIDATORS_AND_THRESHOLD: {
+          const wrapper = deserializeUnchecked(
+            SealevelMultisigIsmSetValidatorsInstructionSchema,
+            SealevelInstructionWrapper,
+            borshData,
+          );
+          const instruction =
+            wrapper.data as SealevelMultisigIsmSetValidatorsInstruction;
 
-    if (instructionEnum === undefined) {
+          const remoteChain = this.mpp.tryGetChainName(instruction.domain);
+          const chainInfo = remoteChain
+            ? `${remoteChain} (${instruction.domain})`
+            : `${instruction.domain}`;
+
+          const validatorCount = instruction.validators.length;
+          const insight = `Set ${validatorCount} validator${validatorCount > 1 ? 's' : ''} with threshold ${instruction.threshold} for ${chainInfo}`;
+
+          return {
+            instructionType: SealevelMultisigIsmInstructionName[discriminator],
+            data: {
+              domain: instruction.domain,
+              threshold: instruction.threshold,
+              validatorCount,
+              validators: instruction.validatorAddresses,
+            },
+            insight,
+            warnings: [],
+          };
+        }
+
+        case SealevelMultisigIsmInstructionType.TRANSFER_OWNERSHIP: {
+          const wrapper = deserializeUnchecked(
+            SealevelMultisigIsmTransferOwnershipInstructionSchema,
+            SealevelInstructionWrapper,
+            borshData,
+          );
+          const instruction =
+            wrapper.data as SealevelMultisigIsmTransferOwnershipInstruction;
+
+          if (instruction.newOwnerPubkey) {
+            const newOwnerAddress = instruction.newOwnerPubkey.toBase58();
+            return {
+              instructionType:
+                SealevelMultisigIsmInstructionName[discriminator],
+              data: {
+                newOwner: newOwnerAddress,
+              },
+              insight: `Transfer ownership to ${newOwnerAddress}`,
+              warnings: [WarningMessage.OWNERSHIP_TRANSFER],
+            };
+          }
+
+          return {
+            instructionType: SealevelMultisigIsmInstructionName[discriminator],
+            data: { newOwner: null },
+            insight: 'Renounce ownership',
+            warnings: [WarningMessage.OWNERSHIP_RENUNCIATION],
+          };
+        }
+
+        default:
+          return {
+            instructionType: `Unknown (discriminator: ${discriminator})`,
+            data: { rawData: instructionData.toString('hex') },
+            warnings: [
+              formatUnknownInstructionWarning('MultisigIsm', discriminator),
+            ],
+          };
+      }
+    } catch (error) {
       return {
         instructionType: InstructionType.UNKNOWN,
-        data: { rawData: instructionData.toString('hex') },
-        warnings: [WarningMessage.UNKNOWN_SQUADS_INSTRUCTION],
+        data: {
+          error: `Failed to deserialize: ${error}`,
+          rawData: instructionData.toString('hex'),
+        },
+        warnings: [`Borsh deserialization failed: ${error}`],
       };
-    }
-
-    const instructionType = SquadsInstructionName[instructionEnum];
-
-    switch (instructionEnum) {
-      case SquadsInstructionType.ADD_MEMBER: {
-        const memberOffset = SQUADS_DISCRIMINATOR_SIZE;
-        const newMember = new PublicKey(
-          instructionData.subarray(
-            memberOffset,
-            memberOffset + SOLANA_PUBKEY_SIZE,
-          ),
-        );
-        const permissionsMask =
-          instructionData[memberOffset + SOLANA_PUBKEY_SIZE];
-
-        return {
-          instructionType,
-          data: {
-            newMember: newMember.toBase58(),
-            permissions: { mask: permissionsMask },
-          },
-          insight: `Add member ${newMember.toBase58()}`,
-          warnings: [],
-        };
-      }
-
-      case SquadsInstructionType.REMOVE_MEMBER: {
-        const memberOffset = SQUADS_DISCRIMINATOR_SIZE;
-        const memberToRemove = new PublicKey(
-          instructionData.subarray(
-            memberOffset,
-            memberOffset + SOLANA_PUBKEY_SIZE,
-          ),
-        );
-
-        return {
-          instructionType,
-          data: {
-            memberToRemove: memberToRemove.toBase58(),
-          },
-          insight: `Remove member ${memberToRemove.toBase58()}`,
-          warnings: [],
-        };
-      }
-
-      case SquadsInstructionType.CHANGE_THRESHOLD: {
-        const newThreshold = instructionData.readUInt16LE(
-          SQUADS_DISCRIMINATOR_SIZE,
-        );
-
-        return {
-          instructionType,
-          data: {
-            newThreshold,
-          },
-          insight: `Change threshold to ${newThreshold}`,
-          warnings: [],
-        };
-      }
-
-      default:
-        return {
-          instructionType: InstructionType.UNKNOWN,
-          data: { rawData: instructionData.toString('hex') },
-          warnings: [WarningMessage.UNKNOWN_SQUADS_INSTRUCTION],
-        };
     }
   }
 
@@ -1141,8 +981,8 @@ export class SquadsTransactionReader {
 
     // Add args for important instructions
     switch (inst.instructionType) {
-      case MultisigIsmInstructionName[
-        MultisigIsmInstructionType.SET_VALIDATORS_AND_THRESHOLD
+      case SealevelMultisigIsmInstructionName[
+        SealevelMultisigIsmInstructionType.SET_VALIDATORS_AND_THRESHOLD
       ]: {
         // Get remote chain for aliases
         const remoteChain = this.mpp.tryGetChainName(inst.data.domain);
@@ -1185,8 +1025,8 @@ export class SquadsTransactionReader {
         break;
       }
 
-      case MailboxInstructionName[
-        MailboxInstructionType.INBOX_SET_DEFAULT_ISM
+      case SealevelMailboxInstructionName[
+        SealevelMailboxInstructionType.INBOX_SET_DEFAULT_ISM
       ]: {
         tx.args = {
           module: inst.data.newDefaultIsm,
@@ -1194,9 +1034,11 @@ export class SquadsTransactionReader {
         break;
       }
 
-      case MailboxInstructionName[MailboxInstructionType.TRANSFER_OWNERSHIP]:
-      case MultisigIsmInstructionName[
-        MultisigIsmInstructionType.TRANSFER_OWNERSHIP
+      case SealevelMailboxInstructionName[
+        SealevelMailboxInstructionType.TRANSFER_OWNERSHIP
+      ]:
+      case SealevelMultisigIsmInstructionName[
+        SealevelMultisigIsmInstructionType.TRANSFER_OWNERSHIP
       ]: {
         tx.args = {
           newOwner: inst.data.newOwner || null,
