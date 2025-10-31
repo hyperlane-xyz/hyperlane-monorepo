@@ -38,24 +38,18 @@ pub async fn get_tx_hash_status(
     hash: hyperlane_core::H512,
     reorg_period: &EthereumReorgPeriod,
 ) -> Result<TransactionStatus, LanderError> {
-    let receipt = provider
-        .get_transaction_receipt(hash.into())
-        .await
-        .map_err(|err| LanderError::TxHashNotFound(err.to_string()))?
-        .ok_or_else(|| LanderError::TxHashNotFound("Transaction not found".to_string()))?;
-
-    tracing::debug!(?receipt, "tx receipt");
-    match receipt.status.as_ref().map(|s| s.as_u64()) {
-        // https://eips.ethereum.org/EIPS/eip-658
-        Some(0) => Ok(TransactionStatus::Dropped(
-            TransactionDropReason::RevertedByChain,
+    match provider.get_transaction_receipt(hash.into()).await {
+        Ok(None) => Err(LanderError::TxHashNotFound(
+            "Transaction not found".to_string(),
         )),
-        _ => {
-            let res =
+        Ok(Some(receipt)) => {
+            tracing::debug!(?receipt, "tx receipt");
+            Ok(
                 block_number_result_to_tx_status(provider, receipt.block_number, reorg_period)
-                    .await;
-            Ok(res)
+                    .await,
+            )
         }
+        Err(err) => Err(LanderError::TxHashNotFound(err.to_string())),
     }
 }
 
@@ -104,6 +98,7 @@ mod tests {
                 .unwrap();
 
         let mock_provider = MockProvider::new();
+        let _ = mock_provider.push(U64::from(23328000u64));
 
         let tx_receipt = test_tx_receipt(transaction_hash, Some(U64::from(0)));
         let _ = mock_provider.push(tx_receipt);
@@ -118,10 +113,7 @@ mod tests {
         let tx_status = get_tx_hash_status(&evm_provider, transaction_hash.into(), &reorg_period)
             .await
             .unwrap();
-        assert_eq!(
-            tx_status,
-            TransactionStatus::Dropped(TransactionDropReason::RevertedByChain)
-        );
+        assert_eq!(tx_status, TransactionStatus::Finalized);
     }
 
     #[tokio::test]

@@ -46,6 +46,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { BaseEvmAdapter } from '../../app/MultiProtocolApp.js';
+import { UIN256_MAX_VALUE } from '../../consts/numbers.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import { ChainName } from '../../types.js';
 import { isValidContractVersion } from '../../utils/contract.js';
@@ -567,9 +568,23 @@ export class EvmHypCollateralFiatAdapter
       wrappedToken,
       this.getProvider(),
     );
-    const limit = await fiatToken.minterAllowance(this.addresses.token);
 
-    return limit.toBigInt();
+    const isMinter = await fiatToken.isMinter(this.addresses.token);
+    if (!isMinter) {
+      return 0n;
+    }
+
+    // if the minterAllowance call fails it probably is because the underlying
+    // mintable contract does not define the method and instead does not restrict
+    // minting for allowed contracts
+    // example: https://etherscan.io/token/0x6468e79A80C0eaB0F9A2B574c8d5bC374Af59414#readContract
+    try {
+      const limit = await fiatToken.minterAllowance(this.addresses.token);
+
+      return limit.toBigInt();
+    } catch {
+      return UIN256_MAX_VALUE;
+    }
   }
 }
 
