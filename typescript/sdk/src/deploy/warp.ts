@@ -1,9 +1,14 @@
 import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
-import { AltVMIsmModule } from '@hyperlane-xyz/deploy-sdk';
+import {
+  AltVMDeployer,
+  AltVMIsmModule,
+  AltVMWarpModule,
+} from '@hyperlane-xyz/deploy-sdk';
 import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { IsmConfig as ProviderIsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
+import { WarpConfig as ProviderWarpConfig } from '@hyperlane-xyz/provider-sdk/warp';
 import {
   Address,
   addressToBytes32,
@@ -30,9 +35,7 @@ import { altVmChainLookup } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { TypedAnnotatedTransaction } from '../providers/ProviderType.js';
 import { DestinationGas, RemoteRouters } from '../router/types.js';
-import { AltVMWarpModule } from '../token/AltVMWarpModule.js';
 import { EvmERC20WarpModule } from '../token/EvmERC20WarpModule.js';
-import { AltVMDeployer } from '../token/altVMDeploy.js';
 import { gasOverhead } from '../token/config.js';
 import { HypERC20Factories, hypERC20factories } from '../token/contracts.js';
 import { HypERC20Deployer, HypERC721Deployer } from '../token/deploy.js';
@@ -144,7 +147,9 @@ export async function executeWarpDeploy(
         const deployer = new AltVMDeployer(signersMap);
         deployedContracts = {
           ...deployedContracts,
-          ...(await deployer.deploy(protocolSpecificConfig)),
+          ...(await deployer.deploy(
+            protocolSpecificConfig as Record<string, ProviderWarpConfig>,
+          )),
         };
 
         break;
@@ -461,7 +466,7 @@ export async function enrollCrossChainRouters(
           signer,
           {
             chain: currentChain,
-            config: resolvedConfigMap[currentChain],
+            config: resolvedConfigMap[currentChain] as ProviderWarpConfig,
             addresses: {
               deployedTokenRoute: deployedContracts[currentChain],
             },
@@ -475,7 +480,9 @@ export async function enrollCrossChainRouters(
           destinationGas,
         };
 
-        const transactions = await warpModule.update(expectedConfig);
+        const transactions = await warpModule.update(
+          expectedConfig as ProviderWarpConfig,
+        );
 
         if (transactions.length) {
           updateTransactions[currentChain] = transactions;

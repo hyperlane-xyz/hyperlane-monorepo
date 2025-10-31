@@ -1,9 +1,6 @@
-import { Logger } from 'pino';
-import { zeroAddress } from 'viem';
-
-import { AltVMIsmModule } from '@hyperlane-xyz/deploy-sdk';
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { DerivedIsmConfig, IsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
+import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
+import { DerivedIsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
 import {
   AnnotatedTx,
   HypModule,
@@ -11,42 +8,37 @@ import {
   TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
 import {
+  DerivedWarpConfig,
+  WarpConfig,
+} from '@hyperlane-xyz/provider-sdk/warp';
+import {
   Address,
   addressToBytes32,
   assert,
+  isZeroishAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { ChainLookup } from '../altvm.js';
-import { ChainName } from '../types.js';
-
+import { AltVMIsmModule } from './AltVMIsmModule.js';
+import { AltVMDeployer } from './AltVMWarpDeployer.js';
 import { AltVMWarpRouteReader } from './AltVMWarpRouteReader.js';
-import { AltVMDeployer } from './altVMDeploy.js';
-import {
-  DerivedTokenRouterConfig,
-  HypTokenRouterConfig,
-  HypTokenRouterConfigSchema,
-} from './types.js';
 
 type WarpRouteAddresses = {
   deployedTokenRoute: Address;
 };
 
 export class AltVMWarpModule
-  implements HypModule<HypTokenRouterConfig, WarpRouteAddresses>
+  implements HypModule<WarpConfig, WarpRouteAddresses>
 {
-  protected logger: Logger;
+  protected logger: ReturnType<typeof rootLogger.child<never>>;
 
   reader: AltVMWarpRouteReader;
-  public readonly chainName: ChainName;
+  public readonly chainName: string;
 
   constructor(
     protected readonly chainLookup: ChainLookup,
     protected readonly signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
-    private readonly args: HypModuleArgs<
-      HypTokenRouterConfig,
-      WarpRouteAddresses
-    >,
+    private readonly args: HypModuleArgs<WarpConfig, WarpRouteAddresses>,
   ) {
     const metadata = chainLookup.getChainMetadata(args.chain);
     this.chainName = metadata.name;
@@ -64,7 +56,7 @@ export class AltVMWarpModule
    * @param address - The address to derive the token router configuration from.
    * @returns A promise that resolves to the token router configuration.
    */
-  async read(): Promise<DerivedTokenRouterConfig> {
+  async read(): Promise<DerivedWarpConfig> {
     return this.reader.deriveWarpRouteConfig(
       this.args.addresses.deployedTokenRoute,
     );
@@ -80,8 +72,7 @@ export class AltVMWarpModule
    * @param expectedConfig - The configuration for the token router to be updated.
    * @returns An array of transactions that were executed to update the contract, or an error if the update failed.
    */
-  async update(expectedConfig: HypTokenRouterConfig): Promise<AnnotatedTx[]> {
-    HypTokenRouterConfigSchema.parse(expectedConfig);
+  async update(expectedConfig: WarpConfig): Promise<AnnotatedTx[]> {
     const actualConfig = await this.read();
 
     const transactions = [];
@@ -109,8 +100,8 @@ export class AltVMWarpModule
    * @returns An array with transactions that need to be executed to enroll the routers
    */
   async createRemoteRouterUpdateTxs(
-    actualConfig: DerivedTokenRouterConfig,
-    expectedConfig: HypTokenRouterConfig,
+    actualConfig: DerivedWarpConfig,
+    expectedConfig: WarpConfig,
   ): Promise<AnnotatedTx[]> {
     this.logger.debug(`Start creating remote router update transactions`);
 
@@ -244,8 +235,8 @@ export class AltVMWarpModule
    * @returns transaction that need to be executed to update the ISM configuration.
    */
   async createIsmUpdateTxs(
-    actualConfig: DerivedTokenRouterConfig,
-    expectedConfig: HypTokenRouterConfig,
+    actualConfig: DerivedWarpConfig,
+    expectedConfig: WarpConfig,
   ): Promise<AnnotatedTx[]> {
     this.logger.debug(`Start creating token ISM update transactions`);
 
@@ -263,7 +254,8 @@ export class AltVMWarpModule
 
     if (
       !expectedConfig.interchainSecurityModule ||
-      expectedConfig.interchainSecurityModule === zeroAddress
+      (typeof expectedConfig.interchainSecurityModule === 'string' &&
+        isZeroishAddress(expectedConfig.interchainSecurityModule))
     ) {
       this.logger.debug(`Token ISM config is empty. No updates needed.`);
       return updateTransactions;
@@ -309,8 +301,8 @@ export class AltVMWarpModule
    * @returns transaction that need to be executed to update the owner.
    */
   async createOwnershipUpdateTxs(
-    actualConfig: DerivedTokenRouterConfig,
-    expectedConfig: HypTokenRouterConfig,
+    actualConfig: DerivedWarpConfig,
+    expectedConfig: WarpConfig,
   ): Promise<AnnotatedTx[]> {
     this.logger.debug(`Start creating token owner update transactions`);
 
@@ -341,8 +333,8 @@ export class AltVMWarpModule
    * @returns Object with deployedIsm address, and update Transactions
    */
   async deployOrUpdateIsm(
-    actualConfig: DerivedTokenRouterConfig,
-    expectedConfig: HypTokenRouterConfig,
+    actualConfig: DerivedWarpConfig,
+    expectedConfig: WarpConfig,
   ): Promise<{
     deployedIsm: Address;
     updateTransactions: AnnotatedTx[];
@@ -356,7 +348,7 @@ export class AltVMWarpModule
       {
         chain: this.args.chain,
         // FIXME: not all ISM types are supported yet
-        config: expectedConfig.interchainSecurityModule as IsmConfig | string,
+        config: expectedConfig.interchainSecurityModule,
         addresses: {
           ...this.args.addresses,
           mailbox: expectedConfig.mailbox,
@@ -372,7 +364,7 @@ export class AltVMWarpModule
     );
     const updateTransactions = await ismModule.update(
       // FIXME: not all ISM types are supported yet
-      expectedConfig.interchainSecurityModule as IsmConfig | string,
+      expectedConfig.interchainSecurityModule,
     );
     const { deployedIsm } = ismModule.serialize();
 
@@ -390,7 +382,7 @@ export class AltVMWarpModule
    */
   static async create(params: {
     chain: string;
-    config: HypTokenRouterConfig;
+    config: WarpConfig;
     chainLookup: ChainLookup;
     signer: AltVM.ISigner<AnnotatedTx, TxReceipt>;
   }): Promise<AltVMWarpModule> {

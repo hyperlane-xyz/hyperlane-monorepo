@@ -1,5 +1,3 @@
-import { zeroAddress } from 'viem';
-
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
@@ -18,6 +16,7 @@ import {
   Address,
   assert,
   deepEquals,
+  isZeroishAddress,
   normalizeConfig,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -64,7 +63,7 @@ export class AltVMHookModule
   public async update(
     targetConfig: HookConfig | Address,
   ): Promise<AnnotatedTx[]> {
-    if (targetConfig === zeroAddress) {
+    if (typeof targetConfig === 'string' && isZeroishAddress(targetConfig)) {
       return Promise.resolve([]);
     }
 
