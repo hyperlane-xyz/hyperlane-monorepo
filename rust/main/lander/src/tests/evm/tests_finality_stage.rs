@@ -101,7 +101,6 @@ async fn test_tx_finalized_but_failed() {
             .await
             .unwrap()
             .unwrap();
-        eprintln!("{:?}", payload.status);
         assert!(
             matches!(
                 payload.status,

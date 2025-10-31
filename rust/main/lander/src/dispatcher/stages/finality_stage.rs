@@ -213,7 +213,6 @@ impl FinalityStage {
         )
         .await?;
 
-        eprintln!("Reverted: {:?}", reverted_payloads);
         state
             .update_status_for_payloads(&reverted_payloads, Dropped(Reverted))
             .await;
