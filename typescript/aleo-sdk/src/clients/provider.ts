@@ -15,6 +15,7 @@ import { AleoTransaction } from '../utils/types.js';
 // TODO: add remove destination gas config method in AltVM
 // TODO: only allow domainId in createMailox in AltVM
 // TODO: add createNoopHook method in AltVM
+// TODO: add getTokenMetadata method in AltVM
 
 export class AleoProvider implements AltVM.IProvider {
   protected readonly aleoClient: AleoNetworkClient;
@@ -76,8 +77,22 @@ export class AleoProvider implements AltVM.IProvider {
     return BigInt(balance);
   }
 
-  async getTotalSupply(_req: AltVM.ReqGetTotalSupply): Promise<bigint> {
-    throw new Error(`TODO: implement`);
+  async getTotalSupply(req: AltVM.ReqGetTotalSupply): Promise<bigint> {
+    if (!req.denom) {
+      throw new Error(`Can not get total supply of credits`);
+    }
+
+    const result = await this.aleoClient.getProgramMappingValue(
+      'token_registry.aleo',
+      'registered_tokens',
+      req.denom,
+    );
+
+    if (result === null) {
+      return 0n;
+    }
+
+    return Plaintext.fromString(result).toObject()['max_supply'];
   }
 
   async estimateTransactionFee(
