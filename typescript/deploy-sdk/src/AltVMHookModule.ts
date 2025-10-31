@@ -1,26 +1,28 @@
 import { zeroAddress } from 'viem';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
+import {
+  HookConfig,
+  HookType,
+  IgpHookConfig,
+  MUTABLE_HOOK_TYPE,
+} from '@hyperlane-xyz/provider-sdk/hook';
 import {
   AnnotatedTx,
   HypModule,
   HypModuleArgs,
   TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
-import { Address, assert, deepEquals, rootLogger } from '@hyperlane-xyz/utils';
-
-import { ChainLookup } from '../altvm.js';
-import { ChainName } from '../types.js';
-import { normalizeConfig } from '../utils/ism.js';
+import {
+  Address,
+  assert,
+  deepEquals,
+  normalizeConfig,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { AltVMHookReader } from './AltVMHookReader.js';
-import {
-  HookConfig,
-  HookConfigSchema,
-  HookType,
-  IgpHookConfig,
-  MUTABLE_HOOK_TYPE,
-} from './types.js';
 
 type HookModuleAddresses = {
   deployedHook: Address;
@@ -36,14 +38,14 @@ export class AltVMHookModule
   protected readonly reader: AltVMHookReader;
 
   // Cached chain name
-  public readonly chain: ChainName;
+  public readonly chain: string;
 
   constructor(
     protected readonly chainLookup: ChainLookup,
     private readonly args: HypModuleArgs<HookConfig, HookModuleAddresses>,
     protected readonly signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
   ) {
-    this.args.config = HookConfigSchema.parse(this.args.config);
+    // this.args.config = HookConfigSchema.parse(this.args.config);
 
     this.reader = new AltVMHookReader(chainLookup.getChainMetadata, signer);
 
@@ -59,12 +61,14 @@ export class AltVMHookModule
     return this.args.addresses;
   }
 
-  public async update(targetConfig: HookConfig): Promise<AnnotatedTx[]> {
+  public async update(
+    targetConfig: HookConfig | Address,
+  ): Promise<AnnotatedTx[]> {
     if (targetConfig === zeroAddress) {
       return Promise.resolve([]);
     }
 
-    targetConfig = HookConfigSchema.parse(targetConfig);
+    // targetConfig = HookConfigSchema.parse(targetConfig);
 
     // Do not support updating to a custom Hook address
     if (typeof targetConfig === 'string') {
@@ -114,8 +118,8 @@ export class AltVMHookModule
     );
     // Checking both objects type fields to help typescript narrow the type down correctly
     if (
-      current.type === HookType.INTERCHAIN_GAS_PAYMASTER &&
-      target.type === HookType.INTERCHAIN_GAS_PAYMASTER
+      current.type === 'interchainGasPaymaster' &&
+      target.type === 'interchainGasPaymaster'
     ) {
       updateTxs = await this.updateIgpHook({
         currentConfig: current,
@@ -188,7 +192,7 @@ export class AltVMHookModule
     signer,
   }: {
     chain: string;
-    config: HookConfig;
+    config: HookConfig | string;
     addresses: HookModuleAddresses;
     chainLookup: ChainLookup;
     signer: AltVM.ISigner<AnnotatedTx, TxReceipt>;
@@ -204,8 +208,12 @@ export class AltVMHookModule
     return module;
   }
 
-  protected async deploy({ config }: { config: HookConfig }): Promise<Address> {
-    config = HookConfigSchema.parse(config);
+  protected async deploy({
+    config,
+  }: {
+    config: HookConfig | string;
+  }): Promise<Address> {
+    // config = HookConfigSchema.parse(config);
 
     if (typeof config === 'string') {
       return config;
@@ -214,12 +222,14 @@ export class AltVMHookModule
     this.logger.info(`Deploying ${hookType} to ${this.chain}`);
 
     switch (hookType) {
-      case HookType.INTERCHAIN_GAS_PAYMASTER:
+      case 'interchainGasPaymaster':
         return this.deployIgpHook({ config });
-      case HookType.MERKLE_TREE:
+      case 'merkleTreeHook':
         return this.deployMerkleTreeHook();
       default:
-        throw new Error(`Hook type ${hookType} is not supported on AltVM`);
+        throw new Error(
+          `Hook type ${hookType as HookType} is not supported on AltVM`,
+        );
     }
   }
 

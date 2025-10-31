@@ -293,7 +293,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       );
 
     // Fallback routing ISM extends from MailboxClient, default routing
-    let ismType = IsmType.FALLBACK_ROUTING;
+    let ismType: IsmType = IsmType.FALLBACK_ROUTING;
     try {
       await defaultFallbackIsmInstance.mailbox();
     } catch {
@@ -440,7 +440,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       `expected module type to be ${ModuleType.MERKLE_ROOT_MULTISIG} or ${ModuleType.MESSAGE_ID_MULTISIG}, got ${moduleType}`,
     );
 
-    let ismType =
+    let ismType: IsmType =
       moduleType === ModuleType.MERKLE_ROOT_MULTISIG
         ? IsmType.MERKLE_ROOT_MULTISIG
         : IsmType.MESSAGE_ID_MULTISIG;

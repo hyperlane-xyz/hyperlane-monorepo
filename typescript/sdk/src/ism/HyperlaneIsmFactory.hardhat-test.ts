@@ -251,9 +251,7 @@ describe('HyperlaneIsmFactory', async () => {
 
   for (const type of [IsmType.ROUTING, IsmType.FALLBACK_ROUTING]) {
     it(`deploys ${type} routingIsm with correct routes`, async () => {
-      exampleRoutingConfig.type = type as
-        | IsmType.ROUTING
-        | IsmType.FALLBACK_ROUTING;
+      exampleRoutingConfig.type = type;
       const ism = await ismFactory.deploy({
         destination: chain,
         config: exampleRoutingConfig,
@@ -271,9 +269,7 @@ describe('HyperlaneIsmFactory', async () => {
     });
 
     it(`update route in an existing ${type}`, async () => {
-      exampleRoutingConfig.type = type as
-        | IsmType.ROUTING
-        | IsmType.FALLBACK_ROUTING;
+      exampleRoutingConfig.type = type;
       let matches = true;
       let ism = await ismFactory.deploy({
         destination: chain,
@@ -305,9 +301,7 @@ describe('HyperlaneIsmFactory', async () => {
     });
 
     it(`should skip deployment with warning if no chain metadata configured ${type}`, async () => {
-      exampleRoutingConfig.type = type as
-        | IsmType.ROUTING
-        | IsmType.FALLBACK_ROUTING;
+      exampleRoutingConfig.type = type;
       let matches = true;
       exampleRoutingConfig.domains['test4'] = {
         type: IsmType.MESSAGE_ID_MULTISIG,
@@ -358,9 +352,7 @@ describe('HyperlaneIsmFactory', async () => {
     });
 
     it(`deletes route in an existing ${type}`, async () => {
-      exampleRoutingConfig.type = type as
-        | IsmType.ROUTING
-        | IsmType.FALLBACK_ROUTING;
+      exampleRoutingConfig.type = type;
       let matches = true;
       let ism = await ismFactory.deploy({
         destination: chain,
@@ -391,9 +383,7 @@ describe('HyperlaneIsmFactory', async () => {
     });
 
     it(`deletes route in an existing ${type} even if not in multiprovider`, async () => {
-      exampleRoutingConfig.type = type as
-        | IsmType.ROUTING
-        | IsmType.FALLBACK_ROUTING;
+      exampleRoutingConfig.type = type;
       let matches = true;
       let ism = await ismFactory.deploy({
         destination: chain,
@@ -442,9 +432,7 @@ describe('HyperlaneIsmFactory', async () => {
     });
 
     it(`updates owner in an existing ${type}`, async () => {
-      exampleRoutingConfig.type = type as
-        | IsmType.ROUTING
-        | IsmType.FALLBACK_ROUTING;
+      exampleRoutingConfig.type = type;
       let matches = true;
       let ism = await ismFactory.deploy({
         destination: chain,
@@ -475,9 +463,7 @@ describe('HyperlaneIsmFactory', async () => {
     });
 
     it(`no changes to an existing ${type} means no redeployment or updates`, async () => {
-      exampleRoutingConfig.type = type as
-        | IsmType.ROUTING
-        | IsmType.FALLBACK_ROUTING;
+      exampleRoutingConfig.type = type;
       let matches = true;
       let ism = await ismFactory.deploy({
         destination: chain,
@@ -507,9 +493,7 @@ describe('HyperlaneIsmFactory', async () => {
     });
 
     it(`redeploy same config if the deployer doesn't have ownership of ${type}`, async () => {
-      exampleRoutingConfig.type = type as
-        | IsmType.ROUTING
-        | IsmType.FALLBACK_ROUTING;
+      exampleRoutingConfig.type = type;
       let matches = true;
       exampleRoutingConfig.owner = randomAddress();
       let ism = await ismFactory.deploy({

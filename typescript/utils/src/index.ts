@@ -96,6 +96,7 @@ export {
   isS3Checkpoint,
   isS3CheckpointWithId,
 } from './checkpoints.js';
+export { normalizeConfig, sortArraysInConfig } from './config.js';
 export { domainHash } from './domains.js';
 export { safelyAccessEnvVar, inCIMode } from './env.js';
 export { canonizeId, evmId } from './ids.js';

@@ -128,7 +128,7 @@ export function testIgpConfig(
 }
 
 export const hookTypes = Object.values(HookType);
-export const hookTypesToFilter = [
+export const hookTypesToFilter: HookType[] = [
   HookType.OP_STACK,
   HookType.ARB_L2_TO_L1,
   HookType.CUSTOM,

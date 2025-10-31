@@ -1,11 +1,10 @@
 import { Logger } from 'pino';
 
+import { AltVMHookReader, AltVMIsmReader } from '@hyperlane-xyz/deploy-sdk';
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { Address, ensure0x, rootLogger } from '@hyperlane-xyz/utils';
 
 import { ChainLookup } from '../altvm.js';
-import { AltVMHookReader } from '../hook/AltVMHookReader.js';
-import { AltVMIsmReader } from '../ism/AltVMIsmReader.js';
 import {
   DestinationGas,
   MailboxClientConfig,
