@@ -8181,7 +8181,7 @@ __metadata:
     "@eslint/js": "npm:^9.31.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
     "@hyperlane-xyz/utils": "npm:19.4.0"
-    "@provablehq/sdk": "npm:^0.9.10"
+    "@provablehq/sdk": "npm:^0.9.10-testnet-rc"
     "@types/mocha": "npm:^10.0.1"
     "@typescript-eslint/eslint-plugin": "npm:^8.1.6"
     "@typescript-eslint/parser": "npm:^8.1.6"
@@ -11502,25 +11502,25 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@provablehq/sdk@npm:^0.9.10":
-  version: 0.9.10
-  resolution: "@provablehq/sdk@npm:0.9.10"
+"@provablehq/sdk@npm:^0.9.10-testnet-rc":
+  version: 0.9.11
+  resolution: "@provablehq/sdk@npm:0.9.11"
   dependencies:
-    "@provablehq/wasm": "npm:^0.9.10"
+    "@provablehq/wasm": "npm:^0.9.11"
     "@scure/base": "npm:^2.0.0"
     comlink: "npm:^4.4.2"
     core-js: "npm:^3.40.0"
     mime: "npm:^4.0.6"
     sync-request: "npm:^6.1.0"
     xmlhttprequest-ssl: "npm:^3.1.0"
-  checksum: 10/2bb645a9a14ebcb0272cc0a8ab52c47ccb1583b1dbb068339093127b074ccfe7aeb31951da1d4973b0a0677159cef7fe117c868ca9321a22a9c8a906447ba4c0
+  checksum: 10/5ed79a7a4123091c89f5d55c77c5f2ec9f8e1f2d19d720b5d2a54991e7e5eb2a09ff89106179f0be125d528f26b6d97537ed42e48cf554a44ff823ca24b3c710
   languageName: node
   linkType: hard
 
-"@provablehq/wasm@npm:^0.9.10":
-  version: 0.9.10
-  resolution: "@provablehq/wasm@npm:0.9.10"
-  checksum: 10/6927902272991a7312389070c606269a1ae8898f04f8b055666957c7ef946b2804e7e61ef1920c46de1708586b068d500356bc463b000442ae20921e55da3a48
+"@provablehq/wasm@npm:^0.9.11":
+  version: 0.9.11
+  resolution: "@provablehq/wasm@npm:0.9.11"
+  checksum: 10/3833c94f1ddc9dbd614ad2c6f1846f6ff64b4873df12c8dcd6e208e8fb792bfc971bbb2d8126999e2acd4f74f3540de76452cd1403587809e8306ef0d8c022ae
   languageName: node
   linkType: hard
 

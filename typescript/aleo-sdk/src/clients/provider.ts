@@ -308,9 +308,19 @@ export class AleoProvider implements AltVM.IProvider {
   }
 
   async getCreateMessageIdMultisigIsmTransaction(
-    _req: AltVM.ReqCreateMessageIdMultisigIsm,
+    req: AltVM.ReqCreateMessageIdMultisigIsm,
   ): Promise<AleoTransaction> {
-    throw new Error(`TODO: implement`);
+    return {
+      programName: 'ism_manager.aleo',
+      functionName: 'init_message_id_multisig',
+      priorityFee: 0,
+      privateFee: false,
+      inputs: [
+        req.validators.toString(),
+        `${req.validators.length}u8`,
+        `${req.threshold}u8`,
+      ],
+    };
   }
 
   async getCreateRoutingIsmTransaction(
@@ -340,7 +350,13 @@ export class AleoProvider implements AltVM.IProvider {
   async getCreateNoopIsmTransaction(
     _req: AltVM.ReqCreateNoopIsm,
   ): Promise<AleoTransaction> {
-    throw new Error(`TODO: implement`);
+    return {
+      programName: 'ism_manager.aleo',
+      functionName: 'init_noop',
+      priorityFee: 0,
+      privateFee: false,
+      inputs: [],
+    };
   }
 
   async getCreateMerkleTreeHookTransaction(

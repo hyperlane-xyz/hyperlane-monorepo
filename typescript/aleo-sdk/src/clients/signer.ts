@@ -4,6 +4,7 @@ import {
   NetworkRecordProvider,
   Program,
   ProgramManager,
+  ProgramManagerBase,
 } from '@provablehq/sdk';
 
 import { AltVM } from '@hyperlane-xyz/utils';
@@ -53,6 +54,34 @@ export class AleoSigner
     this.programManager.setAccount(this.aleoAccount);
   }
 
+  private async deployProgram(programName: string): Promise<Program[]> {
+    const programs = loadProgramsInDeployOrder(programName);
+
+    for (const program of programs) {
+      const isDeployed = await this.isProgramDeployed(program);
+
+      // if the program is already deployed (which can be the case for some imports)
+      // we simply skip it
+      if (isDeployed) {
+        continue;
+      }
+
+      const fee = await ProgramManagerBase.estimateDeploymentFee(
+        program.toString(),
+      );
+
+      const txId = await this.programManager.deploy(
+        program.toString(),
+        Math.ceil(Number(fee) / 10 ** 6),
+        false,
+      );
+
+      await this.aleoClient.waitForTransactionConfirmation(txId);
+    }
+
+    return programs;
+  }
+
   getSignerAddress(): string {
     return this.aleoAccount.address().to_string();
   }
@@ -94,46 +123,10 @@ export class AleoSigner
   async createMailbox(
     _req: Omit<AltVM.ReqCreateMailbox, 'signer'>,
   ): Promise<AltVM.ResCreateMailbox> {
-    const mailboxAddress = 'test';
-    const programs = loadProgramsInDeployOrder('dispatch_proxy');
-
-    console.log(
-      'programs being deployed in order:',
-      programs.map((p) => p.id()).join(', '),
-    );
-
-    for (const program of programs) {
-      const isDeployed = await this.isProgramDeployed(program);
-
-      console.log('isDeployed', program.id(), isDeployed);
-
-      // if the program is already deployed (which can be the case for some imports)
-      // we simply skip it
-      if (isDeployed) {
-        continue;
-      }
-
-      // const fee = await ProgramManagerBase.estimateDeploymentFee(program.toString());
-      // console.log(`estimated fee ${fee} for program ${program.id()}`);
-      const fee = '20.543910';
-
-      console.log('deploy', program.id(), program.toString().length);
-
-      const txId = await this.programManager.deploy(
-        program.toString(),
-        Number(fee),
-        false,
-      );
-
-      console.log('txId', txId);
-
-      await this.aleoClient.waitForTransactionConfirmation(txId);
-
-      console.log('tx confirmed, deployed program', program.id());
-    }
+    await this.deployProgram('dispatch_proxy');
 
     return {
-      mailboxAddress,
+      mailboxAddress: 'todo',
     };
   }
 
@@ -168,9 +161,41 @@ export class AleoSigner
   }
 
   async createMessageIdMultisigIsm(
-    _req: Omit<AltVM.ReqCreateMessageIdMultisigIsm, 'signer'>,
+    req: Omit<AltVM.ReqCreateMessageIdMultisigIsm, 'signer'>,
   ): Promise<AltVM.ResCreateMessageIdMultisigIsm> {
-    throw new Error(`TODO: implement`);
+    const nonce = await this.aleoClient.getProgramMappingValue(
+      'ism_manager.aleo',
+      'nonce',
+      'true',
+    );
+
+    if (nonce === null) {
+      throw new Error(`could not read nonce from ism_manager`);
+    }
+
+    const tx = await this.getCreateMessageIdMultisigIsmTransaction({
+      signer: this.getSignerAddress(),
+      ...req,
+    });
+
+    const txId = await this.programManager.execute(tx);
+    await this.aleoClient.waitForTransactionConfirmation(txId);
+
+    const ismAddress = await this.aleoClient.getProgramMappingValue(
+      'ism_manager.aleo',
+      'ism_addresses',
+      nonce,
+    );
+
+    if (ismAddress === null) {
+      throw new Error(
+        `could not read ism address with nonce ${nonce} from ism_manager`,
+      );
+    }
+
+    return {
+      ismAddress,
+    };
   }
 
   async createRoutingIsm(
@@ -198,9 +223,41 @@ export class AleoSigner
   }
 
   async createNoopIsm(
-    _req: Omit<AltVM.ReqCreateNoopIsm, 'signer'>,
+    req: Omit<AltVM.ReqCreateNoopIsm, 'signer'>,
   ): Promise<AltVM.ResCreateNoopIsm> {
-    throw new Error(`TODO: implement`);
+    const nonce = await this.aleoClient.getProgramMappingValue(
+      'ism_manager.aleo',
+      'nonce',
+      'true',
+    );
+
+    if (nonce === null) {
+      throw new Error(`could not read nonce from ism_manager`);
+    }
+
+    const tx = await this.getCreateNoopIsmTransaction({
+      signer: this.getSignerAddress(),
+      ...req,
+    });
+
+    const txId = await this.programManager.execute(tx);
+    await this.aleoClient.waitForTransactionConfirmation(txId);
+
+    const ismAddress = await this.aleoClient.getProgramMappingValue(
+      'ism_manager.aleo',
+      'ism_addresses',
+      nonce,
+    );
+
+    if (ismAddress === null) {
+      throw new Error(
+        `could not read ism address with nonce ${nonce} from ism_manager`,
+      );
+    }
+
+    return {
+      ismAddress,
+    };
   }
 
   async createMerkleTreeHook(
