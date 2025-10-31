@@ -422,7 +422,7 @@ async fn run_stage(
     let receiving_closure = async {
         let mut received = Vec::new();
         while received.len() < sent_txs_count {
-            tracing::debug!("Received payload for building stage");
+            tracing::debug!("Received transaction for finality stage");
             let tx_received = receiver.recv().await.unwrap();
             received.push(tx_received);
         }
