@@ -23,7 +23,7 @@ import {
 
 const SERVICE_URL = 'https://offchain-lookup.services.hyperlane.xyz';
 
-export const CCTP_CHAINS = Object.keys(tokenMessengerV2Addresses);
+export const CCTP_CHAINS = Object.keys(tokenMessengerV1Addresses);
 
 // TODO: remove this once the route has been updated to be owned by non-legacy ownership
 const owners: Record<ChainName, string> = {
@@ -36,7 +36,7 @@ const owners: Record<ChainName, string> = {
   unichain: awIcasLegacy['unichain'],
 };
 
-export const getCCTPWarpConfig = async (
+const getCCTPWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
   _warpRouteId: string,
@@ -75,6 +75,32 @@ export const getCCTPWarpConfig = async (
   );
 };
 
+export const getCCTPV1WarpConfig = async (
+  routerConfig: ChainMap<RouterConfigWithoutOwner>,
+  _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
+  _warpRouteId: string,
+): Promise<ChainMap<HypTokenRouterConfig>> => {
+  return getCCTPWarpConfig(
+    routerConfig,
+    _abacusWorksEnvOwnerConfig,
+    _warpRouteId,
+    'V1',
+  );
+};
+
+export const getCCTPV2WarpConfig = async (
+  routerConfig: ChainMap<RouterConfigWithoutOwner>,
+  _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
+  _warpRouteId: string,
+): Promise<ChainMap<HypTokenRouterConfig>> => {
+  return getCCTPWarpConfig(
+    routerConfig,
+    _abacusWorksEnvOwnerConfig,
+    _warpRouteId,
+    'V2',
+  );
+};
+
 const safeChain = 'ethereum';
 const icaOwner = awSafes[safeChain];
 const safeSubmitter: SubmitterMetadata = {
@@ -85,7 +111,7 @@ const safeSubmitter: SubmitterMetadata = {
 
 const icaChains = Object.keys(awIcasLegacy);
 
-export const getCCTPStrategyConfig = (
+const getCCTPStrategyConfig = (
   version: 'V1' | 'V2' = 'V1',
 ): ChainSubmissionStrategy => {
   const chains =
@@ -116,4 +142,12 @@ export const getCCTPStrategyConfig = (
       { submitter: submitterMetadata[index] },
     ]),
   );
+};
+
+export const getCCTPV1StrategyConfig = (): ChainSubmissionStrategy => {
+  return getCCTPStrategyConfig('V1');
+};
+
+export const getCCTPV2StrategyConfig = (): ChainSubmissionStrategy => {
+  return getCCTPStrategyConfig('V2');
 };
