@@ -16,12 +16,12 @@ import {
   Address,
   assert,
   deepEquals,
+  isZeroishAddress,
   normalizeConfig,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
 import { AltVMHookReader } from './AltVMHookReader.js';
-import { ZERO_ADDRESS } from './constants.js';
 
 type HookModuleAddresses = {
   deployedHook: Address;
@@ -63,7 +63,7 @@ export class AltVMHookModule
   public async update(
     targetConfig: HookConfig | Address,
   ): Promise<AnnotatedTx[]> {
-    if (targetConfig === ZERO_ADDRESS) {
+    if (typeof targetConfig === 'string' && isZeroishAddress(targetConfig)) {
       return Promise.resolve([]);
     }
 

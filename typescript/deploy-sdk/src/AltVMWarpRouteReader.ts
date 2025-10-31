@@ -12,7 +12,6 @@ import { Address, ensure0x, rootLogger } from '@hyperlane-xyz/utils';
 
 import { AltVMHookReader } from './AltVMHookReader.js';
 import { AltVMIsmReader } from './AltVMIsmReader.js';
-import { ZERO_ADDRESS } from './constants.js';
 
 export class AltVMWarpRouteReader {
   protected readonly logger: ReturnType<typeof rootLogger.child>;
@@ -55,10 +54,12 @@ export class AltVMWarpRouteReader {
     // Derive ISM config if present, otherwise use zero address
     const interchainSecurityModule = token.ismAddress
       ? await this.ismReader.deriveIsmConfig(token.ismAddress)
-      : ZERO_ADDRESS;
+      : // TODO: replace with protocol-specific zero address
+        '0x0000000000000000000000000000000000000000';
 
     // Hook address is not exposed by providers yet, use zero address as placeholder
-    const hook = ZERO_ADDRESS;
+    // TODO: replace with protocol-specific zero address
+    const hook = '0x0000000000000000000000000000000000000000';
 
     const baseConfig = {
       owner: token.owner,
