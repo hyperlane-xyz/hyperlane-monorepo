@@ -389,7 +389,7 @@ export class AleoProvider implements AltVM.IProvider {
     return {
       programName: 'credits.aleo',
       functionName: 'transfer_public',
-      priorityFee: 0.2,
+      priorityFee: 0,
       privateFee: false,
       inputs: [req.recipient, `${req.amount}u64`],
     };
