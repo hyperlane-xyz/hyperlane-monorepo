@@ -1,5 +1,24 @@
 # @hyperlane-xyz/sdk
 
+## 19.5.0
+
+### Minor Changes
+
+- 312826d10: - Updated DerivedCoreConfig type to properly type the defaultIsm field with the DerivedIsmConfig type
+  - Fixed AltVMIsmModule not transferring ownership to the expected owner in the deploy config after deployment
+- bf2c2caa6: Updated the EvmHypCollateralFiatAdapter to not break if the underlying mintable contract does not define a minterAllowance method
+- 79a51debe: Update all @safe-global dependencies to latest, to support usage of Safe API Keys. Add gnosisSafeApiKey to chain metadata schema.
+
+### Patch Changes
+
+- Updated dependencies [312826d10]
+- Updated dependencies [312826d10]
+  - @hyperlane-xyz/utils@19.5.0
+  - @hyperlane-xyz/radix-sdk@19.5.0
+  - @hyperlane-xyz/core@9.0.17
+  - @hyperlane-xyz/cosmos-sdk@19.5.0
+  - @hyperlane-xyz/starknet-core@19.5.0
+
 ## 19.4.0
 
 ### Minor Changes

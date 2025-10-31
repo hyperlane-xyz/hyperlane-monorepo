@@ -1,5 +1,7 @@
 # @hyperlane-xyz/tsconfig
 
+## 19.5.0
+
 ## 19.4.0
 
 ### Minor Changes
