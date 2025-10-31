@@ -11,13 +11,6 @@ interface AVSContracts {
 
 // TODO: move to registry
 export const avsAddresses: ChainMap<AVSContracts> = {
-  holesky: {
-    avsDirectory: '0x055733000064333CaDDbC92763c58BF0192fFeBf',
-    delegationManager: '0xA44151489861Fe9e3055d95adC98FbD462B948e7',
-    proxyAdmin: '0x33dB966328Ea213b0f76eF96CA368AB37779F065',
-    ecdsaStakeRegistry: '0xFfa913705484C9BAea32Ffe9945BeA099A1DFF72',
-    hyperlaneServiceManager: '0xc76E477437065093D353b7d56c81ff54D167B0Ab',
-  },
   ethereum: {
     avsDirectory: '0x135dda560e946695d6f155dacafc6f1f25c1f5af',
     delegationManager: '0x39053D51B77DC0d36036Fc1fCc8Cb819df8Ef37A',
