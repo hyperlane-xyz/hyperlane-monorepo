@@ -1,13 +1,12 @@
 import {
   Account,
   AleoKeyProvider,
-  AleoNetworkClient,
   NetworkRecordProvider,
   Program,
   ProgramManager,
 } from '@provablehq/sdk';
 
-import { AltVM, sleep } from '@hyperlane-xyz/utils';
+import { AltVM } from '@hyperlane-xyz/utils';
 
 import { loadProgramsInDeployOrder } from '../artifacts.js';
 import { AleoReceipt, AleoTransaction } from '../utils/types.js';
@@ -28,22 +27,15 @@ export class AleoSigner
     privateKey: string,
     _extraParams?: Record<string, any>,
   ): Promise<AltVM.ISigner<AleoTransaction, AleoReceipt>> {
-    const aleoClient = new AleoNetworkClient(rpcUrls[0]);
-    const aleoAccount = new Account({
-      privateKey,
-    });
-
-    return new AleoSigner(aleoClient, rpcUrls, aleoAccount);
+    return new AleoSigner(rpcUrls, privateKey);
   }
 
-  protected constructor(
-    aleoClient: AleoNetworkClient,
-    rpcUrls: string[],
-    aleoAccount: Account,
-  ) {
-    super(aleoClient, rpcUrls);
+  protected constructor(rpcUrls: string[], privateKey: string) {
+    super(rpcUrls);
 
-    this.aleoAccount = aleoAccount;
+    this.aleoAccount = new Account({
+      privateKey,
+    });
 
     this.keyProvider = new AleoKeyProvider();
     this.keyProvider.useCache(true);
@@ -66,57 +58,37 @@ export class AleoSigner
   }
 
   supportsTransactionBatching(): boolean {
-    throw new Error(`TODO: implement`);
+    return false;
   }
 
-  transactionToPrintableJson(_transaction: AleoTransaction): Promise<object> {
-    throw new Error(`TODO: implement`);
+  async transactionToPrintableJson(
+    transaction: AleoTransaction,
+  ): Promise<object> {
+    return transaction;
   }
 
   async sendAndConfirmTransaction(
-    _transaction: AleoTransaction,
+    transaction: AleoTransaction,
   ): Promise<AleoReceipt> {
-    throw new Error(`TODO: implement`);
+    const txId = await this.programManager.execute(transaction);
+    return this.aleoClient.waitForTransactionConfirmation(txId);
   }
 
   async sendAndConfirmBatchTransactions(
     _transactions: AleoTransaction[],
   ): Promise<AleoReceipt> {
-    throw new Error(`TODO: implement`);
+    throw new Error(`${AleoSigner.name} does not support transaction batching`);
   }
 
   // ### TX CORE ###
 
   private async isProgramDeployed(program: Program) {
-    // TODO: is there a more efficient way for checking if a program exists
-    // without downloading the entire source code again?
     try {
       await this.aleoClient.getProgram(program.id());
-
       return true;
     } catch {
       return false;
     }
-  }
-
-  private async pollForTransactionConfirmed(
-    txId: string,
-  ): Promise<AleoReceipt> {
-    // we try to poll for 2 minutes
-    const pollAttempts = 120;
-    const pollDelayMs = 1000;
-
-    for (let i = 0; i < pollAttempts; i++) {
-      try {
-        return await this.programManager.networkClient.getConfirmedTransaction(
-          txId,
-        );
-      } catch {
-        await sleep(pollDelayMs);
-      }
-    }
-
-    throw new Error(`reached poll limit of ${pollAttempts} attempts`);
   }
 
   async createMailbox(
@@ -143,7 +115,7 @@ export class AleoSigner
 
       // const fee = await ProgramManagerBase.estimateDeploymentFee(program.toString());
       // console.log(`estimated fee ${fee} for program ${program.id()}`);
-      const fee = '20543910';
+      const fee = '20.543910';
 
       console.log('deploy', program.id(), program.toString().length);
 
@@ -155,7 +127,7 @@ export class AleoSigner
 
       console.log('txId', txId);
 
-      await this.pollForTransactionConfirmed(txId);
+      await this.aleoClient.waitForTransactionConfirmation(txId);
 
       console.log('tx confirmed, deployed program', program.id());
     }
@@ -308,7 +280,7 @@ export class AleoSigner
     });
 
     const txId = await this.programManager.execute(tx);
-    await this.pollForTransactionConfirmed(txId);
+    await this.aleoClient.waitForTransactionConfirmation(txId);
 
     return {
       recipient: req.recipient,

@@ -1,4 +1,4 @@
-import { AleoNetworkClient } from '@provablehq/sdk';
+import { Account, AleoNetworkClient, ProgramManager } from '@provablehq/sdk';
 import { ethers } from 'ethers';
 
 import { AltVM, assert } from '@hyperlane-xyz/utils';
@@ -13,15 +13,14 @@ export class AleoProvider implements AltVM.IProvider {
     rpcUrls: string[],
     _chainId: string | number,
   ): Promise<AleoProvider> {
-    assert(rpcUrls.length > 0, `got no rpcUrls`);
-
-    const aleoClient = new AleoNetworkClient(rpcUrls[0]);
-    return new AleoProvider(aleoClient, rpcUrls);
+    return new AleoProvider(rpcUrls);
   }
 
-  protected constructor(aleoClient: AleoNetworkClient, rpcUrls: string[]) {
-    this.aleoClient = aleoClient;
+  constructor(rpcUrls: string[]) {
+    assert(rpcUrls.length > 0, `got no rpcUrls`);
+
     this.rpcUrls = rpcUrls;
+    this.aleoClient = new AleoNetworkClient(rpcUrls[0]);
   }
 
   // ### QUERY BASE ###
@@ -49,9 +48,18 @@ export class AleoProvider implements AltVM.IProvider {
   }
 
   async estimateTransactionFee(
-    _req: AltVM.ReqEstimateTransactionFee<AleoTransaction>,
+    req: AltVM.ReqEstimateTransactionFee<AleoTransaction>,
   ): Promise<AltVM.ResEstimateTransactionFee> {
-    throw new Error(`TODO: implement`);
+    const programManager = new ProgramManager(this.rpcUrls[0]);
+    programManager.setAccount(new Account());
+
+    const tx = await programManager.buildExecutionTransaction(req.transaction);
+
+    return {
+      fee: tx.feeAmount(),
+      gasUnits: 0n,
+      gasPrice: 0,
+    };
   }
 
   // ### QUERY CORE ###
