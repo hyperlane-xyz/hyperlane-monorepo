@@ -786,7 +786,7 @@ export {
   getSafe,
   getSafeDelegates,
   getSafeService,
-  // @ts-ignore
+  safeApiKeyRequired,
 } from './utils/gnosisSafe.js';
 export { HyperlaneReader } from './utils/HyperlaneReader.js';
 export {
