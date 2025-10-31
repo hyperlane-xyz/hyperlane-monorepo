@@ -53,6 +53,23 @@ const MovableTokenRebalancingBridgeConfigSchema = z.object({
     .optional(),
 });
 
+const BaseEverclearTokenBridgeConfigSchema = z.object({
+  everclearBridgeAddress: ZHash,
+  outputAssets: z.record(RemoteRouterDomainOrChainNameSchema, ZHash),
+  everclearFeeParams: z.record(
+    RemoteRouterDomainOrChainNameSchema,
+    z.object({
+      fee: z.number().int(),
+      deadline: z.number().int(),
+      signature: z.string(),
+    }),
+  ),
+});
+
+export const isEverclearTokenBridgeConfig = isCompliant(
+  BaseEverclearTokenBridgeConfigSchema,
+);
+
 export const BaseMovableTokenConfigSchema = z.object({
   allowedRebalancingBridges: z
     .record(
@@ -219,6 +236,33 @@ export const isSyntheticRebaseTokenConfig = isCompliant(
   SyntheticRebaseTokenConfigSchema,
 );
 
+export const EverclearCollateralTokenConfigSchema = z.object({
+  type: z.literal(TokenType.collateralEverclear),
+  ...CollateralTokenConfigSchema.omit({ type: true }).shape,
+  ...BaseEverclearTokenBridgeConfigSchema.shape,
+});
+
+export type EverclearCollateralTokenConfig = z.infer<
+  typeof EverclearCollateralTokenConfigSchema
+>;
+export const isEverclearCollateralTokenConfig = isCompliant(
+  EverclearCollateralTokenConfigSchema,
+);
+
+export const EverclearEthBridgeTokenConfigSchema = z.object({
+  type: z.literal(TokenType.ethEverclear),
+  wethAddress: ZHash,
+  ...NativeTokenConfigSchema.omit({ type: true }).shape,
+  ...BaseEverclearTokenBridgeConfigSchema.shape,
+});
+
+export type EverclearEthBridgeTokenConfig = z.infer<
+  typeof EverclearEthBridgeTokenConfigSchema
+>;
+export const isEverclearEthBridgeTokenConfig = isCompliant(
+  EverclearEthBridgeTokenConfigSchema,
+);
+
 export enum ContractVerificationStatus {
   Verified = 'verified',
   Unverified = 'unverified',
@@ -270,6 +314,8 @@ export const HypTokenConfigSchema = z.discriminatedUnion('type', [
   SyntheticTokenConfigSchema,
   SyntheticRebaseTokenConfigSchema,
   CctpTokenConfigSchema,
+  EverclearCollateralTokenConfigSchema,
+  EverclearEthBridgeTokenConfigSchema,
 ]);
 export type HypTokenConfig = z.infer<typeof HypTokenConfigSchema>;
 
@@ -390,7 +436,8 @@ export const WarpRouteDeployConfigSchema = z
           isCollateralRebaseTokenConfig(config) ||
           isCctpTokenConfig(config) ||
           isXERC20TokenConfig(config) ||
-          isNativeTokenConfig(config),
+          isNativeTokenConfig(config) ||
+          isEverclearTokenBridgeConfig(config),
       ) || entries.every(([_, config]) => isTokenMetadata(config))
     );
   }, WarpRouteDeployConfigSchemaErrors.NO_SYNTHETIC_ONLY)

@@ -1,4 +1,8 @@
+import { ContractFactory } from 'ethers';
+
 import {
+  EverclearEthBridge__factory,
+  EverclearTokenBridge__factory,
   HypERC20Collateral__factory,
   HypERC20__factory,
   HypERC721Collateral__factory,
@@ -37,8 +41,15 @@ export const hypERC20contracts = {
   [TokenType.nativeOpL1]: 'OpL1TokenBridgeNative',
   // uses same contract as native
   [TokenType.nativeScaled]: 'HypNative',
-} as const;
+  [TokenType.ethEverclear]: 'EverclearEthBridge',
+  [TokenType.collateralEverclear]: 'EverclearTokenBridge',
+} as const satisfies Record<TokenType, string>;
 export type HypERC20contracts = typeof hypERC20contracts;
+
+type HypERC20TokenType = Exclude<
+  TokenType,
+  TokenType.syntheticUri | TokenType.collateralUri
+>;
 
 export const hypERC20factories = {
   [TokenType.synthetic]: new HypERC20__factory(),
@@ -56,7 +67,10 @@ export const hypERC20factories = {
   // assume V1 for now
   [TokenType.nativeOpL1]: new OpL1V1NativeTokenBridge__factory(),
   [TokenType.nativeScaled]: new HypNative__factory(),
-} as const;
+
+  [TokenType.ethEverclear]: new EverclearEthBridge__factory(),
+  [TokenType.collateralEverclear]: new EverclearTokenBridge__factory(),
+} as const satisfies Record<HypERC20TokenType, ContractFactory>;
 export type HypERC20Factories = typeof hypERC20factories;
 
 // Helper function to get the appropriate CCTP factory based on version

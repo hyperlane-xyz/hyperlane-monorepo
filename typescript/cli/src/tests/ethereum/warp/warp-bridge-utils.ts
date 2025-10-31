@@ -7,6 +7,7 @@ import {
   ERC20Test__factory,
   ERC4626Test,
   FiatTokenTest,
+  MockEverclearAdapter,
   XERC20LockboxTest,
   XERC20VSTest,
 } from '@hyperlane-xyz/core';
@@ -23,7 +24,15 @@ import { Address } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
-import { deploy4626Vault, deployFiatToken, deployToken, deployXERC20LockboxToken, deployXERC20VSToken, getTokenAddressFromWarpConfig } from '../commands/helpers.js';
+import {
+  deploy4626Vault,
+  deployEverclearBridgeAdapter,
+  deployFiatToken,
+  deployToken,
+  deployXERC20LockboxToken,
+  deployXERC20VSToken,
+  getTokenAddressFromWarpConfig,
+} from '../commands/helpers.js';
 import {
   generateWarpConfigs,
   hyperlaneWarpDeploy,
@@ -62,6 +71,8 @@ export type WarpBridgeTestConfig = {
   xERC203: XERC20VSTest;
   xERC20Lockbox3: XERC20LockboxTest;
   vaultChain3: ERC4626Test;
+  everclearBridgeAdapterChain2: MockEverclearAdapter;
+  everclearBridgeAdapterChain3: MockEverclearAdapter;
 };
 
 export async function runWarpBridgeTests(
@@ -71,8 +82,10 @@ export async function runWarpBridgeTests(
   for (let i = 0; i < warpConfigTestCases.length; i++) {
     const warpConfig = warpConfigTestCases[i];
     console.log(
-      `[${i + 1} of ${warpConfigTestCases.length
-      }] Should deploy and be able to bridge in a ${warpConfig[CHAIN_NAME_2].type
+      `[${i + 1} of ${
+        warpConfigTestCases.length
+      }] Should deploy and be able to bridge in a ${
+        warpConfig[CHAIN_NAME_2].type
       } -> ${warpConfig[CHAIN_NAME_3].type} warp route ...`,
     );
 
@@ -180,6 +193,11 @@ export async function setupChains(): Promise<WarpBridgeTestConfig> {
     vaultChain2.symbol(),
   ]);
 
+  const everclearBridgeAdapterChain2 = await deployEverclearBridgeAdapter(
+    ANVIL_KEY,
+    CHAIN_NAME_2,
+  );
+
   const tokenChain3 = await deployToken(ANVIL_KEY, CHAIN_NAME_3);
   const fiatToken3 = await deployFiatToken(ANVIL_KEY, CHAIN_NAME_3);
   const xERC203 = await deployXERC20VSToken(ANVIL_KEY, CHAIN_NAME_3);
@@ -198,6 +216,11 @@ export async function setupChains(): Promise<WarpBridgeTestConfig> {
     tokenChain3.symbol(),
     vaultChain3.symbol(),
   ]);
+
+  const everclearBridgeAdapterChain3 = await deployEverclearBridgeAdapter(
+    ANVIL_KEY,
+    CHAIN_NAME_3,
+  );
 
   return {
     chain2Addresses,
@@ -219,6 +242,8 @@ export async function setupChains(): Promise<WarpBridgeTestConfig> {
     tokenChain3Symbol,
     vaultChain3,
     tokenVaultChain3Symbol,
+    everclearBridgeAdapterChain2,
+    everclearBridgeAdapterChain3,
   };
 }
 
@@ -237,6 +262,7 @@ export function generateTestCases(
       fiatToken: config.fiatToken2.address,
       xerc20: config.xERC202.address,
       xerc20Lockbox: config.xERC20Lockbox2.address,
+      everclearBridgeAdapter: config.everclearBridgeAdapterChain2.address,
     },
     {
       chainName: CHAIN_NAME_3,
@@ -247,6 +273,7 @@ export function generateTestCases(
       fiatToken: config.fiatToken3.address,
       xerc20: config.xERC203.address,
       xerc20Lockbox: config.xERC20Lockbox3.address,
+      everclearBridgeAdapter: config.everclearBridgeAdapterChain3.address,
     },
   );
 

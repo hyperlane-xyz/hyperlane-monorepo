@@ -11,7 +11,7 @@ import {
   WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigSchema,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType, randomInt } from '@hyperlane-xyz/utils';
 
 import { readChainSubmissionStrategyConfig } from '../../../config/strategy.js';
 import {
@@ -57,8 +57,9 @@ export function hyperlaneWarpInitRaw({
   privateKey?: string;
   advanced?: boolean;
 }): ProcessPromise {
-  return $`${hypKey ? ['HYP_KEY=' + hypKey] : []
-    } ${localTestRunCmdPrefix()} hyperlane warp init \
+  return $`${
+    hypKey ? ['HYP_KEY=' + hypKey] : []
+  } ${localTestRunCmdPrefix()} hyperlane warp init \
         --registry ${REGISTRY_PATH} \
         ${warpCorePath ? ['--out', warpCorePath] : []} \
         ${privateKey ? ['--key', privateKey] : []} \
@@ -96,8 +97,9 @@ export function hyperlaneWarpDeployRaw({
   privateKey?: string;
   warpRouteId?: string;
 }): ProcessPromise {
-  return $`${hypKey ? ['HYP_KEY=' + hypKey] : []
-    } ${localTestRunCmdPrefix()} hyperlane warp deploy \
+  return $`${
+    hypKey ? ['HYP_KEY=' + hypKey] : []
+  } ${localTestRunCmdPrefix()} hyperlane warp deploy \
         --registry ${REGISTRY_PATH} \
         ${warpDeployPath ? ['--config', warpDeployPath] : []} \
         ${warpCorePath ? ['--warp', warpCorePath] : []} \
@@ -313,6 +315,7 @@ type GetWarpTokenConfigByTokenTypeOptions = {
   token: Address;
   vault: Address;
   otherChain: ChainName;
+  everclearBridgeAdapter: Address;
 };
 
 function getWarpTokenConfigForType({
@@ -322,6 +325,7 @@ function getWarpTokenConfigForType({
   token,
   tokenType,
   vault,
+  everclearBridgeAdapter,
 }: GetWarpTokenConfigByTokenTypeOptions): HypTokenRouterConfig {
   let tokenConfig: HypTokenRouterConfig;
   switch (tokenType) {
@@ -379,6 +383,23 @@ function getWarpTokenConfigForType({
         collateralChainName: otherChain,
       };
       break;
+    case TokenType.collateralEverclear:
+      tokenConfig = {
+        type: TokenType.collateralEverclear,
+        mailbox,
+        owner,
+        token,
+        everclearBridgeAddress: everclearBridgeAdapter,
+        outputAssets: {},
+        everclearFeeParams: {
+          [10]: {
+            deadline: Date.now(),
+            fee: randomInt(10000000),
+            signature: '0x42',
+          },
+        },
+      };
+      break;
     default:
       throw new Error(
         `Unsupported token type "${tokenType}" for random config generation`,
@@ -397,6 +418,7 @@ type GetWarpTokenConfigOptions = {
   xerc20: Address;
   xerc20Lockbox: Address;
   chainName: ChainName;
+  everclearBridgeAdapter: Address;
 };
 
 export function generateWarpConfigs(
@@ -414,6 +436,9 @@ export function generateWarpConfigs(
     TokenType.collateralCctp,
     TokenType.nativeOpL1,
     TokenType.nativeOpL2,
+    // No adapter has been implemented yet
+    TokenType.ethEverclear,
+    TokenType.collateralEverclear,
   ]);
 
   const allowedWarpTokenTypes = Object.values(TokenType).filter(

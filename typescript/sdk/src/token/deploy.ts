@@ -3,6 +3,7 @@ import { constants } from 'ethers';
 import {
   ERC20__factory,
   ERC721Enumerable__factory,
+  EverclearTokenBridge__factory,
   GasRouter,
   IERC4626__factory,
   IMessageTransmitter__factory,
@@ -16,6 +17,7 @@ import {
 import {
   Address,
   ProtocolType,
+  addressToBytes32,
   assert,
   objFilter,
   objKeys,
@@ -58,6 +60,9 @@ import {
   WarpRouteDeployConfigMailboxRequired,
   isCctpTokenConfig,
   isCollateralTokenConfig,
+  isEverclearCollateralTokenConfig,
+  isEverclearEthBridgeTokenConfig,
+  isEverclearTokenBridgeConfig,
   isMovableCollateralTokenConfig,
   isNativeTokenConfig,
   isOpL1TokenConfig,
@@ -74,6 +79,9 @@ const OP_L2_INITIALIZE_SIGNATURE = 'initialize(address,address)';
 const OP_L1_INITIALIZE_SIGNATURE = 'initialize(address,string[])';
 // initialize(address _hook, address _owner, string[] memory __urls)
 const CCTP_INITIALIZE_SIGNATURE = 'initialize(address,address,string[])';
+// initialize(address _hook, address _owner)
+const EVERCLEAR_TOKEN_BRIDGE_INITIALIZE_SIGNATURE =
+  'initialize(address,address)';
 
 export const TOKEN_INITIALIZE_SIGNATURE = (
   contractName: HypERC20contracts[TokenType],
@@ -103,6 +111,15 @@ export const TOKEN_INITIALIZE_SIGNATURE = (
         'missing expected initialize function',
       );
       return CCTP_INITIALIZE_SIGNATURE;
+    case 'EverclearTokenBridge':
+    case 'EverclearEthBridge':
+      assert(
+        EverclearTokenBridge__factory.createInterface().functions[
+          EVERCLEAR_TOKEN_BRIDGE_INITIALIZE_SIGNATURE
+        ],
+        'missing expected initialize function',
+      );
+      return EVERCLEAR_TOKEN_BRIDGE_INITIALIZE_SIGNATURE;
     default:
       return 'initialize';
   }
@@ -136,6 +153,19 @@ abstract class TokenDeployer<
 
     if (isCollateralTokenConfig(config) || isXERC20TokenConfig(config)) {
       return [config.token, scale, config.mailbox];
+    } else if (isEverclearCollateralTokenConfig(config)) {
+      return [
+        config.token,
+        scale,
+        config.mailbox,
+        config.everclearBridgeAddress,
+      ];
+    } else if (isEverclearEthBridgeTokenConfig(config)) {
+      return [
+        config.wethAddress,
+        config.mailbox,
+        config.everclearBridgeAddress,
+      ];
     } else if (isNativeTokenConfig(config)) {
       return [scale, config.mailbox];
     } else if (isOpL2TokenConfig(config)) {
@@ -197,6 +227,11 @@ abstract class TokenDeployer<
       isNativeTokenConfig(config)
     ) {
       return defaultArgs;
+    } else if (
+      isEverclearCollateralTokenConfig(config) ||
+      isEverclearEthBridgeTokenConfig(config)
+    ) {
+      return [config.hook ?? constants.AddressZero, config.owner];
     } else if (isOpL2TokenConfig(config)) {
       return [config.hook ?? constants.AddressZero, config.owner];
     } else if (isOpL1TokenConfig(config)) {
@@ -242,7 +277,10 @@ abstract class TokenDeployer<
         continue;
       }
 
-      if (isNativeTokenConfig(config)) {
+      if (
+        isNativeTokenConfig(config) ||
+        isEverclearEthBridgeTokenConfig(config)
+      ) {
         const nativeToken = multiProvider.getChainMetadata(chain).nativeToken;
         if (nativeToken) {
           metadataMap.update(
@@ -258,7 +296,8 @@ abstract class TokenDeployer<
       if (
         isCollateralTokenConfig(config) ||
         isXERC20TokenConfig(config) ||
-        isCctpTokenConfig(config)
+        isCctpTokenConfig(config) ||
+        isEverclearCollateralTokenConfig(config)
       ) {
         const provider = multiProvider.getProvider(chain);
 
@@ -519,6 +558,83 @@ abstract class TokenDeployer<
     );
   }
 
+  protected async setEverclearFeeParams(
+    configMap: ChainMap<HypTokenConfig>,
+    deployedContractsMap: HyperlaneContractsMap<Factories>,
+  ): Promise<void> {
+    await promiseObjAll(
+      objMap(configMap, async (chain, config) => {
+        if (!isEverclearTokenBridgeConfig(config)) {
+          return;
+        }
+
+        const router = this.router(deployedContractsMap[chain]).address;
+        const everclearTokenBridge = EverclearTokenBridge__factory.connect(
+          router,
+          this.multiProvider.getSigner(chain),
+        );
+
+        const resolvedFeeParamsConfig = resolveRouterMapConfig(
+          this.multiProvider,
+          config.everclearFeeParams,
+        );
+
+        for (const [domainId, feeConfig] of Object.entries(
+          resolvedFeeParamsConfig,
+        )) {
+          await this.multiProvider.handleTx(
+            chain,
+            everclearTokenBridge.setFeeParams(
+              domainId,
+              feeConfig.fee,
+              feeConfig.deadline,
+              feeConfig.signature,
+            ),
+          );
+        }
+      }),
+    );
+  }
+
+  protected async setEverclearOutputAssets(
+    configMap: ChainMap<HypTokenConfig>,
+    deployedContractsMap: HyperlaneContractsMap<Factories>,
+  ): Promise<void> {
+    await promiseObjAll(
+      objMap(configMap, async (chain, config) => {
+        if (!isEverclearTokenBridgeConfig(config)) {
+          return;
+        }
+
+        const router = this.router(deployedContractsMap[chain]).address;
+        const everclearTokenBridge = EverclearTokenBridge__factory.connect(
+          router,
+          this.multiProvider.getSigner(chain),
+        );
+
+        const remoteOutputAddresses = resolveRouterMapConfig(
+          this.multiProvider,
+          config.outputAssets,
+        );
+
+        const assets = Object.entries(remoteOutputAddresses).map(
+          ([domainId, outputAsset]): {
+            destination: number;
+            outputAsset: string;
+          } => ({
+            destination: parseInt(domainId),
+            outputAsset: addressToBytes32(outputAsset),
+          }),
+        );
+
+        await this.multiProvider.handleTx(
+          chain,
+          everclearTokenBridge.setOutputAssetsBatch(assets),
+        );
+      }),
+    );
+  }
+
   async deploy(configMap: WarpRouteDeployConfigMailboxRequired) {
     let tokenMetadataMap: TokenMetadataMap;
     try {
@@ -555,6 +671,10 @@ abstract class TokenDeployer<
     await this.setAllowedBridges(configMap, deployedContractsMap);
 
     await this.setBridgesTokenApprovals(configMap, deployedContractsMap);
+
+    await this.setEverclearFeeParams(configMap, deployedContractsMap);
+
+    await this.setEverclearOutputAssets(configMap, deployedContractsMap);
 
     await super.transferOwnership(deployedContractsMap, configMap);
 

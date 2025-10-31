@@ -10,6 +10,8 @@ import {
   ERC4626Test__factory,
   FiatTokenTest,
   FiatTokenTest__factory,
+  MockEverclearAdapter,
+  MockEverclearAdapter__factory,
   TestCcipReadIsm__factory,
   XERC20LockboxTest,
   XERC20LockboxTest__factory,
@@ -316,6 +318,25 @@ export async function deployTestOffchainLookupISM(
   );
 }
 
+export async function deployEverclearBridgeAdapter(
+  privateKey: string,
+  chain: string,
+): Promise<MockEverclearAdapter> {
+  const { multiProvider } = await getContext({
+    registryUris: [REGISTRY_PATH],
+    key: privateKey,
+  });
+
+  multiProvider.setSigner(chain, new ethers.Wallet(privateKey));
+
+  const adapter = await new MockEverclearAdapter__factory(
+    multiProvider.getSigner(chain),
+  ).deploy();
+  await adapter.deployed();
+
+  return adapter;
+}
+
 // Verifies if the IS_CI var is set and generates the correct prefix for running the command
 // in the current env
 export function localTestRunCmdPrefix() {
@@ -389,8 +410,9 @@ export async function hyperlaneSubmit({
   strategyPath?: string;
   hypKey?: string;
 }) {
-  return $`${hypKey ? ['HYP_KEY=' + hypKey] : []
-    } ${localTestRunCmdPrefix()} hyperlane submit \
+  return $`${
+    hypKey ? ['HYP_KEY=' + hypKey] : []
+  } ${localTestRunCmdPrefix()} hyperlane submit \
         --registry ${REGISTRY_PATH} \
         --transactions ${transactionsPath} \
         --key ${ANVIL_KEY} \
