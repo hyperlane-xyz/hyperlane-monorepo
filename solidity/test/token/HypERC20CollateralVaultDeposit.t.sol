@@ -17,13 +17,15 @@ import "forge-std/Test.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 import {HypERC4626} from "../../contracts/token/extensions/HypERC4626.sol";
+import {HypERC20} from "../../contracts/token/HypERC20.sol";
+import {NonCompliantERC20Test} from "../../contracts/test/ERC20Test.sol";
 
 import {ERC4626Test} from "../../contracts/test/ERC4626/ERC4626Test.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {TokenMessage} from "../../contracts/token/libs/TokenMessage.sol";
 import {HypTokenTest} from "./HypERC20.t.sol";
 
-import {HypERC4626OwnerCollateral} from "../../contracts/token/extensions/HypERC4626OwnerCollateral.sol";
+import {HypERC4626OwnerCollateral, HypERC4626Collateral} from "../../contracts/token/extensions/HypERC4626OwnerCollateral.sol";
 import "../../contracts/test/ERC4626/ERC4626Test.sol";
 
 contract HypERC4626OwnerCollateralTest is HypTokenTest {
@@ -33,12 +35,11 @@ contract HypERC4626OwnerCollateralTest is HypTokenTest {
     HypERC4626OwnerCollateral internal erc20CollateralVaultDeposit;
     ERC4626Test vault;
 
-    function setUp() public override {
-        super.setUp();
-        vault = new ERC4626Test(address(primaryToken), "Regular Vault", "RV");
-
+    function deployErc20CollateralVaultDeposit(
+        address _vault
+    ) public returns (HypERC4626OwnerCollateral) {
         HypERC4626OwnerCollateral implementation = new HypERC4626OwnerCollateral(
-                vault,
+                ERC4626(_vault),
                 SCALE,
                 address(localMailbox)
             );
@@ -46,15 +47,21 @@ contract HypERC4626OwnerCollateralTest is HypTokenTest {
             address(implementation),
             PROXY_ADMIN,
             abi.encodeWithSelector(
-                HypERC4626OwnerCollateral.initialize.selector,
+                HypERC4626Collateral.initialize.selector,
                 address(address(noopHook)),
                 address(igp),
                 address(this)
             )
         );
         localToken = HypERC4626OwnerCollateral(address(proxy));
-        erc20CollateralVaultDeposit = HypERC4626OwnerCollateral(
-            address(localToken)
+        return HypERC4626OwnerCollateral(address(localToken));
+    }
+    function setUp() public override {
+        super.setUp();
+        vault = new ERC4626Test(address(primaryToken), "Regular Vault", "RV");
+
+        (erc20CollateralVaultDeposit) = deployErc20CollateralVaultDeposit(
+            address(vault)
         );
 
         erc20CollateralVaultDeposit.enrollRemoteRouter(
@@ -66,6 +73,24 @@ contract HypERC4626OwnerCollateralTest is HypTokenTest {
         remoteMailbox.setRequiredHook(address(noopHook));
         primaryToken.transfer(ALICE, 1000e18);
         _enrollRemoteTokenRouter();
+    }
+
+    function _localTokenBalanceOf(
+        address _account
+    ) internal view override returns (uint256) {
+        return IERC20(primaryToken).balanceOf(_account);
+    }
+
+    function testERC4626VaultDeposit_Initialize_NoncompliantERC20Token()
+        public
+    {
+        NonCompliantERC20Test nonCompliantToken = new NonCompliantERC20Test(); // Has approval() that returns void, instead of bool
+        ERC4626Test _vault = new ERC4626Test(
+            address(nonCompliantToken),
+            "Noncompliant Token Vault",
+            "NT"
+        );
+        deployErc20CollateralVaultDeposit(address(_vault));
     }
 
     function _transferRoundTripAndIncreaseYields(
@@ -123,10 +148,10 @@ contract HypERC4626OwnerCollateralTest is HypTokenTest {
         _transferRoundTripAndIncreaseYields(transferAmount, DUST_AMOUNT);
 
         // Check Alice's local token balance
-        uint256 prevBalance = localToken.balanceOf(ALICE);
+        uint256 prevBalance = _localTokenBalanceOf(ALICE);
         _handleLocalTransfer(transferAmount);
 
-        assertEq(localToken.balanceOf(ALICE), prevBalance + transferAmount);
+        assertEq(_localTokenBalanceOf(ALICE), prevBalance + transferAmount);
         assertEq(erc20CollateralVaultDeposit.assetDeposited(), 0);
     }
 
@@ -139,9 +164,9 @@ contract HypERC4626OwnerCollateralTest is HypTokenTest {
         _transferRoundTripAndIncreaseYields(TRANSFER_AMT, rewardAmount);
 
         // Check Alice's local token balance
-        uint256 prevBalance = localToken.balanceOf(ALICE);
+        uint256 prevBalance = _localTokenBalanceOf(ALICE);
         _handleLocalTransfer(TRANSFER_AMT);
-        assertEq(localToken.balanceOf(ALICE), prevBalance + TRANSFER_AMT);
+        assertEq(_localTokenBalanceOf(ALICE), prevBalance + TRANSFER_AMT);
 
         // Has leftover shares, but no assets deposited
         assertEq(erc20CollateralVaultDeposit.assetDeposited(), 0);
@@ -231,14 +256,148 @@ contract HypERC4626OwnerCollateralTest is HypTokenTest {
         );
     }
 
+    function testERC4626VaultDeposit_ceilingRounding_reservesMoreShares()
+        public
+    {
+        // This test verifies the mathematical difference between convertToShares (floor)
+        // and previewWithdraw (ceiling) rounding when calculating shares for deposits.
+
+        uint256 transferAmount = 100e18;
+        uint256 rewardAmount = 1e18;
+
+        // Setup: Transfer from Alice to Bob
+        vm.prank(ALICE);
+        primaryToken.approve(address(localToken), transferAmount);
+        _performRemoteTransfer(0, transferAmount);
+
+        // Add yield to the vault (increases share value)
+        primaryToken.mintTo(address(vault), rewardAmount);
+
+        // Transfer back from Bob to Alice
+        vm.prank(BOB);
+        remoteToken.transferRemote(
+            ORIGIN,
+            BOB.addressToBytes32(),
+            transferAmount
+        );
+        _handleLocalTransfer(transferAmount);
+
+        // At this point, we have excess shares due to the yield
+        uint256 totalShares = vault.maxRedeem(
+            address(erc20CollateralVaultDeposit)
+        );
+        uint256 assetDeposited = erc20CollateralVaultDeposit.assetDeposited();
+
+        // Calculate what convertToShares (floor rounding) would give us
+        uint256 sharesFloor = vault.convertToShares(assetDeposited);
+
+        // Calculate what previewWithdraw (ceiling rounding) gives us
+        uint256 sharesCeiling = vault.previewWithdraw(assetDeposited);
+
+        // When there's rounding involved, ceiling should be >= floor
+        // and the excess shares should be: totalShares - sharesCeiling
+        uint256 excessSharesWithCeiling = totalShares - sharesCeiling;
+        uint256 excessSharesWithFloor = totalShares - sharesFloor;
+
+        // Verify the key difference: ceiling rounding calculates more shares to reserve
+        // for the deposited assets, which means fewer excess shares to sweep
+        assertLe(
+            excessSharesWithCeiling,
+            excessSharesWithFloor,
+            "Ceiling rounding should reserve more shares for deposits"
+        );
+
+        // Perform sweep and verify the amount swept is <= excessSharesWithFloor
+        // Record logs to capture the event
+        vm.recordLogs();
+        erc20CollateralVaultDeposit.sweep();
+
+        // Get the logs and extract the ExcessSharesSwept event
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        bool foundEvent = false;
+        uint256 sweptShares;
+
+        for (uint256 i = 0; i < logs.length; i++) {
+            // ExcessSharesSwept event signature: ExcessSharesSwept(uint256,uint256)
+            if (
+                logs[i].topics[0] ==
+                keccak256("ExcessSharesSwept(uint256,uint256)")
+            ) {
+                foundEvent = true;
+                // Decode the event data (amount is first parameter, assetsRedeemed is second)
+                (sweptShares, ) = abi.decode(logs[i].data, (uint256, uint256));
+                break;
+            }
+        }
+
+        assertTrue(
+            foundEvent,
+            "ExcessSharesSwept event should have been emitted"
+        );
+        assertLe(
+            sweptShares,
+            excessSharesWithFloor,
+            "Swept amount should be <= excessSharesWithFloor"
+        );
+    }
+
+    function testERC4626VaultDeposit_sweep_usesCeilingRounding() public {
+        // This test verifies that sweep() correctly sweeps excess shares after yield accrual
+        // and leaves no shares behind when assetDeposited is 0.
+
+        uint256 transferAmount = 100e18;
+        uint256 rewardAmount = 1e18;
+
+        // Setup: Transfer from Alice to Bob
+        vm.prank(ALICE);
+        primaryToken.approve(address(localToken), transferAmount);
+        _performRemoteTransfer(0, transferAmount);
+
+        // Add yield to the vault (increases share value)
+        primaryToken.mintTo(address(vault), rewardAmount);
+
+        // Transfer back from Bob to Alice
+        vm.prank(BOB);
+        remoteToken.transferRemote(
+            ORIGIN,
+            BOB.addressToBytes32(),
+            transferAmount
+        );
+        _handleLocalTransfer(transferAmount);
+
+        uint256 ownerBalanceBefore = primaryToken.balanceOf(
+            erc20CollateralVaultDeposit.owner()
+        );
+
+        // Call sweep() which should use previewWithdraw (ceiling rounding)
+        erc20CollateralVaultDeposit.sweep();
+
+        uint256 ownerBalanceAfter = primaryToken.balanceOf(
+            erc20CollateralVaultDeposit.owner()
+        );
+        uint256 sweptAmount = ownerBalanceAfter - ownerBalanceBefore;
+
+        // The swept amount should be positive (we did sweep excess shares)
+        assertGt(sweptAmount, 0, "Should have swept excess shares");
+
+        // After sweep, we should have no shares remaining (assetDeposited is 0)
+        uint256 remainingShares = vault.maxRedeem(
+            address(erc20CollateralVaultDeposit)
+        );
+        assertEq(
+            remainingShares,
+            0,
+            "Should have no shares remaining after sweep with no deposits"
+        );
+    }
+
     function testERC4626VaultDeposit_TransferFromSender_CorrectMetadata()
         public
     {
-        remoteToken = new HypERC4626(
-            DECIMALS,
-            SCALE,
-            address(remoteMailbox),
-            ORIGIN
+        remoteToken = HypERC20(
+            address(
+                new HypERC4626(DECIMALS, SCALE, address(remoteMailbox), ORIGIN)
+            )
         );
         _enrollRemoteTokenRouter();
         vm.prank(ALICE);
