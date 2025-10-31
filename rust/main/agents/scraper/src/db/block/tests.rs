@@ -24,7 +24,6 @@ fn make_block(height: u64, hash: H256, timestamp: u64) -> BlockInfo {
 /// 2. Duplicate blocks (same hash) are handled with DO NOTHING
 /// 3. Duplicate blocks (same domain+height) are handled with DO NOTHING
 /// 4. Multiple blocks can be inserted in one call
-//#[ignore]
 #[tokio::test]
 async fn test_store_blocks_real_postgres() -> Result<(), DbErr> {
     // Start a Postgres container
