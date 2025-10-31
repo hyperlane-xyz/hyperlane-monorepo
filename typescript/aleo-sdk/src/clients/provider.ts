@@ -6,7 +6,7 @@ import {
   ProgramManager,
 } from '@provablehq/sdk';
 
-import { AltVM, assert, ensure0x } from '@hyperlane-xyz/utils';
+import { AltVM, assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
 
 import { AleoTransaction } from '../utils/types.js';
 
@@ -310,13 +310,29 @@ export class AleoProvider implements AltVM.IProvider {
   async getCreateMessageIdMultisigIsmTransaction(
     req: AltVM.ReqCreateMessageIdMultisigIsm,
   ): Promise<AleoTransaction> {
+    const MAXIMUM_VALIDATORS = 6;
+
+    if (req.validators.length > MAXIMUM_VALIDATORS) {
+      throw new Error(`maximum ${MAXIMUM_VALIDATORS} validators allowed`);
+    }
+
+    const validators = Array(MAXIMUM_VALIDATORS).fill({
+      bytes: Array(20).fill(`0u8`),
+    });
+
+    req.validators
+      .map((v) => ({
+        bytes: [...Buffer.from(strip0x(v), 'hex')].map((b) => `${b}u8`),
+      }))
+      .forEach((v, i) => (validators[i] = v));
+
     return {
       programName: 'ism_manager.aleo',
       functionName: 'init_message_id_multisig',
       priorityFee: 0,
       privateFee: false,
       inputs: [
-        req.validators.toString(),
+        JSON.stringify(validators).replaceAll('"', ''),
         `${req.validators.length}u8`,
         `${req.threshold}u8`,
       ],
