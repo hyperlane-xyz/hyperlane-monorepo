@@ -237,6 +237,10 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
   [TokenStandard.RadixHypCollateral]: null,
   [TokenStandard.RadixNative]: null,
   [TokenStandard.RadixHypSynthetic]: null,
+
+  [TokenStandard.AleoHypCollateral]: null,
+  [TokenStandard.AleoNative]: null,
+  [TokenStandard.AleoHypSynthetic]: null,
 };
 
 const PROTOCOL_TO_ADDRESS_FOR_BALANCE_CHECK: Partial<

@@ -60,6 +60,11 @@ export enum TokenStandard {
   RadixNative = 'RadixNative',
   RadixHypCollateral = 'RadixHypCollateral',
   RadixHypSynthetic = 'RadixHypSynthetic',
+
+  // Aleo
+  AleoNative = 'AleoNative',
+  AleoHypCollateral = 'AleoHypCollateral',
+  AleoHypSynthetic = 'AleoHypSynthetic',
 }
 
 // Allows for omission of protocol field in token args
@@ -116,6 +121,11 @@ export const TOKEN_STANDARD_TO_PROTOCOL: Record<TokenStandard, ProtocolType> = {
   RadixNative: ProtocolType.Radix,
   RadixHypCollateral: ProtocolType.Radix,
   RadixHypSynthetic: ProtocolType.Radix,
+
+  // Aleo
+  AleoNative: ProtocolType.Aleo,
+  AleoHypCollateral: ProtocolType.Aleo,
+  AleoHypSynthetic: ProtocolType.Aleo,
 };
 
 export const TOKEN_STANDARD_TO_PROVIDER_TYPE: Record<
@@ -369,6 +379,7 @@ export const PROTOCOL_TO_NATIVE_STANDARD: Record<ProtocolType, TokenStandard> =
     [ProtocolType.Sealevel]: TokenStandard.SealevelNative,
     [ProtocolType.Starknet]: TokenStandard.StarknetHypNative,
     [ProtocolType.Radix]: TokenStandard.RadixNative,
+    [ProtocolType.Aleo]: TokenStandard.AleoNative,
   };
 
 export const PROTOCOL_TO_HYP_NATIVE_STANDARD: Record<
@@ -382,4 +393,5 @@ export const PROTOCOL_TO_HYP_NATIVE_STANDARD: Record<
   // collateral and native are the same for cosmosnative and radix
   [ProtocolType.Radix]: TokenStandard.RadixHypCollateral,
   [ProtocolType.CosmosNative]: TokenStandard.CosmNativeHypCollateral,
+  [ProtocolType.Aleo]: TokenStandard.AleoNative,
 };
