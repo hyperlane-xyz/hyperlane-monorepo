@@ -94,7 +94,7 @@ interface IEverclearAdapter {
 
     /**
      * @notice Returns the current fee signer address
-     * @return The address whos signature is verified
+     * @return The address whose signature is verified
      */
     function feeSigner() external view returns (address);
 

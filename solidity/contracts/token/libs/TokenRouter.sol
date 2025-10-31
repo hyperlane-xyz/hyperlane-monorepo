@@ -235,7 +235,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
     /**
      * @notice Returns the address of the fee recipient.
      * @dev Returns address(0) if no fee recipient is set.
-     * @dev Can be overriden with address(0) to disable fees entirely.
+     * @dev Can be overridden with address(0) to disable fees entirely.
      * @return address of the fee recipient.
      */
     function feeRecipient() public view virtual returns (address) {
