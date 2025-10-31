@@ -43,8 +43,9 @@ import {
 import {
   getCCTPV1StrategyConfig,
   getCCTPV1WarpConfig,
+  getCCTPV2FastWarpConfig,
+  getCCTPV2StandardWarpConfig,
   getCCTPV2StrategyConfig,
-  getCCTPV2WarpConfig,
 } from './environments/mainnet3/warp/configGetters/getCCTPConfig.js';
 import { getCarrChainCARRWarpConfig } from './environments/mainnet3/warp/configGetters/getCarrchainCARRWarpConfig.js';
 import { getEclipseEthereumESWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumESWarpConfig.js';
@@ -177,7 +178,8 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.ParadexUSDC]: getParadexUSDCWarpConfig,
   [WarpRouteIds.TestnetCCTPV1]: getTestnetCCTPWarpConfig,
   [WarpRouteIds.MainnetCCTPV1]: getCCTPV1WarpConfig,
-  [WarpRouteIds.MainnetCCTPV2]: getCCTPV2WarpConfig,
+  [WarpRouteIds.MainnetCCTPV2Fast]: getCCTPV2FastWarpConfig,
+  [WarpRouteIds.MainnetCCTPV2Standard]: getCCTPV2StandardWarpConfig,
   [WarpRouteIds.LumiaUSDC]: getLumiaUSDCWarpConfig,
   [WarpRouteIds.MatchainUSDC]: getMatchainUSDCWarpConfig,
   [WarpRouteIds.MitosisMITO]: getMitosisMITOWarpConfig,

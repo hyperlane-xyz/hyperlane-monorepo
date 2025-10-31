@@ -54,6 +54,25 @@ export const messageTransmitterV2Addresses = {
   plume: '0x81D40F21F12A8F0E3252Bccb954D722d4c464B64',
 } as const;
 
+// https://developers.circle.com/cctp/technical-guide#cctp-v2-fees
+export const FAST_TRANSFER_FEE_BPS: Partial<
+  Record<keyof typeof tokenMessengerV2Addresses, number>
+> = {
+  arbitrum: 1,
+  base: 1,
+  ethereum: 1,
+  ink: 2,
+  linea: 14,
+  optimism: 1,
+  plume: 2,
+  unichain: 1,
+  worldchain: 1,
+};
+
+// https://developers.circle.com/cctp/technical-guide#cctp-v2-finality-thresholds
+export const FAST_FINALITY_THRESHOLD = 1000;
+export const STANDARD_FINALITY_THRESHOLD = 2000;
+
 export const usdcTokenAddresses = {
   algorand: '31566704',
   aptos: '0xbae207659db88bea0cbead6da0ed00aac12edcdda169e591cd41c94180b46f3b',
@@ -88,11 +107,3 @@ export const usdcTokenAddresses = {
 } as const;
 
 export type UsdcChainId = keyof typeof usdcTokenAddresses;
-
-// All chains that support CCTP (union of V1 and V2)
-export const CCTP_CHAINS = [
-  ...new Set([
-    ...Object.keys(tokenMessengerV1Addresses),
-    ...Object.keys(tokenMessengerV2Addresses),
-  ]),
-] as const;

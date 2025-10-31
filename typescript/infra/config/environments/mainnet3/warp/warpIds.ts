@@ -123,7 +123,8 @@ export enum WarpRouteIds {
   LitchainLITKEY = 'LITKEY/litchain',
 
   MainnetCCTPV1 = 'USDC/mainnet-cctp',
-  MainnetCCTPV2 = 'USDC/mainnet-cctp-v2',
+  MainnetCCTPV2Fast = 'USDC/mainnet-cctp-v2-fast',
+  MainnetCCTPV2Standard = 'USDC/mainnet-cctp-v2-standard',
   TestnetCCTPV1 = 'USDC/testnet-cctp',
 
   // HYPER routes

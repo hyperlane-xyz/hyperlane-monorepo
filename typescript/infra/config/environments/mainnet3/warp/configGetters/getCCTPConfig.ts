@@ -8,12 +8,15 @@ import {
   TokenType,
   TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, objMap } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { awIcasLegacy } from '../../governance/ica/_awLegacy.js';
 import { awSafes } from '../../governance/safe/aw.js';
 import {
+  FAST_FINALITY_THRESHOLD,
+  FAST_TRANSFER_FEE_BPS,
+  STANDARD_FINALITY_THRESHOLD,
   messageTransmitterV1Addresses,
   messageTransmitterV2Addresses,
   tokenMessengerV1Addresses,
@@ -36,12 +39,12 @@ const owners: Record<ChainName, string> = {
   unichain: awIcasLegacy['unichain'],
 };
 
-const getCCTPWarpConfig = async (
+const getCCTPWarpConfig = (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
   _warpRouteId: string,
   version: 'V1' | 'V2' = 'V1',
-): Promise<ChainMap<HypTokenRouterConfig>> => {
+): ChainMap<HypTokenRouterConfig> => {
   const messengerAddresses =
     version === 'V1' ? tokenMessengerV1Addresses : tokenMessengerV2Addresses;
   const transmitterAddresses =
@@ -88,16 +91,58 @@ export const getCCTPV1WarpConfig = async (
   );
 };
 
-export const getCCTPV2WarpConfig = async (
+const getCCTPV2WarpConfig = (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
   _warpRouteId: string,
-): Promise<ChainMap<HypTokenRouterConfig>> => {
-  return getCCTPWarpConfig(
+  mode: 'fast' | 'standard' = 'standard',
+): ChainMap<HypTokenRouterConfig> => {
+  const baseConfig = getCCTPWarpConfig(
     routerConfig,
     _abacusWorksEnvOwnerConfig,
     _warpRouteId,
     'V2',
+  );
+  return objMap(baseConfig, (chain, config) => {
+    const maxFeeBps =
+      mode === 'fast'
+        ? (FAST_TRANSFER_FEE_BPS[chain as keyof typeof FAST_TRANSFER_FEE_BPS] ??
+          0)
+        : 0;
+    const minFinalityThreshold =
+      mode === 'fast' ? FAST_FINALITY_THRESHOLD : STANDARD_FINALITY_THRESHOLD;
+
+    return {
+      ...config,
+      maxFeeBps,
+      minFinalityThreshold,
+    };
+  });
+};
+
+export const getCCTPV2FastWarpConfig = async (
+  routerConfig: ChainMap<RouterConfigWithoutOwner>,
+  _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
+  _warpRouteId: string,
+): Promise<ChainMap<HypTokenRouterConfig>> => {
+  return getCCTPV2WarpConfig(
+    routerConfig,
+    _abacusWorksEnvOwnerConfig,
+    _warpRouteId,
+    'fast',
+  );
+};
+
+export const getCCTPV2StandardWarpConfig = async (
+  routerConfig: ChainMap<RouterConfigWithoutOwner>,
+  _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
+  _warpRouteId: string,
+): Promise<ChainMap<HypTokenRouterConfig>> => {
+  return getCCTPV2WarpConfig(
+    routerConfig,
+    _abacusWorksEnvOwnerConfig,
+    _warpRouteId,
+    'standard',
   );
 };
 
