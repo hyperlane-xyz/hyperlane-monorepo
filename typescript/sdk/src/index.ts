@@ -224,6 +224,22 @@ export {
   multisigConfigToIsmConfig,
 } from './ism/multisig.js';
 export {
+  SealevelMultisigIsmInstructionName,
+  SealevelMultisigIsmInstructionType,
+  SealevelMultisigIsmSetValidatorsInstruction,
+  SealevelMultisigIsmSetValidatorsInstructionSchema,
+  SealevelMultisigIsmTransferOwnershipInstruction,
+  SealevelMultisigIsmTransferOwnershipInstructionSchema,
+} from './ism/serialization.js';
+export {
+  SealevelMailboxInstructionName,
+  SealevelMailboxInstructionType,
+  SealevelMailboxSetDefaultIsmInstruction,
+  SealevelMailboxSetDefaultIsmInstructionSchema,
+  SealevelMailboxTransferOwnershipInstruction,
+  SealevelMailboxTransferOwnershipInstructionSchema,
+} from './mailbox/serialization.js';
+export {
   AggregationIsmConfig,
   AggregationIsmConfigSchema,
   ArbL2ToL1IsmConfig,
