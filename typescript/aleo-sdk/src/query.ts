@@ -10,6 +10,13 @@ const main = async () => {
 
   const mailbox = await provider.getMailbox({ mailboxAddress: 'mailbox.aleo' });
   console.log(mailbox);
+
+  console.log(
+    await provider.getMessageIdMultisigIsm({
+      ismAddress:
+        'aleo1xg67v5l2ysnku6fkyhwym7upxmeeypdrtseyjtan3whrhqepyc8qtmm00u',
+    }),
+  );
 };
 
 main();

@@ -1,6 +1,6 @@
 import { Account, AleoNetworkClient, ProgramManager } from '@provablehq/sdk';
 
-import { AltVM, assert } from '@hyperlane-xyz/utils';
+import { AltVM, assert, ensure0x } from '@hyperlane-xyz/utils';
 
 import { AleoTransaction } from '../utils/types.js';
 
@@ -64,11 +64,16 @@ export class AleoProvider implements AltVM.IProvider {
   // ### QUERY CORE ###
 
   async getMailbox(req: AltVM.ReqGetMailbox): Promise<AltVM.ResGetMailbox> {
-    const res = await this.aleoClient.getProgramMappingPlaintext(
-      req.mailboxAddress,
-      'mailbox',
-      'true',
-    );
+    let res;
+    try {
+      res = await this.aleoClient.getProgramMappingPlaintext(
+        req.mailboxAddress,
+        'mailbox',
+        'true',
+      );
+    } catch {
+      throw new Error(`Found no Mailbox for address: ${req.mailboxAddress}`);
+    }
 
     const {
       mailbox_owner,
@@ -96,20 +101,54 @@ export class AleoProvider implements AltVM.IProvider {
     throw new Error(`TODO: implement`);
   }
 
-  async getIsmType(_req: AltVM.ReqGetIsmType): Promise<AltVM.IsmType> {
-    throw new Error(`TODO: implement`);
+  async getIsmType(req: AltVM.ReqGetIsmType): Promise<AltVM.IsmType> {
+    let res;
+    try {
+      res = await this.aleoClient.getProgramMappingPlaintext(
+        'ism_manager.aleo',
+        'isms',
+        req.ismAddress,
+      );
+    } catch {
+      throw new Error(`Found no ISM for address: ${req.ismAddress}`);
+    }
+
+    // TODO: Switch ISM type
+    return res.toObject();
   }
 
   async getMessageIdMultisigIsm(
-    _req: AltVM.ReqMessageIdMultisigIsm,
+    req: AltVM.ReqMessageIdMultisigIsm,
   ): Promise<AltVM.ResMessageIdMultisigIsm> {
-    throw new Error(`TODO: implement`);
+    let res;
+    try {
+      res = await this.aleoClient.getProgramMappingPlaintext(
+        'ism_manager.aleo',
+        'message_id_multisigs',
+        req.ismAddress,
+      );
+    } catch {
+      throw new Error(`Found no ISM for address: ${req.ismAddress}`);
+    }
+
+    const { validators, threshold } = res.toObject();
+
+    const validatorsHex: string[] = [];
+    validators.forEach((v: any) => {
+      validatorsHex.push(ensure0x(Buffer.from(v.bytes).toString('hex')));
+    });
+
+    return {
+      address: req.ismAddress,
+      validators: validatorsHex,
+      threshold: threshold,
+    };
   }
 
   async getMerkleRootMultisigIsm(
     _req: AltVM.ReqMerkleRootMultisigIsm,
   ): Promise<AltVM.ResMerkleRootMultisigIsm> {
-    throw new Error(`TODO: implement`);
+    throw new Error(`MerkleRootMultisigIsm is currently not supported on Aleo`);
   }
 
   async getRoutingIsm(_req: AltVM.ReqRoutingIsm): Promise<AltVM.ResRoutingIsm> {
@@ -120,20 +159,64 @@ export class AleoProvider implements AltVM.IProvider {
     throw new Error(`TODO: implement`);
   }
 
-  async getHookType(_req: AltVM.ReqGetHookType): Promise<AltVM.HookType> {
-    throw new Error(`TODO: implement`);
+  async getHookType(req: AltVM.ReqGetHookType): Promise<AltVM.HookType> {
+    let res;
+    try {
+      res = await this.aleoClient.getProgramMappingPlaintext(
+        'hook_manager.aleo',
+        'hooks',
+        req.hookAddress,
+      );
+    } catch {
+      throw new Error(`Found no ISM for address: ${req.hookAddress}`);
+    }
+
+    // TODO: Switch Hook type
+    return res.toObject();
   }
 
   async getInterchainGasPaymasterHook(
     _req: AltVM.ReqGetInterchainGasPaymasterHook,
   ): Promise<AltVM.ResGetInterchainGasPaymasterHook> {
-    throw new Error(`TODO: implement`);
+    // let res;
+    // try {
+    //   res = await this.aleoClient.getProgramMappingPlaintext(
+    //     "hook_manager.aleo",
+    //     'igps',
+    //     req.hookAddress,
+    //   );
+    // } catch {
+    //   throw new Error(`Found no MerkleTreeHook for address: ${req.hookAddress}`);
+    // }
+    //
+    // const { hook_owner } = res.toObject();
+    //
+    // return {
+    //   address: req.hookAddress,
+    //   owner: hook_owner
+    // }
+
+    throw new Error(`TODO: wait for the destination domain mapping`);
   }
 
   async getMerkleTreeHook(
-    _req: AltVM.ReqGetMerkleTreeHook,
+    req: AltVM.ReqGetMerkleTreeHook,
   ): Promise<AltVM.ResGetMerkleTreeHook> {
-    throw new Error(`TODO: implement`);
+    try {
+      await this.aleoClient.getProgramMappingPlaintext(
+        'hook_manager.aleo',
+        'merkle_tree_hooks',
+        req.hookAddress,
+      );
+    } catch {
+      throw new Error(
+        `Found no MerkleTreeHook for address: ${req.hookAddress}`,
+      );
+    }
+
+    return {
+      address: req.hookAddress,
+    };
   }
 
   // ### QUERY WARP ###
