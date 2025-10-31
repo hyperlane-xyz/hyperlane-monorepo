@@ -30,6 +30,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
+import { deployOrUseExistingCore } from '../commands/core.js';
 import {
   GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH,
   deployEverclearBridgeAdapter,
@@ -42,6 +43,7 @@ import {
   CHAIN_3_METADATA_PATH,
   CHAIN_NAME_2,
   CHAIN_NAME_3,
+  CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
   WARP_DEPLOY_OUTPUT_PATH,
 } from '../consts.js';
@@ -94,6 +96,12 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
     const chain3Metadata: ChainMetadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
     chain3DomainId = chain3Metadata.domainId;
+
+    // Deploy core contracts to populate the registry
+    await Promise.all([
+      deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY),
+      deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, ANVIL_KEY),
+    ]);
   });
   describe(`hyperlane warp deploy --config ... --yes --key ...`, () => {
     let tokenChain2: ERC20Test;
