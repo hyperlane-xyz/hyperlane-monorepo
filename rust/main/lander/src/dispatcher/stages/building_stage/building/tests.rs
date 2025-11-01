@@ -1,6 +1,6 @@
 use std::{collections::VecDeque, sync::Arc};
 
-use tokio::sync::Mutex;
+use tokio::sync::{mpsc, Mutex};
 
 use crate::adapter::{AdaptsChain, TxBuildingResult};
 use crate::dispatcher::{metrics::DispatcherMetrics, DispatcherState, PayloadDb, TransactionDb};
@@ -12,9 +12,14 @@ use super::{BuildingStage, BuildingStageQueue};
 
 #[tokio::test]
 async fn test_empty_queue_no_payloads_processed() {
-    let (building_stage, mut receiver, queue) = test_setup(0, true);
+    let (building_stage_sender, building_stage_receiver) = mpsc::channel(1);
+    building_stage_sender
+        .send(())
+        .await
+        .expect("Failed to send signal to building_stage_receiver");
+    let (mut building_stage, mut receiver, queue) = test_setup(0, true, building_stage_receiver);
     // Run the building stage with an empty queue; should not send any transactions.
-    let payload_details_received = run_building_stage(1, &building_stage, &mut receiver).await;
+    let payload_details_received = run_building_stage(1, &mut building_stage, &mut receiver).await;
     assert!(payload_details_received.is_empty());
     assert_eq!(queue.len().await, 0);
 }
@@ -23,14 +28,23 @@ async fn test_empty_queue_no_payloads_processed() {
 async fn test_send_payloads_one_by_one() {
     const PAYLOADS_TO_SEND: usize = 3;
     let successful_build = true;
-    let (building_stage, mut receiver, queue) = test_setup(PAYLOADS_TO_SEND, successful_build);
+    let (building_stage_sender, building_stage_receiver) = mpsc::channel(1);
+    let (mut building_stage, mut receiver, queue) =
+        test_setup(PAYLOADS_TO_SEND, successful_build, building_stage_receiver);
 
     // send a single payload to the building stage and check that it is sent to the receiver
     for _ in 0..PAYLOADS_TO_SEND {
         let payload_to_send = FullPayload::random();
         initialize_payload_db(&building_stage.state.payload_db, &payload_to_send).await;
         queue.push_back(payload_to_send.clone()).await;
-        let payload_details_received = run_building_stage(1, &building_stage, &mut receiver).await;
+        if building_stage_sender.capacity() > 0 {
+            building_stage_sender
+                .send(())
+                .await
+                .expect("Failed to send signal to building_stage_receiver");
+        }
+        let payload_details_received =
+            run_building_stage(1, &mut building_stage, &mut receiver).await;
         assert_eq!(
             payload_details_received,
             vec![payload_to_send.details.clone()]
@@ -49,19 +63,27 @@ async fn test_send_payloads_one_by_one() {
 async fn test_send_multiple_payloads_at_once_without_batching() {
     const PAYLOADS_TO_SEND: usize = 3;
     let successful_build = true;
-    let (building_stage, mut receiver, queue) = test_setup(PAYLOADS_TO_SEND, successful_build);
+    let (building_stage_sender, building_stage_receiver) = mpsc::channel(1);
+    let (mut building_stage, mut receiver, queue) =
+        test_setup(PAYLOADS_TO_SEND, successful_build, building_stage_receiver);
 
     let mut sent_payloads = Vec::new();
     for _ in 0..PAYLOADS_TO_SEND {
         let payload_to_send = FullPayload::random();
         initialize_payload_db(&building_stage.state.payload_db, &payload_to_send).await;
         queue.push_back(payload_to_send.clone()).await;
+        if building_stage_sender.capacity() > 0 {
+            building_stage_sender
+                .send(())
+                .await
+                .expect("Failed to send signal to building_stage_receiver");
+        }
         sent_payloads.push(payload_to_send);
     }
 
     // send multiple payloads to the building stage and check that they are sent to the receiver in the same order
     let payload_details_received =
-        run_building_stage(PAYLOADS_TO_SEND, &building_stage, &mut receiver).await;
+        run_building_stage(PAYLOADS_TO_SEND, &mut building_stage, &mut receiver).await;
     let expected_payload_details = sent_payloads
         .into_iter()
         .map(|payload| payload.details)
@@ -80,13 +102,22 @@ async fn test_send_multiple_payloads_at_once_without_batching() {
 async fn test_txs_failed_to_build() {
     const PAYLOADS_TO_SEND: usize = 3;
     let successful_build = false;
-    let (building_stage, mut receiver, queue) = test_setup(PAYLOADS_TO_SEND, successful_build);
+    let (building_stage_sender, building_stage_receiver) = mpsc::channel(1);
+    let (mut building_stage, mut receiver, queue) =
+        test_setup(PAYLOADS_TO_SEND, successful_build, building_stage_receiver);
 
     for _ in 0..PAYLOADS_TO_SEND {
         let payload_to_send = FullPayload::random();
         initialize_payload_db(&building_stage.state.payload_db, &payload_to_send).await;
         queue.push_back(payload_to_send.clone()).await;
-        let payload_details_received = run_building_stage(1, &building_stage, &mut receiver).await;
+        if building_stage_sender.capacity() > 0 {
+            building_stage_sender
+                .send(())
+                .await
+                .expect("Failed to send signal to building_stage_receiver");
+        }
+        let payload_details_received =
+            run_building_stage(1, &mut building_stage, &mut receiver).await;
         assert_eq!(payload_details_received, vec![]);
         assert_db_status_for_payloads(
             &building_stage.state,
@@ -104,6 +135,7 @@ async fn test_batch_larger_than_queue() {
     let payloads_to_send = 2;
     let batch_size = 5;
     let (payload_db, tx_db, _) = tmp_dbs();
+    let (building_stage_sender, building_stage_receiver) = mpsc::channel(1);
     let mut mock_adapter = MockAdapter::new();
     mock_adapter
         .expect_build_transactions()
@@ -112,19 +144,25 @@ async fn test_batch_larger_than_queue() {
     mock_adapter
         .expect_max_batch_size()
         .returning(move || batch_size);
-    let (building_stage, mut receiver, queue) =
-        dummy_stage_receiver_queue(mock_adapter, payload_db, tx_db);
+    let (mut building_stage, mut receiver, queue) =
+        dummy_stage_receiver_queue(mock_adapter, building_stage_receiver, payload_db, tx_db);
 
     let mut sent_payloads = Vec::new();
     for _ in 0..payloads_to_send {
         let payload_to_send = FullPayload::random();
         initialize_payload_db(&building_stage.state.payload_db, &payload_to_send).await;
         queue.push_back(payload_to_send.clone()).await;
+        if building_stage_sender.capacity() > 0 {
+            building_stage_sender
+                .send(())
+                .await
+                .expect("Failed to send signal to building_stage_receiver");
+        }
         sent_payloads.push(payload_to_send);
     }
 
     let payload_details_received =
-        run_building_stage(payloads_to_send, &building_stage, &mut receiver).await;
+        run_building_stage(payloads_to_send, &mut building_stage, &mut receiver).await;
     let expected_payload_details = sent_payloads
         .into_iter()
         .map(|payload| payload.details)
@@ -148,20 +186,27 @@ async fn test_send_multiple_payloads_at_once_with_batching() {
     mock_adapter
         .expect_max_batch_size()
         .returning(move || batch_size);
-    let (building_stage, mut receiver, queue) =
-        dummy_stage_receiver_queue(mock_adapter, payload_db, tx_db);
+    let (building_stage_sender, building_stage_receiver) = mpsc::channel(1);
+    let (mut building_stage, mut receiver, queue) =
+        dummy_stage_receiver_queue(mock_adapter, building_stage_receiver, payload_db, tx_db);
 
     let mut sent_payloads = Vec::new();
     for _ in 0..PAYLOADS_TO_SEND {
         let payload_to_send = FullPayload::random();
         initialize_payload_db(&building_stage.state.payload_db, &payload_to_send).await;
         queue.push_back(payload_to_send.clone()).await;
+        if building_stage_sender.capacity() > 0 {
+            building_stage_sender
+                .send(())
+                .await
+                .expect("Failed to send signal to building_stage_receiver");
+        }
         sent_payloads.push(payload_to_send);
     }
 
     // Should receive all payloads in two batches
     let payload_details_received =
-        run_building_stage(PAYLOADS_TO_SEND, &building_stage, &mut receiver).await;
+        run_building_stage(PAYLOADS_TO_SEND, &mut building_stage, &mut receiver).await;
     let expected_payload_details = sent_payloads
         .into_iter()
         .map(|payload| payload.details)
@@ -185,15 +230,22 @@ async fn test_adapter_returns_empty_result() {
         .times(1)
         .returning(|_| vec![]); // Adapter returns empty result
     mock_adapter.expect_max_batch_size().returning(|| 1);
-    let (building_stage, mut receiver, queue) =
-        dummy_stage_receiver_queue(mock_adapter, payload_db, tx_db);
+
+    let (building_stage_sender, building_stage_receiver) = mpsc::channel(1);
+    building_stage_sender
+        .send(())
+        .await
+        .expect("Failed to send signal to building_stage_receiver");
+    let (mut building_stage, mut receiver, queue) =
+        dummy_stage_receiver_queue(mock_adapter, building_stage_receiver, payload_db, tx_db);
 
     let payload_to_send = FullPayload::random();
     initialize_payload_db(&building_stage.state.payload_db, &payload_to_send).await;
     queue.push_back(payload_to_send.clone()).await;
 
     // Should not receive any payloads, but also not panic
-    let payload_details_received = run_building_stage(1, &building_stage, &mut receiver).await;
+
+    let payload_details_received = run_building_stage(1, &mut building_stage, &mut receiver).await;
     assert!(payload_details_received.is_empty());
     // The queue should still be empty, as the payload was "processed"
     assert_eq!(queue.len().await, 0);
@@ -208,15 +260,21 @@ async fn test_adapter_returns_result_with_empty_payloads() {
         .times(1)
         .returning(|_| vec![TxBuildingResult::new(vec![], None)]);
     mock_adapter.expect_max_batch_size().returning(|| 1);
-    let (building_stage, mut receiver, queue) =
-        dummy_stage_receiver_queue(mock_adapter, payload_db, tx_db);
+    let (building_stage_sender, building_stage_receiver) = mpsc::channel(1);
+    let (mut building_stage, mut receiver, queue) =
+        dummy_stage_receiver_queue(mock_adapter, building_stage_receiver, payload_db, tx_db);
 
     let payload_to_send = FullPayload::random();
     initialize_payload_db(&building_stage.state.payload_db, &payload_to_send).await;
     queue.push_back(payload_to_send.clone()).await;
-
+    if building_stage_sender.capacity() > 0 {
+        building_stage_sender
+            .send(())
+            .await
+            .expect("Failed to send signal to building_stage_receiver");
+    }
     // Should not receive any payloads, but also not panic
-    let payload_details_received = run_building_stage(1, &building_stage, &mut receiver).await;
+    let payload_details_received = run_building_stage(1, &mut building_stage, &mut receiver).await;
     assert!(payload_details_received.is_empty());
     // The queue should still be empty, as the payload was "processed"
     assert_eq!(queue.len().await, 0);
@@ -225,7 +283,8 @@ async fn test_adapter_returns_result_with_empty_payloads() {
 #[tokio::test]
 async fn test_queue_filled_and_cleared() {
     // Fill the queue, process, then ensure it's empty and can be refilled
-    let (building_stage, mut receiver, queue) = test_setup(3, true);
+    let (building_stage_sender, building_stage_receiver) = mpsc::channel(1);
+    let (mut building_stage, mut receiver, queue) = test_setup(3, true, building_stage_receiver);
 
     let payload1 = FullPayload::random();
     let payload2 = FullPayload::random();
@@ -233,8 +292,14 @@ async fn test_queue_filled_and_cleared() {
     initialize_payload_db(&building_stage.state.payload_db, &payload2).await;
     queue.push_back(payload1.clone()).await;
     queue.push_back(payload2.clone()).await;
+    if building_stage_sender.capacity() > 0 {
+        building_stage_sender
+            .send(())
+            .await
+            .expect("Failed to send signal to building_stage_receiver");
+    }
 
-    let payload_details_received = run_building_stage(2, &building_stage, &mut receiver).await;
+    let payload_details_received = run_building_stage(2, &mut building_stage, &mut receiver).await;
     assert_eq!(
         payload_details_received,
         vec![payload1.details.clone(), payload2.details.clone()]
@@ -245,7 +310,13 @@ async fn test_queue_filled_and_cleared() {
     let payload3 = FullPayload::random();
     initialize_payload_db(&building_stage.state.payload_db, &payload3).await;
     queue.push_back(payload3.clone()).await;
-    let payload_details_received = run_building_stage(1, &building_stage, &mut receiver).await;
+    if building_stage_sender.capacity() > 0 {
+        building_stage_sender
+            .send(())
+            .await
+            .expect("Failed to send signal to building_stage_receiver");
+    }
+    let payload_details_received = run_building_stage(1, &mut building_stage, &mut receiver).await;
     assert_eq!(payload_details_received, vec![payload3.details.clone()]);
     assert_eq!(queue.len().await, 0);
 }
@@ -267,14 +338,26 @@ async fn test_channel_send_failure() {
         DispatcherMetrics::dummy_instance(),
         "dummy_domain".to_string(),
     );
+    let (building_stage_sender, building_stage_receiver) = mpsc::channel(1);
     let (sender, receiver) = tokio::sync::mpsc::channel(1);
     let queue = BuildingStageQueue::new();
-    let building_stage =
-        BuildingStage::new(queue.clone(), sender, state, "test_domain".to_string());
+    let mut building_stage = BuildingStage::new(
+        queue.clone(),
+        building_stage_receiver,
+        sender,
+        state,
+        "test_domain".to_string(),
+    );
 
     let payload_to_send = FullPayload::random();
     initialize_payload_db(&building_stage.state.payload_db, &payload_to_send).await;
     queue.push_back(payload_to_send.clone()).await;
+    if building_stage_sender.capacity() > 0 {
+        building_stage_sender
+            .send(())
+            .await
+            .expect("Failed to send signal to building_stage_receiver");
+    }
 
     // Drop the receiver to simulate channel send failure
     drop(receiver);
@@ -291,7 +374,7 @@ async fn test_channel_send_failure() {
 
 async fn run_building_stage(
     sent_payload_count: usize,
-    building_stage: &BuildingStage,
+    building_stage: &mut BuildingStage,
     receiver: &mut tokio::sync::mpsc::Receiver<Transaction>,
 ) -> Vec<PayloadDetails> {
     // future that receives `sent_payload_count` payloads from the building stage
@@ -321,6 +404,7 @@ async fn run_building_stage(
 fn test_setup(
     payloads_to_send: usize,
     successful_build: bool,
+    building_stage_receiver: mpsc::Receiver<()>,
 ) -> (
     BuildingStage,
     tokio::sync::mpsc::Receiver<Transaction>,
@@ -333,11 +417,12 @@ fn test_setup(
         .times(payloads_to_send)
         .returning(move |payloads| dummy_built_tx(payloads.to_vec(), successful_build.clone()));
     mock_adapter.expect_max_batch_size().returning(|| 1);
-    dummy_stage_receiver_queue(mock_adapter, payload_db, tx_db)
+    dummy_stage_receiver_queue(mock_adapter, building_stage_receiver, payload_db, tx_db)
 }
 
 fn dummy_stage_receiver_queue(
     mock_adapter: MockAdapter,
+    building_stage_receiver: mpsc::Receiver<()>,
     payload_db: Arc<dyn PayloadDb>,
     tx_db: Arc<dyn TransactionDb>,
 ) -> (
@@ -355,8 +440,13 @@ fn dummy_stage_receiver_queue(
     );
     let (sender, receiver) = tokio::sync::mpsc::channel(100);
     let queue = BuildingStageQueue::new();
-    let building_stage =
-        BuildingStage::new(queue.clone(), sender, state, "test_domain".to_string());
+    let building_stage = BuildingStage::new(
+        queue.clone(),
+        building_stage_receiver,
+        sender,
+        state,
+        "test_domain".to_string(),
+    );
     (building_stage, receiver, queue)
 }
 
