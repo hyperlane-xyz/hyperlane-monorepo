@@ -135,6 +135,12 @@ impl EthereumAdapter {
 
         let old_gas_price = old_tx_precursor.extract_gas_price();
 
+        // if transaction is not in mempool stage anymore, we don't need
+        // to escalate gas
+        if tx.status != TransactionStatus::Mempool {
+            return Ok(old_gas_price);
+        }
+
         // first, estimate the gas price
         let estimated_gas_price = gas_price::estimate_gas_price(
             &self.provider,
