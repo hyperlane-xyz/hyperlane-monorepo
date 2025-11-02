@@ -42,6 +42,14 @@ ethers-prometheus = { path = "../../ethers-prometheus", features = ["serde"] }
 hyperlane-ethereum = { path = "../../chains/hyperlane-ethereum" }
 hyperlane-test = { path = "../../hyperlane-test" }
 
+[lib]
+name = "scraper"
+path = "src/lib.rs"
+
+[[bin]]
+name = "scraper"
+path = "src/main.rs"
+
 [features]
 default = ["color-eyre", "oneline-errors"]
 oneline-errors = ["hyperlane-base/oneline-errors"]

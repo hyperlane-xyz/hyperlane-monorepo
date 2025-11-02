@@ -119,6 +119,7 @@ impl<T: Debug + Indexable + Clone + Sync + Send + 'static>
             latest_sequence_querier: latest_sequence_querier.clone(),
             lowest_block_height_or_sequence,
             store,
+            sql_store: None, // No SQL store by default - will be set by validator
             current_sequence_count: sequence_count,
             start_block: tip,
             index_mode: mode,
@@ -130,6 +131,14 @@ impl<T: Debug + Indexable + Clone + Sync + Send + 'static>
             backward: backward_cursor,
             last_direction: SyncDirection::Forward,
         })
+    }
+
+    /// Set an optional SQL store for the backward cursor to enable fast historical data retrieval
+    pub fn set_sql_store(
+        &mut self,
+        sql_store: Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<T>>,
+    ) {
+        self.backward.sql_store = Some(sql_store);
     }
 }
 
