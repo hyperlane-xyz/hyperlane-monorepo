@@ -70,6 +70,7 @@ pub struct EthereumAdapter {
     pub payload_db: Arc<dyn PayloadDb>,
     pub signer: H160,
     pub minimum_time_between_resubmissions: Duration,
+    pub metrics: EthereumAdapterMetrics,
 }
 
 impl EthereumAdapter {
@@ -110,7 +111,7 @@ impl EthereumAdapter {
         let payload_db = db.clone() as Arc<dyn PayloadDb>;
 
         let reorg_period = EthereumReorgPeriod::try_from(&conf.reorg_period)?;
-        let nonce_manager = NonceManager::new(&conf, db, provider.clone(), metrics).await?;
+        let nonce_manager = NonceManager::new(&conf, db, provider.clone(), metrics.clone()).await?;
 
         let adapter = Self {
             estimated_block_time: conf.estimated_block_time,
@@ -125,6 +126,7 @@ impl EthereumAdapter {
             payload_db,
             signer,
             minimum_time_between_resubmissions: DEFAULT_MINIMUM_TIME_BETWEEN_RESUBMISSIONS,
+            metrics,
         };
 
         Ok(adapter)
@@ -366,6 +368,10 @@ impl EthereumAdapter {
         };
         Ok(vec![tx_building_result])
     }
+
+    pub fn metrics(&self) -> &EthereumAdapterMetrics {
+        &self.metrics
+    }
 }
 
 #[async_trait]
@@ -400,7 +406,7 @@ impl AdaptsChain for EthereumAdapter {
         elapsed > *ready_time
     }
 
-    /// Builds a transaction for the given payloads.
+    /// Builds transactions for the given payloads.
     ///
     /// If there is only one payload, it builds a transaction without batching.
     /// If there are multiple payloads, it batches them into a single transaction.
@@ -408,6 +414,8 @@ impl AdaptsChain for EthereumAdapter {
     /// by the order of payloads.
     /// The order should not change since the simulation and estimation of the batched transaction
     /// depend on the order of payloads.
+    /// If batching fails, it will fallback to building multiple transactions with a
+    /// single payload for each of them.
     async fn build_transactions(&self, payloads: &[FullPayload]) -> Vec<TxBuildingResult> {
         use super::transaction::TransactionFactory;
 
@@ -442,52 +450,48 @@ impl AdaptsChain for EthereumAdapter {
             return results;
         }
 
-        // Batched transaction
-        let results = match self
+        match self
             .build_batched_transaction(precursors.clone(), payload_details.clone())
             .await
         {
-            Ok(res) => {
-                self.nonce_manager
-                    .state
-                    .metrics()
-                    .increment_batched_transactions(
-                        LABEL_BATCHED_TRANSACTION_SUCCESS,
-                        payloads.len() as u64,
-                    );
-                res
+            Ok(results) => {
+                self.metrics().increment_batched_transactions(
+                    LABEL_BATCHED_TRANSACTION_SUCCESS,
+                    payloads.len() as u64,
+                );
+                info!(
+                    ?payloads,
+                    ?results,
+                    "built batched transaction for payloads"
+                );
+                // Batched transaction
+                return results;
             }
-            // multicall contract not deployed!
             Err(err) => {
-                self.nonce_manager
-                    .state
-                    .metrics()
-                    .increment_batched_transactions(
-                        LABEL_BATCHED_TRANSACTION_FAILED,
-                        payloads.len() as u64,
-                    );
-                tracing::warn!(
+                self.metrics().increment_batched_transactions(
+                    LABEL_BATCHED_TRANSACTION_FAILED,
+                    payloads.len() as u64,
+                );
+                warn!(
                     domain = self.domain.name(),
                     ?err,
-                    "Failed to build batch transaction"
+                    "Failed to build batch transaction. Fallback to single tx submission"
                 );
-                tracing::warn!(
-                    domain = self.domain.name(),
-                    "Fallback to single tx submission"
-                );
-
-                let mut results = Vec::with_capacity(precursors.len());
-                for payload in payloads {
-                    let precursor = EthereumTxPrecursor::from_payload(payload, self.signer);
-                    results.push(
-                        self.build_single_transaction(precursor, vec![payload.details.clone()]),
-                    );
-                }
-                results
             }
-        };
+        }
 
-        info!(?payloads, ?results, "built transaction for payloads");
+        let results: Vec<_> = payloads
+            .iter()
+            .map(|payload| {
+                let precursor = EthereumTxPrecursor::from_payload(payload, self.signer);
+                self.build_single_transaction(precursor, vec![payload.details.clone()])
+            })
+            .collect();
+        info!(
+            ?payloads,
+            ?results,
+            "built multiple transactions for multiple payloads"
+        );
         results
     }
 

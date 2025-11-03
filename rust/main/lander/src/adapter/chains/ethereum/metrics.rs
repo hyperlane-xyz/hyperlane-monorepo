@@ -49,6 +49,10 @@ impl EthereumAdapterMetrics {
             .with_label_values(&[self.domain.name(), status])
             .inc_by(amount);
     }
+
+    pub fn get_batched_transactions(&self) -> &IntCounterVec {
+        &self.batched_transaction
+    }
 }
 
 #[cfg(test)]
