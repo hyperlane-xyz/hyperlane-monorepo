@@ -1,5 +1,19 @@
 # @hyperlane-xyz/radix-sdk
 
+## 19.6.0
+
+### Patch Changes
+
+- Updated dependencies [419e16910]
+  - @hyperlane-xyz/utils@19.6.0
+
+## 19.6.0-beta.0
+
+### Patch Changes
+
+- Updated dependencies [419e16910]
+  - @hyperlane-xyz/utils@19.6.0-beta.0
+
 ## 19.5.0
 
 ### Minor Changes

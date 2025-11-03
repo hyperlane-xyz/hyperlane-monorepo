@@ -19,6 +19,7 @@ import {
   IHypTokenAdapter,
   ITokenAdapter,
   InterchainGasQuote,
+  QuoteTransferRemoteParams,
   TransferParams,
   TransferRemoteParams,
 } from './ITokenAdapter.js';
@@ -187,9 +188,9 @@ export class RadixHypCollateralAdapter
     });
   }
 
-  async quoteTransferRemoteGas(
-    destination: Domain,
-  ): Promise<InterchainGasQuote> {
+  async quoteTransferRemoteGas({
+    destination,
+  }: QuoteTransferRemoteParams): Promise<InterchainGasQuote> {
     const { denom: addressOrDenom, amount } =
       await this.provider.quoteRemoteTransfer({
         tokenAddress: this.tokenAddress,
@@ -197,8 +198,10 @@ export class RadixHypCollateralAdapter
       });
 
     return {
-      addressOrDenom,
-      amount,
+      igpQuote: {
+        addressOrDenom,
+        amount,
+      },
     };
   }
 
@@ -208,9 +211,9 @@ export class RadixHypCollateralAdapter
     assert(params.fromAccountOwner, `no sender in remote transfer params`);
 
     if (!params.interchainGas) {
-      params.interchainGas = await this.quoteTransferRemoteGas(
-        params.destination,
-      );
+      params.interchainGas = await this.quoteTransferRemoteGas({
+        destination: params.destination,
+      });
     }
 
     const { remoteRouters } = await this.provider.getRemoteRouters({
@@ -227,7 +230,7 @@ export class RadixHypCollateralAdapter
       );
     }
 
-    if (!params.interchainGas.addressOrDenom) {
+    if (!params.interchainGas.igpQuote?.addressOrDenom) {
       throw new Error(
         `Require denom for max fee, didn't receive and denom in the interchainGas quote`,
       );
@@ -242,9 +245,9 @@ export class RadixHypCollateralAdapter
       customHookAddress: params.customHook,
       gasLimit: router.gas,
       maxFee: {
-        denom: params.interchainGas.addressOrDenom,
+        denom: params.interchainGas.igpQuote?.addressOrDenom,
         // convert the attos back to a Decimal with scale 18
-        amount: new BigNumber(params.interchainGas.amount.toString())
+        amount: new BigNumber(params.interchainGas.igpQuote?.amount.toString())
           .div(new BigNumber(10).pow(18))
           .toString(),
       },

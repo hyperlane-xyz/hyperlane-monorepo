@@ -1,5 +1,36 @@
 # @hyperlane-xyz/ccip-server
 
+## 19.6.0
+
+### Patch Changes
+
+- Updated dependencies [7a41068f7]
+- Updated dependencies [e67aca4a1]
+- Updated dependencies [18c32ed2b]
+- Updated dependencies [205bcae75]
+- Updated dependencies [f8da8cd40]
+- Updated dependencies [5b17b0f37]
+- Updated dependencies [419e16910]
+- Updated dependencies [2c6506735]
+- Updated dependencies [b259966fe]
+- Updated dependencies [1d46a826d]
+- Updated dependencies [799751606]
+- Updated dependencies [826e83741]
+- Updated dependencies [e0c69e255]
+- Updated dependencies [737ea2b35]
+- Updated dependencies [ec406fcbe]
+- Updated dependencies [18c32ed2b]
+- Updated dependencies [e0c69e255]
+- Updated dependencies [dd16e3df4]
+- Updated dependencies [f930794d7]
+- Updated dependencies [b259966fe]
+- Updated dependencies [419e16910]
+- Updated dependencies [9185b9c5b]
+- Updated dependencies [9a43cdca9]
+  - @hyperlane-xyz/core@10.0.0
+  - @hyperlane-xyz/sdk@19.6.0
+  - @hyperlane-xyz/utils@19.6.0
+
 ## 19.5.0
 
 ### Patch Changes

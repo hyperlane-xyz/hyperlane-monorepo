@@ -1,5 +1,47 @@
 # @hyperlane-xyz/sdk
 
+## 19.6.0
+
+### Minor Changes
+
+- e67aca4a1: Update type to enforce consistency between fee token addresses and warp route token addresses through schema validation. The main change adds validation logic to ensure tokenFee.token matches config.token for collateral token configurations.
+- 419e16910: Add support for deploying and updating the EverclearEthBridge and EverclearTokenBridge contracts
+- b259966fe: Add the Fee deploy logic into token deployer to allow warp routes to deploy with a token fee. Update Fee schemas to separate between input and output
+- ec406fcbe: Add TokenFee updates to the FeeModule and WarpModule. This enables updating immutable fees (re-deploy), routing sub-fees, and ownership
+- 18c32ed2b: Decouple movable collateral and hyp collateral token adapters
+- b259966fe: Implement EvmTokenFeeModule and Reader for Linear and Routing Fees. Update Fee Schemas to include both input and output configs.
+- 9185b9c5b: Update EvmTokenFeeModule to support native fee deployment by extracting config processing into a static method that handles native tokens, modularizing deployment logic, and adding automatic BPS calculation from fee parameters.
+
+### Patch Changes
+
+- e0c69e255: Implement token fees on FungibleTokenRouter
+
+  Removes `metadata` from return type of internal `TokenRouter._transferFromSender` hook
+
+  To append `metadata` to `TokenMessage`, override the `TokenRouter._beforeDispatch` hook
+
+- Updated dependencies [7a41068f7]
+- Updated dependencies [18c32ed2b]
+- Updated dependencies [205bcae75]
+- Updated dependencies [f8da8cd40]
+- Updated dependencies [5b17b0f37]
+- Updated dependencies [2c6506735]
+- Updated dependencies [1d46a826d]
+- Updated dependencies [799751606]
+- Updated dependencies [826e83741]
+- Updated dependencies [e0c69e255]
+- Updated dependencies [737ea2b35]
+- Updated dependencies [e0c69e255]
+- Updated dependencies [dd16e3df4]
+- Updated dependencies [f930794d7]
+- Updated dependencies [419e16910]
+- Updated dependencies [9a43cdca9]
+  - @hyperlane-xyz/core@10.0.0
+  - @hyperlane-xyz/utils@19.6.0
+  - @hyperlane-xyz/cosmos-sdk@19.6.0
+  - @hyperlane-xyz/radix-sdk@19.6.0
+  - @hyperlane-xyz/starknet-core@19.6.0
+
 ## 19.5.0
 
 ### Minor Changes

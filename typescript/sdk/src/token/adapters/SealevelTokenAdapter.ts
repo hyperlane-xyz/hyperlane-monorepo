@@ -46,6 +46,7 @@ import {
   IHypTokenAdapter,
   ITokenAdapter,
   InterchainGasQuote,
+  QuoteTransferRemoteParams,
   TransferParams,
   TransferRemoteParams,
 } from './ITokenAdapter.js';
@@ -344,30 +345,30 @@ export abstract class SealevelHypTokenAdapter
 
   // The sender is required, as simulating a transaction on Sealevel requires
   // a payer to be specified that has sufficient funds to cover the transaction fee.
-  async quoteTransferRemoteGas(
-    destination: Domain,
-    sender?: Address,
-  ): Promise<InterchainGasQuote> {
+  async quoteTransferRemoteGas({
+    destination,
+    sender,
+  }: QuoteTransferRemoteParams): Promise<InterchainGasQuote> {
     const tokenData = await this.getTokenAccountData();
     const destinationGas = tokenData.destination_gas?.get(destination);
     if (isNullish(destinationGas)) {
-      return { amount: 0n };
+      return { igpQuote: { amount: 0n } };
     }
 
     const igp = this.getIgpAdapter(tokenData);
     if (!igp) {
-      return { amount: 0n };
+      return { igpQuote: { amount: 0n } };
     }
 
     assert(sender, 'Sender required for Sealevel transfer remote gas quote');
 
-    return {
-      amount: await igp.quoteGasPayment(
-        destination,
-        destinationGas,
-        new PublicKey(sender),
-      ),
-    };
+    const igpPayment = await igp.quoteGasPayment(
+      destination,
+      destinationGas,
+      new PublicKey(sender),
+    );
+
+    return { igpQuote: { amount: igpPayment } };
   }
 
   async populateTransferRemoteTx({
