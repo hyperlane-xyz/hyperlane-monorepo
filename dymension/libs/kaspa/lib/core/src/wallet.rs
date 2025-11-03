@@ -135,13 +135,6 @@ impl EasyKaspaWallet {
         self.wallet.account().unwrap()
     }
 
-    pub async fn pskb_signer(&self) -> Result<PSKBSigner> {
-        let acc = self.wallet.account()?;
-        let keydata = acc.prv_key_data(self.secret.clone()).await?;
-        let secret = self.secret.clone();
-        Ok(PSKBSigner::new(acc.as_dyn_arc(), keydata, Some(secret)))
-    }
-
     pub async fn signing_resources(&self) -> Result<SigningResources> {
         // The code above combines `Account.pskb_sign` and `pskb_signer_for_address` functions.
         // It's a hack allowing to sign PSKT with a custom payload.

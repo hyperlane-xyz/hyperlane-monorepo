@@ -12,7 +12,6 @@ use dym_kas_core::wallet::{EasyKaspaWallet, EasyKaspaWalletArgs};
 use dym_kas_relayer::withdraw::hub_to_kaspa::combine_bundles_with_fee;
 use dym_kas_relayer::withdraw::messages::on_new_withdrawals;
 use dym_kas_relayer::KaspaBridgeMetrics;
-pub use dym_kas_validator::KaspaSecpKeypair;
 use eyre::Result;
 use hyperlane_core::config::OpSubmissionConfig;
 use hyperlane_core::NativeToken;
@@ -43,8 +42,8 @@ pub struct KaspaProvider {
     validators: ValidatorsClient,
     cosmos_rpc: CosmosProvider<ModuleQueryClient>,
 
-    // Quick hack for validator access to Kaspa escrow private key, should eventually be wallet-managed
-    kas_key: Option<KaspaSecpKeypair>,
+    // Kaspa escrow key source (Direct JSON or AWS KMS config)
+    kas_key_source: Option<crate::conf::KaspaEscrowKeySource>,
 
     // Optimistic hint for next confirmation needed on Hub. If out of date, relayer polls Kaspa to sync
     pending_confirmation: Arc<PendingConfirmation>,
@@ -73,13 +72,10 @@ impl KaspaProvider {
         .await
         .map_err(|e| eyre::eyre!("Failed to create easy wallet: {}", e))?;
 
-        let kas_key = match &cfg.validator_stuff {
-            Some(v) => {
-                let kp: KaspaSecpKeypair = serde_json::from_str(&v.kas_escrow_private).unwrap();
-                Some(kp)
-            }
-            None => None,
-        };
+        let kas_key_source = cfg
+            .validator_stuff
+            .as_ref()
+            .map(|v| v.kas_escrow_key_source.clone());
 
         let kaspa_metrics = if let Some(reg) = registry {
             KaspaBridgeMetrics::new(reg).expect("Failed to create KaspaBridgeMetrics")
@@ -95,7 +91,7 @@ impl KaspaProvider {
             rest,
             validators,
             cosmos_rpc: cosmos_grpc_client(cfg.hub_grpc_urls.clone()),
-            kas_key,
+            kas_key_source,
             pending_confirmation: Arc::new(PendingConfirmation::new()),
             metrics: kaspa_metrics,
         };
@@ -123,8 +119,10 @@ impl KaspaProvider {
         self.conf.min_deposit_sompi
     }
 
-    pub fn must_kas_key(&self) -> KaspaSecpKeypair {
-        self.kas_key.unwrap()
+    pub fn kas_key_source(&self) -> &crate::conf::KaspaEscrowKeySource {
+        self.kas_key_source
+            .as_ref()
+            .expect("Kaspa key source not configured")
     }
 
     pub fn rest(&self) -> &RestProvider {

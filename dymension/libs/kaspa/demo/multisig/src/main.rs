@@ -161,23 +161,25 @@ async fn demo() -> Result<()> {
 
     let messages = fxg.messages.clone();
     let old_anchor = fxg.anchors.first().cloned().unwrap();
-    let val_bundles = e
-        .keys
-        .iter()
-        .take(e.m())
-        .map(|k| {
-            validate_pskts(
-                &safe_b,
-                &*messages,
-                old_anchor,
-                e_public.clone(),
-                w.net.address_prefix,
-            )
-            .map_err(|e| eyre!("Failed to validate PSKT: {e}"))?;
+    let mut val_bundles = Vec::new();
+    for k in e.keys.iter().take(e.m()) {
+        validate_pskts(
+            &safe_b,
+            &*messages,
+            old_anchor,
+            e_public.clone(),
+            w.net.address_prefix,
+        )
+        .map_err(|e| eyre!("Failed to validate PSKT: {e}"))?;
 
-            validator_sign_withdrawal_fxg(&safe_b, k, Some(input_selector))
-        })
-        .collect::<Result<Vec<_>>>()?;
+        let bundle = validator_sign_withdrawal_fxg(
+            &safe_b,
+            || async { Ok(k.clone()) },
+            Some(input_selector),
+        )
+        .await?;
+        val_bundles.push(bundle);
+    }
 
     info!("Signed withdrawal PSKT");
 

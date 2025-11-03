@@ -27,6 +27,7 @@ pub fn sign_pskt(
             .enumerate()
             .map(|(idx, _input)| {
                 if !ok[idx] {
+                    // we dont want to sign this input but the API constraints make us do it, so we supply junk data to make things not crash
                     return Ok(SignInputOk {
                         signature: Signature::Schnorr(
                             secp256k1::schnorr::Signature::from_slice(&[0; 64]).unwrap(),

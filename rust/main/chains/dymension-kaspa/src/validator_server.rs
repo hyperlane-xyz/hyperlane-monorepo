@@ -157,7 +157,10 @@ impl<
         H: HyperlaneSignerExt + Clone + Send + Sync + 'static,
     > ValidatorServerResources<S, H>
 {
-    pub fn new(signing: ValidatorISMSigningResources<S, H>, kas_provider: Box<KaspaProvider>) -> Self {
+    pub fn new(
+        signing: ValidatorISMSigningResources<S, H>,
+        kas_provider: Box<KaspaProvider>,
+    ) -> Self {
         Self {
             signing: Some(signing),
             kas_provider: Some(kas_provider),
@@ -166,8 +169,8 @@ impl<
     fn must_signing(&self) -> &ValidatorISMSigningResources<S, H> {
         self.signing.as_ref().unwrap()
     }
-    fn must_kas_key(&self) -> KaspaSecpKeypair {
-        self.kas_provider.as_ref().unwrap().must_kas_key()
+    fn kas_key_source(&self) -> crate::conf::KaspaEscrowKeySource {
+        self.kas_provider.as_ref().unwrap().kas_key_source().clone()
     }
     fn must_api(&self) -> Arc<DynRpcApi> {
         self.must_wallet().api()
@@ -283,12 +286,26 @@ async fn respond_sign_pskts<
     let escrow = res.must_escrow();
     let val_stuff = res.must_val_stuff();
 
+    let kas_key_source = res.kas_key_source().clone();
+
     let bundle = validate_sign_withdrawal_fxg(
         fxg,
         val_stuff.toggles.withdrawal_enabled,
         res.must_hub_rpc().query(),
         escrow,
-        &res.must_kas_key(),
+        || async move {
+            match &kas_key_source {
+                crate::conf::KaspaEscrowKeySource::Direct(json_str) => {
+                    serde_json::from_str(json_str)
+                        .map_err(|e| eyre::eyre!("parse Kaspa keypair from JSON: {}", e))
+                }
+                crate::conf::KaspaEscrowKeySource::Aws(aws_config) => {
+                    dym_kas_kms::load_kaspa_keypair_from_aws(aws_config)
+                        .await
+                        .map_err(|e| eyre::eyre!("load Kaspa keypair from AWS: {}", e))
+                }
+            }
+        },
         WithdrawMustMatch::new(
             res.must_wallet().net.address_prefix,
             res.must_escrow(),

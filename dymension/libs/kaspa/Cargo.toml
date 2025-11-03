@@ -8,6 +8,7 @@ members = [
     "lib/validator",
     "lib/api",
     "lib/hardcode",
+    "lib/kms",
     "demo/multisig",
     "demo/relayer",
     "demo/user",

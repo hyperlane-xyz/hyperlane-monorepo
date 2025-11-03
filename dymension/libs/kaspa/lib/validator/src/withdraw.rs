@@ -96,14 +96,18 @@ impl MustMatch {
     }
 }
 
-pub async fn validate_sign_withdrawal_fxg(
+pub async fn validate_sign_withdrawal_fxg<F, Fut>(
     fxg: WithdrawFXG,
     validation_enabled: bool,
     cosmos: &ModuleQueryClient,
     escrow_public: EscrowPublic,
-    keypair: &SecpKeypair,
+    load_key: F,
     must_match: MustMatch,
-) -> Result<Bundle> {
+) -> Result<Bundle>
+where
+    F: FnOnce() -> Fut,
+    Fut: std::future::Future<Output = Result<SecpKeypair>>,
+{
     // !! Safe bundle can be considered part of the validation, strictly speaking
     let b = safe_bundle(&fxg.bundle)
         .map_err(|e| eyre::eyre!("Safe bundle validation failed: {e:?}"))?;
@@ -123,7 +127,8 @@ pub async fn validate_sign_withdrawal_fxg(
         None => false,
     };
 
-    let bundle = sign_withdrawal_fxg(&b, keypair, Some(input_selector))
+    let bundle = sign_withdrawal_fxg(&b, load_key, Some(input_selector))
+        .await
         .map_err(|e| eyre::eyre!("Failed to sign withdrawal: {e}"))?;
 
     Ok(bundle)
@@ -437,16 +442,24 @@ fn validate_pskt_application_semantics(
     next_anchor_idx.ok_or(ValidationError::NextAnchorNotFound)
 }
 
-pub fn sign_withdrawal_fxg(
+pub async fn sign_withdrawal_fxg<F, Fut>(
     bundle: &Bundle,
-    keypair: &SecpKeypair,
+    load_key: F,
     input_filter: Option<impl Fn(&Input) -> bool>,
-) -> Result<Bundle> {
+) -> Result<Bundle>
+where
+    F: FnOnce() -> Fut,
+    Fut: std::future::Future<Output = Result<SecpKeypair>>,
+{
+    let keypair = load_key()
+        .await
+        .map_err(|e| eyre::eyre!("load keypair for signing: {}", e))?;
+
     let mut signed = Vec::new();
     for pskt in bundle.iter() {
         let pskt = PSKT::<Signer>::from(pskt.clone());
 
-        let signed_pskt = corelib::pskt::sign_pskt(pskt, keypair, None, input_filter.as_ref())?;
+        let signed_pskt = corelib::pskt::sign_pskt(pskt, &keypair, None, input_filter.as_ref())?;
 
         signed.push(signed_pskt);
     }

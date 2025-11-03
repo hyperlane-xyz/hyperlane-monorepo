@@ -37,9 +37,17 @@ pub struct ValidatorStuff {
     pub kas_domain: u32,
     pub kas_token_placeholder: H256,
     pub hub_mailbox_id: String,
-    pub kas_escrow_private: String,
+    pub kas_escrow_key_source: KaspaEscrowKeySource,
     pub toggles: ValidationConf,
 }
+
+#[derive(Debug, Clone)]
+pub enum KaspaEscrowKeySource {
+    Direct(String),
+    Aws(dym_kas_kms::AwsKeyConfig),
+}
+
+pub use dym_kas_kms::AwsKeyConfig;
 
 #[derive(Debug, Clone)]
 pub struct RelayerStuff {
@@ -100,7 +108,7 @@ impl ConnectionConf {
         kaspa_urls_rest: Vec<Url>,
         validator_hosts: Vec<String>,
         validator_pub_keys: Vec<String>,
-        kaspa_escrow_private_key: Option<String>,
+        kaspa_escrow_key_source: Option<KaspaEscrowKeySource>,
         multisig_threshold_hub_ism: usize,
         multisig_threshold_kaspa_schnorr: usize,
         hub_grpc_urls: Vec<Url>,
@@ -118,8 +126,8 @@ impl ConnectionConf {
         kas_token_placeholder: H256,
         kas_tx_fee_multiplier: f64,
     ) -> Self {
-        let v = match &kaspa_escrow_private_key {
-            Some(kas_escrow_private) => {
+        let v = match kaspa_escrow_key_source {
+            Some(kas_escrow_key_source) => {
                 if hub_domain == 0 || kas_domain == 0 || hub_token_id == H256::default() {
                     panic!("Missing validator config: hub_domain: {}, kas_domain: {}, hub_token_id: {}, kas_token_placeholder: {}", hub_domain, kas_domain, hub_token_id, kas_token_placeholder)
                 } else {
@@ -129,7 +137,7 @@ impl ConnectionConf {
                         kas_domain,
                         kas_token_placeholder,
                         hub_mailbox_id,
-                        kas_escrow_private: kas_escrow_private.clone(),
+                        kas_escrow_key_source,
                         toggles: validation_conf,
                     })
                 }

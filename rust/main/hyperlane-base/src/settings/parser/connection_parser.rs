@@ -330,16 +330,54 @@ pub fn build_kaspa_connection_conf(
         .map(|s| s.trim().to_string())
         .collect();
 
-    let kaspa_escrow_private_key_s = chain
-        .chain(err)
-        .get_opt_key("kaspaEscrowPrivateKey")
-        .parse_string()
-        .end();
+    let kaspa_escrow_key_source =
+        if let Some(key_config) = chain.chain(err).get_opt_key("kaspaKey").end() {
+            let key_type = key_config
+                .chain(err)
+                .get_opt_key("type")
+                .parse_string()
+                .end();
 
-    let kaspa_escrow_private_key = match kaspa_escrow_private_key_s {
-        Some(s) => Some(s.to_string()),
-        None => None,
-    };
+            match key_type {
+                Some("aws") => {
+                    let secret_id = key_config
+                        .chain(err)
+                        .get_key("secretId")
+                        .parse_string()
+                        .end()?;
+                    let kms_key_id = key_config
+                        .chain(err)
+                        .get_key("kmsKeyId")
+                        .parse_string()
+                        .end()?;
+                    let region = key_config
+                        .chain(err)
+                        .get_key("region")
+                        .parse_string()
+                        .end()?;
+
+                    Some(dymension_kaspa::KaspaEscrowKeySource::Aws(
+                        dymension_kaspa::AwsKeyConfig {
+                            secret_id: secret_id.to_string(),
+                            kms_key_id: kms_key_id.to_string(),
+                            region: region.to_string(),
+                        },
+                    ))
+                }
+                _ => None,
+            }
+        } else if let Some(kaspa_escrow_private_key_s) = chain
+            .chain(err)
+            .get_opt_key("kaspaEscrowPrivateKey")
+            .parse_string()
+            .end()
+        {
+            Some(dymension_kaspa::KaspaEscrowKeySource::Direct(
+                kaspa_escrow_private_key_s.to_string(),
+            ))
+        } else {
+            None
+        };
 
     let threshold_ism = chain
         .chain(err)
@@ -474,7 +512,7 @@ pub fn build_kaspa_connection_conf(
             rest_urls,
             validator_hosts,
             validator_pubks,
-            kaspa_escrow_private_key,
+            kaspa_escrow_key_source,
             threshold_ism as usize,
             threshold_escrow as usize,
             grpcs,
