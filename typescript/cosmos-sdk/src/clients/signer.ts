@@ -426,6 +426,14 @@ export class CosmosNativeSigner
     };
   }
 
+  async removeDestinationGasConfig(
+    _req: Omit<AltVM.ReqRemoveDestinationGasConfig, 'signer'>,
+  ): Promise<AltVM.ResRemoveDestinationGasConfig> {
+    throw new Error(
+      `RemoveDestinationGasConfig is currently not supported on Cosmos Native`,
+    );
+  }
+
   async createValidatorAnnounce(
     _req: Omit<AltVM.ReqCreateValidatorAnnounce, 'signer'>,
   ): Promise<AltVM.ResCreateValidatorAnnounce> {

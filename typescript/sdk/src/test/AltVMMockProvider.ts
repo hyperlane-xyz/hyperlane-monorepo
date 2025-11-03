@@ -207,6 +207,12 @@ export class MockProvider implements AltVM.IProvider {
     throw new Error(`not implemented`);
   }
 
+  async getRemoveDestinationGasConfigTransaction(
+    _req: AltVM.ReqRemoveDestinationGasConfig,
+  ): Promise<MockTransaction> {
+    throw new Error(`not implemented`);
+  }
+
   async getCreateValidatorAnnounceTransaction(
     _req: AltVM.ReqCreateValidatorAnnounce,
   ): Promise<MockTransaction> {

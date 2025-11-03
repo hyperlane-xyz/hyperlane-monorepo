@@ -664,6 +664,14 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     };
   }
 
+  async getRemoveDestinationGasConfigTransaction(
+    _req: AltVM.ReqRemoveDestinationGasConfig,
+  ): Promise<EncodeObject> {
+    throw new Error(
+      `RemoveDestinationGasConfig is currently not supported on Cosmos Native`,
+    );
+  }
+
   async getCreateValidatorAnnounceTransaction(
     _req: AltVM.ReqCreateValidatorAnnounce,
   ): Promise<any> {

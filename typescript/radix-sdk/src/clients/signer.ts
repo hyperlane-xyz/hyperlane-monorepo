@@ -336,6 +336,14 @@ export class RadixSigner
     };
   }
 
+  async removeDestinationGasConfig(
+    _req: Omit<AltVM.ReqRemoveDestinationGasConfig, 'signer'>,
+  ): Promise<AltVM.ResRemoveDestinationGasConfig> {
+    throw new Error(
+      `RemoveDestinationGasConfig is currently not supported on Radix`,
+    );
+  }
+
   async createValidatorAnnounce(
     req: Omit<AltVM.ReqCreateValidatorAnnounce, 'signer'>,
   ): Promise<AltVM.ResCreateValidatorAnnounce> {

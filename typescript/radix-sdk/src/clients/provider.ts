@@ -520,6 +520,14 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
     };
   }
 
+  async getRemoveDestinationGasConfigTransaction(
+    _req: AltVM.ReqRemoveDestinationGasConfig,
+  ): Promise<RadixSDKTransaction> {
+    throw new Error(
+      `RemoveDestinationGasConfig is currently not supported on Radix`,
+    );
+  }
+
   async getCreateValidatorAnnounceTransaction(
     req: AltVM.ReqCreateValidatorAnnounce,
   ): Promise<RadixSDKTransaction> {

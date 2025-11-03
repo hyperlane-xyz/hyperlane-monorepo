@@ -334,6 +334,15 @@ export type ResSetDestinationGasConfig = {
   };
 };
 
+export type ReqRemoveDestinationGasConfig = {
+  signer: string;
+  hookAddress: string;
+  remoteDomainId: number;
+};
+export type ResRemoveDestinationGasConfig = {
+  remoteDomainId: number;
+};
+
 export type ReqCreateValidatorAnnounce = {
   signer: string;
   mailboxAddress: string;
@@ -532,6 +541,10 @@ export interface IProvider<T = any> {
     req: ReqSetDestinationGasConfig,
   ): Promise<T>;
 
+  getRemoveDestinationGasConfigTransaction(
+    req: ReqRemoveDestinationGasConfig,
+  ): Promise<T>;
+
   getCreateValidatorAnnounceTransaction(
     req: ReqCreateValidatorAnnounce,
   ): Promise<T>;
@@ -633,6 +646,10 @@ export interface ISigner<T, R> extends IProvider<T> {
   setDestinationGasConfig(
     req: Omit<ReqSetDestinationGasConfig, 'signer'>,
   ): Promise<ResSetDestinationGasConfig>;
+
+  removeDestinationGasConfig(
+    req: Omit<ReqRemoveDestinationGasConfig, 'signer'>,
+  ): Promise<ResRemoveDestinationGasConfig>;
 
   createValidatorAnnounce(
     req: Omit<ReqCreateValidatorAnnounce, 'signer'>,
