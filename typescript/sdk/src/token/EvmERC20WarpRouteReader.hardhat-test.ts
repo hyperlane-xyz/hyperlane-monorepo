@@ -15,6 +15,11 @@ import {
   ISafe__factory,
   Mailbox,
   Mailbox__factory,
+  MockEverclearAdapter,
+  MockEverclearAdapter__factory,
+  MockWETH,
+  MockWETH__factory,
+  PackageVersioned__factory,
   ProxyAdmin__factory,
   XERC20LockboxTest__factory,
   XERC20Test__factory,
@@ -26,7 +31,9 @@ import {
   HyperlaneContractsMap,
   RouterConfig,
   TestChainName,
+  TokenFeeType,
   WarpRouteDeployConfigMailboxRequired,
+  normalizeConfig,
   proxyAdmin,
   proxyImplementation,
   test3,
@@ -38,15 +45,24 @@ import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { VerifyContractTypes } from '../deploy/verify/types.js';
+import {
+  BPS,
+  HALF_AMOUNT,
+  MAX_FEE,
+} from '../fee/EvmTokenFeeReader.hardhat-test.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap } from '../types.js';
 
-import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
-import { TokenType } from './config.js';
+import {
+  EvmERC20WarpRouteReader,
+  TOKEN_FEE_CONTRACT_VERSION,
+} from './EvmERC20WarpRouteReader.js';
+import { EverclearTokenBridgeTokenType, TokenType } from './config.js';
 import { HypERC20Deployer } from './deploy.js';
 import {
   ContractVerificationStatus,
+  HypTokenRouterConfig,
   OwnerStatus,
   derivedIsmAddress,
 } from './types.js';
@@ -61,6 +77,8 @@ describe('ERC20WarpRouterReader', async () => {
   let factories: HyperlaneContractsMap<ProxyFactoryFactories>;
   let erc20Factory: ERC20Test__factory;
   let token: ERC20Test;
+  let wethMockFactory: MockWETH__factory;
+  let weth: MockWETH;
   let signer: SignerWithAddress;
   let deployer: HypERC20Deployer;
   let contractVerifier: ContractVerifier;
@@ -72,6 +90,9 @@ describe('ERC20WarpRouterReader', async () => {
   let evmERC20WarpRouteReader: EvmERC20WarpRouteReader;
   let vault: ERC4626;
   let collateralFiatToken: FiatTokenTest;
+  let everclearBridgeAdapterMockFactory: MockEverclearAdapter__factory;
+  let everclearBridgeAdapterMock: MockEverclearAdapter;
+
   before(async () => {
     [signer] = await hre.ethers.getSigners();
 
@@ -92,6 +113,9 @@ describe('ERC20WarpRouterReader', async () => {
       TOKEN_DECIMALS,
     );
 
+    wethMockFactory = new MockWETH__factory(signer);
+    weth = await wethMockFactory.deploy();
+
     baseConfig = routerConfigMap[chain];
     mailbox = Mailbox__factory.connect(baseConfig.mailbox, signer);
     deployer = new HypERC20Deployer(multiProvider);
@@ -106,6 +130,12 @@ describe('ERC20WarpRouterReader', async () => {
       TOKEN_SUPPLY,
       TOKEN_DECIMALS,
     );
+
+    everclearBridgeAdapterMockFactory = new MockEverclearAdapter__factory(
+      signer,
+    );
+    everclearBridgeAdapterMock =
+      await everclearBridgeAdapterMockFactory.deploy();
   });
 
   beforeEach(async () => {
@@ -477,6 +507,77 @@ describe('ERC20WarpRouterReader', async () => {
     expect(derivedConfig.token).to.equal(collateralFiatToken.address);
   });
 
+  const getEverclearTokenBridgeConfig = (): Record<
+    EverclearTokenBridgeTokenType,
+    HypTokenRouterConfig
+  > => {
+    return {
+      [TokenType.ethEverclear]: {
+        type: TokenType.ethEverclear,
+        wethAddress: weth.address,
+        everclearBridgeAddress: everclearBridgeAdapterMock.address,
+        everclearFeeParams: {
+          [chain]: {
+            deadline: Date.now(),
+            fee: randomInt(10000000),
+            signature: '0x',
+          },
+        },
+        outputAssets: {},
+        ...baseConfig,
+      },
+      [TokenType.collateralEverclear]: {
+        type: TokenType.collateralEverclear,
+        token: token.address,
+        everclearBridgeAddress: everclearBridgeAdapterMock.address,
+        everclearFeeParams: {
+          [chain]: {
+            deadline: Date.now(),
+            fee: randomInt(10000000),
+            signature: '0x',
+          },
+        },
+        outputAssets: {},
+        ...baseConfig,
+      },
+    };
+  };
+
+  for (const tokenType of [
+    TokenType.ethEverclear,
+    TokenType.collateralEverclear,
+  ] as EverclearTokenBridgeTokenType[]) {
+    it(`should derive ${tokenType} token correctly`, async () => {
+      // Create config
+      const config: WarpRouteDeployConfigMailboxRequired = {
+        [chain]: getEverclearTokenBridgeConfig()[tokenType],
+      };
+      // Deploy with config
+      const warpRoute = await deployer.deploy(config);
+
+      // Derive config and check if each value matches
+      const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
+        warpRoute[chain][tokenType].address,
+      );
+
+      assert(derivedConfig.type === tokenType, `Must be ${tokenType}`);
+      expect(derivedConfig.type).to.equal(config[chain].type);
+      expect(derivedConfig.mailbox).to.equal(config[chain].mailbox);
+      expect(derivedConfig.owner).to.equal(config[chain].owner);
+      expect(derivedConfig.everclearBridgeAddress).to.equal(
+        everclearBridgeAdapterMock.address,
+      );
+
+      if (derivedConfig.type === TokenType.collateralEverclear) {
+        expect(derivedConfig.token).to.equal(token.address);
+      }
+
+      if (derivedConfig.type === TokenType.ethEverclear) {
+        expect(derivedConfig.wethAddress).to.equal(weth.address);
+      }
+    });
+  }
+
   it('should return 0x0 if ism is not set onchain', async () => {
     // Create config
     const config: WarpRouteDeployConfigMailboxRequired = {
@@ -672,5 +773,92 @@ describe('ERC20WarpRouterReader', async () => {
     // Restore stub
     connectStub.restore();
     isLocalRpcStub.restore();
+  });
+
+  it('should derive token fee config correctly', async () => {
+    const config: WarpRouteDeployConfigMailboxRequired = {
+      [chain]: {
+        ...baseConfig,
+        type: TokenType.collateral,
+        token: token.address,
+        hook: await mailbox.defaultHook(),
+        tokenFee: {
+          type: TokenFeeType.LinearFee,
+          owner: mailbox.address,
+          token: token.address,
+          bps: BPS,
+        },
+      },
+    };
+    // Deploy with config
+    const warpRoute = await deployer.deploy(config);
+    // Derive config and check if each value matches
+    const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
+      warpRoute[chain].collateral.address,
+    );
+
+    expect(normalizeConfig(derivedConfig.tokenFee)).to.deep.equal(
+      normalizeConfig({
+        ...config[chain].tokenFee,
+        maxFee: MAX_FEE,
+        halfAmount: HALF_AMOUNT,
+      }),
+    );
+  });
+
+  it('should return undefined fee token config if it is not set onchain', async () => {
+    const config: WarpRouteDeployConfigMailboxRequired = {
+      [chain]: {
+        ...baseConfig,
+        type: TokenType.collateral,
+        token: token.address,
+        hook: await mailbox.defaultHook(),
+      },
+    };
+    // Deploy with config
+    const warpRoute = await deployer.deploy(config);
+    // Derive config and check if each value matches
+    const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
+      warpRoute[chain].collateral.address,
+    );
+    expect(derivedConfig.tokenFee).to.be.undefined;
+  });
+
+  it(`should return undefined fee token config if the package version is below ${TOKEN_FEE_CONTRACT_VERSION}`, async () => {
+    const config: WarpRouteDeployConfigMailboxRequired = {
+      [chain]: {
+        ...baseConfig,
+        type: TokenType.collateral,
+        token: token.address,
+        hook: await mailbox.defaultHook(),
+        tokenFee: {
+          type: TokenFeeType.LinearFee,
+          owner: mailbox.address,
+          token: token.address,
+          bps: BPS,
+        },
+      },
+    };
+
+    // Deploy with config
+    const warpRoute = await deployer.deploy(config);
+
+    const mockPackageVersioned = {
+      PACKAGE_VERSION: sinon.stub().resolves('8.0.1'),
+    };
+    const fetchPackageVersionStub = sinon
+      .stub(PackageVersioned__factory, 'connect')
+      .returns(mockPackageVersioned as any);
+
+    // Derive config and check if each value matches
+    const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
+      warpRoute[chain].collateral.address,
+    );
+
+    // Even though we deployed a token fee, it should be undefined because the package version is below the required version.
+    // This should never happen, but serves as a clear test
+    expect(derivedConfig.tokenFee).to.be.undefined;
+
+    fetchPackageVersionStub.restore();
   });
 });

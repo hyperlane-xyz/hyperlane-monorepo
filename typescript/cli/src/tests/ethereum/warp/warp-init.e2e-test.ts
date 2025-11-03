@@ -13,6 +13,7 @@ import {
   CONFIRM_DETECTED_OWNER_STEP,
   KeyBoardKeys,
   SELECT_MAINNET_CHAIN_TYPE_STEP,
+  SELECT_NATIVE_TOKEN_TYPE,
   TestPromptAction,
   handlePrompts,
 } from '../../commands/helpers.js';
@@ -63,12 +64,7 @@ describe('hyperlane warp init e2e tests', async function () {
         SELECT_MAINNET_CHAIN_TYPE_STEP,
         SELECT_MAINNET_CHAINS_ANVIL_2_STEP,
         CONFIRM_DETECTED_OWNER_STEP,
-        {
-          check: (currentOutput: string) =>
-            !!currentOutput.match(/Select .+?'s token type/),
-          // Scroll up through the token type list and select native
-          input: `${KeyBoardKeys.ARROW_UP.repeat(4)}${KeyBoardKeys.ENTER}`,
-        },
+        SELECT_NATIVE_TOKEN_TYPE,
       ];
 
       const output = hyperlaneWarpInit(WARP_CONFIG_PATH_2).stdio('pipe');
@@ -86,17 +82,9 @@ describe('hyperlane warp init e2e tests', async function () {
         SELECT_MAINNET_CHAIN_TYPE_STEP,
         ...SELECT_ANVIL_2_AND_ANVIL_3_STEPS,
         CONFIRM_DETECTED_OWNER_STEP,
-        {
-          check: (currentOutput: string) =>
-            !!currentOutput.match(/Select .+?'s token type/),
-          input: `${KeyBoardKeys.ARROW_UP.repeat(4)}${KeyBoardKeys.ENTER}`,
-        },
+        SELECT_NATIVE_TOKEN_TYPE,
         CONFIRM_DETECTED_OWNER_STEP,
-        {
-          check: (currentOutput: string) =>
-            !!currentOutput.match(/Select .+?'s token type/),
-          input: `${KeyBoardKeys.ARROW_UP.repeat(4)}${KeyBoardKeys.ENTER}`,
-        },
+        SELECT_NATIVE_TOKEN_TYPE,
       ];
 
       const output = hyperlaneWarpInit(WARP_CONFIG_PATH_2).stdio('pipe');
@@ -169,11 +157,7 @@ describe('hyperlane warp init e2e tests', async function () {
         CONFIRM_DETECTED_OWNER_STEP,
         CONFIRM_DETECTED_PROXY_ADMIN_STEP,
         CONFIRM_DETECTED_TRUSTED_ISM_STEP,
-        {
-          check: (currentOutput: string) =>
-            !!currentOutput.match(/Select .+?'s token type/),
-          input: `${KeyBoardKeys.ARROW_UP.repeat(4)}${KeyBoardKeys.ENTER}`,
-        },
+        SELECT_NATIVE_TOKEN_TYPE,
         {
           check: (currentOutput: string) =>
             !!currentOutput.match(/Using warp route ID as/),
