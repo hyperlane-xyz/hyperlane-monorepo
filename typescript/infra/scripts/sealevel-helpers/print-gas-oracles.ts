@@ -113,6 +113,8 @@ function getChainConnections(
       ['solanamainnet', 'galactica'],
       ['solanamainnet', 'radix'],
       ['solanamainnet', 'carrchain'],
+      ['solanamainnet', 'incentiv'],
+      ['solanamainnet', 'litchain'],
       // For Starknet / Paradex
       ['solanamainnet', 'starknet'],
       ['solanamainnet', 'paradex'],

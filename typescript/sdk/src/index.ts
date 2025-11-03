@@ -1,4 +1,10 @@
 export {
+  DerivedRoutingFeeConfig,
+  DerivedTokenFeeConfig,
+  EvmTokenFeeReader,
+} from './fee/EvmTokenFeeReader.js';
+
+export {
   isAddressActive,
   isContractAddress,
   assertIsContractAddress,
@@ -217,6 +223,22 @@ export {
   buildMultisigIsmConfigs,
   multisigConfigToIsmConfig,
 } from './ism/multisig.js';
+export {
+  SealevelMultisigIsmInstructionName,
+  SealevelMultisigIsmInstructionType,
+  SealevelMultisigIsmSetValidatorsInstruction,
+  SealevelMultisigIsmSetValidatorsInstructionSchema,
+  SealevelMultisigIsmTransferOwnershipInstruction,
+  SealevelMultisigIsmTransferOwnershipInstructionSchema,
+} from './ism/serialization.js';
+export {
+  SealevelMailboxInstructionName,
+  SealevelMailboxInstructionType,
+  SealevelMailboxSetDefaultIsmInstruction,
+  SealevelMailboxSetDefaultIsmInstructionSchema,
+  SealevelMailboxTransferOwnershipInstruction,
+  SealevelMailboxTransferOwnershipInstructionSchema,
+} from './mailbox/serialization.js';
 export {
   AggregationIsmConfig,
   AggregationIsmConfigSchema,
@@ -623,6 +645,7 @@ export {
 } from './token/adapters/CosmWasmTokenAdapter.js';
 export {
   EvmHypCollateralAdapter,
+  EvmMovableCollateralAdapter,
   EvmHypNativeAdapter,
   EvmHypSyntheticAdapter,
   EvmHypVSXERC20Adapter,
@@ -642,6 +665,8 @@ export {
   ITokenAdapter,
   TransferParams,
   TransferRemoteParams,
+  Quote,
+  QuoteTransferRemoteParams,
 } from './token/adapters/ITokenAdapter.js';
 export {
   SealevelHypCollateralAdapter,
@@ -736,6 +761,11 @@ export {
   isSyntheticRebaseTokenConfig,
   isSyntheticTokenConfig,
   isTokenMetadata,
+  isEverclearCollateralTokenConfig,
+  isEverclearEthBridgeTokenConfig,
+  isEverclearTokenBridgeConfig,
+  EverclearCollateralTokenConfig,
+  EverclearEthBridgeTokenConfig,
   isXERC20TokenConfig,
   NativeTokenConfig,
   NativeTokenConfigSchema,
@@ -789,7 +819,7 @@ export {
   getSafe,
   getSafeDelegates,
   getSafeService,
-  // @ts-ignore
+  safeApiKeyRequired,
 } from './utils/gnosisSafe.js';
 export { HyperlaneReader } from './utils/HyperlaneReader.js';
 export {
@@ -824,6 +854,7 @@ export {
   WarpCoreConfigSchema,
   WarpTxCategory,
   WarpTypedTransaction,
+  WarpCoreFeeEstimate,
 } from './warp/types.js';
 export { WarpCore, WarpCoreOptions } from './warp/WarpCore.js';
 export { EvmTimelockReader } from './timelock/evm/EvmTimelockReader.js';
@@ -852,3 +883,12 @@ export {
   SvmSignerConfig,
   TransactionBuildOptions,
 } from './signers/svm/solana-web3js.js';
+
+export {
+  TokenFeeType,
+  TokenFeeConfig,
+  TokenFeeConfigSchema,
+  TokenFeeConfigInputSchema,
+  TokenFeeConfigInput,
+} from './fee/types.js';
+export { convertToBps } from './fee/utils.js';

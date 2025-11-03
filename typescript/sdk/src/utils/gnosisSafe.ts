@@ -1,26 +1,59 @@
-// This file is JS because of https://github.com/safe-global/safe-core-sdk/issues/805
 import SafeApiKit from '@safe-global/api-kit';
-import Safe, { EthersAdapter } from '@safe-global/protocol-kit';
+import Safe, { SafeProviderConfig } from '@safe-global/protocol-kit';
 import {
   getMultiSendCallOnlyDeployment,
   getMultiSendDeployment,
 } from '@safe-global/safe-deployments';
-import { ethers } from 'ethers';
 
-export function getSafeService(chain, multiProvider) {
-  const signer = multiProvider.getSigner(chain);
-  const ethAdapter = new EthersAdapter({ ethers, signerOrProvider: signer });
-  const txServiceUrl =
-    multiProvider.getChainMetadata(chain).gnosisSafeTransactionServiceUrl;
-  if (!txServiceUrl)
+import { Address } from '@hyperlane-xyz/utils';
+
+import { MultiProvider } from '../providers/MultiProvider.js';
+import { ChainName } from '../types.js';
+
+export function safeApiKeyRequired(txServiceUrl: string): boolean {
+  return /safe\.global|5afe\.dev/.test(txServiceUrl);
+}
+
+export function getSafeService(chain: ChainName, multiProvider: MultiProvider) {
+  const { gnosisSafeTransactionServiceUrl, gnosisSafeApiKey } =
+    multiProvider.getChainMetadata(chain);
+  let txServiceUrl = gnosisSafeTransactionServiceUrl;
+  if (!txServiceUrl) {
     throw new Error(`must provide tx service url for ${chain}`);
-  return new SafeApiKit.default({ txServiceUrl, ethAdapter });
+  }
+
+  // Ensure txServiceUrl ends with /api
+  if (
+    !txServiceUrl.endsWith('/api') &&
+    !txServiceUrl.endsWith('/api/') &&
+    !txServiceUrl.endsWith('api')
+  ) {
+    // Remove trailing slash if present to avoid double slashes
+    txServiceUrl = txServiceUrl.replace(/\/+$/, '');
+    txServiceUrl = `${txServiceUrl}/api`;
+  }
+
+  const chainId = multiProvider.getEvmChainId(chain);
+  if (!chainId) {
+    throw new Error(`Chain is not an EVM chain: ${chain}`);
+  }
+
+  // @ts-ignore
+  return new SafeApiKit({
+    chainId: BigInt(chainId),
+    txServiceUrl,
+    // Only provide apiKey if the url contains safe.global or 5afe.dev
+    apiKey: safeApiKeyRequired(txServiceUrl) ? gnosisSafeApiKey : undefined,
+  });
 }
 
 // This is the version of the Safe contracts that the SDK is compatible with.
 // Copied the MVP fields from https://github.com/safe-global/safe-core-sdk/blob/4d1c0e14630f951c2498e1d4dd521403af91d6e1/packages/protocol-kit/src/contracts/config.ts#L19
 // because the SDK doesn't expose this value.
-const safeDeploymentsVersions = {
+const safeDeploymentsVersions: Record<
+  string,
+  { multiSendVersion: string; multiSendCallOnlyVersion: string }
+> = {
   '1.4.1': {
     multiSendVersion: '1.4.1',
     multiSendCallOnlyVersion: '1.4.1',
@@ -45,7 +78,10 @@ const safeDeploymentsVersions = {
 
 // Override for chains that haven't yet been published in the safe-deployments package.
 // Temporary until PR to safe-deployments package is merged and SDK dependency is updated.
-const chainOverrides = {
+const chainOverrides: Record<
+  string,
+  { multiSend: string; multiSendCallOnly: string }
+> = {
   // zeronetwork
   543210: {
     multiSend: '0x0dFcccB95225ffB03c6FBB2559B530C2B7C8A912',
@@ -58,16 +94,18 @@ const chainOverrides = {
   },
 };
 
-export async function getSafe(chain, multiProvider, safeAddress) {
-  // Create Ethers Adapter
-  const signer = multiProvider.getSigner(chain);
-  const ethAdapter = new EthersAdapter({ ethers, signerOrProvider: signer });
-
+export async function getSafe(
+  chain: ChainName,
+  multiProvider: MultiProvider,
+  safeAddress: Address,
+  signer?: SafeProviderConfig['signer'],
+) {
   // Get the chain id for the given chain
-  const chainId = multiProvider.getChainId(chain);
+  const chainId = `${multiProvider.getEvmChainId(chain)}`;
 
   // Get the safe version
   const safeService = getSafeService(chain, multiProvider);
+
   const { version: rawSafeVersion } =
     await safeService.getSafeInfo(safeAddress);
   // Remove any build metadata from the version e.g. 1.3.0+L2 --> 1.3.0
@@ -97,8 +135,10 @@ export async function getSafe(chain, multiProvider, safeAddress) {
     });
   }
 
-  return Safe.default.create({
-    ethAdapter,
+  // @ts-ignore
+  return Safe.init({
+    provider: multiProvider.getChainMetadata(chain).rpcUrls[0].http,
+    signer,
     safeAddress,
     contractNetworks: {
       [chainId]: {
@@ -112,18 +152,21 @@ export async function getSafe(chain, multiProvider, safeAddress) {
   });
 }
 
-export async function getSafeDelegates(service, safeAddress) {
+export async function getSafeDelegates(
+  service: SafeApiKit.default,
+  safeAddress: Address,
+) {
   const delegateResponse = await service.getSafeDelegates({ safeAddress });
   return delegateResponse.results.map((r) => r.delegate);
 }
 
 export async function canProposeSafeTransactions(
-  proposer,
-  chain,
-  multiProvider,
-  safeAddress,
+  proposer: Address,
+  chain: ChainName,
+  multiProvider: MultiProvider,
+  safeAddress: Address,
 ) {
-  let safeService;
+  let safeService: SafeApiKit.default;
   try {
     safeService = getSafeService(chain, multiProvider);
   } catch {

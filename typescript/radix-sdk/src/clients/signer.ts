@@ -1,4 +1,7 @@
-import { TransactionManifest } from '@radixdlt/radix-engine-toolkit';
+import {
+  EntityType,
+  TransactionManifest,
+} from '@radixdlt/radix-engine-toolkit';
 
 import { AltVM, assert, strip0x } from '@hyperlane-xyz/utils';
 
@@ -64,21 +67,25 @@ export class RadixSigner
     extraParams?: Record<string, any>,
   ): Promise<AltVM.ISigner<RadixSDKTransaction, RadixSDKReceipt>> {
     assert(extraParams, `extra params not defined`);
-    assert(extraParams.metadata, `metadata not defined in extra params`);
-    assert(
-      extraParams.metadata.chainId,
-      `chainId not defined in metadata extra params`,
-    );
 
-    const networkId = parseInt(extraParams.metadata.chainId.toString());
+    const metadata = extraParams.metadata as Record<string, unknown>;
+    assert(metadata, `metadata not defined in extra params`);
+    assert(metadata.chainId, `chainId not defined in metadata extra params`);
+
+    const networkId = parseInt(metadata.chainId.toString());
 
     const account = await generateNewEd25519VirtualAccount(
       strip0x(privateKey),
       networkId,
     );
+
     return new RadixSigner(account, {
       networkId,
       rpcUrls,
+      gatewayUrls: (metadata?.gatewayUrls as { http: string }[])?.map(
+        ({ http }) => http,
+      ),
+      packageAddress: metadata.packageAddress as string | undefined,
     });
   }
 
@@ -449,5 +456,47 @@ export class RadixSigner
     });
 
     return { tokenAddress: req.tokenAddress };
+  }
+
+  async publishPackage(params: {
+    code: Uint8Array;
+    packageDefinition: Uint8Array;
+  }): Promise<string> {
+    const { code, packageDefinition } = params;
+
+    const transactionManifest = await this.base.createPublishPackageManifest({
+      from_address: this.account.address,
+      code,
+      packageDefinition,
+    });
+
+    const receipt = await this.signer.signAndBroadcast(transactionManifest);
+
+    // Extract package address from transaction receipt
+    const transactionStateUpdates = receipt.transaction.receipt
+      ?.state_updates as
+      | {
+          new_global_entities?: {
+            entity_type: EntityType;
+            entity_address: string;
+          }[];
+        }
+      | undefined;
+
+    assert(
+      transactionStateUpdates?.new_global_entities,
+      `Expected global entities to be created when publishing a package on Radix network with id "${this.networkId}"`,
+    );
+
+    const publishedPackageInfo =
+      transactionStateUpdates.new_global_entities.find(
+        (entity) => entity.entity_type === EntityType.GlobalPackage,
+      );
+    assert(
+      publishedPackageInfo,
+      `Expected global package info to be defined after publishing a new package on Radix network with id "${this.networkId}"`,
+    );
+
+    return publishedPackageInfo.entity_address;
   }
 }

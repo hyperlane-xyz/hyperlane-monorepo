@@ -1,4 +1,4 @@
-use tracing::{debug, warn};
+use tracing::{debug, instrument, warn};
 
 use hyperlane_core::U256;
 
@@ -9,6 +9,7 @@ use super::super::status::NonceStatus;
 use super::NonceManagerState;
 
 impl NonceManagerState {
+    #[instrument(skip(self), fields(?tx_uuid, ?old_nonce))]
     pub(crate) async fn assign_next_nonce(
         &self,
         tx_uuid: &TransactionUuid,
@@ -51,6 +52,7 @@ impl NonceManagerState {
         Ok(next_nonce)
     }
 
+    #[instrument(skip(self), fields(?finalized_nonce, ?upper_nonce))]
     async fn identify_next_nonce(
         &self,
         finalized_nonce: Option<U256>,
@@ -72,7 +74,10 @@ impl NonceManagerState {
 
             if tracked_tx_uuid == TransactionUuid::default() {
                 // If the nonce is not tracked, we can use it.
-                debug!("There is no tracked transaction for nonce, reusing it");
+                debug!(
+                    ?next_nonce,
+                    "There is no tracked transaction for nonce, reusing it"
+                );
                 break;
             }
 

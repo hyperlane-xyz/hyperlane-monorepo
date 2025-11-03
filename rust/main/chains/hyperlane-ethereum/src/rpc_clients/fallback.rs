@@ -178,7 +178,11 @@ where
             }
         }
 
-        // we don't add a warning with all errors since an error will be logged later on
+        let errors_count = retryable_errors
+            .len()
+            .saturating_add(non_retryable_errors.len());
+        warn!(errors_count, ?retryable_errors, ?non_retryable_errors, providers=?self.inner.providers, "multicast_request, all providers failed");
+
         retryable_errors.extend(non_retryable_errors);
         Err(FallbackError::AllProvidersFailed(retryable_errors).into())
     }

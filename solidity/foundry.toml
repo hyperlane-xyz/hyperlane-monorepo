@@ -7,8 +7,7 @@ test = 'test'
 cache_path = 'forge-cache'
 allow_paths = ["../node_modules"]
 solc_version = '0.8.22'
-evm_version = 'paris'
-optimizer = true
+evm_version= 'paris'
 optimizer_runs = 999_999
 fs_permissions = [
     { access = "read", path = "./script/avs/" },
@@ -23,6 +22,8 @@ verbosity = 4
 [rpc_endpoints]
 mainnet = "https://eth.merkle.io"
 optimism = "https://mainnet.optimism.io	"
+polygon = "https://rpc-mainnet.matic.quiknode.pro"
+arbitrum = "https://arb1.arbitrum.io/rpc"
 base = "https://mainnet.base.org"
 
 [fuzz]
