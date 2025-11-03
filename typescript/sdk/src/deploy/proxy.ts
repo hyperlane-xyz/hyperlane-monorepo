@@ -21,10 +21,21 @@ export type UpgradeConfig = {
   };
 };
 
+async function assertCodeExists(
+  provider: EthersLikeProvider,
+  contract: Address,
+): Promise<void> {
+  const code = await provider.getCode(contract);
+  if (code === '0x') {
+    throw new Error(`Contract at ${contract} has no code`);
+  }
+}
+
 export async function proxyImplementation(
   provider: EthersLikeProvider,
   proxy: Address,
 ): Promise<Address> {
+  await assertCodeExists(provider, proxy);
   // Hardcoded storage slot for implementation per EIP-1967
   const storageValue = await provider.getStorageAt(
     proxy,
@@ -37,6 +48,7 @@ export async function isInitialized(
   provider: EthersLikeProvider,
   contract: Address,
 ): Promise<boolean> {
+  await assertCodeExists(provider, contract);
   // Using OZ's Initializable 4.9 which keeps it at the 0x0 slot
   const storageValue = ethers.BigNumber.from(
     await provider.getStorageAt(contract, '0x0'),
@@ -48,6 +60,7 @@ export async function proxyAdmin(
   provider: EthersLikeProvider,
   proxy: Address,
 ): Promise<Address> {
+  await assertCodeExists(provider, proxy);
   // Hardcoded storage slot for admin per EIP-1967
   const storageValue = await provider.getStorageAt(
     proxy,

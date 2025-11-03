@@ -408,6 +408,10 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
         factory: HypXERC20Lockbox__factory,
         method: 'lockbox',
       },
+      [TokenType.collateralCctp]: {
+        factory: TokenBridgeCctpBase__factory,
+        method: 'messageTransmitter',
+      },
       [TokenType.collateral]: {
         factory: HypERC20Collateral__factory,
         method: 'wrappedToken',

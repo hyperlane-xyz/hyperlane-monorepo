@@ -6,6 +6,7 @@ import {
   Contract,
   cairo,
   num,
+  shortString,
 } from 'starknet';
 
 import {
@@ -15,6 +16,7 @@ import {
   ProtocolType,
   addressToBytes32,
   assert,
+  ensure0x,
 } from '@hyperlane-xyz/utils';
 
 import { BaseStarknetAdapter } from '../../app/MultiProtocolApp.js';
@@ -37,7 +39,116 @@ import {
   TransferRemoteParams,
 } from './ITokenAdapter.js';
 
+const stringFromDecimalNumber = (num: bigint | number) =>
+  shortString.decodeShortString(ensure0x(num.toString(16)));
+
 export class StarknetTokenAdapter
+  extends BaseStarknetAdapter
+  implements ITokenAdapter<Call>
+{
+  private tokenContract?: Contract;
+
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: { tokenAddress: Address },
+  ) {
+    super(chainName, multiProvider, addresses);
+  }
+
+  async getContractInstance(): Promise<Contract> {
+    if (this.tokenContract) {
+      return this.tokenContract;
+    }
+
+    const provider = this.getProvider();
+    const { abi } = await provider.getClassAt(this.addresses.tokenAddress);
+    const contractInstance = new Contract(
+      abi,
+      this.addresses.tokenAddress,
+      provider,
+    );
+
+    this.tokenContract = contractInstance;
+    return contractInstance;
+  }
+
+  async getBalance(address: Address): Promise<bigint> {
+    const contract = await this.getContractInstance();
+
+    return contract.balance_of(address);
+  }
+
+  async getMetadata(_isNft?: boolean): Promise<TokenMetadata> {
+    const contract = await this.getContractInstance();
+
+    const [decimals, symbol, name] = await Promise.all([
+      contract.decimals(),
+      contract.symbol(),
+      contract.name(),
+    ]);
+
+    return {
+      // Decimals get returned as bigint
+      decimals: Number(decimals.toString()),
+      // strings might be returned as bigint/numbers depending on the ABI
+      // and cairo version of the contract
+      symbol:
+        typeof symbol === 'string' ? symbol : stringFromDecimalNumber(symbol),
+      name: typeof name === 'string' ? name : stringFromDecimalNumber(name),
+    };
+  }
+
+  async getMinimumTransferAmount(_recipient: Address): Promise<bigint> {
+    return 0n;
+  }
+
+  async isApproveRequired(
+    owner: Address,
+    spender: Address,
+    weiAmountOrId: Numberish,
+  ): Promise<boolean> {
+    const contract = await this.getContractInstance();
+
+    const allowance = await contract.allowance(owner, spender);
+    return BigNumber.from(allowance.toString()).lt(
+      BigNumber.from(weiAmountOrId),
+    );
+  }
+
+  async isRevokeApprovalRequired(
+    _owner: Address,
+    _spender: Address,
+  ): Promise<boolean> {
+    return false;
+  }
+
+  async populateApproveTx({
+    weiAmountOrId,
+    recipient,
+  }: TransferParams): Promise<Call> {
+    const contract = await this.getContractInstance();
+
+    return contract.populateTransaction.approve(recipient, weiAmountOrId);
+  }
+
+  async populateTransferTx({
+    weiAmountOrId,
+    recipient,
+  }: TransferParams): Promise<Call> {
+    const contract = await this.getContractInstance();
+
+    return contract.populateTransaction.transfer(recipient, weiAmountOrId);
+  }
+
+  async getTotalSupply(): Promise<bigint | undefined> {
+    const contract = await this.getContractInstance();
+
+    return contract.total_supply();
+  }
+}
+
+class BaseStarknetHypTokenAdapter
   extends BaseStarknetAdapter
   implements ITokenAdapter<Call>
 {
@@ -110,7 +221,7 @@ export class StarknetTokenAdapter
 }
 
 export class StarknetHypSyntheticAdapter
-  extends StarknetTokenAdapter
+  extends BaseStarknetHypTokenAdapter
   implements IHypTokenAdapter<Call>
 {
   constructor(
