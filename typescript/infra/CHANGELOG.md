@@ -1,5 +1,23 @@
 # @hyperlane-xyz/infra
 
+## 19.6.0
+
+### Patch Changes
+
+- Updated dependencies [e67aca4a1]
+- Updated dependencies [419e16910]
+- Updated dependencies [b259966fe]
+- Updated dependencies [18c32ed2b]
+- Updated dependencies [e0c69e255]
+- Updated dependencies [ec406fcbe]
+- Updated dependencies [18c32ed2b]
+- Updated dependencies [b259966fe]
+- Updated dependencies [419e16910]
+- Updated dependencies [9185b9c5b]
+  - @hyperlane-xyz/sdk@19.6.0
+  - @hyperlane-xyz/helloworld@19.6.0
+  - @hyperlane-xyz/utils@19.6.0
+
 ## 19.6.0-beta.0
 
 ### Patch Changes

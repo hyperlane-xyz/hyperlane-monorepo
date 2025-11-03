@@ -1,5 +1,7 @@
 # @hyperlane-xyz/eslint-config
 
+## 19.6.0
+
 ## 19.6.0-beta.0
 
 ## 19.5.0

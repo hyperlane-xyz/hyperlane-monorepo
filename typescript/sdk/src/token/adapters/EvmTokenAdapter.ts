@@ -73,7 +73,7 @@ import {
 // An estimate of the gas amount for a typical EVM token router transferRemote transaction
 // Computed by estimating on a few different chains, taking the max, and then adding ~50% padding
 export const EVM_TRANSFER_REMOTE_GAS_ESTIMATE = 450_000n;
-const QUOTE_TRANSFER_REMOTE_CONTRACT_VERSION = '10.0.0-beta.0';
+const QUOTE_TRANSFER_REMOTE_CONTRACT_VERSION = '10.0.0';
 
 // Interacts with native currencies
 export class EvmNativeTokenAdapter

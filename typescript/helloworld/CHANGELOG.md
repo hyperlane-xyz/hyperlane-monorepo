@@ -1,6 +1,6 @@
 # @hyperlane-xyz/helloworld
 
-## 19.6.0-beta.0
+## 19.6.0
 
 ### Patch Changes
 
@@ -27,8 +27,8 @@
 - Updated dependencies [b259966fe]
 - Updated dependencies [9185b9c5b]
 - Updated dependencies [9a43cdca9]
-  - @hyperlane-xyz/core@10.0.0-beta.0
-  - @hyperlane-xyz/sdk@19.6.0-beta.0
+  - @hyperlane-xyz/core@10.0.0
+  - @hyperlane-xyz/sdk@19.6.0
 
 ## 19.5.0
 
