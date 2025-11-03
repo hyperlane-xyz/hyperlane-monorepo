@@ -36,6 +36,7 @@ import {
 import {
   MsgCreateIgpEncodeObject,
   MsgCreateMerkleTreeHookEncodeObject,
+  MsgCreateNoopHookEncodeObject,
   MsgSetDestinationGasConfigEncodeObject,
   MsgSetIgpOwnerEncodeObject,
 } from '../hyperlane/post_dispatch/messages.js';
@@ -357,6 +358,17 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     };
   }
 
+  async getNoopHook(req: AltVM.ReqGetNoopHook): Promise<AltVM.ResGetNoopHook> {
+    const { noop_hook } = await this.query.postDispatch.NoopHook({
+      id: req.hookAddress,
+    });
+    assert(noop_hook, `found no merkle tree hook for id ${req.hookAddress}`);
+
+    return {
+      address: noop_hook.id,
+    };
+  }
+
   // ### QUERY WARP ###
 
   async getToken(req: AltVM.ReqGetToken): Promise<AltVM.ResGetToken> {
@@ -669,6 +681,17 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     throw new Error(
       `RemoveDestinationGasConfig is currently not supported on Cosmos Native`,
     );
+  }
+
+  async getCreateNoopHookTransaction(
+    req: AltVM.ReqCreateNoopHook,
+  ): Promise<MsgCreateNoopHookEncodeObject> {
+    return {
+      typeUrl: R.MsgCreateNoopHook.proto.type,
+      value: R.MsgCreateNoopHook.proto.converter.create({
+        owner: req.signer,
+      }),
+    };
   }
 
   async getCreateValidatorAnnounceTransaction(

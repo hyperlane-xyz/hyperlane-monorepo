@@ -143,6 +143,12 @@ export class MockSigner
     throw new Error(`not implemented`);
   }
 
+  async createNoopHook(
+    _req: Omit<AltVM.ReqCreateNoopHook, 'signer'>,
+  ): Promise<AltVM.ResCreateNoopHook> {
+    throw new Error(`not implemented`);
+  }
+
   async createValidatorAnnounce(
     _req: Omit<AltVM.ReqCreateValidatorAnnounce, 'signer'>,
   ): Promise<AltVM.ResCreateValidatorAnnounce> {

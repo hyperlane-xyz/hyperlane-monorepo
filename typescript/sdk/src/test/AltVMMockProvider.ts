@@ -87,6 +87,10 @@ export class MockProvider implements AltVM.IProvider {
     throw new Error(`not implemented`);
   }
 
+  async getNoopHook(_req: AltVM.ReqGetNoopHook): Promise<AltVM.ResGetNoopHook> {
+    throw new Error(`not implemented`);
+  }
+
   // ### QUERY WARP ###
 
   async getToken(_req: AltVM.ReqGetToken): Promise<AltVM.ResGetToken> {
@@ -209,6 +213,12 @@ export class MockProvider implements AltVM.IProvider {
 
   async getRemoveDestinationGasConfigTransaction(
     _req: AltVM.ReqRemoveDestinationGasConfig,
+  ): Promise<MockTransaction> {
+    throw new Error(`not implemented`);
+  }
+
+  async getCreateNoopHookTransaction(
+    _req: AltVM.ReqCreateNoopHook,
   ): Promise<MockTransaction> {
     throw new Error(`not implemented`);
   }

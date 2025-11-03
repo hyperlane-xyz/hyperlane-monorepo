@@ -434,6 +434,20 @@ export class CosmosNativeSigner
     );
   }
 
+  async createNoopHook(
+    req: Omit<AltVM.ReqCreateNoopHook, 'signer'>,
+  ): Promise<AltVM.ResCreateNoopHook> {
+    const msg = await this.getCreateNoopHookTransaction({
+      ...req,
+      signer: this.account.address,
+    });
+
+    const result = await this.submitTx(msg);
+    return {
+      hookAddress: result.id,
+    };
+  }
+
   async createValidatorAnnounce(
     _req: Omit<AltVM.ReqCreateValidatorAnnounce, 'signer'>,
   ): Promise<AltVM.ResCreateValidatorAnnounce> {

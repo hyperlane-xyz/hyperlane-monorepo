@@ -128,6 +128,11 @@ export type ResGetMerkleTreeHook = {
   address: string;
 };
 
+export type ReqGetNoopHook = { hookAddress: string };
+export type ResGetNoopHook = {
+  address: string;
+};
+
 // ### QUERY WARP ###
 
 export enum TokenType {
@@ -342,6 +347,13 @@ export type ResRemoveDestinationGasConfig = {
   remoteDomainId: number;
 };
 
+export type ReqCreateNoopHook = {
+  signer: string;
+};
+export type ResCreateNoopHook = {
+  hookAddress: string;
+};
+
 export type ReqCreateValidatorAnnounce = {
   signer: string;
   mailboxAddress: string;
@@ -482,6 +494,8 @@ export interface IProvider<T = any> {
 
   getMerkleTreeHook(req: ReqGetMerkleTreeHook): Promise<ResGetMerkleTreeHook>;
 
+  getNoopHook(req: ReqGetNoopHook): Promise<ResGetNoopHook>;
+
   // ### QUERY WARP ###
 
   getToken(req: ReqGetToken): Promise<ResGetToken>;
@@ -543,6 +557,8 @@ export interface IProvider<T = any> {
   getRemoveDestinationGasConfigTransaction(
     req: ReqRemoveDestinationGasConfig,
   ): Promise<T>;
+
+  getCreateNoopHookTransaction(req: ReqCreateNoopHook): Promise<T>;
 
   getCreateValidatorAnnounceTransaction(
     req: ReqCreateValidatorAnnounce,
@@ -649,6 +665,10 @@ export interface ISigner<T, R> extends IProvider<T> {
   removeDestinationGasConfig(
     req: Omit<ReqRemoveDestinationGasConfig, 'signer'>,
   ): Promise<ResRemoveDestinationGasConfig>;
+
+  createNoopHook(
+    req: Omit<ReqCreateNoopHook, 'signer'>,
+  ): Promise<ResCreateNoopHook>;
 
   createValidatorAnnounce(
     req: Omit<ReqCreateValidatorAnnounce, 'signer'>,

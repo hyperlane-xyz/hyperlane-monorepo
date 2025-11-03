@@ -344,6 +344,12 @@ export class RadixSigner
     );
   }
 
+  async createNoopHook(
+    _req: Omit<AltVM.ReqCreateNoopHook, 'signer'>,
+  ): Promise<AltVM.ResCreateNoopHook> {
+    throw new Error(`CreateNoopHook is currently not supported on Radix`);
+  }
+
   async createValidatorAnnounce(
     req: Omit<AltVM.ReqCreateValidatorAnnounce, 'signer'>,
   ): Promise<AltVM.ResCreateValidatorAnnounce> {

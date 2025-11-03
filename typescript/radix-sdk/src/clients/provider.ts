@@ -274,6 +274,10 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
     return this.query.core.getMerkleTreeHook({ hook: req.hookAddress });
   }
 
+  async getNoopHook(_req: AltVM.ReqGetNoopHook): Promise<AltVM.ResGetNoopHook> {
+    throw new Error(`Noop Hook is currently not supported on Radix`);
+  }
+
   // ### QUERY WARP ###
 
   async getToken(req: AltVM.ReqGetToken): Promise<AltVM.ResGetToken> {
@@ -526,6 +530,12 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
     throw new Error(
       `RemoveDestinationGasConfig is currently not supported on Radix`,
     );
+  }
+
+  async getCreateNoopHookTransaction(
+    _req: AltVM.ReqCreateNoopHook,
+  ): Promise<RadixSDKTransaction> {
+    throw new Error(`CreateNoopHook is currently not supported on Radix`);
   }
 
   async getCreateValidatorAnnounceTransaction(
