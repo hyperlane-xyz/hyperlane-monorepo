@@ -311,7 +311,10 @@ jobs:
           - warp-check-1
           - warp-check-2
           - warp-check-3
-          - warp-deploy
+          - warp-check-4
+          - warp-check-5
+          - warp-deploy-1
+          - warp-deploy-2
           - warp-extend-basic
           - warp-extend-config
           - warp-extend-recovery
