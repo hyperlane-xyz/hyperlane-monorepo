@@ -256,7 +256,7 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
     );
 
     const [packageVersion, tokenFee] = await Promise.all([
-      this.fetchPackageVersion(routerAddress).catch(() => '0.0.0'),
+      this.fetchPackageVersion(routerAddress),
       TokenRouter.feeRecipient().catch(() => constants.AddressZero),
     ]);
 
@@ -596,9 +596,7 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
     }
 
     const config = await deriveFunction(warpRouteAddress);
-    config.contractVersion = await this.fetchPackageVersion(
-      warpRouteAddress,
-    ).catch(() => '0.0.0');
+    config.contractVersion = await this.fetchPackageVersion(warpRouteAddress);
 
     return HypTokenConfigSchema.parse(config);
   }
@@ -1000,7 +998,8 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
         // The real version of a contract without this function is below 5.4.0
         return '5.3.9';
       } else {
-        throw err;
+        this.logger.error(`Error when fetching package version ${err}`);
+        return '0.0.0';
       }
     }
   }
