@@ -19,7 +19,6 @@ import {Message} from "../../libs/Message.sol";
 import {TokenMessage} from "../libs/TokenMessage.sol";
 import {TokenRouter} from "../libs/TokenRouter.sol";
 import {Router} from "../../client/Router.sol";
-import {FungibleTokenRouter} from "../libs/FungibleTokenRouter.sol";
 
 // ============ External Imports ============
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
@@ -61,15 +60,13 @@ contract HypERC4626 is HypERC20 {
 
     /// Override totalSupply to return the total assets instead of shares. This reflects the actual circulating supply in terms of assets, accounting for rebasing
     /// @inheritdoc ERC20Upgradeable
-    function totalSupply() public view virtual override returns (uint256) {
+    function totalSupply() public view override returns (uint256) {
         return sharesToAssets(totalShares());
     }
 
     /// This returns the balance of the account in terms of assets, accounting for rebasing
     /// @inheritdoc ERC20Upgradeable
-    function balanceOf(
-        address account
-    ) public view virtual override returns (uint256) {
+    function balanceOf(address account) public view override returns (uint256) {
         return sharesToAssets(shareBalanceOf(account));
     }
 
@@ -93,19 +90,16 @@ contract HypERC4626 is HypERC20 {
 
     // @inheritdoc HypERC20
     // @dev Amount specified by the user is in assets, but the internal accounting is in shares
-    function _transferFromSender(
-        uint256 _amount
-    ) internal virtual override returns (bytes memory) {
-        return HypERC20._transferFromSender(assetsToShares(_amount));
+    function _transferFromSender(uint256 _amount) internal override {
+        HypERC20._transferFromSender(assetsToShares(_amount));
     }
 
-    // @inheritdoc FungibleTokenRouter
+    // @inheritdoc TokenRouter
     // @dev Amount specified by user is in assets, but the message accounting is in shares
     function _outboundAmount(
         uint256 _localAmount
-    ) internal view virtual override returns (uint256) {
-        return
-            FungibleTokenRouter._outboundAmount(assetsToShares(_localAmount));
+    ) internal view override returns (uint256) {
+        return TokenRouter._outboundAmount(assetsToShares(_localAmount));
     }
 
     // @inheritdoc ERC20Upgradeable
@@ -114,11 +108,11 @@ contract HypERC4626 is HypERC20 {
         address _from,
         address _to,
         uint256 _amount
-    ) internal virtual override {
+    ) internal override {
         super._transfer(_from, _to, assetsToShares(_amount));
     }
 
-    // `_inboundAmount` implementation reused from `FungibleTokenRouter` unchanged because message
+    // `_inboundAmount` implementation reused from `TokenRouter` unchanged because message
     // accounting is in shares
 
     // ========== TokenRouter extensions ============
@@ -127,7 +121,7 @@ contract HypERC4626 is HypERC20 {
         uint32 _origin,
         bytes32 _sender,
         bytes calldata _message
-    ) internal virtual override {
+    ) internal override {
         if (_origin == collateralDomain) {
             (uint256 newExchangeRate, uint32 rateUpdateNonce) = abi.decode(
                 _message.metadata(),

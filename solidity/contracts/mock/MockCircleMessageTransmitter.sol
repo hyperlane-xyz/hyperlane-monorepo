@@ -2,9 +2,25 @@
 pragma solidity ^0.8.13;
 
 import {IMessageTransmitter} from "../interfaces/cctp/IMessageTransmitter.sol";
+import {IMessageTransmitterV2} from "../interfaces/cctp/IMessageTransmitterV2.sol";
+import {IMessageHandler} from "../interfaces/cctp/IMessageHandler.sol";
+import {IMessageHandlerV2} from "../interfaces/cctp/IMessageHandlerV2.sol";
 import {MockToken} from "./MockToken.sol";
+import {TypedMemView} from "../libs/TypedMemView.sol";
+import {CctpMessageV1} from "../libs/CctpMessageV1.sol";
+import {CctpMessageV2} from "../libs/CctpMessageV2.sol";
+import {TypeCasts} from "../libs/TypeCasts.sol";
 
-contract MockCircleMessageTransmitter is IMessageTransmitter {
+contract MockCircleMessageTransmitter is
+    IMessageTransmitter,
+    IMessageTransmitterV2
+{
+    using TypedMemView for bytes;
+    using TypedMemView for bytes29;
+    using CctpMessageV1 for bytes29;
+    using CctpMessageV2 for bytes29;
+    using TypeCasts for address;
+
     uint64 public nonce = 0;
     mapping(bytes32 => bool) processedNonces;
     MockToken token;
@@ -15,38 +31,75 @@ contract MockCircleMessageTransmitter is IMessageTransmitter {
         token = _token;
     }
 
-    function sendMessage(
-        uint32 destinationDomain,
-        bytes32 recipient,
-        bytes calldata messageBody
-    ) public override returns (uint64) {
-        emit MessageSent(messageBody);
-        return ++nonce;
+    function nextAvailableNonce() external view returns (uint64) {
+        return 0;
     }
 
-    function sendMessageWithCaller(
-        uint32 destinationDomain,
-        bytes32 recipient,
-        bytes32 destinationCaller,
-        bytes calldata messageBody
-    ) external override returns (uint64) {
-        return sendMessage(destinationDomain, recipient, messageBody);
-    }
-
-    function replaceMessage(
-        bytes calldata originalMessage,
-        bytes calldata originalAttestation,
-        bytes calldata newMessageBody,
-        bytes32 newDestinationCaller
-    ) external override {
-        revert("Not implemented");
+    function signatureThreshold() external view returns (uint256) {
+        return 1;
     }
 
     function receiveMessage(
-        bytes memory,
+        bytes memory message,
         bytes calldata
-    ) external pure override returns (bool success) {
-        success = true;
+    ) external returns (bool success) {
+        bytes29 cctpMessage = TypedMemView.ref(message, 0);
+
+        // Extract nonce and source domain to check if message was already processed
+        uint32 sourceDomain;
+        bytes32 nonceId;
+        if (version == 0) {
+            sourceDomain = cctpMessage._sourceDomain();
+            uint64 nonce = cctpMessage._nonce();
+            nonceId = hashSourceAndNonce(sourceDomain, nonce);
+        } else {
+            sourceDomain = cctpMessage._getSourceDomain();
+            bytes32 nonce = cctpMessage._getNonce();
+            // For V2, use the nonce directly as the nonceId (it's already a bytes32)
+            nonceId = keccak256(abi.encodePacked(sourceDomain, nonce));
+        }
+
+        require(!processedNonces[nonceId], "Message already processed");
+        processedNonces[nonceId] = true;
+
+        // Extract recipient based on version
+        address recipient;
+        bytes32 sender;
+        bytes memory messageBody;
+
+        if (version == 0) {
+            // V1
+            recipient = _bytes32ToAddress(cctpMessage._recipient());
+            sender = cctpMessage._sender();
+            messageBody = cctpMessage._messageBody().clone();
+        } else {
+            // V2
+            recipient = _bytes32ToAddress(cctpMessage._getRecipient());
+            sender = cctpMessage._getSender();
+            messageBody = cctpMessage._getMessageBody().clone();
+        }
+
+        if (version == 0) {
+            // V1: Call handleReceiveMessage
+            success = IMessageHandler(recipient).handleReceiveMessage(
+                sourceDomain,
+                sender,
+                messageBody
+            );
+        } else {
+            // V2: Call handleReceiveUnfinalizedMessage
+            success = IMessageHandlerV2(recipient)
+                .handleReceiveUnfinalizedMessage(
+                    sourceDomain,
+                    sender,
+                    1000, // mock finality threshold
+                    messageBody
+                );
+        }
+    }
+
+    function _bytes32ToAddress(bytes32 _buf) internal pure returns (address) {
+        return address(uint160(uint256(_buf)));
     }
 
     function hashSourceAndNonce(
@@ -65,13 +118,84 @@ contract MockCircleMessageTransmitter is IMessageTransmitter {
         token.mint(_recipient, _amount);
     }
 
-    function usedNonces(
-        bytes32 _nonceId
-    ) external view override returns (uint256) {
+    function usedNonces(bytes32 _nonceId) external view returns (uint256) {
         return processedNonces[_nonceId] ? 1 : 0;
     }
 
     function setVersion(uint32 _version) external {
         version = _version;
+    }
+
+    function replaceMessage(
+        bytes calldata,
+        bytes calldata,
+        bytes calldata,
+        bytes32
+    ) external {
+        revert("Not implemented");
+    }
+
+    function sendMessage(
+        uint32 destinationDomain,
+        bytes32 recipient,
+        bytes calldata messageBody
+    ) public returns (uint64) {
+        // Format a complete CCTP message for the event based on version
+        bytes memory cctpMessage;
+        if (version == 0) {
+            cctpMessage = CctpMessageV1._formatMessage(
+                version,
+                0, // sourceDomain (mock localDomain returns 0)
+                destinationDomain,
+                0, // nonce
+                address(this).addressToBytes32(),
+                recipient,
+                bytes32(0), // destinationCaller (anyone can relay)
+                messageBody
+            );
+        } else {
+            cctpMessage = CctpMessageV2._formatMessageForRelay(
+                version,
+                0, // sourceDomain (mock localDomain returns 0)
+                destinationDomain,
+                address(this).addressToBytes32(),
+                recipient,
+                bytes32(0), // destinationCaller (anyone can relay)
+                1000, // mock finality threshold
+                messageBody
+            );
+        }
+        emit MessageSent(cctpMessage);
+        return 0;
+    }
+
+    function sendMessageWithCaller(
+        uint32,
+        bytes32,
+        bytes32,
+        bytes calldata message
+    ) external returns (uint64) {
+        return sendMessage(0, 0, message);
+    }
+
+    function sendMessage(
+        uint32 destinationDomain,
+        bytes32 recipient,
+        bytes32 destinationCaller,
+        uint32 minFinalityThreshold,
+        bytes calldata messageBody
+    ) external {
+        // V2 sendMessage: format a complete CCTP V2 message
+        bytes memory cctpMessage = CctpMessageV2._formatMessageForRelay(
+            version,
+            0, // sourceDomain (mock localDomain returns 0)
+            destinationDomain,
+            address(this).addressToBytes32(),
+            recipient,
+            destinationCaller,
+            minFinalityThreshold,
+            messageBody
+        );
+        emit MessageSent(cctpMessage);
     }
 }

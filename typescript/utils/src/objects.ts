@@ -457,3 +457,32 @@ export function sortArraysInObject(
 
   return obj;
 }
+
+type JSPrimitiveTypes =
+  | string
+  | number
+  | bigint
+  | boolean
+  | undefined
+  | symbol
+  | null;
+
+/**
+ * Returns an object where only the keys from `a` that are not in `b` or are different values, are kept
+ */
+export function objDiff<
+  TKey extends string | number,
+  TValue extends JSPrimitiveTypes,
+>(
+  a: Record<TKey, TValue>,
+  b: Record<TKey, TValue>,
+  areEquals: (a: TValue, b: TValue) => boolean = (a, b) => a === b,
+): Record<TKey, TValue> {
+  const bKeys = new Set(objKeys(b));
+
+  return objFilter(
+    a,
+    (key, value): value is TValue =>
+      !bKeys.has(key as TKey) || !areEquals(value, b[key as TKey]),
+  ) as Record<TKey, TValue>;
+}
