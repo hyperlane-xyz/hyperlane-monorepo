@@ -555,24 +555,15 @@ export function diffMultisigIsmConfigs(
   expected: SvmMultisigConfig,
   actual?: SvmMultisigConfig,
 ): boolean {
-  // If account doesn't exist but we expect validators, it's different
-  if (!actual && expected.validators.length > 0) {
-    return false;
+  // If account doesn't exist, it matches only if we expect no validators
+  if (!actual) {
+    return expected.validators.length === 0;
   }
 
-  // If account exists but we expect no validators, it's different
-  if (actual && expected.validators.length === 0) {
-    return false;
-  }
-
-  // If both are empty/null, they match
-  if (!actual && expected.validators.length === 0) {
-    return true;
-  }
-
+  // Account exists - compare validators and threshold
   // Compare validators (need to normalize hex format)
   const actualValidatorsSet = new Set(
-    actual!.validators.map((v) => v.toLowerCase()),
+    actual.validators.map((v) => v.toLowerCase()),
   );
   const expectedValidatorsSet = new Set(
     expected.validators.map((v) => v.toLowerCase()),
@@ -589,7 +580,7 @@ export function diffMultisigIsmConfigs(
   }
 
   // Compare threshold
-  return actual!.threshold === expected.threshold;
+  return actual.threshold === expected.threshold;
 }
 
 /**
