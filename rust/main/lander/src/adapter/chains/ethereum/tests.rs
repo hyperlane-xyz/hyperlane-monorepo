@@ -139,25 +139,7 @@ pub fn dummy_evm_tx(
 
 pub fn dummy_tx_precursor(tx_type: ExpectedTxType, signer: H160) -> EthereumTxPrecursor {
     let to = ethers::types::NameOrAddress::Address(H160::random());
-    #[allow(deprecated)]
-    let function = Function {
-        name: "baz".to_owned(),
-        inputs: vec![
-            Param {
-                name: "a".to_owned(),
-                kind: ParamType::Uint(32),
-                internal_type: None,
-            },
-            Param {
-                name: "b".to_owned(),
-                kind: ParamType::Bool,
-                internal_type: None,
-            },
-        ],
-        outputs: vec![],
-        constant: None,
-        state_mutability: StateMutability::Payable,
-    };
+    let function = dummy_evm_function();
     let tx = match tx_type {
         ExpectedTxType::Eip1559 => TypedTransaction::Eip1559(Eip1559TransactionRequest {
             from: Some(signer),
@@ -184,4 +166,26 @@ pub fn dummy_tx_precursor(tx_type: ExpectedTxType, signer: H160) -> EthereumTxPr
         ExpectedTxType::Eip2930 => todo!(),
     };
     EthereumTxPrecursor { tx, function }
+}
+
+pub fn dummy_evm_function() -> Function {
+    #[allow(deprecated)]
+    Function {
+        name: "baz".to_owned(),
+        inputs: vec![
+            Param {
+                name: "a".to_owned(),
+                kind: ParamType::Uint(32),
+                internal_type: None,
+            },
+            Param {
+                name: "b".to_owned(),
+                kind: ParamType::Bool,
+                internal_type: None,
+            },
+        ],
+        outputs: vec![],
+        constant: None,
+        state_mutability: StateMutability::Payable,
+    }
 }

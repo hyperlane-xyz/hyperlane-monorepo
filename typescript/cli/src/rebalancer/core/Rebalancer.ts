@@ -4,7 +4,7 @@ import { Logger } from 'pino';
 import {
   type ChainMap,
   type ChainMetadata,
-  EvmHypCollateralAdapter,
+  EvmMovableCollateralAdapter,
   InterchainGasQuote,
   type MultiProvider,
   type Token,
@@ -145,7 +145,7 @@ export class Rebalancer implements IRebalancer {
       originTokenAmount.getDecimalFormattedAmount();
     const originHypAdapter = originToken.getHypAdapter(
       this.warpCore.multiProvider,
-    ) as EvmHypCollateralAdapter;
+    ) as EvmMovableCollateralAdapter;
     const { bridge, bridgeIsWarp } = getBridgeConfig(
       this.bridges,
       origin,
@@ -240,7 +240,7 @@ export class Rebalancer implements IRebalancer {
     const originHypAdapter = originToken.getHypAdapter(
       this.warpCore.multiProvider,
     );
-    if (!(originHypAdapter instanceof EvmHypCollateralAdapter)) {
+    if (!(originHypAdapter instanceof EvmMovableCollateralAdapter)) {
       this.logger.error(
         {
           origin,

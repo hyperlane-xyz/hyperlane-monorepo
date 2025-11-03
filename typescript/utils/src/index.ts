@@ -149,6 +149,7 @@ export {
   transformObj,
   TransformObjectTransformer,
   sortArraysInObject,
+  objDiff,
 } from './objects.js';
 export { Result, failure, success } from './result.js';
 export {
