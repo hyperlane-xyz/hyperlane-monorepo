@@ -10,6 +10,7 @@ import {
   ERC4626__factory,
   GasRouter__factory,
   HypERC20,
+  HypERC20Collateral__factory,
   HypERC20__factory,
   HypERC4626,
   HypERC4626Collateral,
@@ -379,7 +380,19 @@ export class EvmHypCollateralAdapter
 
   async getWrappedTokenAddress(): Promise<Address> {
     if (!this.wrappedTokenAddress) {
-      this.wrappedTokenAddress = await this.collateralContract.token();
+      const contractVersion = await this.contract.PACKAGE_VERSION();
+
+      const hasNewInterface = isValidContractVersion(
+        contractVersion,
+        QUOTE_TRANSFER_REMOTE_CONTRACT_VERSION,
+      );
+      if (!hasNewInterface) {
+        const erc20CollateralContract = HypERC20Collateral__factory.connect(
+          this.addresses.token,
+          this.getProvider(),
+        );
+        this.wrappedTokenAddress = await erc20CollateralContract.wrappedToken();
+      } else this.wrappedTokenAddress = await this.collateralContract.token();
     }
     return this.wrappedTokenAddress!;
   }
