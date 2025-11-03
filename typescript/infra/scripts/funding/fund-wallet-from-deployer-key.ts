@@ -47,7 +47,7 @@ const MAX_FUNDING_AMOUNT_IN_USD = 1000;
 
 const enum TokenFundingType {
   native = 'native',
-  collateral = 'collateral',
+  non_native = 'non_native',
 }
 
 type TokenToFundInfo =
@@ -58,7 +58,7 @@ type TokenToFundInfo =
       tokenDecimals?: number;
     }
   | {
-      type: TokenFundingType.collateral;
+      type: TokenFundingType.non_native;
       tokenAddress: Address;
       amount: number;
       recipientAddress: Address;
@@ -166,12 +166,12 @@ async function main() {
       amount: parseFloat(amount),
       recipientAddress: recipient,
       tokenAddress,
-      type: TokenFundingType.collateral,
+      type: TokenFundingType.non_native,
       tokenDecimals: decimals ? parseInt(decimals) : undefined,
     };
   } else if (token) {
     tokenToFundInfo = {
-      type: TokenFundingType.collateral,
+      type: TokenFundingType.non_native,
       amount: parseFloat(amount),
       recipientAddress: recipient,
       tokenAddress: token,
@@ -242,7 +242,7 @@ async function fundAccount({
 
   let tokenPrice;
   try {
-    if (fundInfo.type === TokenFundingType.collateral) {
+    if (fundInfo.type === TokenFundingType.non_native) {
       tokenPrice = await tokenPriceGetter.fetchPriceDataByContractAddress(
         chainName,
         fundInfo.tokenAddress,
@@ -267,7 +267,7 @@ async function fundAccount({
 
   // Create adapter instance
   let adapter: ITokenAdapter<unknown>;
-  if (fundInfo.type === TokenFundingType.collateral) {
+  if (fundInfo.type === TokenFundingType.non_native) {
     adapter = getCollateralTokenAdapter({
       chainName,
       multiProvider: multiProtocolProvider,
@@ -287,7 +287,7 @@ async function fundAccount({
     const { name, symbol, decimals } = await adapter.getMetadata();
     assert(
       decimals,
-      `Expected decimals for ${fundInfo.type} token funding of ${fundInfo.type === TokenFundingType.collateral ? fundInfo.tokenAddress : ''} on chain "${chainName}" to be defined`,
+      `Expected decimals for ${fundInfo.type} token funding of ${fundInfo.type === TokenFundingType.non_native ? fundInfo.tokenAddress : ''} on chain "${chainName}" to be defined`,
     );
 
     tokenMetadata = {
