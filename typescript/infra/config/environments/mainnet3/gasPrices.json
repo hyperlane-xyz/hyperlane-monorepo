@@ -95,10 +95,6 @@
     "amount": "25.001",
     "decimals": 9
   },
-  "cheesechain": {
-    "amount": "1.0",
-    "decimals": 9
-  },
   "chilizmainnet": {
     "amount": "2501.0",
     "decimals": 9
