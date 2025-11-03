@@ -190,6 +190,11 @@ abstract class TokenDeployer<
             config.tokenMessenger,
           ];
         case 'V2':
+          assert(config.maxFeeBps, 'maxFeeBps is undefined for CCTP V2 config');
+          assert(
+            config.minFinalityThreshold,
+            'minFinalityThreshold is undefined for CCTP V2 config',
+          );
           return [
             config.token,
             config.mailbox,
