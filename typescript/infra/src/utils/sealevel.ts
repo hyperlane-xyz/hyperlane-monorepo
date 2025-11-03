@@ -1,6 +1,7 @@
 import {
   AccountMeta,
   ComputeBudgetProgram,
+  Connection,
   PublicKey,
   SystemProgram,
   TransactionInstruction,
@@ -413,7 +414,7 @@ export function calculatePercentDifference(
 /**
  * Format RemoteGasData for display
  */
-export function formatRemoteGasData(data: any): string {
+export function formatRemoteGasData(data: SealevelRemoteGasData): string {
   // Scale exchange rate by 1e19 (TOKEN_EXCHANGE_RATE_SCALE for Sealevel)
   const exchangeRate = Number(data.token_exchange_rate) / 1e19;
   // Convert gas price to lamports (assuming it's in smallest unit)
@@ -479,7 +480,7 @@ export interface MultisigIsmOnChainState {
  * @returns On-chain validator config or null if not set
  */
 export async function fetchMultisigIsmState(
-  connection: any,
+  connection: Connection,
   multisigIsmProgramId: PublicKey,
   domain: number,
 ): Promise<MultisigIsmOnChainState | null> {
