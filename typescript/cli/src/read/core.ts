@@ -1,5 +1,5 @@
+import { AltVMCoreReader } from '@hyperlane-xyz/deploy-sdk';
 import {
-  AltVMCoreReader,
   ChainName,
   CoreConfig,
   EvmCoreReader,

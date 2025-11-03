@@ -1,4 +1,15 @@
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
+import {
+  CoreConfig,
+  DeployedCoreAddresses,
+  DerivedCoreConfig,
+} from '@hyperlane-xyz/provider-sdk/core';
+import {
+  DerivedHookConfig,
+  HookConfig,
+} from '@hyperlane-xyz/provider-sdk/hook';
+import { DerivedIsmConfig, IsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
 import {
   AnnotatedTx,
   HypModule,
@@ -7,20 +18,9 @@ import {
 } from '@hyperlane-xyz/provider-sdk/module';
 import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
-import { ChainLookup } from '../altvm.js';
-import { AltVMHookModule } from '../hook/AltVMHookModule.js';
-import { DerivedHookConfig, HookConfig, HookType } from '../hook/types.js';
-import { AltVMIsmModule } from '../ism/AltVMIsmModule.js';
-import { DerivedIsmConfig, IsmConfig, IsmType } from '../ism/types.js';
-import { ChainName } from '../types.js';
-
 import { AltVMCoreReader } from './AltVMCoreReader.js';
-import {
-  CoreConfig,
-  CoreConfigSchema,
-  DeployedCoreAddresses,
-  DerivedCoreConfig,
-} from './types.js';
+import { AltVMHookModule } from './AltVMHookModule.js';
+import { AltVMIsmModule } from './AltVMIsmModule.js';
 
 export class AltVMCoreModule
   implements HypModule<CoreConfig, DeployedCoreAddresses>
@@ -29,7 +29,7 @@ export class AltVMCoreModule
   protected coreReader: AltVMCoreReader;
 
   // Cached chain name
-  public readonly chainName: ChainName;
+  public readonly chainName: string;
 
   constructor(
     protected readonly chainLookup: ChainLookup,
@@ -162,30 +162,20 @@ export class AltVMCoreModule
 
     const addresses: DeployedCoreAddresses = {
       mailbox: mailbox.mailboxAddress,
-      staticMerkleRootMultisigIsmFactory: '',
-      proxyAdmin: '',
-      staticMerkleRootWeightedMultisigIsmFactory: '',
-      staticAggregationHookFactory: '',
-      staticAggregationIsmFactory: '',
-      staticMessageIdMultisigIsmFactory: '',
-      staticMessageIdWeightedMultisigIsmFactory: '',
       validatorAnnounce: validatorAnnounce.validatorAnnounceId,
-      testRecipient: '',
-      interchainAccountRouter: '',
-      domainRoutingIsmFactory: '',
     };
 
     if (config.defaultIsm && typeof config.defaultIsm !== 'string') {
       switch (config.defaultIsm.type) {
-        case IsmType.MERKLE_ROOT_MULTISIG: {
+        case 'merkleRootMultisigIsm': {
           addresses.staticMerkleRootMultisigIsmFactory = defaultIsm;
           break;
         }
-        case IsmType.MESSAGE_ID_MULTISIG: {
+        case 'messageIdMultisigIsm': {
           addresses.staticMessageIdMultisigIsmFactory = defaultIsm;
           break;
         }
-        case IsmType.ROUTING: {
+        case 'domainRoutingIsm': {
           addresses.domainRoutingIsmFactory = defaultIsm;
           break;
         }
@@ -194,11 +184,11 @@ export class AltVMCoreModule
 
     if (config.defaultHook && typeof config.defaultHook !== 'string') {
       switch (config.defaultHook.type) {
-        case HookType.INTERCHAIN_GAS_PAYMASTER: {
+        case 'interchainGasPaymaster': {
           addresses.interchainGasPaymaster = defaultHook;
           break;
         }
-        case HookType.MERKLE_TREE: {
+        case 'merkleTreeHook': {
           addresses.merkleTreeHook = defaultHook;
           break;
         }
@@ -207,11 +197,11 @@ export class AltVMCoreModule
 
     if (config.requiredHook && typeof config.requiredHook !== 'string') {
       switch (config.requiredHook.type) {
-        case HookType.INTERCHAIN_GAS_PAYMASTER: {
+        case 'interchainGasPaymaster': {
           addresses.interchainGasPaymaster = requiredHook;
           break;
         }
-        case HookType.MERKLE_TREE: {
+        case 'merkleTreeHook': {
           addresses.merkleTreeHook = requiredHook;
           break;
         }
@@ -228,7 +218,6 @@ export class AltVMCoreModule
    * @returns An array of transactions that were executed to update the contract.
    */
   public async update(expectedConfig: CoreConfig): Promise<AnnotatedTx[]> {
-    CoreConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
 
     const transactions: AnnotatedTx[] = [];
@@ -275,7 +264,7 @@ export class AltVMCoreModule
   ): Promise<AnnotatedTx[]> {
     const updateTransactions: AnnotatedTx[] = [];
 
-    const actualDefaultIsmConfig = actualConfig.defaultIsm as DerivedIsmConfig;
+    const actualDefaultIsmConfig = actualConfig.defaultIsm;
 
     // Try to update (may also deploy) Ism with the expected config
     const { deployedIsm, ismUpdateTxs } = await this.deployOrUpdateIsm(
@@ -310,7 +299,7 @@ export class AltVMCoreModule
    */
   public async deployOrUpdateIsm(
     actualDefaultIsmConfig: DerivedIsmConfig,
-    expectDefaultIsmConfig: IsmConfig,
+    expectDefaultIsmConfig: IsmConfig | string,
   ): Promise<{
     deployedIsm: Address;
     ismUpdateTxs: AnnotatedTx[];
@@ -351,8 +340,7 @@ export class AltVMCoreModule
   ): Promise<AnnotatedTx[]> {
     const updateTransactions: AnnotatedTx[] = [];
 
-    const actualDefaultHookConfig =
-      actualConfig.defaultHook as DerivedHookConfig;
+    const actualDefaultHookConfig = actualConfig.defaultHook;
 
     // Try to update (may also deploy) Hook with the expected config
     const { deployedHook, hookUpdateTxs } = await this.deployOrUpdateHook(
@@ -393,8 +381,7 @@ export class AltVMCoreModule
   ): Promise<AnnotatedTx[]> {
     const updateTransactions: AnnotatedTx[] = [];
 
-    const actualRequiredHookConfig =
-      actualConfig.requiredHook as DerivedHookConfig;
+    const actualRequiredHookConfig = actualConfig.requiredHook;
 
     // Try to update (may also deploy) Hook with the expected config
     const { deployedHook, hookUpdateTxs } = await this.deployOrUpdateHook(
@@ -429,7 +416,7 @@ export class AltVMCoreModule
    */
   public async deployOrUpdateHook(
     actualHookConfig: DerivedHookConfig,
-    expectHookConfig: HookConfig,
+    expectHookConfig: HookConfig | string,
   ): Promise<{
     deployedHook: Address;
     hookUpdateTxs: AnnotatedTx[];

@@ -1,15 +1,12 @@
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { Address, WithAddress, rootLogger } from '@hyperlane-xyz/utils';
-
-import { ChainMetadataLookup } from '../altvm.js';
-
+import { ChainMetadataLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
   DerivedHookConfig,
   HookConfig,
-  HookType,
   IgpHookConfig,
   MerkleTreeHookConfig,
-} from './types.js';
+} from '@hyperlane-xyz/provider-sdk/hook';
+import { Address, WithAddress, rootLogger } from '@hyperlane-xyz/utils';
 
 export class AltVMHookReader {
   protected readonly logger = rootLogger.child({
@@ -43,7 +40,9 @@ export class AltVMHookReader {
     }
   }
 
-  async deriveHookConfig(config: HookConfig): Promise<DerivedHookConfig> {
+  async deriveHookConfig(
+    config: HookConfig | Address,
+  ): Promise<DerivedHookConfig> {
     if (typeof config === 'string')
       return this.deriveHookConfigFromAddress(config);
 
@@ -76,7 +75,7 @@ export class AltVMHookReader {
     });
 
     return {
-      type: HookType.INTERCHAIN_GAS_PAYMASTER,
+      type: 'interchainGasPaymaster',
       owner: igp.owner,
       beneficiary: igp.owner,
       oracleKey: igp.owner,
@@ -94,7 +93,7 @@ export class AltVMHookReader {
     });
 
     return {
-      type: HookType.MERKLE_TREE,
+      type: 'merkleTreeHook',
       address: merkle_tree_hook.address,
     };
   }
