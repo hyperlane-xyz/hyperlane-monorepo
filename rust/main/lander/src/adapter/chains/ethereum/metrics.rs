@@ -45,7 +45,7 @@ impl EthereumAdapterMetrics {
     }
 
     pub fn increment_batched_transactions(&self, status: &str, amount: u64) {
-        self.batched_transaction
+        self.get_batched_transactions()
             .with_label_values(&[self.domain.name(), status])
             .inc_by(amount);
     }
