@@ -6,4 +6,4 @@
 "@hyperlane-xyz/sdk": minor
 ---
 
-add new methods for altvm interfae
+add new methods for altvm interface
