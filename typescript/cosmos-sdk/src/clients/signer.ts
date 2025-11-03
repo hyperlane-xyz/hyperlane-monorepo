@@ -385,6 +385,8 @@ export class CosmosNativeSigner
   async createInterchainGasPaymasterHook(
     req: Omit<AltVM.ReqCreateInterchainGasPaymasterHook, 'signer'>,
   ): Promise<AltVM.ResCreateInterchainGasPaymasterHook> {
+    assert(req.denom, `denom required by ${CosmosNativeSigner.name}`);
+
     const msg = await this.getCreateInterchainGasPaymasterHookTransaction({
       ...req,
       signer: this.account.address,
@@ -520,6 +522,8 @@ export class CosmosNativeSigner
   async transfer(
     req: Omit<AltVM.ReqTransfer, 'signer'>,
   ): Promise<AltVM.ResTransfer> {
+    assert(req.denom, `denom required by ${CosmosNativeSigner.name}`);
+
     const msg = await this.getTransferTransaction({
       ...req,
       signer: this.account.address,

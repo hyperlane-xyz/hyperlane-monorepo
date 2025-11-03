@@ -2,9 +2,9 @@ import { MinimumRequiredGasByAction } from './mingas.js';
 import { ProtocolType } from './types.js';
 
 // ### QUERY BASE ###
-export type ReqGetBalance = { address: string; denom: string };
+export type ReqGetBalance = { address: string; denom?: string };
 
-export type ReqGetTotalSupply = { denom: string };
+export type ReqGetTotalSupply = { denom?: string };
 
 export type ReqEstimateTransactionFee<T> = {
   transaction: T;
@@ -296,7 +296,7 @@ export type ResCreateMerkleTreeHook = {
 
 export type ReqCreateInterchainGasPaymasterHook = {
   signer: string;
-  denom: string;
+  denom?: string;
 };
 export type ResCreateInterchainGasPaymasterHook = {
   hookAddress: string;
@@ -407,7 +407,7 @@ export type ResUnenrollRemoteRouter = {
 export type ReqTransfer = {
   signer: string;
   recipient: string;
-  denom: string;
+  denom?: string;
   amount: string;
 };
 export type ResTransfer = {
