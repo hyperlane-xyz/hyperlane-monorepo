@@ -253,7 +253,7 @@ fn configure_multisig_ism_message_id(
             ctx,
             program_id,
             chain_metadata.domain_id,
-            &multisig_ism_config,
+            multisig_ism_config,
         );
 
         if matches {
