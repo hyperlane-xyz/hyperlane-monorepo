@@ -34,6 +34,8 @@ export interface RadixSDKOptions {
   networkId?: number;
   gasMultiplier?: number;
   rpcUrls: string[];
+  gatewayUrls?: string[];
+  packageAddress?: string;
 }
 
 export interface MultisigIsmReq {

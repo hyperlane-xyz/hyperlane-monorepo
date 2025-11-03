@@ -99,7 +99,10 @@ contract ERC5164IsmTest is ExternalBridgeTest {
     }
 
     function testTypes() public view {
-        assertEq(hook.hookType(), uint8(IPostDispatchHook.Types.ID_AUTH_ISM));
+        assertEq(
+            hook.hookType(),
+            uint8(IPostDispatchHook.HookTypes.ID_AUTH_ISM)
+        );
         assertEq(ism.moduleType(), uint8(IInterchainSecurityModule.Types.NULL));
     }
 

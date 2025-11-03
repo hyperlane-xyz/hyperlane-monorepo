@@ -1,12 +1,12 @@
 {
   "name": "@hyperlane-xyz/core",
   "description": "Core solidity contracts for Hyperlane",
-  "version": "9.0.16",
+  "version": "10.0.0",
   "dependencies": {
     "@arbitrum/nitro-contracts": "^1.2.1",
     "@chainlink/contracts-ccip": "^1.5.0",
     "@eth-optimism/contracts": "^0.6.0",
-    "@hyperlane-xyz/utils": "19.4.0",
+    "@hyperlane-xyz/utils": "19.6.0",
     "@matterlabs/hardhat-zksync-solc": "1.2.5",
     "@matterlabs/hardhat-zksync-verify": "1.7.1",
     "@openzeppelin/contracts": "^4.9.3",
@@ -30,6 +30,7 @@
     "prettier": "^3.5.3",
     "prettier-plugin-solidity": "^1.4.2",
     "solhint": "^5.0.5",
+    "solhint-plugin-hyperlane": "workspace:^",
     "solhint-plugin-prettier": "^0.1.0",
     "solidity-bytes-utils": "^0.8.0",
     "solidity-coverage": "^0.8.3",

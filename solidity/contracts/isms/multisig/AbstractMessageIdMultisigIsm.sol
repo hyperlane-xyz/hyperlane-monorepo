@@ -46,7 +46,7 @@ abstract contract AbstractMessageIdMultisigIsm is AbstractMultisig {
     function signatureAt(
         bytes calldata _metadata,
         uint256 _index
-    ) internal pure virtual override returns (bytes calldata) {
+    ) internal pure override returns (bytes calldata) {
         return _metadata.signatureAt(_index);
     }
 

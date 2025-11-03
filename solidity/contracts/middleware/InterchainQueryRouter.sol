@@ -69,11 +69,12 @@ contract InterchainQueryRouter is Router {
         address _to,
         bytes memory _data,
         bytes memory _callback
-    ) public returns (bytes32 messageId) {
+    ) public payable returns (bytes32 messageId) {
         emit QueryDispatched(_destination, msg.sender);
 
-        messageId = _dispatch(
+        messageId = _Router_dispatch(
             _destination,
+            msg.value,
             InterchainQueryMessage.encode(
                 msg.sender.addressToBytes32(),
                 _to,
@@ -93,10 +94,11 @@ contract InterchainQueryRouter is Router {
     function query(
         uint32 _destination,
         CallLib.StaticCallWithCallback[] calldata calls
-    ) public returns (bytes32 messageId) {
+    ) public payable returns (bytes32 messageId) {
         emit QueryDispatched(_destination, msg.sender);
-        messageId = _dispatch(
+        messageId = _Router_dispatch(
             _destination,
+            msg.value,
             InterchainQueryMessage.encode(msg.sender.addressToBytes32(), calls)
         );
     }
@@ -121,8 +123,9 @@ contract InterchainQueryRouter is Router {
                 callsWithCallback
             );
             emit QueryExecuted(_origin, sender);
-            _dispatch(
+            _Router_dispatch(
                 _origin,
+                msg.value,
                 InterchainQueryMessage.encode(sender, callbacks)
             );
         } else if (messageType == InterchainQueryMessage.MessageType.RESPONSE) {
