@@ -317,6 +317,7 @@ const send: CommandModuleWithWriteContext<
       warpCoreConfig.tokens.map((t) => t.chainName),
     );
 
+    // Check if any of the chain selection through --chains or --origin & --destination are not in the warp core
     const unsupportedChains = difference(
       new Set([...(chainsToSend || []), origin, destination].filter(Boolean)),
       supportedChains,
@@ -326,8 +327,10 @@ const send: CommandModuleWithWriteContext<
       `Chain(s) ${[...unsupportedChains].join(', ')} are not part of the warp route.`,
     );
 
-    chains = [...intersection(new Set(chains), supportedChains)];
-    assert(chains.length > 1, `Not enough chains to send messages.`);
+    chains =
+      chains.length === 0
+        ? [...supportedChains]
+        : [...intersection(new Set(chains), supportedChains)];
 
     if (roundTrip) {
       // Appends the reverse of the array, excluding the 1st (e.g. [1,2,3] becomes [1,2,3,2,1])
