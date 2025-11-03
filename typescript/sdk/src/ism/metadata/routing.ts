@@ -23,7 +23,7 @@ import type {
 } from './types.js';
 
 export type RoutingMetadata<T> = {
-  type: IsmType.ROUTING;
+  type: typeof IsmType.ROUTING;
   origin: ChainName;
   metadata: T;
 };

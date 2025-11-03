@@ -5,7 +5,7 @@ export type TxReceipt = { [key: string]: any };
 export interface HypModuleArgs<Cfg, Addrs extends AddrMap> {
   addresses: Addrs;
   chain: string | number;
-  config: Cfg;
+  config: string | Cfg;
 }
 
 export interface HypModule<Cfg, Addrs extends AddrMap> {

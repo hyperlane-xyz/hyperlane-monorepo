@@ -1,4 +1,5 @@
-import { AltVMHookReader, ChainName, EvmHookReader } from '@hyperlane-xyz/sdk';
+import { AltVMHookReader } from '@hyperlane-xyz/deploy-sdk';
+import { ChainName, EvmHookReader } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType, stringifyObject } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
