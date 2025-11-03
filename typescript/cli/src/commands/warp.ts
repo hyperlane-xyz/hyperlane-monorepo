@@ -314,7 +314,9 @@ const send: CommandModuleWithWriteContext<
     }
 
     const supportedChains = new Set(
-      warpCoreConfig.tokens.map((t) => t.chainName),
+      warpCoreConfig.tokens
+        .map((t) => t.chainName)
+        .sort((a, b) => a.localeCompare(b)),
     );
 
     // Check if any of the chain selection through --chains or --origin & --destination are not in the warp core
