@@ -91,7 +91,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     carrchain: true,
     celestia: true,
     celo: true,
-    cheesechain: true,
+    cheesechain: false,
     chilizmainnet: true,
     coredao: true,
     coti: true,
@@ -232,7 +232,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     carrchain: true,
     celestia: true,
     celo: true,
-    cheesechain: true,
+    cheesechain: false,
     chilizmainnet: true,
     coredao: true,
     coti: true,
@@ -373,7 +373,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     carrchain: true,
     celestia: true,
     celo: true,
-    cheesechain: true,
+    cheesechain: false,
     chilizmainnet: true,
     coredao: true,
     coti: true,
@@ -601,6 +601,11 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       {
         originDomain: getDomainId('stride'),
         destinationDomain: getDomainId('forma'),
+      },
+      // Not a core chain
+      {
+        originDomain: getDomainId('forma'),
+        destinationDomain: getDomainId('celestia'),
       },
     ],
   },
