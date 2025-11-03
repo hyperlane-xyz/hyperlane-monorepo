@@ -2,6 +2,7 @@ import { confirm } from '@inquirer/prompts';
 import { stringify as yamlStringify } from 'yaml';
 
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
+import { GasAction, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   AddWarpRouteConfigOptions,
   BaseRegistry,
@@ -32,6 +33,7 @@ import {
   WarpCoreConfigSchema,
   WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigSchema,
+  altVmChainLookup,
   enrollCrossChainRouters,
   executeWarpDeploy,
   expandWarpDeployConfig,
@@ -46,8 +48,6 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
-  GasAction,
-  ProtocolType,
   assert,
   objFilter,
   objMap,
@@ -676,7 +676,8 @@ async function updateExistingWarpRoute(
           default: {
             const signer = altVmSigner.get(chain);
             const warpModule = new AltVMWarpModule(
-              multiProvider,
+              altVmChainLookup(multiProvider),
+              signer,
               {
                 config: configWithMailbox,
                 chain,
@@ -684,7 +685,6 @@ async function updateExistingWarpRoute(
                   deployedTokenRoute,
                 },
               },
-              signer,
             );
 
             const transactions = await warpModule.update(configWithMailbox);

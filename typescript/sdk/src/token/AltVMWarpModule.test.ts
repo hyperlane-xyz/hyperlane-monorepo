@@ -2,12 +2,13 @@ import chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import Sinon from 'sinon';
 
-import { AltVM } from '@hyperlane-xyz/utils';
+import { AltVM, MockSigner } from '@hyperlane-xyz/provider-sdk';
+import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 
 import { TestChainName } from '../consts/testChains.js';
 import { IsmType } from '../ism/types.js';
+import { altVmChainLookup } from '../metadata/ChainMetadataManager.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
-import { MockSigner } from '../test/AltVMMockSigner.js';
 
 import { AltVMWarpModule } from './AltVMWarpModule.js';
 import { TokenType } from './config.js';
@@ -35,8 +36,8 @@ TEST CASES - AltVMWarpModule tests
 */
 
 describe('AltVMWarpModule', () => {
-  let signer: AltVM.ISigner<any, any>;
-  let warpModule: AltVMWarpModule<any>;
+  let signer: AltVM.ISigner<AnnotatedTx, TxReceipt>;
+  let warpModule: AltVMWarpModule;
 
   const tokenAddress =
     '0x726f757465725f61707000000000000000000000000000010000000000000000';
@@ -72,17 +73,13 @@ describe('AltVMWarpModule', () => {
 
     Sinon.stub(signer, 'getSignerAddress').returns(actualConfig.owner);
 
-    warpModule = new AltVMWarpModule(
-      multiProvider,
-      {
-        chain: TestChainName.test1,
-        config: actualConfig,
-        addresses: {
-          deployedTokenRoute: tokenAddress,
-        },
+    warpModule = new AltVMWarpModule(altVmChainLookup(multiProvider), signer, {
+      chain: TestChainName.test1,
+      config: actualConfig,
+      addresses: {
+        deployedTokenRoute: tokenAddress,
       },
-      signer,
-    );
+    });
 
     readStub = Sinon.stub(warpModule, 'read').resolves(
       actualConfig as DerivedTokenRouterConfig,

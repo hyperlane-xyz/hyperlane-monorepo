@@ -1,28 +1,19 @@
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
-  Address,
-  AltVM,
-  ChainId,
-  Domain,
-  ProtocolType,
-  rootLogger,
-} from '@hyperlane-xyz/utils';
+  AnnotatedTx,
+  HypModule,
+  HypModuleArgs,
+  TxReceipt,
+} from '@hyperlane-xyz/provider-sdk/module';
+import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
+import { ChainLookup } from '../altvm.js';
 import { AltVMHookModule } from '../hook/AltVMHookModule.js';
 import { DerivedHookConfig, HookConfig, HookType } from '../hook/types.js';
 import { AltVMIsmModule } from '../ism/AltVMIsmModule.js';
 import { DerivedIsmConfig, IsmConfig, IsmType } from '../ism/types.js';
-import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
-import {
-  AnnotatedTypedTransaction,
-  ProtocolReceipt,
-} from '../providers/ProviderType.js';
-import { ChainName, ChainNameOrId } from '../types.js';
+import { ChainName } from '../types.js';
 
-import {
-  HyperlaneModule,
-  HyperlaneModuleParams,
-} from './AbstractHyperlaneModule.js';
 import { AltVMCoreReader } from './AltVMCoreReader.js';
 import {
   CoreConfig,
@@ -31,33 +22,24 @@ import {
   DerivedCoreConfig,
 } from './types.js';
 
-export class AltVMCoreModule<PT extends ProtocolType> extends HyperlaneModule<
-  any,
-  CoreConfig,
-  Record<string, string>
-> {
+export class AltVMCoreModule
+  implements HypModule<CoreConfig, DeployedCoreAddresses>
+{
   protected logger = rootLogger.child({ module: 'AltVMCoreModule' });
   protected coreReader: AltVMCoreReader;
 
+  // Cached chain name
   public readonly chainName: ChainName;
-  public readonly chainId: ChainId;
-  public readonly domainId: Domain;
 
   constructor(
-    protected readonly metadataManager: ChainMetadataManager,
-    protected readonly signer: AltVM.ISigner<
-      AnnotatedTypedTransaction<PT>,
-      ProtocolReceipt<PT>
-    >,
-    args: HyperlaneModuleParams<CoreConfig, Record<string, string>>,
+    protected readonly chainLookup: ChainLookup,
+    protected readonly signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
+    private readonly args: HypModuleArgs<CoreConfig, DeployedCoreAddresses>,
   ) {
-    super(args);
+    const metadata = chainLookup.getChainMetadata(args.chain);
+    this.chainName = metadata.name;
 
-    this.chainName = metadataManager.getChainName(args.chain);
-    this.chainId = metadataManager.getChainId(args.chain);
-    this.domainId = metadataManager.getDomainId(args.chain);
-
-    this.coreReader = new AltVMCoreReader(this.metadataManager, signer);
+    this.coreReader = new AltVMCoreReader(chainLookup, signer);
   }
 
   /**
@@ -68,48 +50,44 @@ export class AltVMCoreModule<PT extends ProtocolType> extends HyperlaneModule<
     return this.coreReader.deriveCoreConfig(this.args.addresses.mailbox);
   }
 
+  public serialize(): DeployedCoreAddresses {
+    return this.args.addresses;
+  }
+
   /**
    * Deploys the Core contracts.
    * @returns The created AltVMCoreModule instance.
    */
-  public static async create<PT extends ProtocolType>(params: {
-    chain: ChainNameOrId;
+  public static async create(params: {
+    chain: string;
     config: CoreConfig;
-    multiProvider: MultiProvider;
-    signer: AltVM.ISigner<AnnotatedTypedTransaction<PT>, ProtocolReceipt<PT>>;
-  }): Promise<AltVMCoreModule<PT>> {
-    const { chain, config, multiProvider, signer } = params;
-    const addresses = await AltVMCoreModule.deploy<PT>({
-      config,
-      multiProvider,
-      chain,
-      signer,
-    });
+    chainLookup: ChainLookup;
+    signer: AltVM.ISigner<AnnotatedTx, TxReceipt>;
+  }): Promise<AltVMCoreModule> {
+    const addresses = await AltVMCoreModule.deploy(params);
 
-    // Create CoreModule and deploy the Core contracts
-    const module = new AltVMCoreModule<PT>(multiProvider, signer, {
+    return new AltVMCoreModule(params.chainLookup, params.signer, {
       addresses,
-      chain,
-      config,
+      chain: params.chain,
+      config: params.config,
     });
-
-    return module;
   }
 
   /**
    * Deploys the core Hyperlane contracts.
    * @returns The deployed core contract addresses.
    */
-  static async deploy<PT extends ProtocolType>(params: {
+  static async deploy(params: {
     config: CoreConfig;
-    multiProvider: MultiProvider;
-    chain: ChainNameOrId;
-    signer: AltVM.ISigner<AnnotatedTypedTransaction<PT>, ProtocolReceipt<PT>>;
+    chainLookup: ChainLookup;
+    chain: string;
+    signer: AltVM.ISigner<AnnotatedTx, TxReceipt>;
   }): Promise<DeployedCoreAddresses> {
-    const { config, multiProvider, chain, signer } = params;
+    const { config, chainLookup, chain, signer } = params;
 
-    const chainName = multiProvider.getChainName(chain);
-    const domainId = multiProvider.getDomainId(chain);
+    const metadata = chainLookup.getChainMetadata(chain);
+    const chainName = metadata.name;
+    const domainId = metadata.domainId;
 
     // 1. Deploy Mailbox with initial configuration
     const mailbox = await signer.createMailbox({
@@ -123,7 +101,7 @@ export class AltVMCoreModule<PT extends ProtocolType> extends HyperlaneModule<
       addresses: {
         mailbox: '',
       },
-      multiProvider,
+      chainLookup,
       signer,
     });
 
@@ -137,7 +115,7 @@ export class AltVMCoreModule<PT extends ProtocolType> extends HyperlaneModule<
         deployedHook: '',
         mailbox: mailbox.mailboxAddress,
       },
-      multiProvider,
+      chainLookup,
       signer,
     });
 
@@ -151,7 +129,7 @@ export class AltVMCoreModule<PT extends ProtocolType> extends HyperlaneModule<
         deployedHook: '',
         mailbox: mailbox.mailboxAddress,
       },
-      multiProvider,
+      chainLookup,
       signer,
     });
 
@@ -249,13 +227,11 @@ export class AltVMCoreModule<PT extends ProtocolType> extends HyperlaneModule<
    * @param expectedConfig - The configuration for the core contracts to be updated.
    * @returns An array of transactions that were executed to update the contract.
    */
-  public async update(
-    expectedConfig: CoreConfig,
-  ): Promise<AnnotatedTypedTransaction<PT>[]> {
+  public async update(expectedConfig: CoreConfig): Promise<AnnotatedTx[]> {
     CoreConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
 
-    const transactions: AnnotatedTypedTransaction<PT>[] = [];
+    const transactions: AnnotatedTx[] = [];
     transactions.push(
       ...(await this.createDefaultIsmUpdateTxs(actualConfig, expectedConfig)),
       ...(await this.createDefaultHookUpdateTxs(actualConfig, expectedConfig)),
@@ -269,7 +245,7 @@ export class AltVMCoreModule<PT extends ProtocolType> extends HyperlaneModule<
   private async createMailboxOwnerUpdateTxs(
     actualConfig: CoreConfig,
     expectedConfig: CoreConfig,
-  ): Promise<AnnotatedTypedTransaction<PT>[]> {
+  ): Promise<AnnotatedTx[]> {
     if (actualConfig.owner === expectedConfig.owner) {
       return [];
     }
@@ -296,8 +272,8 @@ export class AltVMCoreModule<PT extends ProtocolType> extends HyperlaneModule<
   async createDefaultIsmUpdateTxs(
     actualConfig: DerivedCoreConfig,
     expectedConfig: CoreConfig,
-  ): Promise<AnnotatedTypedTransaction<PT>[]> {
-    const updateTransactions: AnnotatedTypedTransaction<PT>[] = [];
+  ): Promise<AnnotatedTx[]> {
+    const updateTransactions: AnnotatedTx[] = [];
 
     const actualDefaultIsmConfig = actualConfig.defaultIsm as DerivedIsmConfig;
 
@@ -337,12 +313,12 @@ export class AltVMCoreModule<PT extends ProtocolType> extends HyperlaneModule<
     expectDefaultIsmConfig: IsmConfig,
   ): Promise<{
     deployedIsm: Address;
-    ismUpdateTxs: AnnotatedTypedTransaction<PT>[];
+    ismUpdateTxs: AnnotatedTx[];
   }> {
     const { mailbox } = this.serialize();
 
     const ismModule = new AltVMIsmModule(
-      this.metadataManager,
+      this.chainLookup,
       {
         addresses: {
           mailbox: mailbox,
@@ -372,8 +348,8 @@ export class AltVMCoreModule<PT extends ProtocolType> extends HyperlaneModule<
   async createDefaultHookUpdateTxs(
     actualConfig: DerivedCoreConfig,
     expectedConfig: CoreConfig,
-  ): Promise<AnnotatedTypedTransaction<PT>[]> {
-    const updateTransactions: AnnotatedTypedTransaction<PT>[] = [];
+  ): Promise<AnnotatedTx[]> {
+    const updateTransactions: AnnotatedTx[] = [];
 
     const actualDefaultHookConfig =
       actualConfig.defaultHook as DerivedHookConfig;
@@ -414,8 +390,8 @@ export class AltVMCoreModule<PT extends ProtocolType> extends HyperlaneModule<
   async createRequiredHookUpdateTxs(
     actualConfig: DerivedCoreConfig,
     expectedConfig: CoreConfig,
-  ): Promise<AnnotatedTypedTransaction<PT>[]> {
-    const updateTransactions: AnnotatedTypedTransaction<PT>[] = [];
+  ): Promise<AnnotatedTx[]> {
+    const updateTransactions: AnnotatedTx[] = [];
 
     const actualRequiredHookConfig =
       actualConfig.requiredHook as DerivedHookConfig;
@@ -456,12 +432,12 @@ export class AltVMCoreModule<PT extends ProtocolType> extends HyperlaneModule<
     expectHookConfig: HookConfig,
   ): Promise<{
     deployedHook: Address;
-    hookUpdateTxs: AnnotatedTypedTransaction<PT>[];
+    hookUpdateTxs: AnnotatedTx[];
   }> {
     const { mailbox } = this.serialize();
 
     const hookModule = new AltVMHookModule(
-      this.metadataManager,
+      this.chainLookup,
       {
         addresses: {
           mailbox: mailbox,

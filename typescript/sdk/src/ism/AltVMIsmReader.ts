@@ -1,6 +1,7 @@
-import { Address, AltVM, WithAddress, rootLogger } from '@hyperlane-xyz/utils';
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { Address, WithAddress, rootLogger } from '@hyperlane-xyz/utils';
 
-import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
+import { ChainNameLookup } from '../altvm.js';
 
 import {
   DerivedIsmConfig,
@@ -16,7 +17,7 @@ export class AltVMIsmReader {
   });
 
   constructor(
-    protected readonly metadataManager: ChainMetadataManager,
+    protected readonly getChainName: ChainNameLookup,
     protected readonly provider: AltVM.IProvider,
   ) {}
 
@@ -108,7 +109,7 @@ export class AltVMIsmReader {
         `Deriving ism config for route with domain id ${route.domainId}`,
       );
 
-      const chainName = this.metadataManager.tryGetChainName(route.domainId);
+      const chainName = this.getChainName(route.domainId);
       if (!chainName) {
         this.logger.warn(
           `Unknown domain ID ${route.domainId}, skipping domain configuration`,

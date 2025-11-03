@@ -1,7 +1,8 @@
 import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 import { NetworkId } from '@radixdlt/radix-engine-toolkit';
 
-import { AltVM, assert } from '@hyperlane-xyz/utils';
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { RadixCorePopulate } from '../core/populate.js';
 import { RadixCoreQuery } from '../core/query.js';
