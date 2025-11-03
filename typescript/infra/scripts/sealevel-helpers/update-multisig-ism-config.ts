@@ -340,7 +340,19 @@ async function main() {
   rootLogger.info(
     `Configuring MultisigIsm for chains: ${chains.join(', ')} on ${environment} (context: ${context})`,
   );
-  if (dryRun) {
+
+  if (!dryRun) {
+    rootLogger.warn(
+      chalk.yellow(
+        '⚠️  WARNING: --apply flag is not yet implemented. Running in dry-run mode.',
+      ),
+    );
+    rootLogger.warn(
+      chalk.yellow(
+        '    Transactions will be printed for manual Squads multisig submission.',
+      ),
+    );
+  } else {
     rootLogger.info('Running in DRY RUN mode - no transactions will be sent');
   }
 

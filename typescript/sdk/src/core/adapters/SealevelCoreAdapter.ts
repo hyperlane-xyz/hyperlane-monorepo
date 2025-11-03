@@ -1,7 +1,6 @@
 import {
   AccountMeta,
   PublicKey,
-  SystemProgram,
   TransactionInstruction,
 } from '@solana/web3.js';
 import { serialize } from 'borsh';
@@ -186,24 +185,28 @@ export class SealevelCoreAdapter
   /**
    * Create a SetDefaultIsm instruction
    * @param mailboxProgramId - The mailbox program ID
-   * @param mailboxInbox - The mailbox inbox account
    * @param owner - The current owner who can set the ISM
    * @param newIsm - The new ISM program address to set as default
    * @returns TransactionInstruction
    */
   createSetDefaultIsmInstruction(
     mailboxProgramId: PublicKey,
-    mailboxInbox: PublicKey,
     owner: PublicKey,
     newIsm: PublicKey,
   ): TransactionInstruction {
+    // Derive PDAs from the mailbox program ID
+    const inboxPda =
+      SealevelCoreAdapter.deriveMailboxInboxPda(mailboxProgramId);
+    const outboxPda =
+      SealevelCoreAdapter.deriveMailboxOutboxPda(mailboxProgramId);
+
     const keys: AccountMeta[] = [
-      // 0. `[executable]` The system program.
-      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-      // 1. `[writeable]` The mailbox inbox account.
-      { pubkey: mailboxInbox, isSigner: false, isWritable: true },
-      // 2. `[signer]` The owner.
-      { pubkey: owner, isSigner: true, isWritable: false },
+      // 0. `[writeable]` - The Inbox PDA account.
+      { pubkey: inboxPda, isSigner: false, isWritable: true },
+      // 1. `[]` - The Outbox PDA account.
+      { pubkey: outboxPda, isSigner: false, isWritable: false },
+      // 2. `[signer, writeable]` - The owner of the Mailbox.
+      { pubkey: owner, isSigner: true, isWritable: true },
     ];
 
     const value = new SealevelInstructionWrapper({
@@ -227,24 +230,24 @@ export class SealevelCoreAdapter
   /**
    * Create a TransferOwnership instruction
    * @param mailboxProgramId - The mailbox program ID
-   * @param mailboxInbox - The mailbox inbox account
    * @param owner - The current owner
    * @param newOwner - The new owner (null to renounce ownership)
    * @returns TransactionInstruction
    */
   createTransferOwnershipInstruction(
     mailboxProgramId: PublicKey,
-    mailboxInbox: PublicKey,
     owner: PublicKey,
     newOwner: PublicKey | null,
   ): TransactionInstruction {
+    // Derive Outbox PDA from the mailbox program ID
+    const outboxPda =
+      SealevelCoreAdapter.deriveMailboxOutboxPda(mailboxProgramId);
+
     const keys: AccountMeta[] = [
-      // 0. `[executable]` The system program.
-      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-      // 1. `[writeable]` The mailbox inbox account.
-      { pubkey: mailboxInbox, isSigner: false, isWritable: true },
-      // 2. `[signer]` The owner.
-      { pubkey: owner, isSigner: true, isWritable: false },
+      // 0. `[writeable]` The Outbox PDA account.
+      { pubkey: outboxPda, isSigner: false, isWritable: true },
+      // 1. `[signer, writeable]` The current owner.
+      { pubkey: owner, isSigner: true, isWritable: true },
     ];
 
     const value = new SealevelInstructionWrapper({
