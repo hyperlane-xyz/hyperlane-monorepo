@@ -223,8 +223,64 @@ export class AleoProvider implements AltVM.IProvider {
     throw new Error(`MerkleRootMultisigIsm is currently not supported on Aleo`);
   }
 
-  async getRoutingIsm(_req: AltVM.ReqRoutingIsm): Promise<AltVM.ResRoutingIsm> {
-    throw new Error(`TODO: implement`);
+  async getRoutingIsm(req: AltVM.ReqRoutingIsm): Promise<AltVM.ResRoutingIsm> {
+    const programId = 'ism_manager.aleo';
+
+    let owner: string;
+    const routes: { domainId: number; ismAddress: string }[] = [];
+
+    try {
+      const ismData = await this.aleoClient.getProgramMappingPlaintext(
+        programId,
+        'domain_routing_isms',
+        req.ismAddress,
+      );
+      owner = ismData.toObject().ism_owner;
+    } catch {
+      throw new Error(`Found no ISM for address: ${req.ismAddress}`);
+    }
+
+    try {
+      const routeLengthRes = await this.aleoClient.getProgramMappingValue(
+        programId,
+        'route_length',
+        req.ismAddress,
+      );
+
+      for (let i = 0; i < parseInt(routeLengthRes); i++) {
+        const routeKeyRes = await this.aleoClient.getProgramMappingPlaintext(
+          programId,
+          'route_iter',
+          `{ ism: ${req.ismAddress}, index: ${i}u32}`,
+        );
+
+        const ismAddress = await this.aleoClient.getProgramMappingValue(
+          programId,
+          'routes',
+          routeKeyRes,
+        );
+
+        // This is necessary because `route_iter` maintains keys for all route entries,
+        // including those from domains that have already been removed. When a domain is
+        // deleted from the Routing ISM, its key remains in the map and `routes` simply returns null.
+        if (!ismAddress) continue;
+
+        routes.push({
+          ismAddress: ismAddress,
+          domainId: routeKeyRes.toObject().domain,
+        });
+      }
+    } catch {
+      throw new Error(
+        `Failed to found routes for ISM address: ${req.ismAddress}`,
+      );
+    }
+
+    return {
+      address: req.ismAddress,
+      owner: owner,
+      routes: routes,
+    };
   }
 
   async getNoopIsm(_req: AltVM.ReqNoopIsm): Promise<AltVM.ResNoopIsm> {
