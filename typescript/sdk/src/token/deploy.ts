@@ -195,8 +195,8 @@ abstract class TokenDeployer<
             config.mailbox,
             config.messageTransmitter,
             config.tokenMessenger,
-            config.minFinalityThreshold,
             config.maxFeeBps,
+            config.minFinalityThreshold,
           ];
         default:
           throw new Error('Unsupported CCTP version');
