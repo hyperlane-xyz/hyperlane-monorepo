@@ -1,32 +1,26 @@
 import { Logger } from 'pino';
 
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import {
   Address,
-  AltVM,
-  ProtocolType,
   assert,
   objFilter,
   objMap,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
-import {
-  ProtocolReceipt,
-  ProtocolTransaction,
-} from '../providers/ProviderType.js';
 import { ChainMap, ChainName } from '../types.js';
 
 import { TokenType, gasOverhead } from './config.js';
 import { WarpRouteDeployConfigMailboxRequired } from './types.js';
 
-export class AltVMDeployer<PT extends ProtocolType> {
+export class AltVMDeployer {
   protected logger: Logger;
 
   constructor(
-    protected readonly metadataManager: ChainMetadataManager,
     protected readonly signersMap: ChainMap<
-      AltVM.ISigner<ProtocolTransaction<PT>, ProtocolReceipt<PT>>
+      AltVM.ISigner<AnnotatedTx, TxReceipt>
     >,
   ) {
     this.logger = rootLogger.child({ module: 'AltVMDeployer' });

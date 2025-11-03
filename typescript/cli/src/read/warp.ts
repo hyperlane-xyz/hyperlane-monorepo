@@ -15,6 +15,7 @@ import {
   MultiProvider,
   TokenStandard,
   WarpCoreConfig,
+  altVmChainLookup,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
@@ -132,8 +133,7 @@ async function deriveWarpRouteConfigs(
         default: {
           const provider = await context.altVmProvider.get(chain);
           return new AltVMWarpRouteReader(
-            multiProvider,
-            chain,
+            altVmChainLookup(multiProvider),
             provider,
           ).deriveWarpRouteConfig(address);
         }
