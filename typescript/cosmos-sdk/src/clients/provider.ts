@@ -451,7 +451,6 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
       typeUrl: R.MsgCreateMailbox.proto.type,
       value: R.MsgCreateMailbox.proto.converter.create({
         local_domain: req.domainId,
-        default_ism: req.defaultIsmAddress,
         owner: req.signer,
       }),
     };
