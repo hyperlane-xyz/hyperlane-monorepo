@@ -8,6 +8,7 @@ on:
   pull_request:
     branches:
       - '*'
+      - 'feat/multi-vm'
   merge_group:
   workflow_dispatch:
 
