@@ -229,7 +229,6 @@ export class AleoProvider implements AltVM.IProvider {
     let owner: string;
     const routes: { domainId: number; ismAddress: string }[] = [];
 
-    // --- Fetch ISM owner ---
     try {
       const ismData = await this.aleoClient.getProgramMappingPlaintext(
         programId,
