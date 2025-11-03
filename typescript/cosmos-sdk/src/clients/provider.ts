@@ -362,7 +362,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     const { noop_hook } = await this.query.postDispatch.NoopHook({
       id: req.hookAddress,
     });
-    assert(noop_hook, `found no merkle tree hook for id ${req.hookAddress}`);
+    assert(noop_hook, `found no noop hook for id ${req.hookAddress}`);
 
     return {
       address: noop_hook.id,
