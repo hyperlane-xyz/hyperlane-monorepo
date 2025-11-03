@@ -602,6 +602,11 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
         originDomain: getDomainId('stride'),
         destinationDomain: getDomainId('forma'),
       },
+      // Not a core chain
+      {
+        originDomain: getDomainId('forma'),
+        destinationDomain: getDomainId('celestia'),
+      },
     ],
   },
   {
