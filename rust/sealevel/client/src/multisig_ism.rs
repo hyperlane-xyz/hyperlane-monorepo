@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::{fs::File, path::Path};
 
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use solana_program::pubkey::Pubkey;
 use solana_sdk::instruction::Instruction;
@@ -237,8 +238,7 @@ fn configure_multisig_ism_message_id(
     let mut ism_update_instructions: Vec<(String, Instruction)> = Vec::new();
 
     // Sort chain names alphabetically for deterministic ordering
-    let mut chain_names: Vec<String> = multisig_configs.keys().cloned().collect();
-    chain_names.sort();
+    let chain_names: Vec<String> = multisig_configs.keys().cloned().sorted().collect();
 
     // First gather all instructions that need to be executed
     for chain_name in chain_names {

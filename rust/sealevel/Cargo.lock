@@ -2467,6 +2467,7 @@ dependencies = [
  "hyperlane-sealevel-token-lib",
  "hyperlane-sealevel-token-native",
  "hyperlane-sealevel-validator-announce",
+ "itertools 0.13.0",
  "pretty_env_logger",
  "serde",
  "serde_json",

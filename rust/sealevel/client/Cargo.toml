@@ -12,6 +12,7 @@ bincode.workspace = true
 clap = { workspace = true, features = ["derive"] }
 ethers.workspace = true
 hex.workspace = true
+itertools.workspace = true
 pretty_env_logger.workspace = true
 serde.workspace = true
 serde_json.workspace = true
