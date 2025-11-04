@@ -3,23 +3,23 @@ on:
   push:
     branches: [main]
     tags:
-      - "**"
+      - '**'
   pull_request:
     paths:
       # For now, because this image is only used to use `infra`, we just build for infra or .registryrc changes
-      - "typescript/infra/**"
-      - ".registryrc"
-      - "Dockerfile"
-      - "docker-entrypoint.sh"
-      - ".dockerignore"
-      - ".github/workflows/monorepo-docker.yml"
-      - "typescript/ccip-server/**"
+      - 'typescript/infra/**'
+      - '.registryrc'
+      - 'Dockerfile'
+      - 'docker-entrypoint.sh'
+      - '.dockerignore'
+      - '.github/workflows/monorepo-docker.yml'
+      - 'typescript/ccip-server/**'
   workflow_dispatch:
     inputs:
       include_arm64:
-        description: "Include arm64 in the build"
+        description: 'Include arm64 in the build'
         required: false
-        default: "false"
+        default: 'false'
 
 concurrency:
   group: build-push-monorepo-${{ github.ref }}
