@@ -1,10 +1,10 @@
-import { EvmHypCollateralAdapter, TokenAmount } from '@hyperlane-xyz/sdk';
+import { EvmMovableCollateralAdapter, TokenAmount } from '@hyperlane-xyz/sdk';
 
 import { RebalancingRoute } from './IStrategy.js';
 
 export type PreparedTransaction = {
   populatedTx: Awaited<
-    ReturnType<EvmHypCollateralAdapter['populateRebalanceTx']>
+    ReturnType<EvmMovableCollateralAdapter['populateRebalanceTx']>
   >;
   route: RebalancingRoute;
   originTokenAmount: TokenAmount;

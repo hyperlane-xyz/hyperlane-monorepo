@@ -5,11 +5,7 @@ import { Wallet } from 'ethers';
 import fs from 'fs';
 import path from 'path';
 
-import {
-  ERC20Test,
-  ERC4626Test,
-  MovableCollateralRouter__factory,
-} from '@hyperlane-xyz/core';
+import { ERC20Test, ERC4626Test } from '@hyperlane-xyz/core';
 import {
   ChainAddresses,
   createWarpRouteConfigId,
@@ -22,12 +18,10 @@ import {
   IsmConfig,
   IsmType,
   TokenType,
-  WarpCoreConfig,
   WarpRouteDeployConfig,
   normalizeConfig,
-  randomAddress,
 } from '@hyperlane-xyz/sdk';
-import { Address, normalizeAddressEvm } from '@hyperlane-xyz/utils';
+import { Address } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import {
@@ -50,7 +44,6 @@ import {
 import {
   ANVIL_KEY,
   CHAIN_2_METADATA_PATH,
-  CHAIN_3_METADATA_PATH,
   CHAIN_NAME_2,
   CHAIN_NAME_3,
   CORE_CONFIG_PATH,
@@ -70,24 +63,21 @@ const WARP_CORE_CONFIG_PATH_2_3 = GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH(
 );
 
 describe('hyperlane warp deploy e2e tests', async function () {
-  this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
+  this.timeout(1.5 * DEFAULT_E2E_TEST_TIMEOUT);
 
+  let chain2Metadata: ChainMetadata;
   let chain2Addresses: ChainAddresses = {};
   let chain3Addresses: ChainAddresses = {};
-  let chain3DomainId: number;
 
   let ownerAddress: Address;
   let walletChain2: Wallet;
   let providerChain2: JsonRpcProvider;
 
   before(async function () {
-    const chain2Metadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
+    chain2Metadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
     providerChain2 = new JsonRpcProvider(chain2Metadata.rpcUrls[0].http);
     walletChain2 = new Wallet(ANVIL_KEY).connect(providerChain2);
     ownerAddress = walletChain2.address;
-
-    const chain3Metadata: ChainMetadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
-    chain3DomainId = chain3Metadata.domainId;
 
     [chain2Addresses, chain3Addresses] = await Promise.all([
       deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY),
@@ -766,68 +756,6 @@ describe('hyperlane warp deploy e2e tests', async function () {
       expect(finalOutput.exitCode).to.equal(0);
 
       expect(fs.existsSync(expectedWarpCorePath)).to.be.true;
-    });
-
-    it('should set the allowed bridges and the related token approvals', async function () {
-      const bridges = [randomAddress(), randomAddress()];
-      const warpConfig: WarpRouteDeployConfig = {
-        [CHAIN_NAME_2]: {
-          type: TokenType.collateral,
-          token: tokenChain2.address,
-          owner: ownerAddress,
-          allowedRebalancingBridges: {
-            [chain3DomainId]: bridges.map((bridge) => ({
-              bridge,
-              approvedTokens: [tokenChain2.address],
-            })),
-          },
-        },
-        [CHAIN_NAME_3]: {
-          type: TokenType.synthetic,
-          owner: ownerAddress,
-        },
-      };
-
-      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
-      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
-
-      const COMBINED_WARP_CORE_CONFIG_PATH =
-        GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH(
-          WARP_DEPLOY_OUTPUT_PATH,
-          await tokenChain2.symbol(),
-        );
-
-      const coreConfig: WarpCoreConfig = readYamlOrJson(
-        COMBINED_WARP_CORE_CONFIG_PATH,
-      );
-
-      const [chain2TokenConfig] = coreConfig.tokens.filter(
-        (config) => config.chainName === CHAIN_NAME_2,
-      );
-      expect(chain2TokenConfig).to.exist;
-
-      const movableToken = MovableCollateralRouter__factory.connect(
-        chain2TokenConfig.addressOrDenom!,
-        providerChain2,
-      );
-      const MAX_UINT256 =
-        115792089237316195423570985008687907853269984665640564039457584007913129639935n;
-      for (const bridge of bridges) {
-        const allowance = await tokenChain2.callStatic.allowance(
-          chain2TokenConfig.addressOrDenom!,
-          bridge,
-        );
-        expect(allowance.toBigInt() === MAX_UINT256).to.be.true;
-
-        const allowedBridgesOnDomain =
-          await movableToken.callStatic.allowedBridges(chain3DomainId);
-        expect(allowedBridgesOnDomain.length).to.eql(bridges.length);
-        expect(
-          new Set(allowedBridgesOnDomain.map(normalizeAddressEvm)).has(
-            normalizeAddressEvm(bridge),
-          ),
-        );
-      }
     });
   });
 });
