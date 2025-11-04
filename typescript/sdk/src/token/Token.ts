@@ -65,6 +65,7 @@ import {
   RadixHypCollateralAdapter,
   RadixHypSyntheticAdapter,
   RadixNativeTokenAdapter,
+  RadixTokenAdapter,
 } from './adapters/RadixTokenAdapter.js';
 import {
   SealevelHypCollateralAdapter,
@@ -78,6 +79,7 @@ import {
   StarknetHypFeeAdapter,
   StarknetHypNativeAdapter,
   StarknetHypSyntheticAdapter,
+  StarknetTokenAdapter,
 } from './adapters/StarknetTokenAdapter.js';
 import { PROTOCOL_TO_DEFAULT_NATIVE_TOKEN } from './nativeTokenMetadata.js';
 
@@ -163,6 +165,10 @@ export class Token implements IToken {
         {},
         addressOrDenom,
       );
+    } else if (standard === TokenStandard.StarknetNative) {
+      return new StarknetTokenAdapter(chainName, multiProvider, {
+        tokenAddress: addressOrDenom,
+      });
     } else if (standard === TokenStandard.RadixNative) {
       return new RadixNativeTokenAdapter(chainName, multiProvider, {
         token: addressOrDenom,
@@ -522,5 +528,44 @@ export class Token implements IToken {
     }
 
     return false;
+  }
+}
+
+interface GetCollateralTokenAdapterOptions {
+  multiProvider: MultiProtocolProvider;
+  chainName: ChainName;
+  tokenAddress: Address;
+}
+
+export function getCollateralTokenAdapter({
+  chainName,
+  multiProvider,
+  tokenAddress,
+}: GetCollateralTokenAdapterOptions): ITokenAdapter<unknown> {
+  const protocolType = multiProvider.getProtocol(chainName);
+
+  // ERC20s
+  if (protocolType === ProtocolType.Ethereum) {
+    return new EvmTokenAdapter(chainName, multiProvider, {
+      token: tokenAddress,
+    });
+  }
+  // SPL and SPL2022
+  else if (protocolType === ProtocolType.Sealevel) {
+    return new SealevelTokenAdapter(chainName, multiProvider, {
+      token: tokenAddress,
+    });
+  } else if (protocolType === ProtocolType.Starknet) {
+    return new StarknetTokenAdapter(chainName, multiProvider, {
+      tokenAddress,
+    });
+  } else if (protocolType === ProtocolType.Radix) {
+    return new RadixTokenAdapter(chainName, multiProvider, {
+      token: tokenAddress,
+    });
+  } else {
+    throw new Error(
+      `Unsupported protocol ${protocolType} for retrieving collateral token adapter on chain ${chainName}`,
+    );
   }
 }
