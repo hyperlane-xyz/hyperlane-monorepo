@@ -10,6 +10,7 @@ import {
   ERC4626__factory,
   GasRouter__factory,
   HypERC20,
+  HypERC20Collateral,
   HypERC20Collateral__factory,
   HypERC20__factory,
   HypERC4626,
@@ -375,8 +376,7 @@ export class EvmHypSyntheticAdapter
   }
 }
 
-// Interacts with HypCollateral contracts
-export class EvmHypCollateralAdapter
+export class EvmHypBaseCollateralAdapter
   extends EvmHypSyntheticAdapter
   implements IHypTokenAdapter<PopulatedTransaction>
 {
@@ -396,22 +396,9 @@ export class EvmHypCollateralAdapter
   }
 
   async getWrappedTokenAddress(): Promise<Address> {
-    if (this.wrappedTokenAddress) return this.wrappedTokenAddress;
-
-    const contractVersion = await this.getContractPackageVersion();
-    const hasTokenFeeInterface = isValidContractVersion(
-      contractVersion,
-      TOKEN_FEE_CONTRACT_VERSION,
-    );
-
-    if (!hasTokenFeeInterface) {
-      const erc20CollateralContract = HypERC20Collateral__factory.connect(
-        this.addresses.token,
-        this.getProvider(),
-      );
-      this.wrappedTokenAddress = await erc20CollateralContract.wrappedToken();
-    } else this.wrappedTokenAddress = await this.collateralContract.token();
-
+    if (!this.wrappedTokenAddress) {
+      this.wrappedTokenAddress = await this.collateralContract.token();
+    }
     return this.wrappedTokenAddress!;
   }
 
@@ -467,6 +454,33 @@ export class EvmHypCollateralAdapter
     return this.getWrappedTokenAdapter().then((t) =>
       t.populateTransferTx(params),
     );
+  }
+}
+
+// Interacts with HypCollateral contracts
+export class EvmHypCollateralAdapter
+  extends EvmHypBaseCollateralAdapter
+  implements IHypTokenAdapter<PopulatedTransaction>
+{
+  public readonly collateralContract: HypERC20Collateral;
+
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: { token: Address },
+  ) {
+    super(chainName, multiProvider, addresses);
+    this.collateralContract = HypERC20Collateral__factory.connect(
+      addresses.token,
+      this.getProvider(),
+    );
+  }
+
+  override async getWrappedTokenAddress(): Promise<Address> {
+    if (!this.wrappedTokenAddress) {
+      this.wrappedTokenAddress = await this.collateralContract.wrappedToken();
+    }
+    return this.wrappedTokenAddress!;
   }
 }
 
@@ -620,7 +634,7 @@ export class EvmHypCollateralFiatAdapter
 }
 
 export class EvmHypRebaseCollateralAdapter
-  extends EvmHypCollateralAdapter
+  extends EvmHypBaseCollateralAdapter
   implements IHypTokenAdapter<PopulatedTransaction>
 {
   public override collateralContract: HypERC4626Collateral;
@@ -635,6 +649,13 @@ export class EvmHypRebaseCollateralAdapter
       addresses.token,
       this.getProvider(),
     );
+  }
+
+  override async getWrappedTokenAddress(): Promise<Address> {
+    if (!this.wrappedTokenAddress) {
+      this.wrappedTokenAddress = await this.collateralContract.wrappedToken();
+    }
+    return this.wrappedTokenAddress!;
   }
 
   override async getBridgedSupply(): Promise<bigint> {
