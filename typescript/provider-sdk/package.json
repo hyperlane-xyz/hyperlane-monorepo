@@ -14,7 +14,8 @@
     "./chain": "./dist/chain.js",
     "./hook": "./dist/hook.js",
     "./ism": "./dist/ism.js",
-    "./core": "./dist/core.js"
+    "./core": "./dist/core.js",
+    "./warp": "./dist/warp.js"
   },
   "scripts": {
     "build": "tsc",

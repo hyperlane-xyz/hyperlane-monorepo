@@ -211,8 +211,6 @@ export {
   ProtocolFeeSchema,
 } from './hook/types.js';
 export { isHookCompatible } from './hook/utils.js';
-export { AltVMWarpModule } from './token/AltVMWarpModule.js';
-export { AltVMWarpRouteReader } from './token/AltVMWarpRouteReader.js';
 export { EvmIsmReader } from './ism/EvmIsmReader.js';
 export { HyperlaneIsmFactory } from './ism/HyperlaneIsmFactory.js';
 export { BaseMetadataBuilder } from './ism/metadata/builder.js';
@@ -702,7 +700,6 @@ export {
   HypERC721Factories,
   TokenFactories,
 } from './token/contracts.js';
-export { AltVMDeployer } from './token/altVMDeploy.js';
 export { HypERC20Deployer, HypERC721Deployer } from './token/deploy.js';
 export { EvmERC20WarpModule } from './token/EvmERC20WarpModule.js';
 export { EvmERC20WarpRouteReader } from './token/EvmERC20WarpRouteReader.js';
