@@ -185,7 +185,7 @@ export class AleoProvider implements AltVM.IProvider {
       case 5:
         return AltVM.IsmType.MESSAGE_ID_MULTISIG;
       default:
-        throw new Error(`Unknown ISM ModuleType: ${req.ismAddress}`);
+        throw new Error(`Unknown ISM type for address: ${req.ismAddress}`);
     }
   }
 
@@ -248,7 +248,7 @@ export class AleoProvider implements AltVM.IProvider {
       );
 
       for (let i = 0; i < parseInt(routeLengthRes); i++) {
-        const routeKeyRes = await this.aleoClient.getProgramMappingPlaintext(
+        const routeKey = await this.aleoClient.getProgramMappingPlaintext(
           programId,
           'route_iter',
           `{ ism: ${req.ismAddress}, index: ${i}u32}`,
@@ -257,7 +257,7 @@ export class AleoProvider implements AltVM.IProvider {
         const ismAddress = await this.aleoClient.getProgramMappingValue(
           programId,
           'routes',
-          routeKeyRes,
+          routeKey,
         );
 
         // This is necessary because `route_iter` maintains keys for all route entries,
@@ -267,7 +267,7 @@ export class AleoProvider implements AltVM.IProvider {
 
         routes.push({
           ismAddress: ismAddress,
-          domainId: routeKeyRes.toObject().domain,
+          domainId: routeKey.toObject().domain,
         });
       }
     } catch {
@@ -283,8 +283,20 @@ export class AleoProvider implements AltVM.IProvider {
     };
   }
 
-  async getNoopIsm(_req: AltVM.ReqNoopIsm): Promise<AltVM.ResNoopIsm> {
-    throw new Error(`NoopIsm is currently not supported on Aleo`);
+  async getNoopIsm(req: AltVM.ReqNoopIsm): Promise<AltVM.ResNoopIsm> {
+    try {
+      await this.aleoClient.getProgramMappingPlaintext(
+        'ism_manager.aleo',
+        'isms',
+        req.ismAddress,
+      );
+    } catch {
+      throw new Error(`Found no ISM for address: ${req.ismAddress}`);
+    }
+
+    return {
+      address: req.ismAddress,
+    };
   }
 
   async getHookType(req: AltVM.ReqGetHookType): Promise<AltVM.HookType> {
@@ -299,32 +311,95 @@ export class AleoProvider implements AltVM.IProvider {
       throw new Error(`Found no Hook for address: ${req.hookAddress}`);
     }
 
-    // TODO: Switch Hook type
-    return res.toObject();
+    switch (res.toObject()) {
+      case 0:
+        // TODO: Use NOOP or UNUSED here
+        return AltVM.HookType.CUSTOM;
+      case 3:
+        return AltVM.HookType.MERKLE_TREE;
+      case 4:
+        return AltVM.HookType.INTERCHAIN_GAS_PAYMASTER;
+      case 7:
+        return AltVM.HookType.PAUSABLE;
+      default:
+        throw new Error(`Unknown Hook type for address: ${req.hookAddress}`);
+    }
   }
 
   async getInterchainGasPaymasterHook(
-    _req: AltVM.ReqGetInterchainGasPaymasterHook,
+    req: AltVM.ReqGetInterchainGasPaymasterHook,
   ): Promise<AltVM.ResGetInterchainGasPaymasterHook> {
-    // let res;
-    // try {
-    //   res = await this.aleoClient.getProgramMappingPlaintext(
-    //     "hook_manager.aleo",
-    //     'igps',
-    //     req.hookAddress,
-    //   );
-    // } catch {
-    //   throw new Error(`Found no MerkleTreeHook for address: ${req.hookAddress}`);
-    // }
-    //
-    // const { hook_owner } = res.toObject();
-    //
-    // return {
-    //   address: req.hookAddress,
-    //   owner: hook_owner
-    // }
+    const programId = 'hook_manager.aleo';
+    let owner: string;
 
-    throw new Error(`TODO: wait for the destination domain mapping`);
+    const destinationGasConfigs: {
+      [domainId: string]: {
+        gasOracle: {
+          tokenExchangeRate: string;
+          gasPrice: string;
+        };
+        gasOverhead: string;
+      };
+    } = {};
+
+    try {
+      const igpDat = await this.aleoClient.getProgramMappingPlaintext(
+        programId,
+        'igps',
+        req.hookAddress,
+      );
+      owner = igpDat.toObject().hook_owner;
+    } catch {
+      throw new Error(`Found no IGP for address: ${req.hookAddress}`);
+    }
+
+    try {
+      const gasConfigLength = await this.aleoClient.getProgramMappingValue(
+        programId,
+        'destination_gas_config_length',
+        req.hookAddress,
+      );
+
+      for (let i = 0; i < parseInt(gasConfigLength); i++) {
+        const gasConfigKey = await this.aleoClient.getProgramMappingPlaintext(
+          programId,
+          'destination_gas_config_iter',
+          `{ hook: ${req.hookAddress}, index: ${i}u32}`,
+        );
+
+        const destinationGasConfig =
+          await this.aleoClient.getProgramMappingPlaintext(
+            programId,
+            'destination_gas_configs',
+            gasConfigKey,
+          );
+
+        // This is necessary because `destination_gas_config_iter` maintains keys for all destination domain entries,
+        // including those from domains that have already been removed. When a domain is
+        // deleted from the Destination Gas Configs, its key remains in the map and `destination_gas_configs` simply returns null.
+        if (!destinationGasConfig) continue;
+
+        destinationGasConfigs[gasConfigKey.toObject().destination] = {
+          gasOracle: {
+            tokenExchangeRate: destinationGasConfig
+              .toObject()
+              .exchange_rate.toString(),
+            gasPrice: destinationGasConfig.toObject().gas_price.toString(),
+          },
+          gasOverhead: destinationGasConfig.toObject().gas_overhead.toString(),
+        };
+      }
+    } catch {
+      throw new Error(
+        `Failed to found destination gas configs for IGP address: ${req.hookAddress}`,
+      );
+    }
+
+    return {
+      address: req.hookAddress,
+      owner: owner,
+      destinationGasConfigs: destinationGasConfigs,
+    };
   }
 
   async getMerkleTreeHook(

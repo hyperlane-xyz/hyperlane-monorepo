@@ -31,22 +31,26 @@ const main = async () => {
   // );
 
   const res2 = await aleoClient.getProgramMappingPlaintext(
-    'ism_manager.aleo',
+    'hook_manager.aleo',
     'nonce',
     'true',
   );
 
   for (let i = 1; i < parseInt(res2.toString()); i++) {
     const res = await aleoClient.getProgramMappingPlaintext(
-      'ism_manager.aleo',
-      'ism_addresses',
+      'hook_manager.aleo',
+      'hook_addresses',
       i.toString() + 'u32',
     );
 
-    const type = await provider.getIsmType({ ismAddress: res.toString() });
+    const type = await provider.getHookType({ hookAddress: res.toString() });
 
-    if (type == AltVM.IsmType.ROUTING) {
-      console.log(await provider.getRoutingIsm({ ismAddress: res.toString() }));
+    if (type == AltVM.HookType.INTERCHAIN_GAS_PAYMASTER) {
+      const igp = await provider.getInterchainGasPaymasterHook({
+        hookAddress: res.toString(),
+      });
+      console.log(igp);
+      console.log(igp.destinationGasConfigs['1'].gasOracle.gasPrice.toString());
     }
   }
 };
