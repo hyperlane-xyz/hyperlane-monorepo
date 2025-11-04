@@ -15,6 +15,7 @@ use hyperlane_core::{
 };
 use hyperlane_ethereum::multicall::BatchCache;
 use hyperlane_ethereum::TransactionOverrides;
+use solana_client::client_error::reqwest;
 use tokio::sync::Mutex;
 
 use crate::adapter::chains::ethereum::metrics::{
@@ -229,14 +230,19 @@ async fn test_build_transactions_batch_contract_missing() {
 }
 
 #[tokio::test]
-async fn test_build_transactions_contract_batch_is_empty() {
+async fn test_build_transactions_contract_error() {
     let (payload_db, tx_db, nonce_db) = tmp_dbs();
 
     let mut provider = MockEvmProvider::new();
     // batching will fail because contract is missing
-    provider
-        .expect_batch()
-        .returning(|_, _, _, _| Err(ChainCommunicationError::BatchIsEmpty));
+    provider.expect_batch().returning(|_, _, _, _| {
+        Err(ChainCommunicationError::ContractError(
+            HyperlaneCustomErrorWrapper::new(Box::new(std::io::Error::new(
+                std::io::ErrorKind::ConnectionReset,
+                "test error",
+            ))),
+        ))
+    });
 
     let signer = Address::random();
     let block_time = Duration::from_millis(100);
