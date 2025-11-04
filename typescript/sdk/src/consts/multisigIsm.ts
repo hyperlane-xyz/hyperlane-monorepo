@@ -521,17 +521,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  cheesechain: {
-    threshold: 2,
-    validators: [
-      {
-        address: '0x478fb53c6860ae8fc35235ba0d38d49b13128226',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-      DEFAULT_MERKLY_VALIDATOR,
-    ],
-  },
-
   chiado: {
     threshold: 2,
     validators: [

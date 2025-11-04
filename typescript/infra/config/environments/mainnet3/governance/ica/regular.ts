@@ -36,7 +36,6 @@ export const regularIcas: ChainMap<Address> = {
   boba: '0x247510A4001b78decE23B2d773aa8C2c9f6939C3',
   bsquared: '0xEF600dD98EA1c7681cA75Bd109e4B0c5AA5a58F5',
   celo: '0x39feCE4cA4b41bd2dfA886A6cB08353A42DbB6E3',
-  cheesechain: '0xB6Ce375D1aA9513cFb744dB3c06FfCA4f4bA20A7',
   chilizmainnet: '0xf5A0F82fF0F93699b4C32e49fac35Db2932aEc6f',
   coredao: '0xa2f6D0570F16061c5abE785067dd9502561ec30b',
   coti: '0x41A362f117D4EbE2680F6d4E37ddC5454dc5f07a',

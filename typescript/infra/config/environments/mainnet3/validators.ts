@@ -72,20 +72,6 @@ export const validatorChainConfig = (
         'avalanche',
       ),
     },
-    cheesechain: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('cheesechain'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0x478fb53c6860ae8fc35235ba0d38d49b13128226'],
-          [Contexts.ReleaseCandidate]: [
-            '0x5f3baa27d61d3ed5fa7606616b8fef443d0a77a4',
-          ],
-          [Contexts.Neutron]: [],
-        },
-        'cheesechain',
-      ),
-    },
     worldchain: {
       interval: 5,
       reorgPeriod: getReorgPeriod('worldchain'),
