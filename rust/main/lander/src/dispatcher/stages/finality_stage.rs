@@ -26,7 +26,7 @@ use super::{
     DispatcherState,
 };
 
-use pool::FinalityStagePool;
+pub use pool::FinalityStagePool;
 
 mod pool;
 
@@ -152,7 +152,7 @@ impl FinalityStage {
             tx_status = ?tx.status,
             payloads = ?tx.payload_details
     ))]
-    async fn try_process_tx(
+    pub async fn try_process_tx(
         mut tx: Transaction,
         pool: FinalityStagePool,
         building_stage_queue: BuildingStageQueue,

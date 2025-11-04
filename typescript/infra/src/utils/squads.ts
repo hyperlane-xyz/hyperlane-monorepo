@@ -1,11 +1,29 @@
 import { PublicKey } from '@solana/web3.js';
-import { accounts, getProposalPda } from '@sqds/multisig';
+import { accounts, getProposalPda, getTransactionPda } from '@sqds/multisig';
 import chalk from 'chalk';
 
 import { ChainName, MultiProtocolProvider } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { getSquadsKeys, squadsConfigs } from '../config/squads.js';
+
+import { logTable } from './log.js';
+
+// ============================================================================
+// Squads V4 Constants
+// ============================================================================
+
+/**
+ * Squads V4 instruction discriminator size (8-byte Anchor discriminator)
+ * First 8 bytes of SHA256 hash of "global:instruction_name"
+ */
+export const SQUADS_DISCRIMINATOR_SIZE = 8;
+
+/**
+ * Squads V4 account discriminator size (8-byte Anchor discriminator)
+ * First 8 bytes of SHA256 hash of "account:account_name"
+ */
+export const SQUADS_ACCOUNT_DISCRIMINATOR_SIZE = 8;
 
 export type SquadProposalStatus = {
   chain: string;
@@ -180,12 +198,21 @@ export async function getPendingProposalsForChains(
               submissionDate = new Date(timestamp * 1000).toDateString();
             }
 
+            // Get the VaultTransaction PDA (this is what contains the actual transaction instructions)
+            const { programId } = getSquadsKeys(chain);
+            const [transactionPda] = getTransactionPda({
+              multisigPda,
+              index: BigInt(i),
+              programId,
+            });
+            const txHash = transactionPda.toBase58();
+
             proposals.push({
               chain,
               nonce: i,
               status,
-              shortTxHash: `${proposalPda.toBase58().slice(0, 6)}...${proposalPda.toBase58().slice(-4)}`,
-              fullTxHash: proposalPda.toBase58(),
+              shortTxHash: `${txHash.slice(0, 6)}...${txHash.slice(-4)}`,
+              fullTxHash: txHash,
               approvals,
               rejections,
               cancellations,
@@ -261,4 +288,110 @@ export function parseSquadProposal(proposal: accounts.Proposal) {
     cancellations: proposal.cancelled.length,
     transactionIndex: Number(proposal.transactionIndex),
   };
+}
+
+export function logProposals(pendingProposals: SquadProposalStatus[]) {
+  // Display pending proposals table
+  rootLogger.info(
+    chalk.cyan.bold(`Found ${pendingProposals.length} pending proposal(s):`),
+  );
+  // Format approvals/threshold for display
+  const formattedProposals = pendingProposals.map((p) => ({
+    ...p,
+    approvals: `${p.approvals}/${p.threshold}`,
+  }));
+
+  logTable(formattedProposals, [
+    'chain',
+    'nonce',
+    'submissionDate',
+    'fullTxHash',
+    'approvals',
+    'status',
+    'balance',
+  ]);
+}
+
+/**
+ * Squads V4 account types (for transaction discriminators)
+ */
+export enum SquadsAccountType {
+  VAULT = 0,
+  CONFIG = 1,
+}
+
+/**
+ * Squads V4 instruction discriminator values
+ */
+export enum SquadsInstructionType {
+  ADD_MEMBER = 0,
+  REMOVE_MEMBER = 1,
+  CHANGE_THRESHOLD = 2,
+}
+
+/**
+ * Human-readable names for Squads instructions
+ */
+export const SquadsInstructionName: Record<SquadsInstructionType, string> = {
+  [SquadsInstructionType.ADD_MEMBER]: 'AddMember',
+  [SquadsInstructionType.REMOVE_MEMBER]: 'RemoveMember',
+  [SquadsInstructionType.CHANGE_THRESHOLD]: 'ChangeThreshold',
+};
+
+/**
+ * Squads V4 account discriminators (Anchor 8-byte discriminators)
+ * From Squads V4 SDK - first 8 bytes of SHA256 hash of "account:account_name"
+ */
+export const SQUADS_ACCOUNT_DISCRIMINATORS: Record<
+  SquadsAccountType,
+  Uint8Array
+> = {
+  [SquadsAccountType.VAULT]: new Uint8Array([
+    168, 250, 162, 100, 81, 14, 162, 207,
+  ]),
+  [SquadsAccountType.CONFIG]: new Uint8Array([
+    94, 8, 4, 35, 113, 139, 139, 112,
+  ]),
+};
+
+/**
+ * Squads V4 instruction discriminators (Anchor 8-byte discriminators)
+ * From Squads V4 SDK - first 8 bytes of SHA256 hash of "global:instruction_name"
+ */
+export const SQUADS_INSTRUCTION_DISCRIMINATORS: Record<
+  SquadsInstructionType,
+  Uint8Array
+> = {
+  [SquadsInstructionType.ADD_MEMBER]: new Uint8Array([
+    105, 59, 69, 187, 29, 191, 111, 175,
+  ]),
+  [SquadsInstructionType.REMOVE_MEMBER]: new Uint8Array([
+    117, 255, 234, 193, 246, 150, 28, 141,
+  ]),
+  [SquadsInstructionType.CHANGE_THRESHOLD]: new Uint8Array([
+    134, 5, 181, 153, 254, 178, 214, 132,
+  ]),
+};
+
+/**
+ * Squads V4 Permission flags (bitmask)
+ * From Squads documentation: https://docs.squads.so/main/development-guides/v4-sdk
+ */
+export enum SquadsPermission {
+  PROPOSER = 1,
+  VOTER = 2,
+  EXECUTOR = 4,
+  ALL_PERMISSIONS = 7, // Combination of all permissions (Proposer + Voter + Executor)
+}
+
+/**
+ * Decode a permissions bitmask into a human-readable string
+ */
+export function decodePermissions(mask: number): string {
+  const permissions: string[] = [];
+  if (mask & SquadsPermission.PROPOSER) permissions.push('Proposer');
+  if (mask & SquadsPermission.VOTER) permissions.push('Voter');
+  if (mask & SquadsPermission.EXECUTOR) permissions.push('Executor');
+
+  return permissions.length > 0 ? permissions.join(', ') : 'None';
 }

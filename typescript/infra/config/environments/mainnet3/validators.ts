@@ -1585,15 +1585,5 @@ export const validatorChainConfig = (
         'litchain',
       ),
     },
-    sovachain: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('sovachain'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0x5f9a044bbf460fb7236bfae24b5ca9090fff844d'],
-        },
-        'sovachain',
-      ),
-    },
   };
 };

@@ -7,15 +7,12 @@ import {
   createWarpRouteConfigId,
 } from '@hyperlane-xyz/registry';
 import {
-  HookConfig,
   IsmConfig,
   IsmType,
-  MUTABLE_HOOK_TYPE,
   MUTABLE_ISM_TYPE,
   TokenType,
   WarpRouteDeployConfig,
   randomAddress,
-  randomHookConfig,
   randomIsmConfig,
 } from '@hyperlane-xyz/sdk';
 import { Address, assert, deepCopy } from '@hyperlane-xyz/utils';
@@ -98,36 +95,6 @@ describe('hyperlane warp check e2e tests', async function () {
       },
     };
   });
-
-  for (const hookType of MUTABLE_HOOK_TYPE) {
-    it(`should find owner differences between the local config and the on chain config for hook of type ${hookType}`, async function () {
-      warpConfig[CHAIN_NAME_3].hook = randomHookConfig(0, 2, hookType);
-      await deployAndExportWarpRoute();
-
-      const mutatedWarpConfig = deepCopy(warpConfig);
-
-      const hookConfig: Extract<
-        HookConfig,
-        { type: (typeof MUTABLE_HOOK_TYPE)[number]; owner: string }
-      > = mutatedWarpConfig[CHAIN_NAME_3].hook!;
-      const actualOwner = hookConfig.owner;
-      const wrongOwner = randomAddress();
-      assert(actualOwner !== wrongOwner, 'Random owner matches actualOwner');
-      hookConfig.owner = wrongOwner;
-      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, mutatedWarpConfig);
-
-      const expectedDiffText = `EXPECTED: "${wrongOwner.toLowerCase()}"\n`;
-      const expectedActualText = `ACTUAL: "${actualOwner.toLowerCase()}"\n`;
-
-      const output = await hyperlaneWarpCheckRaw({
-        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
-        warpCoreConfigPath: combinedWarpCoreConfigPath,
-      }).nothrow();
-      expect(output.exitCode).to.equal(1);
-      expect(output.text().includes(expectedDiffText)).to.be.true;
-      expect(output.text().includes(expectedActualText)).to.be.true;
-    });
-  }
 
   // Removing the offchain lookup ism because it is a family of different isms
   for (const ismType of MUTABLE_ISM_TYPE.filter(

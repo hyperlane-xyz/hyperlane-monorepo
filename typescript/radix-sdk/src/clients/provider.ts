@@ -28,6 +28,9 @@ const NETWORKS = {
     packageAddress:
       'package_rdx1pkzmcj4mtal34ddx9jrt8um6u3yqheqpfvcj4s0ulmgyt094fw0jzh',
   },
+  [NetworkId.LocalNet]: {
+    applicationName: 'hyperlane',
+  },
 };
 
 export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
@@ -51,12 +54,17 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   static async connect(
     rpcUrls: string[],
     chainId: string | number,
+    extraParams?: Record<string, any>,
   ): Promise<RadixProvider> {
     const networkId = parseInt(chainId.toString());
 
     return new RadixProvider({
       rpcUrls,
       networkId,
+      gatewayUrls: (
+        extraParams?.metadata?.gatewayUrls as { http: string }[]
+      )?.map(({ http }) => http),
+      packageAddress: extraParams?.metadata?.packageAddress,
     });
   }
 
@@ -64,16 +72,24 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
     this.rpcUrls = options.rpcUrls;
     this.networkId = options.networkId ?? NetworkId.Mainnet;
 
+    const networkBaseConfig = NETWORKS[this.networkId];
     assert(
-      NETWORKS[this.networkId],
+      networkBaseConfig,
       `Network with id ${this.networkId} not supported with the Hyperlane RadixSDK. Supported network ids: ${Object.keys(NETWORKS).join(', ')}`,
     );
 
-    this.applicationName = NETWORKS[this.networkId].applicationName;
-    this.packageAddress = NETWORKS[this.networkId].packageAddress;
+    this.applicationName = networkBaseConfig.applicationName;
+    const packageAddress =
+      options.packageAddress ?? networkBaseConfig.packageAddress;
+    assert(
+      packageAddress,
+      `Expected package address to be defined for radix network with id ${this.networkId}`,
+    );
+    this.packageAddress = packageAddress;
 
     this.gateway = GatewayApiClient.initialize({
       applicationName: this.applicationName,
+      basePath: options.gatewayUrls?.[0],
       networkId: this.networkId,
     });
 

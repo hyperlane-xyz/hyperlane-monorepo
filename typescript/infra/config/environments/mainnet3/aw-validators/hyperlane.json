@@ -403,8 +403,5 @@
   },
   "zoramainnet": {
     "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
-  },
-  "sovachain": {
-    "validators": ["0x5f9a044bbf460fb7236bfae24b5ca9090fff844d"]
   }
 }

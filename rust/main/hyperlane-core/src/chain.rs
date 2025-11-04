@@ -274,7 +274,6 @@ pub enum KnownHyperlaneDomain {
     CitreaTestnet = 5115,
     CotiTestnet = 7082400,
     EclipseTestnet = 239092742,
-    Holesky = 17000,
     HyperLiquidEvmTestnet = 998,
     KyveTestnet = 1262571342,
     Matchain = 698,
@@ -444,7 +443,6 @@ impl KnownHyperlaneDomain {
             | CitreaTestnet
             | CotiTestnet
             | EclipseTestnet
-            | Holesky
             | HyperLiquidEvmTestnet
             | KyveTestnet
             | MegaEthTestnet
