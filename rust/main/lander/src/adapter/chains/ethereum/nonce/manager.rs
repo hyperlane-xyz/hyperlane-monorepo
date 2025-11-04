@@ -87,6 +87,8 @@ impl NonceManager {
             .await
             .map_err(|e| eyre::eyre!("Failed to validate assigned nonce: {}", e))?;
 
+        tracing::debug!(tx_uuid = tx.uuid.to_string(), ?nonce_action, "nonce action");
+
         match nonce_action {
             NonceAction::Assign { nonce } => Ok(nonce),
             NonceAction::AssignNext { old_nonce } => {
