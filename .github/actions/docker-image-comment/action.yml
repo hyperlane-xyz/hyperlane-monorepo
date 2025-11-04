@@ -1,0 +1,90 @@
+name: 'Docker Image PR Comment'
+description: 'Create, update, or delete a PR comment with docker image tags'
+
+inputs:
+  comment_tag:
+    description: 'Unique identifier for the comment (e.g., monorepo-docker-image)'
+    required: true
+  image_name:
+    description: 'Name of the image for the comment header (e.g., Monorepo Docker Image)'
+    required: true
+  emoji:
+    description: 'Emoji to use in the comment header'
+    required: false
+    default: '🐳'
+  image_tags:
+    description: 'The image tags to display'
+    required: false
+    default: ''
+  pr_number:
+    description: 'The pull request number'
+    required: true
+  github_token:
+    description: 'GitHub token for authentication'
+    required: true
+  job_status:
+    description: 'Job status (success/failure) to determine action'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Post, update, or delete PR comment
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+        PR_NUMBER: ${{ inputs.pr_number }}
+        COMMENT_TAG: ${{ inputs.comment_tag }}
+        IMAGE_NAME: ${{ inputs.image_name }}
+        EMOJI: ${{ inputs.emoji }}
+        IMAGE_TAGS: ${{ inputs.image_tags }}
+        JOB_STATUS: ${{ inputs.job_status }}
+      run: |
+        # Define comment identifier
+        COMMENT_IDENTIFIER="<!-- ${COMMENT_TAG} -->"
+        
+        # Prepare comment body based on job status
+        if [ "$JOB_STATUS" == "success" ]; then
+          COMMENT_BODY="${COMMENT_IDENTIFIER}
+        ## ${EMOJI} ${IMAGE_NAME} Built Successfully
+
+        **Image Tags:**
+        \`\`\`
+        ${IMAGE_TAGS}
+        \`\`\`"
+        else
+          # On failure, we'll delete the comment instead
+          COMMENT_BODY=""
+        fi
+
+        # Find existing comment
+        COMMENT_ID=$(gh pr view ${PR_NUMBER} \
+          --repo ${{ github.repository }} \
+          --json comments \
+          --jq '.comments[] | select(.body | contains("'"${COMMENT_IDENTIFIER}"'")) | .id')
+
+        if [ -n "$COMMENT_BODY" ]; then
+          # Success case: create or update comment
+          if [ -n "$COMMENT_ID" ]; then
+            # Update existing comment
+            gh api \
+              --method PATCH \
+              -H "Accept: application/vnd.github+json" \
+              "/repos/${{ github.repository }}/issues/comments/${COMMENT_ID}" \
+              -f body="${COMMENT_BODY}"
+          else
+            # Create new comment
+            gh pr comment ${PR_NUMBER} \
+              --repo ${{ github.repository }} \
+              --body "${COMMENT_BODY}"
+          fi
+        else
+          # Failure case: delete comment if it exists
+          if [ -n "$COMMENT_ID" ]; then
+            gh api \
+              --method DELETE \
+              -H "Accept: application/vnd.github+json" \
+              "/repos/${{ github.repository }}/issues/comments/${COMMENT_ID}"
+          fi
+        fi
+

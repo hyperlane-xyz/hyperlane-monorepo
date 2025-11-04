@@ -37,6 +37,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      pull-requests: write
 
     # uses check-env to determine if secrets.GCLOUD_SERVICE_KEY is defined
     needs: [check-env]
@@ -100,6 +101,7 @@ jobs:
             echo "platforms=linux/amd64" >> $GITHUB_OUTPUT
           fi
       - name: Build and push
+        id: build
         uses: depot/build-push-action@v1
         with:
           project: czmkmn2km1
@@ -109,3 +111,15 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           platforms: ${{ steps.determine-platforms.outputs.platforms }}
+
+      - name: Comment image tags on PR
+        if: github.event_name == 'pull_request' && always()
+        uses: ./.github/actions/docker-image-comment
+        with:
+          comment_tag: rust-agent-docker-image
+          image_name: Rust Agent Docker Image
+          emoji: 🦀
+          image_tags: ${{ steps.meta.outputs.tags }}
+          pr_number: ${{ github.event.pull_request.number }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          job_status: ${{ job.status }}
