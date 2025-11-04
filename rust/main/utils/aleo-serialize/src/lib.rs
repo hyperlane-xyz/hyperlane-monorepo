@@ -22,101 +22,58 @@ pub fn fetch_field<N: Network>(root: &Plaintext<N>, name: &str) -> Result<Plaint
     Ok(found)
 }
 
-impl<N: Network> AleoSerialize<N> for Address<N> {
-    fn parse_value(value: Plaintext<N>) -> Result<Self> {
-        match value {
-            Plaintext::Literal(Literal::Address(addr), _) => Ok(addr),
-            other => bail!("Expected Address, got {other}"),
-        }
-    }
+macro_rules! impl_aleo_literal {
+    // implement for the Aleo literal wrapper type.
+    ($type:ident, $variant:ident) => {
+        impl<N: Network> AleoSerialize<N> for $type<N> {
+            fn parse_value(value: Plaintext<N>) -> Result<Self> {
+                match value {
+                    Plaintext::Literal(Literal::$variant(inner), _) => Ok(inner),
+                    other => bail!("Expected {}, got {other}", stringify!($variant)),
+                }
+            }
 
-    fn to_plaintext(&self) -> Result<Plaintext<N>> {
-        Ok(Plaintext::Literal(
-            Literal::Address(self.clone()),
-            OnceLock::new(),
-        ))
-    }
+            fn to_plaintext(&self) -> Result<Plaintext<N>> {
+                Ok(Plaintext::Literal(
+                    Literal::$variant(self.clone()),
+                    OnceLock::new(),
+                ))
+            }
+        }
+    };
+
+    // also implement for a native Rust type that the wrapper can convert into/from.
+    ($type:ident, $variant:ident, $native:ty) => {
+        impl_aleo_literal!($type, $variant);
+
+        impl<N: Network> AleoSerialize<N> for $native {
+            fn parse_value(value: Plaintext<N>) -> Result<Self> {
+                match value {
+                    Plaintext::Literal(Literal::$variant(inner), _) => Ok(*inner),
+                    other => bail!("Expected {}, got {other}", stringify!($variant)),
+                }
+            }
+
+            fn to_plaintext(&self) -> Result<Plaintext<N>> {
+                let wrapped: $type<N> = $variant::new(*self);
+                Ok(Plaintext::Literal(
+                    Literal::$variant(wrapped),
+                    OnceLock::new(),
+                ))
+            }
+        }
+    };
 }
 
-impl<N: Network> AleoSerialize<N> for U128<N> {
-    fn parse_value(value: Plaintext<N>) -> Result<Self> {
-        match value {
-            Plaintext::Literal(Literal::U128(v), _) => Ok(v),
-            other => bail!("Expected U128, got {other}"),
-        }
-    }
+// Wrapper-only impls.
+impl_aleo_literal!(Address, Address);
 
-    fn to_plaintext(&self) -> Result<Plaintext<N>> {
-        Ok(Plaintext::Literal(
-            Literal::U128(self.clone()),
-            OnceLock::new(),
-        ))
-    }
-}
-
-impl<N: Network> AleoSerialize<N> for U64<N> {
-    fn parse_value(value: Plaintext<N>) -> Result<Self> {
-        match value {
-            Plaintext::Literal(Literal::U64(v), _) => Ok(v),
-            other => bail!("Expected U64, got {other}"),
-        }
-    }
-
-    fn to_plaintext(&self) -> Result<Plaintext<N>> {
-        Ok(Plaintext::Literal(
-            Literal::U64(self.clone()),
-            OnceLock::new(),
-        ))
-    }
-}
-
-impl<N: Network> AleoSerialize<N> for U32<N> {
-    fn parse_value(value: Plaintext<N>) -> Result<Self> {
-        match value {
-            Plaintext::Literal(Literal::U32(v), _) => Ok(v),
-            other => bail!("Expected U32, got {other}"),
-        }
-    }
-
-    fn to_plaintext(&self) -> Result<Plaintext<N>> {
-        Ok(Plaintext::Literal(
-            Literal::U32(self.clone()),
-            OnceLock::new(),
-        ))
-    }
-}
-
-impl<N: Network> AleoSerialize<N> for U8<N> {
-    fn parse_value(value: Plaintext<N>) -> Result<Self> {
-        match value {
-            Plaintext::Literal(Literal::U8(v), _) => Ok(v),
-            other => bail!("Expected U8, got {other}"),
-        }
-    }
-
-    fn to_plaintext(&self) -> Result<Plaintext<N>> {
-        Ok(Plaintext::Literal(
-            Literal::U8(self.clone()),
-            OnceLock::new(),
-        ))
-    }
-}
-
-impl<N: Network> AleoSerialize<N> for Boolean<N> {
-    fn parse_value(value: Plaintext<N>) -> Result<Self> {
-        match value {
-            Plaintext::Literal(Literal::Boolean(v), _) => Ok(v),
-            other => bail!("Expected Boolean, got {other}"),
-        }
-    }
-
-    fn to_plaintext(&self) -> Result<Plaintext<N>> {
-        Ok(Plaintext::Literal(
-            Literal::Boolean(self.clone()),
-            OnceLock::new(),
-        ))
-    }
-}
+// Wrapper + native primitive impls.
+impl_aleo_literal!(U128, U128, u128);
+impl_aleo_literal!(U64, U64, u64);
+impl_aleo_literal!(U32, U32, u32);
+impl_aleo_literal!(U8, U8, u8);
+impl_aleo_literal!(Boolean, Boolean, bool);
 
 impl<N: Network> AleoSerialize<N> for Plaintext<N> {
     fn parse_value(value: Plaintext<N>) -> Result<Self> {

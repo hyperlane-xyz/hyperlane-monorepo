@@ -1,16 +1,17 @@
-use std::{ops::RangeInclusive, str::FromStr, sync::OnceLock};
+use std::{ops::RangeInclusive, str::FromStr};
 
 use async_trait::async_trait;
+use snarkvm::prelude::{Address, FromBytes, Network, Plaintext, TestnetV0};
+
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneMessage, HyperlaneProvider, Indexed, Indexer, InterchainGasPaymaster,
-    InterchainGasPayment, LogMeta, SequenceAwareIndexer, H256, H512,
+    HyperlaneProvider, Indexed, Indexer, InterchainGasPaymaster, InterchainGasPayment, LogMeta,
+    SequenceAwareIndexer, H256, H512,
 };
-use snarkvm::prelude::{Address, FromBytes, Literal, Plaintext, TestnetV0, U32};
 
 use crate::{
-    indexer::AleoIndexer, AleoInterchainGasPaymaster, AleoMessage, AleoProvider, ConnectionConf,
-    CurrentNetwork, GasPaymentEvent, HyperlaneAleoError,
+    indexer::AleoIndexer, AleoInterchainGasPaymaster, AleoProvider, ConnectionConf,
+    GasPaymentEvent, HookEventIndex, HyperlaneAleoError,
 };
 
 /// Aleo InterchainGas Indexer
@@ -25,15 +26,20 @@ pub struct AleoInterchainGasIndexer {
 
 impl AleoInterchainGasIndexer {
     /// Creates a new IGP Indexer
-    pub fn new(provider: AleoProvider, locator: &ContractLocator, conf: &ConnectionConf) -> Self {
-        let aleo_address = Address::<TestnetV0>::from_bytes_le(locator.address.as_bytes()).unwrap();
-        return Self {
+    pub fn new(
+        provider: AleoProvider,
+        locator: &ContractLocator,
+        conf: &ConnectionConf,
+    ) -> ChainResult<Self> {
+        let aleo_address = Address::<TestnetV0>::from_bytes_le(locator.address.as_bytes())
+            .map_err(HyperlaneAleoError::from)?;
+        return Ok(Self {
             client: provider,
             address: locator.address,
             program: conf.hook_manager_program.clone(),
             aleo_address,
             domain: locator.domain.clone(),
-        };
+        });
     }
 }
 
@@ -76,23 +82,20 @@ impl AleoIndexer for AleoInterchainGasIndexer {
     /// TODO: maybe refactor this to a HookAleoIndexer
     /// Returns the lastest event index of that specific block
     async fn get_latest_event_index(&self, height: u32) -> ChainResult<u32> {
+        let key = HookEventIndex {
+            hook: self.aleo_address,
+            block_height: height,
+        };
         // The lastest event index for hooks is composition of block_height & hook_address
-        let last_event_index: U32<TestnetV0> = self
+        let last_event_index: u32 = self
             .get_client()
-            .get_mapping_value(
-                self.get_program(),
-                Self::INDEX_MAPPING,
-                &format!(
-                    "{{hook: {}, block_height: {}u32}}",
-                    self.aleo_address, height
-                ),
-            )
+            .get_mapping_value(self.get_program(), Self::INDEX_MAPPING, &key)
             .await?;
-        Ok(*last_event_index)
+        Ok(last_event_index)
     }
 
     /// Returns the event value of a mapping
-    fn get_mapping_key(&self, index: u32) -> ChainResult<Plaintext<CurrentNetwork>> {
+    fn get_mapping_key<N: Network>(&self, index: u32) -> ChainResult<Plaintext<N>> {
         let str_value = format!("{{hook: {}, index: {}u32}}", self.aleo_address, index);
         Ok(Plaintext::from_str(&str_value).map_err(HyperlaneAleoError::from)?)
     }
@@ -134,6 +137,6 @@ impl SequenceAwareIndexer<InterchainGasPayment> for AleoInterchainGasIndexer {
                 &self.aleo_address.to_string(),
             )
             .await?;
-        Ok((Some(*igp.count), height))
+        Ok((Some(igp.count), height))
     }
 }

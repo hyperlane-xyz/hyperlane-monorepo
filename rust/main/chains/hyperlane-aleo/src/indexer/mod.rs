@@ -1,16 +1,17 @@
-use std::{ops::RangeInclusive, str::FromStr, sync::OnceLock};
+use std::collections::HashMap;
+use std::{ops::RangeInclusive, str::FromStr};
 
 use aleo_serialize::AleoSerialize;
 use futures::future;
-use hyperlane_core::{ChainResult, Indexed, LogMeta, H256, H512};
-use snarkvm::prelude::Itertools;
+use hyperlane_core::{ChainResult, Indexed, LogMeta, H512};
+use snarkvm::prelude::{CanaryV0, Itertools, MainnetV0, Network, TestnetV0};
 use snarkvm::{
-    ledger::Block,
-    prelude::{Identifier, Literal, Plaintext, ProgramID, U32},
+    prelude::{Identifier, Plaintext, ProgramID},
     synthesizer::program::FinalizeOperation,
 };
 
-use crate::{get_tx_id, to_h256, to_key_id, AleoMessage, AleoProvider, CurrentNetwork};
+use crate::utils::{get_tx_id, to_h256, to_key_id};
+use crate::{AleoProvider, HyperlaneAleoError};
 
 mod delivery;
 mod dispatch;
@@ -25,7 +26,10 @@ pub use merkle_tree_hook::*;
 pub(crate) trait AleoIndexer {
     const INDEX_MAPPING: &str;
     const VALUE_MAPPING: &str;
-    type AleoType: AleoSerialize<CurrentNetwork> + Into<Self::Type>;
+    type AleoType: AleoSerialize<TestnetV0>
+        + AleoSerialize<MainnetV0>
+        + AleoSerialize<CanaryV0>
+        + Into<Self::Type>;
     type Type;
 
     fn get_client(&self) -> &AleoProvider;
@@ -36,51 +40,38 @@ pub(crate) trait AleoIndexer {
         self.get_client().get_latest_height().await
     }
 
-    /// Returns the event value of a mapping
-    fn get_mapping_key(&self, index: u32) -> ChainResult<Plaintext<CurrentNetwork>> {
-        // Default is just a literal of that u32, however this might change with different mapping values like for the IGP or MTH
-        Ok(Plaintext::Literal(
-            Literal::U32(U32::<CurrentNetwork>::new(index)),
-            OnceLock::new(),
-        ))
+    fn get_mapping_key<N: Network>(&self, index: u32) -> ChainResult<Plaintext<N>> {
+        Ok(index.to_plaintext().map_err(HyperlaneAleoError::from)?)
     }
 
-    /// Returns the lastest event index of that specific block
     async fn get_latest_event_index(&self, height: u32) -> ChainResult<u32> {
-        let last_event_index: U32<CurrentNetwork> = self
-            .get_client()
-            .get_mapping_value(
-                self.get_program(),
-                Self::INDEX_MAPPING,
-                &format!("{}u32", height),
-            )
-            .await?;
-        Ok(*last_event_index)
-    }
-
-    /// Fetch list of logs from a tx hash
-    async fn fetch_logs_by_tx_hash(
-        &self,
-        tx_hash: H512,
-    ) -> ChainResult<Vec<(Indexed<Self::Type>, LogMeta)>> {
-        if tx_hash.is_zero() {
-            return Ok(vec![]);
-        }
-        let tx_id = get_tx_id(tx_hash)?;
-        let tx_id = tx_id.to_string();
-        let hash = self
-            .get_client()
-            .find_block_hash_by_transaction_id(&tx_id)
-            .await?;
-        let block = self.get_client().get_block_by_hash(&hash).await?;
-        self.get_logs_for_block(block).await
+        self.get_client()
+            .get_mapping_value(self.get_program(), Self::INDEX_MAPPING, &height)
+            .await
     }
 
     async fn fetch_logs_in_range(
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<Self::Type>, LogMeta)>> {
-        let block_futures = range.map(|x| self.get_client().get_block(x)).collect_vec();
+        match self.get_client().chain_id() {
+            0 => self.fetch_network_logs_in_range::<MainnetV0>(range).await,
+            1 => self.fetch_network_logs_in_range::<TestnetV0>(range).await,
+            2 => self.fetch_network_logs_in_range::<CanaryV0>(range).await,
+            id => return Err(HyperlaneAleoError::UnknownNetwork(id).into()),
+        }
+    }
+
+    async fn fetch_network_logs_in_range<N: Network>(
+        &self,
+        range: RangeInclusive<u32>,
+    ) -> ChainResult<Vec<(Indexed<Self::Type>, LogMeta)>>
+    where
+        Self::AleoType: AleoSerialize<N>,
+    {
+        let block_futures = range
+            .map(|x| self.get_client().get_block::<N>(x))
+            .collect_vec();
         let block_logs_futures = future::join_all(block_futures)
             .await
             .into_iter()
@@ -99,32 +90,77 @@ pub(crate) trait AleoIndexer {
         Ok(result)
     }
 
-    async fn get_logs_for_block(
+    /// Fetch list of logs from a tx hash
+    async fn fetch_logs_by_tx_hash(
         &self,
-        block: Block<CurrentNetwork>,
+        tx_hash: H512,
     ) -> ChainResult<Vec<(Indexed<Self::Type>, LogMeta)>> {
-        let height = block.metadata().height();
-        // The program is the target contract
-        // TODO: error handling
-        let program_id = ProgramID::from_str(self.get_program()).unwrap();
-        let mapping_name = Identifier::<CurrentNetwork>::from_str(Self::VALUE_MAPPING).unwrap();
+        if tx_hash.is_zero() {
+            return Ok(vec![]);
+        }
+        let tx_id = get_tx_id(tx_hash)?;
+        let tx_id = tx_id.to_string();
+        let hash = self
+            .get_client()
+            .find_block_hash_by_transaction_id(&tx_id)
+            .await?;
 
-        // Get the total number of transitions that interacted with the given program
+        match self.get_client().chain_id() {
+            0 => {
+                let block = self
+                    .get_client()
+                    .get_block_by_hash::<MainnetV0>(&hash)
+                    .await?;
+                self.get_logs_for_block(block).await
+            }
+            1 => {
+                let block = self
+                    .get_client()
+                    .get_block_by_hash::<TestnetV0>(&hash)
+                    .await?;
+                self.get_logs_for_block(block).await
+            }
+            2 => {
+                let block = self
+                    .get_client()
+                    .get_block_by_hash::<CanaryV0>(&hash)
+                    .await?;
+                self.get_logs_for_block(block).await
+            }
+            id => return Err(HyperlaneAleoError::UnknownNetwork(id).into()),
+        }
+    }
+
+    async fn get_logs_for_block<N: Network>(
+        &self,
+        block: snarkvm::ledger::Block<N>,
+    ) -> ChainResult<Vec<(Indexed<Self::Type>, LogMeta)>>
+    where
+        Self::AleoType: AleoSerialize<N>,
+    {
+        let height = block.metadata().height();
+        let program_id =
+            ProgramID::from_str(self.get_program()).map_err(HyperlaneAleoError::from)?;
+        let program_address = program_id.to_address().map_err(HyperlaneAleoError::from)?;
+
+        let mapping_name =
+            Identifier::<N>::from_str(Self::VALUE_MAPPING).map_err(HyperlaneAleoError::from)?;
+
         let transitions = block
             .clone()
             .into_transitions()
             .filter(|x| *x.program_id() == program_id)
             .collect_vec();
-
-        // Early return if we don't have any relevant transitions
-        if transitions.len() == 0 {
+        if transitions.is_empty() {
             return Ok(Default::default());
         }
 
-        let last_event_index = self.get_latest_event_index(height).await?;
+        let last_event_index = match self.get_latest_event_index(height).await {
+            Ok(index) => index,
+            Err(_) => return Ok(Default::default()),
+        };
 
-        // Calculate every possible key id based on the number of transitions and the final event index
-        let possible_key_ids: std::collections::HashMap<_, _> = (0..transitions.len())
+        let possible_key_ids: HashMap<_, _> = (0..transitions.len())
             .map(|i| {
                 let index = last_event_index.saturating_sub(i as u32);
                 let plain_key = self.get_mapping_key(index)?;
@@ -138,40 +174,35 @@ pub(crate) trait AleoIndexer {
         for transition in transitions {
             let transaction = block
                 .find_transaction_for_transition_id(transition.id())
-                .unwrap();
-            let transaction = block.get_confirmed_transaction(&transaction.id());
+                .and_then(|tx| block.get_confirmed_transaction(&tx.id()));
+            let transaction = match transaction {
+                Some(v) => v,
+                None => continue,
+            };
 
-            // Skip unconfirmed tx
-            if transaction.is_none() {
-                continue;
+            let mut event_indicies = HashMap::<u32, Plaintext<N>>::new();
+            for operation in transaction.finalize_operations().iter() {
+                match operation {
+                    FinalizeOperation::InsertKeyValue(_, key, _)
+                    | FinalizeOperation::UpdateKeyValue(_, key, _) => {
+                        if let Some((index, plain_key)) = possible_key_ids.get(key) {
+                            event_indicies
+                                .entry(*index)
+                                .or_insert_with(|| plain_key.clone());
+                        }
+                    }
+                    _ => continue,
+                }
             }
-            let transaction = transaction.unwrap();
 
-            // Get the event indicies for this specific transaction
-            let event_indicies = transaction
-                .finalize_operations()
-                .iter()
-                .filter_map(|operation| match operation {
-                    FinalizeOperation::InsertKeyValue(_, key, _) => {
-                        // check if the operation interacted with our desired mapping id
-                        return possible_key_ids.get(key);
-                    }
-                    FinalizeOperation::UpdateKeyValue(_, key, _) => {
-                        return possible_key_ids.get(key)
-                    }
-                    _ => None,
-                })
-                .collect_vec();
-
-            // Get the mapping value id of the events that is dispatched in this transaction
             for (index, key) in event_indicies {
                 let event: Self::AleoType = self
                     .get_client()
-                    .get_mapping_value(self.get_program(), Self::VALUE_MAPPING, &key.to_string())
+                    .get_mapping_value_raw(self.get_program(), Self::VALUE_MAPPING, &key)
                     .await?;
-                let indexed = Indexed::<Self::Type>::new(event.into()).with_sequence(*index);
+                let indexed = Indexed::<Self::Type>::new(event.into()).with_sequence(index);
                 let meta: LogMeta = LogMeta {
-                    address: H256::zero(), // TODO: convert the program_id to a filed and finally to bytes
+                    address: to_h256(program_address)?,
                     block_number: height.into(),
                     block_hash: to_h256(block.hash())?,
                     transaction_id: to_h256(transaction.id())?.into(),

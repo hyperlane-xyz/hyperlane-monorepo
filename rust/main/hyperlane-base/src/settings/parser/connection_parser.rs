@@ -517,7 +517,7 @@ pub fn build_aleo_connection_conf(
         .or_else(|| {
             local_err.push(
                 (&chain.cwp).add("mailbox_program"),
-                eyre!("Missing network name for chain"),
+                eyre!("Missing mailbox_program for chain"),
             );
             None
         });
@@ -530,7 +530,7 @@ pub fn build_aleo_connection_conf(
         .or_else(|| {
             local_err.push(
                 (&chain.cwp).add("hook_manager_program"),
-                eyre!("Missing network name for chain"),
+                eyre!("Missing hook_manager_program for chain"),
             );
             None
         });
@@ -542,7 +542,7 @@ pub fn build_aleo_connection_conf(
         .or_else(|| {
             local_err.push(
                 (&chain.cwp).add("ism_manager_program"),
-                eyre!("Missing network name for chain"),
+                eyre!("Missing ism_manager_program for chain"),
             );
             None
         });
@@ -554,9 +554,33 @@ pub fn build_aleo_connection_conf(
         .or_else(|| {
             local_err.push(
                 (&chain.cwp).add("validator_announce_program"),
-                eyre!("Missing network name for chain"),
+                eyre!("Missing validator_announce_program for chain"),
             );
             None
+        });
+
+    let chain_id = chain
+        .chain(err)
+        .get_opt_key("chainId")
+        .parse_u16()
+        .end()
+        .or_else(|| {
+            local_err.push(
+                (&chain.cwp).add("chain_id"),
+                eyre!("Missing chain_id for chain"),
+            );
+            None
+        });
+
+    let consensus_heights = chain
+        .chain(err)
+        .get_opt_key("consensusHeights")
+        .into_array_iter()
+        .map(|value| {
+            value
+                .map(|x| x.parse_u32())
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap_or_default()
         });
 
     if !local_err.is_ok() {
@@ -570,6 +594,8 @@ pub fn build_aleo_connection_conf(
                 hook_manager_program?.to_string(),
                 ism_manager_program?.to_string(),
                 validator_announce_program?.to_string(),
+                chain_id?,
+                consensus_heights,
             ),
         ))
     }

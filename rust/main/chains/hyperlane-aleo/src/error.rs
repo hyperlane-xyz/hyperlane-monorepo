@@ -1,3 +1,5 @@
+use std::{ffi::FromBytesUntilNulError, str::Utf8Error};
+
 use hyperlane_core::ChainCommunicationError;
 
 /// Errors from the crates specific to the hyperlane-radix
@@ -15,6 +17,15 @@ pub enum HyperlaneAleoError {
     /// Signer missing
     #[error("Signer missing")]
     SignerMissing,
+    /// Utf8 error
+    #[error("{0}")]
+    Utf8Error(#[from] Utf8Error),
+    /// C String parsing error
+    #[error("{0}")]
+    CStringParsing(#[from] FromBytesUntilNulError),
+    /// Unknown Network
+    #[error("Unknown Network with ID: {0}")]
+    UnknownNetwork(u16),
     /// Other errors
     #[error("{0}")]
     Other(String),

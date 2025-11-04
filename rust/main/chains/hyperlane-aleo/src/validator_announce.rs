@@ -1,19 +1,18 @@
-use std::{str::FromStr, sync::OnceLock};
+use std::ffi::CStr;
 
-use crate::{
-    to_h256, AleoEthAddress, AleoMailboxStruct, AleoMessage, AleoProvider, AleoSigner,
-    ConnectionConf, CurrentNetwork, Delivery, HttpClient, HyperlaneAleoError, StorageLocationKey,
-};
-use aleo_serialize::AleoSerialize;
 use async_trait::async_trait;
+use snarkvm::prelude::Itertools;
+use snarkvm::prelude::U8;
+
 use hyperlane_core::{
     Announcement, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Mailbox, ReorgPeriod,
-    SignedType, TxCostEstimate, TxOutcome, ValidatorAnnounce, H128, H160, H256, U256,
+    HyperlaneContract, HyperlaneDomain, HyperlaneProvider, SignedType, TxOutcome,
+    ValidatorAnnounce, H160, H256, U256,
 };
-use snarkvm::prelude::Itertools;
-use snarkvm::prelude::{
-    Address, Boolean, FromBytes, Literal, Plaintext, ProgramID, TestnetV0, U128, U32, U8,
+
+use crate::{
+    aleo_args, AleoEthAddress, AleoProvider, ConnectionConf, CurrentNetwork, HyperlaneAleoError,
+    StorageLocationKey,
 };
 
 /// Aleo Ism
@@ -26,7 +25,7 @@ pub struct AleoValidatorAnnounce {
 }
 
 impl AleoValidatorAnnounce {
-    /// TODO: parse settings
+    /// Aleo Validator Announce
     pub fn new(provider: AleoProvider, locator: &ContractLocator, conf: &ConnectionConf) -> Self {
         return Self {
             provider,
@@ -68,40 +67,36 @@ impl ValidatorAnnounce for AleoValidatorAnnounce {
         for validator in validators {
             let bytes = H160::from(*validator);
             let validator = AleoEthAddress {
-                bytes: bytes.as_fixed_bytes().map(|x| U8::<CurrentNetwork>::new(x)),
+                bytes: *bytes.as_fixed_bytes(),
             };
-            let plaintext = validator.to_plaintext().map_err(HyperlaneAleoError::from)?;
-            let last_sequence: ChainResult<U8<CurrentNetwork>> = self
+            let last_sequence: ChainResult<u8> = self
                 .provider
-                .get_mapping_value(&self.program, "storage_sequences", &plaintext.to_string())
+                .get_mapping_value(&self.program, "storage_sequences", &validator)
                 .await;
-            if last_sequence.is_err() {
-                storage_locations.push(Vec::new());
-                continue;
-            }
-            let last_sequence = last_sequence.unwrap();
+
+            let last_sequence = match last_sequence {
+                Ok(value) => value,
+                Err(_) => {
+                    storage_locations.push(Vec::new());
+                    continue;
+                }
+            };
+
             let mut validator_locations = Vec::new();
-            for index in 0..*last_sequence {
+            for index in 0..last_sequence {
                 let key = StorageLocationKey {
                     validator: validator.bytes.clone(),
-                    index: U8::new(index),
+                    index,
                 };
-                let plaintext = key.to_plaintext().map_err(HyperlaneAleoError::from)?;
-
-                let location: [U8<CurrentNetwork>; 480] = self
+                let location: [u8; 480] = self
                     .provider
-                    .get_mapping_value(&self.program, "storage_locations", &plaintext.to_string())
+                    .get_mapping_value(&self.program, "storage_locations", &key)
                     .await?;
 
-                // Convert [U8; 480] into a UTF-8 string (trim trailing nulls)
-                let bytes = location.map(|b| *b);
-                let end = bytes
-                    .iter()
-                    .rposition(|&c| c != 0)
-                    .map(|i| i + 1)
-                    .unwrap_or(0);
-                let location = String::from_utf8(bytes[..end].to_vec()).unwrap_or_default();
-                validator_locations.push(location);
+                let location =
+                    CStr::from_bytes_until_nul(&location).map_err(HyperlaneAleoError::from)?;
+                let location = location.to_str().map_err(HyperlaneAleoError::from)?;
+                validator_locations.push(location.to_owned());
             }
             storage_locations.push(validator_locations);
         }
@@ -110,15 +105,7 @@ impl ValidatorAnnounce for AleoValidatorAnnounce {
 
     /// Announce a storage location for a validator
     async fn announce(&self, announcement: SignedType<Announcement>) -> ChainResult<TxOutcome> {
-        let program_id = ProgramID::<CurrentNetwork>::from_str(&self.program)
-            .map_err(HyperlaneAleoError::from)?;
-        let validator = announcement
-            .value
-            .validator
-            .as_fixed_bytes()
-            .map(|x| U8::<CurrentNetwork>::new(x))
-            .to_plaintext()
-            .map_err(HyperlaneAleoError::from)?;
+        let validator = *announcement.value.validator.as_fixed_bytes();
 
         let storage_location = announcement
             .value
@@ -132,9 +119,6 @@ impl ValidatorAnnounce for AleoValidatorAnnounce {
                 "Aleo expects validator storage locations to be length 480",
             )
         })?;
-        let storage_location = storage_location
-            .to_plaintext()
-            .map_err(HyperlaneAleoError::from)?;
 
         let sig = announcement
             .signature
@@ -145,13 +129,12 @@ impl ValidatorAnnounce for AleoValidatorAnnounce {
         let sig: [_; 65] = sig.try_into().map_err(|_| {
             ChainCommunicationError::from_other_str("Expected 65 byte long signature length")
         })?;
-        let sig = sig.to_plaintext().map_err(HyperlaneAleoError::from)?;
 
         let outcome = self
             .provider
             .submit_tx(
-                &program_id,
-                vec![validator, storage_location, sig],
+                &self.program,
+                aleo_args![validator, storage_location, sig]?,
                 "announce",
             )
             .await?;
@@ -162,9 +145,10 @@ impl ValidatorAnnounce for AleoValidatorAnnounce {
     /// transaction. Return `None` if the needed tokens cannot be determined.
     async fn announce_tokens_needed(
         &self,
-        announcement: SignedType<Announcement>,
-        chain_signer: H256,
+        _announcement: SignedType<Announcement>,
+        _chain_signer: H256,
     ) -> Option<U256> {
+        // TODO:
         Some(U256::zero())
     }
 }

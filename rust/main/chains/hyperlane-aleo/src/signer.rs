@@ -1,12 +1,12 @@
 use hyperlane_core::{ChainResult, H256};
-use snarkvm::prelude::{Address, ComputeKey, FromBytes, PrivateKey};
+use snarkvm::prelude::{Address, ComputeKey, FromBytes, Network, PrivateKey};
 
-use crate::{to_h256, CurrentNetwork, HyperlaneAleoError};
+use crate::{utils::to_h256, CurrentNetwork, HyperlaneAleoError};
 
 /// Aleo Signer
 #[derive(Clone, Debug)]
 pub struct AleoSigner {
-    private_key: PrivateKey<CurrentNetwork>,
+    private_key: Vec<u8>,
     /// bech32 encoded address
     encoded_address: String,
     /// H256 representation of the address
@@ -15,8 +15,8 @@ pub struct AleoSigner {
 
 impl AleoSigner {
     /// Creates a new Signer
-    pub fn new(private_key: &[u8]) -> ChainResult<Self> {
-        let private_key = PrivateKey::<CurrentNetwork>::from_bytes_le(&private_key)
+    pub fn new(bytes: &[u8]) -> ChainResult<Self> {
+        let private_key = PrivateKey::<CurrentNetwork>::from_bytes_le(&bytes)
             .map_err(HyperlaneAleoError::from)?;
 
         // Derive the compute key, view key, and address.
@@ -24,15 +24,15 @@ impl AleoSigner {
         let address = Address::try_from(&compute_key).map_err(HyperlaneAleoError::from)?;
 
         Ok(Self {
-            private_key,
+            private_key: bytes.to_vec(),
             encoded_address: address.to_string(),
             address_h256: to_h256(address)?,
         })
     }
 
     /// Returns the Aleo Private key instance
-    pub fn get_private_key(&self) -> &PrivateKey<CurrentNetwork> {
-        &self.private_key
+    pub fn get_private_key<N: Network>(&self) -> ChainResult<PrivateKey<N>> {
+        Ok(PrivateKey::<N>::from_bytes_le(&self.private_key).map_err(HyperlaneAleoError::from)?)
     }
 
     /// Returns the corresponding Address as string formatted

@@ -1,82 +1,31 @@
-use crate::HyperlaneAleoError;
 use aleo_serialize::{fetch_field, AleoSerialize};
 use aleo_serialize_macro::aleo_serialize;
-use anyhow::Result;
-use hyperlane_core::accumulator::incremental::IncrementalMerkle;
-use hyperlane_core::{
-    ChainResult, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, H256, U256,
-};
 use snarkvm::console::network::{const_assert, hrp2, AleoID};
 use snarkvm::prelude::Itertools;
-use snarkvm::prelude::{
-    Boolean, Field, FromBytes, Identifier, Network, Plaintext, ProgramID, TestnetV0, ToBits,
-    ToBytes, U128, U32, U64, U8,
-};
+use snarkvm::prelude::{Field, Network, TestnetV0};
 use snarkvm_console_account::Address;
 
+use hyperlane_core::accumulator::incremental::IncrementalMerkle;
+use hyperlane_core::utils::to_atto;
+use hyperlane_core::{HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, H256, U256};
+
+use crate::utils::u128_to_hash;
+
 /// Current Network that is used global
+/// TODO: docs
 pub type CurrentNetwork = TestnetV0;
 /// TxID Type
 pub type TxID = AleoID<Field<TestnetV0>, { hrp2!("at") }>;
 
-// TODO: this should be in a util crate
-
-/// Converts a [U128; 2] into a H256
-pub fn u128_to_hash(id: &[U128<CurrentNetwork>; 2]) -> H256 {
-    let bytes = id
-        .iter()
-        .flat_map(|value| value.to_le_bytes())
-        .collect_vec();
-    H256::from_slice(&bytes)
-}
-
-/// Converts a H256 into [U128; 2]
-pub fn hash_to_u128(id: &H256) -> ChainResult<[U128<CurrentNetwork>; 2]> {
-    let first = &id.as_fixed_bytes()[..16];
-    let second = &id.as_fixed_bytes()[16..];
-    return Ok([
-        U128::<CurrentNetwork>::from_bytes_le(first).map_err(HyperlaneAleoError::from)?,
-        U128::<CurrentNetwork>::from_bytes_le(second).map_err(HyperlaneAleoError::from)?,
-    ]);
-}
-
-/// Convert a H256 into a TxID
-pub fn get_tx_id(hash: impl Into<H256>) -> ChainResult<TxID> {
-    Ok(TxID::from_bytes_le(hash.into().as_bytes()).map_err(HyperlaneAleoError::from)?)
-}
-
-/// Convert a TxID or any other struct that implements ToBytes to H256
-pub fn to_h256<T: ToBytes>(id: T) -> ChainResult<H256> {
-    let bytes = id.to_bytes_le().map_err(HyperlaneAleoError::from)?;
-    Ok(H256::from_slice(&bytes))
-}
-
-/// Returns the key ID for the given `program ID`, `mapping name`, and `key`.
-pub fn to_key_id<N: Network>(
-    program_id: &ProgramID<N>,
-    mapping_name: &Identifier<N>,
-    key: &Plaintext<N>,
-) -> ChainResult<Field<N>> {
-    // Construct the preimage.
-    let mut preimage = Vec::new();
-    program_id.write_bits_le(&mut preimage);
-    false.write_bits_le(&mut preimage); // Separator
-    mapping_name.write_bits_le(&mut preimage);
-    false.write_bits_le(&mut preimage); // Separator
-    key.write_bits_le(&mut preimage);
-    // Compute the key ID.
-    Ok(N::hash_bhp1024(&preimage).map_err(HyperlaneAleoError::from)?)
-}
-
 /// Aleo Merkle Tree
 #[aleo_serialize]
 #[derive(Debug)]
-pub struct AleoMerkleTree<N: Network = CurrentNetwork> {
+pub struct AleoMerkleTree {
     /// Leaf Branch
     /// Each leaf is 32Bytes encoded as [u128; 2], where the u128 is little endian encoded
-    pub branch: [[U128<N>; 2]; 32],
+    pub branch: [[u128; 2]; 32],
     /// Number of inserted elements
-    pub count: U32<N>,
+    pub count: u32,
 }
 
 impl Into<IncrementalMerkle> for AleoMerkleTree {
@@ -84,7 +33,7 @@ impl Into<IncrementalMerkle> for AleoMerkleTree {
         let branch = self.branch.map(|hash| u128_to_hash(&hash));
         IncrementalMerkle {
             branch,
-            count: *self.count as usize,
+            count: self.count as usize,
         }
     }
 }
@@ -92,20 +41,20 @@ impl Into<IncrementalMerkle> for AleoMerkleTree {
 /// Aleo Merkle Tree Hook
 #[aleo_serialize]
 #[derive(Debug)]
-pub struct AleoMerkleTreeHookStruct<N: Network = CurrentNetwork> {
+pub struct AleoMerkleTreeHookStruct {
     /// Merkle Tree
-    pub tree: AleoMerkleTree<N>,
+    pub tree: AleoMerkleTree,
     /// Computed on chain merkle root as [u128; 2]
     /// u128 is little endian encoded
-    pub root: [U128<N>; 2],
+    pub root: [u128; 2],
 }
 
 /// Aleo Eth address representation
 #[aleo_serialize]
 #[derive(Debug)]
-pub struct AleoEthAddress<N: Network = CurrentNetwork> {
+pub struct AleoEthAddress {
     /// Address bytes
-    pub bytes: [U8<N>; 20],
+    pub bytes: [u8; 20],
 }
 
 const MAX_VALIDATORS: usize = 6;
@@ -113,29 +62,29 @@ const MAX_VALIDATORS: usize = 6;
 /// Aleo Message Id Multisig
 #[aleo_serialize]
 #[derive(Debug)]
-pub struct AleoMessagesIdMultisig<N: Network = CurrentNetwork> {
+pub struct AleoMessagesIdMultisig {
     /// Validators, empty valiadtors will be zero-address
-    pub validators: [AleoEthAddress<N>; MAX_VALIDATORS],
+    pub validators: [AleoEthAddress; MAX_VALIDATORS],
     /// Validator count
-    pub validator_count: U8<N>,
+    pub validator_count: u8,
     /// Threshold
-    pub threshold: U8<N>,
+    pub threshold: u8,
 }
 
 /// Aleo GasPaymentEvent
 #[aleo_serialize]
 #[derive(Debug)]
-pub struct GasPaymentEvent<N: Network = CurrentNetwork> {
-    /// MessageId encoded as [u128;2, each u128 is encoded in little endian
-    pub id: [U128<N>; 2],
+pub struct GasPaymentEvent {
+    /// MessageId encoded as [u128;2] each u128 is encoded in little endian
+    pub id: [u128; 2],
     /// Destination domain
-    pub destination_domain: U32<N>,
+    pub destination_domain: u32,
     /// Gas amount
-    pub gas_amount: U128<N>,
+    pub gas_amount: u128,
     /// Payment in Aleo credits
-    pub payment: U64<N>,
+    pub payment: u64,
     /// Event index
-    pub index: U32<N>,
+    pub index: u32,
 }
 
 impl Into<InterchainGasPayment> for GasPaymentEvent {
@@ -143,9 +92,9 @@ impl Into<InterchainGasPayment> for GasPaymentEvent {
         let message_id = u128_to_hash(&self.id);
         InterchainGasPayment {
             message_id,
-            destination: *self.destination_domain,
-            payment: U256::from(*self.payment), // TODO: This should be denominated by 18 decimals, convert this to attos
-            gas_amount: U256::from(*self.gas_amount),
+            destination: self.destination_domain,
+            payment: to_atto(U256::from(self.payment), 6).unwrap_or_default(),
+            gas_amount: U256::from(self.gas_amount),
         }
     }
 }
@@ -153,56 +102,54 @@ impl Into<InterchainGasPayment> for GasPaymentEvent {
 /// InsertedIntoTree Event
 #[aleo_serialize]
 #[derive(Debug)]
-pub struct InsertIntoTreeEvent<N: Network = CurrentNetwork> {
+pub struct InsertIntoTreeEvent {
     /// MessageId encoded as [u128;2, each u128 is encoded in little endian
-    pub id: [U128<N>; 2],
+    pub id: [u128; 2],
     /// Event index
-    pub index: U32<N>,
+    pub index: u32,
 }
 
 impl Into<MerkleTreeInsertion> for InsertIntoTreeEvent {
     fn into(self) -> MerkleTreeInsertion {
         let message_id = u128_to_hash(&self.id);
-        MerkleTreeInsertion::new(*self.index, message_id)
+        MerkleTreeInsertion::new(self.index, message_id)
     }
 }
 
 /// Represents a cross-chain message in the Hyperlane protocol on Aleo network.
-///
-/// Generic over network type `N`, defaulting to `CurrentNetwork`.
 #[aleo_serialize]
 #[derive(Debug)]
-pub struct AleoMessage<N: Network = CurrentNetwork> {
+pub struct AleoMessage {
     /// Message format version
-    pub version: U8<N>,
+    pub version: u8,
     /// Unique message identifier
-    pub nonce: U32<N>,
+    pub nonce: u32,
     /// Domain ID of the source chain
-    pub origin_domain: U32<N>,
+    pub origin_domain: u32,
     /// Address of the message sender (32 bytes)
-    pub sender: [U8<N>; 32],
+    pub sender: [u8; 32],
     /// Domain ID of the destination chain
-    pub destination_domain: U32<N>,
+    pub destination_domain: u32,
     /// Address of the message recipient (32 bytes)
-    pub recipient: [U8<N>; 32],
+    pub recipient: [u8; 32],
     /// Message payload data (8 x 128-bit words)
-    pub body: [U128<N>; 8],
+    pub body: [u128; 8],
 }
 
 impl Into<HyperlaneMessage> for AleoMessage {
     fn into(self) -> HyperlaneMessage {
         // Aleo encodes its integers with little endian
         let body = self.body.iter().flat_map(|x| x.to_le_bytes()).collect_vec();
-        let sender = H256::from(self.sender.map(|x| *x));
-        let recipient = H256::from(self.recipient.map(|x| *x));
+        let sender = H256::from(self.sender);
+        let recipient = H256::from(self.recipient);
         HyperlaneMessage {
-            version: *self.version,
-            nonce: *self.nonce,
-            origin: *self.origin_domain,
+            version: self.version,
+            nonce: self.nonce,
+            origin: self.origin_domain,
             sender,
-            destination: *self.destination_domain,
+            destination: self.destination_domain,
             recipient,
-            body: body,
+            body,
         }
     }
 }
@@ -212,9 +159,9 @@ impl Into<HyperlaneMessage> for AleoMessage {
 #[derive(Debug)]
 pub struct AleoMailboxStruct<N: Network = CurrentNetwork> {
     /// Number of processed messages
-    pub process_count: U32<N>,
+    pub process_count: u32,
     /// Number of dispatched messages
-    pub nonce: U32<N>,
+    pub nonce: u32,
     /// Default ISM
     pub default_ism: Address<N>,
 }
@@ -222,9 +169,9 @@ pub struct AleoMailboxStruct<N: Network = CurrentNetwork> {
 /// Aleo InterchainGasPaymaster struct
 #[aleo_serialize]
 #[derive(Debug)]
-pub struct AleoInterchainGasPaymaster<N: Network = CurrentNetwork> {
+pub struct AleoInterchainGasPaymaster {
     /// Used for sequencing events
-    pub count: U32<N>,
+    pub count: u32,
 }
 
 /// Aleo delivery
@@ -234,15 +181,43 @@ pub struct Delivery<N: Network = CurrentNetwork> {
     /// Address that executed the process
     pub processor: Address<N>,
     /// The block height of the delivery
-    pub block_number: U32<N>,
+    pub block_number: u32,
 }
 
 /// Storage location
 #[aleo_serialize]
 #[derive(Debug)]
-pub struct StorageLocationKey<N: Network = CurrentNetwork> {
+pub struct StorageLocationKey {
     /// Validator
-    pub validator: [U8<N>; 20],
+    pub validator: [u8; 20],
     /// Index
-    pub index: U8<N>,
+    pub index: u8,
+}
+
+/// Delivery Key
+#[aleo_serialize]
+#[derive(Debug)]
+pub struct DeliveryKey {
+    /// Id
+    pub id: [u128; 2],
+}
+
+/// RouteKey
+#[aleo_serialize]
+#[derive(Debug)]
+pub struct RouteKey<N: Network = CurrentNetwork> {
+    /// Ism address
+    pub ism: Address<N>,
+    /// Domain
+    pub domain: u32,
+}
+
+/// Hook Event Index
+#[aleo_serialize]
+#[derive(Debug)]
+pub struct HookEventIndex<N: Network = CurrentNetwork> {
+    /// Hook
+    pub hook: Address<N>,
+    /// Height
+    pub block_height: u32,
 }

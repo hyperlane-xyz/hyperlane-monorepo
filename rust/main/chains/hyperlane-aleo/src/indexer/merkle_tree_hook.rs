@@ -1,17 +1,17 @@
 use std::{ops::RangeInclusive, str::FromStr};
 
 use async_trait::async_trait;
+use snarkvm::prelude::{Address, FromBytes, Network, Plaintext, TestnetV0};
+
 use hyperlane_core::{
     ChainResult, Checkpoint, CheckpointAtBlock, ContractLocator, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, IncrementalMerkleAtBlock, Indexed,
-    Indexer, LogMeta, MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer, H256,
-    H512,
+    HyperlaneDomain, HyperlaneProvider, IncrementalMerkleAtBlock, Indexed, Indexer, LogMeta,
+    MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer, H256, H512,
 };
-use snarkvm::prelude::{Address, FromBytes, Plaintext, TestnetV0, U32};
 
 use crate::{
-    indexer::AleoIndexer, u128_to_hash, AleoMerkleTreeHookStruct, AleoMessage, AleoProvider,
-    ConnectionConf, CurrentNetwork, HyperlaneAleoError, InsertIntoTreeEvent,
+    indexer::AleoIndexer, utils::u128_to_hash, AleoMerkleTreeHookStruct, AleoProvider,
+    ConnectionConf, HookEventIndex, HyperlaneAleoError, InsertIntoTreeEvent,
 };
 
 /// Aleo MerkleTreeHook Indexer
@@ -26,15 +26,20 @@ pub struct AleoMerkleTreeHook {
 
 impl AleoMerkleTreeHook {
     /// Creates a new Merkle Tree Hook
-    pub fn new(provider: AleoProvider, locator: &ContractLocator, conf: &ConnectionConf) -> Self {
-        let aleo_address = Address::<TestnetV0>::from_bytes_le(locator.address.as_bytes()).unwrap();
-        return Self {
+    pub fn new(
+        provider: AleoProvider,
+        locator: &ContractLocator,
+        conf: &ConnectionConf,
+    ) -> ChainResult<Self> {
+        let aleo_address = Address::<TestnetV0>::from_bytes_le(locator.address.as_bytes())
+            .map_err(HyperlaneAleoError::from)?;
+        return Ok(Self {
             client: provider,
             address: locator.address,
             program: conf.hook_manager_program.clone(),
             aleo_address,
             domain: locator.domain.clone(),
-        };
+        });
     }
 }
 
@@ -74,20 +79,20 @@ impl AleoIndexer for AleoMerkleTreeHook {
 
     /// Returns the lastest event index of that specific block
     async fn get_latest_event_index(&self, height: u32) -> ChainResult<u32> {
-        let key = format!(
-            "{{hook: {}, block_height: {}u32}}",
-            self.aleo_address, height
-        );
+        let key = HookEventIndex {
+            hook: self.aleo_address,
+            block_height: height,
+        };
         // The lastest event index for hooks is composition of block_height & hook_address
-        let last_event_index: U32<TestnetV0> = self
+        let last_event_index: u32 = self
             .get_client()
             .get_mapping_value(self.get_program(), Self::INDEX_MAPPING, &key)
             .await?;
-        Ok(*last_event_index)
+        Ok(last_event_index)
     }
 
     /// Returns the event value of a mapping
-    fn get_mapping_key(&self, index: u32) -> ChainResult<Plaintext<CurrentNetwork>> {
+    fn get_mapping_key<N: Network>(&self, index: u32) -> ChainResult<Plaintext<N>> {
         let str_value = format!("{{hook: {}, index: {}u32}}", self.aleo_address, index);
         Ok(Plaintext::from_str(&str_value).map_err(HyperlaneAleoError::from)?)
     }
@@ -129,7 +134,7 @@ impl SequenceAwareIndexer<MerkleTreeInsertion> for AleoMerkleTreeHook {
                 &self.aleo_address.to_string(),
             )
             .await?;
-        Ok((Some(*mth.tree.count), height))
+        Ok((Some(mth.tree.count), height))
     }
 }
 
@@ -158,16 +163,12 @@ impl MerkleTreeHook for AleoMerkleTreeHook {
     ///
     /// - `reorg_period` is how far behind the current block to query, if not specified
     ///   it will query at the latest block.
-    async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
-        let (mth, block_height) = self
+    async fn count(&self, _reorg_period: &ReorgPeriod) -> ChainResult<u32> {
+        let mth: AleoMerkleTreeHookStruct = self
             .client
-            .get_mapping_value_meta::<AleoMerkleTreeHookStruct>(
-                &self.program,
-                "merkle_tree_hooks",
-                &self.aleo_address.to_string(),
-            )
+            .get_mapping_value(&self.program, "merkle_tree_hooks", &self.aleo_address)
             .await?;
-        Ok(*mth.tree.count)
+        Ok(mth.tree.count)
     }
 
     /// Get the latest checkpoint.
@@ -176,7 +177,7 @@ impl MerkleTreeHook for AleoMerkleTreeHook {
     ///   it will query at the latest block.
     async fn latest_checkpoint(
         &self,
-        reorg_period: &ReorgPeriod,
+        _reorg_period: &ReorgPeriod,
     ) -> ChainResult<CheckpointAtBlock> {
         let (mth, block_height) = self
             .client
@@ -191,14 +192,14 @@ impl MerkleTreeHook for AleoMerkleTreeHook {
                 merkle_tree_hook_address: self.address,
                 mailbox_domain: self.domain.id(),
                 root: u128_to_hash(&mth.root),
-                index: (*mth.tree.count).saturating_sub(1),
+                index: mth.tree.count.saturating_sub(1),
             },
             block_height: Some(block_height.into()),
         })
     }
 
     /// Get the latest checkpoint at a specific block height.
-    async fn latest_checkpoint_at_block(&self, height: u64) -> ChainResult<CheckpointAtBlock> {
+    async fn latest_checkpoint_at_block(&self, _height: u64) -> ChainResult<CheckpointAtBlock> {
         // We can't query this, instead we return the latest checkpoint
         self.latest_checkpoint(&ReorgPeriod::None).await
     }

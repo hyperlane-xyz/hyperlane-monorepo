@@ -85,12 +85,12 @@ impl<Client: HttpClient> RpcClient<Client> {
     }
 
     /// Gets a block by height
-    pub async fn get_block(&self, height: u32) -> ChainResult<Block<CurrentNetwork>> {
+    pub async fn get_block<N: Network>(&self, height: u32) -> ChainResult<Block<N>> {
         self.request(&format!("block/{height}"), None).await
     }
 
     /// Gets a block by hash
-    pub async fn get_block_by_hash(&self, hash: &str) -> ChainResult<Block<CurrentNetwork>> {
+    pub async fn get_block_by_hash<N: Network>(&self, hash: &str) -> ChainResult<Block<N>> {
         self.request(&format!("block/{hash}"), None).await
     }
 
@@ -104,10 +104,10 @@ impl<Client: HttpClient> RpcClient<Client> {
     }
 
     /// Gets a program by ID
-    pub async fn get_program(
+    pub async fn get_program<N: Network>(
         &self,
-        program_id: &ProgramID<CurrentNetwork>,
-    ) -> ChainResult<Program<CurrentNetwork>> {
+        program_id: &ProgramID<N>,
+    ) -> ChainResult<Program<N>> {
         self.request(&format!("program/{program_id}"), None).await
     }
 
@@ -130,15 +130,41 @@ impl<Client: HttpClient> RpcClient<Client> {
     }
 
     /// Gets a value from a program mapping
-    pub async fn get_mapping_value<T: AleoSerialize<CurrentNetwork>>(
+    pub async fn get_mapping_value_raw<N: Network, T: AleoSerialize<N>, K: AleoSerialize<N>>(
         &self,
         program_id: &str,
         mapping_name: &str,
-        mapping_key: &str,
+        mapping_key: &K,
     ) -> ChainResult<T> {
+        let plaintext_key = mapping_key
+            .to_plaintext()
+            .map_err(HyperlaneAleoError::from)?;
+        let plain_text: Plaintext<N> = self
+            .request(
+                &format!("program/{program_id}/mapping/{mapping_name}/{plaintext_key}"),
+                None,
+            )
+            .await?;
+        let result = T::parse_value(plain_text).map_err(HyperlaneAleoError::from)?;
+        Ok(result)
+    }
+
+    /// Gets a value from a program mapping
+    pub async fn get_mapping_value<
+        T: AleoSerialize<CurrentNetwork>,
+        K: AleoSerialize<CurrentNetwork>,
+    >(
+        &self,
+        program_id: &str,
+        mapping_name: &str,
+        mapping_key: &K,
+    ) -> ChainResult<T> {
+        let plaintext_key = mapping_key
+            .to_plaintext()
+            .map_err(HyperlaneAleoError::from)?;
         let plain_text: Plaintext<CurrentNetwork> = self
             .request(
-                &format!("program/{program_id}/mapping/{mapping_name}/{mapping_key}"),
+                &format!("program/{program_id}/mapping/{mapping_name}/{plaintext_key}"),
                 None,
             )
             .await?;
@@ -184,9 +210,9 @@ impl<Client: HttpClient> RpcClient<Client> {
 
     /// Broadcasts a transaction
     /// Returns either the resulting tx_id or the failure reason
-    pub async fn broadcast_transaction(
+    pub async fn broadcast_transaction<N: Network>(
         &self,
-        transaction: Transaction<CurrentNetwork>,
+        transaction: Transaction<N>,
     ) -> ChainResult<String> {
         let body = serde_json::to_value(transaction).map_err(HyperlaneAleoError::from)?;
         self.request_post("transaction/broadcast", &body).await
@@ -230,10 +256,12 @@ impl<Client: HttpClient, N: Network> QueryTrait<N> for RpcClient<Client> {
             .map(|cm| cm.to_string())
             .collect::<Vec<_>>()
             .join(",");
-        Ok(self.request_blocking(
-            &format!("statePaths?commitments={commitments_string}"),
-            None,
-        )?)
+        Ok(self
+            .request_blocking(
+                &format!("statePaths?commitments={commitments_string}"),
+                None,
+            )
+            .unwrap_or_default())
     }
 
     /// Returns a list of state paths for the given list of `commitment`s.
@@ -251,7 +279,8 @@ impl<Client: HttpClient, N: Network> QueryTrait<N> for RpcClient<Client> {
                 &format!("statePaths?commitments={commitments_string}"),
                 None,
             )
-            .await?)
+            .await
+            .unwrap_or_default())
     }
 
     /// Returns the current block height

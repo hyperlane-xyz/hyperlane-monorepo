@@ -278,7 +278,7 @@ impl ChainConf {
             )
                 as Box<dyn ApplicationOperationVerifier>),
             ChainConnectionConf::Aleo(_) => Ok(Box::new(
-                h_radix::application::RadixApplicationOperationVerifier::new(),
+                h_aleo::application::AleoApplicationOperationVerifier::new(),
             )
                 as Box<dyn ApplicationOperationVerifier>),
         };
@@ -463,7 +463,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Aleo(conf) => {
                 let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
-                let indexer = Box::new(h_aleo::AleoMerkleTreeHook::new(provider, &locator, conf));
+                let indexer = Box::new(h_aleo::AleoMerkleTreeHook::new(provider, &locator, conf)?);
                 Ok(indexer as Box<dyn MerkleTreeHook>)
             }
         }
@@ -691,7 +691,7 @@ impl ChainConf {
                 let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
                 let indexer = Box::new(h_aleo::AleoInterchainGasIndexer::new(
                     provider, &locator, conf,
-                ));
+                )?);
                 Ok(indexer as Box<dyn InterchainGasPaymaster>)
             }
         }
@@ -766,7 +766,7 @@ impl ChainConf {
                 let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
                 let indexer = Box::new(h_aleo::AleoInterchainGasIndexer::new(
                     provider, &locator, conf,
-                ));
+                )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
             }
         }
@@ -847,7 +847,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Aleo(conf) => {
                 let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
-                let indexer = Box::new(h_aleo::AleoMerkleTreeHook::new(provider, &locator, conf));
+                let indexer = Box::new(h_aleo::AleoMerkleTreeHook::new(provider, &locator, conf)?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
             }
         }
@@ -1480,9 +1480,5 @@ fn build_aleo_provider(
     locator: &ContractLocator,
     signer: Option<h_aleo::AleoSigner>,
 ) -> ChainResult<AleoProvider> {
-    Ok(AleoProvider::new(
-        connection_conf,
-        locator.domain.clone(),
-        signer,
-    ))
+    AleoProvider::new(connection_conf, locator.domain.clone(), signer)
 }

@@ -1,18 +1,14 @@
 use std::ops::RangeInclusive;
 
 use async_trait::async_trait;
+
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneMessage, HyperlaneProvider, Indexed, Indexer, LogMeta, SequenceAwareIndexer, H256,
-    H512,
+    HyperlaneProvider, Indexed, Indexer, LogMeta, SequenceAwareIndexer, H256, H512,
 };
-use snarkvm::prelude::Itertools;
-use snarkvm::prelude::{TestnetV0, U128, U32};
 
-use crate::{
-    indexer::AleoIndexer, u128_to_hash, AleoMailboxStruct, AleoMessage, AleoProvider,
-    ConnectionConf, HttpClient,
-};
+use crate::utils::u128_to_hash;
+use crate::{indexer::AleoIndexer, AleoMailboxStruct, AleoProvider, ConnectionConf};
 
 /// Aleo Delivery Indexer
 #[derive(Debug, Clone)]
@@ -39,8 +35,8 @@ impl AleoIndexer for AleoDeliveryIndexer {
     const INDEX_MAPPING: &str = "process_event_index";
     const VALUE_MAPPING: &str = "process_events";
 
-    type Type = [U128<TestnetV0>; 2];
-    type AleoType = [U128<TestnetV0>; 2];
+    type Type = [u128; 2];
+    type AleoType = [u128; 2];
 
     fn get_client(&self) -> &AleoProvider {
         &self.provider
@@ -70,7 +66,6 @@ impl HyperlaneContract for AleoDeliveryIndexer {
     }
 }
 
-// TODO: improve this code
 #[async_trait]
 impl Indexer<H256> for AleoDeliveryIndexer {
     /// Fetch list of logs between blocks `from` and `to`, inclusive.
@@ -119,6 +114,6 @@ impl SequenceAwareIndexer<H256> for AleoDeliveryIndexer {
             .provider
             .get_mapping_value_meta::<AleoMailboxStruct>(&self.program, "mailbox", "true")
             .await?;
-        Ok((Some(*mailbox.process_count), height))
+        Ok((Some(mailbox.process_count), height))
     }
 }

@@ -1,12 +1,11 @@
 //! Implementation of hyperlane for aleo.
 
-#![forbid(unsafe_code)]
 #![warn(missing_docs)]
-// TODO: Remove once we start filling things in
-#![allow(unused_variables)]
-#![allow(unused_imports)] // TODO: `rustc` 1.80.1 clippy issue
 #![deny(clippy::unwrap_used, clippy::panic)]
 #![deny(clippy::arithmetic_side_effects)]
+
+/// Aleo Application verifier
+pub mod application;
 
 mod config;
 mod error;
@@ -16,6 +15,7 @@ mod mailbox;
 mod provider;
 mod signer;
 mod types;
+mod utils;
 mod validator_announce;
 
 pub use {

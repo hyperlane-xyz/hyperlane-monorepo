@@ -11,7 +11,19 @@ pub fn aleo_serialize(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let ident = &input.ident;
     let generics = input.generics.clone();
-    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+    let (_orig_impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
+    // Build impl generics: always add N: Network (struct itself does NOT gain N).
+    let impl_generics_with_n = if generics.params.is_empty() {
+        quote!(<N: snarkvm::prelude::Network>)
+    } else {
+        let params_without_n = generics
+            .params
+            .iter()
+            .filter(|gp| matches!(gp, syn::GenericParam::Type(t) if t.ident != "N"))
+            .collect::<Vec<_>>();
+        quote!(<N: snarkvm::prelude::Network, #(#params_without_n),*>)
+    };
 
     let data_struct = match &input.data {
         Data::Struct(s) => s,
@@ -50,36 +62,30 @@ pub fn aleo_serialize(_attr: TokenStream, item: TokenStream) -> TokenStream {
     });
 
     // For to_plaintext (struct -> Plaintext)
-    // Assumes each field type implements ToPlaintext<N> with:
-    //   fn to_plaintext(&self) -> Result<Plaintext<N>>
-    // And that Plaintext<N> has a struct-like constructor helper:
-    //   Plaintext::from_named_fields(Vec<(impl Into<String>, Plaintext<N>)>)
-    // If your API differs, adapt the emitted code inside this method.
     let to_plaintext_field_insertions = fields_named.iter().map(|f| {
         let fname = f.ident.as_ref().unwrap();
         let fname_str = fname.to_string();
         quote! {
-            map.insert(Identifier::from_str(#fname_str)?, <_ as AleoSerialize<N>>::to_plaintext(&self.#fname)?);
+            map.insert(snarkvm::prelude::Identifier::from_str(#fname_str)?, <_ as AleoSerialize<N>>::to_plaintext(&self.#fname)?);
         }
     });
 
     let expanded = quote! {
         #input
 
-        impl #impl_generics AleoSerialize<N> for #ident #ty_generics #where_clause {
-            fn parse_value(value: Plaintext<N>) -> Result<Self> {
+        impl #impl_generics_with_n AleoSerialize<N> for #ident #ty_generics #where_clause {
+            fn parse_value(value: snarkvm::prelude::Plaintext<N>) -> anyhow::Result<Self> {
                 #(#field_inits)*
                 Ok(Self {
                     #(#construct_fields),*
                 })
             }
 
-            fn to_plaintext(&self) -> Result<Plaintext<N>> {
-                // Build an IndexMap<Identifier<N>, Plaintext<N>> for the struct fields.
-                let mut map: ::indexmap::IndexMap<Identifier<N>, Plaintext<N>> = ::indexmap::IndexMap::new();
+            fn to_plaintext(&self) -> anyhow::Result<snarkvm::prelude::Plaintext<N>> {
+                let mut map: ::indexmap::IndexMap<snarkvm::prelude::Identifier<N>, snarkvm::prelude::Plaintext<N>> = ::indexmap::IndexMap::new();
                 use core::str::FromStr;
                 #(#to_plaintext_field_insertions)*
-                Ok(Plaintext::Struct(map, ::std::sync::OnceLock::new()))
+                Ok(snarkvm::prelude::Plaintext::Struct(map, ::std::sync::OnceLock::new()))
             }
         }
     };

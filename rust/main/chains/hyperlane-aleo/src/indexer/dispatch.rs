@@ -1,15 +1,14 @@
 use std::ops::RangeInclusive;
 
 use async_trait::async_trait;
+
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, Indexed, Indexer, LogMeta, SequenceAwareIndexer, H256,
     H512,
 };
 
-use crate::{
-    indexer::AleoIndexer, AleoMailboxStruct, AleoMessage, AleoProvider, ConnectionConf, HttpClient,
-};
+use crate::{indexer::AleoIndexer, AleoMailboxStruct, AleoMessage, AleoProvider, ConnectionConf};
 
 /// Aleo Dispatch Indexer
 #[derive(Debug, Clone)]
@@ -99,6 +98,6 @@ impl SequenceAwareIndexer<HyperlaneMessage> for AleoDispatchIndexer {
             .provider
             .get_mapping_value_meta::<AleoMailboxStruct>(&self.program, "mailbox", "true")
             .await?;
-        Ok((Some(*mailbox.nonce), height))
+        Ok((Some(mailbox.nonce), height))
     }
 }

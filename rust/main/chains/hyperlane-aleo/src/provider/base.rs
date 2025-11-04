@@ -1,11 +1,11 @@
 use async_trait::async_trait;
 use derive_new::new;
-use hyperlane_core::{ChainCommunicationError, ChainResult};
 use reqwest::Client as ReqestClient;
 use serde::de::DeserializeOwned;
 use tokio::runtime::Handle;
 use tokio::task::block_in_place;
-use tracing::debug;
+
+use hyperlane_core::{ChainCommunicationError, ChainResult};
 
 use crate::{HttpClient, HyperlaneAleoError};
 

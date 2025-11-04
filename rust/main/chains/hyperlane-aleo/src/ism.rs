@@ -1,16 +1,16 @@
 use async_trait::async_trait;
+use num_traits::cast::FromPrimitive;
+use snarkvm::prelude::Itertools;
+use snarkvm::prelude::{Address, FromBytes};
+
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, ModuleType,
     MultisigIsm, RoutingIsm, H160, H256, U256,
 };
-use snarkvm::prelude::Itertools;
-use snarkvm::prelude::{Address, FromBytes, ToBytes, U8};
 
-use crate::{
-    AleoMessagesIdMultisig, AleoProvider, ConnectionConf, CurrentNetwork, HyperlaneAleoError,
-};
-use num_traits::cast::FromPrimitive;
+use crate::utils::to_h256;
+use crate::{AleoMessagesIdMultisig, AleoProvider, ConnectionConf, CurrentNetwork, RouteKey};
 
 /// Aleo Ism
 #[derive(Debug, Clone)]
@@ -23,7 +23,7 @@ pub struct AleoIsm {
 }
 
 impl AleoIsm {
-    /// TODO: parse settings
+    /// Aleo ISM
     pub fn new(provider: AleoProvider, locator: &ContractLocator, conf: &ConnectionConf) -> Self {
         let aleo_address =
             Address::<CurrentNetwork>::from_bytes_le(locator.address.as_bytes()).unwrap();
@@ -61,29 +61,27 @@ impl InterchainSecurityModule for AleoIsm {
     /// Returns the module type of the ISM compliant with the corresponding
     /// metadata offchain fetching and onchain formatting standard.
     async fn module_type(&self) -> ChainResult<ModuleType> {
-        let module_type: U8<CurrentNetwork> = self
+        let module_type: u8 = self
             .provider
-            .get_mapping_value(&self.program, "isms", &self.aleo_address.to_string())
+            .get_mapping_value(&self.program, "isms", &self.aleo_address)
             .await?;
-        Ok(ModuleType::Null)
-        // ModuleType::from_u8(*module_type).ok_or_else(|| {
-        //     ChainCommunicationError::from_other_str(&format!(
-        //         "Failed to convert to ModuleType: {}",
-        //         module_type
-        //     ))
-        // })
+        ModuleType::from_u8(module_type).ok_or_else(|| {
+            ChainCommunicationError::from_other_str(&format!(
+                "Failed to convert to ModuleType: {}",
+                module_type
+            ))
+        })
     }
 
     /// Dry runs the `verify()` ISM call and returns `Some(gas_estimate)` if the call
     /// succeeds.
     async fn dry_run_verify(
         &self,
-        message: &HyperlaneMessage,
-        metadata: &[u8],
+        _message: &HyperlaneMessage,
+        _metadata: &[u8],
     ) -> ChainResult<Option<U256>> {
         // Aleo currently doesn't support aggregation ISMs
         // Only in the case of an aggregation ISM is this method used
-
         Ok(Some(U256::one()))
     }
 }
@@ -93,27 +91,23 @@ impl MultisigIsm for AleoIsm {
     /// Returns the validator and threshold needed to verify message
     async fn validators_and_threshold(
         &self,
-        message: &HyperlaneMessage,
+        _message: &HyperlaneMessage,
     ) -> ChainResult<(Vec<H256>, u8)> {
         let multisig_ism: AleoMessagesIdMultisig = self
             .provider
-            .get_mapping_value(
-                &self.program,
-                "message_id_multisigs",
-                &self.aleo_address.to_string(),
-            )
+            .get_mapping_value(&self.program, "message_id_multisigs", &self.aleo_address)
             .await?;
         let validators = multisig_ism
             .validators
             .iter()
             .map(|validator| {
-                let validator = H160::from(validator.bytes.map(|x| *x));
+                let validator = H160::from(validator.bytes);
                 H256::from(validator)
             })
             // filter out any validator with the zero address
             .filter(H256::is_zero)
             .collect_vec();
-        Ok((validators, *multisig_ism.threshold))
+        Ok((validators, multisig_ism.threshold))
     }
 }
 
@@ -121,15 +115,14 @@ impl MultisigIsm for AleoIsm {
 impl RoutingIsm for AleoIsm {
     /// Returns the ISM needed to verify message
     async fn route(&self, message: &HyperlaneMessage) -> ChainResult<H256> {
-        let key = format!(
-            "{{ism: {}, domain: {}u32}}",
-            self.aleo_address, message.origin
-        );
+        let key = RouteKey {
+            ism: self.aleo_address,
+            domain: message.origin,
+        };
         let routed_ism: Address<CurrentNetwork> = self
             .provider
             .get_mapping_value(&self.program, "routes", &key)
             .await?;
-        let bytes = routed_ism.to_bytes_le().map_err(HyperlaneAleoError::from)?;
-        Ok(H256::from_slice(&bytes))
+        Ok(to_h256(routed_ism)?)
     }
 }

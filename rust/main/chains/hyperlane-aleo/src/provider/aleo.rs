@@ -1,36 +1,31 @@
 use std::{
-    collections::{HashMap, HashSet},
     ops::Deref,
     str::FromStr,
     time::{Duration, Instant},
 };
 
 use crate::{
-    get_tx_id, to_h256, AleoSigner, BaseHttpClient, ConnectionConf, CurrentNetwork,
-    HyperlaneAleoError, RpcClient,
+    utils::{get_tx_id, to_h256},
+    AleoSigner, BaseHttpClient, ConnectionConf, CurrentNetwork, HyperlaneAleoError, RpcClient,
 };
 use aleo_std_storage::StorageMode;
 use async_trait::async_trait;
-use futures::future;
+use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
+use reqwest::Client;
+use snarkvm::{
+    ledger::{
+        store::{helpers::memory::ConsensusMemory, ConsensusStore},
+        ConfirmedTransaction,
+    },
+    prelude::{CanaryV0, MainnetV0, Network, ProgramID, TestnetV0, Value, VM},
+};
+use snarkvm_console_account::{Address, Itertools};
+use tracing::debug;
+
 use hyperlane_core::{
     BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, FixedPointNumber, HyperlaneChain,
     HyperlaneDomain, HyperlaneProvider, TxOutcome, TxnInfo, TxnReceiptInfo, H256, H512, U256,
 };
-use rand_chacha::{rand_core::SeedableRng, ChaCha12Rng, ChaCha20Rng};
-use reqwest::Client;
-use serde::de::DeserializeOwned;
-use snarkvm::{
-    ledger::{
-        query::Query,
-        store::{
-            helpers::memory::{BlockMemory, ConsensusMemory},
-            ConsensusStore,
-        },
-        ConfirmedTransaction,
-    },
-    prelude::{Network, Plaintext, ProgramID, Value, U64, VM},
-};
-use tracing::{debug, info};
 
 /// Aleo Rest Client
 #[derive(Clone)]
@@ -38,7 +33,7 @@ pub struct AleoProvider {
     client: RpcClient<BaseHttpClient>,
     domain: HyperlaneDomain,
     signer: Option<AleoSigner>,
-    vm: VM<CurrentNetwork, ConsensusMemory<CurrentNetwork>>,
+    network: u16,
 }
 
 impl std::fmt::Debug for AleoProvider {
@@ -52,21 +47,25 @@ impl std::fmt::Debug for AleoProvider {
 
 impl AleoProvider {
     /// Creates a new HTTP client for the Aleo API
-    pub fn new(conf: &ConnectionConf, domain: HyperlaneDomain, signer: Option<AleoSigner>) -> Self {
+    pub fn new(
+        conf: &ConnectionConf,
+        domain: HyperlaneDomain,
+        signer: Option<AleoSigner>,
+    ) -> ChainResult<Self> {
         let base_url = conf.rpc.to_string().trim_end_matches('/').to_string();
         let client = BaseHttpClient::new(Client::new(), base_url);
 
-        // Initializes the VM
-        // TODO: check whether or not it is faster to do this one time and one time only
-        // TODO: check whether or not the storage can be used in a productino environment on the cloud
-        let store = ConsensusStore::open(StorageMode::Production).unwrap();
-        let vm: VM<CurrentNetwork, ConsensusMemory<CurrentNetwork>> = VM::from(store).unwrap();
-        Self {
+        Ok(Self {
             client: RpcClient::new(client),
             domain,
             signer,
-            vm,
-        }
+            network: conf.chain_id,
+        })
+    }
+
+    /// Returns the chain id of the configured network
+    pub fn chain_id(&self) -> u16 {
+        self.network
     }
 
     /// Get the Aleo Signer
@@ -79,9 +78,13 @@ impl AleoProvider {
     }
 
     /// Returns a total list of programs that are used for the given program_id
-    async fn load_program(&self, program_id: &ProgramID<CurrentNetwork>) -> ChainResult<()> {
+    async fn load_program<N: Network>(
+        &self,
+        vm: &VM<N, ConsensusMemory<N>>,
+        program_id: &ProgramID<N>,
+    ) -> ChainResult<()> {
         // No need to fetch all imports again when we already added the program to the VM
-        if self.vm.contains_program(program_id) {
+        if vm.contains_program(program_id) {
             return Ok(Default::default());
         }
 
@@ -92,12 +95,12 @@ impl AleoProvider {
             if imports == program_id {
                 continue;
             }
-            let future = Box::pin(self.load_program(imports));
+            let future = Box::pin(self.load_program(vm, imports));
             future.await?;
         }
 
         debug!("Adding program: {} to VM", program_id);
-        let vm_process = self.vm.process();
+        let vm_process = vm.process();
         let mut process_guard = vm_process.write();
         process_guard
             .add_program(&program) // TODO: figure out edition
@@ -106,61 +109,96 @@ impl AleoProvider {
         Ok(())
     }
 
-    /// Submits a transaction
-    /// TODO: consider edition
-    pub async fn submit_tx<I, V>(
+    /// Executes the transactions for the given network
+    /// Creates a new VM for that network and loads every program that is necessary
+    /// Submits the transaction and returns either the error or the hash of the transaction
+    async fn execute<N: Network, I, V>(
         &self,
-        program_id: &ProgramID<CurrentNetwork>,
-        input: I,
+        program_id: &str,
         function_name: &str,
-    ) -> ChainResult<TxOutcome>
+        input: I,
+    ) -> ChainResult<String>
     where
         I: IntoIterator<Item = V>,
         I::IntoIter: ExactSizeIterator, // Aleo only allows static sized inputs
-        V: TryInto<Value<CurrentNetwork>>,
+        V: TryInto<Value<N>>,
     {
-        let signer = self.get_signer()?;
-        // TODO: Implement QueryTrait for our HttpClient, this will enable seamless usage
-        let query = "http://localhost:3030"
-            .parse::<Query<CurrentNetwork, BlockMemory<CurrentNetwork>>>()
-            .unwrap();
-
-        // Add the program to the VM via the process.
-
-        println!("Adding programs to the vm...");
-        let programs_to_add = self.load_program(program_id).await?;
-        let input = input.into_iter();
-
-        let mut rng = ChaCha20Rng::from_entropy();
-        println!("Creating ZK-Proof for: {}", function_name);
         let start = Instant::now();
-        let transaction = self
-            .vm
+        debug!("Creating ZK-Proof for: {}/{}", program_id, function_name);
+
+        let program_id = ProgramID::<N>::from_str(program_id).map_err(HyperlaneAleoError::from)?;
+        // Initializes the VM
+        let store =
+            ConsensusStore::open(StorageMode::Production).map_err(HyperlaneAleoError::from)?;
+        let vm: VM<N, ConsensusMemory<N>> = VM::from(store).map_err(HyperlaneAleoError::from)?;
+
+        let signer = self.get_signer()?;
+        let mut rng = ChaCha20Rng::from_entropy();
+        self.load_program(&vm, &program_id).await?;
+
+        let transaction = vm
             .execute(
-                signer.get_private_key(),
+                &signer.get_private_key()?,
                 (program_id, function_name),
-                input,
+                input.into_iter(),
                 None,
                 0u64,
-                Some(&query),
+                Some(&self.client),
                 &mut rng,
             )
             .map_err(HyperlaneAleoError::from)?;
+
         let time = Instant::now().duration_since(start);
-        println!("Proofing time: {}s", time.as_secs());
+
+        debug!(
+            program_id = program_id.to_string(),
+            function_name = function_name,
+            tx_id = transaction.id().to_string(),
+            "ZK Proof generation took: {:.2}s",
+            time.as_secs_f32()
+        );
 
         let id = transaction.id();
-        let hash = transaction.id().to_string();
-        println!("Submitting tx: {}", hash);
+        debug!("Submitting tx: {}", id);
         let output = self.broadcast_transaction(transaction).await?;
 
-        if output != hash {
+        if output != id.to_string() {
             return Err(HyperlaneAleoError::Other(format!(
                 "Transaction revered with reason: {}",
                 output
             ))
             .into());
         }
+
+        Ok(output)
+    }
+
+    /// Submits a transaction
+    pub async fn submit_tx(
+        &self,
+        program_id: &str,
+        input: impl IntoIterator<Item = String>,
+        function_name: &str,
+    ) -> ChainResult<TxOutcome> {
+        let input = input.into_iter().collect_vec();
+        let hash = match self.chain_id() {
+            0 => {
+                // Mainnet
+                self.execute::<MainnetV0, _, _>(program_id, function_name, input)
+                    .await
+            }
+            1 => {
+                // Testnet
+                self.execute::<TestnetV0, _, _>(program_id, function_name, input)
+                    .await
+            }
+            2 => {
+                // Canary
+                self.execute::<CanaryV0, _, _>(program_id, function_name, input)
+                    .await
+            }
+            id => Err(HyperlaneAleoError::UnknownNetwork(id).into()),
+        }?;
 
         // Polling delay is the total amount of seconds to wait before we call a timeout
         const TIMEOUT_DELAY: u64 = 60;
@@ -177,7 +215,11 @@ impl AleoProvider {
                     )
                 }
                 _ => {
-                    println!("Transaction still pending, continuing to poll: {}", hash,);
+                    debug!(
+                        hash = hash,
+                        attempt = attempt,
+                        "Transaction still pending, continuing to poll",
+                    );
                     // Transaction is still pending, continue polling
                     attempt += 1;
                     if attempt >= N {
@@ -195,8 +237,10 @@ impl AleoProvider {
 
         let fee = status.fee_amount().map_err(HyperlaneAleoError::from)?;
 
+        // There is no concept of gas for Aleo, only the total credits that were spent
+        // We mimic gas by setting the gas price to 1 and using the tokens spent as the gas_used
         let outcome = TxOutcome {
-            transaction_id: to_h256(id)?.into(),
+            transaction_id: to_h256(status.id())?.into(),
             executed: !status.is_rejected(),
             gas_used: U256::from(*fee),
             gas_price: FixedPointNumber::from_str("1")?,
@@ -226,13 +270,26 @@ impl HyperlaneChain for AleoProvider {
 impl HyperlaneProvider for AleoProvider {
     /// Get block info for a given block height
     async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
-        let block = self.get_block(height as u32).await?;
-        let hash = to_h256(block.hash())?;
-        let timestamp = block.timestamp() as u64;
+        let height = height as u32;
+        let (hash, timestamp) = match self.chain_id() {
+            0 => {
+                let block = self.get_block::<MainnetV0>(height).await?;
+                (to_h256(&block)?, block.timestamp())
+            }
+            1 => {
+                let block = self.get_block::<TestnetV0>(height).await?;
+                (to_h256(&block)?, block.timestamp())
+            }
+            2 => {
+                let block = self.get_block::<CanaryV0>(height).await?;
+                (to_h256(&block)?, block.timestamp())
+            }
+            id => return Err(HyperlaneAleoError::UnknownNetwork(id).into()),
+        };
         Ok(BlockInfo {
             hash,
-            timestamp,
-            number: block.height().into(),
+            timestamp: timestamp as u64,
+            number: height.into(),
         })
     }
 
@@ -253,7 +310,6 @@ impl HyperlaneProvider for AleoProvider {
             .unwrap_or_else(H256::zero);
 
         // Aleo doesn't have nonces
-        let nonce = 0u32;
         Ok(TxnInfo {
             hash: *hash,
             gas_limit: gas_limit.into(),
@@ -273,18 +329,18 @@ impl HyperlaneProvider for AleoProvider {
     }
 
     /// Returns whether a contract exists at the provided address
-    async fn is_contract(&self, address: &H256) -> ChainResult<bool> {
+    async fn is_contract(&self, _address: &H256) -> ChainResult<bool> {
         // TODO: query the mailbox to see whether or not the address is known
         Ok(true)
     }
 
     /// Fetch the balance of the wallet address associated with the chain provider.
     async fn get_balance(&self, address: String) -> ChainResult<U256> {
-        let signer = self.get_signer()?;
-        let balance: U64<CurrentNetwork> = self
-            .get_mapping_value("credits.aleo", "account", signer.address())
+        let address = Address::from_str(&address).map_err(HyperlaneAleoError::from)?;
+        let balance: u64 = self
+            .get_mapping_value("credits.aleo", "account", &address)
             .await?;
-        Ok(U256::from(*balance))
+        Ok(U256::from(balance))
     }
 
     /// Fetch metrics related to this chain
