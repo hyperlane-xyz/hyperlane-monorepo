@@ -86,8 +86,17 @@ export class EvmNativeTokenAdapter
   }
 
   async getMetadata(): Promise<TokenMetadata> {
-    // TODO get metadata from chainMetadata config
-    throw new Error('Metadata not available to native tokens');
+    const { nativeToken } = this.multiProvider.getChainMetadata(this.chainName);
+    assert(
+      nativeToken,
+      `Native token data is required for ${EvmNativeTokenAdapter.name}`,
+    );
+
+    return {
+      name: nativeToken.name,
+      symbol: nativeToken.symbol,
+      decimals: nativeToken.decimals,
+    };
   }
 
   async getMinimumTransferAmount(_recipient: Address): Promise<bigint> {

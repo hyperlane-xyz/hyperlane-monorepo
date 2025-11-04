@@ -15,6 +15,10 @@ import {
   ISafe__factory,
   Mailbox,
   Mailbox__factory,
+  MockCircleMessageTransmitter,
+  MockCircleMessageTransmitter__factory,
+  MockCircleTokenMessenger,
+  MockCircleTokenMessenger__factory,
   MockEverclearAdapter,
   MockEverclearAdapter__factory,
   MockWETH,
@@ -61,6 +65,7 @@ import {
 import { EverclearTokenBridgeTokenType, TokenType } from './config.js';
 import { HypERC20Deployer } from './deploy.js';
 import {
+  CctpTokenConfig,
   ContractVerificationStatus,
   HypTokenRouterConfig,
   OwnerStatus,
@@ -92,6 +97,8 @@ describe('ERC20WarpRouterReader', async () => {
   let collateralFiatToken: FiatTokenTest;
   let everclearBridgeAdapterMockFactory: MockEverclearAdapter__factory;
   let everclearBridgeAdapterMock: MockEverclearAdapter;
+  let mockCircleTokenMessenger: MockCircleTokenMessenger;
+  let mockCircleMessageTransmitter: MockCircleMessageTransmitter;
 
   before(async () => {
     [signer] = await hre.ethers.getSigners();
@@ -136,6 +143,14 @@ describe('ERC20WarpRouterReader', async () => {
     );
     everclearBridgeAdapterMock =
       await everclearBridgeAdapterMockFactory.deploy();
+
+    mockCircleTokenMessenger = await new MockCircleTokenMessenger__factory(
+      signer,
+    ).deploy(token.address);
+    mockCircleMessageTransmitter =
+      await new MockCircleMessageTransmitter__factory(signer).deploy(
+        token.address,
+      );
   });
 
   beforeEach(async () => {
@@ -575,6 +590,55 @@ describe('ERC20WarpRouterReader', async () => {
       if (derivedConfig.type === TokenType.ethEverclear) {
         expect(derivedConfig.wethAddress).to.equal(weth.address);
       }
+    });
+  }
+
+  for (const cctpVersion of ['V1' as const, 'V2' as const]) {
+    it(`should derive CCTP ${cctpVersion} token correctly`, async () => {
+      const rawVersion = cctpVersion === 'V2' ? 1 : 0;
+      await mockCircleMessageTransmitter.setVersion(rawVersion);
+      await mockCircleTokenMessenger.setVersion(rawVersion);
+
+      const tokenType = TokenType.collateralCctp;
+
+      const cctpConfig: CctpTokenConfig = {
+        type: tokenType,
+        token: token.address,
+        cctpVersion: cctpVersion,
+        messageTransmitter: mockCircleMessageTransmitter.address,
+        tokenMessenger: mockCircleTokenMessenger.address,
+        urls: ['https://fake-cctp-url.com'],
+      };
+
+      if (cctpVersion === 'V2') {
+        cctpConfig.maxFeeBps = 1;
+        cctpConfig.minFinalityThreshold = 1000;
+      }
+
+      // Create config
+      const config: WarpRouteDeployConfigMailboxRequired = {
+        [TestChainName.test4]: {
+          ...cctpConfig,
+          ...baseConfig,
+        },
+        [TestChainName.test3]: {
+          ...cctpConfig,
+          ...baseConfig,
+        },
+      };
+      // Deploy with config
+      const warpRoute = await deployer.deploy(config);
+
+      // Derive config and check if each value matches
+      const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
+        warpRoute[chain][tokenType].address,
+      );
+
+      // delete undefined member
+      delete config[TestChainName.test4].ownerOverrides;
+
+      // check that derived is a superset of specified config
+      expect(derivedConfig).to.deep.include(config[TestChainName.test4]);
     });
   }
 
