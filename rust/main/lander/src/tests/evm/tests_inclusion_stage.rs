@@ -1136,7 +1136,7 @@ async fn test_tx_new_nonce_but_wont_resubmit() {
         block_time,
         TEST_MINIMUM_TIME_BETWEEN_RESUBMISSIONS,
     );
-    // Set transactions overrride so transaction
+    // Set transactions override so transaction
     // reaches max gas cap.
     adapter.transaction_overrides = TransactionOverrides {
         gas_price_cap: Some(U256::from(1000)),
