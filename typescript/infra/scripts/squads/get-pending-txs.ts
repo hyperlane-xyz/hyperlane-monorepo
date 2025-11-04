@@ -9,8 +9,10 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { squadsConfigs } from '../../src/config/squads.js';
-import { logTable } from '../../src/utils/log.js';
-import { getPendingProposalsForChains } from '../../src/utils/squads.js';
+import {
+  getPendingProposalsForChains,
+  logProposals,
+} from '../../src/utils/squads.js';
 import { withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
@@ -52,16 +54,7 @@ async function main() {
     process.exit(0);
   }
 
-  logTable(pendingProposals, [
-    'chain',
-    'nonce',
-    'submissionDate',
-    'fullTxHash',
-    'approvals',
-    'threshold',
-    'status',
-    'balance',
-  ]);
+  logProposals(pendingProposals);
 
   process.exit(0);
 }

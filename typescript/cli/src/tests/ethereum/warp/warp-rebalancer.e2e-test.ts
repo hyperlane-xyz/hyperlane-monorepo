@@ -19,6 +19,7 @@ import {
   TokenType,
   WarpCoreConfig,
   WarpRouteDeployConfig,
+  randomAddress,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
@@ -498,7 +499,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
       const bridgeContract = await new MockValueTransferBridge__factory(
         chain3Signer,
-      ).deploy();
+      ).deploy(chain3CollateralContract.address);
 
       await chain3CollateralContract.addBridge(
         chain2Metadata.domainId,
@@ -903,6 +904,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
   });
 
   it('should throw if rebalance quotes cannot be obtained', async () => {
+    const noBridge = randomAddress();
+
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
       warpRouteId,
       strategy: {
@@ -921,7 +924,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
               weight: '25',
               tolerance: '0',
             },
-            bridge: ethers.constants.AddressZero,
+            bridge: noBridge,
             bridgeLockTime: 1,
           },
         },
@@ -939,10 +942,12 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     );
 
     // Allow bridge
-    await chain3CollateralContract.addBridge(
+    const tx3 = await chain3CollateralContract.addBridge(
       chain2Metadata.domainId,
-      ethers.constants.AddressZero,
+      noBridge,
     );
+
+    await tx3.wait();
 
     await startRebalancerAndExpectLog('Failed to get quotes for route.');
   });
@@ -961,7 +966,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     // Deploy the bridge
     const bridgeContract = await new MockValueTransferBridge__factory(
       chain3Signer,
-    ).deploy();
+    ).deploy(tokenChain3.address);
 
     // Allow bridge
     await chain3CollateralContract.addBridge(
@@ -1015,7 +1020,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     // Deploy the bridge
     const bridgeContract = await new MockValueTransferBridge__factory(
       chain3Signer,
-    ).deploy();
+    ).deploy(tokenChain3.address);
 
     // Allow bridge
     await chain3CollateralContract.addBridge(
@@ -1065,7 +1070,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     // Deploy the bridge
     const bridgeContract = await new MockValueTransferBridge__factory(
       chain3Signer,
-    ).deploy();
+    ).deploy(tokenChain3.address);
 
     // Allow bridge
     await chain3CollateralContract.addBridge(
@@ -1153,7 +1158,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     // It will also allow us to mock some token movement
     const bridgeContract = await new MockValueTransferBridge__factory(
       originSigner,
-    ).deploy();
+    ).deploy(tokenChain3.address);
 
     // Allow bridge
     // This allow the bridge to be used to send the rebalance transaction
@@ -1278,7 +1283,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
     const bridgeContract = await new MockValueTransferBridge__factory(
       originSigner,
-    ).deploy();
+    ).deploy(tokenChain3.address);
 
     // --- Allow bridge ---
 
@@ -1607,7 +1612,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       // It will also allow us to mock some token movement
       const bridgeContract = await new MockValueTransferBridge__factory(
         originSigner,
-      ).deploy();
+      ).deploy(tokenChain3.address);
 
       // Allow bridge
       // This allow the bridge to be used to send the rebalance transaction
