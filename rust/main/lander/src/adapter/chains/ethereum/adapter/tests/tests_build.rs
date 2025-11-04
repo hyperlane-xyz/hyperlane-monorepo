@@ -35,6 +35,32 @@ use crate::tests::test_utils::tmp_dbs;
 use crate::transaction::VmSpecificTxData;
 use crate::FullPayload;
 
+fn build_mock_typed_tx_and_function() -> (TypedTransaction, Function) {
+    let typed_tx = TypedTransaction::Eip1559(Eip1559TransactionRequest {
+        from: Some(Address::random()),
+        to: Some(NameOrAddress::Address(Address::random())),
+        gas: Some(U256::from(1200)),
+        value: None,
+        data: None,
+        nonce: Some(U256::from(1000)),
+        access_list: AccessList::default(),
+        max_fee_per_gas: Some(U256::from(1000)),
+        max_priority_fee_per_gas: Some(U256::from(1000)),
+        chain_id: Some(U64::from(1)),
+    });
+
+    #[allow(deprecated)]
+    let function = Function {
+        name: "test_function".into(),
+        inputs: Vec::new(),
+        outputs: Vec::new(),
+        constant: None,
+        state_mutability: StateMutability::Pure,
+    };
+
+    (typed_tx, function)
+}
+
 #[tokio::test]
 async fn test_build_transactions_contract_batch_happy_path() {
     let (payload_db, tx_db, nonce_db) = tmp_dbs();
@@ -79,29 +105,7 @@ async fn test_build_transactions_contract_batch_happy_path() {
         minimum_time_between_resubmissions,
     );
 
-    let typed_tx = TypedTransaction::Eip1559(Eip1559TransactionRequest {
-        from: Some(Address::random()),
-        to: Some(NameOrAddress::Address(Address::random())),
-        gas: Some(U256::from(1200)),
-        value: None,
-        data: None,
-        nonce: Some(U256::from(1000)),
-        access_list: AccessList::default(),
-        max_fee_per_gas: Some(U256::from(1000)),
-        max_priority_fee_per_gas: Some(U256::from(1000)),
-        chain_id: Some(U64::from(1)),
-    });
-
-    #[allow(deprecated)]
-    let function = Function {
-        name: "test_function".into(),
-        inputs: Vec::new(),
-        outputs: Vec::new(),
-        constant: None,
-        state_mutability: StateMutability::Pure,
-    };
-
-    let data = (typed_tx, function);
+    let data = build_mock_typed_tx_and_function();
     let json_data = serde_json::to_vec(&data).expect("Failed to serialize data");
 
     let mut payload1 = FullPayload::random();
@@ -166,29 +170,7 @@ async fn test_build_transactions_batch_contract_missing() {
         minimum_time_between_resubmissions,
     );
 
-    let typed_tx = TypedTransaction::Eip1559(Eip1559TransactionRequest {
-        from: Some(Address::random()),
-        to: Some(NameOrAddress::Address(Address::random())),
-        gas: Some(U256::from(1200)),
-        value: None,
-        data: None,
-        nonce: Some(U256::from(1000)),
-        access_list: AccessList::default(),
-        max_fee_per_gas: Some(U256::from(1000)),
-        max_priority_fee_per_gas: Some(U256::from(1000)),
-        chain_id: Some(U64::from(1)),
-    });
-
-    #[allow(deprecated)]
-    let function = Function {
-        name: "test_function".into(),
-        inputs: Vec::new(),
-        outputs: Vec::new(),
-        constant: None,
-        state_mutability: StateMutability::Pure,
-    };
-
-    let data = (typed_tx, function);
+    let data = build_mock_typed_tx_and_function();
     let json_data = serde_json::to_vec(&data).expect("Failed to serialize data");
 
     let mut payload1 = FullPayload::random();
@@ -234,7 +216,7 @@ async fn test_build_transactions_contract_error() {
     let (payload_db, tx_db, nonce_db) = tmp_dbs();
 
     let mut provider = MockEvmProvider::new();
-    // batching will fail because contract is missing
+    // batching will fail due to contract error
     provider.expect_batch().returning(|_, _, _, _| {
         Err(ChainCommunicationError::ContractError(
             HyperlaneCustomErrorWrapper::new(Box::new(std::io::Error::new(
@@ -257,29 +239,7 @@ async fn test_build_transactions_contract_error() {
         minimum_time_between_resubmissions,
     );
 
-    let typed_tx = TypedTransaction::Eip1559(Eip1559TransactionRequest {
-        from: Some(Address::random()),
-        to: Some(NameOrAddress::Address(Address::random())),
-        gas: Some(U256::from(1200)),
-        value: None,
-        data: None,
-        nonce: Some(U256::from(1000)),
-        access_list: AccessList::default(),
-        max_fee_per_gas: Some(U256::from(1000)),
-        max_priority_fee_per_gas: Some(U256::from(1000)),
-        chain_id: Some(U64::from(1)),
-    });
-
-    #[allow(deprecated)]
-    let function = Function {
-        name: "test_function".into(),
-        inputs: Vec::new(),
-        outputs: Vec::new(),
-        constant: None,
-        state_mutability: StateMutability::Pure,
-    };
-
-    let data = (typed_tx, function);
+    let data = build_mock_typed_tx_and_function();
     let json_data = serde_json::to_vec(&data).expect("Failed to serialize data");
 
     let mut payload1 = FullPayload::random();
