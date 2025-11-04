@@ -1,8 +1,22 @@
-import { PublicKey } from '@solana/web3.js';
-import { accounts, getProposalPda, getTransactionPda } from '@sqds/multisig';
+import {
+  PublicKey,
+  TransactionInstruction,
+  TransactionMessage,
+} from '@solana/web3.js';
+import {
+  accounts,
+  getProposalPda,
+  getTransactionPda,
+  instructions,
+} from '@sqds/multisig';
 import chalk from 'chalk';
+import { Argv } from 'yargs';
 
-import { ChainName, MultiProtocolProvider } from '@hyperlane-xyz/sdk';
+import {
+  ChainName,
+  MultiProtocolProvider,
+  SvmMultiProtocolSignerAdapter,
+} from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { getSquadsKeys, squadsConfigs } from '../config/squads.js';
@@ -394,4 +408,374 @@ export function decodePermissions(mask: number): string {
   if (mask & SquadsPermission.EXECUTOR) permissions.push('Executor');
 
   return permissions.length > 0 ? permissions.join(', ') : 'None';
+}
+
+// ============================================================================
+// Squads Proposal Helpers
+// ============================================================================
+
+/**
+ * Get the next available transaction index from the multisig
+ */
+async function getNextSquadsTransactionIndex(
+  chain: ChainName,
+  mpp: MultiProtocolProvider,
+): Promise<bigint> {
+  const { svmProvider, multisigPda } = await getSquadAndProvider(chain, mpp);
+  const { programId } = getSquadsKeys(chain);
+
+  rootLogger.debug(
+    chalk.gray(`Fetching multisig account from: ${multisigPda.toBase58()}`),
+  );
+
+  const multisig = await accounts.Multisig.fromAccountAddress(
+    // @ts-ignore - SDK types are slightly incompatible but work at runtime
+    svmProvider,
+    multisigPda,
+  );
+
+  // IMPORTANT: transactionIndex stores the index of the LAST transaction.
+  // The NEXT transaction should use transactionIndex + 1.
+  // This matches the on-chain derivation in vault_transaction_create.rs:
+  // &multisig.transaction_index.checked_add(1).unwrap().to_le_bytes()
+  const currentIndex = BigInt(multisig.transactionIndex.toString());
+  const nextIndex = currentIndex + 1n;
+
+  rootLogger.debug(
+    chalk.gray(`Multisig transactionIndex field: ${currentIndex}`),
+  );
+  rootLogger.debug(chalk.gray(`Next transaction will use index: ${nextIndex}`));
+  rootLogger.debug(
+    chalk.gray(
+      `Multisig staleTransactionIndex: ${multisig.staleTransactionIndex.toString()}`,
+    ),
+  );
+  rootLogger.debug(
+    chalk.gray(`Multisig threshold: ${multisig.threshold.toString()}`),
+  );
+
+  // Verify the account is owned by the correct program
+  const accountInfo = await svmProvider.getAccountInfo(multisigPda);
+  if (accountInfo) {
+    rootLogger.debug(
+      chalk.gray(`Multisig account owner: ${accountInfo.owner.toBase58()}`),
+    );
+    rootLogger.debug(
+      chalk.gray(`Expected program ID: ${programId.toBase58()}`),
+    );
+    if (!accountInfo.owner.equals(programId)) {
+      rootLogger.warn(
+        chalk.yellow(
+          `WARNING: Multisig account owner (${accountInfo.owner.toBase58()}) does not match expected program ID (${programId.toBase58()})`,
+        ),
+      );
+    }
+  }
+
+  return nextIndex;
+}
+
+/**
+ * Build a TransactionMessage for vault execution
+ * This message will be executed by the vault after multisig approval
+ */
+function buildVaultTransactionMessage(
+  vaultPda: PublicKey,
+  ixs: TransactionInstruction[],
+  recentBlockhash: string,
+): TransactionMessage {
+  return new TransactionMessage({
+    payerKey: vaultPda, // Important: vault is the payer for inner transaction
+    recentBlockhash,
+    instructions: ixs,
+  });
+}
+
+/**
+ * Create vaultTransactionCreate instruction
+ */
+function createVaultTransactionInstruction(
+  multisigPda: PublicKey,
+  transactionIndex: bigint,
+  creator: PublicKey,
+  vaultIndex: number,
+  transactionMessage: TransactionMessage,
+  programId: PublicKey,
+  memo?: string,
+): TransactionInstruction {
+  return instructions.vaultTransactionCreate({
+    multisigPda,
+    transactionIndex,
+    creator,
+    rentPayer: creator,
+    vaultIndex,
+    ephemeralSigners: 0,
+    transactionMessage,
+    memo: memo || 'Hyperlane Multisig ISM Update',
+    programId,
+  });
+}
+
+/**
+ * Create proposalCreate instruction
+ */
+function createProposalInstruction(
+  multisigPda: PublicKey,
+  transactionIndex: bigint,
+  creator: PublicKey,
+  programId: PublicKey,
+): TransactionInstruction {
+  return instructions.proposalCreate({
+    multisigPda,
+    transactionIndex,
+    creator,
+    rentPayer: creator,
+    programId,
+  });
+}
+
+/**
+ * Create proposalCancel instruction
+ */
+function createProposalCancelInstruction(
+  multisigPda: PublicKey,
+  transactionIndex: bigint,
+  member: PublicKey,
+  programId: PublicKey,
+): TransactionInstruction {
+  return instructions.proposalCancel({
+    multisigPda,
+    transactionIndex,
+    member,
+    programId,
+  });
+}
+
+/**
+ * Build vault transaction proposal instructions
+ * This creates both the vault transaction and the proposal in one transaction
+ *
+ * @param chain - The chain to create the proposal on
+ * @param mpp - Multi-protocol provider
+ * @param ixs - The instructions to execute via the vault after approval
+ * @param creator - The public key of the proposal creator (must be a multisig member)
+ * @param memo - Optional memo for the vault transaction
+ * @returns Instructions to create the proposal, transaction index
+ */
+export async function buildSquadsVaultTransactionProposal(
+  chain: ChainName,
+  mpp: MultiProtocolProvider,
+  ixs: TransactionInstruction[],
+  creator: PublicKey,
+  memo?: string,
+): Promise<{
+  instructions: TransactionInstruction[];
+  transactionIndex: bigint;
+}> {
+  const { svmProvider, multisigPda } = await getSquadAndProvider(chain, mpp);
+  const { vault, programId } = getSquadsKeys(chain);
+
+  rootLogger.info(
+    chalk.cyan(`\n=== Debug: Building Squads Proposal for ${chain} ===`),
+  );
+  rootLogger.info(chalk.gray(`  Program ID: ${programId.toBase58()}`));
+  rootLogger.info(chalk.gray(`  Multisig PDA: ${multisigPda.toBase58()}`));
+  rootLogger.info(chalk.gray(`  Vault: ${vault.toBase58()}`));
+  rootLogger.info(chalk.gray(`  Creator: ${creator.toBase58()}`));
+
+  // 1. Get next transaction index
+  const transactionIndex = await getNextSquadsTransactionIndex(chain, mpp);
+  rootLogger.info(chalk.gray(`  Transaction Index: ${transactionIndex}`));
+
+  // Debug: Check what transaction PDA we expect
+  const [expectedTxPda] = getTransactionPda({
+    multisigPda,
+    index: transactionIndex,
+    programId,
+  });
+  rootLogger.info(
+    chalk.yellow(`  Expected Transaction PDA: ${expectedTxPda.toBase58()}`),
+  );
+
+  // 2. Get recent blockhash for inner transaction
+  const { blockhash } = await svmProvider.getLatestBlockhash();
+
+  // 3. Build vault transaction message (inner transaction)
+  const transactionMessage = buildVaultTransactionMessage(
+    vault,
+    ixs,
+    blockhash,
+  );
+
+  // 4. Create proposal instructions (outer transaction)
+  const vaultTxIx = createVaultTransactionInstruction(
+    multisigPda,
+    transactionIndex,
+    creator,
+    0, // vaultIndex
+    transactionMessage,
+    programId,
+    memo,
+  );
+
+  const proposalIx = createProposalInstruction(
+    multisigPda,
+    transactionIndex,
+    creator,
+    programId,
+  );
+
+  return {
+    instructions: [vaultTxIx, proposalIx],
+    transactionIndex,
+  };
+}
+
+/**
+ * Build proposal rejection instruction
+ * Reject is used to vote against Active proposals
+ *
+ * @param chain - The chain to reject the proposal on
+ * @param mpp - Multi-protocol provider
+ * @param transactionIndex - The transaction index of the proposal to reject
+ * @param member - The public key of the member rejecting the proposal
+ * @returns Instruction to reject the proposal
+ */
+export async function buildSquadsProposalRejection(
+  chain: ChainName,
+  mpp: MultiProtocolProvider,
+  transactionIndex: bigint,
+  member: PublicKey,
+): Promise<{
+  instruction: TransactionInstruction;
+}> {
+  const { multisigPda, programId } = await getSquadAndProvider(chain, mpp);
+
+  const rejectIx = instructions.proposalReject({
+    multisigPda,
+    transactionIndex,
+    member,
+    programId,
+  });
+
+  return {
+    instruction: rejectIx,
+  };
+}
+
+/**
+ * Build proposal cancellation instruction
+ * Cancel can ONLY be used on Approved proposals (to prevent execution before timelock expires)
+ *
+ * @param chain - The chain to cancel the proposal on
+ * @param mpp - Multi-protocol provider
+ * @param transactionIndex - The transaction index of the proposal to cancel
+ * @param member - The public key of the member canceling the proposal
+ * @returns Instruction to cancel the proposal
+ */
+export async function buildSquadsProposalCancellation(
+  chain: ChainName,
+  mpp: MultiProtocolProvider,
+  transactionIndex: bigint,
+  member: PublicKey,
+): Promise<{
+  instruction: TransactionInstruction;
+}> {
+  const { multisigPda, programId } = await getSquadAndProvider(chain, mpp);
+
+  const cancelIx = createProposalCancelInstruction(
+    multisigPda,
+    transactionIndex,
+    member,
+    programId,
+  );
+
+  return {
+    instruction: cancelIx,
+  };
+}
+
+/**
+ * Submit a Squads proposal with an SVM signer adapter
+ *
+ * @param chain - The chain to submit the proposal on
+ * @param vaultInstructions - The instructions to execute via the vault after approval
+ * @param mpp - Multi-protocol provider
+ * @param signerAdapter - Pre-configured SVM signer adapter for signing and submitting transactions
+ */
+export async function submitProposalToSquads(
+  chain: ChainName,
+  vaultInstructions: TransactionInstruction[],
+  mpp: MultiProtocolProvider,
+  signerAdapter: SvmMultiProtocolSignerAdapter,
+  memo?: string,
+): Promise<void> {
+  rootLogger.info(chalk.cyan('\n=== Submitting to Squads ==='));
+
+  try {
+    // Get creator public key from adapter
+    const creatorPublicKey = signerAdapter.publicKey();
+
+    // Build Squads proposal instructions
+    const { instructions: proposalInstructions, transactionIndex } =
+      await buildSquadsVaultTransactionProposal(
+        chain,
+        mpp,
+        vaultInstructions,
+        creatorPublicKey,
+        memo,
+      );
+
+    // Build, sign, send, and confirm transaction using the adapter
+    rootLogger.info(
+      chalk.gray(
+        'Submitting proposal creation transaction with automatic confirmation...',
+      ),
+    );
+    const createSignature =
+      await signerAdapter.buildAndSendTransaction(proposalInstructions);
+
+    rootLogger.info(chalk.green(`Proposal created: ${createSignature}`));
+    rootLogger.info(chalk.gray(`   Transaction index: ${transactionIndex}`));
+
+    // Approve the proposal as the proposer
+    rootLogger.info(chalk.gray('Approving proposal as proposer...'));
+    const { multisigPda, programId } = getSquadsKeys(chain);
+    const approveIx = instructions.proposalApprove({
+      multisigPda,
+      transactionIndex,
+      member: creatorPublicKey,
+      programId,
+    });
+
+    const approveSignature = await signerAdapter.buildAndSendTransaction([
+      approveIx,
+    ]);
+    rootLogger.info(chalk.green(`Proposal approved: ${approveSignature}`));
+    rootLogger.info(
+      chalk.green(
+        'Proposal created and approved by proposer. Other multisig members can now approve.',
+      ),
+    );
+  } catch (error) {
+    rootLogger.error(
+      chalk.red(`Failed to submit proposal to Squads: ${error}`),
+    );
+    throw error;
+  }
+}
+
+// ============================================================================
+// CLI Utilities
+// ============================================================================
+
+/**
+ * Yargs helper to add transactionIndex argument to CLI scripts
+ */
+export function withTransactionIndex<T>(args: Argv<T>) {
+  return args
+    .describe('transactionIndex', 'Transaction index of the proposal')
+    .number('transactionIndex')
+    .demandOption('transactionIndex')
+    .alias('t', 'transactionIndex');
 }

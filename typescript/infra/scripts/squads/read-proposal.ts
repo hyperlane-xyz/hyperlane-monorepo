@@ -10,19 +10,14 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { getSquadsKeys, squadsConfigs } from '../../src/config/squads.js';
-import { getSquadProposal } from '../../src/utils/squads.js';
+import {
+  getSquadProposal,
+  withTransactionIndex,
+} from '../../src/utils/squads.js';
 import { withChain } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
 const environment = 'mainnet3';
-
-function withTransactionIndex<T>(args: Argv<T>) {
-  return args
-    .describe('transactionIndex', 'Transaction index of the proposal to read')
-    .number('transactionIndex')
-    .demandOption('transactionIndex')
-    .alias('t', 'transactionIndex');
-}
 
 function withVerbose<T>(args: Argv<T>) {
   return args
