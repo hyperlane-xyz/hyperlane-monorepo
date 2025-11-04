@@ -1,5 +1,3 @@
-import { Logger } from 'pino';
-
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
@@ -301,7 +299,7 @@ export class AltVMIsmModule
   }: {
     actual: DomainRoutingIsmConfig;
     expected: DomainRoutingIsmConfig;
-    logger: Logger;
+    logger: ReturnType<typeof rootLogger.child<never>>;
   }): Promise<AnnotatedTx[]> {
     this.logger.debug(`Start creating routing ISM update transactions`);
 
