@@ -113,22 +113,13 @@ jobs:
           platforms: ${{ steps.determine-platforms.outputs.platforms }}
 
       - name: Comment image tags on PR
-        if: github.event_name == 'pull_request' && success()
-        uses: marocchino/sticky-pull-request-comment@v2
+        if: github.event_name == 'pull_request' && always()
+        uses: ./.github/actions/docker-image-comment
         with:
-          header: monorepo-docker-image
-          message: |
-            ## 🐳 Monorepo Docker Image Built Successfully
-
-            **Image Tags:**
-            ```
-            ${{ steps.meta.outputs.tags }}
-            ```
-            ```
-
-      - name: Delete PR comment on failure
-        if: github.event_name == 'pull_request' && failure()
-        uses: marocchino/sticky-pull-request-comment@v2
-        with:
-          header: monorepo-docker-image
-          delete: true
+          comment_tag: monorepo-docker-image
+          image_name: Monorepo Docker Image
+          emoji: 🐳
+          image_tags: ${{ steps.meta.outputs.tags }}
+          pr_number: ${{ github.event.pull_request.number }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          job_status: ${{ job.status }}
