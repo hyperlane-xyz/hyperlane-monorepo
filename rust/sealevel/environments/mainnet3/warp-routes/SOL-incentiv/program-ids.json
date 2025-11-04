@@ -1,10 +1,10 @@
 {
-  "incentiv": {
-    "hex": "0x000000000000000000000000fac24134dbc4b00ee11114ecdfe6397f389203e3",
-    "base58": "1111111111114Vd79NaDYFxZ7C5h5XL1oHahCYta"
-  },
   "solanamainnet": {
     "hex": "0x8ddd8df6dee0123a47202d758b553570cc579c8f3dbe62a0d2ab86c395870bd8",
     "base58": "AYnRuLKV6Tqtibt7iA6DGCCACnRjy4nAhC8b5nPscsYs"
+  },
+  "incentiv": {
+    "hex": "0x000000000000000000000000fac24134dbc4b00ee11114ecdfe6397f389203e3",
+    "base58": "1111111111114Vd79NaDYFxZ7C5h5XL1oHahCYta"
   }
 }
