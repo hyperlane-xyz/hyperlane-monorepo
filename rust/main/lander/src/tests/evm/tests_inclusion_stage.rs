@@ -1135,7 +1135,8 @@ async fn run_and_expect_successful_inclusion(
     let expected_tx_state = expected_tx_states.remove(0);
     assert_tx_db_state(&expected_tx_state, &dispatcher_state.tx_db, &created_tx).await;
 
-    for expected_tx_state in expected_tx_states.iter() {
+    for (i, expected_tx_state) in expected_tx_states.iter().enumerate() {
+        tracing::debug!(iteration = i, "run_and_expect_successful_inclusion");
         InclusionStage::process_txs_step(
             &inclusion_stage_pool,
             &finality_stage_sender,
