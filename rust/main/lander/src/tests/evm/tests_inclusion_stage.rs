@@ -23,7 +23,7 @@ use crate::adapter::chains::ethereum::{
 use crate::dispatcher::{DispatcherState, InclusionStage, TransactionDb};
 use crate::tests::test_utils::tmp_dbs;
 use crate::transaction::Transaction;
-use crate::{DispatcherMetrics, PayloadStatus, TransactionStatus};
+use crate::{DispatcherMetrics, PayloadStatus, TransactionDropReason, TransactionStatus};
 
 use super::test_utils::*;
 
@@ -1136,6 +1136,8 @@ async fn test_tx_new_nonce_but_wont_resubmit() {
         block_time,
         TEST_MINIMUM_TIME_BETWEEN_RESUBMISSIONS,
     );
+    // Set transactions overrride so transaction
+    // reaches max gas cap.
     adapter.transaction_overrides = TransactionOverrides {
         gas_price_cap: Some(U256::from(1000)),
         max_priority_fee_per_gas: Some(U256::from(1000)),
@@ -1195,6 +1197,18 @@ async fn test_tx_new_nonce_but_wont_resubmit() {
         .await
         .unwrap();
     assert_eq!(stored_nonce, Some(U256::from(1)));
+
+    let retrieved_tx = tx_db
+        .retrieve_transaction_by_uuid(&created_tx.uuid)
+        .await
+        .unwrap()
+        .unwrap();
+    let evm_tx = &retrieved_tx.precursor().tx;
+    assert_eq!(evm_tx.nonce(), Some(&EthersU256::from(1)));
+    assert_eq!(
+        retrieved_tx.status,
+        TransactionStatus::Dropped(TransactionDropReason::FailedSimulation)
+    );
 }
 
 async fn run_and_expect_successful_inclusion(
