@@ -13,7 +13,7 @@ export enum WarpRouteIds {
   CarrChainCARR = 'CARR/carrchain',
   ArbitrumAvalancheBaseFlowmainnetFormOptimismSolanamainnetWorldchainTRUMP = 'TRUMP/arbitrum-avalanche-base-flowmainnet-form-optimism-solanamainnet-worldchain',
   EclipseEthereumApxEth = 'APXETH/eclipsemainnet-ethereum',
-  EclipseEthereumSolanaUSDC = 'USDC/eclipsemainnet-ethereum-solanamainnet',
+  EclipseUSDC = 'USDC/eclipsemainnet',
   EclipseUSDCSTAGE = 'USDCSTAGE/eclipsemainnet',
   EclipseEthereumSolanaUSDT = 'USDT/eclipsemainnet-ethereum-solanamainnet',
   EclipseEthereumTETH = 'tETH/eclipsemainnet-ethereum',
