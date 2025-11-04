@@ -418,6 +418,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_cosmos_grpc_client_playground() {
+        // Install rustls crypto provider (required for rustls 0.23+)
+        let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+
         let url = Url::parse("https://grpc-dymension-playground35.mzonder.com")
             .expect("Failed to parse URL");
         let _client = cosmos_grpc_client(vec![url]);
