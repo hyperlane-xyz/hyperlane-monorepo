@@ -74,7 +74,7 @@ import {
 // An estimate of the gas amount for a typical EVM token router transferRemote transaction
 // Computed by estimating on a few different chains, taking the max, and then adding ~50% padding
 export const EVM_TRANSFER_REMOTE_GAS_ESTIMATE = 450_000n;
-const QUOTE_TRANSFER_REMOTE_CONTRACT_VERSION = '10.0.0';
+const TOKEN_FEE_CONTRACT_VERSION = '10.0.0';
 
 // Interacts with native currencies
 export class EvmNativeTokenAdapter
@@ -267,18 +267,26 @@ export class EvmHypSyntheticAdapter
     return this.getTotalSupply();
   }
 
+  async getContractPackageVersion() {
+    try {
+      return await this.contract.PACKAGE_VERSION();
+    } catch (err) {
+      // PACKAGE_VERSION was introduced in v5.4.0
+      this.logger.error(`Error when fetching package version ${err}`);
+      return '5.3.9';
+    }
+  }
+
   async quoteTransferRemoteGas({
     destination,
     recipient,
     amount,
   }: QuoteTransferRemoteParams): Promise<InterchainGasQuote> {
-    const contractVersion = await this.contract.PACKAGE_VERSION();
-
+    const contractVersion = await this.getContractPackageVersion();
     const hasQuoteTransferRemote = isValidContractVersion(
       contractVersion,
-      QUOTE_TRANSFER_REMOTE_CONTRACT_VERSION,
+      TOKEN_FEE_CONTRACT_VERSION,
     );
-
     // Version does not support quoteTransferRemote defaulting to quoteGasPayment
     if (!hasQuoteTransferRemote) {
       const gasPayment = await this.contract.quoteGasPayment(destination);
@@ -379,21 +387,22 @@ export class EvmHypCollateralAdapter
   }
 
   async getWrappedTokenAddress(): Promise<Address> {
-    if (!this.wrappedTokenAddress) {
-      const contractVersion = await this.contract.PACKAGE_VERSION();
+    if (this.wrappedTokenAddress) return this.wrappedTokenAddress;
 
-      const hasNewInterface = isValidContractVersion(
-        contractVersion,
-        QUOTE_TRANSFER_REMOTE_CONTRACT_VERSION,
+    const contractVersion = await this.getContractPackageVersion();
+    const hasTokenFeeInterface = isValidContractVersion(
+      contractVersion,
+      TOKEN_FEE_CONTRACT_VERSION,
+    );
+
+    if (!hasTokenFeeInterface) {
+      const erc20CollateralContract = HypERC20Collateral__factory.connect(
+        this.addresses.token,
+        this.getProvider(),
       );
-      if (!hasNewInterface) {
-        const erc20CollateralContract = HypERC20Collateral__factory.connect(
-          this.addresses.token,
-          this.getProvider(),
-        );
-        this.wrappedTokenAddress = await erc20CollateralContract.wrappedToken();
-      } else this.wrappedTokenAddress = await this.collateralContract.token();
-    }
+      this.wrappedTokenAddress = await erc20CollateralContract.wrappedToken();
+    } else this.wrappedTokenAddress = await this.collateralContract.token();
+
     return this.wrappedTokenAddress!;
   }
 
