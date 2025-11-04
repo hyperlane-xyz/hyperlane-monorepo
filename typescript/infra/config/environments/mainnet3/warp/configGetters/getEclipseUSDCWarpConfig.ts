@@ -3,7 +3,7 @@ import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { awSafes } from '../../governance/safe/aw.js';
 import { regularSafes } from '../../governance/safe/regular.js';
-import { chainOwners } from '../../owners.js';
+import { chainOwners, upgradeTimelocks } from '../../owners.js';
 import { usdcTokenAddresses } from '../cctp.js';
 import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
 
@@ -31,6 +31,14 @@ const awProxyAdminAddresses: ChainMap<string> = {
   ethereum: '0x75EE15Ee1B4A75Fa3e2fDF5DF3253c25599cc659',
 };
 
+const awProxyAdminOwners: ChainMap<string> = {
+  arbitrum: upgradeTimelocks.arbitrum ?? regularSafes.arbitrum,
+  base: regularSafes.base,
+  ethereum: regularSafes.ethereum,
+};
+
+const DEPLOYER = '0x3e0A78A330F2b97059A4D507ca9d8292b65B6FB5';
+
 const deploymentChains = [
   'ethereum',
   'arbitrum',
@@ -49,8 +57,8 @@ const rebalanceableCollateralChains = [
 
 const ownersByChain: Record<DeploymentChain, string> = {
   ethereum: awSafes.ethereum,
-  arbitrum: awSafes.arbitrum,
-  base: awSafes.base,
+  arbitrum: DEPLOYER,
+  base: DEPLOYER,
   eclipsemainnet: chainOwners.eclipsemainnet.owner,
   solanamainnet: chainOwners.solanamainnet.owner,
 };
@@ -102,7 +110,7 @@ export const getEclipseUSDCWarpConfig = async (
         ...baseConfig,
         contractVersion: CONTRACT_VERSION,
         proxyAdmin: {
-          owner: regularSafes[currentChain],
+          owner: awProxyAdminOwners[currentChain],
           address: awProxyAdminAddresses[currentChain],
         },
       },
