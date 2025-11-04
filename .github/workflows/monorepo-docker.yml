@@ -124,8 +124,6 @@ jobs:
             ```
             ${{ steps.meta.outputs.tags }}
             ```
-
-            **Digest:** `${{ steps.build.outputs.digest }}`
             ```
 
       - name: Delete PR comment on failure
