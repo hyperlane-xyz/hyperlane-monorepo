@@ -1,5 +1,5 @@
 use clap::Parser;
-use x::args::{Cli, Commands};
+use x::args::{Cli, Commands, ValidatorAction, ValidatorBackend};
 
 mod sim;
 use sim::{SimulateTrafficArgs, TrafficSim};
@@ -27,20 +27,22 @@ async fn run(cli: Cli) {
             let e = x::escrow::get_escrow_address(pub_keys, args.required_signatures);
             println!("Escrow address: {e}");
         }
-        Commands::Validator(args) => {
-            let mut infos = vec![];
-            for _ in 0..args.n {
-                let (v, _) = x::escrow::create_validator();
-                infos.push(v);
-            }
-            // sort required by Hyperlane Cosmos ISM creation
-            infos.sort_by(|a, b| a.validator_ism_addr.cmp(&b.validator_ism_addr));
-            println!("{}", serde_json::to_string_pretty(&infos).unwrap());
-        }
-        Commands::ValidatorAndEscrow => {
-            let v = x::escrow::create_validator_with_escrow();
-            println!("Validator infos: {}", v.to_string());
-        }
+        Commands::Validator { action } => match action {
+            ValidatorAction::Create { backend } => match backend {
+                ValidatorBackend::Local(args) => {
+                    if let Err(e) = x::validator::handle_local_backend(args) {
+                        eprintln!("Error: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+                ValidatorBackend::Aws(args) => {
+                    if let Err(e) = x::validator::handle_aws_backend(args).await {
+                        eprintln!("Error: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+            },
+        },
         Commands::Relayer => {
             let signer = x::relayer::create_relayer();
             println!("Relayer address: {}", signer.address);

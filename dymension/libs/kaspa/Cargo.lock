@@ -2629,6 +2629,10 @@ dependencies = [
 name = "demo-user"
 version = "0.1.0"
 dependencies = [
+ "aws-config",
+ "aws-sdk-kms",
+ "aws-sdk-secretsmanager",
+ "aws-smithy-types",
  "chrono",
  "clap",
  "cometbft",

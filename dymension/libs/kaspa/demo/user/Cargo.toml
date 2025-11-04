@@ -47,3 +47,7 @@ thiserror = "2.0"
 cosmos-sdk-proto = { version = "0.26.1" }
 cometbft = { workspace = true, features = ["secp256k1"] }
 cometbft-rpc = { workspace = true, features = ["http-client","secp256k1"] }
+aws-config = { version = "1.5", features = ["behavior-version-latest"] }
+aws-sdk-secretsmanager = "1.55"
+aws-sdk-kms = "1.48"
+aws-smithy-types = "1.2"

@@ -24,11 +24,11 @@ pub enum Commands {
     Recipient(RecipientCli),
     /// Get the escrow address for some secp256k1 pub keys (like kaspatest:pzlq49spp6...66ne90v7e6pyrfr)
     Escrow(EscrowCli),
-    /// Generate all the info needed for a validator (without escrow address)
-    Validator(ValidatorCli),
-    /// Generate all the info needed for a validator with a 1 of 1 multisig escrow
-    #[clap(name = "validator-with-escrow")]
-    ValidatorAndEscrow,
+    /// Validator management commands
+    Validator {
+        #[command(subcommand)]
+        action: ValidatorAction,
+    },
     /// Make a user deposit (to escrow)
     Deposit(DepositCli),
     /// Create a relayer
@@ -38,11 +38,45 @@ pub enum Commands {
     SimulateTraffic(SimulateTrafficCli),
 }
 
+#[derive(Subcommand, Debug)]
+pub enum ValidatorAction {
+    /// Create new validator keys
+    Create {
+        #[command(subcommand)]
+        backend: ValidatorBackend,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum ValidatorBackend {
+    /// Generate and store validator keys locally
+    Local(ValidatorLocalArgs),
+
+    /// Generate and store validator keys in AWS Secrets Manager
+    Aws(ValidatorAwsArgs),
+}
+
 #[derive(Args, Debug)]
-pub struct ValidatorCli {
-    /// Generate more than one validator at a time
-    #[arg(required = false, index = 1, default_value = "1")]
-    pub n: u32,
+pub struct ValidatorLocalArgs {
+    /// Number of validators to generate
+    #[arg(short = 'n', long, default_value = "1")]
+    pub count: u32,
+
+    /// Optional: save output to JSON file
+    #[arg(short, long)]
+    pub output: Option<String>,
+}
+
+#[derive(Args, Debug)]
+pub struct ValidatorAwsArgs {
+    /// Secret path for storing the validator keys (e.g., /hyperlane/kaspa/validator-1)
+    /// All validator key properties will be stored as an encrypted JSON object at this path
+    #[arg(short, long)]
+    pub path: String,
+
+    /// AWS KMS symmetric key ID or ARN for encryption (must be SYMMETRIC_DEFAULT, not RSA/ECC)
+    #[arg(long)]
+    pub kms_key_id: String,
 }
 
 #[derive(Args, Debug)]
