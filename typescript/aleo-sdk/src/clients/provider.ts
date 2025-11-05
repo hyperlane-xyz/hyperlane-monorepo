@@ -3,11 +3,13 @@ import {
   AleoNetworkClient,
   BHP256,
   Plaintext,
+  Program,
   ProgramManager,
 } from '@provablehq/sdk';
 
 import { AltVM, assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
 
+import { mailbox } from '../artifacts.js';
 import { getMessageKey } from '../utils/helper.js';
 import { AleoTransaction } from '../utils/types.js';
 
@@ -612,7 +614,13 @@ export class AleoProvider implements AltVM.IProvider {
   async getCreateMerkleTreeHookTransaction(
     _req: AltVM.ReqCreateMerkleTreeHook,
   ): Promise<AleoTransaction> {
-    throw new Error(`TODO: implement`);
+    return {
+      programName: 'hook_manager.aleo',
+      functionName: 'init_merkle_tree',
+      priorityFee: 0,
+      privateFee: false,
+      inputs: [Program.fromString(mailbox).address().to_string()],
+    };
   }
 
   async getCreateInterchainGasPaymasterHookTransaction(
@@ -656,9 +664,22 @@ export class AleoProvider implements AltVM.IProvider {
   }
 
   async getCreateValidatorAnnounceTransaction(
-    _req: AltVM.ReqCreateValidatorAnnounce,
+    req: AltVM.ReqCreateValidatorAnnounce,
   ): Promise<AleoTransaction> {
-    throw new Error(`TODO: implement`);
+    const { localDomain } = await this.getMailbox({
+      mailboxAddress: req.mailboxAddress,
+    });
+
+    return {
+      programName: 'validator_announce.aleo',
+      functionName: 'init',
+      priorityFee: 0,
+      privateFee: false,
+      inputs: [
+        Program.fromString(mailbox).address().to_string(),
+        `${localDomain}u32`,
+      ],
+    };
   }
 
   // ### GET WARP TXS ###

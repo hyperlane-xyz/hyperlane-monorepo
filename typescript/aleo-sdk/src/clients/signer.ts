@@ -372,9 +372,41 @@ export class AleoSigner
   }
 
   async createMerkleTreeHook(
-    _req: Omit<AltVM.ReqCreateMerkleTreeHook, 'signer'>,
+    req: Omit<AltVM.ReqCreateMerkleTreeHook, 'signer'>,
   ): Promise<AltVM.ResCreateMerkleTreeHook> {
-    throw new Error(`TODO: implement`);
+    let nonce = await this.aleoClient.getProgramMappingValue(
+      'hook_manager.aleo',
+      'nonce',
+      'true',
+    );
+
+    if (nonce === null) {
+      nonce = '0u32';
+    }
+
+    const tx = await this.getCreateMerkleTreeHookTransaction({
+      signer: this.getSignerAddress(),
+      ...req,
+    });
+
+    const txId = await this.programManager.execute(tx);
+    await this.aleoClient.waitForTransactionConfirmation(txId);
+
+    const hookAddress = await this.aleoClient.getProgramMappingValue(
+      'hook_manager.aleo',
+      'hook_addresses',
+      nonce,
+    );
+
+    if (hookAddress === null) {
+      throw new Error(
+        `could not read hook address with nonce ${nonce} from hook_manager`,
+      );
+    }
+
+    return {
+      hookAddress,
+    };
   }
 
   async createInterchainGasPaymasterHook(
@@ -448,9 +480,22 @@ export class AleoSigner
   }
 
   async createValidatorAnnounce(
-    _req: Omit<AltVM.ReqCreateValidatorAnnounce, 'signer'>,
+    req: Omit<AltVM.ReqCreateValidatorAnnounce, 'signer'>,
   ): Promise<AltVM.ResCreateValidatorAnnounce> {
-    throw new Error(`TODO: implement`);
+    await this.deployProgram('validator_announce');
+
+    // TODO: init with correct validator announce and mailbox id
+    const tx = await this.getCreateValidatorAnnounceTransaction({
+      signer: this.getSignerAddress(),
+      ...req,
+    });
+
+    const txId = await this.programManager.execute(tx);
+    await this.aleoClient.waitForTransactionConfirmation(txId);
+
+    return {
+      validatorAnnounceId: 'todo',
+    };
   }
 
   // ### TX WARP ###
