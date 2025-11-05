@@ -3,8 +3,11 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use derive_more::AsRef;
 use futures::future::try_join_all;
-use hyperlane_core::{Delivery, HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, H512};
-use tokio::{sync::mpsc::Receiver as MpscReceiver, task::JoinHandle};
+use hyperlane_core::{
+    rpc_clients::RPC_RETRY_SLEEP_DURATION, Delivery, HyperlaneDomain, HyperlaneMessage,
+    InterchainGasPayment, H512,
+};
+use tokio::{sync::mpsc::Receiver as MpscReceiver, task::JoinHandle, time::sleep};
 use tracing::{info, info_span, instrument, trace, Instrument};
 
 use hyperlane_base::{
@@ -14,6 +17,8 @@ use hyperlane_base::{
 };
 
 use crate::{db::ScraperDb, settings::ScraperSettings, store::HyperlaneDbStore};
+
+const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
 
 /// A message explorer scraper agent
 #[derive(Debug, AsRef)]
@@ -125,17 +130,17 @@ impl BaseAgent for Scraper {
                 }
             };
 
-            match self.scrape(scraper).await {
-                Ok(scraper_task) => {
-                    tasks.push(scraper_task);
-                }
+            let scraper_task = match self
+                .try_n_times_to_scrape(scraper, CURSOR_INSTANTIATION_ATTEMPTS)
+                .await
+            {
+                Ok(s) => s,
                 Err(err) => {
-                    tracing::error!(?err, ?scraper.domain, "Failed to scrape domain");
-                    self.chain_metrics
-                        .set_critical_error(scraper.domain.name(), true);
+                    tracing::error!(?err, ?scraper.domain, "Failed to scrape chain");
                     continue;
                 }
-            }
+            };
+            tasks.push(scraper_task);
             tasks.push(metrics_updater.spawn());
         }
         tasks.push(self.runtime_metrics.spawn());
@@ -146,6 +151,31 @@ impl BaseAgent for Scraper {
 }
 
 impl Scraper {
+    /// Try to scrape attempts times before giving up.
+    async fn try_n_times_to_scrape(
+        &self,
+        scraper: &ChainScraper,
+        attempts: usize,
+    ) -> eyre::Result<JoinHandle<()>> {
+        for i in 0..attempts {
+            let scraper_task = match self.scrape(scraper).await {
+                Ok(s) => s,
+                Err(err) => {
+                    tracing::error!(?err, ?scraper.domain, attempt_count=i, "Failed to scrape chain");
+                    sleep(RPC_RETRY_SLEEP_DURATION).await;
+                    continue;
+                }
+            };
+
+            self.chain_metrics
+                .set_critical_error(scraper.domain.name(), false);
+            return Ok(scraper_task);
+        }
+        self.chain_metrics
+            .set_critical_error(scraper.domain.name(), true);
+        Err(eyre::eyre!("Failed to scrape chain"))
+    }
+
     /// Sync contract data and other blockchain with the current chain state.
     /// This will spawn long-running contract sync tasks
     #[instrument(fields(domain=%scraper.domain.name()), skip_all)]
