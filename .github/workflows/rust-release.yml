@@ -251,9 +251,10 @@ jobs:
     runs-on: depot-ubuntu-latest
     needs: check-release-status
     if: |
-      github.ref == 'refs/heads/main' &&
-      (github.event_name == 'workflow_dispatch' ||
-       (github.event_name == 'push' && needs.check-release-status.outputs.should_release == 'true'))
+      github.event_name == 'workflow_dispatch' ||
+      (github.ref == 'refs/heads/main' &&
+        github.event_name == 'push' &&
+        needs.check-release-status.outputs.should_release == 'true')
     steps:
       - uses: actions/checkout@v5
         with:
@@ -267,6 +268,12 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Force prerelease mode if not on main branch
+          if [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            echo "Not on main branch - forcing prerelease mode"
+            IS_PRERELEASE="true"
+          fi
 
           # Determine final version based on release type
           # workflow_dispatch always creates pre-releases
