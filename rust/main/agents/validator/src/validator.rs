@@ -22,9 +22,9 @@ use hyperlane_base::{
     SequencedDataContractSync,
 };
 use hyperlane_core::{
-    rpc_clients::RPC_RETRY_SLEEP_DURATION, Announcement, ChainResult, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt, Mailbox,
-    MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, TxOutcome, ValidatorAnnounce, H256, U256,
+    Announcement, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneSigner,
+    HyperlaneSignerExt, Mailbox, MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, TxOutcome,
+    ValidatorAnnounce, H256, U256,
 };
 use hyperlane_ethereum::{Signers, SingletonSigner, SingletonSignerHandle};
 
@@ -36,8 +36,6 @@ use crate::{
     settings::ValidatorSettings,
     submit::{ValidatorSubmitter, ValidatorSubmitterMetrics},
 };
-
-const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
 
 /// A validator agent
 #[derive(Debug, AsRef)]
@@ -293,34 +291,29 @@ impl BaseAgent for Validator {
         // messages or submitting checkpoints.
         loop {
             match self.merkle_tree_hook.count(&self.reorg_period).await {
-                Err(err) => {
-                    error!(?err, "Error getting merkle tree hook count");
-                    sleep(self.interval).await;
-                }
                 Ok(0) => {
                     info!("Waiting for first message in merkle tree hook");
                     sleep(self.interval).await;
                 }
                 Ok(_) => {
+                    let merkle_tree_hook_sync = match self.run_merkle_tree_hook_sync().await {
+                        Ok(handle) => handle,
+                        Err(err) => {
+                            tracing::error!(?err, "Failed to run merkle tree hook sync");
+                            return;
+                        }
+                    };
+                    tasks.push(merkle_tree_hook_sync);
+                    for checkpoint_sync_task in self.run_checkpoint_submitters().await {
+                        tasks.push(checkpoint_sync_task);
+                    }
                     break;
                 }
+                Err(err) => {
+                    error!(?err, "Error getting merkle tree hook count");
+                    sleep(self.interval).await;
+                }
             }
-        }
-
-        let merkle_tree_hook_sync = match self
-            .try_n_times_to_run_merkle_tree_hook_sync(CURSOR_INSTANTIATION_ATTEMPTS)
-            .await
-        {
-            Ok(s) => s,
-            Err(err) => {
-                tracing::error!(?err, "Failed to run merkle tree hook sync");
-                return;
-            }
-        };
-        tasks.push(merkle_tree_hook_sync);
-
-        for checkpoint_sync_task in self.run_checkpoint_submitters().await {
-            tasks.push(checkpoint_sync_task);
         }
         tasks.push(self.runtime_metrics.spawn());
 
@@ -332,37 +325,6 @@ impl BaseAgent for Validator {
 }
 
 impl Validator {
-    /// Try to create merkle tree hook contract sync attempts times before giving up.
-    async fn try_n_times_to_run_merkle_tree_hook_sync(
-        &self,
-        attempts: usize,
-    ) -> eyre::Result<JoinHandle<()>> {
-        for i in 0..attempts {
-            let task = match self.run_merkle_tree_hook_sync().await {
-                Ok(s) => s,
-                Err(err) => {
-                    tracing::error!(
-                        ?err,
-                        domain = self.origin_chain.name(),
-                        attempt_count = i,
-                        "Failed to run merkle tree hook sync"
-                    );
-                    self.chain_metrics
-                        .set_critical_error(self.origin_chain.name(), true);
-                    sleep(RPC_RETRY_SLEEP_DURATION).await;
-                    continue;
-                }
-            };
-            self.chain_metrics
-                .set_critical_error(self.origin_chain.name(), false);
-            return Ok(task);
-        }
-        Err(eyre::eyre!(
-            "Failed to initialize merkle tree hook sync after {} attempts",
-            attempts
-        ))
-    }
-
     async fn run_merkle_tree_hook_sync(&self) -> eyre::Result<JoinHandle<()>> {
         let index_settings = self
             .as_ref()
