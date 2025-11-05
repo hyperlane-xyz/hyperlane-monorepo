@@ -7,6 +7,7 @@ use async_trait::async_trait;
 use derive_new::new;
 use ethers::providers::{HttpClientError, JsonRpcClient, ProviderError};
 use futures_util::{stream::FuturesUnordered, StreamExt};
+use itertools::Itertools;
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
 use thiserror::Error;
@@ -220,7 +221,22 @@ where
                 );
 
                 match categorize_client_response(provider_host.as_str(), method, resp) {
-                    IsOk(v) => return Ok(serde_json::from_value(v)?),
+                    IsOk(v) => {
+                        return {
+                            // Add log to identify content of v when no tx receipt is found
+                            if v.is_null() {
+                                tracing::debug!(
+                                    fallback_count = idx,
+                                    provider_index = priority.index,
+                                    provider_host = provider_host.as_str(),
+                                    method,
+                                    ?v,
+                                    "fallback_request: value is null"
+                                );
+                            }
+                            Ok(serde_json::from_value(v)?)
+                        };
+                    }
                     RetryableErr(e) | RateLimitErr(e) => errors.push(e.into()),
                     NonRetryableErr(e) => return Err(e.into()),
                 }
