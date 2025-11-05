@@ -209,14 +209,11 @@ export class AleoProvider implements AltVM.IProvider {
 
     const { validators, threshold } = res.toObject();
 
-    const validatorsHex: string[] = [];
-    validators.forEach((v: any) => {
-      validatorsHex.push(ensure0x(Buffer.from(v.bytes).toString('hex')));
-    });
-
     return {
       address: req.ismAddress,
-      validators: validatorsHex,
+      validators: validators
+        .map((v: any) => ensure0x(Buffer.from(v.bytes).toString('hex')))
+        .filter((v: any) => v !== '0x0000000000000000000000000000000000000000'),
       threshold: threshold,
     };
   }
@@ -732,7 +729,7 @@ export class AleoProvider implements AltVM.IProvider {
     req: AltVM.ReqSetRoutingIsmOwner,
   ): Promise<AleoTransaction> {
     return {
-      programName: 'hook_manager.aleo',
+      programName: 'ism_manager.aleo',
       functionName: 'transfer_routing_ism_ownership',
       priorityFee: 0,
       privateFee: false,

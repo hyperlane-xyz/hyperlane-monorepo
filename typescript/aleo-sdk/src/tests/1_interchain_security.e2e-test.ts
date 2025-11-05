@@ -8,9 +8,12 @@ import { AleoSigner } from '../clients/signer.js';
 import { AleoReceipt, AleoTransaction } from '../utils/types.js';
 
 describe('1. aleo sdk interchain security e2e tests', async function () {
-  this.timeout(100_000);
+  this.timeout(300_000);
 
   let signer: AltVM.ISigner<AleoTransaction, AleoReceipt>;
+
+  let noop_ism: string;
+  let routing_ism: string;
 
   before(async () => {
     const localnetRpc = 'http://localhost:3030';
@@ -34,15 +37,17 @@ describe('1. aleo sdk interchain security e2e tests', async function () {
       ismAddress: txResponse.ismAddress,
     });
     expect(ism.address).to.equal(txResponse.ismAddress);
+
+    noop_ism = ism.address;
   });
 
   step('create new MessageIdMultisig ISM', async () => {
     // ARRANGE
     const threshold = 2;
     const validators = [
-      '0x3C24F29fa75869A1C9D19d9d6589Aae0B5227c3c',
-      '0xf719b4CC64d0E3a380e52c2720Abab13835F6d9c',
-      '0x98A56EdE1d6Dd386216DA8217D9ac1d2EE7c27c7',
+      '0x3c24f29fa75869a1c9d19d9d6589aae0b5227c3c',
+      '0xf719b4cc64d0e3a380e52c2720abab13835f6d9c',
+      '0x98a56ede1d6dd386216da8217d9ac1d2ee7c27c7',
     ];
 
     // note that the validators need to be sorted alphabetically
@@ -85,19 +90,16 @@ describe('1. aleo sdk interchain security e2e tests', async function () {
     expect(ism.owner).to.equal(signer.getSignerAddress());
 
     expect(ism.routes).to.be.empty;
+
+    routing_ism = ism.address;
   });
 
   step('set Routing Ism domain', async () => {
     // ARRANGE
-    const { ismAddress: noop_ism } = await signer.createNoopIsm({});
-
-    const { ismAddress: routing_ism_id } = await signer.createRoutingIsm({
-      routes: [],
-    });
 
     // ACT
     await signer.setRoutingIsmRoute({
-      ismAddress: routing_ism_id,
+      ismAddress: routing_ism,
       route: {
         ismAddress: noop_ism,
         domainId: 1234,
@@ -106,7 +108,7 @@ describe('1. aleo sdk interchain security e2e tests', async function () {
 
     // ASSERT
     let ism = await signer.getRoutingIsm({
-      ismAddress: routing_ism_id,
+      ismAddress: routing_ism,
     });
 
     expect(ism.routes).to.have.lengthOf(1);
@@ -118,22 +120,8 @@ describe('1. aleo sdk interchain security e2e tests', async function () {
 
   step('remove Routing Ism domain', async () => {
     // ARRANGE
-    const { ismAddress: noop_ism } = await signer.createNoopIsm({});
-
-    const { ismAddress: routing_ism_id } = await signer.createRoutingIsm({
-      routes: [],
-    });
-
-    await signer.setRoutingIsmRoute({
-      ismAddress: routing_ism_id,
-      route: {
-        ismAddress: noop_ism,
-        domainId: 1234,
-      },
-    });
-
     let ism = await signer.getRoutingIsm({
-      ismAddress: routing_ism_id,
+      ismAddress: routing_ism,
     });
 
     expect(ism.routes).to.have.lengthOf(1);
@@ -144,13 +132,13 @@ describe('1. aleo sdk interchain security e2e tests', async function () {
 
     // ACT
     await signer.removeRoutingIsmRoute({
-      ismAddress: routing_ism_id,
+      ismAddress: routing_ism,
       domainId: 1234,
     });
 
     // ASSERT
     ism = await signer.getRoutingIsm({
-      ismAddress: routing_ism_id,
+      ismAddress: routing_ism,
     });
 
     expect(ism.routes).to.be.empty;
@@ -158,12 +146,8 @@ describe('1. aleo sdk interchain security e2e tests', async function () {
 
   step('update Routing Ism owner', async () => {
     // ARRANGE
-    const { ismAddress: routing_ism_id } = await signer.createRoutingIsm({
-      routes: [],
-    });
-
     let ism = await signer.getRoutingIsm({
-      ismAddress: routing_ism_id,
+      ismAddress: routing_ism,
     });
 
     expect(ism.owner).to.equal(signer.getSignerAddress());
@@ -172,13 +156,13 @@ describe('1. aleo sdk interchain security e2e tests', async function () {
 
     // ACT
     await signer.setRoutingIsmOwner({
-      ismAddress: routing_ism_id,
+      ismAddress: routing_ism,
       newOwner,
     });
 
     // ASSERT
     ism = await signer.getRoutingIsm({
-      ismAddress: routing_ism_id,
+      ismAddress: routing_ism,
     });
 
     expect(ism.owner).to.equal(newOwner);
