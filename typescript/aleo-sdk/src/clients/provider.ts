@@ -432,9 +432,54 @@ export class AleoProvider implements AltVM.IProvider {
   }
 
   async getRemoteRouters(
-    _req: AltVM.ReqGetRemoteRouters,
+    req: AltVM.ReqGetRemoteRouters,
   ): Promise<AltVM.ResGetRemoteRouters> {
-    throw new Error(`TODO: implement`);
+    const remoteRouters: {
+      receiverDomainId: number;
+      receiverAddress: string;
+      gas: string;
+    }[] = [];
+
+    try {
+      const routerLengthRes = await this.aleoClient.getProgramMappingValue(
+        req.tokenAddress,
+        'remote_router_length',
+        'true',
+      );
+
+      for (let i = 0; i < parseInt(routerLengthRes); i++) {
+        const routerKey = await this.aleoClient.getProgramMappingPlaintext(
+          req.tokenAddress,
+          'remote_router_iter',
+          `${i}u32`,
+        );
+
+        const remoteRouterValue = await this.aleoClient.getProgramMappingValue(
+          req.tokenAddress,
+          'routes',
+          routerKey,
+        );
+
+        if (!remoteRouterValue) continue;
+
+        const remoteRouter = Plaintext.fromString(remoteRouterValue).toObject();
+
+        remoteRouters.push({
+          receiverDomainId: Number(remoteRouter['domain']),
+          receiverAddress: remoteRouter['recipient'],
+          gas: remoteRouter['gas'].toString(),
+        });
+      }
+    } catch {
+      throw new Error(
+        `Failed to find remote routers for token address: ${req.tokenAddress}`,
+      );
+    }
+
+    return {
+      address: req.tokenAddress,
+      remoteRouters,
+    };
   }
 
   async getBridgedSupply(_req: AltVM.ReqGetBridgedSupply): Promise<bigint> {
