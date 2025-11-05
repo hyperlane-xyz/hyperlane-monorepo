@@ -108,6 +108,7 @@ async fn test_entrypoint_send_fails_simulation_after_first_submission_but_finali
     let payload = FullPayload::random();
 
     let mut adapter = MockAdapter::new();
+    adapter.expect_reprocess_txs_poll_rate().returning(|| None);
     let mut counter = 0;
     adapter.expect_simulate_tx().returning(move |_| {
         counter += 1;
@@ -167,6 +168,7 @@ async fn test_entrypoint_send_fails_simulation_before_first_submission() {
     let payload = FullPayload::random();
 
     let mut adapter = MockAdapter::new();
+    adapter.expect_reprocess_txs_poll_rate().returning(|| None);
     // the payload always fails simulation
     adapter.expect_simulate_tx().returning(move |_| {
         Err(LanderError::SimulationFailed(vec![
@@ -216,6 +218,7 @@ async fn test_entrypoint_send_fails_estimation_after_first_submission() {
     let payload = FullPayload::random();
 
     let mut adapter = MockAdapter::new();
+    adapter.expect_reprocess_txs_poll_rate().returning(|| None);
     let mut counter = 0;
     adapter.expect_estimate_tx().returning(move |_| {
         counter += 1;
@@ -272,6 +275,7 @@ async fn test_entrypoint_send_fails_estimation_before_first_submission() {
     let payload = FullPayload::random();
 
     let mut adapter = MockAdapter::new();
+    adapter.expect_reprocess_txs_poll_rate().returning(|| None);
     // the payload always fails simulation
     adapter
         .expect_estimate_tx()
@@ -372,6 +376,7 @@ async fn wait_until_payload_status<F>(
 /// Mocks the adapter methods to return predefined values for testing purposes.
 /// If a method was mocked already, it won't override it.
 fn mock_adapter_methods(mut adapter: MockAdapter, payload: FullPayload) -> MockAdapter {
+    adapter.expect_reprocess_txs_poll_rate().returning(|| None);
     adapter
         .expect_estimated_block_time()
         .return_const(Duration::from_millis(100));

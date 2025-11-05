@@ -106,6 +106,7 @@ impl EthereumAdapter {
             dispatcher_metrics.get_batched_transactions(),
             dispatcher_metrics.get_finalized_nonce(domain, &signer.to_string()),
             dispatcher_metrics.get_upper_nonce(domain, &signer.to_string()),
+            dispatcher_metrics.get_mismatched_nonce(domain, &signer.to_string()),
         );
 
         let payload_db = db.clone() as Arc<dyn PayloadDb>;
