@@ -4,11 +4,13 @@ Quick setup guide for MCP servers used by the Abacus Works team.
 
 ## Prerequisites
 
-Create credentials directory for some required keys (described later for the relevant MCP servers):
+1. Create credentials directory for some required keys (described later for the relevant MCP servers):
 
 ```bash
 mkdir -p ~/.mcp
 ```
+
+2. **Make sure Docker is running!** Some of these MCP servers require Docker to be running and won't start otherwise.
 
 ## Setup MCP servers
 
