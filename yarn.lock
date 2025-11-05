@@ -8181,7 +8181,7 @@ __metadata:
     "@eslint/js": "npm:^9.31.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
     "@hyperlane-xyz/utils": "npm:19.4.0"
-    "@provablehq/sdk": "npm:^0.9.10-testnet-rc"
+    "@provablehq/sdk": "npm:^0.9.11"
     "@types/mocha": "npm:^10.0.1"
     "@typescript-eslint/eslint-plugin": "npm:^8.1.6"
     "@typescript-eslint/parser": "npm:^8.1.6"
@@ -11529,7 +11529,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@provablehq/sdk@npm:^0.9.10-testnet-rc":
+"@provablehq/sdk@npm:^0.9.11":
   version: 0.9.11
   resolution: "@provablehq/sdk@npm:0.9.11"
   dependencies:
