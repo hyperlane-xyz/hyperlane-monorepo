@@ -11,6 +11,7 @@ use ethers_core::abi::Function;
 use ethers_core::types::Eip1559TransactionRequest;
 use eyre::eyre;
 use futures_util::future;
+use hyperlane_core::ChainResult;
 use tokio::sync::Mutex;
 use tokio::try_join;
 use tracing::{debug, error, info, instrument, warn};
@@ -33,6 +34,9 @@ use hyperlane_ethereum::{
     multicall, EthereumReorgPeriod, EvmProviderForLander, LanderProviderBuilder,
 };
 
+use crate::adapter::chains::ethereum::metrics::{
+    LABEL_BATCHED_TRANSACTION_FAILED, LABEL_BATCHED_TRANSACTION_SUCCESS,
+};
 use crate::{
     adapter::{core::TxBuildingResult, AdaptsChain, GasLimit},
     dispatcher::{PayloadDb, PostInclusionMetricsSource, TransactionDb},
@@ -66,6 +70,7 @@ pub struct EthereumAdapter {
     pub payload_db: Arc<dyn PayloadDb>,
     pub signer: H160,
     pub minimum_time_between_resubmissions: Duration,
+    pub metrics: EthereumAdapterMetrics,
 }
 
 impl EthereumAdapter {
@@ -97,6 +102,8 @@ impl EthereumAdapter {
             .ok_or_else(|| eyre!("No signer found in provider for domain {}", domain))?;
 
         let metrics = EthereumAdapterMetrics::new(
+            conf.domain.clone(),
+            dispatcher_metrics.get_batched_transactions(),
             dispatcher_metrics.get_finalized_nonce(domain, &signer.to_string()),
             dispatcher_metrics.get_upper_nonce(domain, &signer.to_string()),
         );
@@ -104,7 +111,7 @@ impl EthereumAdapter {
         let payload_db = db.clone() as Arc<dyn PayloadDb>;
 
         let reorg_period = EthereumReorgPeriod::try_from(&conf.reorg_period)?;
-        let nonce_manager = NonceManager::new(&conf, db, provider.clone(), metrics).await?;
+        let nonce_manager = NonceManager::new(&conf, db, provider.clone(), metrics.clone()).await?;
 
         let adapter = Self {
             estimated_block_time: conf.estimated_block_time,
@@ -119,6 +126,7 @@ impl EthereumAdapter {
             payload_db,
             signer,
             minimum_time_between_resubmissions: DEFAULT_MINIMUM_TIME_BETWEEN_RESUBMISSIONS,
+            metrics,
         };
 
         Ok(adapter)
@@ -341,7 +349,7 @@ impl EthereumAdapter {
         &self,
         precursors: Vec<(TypedTransaction, Function)>,
         payload_details: Vec<PayloadDetails>,
-    ) -> Vec<TxBuildingResult> {
+    ) -> ChainResult<Vec<TxBuildingResult>> {
         use super::transaction::TransactionFactory;
 
         let multi_precursor = self
@@ -353,15 +361,7 @@ impl EthereumAdapter {
                 self.signer,
             )
             .await
-            .map(|(tx, f)| EthereumTxPrecursor::new(tx, f));
-
-        let multi_precursor = match multi_precursor {
-            Ok(precursor) => precursor,
-            Err(e) => {
-                error!(error = ?e, "Failed to batch payloads");
-                return vec![];
-            }
-        };
+            .map(|(tx, f)| EthereumTxPrecursor::new(tx, f))?;
 
         let transaction = TransactionFactory::build(multi_precursor, payload_details.clone());
 
@@ -369,8 +369,11 @@ impl EthereumAdapter {
             payloads: payload_details,
             maybe_tx: Some(transaction),
         };
+        Ok(vec![tx_building_result])
+    }
 
-        vec![tx_building_result]
+    pub fn metrics(&self) -> &EthereumAdapterMetrics {
+        &self.metrics
     }
 }
 
@@ -406,7 +409,7 @@ impl AdaptsChain for EthereumAdapter {
         elapsed > *ready_time
     }
 
-    /// Builds a transaction for the given payloads.
+    /// Builds transactions for the given payloads.
     ///
     /// If there is only one payload, it builds a transaction without batching.
     /// If there are multiple payloads, it batches them into a single transaction.
@@ -414,6 +417,8 @@ impl AdaptsChain for EthereumAdapter {
     /// by the order of payloads.
     /// The order should not change since the simulation and estimation of the batched transaction
     /// depend on the order of payloads.
+    /// If batching fails, it will fallback to building multiple transactions with a
+    /// single payload for each of them.
     async fn build_transactions(&self, payloads: &[FullPayload]) -> Vec<TxBuildingResult> {
         use super::transaction::TransactionFactory;
 
@@ -448,12 +453,48 @@ impl AdaptsChain for EthereumAdapter {
             return results;
         }
 
-        // Batched transaction
-        let results = self
-            .build_batched_transaction(precursors, payload_details)
-            .await;
+        match self
+            .build_batched_transaction(precursors.clone(), payload_details.clone())
+            .await
+        {
+            Ok(results) => {
+                self.metrics().increment_batched_transactions(
+                    LABEL_BATCHED_TRANSACTION_SUCCESS,
+                    payloads.len() as u64,
+                );
+                info!(
+                    ?payloads,
+                    ?results,
+                    "built batched transaction for payloads"
+                );
+                // Batched transaction
+                return results;
+            }
+            Err(err) => {
+                self.metrics().increment_batched_transactions(
+                    LABEL_BATCHED_TRANSACTION_FAILED,
+                    payloads.len() as u64,
+                );
+                warn!(
+                    domain = self.domain.name(),
+                    ?err,
+                    "Failed to build batch transaction. Fallback to single tx submission"
+                );
+            }
+        }
 
-        info!(?payloads, ?results, "built transaction for payloads");
+        let results: Vec<_> = payloads
+            .iter()
+            .map(|payload| {
+                let precursor = EthereumTxPrecursor::from_payload(payload, self.signer);
+                self.build_single_transaction(precursor, vec![payload.details.clone()])
+            })
+            .collect();
+        info!(
+            ?payloads,
+            ?results,
+            "built multiple transactions for multiple payloads"
+        );
         results
     }
 

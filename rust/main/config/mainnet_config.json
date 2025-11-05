@@ -8236,8 +8236,8 @@
       "validatorAnnounce": "0x04cc184bc56545c39a71717fc9b62bef3374268d33450095f5b6904788087b68",
       "signer": {
         "type": "starkKey",
-        "key": "0x03a9eec01324d9619ad9523d44c17622a979a20086fccc8d2daa78730a81a4f7",
-        "address": "0x07e49344eeae42bdc178ed5f32aad98ab6cb27e1bf1501bb87bd1c0e09cc922d"
+        "key": "0x35cb2ba13dc76ba1ae3b843a0b6507ce17f129a84a778b0daa6c664006026b23",
+        "address": "0x03143bdb39af0b4b36f8b1a2aab21882ff4d8eb69158d20e06d1b83520c98c67"
       }
     },
     "solaxy": {
