@@ -151,7 +151,8 @@ impl BaseAgent for Validator {
 
         let mailbox = origin_chain_conf.build_mailbox(&metrics).await?;
 
-        let dymension_args = Self::get_dymension_kaspa_args(&mailbox).await?;
+        let dymension_args =
+            Self::get_dymension_kaspa_args(origin_chain_conf.clone(), &mailbox).await?;
 
         let merkle_tree_hook = settings
             .build_merkle_tree_hook(&settings.origin_chain, &metrics)
@@ -526,11 +527,14 @@ struct DymensionKaspaArgs {
 
 impl Validator {
     async fn get_dymension_kaspa_args(
+        conf: ChainConf,
         kas_mailbox: &Box<dyn Mailbox>,
     ) -> Result<Option<DymensionKaspaArgs>> {
+        if !is_kas(&conf.domain) {
+            return Ok(None);
+        }
         let kas_provider_trait = kas_mailbox.provider();
         let kas_provider = kas_provider_trait.downcast::<KaspaProvider>().unwrap();
-
         Ok(Some(DymensionKaspaArgs { kas_provider }))
     }
 }
