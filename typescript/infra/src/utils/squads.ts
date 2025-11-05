@@ -765,6 +765,76 @@ export async function submitProposalToSquads(
   }
 }
 
+/**
+ * Execute an approved Squads proposal
+ *
+ * @param chain - The chain to execute the proposal on
+ * @param mpp - Multi-protocol provider
+ * @param transactionIndex - The transaction index of the proposal to execute
+ * @param signerAdapter - Pre-configured SVM signer adapter for signing and submitting transactions
+ */
+export async function executeProposal(
+  chain: ChainName,
+  mpp: MultiProtocolProvider,
+  transactionIndex: number,
+  signerAdapter: SvmMultiProtocolSignerAdapter,
+): Promise<void> {
+  const { svmProvider, multisigPda, programId } = await getSquadAndProvider(
+    chain,
+    mpp,
+  );
+
+  // Fetch the proposal to verify it's approved
+  const proposalData = await getSquadProposal(chain, mpp, transactionIndex);
+  if (!proposalData) {
+    throw new Error(`Failed to fetch proposal ${transactionIndex} on ${chain}`);
+  }
+
+  const { proposal } = proposalData;
+
+  // Verify the proposal is in Approved status
+  if (proposal.status.__kind !== 'Approved') {
+    throw new Error(
+      `Proposal ${transactionIndex} on ${chain} is not approved (status: ${proposal.status.__kind})`,
+    );
+  }
+
+  rootLogger.info(
+    chalk.cyan(`Executing proposal ${transactionIndex} on ${chain}...`),
+  );
+
+  // Get executor public key
+  const executorPublicKey = signerAdapter.publicKey();
+
+  // Build the execution instruction
+  const { instruction, lookupTableAccounts } =
+    await instructions.vaultTransactionExecute({
+      connection: svmProvider,
+      multisigPda,
+      transactionIndex: BigInt(transactionIndex),
+      member: executorPublicKey,
+      programId,
+    });
+
+  // Error if lookup tables are present - Solaxy doesn't support versioned transactions
+  if (lookupTableAccounts.length > 0) {
+    throw new Error(
+      `Transaction requires ${lookupTableAccounts.length} address lookup table(s). ` +
+        `Versioned transactions are not supported on Solaxy. ` +
+        `This transaction may have too many accounts to fit in a legacy transaction.`,
+    );
+  }
+
+  // Execute the transaction using legacy transaction format (perfect for Solaxy)
+  const signature = await signerAdapter.buildAndSendTransaction([instruction]);
+
+  rootLogger.info(
+    chalk.green.bold(
+      `Executed proposal ${transactionIndex} on ${chain}: ${signature}`,
+    ),
+  );
+}
+
 // ============================================================================
 // CLI Utilities
 // ============================================================================
