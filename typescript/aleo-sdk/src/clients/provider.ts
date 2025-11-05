@@ -16,6 +16,7 @@ import { AleoTransaction } from '../utils/types.js';
 // TODO: only allow domainId in createMailox in AltVM
 // TODO: add createNoopHook method in AltVM
 // TODO: add getTokenMetadata method in AltVM
+// TODO: don't allow routes in create routing ism
 
 export class AleoProvider implements AltVM.IProvider {
   protected readonly aleoClient: AleoNetworkClient;
@@ -447,9 +448,15 @@ export class AleoProvider implements AltVM.IProvider {
   // ### GET CORE TXS ###
 
   async getCreateMailboxTransaction(
-    _req: AltVM.ReqCreateMailbox,
+    req: AltVM.ReqCreateMailbox,
   ): Promise<AleoTransaction> {
-    throw new Error(`TODO: implement`);
+    return {
+      programName: 'mailbox.aleo',
+      functionName: 'init',
+      priorityFee: 0,
+      privateFee: false,
+      inputs: [`${req.domainId}u32`],
+    };
   }
 
   async getSetDefaultIsmTransaction(
@@ -503,7 +510,7 @@ export class AleoProvider implements AltVM.IProvider {
   async getCreateMerkleRootMultisigIsmTransaction(
     _req: AltVM.ReqCreateMerkleRootMultisigIsm,
   ): Promise<AleoTransaction> {
-    throw new Error(`TODO: implement`);
+    throw new Error(`MerkleRootMultisigIsm is currently not supported on Aleo`);
   }
 
   async getCreateMessageIdMultisigIsmTransaction(
@@ -579,9 +586,15 @@ export class AleoProvider implements AltVM.IProvider {
   }
 
   async getSetRoutingIsmOwnerTransaction(
-    _req: AltVM.ReqSetRoutingIsmOwner,
+    req: AltVM.ReqSetRoutingIsmOwner,
   ): Promise<AleoTransaction> {
-    throw new Error(`TODO: implement`);
+    return {
+      programName: 'hook_manager.aleo',
+      functionName: 'transfer_routing_ism_ownership',
+      priorityFee: 0,
+      privateFee: false,
+      inputs: [req.ismAddress, req.newOwner],
+    };
   }
 
   async getCreateNoopIsmTransaction(
@@ -615,9 +628,15 @@ export class AleoProvider implements AltVM.IProvider {
   }
 
   async getSetInterchainGasPaymasterHookOwnerTransaction(
-    _req: AltVM.ReqSetInterchainGasPaymasterHookOwner,
+    req: AltVM.ReqSetInterchainGasPaymasterHookOwner,
   ): Promise<AleoTransaction> {
-    throw new Error(`TODO: implement`);
+    return {
+      programName: 'hook_manager.aleo',
+      functionName: 'transfer_igp_ownership',
+      priorityFee: 0,
+      privateFee: false,
+      inputs: [req.hookAddress, req.newOwner],
+    };
   }
 
   async getSetDestinationGasConfigTransaction(

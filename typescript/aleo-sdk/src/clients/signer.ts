@@ -121,9 +121,18 @@ export class AleoSigner
   }
 
   async createMailbox(
-    _req: Omit<AltVM.ReqCreateMailbox, 'signer'>,
+    req: Omit<AltVM.ReqCreateMailbox, 'signer'>,
   ): Promise<AltVM.ResCreateMailbox> {
     await this.deployProgram('dispatch_proxy');
+
+    // TODO: init with correct mailbox id
+    const tx = await this.getCreateMailboxTransaction({
+      signer: this.getSignerAddress(),
+      ...req,
+    });
+
+    const txId = await this.programManager.execute(tx);
+    await this.aleoClient.waitForTransactionConfirmation(txId);
 
     return {
       mailboxAddress: 'todo',
@@ -197,7 +206,7 @@ export class AleoSigner
   async createMerkleRootMultisigIsm(
     _req: Omit<AltVM.ReqCreateMerkleRootMultisigIsm, 'signer'>,
   ): Promise<AltVM.ResCreateMerkleRootMultisigIsm> {
-    throw new Error(`TODO: implement`);
+    throw new Error(`MerkleRootMultisigIsm is currently not supported on Aleo`);
   }
 
   async createMessageIdMultisigIsm(
@@ -309,9 +318,19 @@ export class AleoSigner
   }
 
   async setRoutingIsmOwner(
-    _req: Omit<AltVM.ReqSetRoutingIsmOwner, 'signer'>,
+    req: Omit<AltVM.ReqSetRoutingIsmOwner, 'signer'>,
   ): Promise<AltVM.ResSetRoutingIsmOwner> {
-    throw new Error(`TODO: implement`);
+    const tx = await this.getSetRoutingIsmOwnerTransaction({
+      signer: this.getSignerAddress(),
+      ...req,
+    });
+
+    const txId = await this.programManager.execute(tx);
+    await this.aleoClient.waitForTransactionConfirmation(txId);
+
+    return {
+      newOwner: req.newOwner,
+    };
   }
 
   async createNoopIsm(
@@ -397,9 +416,19 @@ export class AleoSigner
   }
 
   async setInterchainGasPaymasterHookOwner(
-    _req: Omit<AltVM.ReqSetInterchainGasPaymasterHookOwner, 'signer'>,
+    req: Omit<AltVM.ReqSetInterchainGasPaymasterHookOwner, 'signer'>,
   ): Promise<AltVM.ResSetInterchainGasPaymasterHookOwner> {
-    throw new Error(`TODO: implement`);
+    const tx = await this.getSetInterchainGasPaymasterHookOwnerTransaction({
+      signer: this.getSignerAddress(),
+      ...req,
+    });
+
+    const txId = await this.programManager.execute(tx);
+    await this.aleoClient.waitForTransactionConfirmation(txId);
+
+    return {
+      newOwner: req.newOwner,
+    };
   }
 
   async setDestinationGasConfig(
