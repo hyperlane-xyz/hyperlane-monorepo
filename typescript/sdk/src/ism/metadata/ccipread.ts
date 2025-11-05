@@ -90,7 +90,7 @@ export class OffchainLookupMetadataBuilder implements MetadataBuilder {
       const responseJson = await res.json();
       if (!res.ok) {
         this.core.logger.warn(
-          `Server responded with error: ${responseJson.error}`,
+          `Server at ${url} responded with error: ${responseJson.error}`,
         );
         // try next URL
         continue;
