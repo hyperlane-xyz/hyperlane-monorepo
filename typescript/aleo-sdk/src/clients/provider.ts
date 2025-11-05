@@ -427,8 +427,51 @@ export class AleoProvider implements AltVM.IProvider {
 
   // ### QUERY WARP ###
 
-  async getToken(_req: AltVM.ReqGetToken): Promise<AltVM.ResGetToken> {
-    throw new Error(`TODO: implement`);
+  async getToken(req: AltVM.ReqGetToken): Promise<AltVM.ResGetToken> {
+    let owner: string;
+    let ismAddress: string;
+
+    try {
+      const tokenMetadata = await this.aleoClient.getProgramMappingPlaintext(
+        req.tokenAddress,
+        'token_metadata',
+        'true',
+      );
+      owner = tokenMetadata.toObject().token_owner;
+    } catch {
+      throw new Error(`Found no Token for address: ${req.tokenAddress}`);
+    }
+
+    try {
+      const ism = await this.aleoClient.getProgramMappingPlaintext(
+        req.tokenAddress,
+        'ism',
+        'true',
+      );
+      ismAddress = ism.toObject();
+
+      if (
+        ismAddress ===
+        'aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc'
+      ) {
+        ismAddress = '';
+      }
+    } catch {
+      throw new Error(`Found no Token for address: ${req.tokenAddress}`);
+    }
+
+    // TODO: query additional properties based on token type
+    return {
+      address: req.tokenAddress,
+      owner,
+      tokenType: AltVM.TokenType.native,
+      mailboxAddress: '',
+      ismAddress,
+      denom: '',
+      name: '',
+      symbol: '',
+      decimals: 0,
+    };
   }
 
   async getRemoteRouters(
