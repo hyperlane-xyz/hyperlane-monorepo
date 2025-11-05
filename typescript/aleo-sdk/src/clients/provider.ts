@@ -11,7 +11,7 @@ import { BigNumber } from 'bignumber.js';
 import { AltVM, assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
 
 import { mailbox } from '../artifacts.js';
-import { getMessageKey } from '../utils/helper.js';
+import { formatAddress, getMessageKey } from '../utils/helper.js';
 import { AleoTransaction } from '../utils/types.js';
 
 // TODO: make denom in AltVM optional
@@ -141,9 +141,9 @@ export class AleoProvider implements AltVM.IProvider {
       address: req.mailboxAddress,
       owner: mailbox_owner,
       localDomain: local_domain,
-      defaultIsm: default_ism,
-      defaultHook: default_hook,
-      requiredHook: required_hook,
+      defaultIsm: formatAddress(default_ism),
+      defaultHook: formatAddress(default_hook),
+      requiredHook: formatAddress(required_hook),
       nonce: nonce,
     };
   }
@@ -446,14 +446,7 @@ export class AleoProvider implements AltVM.IProvider {
         'ism',
         'true',
       );
-      ismAddress = ism.toObject();
-
-      if (
-        ismAddress ===
-        'aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc'
-      ) {
-        ismAddress = '';
-      }
+      ismAddress = formatAddress(ism.toObject());
     } catch {
       throw new Error(`Found no Token for address: ${req.tokenAddress}`);
     }

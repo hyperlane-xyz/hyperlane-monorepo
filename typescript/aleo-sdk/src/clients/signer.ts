@@ -135,7 +135,7 @@ export class AleoSigner
     await this.aleoClient.waitForTransactionConfirmation(txId);
 
     return {
-      mailboxAddress: 'todo',
+      mailboxAddress: 'mailbox.aleo',
     };
   }
 
@@ -494,7 +494,7 @@ export class AleoSigner
     await this.aleoClient.waitForTransactionConfirmation(txId);
 
     return {
-      validatorAnnounceId: 'todo',
+      validatorAnnounceId: 'validator_announce.aleo',
     };
   }
 
