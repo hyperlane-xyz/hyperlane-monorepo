@@ -782,7 +782,6 @@ jobs:
           base_sha: ${{ needs.set-base-sha.outputs.base_sha }}
           head_sha: ${{ needs.set-base-sha.outputs.current_sha }}
           path_pattern: 'solidity/'
-          check_only: 'false'
 
   coverage-run:
     runs-on: depot-ubuntu-24.04
