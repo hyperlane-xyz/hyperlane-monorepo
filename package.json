@@ -57,6 +57,7 @@
     "@trivago/prettier-plugin-sort-imports/@babel/parser": "^7.22.7",
     "@typechain/ethers-v5": "11.1.2",
     "typechain@npm:^8.0.0": "patch:typechain@npm%3A8.3.2#~/.yarn/patches/typechain-npm-8.3.2-b02e27439e.patch",
-    "node-fetch": "^3.3.2"
+    "node-fetch": "^3.3.2",
+    "@provablehq/wasm@npm:^0.9.11": "patch:@provablehq/wasm@npm%3A0.9.11#~/.yarn/patches/@provablehq-wasm-npm-0.9.11-d2c7cc012d.patch"
   }
 }

@@ -11544,10 +11544,17 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@provablehq/wasm@npm:^0.9.11":
+"@provablehq/wasm@npm:0.9.11":
   version: 0.9.11
   resolution: "@provablehq/wasm@npm:0.9.11"
   checksum: 10/3833c94f1ddc9dbd614ad2c6f1846f6ff64b4873df12c8dcd6e208e8fb792bfc971bbb2d8126999e2acd4f74f3540de76452cd1403587809e8306ef0d8c022ae
+  languageName: node
+  linkType: hard
+
+"@provablehq/wasm@patch:@provablehq/wasm@npm%3A0.9.11#~/.yarn/patches/@provablehq-wasm-npm-0.9.11-d2c7cc012d.patch":
+  version: 0.9.11
+  resolution: "@provablehq/wasm@patch:@provablehq/wasm@npm%3A0.9.11#~/.yarn/patches/@provablehq-wasm-npm-0.9.11-d2c7cc012d.patch::version=0.9.11&hash=afe84a"
+  checksum: 10/a9602b6e40880ff27840cfd5351f849093057a5a0808595a0129665408e219dadb2f3e754763cc8f352915d69076ccfca210d28b029bf430ed7f6243402d2e53
   languageName: node
   linkType: hard
 
