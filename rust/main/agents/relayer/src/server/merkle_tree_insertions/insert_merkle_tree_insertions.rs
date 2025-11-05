@@ -136,7 +136,6 @@ mod tests {
             .retrieve_merkle_tree_insertion_by_leaf_index(&leaf_index)
             .expect("DB Error")
             .expect("Message not found")
-            .clone()
     }
 
     fn get_merkle_tree_insertion_block_number(
@@ -185,7 +184,7 @@ mod tests {
         assert_eq!(resp_body.count, body.merkle_tree_insertions.len() as u64);
 
         // check db has correct merkle tree insertions
-        let actual = vec![
+        let actual = [
             get_merkle_tree_insertion(&dbs, &domains[0], 100),
             get_merkle_tree_insertion(&dbs, &domains[1], 100),
         ];
@@ -196,7 +195,7 @@ mod tests {
         }
 
         // check db has correct merkle tree insertion block number
-        let actual = vec![
+        let actual = [
             get_merkle_tree_insertion_block_number(&dbs, &domains[0], 100),
             get_merkle_tree_insertion_block_number(&dbs, &domains[1], 100),
         ];
@@ -263,7 +262,7 @@ mod tests {
         assert_eq!(resp_body.count, body.merkle_tree_insertions.len() as u64);
 
         // check db has correct merkle tree insertions
-        let actual = vec![
+        let actual = [
             get_merkle_tree_insertion(&dbs, &domains[0], 100),
             get_merkle_tree_insertion(&dbs, &domains[1], 100),
         ];
@@ -274,7 +273,7 @@ mod tests {
         }
 
         // check db has correct merkle tree insertion block number
-        let actual = vec![
+        let actual = [
             get_merkle_tree_insertion_block_number(&dbs, &domains[0], 100),
             get_merkle_tree_insertion_block_number(&dbs, &domains[1], 100),
         ];
