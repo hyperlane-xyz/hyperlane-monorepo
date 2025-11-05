@@ -91,7 +91,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     carrchain: true,
     celestia: true,
     celo: true,
-    cheesechain: true,
     chilizmainnet: true,
     coredao: true,
     coti: true,
@@ -180,7 +179,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sonicsvm: true,
     soon: true,
     sophon: true,
-    sovachain: true,
     starknet: true,
     story: true,
     stride: false,
@@ -233,7 +231,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     carrchain: true,
     celestia: true,
     celo: true,
-    cheesechain: true,
     chilizmainnet: true,
     coredao: true,
     coti: true,
@@ -322,7 +319,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sonicsvm: true,
     soon: true,
     sophon: true,
-    sovachain: true,
     starknet: true,
     story: true,
     stride: true,
@@ -375,7 +371,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     carrchain: true,
     celestia: true,
     celo: true,
-    cheesechain: true,
     chilizmainnet: true,
     coredao: true,
     coti: true,
@@ -464,7 +459,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sonicsvm: true,
     soon: true,
     sophon: true,
-    sovachain: true,
     starknet: true,
     story: true,
     stride: true,
@@ -604,6 +598,11 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       {
         originDomain: getDomainId('stride'),
         destinationDomain: getDomainId('forma'),
+      },
+      // Not a core chain
+      {
+        originDomain: getDomainId('forma'),
+        destinationDomain: getDomainId('celestia'),
       },
     ],
   },
@@ -862,7 +861,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '0a6647c-20251022-175022',
+      tag: '85f3091-20251031-223623',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -893,7 +892,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '3472d11-20251013-154821',
+      tag: 'f33549f-20251031-143100',
     },
     resources: scraperResources,
   },
@@ -908,7 +907,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '02db74b-20251013-232420',
+      tag: '85f3091-20251031-223623',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase

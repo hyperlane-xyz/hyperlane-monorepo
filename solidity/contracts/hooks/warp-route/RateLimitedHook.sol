@@ -70,7 +70,7 @@ contract RateLimitedHook is
 
     /// @inheritdoc IPostDispatchHook
     function hookType() external pure returns (uint8) {
-        return uint8(IPostDispatchHook.Types.RATE_LIMITED);
+        return uint8(IPostDispatchHook.HookTypes.RATE_LIMITED);
     }
 
     // ============ Internal Functions ============

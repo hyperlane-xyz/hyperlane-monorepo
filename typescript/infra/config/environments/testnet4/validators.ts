@@ -74,20 +74,6 @@ export const validatorChainConfig = (
         'bsctestnet',
       ),
     },
-    holesky: {
-      interval: 13,
-      reorgPeriod: getReorgPeriod('holesky'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0x7ab28ad88bb45867137ea823af88e2cb02359c03'],
-          [Contexts.ReleaseCandidate]: [
-            '0x7ab28ad88bb45867137ea823af88e2cb02359c03',
-          ],
-          [Contexts.Neutron]: [],
-        },
-        'holesky',
-      ),
-    },
 
     scrollsepolia: {
       interval: 5,

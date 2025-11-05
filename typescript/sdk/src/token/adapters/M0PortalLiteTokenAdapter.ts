@@ -19,6 +19,7 @@ import { EvmTokenAdapter } from './EvmTokenAdapter.js';
 import {
   IHypTokenAdapter,
   InterchainGasQuote,
+  QuoteTransferRemoteParams,
   TransferRemoteParams,
 } from './ITokenAdapter.js';
 
@@ -101,11 +102,10 @@ export class M0PortalLiteTokenAdapter
     return undefined;
   }
 
-  async quoteTransferRemoteGas(
-    destination: Domain,
-    sender?: Address,
-    _customHook?: Address,
-  ): Promise<InterchainGasQuote> {
+  async quoteTransferRemoteGas({
+    destination,
+    sender,
+  }: QuoteTransferRemoteParams): Promise<InterchainGasQuote> {
     const destinationChainId = this.multiProvider.getChainId(
       this.multiProvider.getChainName(destination),
     );
@@ -118,7 +118,10 @@ export class M0PortalLiteTokenAdapter
     );
 
     return {
-      amount: BigInt(gasQuote.toString()),
+      igpQuote: {
+        addressOrDenom: '',
+        amount: BigInt(gasQuote.toString()),
+      },
     };
   }
 
@@ -131,13 +134,13 @@ export class M0PortalLiteTokenAdapter
 
     // Get gas quote if not provided
     const gasQuote =
-      params.interchainGas?.amount ||
+      params.interchainGas?.igpQuote?.amount ||
       (
-        await this.quoteTransferRemoteGas(
-          params.destination,
-          params.fromAccountOwner,
-        )
-      ).amount;
+        await this.quoteTransferRemoteGas({
+          destination: params.destination,
+          sender: params.fromAccountOwner,
+        })
+      ).igpQuote?.amount;
 
     // Use Portal's transferMLikeToken function to support wrapped tokens like mUSD
     // Both source and destination use the same token address (mUSD on both chains)

@@ -55,10 +55,6 @@
     "amount": "0.001000251",
     "decimals": 9
   },
-  "holesky": {
-    "amount": "0.05",
-    "decimals": 9
-  },
   "hyperliquidevmtestnet": {
     "amount": "0.1",
     "decimals": 9

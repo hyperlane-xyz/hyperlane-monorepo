@@ -49,9 +49,6 @@
   "giwasepolia": {
     "validators": ["0xc170bef56759e35740ac2d3d0fece33bd9acb90b"]
   },
-  "holesky": {
-    "validators": ["0x7ab28ad88bb45867137ea823af88e2cb02359c03"]
-  },
   "hyperliquidevmtestnet": {
     "validators": ["0xea673a92a23ca319b9d85cc16b248645cd5158da"]
   },

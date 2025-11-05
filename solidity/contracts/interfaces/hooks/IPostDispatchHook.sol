@@ -14,7 +14,7 @@ pragma solidity >=0.8.0;
 @@@@@@@@@       @@@@@@@@*/
 
 interface IPostDispatchHook {
-    enum Types {
+    enum HookTypes {
         UNUSED,
         ROUTING,
         AGGREGATION,

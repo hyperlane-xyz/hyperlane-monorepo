@@ -8,6 +8,7 @@ import {
   ProtocolType,
   assert,
   deepEquals,
+  eqAddress,
   intersection,
   rootLogger,
   sleep,
@@ -264,6 +265,13 @@ export class AltVMIsmModule<PT extends ProtocolType> extends HyperlaneModule<
     const { ismAddress } = await this.signer.createRoutingIsm({
       routes,
     });
+
+    if (!eqAddress(this.signer.getSignerAddress(), config.owner)) {
+      await this.signer.setRoutingIsmOwner({
+        ismAddress,
+        newOwner: config.owner,
+      });
+    }
 
     this.logger.debug(`Deployed routing ISM to ${ismAddress}`);
     return ismAddress;

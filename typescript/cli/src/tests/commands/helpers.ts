@@ -43,6 +43,13 @@ export const CONFIRM_DETECTED_OWNER_STEP: Readonly<TestPromptAction> = {
   input: KeyBoardKeys.ENTER,
 };
 
+export const SELECT_NATIVE_TOKEN_TYPE = {
+  check: (currentOutput: string) =>
+    !!currentOutput.match(/Select .+?'s token type/),
+  // Scroll up through the token type list and select native
+  input: `${KeyBoardKeys.ARROW_UP.repeat(5)}${KeyBoardKeys.ENTER}`,
+};
+
 /**
  * Takes a {@link ProcessPromise} and a list of inputs that will be supplied
  * in the provided order when the check in the {@link TestPromptAction} matches the output

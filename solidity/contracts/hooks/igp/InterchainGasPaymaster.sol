@@ -95,7 +95,7 @@ contract InterchainGasPaymaster is
 
     /// @inheritdoc IPostDispatchHook
     function hookType() external pure override returns (uint8) {
-        return uint8(IPostDispatchHook.Types.INTERCHAIN_GAS_PAYMASTER);
+        return uint8(IPostDispatchHook.HookTypes.INTERCHAIN_GAS_PAYMASTER);
     }
 
     /**
@@ -192,6 +192,7 @@ contract InterchainGasPaymaster is
      * @param _gasLimit The amount of destination gas to pay for.
      * @return The amount of native tokens required to pay for interchain gas.
      */
+    // solhint-disable-next-line hyperlane/no-virtual-override
     function quoteGasPayment(
         uint32 _destinationDomain,
         uint256 _gasLimit
