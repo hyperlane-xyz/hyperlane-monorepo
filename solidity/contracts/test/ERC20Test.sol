@@ -306,3 +306,15 @@ contract XERC20LockboxTest is IXERC20Lockbox {
         withdrawTo(msg.sender, _amount);
     }
 }
+
+contract NonCompliantERC20Test {
+    // Returns returns void, instead of bool of an ERC20 compliant token
+    function approve(address _to, uint _value) public {}
+
+    function allowance(
+        address owner,
+        address spender
+    ) public view virtual returns (uint256) {
+        return 0;
+    }
+}

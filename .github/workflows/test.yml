@@ -40,14 +40,7 @@ jobs:
           node-version-file: .nvmrc
 
       - name: yarn-cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            **/node_modules
-            .yarn
-          key: ${{ runner.os }}-yarn-4.5.1-cache-${{ hashFiles('./yarn.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-yarn-4.5.1-cache-
+        uses: ./.github/actions/yarn-cache
 
       - name: yarn-install
         run: |
@@ -80,7 +73,6 @@ jobs:
         uses: ./.github/actions/yarn-build-with-cache
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          cache-provider: github
 
       - name: lint
         run: yarn lint
@@ -193,7 +185,7 @@ jobs:
         uses: ./.github/actions/yarn-build-with-cache
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          cache-provider: github
+
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
 
@@ -247,7 +239,6 @@ jobs:
         uses: ./.github/actions/yarn-build-with-cache
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          cache-provider: github
 
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
@@ -265,7 +256,7 @@ jobs:
         run: yarn --cwd typescript/infra test:warp
 
   cli-install-test-run:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: [rust-only]
     if: needs.rust-only.outputs.only_rust == 'false'
     steps:
@@ -320,7 +311,10 @@ jobs:
           - warp-check-1
           - warp-check-2
           - warp-check-3
-          - warp-deploy
+          - warp-check-4
+          - warp-check-5
+          - warp-deploy-1
+          - warp-deploy-2
           - warp-extend-basic
           - warp-extend-config
           - warp-extend-recovery
@@ -343,7 +337,6 @@ jobs:
         uses: ./.github/actions/install-cli
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          cache-provider: github
 
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
@@ -384,7 +377,6 @@ jobs:
         uses: ./.github/actions/install-cli
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          cache-provider: github
 
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
@@ -416,7 +408,6 @@ jobs:
         uses: ./.github/actions/install-cli
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          cache-provider: github
 
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
@@ -449,7 +440,6 @@ jobs:
         uses: ./.github/actions/install-cli
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          cache-provider: github
 
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
@@ -507,7 +497,6 @@ jobs:
         uses: ./.github/actions/yarn-build-with-cache
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          cache-provider: github
 
       - name: Cosmos SDK e2e tests
         run: yarn --cwd typescript/cosmos-sdk test:e2e
@@ -540,7 +529,6 @@ jobs:
         uses: ./.github/actions/yarn-build-with-cache
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          cache-provider: github
 
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
@@ -663,7 +651,6 @@ jobs:
         uses: ./.github/actions/yarn-build-with-cache
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          cache-provider: github
 
       - name: Install system dependencies
         if: steps.check-conditions.outputs.skip-e2e != 'true'
@@ -779,7 +766,6 @@ jobs:
         uses: ./.github/actions/yarn-build-with-cache
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          cache-provider: github
 
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
@@ -807,7 +793,7 @@ jobs:
           result: ${{ needs.env-test-matrix.result }}
 
   coverage-run:
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: [rust-only]
     if: needs.rust-only.outputs.only_rust == 'false'
     steps:

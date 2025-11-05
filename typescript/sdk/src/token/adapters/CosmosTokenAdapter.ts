@@ -12,6 +12,7 @@ import {
   IHypTokenAdapter,
   ITokenAdapter,
   InterchainGasQuote,
+  QuoteTransferRemoteParams,
   TransferParams,
   TransferRemoteParams,
 } from './ITokenAdapter.js';
@@ -42,8 +43,18 @@ export class CosmNativeTokenAdapter
     return BigInt(coin.amount);
   }
 
-  getMetadata(): Promise<TokenMetadata> {
-    throw new Error('Metadata not available to native tokens');
+  async getMetadata(): Promise<TokenMetadata> {
+    const { nativeToken } = this.multiProvider.getChainMetadata(this.chainName);
+    assert(
+      nativeToken,
+      `Native token data is required for ${CosmNativeTokenAdapter.name}`,
+    );
+
+    return {
+      name: nativeToken.name,
+      symbol: nativeToken.symbol,
+      decimals: nativeToken.decimals,
+    };
   }
 
   async getMinimumTransferAmount(_recipient: Address): Promise<bigint> {
@@ -136,11 +147,17 @@ export class CosmIbcTokenAdapter
     throw new Error('Method not applicable to IBC adapters');
   }
 
-  async quoteTransferRemoteGas(
-    _destination: Domain,
-  ): Promise<InterchainGasQuote> {
+  async quoteTransferRemoteGas({
+    destination: _destination,
+  }: QuoteTransferRemoteParams): Promise<InterchainGasQuote> {
     // TODO implement IBC interchain transfer gas estimation here
-    return { amount: 0n, addressOrDenom: this.properties.ibcDenom };
+    return {
+      igpQuote: { amount: 0n, addressOrDenom: this.properties.ibcDenom },
+    };
+  }
+
+  getMetadata(): Promise<TokenMetadata> {
+    throw new Error('Metadata not available to native tokens');
   }
 
   override async populateTransferTx(
@@ -198,11 +215,16 @@ export class CosmIbcToWarpTokenAdapter
     super(chainName, multiProvider, addresses, properties);
   }
 
-  async quoteTransferRemoteGas(
-    _destination: Domain,
-  ): Promise<InterchainGasQuote> {
+  async quoteTransferRemoteGas({
+    destination: _destination,
+  }: QuoteTransferRemoteParams): Promise<InterchainGasQuote> {
     // TODO implement IBC interchain transfer gas estimation here
-    return { amount: 0n, addressOrDenom: this.properties.intermediateIbcDenom };
+    return {
+      igpQuote: {
+        amount: 0n,
+        addressOrDenom: this.properties.intermediateIbcDenom,
+      },
+    };
   }
 
   async populateTransferRemoteTx(
@@ -216,19 +238,20 @@ export class CosmIbcToWarpTokenAdapter
         warpRouter: this.addresses.intermediateRouterAddress,
       },
     );
+    const { interchainGas } = transferParams;
     assert(
-      transferParams.interchainGas?.addressOrDenom === this.properties.ibcDenom,
+      interchainGas?.igpQuote.addressOrDenom === this.properties.ibcDenom,
       'Only same-denom interchain gas is supported for IBC to Warp transfers',
     );
     // This transformation is necessary to ensure the CW adapter recognizes the gas
     // denom is the same as this adapter's denom (e.g. utia & igp/77...)
     const intermediateInterchainGas = {
       addressOrDenom: this.properties.intermediateIbcDenom,
-      amount: transferParams.interchainGas?.amount || 0n,
+      amount: interchainGas?.igpQuote.amount || 0n,
     };
     const transfer = await cwAdapter.populateTransferRemoteTx({
       ...transferParams,
-      interchainGas: intermediateInterchainGas,
+      interchainGas: { igpQuote: intermediateInterchainGas },
     });
     const cwMemo = {
       wasm: {

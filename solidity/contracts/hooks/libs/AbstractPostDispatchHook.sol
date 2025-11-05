@@ -38,7 +38,7 @@ abstract contract AbstractPostDispatchHook is
     /// @inheritdoc IPostDispatchHook
     function supportsMetadata(
         bytes calldata metadata
-    ) public pure virtual override returns (bool) {
+    ) public pure virtual returns (bool) {
         return
             metadata.length == 0 ||
             metadata.variant() == StandardHookMetadata.VARIANT;

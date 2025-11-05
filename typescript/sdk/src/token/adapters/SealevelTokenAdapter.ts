@@ -1,7 +1,11 @@
 import {
   TOKEN_2022_PROGRAM_ID,
+  TOKEN_PROGRAM_ID,
+  createAssociatedTokenAccountInstruction,
   createTransferInstruction,
   getAssociatedTokenAddressSync,
+  getMint,
+  getTokenMetadata,
 } from '@solana/spl-token';
 import {
   AccountMeta,
@@ -40,12 +44,14 @@ import {
   SealevelAccountDataWrapper,
   SealevelInstructionWrapper,
 } from '../../utils/sealevelSerialization.js';
+import { getLegacySPLTokenMetadata } from '../sealevel/metadata.js';
 import { TokenMetadata } from '../types.js';
 
 import {
   IHypTokenAdapter,
   ITokenAdapter,
   InterchainGasQuote,
+  QuoteTransferRemoteParams,
   TransferParams,
   TransferRemoteParams,
 } from './ITokenAdapter.js';
@@ -93,7 +99,17 @@ export class SealevelNativeTokenAdapter
   }
 
   async getMetadata(): Promise<TokenMetadata> {
-    throw new Error('Metadata not available to native tokens');
+    const { nativeToken } = this.multiProvider.getChainMetadata(this.chainName);
+    assert(
+      nativeToken,
+      `Native token data is required for ${SealevelNativeTokenAdapter.name}`,
+    );
+
+    return {
+      name: nativeToken.name,
+      symbol: nativeToken.symbol,
+      decimals: nativeToken.decimals,
+    };
   }
 
   // Require a minimum transfer amount to cover rent for the recipient.
@@ -182,8 +198,37 @@ export class SealevelTokenAdapter
   }
 
   async getMetadata(_isNft?: boolean): Promise<TokenMetadata> {
-    // TODO solana support
-    return { decimals: 9, symbol: 'SPL', name: 'SPL Token' };
+    const svmProvider = this.getProvider();
+
+    const isSpl2022Token = await this.isSpl2022();
+
+    const tokenAddress = new PublicKey(this.addresses.token);
+    const [tokenInfo, metadata] = await Promise.all([
+      getMint(
+        svmProvider,
+        tokenAddress,
+        'finalized',
+        isSpl2022Token ? TOKEN_2022_PROGRAM_ID : TOKEN_PROGRAM_ID,
+      ),
+      isSpl2022Token
+        ? getTokenMetadata(
+            svmProvider,
+            tokenAddress,
+            'finalized',
+            TOKEN_2022_PROGRAM_ID,
+          )
+        : getLegacySPLTokenMetadata(svmProvider, tokenAddress),
+    ]);
+
+    assert(
+      metadata,
+      `Metadata for SVM token at address "${this.addresses.token}" on chain "${this.chainName}" not found`,
+    );
+    return {
+      decimals: tokenInfo.decimals,
+      symbol: metadata.symbol,
+      name: metadata.name,
+    };
   }
 
   async getMinimumTransferAmount(_recipient: Address): Promise<bigint> {
@@ -211,18 +256,51 @@ export class SealevelTokenAdapter
     fromAccountOwner,
     fromTokenAccount,
   }: TransferParams): Promise<Transaction> {
-    if (!fromTokenAccount)
-      throw new Error('fromTokenAccount required for Sealevel');
     if (!fromAccountOwner)
       throw new Error('fromAccountOwner required for Sealevel');
-    return new Transaction().add(
+
+    const originTokenAccount = fromTokenAccount
+      ? new PublicKey(fromTokenAccount)
+      : await this.deriveAssociatedTokenAccount(
+          new PublicKey(fromAccountOwner),
+        );
+    const destinationTokenAccount = await this.deriveAssociatedTokenAccount(
+      new PublicKey(recipient),
+    );
+    const tokenProgramAccount = (await this.isSpl2022())
+      ? TOKEN_2022_PROGRAM_ID
+      : TOKEN_PROGRAM_ID;
+
+    const transaction = new Transaction();
+
+    // if the ATA does not exist we need to create it before transferring the tokens
+    const toTokenAccountInfo = await this.getProvider().getAccountInfo(
+      destinationTokenAccount,
+    );
+    if (!toTokenAccountInfo) {
+      transaction.add(
+        createAssociatedTokenAccountInstruction(
+          new PublicKey(fromAccountOwner),
+          destinationTokenAccount,
+          new PublicKey(recipient),
+          this.tokenMintPubKey,
+          tokenProgramAccount,
+        ),
+      );
+    }
+
+    transaction.add(
       createTransferInstruction(
-        new PublicKey(fromTokenAccount),
-        new PublicKey(recipient),
+        originTokenAccount,
+        destinationTokenAccount,
         new PublicKey(fromAccountOwner),
         BigInt(weiAmountOrId),
+        [],
+        tokenProgramAccount,
       ),
     );
+
+    return transaction;
   }
 
   async getTokenProgramId(): Promise<PublicKey> {
@@ -344,30 +422,30 @@ export abstract class SealevelHypTokenAdapter
 
   // The sender is required, as simulating a transaction on Sealevel requires
   // a payer to be specified that has sufficient funds to cover the transaction fee.
-  async quoteTransferRemoteGas(
-    destination: Domain,
-    sender?: Address,
-  ): Promise<InterchainGasQuote> {
+  async quoteTransferRemoteGas({
+    destination,
+    sender,
+  }: QuoteTransferRemoteParams): Promise<InterchainGasQuote> {
     const tokenData = await this.getTokenAccountData();
     const destinationGas = tokenData.destination_gas?.get(destination);
     if (isNullish(destinationGas)) {
-      return { amount: 0n };
+      return { igpQuote: { amount: 0n } };
     }
 
     const igp = this.getIgpAdapter(tokenData);
     if (!igp) {
-      return { amount: 0n };
+      return { igpQuote: { amount: 0n } };
     }
 
     assert(sender, 'Sender required for Sealevel transfer remote gas quote');
 
-    return {
-      amount: await igp.quoteGasPayment(
-        destination,
-        destinationGas,
-        new PublicKey(sender),
-      ),
-    };
+    const igpPayment = await igp.quoteGasPayment(
+      destination,
+      destinationGas,
+      new PublicKey(sender),
+    );
+
+    return { igpQuote: { amount: igpPayment } };
   }
 
   async populateTransferRemoteTx({

@@ -446,8 +446,6 @@ describe('hyperlane warp send e2e tests', async function () {
       await Promise.all([walletChain2.getBalance(), walletChain3.getBalance()]);
 
     const { stdout, exitCode } = await hyperlaneWarpSendRelay({
-      origin: CHAIN_NAME_2,
-      destination: CHAIN_NAME_3,
       warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
       value: Number(collateral),
     });
