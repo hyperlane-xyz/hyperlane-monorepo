@@ -157,6 +157,12 @@ export class MockSigner
 
   // ### TX WARP ###
 
+  async createNativeToken(
+    _req: Omit<AltVM.ReqCreateNativeToken, 'signer'>,
+  ): Promise<AltVM.ResCreateNativeToken> {
+    throw new Error(`not implemented`);
+  }
+
   async createCollateralToken(
     _req: Omit<AltVM.ReqCreateCollateralToken, 'signer'>,
   ): Promise<AltVM.ResCreateCollateralToken> {

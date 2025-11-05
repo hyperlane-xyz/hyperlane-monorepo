@@ -552,6 +552,12 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
 
   // ### GET WARP TXS ###
 
+  async getCreateNativeTokenTransaction(
+    _req: AltVM.ReqCreateNativeToken,
+  ): Promise<RadixSDKTransaction> {
+    throw new Error(`Native Token is not supported on Radix`);
+  }
+
   async getCreateCollateralTokenTransaction(
     req: AltVM.ReqCreateCollateralToken,
   ): Promise<RadixSDKTransaction> {

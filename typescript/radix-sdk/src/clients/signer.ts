@@ -362,6 +362,12 @@ export class RadixSigner
 
   // ### TX WARP ###
 
+  async createNativeToken(
+    _req: Omit<AltVM.ReqCreateNativeToken, 'signer'>,
+  ): Promise<AltVM.ResCreateNativeToken> {
+    throw new Error(`Native Token is not supported on Radix`);
+  }
+
   async createCollateralToken(
     req: Omit<AltVM.ReqCreateCollateralToken, 'signer'>,
   ): Promise<AltVM.ResCreateCollateralToken> {

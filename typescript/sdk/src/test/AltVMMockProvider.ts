@@ -231,6 +231,12 @@ export class MockProvider implements AltVM.IProvider {
 
   // ### GET WARP TXS ###
 
+  async getCreateNativeTokenTransaction(
+    _req: AltVM.ReqCreateNativeToken,
+  ): Promise<MockTransaction> {
+    throw new Error(`not implemented`);
+  }
+
   async getCreateCollateralTokenTransaction(
     _req: AltVM.ReqCreateCollateralToken,
   ): Promise<MockTransaction> {

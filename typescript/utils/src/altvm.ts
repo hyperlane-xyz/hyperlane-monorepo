@@ -364,6 +364,14 @@ export type ResCreateValidatorAnnounce = {
 
 // ### POPULATE WARP ###
 
+export type ReqCreateNativeToken = {
+  signer: string;
+  mailboxAddress: string;
+};
+export type ResCreateNativeToken = {
+  tokenAddress: string;
+};
+
 export type ReqCreateCollateralToken = {
   signer: string;
   mailboxAddress: string;
@@ -566,6 +574,8 @@ export interface IProvider<T = any> {
 
   // ### GET WARP TXS ###
 
+  getCreateNativeTokenTransaction(req: ReqCreateNativeToken): Promise<T>;
+
   getCreateCollateralTokenTransaction(
     req: ReqCreateCollateralToken,
   ): Promise<T>;
@@ -675,6 +685,10 @@ export interface ISigner<T, R> extends IProvider<T> {
   ): Promise<ResCreateValidatorAnnounce>;
 
   // ### TX WARP ###
+
+  createNativeToken(
+    req: Omit<ReqCreateNativeToken, 'signer'>,
+  ): Promise<ResCreateNativeToken>;
 
   createCollateralToken(
     req: Omit<ReqCreateCollateralToken, 'signer'>,

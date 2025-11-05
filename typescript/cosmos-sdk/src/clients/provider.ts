@@ -696,13 +696,19 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
 
   async getCreateValidatorAnnounceTransaction(
     _req: AltVM.ReqCreateValidatorAnnounce,
-  ): Promise<any> {
+  ): Promise<EncodeObject> {
     throw new Error(
       'Cosmos Native does not support populateCreateValidatorAnnounce',
     );
   }
 
   // ### GET WARP TXS ###
+
+  async getCreateNativeTokenTransaction(
+    _req: AltVM.ReqCreateNativeToken,
+  ): Promise<EncodeObject> {
+    throw new Error(`Native Token is not supported on Cosmos Native`);
+  }
 
   async getCreateCollateralTokenTransaction(
     req: AltVM.ReqCreateCollateralToken,
