@@ -3,9 +3,20 @@ import { Logger } from 'pino';
 
 import { PrometheusMetrics } from '../utils/prometheus.js';
 
+type DelayReason =
+  | 'insufficient_fee'
+  | 'amount_above_max'
+  | 'insufficient_allowance_available';
+type Status = 'complete' | 'pending_confirmations';
+
 interface CCTPMessageEntry {
   attestation: string;
   message: string;
+  eventNonce: string;
+  // CCTP v2 only
+  cctpVersion?: string;
+  status?: Status;
+  delayReason?: DelayReason;
 }
 
 interface CCTPData {
@@ -151,6 +162,16 @@ class CCTPAttestationService {
 
     const json: CCTPData = await resp.json();
 
+    json.messages.forEach((message) => {
+      if (message.attestation === 'PENDING') {
+        const errorString = `CCTP attestation is pending due to ${message.delayReason}`;
+        logger.error(context, errorString);
+        PrometheusMetrics.logUnhandledError(this.serviceName);
+        throw new Error(errorString);
+      }
+    });
+
+    // TODO: handle multiple messages in one tx hash
     return [json.messages[0].message, json.messages[0].attestation];
   }
 }
