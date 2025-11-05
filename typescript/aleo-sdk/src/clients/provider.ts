@@ -6,6 +6,7 @@ import {
   Program,
   ProgramManager,
 } from '@provablehq/sdk';
+import { BigNumber } from 'bignumber.js';
 
 import { AltVM, assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
 
@@ -499,7 +500,7 @@ export class AleoProvider implements AltVM.IProvider {
 
         const remoteRouterValue = await this.aleoClient.getProgramMappingValue(
           req.tokenAddress,
-          'routes',
+          'remote_routers',
           routerKey,
         );
 
@@ -530,9 +531,61 @@ export class AleoProvider implements AltVM.IProvider {
   }
 
   async quoteRemoteTransfer(
-    _req: AltVM.ReqQuoteRemoteTransfer,
+    req: AltVM.ReqQuoteRemoteTransfer,
   ): Promise<AltVM.ResQuoteRemoteTransfer> {
-    throw new Error(`TODO: implement`);
+    const remoteRouterValue = await this.aleoClient.getProgramMappingValue(
+      req.tokenAddress,
+      'remote_routers',
+      `${req.destinationDomainId}u32`,
+    );
+
+    if (!remoteRouterValue) {
+      return {
+        denom: '',
+        amount: 0n,
+      };
+    }
+
+    const gasLimit = new BigNumber(
+      Plaintext.fromString(remoteRouterValue).toObject()['gas'],
+    );
+
+    // TODO: probably get mailbox id over imports?
+    const mailbox = await this.getMailbox({
+      mailboxAddress: 'mailbox.aleo',
+    });
+
+    let quote = new BigNumber(0);
+
+    for (const hookAddress of [mailbox.requiredHook, mailbox.defaultHook]) {
+      try {
+        const igp = await this.getInterchainGasPaymasterHook({
+          hookAddress,
+        });
+
+        const config = igp.destinationGasConfigs[req.destinationDomainId];
+
+        if (!config) {
+          continue;
+        }
+
+        quote.plus(
+          gasLimit
+            .plus(config.gasOverhead)
+            .multipliedBy(config.gasOracle.gasPrice)
+            .multipliedBy(config.gasOracle.tokenExchangeRate)
+            .dividedToIntegerBy(new BigNumber(10).exponentiatedBy(10)),
+        );
+      } catch {
+        // if the hook is no IGP we assume a quote of zero
+        quote.plus(0);
+      }
+    }
+
+    return {
+      denom: '',
+      amount: BigInt(quote.toFixed(0)),
+    };
   }
 
   // ### GET CORE TXS ###

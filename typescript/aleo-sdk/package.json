@@ -48,6 +48,7 @@
   },
   "dependencies": {
     "@hyperlane-xyz/utils": "19.4.0",
-    "@provablehq/sdk": "^0.9.10-testnet-rc"
+    "@provablehq/sdk": "^0.9.10-testnet-rc",
+    "bignumber.js": "^9.1.1"
   }
 }
