@@ -376,7 +376,7 @@ export class EvmHypSyntheticAdapter
   }
 }
 
-export class EvmHypBaseCollateralAdapter
+class BaseEvmHypCollateralAdapter
   extends EvmHypSyntheticAdapter
   implements IHypTokenAdapter<PopulatedTransaction>
 {
@@ -459,7 +459,7 @@ export class EvmHypBaseCollateralAdapter
 
 // Interacts with HypCollateral contracts
 export class EvmHypCollateralAdapter
-  extends EvmHypBaseCollateralAdapter
+  extends BaseEvmHypCollateralAdapter
   implements IHypTokenAdapter<PopulatedTransaction>
 {
   public readonly collateralContract: HypERC20Collateral;
@@ -634,7 +634,7 @@ export class EvmHypCollateralFiatAdapter
 }
 
 export class EvmHypRebaseCollateralAdapter
-  extends EvmHypBaseCollateralAdapter
+  extends BaseEvmHypCollateralAdapter
   implements IHypTokenAdapter<PopulatedTransaction>
 {
   public override collateralContract: HypERC4626Collateral;
