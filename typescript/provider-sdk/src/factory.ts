@@ -29,6 +29,13 @@ export interface IProtocolProviderFactory {
     chainMetadata: ChainMetadataForAltVM,
     config: TransactionSubmitterConfig<never>,
   ): Promise<ITransactionSubmitter>;
+  registerSubmitterFactory(
+    type: string,
+    factory: (
+      chainMetadata: ChainMetadataForAltVM,
+      config: TransactionSubmitterConfig<never>,
+    ) => Promise<ITransactionSubmitter>,
+  ): void;
   // TODO: better typing here instead of any
   ismFactory(): HypModuleFactory<IsmConfig, any>;
   hookFactory(): HypModuleFactory<HookConfig, any>;
