@@ -742,27 +742,55 @@ export class AleoProvider implements AltVM.IProvider {
   }
 
   async getSetTokenOwnerTransaction(
-    _req: AltVM.ReqSetTokenOwner,
+    req: AltVM.ReqSetTokenOwner,
   ): Promise<AleoTransaction> {
-    throw new Error(`TODO: implement`);
+    return {
+      programName: req.tokenAddress,
+      functionName: 'set_owner',
+      priorityFee: 0,
+      privateFee: false,
+      inputs: [req.newOwner],
+    };
   }
 
   async getSetTokenIsmTransaction(
-    _req: AltVM.ReqSetTokenIsm,
+    req: AltVM.ReqSetTokenIsm,
   ): Promise<AleoTransaction> {
-    throw new Error(`TODO: implement`);
+    return {
+      programName: req.tokenAddress,
+      functionName: 'set_custom_ism',
+      priorityFee: 0,
+      privateFee: false,
+      inputs: [req.ismAddress],
+    };
   }
 
   async getEnrollRemoteRouterTransaction(
-    _req: AltVM.ReqEnrollRemoteRouter,
+    req: AltVM.ReqEnrollRemoteRouter,
   ): Promise<AleoTransaction> {
-    throw new Error(`TODO: implement`);
+    return {
+      programName: req.tokenAddress,
+      functionName: 'enroll_remote_router',
+      priorityFee: 0,
+      privateFee: false,
+      inputs: [
+        `${req.remoteRouter.receiverDomainId}u32`,
+        req.remoteRouter.receiverAddress,
+        `${req.remoteRouter.gas}u128`,
+      ],
+    };
   }
 
   async getUnenrollRemoteRouterTransaction(
-    _req: AltVM.ReqUnenrollRemoteRouter,
+    req: AltVM.ReqUnenrollRemoteRouter,
   ): Promise<AleoTransaction> {
-    throw new Error(`TODO: implement`);
+    return {
+      programName: req.tokenAddress,
+      functionName: 'unroll_remote_router',
+      priorityFee: 0,
+      privateFee: false,
+      inputs: [`${req.receiverDomainId}u32`],
+    };
   }
 
   async getTransferTransaction(

@@ -513,27 +513,67 @@ export class AleoSigner
   }
 
   async setTokenOwner(
-    _req: Omit<AltVM.ReqSetTokenOwner, 'signer'>,
+    req: Omit<AltVM.ReqSetTokenOwner, 'signer'>,
   ): Promise<AltVM.ResSetTokenOwner> {
-    throw new Error(`TODO: implement`);
+    const tx = await this.getSetTokenOwnerTransaction({
+      signer: this.getSignerAddress(),
+      ...req,
+    });
+
+    const txId = await this.programManager.execute(tx);
+    await this.aleoClient.waitForTransactionConfirmation(txId);
+
+    return {
+      newOwner: req.newOwner,
+    };
   }
 
   async setTokenIsm(
-    _req: Omit<AltVM.ReqSetTokenIsm, 'signer'>,
+    req: Omit<AltVM.ReqSetTokenIsm, 'signer'>,
   ): Promise<AltVM.ResSetTokenIsm> {
-    throw new Error(`TODO: implement`);
+    const tx = await this.getSetTokenIsmTransaction({
+      signer: this.getSignerAddress(),
+      ...req,
+    });
+
+    const txId = await this.programManager.execute(tx);
+    await this.aleoClient.waitForTransactionConfirmation(txId);
+
+    return {
+      ismAddress: req.ismAddress,
+    };
   }
 
   async enrollRemoteRouter(
-    _req: Omit<AltVM.ReqEnrollRemoteRouter, 'signer'>,
+    req: Omit<AltVM.ReqEnrollRemoteRouter, 'signer'>,
   ): Promise<AltVM.ResEnrollRemoteRouter> {
-    throw new Error(`TODO: implement`);
+    const tx = await this.getEnrollRemoteRouterTransaction({
+      signer: this.getSignerAddress(),
+      ...req,
+    });
+
+    const txId = await this.programManager.execute(tx);
+    await this.aleoClient.waitForTransactionConfirmation(txId);
+
+    return {
+      receiverDomainId: req.remoteRouter.receiverDomainId,
+    };
   }
 
   async unenrollRemoteRouter(
-    _req: Omit<AltVM.ReqUnenrollRemoteRouter, 'signer'>,
+    req: Omit<AltVM.ReqUnenrollRemoteRouter, 'signer'>,
   ): Promise<AltVM.ResUnenrollRemoteRouter> {
-    throw new Error(`TODO: implement`);
+    const tx = await this.getUnenrollRemoteRouterTransaction({
+      signer: this.getSignerAddress(),
+      ...req,
+    });
+
+    const txId = await this.programManager.execute(tx);
+    await this.aleoClient.waitForTransactionConfirmation(txId);
+
+    return {
+      receiverDomainId: req.receiverDomainId,
+    };
   }
 
   async transfer(
