@@ -120,7 +120,7 @@ export function getProtocolProviderFactory(
  * @param protocol The protocol type
  * @returns true if the protocol is registered
  */
-export function hasProtocolProvider(protocol: ProtocolType): boolean {
+export function hasProtocolProviderFactory(protocol: ProtocolType): boolean {
   return protocolRegistry.hasProtocol(protocol);
 }
 
