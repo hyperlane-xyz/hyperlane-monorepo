@@ -3,6 +3,7 @@ import { Logger } from 'pino';
 
 import { PrometheusMetrics } from '../utils/prometheus.js';
 
+// https://developers.circle.com/api-reference/cctp/all/get-messages-v-2
 type DelayReason =
   | 'insufficient_fee'
   | 'amount_above_max'
