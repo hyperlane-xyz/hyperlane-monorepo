@@ -189,11 +189,10 @@ export const XERC20TokenConfigSchema = CollateralTokenConfigSchema.omit({
 export type XERC20LimitsTokenConfig = z.infer<typeof XERC20TokenConfigSchema>;
 export const isXERC20TokenConfig = isCompliant(XERC20TokenConfigSchema);
 
-export const CctpTokenConfigSchema = CollateralTokenConfigSchema.omit({
-  type: true,
-})
+export const CctpTokenConfigSchema = TokenMetadataSchema.partial()
   .extend({
     type: z.literal(TokenType.collateralCctp),
+    token: z.string().describe('CCTP enabled token'),
     messageTransmitter: z
       .string()
       .describe('CCTP Message Transmitter contract address'),
