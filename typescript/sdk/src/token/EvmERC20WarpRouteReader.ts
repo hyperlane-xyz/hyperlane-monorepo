@@ -256,7 +256,7 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
     );
 
     const [packageVersion, tokenFee] = await Promise.all([
-      this.fetchPackageVersion(routerAddress).catch(() => '0.0.0'),
+      this.fetchPackageVersion(routerAddress),
       TokenRouter.feeRecipient().catch(() => constants.AddressZero),
     ]);
 
@@ -992,13 +992,14 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
     try {
       return await contractWithVersion.PACKAGE_VERSION();
     } catch (err: any) {
-      if (err.cause.code && err.cause.code === 'CALL_EXCEPTION') {
+      if (err.cause?.code && err.cause?.code === 'CALL_EXCEPTION') {
         // PACKAGE_VERSION was introduced in @hyperlane-xyz/core@5.4.0
         // See https://github.com/hyperlane-xyz/hyperlane-monorepo/releases/tag/%40hyperlane-xyz%2Fcore%405.4.0
         // The real version of a contract without this function is below 5.4.0
         return '5.3.9';
       } else {
-        throw err;
+        this.logger.error(`Error when fetching package version ${err}`);
+        return '0.0.0';
       }
     }
   }

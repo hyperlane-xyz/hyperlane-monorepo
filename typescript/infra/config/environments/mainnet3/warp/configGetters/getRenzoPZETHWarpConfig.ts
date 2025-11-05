@@ -2,7 +2,7 @@ import { ChainMap } from '@hyperlane-xyz/sdk';
 import { pick } from '@hyperlane-xyz/utils';
 
 import {
-  ezEthSafes,
+  ezEthOwners,
   ezEthValidators,
   getRenzoWarpConfigGenerator,
   renzoTokenPrices,
@@ -26,7 +26,7 @@ export const pzEthChainsToDeploy = [
 ];
 
 const pzEthValidators = pick(ezEthValidators, pzEthChainsToDeploy);
-const pzEthSafes = pick(ezEthSafes, pzEthChainsToDeploy);
+const pzEthSafes = pick(ezEthOwners, pzEthChainsToDeploy);
 export const pzEthTokenPrices = pick(renzoTokenPrices, pzEthChainsToDeploy);
 const existingProxyAdmins: ChainMap<{ address: string; owner: string }> = {
   ethereum: {

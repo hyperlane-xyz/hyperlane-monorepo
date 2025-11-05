@@ -10,6 +10,8 @@ import {
   ERC4626__factory,
   GasRouter__factory,
   HypERC20,
+  HypERC20Collateral,
+  HypERC20Collateral__factory,
   HypERC20__factory,
   HypERC4626,
   HypERC4626Collateral,
@@ -73,7 +75,7 @@ import {
 // An estimate of the gas amount for a typical EVM token router transferRemote transaction
 // Computed by estimating on a few different chains, taking the max, and then adding ~50% padding
 export const EVM_TRANSFER_REMOTE_GAS_ESTIMATE = 450_000n;
-const QUOTE_TRANSFER_REMOTE_CONTRACT_VERSION = '10.0.0';
+const TOKEN_FEE_CONTRACT_VERSION = '10.0.0';
 
 // Interacts with native currencies
 export class EvmNativeTokenAdapter
@@ -275,18 +277,26 @@ export class EvmHypSyntheticAdapter
     return this.getTotalSupply();
   }
 
+  async getContractPackageVersion() {
+    try {
+      return await this.contract.PACKAGE_VERSION();
+    } catch (err) {
+      // PACKAGE_VERSION was introduced in v5.4.0
+      this.logger.error(`Error when fetching package version ${err}`);
+      return '5.3.9';
+    }
+  }
+
   async quoteTransferRemoteGas({
     destination,
     recipient,
     amount,
   }: QuoteTransferRemoteParams): Promise<InterchainGasQuote> {
-    const contractVersion = await this.contract.PACKAGE_VERSION();
-
+    const contractVersion = await this.getContractPackageVersion();
     const hasQuoteTransferRemote = isValidContractVersion(
       contractVersion,
-      QUOTE_TRANSFER_REMOTE_CONTRACT_VERSION,
+      TOKEN_FEE_CONTRACT_VERSION,
     );
-
     // Version does not support quoteTransferRemote defaulting to quoteGasPayment
     if (!hasQuoteTransferRemote) {
       const gasPayment = await this.contract.quoteGasPayment(destination);
@@ -366,8 +376,7 @@ export class EvmHypSyntheticAdapter
   }
 }
 
-// Interacts with HypCollateral contracts
-export class EvmHypCollateralAdapter
+class BaseEvmHypCollateralAdapter
   extends EvmHypSyntheticAdapter
   implements IHypTokenAdapter<PopulatedTransaction>
 {
@@ -445,6 +454,33 @@ export class EvmHypCollateralAdapter
     return this.getWrappedTokenAdapter().then((t) =>
       t.populateTransferTx(params),
     );
+  }
+}
+
+// Interacts with HypCollateral contracts
+export class EvmHypCollateralAdapter
+  extends BaseEvmHypCollateralAdapter
+  implements IHypTokenAdapter<PopulatedTransaction>
+{
+  public readonly collateralContract: HypERC20Collateral;
+
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: { token: Address },
+  ) {
+    super(chainName, multiProvider, addresses);
+    this.collateralContract = HypERC20Collateral__factory.connect(
+      addresses.token,
+      this.getProvider(),
+    );
+  }
+
+  override async getWrappedTokenAddress(): Promise<Address> {
+    if (!this.wrappedTokenAddress) {
+      this.wrappedTokenAddress = await this.collateralContract.wrappedToken();
+    }
+    return this.wrappedTokenAddress!;
   }
 }
 
@@ -598,7 +634,7 @@ export class EvmHypCollateralFiatAdapter
 }
 
 export class EvmHypRebaseCollateralAdapter
-  extends EvmHypCollateralAdapter
+  extends BaseEvmHypCollateralAdapter
   implements IHypTokenAdapter<PopulatedTransaction>
 {
   public override collateralContract: HypERC4626Collateral;
@@ -613,6 +649,13 @@ export class EvmHypRebaseCollateralAdapter
       addresses.token,
       this.getProvider(),
     );
+  }
+
+  override async getWrappedTokenAddress(): Promise<Address> {
+    if (!this.wrappedTokenAddress) {
+      this.wrappedTokenAddress = await this.collateralContract.wrappedToken();
+    }
+    return this.wrappedTokenAddress!;
   }
 
   override async getBridgedSupply(): Promise<bigint> {

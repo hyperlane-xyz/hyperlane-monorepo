@@ -531,9 +531,9 @@ pub fn build_connection_conf(
         HyperlaneDomainProtocol::Starknet => {
             build_starknet_connection_conf(rpcs, chain, err, operation_batch)
         }
-        // TODO: adjust the connection config
         HyperlaneDomainProtocol::Radix => {
             build_radix_connection_conf(rpcs, chain, err, operation_batch)
         }
+        HyperlaneDomainProtocol::Aleo => todo!(),
     }
 }
