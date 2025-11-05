@@ -285,7 +285,7 @@ impl InclusionStage {
         tx.last_status_check = Some(chrono::Utc::now());
 
         let tx_status = call_until_success_or_nonretryable_error(
-            || state.adapter.tx_status(&tx),
+            || state.adapter.tx_status(tx),
             "Querying transaction status",
             state,
         )
@@ -318,7 +318,7 @@ impl InclusionStage {
             TransactionStatus::PendingInclusion | TransactionStatus::Mempool => {
                 info!(tx_uuid = ?tx.uuid, ?tx_status, "Transaction is pending inclusion");
                 update_tx_status(state, tx, tx_status.clone()).await?;
-                if !state.adapter.tx_ready_for_resubmission(&tx).await {
+                if !state.adapter.tx_ready_for_resubmission(tx).await {
                     info!(?tx, "Transaction is not ready for resubmission");
                     return Ok(());
                 }
@@ -371,9 +371,7 @@ impl InclusionStage {
         state
             .metrics
             .update_transaction_submissions_metric(&state.domain);
-        state
-            .adapter
-            .update_vm_specific_metrics(&tx, &state.metrics);
+        state.adapter.update_vm_specific_metrics(tx, &state.metrics);
         // update tx status in db
         update_tx_status(state, tx, TransactionStatus::Mempool).await?;
 
