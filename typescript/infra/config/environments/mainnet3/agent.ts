@@ -91,7 +91,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     carrchain: true,
     celestia: true,
     celo: true,
-    cheesechain: true,
     chilizmainnet: true,
     coredao: true,
     coti: true,
@@ -232,7 +231,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     carrchain: true,
     celestia: true,
     celo: true,
-    cheesechain: true,
     chilizmainnet: true,
     coredao: true,
     coti: true,
@@ -373,7 +371,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     carrchain: true,
     celestia: true,
     celo: true,
-    cheesechain: true,
     chilizmainnet: true,
     coredao: true,
     coti: true,
@@ -601,6 +598,11 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       {
         originDomain: getDomainId('stride'),
         destinationDomain: getDomainId('forma'),
+      },
+      // Not a core chain
+      {
+        originDomain: getDomainId('forma'),
+        destinationDomain: getDomainId('celestia'),
       },
     ],
   },
@@ -859,7 +861,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '448e701-20251030-214127',
+      tag: '85f3091-20251031-223623',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -905,7 +907,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '448e701-20251030-214127',
+      tag: '85f3091-20251031-223623',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase

@@ -149,7 +149,6 @@ pub enum KnownHyperlaneDomain {
     BSquared = 223,
     B3 = 8333,
     Celo = 42220,
-    Cheesechain = 383353,
     ChilizMainnet = 1000088888,
     CoreDao = 1116,
     Corn = 21000000,
@@ -524,9 +523,9 @@ impl KnownHyperlaneDomain {
         use KnownHyperlaneDomain::*;
         match self {
             ApeChain | AppChain | Arbitrum | ArbitrumNova | ArbitrumSepolia | CarrchainTestnet
-            | Cheesechain | Corn | Everclear | Fluence | DegenChain | Galactica | Gravity
-            | InEvm | MiracleChain | Molten | Plume | PlumeTestnet | Rarichain
-            | SuperpositionMainnet | Xai => HyperlaneDomainTechnicalStack::ArbitrumNitro,
+            | Corn | Everclear | Fluence | DegenChain | Galactica | Gravity | InEvm
+            | MiracleChain | Molten | Plume | PlumeTestnet | Rarichain | SuperpositionMainnet
+            | Xai => HyperlaneDomainTechnicalStack::ArbitrumNitro,
             Ancient8 | Base | Blast | Bob | Boba | B3 | Celo | Cyber | Form | Fraxtal | Guru
             | Ink | Lisk | MantaPacific | Mantle | Matchain | Metal | Metis | Mint | Mode
             | ModeTestnet | OpBnb | Optimism | Orderly | PolynomialFi | Redstone | Soneium
