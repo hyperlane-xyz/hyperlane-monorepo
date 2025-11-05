@@ -301,6 +301,8 @@ export class RadixSigner
   async createInterchainGasPaymasterHook(
     req: Omit<AltVM.ReqCreateInterchainGasPaymasterHook, 'signer'>,
   ): Promise<AltVM.ResCreateInterchainGasPaymasterHook> {
+    assert(req.denom, `denom required by ${RadixProvider.name}`);
+
     return {
       hookAddress: await this.tx.core.createIgp({
         denom: req.denom,
@@ -427,6 +429,8 @@ export class RadixSigner
   async transfer(
     req: Omit<AltVM.ReqTransfer, 'signer'>,
   ): Promise<AltVM.ResTransfer> {
+    assert(req.denom, `denom required by ${RadixProvider.name}`);
+
     const manifest = await this.base.transfer({
       from_address: this.account.address,
       to_address: req.recipient,

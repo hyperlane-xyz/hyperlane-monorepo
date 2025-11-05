@@ -132,6 +132,8 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   }
 
   async getBalance(req: AltVM.ReqGetBalance): Promise<bigint> {
+    assert(req.denom, `denom required by ${RadixProvider.name}`);
+
     return this.base.getBalance({
       address: req.address,
       resource: req.denom,
@@ -139,6 +141,8 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   }
 
   async getTotalSupply(req: AltVM.ReqGetTotalSupply): Promise<bigint> {
+    assert(req.denom, `denom required by ${RadixProvider.name}`);
+
     return this.base.getTotalSupply({
       resource: req.denom,
     });
@@ -479,6 +483,8 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   async getCreateInterchainGasPaymasterHookTransaction(
     req: AltVM.ReqCreateInterchainGasPaymasterHook,
   ): Promise<RadixSDKTransaction> {
+    assert(req.denom, `denom required by ${RadixProvider.name}`);
+
     return {
       networkId: this.networkId,
       manifest: await this.populate.core.createIgp({
@@ -613,6 +619,8 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   async getTransferTransaction(
     req: AltVM.ReqTransfer,
   ): Promise<RadixSDKTransaction> {
+    assert(req.denom, `denom required by ${RadixProvider.name}`);
+
     return {
       networkId: this.networkId,
       manifest: await this.base.transfer({

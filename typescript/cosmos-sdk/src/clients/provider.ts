@@ -113,11 +113,15 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
   }
 
   async getBalance(req: AltVM.ReqGetBalance): Promise<bigint> {
+    assert(req.denom, `denom required by ${CosmosNativeProvider.name}`);
+
     const coin = await this.query.bank.balance(req.address, req.denom);
     return BigInt(coin.amount);
   }
 
   async getTotalSupply(req: AltVM.ReqGetTotalSupply): Promise<bigint> {
+    assert(req.denom, `denom required by ${CosmosNativeProvider.name}`);
+
     const coin = await this.query.bank.supplyOf(req.denom);
     return BigInt(coin.amount);
   }
@@ -755,6 +759,8 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
   async getTransferTransaction(
     req: AltVM.ReqTransfer,
   ): Promise<MsgSendEncodeObject> {
+    assert(req.denom, `denom required by ${CosmosNativeProvider.name}`);
+
     return {
       typeUrl: '/cosmos.bank.v1beta1.MsgSend',
       value: {
