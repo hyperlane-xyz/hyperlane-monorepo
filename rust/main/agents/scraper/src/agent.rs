@@ -162,8 +162,6 @@ impl Scraper {
                 Ok(s) => s,
                 Err(err) => {
                     tracing::error!(?err, ?scraper.domain, attempt_count=i, "Failed to scrape chain");
-                    self.chain_metrics
-                        .set_critical_error(scraper.domain.name(), true);
                     sleep(RPC_RETRY_SLEEP_DURATION).await;
                     continue;
                 }
@@ -173,6 +171,8 @@ impl Scraper {
                 .set_critical_error(scraper.domain.name(), false);
             return Ok(scraper_task);
         }
+        self.chain_metrics
+            .set_critical_error(scraper.domain.name(), true);
         Err(eyre::eyre!("Failed to scrape chain"))
     }
 
