@@ -212,18 +212,15 @@ async fn test_build_transactions_batch_contract_missing() {
 }
 
 #[tokio::test]
-async fn test_build_transactions_contract_error() {
+async fn test_build_transactions_custom_error() {
     let (payload_db, tx_db, nonce_db) = tmp_dbs();
 
     let mut provider = MockEvmProvider::new();
     // batching will fail due to contract error
     provider.expect_batch().returning(|_, _, _, _| {
-        Err(ChainCommunicationError::ContractError(
-            HyperlaneCustomErrorWrapper::new(Box::new(std::io::Error::new(
-                std::io::ErrorKind::ConnectionReset,
-                "test error",
-            ))),
-        ))
+        Err(ChainCommunicationError::CustomError(format!(
+            "Unable to build multicall contract",
+        )))
     });
 
     let signer = Address::random();
