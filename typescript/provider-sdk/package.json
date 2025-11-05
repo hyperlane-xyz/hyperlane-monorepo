@@ -15,7 +15,10 @@
     "./hook": "./dist/hook.js",
     "./ism": "./dist/ism.js",
     "./core": "./dist/core.js",
-    "./warp": "./dist/warp.js"
+    "./warp": "./dist/warp.js",
+    "./factory": "./dist/factory.js",
+    "./submitter": "./dist/submitter.js",
+    "./registry": "./dist/registry.js"
   },
   "scripts": {
     "build": "tsc",
