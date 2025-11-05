@@ -4,6 +4,20 @@ on:
   push:
     branches:
       - main
+    paths:
+      - '.changeset/**'
+      - '**/package.json'
+      - 'typescript/**'
+      - '!typescript/infra/**'
+      - '!typescript/ccip-server/**'
+      - '!typescript/eslint-config/**'
+      - '!typescript/github-proxy/**'
+      - '!typescript/http-registry-server/**'
+      - '!typescript/tsconfig/**'
+      - 'solidity/**'
+      - 'starknet/**'
+      - 'yarn.lock'
+      - '.github/workflows/release.yml'
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
