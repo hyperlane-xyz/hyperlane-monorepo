@@ -1,5 +1,11 @@
 # @hyperlane-xyz/cli
 
+## 19.7.0
+
+### Minor Changes
+
+- a03b02e47: Fix `hyperlane warp send` where an error is thrown if `--chains` or `--origin` and `--destination` are not provided
+
 ## 19.6.0
 
 ### Minor Changes
