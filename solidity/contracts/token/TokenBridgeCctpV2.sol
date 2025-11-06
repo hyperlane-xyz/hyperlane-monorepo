@@ -11,6 +11,7 @@ import {TypeCasts} from "../libs/TypeCasts.sol";
 import {IMessageHandlerV2} from "../interfaces/cctp/IMessageHandlerV2.sol";
 import {ITokenMessengerV2} from "../interfaces/cctp/ITokenMessengerV2.sol";
 import {IMessageTransmitterV2} from "../interfaces/cctp/IMessageTransmitterV2.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 // @dev Supports only CCTP V2
 contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
@@ -77,7 +78,13 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
         bytes32,
         uint256 amount
     ) internal view override returns (uint256 feeAmount) {
-        return (amount * maxFeeBps) / (10_000 - maxFeeBps);
+        return
+            Math.mulDiv(
+                amount,
+                maxFeeBps,
+                10_000 - maxFeeBps,
+                Math.Rounding.Up
+            );
     }
 
     function _getCCTPVersion() internal pure override returns (uint32) {
@@ -163,7 +170,7 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
         IMessageTransmitterV2(address(messageTransmitter)).sendMessage(
             destinationDomain,
             ism,
-            bytes32(0), // allow anyone to relay
+            ism,
             minFinalityThreshold,
             abi.encode(messageId)
         );
@@ -173,14 +180,15 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
         uint32 circleDomain,
         bytes32 _recipient,
         uint256 _amount,
-        uint256 _maxFee
+        uint256 _maxFee,
+        bytes32 _ism
     ) internal override {
         ITokenMessengerV2(address(tokenMessenger)).depositForBurn(
             _amount,
             circleDomain,
             _recipient,
             address(wrappedToken),
-            bytes32(0), // allow anyone to relay
+            _ism,
             _maxFee,
             minFinalityThreshold
         );

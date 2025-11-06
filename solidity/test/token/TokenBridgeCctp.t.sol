@@ -35,6 +35,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {LinearFee} from "../../contracts/token/fees/LinearFee.sol";
 import {IPostDispatchHook} from "../../contracts/interfaces/hooks/IPostDispatchHook.sol";
 import {StandardHookMetadata} from "../../contracts/hooks/libs/StandardHookMetadata.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract TokenBridgeCctpV1Test is Test {
     using TypeCasts for address;
@@ -63,7 +64,7 @@ contract TokenBridgeCctpV1Test is Test {
     MockToken internal tokenDestination;
 
     uint32 internal version = CCTP_VERSION_1;
-    uint256 internal amount = 1_000_000; // 1 USDC
+    uint256 internal amount = 100_010; // 1 USDC
     address internal user = address(11);
     uint256 internal balance = 10_000_000; // 10 USDC
 
@@ -708,7 +709,7 @@ contract TokenBridgeCctpV1Test is Test {
             hook.messageTransmitter().nextAvailableNonce(),
             address(hook).addressToBytes32(),
             router,
-            bytes32(0),
+            bytes32(0), // destinationCaller
             abi.encode(Message.id(message))
         );
 
@@ -1152,11 +1153,17 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         uint256 amount,
         address sender
     ) internal view override returns (bytes memory cctpMessage) {
+        uint256 fee = Math.mulDiv(
+            amount,
+            maxFee,
+            10_000 - maxFee,
+            Math.Rounding.Up
+        );
         bytes memory burnMessage = BurnMessageV2._formatMessageForRelay(
             version,
             address(tokenOrigin).addressToBytes32(),
             recipient,
-            amount + (amount * maxFee) / (10_000 - maxFee),
+            amount + fee,
             sender.addressToBytes32(),
             maxFee,
             bytes("")
@@ -1313,7 +1320,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             bytes32(
                 0x00000000000000000000000028b5a0e9c621a5badaa536219b3a228c8168cf5d
             ), // tokenMessengerDestination
-            bytes32(0), // destinationCaller
+            ism, // destinationCaller
             fastFee,
             minFinalityThreshold,
             bytes("")
@@ -1405,7 +1412,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             hook.hyperlaneDomainToCircleDomain(destination),
             address(hook).addressToBytes32(),
             ism,
-            bytes32(0),
+            ism, // destinationCaller
             minFinalityThreshold,
             abi.encode(Message.id(message))
         );
@@ -1443,7 +1450,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
                     cctpDestination,
                     user.addressToBytes32(),
                     address(tokenOrigin),
-                    bytes32(0),
+                    address(tbDestination).addressToBytes32(),
                     fastFee,
                     minFinalityThreshold
                 )
@@ -1491,7 +1498,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
                     cctpDestination,
                     user.addressToBytes32(),
                     address(tokenOrigin),
-                    bytes32(0),
+                    address(tbDestination).addressToBytes32(),
                     fastFee,
                     minFinalityThreshold
                 )
@@ -1521,14 +1528,15 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             )
         );
 
+        bytes32 ism = address(tbDestination).addressToBytes32();
         vm.expectCall(
             address(messageTransmitterOrigin),
             abi.encodeCall(
                 IRelayerV2.sendMessage,
                 (
                     cctpDestination,
-                    address(tbDestination).addressToBytes32(),
-                    address(0).addressToBytes32(),
+                    ism,
+                    ism, // destinationCaller
                     minFinalityThreshold,
                     abi.encode(id)
                 )
@@ -1593,7 +1601,13 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         );
         assertEq(quotes[1].token, address(tokenOrigin));
         assertEq(quotes[1].amount, amount);
-        uint256 fastFee = (amount * maxFee) / (10_000 - maxFee);
+        // rounded up using Math.mulDiv with Rounding.Up
+        uint256 fastFee = Math.mulDiv(
+            amount,
+            maxFee,
+            10_000 - maxFee,
+            Math.Rounding.Up
+        );
         assertEq(quotes[2].token, address(tokenOrigin));
         assertEq(quotes[2].amount, fastFee);
     }

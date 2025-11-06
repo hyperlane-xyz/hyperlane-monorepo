@@ -145,9 +145,16 @@ abstract contract TokenBridgeCctpBase is
             );
 
         // 2. Prepare the token message with the recipient, amount, and any additional metadata in overrides
+        bytes32 ism = _mustHaveRemoteRouter(_destination);
         uint32 circleDomain = hyperlaneDomainToCircleDomain(_destination);
         uint256 burnAmount = _amount + externalFee;
-        _bridgeViaCircle(circleDomain, _recipient, burnAmount, externalFee);
+        _bridgeViaCircle(
+            circleDomain,
+            _recipient,
+            burnAmount,
+            externalFee,
+            ism
+        );
 
         bytes memory _message = TokenMessage.format(_recipient, burnAmount);
         // 3. Emit the SentTransferRemote event and 4. dispatch the message
@@ -381,6 +388,7 @@ abstract contract TokenBridgeCctpBase is
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount,
-        uint256 _maxFee
+        uint256 _maxFee,
+        bytes32 _ism
     ) internal virtual;
 }
