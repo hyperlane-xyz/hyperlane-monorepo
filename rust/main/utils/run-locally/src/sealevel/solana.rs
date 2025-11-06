@@ -88,18 +88,36 @@ pub const SOLANA_CHECKPOINT_LOCATION: &str =
 const SOLANA_GAS_ORACLE_CONFIG_FILE: &str = "environments/local-e2e/gas-oracle-configs.json";
 
 // Install the CLI tools and return the path to the bin dir.
+// Caches to ~/.cache/hyperlane-e2e/solana-cli-{version}/ to avoid repeated downloads.
 #[apply(as_task)]
-pub fn install_solana_cli_tools(
-    release_url: String,
-    release_version: String,
-    tools_dir: PathBuf,
-) -> PathBuf {
-    let solana_download_dir = tempdir().unwrap();
+pub fn install_solana_cli_tools(release_url: String, release_version: String) -> PathBuf {
+    // Set up cache directory
+    let home_dir = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .expect("Failed to get home directory");
+    let cache_dir = PathBuf::from(home_dir).join(".cache").join("hyperlane-e2e");
+    fs::create_dir_all(&cache_dir).expect("Failed to create cache directory");
+
+    let tools_dir = cache_dir.join(format!("solana-cli-{}", release_version));
+    let bin_dir = concat_path(&tools_dir, "bin");
+
+    // Check if already cached
+    if bin_dir.exists() {
+        log!(
+            "Using cached solana cli v{} from {}",
+            release_version,
+            tools_dir.display()
+        );
+        return bin_dir;
+    }
+
     log!(
         "Downloading solana cli release v{} from {}",
         release_version,
         release_url
     );
+
+    let solana_download_dir = tempdir().unwrap();
     let solana_release_name = {
         // best effort to pick one of the supported targets
         let target = if cfg!(target_os = "linux") {
@@ -143,38 +161,52 @@ pub fn install_solana_cli_tools(
         &tools_dir,
     )
     .expect("Failed to move solana-release dir");
-    concat_path(&tools_dir, "bin")
+
+    log!(
+        "Cached solana cli v{} to {}",
+        release_version,
+        tools_dir.display()
+    );
+
+    bin_dir
 }
 
 #[apply(as_task)]
 pub fn build_solana_programs(solana_cli_tools_path: PathBuf) -> PathBuf {
     let workspace_path = get_workspace_path();
     let out_path = concat_path(&workspace_path, SBF_OUT_PATH);
-    if out_path.exists() {
-        fs::remove_dir_all(&out_path).expect("Failed to remove solana program deploy dir");
-    }
+
+    // Create the directory if it doesn't exist, but don't delete if it does (caching)
     fs::create_dir_all(&out_path).expect("Failed to create solana program deploy dir");
     let out_path = out_path.canonicalize().unwrap();
 
-    Program::new("curl")
-        .arg("output", "spl.tar.gz")
-        .flag("location")
-        .cmd(SOLANA_PROGRAM_LIBRARY_ARCHIVE)
-        .flag("silent")
-        .working_dir(&out_path)
-        .run()
-        .join();
-    log!("Uncompressing solana programs");
+    // Download SPL programs if not already present
+    let spl_archive = concat_path(&out_path, "spl.tar.gz");
+    let spl_token_so = concat_path(&out_path, "spl_token.so");
+    if !spl_token_so.exists() {
+        log!("Downloading SPL programs");
+        Program::new("curl")
+            .arg("output", "spl.tar.gz")
+            .flag("location")
+            .cmd(SOLANA_PROGRAM_LIBRARY_ARCHIVE)
+            .flag("silent")
+            .working_dir(&out_path)
+            .run()
+            .join();
+        log!("Uncompressing solana programs");
 
-    Program::new("tar")
-        .flag("extract")
-        .arg("file", "spl.tar.gz")
-        .working_dir(&out_path)
-        .run()
-        .join();
-    log!("Removing temporary solana files");
-    fs::remove_file(concat_path(&out_path, "spl.tar.gz"))
-        .expect("Failed to remove solana program archive");
+        Program::new("tar")
+            .flag("extract")
+            .arg("file", "spl.tar.gz")
+            .working_dir(&out_path)
+            .run()
+            .join();
+        log!("Removing temporary solana files");
+        fs::remove_file(&spl_archive).expect("Failed to remove solana program archive");
+        log!("SPL programs cached");
+    } else {
+        log!("Using cached SPL programs from {}", out_path.display());
+    }
 
     let bin_path = concat_path(&solana_cli_tools_path, "cargo-build-sbf");
     let build_sbf = Program::new(bin_path).env("SBF_OUT_PATH", out_path.to_str().unwrap());
@@ -183,7 +215,7 @@ pub fn build_solana_programs(solana_cli_tools_path: PathBuf) -> PathBuf {
     let sealevel_path = get_sealevel_path(&workspace_path);
     let sealevel_programs = concat_path(sealevel_path, "programs");
 
-    // build our programs
+    // Build our programs - cargo-build-sbf will handle incremental builds
     for &path in SOLANA_HYPERLANE_PROGRAMS {
         build_sbf
             .clone()

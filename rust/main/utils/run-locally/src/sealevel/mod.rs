@@ -168,16 +168,19 @@ fn run_locally() {
     // Ready to run...
     //
 
-    let (solana_programs_path, hyperlane_solana_programs_path) = {
-        let solana_path_tempdir = tempdir().expect("Failed to create solana temp dir");
-        let solana_bin_path = install_solana_cli_tools(
-            SOLANA_CONTRACTS_CLI_RELEASE_URL.to_owned(),
-            SOLANA_CONTRACTS_CLI_VERSION.to_owned(),
-            solana_path_tempdir.path().to_path_buf(),
-        )
-        .join();
-        state.data.push(Box::new(solana_path_tempdir));
+    // Download both Solana CLI versions in parallel (Option 4)
+    log!("Downloading Solana CLI tools in parallel...");
+    let contracts_cli_task = install_solana_cli_tools(
+        SOLANA_CONTRACTS_CLI_RELEASE_URL.to_owned(),
+        SOLANA_CONTRACTS_CLI_VERSION.to_owned(),
+    );
+    let network_cli_task = install_solana_cli_tools(
+        SOLANA_NETWORK_CLI_RELEASE_URL.to_owned(),
+        SOLANA_NETWORK_CLI_VERSION.to_owned(),
+    );
 
+    let (solana_programs_path, hyperlane_solana_programs_path) = {
+        let solana_bin_path = contracts_cli_task.join();
         let solana_program_builder = build_solana_programs(solana_bin_path.clone());
         (solana_bin_path, solana_program_builder.join())
     };
@@ -219,15 +222,8 @@ fn run_locally() {
 
     let solana_ledger_dir = tempdir().expect("Failed to create solana ledger dir");
     let (solana_cli_tools_path, solana_config_path) = {
-        // use the agave 2.x validator version to ensure mainnet compatibility
-        let solana_tools_dir = tempdir().expect("Failed to create solana tools dir");
-        let solana_bin_path = install_solana_cli_tools(
-            SOLANA_NETWORK_CLI_RELEASE_URL.to_owned(),
-            SOLANA_NETWORK_CLI_VERSION.to_owned(),
-            solana_tools_dir.path().to_path_buf(),
-        )
-        .join();
-        state.data.push(Box::new(solana_tools_dir));
+        // Use the agave 2.x validator version (already downloading in parallel above)
+        let solana_bin_path = network_cli_task.join();
 
         let start_solana_validator = start_solana_test_validator(
             solana_bin_path.clone(),

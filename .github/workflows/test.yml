@@ -645,6 +645,17 @@ jobs:
         if: steps.check-conditions.outputs.skip-e2e != 'true'
         uses: mozilla-actions/sccache-action@v0.0.9
 
+      - name: Cache Solana CLI tools and built programs
+        if: ${{ matrix.e2e-type == 'sealevel' && steps.check-conditions.outputs.skip-e2e != 'true' }}
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/hyperlane-e2e
+            rust/main/target/dist
+          key: hyperlane-e2e-solana-cli-${{ runner.os }}-${{ hashFiles('rust/sealevel/Cargo.lock') }}
+          restore-keys: |
+            hyperlane-e2e-solana-cli-${{ runner.os }}-
+
       - name: agent tests (CosmWasm)
         if: ${{ matrix.e2e-type == 'cosmwasm' && steps.check-conditions.outputs.skip-e2e != 'true' }}
         run: cargo test --release --package run-locally --bin run-locally --features cosmos -- cosmos::test --nocapture
