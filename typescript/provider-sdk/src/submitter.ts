@@ -18,7 +18,9 @@ export type TransactionSubmitterConfig<T extends { type: string }> =
   | JsonRpcSubmitterConfig
   | T;
 
-export interface ITransactionSubmitter<TSubmitterType extends string = string> {
+export interface ITransactionSubmitter<
+  TSubmitterType extends string = TransactionSubmitterType,
+> {
   type: TSubmitterType;
 
   submit(...transactions: AnnotatedTx[]): Promise<TxReceipt[]>;
