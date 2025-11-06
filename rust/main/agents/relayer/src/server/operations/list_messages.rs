@@ -46,7 +46,7 @@ async fn handler(
     let domain = query_params.destination_domain;
 
     let Some(op_queue) = state.op_queues.get(&domain) else {
-        return format!("No queue found for domain {}", domain);
+        return format!("No queue found for domain {domain}");
     };
     format_queue(op_queue.clone()).await
 }
@@ -85,14 +85,14 @@ pub async fn format_queue(queue: OperationPriorityQueue) -> String {
         match op_json_res {
             Ok(op_json) => res.push(op_json),
             Err(err) => {
-                return format!("Error formatting queue: {}", err);
+                return format!("Error formatting queue: {err}");
             }
         }
     }
 
     match serde_json::to_string_pretty(&res) {
         Ok(s) => s,
-        Err(e) => format!("Error formatting queue: {}", e),
+        Err(e) => format!("Error formatting queue: {e}"),
     }
 }
 

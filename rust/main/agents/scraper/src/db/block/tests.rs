@@ -31,10 +31,7 @@ async fn test_store_blocks_real_postgres() -> Result<(), DbErr> {
 
     // Get connection details from the container
     let host_port = postgres_container.get_host_port_ipv4(5432).await.unwrap();
-    let postgres_url = format!(
-        "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
-        host_port
-    );
+    let postgres_url = format!("postgresql://postgres:postgres@127.0.0.1:{host_port}/postgres");
 
     // Connect to database
     let db = Database::connect(&postgres_url).await?;
@@ -116,7 +113,7 @@ async fn test_store_blocks_real_postgres() -> Result<(), DbErr> {
         .expect("Should insert batch of blocks");
 
     // Verify batch insertion
-    let hashes: Vec<H256> = (10..20).map(|i| H256::from_low_u64_be(i)).collect();
+    let hashes: Vec<H256> = (10..20).map(H256::from_low_u64_be).collect();
     let blocks = scraper_db
         .get_block_basic(hashes.iter())
         .await
