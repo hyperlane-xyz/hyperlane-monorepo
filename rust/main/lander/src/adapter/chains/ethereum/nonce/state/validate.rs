@@ -59,7 +59,7 @@ impl NonceManagerState {
             (_, Some(tx_nonce)) => {
                 warn!(
                     ?tx_nonce,
-                    "Transaction has nonce assigned, but not reflected in db"
+                    "Transaction has nonce assigned but is not reflected in db"
                 );
                 self.metrics.increment_mismatch_nonce();
                 return Ok(NonceAction::AssignNext { old_nonce: None });
