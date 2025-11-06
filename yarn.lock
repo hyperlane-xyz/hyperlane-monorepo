@@ -8282,6 +8282,7 @@ __metadata:
     "@cosmjs/stargate": "npm:^0.32.4"
     "@eslint/js": "npm:^9.31.0"
     "@hyperlane-xyz/cosmos-types": "npm:19.8.0"
+    "@hyperlane-xyz/eslint-config": "workspace:^"
     "@hyperlane-xyz/provider-sdk": "npm:0.1.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
     "@hyperlane-xyz/utils": "npm:19.8.0"
@@ -8561,6 +8562,7 @@ __metadata:
   resolution: "@hyperlane-xyz/radix-sdk@workspace:typescript/radix-sdk"
   dependencies:
     "@eslint/js": "npm:^9.31.0"
+    "@hyperlane-xyz/eslint-config": "workspace:^"
     "@hyperlane-xyz/provider-sdk": "npm:0.1.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
     "@hyperlane-xyz/utils": "npm:19.8.0"
