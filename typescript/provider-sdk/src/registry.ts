@@ -23,7 +23,7 @@ class ProtocolProviderFactoryRegistry {
     factory: () => IProtocolProviderFactory,
   ): void {
     assert(
-      this.hasProtocol(protocol),
+      !this.hasProtocol(protocol),
       `Protocol '${protocol}' is already registered`,
     );
 
