@@ -34,11 +34,11 @@ async fn test_ready_for_resubmission() {
     // when
     transaction.last_submission_attempt = Some(recent_but_too_soon_for_resubmission);
     let is_ready = adapter.tx_ready_for_resubmission(&transaction).await;
-    assert_eq!(is_ready, false);
+    assert!(!is_ready);
 
     transaction.last_submission_attempt = Some(recent_but_ready_for_resubmission);
     let is_ready = adapter.tx_ready_for_resubmission(&transaction).await;
-    assert_eq!(is_ready, true);
+    assert!(is_ready);
 }
 
 #[tokio::test]

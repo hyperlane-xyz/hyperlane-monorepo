@@ -1288,7 +1288,7 @@ mod test {
         let seconds = duration_total_secs % 60;
         let minutes = (duration_total_secs / 60) % 60;
         let hours = (duration_total_secs / 60) / 60;
-        format!("{}:{}:{}", hours, minutes, seconds)
+        format!("{hours}:{minutes}:{seconds}")
     }
 
     fn dummy_db_with_retries(retries: u32) -> MockDb {
@@ -1444,7 +1444,7 @@ mod test {
             2,
         );
 
-        let pending_message_debug = format!("{:?}", pending_message);
+        let pending_message_debug = format!("{pending_message:?}");
         let expected = r#"PendingMessage { num_retries: 0, since_last_attempt_s: 0, next_attempt_after_s: 0, message_id: 0xaeafdd9f018e66a50d30bb141184d10e57bd956e839f70213c163eb41a3c0d87, status: FirstPrepareAttempt, app_context: Some("test-0") }"#;
         assert_eq!(pending_message_debug, expected);
     }

@@ -56,12 +56,18 @@ impl LoadableFromDb for TransactionDbLoader {
         match item.status {
             TransactionStatus::PendingInclusion | TransactionStatus::Mempool => {
                 debug!(?item, "Send transaction to inclusion stage");
-                self.inclusion_stage_sender.send(item).await?;
+                self.inclusion_stage_sender
+                    .send(item)
+                    .await
+                    .map_err(Box::new)?;
                 Ok(LoadingOutcome::Loaded)
             }
             TransactionStatus::Included => {
                 debug!(?item, "Send transaction to finality stage");
-                self.finality_stage_sender.send(item).await?;
+                self.finality_stage_sender
+                    .send(item)
+                    .await
+                    .map_err(Box::new)?;
                 Ok(LoadingOutcome::Loaded)
             }
             TransactionStatus::Finalized | TransactionStatus::Dropped(_) => {

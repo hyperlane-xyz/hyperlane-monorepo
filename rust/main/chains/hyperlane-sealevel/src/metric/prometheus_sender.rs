@@ -69,7 +69,7 @@ impl RpcSender for PrometheusSealevelRpcSender {
         params: serde_json::Value,
     ) -> Result<serde_json::Value, ClientError> {
         let start = Instant::now();
-        let method = format!("{}", request);
+        let method = format!("{request}");
 
         let res = self.inner.send(request, params).await;
 

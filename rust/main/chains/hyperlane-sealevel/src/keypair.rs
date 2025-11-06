@@ -52,7 +52,7 @@ mod test {
 
         let keypair = SealevelKeypair(Keypair::from_base58_string(priv_key));
 
-        let actual = format!("{:?}", keypair);
+        let actual = format!("{keypair:?}");
         assert_eq!(pub_key, actual);
     }
 }
