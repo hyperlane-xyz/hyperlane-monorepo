@@ -854,7 +854,7 @@ impl ValidatorObservabilityMetricManager {
                 self.observed_validator_latest_index.remove_label_values(&[
                     origin.as_ref(),
                     destination.as_ref(),
-                    &format!("0x{:x}", validator).to_lowercase(),
+                    &format!("0x{validator:x}").to_lowercase(),
                     &app_context,
                 ])?;
             }
@@ -866,7 +866,7 @@ impl ValidatorObservabilityMetricManager {
                 .with_label_values(&[
                     origin.as_ref(),
                     destination.as_ref(),
-                    &format!("0x{:x}", validator).to_lowercase(),
+                    &format!("0x{validator:x}").to_lowercase(),
                     &app_context,
                 ])
                 // If the latest checkpoint is None, set to -1 to indicate that

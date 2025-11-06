@@ -33,7 +33,7 @@ pub fn make_tx(
     Transaction {
         uuid,
         tx_hashes: vec![],
-        vm_specific_data: VmSpecificTxData::Evm(precursor),
+        vm_specific_data: VmSpecificTxData::Evm(Box::new(precursor)),
         payload_details: vec![],
         status,
         submission_attempts: 0,

@@ -57,11 +57,11 @@ async fn test_fetch_storage_locations_helper_with_cache_hit() {
     let location1 = vec!["location1".to_string()];
     let location2 = vec!["location2".to_string()];
     cache
-        .cache_call_result(&origin.name(), METHOD_NAME, &key1, &location1)
+        .cache_call_result(origin.name(), METHOD_NAME, &key1, &location1)
         .await
         .unwrap();
     cache
-        .cache_call_result(&origin.name(), METHOD_NAME, &key2, &location2)
+        .cache_call_result(origin.name(), METHOD_NAME, &key2, &location2)
         .await
         .unwrap();
 
@@ -145,11 +145,11 @@ async fn test_fetch_storage_locations_helper_with_partial_cache_hit() {
     let location1 = vec!["location1".to_string()];
     let location2 = vec!["location2".to_string()];
     cache
-        .cache_call_result(&origin.name(), METHOD_NAME, &key1, &location1)
+        .cache_call_result(origin.name(), METHOD_NAME, &key1, &location1)
         .await
         .unwrap();
     cache
-        .cache_call_result(&origin.name(), METHOD_NAME, &key2, &location2)
+        .cache_call_result(origin.name(), METHOD_NAME, &key2, &location2)
         .await
         .unwrap();
 
@@ -194,14 +194,14 @@ async fn test_fetch_storage_locations_helper_with_different_domains() {
     // Prepopulate the cache with storage locations for origin1
     let location1 = vec!["location1_origin1".to_string()];
     cache
-        .cache_call_result(&origin1.name(), METHOD_NAME, &key, &location1)
+        .cache_call_result(origin1.name(), METHOD_NAME, &key, &location1)
         .await
         .unwrap();
 
     // Prepopulate the cache with storage locations for origin2
     let location2 = vec!["location1_origin2".to_string()];
     cache
-        .cache_call_result(&origin2.name(), METHOD_NAME, &key, &location2)
+        .cache_call_result(origin2.name(), METHOD_NAME, &key, &location2)
         .await
         .unwrap();
 
