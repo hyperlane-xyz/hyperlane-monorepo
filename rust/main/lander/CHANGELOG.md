@@ -35,7 +35,7 @@
 * fix: lander test timing flakes (#6581)
 * fix: only escalate if gas price was set previously (#6545)
 * fix: reduce excessive eth_getTransactionReceipt queries in Lander (#6868)
-* fix: skip simulation after submisison (#6524)
+* fix: skip simulation after submission (#6524)
 * test(lander): svm inclusion stage setup; happy path (#6752)
 * test(lander): svm inclusion tests (#6765)
 * test(lander): tx db state assertions (#6604)
