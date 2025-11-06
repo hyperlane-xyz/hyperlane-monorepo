@@ -36,8 +36,7 @@ export interface IProtocolProviderFactory {
       config: TransactionSubmitterConfig<never>,
     ) => Promise<ITransactionSubmitter>,
   ): void;
-  // TODO: better typing here instead of any
-  ismFactory(): HypModuleFactory<IsmConfig, any>;
-  hookFactory(): HypModuleFactory<HookConfig, any>;
-  tokenRouterFactory(): HypModuleFactory<WarpConfig, any>;
+  ismFactory(): HypModuleFactory<IsmConfig, { ismAddress: string }>;
+  hookFactory(): HypModuleFactory<HookConfig, { hookAddress: string }>;
+  tokenRouterFactory(): HypModuleFactory<WarpConfig, { tokenAddress: string }>;
 }
