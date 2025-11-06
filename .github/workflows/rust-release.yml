@@ -1,0 +1,361 @@
+name: Rust Agent Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'rust/main/**'
+      - 'rust/scripts/ci/**'
+      - '.github/workflows/rust-release.yml'
+  workflow_dispatch:
+    inputs:
+      prerelease_suffix:
+        description: 'Prerelease suffix (e.g., "preview.1", "rc.1", "alpha.2"). Leave empty to auto-generate "preview.N".'
+        required: false
+        type: string
+        default: ''
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: full
+
+jobs:
+  check-release-status:
+    name: Check Release Status
+    runs-on: depot-ubuntu-latest
+    outputs:
+      has_changes: ${{ steps.check_changes.outputs.has_changes }}
+      should_release: ${{ steps.check_version.outputs.should_release }}
+      current_version: ${{ steps.check_version.outputs.current_version }}
+      latest_version: ${{ steps.check_version.outputs.latest_version }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Check if there are changes since last release
+        id: check_changes
+        working-directory: ./rust/main
+        run: |
+          # Get latest agents-v* tag
+          LATEST_TAG=$(../scripts/ci/get-latest-agents-tag.sh)
+
+          if [ -z "$LATEST_TAG" ]; then
+            echo "No previous release found"
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          else
+            # Check if there are commits to rust/main since last release
+            COMMITS_SINCE=$(git log "$LATEST_TAG"..HEAD --oneline -- . | wc -l)
+            echo "Commits since $LATEST_TAG: $COMMITS_SINCE"
+
+            if [ "$COMMITS_SINCE" -gt 0 ]; then
+              echo "Found $COMMITS_SINCE commit(s) since last release"
+              echo "has_changes=true" >> $GITHUB_OUTPUT
+            else
+              echo "No commits since last release"
+              echo "has_changes=false" >> $GITHUB_OUTPUT
+            fi
+          fi
+      - name: Check if version changed (for publish decision)
+        id: check_version
+        working-directory: ./rust/main
+        run: |
+          # Get current version from Cargo.toml workspace.package.version
+          CURRENT_VERSION=$(../scripts/ci/get-workspace-version.sh)
+          echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "Current workspace version: $CURRENT_VERSION"
+
+          # Get latest agents-v* tag
+          LATEST_TAG=$(../scripts/ci/get-latest-agents-tag.sh)
+
+          if [ -z "$LATEST_TAG" ]; then
+            echo "latest_version=" >> $GITHUB_OUTPUT
+            echo "No previous release tag found, will create first release"
+            echo "should_release=true" >> $GITHUB_OUTPUT
+          else
+            LATEST_VERSION=$(echo "$LATEST_TAG" | sed 's/agents-v//')
+            echo "latest_version=$LATEST_VERSION" >> $GITHUB_OUTPUT
+            echo "Latest released version: $LATEST_VERSION"
+
+            if [ "$CURRENT_VERSION" != "$LATEST_VERSION" ]; then
+              echo "Version has changed ($LATEST_VERSION -> $CURRENT_VERSION)"
+              echo "should_release=true" >> $GITHUB_OUTPUT
+            else
+              echo "Version unchanged"
+              echo "should_release=false" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+  release-pr:
+    name: Update Release PR
+    runs-on: depot-ubuntu-latest
+    needs: check-release-status
+    if: |
+      github.event_name == 'push' &&
+      needs.check-release-status.outputs.has_changes == 'true'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Determine next version from conventional commits
+        id: next_version
+        env:
+          CURRENT_VERSION: ${{ needs.check-release-status.outputs.current_version }}
+        run: |
+          # Use helper script to determine next version
+          OUTPUT=$(./rust/scripts/ci/determine-next-version.sh "$CURRENT_VERSION")
+          NEW_VERSION=$(echo "$OUTPUT" | sed -n '1p')
+          BUMP_TYPE=$(echo "$OUTPUT" | sed -n '2p')
+
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "bump_type=$BUMP_TYPE" >> $GITHUB_OUTPUT
+          echo "Next version: $NEW_VERSION ($BUMP_TYPE bump from $CURRENT_VERSION)"
+      - name: Generate changelog
+        id: changelog
+        env:
+          NEW_VERSION: ${{ steps.next_version.outputs.new_version }}
+        run: |
+          # Get commit range for changelog generation
+          LATEST_TAG=$(./rust/scripts/ci/get-latest-agents-tag.sh)
+
+          if [ -z "$LATEST_TAG" ]; then
+            COMMIT_RANGE=""
+          else
+            COMMIT_RANGE="${LATEST_TAG}..HEAD"
+          fi
+
+          # Generate unified changelog for PR body
+          if [ -z "$COMMIT_RANGE" ]; then
+            CHANGELOG=$(./rust/scripts/ci/generate-workspace-changelog.sh --no-header)
+          else
+            CHANGELOG=$(./rust/scripts/ci/generate-workspace-changelog.sh "$COMMIT_RANGE" --no-header)
+          fi
+
+          # Save changelog to file for PR body
+          echo "$CHANGELOG" > /tmp/changelog.md
+
+          # Also output for GitHub Actions
+          {
+            echo 'changelog<<EOF'
+            echo "$CHANGELOG"
+            echo 'EOF'
+          } >> $GITHUB_OUTPUT
+
+          # Generate per-workspace CHANGELOG.md files
+          ./rust/scripts/ci/generate-workspace-changelog.sh "$COMMIT_RANGE" "" --write-to-workspace "$NEW_VERSION"
+      - name: Update version files
+        env:
+          NEW_VERSION: ${{ steps.next_version.outputs.new_version }}
+        run: |
+          # Update workspace version in Cargo.toml
+          ./rust/scripts/ci/update-workspace-version.sh "$NEW_VERSION"
+
+          # Update Cargo.lock in rust/main
+          cd rust/main
+          cargo update --workspace --offline 2>/dev/null || cargo update --workspace
+          echo "Updated rust/main/Cargo.lock"
+
+          # Update Cargo.lock in rust/sealevel
+          cd ../sealevel
+          cargo update --workspace --offline 2>/dev/null || cargo update --workspace
+          echo "Updated rust/sealevel/Cargo.lock"
+      - name: Create or update release PR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEW_VERSION: ${{ steps.next_version.outputs.new_version }}
+          BUMP_TYPE: ${{ steps.next_version.outputs.bump_type }}
+          CHANGELOG: ${{ steps.changelog.outputs.changelog }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          BRANCH_NAME="release-agents-v${NEW_VERSION}"
+
+          # Create branch from current HEAD (which is main)
+          git checkout -B "$BRANCH_NAME"
+
+          # Stage changes (Cargo files and all workspace CHANGELOG.md files)
+          git add rust/main/Cargo.toml rust/main/Cargo.lock rust/sealevel/Cargo.lock
+          git add rust/main/*/CHANGELOG.md rust/main/*/*/CHANGELOG.md 2>/dev/null || true
+
+          # Commit changes
+          git commit -m "release: agents v${NEW_VERSION}
+
+          This is a $BUMP_TYPE version bump for the Hyperlane agents.
+
+          Changes will be released as agents-v${NEW_VERSION} after this PR is merged."
+
+          # Force push to obliterate any existing branch
+          git push -f origin "$BRANCH_NAME"
+
+          # Create or update PR
+          PR_BODY="# Release agents v${NEW_VERSION}
+
+          This PR prepares the release of Hyperlane agents version **${NEW_VERSION}** (${BUMP_TYPE} bump).
+
+          ## What's Changed
+
+          ${CHANGELOG}
+
+          ---
+
+          Once this PR is merged, the [\`rust-release.yml\`](https://github.com/${{ github.repository }}/blob/main/.github/workflows/rust-release.yml) workflow will automatically:
+          - Create a GitHub release with tag \`agents-v${NEW_VERSION}\`
+          - Trigger the build of release binaries
+
+          🤖 This PR was automatically created by the release workflow."
+
+          # Check if PR already exists
+          EXISTING_PR=$(gh pr list --head "$BRANCH_NAME" --json number --jq '.[] | .number' || echo "")
+
+          if [ -n "$EXISTING_PR" ]; then
+            echo "Updating existing PR #$EXISTING_PR"
+            gh pr edit "$EXISTING_PR" \
+              --title "release: agents v${NEW_VERSION}" \
+              --body "$PR_BODY"
+            echo "Updated PR: $(gh pr view $EXISTING_PR --json url --jq .url)"
+          else
+            echo "Creating new draft PR"
+            gh pr create \
+              --title "release: agents v${NEW_VERSION}" \
+              --body "$PR_BODY" \
+              --base main \
+              --head "$BRANCH_NAME" \
+              --label "release" \
+              --draft
+            PR_URL=$(gh pr list --head "$BRANCH_NAME" --json url --jq '.[] | .url')
+            echo "Created draft PR: $PR_URL"
+          fi
+      - name: Summary
+        if: always()
+        env:
+          NEW_VERSION: ${{ steps.next_version.outputs.new_version }}
+        run: |
+          echo "### Release PR for agents v${NEW_VERSION}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The release PR has been created/updated." >> $GITHUB_STEP_SUMMARY
+          echo "Once merged, the release will be published automatically." >> $GITHUB_STEP_SUMMARY
+
+  publish:
+    name: Publish Release
+    runs-on: depot-ubuntu-latest
+    needs: check-release-status
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.ref == 'refs/heads/main' &&
+        github.event_name == 'push' &&
+        needs.check-release-status.outputs.should_release == 'true')
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Determine version and create release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IS_PRERELEASE: ${{ github.event_name == 'workflow_dispatch' }}
+          PRERELEASE_SUFFIX: ${{ inputs.prerelease_suffix }}
+          BASE_VERSION: ${{ needs.check-release-status.outputs.current_version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Force prerelease mode if not on main branch
+          if [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            echo "Not on main branch - forcing prerelease mode"
+            IS_PRERELEASE="true"
+          fi
+
+          # Determine final version based on release type
+          # workflow_dispatch always creates pre-releases
+          if [ "$IS_PRERELEASE" = "true" ]; then
+            # Pre-release: append suffix
+            if [ -n "$PRERELEASE_SUFFIX" ]; then
+              SUFFIX="$PRERELEASE_SUFFIX"
+            else
+              # Auto-generate preview.N
+              LAST_PREVIEW=$(git tag -l "agents-v${BASE_VERSION}-preview.*" | sort -V | tail -1)
+              if [ -z "$LAST_PREVIEW" ]; then
+                SUFFIX="preview.1"
+              else
+                PREVIEW_NUM=$(echo "$LAST_PREVIEW" | sed 's/.*preview\.\([0-9]*\)/\1/')
+                SUFFIX="preview.$((PREVIEW_NUM + 1))"
+              fi
+            fi
+            VERSION="${BASE_VERSION}-${SUFFIX}"
+            TITLE="Agents $VERSION (Pre-release)"
+            PRERELEASE_FLAG="--prerelease"
+            RELEASE_TYPE="Pre-release"
+          else
+            # Stable release
+            VERSION="$BASE_VERSION"
+            TITLE="Agents $VERSION"
+            PRERELEASE_FLAG=""
+            RELEASE_TYPE="Release"
+          fi
+
+          TAG_NAME="agents-v${VERSION}"
+          echo "Creating $RELEASE_TYPE: $TAG_NAME"
+
+          # Check if tag already exists
+          if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
+            echo "Error: Tag $TAG_NAME already exists!" >&2
+            echo "Cannot overwrite existing tag. Please use a different version or prerelease suffix." >&2
+            exit 1
+          fi
+
+          # Check if GitHub release already exists
+          if gh release view "$TAG_NAME" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Error: GitHub release $TAG_NAME already exists!" >&2
+            echo "Cannot overwrite existing release. Please use a different version or prerelease suffix." >&2
+            exit 1
+          fi
+
+          # Generate workspace-grouped changelog
+          PREV_TAG=$(git describe --tags --abbrev=0 --match "agents-v*" 2>/dev/null || echo "")
+
+          # For stable releases (push to main), use HEAD~1 to exclude the version bump commit
+          # For prereleases (workflow_dispatch), use HEAD since there's no version bump commit
+          if [ "$IS_PRERELEASE" = "true" ]; then
+            COMMIT_RANGE_END="HEAD"
+          else
+            COMMIT_RANGE_END="HEAD~1"
+          fi
+
+          if [ -z "$PREV_TAG" ]; then
+            CHANGELOG=$(./rust/scripts/ci/generate-workspace-changelog.sh)
+          else
+            CHANGELOG=$(./rust/scripts/ci/generate-workspace-changelog.sh "${PREV_TAG}..${COMMIT_RANGE_END}")
+          fi
+
+          # Note: We don't include "New Contributors" section for Rust releases
+          # because GitHub's generate-notes API includes repo-wide contributors,
+          # not just those who contributed to rust/main. This would be misleading.
+
+          # Add warning for pre-releases
+          if [ "$IS_PRERELEASE" = "true" ]; then
+            CHANGELOG="⚠️ **This is a pre-release version.**"$'\n\n'"${CHANGELOG}"
+          fi
+
+          # Create tag and GitHub release
+          git tag -a "$TAG_NAME" -m "$RELEASE_TYPE $TAG_NAME"
+          git push origin "$TAG_NAME"
+
+          gh release create "$TAG_NAME" \
+            --title "$TITLE" \
+            --notes "$CHANGELOG" \
+            $PRERELEASE_FLAG \
+            --repo "${{ github.repository }}"
+
+          echo "$RELEASE_TYPE $TAG_NAME published successfully!" >> $GITHUB_STEP_SUMMARY
+          [ "$IS_PRERELEASE" = "true" ] && echo "This is marked as a pre-release on GitHub." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Binary artifacts will be built automatically by the agent-release-artifacts workflow." >> $GITHUB_STEP_SUMMARY

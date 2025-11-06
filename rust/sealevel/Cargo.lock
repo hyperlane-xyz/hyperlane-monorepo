@@ -2401,7 +2401,7 @@ dependencies = [
 
 [[package]]
 name = "hyperlane-application"
-version = "0.1.0"
+version = "1.5.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -2410,7 +2410,7 @@ dependencies = [
 
 [[package]]
 name = "hyperlane-core"
-version = "0.1.0"
+version = "1.5.0"
 dependencies = [
  "async-rwlock",
  "async-trait",
@@ -2428,7 +2428,7 @@ dependencies = [
  "getrandom 0.2.15",
  "hex",
  "hyperlane-application",
- "itertools 0.13.0",
+ "itertools 0.10.5",
  "num 0.4.3",
  "num-derive 0.4.2",
  "num-traits",
@@ -2467,6 +2467,7 @@ dependencies = [
  "hyperlane-sealevel-token-lib",
  "hyperlane-sealevel-token-native",
  "hyperlane-sealevel-validator-announce",
+ "itertools 0.13.0",
  "pretty_env_logger",
  "serde",
  "serde_json",
@@ -2828,7 +2829,7 @@ dependencies = [
 
 [[package]]
 name = "hyperlane-warp-route"
-version = "0.1.0"
+version = "1.5.0"
 dependencies = [
  "hyperlane-core",
 ]
