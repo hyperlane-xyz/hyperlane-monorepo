@@ -185,7 +185,9 @@ export async function getPendingProposalsForChains(
             const { proposal, proposalPda } = proposalData;
 
             // Only include non-executed proposals
-            if (proposal.status.__kind === 'Executed') continue;
+            if (proposal.status.__kind === SquadsProposalStatus.Executed) {
+              continue;
+            }
 
             // Skip stale transactions
             if (i < staleTransactionIndex) continue;
@@ -205,7 +207,7 @@ export async function getPendingProposalsForChains(
             // Get submission date from status timestamp if available
             let submissionDate = 'Executing';
             if (
-              proposal.status.__kind !== 'Executing' &&
+              proposal.status.__kind !== SquadsProposalStatus.Executing &&
               proposal.status.timestamp
             ) {
               const timestamp = Number(proposal.status.timestamp);
@@ -255,8 +257,20 @@ export async function getPendingProposalsForChains(
   );
 }
 
+export const SquadsProposalStatus = {
+  Draft: 'Draft',
+  Active: 'Active',
+  Rejected: 'Rejected',
+  Approved: 'Approved',
+  Executing: 'Executing',
+  Executed: 'Executed',
+  Cancelled: 'Cancelled',
+} as const satisfies Record<accounts.Proposal['status']['__kind'], string>;
+export type SquadsProposalStatus =
+  (typeof SquadsProposalStatus)[keyof typeof SquadsProposalStatus];
+
 export function getSquadTxStatus(
-  statusKind: accounts.Proposal['status']['__kind'],
+  statusKind: SquadsProposalStatus,
   approvals: number,
   threshold: number,
   transactionIndex: number,
@@ -264,28 +278,31 @@ export function getSquadTxStatus(
 ): string {
   // Check if transaction is stale before checking other statuses
   // Only return stale if it hasn't been executed
-  if (transactionIndex < staleTransactionIndex && statusKind !== 'Executed') {
+  if (
+    transactionIndex < staleTransactionIndex &&
+    statusKind !== SquadsProposalStatus.Executed
+  ) {
     return SquadTxStatus.STALE;
   }
 
   switch (statusKind) {
-    case 'Draft':
+    case SquadsProposalStatus.Draft:
       return SquadTxStatus.DRAFT;
-    case 'Active':
+    case SquadsProposalStatus.Active:
       return approvals >= threshold
         ? SquadTxStatus.APPROVED
         : threshold - approvals === 1
           ? SquadTxStatus.ONE_AWAY
           : SquadTxStatus.ACTIVE;
-    case 'Rejected':
+    case SquadsProposalStatus.Rejected:
       return SquadTxStatus.REJECTED;
-    case 'Approved':
+    case SquadsProposalStatus.Approved:
       return SquadTxStatus.APPROVED;
-    case 'Executing':
+    case SquadsProposalStatus.Executing:
       return SquadTxStatus.EXECUTING;
-    case 'Executed':
+    case SquadsProposalStatus.Executed:
       return SquadTxStatus.EXECUTED;
-    case 'Cancelled':
+    case SquadsProposalStatus.Cancelled:
       return SquadTxStatus.CANCELLED;
     default:
       return '❓';
@@ -793,7 +810,7 @@ export async function executeProposal(
   const { proposal } = proposalData;
 
   // Verify the proposal is in Approved status
-  if (proposal.status.__kind !== 'Approved') {
+  if (proposal.status.__kind !== SquadsProposalStatus.Approved) {
     throw new Error(
       `Proposal ${transactionIndex} on ${chain} is not approved (status: ${proposal.status.__kind})`,
     );

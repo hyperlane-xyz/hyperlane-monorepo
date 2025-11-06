@@ -7,6 +7,7 @@ import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
 import { chainsToSkip } from '../../src/config/chain.js';
 import {
+  SquadsProposalStatus,
   buildSquadsProposalCancellation,
   buildSquadsProposalRejection,
   getSquadProposal,
@@ -76,20 +77,20 @@ async function main() {
   }
 
   // Check if proposal is already executed, cancelled, or rejected
-  if (status === 'Executed') {
+  if (status === SquadsProposalStatus.Executed) {
     throw new Error(
       `Proposal ${transactionIndex} has already been executed and cannot be modified.`,
     );
   }
 
-  if (status === 'Cancelled') {
+  if (status === SquadsProposalStatus.Cancelled) {
     rootLogger.warn(
       chalk.yellow(`Proposal ${transactionIndex} is already cancelled.`),
     );
     return;
   }
 
-  if (status === 'Rejected') {
+  if (status === SquadsProposalStatus.Rejected) {
     rootLogger.warn(
       chalk.yellow(`Proposal ${transactionIndex} is already rejected.`),
     );
@@ -99,7 +100,7 @@ async function main() {
   // Determine the appropriate action based on proposal status
   // - Active proposals: Use Reject (vote against)
   // - Approved proposals: Use Cancel (prevent execution)
-  const isActive = status === 'Active';
+  const isActive = status === SquadsProposalStatus.Active;
   const action = isActive ? 'reject' : 'cancel';
   const actionPastTense = isActive ? 'rejected' : 'cancelled';
 

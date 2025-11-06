@@ -11,6 +11,7 @@ import {
 
 import { getSquadsKeys, squadsConfigs } from '../../src/config/squads.js';
 import {
+  SquadsProposalStatus,
   getSquadProposal,
   withTransactionIndex,
 } from '../../src/utils/squads.js';
@@ -113,13 +114,13 @@ async function main() {
     const status = proposal.status.__kind;
     const approvals = proposal.approved.length;
 
-    if (status === 'Active' && approvals >= threshold) {
+    if (status === SquadsProposalStatus.Active && approvals >= threshold) {
       rootLogger.info(
         chalk.green(
           `  Status: Ready to execute (${approvals}/${threshold} approvals)`,
         ),
       );
-    } else if (status === 'Active') {
+    } else if (status === SquadsProposalStatus.Active) {
       if (transactionIndex < staleTransactionIndex) {
         rootLogger.info(chalk.red(`  Status: Stale`));
       } else {

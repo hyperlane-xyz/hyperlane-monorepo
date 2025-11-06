@@ -193,22 +193,28 @@ async function logAndSubmitMultisigIsmUpdateTransaction(
 
     instructions.forEach((ix) => transaction.add(ix));
 
+    const isSolana = chain === 'solanamainnet';
+
     // Serialize transaction to base58 (for Solana Squads)
     const txBase58 = bs58.encode(
       new Uint8Array(transaction.serialize({ requireAllSignatures: false })),
-    );
-    rootLogger.info(
-      chalk.green(`\nTransaction (base58) - for Solana Squads:\n${txBase58}`),
     );
 
     // Serialize message to base58 (for alt SVM Squads UIs like Eclipse)
     const message = transaction.compileMessage();
     const messageBase58 = bs58.encode(new Uint8Array(message.serialize()));
-    rootLogger.info(
-      chalk.magenta(
-        `\nMessage (base58) - for alt SVM Squads UIs:\n${messageBase58}\n`,
-      ),
-    );
+
+    if (isSolana) {
+      rootLogger.info(
+        chalk.green(`\nTransaction (base58) - for Solana Squads:\n${txBase58}`),
+      );
+    } else {
+      rootLogger.info(
+        chalk.magenta(
+          `\nMessage (base58) - for alt SVM Squads UIs:\n${messageBase58}\n`,
+        ),
+      );
+    }
 
     // Create descriptive memo for the proposal
     const chainNames = sortedChainNames.join(', ');
@@ -225,7 +231,7 @@ async function logAndSubmitMultisigIsmUpdateTransaction(
     if (!shouldSubmitToSquads) {
       rootLogger.info(
         chalk.yellow(
-          '\nSkipping Squads submission. Use the base58 above to submit manually.',
+          `\nSkipping Squads submission. Use the base58 ${isSolana ? 'transaction' : 'message'} above to submit manually.`,
         ),
       );
       return;
