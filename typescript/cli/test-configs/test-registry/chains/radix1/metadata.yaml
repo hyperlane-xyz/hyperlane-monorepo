@@ -25,3 +25,4 @@ rpcPort: 3333
 rpcUrls:
   - http: http://127.0.0.1:3333/core
 technicalStack: other
+

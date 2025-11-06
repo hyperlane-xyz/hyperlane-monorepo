@@ -12,7 +12,7 @@ chainId: 240
 displayName: Radix2
 domainId: 1421493354
 gatewayUrls:
-  - http: http://127.0.0.1:5309
+  - http: http://127.0.0.1:5308
 name: radix2
 nativeToken:
   decimals: 18
@@ -20,8 +20,9 @@ nativeToken:
   name: Radix
   symbol: XRD
 protocol: radix
-restPort: 3334
-rpcPort: 3334
+restPort: 3333
+rpcPort: 3333
 rpcUrls:
-  - http: http://127.0.0.1:3334/core
+  - http: http://127.0.0.1:3333/core
 technicalStack: other
+
