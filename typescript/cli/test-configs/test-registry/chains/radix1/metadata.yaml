@@ -1,4 +1,4 @@
-bech32Prefix: account_rdx
+bech32Prefix: loc
 blockExplorers:
   - apiUrl: https://radix-local.com/api
     family: other
@@ -25,4 +25,3 @@ rpcPort: 3333
 rpcUrls:
   - http: http://127.0.0.1:3333/core
 technicalStack: other
-

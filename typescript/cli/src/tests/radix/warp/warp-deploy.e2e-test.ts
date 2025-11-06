@@ -30,7 +30,7 @@ import {
 } from '../../constants.js';
 import { assertWarpRouteConfig } from '../../utils.js';
 
-describe('hyperlane core deploy (Radix E2E tests)', async function () {
+describe('hyperlane warp deploy (Radix E2E tests)', async function () {
   this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
 
   const nativeTokenData =

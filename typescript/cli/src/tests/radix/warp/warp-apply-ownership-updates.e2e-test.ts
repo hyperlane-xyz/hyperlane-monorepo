@@ -136,8 +136,8 @@ describe('hyperlane warp apply (Radix E2E tests)', async function () {
     },
     {
       description: 'should burn owner address on chain 2',
-      chain1TokenOwner: BURN_ADDRESS_BY_PROTOCOL.radix,
-      chain2TokenOwner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.radix,
+      chain1TokenOwner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.radix,
+      chain2TokenOwner: BURN_ADDRESS_BY_PROTOCOL.radix,
     },
     {
       description: 'should transfer ownership of all the tokens',
