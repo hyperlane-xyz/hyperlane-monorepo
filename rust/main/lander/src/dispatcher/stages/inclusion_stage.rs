@@ -175,7 +175,7 @@ impl InclusionStage {
             }
 
             if let Err(err) =
-                Self::try_process_tx(&mut tx, finality_stage_sender, state, pool).await
+                Self::try_process_tx(tx.clone(), finality_stage_sender, state, pool).await
             {
                 error!(?err, ?tx, "Error processing transaction. Dropping it");
                 Self::drop_tx(state, &mut tx, TxDropReason::FailedSimulation, pool).await?;
@@ -274,7 +274,7 @@ impl InclusionStage {
         fields(tx_uuid = ?tx.uuid, tx_status = ?tx.status, payloads = ?tx.payload_details)
     )]
     async fn try_process_tx(
-        tx: &mut Transaction,
+        mut tx: Transaction,
         finality_stage_sender: &mpsc::Sender<Transaction>,
         state: &DispatcherState,
         pool: &InclusionStagePool,
@@ -285,7 +285,7 @@ impl InclusionStage {
         tx.last_status_check = Some(chrono::Utc::now());
 
         let tx_status = call_until_success_or_nonretryable_error(
-            || state.adapter.tx_status(tx),
+            || state.adapter.tx_status(&tx),
             "Querying transaction status",
             state,
         )
@@ -308,7 +308,7 @@ impl InclusionStage {
         fields(tx_uuid = ?tx.uuid, previous_tx_status = ?tx.status, next_tx_status = ?tx_status, payloads = ?tx.payload_details)
     )]
     async fn try_process_tx_with_next_status(
-        tx: &mut Transaction,
+        mut tx: Transaction,
         tx_status: TransactionStatus,
         finality_stage_sender: &mpsc::Sender<Transaction>,
         state: &DispatcherState,
@@ -317,24 +317,17 @@ impl InclusionStage {
         match tx_status {
             TransactionStatus::PendingInclusion | TransactionStatus::Mempool => {
                 info!(tx_uuid = ?tx.uuid, ?tx_status, "Transaction is pending inclusion");
-                update_tx_status(state, tx, tx_status.clone()).await?;
-                if !state.adapter.tx_ready_for_resubmission(tx).await {
+                update_tx_status(state, &mut tx, tx_status.clone()).await?;
+                if !state.adapter.tx_ready_for_resubmission(&tx).await {
                     info!(?tx, "Transaction is not ready for resubmission");
                     return Ok(());
                 }
-                let res = Self::process_pending_tx(tx, state).await;
-                // update the pool entry of this tx, to reflect any changes such as
-                // the gas price, hash, etc
-                pool.lock().await.insert(tx.uuid.clone(), tx.clone());
-                if let Err(err) = state.tx_db.store_transaction_by_uuid(tx).await {
-                    error!(?err, ?tx, "Failed to store transaction in db");
-                };
-                res
+                Self::process_pending_tx(tx, state, pool).await
             }
             TransactionStatus::Included | TransactionStatus::Finalized => {
-                update_tx_status(state, tx, tx_status.clone()).await?;
+                update_tx_status(state, &mut tx, tx_status.clone()).await?;
                 let tx_uuid = tx.uuid.clone();
-                finality_stage_sender.send(tx.clone()).await?;
+                finality_stage_sender.send(tx).await?;
                 info!(?tx_uuid, ?tx_status, "Transaction included in block");
                 pool.lock().await.remove(&tx_uuid);
                 Ok(())
@@ -351,7 +344,11 @@ impl InclusionStage {
     }
 
     #[instrument(skip_all, name = "InclusionStage::process_pending_tx")]
-    async fn process_pending_tx(tx: &mut Transaction, state: &DispatcherState) -> Result<()> {
+    async fn process_pending_tx(
+        mut tx: Transaction,
+        state: &DispatcherState,
+        pool: &InclusionStagePool,
+    ) -> Result<()> {
         info!(?tx, "Processing pending transaction");
 
         // update tx submission attempts
@@ -359,26 +356,37 @@ impl InclusionStage {
         tx.last_submission_attempt = Some(chrono::Utc::now());
 
         // Simulating transaction if it has never been submitted before
-        Self::simulate_tx(tx, state).await?;
+        tx = Self::simulate_tx(tx, state).await?;
 
         // Estimating transaction just before we submit it
-        Self::estimate_tx(tx, state).await?;
+        tx = Self::estimate_tx(&tx, state).await?;
 
         // Submitting transaction to the node
-        Self::submit_tx(tx, state).await?;
+        tx = Self::submit_tx(&tx, state).await?;
         info!(?tx, "Transaction submitted to node");
 
         state
             .metrics
             .update_transaction_submissions_metric(&state.domain);
-        state.adapter.update_vm_specific_metrics(tx, &state.metrics);
+        state
+            .adapter
+            .update_vm_specific_metrics(&tx, &state.metrics);
         // update tx status in db
-        update_tx_status(state, tx, TransactionStatus::Mempool).await?;
+        update_tx_status(state, &mut tx, TransactionStatus::Mempool).await?;
 
+        // update the pool entry of this tx, to reflect any changes such as
+        // the gas price, hash, etc
+        pool.lock().await.insert(tx.uuid.clone(), tx.clone());
+        if let Err(err) = state.tx_db.store_transaction_by_uuid(&tx).await {
+            error!(?err, ?tx, "Failed to store transaction in db");
+        };
         Ok(())
     }
 
-    async fn submit_tx(tx: &mut Transaction, state: &DispatcherState) -> Result<(), LanderError> {
+    async fn submit_tx(
+        tx: &Transaction,
+        state: &DispatcherState,
+    ) -> Result<Transaction, LanderError> {
         // create a temporary arcmutex so that submission retries are aware of tx fields (e.g. gas price)
         // set by previous retries when calling `adapter.submit`
         let tx_shared = Arc::new(Mutex::new(tx.clone()));
@@ -386,9 +394,8 @@ impl InclusionStage {
         // by the node.
         // at this point, not all VMs return information about whether the tx was reverted.
         // so dropping reverted payloads has to happen in the finality step
-        let res = call_until_success_or_nonretryable_error(
+        call_until_success_or_nonretryable_error(
             || {
-                let tx_clone = tx.clone();
                 let tx_shared_clone = tx_shared.clone();
                 async move {
                     let mut tx_guard = tx_shared_clone.lock().await;
@@ -397,7 +404,7 @@ impl InclusionStage {
                     match submit_result {
                         Ok(()) => Ok(tx_guard.clone()),
                         Err(err) if matches!(err, LanderError::TxAlreadyExists) => {
-                            warn!(tx=?tx_clone, ?err, "Transaction resubmission failed, will check the status of transaction before dropping it");
+                            warn!(tx=?tx_guard, ?err, "Transaction resubmission failed, will check the status of transaction before dropping it");
                             Ok(tx_guard.clone())
                         }
                         Err(err) => Err(err),
@@ -406,18 +413,14 @@ impl InclusionStage {
             },
             "Submitting transaction",
             state,
-        )
-        .await;
-
-        // Any changes caused by adapter submit should be reflected in tx
-        *tx = tx_shared.lock().await.clone();
-
-        res?;
-        Ok(())
+        ).await
     }
 
-    async fn estimate_tx(tx: &mut Transaction, state: &DispatcherState) -> Result<(), LanderError> {
-        let transaction = call_until_success_or_nonretryable_error(
+    async fn estimate_tx(
+        tx: &Transaction,
+        state: &DispatcherState,
+    ) -> Result<Transaction, LanderError> {
+        call_until_success_or_nonretryable_error(
             || {
                 let tx_clone = tx.clone();
                 async move {
@@ -429,18 +432,16 @@ impl InclusionStage {
             "Estimating transaction",
             state,
         )
-        .await?;
-        *tx = transaction;
-        Ok(())
+        .await
     }
 
-    async fn simulate_tx(tx: &mut Transaction, state: &DispatcherState) -> Result<()> {
+    async fn simulate_tx(tx: Transaction, state: &DispatcherState) -> Result<Transaction> {
         if tx.submission_attempts > 1 {
             info!(
                 ?tx,
                 "Skipping simulation for transaction with submission attempts > 1"
             );
-            return Ok(());
+            return Ok(tx);
         }
 
         // simulate transaction if the transaction has not been submitted yet
@@ -466,8 +467,7 @@ impl InclusionStage {
             )
             .await;
 
-        *tx = transaction;
-        Ok(())
+        Ok(transaction)
     }
 
     async fn drop_tx(

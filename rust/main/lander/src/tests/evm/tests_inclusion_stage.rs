@@ -13,7 +13,7 @@ use hyperlane_ethereum::TransactionOverrides;
 use tokio::{select, sync::mpsc};
 use tracing_test::traced_test;
 
-use hyperlane_core::{ChainCommunicationError, KnownHyperlaneDomain, H256, U256};
+use hyperlane_core::{ChainCommunicationError, KnownHyperlaneDomain, H256, H512, U256};
 
 use crate::adapter::chains::ethereum::{
     apply_estimate_buffer_to_ethers,
@@ -23,7 +23,7 @@ use crate::adapter::chains::ethereum::{
 use crate::dispatcher::{DispatcherState, InclusionStage, TransactionDb};
 use crate::tests::test_utils::tmp_dbs;
 use crate::transaction::Transaction;
-use crate::{DispatcherMetrics, PayloadStatus, TransactionDropReason, TransactionStatus};
+use crate::{DispatcherMetrics, PayloadStatus, TransactionStatus};
 
 use super::test_utils::*;
 
@@ -1103,11 +1103,11 @@ async fn test_tx_finalized_but_failed() {
     );
 }
 
-/// Test case where tx is assigned a new nonce, but we drop it.
+/// Test case where tx is assigned a new nonce, but tx already exists.
 /// We still want to make sure nonce is reflected in the tx.
 #[tokio::test]
 #[traced_test]
-async fn test_tx_new_nonce_but_wont_resubmit() {
+async fn test_tx_new_nonce_but_tx_already_exists() {
     let block_time = TEST_BLOCK_TIME;
 
     let mut mock_evm_provider = MockEvmProvider::new();
@@ -1124,6 +1124,15 @@ async fn test_tx_new_nonce_but_wont_resubmit() {
     mock_evm_provider
         .expect_send()
         .returning(|_, _| Ok(H256::random()));
+    mock_evm_provider
+        .expect_get_transaction_receipt()
+        .returning(move |_| {
+            Ok(Some(TransactionReceipt {
+                transaction_hash: H256::random().into(),
+                block_number: None,
+                ..Default::default()
+            }))
+        });
 
     let signer = H160::random();
     let (payload_db, tx_db, nonce_db) = tmp_dbs();
@@ -1157,7 +1166,7 @@ async fn test_tx_new_nonce_but_wont_resubmit() {
         1,
         &dispatcher_state.payload_db,
         &dispatcher_state.tx_db,
-        TransactionStatus::PendingInclusion,
+        TransactionStatus::Mempool,
         signer,
         ExpectedTxType::Eip1559,
     )
@@ -1166,6 +1175,7 @@ async fn test_tx_new_nonce_but_wont_resubmit() {
     // set nonce to 100, set gas to something that is already really high
     // compared to fee history
     let mut created_tx = created_txs[0].clone();
+    created_tx.tx_hashes.push(H512::random());
     let precursor = created_tx.precursor_mut();
     precursor.tx = TypedTransaction::Eip1559(Eip1559TransactionRequest {
         from: Some(signer),
@@ -1205,10 +1215,7 @@ async fn test_tx_new_nonce_but_wont_resubmit() {
         .unwrap();
     let evm_tx = &retrieved_tx.precursor().tx;
     assert_eq!(evm_tx.nonce(), Some(&EthersU256::from(1)));
-    assert_eq!(
-        retrieved_tx.status,
-        TransactionStatus::Dropped(TransactionDropReason::FailedSimulation)
-    );
+    assert_eq!(retrieved_tx.status, TransactionStatus::Mempool,);
 }
 
 async fn run_and_expect_successful_inclusion(

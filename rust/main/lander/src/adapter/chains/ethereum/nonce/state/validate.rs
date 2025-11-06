@@ -43,12 +43,27 @@ impl NonceManagerState {
             // prefer nonce in db over nonce in tx
             (Some(db_nonce), Some(tx_nonce)) => {
                 if db_nonce != tx_nonce {
+                    warn!(?db_nonce, ?tx_nonce, "tx nonce and db nonce do not match");
                     self.metrics.increment_mismatch_nonce();
                 }
                 db_nonce
             }
-            (Some(db_nonce), _) => db_nonce,
-            (_, Some(tx_nonce)) => tx_nonce,
+            (Some(db_nonce), _) => {
+                warn!(
+                    ?db_nonce,
+                    "Transaction has nonce assigned in db but not in tx"
+                );
+                self.metrics.increment_mismatch_nonce();
+                db_nonce
+            }
+            (_, Some(tx_nonce)) => {
+                warn!(
+                    ?tx_nonce,
+                    "Transaction has nonce assigned, but not reflected in db"
+                );
+                self.metrics.increment_mismatch_nonce();
+                return Ok(NonceAction::AssignNext { old_nonce: None });
+            }
             (_, _) => {
                 return Ok(NonceAction::AssignNext { old_nonce: None });
             }
