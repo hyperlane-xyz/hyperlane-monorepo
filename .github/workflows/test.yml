@@ -652,6 +652,7 @@ jobs:
           path: |
             ~/.cache/hyperlane-e2e
             rust/main/target/dist
+            rust/sealevel/target
           key: hyperlane-e2e-solana-cli-${{ runner.os }}-${{ hashFiles('rust/sealevel/Cargo.lock') }}
           restore-keys: |
             hyperlane-e2e-solana-cli-${{ runner.os }}-
