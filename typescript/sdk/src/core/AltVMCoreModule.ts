@@ -124,7 +124,7 @@ export class AltVMCoreModule<PT extends ProtocolType> extends HyperlaneModule<
 
     const { deployedIsm: defaultIsm } = ismModule.serialize();
 
-    // 2. Deploy Mailbox
+    // 2. Deploy Mailbox with initial configuration
     const mailbox = await signer.createMailbox({
       domainId: domainId,
       defaultIsmAddress: defaultIsm,
