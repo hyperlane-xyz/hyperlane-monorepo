@@ -49,12 +49,7 @@ async fn test_validate_assigned_nonce_not_tracked() {
     );
 
     let action = state.validate_assigned_nonce(&tx).await.unwrap();
-    assert_eq!(
-        action,
-        NonceAction::AssignNext {
-            old_nonce: Some(nonce_val)
-        }
-    );
+    assert_eq!(action, NonceAction::AssignNext { old_nonce: None });
 }
 
 #[tokio::test]
@@ -78,12 +73,7 @@ async fn test_validate_assigned_nonce_tracked_different_tx_uuid() {
         Some(address),
     );
     let action = state.validate_assigned_nonce(&tx).await.unwrap();
-    assert_eq!(
-        action,
-        NonceAction::AssignNext {
-            old_nonce: Some(nonce_val)
-        }
-    );
+    assert_eq!(action, NonceAction::AssignNext { old_nonce: None });
 }
 
 #[tokio::test]
