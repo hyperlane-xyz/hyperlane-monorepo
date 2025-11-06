@@ -288,7 +288,7 @@ mod test {
 
                 let ttl = e.time_to_live();
 
-                println!("{}: {:?}", i, ttl);
+                println!("{i}: {ttl:?}");
 
                 match i {
                     0 => ttl

@@ -76,14 +76,14 @@ impl EthereumAdapterMetrics {
         let domain = "test1";
         let signer = "test_signer";
         let dispatcher_metrics = DispatcherMetrics::dummy_instance();
-        let metrics = Self::new(
+
+        Self::new(
             HyperlaneDomain::new_test_domain(domain),
             dispatcher_metrics.get_batched_transactions(),
             dispatcher_metrics.get_finalized_nonce(domain, signer),
             dispatcher_metrics.get_upper_nonce(domain, signer),
             dispatcher_metrics.get_mismatched_nonce(domain, signer),
-        );
-        metrics
+        )
     }
 
     pub fn get_finalized_nonce(&self) -> i64 {

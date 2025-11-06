@@ -15,7 +15,7 @@ const METRICS_NAMESPACE: &str = "hyperlane_lander";
 
 /// Macro to prefix a string with the namespace.
 fn namespaced(name: &str) -> String {
-    format!("{}_{}", METRICS_NAMESPACE, name)
+    format!("{METRICS_NAMESPACE}_{name}")
 }
 
 /// Metrics for a particular domain
