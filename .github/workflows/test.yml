@@ -591,17 +591,17 @@ jobs:
         if: steps.check-conditions.outputs.skip-e2e != 'true'
         uses: dtolnay/rust-toolchain@stable
 
-      - name: rust cache
-        if: steps.check-conditions.outputs.skip-e2e != 'true'
-        uses: Swatinem/rust-cache@v2
-        with:
-          prefix-key: 'v3-rust-e2e'
-          shared-key: ${{ matrix.e2e-type }}
-          cache-provider: 'github'
-          save-if: ${{ !startsWith(github.ref, 'refs/heads/gh-readonly-queue') }}
-          workspaces: |
-            ./rust/main
-            ${{ matrix.e2e-type == 'sealevel' && './rust/sealevel' || '' }}
+      # - name: rust cache
+      #   if: steps.check-conditions.outputs.skip-e2e != 'true'
+      #   uses: Swatinem/rust-cache@v2
+      #   with:
+      #     prefix-key: 'v3-rust-e2e'
+      #     shared-key: ${{ matrix.e2e-type }}
+      #     cache-provider: 'github'
+      #     save-if: ${{ !startsWith(github.ref, 'refs/heads/gh-readonly-queue') }}
+      #     workspaces: |
+      #       ./rust/main
+      #       ${{ matrix.e2e-type == 'sealevel' && './rust/sealevel' || '' }}
 
       - name: Free disk space
         if: steps.check-conditions.outputs.skip-e2e != 'true'
