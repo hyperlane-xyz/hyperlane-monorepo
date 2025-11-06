@@ -4,7 +4,7 @@
 use async_trait::async_trait;
 use rusoto_core::credential::{
     AutoRefreshingProvider, AwsCredentials, CredentialsError, EnvironmentProvider,
-    ProvideAwsCredentials,
+    InstanceMetadataProvider, ProvideAwsCredentials,
 };
 use rusoto_sts::WebIdentityProvider;
 
@@ -17,9 +17,12 @@ use rusoto_sts::WebIdentityProvider;
 /// The primary use case is running Hyperlane agents in AWS Kubernetes cluster (EKS) configured
 /// with [IAM Roles for Service Accounts (IRSA)](https://aws.amazon.com/blogs/containers/diving-into-iam-roles-for-service-accounts/).
 /// The IRSA approach follows security best practices and allows for key rotation.
+/// 3) `InstanceMetadataProvider`: retrieves credentials from EC2 instance metadata service (IMDSv2).
+/// This allows EC2 instances with attached IAM instance profiles to authenticate without static credentials.
 pub(crate) struct AwsChainCredentialsProvider {
     environment_provider: EnvironmentProvider,
     web_identity_provider: AutoRefreshingProvider<WebIdentityProvider>,
+    instance_metadata_provider: AutoRefreshingProvider<InstanceMetadataProvider>,
 }
 
 impl AwsChainCredentialsProvider {
@@ -30,9 +33,17 @@ impl AwsChainCredentialsProvider {
         let auto_refreshing_provider =
             AutoRefreshingProvider::new(WebIdentityProvider::from_k8s_env())
                 .expect("Always returns Ok(...)");
+
+        // Wrap the `InstanceMetadataProvider` to a caching `AutoRefreshingProvider`.
+        // This enables automatic credential refresh for EC2 instance profiles.
+        let instance_metadata_auto_refreshing =
+            AutoRefreshingProvider::new(InstanceMetadataProvider::new())
+                .expect("Always returns Ok(...)");
+
         AwsChainCredentialsProvider {
             environment_provider: EnvironmentProvider::default(),
             web_identity_provider: auto_refreshing_provider,
+            instance_metadata_provider: instance_metadata_auto_refreshing,
         }
     }
 }
@@ -42,9 +53,28 @@ impl ProvideAwsCredentials for AwsChainCredentialsProvider {
     async fn credentials(&self) -> Result<AwsCredentials, CredentialsError> {
         if let Ok(creds) = self.environment_provider.credentials().await {
             Ok(creds)
-        } else {
-            // Propagate errors from the 'WebIdentityProvider'.
-            self.web_identity_provider.credentials().await
+        } else { 
+            match self.web_identity_provider.credentials().await {
+                Ok(creds) => {
+                    tracing::debug!("Using AWS credentials from web identity provider (K8s IRSA)");
+                    return Ok(creds);
+                }
+                Err(e) => {
+                    tracing::debug!("Web identity provider failed: {:?}", e);
+                }
+            }
+
+            // 3. EC2 Instance Metadata (for EC2 instances with IAM instance profiles)
+            match self.instance_metadata_provider.credentials().await {
+                Ok(creds) => {
+                    tracing::info!("Using AWS credentials from EC2 instance metadata (IAM instance profile)");
+                    Ok(creds)
+                }
+                Err(e) => {
+                    tracing::error!("All AWS credential providers failed. Instance metadata error: {:?}", e);
+                    Err(e)
+                }
+            }
         }
     }
 }
