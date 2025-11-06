@@ -36,7 +36,13 @@ export async function fetchGCPSecret(
     output = envVarOverride;
   } else {
     logger.debug(`Fetching GCP secret with name ${secretName}`);
-    output = await fetchLatestGCPSecret(secretName);
+    try {
+      output = await fetchLatestGCPSecret(secretName);
+    } catch (err) {
+      throw new Error(
+        `Error fetching GCP secret with name ${secretName}: ${err}`,
+      );
+    }
   }
 
   if (parseJson) {

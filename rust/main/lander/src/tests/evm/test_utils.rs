@@ -105,7 +105,12 @@ pub fn mock_ethereum_adapter(
     let provider = Arc::new(provider);
     let reorg_period = EthereumReorgPeriod::Blocks(1);
     let metrics = EthereumAdapterMetrics::dummy_instance();
-    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, signer, metrics));
+    let state = Arc::new(NonceManagerState::new(
+        nonce_db,
+        tx_db,
+        signer,
+        metrics.clone(),
+    ));
 
     let nonce_updater = NonceUpdater::new(
         signer,
@@ -139,6 +144,7 @@ pub fn mock_ethereum_adapter(
         payload_db,
         signer,
         minimum_time_between_resubmissions,
+        metrics,
     }
 }
 
