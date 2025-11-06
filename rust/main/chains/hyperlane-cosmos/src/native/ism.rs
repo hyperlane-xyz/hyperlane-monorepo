@@ -89,8 +89,7 @@ impl InterchainSecurityModule for CosmosNativeIsm {
             t if t == CosmosRoutingIsm::type_url() => Ok(ModuleType::Routing),
             t if t == NoopIsm::type_url() => Ok(ModuleType::Null),
             other => Err(ChainCommunicationError::from_other_str(&format!(
-                "Unknown ISM type: {}",
-                other
+                "Unknown ISM type: {other}"
             ))),
         }
     }

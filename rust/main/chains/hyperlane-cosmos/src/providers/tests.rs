@@ -254,7 +254,7 @@ fn test_deserialize_neutron_block_22488720() {
 
     let response: Response = serde_json::from_str(json).unwrap();
 
-    println!("Response: {:?}", response);
+    println!("Response: {response:?}");
 }
 
 #[test]
@@ -1269,7 +1269,7 @@ fn test_deserialize_osmosis_block_15317185() {
 
     let response: Response = serde_json::from_str(json).unwrap();
 
-    println!("Response: {:?}", response);
+    println!("Response: {response:?}");
 }
 
 /// This test passes when HttpClient is initialised with `CompactMode::V0_37`.
@@ -1299,7 +1299,7 @@ async fn test_http_client() {
 
     let response = client.block(height).await.unwrap();
 
-    println!("Response: {:?}", response);
+    println!("Response: {response:?}");
 }
 
 /// This test passes when HttpClient is initialised with `CompactMode::V0_37` (done in prod code).
@@ -1360,5 +1360,5 @@ async fn test_fallback_provider() {
 
     let response = provider.get_block(height).await.unwrap();
 
-    println!("{:?}", response);
+    println!("{response:?}");
 }

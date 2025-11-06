@@ -137,7 +137,7 @@ mod tests {
     ) {
         dbs.get(&domain.id())
             .expect("DB not found")
-            .store_merkle_tree_insertion_by_leaf_index(&leaf_index, &insertion)
+            .store_merkle_tree_insertion_by_leaf_index(&leaf_index, insertion)
             .expect("DB Error")
     }
 

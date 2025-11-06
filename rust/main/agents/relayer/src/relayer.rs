@@ -791,7 +791,7 @@ impl Relayer {
     }
 
     fn contract_sync_task_name(prefix: &str, domain: &str) -> String {
-        format!("contract::sync::{}{}", prefix, domain)
+        format!("contract::sync::{prefix}{domain}")
     }
 
     fn run_message_db_loader(
@@ -887,8 +887,7 @@ impl Relayer {
                     // Propagate task panics
                     message_processor.spawn().await.unwrap_or_else(|err| {
                         panic!(
-                            "destination processor panicked for destination {}: {:?}",
-                            destination, err
+                            "destination processor panicked for destination {destination}: {err:?}"
                         )
                     });
                 }
