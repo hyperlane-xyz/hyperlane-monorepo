@@ -7,7 +7,7 @@ import { AltVM } from '@hyperlane-xyz/utils';
 import { AleoSigner } from '../clients/signer.js';
 import { AleoReceipt, AleoTransaction } from '../utils/types.js';
 
-describe('2. cosmos sdk core e2e tests', async function () {
+describe('2. aleo sdk core e2e tests', async function () {
   this.timeout(300_000);
 
   let signer: AltVM.ISigner<AleoTransaction, AleoReceipt>;
@@ -49,24 +49,6 @@ describe('2. cosmos sdk core e2e tests', async function () {
     expect(mailbox.requiredHook).to.be.empty;
 
     mailboxAddress = mailbox.address;
-  });
-
-  step('set mailbox owner', async () => {
-    // ARRANGE
-    let mailbox = await signer.getMailbox({ mailboxAddress });
-    expect(mailbox.owner).to.equal(signer.getSignerAddress());
-
-    const newOwner = new Account().address().to_string();
-
-    // ACT
-    await signer.setMailboxOwner({
-      mailboxAddress,
-      newOwner,
-    });
-
-    // ASSERT
-    mailbox = await signer.getMailbox({ mailboxAddress });
-    expect(mailbox.owner).to.equal(newOwner);
   });
 
   step('set mailbox default ism', async () => {
@@ -125,5 +107,23 @@ describe('2. cosmos sdk core e2e tests', async function () {
     // ASSERT
     mailbox = await signer.getMailbox({ mailboxAddress });
     expect(mailbox.requiredHook).to.equal(hookAddress);
+  });
+
+  step('set mailbox owner', async () => {
+    // ARRANGE
+    let mailbox = await signer.getMailbox({ mailboxAddress });
+    expect(mailbox.owner).to.equal(signer.getSignerAddress());
+
+    const newOwner = new Account().address().to_string();
+
+    // ACT
+    await signer.setMailboxOwner({
+      mailboxAddress,
+      newOwner,
+    });
+
+    // ASSERT
+    mailbox = await signer.getMailbox({ mailboxAddress });
+    expect(mailbox.owner).to.equal(newOwner);
   });
 });
