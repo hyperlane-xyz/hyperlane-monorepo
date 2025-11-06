@@ -496,14 +496,14 @@ export const rebalancer: CommandModuleWithWriteContext<{
       runner = await RebalancerRunner.create(rest, context);
     } catch (e: any) {
       // exit on startup errors
-      errorRed('Rebalancer startup error:', util.format(e));
+      errorRed(`Rebalancer startup error: ${util.format(e)}`);
       process.exit(1);
     }
 
     try {
       await runner.run();
     } catch (e: any) {
-      errorRed('Rebalancer error:', util.format(e));
+      errorRed(`Rebalancer error: ${util.format(e)}`);
       process.exit(1);
     }
   },

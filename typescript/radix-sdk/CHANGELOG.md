@@ -1,5 +1,11 @@
 # @hyperlane-xyz/radix-sdk
 
+## 19.7.0
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@19.7.0
+
 ## 19.6.0
 
 ### Patch Changes
