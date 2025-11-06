@@ -53,7 +53,7 @@ impl ProvideAwsCredentials for AwsChainCredentialsProvider {
     async fn credentials(&self) -> Result<AwsCredentials, CredentialsError> {
         if let Ok(creds) = self.environment_provider.credentials().await {
             Ok(creds)
-        } else { 
+        } else {
             match self.web_identity_provider.credentials().await {
                 Ok(creds) => {
                     tracing::debug!("Using AWS credentials from web identity provider (K8s IRSA)");
@@ -67,11 +67,16 @@ impl ProvideAwsCredentials for AwsChainCredentialsProvider {
             // 3. EC2 Instance Metadata (for EC2 instances with IAM instance profiles)
             match self.instance_metadata_provider.credentials().await {
                 Ok(creds) => {
-                    tracing::info!("Using AWS credentials from EC2 instance metadata (IAM instance profile)");
+                    tracing::info!(
+                        "Using AWS credentials from EC2 instance metadata (IAM instance profile)"
+                    );
                     Ok(creds)
                 }
                 Err(e) => {
-                    tracing::error!("All AWS credential providers failed. Instance metadata error: {:?}", e);
+                    tracing::error!(
+                        "All AWS credential providers failed. Instance metadata error: {:?}",
+                        e
+                    );
                     Err(e)
                 }
             }

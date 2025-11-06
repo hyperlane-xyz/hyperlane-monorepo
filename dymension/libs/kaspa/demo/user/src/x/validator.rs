@@ -91,7 +91,8 @@ pub async fn handle_aws_backend(args: ValidatorAwsArgs) -> Result<(), Box<dyn st
 
     let encrypted_keypair = encrypt_with_kms(&kms_client, &args.kms_key_id, &keypair_json).await?;
     let secret_arn =
-        store_encrypted_secret(&sm_client, secret_path, encrypted_json, "validator keys").await?;
+        store_encrypted_secret(&sm_client, secret_path, encrypted_keypair, "validator keys")
+            .await?;
 
     println!();
     println!("✓ Successfully created Kaspa validator secret!");
