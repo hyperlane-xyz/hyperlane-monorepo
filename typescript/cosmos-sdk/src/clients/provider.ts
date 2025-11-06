@@ -66,6 +66,9 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
   private readonly cometClient: CometClient;
   private readonly rpcUrls: string[];
 
+  private static NULL_ADDRESS =
+    '0x0000000000000000000000000000000000000000000000000000000000000000';
+
   static async connect(
     rpcUrls: string[],
     _chainId: string | number,
@@ -178,6 +181,10 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
       id: req.mailboxAddress,
     });
     assert(mailbox, `found no mailbox for id ${req.mailboxAddress}`);
+
+    if (mailbox.default_ism === CosmosNativeProvider.NULL_ADDRESS) {
+      mailbox.default_ism = '';
+    }
 
     return {
       address: mailbox.id,
@@ -459,11 +466,6 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
   async getCreateMailboxTransaction(
     req: AltVM.ReqCreateMailbox,
   ): Promise<MsgCreateMailboxEncodeObject> {
-    assert(
-      req.defaultIsmAddress,
-      `Default ISM required during mailbox creation for Cosmos Native`,
-    );
-
     return {
       typeUrl: R.MsgCreateMailbox.proto.type,
       value: R.MsgCreateMailbox.proto.converter.create({
