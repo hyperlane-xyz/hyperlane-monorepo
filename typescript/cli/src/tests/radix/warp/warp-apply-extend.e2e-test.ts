@@ -1,18 +1,16 @@
-import { expect } from 'chai';
-
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
+  ChainMap,
   DerivedWarpRouteDeployConfig,
   TokenType,
   WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import { HyperlaneE2EWarpTestCommands } from '../../commands/warp.js';
 import {
-  BURN_ADDRESS_BY_PROTOCOL,
   CORE_CONFIG_PATH_BY_PROTOCOL,
   CORE_READ_CONFIG_PATH_BY_PROTOCOL,
   DEFAULT_E2E_TEST_TIMEOUT,
@@ -26,6 +24,7 @@ import {
   getWarpDeployConfigPath,
   getWarpId,
 } from '../../constants.js';
+import { assertWarpRouteConfig } from '../../utils.js';
 
 describe('hyperlane warp apply (Radix E2E tests)', async function () {
   this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
@@ -76,11 +75,18 @@ describe('hyperlane warp apply (Radix E2E tests)', async function () {
     WARP_CORE_PATH,
   );
 
+  let coreAddressByChain: ChainMap<ChainAddresses>;
+
   before(async function () {
     [chain1CoreAddress, chain2CoreAddress] = await Promise.all([
       hyperlaneCore1.deployOrUseExistingCore(HYP_KEY_BY_PROTOCOL.radix),
       hyperlaneCore2.deployOrUseExistingCore(HYP_KEY_BY_PROTOCOL.radix),
     ]);
+
+    coreAddressByChain = {
+      [TEST_CHAIN_NAMES_BY_PROTOCOL.radix.CHAIN_NAME_1]: chain1CoreAddress,
+      [TEST_CHAIN_NAMES_BY_PROTOCOL.radix.CHAIN_NAME_2]: chain2CoreAddress,
+    };
   });
 
   let warpDeployConfig: WarpRouteDeployConfig;
@@ -90,14 +96,6 @@ describe('hyperlane warp apply (Radix E2E tests)', async function () {
         type: TokenType.collateral,
         token: nativeTokenAddress,
         mailbox: chain1CoreAddress.mailbox,
-        owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.radix,
-        name: nativeTokenData.name,
-        symbol: nativeTokenData.symbol,
-        decimals: nativeTokenData.decimals,
-      },
-      [TEST_CHAIN_NAMES_BY_PROTOCOL.radix.CHAIN_NAME_2]: {
-        type: TokenType.synthetic,
-        mailbox: chain2CoreAddress.mailbox,
         owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.radix,
         name: nativeTokenData.name,
         symbol: nativeTokenData.symbol,
@@ -113,72 +111,37 @@ describe('hyperlane warp apply (Radix E2E tests)', async function () {
     });
   });
 
-  it('should not update if there are no owner changes', async () => {
-    const output = await hyperlaneWarp.applyRaw({
+  it(`It should extend the route to a new chain`, async function () {
+    warpDeployConfig[TEST_CHAIN_NAMES_BY_PROTOCOL.radix.CHAIN_NAME_2] = {
+      type: TokenType.synthetic,
+      mailbox: chain2CoreAddress.mailbox,
+      owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.radix,
+      name: nativeTokenData.name,
+      symbol: nativeTokenData.symbol,
+      decimals: nativeTokenData.decimals,
+    };
+    writeYamlOrJson(WARP_DEPLOY_PATH, warpDeployConfig);
+
+    await hyperlaneWarp.applyRaw({
       warpRouteId: WARP_ROUTE_ID,
       hypKey: HYP_KEY_BY_PROTOCOL.radix,
     });
 
-    expect(output.text()).to.include(
-      'Warp config is the same as target. No updates needed.',
-    );
-  });
-
-  const testCases: {
-    description: string;
-    chain1TokenOwner: string;
-    chain2TokenOwner: string;
-  }[] = [
-    {
-      description: 'should burn owner address on chain 1',
-      chain1TokenOwner: BURN_ADDRESS_BY_PROTOCOL.radix,
-      chain2TokenOwner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.radix,
-    },
-    {
-      description: 'should burn owner address on chain 2',
-      chain1TokenOwner: BURN_ADDRESS_BY_PROTOCOL.radix,
-      chain2TokenOwner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.radix,
-    },
-    {
-      description: 'should transfer ownership of all the tokens',
-      chain1TokenOwner: BURN_ADDRESS_BY_PROTOCOL.radix,
-      chain2TokenOwner: BURN_ADDRESS_BY_PROTOCOL.radix,
-    },
-  ];
-
-  for (const { description, chain1TokenOwner, chain2TokenOwner } of testCases) {
-    it(description, async function () {
-      const expectedChain1TokenOwner: Address = chain1TokenOwner;
-      const expectedChain2TokenOwner: Address = chain2TokenOwner;
-
-      warpDeployConfig[TEST_CHAIN_NAMES_BY_PROTOCOL.radix.CHAIN_NAME_1].owner =
-        chain1TokenOwner;
-      warpDeployConfig[TEST_CHAIN_NAMES_BY_PROTOCOL.radix.CHAIN_NAME_2].owner =
-        chain2TokenOwner;
-
-      writeYamlOrJson(WARP_DEPLOY_PATH, warpDeployConfig);
-
-      await hyperlaneWarp.applyRaw({
-        warpRouteId: WARP_ROUTE_ID,
-        hypKey: HYP_KEY_BY_PROTOCOL.radix,
-      });
-
-      await hyperlaneWarp.readRaw({
-        warpRouteId: WARP_ROUTE_ID,
-        outputPath: WARP_READ_OUTPUT_PATH,
-      });
-
-      const updatedWarpDeployConfig: DerivedWarpRouteDeployConfig =
-        readYamlOrJson(WARP_READ_OUTPUT_PATH);
-
-      expect(
-        updatedWarpDeployConfig[TEST_CHAIN_NAMES_BY_PROTOCOL.radix.CHAIN_NAME_1]
-          .owner,
-      ).to.eq(expectedChain1TokenOwner);
-      expect(
-        updatedWarpDeployConfig[TEST_CHAIN_NAMES_BY_PROTOCOL.radix.CHAIN_NAME_2]
-          .owner,
-      ).to.eq(expectedChain2TokenOwner);
+    await hyperlaneWarp.readRaw({
+      warpRouteId: WARP_ROUTE_ID,
+      outputPath: WARP_READ_OUTPUT_PATH,
     });
-  }
+
+    const updatedWarpDeployConfig: DerivedWarpRouteDeployConfig =
+      readYamlOrJson(WARP_READ_OUTPUT_PATH);
+
+    for (const chainName of Object.keys(warpDeployConfig)) {
+      assertWarpRouteConfig(
+        warpDeployConfig,
+        updatedWarpDeployConfig,
+        coreAddressByChain,
+        chainName,
+      );
+    }
+  });
 });
