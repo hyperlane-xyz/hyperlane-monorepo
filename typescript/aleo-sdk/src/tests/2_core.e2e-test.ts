@@ -13,6 +13,8 @@ describe('2. aleo sdk core e2e tests', async function () {
   let signer: AltVM.ISigner<AleoTransaction, AleoReceipt>;
 
   let mailboxAddress: string;
+  let ismAddress: string;
+  let hookAddress: string;
 
   before(async () => {
     const localnetRpc = 'http://localhost:3030';
@@ -21,6 +23,9 @@ describe('2. aleo sdk core e2e tests', async function () {
       'APrivateKey1zkp8CZNn3yeCseEtxuVPbDCwSyhGW6yZKUYKfgXmcpoGPWH';
 
     signer = await AleoSigner.connectWithSigner([localnetRpc], privateKey);
+
+    const noopIsm = await signer.createNoopIsm({});
+    ismAddress = noopIsm.ismAddress;
   });
 
   step('create new mailbox', async () => {
@@ -53,8 +58,6 @@ describe('2. aleo sdk core e2e tests', async function () {
 
   step('set mailbox default ism', async () => {
     // ARRANGE
-    const { ismAddress } = await signer.createNoopIsm({});
-
     let mailbox = await signer.getMailbox({ mailboxAddress });
     expect(mailbox.defaultIsm).to.be.empty;
 
@@ -71,12 +74,13 @@ describe('2. aleo sdk core e2e tests', async function () {
 
   step('set mailbox default hook', async () => {
     // ARRANGE
-    const { hookAddress } = await signer.createMerkleTreeHook({
-      mailboxAddress,
-    });
-
     let mailbox = await signer.getMailbox({ mailboxAddress });
     expect(mailbox.defaultHook).to.be.empty;
+
+    const merkleTreeHook = await signer.createMerkleTreeHook({
+      mailboxAddress: mailbox.address,
+    });
+    hookAddress = merkleTreeHook.hookAddress;
 
     // ACT
     await signer.setDefaultHook({
@@ -91,10 +95,6 @@ describe('2. aleo sdk core e2e tests', async function () {
 
   step('set mailbox required hook', async () => {
     // ARRANGE
-    const { hookAddress } = await signer.createMerkleTreeHook({
-      mailboxAddress,
-    });
-
     let mailbox = await signer.getMailbox({ mailboxAddress });
     expect(mailbox.requiredHook).to.be.empty;
 

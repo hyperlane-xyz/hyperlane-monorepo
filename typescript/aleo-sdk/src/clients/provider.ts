@@ -745,6 +745,7 @@ export class AleoProvider implements AltVM.IProvider {
   async getCreateMerkleTreeHookTransaction(
     _req: AltVM.ReqCreateMerkleTreeHook,
   ): Promise<AleoTransaction> {
+    // TODO: replace default mailbox id with real one
     return {
       programName: 'hook_manager.aleo',
       functionName: 'init_merkle_tree',
