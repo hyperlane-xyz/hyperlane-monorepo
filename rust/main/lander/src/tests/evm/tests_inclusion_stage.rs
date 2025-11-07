@@ -1103,11 +1103,12 @@ async fn test_tx_finalized_but_failed() {
     );
 }
 
-/// Test case where tx is assigned a new nonce, but tx already exists.
-/// We still want to make sure nonce is reflected in the tx.
+/// Test case where tx is already in mempool, but is assigned a new
+/// nonce. In this case, we still need to make sure tx has new nonce
+/// stored.
 #[tokio::test]
 #[traced_test]
-async fn test_tx_new_nonce_but_tx_already_exists() {
+async fn test_tx_mempool_but_assigned_new_nonce() {
     let block_time = TEST_BLOCK_TIME;
 
     let mut mock_evm_provider = MockEvmProvider::new();
