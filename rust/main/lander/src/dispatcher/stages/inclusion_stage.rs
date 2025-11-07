@@ -377,9 +377,7 @@ impl InclusionStage {
         // update the pool entry of this tx, to reflect any changes such as
         // the gas price, hash, etc
         pool.lock().await.insert(tx.uuid.clone(), tx.clone());
-        if let Err(err) = state.tx_db.store_transaction_by_uuid(&tx).await {
-            error!(?err, ?tx, "Failed to store transaction in db");
-        };
+
         Ok(())
     }
 
