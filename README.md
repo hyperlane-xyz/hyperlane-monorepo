@@ -30,7 +30,7 @@ To read more about interchain applications, how the protocol works, and how to i
 
 #### Install `jq`
 
-You need `jq` installed on your machine. You can download it from [official page](https://jqlang.github.io/jq/download/) or use a package manager of your choice.
+You need `jq` installed on your machine. You can download it from [official page](https://jqlang.org/download/) or use a package manager of your choice.
 
 #### Install `gitleaks`
 
