@@ -34,8 +34,8 @@ snarkvm = { workspace = true, features = [
     "test_targets",
     "test_consensus_heights",
 ] }
-snarkvm-algorithms = { version = "4.3.0" }
-snarkvm-console-account = { version = "4.3.0" }
+snarkvm-algorithms.workspace = true
+snarkvm-console-account.workspace = true
 aleo-std = { version = "1.0.3" }
 aleo-std-storage = { version = "1.0.3" }
 reqwest = { workspace = true, features = ["json", "blocking"] }
