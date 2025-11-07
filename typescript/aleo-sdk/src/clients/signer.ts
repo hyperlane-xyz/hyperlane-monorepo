@@ -4,7 +4,6 @@ import {
   NetworkRecordProvider,
   Program,
   ProgramManager,
-  ProgramManagerBase,
 } from '@provablehq/sdk';
 
 import { AltVM } from '@hyperlane-xyz/utils';
@@ -54,8 +53,25 @@ export class AleoSigner
     this.programManager.setAccount(this.aleoAccount);
   }
 
-  private async deployProgram(programName: string): Promise<Program[]> {
-    const programs = loadProgramsInDeployOrder(programName);
+  private async deployProgram(programName: string): Promise<{
+    address: string;
+    program: Program;
+  }> {
+    let programs = loadProgramsInDeployOrder(programName);
+
+    const address = new Account().address().to_string();
+    const salt = this.getProgramSalt(address);
+
+    programs = programs.map((p) => {
+      return Program.fromString(
+        p
+          .toString()
+          .replaceAll(
+            /(mailbox|dispatch_proxy|validator_announce)\.aleo/g,
+            (_, p1) => `${p1}_${salt}.aleo`,
+          ),
+      );
+    });
 
     for (const program of programs) {
       const isDeployed = await this.isProgramDeployed(program);
@@ -66,20 +82,19 @@ export class AleoSigner
         continue;
       }
 
-      const fee = await ProgramManagerBase.estimateDeploymentFee(
-        program.toString(),
-      );
-
       const txId = await this.programManager.deploy(
         program.toString(),
-        Math.ceil(Number(fee) / 10 ** 6),
+        0,
         false,
       );
 
       await this.aleoClient.waitForTransactionConfirmation(txId);
     }
 
-    return programs;
+    return {
+      address,
+      program: programs[programs.length - 1],
+    };
   }
 
   getSignerAddress(): string {
@@ -123,19 +138,20 @@ export class AleoSigner
   async createMailbox(
     req: Omit<AltVM.ReqCreateMailbox, 'signer'>,
   ): Promise<AltVM.ResCreateMailbox> {
-    await this.deployProgram('dispatch_proxy');
+    const { address } = await this.deployProgram('dispatch_proxy');
 
-    // TODO: init with correct mailbox id
     const tx = await this.getCreateMailboxTransaction({
       signer: this.getSignerAddress(),
       ...req,
     });
 
+    tx.programName = `mailbox_${this.getProgramSalt(address)}.aleo`;
+
     const txId = await this.programManager.execute(tx);
     await this.aleoClient.waitForTransactionConfirmation(txId);
 
     return {
-      mailboxAddress: 'mailbox.aleo',
+      mailboxAddress: address,
     };
   }
 
@@ -482,19 +498,20 @@ export class AleoSigner
   async createValidatorAnnounce(
     req: Omit<AltVM.ReqCreateValidatorAnnounce, 'signer'>,
   ): Promise<AltVM.ResCreateValidatorAnnounce> {
-    await this.deployProgram('validator_announce');
+    const { address } = await this.deployProgram('validator_announce');
 
-    // TODO: init with correct validator announce and mailbox id
     const tx = await this.getCreateValidatorAnnounceTransaction({
       signer: this.getSignerAddress(),
       ...req,
     });
 
+    tx.programName = `validator_announce_${this.getProgramSalt(address)}.aleo`;
+
     const txId = await this.programManager.execute(tx);
     await this.aleoClient.waitForTransactionConfirmation(txId);
 
     return {
-      validatorAnnounceId: 'validator_announce.aleo',
+      validatorAnnounceId: address,
     };
   }
 

@@ -5,6 +5,8 @@ import {
   Plaintext,
   Program,
   ProgramManager,
+  getOrInitConsensusVersionTestHeights,
+  initThreadPool,
 } from '@provablehq/sdk';
 import { BigNumber } from 'bignumber.js';
 
@@ -14,12 +16,8 @@ import { mailbox } from '../artifacts.js';
 import { formatAddress, getMessageKey } from '../utils/helper.js';
 import { AleoTransaction } from '../utils/types.js';
 
-// TODO: make denom in AltVM optional
-// TODO: add remove destination gas config method in AltVM
-// TODO: only allow domainId in createMailox in AltVM
-// TODO: add createNoopHook method in AltVM
-// TODO: add getTokenMetadata method in AltVM
-// TODO: don't allow routes in create routing ism
+getOrInitConsensusVersionTestHeights('0,1,2,3,4,5,6,7,8,9,10');
+await initThreadPool();
 
 export class AleoProvider implements AltVM.IProvider {
   protected readonly aleoClient: AleoNetworkClient;
@@ -37,6 +35,16 @@ export class AleoProvider implements AltVM.IProvider {
 
     this.rpcUrls = rpcUrls;
     this.aleoClient = new AleoNetworkClient(rpcUrls[0]);
+  }
+
+  protected getProgramSalt(address: string): string {
+    // get the program salt by hashing the address with bhp256 and take the first 12
+    // characters from the hex hash
+    return new BHP256()
+      .hash(Plaintext.fromString(address).toBitsLe())
+      .toBytesLe()
+      .reduce((acc, b) => acc + b.toString(16).padStart(2, '0'), '')
+      .slice(0, 12);
   }
 
   // ### QUERY BASE ###
@@ -120,7 +128,7 @@ export class AleoProvider implements AltVM.IProvider {
     let res;
     try {
       res = await this.aleoClient.getProgramMappingPlaintext(
-        req.mailboxAddress,
+        `mailbox_${this.getProgramSalt(req.mailboxAddress)}.aleo`,
         'mailbox',
         'true',
       );
@@ -584,7 +592,7 @@ export class AleoProvider implements AltVM.IProvider {
     req: AltVM.ReqCreateMailbox,
   ): Promise<AleoTransaction> {
     return {
-      programName: 'mailbox.aleo',
+      programName: '',
       functionName: 'init',
       priorityFee: 0,
       privateFee: false,
@@ -596,7 +604,7 @@ export class AleoProvider implements AltVM.IProvider {
     req: AltVM.ReqSetDefaultIsm,
   ): Promise<AleoTransaction> {
     return {
-      programName: 'mailbox.aleo',
+      programName: `mailbox_${this.getProgramSalt(req.mailboxAddress)}.aleo`,
       functionName: 'set_default_ism',
       priorityFee: 0,
       privateFee: false,
@@ -608,7 +616,7 @@ export class AleoProvider implements AltVM.IProvider {
     req: AltVM.ReqSetDefaultHook,
   ): Promise<AleoTransaction> {
     return {
-      programName: 'mailbox.aleo',
+      programName: `mailbox_${this.getProgramSalt(req.mailboxAddress)}.aleo`,
       functionName: 'set_default_hook',
       priorityFee: 0,
       privateFee: false,
@@ -620,7 +628,7 @@ export class AleoProvider implements AltVM.IProvider {
     req: AltVM.ReqSetRequiredHook,
   ): Promise<AleoTransaction> {
     return {
-      programName: 'mailbox.aleo',
+      programName: `mailbox_${this.getProgramSalt(req.mailboxAddress)}.aleo`,
       functionName: 'set_required_hook',
       priorityFee: 0,
       privateFee: false,
@@ -632,7 +640,7 @@ export class AleoProvider implements AltVM.IProvider {
     req: AltVM.ReqSetMailboxOwner,
   ): Promise<AleoTransaction> {
     return {
-      programName: 'mailbox.aleo',
+      programName: `mailbox_${this.getProgramSalt(req.mailboxAddress)}.aleo`,
       functionName: 'set_owner',
       priorityFee: 0,
       privateFee: false,
@@ -743,15 +751,23 @@ export class AleoProvider implements AltVM.IProvider {
   }
 
   async getCreateMerkleTreeHookTransaction(
-    _req: AltVM.ReqCreateMerkleTreeHook,
+    req: AltVM.ReqCreateMerkleTreeHook,
   ): Promise<AleoTransaction> {
-    // TODO: replace default mailbox id with real one
     return {
       programName: 'hook_manager.aleo',
       functionName: 'init_merkle_tree',
       priorityFee: 0,
       privateFee: false,
-      inputs: [Program.fromString(mailbox).address().to_string()],
+      inputs: [
+        Program.fromString(
+          mailbox.replaceAll(
+            'mailbox.aleo',
+            `mailbox_${this.getProgramSalt(req.mailboxAddress)}.aleo`,
+          ),
+        )
+          .address()
+          .to_string(),
+      ],
     };
   }
 
@@ -803,12 +819,19 @@ export class AleoProvider implements AltVM.IProvider {
     });
 
     return {
-      programName: 'validator_announce.aleo',
+      programName: '',
       functionName: 'init',
       priorityFee: 0,
       privateFee: false,
       inputs: [
-        Program.fromString(mailbox).address().to_string(),
+        Program.fromString(
+          mailbox.replaceAll(
+            'mailbox.aleo',
+            `mailbox_${this.getProgramSalt(req.mailboxAddress)}.aleo`,
+          ),
+        )
+          .address()
+          .to_string(),
         `${localDomain}u32`,
       ],
     };
