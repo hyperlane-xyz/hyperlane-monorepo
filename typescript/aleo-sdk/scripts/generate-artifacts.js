@@ -69,8 +69,10 @@ export const programRegistry: Record<string, string> = {
   hook_manager,
   ism_manager,
   mailbox,
-  hyp_synthetic,
+  hyp_collateral,
   token_registry,
+  hyp_native,
+  hyp_synthetic,
   validator_announce,
 };
 

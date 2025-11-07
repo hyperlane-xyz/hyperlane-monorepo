@@ -64,7 +64,6 @@ export class AleoSigner
       return Program.fromString(
         p
           .toString()
-          .replaceAll('_template.aleo', '.aleo')
           .replaceAll(
             /(mailbox|dispatch_proxy|validator_announce|hyp_synthetic)\.aleo/g,
             (_, p1) => `${p1}_${this.getProgramSalt(coreAddress)}.aleo`,
@@ -534,9 +533,28 @@ export class AleoSigner
   // ### TX WARP ###
 
   async createCollateralToken(
-    _req: Omit<AltVM.ReqCreateCollateralToken, 'signer'>,
+    req: Omit<AltVM.ReqCreateCollateralToken, 'signer'>,
   ): Promise<AltVM.ResCreateCollateralToken> {
-    throw new Error(`TODO: implement`);
+    const tokenAddress = new Account().address().to_string();
+    const program = await this.deployProgram(
+      'hyp_collateral',
+      req.mailboxAddress,
+      tokenAddress,
+    );
+
+    const tx = await this.getCreateCollateralTokenTransaction({
+      signer: this.getSignerAddress(),
+      ...req,
+    });
+
+    tx.programName = program.id();
+
+    const txId = await this.programManager.execute(tx);
+    await this.aleoClient.waitForTransactionConfirmation(txId);
+
+    return {
+      tokenAddress,
+    };
   }
 
   async createSyntheticToken(

@@ -433,44 +433,107 @@ export class AleoProvider implements AltVM.IProvider {
 
   // ### QUERY WARP ###
 
-  async getToken(req: AltVM.ReqGetToken): Promise<AltVM.ResGetToken> {
-    let owner: string;
-    let ismAddress: string;
+  private async getTokenProgram(tokenAddress: string): Promise<Program> {
+    try {
+      const program = await this.aleoClient.getProgram(
+        `hyp_native_${this.getProgramSalt(tokenAddress)}.aleo`,
+      );
+      return Program.fromString(program);
+    } catch {}
 
+    try {
+      const program = await this.aleoClient.getProgram(
+        `hyp_collateral_${this.getProgramSalt(tokenAddress)}.aleo`,
+      );
+      return Program.fromString(program);
+    } catch {}
+
+    try {
+      const program = await this.aleoClient.getProgram(
+        `hyp_synthetic_${this.getProgramSalt(tokenAddress)}.aleo`,
+      );
+      return Program.fromString(program);
+    } catch {}
+
+    throw new Error(
+      `Failed to get token program for token address ${tokenAddress}`,
+    );
+  }
+
+  private async getTokenMetadata(tokenId: string): Promise<{
+    name: string;
+    symbol: string;
+    decimals: number;
+  }> {
     try {
       const tokenMetadata = await this.aleoClient.getProgramMappingPlaintext(
-        req.tokenAddress,
-        'token_metadata',
-        'true',
+        'token_registry.aleo',
+        'registered_tokens',
+        tokenId,
       );
-      owner = tokenMetadata.toObject().token_owner;
-    } catch {
-      throw new Error(`Found no Token for address: ${req.tokenAddress}`);
-    }
 
-    try {
-      const ism = await this.aleoClient.getProgramMappingPlaintext(
-        req.tokenAddress,
-        'ism',
-        'true',
-      );
-      ismAddress = formatAddress(ism.toObject());
-    } catch {
-      throw new Error(`Found no Token for address: ${req.tokenAddress}`);
-    }
+      const metadata = tokenMetadata.toObject();
 
-    // TODO: query additional properties based on token type
-    return {
+      return {
+        name: metadata['name'],
+        symbol: metadata['symbol'],
+        decimals: parseInt(metadata['decimals'].replaceAll('u8', '')),
+      };
+    } catch {
+      throw new Error(`Found no token for token id: ${tokenId}`);
+    }
+  }
+
+  async getToken(req: AltVM.ReqGetToken): Promise<AltVM.ResGetToken> {
+    const tokenProgram = await this.getTokenProgram(req.tokenAddress);
+
+    const token = {
       address: req.tokenAddress,
-      owner,
+      owner: '',
       tokenType: AltVM.TokenType.native,
-      mailboxAddress: '',
-      ismAddress,
+      mailboxAddress: '', // TODO: how do we get the mailbox address?
+      ismAddress: '',
       denom: '',
       name: '',
       symbol: '',
       decimals: 0,
     };
+
+    try {
+      const tokenMetadata = await this.aleoClient.getProgramMappingPlaintext(
+        tokenProgram.id(),
+        'token_metadata',
+        'true',
+      );
+
+      token.owner = formatAddress(tokenMetadata.toObject().token_owner);
+      token.ismAddress = tokenMetadata.toObject().ism || '';
+      token.denom = tokenMetadata.toObject().token_id || '';
+
+      if (token.denom) {
+        const tokenRegistryMetadata = await this.getTokenMetadata(token.denom);
+
+        token.name = tokenRegistryMetadata.name;
+        token.symbol = tokenRegistryMetadata.symbol;
+        token.decimals = tokenRegistryMetadata.decimals;
+      }
+
+      switch (tokenMetadata.toObject().token_type) {
+        case 0:
+          token.tokenType = AltVM.TokenType.native;
+          break;
+        case 1:
+          token.tokenType = AltVM.TokenType.synthetic;
+          break;
+        case 2:
+          token.tokenType = AltVM.TokenType.collateral;
+          break;
+      }
+    } catch {
+      throw new Error(`Found no token for program: ${tokenProgram}`);
+    }
+
+    return token;
   }
 
   async getRemoteRouters(
@@ -840,9 +903,16 @@ export class AleoProvider implements AltVM.IProvider {
   // ### GET WARP TXS ###
 
   async getCreateCollateralTokenTransaction(
-    _req: AltVM.ReqCreateCollateralToken,
+    req: AltVM.ReqCreateCollateralToken,
   ): Promise<AleoTransaction> {
-    throw new Error(`TODO: implement`);
+    // TODO: get decimals from collateral denom
+    return {
+      programName: '',
+      functionName: 'init',
+      priorityFee: 0,
+      privateFee: false,
+      inputs: [`${req.collateralDenom}field`, `${0}u8`],
+    };
   }
 
   async getCreateSyntheticTokenTransaction(

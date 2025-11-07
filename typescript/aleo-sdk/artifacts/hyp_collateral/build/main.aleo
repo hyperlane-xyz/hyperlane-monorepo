@@ -4,7 +4,7 @@ import mailbox.aleo;
 import hook_manager.aleo;
 import dispatch_proxy.aleo;
 import token_registry.aleo;
-program hyp_synthetic.aleo;
+program hyp_collateral.aleo;
 
 struct RemoteRouter:
     domain as u32;
@@ -93,40 +93,34 @@ mapping token_metadata:
 
 function init:
     input r0 as [u8; 128u32].public;
-    input r1 as u128.public;
-    input r2 as u128.public;
-    input r3 as u8.public;
-    input r4 as u8.public;
-    cast hyp_synthetic.aleo into r5 as field;
-    cast r4 into r6 as i16;
-    cast r3 into r7 as i16;
-    sub r6 r7 into r8;
-    abs r8 into r9;
-    lte r9 18i16 into r10;
-    assert.eq r10 true;
-    call token_registry.aleo/register_token r5 r1 r2 r3 340282366920938463463374607431768211455u128 false aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc into r11;
-    call mailbox.aleo/register_application r0 into r12;
-    async init self.caller r5 r3 r4 r11 r12 into r13;
-    output r13 as hyp_synthetic.aleo/init.future;
-
-finalize init:
-    input r0 as address.public;
     input r1 as field.public;
     input r2 as u8.public;
-    input r3 as u8.public;
-    input r4 as token_registry.aleo/register_token.future;
-    input r5 as mailbox.aleo/register_application.future;
-    contains token_metadata[true] into r6;
-    assert.eq r6 false;
-    cast 1u8 r0 aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc r1 r2 r3 into r7 as Metadata;
-    set r7 into token_metadata[true];
-    await r4;
-    await r5;
+    call mailbox.aleo/register_application r0 into r3;
+    async init r1 r2 self.caller r3 into r4;
+    output r4 as hyp_collateral.aleo/init.future;
+
+finalize init:
+    input r0 as field.public;
+    input r1 as u8.public;
+    input r2 as address.public;
+    input r3 as mailbox.aleo/register_application.future;
+    get token_registry.aleo/registered_tokens[r0] into r4;
+    cast r1 into r5 as i16;
+    cast r4.decimals into r6 as i16;
+    sub r5 r6 into r7;
+    abs r7 into r8;
+    lte r8 18i16 into r9;
+    assert.eq r9 true;
+    contains token_metadata[true] into r10;
+    assert.eq r10 false;
+    cast 2u8 r2 aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc r0 r4.decimals r1 into r11 as Metadata;
+    set r11 into token_metadata[true];
+    await r3;
 
 function set_custom_hook:
     input r0 as address.private;
     async set_custom_hook self.caller r0 into r1;
-    output r1 as hyp_synthetic.aleo/set_custom_hook.future;
+    output r1 as hyp_collateral.aleo/set_custom_hook.future;
 
 finalize set_custom_hook:
     input r0 as address.public;
@@ -139,7 +133,7 @@ finalize set_custom_hook:
 function set_custom_ism:
     input r0 as address.private;
     async set_custom_ism self.caller r0 into r1;
-    output r1 as hyp_synthetic.aleo/set_custom_ism.future;
+    output r1 as hyp_collateral.aleo/set_custom_ism.future;
 
 finalize set_custom_ism:
     input r0 as address.public;
@@ -152,7 +146,7 @@ finalize set_custom_ism:
 function set_owner:
     input r0 as address.private;
     async set_owner self.caller r0 into r1;
-    output r1 as hyp_synthetic.aleo/set_owner.future;
+    output r1 as hyp_collateral.aleo/set_owner.future;
 
 finalize set_owner:
     input r0 as address.public;
@@ -167,7 +161,7 @@ function enroll_remote_router:
     input r1 as [u8; 32u32].private;
     input r2 as u128.private;
     async enroll_remote_router self.caller r0 r1 r2 into r3;
-    output r3 as hyp_synthetic.aleo/enroll_remote_router.future;
+    output r3 as hyp_collateral.aleo/enroll_remote_router.future;
 
 finalize enroll_remote_router:
     input r0 as address.public;
@@ -192,7 +186,7 @@ finalize enroll_remote_router:
 function unroll_remote_router:
     input r0 as u32.private;
     async unroll_remote_router self.caller r0 into r1;
-    output r1 as hyp_synthetic.aleo/unroll_remote_router.future;
+    output r1 as hyp_collateral.aleo/unroll_remote_router.future;
 
 finalize unroll_remote_router:
     input r0 as address.public;
@@ -586,13 +580,13 @@ function transfer_remote:
     cast r4[0u32] r4[1u32] r379[0u32] r379[1u32] 0u128 0u128 0u128 0u128 into r380 as [u128; 8u32];
     cast r56[0u32] r56[1u32] r56[2u32] r56[3u32] r56[4u32] r56[5u32] r56[6u32] r56[7u32] r56[8u32] r56[9u32] r56[10u32] r56[11u32] r56[12u32] r56[13u32] r56[14u32] r56[15u32] r7[16u32] r7[17u32] r7[18u32] r7[19u32] r7[20u32] r7[21u32] r7[22u32] r7[23u32] r7[24u32] r7[25u32] r7[26u32] r7[27u32] r7[28u32] r7[29u32] r7[30u32] r7[31u32] r7[32u32] r7[33u32] r7[34u32] r7[35u32] r7[36u32] r7[37u32] r7[38u32] r7[39u32] r7[40u32] r7[41u32] r7[42u32] r7[43u32] r7[44u32] r7[45u32] r7[46u32] r7[47u32] r7[48u32] r7[49u32] r7[50u32] r7[51u32] r7[52u32] r7[53u32] r7[54u32] r7[55u32] r7[56u32] r7[57u32] r7[58u32] r7[59u32] r7[60u32] r7[61u32] r7[62u32] r7[63u32] r7[64u32] r7[65u32] r7[66u32] r7[67u32] r7[68u32] r7[69u32] r7[70u32] r7[71u32] r7[72u32] r7[73u32] r7[74u32] r7[75u32] r7[76u32] r7[77u32] r7[78u32] r7[79u32] r7[80u32] r7[81u32] r7[82u32] r7[83u32] r7[84u32] r7[85u32] r7[86u32] r7[87u32] r7[88u32] r7[89u32] r7[90u32] r7[91u32] r7[92u32] r7[93u32] r7[94u32] r7[95u32] r7[96u32] r7[97u32] r7[98u32] r7[99u32] r7[100u32] r7[101u32] r7[102u32] r7[103u32] r7[104u32] r7[105u32] r7[106u32] r7[107u32] r7[108u32] r7[109u32] r7[110u32] r7[111u32] r7[112u32] r7[113u32] r7[114u32] r7[115u32] r7[116u32] r7[117u32] r7[118u32] r7[119u32] r7[120u32] r7[121u32] r7[122u32] r7[123u32] r7[124u32] r7[125u32] r7[126u32] r7[127u32] r7[128u32] r7[129u32] r7[130u32] r7[131u32] r7[132u32] r7[133u32] r7[134u32] r7[135u32] r7[136u32] r7[137u32] r7[138u32] r7[139u32] r7[140u32] r7[141u32] r7[142u32] r7[143u32] r7[144u32] r7[145u32] r7[146u32] r7[147u32] r7[148u32] r7[149u32] r7[150u32] r7[151u32] r7[152u32] r7[153u32] r7[154u32] r7[155u32] r7[156u32] r7[157u32] r7[158u32] r7[159u32] r7[160u32] r7[161u32] r7[162u32] r7[163u32] r7[164u32] r7[165u32] r7[166u32] r7[167u32] r7[168u32] r7[169u32] r7[170u32] r7[171u32] r7[172u32] r7[173u32] r7[174u32] r7[175u32] r7[176u32] r7[177u32] r7[178u32] r7[179u32] r7[180u32] r7[181u32] r7[182u32] r7[183u32] r7[184u32] r7[185u32] r7[186u32] r7[187u32] r7[188u32] r7[189u32] r7[190u32] r7[191u32] r7[192u32] r7[193u32] r7[194u32] r7[195u32] r7[196u32] r7[197u32] r7[198u32] r7[199u32] r7[200u32] r7[201u32] r7[202u32] r7[203u32] r7[204u32] r7[205u32] r7[206u32] r7[207u32] r7[208u32] r7[209u32] r7[210u32] r7[211u32] r7[212u32] r7[213u32] r7[214u32] r7[215u32] r7[216u32] r7[217u32] r7[218u32] r7[219u32] r7[220u32] r7[221u32] r7[222u32] r7[223u32] r7[224u32] r7[225u32] r7[226u32] r7[227u32] r7[228u32] r7[229u32] r7[230u32] r7[231u32] r7[232u32] r7[233u32] r7[234u32] r7[235u32] r7[236u32] r7[237u32] r7[238u32] r7[239u32] r7[240u32] r7[241u32] r7[242u32] r7[243u32] r7[244u32] r7[245u32] r7[246u32] r7[247u32] r7[248u32] r7[249u32] r7[250u32] r7[251u32] r7[252u32] r7[253u32] r7[254u32] r7[255u32] into r381 as [u8; 256u32];
     call dispatch_proxy.aleo/dispatch r1 r3 r2.recipient r380 r0.hook r381 r6 into r382;
-    call token_registry.aleo/burn_public r0.token_id self.caller r5 into r383;
+    call token_registry.aleo/transfer_public_as_signer r0.token_id hyp_collateral.aleo r5 into r383;
     async transfer_remote r382 r383 r2 r3 r0 into r384;
-    output r384 as hyp_synthetic.aleo/transfer_remote.future;
+    output r384 as hyp_collateral.aleo/transfer_remote.future;
 
 finalize transfer_remote:
     input r0 as dispatch_proxy.aleo/dispatch.future;
-    input r1 as token_registry.aleo/burn_public.future;
+    input r1 as token_registry.aleo/transfer_public_as_signer.future;
     input r2 as RemoteRouter.public;
     input r3 as u32.public;
     input r4 as Metadata.public;
@@ -1057,13 +1051,13 @@ function transfer_remote_with_hook:
     cast r4[0u32] r4[1u32] r446[0u32] r446[1u32] 0u128 0u128 0u128 0u128 into r447 as [u128; 8u32];
     cast r108 r109 r110 r111 r112 r113 r114 r115 r116 r117 r118 r119 r120 r121 r122 r123 r8[16u32] r8[17u32] r8[18u32] r8[19u32] r8[20u32] r8[21u32] r8[22u32] r8[23u32] r8[24u32] r8[25u32] r8[26u32] r8[27u32] r8[28u32] r8[29u32] r8[30u32] r8[31u32] r8[32u32] r8[33u32] r8[34u32] r8[35u32] r8[36u32] r8[37u32] r8[38u32] r8[39u32] r8[40u32] r8[41u32] r8[42u32] r8[43u32] r8[44u32] r8[45u32] r8[46u32] r8[47u32] r8[48u32] r8[49u32] r8[50u32] r8[51u32] r8[52u32] r8[53u32] r8[54u32] r8[55u32] r8[56u32] r8[57u32] r8[58u32] r8[59u32] r8[60u32] r8[61u32] r8[62u32] r8[63u32] r8[64u32] r8[65u32] r8[66u32] r8[67u32] r8[68u32] r8[69u32] r8[70u32] r8[71u32] r8[72u32] r8[73u32] r8[74u32] r8[75u32] r8[76u32] r8[77u32] r8[78u32] r8[79u32] r8[80u32] r8[81u32] r8[82u32] r8[83u32] r8[84u32] r8[85u32] r8[86u32] r8[87u32] r8[88u32] r8[89u32] r8[90u32] r8[91u32] r8[92u32] r8[93u32] r8[94u32] r8[95u32] r8[96u32] r8[97u32] r8[98u32] r8[99u32] r8[100u32] r8[101u32] r8[102u32] r8[103u32] r8[104u32] r8[105u32] r8[106u32] r8[107u32] r8[108u32] r8[109u32] r8[110u32] r8[111u32] r8[112u32] r8[113u32] r8[114u32] r8[115u32] r8[116u32] r8[117u32] r8[118u32] r8[119u32] r8[120u32] r8[121u32] r8[122u32] r8[123u32] r8[124u32] r8[125u32] r8[126u32] r8[127u32] r8[128u32] r8[129u32] r8[130u32] r8[131u32] r8[132u32] r8[133u32] r8[134u32] r8[135u32] r8[136u32] r8[137u32] r8[138u32] r8[139u32] r8[140u32] r8[141u32] r8[142u32] r8[143u32] r8[144u32] r8[145u32] r8[146u32] r8[147u32] r8[148u32] r8[149u32] r8[150u32] r8[151u32] r8[152u32] r8[153u32] r8[154u32] r8[155u32] r8[156u32] r8[157u32] r8[158u32] r8[159u32] r8[160u32] r8[161u32] r8[162u32] r8[163u32] r8[164u32] r8[165u32] r8[166u32] r8[167u32] r8[168u32] r8[169u32] r8[170u32] r8[171u32] r8[172u32] r8[173u32] r8[174u32] r8[175u32] r8[176u32] r8[177u32] r8[178u32] r8[179u32] r8[180u32] r8[181u32] r8[182u32] r8[183u32] r8[184u32] r8[185u32] r8[186u32] r8[187u32] r8[188u32] r8[189u32] r8[190u32] r8[191u32] r8[192u32] r8[193u32] r8[194u32] r8[195u32] r8[196u32] r8[197u32] r8[198u32] r8[199u32] r8[200u32] r8[201u32] r8[202u32] r8[203u32] r8[204u32] r8[205u32] r8[206u32] r8[207u32] r8[208u32] r8[209u32] r8[210u32] r8[211u32] r8[212u32] r8[213u32] r8[214u32] r8[215u32] r8[216u32] r8[217u32] r8[218u32] r8[219u32] r8[220u32] r8[221u32] r8[222u32] r8[223u32] r8[224u32] r8[225u32] r8[226u32] r8[227u32] r8[228u32] r8[229u32] r8[230u32] r8[231u32] r8[232u32] r8[233u32] r8[234u32] r8[235u32] r8[236u32] r8[237u32] r8[238u32] r8[239u32] r8[240u32] r8[241u32] r8[242u32] r8[243u32] r8[244u32] r8[245u32] r8[246u32] r8[247u32] r8[248u32] r8[249u32] r8[250u32] r8[251u32] r8[252u32] r8[253u32] r8[254u32] r8[255u32] into r448 as [u8; 256u32];
     call dispatch_proxy.aleo/dispatch r1 r3 r2.recipient r447 r7 r448 r6 into r449;
-    call token_registry.aleo/burn_public r0.token_id self.caller r5 into r450;
+    call token_registry.aleo/transfer_public_as_signer r0.token_id hyp_collateral.aleo r5 into r450;
     async transfer_remote_with_hook r449 r450 r2 r3 r0 into r451;
-    output r451 as hyp_synthetic.aleo/transfer_remote_with_hook.future;
+    output r451 as hyp_collateral.aleo/transfer_remote_with_hook.future;
 
 finalize transfer_remote_with_hook:
     input r0 as dispatch_proxy.aleo/dispatch.future;
-    input r1 as token_registry.aleo/burn_public.future;
+    input r1 as token_registry.aleo/transfer_public_as_signer.future;
     input r2 as RemoteRouter.public;
     input r3 as u32.public;
     input r4 as Metadata.public;
@@ -1309,15 +1303,15 @@ function process:
     or r223 r224 into r225;
     ternary r77 r87 r225 into r226;
     ternary r12 r76 r226 into r227;
-    call token_registry.aleo/mint_public r1.token_id r10 r227 4294967295u32 into r228;
+    call token_registry.aleo/transfer_public r1.token_id r10 r227 into r228;
     async process r6 r1 r2 r228 r0 into r229;
-    output r229 as hyp_synthetic.aleo/process.future;
+    output r229 as hyp_collateral.aleo/process.future;
 
 finalize process:
     input r0 as mailbox.aleo/process.future;
     input r1 as Metadata.public;
     input r2 as Message.public;
-    input r3 as token_registry.aleo/mint_public.future;
+    input r3 as token_registry.aleo/transfer_public.future;
     input r4 as address.public;
     get token_metadata[true] into r5;
     assert.eq r5 r1;
@@ -1338,7 +1332,7 @@ function get_balance_key:
     output r3 as field.private;
 
 function get_address:
-    output hyp_synthetic.aleo as address.private;
+    output hyp_collateral.aleo as address.private;
 
 constructor:
     assert.eq edition 0u16;
