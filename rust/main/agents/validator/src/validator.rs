@@ -313,7 +313,7 @@ impl BaseAgent for Validator {
         {
             Ok(s) => s,
             Err(err) => {
-                tracing::error!(?err, "Failed to run merkle tree hook sync");
+                error!(?err, "Failed to run merkle tree hook sync");
                 return;
             }
         };
@@ -341,7 +341,7 @@ impl Validator {
             let task = match self.run_merkle_tree_hook_sync().await {
                 Ok(s) => s,
                 Err(err) => {
-                    tracing::error!(
+                    error!(
                         ?err,
                         domain = self.origin_chain.name(),
                         attempt_count = i,
