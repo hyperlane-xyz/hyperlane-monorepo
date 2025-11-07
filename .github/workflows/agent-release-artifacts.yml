@@ -32,8 +32,6 @@ jobs:
             OS: depot-macos-latest
           - TARGET: aarch64-apple-darwin
             OS: depot-macos-latest
-          - TARGET: x86_64-pc-windows-msvc
-            OS: depot-windows-2022-4
     runs-on: ${{ matrix.OS }}
     steps:
       - name: checkout
@@ -51,12 +49,6 @@ jobs:
           [target.aarch64-unknown-linux-musl]
           linker = "aarch64-linux-gnu-gcc"
           EOF
-      - name: windows setup
-        if: ${{ matrix.OS == 'depot-windows-2022-4' }}
-        run: |
-          choco install llvm -y
-          $llvmPath = 'C:\Program Files\LLVM\bin'
-          echo "LIBCLANG_PATH=$llvmPath" >> $env:GITHUB_ENV
       - name: setup rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -72,7 +64,7 @@ jobs:
         run: chmod ug+x,-w relayer scraper validator
         working-directory: rust/main/target/${{ matrix.TARGET }}/release
       - name: upload binaries
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ${{ matrix.TARGET }}-${{ needs.prepare.outputs.tag_name }}
           path: |
