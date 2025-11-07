@@ -133,7 +133,7 @@ impl HyperlaneProvider for AleoProvider {
 
     /// Returns whether a contract exists at the provided address
     async fn is_contract(&self, _address: &H256) -> ChainResult<bool> {
-        // We can't check whether ot not an address is a deploy contract on aleo
+        // We can't check whether or not an address is a deploy contract on aleo
         // We can only check when we have the ProgramID
         Ok(true)
     }
