@@ -1,7 +1,6 @@
 [package]
 name = "aleo-serialize-macro"
 version = "0.1.0"
-edition = "2024"
 
 [dependencies]
 quote = "1.0.41"
