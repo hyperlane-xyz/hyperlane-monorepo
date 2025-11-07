@@ -12,10 +12,38 @@ export const ethereumChainNames = supportedChainNames.filter(
   isEthereumProtocolChain,
 );
 
+// Agent specific chain metadata overrides
+// Such as minGasPrice, minFeePerGas, minPriorityFeePerGas
+export const agentSpecificChainMetadataOverrides: ChainMap<
+  Partial<ChainMetadata>
+> = {
+  incentiv: {
+    transactionOverrides: {
+      minGasPrice: 1 * 10 ** 9, // 1 gwei
+      minFeePerGas: 1 * 10 ** 9, // 1 gwei
+      minPriorityFeePerGas: 1 * 10 ** 9, // 1 gwei
+    },
+  },
+  ronin: {
+    transactionOverrides: {
+      minGasPrice: 20 * 10 ** 9, // 20 gwei
+      minFeePerGas: 20 * 10 ** 9, // 20 gwei
+      minPriorityFeePerGas: 20 * 10 ** 9, // 20 gwei
+    },
+  },
+  ink: {
+    transactionOverrides: {
+      minGasPrice: 1, // 1 wei
+      minFeePerGas: 1, // 1 wei
+      minPriorityFeePerGas: 1, // 1 wei
+    },
+  },
+};
+
 export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   bsc: {
     transactionOverrides: {
-      gasPrice: 3 * 10 ** 9, // 3 gwei
+      gasPrice: 1 * 10 ** 8, // 0.1 gwei
     },
   },
   polygonzkevm: {

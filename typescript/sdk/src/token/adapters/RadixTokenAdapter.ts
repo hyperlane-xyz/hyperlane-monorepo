@@ -19,11 +19,12 @@ import {
   IHypTokenAdapter,
   ITokenAdapter,
   InterchainGasQuote,
+  QuoteTransferRemoteParams,
   TransferParams,
   TransferRemoteParams,
 } from './ITokenAdapter.js';
 
-export class RadixNativeTokenAdapter
+export class RadixTokenAdapter
   extends BaseRadixAdapter
   implements ITokenAdapter<RadixSDKTransaction>
 {
@@ -54,8 +55,9 @@ export class RadixNativeTokenAdapter
   }
 
   async getMetadata(): Promise<TokenMetadata> {
-    const { name, symbol, decimals } = await this.provider.getToken({
-      tokenAddress: this.tokenAddress,
+    // Work around to access the base radix provider getMetadata method
+    const { name, symbol, decimals } = await this.provider['base'].getMetadata({
+      resource: this.tokenAddress,
     });
 
     assert(
@@ -101,10 +103,10 @@ export class RadixNativeTokenAdapter
   ): Promise<RadixSDKTransaction> {
     const denom = await this.getResourceAddress();
 
-    const { nativeToken } = this.multiProvider.getChainMetadata(this.chainName);
+    const { decimals } = await this.getMetadata();
     assert(
-      nativeToken,
-      `Native token data is required for ${RadixNativeTokenAdapter.name}`,
+      decimals,
+      `Token decimals not found for "${this.getResourceAddress()}" on chain "${this.chainName}"`,
     );
     assert(transferParams.fromAccountOwner, `no sender in transfer params`);
 
@@ -112,10 +114,7 @@ export class RadixNativeTokenAdapter
       signer: transferParams.fromAccountOwner,
       recipient: transferParams.recipient,
       denom,
-      amount: fromWei(
-        transferParams.weiAmountOrId.toString(),
-        nativeToken.decimals,
-      ),
+      amount: fromWei(transferParams.weiAmountOrId.toString(), decimals),
     });
   }
 
@@ -127,8 +126,27 @@ export class RadixNativeTokenAdapter
   }
 }
 
+export class RadixNativeTokenAdapter
+  extends RadixTokenAdapter
+  implements ITokenAdapter<RadixSDKTransaction>
+{
+  override async getMetadata(): Promise<TokenMetadata> {
+    const { nativeToken } = this.multiProvider.getChainMetadata(this.chainName);
+    assert(
+      nativeToken,
+      `Native token data is required for ${RadixNativeTokenAdapter.name}`,
+    );
+
+    return {
+      name: nativeToken.name,
+      symbol: nativeToken.symbol,
+      decimals: nativeToken.decimals,
+    };
+  }
+}
+
 export class RadixHypCollateralAdapter
-  extends RadixNativeTokenAdapter
+  extends RadixTokenAdapter
   implements IHypTokenAdapter<RadixSDKTransaction>
 {
   constructor(
@@ -144,6 +162,32 @@ export class RadixHypCollateralAdapter
       tokenAddress: this.tokenAddress,
     });
     return denom;
+  }
+
+  override async getMetadata(): Promise<TokenMetadata> {
+    // Only works for HypTokens
+    const { name, symbol, decimals } = await this.provider.getToken({
+      tokenAddress: this.tokenAddress,
+    });
+
+    assert(
+      name !== undefined,
+      `name on radix token ${this.tokenAddress} is undefined`,
+    );
+    assert(
+      symbol !== undefined,
+      `symbol on radix token ${this.tokenAddress} is undefined`,
+    );
+    assert(
+      decimals !== undefined,
+      `divisibility on radix token ${this.tokenAddress} is undefined`,
+    );
+
+    return {
+      name,
+      symbol,
+      decimals,
+    };
   }
 
   async getDomains(): Promise<Domain[]> {
@@ -187,9 +231,9 @@ export class RadixHypCollateralAdapter
     });
   }
 
-  async quoteTransferRemoteGas(
-    destination: Domain,
-  ): Promise<InterchainGasQuote> {
+  async quoteTransferRemoteGas({
+    destination,
+  }: QuoteTransferRemoteParams): Promise<InterchainGasQuote> {
     const { denom: addressOrDenom, amount } =
       await this.provider.quoteRemoteTransfer({
         tokenAddress: this.tokenAddress,
@@ -197,8 +241,10 @@ export class RadixHypCollateralAdapter
       });
 
     return {
-      addressOrDenom,
-      amount,
+      igpQuote: {
+        addressOrDenom,
+        amount,
+      },
     };
   }
 
@@ -208,9 +254,9 @@ export class RadixHypCollateralAdapter
     assert(params.fromAccountOwner, `no sender in remote transfer params`);
 
     if (!params.interchainGas) {
-      params.interchainGas = await this.quoteTransferRemoteGas(
-        params.destination,
-      );
+      params.interchainGas = await this.quoteTransferRemoteGas({
+        destination: params.destination,
+      });
     }
 
     const { remoteRouters } = await this.provider.getRemoteRouters({
@@ -227,7 +273,7 @@ export class RadixHypCollateralAdapter
       );
     }
 
-    if (!params.interchainGas.addressOrDenom) {
+    if (!params.interchainGas.igpQuote?.addressOrDenom) {
       throw new Error(
         `Require denom for max fee, didn't receive and denom in the interchainGas quote`,
       );
@@ -242,9 +288,9 @@ export class RadixHypCollateralAdapter
       customHookAddress: params.customHook,
       gasLimit: router.gas,
       maxFee: {
-        denom: params.interchainGas.addressOrDenom,
+        denom: params.interchainGas.igpQuote?.addressOrDenom,
         // convert the attos back to a Decimal with scale 18
-        amount: new BigNumber(params.interchainGas.amount.toString())
+        amount: new BigNumber(params.interchainGas.igpQuote?.amount.toString())
           .div(new BigNumber(10).pow(18))
           .toString(),
       },

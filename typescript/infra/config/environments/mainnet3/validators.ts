@@ -72,20 +72,6 @@ export const validatorChainConfig = (
         'avalanche',
       ),
     },
-    cheesechain: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('cheesechain'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0x478fb53c6860ae8fc35235ba0d38d49b13128226'],
-          [Contexts.ReleaseCandidate]: [
-            '0x5f3baa27d61d3ed5fa7606616b8fef443d0a77a4',
-          ],
-          [Contexts.Neutron]: [],
-        },
-        'cheesechain',
-      ),
-    },
     worldchain: {
       interval: 5,
       reorgPeriod: getReorgPeriod('worldchain'),
@@ -1583,16 +1569,6 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: ['0xde5509be55483aa525e9b5cce6fe64d3e68d068d'],
         },
         'litchain',
-      ),
-    },
-    sovachain: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('sovachain'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0x5f9a044bbf460fb7236bfae24b5ca9090fff844d'],
-        },
-        'sovachain',
       ),
     },
   };

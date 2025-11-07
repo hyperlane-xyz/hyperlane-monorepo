@@ -8,6 +8,7 @@ import {
 import {
   LTSRadixEngineToolkit,
   ManifestBuilder,
+  ManifestSborStringRepresentation,
   PrivateKey,
   RadixEngineToolkit,
   TransactionManifest,
@@ -26,6 +27,7 @@ import { utils } from 'ethers';
 import { assert, sleep } from '@hyperlane-xyz/utils';
 
 import { EntityDetails, INSTRUCTIONS, RadixSDKReceipt } from './types.js';
+import { stringToTransactionManifest } from './utils.js';
 
 export class RadixBase {
   protected networkId: number;
@@ -257,6 +259,16 @@ export class RadixBase {
 
       switch (statusOutput.intent_status) {
         case 'Pending': {
+          await new Promise((resolve) => setTimeout(resolve, pollDelayMs));
+          continue;
+        }
+        case 'LikelyButNotCertainRejection': {
+          if (statusOutput.error_message) {
+            throw new Error(
+              `Transaction ${intentHashTransactionId} was not committed successfully - instead it resulted in: ${statusOutput.intent_status} with description: ${statusOutput.error_message}`,
+            );
+          }
+
           await new Promise((resolve) => setTimeout(resolve, pollDelayMs));
           continue;
         }
@@ -501,5 +513,73 @@ export class RadixBase {
     throw new Error(
       `Failed to fetch keys from key value store ${key_value_store_address}, reached request limit of ${request_limit}`,
     );
+  }
+
+  // TS implementation of the publish_package_advanced method as it is not exposed/implemented in the TS Radix toolkit SDK
+  // see: https://github.com/radixdlt/radixdlt-scrypto/blob/92c7db3e1bf79f99abaa9e1217451548d3feb63d/radix-transactions/src/builder/manifest_builder.rs#L1484-L1507
+  public async createPublishPackageManifest(params: {
+    from_address: string;
+    code: Uint8Array;
+    packageDefinition: Uint8Array;
+  }): Promise<TransactionManifest> {
+    const { from_address, code, packageDefinition } = params;
+
+    // This should be the manifest representation of the package definition
+    const decodedManifestPackageDefinition =
+      await RadixEngineToolkit.ManifestSbor.decodeToString(
+        packageDefinition,
+        this.networkId,
+        ManifestSborStringRepresentation.ManifestString,
+      );
+
+    // Using the hash method from the radix toolkit package
+    // as it uses the blake32 algorithm
+    // see:
+    // - https://github.com/radixdlt/radixdlt-scrypto/blob/92c7db3e1bf79f99abaa9e1217451548d3feb63d/radix-common/src/crypto/hash.rs#L69-L71
+    const codeHashHex = Buffer.from(
+      LTSRadixEngineToolkit.Utils.hash(code),
+    ).toString('hex');
+
+    // The arguments of the PUBLISH_PACKAGE_ADVANCED function are:
+    // owner rule definition
+    // package definition
+    // blake32 hash of the compiled code
+    // metadata
+    // Address reservation for the published package
+    // see: https://docs.radixdlt.com/docs/manifest-instructions#:~:text=COPY-,PUBLISH_PACKAGE_ADVANCED,-(alias)
+    const manifestString = `
+      CALL_METHOD
+          Address("${from_address}")
+          "lock_fee"
+          Decimal("160");
+
+      PUBLISH_PACKAGE_ADVANCED
+          Enum<0u8>()
+          ${decodedManifestPackageDefinition}
+          Blob("${codeHashHex}")
+          Map<String, Tuple>()
+          Enum<0u8>();
+
+      CALL_METHOD
+          Address("${from_address}")
+          "try_deposit_batch_or_abort"
+          Expression("ENTIRE_WORKTOP")
+          Enum<0u8>();
+      `;
+
+    const manifest = await stringToTransactionManifest(
+      manifestString,
+      this.networkId,
+    );
+
+    // Workaround to access the private blobs property as the
+    // TransactionManifestBuilder does not expose a method for
+    // registering a blob as the Rust implementation does
+    // see:
+    // - https://github.com/radixdlt/radixdlt-scrypto/blob/92c7db3e1bf79f99abaa9e1217451548d3feb63d/radix-transactions/src/builder/manifest_builder.rs#L1484-L1507
+    // - https://github.com/radixdlt/radixdlt-scrypto/blob/92c7db3e1bf79f99abaa9e1217451548d3feb63d/radix-transactions/src/builder/manifest_builder.rs#L333-L336
+    manifest['blobs'].push(code);
+
+    return manifest;
   }
 }

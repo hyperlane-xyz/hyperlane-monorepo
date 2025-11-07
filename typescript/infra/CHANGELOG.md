@@ -1,5 +1,131 @@
 # @hyperlane-xyz/infra
 
+## 19.7.0
+
+### Patch Changes
+
+- Updated dependencies [bdfa2047e]
+- Updated dependencies [69ad3473e]
+- Updated dependencies [211e245cb]
+- Updated dependencies [343737271]
+- Updated dependencies [c68722d93]
+- Updated dependencies [5c4cef1d4]
+  - @hyperlane-xyz/sdk@19.7.0
+  - @hyperlane-xyz/helloworld@19.7.0
+  - @hyperlane-xyz/utils@19.7.0
+
+## 19.6.0
+
+### Patch Changes
+
+- Updated dependencies [e67aca4a1]
+- Updated dependencies [419e16910]
+- Updated dependencies [b259966fe]
+- Updated dependencies [18c32ed2b]
+- Updated dependencies [e0c69e255]
+- Updated dependencies [ec406fcbe]
+- Updated dependencies [18c32ed2b]
+- Updated dependencies [b259966fe]
+- Updated dependencies [419e16910]
+- Updated dependencies [9185b9c5b]
+  - @hyperlane-xyz/sdk@19.6.0
+  - @hyperlane-xyz/helloworld@19.6.0
+  - @hyperlane-xyz/utils@19.6.0
+
+## 19.6.0-beta.0
+
+### Patch Changes
+
+- Updated dependencies [e67aca4a1]
+- Updated dependencies [419e16910]
+- Updated dependencies [b259966fe]
+- Updated dependencies [18c32ed2b]
+- Updated dependencies [e0c69e255]
+- Updated dependencies [ec406fcbe]
+- Updated dependencies [18c32ed2b]
+- Updated dependencies [b259966fe]
+- Updated dependencies [419e16910]
+- Updated dependencies [9185b9c5b]
+  - @hyperlane-xyz/sdk@19.6.0-beta.0
+  - @hyperlane-xyz/helloworld@19.6.0-beta.0
+  - @hyperlane-xyz/utils@19.6.0-beta.0
+
+## 19.5.0
+
+### Patch Changes
+
+- Updated dependencies [312826d10]
+- Updated dependencies [bf2c2caa6]
+- Updated dependencies [312826d10]
+- Updated dependencies [79a51debe]
+  - @hyperlane-xyz/sdk@19.5.0
+  - @hyperlane-xyz/utils@19.5.0
+  - @hyperlane-xyz/helloworld@19.5.0
+
+## 19.4.0
+
+### Patch Changes
+
+- Updated dependencies [4011a4561]
+- Updated dependencies [8fd3bf78c]
+- Updated dependencies [5a4e22d34]
+- Updated dependencies [79f55e09d]
+- Updated dependencies [5a4e22d34]
+- Updated dependencies [517bbaa42]
+  - @hyperlane-xyz/sdk@19.4.0
+  - @hyperlane-xyz/utils@19.4.0
+  - @hyperlane-xyz/helloworld@19.4.0
+
+## 19.3.0
+
+### Patch Changes
+
+- Updated dependencies [fcdda58a8]
+  - @hyperlane-xyz/sdk@19.3.0
+  - @hyperlane-xyz/helloworld@19.3.0
+  - @hyperlane-xyz/utils@19.3.0
+
+## 19.2.0
+
+### Patch Changes
+
+- Updated dependencies [f68419605]
+  - @hyperlane-xyz/sdk@19.2.0
+  - @hyperlane-xyz/helloworld@19.2.0
+  - @hyperlane-xyz/utils@19.2.0
+
+## 19.1.1
+
+### Patch Changes
+
+- @hyperlane-xyz/helloworld@19.1.1
+- @hyperlane-xyz/sdk@19.1.1
+- @hyperlane-xyz/utils@19.1.1
+
+## 19.1.0
+
+### Patch Changes
+
+- Updated dependencies [554ff1a66]
+  - @hyperlane-xyz/sdk@19.1.0
+  - @hyperlane-xyz/helloworld@19.1.0
+  - @hyperlane-xyz/utils@19.1.0
+
+## 19.0.0
+
+### Patch Changes
+
+- Updated dependencies [8eab305bd]
+- Updated dependencies [e42a0e8e1]
+- Updated dependencies [70354d6d9]
+- Updated dependencies [e42a0e8e1]
+- Updated dependencies [dd4928b1c]
+- Updated dependencies [32479e139]
+- Updated dependencies [32479e139]
+  - @hyperlane-xyz/utils@19.0.0
+  - @hyperlane-xyz/sdk@19.0.0
+  - @hyperlane-xyz/helloworld@19.0.0
+
 ## 18.3.0
 
 ### Minor Changes

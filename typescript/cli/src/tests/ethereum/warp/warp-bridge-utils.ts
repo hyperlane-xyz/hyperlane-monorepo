@@ -2,12 +2,21 @@ import { JsonRpcProvider } from '@ethersproject/providers';
 import { Wallet } from 'ethers';
 import { parseUnits } from 'ethers/lib/utils.js';
 
-import { ERC20Test, ERC4626Test } from '@hyperlane-xyz/core';
+import {
+  ERC20Test,
+  ERC20Test__factory,
+  ERC4626Test,
+  FiatTokenTest,
+  MockEverclearAdapter,
+  XERC20LockboxTest,
+  XERC20VSTest,
+} from '@hyperlane-xyz/core';
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
   ChainMetadata,
   Token,
+  TokenType,
   WarpCoreConfig,
   WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
@@ -15,7 +24,15 @@ import { Address } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
-import { deploy4626Vault, deployToken } from '../commands/helpers.js';
+import {
+  deploy4626Vault,
+  deployEverclearBridgeAdapter,
+  deployFiatToken,
+  deployToken,
+  deployXERC20LockboxToken,
+  deployXERC20VSToken,
+  getTokenAddressFromWarpConfig,
+} from '../commands/helpers.js';
 import {
   generateWarpConfigs,
   hyperlaneWarpDeploy,
@@ -45,9 +62,17 @@ export type WarpBridgeTestConfig = {
   walletChain2: Wallet;
   walletChain3: Wallet;
   tokenChain2: ERC20Test;
+  fiatToken2: FiatTokenTest;
+  xERC202: XERC20VSTest;
+  xERC20Lockbox2: XERC20LockboxTest;
   vaultChain2: ERC4626Test;
   tokenChain3: ERC20Test;
+  fiatToken3: FiatTokenTest;
+  xERC203: XERC20VSTest;
+  xERC20Lockbox3: XERC20LockboxTest;
   vaultChain3: ERC4626Test;
+  everclearBridgeAdapterChain2: MockEverclearAdapter;
+  everclearBridgeAdapterChain3: MockEverclearAdapter;
 };
 
 export async function runWarpBridgeTests(
@@ -86,14 +111,37 @@ export async function runWarpBridgeTests(
       targetChain = CHAIN_NAME_2;
     }
 
+    const warpCoreConfig: WarpCoreConfig = readYamlOrJson(routeConfigPath);
+    if (warpConfig[CHAIN_NAME_2].type.match(/.*xerc20.*/i)) {
+      const tx = await config.xERC202.addBridge({
+        bridge: getTokenAddressFromWarpConfig(warpCoreConfig, CHAIN_NAME_2),
+        bufferCap: 20000000000000,
+        rateLimitPerSecond: 5000000000,
+      });
+
+      await tx.wait();
+    }
+
+    if (warpConfig[CHAIN_NAME_3].type.match(/.*xerc20.*/i)) {
+      const tx = await config.xERC203.addBridge({
+        bridge: getTokenAddressFromWarpConfig(warpCoreConfig, CHAIN_NAME_3),
+        bufferCap: 20000000000000,
+        rateLimitPerSecond: 5000000000,
+      });
+
+      await tx.wait();
+    }
+
     await collateralizeWarpTokens(routeConfigPath, warpConfig, {
       [CHAIN_NAME_2]: {
         wallet: config.walletChain2,
         collateral: config.tokenChain2,
+        xerc20Lockbox: config.xERC20Lockbox2,
       },
       [CHAIN_NAME_3]: {
         wallet: config.walletChain3,
         collateral: config.tokenChain3,
+        xerc20Lockbox: config.xERC20Lockbox3,
       },
     });
 
@@ -127,6 +175,13 @@ export async function setupChains(): Promise<WarpBridgeTestConfig> {
   ]);
 
   const tokenChain2 = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
+  const fiatToken2 = await deployFiatToken(ANVIL_KEY, CHAIN_NAME_2);
+  const xERC202 = await deployXERC20VSToken(ANVIL_KEY, CHAIN_NAME_2);
+  const xERC20Lockbox2 = await deployXERC20LockboxToken(
+    ANVIL_KEY,
+    CHAIN_NAME_2,
+    tokenChain2,
+  );
   const vaultChain2 = await deploy4626Vault(
     ANVIL_KEY,
     CHAIN_NAME_2,
@@ -138,7 +193,19 @@ export async function setupChains(): Promise<WarpBridgeTestConfig> {
     vaultChain2.symbol(),
   ]);
 
+  const everclearBridgeAdapterChain2 = await deployEverclearBridgeAdapter(
+    ANVIL_KEY,
+    CHAIN_NAME_2,
+  );
+
   const tokenChain3 = await deployToken(ANVIL_KEY, CHAIN_NAME_3);
+  const fiatToken3 = await deployFiatToken(ANVIL_KEY, CHAIN_NAME_3);
+  const xERC203 = await deployXERC20VSToken(ANVIL_KEY, CHAIN_NAME_3);
+  const xERC20Lockbox3 = await deployXERC20LockboxToken(
+    ANVIL_KEY,
+    CHAIN_NAME_3,
+    tokenChain3,
+  );
   const vaultChain3 = await deploy4626Vault(
     ANVIL_KEY,
     CHAIN_NAME_3,
@@ -150,6 +217,11 @@ export async function setupChains(): Promise<WarpBridgeTestConfig> {
     vaultChain3.symbol(),
   ]);
 
+  const everclearBridgeAdapterChain3 = await deployEverclearBridgeAdapter(
+    ANVIL_KEY,
+    CHAIN_NAME_3,
+  );
+
   return {
     chain2Addresses,
     chain3Addresses,
@@ -157,13 +229,21 @@ export async function setupChains(): Promise<WarpBridgeTestConfig> {
     walletChain2,
     walletChain3,
     tokenChain2,
+    fiatToken2,
+    xERC202,
+    xERC20Lockbox2,
     tokenChain2Symbol,
     vaultChain2,
     tokenVaultChain2Symbol,
     tokenChain3,
+    fiatToken3,
+    xERC203,
+    xERC20Lockbox3,
     tokenChain3Symbol,
     vaultChain3,
     tokenVaultChain3Symbol,
+    everclearBridgeAdapterChain2,
+    everclearBridgeAdapterChain3,
   };
 }
 
@@ -179,6 +259,10 @@ export function generateTestCases(
       owner: config.ownerAddress,
       token: config.tokenChain2.address,
       vault: config.vaultChain2.address,
+      fiatToken: config.fiatToken2.address,
+      xerc20: config.xERC202.address,
+      xerc20Lockbox: config.xERC20Lockbox2.address,
+      everclearBridgeAdapter: config.everclearBridgeAdapterChain2.address,
     },
     {
       chainName: CHAIN_NAME_3,
@@ -186,6 +270,10 @@ export function generateTestCases(
       owner: config.ownerAddress,
       token: config.tokenChain3.address,
       vault: config.vaultChain3.address,
+      fiatToken: config.fiatToken3.address,
+      xerc20: config.xERC203.address,
+      xerc20Lockbox: config.xERC20Lockbox3.address,
+      everclearBridgeAdapter: config.everclearBridgeAdapterChain3.address,
     },
   );
 
@@ -226,6 +314,7 @@ export async function collateralizeWarpTokens(
   walletAndCollateralByChain: ChainMap<{
     wallet: Wallet;
     collateral: ERC20Test;
+    xerc20Lockbox: XERC20LockboxTest;
   }>,
 ) {
   const config: ChainMap<Token> = (
@@ -257,6 +346,24 @@ export async function collateralizeWarpTokens(
             chainName
           ].collateral.transfer(
             config[chainName].addressOrDenom,
+            parseUnits('2', decimals),
+          );
+
+          await tx.wait();
+        }
+
+        if (warpDeployConfig[chainName].type === TokenType.XERC20Lockbox) {
+          const lockbox = walletAndCollateralByChain[chainName].xerc20Lockbox;
+
+          const lockboxCollateral = await lockbox.ERC20();
+          const collateralInstance = ERC20Test__factory.connect(
+            lockboxCollateral,
+            walletAndCollateralByChain[chainName].wallet,
+          );
+
+          const decimals = await collateralInstance.decimals();
+          const tx = await collateralInstance.transfer(
+            lockbox.address,
             parseUnits('1', decimals),
           );
 

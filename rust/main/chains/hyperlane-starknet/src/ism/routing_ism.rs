@@ -12,7 +12,7 @@ use tracing::instrument;
 use crate::contracts::routing_ism::RoutingIsmReader;
 use crate::error::HyperlaneStarknetError;
 use crate::types::HyH256;
-use crate::{build_json_provider, ConnectionConf, JsonProvider, StarknetProvider};
+use crate::{ConnectionConf, JsonProvider, StarknetProvider};
 
 /// A reference to a RoutingISM contract on some Starknet chain
 #[derive(Debug)]
@@ -25,15 +25,18 @@ pub struct StarknetRoutingIsm {
 
 impl StarknetRoutingIsm {
     /// Create a reference to a RoutingISM at a specific Starknet address on some
-    /// chain
-    pub fn new(conn: &ConnectionConf, locator: &ContractLocator<'_>) -> ChainResult<Self> {
-        let provider = build_json_provider(conn);
+    pub fn new(
+        provider: StarknetProvider,
+        conn: &ConnectionConf,
+        locator: &ContractLocator<'_>,
+    ) -> ChainResult<Self> {
+        let json_provider = provider.rpc_client().clone();
         let ism_address: Felt = HyH256(locator.address).into();
-        let contract = RoutingIsmReader::new(ism_address, provider);
+        let contract = RoutingIsmReader::new(ism_address, json_provider);
 
         Ok(Self {
             contract,
-            provider: StarknetProvider::new(locator.domain.clone(), conn),
+            provider,
             conn: conn.clone(),
         })
     }

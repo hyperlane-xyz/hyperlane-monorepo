@@ -1,4 +1,4 @@
-import { utils } from 'ethers';
+import { Contract, utils } from 'ethers';
 
 import {
   Ownable,
@@ -10,6 +10,8 @@ import {
   ProtocolType,
   assert,
   eqAddress,
+  isZeroishAddress,
+  objFilter,
   objMap,
   promiseObjAll,
   rootLogger,
@@ -104,7 +106,11 @@ export abstract class HyperlaneAppChecker<
       this.app.getContracts(chain).proxyAdmin?.address;
     const provider = this.multiProvider.getProvider(chain);
 
-    const contracts = this.app.getContracts(chain);
+    const contracts = objFilter(
+      this.app.getContracts(chain),
+      (_name, contract: Contract): contract is Contract =>
+        !isZeroishAddress(contract.address),
+    );
     await promiseObjAll(
       objMap(contracts, async (name, contract) => {
         if (await isProxy(provider, contract.address)) {

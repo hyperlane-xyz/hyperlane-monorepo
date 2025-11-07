@@ -21,7 +21,7 @@ contract TestPostDispatchHook is AbstractPostDispatchHook {
 
     /// @inheritdoc IPostDispatchHook
     function hookType() external pure override returns (uint8) {
-        return uint8(IPostDispatchHook.Types.UNUSED);
+        return uint8(IPostDispatchHook.HookTypes.UNUSED);
     }
 
     function supportsMetadata(

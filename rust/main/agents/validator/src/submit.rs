@@ -268,8 +268,7 @@ impl ValidatorSubmitter {
                 .await
             {
                 panic_message.push_str(&format!(
-                    " Reorg troubleshooting details couldn't be written to checkpoint storage: {}",
-                    e
+                    " Reorg troubleshooting details couldn't be written to checkpoint storage: {e}"
                 ));
             }
             panic!("{panic_message}");
@@ -475,7 +474,6 @@ fn tree_exceeds_checkpoint(checkpoint: &Checkpoint, tree: &IncrementalMerkle) ->
 
 #[derive(Clone)]
 pub(crate) struct ValidatorSubmitterMetrics {
-    latest_checkpoint_observed_block_height: IntGauge,
     latest_checkpoint_observed: IntGauge,
     latest_checkpoint_processed: IntGauge,
     backfill_complete: IntGauge,
@@ -486,9 +484,6 @@ impl ValidatorSubmitterMetrics {
     pub fn new(metrics: &CoreMetrics, mailbox_chain: &HyperlaneDomain) -> Self {
         let chain_name = mailbox_chain.name();
         Self {
-            latest_checkpoint_observed_block_height: metrics
-                .latest_checkpoint()
-                .with_label_values(&["validator_observed_block_height", chain_name]),
             latest_checkpoint_observed: metrics
                 .latest_checkpoint()
                 .with_label_values(&["validator_observed", chain_name]),
@@ -512,19 +507,6 @@ impl ValidatorSubmitterMetrics {
                 checkpoint_index=checkpoint.index, "Observed a checkpoint with index that is lower than previous checkpoint. Did a reorg occur?");
         }
         self.latest_checkpoint_observed.set(checkpoint.index as i64);
-
-        if let Some(block_height) = checkpoint.block_height {
-            let block_height = block_height as i64;
-            let prev_block_height = self.latest_checkpoint_observed_block_height.get();
-            if prev_block_height > block_height {
-                tracing::warn!(
-                    ?checkpoint,
-                    prev_block_height,
-                    block_height, "Observed a checkpoint with block height that is lower than previous checkpoint. Did a reorg occur?");
-            }
-            self.latest_checkpoint_observed_block_height
-                .set(block_height);
-        }
     }
 }
 

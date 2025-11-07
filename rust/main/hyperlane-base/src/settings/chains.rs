@@ -31,7 +31,7 @@ use hyperlane_radix::{self as h_radix, RadixProvider};
 use hyperlane_sealevel::{
     self as h_sealevel, fallback::SealevelFallbackRpcClient, SealevelProvider, TransactionSubmitter,
 };
-use hyperlane_starknet::{self as h_starknet};
+use hyperlane_starknet::{self as h_starknet, StarknetProvider};
 
 use crate::{
     metrics::AgentMetricsConf,
@@ -309,7 +309,7 @@ impl ChainConf {
                 Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
             }
             ChainConnectionConf::Starknet(conf) => {
-                let provider = h_starknet::StarknetProvider::new(locator.domain.clone(), conf);
+                let provider = build_starknet_provider(self, conf, metrics, &locator)?;
                 Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
             }
             ChainConnectionConf::CosmosNative(conf) => {
@@ -369,7 +369,8 @@ impl ChainConf {
             }
             ChainConnectionConf::Starknet(conf) => {
                 let signer = self.starknet_signer().await.context(ctx)?;
-                h_starknet::StarknetMailbox::new(conf, &locator, signer)
+                let provider = build_starknet_provider(self, conf, metrics, &locator)?;
+                h_starknet::StarknetMailbox::new(provider, conf, &locator, signer)
                     .await
                     .map(|m| Box::new(m) as Box<dyn Mailbox>)
                     .map_err(Into::into)
@@ -425,7 +426,8 @@ impl ChainConf {
                 Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
             }
             ChainConnectionConf::Starknet(conf) => {
-                let hook = h_starknet::StarknetMerkleTreeHook::new(conf, &locator)?;
+                let provider = build_starknet_provider(self, conf, metrics, &locator)?;
+                let hook = h_starknet::StarknetMerkleTreeHook::new(provider, conf, &locator)?;
                 Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
             }
             ChainConnectionConf::CosmosNative(conf) => {
@@ -495,8 +497,9 @@ impl ChainConf {
                 Ok(indexer as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
             }
             ChainConnectionConf::Starknet(conf) => {
+                let provider = build_starknet_provider(self, conf, metrics, &locator)?;
                 let indexer = Box::new(h_starknet::StarknetMailboxIndexer::new(
-                    conf.clone(),
+                    provider,
                     locator,
                     &self.reorg_period,
                 )?);
@@ -566,8 +569,9 @@ impl ChainConf {
                 Ok(indexer as Box<dyn SequenceAwareIndexer<H256>>)
             }
             ChainConnectionConf::Starknet(conf) => {
+                let provider = build_starknet_provider(self, conf, metrics, &locator)?;
                 let indexer = Box::new(h_starknet::StarknetMailboxIndexer::new(
-                    conf.clone(),
+                    provider,
                     locator,
                     &self.reorg_period,
                 )?);
@@ -630,8 +634,10 @@ impl ChainConf {
                 Ok(paymaster as Box<dyn InterchainGasPaymaster>)
             }
             ChainConnectionConf::Starknet(conf) => {
+                let provider = build_starknet_provider(self, conf, metrics, &locator)?;
                 let paymaster = Box::new(h_starknet::StarknetInterchainGasPaymaster::new(
-                    conf, &locator,
+                    provider,
+                    conf.clone(),
                 )?);
                 Ok(paymaster as Box<dyn InterchainGasPaymaster>)
             }
@@ -771,8 +777,9 @@ impl ChainConf {
                 Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
             }
             ChainConnectionConf::Starknet(conf) => {
+                let provider = build_starknet_provider(self, conf, metrics, &locator)?;
                 let indexer = Box::new(h_starknet::StarknetMerkleTreeHookIndexer::new(
-                    conf.clone(),
+                    provider,
                     locator,
                     &self.reorg_period,
                 )?);
@@ -837,9 +844,15 @@ impl ChainConf {
             }
             ChainConnectionConf::Starknet(conf) => {
                 let signer = self.starknet_signer().await.context(ctx)?;
+                let provider = build_starknet_provider(self, conf, metrics, &locator)?;
                 let va = Box::new(
-                    h_starknet::StarknetValidatorAnnounce::new(conf, &locator.clone(), signer)
-                        .await?,
+                    h_starknet::StarknetValidatorAnnounce::new(
+                        provider,
+                        conf,
+                        &locator.clone(),
+                        signer,
+                    )
+                    .await?,
                 );
                 Ok(va as Box<dyn ValidatorAnnounce>)
             }
@@ -906,8 +919,9 @@ impl ChainConf {
                 Ok(ism as Box<dyn InterchainSecurityModule>)
             }
             ChainConnectionConf::Starknet(conf) => {
+                let provider = build_starknet_provider(self, conf, metrics, &locator)?;
                 let ism = Box::new(h_starknet::StarknetInterchainSecurityModule::new(
-                    conf, &locator,
+                    provider, conf, &locator,
                 )?);
                 Ok(ism as Box<dyn InterchainSecurityModule>)
             }
@@ -960,7 +974,10 @@ impl ChainConf {
                 Ok(ism as Box<dyn MultisigIsm>)
             }
             ChainConnectionConf::Starknet(conf) => {
-                let ism = Box::new(h_starknet::StarknetMultisigIsm::new(conf, &locator)?);
+                let provider = build_starknet_provider(self, conf, metrics, &locator)?;
+                let ism = Box::new(h_starknet::StarknetMultisigIsm::new(
+                    provider, conf, &locator,
+                )?);
                 Ok(ism as Box<dyn MultisigIsm>)
             }
             ChainConnectionConf::CosmosNative(conf) => {
@@ -1006,7 +1023,10 @@ impl ChainConf {
                 Ok(ism as Box<dyn RoutingIsm>)
             }
             ChainConnectionConf::Starknet(conf) => {
-                let ism = Box::new(h_starknet::StarknetRoutingIsm::new(conf, &locator)?);
+                let provider = build_starknet_provider(self, conf, metrics, &locator)?;
+                let ism = Box::new(h_starknet::StarknetRoutingIsm::new(
+                    provider, conf, &locator,
+                )?);
                 Ok(ism as Box<dyn RoutingIsm>)
             }
             ChainConnectionConf::CosmosNative(conf) => {
@@ -1055,7 +1075,10 @@ impl ChainConf {
                 Ok(ism as Box<dyn AggregationIsm>)
             }
             ChainConnectionConf::Starknet(conf) => {
-                let ism = Box::new(h_starknet::StarknetAggregationIsm::new(conf, &locator)?);
+                let provider = build_starknet_provider(self, conf, metrics, &locator)?;
+                let ism = Box::new(h_starknet::StarknetAggregationIsm::new(
+                    provider, conf, &locator,
+                )?);
 
                 Ok(ism as Box<dyn AggregationIsm>)
             }
@@ -1348,4 +1371,20 @@ fn build_radix_provider(
         metrics,
         middleware_metrics.chain,
     )
+}
+
+fn build_starknet_provider(
+    chain_conf: &ChainConf,
+    connection_conf: &h_starknet::ConnectionConf,
+    metrics: &CoreMetrics,
+    locator: &ContractLocator,
+) -> ChainResult<StarknetProvider> {
+    let middleware_metrics = chain_conf.metrics_conf();
+    let metrics = metrics.client_metrics();
+    Ok(StarknetProvider::new(
+        locator.domain.clone(),
+        connection_conf,
+        metrics.clone(),
+        middleware_metrics.chain.clone(),
+    ))
 }

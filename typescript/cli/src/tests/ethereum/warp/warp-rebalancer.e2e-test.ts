@@ -19,6 +19,7 @@ import {
   TokenType,
   WarpCoreConfig,
   WarpRouteDeployConfig,
+  randomAddress,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
@@ -160,21 +161,21 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     console.log('Bridging tokens...');
 
     await Promise.all([
-      hyperlaneWarpSendRelay(
-        CHAIN_NAME_2,
-        CHAIN_NAME_4,
-        warpCoreConfigPath,
-        true,
-        toWei(10),
-      ),
+      hyperlaneWarpSendRelay({
+        origin: CHAIN_NAME_2,
+        destination: CHAIN_NAME_4,
+        warpCorePath: warpCoreConfigPath,
+        relay: true,
+        value: toWei(10),
+      }),
       sleep(2000).then(() =>
-        hyperlaneWarpSendRelay(
-          CHAIN_NAME_3,
-          CHAIN_NAME_4,
-          warpCoreConfigPath,
-          true,
-          toWei(10),
-        ),
+        hyperlaneWarpSendRelay({
+          origin: CHAIN_NAME_3,
+          destination: CHAIN_NAME_4,
+          warpCorePath: warpCoreConfigPath,
+          relay: true,
+          value: toWei(10),
+        }),
       ),
     ]);
   });
@@ -498,7 +499,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
       const bridgeContract = await new MockValueTransferBridge__factory(
         chain3Signer,
-      ).deploy();
+      ).deploy(chain3CollateralContract.address);
 
       await chain3CollateralContract.addBridge(
         chain2Metadata.domainId,
@@ -903,6 +904,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
   });
 
   it('should throw if rebalance quotes cannot be obtained', async () => {
+    const noBridge = randomAddress();
+
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
       warpRouteId,
       strategy: {
@@ -921,7 +924,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
               weight: '25',
               tolerance: '0',
             },
-            bridge: ethers.constants.AddressZero,
+            bridge: noBridge,
             bridgeLockTime: 1,
           },
         },
@@ -939,10 +942,12 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     );
 
     // Allow bridge
-    await chain3CollateralContract.addBridge(
+    const tx3 = await chain3CollateralContract.addBridge(
       chain2Metadata.domainId,
-      ethers.constants.AddressZero,
+      noBridge,
     );
+
+    await tx3.wait();
 
     await startRebalancerAndExpectLog('Failed to get quotes for route.');
   });
@@ -961,7 +966,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     // Deploy the bridge
     const bridgeContract = await new MockValueTransferBridge__factory(
       chain3Signer,
-    ).deploy();
+    ).deploy(tokenChain3.address);
 
     // Allow bridge
     await chain3CollateralContract.addBridge(
@@ -1015,7 +1020,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     // Deploy the bridge
     const bridgeContract = await new MockValueTransferBridge__factory(
       chain3Signer,
-    ).deploy();
+    ).deploy(tokenChain3.address);
 
     // Allow bridge
     await chain3CollateralContract.addBridge(
@@ -1065,7 +1070,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     // Deploy the bridge
     const bridgeContract = await new MockValueTransferBridge__factory(
       chain3Signer,
-    ).deploy();
+    ).deploy(tokenChain3.address);
 
     // Allow bridge
     await chain3CollateralContract.addBridge(
@@ -1153,7 +1158,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     // It will also allow us to mock some token movement
     const bridgeContract = await new MockValueTransferBridge__factory(
       originSigner,
-    ).deploy();
+    ).deploy(tokenChain3.address);
 
     // Allow bridge
     // This allow the bridge to be used to send the rebalance transaction
@@ -1235,13 +1240,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     // This process locks tokens on the destination chain and unlocks them on the origin,
     // effectively increasing collateral on the destination while decreasing it on the origin,
     // which achieves the desired rebalancing effect.
-    await hyperlaneWarpSendRelay(
-      destName,
-      originName,
-      warpCoreConfigPath,
-      true,
-      sentTransferRemote.amount.toString(),
-    );
+    await hyperlaneWarpSendRelay({
+      origin: destName,
+      destination: originName,
+      warpCorePath: warpCoreConfigPath,
+      relay: true,
+      value: sentTransferRemote.amount.toString(),
+    });
 
     originBalance = await originTkn.balanceOf(originContractAddress);
     destBalance = await destTkn.balanceOf(destContractAddress);
@@ -1278,7 +1283,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
     const bridgeContract = await new MockValueTransferBridge__factory(
       originSigner,
-    ).deploy();
+    ).deploy(tokenChain3.address);
 
     // --- Allow bridge ---
 
@@ -1607,7 +1612,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       // It will also allow us to mock some token movement
       const bridgeContract = await new MockValueTransferBridge__factory(
         originSigner,
-      ).deploy();
+      ).deploy(tokenChain3.address);
 
       // Allow bridge
       // This allow the bridge to be used to send the rebalance transaction
@@ -1701,13 +1706,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       // This process locks tokens on the destination chain and unlocks them on the origin,
       // effectively increasing collateral on the destination while decreasing it on the origin,
       // which achieves the desired rebalancing effect.
-      await hyperlaneWarpSendRelay(
-        destName,
-        originName,
-        warpCoreConfigPath,
-        true,
-        sentTransferRemote.amount.toString(),
-      );
+      await hyperlaneWarpSendRelay({
+        origin: destName,
+        destination: originName,
+        warpCorePath: warpCoreConfigPath,
+        relay: true,
+        value: sentTransferRemote.amount.toString(),
+      });
 
       originBalance = await originTkn.balanceOf(originContractAddress);
       destBalance = await destTkn.balanceOf(destContractAddress);

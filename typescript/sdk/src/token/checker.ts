@@ -4,6 +4,7 @@ import {
   ERC20,
   ERC20__factory,
   HypERC20Collateral,
+  IERC4626__factory,
   IXERC20Lockbox__factory,
   Ownable,
   Ownable__factory,
@@ -269,6 +270,18 @@ export class HypERC20Checker extends ProxiedRouterChecker<
           expectedConfig.token,
           provider,
         ).callStatic.ERC20();
+        collateralToken = ERC20__factory.connect(
+          collateralTokenAddress,
+          provider,
+        );
+      } else if (
+        expectedConfig.type === TokenType.collateralVault ||
+        expectedConfig.type === TokenType.collateralVaultRebase
+      ) {
+        const collateralTokenAddress = await IERC4626__factory.connect(
+          expectedConfig.token,
+          provider,
+        ).callStatic.asset();
         collateralToken = ERC20__factory.connect(
           collateralTokenAddress,
           provider,

@@ -59,7 +59,7 @@ fn hyperlane_settings() -> Vec<Settings> {
     // Determine the config path based on the crate root so that
     // the debugger can also find the config file.
     let crate_root = env!("CARGO_MANIFEST_DIR");
-    let config_path = format!("{}/{}", crate_root, AGENT_CONFIG_PATH_ROOT);
+    let config_path = format!("{crate_root}/{AGENT_CONFIG_PATH_ROOT}");
     let root = Path::new(config_path.as_str());
     let paths = config_paths(root);
     let files: Vec<String> = paths
@@ -77,7 +77,7 @@ fn hyperlane_settings() -> Vec<Settings> {
                 .ok()?
                 .try_deserialize::<RawAgentConf>()
                 .unwrap_or_else(|e| {
-                    panic!("!cfg({}): {:?}: {}", p, e, f);
+                    panic!("!cfg({p}): {e:?}: {f}");
                 });
             Settings::from_config(raw, &ConfigPath::default(), "mock_agent")
                 .context("Config parsing error, please check the config reference (https://docs.hyperlane.xyz/docs/operators/agent-configuration/configuration-reference)")

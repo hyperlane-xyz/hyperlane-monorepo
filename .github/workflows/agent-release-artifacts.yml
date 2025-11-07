@@ -1,8 +1,6 @@
 name: Agent Release Artifacts
 
 on:
-  release:
-    types: [published]
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
@@ -17,17 +15,13 @@ env:
 jobs:
   prepare:
     runs-on: ubuntu-latest
+    # Only run for agents-v* tags
+    if: startsWith(github.ref_name, 'agents-v')
     outputs:
-      tag_date: ${{ steps.taggen.outputs.TAG_DATE }}
-      tag_sha: ${{ steps.taggen.outputs.TAG_SHA }}
-    steps:
-      - name: generate tag data
-        id: taggen
-        run: |
-          echo "TAG_DATE=$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
-          echo "TAG_SHA=$(echo '${{ github.sha }}' | cut -b 1-7)" >> $GITHUB_OUTPUT
+      tag_name: ${{ github.ref_name }}
   build:
     needs: prepare
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -43,7 +37,7 @@ jobs:
     runs-on: ${{ matrix.OS }}
     steps:
       - name: checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: ubuntu setup
         if: ${{ matrix.OS == 'depot-ubuntu-24.04-8' }}
         run: |
@@ -80,7 +74,7 @@ jobs:
       - name: upload binaries
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.TARGET }}-${{ needs.prepare.outputs.tag_sha }}-${{ needs.prepare.outputs.tag_date }}
+          name: ${{ matrix.TARGET }}-${{ needs.prepare.outputs.tag_name }}
           path: |
             rust/main/target/${{ matrix.TARGET }}/release/relayer
             rust/main/target/${{ matrix.TARGET }}/release/relayer.exe

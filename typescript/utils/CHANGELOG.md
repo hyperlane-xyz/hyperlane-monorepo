@@ -1,5 +1,50 @@
 # @hyperlane-xyz/utils
 
+## 19.7.0
+
+## 19.6.0
+
+### Minor Changes
+
+- 419e16910: add the objDiff function to determine the field with primitive values that are different or not present when comparing 2 objects of the same type
+
+## 19.6.0-beta.0
+
+### Minor Changes
+
+- 419e16910: add the objDiff function to determine the field with primitive values that are different or not present when comparing 2 objects of the same type
+
+## 19.5.0
+
+### Minor Changes
+
+- 312826d10: Updated the AltVM provider connect interface so that it can optionally accept extra params needed for instantiating the provider
+
+## 19.4.0
+
+### Patch Changes
+
+- 5a4e22d34: Bump @solana/web3.js dependency explicitly from ^1.95.4 to ^1.98.4.
+
+## 19.3.0
+
+## 19.2.0
+
+## 19.1.1
+
+## 19.1.0
+
+## 19.0.0
+
+### Major Changes
+
+- 32479e139: feat: add AltVM interface
+
+### Minor Changes
+
+- 8eab305bd: chore: add transactionToPrintableJson to altvm interface
+- e42a0e8e1: chore: updated AltVM interface
+
 ## 18.3.0
 
 ### Minor Changes

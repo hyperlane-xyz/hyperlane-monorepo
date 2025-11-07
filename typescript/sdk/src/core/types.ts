@@ -11,7 +11,7 @@ import {
   DerivedIcaRouterConfigSchema,
   IcaRouterConfigSchema,
 } from '../ica/types.js';
-import type { IsmConfig } from '../ism/types.js';
+import type { DerivedIsmConfig, IsmConfig } from '../ism/types.js';
 import { IsmConfigSchema } from '../ism/types.js';
 import type { ChainName } from '../types.js';
 import { DeployedOwnableSchema, OwnableSchema } from '../types.js';
@@ -56,6 +56,7 @@ export type CoreConfigHookFieldKey = keyof Pick<
 >;
 
 export type DerivedCoreConfig = z.infer<typeof DerivedCoreConfigSchema> & {
+  defaultIsm: DerivedIsmConfig;
   requiredHook: DerivedHookConfig;
   defaultHook: DerivedHookConfig;
 };

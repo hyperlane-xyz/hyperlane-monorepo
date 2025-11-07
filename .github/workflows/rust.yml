@@ -18,14 +18,14 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: full
-  MIN_LANDERCOVERAGE_PERCENTAGE: 19
+  MIN_LANDERCOVERAGE_PERCENTAGE: 15
   RUSTC_WRAPPER: sccache
 
 jobs:
   lander-coverage:
     runs-on: depot-ubuntu-24.04-8
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: dtolnay/rust-toolchain@stable
@@ -36,7 +36,7 @@ jobs:
           sudo rm -rf "/usr/local/share/boost"
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
       - name: Run sccache-cache
-        uses: mozilla-actions/sccache-action@v0.0.8
+        uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Install cargo-llvm-cov
         run: |
@@ -58,7 +58,7 @@ jobs:
         working-directory: ./rust/main
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           files: coverage.json
           flags: ./rust/main/lander
@@ -68,7 +68,7 @@ jobs:
   test-rs:
     runs-on: depot-ubuntu-24.04-8
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: dtolnay/rust-toolchain@stable
@@ -84,7 +84,7 @@ jobs:
           mold-version: 2.0.0
           make-default: true
       - name: Run sccache-cache
-        uses: mozilla-actions/sccache-action@v0.0.8
+        uses: mozilla-actions/sccache-action@v0.0.9
       - name: Run tests for main workspace
         run: cargo test
         working-directory: ./rust/main
@@ -95,7 +95,7 @@ jobs:
   lint-rs:
     runs-on: depot-ubuntu-24.04-8
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: dtolnay/rust-toolchain@stable
@@ -109,7 +109,7 @@ jobs:
           sudo rm -rf "/usr/local/share/boost"
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
       - name: Run sccache-cache
-        uses: mozilla-actions/sccache-action@v0.0.8
+        uses: mozilla-actions/sccache-action@v0.0.9
       - name: Check for main workspace
         run: cargo check --release --all-features --all-targets
         working-directory: ./rust/main

@@ -2,6 +2,8 @@
 pragma solidity >=0.8.0;
 
 import {HypERC721} from "../HypERC721.sol";
+import {TokenMessage} from "../libs/TokenMessage.sol";
+import {TypeCasts} from "../../libs/TypeCasts.sol";
 
 import {ERC721URIStorageUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721URIStorageUpgradeable.sol";
 import {ERC721EnumerableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721EnumerableUpgradeable.sol";
@@ -13,41 +15,18 @@ import {IERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC7
  * @author Abacus Works
  */
 contract HypERC721URIStorage is HypERC721, ERC721URIStorageUpgradeable {
+    using TokenMessage for bytes;
+    using TypeCasts for bytes32;
+
     constructor(address _mailbox) HypERC721(_mailbox) {}
 
-    function balanceOf(
-        address account
-    )
-        public
-        view
-        override(HypERC721, ERC721Upgradeable, IERC721Upgradeable)
-        returns (uint256)
-    {
-        return HypERC721.balanceOf(account);
-    }
-
-    /**
-     * @return _tokenURI The URI of `_tokenId`.
-     * @inheritdoc HypERC721
-     */
-    function _transferFromSender(
-        uint256 _tokenId
-    ) internal override returns (bytes memory _tokenURI) {
-        _tokenURI = bytes(tokenURI(_tokenId)); // requires minted
-        HypERC721._transferFromSender(_tokenId);
-    }
-
-    /**
-     * @dev Sets the URI for `_tokenId` to `_tokenURI`.
-     * @inheritdoc HypERC721
-     */
-    function _transferTo(
-        address _recipient,
-        uint256 _tokenId,
-        bytes calldata _tokenURI
+    function _handle(
+        uint32 _origin,
+        bytes32 _sender,
+        bytes calldata _message
     ) internal override {
-        HypERC721._transferTo(_recipient, _tokenId, _tokenURI);
-        _setTokenURI(_tokenId, string(_tokenURI)); // requires minted
+        super._handle(_origin, _sender, _message);
+        _setTokenURI(_message.tokenId(), string(_message.metadata()));
     }
 
     function tokenURI(

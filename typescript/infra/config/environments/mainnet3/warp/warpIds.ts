@@ -15,6 +15,7 @@ export enum WarpRouteIds {
   ArbitrumAvalancheBaseFlowmainnetFormOptimismSolanamainnetWorldchainTRUMP = 'TRUMP/arbitrum-avalanche-base-flowmainnet-form-optimism-solanamainnet-worldchain',
   EclipseEthereumApxEth = 'APXETH/eclipsemainnet-ethereum',
   EclipseEthereumSolanaUSDC = 'USDC/eclipsemainnet-ethereum-solanamainnet',
+  EclipseUSDCSTAGE = 'USDCSTAGE/eclipsemainnet',
   EclipseEthereumSolanaUSDT = 'USDT/eclipsemainnet-ethereum-solanamainnet',
   EclipseEthereumTETH = 'tETH/eclipsemainnet-ethereum',
   EclipseEthereumWBTC = 'WBTC/eclipsemainnet-ethereum',
@@ -117,8 +118,14 @@ export enum WarpRouteIds {
 
   MantraUSDC = 'USDC/mantra',
 
-  MainnetCCTP = 'USDC/mainnet-cctp',
-  TestnetCCTP = 'USDC/testnet-cctp',
+  IncentivUSDC = 'USDC/incentiv',
+
+  LitchainLITKEY = 'LITKEY/litchain',
+
+  MainnetCCTPV1 = 'USDC/mainnet-cctp',
+  MainnetCCTPV2Fast = 'USDC/mainnet-cctp-v2-fast',
+  MainnetCCTPV2Standard = 'USDC/mainnet-cctp-v2-standard',
+  TestnetCCTPV1 = 'USDC/testnet-cctp',
 
   // HYPER routes
   HYPER = 'HYPER/arbitrum-base-bsc-ethereum-optimism',
