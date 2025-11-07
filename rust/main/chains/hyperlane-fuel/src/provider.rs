@@ -322,7 +322,7 @@ impl HyperlaneProvider for FuelProvider {
             .get_transaction_by_id(&hash.0.into())
             .await
             .map_err(|e| {
-                ChainCommunicationError::CustomError(format!("Failed to get transaction: {}", e))
+                ChainCommunicationError::CustomError(format!("Failed to get transaction: {e}"))
             })?;
 
         match transaction_res {
@@ -385,8 +385,7 @@ impl HyperlaneProvider for FuelProvider {
                 })
             }
             None => Err(ChainCommunicationError::CustomError(format!(
-                "Transaction not found: {}",
-                hash
+                "Transaction not found: {hash}"
             ))),
         }
     }
@@ -397,8 +396,7 @@ impl HyperlaneProvider for FuelProvider {
         match contract_res {
             Ok(contract) => Ok(contract.is_some()),
             Err(e) => Err(ChainCommunicationError::CustomError(format!(
-                "Failed to get contract: {}",
-                e
+                "Failed to get contract: {e}"
             ))),
         }
     }
@@ -412,7 +410,7 @@ impl HyperlaneProvider for FuelProvider {
             .await
             .map(|balance| Ok(U256::from(balance)))
             .map_err(|e| {
-                ChainCommunicationError::CustomError(format!("Failed to get balance: {}", e))
+                ChainCommunicationError::CustomError(format!("Failed to get balance: {e}"))
             })?
     }
 

@@ -9,7 +9,7 @@ where
     T: FromStr<Err = E>,
     E: Into<ErrReport> + StdError + Send + Sync + 'static,
 {
-    let resp = ureq::get(&format!("http://127.0.0.1:{}/metrics", port));
+    let resp = ureq::get(&format!("http://127.0.0.1:{port}/metrics"));
     resp.call()?
         .into_string()?
         .lines()

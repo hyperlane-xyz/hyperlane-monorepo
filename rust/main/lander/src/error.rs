@@ -19,7 +19,7 @@ pub enum LanderError {
     #[error("Transaction won't be resubmitted")]
     TxWontBeResubmitted,
     #[error("Failed to send over a channel {0}")]
-    ChannelSendFailure(#[from] tokio::sync::mpsc::error::SendError<Transaction>),
+    ChannelSendFailure(#[from] Box<tokio::sync::mpsc::error::SendError<Transaction>>),
     #[error("Channel closed")]
     ChannelClosed,
     #[error("{0}")]

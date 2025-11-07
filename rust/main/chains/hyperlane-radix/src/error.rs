@@ -73,7 +73,7 @@ impl<T: std::fmt::Debug> From<CoreError<T>> for HyperlaneRadixError {
             CoreError::Reqwest(err) => Self::ReqwestError(err),
             CoreError::Serde(err) => Self::Serde(err),
             CoreError::Io(err) => Self::Io(err),
-            CoreError::ResponseError(response) => Self::ResponseError(format!("{:?}", response)),
+            CoreError::ResponseError(response) => Self::ResponseError(format!("{response:?}")),
         }
     }
 }
@@ -84,19 +84,19 @@ impl<T: std::fmt::Debug> From<GatewayError<T>> for HyperlaneRadixError {
             GatewayError::Reqwest(err) => Self::ReqwestError(err),
             GatewayError::Serde(err) => Self::Serde(err),
             GatewayError::Io(err) => Self::Io(err),
-            GatewayError::ResponseError(response) => Self::ResponseError(format!("{:?}", response)),
+            GatewayError::ResponseError(response) => Self::ResponseError(format!("{response:?}")),
         }
     }
 }
 
 impl From<sbor::DecodeError> for HyperlaneRadixError {
     fn from(err: sbor::DecodeError) -> Self {
-        Self::SborDecode(format!("{:?}", err))
+        Self::SborDecode(format!("{err:?}"))
     }
 }
 
 impl From<sbor::EncodeError> for HyperlaneRadixError {
     fn from(err: sbor::EncodeError) -> Self {
-        Self::SborEncode(format!("{:?}", err))
+        Self::SborEncode(format!("{err:?}"))
     }
 }

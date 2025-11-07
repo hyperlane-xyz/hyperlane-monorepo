@@ -29,7 +29,7 @@ pub fn generate_bindings_for_dir(
 
     // clean old bindings
     if let Err(e) = fs::remove_dir_all(&output_dir) {
-        println!("cargo:warning=Could not delete old bindings dir: {}", e);
+        println!("cargo:warning=Could not delete old bindings dir: {e}");
     };
     fs::create_dir_all(&output_dir).expect("could not create bindings dir");
 
@@ -63,7 +63,7 @@ pub fn generate_bindings_for_dir(
     writeln!(mod_file, "#![allow(clippy::all)]").unwrap();
     write!(mod_file, "#![allow(missing_docs)]\n\n").unwrap();
     for m in modules {
-        writeln!(mod_file, "pub(crate) mod {};", m).expect("failed to write to modfile");
+        writeln!(mod_file, "pub(crate) mod {m};").expect("failed to write to modfile");
     }
     drop(mod_file);
 }
