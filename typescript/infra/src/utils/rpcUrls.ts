@@ -302,7 +302,10 @@ async function refreshDependentK8sResourcesInteractive(
     if (agentConfig.relayer) {
       pushContextHelmManager(context, new RelayerHelmManager(agentConfig));
     }
-    if (agentConfig.validators) {
+    if (
+      agentConfig.validators &&
+      agentConfig.contextChainNames.validator?.includes(chain)
+    ) {
       pushContextHelmManager(
         context,
         new ValidatorHelmManager(agentConfig, chain),
