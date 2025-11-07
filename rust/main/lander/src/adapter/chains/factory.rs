@@ -43,7 +43,6 @@ impl AdapterFactory {
                 )
                 .await?,
             ),
-            ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(_) => Arc::new(SealevelAdapter::new(
                 conf.clone(),
                 raw_conf.clone(),
@@ -52,12 +51,11 @@ impl AdapterFactory {
             ChainConnectionConf::Cosmos(_) => {
                 Arc::new(CosmosAdapter::new(conf.clone(), raw_conf.clone()))
             }
-            ChainConnectionConf::Starknet(_) => todo!(),
-            ChainConnectionConf::CosmosNative(_) => todo!(),
             ChainConnectionConf::Radix(connection_conf) => {
                 let adapter = RadixAdapter::from_conf(conf, core_metrics, &connection_conf)?;
                 Arc::new(adapter)
             }
+            _ => todo!(),
         };
         Ok(adapter)
     }

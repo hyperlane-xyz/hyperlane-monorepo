@@ -1,0 +1,49 @@
+cargo-features = ["workspace-inheritance"]
+
+[package]
+name = "hyperlane-aleo"
+documentation.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license-file.workspace = true
+publish.workspace = true
+version.workspace = true
+
+[dependencies]
+hyperlane-core = { path = "../../hyperlane-core" }
+hyperlane-operation-verifier = { path = "../../applications/hyperlane-operation-verifier" }
+hyperlane-warp-route = { path = "../../applications/hyperlane-warp-route" }
+aleo-serialize = { path = "../../utils/aleo-serialize" }
+aleo-serialize-macro = { path = "../../utils/aleo-serialize-macro" }
+# parse-value-macros = { path = "./parse-value-macros" }
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = [
+    "rt",
+    "macros",
+    "parking_lot",
+    "rt-multi-thread",
+] }
+tokio-metrics.workspace = true
+tracing = { workspace = true }
+tracing-futures = { workspace = true }
+async-trait = { workspace = true }
+snarkvm = { workspace = true, features = [
+    "async",
+    "test_targets",
+    "test_consensus_heights",
+] }
+snarkvm-algorithms = { version = "4.3.0" }
+snarkvm-console-account = { version = "4.3.0" }
+aleo-std = { version = "1.0.3" }
+aleo-std-storage = { version = "1.0.3" }
+reqwest = { workspace = true, features = ["json", "blocking"] }
+anyhow.workspace = true
+futures.workspace = true
+url.workspace = true
+num-traits.workspace = true
+derive-new = { workspace = true }
+hex.workspace = true
+indexmap = "2.0"
+rand_chacha = { version = "0.3.0" }
