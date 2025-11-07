@@ -50,7 +50,7 @@ async fn test_inclusion_happy_path() {
         },
         ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
-            gas_limit: Some(TEST_GAS_LIMIT.clone()),
+            gas_limit: Some(*TEST_GAS_LIMIT),
             gas_price: Some(EthersU256::from(200000)), // Default fee used by the `ethers` lib estimation logic
             priority_fee: Some(EthersU256::from(
                 EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE,
@@ -61,7 +61,7 @@ async fn test_inclusion_happy_path() {
         },
         ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
-            gas_limit: Some(TEST_GAS_LIMIT.clone()),
+            gas_limit: Some(*TEST_GAS_LIMIT),
             gas_price: Some(EthersU256::from(200000)),
             priority_fee: Some(EthersU256::from(
                 EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE,
@@ -133,7 +133,7 @@ async fn test_inclusion_gas_spike() {
     let elapsed = Instant::now();
     let base_processing_delay = Duration::from_millis(500);
     let inclusion_stage_processing_delay = Duration::from_millis(100);
-    let block_time_clone = block_time.clone();
+    let block_time_clone = block_time;
     mock_evm_provider.expect_send().returning(move |tx, _| {
         send_call_counter += 1;
         // assert the timing of resubmissions to make sure they don't happen more than once per block
@@ -143,7 +143,7 @@ async fn test_inclusion_gas_spike() {
             base_processing_delay,
             inclusion_stage_processing_delay,
             block_time_clone,
-            &tx,
+            tx,
             // First submission, price is 200000 - the default fee used by the `ethers` estimation logic
             // Second submission, price is 10% higher, even though the spike was smaller
             // Third submission, price is 10% higher again, even though the spike was smaller
@@ -165,7 +165,7 @@ async fn test_inclusion_gas_spike() {
         },
         ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
-            gas_limit: Some(TEST_GAS_LIMIT.clone()),
+            gas_limit: Some(*TEST_GAS_LIMIT),
             gas_price: Some(EthersU256::from(200000)),
             priority_fee: Some(EthersU256::from(
                 EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE,
@@ -176,7 +176,7 @@ async fn test_inclusion_gas_spike() {
         },
         ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
-            gas_limit: Some(TEST_GAS_LIMIT.clone()),
+            gas_limit: Some(*TEST_GAS_LIMIT),
             gas_price: Some(EthersU256::from(220000)), // This is the price that gets included
             priority_fee: Some(EthersU256::from(
                 EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE * 11 / 10, // 10% increase
@@ -187,7 +187,7 @@ async fn test_inclusion_gas_spike() {
         },
         ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
-            gas_limit: Some(TEST_GAS_LIMIT.clone()),
+            gas_limit: Some(*TEST_GAS_LIMIT),
             gas_price: Some(EthersU256::from(242000)), // This is the price that gets included
             priority_fee: Some(EthersU256::from(
                 EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE * 121 / 100, // another 10% increase
@@ -198,7 +198,7 @@ async fn test_inclusion_gas_spike() {
         },
         ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
-            gas_limit: Some(TEST_GAS_LIMIT.clone()),
+            gas_limit: Some(*TEST_GAS_LIMIT),
             gas_price: Some(EthersU256::from(242000)),
             priority_fee: Some(EthersU256::from(
                 EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE * 121 / 100,
@@ -243,7 +243,7 @@ async fn test_inclusion_gas_underpriced() {
     let base_processing_delay = Duration::from_millis(500);
     // assume 1 second more than usual because that's the retry delay when an error occurs
     let inclusion_stage_processing_delay = Duration::from_millis(1100);
-    let block_time_clone = block_time.clone();
+    let block_time_clone = block_time;
     mock_evm_provider.expect_send().returning(move |tx, _| {
         send_call_counter += 1;
         // assert the timing of resubmissions to make sure they don't happen more than once per block
@@ -253,7 +253,7 @@ async fn test_inclusion_gas_underpriced() {
             base_processing_delay,
             inclusion_stage_processing_delay,
             block_time_clone,
-            &tx,
+            tx,
             // First submission, price is 200000 - the default fee used by the `ethers` estimation logic
             // Second submission, price is 10% higher, to due to the underpriced error
             vec![200000, 220000],
@@ -280,7 +280,7 @@ async fn test_inclusion_gas_underpriced() {
         },
         ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
-            gas_limit: Some(TEST_GAS_LIMIT.clone()),
+            gas_limit: Some(*TEST_GAS_LIMIT),
             // immediately returning an error causes a submission retry, with a 10% increase in gas price
             gas_price: Some(EthersU256::from(220000)),
             priority_fee: Some(EthersU256::from(
@@ -292,7 +292,7 @@ async fn test_inclusion_gas_underpriced() {
         },
         ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
-            gas_limit: Some(TEST_GAS_LIMIT.clone()),
+            gas_limit: Some(*TEST_GAS_LIMIT),
             gas_price: Some(EthersU256::from(220000)),
             priority_fee: Some(EthersU256::from(
                 EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE * 11 / 10,
@@ -397,7 +397,7 @@ async fn test_tx_which_fails_simulation_after_submission_is_delivered() {
         },
         ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
-            gas_limit: Some(TEST_GAS_LIMIT.clone()),
+            gas_limit: Some(*TEST_GAS_LIMIT),
             gas_price: Some(EthersU256::from(200000)),
             priority_fee: Some(EthersU256::from(
                 EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE,
@@ -408,7 +408,7 @@ async fn test_tx_which_fails_simulation_after_submission_is_delivered() {
         },
         ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
-            gas_limit: Some(TEST_GAS_LIMIT.clone()),
+            gas_limit: Some(*TEST_GAS_LIMIT),
             gas_price: Some(EthersU256::from(220000)),
             priority_fee: Some(EthersU256::from(
                 EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE * 11 / 10,
@@ -419,7 +419,7 @@ async fn test_tx_which_fails_simulation_after_submission_is_delivered() {
         },
         ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
-            gas_limit: Some(TEST_GAS_LIMIT.clone()),
+            gas_limit: Some(*TEST_GAS_LIMIT),
             gas_price: Some(EthersU256::from(242000)),
             priority_fee: Some(EthersU256::from(
                 EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE * 121 / 100,
@@ -430,7 +430,7 @@ async fn test_tx_which_fails_simulation_after_submission_is_delivered() {
         },
         ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
-            gas_limit: Some(TEST_GAS_LIMIT.clone()),
+            gas_limit: Some(*TEST_GAS_LIMIT),
             gas_price: Some(EthersU256::from(242000)), // This is the price that gets included
             priority_fee: Some(EthersU256::from(
                 EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE * 121 / 100,
@@ -502,7 +502,7 @@ async fn test_inclusion_escalate_but_old_hash_finalized() {
         },
         ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
-            gas_limit: Some(TEST_GAS_LIMIT.clone()),
+            gas_limit: Some(*TEST_GAS_LIMIT),
             gas_price: Some(EthersU256::from(200000)),
             priority_fee: Some(EthersU256::from(
                 EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE,
@@ -513,7 +513,7 @@ async fn test_inclusion_escalate_but_old_hash_finalized() {
         },
         ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
-            gas_limit: Some(TEST_GAS_LIMIT.clone()),
+            gas_limit: Some(*TEST_GAS_LIMIT),
             gas_price: Some(EthersU256::from(220000)),
             priority_fee: Some(EthersU256::from(
                 EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE * 11 / 10,
@@ -524,7 +524,7 @@ async fn test_inclusion_escalate_but_old_hash_finalized() {
         },
         ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
-            gas_limit: Some(TEST_GAS_LIMIT.clone()),
+            gas_limit: Some(*TEST_GAS_LIMIT),
             gas_price: Some(EthersU256::from(220000)),
             priority_fee: Some(EthersU256::from(
                 EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE * 11 / 10,
@@ -598,7 +598,7 @@ async fn test_escalate_gas_and_upgrade_legacy_to_eip1559() {
         },
         ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
-            gas_limit: Some(TEST_GAS_LIMIT.clone()),
+            gas_limit: Some(*TEST_GAS_LIMIT),
             gas_price: Some(EthersU256::from(200000)),
             priority_fee: Some(EthersU256::from(
                 EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE,
@@ -609,7 +609,7 @@ async fn test_escalate_gas_and_upgrade_legacy_to_eip1559() {
         },
         ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
-            gas_limit: Some(TEST_GAS_LIMIT.clone()),
+            gas_limit: Some(*TEST_GAS_LIMIT),
             gas_price: Some(EthersU256::from(220000)),
             priority_fee: Some(EthersU256::from(
                 EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE * 11 / 10, // 10% increase
@@ -620,7 +620,7 @@ async fn test_escalate_gas_and_upgrade_legacy_to_eip1559() {
         },
         ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
-            gas_limit: Some(TEST_GAS_LIMIT.clone()),
+            gas_limit: Some(*TEST_GAS_LIMIT),
             gas_price: Some(EthersU256::from(220000)),
             priority_fee: Some(EthersU256::from(
                 EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE * 11 / 10, // 10% increase
@@ -1225,7 +1225,7 @@ async fn assert_tx_db_state(
         );
         assert_eq!(
             eip1559_tx.max_fee_per_gas,
-            expected.gas_price.map(|v| v.into()),
+            expected.gas_price.map(|v| v),
             "Max fee per gas mismatch"
         );
     }

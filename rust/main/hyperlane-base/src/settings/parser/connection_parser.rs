@@ -206,7 +206,7 @@ pub fn build_cosmos_connection_conf(
         .end()
     {
         Some(asset) => asset.to_string(),
-        None => format!("u{}", prefix),
+        None => format!("u{prefix}"),
     };
     let config = h_cosmos::ConnectionConf::new(
         grpcs,

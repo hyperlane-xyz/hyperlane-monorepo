@@ -272,7 +272,7 @@ async fn run_stage(stage: FinalityStage) -> Vec<Transaction> {
     let pool_before = pool.snapshot().await;
     let stage_task = tokio::spawn(async move { stage.run().await });
     // give the building stage 100ms to send the transaction(s) to the receiver
-    let _ = tokio::select! {
+    tokio::select! {
         // this arm runs indefinitely
         res = stage_task => res.unwrap(),
         // this arm is the timeout

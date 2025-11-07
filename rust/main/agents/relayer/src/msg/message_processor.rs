@@ -702,7 +702,7 @@ async fn prepare_op(
     use PendingOperationStatus::Retry;
 
     let status = Retry(reason.clone());
-    let result = op.on_reprepare(Some(format!("{:?}", err)), reason);
+    let result = op.on_reprepare(Some(format!("{err:?}")), reason);
     warn!(?err, ?status, ?result, msg);
     prepare_queue.push(op, Some(status)).await;
 }

@@ -60,7 +60,7 @@ pub async fn mock_evm_txs(
         let mut payload = FullPayload::random();
         payload.status = PayloadStatus::InTransaction(status.clone());
         payload_db.store_payload_by_uuid(&payload).await.unwrap();
-        let tx = dummy_evm_tx(tx_type, vec![payload], status.clone(), signer.clone());
+        let tx = dummy_evm_tx(tx_type, vec![payload], status.clone(), signer);
         tx_db.store_transaction_by_uuid(&tx).await.unwrap();
         txs.push(tx);
     }
@@ -218,15 +218,11 @@ pub fn assert_gas_prices_and_timings(
         + (inclusion_stage_processing_delay + block_time) * (nth_submission as u32);
     assert!(
         actual_elapsed < expected_elapsed,
-        "(submission {}) elapsed {:?} was not < expected {:?}",
-        nth_submission,
-        actual_elapsed,
-        expected_elapsed
+        "(submission {nth_submission}) elapsed {actual_elapsed:?} was not < expected {expected_elapsed:?}"
     );
     assert_eq!(
         tx.gas_price().unwrap(),
         gas_price_expectations[nth_submission - 1].into(),
-        "gas price for submission {} doesn't match expected value",
-        nth_submission
+        "gas price for submission {nth_submission} doesn't match expected value"
     );
 }
