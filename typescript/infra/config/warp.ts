@@ -62,6 +62,11 @@ import { getEthereumVictionETHWarpConfig } from './environments/mainnet3/warp/co
 import { getEthereumVictionUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionUSDCWarpConfig.js';
 import { getEthereumVictionUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionUSDTWarpConfig.js';
 import { getEthereumZircuitRe7LRTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumZircuitRe7LRTWarpConfig.js';
+import {
+  getEverclearETHWarpConfig,
+  getEverclearStrategyConfig,
+  getEverclearUSDCWarpConfig,
+} from './environments/mainnet3/warp/configGetters/getEverclearConfig.js';
 import { getIncentivUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getIncentivUSDCWarpConfig.js';
 import { getInevmInjectiveINJWarpConfig } from './environments/mainnet3/warp/configGetters/getInevmInjectiveINJWarpConfig.js';
 import { getLitchainLITKEYWarpConfig } from './environments/mainnet3/warp/configGetters/getLitLitchainWarpConfig.js';
@@ -175,6 +180,8 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.ParadexUSDC]: getParadexUSDCWarpConfig,
   [WarpRouteIds.TestnetCCTP]: getTestnetCCTPWarpConfig,
   [WarpRouteIds.MainnetCCTP]: getMainnetCCTPWarpConfig,
+  [WarpRouteIds.MainnetEverclearUSDC]: getEverclearUSDCWarpConfig,
+  [WarpRouteIds.MainnetEverclearETH]: getEverclearETHWarpConfig,
   [WarpRouteIds.LumiaUSDC]: getLumiaUSDCWarpConfig,
   [WarpRouteIds.MatchainUSDC]: getMatchainUSDCWarpConfig,
   [WarpRouteIds.MitosisMITO]: getMitosisMITOWarpConfig,
@@ -203,6 +210,8 @@ export const strategyConfigGetterMap: Record<string, StrategyConfigGetter> = {
     getRezStagingGnosisSafeBuilderStrategyConfig,
   [WarpRouteIds.BsquaredUBTC]: getUbtcGnosisSafeBuilderStrategyConfigGenerator,
   [WarpRouteIds.MainnetCCTP]: getCCTPStrategyConfig,
+  [WarpRouteIds.MainnetEverclearUSDC]: getEverclearStrategyConfig,
+  [WarpRouteIds.MainnetEverclearETH]: getEverclearStrategyConfig,
   [WarpRouteIds.MatchainUSDC]: getMatchainUSDCStrategyConfig,
   [WarpRouteIds.oXAUT]: getoXAUTGnosisSafeSubmitterStrategyConfig,
 };
