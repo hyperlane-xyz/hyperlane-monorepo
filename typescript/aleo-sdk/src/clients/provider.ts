@@ -846,9 +846,20 @@ export class AleoProvider implements AltVM.IProvider {
   }
 
   async getCreateSyntheticTokenTransaction(
-    _req: AltVM.ReqCreateSyntheticToken,
+    req: AltVM.ReqCreateSyntheticToken,
   ): Promise<AleoTransaction> {
-    throw new Error(`TODO: implement`);
+    return {
+      programName: '',
+      functionName: 'init',
+      priorityFee: 0,
+      privateFee: false,
+      inputs: [
+        `${req.name}u128`,
+        `${req.denom}u128`,
+        `${req.decimals}u8`,
+        `${req.decimals}u8`,
+      ],
+    };
   }
 
   async getSetTokenOwnerTransaction(

@@ -53,22 +53,26 @@ export class AleoSigner
     this.programManager.setAccount(this.aleoAccount);
   }
 
-  private async deployProgram(programName: string): Promise<{
-    address: string;
-    program: Program;
-  }> {
+  private async deployProgram(
+    programName: string,
+    coreAddress: string,
+    warpAddress?: string,
+  ): Promise<Program> {
     let programs = loadProgramsInDeployOrder(programName);
-
-    const address = new Account().address().to_string();
-    const salt = this.getProgramSalt(address);
 
     programs = programs.map((p) => {
       return Program.fromString(
         p
           .toString()
+          .replaceAll('_template.aleo', '.aleo')
           .replaceAll(
-            /(mailbox|dispatch_proxy|validator_announce)\.aleo/g,
-            (_, p1) => `${p1}_${salt}.aleo`,
+            /(mailbox|dispatch_proxy|validator_announce|hyp_synthetic)\.aleo/g,
+            (_, p1) => `${p1}_${this.getProgramSalt(coreAddress)}.aleo`,
+          )
+          .replaceAll(
+            /(hyp_native|hyp_collateral|hyp_synthetic)\.aleo/g,
+            (_, p1) =>
+              `${p1}_${this.getProgramSalt(warpAddress || coreAddress)}.aleo`,
           ),
       );
     });
@@ -91,10 +95,7 @@ export class AleoSigner
       await this.aleoClient.waitForTransactionConfirmation(txId);
     }
 
-    return {
-      address,
-      program: programs[programs.length - 1],
-    };
+    return programs[programs.length - 1];
   }
 
   getSignerAddress(): string {
@@ -138,20 +139,31 @@ export class AleoSigner
   async createMailbox(
     req: Omit<AltVM.ReqCreateMailbox, 'signer'>,
   ): Promise<AltVM.ResCreateMailbox> {
-    const { address } = await this.deployProgram('dispatch_proxy');
+    const mailboxAddress = new Account().address().to_string();
+    const program = await this.deployProgram('dispatch_proxy', mailboxAddress);
 
     const tx = await this.getCreateMailboxTransaction({
       signer: this.getSignerAddress(),
       ...req,
     });
 
-    tx.programName = `mailbox_${this.getProgramSalt(address)}.aleo`;
+    const mailboxId = `mailbox_${this.getProgramSalt(mailboxAddress)}.aleo`;
+    tx.programName = mailboxId;
 
     const txId = await this.programManager.execute(tx);
     await this.aleoClient.waitForTransactionConfirmation(txId);
 
+    const setDispatchProxyTxId = await this.programManager.execute({
+      programName: mailboxId,
+      functionName: 'set_dispatch_proxy',
+      priorityFee: 0,
+      privateFee: false,
+      inputs: [program.id()],
+    });
+    await this.aleoClient.waitForTransactionConfirmation(setDispatchProxyTxId);
+
     return {
-      mailboxAddress: address,
+      mailboxAddress,
     };
   }
 
@@ -498,20 +510,24 @@ export class AleoSigner
   async createValidatorAnnounce(
     req: Omit<AltVM.ReqCreateValidatorAnnounce, 'signer'>,
   ): Promise<AltVM.ResCreateValidatorAnnounce> {
-    const { address } = await this.deployProgram('validator_announce');
+    const validatorAnnounceId = new Account().address().to_string();
+    const program = await this.deployProgram(
+      'validator_announce',
+      validatorAnnounceId,
+    );
 
     const tx = await this.getCreateValidatorAnnounceTransaction({
       signer: this.getSignerAddress(),
       ...req,
     });
 
-    tx.programName = `validator_announce_${this.getProgramSalt(address)}.aleo`;
+    tx.programName = program.id();
 
     const txId = await this.programManager.execute(tx);
     await this.aleoClient.waitForTransactionConfirmation(txId);
 
     return {
-      validatorAnnounceId: address,
+      validatorAnnounceId,
     };
   }
 
@@ -524,9 +540,28 @@ export class AleoSigner
   }
 
   async createSyntheticToken(
-    _req: Omit<AltVM.ReqCreateSyntheticToken, 'signer'>,
+    req: Omit<AltVM.ReqCreateSyntheticToken, 'signer'>,
   ): Promise<AltVM.ResCreateSyntheticToken> {
-    throw new Error(`TODO: implement`);
+    const tokenAddress = new Account().address().to_string();
+    const program = await this.deployProgram(
+      'hyp_synthetic',
+      req.mailboxAddress,
+      tokenAddress,
+    );
+
+    const tx = await this.getCreateSyntheticTokenTransaction({
+      signer: this.getSignerAddress(),
+      ...req,
+    });
+
+    tx.programName = program.id();
+
+    const txId = await this.programManager.execute(tx);
+    await this.aleoClient.waitForTransactionConfirmation(txId);
+
+    return {
+      tokenAddress,
+    };
   }
 
   async setTokenOwner(
