@@ -400,7 +400,7 @@ async fn prepare_lander_task(
         };
 
         let batch_to_process = confirm_already_submitted_operations(
-            entrypoint.clone(),
+            entrypoint.clone() as Arc<dyn Entrypoint + Send + Sync>,
             &confirm_queue,
             db.clone(),
             batch,
@@ -423,7 +423,7 @@ async fn prepare_lander_task(
 /// If the payload is not dropped, the operation is pushed to the confirmation queue.
 /// If the payload is dropped, does not exist or there is issue in retrieving payload or its status, the operation will go through prepare logic.
 async fn confirm_already_submitted_operations(
-    entrypoint: Arc<DispatcherEntrypoint>,
+    entrypoint: Arc<dyn Entrypoint + Send + Sync>,
     confirm_queue: &OpQueue,
     db: Arc<dyn HyperlaneDb>,
     batch: Vec<QueueOperation>,
@@ -448,7 +448,7 @@ async fn confirm_already_submitted_operations(
 }
 
 async fn has_operation_been_submitted(
-    entrypoint: Arc<DispatcherEntrypoint>,
+    entrypoint: Arc<dyn Entrypoint + Send + Sync>,
     db: Arc<dyn HyperlaneDb>,
     op: &QueueOperation,
 ) -> bool {
@@ -1073,3 +1073,6 @@ impl MessageProcessorMetrics {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;
