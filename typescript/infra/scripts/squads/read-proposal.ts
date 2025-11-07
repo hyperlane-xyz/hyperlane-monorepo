@@ -10,19 +10,15 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { getSquadsKeys, squadsConfigs } from '../../src/config/squads.js';
-import { getSquadProposal } from '../../src/utils/squads.js';
+import {
+  SquadsProposalStatus,
+  getSquadProposal,
+  withTransactionIndex,
+} from '../../src/utils/squads.js';
 import { withChain } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
 const environment = 'mainnet3';
-
-function withTransactionIndex<T>(args: Argv<T>) {
-  return args
-    .describe('transactionIndex', 'Transaction index of the proposal to read')
-    .number('transactionIndex')
-    .demandOption('transactionIndex')
-    .alias('t', 'transactionIndex');
-}
 
 function withVerbose<T>(args: Argv<T>) {
   return args
@@ -118,13 +114,13 @@ async function main() {
     const status = proposal.status.__kind;
     const approvals = proposal.approved.length;
 
-    if (status === 'Active' && approvals >= threshold) {
+    if (status === SquadsProposalStatus.Active && approvals >= threshold) {
       rootLogger.info(
         chalk.green(
           `  Status: Ready to execute (${approvals}/${threshold} approvals)`,
         ),
       );
-    } else if (status === 'Active') {
+    } else if (status === SquadsProposalStatus.Active) {
       if (transactionIndex < staleTransactionIndex) {
         rootLogger.info(chalk.red(`  Status: Stale`));
       } else {
