@@ -15,7 +15,6 @@ hyperlane-operation-verifier = { path = "../../applications/hyperlane-operation-
 hyperlane-warp-route = { path = "../../applications/hyperlane-warp-route" }
 aleo-serialize = { path = "../../utils/aleo-serialize" }
 aleo-serialize-macro = { path = "../../utils/aleo-serialize-macro" }
-# parse-value-macros = { path = "./parse-value-macros" }
 thiserror.workspace = true
 serde.workspace = true
 serde_json.workspace = true
