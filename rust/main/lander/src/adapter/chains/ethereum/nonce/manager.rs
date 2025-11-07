@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use ethers::signers::Signer;
 use ethers_core::types::Address;
-use tracing::info;
+use tracing::{debug, info};
 
 use hyperlane_base::db::HyperlaneRocksDB;
 use hyperlane_base::settings::{ChainConf, SignerConf};
@@ -87,7 +87,7 @@ impl NonceManager {
             .await
             .map_err(|e| eyre::eyre!("Failed to validate assigned nonce: {}", e))?;
 
-        tracing::debug!(tx_uuid = tx.uuid.to_string(), ?nonce_action, "nonce action");
+        debug!(tx_uuid = tx.uuid.to_string(), ?nonce_action, "nonce action");
 
         match nonce_action {
             NonceAction::Assign { nonce } => Ok(nonce),

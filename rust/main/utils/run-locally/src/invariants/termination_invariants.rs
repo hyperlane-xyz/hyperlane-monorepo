@@ -362,6 +362,14 @@ pub fn lander_metrics_invariants_met(
     .iter()
     .sum::<u32>();
 
+    let mismatch_nonce_count = fetch_metric(
+        relayer_port,
+        "hyperlane_lander_mismatched_nonce",
+        filter_hashmap,
+    )?
+    .iter()
+    .sum::<u32>();
+
     // Checking that some transactions were finalized.
     // Since we have batching for Ethereum with Lander, we cannot predict the exact number of
     // finalized transactions.
@@ -429,6 +437,8 @@ pub fn lander_metrics_invariants_met(
         );
         return Ok(false);
     }
+
+    assert_eq!(mismatch_nonce_count, 0);
 
     Ok(true)
 }
