@@ -52,7 +52,7 @@ Then run `foundryup` to install `forge`, `cast`, `anvil` and `chisel`.
 foundryup
 ```
 
-Check out the [Foundry Book](https://book.getfoundry.sh/getting-started/installation) for more information.
+Check out the [Foundry Book](https://getfoundry.sh/getting-started/installation) for more information.
 
 #### Node
 
