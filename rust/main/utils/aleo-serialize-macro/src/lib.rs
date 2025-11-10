@@ -33,7 +33,7 @@ pub fn aleo_serialize(_attr: TokenStream, item: TokenStream) -> TokenStream {
         Data::Struct(s) => s,
         _ => {
             return TokenStream::from(quote! {
-                compile_error!("parse_value attribute can only be applied to a struct");
+                compile_error!("aleo-serialize attribute can only be applied to a struct");
             });
         }
     };
@@ -42,7 +42,7 @@ pub fn aleo_serialize(_attr: TokenStream, item: TokenStream) -> TokenStream {
         Fields::Named(f) => &f.named,
         Fields::Unnamed(_) | Fields::Unit => {
             return TokenStream::from(quote! {
-                compile_error!("parse_value requires a struct with named fields");
+                compile_error!("aleo-serialize requires a struct with named fields");
             });
         }
     };
