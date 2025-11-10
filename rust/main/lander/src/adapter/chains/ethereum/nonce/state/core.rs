@@ -13,7 +13,7 @@ pub(crate) struct NonceManagerState {
     pub(super) nonce_db: Arc<dyn NonceDb>,
     pub(super) tx_db: Arc<dyn TransactionDb>,
     pub(super) address: Address,
-    pub metrics: EthereumAdapterMetrics,
+    pub(super) metrics: EthereumAdapterMetrics,
 }
 
 impl NonceManagerState {
