@@ -484,21 +484,24 @@ async fn determine_operation_disposition(
 
 /// Determines the disposition of an operation based on its payload submission status.
 /// Returns Confirm if the payload has been submitted and is not dropped, Prepare otherwise.
+/// If payload status cannot be determined, operation will be prepared.
 async fn operation_disposition_by_payload_status(
     entrypoint: Arc<dyn Entrypoint + Send + Sync>,
     db: Arc<dyn HyperlaneDb>,
     op: &QueueOperation,
 ) -> OperationDisposition {
+    use OperationDisposition::{Confirm, Prepare};
+
     let id = op.id();
 
     let payload_uuids = match db.retrieve_payload_uuids_by_message_id(&id) {
         Ok(uuids) => uuids,
-        Err(_) => return OperationDisposition::Prepare,
+        Err(_) => return Prepare,
     };
 
     let payload_uuids = match payload_uuids {
-        None => return OperationDisposition::Prepare,
-        Some(uuids) if uuids.is_empty() => return OperationDisposition::Prepare,
+        None => return Prepare,
+        Some(uuids) if uuids.is_empty() => return Prepare,
         Some(uuids) => uuids,
     };
 
@@ -507,12 +510,10 @@ async fn operation_disposition_by_payload_status(
     let status = entrypoint.payload_status(payload_uuid).await;
 
     match status {
-        Ok(PayloadStatus::Dropped(_)) => OperationDisposition::Prepare,
-        Ok(PayloadStatus::InTransaction(TransactionStatus::Dropped(_))) => {
-            OperationDisposition::Prepare
-        }
-        Ok(_) => OperationDisposition::Confirm,
-        Err(_) => OperationDisposition::Prepare,
+        Ok(PayloadStatus::Dropped(_)) => Prepare,
+        Ok(PayloadStatus::InTransaction(TransactionStatus::Dropped(_))) => Prepare,
+        Ok(_) => Confirm,
+        Err(_) => Prepare,
     }
 }
 
