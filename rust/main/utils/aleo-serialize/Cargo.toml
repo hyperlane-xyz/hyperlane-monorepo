@@ -8,5 +8,5 @@ publish.workspace = true
 version.workspace = true
 
 [dependencies]
-snarkvm = { workspace = true }
+snarkvm.workspace = true
 anyhow.workspace = true

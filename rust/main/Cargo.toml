@@ -215,7 +215,8 @@ snarkvm = { version = "4.3.0", features = [
 ] }
 snarkvm-algorithms = { version = "4.3.0" }
 snarkvm-console-account = { version = "4.3.0" }
-
+aleo-std = { version = "1.0.3" }
+aleo-std-storage = { version = "1.0.3" }
 
 [profile.release.package.access-control]
 overflow-checks = true

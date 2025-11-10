@@ -35,8 +35,8 @@ snarkvm = { workspace = true, features = [
 ] }
 snarkvm-algorithms.workspace = true
 snarkvm-console-account.workspace = true
-aleo-std = { version = "1.0.3" }
-aleo-std-storage = { version = "1.0.3" }
+aleo-std.workspace = true
+aleo-std-storage.workspace = true
 reqwest = { workspace = true, features = ["json", "blocking"] }
 anyhow.workspace = true
 futures.workspace = true

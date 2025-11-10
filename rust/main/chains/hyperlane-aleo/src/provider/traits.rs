@@ -1,9 +1,3 @@
-mod aleo;
-mod base;
-
-pub use aleo::*;
-pub use base::*;
-
 use std::ops::Deref;
 
 use aleo_serialize::AleoSerialize;

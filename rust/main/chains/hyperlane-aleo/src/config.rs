@@ -1,7 +1,7 @@
 use snarkvm_console_account::Itertools;
 use url::Url;
 
-/// Cosmos connection configuration
+/// Aleo connection configuration
 #[derive(Debug, Clone)]
 pub struct ConnectionConf {
     /// Aleo RPC
