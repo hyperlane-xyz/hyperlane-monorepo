@@ -391,90 +391,67 @@ export const ezEthSafes: Record<(typeof ezEthChainsToDeploy)[number], string> =
     plasma: '0x76Cd13F5Bfb73f501795988Ef5d017606Bb16DBd',
   };
 
-type UnsupportedOverride = { ism: string }; // currently unsupported in the Checker, but used as a lookup
-type ChainOwnerOverrides = ChainMap<
-  Partial<{ proxyAdmin: string } & UnsupportedOverride>
->;
+type ChainOwnerOverrides = ChainMap<Partial<{ proxyAdmin: string }>>;
 export const ezEthChainOwnerOverrides: ChainOwnerOverrides = {
   arbitrum: {
     proxyAdmin: ezEthSafes.arbitrum,
-    ism: ezEthOwners.arbitrum,
   },
   optimism: {
     proxyAdmin: ezEthSafes.optimism,
-    ism: ezEthOwners.optimism,
   },
   base: {
     proxyAdmin: ezEthSafes.base,
-    ism: ezEthOwners.base,
   },
   blast: {
     proxyAdmin: ezEthSafes.blast,
-    ism: ezEthOwners.blast,
   },
   bsc: {
     proxyAdmin: ezEthSafes.bsc,
-    ism: ezEthOwners.bsc,
   },
   mode: {
     proxyAdmin: ezEthSafes.mode,
-    ism: ezEthOwners.mode,
   },
   fraxtal: {
     proxyAdmin: ezEthSafes.fraxtal,
-    ism: ezEthOwners.fraxtal,
   },
   linea: {
     proxyAdmin: ezEthSafes.linea,
-    ism: ezEthOwners.linea,
   },
   ethereum: {
     proxyAdmin: ezEthSafes.ethereum,
-    ism: ezEthOwners.ethereum,
   },
   zircuit: {
     proxyAdmin: ezEthSafes.zircuit,
-    ism: ezEthOwners.zircuit,
   },
   sei: {
     proxyAdmin: ezEthSafes.sei,
-    ism: ezEthOwners.sei,
   },
   taiko: {
     proxyAdmin: ezEthSafes.taiko,
-    ism: ezEthOwners.taiko,
   },
   swell: {
     proxyAdmin: ezEthSafes.swell,
-    ism: ezEthOwners.swell,
   },
   unichain: {
     proxyAdmin: ezEthSafes.unichain,
-    ism: ezEthOwners.unichain,
   },
   berachain: {
     proxyAdmin: ezEthSafes.berachain,
-    ism: ezEthOwners.berachain,
   },
   worldchain: {
     proxyAdmin: ezEthSafes.worldchain,
-    ism: ezEthOwners.worldchain,
   },
   plasma: {
     proxyAdmin: ezEthSafes.plasma,
-    ism: ezEthOwners.plasma,
   },
   ink: {
     proxyAdmin: ezEthOwners.ink,
-    ism: ezEthOwners.ink,
   },
   monad: {
     proxyAdmin: ezEthOwners.monad,
-    ism: ezEthOwners.monad,
   },
   xlayer: {
     proxyAdmin: ezEthOwners.xlayer,
-    ism: ezEthOwners.xlayer,
   },
 };
 
@@ -577,7 +554,7 @@ export function getRenzoWarpConfigGenerator(params: {
                 modules: [
                   {
                     type: IsmType.ROUTING,
-                    owner: chainOwnerOverrides?.[chain].ism ?? safes[chain],
+                    owner: safes[chain],
                     domains: buildAggregationIsmConfigs(
                       chain,
                       chainsToDeploy,
@@ -587,7 +564,7 @@ export function getRenzoWarpConfigGenerator(params: {
                   {
                     type: IsmType.FALLBACK_ROUTING,
                     domains: {},
-                    owner: chainOwnerOverrides?.[chain].ism ?? safes[chain],
+                    owner: safes[chain],
                   },
                 ],
               },
