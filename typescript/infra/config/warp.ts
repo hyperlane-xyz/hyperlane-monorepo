@@ -54,6 +54,7 @@ import { getEclipseEthereumWBTCWarpConfig } from './environments/mainnet3/warp/c
 import { getEclipseStrideTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseStrideSTTIAWarpConfig.js';
 import { getEclipseStrideStTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseStrideTIAWarpConfig.js';
 import { getEclipseUSDCSTAGEWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseUSDCSTAGEWarpConfig.js';
+import { getEclipseUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseUSDCWarpConfig.js';
 import { getElectroneumUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getElectroneumUSDCWarpConfig.js';
 import { getEthereumFormFORMWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumFormFORMWarpConfig.js';
 import { getEthereumInevmUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumInevmUSDCWarpConfig.js';
@@ -138,6 +139,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.BerachainEthereumSwellUnichainZircuitPZETHSTAGE]:
     getRenzoPZETHStagingWarpConfig,
   [WarpRouteIds.MantapacificNeutronTIA]: getMantapacificNeutronTiaWarpConfig,
+  [WarpRouteIds.EclipseUSDC]: getEclipseUSDCWarpConfig,
   [WarpRouteIds.EclipseUSDCSTAGE]: getEclipseUSDCSTAGEWarpConfig,
   [WarpRouteIds.EclipseEthereumSolanaUSDT]:
     getEclipseEthereumSolanaUSDTWarpConfig,
