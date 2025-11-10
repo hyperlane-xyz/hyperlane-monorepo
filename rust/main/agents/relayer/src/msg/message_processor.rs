@@ -478,29 +478,27 @@ async fn determine_operation_disposition(
         return OperationDisposition::Manual;
     }
 
-    // Check if operation has already been submitted
-    if has_operation_been_submitted(entrypoint, db, op).await {
-        OperationDisposition::Confirm
-    } else {
-        OperationDisposition::Prepare
-    }
+    // Determine disposition based on payload status
+    operation_disposition_by_payload_status(entrypoint, db, op).await
 }
 
-async fn has_operation_been_submitted(
+/// Determines the disposition of an operation based on its payload submission status.
+/// Returns Confirm if the payload has been submitted and is not dropped, Prepare otherwise.
+async fn operation_disposition_by_payload_status(
     entrypoint: Arc<dyn Entrypoint + Send + Sync>,
     db: Arc<dyn HyperlaneDb>,
     op: &QueueOperation,
-) -> bool {
+) -> OperationDisposition {
     let id = op.id();
 
     let payload_uuids = match db.retrieve_payload_uuids_by_message_id(&id) {
         Ok(uuids) => uuids,
-        Err(_) => return false,
+        Err(_) => return OperationDisposition::Prepare,
     };
 
     let payload_uuids = match payload_uuids {
-        None => return false,
-        Some(uuids) if uuids.is_empty() => return false,
+        None => return OperationDisposition::Prepare,
+        Some(uuids) if uuids.is_empty() => return OperationDisposition::Prepare,
         Some(uuids) => uuids,
     };
 
@@ -509,10 +507,12 @@ async fn has_operation_been_submitted(
     let status = entrypoint.payload_status(payload_uuid).await;
 
     match status {
-        Ok(PayloadStatus::Dropped(_)) => false,
-        Ok(PayloadStatus::InTransaction(TransactionStatus::Dropped(_))) => false,
-        Ok(_) => true,
-        Err(_) => false,
+        Ok(PayloadStatus::Dropped(_)) => OperationDisposition::Prepare,
+        Ok(PayloadStatus::InTransaction(TransactionStatus::Dropped(_))) => {
+            OperationDisposition::Prepare
+        }
+        Ok(_) => OperationDisposition::Confirm,
+        Err(_) => OperationDisposition::Prepare,
     }
 }
 
