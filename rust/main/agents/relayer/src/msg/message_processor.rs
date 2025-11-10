@@ -399,7 +399,7 @@ async fn prepare_lander_task(
             continue;
         };
 
-        let batch_to_process = confirm_already_submitted_operations(
+        let batch_to_process = filter_operations_for_preparation(
             entrypoint.clone() as Arc<dyn Entrypoint + Send + Sync>,
             &confirm_queue,
             db.clone(),
@@ -429,10 +429,14 @@ enum OperationDisposition {
     Confirm,
 }
 
-/// This function checks the status of the payloads associated with the operations in the batch.
-/// If the payload is not dropped, the operation is pushed to the confirmation queue.
-/// If the payload is dropped, does not exist or there is issue in retrieving payload or its status, the operation will go through prepare logic.
-async fn confirm_already_submitted_operations(
+/// Filters operations from a batch to determine which should proceed to preparation.
+///
+/// Operations already submitted (and not dropped) are pushed to the confirmation queue.
+/// Operations that need preparation are returned for further processing.
+///
+/// # Returns
+/// A vector of operations that should proceed to the preparation phase.
+async fn filter_operations_for_preparation(
     entrypoint: Arc<dyn Entrypoint + Send + Sync>,
     confirm_queue: &OpQueue,
     db: Arc<dyn HyperlaneDb>,
