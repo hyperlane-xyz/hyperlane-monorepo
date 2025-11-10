@@ -22,10 +22,10 @@ pub fn encode_module_address(module: &str, suffix: &str, address: H256) -> Chain
     // Take only the last 30 bytes as required for Radix component addresses
     let bytes = slice[32 - NodeId::LENGTH..].to_vec();
 
-    let hrp = format!("{}_{}", module, suffix);
-    let hrp = Hrp::parse(&hrp).map_err(|e| HyperlaneRadixError::Bech32Error(format!("{}", e)))?;
+    let hrp = format!("{module}_{suffix}");
+    let hrp = Hrp::parse(&hrp).map_err(|e| HyperlaneRadixError::Bech32Error(format!("{e}")))?;
     let encoded = bech32::encode::<Bech32m>(hrp, &bytes)
-        .map_err(|e| HyperlaneRadixError::Bech32Error(format!("{}", e)))?;
+        .map_err(|e| HyperlaneRadixError::Bech32Error(format!("{e}")))?;
     Ok(encoded)
 }
 
@@ -35,9 +35,9 @@ pub fn encode_tx(network: &NetworkDefinition, address: H256) -> ChainResult<Stri
     let slice: &[u8; 32] = address.as_fixed_bytes();
 
     let hrp = format!("txid_{}", network.hrp_suffix);
-    let hrp = Hrp::parse(&hrp).map_err(|e| HyperlaneRadixError::Bech32Error(format!("{}", e)))?;
+    let hrp = Hrp::parse(&hrp).map_err(|e| HyperlaneRadixError::Bech32Error(format!("{e}")))?;
     let encoded = bech32::encode::<Bech32m>(hrp, slice)
-        .map_err(|e| HyperlaneRadixError::Bech32Error(format!("{}", e)))?;
+        .map_err(|e| HyperlaneRadixError::Bech32Error(format!("{e}")))?;
     Ok(encoded)
 }
 

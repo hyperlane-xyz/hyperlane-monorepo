@@ -1,5 +1,66 @@
 # @hyperlane-xyz/core
 
+## 10.0.1
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@19.7.0
+
+## 10.0.0
+
+### Major Changes
+
+- 18c32ed2b: Refactor warp route contracts for shallower inheritance tree and smaller bytecode size.
+
+  Deprecated `Router` and `GasRouter` internal functions have been removed.
+
+  `FungibleTokenRouter` has been removed and functionality lifted into `TokenRouter`.
+
+  `quoteTransferRemote` and `transferRemote` can no longer be overridden with optional `hook` and `hookMetadata` for simplicity.
+
+  `quoteTransferRemote` returns a consistent shape of `[nativeMailboxDispatchFee, internalTokenFee, externalTokenFee]`.
+
+  `HypNative` and `HypERC20Collateral` inherit from `MovableCollateral` and `LpCollateral` but other extensions (eg `HypXERC20`) do not. Storage layouts have been preserved to ensure upgrade compatibility.
+
+- dd16e3df4: Add LP interface to collateral routers
+
+  The `balanceOf` function has been removed from `TokenRouter` to remove ambiguity between `LpCollateralRouter.balanceOf`.
+
+  To migrate, use the new `TokenRouter.token()` to get an `IERC20` or `IERC721` compliant address that you can call `balanceOf` on.
+
+### Minor Changes
+
+- 5b17b0f37: Add Everclear bridges for ETH and ERC20 tokens.
+- 2c6506735: Implement support for CCTP v2 fast transfers
+- 799751606: Extend CCTP TokenBridge with GMP support via hook
+- e0c69e255: Implement token fees on FungibleTokenRouter
+
+  Removes `metadata` from return type of internal `TokenRouter._transferFromSender` hook
+
+  To append `metadata` to `TokenMessage`, override the `TokenRouter._beforeDispatch` hook
+
+- 737ea2b35: feat: emit event on protocol fee payment
+- e0c69e255: Adds fees to FungibleTokenRouter
+
+### Patch Changes
+
+- 7a41068f7: Fix CCTP v2 transferRemote amount
+- 205bcae75: Rebalancer covers all fees associated with rebalancing
+- f8da8cd40: Remove ValueTransferBridge and use ITokenBridge. ValueTransferBridge is a deprecated name for the interface.
+- 1d46a826d: Remove majority of virtual override functions
+- 826e83741: Fix TokenBridgeCCTP.verify burn message sender enforcement
+- f930794d7: Update Yield Routes (HypERC4626OwnerCollateral and HypERC4626Collateral) to use safeApprove
+- 9a43cdca9: Remove absolute imports. Fixes compilation for users who import from files under `solidity/contracts`.
+- Updated dependencies [419e16910]
+  - @hyperlane-xyz/utils@19.6.0
+
+## 9.0.17
+
+### Patch Changes
+
+- Updated dependencies [312826d10]
+  - @hyperlane-xyz/utils@19.5.0
+
 ## 9.0.16
 
 ### Patch Changes

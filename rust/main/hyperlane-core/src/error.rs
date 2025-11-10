@@ -72,6 +72,9 @@ pub enum ChainCommunicationError {
     /// An error with a contract call
     #[error(transparent)]
     ContractError(HyperlaneCustomErrorWrapper),
+    /// When a transaction is not found
+    #[error("Address is not a contract {0}")]
+    ContractNotFound(String),
     /// A transaction was dropped from the mempool
     #[error("Transaction dropped from mempool {0:?}")]
     TransactionDropped(H256),

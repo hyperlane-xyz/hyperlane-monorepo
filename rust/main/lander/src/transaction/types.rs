@@ -49,7 +49,9 @@ pub enum TransactionStatus {
     Mempool,
     /// in an unfinalized block
     Included,
-    /// in a block older than the configured `reorgPeriod`
+    /// in a block older than the configured `reorgPeriod`.
+    /// If a transaction fails on-chain, it is still considered finalized because it
+    /// consumed a nonce on EVM.
     Finalized,
     /// the tx was drop either by the submitter or by the chain
     Dropped(DropReason),
@@ -102,15 +104,13 @@ pub enum DropReason {
     DroppedByChain,
     /// dropped by the submitter
     FailedSimulation,
-    /// tx reverted
-    RevertedByChain,
 }
 
 // add nested enum entries as we add VMs
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub enum VmSpecificTxData {
     CosmWasm,
-    Evm(EthereumTxPrecursor),
+    Evm(Box<EthereumTxPrecursor>),
     Radix(Box<RadixTxPrecursor>),
     Svm(SealevelTxPrecursor),
 }
