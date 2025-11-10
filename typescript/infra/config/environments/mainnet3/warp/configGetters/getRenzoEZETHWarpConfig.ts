@@ -345,6 +345,7 @@ export const ezEthValidators: ChainMap<MultisigConfig> = {
   },
 };
 
+// Renzo's custom ICA-like owners
 export const ezEthOwners: Record<(typeof ezEthChainsToDeploy)[number], string> =
   {
     arbitrum: '0xE5219Cf568D366ae4b96Efb04d826E6f2e72DaA0',
@@ -390,86 +391,110 @@ export const ezEthSafes: Record<(typeof ezEthChainsToDeploy)[number], string> =
     plasma: '0x76Cd13F5Bfb73f501795988Ef5d017606Bb16DBd',
   };
 
-const existingProxyAdmins: ChainMap<{ address: string; owner: string }> = {
+type UnsupportedOverride = { ism: string }; // currently unsupported as part of ownerOverrides, but used as a lookup
+type ChainOwnerOverrides = ChainMap<
+  Partial<{ proxyAdmin: string; collateral: string } & UnsupportedOverride>
+>;
+export const ezEthChainOwnerOverrides: ChainOwnerOverrides = {
   arbitrum: {
-    address: '0xdcB558d5C0F9A35C53Fa343c77eD0d346576e2Cf',
-    owner: ezEthSafes.arbitrum,
+    proxyAdmin: ezEthSafes.arbitrum,
+    collateral: ezEthSafes.arbitrum,
+    ism: ezEthOwners.arbitrum,
   },
   optimism: {
-    address: '0xa50910ae66Df6A5F8e85dac032FD45BC2b7be6fF',
-    owner: ezEthSafes.optimism,
+    proxyAdmin: ezEthSafes.optimism,
+    collateral: ezEthSafes.optimism,
+    ism: ezEthOwners.optimism,
   },
   base: {
-    address: '0xec1DdF05ff85D2B22B7d27E5b5E0B82961B7D889',
-    owner: ezEthSafes.base,
+    proxyAdmin: ezEthSafes.base,
+    collateral: ezEthSafes.base,
+    ism: ezEthOwners.base,
   },
   blast: {
-    address: '0xA26F8cE2E21A503bf9e18c213965d7BC14997F48',
-    owner: ezEthSafes.blast,
+    proxyAdmin: ezEthSafes.blast,
+    collateral: ezEthSafes.blast,
+    ism: ezEthOwners.blast,
   },
   bsc: {
-    address: '0x486b39378f99f073A3043C6Aabe8666876A8F3C5',
-    owner: ezEthSafes.bsc,
+    proxyAdmin: ezEthSafes.bsc,
+    collateral: ezEthSafes.bsc,
+    ism: ezEthOwners.bsc,
   },
   mode: {
-    address: '0x2F78F22a1D7491500C9ED9352b8239fbAbcDd84E',
-    owner: ezEthSafes.mode,
+    proxyAdmin: ezEthSafes.mode,
+    collateral: ezEthSafes.mode,
+    ism: ezEthOwners.mode,
   },
   fraxtal: {
-    address: '0x8bB69721B4E9b9df08bEdaeaA193008C7317Db59',
-    owner: ezEthSafes.fraxtal,
+    proxyAdmin: ezEthSafes.fraxtal,
+    collateral: ezEthSafes.fraxtal,
+    ism: ezEthOwners.fraxtal,
   },
   linea: {
-    address: '0x2F78F22a1D7491500C9ED9352b8239fbAbcDd84E',
-    owner: ezEthSafes.linea,
+    proxyAdmin: ezEthSafes.linea,
+    collateral: ezEthSafes.linea,
+    ism: ezEthOwners.linea,
   },
   ethereum: {
-    address: '0x2F78F22a1D7491500C9ED9352b8239fbAbcDd84E',
-    owner: ezEthSafes.ethereum,
+    proxyAdmin: ezEthSafes.ethereum,
+    collateral: ezEthSafes.ethereum,
+    ism: ezEthOwners.ethereum,
   },
   zircuit: {
-    address: '0xec1DdF05ff85D2B22B7d27E5b5E0B82961B7D889',
-    owner: ezEthSafes.zircuit,
+    proxyAdmin: ezEthSafes.zircuit,
+    collateral: ezEthSafes.zircuit,
+    ism: ezEthOwners.zircuit,
   },
   sei: {
-    address: '0x33219fEF24C198d979F05d692a17507E41a0A73e',
-    owner: ezEthSafes.sei,
+    proxyAdmin: ezEthSafes.sei,
+    collateral: ezEthSafes.sei,
+    ism: ezEthOwners.sei,
   },
   taiko: {
-    address: '0xA3666f8a327AADB666F1906A38B17937e5F11f92',
-    owner: ezEthSafes.taiko,
+    proxyAdmin: ezEthSafes.taiko,
+    collateral: ezEthSafes.taiko,
+    ism: ezEthOwners.taiko,
   },
   swell: {
-    address: '0xc4D0b4ef01eD7091792fe3D4c039457719e2DC68',
-    owner: ezEthSafes.swell,
+    proxyAdmin: ezEthSafes.swell,
+    collateral: ezEthSafes.swell,
+    ism: ezEthOwners.swell,
   },
   unichain: {
-    address: '0xa92a7036fd5b2a8C2A6BB24bE2d9Cf66a1a0849F',
-    owner: ezEthSafes.unichain,
+    proxyAdmin: ezEthSafes.unichain,
+    collateral: ezEthSafes.unichain,
+    ism: ezEthOwners.unichain,
   },
   berachain: {
-    address: '0xfc5c1d5Ac3655668F2545668938a52D7810DB86d',
-    owner: ezEthSafes.berachain,
+    proxyAdmin: ezEthSafes.berachain,
+    collateral: ezEthSafes.berachain,
+    ism: ezEthOwners.berachain,
   },
   worldchain: {
-    address: '0xA4b2951bCd4B0ec43f2B4Deecd639551dC165E23',
-    owner: ezEthSafes.worldchain,
+    proxyAdmin: ezEthSafes.worldchain,
+    collateral: ezEthSafes.worldchain,
+    ism: ezEthOwners.worldchain,
   },
   plasma: {
-    address: '0xf6fB78dc009C1A4286c0E7d90C10c9E8906a62Ea',
-    owner: ezEthSafes.plasma,
+    proxyAdmin: ezEthSafes.plasma,
+    collateral: ezEthSafes.plasma,
+    ism: ezEthOwners.plasma,
   },
   ink: {
-    address: '0xF2Dd52FBCEf6A763C63B29091B7a327d6a698ca8',
-    owner: ezEthOwners.ink,
+    proxyAdmin: ezEthOwners.ink,
+    collateral: ezEthSafes.ink,
+    ism: ezEthOwners.ink,
   },
   monad: {
-    address: '0x01e6b0f2937DC6Df7452dd689dC2AC7ABBc00107',
-    owner: ezEthOwners.monad,
+    proxyAdmin: ezEthOwners.monad,
+    collateral: ezEthSafes.monad,
+    ism: ezEthOwners.monad,
   },
   xlayer: {
-    address: '0xf8867113af2676B5d157E2C10C2924fB40f14cfd',
-    owner: ezEthOwners.xlayer,
+    proxyAdmin: ezEthOwners.xlayer,
+    collateral: ezEthSafes.xlayer,
+    ism: ezEthOwners.xlayer,
   },
 };
 
@@ -480,7 +505,7 @@ export function getRenzoWarpConfigGenerator(params: {
   xERC20Addresses: Record<string, string>;
   xERC20Lockbox: string;
   tokenPrices: ChainMap<string>;
-  existingProxyAdmins?: ChainMap<{ address: string; owner: string }>;
+  chainOwnerOverrides?: ChainOwnerOverrides;
 }) {
   const {
     chainsToDeploy,
@@ -489,7 +514,7 @@ export function getRenzoWarpConfigGenerator(params: {
     xERC20Addresses,
     xERC20Lockbox,
     tokenPrices,
-    existingProxyAdmins,
+    chainOwnerOverrides,
   } = params;
   return async (): Promise<ChainMap<HypTokenRouterConfig>> => {
     const config = getEnvironmentConfig('mainnet3');
@@ -555,49 +580,47 @@ export function getRenzoWarpConfigGenerator(params: {
               multiProvider.getProvider(chain),
             );
             const defaultHook = await mailboxContract.defaultHook();
-            const ret: [string, HypTokenRouterConfig] = [
-              chain,
-              {
-                isNft: false,
-                type:
-                  chain === lockboxChain
-                    ? TokenType.XERC20Lockbox
-                    : TokenType.XERC20,
-                token:
-                  chain === lockboxChain
-                    ? xERC20Lockbox
-                    : xERC20Addresses[chain],
-                owner: safes[chain],
-                gas: warpRouteOverheadGas,
-                mailbox,
-                interchainSecurityModule: {
-                  type: IsmType.AGGREGATION,
-                  threshold: 2,
-                  modules: [
-                    {
-                      type: IsmType.ROUTING,
-                      owner: safes[chain],
-                      domains: buildAggregationIsmConfigs(
-                        chain,
-                        chainsToDeploy,
-                        validators,
-                      ),
-                    },
-                    {
-                      type: IsmType.FALLBACK_ROUTING,
-                      domains: {},
-                      owner: safes[chain],
-                    },
-                  ],
-                },
-                hook: getRenzoHook(defaultHook, chain, safes[chain]),
-                ...(existingProxyAdmins?.[chain]
-                  ? { proxyAdmin: existingProxyAdmins?.[chain] }
-                  : {}),
+            const ret: HypTokenRouterConfig = {
+              isNft: false,
+              type:
+                chain === lockboxChain
+                  ? TokenType.XERC20Lockbox
+                  : TokenType.XERC20,
+              token:
+                chain === lockboxChain ? xERC20Lockbox : xERC20Addresses[chain],
+              owner: safes[chain],
+              gas: warpRouteOverheadGas,
+              mailbox,
+              interchainSecurityModule: {
+                type: IsmType.AGGREGATION,
+                threshold: 2,
+                modules: [
+                  {
+                    type: IsmType.ROUTING,
+                    owner: chainOwnerOverrides?.[chain].ism ?? safes[chain],
+                    domains: buildAggregationIsmConfigs(
+                      chain,
+                      chainsToDeploy,
+                      validators,
+                    ),
+                  },
+                  {
+                    type: IsmType.FALLBACK_ROUTING,
+                    domains: {},
+                    owner: chainOwnerOverrides?.[chain].ism ?? safes[chain],
+                  },
+                ],
               },
-            ];
+              hook: getRenzoHook(defaultHook, chain, safes[chain]),
+            };
 
-            return ret;
+            if (chainOwnerOverrides?.[chain]) {
+              // ism override is not supported right now
+              const { ism, ...ownerOverrides } = chainOwnerOverrides[chain];
+              ret.ownerOverrides = ownerOverrides;
+            }
+
+            return [chain, ret];
           },
         ),
       ),
@@ -614,7 +637,7 @@ export const getRenzoEZETHWarpConfig = getRenzoWarpConfigGenerator({
   xERC20Addresses: ezEthAddresses,
   xERC20Lockbox: ezEthProductionLockbox,
   tokenPrices: renzoTokenPrices,
-  existingProxyAdmins: existingProxyAdmins,
+  chainOwnerOverrides: ezEthChainOwnerOverrides,
 });
 
 export const getEZETHGnosisSafeBuilderStrategyConfig =
