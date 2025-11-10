@@ -99,13 +99,13 @@ class CCTPAttestationService {
           ...context,
           version,
           messageId,
+          error_reason: UnhandledErrorReason.CCTP_UNSUPPORTED_VERSION,
         },
         'Unsupported CCTP version',
       );
       PrometheusMetrics.logUnhandledError(
         this.serviceName,
         UnhandledErrorReason.CCTP_UNSUPPORTED_VERSION,
-        messageId,
       );
       throw new Error(`Unsupported CCTP version: ${version}`);
     }
@@ -126,13 +126,13 @@ class CCTPAttestationService {
             statusText: resp.statusText,
             url,
             messageId,
+            error_reason: UnhandledErrorReason.CCTP_ATTESTATION_SERVICE_500,
           },
           'CCTP attestation request failed',
         );
         PrometheusMetrics.logUnhandledError(
           this.serviceName,
           UnhandledErrorReason.CCTP_ATTESTATION_SERVICE_500,
-          messageId,
         );
         throw new Error(`CCTP attestation request failed: ${resp.statusText}`);
       }
@@ -158,13 +158,14 @@ class CCTPAttestationService {
           statusText: resp.statusText,
           url,
           messageId,
+          error_reason:
+            UnhandledErrorReason.CCTP_ATTESTATION_SERVICE_UNKNOWN_ERROR,
         },
         'CCTP attestation request failed: unknown error',
       );
       PrometheusMetrics.logUnhandledError(
         this.serviceName,
         UnhandledErrorReason.CCTP_ATTESTATION_SERVICE_UNKNOWN_ERROR,
-        messageId,
       );
       throw new Error(`CCTP attestation request failed: ${resp.statusText}`);
     }

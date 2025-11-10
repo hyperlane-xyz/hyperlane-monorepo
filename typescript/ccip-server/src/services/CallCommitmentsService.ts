@@ -132,16 +132,16 @@ export class CallCommitmentsService extends BaseService {
         {
           commitmentDispatchTx: data.commitmentDispatchTx,
           originDomain: data.originDomain,
-          revealMessageId,
+          messageId: revealMessageId,
           error: error.message,
           stack: error.stack,
+          error_reason: UnhandledErrorReason.CALL_COMMITMENTS_DATABASE_ERROR,
         },
         'Database error during commitment processing',
       );
       PrometheusMetrics.logUnhandledError(
         this.config.serviceName,
         UnhandledErrorReason.CALL_COMMITMENTS_DATABASE_ERROR,
-        revealMessageId,
       );
       return res.status(500).json({ error: 'Internal server error' });
     }

@@ -77,6 +77,7 @@ async function startServer() {
         {
           moduleName: name,
           error,
+          error_reason: UnhandledErrorReason.MODULE_INITIALIZATION_FAILED,
         },
         'Error initializing module',
       );

@@ -116,13 +116,16 @@ class CCTPService extends BaseService {
     }
 
     logger.error(
-      { transactionHash: receipt.transactionHash, messageId },
+      {
+        transactionHash: receipt.transactionHash,
+        messageId,
+        error_reason: UnhandledErrorReason.CCTP_MESSAGE_SENT_NOT_FOUND,
+      },
       'Unable to find MessageSent event in logs',
     );
     PrometheusMetrics.logUnhandledError(
       this.config.serviceName,
       UnhandledErrorReason.CCTP_MESSAGE_SENT_NOT_FOUND,
-      messageId,
     );
     throw new Error('Unable to find MessageSent event in logs');
   }

@@ -38,7 +38,7 @@ export enum UnhandledErrorReason {
 const unhandledErrorCounter = new Counter({
   name: 'hyperlane_offchain_lookup_server_unhandled_errors',
   help: 'Total number of unhandled errors',
-  labelNames: ['service', 'error_reason', 'message_id'],
+  labelNames: ['service', 'error_reason'],
   registers: [register],
 });
 
@@ -46,15 +46,10 @@ export const PrometheusMetrics = {
   logLookupRequest(service: string, statusCode: number) {
     requestCounter.inc({ service, status_code: statusCode });
   },
-  logUnhandledError(
-    service: string,
-    errorReason: UnhandledErrorReason,
-    messageId?: string,
-  ) {
+  logUnhandledError(service: string, errorReason: UnhandledErrorReason) {
     unhandledErrorCounter.inc({
       service,
       error_reason: errorReason,
-      message_id: messageId || 'unknown',
     });
   },
 };
