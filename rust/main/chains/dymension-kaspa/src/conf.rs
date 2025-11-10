@@ -138,7 +138,11 @@ impl ConnectionConf {
                         kas_token_placeholder,
                         hub_mailbox_id,
                         kas_escrow_key_source,
-                        toggles: validation_conf,
+                        toggles: ValidationConf {
+                            deposit_enabled: true,
+                            withdrawal_enabled: true,
+                            withdrawal_confirmation_enabled: true,
+                        },
                     })
                 }
             }
