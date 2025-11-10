@@ -41,7 +41,7 @@ fn mock_provider() -> MockEvmProvider {
 }
 
 #[tokio::test]
-async fn test_assign_nonce_sets_nonce_when_none_present() {
+async fn test_calculate_next_nonce_sets_nonce_when_none_present() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
     let metrics = EthereumAdapterMetrics::dummy_instance();
@@ -67,7 +67,7 @@ async fn test_assign_nonce_sets_nonce_when_none_present() {
 }
 
 #[tokio::test]
-async fn test_assign_nonce_error_when_from_address_missing() {
+async fn test_calculate_next_nonce_error_when_from_address_missing() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
     let metrics = EthereumAdapterMetrics::dummy_instance();
@@ -93,7 +93,7 @@ async fn test_assign_nonce_error_when_from_address_missing() {
 }
 
 #[tokio::test]
-async fn test_assign_nonce_error_when_from_address_mismatch() {
+async fn test_calculate_next_nonce_error_when_from_address_mismatch() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
     let other_address = Address::random();
@@ -122,7 +122,7 @@ async fn test_assign_nonce_error_when_from_address_mismatch() {
 }
 
 #[tokio::test]
-async fn test_calculate_nonce_tx_and_db_equal() {
+async fn test_calculate_next_nonce_tx_and_db_equal() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let signer = Address::random();
 
@@ -184,7 +184,7 @@ async fn test_calculate_nonce_tx_and_db_equal() {
 }
 
 #[tokio::test]
-async fn test_calculate_nonce_tx_and_db_mismatch() {
+async fn test_calculate_next_nonce_tx_and_db_mismatch() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let signer = Address::random();
 
@@ -246,7 +246,7 @@ async fn test_calculate_nonce_tx_and_db_mismatch() {
 }
 
 #[tokio::test]
-async fn test_calculate_nonce_only_db_nonce() {
+async fn test_calculate_next_nonce_only_db_nonce() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let signer = Address::random();
 
@@ -306,7 +306,7 @@ async fn test_calculate_nonce_only_db_nonce() {
 }
 
 #[tokio::test]
-async fn test_calculate_nonce_only_tx_nonce() {
+async fn test_calculate_next_nonce_only_tx_nonce() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let signer = Address::random();
 
