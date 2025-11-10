@@ -1,4 +1,5 @@
 import Safe from '@safe-global/protocol-kit';
+import { ethers } from 'ethers';
 import yargs from 'yargs';
 
 import { ChainName } from '@hyperlane-xyz/sdk';
@@ -13,7 +14,11 @@ import { AnnotatedCallData } from '../../../src/govern/HyperlaneAppGovernor.js';
 import { SafeMultiSend } from '../../../src/govern/multisend.js';
 import { GovernanceType, withGovernanceType } from '../../../src/governance.js';
 import { Role } from '../../../src/roles.js';
-import { getSafeAndService, updateSafeOwner } from '../../../src/utils/safe.js';
+import {
+  getSafeAndService,
+  setSignerFromPrivateKey,
+  updateSafeOwner,
+} from '../../../src/utils/safe.js';
 import { withPropose } from '../../agent-utils.js';
 import { getEnvironmentConfig } from '../../core-utils.js';
 
@@ -28,9 +33,12 @@ async function main() {
   const multiProvider = await envConfig.getMultiProvider(
     Contexts.Hyperlane,
     Role.Deployer,
-    true,
+    false, // Dymension: changed to false
     Object.keys(safes),
   );
+
+  // DYMENSION: USE KEY IN ENV
+  setSignerFromPrivateKey(multiProvider, Object.keys(safes));
 
   for (const [chain, safeAddress] of Object.entries(safes)) {
     let safeSdk: Safe.default;

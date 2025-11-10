@@ -16,6 +16,11 @@ import { irregularSigners, irregularThreshold } from './signers/irregular.js';
 import { regularSigners, regularThreshold } from './signers/regular.js';
 import { awTimelocks } from './timelock/aw.js';
 import { regularTimelocks } from './timelock/regular.js';
+import { dymensionTimelocks } from './timelock/dymension.js';
+import { dymensionSafes } from './safe/dymension.js';
+import { dymensionIcas } from './ica/dymension.js';
+import { dymensionSigners, dymensionThreshold } from './signers/dymension.js';
+
 
 export function getGovernanceTimelocks(governanceType: GovernanceType) {
   switch (governanceType) {
@@ -27,6 +32,8 @@ export function getGovernanceTimelocks(governanceType: GovernanceType) {
       return {};
     case GovernanceType.OUSDT:
       return {};
+    case GovernanceType.Dymension:
+      return dymensionTimelocks;
     default:
       throw new Error(`Unsupported governance type: ${governanceType}`);
   }
@@ -42,6 +49,8 @@ export function getGovernanceSafes(governanceType: GovernanceType) {
       return irregularSafes;
     case GovernanceType.OUSDT:
       return ousdtSafes;
+    case GovernanceType.Dymension:
+      return dymensionSafes;
     default:
       throw new Error(`Unsupported governance type: ${governanceType}`);
   }
@@ -56,6 +65,8 @@ export function getLegacyGovernanceIcas(governanceType: GovernanceType) {
     case GovernanceType.Irregular:
       return {};
     case GovernanceType.OUSDT:
+      return {};
+    case GovernanceType.Dymension:
       return {};
     default:
       throw new Error(`Unsupported governance type: ${governanceType}`);
@@ -72,6 +83,8 @@ export function getGovernanceIcas(governanceType: GovernanceType) {
       return {};
     case GovernanceType.OUSDT:
       return {};
+    case GovernanceType.Dymension:
+      return dymensionIcas;
     default:
       throw new Error(`Unknown governance type: ${governanceType}`);
   }
@@ -97,6 +110,11 @@ export function getGovernanceSigners(governanceType: GovernanceType): {
         signers: irregularSigners,
         threshold: irregularThreshold,
       };
+    case GovernanceType.Dymension:
+      return {
+        signers: dymensionSigners,
+        threshold: dymensionThreshold,
+      };
     default:
       throw new Error(
         `Unsupported method for governance type: ${governanceType}`,
@@ -110,6 +128,7 @@ export function getSafeChains(): Set<ChainName> {
     ...Object.keys(getGovernanceSafes(GovernanceType.Regular)),
     ...Object.keys(getGovernanceSafes(GovernanceType.Irregular)),
     ...Object.keys(getGovernanceSafes(GovernanceType.OUSDT)),
+    ...Object.keys(getGovernanceSafes(GovernanceType.Dymension)),
   );
 }
 

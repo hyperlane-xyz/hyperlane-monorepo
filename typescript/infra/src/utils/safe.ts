@@ -32,6 +32,21 @@ import { AnnotatedCallData } from '../govern/HyperlaneAppGovernor.js';
 const TX_FETCH_RETRIES = 5;
 const TX_FETCH_RETRY_DELAY = 5000;
 
+// DYMENSION: Helper function to set signers from env var. (NOTE: signer is just to pay gas, it has nothing to do with the safe itself)
+export function setSignerFromPrivateKey(
+  multiProvider: MultiProvider,
+  chains: string[],
+): void {
+  if (process.env.DYM_GOV_GAS_KEY) {
+    for (const chain of chains) {
+      const provider = multiProvider.getProvider(chain);
+      const signer = new ethers.Wallet(process.env.DYM_GOV_GAS_KEY, provider);
+      multiProvider.setSigner(chain, signer);
+    }
+    rootLogger.info('Dymension: Using private key from DYM_GOV_GAS_KEY environment variable');
+  }
+}
+
 export async function getSafeAndService(
   chain: ChainNameOrId,
   multiProvider: MultiProvider,

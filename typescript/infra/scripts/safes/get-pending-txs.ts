@@ -1,5 +1,6 @@
 import { confirm } from '@inquirer/prompts';
 import chalk from 'chalk';
+import { ethers } from 'ethers';
 import yargs from 'yargs';
 
 import {
@@ -18,6 +19,7 @@ import {
   SafeTxStatus,
   executeTx,
   getPendingTxsForChains,
+  setSignerFromPrivateKey,
 } from '../../src/utils/safe.js';
 import { withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
@@ -48,9 +50,12 @@ async function main() {
   const multiProvider = await envConfig.getMultiProvider(
     Contexts.Hyperlane,
     Role.Deployer,
-    true,
+    false, // Dymension: changed to false
     chainsToCheck,
   );
+
+  // DYMENSION: USE KEY IN ENV
+  setSignerFromPrivateKey(multiProvider, chainsToCheck);
 
   const pendingTxs = await getPendingTxsForChains(
     chainsToCheck,

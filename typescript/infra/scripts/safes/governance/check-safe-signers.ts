@@ -1,4 +1,5 @@
 import Safe from '@safe-global/protocol-kit';
+import { ethers } from 'ethers';
 import yargs from 'yargs';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
@@ -10,7 +11,11 @@ import {
 } from '../../../config/environments/mainnet3/governance/utils.js';
 import { GovernanceType, withGovernanceType } from '../../../src/governance.js';
 import { Role } from '../../../src/roles.js';
-import { getOwnerChanges, getSafeAndService } from '../../../src/utils/safe.js';
+import {
+  getOwnerChanges,
+  getSafeAndService,
+  setSignerFromPrivateKey,
+} from '../../../src/utils/safe.js';
 import { getEnvironmentConfig } from '../../core-utils.js';
 
 enum SafeConfigViolationType {
@@ -41,9 +46,12 @@ async function main() {
   const multiProvider = await getEnvironmentConfig('mainnet3').getMultiProvider(
     Contexts.Hyperlane,
     Role.Deployer,
-    true,
+    false,  // Dymension: changed to false
     Object.keys(safes),
   );
+
+  // DYMENSION: USE KEY IN ENV
+  setSignerFromPrivateKey(multiProvider, Object.keys(safes));
 
   const chainViolations = await Promise.all(
     Object.entries(safes).map(async ([chain, safeAddress]) => {

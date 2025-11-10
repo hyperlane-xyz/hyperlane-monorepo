@@ -17,6 +17,7 @@ export enum GovernanceType {
   Regular = 'regular',
   Irregular = 'irregular',
   OUSDT = 'ousdt',
+  Dymension = 'dymension',
 }
 
 export enum Owner {

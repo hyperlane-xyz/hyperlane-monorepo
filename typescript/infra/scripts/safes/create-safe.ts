@@ -11,6 +11,7 @@ import { Contexts } from '../../config/contexts.js';
 import { getGovernanceSigners } from '../../config/environments/mainnet3/governance/utils.js';
 import { withGovernanceType } from '../../src/governance.js';
 import { Role } from '../../src/roles.js';
+import { setSignerFromPrivateKey } from '../../src/utils/safe.js';
 import {
   getArgs,
   withChainRequired,
@@ -29,9 +30,12 @@ async function main() {
   const multiProvider = await envConfig.getMultiProvider(
     Contexts.Hyperlane,
     Role.Deployer,
-    true,
+    false, // DYMENSION: changed to false to use public RPCs
     [chain],
   );
+
+  // DYMENSION: Use private key from env var if provided
+  setSignerFromPrivateKey(multiProvider, [chain]);
 
   const signer = multiProvider.getSigner(chain);
   const ethAdapter = new EthersAdapter({
