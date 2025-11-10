@@ -19,7 +19,6 @@ export const awIcas: ChainMap<Address> = {
   // Jul 2, 2025 - ICA 2.0 Migration
   // ----------------------------------------------------------
   ancient8: '0xE78B22275FfbF789aD5dAD25cC6d9C50c38286f7',
-  alephzeroevmmainnet: '0x7113dcf70eF420Ab74435A680E3ACCDb3dA4056d',
   apechain: '0x4745601a50CEE53b66221032318a2547D5741ae8',
   appchain: '0xA843bFe58EbffaDc274b6718b238d60141E1281b',
   arbitrumnova: '0x29eE2B1F2cA4C53DcbC237d81ea1e7d6a885FeDC',
@@ -37,7 +36,6 @@ export const awIcas: ChainMap<Address> = {
   boba: '0x1301a4D0E15ca5F595a0207aD7990B864E93469A',
   bsquared: '0x304B82cca054b240a3127b34Bd1dc91772Baa630',
   celo: '0x0691c077d180ca7615911b65DE4fA0B313d75aDd',
-  cheesechain: '0x570B22210aA421577B5b084874E5b8BAfE097315',
   chilizmainnet: '0x59E97fEb19c9E023c10489426a2a2B90BEcE8e40',
   coredao: '0x51f6780aA5fe3C5bfb64504d474884756382a32D',
   coti: '0xBC6Fae7e5e18624F5892399BA29705e039E4c9fD',
@@ -54,7 +52,6 @@ export const awIcas: ChainMap<Address> = {
   fraxtal: '0x1f8f770c963b17721C0cb084c18b3a3166a8d659',
   fusemainnet: '0x5aDD39216bABc8215974ed033a83868d00C71810',
   galactica: '0x085DC299cB1ceB3d4b584b320bb07C074F6A7c8a',
-  game7: '0xd4beC84030d88D0EbF72dCDae361B449a29C4c34',
   gnosis: '0x80224Ae676F55Be8dcaFA425aCEF89eAe8f73c22',
   gravity: '0x752A50183E24CCAdD6f84AC5BeFCf2eC0091FDd8',
   harmony: '0x27C61d7A6839C170a73ECfE06Aa7f5C728cfa16E',
@@ -63,7 +60,6 @@ export const awIcas: ChainMap<Address> = {
   hyperevm: '0x7934e65283455BF25e6E9a6E3C48350D66944812',
   immutablezkevmmainnet: '0xEC23b0e4fb816B921940c4F11f70de63D0FcCa49',
   inevm: '0x15dF0C4F54615e6053Bb2CC9B5f2a7231a50F7B1',
-  infinityvmmainnet: '0xd095B269A3Ea56FaB241f069e4B1cCE18B7011d1',
   ink: '0x92EdF061E46Dcf15941CA4D5F2d168f643079343',
   kaia: '0x890CF3fD86fb02bE2448433667d83D542Ec9fc9d',
   katana: '0x956993Aee1CFFA32942b5ddC6Db2E8620b85cfbC',
@@ -94,7 +90,6 @@ export const awIcas: ChainMap<Address> = {
   polygonzkevm: '0x00c9F4250836B58582e2B62aDA28AEbB2cF08D23',
   polynomialfi: '0x69D9a8412eB285d41b06763631fe7d734d3Fcec3',
   prom: '0x0A335686C1AdAD375feF9267dA235496E190991f',
-  proofofplay: '0x6729ffCD2DBFDf9C6495c2F8021A4216a8e1EE3F',
   rarichain: '0x1dB8093b1C0c79F6A85ecbd0423c6696df4C57EC',
   reactive: '0x9B56aBc4Fd0b01E143f5856607d261C5D871718F',
   redstone: '0x64A2F705Fe46d71120263C1c0d5A15fE35a198F4',
@@ -102,7 +97,6 @@ export const awIcas: ChainMap<Address> = {
   scroll: '0x4B0910867a52de380bc5f54481AF199B64bC46EF',
   sei: '0xd30AF4e3786995Aa89Ef58ec5f3280b73386a944',
   shibarium: '0x5aCE843FdFFDe09ff83a264e1a002A8981BbEa12',
-  snaxchain: '0x60021F107A32e7E747bDeca64e6FCC21DD45C4AC',
   soneium: '0x1472ab941e43D5D9Eadf33661D884F1A1ce0Ecb7',
   sonic: '0x888da4CDD0Af7c9BE436e31CE2Bb84b70447a22a',
   story: '0x25756750F44d433219e9F13373Cd26983130bf21',
@@ -128,4 +122,8 @@ export const awIcas: ChainMap<Address> = {
   // Aug 18, 2025 - Mitosis
   // ----------------------------------------------------------
   mitosis: '0x8C94C6c26c752fAa33bACD377b9198FE7fae0bF5',
+
+  // Sept 22, 2025
+  // ----------------------------------------------------------
+  zerogravity: '0x8d8703Ea7E7A129a581DCA59B916Cc4410a61D47',
 } as const;

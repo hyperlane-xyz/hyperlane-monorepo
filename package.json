@@ -26,7 +26,7 @@
   "packageManager": "yarn@4.5.1",
   "private": true,
   "scripts": {
-    "agent-configs": "yarn --cwd typescript/infra/ update-agent-config:mainnet3 && yarn --cwd typescript/infra/ update-agent-config:testnet4 && yarn prettier",
+    "agent-configs": "yarn --cwd typescript/infra/ update-agent-config:mainnet3 && yarn --cwd typescript/infra/ update-agent-config:testnet4",
     "build": "turbo run build",
     "clean": "turbo run clean",
     "prettier": "turbo run prettier",
@@ -40,6 +40,7 @@
     "postinstall": "husky install"
   },
   "workspaces": [
+    "solhint-plugin",
     "solidity",
     "typescript/*",
     "starknet"
@@ -55,6 +56,7 @@
     "undici": "^5.11",
     "@trivago/prettier-plugin-sort-imports/@babel/parser": "^7.22.7",
     "@typechain/ethers-v5": "11.1.2",
-    "typechain@npm:^8.0.0": "patch:typechain@npm%3A8.3.2#~/.yarn/patches/typechain-npm-8.3.2-b02e27439e.patch"
+    "typechain@npm:^8.0.0": "patch:typechain@npm%3A8.3.2#~/.yarn/patches/typechain-npm-8.3.2-b02e27439e.patch",
+    "node-fetch": "^3.3.2"
   }
 }

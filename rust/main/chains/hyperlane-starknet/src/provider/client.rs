@@ -2,9 +2,10 @@ use std::fmt::Debug;
 
 use async_trait::async_trait;
 use hyperlane_core::{
-    h512_to_bytes, BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, HyperlaneChain,
+    h512_to_bytes, BlockInfo, ChainCommunicationError, ChainResult, HyperlaneChain,
     HyperlaneDomain, HyperlaneProvider, TxnInfo, TxnReceiptInfo, H256, H512, U256,
 };
+use hyperlane_metric::prometheus_metric::{ChainInfo, PrometheusClientMetrics};
 use starknet::core::types::{
     BlockId, BlockTag, Felt, FunctionCall, InvokeTransaction, MaybePendingBlockWithTxHashes,
     Transaction, TransactionReceipt,
@@ -20,11 +21,6 @@ use crate::{ConnectionConf, HyperlaneStarknetError};
 /// JsonProvider type, that includes the fallback behavior
 pub type JsonProvider = JsonRpcClient<FallbackHttpTransport>;
 
-/// Builds a new starknet json provider that has fallback behavior
-pub(crate) fn build_json_provider(conn: &ConnectionConf) -> JsonProvider {
-    JsonRpcClient::new(FallbackHttpTransport::new(conn.urls.clone()))
-}
-
 #[derive(Debug, Clone)]
 /// A wrapper over the Starknet provider to provide a more ergonomic interface.
 pub struct StarknetProvider {
@@ -35,8 +31,17 @@ pub struct StarknetProvider {
 
 impl StarknetProvider {
     /// Create a new Starknet provider.
-    pub fn new(domain: HyperlaneDomain, conf: &ConnectionConf) -> Self {
-        let provider = JsonRpcClient::new(FallbackHttpTransport::new(conf.urls.clone()));
+    pub fn new(
+        domain: HyperlaneDomain,
+        conf: &ConnectionConf,
+        metrics: PrometheusClientMetrics,
+        chain: Option<ChainInfo>,
+    ) -> Self {
+        let provider = JsonRpcClient::new(FallbackHttpTransport::new(
+            conf.urls.clone(),
+            metrics,
+            chain,
+        ));
 
         // Fee token address is used to check balances
         let fee_token_address = Felt::from_bytes_be(conf.native_token_address.as_fixed_bytes());
@@ -73,7 +78,7 @@ impl HyperlaneChain for StarknetProvider {
 impl HyperlaneProvider for StarknetProvider {
     #[instrument(err, skip(self))]
     async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
-        let block = self
+        let block: MaybePendingBlockWithTxHashes = self
             .rpc_client()
             .get_block_with_tx_hashes(BlockId::Number(height))
             .await
@@ -166,19 +171,19 @@ impl HyperlaneProvider for StarknetProvider {
 
     #[instrument(err, skip(self))]
     async fn get_balance(&self, address: String) -> ChainResult<U256> {
-        let call_result = self
-            .rpc_client()
-            .call(
-                FunctionCall {
-                    contract_address: self.fee_token_address,
-                    entry_point_selector: selector!("balanceOf"),
-                    calldata: vec![Felt::from_dec_str(&address)
-                        .map_err(Into::<HyperlaneStarknetError>::into)?],
-                },
-                BlockId::Tag(BlockTag::Latest),
-            )
-            .await
-            .map_err(Into::<HyperlaneStarknetError>::into)?;
+        let call_result =
+            self.rpc_client()
+                .call(
+                    FunctionCall {
+                        contract_address: self.fee_token_address,
+                        entry_point_selector: selector!("balanceOf"),
+                        calldata: vec![Felt::from_hex(&address)
+                            .map_err(Into::<HyperlaneStarknetError>::into)?],
+                    },
+                    BlockId::Tag(BlockTag::Latest),
+                )
+                .await
+                .map_err(Into::<HyperlaneStarknetError>::into)?;
 
         let balance: HyU256 = (call_result[0], call_result[1])
             .try_into()
@@ -187,7 +192,13 @@ impl HyperlaneProvider for StarknetProvider {
         Ok(balance.0)
     }
 
-    async fn get_chain_metrics(&self) -> ChainResult<Option<ChainInfo>> {
-        Ok(None)
+    async fn get_chain_metrics(&self) -> ChainResult<Option<hyperlane_core::ChainInfo>> {
+        let block_height = self
+            .rpc_client
+            .block_number()
+            .await
+            .map_err(HyperlaneStarknetError::from)?;
+        let block_info = self.get_block_by_height(block_height).await?;
+        Ok(Some(hyperlane_core::ChainInfo::new(block_info, None)))
     }
 }

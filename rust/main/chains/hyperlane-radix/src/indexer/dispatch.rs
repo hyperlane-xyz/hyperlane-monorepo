@@ -3,7 +3,7 @@ use std::ops::RangeInclusive;
 use async_trait::async_trait;
 
 use hyperlane_core::{
-    ChainResult, ContractLocator, HyperlaneMessage, Indexed, Indexer, LogMeta, ReorgPeriod,
+    ChainResult, ContractLocator, HyperlaneMessage, Indexed, Indexer, LogMeta,
     SequenceAwareIndexer, H512,
 };
 
@@ -77,14 +77,10 @@ impl Indexer<HyperlaneMessage> for RadixDispatchIndexer {
 #[async_trait]
 impl SequenceAwareIndexer<HyperlaneMessage> for RadixDispatchIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let state_version = self
+        let (sequence, state_version): (u32, u64) = self
             .provider
-            .get_state_version(Some(&ReorgPeriod::None))
+            .call_method(&self.address, "nonce", None, Vec::new())
             .await?;
-        let sequence: u32 = self
-            .provider
-            .call_method(&self.address, "nonce", Some(state_version), Vec::new())
-            .await?;
-        Ok((Some(sequence), state_version.try_into()?)) // TODO: check u32 bounds
+        Ok((Some(sequence), state_version.try_into()?))
     }
 }

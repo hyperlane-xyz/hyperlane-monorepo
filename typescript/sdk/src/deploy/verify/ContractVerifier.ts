@@ -1,10 +1,20 @@
-import fetch from 'cross-fetch';
 import { Logger } from 'pino';
 
 import { buildArtifact as zksyncBuildArtifact } from '@hyperlane-xyz/core/buildArtifact-zksync.js';
-import { Address, rootLogger, sleep, strip0x } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  assert,
+  retryAsync,
+  rootLogger,
+  strip0x,
+} from '@hyperlane-xyz/utils';
 
-import { ExplorerFamily } from '../../metadata/chainMetadataTypes.js';
+import {
+  checkContractVerificationStatus,
+  getContractSourceCode,
+  verifyContractSourceCodeViaStandardJsonInput,
+  verifyProxyContract,
+} from '../../block-explorer/etherscan.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { ContractVerificationStatus } from '../../token/types.js';
 import { ChainMap, ChainName } from '../../types.js';
@@ -14,10 +24,6 @@ import {
   BuildArtifact,
   CompilerOptions,
   ContractVerificationInput,
-  EXPLORER_GET_ACTIONS,
-  ExplorerApiActions,
-  ExplorerApiErrors,
-  FormOptions,
   SolidityStandardJsonInput,
 } from './types.js';
 
@@ -54,74 +60,126 @@ export class ContractVerifier extends BaseContractVerifier {
   ): Promise<void> {
     const contractType: string = input.isProxy ? 'proxy' : 'implementation';
 
-    verificationLogger.debug(`📝 Verifying ${contractType}...`);
-
-    const data = input.isProxy
-      ? this.getProxyData(input)
-      : this.getImplementationData(chain, input, verificationLogger);
-
     try {
-      const guid: string = await this.submitForm(
+      const verificationStatus = await this.getContractVerificationStatus(
         chain,
-        input.isProxy
-          ? ExplorerApiActions.VERIFY_PROXY
-          : ExplorerApiActions.VERIFY_IMPLEMENTATION,
+        input.address,
         verificationLogger,
-        data,
       );
 
-      verificationLogger.trace(
-        { guid },
-        `Retrieved guid from verified ${contractType}.`,
+      if (
+        verificationStatus === ContractVerificationStatus.Verified ||
+        verificationStatus === ContractVerificationStatus.Skipped
+      ) {
+        verificationLogger.debug(
+          `Contract ${contractType} at address "${input.address}" on chain "${chain}" is already verified. Skipping...`,
+        );
+        return;
+      }
+
+      let verificationId: string;
+      if (input.isProxy) {
+        verificationId = await this.verifyProxy(chain, input);
+      } else {
+        verificationId = await this.verifyImplementation(
+          chain,
+          input,
+          verificationLogger,
+        );
+      }
+
+      verificationLogger.debug(
+        `Verification request for ${contractType} contract at address "${input.address}" on chain "${chain}" sent. GUID ${verificationId}`,
       );
 
       await this.checkStatus(
         chain,
-        input,
+        verificationId,
+        !!input.isProxy,
         verificationLogger,
-        guid,
-        contractType,
       );
-
-      const addressUrl = await this.multiProvider.tryGetExplorerAddressUrl(
-        chain,
-        input.address,
-      );
-
       verificationLogger.debug(
-        {
-          addressUrl: addressUrl
-            ? `${addressUrl}#code`
-            : `Could not retrieve ${contractType} explorer URL.`,
-        },
-        `✅ Successfully verified ${contractType}.`,
+        `Contract ${contractType} at address "${input.address}" on chain "${chain}" successfully verified`,
       );
-    } catch (error) {
-      verificationLogger.debug(
-        { error },
-        `Verification of ${contractType} failed`,
+    } catch (err) {
+      verificationLogger.error(
+        `Failed to verify ${contractType} contract at address "${input.address}" on chain "${chain}"`,
+        err,
       );
-      throw error;
     }
+  }
+
+  private async verifyImplementation(
+    chain: ChainName,
+    input: ContractVerificationInput,
+    verificationLogger: Logger,
+  ): Promise<string> {
+    const { apiUrl, apiKey } = this.multiProvider.getEvmExplorerMetadata(chain);
+
+    const data = this.getImplementationData(chain, input, verificationLogger);
+    return verifyContractSourceCodeViaStandardJsonInput(
+      {
+        apiUrl,
+        apiKey,
+      },
+      {
+        compilerVersion: this.compilerOptions.compilerversion,
+        constructorArguments: input.constructorArguments,
+        contractAddress: input.address,
+        contractName: data.contractname,
+        sourceCode: data.sourceCode,
+        licenseType: this.compilerOptions.licenseType,
+        zkCompilerVersion: this.compilerOptions.zksolcversion,
+      },
+    );
+  }
+
+  private async verifyProxy(
+    chain: ChainName,
+    input: ContractVerificationInput,
+  ): Promise<string> {
+    assert(
+      input.expectedimplementation,
+      `Implementation address not provided for proxied contract at address "${input.address}" on chain "${chain}". Skipping verification`,
+    );
+
+    const { apiUrl, apiKey } = this.multiProvider.getEvmExplorerMetadata(chain);
+    return verifyProxyContract(
+      {
+        apiUrl,
+        apiKey,
+      },
+      {
+        implementationAddress: input.expectedimplementation,
+        contractAddress: input.address,
+      },
+    );
   }
 
   private async checkStatus(
     chain: ChainName,
-    input: ContractVerificationInput,
+    verificationId: string,
+    isProxy: boolean,
     verificationLogger: Logger,
-    guid: string,
-    contractType: string,
   ): Promise<void> {
-    verificationLogger.trace({ guid }, `Checking ${contractType} status...`);
-    await this.submitForm(
-      chain,
-      input.isProxy
-        ? ExplorerApiActions.CHECK_PROXY_STATUS
-        : ExplorerApiActions.CHECK_IMPLEMENTATION_STATUS,
-      verificationLogger,
-      {
-        guid: guid,
-      },
+    const contractType: string = isProxy ? 'proxy' : 'implementation';
+    verificationLogger.trace(
+      { verificationId },
+      `Checking ${contractType} verification status on chain "${chain}"...`,
+    );
+
+    const { apiUrl, apiKey } = this.multiProvider.getEvmExplorerMetadata(chain);
+    await retryAsync(
+      () =>
+        checkContractVerificationStatus(
+          {
+            apiUrl,
+            apiKey,
+          },
+          { isProxy, verificationId },
+        ),
+      undefined,
+      1000,
     );
   }
 
@@ -131,177 +189,12 @@ export class ContractVerifier extends BaseContractVerifier {
     filteredStandardInputJson: SolidityStandardJsonInput,
   ) {
     return {
-      sourceCode: JSON.stringify(filteredStandardInputJson),
+      sourceCode: filteredStandardInputJson,
       contractname: `${sourceName}:${input.name}`,
       contractaddress: input.address,
       constructorArguements: strip0x(input.constructorArguments ?? ''),
       ...this.compilerOptions,
     };
-  }
-
-  /**
-   * @notice Submits the verification form to the explorer API
-   * @param chain The name of the chain where the contract is deployed
-   * @param verificationLogger A logger instance for verification-specific logging
-   * @param options Additional options for the API request
-   * @returns The response from the explorer API
-   */
-  private async submitForm(
-    chain: ChainName,
-    action: ExplorerApiActions,
-    verificationLogger: Logger,
-    options?: FormOptions<typeof action>,
-  ): Promise<any> {
-    const { family } = this.multiProvider.getExplorerApi(chain);
-    const apiUrl = this.multiProvider.getExplorerApiUrl(chain);
-    const params = new URLSearchParams();
-    params.set('module', 'contract');
-    params.set('action', action);
-
-    for (const [key, value] of Object.entries(options ?? {})) {
-      params.set(key, value);
-    }
-
-    let timeout: number = 1000;
-    const url = new URL(apiUrl);
-    const isGetRequest = EXPLORER_GET_ACTIONS.includes(action);
-
-    // For GET requests, merge the parameters with existing ones instead of overwriting
-    if (isGetRequest) {
-      for (const [key, value] of params.entries()) {
-        url.searchParams.set(key, value);
-      }
-    }
-
-    switch (family) {
-      case ExplorerFamily.ZkSync:
-      case ExplorerFamily.Etherscan:
-        timeout = 5000;
-        break;
-      case ExplorerFamily.Blockscout:
-        timeout = 1000;
-        url.searchParams.set('module', 'contract');
-        url.searchParams.set('action', action);
-        break;
-      case ExplorerFamily.Routescan:
-        timeout = 500;
-        break;
-      case ExplorerFamily.Other:
-      default:
-        throw new Error(
-          `Unsupported explorer family: ${family}, ${chain}, ${apiUrl}`,
-        );
-    }
-
-    verificationLogger.trace(
-      { apiUrl, chain },
-      'Sending request to explorer...',
-    );
-
-    // Add debug logging to show the final URL
-    verificationLogger.debug(
-      {
-        apiUrl,
-        chain,
-        finalUrl: url.toString(),
-        isGetRequest,
-        family,
-      },
-      'Contract verification URL details',
-    );
-    let response: Response;
-    if (isGetRequest) {
-      response = await fetch(url.toString(), {
-        method: 'GET',
-      });
-    } else {
-      const init: RequestInit = {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: params,
-      };
-      response = await fetch(url.toString(), init);
-    }
-    let responseJson;
-    try {
-      const responseTextString = await response.text();
-      verificationLogger.trace(
-        { apiUrl, chain },
-        'Parsing response from explorer...',
-      );
-      responseJson = JSON.parse(responseTextString);
-    } catch {
-      verificationLogger.trace(
-        {
-          failure: response.statusText,
-          status: response.status,
-          chain,
-          apiUrl,
-          family,
-        },
-        'Failed to parse response from explorer.',
-      );
-      throw new Error(
-        `Failed to parse response from explorer (${apiUrl}, ${chain}): ${
-          response.statusText || 'UNKNOWN STATUS TEXT'
-        } (${response.status || 'UNKNOWN STATUS'})`,
-      );
-    }
-
-    if (responseJson.message !== 'OK') {
-      let errorMessage;
-
-      switch (responseJson.result) {
-        case ExplorerApiErrors.VERIFICATION_PENDING:
-          verificationLogger.trace(
-            {
-              result: responseJson.result,
-            },
-            'Verification still pending',
-          );
-          await sleep(timeout);
-          return this.submitForm(chain, action, verificationLogger, options);
-        case ExplorerApiErrors.ALREADY_VERIFIED:
-        case ExplorerApiErrors.ALREADY_VERIFIED_ALT:
-          break;
-        case ExplorerApiErrors.NOT_VERIFIED:
-        case ExplorerApiErrors.PROXY_FAILED:
-        case ExplorerApiErrors.BYTECODE_MISMATCH:
-          errorMessage = `${responseJson.message}: ${responseJson.result}`;
-          break;
-        default:
-          errorMessage = `Verification failed: ${JSON.stringify(
-            responseJson.result ?? response.statusText,
-          )}`;
-          break;
-      }
-
-      if (errorMessage) {
-        verificationLogger.debug(errorMessage);
-        throw new Error(`[${chain}] ${errorMessage}`);
-      }
-    }
-
-    if (responseJson.result === ExplorerApiErrors.UNKNOWN_UID) {
-      await sleep(timeout);
-      return this.submitForm(chain, action, verificationLogger, options);
-    }
-
-    if (responseJson.result === ExplorerApiErrors.UNABLE_TO_VERIFY) {
-      const errorMessage = `Verification failed. ${JSON.stringify(
-        responseJson.result ?? response.statusText,
-      )}`;
-      verificationLogger.debug(errorMessage);
-      throw new Error(`[${chain}] ${errorMessage}`);
-    }
-
-    verificationLogger.trace(
-      { apiUrl, chain, result: responseJson.result },
-      'Returning result from explorer.',
-    );
-
-    await sleep(timeout);
-    return responseJson.result;
   }
 
   async getContractVerificationStatus(
@@ -310,34 +203,29 @@ export class ContractVerifier extends BaseContractVerifier {
     verificationLogger: Logger = this.logger,
   ): Promise<ContractVerificationStatus> {
     try {
+      const { apiUrl, apiKey } =
+        this.multiProvider.getEvmExplorerMetadata(chain);
+
       verificationLogger.trace(
         `Fetching contract ABI for ${chain} address ${address}`,
       );
-      const sourceCodeResults = (
-        await this.submitForm(
-          chain,
-          ExplorerApiActions.GETSOURCECODE,
-          verificationLogger,
-          { address },
-        )
-      )[0]; // This specific query only returns 1 result
+      const sourceCodeResults = await getContractSourceCode(
+        {
+          apiUrl,
+          apiKey,
+        },
+        { contractAddress: address },
+      );
 
       // Explorer won't return ContractName if unverified
       return sourceCodeResults.ContractName
         ? ContractVerificationStatus.Verified
         : ContractVerificationStatus.Unverified;
     } catch (e) {
-      this.logger.info(
+      this.logger.error(
         `Error fetching contract verification status for ${address} on chain ${chain}: ${e}`,
       );
       return ContractVerificationStatus.Error;
     }
-  }
-
-  private getProxyData(input: ContractVerificationInput) {
-    return {
-      address: input.address,
-      expectedimplementation: input.expectedimplementation,
-    };
   }
 }

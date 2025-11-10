@@ -1,6 +1,6 @@
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
-import { ChainMap } from '../../../types.js';
+import { ChainMap, ProtocolMap } from '../../../types.js';
 import { MultiProvider } from '../../MultiProvider.js';
 
 import { EvmIcaTxSubmitter } from './IcaTxSubmitter.js';
@@ -19,7 +19,7 @@ export type SubmitterBuilderSettings = {
   submissionStrategy: SubmissionStrategy;
   multiProvider: MultiProvider;
   coreAddressesByChain: ChainMap<Record<string, string>>;
-  additionalSubmitterFactories?: Record<string, SubmitterFactory>;
+  additionalSubmitterFactories?: ProtocolMap<Record<string, SubmitterFactory>>;
 };
 
 export async function getSubmitterBuilder<TProtocol extends ProtocolType>({
@@ -44,7 +44,7 @@ export type SubmitterFactory<TProtocol extends ProtocolType = any> = (
   coreAddressesByChain: ChainMap<Record<string, string>>,
 ) => Promise<TxSubmitterInterface<TProtocol>> | TxSubmitterInterface<TProtocol>;
 
-const defaultSubmitterFactories: Record<string, SubmitterFactory> = {
+const EVM_SUBMITTERS_FACTORIES: Record<string, SubmitterFactory> = {
   [TxSubmitterType.JSON_RPC]: (multiProvider, metadata) => {
     // Used to type narrow metadata
     assert(
@@ -107,6 +107,11 @@ const defaultSubmitterFactories: Record<string, SubmitterFactory> = {
   },
 };
 
+const defaultSubmitterFactories: ProtocolMap<Record<string, SubmitterFactory>> =
+  {
+    [ProtocolType.Ethereum]: EVM_SUBMITTERS_FACTORIES,
+  };
+
 /**
  * Retrieves a transaction submitter instance based on the provided metadata.
  * This function acts as a factory, using a registry of submitter builders
@@ -124,16 +129,44 @@ export async function getSubmitter<TProtocol extends ProtocolType>(
   multiProvider: MultiProvider,
   submitterMetadata: SubmitterMetadata,
   coreAddressesByChain: ChainMap<Record<string, string>>,
-  additionalSubmitterFactories: Record<string, SubmitterFactory> = {},
+  additionalSubmitterFactories: ProtocolMap<
+    Record<string, SubmitterFactory>
+  > = {} as ProtocolMap<{}>,
 ): Promise<TxSubmitterInterface<TProtocol>> {
   const mergedSubmitterRegistry = {
     ...defaultSubmitterFactories,
-    ...additionalSubmitterFactories,
   };
-  const factory = mergedSubmitterRegistry[submitterMetadata.type];
+
+  for (const [p, factories] of Object.entries(additionalSubmitterFactories)) {
+    if (!factories) continue;
+    const protocol = p as ProtocolType;
+
+    if (mergedSubmitterRegistry[protocol]) {
+      mergedSubmitterRegistry[protocol] = {
+        ...mergedSubmitterRegistry[protocol],
+        ...factories,
+      };
+    } else {
+      mergedSubmitterRegistry[protocol] = {
+        ...factories,
+      };
+    }
+  }
+
+  const protocolType = multiProvider.getProtocol(submitterMetadata.chain);
+
+  if (!mergedSubmitterRegistry[protocolType]) {
+    throw new Error(
+      `No submitter factories registered for protocol ${protocolType}`,
+    );
+  }
+
+  const factory =
+    mergedSubmitterRegistry[protocolType]![submitterMetadata.type];
+
   if (!factory) {
     throw new Error(
-      `No submitter factory registered for type ${submitterMetadata.type}`,
+      `No submitter factory registered for protocol ${protocolType} and type ${submitterMetadata.type}`,
     );
   }
   return factory(multiProvider, submitterMetadata, coreAddressesByChain);

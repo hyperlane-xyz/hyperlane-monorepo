@@ -12,7 +12,12 @@ import {
 import { strip0x } from '@hyperlane-xyz/utils';
 
 import { RadixBase } from '../utils/base.js';
-import { EntityDetails, INSTRUCTIONS } from '../utils/types.js';
+import {
+  EntityDetails,
+  INSTRUCTIONS,
+  RadixHookTypes,
+  RadixIsmTypes,
+} from '../utils/types.js';
 import { bytes } from '../utils/utils.js';
 
 export class RadixCorePopulate {
@@ -56,7 +61,7 @@ export class RadixCorePopulate {
     return this.base.createCallFunctionManifest(
       from_address,
       this.packageAddress,
-      'MerkleTreeHook',
+      RadixHookTypes.MERKLE_TREE,
       INSTRUCTIONS.INSTANTIATE,
       [address(mailbox)],
     );
@@ -74,7 +79,7 @@ export class RadixCorePopulate {
     return this.base.createCallFunctionManifest(
       from_address,
       this.packageAddress,
-      'MerkleRootMultisigIsm',
+      RadixIsmTypes.MERKLE_ROOT_MULTISIG,
       INSTRUCTIONS.INSTANTIATE,
       [
         array(ValueKind.Array, ...validators.map((v) => bytes(strip0x(v)))),
@@ -95,7 +100,7 @@ export class RadixCorePopulate {
     return this.base.createCallFunctionManifest(
       from_address,
       this.packageAddress,
-      'MessageIdMultisigIsm',
+      RadixIsmTypes.MESSAGE_ID_MULTISIG,
       INSTRUCTIONS.INSTANTIATE,
       [
         array(ValueKind.Array, ...validators.map((v) => bytes(strip0x(v)))),
@@ -109,19 +114,53 @@ export class RadixCorePopulate {
     routes,
   }: {
     from_address: string;
-    routes: { ism: string; domain: number }[];
+    routes: { ismAddress: string; domainId: number }[];
   }) {
     return this.base.createCallFunctionManifest(
       from_address,
       this.packageAddress,
-      'RoutingIsm',
+      RadixIsmTypes.ROUTING_ISM,
       INSTRUCTIONS.INSTANTIATE,
       [
         array(
           ValueKind.Tuple,
-          ...routes.map((r) => tuple(u32(r.domain), address(r.ism))),
+          ...routes.map((r) => tuple(u32(r.domainId), address(r.ismAddress))),
         ),
       ],
+    );
+  }
+
+  public async setRoutingIsmRoute({
+    from_address,
+    ism,
+    route,
+  }: {
+    from_address: string;
+    ism: string;
+    route: { domainId: number; ismAddress: string };
+  }) {
+    return this.base.createCallMethodManifestWithOwner(
+      from_address,
+      ism,
+      'set_route',
+      [u32(route.domainId), address(route.ismAddress)],
+    );
+  }
+
+  public async removeRoutingIsmRoute({
+    from_address,
+    ism,
+    domain,
+  }: {
+    from_address: string;
+    ism: string;
+    domain: number;
+  }) {
+    return this.base.createCallMethodManifestWithOwner(
+      from_address,
+      ism,
+      'remove_route',
+      [u32(domain)],
     );
   }
 
@@ -152,7 +191,7 @@ export class RadixCorePopulate {
     return this.base.createCallFunctionManifest(
       from_address,
       this.packageAddress,
-      'NoopIsm',
+      RadixIsmTypes.NOOP_ISM,
       INSTRUCTIONS.INSTANTIATE,
       [],
     );
@@ -168,7 +207,7 @@ export class RadixCorePopulate {
     return this.base.createCallFunctionManifest(
       from_address,
       this.packageAddress,
-      'InterchainGasPaymaster',
+      RadixHookTypes.IGP,
       INSTRUCTIONS.INSTANTIATE,
       [address(denom)],
     );
@@ -200,17 +239,17 @@ export class RadixCorePopulate {
   public async setDestinationGasConfig({
     from_address,
     igp,
-    destination_gas_config,
+    destinationGasConfig,
   }: {
     from_address: string;
     igp: string;
-    destination_gas_config: {
-      remote_domain: string;
-      gas_oracle: {
-        token_exchange_rate: string;
-        gas_price: string;
+    destinationGasConfig: {
+      remoteDomainId: number;
+      gasOracle: {
+        tokenExchangeRate: string;
+        gasPrice: string;
       };
-      gas_overhead: string;
+      gasOverhead: string;
     };
   }) {
     return this.base.createCallMethodManifestWithOwner(
@@ -221,13 +260,13 @@ export class RadixCorePopulate {
         array(
           ValueKind.Tuple,
           tuple(
-            u32(destination_gas_config.remote_domain),
+            u32(destinationGasConfig.remoteDomainId),
             tuple(
               tuple(
-                u128(destination_gas_config.gas_oracle.token_exchange_rate),
-                u128(destination_gas_config.gas_oracle.gas_price),
+                u128(destinationGasConfig.gasOracle.tokenExchangeRate),
+                u128(destinationGasConfig.gasOracle.gasPrice),
               ),
-              u128(destination_gas_config.gas_overhead),
+              u128(destinationGasConfig.gasOverhead),
             ),
           ),
         ),

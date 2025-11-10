@@ -4,8 +4,8 @@ strategy:
   chains:
     base:
       minAmount:
-        min: 3000
-        target: 5000
+        min: 2000
+        target: 3000
         type: 'absolute'
       bridgeLockTime: 1800 # 30 mins in seconds
       bridgeMinAcceptedAmount: 2000
@@ -13,8 +13,8 @@ strategy:
 
     ethereum:
       minAmount:
-        min: 30000
-        target: 40000
+        min: 25000
+        target: 30000
         type: 'absolute'
       bridgeLockTime: 1800 # 30 mins in seconds
       bridgeMinAcceptedAmount: 2000
@@ -22,8 +22,8 @@ strategy:
 
     optimism:
       minAmount:
-        min: 3000
-        target: 5000
+        min: 2000
+        target: 3000
         type: 'absolute'
       bridgeLockTime: 1800 # 30 mins in seconds
       bridgeMinAcceptedAmount: 2000
@@ -31,8 +31,8 @@ strategy:
 
     arbitrum:
       minAmount:
-        min: 3000
-        target: 5000
+        min: 2000
+        target: 3000
         type: 'absolute'
       bridgeLockTime: 1800 # 30 mins in seconds
       bridgeMinAcceptedAmount: 2000

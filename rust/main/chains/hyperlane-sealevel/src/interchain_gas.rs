@@ -162,7 +162,11 @@ impl SealevelInterchainGasPaymasterIndexer {
             .map_err(ChainCommunicationError::from_other)?
             .into_inner();
 
-        tracing::debug!(gas_payment_account=?gas_payment_account, "Found gas payment account");
+        tracing::debug!(
+            gas_payment_account=?gas_payment_account,
+            payment_pda_pubkey=?valid_payment_pda_pubkey,
+            "Found gas payment account",
+        );
 
         let igp_payment = InterchainGasPayment {
             message_id: gas_payment_account.message_id,

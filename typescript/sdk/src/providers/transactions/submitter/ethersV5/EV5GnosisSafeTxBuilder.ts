@@ -53,6 +53,13 @@ export class EV5GnosisSafeTxBuilder extends EV5GnosisSafeTxSubmitter {
     return new EV5GnosisSafeTxBuilder(multiProvider, props, safe, safeService);
   }
 
+  // No requirement to get the next nonce from the Safe service.
+  // When proposing the JSON file, the Safe UI will automatically update the nonce.
+  // So we just return 0 and save ourselves from the unreliability of Safe APIs.
+  protected async getNextNonce(): Promise<number> {
+    return 0;
+  }
+
   /**
    * Creates a Gnosis Safe transaction builder object using the PopulatedTransactions
    *

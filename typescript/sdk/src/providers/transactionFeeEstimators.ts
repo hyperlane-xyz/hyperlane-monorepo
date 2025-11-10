@@ -232,29 +232,23 @@ export async function estimateTransactionFeeCosmJsNative({
   transaction,
   provider,
   estimatedGasPrice,
-  sender,
+  senderAddress,
   senderPubKey,
-  memo,
 }: {
   transaction: CosmJsNativeTransaction;
   provider: CosmJsNativeProvider;
   estimatedGasPrice: Numberish;
-  sender: Address;
+  senderAddress: Address;
   senderPubKey: HexString;
-  memo?: string;
 }): Promise<TransactionFeeEstimate> {
   const client = await provider.provider;
-  const message = client.registry.encodeAsAny(transaction.transaction);
-  const pubKey = encodeSecp256k1Pubkey(Buffer.from(senderPubKey, 'hex'));
 
-  const gasUnits = await client.simulate(sender, pubKey, [message], memo);
-  const gasPrice = parseFloat(estimatedGasPrice.toString());
-
-  return {
-    gasUnits,
-    gasPrice,
-    fee: Math.floor(gasUnits * gasPrice),
-  };
+  return client.estimateTransactionFee({
+    transaction: transaction.transaction,
+    estimatedGasPrice: estimatedGasPrice.toString(),
+    senderAddress,
+    senderPubKey,
+  });
 }
 
 // Starknet does not support gas estimation without starknet account
@@ -278,8 +272,8 @@ export async function estimateTransactionFeeRadix({
   transaction: RadixTransaction;
   provider: RadixProvider;
 }): Promise<TransactionFeeEstimate> {
-  return provider.provider.base.estimateTransactionFee({
-    transactionManifest: transaction.transaction.manifest,
+  return provider.provider.estimateTransactionFee({
+    transaction: transaction.transaction,
   });
 }
 
@@ -353,7 +347,7 @@ export function estimateTransactionFee({
       transaction,
       provider,
       estimatedGasPrice,
-      sender,
+      senderAddress: sender,
       senderPubKey,
     });
   } else if (

@@ -9,6 +9,8 @@ import { readYamlOrJson } from '../../utils/files.js';
 
 import { localTestRunCmdPrefix } from './helpers.js';
 
+$.verbose = true;
+
 export class HyperlaneE2ECoreTestCommands {
   protected cmdPrefix: string[];
 
@@ -133,6 +135,7 @@ export class HyperlaneE2ECoreTestCommands {
     privateKey?: string,
     privateKeyEnv?: string,
     skipConfirmationPrompts?: boolean,
+    chain?: string,
   ): ProcessPromise {
     const flags = [
       '--registry',
@@ -149,6 +152,10 @@ export class HyperlaneE2ECoreTestCommands {
 
     if (skipConfirmationPrompts) {
       flags.push('--yes');
+    }
+
+    if (chain) {
+      flags.push('--chain', chain);
     }
 
     return $`${

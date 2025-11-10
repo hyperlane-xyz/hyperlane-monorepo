@@ -30,17 +30,6 @@ pub(crate) fn unzip(output: &str, dir: &str) {
         .join();
 }
 
-pub(crate) fn download(output: &str, uri: &str, dir: &str) {
-    Program::new("curl")
-        .arg("output", output)
-        .flag("location")
-        .cmd(uri)
-        .flag("silent")
-        .working_dir(dir)
-        .run()
-        .join();
-}
-
 pub(crate) fn make_target() -> String {
     let os = if cfg!(target_os = "linux") {
         "linux"

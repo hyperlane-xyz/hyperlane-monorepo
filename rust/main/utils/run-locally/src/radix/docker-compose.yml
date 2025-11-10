@@ -1,0 +1,152 @@
+services:
+  fullnode:
+    image: 'radixdlt/babylon-node:v1.3.0.1'
+    profiles: ['fullnode']
+    init: true
+    ports:
+      - '127.0.0.1:3333:3333'
+    cap_add:
+      - NET_ADMIN
+    deploy:
+      restart_policy:
+        condition: on-failure
+    environment:
+      # Full node configuration
+      FULLNODE_NETWORK_ID: 240
+      FULLNODE_LOG_LEVEL: info
+      FULLNODE_NETWORK_BOOTSTRAP_NODE: 'radix://node_tdx_2_1qwz237kqdpct5l3yjhmna66uxja2ymrf3x6hh528ng3gtvnwndtn5rsrad4@3.210.187.161'
+      FULLNODE_KEY_PASSWORD: 'fullnode_key_password'
+      RADIXDLT_LOG_LEVEL: info
+      RADIXDLT_CORE_API_PORT: 3333
+      RADIXDLT_SYSTEM_API_PORT: 3334
+      RADIXDLT_PROMETHEUS_API_PORT: 3335
+      RADIXDLT_ENGINE_STATE_API_PORT: 3336
+      RADIXDLT_NETWORK_SEEDS_REMOTE: ''
+      JAVA_OPTS: -server -Xmx512m -Xmx512m -XX:+HeapDumpOnOutOfMemoryError -XX:+AlwaysPreTouch -Dguice_bytecode_gen_option=DISABLED -Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts -Djavax.net.ssl.trustStoreType=jks -Djava.security.egd=file:/dev/urandom -Dcom.sun.management.jmxremote.port=9011 -Dcom.sun.management.jmxremote.rmi.port=9011 -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Djava.rmi.server.hostname=core -agentlib:jdwp=transport=dt_socket,address=*:50505,suspend=n,server=y --enable-preview
+      RADIXDLT_HOST_IP_ADDRESS: core0
+      RADIXDLT_NODE_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAY=
+      RADIXDLT_GENESIS_DATA: /wYAAHNOYVBwWQAHAgCfdxlxngUUXCEGCgEACQEABQkHKAAAIQoJZAAAAAr0DRoICrgLCRsMCuCTBAUKFTQYoABAehDzWgUVMgEAIKAAAGSns7bgDTIWAAFWDVUuRAAYABBjLV7HaxWBDQHAICICAAEgIQEGIAchA//5e9V1Xu6kIEU6FDVSNdOC9kcvhWihiy8FehRgKXVWAQEBAWJ1APCVICECAgwEbmFtZSIAAQwTRGVmYXVsdCB2YWxpZGF0b3IgMQIMCGluZm9fdXJsIg0BDBhodHRwczovL3d3dy5yYWRpeGRsdC5jb22A0V2lblLuqlWNSPddLPYcqXQbJq7Y9QscHefNoU86AQIggAHR0ouStuhEmbg7B5fvUjVVPut+2qDOokPBEowv5zcgIQECIAchA//5dtEAASgACSEKAKBeSwE0oAAAAEDq7XRG0JwsnwwBKw0B4CAMCgx0cmFuc2Zlcl94cmQIcmFkaXN3YXAIbWV0YWRhdGERZnVuZ2libGVfcmVzb3VyY2UVbm9uX0IWAPBpHWFjY291bnRfYXV0aG9yaXplZF9kZXBvc2l0b3JzDmdsb2JhbF9uX293bmVkJm5vbl9mdW5naWJsZV9yZXNvdXJjZV93aXRoX3JlbW90ZV90eXBlGWt2X3N0b3JlX3dpdGhfcmVtb3RlXwEaPA9tYXhfdHJhbnNhY3Rpb24=
+      RADIXDLT_DB_HISTORICAL_SUBSTATE_VALUES_ENABLE: true
+
+  postgres_db:
+    # See https://hub.docker.com/_/postgres for details about configuration
+    image: 'postgres:15.2-alpine'
+    shm_size: 256m
+    profiles:
+      [
+        'network-gateway-built',
+        'network-gateway-image',
+        'network-gateway-resources',
+      ]
+    ports:
+      - '127.0.0.1:5433:5432'
+    # The default shutdown mode for this container is SIGINT:
+    # https://github.com/docker-library/postgres/blob/e483778176ca34bcbe83ee17000820d4f6e64c28/12/alpine/Dockerfile
+    # This enables fast Shutdown mode - see eg https://www.postgresql.org/docs/10/server-shutdown.html
+    stop_grace_period: 90s # Ensure the DB is allowed time to stop to prevent needing to recover on next start-up
+    deploy:
+      restart_policy:
+        condition: on-failure
+    environment:
+      # Database configuration
+      POSTGRES_USER: 'db_dev_superuser'
+      POSTGRES_PASSWORD: 'db_dev_password'
+      POSTGRES_DB: 'radixdlt_ledger'
+    healthcheck:
+      test: pg_isready -U db_dev_superuser -d radixdlt_ledger
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  database_migrations: # This is the base -- the _image and _built containers are defined below
+    image: 'radixdlt/babylon-ng-database-migrations:v1.10.3'
+    profiles: ['NONE']
+    environment:
+      # Database configuration
+      ConnectionStrings__NetworkGatewayMigrations: 'Host=postgres_db:5432;Database=radixdlt_ledger;Username=db_dev_superuser;Password=db_dev_password'
+
+  data_aggregator: # This is the base -- the _image and _built containers are defined below
+    image: 'radixdlt/babylon-ng-data-aggregator:v1.10.3'
+    profiles: ['NONE']
+    deploy:
+      restart_policy:
+        condition: on-failure
+    ports:
+      - '127.0.0.1:5207:8080' # This allows you to connect to the API (for root and health checks) at http://localhost:5207
+      - '127.0.0.1:1234:1234' # This allows you to connect to the metrics API at http://localhost:1234
+    environment:
+      # WIPE_DATABASE: "true"
+      ASPNETCORE_URLS: 'http://*:8080' # Binds to 8080 on all interfaces
+      CustomJsonConfigurationFilePath: '/home/radixdlt/network-gateway/config.json'
+      PrometheusMetricsPort: '1234'
+      ConnectionStrings__NetworkGatewayReadWrite: 'Host=postgres_db:5432;Database=radixdlt_ledger;Username=db_dev_superuser;Password=db_dev_password'
+      DataAggregator__Network__NetworkName: 'localnet'
+      DataAggregator__Network__DisableCoreApiHttpsCertificateChecks: 'false'
+      # Node configuration
+      DataAggregator__Network__CoreApiNodes__0__Name: 'One'
+      DataAggregator__Network__CoreApiNodes__0__CoreApiAddress: 'http://fullnode:3333/core'
+      DataAggregator__Network__CoreApiNodes__0__CoreApiAuthorizationHeader: ''
+      DataAggregator__Network__CoreApiNodes__0__Enabled: 'true'
+      GatewayApi__Network__CoreApiNodes__1__Enabled: 'false'
+      GatewayApi__Network__CoreApiNodes__2__Enabled: 'false'
+      GatewayApi__Network__CoreApiNodes__3__Enabled: 'false'
+
+  gateway_api: # This is the base -- the _image and _built containers are defined below
+    image: 'radixdlt/babylon-ng-gateway-api:v1.10.3'
+    profiles: ['NONE']
+    ports:
+      - '127.0.0.1:5308:8080' # This allows you to connect to the API at http://localhost:5308
+      - '127.0.0.1:1235:1235' # This allows you to connect to the metrics API at http://localhost:1235
+    deploy:
+      restart_policy:
+        condition: on-failure
+    environment:
+      # Gateway API configuration
+      ASPNETCORE_URLS: 'http://*:8080' # Binds to 8080 on all interfaces
+      CustomJsonConfigurationFilePath: '/home/radixdlt/network-gateway/config.json'
+      PrometheusMetricsPort: '1235'
+      EnableSwagger: 'true'
+      ConnectionStrings__NetworkGatewayReadOnly: 'Host=postgres_db:5432;Database=radixdlt_ledger;Username=db_dev_superuser;Password=db_dev_password'
+      ConnectionStrings__NetworkGatewayReadWrite: 'Host=postgres_db:5432;Database=radixdlt_ledger;Username=db_dev_superuser;Password=db_dev_password'
+      GatewayApi__Endpoint__MaxPageSize: '30'
+      GatewayApi__Endpoint__DefaultPageSize: '30'
+      GatewayApi__AcceptableLedgerLag__PreventReadRequestsIfDbLedgerIsBehind: 'true'
+      GatewayApi__AcceptableLedgerLag__PreventConstructionRequestsIfDbLedgerIsBehind: 'true'
+      GatewayApi__Network__NetworkName: 'localnet'
+      GatewayApi__Network__DisableCoreApiHttpsCertificateChecks: 'false'
+      # Node configuration
+      GatewayApi__Network__CoreApiNodes__0__Name: 'One'
+      GatewayApi__Network__CoreApiNodes__0__CoreApiAddress: 'http://fullnode:3333/core'
+      GatewayApi__Network__CoreApiNodes__0__CoreApiAuthorizationHeader: ''
+      GatewayApi__Network__CoreApiNodes__0__RequestWeighting: '1'
+      GatewayApi__Network__CoreApiNodes__0__Enabled: 'true'
+      GatewayApi__Network__CoreApiNodes__1__Enabled: 'false'
+      GatewayApi__Network__CoreApiNodes__2__Enabled: 'false'
+      GatewayApi__Network__CoreApiNodes__3__Enabled: 'false'
+
+  database_migrations_image:
+    # NB - image: is defined in the base data_aggregator
+    extends:
+      service: database_migrations
+    profiles: ['network-gateway-image']
+    depends_on:
+      postgres_db:
+        condition: service_healthy
+
+  data_aggregator_image:
+    # NB - image: is defined in the base data_aggregator
+    extends:
+      service: data_aggregator
+    profiles: ['network-gateway-image']
+    depends_on:
+      database_migrations_image:
+        condition: service_completed_successfully
+
+  gateway_api_image:
+    # NB - image: is defined in the base gateway_api
+    extends:
+      service: gateway_api
+    profiles: ['network-gateway-image']
+    depends_on:
+      database_migrations_image:
+        condition: service_completed_successfully

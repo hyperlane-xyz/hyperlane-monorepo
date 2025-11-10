@@ -68,7 +68,7 @@ export {
   toWei,
   tryParseAmount,
 } from './amount.js';
-export { chunk, exclude, randomElement } from './arrays.js';
+export { chunk, exclude, randomElement, arrayEqual } from './arrays.js';
 export {
   concurrentMap,
   fetchWithTimeout,
@@ -97,7 +97,7 @@ export {
   isS3CheckpointWithId,
 } from './checkpoints.js';
 export { domainHash } from './domains.js';
-export { safelyAccessEnvVar, inCIMode } from './env.js';
+export { safelyAccessEnvVar, inCIMode, inKubernetes } from './env.js';
 export { canonizeId, evmId } from './ids.js';
 export {
   LogFormat,
@@ -149,6 +149,7 @@ export {
   transformObj,
   TransformObjectTransformer,
   sortArraysInObject,
+  objDiff,
 } from './objects.js';
 export { Result, failure, success } from './result.js';
 export {
@@ -202,3 +203,5 @@ export { assert } from './validation.js';
 export { BaseValidator, ValidatorConfig } from './validator.js';
 export { tryParseJsonOrYaml } from './yaml.js';
 export { createServiceLogger } from './logging.js';
+export { MinimumRequiredGasByAction, GasAction } from './mingas.js';
+export * as AltVM from './altvm.js';

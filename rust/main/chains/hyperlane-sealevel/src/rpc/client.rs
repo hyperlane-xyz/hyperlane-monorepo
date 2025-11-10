@@ -74,9 +74,19 @@ impl SealevelRpcClient {
         &self,
         pubkey: &Pubkey,
     ) -> ChainResult<Option<Account>> {
+        self.get_account_option_with_commitment(pubkey, CommitmentConfig::finalized())
+            .await
+    }
+
+    /// get account option with the given commitment
+    pub async fn get_account_option_with_commitment(
+        &self,
+        pubkey: &Pubkey,
+        commitment: CommitmentConfig,
+    ) -> ChainResult<Option<Account>> {
         let account = self
             .0
-            .get_account_with_commitment(pubkey, CommitmentConfig::finalized())
+            .get_account_with_commitment(pubkey, commitment)
             .await
             .map_err(ChainCommunicationError::from_other)?
             .value;

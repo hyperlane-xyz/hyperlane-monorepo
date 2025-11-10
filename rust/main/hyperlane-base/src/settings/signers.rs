@@ -233,7 +233,7 @@ impl BuildableWithSignerConf for hyperlane_starknet::Signer {
 
 impl ChainSigner for hyperlane_starknet::Signer {
     fn address_string(&self) -> String {
-        self.address.to_string()
+        self.address.to_hex_string()
     }
 
     fn address_h256(&self) -> H256 {

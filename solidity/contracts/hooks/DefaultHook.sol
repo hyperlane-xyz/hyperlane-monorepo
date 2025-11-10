@@ -14,7 +14,7 @@ contract DefaultHook is AbstractPostDispatchHook, MailboxClient {
     constructor(address _mailbox) MailboxClient(_mailbox) {}
 
     function hookType() external pure returns (uint8) {
-        return uint8(IPostDispatchHook.Types.MAILBOX_DEFAULT_HOOK);
+        return uint8(IPostDispatchHook.HookTypes.MAILBOX_DEFAULT_HOOK);
     }
 
     function _hook() public view returns (IPostDispatchHook) {
@@ -24,14 +24,14 @@ contract DefaultHook is AbstractPostDispatchHook, MailboxClient {
     function _quoteDispatch(
         bytes calldata metadata,
         bytes calldata message
-    ) internal view virtual override returns (uint256) {
+    ) internal view override returns (uint256) {
         return _hook().quoteDispatch(metadata, message);
     }
 
     function _postDispatch(
         bytes calldata metadata,
         bytes calldata message
-    ) internal virtual override {
+    ) internal override {
         _hook().postDispatch{value: msg.value}(metadata, message);
     }
 }

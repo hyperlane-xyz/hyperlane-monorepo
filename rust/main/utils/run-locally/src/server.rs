@@ -52,7 +52,7 @@ async fn send_retry_request_non_blocking() -> io::Result<MessageRetryResponse> {
         io::Error::new(io::ErrorKind::InvalidData, err.to_string())
     })?;
 
-    println!("Retry Request Response: {:?}", response_text);
+    println!("Retry Request Response: {response_text:?}");
 
     let response_json: MessageRetryResponse =
         serde_json::from_str(&response_text).map_err(|err| {
@@ -112,6 +112,7 @@ async fn send_insert_message_request_non_blocking() -> io::Result<insert_message
                     recipient: H256::from_low_u64_be(2000),
                     body: Vec::new(),
                 },
+                message_id: None,
                 dispatched_block_number: 10000,
             },
             insert_messages::Message {
@@ -124,6 +125,7 @@ async fn send_insert_message_request_non_blocking() -> io::Result<insert_message
                     recipient: H256::from_low_u64_be(2000),
                     body: Vec::new(),
                 },
+                message_id: None,
                 dispatched_block_number: 10001,
             },
         ],

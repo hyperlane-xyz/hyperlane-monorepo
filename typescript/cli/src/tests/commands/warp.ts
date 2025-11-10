@@ -11,6 +11,8 @@ import { readYamlOrJson } from '../../utils/files.js';
 
 import { localTestRunCmdPrefix } from './helpers.js';
 
+$.verbose = true;
+
 export class HyperlaneE2EWarpTestCommands {
   protected cmdPrefix: string[];
 
@@ -67,10 +69,12 @@ export class HyperlaneE2EWarpTestCommands {
     warpAddress,
     symbol,
     outputPath,
+    warpRouteId,
   }: {
     chain?: string;
     symbol?: string;
     warpAddress?: string;
+    warpRouteId?: string;
     outputPath?: string;
   }): ProcessPromise {
     return $`${localTestRunCmdPrefix()} hyperlane warp read \
@@ -78,6 +82,7 @@ export class HyperlaneE2EWarpTestCommands {
             ${warpAddress ? ['--address', warpAddress] : []} \
             ${chain ? ['--chain', chain] : []} \
             ${symbol ? ['--symbol', symbol] : []} \
+            ${warpRouteId ? ['--warpRouteId', warpRouteId] : []} \
             --verbosity debug \
             ${outputPath || this.outputPath ? ['--config', outputPath || this.outputPath] : []}`;
   }
@@ -113,6 +118,7 @@ export class HyperlaneE2EWarpTestCommands {
     skipConfirmationPrompts,
     privateKey,
     warpRouteId,
+    extraArgs,
   }: {
     warpCorePath?: string;
     warpDeployPath?: string;
@@ -120,6 +126,7 @@ export class HyperlaneE2EWarpTestCommands {
     skipConfirmationPrompts?: boolean;
     privateKey?: string;
     warpRouteId?: string;
+    extraArgs?: string[];
   }): ProcessPromise {
     return $`${
       hypKey ? [`${this.hypKeyEnvName}=${hypKey}`] : []
@@ -130,7 +137,9 @@ export class HyperlaneE2EWarpTestCommands {
           ${privateKey ? [this.privateKeyFlag, privateKey] : []} \
           --verbosity debug \
           ${warpRouteId ? ['--warpRouteId', warpRouteId] : []} \
-          ${skipConfirmationPrompts ? ['--yes'] : []}`;
+          ${skipConfirmationPrompts ? ['--yes'] : []} \
+          ${extraArgs ? extraArgs : []}
+          `;
   }
 
   /**
@@ -147,5 +156,42 @@ export class HyperlaneE2EWarpTestCommands {
       skipConfirmationPrompts: true,
       warpRouteId,
     });
+  }
+
+  public applyRaw({
+    warpDeployPath,
+    warpCorePath,
+    strategyUrl,
+    warpRouteId,
+    privateKey,
+    relay,
+    hypKey,
+    extraArgs,
+    skipConfirmationPrompts,
+  }: {
+    warpDeployPath?: string;
+    warpCorePath?: string;
+    strategyUrl?: string;
+    warpRouteId?: string;
+    privateKey?: string;
+    hypKey?: string;
+    relay?: boolean;
+    skipConfirmationPrompts?: boolean;
+    extraArgs?: string[];
+  }): ProcessPromise {
+    return $` ${
+      hypKey ? [`${this.hypKeyEnvName}=${hypKey}`] : []
+    } ${localTestRunCmdPrefix()} hyperlane warp apply \
+          --registry ${this.registryPath} \
+          ${warpDeployPath ? ['--config', warpDeployPath] : []} \
+          ${warpCorePath ? ['--warp', warpCorePath] : []} \
+          ${strategyUrl ? ['--strategy', strategyUrl] : []} \
+          ${warpRouteId ? ['--warpRouteId', warpRouteId] : []} \
+          ${privateKey ? [this.privateKeyFlag, privateKey] : []} \
+          --verbosity debug \
+          ${relay ? ['--relay'] : []} \
+          ${skipConfirmationPrompts ? ['--yes'] : []} \
+          ${extraArgs ? extraArgs : []}
+          `;
   }
 }

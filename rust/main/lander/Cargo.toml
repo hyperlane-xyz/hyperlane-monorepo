@@ -11,6 +11,7 @@ version.workspace = true
 hyperlane-base = { path = "../hyperlane-base", features = ["test-utils"] }
 hyperlane-core = { path = "../hyperlane-core" }
 hyperlane-ethereum = { path = "../chains/hyperlane-ethereum" }
+hyperlane-radix = { path = "../chains/hyperlane-radix" }
 hyperlane-sealevel = { path = "../chains/hyperlane-sealevel" }
 
 async-trait.workspace = true
@@ -22,6 +23,7 @@ eyre.workspace = true
 futures-util.workspace = true
 itertools.workspace = true
 prometheus.workspace = true
+regex.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 solana-client.workspace = true
@@ -31,7 +33,18 @@ thiserror.workspace = true
 tokio = { workspace = true, features = ["rt", "macros", "parking_lot"] }
 tokio-metrics.workspace = true
 tracing.workspace = true
+url = { workspace = true }
 uuid = { workspace = true, features = ["v4", "serde"] }
+
+# Radix dependencies
+ethers-prometheus = { path = "../ethers-prometheus", features = ["serde"] }
+core-api-client = { workspace = true }
+gateway-api-client = { workspace = true }
+radix-common = { workspace = true }
+radix-transactions = { workspace = true }
+rand = { workspace = true }
+sbor = { workspace = true, features = ["serde"] }
+scrypto = { workspace = true, features = ["serde"] }
 
 [dev-dependencies]
 tracing-subscriber.workspace = true

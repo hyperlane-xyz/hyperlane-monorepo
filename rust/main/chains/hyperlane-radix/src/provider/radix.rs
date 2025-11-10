@@ -18,20 +18,23 @@ use gateway_api_client::{
     apis::configuration::Configuration as GatewayConfig,
     models::{
         self, CommittedTransactionInfo, CompiledPreviewTransaction, LedgerStateSelector,
-        ProgrammaticScryptoSborValue, StateEntityDetailsRequest, StreamTransactionsRequest,
+        ProgrammaticScryptoSborValue, StreamTransactionsRequest,
         TransactionCommittedDetailsRequest, TransactionDetailsOptIns, TransactionPreviewV2Request,
         TransactionStatusResponse,
     },
 };
+use hyperlane_metric::prometheus_metric::{ChainInfo, PrometheusClientMetrics};
 use radix_common::traits::ScryptoEvent;
 use radix_transactions::{
     builder::{
         ManifestBuilder, TransactionBuilder, TransactionManifestV2Builder, TransactionV2Builder,
     },
     model::{IntentHeaderV2, TransactionHeaderV2, TransactionPayload},
+    prelude::DetailedNotarizedTransactionV2,
     signing::PrivateKey,
 };
-use reqwest::ClientBuilder;
+use reqwest::Client;
+use reqwest_utils::parse_custom_rpc_headers;
 use scrypto::{
     address::AddressBech32Decoder,
     constants::XRD,
@@ -46,14 +49,21 @@ use scrypto::{
 };
 
 use hyperlane_core::{
-    rpc_clients::FallbackProvider, BlockInfo, ChainCommunicationError, ChainInfo, ChainResult,
+    rpc_clients::FallbackProvider, BlockInfo, ChainCommunicationError, ChainResult,
     ContractLocator, Encode, HyperlaneChain, HyperlaneDomain, HyperlaneProvider, LogMeta,
     ReorgPeriod, TxOutcome, TxnInfo, TxnReceiptInfo, H256, H512, U256,
 };
+use serde::{Deserialize, Serialize};
 
 use crate::{
-    decimal_to_u256, decode_bech32, encode_tx, manifest::find_fee_payer_from_manifest,
-    provider::RadixGatewayProvider, radix_address_bytes_to_h256, signer::RadixSigner,
+    decimal_to_u256, decode_bech32, encode_tx,
+    manifest::find_fee_payer_from_manifest,
+    provider::{
+        metric::{RadixMetricCoreProvider, RadixMetricGatewayProvider},
+        RadixGatewayProvider,
+    },
+    radix_address_bytes_to_h256,
+    signer::RadixSigner,
     ConnectionConf, HyperlaneRadixError, RadixBaseCoreProvider, RadixBaseGatewayProvider,
     RadixCoreProvider, RadixFallbackProvider,
 };
@@ -77,37 +87,37 @@ impl Deref for RadixProvider {
 }
 
 impl RadixProvider {
-    fn build_fallback_provider(conf: &ConnectionConf) -> ChainResult<RadixFallbackProvider> {
+    fn build_fallback_provider(
+        conf: &ConnectionConf,
+        metrics: PrometheusClientMetrics,
+        chain: Option<ChainInfo>,
+    ) -> ChainResult<RadixFallbackProvider> {
         let mut gateway_provider = Vec::with_capacity(conf.gateway.len());
-        for (index, url) in conf.gateway.iter().enumerate() {
-            let map = conf.gateway_header.get(index).cloned().unwrap_or_default();
-            let header = reqwest::header::HeaderMap::try_from(&map)
-                .map_err(ChainCommunicationError::from_other)?;
-
-            let client = ClientBuilder::new()
-                .default_headers(header)
+        for url in conf.gateway.iter() {
+            let (headers, url) =
+                parse_custom_rpc_headers(url).map_err(ChainCommunicationError::from_other)?;
+            let client = Client::builder()
+                .default_headers(headers)
                 .build()
-                .map_err(ChainCommunicationError::from_other)?;
-
+                .map_err(HyperlaneRadixError::from)?;
             let provider = RadixBaseGatewayProvider::new(GatewayConfig {
                 client,
                 base_path: url.to_string().trim_end_matches('/').to_string(),
                 ..Default::default()
             });
+            let provider =
+                RadixMetricGatewayProvider::new(provider, &url, metrics.clone(), chain.clone());
             gateway_provider.push(provider);
         }
 
         let mut core_provider = Vec::with_capacity(conf.core.len());
-        for (index, url) in conf.core.iter().enumerate() {
-            let map = conf.core_header.get(index).cloned().unwrap_or_default();
-            let header = reqwest::header::HeaderMap::try_from(&map)
-                .map_err(ChainCommunicationError::from_other)?;
-
-            let client = ClientBuilder::new()
-                .default_headers(header)
+        for url in conf.core.iter() {
+            let (headers, url) =
+                parse_custom_rpc_headers(url).map_err(ChainCommunicationError::from_other)?;
+            let client = Client::builder()
+                .default_headers(headers)
                 .build()
-                .map_err(ChainCommunicationError::from_other)?;
-
+                .map_err(HyperlaneRadixError::from)?;
             let provider = RadixBaseCoreProvider::new(
                 CoreConfig {
                     client,
@@ -116,6 +126,8 @@ impl RadixProvider {
                 },
                 conf.network.clone(),
             );
+            let provider =
+                RadixMetricCoreProvider::new(provider, &url, metrics.clone(), chain.clone());
             core_provider.push(provider);
         }
         Ok(RadixFallbackProvider::new(
@@ -130,17 +142,20 @@ impl RadixProvider {
         conf: &ConnectionConf,
         locator: &ContractLocator,
         reorg: &ReorgPeriod,
+        metrics: PrometheusClientMetrics,
+        chain: Option<ChainInfo>,
     ) -> ChainResult<RadixProvider> {
         Ok(Self {
             domain: locator.domain.clone(),
             signer,
             reorg: reorg.clone(),
-            provider: Self::build_fallback_provider(conf)?,
+            provider: Self::build_fallback_provider(conf, metrics, chain)?,
             conf: conf.clone(),
         })
     }
 
-    fn get_signer(&self) -> ChainResult<&RadixSigner> {
+    /// Get the Radix Signer
+    pub fn get_signer(&self) -> ChainResult<&RadixSigner> {
         let signer = self
             .signer
             .as_ref()
@@ -148,14 +163,14 @@ impl RadixProvider {
         Ok(signer)
     }
 
-    /// Calls a method on a component
-    pub async fn call_method<T: ScryptoSbor>(
+    /// Calls a method on a component at a specific block
+    pub async fn call_method_at_state<T: ScryptoSbor>(
         &self,
         component: &str,
         method: &str,
         state_version: Option<u64>,
         raw_args: Vec<Vec<u8>>,
-    ) -> ChainResult<T> {
+    ) -> ChainResult<(T, u64)> {
         let selector = state_version.map(|state_version| {
             core_api_client::models::LedgerStateSelector::ByStateVersion(
                 VersionLedgerStateSelector { state_version },
@@ -185,7 +200,10 @@ impl RadixProvider {
                         );
                     };
                     let data = hex::decode(data)?;
-                    return Ok(scrypto_decode::<T>(&data).map_err(HyperlaneRadixError::from)?);
+                    return Ok((
+                        scrypto_decode::<T>(&data).map_err(HyperlaneRadixError::from)?,
+                        result.at_ledger_state.state_version,
+                    ));
                 }
                 Err(HyperlaneRadixError::SborCallMethod("no output found".into()).into())
             }
@@ -198,18 +216,36 @@ impl RadixProvider {
     }
 
     /// Calls a method on a component
-    /// if specified will use the passed state_version
+    pub async fn call_method<T: ScryptoSbor>(
+        &self,
+        component: &str,
+        method: &str,
+        reorg: Option<&ReorgPeriod>,
+        raw_args: Vec<Vec<u8>>,
+    ) -> ChainResult<(T, u64)> {
+        let state_version = match reorg {
+            Some(ReorgPeriod::None) => None,
+            Some(reorg) => Some(self.get_state_version(Some(reorg)).await?),
+            None => None,
+        };
+
+        self.call_method_at_state(component, method, state_version, raw_args)
+            .await
+    }
+
+    /// Calls a method with arguments on a component
     pub async fn call_method_with_arg<T: ScryptoSbor, A: ManifestEncode + ?Sized>(
         &self,
         component: &str,
         method: &str,
-        state_version: Option<u64>,
         argument: &A,
     ) -> ChainResult<T> {
         let arguments = manifest_encode(argument).map_err(HyperlaneRadixError::from)?;
 
-        self.call_method(component, method, state_version, vec![arguments])
-            .await
+        Ok(self
+            .call_method::<T>(component, method, None, vec![arguments])
+            .await?
+            .0)
     }
 
     /// Returns the latest ledger state of the chain
@@ -280,7 +316,7 @@ impl RadixProvider {
                         padded_address[32 - len..].copy_from_slice(&address[..len]);
                         let address: H256 = padded_address.into();
 
-                        let height = U256::from(tx.state_version).to_vec();
+                        let height = U256::from(tx.state_version as u64).to_vec();
 
                         let meta = LogMeta {
                             address,
@@ -344,6 +380,7 @@ impl RadixProvider {
                     manifest_instructions: Some(true),
                     receipt_events: Some(true),
                     receipt_fee_summary: Some(true),
+                    receipt_state_changes: Some(true),
                     ..Default::default()
                 }),
                 ..Default::default()
@@ -406,28 +443,51 @@ impl RadixProvider {
     }
 
     /// Returns a tx builder with header information already filled in
-    pub async fn get_tx_builder(
-        &self,
-    ) -> ChainResult<(TransactionV2Builder, &RadixSigner, PrivateKey)> {
-        let signer = self.get_signer()?;
-        let private_key = signer.get_signer()?;
-
-        let epoch = self.provider.gateway_status().await?.ledger_state.epoch as u64;
-        let tx = TransactionBuilder::new_v2()
+    pub fn get_tx_builder(
+        network: &NetworkDefinition,
+        private_key: &PrivateKey,
+        epoch: u64,
+        intent_discriminator: u64,
+    ) -> TransactionV2Builder {
+        TransactionBuilder::new_v2()
             .transaction_header(TransactionHeaderV2 {
                 notary_public_key: private_key.public_key(),
-                notary_is_signatory: false,
+                notary_is_signatory: true,
                 tip_basis_points: 0u32, // TODO: what should we set this to?
             })
             .intent_header(IntentHeaderV2 {
-                network_id: self.conf.network.id,
+                network_id: network.id,
                 start_epoch_inclusive: Epoch::of(epoch),
                 end_epoch_exclusive: Epoch::of(epoch + 2), // ~5 minutes per epoch -> 10min timeout
-                intent_discriminator: 0u64, // TODO: do we want this to happen? This is used like a nonce
+                intent_discriminator,
                 min_proposer_timestamp_inclusive: None, // TODO: discuss whether or not we want to have a time limit
                 max_proposer_timestamp_exclusive: None,
-            });
-        Ok((tx, signer, private_key))
+            })
+    }
+
+    /// build tx
+    pub fn build_tx(
+        signer: &RadixSigner,
+        network: &NetworkDefinition,
+        epoch: u64,
+        intent_discriminator: u64,
+        build_manifest: impl Fn(TransactionManifestV2Builder) -> TransactionManifestV2Builder,
+        fee: FeeSummary,
+    ) -> ChainResult<DetailedNotarizedTransactionV2> {
+        let private_key = signer.get_signer()?;
+        let tx_builder = Self::get_tx_builder(network, &private_key, epoch, intent_discriminator);
+
+        let simulation = fee;
+        let simulated_xrd = RadixProvider::total_fee(simulation)?
+            * Decimal::from_str("1.5").map_err(HyperlaneRadixError::from)?;
+
+        let tx = tx_builder
+            .manifest_builder(|builder| {
+                build_manifest(builder.lock_fee(signer.address, simulated_xrd))
+            })
+            .notarize(&private_key)
+            .build();
+        Ok(tx)
     }
 
     /// Returns the total Fee that was paid
@@ -451,7 +511,18 @@ impl RadixProvider {
         build_manifest: impl Fn(TransactionManifestV2Builder) -> TransactionManifestV2Builder,
         fee: Option<FeeSummary>,
     ) -> ChainResult<TxOutcome> {
-        let (tx_builder, signer, private_key) = self.get_tx_builder().await?;
+        let signer = self.get_signer()?;
+        let private_key = signer.get_signer()?;
+        // Use random discriminator to avoid collisions
+        let intent_discriminator = rand::random::<u64>();
+        let epoch = self.provider.gateway_status().await?.ledger_state.epoch as u64;
+
+        let tx_builder = Self::get_tx_builder(
+            &self.conf.network,
+            &private_key,
+            epoch,
+            intent_discriminator,
+        );
 
         let manifest = build_manifest(ManifestBuilder::new_v2()).build();
         let simulation = tx_builder
@@ -465,16 +536,15 @@ impl RadixProvider {
             Some(summary) => summary,
             None => self.simulate_raw_tx(simulation.to_vec()).await?.fee_summary,
         };
-        let simulated_xrd = Self::total_fee(simulation)?
-            * Decimal::from_str("1.5").map_err(HyperlaneRadixError::from)?;
 
-        let tx = tx_builder
-            .manifest_builder(|builder| {
-                build_manifest(builder.lock_fee(signer.address, simulated_xrd))
-            })
-            .sign(&private_key)
-            .notarize(&private_key)
-            .build();
+        let tx = Self::build_tx(
+            signer,
+            &self.conf.network,
+            epoch,
+            intent_discriminator,
+            build_manifest,
+            simulation,
+        )?;
 
         self.submit_transaction(tx.raw.to_vec()).await?;
 
@@ -514,8 +584,7 @@ impl RadixProvider {
                     attempt += 1;
                     if attempt >= N {
                         return Err(HyperlaneRadixError::Other(format!(
-                            "Transaction timed out after {} seconds",
-                            TIMEOUT_DELAY
+                            "Transaction timed out after {TIMEOUT_DELAY} seconds"
                         ))
                         .into());
                     }
@@ -542,7 +611,19 @@ impl RadixProvider {
         &self,
         build_manifest: impl Fn(TransactionManifestV2Builder) -> TransactionManifestV2Builder,
     ) -> ChainResult<TransactionReceipt> {
-        let (tx, _, _) = self.get_tx_builder().await?;
+        let signer = self.get_signer()?;
+        let private_key = signer.get_signer()?;
+        // Use random discriminator to avoid collisions
+        let intent_discriminator = rand::random::<u64>();
+
+        let epoch = self.provider.gateway_status().await?.ledger_state.epoch as u64;
+        let tx = Self::get_tx_builder(
+            &self.conf.network,
+            &private_key,
+            epoch,
+            intent_discriminator,
+        );
+
         let manifest = build_manifest(ManifestBuilder::new_v2()).build();
         let tx = tx
             .manifest(manifest)
@@ -643,8 +724,7 @@ impl HyperlaneProvider for RadixProvider {
 
         if tx.items.is_empty() {
             return Err(HyperlaneRadixError::Other(format!(
-                "Expected at least one tx for state version: {}",
-                height
+                "Expected at least one tx for state version: {height}"
             ))
             .into());
         }
@@ -652,9 +732,7 @@ impl HyperlaneProvider for RadixProvider {
         let datetime = DateTime::parse_from_rfc3339(&tx.ledger_state.proposer_round_timestamp)
             .map_err(HyperlaneRadixError::from)?;
         let timestamp = datetime.with_timezone(&Utc).timestamp() as u64;
-
         let height_bytes = U256::from(tx.ledger_state.state_version).to_vec();
-
         Ok(BlockInfo {
             hash: H256::from_slice(&height_bytes),
             timestamp,
@@ -740,54 +818,83 @@ impl HyperlaneProvider for RadixProvider {
 
     /// Fetch the balance of the wallet address associated with the chain provider.
     async fn get_balance(&self, address: String) -> ChainResult<U256> {
-        let details = self
-            .entity_details(StateEntityDetailsRequest {
-                addresses: vec![address],
-                opt_ins: Some(models::StateEntityDetailsOptIns {
-                    native_resource_details: Some(true),
-                    ..Default::default()
-                }),
-                ..Default::default()
-            })
-            .await?;
-
-        for d in details.items {
-            if let Some(resources) = d.fungible_resources {
-                for i in resources.items {
-                    let (address, amount) = match i {
-                        models::FungibleResourcesCollectionItem::Global(x) => {
-                            let amount =
-                                Decimal::try_from(x.amount).map_err(HyperlaneRadixError::from)?;
-                            (x.resource_address, amount)
-                        }
-                        models::FungibleResourcesCollectionItem::Vault(v) => {
-                            // aggregate all the vaults amounts
-                            let amount = v
-                                .vaults
-                                .items
-                                .into_iter()
-                                .map(|x| Decimal::try_from(x.amount))
-                                .collect::<Result<Vec<_>, _>>()
-                                .map_err(HyperlaneRadixError::from)?
-                                .into_iter()
-                                .reduce(|a, b| a + b)
-                                .unwrap_or_default();
-                            (v.resource_address, amount)
-                        }
-                    };
-                    let address = decode_bech32(&address)?;
-                    if address == XRD.to_vec() {
-                        return Ok(decimal_to_u256(amount));
-                    }
-                }
-            }
-        }
-
-        Ok(U256::zero())
+        let balance: Decimal = self.call_method_with_arg(&address, "balance", &XRD).await?;
+        Ok(decimal_to_u256(balance))
     }
 
     /// Fetch metrics related to this chain
-    async fn get_chain_metrics(&self) -> ChainResult<Option<ChainInfo>> {
-        return Ok(None);
+    async fn get_chain_metrics(&self) -> ChainResult<Option<hyperlane_core::ChainInfo>> {
+        let state_version = self.get_state_version(None).await?;
+        let block_info = self.get_block_by_height(state_version).await?;
+        Ok(Some(hyperlane_core::ChainInfo::new(block_info, None)))
+    }
+}
+
+/// Data required to send a tx on radix
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct RadixTxCalldata {
+    /// Address of contract
+    pub component_address: String,
+    /// Method to call on contract
+    pub method_name: String,
+    /// parameters required to call method
+    pub encoded_arguments: Vec<u8>,
+}
+
+#[cfg(test)]
+mod tests {
+    use radix_common::manifest_args;
+    use scrypto::{
+        prelude::{manifest_decode, ManifestArgs, ManifestValue},
+        types::ComponentAddress,
+    };
+
+    use hyperlane_core::{Encode, HyperlaneMessage};
+
+    use super::*;
+
+    /// Test to ensure data produced from manifest_args!
+    /// can be correctly serialized from hyperlane-radix and
+    /// sent to lander.
+    /// Then lander can successfully deserialize it
+    #[test]
+    pub fn test_decode_manifest_args() {
+        let message = HyperlaneMessage::default();
+        let visible_components: Vec<ComponentAddress> = vec![];
+        let metadata: Vec<u8> = vec![1, 2, 3, 4];
+
+        let args: ManifestArgs = manifest_args!(&metadata, &message.to_vec(), &visible_components);
+
+        let encoded_args = manifest_encode(&args).expect("Failed to encode");
+
+        let manifest_args: ManifestValue =
+            manifest_decode(&encoded_args).expect("Failed to decode");
+
+        let expected = ManifestValue::Tuple {
+            fields: vec![
+                ManifestValue::Array {
+                    element_value_kind: sbor::ValueKind::U8,
+                    elements: metadata
+                        .iter()
+                        .map(|v| sbor::Value::U8 { value: *v })
+                        .collect(),
+                },
+                ManifestValue::Array {
+                    element_value_kind: sbor::ValueKind::U8,
+                    elements: message
+                        .to_vec()
+                        .iter()
+                        .map(|v| sbor::Value::U8 { value: *v })
+                        .collect(),
+                },
+                ManifestValue::Array {
+                    element_value_kind: sbor::ValueKind::Custom(
+                        scrypto::prelude::ManifestCustomValueKind::Address,
+                    ),
+                    elements: vec![],
+                },
+            ],
+        };
+        assert_eq!(manifest_args, expected);
     }
 }

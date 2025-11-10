@@ -4,7 +4,7 @@ use cosmrs::Any;
 use hex::ToHex;
 use hyperlane_cosmos_rs::{
     hyperlane::core::interchain_security::v1::{
-        MerkleRootMultisigIsm, NoopIsm, RoutingIsm as CosmosRoutingIsm,
+        MerkleRootMultisigIsm, MessageIdMultisigIsm, NoopIsm, RoutingIsm as CosmosRoutingIsm,
     },
     prost::{Message, Name},
 };
@@ -84,12 +84,12 @@ impl InterchainSecurityModule for CosmosNativeIsm {
     async fn module_type(&self) -> ChainResult<ModuleType> {
         let ism = self.get_ism().await?;
         match ism.type_url.as_str() {
+            t if t == MessageIdMultisigIsm::type_url() => Ok(ModuleType::MessageIdMultisig),
             t if t == MerkleRootMultisigIsm::type_url() => Ok(ModuleType::MerkleRootMultisig),
             t if t == CosmosRoutingIsm::type_url() => Ok(ModuleType::Routing),
             t if t == NoopIsm::type_url() => Ok(ModuleType::Null),
             other => Err(ChainCommunicationError::from_other_str(&format!(
-                "Unknown ISM type: {}",
-                other
+                "Unknown ISM type: {other}"
             ))),
         }
     }

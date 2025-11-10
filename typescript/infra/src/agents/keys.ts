@@ -2,7 +2,7 @@ import { ethers } from 'ethers';
 import { Provider as ZkProvider, Wallet as ZkWallet } from 'zksync-ethers';
 
 import { ChainName } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { HexString, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { DeployEnvironment } from '../config/environment.js';
@@ -23,7 +23,10 @@ export abstract class BaseAgentKey {
 
   // By default, only Ethereum keys are supported. Subclasses may override
   // this to support other protocols.
-  addressForProtocol(protocol: ProtocolType): string | undefined {
+  addressForProtocol(
+    protocol: ProtocolType,
+    _bech32Prefix?: string,
+  ): string | undefined {
     if (protocol === ProtocolType.Ethereum) {
       return this.address;
     }
@@ -73,6 +76,20 @@ export abstract class CloudAgentKey extends BaseCloudAgentKey {
       identifier: this.identifier,
       address: this.address,
     };
+  }
+
+  privateKeyForProtocol(
+    protocol: Exclude<ProtocolType, ProtocolType.Sealevel>,
+  ): HexString;
+  privateKeyForProtocol(protocol: ProtocolType.Sealevel): Uint8Array;
+  privateKeyForProtocol(protocol: ProtocolType): HexString | Uint8Array {
+    if (protocol === ProtocolType.Ethereum) {
+      return this.privateKey;
+    }
+
+    throw new Error(
+      `Base implementation of CloudAgentKey.privateKeyForProtocol does not support protocol ${protocol}`,
+    );
   }
 }
 

@@ -1,107 +1,111 @@
-import { GasPrice } from '@cosmjs/stargate';
-import { BigNumber } from 'bignumber.js';
-import { ethers } from 'ethers';
+import { BigNumber as BN } from 'bignumber.js';
+import { BigNumber } from 'ethers';
+import { formatUnits } from 'ethers/lib/utils.js';
 
 import {
-  ChainMetadataManager,
+  AnyProtocolReceipt,
+  AnyProtocolTransaction,
   ChainName,
-  MultiProtocolProvider,
+  MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  AltVM,
+  GasAction,
+  ProtocolType,
+  assert,
+} from '@hyperlane-xyz/utils';
 
 import { autoConfirm } from '../config/prompts.js';
-import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
-import { MultiProtocolSignerManager } from '../context/strategies/signer/MultiProtocolSignerManager.js';
-import { logBlue, logGray, logGreen, logRed, warnYellow } from '../logger.js';
+import { ETHEREUM_MINIMUM_GAS } from '../consts.js';
+import { logBlue, logGreen, logRed, warnYellow } from '../logger.js';
 
 export async function nativeBalancesAreSufficient(
-  metadataManager: ChainMetadataManager,
-  multiProtocolProvider: MultiProtocolProvider,
-  multiProtocolSigner: MultiProtocolSignerManager,
+  multiProvider: MultiProvider,
+  altVmSigner: AltVM.ISignerFactory<AnyProtocolTransaction, AnyProtocolReceipt>,
   chains: ChainName[],
-  minGas: typeof MINIMUM_WARP_DEPLOY_GAS,
+  minGas: GasAction,
   skipConfirmation: boolean,
 ) {
   const sufficientBalances: boolean[] = [];
   for (const chain of chains) {
-    const protocolType = metadataManager.getProtocol(chain);
+    const protocolType = multiProvider.getProtocol(chain);
 
-    const symbol = metadataManager.getChainMetadata(chain).nativeToken?.symbol;
+    const symbol = multiProvider.getChainMetadata(chain).nativeToken?.symbol;
     assert(symbol, `no symbol found for native token on chain ${chain}`);
 
     let address: Address = '';
-    let minBalanceSmallestUnit = new BigNumber(0);
-    let minBalance = new BigNumber(0);
+    let requiredMinBalanceNativeDenom = BigNumber.from(0);
+    let requiredMinBalance: string = '0';
 
-    let balanceSmallestUnit = new BigNumber(0);
-    let balance = new BigNumber(0);
+    let deployerBalanceNativeDenom = BigNumber.from(0);
+    let deployerBalance: string = '0';
 
     switch (protocolType) {
       case ProtocolType.Ethereum: {
-        address = await multiProtocolSigner.getEVMSigner(chain).getAddress();
+        address = await multiProvider.getSignerAddress(chain);
 
-        const provider = multiProtocolProvider.getEthersV5Provider(chain);
+        const provider = multiProvider.getProvider(chain);
         const gasPrice = await provider.getGasPrice();
 
-        minBalanceSmallestUnit = new BigNumber(
-          gasPrice.mul(minGas[ProtocolType.Ethereum]).toString(),
+        requiredMinBalanceNativeDenom = gasPrice.mul(
+          ETHEREUM_MINIMUM_GAS[minGas],
         );
-        minBalance = new BigNumber(
-          ethers.utils.formatEther(minBalanceSmallestUnit.toString()),
+        requiredMinBalance = formatUnits(
+          requiredMinBalanceNativeDenom.toString(),
         );
 
-        balanceSmallestUnit = new BigNumber(
-          (await provider.getBalance(address)).toString(),
-        );
-        balance = new BigNumber(
-          ethers.utils.formatEther(balanceSmallestUnit.toFixed()).toString(),
-        );
+        deployerBalanceNativeDenom = await provider.getBalance(address);
+        deployerBalance = formatUnits(deployerBalanceNativeDenom.toString());
         break;
       }
-      case ProtocolType.CosmosNative: {
-        address =
-          multiProtocolSigner.getCosmosNativeSigner(chain).account.address;
+      default: {
+        const signer = altVmSigner.get(chain);
 
-        const provider = await multiProtocolProvider.getCosmJsProvider(chain);
-        const { gasPrice, nativeToken } =
-          metadataManager.getChainMetadata(chain);
+        address = signer.getSignerAddress();
+
+        const { gasPrice, nativeToken, protocol } =
+          multiProvider.getChainMetadata(chain);
 
         assert(nativeToken, `nativeToken is not defined on chain ${chain}`);
         assert(
           nativeToken.denom,
           `nativeToken denom is not defined on chain ${chain}`,
         );
-        assert(gasPrice, `gasPrice is not defined on chain ${chain}`);
 
-        minBalanceSmallestUnit = new BigNumber(
-          GasPrice.fromString(
-            `${gasPrice.amount}${gasPrice.denom}`,
-          ).amount.toString(),
-        ).multipliedBy(minGas[ProtocolType.CosmosNative]);
-        minBalance = new BigNumber(minBalanceSmallestUnit).dividedBy(
-          new BigNumber(10).exponentiatedBy(nativeToken.decimals),
+        if (!gasPrice) {
+          return;
+        }
+
+        const ALT_VM_GAS = altVmSigner.getMinGas(protocol);
+        requiredMinBalanceNativeDenom = BigNumber.from(
+          new BN(gasPrice.amount)
+            .times(ALT_VM_GAS[minGas].toString())
+            .toFixed(0),
+        );
+        requiredMinBalance = formatUnits(
+          requiredMinBalanceNativeDenom,
+          nativeToken.decimals,
         );
 
-        balanceSmallestUnit = new BigNumber(
-          (await provider.getBalance(address, nativeToken.denom)).amount,
+        deployerBalanceNativeDenom = BigNumber.from(
+          await signer.getBalance({ address, denom: nativeToken.denom }),
         );
-        balance = new BigNumber(balanceSmallestUnit).dividedBy(
-          new BigNumber(10).exponentiatedBy(nativeToken.decimals),
+        deployerBalance = formatUnits(
+          deployerBalanceNativeDenom,
+          nativeToken.decimals,
         );
-        break;
-      }
-      default: {
-        logGray(`Skipping balance check for unsupported chain: ${chain}`);
       }
     }
 
-    if (new BigNumber(balanceSmallestUnit).lt(minBalanceSmallestUnit)) {
+    if (deployerBalanceNativeDenom.lt(requiredMinBalanceNativeDenom)) {
       logRed(
-        `WARNING: ${address} has low balance on ${chain}. At least ${minBalance} ${symbol} recommended but found ${balance} ${symbol}`,
+        `WARNING: ${address} has low balance on ${chain}. At least ${requiredMinBalance} ${symbol} recommended but found ${deployerBalance} ${symbol}`,
       );
       sufficientBalances.push(false);
     }
   }
+
   const allSufficient = sufficientBalances.every((sufficient) => sufficient);
 
   if (allSufficient) {

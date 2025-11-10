@@ -12,7 +12,7 @@ impl NonceManagerState {
         Ok((finalized_nonce, upper_nonce))
     }
 
-    pub(super) async fn get_tracked_tx(
+    pub async fn get_tracked_tx(
         &self,
         tx_uuid: &TransactionUuid,
     ) -> NonceResult<Option<Transaction>> {
@@ -40,11 +40,14 @@ impl NonceManagerState {
         self.nonce_db
             .store_transaction_uuid_by_nonce_and_signer_address(nonce, &self.address, tx_uuid)
             .await?;
+        self.nonce_db
+            .store_nonce_by_transaction_uuid(&self.address, tx_uuid, nonce)
+            .await?;
 
         Ok(())
     }
 
-    pub(super) async fn get_tracked_tx_uuid(&self, nonce: &U256) -> NonceResult<TransactionUuid> {
+    pub async fn get_tracked_tx_uuid(&self, nonce: &U256) -> NonceResult<TransactionUuid> {
         let tx_uuid = self
             .nonce_db
             .retrieve_transaction_uuid_by_nonce_and_signer_address(nonce, &self.address)
@@ -62,7 +65,7 @@ impl NonceManagerState {
         Ok(())
     }
 
-    pub(super) async fn get_finalized_nonce(&self) -> NonceResult<Option<U256>> {
+    pub async fn get_finalized_nonce(&self) -> NonceResult<Option<U256>> {
         let finalized_nonce = self
             .nonce_db
             .retrieve_finalized_nonce_by_signer_address(&self.address)
@@ -87,6 +90,22 @@ impl NonceManagerState {
             .unwrap_or_default();
 
         Ok(nonce)
+    }
+
+    pub(super) async fn get_tx_nonce(&self, uuid: &TransactionUuid) -> NonceResult<Option<U256>> {
+        let nonce = self
+            .nonce_db
+            .retrieve_nonce_by_transaction_uuid(&self.address, uuid)
+            .await?;
+        Ok(nonce)
+    }
+
+    pub(super) async fn clear_tracked_tx_nonce(&self, uuid: &TransactionUuid) -> NonceResult<()> {
+        self.nonce_db
+            .store_nonce_by_transaction_uuid(&self.address, uuid, &U256::MAX)
+            .await?;
+
+        Ok(())
     }
 }
 

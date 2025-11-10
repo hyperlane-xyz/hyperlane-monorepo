@@ -10,7 +10,6 @@ export const awIcasLegacy: ChainMap<Address> = {
   // Jul 26, 2024 batch
   // ----------------------------------------------------------
   xlayer: '0x1571c482fe9E76bbf50829912b1c746792966369',
-  cheesechain: '0xEe2C5320BE9bC7A1492187cfb289953b53E3ff1b',
   worldchain: '0x1996DbFcFB433737fE404F58D2c32A7f5f334210',
   // zircuit: '0x0d67c56E818a02ABa58cd2394b95EF26db999aA3', // already has a safe
 
@@ -23,7 +22,6 @@ export const awIcasLegacy: ChainMap<Address> = {
   merlin: '0xCf867cEaeeE8CBe65C680c734D29d26440931D5b',
   metis: '0xb51e63CD0842D670a13c88B159fCFc268DA652A3',
   mint: '0xb51e63CD0842D670a13c88B159fCFc268DA652A3',
-  proofofplay: '0xb51e63CD0842D670a13c88B159fCFc268DA652A3',
   tangle: '0xCC2aeb692197C7894E561d31ADFE8F79746f7d9F',
   xai: '0x22d952d3b9F493442731a3c7660aCaD98e55C00A',
   // taiko: '0x483D218D2FEe7FC7204ba15F00C7901acbF9697D', // renzo chain
@@ -73,11 +71,9 @@ export const awIcasLegacy: ChainMap<Address> = {
   kaia: '0x8965d9f19336EB4e910d5f1B9070205FdBee6837',
   morph: '0x8965d9f19336EB4e910d5f1B9070205FdBee6837',
   orderly: '0x8965d9f19336EB4e910d5f1B9070205FdBee6837',
-  snaxchain: '0x8965d9f19336EB4e910d5f1B9070205FdBee6837',
 
   // Nov 8, 2024 batch
   // ----------------------------------------------------------
-  alephzeroevmmainnet: '0xDE91AC081E12107a033728A287b06B1Fc640A637',
   chilizmainnet: '0x54AF0FCDCD58428f8dF3f825267DfB58f2C710eb',
   flowmainnet: '0x65528D447C93CC1A1A7186CB4449d9fE0d5C1928',
   immutablezkevmmainnet: '0x54AF0FCDCD58428f8dF3f825267DfB58f2C710eb',

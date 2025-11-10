@@ -38,11 +38,12 @@ impl StarknetMailbox {
     /// Create a reference to a mailbox at a specific Starknet address on some
     /// chain
     pub async fn new(
+        provider: StarknetProvider,
         conn: &ConnectionConf,
         locator: &ContractLocator<'_>,
         signer: Option<Signer>,
     ) -> ChainResult<Self> {
-        let account = build_single_owner_account(conn.urls.clone(), signer).await?;
+        let account = build_single_owner_account(signer, provider.rpc_client()).await?;
 
         let mailbox_address: Felt = HyH256(locator.address).into();
 
@@ -50,7 +51,7 @@ impl StarknetMailbox {
 
         Ok(Self {
             contract,
-            provider: StarknetProvider::new(locator.domain.clone(), conn),
+            provider,
             conn: conn.clone(),
         })
     }
@@ -208,11 +209,16 @@ impl Mailbox for StarknetMailbox {
 
         let tx = self.contract.account.execute_v3(calls);
         let outcome = send_and_confirm(self.provider.rpc_client(), tx).await?;
+        let failed_indexes = if outcome.executed {
+            Vec::new()
+        } else {
+            (0..ops.len()).collect()
+        };
 
         // Either all operations are executed successfully, or none of them are
         Ok(BatchResult {
             outcome: Some(outcome),
-            failed_indexes: vec![],
+            failed_indexes,
         })
     }
 }

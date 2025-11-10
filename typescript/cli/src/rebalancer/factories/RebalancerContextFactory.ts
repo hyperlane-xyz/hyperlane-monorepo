@@ -1,11 +1,6 @@
 import { Logger } from 'pino';
 
-import {
-  type ChainMap,
-  type ChainMetadata,
-  type Token,
-  WarpCore,
-} from '@hyperlane-xyz/sdk';
+import { type ChainMap, type Token, WarpCore } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import type { WriteCommandContext } from '../../context/types.js';
@@ -30,7 +25,6 @@ export class RebalancerContextFactory {
    */
   private constructor(
     private readonly config: RebalancerConfig,
-    private readonly metadata: ChainMap<ChainMetadata>,
     private readonly warpCore: WarpCore,
     private readonly tokensByChainName: ChainMap<Token>,
     private readonly context: WriteCommandContext,
@@ -53,7 +47,6 @@ export class RebalancerContextFactory {
       'Creating RebalancerContextFactory',
     );
     const { registry } = context;
-    const metadata = await registry.getMetadata();
     const addresses = await registry.getAddresses();
 
     // The Sealevel warp adapters require the Mailbox address, so we
@@ -81,7 +74,6 @@ export class RebalancerContextFactory {
     );
     return new RebalancerContextFactory(
       config,
-      metadata,
       warpCore,
       tokensByChainName,
       context,
@@ -103,7 +95,7 @@ export class RebalancerContextFactory {
       'Creating Metrics',
     );
     const tokenPriceGetter = PriceGetter.create(
-      this.metadata,
+      this.context.chainMetadata,
       this.logger,
       coingeckoApiKey,
     );
@@ -161,14 +153,25 @@ export class RebalancerContextFactory {
         override: v.override,
       })),
       this.warpCore,
-      this.metadata,
+      this.context.chainMetadata,
       this.tokensByChainName,
       this.context.multiProvider,
       this.logger,
       metrics,
     );
 
-    return new WithSemaphore(this.config, rebalancer, this.logger);
+    const rebalancerAddress = this.context.signerAddress;
+    if (!rebalancerAddress) {
+      throw new Error('rebalancer address is required');
+    }
+
+    const withSemaphore = new WithSemaphore(
+      this.config,
+      rebalancer,
+      this.logger,
+    );
+
+    return withSemaphore;
   }
 
   private async getInitialTotalCollateral(): Promise<bigint> {
@@ -180,7 +183,6 @@ export class RebalancerContextFactory {
       this.warpCore.tokens.map(async (token) => {
         if (
           isCollateralizedTokenEligibleForRebalancing(token) &&
-          token.collateralAddressOrDenom &&
           chainNames.has(token.chainName)
         ) {
           const adapter = token.getHypAdapter(this.warpCore.multiProvider);

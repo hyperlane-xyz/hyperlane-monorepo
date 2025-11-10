@@ -90,7 +90,7 @@ describe('hyperlane warp read e2e tests', async function () {
 
       expect(output.exitCode).to.equal(1);
       expect(output.text()).to.include(
-        'Invalid input parameters. Please provide either a token symbol or both chain name and token address',
+        'Invalid input parameters. Please provide either a token symbol, a warp route id or both chain name and token address',
       );
     });
   });
@@ -153,6 +153,64 @@ describe('hyperlane warp read e2e tests', async function () {
         .nothrow();
 
       const finalOutput = await handlePrompts(output, steps);
+
+      expect(finalOutput.exitCode).to.equal(0);
+
+      const warpReadResult: WarpRouteDeployConfig =
+        readYamlOrJson(readOutputPath);
+      expect(warpReadResult[CHAIN_NAME_2]).not.to.be.undefined;
+      expect(warpReadResult[CHAIN_NAME_2].type).to.equal(TokenType.synthetic);
+
+      expect(warpReadResult[CHAIN_NAME_3]).not.to.be.undefined;
+      expect(warpReadResult[CHAIN_NAME_3].type).to.equal(TokenType.native);
+    });
+  });
+
+  describe('hyperlane warp read --warpRouteId ...', () => {
+    it('should throw an error if no warp route with the provided id exists', async () => {
+      const readOutputPath = `${TEMP_PATH}/warp-read-all-chain-with-symbol.yaml`;
+
+      await hyperlaneWarp.deploy(WARP_DEPLOY_OUTPUT_PATH, ANVIL_KEY);
+
+      const warpRouteId = 'ETH/does-not-exist';
+      const finalOutput = await hyperlaneWarp
+        .readRaw({
+          warpRouteId,
+          outputPath: readOutputPath,
+        })
+        .nothrow();
+
+      expect(finalOutput.exitCode).to.equal(1);
+      expect(finalOutput.text()).includes(
+        `No warp route found with the provided id "${warpRouteId}"`,
+      );
+    });
+
+    it('should successfully read the complete warp route config from all the chains', async () => {
+      const readOutputPath = `${TEMP_PATH}/warp-read-all-chain-with-symbol.yaml`;
+
+      const warpConfig: WarpRouteDeployConfig = {
+        [CHAIN_NAME_2]: {
+          type: TokenType.synthetic,
+          mailbox: chain2Addresses.mailbox,
+          owner: ownerAddress,
+        },
+        [CHAIN_NAME_3]: {
+          type: TokenType.native,
+          mailbox: chain3Addresses.mailbox,
+          owner: ownerAddress,
+        },
+      };
+
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+      await hyperlaneWarp.deploy(WARP_DEPLOY_OUTPUT_PATH, ANVIL_KEY);
+
+      const finalOutput = await hyperlaneWarp
+        .readRaw({
+          warpRouteId: 'ETH/warp-route-deployment',
+          outputPath: readOutputPath,
+        })
+        .nothrow();
 
       expect(finalOutput.exitCode).to.equal(0);
 

@@ -275,6 +275,7 @@ where
             .map(Into::into)
     }
 
+    #[instrument(skip(self), ret)]
     async fn fee_history(
         &self,
         block_count: U256,
@@ -336,7 +337,7 @@ where
         &self,
         cache: Arc<Mutex<BatchCache>>,
         batch_contract_address: H256,
-    ) -> eyre::Result<Multicall<M>> {
+    ) -> ChainResult<Multicall<M>> {
         multicall::build_multicall(
             self.provider.clone(),
             self.domain.clone(),

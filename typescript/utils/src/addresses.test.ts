@@ -13,6 +13,7 @@ const ETH_NON_ZERO_ADDR = '0x0000000000000000000000000000000000000001';
 const COS_ZERO_ADDR = 'cosmos1000';
 const COS_NON_ZERO_ADDR =
   'neutron1jyyjd3x0jhgswgm6nnctxvzla8ypx50tew3ayxxwkrjfxhvje6kqzvzudq';
+const COSMOS_PREFIX = 'neutron';
 const COSMOS_NATIVE_ZERO_ADDR =
   '0x0000000000000000000000000000000000000000000000000000000000000000';
 const COSMOS_NATIVE_NON_ZERO_ADDR =
@@ -81,6 +82,7 @@ describe('Address utilities', () => {
         bytesToProtocolAddress(
           addressToBytes(COSMOS_NATIVE_NON_ZERO_ADDR),
           ProtocolType.CosmosNative,
+          COSMOS_PREFIX,
         ),
       ).to.equal(COSMOS_NATIVE_NON_ZERO_ADDR);
       expect(

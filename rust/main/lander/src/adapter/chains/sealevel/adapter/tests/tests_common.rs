@@ -3,6 +3,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use mockall::mock;
 use solana_client::rpc_response::RpcSimulateTransactionResult;
+use solana_sdk::account::Account;
 use solana_sdk::{
     commitment_config::CommitmentConfig,
     compute_budget::ComputeBudgetInstruction,
@@ -115,56 +116,8 @@ mock! {
             signature: Signature,
             commitment: CommitmentConfig,
         ) -> ChainResult<bool>;
-    }
-}
 
-// used for localized tests for estimating, simulating, submitting txs etc
-struct MockProvider {}
-
-#[async_trait]
-impl SealevelProviderForLander for MockProvider {
-    async fn create_transaction_for_instruction(
-        &self,
-        _compute_unit_limit: u32,
-        _compute_unit_price_micro_lamports: u64,
-        _instruction: SealevelInstruction,
-        _payer: &SealevelKeypair,
-        _tx_submitter: Arc<dyn TransactionSubmitter>,
-        _sign: bool,
-    ) -> ChainResult<SealevelTransaction> {
-        let keypair = SealevelKeypair::default();
-        Ok(SealevelTransaction::new_unsigned(Message::new(
-            &[instruction()],
-            Some(&keypair.pubkey()),
-        )))
-    }
-
-    async fn get_estimated_costs_for_instruction(
-        &self,
-        _instruction: SealevelInstruction,
-        _payer: &SealevelKeypair,
-        _tx_submitter: Arc<dyn TransactionSubmitter>,
-        _priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
-    ) -> ChainResult<SealevelTxCostEstimate> {
-        Ok(SealevelTxCostEstimate {
-            compute_units: GAS_LIMIT,
-            compute_unit_price_micro_lamports: 0,
-        })
-    }
-
-    async fn wait_for_transaction_confirmation(
-        &self,
-        _transaction: &SealevelTransaction,
-    ) -> ChainResult<()> {
-        Ok(())
-    }
-
-    async fn confirm_transaction(
-        &self,
-        _signature: Signature,
-        _commitment: CommitmentConfig,
-    ) -> ChainResult<bool> {
-        Ok(true)
+        async fn get_account(&self, account: Pubkey) -> ChainResult<Option<Account>>;
     }
 }
 
@@ -178,7 +131,7 @@ pub fn estimate() -> SealevelTxCostEstimate {
 pub fn adapter() -> SealevelAdapter {
     let client = mock_client();
     let oracle = MockOracle::new();
-    let provider = MockProvider {};
+    let provider = create_default_mock_svm_provider();
     let submitter = mock_submitter();
 
     SealevelAdapter::new_internal_default(
@@ -193,7 +146,7 @@ pub fn adapter_config(conf: ChainConf) -> SealevelAdapter {
     let raw_conf = RawChainConf::default();
     let client = mock_client();
     let oracle = MockOracle::new();
-    let provider = MockProvider {};
+    let provider = create_default_mock_svm_provider();
     let submitter = mock_submitter();
 
     SealevelAdapter::new_internal(
@@ -207,13 +160,63 @@ pub fn adapter_config(conf: ChainConf) -> SealevelAdapter {
     .unwrap()
 }
 
+pub fn adapter_with_mock_svm_provider(provider: MockSvmProvider) -> SealevelAdapter {
+    let client = mock_client();
+    let oracle = MockOracle::new();
+    let submitter = mock_submitter();
+
+    SealevelAdapter::new_internal_default(
+        Arc::new(client),
+        Arc::new(provider),
+        Arc::new(oracle),
+        Arc::new(submitter),
+    )
+}
+
+fn create_default_mock_svm_provider() -> MockSvmProvider {
+    let mut provider = MockSvmProvider::new();
+
+    // Set up default expectations that existing tests expect
+    provider
+        .expect_get_estimated_costs_for_instruction()
+        .returning(|_, _, _, _| {
+            Ok(SealevelTxCostEstimate {
+                compute_units: GAS_LIMIT,
+                compute_unit_price_micro_lamports: 0,
+            })
+        });
+
+    provider
+        .expect_create_transaction_for_instruction()
+        .returning(|_, _, instruction, payer, _, _| {
+            let keypair = payer;
+            Ok(SealevelTransaction::new_unsigned(Message::new(
+                &[instruction],
+                Some(&keypair.pubkey()),
+            )))
+        });
+
+    provider
+        .expect_wait_for_transaction_confirmation()
+        .returning(|_| Ok(()));
+
+    provider
+        .expect_confirm_transaction()
+        .returning(|_, _| Ok(true));
+
+    // Default get_account returns None (account doesn't exist)
+    provider.expect_get_account().returning(|_| Ok(None));
+
+    provider
+}
+
 fn mock_submitter() -> MockSubmitter {
     let signature = Signature::default();
 
     let mut submitter = MockSubmitter::new();
     submitter
         .expect_send_transaction()
-        .returning(move |_, _| Ok(signature.clone()));
+        .returning(move |_, _| Ok(signature));
     submitter
         .expect_wait_for_transaction_confirmation()
         .returning(|_| Ok(()));
@@ -290,11 +293,11 @@ pub fn instruction() -> SealevelInstruction {
 
 pub fn payload() -> FullPayload {
     let data = serde_json::to_vec(&instruction()).unwrap();
-    let payload = FullPayload {
+
+    FullPayload {
         data,
         ..Default::default()
-    };
-    payload
+    }
 }
 
 pub fn precursor() -> SealevelTxPrecursor {

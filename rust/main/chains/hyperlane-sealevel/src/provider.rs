@@ -6,6 +6,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_client::rpc_client::SerializableTransaction;
 use solana_client::rpc_response::Response;
+use solana_sdk::account::Account;
 use solana_sdk::commitment_config::CommitmentConfig;
 use solana_sdk::compute_budget::ComputeBudgetInstruction;
 use solana_sdk::instruction::{AccountMeta, Instruction};
@@ -98,6 +99,13 @@ pub trait SealevelProviderForLander: Send + Sync {
         signature: Signature,
         commitment: CommitmentConfig,
     ) -> ChainResult<bool>;
+
+    /// Request account with processed commitment level
+    /// We use this method to identify if payload was or was not reverted
+    /// by checking if the account exists. That's why if the account
+    /// exits at the processed commitment level (as opposite to finalized),
+    /// it should be enough.
+    async fn get_account(&self, account: Pubkey) -> ChainResult<Option<Account>>;
 }
 
 /// A wrapper around a Sealevel provider to get generic blockchain information.
@@ -314,6 +322,12 @@ impl SealevelProviderForLander for SealevelProvider {
             .confirm_transaction_with_commitment(signature, commitment)
             .await
     }
+
+    async fn get_account(&self, account: Pubkey) -> ChainResult<Option<Account>> {
+        self.rpc_client()
+            .get_account_option_with_commitment(account, CommitmentConfig::processed())
+            .await
+    }
 }
 
 impl SealevelProvider {
@@ -510,8 +524,25 @@ impl SealevelProvider {
                     .map_err(ChainCommunicationError::from_other)?,
             };
 
-            let decoded_data =
-                T::try_from_slice(bytes.as_slice()).map_err(ChainCommunicationError::from_other)?;
+            // Workaround for when the response is missing the trailing byte expected as a workaround in SimulationReturnData
+            // here https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/25c1d1fb4341bbafeaca5a858e357cbf18c57293/rust/sealevel/libraries/serializable-account-meta/src/lib.rs#L32
+            // The return data struct includes a non-zero trailing_byte field to work around Solana's bug where return data ending with zero bytes
+            // gets truncated. However, some programs may return data without this trailing byte,
+            // causing Borsh deserialization to fail with "Unexpected length of input".
+            //
+            // If deserialization fails with this specific error, we retry by adding the missing
+            // trailing byte (255) to match the expected SimulationReturnData format.
+            let decoded_data = match T::try_from_slice(bytes.as_slice()) {
+                Ok(data) => data,
+                Err(e) if e.to_string().contains("Unexpected length of input") => {
+                    // Try adding the expected trailing byte (255) for SimulationReturnData
+                    let mut bytes_with_trailing = bytes.clone();
+                    bytes_with_trailing.push(255u8);
+                    T::try_from_slice(bytes_with_trailing.as_slice())
+                        .map_err(|_| ChainCommunicationError::from_other(e))?
+                }
+                Err(e) => return Err(ChainCommunicationError::from_other(e)),
+            };
 
             return Ok(Some(decoded_data));
         }

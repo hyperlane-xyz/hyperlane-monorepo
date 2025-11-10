@@ -1,5 +1,5 @@
-export * from './clients/client.js';
-export * from './clients/signingClient.js';
+export * from './clients/provider.js';
+export * from './clients/signer.js';
 
 export * from './registry.js';
 

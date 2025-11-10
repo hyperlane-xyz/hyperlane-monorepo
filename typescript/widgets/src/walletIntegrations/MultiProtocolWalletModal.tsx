@@ -11,16 +11,19 @@ export function MultiProtocolWalletModal({
   isOpen,
   close,
   protocols,
+  onProtocolSelected,
 }: {
   isOpen: boolean;
   close: () => void;
   protocols?: ProtocolType[]; // defaults to all protocols if not provided
+  onProtocolSelected?: (protocol: ProtocolType) => void;
 }) {
   const connectFns = useConnectFns();
 
   const onClickProtocol = (protocol: ProtocolType) => {
     close();
     const connectFn = connectFns[protocol];
+    if (onProtocolSelected) onProtocolSelected(protocol);
     if (connectFn) connectFn();
   };
 
@@ -36,7 +39,7 @@ export function MultiProtocolWalletModal({
             onClick={onClickProtocol}
             subTitle="an EVM"
           >
-            Ethereum
+            EVM
           </ProtocolButton>
         )}
         {includesProtocol(ProtocolType.Sealevel) && (

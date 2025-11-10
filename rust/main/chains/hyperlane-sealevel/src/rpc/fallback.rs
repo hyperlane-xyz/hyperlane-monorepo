@@ -168,6 +168,21 @@ impl SealevelFallbackRpcClient {
             .await
     }
 
+    /// get account with finalized commitment
+    pub async fn get_account_with_finalized_commitment(
+        &self,
+        pubkey: Pubkey,
+    ) -> ChainResult<Account> {
+        self.fallback_provider
+            .call(move |client| {
+                let pubkey = pubkey;
+                let future =
+                    async move { client.get_account_with_finalized_commitment(&pubkey).await };
+                Box::pin(future)
+            })
+            .await
+    }
+
     /// get account option with finalized commitment
     pub async fn get_account_option_with_finalized_commitment(
         &self,
@@ -186,16 +201,20 @@ impl SealevelFallbackRpcClient {
             .await
     }
 
-    /// get account with finalized commitment
-    pub async fn get_account_with_finalized_commitment(
+    /// get account option with a commitment
+    pub async fn get_account_option_with_commitment(
         &self,
         pubkey: Pubkey,
-    ) -> ChainResult<Account> {
+        commitment: CommitmentConfig,
+    ) -> ChainResult<Option<Account>> {
         self.fallback_provider
             .call(move |client| {
                 let pubkey = pubkey;
-                let future =
-                    async move { client.get_account_with_finalized_commitment(&pubkey).await };
+                let future = async move {
+                    client
+                        .get_account_option_with_commitment(&pubkey, commitment)
+                        .await
+                };
                 Box::pin(future)
             })
             .await

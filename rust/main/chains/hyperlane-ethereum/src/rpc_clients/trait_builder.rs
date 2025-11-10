@@ -1,5 +1,4 @@
 use std::fmt::Debug;
-use std::str::FromStr;
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
@@ -17,8 +16,8 @@ use ethers::types::Address;
 use ethers_signers::Signer;
 use hyperlane_core::rpc_clients::FallbackProvider;
 use hyperlane_metric::utils::url_to_host_info;
-use reqwest::header::{HeaderName, HeaderValue};
 use reqwest::{Client, Url};
+use reqwest_utils::parse_custom_rpc_headers;
 use thiserror::Error;
 
 use ethers_prometheus::json_rpc_client::{JsonRpcBlockGetter, PrometheusJsonRpcClient};
@@ -328,50 +327,14 @@ fn get_reqwest_client(url: &Url) -> ChainResult<Client> {
     if let Some(client) = client_cache.get(url) {
         return Ok(client.clone());
     }
-    let client = build_new_reqwest_client(url.clone())?;
-    client_cache.insert(url.clone(), client.clone());
-    Ok(client)
-}
-
-/// Builds a new reqwest client with the given URL.
-/// Generally `get_reqwest_client` should be used instead of this function,
-/// as it caches the client for reuse.
-fn build_new_reqwest_client(url: Url) -> ChainResult<Client> {
-    let mut queries_to_keep = vec![];
-    let mut headers = reqwest::header::HeaderMap::new();
-
-    // A hack to pass custom headers to the provider without
-    // requiring a bunch of changes to our configuration surface area.
-    // Any `custom_rpc_header` query parameter is expected to have the value
-    // format: `header_name:header_value`, will be added to the headers
-    // of the HTTP client, and removed from the URL params.
-    let mut updated_url = url.clone();
-    for (key, value) in url.query_pairs() {
-        if key != "custom_rpc_header" {
-            queries_to_keep.push((key.clone(), value.clone()));
-            continue;
-        }
-        if let Some((header_name, header_value)) = value.split_once(':') {
-            let header_name =
-                HeaderName::from_str(header_name).map_err(ChainCommunicationError::from_other)?;
-            let mut header_value =
-                HeaderValue::from_str(header_value).map_err(ChainCommunicationError::from_other)?;
-            header_value.set_sensitive(true);
-            headers.insert(header_name, header_value);
-        }
-    }
-
-    updated_url
-        .query_pairs_mut()
-        .clear()
-        .extend_pairs(queries_to_keep);
-
+    let (headers, _) =
+        parse_custom_rpc_headers(url).map_err(ChainCommunicationError::from_other)?;
     let client = Client::builder()
         .timeout(HTTP_CLIENT_TIMEOUT)
         .default_headers(headers)
         .build()
         .map_err(EthereumProviderConnectionError::from)?;
-
+    client_cache.insert(url.clone(), client.clone());
     Ok(client)
 }
 

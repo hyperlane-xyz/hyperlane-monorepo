@@ -1,23 +1,20 @@
+import { EncodeObject } from '@cosmjs/proto-signing';
+import { DeliverTxResponse } from '@cosmjs/stargate';
 import { expect } from 'chai';
 import { step } from 'mocha-steps';
 
 import {
-  MerkleRootMultisigISM,
-  MessageIdMultisigISM,
-  RoutingISM,
-} from '../../../cosmos-types/dist/types/hyperlane/core/interchain_security/v1/types.js';
-import {
+  AltVM,
   bytes32ToAddress,
   isValidAddressEvm,
-} from '../../../utils/dist/addresses.js';
-import { SigningHyperlaneModuleClient } from '../index.js';
+} from '@hyperlane-xyz/utils';
 
 import { createSigner } from './utils.js';
 
 describe('1. cosmos sdk interchain security e2e tests', async function () {
   this.timeout(100_000);
 
-  let signer: SigningHyperlaneModuleClient;
+  let signer: AltVM.ISigner<EncodeObject, DeliverTxResponse>;
 
   before(async () => {
     signer = await createSigner('alice');
@@ -25,42 +22,24 @@ describe('1. cosmos sdk interchain security e2e tests', async function () {
 
   step('create new NOOP ISM', async () => {
     // ARRANGE
-    let isms = await signer.query.interchainSecurity.Isms({});
-    expect(isms.isms).to.be.empty;
 
     // ACT
     const txResponse = await signer.createNoopIsm({});
 
     // ASSERT
-    expect(txResponse.code).to.equal(0);
+    expect(txResponse.ismAddress).not.to.be.empty;
 
-    const noopIsm = txResponse.response;
+    expect(isValidAddressEvm(bytes32ToAddress(txResponse.ismAddress))).to.be
+      .true;
 
-    expect(noopIsm.id).to.be.not.empty;
-    expect(isValidAddressEvm(bytes32ToAddress(noopIsm.id))).to.be.true;
-
-    isms = await signer.query.interchainSecurity.Isms({});
-    expect(isms.isms).to.have.lengthOf(1);
-
-    let ism = await signer.query.interchainSecurity.Ism({
-      id: noopIsm.id,
+    let ism = await signer.getNoopIsm({
+      ismAddress: txResponse.ismAddress,
     });
-    expect(ism.ism?.type_url).to.equal(
-      '/hyperlane.core.interchain_security.v1.NoopISM',
-    );
-
-    let decodedIsm = await signer.query.interchainSecurity.DecodedIsm({
-      id: noopIsm.id,
-    });
-    expect(decodedIsm.ism.id).to.equal(noopIsm.id);
-    expect(decodedIsm.ism.owner).to.equal(signer.account.address);
+    expect(ism.address).to.equal(txResponse.ismAddress);
   });
 
   step('create new MessageIdMultisig ISM', async () => {
     // ARRANGE
-    let isms = await signer.query.interchainSecurity.Isms({});
-    expect(isms.isms).to.have.lengthOf(1);
-
     const threshold = 2;
     const validators = [
       '0x3C24F29fa75869A1C9D19d9d6589Aae0B5227c3c',
@@ -78,46 +57,26 @@ describe('1. cosmos sdk interchain security e2e tests', async function () {
     });
 
     // ASSERT
-    expect(txResponse.code).to.equal(0);
+    expect(txResponse.ismAddress).to.be.not.empty;
+    expect(isValidAddressEvm(bytes32ToAddress(txResponse.ismAddress))).to.be
+      .true;
 
-    const messageIdIsm = txResponse.response;
-
-    expect(messageIdIsm.id).to.be.not.empty;
-    expect(isValidAddressEvm(bytes32ToAddress(messageIdIsm.id))).to.be.true;
-
-    isms = await signer.query.interchainSecurity.Isms({});
-    expect(isms.isms).to.have.lengthOf(2);
-
-    let ism = await signer.query.interchainSecurity.Ism({
-      id: messageIdIsm.id,
+    let ism = await signer.getMessageIdMultisigIsm({
+      ismAddress: txResponse.ismAddress,
     });
-    expect(ism.ism?.type_url).to.equal(
-      '/hyperlane.core.interchain_security.v1.MessageIdMultisigISM',
-    );
 
-    let decodedIsm =
-      await signer.query.interchainSecurity.DecodedIsm<MessageIdMultisigISM>({
-        id: messageIdIsm.id,
-      });
-
-    expect(decodedIsm.ism.id).to.equal(messageIdIsm.id);
-    expect(decodedIsm.ism.owner).to.equal(signer.account.address);
-
-    expect(decodedIsm.ism.threshold).to.equal(threshold);
-    expect(decodedIsm.ism.validators).deep.equal(validators);
+    expect(ism.address).to.equal(txResponse.ismAddress);
+    expect(ism.threshold).to.equal(threshold);
+    expect(ism.validators).deep.equal(validators);
   });
 
   step('create new MerkleRootMultisig ISM', async () => {
     // ARRANGE
-    let isms = await signer.query.interchainSecurity.Isms({});
-    expect(isms.isms).to.have.lengthOf(2);
-
-    const threshold = 3;
+    const threshold = 2;
     const validators = [
-      '0x0264258613775932aA466Be8BcC62418a9558eaB',
-      '0x829d3Cc78Fd664Bf160A17DaEad4df943ff7bAf0',
-      '0x3177Cc7328dE71Da934b1b7BF04b55C7D7251A63',
-      '0x270dC7A054a2aeda93Ee38a1b3C0727f5d8252d3',
+      '0x3C24F29fa75869A1C9D19d9d6589Aae0B5227c3c',
+      '0xf719b4CC64d0E3a380e52c2720Abab13835F6d9c',
+      '0x98A56EdE1d6Dd386216DA8217D9ac1d2EE7c27c7',
     ];
 
     // note that the validators need to be sorted alphabetically
@@ -130,39 +89,21 @@ describe('1. cosmos sdk interchain security e2e tests', async function () {
     });
 
     // ASSERT
-    expect(txResponse.code).to.equal(0);
+    expect(txResponse.ismAddress).to.be.not.empty;
+    expect(isValidAddressEvm(bytes32ToAddress(txResponse.ismAddress))).to.be
+      .true;
 
-    const merkleRootIsm = txResponse.response;
-
-    expect(merkleRootIsm.id).to.be.not.empty;
-    expect(isValidAddressEvm(bytes32ToAddress(merkleRootIsm.id))).to.be.true;
-
-    isms = await signer.query.interchainSecurity.Isms({});
-    expect(isms.isms).to.have.lengthOf(3);
-
-    let ism = await signer.query.interchainSecurity.Ism({
-      id: merkleRootIsm.id,
+    let ism = await signer.getMerkleRootMultisigIsm({
+      ismAddress: txResponse.ismAddress,
     });
-    expect(ism.ism?.type_url).to.equal(
-      '/hyperlane.core.interchain_security.v1.MerkleRootMultisigISM',
-    );
 
-    let decodedIsm =
-      await signer.query.interchainSecurity.DecodedIsm<MerkleRootMultisigISM>({
-        id: merkleRootIsm.id,
-      });
-
-    expect(decodedIsm.ism.id).to.equal(merkleRootIsm.id);
-    expect(decodedIsm.ism.owner).to.equal(signer.account.address);
-
-    expect(decodedIsm.ism.threshold).to.equal(threshold);
-    expect(decodedIsm.ism.validators).deep.equal(validators);
+    expect(ism.address).to.equal(txResponse.ismAddress);
+    expect(ism.threshold).to.equal(threshold);
+    expect(ism.validators).deep.equal(validators);
   });
 
   step('create new Routing ISM', async () => {
     // ARRANGE
-    let isms = await signer.query.interchainSecurity.Isms({});
-    expect(isms.isms).to.have.lengthOf(3);
 
     // ACT
     const txResponse = await signer.createRoutingIsm({
@@ -170,121 +111,114 @@ describe('1. cosmos sdk interchain security e2e tests', async function () {
     });
 
     // ASSERT
-    expect(txResponse.code).to.equal(0);
+    expect(txResponse.ismAddress).to.be.not.empty;
+    expect(isValidAddressEvm(bytes32ToAddress(txResponse.ismAddress))).to.be
+      .true;
 
-    const routingIsm = txResponse.response;
-
-    expect(routingIsm.id).to.be.not.empty;
-    expect(isValidAddressEvm(bytes32ToAddress(routingIsm.id))).to.be.true;
-
-    isms = await signer.query.interchainSecurity.Isms({});
-    expect(isms.isms).to.have.lengthOf(4);
-
-    let ism = await signer.query.interchainSecurity.Ism({
-      id: routingIsm.id,
-    });
-    expect(ism.ism?.type_url).to.equal(
-      '/hyperlane.core.interchain_security.v1.RoutingISM',
-    );
-
-    let decodedIsm = await signer.query.interchainSecurity.DecodedIsm({
-      id: routingIsm.id,
+    let ism = await signer.getRoutingIsm({
+      ismAddress: txResponse.ismAddress,
     });
 
-    expect(decodedIsm.ism.id).to.equal(routingIsm.id);
-    expect(decodedIsm.ism.owner).to.equal(signer.account.address);
+    expect(ism.address).to.equal(txResponse.ismAddress);
+    expect(ism.owner).to.equal(signer.getSignerAddress());
 
-    expect((decodedIsm.ism as RoutingISM).routes).to.be.empty;
+    expect(ism.routes).to.be.empty;
   });
 
   step('set Routing Ism domain', async () => {
     // ARRANGE
-    let isms = await signer.query.interchainSecurity.DecodedIsms({});
-    expect(isms.isms).to.have.lengthOf(4);
+    const { ismAddress: noop_ism } = await signer.createNoopIsm({});
 
-    const ism = isms.isms[isms.isms.length - 1];
-    expect((ism as RoutingISM).routes).to.be.empty;
+    const { ismAddress: routing_ism_id } = await signer.createRoutingIsm({
+      routes: [],
+    });
 
     // ACT
-    const txResponse = await signer.setRoutingIsmDomain({
-      ism_id: ism.id,
+    await signer.setRoutingIsmRoute({
+      ismAddress: routing_ism_id,
       route: {
-        ism: isms.isms[0].id,
-        domain: 1234,
+        ismAddress: noop_ism,
+        domainId: 1234,
       },
     });
 
     // ASSERT
-    expect(txResponse.code).to.equal(0);
-
-    isms = await signer.query.interchainSecurity.DecodedIsms({});
-    expect(isms.isms).to.have.lengthOf(4);
-
-    let decodedIsm = await signer.query.interchainSecurity.DecodedIsm({
-      id: ism.id,
+    let ism = await signer.getRoutingIsm({
+      ismAddress: routing_ism_id,
     });
 
-    expect((decodedIsm.ism as RoutingISM).routes).to.have.lengthOf(1);
-    expect((decodedIsm.ism as RoutingISM).routes[0]).to.deep.equal({
-      ism: isms.isms[0].id,
-      domain: 1234,
+    expect(ism.routes).to.have.lengthOf(1);
+    expect(ism.routes[0]).to.deep.equal({
+      ismAddress: noop_ism,
+      domainId: 1234,
     });
   });
 
   step('remove Routing Ism domain', async () => {
     // ARRANGE
-    let isms = await signer.query.interchainSecurity.DecodedIsms({});
-    expect(isms.isms).to.have.lengthOf(4);
+    const { ismAddress: noop_ism } = await signer.createNoopIsm({});
 
-    const ism = isms.isms[isms.isms.length - 1];
-    expect((ism as RoutingISM).routes).to.have.lengthOf(1);
+    const { ismAddress: routing_ism_id } = await signer.createRoutingIsm({
+      routes: [],
+    });
+
+    await signer.setRoutingIsmRoute({
+      ismAddress: routing_ism_id,
+      route: {
+        ismAddress: noop_ism,
+        domainId: 1234,
+      },
+    });
+
+    let ism = await signer.getRoutingIsm({
+      ismAddress: routing_ism_id,
+    });
+
+    expect(ism.routes).to.have.lengthOf(1);
+    expect(ism.routes[0]).to.deep.equal({
+      ismAddress: noop_ism,
+      domainId: 1234,
+    });
 
     // ACT
-    const txResponse = await signer.removeRoutingIsmDomain({
-      ism_id: ism.id,
-      domain: 1234,
+    await signer.removeRoutingIsmRoute({
+      ismAddress: routing_ism_id,
+      domainId: 1234,
     });
 
     // ASSERT
-    expect(txResponse.code).to.equal(0);
-
-    isms = await signer.query.interchainSecurity.DecodedIsms({});
-    expect(isms.isms).to.have.lengthOf(4);
-
-    let decodedIsm = await signer.query.interchainSecurity.DecodedIsm({
-      id: ism.id,
+    ism = await signer.getRoutingIsm({
+      ismAddress: routing_ism_id,
     });
 
-    expect((decodedIsm.ism as RoutingISM).routes).to.be.empty;
+    expect(ism.routes).to.be.empty;
   });
 
   step('update Routing Ism owner', async () => {
     // ARRANGE
-    let isms = await signer.query.interchainSecurity.DecodedIsms({});
-    expect(isms.isms).to.have.lengthOf(4);
+    const { ismAddress: routing_ism_id } = await signer.createRoutingIsm({
+      routes: [],
+    });
 
-    const ism = isms.isms[isms.isms.length - 1];
-    expect(ism.owner).to.equal(signer.account.address);
+    let ism = await signer.getRoutingIsm({
+      ismAddress: routing_ism_id,
+    });
+
+    expect(ism.owner).to.equal(signer.getSignerAddress());
 
     const bobSigner = await createSigner('bob');
 
     // ACT
-    const txResponse = await signer.updateRoutingIsmOwner({
-      ism_id: ism.id,
-      new_owner: bobSigner.account.address,
-      renounce_ownership: false,
+    await signer.setRoutingIsmOwner({
+      ismAddress: routing_ism_id,
+      newOwner: bobSigner.getSignerAddress(),
     });
 
     // ASSERT
-    expect(txResponse.code).to.equal(0);
-
-    isms = await signer.query.interchainSecurity.DecodedIsms({});
-    expect(isms.isms).to.have.lengthOf(4);
-
-    let decodedIsm = await signer.query.interchainSecurity.DecodedIsm({
-      id: ism.id,
+    ism = await signer.getRoutingIsm({
+      ismAddress: routing_ism_id,
     });
 
-    expect(decodedIsm.ism.owner).to.equal(bobSigner.account.address);
+    expect(ism.owner).to.equal(bobSigner.getSignerAddress());
   });
 });

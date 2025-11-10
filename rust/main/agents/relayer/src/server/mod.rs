@@ -13,6 +13,7 @@ use tokio::sync::RwLock;
 use crate::merkle_tree::builder::MerkleTreeBuilder;
 use crate::msg::gas_payment::GasPaymentEnforcer;
 use crate::msg::op_queue::OperationPriorityQueue;
+use crate::msg::pending_message::MessageContext;
 use crate::server::environment_variable::EnvironmentVariableApi;
 
 pub const ENDPOINT_MESSAGES_QUEUE_SIZE: usize = 100;
@@ -35,6 +36,9 @@ pub struct Server {
     dbs: Option<HashMap<u32, HyperlaneRocksDB>>,
     #[new(default)]
     gas_enforcers: Option<HashMap<HyperlaneDomain, Arc<RwLock<GasPaymentEnforcer>>>>,
+    #[new(default)]
+    // (origin, destination)
+    msg_ctxs: HashMap<(u32, u32), Arc<MessageContext>>,
     #[new(default)]
     prover_syncs: Option<HashMap<u32, Arc<RwLock<MerkleTreeBuilder>>>>,
 }
@@ -66,6 +70,11 @@ impl Server {
         self
     }
 
+    pub fn with_msg_ctxs(mut self, msg_ctxs: HashMap<(u32, u32), Arc<MessageContext>>) -> Self {
+        self.msg_ctxs = msg_ctxs;
+        self
+    }
+
     pub fn with_prover_sync(
         mut self,
         prover_syncs: HashMap<u32, Arc<RwLock<MerkleTreeBuilder>>>,
@@ -84,9 +93,20 @@ impl Server {
             )
         }
         if let Some(op_queues) = self.op_queues {
-            router = router.merge(operations::list_messages::ServerState::new(op_queues).router());
+            router = router
+                .merge(operations::list_messages::ServerState::new(op_queues.clone()).router());
+            if let Some(dbs) = self.dbs.as_ref() {
+                router = router.merge(
+                    operations::reprocess_message::ServerState::new(
+                        dbs.clone(),
+                        op_queues.clone(),
+                        self.msg_ctxs.clone(),
+                    )
+                    .router(),
+                );
+            }
         }
-        if let Some(dbs) = self.dbs {
+        if let Some(dbs) = self.dbs.as_ref() {
             router = router
                 .merge(messages::ServerState::new(dbs.clone()).router())
                 .merge(merkle_tree_insertions::ServerState::new(dbs.clone()).router());

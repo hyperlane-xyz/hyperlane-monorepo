@@ -540,6 +540,12 @@ impl BaseAgent for Relayer {
             .iter()
             .map(|(key, ctx)| (key.origin.clone(), ctx.origin_gas_payment_enforcer.clone()))
             .collect();
+
+        let msg_ctxs = self
+            .msg_ctxs
+            .iter()
+            .map(|(key, value)| ((key.origin.id(), key.destination.id()), value.clone()))
+            .collect();
         let prover_syncs: HashMap<_, _> = self
             .origins
             .iter()
@@ -550,6 +556,7 @@ impl BaseAgent for Relayer {
             .with_message_queue(prep_queues)
             .with_dbs(dbs)
             .with_gas_enforcers(gas_enforcers)
+            .with_msg_ctxs(msg_ctxs)
             .with_prover_sync(prover_syncs)
             .router();
 
@@ -784,7 +791,7 @@ impl Relayer {
     }
 
     fn contract_sync_task_name(prefix: &str, domain: &str) -> String {
-        format!("contract::sync::{}{}", prefix, domain)
+        format!("contract::sync::{prefix}{domain}")
     }
 
     fn run_message_db_loader(
@@ -880,8 +887,7 @@ impl Relayer {
                     // Propagate task panics
                     message_processor.spawn().await.unwrap_or_else(|err| {
                         panic!(
-                            "destination processor panicked for destination {}: {:?}",
-                            destination, err
+                            "destination processor panicked for destination {destination}: {err:?}"
                         )
                     });
                 }

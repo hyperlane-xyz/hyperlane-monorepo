@@ -127,7 +127,6 @@ impl<'de> Deserialize<'de> for ReorgPeriod {
 )]
 pub enum KnownHyperlaneDomain {
     Abstract = 2741,
-    AlephZeroEvmMainnet = 1000041455,
     AppChain = 466,
     Ancient8 = 888888888,
     ApeChain = 33139,
@@ -150,7 +149,6 @@ pub enum KnownHyperlaneDomain {
     BSquared = 223,
     B3 = 8333,
     Celo = 42220,
-    Cheesechain = 383353,
     ChilizMainnet = 1000088888,
     CoreDao = 1116,
     Corn = 21000000,
@@ -173,7 +171,6 @@ pub enum KnownHyperlaneDomain {
     Fuji = 43113,
     FuseMainnet = 122,
     Galactica = 613419,
-    Game7 = 2187,
     Glue = 1300,
     Gnosis = 100,
     Gravity = 1625,
@@ -184,7 +181,6 @@ pub enum KnownHyperlaneDomain {
     HyperEvm = 999,
     ImmutableZkEvmMainnet = 1000013371,
     InEvm = 2525,
-    InfinityVmMainnet = 1001032009,
     Ink = 57073,
     Injective = 6909546,
     Kaia = 8217,
@@ -221,7 +217,6 @@ pub enum KnownHyperlaneDomain {
     Polygon = 137,
     PolygonZkEvm = 1101,
     Prom = 227,
-    ProofOfPlay = 70700,
     Rarichain = 1000012617,
     Ronin = 2020,
     Reactive = 1597,
@@ -229,7 +224,6 @@ pub enum KnownHyperlaneDomain {
     Sei = 1329,
     Scroll = 534352,
     Shibarium = 109,
-    SnaxChain = 2192,
     SolanaMainnet = 1399811149,
     Solaxy = 1936682104,
     Sophon = 50104,
@@ -253,7 +247,6 @@ pub enum KnownHyperlaneDomain {
     Unichain = 130,
     Vana = 1480,
     Viction = 88,
-    WeavevmTestnet = 9496,
     Worldchain = 480,
     StarknetMainnet = 23448592,
     Xai = 660279,
@@ -267,31 +260,20 @@ pub enum KnownHyperlaneDomain {
 
     // -- Test chains --
     //
-    AbstractTestnet = 11124,
-    AlephZeroEvmTestnet = 2039,
     ArbitrumSepolia = 421614,
     ArcadiaTestnet2 = 1098411886,
     AuroraTestnet = 1313161555,
     BasecampTestnet = 1000001114,
     BaseSepolia = 84532,
-    Bepolia = 80069,
     #[cfg_attr(feature = "strum", strum(serialize = "bsctestnet"))]
     BinanceSmartChainTestnet = 97,
     CarrchainTestnet = 76672,
     CelestiaTestnet = 1297040200,
     Chiado = 10200,
-    ChronicleYellowstone = 175188,
     CitreaTestnet = 5115,
-    ConnextSepolia = 6398,
     CotiTestnet = 7082400,
     EclipseTestnet = 239092742,
-    EcoTestnet = 471923,
-    FlameTestnet = 1660473773,
-    FormTestnet = 132902,
-    Holesky = 17000,
     HyperLiquidEvmTestnet = 998,
-    InfinityVmMonza = 96025,
-    InkSepolia = 763373,
     KyveTestnet = 1262571342,
     Matchain = 698,
     MegaEthTestnet = 6342,
@@ -302,25 +284,21 @@ pub enum KnownHyperlaneDomain {
     NeuraTestnet = 267,
     NobleTestnet = 1196573006,
     KyveAlpha = 75898669,
-    OdysseyTestnet = 911867,
     OptimismSepolia = 11155420,
     ParadexSepolia = 12263410,
     PlumeTestnet = 161221135,
-    Plumetestnet2 = 98867,
     Polygonamoy = 80002,
     PolynomialFi = 1000008008,
     PragmaDevnet = 6363709,
+    Radix = 1633970780,
+    RadixTestnet = 1280787160,
     ScrollSepolia = 534351,
     Sepolia = 11155111,
     SolanaTestnet = 1399811150,
     SomniaTestnet = 50312,
-    SoneiumTestnet = 1946,
     SonicSvmTestnet = 15153042,
-    SonicBlaze = 57054,
     StarknetSepolia = 23448591,
     SubtensorTestnet = 945,
-    SuperpositionTestnet = 98985,
-    UnichainTestnet = 1301,
 
     // -- Local chains --
     //
@@ -413,6 +391,8 @@ pub enum HyperlaneDomainProtocol {
     Dango,
     /// A Raidx based chain
     Radix,
+    /// Aleo chain
+    Aleo,
 }
 
 impl HyperlaneDomainProtocol {
@@ -420,7 +400,7 @@ impl HyperlaneDomainProtocol {
         use HyperlaneDomainProtocol::*;
         match self {
             Ethereum => format!("{:?}", H160::from(addr)),
-            _ => format!("{:?}", addr),
+            _ => format!("{addr:?}"),
         }
     }
 }
@@ -456,31 +436,19 @@ impl KnownHyperlaneDomain {
         use self::KnownHyperlaneDomain::*;
 
         match self {
-            AbstractTestnet
-            | AlephZeroEvmTestnet
-            | ArbitrumSepolia
+            ArbitrumSepolia
             | ArcadiaTestnet2
             | AuroraTestnet
             | BasecampTestnet
             | BaseSepolia
-            | Bepolia
             | BinanceSmartChainTestnet
             | CarrchainTestnet
             | CelestiaTestnet
             | Chiado
-            | ChronicleYellowstone
             | CitreaTestnet
-            | ConnextSepolia
             | CotiTestnet
             | EclipseTestnet
-            | EcoTestnet
-            | FlameTestnet
-            | FormTestnet
-            | Fuji
-            | Holesky
             | HyperLiquidEvmTestnet
-            | InfinityVmMonza
-            | InkSepolia
             | KyveTestnet
             | MegaEthTestnet
             | MilkywayTestnet
@@ -489,28 +457,23 @@ impl KnownHyperlaneDomain {
             | MoonbaseAlpha
             | NeuraTestnet
             | NobleTestnet
-            | OdysseyTestnet
             | OptimismSepolia
             | ParadexSepolia
             | PlumeTestnet
-            | Plumetestnet2
             | Polygonamoy
             | PragmaDevnet
+            | RadixTestnet
             | ScrollSepolia
             | Sepolia
             | SolanaTestnet
             | SomniaTestnet
-            | SoneiumTestnet
-            | SonicBlaze
             | SonicSvmTestnet
             | StarknetSepolia
             | SubtensorTestnet
-            | SuperpositionTestnet
-            | UnichainTestnet
-            | WeavevmTestnet => HyperlaneDomainType::Testnet,
+            | KyveAlpha => HyperlaneDomainType::Testnet,
             Test1 | Test2 | Test3 | Test4 | FuelTest1 | SealevelTest1 | SealevelTest2
             | CosmosTest99990 | CosmosTest99991 | CosmosTestNative1 | CosmosTestNative2
-            | KyveAlpha | StarknetTest23448593 => HyperlaneDomainType::LocalTestChain,
+            | StarknetTest23448593 | StarknetTest23448594 => HyperlaneDomainType::LocalTestChain,
             _ => HyperlaneDomainType::Mainnet,
         }
     }
@@ -557,6 +520,7 @@ impl KnownHyperlaneDomain {
             | Paradex
             | ParadexSepolia
             | PragmaDevnet => HyperlaneDomainProtocol::Starknet,
+            Radix | RadixTestnet => HyperlaneDomainProtocol::Radix,
             DangoLocal1 | DangoLocal2 => HyperlaneDomainProtocol::Dango,
             _ => HyperlaneDomainProtocol::Ethereum
         }
@@ -565,17 +529,16 @@ impl KnownHyperlaneDomain {
     pub const fn domain_technical_stack(self) -> HyperlaneDomainTechnicalStack {
         use KnownHyperlaneDomain::*;
         match self {
-            AlephZeroEvmMainnet | AlephZeroEvmTestnet | ApeChain | AppChain | Arbitrum
-            | ArbitrumNova | ArbitrumSepolia | CarrchainTestnet | Cheesechain
-            | ChronicleYellowstone | ConnextSepolia | Corn | Everclear | Fluence | DegenChain
-            | Galactica | Game7 | Gravity | InEvm | MiracleChain | Molten | Plume
-            | PlumeTestnet | Plumetestnet2 | ProofOfPlay | Rarichain | SuperpositionMainnet
-            | SuperpositionTestnet | Xai => HyperlaneDomainTechnicalStack::ArbitrumNitro,
+            ApeChain | AppChain | Arbitrum | ArbitrumNova | ArbitrumSepolia | CarrchainTestnet
+            | Corn | Everclear | Fluence | DegenChain | Galactica | Gravity | InEvm
+            | MiracleChain | Molten | Plume | PlumeTestnet | Rarichain | SuperpositionMainnet
+            | Xai => HyperlaneDomainTechnicalStack::ArbitrumNitro,
             Ancient8 | Base | Blast | Bob | Boba | B3 | Celo | Cyber | Form | Fraxtal | Guru
-            | Ink | InkSepolia | Lisk | MantaPacific | Mantle | Matchain | Metal | Metis | Mint
-            | Mode | ModeTestnet | OpBnb | Optimism | Orderly | PolynomialFi | Redstone
-            | SnaxChain | Soneium | Superseed | Swell | Unichain | Worldchain | Zircuit
-            | ZoraMainnet => HyperlaneDomainTechnicalStack::OpStack,
+            | Ink | Lisk | MantaPacific | Mantle | Matchain | Metal | Metis | Mint | Mode
+            | ModeTestnet | OpBnb | Optimism | Orderly | PolynomialFi | Redstone | Soneium
+            | Superseed | Swell | Unichain | Worldchain | Zircuit | ZoraMainnet => {
+                HyperlaneDomainTechnicalStack::OpStack
+            }
             DogeChain | LumiaPrism | Katana | Merlin | PolygonZkEvm | Prom | Xlayer => {
                 HyperlaneDomainTechnicalStack::PolygonCDK
             }
@@ -585,7 +548,7 @@ impl KnownHyperlaneDomain {
             StarknetMainnet | StarknetTest23448593 | StarknetTest23448594 | PragmaDevnet => {
                 HyperlaneDomainTechnicalStack::Starknet
             }
-            Abstract | AbstractTestnet | Sophon | Treasure | Zeronetwork | Zksync => {
+            Abstract | Sophon | Treasure | Zeronetwork | Zksync => {
                 HyperlaneDomainTechnicalStack::ZkSync
             }
             _ => HyperlaneDomainTechnicalStack::Other,
@@ -776,7 +739,7 @@ impl HyperlaneDomain {
         let protocol = self.domain_protocol();
         match protocol {
             Ethereum | Cosmos | CosmosNative | Starknet | Dango => IndexMode::Block,
-            Fuel | Sealevel | Radix => IndexMode::Sequence,
+            Fuel | Sealevel | Radix | Aleo => IndexMode::Sequence,
         }
     }
 }
@@ -920,8 +883,7 @@ mod tests {
     fn match_domain_id(chain_name: &str, expected_domain_id: u32, actual_domain_id: u32) {
         if expected_domain_id != actual_domain_id {
             panic!(
-                "Incorrect domain id for `{chain_name}`.\nExpected `{}`, got `{}`",
-                expected_domain_id, actual_domain_id
+                "Incorrect domain id for `{chain_name}`.\nExpected `{expected_domain_id}`, got `{actual_domain_id}`"
             )
         }
     }
@@ -932,8 +894,7 @@ mod tests {
     ) {
         if expected_domain_type != actual_domain_type {
             panic!(
-                "Incorrect domain type for `{chain_name}`.\nExpected `{}`, got `{}`",
-                expected_domain_type, actual_domain_type
+                "Incorrect domain type for `{chain_name}`.\nExpected `{expected_domain_type}`, got `{actual_domain_type}`"
             )
         }
     }
@@ -951,8 +912,7 @@ mod tests {
             ("starknet", HyperlaneDomainProtocol::Starknet) => {}
             _ => {
                 panic!(
-                    "Incorrect protocol config for `{chain_name}`.\nExpected `{}`, got `{}`",
-                    protocol_str, protocol
+                    "Incorrect protocol config for `{chain_name}`.\nExpected `{protocol_str}`, got `{protocol}`"
                 );
             }
         }
@@ -973,8 +933,7 @@ mod tests {
             ("zksync", HyperlaneDomainTechnicalStack::ZkSync) => {}
             _ => {
                 panic!(
-                    "Incorrect domain stack for `{chain_name}`.\nExpected `{}`, got `{}`",
-                    protocol_str, protocol
+                    "Incorrect domain stack for `{chain_name}`.\nExpected `{protocol_str}`, got `{protocol}`"
                 );
             }
         }
@@ -989,7 +948,7 @@ mod tests {
             serde_json::from_str(MAINNET_CONFIG_JSON).expect("Failed to parse mainnet_config.json");
         for (chain, chain_config) in mainnet_chains.chains {
             let domain = KnownHyperlaneDomain::from_str(&chain)
-                .expect(&format!("Missing KnownHyperlaneDomain for {chain}"));
+                .unwrap_or_else(|_| panic!("Missing KnownHyperlaneDomain for {chain}"));
 
             match_domain_id(&chain, chain_config.domain_id, domain as u32);
             match_domain_type(&chain, HyperlaneDomainType::Mainnet, domain.domain_type());
@@ -1000,14 +959,12 @@ mod tests {
             );
             if let Some(stack) = chain_config.technical_stack {
                 match_domain_stack(&chain, stack.as_str(), domain.domain_technical_stack());
-            } else {
-                if domain.domain_technical_stack() != HyperlaneDomainTechnicalStack::Other {
-                    panic!(
-                        "Missing domain stack for `{chain}`.\nExpected `{}`, got `{}`",
-                        HyperlaneDomainTechnicalStack::Other,
-                        domain.domain_technical_stack()
-                    );
-                }
+            } else if domain.domain_technical_stack() != HyperlaneDomainTechnicalStack::Other {
+                panic!(
+                    "Missing domain stack for `{chain}`.\nExpected `{}`, got `{}`",
+                    HyperlaneDomainTechnicalStack::Other,
+                    domain.domain_technical_stack()
+                );
             }
         }
 
@@ -1016,7 +973,7 @@ mod tests {
 
         for (chain, chain_config) in testnet_chains.chains {
             let domain = KnownHyperlaneDomain::from_str(&chain)
-                .expect(&format!("Missing KnownHyperlaneDomain for {chain}"));
+                .unwrap_or_else(|_| panic!("Missing KnownHyperlaneDomain for {chain}"));
 
             match_domain_id(&chain, chain_config.domain_id, domain as u32);
 
@@ -1025,8 +982,7 @@ mod tests {
                 && domain_type != HyperlaneDomainType::LocalTestChain
             {
                 panic!(
-                    "Incorrect domain type for `{chain}`.\nExpected Testnet or LocalTestChain, got `{}`",
-                    domain_type
+                    "Incorrect domain type for `{chain}`.\nExpected Testnet or LocalTestChain, got `{domain_type}`"
                 );
             }
 
@@ -1037,14 +993,12 @@ mod tests {
             );
             if let Some(stack) = chain_config.technical_stack {
                 match_domain_stack(&chain, stack.as_str(), domain.domain_technical_stack());
-            } else {
-                if domain.domain_technical_stack() != HyperlaneDomainTechnicalStack::Other {
-                    panic!(
-                        "Missing domain stack for `{chain}`.\nExpected `{}`, got `{}`",
-                        HyperlaneDomainTechnicalStack::Other,
-                        domain.domain_technical_stack()
-                    );
-                }
+            } else if domain.domain_technical_stack() != HyperlaneDomainTechnicalStack::Other {
+                panic!(
+                    "Missing domain stack for `{chain}`.\nExpected `{}`, got `{}`",
+                    HyperlaneDomainTechnicalStack::Other,
+                    domain.domain_technical_stack()
+                );
             }
         }
     }

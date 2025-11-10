@@ -1,34 +1,44 @@
-use std::{str::FromStr, sync::Arc};
+use std::{iter::once, str::FromStr, sync::Arc};
 
 use ethers::{
     abi::Detokenize,
-    contract::builders::ContractCall,
+    contract::{builders::ContractCall, Lazy},
     providers::{Middleware, ProviderError},
     types::{
         transaction::eip2718::TypedTransaction, Block, Eip1559TransactionRequest, H160,
         H256 as TxHash,
     },
 };
-use futures_util::try_join;
-use hyperlane_core::{ChainCommunicationError, ChainResult, HyperlaneDomain, U256};
-use hyperlane_ethereum::{EvmProviderForLander, TransactionOverrides, ZksyncEstimateFeeResponse};
-use tracing::{debug, warn};
-
 use ethers_core::{
-    types::{BlockNumber, U256 as EthersU256},
+    types::{BlockNumber, FeeHistory, U256 as EthersU256},
     utils::{
         eip1559_default_estimator, EIP1559_FEE_ESTIMATION_PAST_BLOCKS,
         EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE,
     },
 };
+use futures_util::{future::join_all, try_join};
+use tracing::{debug, warn};
+
+use hyperlane_core::{ChainCommunicationError, ChainResult, HyperlaneDomain, U256};
+use hyperlane_ethereum::{EvmProviderForLander, TransactionOverrides, ZksyncEstimateFeeResponse};
 
 use crate::{adapter::EthereumTxPrecursor, LanderError};
 
-use super::price::GasPrice;
+use super::super::super::gas_price::GasPrice;
 
 type FeeEstimator = fn(EthersU256, Vec<Vec<EthersU256>>) -> (EthersU256, EthersU256);
 
 const EVM_RELAYER_ADDRESS: &str = "0x74cae0ecc47b02ed9b9d32e000fd70b9417970c5";
+
+// We have 2 to 4 multiples of the default percentile, and we limit it to 100% percentile.
+// We add 100% percentile so that we increase the chance to get fee history with non-zero rewards.
+static PERCENTILES: Lazy<Vec<f64>> = Lazy::new(|| {
+    (2..5)
+        .map(|m| EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE * m as f64)
+        .filter(|p| *p < 100.0)
+        .chain(once(100.0))
+        .collect::<Vec<_>>()
+});
 
 pub type Eip1559Fee = (
     EthersU256, // base fee
@@ -222,6 +232,8 @@ async fn estimate_eip1559_fees_default(
 
     let (latest_block, fee_history) = try_join!(latest_block, fee_history)?;
 
+    let fee_history = ensure_non_empty_rewards(provider, fee_history).await?;
+
     let base_fee_per_gas = latest_block
         .base_fee_per_gas
         .ok_or_else(|| ProviderError::CustomError("EIP-1559 not activated".into()))?;
@@ -246,4 +258,66 @@ async fn latest_block(provider: &Arc<dyn EvmProviderForLander>) -> ChainResult<B
         .map_err(ChainCommunicationError::from_other)?
         .ok_or_else(|| ProviderError::CustomError("Latest block not found".into()))?;
     Ok(latest_block)
+}
+
+async fn ensure_non_empty_rewards(
+    provider: &Arc<dyn EvmProviderForLander>,
+    default_fee_history: FeeHistory,
+) -> ChainResult<FeeHistory> {
+    if has_rewards(&default_fee_history) {
+        debug!(?default_fee_history, "default rewards non zero");
+        return Ok(default_fee_history);
+    }
+
+    let fee_history_futures = PERCENTILES
+        .clone()
+        .into_iter()
+        .map(|p| {
+            let provider = provider.clone();
+            async move {
+                provider
+                    .fee_history(
+                        EIP1559_FEE_ESTIMATION_PAST_BLOCKS.into(),
+                        BlockNumber::Latest,
+                        &[p],
+                    )
+                    .await
+                    .map_err(ChainCommunicationError::from_other)
+            }
+        })
+        .collect::<Vec<_>>();
+
+    // Results will be ordered by percentile, so we can just take the first non-empty one.
+    let fee_histories = join_all(fee_history_futures).await;
+
+    debug!(
+        ?fee_histories,
+        ?PERCENTILES,
+        "fee history for each percentile"
+    );
+
+    // We return the first non-empty fee history.
+    // If all are empty, we return the default fee history which is empty at this point.
+    let mut chosen_fee_history = default_fee_history;
+    for fee_history in fee_histories {
+        let Ok(fee_history) = fee_history else {
+            continue;
+        };
+        if has_rewards(&fee_history) {
+            chosen_fee_history = fee_history;
+            break;
+        }
+    }
+
+    debug!(?chosen_fee_history, "chosen fee history");
+
+    Ok(chosen_fee_history)
+}
+
+fn has_rewards(fee_history: &FeeHistory) -> bool {
+    fee_history
+        .reward
+        .iter()
+        .filter_map(|r| r.first())
+        .any(|r| !r.is_zero())
 }

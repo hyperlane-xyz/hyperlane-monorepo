@@ -28,5 +28,5 @@ nativeToken:
   name: TEST
   symbol: TEST
 gasPrice:
-  amount: '1'
+  amount: '0.2'
   denom: uhyp
