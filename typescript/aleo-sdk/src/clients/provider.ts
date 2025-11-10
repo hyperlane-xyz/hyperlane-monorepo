@@ -37,14 +37,16 @@ export class AleoProvider implements AltVM.IProvider {
     this.aleoClient = new AleoNetworkClient(rpcUrls[0]);
   }
 
-  protected getProgramSalt(address: string): string {
-    // get the program salt by hashing the address with bhp256 and take the first 12
-    // characters from the hex hash
+  protected getNewProgramSalt(): string {
     return new BHP256()
-      .hash(Plaintext.fromString(address).toBitsLe())
+      .hash(new Account().address().toBitsLe())
       .toBytesLe()
       .reduce((acc, b) => acc + b.toString(16).padStart(2, '0'), '')
       .slice(0, 12);
+  }
+
+  protected getProgramSaltFromAddress(address: string): string {
+    return address.split('_').at(-1) || '';
   }
 
   // ### QUERY BASE ###
@@ -67,7 +69,7 @@ export class AleoProvider implements AltVM.IProvider {
       const balanceKey = new BHP256()
         .hash(
           Plaintext.fromString(
-            `{account: ${req.address},token_id: ${req.denom}}`,
+            `{account: ${req.address},token_id:${req.denom}}`,
           ).toBitsLe(),
         )
         .toString();
@@ -128,7 +130,7 @@ export class AleoProvider implements AltVM.IProvider {
     let res;
     try {
       res = await this.aleoClient.getProgramMappingPlaintext(
-        `mailbox_${this.getProgramSalt(req.mailboxAddress)}.aleo`,
+        req.mailboxAddress,
         'mailbox',
         'true',
       );
@@ -162,9 +164,9 @@ export class AleoProvider implements AltVM.IProvider {
       const messageKey = getMessageKey(req.messageId);
 
       const res = await this.aleoClient.getProgramMappingPlaintext(
-        'mailbox.aleo',
+        req.mailboxAddress,
         'deliveries',
-        `{ id: [ ${messageKey[0].toString()}, ${messageKey[1].toString()} ]}`,
+        `{id:[${messageKey[0].toString()},${messageKey[1].toString()}]}`,
       );
 
       const obj = res.toObject();
@@ -373,7 +375,7 @@ export class AleoProvider implements AltVM.IProvider {
         const gasConfigKey = await this.aleoClient.getProgramMappingPlaintext(
           programId,
           'destination_gas_config_iter',
-          `{ hook: ${req.hookAddress}, index: ${i}u32}`,
+          `{hook:${req.hookAddress},index:${i}u32}`,
         );
 
         const destinationGasConfig =
@@ -433,33 +435,6 @@ export class AleoProvider implements AltVM.IProvider {
 
   // ### QUERY WARP ###
 
-  private async getTokenProgram(tokenAddress: string): Promise<Program> {
-    try {
-      const program = await this.aleoClient.getProgram(
-        `hyp_native_${this.getProgramSalt(tokenAddress)}.aleo`,
-      );
-      return Program.fromString(program);
-    } catch {}
-
-    try {
-      const program = await this.aleoClient.getProgram(
-        `hyp_collateral_${this.getProgramSalt(tokenAddress)}.aleo`,
-      );
-      return Program.fromString(program);
-    } catch {}
-
-    try {
-      const program = await this.aleoClient.getProgram(
-        `hyp_synthetic_${this.getProgramSalt(tokenAddress)}.aleo`,
-      );
-      return Program.fromString(program);
-    } catch {}
-
-    throw new Error(
-      `Failed to get token program for token address ${tokenAddress}`,
-    );
-  }
-
   private async getTokenMetadata(tokenId: string): Promise<{
     name: string;
     symbol: string;
@@ -485,8 +460,6 @@ export class AleoProvider implements AltVM.IProvider {
   }
 
   async getToken(req: AltVM.ReqGetToken): Promise<AltVM.ResGetToken> {
-    const tokenProgram = await this.getTokenProgram(req.tokenAddress);
-
     const token = {
       address: req.tokenAddress,
       owner: '',
@@ -501,7 +474,7 @@ export class AleoProvider implements AltVM.IProvider {
 
     try {
       const tokenMetadata = await this.aleoClient.getProgramMappingPlaintext(
-        tokenProgram.id(),
+        req.tokenAddress,
         'token_metadata',
         'true',
       );
@@ -530,7 +503,7 @@ export class AleoProvider implements AltVM.IProvider {
           break;
       }
     } catch {
-      throw new Error(`Found no token for program: ${tokenProgram}`);
+      throw new Error(`Found no token for address: ${req.tokenAddress}`);
     }
 
     return token;
@@ -667,7 +640,7 @@ export class AleoProvider implements AltVM.IProvider {
     req: AltVM.ReqSetDefaultIsm,
   ): Promise<AleoTransaction> {
     return {
-      programName: `mailbox_${this.getProgramSalt(req.mailboxAddress)}.aleo`,
+      programName: req.mailboxAddress,
       functionName: 'set_default_ism',
       priorityFee: 0,
       privateFee: false,
@@ -679,7 +652,7 @@ export class AleoProvider implements AltVM.IProvider {
     req: AltVM.ReqSetDefaultHook,
   ): Promise<AleoTransaction> {
     return {
-      programName: `mailbox_${this.getProgramSalt(req.mailboxAddress)}.aleo`,
+      programName: req.mailboxAddress,
       functionName: 'set_default_hook',
       priorityFee: 0,
       privateFee: false,
@@ -691,7 +664,7 @@ export class AleoProvider implements AltVM.IProvider {
     req: AltVM.ReqSetRequiredHook,
   ): Promise<AleoTransaction> {
     return {
-      programName: `mailbox_${this.getProgramSalt(req.mailboxAddress)}.aleo`,
+      programName: req.mailboxAddress,
       functionName: 'set_required_hook',
       priorityFee: 0,
       privateFee: false,
@@ -703,7 +676,7 @@ export class AleoProvider implements AltVM.IProvider {
     req: AltVM.ReqSetMailboxOwner,
   ): Promise<AleoTransaction> {
     return {
-      programName: `mailbox_${this.getProgramSalt(req.mailboxAddress)}.aleo`,
+      programName: req.mailboxAddress,
       functionName: 'set_owner',
       priorityFee: 0,
       privateFee: false,
@@ -823,10 +796,7 @@ export class AleoProvider implements AltVM.IProvider {
       privateFee: false,
       inputs: [
         Program.fromString(
-          mailbox.replaceAll(
-            'mailbox.aleo',
-            `mailbox_${this.getProgramSalt(req.mailboxAddress)}.aleo`,
-          ),
+          mailbox.replaceAll('mailbox.aleo', req.mailboxAddress),
         )
           .address()
           .to_string(),
@@ -888,10 +858,7 @@ export class AleoProvider implements AltVM.IProvider {
       privateFee: false,
       inputs: [
         Program.fromString(
-          mailbox.replaceAll(
-            'mailbox.aleo',
-            `mailbox_${this.getProgramSalt(req.mailboxAddress)}.aleo`,
-          ),
+          mailbox.replaceAll('mailbox.aleo', req.mailboxAddress),
         )
           .address()
           .to_string(),
