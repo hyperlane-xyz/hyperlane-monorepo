@@ -1,4 +1,4 @@
-use std::{ops::Deref, str::FromStr};
+use std::{fmt::Debug, ops::Deref, str::FromStr};
 
 use async_trait::async_trait;
 use reqwest::Client;
@@ -11,46 +11,61 @@ use hyperlane_core::{
 };
 
 use crate::{
-    provider::{BaseHttpClient, RpcClient},
+    provider::{BaseHttpClient, HttpClient, RpcClient},
     utils::{get_tx_id, to_h256},
     ConnectionConf, HyperlaneAleoError,
 };
 
-/// Aleo Rest Client
+/// Aleo Http Client trait alias
+pub trait AleoClient: HttpClient + Clone + Debug + Send + Sync + 'static {}
+impl<T> AleoClient for T where T: HttpClient + Clone + Debug + Send + Sync + 'static {}
+
+/// Aleo Rest Client. Generic over an underlying HttpClient to allow injection of a mock for testing.
 #[derive(Debug, Clone)]
-pub struct AleoProvider {
-    client: RpcClient<BaseHttpClient>,
+pub struct AleoProvider<C: AleoClient = BaseHttpClient> {
+    client: RpcClient<C>,
     domain: HyperlaneDomain,
     network: u16,
 }
 
-impl AleoProvider {
-    /// Creates a new HTTP client for the Aleo API
+impl AleoProvider<BaseHttpClient> {
+    /// Creates a new production AleoProvider
     pub fn new(conf: &ConnectionConf, domain: HyperlaneDomain) -> ChainResult<Self> {
         let base_url = conf.rpc.to_string().trim_end_matches('/').to_string();
         let client = BaseHttpClient::new(Client::new(), base_url);
-
         Ok(Self {
             client: RpcClient::new(client),
             domain,
             network: conf.chain_id,
         })
     }
+}
 
-    /// Returns the chain id of the configured network
+impl<C: AleoClient> AleoProvider<C> {
+    #[cfg(test)]
+    /// Generic constructor allowing a pre-built client (used in tests with a mock client)
+    pub fn with_client(client: C, domain: HyperlaneDomain, chain_id: u16) -> Self {
+        Self {
+            client: RpcClient::new(client),
+            domain,
+            network: chain_id,
+        }
+    }
+
+    /// Returns the current chain id
     pub fn chain_id(&self) -> u16 {
         self.network
     }
 }
 
-impl Deref for AleoProvider {
-    type Target = RpcClient<BaseHttpClient>;
+impl<C: AleoClient> Deref for AleoProvider<C> {
+    type Target = RpcClient<C>;
     fn deref(&self) -> &Self::Target {
         &self.client
     }
 }
 
-impl HyperlaneChain for AleoProvider {
+impl<C: AleoClient> HyperlaneChain for AleoProvider<C> {
     fn domain(&self) -> &HyperlaneDomain {
         &self.domain
     }
@@ -61,22 +76,22 @@ impl HyperlaneChain for AleoProvider {
 }
 
 #[async_trait]
-impl HyperlaneProvider for AleoProvider {
+impl<C: AleoClient> HyperlaneProvider for AleoProvider<C> {
     /// Get block info for a given block height
     async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
         let height = height as u32;
         let (hash, timestamp) = match self.chain_id() {
             0 => {
                 let block = self.get_block::<MainnetV0>(height).await?;
-                (to_h256(&block)?, block.timestamp())
+                (to_h256(&block.hash())?, block.timestamp())
             }
             1 => {
                 let block = self.get_block::<TestnetV0>(height).await?;
-                (to_h256(&block)?, block.timestamp())
+                (to_h256(&block.hash())?, block.timestamp())
             }
             2 => {
                 let block = self.get_block::<CanaryV0>(height).await?;
-                (to_h256(&block)?, block.timestamp())
+                (to_h256(&block.hash())?, block.timestamp())
             }
             id => return Err(HyperlaneAleoError::UnknownNetwork(id).into()),
         };
