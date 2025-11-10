@@ -37,12 +37,16 @@ export class AleoProvider implements AltVM.IProvider {
     this.aleoClient = new AleoNetworkClient(rpcUrls[0]);
   }
 
-  protected getNewProgramSalt(): string {
-    return new BHP256()
-      .hash(new Account().address().toBitsLe())
-      .toBytesLe()
-      .reduce((acc, b) => acc + b.toString(16).padStart(2, '0'), '')
-      .slice(0, 12);
+  protected getNewProgramSalt(n: number): string {
+    const characters = '0123456789abcdefghijklmnopqrstuvwxyz';
+    let result = '';
+
+    for (let i = 0; i < n; i++) {
+      const randomIndex = Math.floor(Math.random() * characters.length);
+      result += characters[randomIndex];
+    }
+
+    return result;
   }
 
   protected getProgramSaltFromAddress(address: string): string {
