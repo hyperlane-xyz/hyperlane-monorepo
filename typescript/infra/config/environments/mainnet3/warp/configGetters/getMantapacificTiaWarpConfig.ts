@@ -55,5 +55,6 @@ export const getMantapacificTiaWarpConfig = async (
   return {
     mantapacific,
     neutron,
+    celestia,
   };
 };
