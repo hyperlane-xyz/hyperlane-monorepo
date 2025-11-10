@@ -391,109 +391,89 @@ export const ezEthSafes: Record<(typeof ezEthChainsToDeploy)[number], string> =
     plasma: '0x76Cd13F5Bfb73f501795988Ef5d017606Bb16DBd',
   };
 
-type UnsupportedOverride = { ism: string }; // currently unsupported as part of ownerOverrides, but used as a lookup
+type UnsupportedOverride = { ism: string }; // currently unsupported in the Checker, but used as a lookup
 type ChainOwnerOverrides = ChainMap<
-  Partial<{ proxyAdmin: string; collateral: string } & UnsupportedOverride>
+  Partial<{ proxyAdmin: string } & UnsupportedOverride>
 >;
 export const ezEthChainOwnerOverrides: ChainOwnerOverrides = {
   arbitrum: {
     proxyAdmin: ezEthSafes.arbitrum,
-    collateral: ezEthSafes.arbitrum,
     ism: ezEthOwners.arbitrum,
   },
   optimism: {
     proxyAdmin: ezEthSafes.optimism,
-    collateral: ezEthSafes.optimism,
     ism: ezEthOwners.optimism,
   },
   base: {
     proxyAdmin: ezEthSafes.base,
-    collateral: ezEthSafes.base,
     ism: ezEthOwners.base,
   },
   blast: {
     proxyAdmin: ezEthSafes.blast,
-    collateral: ezEthSafes.blast,
     ism: ezEthOwners.blast,
   },
   bsc: {
     proxyAdmin: ezEthSafes.bsc,
-    collateral: ezEthSafes.bsc,
     ism: ezEthOwners.bsc,
   },
   mode: {
     proxyAdmin: ezEthSafes.mode,
-    collateral: ezEthSafes.mode,
     ism: ezEthOwners.mode,
   },
   fraxtal: {
     proxyAdmin: ezEthSafes.fraxtal,
-    collateral: ezEthSafes.fraxtal,
     ism: ezEthOwners.fraxtal,
   },
   linea: {
     proxyAdmin: ezEthSafes.linea,
-    collateral: ezEthSafes.linea,
     ism: ezEthOwners.linea,
   },
   ethereum: {
     proxyAdmin: ezEthSafes.ethereum,
-    collateral: ezEthSafes.ethereum,
     ism: ezEthOwners.ethereum,
   },
   zircuit: {
     proxyAdmin: ezEthSafes.zircuit,
-    collateral: ezEthSafes.zircuit,
     ism: ezEthOwners.zircuit,
   },
   sei: {
     proxyAdmin: ezEthSafes.sei,
-    collateral: ezEthSafes.sei,
     ism: ezEthOwners.sei,
   },
   taiko: {
     proxyAdmin: ezEthSafes.taiko,
-    collateral: ezEthSafes.taiko,
     ism: ezEthOwners.taiko,
   },
   swell: {
     proxyAdmin: ezEthSafes.swell,
-    collateral: ezEthSafes.swell,
     ism: ezEthOwners.swell,
   },
   unichain: {
     proxyAdmin: ezEthSafes.unichain,
-    collateral: ezEthSafes.unichain,
     ism: ezEthOwners.unichain,
   },
   berachain: {
     proxyAdmin: ezEthSafes.berachain,
-    collateral: ezEthSafes.berachain,
     ism: ezEthOwners.berachain,
   },
   worldchain: {
     proxyAdmin: ezEthSafes.worldchain,
-    collateral: ezEthSafes.worldchain,
     ism: ezEthOwners.worldchain,
   },
   plasma: {
     proxyAdmin: ezEthSafes.plasma,
-    collateral: ezEthSafes.plasma,
     ism: ezEthOwners.plasma,
   },
   ink: {
     proxyAdmin: ezEthOwners.ink,
-    collateral: ezEthSafes.ink,
     ism: ezEthOwners.ink,
   },
   monad: {
     proxyAdmin: ezEthOwners.monad,
-    collateral: ezEthSafes.monad,
     ism: ezEthOwners.monad,
   },
   xlayer: {
     proxyAdmin: ezEthOwners.xlayer,
-    collateral: ezEthSafes.xlayer,
     ism: ezEthOwners.xlayer,
   },
 };
