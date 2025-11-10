@@ -15,7 +15,7 @@ const rezEthAddresses = {
   unichain: '0xf757c9804cF2EE8d8Ed64e0A8936293Fe43a7252',
 };
 
-const rezEthValidators = {
+export const rezEthValidators = {
   base: {
     threshold: 1,
     validators: [

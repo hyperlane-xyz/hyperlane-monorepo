@@ -26,7 +26,7 @@ export const pzEthChainsToDeploy = [
   'berachain',
 ];
 
-const pzEthValidators = {
+export const pzEthValidators = {
   ethereum: {
     threshold: 1,
     validators: [
