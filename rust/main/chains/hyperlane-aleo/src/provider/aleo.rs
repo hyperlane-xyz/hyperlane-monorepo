@@ -83,15 +83,15 @@ impl<C: AleoClient> HyperlaneProvider for AleoProvider<C> {
         let (hash, timestamp) = match self.chain_id() {
             0 => {
                 let block = self.get_block::<MainnetV0>(height).await?;
-                (to_h256(&block.hash())?, block.timestamp())
+                (to_h256(block.hash())?, block.timestamp())
             }
             1 => {
                 let block = self.get_block::<TestnetV0>(height).await?;
-                (to_h256(&block.hash())?, block.timestamp())
+                (to_h256(block.hash())?, block.timestamp())
             }
             2 => {
                 let block = self.get_block::<CanaryV0>(height).await?;
-                (to_h256(&block.hash())?, block.timestamp())
+                (to_h256(block.hash())?, block.timestamp())
             }
             id => return Err(HyperlaneAleoError::UnknownNetwork(id).into()),
         };
