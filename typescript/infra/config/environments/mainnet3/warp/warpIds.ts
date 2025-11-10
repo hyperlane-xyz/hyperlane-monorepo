@@ -128,6 +128,7 @@ export enum WarpRouteIds {
   // Everclear routes
   MainnetEverclearUSDC = 'USDC/mainnet-everclear',
   MainnetEverclearETH = 'ETH/mainnet-everclear',
+  MainnetEverclearUSDT = 'USDT/mainnet-everclear',
 
   // HYPER routes
   HYPER = 'HYPER/arbitrum-base-bsc-ethereum-optimism',

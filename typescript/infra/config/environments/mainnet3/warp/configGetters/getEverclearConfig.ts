@@ -99,6 +99,26 @@ const wethTokenAddresses: Record<EverclearChain, string> = {
   base: '0x4200000000000000000000000000000000000006',
 };
 
+// USDT token addresses extracted from signatures.json asset field
+const usdtTokenAddresses: Record<EverclearChain, string> = {
+  ethereum: '0xdAC17F958D2ee523a2206206994597C13D831ec7',
+  bsc: '0x55d398326f99059fF775485246999027B3197955',
+  optimism: '0x94b008aA00579c1307B0EF2c499aD98a8ce58e58',
+  zksync: '0x493257fD37EDB34451f62EDf8D2a0C418852bA4C',
+  arbitrum: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9',
+  polygon: '0xc2132d05d31c914a87c6611c10748aeb04b58e8f',
+  avalanche: '0x9702230A8Ea53601f5cD2dc00fDBc13d4dF4A8c7',
+  unichain: '0x588CE4F028D8e7B53B687865d6A67b3A54C75518',
+  sonic: '0x6047828dc181963ba44974801FF68e538dA5eaF9',
+  mantle: '0x201EBa5CC46D216Ce6DC03F6a759e8E766e956aE',
+  ink: '0x0000000000000000000000000000000000000000', // USDT address not available for ink
+  linea: '0xa219439258ca9da29e9cc4ce5596924745e12b93',
+  scroll: '0xf55BEC9cafDbE8730f096Aa55dad6D22d44099Df',
+  zircuit: '0x46dDa6a5a559d861c06EC9a95Fb395f5C3Db0742',
+  mode: '0xf0F161fDA2712DB8b566946122a5af183995e2eD',
+  base: '0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2',
+};
+
 // Ownership configuration (following CCTP pattern)
 const owners: Record<EverclearChain, string> = {
   ethereum: awSafes['ethereum'],
@@ -146,7 +166,7 @@ interface FeeData {
   nativeFee: string;
 }
 
-type EverclearAsset = 'USDC' | 'WETH';
+type EverclearAsset = 'USDC' | 'WETH' | 'USDT';
 
 // Function to fetch fee data from signatures.json for a given asset
 function fetchFeeData(asset: EverclearAsset) {
@@ -190,42 +210,56 @@ const getConfigFromFeeData = (
 ): ChainMap<HypTokenRouterConfig> => {
   const feeDataByChain = fetchFeeData(asset);
   const tokenAddresses =
-    asset === 'USDC' ? usdcTokenAddresses : wethTokenAddresses;
+    asset === 'USDC'
+      ? usdcTokenAddresses
+      : asset === 'WETH'
+        ? wethTokenAddresses
+        : usdtTokenAddresses;
+
+  // USDT is not supported on ink chain
+  let originChains = [...EVERCLEAR_CHAINS];
+  if (asset === 'USDT') {
+    originChains = originChains.filter((chain) => chain !== 'ink');
+  }
 
   return Object.fromEntries(
-    EVERCLEAR_CHAINS.map((chain) => {
+    originChains.map((chain) => {
       const owner = owners[chain];
       assert(owner, `Owner not found for ${chain}`);
 
       // Define output assets and fee parameters per destination using real signature data
       const outputAssets = Object.fromEntries(
-        EVERCLEAR_CHAINS.filter((c) => c !== chain).map((destChain) => [
-          destChain,
-          addressToBytes32(tokenAddresses[destChain]),
-        ]),
+        originChains
+          .filter((c) => c !== chain)
+          .map((destChain) => [
+            destChain,
+            addressToBytes32(tokenAddresses[destChain]),
+          ]),
       );
 
       const everclearFeeParams = Object.fromEntries(
-        EVERCLEAR_CHAINS.filter((c) => c !== chain).map((destChain) => {
-          const feeData = feeDataByChain[chain]?.[destChain];
-          return [
-            destChain,
-            {
-              fee: parseInt(feeData?.tokenFee || '0'),
-              deadline: parseInt(feeData?.deadline || '0'),
-              signature: feeData?.sig || '',
-            },
-          ];
-        }),
+        originChains
+          .filter((c) => c !== chain)
+          .map((destChain) => {
+            const feeData = feeDataByChain[chain]?.[destChain];
+            return [
+              destChain,
+              {
+                fee: parseInt(feeData?.tokenFee || '0'),
+                deadline: parseInt(feeData?.deadline || '0'),
+                signature: feeData?.sig || '',
+              },
+            ];
+          }),
       );
 
       const config: HypTokenRouterConfig =
-        asset === 'USDC'
+        asset === 'WETH'
           ? {
               owner,
               mailbox: routerConfig[chain].mailbox,
-              type: TokenType.collateralEverclear,
-              token: tokenAddresses[chain],
+              type: TokenType.ethEverclear,
+              wethAddress: tokenAddresses[chain],
               everclearBridgeAddress: everclearAdapterAddresses[chain],
               outputAssets,
               everclearFeeParams,
@@ -233,8 +267,8 @@ const getConfigFromFeeData = (
           : {
               owner,
               mailbox: routerConfig[chain].mailbox,
-              type: TokenType.ethEverclear,
-              wethAddress: tokenAddresses[chain],
+              type: TokenType.collateralEverclear,
+              token: tokenAddresses[chain],
               everclearBridgeAddress: everclearAdapterAddresses[chain],
               outputAssets,
               everclearFeeParams,
@@ -258,6 +292,14 @@ export const getEverclearETHWarpConfig = async (
   _warpRouteId: string,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   return getConfigFromFeeData('WETH', routerConfig);
+};
+
+export const getEverclearUSDTWarpConfig = async (
+  routerConfig: ChainMap<RouterConfigWithoutOwner>,
+  _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
+  _warpRouteId: string,
+): Promise<ChainMap<HypTokenRouterConfig>> => {
+  return getConfigFromFeeData('USDT', routerConfig);
 };
 
 // Strategy configuration following CCTP pattern

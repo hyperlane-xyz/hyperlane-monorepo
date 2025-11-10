@@ -66,6 +66,7 @@ import {
   getEverclearETHWarpConfig,
   getEverclearStrategyConfig,
   getEverclearUSDCWarpConfig,
+  getEverclearUSDTWarpConfig,
 } from './environments/mainnet3/warp/configGetters/getEverclearConfig.js';
 import { getIncentivUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getIncentivUSDCWarpConfig.js';
 import { getInevmInjectiveINJWarpConfig } from './environments/mainnet3/warp/configGetters/getInevmInjectiveINJWarpConfig.js';
@@ -182,6 +183,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.MainnetCCTP]: getMainnetCCTPWarpConfig,
   [WarpRouteIds.MainnetEverclearUSDC]: getEverclearUSDCWarpConfig,
   [WarpRouteIds.MainnetEverclearETH]: getEverclearETHWarpConfig,
+  [WarpRouteIds.MainnetEverclearUSDT]: getEverclearUSDTWarpConfig,
   [WarpRouteIds.LumiaUSDC]: getLumiaUSDCWarpConfig,
   [WarpRouteIds.MatchainUSDC]: getMatchainUSDCWarpConfig,
   [WarpRouteIds.MitosisMITO]: getMitosisMITOWarpConfig,
