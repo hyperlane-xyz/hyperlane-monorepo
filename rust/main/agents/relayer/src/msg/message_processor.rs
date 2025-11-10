@@ -439,21 +439,13 @@ async fn confirm_already_submitted_operations(
     batch: Vec<QueueOperation>,
 ) -> Vec<QueueOperation> {
     use ConfirmReason::AlreadySubmitted;
-    use PendingOperationStatus::{Confirm, Retry};
+    use PendingOperationStatus::Confirm;
 
     // Phase 1: Determine disposition for each operation
     let mut operations_with_disposition = Vec::with_capacity(batch.len());
     for op in batch {
-        let disposition = match op.status() {
-            Retry(ReprepareReason::Manual) => OperationDisposition::Manual,
-            _ => {
-                if has_operation_been_submitted(entrypoint.clone(), db.clone(), &op).await {
-                    OperationDisposition::Confirm
-                } else {
-                    OperationDisposition::Prepare
-                }
-            }
-        };
+        let disposition =
+            determine_operation_disposition(entrypoint.clone(), db.clone(), &op).await;
         operations_with_disposition.push((op, disposition));
     }
 
@@ -472,6 +464,26 @@ async fn confirm_already_submitted_operations(
     }
 
     ops_to_prepare
+}
+
+async fn determine_operation_disposition(
+    entrypoint: Arc<dyn Entrypoint + Send + Sync>,
+    db: Arc<dyn HyperlaneDb>,
+    op: &QueueOperation,
+) -> OperationDisposition {
+    use PendingOperationStatus::Retry;
+
+    // Check if operation requires manual intervention
+    if let Retry(ReprepareReason::Manual) = op.status() {
+        return OperationDisposition::Manual;
+    }
+
+    // Check if operation has already been submitted
+    if has_operation_been_submitted(entrypoint, db, op).await {
+        OperationDisposition::Confirm
+    } else {
+        OperationDisposition::Prepare
+    }
 }
 
 async fn has_operation_been_submitted(
