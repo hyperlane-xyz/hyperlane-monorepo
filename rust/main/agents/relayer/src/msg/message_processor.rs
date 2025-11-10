@@ -419,6 +419,16 @@ async fn prepare_lander_task(
     }
 }
 
+/// Disposition for how to handle an operation during submission check
+enum OperationDisposition {
+    /// Operation requires manual intervention - should be prepared
+    Manual,
+    /// Operation has not been submitted yet - should be prepared
+    Prepare,
+    /// Operation has already been submitted - should go to confirmation queue
+    Confirm,
+}
+
 /// This function checks the status of the payloads associated with the operations in the batch.
 /// If the payload is not dropped, the operation is pushed to the confirmation queue.
 /// If the payload is dropped, does not exist or there is issue in retrieving payload or its status, the operation will go through prepare logic.
@@ -431,19 +441,36 @@ async fn confirm_already_submitted_operations(
     use ConfirmReason::AlreadySubmitted;
     use PendingOperationStatus::{Confirm, Retry};
 
-    let mut ops_to_prepare = vec![];
-    for op in batch.into_iter() {
-        if let Retry(ReprepareReason::Manual) = op.status() {
-            ops_to_prepare.push(op);
-            continue;
-        }
-        if !has_operation_been_submitted(entrypoint.clone(), db.clone(), &op).await {
-            ops_to_prepare.push(op);
-            continue;
-        }
-        let status = Some(Confirm(AlreadySubmitted));
-        confirm_queue.push(op, status).await;
+    // Phase 1: Determine disposition for each operation
+    let mut operations_with_disposition = Vec::with_capacity(batch.len());
+    for op in batch {
+        let disposition = match op.status() {
+            Retry(ReprepareReason::Manual) => OperationDisposition::Manual,
+            _ => {
+                if has_operation_been_submitted(entrypoint.clone(), db.clone(), &op).await {
+                    OperationDisposition::Confirm
+                } else {
+                    OperationDisposition::Prepare
+                }
+            }
+        };
+        operations_with_disposition.push((op, disposition));
     }
+
+    // Phase 2: Process operations based on their disposition
+    let mut ops_to_prepare = Vec::new();
+    for (op, disposition) in operations_with_disposition {
+        match disposition {
+            OperationDisposition::Manual | OperationDisposition::Prepare => {
+                ops_to_prepare.push(op);
+            }
+            OperationDisposition::Confirm => {
+                let status = Some(Confirm(AlreadySubmitted));
+                confirm_queue.push(op, status).await;
+            }
+        }
+    }
+
     ops_to_prepare
 }
 
