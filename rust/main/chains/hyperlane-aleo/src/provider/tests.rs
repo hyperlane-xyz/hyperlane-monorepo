@@ -1,6 +1,4 @@
 //! Tests for AleoProvider high level functions using a mock underlying HttpClient.
-//! NOTE: JSON response files are empty placeholders; populate them with valid snarkVM JSON to enable test execution.
-//! Until populated, these tests will be ignored.
 
 use std::{ops::Deref, path::PathBuf, str::FromStr};
 
