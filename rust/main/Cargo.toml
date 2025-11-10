@@ -205,16 +205,16 @@ hyperlane-cosmos-rs = "0.1.4"
 
 
 ## dango
-grug = { git = "https://github.com/left-curve/left-curve.git", rev = "08ad3a3" }
-grug-app = { git = "https://github.com/left-curve/left-curve.git", rev = "08ad3a3" }
-grug-jmt = { git = "https://github.com/left-curve/left-curve.git", rev = "08ad3a3" }
-grug-indexer-client = { git = "https://github.com/left-curve/left-curve.git", package = "indexer-client", rev = "08ad3a3" }
-dango-types = { git = "https://github.com/left-curve/left-curve.git", rev = "08ad3a3" }
-dango-client = { git = "https://github.com/left-curve/left-curve.git", rev = "08ad3a3" }
-dango-hyperlane-types = { git = "https://github.com/left-curve/left-curve.git", package = "hyperlane-types", rev = "08ad3a3" }
-dango-mock-httpd = { git = "https://github.com/left-curve/left-curve.git", rev = "08ad3a3" }
-dango-testing = { git = "https://github.com/left-curve/left-curve.git", rev = "08ad3a3" }
-dango-genesis = { git = "https://github.com/left-curve/left-curve.git", rev = "08ad3a3" }
+grug = { git = "https://github.com/left-curve/left-curve.git", rev = "8d659bd847d16f105c560230dfff9a867cc34998" }
+grug-app = { git = "https://github.com/left-curve/left-curve.git", rev = "8d659bd847d16f105c560230dfff9a867cc34998" }
+grug-jmt = { git = "https://github.com/left-curve/left-curve.git", rev = "8d659bd847d16f105c560230dfff9a867cc34998" }
+grug-indexer-client = { git = "https://github.com/left-curve/left-curve.git", package = "indexer-client", rev = "8d659bd847d16f105c560230dfff9a867cc34998" }
+dango-types = { git = "https://github.com/left-curve/left-curve.git", rev = "8d659bd847d16f105c560230dfff9a867cc34998" }
+dango-client = { git = "https://github.com/left-curve/left-curve.git", rev = "8d659bd847d16f105c560230dfff9a867cc34998" }
+dango-hyperlane-types = { git = "https://github.com/left-curve/left-curve.git", package = "hyperlane-types", rev = "8d659bd847d16f105c560230dfff9a867cc34998" }
+dango-mock-httpd = { git = "https://github.com/left-curve/left-curve.git", rev = "8d659bd847d16f105c560230dfff9a867cc34998" }
+dango-testing = { git = "https://github.com/left-curve/left-curve.git", rev = "8d659bd847d16f105c560230dfff9a867cc34998" }
+dango-genesis = { git = "https://github.com/left-curve/left-curve.git", rev = "8d659bd847d16f105c560230dfff9a867cc34998" }
 
 ## TODO: remove this
 cosmwasm-schema = "2.2.0"
