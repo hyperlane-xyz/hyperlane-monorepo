@@ -572,9 +572,7 @@ export function getRenzoWarpConfigGenerator(params: {
             };
 
             if (chainOwnerOverrides?.[chain]) {
-              // ism override is not supported right now
-              const { ism, ...ownerOverrides } = chainOwnerOverrides[chain];
-              ret.ownerOverrides = ownerOverrides;
+              ret.ownerOverrides = chainOwnerOverrides[chain];
             }
 
             return [chain, ret];
