@@ -58,6 +58,10 @@ mapping dispatch_event_index:
     key as u32.public;
     value as u32.public;
 
+mapping registered_applications:
+    key as address.public;
+    value as [u8; 128u32].public;
+
 function init:
     input r0 as u32.private;
     async init r0 self.caller into r1;
@@ -72,70 +76,88 @@ finalize init:
     cast r0 0u32 0u32 aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc r1 into r4 as Mailbox;
     set r4 into mailbox[true];
 
+function get_address:
+    output mailbox.aleo as address.private;
+
 function set_dispatch_proxy:
     input r0 as address.private;
-    async set_dispatch_proxy r0 self.caller into r1;
+    async set_dispatch_proxy self.caller r0 into r1;
     output r1 as mailbox.aleo/set_dispatch_proxy.future;
 
 finalize set_dispatch_proxy:
     input r0 as address.public;
     input r1 as address.public;
     get mailbox[true] into r2;
-    assert.eq r2.mailbox_owner r1;
-    cast r2.local_domain r2.nonce r2.process_count r2.default_ism r2.default_hook r2.required_hook r0 r2.mailbox_owner into r3 as Mailbox;
+    assert.eq r2.mailbox_owner r0;
+    cast r2.local_domain r2.nonce r2.process_count r2.default_ism r2.default_hook r2.required_hook r1 r2.mailbox_owner into r3 as Mailbox;
     set r3 into mailbox[true];
 
 function set_owner:
     input r0 as address.private;
-    async set_owner r0 self.caller into r1;
+    async set_owner self.caller r0 into r1;
     output r1 as mailbox.aleo/set_owner.future;
 
 finalize set_owner:
     input r0 as address.public;
     input r1 as address.public;
     get mailbox[true] into r2;
-    assert.eq r2.mailbox_owner r1;
-    cast r2.local_domain r2.nonce r2.process_count r2.default_ism r2.default_hook r2.required_hook r2.dispatch_proxy r0 into r3 as Mailbox;
+    assert.eq r2.mailbox_owner r0;
+    cast r2.local_domain r2.nonce r2.process_count r2.default_ism r2.default_hook r2.required_hook r2.dispatch_proxy r1 into r3 as Mailbox;
     set r3 into mailbox[true];
 
 function set_default_ism:
     input r0 as address.private;
-    async set_default_ism r0 self.caller into r1;
+    async set_default_ism self.caller r0 into r1;
     output r1 as mailbox.aleo/set_default_ism.future;
 
 finalize set_default_ism:
     input r0 as address.public;
     input r1 as address.public;
     get mailbox[true] into r2;
-    assert.eq r2.mailbox_owner r1;
-    cast r2.local_domain r2.nonce r2.process_count r0 r2.default_hook r2.required_hook r2.dispatch_proxy r2.mailbox_owner into r3 as Mailbox;
+    assert.eq r2.mailbox_owner r0;
+    cast r2.local_domain r2.nonce r2.process_count r1 r2.default_hook r2.required_hook r2.dispatch_proxy r2.mailbox_owner into r3 as Mailbox;
     set r3 into mailbox[true];
 
 function set_default_hook:
     input r0 as address.private;
-    async set_default_hook r0 self.caller into r1;
+    async set_default_hook self.caller r0 into r1;
     output r1 as mailbox.aleo/set_default_hook.future;
 
 finalize set_default_hook:
     input r0 as address.public;
     input r1 as address.public;
     get mailbox[true] into r2;
-    assert.eq r2.mailbox_owner r1;
-    cast r2.local_domain r2.nonce r2.process_count r2.default_ism r0 r2.required_hook r2.dispatch_proxy r2.mailbox_owner into r3 as Mailbox;
+    assert.eq r2.mailbox_owner r0;
+    cast r2.local_domain r2.nonce r2.process_count r2.default_ism r1 r2.required_hook r2.dispatch_proxy r2.mailbox_owner into r3 as Mailbox;
     set r3 into mailbox[true];
 
 function set_required_hook:
     input r0 as address.private;
-    async set_required_hook r0 self.caller into r1;
+    async set_required_hook self.caller r0 into r1;
     output r1 as mailbox.aleo/set_required_hook.future;
 
 finalize set_required_hook:
     input r0 as address.public;
     input r1 as address.public;
     get mailbox[true] into r2;
-    assert.eq r2.mailbox_owner r1;
-    cast r2.local_domain r2.nonce r2.process_count r2.default_ism r2.default_hook r0 r2.dispatch_proxy r2.mailbox_owner into r3 as Mailbox;
+    assert.eq r2.mailbox_owner r0;
+    cast r2.local_domain r2.nonce r2.process_count r2.default_ism r2.default_hook r1 r2.dispatch_proxy r2.mailbox_owner into r3 as Mailbox;
     set r3 into mailbox[true];
+
+function register_application:
+    input r0 as [u8; 128u32].private;
+    async register_application r0 self.caller into r1;
+    output r1 as mailbox.aleo/register_application.future;
+
+finalize register_application:
+    input r0 as [u8; 128u32].public;
+    input r1 as address.public;
+    contains mailbox[true] into r2;
+    assert.eq r2 true;
+    contains registered_applications[r1] into r3;
+    not r3 into r4;
+    assert.eq r4 true;
+    set r0 into registered_applications[r1];
 
 function process:
     input r0 as address.public;

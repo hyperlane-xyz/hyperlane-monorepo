@@ -31,10 +31,14 @@ mapping validator_announce:
     value as ValidatorAnnounce.public;
 
 function init:
-    input r0 as [u8; 32u32].private;
+    input r0 as address.private;
     input r1 as u32.private;
-    async init r0 r1 into r2;
-    output r2 as validator_announce.aleo/init.future;
+    serialize.bits.raw r0 (address) into r2 ([boolean; 253u32]);
+    cast false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false false into r3 as [boolean; 256u32];
+    cast r2[0u32] r2[1u32] r2[2u32] r2[3u32] r2[4u32] r2[5u32] r2[6u32] r2[7u32] r2[8u32] r2[9u32] r2[10u32] r2[11u32] r2[12u32] r2[13u32] r2[14u32] r2[15u32] r2[16u32] r2[17u32] r2[18u32] r2[19u32] r2[20u32] r2[21u32] r2[22u32] r2[23u32] r2[24u32] r2[25u32] r2[26u32] r2[27u32] r2[28u32] r2[29u32] r2[30u32] r2[31u32] r2[32u32] r2[33u32] r2[34u32] r2[35u32] r2[36u32] r2[37u32] r2[38u32] r2[39u32] r2[40u32] r2[41u32] r2[42u32] r2[43u32] r2[44u32] r2[45u32] r2[46u32] r2[47u32] r2[48u32] r2[49u32] r2[50u32] r2[51u32] r2[52u32] r2[53u32] r2[54u32] r2[55u32] r2[56u32] r2[57u32] r2[58u32] r2[59u32] r2[60u32] r2[61u32] r2[62u32] r2[63u32] r2[64u32] r2[65u32] r2[66u32] r2[67u32] r2[68u32] r2[69u32] r2[70u32] r2[71u32] r2[72u32] r2[73u32] r2[74u32] r2[75u32] r2[76u32] r2[77u32] r2[78u32] r2[79u32] r2[80u32] r2[81u32] r2[82u32] r2[83u32] r2[84u32] r2[85u32] r2[86u32] r2[87u32] r2[88u32] r2[89u32] r2[90u32] r2[91u32] r2[92u32] r2[93u32] r2[94u32] r2[95u32] r2[96u32] r2[97u32] r2[98u32] r2[99u32] r2[100u32] r2[101u32] r2[102u32] r2[103u32] r2[104u32] r2[105u32] r2[106u32] r2[107u32] r2[108u32] r2[109u32] r2[110u32] r2[111u32] r2[112u32] r2[113u32] r2[114u32] r2[115u32] r2[116u32] r2[117u32] r2[118u32] r2[119u32] r2[120u32] r2[121u32] r2[122u32] r2[123u32] r2[124u32] r2[125u32] r2[126u32] r2[127u32] r2[128u32] r2[129u32] r2[130u32] r2[131u32] r2[132u32] r2[133u32] r2[134u32] r2[135u32] r2[136u32] r2[137u32] r2[138u32] r2[139u32] r2[140u32] r2[141u32] r2[142u32] r2[143u32] r2[144u32] r2[145u32] r2[146u32] r2[147u32] r2[148u32] r2[149u32] r2[150u32] r2[151u32] r2[152u32] r2[153u32] r2[154u32] r2[155u32] r2[156u32] r2[157u32] r2[158u32] r2[159u32] r2[160u32] r2[161u32] r2[162u32] r2[163u32] r2[164u32] r2[165u32] r2[166u32] r2[167u32] r2[168u32] r2[169u32] r2[170u32] r2[171u32] r2[172u32] r2[173u32] r2[174u32] r2[175u32] r2[176u32] r2[177u32] r2[178u32] r2[179u32] r2[180u32] r2[181u32] r2[182u32] r2[183u32] r2[184u32] r2[185u32] r2[186u32] r2[187u32] r2[188u32] r2[189u32] r2[190u32] r2[191u32] r2[192u32] r2[193u32] r2[194u32] r2[195u32] r2[196u32] r2[197u32] r2[198u32] r2[199u32] r2[200u32] r2[201u32] r2[202u32] r2[203u32] r2[204u32] r2[205u32] r2[206u32] r2[207u32] r2[208u32] r2[209u32] r2[210u32] r2[211u32] r2[212u32] r2[213u32] r2[214u32] r2[215u32] r2[216u32] r2[217u32] r2[218u32] r2[219u32] r2[220u32] r2[221u32] r2[222u32] r2[223u32] r2[224u32] r2[225u32] r2[226u32] r2[227u32] r2[228u32] r2[229u32] r2[230u32] r2[231u32] r2[232u32] r2[233u32] r2[234u32] r2[235u32] r2[236u32] r2[237u32] r2[238u32] r2[239u32] r2[240u32] r2[241u32] r2[242u32] r2[243u32] r2[244u32] r2[245u32] r2[246u32] r2[247u32] r2[248u32] r2[249u32] r2[250u32] r2[251u32] r2[252u32] r3[253u32] r3[254u32] r3[255u32] into r4 as [boolean; 256u32];
+    deserialize.bits.raw r4 ([boolean; 256u32]) into r5 ([u8; 32u32]);
+    async init r5 r1 into r6;
+    output r6 as validator_announce.aleo/init.future;
 
 finalize init:
     input r0 as [u8; 32u32].public;
@@ -44,6 +48,9 @@ finalize init:
     assert.eq r3 true;
     cast r0 r1 into r4 as ValidatorAnnounce;
     set r4 into validator_announce[true];
+
+function get_address:
+    output validator_announce.aleo as address.private;
 
 function announce:
     input r0 as [u8; 20u32].private;

@@ -18,3 +18,19 @@ export function getMessageKey(messageId: string): [U128, U128] {
 export function formatAddress(address: string): string {
   return address === ALEO_NULL_ADDRESS ? '' : address;
 }
+
+export function stringToU128(input: string): U128 {
+  if (input.length > 16) {
+    throw new Error(`string "${input}" is too long to convert it into U128`);
+  }
+
+  const encoded = new TextEncoder().encode(input);
+  const bytes = new Uint8Array(16);
+  bytes.set(encoded.subarray(0, 16));
+
+  return U128.fromBytesLe(bytes);
+}
+
+export function U128ToString(input: U128): string {
+  return new TextDecoder().decode(input.toBytesLe());
+}

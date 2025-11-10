@@ -13,7 +13,7 @@ import { BigNumber } from 'bignumber.js';
 import { AltVM, assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
 
 import { mailbox } from '../artifacts.js';
-import { formatAddress, getMessageKey } from '../utils/helper.js';
+import { formatAddress, getMessageKey, stringToU128 } from '../utils/helper.js';
 import { AleoTransaction } from '../utils/types.js';
 
 getOrInitConsensusVersionTestHeights('0,1,2,3,4,5,6,7,8,9,10');
@@ -50,7 +50,7 @@ export class AleoProvider implements AltVM.IProvider {
   }
 
   protected getProgramSaltFromAddress(address: string): string {
-    return address.split('_').at(-1) || '';
+    return (address.split('_').at(-1) || '').replaceAll('.aleo', '');
   }
 
   // ### QUERY BASE ###
@@ -328,7 +328,6 @@ export class AleoProvider implements AltVM.IProvider {
 
     switch (res.toObject()) {
       case 0:
-        // TODO: Use NOOP or UNUSED here
         return AltVM.HookType.CUSTOM;
       case 3:
         return AltVM.HookType.MERKLE_TREE;
@@ -439,7 +438,7 @@ export class AleoProvider implements AltVM.IProvider {
 
   // ### QUERY WARP ###
 
-  private async getTokenMetadata(tokenId: string): Promise<{
+  protected async getTokenMetadata(tokenId: string): Promise<{
     name: string;
     symbol: string;
     decimals: number;
@@ -468,7 +467,7 @@ export class AleoProvider implements AltVM.IProvider {
       address: req.tokenAddress,
       owner: '',
       tokenType: AltVM.TokenType.native,
-      mailboxAddress: '', // TODO: how do we get the mailbox address?
+      mailboxAddress: '',
       ismAddress: '',
       denom: '',
       name: '',
@@ -508,6 +507,17 @@ export class AleoProvider implements AltVM.IProvider {
       }
     } catch {
       throw new Error(`Found no token for address: ${req.tokenAddress}`);
+    }
+
+    try {
+      const imports = await this.aleoClient.getProgramImportNames(
+        req.tokenAddress,
+      );
+      token.mailboxAddress = imports.find((i) => i.includes('mailbox')) || '';
+    } catch {
+      throw new Error(
+        `Found no imports for token address: ${req.tokenAddress}`,
+      );
     }
 
     return token;
@@ -619,9 +629,12 @@ export class AleoProvider implements AltVM.IProvider {
       Plaintext.fromString(remoteRouterValue).toObject()['gas'],
     );
 
-    // TODO: probably get mailbox id over imports?
+    const { mailboxAddress } = await this.getToken({
+      tokenAddress: req.tokenAddress,
+    });
+
     const mailbox = await this.getMailbox({
-      mailboxAddress: 'mailbox.aleo',
+      mailboxAddress,
     });
 
     let quote = new BigNumber(0);
@@ -907,13 +920,14 @@ export class AleoProvider implements AltVM.IProvider {
   async getCreateCollateralTokenTransaction(
     req: AltVM.ReqCreateCollateralToken,
   ): Promise<AleoTransaction> {
-    // TODO: get decimals from collateral denom
+    const metadata = await this.getTokenMetadata(req.collateralDenom);
+
     return {
       programName: '',
       functionName: 'init',
       priorityFee: 0,
       privateFee: false,
-      inputs: [`${req.collateralDenom}field`, `${0}u8`],
+      inputs: [req.collateralDenom, `${metadata.decimals}u8`],
     };
   }
 
@@ -926,8 +940,8 @@ export class AleoProvider implements AltVM.IProvider {
       priorityFee: 0,
       privateFee: false,
       inputs: [
-        `${req.name}u128`,
-        `${req.denom}u128`,
+        stringToU128(req.name).toString(),
+        stringToU128(req.denom).toString(),
         `${req.decimals}u8`,
         `${req.decimals}u8`,
       ],

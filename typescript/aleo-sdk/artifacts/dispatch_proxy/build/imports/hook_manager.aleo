@@ -51,7 +51,7 @@ struct GasPaymentEvent:
     payment as u64;
     index as u32;
 
-struct EventKey:
+struct HookIndexKey:
     hook as address;
     index as u32;
 
@@ -88,6 +88,14 @@ mapping destination_gas_configs:
     key as GasConfigKey.public;
     value as DomainGasConfig.public;
 
+mapping destination_gas_config_iter:
+    key as HookIndexKey.public;
+    value as GasConfigKey.public;
+
+mapping destination_gas_config_length:
+    key as address.public;
+    value as u32.public;
+
 mapping merkle_tree_hooks:
     key as address.public;
     value as MerkleTreeHook.public;
@@ -101,11 +109,11 @@ mapping hook_addresses:
     value as address.public;
 
 mapping gas_payment_events:
-    key as EventKey.public;
+    key as HookIndexKey.public;
     value as GasPaymentEvent.public;
 
 mapping inserted_into_tree_events:
-    key as EventKey.public;
+    key as HookIndexKey.public;
     value as InsertedIntoTreeEvent.public;
 
 mapping last_event_index:
@@ -163,6 +171,17 @@ finalize set_destination_gas_config:
     get igps[r0] into r5;
     assert.eq r5.hook_owner r3;
     cast r0 r1 into r6 as GasConfigKey;
+    contains destination_gas_configs[r6] into r7;
+    not r7 into r8;
+    branch.eq r8 false to end_then_0_0;
+    get.or_use destination_gas_config_length[r0] 0u32 into r9;
+    cast r0 r9 into r10 as HookIndexKey;
+    set r6 into destination_gas_config_iter[r10];
+    add r9 1u32 into r11;
+    set r11 into destination_gas_config_length[r0];
+    branch.eq true true to end_otherwise_0_1;
+    position end_then_0_0;
+    position end_otherwise_0_1;
     set r2 into destination_gas_configs[r6];
 
 function remove_destination_gas_config:
@@ -235,7 +254,7 @@ finalize pay_for_gas:
     assert.eq r13 r4;
     await r5;
     get igps[r0] into r14;
-    cast r0 r14.count into r15 as EventKey;
+    cast r0 r14.count into r15 as HookIndexKey;
     cast r1 r2 r3 r4 r14.count into r16 as GasPaymentEvent;
     set r16 into gas_payment_events[r15];
     cast r0 block.height into r17 as EventIndexKey;
@@ -244,6 +263,23 @@ finalize pay_for_gas:
     add r14.count 1u32 into r19;
     cast r14.hook_owner r14.nonce r18 r19 into r20 as InterchainGasPaymaster;
     set r20 into igps[r0];
+
+function transfer_igp_ownership:
+    input r0 as address.private;
+    input r1 as address.private;
+    async transfer_igp_ownership r0 self.caller r1 into r2;
+    output r2 as hook_manager.aleo/transfer_igp_ownership.future;
+
+finalize transfer_igp_ownership:
+    input r0 as address.public;
+    input r1 as address.public;
+    input r2 as address.public;
+    contains igps[r0] into r3;
+    assert.eq r3 true;
+    get igps[r0] into r4;
+    assert.eq r4.hook_owner r1;
+    cast r2 r4.nonce r4.balance r4.count into r5 as InterchainGasPaymaster;
+    set r5 into igps[r0];
 
 function init_merkle_tree:
     input r0 as address.private;
@@ -334,7 +370,7 @@ finalize post_dispatch:
     get mailbox.aleo/dispatch_id_events[r11] into r12;
     cast r0 block.height into r13 as EventIndexKey;
     is.eq r6 3u8 into r14;
-    branch.eq r14 false to end_then_0_0;
+    branch.eq r14 false to end_then_0_2;
     get merkle_tree_hooks[r0] into r15;
     assert.eq r15.parent r2;
     lt r15.tree.count 4294967295u32 into r16;
@@ -1265,14 +1301,14 @@ finalize post_dispatch:
     cast r15.parent r939 r554 r15.nonce into r940 as MerkleTreeHook;
     set r940 into merkle_tree_hooks[r0];
     assert.eq r3 0u64;
-    cast r0 r15.tree.count into r941 as EventKey;
+    cast r0 r15.tree.count into r941 as HookIndexKey;
     cast r12 r15.tree.count into r942 as InsertedIntoTreeEvent;
     set r942 into inserted_into_tree_events[r941];
     set r15.tree.count into last_event_index[r13];
-    branch.eq true true to end_otherwise_0_1;
-    position end_then_0_0;
+    branch.eq true true to end_otherwise_0_3;
+    position end_then_0_2;
     is.eq r6 4u8 into r943;
-    branch.eq r943 false to end_then_1_2;
+    branch.eq r943 false to end_then_1_4;
     get igps[r0] into r944;
     cast r0 r10.destination_domain into r945 as GasConfigKey;
     cast 0u128 0u128 0u128 into r946 as DomainGasConfig;
@@ -1335,7 +1371,7 @@ finalize post_dispatch:
     assert.eq r1002 true;
     cast r1001 into r1003 as u64;
     assert.eq r1003 r3;
-    cast r0 r944.count into r1004 as EventKey;
+    cast r0 r944.count into r1004 as HookIndexKey;
     cast r12 r10.destination_domain r998 r1003 r944.count into r1005 as GasPaymentEvent;
     set r1005 into gas_payment_events[r1004];
     set r944.count into last_event_index[r13];
@@ -1343,17 +1379,17 @@ finalize post_dispatch:
     add r944.count 1u32 into r1007;
     cast r944.hook_owner r944.nonce r1006 r1007 into r1008 as InterchainGasPaymaster;
     set r1008 into igps[r0];
-    branch.eq true true to end_otherwise_1_3;
-    position end_then_1_2;
+    branch.eq true true to end_otherwise_1_5;
+    position end_then_1_4;
     is.eq r6 0u8 into r1009;
-    branch.eq r1009 false to end_then_2_4;
+    branch.eq r1009 false to end_then_2_6;
     assert.eq r3 0u64;
-    branch.eq true true to end_otherwise_2_5;
-    position end_then_2_4;
+    branch.eq true true to end_otherwise_2_7;
+    position end_then_2_6;
     assert.eq false true;
-    position end_otherwise_2_5;
-    position end_otherwise_1_3;
-    position end_otherwise_0_1;
+    position end_otherwise_2_7;
+    position end_otherwise_1_5;
+    position end_otherwise_0_3;
 
 constructor:
     assert.eq edition 0u16;

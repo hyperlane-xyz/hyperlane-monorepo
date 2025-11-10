@@ -65,7 +65,7 @@ export class AleoSigner
         p
           .toString()
           .replaceAll(
-            /(mailbox|dispatch_proxy|validator_announce|hyp_synthetic)\.aleo/g,
+            /(mailbox|dispatch_proxy|validator_announce)\.aleo/g,
             (_, p1) => `${p1}_${coreSalt}.aleo`,
           )
           .replaceAll(
@@ -537,7 +537,9 @@ export class AleoSigner
   async createCollateralToken(
     req: Omit<AltVM.ReqCreateCollateralToken, 'signer'>,
   ): Promise<AltVM.ResCreateCollateralToken> {
-    const tokenSalt = this.getNewProgramSalt(12);
+    const { symbol } = await this.getTokenMetadata(req.collateralDenom);
+
+    const tokenSalt = `${symbol.toLowerCase()}_${this.getNewProgramSalt(6)}`;
     const mailboxSalt = this.getProgramSaltFromAddress(req.mailboxAddress);
 
     const programs = await this.deployProgram(
@@ -554,6 +556,15 @@ export class AleoSigner
     const tokenAddress = programs[programs.length - 1];
     tx.programName = tokenAddress;
 
+    let programId = Array(128).fill(`0u8`);
+    Array.from(tokenAddress)
+      .map((c) => `${c.charCodeAt(0)}u8`)
+      .forEach((c, i) => {
+        programId[i] = c;
+      });
+
+    tx.inputs = [JSON.stringify(programId).replaceAll('"', ''), ...tx.inputs];
+
     const txId = await this.programManager.execute(tx);
     await this.aleoClient.waitForTransactionConfirmation(txId);
 
@@ -565,7 +576,7 @@ export class AleoSigner
   async createSyntheticToken(
     req: Omit<AltVM.ReqCreateSyntheticToken, 'signer'>,
   ): Promise<AltVM.ResCreateSyntheticToken> {
-    const tokenSalt = this.getNewProgramSalt(12);
+    const tokenSalt = `${req.denom.toLowerCase()}_${this.getNewProgramSalt(6)}`;
     const mailboxSalt = this.getProgramSaltFromAddress(req.mailboxAddress);
 
     const programs = await this.deployProgram(
@@ -581,6 +592,15 @@ export class AleoSigner
 
     const tokenAddress = programs[programs.length - 1];
     tx.programName = tokenAddress;
+
+    let programId = Array(128).fill(`0u8`);
+    Array.from(tokenAddress)
+      .map((c) => `${c.charCodeAt(0)}u8`)
+      .forEach((c, i) => {
+        programId[i] = c;
+      });
+
+    tx.inputs = [JSON.stringify(programId).replaceAll('"', ''), ...tx.inputs];
 
     const txId = await this.programManager.execute(tx);
     await this.aleoClient.waitForTransactionConfirmation(txId);

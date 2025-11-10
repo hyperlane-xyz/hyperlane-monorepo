@@ -29,6 +29,10 @@ struct IsmRouteKey:
     ism as address;
     domain as u32;
 
+struct RouteIndexKey:
+    ism as address;
+    index as u32;
+
 mapping nonce:
     key as boolean.public;
     value as u32.public;
@@ -37,16 +41,24 @@ mapping domain_routing_isms:
     key as address.public;
     value as DomainRoutingIsm.public;
 
+mapping routes:
+    key as IsmRouteKey.public;
+    value as address.public;
+
+mapping route_iter:
+    key as RouteIndexKey.public;
+    value as IsmRouteKey.public;
+
+mapping route_length:
+    key as address.public;
+    value as u32.public;
+
 mapping message_id_multisigs:
     key as address.public;
     value as MessageIdMultisigIsm.public;
 
 mapping ism_addresses:
     key as u32.public;
-    value as address.public;
-
-mapping routes:
-    key as IsmRouteKey.public;
     value as address.public;
 
 mapping isms:
@@ -133,6 +145,17 @@ finalize set_domain:
     get domain_routing_isms[r0] into r5;
     assert.eq r5.ism_owner r3;
     cast r0 r1 into r6 as IsmRouteKey;
+    contains routes[r6] into r7;
+    not r7 into r8;
+    branch.eq r8 false to end_then_0_0;
+    get.or_use route_length[r0] 0u32 into r9;
+    cast r0 r9 into r10 as RouteIndexKey;
+    set r6 into route_iter[r10];
+    add r9 1u32 into r11;
+    set r11 into route_length[r0];
+    branch.eq true true to end_otherwise_0_1;
+    position end_then_0_0;
+    position end_otherwise_0_1;
     set r2 into routes[r6];
 
 function remove_domain:
@@ -151,6 +174,23 @@ finalize remove_domain:
     assert.eq r4.ism_owner r2;
     cast r0 r1 into r5 as IsmRouteKey;
     remove routes[r5];
+
+function transfer_routing_ism_ownership:
+    input r0 as address.private;
+    input r1 as address.private;
+    async transfer_routing_ism_ownership r0 self.caller r1 into r2;
+    output r2 as ism_manager.aleo/transfer_routing_ism_ownership.future;
+
+finalize transfer_routing_ism_ownership:
+    input r0 as address.public;
+    input r1 as address.public;
+    input r2 as address.public;
+    contains domain_routing_isms[r0] into r3;
+    assert.eq r3 true;
+    get domain_routing_isms[r0] into r4;
+    assert.eq r4.ism_owner r1;
+    cast r2 r4.nonce into r5 as DomainRoutingIsm;
+    set r5 into domain_routing_isms[r0];
 
 function verify:
     input r0 as address.public;
@@ -200,7 +240,7 @@ finalize verify:
     contains isms[r0] into r36;
     assert.eq r36 true;
     is.eq r35 5u8 into r37;
-    branch.eq r37 false to end_then_0_0;
+    branch.eq r37 false to end_then_0_2;
     get message_id_multisigs[r0] into r38;
     ecdsa.verify.digest.eth r10[0u32] r38.validators[0u32].bytes r34 into r39;
     ternary r39 1u8 0u8 into r40;
@@ -222,24 +262,24 @@ finalize verify:
     add r53 r55 into r56;
     gte r56 r38.threshold into r57;
     assert.eq r57 true;
-    branch.eq true true to end_otherwise_0_1;
-    position end_then_0_0;
+    branch.eq true true to end_otherwise_0_3;
+    position end_then_0_2;
     is.eq r35 0u8 into r58;
     is.eq r35 1u8 into r59;
     or r58 r59 into r60;
-    branch.eq r60 false to end_then_1_2;
-    branch.eq true true to end_otherwise_1_3;
-    position end_then_1_2;
+    branch.eq r60 false to end_then_1_4;
+    branch.eq true true to end_otherwise_1_5;
+    position end_then_1_4;
     assert.eq false true;
-    position end_otherwise_1_3;
-    position end_otherwise_0_1;
+    position end_otherwise_1_5;
+    position end_otherwise_0_3;
     cast r0 r1.origin_domain into r61 as IsmRouteKey;
     get.or_use routes[r61] r0 into r62;
     get isms[r62] into r63;
     contains isms[r62] into r64;
     assert.eq r64 true;
     is.eq r63 5u8 into r65;
-    branch.eq r65 false to end_then_0_4;
+    branch.eq r65 false to end_then_0_6;
     get message_id_multisigs[r62] into r66;
     ecdsa.verify.digest.eth r10[0u32] r66.validators[0u32].bytes r34 into r67;
     ternary r67 1u8 0u8 into r68;
@@ -261,24 +301,24 @@ finalize verify:
     add r81 r83 into r84;
     gte r84 r66.threshold into r85;
     assert.eq r85 true;
-    branch.eq true true to end_otherwise_0_5;
-    position end_then_0_4;
+    branch.eq true true to end_otherwise_0_7;
+    position end_then_0_6;
     is.eq r63 0u8 into r86;
     is.eq r63 1u8 into r87;
     or r86 r87 into r88;
-    branch.eq r88 false to end_then_1_6;
-    branch.eq true true to end_otherwise_1_7;
-    position end_then_1_6;
+    branch.eq r88 false to end_then_1_8;
+    branch.eq true true to end_otherwise_1_9;
+    position end_then_1_8;
     assert.eq false true;
-    position end_otherwise_1_7;
-    position end_otherwise_0_5;
+    position end_otherwise_1_9;
+    position end_otherwise_0_7;
     cast r62 r1.origin_domain into r89 as IsmRouteKey;
     get.or_use routes[r89] r62 into r90;
     get isms[r90] into r91;
     contains isms[r90] into r92;
     assert.eq r92 true;
     is.eq r91 5u8 into r93;
-    branch.eq r93 false to end_then_0_8;
+    branch.eq r93 false to end_then_0_10;
     get message_id_multisigs[r90] into r94;
     ecdsa.verify.digest.eth r10[0u32] r94.validators[0u32].bytes r34 into r95;
     ternary r95 1u8 0u8 into r96;
@@ -300,24 +340,24 @@ finalize verify:
     add r109 r111 into r112;
     gte r112 r94.threshold into r113;
     assert.eq r113 true;
-    branch.eq true true to end_otherwise_0_9;
-    position end_then_0_8;
+    branch.eq true true to end_otherwise_0_11;
+    position end_then_0_10;
     is.eq r91 0u8 into r114;
     is.eq r91 1u8 into r115;
     or r114 r115 into r116;
-    branch.eq r116 false to end_then_1_10;
-    branch.eq true true to end_otherwise_1_11;
-    position end_then_1_10;
+    branch.eq r116 false to end_then_1_12;
+    branch.eq true true to end_otherwise_1_13;
+    position end_then_1_12;
     assert.eq false true;
-    position end_otherwise_1_11;
-    position end_otherwise_0_9;
+    position end_otherwise_1_13;
+    position end_otherwise_0_11;
     cast r90 r1.origin_domain into r117 as IsmRouteKey;
     get.or_use routes[r117] r90 into r118;
     get isms[r118] into r119;
     contains isms[r118] into r120;
     assert.eq r120 true;
     is.eq r119 5u8 into r121;
-    branch.eq r121 false to end_then_0_12;
+    branch.eq r121 false to end_then_0_14;
     get message_id_multisigs[r118] into r122;
     ecdsa.verify.digest.eth r10[0u32] r122.validators[0u32].bytes r34 into r123;
     ternary r123 1u8 0u8 into r124;
@@ -339,26 +379,26 @@ finalize verify:
     add r137 r139 into r140;
     gte r140 r122.threshold into r141;
     assert.eq r141 true;
-    branch.eq true true to end_otherwise_0_13;
-    position end_then_0_12;
+    branch.eq true true to end_otherwise_0_15;
+    position end_then_0_14;
     is.eq r119 0u8 into r142;
     is.eq r119 1u8 into r143;
     or r142 r143 into r144;
-    branch.eq r144 false to end_then_1_14;
-    branch.eq true true to end_otherwise_1_15;
-    position end_then_1_14;
+    branch.eq r144 false to end_then_1_16;
+    branch.eq true true to end_otherwise_1_17;
+    position end_then_1_16;
     assert.eq false true;
-    position end_otherwise_1_15;
-    position end_otherwise_0_13;
+    position end_otherwise_1_17;
+    position end_otherwise_0_15;
     cast r118 r1.origin_domain into r145 as IsmRouteKey;
     get.or_use routes[r145] r118 into r146;
     get isms[r146] into r147;
     is.eq r147 1u8 into r148;
-    branch.eq r148 false to end_then_0_16;
+    branch.eq r148 false to end_then_0_18;
     assert.eq false true;
-    branch.eq true true to end_otherwise_0_17;
-    position end_then_0_16;
-    position end_otherwise_0_17;
+    branch.eq true true to end_otherwise_0_19;
+    position end_then_0_18;
+    position end_otherwise_0_19;
 
 constructor:
     assert.eq edition 0u16;

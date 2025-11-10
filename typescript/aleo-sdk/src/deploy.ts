@@ -21,11 +21,21 @@ const main = async () => {
     });
     console.log('signer credits balance: ', balance);
 
-    const { mailboxAddress } = await signer.createMailbox({
-      domainId: 1337,
-      defaultIsmAddress: '',
+    // const { mailboxAddress } = await signer.createMailbox({
+    //   domainId: 1337,
+    //   defaultIsmAddress: '',
+    // });
+    // console.log('mailboxAddress', mailboxAddress);
+
+    const mailboxAddress = 'mailbox_ympq4slu6xiq.aleo';
+
+    const { tokenAddress } = await signer.createSyntheticToken({
+      mailboxAddress,
+      name: 'usdc',
+      denom: 'usdc',
+      decimals: 18,
     });
-    console.log('mailboxAddress', mailboxAddress);
+    console.log('tokenAddress', tokenAddress);
   } catch (err) {
     console.log(err);
   }
