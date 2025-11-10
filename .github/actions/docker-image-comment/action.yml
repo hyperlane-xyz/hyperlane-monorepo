@@ -66,12 +66,17 @@ runs:
         if [ -n "$COMMENT_BODY" ]; then
           # Success case: create or update comment
           if [ -n "$COMMENT_ID" ]; then
-            # Update existing comment
-            gh api \
+            # Try to update existing comment, fall back to creating new one if it fails (e.g., 404)
+            if ! gh api \
               --method PATCH \
               -H "Accept: application/vnd.github+json" \
               "/repos/${{ github.repository }}/issues/comments/${COMMENT_ID}" \
-              -f body="${COMMENT_BODY}"
+              -f body="${COMMENT_BODY}" 2>/dev/null; then
+              # Comment no longer exists, create a new one
+              gh pr comment ${PR_NUMBER} \
+                --repo ${{ github.repository }} \
+                --body "${COMMENT_BODY}"
+            fi
           else
             # Create new comment
             gh pr comment ${PR_NUMBER} \
@@ -79,12 +84,12 @@ runs:
               --body "${COMMENT_BODY}"
           fi
         else
-          # Failure case: delete comment if it exists
+          # Failure case: delete comment if it exists (ignore errors if already deleted)
           if [ -n "$COMMENT_ID" ]; then
             gh api \
               --method DELETE \
               -H "Accept: application/vnd.github+json" \
-              "/repos/${{ github.repository }}/issues/comments/${COMMENT_ID}"
+              "/repos/${{ github.repository }}/issues/comments/${COMMENT_ID}" 2>/dev/null || true
           fi
         fi
 
