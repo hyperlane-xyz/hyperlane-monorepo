@@ -267,13 +267,12 @@ fn parse_chain(
     // for EVM chains, default to `SubmitterType::Lander` if not specified
     let submitter = match submitter {
         Some(submitter_type) => submitter_type,
-        None => {
-            if matches!(connection.protocol(), HyperlaneDomainProtocol::Ethereum) {
-                SubmitterType::Lander
-            } else {
-                Default::default()
-            }
-        }
+        None => match connection.protocol() {
+            HyperlaneDomainProtocol::Ethereum
+            | HyperlaneDomainProtocol::Radix
+            | HyperlaneDomainProtocol::Sealevel => SubmitterType::Lander,
+            _ => Default::default(),
+        },
     };
     err.into_result(ChainConf {
         domain,

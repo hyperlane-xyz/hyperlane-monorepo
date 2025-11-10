@@ -66,12 +66,14 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
     );
   }
 
+  protected async getNextNonce(): Promise<number> {
+    return await this.safeService.getNextNonce(this.props.safeAddress);
+  }
+
   public async createSafeTransaction(
     ...transactions: AnnotatedEV5Transaction[]
   ): Promise<SafeTransaction> {
-    const nextNonce: number = await this.safeService.getNextNonce(
-      this.props.safeAddress,
-    );
+    const nextNonce = await this.getNextNonce();
     const submitterChainId = this.multiProvider.getChainId(this.props.chain);
 
     const safeTransactionData = transactions.map(

@@ -74,7 +74,7 @@ impl JsonRpcClient for EthereumProviderMock {
 
 impl PrometheusConfigExt for EthereumProviderMock {
     fn node_host(&self) -> &str {
-        todo!()
+        "test_provider_host"
     }
 
     fn chain_name(&self) -> &str {

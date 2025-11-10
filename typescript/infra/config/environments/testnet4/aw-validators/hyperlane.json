@@ -2,6 +2,9 @@
   "arbitrumsepolia": {
     "validators": ["0x09fabfbca0b8bf042e2a1161ee5010d147b0f603"]
   },
+  "somniatestnet": {
+    "validators": ["0xb3b27a27bfa94002d344e9cf5217a0e3502e018b"]
+  },
   "arcadiatestnet2": {
     "validators": ["0xd39cd388ce3f616bc81be6dd3ec9348d7cdf4dff"]
   },
@@ -43,17 +46,14 @@
       "0x43e915573d9f1383cbf482049e4a012290759e7f"
     ]
   },
-  "holesky": {
-    "validators": ["0x7ab28ad88bb45867137ea823af88e2cb02359c03"]
+  "giwasepolia": {
+    "validators": ["0xc170bef56759e35740ac2d3d0fece33bd9acb90b"]
   },
   "hyperliquidevmtestnet": {
     "validators": ["0xea673a92a23ca319b9d85cc16b248645cd5158da"]
   },
   "incentivtestnet": {
     "validators": ["0x3133eeb96fd96f9f99291088613edf7401149e6f"]
-  },
-  "megaethtestnet": {
-    "validators": ["0xf5c8a82f966d2ec8563a2012ccf556ee3f4b25ef"]
   },
   "milkywaytestnet": {
     "validators": ["0x65c7581e14efdf4d9c5320882170f022835bd742"]
@@ -66,9 +66,6 @@
   },
   "neuratestnet": {
     "validators": ["0xc14514a91d0ee90ba3070abb6bfb45a10e6d341d"]
-  },
-  "nobletestnet": {
-    "validators": ["0xc30427bd74fdcf179a15b9a6e3c4e1d66104726a"]
   },
   "optimismsepolia": {
     "validators": ["0x03efe4d0632ee15685d7e8f46dea0a874304aa29"]
@@ -95,11 +92,5 @@
   },
   "solanatestnet": {
     "validators": ["0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5"]
-  },
-  "somniatestnet": {
-    "validators": ["0xb3b27a27bfa94002d344e9cf5217a0e3502e018b"]
-  },
-  "subtensortestnet": {
-    "validators": ["0xbe2cd57e9fd46b12107cfec7a2db61aa23edbe33"]
   }
 }

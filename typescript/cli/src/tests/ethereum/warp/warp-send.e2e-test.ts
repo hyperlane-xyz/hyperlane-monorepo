@@ -36,14 +36,13 @@ import {
   CHAIN_NAME_2,
   CHAIN_NAME_3,
   CORE_CONFIG_PATH,
-  DEFAULT_E2E_TEST_TIMEOUT,
   WARP_DEPLOY_DEFAULT_FILE_NAME,
   WARP_DEPLOY_OUTPUT_PATH,
   getCombinedWarpRoutePath,
 } from '../consts.js';
 
-describe('hyperlane warp deploy e2e tests', async function () {
-  this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
+describe('hyperlane warp send e2e tests', async function () {
+  this.timeout(200_000);
 
   let chain2Addresses: ChainAddresses = {};
   let chain3Addresses: ChainAddresses = {};
@@ -110,15 +109,15 @@ describe('hyperlane warp deploy e2e tests', async function () {
         synthetic.callStatic.balanceOf(walletChain3.address),
       ]);
 
-    const { stdout, exitCode } = await hyperlaneWarpSendRelay(
-      CHAIN_NAME_2,
-      CHAIN_NAME_3,
-      WARP_CORE_CONFIG_PATH_2_3,
-    );
+    const { stdout, exitCode } = await hyperlaneWarpSendRelay({
+      origin: CHAIN_NAME_2,
+      destination: CHAIN_NAME_3,
+      warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
+    });
     expect(exitCode).to.equal(0);
     expect(stdout).to.include(WarpSendLogs.SUCCESS);
 
-    const [tokenBalanceOnChain2After, tokenBalanceOnChain3After] =
+    let [tokenBalanceOnChain2After, tokenBalanceOnChain3After] =
       await Promise.all([
         token.callStatic.balanceOf(walletChain2.address),
         synthetic.callStatic.balanceOf(walletChain3.address),
@@ -126,6 +125,48 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
     expect(tokenBalanceOnChain2After.lt(tokenBalanceOnChain2Before)).to.be.true;
     expect(tokenBalanceOnChain3After.gt(tokenBalanceOnChain3Before)).to.be.true;
+
+    // Test with chains parameter
+    const { stdout: stdoutChains, exitCode: exitCodeChains } =
+      await hyperlaneWarpSendRelay({
+        warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
+        chains: `${CHAIN_NAME_3},${CHAIN_NAME_2}`,
+      });
+    expect(exitCodeChains).to.equal(0);
+    expect(stdoutChains).to.include(WarpSendLogs.SUCCESS);
+
+    [tokenBalanceOnChain2After, tokenBalanceOnChain3After] = await Promise.all([
+      token.callStatic.balanceOf(walletChain2.address),
+      synthetic.callStatic.balanceOf(walletChain3.address),
+    ]);
+
+    // Test with --round-trip parameter with --chains
+    const { stdout: stdoutRoundTrip, exitCode: exitCodeRoundTrip } =
+      await hyperlaneWarpSendRelay({
+        warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
+        chains: `${CHAIN_NAME_2},${CHAIN_NAME_3}`,
+        roundTrip: true,
+      });
+    expect(exitCodeRoundTrip).to.equal(0);
+    expect(stdoutRoundTrip).to.include(WarpSendLogs.SUCCESS);
+
+    // Test with --round-trip parameter with --origin and --destination
+    const {
+      stdout: stdoutRoundTripOriginDestination,
+      exitCode: exitCodeRoundTripOriginDestination,
+    } = await hyperlaneWarpSendRelay({
+      warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
+      origin: CHAIN_NAME_2,
+      destination: CHAIN_NAME_3,
+      roundTrip: true,
+    });
+    expect(exitCodeRoundTripOriginDestination).to.equal(0);
+    expect(stdoutRoundTripOriginDestination).to.include(WarpSendLogs.SUCCESS);
+
+    expect(tokenBalanceOnChain2After.toBigInt()).eq(
+      tokenBalanceOnChain2Before.toBigInt(),
+    );
+    expect(tokenBalanceOnChain3After.toBigInt()).eq(0n);
   });
 
   const amountThreshold = randomInt(1, 1e4);
@@ -221,13 +262,13 @@ describe('hyperlane warp deploy e2e tests', async function () {
           synthetic.callStatic.balanceOf(walletChain3.address),
         ]);
 
-      const { stdout, exitCode } = await hyperlaneWarpSendRelay(
-        CHAIN_NAME_2,
-        CHAIN_NAME_3,
-        WARP_CORE_CONFIG_PATH_2_3,
-        true,
-        testAmount,
-      );
+      const { stdout, exitCode } = await hyperlaneWarpSendRelay({
+        origin: CHAIN_NAME_2,
+        destination: CHAIN_NAME_3,
+        warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
+        relay: true,
+        value: testAmount,
+      });
       expect(exitCode).to.equal(0);
       expect(stdout).to.include(WarpSendLogs.SUCCESS);
 
@@ -295,13 +336,12 @@ describe('hyperlane warp deploy e2e tests', async function () {
         tokenChain3.callStatic.balanceOf(walletChain3.address),
       ]);
 
-    const { stdout } = await hyperlaneWarpSendRelay(
-      CHAIN_NAME_2,
-      CHAIN_NAME_3,
-      WARP_CORE_CONFIG_PATH_2_3,
-      undefined,
-      Number(collateral),
-    );
+    const { stdout } = await hyperlaneWarpSendRelay({
+      origin: CHAIN_NAME_2,
+      destination: CHAIN_NAME_3,
+      warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
+      value: Number(collateral),
+    });
     expect(stdout).to.include(WarpSendLogs.SUCCESS);
 
     const [tokenBalanceOnChain2After, tokenBalanceOnChain3After] =
@@ -349,11 +389,11 @@ describe('hyperlane warp deploy e2e tests', async function () {
         synthetic.callStatic.balanceOf(walletChain3.address),
       ]);
 
-    const { stdout, exitCode } = await hyperlaneWarpSendRelay(
-      CHAIN_NAME_2,
-      CHAIN_NAME_3,
-      WARP_CORE_CONFIG_PATH_2_3,
-    );
+    const { stdout, exitCode } = await hyperlaneWarpSendRelay({
+      origin: CHAIN_NAME_2,
+      destination: CHAIN_NAME_3,
+      warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
+    });
 
     expect(exitCode).to.equal(0);
     expect(stdout).to.include(WarpSendLogs.SUCCESS);
@@ -405,13 +445,10 @@ describe('hyperlane warp deploy e2e tests', async function () {
     const [nativeBalanceOnChain2Before, nativeBalanceOnChain3Before] =
       await Promise.all([walletChain2.getBalance(), walletChain3.getBalance()]);
 
-    const { stdout, exitCode } = await hyperlaneWarpSendRelay(
-      CHAIN_NAME_2,
-      CHAIN_NAME_3,
-      WARP_CORE_CONFIG_PATH_2_3,
-      undefined,
-      Number(collateral),
-    );
+    const { stdout, exitCode } = await hyperlaneWarpSendRelay({
+      warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
+      value: Number(collateral),
+    });
 
     expect(exitCode).to.equal(0);
     expect(stdout).to.include(WarpSendLogs.SUCCESS);
@@ -449,13 +486,12 @@ describe('hyperlane warp deploy e2e tests', async function () {
     const [nativeBalanceOnChain1Before, nativeBalanceOnChain2Before] =
       await Promise.all([walletChain2.getBalance(), walletChain3.getBalance()]);
 
-    const { exitCode, stdout } = await hyperlaneWarpSendRelay(
-      CHAIN_NAME_2,
-      CHAIN_NAME_3,
-      WARP_CORE_CONFIG_PATH_2_3,
-      undefined,
-      Number(parseEther('1')),
-    ).nothrow();
+    const { exitCode, stdout } = await hyperlaneWarpSendRelay({
+      origin: CHAIN_NAME_2,
+      destination: CHAIN_NAME_3,
+      warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
+      value: Number(parseEther('1')),
+    }).nothrow();
 
     expect(exitCode).to.equal(1);
     expect(stdout).to.include(`to ${CHAIN_NAME_3} has INSUFFICIENT collateral`);
@@ -505,11 +541,11 @@ describe('hyperlane warp deploy e2e tests', async function () {
         tokenChain3.callStatic.balanceOf(walletChain3.address),
       ]);
 
-    const { exitCode, stdout } = await hyperlaneWarpSendRelay(
-      CHAIN_NAME_2,
-      CHAIN_NAME_3,
-      WARP_CORE_CONFIG_PATH_2_3,
-    ).nothrow();
+    const { exitCode, stdout } = await hyperlaneWarpSendRelay({
+      origin: CHAIN_NAME_2,
+      destination: CHAIN_NAME_3,
+      warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
+    }).nothrow();
 
     expect(exitCode).to.equal(1);
     expect(stdout).to.include(`to ${CHAIN_NAME_3} has INSUFFICIENT collateral`);

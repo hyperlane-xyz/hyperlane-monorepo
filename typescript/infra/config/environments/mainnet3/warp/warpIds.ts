@@ -3,17 +3,19 @@ export enum WarpRouteIds {
   Ancient8EthereumUSDC = 'USDC/ancient8-ethereum',
   RenzoEZETH = 'EZETH/renzo-prod',
   RenzoEZETHSTAGE = 'EZETHSTAGE/renzo-stage',
-  ArbitrumBaseEthereumRadixUSDC = 'USDC/arbitrum-base-ethereum-radix',
+  RadixUSDC = 'USDC/radix',
   ArbitrumBaseEnduranceUSDC = 'USDC/arbitrum-base-endurance',
   ArbitrumEthereumZircuitAMPHRETH = 'AMPHRETH/arbitrum-ethereum-zircuit',
   ArbitrumNeutronEclip = 'ECLIP/arbitrum-neutron',
-  ArbitrumNeutronTIA = 'TIA/arbitrum-neutron',
+  ArbitrumNeutronTIA = 'TIA/arbitrum-celestia-neutron',
   ArtelaBaseSolanaART = 'ART/artela-base-solanamainnet',
   BscEthereumLumiaPrismPNDR = 'PNDR/bsc-ethereum-lumiaprism',
   BaseSolanamainnetTONY = 'TONY/base-solanamainnet',
+  CarrChainCARR = 'CARR/carrchain',
   ArbitrumAvalancheBaseFlowmainnetFormOptimismSolanamainnetWorldchainTRUMP = 'TRUMP/arbitrum-avalanche-base-flowmainnet-form-optimism-solanamainnet-worldchain',
   EclipseEthereumApxEth = 'APXETH/eclipsemainnet-ethereum',
   EclipseEthereumSolanaUSDC = 'USDC/eclipsemainnet-ethereum-solanamainnet',
+  EclipseUSDCSTAGE = 'USDCSTAGE/eclipsemainnet',
   EclipseEthereumSolanaUSDT = 'USDT/eclipsemainnet-ethereum-solanamainnet',
   EclipseEthereumTETH = 'tETH/eclipsemainnet-ethereum',
   EclipseEthereumWBTC = 'WBTC/eclipsemainnet-ethereum',
@@ -101,13 +103,29 @@ export enum WarpRouteIds {
   SolanaSoonSPORE = 'SPORE/solanamainnet-soon',
 
   LumiaUSDC = 'USDC/lumia',
+  MatchainUSDC = 'USDC/matchain',
   SubtensorUSDC = 'USDC/subtensor',
   ParadexUSDC = 'USDC/paradex',
 
   SonicSVMMoney = 'MONEY/sonicsvm',
 
-  MainnetCCTP = 'USDC/mainnet-cctp',
-  TestnetCCTP = 'USDC/testnet-cctp',
+  PulsechainUSDC = 'USDC/pulsechain',
+  ElectroneumUSDC = 'USDC/electroneum',
+
+  GalacticaGNET = 'GNET/galactica',
+
+  SolaxyUSDC = 'USDC/solaxy',
+
+  MantraUSDC = 'USDC/mantra',
+
+  IncentivUSDC = 'USDC/incentiv',
+
+  LitchainLITKEY = 'LITKEY/litchain',
+
+  MainnetCCTPV1 = 'USDC/mainnet-cctp',
+  MainnetCCTPV2Fast = 'USDC/mainnet-cctp-v2-fast',
+  MainnetCCTPV2Standard = 'USDC/mainnet-cctp-v2-standard',
+  TestnetCCTPV1 = 'USDC/testnet-cctp',
 
   // HYPER routes
   HYPER = 'HYPER/arbitrum-base-bsc-ethereum-optimism',

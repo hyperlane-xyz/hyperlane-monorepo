@@ -5,19 +5,26 @@ inputs:
   ref:
     description: 'The Git ref to checkout'
     required: true
-  cache-provider:
-    description: 'Choose cache provider: buildjet or github'
+  no-cache:
+    description: 'Whether to skip the cache'
     required: false
-    default: 'buildjet'
+    default: false
 
 runs:
   using: 'composite'
   steps:
-    - name: yarn-build
+    - name: yarn-build-with-cache
+      if: inputs.no-cache == 'false'
       uses: ./.github/actions/yarn-build-with-cache
       with:
         ref: ${{ inputs.ref }}
-        cache-provider: ${{ inputs.cache-provider }}
+
+    - name: yarn-install-build-without-cache
+      if: inputs.no-cache != 'false'
+      shell: bash
+      run: |
+        yarn install
+        yarn build
 
     - name: Pack the CLI
       shell: bash

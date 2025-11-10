@@ -13,8 +13,8 @@ use crate::contracts::mailbox::MailboxReader as StarknetMailboxReader;
 use crate::contracts::merkle_tree_hook::MerkleTreeHookReader as StarknetMerkleTreeHookReader;
 use crate::types::HyH256;
 use crate::{
-    build_json_provider, get_block_height_u32, try_parse_hyperlane_message_from_event,
-    ConnectionConf, HyperlaneStarknetError, JsonProvider,
+    get_block_height_u32, try_parse_hyperlane_message_from_event, HyperlaneStarknetError,
+    JsonProvider, StarknetProvider,
 };
 
 const CHUNK_SIZE: u64 = 50;
@@ -29,14 +29,13 @@ pub struct StarknetMailboxIndexer {
 impl StarknetMailboxIndexer {
     /// create new Starknet Mailbox Indexer
     pub fn new(
-        conf: ConnectionConf,
+        provider: StarknetProvider,
         locator: ContractLocator,
         reorg_period: &ReorgPeriod,
     ) -> ChainResult<Self> {
-        let rpc_client = build_json_provider(&conf);
         let contract = StarknetMailboxReader::new(
             Felt::from_bytes_be(&locator.address.to_fixed_bytes()),
-            rpc_client,
+            provider.rpc_client().clone(),
         );
 
         Ok(Self {
@@ -138,14 +137,13 @@ pub struct StarknetMerkleTreeHookIndexer {
 impl StarknetMerkleTreeHookIndexer {
     /// create new Starknet MerkleTreeHook Indexer
     pub fn new(
-        conf: ConnectionConf,
+        provider: StarknetProvider,
         locator: ContractLocator,
         reorg_period: &ReorgPeriod,
     ) -> ChainResult<Self> {
-        let rpc_client = build_json_provider(&conf);
         let contract = StarknetMerkleTreeHookReader::new(
             Felt::from_bytes_be(&locator.address.to_fixed_bytes()),
-            rpc_client,
+            provider.rpc_client().clone(),
         );
 
         Ok(Self {
@@ -257,8 +255,7 @@ where
     let current_block = get_block_height_u32(provider, &ReorgPeriod::None).await?;
     if *range.start() > current_block || *range.end() > current_block {
         return Err(HyperlaneStarknetError::Other(format!(
-            "range {:?} is not valid for current block {}",
-            range, current_block
+            "range {range:?} is not valid for current block {current_block}"
         ))
         .into());
     }

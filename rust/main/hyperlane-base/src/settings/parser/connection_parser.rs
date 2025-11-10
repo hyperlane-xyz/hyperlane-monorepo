@@ -1,12 +1,9 @@
-use std::collections::HashMap;
 use std::ops::Add;
 
-use convert_case::Case;
-use eyre::{eyre, Context};
+use eyre::eyre;
 use hyperlane_sealevel::{
     HeliusPriorityFeeLevel, HeliusPriorityFeeOracleConfig, PriorityFeeOracleConfig,
 };
-use serde_json::Value;
 use url::Url;
 
 use h_eth::TransactionOverrides;
@@ -17,7 +14,6 @@ use hyperlane_core::{config::ConfigParsingError, HyperlaneDomainProtocol, Native
 use hyperlane_starknet as h_starknet;
 
 use crate::settings::envs::*;
-use crate::settings::parser::recase_json_value;
 use crate::settings::ChainConnectionConf;
 
 use super::{parse_base_and_override_urls, parse_cosmos_gas_price, ValueParser};
@@ -210,7 +206,7 @@ pub fn build_cosmos_connection_conf(
         .end()
     {
         Some(asset) => asset.to_string(),
-        None => format!("u{}", prefix),
+        None => format!("u{prefix}"),
     };
     let config = h_cosmos::ConnectionConf::new(
         grpcs,
@@ -463,60 +459,6 @@ fn parse_transaction_submitter_config(
     }
 }
 
-fn parse_header(
-    name: &str,
-    chain: &ValueParser,
-    err: &mut ConfigParsingError,
-) -> Vec<HashMap<String, String>> {
-    let mut local_err = ConfigParsingError::default();
-    let header = chain.chain(&mut local_err).get_opt_key(name).end();
-
-    let Some(header) = header else {
-        return Vec::new();
-    };
-    let result = match header {
-        ValueParser {
-            val: Value::String(array_str),
-            cwp,
-        } => {
-            let Some(value) = serde_json::from_str::<Value>(array_str)
-                .context("Expected JSON string")
-                .take_err(&mut local_err, || cwp.clone())
-                .map(|v| recase_json_value(v, Case::Flat))
-            else {
-                if !local_err.is_ok() {
-                    err.merge(local_err);
-                }
-                return Vec::new();
-            };
-            ValueParser::new(cwp.clone(), &value)
-                .chain(&mut local_err)
-                .parse_value::<Vec<HashMap<String, String>>>("failed to parse header")
-                .unwrap_or_default()
-        }
-        ValueParser {
-            val: value @ Value::Array(_),
-            ..
-        } => ValueParser::new(header.cwp.clone(), value)
-            .chain(&mut local_err)
-            .parse_value::<Vec<HashMap<String, String>>>("failed to parse header")
-            .unwrap_or_default(),
-        _ => {
-            err.push(
-                (&chain.cwp).add(name),
-                eyre!("Expected JSON array or stringified JSON"),
-            );
-            return vec![];
-        }
-    };
-
-    if !local_err.is_ok() {
-        err.merge(local_err);
-    }
-
-    result
-}
-
 pub fn build_radix_connection_conf(
     rpcs: &[Url],
     chain: &ValueParser,
@@ -545,9 +487,6 @@ pub fn build_radix_connection_conf(
             None
         });
 
-    let gateway_header = parse_header("gatewayHeader", chain, &mut local_err);
-    let core_header = parse_header("coreHeader", chain, &mut local_err);
-
     if !local_err.is_ok() {
         err.merge(local_err);
         None
@@ -557,8 +496,6 @@ pub fn build_radix_connection_conf(
                 rpcs.to_vec(),
                 gateway_urls,
                 network_name?.to_string(),
-                core_header,
-                gateway_header,
             ),
         ))
     }
@@ -594,9 +531,9 @@ pub fn build_connection_conf(
         HyperlaneDomainProtocol::Starknet => {
             build_starknet_connection_conf(rpcs, chain, err, operation_batch)
         }
-        // TODO: adjust the connection config
         HyperlaneDomainProtocol::Radix => {
             build_radix_connection_conf(rpcs, chain, err, operation_batch)
         }
+        HyperlaneDomainProtocol::Aleo => todo!(),
     }
 }

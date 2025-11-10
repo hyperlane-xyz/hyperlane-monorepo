@@ -5,7 +5,6 @@ export const regularIcasLegacy: ChainMap<Address> = {
   // Apr 19, 2025 batch
   // ----------------------------------------------------------
   ancient8: '0xf789D8a609247c448E28d3af5b8EFC6Cb786C4ee',
-  alephzeroevmmainnet: '0xA3dfBa2447F0A50706F22e38f2785e0Bf30BC069',
   apechain: '0x9422838f6fA763354756a3Aba18f34015cB4bF74',
   appchain: '0x8A4E9b5B445504727D7a9377eA329Bb38700F8FA',
   arbitrumnova: '0x83be90021870A93ff794E00E8CFe454547877E3E',
@@ -20,7 +19,6 @@ export const regularIcasLegacy: ChainMap<Address> = {
   boba: '0xEc65c06c606006Db682197230bF8E7740C2BcFF9',
   bsquared: '0x7C475877fc180f5aAB628Ae1B506316a0F3ADE5A',
   celo: '0x20D701Ac137BB131e735B403e0471b101423dDeC',
-  cheesechain: '0x5e4277969e2EEEbe04091dc270c2363b6e694F8d',
   chilizmainnet: '0x97827F6191296077587929Ca870620bD5D79F9e7',
   coredao: '0x100D940B953b20378242Fe0FbC45792805d50556',
   // corn: '0x4BAe702C0D1cC7d6d343594735812b5723041528',
@@ -64,14 +62,12 @@ export const regularIcasLegacy: ChainMap<Address> = {
   polygonzkevm: '0x258B14038C610f7889C74162760A3A70Ce526CD5',
   polynomialfi: '0x45EFBEAD9009C2662a633ee6F307C90B647B7793',
   prom: '0x9123625687807F02FC92A9817cFb8db13A9a8B4d',
-  proofofplay: '0x319aB070390C8f2A914a61f8DE366f3295bb44fF',
   rarichain: '0x80c7c5fF8F84BEeDEd18382eb45aA3246063fbc5',
   reactive: '0x97B3BE8f063E98Da6ac254716DA194da4634aC80',
   redstone: '0x27C06C13E512Cdd80A2E49fc9c803cFd0de7Ba9e',
   ronin: '0xa3EC6913675e9686bfC458F02a0F737EdD0362c8',
   scroll: '0xDD2e306EE337952b4f7C0c4Eb44A8B5b9925Bc76',
   shibarium: '0x778f0e4CD1434258A811ab493217f3DC8d501C1b',
-  snaxchain: '0x83be90021870A93ff794E00E8CFe454547877E3E',
   soneium: '0x4BAe702C0D1cC7d6d343594735812b5723041528',
   sonic: '0x4BAe702C0D1cC7d6d343594735812b5723041528',
   story: '0xa3EC6913675e9686bfC458F02a0F737EdD0362c8',
@@ -92,8 +88,6 @@ export const regularIcasLegacy: ChainMap<Address> = {
   // May 18, 2025 batch
   // ----------------------------------------------------------
   hashkey: '0x51e43Fe2Db5B950e115a9f5ad7603E07c656fBe9',
-  infinityvmmainnet: '0xDEaE9c3D3c4e16Fbf7eFEBE733feEf044a79BF9B',
-  game7: '0xDEaE9c3D3c4e16Fbf7eFEBE733feEf044a79BF9B',
   fluence: '0xDEaE9c3D3c4e16Fbf7eFEBE733feEf044a79BF9B',
   peaq: '0xDEaE9c3D3c4e16Fbf7eFEBE733feEf044a79BF9B',
   ontology: '0xA59Eb6F5C4C365f533407E978321531E9F610b02',

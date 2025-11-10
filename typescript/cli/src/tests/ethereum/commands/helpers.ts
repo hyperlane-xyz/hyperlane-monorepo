@@ -3,9 +3,16 @@ import path from 'path';
 import { $ } from 'zx';
 
 import {
+  AbstractCcipReadIsm,
+  AbstractCcipReadIsm__factory,
   ERC20Test,
   ERC20Test__factory,
   ERC4626Test__factory,
+  FiatTokenTest,
+  FiatTokenTest__factory,
+  MockEverclearAdapter,
+  MockEverclearAdapter__factory,
+  TestCcipReadIsm__factory,
   XERC20LockboxTest,
   XERC20LockboxTest__factory,
   XERC20VSTest,
@@ -184,6 +191,28 @@ export async function deployToken(
   return token;
 }
 
+export async function deployFiatToken(
+  privateKey: string,
+  chain: string,
+  decimals = 18,
+  symbol = 'FIAT TOKEN',
+  name = 'fiat token',
+): Promise<FiatTokenTest> {
+  const { multiProvider } = await getContext({
+    registryUris: [REGISTRY_PATH],
+    key: privateKey,
+  });
+
+  multiProvider.setSigner(chain, new ethers.Wallet(privateKey));
+
+  const token = await new FiatTokenTest__factory(
+    multiProvider.getSigner(chain),
+  ).deploy(name, symbol.toLocaleUpperCase(), '100000000000000000000', decimals);
+  await token.deployed();
+
+  return token;
+}
+
 export async function deploy4626Vault(
   privateKey: string,
   chain: string,
@@ -264,6 +293,48 @@ export async function deployXERC20LockboxToken(
   await lockboxToken.deployed();
 
   return lockboxToken;
+}
+
+export async function deployTestOffchainLookupISM(
+  privateKey: string,
+  chain: string,
+  urls: string[] = [],
+): Promise<AbstractCcipReadIsm> {
+  const { multiProvider } = await getContext({
+    registryUris: [REGISTRY_PATH],
+    key: privateKey,
+  });
+
+  multiProvider.setSigner(chain, new ethers.Wallet(privateKey));
+
+  const testIsm = await new TestCcipReadIsm__factory(
+    multiProvider.getSigner(chain),
+  ).deploy(urls);
+  await testIsm.deployed();
+
+  return AbstractCcipReadIsm__factory.connect(
+    testIsm.address,
+    multiProvider.getSigner(chain),
+  );
+}
+
+export async function deployEverclearBridgeAdapter(
+  privateKey: string,
+  chain: string,
+): Promise<MockEverclearAdapter> {
+  const { multiProvider } = await getContext({
+    registryUris: [REGISTRY_PATH],
+    key: privateKey,
+  });
+
+  multiProvider.setSigner(chain, new ethers.Wallet(privateKey));
+
+  const adapter = await new MockEverclearAdapter__factory(
+    multiProvider.getSigner(chain),
+  ).deploy();
+  await adapter.deployed();
+
+  return adapter;
 }
 
 // Verifies if the IS_CI var is set and generates the correct prefix for running the command

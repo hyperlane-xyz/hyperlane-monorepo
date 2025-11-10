@@ -108,7 +108,7 @@ hyperlane:
     storage:
       name: 'state-premium'
       storageClass: 'premium-immediate-rwo'
-      size: 10Gi
+      size: 32Gi
       snapshot:
         enabled: false
         name: ''

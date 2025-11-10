@@ -4,13 +4,5 @@
     "outDir": "./dist/",
     "rootDir": "./src"
   },
-  "include": [
-    "./src/*.ts",
-    "src/core/populate.ts",
-    "src/core/query.ts",
-    "src/core/tx.ts",
-    "src/utils/signer.ts",
-    "src/utils/types.ts",
-    "src/utils/utils.ts"
-  ]
+  "include": ["./src/**/*.ts"]
 }

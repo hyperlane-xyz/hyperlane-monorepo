@@ -22,7 +22,7 @@ import {
   writeAddresses,
 } from '../../scripts/agent-utils.js';
 import { DeployEnvironment } from '../config/environment.js';
-import { readJSONAtPath, writeJsonAtPath } from '../utils/utils.js';
+import { readJSONAtPath, writeAndFormatJsonAtPath } from '../utils/utils.js';
 
 enum DeployStatus {
   EMPTY = '🫥',
@@ -271,6 +271,9 @@ async function postDeploy<Config extends object>(
     );
 
     // write back deduplicated verification inputs
-    writeJsonAtPath(cache.verification, deduplicatedVerificationInputs);
+    writeAndFormatJsonAtPath(
+      cache.verification,
+      deduplicatedVerificationInputs,
+    );
   }
 }

@@ -174,11 +174,20 @@ mod tests {
     #[ignore]
     #[test]
     fn test_decode_from_raw_body() {
-        let raw = "0x03000010f90000044d00000000000000000000000046b4edaa761ef8d2934e9f7aaf32b5bf2c9c9f670000a4ec000000000000000000000000ad8676147360dbc010504ab69c7f1b187710952700000000000000000000000037a022b833fe3876ef2a9a6c61ae444295f1b7f80000000000000000000000000000000000000000000000008ac7230489e80000";
+        let raw = "0x03000005C50000044D0000000000000000000000007DAC480D20F322D2EF108A59A465CCB5749371C40000A86A0000000000000000000000007DAC480D20F322D2EF108A59A465CCB5749371C40000000000000000000000007566176716A55DAD1B4E83D0E2273FB95049483E0000000000000000000000000000000000000000000000000000000008F0D3EC";
 
         let raw_bytes = hex::decode(&raw[2..]).unwrap();
-        let msg = HyperlaneMessage::try_from(raw_bytes).unwrap();
+        let msg = HyperlaneMessage::from(raw_bytes);
 
-        eprintln!("{}\n{}\n{:?}", msg, msg.version, msg.body);
+        eprintln!(
+            r#"Message ID: {:x}
+Message Version: {}
+Message: {}
+Message Body: {:?}"#,
+            msg.id(),
+            msg.version,
+            msg,
+            msg.body
+        );
     }
 }

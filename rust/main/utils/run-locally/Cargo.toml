@@ -11,34 +11,43 @@ version.workspace = true
 hyperlane-base = { path = "../../hyperlane-base" }
 hyperlane-core = { path = "../../hyperlane-core", features = ["float"] }
 hyperlane-cosmos = { path = "../../chains/hyperlane-cosmos" }
+hyperlane-radix = { path = "../../chains/hyperlane-radix" }
 hyperlane-starknet = { path = "../../chains/hyperlane-starknet" }
-toml_edit.workspace = true
-k256.workspace = true
-jobserver.workspace = true
-reqwest.workspace = true
-ripemd.workspace = true
-sha2.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-starknet.workspace = true
-hex.workspace = true
+core-api-client = { workspace = true }
+cosmwasm-schema.workspace = true
 ctrlc.workspace = true
-eyre.workspace = true
-ethers.workspace = true
-ethers-core.workspace = true
 ethers-contract.workspace = true
-tokio.workspace = true
+ethers-core.workspace = true
+ethers.workspace = true
+eyre.workspace = true
+gateway-api-client = { workspace = true }
+hex.workspace = true
+hyperlane-cosmwasm-interface.workspace = true
+jobserver.workspace = true
+k256.workspace = true
+macro_rules_attribute.workspace = true
 maplit.workspace = true
 nix = { workspace = true, features = ["signal"], default-features = false }
 once_cell.workspace = true
-tempfile.workspace = true
-ureq = { workspace = true, default-features = false }
-which.workspace = true
-macro_rules_attribute.workspace = true
+radix-common = { workspace = true }
+radix-engine-interface = { workspace = true }
+radix-transactions = { workspace = true }
 regex.workspace = true
 relayer = { path = "../../agents/relayer" }
-hyperlane-cosmwasm-interface.workspace = true
-cosmwasm-schema.workspace = true
+reqwest.workspace = true
+ripemd.workspace = true
+sbor = { workspace = true, features = ["serde"] }
+scrypto = { workspace = true }
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+starknet.workspace = true
+tempfile.workspace = true
+tokio.workspace = true
+toml_edit.workspace = true
+ureq = { workspace = true, default-features = false }
+url = { workspace = true }
+which.workspace = true
 
 [build-dependencies]
 anyhow = { workspace = true }
@@ -49,3 +58,4 @@ cosmos = []
 starknet = []
 cosmosnative = []
 sealevel = []
+radix = []

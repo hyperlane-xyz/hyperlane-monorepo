@@ -173,6 +173,13 @@ export function withWrite<T>(args: Argv<T>) {
     .default('write', false);
 }
 
+export function withAppend<T>(args: Argv<T>) {
+  return args
+    .describe('append', 'Write only new keys to file (preserves existing keys)')
+    .boolean('append')
+    .default('append', false);
+}
+
 export function withChains<T>(args: Argv<T>, chainOptions?: ChainName[]) {
   return (
     args
@@ -725,6 +732,19 @@ export function getAgentConfigDirectory() {
 
 export function getAgentConfigJsonPath(environment: AgentEnvironment) {
   return path.join(getAgentConfigDirectory(), `${environment}_config.json`);
+}
+
+export function getAgentAppContextConfigDirectory() {
+  return path.join('../../', 'rust', 'main', 'app-contexts');
+}
+
+export function getAgentAppContextConfigJsonPath(
+  environment: AgentEnvironment,
+) {
+  return path.join(
+    getAgentAppContextConfigDirectory(),
+    `${environment}_config.json`,
+  );
 }
 
 export async function assertCorrectKubeContext(coreConfig: EnvironmentConfig) {

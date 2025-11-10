@@ -8,7 +8,6 @@ export const regularTimelocks: ChainMap<Address> = {
 
   // Jul 18, 2025 - Timelocks for v2 "Regular" aka "Multisig A" ICAs
   // ----------------------------------------------------------
-  alephzeroevmmainnet: '0x62eBF2a5E3EAD9Bb05df60DD1b7329B8682e04F2',
   ancient8: '0x5D71b91B92AAE933cbf85065F49bC14f16c55c55',
   apechain: '0x23D26a5Fe6671B0c13E0970c15f595CF1e9a7785',
   appchain: '0x1F45Cd63B363ebD4b1803C81f64C0aB46f3E12Aa',
@@ -29,7 +28,6 @@ export const regularTimelocks: ChainMap<Address> = {
   bsc: '0xc290DBe99cf07D58B49485F3E5C2D9FeFAB43C8c',
   bsquared: '0xA767EAd13BF5CeFcf92cbe2564e1962185cc090d',
   celo: '0xA32592640206E267BEB3f4260020D636e60E7b5C',
-  cheesechain: '0x92FDcD6ECa2B05a6ceAdb209D81DeB9e91f02495',
   chilizmainnet: '0xA87F683D055386e2b96EBD6F11e8DA5e089a2527',
   coredao: '0x4c50799aD95eF0DF91fF26dd406a068D0a28b4E8',
   coti: '0x32A2eeC8601968505F311f2ab6aCbcC52E1861BB',
@@ -46,7 +44,6 @@ export const regularTimelocks: ChainMap<Address> = {
   fraxtal: '0xFeeB86e70e4a640cDd29636CCE19BD6fe8628135',
   fusemainnet: '0x1B2E638E2646a8d0F39a27Ef8AC84d08beBFa3fd',
   galactica: '0xbC8AA096dabDf4A0200BB9f8D4Cbb644C3D86d7B',
-  game7: '0x7279B1e11142078b8dC9e69620200f4C84FB8aaa',
   gnosis: '0x97512AFFf1D80D649D0D3411A7c41C127DC137E3',
   gravity: '0x855B945366cF7c59B1136F8cF1B00f87e96cf7dD',
   harmony: '0x1EFDaEe5DEb8D539AF9D31FDF26e7244C7B98e24',
@@ -55,7 +52,6 @@ export const regularTimelocks: ChainMap<Address> = {
   hyperevm: '0xCe8Daded1447B23D43EdeCbfF22902FE7e9c9324',
   immutablezkevmmainnet: '0x4E602f930a64CcaF3A270Da1c2223A9f5860AEE7',
   inevm: '0x2906a1e20997184a7Bbae771B175239e9D32d4fC',
-  infinityvmmainnet: '0x693A4cE39d99e46B04cb562329e3F0141cA17331',
   ink: '0x5306a5e0fcbC166e74950D72363A6979C99d5A59',
   kaia: '0x89aB6b1c3B1522F8Cf7AD6f8547Da173235e0fAc',
   katana: '0x086A21A16eF1133BF58a09A77E2A9e07d3b95c1c',
@@ -86,7 +82,6 @@ export const regularTimelocks: ChainMap<Address> = {
   polygonzkevm: '0x51A49550ED320C31A0D54217e3f1c3D029123346',
   polynomialfi: '0x8aa5dFB4b3E3B4E7cB8A1F15b41F5B00E014c89f',
   prom: '0x48753ac7bb8d990ad44f32F71f2360240B8025aa',
-  proofofplay: '0xDBacE2D6A77558FF4c4db0A40a69E66D1e7226F8',
   rarichain: '0x92684D97F3397EE9762EAE3908Db2C7FDCd33Ea3',
   reactive: '0x8eC5f0239C77295452Ed899FDB851e785cA5FC31',
   redstone: '0x76038685a83E4E3Deaee85d05Ac6151Ab6db7981',
@@ -94,7 +89,6 @@ export const regularTimelocks: ChainMap<Address> = {
   scroll: '0x9Fca159607687AE26367d66166e680A930af0780',
   sei: '0xB97d3bF2fC296c2cAC4056bBC8A783ff39408e20',
   shibarium: '0xc0Fb1Fca107061C72d122b72903691435C9976a5',
-  snaxchain: '0xbEB1b837C00E7f14a4aF1755975E240F414417Fc',
   soneium: '0xf99037c7387E1D09Ad0356D1f0a2dfF45913233A',
   sonic: '0x2e760c7c82C956db0A48879E75e2236629F646Da',
   story: '0x68EE6a50Ea37175F39dAC5D85f897cd0fF476929',

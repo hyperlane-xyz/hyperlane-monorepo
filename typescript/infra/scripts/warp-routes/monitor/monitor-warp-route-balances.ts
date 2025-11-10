@@ -26,8 +26,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { getWarpCoreConfig } from '../../../config/registry.js';
-import { DeployEnvironment } from '../../../src/config/environment.js';
-import { fetchGCPSecret } from '../../../src/utils/gcloud.js';
+import { getCoinGeckoApiKey } from '../../../src/coingecko/utils.js';
 import { startMetricsServer } from '../../../src/utils/metrics.js';
 import {
   getArgs,
@@ -108,7 +107,7 @@ async function pollAndUpdateWarpRouteMetrics(
 ) {
   const tokenPriceGetter = new CoinGeckoTokenPriceGetter({
     chainMetadata,
-    apiKey: await getCoinGeckoApiKey(),
+    apiKey: await getCoinGeckoApiKey(logger),
   });
 
   while (true) {
@@ -567,24 +566,6 @@ async function getCoingeckoPrice(
   const prices = await tokenPriceGetter.getTokenPriceByIds([coingeckoId]);
   if (!prices) return undefined;
   return prices[0];
-}
-
-async function getCoinGeckoApiKey(): Promise<string | undefined> {
-  const environment: DeployEnvironment = 'mainnet3';
-  let apiKey: string | undefined;
-  try {
-    apiKey = (await fetchGCPSecret(
-      `${environment}-coingecko-api-key`,
-      false,
-    )) as string;
-  } catch (err) {
-    logger.error(
-      err,
-      'Failed to fetch CoinGecko API key, proceeding with public tier',
-    );
-  }
-
-  return apiKey;
 }
 
 function getWarpRouteCollateralTokenSymbol(warpCore: WarpCore): string {

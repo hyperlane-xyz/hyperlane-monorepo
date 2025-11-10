@@ -146,8 +146,8 @@ where
             // future which visits all providers as they fulfill their requests
             let mut unordered = self.populate_unordered_future(method, &params);
 
-            while let Some(resp) = unordered.next().await {
-                let value = match categorize_client_response(method, resp) {
+            while let Some((provider_host, resp)) = unordered.next().await {
+                let value = match categorize_client_response(provider_host.as_str(), method, resp) {
                     IsOk(v) => serde_json::from_value(v)?,
                     RetryableErr(e) | RateLimitErr(e) => {
                         retryable_errors.push(e.into());
@@ -178,7 +178,11 @@ where
             }
         }
 
-        // we don't add a warning with all errors since an error will be logged later on
+        let errors_count = retryable_errors
+            .len()
+            .saturating_add(non_retryable_errors.len());
+        warn!(errors_count, ?retryable_errors, ?non_retryable_errors, providers=?self.inner.providers, "multicast_request, all providers failed");
+
         retryable_errors.extend(non_retryable_errors);
         Err(FallbackError::AllProvidersFailed(retryable_errors).into())
     }
@@ -202,7 +206,7 @@ where
             for (idx, priority) in priorities_snapshot.iter().enumerate() {
                 let provider = &self.inner.providers[priority.index];
                 let fut = Self::provider_request(provider, method, &params);
-                let resp = fut.await;
+                let (provider_host, resp) = fut.await;
                 self.handle_stalled_provider(priority, provider).await;
                 if resp.is_err() {
                     self.handle_failed_provider(priority).await;
@@ -210,11 +214,26 @@ where
                 tracing::debug!(
                     fallback_count = idx,
                     provider_index = priority.index,
+                    provider_host = provider_host.as_str(),
+                    method,
                     "fallback_request"
                 );
 
-                match categorize_client_response(method, resp) {
-                    IsOk(v) => return Ok(serde_json::from_value(v)?),
+                match categorize_client_response(provider_host.as_str(), method, resp) {
+                    IsOk(v) => {
+                        // Add log to identify content of v when no tx receipt is found
+                        if v.is_null() {
+                            tracing::debug!(
+                                fallback_count = idx,
+                                provider_index = priority.index,
+                                provider_host = provider_host.as_str(),
+                                method,
+                                ?v,
+                                "fallback_request: value is null"
+                            );
+                        }
+                        return Ok(serde_json::from_value(v)?);
+                    }
                     RetryableErr(e) | RateLimitErr(e) => errors.push(e.into()),
                     NonRetryableErr(e) => return Err(e.into()),
                 }
@@ -228,18 +247,22 @@ where
         provider: &'a C,
         method: &'a str,
         params: &'a Value,
-    ) -> Result<Value, HttpClientError> {
-        match params {
+    ) -> (String, Result<Value, HttpClientError>) {
+        let provider_host = provider.node_host().to_owned();
+        let result = match params {
             Value::Null => provider.request(method, ()).await,
             _ => provider.request(method, params).await,
-        }
+        };
+
+        (provider_host, result)
     }
 
     fn populate_unordered_future<'a>(
         &'a self,
         method: &'a str,
         params: &'a Value,
-    ) -> FuturesUnordered<impl Future<Output = Result<Value, HttpClientError>> + Sized + 'a> {
+    ) -> FuturesUnordered<impl Future<Output = (String, Result<Value, HttpClientError>)> + Sized + 'a>
+    {
         let unordered = FuturesUnordered::new();
         self.inner
             .providers

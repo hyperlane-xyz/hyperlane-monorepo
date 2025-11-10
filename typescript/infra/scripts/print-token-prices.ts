@@ -1,4 +1,5 @@
 import chalk from 'chalk';
+import path from 'path';
 
 import { ChainMap, ChainMetadata } from '@hyperlane-xyz/sdk';
 import { objMap, pick } from '@hyperlane-xyz/utils';
@@ -16,9 +17,9 @@ import {
   getSafeNumericValue,
   shouldUpdatePrice,
 } from '../src/config/gas-oracle.js';
-import { writeJsonAtPath } from '../src/utils/utils.js';
+import { getInfraPath, writeJsonWithAppendMode } from '../src/utils/utils.js';
 
-import { getArgs, withWrite } from './agent-utils.js';
+import { getArgs, withAppend, withWrite } from './agent-utils.js';
 
 const CURRENCY = 'usd';
 
@@ -29,7 +30,10 @@ const DEFAULT_PRICE = {
 };
 
 const tokenPricesFilePath = (environment: DeployEnvironment) => {
-  return `config/environments/${environment}/tokenPrices.json`;
+  return path.join(
+    getInfraPath(),
+    `config/environments/${environment}/tokenPrices.json`,
+  );
 };
 
 // Helper function to get new price with proper fallback logic
@@ -50,7 +54,8 @@ const getNewTokenPrice = (
 };
 
 async function main() {
-  const { environment, write } = await withWrite(getArgs()).argv;
+  const { environment, write, append } = await withAppend(withWrite(getArgs()))
+    .argv;
 
   const { registry, supportedChainNames } =
     environment === 'mainnet3'
@@ -103,10 +108,9 @@ async function main() {
       : prevPrice.toString();
   });
 
-  if (write) {
+  if (write || append) {
     const outFile = tokenPricesFilePath(environment);
-    console.log(`Writing token prices to ${outFile}`);
-    writeJsonAtPath(outFile, prices);
+    await writeJsonWithAppendMode(outFile, prices, append);
   } else {
     console.log(JSON.stringify(prices, null, 2));
   }

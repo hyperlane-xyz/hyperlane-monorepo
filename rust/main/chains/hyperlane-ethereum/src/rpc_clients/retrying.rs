@@ -189,7 +189,8 @@ impl JsonRpcClient for RetryingProvider<PrometheusJsonRpcClient<Http>> {
             )
             .entered();
 
-            match categorize_client_response(method, res) {
+            let provider_host = self.inner.node_host();
+            match categorize_client_response(provider_host, method, res) {
                 IsOk(res) => Accept(res),
                 RetryableErr(e) => Retry(e),
                 RateLimitErr(e) => RateLimitedRetry(e),

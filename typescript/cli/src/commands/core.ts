@@ -33,6 +33,7 @@ import {
   chainCommandOption,
   inputFileCommandOption,
   outputFileCommandOption,
+  strategyCommandOption,
 } from './options.js';
 
 /**
@@ -56,6 +57,7 @@ export const coreCommand: CommandModule = {
 export const apply: CommandModuleWithWriteContext<{
   chain: string;
   config: string;
+  strategy?: string;
 }> = {
   command: 'apply',
   describe:
@@ -70,8 +72,14 @@ export const apply: CommandModuleWithWriteContext<{
       true,
       'The path to output a Core Config JSON or YAML file.',
     ),
+    strategy: { ...strategyCommandOption, demandOption: false },
   },
-  handler: async ({ context, chain, config: configFilePath }) => {
+  handler: async ({
+    context,
+    chain,
+    config: configFilePath,
+    strategy: strategyUrl,
+  }) => {
     logCommandHeader(`Hyperlane Core Apply`);
 
     const addresses = (await context.registry.getChainAddresses(
@@ -86,6 +94,7 @@ export const apply: CommandModuleWithWriteContext<{
       chain,
       config,
       deployedCoreAddresses: addresses,
+      strategyUrl,
     });
     process.exit(0);
   },

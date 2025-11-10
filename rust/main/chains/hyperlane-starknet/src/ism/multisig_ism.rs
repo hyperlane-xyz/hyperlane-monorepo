@@ -12,7 +12,7 @@ use tracing::instrument;
 use crate::contracts::multisig_ism::MultisigIsmReader;
 use crate::error::HyperlaneStarknetError;
 use crate::types::HyH256;
-use crate::{build_json_provider, ConnectionConf, JsonProvider, StarknetProvider};
+use crate::{ConnectionConf, JsonProvider, StarknetProvider};
 
 /// A reference to a MultisigISM contract on some Starknet chain
 #[derive(Debug)]
@@ -26,14 +26,18 @@ pub struct StarknetMultisigIsm {
 impl StarknetMultisigIsm {
     /// Create a reference to a MultisigISM at a specific Starknet address on some
     /// chain
-    pub fn new(conn: &ConnectionConf, locator: &ContractLocator<'_>) -> ChainResult<Self> {
-        let provider = build_json_provider(conn);
+    pub fn new(
+        provider: StarknetProvider,
+        conn: &ConnectionConf,
+        locator: &ContractLocator<'_>,
+    ) -> ChainResult<Self> {
+        let json_provider = provider.rpc_client().clone();
         let ism_address: Felt = HyH256(locator.address).into();
-        let contract = MultisigIsmReader::new(ism_address, provider);
+        let contract = MultisigIsmReader::new(ism_address, json_provider);
 
         Ok(Self {
             contract,
-            provider: StarknetProvider::new(locator.domain.clone(), conn),
+            provider,
             conn: conn.clone(),
         })
     }

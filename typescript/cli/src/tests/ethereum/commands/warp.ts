@@ -5,22 +5,25 @@ import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   ChainName,
   HypTokenRouterConfig,
-  MultiProtocolProvider,
   TokenType,
   WarpCoreConfig,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigSchema,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType, randomInt } from '@hyperlane-xyz/utils';
 
 import { readChainSubmissionStrategyConfig } from '../../../config/strategy.js';
+import {
+  AltVMProviderFactory,
+  AltVMSignerFactory,
+} from '../../../context/altvm.js';
 import { getContext } from '../../../context/context.js';
-import { MultiProtocolSignerManager } from '../../../context/strategies/signer/MultiProtocolSignerManager.js';
 import { CommandContext } from '../../../context/types.js';
 import { extendWarpRoute as extendWarpRouteWithoutApplyTransactions } from '../../../deploy/warp.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import {
+  ANVIL_DEPLOYER_ADDRESS,
   ANVIL_KEY,
   CHAIN_NAME_2,
   CHAIN_NAME_3,
@@ -229,23 +232,35 @@ export function hyperlaneWarpCheck(
   });
 }
 
-export function hyperlaneWarpSendRelay(
-  origin: string,
-  destination: string,
-  warpCorePath: string,
+export function hyperlaneWarpSendRelay({
+  origin,
+  destination,
+  warpCorePath,
   relay = true,
-  value: number | string = 1,
-): ProcessPromise {
+  value = 2,
+  chains,
+  roundTrip,
+}: {
+  origin?: string;
+  destination?: string;
+  warpCorePath: string;
+  relay?: boolean;
+  value?: number | string;
+  chains?: string;
+  roundTrip?: boolean;
+}): ProcessPromise {
   return $`${localTestRunCmdPrefix()} hyperlane warp send \
         ${relay ? '--relay' : []} \
         --registry ${REGISTRY_PATH} \
-        --origin ${origin} \
-        --destination ${destination} \
+        ${origin ? ['--origin', origin] : []} \
+        ${destination ? ['--destination', destination] : []} \
         --warp ${warpCorePath} \
         --key ${ANVIL_KEY} \
         --verbosity debug \
         --yes \
-        --amount ${value}`;
+        --amount ${value} \
+        ${chains ? ['--chains', chains] : []} \
+        ${roundTrip ? ['--round-trip'] : []} `;
 }
 
 export function hyperlaneWarpRebalancer(
@@ -258,8 +273,12 @@ export function hyperlaneWarpRebalancer(
   destination?: string,
   amount?: string,
   key?: string,
+  explorerUrl?: string,
 ): ProcessPromise {
-  return $`${localTestRunCmdPrefix()} hyperlane warp rebalancer \
+  const rebalancerAddress = key
+    ? new Wallet(key).address
+    : ANVIL_DEPLOYER_ADDRESS;
+  return $`${explorerUrl ? [`EXPLORER_API_URL=${explorerUrl}`] : []} REBALANCER=${rebalancerAddress} ${localTestRunCmdPrefix()} hyperlane warp rebalancer \
         --registry ${REGISTRY_PATH} \
         --checkFrequency ${checkFrequency} \
         --config ${config} \
@@ -296,6 +315,7 @@ type GetWarpTokenConfigByTokenTypeOptions = {
   token: Address;
   vault: Address;
   otherChain: ChainName;
+  everclearBridgeAdapter: Address;
 };
 
 function getWarpTokenConfigForType({
@@ -305,6 +325,7 @@ function getWarpTokenConfigForType({
   token,
   tokenType,
   vault,
+  everclearBridgeAdapter,
 }: GetWarpTokenConfigByTokenTypeOptions): HypTokenRouterConfig {
   let tokenConfig: HypTokenRouterConfig;
   switch (tokenType) {
@@ -362,6 +383,23 @@ function getWarpTokenConfigForType({
         collateralChainName: otherChain,
       };
       break;
+    case TokenType.collateralEverclear:
+      tokenConfig = {
+        type: TokenType.collateralEverclear,
+        mailbox,
+        owner,
+        token,
+        everclearBridgeAddress: everclearBridgeAdapter,
+        outputAssets: {},
+        everclearFeeParams: {
+          [10]: {
+            deadline: Date.now(),
+            fee: randomInt(10000000),
+            signature: '0x42',
+          },
+        },
+      };
+      break;
     default:
       throw new Error(
         `Unsupported token type "${tokenType}" for random config generation`,
@@ -376,7 +414,11 @@ type GetWarpTokenConfigOptions = {
   owner: Address;
   token: Address;
   vault: Address;
+  fiatToken: Address;
+  xerc20: Address;
+  xerc20Lockbox: Address;
   chainName: ChainName;
+  everclearBridgeAdapter: Address;
 };
 
 export function generateWarpConfigs(
@@ -394,6 +436,9 @@ export function generateWarpConfigs(
     TokenType.collateralCctp,
     TokenType.nativeOpL1,
     TokenType.nativeOpL2,
+    // No adapter has been implemented yet
+    TokenType.ethEverclear,
+    TokenType.collateralEverclear,
   ]);
 
   const allowedWarpTokenTypes = Object.values(TokenType).filter(
@@ -578,21 +623,14 @@ export async function setupIncompleteWarpRouteExtension(
     ? await readChainSubmissionStrategyConfig(context.strategyPath)
     : {};
 
-  const multiProtocolProvider = new MultiProtocolProvider(
-    context.chainMetadata,
-  );
-  const multiProtocolSigner = await MultiProtocolSignerManager.init(
-    strategyConfig,
-    [CHAIN_NAME_2, CHAIN_NAME_3],
-    multiProtocolProvider,
-    {
-      key: {
-        [ProtocolType.Ethereum]: ANVIL_KEY,
-      },
-    },
-  );
+  context.altVmProvider = new AltVMProviderFactory(context.multiProvider);
 
-  context.multiProvider = await multiProtocolSigner.getMultiProvider();
+  const altVmSigner = await AltVMSignerFactory.createSigners(
+    context.multiProvider,
+    [],
+    {},
+    strategyConfig,
+  );
 
   await extendWarpRouteWithoutApplyTransactions(
     {
@@ -602,7 +640,7 @@ export async function setupIncompleteWarpRouteExtension(
         key: {
           [ProtocolType.Ethereum]: ANVIL_KEY,
         },
-        multiProtocolSigner,
+        altVmSigner,
       },
       warpCoreConfig,
       warpDeployConfig,
@@ -640,6 +678,14 @@ export async function sendWarpRouteMessageRoundTrip(
   chain2: string,
   warpCoreConfigPath: string,
 ) {
-  await hyperlaneWarpSendRelay(chain1, chain2, warpCoreConfigPath);
-  return hyperlaneWarpSendRelay(chain2, chain1, warpCoreConfigPath);
+  await hyperlaneWarpSendRelay({
+    origin: chain1,
+    destination: chain2,
+    warpCorePath: warpCoreConfigPath,
+  });
+  return hyperlaneWarpSendRelay({
+    origin: chain2,
+    destination: chain1,
+    warpCorePath: warpCoreConfigPath,
+  });
 }

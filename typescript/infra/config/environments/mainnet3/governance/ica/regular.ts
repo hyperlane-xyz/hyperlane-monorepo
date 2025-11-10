@@ -19,7 +19,6 @@ export const regularIcas: ChainMap<Address> = {
   // Jul 2, 2025 - ICA 2.0 Migration
   // ----------------------------------------------------------
   ancient8: '0x72Ba22a1a8B8c2b7B1795a35a1E05c058217E9a7',
-  alephzeroevmmainnet: '0xa1352242B0508b211F5b1d6408488207754497B6',
   apechain: '0x0880453D948E4D2a06F40c6Cf4eF33E4e938411f',
   appchain: '0x863226b1F78f40a3Ab63D89910B2CC5e899CC94D',
   arbitrumnova: '0x2A20bb14cA28A189Bb7faE65072E05c1226C0D77',
@@ -37,7 +36,6 @@ export const regularIcas: ChainMap<Address> = {
   boba: '0x247510A4001b78decE23B2d773aa8C2c9f6939C3',
   bsquared: '0xEF600dD98EA1c7681cA75Bd109e4B0c5AA5a58F5',
   celo: '0x39feCE4cA4b41bd2dfA886A6cB08353A42DbB6E3',
-  cheesechain: '0xB6Ce375D1aA9513cFb744dB3c06FfCA4f4bA20A7',
   chilizmainnet: '0xf5A0F82fF0F93699b4C32e49fac35Db2932aEc6f',
   coredao: '0xa2f6D0570F16061c5abE785067dd9502561ec30b',
   coti: '0x41A362f117D4EbE2680F6d4E37ddC5454dc5f07a',
@@ -54,7 +52,6 @@ export const regularIcas: ChainMap<Address> = {
   fraxtal: '0xc96634cdc475FfC7702f123EFD77cB43c861956b',
   fusemainnet: '0x66148C55906967F4F55dCD6E45e74b43b8624444',
   galactica: '0x6C8210C82B17bE639CeDB3349A5aeDFF1471f72A',
-  game7: '0x7F30B7724040fC3384864ef3812f7a437Bc80166',
   gnosis: '0xf38bb17117000b560ecdeaA5b736f3aFCc39C3b5',
   gravity: '0x9603D1409150F1895349E71c4267CeE4B59635fF',
   harmony: '0xA5544aeadb395Ce08A49871CF0EA0a16B2fE444B',
@@ -63,7 +60,6 @@ export const regularIcas: ChainMap<Address> = {
   hyperevm: '0xD50d4E42F41392d5c7E9526423D3dc38a8d1f875',
   immutablezkevmmainnet: '0x71c47adC3270EA319705626b8769E0ee54D1EA41',
   inevm: '0xCf0F066B8D5F14f264EA99D67CFa389D6c1De20E',
-  infinityvmmainnet: '0x8cf2Ec273D7C82614640dB1d5F6AF0f27F5071cd',
   ink: '0x20b3D70fA3d7B69Aba42b0bA9D8F25Ee0C656e78',
   kaia: '0x47bd809B484DB532F9E2Cf540cCE24af79341deA',
   katana: '0x53dE35b799fD29B129E683E43ef31cEEB3b88D22',
@@ -94,7 +90,6 @@ export const regularIcas: ChainMap<Address> = {
   polygonzkevm: '0xA136C9297ECA646b2dbFcD4Fb06cf9A10CF8027e',
   polynomialfi: '0xb765a7d803b2bB92EE228B6D46Af744CB5BDDD79',
   prom: '0x024b2F836A29F80859dE21C0Dc0410b538742560',
-  proofofplay: '0x367fD428ed583F6B3B800F1C0E0450Aff7645C7E',
   rarichain: '0x69DAb5389A8CA6f6e1268B701e9ec7E38182F58b',
   reactive: '0xc192035485ac67334A8A2080f7C4930624DAAa9C',
   redstone: '0x8D69E4d1CBCDF7B14E89652D70F25aaf61A97517',
@@ -102,7 +97,6 @@ export const regularIcas: ChainMap<Address> = {
   scroll: '0xe4927B0D71c86C7bad2236DD191ECABdab796936',
   sei: '0x8a3A8A4C9f188bbD45E75271Dc590077fc96EDc7',
   shibarium: '0xE08183fbd724B43Da0c043Af02cb3D1F1ECA2a98',
-  snaxchain: '0xFfaf98AC934B84B54171c6f116B1d23cde4e347E',
   soneium: '0x6af23EB68a6223a4af9F056E10D93ef4d960Da05',
   sonic: '0x39e4A8F7AA0826b1Bf94551A00eB2142AC7D5Bb5',
   story: '0x769926C9f2CCc61dB22A45c8F75Bd2fAeFd25748',
@@ -137,4 +131,16 @@ export const regularIcas: ChainMap<Address> = {
   // ----------------------------------------------------------
   plasma: '0xd7e64bA7BB6beE321D5E0C42a966FDc97f70a92f',
   electroneum: '0xd7e64bA7BB6beE321D5E0C42a966FDc97f70a92f',
+
+  // Sept 22, 2025
+  // ----------------------------------------------------------
+  zerogravity: '0x53FEEdcF42C1aACFeC3FA6Da573a3470FcD5C658',
+  mantra: '0x6b3353A453689a92aE3138c4d26e4eaD894b39D8',
+
+  // Oct 2, 2025
+  // ----------------------------------------------------------
+  carrchain: '0x86563B7E9499Cd826bC5e6a1D98436aDb440DDb2',
+  incentiv: '0x86563B7E9499Cd826bC5e6a1D98436aDb440DDb2',
+  monad: '0x9126696d9C3c44dc1273352ce171E359b1802560',
+  litchain: '0x6b3353A453689a92aE3138c4d26e4eaD894b39D8',
 } as const;

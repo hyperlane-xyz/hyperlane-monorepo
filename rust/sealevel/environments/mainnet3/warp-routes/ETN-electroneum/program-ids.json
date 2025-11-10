@@ -1,0 +1,18 @@
+{
+  "solanamainnet": {
+    "hex": "0xb44cf30b614d1c110157100fc5746d2ae279375213e8d79499c35d5e9ce0bd34",
+    "base58": "D8pSXG5rgcoCeeu2KQ6VUJ43MeDFJxYYyYggjbVuMxK5"
+  },
+  "bsc": {
+    "hex": "0x000000000000000000000000c8a9e4927301ce381a96dd639f154f1a539fd939",
+    "base58": "1111111111113o9LZcgJRs2zAySAcLP7uNK8jzSC"
+  },
+  "ethereum": {
+    "hex": "0x000000000000000000000000b89371d7d6fe8eb98732cecd8fbeef7dbfc3b0bb",
+    "base58": "1111111111113a9NPwZmeSr1yGE2oXdiQFzpKuTg"
+  },
+  "electroneum": {
+    "hex": "0x0000000000000000000000003003b36eea03a55d2caf6048d45420a60bf40ac5",
+    "base58": "111111111111foFj5bK2x11QfcZtoqLNxMv3v9a"
+  }
+}

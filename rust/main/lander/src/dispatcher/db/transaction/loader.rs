@@ -41,21 +41,33 @@ impl LoadableFromDb for TransactionDbLoader {
     type Item = Transaction;
 
     async fn highest_index(&self) -> Result<u32, LanderError> {
-        Ok(self.db.retrieve_highest_transaction_index().await?)
+        let index = self.db.retrieve_highest_transaction_index().await?;
+        debug!(?index, "Highest transaction index");
+        Ok(index)
     }
 
     async fn retrieve_by_index(&self, index: u32) -> Result<Option<Self::Item>, LanderError> {
-        Ok(self.db.retrieve_transaction_by_index(index).await?)
+        let transaction = self.db.retrieve_transaction_by_index(index).await?;
+        debug!(?transaction, ?index, "Retrieved transaction by index");
+        Ok(transaction)
     }
 
     async fn load(&self, item: Self::Item) -> Result<LoadingOutcome, LanderError> {
         match item.status {
             TransactionStatus::PendingInclusion | TransactionStatus::Mempool => {
-                self.inclusion_stage_sender.send(item).await?;
+                debug!(?item, "Send transaction to inclusion stage");
+                self.inclusion_stage_sender
+                    .send(item)
+                    .await
+                    .map_err(Box::new)?;
                 Ok(LoadingOutcome::Loaded)
             }
             TransactionStatus::Included => {
-                self.finality_stage_sender.send(item).await?;
+                debug!(?item, "Send transaction to finality stage");
+                self.finality_stage_sender
+                    .send(item)
+                    .await
+                    .map_err(Box::new)?;
                 Ok(LoadingOutcome::Loaded)
             }
             TransactionStatus::Finalized | TransactionStatus::Dropped(_) => {

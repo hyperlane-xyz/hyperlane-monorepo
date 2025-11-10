@@ -210,7 +210,7 @@ pub fn start_solana_test_validator(
     let solana_env_dir = concat_path(&sealevel_path, SOLANA_ENVS_DIR);
     let solana_env_dir_str = solana_env_dir.to_string_lossy();
 
-    let mock_registry_path = concat_path(&sealevel_path, LOCAL_E2E_MOCK_REGISTRY);
+    let _mock_registry_path = concat_path(&sealevel_path, LOCAL_E2E_MOCK_REGISTRY);
 
     let solana_warproute_token_config_file =
         concat_path(&sealevel_path, SOLANA_WARPROUTE_TOKEN_CONFIG_FILE);
@@ -334,19 +334,6 @@ pub fn start_solana_test_validator(
         .arg("validators", "0x70997970c51812dc3a010c7d01b50e0d17dc79c8")
         .arg("threshold", "1")
         .arg("program-id", "4RSV6iyqW9X66Xq3RDCVsKJ7hMba5uv6XP8ttgxjVUB1")
-        .run()
-        .join();
-
-    sealevel_client
-        .clone()
-        .cmd("validator-announce")
-        .cmd("announce")
-        .arg("validator", "0x70997970c51812dc3a010c7d01b50e0d17dc79c8")
-        .arg(
-            "storage-location",
-            format!("file://{SOLANA_CHECKPOINT_LOCATION}")
-        )
-        .arg("signature", "0xcd87b715cd4c2e3448be9e34204cf16376a6ba6106e147a4965e26ea946dd2ab19598140bf26f1e9e599c23f6b661553c7d89e8db22b3609068c91eb7f0fa2f01b")
         .run()
         .join();
 

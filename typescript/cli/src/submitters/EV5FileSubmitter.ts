@@ -14,7 +14,7 @@ import {
 
 import { readYamlOrJson, writeYamlOrJson } from '../utils/files.js';
 
-import { CustomTxSubmitterType, EV5FileTxSubmitterProps } from './types.js';
+import { CustomTxSubmitterType, FileTxSubmitterProps } from './types.js';
 
 export class EV5FileSubmitter
   implements TxSubmitterInterface<ProtocolType.Ethereum>
@@ -24,7 +24,7 @@ export class EV5FileSubmitter
   protected readonly logger: Logger = rootLogger.child({
     module: 'file-submitter',
   });
-  constructor(public readonly props: EV5FileTxSubmitterProps) {}
+  constructor(public readonly props: FileTxSubmitterProps) {}
 
   async submit(
     ...txs: Annotated<

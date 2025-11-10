@@ -222,8 +222,7 @@ impl RpcProvider {
         let received_hash = H256::from_slice(response.hash.as_bytes());
         if received_hash != hash {
             return Err(ChainCommunicationError::from_other_str(&format!(
-                "received incorrect transaction, expected hash: {:?}, received hash: {:?}",
-                hash, received_hash,
+                "received incorrect transaction, expected hash: {hash:?}, received hash: {received_hash:?}",
             )));
         }
 

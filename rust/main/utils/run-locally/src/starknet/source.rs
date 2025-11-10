@@ -4,8 +4,8 @@ use tempfile::tempdir;
 
 use crate::{
     logging::log,
-    starknet::utils::{download, make_target, make_target_starkli, untar, unzip},
-    utils::concat_path,
+    starknet::utils::{make_target, make_target_starkli, untar, unzip},
+    utils::{concat_path, download},
 };
 
 use super::{CAIRO_HYPERLANE_GIT, CAIRO_HYPERLANE_VERSION, STARKNET_CLI_GIT, STARKNET_CLI_VERSION};

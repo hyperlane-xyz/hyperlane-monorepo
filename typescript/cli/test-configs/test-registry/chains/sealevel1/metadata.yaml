@@ -1,0 +1,22 @@
+# yaml-language-server: $schema=../schema.json
+blockExplorers:
+  - apiUrl: http://sealevel.svm
+    family: other
+    name: Sealevel Explorer
+    url: http://sealevel.svm
+blocks:
+  confirmations: 1
+  estimateBlockTime: 0.4
+  reorgPeriod: 0
+chainId: 1399811149
+displayName: Solana
+domainId: 1399811149
+name: sealevel1
+nativeToken:
+  decimals: 9
+  name: Solana
+  symbol: SOL
+protocol: sealevel
+rpcUrls:
+  - http: http://127.0.0.1:139
+technicalStack: other

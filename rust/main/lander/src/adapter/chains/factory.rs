@@ -10,9 +10,13 @@ use hyperlane_base::{
     settings::{ChainConf, ChainConnectionConf, RawChainConf},
     CoreMetrics,
 };
+use hyperlane_radix::RadixProvider;
 
 use crate::adapter::{
-    chains::{cosmos::CosmosAdapter, ethereum::EthereumAdapter, sealevel::SealevelAdapter},
+    chains::{
+        cosmos::CosmosAdapter, ethereum::EthereumAdapter, radix::adapter::RadixAdapter,
+        sealevel::SealevelAdapter,
+    },
     AdaptsChain,
 };
 use crate::DispatcherMetrics;
@@ -50,9 +54,11 @@ impl AdapterFactory {
             }
             ChainConnectionConf::Starknet(_) => todo!(),
             ChainConnectionConf::CosmosNative(_) => todo!(),
-            ChainConnectionConf::Radix(_) => todo!(),
+            ChainConnectionConf::Radix(connection_conf) => {
+                let adapter = RadixAdapter::from_conf(conf, core_metrics, &connection_conf)?;
+                Arc::new(adapter)
+            }
         };
-
         Ok(adapter)
     }
 }

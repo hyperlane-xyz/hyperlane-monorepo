@@ -22,6 +22,7 @@ members = [
   "utils/backtrace-oneline",
   "utils/crypto",
   "utils/hex",
+  "utils/reqwest-utils",
   "utils/run-locally",
 ]
 resolver = "2"
@@ -32,7 +33,7 @@ edition = "2021"
 homepage = "https://hyperlane.xyz"
 license-file = "../LICENSE.md"
 publish = false
-version = "0.1.0"
+version = "1.6.0"
 
 [workspace.dependencies]
 Inflector = "0.11.4"
@@ -161,6 +162,8 @@ strum_macros = "0.26.2"
 tempfile = "3.3"
 tendermint = "0.40.1"
 tendermint-rpc = { version = "0.40.1", features = ["http-client", "tokio"] }
+testcontainers = "0.23.3"
+testcontainers-modules = { version = "0.11.6", features = ["postgres"] }
 thiserror = "1.0"
 time = "0.3"
 tiny-keccak = "2.0.2"
@@ -190,8 +193,8 @@ radix-engine-interface = { git = "https://github.com/hyperlane-xyz/radixdlt-scry
 scrypto = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git", branch = "hyperlane", features = [
   "serde",
 ] }
-core-api-client = { git = "https://github.com/hyperlane-xyz/radix-apis-rust-clients.git", branch = "hyperlane" }
-gateway-api-client = { git = "https://github.com/hyperlane-xyz/radix-apis-rust-clients.git", branch = "hyperlane" }
+core-api-client = { git = "https://github.com/hyperlane-xyz/radix-apis-rust-clients.git", rev = "2d284dad4ef48cab302cfa0435c548b54923b7e1" }
+gateway-api-client = { git = "https://github.com/hyperlane-xyz/radix-apis-rust-clients.git", rev = "2d284dad4ef48cab302cfa0435c548b54923b7e1" }
 scrypto-derive = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git", branch = "hyperlane" }
 sbor = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git", branch = "hyperlane", features = [
   "serde",

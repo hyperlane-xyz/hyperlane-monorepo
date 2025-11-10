@@ -49,9 +49,6 @@
       "0xd796c1d4fcfb3c63acfa6e4113aa6ae1399b337c"
     ]
   },
-  "cheesechain": {
-    "validators": ["0xa481835355309ed46540c742a1c04b58380aa7b4"]
-  },
   "coredao": {
     "validators": ["0x9767df5bcebce5ca89fdca5efbfb3b891cf30c5b"]
   },
@@ -171,9 +168,6 @@
       "0x82c10acb56f3d7ed6738b61668111a6b5250283e",
       "0x1cd73544c000fd519784f56e59bc380a5fef53d6"
     ]
-  },
-  "proofofplay": {
-    "validators": ["0xc18b802596b5d939c35c8e58afa5ef0872d3f792"]
   },
   "redstone": {
     "validators": ["0x51ed7127c0afc0513a0f141e910c5e02b2a9a4b5"]

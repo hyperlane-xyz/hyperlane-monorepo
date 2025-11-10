@@ -1,9 +1,17 @@
 import assert from 'assert';
 
-import { ChainMap, ChainName, MovableTokenConfig } from '@hyperlane-xyz/sdk';
-import { arrayToObject, objMap } from '@hyperlane-xyz/utils';
+import {
+  ChainMap,
+  ChainName,
+  HypTokenRouterConfig,
+  MovableTokenConfig,
+  TokenType,
+} from '@hyperlane-xyz/sdk';
+import { Address, arrayToObject, objMap } from '@hyperlane-xyz/utils';
 
+import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { getRegistry } from '../../../../registry.js';
+import { usdcTokenAddresses } from '../cctp.js';
 import { WarpRouteIds } from '../warpIds.js';
 
 const REBALANCER = '0xa3948a15e1d0778a7d53268b651B2411AF198FE3';
@@ -16,7 +24,7 @@ export function getUSDCRebalancingBridgesConfigFor(
   deploymentChains: readonly ChainName[],
 ): ChainMap<RebalancingConfig> {
   const registry = getRegistry();
-  const mainnetCCTP = registry.getWarpRoute(WarpRouteIds.MainnetCCTP);
+  const mainnetCCTP = registry.getWarpRoute(WarpRouteIds.MainnetCCTPV1);
 
   assert(mainnetCCTP, 'MainnetCCTP warp route not found');
 
@@ -60,3 +68,96 @@ export function getUSDCRebalancingBridgesConfigFor(
     },
   );
 }
+
+export const getRebalancingUSDCConfigForChain = (
+  currentChain: keyof typeof usdcTokenAddresses,
+  routerConfigByChain: ChainMap<RouterConfigWithoutOwner>,
+  ownersByChain: ChainMap<Address>,
+  rebalancingConfigByChain: ChainMap<RebalancingConfig>,
+): HypTokenRouterConfig => {
+  const owner = ownersByChain[currentChain];
+  assert(owner, `Owner not found for chain ${currentChain}`);
+
+  const usdcTokenAddress = usdcTokenAddresses[currentChain];
+  assert(
+    usdcTokenAddress,
+    `USDC token address not found for chain ${currentChain}`,
+  );
+
+  const currentRebalancingConfig = rebalancingConfigByChain[currentChain];
+  assert(
+    currentRebalancingConfig,
+    `Rebalancing config not found for chain ${currentChain}`,
+  );
+
+  const { allowedRebalancers, allowedRebalancingBridges } =
+    currentRebalancingConfig;
+
+  return {
+    type: TokenType.collateral,
+    token: usdcTokenAddress,
+    mailbox: routerConfigByChain[currentChain].mailbox,
+    owner,
+    allowedRebalancers,
+    allowedRebalancingBridges,
+  };
+};
+
+export const getCollateralTokenConfigForChain = <
+  TOwnerAddress extends ChainMap<Address>,
+>(
+  currentChain: Extract<keyof TOwnerAddress, ChainName>,
+  routerConfigByChain: ChainMap<RouterConfigWithoutOwner>,
+  ownersByChain: TOwnerAddress,
+  collateralTokensByChain: ChainMap<Address>,
+): HypTokenRouterConfig => {
+  const owner = ownersByChain[currentChain];
+  assert(owner, `Owner not found for chain ${currentChain}`);
+
+  const collateralAddress = collateralTokensByChain[currentChain];
+  assert(
+    collateralAddress,
+    `Collateral token address not found for chain ${currentChain}`,
+  );
+
+  return {
+    type: TokenType.collateral,
+    token: collateralAddress,
+    mailbox: routerConfigByChain[currentChain].mailbox,
+    owner,
+  };
+};
+
+export const getSyntheticTokenConfigForChain = <
+  TOwnerAddress extends ChainMap<Address>,
+>(
+  currentChain: Extract<keyof TOwnerAddress, ChainName>,
+  routerConfigByChain: ChainMap<RouterConfigWithoutOwner>,
+  ownersByChain: TOwnerAddress,
+): HypTokenRouterConfig => {
+  const owner = ownersByChain[currentChain];
+  assert(owner, `Owner not found for chain ${currentChain}`);
+
+  return {
+    type: TokenType.synthetic,
+    mailbox: routerConfigByChain[currentChain].mailbox,
+    owner,
+  };
+};
+
+export const getNativeTokenConfigForChain = <
+  TOwnerAddress extends ChainMap<Address>,
+>(
+  currentChain: Extract<keyof TOwnerAddress, ChainName>,
+  routerConfigByChain: ChainMap<RouterConfigWithoutOwner>,
+  ownersByChain: TOwnerAddress,
+): HypTokenRouterConfig => {
+  const owner = ownersByChain[currentChain];
+  assert(owner, `Owner not found for chain ${currentChain}`);
+
+  return {
+    type: TokenType.native,
+    mailbox: routerConfigByChain[currentChain].mailbox,
+    owner,
+  };
+};

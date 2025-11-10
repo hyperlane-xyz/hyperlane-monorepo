@@ -1,4 +1,9 @@
-import { PublicKey } from '@solana/web3.js';
+import {
+  AccountMeta,
+  PublicKey,
+  TransactionInstruction,
+} from '@solana/web3.js';
+import { serialize } from 'borsh';
 
 import {
   Address,
@@ -9,12 +14,20 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { BaseSealevelAdapter } from '../../app/MultiProtocolApp.js';
+import {
+  SealevelMailboxInstructionType,
+  SealevelMailboxSetDefaultIsmInstruction,
+  SealevelMailboxSetDefaultIsmInstructionSchema,
+  SealevelMailboxTransferOwnershipInstruction,
+  SealevelMailboxTransferOwnershipInstructionSchema,
+} from '../../mailbox/serialization.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import {
   ProviderType,
   TypedTransactionReceipt,
 } from '../../providers/ProviderType.js';
 import { ChainName } from '../../types.js';
+import { SealevelInstructionWrapper } from '../../utils/sealevelSerialization.js';
 
 import { ICoreAdapter } from './types.js';
 
@@ -162,5 +175,96 @@ export class SealevelCoreAdapter
       ],
       mailboxProgramId,
     );
+  }
+
+  /*
+   * Instruction builders for Mailbox operations
+   * Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/programs/mailbox/src/instruction.rs
+   */
+
+  /**
+   * Create a SetDefaultIsm instruction
+   * @param mailboxProgramId - The mailbox program ID
+   * @param owner - The current owner who can set the ISM
+   * @param newIsm - The new ISM program address to set as default
+   * @returns TransactionInstruction
+   */
+  createSetDefaultIsmInstruction(
+    mailboxProgramId: PublicKey,
+    owner: PublicKey,
+    newIsm: PublicKey,
+  ): TransactionInstruction {
+    // Derive PDAs from the mailbox program ID
+    const inboxPda =
+      SealevelCoreAdapter.deriveMailboxInboxPda(mailboxProgramId);
+    const outboxPda =
+      SealevelCoreAdapter.deriveMailboxOutboxPda(mailboxProgramId);
+
+    const keys: AccountMeta[] = [
+      // 0. `[writeable]` - The Inbox PDA account.
+      { pubkey: inboxPda, isSigner: false, isWritable: true },
+      // 1. `[]` - The Outbox PDA account.
+      { pubkey: outboxPda, isSigner: false, isWritable: false },
+      // 2. `[signer, writeable]` - The owner of the Mailbox.
+      { pubkey: owner, isSigner: true, isWritable: true },
+    ];
+
+    const value = new SealevelInstructionWrapper({
+      instruction: SealevelMailboxInstructionType.INBOX_SET_DEFAULT_ISM,
+      data: new SealevelMailboxSetDefaultIsmInstruction({
+        newIsm: newIsm.toBuffer(),
+      }),
+    });
+
+    const data = Buffer.from(
+      serialize(SealevelMailboxSetDefaultIsmInstructionSchema, value),
+    );
+
+    return new TransactionInstruction({
+      keys,
+      programId: mailboxProgramId,
+      data,
+    });
+  }
+
+  /**
+   * Create a TransferOwnership instruction
+   * @param mailboxProgramId - The mailbox program ID
+   * @param owner - The current owner
+   * @param newOwner - The new owner (null to renounce ownership)
+   * @returns TransactionInstruction
+   */
+  createTransferOwnershipInstruction(
+    mailboxProgramId: PublicKey,
+    owner: PublicKey,
+    newOwner: PublicKey | null,
+  ): TransactionInstruction {
+    // Derive Outbox PDA from the mailbox program ID
+    const outboxPda =
+      SealevelCoreAdapter.deriveMailboxOutboxPda(mailboxProgramId);
+
+    const keys: AccountMeta[] = [
+      // 0. `[writeable]` The Outbox PDA account.
+      { pubkey: outboxPda, isSigner: false, isWritable: true },
+      // 1. `[signer, writeable]` The current owner.
+      { pubkey: owner, isSigner: true, isWritable: true },
+    ];
+
+    const value = new SealevelInstructionWrapper({
+      instruction: SealevelMailboxInstructionType.TRANSFER_OWNERSHIP,
+      data: new SealevelMailboxTransferOwnershipInstruction({
+        newOwner: newOwner ? newOwner.toBuffer() : null,
+      }),
+    });
+
+    const data = Buffer.from(
+      serialize(SealevelMailboxTransferOwnershipInstructionSchema, value),
+    );
+
+    return new TransactionInstruction({
+      keys,
+      programId: mailboxProgramId,
+      data,
+    });
   }
 }

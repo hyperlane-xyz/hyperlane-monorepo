@@ -19,9 +19,15 @@ pub struct QueryParams {
     pub nonce_end: u32,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct MessageResponse {
+    pub message_id: String,
+    pub message: HyperlaneMessage,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ResponseBody {
-    pub messages: Vec<HyperlaneMessage>,
+    pub messages: Vec<MessageResponse>,
 }
 
 /// Fetch merkle tree insertion into the database
@@ -60,6 +66,14 @@ pub async fn handler(
     })?;
 
     let messages = fetch_messages(db, nonce_start, nonce_end).await?;
+
+    let messages: Vec<_> = messages
+        .into_iter()
+        .map(|m| MessageResponse {
+            message_id: format!("{:x}", m.id()),
+            message: m,
+        })
+        .collect();
 
     let resp = ResponseBody { messages };
     Ok(ServerSuccessResponse::new(resp))
@@ -132,7 +146,7 @@ mod tests {
     ) {
         dbs.get(&domain.id())
             .expect("DB not found")
-            .store_message(&message, dispatched_block_number)
+            .store_message(message, dispatched_block_number)
             .expect("DB Error");
     }
 
@@ -229,7 +243,14 @@ mod tests {
 
         assert_eq!(resp_status, StatusCode::OK);
 
-        let expected_list: Vec<_> = insertions.into_iter().take(2).map(|(_, msg)| msg).collect();
+        let expected_list: Vec<_> = insertions
+            .into_iter()
+            .take(2)
+            .map(|(_, msg)| MessageResponse {
+                message_id: format!("{:x}", msg.id()),
+                message: msg,
+            })
+            .collect();
 
         assert_eq!(resp_body.messages.len(), expected_list.len());
         for (actual, expected) in resp_body.messages.iter().zip(expected_list.iter()) {

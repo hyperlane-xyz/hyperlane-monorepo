@@ -1,4 +1,18 @@
-import { PrivateKey, PublicKey } from '@radixdlt/radix-engine-toolkit';
+import { TransactionCommittedDetailsResponse } from '@radixdlt/babylon-gateway-api-sdk';
+import {
+  PrivateKey,
+  PublicKey,
+  TransactionManifest,
+} from '@radixdlt/radix-engine-toolkit';
+
+export interface RadixSDKTransaction {
+  networkId: number;
+  manifest: TransactionManifest | string;
+}
+
+export interface RadixSDKReceipt extends TransactionCommittedDetailsResponse {
+  transactionHash: string;
+}
 
 // https://docs.radixdlt.com/docs/manifest-instructions
 export enum INSTRUCTIONS {
@@ -19,6 +33,9 @@ export type Account = {
 export interface RadixSDKOptions {
   networkId?: number;
   gasMultiplier?: number;
+  rpcUrls: string[];
+  gatewayUrls?: string[];
+  packageAddress?: string;
 }
 
 export interface MultisigIsmReq {
@@ -26,16 +43,30 @@ export interface MultisigIsmReq {
   threshold: number;
 }
 
+export enum RadixIsmTypes {
+  MERKLE_ROOT_MULTISIG = 'MerkleRootMultisigIsm',
+  MESSAGE_ID_MULTISIG = 'MessageIdMultisigIsm',
+  ROUTING_ISM = 'RoutingIsm',
+  NOOP_ISM = 'NoopIsm',
+}
+
 export type MultisigIsms =
-  | 'MerkleRootMultisigIsm'
-  | 'MessageIdMultisigIsm'
-  | 'NoopIsm';
+  | RadixIsmTypes.MERKLE_ROOT_MULTISIG
+  | RadixIsmTypes.MESSAGE_ID_MULTISIG
+  | RadixIsmTypes.NOOP_ISM;
 
 export type Isms =
-  | 'MerkleRootMultisigIsm'
-  | 'MessageIdMultisigIsm'
-  | 'RoutingIsm'
-  | 'NoopIsm';
+  | RadixIsmTypes.MERKLE_ROOT_MULTISIG
+  | RadixIsmTypes.MESSAGE_ID_MULTISIG
+  | RadixIsmTypes.ROUTING_ISM
+  | RadixIsmTypes.NOOP_ISM;
+
+export enum RadixHookTypes {
+  IGP = 'InterchainGasPaymaster',
+  MERKLE_TREE = 'MerkleTreeHook',
+}
+
+export type Hooks = RadixHookTypes.IGP | RadixHookTypes.MERKLE_TREE;
 
 export interface EntityField {
   field_name: string;
@@ -69,16 +100,18 @@ export interface EntityDetails {
 
 export interface Receipt {
   output: {
-    programmatic_json: {
-      entries: {
-        key: {
-          value: any;
-        };
-        value: {
-          value: any;
-        };
-      }[];
-    };
+    programmatic_json:
+      | {
+          entries: {
+            key: {
+              value: any;
+            };
+            value: {
+              value: any;
+            };
+          }[];
+        }
+      | { kind: string; value: any };
   }[];
   error_message?: string;
 }

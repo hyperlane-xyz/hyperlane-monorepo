@@ -114,7 +114,7 @@ export class BaseValidator {
 export const createAnnounce = async (
   validatorPrivKey: string,
   storageLocation: string,
-  mailboxId: string,
+  mailboxAddress: string,
   localDomain: number,
 ) => {
   const domainIdBytes = Buffer.alloc(4);
@@ -123,7 +123,7 @@ export const createAnnounce = async (
   const domainHashBytes = toHexString(
     Buffer.concat([
       domainIdBytes,
-      fromHexString(mailboxId),
+      fromHexString(mailboxAddress),
       Buffer.from('HYPERLANE_ANNOUNCEMENT'),
     ]),
   );

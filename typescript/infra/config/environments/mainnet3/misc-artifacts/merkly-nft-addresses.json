@@ -128,9 +128,6 @@
   "worldchain": {
     "router": "0x6f6aE8851a460406bBB3c929a415d2Df9305AcD5"
   },
-  "cheesechain": {
-    "router": "0x829761FC0d35F1d05C77EEA2B629255e94Af8F60"
-  },
   "zircuit": {
     "router": "0xAFa5f9313F1F2b599173f24807a882F498Be118c"
   },
@@ -144,9 +141,6 @@
     "router": "0xAFa5f9313F1F2b599173f24807a882F498Be118c"
   },
   "mint": {
-    "router": "0xAFa5f9313F1F2b599173f24807a882F498Be118c"
-  },
-  "proofofplay": {
     "router": "0xAFa5f9313F1F2b599173f24807a882F498Be118c"
   },
   "tangle": {

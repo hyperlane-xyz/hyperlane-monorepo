@@ -1,0 +1,42 @@
+{
+    "solanamainnet": {
+        "type": "collateral",
+        "decimals": 6,
+        "remoteDecimals": 18,
+        "owner": "5HDsXasp9a3bTdT2YyXookfBQtLKtshQXyWyMv1mZKx7",
+        "name": "Carnomaly",
+        "symbol": "CARR",
+        "token": "CDwKAreA1ipd1hUDBKsfVXVFWqNEeGDdvmZ7RHdiQk1U",
+        "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF"
+    },
+    "arbitrum": {
+        "type": "synthetic",
+        "decimals": 18,
+        "foreignDeployment": "0xc7B42d83255ac2874F39370101a9DBD4Ed219D84",
+        "name": "Carnomaly",
+        "symbol": "CARR"
+    },
+    "polygon": {
+        "type": "collateral",
+        "decimals": 18,
+        "foreignDeployment": "0x810db1ea27946aCDdc40ca98B6A6380Af6c7b89A",
+        "token": "0x9b765735C82BB00085e9DBF194F20E3Fa754258E",
+        "name": "Carnomaly",
+        "symbol": "CARR"
+    },
+    "bsc": {
+        "type": "collateral",
+        "decimals": 18,
+        "foreignDeployment": "0xcf73D7119cD121F02a3Dd2cbf8A609279830EB69",
+        "token": "0x2a48a41301E6635DF9E65B80063Ff84677142619",
+        "name": "Carnomaly",
+        "symbol": "CARR"
+    },
+    "carrchain": {
+        "type": "native",
+        "decimals": 18,
+        "foreignDeployment": "0x810db1ea27946aCDdc40ca98B6A6380Af6c7b89A",
+        "name": "Carnomaly",
+        "symbol": "CARR"
+    }
+}

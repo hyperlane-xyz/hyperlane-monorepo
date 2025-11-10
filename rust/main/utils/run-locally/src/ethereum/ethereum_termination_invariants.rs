@@ -41,7 +41,7 @@ pub fn termination_invariants_met(
             + FAILED_MESSAGE_COUNT,
         non_matching_igp_message_count: 0,
         double_insertion_message_count: (config.kathy_messages as u32 / 4) * 2,
-        sealevel_tx_id_indexing: false,
+        skip_tx_id_indexing: false,
         submitter_type,
     };
     if !relayer_termination_invariants_met(params)? {

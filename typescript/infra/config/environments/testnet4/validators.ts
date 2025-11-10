@@ -74,20 +74,6 @@ export const validatorChainConfig = (
         'bsctestnet',
       ),
     },
-    holesky: {
-      interval: 13,
-      reorgPeriod: getReorgPeriod('holesky'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0x7ab28ad88bb45867137ea823af88e2cb02359c03'],
-          [Contexts.ReleaseCandidate]: [
-            '0x7ab28ad88bb45867137ea823af88e2cb02359c03',
-          ],
-          [Contexts.Neutron]: [],
-        },
-        'holesky',
-      ),
-    },
 
     scrollsepolia: {
       interval: 5,
@@ -281,16 +267,6 @@ export const validatorChainConfig = (
         'somniatestnet',
       ),
     },
-    infinityvmmonza: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('infinityvmmonza'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0x635e1ad8646f80ac7bdcd0be9bb69b6f229a31bb'],
-        },
-        'infinityvmmonza',
-      ),
-    },
 
     cotitestnet: {
       interval: 5,
@@ -428,6 +404,17 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: ['0xeddaf7958627cfd35400c95db19a656a4a8a92c6'],
         },
         'radixtestnet',
+      ),
+    },
+
+    giwasepolia: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('giwasepolia'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xc170bef56759e35740ac2d3d0fece33bd9acb90b'],
+        },
+        'giwasepolia',
       ),
     },
   };

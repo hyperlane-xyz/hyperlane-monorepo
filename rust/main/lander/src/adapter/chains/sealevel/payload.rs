@@ -1,14 +1,5 @@
-use solana_sdk::instruction::Instruction as SealevelInstruction;
+pub(crate) use instruction::Instruction;
+pub(crate) use processed_account::processed_account;
 
-use crate::payload::FullPayload;
-
-pub(crate) trait Instruction {
-    fn instruction(&self) -> SealevelInstruction;
-}
-
-impl Instruction for FullPayload {
-    fn instruction(&self) -> SealevelInstruction {
-        serde_json::from_slice::<SealevelInstruction>(&self.data)
-            .expect("Payload should contain serialised Instruction for Sealevel")
-    }
-}
+mod instruction;
+mod processed_account;
