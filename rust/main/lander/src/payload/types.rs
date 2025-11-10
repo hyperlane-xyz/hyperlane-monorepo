@@ -108,7 +108,7 @@ impl FullPayload {
         let payload_uuid = PayloadUuid::random();
         let details = PayloadDetails {
             uuid: payload_uuid.clone(),
-            metadata: format!("payload-{}", payload_uuid.to_string()),
+            metadata: format!("payload-{}", payload_uuid),
             success_criteria: None,
         };
         FullPayload {

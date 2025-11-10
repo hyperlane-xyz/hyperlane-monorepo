@@ -311,7 +311,7 @@ async fn reorg_is_detected_and_persisted_to_checkpoint_storage() {
     mock_reorg_reporter
         .expect_report_at_block()
         .once()
-        .return_once(|_| return ());
+        .return_once(|_| {});
 
     // instantiate the validator submitter
     let validator_submitter = ValidatorSubmitter::new(
@@ -417,7 +417,7 @@ async fn sign_and_submit_checkpoint_same_signature() {
         .unwrap()
         .into();
 
-    let mock_onchain_checkpoint_clone = mock_onchain_checkpoint.clone();
+    let mock_onchain_checkpoint_clone = mock_onchain_checkpoint;
     let signed_type = signer.sign(mock_onchain_checkpoint_clone).await.unwrap();
     mock_checkpoint_syncer
         .expect_fetch_checkpoint()

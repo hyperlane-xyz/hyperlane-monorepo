@@ -220,7 +220,20 @@ where
                 );
 
                 match categorize_client_response(provider_host.as_str(), method, resp) {
-                    IsOk(v) => return Ok(serde_json::from_value(v)?),
+                    IsOk(v) => {
+                        // Add log to identify content of v when no tx receipt is found
+                        if v.is_null() {
+                            tracing::debug!(
+                                fallback_count = idx,
+                                provider_index = priority.index,
+                                provider_host = provider_host.as_str(),
+                                method,
+                                ?v,
+                                "fallback_request: value is null"
+                            );
+                        }
+                        return Ok(serde_json::from_value(v)?);
+                    }
                     RetryableErr(e) | RateLimitErr(e) => errors.push(e.into()),
                     NonRetryableErr(e) => return Err(e.into()),
                 }

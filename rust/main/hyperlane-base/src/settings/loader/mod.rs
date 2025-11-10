@@ -23,7 +23,7 @@ where
     R: FromRawConf<T>,
 {
     let now = chrono::Utc::now();
-    println!("Loading settings: {:?}", now);
+    println!("Loading settings: {now:?}");
 
     let root_path = ConfigPath::default();
 
@@ -56,7 +56,7 @@ where
             .and_then(|s| s.to_str())
             .unwrap_or("");
         if ext == "json" {
-            base_config_sources.push(format!("{:?}", entry_path));
+            base_config_sources.push(format!("{entry_path:?}"));
             builder = builder.add_source(CaseAdapter::new(File::from(entry_path), Case::Flat));
         }
     }
@@ -142,7 +142,7 @@ where
     }
 
     let now = chrono::Utc::now();
-    println!("Loaded settings: {:?}", now);
+    println!("Loaded settings: {now:?}");
 
     res
 }

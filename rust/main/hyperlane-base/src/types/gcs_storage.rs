@@ -130,7 +130,7 @@ impl GcsStorageClient {
 
     fn object_path(&self, object_name: &str) -> String {
         if let Some(folder) = &self.folder {
-            format!("{}/{}", folder, object_name)
+            format!("{folder}/{object_name}")
         } else {
             object_name.to_string()
         }

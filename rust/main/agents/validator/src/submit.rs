@@ -268,8 +268,7 @@ impl ValidatorSubmitter {
                 .await
             {
                 panic_message.push_str(&format!(
-                    " Reorg troubleshooting details couldn't be written to checkpoint storage: {}",
-                    e
+                    " Reorg troubleshooting details couldn't be written to checkpoint storage: {e}"
                 ));
             }
             panic!("{panic_message}");

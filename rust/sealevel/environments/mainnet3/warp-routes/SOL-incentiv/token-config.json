@@ -1,0 +1,15 @@
+{
+  "incentiv": {
+    "type": "synthetic",
+    "name": "Solana",
+    "symbol": "SOL",
+    "decimals": 9,
+    "foreignDeployment": "0xfaC24134dbc4b00Ee11114eCDFE6397f389203E3"
+  },
+  "solanamainnet": {
+    "type": "native",
+    "decimals": 9,
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
+    "owner": "CwtTjkcF9HSv7vK8zHJyLYJJjS2QVARUy2DEGFmX9tDU"
+  }
+}

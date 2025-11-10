@@ -337,7 +337,7 @@ where
         &self,
         cache: Arc<Mutex<BatchCache>>,
         batch_contract_address: H256,
-    ) -> eyre::Result<Multicall<M>> {
+    ) -> ChainResult<Multicall<M>> {
         multicall::build_multicall(
             self.provider.clone(),
             self.domain.clone(),

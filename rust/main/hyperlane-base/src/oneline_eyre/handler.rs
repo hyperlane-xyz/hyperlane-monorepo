@@ -67,7 +67,7 @@ impl EyreHandler for Handler {
             return Debug::fmt(error, f);
         }
 
-        write!(f, "{}", error)?;
+        write!(f, "{error}")?;
 
         if let Some(cause) = error.source() {
             let errors = std::iter::successors(Some(cause), |e| (*e).source());

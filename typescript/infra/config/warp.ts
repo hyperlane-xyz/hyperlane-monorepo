@@ -41,8 +41,11 @@ import {
   getUbtcGnosisSafeBuilderStrategyConfigGenerator,
 } from './environments/mainnet3/warp/configGetters/getBsquaredUBTCWarpConfig.js';
 import {
-  getCCTPStrategyConfig,
-  getCCTPWarpConfig as getMainnetCCTPWarpConfig,
+  getCCTPV1StrategyConfig,
+  getCCTPV1WarpConfig,
+  getCCTPV2FastWarpConfig,
+  getCCTPV2StandardWarpConfig,
+  getCCTPV2StrategyConfig,
 } from './environments/mainnet3/warp/configGetters/getCCTPConfig.js';
 import { getCarrChainCARRWarpConfig } from './environments/mainnet3/warp/configGetters/getCarrchainCARRWarpConfig.js';
 import { getEclipseEthereumESWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumESWarpConfig.js';
@@ -173,8 +176,10 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
     getArbitrumAvalancheBaseBscEthereumLumiaprismOptimismPolygonLUMIAWarpConfig,
   [WarpRouteIds.SubtensorUSDC]: getSubtensorUSDCWarpConfig,
   [WarpRouteIds.ParadexUSDC]: getParadexUSDCWarpConfig,
-  [WarpRouteIds.TestnetCCTP]: getTestnetCCTPWarpConfig,
-  [WarpRouteIds.MainnetCCTP]: getMainnetCCTPWarpConfig,
+  [WarpRouteIds.TestnetCCTPV1]: getTestnetCCTPWarpConfig,
+  [WarpRouteIds.MainnetCCTPV1]: getCCTPV1WarpConfig,
+  [WarpRouteIds.MainnetCCTPV2Fast]: getCCTPV2FastWarpConfig,
+  [WarpRouteIds.MainnetCCTPV2Standard]: getCCTPV2StandardWarpConfig,
   [WarpRouteIds.LumiaUSDC]: getLumiaUSDCWarpConfig,
   [WarpRouteIds.MatchainUSDC]: getMatchainUSDCWarpConfig,
   [WarpRouteIds.MitosisMITO]: getMitosisMITOWarpConfig,
@@ -202,7 +207,9 @@ export const strategyConfigGetterMap: Record<string, StrategyConfigGetter> = {
   [WarpRouteIds.BaseEthereumREZSTAGING]:
     getRezStagingGnosisSafeBuilderStrategyConfig,
   [WarpRouteIds.BsquaredUBTC]: getUbtcGnosisSafeBuilderStrategyConfigGenerator,
-  [WarpRouteIds.MainnetCCTP]: getCCTPStrategyConfig,
+  [WarpRouteIds.MainnetCCTPV1]: getCCTPV1StrategyConfig,
+  [WarpRouteIds.MainnetCCTPV2Fast]: getCCTPV2StrategyConfig,
+  [WarpRouteIds.MainnetCCTPV2Standard]: getCCTPV2StrategyConfig,
   [WarpRouteIds.MatchainUSDC]: getMatchainUSDCStrategyConfig,
   [WarpRouteIds.oXAUT]: getoXAUTGnosisSafeSubmitterStrategyConfig,
 };

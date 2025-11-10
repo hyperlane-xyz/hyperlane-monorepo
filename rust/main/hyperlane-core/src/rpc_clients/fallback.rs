@@ -115,7 +115,7 @@ where
                     .inner
                     .providers
                     .iter()
-                    .map(|v| format!("{:?}", v))
+                    .map(|v| format!("{v:?}"))
                     .join(", "),
             )
             .finish()
@@ -354,7 +354,7 @@ pub mod test {
             self.requests
                 .lock()
                 .expect("Failed to acquire mutex")
-                .push((method.to_owned(), format!("{:?}", params)));
+                .push((method.to_owned(), format!("{params:?}")));
         }
 
         /// Get the stored requests

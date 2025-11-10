@@ -165,7 +165,7 @@ mod tests {
             proof: Proof {
                 leaf: H256::from_low_u64_be(2000),
                 index: 1,
-                path: resp_body.proof.path.clone(),
+                path: resp_body.proof.path,
             },
             root: "41fd56f0277eaba76a4ad043c1072239e32f0de80c6e2b6a546e73a4a1bafebd".into(),
         };

@@ -533,7 +533,7 @@ contract InterchainGasPaymasterTest is Test {
     function testHookType() public {
         assertEq(
             igp.hookType(),
-            uint8(IPostDispatchHook.Types.INTERCHAIN_GAS_PAYMASTER)
+            uint8(IPostDispatchHook.HookTypes.INTERCHAIN_GAS_PAYMASTER)
         );
     }
 

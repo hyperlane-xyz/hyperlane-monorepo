@@ -429,7 +429,7 @@ mod tests {
                 message.clone(),
                 message_context.clone(),
                 PendingOperationStatus::FirstPrepareAttempt,
-                Some(format!("test-{}", b)),
+                Some(format!("test-{b}")),
                 attempts,
             );
             pending_message.submission_data = Some(Box::new(MessageSubmissionData {

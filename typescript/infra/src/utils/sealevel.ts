@@ -1,19 +1,37 @@
-import { PublicKey, TransactionInstruction } from '@solana/web3.js';
+import {
+  AccountMeta,
+  ComputeBudgetProgram,
+  Connection,
+  PublicKey,
+  SystemProgram,
+  TransactionInstruction,
+} from '@solana/web3.js';
+import { deserializeUnchecked, serialize } from 'borsh';
+import chalk from 'chalk';
 import path, { resolve } from 'path';
 
 import {
   ChainMap,
   ChainName,
   IsmType,
+  MultiProtocolProvider,
   MultisigIsmConfig,
+  SealevelDomainData,
+  SealevelDomainDataSchema,
+  SealevelInstructionWrapper,
+  SealevelMultisigAdapter,
+  SealevelMultisigIsmSetValidatorsInstruction,
+  SealevelMultisigIsmSetValidatorsInstructionSchema,
   SealevelRemoteGasData,
   SvmMultiProtocolSignerAdapter,
 } from '@hyperlane-xyz/sdk';
+import { SealevelMultisigIsmInstructionType as SdkMultisigIsmInstructionType } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { DeployEnvironment } from '../config/environment.js';
 
+import { getValidatorAlias } from './consts.js';
 import { getMonorepoRoot, readJSONAtPath } from './utils.js';
 
 // ============================================================================
@@ -93,10 +111,13 @@ export const MAX_SOLANA_ACCOUNTS = 256;
 export const MAX_SOLANA_ACCOUNT_SIZE = 10240;
 
 /**
- * First real instruction index in Solana transactions
- * (index 0 is typically a dummy instruction)
+ * Solana compute budget constants
+ * From solana_program_runtime::compute_budget
+ * See: rust/sealevel/client/src/main.rs
  */
-export const FIRST_REAL_INSTRUCTION_INDEX = 1;
+export const DEFAULT_INSTRUCTION_COMPUTE_UNIT_LIMIT = 200_000;
+export const MAX_COMPUTE_UNIT_LIMIT = 1_400_000;
+export const MAX_HEAP_FRAME_BYTES = 256 * 1024; // 262,144 bytes
 
 // ============================================================================
 // Well-Known Solana Program IDs
@@ -396,7 +417,7 @@ export function calculatePercentDifference(
 /**
  * Format RemoteGasData for display
  */
-export function formatRemoteGasData(data: any): string {
+export function formatRemoteGasData(data: SealevelRemoteGasData): string {
   // Scale exchange rate by 1e19 (TOKEN_EXCHANGE_RATE_SCALE for Sealevel)
   const exchangeRate = Number(data.token_exchange_rate) / 1e19;
   // Convert gas price to lamports (assuming it's in smallest unit)
@@ -439,4 +460,344 @@ export function serializeGasOracleDifference(
   const gasPriceLamports = Number(expected.gas_price);
 
   return `Exchange rate: ${exchangeRate.toFixed(10)} (${exchangeRateDiff}), Gas price: ${gasPriceLamports.toLocaleString()} (${gasPriceDiff}), Product diff: ${productDiff}`;
+}
+
+/**
+ * MultisigIsm Utility Functions
+ */
+
+/**
+ * Type for MultisigIsm on-chain state
+ */
+export interface MultisigIsmOnChainState {
+  domain: number;
+  validators: string[]; // Hex strings (0x-prefixed)
+  threshold: number;
+}
+
+/**
+ * Fetch on-chain MultisigIsm state for a specific domain
+ * @param connection - Solana connection
+ * @param multisigIsmProgramId - MultisigIsm program ID
+ * @param domain - Remote domain to fetch config for
+ * @returns On-chain validator config or null if not set
+ */
+export async function fetchMultisigIsmState(
+  connection: Connection,
+  multisigIsmProgramId: PublicKey,
+  domain: number,
+): Promise<MultisigIsmOnChainState | null> {
+  // Derive the domain data PDA
+  const domainDataPda = SealevelMultisigAdapter.deriveDomainDataPda(
+    multisigIsmProgramId,
+    domain,
+  );
+
+  // Fetch the account
+  const accountInfo = await connection.getAccountInfo(domainDataPda);
+  if (!accountInfo || !accountInfo.data) {
+    rootLogger.debug(
+      `Domain ${domain} PDA ${domainDataPda.toBase58()} does not exist on-chain`,
+    );
+    return null;
+  }
+
+  rootLogger.debug(
+    `Domain ${domain} PDA ${domainDataPda.toBase58()} found, data length: ${accountInfo.data.length} bytes`,
+  );
+
+  // Deserialize using Borsh
+  // The on-chain AccountData wrapper adds a 1-byte `initialized` boolean flag before the actual data
+  // See: rust/sealevel/libraries/account-utils/src/lib.rs AccountData::fetch_data()
+  try {
+    // Skip the first byte (initialized flag)
+    const initialized = accountInfo.data[0] === 1;
+    if (!initialized) {
+      rootLogger.debug(
+        `Domain ${domain} PDA exists but is not initialized (initialized flag = ${accountInfo.data[0]})`,
+      );
+      return null;
+    }
+
+    // Deserialize the SealevelDomainData struct starting from byte 1
+    const domainData = deserializeUnchecked(
+      SealevelDomainDataSchema,
+      SealevelDomainData,
+      accountInfo.data.slice(1),
+    ) as SealevelDomainData;
+
+    rootLogger.debug(
+      `Domain ${domain} deserialized: ${domainData.validatorsAndThreshold.validators.length} validators, threshold ${domainData.validatorsAndThreshold.threshold}`,
+    );
+
+    return {
+      domain,
+      validators: domainData.validatorsAndThreshold.validatorAddresses,
+      threshold: domainData.validatorsAndThreshold.threshold,
+    };
+  } catch (error) {
+    // Log deserialization errors with account data for debugging
+    rootLogger.info(
+      `Failed to deserialize domain ${domain} (PDA: ${domainDataPda.toBase58()}): ${error}`,
+    );
+    rootLogger.info(
+      `Account data (hex): ${accountInfo.data.toString('hex').slice(0, 200)}...`,
+    );
+    // Return null if deserialization fails (account may be uninitialized or corrupted)
+    return null;
+  }
+}
+
+/**
+ * Compare desired vs actual MultisigIsm configs
+ * @param expected - Desired config from print-multisig-ism-config
+ * @param actual - On-chain config (or undefined if not set)
+ * @returns true if configs match
+ */
+export function diffMultisigIsmConfigs(
+  expected: SvmMultisigConfig,
+  actual?: SvmMultisigConfig,
+): boolean {
+  // If account doesn't exist, it matches only if we expect no validators
+  if (!actual) {
+    return expected.validators.length === 0;
+  }
+
+  // Account exists - compare validators and threshold
+  // Compare validators (need to normalize hex format)
+  const actualValidatorsSet = new Set(
+    actual.validators.map((v) => v.toLowerCase()),
+  );
+  const expectedValidatorsSet = new Set(
+    expected.validators.map((v) => v.toLowerCase()),
+  );
+
+  if (actualValidatorsSet.size !== expectedValidatorsSet.size) {
+    return false;
+  }
+
+  for (const validator of actualValidatorsSet) {
+    if (!expectedValidatorsSet.has(validator)) {
+      return false;
+    }
+  }
+
+  // Compare threshold
+  return actual.threshold === expected.threshold;
+}
+
+/**
+ * Serialize MultisigIsm difference for display with color coding and validator aliases
+ * @param remoteChainName - Remote chain name for looking up validator aliases
+ * @param expected - Desired config
+ * @param actual - On-chain config (or undefined if not set)
+ * @returns Formatted difference string
+ */
+export function serializeMultisigIsmDifference(
+  remoteChainName: ChainName,
+  expected: SvmMultisigConfig,
+  actual?: SvmMultisigConfig,
+): string {
+  if (!actual) {
+    return chalk.green(
+      `NEW: ${expected.validators.length} validators, threshold ${expected.threshold}`,
+    );
+  }
+
+  const parts: string[] = [];
+
+  // Compare validators
+  const actualValidatorsSet = new Set(
+    actual.validators.map((v) => v.toLowerCase()),
+  );
+  const expectedValidatorsSet = new Set(
+    expected.validators.map((v) => v.toLowerCase()),
+  );
+
+  const added = [...expectedValidatorsSet].filter(
+    (v) => !actualValidatorsSet.has(v),
+  );
+  const removed = [...actualValidatorsSet].filter(
+    (v) => !expectedValidatorsSet.has(v),
+  );
+
+  if (added.length > 0) {
+    const addedAliases = added.map((addr) =>
+      getValidatorAlias(remoteChainName, addr),
+    );
+    parts.push(
+      chalk.green(`+${added.length} validators: ${addedAliases.join(', ')}`),
+    );
+  }
+
+  if (removed.length > 0) {
+    const removedAliases = removed.map((addr) =>
+      getValidatorAlias(remoteChainName, addr),
+    );
+    parts.push(
+      chalk.red(`-${removed.length} validators: ${removedAliases.join(', ')}`),
+    );
+  }
+
+  // Compare threshold
+  if (actual.threshold !== expected.threshold) {
+    parts.push(
+      chalk.yellow(`Threshold: ${actual.threshold} → ${expected.threshold}`),
+    );
+  }
+
+  return parts.length > 0 ? parts.join(', ') : chalk.gray('No changes');
+}
+
+// ============================================================================
+// Compute Budget Helpers
+// ============================================================================
+
+/**
+ * Determine if a chain needs explicit compute budget instructions in vault transactions
+ *
+ * Solana mainnet's Squads UI handles compute budget automatically during execution.
+ * Alt-SVM chains need explicit compute budget in the vault transaction itself.
+ *
+ * @param chain - Chain name
+ * @returns true if compute budget instructions should be added to the transaction
+ */
+export function shouldAddComputeBudgetInstructions(chain: ChainName): boolean {
+  // Solana mainnet Squads UI handles compute budget automatically
+  // Alt-SVM Squads UIs need explicit compute budget (matching Rust CLI)
+  return chain !== 'solanamainnet';
+}
+
+/**
+ * Build standard compute budget instructions for SVM transactions
+ *
+ * Creates instructions for:
+ * - Request heap frame (256KB)
+ * - Set compute unit limit (1.4M CU - transaction maximum)
+ *
+ * See: rust/sealevel/client/src/main.rs
+ *
+ * @returns Array of compute budget instructions
+ */
+export function buildComputeBudgetInstructions(): TransactionInstruction[] {
+  return [
+    ComputeBudgetProgram.requestHeapFrame({ bytes: MAX_HEAP_FRAME_BYTES }),
+    ComputeBudgetProgram.setComputeUnitLimit({ units: MAX_COMPUTE_UNIT_LIMIT }),
+  ];
+}
+
+/**
+ * Check if a transaction instruction is a compute budget instruction
+ *
+ * @param instruction - Transaction instruction to check
+ * @returns true if the instruction targets the ComputeBudget program
+ */
+export function isComputeBudgetInstruction(
+  instruction: TransactionInstruction,
+): boolean {
+  return instruction.programId.equals(ComputeBudgetProgram.programId);
+}
+
+// ============================================================================
+// MultisigIsm Instruction Building
+// ============================================================================
+
+/**
+ * Build MultisigIsm SetValidatorsAndThreshold instructions
+ * @param chain - Chain name (to determine if compute budget is needed)
+ * @param multisigIsmProgramId - MultisigIsm program ID
+ * @param owner - Owner public key (signer)
+ * @param configs - Map of chain name -> config
+ * @param mpp - MultiProtocolProvider for chain metadata lookups
+ * @returns Array of transaction instructions
+ */
+export function buildMultisigIsmInstructions(
+  chain: ChainName,
+  multisigIsmProgramId: PublicKey,
+  owner: PublicKey,
+  configs: SvmMultisigConfigMap,
+  mpp: MultiProtocolProvider,
+): TransactionInstruction[] {
+  const instructions: TransactionInstruction[] = [];
+
+  // Add compute budget instructions if needed for this chain
+  if (shouldAddComputeBudgetInstructions(chain)) {
+    instructions.push(...buildComputeBudgetInstructions());
+  }
+
+  // Derive the access control PDA (same for all instructions)
+  const accessControlPda =
+    SealevelMultisigAdapter.deriveAccessControlPda(multisigIsmProgramId);
+
+  // Sort chain names alphabetically for deterministic ordering
+  const sortedChainNames = Object.keys(configs).sort();
+
+  for (const remoteChainName of sortedChainNames) {
+    const config = configs[remoteChainName];
+    const remoteMeta = mpp.getChainMetadata(remoteChainName);
+    const domain = remoteMeta.domainId;
+
+    // Derive the domain data PDA
+    const domainDataPda = SealevelMultisigAdapter.deriveDomainDataPda(
+      multisigIsmProgramId,
+      domain,
+    );
+
+    // Convert hex validators to Uint8Array
+    const validators = SealevelMultisigAdapter.hexValidatorsToUint8Array(
+      config.validators,
+    );
+
+    // Validate validators
+    validators.forEach((validator, index) => {
+      if (validator.length !== 20) {
+        throw new Error(
+          `Validator at index ${index} must be 20 bytes, got ${validator.length}`,
+        );
+      }
+    });
+
+    // Build instruction following Rust account order
+    const keys: AccountMeta[] = [
+      // 0. `[signer]` The access control owner and payer of the domain PDA.
+      { pubkey: owner, isSigner: true, isWritable: true },
+      // 1. `[]` The access control PDA account.
+      { pubkey: accessControlPda, isSigner: false, isWritable: false },
+      // 2. `[writable]` The PDA relating to the provided domain.
+      { pubkey: domainDataPda, isSigner: false, isWritable: true },
+      // 3. `[executable]` OPTIONAL - The system program account. Required if creating the domain PDA.
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    ];
+
+    const value = new SealevelInstructionWrapper({
+      instruction: SdkMultisigIsmInstructionType.SET_VALIDATORS_AND_THRESHOLD,
+      data: new SealevelMultisigIsmSetValidatorsInstruction({
+        domain,
+        validators,
+        threshold: config.threshold,
+      }),
+    });
+
+    const serializedData = serialize(
+      SealevelMultisigIsmSetValidatorsInstructionSchema,
+      value,
+    );
+
+    // Prepend 8-byte program discriminator (required by Rust program)
+    // See: rust/sealevel/libraries/account-utils/src/discriminator.rs
+    const data = Buffer.concat([
+      Buffer.from([1, 1, 1, 1, 1, 1, 1, 1]), // PROGRAM_INSTRUCTION_DISCRIMINATOR
+      Buffer.from(serializedData),
+    ]);
+
+    const instruction = new TransactionInstruction({
+      keys,
+      programId: multisigIsmProgramId,
+      data,
+    });
+
+    instructions.push(instruction);
+  }
+
+  return instructions;
 }

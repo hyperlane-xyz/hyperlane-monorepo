@@ -91,7 +91,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     carrchain: true,
     celestia: true,
     celo: true,
-    cheesechain: true,
     chilizmainnet: true,
     coredao: true,
     coti: true,
@@ -232,7 +231,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     carrchain: true,
     celestia: true,
     celo: true,
-    cheesechain: true,
     chilizmainnet: true,
     coredao: true,
     coti: true,
@@ -373,7 +371,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     carrchain: true,
     celestia: true,
     celo: true,
-    cheesechain: true,
     chilizmainnet: true,
     coredao: true,
     coti: true,
@@ -601,6 +598,11 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       {
         originDomain: getDomainId('stride'),
         destinationDomain: getDomainId('forma'),
+      },
+      // Not a core chain
+      {
+        originDomain: getDomainId('forma'),
+        destinationDomain: getDomainId('celestia'),
       },
     ],
   },
@@ -859,7 +861,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '448e701-20251030-214127',
+      tag: '20c24dc-20251106-222459',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -879,7 +881,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '3472d11-20251013-154821',
+      tag: '20c24dc-20251106-222459',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -890,7 +892,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '448e701-20251030-214127',
+      tag: '20c24dc-20251106-222459',
     },
     resources: scraperResources,
   },
@@ -905,7 +907,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '448e701-20251030-214127',
+      tag: '20c24dc-20251106-222459',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
@@ -928,7 +930,7 @@ const releaseCandidate: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '3472d11-20251013-154821',
+      tag: '20c24dc-20251106-222459',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
@@ -949,7 +951,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '3472d11-20251013-154821',
+      tag: '20c24dc-20251106-222459',
     },
     blacklist,
     gasPaymentEnforcement,

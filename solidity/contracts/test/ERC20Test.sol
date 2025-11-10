@@ -60,6 +60,10 @@ contract FiatTokenTest is ERC20Test, IFiatToken {
     function minterAllowance(address _minter) public pure returns (uint256) {
         return type(uint256).max;
     }
+
+    function isMinter(address _minter) public pure returns (bool) {
+        return true;
+    }
 }
 
 contract XERC20Test is ERC20Test, Ownable, IXERC20 {
@@ -300,5 +304,17 @@ contract XERC20LockboxTest is IXERC20Lockbox {
 
     function withdraw(uint256 _amount) external {
         withdrawTo(msg.sender, _amount);
+    }
+}
+
+contract NonCompliantERC20Test {
+    // Returns returns void, instead of bool of an ERC20 compliant token
+    function approve(address _to, uint _value) public {}
+
+    function allowance(
+        address owner,
+        address spender
+    ) public view virtual returns (uint256) {
+        return 0;
     }
 }

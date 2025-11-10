@@ -255,8 +255,7 @@ where
     let current_block = get_block_height_u32(provider, &ReorgPeriod::None).await?;
     if *range.start() > current_block || *range.end() > current_block {
         return Err(HyperlaneStarknetError::Other(format!(
-            "range {:?} is not valid for current block {}",
-            range, current_block
+            "range {range:?} is not valid for current block {current_block}"
         ))
         .into());
     }

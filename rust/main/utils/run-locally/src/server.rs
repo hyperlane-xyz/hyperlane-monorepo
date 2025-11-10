@@ -52,7 +52,7 @@ async fn send_retry_request_non_blocking() -> io::Result<MessageRetryResponse> {
         io::Error::new(io::ErrorKind::InvalidData, err.to_string())
     })?;
 
-    println!("Retry Request Response: {:?}", response_text);
+    println!("Retry Request Response: {response_text:?}");
 
     let response_json: MessageRetryResponse =
         serde_json::from_str(&response_text).map_err(|err| {

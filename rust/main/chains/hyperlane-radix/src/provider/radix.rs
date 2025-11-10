@@ -584,8 +584,7 @@ impl RadixProvider {
                     attempt += 1;
                     if attempt >= N {
                         return Err(HyperlaneRadixError::Other(format!(
-                            "Transaction timed out after {} seconds",
-                            TIMEOUT_DELAY
+                            "Transaction timed out after {TIMEOUT_DELAY} seconds"
                         ))
                         .into());
                     }
@@ -725,8 +724,7 @@ impl HyperlaneProvider for RadixProvider {
 
         if tx.items.is_empty() {
             return Err(HyperlaneRadixError::Other(format!(
-                "Expected at least one tx for state version: {}",
-                height
+                "Expected at least one tx for state version: {height}"
             ))
             .into());
         }

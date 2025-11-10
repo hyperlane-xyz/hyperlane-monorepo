@@ -20,17 +20,14 @@ impl LocalStorage {
     pub fn new(path: PathBuf, latest_index: Option<IntGauge>) -> Result<Self> {
         if !path.exists() {
             std::fs::create_dir_all(&path).with_context(|| {
-                format!(
-                    "Failed to create local checkpoint syncer storage directory at {:?}",
-                    path
-                )
+                format!("Failed to create local checkpoint syncer storage directory at {path:?}")
             })?;
         }
         Ok(Self { path, latest_index })
     }
 
     fn checkpoint_file_path(&self, index: u32) -> PathBuf {
-        self.path.join(format!("{}_with_id.json", index))
+        self.path.join(format!("{index}_with_id.json"))
     }
 
     fn latest_index_file_path(&self) -> PathBuf {

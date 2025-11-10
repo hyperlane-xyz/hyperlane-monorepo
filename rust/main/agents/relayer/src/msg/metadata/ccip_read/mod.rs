@@ -138,18 +138,16 @@ impl CcipReadIsmMetadataBuilder {
                     }
                     Err(raw_error) => {
                         let matching_regex = Regex::new(r"0x[[:xdigit:]]+").map_err(|err| {
-                            let msg = format!("Failed to parse regex: {}", err);
+                            let msg = format!("Failed to parse regex: {err}");
                             MetadataBuildError::FailedToBuild(msg)
                         })?;
                         if let Some(matching) = &matching_regex.captures(&raw_error.to_string()) {
                             let hex_val = hex_decode(&matching[0][2..]).map_err(|err| {
-                                let msg =
-                                    format!("Failed to decode hex from ISM response: {}", err);
+                                let msg = format!("Failed to decode hex from ISM response: {err}");
                                 MetadataBuildError::FailedToBuild(msg)
                             })?;
                             OffchainLookup::decode(hex_val).map_err(|err| {
-                                let msg =
-                                    format!("Failed to decode offchain lookup struct: {}", err);
+                                let msg = format!("Failed to decode offchain lookup struct: {err}");
                                 MetadataBuildError::FailedToBuild(msg)
                             })?
                         } else {
@@ -217,7 +215,7 @@ async fn metadata_build(
         .build_ccip_read_ism(ism_address)
         .await
         .map_err(|err| {
-            let msg = format!("Failed to build CCIP read ISM: {}", err);
+            let msg = format!("Failed to build CCIP read ISM: {err}");
             MetadataBuildError::FailedToBuild(msg)
         })?;
 
@@ -282,10 +280,8 @@ async fn fetch_offchain_data(
             .send()
             .await
             .map_err(|err| {
-                let msg = format!(
-                    "Failed to request offchain lookup server with post method: {}",
-                    err
-                );
+                let msg =
+                    format!("Failed to request offchain lookup server with post method: {err}");
                 MetadataBuildError::FailedToBuild(msg)
             })?
     } else {
@@ -295,19 +291,14 @@ async fn fetch_offchain_data(
             .send()
             .await
             .map_err(|err| {
-                let msg = format!(
-                    "Failed to request offchain lookup server with get method: {}",
-                    err
-                );
+                let msg =
+                    format!("Failed to request offchain lookup server with get method: {err}");
                 MetadataBuildError::FailedToBuild(msg)
             })?
     };
 
     let json: OffchainResponse = res.json().await.map_err(|err| {
-        let error_msg = format!(
-            "Failed to parse offchain lookup server json response: ({})",
-            err
-        );
+        let error_msg = format!("Failed to parse offchain lookup server json response: ({err})");
         MetadataBuildError::FailedToBuild(error_msg)
     })?;
 

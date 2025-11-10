@@ -13,6 +13,7 @@ import {
   Address,
   ProtocolType,
   inCIMode,
+  inKubernetes,
   objFilter,
   objMerge,
 } from '@hyperlane-xyz/utils';
@@ -173,9 +174,6 @@ export async function getSecretMetadataOverrides(
 ): Promise<ChainMap<Partial<ChainMetadata>>> {
   const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {};
 
-  // Fetch Safe API key once
-  const safeApiKey = await getSafeApiKey();
-
   const secretRpcUrls = await Promise.all(
     chains.map(async (chain) => {
       const rpcUrls = await getSecretRpcEndpoints(deployEnv, chain);
@@ -197,12 +195,18 @@ export async function getSecretMetadataOverrides(
     chainMetadataOverrides[chain] = {
       rpcUrls: metadataRpcUrls,
     };
+  }
 
-    // Add Safe API key if required
-    const chainMetadata = getChain(chain);
-    const txServiceUrl = chainMetadata.gnosisSafeTransactionServiceUrl;
-    if (txServiceUrl && safeApiKeyRequired(txServiceUrl)) {
-      chainMetadataOverrides[chain].gnosisSafeApiKey = safeApiKey;
+  // Only fetch Safe API key when running locally (not in k8s)
+  // Safe API is only needed for infra + http registry usage
+  const safeApiKey = !inKubernetes() ? await getSafeApiKey() : undefined;
+  if (safeApiKey) {
+    for (const chain of chains) {
+      const chainMetadata = getChain(chain);
+      const txServiceUrl = chainMetadata.gnosisSafeTransactionServiceUrl;
+      if (txServiceUrl && safeApiKeyRequired(txServiceUrl)) {
+        chainMetadataOverrides[chain].gnosisSafeApiKey = safeApiKey;
+      }
     }
   }
 

@@ -94,7 +94,7 @@ impl fmt::Display for FromHexError {
             #[allow(deprecated)]
             Self::MissingPrefix => write!(fmt, "0x prefix is missing"),
             Self::InvalidHex { character, index } => {
-                write!(fmt, "invalid hex character: {}, at {}", character, index)
+                write!(fmt, "invalid hex character: {character}, at {index}")
             }
         }
     }

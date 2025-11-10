@@ -10,7 +10,6 @@ export const awIcasLegacy: ChainMap<Address> = {
   // Jul 26, 2024 batch
   // ----------------------------------------------------------
   xlayer: '0x1571c482fe9E76bbf50829912b1c746792966369',
-  cheesechain: '0xEe2C5320BE9bC7A1492187cfb289953b53E3ff1b',
   worldchain: '0x1996DbFcFB433737fE404F58D2c32A7f5f334210',
   // zircuit: '0x0d67c56E818a02ABa58cd2394b95EF26db999aA3', // already has a safe
 

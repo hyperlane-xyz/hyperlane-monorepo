@@ -152,9 +152,7 @@ pub fn relayer_termination_invariants_met(
     // are expected to be logged for each message.
     assert!(
         total_tx_id_log_count as u64 >= expected_tx_id_logs,
-        "Didn't find as many tx id logs as expected. Found {} and expected {}",
-        total_tx_id_log_count,
-        expected_tx_id_logs
+        "Didn't find as many tx id logs as expected. Found {total_tx_id_log_count} and expected {expected_tx_id_logs}"
     );
 
     assert!(

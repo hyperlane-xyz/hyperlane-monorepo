@@ -95,7 +95,7 @@ impl InclusionStage {
         loop {
             state
                 .metrics
-                .update_liveness_metric(format!("{}::receive_txs", STAGE_NAME).as_str(), &domain);
+                .update_liveness_metric(format!("{STAGE_NAME}::receive_txs").as_str(), &domain);
             if let Some(tx) = building_stage_receiver.recv().await {
                 let pool_len = {
                     let mut pool_lock = pool.lock().await;
@@ -143,7 +143,7 @@ impl InclusionStage {
     ) -> Result<(), LanderError> {
         state
             .metrics
-            .update_liveness_metric(format!("{}::process_txs", STAGE_NAME).as_str(), domain);
+            .update_liveness_metric(format!("{STAGE_NAME}::process_txs").as_str(), domain);
 
         let pool_snapshot = {
             let pool_snapshot = pool.lock().await;
@@ -168,7 +168,7 @@ impl InclusionStage {
             // This prevents alert misfires when there are many txs to process.
             state
                 .metrics
-                .update_liveness_metric(format!("{}::process_txs", STAGE_NAME).as_str(), domain);
+                .update_liveness_metric(format!("{STAGE_NAME}::process_txs").as_str(), domain);
 
             if !Self::tx_ready_for_processing(base_interval, now, &tx) {
                 continue;
@@ -197,7 +197,7 @@ impl InclusionStage {
         };
         loop {
             state.metrics.update_liveness_metric(
-                format!("{}::receive_reprocess_txs", STAGE_NAME).as_str(),
+                format!("{STAGE_NAME}::receive_reprocess_txs").as_str(),
                 &domain,
             );
 

@@ -261,7 +261,7 @@ async fn test_radix_lander_classic_build_transaction() {
     let mailbox_address = ComponentAddress::try_from_bech32(&decoder, MAILBOX_ADDRESS).unwrap();
     let visible_components: Vec<ComponentAddress> = ADDRESSES
         .iter()
-        .map(|s| ComponentAddress::try_from_bech32(&decoder, &s).unwrap())
+        .map(|s| ComponentAddress::try_from_bech32(&decoder, s).unwrap())
         .collect();
 
     let message_bytes = message.to_vec();

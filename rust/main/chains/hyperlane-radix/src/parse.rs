@@ -30,12 +30,12 @@ impl fmt::Display for EventParseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidEventType(expected) => {
-                write!(f, "Invalid event type, expected {}", expected)
+                write!(f, "Invalid event type, expected {expected}")
             }
-            Self::MissingField(field) => write!(f, "Missing field: {}", field),
-            Self::InvalidFieldType(field) => write!(f, "Invalid field type for: {}", field),
-            Self::HexDecodeError(e) => write!(f, "Hex decode error: {}", e),
-            Self::Other(msg) => write!(f, "{}", msg),
+            Self::MissingField(field) => write!(f, "Missing field: {field}"),
+            Self::InvalidFieldType(field) => write!(f, "Invalid field type for: {field}"),
+            Self::HexDecodeError(e) => write!(f, "Hex decode error: {e}"),
+            Self::Other(msg) => write!(f, "{msg}"),
         }
     }
 }

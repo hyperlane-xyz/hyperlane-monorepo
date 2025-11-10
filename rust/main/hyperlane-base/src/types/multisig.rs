@@ -304,7 +304,7 @@ mod test {
                 .latest_index
                 .lock()
                 .unwrap()
-                .push_back(Ok(validator.latest_index.clone()));
+                .push_back(Ok(validator.latest_index));
             let sig = match validator.fetch_checkpoint {
                 Some(checkpoint) => Ok(Some(signer.sign(checkpoint).await.unwrap())),
                 None => Ok(None),
@@ -333,7 +333,7 @@ mod test {
                 .parse::<ethers::signers::LocalWallet>()
                 .unwrap()
                 .into();
-            let sig = signer.sign(checkpoint.clone()).await.unwrap();
+            let sig = signer.sign(checkpoint).await.unwrap();
             signatures.push(sig.signature);
         }
 
@@ -437,7 +437,7 @@ mod test {
         let start_time = std::time::Instant::now();
 
         for threshold in 2..=6 {
-            println!("Starting to fetch checkpoints with threshold {}", threshold);
+            println!("Starting to fetch checkpoints with threshold {threshold}");
             if let Some(&(_, highest_quorum_index)) = latest_indices.get(threshold - 1) {
                 let result = multisig_syncer
                     .fetch_checkpoint_in_range(
@@ -512,13 +512,13 @@ mod test {
 
         let mut validators: Vec<_> = dummy_validators().drain(..).take(5).collect();
         validators[0].latest_index = Some(1010);
-        validators[0].fetch_checkpoint = Some(checkpoint.clone());
+        validators[0].fetch_checkpoint = Some(checkpoint);
         validators[1].latest_index = Some(1008);
         validators[2].latest_index = Some(1006);
         validators[3].latest_index = Some(1004);
-        validators[3].fetch_checkpoint = Some(checkpoint.clone());
+        validators[3].fetch_checkpoint = Some(checkpoint);
         validators[4].latest_index = Some(1002);
-        validators[4].fetch_checkpoint = Some(checkpoint.clone());
+        validators[4].fetch_checkpoint = Some(checkpoint);
 
         let syncers = build_mock_checkpoint_syncs(&validators).await;
         let validator_addresses = validators
@@ -566,13 +566,13 @@ mod test {
 
         let mut validators: Vec<_> = dummy_validators().drain(..).take(5).collect();
         validators[0].latest_index = Some(1010);
-        validators[0].fetch_checkpoint = Some(checkpoint.clone());
+        validators[0].fetch_checkpoint = Some(checkpoint);
         validators[1].latest_index = Some(1008);
         validators[2].latest_index = Some(1006);
         validators[3].latest_index = Some(1004);
-        validators[3].fetch_checkpoint = Some(checkpoint.clone());
+        validators[3].fetch_checkpoint = Some(checkpoint);
         validators[4].latest_index = Some(1002);
-        validators[4].fetch_checkpoint = Some(checkpoint.clone());
+        validators[4].fetch_checkpoint = Some(checkpoint);
 
         let syncers = build_mock_checkpoint_syncs(&validators).await;
         let validator_addresses = validators

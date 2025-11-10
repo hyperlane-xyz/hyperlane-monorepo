@@ -517,7 +517,7 @@ mod tests {
                 StorableMessage {
                     msg,
                     meta: &logs_meta[i],
-                    txn_id: 0 as i64,
+                    txn_id: 0_i64,
                 }
             })
             .collect();

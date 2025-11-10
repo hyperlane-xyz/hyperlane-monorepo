@@ -178,7 +178,7 @@ impl S3Storage {
     fn get_composite_key(&self, key: String) -> String {
         match self.folder.as_deref() {
             None | Some("") => key,
-            Some(folder_str) => format!("{}/{}", folder_str, key),
+            Some(folder_str) => format!("{folder_str}/{key}"),
         }
     }
 

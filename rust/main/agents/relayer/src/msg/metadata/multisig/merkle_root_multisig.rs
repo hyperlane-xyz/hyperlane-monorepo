@@ -121,13 +121,13 @@ mod tests {
 
         let mut validators: Vec<_> = dummy_validators().drain(..).take(5).collect();
         validators[0].latest_index = Some(1010);
-        validators[0].fetch_checkpoint = Some(checkpoint.clone());
+        validators[0].fetch_checkpoint = Some(checkpoint);
         validators[1].latest_index = Some(1008);
         validators[2].latest_index = Some(1006);
         validators[3].latest_index = Some(1004);
-        validators[3].fetch_checkpoint = Some(checkpoint.clone());
+        validators[3].fetch_checkpoint = Some(checkpoint);
         validators[4].latest_index = Some(1002);
-        validators[4].fetch_checkpoint = Some(checkpoint.clone());
+        validators[4].fetch_checkpoint = Some(checkpoint);
 
         let syncers = build_mock_checkpoint_syncs(&validators).await;
         let validator_addresses = validators
@@ -171,7 +171,7 @@ mod tests {
             .get_proof
             .lock()
             .unwrap()
-            .push_back(Ok(proof.clone()));
+            .push_back(Ok(proof));
 
         let ism_address = H256::zero();
         let message = HyperlaneMessage::default();

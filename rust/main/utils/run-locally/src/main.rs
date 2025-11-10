@@ -528,10 +528,10 @@ fn stop_validator(state: &mut State, validator_index: usize) {
     let (child, _) = state
         .agents
         .get_mut(&name)
-        .unwrap_or_else(|| panic!("Validator {} not found", name));
+        .unwrap_or_else(|| panic!("Validator {name} not found"));
     child
         .kill()
-        .unwrap_or_else(|_| panic!("Failed to stop validator {}", name));
+        .unwrap_or_else(|_| panic!("Failed to stop validator {name}"));
     // Remove the validator from the state
     state.agents.remove(&name);
 }

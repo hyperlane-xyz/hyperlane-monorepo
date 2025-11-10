@@ -51,9 +51,8 @@ pub fn adapter(
 }
 
 pub fn payload(process_calldata: Vec<u8>) -> FullPayload {
-    let payload = FullPayload {
+    FullPayload {
         data: process_calldata,
         ..Default::default()
-    };
-    payload
+    }
 }

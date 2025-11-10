@@ -269,7 +269,7 @@ mod tests {
             let mut state = db.state.lock().await;
 
             for i in 1..=num_items {
-                state.data.insert(i as u32, format!("Item {}", i));
+                state.data.insert(i as u32, format!("Item {i}"));
             }
             state.highest_index = num_items as u32;
         }
@@ -338,10 +338,10 @@ mod tests {
                 let mut state = db.state.lock().await;
                 let new_num_db_insertions = num_db_insertions + 1;
                 state.data.insert(
-                    (new_num_db_insertions) as u32,
-                    format!("Item {}", new_num_db_insertions),
+                    new_num_db_insertions,
+                    format!("Item {new_num_db_insertions}"),
                 );
-                state.highest_index = new_num_db_insertions as u32;
+                state.highest_index = new_num_db_insertions;
             }
 
             // now sleep for a bit to let the iterator process the new item

@@ -241,7 +241,7 @@ async fn test_entrypoint_send_fails_estimation_after_first_submission() {
         entrypoint.inner.payload_db.clone(),
         payload.uuid(),
         |payload_status| {
-            println!("Payload status: {:?}", payload_status);
+            println!("Payload status: {payload_status:?}");
             matches!(
                 payload_status,
                 PayloadStatus::InTransaction(TransactionStatus::Dropped(_))
@@ -435,7 +435,7 @@ fn assert_metrics(metrics: DispatcherMetrics, assertion: MetricsAssertion) {
     // check metrics
     let gathered_metrics = metrics.gather().unwrap();
     let metrics_str = String::from_utf8(gathered_metrics).unwrap();
-    println!("Metrics: {}", metrics_str);
+    println!("Metrics: {metrics_str}");
 
     let finalized_txs = metrics
         .finalized_transactions

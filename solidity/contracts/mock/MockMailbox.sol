@@ -14,6 +14,7 @@ import {TestPostDispatchHook} from "../test/TestPostDispatchHook.sol";
 
 contract MockMailbox is Mailbox {
     using Message for bytes;
+    using TypeCasts for address;
 
     uint32 public inboundUnprocessedNonce = 0;
     uint32 public inboundProcessedNonce = 0;
@@ -91,5 +92,38 @@ contract MockMailbox is Mailbox {
     /// This metadata will be used to process the inbound message.
     function addInboundMetadata(uint32 _nonce, bytes memory metadata) public {
         inboundMetadata[_nonce] = metadata;
+    }
+
+    function buildMessage(
+        address sender,
+        uint32 destinationDomain,
+        bytes32 recipientAddress,
+        bytes calldata messageBody
+    ) external view returns (bytes memory) {
+        return
+            _buildMessage(
+                sender,
+                destinationDomain,
+                recipientAddress,
+                messageBody
+            );
+    }
+
+    function _buildMessage(
+        address sender,
+        uint32 destinationDomain,
+        bytes32 recipientAddress,
+        bytes calldata messageBody
+    ) internal view returns (bytes memory) {
+        return
+            Message.formatMessage(
+                VERSION,
+                nonce,
+                localDomain,
+                sender.addressToBytes32(),
+                destinationDomain,
+                recipientAddress,
+                messageBody
+            );
     }
 }

@@ -122,8 +122,10 @@ export enum WarpRouteIds {
 
   LitchainLITKEY = 'LITKEY/litchain',
 
-  MainnetCCTP = 'USDC/mainnet-cctp',
-  TestnetCCTP = 'USDC/testnet-cctp',
+  MainnetCCTPV1 = 'USDC/mainnet-cctp',
+  MainnetCCTPV2Fast = 'USDC/mainnet-cctp-v2-fast',
+  MainnetCCTPV2Standard = 'USDC/mainnet-cctp-v2-standard',
+  TestnetCCTPV1 = 'USDC/testnet-cctp',
 
   // HYPER routes
   HYPER = 'HYPER/arbitrum-base-bsc-ethereum-optimism',

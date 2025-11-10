@@ -12,7 +12,7 @@ impl TransactionFactory {
         Transaction {
             uuid: TransactionUuid::new(Uuid::new_v4()),
             tx_hashes: vec![],
-            vm_specific_data: VmSpecificTxData::Evm(precursor),
+            vm_specific_data: VmSpecificTxData::Evm(Box::new(precursor)),
             payload_details: details,
             status: TransactionStatus::PendingInclusion,
             submission_attempts: 0,

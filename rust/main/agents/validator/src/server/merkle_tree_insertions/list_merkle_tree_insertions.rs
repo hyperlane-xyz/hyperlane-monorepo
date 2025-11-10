@@ -127,7 +127,7 @@ mod tests {
         leaf_index: u32,
         insertion: &MerkleTreeInsertion,
     ) {
-        db.store_merkle_tree_insertion_by_leaf_index(&leaf_index, &insertion)
+        db.store_merkle_tree_insertion_by_leaf_index(&leaf_index, insertion)
             .expect("DB Error")
     }
 

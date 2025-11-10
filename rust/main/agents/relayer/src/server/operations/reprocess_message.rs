@@ -153,7 +153,7 @@ async fn handler(
     })?;
 
     // just a debug to show what was inserted into the prepare queue
-    let message_str = format!("{:?}", pending_message);
+    let message_str = format!("{pending_message:?}");
 
     prep_queue
         .lock()
@@ -270,7 +270,7 @@ mod tests {
     ) {
         dbs.get(&domain.id())
             .expect("DB not found")
-            .store_message(&message, dispatched_block_number)
+            .store_message(message, dispatched_block_number)
             .expect("DB Error");
     }
 

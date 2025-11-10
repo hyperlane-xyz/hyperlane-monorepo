@@ -1,0 +1,51 @@
+name: 'Check Path Changes'
+description: 'Check if specific paths have changed between commits'
+inputs:
+  base_sha:
+    description: 'Base commit SHA to compare from'
+    required: true
+  head_sha:
+    description: 'Head commit SHA to compare to'
+    required: true
+  path_pattern:
+    description: 'Path pattern to check for changes (e.g., "rust/", "solidity/")'
+    required: true
+  path_pattern_only:
+    description: 'If true, checks if ONLY the specified path changed. If false, checks if ANY files in the path changed.'
+    required: false
+    default: 'false'
+outputs:
+  has_changes:
+    description: 'Whether the specified path has any changes'
+    value: ${{ steps.check-changes.outputs.has_changes }}
+  only_changes:
+    description: 'Whether ONLY the specified path has changes (only set if path_pattern_only=true)'
+    value: ${{ steps.check-changes.outputs.only_changes }}
+runs:
+  using: 'composite'
+  steps:
+    - name: Check for path changes
+      id: check-changes
+      shell: bash
+      run: |
+        # Check if the specified path has any changes
+        if git diff ${{ inputs.base_sha }}..${{ inputs.head_sha }} --name-only | grep -qE '^${{ inputs.path_pattern }}'; then
+          echo "has_changes=true" >> $GITHUB_OUTPUT
+
+          # If path_pattern_only is requested, also check if ONLY this path changed
+          if [[ "${{ inputs.path_pattern_only }}" == "true" ]]; then
+            if ! git diff ${{ inputs.base_sha }}..${{ inputs.head_sha }} --name-only | grep -qvE '^${{ inputs.path_pattern }}'; then
+              echo "only_changes=true" >> $GITHUB_OUTPUT
+              echo "Only ${{ inputs.path_pattern }} changes detected."
+            else
+              echo "only_changes=false" >> $GITHUB_OUTPUT
+              echo "${{ inputs.path_pattern }} changes detected along with other changes."
+            fi
+          fi
+        else
+          echo "has_changes=false" >> $GITHUB_OUTPUT
+          if [[ "${{ inputs.path_pattern_only }}" == "true" ]]; then
+            echo "only_changes=false" >> $GITHUB_OUTPUT
+          fi
+          echo "No ${{ inputs.path_pattern }} changes detected."
+        fi

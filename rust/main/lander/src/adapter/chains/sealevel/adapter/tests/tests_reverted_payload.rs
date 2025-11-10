@@ -393,11 +393,10 @@ async fn test_reverted_payloads_non_finalized_transaction_returns_empty() {
         let result = adapter.reverted_payloads(&transaction).await;
 
         // then: should return empty vec regardless of account existence
-        assert!(result.is_ok(), "Failed for status: {:?}", status);
+        assert!(result.is_ok(), "Failed for status: {status:?}");
         assert!(
             result.unwrap().is_empty(),
-            "Non-empty result for status: {:?}",
-            status
+            "Non-empty result for status: {status:?}"
         );
     }
 }
