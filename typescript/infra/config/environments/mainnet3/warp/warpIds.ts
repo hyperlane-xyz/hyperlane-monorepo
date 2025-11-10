@@ -46,7 +46,7 @@ export enum WarpRouteIds {
   EthereumZircuitRe7LRT = 'Re7LRT/ethereum-zircuit',
   InevmInjectiveINJ = 'INJ/inevm-injective',
   ArbitrumAvalancheBaseBscEthereumLumiaprismOptimismPolygonLUMIA = 'LUMIA/arbitrum-avalanche-base-bsc-ethereum-lumiaprism-optimism-polygon',
-  MantapacificNeutronTIA = 'TIA/mantapacific-neutron',
+  MantapacificNeutronTIA = 'TIA/mantapacific',
   BaseZeroNetworkCBBTC = 'CBBTC/base-zeronetwork',
   BaseEthereumREZ = 'REZ/base-ethereum-unichain',
   BaseEthereumREZSTAGING = 'REZSTAGING/base-ethereum-unichain',
