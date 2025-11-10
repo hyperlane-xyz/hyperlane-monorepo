@@ -145,7 +145,12 @@ export class AleoSigner
       ...req,
     });
 
-    const mailboxAddress = programs[programs.length - 2].id();
+    const mailboxAddress =
+      programs.map((p) => p.id()).find((p) => p.includes('mailbox_')) || '';
+    const dispatchProxyAddress =
+      programs.map((p) => p.id()).find((p) => p.includes('dispatch_proxy_')) ||
+      '';
+
     tx.programName = mailboxAddress;
 
     const txId = await this.programManager.execute(tx);
@@ -156,7 +161,7 @@ export class AleoSigner
       functionName: 'set_dispatch_proxy',
       priorityFee: 0,
       privateFee: false,
-      inputs: [programs[programs.length - 1].id()],
+      inputs: [dispatchProxyAddress],
     });
     await this.aleoClient.waitForTransactionConfirmation(setDispatchProxyTxId);
 

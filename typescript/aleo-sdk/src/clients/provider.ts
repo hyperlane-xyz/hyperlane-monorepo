@@ -560,8 +560,39 @@ export class AleoProvider implements AltVM.IProvider {
     };
   }
 
-  async getBridgedSupply(_req: AltVM.ReqGetBridgedSupply): Promise<bigint> {
-    throw new Error(`TODO: implement`);
+  async getBridgedSupply(req: AltVM.ReqGetBridgedSupply): Promise<bigint> {
+    const metadata = await this.aleoClient.getProgramMappingPlaintext(
+      req.tokenAddress,
+      'token_metadata',
+      'true',
+    );
+
+    switch (metadata.toObject()['token_type']) {
+      case 0: {
+        const program = await this.aleoClient.getProgram(req.tokenAddress);
+        return this.getBalance({
+          address: Program.fromString(program).address().to_string(),
+          denom: '',
+        });
+      }
+      case 1: {
+        return this.getTotalSupply({
+          denom: metadata.toObject()['token_id'],
+        });
+      }
+      case 2: {
+        const program = await this.aleoClient.getProgram(req.tokenAddress);
+        return this.getBalance({
+          address: Program.fromString(program).address().to_string(),
+          denom: metadata.toObject()['token_id'],
+        });
+      }
+      default: {
+        throw new Error(
+          `Unknown token type ${metadata.toObject()['token_type']}`,
+        );
+      }
+    }
   }
 
   async quoteRemoteTransfer(
