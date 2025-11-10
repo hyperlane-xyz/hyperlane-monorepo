@@ -438,7 +438,15 @@ pub fn lander_metrics_invariants_met(
         return Ok(false);
     }
 
-    assert_eq!(mismatch_nonce_count, 0);
+    log!(
+        "hyperlane_lander_mismatched_nonce {} count, expected {}",
+        mismatch_nonce_count,
+        0
+    );
+    assert_eq!(
+        mismatch_nonce_count, 0,
+        "Mismatch nonce count should not have incremented"
+    );
 
     Ok(true)
 }
