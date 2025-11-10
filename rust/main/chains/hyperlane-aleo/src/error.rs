@@ -2,7 +2,7 @@ use std::{ffi::FromBytesUntilNulError, str::Utf8Error};
 
 use hyperlane_core::ChainCommunicationError;
 
-/// Errors from the crates specific to the hyperlane-radix
+/// Errors from the crates specific to the hyperlane-aleo
 #[derive(Debug, thiserror::Error)]
 pub enum HyperlaneAleoError {
     /// Reqwest Errors
