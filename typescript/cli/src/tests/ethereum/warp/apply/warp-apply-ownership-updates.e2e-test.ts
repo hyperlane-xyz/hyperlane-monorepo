@@ -8,9 +8,9 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType, normalizeAddress } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
-import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
-import { HyperlaneE2EWarpTestCommands } from '../../commands/warp.js';
+import { readYamlOrJson, writeYamlOrJson } from '../../../../utils/files.js';
+import { HyperlaneE2ECoreTestCommands } from '../../../commands/core.js';
+import { HyperlaneE2EWarpTestCommands } from '../../../commands/warp.js';
 import {
   BURN_ADDRESS_BY_PROTOCOL,
   CORE_CONFIG_PATH_BY_PROTOCOL,
@@ -25,8 +25,8 @@ import {
   REGISTRY_PATH,
   TEST_CHAIN_METADATA_BY_PROTOCOL,
   TEST_CHAIN_NAMES_BY_PROTOCOL,
-} from '../../constants.js';
-import { createSnapshot, restoreSnapshot } from '../commands/helpers.js';
+} from '../../../constants.js';
+import { createSnapshot, restoreSnapshot } from '../../commands/helpers.js';
 
 describe('hyperlane warp apply E2E (ownership updates)', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);

@@ -174,9 +174,10 @@ export async function deployToken(
   decimals = 18,
   symbol = 'TOKEN',
   name = 'token',
+  registryPath = REGISTRY_PATH,
 ): Promise<ERC20Test> {
   const { multiProvider } = await getContext({
-    registryUris: [REGISTRY_PATH],
+    registryUris: [registryPath],
     key: privateKey,
   });
 
@@ -322,9 +323,10 @@ export async function deployTestOffchainLookupISM(
 export async function deployEverclearBridgeAdapter(
   privateKey: string,
   chain: string,
+  registryPath: string,
 ): Promise<MockEverclearAdapter> {
   const { multiProvider } = await getContext({
-    registryUris: [REGISTRY_PATH],
+    registryUris: [registryPath],
     key: privateKey,
   });
 

@@ -22,17 +22,17 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, Domain, assert } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
+import { readYamlOrJson, writeYamlOrJson } from '../../../../utils/files.js';
 import {
   deployOrUseExistingCore,
   hyperlaneCoreApply,
   readCoreConfig,
-} from '../commands/core.js';
+} from '../../commands/core.js';
 import {
   hyperlaneWarpApplyRaw,
   hyperlaneWarpDeploy,
   readWarpConfig,
-} from '../commands/warp.js';
+} from '../../commands/warp.js';
 import {
   ANVIL_KEY,
   CHAIN_2_METADATA_PATH,
@@ -49,7 +49,7 @@ import {
   WARP_CONFIG_PATH_2,
   WARP_CONFIG_PATH_EXAMPLE,
   getCombinedWarpRoutePath,
-} from '../consts.js';
+} from '../../consts.js';
 
 describe('hyperlane warp apply with submitters', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);

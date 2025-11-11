@@ -9,10 +9,10 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { TokenType } from '../../../../../utils/dist/altvm.js';
-import { writeYamlOrJson } from '../../../utils/files.js';
-import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
-import { HyperlaneE2EWarpTestCommands } from '../../commands/warp.js';
+import { TokenType } from '../../../../../../utils/dist/altvm.js';
+import { writeYamlOrJson } from '../../../../utils/files.js';
+import { HyperlaneE2ECoreTestCommands } from '../../../commands/core.js';
+import { HyperlaneE2EWarpTestCommands } from '../../../commands/warp.js';
 import {
   CORE_CONFIG_PATH_BY_PROTOCOL,
   CORE_READ_CONFIG_PATH_BY_PROTOCOL,
@@ -25,8 +25,8 @@ import {
   HYP_KEY_BY_PROTOCOL,
   REGISTRY_PATH,
   TEST_CHAIN_NAMES_BY_PROTOCOL,
-} from '../../constants.js';
-import { deployTestOffchainLookupISM } from '../commands/helpers.js';
+} from '../../../constants.js';
+import { deployTestOffchainLookupISM } from '../../commands/helpers.js';
 
 describe('hyperlane warp apply E2E (ISM updates)', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);

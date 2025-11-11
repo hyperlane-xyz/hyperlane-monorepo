@@ -7,13 +7,13 @@ import {
   randomAddress,
 } from '@hyperlane-xyz/sdk';
 
-import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
-import { deployOrUseExistingCore } from '../commands/core.js';
+import { readYamlOrJson, writeYamlOrJson } from '../../../../utils/files.js';
+import { deployOrUseExistingCore } from '../../commands/core.js';
 import {
   hyperlaneWarpApply,
   hyperlaneWarpDeploy,
   readWarpConfig,
-} from '../commands/warp.js';
+} from '../../commands/warp.js';
 import {
   ANVIL_KEY,
   CHAIN_NAME_2,
@@ -24,9 +24,9 @@ import {
   WARP_CONFIG_PATH_EXAMPLE,
   WARP_CORE_CONFIG_PATH_2,
   WARP_DEPLOY_2_ID,
-} from '../consts.js';
+} from '../../consts.js';
 
-describe('hyperlane warp apply owner update tests', async function () {
+describe('hyperlane warp apply E2E (hook updates)', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
 
   before(async function () {
