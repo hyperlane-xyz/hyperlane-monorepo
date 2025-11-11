@@ -376,6 +376,10 @@ jobs:
         test:
           # Core Commands
           - core-deploy
+          # Warp Commands
+          - warp-deploy
+          - warp-apply-ownership-updates
+          - warp-apply-route-extension
     steps:
       - uses: actions/checkout@v5
         with:
