@@ -13,14 +13,9 @@ env:
   RUST_BACKTRACE: full
 
 jobs:
-  prepare:
-    runs-on: ubuntu-latest
+  build:
     # Only run for agents-v* tags
     if: startsWith(github.ref_name, 'agents-v')
-    outputs:
-      tag_name: ${{ github.ref_name }}
-  build:
-    needs: prepare
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -66,7 +61,7 @@ jobs:
       - name: upload binaries
         uses: actions/upload-artifact@v5
         with:
-          name: ${{ matrix.TARGET }}-${{ needs.prepare.outputs.tag_name }}
+          name: ${{ matrix.TARGET }}-${{ github.ref_name }}
           path: |
             rust/main/target/${{ matrix.TARGET }}/release/relayer
             rust/main/target/${{ matrix.TARGET }}/release/relayer.exe
