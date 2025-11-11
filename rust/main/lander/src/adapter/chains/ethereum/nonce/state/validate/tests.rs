@@ -263,23 +263,15 @@ async fn test_validate_assigned_nonce_tx_and_db_equal() {
         H160::random(),
     );
 
-    let nonce = EthersU256::from(100);
+    let nonce = U256::from(100);
     let precursor = tx.precursor_mut();
     precursor.tx.set_nonce(nonce);
     precursor.tx.set_from(signer.clone());
 
     nonce_db
-        .store_transaction_uuid_by_nonce_and_signer_address(&U256::from(nonce), &signer, &tx.uuid)
-        .await
-        .expect("Failed to store tx uuid");
-    nonce_db
         .store_finalized_nonce_by_signer_address(&signer, &U256::from(90))
         .await
         .expect("Failed to store nonce");
-    nonce_db
-        .store_nonce_by_transaction_uuid(&signer, &tx.uuid, &U256::from(nonce))
-        .await
-        .expect("Failed to store tx nonce");
 
     let metrics = EthereumAdapterMetrics::dummy_instance();
     let state = Arc::new(NonceManagerState::new(
@@ -288,18 +280,14 @@ async fn test_validate_assigned_nonce_tx_and_db_equal() {
         signer,
         metrics.clone(),
     ));
+    state.set_tracked_tx_uuid(&nonce, &tx.uuid).await.unwrap();
 
     let nonce_resp = state
         .validate_assigned_nonce(&tx)
         .await
         .expect("Failed to calculate nonce");
 
-    assert_eq!(
-        nonce_resp,
-        NonceAction::Assign {
-            nonce: nonce.into()
-        }
-    );
+    assert_eq!(nonce_resp, NonceAction::Assign { nonce });
     assert_eq!(state.metrics.get_mismatched_nonce().get(), 0);
 }
 
@@ -320,24 +308,14 @@ async fn test_validate_assigned_nonce_tx_and_db_mismatch() {
         H160::random(),
     );
 
-    let nonce = EthersU256::from(100);
     let precursor = tx.precursor_mut();
-    precursor.tx.set_nonce(nonce);
+    precursor.tx.set_nonce(EthersU256::from(100));
     precursor.tx.set_from(signer.clone());
 
-    let nonce = U256::from(90);
-    nonce_db
-        .store_transaction_uuid_by_nonce_and_signer_address(&nonce, &signer, &tx.uuid)
-        .await
-        .expect("Failed to store tx uuid");
     nonce_db
         .store_finalized_nonce_by_signer_address(&signer, &U256::from(85))
         .await
         .expect("Failed to store nonce");
-    nonce_db
-        .store_nonce_by_transaction_uuid(&signer, &tx.uuid, &nonce)
-        .await
-        .expect("Failed to store tx nonce");
 
     let metrics = EthereumAdapterMetrics::dummy_instance();
     let state = Arc::new(NonceManagerState::new(
@@ -346,6 +324,8 @@ async fn test_validate_assigned_nonce_tx_and_db_mismatch() {
         signer,
         metrics.clone(),
     ));
+    let nonce = U256::from(90);
+    state.set_tracked_tx_uuid(&nonce, &tx.uuid).await.unwrap();
 
     let nonce_resp = state
         .validate_assigned_nonce(&tx)
@@ -377,19 +357,10 @@ async fn test_validate_assigned_nonce_only_db_nonce() {
     let precursor = tx.precursor_mut();
     precursor.tx.set_from(signer.clone());
 
-    let nonce = U256::from(90);
-    nonce_db
-        .store_transaction_uuid_by_nonce_and_signer_address(&nonce, &signer, &tx.uuid)
-        .await
-        .expect("Failed to store tx uuid");
     nonce_db
         .store_finalized_nonce_by_signer_address(&signer, &U256::from(85))
         .await
         .expect("Failed to store nonce");
-    nonce_db
-        .store_nonce_by_transaction_uuid(&signer, &tx.uuid, &nonce)
-        .await
-        .expect("Failed to store tx nonce");
 
     let metrics = EthereumAdapterMetrics::dummy_instance();
     let state = Arc::new(NonceManagerState::new(
@@ -398,6 +369,8 @@ async fn test_validate_assigned_nonce_only_db_nonce() {
         signer,
         metrics.clone(),
     ));
+    let nonce = U256::from(90);
+    state.set_tracked_tx_uuid(&nonce, &tx.uuid).await.unwrap();
 
     let nonce_resp = state
         .validate_assigned_nonce(&tx)
@@ -640,4 +613,5 @@ async fn test_validate_assigned_nonce_zero_nonce() {
     let action = state.validate_assigned_nonce(&tx).await.unwrap();
     // Zero nonce should work just like any other nonce
     assert_eq!(action, NonceAction::Assign { nonce: nonce_val });
+    assert_eq!(state.metrics.get_mismatched_nonce().get(), 0);
 }
