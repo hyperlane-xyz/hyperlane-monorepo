@@ -3,7 +3,9 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use hyperlane_base::db::HyperlaneDb;
-use hyperlane_core::{identifiers::UniqueIdentifier, PendingOperationStatus, QueueOperation, H256};
+use hyperlane_core::{
+    identifiers::UniqueIdentifier, PendingOperationStatus, QueueOperation, ReprepareReason, H256,
+};
 use lander::{
     Entrypoint, LanderError, PayloadDropReason, PayloadStatus, TransactionDropReason,
     TransactionStatus,
