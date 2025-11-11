@@ -7,6 +7,7 @@ use std::{
 };
 
 use async_trait::async_trait;
+use axum::Router;
 use derive_more::AsRef;
 use eyre::Result;
 use futures_util::future::try_join_all;
@@ -31,12 +32,16 @@ use hyperlane_base::{
 };
 use hyperlane_core::{
     rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, ContractSyncCursor,
-    HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, QueueOperation,
-    H512, U256,
+    HyperlaneDomain, HyperlaneMessage, HyperlaneSigner, InterchainGasPayment, MerkleTreeInsertion,
+    PendingOperation, QueueOperation, H512, U256,
 };
 use lander::DispatcherMetrics;
 
-use crate::{db_loader::DbLoader, relayer::origin::Origin, server::ENDPOINT_MESSAGES_QUEUE_SIZE};
+use crate::{
+    db_loader::DbLoader,
+    relayer::origin::Origin,
+    server::{evm::nonce::ChainWithNonce, ENDPOINT_MESSAGES_QUEUE_SIZE},
+};
 use crate::{
     db_loader::DbLoaderExt,
     merkle_tree::db_loader::{MerkleTreeDbLoader, MerkleTreeDbLoaderMetrics},
@@ -523,43 +528,7 @@ impl BaseAgent for Relayer {
         // run server
         start_entity_init = Instant::now();
 
-        // create a db mapping for server handlers
-        let dbs: HashMap<u32, HyperlaneRocksDB> = self
-            .origins
-            .iter()
-            .map(|(origin_domain, origin)| (origin_domain.id(), origin.database.clone()))
-            .chain(
-                self.destinations
-                    .iter()
-                    .map(|(dest_domain, dest)| (dest_domain.id(), dest.database.clone())),
-            )
-            .collect();
-
-        let gas_enforcers: HashMap<_, _> = self
-            .msg_ctxs
-            .iter()
-            .map(|(key, ctx)| (key.origin.clone(), ctx.origin_gas_payment_enforcer.clone()))
-            .collect();
-
-        let msg_ctxs = self
-            .msg_ctxs
-            .iter()
-            .map(|(key, value)| ((key.origin.id(), key.destination.id()), value.clone()))
-            .collect();
-        let prover_syncs: HashMap<_, _> = self
-            .origins
-            .iter()
-            .map(|(key, origin)| (key.id(), origin.prover_sync.clone()))
-            .collect();
-        let relayer_router = relayer_server::Server::new(self.destinations.len())
-            .with_op_retry(sender.clone())
-            .with_message_queue(prep_queues)
-            .with_dbs(dbs)
-            .with_gas_enforcers(gas_enforcers)
-            .with_msg_ctxs(msg_ctxs)
-            .with_prover_sync(prover_syncs)
-            .router();
-
+        let relayer_router = self.build_router(prep_queues, sender.clone()).await;
         let server = self
             .core
             .settings
@@ -588,6 +557,74 @@ impl BaseAgent for Relayer {
 }
 
 impl Relayer {
+    async fn build_router(
+        &self,
+        prep_queues: HashMap<
+            u32,
+            Arc<
+                tokio::sync::Mutex<
+                    std::collections::BinaryHeap<
+                        std::cmp::Reverse<Box<dyn PendingOperation + 'static>>,
+                    >,
+                >,
+            >,
+        >,
+        sender: BroadcastSender<relayer_server::operations::message_retry::MessageRetryRequest>,
+    ) -> Router {
+        // create a db mapping for server handlers
+        let dbs: HashMap<u32, HyperlaneRocksDB> = self
+            .origins
+            .iter()
+            .map(|(origin_domain, origin)| (origin_domain.id(), origin.database.clone()))
+            .chain(
+                self.destinations
+                    .iter()
+                    .map(|(dest_domain, dest)| (dest_domain.id(), dest.database.clone())),
+            )
+            .collect();
+
+        let gas_enforcers: HashMap<_, _> = self
+            .msg_ctxs
+            .iter()
+            .map(|(key, ctx)| (key.origin.clone(), ctx.origin_gas_payment_enforcer.clone()))
+            .collect();
+
+        let msg_ctxs = self
+            .msg_ctxs
+            .iter()
+            .map(|(key, value)| ((key.origin.id(), key.destination.id()), value.clone()))
+            .collect();
+        let prover_syncs: HashMap<_, _> = self
+            .origins
+            .iter()
+            .map(|(key, origin)| (key.id(), origin.prover_sync.clone()))
+            .collect();
+        let mut chains_with_nonce: HashMap<_, _> = HashMap::new();
+        for (key, dest) in self.destinations.iter() {
+            let signer = match dest.chain_conf.ethereum_signer().await {
+                Ok(Some(s)) => s,
+                _ => continue,
+            };
+
+            let data = ChainWithNonce {
+                protocol: dest.chain_conf.domain.domain_protocol(),
+                signer_address: signer.eth_address().into(),
+                db: Arc::new(dest.database.clone()),
+            };
+            chains_with_nonce.insert(key.id(), data);
+        }
+        let relayer_router = relayer_server::Server::new(self.destinations.len())
+            .with_op_retry(sender)
+            .with_message_queue(prep_queues)
+            .with_dbs(dbs)
+            .with_gas_enforcers(gas_enforcers)
+            .with_msg_ctxs(msg_ctxs)
+            .with_prover_sync(prover_syncs)
+            .with_chains_with_nonce(chains_with_nonce)
+            .router();
+        relayer_router
+    }
+
     fn record_critical_error(
         domain: &HyperlaneDomain,
         chain_metrics: &ChainMetrics,
