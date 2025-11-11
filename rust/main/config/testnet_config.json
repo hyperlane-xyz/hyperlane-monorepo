@@ -2405,7 +2405,7 @@
       "domainId": 88888887,
       "name": "dangolocal1",
       "blocks": {
-        "confirmations": 1,
+        "confirmations": 0,
         "estimateBlockTime": 1,
         "reorgPeriod": 0
       },
@@ -2437,7 +2437,7 @@
       "domainId": 88888888,
       "name": "dangolocal2",
       "blocks": {
-        "confirmations": 1,
+        "confirmations": 0,
         "estimateBlockTime": 1,
         "reorgPeriod": 0
       },
