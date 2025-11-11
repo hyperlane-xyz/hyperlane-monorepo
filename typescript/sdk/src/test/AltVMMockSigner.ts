@@ -137,6 +137,18 @@ export class MockSigner
     throw new Error(`not implemented`);
   }
 
+  async removeDestinationGasConfig(
+    _req: Omit<AltVM.ReqRemoveDestinationGasConfig, 'signer'>,
+  ): Promise<AltVM.ResRemoveDestinationGasConfig> {
+    throw new Error(`not implemented`);
+  }
+
+  async createNoopHook(
+    _req: Omit<AltVM.ReqCreateNoopHook, 'signer'>,
+  ): Promise<AltVM.ResCreateNoopHook> {
+    throw new Error(`not implemented`);
+  }
+
   async createValidatorAnnounce(
     _req: Omit<AltVM.ReqCreateValidatorAnnounce, 'signer'>,
   ): Promise<AltVM.ResCreateValidatorAnnounce> {
@@ -144,6 +156,12 @@ export class MockSigner
   }
 
   // ### TX WARP ###
+
+  async createNativeToken(
+    _req: Omit<AltVM.ReqCreateNativeToken, 'signer'>,
+  ): Promise<AltVM.ResCreateNativeToken> {
+    throw new Error(`not implemented`);
+  }
 
   async createCollateralToken(
     _req: Omit<AltVM.ReqCreateCollateralToken, 'signer'>,

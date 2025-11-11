@@ -111,7 +111,12 @@ export class AltVMCoreModule<PT extends ProtocolType> extends HyperlaneModule<
     const chainName = multiProvider.getChainName(chain);
     const domainId = multiProvider.getDomainId(chain);
 
-    // 1. Deploy default ISM
+    // 1. Deploy Mailbox with initial configuration
+    const mailbox = await signer.createMailbox({
+      domainId: domainId,
+    });
+
+    // 2. Deploy default ISM
     const ismModule = await AltVMIsmModule.create({
       chain: chainName,
       config: config.defaultIsm,
@@ -123,12 +128,6 @@ export class AltVMCoreModule<PT extends ProtocolType> extends HyperlaneModule<
     });
 
     const { deployedIsm: defaultIsm } = ismModule.serialize();
-
-    // 2. Deploy Mailbox with initial configuration
-    const mailbox = await signer.createMailbox({
-      domainId: domainId,
-      defaultIsmAddress: defaultIsm,
-    });
 
     // 3. Deploy default hook
     const defaultHookModule = await AltVMHookModule.create({
