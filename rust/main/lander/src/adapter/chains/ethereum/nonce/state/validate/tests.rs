@@ -326,8 +326,9 @@ async fn test_validate_assigned_nonce_tx_and_db_mismatch() {
     precursor.tx.set_nonce(nonce);
     precursor.tx.set_from(signer.clone());
 
+    let nonce = U256::from(90);
     nonce_db
-        .store_transaction_uuid_by_nonce_and_signer_address(&U256::from(90), &signer, &tx.uuid)
+        .store_transaction_uuid_by_nonce_and_signer_address(&nonce, &signer, &tx.uuid)
         .await
         .expect("Failed to store tx uuid");
     nonce_db
@@ -335,7 +336,7 @@ async fn test_validate_assigned_nonce_tx_and_db_mismatch() {
         .await
         .expect("Failed to store nonce");
     nonce_db
-        .store_nonce_by_transaction_uuid(&signer, &tx.uuid, &U256::from(90))
+        .store_nonce_by_transaction_uuid(&signer, &tx.uuid, &nonce)
         .await
         .expect("Failed to store tx nonce");
 
@@ -352,12 +353,7 @@ async fn test_validate_assigned_nonce_tx_and_db_mismatch() {
         .await
         .expect("Failed to calculate nonce");
 
-    assert_eq!(
-        nonce_resp,
-        NonceAction::Assign {
-            nonce: U256::from(90)
-        }
-    );
+    assert_eq!(nonce_resp, NonceAction::Assign { nonce });
     assert_eq!(state.metrics.get_mismatched_nonce().get(), 1);
 }
 
@@ -378,11 +374,13 @@ async fn test_validate_assigned_nonce_only_db_nonce() {
         H160::random(),
     );
 
+    // leaving nonce empty in the transaction as test case
     let precursor = tx.precursor_mut();
     precursor.tx.set_from(signer.clone());
 
+    let nonce = U256::from(90);
     nonce_db
-        .store_transaction_uuid_by_nonce_and_signer_address(&U256::from(90), &signer, &tx.uuid)
+        .store_transaction_uuid_by_nonce_and_signer_address(&nonce, &signer, &tx.uuid)
         .await
         .expect("Failed to store tx uuid");
     nonce_db
@@ -390,7 +388,7 @@ async fn test_validate_assigned_nonce_only_db_nonce() {
         .await
         .expect("Failed to store nonce");
     nonce_db
-        .store_nonce_by_transaction_uuid(&signer, &tx.uuid, &U256::from(90))
+        .store_nonce_by_transaction_uuid(&signer, &tx.uuid, &nonce)
         .await
         .expect("Failed to store tx nonce");
 
@@ -407,18 +405,14 @@ async fn test_validate_assigned_nonce_only_db_nonce() {
         .await
         .expect("Failed to calculate nonce");
 
-    assert_eq!(
-        nonce_resp,
-        NonceAction::Assign {
-            nonce: U256::from(90)
-        }
-    );
+    assert_eq!(nonce_resp, NonceAction::Assign { nonce });
     assert_eq!(state.metrics.get_mismatched_nonce().get(), 1);
 }
 
 #[tokio::test]
 async fn test_validate_assigned_nonce_only_tx_nonce() {
     let (_, tx_db, nonce_db) = tmp_dbs();
+    let metrics = EthereumAdapterMetrics::dummy_instance();
     let signer = Address::random();
 
     let mut provider = MockEvmProvider::new();
@@ -438,7 +432,6 @@ async fn test_validate_assigned_nonce_only_tx_nonce() {
     precursor.tx.set_nonce(nonce);
     precursor.tx.set_from(signer.clone());
 
-    let metrics = EthereumAdapterMetrics::dummy_instance();
     let state = Arc::new(NonceManagerState::new(
         nonce_db,
         tx_db,
@@ -453,4 +446,198 @@ async fn test_validate_assigned_nonce_only_tx_nonce() {
 
     assert_eq!(nonce_resp, NonceAction::AssignNext { old_nonce: None });
     assert_eq!(state.metrics.get_mismatched_nonce().get(), 1);
+}
+
+#[tokio::test]
+async fn test_validate_assigned_nonce_db_nonce_max() {
+    let (_, tx_db, nonce_db) = tmp_dbs();
+    let metrics = EthereumAdapterMetrics::dummy_instance();
+    let address = Address::random();
+
+    let uuid = TransactionUuid::random();
+    // Store U256::MAX in the database - should be treated as None
+    nonce_db
+        .store_nonce_by_transaction_uuid(&address, &uuid, &U256::MAX)
+        .await
+        .expect("Failed to store nonce");
+
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
+
+    let tx = make_tx(
+        uuid,
+        TransactionStatus::PendingInclusion,
+        None,
+        Some(address),
+    );
+
+    let action = state.validate_assigned_nonce(&tx).await.unwrap();
+    // U256::MAX should be treated as None, so we should assign next
+    assert_eq!(action, NonceAction::AssignNext { old_nonce: None });
+    // should not alert mismatch nonce because both tx and db is None (or treated as None)
+    assert_eq!(state.metrics.get_mismatched_nonce().get(), 0);
+}
+
+#[tokio::test]
+async fn test_validate_assigned_nonce_taken_status_no_finalized() {
+    let (_, tx_db, nonce_db) = tmp_dbs();
+    let address = Address::random();
+    let metrics = EthereumAdapterMetrics::dummy_instance();
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
+
+    let uuid = TransactionUuid::random();
+    let nonce_val = U256::from(8);
+
+    // Set tracked_tx_uuid to uuid
+    state.set_tracked_tx_uuid(&nonce_val, &uuid).await.unwrap();
+
+    // Do NOT set finalized_nonce (it will be None)
+
+    let tx = make_tx(
+        uuid,
+        TransactionStatus::PendingInclusion,
+        Some(nonce_val),
+        Some(address),
+    );
+    let action = state.validate_assigned_nonce(&tx).await.unwrap();
+    // With no finalized nonce, Taken status should just assign the nonce
+    assert_eq!(action, NonceAction::Assign { nonce: nonce_val });
+    assert_eq!(state.metrics.get_mismatched_nonce().get(), 0);
+}
+
+#[tokio::test]
+async fn test_validate_assigned_nonce_freed_status_failed_simulation() {
+    let (_, tx_db, nonce_db) = tmp_dbs();
+    let address = Address::random();
+    let metrics = EthereumAdapterMetrics::dummy_instance();
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
+
+    let uuid = TransactionUuid::random();
+    let nonce_val = U256::from(9);
+
+    // Set tracked_tx_uuid to uuid
+    state.set_tracked_tx_uuid(&nonce_val, &uuid).await.unwrap();
+
+    // The transaction is Dropped with FailedSimulation, so nonce status is Freed
+    let tx = make_tx(
+        uuid,
+        TransactionStatus::Dropped(DropReason::FailedSimulation),
+        Some(nonce_val),
+        Some(address),
+    );
+    let action = state.validate_assigned_nonce(&tx).await.unwrap();
+    assert_eq!(
+        action,
+        NonceAction::AssignNext {
+            old_nonce: Some(nonce_val)
+        }
+    );
+    assert_eq!(state.metrics.get_mismatched_nonce().get(), 0);
+}
+
+#[tokio::test]
+async fn test_validate_assigned_nonce_mempool_status() {
+    let (_, tx_db, nonce_db) = tmp_dbs();
+    let address = Address::random();
+    let metrics = EthereumAdapterMetrics::dummy_instance();
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
+
+    let uuid = TransactionUuid::random();
+    let nonce_val = U256::from(10);
+
+    // Set tracked_tx_uuid to uuid
+    state.set_tracked_tx_uuid(&nonce_val, &uuid).await.unwrap();
+
+    // Set finalized nonce below nonce_val
+    state.set_finalized_nonce(&(nonce_val - 1)).await.unwrap();
+
+    let tx = make_tx(
+        uuid,
+        TransactionStatus::Mempool,
+        Some(nonce_val),
+        Some(address),
+    );
+    let action = state.validate_assigned_nonce(&tx).await.unwrap();
+    // Mempool maps to Taken status, above finalized nonce -> Assign
+    assert_eq!(action, NonceAction::Assign { nonce: nonce_val });
+    assert_eq!(state.metrics.get_mismatched_nonce().get(), 0);
+}
+
+#[tokio::test]
+async fn test_validate_assigned_nonce_included_status() {
+    let (_, tx_db, nonce_db) = tmp_dbs();
+    let address = Address::random();
+    let metrics = EthereumAdapterMetrics::dummy_instance();
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
+
+    let uuid = TransactionUuid::random();
+    let nonce_val = U256::from(11);
+
+    // Set tracked_tx_uuid to uuid
+    state.set_tracked_tx_uuid(&nonce_val, &uuid).await.unwrap();
+
+    // Set finalized nonce below nonce_val
+    state.set_finalized_nonce(&(nonce_val - 1)).await.unwrap();
+
+    let tx = make_tx(
+        uuid,
+        TransactionStatus::Included,
+        Some(nonce_val),
+        Some(address),
+    );
+    let action = state.validate_assigned_nonce(&tx).await.unwrap();
+    // Included maps to Taken status, above finalized nonce -> Assign
+    assert_eq!(action, NonceAction::Assign { nonce: nonce_val });
+}
+
+#[tokio::test]
+async fn test_validate_assigned_nonce_committed_below_finalized() {
+    let (_, tx_db, nonce_db) = tmp_dbs();
+    let address = Address::random();
+    let metrics = EthereumAdapterMetrics::dummy_instance();
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
+
+    let uuid = TransactionUuid::random();
+    let nonce_val = U256::from(12);
+
+    // Set tracked_tx_uuid to uuid
+    state.set_tracked_tx_uuid(&nonce_val, &uuid).await.unwrap();
+
+    // Set finalized nonce above nonce_val
+    state.set_finalized_nonce(&(nonce_val + 1)).await.unwrap();
+
+    let tx = make_tx(
+        uuid,
+        TransactionStatus::Finalized,
+        Some(nonce_val),
+        Some(address),
+    );
+    let action = state.validate_assigned_nonce(&tx).await.unwrap();
+    // Committed status doesn't check finalized nonce, always returns Assign
+    assert_eq!(action, NonceAction::Assign { nonce: nonce_val });
+}
+
+#[tokio::test]
+async fn test_validate_assigned_nonce_zero_nonce() {
+    let (_, tx_db, nonce_db) = tmp_dbs();
+    let address = Address::random();
+    let metrics = EthereumAdapterMetrics::dummy_instance();
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
+
+    let uuid = TransactionUuid::random();
+    let nonce_val = U256::from(0);
+
+    // Set tracked_tx_uuid to uuid
+    state.set_tracked_tx_uuid(&nonce_val, &uuid).await.unwrap();
+
+    // No finalized nonce set
+
+    let tx = make_tx(
+        uuid,
+        TransactionStatus::PendingInclusion,
+        Some(nonce_val),
+        Some(address),
+    );
+    let action = state.validate_assigned_nonce(&tx).await.unwrap();
+    // Zero nonce should work just like any other nonce
+    assert_eq!(action, NonceAction::Assign { nonce: nonce_val });
 }

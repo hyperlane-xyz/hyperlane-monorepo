@@ -120,3 +120,248 @@ async fn test_calculate_next_nonce_error_when_from_address_mismatch() {
         .to_string()
         .contains("Transaction from address does not match nonce manager address"));
 }
+
+#[tokio::test]
+async fn test_calculate_next_nonce_tx_and_db_equal() {
+    let (_, tx_db, nonce_db) = tmp_dbs();
+    let signer = Address::random();
+
+    let mut provider = MockEvmProvider::new();
+    provider
+        .expect_get_next_nonce_on_finalized_block()
+        .returning(|_, _| Ok(U256::from(100)));
+
+    let mut tx = dummy_evm_tx(
+        ExpectedTxType::Eip1559,
+        vec![],
+        crate::TransactionStatus::Included,
+        H160::random(),
+    );
+
+    let nonce = EthersU256::from(100);
+    let precursor = tx.precursor_mut();
+    precursor.tx.set_nonce(nonce);
+    precursor.tx.set_from(signer.clone());
+
+    nonce_db
+        .store_transaction_uuid_by_nonce_and_signer_address(&U256::from(nonce), &signer, &tx.uuid)
+        .await
+        .expect("Failed to store tx uuid");
+    nonce_db
+        .store_finalized_nonce_by_signer_address(&signer, &U256::from(90))
+        .await
+        .expect("Failed to store nonce");
+    nonce_db
+        .store_nonce_by_transaction_uuid(&signer, &tx.uuid, &U256::from(nonce))
+        .await
+        .expect("Failed to store tx nonce");
+
+    let block_time = Duration::from_millis(100);
+
+    let provider = Arc::new(provider);
+    let reorg_period = EthereumReorgPeriod::Blocks(1);
+    let metrics = EthereumAdapterMetrics::dummy_instance();
+    let state = Arc::new(NonceManagerState::new(
+        nonce_db,
+        tx_db,
+        signer,
+        metrics.clone(),
+    ));
+
+    let nonce_updater = NonceUpdater::new(
+        signer,
+        reorg_period,
+        block_time,
+        provider.clone(),
+        state.clone(),
+    );
+
+    let nonce_manager = NonceManager {
+        address: signer,
+        state,
+        nonce_updater,
+    };
+
+    let nonce_resp = nonce_manager
+        .calculate_next_nonce(&tx)
+        .await
+        .expect("Failed to calculate nonce");
+
+    assert_eq!(nonce_resp, U256::from(nonce));
+}
+
+#[tokio::test]
+async fn test_calculate_next_nonce_tx_and_db_mismatch() {
+    let (_, tx_db, nonce_db) = tmp_dbs();
+    let signer = Address::random();
+
+    let mut provider = MockEvmProvider::new();
+    provider
+        .expect_get_next_nonce_on_finalized_block()
+        .returning(|_, _| Ok(U256::from(90)));
+
+    let mut tx = dummy_evm_tx(
+        ExpectedTxType::Eip1559,
+        vec![],
+        crate::TransactionStatus::Included,
+        H160::random(),
+    );
+
+    let nonce = EthersU256::from(100);
+    let precursor = tx.precursor_mut();
+    precursor.tx.set_nonce(nonce);
+    precursor.tx.set_from(signer.clone());
+
+    nonce_db
+        .store_nonce_by_transaction_uuid(&signer, &tx.uuid, &U256::from(90))
+        .await
+        .expect("Failed to store tx nonce");
+
+    let block_time = Duration::from_millis(100);
+
+    let provider = Arc::new(provider);
+    let reorg_period = EthereumReorgPeriod::Blocks(1);
+    let metrics = EthereumAdapterMetrics::dummy_instance();
+    let state = Arc::new(NonceManagerState::new(
+        nonce_db,
+        tx_db,
+        signer,
+        metrics.clone(),
+    ));
+
+    let nonce_updater = NonceUpdater::new(
+        signer,
+        reorg_period,
+        block_time,
+        provider.clone(),
+        state.clone(),
+    );
+
+    let nonce_manager = NonceManager {
+        address: signer,
+        state,
+        nonce_updater,
+    };
+
+    let nonce_resp = nonce_manager
+        .calculate_next_nonce(&tx)
+        .await
+        .expect("Failed to calculate nonce");
+
+    assert_eq!(nonce_resp, U256::from(90));
+}
+
+#[tokio::test]
+async fn test_calculate_next_nonce_only_db_nonce() {
+    let (_, tx_db, nonce_db) = tmp_dbs();
+    let signer = Address::random();
+
+    let mut provider = MockEvmProvider::new();
+    provider
+        .expect_get_next_nonce_on_finalized_block()
+        .returning(|_, _| Ok(U256::from(90)));
+
+    let mut tx = dummy_evm_tx(
+        ExpectedTxType::Eip1559,
+        vec![],
+        crate::TransactionStatus::Included,
+        H160::random(),
+    );
+
+    let precursor = tx.precursor_mut();
+    precursor.tx.set_from(signer.clone());
+
+    nonce_db
+        .store_nonce_by_transaction_uuid(&signer, &tx.uuid, &U256::from(90))
+        .await
+        .expect("Failed to store tx nonce");
+
+    let block_time = Duration::from_millis(100);
+
+    let provider = Arc::new(provider);
+    let reorg_period = EthereumReorgPeriod::Blocks(1);
+    let metrics = EthereumAdapterMetrics::dummy_instance();
+    let state = Arc::new(NonceManagerState::new(
+        nonce_db,
+        tx_db,
+        signer,
+        metrics.clone(),
+    ));
+
+    let nonce_updater = NonceUpdater::new(
+        signer,
+        reorg_period,
+        block_time,
+        provider.clone(),
+        state.clone(),
+    );
+
+    let nonce_manager = NonceManager {
+        address: signer,
+        state,
+        nonce_updater,
+    };
+
+    let nonce_resp = nonce_manager
+        .calculate_next_nonce(&tx)
+        .await
+        .expect("Failed to calculate nonce");
+
+    assert_eq!(nonce_resp, U256::from(90));
+}
+
+#[tokio::test]
+async fn test_calculate_next_nonce_only_tx_nonce() {
+    let (_, tx_db, nonce_db) = tmp_dbs();
+    let signer = Address::random();
+
+    let mut provider = MockEvmProvider::new();
+    provider
+        .expect_get_next_nonce_on_finalized_block()
+        .returning(|_, _| Ok(U256::from(90)));
+
+    let mut tx = dummy_evm_tx(
+        ExpectedTxType::Eip1559,
+        vec![],
+        crate::TransactionStatus::Included,
+        H160::random(),
+    );
+
+    let nonce = EthersU256::from(100);
+    let precursor = tx.precursor_mut();
+    precursor.tx.set_nonce(nonce);
+    precursor.tx.set_from(signer.clone());
+
+    let block_time = Duration::from_millis(100);
+
+    let provider = Arc::new(provider);
+    let reorg_period = EthereumReorgPeriod::Blocks(1);
+    let metrics = EthereumAdapterMetrics::dummy_instance();
+    let state = Arc::new(NonceManagerState::new(
+        nonce_db,
+        tx_db,
+        signer,
+        metrics.clone(),
+    ));
+
+    let nonce_updater = NonceUpdater::new(
+        signer,
+        reorg_period,
+        block_time,
+        provider.clone(),
+        state.clone(),
+    );
+
+    let nonce_manager = NonceManager {
+        address: signer,
+        state,
+        nonce_updater,
+    };
+
+    let nonce_resp = nonce_manager
+        .calculate_next_nonce(&tx)
+        .await
+        .expect("Failed to calculate nonce");
+
+    assert_eq!(nonce_resp, U256::from(90));
+}
