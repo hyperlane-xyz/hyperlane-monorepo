@@ -18,7 +18,8 @@
     "./warp": "./dist/warp.js",
     "./factory": "./dist/factory.js",
     "./submitter": "./dist/submitter.js",
-    "./registry": "./dist/registry.js"
+    "./registry": "./dist/registry.js",
+    "./artifact": "./dist/artifact.js"
   },
   "scripts": {
     "build": "tsc",
