@@ -5,7 +5,7 @@ import { strip0x } from '@hyperlane-xyz/utils';
 export const ALEO_NULL_ADDRESS =
   'aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc';
 
-export function getMessageKey(messageId: string): [U128, U128] {
+export function splitToU128(messageId: string): [U128, U128] {
   const bytes = Buffer.from(strip0x(messageId), 'hex');
 
   // Split into two 128-bit chunks

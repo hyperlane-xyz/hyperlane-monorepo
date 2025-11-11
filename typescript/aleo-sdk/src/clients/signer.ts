@@ -782,8 +782,18 @@ export class AleoSigner
   }
 
   async remoteTransfer(
-    _req: Omit<AltVM.ReqRemoteTransfer, 'signer'>,
+    req: Omit<AltVM.ReqRemoteTransfer, 'signer'>,
   ): Promise<AltVM.ResRemoteTransfer> {
-    throw new Error(`TODO: implement`);
+    const tx = await this.getRemoteTransferTransaction({
+      signer: this.getSignerAddress(),
+      ...req,
+    });
+
+    const txId = await this.programManager.execute(tx);
+    await this.aleoClient.waitForTransactionConfirmation(txId);
+
+    return {
+      tokenAddress: req.tokenAddress,
+    };
   }
 }

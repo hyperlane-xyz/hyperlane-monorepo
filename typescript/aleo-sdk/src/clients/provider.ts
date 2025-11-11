@@ -15,9 +15,10 @@ import { AltVM, assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
 
 import { mailbox } from '../artifacts.js';
 import {
+  ALEO_NULL_ADDRESS,
   U128ToString,
   formatAddress,
-  getMessageKey,
+  splitToU128,
   stringToU128,
 } from '../utils/helper.js';
 import { AleoTransaction } from '../utils/types.js';
@@ -171,7 +172,7 @@ export class AleoProvider implements AltVM.IProvider {
   async isMessageDelivered(req: AltVM.ReqIsMessageDelivered): Promise<boolean> {
     try {
       // Message key needs to be separated into [u128, u128] using Little Endian.
-      const messageKey = getMessageKey(req.messageId);
+      const messageKey = splitToU128(req.messageId);
 
       const res = await this.aleoClient.getProgramMappingPlaintext(
         req.mailboxAddress,
@@ -1094,8 +1095,119 @@ export class AleoProvider implements AltVM.IProvider {
   }
 
   async getRemoteTransferTransaction(
-    _req: AltVM.ReqRemoteTransfer,
+    req: AltVM.ReqRemoteTransfer,
   ): Promise<AleoTransaction> {
-    throw new Error(`TODO: implement`);
+    const { mailboxAddress } = await this.getToken({
+      tokenAddress: req.tokenAddress,
+    });
+
+    const tokenMetadataValue = await this.aleoClient.getProgramMappingValue(
+      req.tokenAddress,
+      'token_metadata',
+      'true',
+    );
+
+    if (!tokenMetadataValue) {
+      throw new Error(`found no token metadata for ${req.tokenAddress}`);
+    }
+
+    const mailbox = await this.getMailbox({
+      mailboxAddress: mailboxAddress,
+    });
+
+    const remoteRouterValue = await this.aleoClient.getProgramMappingValue(
+      req.tokenAddress,
+      'remote_routers',
+      `${req.destinationDomainId}u32`,
+    );
+
+    if (!remoteRouterValue) {
+      throw new Error(
+        `found no remote router for destination domain id ${req.destinationDomainId}`,
+      );
+    }
+
+    const recipient = `[${splitToU128(req.recipient)
+      .map((u) => u.toString())
+      .join(',')}]`;
+
+    const creditAllowance = Array(4).fill(
+      `{spender:${ALEO_NULL_ADDRESS},amount:0u8}`,
+    );
+
+    const gasLimit = new BigNumber(req.gasLimit);
+    const hooks = [
+      req.customHookAddress || mailbox.defaultHook,
+      mailbox.requiredHook,
+    ];
+
+    for (let i = 0; i < hooks.length; i++) {
+      try {
+        const igp = await this.getInterchainGasPaymasterHook({
+          hookAddress: hooks[i],
+        });
+
+        const config = igp.destinationGasConfigs[req.destinationDomainId];
+
+        if (!config) {
+          continue;
+        }
+
+        const quote = gasLimit
+          .plus(config.gasOverhead)
+          .multipliedBy(config.gasOracle.gasPrice)
+          .multipliedBy(config.gasOracle.tokenExchangeRate)
+          .dividedToIntegerBy(new BigNumber(10).exponentiatedBy(10))
+          .toFixed(0);
+
+        creditAllowance[i] = `{spender:${hooks[i]},amount:${quote}u8}`;
+      } catch {
+        continue;
+      }
+    }
+
+    if (req.customHookAddress) {
+      const hookMetadata = Array(256).fill(`0u8`);
+
+      if (req.customHookMetadata) {
+        Buffer.from(req.customHookMetadata, 'hex').forEach((b, i) => {
+          hookMetadata[i] = `${b}u8`;
+        });
+      }
+
+      return {
+        programName: req.tokenAddress,
+        functionName: 'transfer_remote',
+        priorityFee: 0,
+        privateFee: false,
+        inputs: [
+          tokenMetadataValue,
+          `{default_ism:${mailbox.defaultIsm || ALEO_NULL_ADDRESS},default_hook:${mailbox.defaultHook || ALEO_NULL_ADDRESS},required_hook:${mailbox.requiredHook || ALEO_NULL_ADDRESS}}`,
+          remoteRouterValue,
+          `${req.destinationDomainId}u8`,
+          recipient,
+          `${req.amount}u128`,
+          JSON.stringify(creditAllowance).replaceAll('"', ''),
+          req.customHookAddress,
+          JSON.stringify(hookMetadata).replaceAll('"', ''),
+        ],
+      };
+    }
+
+    return {
+      programName: req.tokenAddress,
+      functionName: 'transfer_remote',
+      priorityFee: 0,
+      privateFee: false,
+      inputs: [
+        tokenMetadataValue,
+        `{default_ism:${mailbox.defaultIsm || ALEO_NULL_ADDRESS},default_hook:${mailbox.defaultHook || ALEO_NULL_ADDRESS},required_hook:${mailbox.requiredHook || ALEO_NULL_ADDRESS}}`,
+        remoteRouterValue,
+        `${req.destinationDomainId}u8`,
+        recipient,
+        `${req.amount}u128`,
+        JSON.stringify(creditAllowance).replaceAll('"', ''),
+      ],
+    };
   }
 }
