@@ -5,6 +5,7 @@ import {
   Plaintext,
   Program,
   ProgramManager,
+  U128,
   getOrInitConsensusVersionTestHeights,
   initThreadPool,
 } from '@provablehq/sdk';
@@ -13,7 +14,12 @@ import { BigNumber } from 'bignumber.js';
 import { AltVM, assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
 
 import { mailbox } from '../artifacts.js';
-import { formatAddress, getMessageKey, stringToU128 } from '../utils/helper.js';
+import {
+  U128ToString,
+  formatAddress,
+  getMessageKey,
+  stringToU128,
+} from '../utils/helper.js';
 import { AleoTransaction } from '../utils/types.js';
 
 getOrInitConsensusVersionTestHeights('0,1,2,3,4,5,6,7,8,9,10');
@@ -436,9 +442,32 @@ export class AleoProvider implements AltVM.IProvider {
     };
   }
 
+  async getNoopHook(
+    req: AltVM.ReqGetMerkleTreeHook,
+  ): Promise<AltVM.ResGetMerkleTreeHook> {
+    try {
+      const hook = await this.aleoClient.getProgramMappingPlaintext(
+        'hook_manager.aleo',
+        'hooks',
+        req.hookAddress,
+      );
+
+      assert(
+        hook.toObject() === 0,
+        `hook of address ${req.hookAddress} is no noop hook`,
+      );
+    } catch {
+      throw new Error(`Found no Noop Hook for address: ${req.hookAddress}`);
+    }
+
+    return {
+      address: req.hookAddress,
+    };
+  }
+
   // ### QUERY WARP ###
 
-  protected async getTokenMetadata(tokenId: string): Promise<{
+  async getTokenMetadata(tokenId: string): Promise<{
     name: string;
     symbol: string;
     decimals: number;
@@ -453,9 +482,15 @@ export class AleoProvider implements AltVM.IProvider {
       const metadata = tokenMetadata.toObject();
 
       return {
-        name: metadata['name'],
-        symbol: metadata['symbol'],
-        decimals: parseInt(metadata['decimals'].replaceAll('u8', '')),
+        name: U128ToString(
+          U128.fromString(`${tokenMetadata.toObject()['name'].toString()}u128`),
+        ),
+        symbol: U128ToString(
+          U128.fromString(
+            `${tokenMetadata.toObject()['symbol'].toString()}u128`,
+          ),
+        ),
+        decimals: metadata['decimals'],
       };
     } catch {
       throw new Error(`Found no token for token id: ${tokenId}`);
@@ -483,7 +518,7 @@ export class AleoProvider implements AltVM.IProvider {
       );
 
       token.owner = formatAddress(tokenMetadata.toObject().token_owner);
-      token.ismAddress = tokenMetadata.toObject().ism || '';
+      token.ismAddress = formatAddress(tokenMetadata.toObject().ism || '');
       token.denom = tokenMetadata.toObject().token_id || '';
 
       if (token.denom) {
@@ -892,6 +927,30 @@ export class AleoProvider implements AltVM.IProvider {
     };
   }
 
+  async getRemoveDestinationGasConfigTransaction(
+    req: AltVM.ReqRemoveDestinationGasConfig,
+  ): Promise<AleoTransaction> {
+    return {
+      programName: 'hook_manager.aleo',
+      functionName: 'remove_destination_gas_config',
+      priorityFee: 0,
+      privateFee: false,
+      inputs: [req.hookAddress, `${req.remoteDomainId}u32`],
+    };
+  }
+
+  async getCreateNoopHookTransaction(
+    _req: AltVM.ReqCreateNoopHook,
+  ): Promise<AleoTransaction> {
+    return {
+      programName: 'hook_manager.aleo',
+      functionName: 'init_noop',
+      priorityFee: 0,
+      privateFee: false,
+      inputs: [],
+    };
+  }
+
   async getCreateValidatorAnnounceTransaction(
     req: AltVM.ReqCreateValidatorAnnounce,
   ): Promise<AleoTransaction> {
@@ -916,6 +975,18 @@ export class AleoProvider implements AltVM.IProvider {
   }
 
   // ### GET WARP TXS ###
+
+  async getCreateNativeTokenTransaction(
+    _req: AltVM.ReqCreateNativeToken,
+  ): Promise<AleoTransaction> {
+    return {
+      programName: '',
+      functionName: 'init',
+      priorityFee: 0,
+      privateFee: false,
+      inputs: [`0u8`],
+    };
+  }
 
   async getCreateCollateralTokenTransaction(
     req: AltVM.ReqCreateCollateralToken,

@@ -47,7 +47,7 @@
     "typescript-eslint": "^8.37.0"
   },
   "dependencies": {
-    "@hyperlane-xyz/utils": "19.4.0",
+    "@hyperlane-xyz/utils": "19.7.0",
     "@provablehq/sdk": "^0.9.11",
     "bignumber.js": "^9.1.1"
   }

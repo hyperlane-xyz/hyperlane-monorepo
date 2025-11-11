@@ -2,7 +2,9 @@ import {
   Account,
   AleoKeyProvider,
   AleoNetworkClient,
+  Field,
   NetworkRecordProvider,
+  Program,
   ProgramManager,
 } from '@provablehq/sdk';
 import { expect } from 'chai';
@@ -10,6 +12,7 @@ import { step } from 'mocha-steps';
 
 import { AltVM } from '@hyperlane-xyz/utils';
 
+import { hyp_synthetic } from '../artifacts.js';
 import { AleoSigner } from '../clients/signer.js';
 import { stringToU128 } from '../utils/helper.js';
 import { AleoReceipt, AleoTransaction } from '../utils/types.js';
@@ -86,9 +89,34 @@ describe('4. aleo sdk warp e2e tests', async function () {
 
     const mailbox = await signer.createMailbox({
       domainId: domainId,
-      defaultIsmAddress: '',
     });
     mailboxAddress = mailbox.mailboxAddress;
+  });
+
+  step('create new native token', async () => {
+    // ARRANGE
+
+    // ACT
+    const txResponse = await signer.createNativeToken({
+      mailboxAddress,
+    });
+
+    // ASSERT
+    expect(txResponse.tokenAddress).to.be.not.empty;
+
+    let token = await signer.getToken({
+      tokenAddress: txResponse.tokenAddress,
+    });
+
+    expect(token).not.to.be.undefined;
+    expect(token.owner).to.equal(signer.getSignerAddress());
+    expect(token.mailboxAddress).to.equal(mailboxAddress);
+    expect(token.denom).to.be.empty;
+    expect(token.name).to.be.empty;
+    expect(token.symbol).to.be.empty;
+    expect(token.decimals).to.equal(0);
+    expect(token.ismAddress).to.be.empty;
+    expect(token.tokenType).to.equal(AltVM.TokenType.native);
   });
 
   step('create new collateral token', async () => {
@@ -111,10 +139,47 @@ describe('4. aleo sdk warp e2e tests', async function () {
     expect(token.owner).to.equal(signer.getSignerAddress());
     expect(token.mailboxAddress).to.equal(mailboxAddress);
     expect(token.denom).to.equal(collateralDenom);
-    expect(token.name).to.be.empty;
-    expect(token.symbol).to.be.empty;
-    expect(token.decimals).to.be.empty;
+    expect(token.name).to.be.equal('test');
+    expect(token.symbol).to.be.equal('test');
+    expect(token.decimals).to.equal(6);
     expect(token.ismAddress).to.be.empty;
     expect(token.tokenType).to.equal(AltVM.TokenType.collateral);
+  });
+
+  step('create new synthetic token', async () => {
+    // ARRANGE
+
+    // ACT
+    const txResponse = await signer.createSyntheticToken({
+      mailboxAddress,
+      name: 'test',
+      denom: 'test',
+      decimals: 6,
+    });
+
+    // ASSERT
+    expect(txResponse.tokenAddress).to.be.not.empty;
+
+    let token = await signer.getToken({
+      tokenAddress: txResponse.tokenAddress,
+    });
+
+    const denom = Field.fromBytesLe(
+      Program.fromString(
+        hyp_synthetic.replaceAll(`hyp_synthetic.aleo`, txResponse.tokenAddress),
+      )
+        .address()
+        .toBytesLe(),
+    ).toString();
+
+    expect(token).not.to.be.undefined;
+    expect(token.owner).to.equal(signer.getSignerAddress());
+    expect(token.mailboxAddress).to.equal(mailboxAddress);
+    expect(token.denom).to.equal(denom);
+    expect(token.name).to.be.equal('test');
+    expect(token.symbol).to.be.equal('test');
+    expect(token.decimals).to.equal(6);
+    expect(token.ismAddress).to.be.empty;
+    expect(token.tokenType).to.equal(AltVM.TokenType.synthetic);
   });
 });

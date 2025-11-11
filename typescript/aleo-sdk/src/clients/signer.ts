@@ -507,6 +507,60 @@ export class AleoSigner
     };
   }
 
+  async removeDestinationGasConfig(
+    req: Omit<AltVM.ReqRemoveDestinationGasConfig, 'signer'>,
+  ): Promise<AltVM.ResRemoveDestinationGasConfig> {
+    const tx = await this.getRemoveDestinationGasConfigTransaction({
+      signer: this.getSignerAddress(),
+      ...req,
+    });
+
+    const txId = await this.programManager.execute(tx);
+    await this.aleoClient.waitForTransactionConfirmation(txId);
+
+    return {
+      remoteDomainId: req.remoteDomainId,
+    };
+  }
+
+  async createNoopHook(
+    req: Omit<AltVM.ReqCreateNoopHook, 'signer'>,
+  ): Promise<AltVM.ResCreateNoopHook> {
+    let nonce = await this.aleoClient.getProgramMappingValue(
+      'hook_manager.aleo',
+      'nonce',
+      'true',
+    );
+
+    if (nonce === null) {
+      nonce = '0u32';
+    }
+
+    const tx = await this.getCreateNoopHookTransaction({
+      signer: this.getSignerAddress(),
+      ...req,
+    });
+
+    const txId = await this.programManager.execute(tx);
+    await this.aleoClient.waitForTransactionConfirmation(txId);
+
+    const hookAddress = await this.aleoClient.getProgramMappingValue(
+      'hook_manager.aleo',
+      'hook_addresses',
+      nonce,
+    );
+
+    if (hookAddress === null) {
+      throw new Error(
+        `could not read hook address with nonce ${nonce} from hook_manager`,
+      );
+    }
+
+    return {
+      hookAddress,
+    };
+  }
+
   async createValidatorAnnounce(
     req: Omit<AltVM.ReqCreateValidatorAnnounce, 'signer'>,
   ): Promise<AltVM.ResCreateValidatorAnnounce> {
@@ -534,12 +588,49 @@ export class AleoSigner
 
   // ### TX WARP ###
 
+  async createNativeToken(
+    req: Omit<AltVM.ReqCreateNativeToken, 'signer'>,
+  ): Promise<AltVM.ResCreateNativeToken> {
+    const tokenSalt = this.getNewProgramSalt(12);
+    const mailboxSalt = this.getProgramSaltFromAddress(req.mailboxAddress);
+
+    const programs = await this.deployProgram(
+      'hyp_native',
+      mailboxSalt,
+      tokenSalt,
+    );
+
+    const tx = await this.getCreateNativeTokenTransaction({
+      signer: this.getSignerAddress(),
+      ...req,
+    });
+
+    const tokenAddress = programs[programs.length - 1];
+    tx.programName = tokenAddress;
+
+    let programId = Array(128).fill(`0u8`);
+    Array.from(tokenAddress)
+      .map((c) => `${c.charCodeAt(0)}u8`)
+      .forEach((c, i) => {
+        programId[i] = c;
+      });
+
+    tx.inputs = [JSON.stringify(programId).replaceAll('"', ''), ...tx.inputs];
+
+    const txId = await this.programManager.execute(tx);
+    await this.aleoClient.waitForTransactionConfirmation(txId);
+
+    return {
+      tokenAddress,
+    };
+  }
+
   async createCollateralToken(
     req: Omit<AltVM.ReqCreateCollateralToken, 'signer'>,
   ): Promise<AltVM.ResCreateCollateralToken> {
     const { symbol } = await this.getTokenMetadata(req.collateralDenom);
 
-    const tokenSalt = `${symbol.toLowerCase()}_${this.getNewProgramSalt(6)}`;
+    const tokenSalt = `${symbol}_${this.getNewProgramSalt(6)}`;
     const mailboxSalt = this.getProgramSaltFromAddress(req.mailboxAddress);
 
     const programs = await this.deployProgram(

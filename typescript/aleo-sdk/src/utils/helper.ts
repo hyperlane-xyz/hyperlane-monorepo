@@ -32,5 +32,5 @@ export function stringToU128(input: string): U128 {
 }
 
 export function U128ToString(input: U128): string {
-  return new TextDecoder().decode(input.toBytesLe());
+  return new TextDecoder().decode(input.toBytesLe().filter((b) => b > 0));
 }
