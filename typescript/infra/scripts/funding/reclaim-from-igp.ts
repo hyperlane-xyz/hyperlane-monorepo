@@ -64,6 +64,8 @@ async function main() {
   );
 
   // Set the Turnkey signer for only EVM chains in the multiProvider
+  // Continue to use legacy deployer via turnkey for now
+  // to avoid needing to fund the new key on all chains
   await setTurnkeySignerForEvmChains(
     multiProvider,
     environment,

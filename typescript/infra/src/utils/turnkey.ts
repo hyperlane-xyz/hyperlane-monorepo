@@ -44,14 +44,20 @@ export type TurnkeyConfig = {
 };
 
 /**
- * Base class containing shared Turnkey client initialization and health check logic
+ * Shared Turnkey client manager
+ * Handles initialization, health checks, and provides access to the Turnkey client
+ *
+ * This class is used by all VM-specific signers via composition rather than inheritance,
+ * allowing each signer to extend/implement their VM-specific base classes while
+ * still sharing common Turnkey functionality.
  */
-abstract class BaseTurnkeySigner {
-  protected readonly client: TurnkeyServerClient;
-  protected readonly organizationId: string;
-  protected readonly privateKeyId: string;
+class TurnkeyClientManager {
+  private readonly client: TurnkeyServerClient;
+  private readonly config: TurnkeyConfig;
 
   constructor(config: TurnkeyConfig) {
+    this.config = config;
+
     const stamper = new ApiKeyStamper({
       apiPublicKey: config.apiPublicKey,
       apiPrivateKey: config.apiPrivateKey,
@@ -62,9 +68,27 @@ abstract class BaseTurnkeySigner {
       stamper,
       apiBaseUrl: 'https://api.turnkey.com',
     });
+  }
 
-    this.organizationId = config.organizationId;
-    this.privateKeyId = config.privateKeyId;
+  /**
+   * Get a copy of the configuration (for creating new signer instances)
+   */
+  getConfig(): TurnkeyConfig {
+    return { ...this.config };
+  }
+
+  /**
+   * Get the Turnkey client (for signing operations)
+   */
+  getClient(): TurnkeyServerClient {
+    return this.client;
+  }
+
+  /**
+   * Get organization ID
+   */
+  getOrganizationId(): string {
+    return this.config.organizationId;
   }
 
   /**
@@ -75,7 +99,7 @@ abstract class BaseTurnkeySigner {
       logger.debug('Running Turnkey health check...');
 
       const whoami = await this.client.getWhoami({
-        organizationId: this.organizationId,
+        organizationId: this.config.organizationId,
       });
 
       logger.debug(
@@ -139,20 +163,19 @@ export async function createTurnkeySigner(
 /**
  * Turnkey signer for Solana/SVM transactions
  * Provides a Keypair-like interface but signs transactions using Turnkey's secure enclaves
+ * Uses composition to access Turnkey functionality while implementing SVM interface
  */
-export class TurnkeySealevelSigner
-  extends BaseTurnkeySigner
-  implements SvmTransactionSigner
-{
-  private turnkeySigner: TurnkeySolanaSigner;
+export class TurnkeySealevelSigner implements SvmTransactionSigner {
+  private readonly manager: TurnkeyClientManager;
+  private readonly turnkeySigner: TurnkeySolanaSigner;
   public readonly publicKey: PublicKey;
 
   constructor(config: TurnkeyConfig) {
-    super(config);
+    this.manager = new TurnkeyClientManager(config);
 
     this.turnkeySigner = new TurnkeySolanaSigner({
-      organizationId: config.organizationId,
-      client: this.client,
+      organizationId: this.manager.getOrganizationId(),
+      client: this.manager.getClient(),
     });
 
     this.publicKey = new PublicKey(config.publicKey);
@@ -160,6 +183,13 @@ export class TurnkeySealevelSigner
     logger.info(
       `Initialized Turnkey Sealevel signer for key: ${this.publicKey}`,
     );
+  }
+
+  /**
+   * Health check - delegates to manager
+   */
+  async healthCheck(): Promise<boolean> {
+    return this.manager.healthCheck();
   }
 
   /**
@@ -184,7 +214,7 @@ export class TurnkeySealevelSigner
         // @ts-ignore work around @solana/web3.js version mismatch
         transaction,
         this.publicKey.toBase58(),
-        this.organizationId,
+        this.manager.getOrganizationId(),
       );
 
       logger.debug('Transaction signed successfully');
@@ -211,34 +241,27 @@ export async function getTurnkeySealevelDeployerSigner(
  * Turnkey signer for EVM transactions
  * Uses Turnkey's secure enclaves to sign transactions without exposing private keys
  * This is a custom ethers v5-compatible Signer that uses Turnkey SDK directly
+ * Uses composition to access Turnkey functionality while extending ethers.Signer
  */
-export class TurnkeyEvmSigner extends ethers.Signer implements ethers.Signer {
-  private readonly client: TurnkeyServerClient;
-  private readonly organizationId: string;
-  private readonly privateKeyId: string;
+export class TurnkeyEvmSigner extends ethers.Signer {
+  private readonly manager: TurnkeyClientManager;
   public readonly address: string;
   public readonly provider: ethers.providers.Provider | undefined;
 
   constructor(config: TurnkeyConfig, provider?: ethers.providers.Provider) {
     super();
-
-    const stamper = new ApiKeyStamper({
-      apiPublicKey: config.apiPublicKey,
-      apiPrivateKey: config.apiPrivateKey,
-    });
-
-    this.client = new TurnkeyServerClient({
-      organizationId: config.organizationId,
-      stamper,
-      apiBaseUrl: 'https://api.turnkey.com',
-    });
-
-    this.organizationId = config.organizationId;
-    this.privateKeyId = config.privateKeyId;
+    this.manager = new TurnkeyClientManager(config);
     this.address = config.publicKey;
     this.provider = provider;
 
-    logger.info(`Initialized Turnkey EVM signer for key: ${this.address}`);
+    logger.debug(`Initialized Turnkey EVM signer for key: ${this.address}`);
+  }
+
+  /**
+   * Health check - delegates to manager
+   */
+  async healthCheck(): Promise<boolean> {
+    return this.manager.healthCheck();
   }
 
   /**
@@ -251,33 +274,10 @@ export class TurnkeyEvmSigner extends ethers.Signer implements ethers.Signer {
   }
 
   /**
-   * Check if Turnkey is properly configured and accessible
-   */
-  async healthCheck(): Promise<boolean> {
-    try {
-      logger.debug('Running Turnkey health check...');
-
-      const whoami = await this.client.getWhoami({
-        organizationId: this.organizationId,
-      });
-
-      logger.debug(
-        `Turnkey health check passed. Organization ID: ${whoami.organizationId}`,
-      );
-      return true;
-    } catch (error) {
-      logger.error('Turnkey health check failed:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Connect this signer to a provider
+   * Connect this signer to a provider (creates new instance with proper configuration)
    */
   connect(provider: ethers.providers.Provider): TurnkeyEvmSigner {
-    const connectedSigner = Object.create(this);
-    connectedSigner.provider = provider;
-    return connectedSigner;
+    return new TurnkeyEvmSigner(this.manager.getConfig(), provider);
   }
 
   /**
@@ -327,7 +327,7 @@ export class TurnkeyEvmSigner extends ethers.Signer implements ethers.Signer {
         : unsignedTx;
 
       // Sign using Turnkey's signTransaction API
-      const { activity } = await this.client.signTransaction({
+      const { activity } = await this.manager.getClient().signTransaction({
         signWith: this.address,
         type: 'TRANSACTION_TYPE_ETHEREUM',
         unsignedTransaction: unsignedTxHex,
@@ -369,12 +369,14 @@ export class TurnkeyEvmSigner extends ethers.Signer implements ethers.Signer {
       const messageHash = ethers.utils.hashMessage(messageBytes);
 
       // Sign raw payload using Turnkey
-      const { activity, r, s, v } = await this.client.signRawPayload({
-        signWith: this.address,
-        payload: messageHash.slice(2), // Remove 0x prefix
-        encoding: 'PAYLOAD_ENCODING_HEXADECIMAL',
-        hashFunction: 'HASH_FUNCTION_NO_OP',
-      });
+      const { activity, r, s, v } = await this.manager
+        .getClient()
+        .signRawPayload({
+          signWith: this.address,
+          payload: messageHash.slice(2), // Remove 0x prefix
+          encoding: 'PAYLOAD_ENCODING_HEXADECIMAL',
+          hashFunction: 'HASH_FUNCTION_NO_OP',
+        });
 
       // Check that the activity completed
       if (activity.status !== 'ACTIVITY_STATUS_COMPLETED') {
