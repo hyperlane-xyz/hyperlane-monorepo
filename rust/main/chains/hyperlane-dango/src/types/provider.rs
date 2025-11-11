@@ -25,6 +25,7 @@ use {
         str::FromStr,
         sync::Arc,
     },
+    tracing::info,
 };
 
 #[derive(Clone)]
@@ -107,10 +108,9 @@ impl DangoProvider {
                 return Ok(result);
             }
 
-            tokio::time::sleep(tokio::time::Duration::from_secs(
-                self.connection_conf.search_sleep_duration,
-            ))
-            .await;
+            tokio::time::sleep(self.connection_conf.search_sleep_duration).await;
+
+            info!("trying next attempt");
         }
 
         Err(crate::DangoError::TxNotFound { hash })
@@ -175,6 +175,8 @@ impl DangoProvider {
             )
             .await?
             .tx_hash;
+
+        tokio::time::sleep(self.connection_conf.post_broadcast_sleep).await;
 
         let outcome = self.search_tx_loop(hash).await?;
 
@@ -428,7 +430,18 @@ impl SearchTxClient for DangoProvider {
     async fn search_tx(&self, hash: Hash256) -> Result<SearchTxOutcome, Self::Error> {
         self.client
             .call(|client| {
-                let future = async move { Ok(client.search_tx(hash).await?) };
+                let future = async move {
+                    match client.search_tx(hash).await {
+                        Ok(outcome) => {
+                            info!("transaction found: {}", hash);
+                            Ok(outcome)
+                        }
+                        Err(e) => {
+                            info!("transaction not found: {}", hash);
+                            Err(e.into())
+                        }
+                    }
+                };
                 Box::pin(future)
             })
             .await

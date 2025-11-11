@@ -2,6 +2,7 @@ use {
     crate::{DangoProvider, DangoResult, DangoSigner},
     grug::Coin,
     hyperlane_core::{config::OpSubmissionConfig, HyperlaneDomain, HyperlaneProvider},
+    std::time::Duration,
     url::Url,
 };
 
@@ -17,9 +18,11 @@ pub struct ConnectionConf {
     /// Flat gas increase
     pub flat_gas_increase: u64,
     /// Search sleep duration in seconds
-    pub search_sleep_duration: u64,
+    pub search_sleep_duration: Duration,
+    /// Sleep after broadcast for search the broadcasted tx
+    pub post_broadcast_sleep: Duration,
     /// Search retry attempts
-    pub search_retry_attempts: u64,
+    pub search_retry_attempts: u16,
     pub chain_id: String,
     pub rpcs: Vec<Url>,
     pub operation_batch: OpSubmissionConfig,

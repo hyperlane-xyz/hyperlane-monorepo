@@ -1,5 +1,6 @@
 use std::ops::Add;
 use std::str::FromStr;
+use std::time::Duration;
 
 use eyre::eyre;
 use hyperlane_sealevel::{
@@ -239,6 +240,7 @@ pub fn build_cosmos_connection_conf(
         },
     }
 }
+
 fn build_dango_connection_conf(
     rpcs: &[Url],
     chain: &ValueParser,
@@ -308,23 +310,10 @@ fn build_dango_connection_conf(
             None
         });
 
-    let search_sleep_duration = chain
-        .chain(&mut local_err)
-        .get_key("search_sleep_duration")
-        .parse_u64()
-        .end()
-        .or_else(|| {
-            local_err.push(
-                &chain.cwp + "search_sleep_duration",
-                eyre!("Missing search_sleep_duration"),
-            );
-            None
-        });
-
     let search_retry_attempts = chain
         .chain(&mut local_err)
         .get_key("search_retry_attempts")
-        .parse_u64()
+        .parse_u16()
         .end()
         .or_else(|| {
             local_err.push(
@@ -333,6 +322,10 @@ fn build_dango_connection_conf(
             );
             None
         });
+
+    let search_sleep_duration = parse_duration(chain, &mut local_err, "search_sleep_duration");
+
+    let post_broadcast_sleep = parse_duration(chain, &mut local_err, "post_broadcast_sleep");
 
     if !local_err.is_ok() {
         err.merge(local_err);
@@ -345,6 +338,7 @@ fn build_dango_connection_conf(
             flat_gas_increase: flat_gas_increase?,
             search_sleep_duration: search_sleep_duration?,
             search_retry_attempts: search_retry_attempts?,
+            post_broadcast_sleep: post_broadcast_sleep?,
             chain_id: chain_id?.to_string(),
             rpcs: rpcs.to_owned(),
             operation_batch,
@@ -572,6 +566,33 @@ fn parse_transaction_submitter_config(
         // If not specified at all, use default
         Some(h_sealevel::config::TransactionSubmitterConfig::default())
     }
+}
+
+fn parse_duration(
+    chain: &ValueParser,
+    local_err: &mut ConfigParsingError,
+    key: &str,
+) -> Option<Duration> {
+    chain
+        .chain(local_err)
+        .get_key(key)
+        .parse_string()
+        .end()
+        .or_else(|| {
+            local_err.push(&chain.cwp + key, eyre!("Missing {key}"));
+            None
+        })
+        .and_then(|str| {
+            humantime::parse_duration(str)
+                .map(Some)
+                .unwrap_or_else(|e| {
+                    local_err.push(
+                        &chain.cwp + key,
+                        eyre!("Invalid search sleep duration: {e}"),
+                    );
+                    None
+                })
+        })
 }
 
 pub fn build_radix_connection_conf(

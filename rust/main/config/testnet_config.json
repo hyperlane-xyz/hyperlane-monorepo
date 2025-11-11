@@ -2421,7 +2421,8 @@
       },
       "gas_scale": 1.2,
       "flat_gas_increase": 1000000,
-      "search_sleep_duration": 1,
+      "search_sleep_duration": "500ms",
+      "post_broadcast_sleep": "2s",
       "search_retry_attempts": 10,
       "checkpointSyncer": {
         "type": "localStorage"
@@ -2452,7 +2453,8 @@
       },
       "gas_scale": 1.2,
       "flat_gas_increase": 1000000,
-      "search_sleep_duration": 1,
+      "search_sleep_duration": "500ms",
+      "post_broadcast_sleep": "2s",
       "search_retry_attempts": 10,
       "index": {
         "chunk": 10,

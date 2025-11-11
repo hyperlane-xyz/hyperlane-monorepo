@@ -24,12 +24,6 @@ pub enum DangoError {
         reason: String,
     },
 
-    #[error("reorg period is too large: current block height: {current_block_height}, reorg period: {reorg_period}")]
-    ReorgPeriodTooLarge {
-        current_block_height: u64,
-        reorg_period: u64,
-    },
-
     #[error("transaction not found: {hash}")]
     TxNotFound { hash: Hash256 },
 
@@ -38,6 +32,9 @@ pub enum DangoError {
 
     #[error("invalid reorg period, dango only supports `none`reorg period: {0:?}")]
     InvalidReorgPeriod(hyperlane_core::ReorgPeriod),
+
+    #[error("querying at a specific block height is not supported in dango")]
+    QueryingAtSpecificBlockHeightNotSupported,
 }
 
 impl DangoError {

@@ -1,15 +1,15 @@
 use {
     crate::{
-        hyperlane_contract, ConnectionConf, DangoConvertor, DangoProvider, DangoResult,
+        hyperlane_contract, ConnectionConf, DangoConvertor, DangoError, DangoProvider, DangoResult,
         DangoSigner, TryDangoConvertor,
     },
     anyhow::anyhow,
     async_trait::async_trait,
     dango_hyperlane_types::{
-        mailbox::{self, QueryTreeRequest},
+        mailbox::QueryTreeRequest,
         IncrementalMerkleTree as DangoIncrementalMerkleTree,
     },
-    grug::{JsonDeExt, Query, QueryClientExt, QueryResponse},
+    grug::{QueryClientExt, QueryResponse},
     hyperlane_core::{
         accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult,
         Checkpoint, CheckpointAtBlock, ContractLocator, HyperlaneContract,
@@ -81,39 +81,41 @@ impl MerkleTreeHook for DangoMerkleTree {
     }
 
     async fn latest_checkpoint_at_block(&self, _height: u64) -> ChainResult<CheckpointAtBlock> {
-        // TODO: We don't support querying at a specific block height, so the latest checkpoint will be returned.
+        // TODO: We don't support querying at a specific block height
 
-        let addr = self.address.try_convert()?;
-        let res = self
-            .provider
-            .query_multi(
-                [
-                    Query::wasm_smart(addr, &mailbox::QueryMsg::Nonce {})?,
-                    Query::wasm_smart(addr, &mailbox::QueryMsg::Tree {})?,
-                    Query::status(),
-                ],
-                None,
-            )
-            .await?;
+        Err(DangoError::QueryingAtSpecificBlockHeightNotSupported.into())
 
-        let [nonce, tree, status] = parse_response(res)?;
-        let nonce: u32 = nonce.as_wasm_smart().deserialize_json()?;
-        let tree: DangoIncrementalMerkleTree = tree.as_wasm_smart().deserialize_json()?;
+        // let addr = self.address.try_convert()?;
+        // let res = self
+        //     .provider
+        //     .query_multi(
+        //         [
+        //             Query::wasm_smart(addr, &mailbox::QueryMsg::Nonce {})?,
+        //             Query::wasm_smart(addr, &mailbox::QueryMsg::Tree {})?,
+        //             Query::status(),
+        //         ],
+        //         None,
+        //     )
+        //     .await?;
 
-        Ok(CheckpointAtBlock {
-            checkpoint: Checkpoint {
-                merkle_tree_hook_address: self.address(),
-                mailbox_domain: self.provider.domain.id(),
-                root: tree.root().convert(),
-                index: nonce,
-            },
-            block_height: Some(status.as_status().last_finalized_block.height),
-        })
+        // let [nonce, tree, status] = parse_response(res)?;
+        // let nonce: u32 = nonce.as_wasm_smart().deserialize_json()?;
+        // let tree: DangoIncrementalMerkleTree = tree.as_wasm_smart().deserialize_json()?;
+
+        // Ok(CheckpointAtBlock {
+        //     checkpoint: Checkpoint {
+        //         merkle_tree_hook_address: self.address(),
+        //         mailbox_domain: self.provider.domain.id(),
+        //         root: tree.root().convert(),
+        //         index: nonce,
+        //     },
+        //     block_height: Some(status.as_status().last_finalized_block.height),
+        // })
     }
 }
 
 #[allow(clippy::manual_try_fold)]
-fn parse_response<E: Display, const N: usize>(
+fn _parse_response<E: Display, const N: usize>(
     res: [Result<QueryResponse, E>; N],
 ) -> ChainResult<[QueryResponse; N]> {
     res.into_iter()
