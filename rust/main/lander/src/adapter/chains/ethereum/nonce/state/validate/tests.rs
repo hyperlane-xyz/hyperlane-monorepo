@@ -586,6 +586,7 @@ async fn test_validate_assigned_nonce_included_status() {
     let action = state.validate_assigned_nonce(&tx).await.unwrap();
     // Included maps to Taken status, above finalized nonce -> Assign
     assert_eq!(action, NonceAction::Assign { nonce: nonce_val });
+    assert_eq!(state.metrics.get_mismatched_nonce().get(), 0);
 }
 
 #[tokio::test]
