@@ -14,8 +14,8 @@ Explore fee curves interactively with adjustable parameters using the Jupyter no
 
 **Option 1: Run in Browser (No Installation)**
 
-- [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/hyperlane-xyz/hyperlane-monorepo/token-fees-docs?labpath=solidity%2Fcontracts%2Ftoken%2Ffees%2Ffee_explorer.ipynb) - Click to launch in Binder
-- [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/hyperlane-xyz/hyperlane-monorepo/blob/token-fees-docs/solidity/contracts/token/fees/fee_explorer.ipynb) - Click to open in Google Colab
+- [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/hyperlane-xyz/hyperlane-monorepo/fee-notebook?labpath=solidity%2Fcontracts%2Ftoken%2Ffees%2Ffee_explorer.ipynb) - Click to launch in Binder
+- [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/hyperlane-xyz/hyperlane-monorepo/blob/fee-notebook/solidity/contracts/token/fees/fee_explorer.ipynb) - Click to open in Google Colab
 
 **Option 2: Run Locally**
 
