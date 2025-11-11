@@ -1,53 +1,205 @@
 import { BigNumber } from 'ethers';
+import { formatEther, parseEther } from 'ethers/lib/utils.js';
 
 import { HyperlaneIgp } from '@hyperlane-xyz/sdk';
 import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { getEnvAddresses } from '../../config/registry.js';
-import { getArgs } from '../agent-utils.js';
+import { getKeyFunderConfig } from '../../src/funding/key-funder.js';
+import { TurnkeyRole } from '../../src/roles.js';
+import { setTurnkeySignerForEvmChains } from '../../src/utils/turnkey.js';
+import { getArgs, withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
-// Some arbitrary threshold for now
-const RECLAIM_BALANCE_THRESHOLD = BigNumber.from(10).pow(17);
+function withForce<T>(args: any) {
+  return args
+    .describe('force', 'Force claim even if below threshold')
+    .boolean('force')
+    .alias('f', 'force')
+    .default('force', false);
+}
+
+type ReclaimStatus =
+  | 'SUCCESS'
+  | 'BELOW_THRESHOLD'
+  | 'INSUFFICIENT_FOR_GAS'
+  | 'NO_GAS_PRICE'
+  | 'ERROR';
+
+interface ReclaimResult {
+  chain: string;
+  balance: string;
+  threshold: string;
+  status: ReclaimStatus;
+  result: string;
+}
+
+// Format to 5 significant figures
+function formatTo5SF(value: string): string {
+  const num = parseFloat(value);
+  if (num === 0) return '0';
+  return num.toPrecision(5);
+}
 
 async function main() {
-  const { environment } = await getArgs().argv;
+  const { environment, chains, force } = await withForce(withChains(getArgs()))
+    .argv;
   const environmentConfig = getEnvironmentConfig(environment);
-  const multiProvider = await environmentConfig.getMultiProvider();
+
+  // Get the IGP claim thresholds from the key funder config
+  const keyFunderConfig = getKeyFunderConfig(environmentConfig);
+  const igpClaimThresholds = keyFunderConfig.igpClaimThresholdPerChain;
+
+  // Filter chains if provided
+  const chainsToProcess = chains?.length
+    ? chains
+    : environmentConfig.supportedChainNames;
+
+  const multiProvider = await environmentConfig.getMultiProvider(
+    undefined,
+    undefined,
+    undefined,
+    chainsToProcess,
+  );
+
+  // Set the Turnkey signer for only EVM chains in the multiProvider
+  await setTurnkeySignerForEvmChains(
+    multiProvider,
+    environment,
+    TurnkeyRole.EvmIgpClaimer,
+  );
+
   const igp = HyperlaneIgp.fromAddressesMap(
     getEnvAddresses(environment),
     multiProvider,
   );
 
-  const paymasters = igp.map(
-    (_, contracts) => contracts.interchainGasPaymaster,
-  );
-
-  const balances = await promiseObjAll(
-    multiProvider.mapKnownChains((chain) => {
-      const provider = multiProvider.getProvider(chain);
-      const paymasterAddress = paymasters[chain].address;
-      return provider.getBalance(paymasterAddress);
-    }),
-  );
-
-  console.log('Balances', balances);
-
-  const reclaimTxHashes = await promiseObjAll(
-    objMap(paymasters, async (chain, paymaster) => {
-      const balance = balances[chain];
-      // Only reclaim when greater than the reclaim threshold
-      if (balance.lt(RECLAIM_BALANCE_THRESHOLD)) {
-        return 'N/A';
+  // Filter to only include chains we want to process
+  const filteredPaymasters = objMap(
+    igp.map((_, contracts) => contracts.interchainGasPaymaster),
+    (chain, paymaster) => {
+      if (chainsToProcess.includes(chain)) {
+        return paymaster;
       }
-      const tx = await paymaster.claim();
-      return multiProvider.tryGetExplorerTxUrl(chain, tx);
+      return undefined;
+    },
+  );
+
+  const results: ReclaimResult[] = [];
+
+  const reclaimResults = await promiseObjAll(
+    objMap(filteredPaymasters, async (chain, paymaster) => {
+      if (!paymaster) return null;
+
+      try {
+        const provider = multiProvider.getProvider(chain);
+        const balance = await provider.getBalance(paymaster.address);
+        const formattedBalance = formatEther(balance);
+
+        // Get the threshold for this chain from config, default to 0.1 ETH if not set
+        const thresholdStr = igpClaimThresholds[chain] || '0.1';
+        const threshold = parseEther(thresholdStr);
+
+        // Only reclaim when greater than the reclaim threshold (unless --force is used)
+        if (!force && balance.lt(threshold)) {
+          return {
+            chain,
+            balance: formatTo5SF(formattedBalance),
+            threshold: formatTo5SF(thresholdStr),
+            status: 'BELOW_THRESHOLD' as ReclaimStatus,
+            result: '-',
+          };
+        }
+
+        // Estimate the gas cost for the claim transaction
+        const gasEstimate = await paymaster.estimateGas.claim();
+        const feeData = await provider.getFeeData();
+
+        // Calculate total cost: gas * (gasPrice or maxFeePerGas)
+        const gasPrice = feeData.maxFeePerGas || feeData.gasPrice;
+        if (!gasPrice) {
+          return {
+            chain,
+            balance: formatTo5SF(formattedBalance),
+            threshold: formatTo5SF(thresholdStr),
+            status: 'NO_GAS_PRICE' as ReclaimStatus,
+            result: '-',
+          };
+        }
+
+        const estimatedCost = gasEstimate.mul(gasPrice);
+        const costThreshold = estimatedCost.mul(2); // 2x the cost
+
+        // Only proceed if balance > 2x the estimated cost (unless --force is used)
+        if (!force && balance.lte(costThreshold)) {
+          return {
+            chain,
+            balance: formatTo5SF(formattedBalance),
+            threshold: formatTo5SF(thresholdStr),
+            status: 'INSUFFICIENT_FOR_GAS' as ReclaimStatus,
+            result: '-',
+          };
+        }
+
+        const tx = await paymaster.claim();
+        const explorerUrl = multiProvider.tryGetExplorerTxUrl(chain, tx);
+
+        return {
+          chain,
+          balance: formatTo5SF(formattedBalance),
+          threshold: formatTo5SF(thresholdStr),
+          status: 'SUCCESS' as ReclaimStatus,
+          result: explorerUrl || tx.hash,
+        };
+      } catch (error) {
+        const provider = multiProvider.getProvider(chain);
+        let balance = 'N/A';
+        let thresholdStr = igpClaimThresholds[chain] || '0.1';
+        try {
+          const bal = await provider.getBalance(paymaster.address);
+          balance = formatTo5SF(formatEther(bal));
+        } catch {}
+
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        // Extract just the key error info, not the full stack
+        const shortError = errorMsg.split('\n')[0].substring(0, 80);
+        return {
+          chain,
+          balance,
+          threshold: formatTo5SF(thresholdStr),
+          status: 'ERROR' as ReclaimStatus,
+          result: shortError,
+        };
+      }
     }),
   );
 
-  console.log('Reclaim Transactions', reclaimTxHashes);
+  // Convert to array and filter out nulls
+  Object.values(reclaimResults).forEach((result) => {
+    if (result) results.push(result);
+  });
+
+  // Create table-friendly format
+  const tableData = results.map((r) => ({
+    chain: r.chain,
+    balance: r.balance,
+    threshold: r.threshold,
+    status: r.status,
+    result: r.result,
+  }));
+
+  console.table(tableData);
+
+  const successCount = results.filter((r) => r.status === 'SUCCESS').length;
+  console.log(`\n✓ Successfully claimed from ${successCount} chain(s)`);
+  if (force) {
+    console.log('   (--force mode: bypassed threshold and gas checks)');
+  }
 }
 
 main()
-  .then(() => console.log('Reclaim of funds successful!'))
-  .catch(console.error);
+  .then(() => process.exit(0))
+  .catch((error) => {
+    console.error('Fatal error:', error.message);
+    process.exit(1);
+  });
