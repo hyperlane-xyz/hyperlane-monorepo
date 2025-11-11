@@ -1,10 +1,11 @@
-use serde::Serialize;
 use std::sync::Arc;
 use std::{
     collections::VecDeque,
     str::FromStr,
     time::{Duration, Instant},
 };
+
+use serde::Serialize;
 use tokio::sync::{self, mpsc};
 
 use hyperlane_core::{

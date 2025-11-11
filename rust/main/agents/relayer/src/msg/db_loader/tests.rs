@@ -6,6 +6,7 @@ use tokio::{
     time::sleep,
 };
 use tokio_metrics::TaskMonitor;
+use tracing::info_span;
 
 use hyperlane_base::{
     cache::{LocalCache, MeteredCache, MeteredCacheConfig, MeteredCacheMetrics, OptionalCache},
@@ -21,7 +22,6 @@ use hyperlane_core::{
 use hyperlane_operation_verifier::{
     ApplicationOperationVerifier, ApplicationOperationVerifierReport,
 };
-use tracing::info_span;
 
 use crate::{
     db_loader::DbLoader,
