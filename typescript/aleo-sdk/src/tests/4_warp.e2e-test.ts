@@ -1,0 +1,120 @@
+import {
+  Account,
+  AleoKeyProvider,
+  AleoNetworkClient,
+  NetworkRecordProvider,
+  ProgramManager,
+} from '@provablehq/sdk';
+import { expect } from 'chai';
+import { step } from 'mocha-steps';
+
+import { AltVM } from '@hyperlane-xyz/utils';
+
+import { AleoSigner } from '../clients/signer.js';
+import { stringToU128 } from '../utils/helper.js';
+import { AleoReceipt, AleoTransaction } from '../utils/types.js';
+
+describe('4. aleo sdk warp e2e tests', async function () {
+  this.timeout(600_000);
+
+  let signer: AltVM.ISigner<AleoTransaction, AleoReceipt>;
+
+  let mailboxAddress: string;
+  let collateralDenom: string;
+
+  before(async () => {
+    const localnetRpc = 'http://localhost:3030';
+    // test private key with funds
+    const privateKey =
+      'APrivateKey1zkp8CZNn3yeCseEtxuVPbDCwSyhGW6yZKUYKfgXmcpoGPWH';
+
+    signer = await AleoSigner.connectWithSigner([localnetRpc], privateKey);
+
+    const aleoAccount = new Account({
+      privateKey,
+    });
+
+    const aleoClient = new AleoNetworkClient(localnetRpc);
+
+    const keyProvider = new AleoKeyProvider();
+    keyProvider.useCache(true);
+
+    const networkRecordProvider = new NetworkRecordProvider(
+      aleoAccount,
+      aleoClient,
+    );
+
+    const programManager = new ProgramManager(
+      localnetRpc,
+      keyProvider,
+      networkRecordProvider,
+    );
+    programManager.setAccount(aleoAccount);
+
+    collateralDenom = '1field';
+
+    await programManager.execute({
+      programName: 'token_registry.aleo',
+      functionName: 'register_token',
+      priorityFee: 0,
+      privateFee: false,
+      inputs: [
+        collateralDenom,
+        stringToU128('test').toString(),
+        stringToU128('test').toString(),
+        `6u8`,
+        `100000000u128`,
+        `false`,
+        `aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc`,
+      ],
+    });
+
+    await programManager.execute({
+      programName: 'token_registry.aleo',
+      functionName: 'mint_public',
+      priorityFee: 0,
+      privateFee: false,
+      inputs: [
+        collateralDenom,
+        signer.getSignerAddress(),
+        `100000000u128`,
+        `0u32`,
+      ],
+    });
+
+    const domainId = 1234;
+
+    const mailbox = await signer.createMailbox({
+      domainId: domainId,
+      defaultIsmAddress: '',
+    });
+    mailboxAddress = mailbox.mailboxAddress;
+  });
+
+  step('create new collateral token', async () => {
+    // ARRANGE
+
+    // ACT
+    const txResponse = await signer.createCollateralToken({
+      mailboxAddress,
+      collateralDenom,
+    });
+
+    // ASSERT
+    expect(txResponse.tokenAddress).to.be.not.empty;
+
+    let token = await signer.getToken({
+      tokenAddress: txResponse.tokenAddress,
+    });
+
+    expect(token).not.to.be.undefined;
+    expect(token.owner).to.equal(signer.getSignerAddress());
+    expect(token.mailboxAddress).to.equal(mailboxAddress);
+    expect(token.denom).to.equal(collateralDenom);
+    expect(token.name).to.be.empty;
+    expect(token.symbol).to.be.empty;
+    expect(token.decimals).to.be.empty;
+    expect(token.ismAddress).to.be.empty;
+    expect(token.tokenType).to.equal(AltVM.TokenType.collateral);
+  });
+});
