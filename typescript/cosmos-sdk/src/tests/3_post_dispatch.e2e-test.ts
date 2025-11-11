@@ -44,13 +44,10 @@ describe('3. cosmos sdk post dispatch e2e tests', async function () {
 
   step('create new Merkle Tree hook', async () => {
     // ARRANGE
-    const { ismAddress } = await signer.createNoopIsm({});
-
     const domainId = 1234;
 
     const { mailboxAddress } = await signer.createMailbox({
       domainId: domainId,
-      defaultIsmAddress: ismAddress,
     });
 
     // ACT

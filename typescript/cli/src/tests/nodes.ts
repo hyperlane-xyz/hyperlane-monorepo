@@ -6,10 +6,10 @@ import {
 } from 'testcontainers';
 import { fileURLToPath } from 'url';
 
-import { RadixSigner } from '@hyperlane-xyz/radix-sdk';
-import { assert, retryAsync, sleep } from '@hyperlane-xyz/utils';
+import { assert, sleep } from '@hyperlane-xyz/utils';
 
-import { HYP_KEY_BY_PROTOCOL, TestChainMetadata } from './constants.js';
+import { TestChainMetadata } from './constants.js';
+import { deployHyperlaneRadixPackageDefinition } from './radix/utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -93,32 +93,10 @@ export async function runRadixNode(
   console.log(`Waiting on the gateway API to sync for ${chainMetadata.name}`);
   await sleep(10_000);
 
-  // Adding dummy package address to avoid the signer crashing because
-  // no Hyperlane package is deployed on the new node
-  chainMetadata.packageAddress = 'not-yet-deployed';
-  const signer = (await RadixSigner.connectWithSigner(
-    chainMetadata.rpcUrls.map((rpc) => rpc.http),
-    HYP_KEY_BY_PROTOCOL.radix,
-    {
-      metadata: chainMetadata,
-    },
-  )) as RadixSigner;
-
-  // Fund the account with the internal signer
-  // Use retryAsync to handle transient errors (e.g., epoch expiry)
-  await retryAsync(
-    () => signer['signer'].getTestnetXrd(),
-    3, // attempts
-    1000, // base retry delay (1 second)
+  await deployHyperlaneRadixPackageDefinition(
+    chainMetadata,
+    hyperlanePackageArtifacts,
   );
-  console.log(
-    `Funded test account on ${chainMetadata.name} before publishing the hyperlane package`,
-  );
-  const packageAddress = await signer.publishPackage({
-    code: hyperlanePackageArtifacts.code,
-    packageDefinition: hyperlanePackageArtifacts.packageDefinition,
-  });
-  chainMetadata.packageAddress = packageAddress;
 
   return environment;
 }
