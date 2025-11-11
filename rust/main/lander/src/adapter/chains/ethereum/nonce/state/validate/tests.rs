@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use std::time::Duration;
 
 use ethers::types::{H160, U256 as EthersU256};
 use ethers_core::types::Address;
