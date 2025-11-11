@@ -65,7 +65,7 @@ export class TurnkeySealevelSigner implements SvmTransactionSigner {
   }
 
   /**
-   * Get a signer (returns this for compatibility with CloudAgentKey interface)
+   * Get a signer (returns this instance)
    */
   async getSigner(): Promise<this> {
     return this;
