@@ -19,6 +19,11 @@ mod memory_profiler;
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 8)]
 async fn main() -> Result<()> {
+    // Install rustls crypto provider (required for rustls 0.23+)
+    rustls::crypto::aws_lc_rs::default_provider()
+       .install_default()
+       .expect("Failed to install rustls crypto provider");
+
     // Logging is not initialised at this point, so, using `println!`
     println!("Relayer starting up...");
 
