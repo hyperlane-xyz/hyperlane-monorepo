@@ -8,6 +8,32 @@ This directory implements four distinct fee models for cross-chain token transfe
 
 _Comprehensive comparison of all three fee models showing absolute fees, fee percentages, zoomed intersection view, and numerical comparison table. Generated using `visualize_fees.py`._
 
+### 🎮 Interactive Explorer
+
+Explore fee curves interactively with adjustable parameters using the Jupyter notebook:
+
+**Option 1: Run in Browser (No Installation)**
+
+- [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/hyperlane-xyz/hyperlane-monorepo/token-fees-docs?labpath=solidity%2Fcontracts%2Ftoken%2Ffees%2Ffee_explorer.ipynb) - Click to launch in Binder
+- [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/hyperlane-xyz/hyperlane-monorepo/blob/token-fees-docs/solidity/contracts/token/fees/fee_explorer.ipynb) - Click to open in Google Colab
+
+**Option 2: Run Locally**
+
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Launch Jupyter
+jupyter notebook fee_explorer.ipynb
+```
+
+**Features:**
+
+- 🎛️ Adjustable sliders for `maxFee`, `halfAmount`, and current transfer amount
+- 📊 Real-time curve updates as you adjust parameters
+- 📈 Live fee calculations and comparison table
+- 🎯 Visual indicators showing current transfer amount on curves
+
 ## Architecture Overview
 
 ### BaseFee (BaseFee.sol:19)
