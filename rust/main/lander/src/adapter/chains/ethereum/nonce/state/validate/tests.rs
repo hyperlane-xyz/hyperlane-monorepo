@@ -4,7 +4,6 @@ use ethers::types::{H160, U256 as EthersU256};
 use ethers_core::types::Address;
 
 use hyperlane_core::{HyperlaneDomain, U256};
-use hyperlane_ethereum::EthereumReorgPeriod;
 
 use crate::adapter::chains::ethereum::tests::{dummy_evm_tx, ExpectedTxType, MockEvmProvider};
 use crate::adapter::chains::ethereum::Precursor;
