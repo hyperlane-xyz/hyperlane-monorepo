@@ -139,7 +139,7 @@ export function listProtocolProviders(): ProtocolType[] {
  * @returns Hook module factory
  * @throws Error if the protocol is not registered
  */
-export function getHookFactory(
+export function getHookProvider(
   protocol: ProtocolType,
 ): ReturnType<ProtocolProvider['hookProvider']> {
   const protocolFactory = getProtocolProviderFactory(protocol);
@@ -153,7 +153,7 @@ export function getHookFactory(
  * @returns ISM module factory
  * @throws Error if the protocol is not registered
  */
-export function getIsmFactory(
+export function getIsmProvider(
   protocol: ProtocolType,
 ): ReturnType<ProtocolProvider['ismProvider']> {
   const protocolFactory = getProtocolProviderFactory(protocol);
@@ -167,7 +167,7 @@ export function getIsmFactory(
  * @returns Token router module factory
  * @throws Error if the protocol is not registered
  */
-export function getTokenRouterFactory(
+export function getTokenRouterProvider(
   protocol: ProtocolType,
 ): ReturnType<ProtocolProvider['tokenRouterProvider']> {
   const protocolFactory = getProtocolProviderFactory(protocol);
