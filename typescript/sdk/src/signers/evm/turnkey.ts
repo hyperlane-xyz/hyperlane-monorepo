@@ -171,8 +171,23 @@ export class TurnkeyEvmSigner extends ethers.Signer {
         );
       }
 
+      // Validate signature components
+      if (!r || !s || !v) {
+        throw new Error('Missing signature components from Turnkey');
+      }
+
+      const hexPattern = /^0x[0-9a-fA-F]+$/;
+      if (!hexPattern.test(r) || !hexPattern.test(s)) {
+        throw new Error('Invalid signature format from Turnkey');
+      }
+
+      const vNum = parseInt(v, 16);
+      if (isNaN(vNum)) {
+        throw new Error(`Invalid v value from Turnkey: ${v}`);
+      }
+
       // Reconstruct the signature from r, s, v
-      return ethers.utils.joinSignature({ r, s, v: parseInt(v, 16) });
+      return ethers.utils.joinSignature({ r, s, v: vNum });
     } catch (error) {
       logger.error('Failed to sign message with Turnkey:', error);
       throw error;

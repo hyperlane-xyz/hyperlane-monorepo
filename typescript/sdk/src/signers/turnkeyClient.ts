@@ -6,6 +6,11 @@ import { rootLogger } from '@hyperlane-xyz/utils';
 const logger = rootLogger.child({ module: 'sdk:turnkey-client' });
 
 /**
+ * Default Turnkey API base URL
+ */
+export const DEFAULT_TURNKEY_API_BASE_URL = 'https://api.turnkey.com';
+
+/**
  * Unified Turnkey configuration for both Sealevel and EVM keys
  * The publicKey field contains:
  * - For Sealevel: base58-encoded Solana public key
@@ -17,6 +22,7 @@ export type TurnkeyConfig = {
   apiPrivateKey: string;
   privateKeyId: string;
   publicKey: string;
+  apiBaseUrl?: string; // Optional API base URL (defaults to DEFAULT_TURNKEY_API_BASE_URL)
 };
 
 /**
@@ -49,7 +55,7 @@ export class TurnkeyClientManager {
     this.client = new TurnkeyServerClient({
       organizationId: config.organizationId,
       stamper,
-      apiBaseUrl: 'https://api.turnkey.com',
+      apiBaseUrl: config.apiBaseUrl || DEFAULT_TURNKEY_API_BASE_URL,
     });
   }
 
