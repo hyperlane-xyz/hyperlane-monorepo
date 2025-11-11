@@ -6,6 +6,7 @@ use corelib::api::client::Deposit;
 use corelib::balance::*;
 use corelib::deposit::*;
 use corelib::escrow::*;
+use corelib::message::{add_kaspa_metadata_hl_messsage, ParsedHL};
 use corelib::user::deposit::deposit_with_payload;
 use corelib::wallet::*;
 use dymension_kaspa::KaspaHttpClient;
@@ -34,7 +35,6 @@ use kaspa_wallet_core::api::{AccountsSendRequest, WalletApi};
 use kaspa_wallet_core::error::Error as KaspaError;
 use kaspa_wallet_core::tx::Fees;
 use kaspa_wallet_core::utxo::NetworkParams;
-use corelib::message::{add_kaspa_metadata_hl_messsage, ParsedHL};
 use relayer::deposit::on_new_deposit;
 use relayer::withdraw::*;
 use std::collections::HashSet;
@@ -220,7 +220,9 @@ pub async fn demo(args: DemoArgs) -> Result<(), Box<dyn Error>> {
     let escrow = escrow_address.clone();
 
     // Decode payload and add Kaspa metadata
-    let payload = result.payload.as_ref()
+    let payload = result
+        .payload
+        .as_ref()
         .ok_or_else(|| eyre::eyre!("Deposit has no payload"))?;
     let parsed_hl = ParsedHL::parse_string(payload)?;
     let amt_hl = parsed_hl.token_message.amount();
@@ -232,17 +234,22 @@ pub async fn demo(args: DemoArgs) -> Result<(), Box<dyn Error>> {
         .iter()
         .position(|utxo| {
             U256::from(utxo.amount) >= amt_hl
-                && utxo.script_public_key_address.as_ref()
+                && utxo
+                    .script_public_key_address
+                    .as_ref()
                     .map(|addr| addr == &escrow_str)
                     .unwrap_or(false)
         })
-        .ok_or_else(|| eyre::eyre!(
-            "kaspa deposit {} had insufficient sompi amount or no matching escrow output",
-            result.id
-        ))?;
+        .ok_or_else(|| {
+            eyre::eyre!(
+                "kaspa deposit {} had insufficient sompi amount or no matching escrow output",
+                result.id
+            )
+        })?;
 
     // Add Kaspa metadata to the Hyperlane message
-    let hl_message_with_metadata = add_kaspa_metadata_hl_messsage(parsed_hl, result.id, utxo_index)?;
+    let hl_message_with_metadata =
+        add_kaspa_metadata_hl_messsage(parsed_hl, result.id, utxo_index)?;
 
     // handle deposit (relayer operation)
     let deposit_fxg = on_new_deposit(
@@ -250,7 +257,7 @@ pub async fn demo(args: DemoArgs) -> Result<(), Box<dyn Error>> {
         amt_hl,
         utxo_index,
         &result,
-        &client.client
+        &client.client,
     )
     .await
     .map_err(|e| eyre::eyre!("Deposit processing failed: {}", e))?;

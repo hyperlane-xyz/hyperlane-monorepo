@@ -1,6 +1,6 @@
+use corelib::api::client::{Deposit, HttpClient};
 use corelib::deposit::DepositFXG;
 use corelib::finality::is_safe_against_reorg;
-use corelib::api::client::{Deposit, HttpClient};
 use eyre::Result;
 use hyperlane_core::U256;
 pub use secp256k1::PublicKey;
