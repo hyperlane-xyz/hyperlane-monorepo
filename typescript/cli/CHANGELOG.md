@@ -1,5 +1,43 @@
 # @hyperlane-xyz/cli
 
+## 19.7.0
+
+### Minor Changes
+
+- a03b02e47: Fix `hyperlane warp send` where an error is thrown if `--chains` or `--origin` and `--destination` are not provided
+
+## 19.6.0
+
+### Minor Changes
+
+- b259966fe: Add the Fee deploy logic into token deployer to allow warp routes to deploy with a token fee. Update Fee schemas to separate between input and output
+- ec406fcbe: Add TokenFee updates to the FeeModule and WarpModule. This enables updating immutable fees (re-deploy), routing sub-fees, and ownership
+- 9185b9c5b: Update EvmTokenFeeModule to support native fee deployment by extracting config processing into a static method that handles native tokens, modularizing deployment logic, and adding automatic BPS calculation from fee parameters.
+
+### Patch Changes
+
+- 18c32ed2b: Decouple movable collateral and hyp collateral token adapters
+
+## 19.6.0-beta.0
+
+### Minor Changes
+
+- b259966fe: Add the Fee deploy logic into token deployer to allow warp routes to deploy with a token fee. Update Fee schemas to separate between input and output
+- ec406fcbe: Add TokenFee updates to the FeeModule and WarpModule. This enables updating immutable fees (re-deploy), routing sub-fees, and ownership
+- 9185b9c5b: Update EvmTokenFeeModule to support native fee deployment by extracting config processing into a static method that handles native tokens, modularizing deployment logic, and adding automatic BPS calculation from fee parameters.
+
+### Patch Changes
+
+- 18c32ed2b: Decouple movable collateral and hyp collateral token adapters
+
+## 19.5.0
+
+## 19.4.0
+
+### Minor Changes
+
+- 4011a4561: Fix bug that prevented the warp route ism to be set to the 0 address and include logic to update a pausable ism as it was missing
+
 ## 19.3.0
 
 ## 19.2.0

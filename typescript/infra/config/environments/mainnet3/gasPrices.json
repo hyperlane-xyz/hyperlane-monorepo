@@ -95,10 +95,6 @@
     "amount": "25.001",
     "decimals": 9
   },
-  "cheesechain": {
-    "amount": "1.0",
-    "decimals": 9
-  },
   "chilizmainnet": {
     "amount": "2501.0",
     "decimals": 9
@@ -116,7 +112,7 @@
     "decimals": 9
   },
   "degenchain": {
-    "amount": "100.0",
+    "amount": "120.0",
     "decimals": 9
   },
   "dogechain": {
@@ -180,7 +176,7 @@
     "decimals": 9
   },
   "gnosis": {
-    "amount": "0.003290698",
+    "amount": "0.004298706",
     "decimals": 9
   },
   "gravity": {
@@ -280,7 +276,7 @@
     "decimals": 9
   },
   "metis": {
-    "amount": "3.89606776",
+    "amount": "6.360456245",
     "decimals": 9
   },
   "milkyway": {
@@ -296,7 +292,7 @@
     "decimals": 9
   },
   "mitosis": {
-    "amount": "18.000000003",
+    "amount": "82.5",
     "decimals": 9
   },
   "mode": {
@@ -449,10 +445,6 @@
   },
   "sophon": {
     "amount": "8316.314493515",
-    "decimals": 9
-  },
-  "sovachain": {
-    "amount": "0.001000251",
     "decimals": 9
   },
   "starknet": {

@@ -316,70 +316,6 @@
       "staticMessageIdWeightedMultisigIsmFactory": "0x8eAB8cBb9037e818C321f675c0bc2EA4649003CF",
       "gasCurrencyCoinGeckoId": "avalanche-2"
     },
-    "holesky": {
-      "aggregationHook": "0xb1FfD51f03c69A0a3e5AFEBDE639752DB1d56bc9",
-      "blockExplorers": [
-        {
-          "apiUrl": "https://api-holesky.etherscan.io/api",
-          "family": "etherscan",
-          "name": "Etherscan",
-          "url": "https://holesky.etherscan.io"
-        }
-      ],
-      "blocks": {
-        "confirmations": 1,
-        "estimateBlockTime": 13,
-        "reorgPeriod": 2
-      },
-      "chainId": 17000,
-      "deployer": {
-        "name": "Abacus Works",
-        "url": "https://www.hyperlane.xyz"
-      },
-      "displayName": "Holesky",
-      "domainId": 17000,
-      "domainRoutingIsm": "0x51890869940b4B7eD7426A612676eC63223eF3Db",
-      "domainRoutingIsmFactory": "0xDDcFEcF17586D08A5740B7D91735fcCE3dfe3eeD",
-      "fallbackRoutingHook": "0x07009DA2249c388aD0f416a235AfE90D784e1aAc",
-      "index": {
-        "from": 1543015
-      },
-      "interchainGasPaymaster": "0x5CBf4e70448Ed46c2616b04e9ebc72D29FF0cfA9",
-      "interchainSecurityModule": "0x3F3102940e36Fa1514f6d4C2DbdCdb6102eA9D0C",
-      "isTestnet": true,
-      "mailbox": "0x46f7C5D896bbeC89bE1B19e4485e59b4Be49e9Cc",
-      "merkleTreeHook": "0x98AAE089CaD930C64a76dD2247a2aC5773a4B8cE",
-      "name": "holesky",
-      "nativeToken": {
-        "decimals": 18,
-        "name": "Ether",
-        "symbol": "ETH"
-      },
-      "pausableHook": "0xF7561c34f17A32D5620583A3397C304e7038a7F6",
-      "pausableIsm": "0x80fE4Cb8c70fc60B745d4ffD4403c27a8cBC9e02",
-      "protocol": "ethereum",
-      "protocolFee": "0x6b1bb4ce664Bb4164AEB4d3D2E7DE7450DD8084C",
-      "proxyAdmin": "0x33dB966328Ea213b0f76eF96CA368AB37779F065",
-      "rpcUrls": [
-        {
-          "http": "https://ethereum-holesky-rpc.publicnode.com"
-        }
-      ],
-      "staticAggregationHookFactory": "0x589C201a07c26b4725A4A829d772f24423da480B",
-      "staticAggregationIsm": "0x296Be783e0b1CdDed847E34e6587C24dDb710cf9",
-      "staticAggregationIsmFactory": "0x54148470292C24345fb828B003461a9444414517",
-      "staticMerkleRootMultisigIsmFactory": "0xC2E36cd6e32e194EE11f15D9273B64461A4D49A2",
-      "staticMessageIdMultisigIsmFactory": "0x6966b0E55883d49BFB24539356a2f8A673E02039",
-      "storageGasOracle": "0x2b2a158B4059C840c7aC67399B153bb567D06303",
-      "testRecipient": "0x86fb9F1c124fB20ff130C41a79a432F770f67AFD",
-      "validatorAnnounce": "0xAb9B273366D794B7F80B4378bc8Aaca75C6178E2",
-      "staticMerkleRootWeightedMultisigIsmFactory": "0xFb55597F07417b08195Ba674f4dd58aeC9B89FBB",
-      "staticMessageIdWeightedMultisigIsmFactory": "0x0E18b28D98C2efDb59252c021320F203305b1B66",
-      "gasCurrencyCoinGeckoId": "ethereum",
-      "interchainAccountIsm": "0xb04961F492f447A8bA10f6694Bd888C7619CD2D5",
-      "interchainAccountRouter": "0xD31eD5a3D26c9787Ab607B0c364B21218D0f8F7b",
-      "timelockController": "0x0000000000000000000000000000000000000000"
-    },
     "optimismsepolia": {
       "aggregationHook": "0xccA408a6A9A6dc405C3278647421eb4317466943",
       "blockExplorers": [
@@ -808,7 +744,10 @@
       "protocol": "starknet",
       "rpcUrls": [
         {
-          "http": "https://starknet-sepolia.public.blastapi.io/rpc/v0_8"
+          "http": "https://starknet-sepolia-rpc.publicnode.com"
+        },
+        {
+          "http": "https://rpc.starknet-testnet.lava.build/"
         }
       ],
       "defaultHook": "0x01b99baf9dffac163065478b345429bd2ed21fdbfc5e3eec7ceabcde3d55c214",

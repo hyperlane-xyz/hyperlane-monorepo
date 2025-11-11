@@ -30,7 +30,7 @@ To read more about interchain applications, how the protocol works, and how to i
 
 #### Install `jq`
 
-You need `jq` installed on your machine. You can download it from [official page](https://jqlang.github.io/jq/download/) or use a package manager of your choice.
+You need `jq` installed on your machine. You can download it from [official page](https://jqlang.org/download/) or use a package manager of your choice.
 
 #### Install `gitleaks`
 
@@ -52,7 +52,7 @@ Then run `foundryup` to install `forge`, `cast`, `anvil` and `chisel`.
 foundryup
 ```
 
-Check out the [Foundry Book](https://book.getfoundry.sh/getting-started/installation) for more information.
+Check out the [Foundry Book](https://getfoundry.sh/introduction/installation/) for more information.
 
 #### Node
 

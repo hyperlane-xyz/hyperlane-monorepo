@@ -2,9 +2,9 @@ import { MinimumRequiredGasByAction } from './mingas.js';
 import { ProtocolType } from './types.js';
 
 // ### QUERY BASE ###
-export type ReqGetBalance = { address: string; denom: string };
+export type ReqGetBalance = { address: string; denom?: string };
 
-export type ReqGetTotalSupply = { denom: string };
+export type ReqGetTotalSupply = { denom?: string };
 
 export type ReqEstimateTransactionFee<T> = {
   transaction: T;
@@ -128,6 +128,11 @@ export type ResGetMerkleTreeHook = {
   address: string;
 };
 
+export type ReqGetNoopHook = { hookAddress: string };
+export type ResGetNoopHook = {
+  address: string;
+};
+
 // ### QUERY WARP ###
 
 export enum TokenType {
@@ -186,7 +191,6 @@ export type ResQuoteRemoteTransfer = { denom: string; amount: bigint };
 export type ReqCreateMailbox = {
   signer: string;
   domainId: number;
-  defaultIsmAddress: string;
 };
 export type ResCreateMailbox = { mailboxAddress: string };
 
@@ -296,7 +300,7 @@ export type ResCreateMerkleTreeHook = {
 
 export type ReqCreateInterchainGasPaymasterHook = {
   signer: string;
-  denom: string;
+  denom?: string;
 };
 export type ResCreateInterchainGasPaymasterHook = {
   hookAddress: string;
@@ -334,6 +338,22 @@ export type ResSetDestinationGasConfig = {
   };
 };
 
+export type ReqRemoveDestinationGasConfig = {
+  signer: string;
+  hookAddress: string;
+  remoteDomainId: number;
+};
+export type ResRemoveDestinationGasConfig = {
+  remoteDomainId: number;
+};
+
+export type ReqCreateNoopHook = {
+  signer: string;
+};
+export type ResCreateNoopHook = {
+  hookAddress: string;
+};
+
 export type ReqCreateValidatorAnnounce = {
   signer: string;
   mailboxAddress: string;
@@ -343,6 +363,14 @@ export type ResCreateValidatorAnnounce = {
 };
 
 // ### POPULATE WARP ###
+
+export type ReqCreateNativeToken = {
+  signer: string;
+  mailboxAddress: string;
+};
+export type ResCreateNativeToken = {
+  tokenAddress: string;
+};
 
 export type ReqCreateCollateralToken = {
   signer: string;
@@ -407,7 +435,7 @@ export type ResUnenrollRemoteRouter = {
 export type ReqTransfer = {
   signer: string;
   recipient: string;
-  denom: string;
+  denom?: string;
   amount: string;
 };
 export type ResTransfer = {
@@ -474,6 +502,8 @@ export interface IProvider<T = any> {
 
   getMerkleTreeHook(req: ReqGetMerkleTreeHook): Promise<ResGetMerkleTreeHook>;
 
+  getNoopHook(req: ReqGetNoopHook): Promise<ResGetNoopHook>;
+
   // ### QUERY WARP ###
 
   getToken(req: ReqGetToken): Promise<ResGetToken>;
@@ -532,11 +562,19 @@ export interface IProvider<T = any> {
     req: ReqSetDestinationGasConfig,
   ): Promise<T>;
 
+  getRemoveDestinationGasConfigTransaction(
+    req: ReqRemoveDestinationGasConfig,
+  ): Promise<T>;
+
+  getCreateNoopHookTransaction(req: ReqCreateNoopHook): Promise<T>;
+
   getCreateValidatorAnnounceTransaction(
     req: ReqCreateValidatorAnnounce,
   ): Promise<T>;
 
   // ### GET WARP TXS ###
+
+  getCreateNativeTokenTransaction(req: ReqCreateNativeToken): Promise<T>;
 
   getCreateCollateralTokenTransaction(
     req: ReqCreateCollateralToken,
@@ -634,11 +672,23 @@ export interface ISigner<T, R> extends IProvider<T> {
     req: Omit<ReqSetDestinationGasConfig, 'signer'>,
   ): Promise<ResSetDestinationGasConfig>;
 
+  removeDestinationGasConfig(
+    req: Omit<ReqRemoveDestinationGasConfig, 'signer'>,
+  ): Promise<ResRemoveDestinationGasConfig>;
+
+  createNoopHook(
+    req: Omit<ReqCreateNoopHook, 'signer'>,
+  ): Promise<ResCreateNoopHook>;
+
   createValidatorAnnounce(
     req: Omit<ReqCreateValidatorAnnounce, 'signer'>,
   ): Promise<ResCreateValidatorAnnounce>;
 
   // ### TX WARP ###
+
+  createNativeToken(
+    req: Omit<ReqCreateNativeToken, 'signer'>,
+  ): Promise<ResCreateNativeToken>;
 
   createCollateralToken(
     req: Omit<ReqCreateCollateralToken, 'signer'>,
@@ -670,7 +720,11 @@ export interface ISigner<T, R> extends IProvider<T> {
 }
 
 export interface IProviderConnect {
-  connect(_rpcs: string[], _chainId: string | number): Promise<IProvider>;
+  connect(
+    _rpcs: string[],
+    _chainId: string | number,
+    _extraParams?: Record<string, any>,
+  ): Promise<IProvider>;
 }
 
 export interface ISignerConnect<T, R> {

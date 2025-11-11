@@ -418,10 +418,11 @@ async fn run_stage(
     stage: InclusionStage,
     receiver: &mut mpsc::Receiver<Transaction>,
 ) -> Vec<Transaction> {
-    // future that receives `sent_payload_count` payloads from the building stage
+    // future that receives `sent_txs_count` payloads for the finality stage
     let receiving_closure = async {
         let mut received = Vec::new();
         while received.len() < sent_txs_count {
+            tracing::debug!("Received transaction for finality stage");
             let tx_received = receiver.recv().await.unwrap();
             received.push(tx_received);
         }
@@ -547,14 +548,8 @@ async fn test_reasonable_receipt_query_frequency() {
     let queries_per_second = total_calls as f64 / 1.0;
     let queries_per_second_per_tx = queries_per_second / NUM_TXS as f64;
 
-    println!(
-        "Total tx_status calls (receipt queries) in 1 second: {}",
-        total_calls
-    );
-    println!(
-        "Queries per second per transaction: {:.2}",
-        queries_per_second_per_tx
-    );
+    println!("Total tx_status calls (receipt queries) in 1 second: {total_calls}");
+    println!("Queries per second per transaction: {queries_per_second_per_tx:.2}");
 
     // REASONABLE EXPECTATIONS FOR ETHEREUM (12s block time):
     // - New transactions: Check every 3s (1/4 block time) = 0.33 queries/sec/tx
@@ -566,17 +561,14 @@ async fn test_reasonable_receipt_query_frequency() {
 
     assert!(
         queries_per_second <= 5.0,
-        "Too many receipt queries! Expected ≤5 queries/sec total, got {:.1}. \
-        Current implementation makes {:.1} queries/sec/tx but should make ≤0.5 queries/sec/tx",
-        queries_per_second,
-        queries_per_second_per_tx
+        "Too many receipt queries! Expected ≤5 queries/sec total, got {queries_per_second:.1}. \
+        Current implementation makes {queries_per_second_per_tx:.1} queries/sec/tx but should make ≤0.5 queries/sec/tx"
     );
 
     assert!(
         queries_per_second_per_tx <= 1.0,
-        "Receipt queries per transaction too high! Expected ≤1.0 queries/sec/tx, got {:.2}. \
-        With 12s Ethereum blocks, should check at most every 3s (0.33 queries/sec/tx)",
-        queries_per_second_per_tx
+        "Receipt queries per transaction too high! Expected ≤1.0 queries/sec/tx, got {queries_per_second_per_tx:.2}. \
+        With 12s Ethereum blocks, should check at most every 3s (0.33 queries/sec/tx)"
     );
 }
 
@@ -633,7 +625,7 @@ async fn test_processing_reprocess_txs() {
     let pool = inclusion_stage.pool.clone();
 
     let stage = tokio::spawn(async move { inclusion_stage.run().await });
-    let _ = tokio::select! {
+    tokio::select! {
         // this arm runs indefinitely
         _ = stage => {
         },

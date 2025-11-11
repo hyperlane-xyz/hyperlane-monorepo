@@ -256,7 +256,7 @@ export const avsChainCommandOption: Options = {
   type: 'string',
   description: 'Chain to interact with the AVS on',
   demandOption: true,
-  choices: ['holesky', 'ethereum'],
+  choices: ['ethereum'],
 };
 
 export const warpRouteIdCommandOption: Options = {

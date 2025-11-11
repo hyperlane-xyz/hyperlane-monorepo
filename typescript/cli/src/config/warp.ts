@@ -61,6 +61,10 @@ const TYPE_DESCRIPTIONS: Record<TokenType, string> = {
     'Extends an existing xERC20 Lockbox with Warp Route functionality',
   [TokenType.nativeOpL2]: 'An OP L2 native ETH token',
   [TokenType.nativeOpL1]: 'An OP L1 native ETH token',
+  [TokenType.collateralEverclear]:
+    'A collateral token that can be transferred via Everclear intents',
+  [TokenType.ethEverclear]:
+    'An ETH token that can be transferred via Everclear intents',
   // TODO: describe
   [TokenType.syntheticUri]: '',
   [TokenType.collateralUri]: '',

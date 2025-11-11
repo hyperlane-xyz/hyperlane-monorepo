@@ -19,7 +19,9 @@ pub struct EthereumTxPrecursor {
 impl Debug for EthereumTxPrecursor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let gas_price = self.extract_gas_price();
+        let tx_type = self.extract_transaction_type();
         f.debug_struct("EthereumTxPrecursor")
+            .field("tx.type", &tx_type)
             .field("tx.from", &self.tx.from())
             .field("tx.to", &self.tx.to())
             .field("tx.nonce", &self.tx.nonce())
@@ -88,6 +90,14 @@ impl EthereumTxPrecursor {
                 },
                 _ => GasPrice::None,
             },
+        }
+    }
+
+    pub fn extract_transaction_type(&self) -> String {
+        match &self.tx {
+            Legacy(_) => "legacy".to_string(),
+            Eip2930(_) => "eip2930".to_string(),
+            Eip1559(_) => "eip1559".to_string(),
         }
     }
 }

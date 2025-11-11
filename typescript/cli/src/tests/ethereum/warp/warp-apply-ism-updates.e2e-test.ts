@@ -21,7 +21,7 @@ import {
   DEFAULT_EVM_WARP_DEPLOY_PATH,
   DEFAULT_EVM_WARP_ID,
   DEFAULT_EVM_WARP_READ_OUTPUT_PATH,
-  DEPLOYER_ADDRESS_BY_PROTOCOL,
+  HYP_DEPLOYER_ADDRESS_BY_PROTOCOL,
   HYP_KEY_BY_PROTOCOL,
   REGISTRY_PATH,
   TEST_CHAIN_NAMES_BY_PROTOCOL,
@@ -59,7 +59,7 @@ describe('hyperlane warp apply E2E (ISM updates)', async function () {
       // Use the default ism
       targetIsmConfig: {
         type: IsmType.PAUSABLE,
-        owner: DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
+        owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
         paused: false,
       },
     },
@@ -69,7 +69,7 @@ describe('hyperlane warp apply E2E (ISM updates)', async function () {
       targetIsmConfig: ethers.constants.AddressZero,
       initialIsmConfig: {
         type: IsmType.PAUSABLE,
-        owner: DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
+        owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
         paused: false,
       },
     },
@@ -77,12 +77,12 @@ describe('hyperlane warp apply E2E (ISM updates)', async function () {
       description: 'should pause the pausable ISM',
       initialIsmConfig: {
         type: IsmType.PAUSABLE,
-        owner: DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
+        owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
         paused: false,
       },
       targetIsmConfig: {
         type: IsmType.PAUSABLE,
-        owner: DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
+        owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
         paused: true,
       },
     },
@@ -90,7 +90,7 @@ describe('hyperlane warp apply E2E (ISM updates)', async function () {
       description: 'should update the offchain lookup ism',
       targetIsmConfig: {
         type: IsmType.OFFCHAIN_LOOKUP,
-        owner: DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
+        owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
         urls: [
           'https://new-server.hyperlane.xyz/api',
           'https://backup-server.hyperlane.xyz/api',
@@ -98,7 +98,7 @@ describe('hyperlane warp apply E2E (ISM updates)', async function () {
       },
       initialIsmConfig: {
         type: IsmType.OFFCHAIN_LOOKUP,
-        owner: DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
+        owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
         urls: ['https://server.hyperlane.xyz/api'],
       },
     },
@@ -107,7 +107,7 @@ describe('hyperlane warp apply E2E (ISM updates)', async function () {
         'should update the offchain lookup ism if the urls are not in the same order',
       targetIsmConfig: {
         type: IsmType.OFFCHAIN_LOOKUP,
-        owner: DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
+        owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
         urls: [
           'https://new-server.hyperlane.xyz/api',
           'https://backup-server.hyperlane.xyz/api',
@@ -115,7 +115,7 @@ describe('hyperlane warp apply E2E (ISM updates)', async function () {
       },
       initialIsmConfig: {
         type: IsmType.OFFCHAIN_LOOKUP,
-        owner: DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
+        owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
         urls: [
           'https://backup-server.hyperlane.xyz/api',
           'https://new-server.hyperlane.xyz/api',
@@ -145,7 +145,7 @@ describe('hyperlane warp apply E2E (ISM updates)', async function () {
       const warpDeployConfig: WarpRouteDeployConfig = {
         [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
           type: TokenType.native,
-          owner: DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
+          owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
           interchainSecurityModule: ismDeployConfig,
         },
       };

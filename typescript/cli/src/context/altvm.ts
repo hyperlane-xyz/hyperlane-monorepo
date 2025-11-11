@@ -111,6 +111,7 @@ export class AltVMProviderFactory
     return protocolDefinition.provider.connect(
       metadata.rpcUrls.map((rpc) => rpc.http),
       metadata.chainId,
+      { metadata },
     );
   }
 }
@@ -202,20 +203,10 @@ export class AltVMSignerFactory
     for (const chain of chains) {
       const metadata = metadataManager.getChainMetadata(chain);
 
-      if (metadata.protocol === ProtocolType.Ethereum) {
-        continue;
-      }
-
-      if (metadata.protocol === ProtocolType.Sealevel) {
-        continue;
-      }
-
       const protocol = ALT_VM_SUPPORTED_PROTOCOLS[metadata.protocol];
 
       if (!protocol) {
-        throw new Error(
-          `Chain ${chain} with protocol type ${metadata.protocol} not supported in AltVM`,
-        );
+        continue;
       }
 
       const privateKey = await AltVMSignerFactory.loadPrivateKey(
@@ -244,10 +235,7 @@ export class AltVMSignerFactory
 
     const factories: ProtocolMap<Record<string, SubmitterFactory>> = {};
 
-    if (
-      protocol === ProtocolType.Ethereum ||
-      protocol === ProtocolType.Sealevel
-    ) {
+    if (!ALT_VM_SUPPORTED_PROTOCOLS[protocol]) {
       return factories;
     }
 

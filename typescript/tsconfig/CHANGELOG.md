@@ -1,5 +1,19 @@
 # @hyperlane-xyz/tsconfig
 
+## 19.7.0
+
+## 19.6.0
+
+## 19.6.0-beta.0
+
+## 19.5.0
+
+## 19.4.0
+
+### Minor Changes
+
+- 61c7ac7dc: Defined a new tsconfig file with stricter type checking for accessing array and object properties
+
 ## 19.3.0
 
 ## 19.2.0

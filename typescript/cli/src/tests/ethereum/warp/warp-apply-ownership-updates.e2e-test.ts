@@ -12,6 +12,7 @@ import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import { HyperlaneE2EWarpTestCommands } from '../../commands/warp.js';
 import {
+  BURN_ADDRESS_BY_PROTOCOL,
   CORE_CONFIG_PATH_BY_PROTOCOL,
   CORE_READ_CONFIG_PATH_BY_PROTOCOL,
   DEFAULT_E2E_TEST_TIMEOUT,
@@ -19,8 +20,7 @@ import {
   DEFAULT_EVM_WARP_DEPLOY_PATH,
   DEFAULT_EVM_WARP_ID,
   DEFAULT_EVM_WARP_READ_OUTPUT_PATH,
-  DEPLOYER_ADDRESS_BY_PROTOCOL,
-  E2E_BURN_ADDRESS_BY_PROTOCOL,
+  HYP_DEPLOYER_ADDRESS_BY_PROTOCOL,
   HYP_KEY_BY_PROTOCOL,
   REGISTRY_PATH,
   TEST_CHAIN_METADATA_BY_PROTOCOL,
@@ -53,7 +53,7 @@ describe('hyperlane warp apply E2E (ownership updates)', async function () {
     warpDeployConfig = {
       [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
         type: TokenType.native,
-        owner: DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
+        owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
       },
     };
     writeYamlOrJson(DEFAULT_EVM_WARP_DEPLOY_PATH, warpDeployConfig);
@@ -113,7 +113,7 @@ describe('hyperlane warp apply E2E (ownership updates)', async function () {
   }[] = [
     {
       description: 'should burn owner address',
-      tokenOwner: E2E_BURN_ADDRESS_BY_PROTOCOL.ethereum,
+      tokenOwner: BURN_ADDRESS_BY_PROTOCOL.ethereum,
     },
     {
       description:
@@ -123,13 +123,13 @@ describe('hyperlane warp apply E2E (ownership updates)', async function () {
     {
       description:
         'should update only the owner of the warp token if the proxy admin config is specified',
-      proxyAdminOwner: DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
+      proxyAdminOwner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
       tokenOwner: randomAddress(),
     },
     {
       description:
         'should update only the owner of the proxy admin if the proxy admin config is specified',
-      tokenOwner: DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
+      tokenOwner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
       proxyAdminOwner: randomAddress(),
     },
   ];

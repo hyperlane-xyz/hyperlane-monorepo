@@ -28,6 +28,9 @@ const NETWORKS = {
     packageAddress:
       'package_rdx1pkzmcj4mtal34ddx9jrt8um6u3yqheqpfvcj4s0ulmgyt094fw0jzh',
   },
+  [NetworkId.LocalNet]: {
+    applicationName: 'hyperlane',
+  },
 };
 
 export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
@@ -51,12 +54,17 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   static async connect(
     rpcUrls: string[],
     chainId: string | number,
+    extraParams?: Record<string, any>,
   ): Promise<RadixProvider> {
     const networkId = parseInt(chainId.toString());
 
     return new RadixProvider({
       rpcUrls,
       networkId,
+      gatewayUrls: (
+        extraParams?.metadata?.gatewayUrls as { http: string }[]
+      )?.map(({ http }) => http),
+      packageAddress: extraParams?.metadata?.packageAddress,
     });
   }
 
@@ -64,16 +72,24 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
     this.rpcUrls = options.rpcUrls;
     this.networkId = options.networkId ?? NetworkId.Mainnet;
 
+    const networkBaseConfig = NETWORKS[this.networkId];
     assert(
-      NETWORKS[this.networkId],
+      networkBaseConfig,
       `Network with id ${this.networkId} not supported with the Hyperlane RadixSDK. Supported network ids: ${Object.keys(NETWORKS).join(', ')}`,
     );
 
-    this.applicationName = NETWORKS[this.networkId].applicationName;
-    this.packageAddress = NETWORKS[this.networkId].packageAddress;
+    this.applicationName = networkBaseConfig.applicationName;
+    const packageAddress =
+      options.packageAddress ?? networkBaseConfig.packageAddress;
+    assert(
+      packageAddress,
+      `Expected package address to be defined for radix network with id ${this.networkId}`,
+    );
+    this.packageAddress = packageAddress;
 
     this.gateway = GatewayApiClient.initialize({
       applicationName: this.applicationName,
+      basePath: options.gatewayUrls?.[0],
       networkId: this.networkId,
     });
 
@@ -116,6 +132,8 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   }
 
   async getBalance(req: AltVM.ReqGetBalance): Promise<bigint> {
+    assert(req.denom, `denom required by ${RadixProvider.name}`);
+
     return this.base.getBalance({
       address: req.address,
       resource: req.denom,
@@ -123,6 +141,8 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   }
 
   async getTotalSupply(req: AltVM.ReqGetTotalSupply): Promise<bigint> {
+    assert(req.denom, `denom required by ${RadixProvider.name}`);
+
     return this.base.getTotalSupply({
       resource: req.denom,
     });
@@ -252,6 +272,10 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
     req: AltVM.ReqGetMerkleTreeHook,
   ): Promise<AltVM.ResGetMerkleTreeHook> {
     return this.query.core.getMerkleTreeHook({ hook: req.hookAddress });
+  }
+
+  async getNoopHook(_req: AltVM.ReqGetNoopHook): Promise<AltVM.ResGetNoopHook> {
+    throw new Error(`Noop Hook is currently not supported on Radix`);
   }
 
   // ### QUERY WARP ###
@@ -463,6 +487,8 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   async getCreateInterchainGasPaymasterHookTransaction(
     req: AltVM.ReqCreateInterchainGasPaymasterHook,
   ): Promise<RadixSDKTransaction> {
+    assert(req.denom, `denom required by ${RadixProvider.name}`);
+
     return {
       networkId: this.networkId,
       manifest: await this.populate.core.createIgp({
@@ -498,6 +524,20 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
     };
   }
 
+  async getRemoveDestinationGasConfigTransaction(
+    _req: AltVM.ReqRemoveDestinationGasConfig,
+  ): Promise<RadixSDKTransaction> {
+    throw new Error(
+      `RemoveDestinationGasConfig is currently not supported on Radix`,
+    );
+  }
+
+  async getCreateNoopHookTransaction(
+    _req: AltVM.ReqCreateNoopHook,
+  ): Promise<RadixSDKTransaction> {
+    throw new Error(`CreateNoopHook is currently not supported on Radix`);
+  }
+
   async getCreateValidatorAnnounceTransaction(
     req: AltVM.ReqCreateValidatorAnnounce,
   ): Promise<RadixSDKTransaction> {
@@ -511,6 +551,12 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   }
 
   // ### GET WARP TXS ###
+
+  async getCreateNativeTokenTransaction(
+    _req: AltVM.ReqCreateNativeToken,
+  ): Promise<RadixSDKTransaction> {
+    throw new Error(`Native Token is not supported on Radix`);
+  }
 
   async getCreateCollateralTokenTransaction(
     req: AltVM.ReqCreateCollateralToken,
@@ -597,6 +643,8 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   async getTransferTransaction(
     req: AltVM.ReqTransfer,
   ): Promise<RadixSDKTransaction> {
+    assert(req.denom, `denom required by ${RadixProvider.name}`);
+
     return {
       networkId: this.networkId,
       manifest: await this.base.transfer({
