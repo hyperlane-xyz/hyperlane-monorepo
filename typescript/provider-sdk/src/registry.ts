@@ -1,6 +1,6 @@
 import { assert } from '@hyperlane-xyz/utils';
 
-import { IProtocolProviderFactory } from './factory.js';
+import { ProtocolProvider } from './factory.js';
 import { ProtocolType } from './protocol.js';
 
 /**
@@ -8,7 +8,7 @@ import { ProtocolType } from './protocol.js';
  * This class is not exported - protocol packages interact through the registrar interface.
  */
 class ProtocolProviderFactoryRegistry {
-  private protocols = new Map<ProtocolType, () => IProtocolProviderFactory>();
+  private protocols = new Map<ProtocolType, () => ProtocolProvider>();
 
   hasProtocol(protocol: ProtocolType): boolean {
     return this.protocols.has(protocol);
@@ -20,7 +20,7 @@ class ProtocolProviderFactoryRegistry {
 
   registerProtocol(
     protocol: ProtocolType,
-    factory: () => IProtocolProviderFactory,
+    factory: () => ProtocolProvider,
   ): void {
     assert(
       !this.hasProtocol(protocol),
@@ -30,7 +30,7 @@ class ProtocolProviderFactoryRegistry {
     this.protocols.set(protocol, factory);
   }
 
-  getProtocol(protocol: ProtocolType): IProtocolProviderFactory {
+  getProtocol(protocol: ProtocolType): ProtocolProvider {
     const factory = this.protocols.get(protocol);
     assert(
       factory,
@@ -52,7 +52,7 @@ const protocolRegistry = new ProtocolProviderFactoryRegistry();
 export interface ProtocolRegistrar {
   registerProtocol(
     protocol: ProtocolType,
-    factory: () => IProtocolProviderFactory,
+    factory: () => ProtocolProvider,
   ): void;
 }
 
@@ -86,7 +86,7 @@ export function registerProtocol(
   const registrar: ProtocolRegistrar = {
     registerProtocol(
       protocol: ProtocolType,
-      factory: () => IProtocolProviderFactory,
+      factory: () => ProtocolProvider,
     ): void {
       protocolRegistry.registerProtocol(protocol, factory);
     },
@@ -99,7 +99,7 @@ export function registerProtocol(
  * Create a protocol provider instance by protocol type.
  *
  * @param protocol The protocol type (e.g., ProtocolType.Ethereum, ProtocolType.Sealevel, ProtocolType.Radix)
- * @returns A new {@link IProtocolProviderFactory} instance
+ * @returns A new {@link ProtocolProvider} instance
  * @throws Error if the protocol is not registered
  *
  * @example
@@ -110,7 +110,7 @@ export function registerProtocol(
  */
 export function getProtocolProviderFactory(
   protocol: ProtocolType,
-): IProtocolProviderFactory {
+): ProtocolProvider {
   return protocolRegistry.getProtocol(protocol);
 }
 
@@ -141,10 +141,10 @@ export function listProtocolProviders(): ProtocolType[] {
  */
 export function getHookFactory(
   protocol: ProtocolType,
-): ReturnType<IProtocolProviderFactory['hookFactory']> {
+): ReturnType<ProtocolProvider['hookProvider']> {
   const protocolFactory = getProtocolProviderFactory(protocol);
 
-  return protocolFactory.hookFactory();
+  return protocolFactory.hookProvider();
 }
 
 /**
@@ -155,10 +155,10 @@ export function getHookFactory(
  */
 export function getIsmFactory(
   protocol: ProtocolType,
-): ReturnType<IProtocolProviderFactory['ismFactory']> {
+): ReturnType<ProtocolProvider['ismProvider']> {
   const protocolFactory = getProtocolProviderFactory(protocol);
 
-  return protocolFactory.ismFactory();
+  return protocolFactory.ismProvider();
 }
 
 /**
@@ -169,8 +169,8 @@ export function getIsmFactory(
  */
 export function getTokenRouterFactory(
   protocol: ProtocolType,
-): ReturnType<IProtocolProviderFactory['tokenRouterFactory']> {
+): ReturnType<ProtocolProvider['tokenRouterProvider']> {
   const protocolFactory = getProtocolProviderFactory(protocol);
 
-  return protocolFactory.tokenRouterFactory();
+  return protocolFactory.tokenRouterProvider();
 }
