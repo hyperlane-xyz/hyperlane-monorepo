@@ -1,3 +1,7 @@
+pub use aleo::*;
+pub use base::*;
+pub use traits::*;
+
 mod aleo;
 mod base;
 mod traits;
@@ -6,7 +10,3 @@ mod traits;
 mod mock;
 #[cfg(test)]
 mod tests;
-
-pub use aleo::*;
-pub use base::*;
-pub use traits::*;

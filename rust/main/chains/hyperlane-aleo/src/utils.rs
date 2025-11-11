@@ -11,6 +11,11 @@ pub(crate) fn get_tx_id(hash: impl Into<H256>) -> ChainResult<TxID> {
 /// Convert a TxID or any other struct that implements ToBytes to H256
 pub(crate) fn to_h256<T: ToBytes>(id: T) -> ChainResult<H256> {
     let bytes = id.to_bytes_le().map_err(HyperlaneAleoError::from)?;
+    if bytes.len() != 32 {
+        return Err(hyperlane_core::ChainCommunicationError::from_other_str(
+            &format! {"Invalid length for H256 conversion: expected 32, got {}", bytes.len()},
+        ));
+    }
     Ok(H256::from_slice(&bytes))
 }
 
@@ -22,6 +27,17 @@ mod tests {
 
     use super::*;
     use crate::CurrentNetwork;
+
+    struct TestStruct {}
+
+    impl ToBytes for TestStruct {
+        fn write_le<W: std::io::Write>(&self, writer: W) -> std::io::Result<()>
+        where
+            Self: Sized,
+        {
+            [0u8; 33].write_le(writer)
+        }
+    }
 
     #[test]
     fn test_get_tx_id() {
@@ -44,5 +60,16 @@ mod tests {
             hex::decode("52d27a68cd2bb34e91e578ad90be110532780c4e00e3e6c1e10b194b585d6d12")
                 .unwrap();
         assert_eq!(h256.as_bytes(), expected_bytes.as_slice());
+    }
+
+    #[test]
+    fn test_to_h256_with_custom_struct() {
+        let test_struct = TestStruct {};
+        let h256 = super::to_h256(test_struct);
+        assert!(h256.is_err());
+        assert_eq!(
+            h256.err().unwrap().to_string(),
+            "Invalid length for H256 conversion: expected 32, got 33"
+        );
     }
 }
