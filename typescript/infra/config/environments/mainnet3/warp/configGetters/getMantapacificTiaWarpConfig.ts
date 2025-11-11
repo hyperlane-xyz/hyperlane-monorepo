@@ -7,7 +7,7 @@ import {
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 
-export const getMantapacificNeutronTiaWarpConfig = async (
+export const getMantapacificTiaWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
@@ -23,6 +23,16 @@ export const getMantapacificNeutronTiaWarpConfig = async (
     gas: 0,
   };
 
+  const celestia: HypTokenRouterConfig = {
+    ...routerConfig.celestia,
+    ...abacusWorksEnvOwnerConfig.celestia,
+    type: TokenType.collateral,
+    name: 'TIA',
+    symbol: 'TIA',
+    token: 'utia',
+    decimals: 6,
+  };
+
   const mantapacific: HypTokenRouterConfig = {
     ...routerConfig.mantapacific,
     ...abacusWorksEnvOwnerConfig.mantapacific,
@@ -31,10 +41,20 @@ export const getMantapacificNeutronTiaWarpConfig = async (
     symbol: 'TIA',
     decimals: 6,
     gas: 600_000,
+    remoteRouters: {
+      celestia: {
+        address:
+          '0x726f757465725f61707000000000000000000000000000010000000000000007',
+      },
+      neutron: {
+        address: neutronRouter,
+      },
+    },
   };
 
   return {
     mantapacific,
     neutron,
+    celestia,
   };
 };
