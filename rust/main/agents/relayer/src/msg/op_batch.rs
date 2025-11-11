@@ -177,7 +177,7 @@ mod tests {
                 BaseMetadataBuilder, DefaultIsmCache, IsmAwareAppContextClassifier,
                 IsmCachePolicyClassifier,
             },
-            op_queue::test::MockPendingOperation,
+            op_queue::tests::MockPendingOperation,
             pending_message::{MessageContext, PendingMessage},
         },
         settings::{
