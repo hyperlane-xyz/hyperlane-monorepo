@@ -5,7 +5,7 @@ Visualize Hyperlane token fee curve implementations.
 Usage:
     python visualize_fees.py [--maxfee MAXFEE] [--halfamount HALFAMOUNT] [--maxamount MAXAMOUNT]
 
-Generates PNG and SVG visualizations of Linear, Progressive, and Regressive fee curves.
+Generates SVG visualizations of Linear, Progressive, and Regressive fee curves.
 """
 import numpy as np
 import matplotlib.pyplot as plt
@@ -203,46 +203,20 @@ def create_visualizations(max_fee=1000, half_amount=10000, max_amount=50000, out
 
     plt.tight_layout()
 
-    # Save as PNG
-    png_file = f'{output_prefix}.png'
-    plt.savefig(png_file, dpi=300, bbox_inches='tight', facecolor='white')
-    print(f'✓ PNG visualization saved: {png_file}')
-
-    # Save as SVG
+    # Save as SVG on a single line
     svg_file = f'{output_prefix}.svg'
-    plt.savefig(svg_file, format='svg', bbox_inches='tight', facecolor='white')
-    print(f'✓ SVG visualization saved: {svg_file}')
-
+    import io
+    buffer = io.StringIO()
+    plt.savefig(buffer, format='svg', bbox_inches='tight', facecolor='white')
+    svg_content = buffer.getvalue()
+    buffer.close()
     plt.close()
 
-    # Print summary
-    print(f'\n{"="*70}')
-    print('KEY INSIGHTS')
-    print(f'{"="*70}')
-    print(f'\nParameters: maxFee = {max_fee:,}, halfAmount = {half_amount:,}')
-    print(f'\nAll three curves intersect at (halfAmount={half_amount:,}, fee={max_fee/2:.0f})')
-
-    print('\n1. LINEAR FEE')
-    print('   Formula: fee = min(maxFee, (amount × maxFee) / (2 × halfAmount))')
-    print(f'   • Simple linear growth until reaching maxFee at amount = {2*half_amount:,}')
-    print('   • Predictable, easy to understand')
-    print('   • Fee percentage constant until cap, then decreases')
-
-    print('\n2. PROGRESSIVE FEE')
-    print('   Formula: fee = (maxFee × amount²) / (halfAmount² + amount²)')
-    print('   • Fee percentage increases up to halfAmount, then decreases')
-    print(f'   • Peak fee percentage around halfAmount ({half_amount:,})')
-    print('   • Asymptotically approaches maxFee but never reaches it')
-    print('   • Encourages mid-sized transfers')
-
-    print('\n3. REGRESSIVE FEE')
-    print('   Formula: fee = (maxFee × amount) / (halfAmount + amount)')
-    print('   • Fee percentage continuously decreases as amount increases')
-    print('   • Asymptotically approaches maxFee but never reaches it')
-    print('   • Encourages larger transfers, penalizes small transfers')
-    print('   • Most favorable for whales')
-
-    print(f'\n{"="*70}\n')
+    # Write as single line (remove newlines and extra whitespace)
+    svg_single_line = ' '.join(svg_content.split())
+    with open(svg_file, 'w') as f:
+        f.write(svg_single_line)
+    print(f'✓ SVG visualization saved: {svg_file}')
 
 def main():
     parser = argparse.ArgumentParser(

@@ -232,4 +232,4 @@ python visualize_fees.py --output my_custom_curves
 - `--maxamount`: Maximum amount to visualize on x-axis (default: 50000)
 - `--output`: Output file prefix without extension (default: fee_curves)
 
-The script generates both PNG and SVG formats for maximum compatibility.
+The script generates SVG format for maximum compatibility and scalability.
