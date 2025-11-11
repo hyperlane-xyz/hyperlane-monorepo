@@ -125,8 +125,8 @@ async fn dango_multiple_chains() -> anyhow::Result<()> {
             route: Origin::Local(dango::DENOM.clone()),
         },
         SetupChain {
-            validators: 1,
-            threshold: 1,
+            validators: 3,
+            threshold: 2,
             route: Origin::Remote(Part::new_unchecked("foo")),
         },
     )
