@@ -2,7 +2,12 @@ import chalk from 'chalk';
 import { formatEther, parseEther } from 'ethers/lib/utils.js';
 
 import { HyperlaneIgp } from '@hyperlane-xyz/sdk';
-import { objMap, promiseObjAll, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  isZeroishAddress,
+  objMap,
+  promiseObjAll,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { getEnvAddresses } from '../../config/registry.js';
 import { getKeyFunderConfig } from '../../src/funding/key-funder.js';
@@ -81,7 +86,10 @@ async function main() {
   const filteredPaymasters = objMap(
     igp.map((_, contracts) => contracts.interchainGasPaymaster),
     (chain, paymaster) => {
-      if (chainsToProcess.includes(chain)) {
+      if (
+        chainsToProcess.includes(chain) &&
+        !isZeroishAddress(paymaster.address)
+      ) {
         return paymaster;
       }
       return undefined;
