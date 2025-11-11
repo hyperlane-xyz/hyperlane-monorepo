@@ -12,7 +12,7 @@ export interface ArtifactProvider<
   TAddressMap extends Record<string, unknown>,
 > {
   availableTypes: () => (keyof TConfig)[];
-  getReader: (provider: IProvider) => ArtifactReader<TConfig>;
+  createReader: (provider: IProvider) => ArtifactReader<TConfig>;
   createModuleFactory: (
     signer: ISigner<AnnotatedTx, TxReceipt>,
   ) => HypModuleFactory<TConfig, TAddressMap>;
