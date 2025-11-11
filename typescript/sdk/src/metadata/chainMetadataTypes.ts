@@ -24,6 +24,7 @@ export enum ExplorerFamily {
   Routescan = 'routescan',
   Voyager = 'voyager',
   ZkSync = 'zksync',
+  RadixDashboard = 'radixdashboard',
   Other = 'other',
 }
 
@@ -260,6 +261,11 @@ export const ChainMetadataSchemaObject = z.object({
     .string()
     .optional()
     .describe('The URL of the gnosis safe transaction service.'),
+
+  gnosisSafeApiKey: z
+    .string()
+    .optional()
+    .describe('The API key for the gnosis safe transaction service.'),
 
   grpcUrls: z
     .array(RpcUrlSchema)

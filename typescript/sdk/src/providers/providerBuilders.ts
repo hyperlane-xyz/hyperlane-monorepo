@@ -6,7 +6,8 @@ import { RpcProvider as StarknetRpcProvider } from 'starknet';
 import { createPublicClient, http } from 'viem';
 import { Provider as ZKProvider } from 'zksync-ethers';
 
-import { HyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
+import { CosmosNativeProvider } from '@hyperlane-xyz/cosmos-sdk';
+import { RadixProvider as RadixSDKProvider } from '@hyperlane-xyz/radix-sdk';
 import { ProtocolType, assert, isNumeric } from '@hyperlane-xyz/utils';
 
 import { ChainMetadata, RpcUrl } from '../metadata/chainMetadataTypes.js';
@@ -17,6 +18,7 @@ import {
   CosmJsWasmProvider,
   EthersV5Provider,
   ProviderType,
+  RadixProvider,
   SolanaWeb3Provider,
   StarknetJsProvider,
   TypedProvider,
@@ -117,12 +119,15 @@ export function defaultCosmJsWasmProviderBuilder(
 
 export function defaultCosmJsNativeProviderBuilder(
   rpcUrls: RpcUrl[],
-  _network: number | string,
+  network: number | string,
 ): CosmJsNativeProvider {
   if (!rpcUrls.length) throw new Error('No RPC URLs provided');
   return {
     type: ProviderType.CosmJsNative,
-    provider: HyperlaneModuleClient.connect(rpcUrls[0].http),
+    provider: CosmosNativeProvider.connect(
+      rpcUrls.map((rpc) => rpc.http),
+      network,
+    ),
   };
 }
 
@@ -143,6 +148,19 @@ export function defaultZKSyncProviderBuilder(
   const url = rpcUrls[0].http;
   const provider = new ZKProvider(url, network);
   return { type: ProviderType.ZkSync, provider };
+}
+
+export function defaultRadixProviderBuilder(
+  rpcUrls: RpcUrl[],
+  network: string | number,
+): RadixProvider {
+  assert(isNumeric(network), 'Radix requires a numeric network id');
+  const networkId = parseInt(network.toString(), 10);
+  const provider = new RadixSDKProvider({
+    rpcUrls: rpcUrls.map((rpc) => rpc.http),
+    networkId,
+  });
+  return { provider, type: ProviderType.Radix };
 }
 
 // Kept for backwards compatibility
@@ -174,6 +192,7 @@ export const defaultProviderBuilderMap: ProviderBuilderMap = {
   [ProviderType.CosmJsNative]: defaultCosmJsNativeProviderBuilder,
   [ProviderType.Starknet]: defaultStarknetJsProviderBuilder,
   [ProviderType.ZkSync]: defaultZKSyncProviderBuilder,
+  [ProviderType.Radix]: defaultRadixProviderBuilder,
 };
 
 export const protocolToDefaultProviderBuilder: Record<
@@ -185,4 +204,5 @@ export const protocolToDefaultProviderBuilder: Record<
   [ProtocolType.Cosmos]: defaultCosmJsWasmProviderBuilder,
   [ProtocolType.CosmosNative]: defaultCosmJsNativeProviderBuilder,
   [ProtocolType.Starknet]: defaultStarknetJsProviderBuilder,
+  [ProtocolType.Radix]: defaultRadixProviderBuilder,
 };

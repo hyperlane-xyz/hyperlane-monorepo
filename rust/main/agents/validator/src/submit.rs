@@ -5,17 +5,22 @@ use std::vec;
 use futures::future::join_all;
 use prometheus::IntGauge;
 use tokio::time::sleep;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 use hyperlane_base::db::HyperlaneDb;
 use hyperlane_base::{CheckpointSyncer, CoreMetrics};
 use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
 use hyperlane_core::{
-    accumulator::incremental::IncrementalMerkle, Checkpoint, CheckpointWithMessageId,
-    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneSignerExt,
+    accumulator::incremental::IncrementalMerkle, Checkpoint, CheckpointAtBlock,
+    CheckpointWithMessageId, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    HyperlaneSignerExt, IncrementalMerkleAtBlock,
 };
-use hyperlane_core::{ChainResult, MerkleTreeHook, ReorgEvent, ReorgPeriod, SignedType};
+use hyperlane_core::{
+    ChainResult, HyperlaneSigner, MerkleTreeHook, ReorgEvent, ReorgPeriod, SignedType,
+};
 use hyperlane_ethereum::{Signers, SingletonSignerHandle};
+
+use crate::reorg_reporter::ReorgReporter;
 
 #[derive(Clone)]
 pub(crate) struct ValidatorSubmitter {
@@ -29,6 +34,7 @@ pub(crate) struct ValidatorSubmitter {
     db: Arc<dyn HyperlaneDb>,
     metrics: ValidatorSubmitterMetrics,
     max_sign_concurrency: usize,
+    reorg_reporter: Arc<dyn ReorgReporter>,
 }
 
 impl ValidatorSubmitter {
@@ -43,6 +49,7 @@ impl ValidatorSubmitter {
         db: Arc<dyn HyperlaneDb>,
         metrics: ValidatorSubmitterMetrics,
         max_sign_concurrency: usize,
+        reorg_reporter: Arc<dyn ReorgReporter>,
     ) -> Self {
         Self {
             reorg_period,
@@ -54,21 +61,31 @@ impl ValidatorSubmitter {
             db,
             metrics,
             max_sign_concurrency,
+            reorg_reporter,
         }
     }
 
     pub(crate) fn checkpoint(&self, tree: &IncrementalMerkle) -> Checkpoint {
         Checkpoint {
-            root: tree.root(),
-            index: tree.index(),
             merkle_tree_hook_address: self.merkle_tree_hook.address(),
             mailbox_domain: self.merkle_tree_hook.domain().id(),
+            root: tree.root(),
+            index: tree.index(),
+        }
+    }
+
+    pub(crate) fn checkpoint_at_block(&self, tree: &IncrementalMerkleAtBlock) -> CheckpointAtBlock {
+        let checkpoint = self.checkpoint(&tree.tree);
+
+        CheckpointAtBlock {
+            checkpoint,
+            block_height: tree.block_height,
         }
     }
 
     /// Submits signed checkpoints from index 0 until the target checkpoint (inclusive).
     /// Runs idly forever once the target checkpoint is reached to avoid exiting the task.
-    pub(crate) async fn backfill_checkpoint_submitter(self, target_checkpoint: Checkpoint) {
+    pub(crate) async fn backfill_checkpoint_submitter(self, target_checkpoint: CheckpointAtBlock) {
         let mut tree = IncrementalMerkle::default();
         self.submit_checkpoints_until_correctness_checkpoint(&mut tree, &target_checkpoint)
             .await;
@@ -111,8 +128,7 @@ impl ValidatorSubmitter {
             .await;
 
             self.metrics
-                .latest_checkpoint_observed
-                .set(latest_checkpoint.index as i64);
+                .set_latest_checkpoint_observed(&latest_checkpoint);
 
             if should_log_checkpoint_info() {
                 info!(
@@ -155,7 +171,7 @@ impl ValidatorSubmitter {
     async fn submit_checkpoints_until_correctness_checkpoint(
         &self,
         tree: &mut IncrementalMerkle,
-        correctness_checkpoint: &Checkpoint,
+        correctness_checkpoint: &CheckpointAtBlock,
     ) {
         let start = Instant::now();
         // This should never be called with a tree that is ahead of the correctness checkpoint.
@@ -175,38 +191,38 @@ impl ValidatorSubmitter {
         // tree.index() will panic if the tree is empty, so we use tree.count() instead
         // and convert the correctness_checkpoint.index to a count by adding 1.
         while tree.count() as u32 <= correctness_checkpoint.index {
-            if let Some(insertion) = self
+            let res = self
                 .db
                 .retrieve_merkle_tree_insertion_by_leaf_index(&(tree.count() as u32))
-                .unwrap_or_else(|err| {
-                    panic!(
-                        "Error fetching merkle tree insertion for leaf index {}: {}",
-                        tree.count(),
-                        err
-                    )
-                })
-            {
-                debug!(
-                    index = insertion.index(),
-                    queue_length = checkpoint_queue.len(),
-                    "Ingesting leaf to tree"
-                );
-                let message_id = insertion.message_id();
-                tree.ingest(message_id);
+                .expect("Failed to fetch merkle tree insertion");
 
-                let checkpoint = self.checkpoint(tree);
+            let insertion = match res {
+                Some(insertion) => insertion,
+                None => {
+                    // If we haven't yet indexed the next merkle tree insertion but know that
+                    // it will soon exist (because we know the correctness checkpoint), wait a bit and
+                    // try again.
+                    sleep(Duration::from_millis(100)).await;
+                    continue;
+                }
+            };
 
-                checkpoint_queue.push(CheckpointWithMessageId {
-                    checkpoint,
-                    message_id,
-                });
-            } else {
-                // If we haven't yet indexed the next merkle tree insertion but know that
-                // it will soon exist (because we know the correctness checkpoint), wait a bit and
-                // try again.
-                sleep(Duration::from_millis(100)).await
-            }
+            let message_id = insertion.message_id();
+            tree.ingest(message_id);
+
+            let checkpoint = self.checkpoint(tree);
+
+            checkpoint_queue.push(CheckpointWithMessageId {
+                checkpoint,
+                message_id,
+            });
         }
+
+        info!(
+            root = ?tree.root(),
+            queue_length = checkpoint_queue.len(),
+            "Ingested leaves into in-memory merkle tree"
+        );
 
         // At this point we know that correctness_checkpoint.index == tree.index().
         assert_eq!(
@@ -221,7 +237,7 @@ impl ValidatorSubmitter {
 
         // If the tree's checkpoint doesn't match the correctness checkpoint, something went wrong
         // and we bail loudly.
-        if checkpoint != *correctness_checkpoint {
+        if checkpoint != correctness_checkpoint.checkpoint {
             let reorg_event = ReorgEvent::new(
                 tree.root(),
                 correctness_checkpoint.root,
@@ -233,18 +249,26 @@ impl ValidatorSubmitter {
                 ?checkpoint,
                 ?correctness_checkpoint,
                 ?reorg_event,
-                "Incorrect tree root, something went wrong"
+                "Incorrect tree root. Most likely a reorg has occurred. Please reach out for help, this is a potentially serious error impacting signed messages. Do NOT forcefully resume operation of this validator. Keep it crashlooping or shut down until you receive support."
             );
 
-            let mut panic_message = "Incorrect tree root. Most likely a reorg has occurred. Please reach out for help, this is a potentially serious error impacting signed messages. Do NOT forcefully resume operation of this validator. Keep it crashlooping or shut down until receive support.".to_owned();
+            if let Some(height) = correctness_checkpoint.block_height {
+                self.reorg_reporter.report_at_block(height).await;
+            } else {
+                info!("Blockchain does not support block height, reporting with reorg period");
+                self.reorg_reporter
+                    .report_with_reorg_period(&self.reorg_period)
+                    .await;
+            }
+
+            let mut panic_message = "Incorrect tree root. Most likely a reorg has occurred. Please reach out for help, this is a potentially serious error impacting signed messages. Do NOT forcefully resume operation of this validator. Keep it crashlooping or shut down until you receive support.".to_owned();
             if let Err(e) = self
                 .checkpoint_syncer
                 .write_reorg_status(&reorg_event)
                 .await
             {
                 panic_message.push_str(&format!(
-                    " Reorg troubleshooting details couldn't be written to checkpoint storage: {}",
-                    e
+                    " Reorg troubleshooting details couldn't be written to checkpoint storage: {e}"
                 ));
             }
             panic!("{panic_message}");
@@ -317,9 +341,22 @@ impl ValidatorSubmitter {
             "Fetched checkpoint from checkpoint storage",
         );
 
-        if existing.is_some() {
-            debug!(index = checkpoint.index, "Checkpoint already submitted");
-            return Ok(());
+        if let Some(existing) = existing.as_ref() {
+            let existing_signer = existing.recover()?;
+            let signer = self.signer.eth_address();
+            if existing_signer == signer && existing.value == checkpoint {
+                debug!(index = checkpoint.index, "Checkpoint already submitted");
+                return Ok(());
+            } else {
+                warn!(
+                    index = checkpoint.index,
+                    existing_checkpoint = ?existing.value,
+                    existing_signer = ?existing_signer,
+                    new_checkpoint = ?checkpoint,
+                    new_signer = ?signer,
+                    "Checkpoint already submitted, but with different values, overwriting"
+                );
+            }
         }
 
         let start = Instant::now();
@@ -338,8 +375,6 @@ impl ValidatorSubmitter {
             "Stored checkpoint",
         );
 
-        debug!(index = checkpoint.index, "Signed and submitted checkpoint");
-
         // TODO: move these into S3 implementations
         // small sleep before signing next checkpoint to avoid rate limiting
         sleep(Duration::from_millis(100)).await;
@@ -349,7 +384,10 @@ impl ValidatorSubmitter {
     /// Signs and submits any previously unsubmitted checkpoints.
     async fn sign_and_submit_checkpoints(&self, mut checkpoints: Vec<CheckpointWithMessageId>) {
         // The checkpoints are ordered by index, so the last one is the highest index.
-        let last_checkpoint_index = checkpoints[checkpoints.len() - 1].index;
+        let last_checkpoint_index = match checkpoints.last() {
+            Some(c) => c.index,
+            None => return,
+        };
 
         let arc_self = Arc::new(self.clone());
 
@@ -382,8 +420,10 @@ impl ValidatorSubmitter {
                     let self_clone = self_clone.clone();
                     Box::pin(async move {
                         let start = Instant::now();
+                        let checkpoint_index = checkpoint.index;
                         self_clone.sign_and_submit_checkpoint(checkpoint).await?;
                         tracing::info!(
+                            index = checkpoint_index,
                             elapsed=?start.elapsed(),
                             "Signed and submitted checkpoint",
                         );
@@ -429,7 +469,7 @@ impl ValidatorSubmitter {
 fn tree_exceeds_checkpoint(checkpoint: &Checkpoint, tree: &IncrementalMerkle) -> bool {
     // tree.index() will panic if the tree is empty, so we use tree.count() instead
     // and convert the correctness_checkpoint.index to a count by adding 1.
-    checkpoint.index + 1 < tree.count() as u32
+    checkpoint.index.saturating_add(1) < tree.count() as u32
 }
 
 #[derive(Clone)]
@@ -456,331 +496,19 @@ impl ValidatorSubmitterMetrics {
                 .with_label_values(&[chain_name]),
         }
     }
+
+    fn set_latest_checkpoint_observed(&self, checkpoint: &CheckpointAtBlock) {
+        let prev_checkpoint_index = self.latest_checkpoint_observed.get();
+
+        if prev_checkpoint_index > checkpoint.index as i64 {
+            tracing::warn!(
+                ?checkpoint,
+                prev_checkpoint_index,
+                checkpoint_index=checkpoint.index, "Observed a checkpoint with index that is lower than previous checkpoint. Did a reorg occur?");
+        }
+        self.latest_checkpoint_observed.set(checkpoint.index as i64);
+    }
 }
 
 #[cfg(test)]
-mod test {
-    use super::*;
-
-    use async_trait::async_trait;
-    use eyre::Result;
-    use hyperlane_base::db::{
-        DbResult, HyperlaneDb, InterchainGasExpenditureData, InterchainGasPaymentData,
-    };
-    use hyperlane_core::{
-        identifiers::UniqueIdentifier, test_utils::dummy_domain, GasPaymentKey, HyperlaneChain,
-        HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
-        InterchainGasPayment, InterchainGasPaymentMeta, MerkleTreeHook, MerkleTreeInsertion,
-        PendingOperationStatus, ReorgEvent, SignedAnnouncement, SignedCheckpointWithMessageId,
-        H160, H256,
-    };
-    use prometheus::Registry;
-    use std::{fmt::Debug, sync::Arc, time::Duration};
-    use tokio::sync::mpsc;
-
-    mockall::mock! {
-        pub Db {
-            fn provider(&self) -> Box<dyn HyperlaneProvider>;
-        }
-
-        impl Debug for Db {
-            fn fmt<'a>(&self, f: &mut std::fmt::Formatter<'a>) -> std::fmt::Result;
-        }
-
-        impl HyperlaneDb for Db {
-            fn retrieve_highest_seen_message_nonce(&self) -> DbResult<Option<u32>>;
-            fn retrieve_message_by_nonce(&self, nonce: u32) -> DbResult<Option<HyperlaneMessage>>;
-            fn retrieve_processed_by_nonce(&self, nonce: &u32) -> DbResult<Option<bool>>;
-            fn domain(&self) -> &HyperlaneDomain;
-            fn store_message_id_by_nonce(&self, nonce: &u32, id: &H256) -> DbResult<()>;
-            fn retrieve_message_id_by_nonce(&self, nonce: &u32) -> DbResult<Option<H256>>;
-            fn store_message_by_id(&self, id: &H256, message: &HyperlaneMessage) -> DbResult<()>;
-            fn retrieve_message_by_id(&self, id: &H256) -> DbResult<Option<HyperlaneMessage>>;
-            fn store_dispatched_block_number_by_nonce(
-                &self,
-                nonce: &u32,
-                block_number: &u64,
-            ) -> DbResult<()>;
-            fn retrieve_dispatched_block_number_by_nonce(&self, nonce: &u32) -> DbResult<Option<u64>>;
-            fn store_processed_by_nonce(&self, nonce: &u32, processed: &bool) -> DbResult<()>;
-            fn store_processed_by_gas_payment_meta(
-                &self,
-                meta: &InterchainGasPaymentMeta,
-                processed: &bool,
-            ) -> DbResult<()>;
-            fn retrieve_processed_by_gas_payment_meta(
-                &self,
-                meta: &InterchainGasPaymentMeta,
-            ) -> DbResult<Option<bool>>;
-            fn store_interchain_gas_expenditure_data_by_message_id(
-                &self,
-                message_id: &H256,
-                data: &InterchainGasExpenditureData,
-            ) -> DbResult<()>;
-            fn retrieve_interchain_gas_expenditure_data_by_message_id(
-                &self,
-                message_id: &H256,
-            ) -> DbResult<Option<InterchainGasExpenditureData>>;
-            fn store_status_by_message_id(
-                &self,
-                message_id: &H256,
-                status: &PendingOperationStatus,
-            ) -> DbResult<()>;
-            fn retrieve_status_by_message_id(
-                &self,
-                message_id: &H256,
-            ) -> DbResult<Option<PendingOperationStatus>>;
-            fn store_interchain_gas_payment_data_by_gas_payment_key(
-                &self,
-                key: &GasPaymentKey,
-                data: &InterchainGasPaymentData,
-            ) -> DbResult<()>;
-            fn retrieve_interchain_gas_payment_data_by_gas_payment_key(
-                &self,
-                key: &GasPaymentKey,
-            ) -> DbResult<Option<InterchainGasPaymentData>>;
-            fn store_gas_payment_by_sequence(
-                &self,
-                sequence: &u32,
-                payment: &InterchainGasPayment,
-            ) -> DbResult<()>;
-            fn retrieve_gas_payment_by_sequence(
-                &self,
-                sequence: &u32,
-            ) -> DbResult<Option<InterchainGasPayment>>;
-            fn store_gas_payment_block_by_sequence(
-                &self,
-                sequence: &u32,
-                block_number: &u64,
-            ) -> DbResult<()>;
-            fn retrieve_gas_payment_block_by_sequence(&self, sequence: &u32) -> DbResult<Option<u64>>;
-            fn store_pending_message_retry_count_by_message_id(
-                &self,
-                message_id: &H256,
-                count: &u32,
-            ) -> DbResult<()>;
-            fn retrieve_pending_message_retry_count_by_message_id(
-                &self,
-                message_id: &H256,
-            ) -> DbResult<Option<u32>>;
-            fn store_merkle_tree_insertion_by_leaf_index(
-                &self,
-                leaf_index: &u32,
-                insertion: &MerkleTreeInsertion,
-            ) -> DbResult<()>;
-            fn retrieve_merkle_tree_insertion_by_leaf_index(
-                &self,
-                leaf_index: &u32,
-            ) -> DbResult<Option<MerkleTreeInsertion>>;
-            fn store_merkle_leaf_index_by_message_id(
-                &self,
-                message_id: &H256,
-                leaf_index: &u32,
-            ) -> DbResult<()>;
-            fn retrieve_merkle_leaf_index_by_message_id(&self, message_id: &H256) -> DbResult<Option<u32>>;
-            fn store_merkle_tree_insertion_block_number_by_leaf_index(
-                &self,
-                leaf_index: &u32,
-                block_number: &u64,
-            ) -> DbResult<()>;
-            fn retrieve_merkle_tree_insertion_block_number_by_leaf_index(
-                &self,
-                leaf_index: &u32,
-            ) -> DbResult<Option<u64>>;
-            fn store_highest_seen_message_nonce_number(&self, nonce: &u32) -> DbResult<()>;
-            fn retrieve_highest_seen_message_nonce_number(&self) -> DbResult<Option<u32>>;
-            fn store_payload_ids_by_message_id(&self, message_id: &H256, payload_ids: Vec<UniqueIdentifier>) -> DbResult<()>;
-            fn retrieve_payload_ids_by_message_id(&self, message_id: &H256) -> DbResult<Option<Vec<UniqueIdentifier>>>;
-        }
-    }
-
-    mockall::mock! {
-        pub MerkleTreeHook {}
-
-        impl Debug for MerkleTreeHook {
-            fn fmt<'a>(&self, f: &mut std::fmt::Formatter<'a>) -> std::fmt::Result;
-        }
-
-        impl HyperlaneChain for MerkleTreeHook {
-            fn domain(&self) -> &HyperlaneDomain;
-            fn provider(&self) -> Box<dyn HyperlaneProvider>;
-        }
-
-        impl HyperlaneContract for MerkleTreeHook {
-            fn address(&self) -> H256;
-        }
-
-        #[async_trait]
-        impl MerkleTreeHook for MerkleTreeHook {
-            async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkle>;
-            async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32>;
-            async fn latest_checkpoint(&self, reorg_period: &ReorgPeriod) -> ChainResult<Checkpoint>;
-        }
-    }
-
-    mockall::mock! {
-        pub CheckpointSyncer {}
-
-        impl Debug for CheckpointSyncer {
-            fn fmt<'a>(&self, f: &mut std::fmt::Formatter<'a>) -> std::fmt::Result;
-        }
-
-        #[async_trait]
-        impl CheckpointSyncer for CheckpointSyncer {
-            async fn latest_index(&self) -> Result<Option<u32>>;
-            async fn write_latest_index(&self, index: u32) -> Result<()>;
-            async fn update_latest_index(&self, index: u32) -> Result<()>;
-            async fn fetch_checkpoint(&self, index: u32) -> Result<Option<SignedCheckpointWithMessageId>>;
-            async fn write_checkpoint(
-                &self,
-                signed_checkpoint: &SignedCheckpointWithMessageId,
-            ) -> Result<()>;
-            async fn write_metadata(&self, metadata: &str) -> Result<()>;
-            async fn write_announcement(&self, signed_announcement: &SignedAnnouncement) -> Result<()>;
-            fn announcement_location(&self) -> String;
-            async fn write_reorg_status(&self, reorg_event: &ReorgEvent) -> Result<()>;
-            async fn reorg_status(&self) -> Result<Option<ReorgEvent>>;
-        }
-    }
-
-    fn dummy_metrics() -> ValidatorSubmitterMetrics {
-        let origin_domain = dummy_domain(0, "dummy_origin_domain");
-        let core_metrics = CoreMetrics::new("dummy_relayer", 37582, Registry::new()).unwrap();
-        ValidatorSubmitterMetrics::new(&core_metrics, &origin_domain)
-    }
-
-    fn dummy_singleton_handle() -> SingletonSignerHandle {
-        SingletonSignerHandle::new(H160::from_low_u64_be(0), mpsc::unbounded_channel().0)
-    }
-
-    fn reorg_event_is_correct(
-        reorg_event: &ReorgEvent,
-        expected_local_merkle_tree: &IncrementalMerkle,
-        mock_onchain_merkle_tree: &IncrementalMerkle,
-        unix_timestamp: u64,
-        expected_reorg_period: ReorgPeriod,
-    ) {
-        assert_eq!(
-            reorg_event.canonical_merkle_root,
-            mock_onchain_merkle_tree.root()
-        );
-        assert_eq!(
-            reorg_event.local_merkle_root,
-            expected_local_merkle_tree.root()
-        );
-        assert_eq!(
-            reorg_event.checkpoint_index,
-            expected_local_merkle_tree.index()
-        );
-        // timestamp diff should be less than 1 second
-        let timestamp_diff = reorg_event.unix_timestamp as i64 - unix_timestamp as i64;
-        assert!(timestamp_diff.abs() < 1);
-
-        assert_eq!(reorg_event.reorg_period, expected_reorg_period);
-    }
-
-    #[tokio::test]
-    #[should_panic(
-        expected = "Incorrect tree root. Most likely a reorg has occurred. Please reach out for help, this is a potentially serious error impacting signed messages. Do NOT forcefully resume operation of this validator. Keep it crashlooping or shut down until receive support."
-    )]
-    async fn reorg_is_detected_and_persisted_to_checkpoint_storage() {
-        let unix_timestamp = chrono::Utc::now().timestamp() as u64;
-        let expected_reorg_period = 12;
-
-        let pre_reorg_merke_insertions = [
-            MerkleTreeInsertion::new(0, H256::random()),
-            MerkleTreeInsertion::new(1, H256::random()),
-            MerkleTreeInsertion::new(2, H256::random()),
-        ];
-        let mut expected_local_merkle_tree = IncrementalMerkle::default();
-        for insertion in pre_reorg_merke_insertions.iter() {
-            expected_local_merkle_tree.ingest(insertion.message_id());
-        }
-
-        // the last leaf is different post-reorg
-        let post_reorg_merkle_insertions = [
-            pre_reorg_merke_insertions[0],
-            pre_reorg_merke_insertions[1],
-            MerkleTreeInsertion::new(2, H256::random()),
-        ];
-        let mut mock_onchain_merkle_tree = IncrementalMerkle::default();
-        for insertion in post_reorg_merkle_insertions.iter() {
-            mock_onchain_merkle_tree.ingest(insertion.message_id());
-        }
-
-        // assert the reorg resulted in different merkle tree roots
-        assert_ne!(
-            mock_onchain_merkle_tree.root(),
-            expected_local_merkle_tree.root()
-        );
-
-        // the db returns the pre-reorg merkle tree insertions
-        let mut db = MockDb::new();
-        db.expect_retrieve_merkle_tree_insertion_by_leaf_index()
-            .returning(move |sequence| Ok(Some(pre_reorg_merke_insertions[*sequence as usize])));
-
-        // boilerplate mocks
-        let mut mock_merkle_tree_hook = MockMerkleTreeHook::new();
-        mock_merkle_tree_hook
-            .expect_address()
-            .returning(|| H256::from_low_u64_be(0));
-        let dummy_domain = dummy_domain(0, "dummy_domain");
-        mock_merkle_tree_hook
-            .expect_domain()
-            .return_const(dummy_domain.clone());
-
-        // expect the checkpoint syncer to post the reorg event to the checkpoint storage
-        // and not submit any checkpoints (this is checked implicitly, by not setting any `expect`s)
-        let mut mock_checkpoint_syncer = MockCheckpointSyncer::new();
-        let mock_onchain_merkle_tree_clone = mock_onchain_merkle_tree.clone();
-        mock_checkpoint_syncer
-            .expect_write_reorg_status()
-            .once()
-            .returning(move |reorg_event| {
-                // unit test correctness criteria
-                reorg_event_is_correct(
-                    reorg_event,
-                    &expected_local_merkle_tree,
-                    &mock_onchain_merkle_tree_clone,
-                    unix_timestamp,
-                    ReorgPeriod::from_blocks(expected_reorg_period),
-                );
-                Ok(())
-            });
-
-        let signer: Signers = "1111111111111111111111111111111111111111111111111111111111111111"
-            .parse::<ethers::signers::LocalWallet>()
-            .unwrap()
-            .into();
-
-        // instantiate the validator submitter
-        let validator_submitter = ValidatorSubmitter::new(
-            Duration::from_secs(1),
-            ReorgPeriod::from_blocks(expected_reorg_period),
-            Arc::new(mock_merkle_tree_hook),
-            dummy_singleton_handle(),
-            signer,
-            Arc::new(mock_checkpoint_syncer),
-            Arc::new(db),
-            dummy_metrics(),
-            50,
-        );
-
-        // mock the correctness checkpoint response
-        let mock_onchain_checkpoint = Checkpoint {
-            root: mock_onchain_merkle_tree.root(),
-            index: mock_onchain_merkle_tree.index(),
-            merkle_tree_hook_address: H256::from_low_u64_be(0),
-            mailbox_domain: dummy_domain.id(),
-        };
-
-        // Start the submitter with an empty merkle tree, so it gets rebuilt from the db.
-        // A panic is expected here, as the merkle root inconsistency is a critical error that may indicate fraud.
-        validator_submitter
-            .submit_checkpoints_until_correctness_checkpoint(
-                &mut IncrementalMerkle::default(),
-                &mock_onchain_checkpoint,
-            )
-            .await;
-    }
-}
+mod tests;

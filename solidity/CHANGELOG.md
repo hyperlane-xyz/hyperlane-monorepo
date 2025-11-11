@@ -1,5 +1,299 @@
 # @hyperlane-xyz/core
 
+## 10.0.1
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@19.7.0
+
+## 10.0.0
+
+### Major Changes
+
+- 18c32ed2b: Refactor warp route contracts for shallower inheritance tree and smaller bytecode size.
+
+  Deprecated `Router` and `GasRouter` internal functions have been removed.
+
+  `FungibleTokenRouter` has been removed and functionality lifted into `TokenRouter`.
+
+  `quoteTransferRemote` and `transferRemote` can no longer be overridden with optional `hook` and `hookMetadata` for simplicity.
+
+  `quoteTransferRemote` returns a consistent shape of `[nativeMailboxDispatchFee, internalTokenFee, externalTokenFee]`.
+
+  `HypNative` and `HypERC20Collateral` inherit from `MovableCollateral` and `LpCollateral` but other extensions (eg `HypXERC20`) do not. Storage layouts have been preserved to ensure upgrade compatibility.
+
+- dd16e3df4: Add LP interface to collateral routers
+
+  The `balanceOf` function has been removed from `TokenRouter` to remove ambiguity between `LpCollateralRouter.balanceOf`.
+
+  To migrate, use the new `TokenRouter.token()` to get an `IERC20` or `IERC721` compliant address that you can call `balanceOf` on.
+
+### Minor Changes
+
+- 5b17b0f37: Add Everclear bridges for ETH and ERC20 tokens.
+- 2c6506735: Implement support for CCTP v2 fast transfers
+- 799751606: Extend CCTP TokenBridge with GMP support via hook
+- e0c69e255: Implement token fees on FungibleTokenRouter
+
+  Removes `metadata` from return type of internal `TokenRouter._transferFromSender` hook
+
+  To append `metadata` to `TokenMessage`, override the `TokenRouter._beforeDispatch` hook
+
+- 737ea2b35: feat: emit event on protocol fee payment
+- e0c69e255: Adds fees to FungibleTokenRouter
+
+### Patch Changes
+
+- 7a41068f7: Fix CCTP v2 transferRemote amount
+- 205bcae75: Rebalancer covers all fees associated with rebalancing
+- f8da8cd40: Remove ValueTransferBridge and use ITokenBridge. ValueTransferBridge is a deprecated name for the interface.
+- 1d46a826d: Remove majority of virtual override functions
+- 826e83741: Fix TokenBridgeCCTP.verify burn message sender enforcement
+- f930794d7: Update Yield Routes (HypERC4626OwnerCollateral and HypERC4626Collateral) to use safeApprove
+- 9a43cdca9: Remove absolute imports. Fixes compilation for users who import from files under `solidity/contracts`.
+- Updated dependencies [419e16910]
+  - @hyperlane-xyz/utils@19.6.0
+
+## 9.0.17
+
+### Patch Changes
+
+- Updated dependencies [312826d10]
+  - @hyperlane-xyz/utils@19.5.0
+
+## 9.0.16
+
+### Patch Changes
+
+- Updated dependencies [5a4e22d34]
+  - @hyperlane-xyz/utils@19.4.0
+
+## 9.0.15
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@19.3.0
+
+## 9.0.14
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@19.2.0
+
+## 9.0.13
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@19.1.1
+
+## 9.0.12
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@19.1.0
+
+## 9.0.11
+
+### Patch Changes
+
+- Updated dependencies [8eab305bd]
+- Updated dependencies [e42a0e8e1]
+- Updated dependencies [32479e139]
+  - @hyperlane-xyz/utils@19.0.0
+
+## 9.0.10
+
+### Patch Changes
+
+- a5728818f: Updated import statements for ProxyAdmin and TransparentUpgradeableProxy contracts as they weren't included in the build artifacts used for verification with the old import
+- Updated dependencies [c41bc3b93]
+- Updated dependencies [2c47e1143]
+- Updated dependencies [6b8419370]
+  - @hyperlane-xyz/utils@18.3.0
+
+## 9.0.9
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@18.2.0
+
+## 9.0.8
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@18.1.0
+
+## 9.0.7
+
+### Patch Changes
+
+- Updated dependencies [cfc0eb2a7]
+  - @hyperlane-xyz/utils@18.0.0
+
+## 9.0.6
+
+### Patch Changes
+
+- Updated dependencies [8c15edc67]
+- Updated dependencies [e0bda316a]
+  - @hyperlane-xyz/utils@17.0.0
+
+## 9.0.5
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@16.2.0
+
+## 9.0.4
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@16.1.1
+
+## 9.0.3
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@16.1.0
+
+## 9.0.2
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@16.0.0
+
+## 9.0.1
+
+### Patch Changes
+
+- Updated dependencies [451f3f6c3]
+- Updated dependencies [a33c8abd4]
+  - @hyperlane-xyz/utils@15.0.0
+
+## 9.0.0
+
+### Major Changes
+
+- 155f5a5e8: Remove old liquidity layer contracts
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@14.4.0
+
+## 8.1.2
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@14.3.0
+
+## 8.1.1
+
+### Patch Changes
+
+- c177c4733: Remove absolute imports. Fixes compilation for users who import from files under `solidity/contracts`.
+  - @hyperlane-xyz/utils@14.2.0
+
+## 8.1.0
+
+### Minor Changes
+
+- ecaa4ef90: Add ownerStatus virtual config to `warp check`, which checks the proxy, implementation, and proxy admin owners. Add ISafe and IOwnerManager. Also, refactor contractVerificationStatus slightly
+
+### Patch Changes
+
+- bd91094c3: Export CONTRACTS_PACKAGE_VERSION from core package.
+- 04fc563f4: Fix TokenBridgeCCTP.verify burn message sender enforcement
+  - @hyperlane-xyz/utils@14.1.0
+
+## 8.0.2
+
+### Patch Changes
+
+- Updated dependencies [7ad8e394c]
+  - @hyperlane-xyz/utils@14.0.0
+
+## 8.0.1
+
+### Patch Changes
+
+- Updated dependencies [0ec92f775]
+- Updated dependencies [ec8d196d9]
+- Updated dependencies [bacf16a80]
+  - @hyperlane-xyz/utils@13.4.0
+
+## 8.0.0
+
+### Major Changes
+
+- e61bd2f: Refactor MailboxClient and AbstractCCIPReadIsm
+- 4544120: Update ICA router event emission with salt and commitment
+- 119a1a8: Remove `accountOwners` from `InterchainAccountRouter`
+
+  This reverse mapping was intended to index from a given proxy account what the corresponding derivation inputs were.
+
+  However, this implied 2 cold SSTORE instructions per account creation.
+
+  Instead, the `InterchainAccountCreated` event can be used which now has an `indexed` account key to filter by.
+
+### Minor Changes
+
+- db19435: Add Rebalancing Multi-Collateral Warp Routes
+- b977a28: Add call commitments (shielded calls) to ICA Router
+
+  - Add `callRemoteCommitReveal`
+  - Add `MessageType` to `InterchainAccountMessage`
+  - Make ICA Router its own ISM, and route to ica included in message
+
+- 7a3165f: Allow users to pass salts in ICA derivation
+- b977a28: Add multiple TokenBridge contracts
+
+  - Add OP Stack TokenBridge
+  - Add CCTP TokenBridge
+
+- 88fe35f: Add Rebalancing Warp Route for Native Tokens
+- 3327a6e: Add MovableCollateralRouter, a router whose collateral can be removed to a remote chain
+
+### Patch Changes
+
+- fd3bb39: Use SafeERC20.safeApprove instead of IERC20.approve in HypXERC20Lockbox.approveLockbox()
+  - @hyperlane-xyz/utils@13.3.0
+
+## 7.1.10
+
+### Patch Changes
+
+- 72887f7: Update to ethers v5.8.0.
+- Updated dependencies [72887f7]
+  - @hyperlane-xyz/utils@13.2.1
+
+## 7.1.9
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@13.2.0
+
+## 7.1.8
+
+### Patch Changes
+
+- ba4deea: Revert workspace dependency syntax.
+- Updated dependencies [ba4deea]
+  - @hyperlane-xyz/utils@13.1.1
+
+## 7.1.7
+
+### Patch Changes
+
+- Updated dependencies [f41f766]
+  - @hyperlane-xyz/utils@13.1.0
+
+## 7.1.6
+
+### Patch Changes
+
+- Updated dependencies [0de63e0]
+  - @hyperlane-xyz/utils@13.0.0
+
 ## 7.1.5
 
 ### Patch Changes

@@ -1,3 +1,5 @@
+use std::ops::Add;
+
 use eyre::eyre;
 use hyperlane_sealevel::{
     HeliusPriorityFeeLevel, HeliusPriorityFeeOracleConfig, PriorityFeeOracleConfig,
@@ -8,6 +10,8 @@ use h_eth::TransactionOverrides;
 
 use hyperlane_core::config::{ConfigErrResultExt, OpSubmissionConfig};
 use hyperlane_core::{config::ConfigParsingError, HyperlaneDomainProtocol, NativeToken};
+
+use hyperlane_starknet as h_starknet;
 
 use crate::settings::envs::*;
 use crate::settings::ChainConnectionConf;
@@ -40,12 +44,12 @@ pub fn build_ethereum_connection_conf(
             urls: rpcs.to_owned().clone(),
         }),
         ty => Err(eyre!("unknown rpc consensus type `{ty}`"))
-            .take_err(err, || &chain.cwp + "rpc_consensus_type"),
+            .take_err(err, || (&chain.cwp).add("rpc_consensus_type")),
     };
 
     let transaction_overrides = chain
         .get_opt_key("transactionOverrides")
-        .take_err(err, || &chain.cwp + "transaction_overrides")
+        .take_err(err, || (&chain.cwp).add("transaction_overrides"))
         .flatten()
         .map(|value_parser| TransactionOverrides {
             gas_price: value_parser
@@ -85,17 +89,6 @@ pub fn build_ethereum_connection_conf(
                 .parse_u256()
                 .end(),
 
-            gas_limit_multiplier_denominator: value_parser
-                .chain(err)
-                .get_opt_key("gasLimitMultiplierDenominator")
-                .parse_u256()
-                .end(),
-            gas_limit_multiplier_numerator: value_parser
-                .chain(err)
-                .get_opt_key("gasLimitMultiplierNumerator")
-                .parse_u256()
-                .end(),
-
             gas_price_multiplier_denominator: value_parser
                 .chain(err)
                 .get_opt_key("gasPriceMultiplierDenominator")
@@ -106,10 +99,20 @@ pub fn build_ethereum_connection_conf(
                 .get_opt_key("gasPriceMultiplierNumerator")
                 .parse_u256()
                 .end(),
+            gas_price_cap_multiplier: value_parser
+                .chain(err)
+                .get_opt_key("gasPriceCapMultiplier")
+                .parse_u256()
+                .end(),
 
             gas_price_cap: value_parser
                 .chain(err)
                 .get_opt_key("gasPriceCap")
+                .parse_u256()
+                .end(),
+            gas_limit_cap: value_parser
+                .chain(err)
+                .get_opt_key("gasLimitCap")
                 .parse_u256()
                 .end(),
         })
@@ -127,6 +130,7 @@ pub fn build_cosmos_connection_conf(
     chain: &ValueParser,
     err: &mut ConfigParsingError,
     operation_batch: OpSubmissionConfig,
+    protocol: HyperlaneDomainProtocol,
 ) -> Option<ChainConnectionConf> {
     let mut local_err = ConfigParsingError::default();
     let grpcs =
@@ -138,7 +142,10 @@ pub fn build_cosmos_connection_conf(
         .parse_string()
         .end()
         .or_else(|| {
-            local_err.push(&chain.cwp + "chain_id", eyre!("Missing chain id for chain"));
+            local_err.push(
+                (&chain.cwp).add("chain_id"),
+                eyre!("Missing chain id for chain"),
+            );
             None
         });
 
@@ -149,28 +156,11 @@ pub fn build_cosmos_connection_conf(
         .end()
         .or_else(|| {
             local_err.push(
-                &chain.cwp + "bech32Prefix",
+                (&chain.cwp).add("bech32Prefix"),
                 eyre!("Missing bech32 prefix for chain"),
             );
             None
         });
-
-    let canonical_asset = if let Some(asset) = chain
-        .chain(err)
-        .get_opt_key("canonicalAsset")
-        .parse_string()
-        .end()
-    {
-        Some(asset.to_string())
-    } else if let Some(hrp) = prefix {
-        Some(format!("u{}", hrp))
-    } else {
-        local_err.push(
-            &chain.cwp + "canonical_asset",
-            eyre!("Missing canonical asset for chain"),
-        );
-        None
-    };
 
     let gas_price = chain
         .chain(err)
@@ -185,121 +175,94 @@ pub fn build_cosmos_connection_conf(
         .end();
 
     let native_token = parse_native_token(chain, err, 18);
-
-    if !local_err.is_ok() {
-        err.merge(local_err);
-        None
-    } else {
-        Some(ChainConnectionConf::Cosmos(h_cosmos::ConnectionConf::new(
-            grpcs,
-            rpcs.to_owned(),
-            chain_id.unwrap().to_string(),
-            prefix.unwrap().to_string(),
-            canonical_asset.unwrap(),
-            gas_price.unwrap(),
-            contract_address_bytes.unwrap().try_into().unwrap(),
-            operation_batch,
-            native_token,
-        )))
-    }
-}
-
-pub fn build_cosmos_native_connection_conf(
-    rpcs: &[Url],
-    chain: &ValueParser,
-    err: &mut ConfigParsingError,
-    operation_batch: OpSubmissionConfig,
-) -> Option<ChainConnectionConf> {
-    let mut local_err = ConfigParsingError::default();
-    let grpcs =
-        parse_base_and_override_urls(chain, "grpcUrls", "customGrpcUrls", "http", &mut local_err);
-
-    let chain_id = chain
-        .chain(&mut local_err)
-        .get_key("chainId")
-        .parse_string()
-        .end()
-        .or_else(|| {
-            local_err.push(&chain.cwp + "chain_id", eyre!("Missing chain id for chain"));
-            None
-        });
-
-    let prefix = chain
-        .chain(err)
-        .get_key("bech32Prefix")
-        .parse_string()
-        .end()
-        .or_else(|| {
-            local_err.push(
-                &chain.cwp + "bech32Prefix",
-                eyre!("Missing bech32 prefix for chain"),
-            );
-            None
-        });
-
-    let canonical_asset = if let Some(asset) = chain
-        .chain(err)
-        .get_opt_key("canonicalAsset")
-        .parse_string()
-        .end()
-    {
-        Some(asset.to_string())
-    } else if let Some(hrp) = prefix {
-        Some(format!("u{}", hrp))
-    } else {
-        local_err.push(
-            &chain.cwp + "canonical_asset",
-            eyre!("Missing canonical asset for chain"),
-        );
-        None
-    };
-
-    let gas_price = chain
-        .chain(err)
-        .get_opt_key("gasPrice")
-        .and_then(parse_cosmos_gas_price)
-        .end();
 
     let gas_multiplier = chain
         .chain(err)
         .get_opt_key("gasMultiplier")
         .parse_f64()
         .end()
-        .unwrap_or(1.8);
+        .unwrap_or(1.35);
 
-    let contract_address_bytes = chain
+    let compat_mode = chain
         .chain(err)
-        .get_opt_key("contractAddressBytes")
-        .parse_u64()
+        .get_opt_key("compatMode")
+        .parse_string()
         .end();
-
-    let native_token = parse_native_token(chain, err, 18);
 
     if !local_err.is_ok() {
         err.merge(local_err);
-        None
-    } else {
-        let gas_price = gas_price.unwrap();
-        let gas_price = h_cosmos_native::RawCosmosAmount {
-            denom: gas_price.denom,
-            amount: gas_price.amount,
-        };
-
-        Some(ChainConnectionConf::CosmosNative(
-            h_cosmos_native::ConnectionConf::new(
-                rpcs.to_owned(),
-                grpcs,
-                chain_id.unwrap().to_string(),
-                prefix.unwrap().to_string(),
-                canonical_asset.unwrap(),
-                gas_price,
-                gas_multiplier,
-                contract_address_bytes.unwrap().try_into().unwrap(),
-                operation_batch,
-                native_token,
-            ),
-        ))
+        return None;
     }
+
+    let chain_id = chain_id?;
+    let prefix = prefix?;
+    let gas_price = gas_price?;
+    let contract_address_bytes = contract_address_bytes?;
+
+    let canonical_asset = match chain
+        .chain(err)
+        .get_opt_key("canonicalAsset")
+        .parse_string()
+        .end()
+    {
+        Some(asset) => asset.to_string(),
+        None => format!("u{prefix}"),
+    };
+    let config = h_cosmos::ConnectionConf::new(
+        grpcs,
+        rpcs.to_owned(),
+        chain_id.to_string(),
+        prefix.to_string(),
+        canonical_asset,
+        gas_price,
+        contract_address_bytes as usize,
+        operation_batch,
+        native_token,
+        gas_multiplier,
+        compat_mode,
+    );
+
+    match config {
+        Err(e) => {
+            err.push((&chain.cwp).add("compatMode"), eyre!(e));
+            None
+        }
+        Ok(config) => match protocol {
+            HyperlaneDomainProtocol::Cosmos => Some(ChainConnectionConf::Cosmos(config)),
+            HyperlaneDomainProtocol::CosmosNative => {
+                Some(ChainConnectionConf::CosmosNative(config))
+            }
+            _ => None,
+        },
+    }
+}
+
+fn build_starknet_connection_conf(
+    urls: &[Url],
+    chain: &ValueParser,
+    err: &mut ConfigParsingError,
+    operation_batch: OpSubmissionConfig,
+) -> Option<ChainConnectionConf> {
+    let native_token_address = chain
+        .chain(err)
+        .get_key("nativeToken")
+        .get_key("denom")
+        .parse_address_hash()
+        .end();
+
+    let Some(native_token_address) = native_token_address else {
+        err.push(
+            (&chain.cwp).add("nativeToken.denom"),
+            eyre!("nativeToken denom required"),
+        );
+        return None;
+    };
+
+    Some(ChainConnectionConf::Starknet(h_starknet::ConnectionConf {
+        urls: urls.to_vec(),
+        native_token_address,
+        op_submission_config: operation_batch,
+    }))
 }
 
 fn build_sealevel_connection_conf(
@@ -316,16 +279,18 @@ fn build_sealevel_connection_conf(
 
     if !local_err.is_ok() {
         err.merge(local_err);
-        None
-    } else {
-        Some(ChainConnectionConf::Sealevel(h_sealevel::ConnectionConf {
-            urls: urls.to_owned(),
-            op_submission_config: operation_batch,
-            native_token,
-            priority_fee_oracle: priority_fee_oracle.unwrap(),
-            transaction_submitter: transaction_submitter.unwrap(),
-        }))
+        return None;
     }
+
+    let priority_fee_oracle = priority_fee_oracle?;
+    let transaction_submitter = transaction_submitter?;
+    Some(ChainConnectionConf::Sealevel(h_sealevel::ConnectionConf {
+        urls: urls.to_owned(),
+        op_submission_config: operation_batch,
+        native_token,
+        priority_fee_oracle,
+        transaction_submitter,
+    }))
 }
 
 fn parse_native_token(
@@ -367,7 +332,7 @@ fn parse_sealevel_priority_fee_oracle_config(
             .end()
             .or_else(|| {
                 err.push(
-                    &value_parser.cwp + "type",
+                    (&value_parser.cwp).add("type"),
                     eyre!("Missing priority fee oracle type"),
                 );
                 None
@@ -389,20 +354,18 @@ fn parse_sealevel_priority_fee_oracle_config(
                 if !err.is_ok() {
                     return None;
                 }
-                let config = HeliusPriorityFeeOracleConfig {
-                    url: value_parser
-                        .chain(err)
-                        .get_key("url")
-                        .parse_from_str("Invalid url")
-                        .end()
-                        .unwrap(),
-                    fee_level: fee_level.unwrap(),
-                };
+                let url: Url = value_parser
+                    .chain(err)
+                    .get_key("url")
+                    .parse_from_str("Invalid url")
+                    .end()?;
+                let fee_level = fee_level?;
+                let config = HeliusPriorityFeeOracleConfig { url, fee_level };
                 Some(PriorityFeeOracleConfig::Helius(config))
             }
             _ => {
                 err.push(
-                    &value_parser.cwp + "type",
+                    (&value_parser.cwp).add("type"),
                     eyre!("Unknown priority fee oracle type"),
                 );
                 None
@@ -437,7 +400,7 @@ fn parse_helius_priority_fee_level(
             "unsafemax" => Some(HeliusPriorityFeeLevel::UnsafeMax),
             _ => {
                 err.push(
-                    &value_parser.cwp + "fee_level",
+                    (&value_parser.cwp).add("fee_level"),
                     eyre!("Unknown priority fee level"),
                 );
                 None
@@ -484,7 +447,7 @@ fn parse_transaction_submitter_config(
             }
             _ => {
                 err.push(
-                    &chain.cwp + "transaction_submitter.type",
+                    (&chain.cwp).add("transaction_submitter.type"),
                     eyre!("Unknown transaction submitter type"),
                 );
                 None
@@ -493,6 +456,48 @@ fn parse_transaction_submitter_config(
     } else {
         // If not specified at all, use default
         Some(h_sealevel::config::TransactionSubmitterConfig::default())
+    }
+}
+
+pub fn build_radix_connection_conf(
+    rpcs: &[Url],
+    chain: &ValueParser,
+    err: &mut ConfigParsingError,
+    _operation_batch: OpSubmissionConfig,
+) -> Option<ChainConnectionConf> {
+    let mut local_err = ConfigParsingError::default();
+    let gateway_urls = parse_base_and_override_urls(
+        chain,
+        "gatewayUrls",
+        "customGatewayUrls",
+        "http",
+        &mut local_err,
+    );
+
+    let network_name = chain
+        .chain(&mut local_err)
+        .get_key("networkName")
+        .parse_string()
+        .end()
+        .or_else(|| {
+            local_err.push(
+                (&chain.cwp).add("network_name"),
+                eyre!("Missing network name for chain"),
+            );
+            None
+        });
+
+    if !local_err.is_ok() {
+        err.merge(local_err);
+        None
+    } else {
+        Some(ChainConnectionConf::Radix(
+            hyperlane_radix::ConnectionConf::new(
+                rpcs.to_vec(),
+                gateway_urls,
+                network_name?.to_string(),
+            ),
+        ))
     }
 }
 
@@ -520,11 +525,15 @@ pub fn build_connection_conf(
             let urls = rpcs.to_vec();
             build_sealevel_connection_conf(&urls, chain, err, operation_batch)
         }
-        HyperlaneDomainProtocol::Cosmos => {
-            build_cosmos_connection_conf(rpcs, chain, err, operation_batch)
+        HyperlaneDomainProtocol::Cosmos | HyperlaneDomainProtocol::CosmosNative => {
+            build_cosmos_connection_conf(rpcs, chain, err, operation_batch, domain_protocol)
         }
-        HyperlaneDomainProtocol::CosmosNative => {
-            build_cosmos_native_connection_conf(rpcs, chain, err, operation_batch)
+        HyperlaneDomainProtocol::Starknet => {
+            build_starknet_connection_conf(rpcs, chain, err, operation_batch)
         }
+        HyperlaneDomainProtocol::Radix => {
+            build_radix_connection_conf(rpcs, chain, err, operation_batch)
+        }
+        HyperlaneDomainProtocol::Aleo => todo!(),
     }
 }

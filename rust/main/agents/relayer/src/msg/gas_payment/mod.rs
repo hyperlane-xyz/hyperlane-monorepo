@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, ops::Mul};
 
 use async_trait::async_trait;
 use eyre::Result;
@@ -36,6 +36,8 @@ pub trait GasPaymentPolicy: Debug + Send + Sync {
     fn requires_payment_found(&self) -> bool {
         false
     }
+
+    fn enforcement_type(&self) -> GasPaymentEnforcementPolicy;
 }
 
 #[derive(PartialEq, Debug)]
@@ -65,22 +67,40 @@ impl GasPaymentEnforcer {
     ) -> Self {
         let policies = policy_configs
             .into_iter()
-            .map(|cfg| {
-                let p: Box<dyn GasPaymentPolicy> = match cfg.policy {
-                    GasPaymentEnforcementPolicy::None => Box::new(GasPaymentPolicyNone),
-                    GasPaymentEnforcementPolicy::Minimum { payment } => {
-                        Box::new(GasPaymentPolicyMinimum::new(payment))
-                    }
-                    GasPaymentEnforcementPolicy::OnChainFeeQuoting {
-                        gas_fraction_numerator: n,
-                        gas_fraction_denominator: d,
-                    } => Box::new(GasPaymentPolicyOnChainFeeQuoting::new(n, d)),
-                };
-                (p, cfg.matching_list)
-            })
+            .map(|cfg| (Self::create_policy(&cfg.policy), cfg.matching_list))
             .collect();
 
         Self { policies, db }
+    }
+
+    pub fn insert_new_policy(
+        &mut self,
+        index: usize,
+        policy: Box<dyn GasPaymentPolicy>,
+        matching_list: MatchingList,
+    ) {
+        self.policies.insert(index, (policy, matching_list));
+    }
+
+    pub fn create_policy(policy: &GasPaymentEnforcementPolicy) -> Box<dyn GasPaymentPolicy> {
+        match policy {
+            GasPaymentEnforcementPolicy::None => Box::new(GasPaymentPolicyNone),
+            GasPaymentEnforcementPolicy::Minimum { payment } => {
+                Box::new(GasPaymentPolicyMinimum::new(*payment))
+            }
+            GasPaymentEnforcementPolicy::OnChainFeeQuoting {
+                gas_fraction_numerator: n,
+                gas_fraction_denominator: d,
+            } => Box::new(GasPaymentPolicyOnChainFeeQuoting::new(*n, *d)),
+        }
+    }
+
+    pub fn remove_policy(&mut self, index: usize) {
+        self.policies.remove(index);
+    }
+
+    pub fn get_policies(&self) -> &Vec<(Box<dyn GasPaymentPolicy>, MatchingList)> {
+        &self.policies
     }
 }
 
@@ -176,11 +196,12 @@ impl GasPaymentEnforcer {
             "{}",
             GAS_EXPENDITURE_LOG_MESSAGE,
         );
+
+        let tokens_used = FixedPointNumber::try_from(outcome.gas_used)?.mul(outcome.gas_price);
         self.db.process_gas_expenditure(InterchainGasExpenditure {
             message_id: message.id(),
             gas_used: outcome.gas_used,
-            tokens_used: (FixedPointNumber::try_from(outcome.gas_used)? * outcome.gas_price)
-                .try_into()?,
+            tokens_used: tokens_used.try_into()?,
         })?;
         Ok(())
     }

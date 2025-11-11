@@ -19,6 +19,7 @@ ethers.workspace = true
 eyre.workspace = true
 futures-util.workspace = true
 hex.workspace = true
+hex-literal.workspace = true
 itertools.workspace = true
 num.workspace = true
 num-traits.workspace = true
@@ -36,6 +37,7 @@ hyperlane-core = { path = "../../hyperlane-core", features = ["async"] }
 hyperlane-metric = { path = "../../hyperlane-metric" }
 hyperlane-operation-verifier = { path = "../../applications/hyperlane-operation-verifier" }
 hyperlane-warp-route = { path = "../../applications/hyperlane-warp-route" }
+reqwest-utils = { path = "../../utils/reqwest-utils" }
 
 [build-dependencies]
 abigen = { path = "../../utils/abigen", features = ["ethers"] }

@@ -168,15 +168,15 @@ impl MerkleTree {
             }
             _ => {
                 // Split leaves into left and right subtrees
-                let subtree_capacity = 2usize.pow(depth as u32 - 1);
+                let subtree_capacity = 2usize.pow((depth as u32).saturating_sub(1));
                 let (left_leaves, right_leaves) = if leaves.len() <= subtree_capacity {
                     (leaves, EMPTY_SLICE)
                 } else {
                     leaves.split_at(subtree_capacity)
                 };
 
-                let left_subtree = MerkleTree::create(left_leaves, depth - 1);
-                let right_subtree = MerkleTree::create(right_leaves, depth - 1);
+                let left_subtree = MerkleTree::create(left_leaves, depth.saturating_sub(1));
+                let right_subtree = MerkleTree::create(right_leaves, depth.saturating_sub(1));
                 let hash = hash_concat(left_subtree.hash(), right_subtree.hash());
 
                 Node(hash, Box::new(left_subtree), Box::new(right_subtree))
@@ -201,27 +201,29 @@ impl MerkleTree {
             Node(ref mut hash, ref mut left, ref mut right) => {
                 let left: &mut MerkleTree = &mut *left;
                 let right: &mut MerkleTree = &mut *right;
+
+                let depth_minus_1 = depth.saturating_sub(1);
                 match (&*left, &*right) {
                     // Tree is full
                     (Leaf(_), Leaf(_)) => return Err(MerkleTreeError::MerkleTreeFull),
                     // There is a right node so insert in right node
-                    (Node(_, _, _), Node(_, _, _)) => right.push_leaf(elem, depth - 1)?,
+                    (Node(_, _, _), Node(_, _, _)) => right.push_leaf(elem, depth_minus_1)?,
                     // Both branches are zero, insert in left one
                     (Zero(_), Zero(_)) => {
-                        *left = MerkleTree::create(&[elem], depth - 1);
+                        *left = MerkleTree::create(&[elem], depth_minus_1);
                     }
                     // Leaf on left branch and zero on right branch, insert on right side
                     (Leaf(_), Zero(_)) => {
-                        *right = MerkleTree::create(&[elem], depth - 1);
+                        *right = MerkleTree::create(&[elem], depth_minus_1);
                     }
                     // Try inserting on the left node -> if it fails because it is full, insert in
                     // right side.
                     (Node(_, _, _), Zero(_)) => {
-                        match left.push_leaf(elem, depth - 1) {
+                        match left.push_leaf(elem, depth_minus_1) {
                             Ok(_) => (),
                             // Left node is full, insert in right node
                             Err(MerkleTreeError::MerkleTreeFull) => {
-                                *right = MerkleTree::create(&[elem], depth - 1);
+                                *right = MerkleTree::create(&[elem], depth_minus_1);
                             }
                             Err(e) => return Err(e),
                         };
@@ -240,7 +242,11 @@ impl MerkleTree {
         match *self {
             MerkleTree::Leaf(_) | MerkleTree::Zero(0) => None,
             MerkleTree::Node(_, ref l, ref r) => Some((l, r)),
-            MerkleTree::Zero(depth) => Some((&ZERO_NODES[depth - 1], &ZERO_NODES[depth - 1])),
+            MerkleTree::Zero(depth) => {
+                let depth_minus_1 = depth.saturating_sub(1);
+
+                Some((&ZERO_NODES[depth_minus_1], &ZERO_NODES[depth_minus_1]))
+            }
         }
     }
 
@@ -258,9 +264,11 @@ impl MerkleTree {
         let mut current_node = self;
         let mut current_depth = depth;
         while current_depth > 0 {
-            let ith_bit = (index >> (current_depth - 1)) & 0x01;
+            let ith_bit = (index >> (current_depth.saturating_sub(1))) & 0x01;
             // Note: unwrap is safe because leaves are only ever constructed at depth == 0.
-            let (left, right) = current_node.left_and_right_branches().unwrap();
+            let (left, right) = current_node
+                .left_and_right_branches()
+                .expect("left and right branches missing");
 
             // Go right, include the left branch in the proof.
             if ith_bit == 1 {
@@ -270,7 +278,7 @@ impl MerkleTree {
                 proof.push(right.hash());
                 current_node = left;
             }
-            current_depth -= 1;
+            current_depth = current_depth.saturating_sub(1);
         }
 
         debug_assert_eq!(proof.len(), depth);

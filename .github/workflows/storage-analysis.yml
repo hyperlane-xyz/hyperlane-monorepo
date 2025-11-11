@@ -2,10 +2,16 @@ name: Check Storage Layout Changes
 
 on:
   pull_request:
-    branches: [main]
+    branches:
+      - '*'
     paths:
       - 'solidity/**'
   workflow_dispatch:
+    inputs:
+      base:
+        description: 'Branch to compare against'
+        required: true
+        default: 'main'
 
 jobs:
   diff-check:
@@ -14,24 +20,19 @@ jobs:
     steps:
       # Checkout the PR branch
       - name: Checkout PR branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
 
       - name: yarn-cache
-        uses: buildjet/cache@v4
+        uses: ./.github/actions/yarn-cache
         with:
-          path: |
-            **/node_modules
-            .yarn
-          key: ${{ runner.os }}-yarn-4.5.1-cache-${{ hashFiles('./yarn.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-yarn-4.5.1-cache-
+          cache-provider: buildjet
 
       - name: yarn-install
         run: yarn install
@@ -46,15 +47,32 @@ jobs:
       # Checkout the target branch (base)
       - name: Checkout target branch (base) contracts
         env:
-          BASE_REF: ${{ github.event.pull_request.base.sha }}
+          BASE_REF: ${{ github.event.inputs.base || github.event.pull_request.base.sha }}
         run: |
+          # Fetch the base reference
           git fetch origin $BASE_REF
-          git checkout $BASE_REF -- solidity/contracts
+          # Check if BASE_REF is a commit SHA (40 hex characters) or a branch name
+          if [[ "$BASE_REF" =~ ^[0-9a-f]{40}$ ]]; then
+            # For commit SHAs, checkout directly without origin/ prefix
+            git checkout $BASE_REF -- solidity/contracts
+          else
+            # For branch names, use origin/ prefix
+            git checkout origin/$BASE_REF -- solidity/contracts
+          fi
 
       # Run the command on the target branch
       - name: Run command on target branch
         run: yarn workspace @hyperlane-xyz/core storage base-storage
 
       # Compare outputs
-      - name: Compare outputs
-        run: diff --unified solidity/base-storage solidity/HEAD-storage
+      - name: Compare outputs (fail on removals only)
+        run: |
+          DIFF_OUTPUT=$(diff --unified solidity/base-storage solidity/HEAD-storage || true)
+          echo "$DIFF_OUTPUT"
+          # Fail only if there are removal lines in diff hunks (lines starting with '-' but not '---')
+          if echo "$DIFF_OUTPUT" | grep -E '^-([^-])' >/dev/null; then
+            echo "Detected storage removals in diff. Failing job."
+            exit 1
+          else
+            echo "No storage removals detected."
+          fi

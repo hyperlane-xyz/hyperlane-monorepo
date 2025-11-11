@@ -7,7 +7,6 @@ use ethers::{
 };
 use ethers_contract::{ContractError, EthEvent, LogMeta as EthersLogMeta};
 use hyperlane_core::{ChainCommunicationError, ChainResult, LogMeta, H512};
-use tracing::instrument;
 
 use crate::EthereumReorgPeriod;
 
@@ -48,7 +47,6 @@ where
     Ok(logs)
 }
 
-#[instrument(level = "trace", err, ret, skip(provider))]
 pub async fn get_finalized_block_number<M, T>(
     provider: T,
     reorg_period: &EthereumReorgPeriod,

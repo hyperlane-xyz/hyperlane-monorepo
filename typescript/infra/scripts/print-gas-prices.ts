@@ -1,5 +1,6 @@
 import { Provider } from '@ethersproject/providers';
 import { ethers } from 'ethers';
+import path from 'path';
 
 import {
   ChainMap,
@@ -17,11 +18,39 @@ import { supportedChainNames as mainnet3SupportedChainNames } from '../config/en
 import { getRegistry as getTestnet4Registry } from '../config/environments/testnet4/chains.js';
 import testnet4GasPrices from '../config/environments/testnet4/gasPrices.json' with { type: 'json' };
 import { supportedChainNames as testnet4SupportedChainNames } from '../config/environments/testnet4/supportedChainNames.js';
+import { DeployEnvironment } from '../src/config/environment.js';
+import {
+  getSafeNumericValue,
+  updatePriceIfNeeded,
+} from '../src/config/gas-oracle.js';
+import { getInfraPath, writeJsonWithAppendMode } from '../src/utils/utils.js';
 
-import { getArgs } from './agent-utils.js';
+import { getArgs, withAppend, withWrite } from './agent-utils.js';
+
+const gasPricesFilePath = (environment: DeployEnvironment) => {
+  return path.join(
+    getInfraPath(),
+    `config/environments/${environment}/gasPrices.json`,
+  );
+};
+
+// Helper function to extract numeric amount from GasPriceConfig
+const getGasPriceAmount = (gasPrice: GasPriceConfig | undefined): number => {
+  return getSafeNumericValue(gasPrice?.amount, '0');
+};
+
+// Helper function to create default gas price config
+const createDefaultGasPrice = (
+  chain: string,
+  decimals: number = 9,
+): GasPriceConfig => ({
+  amount: `PLEASE SET A GAS PRICE FOR ${chain.toUpperCase()}`,
+  decimals,
+});
 
 async function main() {
-  const { environment } = await getArgs().argv;
+  const { environment, write, append } = await withAppend(withWrite(getArgs()))
+    .argv;
   const { registry, supportedChainNames, gasPrices } =
     environment === 'mainnet3'
       ? {
@@ -42,29 +71,41 @@ async function main() {
     await Promise.all(
       supportedChainNames.map(async (chain) => {
         try {
-          return [
-            chain,
-            await getGasPrice(
-              mpp,
-              chain,
-              gasPrices[chain as keyof typeof gasPrices],
-            ),
-          ];
+          const currentGasPrice = gasPrices[
+            chain as keyof typeof gasPrices
+          ] as GasPriceConfig;
+          const newGasPrice = await getGasPrice(mpp, chain, currentGasPrice);
+
+          const currentAmount = getGasPriceAmount(currentGasPrice);
+          const newAmount = getGasPriceAmount(newGasPrice);
+
+          const finalGasPrice = updatePriceIfNeeded(
+            newGasPrice,
+            currentGasPrice,
+            newAmount,
+            currentAmount,
+          );
+
+          return [chain, finalGasPrice];
         } catch (error) {
           console.error(`Error getting gas price for ${chain}:`, error);
           return [
             chain,
-            gasPrices[chain as keyof typeof gasPrices] || {
-              amount: '0',
-              decimals: 9,
-            },
+            gasPrices[chain as keyof typeof gasPrices] ||
+              createDefaultGasPrice(chain),
           ];
         }
       }),
     ),
   );
 
-  console.log(JSON.stringify(prices, null, 2));
+  if (write || append) {
+    const outFile = gasPricesFilePath(environment);
+    await writeJsonWithAppendMode(outFile, prices, append);
+  } else {
+    console.log(JSON.stringify(prices, null, 2));
+  }
+
   process.exit(0);
 }
 
@@ -96,25 +137,15 @@ async function getGasPrice(
           `Error getting gas price for cosmos chain ${chain}:`,
           error,
         );
-        if (currentGasPrice) {
-          return currentGasPrice;
-        } else {
-          return {
-            amount: 'PLEASE SET A GAS PRICE FOR COSMOS CHAIN',
-            decimals: 1,
-          };
-        }
+        return currentGasPrice || createDefaultGasPrice(chain, 1);
       }
     }
+    case ProtocolType.Radix:
     case ProtocolType.Sealevel:
-      // Return the gas price from the config if it exists, otherwise return some  default
+    case ProtocolType.Starknet:
+      // Return the gas price from the config if it exists, otherwise return some default
       // TODO get a reasonable value
-      return (
-        currentGasPrice ?? {
-          amount: 'PLEASE SET A GAS PRICE FOR SEALEVEL',
-          decimals: 1,
-        }
-      );
+      return currentGasPrice || createDefaultGasPrice(chain);
     default:
       throw new Error(`Unsupported protocol type: ${protocolType}`);
   }

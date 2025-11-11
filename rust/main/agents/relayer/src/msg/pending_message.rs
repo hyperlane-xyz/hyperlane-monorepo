@@ -11,6 +11,7 @@ use derive_new::new;
 use eyre::Result;
 use prometheus::IntGauge;
 use serde::{de::DeserializeOwned, Serialize};
+use tokio::sync::RwLock;
 use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument, Level};
 
 use hyperlane_base::{
@@ -73,16 +74,16 @@ pub struct MessageContext {
     pub metadata_builder: Arc<dyn BuildsBaseMetadata>,
     /// Used to determine if messages from the origin have made sufficient gas
     /// payments.
-    pub origin_gas_payment_enforcer: Arc<GasPaymentEnforcer>,
+    pub origin_gas_payment_enforcer: Arc<RwLock<GasPaymentEnforcer>>,
     /// Hard limit on transaction gas when submitting a transaction to the
     /// destination.
     pub transaction_gas_limit: Option<U256>,
     pub metrics: MessageSubmissionMetrics,
     /// Application operation verifier
-    pub application_operation_verifier: Option<Arc<dyn ApplicationOperationVerifier>>,
+    pub application_operation_verifier: Arc<dyn ApplicationOperationVerifier>,
 }
 
-/// A message that the submitter can and should try to submit.
+/// A message that is pending processing and submission.
 #[derive(new, Serialize)]
 pub struct PendingMessage {
     pub message: HyperlaneMessage,
@@ -131,8 +132,8 @@ impl Debug for PendingMessage {
                 }
             })
             .unwrap_or(0);
-        write!(f, "PendingMessage {{ num_retries: {}, since_last_attempt_s: {last_attempt}, next_attempt_after_s: {next_attempt}, message: {:?}, status: {:?}, app_context: {:?} }}",
-               self.num_retries, self.message, self.status, self.app_context)
+        write!(f, "PendingMessage {{ num_retries: {}, since_last_attempt_s: {last_attempt}, next_attempt_after_s: {next_attempt}, message_id: {:?}, status: {:?}, app_context: {:?} }}",
+               self.num_retries, self.message.id(), self.status, self.app_context)
     }
 }
 
@@ -202,6 +203,10 @@ impl PendingOperation for PendingMessage {
 
     fn recipient_address(&self) -> &H256 {
         &self.message.recipient
+    }
+
+    fn body(&self) -> &[u8] {
+        &self.message.body
     }
 
     fn retrieve_status_from_db(&self) -> Option<PendingOperationStatus> {
@@ -405,7 +410,7 @@ impl PendingOperation for PendingMessage {
             .await;
         match tx_outcome {
             Ok(outcome) => {
-                self.set_operation_outcome(outcome, state.gas_limit);
+                self.set_operation_outcome(outcome, state.gas_limit).await;
                 PendingOperationResult::Confirm(ConfirmReason::SubmittedBySelf)
             }
             Err(e) => {
@@ -464,7 +469,7 @@ impl PendingOperation for PendingMessage {
         }
     }
 
-    fn set_operation_outcome(
+    async fn set_operation_outcome(
         &mut self,
         submission_outcome: TxOutcome,
         submission_estimated_cost: U256,
@@ -493,6 +498,8 @@ impl PendingOperation for PendingMessage {
         if let Err(e) = self
             .ctx
             .origin_gas_payment_enforcer
+            .read()
+            .await
             .record_tx_outcome(&self.message, operation_outcome.clone())
         {
             error!(error=?e, "Error when recording tx outcome");
@@ -513,7 +520,7 @@ impl PendingOperation for PendingMessage {
     }
 
     fn set_next_attempt_after(&mut self, delay: Duration) {
-        self.next_attempt_after = Some(Instant::now() + delay);
+        self.next_attempt_after = Instant::now().checked_add(delay);
     }
 
     fn reset_attempts(&mut self) {
@@ -590,7 +597,7 @@ impl PendingMessage {
 
     fn next_attempt_after(num_retries: u32, max_retries: u32) -> Option<Instant> {
         PendingMessage::calculate_msg_backoff(num_retries, max_retries, None)
-            .map(|dur| Instant::now() + dur)
+            .and_then(|dur| Instant::now().checked_add(dur))
     }
 
     fn get_retries_or_skip(
@@ -793,12 +800,15 @@ impl PendingMessage {
         &mut self,
         tx_cost_estimate: &TxCostEstimate,
     ) -> GasPaymentRequirementOutcome {
-        let gas_limit = match self
+        let gas_limit = self
             .ctx
             .origin_gas_payment_enforcer
-            .message_meets_gas_payment_requirement(&self.message, tx_cost_estimate)
+            .read()
             .await
-        {
+            .message_meets_gas_payment_requirement(&self.message, tx_cost_estimate)
+            .await;
+
+        let gas_limit = match gas_limit {
             Ok(gas_limit) => gas_limit,
             Err(err) => {
                 return GasPaymentRequirementOutcome::RequirementNotMet(
@@ -877,14 +887,14 @@ impl PendingMessage {
     }
 
     fn inc_attempts(&mut self) {
-        self.set_retries(self.num_retries + 1);
+        self.set_retries(self.num_retries.saturating_add(1));
         self.last_attempted_at = Instant::now();
         self.next_attempt_after = PendingMessage::calculate_msg_backoff(
             self.num_retries,
             self.max_retries,
             Some(self.message.id()),
         )
-        .map(|dur| self.last_attempted_at + dur);
+        .and_then(|dur| self.last_attempted_at.checked_add(dur));
     }
 
     fn set_retries(&mut self, retries: u32) {
@@ -916,23 +926,29 @@ impl PendingMessage {
             2 => 10,
             3 => 30,
             4 => 60,
-            i if (5..25).contains(&i) => 60 * 3,
+            i if (5..25).contains(&i) => 60u64.saturating_mul(3),
             // linearly increase from 5min to ~25min, adding 1.5min for each additional attempt
-            i if (25..40).contains(&i) => 60 * 5 + (i as u64 - 25) * 90,
+            i if (25..40).contains(&i) => 60u64
+                .saturating_mul(5)
+                .saturating_add((i as u64).saturating_sub(25).saturating_mul(90)),
             // wait 30min for the next 5 attempts
-            i if (40..45).contains(&i) => 60 * 30,
+            i if (40..45).contains(&i) => 60u64.saturating_mul(30),
             // wait 60min for the next 5 attempts
-            i if (45..50).contains(&i) => 60 * 60,
+            i if (45..50).contains(&i) => 60u64.saturating_mul(60),
             // linearly increase the backoff time, adding 1h for each additional attempt
             i if (50..max_retries).contains(&i) => {
-                let hour: u64 = 60 * 60;
-                let two_hours: u64 = hour * 2;
+                let hour: u64 = 60u64.saturating_mul(60);
+                let two_hours: u64 = hour.saturating_mul(2);
                 // To be extra safe, `max` to make sure it's at least 2 hours.
-                let target = two_hours.max((num_retries - 49) as u64 * two_hours);
+                let target = two_hours
+                    .max((num_retries.saturating_sub(49) as u64).saturating_mul(two_hours));
                 // Schedule it at some random point in the next 6 hours to
                 // avoid scheduling messages with the same # of retries
                 // at the exact same time and starve new messages.
-                target + (rand::random::<u64>() % (6 * hour))
+
+                let six_hours = hour.saturating_mul(6);
+                let random_val = rand::random::<u64>();
+                target.saturating_add(random_val.overflowing_rem(six_hours).0)
             }
             // after `max_message_retries`, the message is considered undeliverable
             // and the backoff is set as far into the future as possible
@@ -955,7 +971,6 @@ impl PendingMessage {
         match self
             .ctx
             .application_operation_verifier
-            .as_ref()?
             .verify(&self.app_context, &self.message)
             .await
         {
@@ -991,41 +1006,51 @@ impl PendingMessage {
         let build_metadata_start = Instant::now();
         let metadata_res = message_metadata_builder
             .build(ism_address, &self.message, params)
-            .await
-            .map_err(|err| match &err {
-                MetadataBuildError::FailedToBuild(_) | MetadataBuildError::FastPathError(_) => {
-                    self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
-                }
-                MetadataBuildError::CouldNotFetch => {
-                    self.on_reprepare::<String>(None, ReprepareReason::CouldNotFetchMetadata)
-                }
-                // If the metadata building is refused, we still allow it to be retried later.
-                MetadataBuildError::Refused(reason) => {
-                    warn!(?reason, "Metadata building refused");
-                    self.on_reprepare::<String>(None, ReprepareReason::MessageMetadataRefused)
-                }
-                // These errors cannot be recovered from, so we drop them
-                MetadataBuildError::UnsupportedModuleType(reason) => {
-                    warn!(?reason, "Unsupported module type");
-                    self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
-                }
-                MetadataBuildError::MaxIsmDepthExceeded(depth) => {
-                    warn!(depth, "Max ISM depth reached");
-                    self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
-                }
-                MetadataBuildError::MaxIsmCountReached(count) => {
-                    warn!(count, "Max ISM count reached");
-                    self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
-                }
-                MetadataBuildError::AggregationThresholdNotMet(threshold) => {
-                    warn!(threshold, "Aggregation threshold not met");
-                    self.on_reprepare(Some(err), ReprepareReason::CouldNotFetchMetadata)
-                }
-                MetadataBuildError::MaxValidatorCountReached(count) => {
-                    warn!(count, "Max validator count reached");
-                    self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
-                }
-            });
+            .await;
+
+        tracing::debug!(?self.message, ?metadata_res, "Metadata build result");
+
+        let metadata_res = metadata_res.map_err(|err| match &err {
+            MetadataBuildError::FailedToBuild(_) | MetadataBuildError::FastPathError(_) => {
+                self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
+            }
+            MetadataBuildError::CouldNotFetch => {
+                self.on_reprepare::<String>(None, ReprepareReason::CouldNotFetchMetadata)
+            }
+            // If the metadata building is refused, we still allow it to be retried later.
+            MetadataBuildError::Refused(reason) => {
+                warn!(?reason, "Metadata building refused");
+                self.on_reprepare::<String>(None, ReprepareReason::MessageMetadataRefused)
+            }
+            // These errors cannot be recovered from, so we drop them
+            MetadataBuildError::UnsupportedModuleType(reason) => {
+                warn!(?reason, "Unsupported module type");
+                self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
+            }
+            MetadataBuildError::MaxIsmDepthExceeded(depth) => {
+                warn!(depth, "Max ISM depth reached");
+                self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
+            }
+            MetadataBuildError::MaxIsmCountReached(count) => {
+                warn!(count, "Max ISM count reached");
+                self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
+            }
+            MetadataBuildError::AggregationThresholdNotMet(threshold) => {
+                warn!(threshold, "Aggregation threshold not met");
+                self.on_reprepare(Some(err), ReprepareReason::CouldNotFetchMetadata)
+            }
+            MetadataBuildError::MaxValidatorCountReached(count) => {
+                warn!(count, "Max validator count reached");
+                self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
+            }
+            MetadataBuildError::MerkleRootMismatch {
+                root,
+                canonical_root,
+            } => {
+                warn!(?root, ?canonical_root, "Merkle root mismatch");
+                self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata)
+            }
+        });
         let build_metadata_end = Instant::now();
 
         let metrics_params = MetadataBuildMetric {
@@ -1175,8 +1200,8 @@ mod test {
             ) -> DbResult<Option<u64>>;
             fn store_highest_seen_message_nonce_number(&self, nonce: &u32) -> DbResult<()>;
             fn retrieve_highest_seen_message_nonce_number(&self) -> DbResult<Option<u32>>;
-            fn store_payload_ids_by_message_id(&self, message_id: &H256, payload_ids: Vec<UniqueIdentifier>) -> DbResult<()>;
-            fn retrieve_payload_ids_by_message_id(&self, message_id: &H256) -> DbResult<Option<Vec<UniqueIdentifier>>>;
+            fn store_payload_uuids_by_message_id(&self, message_id: &H256, payload_uuids: Vec<UniqueIdentifier>) -> DbResult<()>;
+            fn retrieve_payload_uuids_by_message_id(&self, message_id: &H256) -> DbResult<Option<Vec<UniqueIdentifier>>>;
         }
     }
 
@@ -1263,7 +1288,7 @@ mod test {
         let seconds = duration_total_secs % 60;
         let minutes = (duration_total_secs / 60) % 60;
         let hours = (duration_total_secs / 60) / 60;
-        format!("{}:{}:{}", hours, minutes, seconds)
+        format!("{hours}:{minutes}:{seconds}")
     }
 
     fn dummy_db_with_retries(retries: u32) -> MockDb {
@@ -1386,5 +1411,41 @@ mod test {
             .expect("Message status not found");
 
         assert_eq!(db_status, expected_status);
+    }
+
+    #[test]
+    fn check_debug_print() {
+        let origin_domain = HyperlaneDomain::Known(hyperlane_core::KnownHyperlaneDomain::Arbitrum);
+        let destination_domain =
+            HyperlaneDomain::Known(hyperlane_core::KnownHyperlaneDomain::Arbitrum);
+        let cache = OptionalCache::new(None);
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let db = DB::from_path(temp_dir.path()).unwrap();
+        let base_db = HyperlaneRocksDB::new(&origin_domain, db);
+
+        let message = HyperlaneMessage {
+            nonce: 0,
+            origin: KnownHyperlaneDomain::Arbitrum as u32,
+            destination: KnownHyperlaneDomain::Arbitrum as u32,
+            ..Default::default()
+        };
+
+        let base_metadata_builder =
+            dummy_metadata_builder(&origin_domain, &destination_domain, &base_db, cache.clone());
+        let message_context =
+            dummy_message_context(Arc::new(base_metadata_builder), &base_db, cache);
+
+        let pending_message = PendingMessage::new(
+            message.clone(),
+            Arc::new(message_context),
+            PendingOperationStatus::FirstPrepareAttempt,
+            Some(format!("test-{}", 0)),
+            2,
+        );
+
+        let pending_message_debug = format!("{pending_message:?}");
+        let expected = r#"PendingMessage { num_retries: 0, since_last_attempt_s: 0, next_attempt_after_s: 0, message_id: 0xaeafdd9f018e66a50d30bb141184d10e57bd956e839f70213c163eb41a3c0d87, status: FirstPrepareAttempt, app_context: Some("test-0") }"#;
+        assert_eq!(pending_message_debug, expected);
     }
 }

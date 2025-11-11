@@ -1,15 +1,15 @@
 import { utils } from 'ethers';
 
-import { ICcipReadIsm__factory } from '@hyperlane-xyz/core';
+import { AbstractCcipReadIsm__factory } from '@hyperlane-xyz/core';
 import { WithAddress } from '@hyperlane-xyz/utils';
 
 import { HyperlaneCore } from '../../core/HyperlaneCore.js';
-import { CCIPReadIsmConfig, IsmType } from '../types.js';
+import { IsmType, OffchainLookupIsmConfig } from '../types.js';
 
 import type { MetadataBuilder, MetadataContext } from './types.js';
 
-export class CcipReadMetadataBuilder implements MetadataBuilder {
-  readonly type = IsmType.CCIP;
+export class OffchainLookupMetadataBuilder implements MetadataBuilder {
+  readonly type = IsmType.OFFCHAIN_LOOKUP;
   private core: HyperlaneCore;
 
   constructor(core: HyperlaneCore) {
@@ -17,11 +17,16 @@ export class CcipReadMetadataBuilder implements MetadataBuilder {
   }
 
   async build(
-    context: MetadataContext<WithAddress<CCIPReadIsmConfig>>,
+    context: MetadataContext<WithAddress<OffchainLookupIsmConfig>>,
   ): Promise<string> {
     const { ism, message } = context;
-    const provider = this.core.multiProvider.getProvider(message.parsed.origin);
-    const contract = ICcipReadIsm__factory.connect(ism.address, provider);
+    const provider = this.core.multiProvider.getProvider(
+      message.parsed.destination,
+    );
+    const contract = AbstractCcipReadIsm__factory.connect(
+      ism.address,
+      provider,
+    );
 
     let revertData: string;
     try {
@@ -42,6 +47,7 @@ export class CcipReadMetadataBuilder implements MetadataBuilder {
       string[],
       Uint8Array,
     ];
+
     const callDataHex = utils.hexlify(callData);
 
     const signer = this.core.multiProvider.getSigner(
@@ -58,14 +64,14 @@ export class CcipReadMetadataBuilder implements MetadataBuilder {
           const res = await fetch(url);
           responseJson = await res.json();
         } else {
-          // Compute and sign authentication signature
-          const messageHash = utils.solidityKeccak256(
-            ['string', 'address', 'bytes', 'string'],
-            ['HYPERLANE_OFFCHAINLOOKUP', sender, callDataHex, urlTemplate],
-          );
-
           const signature = await signer.signMessage(
-            utils.arrayify(messageHash),
+            utils.arrayify(
+              offchainLookupRequestMessageHash(
+                sender,
+                callDataHex,
+                urlTemplate,
+              ),
+            ),
           );
           const res = await fetch(url, {
             method: 'POST',
@@ -86,4 +92,15 @@ export class CcipReadMetadataBuilder implements MetadataBuilder {
 
     throw new Error('Could not fetch CCIP-read metadata');
   }
+}
+
+export function offchainLookupRequestMessageHash(
+  sender: string,
+  callData: string,
+  urlTemplate: string,
+): string {
+  return utils.solidityKeccak256(
+    ['string', 'address', 'bytes', 'string'],
+    ['HYPERLANE_OFFCHAINLOOKUP', sender, callData, urlTemplate],
+  );
 }

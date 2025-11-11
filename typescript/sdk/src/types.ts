@@ -1,14 +1,26 @@
-import type { ethers } from 'ethers';
+import type { BigNumber, Signer, ethers } from 'ethers';
 import { z } from 'zod';
 
-import type { Domain } from '@hyperlane-xyz/utils';
+import type {
+  Address,
+  AltVM,
+  Domain,
+  ProtocolType,
+} from '@hyperlane-xyz/utils';
 
 import { ZHash } from './metadata/customZodTypes.js';
+import { MultiProvider } from './providers/MultiProvider.js';
+import {
+  ProtocolReceipt,
+  ProtocolTransaction,
+} from './providers/ProviderType.js';
 
 // An alias for string to clarify type is a chain name
 export type ChainName = string;
 // A map of chain names to a value type
 export type ChainMap<Value> = Record<ChainName, Value>;
+// A map of protocol types to a value type
+export type ProtocolMap<Value> = Partial<Record<ProtocolType, Value>>;
 
 export type ChainNameOrId = ChainName | Domain;
 
@@ -35,3 +47,20 @@ export const PausableSchema = OwnableSchema.extend({
   paused: z.boolean(),
 });
 export type PausableConfig = z.infer<typeof PausableSchema>;
+
+export type TypedSigner<T extends ProtocolType> =
+  | Signer
+  | AltVM.ISigner<ProtocolTransaction<T>, ProtocolReceipt<T>>;
+
+export interface IMultiProtocolSignerManager {
+  getMultiProvider(): Promise<MultiProvider>;
+
+  getEVMSigner(chain: ChainName): Signer;
+
+  getSignerAddress(chain: ChainName): Promise<Address>;
+  getBalance(params: {
+    address: Address;
+    chain: ChainName;
+    denom?: string;
+  }): Promise<BigNumber>;
+}

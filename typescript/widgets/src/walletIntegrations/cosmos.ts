@@ -1,18 +1,14 @@
 import type { AssetList, Chain as CosmosChain } from '@chain-registry/types';
-import type {
-  DeliverTxResponse,
-  ExecuteResult,
-  IndexedTx,
-} from '@cosmjs/cosmwasm-stargate';
-import { GasPrice } from '@cosmjs/stargate';
+import type { DeliverTxResponse } from '@cosmjs/cosmwasm-stargate';
 import { useChain, useChains } from '@cosmos-kit/react';
 import { useCallback, useMemo } from 'react';
 
-import { SigningHyperlaneModuleClient } from '@hyperlane-xyz/cosmos-sdk';
+import { CosmosNativeSigner } from '@hyperlane-xyz/cosmos-sdk';
 import { cosmoshub } from '@hyperlane-xyz/registry';
 import {
   ChainMetadata,
   ChainName,
+  IToken,
   MultiProtocolProvider,
   ProviderType,
   TypedTransactionReceipt,
@@ -28,7 +24,9 @@ import {
   ActiveChainInfo,
   ChainAddress,
   ChainTransactionFns,
+  SwitchNetworkFns,
   WalletDetails,
+  WatchAssetFns,
 } from './types.js';
 import { getChainsForProtocol } from './utils.js';
 
@@ -100,12 +98,9 @@ export function useCosmosActiveChain(
   return useMemo(() => ({}) as ActiveChainInfo, []);
 }
 
-export function useCosmosTransactionFns(
+export function useCosmosSwitchNetwork(
   multiProvider: MultiProtocolProvider,
-): ChainTransactionFns {
-  const cosmosChains = getCosmosChainNames(multiProvider);
-  const chainToContext = useChains(cosmosChains);
-
+): SwitchNetworkFns {
   const onSwitchNetwork = useCallback(
     async (chainName: ChainName) => {
       const displayName =
@@ -117,6 +112,29 @@ export function useCosmosTransactionFns(
     },
     [multiProvider],
   );
+
+  return { switchNetwork: onSwitchNetwork };
+}
+
+export function useCosmosWatchAsset(
+  _multiProvider: MultiProtocolProvider,
+): WatchAssetFns {
+  const onAddAsset = useCallback(
+    async (_token: IToken, _activeChainName: ChainName) => {
+      throw new Error('Watch asset not available for cosmos');
+    },
+    [],
+  );
+
+  return { addAsset: onAddAsset };
+}
+
+export function useCosmosTransactionFns(
+  multiProvider: MultiProtocolProvider,
+): ChainTransactionFns {
+  const cosmosChains = getCosmosChainNames(multiProvider);
+  const chainToContext = useChains(cosmosChains);
+  const { switchNetwork } = useCosmosSwitchNetwork(multiProvider);
 
   const onSendTx = useCallback(
     async ({
@@ -133,7 +151,7 @@ export function useCosmosTransactionFns(
         throw new Error(`Cosmos wallet not connected for ${chainName}`);
 
       if (activeChainName && activeChainName !== chainName)
-        await onSwitchNetwork(chainName);
+        await switchNetwork(chainName);
 
       logger.debug(`Sending tx on chain ${chainName}`);
       const {
@@ -142,63 +160,89 @@ export function useCosmosTransactionFns(
         getOfflineSigner,
         chain,
       } = chainContext;
-      let result: ExecuteResult | DeliverTxResponse;
-      let txDetails: IndexedTx | null;
+      let receipt: DeliverTxResponse;
+
       if (tx.type === ProviderType.CosmJsWasm) {
         const client = await getSigningCosmWasmClient();
-        result = await client.executeMultiple(
+        const executionResult = await client.executeMultiple(
           chainContext.address,
           [tx.transaction],
           'auto',
         );
-        txDetails = await client.getTx(result.transactionHash);
+        const txDetails = await client.getTx(executionResult.transactionHash);
+        assert(txDetails, `Cosmos tx failed: ${JSON.stringify(txDetails)}`);
+        receipt = {
+          ...txDetails,
+          transactionHash: executionResult.transactionHash,
+        };
       } else if (tx.type === ProviderType.CosmJs) {
         const client = await getSigningStargateClient();
         // The fee param of 'auto' here stopped working for Neutron-based IBC transfers
         // It seems the signAndBroadcast method uses a default fee multiplier of 1.4
         // https://github.com/cosmos/cosmjs/blob/e819a1fc0e99a3e5320d8d6667a08d3b92e5e836/packages/stargate/src/signingstargateclient.ts#L115
         // A multiplier of 1.6 was insufficient for Celestia -> Neutron|Cosmos -> XXX transfers, but 2 worked.
-        result = await client.signAndBroadcast(
+        receipt = await client.signAndBroadcast(
           chainContext.address,
           [tx.transaction],
           2,
         );
-        txDetails = await client.getTx(result.transactionHash);
       } else if (tx.type === ProviderType.CosmJsNative) {
         const signer = getOfflineSigner();
-        const client = await SigningHyperlaneModuleClient.connectWithSigner(
-          chain.apis!.rpc![0].address,
+        const client = await CosmosNativeSigner.connectWithSigner(
+          chain.apis?.rpc?.map((rpc) => rpc.address) ?? [],
           signer,
           {
             // set zero gas price here so it does not error. actual gas price
             // will be injected from the wallet registry like Keplr or Leap
-            gasPrice: GasPrice.fromString('0token'),
+            metadata: {
+              gasPrice: {
+                amount: '0',
+                denom: 'token',
+              },
+            },
           },
         );
 
-        result = await client.signAndBroadcast(
-          chainContext.address,
-          [tx.transaction],
-          2,
-        );
-        txDetails = await client.getTx(result.transactionHash);
+        receipt = await client.sendAndConfirmTransaction(tx.transaction);
       } else {
         throw new Error(`Invalid cosmos provider type ${tx.type}`);
       }
 
       const confirm = async (): Promise<TypedTransactionReceipt> => {
-        assert(txDetails, `Cosmos tx failed: ${JSON.stringify(result)}`);
+        assert(
+          receipt && receipt.code === 0,
+          `Cosmos tx failed: ${JSON.stringify(receipt)}`,
+        );
         return {
           type: tx.type,
-          receipt: { ...txDetails, transactionHash: result.transactionHash },
+          receipt,
         };
       };
-      return { hash: result.transactionHash, confirm };
+      return { hash: receipt.transactionHash, confirm };
     },
-    [onSwitchNetwork, chainToContext],
+    [switchNetwork, chainToContext],
   );
 
-  return { sendTransaction: onSendTx, switchNetwork: onSwitchNetwork };
+  const onMultiSendTx = useCallback(
+    async ({
+      txs: _,
+      chainName: __,
+      activeChainName: ___,
+    }: {
+      txs: WarpTypedTransaction[];
+      chainName: ChainName;
+      activeChainName?: ChainName;
+    }) => {
+      throw new Error('Multi Transactions not supported on Cosmos');
+    },
+    [],
+  );
+
+  return {
+    sendTransaction: onSendTx,
+    sendMultiTransaction: onMultiSendTx,
+    switchNetwork,
+  };
 }
 
 function getCosmosChains(

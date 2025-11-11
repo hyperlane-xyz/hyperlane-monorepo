@@ -56,16 +56,16 @@ impl From<&EthersLogMeta> for LogMeta {
 #[allow(clippy::non_canonical_partial_ord_impl)] // TODO: `rustc` 1.80.1 clippy issue
 impl PartialOrd for LogMeta {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(match self.block_number.cmp(&other.block_number) {
-            Ordering::Equal => self.log_index.cmp(&other.log_index),
-            ord => ord,
-        })
+        Some(self.cmp(other))
     }
 }
 
 impl Ord for LogMeta {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.partial_cmp(other).unwrap()
+        match self.block_number.cmp(&other.block_number) {
+            Ordering::Equal => self.log_index.cmp(&other.log_index),
+            ord => ord,
+        }
     }
 }
 

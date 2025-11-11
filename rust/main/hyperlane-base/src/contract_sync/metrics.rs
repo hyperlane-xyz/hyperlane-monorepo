@@ -56,7 +56,7 @@ impl ContractSyncMetrics {
             .new_int_gauge(
                 "contract_sync_liveness",
                 "Last timestamp observed by contract sync",
-                &["data_type", "chain"],
+                &["data_type", "chain", "task"],
             )
             .expect("failed to register liveness metric");
 

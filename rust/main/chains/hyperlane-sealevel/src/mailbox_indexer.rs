@@ -12,7 +12,7 @@ use hyperlane_sealevel_mailbox::{
     mailbox_dispatched_message_pda_seeds, mailbox_processed_message_pda_seeds,
 };
 use solana_sdk::{account::Account, clock::Slot, pubkey::Pubkey};
-use tracing::{debug, info, instrument};
+use tracing::{debug, info};
 
 use hyperlane_core::{
     config::StrOrIntParseError, ChainCommunicationError, ChainResult, ContractLocator, Decode as _,
@@ -42,7 +42,7 @@ impl SealevelMailboxIndexer {
     /// Create a new SealevelMailboxIndexer
     pub fn new(
         provider: Arc<SealevelProvider>,
-        tx_submitter: Box<dyn TransactionSubmitter>,
+        tx_submitter: Arc<dyn TransactionSubmitter>,
         locator: &ContractLocator,
         conf: &ConnectionConf,
         advanced_log_meta: bool,
@@ -294,7 +294,6 @@ impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
 
 #[async_trait]
 impl SequenceAwareIndexer<HyperlaneMessage> for SealevelMailboxIndexer {
-    #[instrument(err, skip(self))]
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = self.mailbox.get_provider().rpc_client().get_slot().await?;
         // TODO: need to make sure the call and tip are at the same height?

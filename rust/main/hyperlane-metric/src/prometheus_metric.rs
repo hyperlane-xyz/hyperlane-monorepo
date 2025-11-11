@@ -73,6 +73,7 @@ pub struct PrometheusClientMetrics {
 }
 
 impl PrometheusClientMetrics {
+    /// increment the provider count instance for a specific chain
     pub fn increment_provider_instance(&self, chain: &str) {
         let labels = hashmap! {
             "chain" => chain,
@@ -81,6 +82,7 @@ impl PrometheusClientMetrics {
             counter.with(&labels).inc();
         }
     }
+    /// decrement the provider count instance for a specific chain
     pub fn decrement_provider_instance(&self, chain: &str) {
         let labels = hashmap! {
             "chain" => chain,
@@ -111,7 +113,7 @@ impl PrometheusClientMetrics {
         if let Some(counter) = &self.request_duration_seconds {
             counter
                 .with(&labels)
-                .inc_by((Instant::now() - start).as_secs_f64())
+                .inc_by((Instant::now().saturating_duration_since(start)).as_secs_f64())
         };
     }
 }
@@ -141,15 +143,19 @@ pub struct NodeInfo {
     pub host: Option<String>,
 }
 
+/// Type of RPC client connection
 #[derive(Clone, Copy, Debug, Default, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ClientConnectionType {
+    /// RPC
     #[default]
     Rpc,
+    /// GRPC
     Grpc,
 }
 
 impl ClientConnectionType {
+    /// as str
     pub fn as_str(&self) -> &str {
         match self {
             Self::Grpc => "grpc",
@@ -163,6 +169,7 @@ impl ClientConnectionType {
 #[derive(Default, Clone, Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub struct PrometheusConfig {
+    /// Connection type, whether its RPC or GRPC
     pub connection_type: ClientConnectionType,
     /// Information about what node this client is connecting to.
     pub node: Option<NodeInfo>,
@@ -172,6 +179,7 @@ pub struct PrometheusConfig {
 }
 
 impl PrometheusConfig {
+    /// Create config from URL
     pub fn from_url(
         url: &Url,
         connection_type: ClientConnectionType,
@@ -186,6 +194,7 @@ impl PrometheusConfig {
         }
     }
 
+    /// given ChainInfo, get the name of the chain
     pub fn chain_name(chain_info: &Option<ChainInfo>) -> &str {
         chain_info
             .as_ref()

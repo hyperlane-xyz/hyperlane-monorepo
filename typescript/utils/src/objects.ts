@@ -88,15 +88,18 @@ export function promiseObjAll<K extends string, V>(obj: {
 }
 
 // Get the subset of the object from key list
-export function pick<K extends string, V = any>(obj: Record<K, V>, keys: K[]) {
-  const ret: Partial<Record<K, V>> = {};
+export function pick<T extends object, K extends keyof T>(
+  obj: T,
+  keys: K[],
+): Pick<T, K> {
+  const ret = {} as Pick<T, K>;
   const objKeys = Object.keys(obj);
   for (const key of keys) {
-    if (objKeys.includes(key)) {
+    if (objKeys.includes(key.toString())) {
       ret[key] = obj[key];
     }
   }
-  return ret as Record<K, V>;
+  return ret;
 }
 
 /**
@@ -453,4 +456,33 @@ export function sortArraysInObject(
   }
 
   return obj;
+}
+
+type JSPrimitiveTypes =
+  | string
+  | number
+  | bigint
+  | boolean
+  | undefined
+  | symbol
+  | null;
+
+/**
+ * Returns an object where only the keys from `a` that are not in `b` or are different values, are kept
+ */
+export function objDiff<
+  TKey extends string | number,
+  TValue extends JSPrimitiveTypes,
+>(
+  a: Record<TKey, TValue>,
+  b: Record<TKey, TValue>,
+  areEquals: (a: TValue, b: TValue) => boolean = (a, b) => a === b,
+): Record<TKey, TValue> {
+  const bKeys = new Set(objKeys(b));
+
+  return objFilter(
+    a,
+    (key, value): value is TValue =>
+      !bKeys.has(key as TKey) || !areEquals(value, b[key as TKey]),
+  ) as Record<TKey, TValue>;
 }

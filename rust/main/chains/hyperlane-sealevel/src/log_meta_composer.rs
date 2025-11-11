@@ -138,7 +138,7 @@ pub fn is_interchain_payment_instruction(instruction_data: &[u8]) -> bool {
 /// * `program_id` - Identifier of program for which we are searching transactions for.
 /// * `pda_pubkey` - Identifier for PDA the relevant transaction should operate upon.
 /// * `is_specified_instruction` - Function which returns `true` for instruction which should be
-///     included into the relevant transaction.
+///   included into the relevant transaction.
 fn search_transactions(
     transactions: Vec<EncodedTransactionWithStatusMeta>,
     program_id: &Pubkey,

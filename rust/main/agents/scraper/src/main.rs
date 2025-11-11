@@ -12,6 +12,8 @@
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
+#![deny(clippy::unwrap_used, clippy::panic)]
+#![deny(clippy::arithmetic_side_effects)]
 
 use agent::Scraper;
 use eyre::Result;
@@ -27,7 +29,7 @@ mod store;
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
     // Logging is not initialised at this point, so, using `println!`
-    println!("Scraper agent starting up...");
+    println!("Scraper starting up...");
 
     agent_main::<Scraper>().await
 }

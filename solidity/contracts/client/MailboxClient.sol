@@ -36,7 +36,7 @@ abstract contract MailboxClient is OwnableUpgradeable, PackageVersioned {
 
     IPostDispatchHook public hook;
 
-    IInterchainSecurityModule public interchainSecurityModule;
+    IInterchainSecurityModule internal _interchainSecurityModule;
 
     uint256[48] private __GAP; // gap for upgrade safety
 
@@ -74,6 +74,15 @@ abstract contract MailboxClient is OwnableUpgradeable, PackageVersioned {
         _transferOwnership(msg.sender);
     }
 
+    function interchainSecurityModule()
+        external
+        view
+        virtual
+        returns (IInterchainSecurityModule)
+    {
+        return _interchainSecurityModule;
+    }
+
     /**
      * @notice Sets the address of the application's custom hook.
      * @param _hook The address of the hook contract.
@@ -92,19 +101,19 @@ abstract contract MailboxClient is OwnableUpgradeable, PackageVersioned {
     function setInterchainSecurityModule(
         address _module
     ) public onlyContractOrNull(_module) onlyOwner {
-        interchainSecurityModule = IInterchainSecurityModule(_module);
+        _interchainSecurityModule = IInterchainSecurityModule(_module);
         emit IsmSet(_module);
     }
 
     // ======== Initializer =========
     function _MailboxClient_initialize(
         address _hook,
-        address _interchainSecurityModule,
+        address __interchainSecurityModule,
         address _owner
     ) internal onlyInitializing {
         __Ownable_init();
         setHook(_hook);
-        setInterchainSecurityModule(_interchainSecurityModule);
+        setInterchainSecurityModule(__interchainSecurityModule);
         _transferOwnership(_owner);
     }
 

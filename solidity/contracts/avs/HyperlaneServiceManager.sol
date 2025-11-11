@@ -19,7 +19,7 @@ import {IAVSDirectory} from "../interfaces/avs/vendored/IAVSDirectory.sol";
 import {IRemoteChallenger} from "../interfaces/avs/IRemoteChallenger.sol";
 import {ISlasher} from "../interfaces/avs/vendored/ISlasher.sol";
 import {ECDSAServiceManagerBase} from "./ECDSAServiceManagerBase.sol";
-import {PackageVersioned} from "contracts/PackageVersioned.sol";
+import {PackageVersioned} from "../PackageVersioned.sol";
 
 contract HyperlaneServiceManager is ECDSAServiceManagerBase, PackageVersioned {
     // ============ Libraries ============
@@ -73,7 +73,7 @@ contract HyperlaneServiceManager is ECDSAServiceManagerBase, PackageVersioned {
     // ============ Internal Storage ============
 
     // Mapping of operators to challengers they are enrolled in (enumerable required for remove-all)
-    mapping(address => EnumerableMapEnrollment.AddressToEnrollmentMap)
+    mapping(address operator => EnumerableMapEnrollment.AddressToEnrollmentMap enrollmentMap)
         internal enrolledChallengers;
 
     // ============ Modifiers ============
@@ -286,9 +286,7 @@ contract HyperlaneServiceManager is ECDSAServiceManagerBase, PackageVersioned {
     }
 
     /// @inheritdoc ECDSAServiceManagerBase
-    function _deregisterOperatorFromAVS(
-        address operator
-    ) internal virtual override {
+    function _deregisterOperatorFromAVS(address operator) internal override {
         address[] memory challengers = getOperatorChallengers(operator);
         _completeUnenrollment(operator, challengers);
 

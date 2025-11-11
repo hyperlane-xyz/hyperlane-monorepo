@@ -1,0 +1,344 @@
+base:
+  submitter:
+    chain: base
+    proposerSubmitter:
+      chain: ethereum
+      destinationChain: base
+      internalSubmitter:
+        chain: ethereum
+        safeAddress: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+        type: gnosisSafeTxBuilder
+        version: '1.0'
+      owner: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+      type: interchainAccount
+    timelockAddress: '0xe38714D00cAa906065D872D177C1374C847035fF'
+    type: timelockController
+bitlayer:
+  submitter:
+    chain: bitlayer
+    proposerSubmitter:
+      chain: ethereum
+      destinationChain: bitlayer
+      internalSubmitter:
+        chain: ethereum
+        safeAddress: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+        type: gnosisSafeTxBuilder
+        version: '1.0'
+      owner: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+      type: interchainAccount
+    timelockAddress: '0x5066d3C3c8511A0f0e0146C99b17458126F6c4E4'
+    type: timelockController
+bob:
+  submitter:
+    chain: bob
+    proposerSubmitter:
+      chain: ethereum
+      destinationChain: bob
+      internalSubmitter:
+        chain: ethereum
+        safeAddress: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+        type: gnosisSafeTxBuilder
+        version: '1.0'
+      owner: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+      type: interchainAccount
+    timelockAddress: '0x790306c30eFeeAF3943ee3700C71D7B7812c85a1'
+    type: timelockController
+botanix:
+  submitter:
+    chain: botanix
+    proposerSubmitter:
+      chain: ethereum
+      destinationChain: botanix
+      internalSubmitter:
+        chain: ethereum
+        safeAddress: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+        type: gnosisSafeTxBuilder
+        version: '1.0'
+      owner: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+      type: interchainAccount
+    timelockAddress: '0x4C2C26664D9A72F50e8B260408B070F34e7F748f'
+    type: timelockController
+celo:
+  submitter:
+    chain: celo
+    proposerSubmitter:
+      chain: ethereum
+      destinationChain: celo
+      internalSubmitter:
+        chain: ethereum
+        safeAddress: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+        type: gnosisSafeTxBuilder
+        version: '1.0'
+      owner: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+      type: interchainAccount
+    timelockAddress: '0xb527ea7ff1B14fEb9FFF98b5Cd750Bd311cD598F'
+    type: timelockController
+ethereum:
+  submitter:
+    chain: ethereum
+    proposerSubmitter:
+      chain: ethereum
+      safeAddress: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+      type: gnosisSafeTxBuilder
+      version: '1.0'
+    timelockAddress: '0x469f45d05F8C3B3cE40d1640ffE66b795B1d2d22'
+    type: timelockController
+fraxtal:
+  submitter:
+    chain: fraxtal
+    proposerSubmitter:
+      chain: ethereum
+      destinationChain: fraxtal
+      internalSubmitter:
+        chain: ethereum
+        safeAddress: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+        type: gnosisSafeTxBuilder
+        version: '1.0'
+      owner: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+      type: interchainAccount
+    timelockAddress: '0x09F478e8dEB9Ef466025bf96d13cd9DC56881E18'
+    type: timelockController
+hashkey:
+  submitter:
+    chain: hashkey
+    proposerSubmitter:
+      chain: ethereum
+      destinationChain: hashkey
+      internalSubmitter:
+        chain: ethereum
+        safeAddress: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+        type: gnosisSafeTxBuilder
+        version: '1.0'
+      owner: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+      type: interchainAccount
+    timelockAddress: '0x072DDFd63F1dcf7819c80A971F6CEbFF9b0277Cc'
+    type: timelockController
+ink:
+  submitter:
+    chain: ink
+    proposerSubmitter:
+      chain: ethereum
+      destinationChain: ink
+      internalSubmitter:
+        chain: ethereum
+        safeAddress: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+        type: gnosisSafeTxBuilder
+        version: '1.0'
+      owner: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+      type: interchainAccount
+    timelockAddress: '0xED56728fb977b0bBdacf65bCdD5e17Bb7e84504f'
+    type: timelockController
+linea:
+  submitter:
+    chain: linea
+    proposerSubmitter:
+      chain: ethereum
+      destinationChain: linea
+      internalSubmitter:
+        chain: ethereum
+        safeAddress: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+        type: gnosisSafeTxBuilder
+        version: '1.0'
+      owner: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+      type: interchainAccount
+    timelockAddress: '0x3A2e96403d076e9f953166A9E4c61bcD9D164CFe'
+    type: timelockController
+lisk:
+  submitter:
+    chain: lisk
+    proposerSubmitter:
+      chain: ethereum
+      destinationChain: lisk
+      internalSubmitter:
+        chain: ethereum
+        safeAddress: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+        type: gnosisSafeTxBuilder
+        version: '1.0'
+      owner: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+      type: interchainAccount
+    timelockAddress: '0xfA96BCb61C7CbD7839689E807CD6d7FC27754Af3'
+    type: timelockController
+mantle:
+  submitter:
+    chain: mantle
+    proposerSubmitter:
+      chain: ethereum
+      destinationChain: mantle
+      internalSubmitter:
+        chain: ethereum
+        safeAddress: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+        type: gnosisSafeTxBuilder
+        version: '1.0'
+      owner: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+      type: interchainAccount
+    timelockAddress: '0xA3C59Caa046Ac6234272c74ADaE5f202E57F6e33'
+    type: timelockController
+metal:
+  submitter:
+    chain: metal
+    proposerSubmitter:
+      chain: ethereum
+      destinationChain: metal
+      internalSubmitter:
+        chain: ethereum
+        safeAddress: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+        type: gnosisSafeTxBuilder
+        version: '1.0'
+      owner: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+      type: interchainAccount
+    timelockAddress: '0xA312a8329bCDc2e5EA5dc2849326a45D40C58e8F'
+    type: timelockController
+metis:
+  submitter:
+    chain: metis
+    proposerSubmitter:
+      chain: ethereum
+      destinationChain: metis
+      internalSubmitter:
+        chain: ethereum
+        safeAddress: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+        type: gnosisSafeTxBuilder
+        version: '1.0'
+      owner: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+      type: interchainAccount
+    timelockAddress: '0xfc8b34Fa72310A2926A0668e05F17F21c9811b80'
+    type: timelockController
+mode:
+  submitter:
+    chain: mode
+    proposerSubmitter:
+      chain: ethereum
+      destinationChain: mode
+      internalSubmitter:
+        chain: ethereum
+        safeAddress: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+        type: gnosisSafeTxBuilder
+        version: '1.0'
+      owner: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+      type: interchainAccount
+    timelockAddress: '0x5CC74C639310B6865d2Ef2E92ed4B68fcd96Ff88'
+    type: timelockController
+optimism:
+  submitter:
+    chain: optimism
+    proposerSubmitter:
+      chain: ethereum
+      destinationChain: optimism
+      internalSubmitter:
+        chain: ethereum
+        safeAddress: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+        type: gnosisSafeTxBuilder
+        version: '1.0'
+      owner: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+      type: interchainAccount
+    timelockAddress: '0x1C9192aB4aDc226FF20121624590650b076492BE'
+    type: timelockController
+ronin:
+  submitter:
+    chain: ronin
+    proposerSubmitter:
+      chain: ethereum
+      destinationChain: ronin
+      internalSubmitter:
+        chain: ethereum
+        safeAddress: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+        type: gnosisSafeTxBuilder
+        version: '1.0'
+      owner: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+      type: interchainAccount
+    timelockAddress: '0x96c418BaB57953765B97532c494125F9b2e2B38D'
+    type: timelockController
+soneium:
+  submitter:
+    chain: soneium
+    proposerSubmitter:
+      chain: ethereum
+      destinationChain: soneium
+      internalSubmitter:
+        chain: ethereum
+        safeAddress: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+        type: gnosisSafeTxBuilder
+        version: '1.0'
+      owner: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+      type: interchainAccount
+    timelockAddress: '0x39d3c2Cf646447ee302178EDBe5a15E13B6F33aC'
+    type: timelockController
+sonic:
+  submitter:
+    chain: sonic
+    proposerSubmitter:
+      chain: ethereum
+      destinationChain: sonic
+      internalSubmitter:
+        chain: ethereum
+        safeAddress: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+        type: gnosisSafeTxBuilder
+        version: '1.0'
+      owner: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+      type: interchainAccount
+    timelockAddress: '0x591273A518b59B4E9E4c104B001Fee4B9920244F'
+    type: timelockController
+superseed:
+  submitter:
+    chain: superseed
+    proposerSubmitter:
+      chain: ethereum
+      destinationChain: superseed
+      internalSubmitter:
+        chain: ethereum
+        safeAddress: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+        type: gnosisSafeTxBuilder
+        version: '1.0'
+      owner: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+      type: interchainAccount
+    timelockAddress: '0xEd9c6B30482ACe8De6366a1858D0702111852449'
+    type: timelockController
+swell:
+  submitter:
+    chain: swell
+    proposerSubmitter:
+      chain: ethereum
+      destinationChain: swell
+      internalSubmitter:
+        chain: ethereum
+        safeAddress: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+        type: gnosisSafeTxBuilder
+        version: '1.0'
+      owner: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+      type: interchainAccount
+    timelockAddress: '0xc82C44E3b5fA9fa9915F4c09fB0b5bb9e417625c'
+    type: timelockController
+unichain:
+  submitter:
+    chain: unichain
+    proposerSubmitter:
+      chain: ethereum
+      destinationChain: unichain
+      internalSubmitter:
+        chain: ethereum
+        safeAddress: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+        type: gnosisSafeTxBuilder
+        version: '1.0'
+      owner: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+      type: interchainAccount
+    timelockAddress: '0x6291596339A6EDD6cD68aca1d1c08B1fa2115F8C'
+    type: timelockController
+worldchain:
+  submitter:
+    chain: worldchain
+    proposerSubmitter:
+      chain: ethereum
+      destinationChain: worldchain
+      internalSubmitter:
+        chain: ethereum
+        safeAddress: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+        type: gnosisSafeTxBuilder
+        version: '1.0'
+      owner: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6'
+      type: interchainAccount
+    timelockAddress: '0x1008FAbD07aBd93a7D9bB81803a89cC3a834E1A9'
+    type: timelockController
+zerogravity:
+  submitter:
+    chain: zerogravity
+    type: jsonRpc

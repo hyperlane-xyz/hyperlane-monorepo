@@ -6,6 +6,7 @@ import {
   Domain,
   ProtocolType,
   addressToBytes32,
+  assert,
   convertToProtocolAddress,
   isAddressCosmos,
 } from '@hyperlane-xyz/utils';
@@ -20,11 +21,10 @@ import {
   IHypTokenAdapter,
   ITokenAdapter,
   InterchainGasQuote,
+  QuoteTransferRemoteParams,
   TransferParams,
   TransferRemoteParams,
 } from './ITokenAdapter.js';
-
-const COSMOS_TYPE_URL_SEND = '/cosmos.bank.v1beta1.MsgSend';
 
 class CosmosModuleTokenAdapter
   extends BaseCosmNativeAdapter
@@ -61,13 +61,12 @@ class CosmosModuleTokenAdapter
     // we get the token by it's id and return the bridged supply which equals the
     // balance the token has.
     if (isAddressCosmos(address)) {
-      const coin = await provider.getBalance(address, denom);
-      return BigInt(coin.amount);
-    } else {
-      const { bridged_supply } = await provider.query.warp.BridgedSupply({
-        id: address,
+      return provider.getBalance({
+        address,
+        denom,
       });
-      return BigInt(bridged_supply?.amount ?? '0');
+    } else {
+      return provider.getBridgedSupply({ tokenAddress: address });
     }
   }
 
@@ -102,27 +101,23 @@ class CosmosModuleTokenAdapter
   async populateTransferTx(
     transferParams: TransferParams,
   ): Promise<MsgSendEncodeObject> {
+    const provider = await this.getProvider();
     const denom = await this.getDenom();
-    return {
-      typeUrl: COSMOS_TYPE_URL_SEND,
-      value: {
-        fromAddress: transferParams.fromAccountOwner,
-        toAddress: transferParams.recipient,
-        amount: [
-          {
-            denom,
-            amount: transferParams.weiAmountOrId.toString(),
-          },
-        ],
-      },
-    };
+
+    assert(transferParams.fromAccountOwner, `no sender in transfer params`);
+
+    return provider.getTransferTransaction({
+      signer: transferParams.fromAccountOwner,
+      recipient: transferParams.recipient,
+      denom,
+      amount: transferParams.weiAmountOrId.toString(),
+    });
   }
 
   async getTotalSupply(): Promise<bigint | undefined> {
     const provider = await this.getProvider();
     const denom = await this.getDenom();
-    const supply = await provider.query.bank.supplyOf(denom);
-    return BigInt(supply.amount);
+    return provider.getTotalSupply({ denom });
   }
 }
 
@@ -131,7 +126,7 @@ export class CosmNativeHypCollateralAdapter
   implements
     IHypTokenAdapter<MsgSendEncodeObject | MsgRemoteTransferEncodeObject>
 {
-  protected tokenId: string;
+  protected tokenAddress: string;
 
   constructor(
     public readonly chainName: ChainName,
@@ -141,80 +136,80 @@ export class CosmNativeHypCollateralAdapter
     super(chainName, multiProvider, addresses, {
       denom: PROTOCOL_TO_DEFAULT_NATIVE_TOKEN[ProtocolType.CosmosNative].denom!,
     });
-    this.tokenId = addresses.token;
+    this.tokenAddress = addresses.token;
   }
 
   protected async getDenom(): Promise<string> {
     const provider = await this.getProvider();
-    const { token } = await provider.query.warp.Token({ id: this.tokenId });
+    const { denom } = await provider.getToken({
+      tokenAddress: this.tokenAddress,
+    });
 
-    return token?.origin_denom ?? '';
+    return denom;
   }
 
   async getDomains(): Promise<Domain[]> {
     const provider = await this.getProvider();
-    const remoteRouters = await provider.query.warp.RemoteRouters({
-      id: this.tokenId,
+    const remoteRouters = await provider.getRemoteRouters({
+      tokenAddress: this.tokenAddress,
     });
 
-    return remoteRouters.remote_routers.map((router) => router.receiver_domain);
+    return remoteRouters.remoteRouters.map((router) => router.receiverDomainId);
   }
 
   async getRouterAddress(domain: Domain): Promise<Buffer> {
     const provider = await this.getProvider();
-    const remoteRouters = await provider.query.warp.RemoteRouters({
-      id: this.tokenId,
+    const remoteRouters = await provider.getRemoteRouters({
+      tokenAddress: this.tokenAddress,
     });
 
-    const router = remoteRouters.remote_routers.find(
-      (router) => router.receiver_domain === domain,
+    const router = remoteRouters.remoteRouters.find(
+      (router) => router.receiverDomainId === domain,
     );
 
     if (!router) {
       throw new Error(`Router with domain "${domain}" not found`);
     }
 
-    return Buffer.from(router.receiver_contract);
+    return Buffer.from(router.receiverAddress);
   }
 
   async getAllRouters(): Promise<Array<{ domain: Domain; address: Buffer }>> {
     const provider = await this.getProvider();
-    const remoteRouters = await provider.query.warp.RemoteRouters({
-      id: this.tokenId,
+    const remoteRouters = await provider.getRemoteRouters({
+      tokenAddress: this.tokenAddress,
     });
 
-    return remoteRouters.remote_routers.map((router) => ({
-      domain: router.receiver_domain,
-      address: Buffer.from(router.receiver_contract),
+    return remoteRouters.remoteRouters.map((router) => ({
+      domain: router.receiverDomainId,
+      address: Buffer.from(router.receiverAddress),
     }));
   }
 
   async getBridgedSupply(): Promise<bigint | undefined> {
     const provider = await this.getProvider();
-    const { bridged_supply } = await provider.query.warp.BridgedSupply({
-      id: this.tokenId,
+    return await provider.getBridgedSupply({
+      tokenAddress: this.tokenAddress,
     });
-
-    if (!bridged_supply) {
-      return undefined;
-    }
-
-    return BigInt(bridged_supply.amount);
   }
 
-  async quoteTransferRemoteGas(
-    destination: Domain,
-    _sender?: Address,
-  ): Promise<InterchainGasQuote> {
+  async quoteTransferRemoteGas({
+    destination,
+    customHook,
+  }: QuoteTransferRemoteParams): Promise<InterchainGasQuote> {
     const provider = await this.getProvider();
-    const { gas_payment } = await provider.query.warp.QuoteRemoteTransfer({
-      id: this.tokenId,
-      destination_domain: destination.toString(),
-    });
+    const { denom: addressOrDenom, amount } =
+      await provider.quoteRemoteTransfer({
+        tokenAddress: this.tokenAddress,
+        destinationDomainId: destination,
+        customHookAddress: customHook,
+      });
 
     return {
-      addressOrDenom: gas_payment[0].denom,
-      amount: BigInt(gas_payment[0].amount),
+      igpQuote: {
+        addressOrDenom,
+        amount,
+      },
     };
   }
 
@@ -222,57 +217,65 @@ export class CosmNativeHypCollateralAdapter
     params: TransferRemoteParams,
   ): Promise<MsgRemoteTransferEncodeObject> {
     if (!params.interchainGas) {
-      params.interchainGas = await this.quoteTransferRemoteGas(
-        params.destination,
-      );
+      params.interchainGas = await this.quoteTransferRemoteGas({
+        destination: params.destination,
+        customHook: params.customHook,
+      });
     }
 
     const provider = await this.getProvider();
 
-    const { remote_routers } = await provider.query.warp.RemoteRouters({
-      id: this.tokenId,
+    const { remoteRouters } = await provider.getRemoteRouters({
+      tokenAddress: this.tokenAddress,
     });
 
-    const router = remote_routers.find(
-      (router) => router.receiver_domain === params.destination,
+    const router = remoteRouters.find(
+      (router) => router.receiverDomainId === params.destination,
     );
 
     if (!router) {
       throw new Error(
-        `Failed to find remote router for token id and destination: ${this.tokenId},${params.destination}`,
+        `Failed to find remote router for token id and destination: ${this.tokenAddress},${params.destination}`,
       );
     }
 
-    if (!params.interchainGas.addressOrDenom) {
+    const { igpQuote } = params.interchainGas;
+    if (!igpQuote.addressOrDenom) {
       throw new Error(
         `Require denom for max fee, didn't receive and denom in the interchainGas quote`,
       );
     }
 
-    const msg: MsgRemoteTransferEncodeObject = {
-      typeUrl: '/hyperlane.warp.v1.MsgRemoteTransfer',
-      value: {
-        sender: params.fromAccountOwner,
-        recipient: addressToBytes32(
-          convertToProtocolAddress(params.recipient, ProtocolType.Ethereum),
-          ProtocolType.Ethereum,
+    const destinationMetadata = this.multiProvider.getChainMetadata(
+      params.destination,
+    );
+    const destinationProtocol = destinationMetadata.protocol;
+
+    return provider.getRemoteTransferTransaction({
+      signer: params.fromAccountOwner!,
+      tokenAddress: this.tokenAddress,
+      destinationDomainId: params.destination,
+      recipient: addressToBytes32(
+        convertToProtocolAddress(
+          params.recipient,
+          destinationMetadata.protocol,
+          destinationMetadata.bech32Prefix,
         ),
-        amount: params.weiAmountOrId.toString(),
-        token_id: this.tokenId,
-        destination_domain: params.destination,
-        gas_limit: router.gas,
-        max_fee: {
-          denom: params.interchainGas.addressOrDenom || '',
-          amount: params.interchainGas.amount.toString(),
-        },
+        destinationProtocol,
+      ),
+      amount: params.weiAmountOrId.toString(),
+      customHookAddress: params.customHook,
+      gasLimit: router.gas,
+      maxFee: {
+        denom: igpQuote.addressOrDenom || '',
+        amount: igpQuote.amount.toString(),
       },
-    };
-    return msg;
+    });
   }
 }
 
 export class CosmNativeHypSyntheticAdapter extends CosmNativeHypCollateralAdapter {
   protected async getTokenDenom(): Promise<string> {
-    return `hyperlane/${this.tokenId}`;
+    return `hyperlane/${this.tokenAddress}`;
   }
 }

@@ -16,6 +16,7 @@ auto_impl.workspace = true
 bigdecimal.workspace = true
 borsh.workspace = true
 bs58.workspace = true
+bech32.workspace = true
 bytes = { workspace = true, features = ["serde"] }
 config = { workspace = true, optional = true }
 convert_case.workspace = true

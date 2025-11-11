@@ -25,3 +25,23 @@ export interface MsgAnnounceValidatorEncodeObject extends EncodeObject {
   readonly typeUrl: typeof R.MsgAnnounceValidator.proto.type;
   readonly value: Partial<isTx.MsgAnnounceValidator>;
 }
+
+export interface MsgCreateRoutingIsmEncodeObject extends EncodeObject {
+  readonly typeUrl: typeof R.MsgCreateRoutingIsm.proto.type;
+  readonly value: Partial<isTx.MsgCreateRoutingIsm>;
+}
+
+export interface MsgSetRoutingIsmDomainEncodeObject extends EncodeObject {
+  readonly typeUrl: typeof R.MsgSetRoutingIsmDomain.proto.type;
+  readonly value: Partial<isTx.MsgSetRoutingIsmDomain>;
+}
+
+export interface MsgRemoveRoutingIsmDomainEncodeObject extends EncodeObject {
+  readonly typeUrl: typeof R.MsgRemoveRoutingIsmDomain.proto.type;
+  readonly value: Partial<isTx.MsgRemoveRoutingIsmDomain>;
+}
+
+export interface MsgUpdateRoutingIsmOwnerEncodeObject extends EncodeObject {
+  readonly typeUrl: typeof R.MsgUpdateRoutingIsmOwner.proto.type;
+  readonly value: Partial<isTx.MsgUpdateRoutingIsmOwner>;
+}

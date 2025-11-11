@@ -1,48 +1,4 @@
 {
-  "alfajores": [
-    {
-      "name": "HelloWorld",
-      "address": "0x921D3A71386d3Ab8f3AD4eC91ce1556D5FC26859",
-      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f857706ce59cb7ae6df81bbd0b0a656db3e6beda",
-      "isProxy": false
-    },
-    {
-      "name": "HelloWorld",
-      "address": "0x477D860f8F41bC69dDD32821F2Bf2C2Af0243F16",
-      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f90cb82a76492614d07b82a7658917f3ac811ac1",
-      "isProxy": false
-    },
-    {
-      "name": "HelloWorld",
-      "address": "0x76bDE8069b3467A459262192509Ad5c00AcbdaF0",
-      "constructorArguments": "000000000000000000000000ef9f292fcebc3848bf4bb92a96a04f9ecbb78e590000000000000000000000001246529eddca523afe5c6b9414299633d2e16697",
-      "isProxy": false
-    },
-    {
-      "name": "HelloWorld",
-      "address": "0x39e08602570237433673B1340Da17105cA098EE7",
-      "constructorArguments": "000000000000000000000000ef9f292fcebc3848bf4bb92a96a04f9ecbb78e590000000000000000000000001246529eddca523afe5c6b9414299633d2e16697",
-      "isProxy": false
-    },
-    {
-      "name": "HelloWorld",
-      "address": "0x0231C1A2CfDbC2d2FA8363c3eC60c85a458088aE",
-      "constructorArguments": "000000000000000000000000ef9f292fcebc3848bf4bb92a96a04f9ecbb78e590000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": false
-    },
-    {
-      "name": "HelloWorld",
-      "address": "0xb58F3D0CA2B26803eA6a64696989102cE301Fd23",
-      "constructorArguments": "000000000000000000000000ef9f292fcebc3848bf4bb92a96a04f9ecbb78e590000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": false
-    },
-    {
-      "name": "HelloWorld",
-      "address": "0xD0Ef694E96Bb695DC829f71956227eD141e3089F",
-      "constructorArguments": "000000000000000000000000ef9f292fcebc3848bf4bb92a96a04f9ecbb78e590000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": false
-    }
-  ],
   "fuji": [
     {
       "name": "HelloWorld",

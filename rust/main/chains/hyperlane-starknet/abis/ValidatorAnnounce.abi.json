@@ -1,0 +1,427 @@
+{
+  "sierra_program": [],
+  "sierra_program_debug_info": {
+    "type_names": [],
+    "libfunc_names": [],
+    "user_func_names": []
+  },
+  "contract_class_version": "0.1.0",
+  "entry_points_by_type": {
+    "EXTERNAL": [
+      {
+        "selector": "0x52580a92c73f4428f1a260c5d768ef462b25955307de00f99957df119865d",
+        "function_idx": 7
+      },
+      {
+        "selector": "0xf2f7c15cbe06c8d94597cd91fd7f3369eae842359235712def5584f8d270cd",
+        "function_idx": 0
+      },
+      {
+        "selector": "0x106bcba0013796d007ffa99524f4025fe31ab988f61cfd47791fe630340b8f2",
+        "function_idx": 4
+      },
+      {
+        "selector": "0x19624f2041902b51d727aad8923d4aa7d67c7d83de1f108c5ee2cb665968131",
+        "function_idx": 1
+      },
+      {
+        "selector": "0x1de350d7d2eed2143390fb740e3761b801434a40ae33665bd60631f1ea45cf7",
+        "function_idx": 3
+      },
+      {
+        "selector": "0x2016836a56b71f0d02689e69e326f4f4c1b9057164ef592671cf0d37c8040c0",
+        "function_idx": 5
+      },
+      {
+        "selector": "0x2a3bb1eaa05b77c4b0eeee0116a3177c6d62319dd7149ae148185d9e09de74a",
+        "function_idx": 6
+      },
+      {
+        "selector": "0x3e91d4bf76311821e1e8d5d0e18a636d239e9277d8376b387e8b79c8d87b30b",
+        "function_idx": 2
+      }
+    ],
+    "L1_HANDLER": [],
+    "CONSTRUCTOR": [
+      {
+        "selector": "0x28ffe4ff0f226a9107253e17a904099aa4f63a02a5621de0576e5aa71bc5194",
+        "function_idx": 8
+      }
+    ]
+  },
+  "abi": [
+    {
+      "type": "impl",
+      "name": "Upgradeable",
+      "interface_name": "openzeppelin::upgrades::interface::IUpgradeable"
+    },
+    {
+      "type": "interface",
+      "name": "openzeppelin::upgrades::interface::IUpgradeable",
+      "items": [
+        {
+          "type": "function",
+          "name": "upgrade",
+          "inputs": [
+            {
+              "name": "new_class_hash",
+              "type": "core::starknet::class_hash::ClassHash"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        }
+      ]
+    },
+    {
+      "type": "impl",
+      "name": "IValidatorAnnonceImpl",
+      "interface_name": "hyperlane_starknet::interfaces::IValidatorAnnounce"
+    },
+    {
+      "type": "struct",
+      "name": "core::starknet::eth_address::EthAddress",
+      "members": [
+        {
+          "name": "address",
+          "type": "core::felt252"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "core::array::Span::<core::starknet::eth_address::EthAddress>",
+      "members": [
+        {
+          "name": "snapshot",
+          "type": "@core::array::Array::<core::starknet::eth_address::EthAddress>"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "core::array::Span::<core::array::Array::<core::felt252>>",
+      "members": [
+        {
+          "name": "snapshot",
+          "type": "@core::array::Array::<core::array::Array::<core::felt252>>"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "core::array::Span::<core::array::Span::<core::array::Array::<core::felt252>>>",
+      "members": [
+        {
+          "name": "snapshot",
+          "type": "@core::array::Array::<core::array::Span::<core::array::Array::<core::felt252>>>"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "alexandria_bytes::bytes::Bytes",
+      "members": [
+        {
+          "name": "size",
+          "type": "core::integer::u32"
+        },
+        {
+          "name": "data",
+          "type": "core::array::Array::<core::integer::u128>"
+        }
+      ]
+    },
+    {
+      "type": "enum",
+      "name": "core::bool",
+      "variants": [
+        {
+          "name": "False",
+          "type": "()"
+        },
+        {
+          "name": "True",
+          "type": "()"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "core::integer::u256",
+      "members": [
+        {
+          "name": "low",
+          "type": "core::integer::u128"
+        },
+        {
+          "name": "high",
+          "type": "core::integer::u128"
+        }
+      ]
+    },
+    {
+      "type": "interface",
+      "name": "hyperlane_starknet::interfaces::IValidatorAnnounce",
+      "items": [
+        {
+          "type": "function",
+          "name": "get_announced_validators",
+          "inputs": [],
+          "outputs": [
+            {
+              "type": "core::array::Span::<core::starknet::eth_address::EthAddress>"
+            }
+          ],
+          "state_mutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "get_announced_storage_locations",
+          "inputs": [
+            {
+              "name": "_validators",
+              "type": "core::array::Span::<core::starknet::eth_address::EthAddress>"
+            }
+          ],
+          "outputs": [
+            {
+              "type": "core::array::Span::<core::array::Span::<core::array::Array::<core::felt252>>>"
+            }
+          ],
+          "state_mutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "announce",
+          "inputs": [
+            {
+              "name": "_validator",
+              "type": "core::starknet::eth_address::EthAddress"
+            },
+            {
+              "name": "_storage_location",
+              "type": "core::array::Array::<core::felt252>"
+            },
+            {
+              "name": "_signature",
+              "type": "alexandria_bytes::bytes::Bytes"
+            }
+          ],
+          "outputs": [
+            {
+              "type": "core::bool"
+            }
+          ],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "get_announcement_digest",
+          "inputs": [
+            {
+              "name": "_storage_location",
+              "type": "core::array::Array::<core::integer::u256>"
+            }
+          ],
+          "outputs": [
+            {
+              "type": "core::integer::u256"
+            }
+          ],
+          "state_mutability": "view"
+        }
+      ]
+    },
+    {
+      "type": "impl",
+      "name": "OwnableImpl",
+      "interface_name": "openzeppelin::access::ownable::interface::IOwnable"
+    },
+    {
+      "type": "interface",
+      "name": "openzeppelin::access::ownable::interface::IOwnable",
+      "items": [
+        {
+          "type": "function",
+          "name": "owner",
+          "inputs": [],
+          "outputs": [
+            {
+              "type": "core::starknet::contract_address::ContractAddress"
+            }
+          ],
+          "state_mutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "transfer_ownership",
+          "inputs": [
+            {
+              "name": "new_owner",
+              "type": "core::starknet::contract_address::ContractAddress"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "renounce_ownership",
+          "inputs": [],
+          "outputs": [],
+          "state_mutability": "external"
+        }
+      ]
+    },
+    {
+      "type": "constructor",
+      "name": "constructor",
+      "inputs": [
+        {
+          "name": "_mailbox",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "_owner",
+          "type": "core::starknet::contract_address::ContractAddress"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "core::array::Span::<core::felt252>",
+      "members": [
+        {
+          "name": "snapshot",
+          "type": "@core::array::Array::<core::felt252>"
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "hyperlane_starknet::contracts::isms::multisig::validator_announce::validator_announce::ValidatorAnnouncement",
+      "kind": "struct",
+      "members": [
+        {
+          "name": "validator",
+          "type": "core::starknet::eth_address::EthAddress",
+          "kind": "data"
+        },
+        {
+          "name": "storage_location",
+          "type": "core::array::Span::<core::felt252>",
+          "kind": "data"
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "openzeppelin::access::ownable::ownable::OwnableComponent::OwnershipTransferred",
+      "kind": "struct",
+      "members": [
+        {
+          "name": "previous_owner",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "kind": "key"
+        },
+        {
+          "name": "new_owner",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "kind": "key"
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "openzeppelin::access::ownable::ownable::OwnableComponent::OwnershipTransferStarted",
+      "kind": "struct",
+      "members": [
+        {
+          "name": "previous_owner",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "kind": "key"
+        },
+        {
+          "name": "new_owner",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "kind": "key"
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "openzeppelin::access::ownable::ownable::OwnableComponent::Event",
+      "kind": "enum",
+      "variants": [
+        {
+          "name": "OwnershipTransferred",
+          "type": "openzeppelin::access::ownable::ownable::OwnableComponent::OwnershipTransferred",
+          "kind": "nested"
+        },
+        {
+          "name": "OwnershipTransferStarted",
+          "type": "openzeppelin::access::ownable::ownable::OwnableComponent::OwnershipTransferStarted",
+          "kind": "nested"
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "openzeppelin::upgrades::upgradeable::UpgradeableComponent::Upgraded",
+      "kind": "struct",
+      "members": [
+        {
+          "name": "class_hash",
+          "type": "core::starknet::class_hash::ClassHash",
+          "kind": "data"
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "openzeppelin::upgrades::upgradeable::UpgradeableComponent::Event",
+      "kind": "enum",
+      "variants": [
+        {
+          "name": "Upgraded",
+          "type": "openzeppelin::upgrades::upgradeable::UpgradeableComponent::Upgraded",
+          "kind": "nested"
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "hyperlane_starknet::contracts::client::mailboxclient_component::MailboxclientComponent::Event",
+      "kind": "enum",
+      "variants": []
+    },
+    {
+      "type": "event",
+      "name": "hyperlane_starknet::contracts::isms::multisig::validator_announce::validator_announce::Event",
+      "kind": "enum",
+      "variants": [
+        {
+          "name": "ValidatorAnnouncement",
+          "type": "hyperlane_starknet::contracts::isms::multisig::validator_announce::validator_announce::ValidatorAnnouncement",
+          "kind": "nested"
+        },
+        {
+          "name": "OwnableEvent",
+          "type": "openzeppelin::access::ownable::ownable::OwnableComponent::Event",
+          "kind": "flat"
+        },
+        {
+          "name": "UpgradeableEvent",
+          "type": "openzeppelin::upgrades::upgradeable::UpgradeableComponent::Event",
+          "kind": "flat"
+        },
+        {
+          "name": "MailboxclientEvent",
+          "type": "hyperlane_starknet::contracts::client::mailboxclient_component::MailboxclientComponent::Event",
+          "kind": "flat"
+        }
+      ]
+    }
+  ]
+}

@@ -81,15 +81,21 @@ export async function runVerifyWarpRoute({
 
     // Verify Proxy and ProxyAdmin
     if (isProxyContract) {
-      const { proxyAdminInput, transparentUpgradeableProxyInput } =
-        await verificationUtils.getProxyAndAdminInput({
-          chainName,
-          multiProvider,
-          proxyAddress: token.addressOrDenom,
-        });
+      const {
+        proxyAdminInput,
+        transparentUpgradeableProxyInput,
+        transparentUpgradeableImplementationInput,
+      } = await verificationUtils.getProxyAndAdminInput({
+        chainName,
+        multiProvider,
+        proxyAddress: token.addressOrDenom,
+      });
 
       verificationInputs[chainName].push(proxyAdminInput);
       verificationInputs[chainName].push(transparentUpgradeableProxyInput);
+      verificationInputs[chainName].push(
+        transparentUpgradeableImplementationInput,
+      );
     }
   }
 

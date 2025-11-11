@@ -1,0 +1,16 @@
+{
+  "apechain": {
+    "type": "synthetic",
+    "decimals": 6,
+    "name": "Pudgy Penguins",
+    "symbol": "PENGU",
+    "foreignDeployment": "0x9Eaf39A97d56119236a356225B339fE7383549B3"
+  },
+  "solanamainnet": {
+    "type": "collateral",
+    "decimals": 6,
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
+    "owner": "B1q2dsjCE4F6wi5ktn4anmFq9572JpziBUg2TqCS2dFn",
+    "token": "2zMMhcVQEXDtdE6vsFS7S7D5oUodfJHE8vd1gnBouauv"
+  }
+}

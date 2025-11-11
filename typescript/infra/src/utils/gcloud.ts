@@ -14,7 +14,7 @@ interface IamCondition {
   expression: string;
 }
 
-const debugLog = rootLogger.child({ module: 'infra:utils:gcloud' }).debug;
+const logger = rootLogger.child({ module: 'infra:utils:gcloud' });
 
 // Allows secrets to be overridden via environment variables to avoid
 // gcloud calls. This is particularly useful for running commands in k8s,
@@ -30,13 +30,19 @@ export async function fetchGCPSecret(
 
   const envVarOverride = tryGCPSecretFromEnvVariable(secretName);
   if (envVarOverride !== undefined) {
-    debugLog(
+    logger.debug(
       `Using environment variable instead of GCP secret with name ${secretName}`,
     );
     output = envVarOverride;
   } else {
-    debugLog(`Fetching GCP secret with name ${secretName}`);
-    output = await fetchLatestGCPSecret(secretName);
+    logger.debug(`Fetching GCP secret with name ${secretName}`);
+    try {
+      output = await fetchLatestGCPSecret(secretName);
+    } catch (err) {
+      throw new Error(
+        `Error fetching GCP secret with name ${secretName}: ${err}`,
+      );
+    }
   }
 
   if (parseJson) {
@@ -75,10 +81,10 @@ function tryGCPSecretFromEnvVariable(gcpSecretName: string) {
     process.env.GCP_SECRET_OVERRIDES_ENABLED &&
     process.env.GCP_SECRET_OVERRIDES_ENABLED.length > 0;
   if (!overridingEnabled) {
-    debugLog('GCP secret overrides disabled');
+    logger.debug('GCP secret overrides disabled');
     return undefined;
   }
-  debugLog('GCP secret overrides enabled');
+  logger.debug('GCP secret overrides enabled');
   const overrideEnvVarName = `GCP_SECRET_OVERRIDE_${gcpSecretName
     .replaceAll('-', '_')
     .toUpperCase()}`;
@@ -93,12 +99,12 @@ function tryGCPSecretFromEnvVariable(gcpSecretName: string) {
  */
 export async function gcpSecretExists(secretName: string) {
   const fullName = `projects/${await getCurrentProjectNumber()}/secrets/${secretName}`;
-  debugLog(`Checking if GCP secret exists for ${fullName}`);
+  logger.debug(`Checking if GCP secret exists for ${fullName}`);
 
   const matches = await execCmdAndParseJson(
     `gcloud secrets list --filter name=${fullName} --format json`,
   );
-  debugLog(`Matches: ${matches.length}`);
+  logger.debug(`Matches: ${matches.length}`);
   return matches.length > 0;
 }
 
@@ -123,9 +129,12 @@ export async function gcpSecretExistsUsingClient(
     });
 
     return secrets.length > 0;
-  } catch (e) {
-    debugLog(`Error checking if secret exists: ${e}`);
-    throw e;
+  } catch (err) {
+    logger.error(
+      { err },
+      `Error checking if secret ${secretName} exists: ${err}`,
+    );
+    throw err;
   }
 }
 
@@ -167,12 +176,12 @@ export async function setGCPSecret(
     await execCmd(
       `gcloud secrets create ${secretName} --data-file=${fileName} --replication-policy=automatic --labels=${labelString}`,
     );
-    debugLog(`Created new GCP secret for ${secretName}`);
+    logger.debug(`Created new GCP secret for ${secretName}`);
   } else {
     await execCmd(
       `gcloud secrets versions add ${secretName} --data-file=${fileName}`,
     );
-    debugLog(`Added new version to existing GCP secret for ${secretName}`);
+    logger.debug(`Added new version to existing GCP secret for ${secretName}`);
   }
   await rm(fileName);
 }
@@ -203,7 +212,7 @@ export async function setGCPSecretUsingClient(
         labels,
       },
     });
-    debugLog(`Created new GCP secret for ${secretName}`);
+    logger.debug(`Created new GCP secret for ${secretName}`);
   }
   await addGCPSecretVersion(secretName, secret, client);
 }
@@ -223,7 +232,7 @@ export async function addGCPSecretVersion(
       data: Buffer.from(secret, 'utf8'),
     },
   });
-  debugLog(`Added secret version ${version?.name}`);
+  logger.debug(`Added secret version ${version?.name}`);
 }
 
 export async function disableGCPSecretVersion(secretName: string) {
@@ -232,7 +241,7 @@ export async function disableGCPSecretVersion(secretName: string) {
   const [version] = await client.disableSecretVersion({
     name: secretName,
   });
-  debugLog(`Disabled secret version ${version?.name}`);
+  logger.debug(`Disabled secret version ${version?.name}`);
 }
 
 // Returns the email of the service account
@@ -242,9 +251,11 @@ export async function createServiceAccountIfNotExists(
   let serviceAccountInfo = await getServiceAccountInfo(serviceAccountName);
   if (!serviceAccountInfo) {
     serviceAccountInfo = await createServiceAccount(serviceAccountName);
-    debugLog(`Created new service account with name ${serviceAccountName}`);
+    logger.debug(`Created new service account with name ${serviceAccountName}`);
   } else {
-    debugLog(`Service account with name ${serviceAccountName} already exists`);
+    logger.debug(
+      `Service account with name ${serviceAccountName} already exists`,
+    );
   }
   return serviceAccountInfo.email;
 }
@@ -260,7 +271,9 @@ export async function grantServiceAccountRoleIfNotExists(
     matchedBinding &&
     iamConditionsEqual(condition, matchedBinding.condition)
   ) {
-    debugLog(`Service account ${serviceAccountEmail} already has role ${role}`);
+    logger.debug(
+      `Service account ${serviceAccountEmail} already has role ${role}`,
+    );
     return;
   }
   await execCmd(
@@ -270,7 +283,9 @@ export async function grantServiceAccountRoleIfNotExists(
         : ''
     }`,
   );
-  debugLog(`Granted role ${role} to service account ${serviceAccountEmail}`);
+  logger.debug(
+    `Granted role ${role} to service account ${serviceAccountEmail}`,
+  );
 }
 
 export async function grantServiceAccountStorageRoleIfNotExists(
@@ -290,7 +305,7 @@ export async function grantServiceAccountStorageRoleIfNotExists(
       binding.members.includes(`serviceAccount:${serviceAccountEmail}`),
   );
   if (hasRole) {
-    debugLog(
+    logger.debug(
       `Service account ${serviceAccountEmail} already has role ${role} on bucket ${bucketName}`,
     );
     return;
@@ -307,14 +322,14 @@ export async function createServiceAccountKey(serviceAccountEmail: string) {
   );
   const key = JSON.parse(fs.readFileSync(localKeyFile, 'utf8'));
   fs.rmSync(localKeyFile);
-  debugLog(`Created new service account key for ${serviceAccountEmail}`);
+  logger.debug(`Created new service account key for ${serviceAccountEmail}`);
   return key;
 }
 
 // The alphanumeric project name / ID
 export async function getCurrentProject() {
   const [result] = await execCmd('gcloud config get-value project');
-  debugLog(`Current GCP project ID: ${result.trim()}`);
+  logger.debug(`Current GCP project ID: ${result.trim()}`);
   return result.trim();
 }
 
@@ -335,7 +350,7 @@ async function getIamMemberPolicyBindings(memberEmail: string) {
     role: unprocessedRoleObject.bindings.role,
     condition: unprocessedRoleObject.bindings.condition,
   }));
-  debugLog(`Retrieved IAM policy bindings for ${memberEmail}`);
+  logger.debug(`Retrieved IAM policy bindings for ${memberEmail}`);
   return bindings;
 }
 
@@ -352,10 +367,10 @@ async function getServiceAccountInfo(serviceAccountName: string) {
     `gcloud iam service-accounts list --format json --filter displayName="${serviceAccountName}"`,
   );
   if (matches.length === 0) {
-    debugLog(`No service account found with name ${serviceAccountName}`);
+    logger.debug(`No service account found with name ${serviceAccountName}`);
     return undefined;
   }
-  debugLog(`Found service account with name ${serviceAccountName}`);
+  logger.debug(`Found service account with name ${serviceAccountName}`);
   return matches[0];
 }
 
@@ -368,4 +383,32 @@ function iamConditionsEqual(
     return true;
   }
   return a && b && a.title === b.title && a.expression === b.expression;
+}
+
+async function checkDockerTagExists({
+  repo = 'abacus-labs-dev',
+  image,
+  tag,
+}: {
+  repo?: string;
+  image: string;
+  tag: string;
+}): Promise<boolean> {
+  const url = `https://gcr.io/v2/${repo}/${image}/manifests/${tag}`;
+  const res = await fetch(url, { method: 'HEAD' });
+  return res.status === 200;
+}
+
+export async function checkAgentImageExists(tag: string) {
+  return checkDockerTagExists({
+    image: 'hyperlane-agent',
+    tag,
+  });
+}
+
+export async function checkMonorepoImageExists(tag: string) {
+  return checkDockerTagExists({
+    image: 'hyperlane-monorepo',
+    tag,
+  });
 }

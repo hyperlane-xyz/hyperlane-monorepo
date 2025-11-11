@@ -9,16 +9,30 @@ export interface TransferParams {
   fromAccountOwner?: Address;
   // Required for Solana
   fromTokenAccount?: Address;
+  interchainGas?: InterchainGasQuote;
 }
 
 export interface TransferRemoteParams extends TransferParams {
   destination: Domain;
-  interchainGas?: InterchainGasQuote;
+  customHook?: Address;
+}
+
+export interface QuoteTransferRemoteParams {
+  destination: Domain;
+  sender?: Address;
+  customHook?: Address;
+  recipient?: Address;
+  amount?: bigint;
+}
+
+export interface Quote {
+  addressOrDenom?: string; // undefined values represent default native tokens
+  amount: bigint;
 }
 
 export interface InterchainGasQuote {
-  addressOrDenom?: string; // undefined values represent default native tokens
-  amount: bigint;
+  igpQuote: Quote;
+  tokenFeeQuote?: Quote;
 }
 
 export interface RateLimitMidPoint {
@@ -27,6 +41,11 @@ export interface RateLimitMidPoint {
   lastBufferUsedTime: number;
   bufferStored: bigint;
   midPoint: bigint;
+}
+
+export interface xERC20Limits {
+  mint: bigint;
+  burn: bigint;
 }
 
 export interface ITokenAdapter<Tx> {
@@ -44,6 +63,27 @@ export interface ITokenAdapter<Tx> {
   populateTransferTx(params: TransferParams): Promise<Tx>;
 }
 
+export interface IMovableCollateralRouterAdapter<Tx> extends ITokenAdapter<Tx> {
+  isRebalancer(address: Address): Promise<boolean>;
+  isBridgeAllowed(domain: Domain, bridge: Address): Promise<boolean>;
+  getAllowedDestination(domain: Domain): Promise<Address>;
+  getRebalanceQuotes(
+    bridge: Address,
+    domain: Domain,
+    recipient: Address,
+    amount: Numberish,
+    isWarp: boolean,
+  ): Promise<InterchainGasQuote[]>;
+  getWrappedTokenAddress(): Promise<Address>;
+
+  populateRebalanceTx(
+    domain: Domain,
+    amount: Numberish,
+    bridge: Address,
+    quotes: InterchainGasQuote[],
+  ): Promise<Tx>;
+}
+
 export interface IHypTokenAdapter<Tx> extends ITokenAdapter<Tx> {
   getDomains(): Promise<Domain[]>;
   getRouterAddress(domain: Domain): Promise<Buffer>;
@@ -51,8 +91,7 @@ export interface IHypTokenAdapter<Tx> extends ITokenAdapter<Tx> {
   getBridgedSupply(): Promise<bigint | undefined>;
   // Sender is only required for Sealevel origins.
   quoteTransferRemoteGas(
-    destination: Domain,
-    sender?: Address,
+    params: QuoteTransferRemoteParams,
   ): Promise<InterchainGasQuote>;
   populateTransferRemoteTx(p: TransferRemoteParams): Promise<Tx>;
 }
@@ -92,4 +131,12 @@ export interface IXERC20VSAdapter<Tx> extends ITokenAdapter<Tx> {
     rateLimitPerSecond: bigint,
     bridge: Address,
   ): Promise<Tx>;
+}
+
+export interface IXERC20Adapter<Tx> extends ITokenAdapter<Tx> {
+  getLimits(bridge: Address): Promise<xERC20Limits>;
+}
+
+export interface IHypCollateralFiatAdapter<Tx> extends IHypTokenAdapter<Tx> {
+  getMintLimit(): Promise<bigint>;
 }

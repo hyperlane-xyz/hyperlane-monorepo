@@ -57,7 +57,7 @@ contract Mailbox is
         uint48 blockNumber;
     }
 
-    mapping(bytes32 => Delivery) internal deliveries;
+    mapping(bytes32 messageId => Delivery delivery) internal deliveries;
 
     // ============ Events ============
 

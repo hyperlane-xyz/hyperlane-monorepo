@@ -104,3 +104,9 @@ impl Deref for UniqueIdentifier {
         &self.0
     }
 }
+
+impl std::fmt::Display for UniqueIdentifier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}

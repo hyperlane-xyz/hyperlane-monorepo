@@ -22,8 +22,14 @@ where
     // Use `/tmp`-equivalent so that any resource leak of the db files will
     // eventually be cleaned up, even if e.g. TempDir's drop handler never runs
     // due to a segfault etc encountered during the test.
-    let db_tmp_dir = TempDir::new().unwrap();
-    let db = setup_db(db_tmp_dir.path().to_str().unwrap().into());
+    let db_tmp_dir = TempDir::new().expect("Failed to create tempdir");
+    let db = setup_db(
+        db_tmp_dir
+            .path()
+            .to_str()
+            .expect("Failed to create db")
+            .into(),
+    );
     test(db).await;
     let _ = rocksdb::DB::destroy(&Options::default(), db_tmp_dir);
 }

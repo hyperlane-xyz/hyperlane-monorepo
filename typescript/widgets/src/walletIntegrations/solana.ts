@@ -5,6 +5,7 @@ import { useCallback, useMemo } from 'react';
 
 import {
   ChainName,
+  IToken,
   MultiProtocolProvider,
   ProviderType,
   TypedTransactionReceipt,
@@ -18,7 +19,9 @@ import {
   AccountInfo,
   ActiveChainInfo,
   ChainTransactionFns,
+  SwitchNetworkFns,
   WalletDetails,
+  WatchAssetFns,
 } from './types.js';
 import { findChainByRpcUrl } from './utils.js';
 
@@ -85,14 +88,32 @@ export function useSolanaActiveChain(
   }, [connectionEndpoint, multiProvider]);
 }
 
+export function useSolanaSwitchNetwork(): SwitchNetworkFns {
+  const onSwitchNetwork = useCallback(async (chainName: ChainName) => {
+    logger.warn(`Solana wallet must be connected to origin chain ${chainName}`);
+  }, []);
+
+  return { switchNetwork: onSwitchNetwork };
+}
+
+export function useSolanaWatchAsset(
+  _multiProvider: MultiProtocolProvider,
+): WatchAssetFns {
+  const onAddAsset = useCallback(
+    async (_token: IToken, _activeChainName: ChainName) => {
+      throw new Error('Watch asset not available for solana');
+    },
+    [],
+  );
+
+  return { addAsset: onAddAsset };
+}
+
 export function useSolanaTransactionFns(
   multiProvider: MultiProtocolProvider,
 ): ChainTransactionFns {
   const { sendTransaction: sendSolTransaction } = useWallet();
-
-  const onSwitchNetwork = useCallback(async (chainName: ChainName) => {
-    logger.warn(`Solana wallet must be connected to origin chain ${chainName}`);
-  }, []);
+  const { switchNetwork } = useSolanaSwitchNetwork();
 
   const onSendTx = useCallback(
     async ({
@@ -107,7 +128,7 @@ export function useSolanaTransactionFns(
       if (tx.type !== ProviderType.SolanaWeb3)
         throw new Error(`Unsupported tx type: ${tx.type}`);
       if (activeChainName && activeChainName !== chainName)
-        await onSwitchNetwork(chainName);
+        await switchNetwork(chainName);
       const rpcUrl = multiProvider.getRpcUrl(chainName);
       const connection = new Connection(rpcUrl, 'confirmed');
       const {
@@ -131,8 +152,27 @@ export function useSolanaTransactionFns(
 
       return { hash: signature, confirm };
     },
-    [onSwitchNetwork, sendSolTransaction, multiProvider],
+    [switchNetwork, sendSolTransaction, multiProvider],
   );
 
-  return { sendTransaction: onSendTx, switchNetwork: onSwitchNetwork };
+  const onMultiSendTx = useCallback(
+    async ({
+      txs: _,
+      chainName: __,
+      activeChainName: ___,
+    }: {
+      txs: WarpTypedTransaction[];
+      chainName: ChainName;
+      activeChainName?: ChainName;
+    }) => {
+      throw new Error('Multi Transactions not supported on Solana');
+    },
+    [],
+  );
+
+  return {
+    sendTransaction: onSendTx,
+    sendMultiTransaction: onMultiSendTx,
+    switchNetwork,
+  };
 }

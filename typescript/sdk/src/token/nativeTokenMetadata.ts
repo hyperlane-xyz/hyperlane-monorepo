@@ -34,4 +34,11 @@ export const PROTOCOL_TO_DEFAULT_NATIVE_TOKEN: Record<
     name: 'Ether',
     symbol: 'ETH',
   },
+  [ProtocolType.Radix]: {
+    decimals: 18,
+    denom:
+      'resource_rdx1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxradxrd',
+    name: 'Radix',
+    symbol: 'XRD',
+  },
 };

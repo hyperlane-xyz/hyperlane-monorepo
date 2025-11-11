@@ -1,12 +1,22 @@
+import { compareVersions } from 'compare-versions';
+import { constants } from 'ethers';
 import { z } from 'zod';
 
+import { CONTRACTS_PACKAGE_VERSION } from '@hyperlane-xyz/core';
 import { objMap } from '@hyperlane-xyz/utils';
 
+import { TokenFeeConfigInput, TokenFeeType } from '../fee/types.js';
 import { HookConfig, HookType } from '../hook/types.js';
-import { IsmConfig, IsmType } from '../ism/types.js';
 import {
-  DerivedMailboxClientFields,
+  IsmConfig,
+  IsmType,
+  OffchainLookupIsmConfigSchema,
+} from '../ism/types.js';
+import { ZHash } from '../metadata/customZodTypes.js';
+import {
+  DerivedRouterConfig,
   GasRouterConfigSchema,
+  RemoteRouterDomainOrChainNameSchema,
 } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
 import { isCompliant } from '../utils/schemas.js';
@@ -17,21 +27,91 @@ export const WarpRouteDeployConfigSchemaErrors = {
   ONLY_SYNTHETIC_REBASE: `Config with ${TokenType.collateralVaultRebase} must be deployed with ${TokenType.syntheticRebase}`,
   NO_SYNTHETIC_ONLY: `Config must include Native or Collateral OR all synthetics must define token metadata`,
 };
+
+export const contractVersionMatchesDependency = (version: string) => {
+  return compareVersions(version, CONTRACTS_PACKAGE_VERSION) === 0;
+};
+
+export const VERSION_ERROR_MESSAGE = `Contract version must match the @hyperlane-xyz/core dependency version (${CONTRACTS_PACKAGE_VERSION})`;
+
 export const TokenMetadataSchema = z.object({
   name: z.string(),
   symbol: z.string(),
-  decimals: z.number().optional(),
+  decimals: z.number().gt(0).optional(),
   scale: z.number().optional(),
   isNft: z.boolean().optional(),
+  contractVersion: z.string().optional(),
 });
 export type TokenMetadata = z.infer<typeof TokenMetadataSchema>;
 export const isTokenMetadata = isCompliant(TokenMetadataSchema);
 
+const MovableTokenRebalancingBridgeConfigSchema = z.object({
+  bridge: ZHash,
+  approvedTokens: z
+    .array(ZHash)
+    .transform((rawRebalancers) => Array.from(new Set(rawRebalancers)))
+    .optional(),
+});
+
+const BaseEverclearTokenBridgeConfigSchema = z.object({
+  everclearBridgeAddress: ZHash,
+  outputAssets: z.record(RemoteRouterDomainOrChainNameSchema, ZHash),
+  everclearFeeParams: z.record(
+    RemoteRouterDomainOrChainNameSchema,
+    z.object({
+      fee: z.number().int(),
+      deadline: z.number().int(),
+      signature: z.string(),
+    }),
+  ),
+});
+
+export const isEverclearTokenBridgeConfig = isCompliant(
+  BaseEverclearTokenBridgeConfigSchema,
+);
+
+export const BaseMovableTokenConfigSchema = z.object({
+  allowedRebalancingBridges: z
+    .record(
+      RemoteRouterDomainOrChainNameSchema,
+      z.array(MovableTokenRebalancingBridgeConfigSchema),
+    )
+    .optional(),
+  allowedRebalancers: z
+    .array(ZHash)
+    .transform((rawRebalancers) => Array.from(new Set(rawRebalancers)))
+    .optional(),
+});
+
 export const NativeTokenConfigSchema = TokenMetadataSchema.partial().extend({
   type: z.enum([TokenType.native, TokenType.nativeScaled]),
+  ...BaseMovableTokenConfigSchema.shape,
 });
 export type NativeTokenConfig = z.infer<typeof NativeTokenConfigSchema>;
 export const isNativeTokenConfig = isCompliant(NativeTokenConfigSchema);
+
+export const OpL2TokenConfigSchema = NativeTokenConfigSchema.omit({
+  type: true,
+}).extend({
+  type: z.literal(TokenType.nativeOpL2),
+  l2Bridge: z.string(),
+});
+
+export const OpL1TokenConfigSchema = NativeTokenConfigSchema.omit({
+  type: true,
+})
+  .extend({
+    type: z.literal(TokenType.nativeOpL1),
+    portal: z.string(),
+    version: z.number(),
+  })
+  .merge(OffchainLookupIsmConfigSchema.omit({ type: true, owner: true }));
+
+export type OpL1TokenConfig = z.infer<typeof OpL1TokenConfigSchema>;
+export const isOpL1TokenConfig = isCompliant(OpL1TokenConfigSchema);
+
+export type OpL2TokenConfig = z.infer<typeof OpL2TokenConfigSchema>;
+export const isOpL2TokenConfig = isCompliant(OpL2TokenConfigSchema);
 
 export const CollateralTokenConfigSchema = TokenMetadataSchema.partial().extend(
   {
@@ -47,28 +127,49 @@ export const CollateralTokenConfigSchema = TokenMetadataSchema.partial().extend(
       .describe(
         'Existing token address to extend with Warp Route functionality',
       ),
+    ...BaseMovableTokenConfigSchema.shape,
   },
 );
 
 export type CollateralTokenConfig = z.infer<typeof CollateralTokenConfigSchema>;
 export const isCollateralTokenConfig = isCompliant(CollateralTokenConfigSchema);
 
-const xERC20LimitConfigSchema = z.object({
+export enum XERC20Type {
+  Velo = 'velo',
+  Standard = 'standard',
+}
+
+// Velo variant
+const XERC20VSLimitConfigSchema = z.object({
+  type: z.literal(XERC20Type.Velo),
   bufferCap: z.string().optional(),
   rateLimitPerSecond: z.string().optional(),
 });
-export type XERC20LimitConfig = z.infer<typeof xERC20LimitConfigSchema>;
+export type XERC20VSLimitConfig = z.infer<typeof XERC20VSLimitConfigSchema>;
 
+const XERC20StandardLimitConfigSchema = z.object({
+  type: z.literal(XERC20Type.Standard),
+  mint: z.string().optional(),
+  burn: z.string().optional(),
+});
+export type XERC20StandardLimitConfig = z.infer<
+  typeof XERC20StandardLimitConfigSchema
+>;
+
+const xERC20Limits = z.discriminatedUnion('type', [
+  XERC20VSLimitConfigSchema,
+  XERC20StandardLimitConfigSchema,
+]);
 const xERC20ExtraBridgesLimitConfigsSchema = z.object({
   lockbox: z.string(),
-  limits: xERC20LimitConfigSchema,
+  limits: xERC20Limits,
 });
 
 const xERC20TokenMetadataSchema = z.object({
   xERC20: z
     .object({
       extraBridges: z.array(xERC20ExtraBridgesLimitConfigsSchema).optional(),
-      warpRouteLimits: xERC20LimitConfigSchema,
+      warpRouteLimits: xERC20Limits,
     })
     .optional(),
 });
@@ -77,14 +178,35 @@ export type XERC20TokenExtraBridgesLimits = z.infer<
   typeof xERC20ExtraBridgesLimitConfigsSchema
 >;
 
-export const XERC20TokenConfigSchema = CollateralTokenConfigSchema.merge(
-  z.object({
+export const XERC20TokenConfigSchema = CollateralTokenConfigSchema.omit({
+  type: true,
+})
+  .extend({
     type: z.enum([TokenType.XERC20, TokenType.XERC20Lockbox]),
-  }),
-).merge(xERC20TokenMetadataSchema);
+  })
+  .merge(xERC20TokenMetadataSchema);
 
 export type XERC20LimitsTokenConfig = z.infer<typeof XERC20TokenConfigSchema>;
 export const isXERC20TokenConfig = isCompliant(XERC20TokenConfigSchema);
+
+export const CctpTokenConfigSchema = TokenMetadataSchema.partial()
+  .extend({
+    type: z.literal(TokenType.collateralCctp),
+    token: z.string().describe('CCTP enabled token'),
+    messageTransmitter: z
+      .string()
+      .describe('CCTP Message Transmitter contract address'),
+    tokenMessenger: z
+      .string()
+      .describe('CCTP Token Messenger contract address'),
+    cctpVersion: z.enum(['V1', 'V2']),
+    minFinalityThreshold: z.number().optional(),
+    maxFeeBps: z.number().optional(),
+  })
+  .merge(OffchainLookupIsmConfigSchema.omit({ type: true, owner: true }));
+
+export type CctpTokenConfig = z.infer<typeof CctpTokenConfigSchema>;
+export const isCctpTokenConfig = isCompliant(CctpTokenConfigSchema);
 
 export const CollateralRebaseTokenConfigSchema =
   TokenMetadataSchema.partial().extend({
@@ -113,19 +235,63 @@ export const isSyntheticRebaseTokenConfig = isCompliant(
   SyntheticRebaseTokenConfigSchema,
 );
 
+export const EverclearCollateralTokenConfigSchema = z.object({
+  type: z.literal(TokenType.collateralEverclear),
+  ...CollateralTokenConfigSchema.omit({ type: true }).shape,
+  ...BaseEverclearTokenBridgeConfigSchema.shape,
+});
+
+export type EverclearCollateralTokenConfig = z.infer<
+  typeof EverclearCollateralTokenConfigSchema
+>;
+export const isEverclearCollateralTokenConfig = isCompliant(
+  EverclearCollateralTokenConfigSchema,
+);
+
+export const EverclearEthBridgeTokenConfigSchema = z.object({
+  type: z.literal(TokenType.ethEverclear),
+  wethAddress: ZHash,
+  ...NativeTokenConfigSchema.omit({ type: true }).shape,
+  ...BaseEverclearTokenBridgeConfigSchema.shape,
+});
+
+export type EverclearEthBridgeTokenConfig = z.infer<
+  typeof EverclearEthBridgeTokenConfigSchema
+>;
+export const isEverclearEthBridgeTokenConfig = isCompliant(
+  EverclearEthBridgeTokenConfigSchema,
+);
+
 export enum ContractVerificationStatus {
   Verified = 'verified',
   Unverified = 'unverified',
   Error = 'error',
   Skipped = 'skipped',
 }
+
+export enum OwnerStatus {
+  Active = 'active', // Active address with nonce > 0 and/or contract code
+  Inactive = 'inactive',
+  GnosisSafe = 'gnosisSafe',
+  Error = 'error',
+  Skipped = 'skipped',
+}
 export const HypTokenRouterVirtualConfigSchema = z.object({
   contractVerificationStatus: z.record(
     z.enum([
-      ContractVerificationStatus.Verified,
-      ContractVerificationStatus.Unverified,
       ContractVerificationStatus.Error,
       ContractVerificationStatus.Skipped,
+      ContractVerificationStatus.Verified,
+      ContractVerificationStatus.Unverified,
+    ]),
+  ),
+  ownerStatus: z.record(
+    z.enum([
+      OwnerStatus.Error,
+      OwnerStatus.Skipped,
+      OwnerStatus.Active,
+      OwnerStatus.Inactive,
+      OwnerStatus.GnosisSafe,
     ]),
   ),
 });
@@ -140,25 +306,30 @@ export type HypTokenRouterVirtualConfig = z.infer<
  */
 export const HypTokenConfigSchema = z.discriminatedUnion('type', [
   NativeTokenConfigSchema,
+  OpL2TokenConfigSchema,
+  OpL1TokenConfigSchema,
   CollateralTokenConfigSchema,
   XERC20TokenConfigSchema,
   SyntheticTokenConfigSchema,
   SyntheticRebaseTokenConfigSchema,
+  CctpTokenConfigSchema,
+  EverclearCollateralTokenConfigSchema,
+  EverclearEthBridgeTokenConfigSchema,
 ]);
 export type HypTokenConfig = z.infer<typeof HypTokenConfigSchema>;
 
-export const HypTokenRouterConfigSchema = HypTokenConfigSchema.and(
-  GasRouterConfigSchema,
-).and(HypTokenRouterVirtualConfigSchema.partial());
+export const HypTokenRouterConfigSchema = z.preprocess(
+  preprocessWarpRouteDeployConfig,
+  HypTokenConfigSchema.and(GasRouterConfigSchema).and(
+    HypTokenRouterVirtualConfigSchema.partial(),
+  ),
+);
 
 export type HypTokenRouterConfig = z.infer<typeof HypTokenRouterConfigSchema>;
 
 export type DerivedTokenRouterConfig = z.infer<typeof HypTokenConfigSchema> &
-  Omit<
-    z.infer<typeof GasRouterConfigSchema>,
-    keyof DerivedMailboxClientFields
-  > &
-  DerivedMailboxClientFields;
+  z.infer<typeof GasRouterConfigSchema> &
+  DerivedRouterConfig;
 
 export type DerivedWarpRouteDeployConfig = ChainMap<DerivedTokenRouterConfig>;
 
@@ -172,16 +343,86 @@ export function derivedIsmAddress(config: DerivedTokenRouterConfig) {
     : config.interchainSecurityModule.address;
 }
 
-export const HypTokenRouterConfigMailboxOptionalSchema =
+export const HypTokenRouterConfigMailboxOptionalBaseSchema =
   HypTokenConfigSchema.and(
     GasRouterConfigSchema.extend({
       mailbox: z.string().optional(),
     }),
   ).and(HypTokenRouterVirtualConfigSchema.partial());
 
+export type HypTokenRouterConfigMailboxOptionalBase = z.infer<
+  typeof HypTokenRouterConfigMailboxOptionalBaseSchema
+>;
+
+export const HypTokenRouterConfigMailboxOptionalSchema = z
+  .preprocess(
+    preprocessWarpRouteDeployConfig,
+    HypTokenRouterConfigMailboxOptionalBaseSchema,
+  ) // Check that each tokenFee.token is the same as config.token
+  .transform((config, ctx) => {
+    if (!isCollateralTokenConfig(config) || !config.tokenFee) return config;
+
+    if (config.tokenFee.token !== config.token) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `${config.tokenFee.type} must have the same token as warp route`,
+      });
+    }
+
+    if (
+      config.tokenFee.type === TokenFeeType.RoutingFee &&
+      config.tokenFee.feeContracts
+    ) {
+      const hasSameTokens = Object.entries(config.tokenFee.feeContracts).every(
+        ([_, subFee]) => subFee.token === config.token,
+      );
+
+      if (!hasSameTokens) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `${TokenFeeType.RoutingFee} sub fees must have the same token as warp route`,
+        });
+      }
+    }
+
+    return config;
+  });
+
 export type HypTokenRouterConfigMailboxOptional = z.infer<
   typeof HypTokenRouterConfigMailboxOptionalSchema
 >;
+
+function preprocessWarpRouteDeployConfig(value: unknown) {
+  const mutatedConfig = value as HypTokenRouterConfigMailboxOptionalBase;
+  return populateTokenFeeOwners({
+    tokenConfig: mutatedConfig,
+    feeConfig: mutatedConfig.tokenFee,
+  });
+}
+
+function populateTokenFeeOwners(params: {
+  tokenConfig: HypTokenRouterConfigMailboxOptionalBase;
+  feeConfig?: TokenFeeConfigInput;
+}) {
+  const { tokenConfig, feeConfig } = params;
+  if (!feeConfig) return tokenConfig;
+
+  if (isCollateralTokenConfig(tokenConfig))
+    // Default fee.token to the router token, if not specified
+    feeConfig.token = feeConfig.token ?? tokenConfig.token;
+  else if (isNativeTokenConfig(tokenConfig))
+    // This must be defined for contract deployment
+    feeConfig.token = constants.AddressZero;
+
+  feeConfig.owner = feeConfig.owner ?? tokenConfig.owner;
+
+  if (feeConfig.type === TokenFeeType.RoutingFee && feeConfig.feeContracts) {
+    objMap(feeConfig.feeContracts, (_, innerConfig) => {
+      populateTokenFeeOwners({ tokenConfig, feeConfig: innerConfig });
+    });
+  }
+  return tokenConfig;
+}
 
 export const WarpRouteDeployConfigSchema = z
   .record(HypTokenRouterConfigMailboxOptionalSchema)
@@ -192,8 +433,10 @@ export const WarpRouteDeployConfigSchema = z
         ([_, config]) =>
           isCollateralTokenConfig(config) ||
           isCollateralRebaseTokenConfig(config) ||
+          isCctpTokenConfig(config) ||
           isXERC20TokenConfig(config) ||
-          isNativeTokenConfig(config),
+          isNativeTokenConfig(config) ||
+          isEverclearTokenBridgeConfig(config),
       ) || entries.every(([_, config]) => isTokenMetadata(config))
     );
   }, WarpRouteDeployConfigSchemaErrors.NO_SYNTHETIC_ONLY)
@@ -273,6 +516,31 @@ export const WarpRouteDeployConfigSchema = z
     return hookConfigHasMissingIsms || ismConfigHasMissingHooks
       ? z.NEVER
       : warpRouteDeployConfig;
+  })
+  // Verify that xERC20 are only with xERC20s
+  .transform((warpRouteDeployConfig, ctx) => {
+    const isXERC20Route = Object.values(warpRouteDeployConfig).some(
+      isXERC20TokenConfig,
+    );
+
+    if (!isXERC20Route) {
+      return warpRouteDeployConfig;
+    }
+
+    const isAllXERC20s = Object.values(warpRouteDeployConfig).every(
+      isXERC20TokenConfig,
+    );
+
+    if (!isAllXERC20s) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `All chains must be xERC20 warp route tokens`,
+      });
+
+      return z.NEVER;
+    }
+
+    return warpRouteDeployConfig;
   });
 
 export type WarpRouteDeployConfig = z.infer<typeof WarpRouteDeployConfigSchema>;
@@ -397,3 +665,10 @@ function extractCCIPIsmMap(
       break;
   }
 }
+
+const MovableTokenSchema = z.discriminatedUnion('type', [
+  CollateralTokenConfigSchema,
+  NativeTokenConfigSchema,
+]);
+export type MovableTokenConfig = z.infer<typeof MovableTokenSchema>;
+export const isMovableCollateralTokenConfig = isCompliant(MovableTokenSchema);

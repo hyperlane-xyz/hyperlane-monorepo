@@ -1,9 +1,17 @@
-import { objKeys, rootLogger, sleep } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  assert,
+  objKeys,
+  rootLogger,
+  sleep,
+} from '@hyperlane-xyz/utils';
 
 import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 import { ChainMap, ChainName } from '../types.js';
 
 const COINGECKO_PRICE_API = 'https://api.coingecko.com/api/v3/simple/price';
+
+const COINGECKO_COIN_API = 'https://api.coingecko.com/api/v3/coins';
 
 export interface TokenPriceGetter {
   getTokenPrice(chain: ChainName): Promise<number>;
@@ -149,32 +157,77 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
       try {
         const prices = await this.fetchPriceData(toQuery, currency);
         prices.forEach((price, i) => this.cache.put(toQuery[i], price));
-      } catch (e) {
-        rootLogger.warn('Error when querying token prices', e);
+      } catch (err) {
+        rootLogger.warn(err, 'Failed to fetch token prices');
         return undefined;
       }
     }
     return ids.map((id) => this.cache.fetch(id));
   }
 
+  public async fetchPriceDataByContractAddress(
+    chain: ChainName,
+    contractAddress: Address,
+  ): Promise<number> {
+    const tokenPrice = await this.get(
+      `${COINGECKO_COIN_API}/${chain}/contract/${contractAddress}`,
+    );
+
+    const price = tokenPrice?.market_data?.current_price?.usd;
+    assert(
+      price,
+      `USD price not found for token at address "${contractAddress}" and chain ${chain}`,
+    );
+
+    return price;
+  }
+
   public async fetchPriceData(
     ids: string[],
     currency: string,
   ): Promise<number[]> {
-    let url = `${COINGECKO_PRICE_API}?ids=${Object.entries(ids).join(
-      ',',
-    )}&vs_currencies=${currency}`;
-    if (this.apiKey) {
-      url += `&x-cg-pro-api-key=${this.apiKey}`;
-    }
-
-    const resp = await fetch(url);
-    const idPrices = await resp.json();
+    const tokenIds = ids.join(',');
+    const idPrices = await this.get(
+      `${COINGECKO_PRICE_API}?ids=${tokenIds}&vs_currencies=${currency}`,
+    );
 
     return ids.map((id) => {
       const price = idPrices[id]?.[currency];
       if (!price) throw new Error(`No price found for ${id}`);
       return Number(price);
     });
+  }
+
+  private async get(endpoint: string): Promise<any> {
+    const url = new URL(endpoint);
+    if (this.apiKey) {
+      url.searchParams.append('x-cg-pro-api-key', this.apiKey);
+    }
+
+    const resp = await fetch(url);
+    let idPrices: any = {};
+    let jsonError: unknown;
+    try {
+      idPrices = await resp.json();
+    } catch (err) {
+      jsonError = err;
+      idPrices = {};
+    }
+
+    if (!resp.ok) {
+      rootLogger.warn(
+        {
+          status: resp.status,
+          statusText: resp.statusText,
+          url,
+        },
+        `Failed to fetch token prices: ${idPrices?.error}`,
+      );
+    }
+    if (jsonError) {
+      rootLogger.warn(jsonError, 'Failed to parse token prices');
+    }
+
+    return idPrices;
   }
 }

@@ -21,7 +21,7 @@ export enum ANVIL_RPC_METHODS {
 export const resetFork = async (anvilIPAddr?: string, anvilPort?: number) => {
   rootLogger.info(`Resetting forked network...`);
 
-  const provider = getLocalProvider(anvilIPAddr, anvilPort);
+  const provider = getLocalProvider({ anvilIPAddr, anvilPort });
   await provider.send(ANVIL_RPC_METHODS.RESET, [
     {
       forking: {
@@ -46,7 +46,7 @@ export const setFork = async (
 ) => {
   rootLogger.info(`Forking ${chain} for dry-run...`);
 
-  const provider = getLocalProvider(anvilIPAddr, anvilPort);
+  const provider = getLocalProvider({ anvilIPAddr, anvilPort });
   const currentChainMetadata = multiProvider.metadata[chain];
 
   await provider.send(ANVIL_RPC_METHODS.RESET, [
@@ -69,12 +69,11 @@ export const setFork = async (
  */
 export const impersonateAccount = async (
   address: Address,
-  anvilIPAddr?: string,
-  anvilPort?: number,
+  anvilEndPoint?: string,
 ): Promise<providers.JsonRpcSigner> => {
   rootLogger.info(`Impersonating account (${address})...`);
 
-  const provider = getLocalProvider(anvilIPAddr, anvilPort);
+  const provider = getLocalProvider({ urlOverride: anvilEndPoint });
   await provider.send(ANVIL_RPC_METHODS.IMPERSONATE_ACCOUNT, [address]);
 
   rootLogger.info(`✅ Successfully impersonated account (${address})`);
@@ -88,8 +87,7 @@ export const impersonateAccount = async (
  */
 export const stopImpersonatingAccount = async (
   address: Address,
-  anvilIPAddr?: string,
-  anvilPort?: number,
+  anvilEndPoint?: string,
 ) => {
   rootLogger.info(`Stopping account impersonation for address (${address})...`);
 
@@ -98,7 +96,7 @@ export const stopImpersonatingAccount = async (
       `Cannot stop account impersonation: invalid address format: ${address}`,
     );
 
-  const provider = getLocalProvider(anvilIPAddr, anvilPort);
+  const provider = getLocalProvider({ urlOverride: anvilEndPoint });
   await provider.send(ANVIL_RPC_METHODS.STOP_IMPERSONATING_ACCOUNT, [
     address.substring(2),
   ]);
@@ -113,11 +111,15 @@ export const stopImpersonatingAccount = async (
  * @param urlOverride custom URL to overried the default endpoint
  * @returns a local JSON-RPC provider
  */
-export const getLocalProvider = (
-  anvilIPAddr?: string,
-  anvilPort?: number,
-  urlOverride?: string,
-): providers.JsonRpcProvider => {
+export const getLocalProvider = ({
+  anvilIPAddr,
+  anvilPort,
+  urlOverride,
+}: {
+  anvilIPAddr?: string;
+  anvilPort?: number;
+  urlOverride?: string;
+} = {}): providers.JsonRpcProvider => {
   let envUrl;
   if (anvilIPAddr && anvilPort)
     envUrl = `${ENDPOINT_PREFIX}${anvilIPAddr}:${anvilPort}`;

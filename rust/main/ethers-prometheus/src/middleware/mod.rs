@@ -255,7 +255,7 @@ impl<M: Middleware> Middleware for PrometheusMiddleware<M> {
         let result = self.inner.send_transaction(tx, block).await;
 
         if let Some(m) = &self.metrics.transaction_send_duration_seconds {
-            let duration = (Instant::now() - start).as_secs_f64();
+            let duration = (Instant::now().saturating_duration_since(start)).as_secs_f64();
             m.with(&hashmap! {
                 "chain" => chain.as_str(),
                 "address_from" => addr_from.as_str(),
@@ -329,8 +329,11 @@ impl<M: Middleware> Middleware for PrometheusMiddleware<M> {
                 m.with(&labels).inc();
             }
             if let Some(m) = &self.metrics.contract_call_duration_seconds {
-                m.with(&labels)
-                    .inc_by((Instant::now() - start).as_secs_f64());
+                m.with(&labels).inc_by(
+                    Instant::now()
+                        .saturating_duration_since(start)
+                        .as_secs_f64(),
+                );
             }
         }
         Ok(result?)
@@ -352,7 +355,7 @@ impl<M: Middleware> Middleware for PrometheusMiddleware<M> {
             };
             let to_csv_str = |mut acc: String, i: String| {
                 acc.push(',');
-                acc += &i;
+                acc.push_str(&i);
                 acc
             };
             let chain = chain_name(&data.chain);
@@ -413,8 +416,11 @@ impl<M: Middleware> Middleware for PrometheusMiddleware<M> {
                 m.with(&labels).inc();
             }
             if let Some(m) = &self.metrics.logs_query_duration_seconds {
-                m.with(&labels)
-                    .inc_by((Instant::now() - start).as_secs_f64());
+                m.with(&labels).inc_by(
+                    Instant::now()
+                        .saturating_duration_since(start)
+                        .as_secs_f64(),
+                );
             }
         }
 

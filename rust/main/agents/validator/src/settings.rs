@@ -4,7 +4,7 @@
 //! and validations it defines are not applied here, we should mirror them.
 //! ANY CHANGES HERE NEED TO BE REFLECTED IN THE TYPESCRIPT SDK.
 
-use std::{collections::HashSet, path::PathBuf, time::Duration};
+use std::{collections::HashSet, ops::Add, path::PathBuf, time::Duration};
 
 use aws_config::Region;
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
@@ -24,14 +24,14 @@ use serde::Deserialize;
 use serde_json::Value;
 
 /// Settings for RPCs
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RpcConfig {
     pub url: String,
     pub public: bool,
 }
 
 /// Settings for `Validator`
-#[derive(Debug, AsRef, AsMut, Deref, DerefMut)]
+#[derive(Debug, AsRef, AsMut, Deref, DerefMut, Clone)]
 pub struct ValidatorSettings {
     #[as_ref]
     #[as_mut]
@@ -70,7 +70,14 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
         raw: RawValidatorSettings,
         cwp: &ConfigPath,
         _filter: (),
+        agent_name: &str,
     ) -> ConfigResult<Self> {
+        let curr_dir = std::env::current_dir().map_err(|err| {
+            let mut config_err = ConfigParsingError::default();
+            config_err.push(cwp.clone(), eyre::eyre!(err.to_string()));
+            config_err
+        })?;
+
         let mut err = ConfigParsingError::default();
 
         let p = ValueParser::new(cwp.clone(), &raw.0);
@@ -93,6 +100,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             .parse_from_raw_config::<Settings, RawAgentConf, Option<&HashSet<&str>>>(
                 origin_chain_name_set.as_ref(),
                 "Expected valid base agent configuration",
+                agent_name.to_string(),
             )
             .take_config_err(&mut err);
 
@@ -100,7 +108,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
         {
             base.lookup_domain(origin_chain_name)
                 .context("Missing configuration for the origin chain")
-                .take_err(&mut err, || cwp + "origin_chain_name")
+                .take_err(&mut err, || cwp.add("origin_chain_name"))
         } else {
             None
         };
@@ -111,6 +119,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             .parse_from_raw_config::<SignerConf, RawAgentSignerConf, NoFilter>(
                 (),
                 "Expected valid validator configuration",
+                agent_name.to_string(),
             )
             .end();
 
@@ -119,9 +128,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             .get_opt_key("db")
             .parse_from_str("Expected db file path")
             .unwrap_or_else(|| {
-                std::env::current_dir()
-                    .unwrap()
-                    .join(format!("validator_db_{}", origin_chain_name.unwrap_or("")))
+                curr_dir.join(format!("validator_db_{}", origin_chain_name.unwrap_or("")))
             });
 
         let checkpoint_syncer = p
@@ -153,7 +160,11 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             .get_key("chains")
             .get_key(origin_chain_name)
             .end()
-            .unwrap();
+            .ok_or_else(|| {
+                let mut config_err = ConfigParsingError::default();
+                config_err.push(cwp.clone(), eyre::eyre!("chains missing".to_string()));
+                config_err
+            })?;
 
         let max_sign_concurrency = p
             .chain(&mut err)
@@ -170,7 +181,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
         let mut base: Settings = base;
         // If the origin chain is an EVM chain, then we can use the validator as the signer if needed.
         if origin_chain.domain_protocol() == HyperlaneDomainProtocol::Ethereum {
-            if let Some(origin) = base.chains.get_mut(origin_chain.name()) {
+            if let Some(origin) = base.chains.get_mut(&origin_chain) {
                 origin.signer.get_or_insert_with(|| validator.clone());
             }
         }
@@ -323,9 +334,8 @@ fn parse_checkpoint_syncer(syncer: ValueParser) -> ConfigResult<CheckpointSyncer
                 user_secrets,
             })
         }
-        Some(_) => {
-            Err(eyre!("Unknown checkpoint syncer type")).into_config_result(|| &syncer.cwp + "type")
-        }
+        Some(_) => Err(eyre!("Unknown checkpoint syncer type"))
+            .into_config_result(|| (&syncer.cwp).add("type")),
         None => Err(err),
     }
 }

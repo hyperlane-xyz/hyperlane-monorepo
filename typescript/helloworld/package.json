@@ -1,16 +1,16 @@
 {
   "name": "@hyperlane-xyz/helloworld",
   "description": "A basic skeleton of an Hyperlane app",
-  "version": "12.6.0",
+  "version": "19.7.0",
   "dependencies": {
-    "@hyperlane-xyz/core": "7.1.5",
-    "@hyperlane-xyz/registry": "15.0.0",
-    "@hyperlane-xyz/sdk": "12.6.0",
+    "@hyperlane-xyz/core": "10.0.1",
+    "@hyperlane-xyz/registry": "20.0.0",
+    "@hyperlane-xyz/sdk": "19.7.0",
     "@openzeppelin/contracts-upgradeable": "^4.9.3",
-    "ethers": "^5.7.2"
+    "ethers": "^5.8.0"
   },
   "devDependencies": {
-    "@eslint/js": "^9.15.0",
+    "@eslint/js": "^9.31.0",
     "@nomiclabs/hardhat-ethers": "^2.2.3",
     "@nomiclabs/hardhat-waffle": "^2.0.6",
     "@trivago/prettier-plugin-sort-imports": "^5.2.2",
@@ -20,10 +20,10 @@
     "@typescript-eslint/eslint-plugin": "^8.1.6",
     "@typescript-eslint/parser": "^8.1.6",
     "chai": "^4.5.0",
-    "eslint": "^9.15.0",
-    "eslint-config-prettier": "^9.1.0",
-    "eslint-import-resolver-typescript": "^3.6.3",
-    "eslint-plugin-import": "^2.31.0",
+    "eslint": "^9.31.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-import-resolver-typescript": "^4.4.4",
+    "eslint-plugin-import": "^2.32.0",
     "ethereum-waffle": "^4.0.10",
     "hardhat": "^2.22.2",
     "hardhat-gas-reporter": "^1.0.9",

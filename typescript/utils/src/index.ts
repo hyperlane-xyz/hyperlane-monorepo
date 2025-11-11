@@ -1,4 +1,5 @@
 export {
+  hexToRadixCustomPrefix,
   addressToByteHexString,
   addressToBytes,
   addressToBytes32,
@@ -6,11 +7,13 @@ export {
   addressToBytesEvm,
   addressToBytesSol,
   addressToBytesStarknet,
+  addressToBytesRadix,
   bytes32ToAddress,
   bytesToAddressCosmos,
   bytesToAddressEvm,
   bytesToAddressSol,
   bytesToAddressStarknet,
+  bytesToAddressRadix,
   bytesToProtocolAddress,
   capitalizeAddress,
   convertToProtocolAddress,
@@ -20,6 +23,7 @@ export {
   eqAddressEvm,
   eqAddressSol,
   eqAddressStarknet,
+  eqAddressRadix,
   getAddressProtocolType,
   isAddress,
   isAddressCosmos,
@@ -27,23 +31,27 @@ export {
   isAddressEvm,
   isAddressSealevel,
   isAddressStarknet,
+  isAddressRadix,
   isValidAddress,
   isValidAddressCosmos,
   isValidAddressEvm,
   isValidAddressSealevel,
   isValidAddressStarknet,
+  isValidAddressRadix,
   isPrivateKeyEvm,
   isValidTransactionHash,
   isValidTransactionHashCosmos,
   isValidTransactionHashEvm,
   isValidTransactionHashSealevel,
   isValidTransactionHashStarknet,
+  isValidTransactionHashRadix,
   isZeroishAddress,
   normalizeAddress,
   normalizeAddressCosmos,
   normalizeAddressEvm,
   normalizeAddressSealevel,
   normalizeAddressStarknet,
+  normalizeAddressRadix,
   padBytesToLength,
   shortenAddress,
   strip0x,
@@ -53,13 +61,14 @@ export {
   addBufferToGasLimit,
   convertDecimals,
   convertDecimalsToIntegerString,
+  convertToScaledAmount,
   eqAmountApproximate,
   fromWei,
   fromWeiRounded,
   toWei,
   tryParseAmount,
 } from './amount.js';
-export { chunk, exclude, randomElement } from './arrays.js';
+export { chunk, exclude, randomElement, arrayEqual } from './arrays.js';
 export {
   concurrentMap,
   fetchWithTimeout,
@@ -88,7 +97,7 @@ export {
   isS3CheckpointWithId,
 } from './checkpoints.js';
 export { domainHash } from './domains.js';
-export { safelyAccessEnvVar, inCIMode } from './env.js';
+export { safelyAccessEnvVar, inCIMode, inKubernetes } from './env.js';
 export { canonizeId, evmId } from './ids.js';
 export {
   LogFormat,
@@ -140,6 +149,7 @@ export {
   transformObj,
   TransformObjectTransformer,
   sortArraysInObject,
+  objDiff,
 } from './objects.js';
 export { Result, failure, success } from './result.js';
 export {
@@ -192,3 +202,6 @@ export { isHttpsUrl, isRelativeUrl, isUrl } from './url.js';
 export { assert } from './validation.js';
 export { BaseValidator, ValidatorConfig } from './validator.js';
 export { tryParseJsonOrYaml } from './yaml.js';
+export { createServiceLogger } from './logging.js';
+export { MinimumRequiredGasByAction, GasAction } from './mingas.js';
+export * as AltVM from './altvm.js';

@@ -1,18 +1,10 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-// ============ External Imports ============
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {Address} from "@openzeppelin/contracts/utils/Address.sol";
-
 // ============ Internal Imports ============
 import {AbstractPostDispatchHook} from "../libs/AbstractPostDispatchHook.sol";
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
 import {AmountPartition} from "../../token/libs/AmountPartition.sol";
-import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
-import {Message} from "../../libs/Message.sol";
-import {PackageVersioned} from "../../PackageVersioned.sol";
-import {TokenMessage} from "../../token/libs/TokenMessage.sol";
 
 /**
  * @title AmountRoutingHook
@@ -25,7 +17,7 @@ contract AmountRoutingHook is AmountPartition, AbstractPostDispatchHook {
     ) AmountPartition(_lowerHook, _upperHook, _threshold) {}
 
     function hookType() external pure override returns (uint8) {
-        return uint8(IPostDispatchHook.Types.AMOUNT_ROUTING);
+        return uint8(IPostDispatchHook.HookTypes.AMOUNT_ROUTING);
     }
 
     function _postDispatch(

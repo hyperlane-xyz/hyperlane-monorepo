@@ -1,6 +1,7 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import hre from 'hardhat';
+import sinon from 'sinon';
 import { zeroAddress } from 'viem';
 
 import {
@@ -10,32 +11,66 @@ import {
   ERC4626Test__factory,
   FiatTokenTest,
   FiatTokenTest__factory,
+  HypERC20__factory,
+  ISafe__factory,
   Mailbox,
   Mailbox__factory,
+  MockCircleMessageTransmitter,
+  MockCircleMessageTransmitter__factory,
+  MockCircleTokenMessenger,
+  MockCircleTokenMessenger__factory,
+  MockEverclearAdapter,
+  MockEverclearAdapter__factory,
+  MockWETH,
+  MockWETH__factory,
+  PackageVersioned__factory,
+  ProxyAdmin__factory,
   XERC20LockboxTest__factory,
   XERC20Test__factory,
 } from '@hyperlane-xyz/core';
+import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
+  ContractVerifier,
+  ExplorerLicenseType,
   HyperlaneContractsMap,
   RouterConfig,
   TestChainName,
+  TokenFeeType,
   WarpRouteDeployConfigMailboxRequired,
+  normalizeConfig,
+  proxyAdmin,
+  proxyImplementation,
   test3,
 } from '@hyperlane-xyz/sdk';
-import { addressToBytes32, assert } from '@hyperlane-xyz/utils';
+import { addressToBytes32, assert, randomInt } from '@hyperlane-xyz/utils';
 
 import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
+import { VerifyContractTypes } from '../deploy/verify/types.js';
+import {
+  BPS,
+  HALF_AMOUNT,
+  MAX_FEE,
+} from '../fee/EvmTokenFeeReader.hardhat-test.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap } from '../types.js';
 
-import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
-import { TokenType } from './config.js';
+import {
+  EvmERC20WarpRouteReader,
+  TOKEN_FEE_CONTRACT_VERSION,
+} from './EvmERC20WarpRouteReader.js';
+import { EverclearTokenBridgeTokenType, TokenType } from './config.js';
 import { HypERC20Deployer } from './deploy.js';
-import { derivedIsmAddress } from './types.js';
+import {
+  CctpTokenConfig,
+  ContractVerificationStatus,
+  HypTokenRouterConfig,
+  OwnerStatus,
+  derivedIsmAddress,
+} from './types.js';
 
 describe('ERC20WarpRouterReader', async () => {
   const TOKEN_NAME = 'fake';
@@ -47,8 +82,11 @@ describe('ERC20WarpRouterReader', async () => {
   let factories: HyperlaneContractsMap<ProxyFactoryFactories>;
   let erc20Factory: ERC20Test__factory;
   let token: ERC20Test;
+  let wethMockFactory: MockWETH__factory;
+  let weth: MockWETH;
   let signer: SignerWithAddress;
   let deployer: HypERC20Deployer;
+  let contractVerifier: ContractVerifier;
   let multiProvider: MultiProvider;
   let coreApp: TestCoreApp;
   let routerConfigMap: ChainMap<RouterConfig>;
@@ -57,8 +95,14 @@ describe('ERC20WarpRouterReader', async () => {
   let evmERC20WarpRouteReader: EvmERC20WarpRouteReader;
   let vault: ERC4626;
   let collateralFiatToken: FiatTokenTest;
+  let everclearBridgeAdapterMockFactory: MockEverclearAdapter__factory;
+  let everclearBridgeAdapterMock: MockEverclearAdapter;
+  let mockCircleTokenMessenger: MockCircleTokenMessenger;
+  let mockCircleMessageTransmitter: MockCircleMessageTransmitter;
+
   before(async () => {
     [signer] = await hre.ethers.getSigners();
+
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
     factories = await ismFactoryDeployer.deploy(
@@ -76,9 +120,11 @@ describe('ERC20WarpRouterReader', async () => {
       TOKEN_DECIMALS,
     );
 
+    wethMockFactory = new MockWETH__factory(signer);
+    weth = await wethMockFactory.deploy();
+
     baseConfig = routerConfigMap[chain];
     mailbox = Mailbox__factory.connect(baseConfig.mailbox, signer);
-    evmERC20WarpRouteReader = new EvmERC20WarpRouteReader(multiProvider, chain);
     deployer = new HypERC20Deployer(multiProvider);
 
     const vaultFactory = new ERC4626Test__factory(signer);
@@ -91,11 +137,37 @@ describe('ERC20WarpRouterReader', async () => {
       TOKEN_SUPPLY,
       TOKEN_DECIMALS,
     );
+
+    everclearBridgeAdapterMockFactory = new MockEverclearAdapter__factory(
+      signer,
+    );
+    everclearBridgeAdapterMock =
+      await everclearBridgeAdapterMockFactory.deploy();
+
+    mockCircleTokenMessenger = await new MockCircleTokenMessenger__factory(
+      signer,
+    ).deploy(token.address);
+    mockCircleMessageTransmitter =
+      await new MockCircleMessageTransmitter__factory(signer).deploy(
+        token.address,
+      );
   });
 
   beforeEach(async () => {
     // Reset the MultiProvider and create a new deployer for each test
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
+    contractVerifier = new ContractVerifier(
+      multiProvider,
+      {},
+      coreBuildArtifact,
+      ExplorerLicenseType.MIT,
+    );
+    evmERC20WarpRouteReader = new EvmERC20WarpRouteReader(
+      multiProvider,
+      chain,
+      1,
+      contractVerifier,
+    );
     deployer = new HypERC20Deployer(multiProvider);
   });
 
@@ -394,7 +466,7 @@ describe('ERC20WarpRouterReader', async () => {
     expect(derivedConfig.type).to.equal(config[chain].type);
     expect(derivedConfig.mailbox).to.equal(config[chain].mailbox);
     expect(derivedConfig.owner).to.equal(config[chain].owner);
-    expect(derivedConfig.token).to.equal(token.address);
+    expect(derivedConfig.token).to.equal(vault.address);
   });
 
   it('should derive rebase collateral vault config correctly', async () => {
@@ -420,7 +492,7 @@ describe('ERC20WarpRouterReader', async () => {
     expect(derivedConfig.type).to.equal(config[chain].type);
     expect(derivedConfig.mailbox).to.equal(config[chain].mailbox);
     expect(derivedConfig.owner).to.equal(config[chain].owner);
-    expect(derivedConfig.token).to.equal(token.address);
+    expect(derivedConfig.token).to.equal(vault.address);
   });
 
   // FiatTokenTest
@@ -449,6 +521,126 @@ describe('ERC20WarpRouterReader', async () => {
     expect(derivedConfig.owner).to.equal(config[chain].owner);
     expect(derivedConfig.token).to.equal(collateralFiatToken.address);
   });
+
+  const getEverclearTokenBridgeConfig = (): Record<
+    EverclearTokenBridgeTokenType,
+    HypTokenRouterConfig
+  > => {
+    return {
+      [TokenType.ethEverclear]: {
+        type: TokenType.ethEverclear,
+        wethAddress: weth.address,
+        everclearBridgeAddress: everclearBridgeAdapterMock.address,
+        everclearFeeParams: {
+          [chain]: {
+            deadline: Date.now(),
+            fee: randomInt(10000000),
+            signature: '0x',
+          },
+        },
+        outputAssets: {},
+        ...baseConfig,
+      },
+      [TokenType.collateralEverclear]: {
+        type: TokenType.collateralEverclear,
+        token: token.address,
+        everclearBridgeAddress: everclearBridgeAdapterMock.address,
+        everclearFeeParams: {
+          [chain]: {
+            deadline: Date.now(),
+            fee: randomInt(10000000),
+            signature: '0x',
+          },
+        },
+        outputAssets: {},
+        ...baseConfig,
+      },
+    };
+  };
+
+  for (const tokenType of [
+    TokenType.ethEverclear,
+    TokenType.collateralEverclear,
+  ] as EverclearTokenBridgeTokenType[]) {
+    it(`should derive ${tokenType} token correctly`, async () => {
+      // Create config
+      const config: WarpRouteDeployConfigMailboxRequired = {
+        [chain]: getEverclearTokenBridgeConfig()[tokenType],
+      };
+      // Deploy with config
+      const warpRoute = await deployer.deploy(config);
+
+      // Derive config and check if each value matches
+      const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
+        warpRoute[chain][tokenType].address,
+      );
+
+      assert(derivedConfig.type === tokenType, `Must be ${tokenType}`);
+      expect(derivedConfig.type).to.equal(config[chain].type);
+      expect(derivedConfig.mailbox).to.equal(config[chain].mailbox);
+      expect(derivedConfig.owner).to.equal(config[chain].owner);
+      expect(derivedConfig.everclearBridgeAddress).to.equal(
+        everclearBridgeAdapterMock.address,
+      );
+
+      if (derivedConfig.type === TokenType.collateralEverclear) {
+        expect(derivedConfig.token).to.equal(token.address);
+      }
+
+      if (derivedConfig.type === TokenType.ethEverclear) {
+        expect(derivedConfig.wethAddress).to.equal(weth.address);
+      }
+    });
+  }
+
+  for (const cctpVersion of ['V1' as const, 'V2' as const]) {
+    it(`should derive CCTP ${cctpVersion} token correctly`, async () => {
+      const rawVersion = cctpVersion === 'V2' ? 1 : 0;
+      await mockCircleMessageTransmitter.setVersion(rawVersion);
+      await mockCircleTokenMessenger.setVersion(rawVersion);
+
+      const tokenType = TokenType.collateralCctp;
+
+      const cctpConfig: CctpTokenConfig = {
+        type: tokenType,
+        token: token.address,
+        cctpVersion: cctpVersion,
+        messageTransmitter: mockCircleMessageTransmitter.address,
+        tokenMessenger: mockCircleTokenMessenger.address,
+        urls: ['https://fake-cctp-url.com'],
+      };
+
+      if (cctpVersion === 'V2') {
+        cctpConfig.maxFeeBps = 1;
+        cctpConfig.minFinalityThreshold = 1000;
+      }
+
+      // Create config
+      const config: WarpRouteDeployConfigMailboxRequired = {
+        [TestChainName.test4]: {
+          ...cctpConfig,
+          ...baseConfig,
+        },
+        [TestChainName.test3]: {
+          ...cctpConfig,
+          ...baseConfig,
+        },
+      };
+      // Deploy with config
+      const warpRoute = await deployer.deploy(config);
+
+      // Derive config and check if each value matches
+      const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
+        warpRoute[chain][tokenType].address,
+      );
+
+      // delete undefined member
+      delete config[TestChainName.test4].ownerOverrides;
+
+      // check that derived is a superset of specified config
+      expect(derivedConfig).to.deep.include(config[TestChainName.test4]);
+    });
+  }
 
   it('should return 0x0 if ism is not set onchain', async () => {
     // Create config
@@ -500,5 +692,237 @@ describe('ERC20WarpRouterReader', async () => {
     expect(
       derivedConfig.remoteRouters![otherChainMetadata.domainId!].address,
     ).to.be.equal(addressToBytes32(warpRoute[otherChain].collateral.address));
+  });
+
+  it('should return the contractVerificationStatus virtual config', async () => {
+    const otherChain = TestChainName.test3;
+    const config: WarpRouteDeployConfigMailboxRequired = {
+      [chain]: {
+        type: TokenType.collateral,
+        token: token.address,
+        hook: await mailbox.defaultHook(),
+        ...baseConfig,
+      },
+      [otherChain]: {
+        type: TokenType.collateral,
+        token: token.address,
+        hook: await mailbox.defaultHook(),
+        ...baseConfig,
+      },
+    };
+    // Deploy with config
+    const warpRoute = await deployer.deploy(config);
+
+    // Stub isLocalRpc to bypass local rpc check
+    const isLocalRpcStub = sinon
+      .stub(multiProvider, 'isLocalRpc')
+      .returns(false);
+
+    // Stub getContractVerificationStatus
+    const getContractVerificationStatus = sinon
+      .stub(contractVerifier, 'getContractVerificationStatus')
+      .resolves(ContractVerificationStatus.Verified);
+
+    // Derive config and check if the owner is active
+    const derivedConfig =
+      await evmERC20WarpRouteReader.deriveWarpRouteVirtualConfig(
+        chain,
+        warpRoute[chain].collateral.address,
+      );
+    expect(derivedConfig.contractVerificationStatus).to.deep.equal({
+      [VerifyContractTypes.Proxy]: ContractVerificationStatus.Verified,
+      [VerifyContractTypes.Implementation]: ContractVerificationStatus.Verified,
+      [VerifyContractTypes.ProxyAdmin]: ContractVerificationStatus.Verified,
+    });
+
+    // Restore stub
+    getContractVerificationStatus.restore();
+    isLocalRpcStub.restore();
+  });
+
+  it('should return the ownerStatus virtual config for the proxy, implementation, and proxy admin, if they are different', async () => {
+    const provider = multiProvider.getProvider(chain);
+    const otherChain = TestChainName.test3;
+    const config: WarpRouteDeployConfigMailboxRequired = {
+      [chain]: {
+        type: TokenType.collateral,
+        token: token.address,
+        hook: await mailbox.defaultHook(),
+        ...baseConfig,
+      },
+      [otherChain]: {
+        type: TokenType.collateral,
+        token: token.address,
+        hook: await mailbox.defaultHook(),
+        ...baseConfig,
+      },
+    };
+    // Deploy with config
+    const warpRoute = await deployer.deploy(config);
+
+    // Stub isLocalRpc to bypass local rpc check
+    const isLocalRpcStub = sinon
+      .stub(multiProvider, 'isLocalRpc')
+      .returns(false);
+
+    // Derive config and transfer the proxy, implementation, and proxyAdmin over
+    const warpRouteAddress = warpRoute[chain].collateral.address;
+    const proxyAdminAddress = await proxyAdmin(provider, warpRouteAddress);
+    await new ProxyAdmin__factory()
+      .connect(signer)
+      .attach(proxyAdminAddress)
+      .transferOwnership(warpRouteAddress);
+    const implementation = await proxyImplementation(
+      provider,
+      warpRouteAddress,
+    );
+    await new HypERC20__factory()
+      .connect(signer)
+      .attach(implementation)
+      .transferOwnership(mailbox.address);
+
+    const derivedConfig =
+      await evmERC20WarpRouteReader.deriveWarpRouteVirtualConfig(
+        chain,
+        warpRouteAddress,
+      );
+
+    expect(derivedConfig.ownerStatus).to.deep.equal({
+      [signer.address]: OwnerStatus.Active,
+      [warpRouteAddress]: OwnerStatus.Active,
+      [mailbox.address]: OwnerStatus.Active,
+    });
+
+    // Restore stub
+    isLocalRpcStub.restore();
+  });
+
+  it('should return a Gnosis Safe ownerStatus', async () => {
+    const config: WarpRouteDeployConfigMailboxRequired = {
+      [chain]: {
+        type: TokenType.collateral,
+        token: token.address,
+        hook: await mailbox.defaultHook(),
+        ...baseConfig,
+      },
+    };
+    // Deploy with config
+    const warpRoute = await deployer.deploy(config);
+    const warpRouteAddress = warpRoute[chain].collateral.address;
+
+    // Stub isLocalRpc to bypass local rpc check
+    const isLocalRpcStub = sinon
+      .stub(multiProvider, 'isLocalRpc')
+      .returns(false);
+
+    const mockOwnerManager = {
+      getThreshold: sinon.stub().resolves(randomInt(1e4)),
+      nonce: sinon.stub().resolves(randomInt(1e4)),
+    };
+    const connectStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .returns(mockOwnerManager as any);
+
+    // Derive config and check if the owner is active
+    const derivedConfig =
+      await evmERC20WarpRouteReader.deriveWarpRouteVirtualConfig(
+        chain,
+        warpRouteAddress,
+      );
+
+    expect(derivedConfig.ownerStatus).to.deep.equal({
+      [signer.address]: OwnerStatus.GnosisSafe,
+    });
+
+    // Restore stub
+    connectStub.restore();
+    isLocalRpcStub.restore();
+  });
+
+  it('should derive token fee config correctly', async () => {
+    const config: WarpRouteDeployConfigMailboxRequired = {
+      [chain]: {
+        ...baseConfig,
+        type: TokenType.collateral,
+        token: token.address,
+        hook: await mailbox.defaultHook(),
+        tokenFee: {
+          type: TokenFeeType.LinearFee,
+          owner: mailbox.address,
+          token: token.address,
+          bps: BPS,
+        },
+      },
+    };
+    // Deploy with config
+    const warpRoute = await deployer.deploy(config);
+    // Derive config and check if each value matches
+    const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
+      warpRoute[chain].collateral.address,
+    );
+
+    expect(normalizeConfig(derivedConfig.tokenFee)).to.deep.equal(
+      normalizeConfig({
+        ...config[chain].tokenFee,
+        maxFee: MAX_FEE,
+        halfAmount: HALF_AMOUNT,
+      }),
+    );
+  });
+
+  it('should return undefined fee token config if it is not set onchain', async () => {
+    const config: WarpRouteDeployConfigMailboxRequired = {
+      [chain]: {
+        ...baseConfig,
+        type: TokenType.collateral,
+        token: token.address,
+        hook: await mailbox.defaultHook(),
+      },
+    };
+    // Deploy with config
+    const warpRoute = await deployer.deploy(config);
+    // Derive config and check if each value matches
+    const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
+      warpRoute[chain].collateral.address,
+    );
+    expect(derivedConfig.tokenFee).to.be.undefined;
+  });
+
+  it(`should return undefined fee token config if the package version is below ${TOKEN_FEE_CONTRACT_VERSION}`, async () => {
+    const config: WarpRouteDeployConfigMailboxRequired = {
+      [chain]: {
+        ...baseConfig,
+        type: TokenType.collateral,
+        token: token.address,
+        hook: await mailbox.defaultHook(),
+        tokenFee: {
+          type: TokenFeeType.LinearFee,
+          owner: mailbox.address,
+          token: token.address,
+          bps: BPS,
+        },
+      },
+    };
+
+    // Deploy with config
+    const warpRoute = await deployer.deploy(config);
+
+    const mockPackageVersioned = {
+      PACKAGE_VERSION: sinon.stub().resolves('8.0.1'),
+    };
+    const fetchPackageVersionStub = sinon
+      .stub(PackageVersioned__factory, 'connect')
+      .returns(mockPackageVersioned as any);
+
+    // Derive config and check if each value matches
+    const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
+      warpRoute[chain].collateral.address,
+    );
+
+    // Even though we deployed a token fee, it should be undefined because the package version is below the required version.
+    // This should never happen, but serves as a clear test
+    expect(derivedConfig.tokenFee).to.be.undefined;
+
+    fetchPackageVersionStub.restore();
   });
 });

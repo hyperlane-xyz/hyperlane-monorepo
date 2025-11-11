@@ -2,6 +2,8 @@
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
+#![deny(clippy::unwrap_used)]
+#![deny(clippy::arithmetic_side_effects)]
 
 use eyre::Result;
 
@@ -9,13 +11,11 @@ use hyperlane_base::agent_main;
 
 use crate::validator::Validator;
 
+mod reorg_reporter;
 mod server;
 mod settings;
 mod submit;
 mod validator;
-
-#[cfg(test)]
-mod test_utils;
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<()> {
@@ -24,3 +24,6 @@ async fn main() -> Result<()> {
 
     agent_main::<Validator>().await
 }
+
+#[cfg(test)]
+mod test_utils;

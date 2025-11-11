@@ -16,8 +16,6 @@ pragma solidity >=0.8.0;
 // ============ Internal Imports ============
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
 import {AbstractPostDispatchHook} from "./AbstractPostDispatchHook.sol";
-import {AbstractMessageIdAuthorizedIsm} from "../../isms/hook/AbstractMessageIdAuthorizedIsm.sol";
-import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {Message} from "../../libs/Message.sol";
 import {StandardHookMetadata} from "./StandardHookMetadata.sol";
 import {MailboxClient} from "../../client/MailboxClient.sol";
@@ -37,7 +35,6 @@ abstract contract AbstractMessageIdAuthHook is
     using Address for address payable;
     using StandardHookMetadata for bytes;
     using Message for bytes;
-    using TypeCasts for bytes32;
 
     // ============ Constants ============
 
@@ -64,12 +61,13 @@ abstract contract AbstractMessageIdAuthHook is
 
     /// @inheritdoc IPostDispatchHook
     function hookType() external pure virtual returns (uint8) {
-        return uint8(IPostDispatchHook.Types.ID_AUTH_ISM);
+        return uint8(IPostDispatchHook.HookTypes.ID_AUTH_ISM);
     }
 
     // ============ Internal functions ============
 
     /// @inheritdoc AbstractPostDispatchHook
+    // solhint-disable-next-line hyperlane/no-virtual-override
     function _postDispatch(
         bytes calldata metadata,
         bytes calldata message

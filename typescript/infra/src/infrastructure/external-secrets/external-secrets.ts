@@ -1,3 +1,5 @@
+import { confirm } from '@inquirer/prompts';
+
 import { sleep } from '@hyperlane-xyz/utils';
 
 import { InfrastructureConfig } from '../../config/infrastructure.js';
@@ -104,23 +106,34 @@ async function ensureExternalSecretsRelease(infraConfig: InfrastructureConfig) {
   // Prometheus's helm chart requires a repository to be added
   await addHelmRepoIfRequired(infraConfig.externalSecrets.helmChart);
 
-  // Only install the release if it doesn't already exist. We've observed
-  // some issues attempting an upgrade when the external-secrets release
-  // already exists. Doing so could result in the CRD being deleted and
-  // recreated, which would cause all existing external-secrets CRDs to be
-  // deleted!
-  if (!(await isExternalSecretsReleaseInstalled(infraConfig))) {
-    // The name passed in must be in the form `repo/chartName`
-    const chartName = getDeployableHelmChartName(
-      infraConfig.externalSecrets.helmChart,
-    );
+  // The name passed in must be in the form `repo/chartName`
+  const chartName = getDeployableHelmChartName(
+    infraConfig.externalSecrets.helmChart,
+  );
 
-    await execCmd(
-      `helm upgrade external-secrets ${chartName} --namespace ${infraConfig.externalSecrets.namespace} --create-namespace --version ${infraConfig.externalSecrets.helmChart.version} --install --set installCRDs=true `,
+  // Only install CRDs if the release doesn't already exist. We've observed
+  // issues installing the CRDs when they already exist - doing so could result
+  // in the CRD being deleted and recreated, which would cause all existing external-secrets
+  // CRD resources to be deleted!
+  let installCrds = false;
+  if (!(await isExternalSecretsReleaseInstalled(infraConfig))) {
+    const shouldProceed = await confirm({
+      message:
+        '⚠️ WARNING ⚠️\nThe external-secrets CRDs are not installed. This will install them, which may delete and recreate existing external-secrets CRDs. Do not do this unless this is a fresh cluster or you are sure you want to do this.\nContinue?',
+    });
+
+    if (!shouldProceed) {
+      throw new Error('User cancelled external-secrets CRD installation');
+    }
+    console.log(
+      'Installing external-secrets release with CRDs, as it is not already installed.',
     );
-  } else {
-    console.log('External-secrets release already installed.');
+    installCrds = true;
   }
+
+  await execCmd(
+    `helm upgrade external-secrets ${chartName} --namespace ${infraConfig.externalSecrets.namespace} --create-namespace --version ${infraConfig.externalSecrets.helmChart.version} --install --set concurrent=10 ${installCrds ? '--set installCRDs=true' : ''}`,
+  );
 
   // Wait for the external-secrets-webhook deployment to have a ready replica.
   // The webhook deployment is required in order for subsequent deployments

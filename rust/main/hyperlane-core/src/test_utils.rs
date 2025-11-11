@@ -21,10 +21,11 @@ pub struct MerkleTestCase {
 
 /// Reads merkle test case json file and returns a vector of `MerkleTestCase`s
 pub fn load_merkle_test_json() -> Vec<MerkleTestCase> {
-    let mut file = File::open(find_vector("merkle.json")).unwrap();
+    let mut file = File::open(find_vector("merkle.json")).expect("merkle.json missing");
     let mut data = String::new();
-    file.read_to_string(&mut data).unwrap();
-    serde_json::from_str(&data).unwrap()
+    file.read_to_string(&mut data)
+        .expect("Failed to read merkle.json");
+    serde_json::from_str(&data).expect("Failed to parse merkle.json")
 }
 
 /// Find a vector file assuming that a git checkout exists

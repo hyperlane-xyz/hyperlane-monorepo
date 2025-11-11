@@ -34,7 +34,7 @@ export const proxyFactoryImplementations: ProxyFactoryImplementations = {
   staticMessageIdMultisigIsmFactory: 'StaticMessageIdMultisigIsm',
   staticAggregationIsmFactory: 'StaticAggregationIsm',
   staticAggregationHookFactory: 'StaticAggregationHook',
-  domainRoutingIsmFactory: 'DomaingRoutingIsm',
+  domainRoutingIsmFactory: 'DomainRoutingIsm',
   staticMerkleRootWeightedMultisigIsmFactory:
     'StaticMerkleRootWeightedMultisigIsm',
   staticMessageIdWeightedMultisigIsmFactory:

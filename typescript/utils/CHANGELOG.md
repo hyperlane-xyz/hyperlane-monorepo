@@ -1,5 +1,146 @@
 # @hyperlane-xyz/utils
 
+## 19.7.0
+
+## 19.6.0
+
+### Minor Changes
+
+- 419e16910: add the objDiff function to determine the field with primitive values that are different or not present when comparing 2 objects of the same type
+
+## 19.6.0-beta.0
+
+### Minor Changes
+
+- 419e16910: add the objDiff function to determine the field with primitive values that are different or not present when comparing 2 objects of the same type
+
+## 19.5.0
+
+### Minor Changes
+
+- 312826d10: Updated the AltVM provider connect interface so that it can optionally accept extra params needed for instantiating the provider
+
+## 19.4.0
+
+### Patch Changes
+
+- 5a4e22d34: Bump @solana/web3.js dependency explicitly from ^1.95.4 to ^1.98.4.
+
+## 19.3.0
+
+## 19.2.0
+
+## 19.1.1
+
+## 19.1.0
+
+## 19.0.0
+
+### Major Changes
+
+- 32479e139: feat: add AltVM interface
+
+### Minor Changes
+
+- 8eab305bd: chore: add transactionToPrintableJson to altvm interface
+- e42a0e8e1: chore: updated AltVM interface
+
+## 18.3.0
+
+### Minor Changes
+
+- 2c47e1143: Update `pick` method to correctly represent the type of the returned object
+- 6b8419370: export radix ism module
+
+### Patch Changes
+
+- c41bc3b93: fix cosmos native bytes to address
+
+## 18.2.0
+
+## 18.1.0
+
+## 18.0.0
+
+### Minor Changes
+
+- cfc0eb2a7: Add radix explorer type
+
+## 17.0.0
+
+### Major Changes
+
+- 8c15edc67: Added Radix Protocol Type
+
+### Patch Changes
+
+- e0bda316a: Ignore dynamic import in webpack builds
+
+## 16.2.0
+
+## 16.1.1
+
+## 16.1.0
+
+## 16.0.0
+
+## 15.0.0
+
+### Minor Changes
+
+- 451f3f6c3: Support pino-pretty in development
+- a33c8abd4: Implement `convertToScaledAmount` for amounts that need scaling
+
+## 14.4.0
+
+## 14.3.0
+
+## 14.2.0
+
+## 14.1.0
+
+## 14.0.0
+
+### Patch Changes
+
+- 7ad8e394c: fix starknet token adapter
+
+## 13.4.0
+
+### Minor Changes
+
+- 0ec92f775: Update starknet dependency from v6 to v7.
+- ec8d196d9: Fix CosmosNative address parsing
+- bacf16a80: Export yaml eslint config
+
+## 13.3.0
+
+## 13.2.1
+
+### Patch Changes
+
+- 72887f7: Update to ethers v5.8.0.
+
+## 13.2.0
+
+## 13.1.1
+
+### Patch Changes
+
+- ba4deea: Revert workspace dependency syntax.
+
+## 13.1.0
+
+### Minor Changes
+
+- f41f766: Add sort-yaml-arrays eslint rule
+
+## 13.0.0
+
+### Minor Changes
+
+- 0de63e0: Add Starknet address and tx utils
+
 ## 12.6.0
 
 ### Minor Changes

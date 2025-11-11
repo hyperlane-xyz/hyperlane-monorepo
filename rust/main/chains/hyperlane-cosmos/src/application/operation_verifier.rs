@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use derive_new::new;
 use tracing::trace;
 
-use hyperlane_core::{Decode, HyperlaneMessage, HyperlaneProvider, U256};
+use hyperlane_core::{Decode, HyperlaneMessage, U256};
 use hyperlane_operation_verifier::{
     ApplicationOperationVerifier, ApplicationOperationVerifierReport,
 };

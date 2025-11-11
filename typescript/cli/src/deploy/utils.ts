@@ -1,15 +1,20 @@
 import { confirm } from '@inquirer/prompts';
 import { BigNumber, ethers } from 'ethers';
+import path from 'path';
 
+import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
   ChainMetadata,
   ChainName,
+  CoreConfig,
   IsmConfig,
+  IsmType,
   MultisigConfig,
-  getLocalProvider,
+  WarpRouteDeployConfig,
+  isIsmCompatible,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType } from '@hyperlane-xyz/utils';
+import { Address, GasAction, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { parseIsmConfig } from '../config/ism.js';
 import { CommandContext, WriteCommandContext } from '../context/types.js';
@@ -22,10 +27,6 @@ import {
   logTable,
 } from '../logger.js';
 import { nativeBalancesAreSufficient } from '../utils/balances.js';
-import { ENV } from '../utils/env.js';
-import { assertSigner } from '../utils/keys.js';
-
-import { completeDryRun } from './dry-run.js';
 
 export async function runPreflightChecksForChains({
   context,
@@ -35,28 +36,35 @@ export async function runPreflightChecksForChains({
 }: {
   context: WriteCommandContext;
   chains: ChainName[];
-  minGas: string;
+  minGas: GasAction;
   // Chains for which to assert a native balance
   // Defaults to all chains if not specified
   chainsToGasCheck?: ChainName[];
 }) {
   log('Running pre-flight checks for chains...');
-  const { multiProvider, skipConfirmation } = context;
+  const { multiProvider, skipConfirmation, altVmSigner } = context;
 
   if (!chains?.length) throw new Error('Empty chain selection');
   for (const chain of chains) {
     const metadata = multiProvider.tryGetChainMetadata(chain);
     if (!metadata) throw new Error(`No chain config found for ${chain}`);
-    if (metadata.protocol !== ProtocolType.Ethereum)
-      throw new Error('Only Ethereum chains are supported for now');
-    const signer = multiProvider.getSigner(chain);
-    assertSigner(signer);
+
+    const signer =
+      metadata.protocol === ProtocolType.Ethereum
+        ? multiProvider.getSigner(chain)
+        : altVmSigner.get(chain);
+
+    if (!signer) {
+      throw new Error('signer is invalid');
+    }
+
     logGreen(`✅ ${metadata.displayName ?? chain} signer is valid`);
   }
   logGreen('✅ Chains are valid');
 
   await nativeBalancesAreSufficient(
     multiProvider,
+    altVmSigner,
     chainsToGasCheck ?? chains,
     minGas,
     skipConfirmation,
@@ -74,9 +82,20 @@ export async function runDeployPlanStep({
     chainMetadata: chainMetadataMap,
     multiProvider,
     skipConfirmation,
+    altVmSigner,
   } = context;
 
-  const address = await multiProvider.getSigner(chain).getAddress();
+  let address: Address;
+
+  switch (context.multiProvider.getProtocol(chain)) {
+    case ProtocolType.Ethereum: {
+      address = await multiProvider.getSigner(chain).getAddress();
+      break;
+    }
+    default: {
+      address = altVmSigner.get(chain).getSignerAddress();
+    }
+  }
 
   logBlue('\nDeployment plan');
   logGray('===============');
@@ -127,25 +146,40 @@ export function isZODISMConfig(filepath: string): boolean {
   return parseIsmConfig(filepath).success;
 }
 
-export async function prepareDeploy(
+export async function getBalances(
   context: WriteCommandContext,
-  userAddress: Address | null,
   chains: ChainName[],
+  userAddress?: Address,
 ): Promise<Record<string, BigNumber>> {
-  const { multiProvider, isDryRun } = context;
-  const initialBalances: Record<string, BigNumber> = {};
-  await Promise.all(
-    chains.map(async (chain: ChainName) => {
-      const provider = isDryRun
-        ? getLocalProvider(ENV.ANVIL_IP_ADDR, ENV.ANVIL_PORT)
-        : multiProvider.getProvider(chain);
+  const { multiProvider, altVmSigner } = context;
+  const balances: Record<string, BigNumber> = {};
+
+  for (const chain of chains) {
+    const { nativeToken, protocol } = multiProvider.getChainMetadata(chain);
+
+    if (protocol === ProtocolType.Ethereum) {
       const address =
-        userAddress ?? (await multiProvider.getSigner(chain).getAddress());
-      const currentBalance = await provider.getBalance(address);
-      initialBalances[chain] = currentBalance;
-    }),
-  );
-  return initialBalances;
+        userAddress ?? (await multiProvider.getSignerAddress(chain));
+      const provider = await multiProvider.getProvider(chain);
+      balances[chain] = await provider.getBalance(address);
+    } else {
+      assert(
+        nativeToken?.denom,
+        `nativeToken.denom is required for ${chain} (AltVM)`,
+      );
+
+      const signer = altVmSigner.get(chain);
+      const address = userAddress ?? signer.getSignerAddress();
+      balances[chain] = BigNumber.from(
+        await signer.getBalance({
+          address,
+          denom: nativeToken?.denom ?? '',
+        }),
+      );
+    }
+  }
+
+  return balances;
 }
 
 export async function completeDeploy(
@@ -155,27 +189,20 @@ export async function completeDeploy(
   userAddress: Address | null,
   chains: ChainName[],
 ) {
-  const { multiProvider, isDryRun } = context;
+  const { multiProvider } = context;
+
   if (chains.length > 0) logPink(`⛽️ Gas Usage Statistics`);
   for (const chain of chains) {
-    const provider = isDryRun
-      ? getLocalProvider(ENV.ANVIL_IP_ADDR, ENV.ANVIL_PORT)
-      : multiProvider.getProvider(chain);
-    const address =
-      userAddress ?? (await multiProvider.getSigner(chain).getAddress());
-    const currentBalance = await provider.getBalance(address);
-    const balanceDelta = initialBalances[chain].sub(currentBalance);
-    if (isDryRun && balanceDelta.lt(0)) break;
+    const { nativeToken } = multiProvider.getChainMetadata(chain);
+    const currentBalances = await getBalances(context, [chain]);
+    const balanceDelta = initialBalances[chain].sub(currentBalances[chain]);
+
     logPink(
-      `\t- Gas required for ${command} ${
-        isDryRun ? 'dry-run' : 'deploy'
-      } on ${chain}: ${ethers.utils.formatEther(balanceDelta)} ${
-        multiProvider.getChainMetadata(chain).nativeToken?.symbol ?? 'ETH'
+      `\t- Gas required for ${command} deploy on ${chain}: ${ethers.utils.formatEther(balanceDelta)} ${
+        nativeToken?.symbol ?? 'UNKNOWN SYMBOL'
       }`,
     );
   }
-
-  if (isDryRun) await completeDryRun(command);
 }
 
 function transformChainMetadataForDisplay(chainMetadata: ChainMetadata) {
@@ -190,4 +217,79 @@ function transformChainMetadataForDisplay(chainMetadata: ChainMetadata) {
     'Native Token: Name': chainMetadata.nativeToken?.name,
     'Native Token: Decimals': chainMetadata.nativeToken?.decimals,
   };
+}
+
+function validateIsmCompatibility({
+  chain,
+  ismType,
+  context,
+}: {
+  chain: ChainName;
+  ismType?: IsmType;
+  context: WriteCommandContext;
+}) {
+  const { technicalStack: chainTechnicalStack } =
+    context.multiProvider.getChainMetadata(chain);
+
+  if (ismType) {
+    assert(
+      isIsmCompatible({
+        ismType,
+        chainTechnicalStack,
+      }),
+      `Selected ISM of type ${ismType} is not compatible with the selected Chain Technical Stack of ${chainTechnicalStack} for chain ${chain}!`,
+    );
+  }
+}
+
+/**
+ * Validates that the ISM configuration is compatible with the chain's technical stack.
+ * Throws an error if an incompatible ISM type is configured.
+ */
+export function validateCoreIsmCompatibility(
+  chain: ChainName,
+  config: CoreConfig,
+  context: WriteCommandContext,
+) {
+  if (typeof config.defaultIsm !== 'string') {
+    validateIsmCompatibility({
+      chain,
+      ismType: config.defaultIsm?.type,
+      context,
+    });
+  }
+}
+
+/**
+ * Validates that the ISM configurations are compatible with each chain's technical stack.
+ * Throws an error if an incompatible ISM type is configured for a chain.
+ */
+export function validateWarpIsmCompatibility(
+  warpRouteConfig: WarpRouteDeployConfig,
+  context: WriteCommandContext,
+) {
+  for (const chain of Object.keys(warpRouteConfig)) {
+    const config = warpRouteConfig[chain];
+
+    if (
+      config.interchainSecurityModule &&
+      typeof config.interchainSecurityModule !== 'string'
+    ) {
+      validateIsmCompatibility({
+        chain,
+        ismType: config.interchainSecurityModule.type,
+        context,
+      });
+    }
+  }
+}
+
+export function warpRouteIdFromFileName(
+  filePath: string,
+  symbol: string,
+): string {
+  // Remove the -deploy suffix from the file name in case the input file has it to avoid
+  // having file names like this one: *-deploy-config.yaml
+  const fileName = path.parse(filePath).name.replace(/-deploy$/, '');
+  return createWarpRouteConfigId(symbol, fileName);
 }

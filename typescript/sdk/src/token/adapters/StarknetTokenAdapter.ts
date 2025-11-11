@@ -1,12 +1,22 @@
 import { BigNumber } from 'ethers';
-import { CairoOption, CairoOptionVariant, Call, Contract, num } from 'starknet';
+import {
+  CairoOption,
+  CairoOptionVariant,
+  Call,
+  Contract,
+  cairo,
+  num,
+  shortString,
+} from 'starknet';
 
 import {
   Address,
   Domain,
   Numberish,
   ProtocolType,
+  addressToBytes32,
   assert,
+  ensure0x,
 } from '@hyperlane-xyz/utils';
 
 import { BaseStarknetAdapter } from '../../app/MultiProtocolApp.js';
@@ -22,14 +32,125 @@ import { TokenMetadata } from '../types.js';
 
 import {
   IHypTokenAdapter,
+  ITokenAdapter,
   InterchainGasQuote,
+  QuoteTransferRemoteParams,
   TransferParams,
   TransferRemoteParams,
 } from './ITokenAdapter.js';
 
-export class StarknetHypSyntheticAdapter
+const stringFromDecimalNumber = (num: bigint | number) =>
+  shortString.decodeShortString(ensure0x(num.toString(16)));
+
+export class StarknetTokenAdapter
   extends BaseStarknetAdapter
-  implements IHypTokenAdapter<Call>
+  implements ITokenAdapter<Call>
+{
+  private tokenContract?: Contract;
+
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: { tokenAddress: Address },
+  ) {
+    super(chainName, multiProvider, addresses);
+  }
+
+  async getContractInstance(): Promise<Contract> {
+    if (this.tokenContract) {
+      return this.tokenContract;
+    }
+
+    const provider = this.getProvider();
+    const { abi } = await provider.getClassAt(this.addresses.tokenAddress);
+    const contractInstance = new Contract(
+      abi,
+      this.addresses.tokenAddress,
+      provider,
+    );
+
+    this.tokenContract = contractInstance;
+    return contractInstance;
+  }
+
+  async getBalance(address: Address): Promise<bigint> {
+    const contract = await this.getContractInstance();
+
+    return contract.balance_of(address);
+  }
+
+  async getMetadata(_isNft?: boolean): Promise<TokenMetadata> {
+    const contract = await this.getContractInstance();
+
+    const [decimals, symbol, name] = await Promise.all([
+      contract.decimals(),
+      contract.symbol(),
+      contract.name(),
+    ]);
+
+    return {
+      // Decimals get returned as bigint
+      decimals: Number(decimals.toString()),
+      // strings might be returned as bigint/numbers depending on the ABI
+      // and cairo version of the contract
+      symbol:
+        typeof symbol === 'string' ? symbol : stringFromDecimalNumber(symbol),
+      name: typeof name === 'string' ? name : stringFromDecimalNumber(name),
+    };
+  }
+
+  async getMinimumTransferAmount(_recipient: Address): Promise<bigint> {
+    return 0n;
+  }
+
+  async isApproveRequired(
+    owner: Address,
+    spender: Address,
+    weiAmountOrId: Numberish,
+  ): Promise<boolean> {
+    const contract = await this.getContractInstance();
+
+    const allowance = await contract.allowance(owner, spender);
+    return BigNumber.from(allowance.toString()).lt(
+      BigNumber.from(weiAmountOrId),
+    );
+  }
+
+  async isRevokeApprovalRequired(
+    _owner: Address,
+    _spender: Address,
+  ): Promise<boolean> {
+    return false;
+  }
+
+  async populateApproveTx({
+    weiAmountOrId,
+    recipient,
+  }: TransferParams): Promise<Call> {
+    const contract = await this.getContractInstance();
+
+    return contract.populateTransaction.approve(recipient, weiAmountOrId);
+  }
+
+  async populateTransferTx({
+    weiAmountOrId,
+    recipient,
+  }: TransferParams): Promise<Call> {
+    const contract = await this.getContractInstance();
+
+    return contract.populateTransaction.transfer(recipient, weiAmountOrId);
+  }
+
+  async getTotalSupply(): Promise<bigint | undefined> {
+    const contract = await this.getContractInstance();
+
+    return contract.total_supply();
+  }
+}
+
+class BaseStarknetHypTokenAdapter
+  extends BaseStarknetAdapter
+  implements ITokenAdapter<Call>
 {
   public readonly contract: Contract;
 
@@ -46,7 +167,7 @@ export class StarknetHypSyntheticAdapter
   }
 
   async getBalance(address: Address): Promise<bigint> {
-    return this.contract.balanceOf(address);
+    return this.contract.balance_of(address);
   }
 
   async getMetadata(_isNft?: boolean): Promise<TokenMetadata> {
@@ -56,6 +177,10 @@ export class StarknetHypSyntheticAdapter
       this.contract.name(),
     ]);
     return { decimals, symbol, name };
+  }
+
+  async getMinimumTransferAmount(_recipient: Address): Promise<bigint> {
+    return 0n;
   }
 
   async isApproveRequired(
@@ -91,41 +216,34 @@ export class StarknetHypSyntheticAdapter
   }
 
   async getTotalSupply(): Promise<bigint | undefined> {
-    return undefined;
+    return this.contract.total_supply();
+  }
+}
+
+export class StarknetHypSyntheticAdapter
+  extends BaseStarknetHypTokenAdapter
+  implements IHypTokenAdapter<Call>
+{
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: { warpRouter: Address },
+  ) {
+    super(chainName, multiProvider, addresses);
+  }
+  async isApproveRequired(
+    _owner: Address,
+    _spender: Address,
+    _weiAmountOrId: Numberish,
+  ): Promise<boolean> {
+    return false;
   }
 
-  async quoteTransferRemoteGas(
-    _destination: Domain,
-  ): Promise<InterchainGasQuote> {
-    return { amount: 0n };
-  }
-
-  async populateTransferRemoteTx({
-    weiAmountOrId,
-    destination,
-    recipient,
-    interchainGas,
-  }: TransferRemoteParams): Promise<Call> {
-    const nonOption = new CairoOption(CairoOptionVariant.None);
-    const transferTx = this.contract.populateTransaction.transfer_remote(
-      destination,
-      recipient,
-      BigInt(weiAmountOrId.toString()),
-      0n,
-      nonOption,
-      nonOption,
-    );
-
-    return {
-      ...transferTx,
-      value: interchainGas?.amount
-        ? BigNumber.from(interchainGas.amount)
-        : BigNumber.from(0),
-    };
-  }
-
-  async getMinimumTransferAmount(_recipient: Address): Promise<bigint> {
-    return 0n;
+  async isRevokeApprovalRequired(
+    _owner: Address,
+    _spender: Address,
+  ): Promise<boolean> {
+    return false;
   }
 
   async getDomains(): Promise<Domain[]> {
@@ -146,7 +264,33 @@ export class StarknetHypSyntheticAdapter
   }
 
   async getBridgedSupply(): Promise<bigint | undefined> {
-    return undefined;
+    return this.getTotalSupply();
+  }
+
+  async quoteTransferRemoteGas({
+    destination,
+  }: QuoteTransferRemoteParams): Promise<InterchainGasQuote> {
+    const gasPayment = await this.contract.quote_gas_payment(destination);
+    return { igpQuote: { amount: BigInt(gasPayment.toString()) } };
+  }
+
+  async populateTransferRemoteTx({
+    weiAmountOrId,
+    destination,
+    recipient,
+    interchainGas,
+  }: TransferRemoteParams): Promise<Call> {
+    const nonOption = new CairoOption(CairoOptionVariant.None);
+    const { igpQuote } =
+      interchainGas || (await this.quoteTransferRemoteGas({ destination }));
+    return this.contract.populateTransaction.transfer_remote(
+      destination,
+      cairo.uint256(addressToBytes32(recipient)),
+      cairo.uint256(BigInt(weiAmountOrId.toString())),
+      cairo.uint256(BigInt(igpQuote.amount)),
+      nonOption,
+      nonOption,
+    );
   }
 }
 
@@ -179,11 +323,6 @@ export class StarknetHypCollateralAdapter extends StarknetHypSyntheticAdapter {
     return new StarknetHypSyntheticAdapter(this.chainName, this.multiProvider, {
       warpRouter: await this.getWrappedTokenAddress(),
     });
-  }
-
-  async getBalance(address: Address): Promise<bigint> {
-    const adapter = await this.getWrappedTokenAdapter();
-    return adapter.getBalance(address);
   }
 
   override getBridgedSupply(): Promise<bigint | undefined> {
@@ -273,21 +412,84 @@ export class StarknetHypNativeAdapter extends StarknetHypSyntheticAdapter {
     interchainGas,
   }: TransferRemoteParams): Promise<Call> {
     const nonOption = new CairoOption(CairoOptionVariant.None);
-    const transferTx =
-      this.collateralContract.populateTransaction.transfer_remote(
-        destination,
-        recipient,
-        BigInt(weiAmountOrId.toString()),
-        BigInt(weiAmountOrId.toString()),
-        nonOption,
-        nonOption,
-      );
+    const amount = BigInt(weiAmountOrId.toString());
+    const gasAmount = BigInt(interchainGas?.igpQuote.amount.toString() ?? '0');
+    const totalAmount = amount + gasAmount;
+    return this.collateralContract.populateTransaction.transfer_remote(
+      destination,
+      cairo.uint256(addressToBytes32(recipient)),
+      cairo.uint256(amount),
+      cairo.uint256(totalAmount),
+      nonOption,
+      nonOption,
+    );
+  }
+}
 
-    return {
-      ...transferTx,
-      value: interchainGas?.amount
-        ? BigNumber.from(interchainGas.amount)
-        : BigNumber.from(0),
-    };
+export class StarknetHypFeeAdapter extends StarknetHypSyntheticAdapter {
+  public readonly collateralContract: Contract;
+  public readonly feeTokenContract: Contract;
+
+  constructor(
+    chainName: ChainName,
+    multiProvider: MultiProtocolProvider,
+    addresses: { warpRouter: Address },
+  ) {
+    super(chainName, multiProvider, addresses);
+
+    this.collateralContract = getStarknetHypERC20CollateralContract(
+      addresses.warpRouter,
+      multiProvider.getStarknetProvider(chainName),
+    );
+
+    this.feeTokenContract = getStarknetEtherContract(
+      addresses.warpRouter,
+      multiProvider.getStarknetProvider(chainName),
+    );
+  }
+
+  async getBalance(address: Address): Promise<bigint> {
+    return this.feeTokenContract.balanceOf(address);
+  }
+
+  async isApproveRequired(
+    owner: Address,
+    spender: Address,
+    weiAmountOrId: Numberish,
+  ): Promise<boolean> {
+    const allowance = await this.feeTokenContract.allowance(owner, spender);
+    return BigNumber.from(allowance.toString()).lt(
+      BigNumber.from(weiAmountOrId),
+    );
+  }
+
+  async populateApproveTx({
+    weiAmountOrId,
+    recipient,
+  }: TransferParams): Promise<Call> {
+    return this.feeTokenContract.populateTransaction.approve(
+      recipient,
+      weiAmountOrId,
+    );
+  }
+
+  async populateTransferRemoteTx({
+    weiAmountOrId,
+    destination,
+    recipient,
+    interchainGas,
+  }: TransferRemoteParams): Promise<Call> {
+    const nonOption = new CairoOption(CairoOptionVariant.None);
+    const amount = BigInt(weiAmountOrId.toString());
+    const gasAmount = BigInt(interchainGas?.igpQuote.amount.toString() ?? '0');
+    const totalAmount = amount + gasAmount;
+    return this.collateralContract.populateTransaction.transfer_remote(
+      destination,
+      cairo.uint256(addressToBytes32(recipient)),
+      cairo.uint256(amount),
+      cairo.uint256(totalAmount),
+      nonOption,
+      nonOption,
+    );
   }
 }

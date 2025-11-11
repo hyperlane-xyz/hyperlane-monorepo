@@ -17,6 +17,7 @@ const LATEST_INDEX_KEY: &str = "gcsLatestIndexKey";
 const METADATA_KEY: &str = "gcsMetadataKey";
 const ANNOUNCEMENT_KEY: &str = "gcsAnnouncementKey";
 const REORG_FLAG_KEY: &str = "gcsReorgFlagKey";
+const REORG_RPC_RESPONSES_KEY: &str = "gcsReorgRpcResponsesKey";
 
 /// Path to GCS users_secret file
 pub const GCS_USER_SECRET: &str = "GCS_USER_SECRET";
@@ -129,7 +130,7 @@ impl GcsStorageClient {
 
     fn object_path(&self, object_name: &str) -> String {
         if let Some(folder) = &self.folder {
-            format!("{}/{}", folder, object_name)
+            format!("{folder}/{object_name}")
         } else {
             object_name.to_string()
         }
@@ -270,6 +271,12 @@ impl CheckpointSyncer for GcsStorageClient {
         let object_name = REORG_FLAG_KEY;
         let data = serde_json::to_string_pretty(reorg_event)?.into_bytes();
         self.upload_and_log(object_name, data).await
+    }
+
+    #[instrument(skip(self, log))]
+    async fn write_reorg_rpc_responses(&self, log: String) -> Result<()> {
+        let object_name = REORG_RPC_RESPONSES_KEY;
+        self.upload_and_log(object_name, log.into_bytes()).await
     }
 
     /// Read the reorg status from this syncer

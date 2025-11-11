@@ -1,17 +1,19 @@
 use std::collections::{HashMap, HashSet};
 use std::{fs::File, path::Path};
 
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use solana_program::pubkey::Pubkey;
+use solana_sdk::instruction::Instruction;
 
+use crate::registry::FileSystemRegistry;
 use crate::{
     artifacts::{write_json, SingularProgramIdArtifact},
     cmd_utils::{create_new_directory, deploy_program},
-    router::ChainMetadata,
     Context, MultisigIsmMessageIdCmd, MultisigIsmMessageIdSubCmd,
 };
 
-use hyperlane_core::{KnownHyperlaneDomain, H160};
+use hyperlane_core::H160;
 
 use hyperlane_sealevel_multisig_ism_message_id::{
     access_control_pda_seeds,
@@ -20,7 +22,7 @@ use hyperlane_sealevel_multisig_ism_message_id::{
     instruction::{set_validators_and_threshold_instruction, ValidatorsAndThreshold},
 };
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct MultisigIsmConfig {
     /// Note this type is ignored in this tooling. It'll always assume this
@@ -54,11 +56,12 @@ pub(crate) fn process_multisig_ism_message_id_cmd(mut ctx: Context, cmd: Multisi
             let chain_dir = create_new_directory(&ism_dir, &deploy.chain);
             let context_dir = create_new_directory(&chain_dir, &deploy.context);
             let key_dir = create_new_directory(&context_dir, "keys");
-            let local_domain = deploy
-                .chain
-                .parse::<KnownHyperlaneDomain>()
-                .map(|v| v as u32)
-                .expect("Invalid chain name");
+
+            let registry = FileSystemRegistry::new(deploy.registry.to_path_buf());
+            let chain_metadatas = registry.get_metadata();
+            let chain_metadata = chain_metadatas.get(&deploy.chain).unwrap();
+            let local_domain = chain_metadata.domain_id;
+            println!("Local domain: {}", local_domain);
 
             let ism_program_id = deploy_multisig_ism_message_id(
                 &mut ctx,
@@ -157,7 +160,7 @@ pub(crate) fn process_multisig_ism_message_id_cmd(mut ctx: Context, cmd: Multisi
                 &mut ctx,
                 configure.program_id,
                 &configure.multisig_config_file,
-                &configure.chain_config_file,
+                &configure.registry,
             );
         }
     }
@@ -214,33 +217,43 @@ pub(crate) fn deploy_multisig_ism_message_id(
 /// Configures the multisig-ism-message-id program
 /// with the validators and thresholds for each of the domains
 /// specified in the multisig config file.
+/// This implementation batches multiple set_validators_and_threshold instructions
+/// into single transactions where possible to reduce the number of transactions.
 fn configure_multisig_ism_message_id(
     ctx: &mut Context,
     program_id: Pubkey,
     multisig_config_file_path: &Path,
-    chain_config_path: &Path,
+    registry_path: &Path,
 ) {
     let multisig_config_file =
         File::open(multisig_config_file_path).expect("Failed to open config file");
     let multisig_configs: HashMap<String, MultisigIsmConfig> =
         serde_json::from_reader(multisig_config_file).expect("Failed to read config file");
 
-    let chain_config_file = File::open(chain_config_path).unwrap();
-    let chain_configs: HashMap<String, ChainMetadata> =
-        serde_json::from_reader(chain_config_file).unwrap();
+    let registry = FileSystemRegistry::new(registry_path.to_path_buf());
+    let chain_metadatas = registry.get_metadata();
 
-    for (chain_name, multisig_ism_config) in multisig_configs {
+    // Collect all instructions that need to be executed
+    // (chain_name of the set being update, instruction)
+    let mut ism_update_instructions: Vec<(String, Instruction)> = Vec::new();
+
+    // Sort chain names alphabetically for deterministic ordering
+    let chain_names: Vec<String> = multisig_configs.keys().cloned().sorted().collect();
+
+    // First gather all instructions that need to be executed
+    for chain_name in chain_names {
+        let multisig_ism_config = multisig_configs.get(&chain_name).unwrap();
         println!(
-            "Configuring Multisig ISM Message ID for chain {} and config {:?}",
+            "Checking configuration for chain {} with config {:?}",
             chain_name, multisig_ism_config
         );
-        let chain_config = chain_configs.get(&chain_name).unwrap();
+        let chain_metadata = chain_metadatas.get(&chain_name).unwrap();
 
         let matches = multisig_ism_config_matches_chain(
             ctx,
             program_id,
-            chain_config.domain_id(),
-            &multisig_ism_config,
+            chain_metadata.domain_id,
+            multisig_ism_config,
         );
 
         if matches {
@@ -250,16 +263,44 @@ fn configure_multisig_ism_message_id(
             );
         } else {
             println!(
-                "Multisig ISM Message ID incorrectly configured for chain {}, configuring now",
+                "Multisig ISM Message ID needs configuration update for chain {}",
                 chain_name
             );
-            set_validators_and_threshold(
-                ctx,
+
+            let instruction = set_validators_and_threshold_instruction(
                 program_id,
-                chain_config.domain_id(),
-                multisig_ism_config.into(),
+                ctx.payer_pubkey,
+                chain_metadata.domain_id,
+                multisig_ism_config.clone().into(),
+            )
+            .unwrap();
+
+            ism_update_instructions.push((chain_name, instruction));
+        }
+    }
+
+    if ism_update_instructions.is_empty() {
+        println!("No configuration updates needed");
+        return;
+    }
+
+    // Should be sufficiently small to not hit the 1232 byte tx limit.
+    // TODO: Make this dynamic based on the size of the instructions.
+    const CHUNK_SIZE: usize = 5;
+
+    // Process instructions in chunks
+    for chunk in ism_update_instructions.chunks(CHUNK_SIZE) {
+        let mut txn = ctx.new_txn();
+
+        for (chain_name, instruction) in chunk {
+            txn = txn.add_with_description(
+                instruction.clone(),
+                format!("Set validators and threshold for chain {}", chain_name),
             );
         }
+
+        println!("Sending batch of {} instructions", chunk.len());
+        txn.send_with_payer();
     }
 }
 

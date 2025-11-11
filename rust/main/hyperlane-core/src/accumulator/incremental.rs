@@ -32,7 +32,7 @@ impl IncrementalMerkle {
     pub fn ingest(&mut self, element: H256) {
         let mut node = element;
         assert!(self.count < u32::MAX as usize);
-        self.count += 1;
+        self.count = self.count.saturating_add(1);
         let mut size = self.count;
         for i in 0..TREE_DEPTH {
             if (size & 1) == 1 {
@@ -69,7 +69,7 @@ impl IncrementalMerkle {
     /// Get the index
     pub fn index(&self) -> u32 {
         assert!(self.count > 0, "index is invalid when tree is empty");
-        self.count as u32 - 1
+        (self.count as u32).saturating_sub(1)
     }
 
     /// Get the leading-edge branch.

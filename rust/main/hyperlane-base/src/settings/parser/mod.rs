@@ -7,6 +7,7 @@
 use std::{
     collections::{HashMap, HashSet},
     default::Default,
+    ops::Add,
     time::Duration,
 };
 
@@ -42,11 +43,21 @@ const DEFAULT_CHUNK_SIZE: u32 = 1999;
 #[serde(transparent)]
 pub struct RawAgentConf(Value);
 
+fn agent_name_to_default_rpc_consensus_type(agent_name: &str) -> String {
+    match agent_name {
+        "validator" => "quorum".to_string(),
+        "relayer" => "fallback".to_string(),
+        "scraper" => "fallback".to_string(),
+        _ => "fallback".to_string(),
+    }
+}
+
 impl FromRawConf<RawAgentConf, Option<&HashSet<&str>>> for Settings {
     fn from_config_filtered(
         raw: RawAgentConf,
         cwp: &ConfigPath,
         filter: Option<&HashSet<&str>>,
+        agent_name: &str,
     ) -> Result<Self, ConfigParsingError> {
         let mut err = ConfigParsingError::default();
 
@@ -91,28 +102,27 @@ impl FromRawConf<RawAgentConf, Option<&HashSet<&str>>> for Settings {
             .and_then(parse_signer)
             .end();
 
-        let default_rpc_consensus_type = p
-            .chain(&mut err)
-            .get_opt_key("defaultRpcConsensusType")
-            .parse_string()
-            .unwrap_or("fallback");
+        let default_rpc_consensus_type = agent_name_to_default_rpc_consensus_type(agent_name);
 
-        let chains: HashMap<String, ChainConf> = raw_chains
+        let chains: HashMap<HyperlaneDomain, ChainConf> = raw_chains
             .into_iter()
             .filter_map(|(name, chain)| {
-                parse_chain(chain, &name, default_rpc_consensus_type)
+                parse_chain(chain, &name, default_rpc_consensus_type.as_str())
                     .take_config_err(&mut err)
                     .map(|v| (name, v))
             })
-            .map(|(name, mut chain)| {
+            .map(|(_, mut chain)| {
                 if let Some(default_signer) = &default_signer {
                     chain.signer.get_or_insert_with(|| default_signer.clone());
                 }
-                (name, chain)
+                (chain.domain.clone(), chain)
             })
             .collect();
 
+        let domains = chains.keys().map(|k| (k.to_string(), k.clone())).collect();
+
         err.into_result(Self {
+            domains,
             chains,
             metrics_port,
             tracing: TracingConfig { fmt, level },
@@ -134,12 +144,6 @@ fn parse_chain(
         .get_opt_key("signer")
         .and_then(parse_signer)
         .end();
-
-    let submitter = chain
-        .chain(&mut err)
-        .get_opt_key("submitter")
-        .parse_from_str::<SubmitterType>("Invalid Submitter type")
-        .unwrap_or_default();
 
     // measured in seconds (with fractions)
     let estimated_block_time = chain
@@ -163,7 +167,7 @@ fn parse_chain(
         .chain(&mut err)
         .get_opt_key("index")
         .get_opt_key("from")
-        .parse_u32()
+        .parse_i64()
         .unwrap_or(0);
     let chunk_size = chain
         .chain(&mut err)
@@ -232,6 +236,12 @@ fn parse_chain(
         .parse_u32()
         .end();
 
+    let ignore_reorg_reports = chain
+        .chain(&mut err)
+        .get_opt_key("ignoreReorgReports")
+        .parse_bool()
+        .unwrap_or(false);
+
     cfg_unwrap_all!(&chain.cwp, err: [domain]);
     let connection = build_connection_conf(
         domain.domain_protocol(),
@@ -248,6 +258,22 @@ fn parse_chain(
     );
 
     cfg_unwrap_all!(&chain.cwp, err: [connection, mailbox, interchain_gas_paymaster, validator_announce, merkle_tree_hook]);
+
+    let submitter = chain
+        .chain(&mut err)
+        .get_opt_key("submitter")
+        .parse_from_str::<SubmitterType>("Invalid Submitter type")
+        .end();
+    // for EVM chains, default to `SubmitterType::Lander` if not specified
+    let submitter = match submitter {
+        Some(submitter_type) => submitter_type,
+        None => match connection.protocol() {
+            HyperlaneDomainProtocol::Ethereum
+            | HyperlaneDomainProtocol::Radix
+            | HyperlaneDomainProtocol::Sealevel => SubmitterType::Lander,
+            _ => Default::default(),
+        },
+    };
     err.into_result(ChainConf {
         domain,
         signer,
@@ -267,6 +293,7 @@ fn parse_chain(
             chunk_size,
             mode,
         },
+        ignore_reorg_reports,
     })
 }
 
@@ -286,7 +313,7 @@ fn parse_domain(chain: ValueParser, name: &str) -> ConfigResult<HyperlaneDomain>
     } else {
         Err(eyre!("missing chain name, the config may be corrupted"))
     }
-    .take_err(&mut err, || &chain.cwp + "name");
+    .take_err(&mut err, || (&chain.cwp).add("name"));
 
     let domain_id = chain
         .chain(&mut err)
@@ -378,14 +405,54 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
                 account_address_type,
             })
         }};
+        (starkKey) => {{
+            let key = signer
+                .chain(&mut err)
+                .get_opt_key("key")
+                .parse_private_key()
+                .unwrap_or_default();
+            let address = signer
+                .chain(&mut err)
+                .get_opt_key("address")
+                .parse_address_hash()
+                .unwrap_or_default();
+            let is_legacy = signer
+                .chain(&mut err)
+                .get_opt_key("legacy")
+                .parse_bool()
+                .unwrap_or(false);
+            err.into_result(SignerConf::StarkKey {
+                key,
+                address,
+                is_legacy,
+            })
+        }};
+        (radixKey) => {{
+            let key = signer
+                .chain(&mut err)
+                .get_opt_key("key")
+                .parse_private_key()
+                .unwrap_or_default();
+            let suffix = signer
+                .chain(&mut err)
+                .get_opt_key("suffix")
+                .parse_string()
+                .unwrap_or_default();
+            err.into_result(SignerConf::RadixKey {
+                key,
+                suffix: suffix.to_owned(),
+            })
+        }};
     }
 
     match signer_type {
         Some("hexKey") => parse_signer!(hexKey),
         Some("aws") => parse_signer!(aws),
         Some("cosmosKey") => parse_signer!(cosmosKey),
+        Some("starkKey") => parse_signer!(starkKey),
+        Some("radixKey") => parse_signer!(radixKey),
         Some(t) => {
-            Err(eyre!("Unknown signer type `{t}`")).into_config_result(|| &signer.cwp + "type")
+            Err(eyre!("Unknown signer type `{t}`")).into_config_result(|| (&signer.cwp).add("type"))
         }
         None if key_is_some => parse_signer!(hexKey),
         None if id_is_some | region_is_some => parse_signer!(aws),
@@ -403,6 +470,7 @@ impl FromRawConf<RawAgentSignerConf> for SignerConf {
         raw: RawAgentSignerConf,
         cwp: &ConfigPath,
         _filter: (),
+        _agent_name: &str,
     ) -> ConfigResult<Self> {
         parse_signer(ValueParser::new(cwp.clone(), &raw.0))
     }
@@ -420,8 +488,13 @@ pub fn recase_json_value(mut val: Value, case: Case) -> Value {
         Value::Object(obj) => {
             let keys = obj.keys().cloned().collect_vec();
             for key in keys {
-                let val = obj.remove(&key).unwrap();
-                obj.insert(key.to_case(case), recase_json_value(val, case));
+                let val = match obj.remove(&key) {
+                    Some(v) => v,
+                    None => continue,
+                };
+
+                let cased_key = key.to_case(case);
+                obj.insert(cased_key, recase_json_value(val, case));
             }
         }
         _ => {}
@@ -482,7 +555,7 @@ fn parse_custom_urls(
         .end()
         .map(|urls| {
             urls.split(',')
-                .filter_map(|url| url.parse().take_err(err, || &chain.cwp + key))
+                .filter_map(|url| url.parse().take_err(err, || (&chain.cwp).add(key)))
                 .collect_vec()
         })
 }
@@ -499,12 +572,14 @@ fn parse_base_and_override_urls(
     let combined = overrides.unwrap_or(base);
 
     if combined.is_empty() {
+        let config_path = (&chain.cwp).add(base_key.to_ascii_lowercase());
         err.push(
-            &chain.cwp + base_key.to_ascii_lowercase(),
+            config_path,
             eyre!("Missing base {} definitions for chain", base_key),
         );
+        let config_path = (&chain.cwp).add(override_key.to_lowercase());
         err.push(
-            &chain.cwp + override_key.to_lowercase(),
+            config_path,
             eyre!("Also missing {} overrides for chain", base_key),
         );
     }

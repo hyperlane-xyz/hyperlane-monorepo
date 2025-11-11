@@ -18,14 +18,14 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: full
-  MIN_SUBMITTERCOVERAGE_PERCENTAGE: 1
+  MIN_LANDERCOVERAGE_PERCENTAGE: 15
   RUSTC_WRAPPER: sccache
 
 jobs:
-  submitter-coverage:
+  lander-coverage:
     runs-on: depot-ubuntu-24.04-8
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: dtolnay/rust-toolchain@stable
@@ -36,39 +36,39 @@ jobs:
           sudo rm -rf "/usr/local/share/boost"
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
       - name: Run sccache-cache
-        uses: mozilla-actions/sccache-action@v0.0.8
+        uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Install cargo-llvm-cov
         run: |
           cargo install cargo-llvm-cov@0.5.39 --locked
           rustup component add llvm-tools-preview
 
-      - name: Generate coverage for submitter package
-        run: cargo llvm-cov --package submitter --json --output-path coverage.json
+      - name: Generate coverage for lander package
+        run: cargo llvm-cov --package lander --json --output-path coverage.json
         working-directory: ./rust/main
 
       - name: Check coverage threshold
         run: |
           COVERAGE=$(cat coverage.json | jq -r '.data[0].totals.lines.percent')
           echo "Coverage: $COVERAGE%"
-          if (( $(echo "$COVERAGE * 100 < $MIN_SUBMITTERCOVERAGE_PERCENTAGE" | bc -l) )); then
-            echo "Code coverage is below minimum threshold of $MIN_SUBMITTERCOVERAGE_PERCENTAGE percent"
+          if (( $(echo "$COVERAGE < $MIN_LANDERCOVERAGE_PERCENTAGE" | bc -l) )); then
+            echo "Code coverage is below minimum threshold of $MIN_LANDERCOVERAGE_PERCENTAGE percent"
             exit 1
           fi
         working-directory: ./rust/main
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           files: coverage.json
-          flags: ./rust/main/submitter
+          flags: ./rust/main/lander
           fail_ci_if_error: true
           token: ${{ secrets.CODECOV_TOKEN }}
 
   test-rs:
     runs-on: depot-ubuntu-24.04-8
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: dtolnay/rust-toolchain@stable
@@ -84,7 +84,7 @@ jobs:
           mold-version: 2.0.0
           make-default: true
       - name: Run sccache-cache
-        uses: mozilla-actions/sccache-action@v0.0.8
+        uses: mozilla-actions/sccache-action@v0.0.9
       - name: Run tests for main workspace
         run: cargo test
         working-directory: ./rust/main
@@ -95,7 +95,7 @@ jobs:
   lint-rs:
     runs-on: depot-ubuntu-24.04-8
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: dtolnay/rust-toolchain@stable
@@ -109,7 +109,7 @@ jobs:
           sudo rm -rf "/usr/local/share/boost"
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
       - name: Run sccache-cache
-        uses: mozilla-actions/sccache-action@v0.0.8
+        uses: mozilla-actions/sccache-action@v0.0.9
       - name: Check for main workspace
         run: cargo check --release --all-features --all-targets
         working-directory: ./rust/main

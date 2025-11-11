@@ -9,17 +9,18 @@ use derive_new::new;
 use ethers::{abi::AbiDecode, core::utils::hex::decode as hex_decode};
 use hyperlane_base::cache::FunctionCallCache;
 use regex::{Regex, RegexSet, RegexSetBuilder};
-use reqwest::{header::CONTENT_TYPE, Client};
+use reqwest::{header::CONTENT_TYPE, Client, Method};
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use sha3::{digest::Update, Digest, Keccak256};
 use tracing::{info, instrument, warn};
 
 use hyperlane_core::{
-    utils::bytes_to_hex, CcipReadIsm, HyperlaneMessage, HyperlaneSignerExt, RawHyperlaneMessage,
-    Signable, H160, H256,
+    utils::bytes_to_hex, CcipReadIsm, HyperlaneMessage, HyperlaneSignerExt, ModuleType,
+    RawHyperlaneMessage, Signable, H160, H256,
 };
 use hyperlane_ethereum::{OffchainLookup, Signers};
+
+use crate::msg::metadata::base_builder::IsmBuildMetricsParams;
 
 use super::{
     base::{MessageMetadataBuildParams, MetadataBuildError},
@@ -30,6 +31,13 @@ use super::{
 mod cache_types;
 
 pub const DEFAULT_TIMEOUT: u64 = 30;
+
+#[derive(Clone, Debug, Serialize)]
+struct OffchainLookupRequestBody {
+    pub data: String,
+    pub sender: String,
+    pub signature: Option<String>,
+}
 
 #[derive(Serialize, Deserialize)]
 struct OffchainResponse {
@@ -129,14 +137,19 @@ impl CcipReadIsmMetadataBuilder {
                         return Err(MetadataBuildError::CouldNotFetch);
                     }
                     Err(raw_error) => {
-                        let matching_regex = Regex::new(r"0x[[:xdigit:]]+")
-                            .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
+                        let matching_regex = Regex::new(r"0x[[:xdigit:]]+").map_err(|err| {
+                            let msg = format!("Failed to parse regex: {err}");
+                            MetadataBuildError::FailedToBuild(msg)
+                        })?;
                         if let Some(matching) = &matching_regex.captures(&raw_error.to_string()) {
                             let hex_val = hex_decode(&matching[0][2..]).map_err(|err| {
-                                MetadataBuildError::FailedToBuild(err.to_string())
+                                let msg = format!("Failed to decode hex from ISM response: {err}");
+                                MetadataBuildError::FailedToBuild(msg)
                             })?;
-                            OffchainLookup::decode(hex_val)
-                                .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?
+                            OffchainLookup::decode(hex_val).map_err(|err| {
+                                let msg = format!("Failed to decode offchain lookup struct: {err}");
+                                MetadataBuildError::FailedToBuild(msg)
+                            })?
                         } else {
                             info!(?raw_error, "unable to parse custom error out of revert");
                             return Err(MetadataBuildError::CouldNotFetch);
@@ -167,85 +180,139 @@ impl CcipReadIsmMetadataBuilder {
 
 #[async_trait]
 impl MetadataBuilder for CcipReadIsmMetadataBuilder {
-    #[instrument(err, skip(self, message, _params))]
+    #[instrument(err, skip(self, message, params))]
     async fn build(
         &self,
         ism_address: H256,
         message: &HyperlaneMessage,
-        _params: MessageMetadataBuildParams,
+        params: MessageMetadataBuildParams,
     ) -> Result<Metadata, MetadataBuildError> {
-        let ism = self
-            .base
-            .base_builder()
-            .build_ccip_read_ism(ism_address)
-            .await
-            .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
+        let res = metadata_build(self, ism_address, message, params).await;
 
-        let info = self.call_get_offchain_verify_info(ism, message).await?;
+        // update metrics
+        let ism_build_metrics_params = IsmBuildMetricsParams {
+            app_context: self.base.app_context.clone(),
+            success: res.is_ok(),
+            origin: self.base_builder().origin_domain().clone(),
+            destination: self.base_builder().destination_domain().clone(),
+            ism_type: ModuleType::CcipRead,
+        };
+        self.base_builder()
+            .update_ism_metric(ism_build_metrics_params);
+        res
+    }
+}
 
-        let ccip_url_regex = create_ccip_url_regex();
+async fn metadata_build(
+    ism_builder: &CcipReadIsmMetadataBuilder,
+    ism_address: H256,
+    message: &HyperlaneMessage,
+    _params: MessageMetadataBuildParams,
+) -> Result<Metadata, MetadataBuildError> {
+    let ism = ism_builder
+        .base
+        .base_builder()
+        .build_ccip_read_ism(ism_address)
+        .await
+        .map_err(|err| {
+            let msg = format!("Failed to build CCIP read ISM: {err}");
+            MetadataBuildError::FailedToBuild(msg)
+        })?;
 
-        for url in info.urls.iter() {
-            if ccip_url_regex.is_match(url) {
-                tracing::warn!(?ism_address, url, "Suspicious CCIP read url");
-                continue;
-            }
+    let info = ism_builder
+        .call_get_offchain_verify_info(ism, message)
+        .await?;
 
-            // Compute relayer authentication signature via EIP-191
-            let maybe_signature_hex = if let Some(signer) = self.base.base_builder().get_signer() {
-                Some(Self::generate_signature_hex(signer, &info, url).await?)
-            } else {
-                None
-            };
+    let ccip_url_regex = create_ccip_url_regex();
 
-            // Need to explicitly convert the sender H160 the hex because the `ToString` implementation
-            // for `H160` truncates the output. (e.g. `0xc66a…7b6f` instead of returning
-            // the full address)
-            let sender_as_bytes = &bytes_to_hex(info.sender.as_bytes());
-            let data_as_bytes = &info.call_data.to_string();
-            let interpolated_url = url
-                .replace("{sender}", sender_as_bytes)
-                .replace("{data}", data_as_bytes);
-            let res = if !url.contains("{data}") {
-                let mut body = json!({
-                    "sender": sender_as_bytes,
-                    "data": data_as_bytes
-                });
-                if let Some(signature_hex) = &maybe_signature_hex {
-                    body["signature"] = json!(signature_hex);
-                }
-                Client::new()
-                    .post(interpolated_url)
-                    .header(CONTENT_TYPE, "application/json")
-                    .timeout(Duration::from_secs(DEFAULT_TIMEOUT))
-                    .json(&body)
-                    .send()
-                    .await
-                    .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?
-            } else {
-                reqwest::get(interpolated_url)
-                    .await
-                    .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?
-            };
-
-            let json: Result<OffchainResponse, reqwest::Error> = res.json().await;
-
-            match json {
-                Ok(result) => {
-                    // remove leading 0x which hex_decode doesn't like
-                    let metadata = hex_decode(&result.data[2..])
-                        .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
-                    return Ok(Metadata::new(metadata));
-                }
-                Err(_err) => {
-                    // try the next URL
-                }
-            }
+    for url in info.urls.iter() {
+        if ccip_url_regex.is_match(url) {
+            tracing::warn!(?ism_address, url, "Suspicious CCIP read url");
+            continue;
         }
 
-        // No metadata endpoints or endpoints down
-        Err(MetadataBuildError::CouldNotFetch)
+        // if we fail, we want to try the other urls
+        match fetch_offchain_data(ism_builder, &info, url).await {
+            Ok(data) => return Ok(data),
+            Err(err) => {
+                tracing::warn!(?ism_address, url, ?err, "Failed to fetch offchain data");
+                continue;
+            }
+        }
     }
+
+    // No metadata endpoints or endpoints down
+    Err(MetadataBuildError::CouldNotFetch)
+}
+
+/// Fetch data from offchain lookup server
+async fn fetch_offchain_data(
+    ism_builder: &CcipReadIsmMetadataBuilder,
+    info: &OffchainLookup,
+    url: &str,
+) -> Result<Metadata, MetadataBuildError> {
+    // Compute relayer authentication signature via EIP-191
+    let maybe_signature_hex = if let Some(signer) = ism_builder.base.base_builder().get_signer() {
+        Some(CcipReadIsmMetadataBuilder::generate_signature_hex(signer, info, url).await?)
+    } else {
+        None
+    };
+
+    // Need to explicitly convert the sender H160 the hex because the `ToString` implementation
+    // for `H160` truncates the output. (e.g. `0xc66a…7b6f` instead of returning
+    // the full address)
+    let sender_as_bytes = bytes_to_hex(info.sender.as_bytes());
+    let data_as_bytes = info.call_data.to_string();
+    let interpolated_url = url
+        .replace("{sender}", &sender_as_bytes)
+        .replace("{data}", &data_as_bytes);
+    let res = if !url.contains("{data}") {
+        let body = OffchainLookupRequestBody {
+            sender: sender_as_bytes,
+            data: data_as_bytes,
+            signature: maybe_signature_hex,
+        };
+        Client::new()
+            .request(Method::POST, interpolated_url)
+            .header(CONTENT_TYPE, "application/json")
+            .timeout(Duration::from_secs(DEFAULT_TIMEOUT))
+            .json(&body)
+            .send()
+            .await
+            .map_err(|err| {
+                let msg =
+                    format!("Failed to request offchain lookup server with post method: {err}");
+                MetadataBuildError::FailedToBuild(msg)
+            })?
+    } else {
+        Client::new()
+            .request(Method::GET, interpolated_url)
+            .timeout(Duration::from_secs(DEFAULT_TIMEOUT))
+            .send()
+            .await
+            .map_err(|err| {
+                let msg =
+                    format!("Failed to request offchain lookup server with get method: {err}");
+                MetadataBuildError::FailedToBuild(msg)
+            })?
+    };
+
+    let json: OffchainResponse = res.json().await.map_err(|err| {
+        let error_msg = format!("Failed to parse offchain lookup server json response: ({err})");
+        MetadataBuildError::FailedToBuild(error_msg)
+    })?;
+
+    // remove leading 0x which hex_decode doesn't like
+    let hex_data = &json.data[2..];
+
+    let metadata = hex_decode(hex_data).map_err(|err| {
+        let msg = format!(
+            "Failed to decode hex from offchain lookup server response: err: ({}), data: ({})",
+            err, json.data
+        );
+        MetadataBuildError::FailedToBuild(msg)
+    })?;
+    Ok(Metadata::new(metadata))
 }
 
 fn create_ccip_url_regex() -> RegexSet {
@@ -254,10 +321,14 @@ fn create_ccip_url_regex() -> RegexSet {
         r#"^(https?:\/\/)\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}"#,
         r#"localhost"#,
         r#"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}"#,
+        r#"([-a-zA-Z0-9:%._\+~#=]*)\.local"#,
+        r#"([-a-zA-Z0-9:%._\+~#=]*)\.internal"#,
+        r#"^(https?:\/\/)([-a-zA-Z0-9:%._\+~#=]*)\.local"#,
+        r#"^(https?:\/\/)([-a-zA-Z0-9:%._\+~#=]*)\.internal"#,
     ])
     .case_insensitive(true)
     .build()
-    .unwrap()
+    .expect("Failed to create ccip regex")
 }
 
 #[cfg(test)]
@@ -325,6 +396,7 @@ mod test {
             "localhost",
             "localhost:80",
             "localhost:443",
+            "localhost/abc/def",
             "0.0.0.0",
             "0.0.0.0:80",
             "0.0.0.0:443",
@@ -334,9 +406,11 @@ mod test {
             "http://localhost",
             "http://localhost:80",
             "http://localhost:443",
+            "http://localhost/abc/def",
             "http://0.0.0.0",
             "http://0.0.0.0:80",
             "http://0.0.0.0:443",
+            "http://0.0.0.0/abc/def",
             "http://127.0.0.1",
             "http://127.0.0.1:80",
             "http://127.0.0.1:443",
@@ -349,48 +423,47 @@ mod test {
             "https://127.0.0.1",
             "https://127.0.0.1:80",
             "https://127.0.0.1:443",
+            "abc.local",
+            "abc.def.local",
+            "abc.def.local/abc/def",
+            "abc.def.ghi.local",
+            "https://abc.local",
+            "https://abc.def.local",
+            "https://abc.def.local/abc/def",
+            "abc.internal",
+            "abc.def.internal",
+            "abc.def.internal/abc/def",
+            "abc.def.ghi.internal",
+            "https://abc.internal",
+            "https://abc.def.internal",
+            "https://abc.def.internal/abc/def",
+            "abc.def.cluster.local",
+            "abc.cluster.local",
+            "cluster.local",
+            "abc3.c.def-ghi8.internal",
+            "c.def-ghi8.internal",
+            "google.internal",
             "https://hyperlane.xyz",
             "https://docs.hyperlane.xyz/",
             "http://docs.hyperlane.xyz/",
             "http://docs.hyperlane.xyz:443",
-            "http://localhost.com",
             "hyperlane.xyz",
             "docs.hyperlane.xyz/",
-            "docs.hyperlane.xyz/",
+            "docs.hyperlane.xyz/abc/def",
         ];
 
-        let filtered: Vec<_> = urls.into_iter().filter(|s| set.is_match(s)).collect();
-
+        let filtered: Vec<_> = urls.into_iter().filter(|s| !set.is_match(s)).collect();
         let expected = [
-            "localhost",
-            "localhost:80",
-            "localhost:443",
-            "0.0.0.0",
-            "0.0.0.0:80",
-            "0.0.0.0:443",
-            "127.0.0.1",
-            "127.0.0.1:80",
-            "127.0.0.1:443",
-            "http://localhost",
-            "http://localhost:80",
-            "http://localhost:443",
-            "http://0.0.0.0",
-            "http://0.0.0.0:80",
-            "http://0.0.0.0:443",
-            "http://127.0.0.1",
-            "http://127.0.0.1:80",
-            "http://127.0.0.1:443",
-            "https://localhost",
-            "https://localhost:80",
-            "https://localhost:443",
-            "https://0.0.0.0",
-            "https://0.0.0.0:80",
-            "https://0.0.0.0:443",
-            "https://127.0.0.1",
-            "https://127.0.0.1:80",
-            "https://127.0.0.1:443",
+            "https://hyperlane.xyz",
+            "https://docs.hyperlane.xyz/",
+            "http://docs.hyperlane.xyz/",
+            "http://docs.hyperlane.xyz:443",
+            "hyperlane.xyz",
+            "docs.hyperlane.xyz/",
+            "docs.hyperlane.xyz/abc/def",
         ];
 
+        assert_eq!(filtered.len(), expected.len());
         for (actual, expected) in filtered.into_iter().zip(expected.into_iter()) {
             assert_eq!(actual, expected);
         }

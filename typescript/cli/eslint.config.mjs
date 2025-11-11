@@ -9,12 +9,7 @@ export default [
     rules: {
       'no-console': ['off'],
       'no-restricted-imports': ['off'],
-    },
-  },
-  {
-    ignores: ['./src/tests/**/*.ts'],
-    rules: {
-      'import/no-cycle': ['off'],
+      'import/no-cycle': ['off'], // FIXME: Turn this back on when we resolve the cycles
     },
   },
 ];

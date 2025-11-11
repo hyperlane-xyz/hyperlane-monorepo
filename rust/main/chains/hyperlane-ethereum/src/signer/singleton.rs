@@ -103,7 +103,7 @@ impl SingletonSigner {
                         if retries == 0 {
                             break Err(err);
                         }
-                        retries -= 1;
+                        retries = retries.saturating_sub(1);
                     }
                 }
             };

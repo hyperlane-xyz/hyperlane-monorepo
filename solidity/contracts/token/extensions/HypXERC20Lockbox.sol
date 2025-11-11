@@ -3,27 +3,32 @@ pragma solidity >=0.8.0;
 
 import {IXERC20Lockbox} from "../interfaces/IXERC20Lockbox.sol";
 import {IXERC20, IERC20} from "../interfaces/IXERC20.sol";
-import {HypERC20Collateral} from "../HypERC20Collateral.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {TokenRouter} from "../libs/TokenRouter.sol";
+import {ERC20Collateral} from "../libs/TokenCollateral.sol";
+import {LpCollateralRouterStorage} from "../libs/LpCollateralRouter.sol";
 
-contract HypXERC20Lockbox is HypERC20Collateral {
+contract HypXERC20Lockbox is TokenRouter {
+    using SafeERC20 for IERC20;
+    using ERC20Collateral for IERC20;
+
     uint256 constant MAX_INT = 2 ** 256 - 1;
 
     IXERC20Lockbox public immutable lockbox;
     IXERC20 public immutable xERC20;
+    IERC20 public immutable wrappedToken;
+
+    /// @dev This is used to enable storage layout backwards compatibility. It should not be read or written to.
+    LpCollateralRouterStorage private __LP_COLLATERAL_GAP;
 
     constructor(
         address _lockbox,
         uint256 _scale,
         address _mailbox
-    )
-        HypERC20Collateral(
-            address(IXERC20Lockbox(_lockbox).ERC20()),
-            _scale,
-            _mailbox
-        )
-    {
+    ) TokenRouter(_scale, _mailbox) {
         lockbox = IXERC20Lockbox(_lockbox);
-        xERC20 = lockbox.XERC20();
+        xERC20 = IXERC20(lockbox.XERC20());
+        wrappedToken = IERC20(lockbox.ERC20());
         approveLockbox();
         _disableInitializers();
     }
@@ -33,14 +38,8 @@ contract HypXERC20Lockbox is HypERC20Collateral {
      * @dev This function is idempotent and need not be access controlled
      */
     function approveLockbox() public {
-        require(
-            IERC20(wrappedToken).approve(address(lockbox), MAX_INT),
-            "erc20 lockbox approve failed"
-        );
-        require(
-            xERC20.approve(address(lockbox), MAX_INT),
-            "xerc20 lockbox approve failed"
-        );
+        wrappedToken.safeApprove(address(lockbox), MAX_INT);
+        IERC20(xERC20).safeApprove(address(lockbox), MAX_INT);
     }
 
     /**
@@ -53,27 +52,36 @@ contract HypXERC20Lockbox is HypERC20Collateral {
         address _hook,
         address _ism,
         address _owner
-    ) public override initializer {
+    ) public initializer {
         approveLockbox();
         _MailboxClient_initialize(_hook, _ism, _owner);
     }
 
-    function _transferFromSender(
-        uint256 _amount
-    ) internal override returns (bytes memory) {
+    // ============ TokenRouter overrides ============
+    function token() public view override returns (address) {
+        return address(wrappedToken);
+    }
+
+    /**
+     * @inheritdoc TokenRouter
+     * @dev Overrides to burn tokens on outbound transfer.
+     */
+    function _transferFromSender(uint256 _amount) internal override {
         // transfer erc20 from sender
-        super._transferFromSender(_amount);
+        wrappedToken._transferFromSender(_amount);
         // convert erc20 to xERC20
         lockbox.deposit(_amount);
         // burn xERC20
         xERC20.burn(address(this), _amount);
-        return bytes("");
     }
 
+    /**
+     * @inheritdoc TokenRouter
+     * @dev Overrides to mint tokens on inbound transfer.
+     */
     function _transferTo(
         address _recipient,
-        uint256 _amount,
-        bytes calldata /*metadata*/
+        uint256 _amount
     ) internal override {
         // mint xERC20
         xERC20.mint(address(this), _amount);

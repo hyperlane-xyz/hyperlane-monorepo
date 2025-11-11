@@ -1,12 +1,12 @@
 use std::{cmp::Reverse, collections::BinaryHeap, sync::Arc};
 
 use derive_new::new;
-use hyperlane_core::{PendingOperation, PendingOperationStatus, QueueOperation};
+use hyperlane_core::{PendingOperation, PendingOperationStatus, QueueOperation, ReprepareReason};
 use prometheus::{IntGauge, IntGaugeVec};
 use tokio::sync::{broadcast::Receiver, Mutex};
 use tracing::{debug, instrument};
 
-use crate::server::message_retry::{MessageRetryQueueResponse, MessageRetryRequest};
+use crate::server::operations::message_retry::{MessageRetryQueueResponse, MessageRetryRequest};
 
 pub type OperationPriorityQueue = Arc<Mutex<BinaryHeap<Reverse<QueueOperation>>>>;
 
@@ -54,7 +54,8 @@ impl OpQueue {
                 break;
             }
         }
-        // This function is called very often by the op_submitter tasks, so only log when there are operations to pop
+
+        // This function is called very often by the message processor tasks, so only log when there are operations to pop
         // to avoid spamming the logs
         if !popped.is_empty() {
             debug!(
@@ -141,10 +142,11 @@ impl OpQueue {
                             return;
                         }
                         // update retry metrics
-                        retry_response.matched += 1;
+                        retry_response.matched = retry_response.matched.saturating_add(1);
                         matched = true;
                     });
                 if matched {
+                    op.set_status(PendingOperationStatus::Retry(ReprepareReason::Manual));
                     op.reset_attempts();
                 }
                 Reverse(op)
@@ -298,6 +300,10 @@ pub mod test {
             &self.recipient_address
         }
 
+        fn body(&self) -> &[u8] {
+            &[]
+        }
+
         fn get_metric(&self) -> Option<Arc<IntGauge>> {
             None
         }
@@ -353,7 +359,7 @@ pub mod test {
             todo!()
         }
 
-        fn set_operation_outcome(
+        async fn set_operation_outcome(
             &mut self,
             _submission_outcome: TxOutcome,
             _submission_estimated_cost: U256,
@@ -662,6 +668,7 @@ pub mod test {
                     Filter::Wildcard,
                     Filter::Wildcard,
                     Filter::Wildcard,
+                    None,
                 )])),
                 transmitter: transmitter.clone(),
             })
@@ -718,6 +725,7 @@ pub mod test {
                     Filter::Wildcard,
                     Filter::Enumerated(vec![KnownHyperlaneDomain::Optimism as u32]),
                     Filter::Wildcard,
+                    None,
                 )])),
                 transmitter: transmitter.clone(),
             })
@@ -775,6 +783,7 @@ pub mod test {
                         Filter::Wildcard,
                         Filter::Wildcard,
                         Filter::Wildcard,
+                        None,
                     ),
                     ListElement::new(
                         Filter::Wildcard,
@@ -782,6 +791,7 @@ pub mod test {
                         Filter::Wildcard,
                         Filter::Enumerated(vec![KnownHyperlaneDomain::Arbitrum as u32]),
                         Filter::Wildcard,
+                        None,
                     ),
                 ])),
                 transmitter: transmitter.clone(),
@@ -839,6 +849,7 @@ pub mod test {
                     Filter::Wildcard,
                     Filter::Wildcard,
                     Filter::Wildcard,
+                    None,
                 ),
                 ListElement::new(
                     Filter::Wildcard,
@@ -846,6 +857,7 @@ pub mod test {
                     Filter::Wildcard,
                     Filter::Enumerated(vec![KnownHyperlaneDomain::Arbitrum as u32]),
                     Filter::Wildcard,
+                    None,
                 ),
             ])),
             transmitter: transmitter.clone(),

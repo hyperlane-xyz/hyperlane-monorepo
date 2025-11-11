@@ -95,7 +95,7 @@ impl HyperlaneSigner for Signers {
         let mut signature = Signer::sign_message(self, hash)
             .await
             .map_err(|err| HyperlaneSignerError::from(Box::new(err) as Box<_>))?;
-        signature.v = 28 - (signature.v % 2);
+        signature.v = 28u64.saturating_sub(signature.v.wrapping_rem(2));
         Ok(signature.into())
     }
 }
@@ -109,12 +109,6 @@ pub enum SignersError {
     /// Wallet Signer Error
     #[error("{0}")]
     WalletError(#[from] WalletError),
-}
-
-impl From<std::convert::Infallible> for SignersError {
-    fn from(_error: std::convert::Infallible) -> Self {
-        panic!("infallible")
-    }
 }
 
 #[cfg(test)]

@@ -1,0 +1,47 @@
+{
+  "compilerOptions": {
+    // Completeness
+    "skipLibCheck": true,
+
+    // Interoperability
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "preserveSymlinks": false,
+
+    // Module settings
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "resolveJsonModule": true,
+
+    // Output formatting
+    "preserveWatchOutput": true,
+    "pretty": false,
+
+    // Project build
+    "incremental": false,
+    "lib": ["ES2023"],
+    "target": "es2023",
+
+    // Type checking
+    "allowUnreachableCode": false,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "noUncheckedIndexedAccess": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "strict": true,
+
+    // Type emit setting
+    "declaration": true,
+    "declarationMap": true,
+    "noEmitOnError": true,
+    "sourceMap": true
+  },
+  "ts-node": {
+    "experimentalResolver": true,
+    "experimentalSpecifierResolution": "node",
+    "files": true
+  }
+}

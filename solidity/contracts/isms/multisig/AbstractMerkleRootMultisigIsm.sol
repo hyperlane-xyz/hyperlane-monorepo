@@ -2,7 +2,6 @@
 pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
-import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {AbstractMultisig} from "./AbstractMultisigIsm.sol";
 import {MerkleRootMultisigIsmMetadata} from "../../isms/libs/MerkleRootMultisigIsmMetadata.sol";
 import {Message} from "../../libs/Message.sol";
@@ -34,7 +33,7 @@ abstract contract AbstractMerkleRootMultisigIsm is AbstractMultisig {
     function digest(
         bytes calldata _metadata,
         bytes calldata _message
-    ) internal pure virtual override returns (bytes32) {
+    ) internal pure override returns (bytes32) {
         require(
             _metadata.messageIndex() <= _metadata.signedIndex(),
             "Invalid merkle index metadata"
@@ -62,7 +61,7 @@ abstract contract AbstractMerkleRootMultisigIsm is AbstractMultisig {
     function signatureAt(
         bytes calldata _metadata,
         uint256 _index
-    ) internal pure virtual override returns (bytes calldata) {
+    ) internal pure override returns (bytes calldata) {
         return _metadata.signatureAt(_index);
     }
 

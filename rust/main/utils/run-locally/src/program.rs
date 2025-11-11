@@ -115,6 +115,11 @@ impl Program {
         debug_assert!(!cmd.starts_with('-'), "arg should not start with -");
         self.raw_arg(cmd)
     }
+    /// Assumes a list of commands that should not start with a hyphen
+    #[allow(dead_code)]
+    pub fn cmds(self, cmds: impl IntoIterator<Item = impl Into<String>>) -> Self {
+        cmds.into_iter().fold(self, |p, c| p.cmd(c))
+    }
 
     pub fn flag(self, arg: impl AsRef<str>) -> Self {
         debug_assert!(
@@ -248,7 +253,7 @@ impl Program {
     pub fn spawn(self, log_prefix: &'static str, logs_dir: Option<&Path>) -> AgentHandles {
         let mut command = self.create_command();
         let log_file = logs_dir.map(|logs_dir| {
-            let log_file_name = format!("{}-output.log", log_prefix);
+            let log_file_name = format!("{log_prefix}-output.log");
             let log_file_path = logs_dir.join(log_file_name);
             let log_file = OpenOptions::new()
                 .append(true)
@@ -376,7 +381,7 @@ fn prefix_log(
             println!("<{prefix}> {line}");
             if let Some(file) = &file {
                 let mut writer = file.lock().expect("Failed to acquire lock for log file");
-                writeln!(writer, "{}", line).unwrap_or(());
+                writeln!(writer, "{line}").unwrap_or(());
             }
             if let Some(channel) = &channel {
                 // ignore send errors

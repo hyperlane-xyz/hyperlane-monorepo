@@ -44,6 +44,8 @@ pub enum MetadataBuildError {
     AggregationThresholdNotMet(u32),
     #[error("Fast path error ({0})")]
     FastPathError(String),
+    #[error("Merkle root mismatch ({root}, {canonical_root})")]
+    MerkleRootMismatch { root: H256, canonical_root: H256 },
 }
 
 #[derive(Clone, Debug, new)]
@@ -244,9 +246,8 @@ where
     let nums: Vec<u8> = Vec::deserialize(deserializer)?;
     let mut set = HashSet::new();
     for num in nums {
-        let module = ModuleType::from_u8(num).ok_or_else(|| {
-            serde::de::Error::custom(format!("Invalid module type value: {}", num))
-        })?;
+        let module = ModuleType::from_u8(num)
+            .ok_or_else(|| serde::de::Error::custom(format!("Invalid module type value: {num}")))?;
         set.insert(module);
     }
     Ok(set)
@@ -298,7 +299,7 @@ impl IsmCachePolicyClassifier {
                 }
                 IsmCacheSelector::AppContext {
                     context: selector_app_context,
-                } => app_context.map_or(false, |app_context| app_context == selector_app_context),
+                } => app_context == Some(selector_app_context),
             };
 
             if matches_module
@@ -332,11 +333,11 @@ mod tests {
             cache_policy: IsmCachePolicy::IsmSpecific,
         };
 
-        assert_eq!(config.matches_chain("foochain"), true);
-        assert_eq!(config.matches_chain("barchain"), false);
+        assert!(config.matches_chain("foochain"));
+        assert!(!config.matches_chain("barchain"));
 
-        assert_eq!(config.matches_module_type(ModuleType::Aggregation), true);
-        assert_eq!(config.matches_module_type(ModuleType::Routing), false);
+        assert!(config.matches_module_type(ModuleType::Aggregation));
+        assert!(!config.matches_module_type(ModuleType::Routing));
     }
 
     #[test]

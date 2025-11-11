@@ -7,6 +7,8 @@ import {
   test1,
   test2,
   testCosmosChain,
+  testScale1,
+  testScale2,
   testSealevelChain,
   testVSXERC20,
   testXERC20,
@@ -15,6 +17,7 @@ import {
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { ProviderType } from '../providers/ProviderType.js';
 import { Token } from '../token/Token.js';
+import { TokenAmount } from '../token/TokenAmount.js';
 import { TokenStandard } from '../token/TokenStandard.js';
 import { InterchainGasQuote } from '../token/adapters/ITokenAdapter.js';
 import { ChainName } from '../types.js';
@@ -35,10 +38,13 @@ describe('WarpCore', () => {
   const multiProvider = MultiProtocolProvider.createTestMultiProtocolProvider();
   let warpCore: WarpCore;
   let evmHypNative: Token;
+  let evmHypNativeScale1: Token;
+  let evmHypNativeScale2: Token;
   let evmHypSynthetic: Token;
   let evmHypXERC20: Token;
   let evmHypVSXERC20: Token;
   let evmHypXERC20Lockbox: Token;
+  let evmHypCollateralFiat: Token;
   let sealevelHypSynthetic: Token;
   let cwHypCollateral: Token;
   let cw20: Token;
@@ -68,6 +74,9 @@ describe('WarpCore', () => {
       evmHypXERC20,
       evmHypVSXERC20,
       evmHypXERC20Lockbox,
+      evmHypNativeScale1,
+      evmHypNativeScale2,
+      evmHypCollateralFiat,
       sealevelHypSynthetic,
       cwHypCollateral,
       cw20,
@@ -95,7 +104,11 @@ describe('WarpCore', () => {
   it('Gets transfer gas quote', async () => {
     const stubs = warpCore.tokens.map((t) =>
       sinon.stub(t, 'getHypAdapter').returns({
-        quoteTransferRemoteGas: () => Promise.resolve(MOCK_INTERCHAIN_QUOTE),
+        quoteTransferRemoteGas: () =>
+          Promise.resolve({
+            igpQuote: MOCK_INTERCHAIN_QUOTE,
+            tokenFeeQuote: MOCK_INTERCHAIN_QUOTE,
+          }),
         isApproveRequired: () => Promise.resolve(false),
         populateTransferRemoteTx: () => Promise.resolve({}),
         isRevokeApprovalRequired: () => Promise.resolve(false),
@@ -106,12 +119,17 @@ describe('WarpCore', () => {
       token: Token,
       destination: ChainName,
       standard: TokenStandard,
-      interchainQuote: InterchainGasQuote = MOCK_INTERCHAIN_QUOTE,
+      interchainQuote: InterchainGasQuote = {
+        igpQuote: MOCK_INTERCHAIN_QUOTE,
+        tokenFeeQuote: MOCK_INTERCHAIN_QUOTE,
+      },
     ) => {
+      const tokenAmount = new TokenAmount(0, token);
       const result = await warpCore.estimateTransferRemoteFees({
-        originToken: token,
+        originTokenAmount: tokenAmount,
         destination,
         sender: MOCK_ADDRESS,
+        recipient: MOCK_ADDRESS,
       });
       expect(
         result.localQuote.token.standard,
@@ -128,7 +146,11 @@ describe('WarpCore', () => {
       expect(
         result.interchainQuote.amount,
         `token interchain amount check for ${token.chainName} to ${destination}`,
-      ).to.equal(interchainQuote.amount);
+      ).to.equal(interchainQuote.igpQuote.amount);
+      expect(
+        result.tokenFeeQuote?.amount,
+        `token fee amount check for ${token.chainName} to ${destination}`,
+      ).to.equal(interchainQuote.tokenFeeQuote?.amount);
     };
 
     await testQuote(evmHypNative, test1.name, TokenStandard.EvmNative);
@@ -151,8 +173,7 @@ describe('WarpCore', () => {
     await testQuote(cosmosIbc, test1.name, TokenStandard.CosmosNative);
     // Note, this route uses an igp quote const config
     await testQuote(cwHypCollateral, test2.name, TokenStandard.CosmosNative, {
-      amount: 1n,
-      addressOrDenom: 'atom',
+      igpQuote: { amount: 1n, addressOrDenom: 'atom' },
     });
 
     stubs.forEach((s) => s.restore());
@@ -202,6 +223,41 @@ describe('WarpCore', () => {
     stubs.forEach((s) => s.restore());
   });
 
+  it('Checks for destination collateral with scaling factors', async () => {
+    const stubs = warpCore.tokens.map((t) =>
+      sinon.stub(t, 'getHypAdapter').returns({
+        getBalance: () => Promise.resolve(10n),
+        getBridgedSupply: () => Promise.resolve(10n),
+        isRevokeApprovalRequired: () => Promise.resolve(false),
+      } as any),
+    );
+
+    const testCollateral = async (
+      token: Token,
+      destination: ChainName,
+      amount: bigint,
+      expectedResult: boolean,
+    ) => {
+      const result = await warpCore.isDestinationCollateralSufficient({
+        originTokenAmount: token.amount(amount),
+        destination,
+      });
+
+      expect(
+        result,
+        `collateral check for ${token.chainName} to ${destination}`,
+      ).to.equal(expectedResult);
+    };
+
+    await testCollateral(evmHypNativeScale1, testScale2.name, 10n, false);
+    await testCollateral(evmHypNativeScale1, testScale2.name, 1n, true);
+    await testCollateral(evmHypNativeScale2, testScale1.name, 10n, true);
+    await testCollateral(evmHypNativeScale2, testScale1.name, 100n, true);
+    await testCollateral(evmHypNativeScale2, testScale1.name, 101n, false);
+
+    stubs.forEach((s) => s.restore());
+  });
+
   it('Validates transfers', async () => {
     const balanceStubs = warpCore.tokens.map((t) =>
       sinon.stub(t, 'getBalance').resolves({ amount: MOCK_BALANCE } as any),
@@ -209,7 +265,8 @@ describe('WarpCore', () => {
     const minimumTransferAmount = 10n;
     const quoteStubs = warpCore.tokens.map((t) =>
       sinon.stub(t, 'getHypAdapter').returns({
-        quoteTransferRemoteGas: () => Promise.resolve(MOCK_INTERCHAIN_QUOTE),
+        quoteTransferRemoteGas: () =>
+          Promise.resolve({ igpQuote: MOCK_INTERCHAIN_QUOTE }),
         isApproveRequired: () => Promise.resolve(false),
         populateTransferRemoteTx: () => Promise.resolve({}),
         getMinimumTransferAmount: () => Promise.resolve(minimumTransferAmount),
@@ -297,6 +354,18 @@ describe('WarpCore', () => {
       'Rate limit exceeded on destination',
     );
 
+    const invalidCollateralFiatTokenRateLimit = await warpCore.validateTransfer(
+      {
+        originTokenAmount: evmHypNative.amount(BIG_TRANSFER_AMOUNT),
+        destination: evmHypCollateralFiat.chainName,
+        recipient: MOCK_ADDRESS,
+        sender: MOCK_ADDRESS,
+      },
+    );
+    expect(
+      Object.values(invalidCollateralFiatTokenRateLimit || {})[0],
+    ).to.equal('Rate limit exceeded on destination');
+
     const invalidCollateralXERC20LockboxToken = await warpCore.validateTransfer(
       {
         originTokenAmount: evmHypXERC20.amount(MEDIUM_TRANSFER_AMOUNT),
@@ -320,7 +389,8 @@ describe('WarpCore', () => {
 
     const adapterStubs = warpCore.tokens.map((t) =>
       sinon.stub(t, 'getHypAdapter').returns({
-        quoteTransferRemoteGas: () => Promise.resolve(MOCK_INTERCHAIN_QUOTE),
+        quoteTransferRemoteGas: () =>
+          Promise.resolve({ igpQuote: MOCK_INTERCHAIN_QUOTE }),
         populateTransferRemoteTx: () => Promise.resolve({}),
         isRevokeApprovalRequired: () => Promise.resolve(false),
       } as any),

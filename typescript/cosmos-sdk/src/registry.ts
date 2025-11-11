@@ -147,6 +147,66 @@ export const COSMOS_MODULE_MESSAGE_REGISTRY: CosmosModuleMessageRegistry = {
       converter: types.isTx.MsgAnnounceValidatorResponse,
     },
   },
+  MsgCreateRoutingIsm: {
+    proto: {
+      type: '/hyperlane.core.interchain_security.v1.MsgCreateRoutingIsm' as const,
+      converter: types.isTx.MsgCreateRoutingIsm,
+    },
+    amino: {
+      type: 'hyperlane/v1/MsgCreateRoutingIsm' as const,
+    },
+  },
+  MsgCreateRoutingIsmResponse: {
+    proto: {
+      type: '/hyperlane.core.interchain_security.v1.MsgCreateRoutingIsmResponse' as const,
+      converter: types.isTx.MsgCreateRoutingIsmResponse,
+    },
+  },
+  MsgSetRoutingIsmDomain: {
+    proto: {
+      type: '/hyperlane.core.interchain_security.v1.MsgSetRoutingIsmDomain' as const,
+      converter: types.isTx.MsgSetRoutingIsmDomain,
+    },
+    amino: {
+      type: 'hyperlane/v1/MsgSetRoutingIsmDomain' as const,
+    },
+  },
+  MsgSetRoutingIsmDomainResponse: {
+    proto: {
+      type: '/hyperlane.core.interchain_security.v1.MsgSetRoutingIsmDomainResponse' as const,
+      converter: types.isTx.MsgSetRoutingIsmDomainResponse,
+    },
+  },
+  MsgRemoveRoutingIsmDomain: {
+    proto: {
+      type: '/hyperlane.core.interchain_security.v1.MsgRemoveRoutingIsmDomain' as const,
+      converter: types.isTx.MsgRemoveRoutingIsmDomain,
+    },
+    amino: {
+      type: 'hyperlane/v1/MsgRemoveRoutingIsmDomain' as const,
+    },
+  },
+  MsgRemoveRoutingIsmDomainResponse: {
+    proto: {
+      type: '/hyperlane.core.interchain_security.v1.MsgRemoveRoutingIsmDomainResponse' as const,
+      converter: types.isTx.MsgRemoveRoutingIsmDomainResponse,
+    },
+  },
+  MsgUpdateRoutingIsmOwner: {
+    proto: {
+      type: '/hyperlane.core.interchain_security.v1.MsgUpdateRoutingIsmOwner' as const,
+      converter: types.isTx.MsgUpdateRoutingIsmOwner,
+    },
+    amino: {
+      type: 'hyperlane/v1/MsgUpdateRoutingIsmOwner' as const,
+    },
+  },
+  MsgUpdateRoutingIsmOwnerResponse: {
+    proto: {
+      type: '/hyperlane.core.interchain_security.v1.MsgUpdateRoutingIsmOwnerResponse' as const,
+      converter: types.isTx.MsgUpdateRoutingIsmOwnerResponse,
+    },
+  },
 
   // Post dispatch transactions
   MsgCreateIgp: {

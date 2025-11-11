@@ -4,7 +4,7 @@ import { AggregationMetadataBuilder } from './aggregation.js';
 import { ArbL2ToL1MetadataBuilder } from './arbL2ToL1.js';
 import { MultisigMetadataBuilder } from './multisig.js';
 import { NullMetadataBuilder } from './null.js';
-import { DefaultFallbackRoutingMetadataBuilder } from './routing.js';
+import { DynamicRoutingMetadataBuilder } from './routing.js';
 import { MetadataContext, StructuredMetadata } from './types.js';
 
 export function decodeIsmMetadata(
@@ -24,7 +24,7 @@ export function decodeIsmMetadata(
       return AggregationMetadataBuilder.decode(metadata, { ...context, ism });
 
     case IsmType.ROUTING:
-      return DefaultFallbackRoutingMetadataBuilder.decode(metadata, {
+      return DynamicRoutingMetadataBuilder.decode(metadata, {
         ...context,
         ism,
       });

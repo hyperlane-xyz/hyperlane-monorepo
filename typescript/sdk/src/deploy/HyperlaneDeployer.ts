@@ -22,6 +22,7 @@ import {
   runWithTimeout,
 } from '@hyperlane-xyz/utils';
 
+import { ExplorerLicenseType } from '../block-explorer/etherscan.js';
 import {
   HyperlaneAddressesMap,
   HyperlaneContracts,
@@ -32,10 +33,15 @@ import { HookConfig } from '../hook/types.js';
 import type { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { IsmConfig } from '../ism/types.js';
 import { moduleMatchesConfig } from '../ism/utils.js';
+import {
+  ChainTechnicalStack,
+  ExplorerFamily,
+} from '../metadata/chainMetadataTypes.js';
 import { InterchainAccount } from '../middleware/account/InterchainAccount.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { MailboxClientConfig } from '../router/types.js';
 import { ChainMap, ChainName, OwnableConfig } from '../types.js';
+import { getZKSyncArtifactByContractName } from '../utils/zksync.js';
 
 import {
   UpgradeConfig,
@@ -46,13 +52,12 @@ import {
   proxyImplementation,
 } from './proxy.js';
 import { ContractVerifier } from './verify/ContractVerifier.js';
-import {
-  ContractVerificationInput,
-  ExplorerLicenseType,
-} from './verify/types.js';
+import { ZKSyncContractVerifier } from './verify/ZKSyncContractVerifier.js';
+import { ContractVerificationInput } from './verify/types.js';
 import {
   buildVerificationInput,
   getContractVerificationInput,
+  getContractVerificationInputForZKSync,
   shouldAddVerificationInput,
 } from './verify/utils.js';
 
@@ -78,6 +83,8 @@ export abstract class HyperlaneDeployer<
   protected logger: Logger;
   chainTimeoutMs: number;
 
+  private zkSyncContractVerifier: ZKSyncContractVerifier;
+
   constructor(
     protected readonly multiProvider: MultiProvider,
     protected readonly factories: Factories,
@@ -101,6 +108,8 @@ export abstract class HyperlaneDeployer<
       coreBuildArtifact,
       ExplorerLicenseType.MIT,
     );
+
+    this.zkSyncContractVerifier = new ZKSyncContractVerifier(multiProvider);
   }
 
   cacheAddressesMap(addressesMap: HyperlaneAddressesMap<any>): void {
@@ -112,7 +121,12 @@ export abstract class HyperlaneDeployer<
     input: ContractVerificationInput,
     logger = this.logger,
   ): Promise<void> {
-    return this.options.contractVerifier?.verifyContract(chain, input, logger);
+    const explorerFamily = this.multiProvider.tryGetExplorerApi(chain)?.family;
+    const verifier =
+      explorerFamily === ExplorerFamily.ZkSync
+        ? this.zkSyncContractVerifier
+        : this.options.contractVerifier;
+    return verifier?.verifyContract(chain, input, logger);
   }
 
   abstract deployContracts(
@@ -367,6 +381,10 @@ export abstract class HyperlaneDeployer<
     this.logger.debug(`Mailbox client on ${local} initialized...`);
   }
 
+  initializeFnSignature(_contractName: string): string {
+    return 'initialize';
+  }
+
   public async deployContractFromFactory<F extends ethers.ContractFactory>(
     chain: ChainName,
     factory: F,
@@ -402,10 +420,17 @@ export abstract class HyperlaneDeployer<
     this.logger.info(
       `Deploying ${contractName} on ${chain} with constructor args (${namedArgs.join(', ')})...`,
     );
+
+    const { technicalStack } = this.multiProvider.getChainMetadata(chain);
+    const isZKSyncChain = technicalStack === ChainTechnicalStack.ZkSync;
+    const signer = this.multiProvider.getSigner(chain);
+    const artifact = await getZKSyncArtifactByContractName(contractName);
+
     const contract = await this.multiProvider.handleDeploy(
       chain,
       factory,
       constructorArgs,
+      artifact,
     );
 
     if (initializeArgs) {
@@ -430,16 +455,21 @@ export abstract class HyperlaneDeployer<
         );
 
         // Estimate gas for the initialize transaction
-        const estimatedGas = await contract.estimateGas.initialize(
-          ...initializeArgs,
-        );
+        const estimatedGas = await contract
+          .connect(signer)
+          .estimateGas[
+            this.initializeFnSignature(contractName)
+          ](...initializeArgs);
 
         // deploy with buffer on gas limit
         const overrides = this.multiProvider.getTransactionOverrides(chain);
-        const initTx = await contract.initialize(...initializeArgs, {
-          gasLimit: addBufferToGasLimit(estimatedGas),
-          ...overrides,
-        });
+        const initTx = await contract[this.initializeFnSignature(contractName)](
+          ...initializeArgs,
+          {
+            gasLimit: addBufferToGasLimit(estimatedGas),
+            ...overrides,
+          },
+        );
         const receipt = await this.multiProvider.handleTx(chain, initTx);
         this.logger.debug(
           `Successfully initialized ${contractName} (${contract.address}) on ${chain}: ${receipt.transactionHash}`,
@@ -447,20 +477,34 @@ export abstract class HyperlaneDeployer<
       }
     }
 
-    const verificationInput = getContractVerificationInput({
-      name: contractName,
-      contract,
-      bytecode: factory.bytecode,
-      expectedimplementation: implementationAddress,
-    });
+    let verificationInput: ContractVerificationInput;
+    if (isZKSyncChain) {
+      if (!artifact) {
+        throw new Error(
+          `No ZkSync artifact found for contract: ${contractName}`,
+        );
+      }
+      verificationInput = await getContractVerificationInputForZKSync({
+        name: contractName,
+        contract,
+        constructorArgs: constructorArgs,
+        artifact: artifact,
+        expectedimplementation: implementationAddress,
+      });
+    } else {
+      verificationInput = getContractVerificationInput({
+        name: contractName,
+        contract,
+        bytecode: factory.bytecode,
+        expectedimplementation: implementationAddress,
+      });
+    }
+
     this.addVerificationArtifacts(chain, [verificationInput]);
 
     // try verifying contract
     try {
-      await this.options.contractVerifier?.verifyContract(
-        chain,
-        verificationInput,
-      );
+      await this.verifyContract(chain, verificationInput);
     } catch (error) {
       // log error but keep deploying, can also verify post-deployment if needed
       this.logger.debug(`Error verifying contract: ${error}`);
@@ -599,6 +643,7 @@ export abstract class HyperlaneDeployer<
     implementation: C,
     proxyAdmin: string,
     initializeArgs?: Parameters<C['initialize']>,
+    contractName?: string,
   ): Promise<C> {
     const isProxied = await isProxy(
       this.multiProvider.getProvider(chain),
@@ -613,6 +658,7 @@ export abstract class HyperlaneDeployer<
       implementation,
       proxyAdmin,
       initializeArgs,
+      this.initializeFnSignature(contractName ?? ''),
     );
 
     if (initializeArgs) {
@@ -644,6 +690,8 @@ export abstract class HyperlaneDeployer<
     chain: ChainName,
     timelockConfig: UpgradeConfig['timelock'],
   ): Promise<TimelockController> {
+    const TimelockZkArtifact =
+      await getZKSyncArtifactByContractName('TimelockController');
     return this.multiProvider.handleDeploy(
       chain,
       new TimelockController__factory(),
@@ -654,6 +702,7 @@ export abstract class HyperlaneDeployer<
         [timelockConfig.roles.executor],
         ethers.constants.AddressZero,
       ],
+      TimelockZkArtifact,
     );
   }
 
@@ -722,6 +771,7 @@ export abstract class HyperlaneDeployer<
       cachedContract.attach(implementation),
       admin,
       initializeArgs,
+      contractName,
     );
     const proxyInput = buildVerificationInput(
       'TransparentUpgradeableProxy',
@@ -760,6 +810,7 @@ export abstract class HyperlaneDeployer<
       implementation,
       proxyAdmin,
       initializeArgs,
+      contractName,
     );
     this.writeCache(chain, contractName, contract.address);
     return contract;

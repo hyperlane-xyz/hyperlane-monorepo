@@ -1,5 +1,4 @@
 import { Result } from '@ethersproject/abi';
-import { decodeMultiSendData } from '@safe-global/protocol-kit/dist/src/utils/index.js';
 import {
   MetaTransactionData,
   OperationType,
@@ -13,10 +12,14 @@ import chalk from 'chalk';
 import { BigNumber, ethers } from 'ethers';
 
 import {
+  ERC20__factory,
+  HypXERC20Lockbox__factory,
+  IXERC20VS__factory,
+  IXERC20__factory,
+  MovableCollateralRouter__factory,
   Ownable__factory,
   ProxyAdmin__factory,
   TimelockController__factory,
-  TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import {
   AnnotatedEV5Transaction,
@@ -27,9 +30,11 @@ import {
   EvmIsmReader,
   InterchainAccount,
   MultiProvider,
+  TokenStandard,
   WarpCoreConfig,
   coreFactories,
   interchainAccountFactories,
+  isProxyAdminFromBytecode,
   normalizeConfig,
 } from '@hyperlane-xyz/sdk';
 import {
@@ -41,14 +46,35 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { awIcasLegacy } from '../../config/environments/mainnet3/governance/ica/_awLegacy.js';
+import { regularIcasLegacy } from '../../config/environments/mainnet3/governance/ica/_regularLegacy.js';
+import {
+  getAllSafesForChain,
+  getGovernanceIcas,
+  getGovernanceSafes,
+  getGovernanceTimelocks,
+  getLegacyGovernanceIcas,
+} from '../../config/environments/mainnet3/governance/utils.js';
 import {
   icaOwnerChain,
-  timelocks,
+  timelocks as legacyTimelocks,
 } from '../../config/environments/mainnet3/owners.js';
+import {
+  getEnvironmentConfig,
+  getHyperlaneCore,
+} from '../../scripts/core-utils.js';
 import { DeployEnvironment } from '../config/environment.js';
+import { tokens } from '../config/warp.js';
+import {
+  GovernanceType,
+  Owner,
+  determineGovernanceType,
+} from '../governance.js';
+import { decodeMultiSendData, getSafeTx, parseSafeTx } from '../utils/safe.js';
 
-interface GovernTransaction extends Record<string, any> {
+export interface GovernTransaction extends Record<string, any> {
   chain: ChainName;
+  nestedTx?: GovernTransaction;
 }
 
 interface MultiSendTransaction {
@@ -87,6 +113,18 @@ interface IcaRemoteCallInsight {
   calls: GovernTransaction[];
 }
 
+type XERC20Metadata = {
+  type: TokenStandard.EvmHypXERC20 | TokenStandard.EvmHypVSXERC20;
+  symbol: string;
+  name: string;
+  decimals: number;
+};
+
+const ownableFunctionSelectors = [
+  'renounceOwnership()',
+  'transferOwnership(address)',
+].map((func) => ethers.utils.id(func).substring(0, 10));
+
 export class GovernTransactionReader {
   errors: any[] = [];
 
@@ -100,6 +138,41 @@ export class GovernTransactionReader {
 
   readonly multiSendCallOnlyDeployments: Address[] = [];
   readonly multiSendDeployments: Address[] = [];
+  readonly xerc20Deployments: ChainMap<Record<Address, XERC20Metadata>> = {};
+
+  private rawWarpRouteConfigMap: Record<string, WarpCoreConfig>;
+
+  static async create(
+    environment: DeployEnvironment,
+    governanceType: GovernanceType,
+  ): Promise<GovernTransactionReader> {
+    const config = getEnvironmentConfig(environment);
+    const multiProvider = await config.getMultiProvider();
+    const { chainAddresses } = await getHyperlaneCore(
+      environment,
+      multiProvider,
+    );
+    const registry = await config.getRegistry();
+    const warpRoutes = await registry.getWarpRoutes();
+    const safes = getGovernanceSafes(governanceType);
+    const icas = getGovernanceIcas(governanceType);
+    const legacyIcas = getLegacyGovernanceIcas(governanceType);
+    const timelocks = getGovernanceTimelocks(governanceType);
+
+    const txReaderInstance = new GovernTransactionReader(
+      environment,
+      multiProvider,
+      chainAddresses,
+      config.core,
+      warpRoutes,
+      safes,
+      icas,
+      legacyIcas,
+      timelocks,
+    );
+    await txReaderInstance.init();
+    return txReaderInstance;
+  }
 
   constructor(
     readonly environment: DeployEnvironment,
@@ -109,15 +182,63 @@ export class GovernTransactionReader {
     warpRoutes: Record<string, WarpCoreConfig>,
     readonly safes: ChainMap<string>,
     readonly icas: ChainMap<string>,
+    readonly legacyIcas: ChainMap<string>,
+    readonly timelocks: ChainMap<string>,
   ) {
-    // Populate maps with warp route addresses and additional token details
-    for (const warpRoute of Object.values(warpRoutes)) {
+    this.rawWarpRouteConfigMap = warpRoutes;
+  }
+
+  async init() {
+    for (const warpRoute of Object.values(this.rawWarpRouteConfigMap)) {
       for (const token of Object.values(warpRoute.tokens)) {
         const address = token.addressOrDenom?.toLowerCase() ?? '';
         if (!this.warpRouteIndex[token.chainName]) {
           this.warpRouteIndex[token.chainName] = {};
         }
         this.warpRouteIndex[token.chainName][address] = token;
+
+        const updateXerc20Deployments = async (
+          address: string,
+          type: TokenStandard.EvmHypXERC20 | TokenStandard.EvmHypVSXERC20,
+        ) => {
+          this.xerc20Deployments[token.chainName] ??= {};
+          this.xerc20Deployments[token.chainName][address.toLowerCase()] = {
+            type,
+            symbol: token.symbol,
+            name: token.name,
+            decimals: token.decimals,
+          };
+        };
+
+        if (
+          token.standard === TokenStandard.EvmHypXERC20Lockbox ||
+          token.standard === TokenStandard.EvmHypVSXERC20Lockbox
+        ) {
+          const provider = this.multiProvider.getProvider(token.chainName);
+          const lockbox = HypXERC20Lockbox__factory.connect(
+            token.addressOrDenom!,
+            provider,
+          );
+          const xerc20 = await lockbox.xERC20();
+          assert(xerc20, 'No xerc20 address');
+          await updateXerc20Deployments(
+            xerc20,
+            token.standard === TokenStandard.EvmHypXERC20Lockbox
+              ? TokenStandard.EvmHypXERC20
+              : TokenStandard.EvmHypVSXERC20,
+          );
+        }
+
+        if (
+          token.standard == TokenStandard.EvmHypXERC20 ||
+          token.standard == TokenStandard.EvmHypVSXERC20
+        ) {
+          assert(token.collateralAddressOrDenom, 'No collateral address');
+          await updateXerc20Deployments(
+            token.collateralAddressOrDenom,
+            token.standard,
+          );
+        }
       }
     }
 
@@ -148,6 +269,16 @@ export class GovernTransactionReader {
     chain: ChainName,
     tx: AnnotatedEV5Transaction,
   ): Promise<GovernTransaction> {
+    // If it's an Ownable transaction
+    if (await this.isOwnableTransaction(tx)) {
+      return this.readOwnableTransaction(chain, tx);
+    }
+
+    // If it's to another Safe
+    if (this.isSafeTransaction(chain, tx)) {
+      return this.readSafeTransaction(chain, tx);
+    }
+
     // If it's to an ICA
     if (this.isIcaTransaction(chain, tx)) {
       return this.readIcaTransaction(chain, tx);
@@ -156,11 +287,6 @@ export class GovernTransactionReader {
     // If it's to a Mailbox
     if (this.isMailboxTransaction(chain, tx)) {
       return this.readMailboxTransaction(chain, tx);
-    }
-
-    // If it's to a Proxy Admin
-    if (this.isProxyAdminTransaction(chain, tx)) {
-      return this.readProxyAdminTransaction(chain, tx);
     }
 
     // If it's to a TimelockController
@@ -178,9 +304,25 @@ export class GovernTransactionReader {
       return this.readWarpModuleTransaction(chain, tx);
     }
 
-    // If it's an Ownable transaction
-    if (await this.isOwnableTransaction(chain, tx)) {
-      return this.readOwnableTransaction(chain, tx);
+    // If it's a Managed Lockbox transaction
+    if (this.isManagedLockboxTransaction(chain, tx)) {
+      return this.readManagedLockboxTransaction(chain, tx);
+    }
+
+    // If it's an XERC20 transaction
+    const xerc20Type = await this.isXERC20Transaction(chain, tx);
+    if (xerc20Type) {
+      return this.readXERC20Transaction(chain, tx, xerc20Type);
+    }
+
+    // If it's an ERC20 transaction
+    if (this.isErc20Transaction(chain, tx)) {
+      return this.readErc20Transaction(chain, tx);
+    }
+
+    // If it's to a Proxy Admin
+    if (await this.isProxyAdminTransaction(chain, tx)) {
+      return this.readProxyAdminTransaction(chain, tx);
     }
 
     // If it's a native token transfer (no data, only value)
@@ -203,6 +345,101 @@ export class GovernTransactionReader {
     };
   }
 
+  private isErc20Transaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): boolean {
+    if (!tx.to) {
+      return false;
+    }
+
+    const chainTokens = tokens[chain as keyof typeof tokens];
+    if (!chainTokens) {
+      return false;
+    }
+
+    for (const address of Object.values(chainTokens)) {
+      if (eqAddress(tx.to, address)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private async readErc20Transaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): Promise<GovernTransaction> {
+    if (!tx.data) {
+      throw new Error('No data in ERC20 transaction');
+    }
+
+    if (!tx.to) {
+      throw new Error('No to address in ERC20 transaction');
+    }
+
+    const erc20Interface = ERC20__factory.createInterface();
+    const decoded = erc20Interface.parseTransaction({
+      data: tx.data,
+      value: tx.value,
+    });
+
+    const erc20 = ERC20__factory.connect(
+      tx.to,
+      this.multiProvider.getProvider(chain),
+    );
+
+    const decimals = await erc20.decimals();
+    const symbol = await erc20.symbol();
+
+    let insight;
+    switch (decoded.functionFragment.name) {
+      case erc20Interface.functions['transfer(address,uint256)'].name: {
+        const [to, amount] = decoded.args;
+        const numTokens = ethers.utils.formatUnits(amount, decimals);
+        insight = `Transfer ${numTokens} ${symbol} to ${to}`;
+        break;
+      }
+      case erc20Interface.functions['approve(address,uint256)'].name: {
+        const [spender, amount] = decoded.args;
+        const numTokens = ethers.utils.formatUnits(amount, decimals);
+        insight = `Approve ${numTokens} ${symbol} for ${spender}`;
+        break;
+      }
+      case erc20Interface.functions['transferFrom(address,address,uint256)']
+        .name: {
+        const [from, to, amount] = decoded.args;
+        const numTokens = ethers.utils.formatUnits(amount, decimals);
+        insight = `Transfer ${numTokens} ${symbol} from ${from} to ${to}`;
+        break;
+      }
+      case erc20Interface.functions['increaseAllowance(address,uint256)']
+        .name: {
+        const [spender, addedValue] = decoded.args;
+        insight = `Increase allowance for ${spender} by ${addedValue.toString()}`;
+        break;
+      }
+      case erc20Interface.functions['decreaseAllowance(address,uint256)']
+        .name: {
+        const [spender, subtractedValue] = decoded.args;
+        insight = `Decrease allowance for ${spender} by ${subtractedValue.toString()}`;
+        break;
+      }
+    }
+
+    const args = formatFunctionFragmentArgs(
+      decoded.args,
+      decoded.functionFragment,
+    );
+
+    return {
+      chain,
+      to: `${symbol} (${chain} ${tx.to})`,
+      insight,
+      args,
+    };
+  }
+
   private isNativeTokenTransfer(tx: AnnotatedEV5Transaction): boolean {
     return !tx.data && !!tx.value && !!tx.to;
   }
@@ -216,7 +453,6 @@ export class GovernTransactionReader {
     return {
       chain,
       insight: `Send ${numTokens} ${symbol} to ${tx.to}`,
-      tx,
     };
   }
 
@@ -224,11 +460,14 @@ export class GovernTransactionReader {
     chain: ChainName,
     tx: AnnotatedEV5Transaction,
   ): boolean {
-    return (
-      tx.to !== undefined &&
-      timelocks[chain] !== undefined &&
-      eqAddress(tx.to!, timelocks[chain]!)
-    );
+    const isNewTimelock =
+      this.timelocks[chain] !== undefined &&
+      eqAddress(tx.to!, this.timelocks[chain]!);
+    const isLegacyTimelock =
+      legacyTimelocks[chain] !== undefined &&
+      eqAddress(tx.to!, legacyTimelocks[chain]!);
+
+    return tx.to !== undefined && (isNewTimelock || isLegacyTimelock);
   }
 
   private async readTimelockControllerTransaction(
@@ -247,6 +486,7 @@ export class GovernTransactionReader {
     });
 
     let insight;
+    let calls;
     if (
       decoded.functionFragment.name ===
       timelockControllerInterface.functions[
@@ -268,11 +508,59 @@ export class GovernTransactionReader {
     if (
       decoded.functionFragment.name ===
       timelockControllerInterface.functions[
+        'scheduleBatch(address[],uint256[],bytes[],bytes32,bytes32,uint256)'
+      ].name
+    ) {
+      const [targets, values, data, _predecessor, _salt, delay] = decoded.args;
+
+      calls = [];
+      const numOfTxs = targets.length;
+      for (let i = 0; i < numOfTxs; i++) {
+        calls.push(
+          await this.read(chain, {
+            to: targets[i],
+            data: data[i],
+            value: values[i],
+          }),
+        );
+      }
+
+      const eta = new Date(Date.now() + delay.toNumber() * 1000);
+
+      insight = `Schedule for ${eta}`;
+    }
+
+    if (
+      decoded.functionFragment.name ===
+      timelockControllerInterface.functions[
         'execute(address,uint256,bytes,bytes32,bytes32)'
       ].name
     ) {
       const [target, value, data, executor] = decoded.args;
       insight = `Execute ${target} with ${value} ${data}. Executor: ${executor}`;
+    }
+
+    if (
+      decoded.functionFragment.name ===
+      timelockControllerInterface.functions[
+        'executeBatch(address[],uint256[],bytes[],bytes32,bytes32)'
+      ].name
+    ) {
+      const [targets, values, data, _predecessor, _salt] = decoded.args;
+
+      calls = [];
+      const numOfTxs = targets.length;
+      for (let i = 0; i < numOfTxs; i++) {
+        calls.push(
+          await this.read(chain, {
+            to: targets[i],
+            data: data[i],
+            value: values[i],
+          }),
+        );
+      }
+
+      insight = `Execute batch on ${targets}`;
     }
 
     if (
@@ -292,6 +580,190 @@ export class GovernTransactionReader {
       chain,
       to: `Timelock Controller (${chain} ${tx.to})`,
       ...(insight ? { insight } : { args }),
+      ...(calls ? { innerTxs: calls } : {}),
+    };
+  }
+
+  private isManagedLockboxTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): boolean {
+    if (!tx.to) return false;
+    const lockboxes = {
+      optimism: '0x18C4CdC2d774c047Eac8375Bb09853c4D6D6dF36',
+      base: '0xE92e51D99AE33114C60D9621FB2E1ec0ACeA7E30',
+    };
+    return (
+      chain in lockboxes &&
+      eqAddress(tx.to, lockboxes[chain as keyof typeof lockboxes])
+    );
+  }
+
+  private readManagedLockboxTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): GovernTransaction {
+    if (!tx.data) {
+      throw new Error('No data in Managed Lockbox transaction');
+    }
+
+    const managedLockboxInterface = new ethers.utils.Interface([
+      'function deposit(uint256 _amount) nonpayable',
+      'function disableDeposits() nonpayable',
+      'function enableDeposits() nonpayable',
+      'function grantRole(bytes32 role, address account) nonpayable',
+      'function renounceRole(bytes32 role, address callerConfirmation) nonpayable',
+      'function revokeRole(bytes32 role, address account) nonpayable',
+      'function withdraw(uint256 _amount) nonpayable',
+      'function withdrawTo(address _to, uint256 _amount) nonpayable',
+    ]);
+    let decoded;
+    try {
+      decoded = managedLockboxInterface.parseTransaction({
+        data: tx.data,
+        value: tx.value,
+      });
+    } catch (error) {
+      throw new Error('Failed to decode Managed Lockbox transaction');
+    }
+
+    const roleMap: Record<string, string> = {
+      '0x0000000000000000000000000000000000000000000000000000000000000000':
+        'DEFAULT_ADMIN_ROLE',
+      '0xaf290d8680820aad922855f39b306097b20e28774d6c1ad35a20325630c3a02c':
+        'MANAGER',
+    };
+
+    let insight;
+    if (
+      decoded.functionFragment.name ===
+      managedLockboxInterface.functions['grantRole(bytes32,address)'].name
+    ) {
+      const [role, account] = decoded.args;
+      const roleName = roleMap[role] ? ` ${roleMap[role]}` : '';
+      insight = `Grant role${roleName} to ${account}`;
+    } else {
+      insight = 'Unknown function in Managed Lockbox transaction';
+    }
+
+    return {
+      to: `${tx.to} (Managed Lockbox)`,
+      chain,
+      insight,
+    };
+  }
+
+  private async isXERC20Transaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): Promise<XERC20Metadata | undefined> {
+    if (!tx.to) return undefined;
+    const lowerTo = tx.to.toLowerCase();
+    return this.xerc20Deployments[chain]?.[lowerTo];
+  }
+
+  private async readXERC20Transaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+    metadata: XERC20Metadata,
+  ): Promise<GovernTransaction> {
+    if (!tx.data) {
+      throw new Error('No data in XERC20 transaction');
+    }
+
+    const vsTokenInterface = IXERC20VS__factory.createInterface();
+    const xerc20Interface = IXERC20__factory.createInterface();
+
+    let decoded: ethers.utils.TransactionDescription;
+    if (metadata.type === TokenStandard.EvmHypVSXERC20) {
+      decoded = vsTokenInterface.parseTransaction({
+        data: tx.data,
+        value: tx.value,
+      });
+    } else {
+      decoded = xerc20Interface.parseTransaction({
+        data: tx.data,
+        value: tx.value,
+      });
+    }
+
+    let insight;
+    if (metadata.type === TokenStandard.EvmHypVSXERC20) {
+      switch (decoded.functionFragment.name) {
+        case vsTokenInterface.functions['setBufferCap(address,uint256)'].name: {
+          const [bridge, newBufferCap] = decoded.args;
+          insight = `Set buffer cap for bridge ${bridge} to ${newBufferCap}`;
+          break;
+        }
+        case vsTokenInterface.functions[
+          'setRateLimitPerSecond(address,uint128)'
+        ].name: {
+          const [bridge, newRateLimit] = decoded.args;
+          insight = `Set rate limit per second for bridge ${bridge} to ${newRateLimit}`;
+          break;
+        }
+        case vsTokenInterface.functions['addBridge((uint112,uint128,address))']
+          .name: {
+          const [{ bufferCap, rateLimitPerSecond, bridge }] = decoded.args;
+          insight = `Add new bridge ${bridge} with buffer cap ${bufferCap} and rate limit ${rateLimitPerSecond}`;
+          break;
+        }
+        case vsTokenInterface.functions['removeBridge(address)'].name: {
+          const [bridgeToRemove] = decoded.args;
+          insight = `Remove bridge ${bridgeToRemove}`;
+          break;
+        }
+      }
+    } else {
+      if (
+        decoded.functionFragment.name ===
+        xerc20Interface.functions['setLimits(address,uint256,uint256)'].name
+      ) {
+        const [bridge, mintingLimit, burningLimit] = decoded.args;
+        insight = `Set limits for bridge ${bridge} - minting limit: ${mintingLimit}, burning limit: ${burningLimit}`;
+      }
+    }
+
+    // general xerc20 functions
+    if (!insight) {
+      switch (decoded.functionFragment.name) {
+        case xerc20Interface.functions['mint(address,uint256)'].name: {
+          const [to, amount] = decoded.args;
+          const numTokens = ethers.utils.formatUnits(amount, metadata.decimals);
+          insight = `Mint ${numTokens} ${metadata.symbol} to ${to}`;
+          break;
+        }
+        case xerc20Interface.functions['approve(address,uint256)'].name: {
+          const [spender, amount] = decoded.args;
+          const numTokens = ethers.utils.formatUnits(amount, metadata.decimals);
+          insight = `Approve ${numTokens} ${metadata.symbol} for ${spender}`;
+          break;
+        }
+        case xerc20Interface.functions['burn(address,uint256)'].name: {
+          const [from, amount] = decoded.args;
+          const numTokens = ethers.utils.formatUnits(amount, metadata.decimals);
+          insight = `Burn ${numTokens} ${metadata.symbol} from ${from}`;
+          break;
+        }
+      }
+    }
+
+    const args = formatFunctionFragmentArgs(
+      decoded.args,
+      decoded.functionFragment,
+    );
+
+    let ownableTx = {};
+    if (!insight) {
+      ownableTx = await this.readOwnableTransaction(chain, tx);
+    }
+
+    return {
+      ...ownableTx,
+      to: `${metadata.symbol} (${metadata.name}, ${metadata.type}, ${tx.to})`,
+      chain,
+      ...(insight ? { insight } : { args }),
+      signature: decoded.signature,
     };
   }
 
@@ -315,7 +787,8 @@ export class GovernTransactionReader {
     }
 
     const { symbol } = await this.multiProvider.getNativeToken(chain);
-    const tokenRouterInterface = TokenRouter__factory.createInterface();
+    const tokenRouterInterface =
+      MovableCollateralRouter__factory.createInterface();
 
     const decoded = tokenRouterInterface.parseTransaction({
       data: tx.data,
@@ -329,6 +802,22 @@ export class GovernTransactionReader {
     ) {
       const [hookAddress] = decoded.args;
       insight = `Set hook to ${hookAddress}`;
+    }
+
+    if (
+      decoded.functionFragment.name ===
+      tokenRouterInterface.functions['addBridge(uint32,address)'].name
+    ) {
+      const [domain, bridgeAddress] = decoded.args;
+      insight = `Set bridge for origin domain ${domain}to ${bridgeAddress}`;
+    }
+
+    if (
+      decoded.functionFragment.name ===
+      tokenRouterInterface.functions['addRebalancer(address)'].name
+    ) {
+      const [rebalancer] = decoded.args;
+      insight = `Add rebalancer ${rebalancer}`;
     }
 
     if (
@@ -442,11 +931,28 @@ export class GovernTransactionReader {
       );
     } else if (
       decoded.functionFragment.name ===
+      icaInterface.functions['enrollRemoteRouters(uint32[],bytes32[])'].name
+    ) {
+      prettyArgs = await this.formatRouterEnrollments(
+        chain,
+        'interchainAccountRouter',
+        args,
+      );
+    } else if (
+      decoded.functionFragment.name ===
       icaInterface.functions[
         'callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[])'
       ].name
     ) {
       prettyArgs = await this.readIcaRemoteCall(chain, args);
+    } else if (decoded.signature === 'transferOwnership(address)') {
+      // Fallback to ownable transaction handling for unknown functions
+      const ownableTx = await this.readOwnableTransaction(chain, tx);
+      return {
+        ...ownableTx,
+        to: `ICA Router (${chain} ${this.chainAddresses[chain].interchainAccountRouter})`,
+        signature: decoded.signature,
+      };
     }
 
     return {
@@ -468,23 +974,41 @@ export class GovernTransactionReader {
       const remoteChainName = this.multiProvider.getChainName(domain);
       const expectedRouter = this.chainAddresses[remoteChainName][routerName];
       const routerToBeEnrolled = addresses[index];
-      const matchesExpectedRouter =
-        eqAddress(expectedRouter, bytes32ToAddress(routerToBeEnrolled)) &&
-        // Poor man's check that the 12 byte padding is all zeroes
-        addressToBytes32(bytes32ToAddress(routerToBeEnrolled)) ===
-          routerToBeEnrolled;
+      const isAddressMatch = eqAddress(
+        expectedRouter,
+        bytes32ToAddress(routerToBeEnrolled),
+      );
+      const isPaddingCorrect = eqAddress(
+        addressToBytes32(bytes32ToAddress(routerToBeEnrolled)),
+        routerToBeEnrolled,
+      );
 
       let insight = '✅ matches expected router from artifacts';
-      if (!matchesExpectedRouter) {
-        insight = `❌ fatal mismatch, expected ${expectedRouter}`;
-        this.errors.push({
-          chain: chain,
-          remoteDomain: domain,
-          remoteChain: remoteChainName,
-          router: routerToBeEnrolled,
-          expected: expectedRouter,
-          info: 'Incorrect router getting enrolled',
-        });
+      if (!isAddressMatch || !isPaddingCorrect) {
+        if (!isAddressMatch) {
+          insight = `❌ fatal mismatch, expected ${expectedRouter}`;
+          this.errors.push({
+            chain: chain,
+            remoteDomain: domain,
+            remoteChain: remoteChainName,
+            router: routerToBeEnrolled,
+            expected: expectedRouter,
+            info: 'Incorrect router address getting enrolled',
+          });
+        }
+
+        if (!isPaddingCorrect) {
+          // This is a subtle but important check: the address must be properly padded to 32 bytes
+          insight = `❌ fatal mismatch, expected ${addressToBytes32(bytes32ToAddress(routerToBeEnrolled))}`;
+          this.errors.push({
+            chain: chain,
+            remoteDomain: domain,
+            remoteChain: remoteChainName,
+            router: routerToBeEnrolled,
+            expected: addressToBytes32(bytes32ToAddress(routerToBeEnrolled)),
+            info: 'Router address is not properly padded to 32 bytes (should be 12 leading zero bytes)',
+          });
+        }
       }
 
       return {
@@ -519,6 +1043,14 @@ export class GovernTransactionReader {
       mailboxInterface.functions['setDefaultIsm(address)'].name
     ) {
       prettyArgs = await this.formatMailboxSetDefaultIsm(chain, args);
+    } else if (decoded.signature === 'transferOwnership(address)') {
+      // Fallback to ownable transaction handling for unknown functions
+      const ownableTx = await this.readOwnableTransaction(chain, tx);
+      return {
+        ...ownableTx,
+        to: `Mailbox (${chain} ${this.chainAddresses[chain].mailbox})`,
+        signature: decoded.signature,
+      };
     }
 
     return {
@@ -543,11 +1075,58 @@ export class GovernTransactionReader {
       value: tx.value,
     });
 
-    const ownableTx = await this.readOwnableTransaction(chain, tx);
+    let insight: string | undefined;
+    const args = formatFunctionFragmentArgs(
+      decoded.args,
+      decoded.functionFragment,
+    );
+
+    switch (decoded.functionFragment.name) {
+      case proxyAdminInterface.functions['upgrade(address,address)'].name: {
+        const [proxy, implementation] = decoded.args;
+        insight = `Upgrade proxy ${proxy} to implementation ${implementation}`;
+        break;
+      }
+      case proxyAdminInterface.functions[
+        'upgradeAndCall(address,address,bytes)'
+      ].name: {
+        const [proxy, implementation, data] = decoded.args;
+        insight = `Upgrade proxy ${proxy} to implementation ${implementation} with initialization data`;
+        break;
+      }
+      case proxyAdminInterface.functions['changeProxyAdmin(address,address)']
+        .name: {
+        const [proxy, newAdmin] = decoded.args;
+        insight = `Change admin of proxy ${proxy} to ${newAdmin}`;
+        break;
+      }
+      case proxyAdminInterface.functions['getProxyImplementation(address)']
+        .name: {
+        const [proxy] = decoded.args;
+        insight = `Get implementation address for proxy ${proxy}`;
+        break;
+      }
+      case proxyAdminInterface.functions['getProxyAdmin(address)'].name: {
+        const [proxy] = decoded.args;
+        insight = `Get admin address for proxy ${proxy}`;
+        break;
+      }
+      default: {
+        // Fallback to ownable transaction handling for unknown functions
+        const ownableTx = await this.readOwnableTransaction(chain, tx);
+        return {
+          ...ownableTx,
+          to: `Proxy Admin (${chain} ${this.chainAddresses[chain].proxyAdmin})`,
+          signature: decoded.signature,
+        };
+      }
+    }
+
     return {
-      ...ownableTx,
+      chain,
       to: `Proxy Admin (${chain} ${this.chainAddresses[chain].proxyAdmin})`,
       signature: decoded.signature,
+      ...(insight ? { insight } : { args }),
     };
   }
 
@@ -675,11 +1254,17 @@ export class GovernTransactionReader {
       ismOverride: ism,
     });
     const expectedRemoteIcaAddress = this.icas[remoteChainName];
+    const expectedLegacyRemoteIcaAddress = this.legacyIcas[remoteChainName];
     let remoteIcaInsight = '✅ matches expected ICA';
-    if (
-      !expectedRemoteIcaAddress ||
-      !eqAddress(remoteIcaAddress, expectedRemoteIcaAddress)
-    ) {
+
+    const isValidIca =
+      expectedRemoteIcaAddress &&
+      eqAddress(remoteIcaAddress, expectedRemoteIcaAddress);
+    const isValidLegacyIca =
+      expectedRemoteIcaAddress &&
+      eqAddress(remoteIcaAddress, expectedLegacyRemoteIcaAddress);
+
+    if (!isValidIca && !isValidLegacyIca) {
       this.errors.push({
         chain: chain,
         remoteDomain: destination,
@@ -688,7 +1273,7 @@ export class GovernTransactionReader {
         expected: expectedRemoteIcaAddress,
         info: 'Incorrect destination ICA in ICA call',
       });
-      remoteIcaInsight = `❌ fatal mismatch, expected ${remoteIcaAddress}`;
+      remoteIcaInsight = `❌ fatal mismatch, expected ${expectedRemoteIcaAddress}`;
     }
 
     const decodedCalls = await Promise.all(
@@ -736,17 +1321,26 @@ export class GovernTransactionReader {
 
     const multisends = await Promise.all(
       multisendDatas.map(async (multisend, index) => {
-        const decoded = await this.read(
-          chain,
-          metaTransactionDataToEV5Transaction(multisend),
-        );
-        return {
-          chain,
-          index,
-          value: `${ethers.utils.formatEther(multisend.value)} ${symbol}`,
-          operation: formatOperationType(multisend.operation),
-          decoded,
-        };
+        try {
+          const decoded = await this.read(
+            chain,
+            metaTransactionDataToEV5Transaction(multisend),
+          );
+          return {
+            chain,
+            index,
+            value: `${ethers.utils.formatEther(multisend.value)} ${symbol}`,
+            operation: formatOperationType(multisend.operation),
+            decoded,
+          };
+        } catch (error) {
+          this.logger.error(
+            `Failed to decode multisend at index ${index}:`,
+            error,
+            multisend,
+          );
+          throw error;
+        }
       }),
     );
 
@@ -783,7 +1377,8 @@ export class GovernTransactionReader {
       ownableInterface.functions['transferOwnership(address)'].name
     ) {
       const [newOwner] = decoded.args;
-      insight = `Transfer ownership to ${newOwner}`;
+      const newOwnerInsight = await getOwnerInsight(chain, newOwner);
+      insight = `Transfer ownership to ${newOwnerInsight}`;
     }
 
     const args = formatFunctionFragmentArgs(
@@ -813,13 +1408,22 @@ export class GovernTransactionReader {
     );
   }
 
-  isProxyAdminTransaction(
+  async isProxyAdminTransaction(
     chain: ChainName,
     tx: AnnotatedEV5Transaction,
-  ): boolean {
-    return (
-      tx.to !== undefined &&
-      eqAddress(tx.to, this.chainAddresses[chain].proxyAdmin)
+  ): Promise<boolean> {
+    if (tx.to === undefined) {
+      return false;
+    }
+
+    // Check against known proxy admin addresses first
+    if (tx.to === this.chainAddresses[chain].proxyAdmin) {
+      return true;
+    }
+
+    return await isProxyAdminFromBytecode(
+      this.multiProvider.getProvider(chain),
+      tx.to,
     );
   }
 
@@ -836,21 +1440,182 @@ export class GovernTransactionReader {
     );
   }
 
-  async isOwnableTransaction(
+  async isOwnableTransaction(tx: AnnotatedEV5Transaction): Promise<boolean> {
+    if (!tx.to || !tx.data) return false;
+    return ownableFunctionSelectors.includes(tx.data.substring(0, 10));
+  }
+
+  private isSafeTransaction(
     chain: ChainName,
     tx: AnnotatedEV5Transaction,
-  ): Promise<boolean> {
-    if (!tx.to) return false;
-    try {
-      const account = Ownable__factory.connect(
-        tx.to,
-        this.multiProvider.getProvider(chain),
-      );
-      await account.owner();
-      return true;
-    } catch {
-      return false;
+  ): boolean {
+    return (
+      tx.to !== undefined &&
+      getAllSafesForChain(chain).some((safe) => eqAddress(tx.to!, safe))
+    );
+  }
+
+  private async readSafeTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): Promise<GovernTransaction> {
+    if (!tx.data) {
+      throw new Error('No data in Safe transaction');
     }
+
+    if (!tx.to) {
+      throw new Error('No to address in Safe transaction');
+    }
+
+    const decoded = parseSafeTx(tx);
+    const args = formatFunctionFragmentArgs(
+      decoded.args,
+      decoded.functionFragment,
+    );
+
+    const { governanceType } = await determineGovernanceType(chain, tx.to);
+    const toInsight = `${governanceType.toUpperCase()} Safe (${chain} ${
+      tx.to
+    })`;
+
+    if (decoded.functionFragment.name === 'approveHash') {
+      return this.readApproveHashTransaction(
+        chain,
+        args,
+        toInsight,
+        decoded.signature,
+        governanceType,
+      );
+    }
+
+    return this.readGeneralSafeTransaction(chain, decoded, args, toInsight);
+  }
+
+  private async readApproveHashTransaction(
+    chain: ChainName,
+    args: Record<string, any>,
+    toInsight: string,
+    signature: string,
+    governanceType: GovernanceType,
+  ): Promise<GovernTransaction> {
+    const approvedTx = await getSafeTx(
+      chain,
+      this.multiProvider,
+      args.hashToApprove,
+    );
+
+    const baseResult = {
+      chain,
+      to: toInsight,
+      insight: `Approve hash: ${args.hashToApprove}`,
+      args,
+      signature,
+    };
+
+    if (!approvedTx) {
+      return {
+        ...baseResult,
+        insight: `${baseResult.insight} (transaction not found)`,
+      };
+    }
+
+    const reader = await GovernTransactionReader.create(
+      this.environment,
+      governanceType,
+    );
+
+    const innerTx = await reader.read(chain, {
+      to: approvedTx.to,
+      data: approvedTx.data,
+      value: BigNumber.from(approvedTx.value),
+    });
+
+    return {
+      ...baseResult,
+      nestedTx: innerTx,
+    };
+  }
+
+  private async readGeneralSafeTransaction(
+    chain: ChainName,
+    decoded: {
+      functionFragment: ethers.utils.FunctionFragment;
+      args: Result;
+      signature: string;
+    },
+    args: Record<string, any>,
+    toInsight: string,
+  ): Promise<GovernTransaction> {
+    let insight;
+    let innerTx;
+    switch (decoded.functionFragment.name) {
+      case 'execTransaction': {
+        innerTx = await this.read(chain, {
+          to: args.to,
+          data: args.data,
+          value: args.value,
+        });
+        insight = `Execute transaction`;
+        break;
+      }
+      case 'execTransactionFromModule': {
+        innerTx = await this.read(chain, {
+          to: args.to,
+          data: args.data,
+          value: args.value,
+        });
+        insight = `Execute transaction from module`;
+        break;
+      }
+      case 'execTransactionFromModuleReturnData': {
+        innerTx = await this.read(chain, {
+          to: args.to,
+          data: args.data,
+          value: args.value,
+        });
+        insight = `Execute transaction from module with return data`;
+        break;
+      }
+      case 'addOwnerWithThreshold':
+        insight = `Add owner ${args.owner} with threshold ${args._threshold}`;
+        break;
+      case 'removeOwner':
+        insight = `Remove owner ${args.owner} with new threshold ${args._threshold}`;
+        break;
+      case 'swapOwner':
+        insight = `Swap owner ${args.oldOwner} with ${args.newOwner}`;
+        break;
+      case 'changeThreshold':
+        insight = `Change threshold to ${args._threshold}`;
+        break;
+      case 'enableModule':
+        insight = `Enable module ${args.module}`;
+        break;
+      case 'disableModule':
+        insight = `Disable module ${args.module}`;
+        break;
+      case 'setGuard':
+        insight = `Set guard to ${args.guard}`;
+        break;
+      case 'setFallbackHandler':
+        insight = `Set fallback handler to ${args.handler}`;
+        break;
+      case 'setup':
+        insight = `Setup Safe with ${args._owners.length} owners, threshold ${args._threshold}, fallback handler ${args.fallbackHandler}`;
+        break;
+      case 'simulateAndRevert':
+        insight = `Simulate and revert transaction to ${args.targetContract}`;
+        break;
+    }
+
+    return {
+      chain,
+      to: toInsight,
+      insight: insight ?? '⚠️ Unknown Safe operation',
+      signature: decoded.signature,
+      ...(innerTx ? { nestedTx: innerTx } : {}),
+      ...(insight ? {} : { args }),
+    };
   }
 }
 
@@ -884,4 +1649,30 @@ function formatOperationType(operation: OperationType | undefined): string {
     default:
       return '⚠️ Unknown ⚠️';
   }
+}
+
+async function getOwnerInsight(
+  chain: ChainName,
+  address: Address,
+): Promise<string> {
+  const { ownerType, governanceType } = await determineGovernanceType(
+    chain,
+    address,
+  );
+  if (ownerType !== Owner.UNKNOWN) {
+    return `${address} (${governanceType.toUpperCase()} ${ownerType})`;
+  }
+
+  if (awIcasLegacy[chain] && eqAddress(address, awIcasLegacy[chain])) {
+    return `${address} (${GovernanceType.AbacusWorks.toUpperCase()} ${Owner.ICA} LEGACY)`;
+  }
+
+  if (
+    regularIcasLegacy[chain] &&
+    eqAddress(address, regularIcasLegacy[chain])
+  ) {
+    return `${address} (${GovernanceType.Regular.toUpperCase()} ${Owner.ICA} LEGACY)`;
+  }
+
+  return `${address} (Unknown)`;
 }

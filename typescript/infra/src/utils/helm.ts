@@ -1,6 +1,9 @@
 import { execSync } from 'child_process';
+import fs from 'fs';
+import tmp from 'tmp';
 
-import { DockerConfig } from '../config/agent/agent.js';
+import { rootLogger, stringifyObject } from '@hyperlane-xyz/utils';
+
 import {
   HelmChartConfig,
   HelmChartRepositoryConfig,
@@ -145,7 +148,8 @@ export abstract class HelmManager<T = HelmValues> {
       return;
     }
 
-    const values = helmifyValues(await this.helmValues());
+    const values = await this.helmValues();
+
     if (action == HelmCommand.InstallOrUpgrade && !dryRun) {
       // Delete secrets to avoid them being stale
       const cmd = [
@@ -165,13 +169,32 @@ export abstract class HelmManager<T = HelmValues> {
     }
 
     await buildHelmChartDependencies(this.helmChartPath, updateRepoCache);
+
+    // Create a temporary filepath
+    // Removes any files on exit
+    tmp.setGracefulCleanup();
+    const valuesTmpFile = tmp.fileSync({
+      prefix: 'helm-values',
+      postfix: `${this.helmReleaseName}-${this.namespace}.yaml`,
+    });
+    rootLogger.debug(`Writing values to ${valuesTmpFile.name}`);
+    // Write the values to the temporary file
+    fs.writeFileSync(valuesTmpFile.name, stringifyObject(values, 'yaml'));
+    // If the process is interrupted, we still need to explicitly remove the temporary file
+    process.on('SIGINT', () => {
+      rootLogger.debug(`Cleaning up temp file ${valuesTmpFile.name}`);
+      valuesTmpFile.removeCallback();
+      process.exit(130);
+    });
+
     cmd.push(
       this.helmReleaseName,
       this.helmChartPath,
       '--create-namespace',
       '--namespace',
       this.namespace,
-      ...values,
+      '-f',
+      valuesTmpFile.name,
     );
     if (action == HelmCommand.UpgradeDiff) {
       cmd.push(
@@ -179,12 +202,17 @@ export abstract class HelmManager<T = HelmValues> {
       );
     }
     await execCmd(cmd, {}, false, true);
+    // Remove the temporary file
+    valuesTmpFile.removeCallback();
   }
 
-  async doesHelmReleaseExist() {
+  static async doesHelmReleaseExist(
+    releaseName: string,
+    namespace: string,
+  ): Promise<boolean> {
     try {
       await execCmd(
-        `helm status ${this.helmReleaseName} --namespace ${this.namespace}`,
+        `helm status ${releaseName} --namespace ${namespace}`,
         {},
         false,
         false,
@@ -228,4 +256,19 @@ export abstract class HelmManager<T = HelmValues> {
       },
     );
   }
+}
+
+export function getHelmReleaseName(id: string, prefix: string): string {
+  let name = `${prefix}-${id.toLowerCase().replaceAll('/', '-')}`;
+
+  // 52 because the max label length is 63, and there is an auto appended 11 char
+  // suffix, e.g. `controller-revision-hash=hyperlane-warp-route-tia-mantapacific-neutron-566dc75599`
+  const maxChars = 52;
+
+  // Max out length, and it can't end with a dash.
+  if (name.length > maxChars) {
+    name = name.slice(0, maxChars);
+    name = name.replace(/-+$/, '');
+  }
+  return name;
 }

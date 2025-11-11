@@ -1,3 +1,8 @@
+use serde::{Deserialize, Serialize};
+use std::fs::File;
+use std::io::{BufReader, BufWriter};
+use std::path::PathBuf;
+
 use solana_client::{
     rpc_client::RpcClient,
     rpc_config::{RpcSendTransactionConfig, RpcTransactionConfig},
@@ -8,12 +13,16 @@ use solana_sdk::{
     message::Message,
     pubkey::Pubkey,
     signature::{Keypair, Signer},
-    signer::null_signer::NullSigner,
-    signers::Signers,
     transaction::Transaction,
 };
 use solana_transaction_status::{EncodedConfirmedTransactionWithStatusMeta, UiTransactionEncoding};
-use std::{cell::RefCell, io::Read};
+use std::cell::RefCell;
+use std::error::Error;
+
+const SOLANA_SQUADS_INSTRUCTIONS_DOC: &str =
+    "https://docs.hyperlane.xyz/docs/guides/production/using-squads/using-squads-solana";
+const ALT_SVM_SQUADS_INSTRUCTIONS_DOC: &str =
+    "https://docs.hyperlane.xyz/docs/guides/production/using-squads/alt-svm-using-sqauds";
 
 pub(crate) struct PayerKeypair {
     pub keypair: Keypair,
@@ -27,12 +36,26 @@ pub(crate) struct Context {
     pub commitment: CommitmentConfig,
     pub initial_instructions: RefCell<Vec<InstructionWithDescription>>,
     pub require_tx_approval: bool,
+    pub instructions_path: Option<PathBuf>,
+    pub write_instructions_enabled: bool,
 }
 
 #[derive(Debug)]
 pub(crate) struct InstructionWithDescription {
     pub instruction: Instruction,
     pub description: Option<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct TransactionEntry {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    chain_name: Option<String>,
+    descriptions: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    message_base58: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    transaction_base58: Option<String>,
+    instructions: String,
 }
 
 impl<T> From<(T, Option<String>)> for InstructionWithDescription
@@ -61,6 +84,7 @@ impl Context {
         commitment: CommitmentConfig,
         initial_instructions: RefCell<Vec<InstructionWithDescription>>,
         require_tx_approval: bool,
+        write_instructions_enabled: bool,
     ) -> Self {
         Self {
             client,
@@ -69,6 +93,8 @@ impl Context {
             commitment,
             initial_instructions,
             require_tx_approval,
+            instructions_path: None,
+            write_instructions_enabled,
         }
     }
 
@@ -84,16 +110,23 @@ impl Context {
         }
     }
 
-    pub(crate) fn payer_can_sign(&self) -> bool {
-        self.payer_keypair.is_some()
+    pub(crate) fn payer_signer(&self) -> Option<Box<dyn Signer>> {
+        if let Some(PayerKeypair { keypair, .. }) = &self.payer_keypair {
+            Some(Box::new(Keypair::from_bytes(&keypair.to_bytes()).unwrap()))
+        } else {
+            None
+        }
     }
 
-    pub(crate) fn payer_signer(&self) -> Box<dyn Signer> {
+    /// If the pubkey matches the payer's pubkey, return the payer's signer.
+    /// Otherwise, return None.
+    pub(crate) fn signer_for_pubkey(&self, pubkey: &Pubkey) -> Option<Box<dyn Signer>> {
         if let Some(PayerKeypair { keypair, .. }) = &self.payer_keypair {
-            Box::new(Keypair::from_bytes(&keypair.to_bytes()).unwrap())
-        } else {
-            Box::new(NullSigner::new(&self.payer_pubkey))
+            if &keypair.pubkey() == pubkey {
+                return self.payer_signer();
+            }
         }
+        None
     }
 
     pub(crate) fn payer_keypair_path(&self) -> &String {
@@ -142,7 +175,7 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
             .collect()
     }
 
-    pub(crate) fn pretty_print_transaction(&self) {
+    pub(crate) fn pretty_print_transaction(&self, payer: &Pubkey) {
         println!("\t==== Instructions: ====");
 
         for (i, InstructionWithDescription { description, .. }) in
@@ -155,7 +188,7 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
             );
         }
 
-        let message = Message::new(&self.instructions(), Some(&self.ctx.payer_pubkey));
+        let message = Message::new(&self.instructions(), Some(payer));
         // Useful for plugging into ledger-friendly tools
         if std::env::var("TX_BINARY").is_ok() {
             println!(
@@ -181,32 +214,133 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
         );
     }
 
-    pub(crate) fn send_with_payer(self) -> Option<EncodedConfirmedTransactionWithStatusMeta> {
-        let payer_signer = self.ctx.payer_signer();
-        self.send(&[&*payer_signer])
+    pub(crate) fn write_transaction_to_yaml(
+        &self,
+        payer: &Pubkey,
+        path: PathBuf,
+        chain_name: Option<String>,
+    ) -> Result<(), Box<dyn Error>> {
+        let final_path = if path.exists() && path.is_dir() {
+            path.join("instructions.yaml")
+        } else {
+            return Err("Invalid path provided.".into());
+        };
+
+        println!("Writing instructions to: {}", final_path.to_str().unwrap());
+
+        let message = Message::new(&self.instructions(), Some(payer));
+        let txn = Transaction::new_unsigned(message.clone());
+
+        let message_bytes = bincode::serialize(&message)?;
+        let transaction_bytes = bincode::serialize(&txn)?;
+
+        let message_base58 = bs58::encode(&message_bytes).into_string();
+        let transaction_base58 = bs58::encode(&transaction_bytes).into_string();
+
+        let descriptions: Vec<String> = self
+            .instructions_with_descriptions
+            .iter()
+            .map(|InstructionWithDescription { description, .. }| {
+                description
+                    .as_deref()
+                    .unwrap_or("No description provided")
+                    .to_string()
+            })
+            .collect();
+
+        let is_solana = chain_name
+            .as_ref()
+            .map_or(false, |ch| ch == "solanamainnet");
+
+        let new_entry = TransactionEntry {
+            chain_name: chain_name.clone(),
+            descriptions,
+            message_base58: if is_solana {
+                None
+            } else {
+                Some(message_base58.clone())
+            },
+            transaction_base58: if is_solana {
+                Some(transaction_base58.clone())
+            } else {
+                None
+            },
+            instructions: if is_solana {
+                SOLANA_SQUADS_INSTRUCTIONS_DOC.to_string()
+            } else {
+                ALT_SVM_SQUADS_INSTRUCTIONS_DOC.to_string()
+            },
+        };
+
+        // Read existing entries if file exists
+        let mut existing_entries: Vec<TransactionEntry> = if final_path.exists() {
+            serde_yaml::from_reader(BufReader::new(File::open(&final_path)?))?
+        } else {
+            vec![]
+        };
+
+        // Append new entry (one per transaction)
+        existing_entries.push(new_entry);
+
+        // Write back to file
+        serde_yaml::to_writer(
+            BufWriter::new(File::create(&final_path)?),
+            &existing_entries,
+        )?;
+
+        Ok(())
     }
 
-    pub(crate) fn send<T: Signers>(
+    pub(crate) fn send_with_payer(self) -> Option<EncodedConfirmedTransactionWithStatusMeta> {
+        let payer_signer = self.ctx.payer_signer();
+        let payer_pubkey = self.ctx.payer_pubkey;
+        self.send(&[payer_signer.as_deref()], &payer_pubkey, None)
+    }
+
+    /// Sends the transaction with a signer for the given pubkey.
+    /// Note that a pubkey may not have an associated keypair, in which case
+    /// this function will return None and transactions will be printed to stdout
+    /// for user confirmation & manual submission.
+    pub(crate) fn send_with_pubkey_signer(
         self,
-        signers: &T,
+        pubkey: &Pubkey,
+        chain_name: Option<String>,
+    ) -> Option<EncodedConfirmedTransactionWithStatusMeta> {
+        let signer = self.ctx.signer_for_pubkey(pubkey);
+        self.send(&[signer.as_deref()], pubkey, chain_name)
+    }
+
+    pub(crate) fn send(
+        self,
+        maybe_signers: &[Option<&dyn Signer>],
+        payer: &Pubkey,
+        chain_name: Option<String>,
     ) -> Option<EncodedConfirmedTransactionWithStatusMeta> {
         // If the payer can't sign, it's presumed that the payer is intended
         // to be a Squads multisig, which must be submitted via a separate
         // process.
         // We print the transaction to stdout and wait for user confirmation to
         // continue.
-        if !self.ctx.payer_can_sign() {
+        if maybe_signers.iter().any(|s| s.is_none()) {
             println!("Transaction to be submitted via Squads multisig:");
 
-            self.pretty_print_transaction();
+            if let Some(p) = &self.ctx.instructions_path {
+                self.write_transaction_to_yaml(payer, p.clone(), chain_name)
+                    .expect("Failed to write transaction to instructions file.");
+            } else {
+                println!("To write the transaction to an instructions file, use --write-instructions. Continuing to print transactions to stdout.");
 
-            wait_for_user_confirmation();
+                self.pretty_print_transaction(payer);
 
+                wait_for_user_confirmation()
+            }
             return None;
         }
 
+        let signers: Vec<&dyn Signer> = maybe_signers.iter().map(|s| s.unwrap()).collect();
+
         // Print the tx as an indication for what's about to happen
-        self.pretty_print_transaction();
+        self.pretty_print_transaction(payer);
 
         if self.ctx.require_tx_approval {
             wait_for_user_confirmation();
@@ -217,8 +351,8 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
         let recent_blockhash = client.get_latest_blockhash().unwrap();
         let txn = Transaction::new_signed_with_payer(
             &self.instructions(),
-            Some(&self.ctx.payer_pubkey),
-            signers,
+            Some(payer),
+            &signers,
             recent_blockhash,
         );
 
@@ -259,7 +393,8 @@ fn wait_for_user_confirmation() {
     println!("Continue? [y/n] then press Enter");
     let mut input = [0u8; 1];
     loop {
-        std::io::stdin().read_exact(&mut input).unwrap();
+        let mut stdin = std::io::stdin();
+        std::io::Read::read_exact(&mut stdin, &mut input).unwrap();
         match input[0] {
             b'y' => {
                 println!("Continuing...");

@@ -1,5 +1,578 @@
 # @hyperlane-xyz/sdk
 
+## 19.7.0
+
+### Minor Changes
+
+- 69ad3473e: Implemented the getMetadata method on native token adapters and fixed the populateTransferTx method for SVM token adapters when the receiver does not have a created associated token account
+- 211e245cb: Create EvmHypBaseCollateralAdapter, now EvmHypCollateralAdapter and EvmHypRebaseCollateralAdapter extends from it
+- c68722d93: Update fetchPackageVersion() to return 0.0.0 when unknown error is thrown. This error is logged out and is no longer rethrown.
+
+### Patch Changes
+
+- bdfa2047e: Fix CCTP v2 deployer constructor argument encoding
+- 343737271: Assert code exists on eth_storageAt requests
+- 5c4cef1d4: Fixed a bug where EvmHypCollateralAdapter:getWrappedTokenAddress() would not return the correct address if the route had the old versions. Add fallback for contract.getPackageVersion()
+  - @hyperlane-xyz/starknet-core@19.7.0
+  - @hyperlane-xyz/cosmos-sdk@19.7.0
+  - @hyperlane-xyz/radix-sdk@19.7.0
+  - @hyperlane-xyz/utils@19.7.0
+  - @hyperlane-xyz/core@10.0.1
+
+## 19.6.0
+
+### Minor Changes
+
+- e67aca4a1: Update type to enforce consistency between fee token addresses and warp route token addresses through schema validation. The main change adds validation logic to ensure tokenFee.token matches config.token for collateral token configurations.
+- 419e16910: Add support for deploying and updating the EverclearEthBridge and EverclearTokenBridge contracts
+- b259966fe: Add the Fee deploy logic into token deployer to allow warp routes to deploy with a token fee. Update Fee schemas to separate between input and output
+- ec406fcbe: Add TokenFee updates to the FeeModule and WarpModule. This enables updating immutable fees (re-deploy), routing sub-fees, and ownership
+- 18c32ed2b: Decouple movable collateral and hyp collateral token adapters
+- b259966fe: Implement EvmTokenFeeModule and Reader for Linear and Routing Fees. Update Fee Schemas to include both input and output configs.
+- 9185b9c5b: Update EvmTokenFeeModule to support native fee deployment by extracting config processing into a static method that handles native tokens, modularizing deployment logic, and adding automatic BPS calculation from fee parameters.
+
+### Patch Changes
+
+- e0c69e255: Implement token fees on FungibleTokenRouter
+
+  Removes `metadata` from return type of internal `TokenRouter._transferFromSender` hook
+
+  To append `metadata` to `TokenMessage`, override the `TokenRouter._beforeDispatch` hook
+
+- Updated dependencies [7a41068f7]
+- Updated dependencies [18c32ed2b]
+- Updated dependencies [205bcae75]
+- Updated dependencies [f8da8cd40]
+- Updated dependencies [5b17b0f37]
+- Updated dependencies [2c6506735]
+- Updated dependencies [1d46a826d]
+- Updated dependencies [799751606]
+- Updated dependencies [826e83741]
+- Updated dependencies [e0c69e255]
+- Updated dependencies [737ea2b35]
+- Updated dependencies [e0c69e255]
+- Updated dependencies [dd16e3df4]
+- Updated dependencies [f930794d7]
+- Updated dependencies [419e16910]
+- Updated dependencies [9a43cdca9]
+  - @hyperlane-xyz/core@10.0.0
+  - @hyperlane-xyz/utils@19.6.0
+  - @hyperlane-xyz/cosmos-sdk@19.6.0
+  - @hyperlane-xyz/radix-sdk@19.6.0
+  - @hyperlane-xyz/starknet-core@19.6.0
+
+## 19.5.0
+
+### Minor Changes
+
+- 312826d10: - Updated DerivedCoreConfig type to properly type the defaultIsm field with the DerivedIsmConfig type
+  - Fixed AltVMIsmModule not transferring ownership to the expected owner in the deploy config after deployment
+- bf2c2caa6: Updated the EvmHypCollateralFiatAdapter to not break if the underlying mintable contract does not define a minterAllowance method
+- 79a51debe: Update all @safe-global dependencies to latest, to support usage of Safe API Keys. Add gnosisSafeApiKey to chain metadata schema.
+
+### Patch Changes
+
+- Updated dependencies [312826d10]
+- Updated dependencies [312826d10]
+  - @hyperlane-xyz/utils@19.5.0
+  - @hyperlane-xyz/radix-sdk@19.5.0
+  - @hyperlane-xyz/core@9.0.17
+  - @hyperlane-xyz/cosmos-sdk@19.5.0
+  - @hyperlane-xyz/starknet-core@19.5.0
+
+## 19.4.0
+
+### Minor Changes
+
+- 4011a4561: Fix bug that prevented the warp route ism to be set to the 0 address and include logic to update a pausable ism as it was missing
+- 8fd3bf78c: Fixed critical schema bug where SealevelIgpData.gas_oracles was incorrectly typed as Map<number, bigint> instead of Map<number, SealevelGasOracle>, preventing proper deserialization of on-chain gas oracle state. Added SealevelRemoteGasData, SealevelGasOracle, and related Borsh schemas to match the Rust implementation. Implemented createSetGasOracleConfigsInstruction() and createSetDestinationGasOverheadsInstruction() methods on the IGP adapters, along with gasOracleMatches() helper with BigInt-safe comparison for detecting configuration drift between expected and actual on-chain values.
+- 79f55e09d: Export WarpCoreFeeEstimate
+- 5a4e22d34: Introduced new SvmTransactionSigner interface, rewrite SvmMultiprotocolSignerAdapter to leverage this interface. Add more robust tx sending and handling to SvmMultiprotocolSignerAdapter. Implement KeypairSvmTransactionSigner to handle the general PK/keypair-based tx signing.
+
+### Patch Changes
+
+- 5a4e22d34: Bump @solana/web3.js dependency explicitly from ^1.95.4 to ^1.98.4.
+- 517bbaa42: Update NON_ZERO_SENDER_ADDRESS to 0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba.
+- Updated dependencies [5a4e22d34]
+  - @hyperlane-xyz/utils@19.4.0
+  - @hyperlane-xyz/core@9.0.16
+  - @hyperlane-xyz/starknet-core@19.4.0
+  - @hyperlane-xyz/cosmos-sdk@19.4.0
+  - @hyperlane-xyz/radix-sdk@19.4.0
+
+## 19.3.0
+
+### Minor Changes
+
+- fcdda58a8: Update hardcoded `originTokenAmount` of getLocalTransferFee from 1 to 2 wei.
+
+### Patch Changes
+
+- @hyperlane-xyz/starknet-core@19.3.0
+- @hyperlane-xyz/cosmos-sdk@19.3.0
+- @hyperlane-xyz/radix-sdk@19.3.0
+- @hyperlane-xyz/utils@19.3.0
+- @hyperlane-xyz/core@9.0.15
+
+## 19.2.0
+
+### Minor Changes
+
+- f68419605: Update Warp Reader to set `token` to underlying `vault` instead of `wrappedToken` for yield routes. Update Checker to return the vault's `asset` as the collateral token.
+
+### Patch Changes
+
+- @hyperlane-xyz/starknet-core@19.2.0
+- @hyperlane-xyz/cosmos-sdk@19.2.0
+- @hyperlane-xyz/radix-sdk@19.2.0
+- @hyperlane-xyz/utils@19.2.0
+- @hyperlane-xyz/core@9.0.14
+
+## 19.1.1
+
+### Patch Changes
+
+- @hyperlane-xyz/starknet-core@19.1.1
+- @hyperlane-xyz/cosmos-sdk@19.1.1
+- @hyperlane-xyz/radix-sdk@19.1.1
+- @hyperlane-xyz/utils@19.1.1
+- @hyperlane-xyz/core@9.0.13
+
+## 19.1.0
+
+### Minor Changes
+
+- 554ff1a66: Add M0 PortalLite token adapter support for bridging M tokens
+
+  - Add new TokenStandard.EvmM0PortalLite for M0 Portal integration
+  - Implement M0PortalLiteTokenAdapter for handling M0 token transfers
+  - Support for M0's transferMLikeToken function to bridge wrapped M tokens (e.g., mUSD)
+  - Built-in gas estimation via Portal's quoteTransfer function
+
+### Patch Changes
+
+- @hyperlane-xyz/starknet-core@19.1.0
+- @hyperlane-xyz/cosmos-sdk@19.1.0
+- @hyperlane-xyz/radix-sdk@19.1.0
+- @hyperlane-xyz/utils@19.1.0
+- @hyperlane-xyz/core@9.0.12
+
+## 19.0.0
+
+### Major Changes
+
+- e42a0e8e1: feat: radix support for the cli
+- 32479e139: feat: implement new AltVM modules and readers
+
+### Minor Changes
+
+- 8eab305bd: chore: add transactionToPrintableJson to altvm interface
+
+### Patch Changes
+
+- 70354d6d9: Restore foreignDeployment field behaviour to allow enrollment of unsupported chains during deployment
+- dd4928b1c: chore: refactor altvm warp module and add tests
+- Updated dependencies [8eab305bd]
+- Updated dependencies [e42a0e8e1]
+- Updated dependencies [e42a0e8e1]
+- Updated dependencies [32479e139]
+- Updated dependencies [32479e139]
+  - @hyperlane-xyz/cosmos-sdk@19.0.0
+  - @hyperlane-xyz/radix-sdk@19.0.0
+  - @hyperlane-xyz/utils@19.0.0
+  - @hyperlane-xyz/core@9.0.11
+  - @hyperlane-xyz/starknet-core@19.0.0
+
+## 18.3.0
+
+### Minor Changes
+
+- 4974e66a0: export radix core reader
+- 30ec5ffbb: Add signer abstraction for different protocol types by defining the IMultiProtocolSigner interface
+- b66129ee2: export radix hook reader
+- 2c47e1143: Update the `ContractVerifier` class to avoid verification of already verified contracts and to show verification errors in debug logs
+- 2b16904f8: Add getBridgedSupply to EvmHypNativeAdapter to return the native token balance as collateral
+- 096389aea: Fix a bug in the `EvmIcaTxSubmitter.submit` method which failed when the evm chain id and the hyperlane domain id are different
+- e4e6a75a8: export radix hook module
+- 6b8419370: export radix ism module
+- 94e7116c2: export RadixIsmTypes enum to consumers
+
+### Patch Changes
+
+- 57cf9e953: now token.isFungibleWith() will also check for isHypNative() tokens
+- ee7c7ade4: Avoid extra Safe API call when only creating local JSON files for manual upload. When proposing, the Safe UI will automatically update the tx nonce. So we can return 0 and save ourselves from Safe API unreliability.
+- Updated dependencies [e5a530e43]
+- Updated dependencies [a5728818f]
+- Updated dependencies [c41bc3b93]
+- Updated dependencies [2c47e1143]
+- Updated dependencies [b66129ee2]
+- Updated dependencies [6b8419370]
+  - @hyperlane-xyz/radix-sdk@18.3.0
+  - @hyperlane-xyz/core@9.0.10
+  - @hyperlane-xyz/utils@18.3.0
+  - @hyperlane-xyz/starknet-core@18.3.0
+  - @hyperlane-xyz/cosmos-sdk@18.3.0
+
+## 18.2.0
+
+### Minor Changes
+
+- fed6906e4: Include isHypNative() check to Token and add PROTOCOL_TO_HYP_NATIVE_STANDARD
+- ca64e73cd: Update the oXAUT bridge limits for avax, celo, ethereum, worldchain and base config. Export XERC20LimitsTokenConfig.
+- dfa9d368c: exposed a `isJsonRpcSubmitterConfig` function to validate submitter configurations and assert the type
+
+### Patch Changes
+
+- Updated dependencies [dfa9d368c]
+  - @hyperlane-xyz/cosmos-sdk@18.2.0
+  - @hyperlane-xyz/starknet-core@18.2.0
+  - @hyperlane-xyz/radix-sdk@18.2.0
+  - @hyperlane-xyz/utils@18.2.0
+  - @hyperlane-xyz/core@9.0.9
+
+## 18.1.0
+
+### Patch Changes
+
+- 73be9b8d2: Don't use radix-engine-toolkit for frontend application usage.
+- Updated dependencies [73be9b8d2]
+  - @hyperlane-xyz/radix-sdk@18.1.0
+  - @hyperlane-xyz/starknet-core@18.1.0
+  - @hyperlane-xyz/cosmos-sdk@18.1.0
+  - @hyperlane-xyz/utils@18.1.0
+  - @hyperlane-xyz/core@9.0.8
+
+## 18.0.0
+
+### Major Changes
+
+- 552b253b9: deprecated dry-run support in the cli in favour of `hyperlane warp fork` and `hyperlane fork` commands
+
+### Patch Changes
+
+- ba832828f: Made decimals consistency check scale-aware and disallowed partial decimals across chains
+- Updated dependencies [cfc0eb2a7]
+  - @hyperlane-xyz/utils@18.0.0
+  - @hyperlane-xyz/core@9.0.7
+  - @hyperlane-xyz/radix-sdk@18.0.0
+  - @hyperlane-xyz/starknet-core@18.0.0
+  - @hyperlane-xyz/cosmos-sdk@18.0.0
+
+## 17.0.0
+
+### Major Changes
+
+- 8c15edc67: Added Radix Protocol Type
+
+### Minor Changes
+
+- 400c02460: Add fallback logic to the `EvmEventLogsReader` to use the rpc when the block explorer api request fails
+- 6583df016: Add the getPendingScheduledOperations and getPendingOperationIds methods on the EvmTimelockReader class and export getTimelockExecutableTransactionFromBatch from sdk
+
+### Patch Changes
+
+- 76a5db49a: Fixed a bug when deriving token metadata from chain was erasing existing fields from deployment config
+- 7f542b288: Fix `CosmosModuleTokenAdapter` recipient conversion for populateTransferRemoteTx
+- Updated dependencies [8c15edc67]
+- Updated dependencies [e0bda316a]
+  - @hyperlane-xyz/utils@17.0.0
+  - @hyperlane-xyz/core@9.0.6
+  - @hyperlane-xyz/starknet-core@17.0.0
+  - @hyperlane-xyz/cosmos-sdk@17.0.0
+
+## 16.2.0
+
+### Minor Changes
+
+- 22ceaa109: Add xERC20 adapter with getLimits()
+- a89018a3f: Make `getWrappedTokenAddress` public, add LOCKBOX_STANDARDS
+
+### Patch Changes
+
+- ce4974214: Add cctp to getActualDecimals.
+  - @hyperlane-xyz/starknet-core@16.2.0
+  - @hyperlane-xyz/cosmos-sdk@16.2.0
+  - @hyperlane-xyz/utils@16.2.0
+  - @hyperlane-xyz/core@9.0.5
+
+## 16.1.1
+
+### Patch Changes
+
+- ea77b6ae4: Add Starknet protocol type.
+  - @hyperlane-xyz/starknet-core@16.1.1
+  - @hyperlane-xyz/cosmos-sdk@16.1.1
+  - @hyperlane-xyz/utils@16.1.1
+  - @hyperlane-xyz/core@9.0.4
+
+## 16.1.0
+
+### Minor Changes
+
+- 2a2c29c39: Add the `EvmTimelockReader` class to get pending/scheduled transaction from a timelock contract. Add the `EvmEventLogsReader` to read logs on a given chain reliably either using the rpc or the block explorer api depending on what is available in the registry
+
+### Patch Changes
+
+- e69ac9f62: Updated the HypERC20Checker to use a default anvil address instead of the signer address when asserting if a token is a hyp native
+- d9b8a7551: Handle etherscan v2 api migration
+  - @hyperlane-xyz/starknet-core@16.1.0
+  - @hyperlane-xyz/cosmos-sdk@16.1.0
+  - @hyperlane-xyz/utils@16.1.0
+  - @hyperlane-xyz/core@9.0.3
+
+## 16.0.0
+
+### Major Changes
+
+- d200acfa8: Add support for submitting transactions using Timelock contracts
+- 1f4412909: Remove a circular import dependency between the sdk and registry package by not importing the IRegistry interface in the sdk
+
+### Minor Changes
+
+- 9f3222962: Add limit check for EvmCollateralFiat tokens
+- a71193486: Implemented class for deploying timelocks
+- af783be54: Updated the timelock deployer class to allow configuration of cancellers on contract deployment
+
+### Patch Changes
+
+- 966ad8440: Fix Starknet Adapter: balance_of
+- fabb4a5af: Introduced a shared eslint configuration that is applied to the SDK
+  - @hyperlane-xyz/starknet-core@16.0.0
+  - @hyperlane-xyz/cosmos-sdk@16.0.0
+  - @hyperlane-xyz/utils@16.0.0
+  - @hyperlane-xyz/core@9.0.2
+
+## 15.0.0
+
+### Minor Changes
+
+- e0ea8910c: Add FileSubmitter to CLI. Export ChainSubmissionStrategySchema preprocess and superRefine. Some additional updates to types related to these changes.
+
+### Patch Changes
+
+- 23861b70a: Don't `handleTx` for zksync, since the zksync deployer itself will handle it.
+- a33c8abd4: Use `convertToScaledAmount` in WarpCore
+- d16a853c0: Update paradex AW validator address.
+- Updated dependencies [451f3f6c3]
+- Updated dependencies [a33c8abd4]
+  - @hyperlane-xyz/utils@15.0.0
+  - @hyperlane-xyz/core@9.0.1
+  - @hyperlane-xyz/starknet-core@15.0.0
+  - @hyperlane-xyz/cosmos-sdk@15.0.0
+
+## 14.4.0
+
+### Minor Changes
+
+- dce47e7b6: Update getSubmitter() to be return the default set of submitters, and also allow an extension to it.
+
+### Patch Changes
+
+- Updated dependencies [155f5a5e8]
+  - @hyperlane-xyz/core@9.0.0
+  - @hyperlane-xyz/starknet-core@14.4.0
+  - @hyperlane-xyz/cosmos-sdk@14.4.0
+  - @hyperlane-xyz/utils@14.4.0
+
+## 14.3.0
+
+### Minor Changes
+
+- 9cc7ef6fd: Add `scale` to Token Schema and account for scaling in `WarpCore.isDestinationCollateralSufficient`
+- ae0771d9e: Minor refactoring to deduplicate ism/router overrides passed into the InterchainAccount app.
+
+### Patch Changes
+
+- ae0771d9e: InterchainAccount.getCallRemote now respects the localRouter override if passed in.
+  - @hyperlane-xyz/starknet-core@14.3.0
+  - @hyperlane-xyz/cosmos-sdk@14.3.0
+  - @hyperlane-xyz/utils@14.3.0
+  - @hyperlane-xyz/core@8.1.2
+
+## 14.2.0
+
+### Minor Changes
+
+- 3122bae93: Add support for updating the required and default hooks in core deployments
+- 3e50bd7f0: Modify IGP schema to include the optional typical cost in the schema
+- 147dd360a: add cosmosnative warp deploy sdk logic
+- 8bde1544e: Add helper function for determining if a given address is a ProxyAdmin.
+
+### Patch Changes
+
+- a7d5941c1: Fix Starknet total_supply.
+- Updated dependencies [c177c4733]
+  - @hyperlane-xyz/core@8.1.1
+  - @hyperlane-xyz/starknet-core@14.2.0
+  - @hyperlane-xyz/cosmos-sdk@14.2.0
+  - @hyperlane-xyz/utils@14.2.0
+
+## 14.1.0
+
+### Minor Changes
+
+- ecaa4ef90: Add ownerStatus virtual config to `warp check`, which checks the proxy, implementation, and proxy admin owners. Add ISafe and IOwnerManager. Also, refactor contractVerificationStatus slightly
+
+### Patch Changes
+
+- bd91094c3: Remove package.json imports and use CONTRACTS_PACKAGE_VERSION directly where necessary.
+- Updated dependencies [bd91094c3]
+- Updated dependencies [04fc563f4]
+- Updated dependencies [ecaa4ef90]
+  - @hyperlane-xyz/core@8.1.0
+  - @hyperlane-xyz/starknet-core@14.1.0
+  - @hyperlane-xyz/cosmos-sdk@14.1.0
+  - @hyperlane-xyz/utils@14.1.0
+
+## 14.0.0
+
+### Major Changes
+
+- 66c13b539: Updated ICA transaction support for allowing the CLI to send them when provided with the appropriate strategy config
+
+### Patch Changes
+
+- 929708c1f: Respect the expectedRemoteChains arg when checking enrolled routers in HyperlaneRouterChecker.
+- 88134de1f: Enable backwards-compatible ISM derivation with legacy ICAs.
+- 7ad8e394c: fix starknet token adapter
+- Updated dependencies [7ad8e394c]
+  - @hyperlane-xyz/utils@14.0.0
+  - @hyperlane-xyz/core@8.0.2
+  - @hyperlane-xyz/starknet-core@14.0.0
+  - @hyperlane-xyz/cosmos-sdk@14.0.0
+
+## 13.4.0
+
+### Minor Changes
+
+- 5f60deed3: add cosmos warp read logic in sdk
+- 0ec92f775: Update starknet dependency from v6 to v7.
+- e48e5346f: add warp fork and fork commands
+- fe1d8ab2d: Remove SG-1 from manta, neutron validators. Add botanix, katana, paradex, starknet validators. Remove arthera, corn, glue, trumpchain.
+- 19384e74b: sdk support for cosmos hyperlane module v1.0.1
+- 1efce4979: Add rebalancer config schemas
+
+### Patch Changes
+
+- 779df446d: Fix typo DomaingRoutingIsm -> DomainRoutingIsm.
+- 64092311c: Update SmartProvider to throw with `cause` and update Warp Reader to use the thrown `cause`
+- Updated dependencies [0ec92f775]
+- Updated dependencies [19384e74b]
+- Updated dependencies [ec8d196d9]
+- Updated dependencies [bacf16a80]
+  - @hyperlane-xyz/utils@13.4.0
+  - @hyperlane-xyz/starknet-core@13.4.0
+  - @hyperlane-xyz/cosmos-sdk@13.4.0
+  - @hyperlane-xyz/core@8.0.1
+
+## 13.3.0
+
+### Minor Changes
+
+- 509a0dc: Add partial support for the ICA router ISM to derive its on chain config when deployed and included in the config
+- f8fd7b4: Support using MultiSend when proposing txs via the EV5GnosisSafeTxSubmitter.
+- 6fa767e: Added option to configure rebalancers and allowed bridges for movable collateral tokens using the cli and sdk
+
+### Patch Changes
+
+- 119a1a8: Remove `accountOwners` from `InterchainAccountRouter`
+
+  This reverse mapping was intended to index from a given proxy account what the corresponding derivation inputs were.
+
+  However, this implied 2 cold SSTORE instructions per account creation.
+
+  Instead, the `InterchainAccountCreated` event can be used which now has an `indexed` account key to filter by.
+
+- 1e137df: Improved logging around fetching prices from CoinGecko
+- Updated dependencies [e61bd2f]
+- Updated dependencies [db19435]
+- Updated dependencies [b977a28]
+- Updated dependencies [fd3bb39]
+- Updated dependencies [4544120]
+- Updated dependencies [7a3165f]
+- Updated dependencies [119a1a8]
+- Updated dependencies [b977a28]
+- Updated dependencies [88fe35f]
+- Updated dependencies [3327a6e]
+  - @hyperlane-xyz/core@8.0.0
+  - @hyperlane-xyz/starknet-core@13.3.0
+  - @hyperlane-xyz/cosmos-sdk@13.3.0
+  - @hyperlane-xyz/utils@13.3.0
+
+## 13.2.1
+
+### Patch Changes
+
+- 72887f7: Update to ethers v5.8.0.
+- Updated dependencies [72887f7]
+  - @hyperlane-xyz/utils@13.2.1
+  - @hyperlane-xyz/core@7.1.10
+  - @hyperlane-xyz/starknet-core@13.2.1
+  - @hyperlane-xyz/cosmos-sdk@13.2.1
+
+## 13.2.0
+
+### Minor Changes
+
+- 4d66b73: Add support for address in voyager block explorers
+- 4d66b73: Support for zksync on deployments and verifications
+- 4d66b73: Check for ZKSync contracts and functionalities support
+- 4d66b73: Add ZKSync contract verification with custom compiler options and refactor verification classes
+- 4d66b73: Add getTokenCollateral to WarpCore and reuse in isDestinationCollateralSufficient
+- 4d66b73: Update concurrentDeploy default to true for token deployments.
+
+### Patch Changes
+
+- 4d66b73: Account for zksync in legacy deployer logic.
+  - @hyperlane-xyz/starknet-core@13.2.0
+  - @hyperlane-xyz/cosmos-sdk@13.2.0
+  - @hyperlane-xyz/utils@13.2.0
+  - @hyperlane-xyz/core@7.1.9
+
+## 13.1.1
+
+### Patch Changes
+
+- ba4deea: Revert workspace dependency syntax.
+- Updated dependencies [ba4deea]
+  - @hyperlane-xyz/cosmos-sdk@13.1.1
+  - @hyperlane-xyz/core@7.1.8
+  - @hyperlane-xyz/starknet-core@13.1.1
+  - @hyperlane-xyz/utils@13.1.1
+
+## 13.1.0
+
+### Minor Changes
+
+- 6e86efa: Remove `defaultRpcConsensusType` from the agent config schema
+- c42ea09: Deploy to new chains: neuratestnet, rometestnet.
+
+### Patch Changes
+
+- Updated dependencies [f41f766]
+  - @hyperlane-xyz/utils@13.1.0
+  - @hyperlane-xyz/core@7.1.7
+  - @hyperlane-xyz/starknet-core@13.1.0
+  - @hyperlane-xyz/cosmos-sdk@13.1.0
+
+## 13.0.0
+
+### Minor Changes
+
+- 72b90f8: add cosmos native core module & reader
+- bc58283: feat: Starknet SDK logic integration
+- 2724559: add cosmos native routing ism cosmos-sdk and types
+
+### Patch Changes
+
+- Updated dependencies [0de63e0]
+- Updated dependencies [f8696c7]
+- Updated dependencies [2724559]
+  - @hyperlane-xyz/utils@13.0.0
+  - @hyperlane-xyz/starknet-core@13.0.0
+  - @hyperlane-xyz/cosmos-sdk@13.0.0
+  - @hyperlane-xyz/core@7.1.6
+
 ## 12.6.0
 
 ### Minor Changes

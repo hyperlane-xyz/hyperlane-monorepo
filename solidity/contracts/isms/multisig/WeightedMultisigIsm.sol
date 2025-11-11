@@ -17,7 +17,6 @@ import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityMod
 import {AbstractMerkleRootMultisigIsm} from "./AbstractMerkleRootMultisigIsm.sol";
 import {AbstractMessageIdMultisigIsm} from "./AbstractMessageIdMultisigIsm.sol";
 import {AbstractStaticWeightedMultisigIsm} from "./AbstractWeightedMultisigIsm.sol";
-import {AbstractMultisigIsm} from "./AbstractMultisigIsm.sol";
 import {StaticWeightedValidatorSetFactory} from "../../libs/StaticWeightedValidatorSetFactory.sol";
 import {MetaProxy} from "../../libs/MetaProxy.sol";
 

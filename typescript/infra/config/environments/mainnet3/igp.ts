@@ -14,22 +14,15 @@ import {
 } from '../../../src/config/gas-oracle.js';
 import { getChain } from '../../registry.js';
 
-import { ethereumChainNames } from './chains.js';
-import gasPrices from './gasPrices.json';
+import gasPrices from './gasPrices.json' with { type: 'json' };
 import { DEPLOYER, chainOwners } from './owners.js';
 import { supportedChainNames } from './supportedChainNames.js';
-import rawTokenPrices from './tokenPrices.json';
+import rawTokenPrices from './tokenPrices.json' with { type: 'json' };
 
 const tokenPrices: ChainMap<string> = rawTokenPrices;
 
 export function getOverheadWithOverrides(local: ChainName, remote: ChainName) {
-  let overhead = getOverhead(local, remote, ethereumChainNames);
-
-  // DeepBrainChain gas metering is different to vanilla EVM
-  // https://hyperlaneworkspace.slack.com/archives/C08GR6PBPGT/p1743074511084179?thread_ts=1743073273.793169&cid=C08GR6PBPGT
-  if (remote === 'deepbrainchain') {
-    overhead *= 8;
-  }
+  let overhead = getOverhead(local, remote);
 
   // Moonbeam/Torus gas usage can be up to 4x higher than vanilla EVM
   if (remote === 'moonbeam' || remote === 'torus') {
@@ -53,15 +46,22 @@ export function getOverheadWithOverrides(local: ChainName, remote: ChainName) {
 
 function getOracleConfigWithOverrides(origin: ChainName) {
   const oracleConfig = storageGasOracleConfig[origin];
-  if (origin === 'infinityvmmainnet') {
-    // For InfinityVM origin, override all remote chain gas configs to use 0 gas
-    for (const remoteConfig of Object.values(oracleConfig)) {
-      remoteConfig.gasPrice = '0';
-    }
-  }
-  // Solana -> InfinityVM, similarly don't charge gas
-  if (origin === 'solanamainnet') {
-    oracleConfig['infinityvmmainnet'].gasPrice = '0';
+
+  // WORKAROUND for Sealevel IGP decimal bug (solaxy-specific):
+  // The Rust Sealevel IGP code hardcodes SOL_DECIMALS = 9, but solaxy has 6 decimals.
+  // Rather than trying to calculate the correct workaround values, we hardcode
+  // the values that are already set on-chain and known to work.
+  if (origin === 'solaxy') {
+    oracleConfig.ethereum = {
+      gasPrice: '9',
+      tokenExchangeRate: '15000000000000000000',
+      tokenDecimals: 6,
+    };
+    oracleConfig.solanamainnet = {
+      gasPrice: '1',
+      tokenExchangeRate: '15000000000000000000',
+      tokenDecimals: 6,
+    };
   }
 
   return oracleConfig;

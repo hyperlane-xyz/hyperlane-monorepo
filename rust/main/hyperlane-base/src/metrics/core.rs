@@ -4,6 +4,7 @@ use std::sync::OnceLock;
 use std::time;
 
 use eyre::Result;
+use maplit::hashmap;
 use prometheus::{
     histogram_opts, labels, opts, register_counter_vec_with_registry,
     register_gauge_vec_with_registry, register_histogram_vec_with_registry,
@@ -52,6 +53,7 @@ pub struct CoreMetrics {
 
     operations_processed_count: IntCounterVec,
     messages_processed_count: IntCounterVec,
+    merkle_root_mismatch: IntGaugeVec,
 
     latest_checkpoint: IntGaugeVec,
 
@@ -62,6 +64,12 @@ pub struct CoreMetrics {
     // metadata building metrics
     metadata_build_count: IntCounterVec,
     metadata_build_duration: CounterVec,
+
+    // ism building metrics
+    ism_build_count: IntCounterVec,
+
+    /// Chain initialization metrics
+    chain_init_latency: IntGaugeVec,
 
     /// Set of metrics that tightly wrap the JsonRpcClient for use with the
     /// quorum provider.
@@ -252,7 +260,7 @@ impl CoreMetrics {
                 "Number of operations processed",
                 const_labels_ref
             ),
-            &["phase", "chain"],
+            &["app_context", "phase", "chain"],
             registry
         )?;
 
@@ -266,10 +274,20 @@ impl CoreMetrics {
             registry
         )?;
 
+        let merkle_root_mismatch = register_int_gauge_vec_with_registry!(
+            opts!(
+                namespaced!("merkle_root_mismatch"),
+                "Merkle root mismatch",
+                const_labels_ref
+            ),
+            &["origin"],
+            registry
+        )?;
+
         let metadata_build_count = register_int_counter_vec_with_registry!(
             opts!(
                 namespaced!("metadata_build_count"),
-                "Total number of times metadata was build",
+                "Total number of times metadata was built",
                 const_labels_ref
             ),
             &["app_context", "origin", "remote", "status"],
@@ -283,6 +301,26 @@ impl CoreMetrics {
                 const_labels_ref
             ),
             &["app_context", "origin", "remote", "status"],
+            registry
+        )?;
+
+        let ism_build_count = register_int_counter_vec_with_registry!(
+            opts!(
+                namespaced!("ism_build_count"),
+                "Total number of times ism was built",
+                const_labels_ref
+            ),
+            &["app_context", "origin", "remote", "ism_type", "status"],
+            registry
+        )?;
+
+        let chain_init_latency = register_int_gauge_vec_with_registry!(
+            opts!(
+                namespaced!("chain_init_latency"),
+                "Chain initialization latency in milliseconds",
+                const_labels_ref
+            ),
+            &["chain", "role", "entity"],
             registry
         )?;
 
@@ -307,6 +345,7 @@ impl CoreMetrics {
 
             operations_processed_count,
             messages_processed_count,
+            merkle_root_mismatch,
 
             latest_checkpoint,
 
@@ -316,6 +355,10 @@ impl CoreMetrics {
 
             metadata_build_count,
             metadata_build_duration,
+
+            ism_build_count,
+
+            chain_init_latency,
 
             client_metrics: OnceLock::new(),
             provider_metrics: OnceLock::new(),
@@ -548,7 +591,7 @@ impl CoreMetrics {
     /// Labels:
     /// - `remote`: Remote chain the queue is for.
     /// - `queue_name`: Which queue the message is in.
-    pub fn submitter_queue_length(&self) -> IntGaugeVec {
+    pub fn processor_queue_length(&self) -> IntGaugeVec {
         self.submitter_queue_length.clone()
     }
 
@@ -596,6 +639,24 @@ impl CoreMetrics {
         self.messages_processed_count.clone()
     }
 
+    /// Indicate when a merkle root mismatch occurs.
+    ///
+    /// Labels:
+    /// - `app_context`: Context
+    /// - `origin`: Chain the merkle root is for.
+    pub fn merkle_root_mismatch(&self) -> IntGaugeVec {
+        self.merkle_root_mismatch.clone()
+    }
+
+    /// Set merkle root mismatch
+    pub fn set_merkle_root_mismatch(&self, origin: &HyperlaneDomain) {
+        self.merkle_root_mismatch
+            .with(&hashmap! {
+                "origin" => origin.name(),
+            })
+            .set(1);
+    }
+
     /// Measure of span durations provided by tracing.
     ///
     /// Labels:
@@ -638,6 +699,29 @@ impl CoreMetrics {
     /// - `status`: success or failure
     pub fn metadata_build_duration(&self) -> CounterVec {
         self.metadata_build_duration.clone()
+    }
+
+    /// The number of ism built by this process during its
+    /// lifetime.
+    ///
+    /// Labels:
+    /// - `app_context`: Context
+    /// - `origin`: Chain the message came from.
+    /// - `remote`: Chain we delivered the message to.
+    /// - `ism_type`: ISM type.
+    /// - `status`: success or failure
+    pub fn ism_build_count(&self) -> IntCounterVec {
+        self.ism_build_count.clone()
+    }
+
+    /// The latency of chain initialization in milliseconds.
+    ///
+    /// Labels:
+    /// - `chain`: chain
+    /// - `role`: `origin` or `destination`
+    /// - `entity`: initialized entity, e.g. `dispatcher`, `submitter`, `processor`, etc.
+    pub fn chain_init_latency(&self) -> IntGaugeVec {
+        self.chain_init_latency.clone()
     }
 
     /// Counts of tracing (logging framework) span events.
@@ -686,7 +770,7 @@ impl CoreMetrics {
             .latest_checkpoint()
             .with_label_values(&["validator_processed", origin_chain.name()])
             .get();
-        observed_checkpoint - signed_checkpoint
+        observed_checkpoint.saturating_sub(signed_checkpoint)
     }
 }
 
@@ -738,7 +822,7 @@ impl ValidatorObservabilityMetricManager {
         destination: &HyperlaneDomain,
         app_context: String,
         latest_checkpoints: &HashMap<H160, Option<u32>>,
-    ) {
+    ) -> Result<(), prometheus::Error> {
         let key = AppContextKey {
             origin: origin.clone(),
             destination: destination.clone(),
@@ -767,14 +851,12 @@ impl ValidatorObservabilityMetricManager {
                 // We unwrap because an error here occurs if the # of labels
                 // provided is incorrect, and we'd like to loudly fail in e2e if that
                 // happens.
-                self.observed_validator_latest_index
-                    .remove_label_values(&[
-                        origin.as_ref(),
-                        destination.as_ref(),
-                        &format!("0x{:x}", validator).to_lowercase(),
-                        &app_context,
-                    ])
-                    .unwrap();
+                self.observed_validator_latest_index.remove_label_values(&[
+                    origin.as_ref(),
+                    destination.as_ref(),
+                    &format!("0x{validator:x}").to_lowercase(),
+                    &app_context,
+                ])?;
             }
         }
 
@@ -784,7 +866,7 @@ impl ValidatorObservabilityMetricManager {
                 .with_label_values(&[
                     origin.as_ref(),
                     destination.as_ref(),
-                    &format!("0x{:x}", validator).to_lowercase(),
+                    &format!("0x{validator:x}").to_lowercase(),
                     &app_context,
                 ])
                 // If the latest checkpoint is None, set to -1 to indicate that
@@ -793,6 +875,8 @@ impl ValidatorObservabilityMetricManager {
             new_set.insert(*validator, time::Instant::now());
         }
         app_context_validators.insert(key, new_set);
+
+        Ok(())
     }
 
     /// Gauge for reporting recently observed latest checkpoint indices for validator sets.

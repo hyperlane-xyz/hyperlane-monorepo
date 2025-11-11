@@ -12,8 +12,10 @@ import {
   ContractType,
   getCompiledContract,
 } from '@hyperlane-xyz/starknet-core';
+import { Address, eqAddressStarknet } from '@hyperlane-xyz/utils';
 
 import { DispatchedMessage } from '../core/types.js';
+import { ChainMap, ChainName } from '../types.js';
 
 export enum StarknetContractName {
   MAILBOX = 'mailbox',
@@ -31,6 +33,16 @@ export enum StarknetContractName {
   FALLBACK_DOMAIN_ROUTING_HOOK = 'fallback_domain_routing_hook',
   STATIC_AGGREGATION_HOOK = 'static_aggregation_hook',
 }
+
+export const STARKNET_FEE_TOKEN_ADDRESSES: ChainMap<Address> = {
+  starknet:
+    '0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d',
+  starknetsepolia:
+    '0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d',
+  paradex: '0x7348407ebad690fec0cc8597e87dc16ef7b269a655ff72587dafff83d462be2',
+  paradexsepolia:
+    '0x06f373b346561036d98ea10fb3e60d2f459c872b1933b50b21fe6ef4fda3b75e',
+};
 
 /**
  * Creates a Starknet contract instance with the given parameters
@@ -126,4 +138,30 @@ export function parseStarknetDispatchIdEvents(
     .map((dispatchEvent: ParsedEvent) =>
       utils.hexlify(dispatchEvent[DISPATCH_ID_EVENT].id as bigint),
     );
+}
+
+export function isStarknetFeeToken(chainName: ChainName, address: string) {
+  const feeTokenAddress = STARKNET_FEE_TOKEN_ADDRESSES[chainName];
+  if (!feeTokenAddress) {
+    return false;
+  }
+
+  return eqAddressStarknet(address, feeTokenAddress);
+}
+
+export function getStarknetFeeTokenContract(
+  chainName: ChainName,
+  providerOrAccount?: ProviderInterface | AccountInterface,
+): Contract {
+  const feeTokenAddress = STARKNET_FEE_TOKEN_ADDRESSES[chainName];
+  if (!feeTokenAddress) {
+    throw new Error(`No fee token address for chain ${chainName}`);
+  }
+
+  return getStarknetContract(
+    StarknetContractName.ETHER,
+    feeTokenAddress,
+    providerOrAccount,
+    ContractType.TOKEN,
+  );
 }

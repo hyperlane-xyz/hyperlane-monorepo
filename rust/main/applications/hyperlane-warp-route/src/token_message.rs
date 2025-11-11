@@ -24,7 +24,7 @@ impl Encode for TokenMessage {
 
         writer.write_all(&self.metadata)?;
 
-        Ok(32 + 32 + self.metadata.len())
+        Ok(self.metadata.len().saturating_add(32).saturating_add(32))
     }
 }
 

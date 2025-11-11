@@ -184,9 +184,9 @@ describe('configUtils', () => {
 
     for (const { msg, input, expected } of testCases) {
       it(msg, () => {
-        const tranformedObj = transformConfigToCheck(input);
+        const transformedObj = transformConfigToCheck(input);
 
-        expect(tranformedObj).to.eql(expected);
+        expect(transformedObj).to.eql(expected);
       });
     }
   });

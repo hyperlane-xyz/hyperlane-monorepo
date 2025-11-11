@@ -60,13 +60,10 @@ impl Expiration {
     pub fn as_duration(&self) -> Option<Duration> {
         match self.variant {
             ExpirationType::AfterDuration(duration) => Some(duration),
-            ExpirationType::AfterTimestamp(timestamp) => {
-                let target_time = UNIX_EPOCH + Duration::from_secs(timestamp);
-                target_time
-                    .duration_since(SystemTime::now())
-                    .ok()
-                    .or(Some(Duration::ZERO))
-            }
+            ExpirationType::AfterTimestamp(timestamp) => UNIX_EPOCH
+                .checked_add(Duration::from_secs(timestamp))
+                .and_then(|t| t.duration_since(SystemTime::now()).ok())
+                .or(Some(Duration::ZERO)),
             ExpirationType::Never => None,
             ExpirationType::Default => Some(default_expiration()),
         }

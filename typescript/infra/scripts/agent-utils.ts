@@ -1,4 +1,5 @@
 import { checkbox, select } from '@inquirer/prompts';
+import chalk from 'chalk';
 import path, { join } from 'path';
 import yargs, { Argv } from 'yargs';
 
@@ -15,17 +16,18 @@ import {
 import {
   Address,
   ProtocolType,
+  difference,
   inCIMode,
   objFilter,
   objMap,
   promiseObjAll,
   rootLogger,
-  symmetricDifference,
 } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts.js';
 import { agents } from '../config/environments/agents.js';
-import { WarpRouteIds } from '../config/environments/mainnet3/warp/warpIds.js';
+import { WarpRouteIds as Mainnet3WarpRouteIds } from '../config/environments/mainnet3/warp/warpIds.js';
+import { WarpRouteIds as Testnet4WarpRouteIds } from '../config/environments/testnet4/warp/warpIds.js';
 import { validatorBaseConfigsFn } from '../config/environments/utils.js';
 import {
   getChain,
@@ -56,7 +58,7 @@ import {
   writeMergedJSONAtPath,
 } from '../src/utils/utils.js';
 
-const debugLog = rootLogger.child({ module: 'infra:scripts:utils' }).debug;
+const logger = rootLogger.child({ module: 'infra:scripts:agent-utils' });
 
 export enum Modules {
   // TODO: change
@@ -66,7 +68,6 @@ export enum Modules {
   INTERCHAIN_GAS_PAYMASTER = 'igp',
   INTERCHAIN_ACCOUNTS = 'ica',
   INTERCHAIN_QUERY_SYSTEM = 'iqs',
-  LIQUIDITY_LAYER = 'll',
   TEST_QUERY_SENDER = 'testquerysender',
   TEST_RECIPIENT = 'testrecipient',
   HELLO_WORLD = 'helloworld',
@@ -172,6 +173,13 @@ export function withWrite<T>(args: Argv<T>) {
     .default('write', false);
 }
 
+export function withAppend<T>(args: Argv<T>) {
+  return args
+    .describe('append', 'Write only new keys to file (preserves existing keys)')
+    .boolean('append')
+    .default('append', false);
+}
+
 export function withChains<T>(args: Argv<T>, chainOptions?: ChainName[]) {
   return (
     args
@@ -205,11 +213,18 @@ export function withKnownWarpRouteId<T>(args: Argv<T>) {
   return args
     .describe('warpRouteId', 'warp route id')
     .string('warpRouteId')
-    .choices('warpRouteId', Object.values(WarpRouteIds));
+    .choices('warpRouteId', Object.values(Mainnet3WarpRouteIds));
 }
 
 export function withWarpRouteId<T>(args: Argv<T>) {
   return args.describe('warpRouteId', 'warp route id').string('warpRouteId');
+}
+
+export function withMetrics<T>(args: Argv<T>) {
+  return args
+    .describe('metrics', 'metrics')
+    .boolean('metrics')
+    .default('metrics', true);
 }
 
 export function withWarpRouteIdRequired<T>(args: Argv<T>) {
@@ -352,9 +367,23 @@ export function withPropose<T>(args: Argv<T>) {
     .default('propose', false);
 }
 
+function getWarpRouteIdsByEnvironment(deployEnvironment: DeployEnvironment) {
+  switch (deployEnvironment) {
+    case 'mainnet3':
+      return Mainnet3WarpRouteIds;
+    case 'testnet4':
+      return Testnet4WarpRouteIds;
+    default:
+      throw new Error(`Unsupported environment: ${deployEnvironment}`);
+  }
+}
 // Interactively gets a single warp route ID
-export async function getWarpRouteIdInteractive() {
-  const choices = Object.values(WarpRouteIds)
+export async function getWarpRouteIdInteractive(
+  deployEnvironment: DeployEnvironment,
+) {
+  const choices = Object.values(
+    getWarpRouteIdsByEnvironment(deployEnvironment) as Record<string, string>,
+  )
     .sort()
     .map((id) => ({
       value: id,
@@ -367,14 +396,18 @@ export async function getWarpRouteIdInteractive() {
 }
 
 // Interactively gets multiple warp route IDs
-export async function getWarpRouteIdsInteractive() {
-  const choices = Object.values(WarpRouteIds)
+export async function getWarpRouteIdsInteractive(
+  deployEnvironment: DeployEnvironment,
+) {
+  const choices = Object.values(
+    getWarpRouteIdsByEnvironment(deployEnvironment) as Record<string, string>,
+  )
     .sort()
     .map((id) => ({
       value: id,
     }));
 
-  let selection: WarpRouteIds[] = [];
+  let selection: string[] = [];
 
   while (!selection.length) {
     selection = await checkbox({
@@ -493,18 +526,34 @@ export function ensureValidatorConfigConsistency(
       )
       .map(([chain]) => chain),
   );
-  const symDiff = symmetricDifference(
+
+  // Only error if there are context chains missing from the config
+  // (context ⊆ config is OK, but not the other way around)
+  const missingInConfig = difference(
     validatorContextChainNames,
     validatorConfigChains,
   );
-  if (symDiff.size > 0) {
-    throw new Error(
-      `Validator config invalid.\nValidator context chain names: ${[
-        ...validatorContextChainNames,
-      ]}\nValidator config chains: ${[...validatorConfigChains]}\nDiff: ${[
-        ...symDiff,
-      ]}`,
-    );
+  if (missingInConfig.size > 0) {
+    const errorMessage = `Validator context chain names:\n - ${[
+      ...validatorContextChainNames,
+    ]}\nValidator config chains:\n - ${[...validatorConfigChains]}\nChains in context but not in config:\n - ${[
+      ...missingInConfig,
+    ]}`;
+
+    // So only throw if there are missing chains in the Hyperlane context.
+    // Only a subset of chains will have ephemeral validators in RC/Neutron contexts.
+    if (context === Contexts.Hyperlane) {
+      throw new Error(
+        chalk.bold.red(`Validator config invalid.\n${errorMessage}`),
+      );
+    } else {
+      rootLogger.info(chalk.grey(errorMessage));
+      rootLogger.info(
+        chalk.bold.grey(
+          'This is expected for RC/Neutron contexts, as we only run validators for a subset of chains in them.',
+        ),
+      );
+    }
   }
 }
 
@@ -515,7 +564,7 @@ export function getKeyForRole(
   chain?: ChainName,
   index?: number,
 ): CloudAgentKey {
-  debugLog(`Getting key for ${role} role`);
+  logger.debug({ chain }, `Getting key for ${role} role`);
   const agentConfig = getAgentConfig(context, environment);
   return getCloudAgentKey(agentConfig, role, chain, index);
 }
@@ -536,10 +585,10 @@ export async function getMultiProviderForRole(
   index?: number,
 ): Promise<MultiProvider> {
   const chainMetadata = await registry.getMetadata();
-  debugLog(`Getting multiprovider for ${role} role`);
+  logger.debug(`Getting multiprovider for ${role} role`);
   const multiProvider = new MultiProvider(chainMetadata);
   if (inCIMode()) {
-    debugLog('Running in CI, returning multiprovider without secret keys');
+    logger.debug('Running in CI, returning multiprovider without secret keys');
     return multiProvider;
   }
   await promiseObjAll(
@@ -553,7 +602,11 @@ export async function getMultiProviderForRole(
       async (chain, _) => {
         if (multiProvider.getProtocol(chain) === ProtocolType.Ethereum) {
           const key = getKeyForRole(environment, context, role, chain, index);
-          const signer = await key.getSigner();
+          const provider = multiProvider.tryGetProvider(chain);
+          if (!provider) {
+            throw new Error(`Provider not found for chain ${chain}`);
+          }
+          const signer = await key.getSigner(provider);
           multiProvider.setSigner(chain, signer);
         }
       },
@@ -573,7 +626,7 @@ export async function getKeysForRole(
   index?: number,
 ): Promise<ChainMap<CloudAgentKey>> {
   if (inCIMode()) {
-    debugLog('No keys to return in CI');
+    logger.debug('No keys to return in CI');
     return {};
   }
 
@@ -600,8 +653,6 @@ export function getModuleDirectory(
         return 'middleware/accounts';
       case Modules.INTERCHAIN_QUERY_SYSTEM:
         return 'middleware/queries';
-      case Modules.LIQUIDITY_LAYER:
-        return 'middleware/liquidity-layer';
       case Modules.HELLO_WORLD:
         return `helloworld/${context}`;
       default:
@@ -653,7 +704,14 @@ export function writeAddresses(
   environment: DeployEnvironment,
   module: Modules,
   addressesMap: ChainMap<Record<string, Address>>,
+  targetNetworks?: ChainName[],
 ) {
+  if (targetNetworks && targetNetworks.length > 0) {
+    addressesMap = objFilter(addressesMap, (chain, _): _ is ChainAddresses => {
+      return targetNetworks.includes(chain as ChainName);
+    });
+  }
+
   addressesMap = filterRemoteDomainMetadata(addressesMap);
 
   if (isRegistryModule(environment, module)) {
@@ -674,6 +732,19 @@ export function getAgentConfigDirectory() {
 
 export function getAgentConfigJsonPath(environment: AgentEnvironment) {
   return path.join(getAgentConfigDirectory(), `${environment}_config.json`);
+}
+
+export function getAgentAppContextConfigDirectory() {
+  return path.join('../../', 'rust', 'main', 'app-contexts');
+}
+
+export function getAgentAppContextConfigJsonPath(
+  environment: AgentEnvironment,
+) {
+  return path.join(
+    getAgentAppContextConfigDirectory(),
+    `${environment}_config.json`,
+  );
 }
 
 export async function assertCorrectKubeContext(coreConfig: EnvironmentConfig) {

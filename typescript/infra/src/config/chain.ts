@@ -7,37 +7,82 @@ import {
   ChainName,
   HyperlaneSmartProvider,
   ProviderRetryOptions,
+  safeApiKeyRequired,
 } from '@hyperlane-xyz/sdk';
 import {
+  Address,
   ProtocolType,
   inCIMode,
+  inKubernetes,
   objFilter,
   objMerge,
 } from '@hyperlane-xyz/utils';
 
 import { getChain, getRegistryWithOverrides } from '../../config/registry.js';
 import { getSecretRpcEndpoints } from '../agents/index.js';
+import { getSafeApiKey } from '../utils/safe.js';
 
 import { DeployEnvironment } from './environment.js';
 
+// V2 ICAs are not supported on these chains, due to the block gas limit being
+// lower than the amount required to deploy the new InterchainAccountRouter
+// implementation.
+export const legacyIcaChainRouters: Record<
+  ChainName,
+  {
+    interchainAccountIsm: Address;
+    interchainAccountRouter: Address;
+  }
+> = {
+  viction: {
+    interchainAccountIsm: '0x551BbEc45FD665a8C95ca8731CbC32b7653Bc59B',
+    interchainAccountRouter: '0xc11f8Cf2343d3788405582F65B8af6A4F7a6FfC8',
+  },
+  ontology: {
+    interchainAccountIsm: '0x8BdD5bf519714515083801448A99F84882A8F61E',
+    interchainAccountRouter: '0x718f11e349374481Be8c8B7589eC4B4316ddDCc2',
+  },
+  // special case for arcadia as it's currently under maintenance.
+  // will update this separately in the next batch.
+  arcadia: {
+    interchainAccountIsm: '0xc261Bd2BD995d3D0026e918cBFD44b0Cc5416a57',
+    interchainAccountRouter: '0xf4035357EB3e3B48E498FA6e1207892f615A2c2f',
+  },
+};
+export const legacyIcaChains = Object.keys(legacyIcaChainRouters);
+export const legacyEthIcaRouter = '0x5E532F7B610618eE73C2B462978e94CB1F7995Ce';
+
 // A list of chains to skip during deploy, check-deploy and ICA operations.
 // Used by scripts like check-owner-ica.ts to exclude chains that are temporarily
-// unsupported (e.g. zksync, zeronetwork) or have known issues (e.g. lumia).
+// unsupported (e.g. zksync, zeronetwork) or have known issues
 export const chainsToSkip: ChainName[] = [
+  // svmbnb support is deprecated
+  'svmbnb',
+
+  // not AW owned
+  'forma',
+
   // TODO: remove once zksync PR is merged into main
   // mainnets
   'zksync',
   'zeronetwork',
-  'zklink',
-  'treasure',
   'abstract',
   'sophon',
 
   // testnets
   'abstracttestnet',
 
-  // Oct 16 batch
-  'lumia',
+  // special case for arcadia as it's currently under maintenance.
+  // will update this separately in the next batch.
+  'arcadia',
+
+  // legacy ICAs
+  'viction',
+  'ontology',
+
+  // legacy icas
+  'carrchaintestnet',
+  'rometestnet',
 ];
 
 export const defaultRetry: ProviderRetryOptions = {
@@ -150,6 +195,19 @@ export async function getSecretMetadataOverrides(
     chainMetadataOverrides[chain] = {
       rpcUrls: metadataRpcUrls,
     };
+  }
+
+  // Only fetch Safe API key when running locally (not in k8s)
+  // Safe API is only needed for infra + http registry usage
+  const safeApiKey = !inKubernetes() ? await getSafeApiKey() : undefined;
+  if (safeApiKey) {
+    for (const chain of chains) {
+      const chainMetadata = getChain(chain);
+      const txServiceUrl = chainMetadata.gnosisSafeTransactionServiceUrl;
+      if (txServiceUrl && safeApiKeyRequired(txServiceUrl)) {
+        chainMetadataOverrides[chain].gnosisSafeApiKey = safeApiKey;
+      }
+    }
   }
 
   return chainMetadataOverrides;

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
 /*@@@@@@@       @@@@@@@@@
@@ -14,22 +14,25 @@ pragma solidity >=0.8.0;
 @@@@@@@@@       @@@@@@@@*/
 
 // ============ Internal Imports ============
-import {TokenRouter} from "./libs/TokenRouter.sol";
-import {FungibleTokenRouter} from "./libs/FungibleTokenRouter.sol";
 import {TokenMessage} from "./libs/TokenMessage.sol";
-import {MailboxClient} from "../client/MailboxClient.sol";
+import {TokenRouter} from "./libs/TokenRouter.sol";
+import {MovableCollateralRouter} from "./libs/MovableCollateralRouter.sol";
+import {LpCollateralRouter} from "./libs/LpCollateralRouter.sol";
+import {ITokenBridge, Quote} from "../interfaces/ITokenBridge.sol";
+import {ERC20Collateral} from "./libs/TokenCollateral.sol";
 
 // ============ External Imports ============
-import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /**
  * @title Hyperlane ERC20 Token Collateral that wraps an existing ERC20 with remote transfer functionality.
  * @author Abacus Works
  */
-contract HypERC20Collateral is FungibleTokenRouter {
+contract HypERC20Collateral is LpCollateralRouter {
     using SafeERC20 for IERC20;
+    using ERC20Collateral for IERC20;
 
     IERC20 public immutable wrappedToken;
 
@@ -41,7 +44,7 @@ contract HypERC20Collateral is FungibleTokenRouter {
         address erc20,
         uint256 _scale,
         address _mailbox
-    ) FungibleTokenRouter(_scale, _mailbox) {
+    ) TokenRouter(_scale, _mailbox) {
         require(Address.isContract(erc20), "HypERC20Collateral: invalid token");
         wrappedToken = IERC20(erc20);
     }
@@ -50,25 +53,34 @@ contract HypERC20Collateral is FungibleTokenRouter {
         address _hook,
         address _interchainSecurityModule,
         address _owner
-    ) public virtual initializer {
+    ) public initializer {
         _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
+        _LpCollateralRouter_initialize();
     }
 
-    function balanceOf(
-        address _account
-    ) external view override returns (uint256) {
-        return wrappedToken.balanceOf(_account);
+    function token() public view override returns (address) {
+        return address(wrappedToken);
+    }
+
+    function _addBridge(uint32 domain, ITokenBridge bridge) internal override {
+        MovableCollateralRouter._addBridge(domain, bridge);
+        IERC20(wrappedToken).safeApprove(address(bridge), type(uint256).max);
+    }
+
+    function _removeBridge(
+        uint32 domain,
+        ITokenBridge bridge
+    ) internal override {
+        MovableCollateralRouter._removeBridge(domain, bridge);
+        IERC20(wrappedToken).safeApprove(address(bridge), 0);
     }
 
     /**
      * @dev Transfers `_amount` of `wrappedToken` from `msg.sender` to this contract.
      * @inheritdoc TokenRouter
      */
-    function _transferFromSender(
-        uint256 _amount
-    ) internal virtual override returns (bytes memory) {
-        wrappedToken.safeTransferFrom(msg.sender, address(this), _amount);
-        return bytes(""); // no metadata
+    function _transferFromSender(uint256 _amount) internal override {
+        wrappedToken._transferFromSender(_amount);
     }
 
     /**
@@ -77,9 +89,8 @@ contract HypERC20Collateral is FungibleTokenRouter {
      */
     function _transferTo(
         address _recipient,
-        uint256 _amount,
-        bytes calldata // no metadata
-    ) internal virtual override {
-        wrappedToken.safeTransfer(_recipient, _amount);
+        uint256 _amount
+    ) internal override {
+        wrappedToken._transferTo(_recipient, _amount);
     }
 }

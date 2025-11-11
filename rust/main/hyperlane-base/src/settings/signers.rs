@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use async_trait::async_trait;
 use ethers::prelude::{AwsSigner, LocalWallet};
 use ethers::utils::hex::ToHex;
@@ -10,6 +12,8 @@ use hyperlane_core::{AccountAddressType, H256};
 
 use super::aws_credentials::AwsChainCredentialsProvider;
 use crate::types::utils;
+
+const AWS_SIGNER_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Signer types
 #[derive(Default, Debug, Clone)]
@@ -35,6 +39,22 @@ pub enum SignerConf {
         prefix: String,
         /// Account address type for cosmos address
         account_address_type: AccountAddressType,
+    },
+    /// Radix Specific key
+    RadixKey {
+        /// private key
+        key: H256,
+        /// suffix for address formatting
+        suffix: String,
+    },
+    /// Starknet Specific key
+    StarkKey {
+        /// Private key value
+        key: H256,
+        /// Starknet address
+        address: H256,
+        /// Whether the Starknet signer is legacy
+        is_legacy: bool,
     },
     /// Assume node will sign on RPC calls
     #[default]
@@ -75,21 +95,25 @@ impl BuildableWithSignerConf for hyperlane_ethereum::Signers {
                 ),
             )),
             SignerConf::Aws { id, region } => {
+                let http_client = utils::http_client_with_timeout()
+                    .map_err(|err| eyre::eyre!(err.to_string()))?;
                 let client = KmsClient::new_with_client(
-                    rusoto_core::Client::new_with(
-                        AwsChainCredentialsProvider::new(),
-                        utils::http_client_with_timeout().unwrap(),
-                    ),
+                    rusoto_core::Client::new_with(AwsChainCredentialsProvider::new(), http_client),
                     region.clone(),
                 );
-
-                let signer = AwsSigner::new(client, id, 0).await?;
+                let signer = AwsSigner::new(client, id, 0, Some(AWS_SIGNER_TIMEOUT)).await?;
                 hyperlane_ethereum::Signers::Aws(signer)
             }
             SignerConf::CosmosKey { .. } => {
                 bail!("cosmosKey signer is not supported by Ethereum")
             }
+            SignerConf::StarkKey { .. } => {
+                bail!("starkKey signer is not supported by Ethereum")
+            }
             SignerConf::Node => bail!("Node signer"),
+            SignerConf::RadixKey { .. } => {
+                bail!("radixKey signer is not supported by Ethereum")
+            }
         })
     }
 }
@@ -177,31 +201,52 @@ impl ChainSigner for hyperlane_cosmos::Signer {
 }
 
 #[async_trait]
-impl BuildableWithSignerConf for hyperlane_cosmos_native::Signer {
+impl BuildableWithSignerConf for hyperlane_starknet::Signer {
     async fn build(conf: &SignerConf) -> Result<Self, Report> {
-        if let SignerConf::CosmosKey {
+        if let SignerConf::StarkKey {
             key,
-            prefix,
-            account_address_type,
+            address,
+            is_legacy,
         } = conf
         {
-            Ok(hyperlane_cosmos_native::Signer::new(
-                key.as_bytes().to_vec(),
-                prefix.clone(),
-                account_address_type,
-            )?)
+            Ok(hyperlane_starknet::Signer::new(key, address, *is_legacy)?)
         } else {
-            bail!(format!("{conf:?} key is not supported by cosmos"));
+            bail!(format!("{conf:?} key is not supported by starknet"));
         }
     }
 }
 
-impl ChainSigner for hyperlane_cosmos_native::Signer {
+impl ChainSigner for hyperlane_starknet::Signer {
     fn address_string(&self) -> String {
-        self.address_string.clone()
+        self.address.to_hex_string()
     }
+
     fn address_h256(&self) -> H256 {
-        self.address_h256()
+        self.address_h256
+    }
+}
+
+#[async_trait]
+impl BuildableWithSignerConf for hyperlane_radix::RadixSigner {
+    async fn build(conf: &SignerConf) -> Result<Self, Report> {
+        if let SignerConf::RadixKey { key, suffix } = conf {
+            Ok(hyperlane_radix::RadixSigner::new(
+                key.as_bytes().to_vec(),
+                suffix.to_string(),
+            )?)
+        } else {
+            bail!(format!("{conf:?} key is not supported by radix"));
+        }
+    }
+}
+
+impl ChainSigner for hyperlane_radix::RadixSigner {
+    fn address_string(&self) -> String {
+        self.encoded_address.clone()
+    }
+
+    fn address_h256(&self) -> H256 {
+        self.address_256
     }
 }
 
@@ -288,32 +333,6 @@ mod tests {
                 .as_slice(),
         );
         let chain_signer = hyperlane_cosmos::Signer::new(
-            key.to_vec(),
-            "neutron".to_string(),
-            &AccountAddressType::Bitcoin,
-        )
-        .expect("Failed to create cosmos signer");
-
-        let address_h256 = H256::from_slice(
-            hex::decode(ADDRESS)
-                .expect("Failed to decode public key")
-                .as_slice(),
-        );
-        assert_eq!(chain_signer.address_h256(), address_h256);
-    }
-
-    #[test]
-    fn address_h256_cosmosnative() {
-        const PRIVATE_KEY: &str =
-            "5486418967eabc770b0fcb995f7ef6d9a72f7fc195531ef76c5109f44f51af26";
-        const ADDRESS: &str = "000000000000000000000000b5a79b48c87e7a37bdb625096140ee7054816942";
-
-        let key = H256::from_slice(
-            hex::decode(PRIVATE_KEY)
-                .expect("Failed to decode public key")
-                .as_slice(),
-        );
-        let chain_signer = hyperlane_cosmos_native::Signer::new(
             key.to_vec(),
             "neutron".to_string(),
             &AccountAddressType::Bitcoin,

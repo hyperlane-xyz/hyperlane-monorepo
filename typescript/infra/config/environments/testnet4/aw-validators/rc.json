@@ -1,10 +1,6 @@
 {
-  "alfajores": {
-    "validators": [
-      "0xace978aaa61d9ee44fe3ab147fd227e0e66b8909",
-      "0x6c8bfdfb8c40aba10cc9fb2cf0e3e856e0e5dbb3",
-      "0x54c65eb7677e6086cdde3d5ccef89feb2103a11d"
-    ]
+  "somniatestnet": {
+    "validators": []
   },
   "bsctestnet": {
     "validators": [
@@ -19,9 +15,6 @@
       "0x0a636e76df4124b092cabb4321d6aaef9defb514",
       "0xbf86037899efe97bca4cea865607e10b849b5878"
     ]
-  },
-  "holesky": {
-    "validators": ["0x9af51a9e6405451bb9caf12607e178db202d6821"]
   },
   "scrollsepolia": {
     "validators": [

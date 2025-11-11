@@ -1,4 +1,6 @@
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
+// FIXME: Is this used in the browser?
+// eslint-disable-next-line import/no-nodejs-modules
 import { Readable } from 'stream';
 
 import { streamToString } from '@hyperlane-xyz/utils';

@@ -1,11 +1,22 @@
-import { rootLogger } from '@hyperlane-xyz/utils';
+import { createServiceLogger, setRootLogger } from '@hyperlane-xyz/utils';
 
-export const logger = rootLogger.child({ module: 'warp-balance-monitor' });
+const logger = await createServiceLogger({
+  service: 'warp-balance-monitor',
+  version: '1.0.0',
+});
+
+setRootLogger(logger);
+
+export function setLoggerBindings(bindings: Record<string, string>) {
+  logger.setBindings(bindings);
+}
+
+export { logger };
 
 export async function tryFn(fn: () => Promise<void>, context: string) {
   try {
     await fn();
-  } catch (e) {
-    logger.error(`Error in ${context}`, e);
+  } catch (err) {
+    logger.error(err, `Error in ${context}`);
   }
 }

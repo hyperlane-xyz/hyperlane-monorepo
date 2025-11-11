@@ -1,0 +1,18 @@
+{
+  "solanamainnet": {
+    "type": "synthetic",
+    "decimals": 6,
+    "name": "Money",
+    "symbol": "MONEY",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/189d2a8f9a4eb2c0410e52d22e130d1376b469b1/deployments/warp_routes/MONEY/metadata.json",
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
+    "owner": "9hixEzn9pBzYG1MVWNq3jAuG7RP3vBT5ijN4UFWDVsfD"
+  },
+  "sonicsvm": {
+    "type": "collateral",
+    "decimals": 6,
+    "token": "4atQffe9q6xwcv5YmZKapSRofHFtJXtG6jJvdiVojqt7",
+    "interchainGasPaymaster": "7VResHbw6jRVUa8qfD6e1cbzGmErcLGwgx4o7mLhZief",
+    "owner": "4fws6acTdt9yVhh1tvdXoqew99WfviCJsse5hUiNaEoJ"
+  }
+}

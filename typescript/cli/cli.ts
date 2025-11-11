@@ -9,6 +9,7 @@ import { avsCommand } from './src/commands/avs.js';
 import { configCommand } from './src/commands/config.js';
 import { coreCommand } from './src/commands/core.js';
 import { deployCommand } from './src/commands/deploy.js';
+import { forkCommand } from './src/commands/fork.js';
 import { hookCommand } from './src/commands/hook.js';
 import { ismCommand } from './src/commands/ism.js';
 import {
@@ -73,10 +74,14 @@ try {
     .command(submitCommand)
     .command(validatorCommand)
     .command(warpCommand)
+    .command(forkCommand)
     .version(VERSION)
     .demandCommand()
     .strict()
     .help()
+    .parserConfiguration({
+      'parse-numbers': false,
+    })
     .showHelpOnFail(false).argv;
 } catch (error: any) {
   errorRed('Error: ' + error.message);

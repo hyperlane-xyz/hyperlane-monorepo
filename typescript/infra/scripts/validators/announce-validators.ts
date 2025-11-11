@@ -1,3 +1,4 @@
+import chalk from 'chalk';
 import { ethers } from 'ethers';
 import { readFileSync } from 'fs';
 import * as path from 'path';
@@ -72,11 +73,6 @@ async function main() {
     await Promise.all(
       Object.entries(agentConfig.validators.chains)
         .filter(([validatorChain, _]) => {
-          // Ensure we skip lumia, as we don't have the addresses in registry.
-          if (validatorChain === 'lumia') {
-            return false;
-          }
-
           // If a chain arg was specified, filter to only that chain
           if (!!chain && chain !== validatorChain) {
             return false;
@@ -111,39 +107,54 @@ async function main() {
   }
 
   for (let i = 0; i < announcements.length; i++) {
-    const { storageLocation, announcement } = announcements[i];
-    if (!announcement) {
-      console.info(`No announcement for storageLocation ${storageLocation}`);
-    }
     const chain = chains[i];
-    const contracts = core.getContracts(chain);
-    const validatorAnnounce = contracts.validatorAnnounce;
-    const address = announcement.value.validator;
-    const location = announcement.value.storage_location;
-    const announcedLocations =
-      await validatorAnnounce.getAnnouncedStorageLocations([address]);
-    assert(
-      announcedLocations.length == 1,
-      `Expected 1 announced location, got ${announcedLocations.length}`,
-    );
-    const announced = announcedLocations[0].includes(location);
-    if (!announced) {
-      const signature = ethers.utils.joinSignature(announcement.signature);
-      console.log(
-        `[${chain}] Announcing ${address} checkpoints at ${location}`,
+    try {
+      const { storageLocation, announcement } = announcements[i];
+      if (!announcement) {
+        console.warn(
+          chalk.yellow(
+            `No announcement for storageLocation ${storageLocation}`,
+          ),
+        );
+        continue;
+      }
+      const contracts = core.getContracts(chain);
+      const validatorAnnounce = contracts.validatorAnnounce;
+      const address = announcement.value.validator;
+      const location = announcement.value.storage_location;
+      const announcedLocations =
+        await validatorAnnounce.getAnnouncedStorageLocations([address]);
+      assert(
+        announcedLocations.length == 1,
+        `Expected 1 announced location, got ${announcedLocations.length}`,
       );
-      const estimatedGas = await validatorAnnounce.estimateGas.announce(
-        address,
-        location,
-        signature,
-      );
-      await validatorAnnounce.announce(address, location, signature, {
-        gasLimit: addBufferToGasLimit(estimatedGas),
-        ...multiProvider.getTransactionOverrides(chain),
-      });
-    } else {
-      console.log(
-        `[${chain}] Already announced ${address} checkpoints at ${location}`,
+      const announced = announcedLocations[0].includes(location);
+      if (!announced) {
+        const signature = ethers.utils.joinSignature(announcement.signature);
+        console.log(
+          chalk.bold(
+            `[${chain}] Announcing ${address} checkpoints at ${location}`,
+          ),
+        );
+        const estimatedGas = await validatorAnnounce.estimateGas.announce(
+          address,
+          location,
+          signature,
+        );
+        await validatorAnnounce.announce(address, location, signature, {
+          gasLimit: addBufferToGasLimit(estimatedGas),
+          ...multiProvider.getTransactionOverrides(chain),
+        });
+      } else {
+        console.log(
+          chalk.grey(
+            `[${chain}] Already announced ${address} checkpoints at ${location}`,
+          ),
+        );
+      }
+    } catch (error) {
+      console.error(
+        chalk.bold.red(`Error processing announcement for ${chain}:`, error),
       );
     }
   }

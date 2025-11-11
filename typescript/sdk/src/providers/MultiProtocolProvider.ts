@@ -24,6 +24,7 @@ import {
   PROTOCOL_TO_DEFAULT_PROVIDER_TYPE,
   ProviderMap,
   ProviderType,
+  RadixProvider,
   SolanaWeb3Provider,
   StarknetJsProvider,
   TypedProvider,
@@ -222,6 +223,13 @@ export class MultiProtocolProvider<
     return this.getSpecificProvider<StarknetJsProvider['provider']>(
       chainNameOrId,
       ProviderType.Starknet,
+    );
+  }
+
+  getRadixProvider(chainNameOrId: ChainNameOrId): RadixProvider['provider'] {
+    return this.getSpecificProvider<RadixProvider['provider']>(
+      chainNameOrId,
+      ProviderType.Radix,
     );
   }
 

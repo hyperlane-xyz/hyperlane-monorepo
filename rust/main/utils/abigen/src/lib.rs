@@ -1,6 +1,8 @@
 #[cfg(feature = "fuels")]
 use fuels_code_gen::ProgramType;
 use std::collections::BTreeSet;
+#[cfg(feature = "starknet")]
+use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::fs::{self, File};
 use std::io::Write;
@@ -12,6 +14,7 @@ use inflector::Inflector;
 pub enum BuildType {
     Ethers,
     Fuels,
+    Starknet,
 }
 
 /// A `build.rs` tool for building a directory of ABIs. This will parse the
@@ -26,7 +29,7 @@ pub fn generate_bindings_for_dir(
 
     // clean old bindings
     if let Err(e) = fs::remove_dir_all(&output_dir) {
-        println!("cargo:warning=Could not delete old bindings dir: {}", e);
+        println!("cargo:warning=Could not delete old bindings dir: {e}");
     };
     fs::create_dir_all(&output_dir).expect("could not create bindings dir");
 
@@ -60,7 +63,7 @@ pub fn generate_bindings_for_dir(
     writeln!(mod_file, "#![allow(clippy::all)]").unwrap();
     write!(mod_file, "#![allow(missing_docs)]\n\n").unwrap();
     for m in modules {
-        writeln!(mod_file, "pub(crate) mod {};", m).expect("failed to write to modfile");
+        writeln!(mod_file, "pub(crate) mod {m};").expect("failed to write to modfile");
     }
     drop(mod_file);
 }
@@ -125,6 +128,44 @@ pub fn generate_bindings(
 
         fmt_file(&output_file);
     }
+    #[cfg(feature = "starknet")]
+    if build_type == BuildType::Starknet {
+        let mut aliases = HashMap::new();
+        aliases.insert(
+            String::from("openzeppelin::access::ownable::ownable::OwnableComponent::Event"),
+            String::from("OwnableCptEvent"),
+        );
+        aliases.insert(
+            String::from("openzeppelin::upgrades::upgradeable::UpgradeableComponent::Event"),
+            String::from("UpgradeableCptEvent"),
+        );
+        aliases.insert(
+            String::from("hyperlane_starknet::contracts::client::mailboxclient_component::MailboxclientComponent::Event"),
+            String::from("MailboxclientCptEvent")
+        );
+
+        let abigen = cainome::rs::Abigen::new(contract_name, abi_source)
+            .with_types_aliases(aliases)
+            .with_execution_version(cainome::rs::ExecutionVersion::V3)
+            .with_derives(vec![
+                "Debug".to_owned(),
+                "PartialEq".to_owned(),
+                "serde::Serialize".to_owned(),
+                "serde::Deserialize".to_owned(),
+            ])
+            .with_contract_derives(vec![
+                "Debug".to_owned(),
+                "Clone".to_owned(),
+                "serde::Serialize".to_owned(),
+                "serde::Deserialize".to_owned(),
+            ]);
+
+        abigen
+            .generate()
+            .expect("Fail to generate bindings")
+            .write_to_file(output_file.to_str().expect("valid utf8 path"))
+            .expect("Fail to write bindings to file");
+    }
 
     module_name
 }
@@ -143,25 +184,15 @@ fn fmt_file(path: &Path) {
 /// Get the rustfmt binary path.
 #[cfg(feature = "fmt")]
 fn rustfmt_path() -> &'static Path {
-    use std::path::PathBuf;
+    use std::{path::PathBuf, sync::LazyLock};
 
-    // lazy static var
-    static mut PATH: Option<PathBuf> = None;
-
-    if let Some(path) = unsafe { PATH.as_ref() } {
-        return path;
-    }
-
-    if let Ok(path) = std::env::var("RUSTFMT") {
-        unsafe {
-            PATH = Some(PathBuf::from(path));
-            PATH.as_ref().unwrap()
+    static PATH: LazyLock<PathBuf> = LazyLock::new(|| {
+        if let Ok(path) = std::env::var("RUSTFMT") {
+            PathBuf::from(path)
+        } else {
+            which::which("rustfmt").unwrap_or_else(|_| "rustfmt".into())
         }
-    } else {
-        // assume it is in PATH
-        unsafe {
-            PATH = Some(which::which("rustmft").unwrap_or_else(|_| "rustfmt".into()));
-            PATH.as_ref().unwrap()
-        }
-    }
+    });
+
+    PATH.as_path()
 }

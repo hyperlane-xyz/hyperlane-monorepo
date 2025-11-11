@@ -1,0 +1,48 @@
+warpRouteId: USDC/subtensor
+strategy:
+  rebalanceStrategy: minAmount
+  chains:
+    base:
+      minAmount:
+        min: 10000
+        target: 20000
+        type: 'absolute'
+      bridgeLockTime: 1800 # 30 mins in seconds
+      bridgeMinAcceptedAmount: 3000
+      bridge: '0x5C4aFb7e23B1Dc1B409dc1702f89C64527b25975'
+
+    ethereum:
+      minAmount:
+        min: 50000
+        target: 60000
+        type: 'absolute'
+      bridgeLockTime: 1800 # 30 mins in seconds
+      bridgeMinAcceptedAmount: 3000
+      bridge: '0xedCBAa585FD0F80f20073F9958246476466205b8'
+
+    polygon:
+      minAmount:
+        min: 10000
+        target: 20000
+        type: 'absolute'
+      bridgeLockTime: 1800 # 30 mins in seconds
+      bridgeMinAcceptedAmount: 3000
+      bridge: '0xa62F45662809f5F6535b58bae9A572a2EC4A1f84'
+
+    arbitrum:
+      minAmount:
+        min: 10000
+        target: 20000
+        type: 'absolute'
+      bridgeLockTime: 1800 # 30 mins in seconds
+      bridgeMinAcceptedAmount: 3000
+      bridge: '0x8a82186EA618b91D13A2041fb7aC31Bf01C02aD2'
+
+    unichain:
+      minAmount:
+        min: 10000
+        target: 20000
+        type: 'absolute'
+      bridgeLockTime: 1800 # 30 mins in seconds
+      bridgeMinAcceptedAmount: 3000
+      bridge: '0x296aF86bff91b23cF980f6a443bc15A3A5d30682'

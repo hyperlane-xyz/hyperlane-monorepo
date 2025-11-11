@@ -14,12 +14,14 @@ import {TestPostDispatchHook} from "../test/TestPostDispatchHook.sol";
 
 contract MockMailbox is Mailbox {
     using Message for bytes;
+    using TypeCasts for address;
 
     uint32 public inboundUnprocessedNonce = 0;
     uint32 public inboundProcessedNonce = 0;
 
     mapping(uint32 => MockMailbox) public remoteMailboxes;
-    mapping(uint256 => bytes) public inboundMessages;
+    mapping(uint256 nonce => bytes message) public inboundMessages;
+    mapping(uint256 nonce => bytes metadata) public inboundMetadata;
 
     constructor(uint32 _domain) Mailbox(_domain) {
         TestIsm ism = new TestIsm();
@@ -67,19 +69,61 @@ contract MockMailbox is Mailbox {
         return id;
     }
 
-    function addInboundMessage(bytes calldata message) external {
+    /// @dev addInboundMessage is used to add a message to the mailbox
+    function addInboundMessage(bytes calldata message) public {
         inboundMessages[inboundUnprocessedNonce] = message;
         inboundUnprocessedNonce++;
     }
 
+    /// @dev processNextInboundMessage is used to process the next inbound message
     function processNextInboundMessage() public payable {
-        bytes memory _message = inboundMessages[inboundProcessedNonce];
-        Mailbox(address(this)).process{value: msg.value}("", _message);
+        processInboundMessage(inboundProcessedNonce);
         inboundProcessedNonce++;
     }
 
+    /// @dev processInboundMessage is used to process an inbound message
     function processInboundMessage(uint32 _nonce) public payable {
         bytes memory _message = inboundMessages[_nonce];
-        Mailbox(address(this)).process{value: msg.value}("", _message);
+        bytes memory _metadata = inboundMetadata[_nonce];
+        this.process{value: msg.value}(_metadata, _message);
+    }
+
+    /// @dev addInboundMetadata is used to add metadata to an inbound message.
+    /// This metadata will be used to process the inbound message.
+    function addInboundMetadata(uint32 _nonce, bytes memory metadata) public {
+        inboundMetadata[_nonce] = metadata;
+    }
+
+    function buildMessage(
+        address sender,
+        uint32 destinationDomain,
+        bytes32 recipientAddress,
+        bytes calldata messageBody
+    ) external view returns (bytes memory) {
+        return
+            _buildMessage(
+                sender,
+                destinationDomain,
+                recipientAddress,
+                messageBody
+            );
+    }
+
+    function _buildMessage(
+        address sender,
+        uint32 destinationDomain,
+        bytes32 recipientAddress,
+        bytes calldata messageBody
+    ) internal view returns (bytes memory) {
+        return
+            Message.formatMessage(
+                VERSION,
+                nonce,
+                localDomain,
+                sender.addressToBytes32(),
+                destinationDomain,
+                recipientAddress,
+                messageBody
+            );
     }
 }

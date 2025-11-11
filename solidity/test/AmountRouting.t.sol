@@ -103,15 +103,20 @@ contract AmountRoutingTest is Test {
             address(remoteWarpRoute).addressToBytes32()
         );
 
-        uint256 fee = remoteWarpRoute.quoteGasPayment(localDomain);
-        // token router quotes for max amount
-        assertEq(fee, upperFee);
+        uint256 fee = remoteWarpRoute
+        .quoteTransferRemote(
+            localDomain,
+            address(this).addressToBytes32(),
+            amount
+        )[0].amount;
 
         uint256 balanceBefore = address(this).balance;
 
         if (amount >= threshold) {
+            assertEq(fee, upperFee);
             vm.expectCall(address(upperHook), upperFee, bytes(""));
         } else {
+            assertEq(fee, lowerFee);
             vm.expectCall(address(lowerHook), lowerFee, bytes(""));
         }
         remoteWarpRoute.transferRemote{value: fee}(
@@ -136,7 +141,7 @@ contract AmountRoutingTest is Test {
     function test_hookType() public view {
         assertEq(
             hook.hookType(),
-            uint8(IPostDispatchHook.Types.AMOUNT_ROUTING)
+            uint8(IPostDispatchHook.HookTypes.AMOUNT_ROUTING)
         );
     }
 

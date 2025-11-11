@@ -2,6 +2,7 @@
 
 #![allow(clippy::assign_op_pattern)]
 #![allow(clippy::reversed_empty_ranges)]
+#![allow(clippy::manual_div_ceil)]
 
 use std::{
     ops::{Div, Mul},
@@ -45,6 +46,7 @@ construct_uint! {
 mod fixed_hashes {
     // we can't change how they made the macro, so ignore the lint
     #![allow(clippy::non_canonical_clone_impl)]
+    #![allow(unexpected_cfgs)]
 
     use borsh::{BorshDeserialize, BorshSerialize};
     use fixed_hash::construct_fixed_hash;

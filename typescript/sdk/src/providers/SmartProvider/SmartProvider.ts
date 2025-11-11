@@ -449,11 +449,16 @@ export class HyperlaneSmartProvider
       throw Error(
         rpcServerError.error?.message ?? // Server errors sometimes will not have an error.message
           getSmartProviderErrorMessage(rpcServerError.code),
+        { cause: rpcServerError },
       );
     } else if (timedOutError) {
-      throw Error(getSmartProviderErrorMessage(ProviderStatus.Timeout));
+      throw Error(getSmartProviderErrorMessage(ProviderStatus.Timeout), {
+        cause: timedOutError,
+      });
     } else if (rpcBlockchainError) {
-      throw Error(rpcBlockchainError.reason ?? rpcBlockchainError.code);
+      throw Error(rpcBlockchainError.reason ?? rpcBlockchainError.code, {
+        cause: rpcBlockchainError,
+      });
     } else {
       this.logger.error(
         'Unhandled error case in combined provider error handler',

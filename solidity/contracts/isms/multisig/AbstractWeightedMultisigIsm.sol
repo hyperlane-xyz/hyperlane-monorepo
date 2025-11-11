@@ -15,14 +15,11 @@ pragma solidity >=0.8.0;
 
 // ============ External Imports ============
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+
 // ============ Internal Imports ============
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {IStaticWeightedMultisigIsm} from "../../interfaces/isms/IWeightedMultisigIsm.sol";
-import {Message} from "../../libs/Message.sol";
-
-import {MerkleLib} from "../../libs/Merkle.sol";
 import {AbstractMultisig} from "./AbstractMultisigIsm.sol";
 
 /**

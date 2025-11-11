@@ -19,10 +19,9 @@ async function main() {
   const config = getEnvironmentConfig(environment);
   const { core } = await getHyperlaneCore(environment);
 
-  // Ensure we skip lumia, as we don't have the addresses in registry.
   const targetNetworks = (
     chains && chains.length > 0 ? chains : config.supportedChainNames
-  ).filter((chain) => isEthereumProtocolChain(chain) && chain !== 'lumia');
+  ).filter((chain) => isEthereumProtocolChain(chain));
 
   // set useSecrets to `false` to compare with public RPCs instead of private ones
   const registry = await config.getRegistry(false);

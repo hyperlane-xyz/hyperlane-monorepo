@@ -2,6 +2,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
+use ethers::contract::Lazy;
 use ethers::types::transaction::eip2718::TypedTransaction;
 use ethers::{
     abi::Detokenize,
@@ -10,7 +11,7 @@ use ethers::{
     types::{Block, Eip1559TransactionRequest, TxHash},
 };
 use ethers_contract::builders::ContractCall;
-use ethers_core::types::H160;
+use ethers_core::types::{FeeHistory, H160};
 use ethers_core::{
     types::{BlockNumber, U256 as EthersU256},
     utils::{
@@ -18,6 +19,7 @@ use ethers_core::{
         EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE,
     },
 };
+use futures_util::future::join_all;
 use tokio::sync::Mutex;
 use tokio::try_join;
 use tracing::{debug, error, info, instrument, warn};
@@ -36,6 +38,14 @@ pub const DEFAULT_GAS_LIMIT_MULTIPLIER_NUMERATOR: u32 = 11;
 pub const DEFAULT_GAS_LIMIT_MULTIPLIER_DENOMINATOR: u32 = 10;
 
 pub const PENDING_TX_TIMEOUT_SECS: u64 = 90;
+
+// We have 2 to 4 multiples of the default percentile, and we limit it to 100% percentile.
+static PERCENTILES: Lazy<Vec<f64>> = Lazy::new(|| {
+    (2..5)
+        .map(|m| EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE * m as f64)
+        .filter(|p| *p <= 100.0)
+        .collect::<Vec<_>>()
+});
 
 pub fn apply_gas_estimate_buffer(gas: U256, domain: &HyperlaneDomain) -> ChainResult<U256> {
     // Arbitrum Nitro chains use 2d fees are especially prone to costs increasing
@@ -348,9 +358,9 @@ where
     let mut tx = tx.clone();
     tx.set_from(
         // use the sender in the provider if one is set, otherwise default to the EVM relayer address
-        provider
-            .default_sender()
-            .unwrap_or(H160::from_str(EVM_RELAYER_ADDRESS).unwrap()),
+        provider.default_sender().unwrap_or_else(|| {
+            H160::from_str(EVM_RELAYER_ADDRESS).expect("Invalid EVM_RELAYER_ADDRESS value")
+        }),
     );
 
     let result = provider
@@ -401,6 +411,8 @@ where
 
     let (latest_block, fee_history) = try_join!(latest_block, fee_history)?;
 
+    let fee_history = ensure_non_empty_rewards(provider.clone(), fee_history).await?;
+
     let base_fee_per_gas = latest_block
         .base_fee_per_gas
         .ok_or_else(|| ProviderError::CustomError("EIP-1559 not activated".into()))?;
@@ -418,29 +430,92 @@ where
     ))
 }
 
+async fn ensure_non_empty_rewards<M>(
+    provider: Arc<M>,
+    default_fee_history: FeeHistory,
+) -> ChainResult<FeeHistory>
+where
+    M: Middleware + 'static,
+{
+    if has_rewards(&default_fee_history) {
+        debug!(?default_fee_history, "default rewards non zero");
+        return Ok(default_fee_history);
+    }
+
+    let fee_history_futures = PERCENTILES
+        .clone()
+        .into_iter()
+        .map(|p| {
+            let provider = provider.clone();
+            async move {
+                provider
+                    .fee_history(
+                        EIP1559_FEE_ESTIMATION_PAST_BLOCKS,
+                        BlockNumber::Latest,
+                        &[p],
+                    )
+                    .await
+                    .map_err(ChainCommunicationError::from_other)
+            }
+        })
+        .collect::<Vec<_>>();
+
+    // Results will be ordered by percentile, so we can just take the first non-empty one.
+    let fee_histories = join_all(fee_history_futures).await;
+
+    debug!(
+        ?fee_histories,
+        ?PERCENTILES,
+        "fee history for each percentile"
+    );
+
+    // We return the first non-empty fee history.
+    // If all are empty, we return the default fee history which is empty at this point.
+    let mut chosen_fee_history = default_fee_history;
+    for fee_history in fee_histories {
+        let Ok(fee_history) = fee_history else {
+            continue;
+        };
+        if has_rewards(&fee_history) {
+            chosen_fee_history = fee_history;
+            break;
+        }
+    }
+
+    debug!(?chosen_fee_history, "chosen fee history");
+
+    Ok(chosen_fee_history)
+}
+
+fn has_rewards(fee_history: &FeeHistory) -> bool {
+    fee_history
+        .reward
+        .iter()
+        .filter_map(|r| r.first())
+        .any(|r| !r.is_zero())
+}
+
 pub(crate) async fn call_with_reorg_period<M, T>(
-    call: ethers::contract::builders::ContractCall<M, T>,
+    call: ContractCall<M, T>,
     provider: &M,
     reorg_period: &ReorgPeriod,
-) -> ChainResult<ethers::contract::builders::ContractCall<M, T>>
+) -> ChainResult<ContractCall<M, T>>
 where
     M: Middleware + 'static,
     T: Detokenize,
 {
-    if !reorg_period.is_none() {
-        let block_id = EthereumReorgPeriod::try_from(reorg_period)?
-            .into_block_id(provider)
-            .await?;
-        Ok(call.block(block_id))
-    } else {
-        Ok(call)
-    }
+    let block_id = EthereumReorgPeriod::try_from(reorg_period)?
+        .into_block_id(provider)
+        .await?;
+    Ok(call.block(block_id))
 }
 
 #[cfg(test)]
 mod test {
+    use std::str::FromStr;
     use std::sync::Arc;
 
+    use ethers::prelude::U256;
     use ethers::{
         providers::{Http, Provider},
         types::{
@@ -448,10 +523,32 @@ mod test {
             NameOrAddress,
         },
     };
-    use std::str::FromStr;
+    use ethers_core::types::FeeHistory;
     use url::Url;
 
     use crate::tx::zksync_estimate_fee;
+
+    #[test]
+    fn test_is_rewards_non_zero_all_zero() {
+        let fee_history = FeeHistory {
+            reward: vec![vec![U256::zero()], vec![U256::zero()]],
+            oldest_block: U256::zero(),
+            base_fee_per_gas: vec![],
+            gas_used_ratio: vec![],
+        };
+        assert!(!super::has_rewards(&fee_history));
+    }
+
+    #[test]
+    fn test_is_rewards_non_zero_some_non_zero() {
+        let fee_history = FeeHistory {
+            reward: vec![vec![U256::zero()], vec![U256::from(1)]],
+            oldest_block: U256::zero(),
+            base_fee_per_gas: vec![],
+            gas_used_ratio: vec![],
+        };
+        assert!(super::has_rewards(&fee_history));
+    }
 
     #[ignore = "Not running a flaky test requiring network"]
     #[tokio::test]

@@ -9,6 +9,7 @@ import {
   ChainName,
   HyperlaneIgp,
   MultiProvider,
+  defaultMultisigConfigs,
 } from '@hyperlane-xyz/sdk';
 import { Address, objFilter, objMap, rootLogger } from '@hyperlane-xyz/utils';
 
@@ -29,6 +30,8 @@ import {
   ContextAndRoles,
   ContextAndRolesMap,
   KeyFunderConfig,
+  SweepOverrideConfig,
+  validateSweepConfig,
 } from '../../src/config/funding.js';
 import { FundableRole, Role } from '../../src/roles.js';
 import {
@@ -45,11 +48,16 @@ import {
 import { getAgentConfig, getArgs } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
-import L1ETHGateway from './utils/L1ETHGateway.json';
-import L1MessageQueue from './utils/L1MessageQueue.json';
-import L1ScrollMessenger from './utils/L1ScrollMessenger.json';
+import L1ETHGateway from './utils/L1ETHGateway.json' with { type: 'json' };
+import L1MessageQueue from './utils/L1MessageQueue.json' with { type: 'json' };
+import L1ScrollMessenger from './utils/L1ScrollMessenger.json' with { type: 'json' };
 
 const logger = rootLogger.child({ module: 'fund-keys' });
+
+// Default sweep configuration
+const DEFAULT_SWEEP_ADDRESS = '0x478be6076f31E9666123B9721D0B6631baD944AF';
+const DEFAULT_TARGET_MULTIPLIER = 1.5; // Leave 1.5x threshold after sweep
+const DEFAULT_TRIGGER_MULTIPLIER = 2.0; // Sweep when balance > 2x threshold
 
 const nativeBridges = {
   scrollsepolia: {
@@ -90,10 +98,6 @@ const RC_FUNDING_DISCOUNT_DENOMINATOR = ethers.BigNumber.from(10);
 
 const CONTEXT_FUNDING_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 const CHAIN_FUNDING_TIMEOUT_MS = 1 * 60 * 1000; // 1 minute
-
-// Need to ensure we don't fund non-vanguard chains in the vanguard contexts
-const VANGUARD_CHAINS = ['base', 'arbitrum', 'optimism', 'ethereum', 'bsc'];
-const VANGUARD_CONTEXTS: Contexts[] = [Contexts.Vanguard0];
 
 // Funds key addresses for multiple contexts from the deployer key of the context
 // specified via the `--context` flag.
@@ -146,6 +150,14 @@ async function main() {
     )
     .coerce('desired-kathy-balance-per-chain', parseBalancePerChain)
 
+    .string('desired-rebalancer-balance-per-chain')
+    .array('desired-rebalancer-balance-per-chain')
+    .describe(
+      'desired-rebalancer-balance-per-chain',
+      'Array indicating target balance to fund Rebalancer for each chain. Each element is expected as <chainName>=<balance>',
+    )
+    .coerce('desired-rebalancer-balance-per-chain', parseBalancePerChain)
+
     .string('igp-claim-threshold-per-chain')
     .array('igp-claim-threshold-per-chain')
     .describe(
@@ -169,6 +181,12 @@ async function main() {
     Role.Deployer, // Always fund from the deployer
   );
 
+  // Load sweep overrides and low urgency balances from the environment config
+  const keyFunderConfig = config.keyFunderConfig;
+  const sweepOverrides = keyFunderConfig?.sweepOverrides;
+  const lowUrgencyKeyFunderBalances =
+    keyFunderConfig?.lowUrgencyKeyFunderBalances ?? {};
+
   let contextFunders: ContextFunder[];
 
   if (argv.f) {
@@ -181,7 +199,10 @@ async function main() {
         argv.chainSkipOverride,
         argv.desiredBalancePerChain,
         argv.desiredKathyBalancePerChain ?? {},
+        argv.desiredRebalancerBalancePerChain ?? {},
         argv.igpClaimThresholdPerChain ?? {},
+        sweepOverrides,
+        lowUrgencyKeyFunderBalances,
         path,
       ),
     );
@@ -198,7 +219,10 @@ async function main() {
           argv.chainSkipOverride,
           argv.desiredBalancePerChain,
           argv.desiredKathyBalancePerChain ?? {},
+          argv.desiredRebalancerBalancePerChain ?? {},
           argv.igpClaimThresholdPerChain ?? {},
+          sweepOverrides,
+          lowUrgencyKeyFunderBalances,
         ),
       ),
     );
@@ -255,26 +279,19 @@ class ContextFunder {
     public readonly desiredKathyBalancePerChain: KeyFunderConfig<
       ChainName[]
     >['desiredKathyBalancePerChain'],
+    public readonly desiredRebalancerBalancePerChain: KeyFunderConfig<
+      ChainName[]
+    >['desiredRebalancerBalancePerChain'],
     public readonly igpClaimThresholdPerChain: KeyFunderConfig<
       ChainName[]
     >['igpClaimThresholdPerChain'],
+    public readonly sweepOverrides: ChainMap<SweepOverrideConfig> | undefined,
+    public readonly lowUrgencyKeyFunderBalances: ChainMap<string>,
   ) {
     // At the moment, only blessed EVM chains are supported
     roleKeysPerChain = objFilter(
       roleKeysPerChain,
       (chain, _roleKeys): _roleKeys is Record<Role, BaseAgentKey[]> => {
-        // Skip funding for vanguard contexts on non-vanguard chains
-        if (
-          VANGUARD_CONTEXTS.includes(this.context) &&
-          !VANGUARD_CHAINS.includes(chain)
-        ) {
-          logger.warn(
-            { chain, context: this.context },
-            'Skipping funding for vanguard context on non-vanguard chain',
-          );
-          return false;
-        }
-
         const valid =
           isEthereumProtocolChain(chain) &&
           multiProvider.tryGetChainName(chain) !== null;
@@ -289,12 +306,7 @@ class ContextFunder {
     );
 
     this.igp = HyperlaneIgp.fromAddressesMap(
-      {
-        ...getEnvAddresses(this.environment),
-        lumia: {
-          interchainGasPaymaster: '0x9024A3902B542C87a5C4A2b3e15d60B2f087Dc3E',
-        },
-      },
+      getEnvAddresses(this.environment),
       multiProvider,
     );
     this.keysToFundPerChain = objMap(roleKeysPerChain, (_chain, roleKeys) => {
@@ -320,9 +332,14 @@ class ContextFunder {
     desiredKathyBalancePerChain: KeyFunderConfig<
       ChainName[]
     >['desiredKathyBalancePerChain'],
+    desiredRebalancerBalancePerChain: KeyFunderConfig<
+      ChainName[]
+    >['desiredRebalancerBalancePerChain'],
     igpClaimThresholdPerChain: KeyFunderConfig<
       ChainName[]
     >['igpClaimThresholdPerChain'],
+    sweepOverrides: ChainMap<SweepOverrideConfig> | undefined,
+    lowUrgencyKeyFunderBalances: ChainMap<string>,
     filePath: string,
   ) {
     logger.info({ filePath }, 'Reading identifiers and addresses from file');
@@ -395,7 +412,10 @@ class ContextFunder {
       chainSkipOverride,
       desiredBalancePerChain,
       desiredKathyBalancePerChain,
+      desiredRebalancerBalancePerChain,
       igpClaimThresholdPerChain,
+      sweepOverrides,
+      lowUrgencyKeyFunderBalances,
     );
   }
 
@@ -413,14 +433,20 @@ class ContextFunder {
     desiredKathyBalancePerChain: KeyFunderConfig<
       ChainName[]
     >['desiredKathyBalancePerChain'],
+    desiredRebalancerBalancePerChain: KeyFunderConfig<
+      ChainName[]
+    >['desiredRebalancerBalancePerChain'],
     igpClaimThresholdPerChain: KeyFunderConfig<
       ChainName[]
     >['igpClaimThresholdPerChain'],
+    sweepOverrides: ChainMap<SweepOverrideConfig> | undefined,
+    lowUrgencyKeyFunderBalances: ChainMap<string>,
   ) {
     // only roles that are fundable keys ie. relayer and kathy
     const fundableRoleKeys: Record<FundableRole, Address> = {
       [Role.Relayer]: '',
       [Role.Kathy]: '',
+      [Role.Rebalancer]: '',
     };
     const roleKeysPerChain: ChainMap<Record<FundableRole, BaseAgentKey[]>> = {};
     const { supportedChainNames } = getEnvironmentConfig(environment);
@@ -439,6 +465,7 @@ class ContextFunder {
           roleKeysPerChain[chain as ChainName] = {
             [Role.Relayer]: [],
             [Role.Kathy]: [],
+            [Role.Rebalancer]: [],
           };
         }
         roleKeysPerChain[chain][role] = [
@@ -462,9 +489,13 @@ class ContextFunder {
       chainSkipOverride,
       desiredBalancePerChain,
       desiredKathyBalancePerChain,
+      desiredRebalancerBalancePerChain,
       igpClaimThresholdPerChain,
+      sweepOverrides,
+      lowUrgencyKeyFunderBalances,
     );
   }
+
   // Funds all the roles in this.keysToFundPerChain.
   // Throws if any funding operations fail.
   async fund(): Promise<void> {
@@ -570,6 +601,22 @@ class ContextFunder {
       }
     }
 
+    // Attempt to sweep excess funds after all claim/funding operations are complete
+    // Only sweep when processing the Hyperlane context to avoid duplicate sweeps
+    if (this.context === Contexts.Hyperlane) {
+      try {
+        await this.attemptToSweepExcessFunds(chain);
+      } catch (err) {
+        logger.error(
+          {
+            chain,
+            error: err,
+          },
+          `Error sweeping excess funds on chain ${chain}`,
+        );
+      }
+    }
+
     if (failedKeys.length > 0) {
       throw new Error(
         `Failed to fund ${
@@ -613,6 +660,140 @@ class ContextFunder {
       if (bridgeAmount.gt(0)) {
         await this.bridgeToL2(chain, funderAddress, bridgeAmount);
       }
+    }
+  }
+
+  // Attempts to sweep excess funds to a given address when balance exceeds threshold.
+  // To avoid churning txs, only sweep when balance > triggerMultiplier * threshold,
+  // and leave targetMultiplier * threshold after sweep.
+  private async attemptToSweepExcessFunds(chain: ChainName): Promise<void> {
+    // Skip if the chain isn't in production yet i.e. if the validator set size is still 1
+    if (defaultMultisigConfigs[chain].validators.length === 1) {
+      logger.debug(
+        { chain },
+        'Chain is not in production yet, skipping sweep.',
+      );
+      return;
+    }
+
+    // Skip if we don't have a threshold configured for this chain
+    const lowUrgencyBalanceStr = this.lowUrgencyKeyFunderBalances[chain];
+    if (!lowUrgencyBalanceStr) {
+      logger.debug(
+        { chain },
+        'No low urgency balance configured for chain, skipping sweep',
+      );
+      return;
+    }
+
+    const lowUrgencyBalance = ethers.utils.parseEther(lowUrgencyBalanceStr);
+
+    // Skip if threshold is zero or negligible
+    if (lowUrgencyBalance.lte(0)) {
+      logger.debug({ chain }, 'Low urgency balance is zero, skipping sweep');
+      return;
+    }
+
+    // Get override config for this chain, if any
+    const override = this.sweepOverrides?.[chain];
+
+    // Use override or default sweep address
+    const sweepAddress = override?.sweepAddress ?? DEFAULT_SWEEP_ADDRESS;
+
+    // Use override or default multipliers
+    const targetMultiplier =
+      override?.targetMultiplier ?? DEFAULT_TARGET_MULTIPLIER;
+    const triggerMultiplier =
+      override?.triggerMultiplier ?? DEFAULT_TRIGGER_MULTIPLIER;
+
+    // If we have overrides, validate the full config with all overrides applied.
+    if (override) {
+      try {
+        validateSweepConfig({
+          sweepAddress,
+          targetMultiplier,
+          triggerMultiplier,
+        });
+      } catch (error) {
+        logger.error(
+          {
+            chain,
+            override,
+            error: format(error),
+          },
+          'Invalid sweep override configuration',
+        );
+        throw new Error(
+          `Invalid sweep override configuration for chain ${chain}: ${error}`,
+        );
+      }
+    }
+
+    // Calculate threshold amounts
+    const targetBalance = lowUrgencyBalance
+      .mul(Math.floor(targetMultiplier * 100))
+      .div(100);
+    const triggerThreshold = lowUrgencyBalance
+      .mul(Math.floor(triggerMultiplier * 100))
+      .div(100);
+
+    // Get current funder balance
+    const funderAddress = await this.multiProvider.getSignerAddress(chain);
+    const funderBalance = await this.multiProvider
+      .getSigner(chain)
+      .getBalance();
+
+    logger.info(
+      {
+        chain,
+        funderAddress,
+        funderBalance: ethers.utils.formatEther(funderBalance),
+        lowUrgencyBalance: ethers.utils.formatEther(lowUrgencyBalance),
+        targetBalance: ethers.utils.formatEther(targetBalance),
+        triggerThreshold: ethers.utils.formatEther(triggerThreshold),
+        targetMultiplier,
+        triggerMultiplier,
+      },
+      'Checking if sweep is needed',
+    );
+
+    // Only sweep if balance exceeds trigger threshold
+    if (funderBalance.gt(triggerThreshold)) {
+      const sweepAmount = funderBalance.sub(targetBalance);
+
+      logger.info(
+        {
+          chain,
+          sweepAmount: ethers.utils.formatEther(sweepAmount),
+          sweepAddress,
+          funderBalance: ethers.utils.formatEther(funderBalance),
+          remainingBalance: ethers.utils.formatEther(targetBalance),
+        },
+        'Sweeping excess funds',
+      );
+
+      const tx = await this.multiProvider.sendTransaction(chain, {
+        to: sweepAddress,
+        value: sweepAmount,
+      });
+
+      logger.info(
+        {
+          chain,
+          tx:
+            this.multiProvider.tryGetExplorerTxUrl(chain, {
+              hash: tx.transactionHash,
+            }) ?? tx.transactionHash,
+          sweepAmount: ethers.utils.formatEther(sweepAmount),
+          sweepAddress,
+        },
+        'Successfully swept excess funds',
+      );
+    } else {
+      logger.info(
+        { chain },
+        'Funder balance below trigger threshold, no sweep needed',
+      );
     }
   }
 
@@ -698,6 +879,18 @@ class ContextFunder {
       } else {
         desiredBalanceEther = this.desiredKathyBalancePerChain[chain];
       }
+    } else if (role === Role.Rebalancer) {
+      const desiredRebalancerBalance =
+        this.desiredRebalancerBalancePerChain[chain];
+      if (desiredRebalancerBalance === undefined) {
+        logger.warn(
+          { chain },
+          'No desired balance for Rebalancer, not funding',
+        );
+        desiredBalanceEther = '0';
+      } else {
+        desiredBalanceEther = this.desiredRebalancerBalancePerChain[chain];
+      }
     } else {
       desiredBalanceEther = this.desiredBalancePerChain[chain];
     }
@@ -739,23 +932,23 @@ class ContextFunder {
         'Skipping funding for key',
       );
       return;
-    } else {
-      logger.info(
-        {
-          chain,
-          amount: ethers.utils.formatEther(fundingAmount),
-          key: keyInfo,
-          funder: {
-            address: funderAddress,
-            balance: ethers.utils.formatEther(
-              await this.multiProvider.getSigner(chain).getBalance(),
-            ),
-          },
-          context: this.context,
-        },
-        'Funding key',
-      );
     }
+
+    logger.info(
+      {
+        chain,
+        amount: ethers.utils.formatEther(fundingAmount),
+        key: keyInfo,
+        funder: {
+          address: funderAddress,
+          balance: ethers.utils.formatEther(
+            await this.multiProvider.getSigner(chain).getBalance(),
+          ),
+        },
+        context: this.context,
+      },
+      'Funding key',
+    );
 
     const tx = await this.multiProvider.sendTransaction(chain, {
       to: key.address,
@@ -955,7 +1148,7 @@ function parseContextAndRoles(str: string): ContextAndRoles {
   }
 
   // For now, restrict the valid roles we think are reasonable to want to fund
-  const validRoles = new Set([Role.Relayer, Role.Kathy]);
+  const validRoles = new Set([Role.Relayer, Role.Kathy, Role.Rebalancer]);
   for (const role of roles) {
     if (!validRoles.has(role)) {
       throw Error(

@@ -1,6 +1,5 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import hre from 'hardhat';
-import { before } from 'mocha';
 import sinon from 'sinon';
 
 import {
@@ -140,7 +139,7 @@ describe('BaseMetadataBuilder', () => {
       );
   });
 
-  // eslint-disable-next-line jest/no-disabled-tests
+  // FIXME: migrate to mocha rules: eslint-disable-next-line jest/no-disabled-tests
   describe.skip('#build', () => {
     let origin: ChainName;
     let destination: ChainName;

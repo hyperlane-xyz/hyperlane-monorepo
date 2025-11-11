@@ -178,7 +178,7 @@ impl S3Storage {
     fn get_composite_key(&self, key: String) -> String {
         match self.folder.as_deref() {
             None | Some("") => key,
-            Some(folder_str) => format!("{}/{}", folder_str, key),
+            Some(folder_str) => format!("{folder_str}/{key}"),
         }
     }
 
@@ -200,6 +200,10 @@ impl S3Storage {
 
     fn reorg_flag_key() -> String {
         "reorg_flag.json".to_owned()
+    }
+
+    fn reorg_rpc_responses_key() -> String {
+        "reorg_rpc_responses.json".to_owned()
     }
 }
 
@@ -275,6 +279,12 @@ impl CheckpointSyncer for S3Storage {
     async fn write_reorg_status(&self, reorged_event: &ReorgEvent) -> Result<()> {
         let serialized_reorg = serde_json::to_string(reorged_event)?;
         self.write_to_bucket(S3Storage::reorg_flag_key(), &serialized_reorg)
+            .await?;
+        Ok(())
+    }
+
+    async fn write_reorg_rpc_responses(&self, reorg_log: String) -> Result<()> {
+        self.write_to_bucket(S3Storage::reorg_rpc_responses_key(), &reorg_log)
             .await?;
         Ok(())
     }

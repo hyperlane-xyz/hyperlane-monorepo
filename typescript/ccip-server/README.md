@@ -1,45 +1,86 @@
-# CCIP-read service framework
+## OffchainLookup server
 
-This package contains the service framework for the CCIP-read project, built off of the [CCIP-server framework](https://github.com/smartcontractkit/ccip-read). It allows building of any execution logic, given a Hyperlane Relayer call.
+# CCIP-Server (OffchainLookup)
 
-# Definitions
+A lightweight Express server for CCIP Read/Write commitments, using Zod validation and Prisma for persistence.
 
-- Server: The main entry point, and refers to `server.ts`.
-- Service: A class that handles all logic for a particular service, e.g. ProofService, RPCService, etc.
-- Service ABI: The interface for a service that tells the Server what input and output to expect. It serves similar functionalities as the Solidity ABIs, i.e., used for encoding and decoding data.
+## Prerequisites
 
-# Usage
+- Node.js >=16
+- Yarn or npm
+- SQLite (for local development)
+- A GCP (or other) SQL database URL for production
 
-The Relayer will make a POST request to the Server with a request body similar to the following:
+## Setup
 
-```json
-{
-  "data": "0x0ee9bb2f000000000000000000000000873afca0319f5c04421e90e882566c496877aff8000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000001a2d9059b6d822aa460229510c754e9ecec100bb9f649186f5c7d4da8edf59858",
-  "sender": "0x4a679253410272dd5232b3ff7cf5dbb88f295319"
-}
-```
+1. **Install dependencies**
 
-The `data` property will be ABI-encoded, and server will parse it according to the Service ABI. It then will call the handler function with the parsed input.
+   ```bash
+   cd typescript/ccip-server
+   yarn install    # or `npm install`
+   ```
 
-# Building a Service
+2. **Configure environment variables**  
+   Copy the example and edit as needed:
 
-1. Create a Service ABI for your Service. This ABI tells the Server how to parse the incoming `data`, and how to encode the output. See `/abi/ProofsServiceAbi.ts` for an example.
-2. Create a new Service class to handle your logic. This should inherit from `HandlerDescriptionEnumerated` if a function will be used to handle a Server request. The handler function should return a Promise that resolves to the output of the Service. See `/service/ProofsService.ts` for examples.
-3. Instantiate the new Service in `server.ts`. For example:
+   ```bash
+   cp .env.example .env
+   ```
 
-```typescript
-const proofsService = new ProofsService(
-  config.LIGHT_CLIENT_ADDR,
-  config.RPC_ADDRESS,
-  config.STEP_FN_ID,
-  config.CHAIN_ID,
-  config.SUCCINCT_PLATFORM_URL,
-  config.SUCCINCT_API_KEY,
-);
-```
+   Edit `.env` for local development:
 
-4. Add the new Service by calling `server.add(...)` by providing the Service ABI, and the handler function. For example:
+   ```env
+   # Use SQLite file for dev
+   DATABASE_URL="file:./dev.db"
 
-```typescript
-server.add(ProofsServiceAbi, [proofsService.handler('getProofs')]);
-```
+   # Optional: override default registries (comma-separated)
+   REGISTRY_URI="https://raw.githubusercontent.com/hyperlane-xyz/registry/main"
+   ```
+
+   For production, set `DATABASE_URL` to your hosted SQL (Postgres/MySQL) connection string, and point `REGISTRY_URI` at your private registry(s).
+
+3. **Generate Prisma client & run migrations**
+
+   ```bash
+   npx prisma generate
+   npx prisma migrate dev --name init
+   ```
+
+4. **(Optional) Launch Prisma Studio**
+   ```bash
+   npm run prisma:studio
+   ```
+   Browse and inspect the SQLite file at `http://localhost:5555`.
+
+## Running the Server
+
+- **Development (auto-reload)**
+
+  ```bash
+  yarn dev     # runs `tsx watch src/server.ts`
+  ```
+
+- **Production**
+
+  ```bash
+  # Apply migrations without prompts
+  NODE_ENV=production \
+  DATABASE_URL="<YOUR_PROD_URL>" \
+    npx prisma migrate deploy
+
+  # Start the compiled server
+  NODE_ENV=production yarn start
+  ```
+
+## API Routes
+
+- `POST /calls`  
+  Submit a new commitment payload. Validated via Zod; persists to the database.
+
+- `POST /getCallsFromCommitment`  
+  CCIP-Read endpoint (uses ABI handler) to fetch & re-encode calls for a given commitment ID.
+
+## Notes
+
+- SQLite is recommended only for local dev. In production, Prisma will use whatever database is specified by `DATABASE_URL`.
+- The server automatically initializes Hyperlane registry and providers via `REGISTRY_URI`.

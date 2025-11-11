@@ -20,7 +20,7 @@ import {
   routerMatchingList,
 } from '../../../src/config/agent/relayer.js';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
-import { Contexts, mustBeValidContext } from '../../contexts.js';
+import { Contexts } from '../../contexts.js';
 import { getDomainId } from '../../registry.js';
 
 import { environment, ethereumChainNames } from './chains.js';
@@ -46,148 +46,112 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   typeof testnet4SupportedChainNames
 > = {
   [Role.Validator]: {
-    abstracttestnet: true,
-    alephzeroevmtestnet: true,
-    alfajores: true,
     arbitrumsepolia: true,
     arcadiatestnet2: true,
     auroratestnet: true,
     basecamptestnet: true,
     basesepolia: true,
-    bepolia: true,
     bsctestnet: true,
     carrchaintestnet: true,
-    chronicleyellowstone: true,
+    celestiatestnet: true,
+    celosepolia: true,
     citreatestnet: true,
-    connextsepolia: true,
     cotitestnet: true,
-    ecotestnet: true,
     eclipsetestnet: false,
-    flametestnet: true,
-    formtestnet: true,
     fuji: true,
-    holesky: true,
+    giwasepolia: true,
     hyperliquidevmtestnet: true,
-    infinityvmmonza: true,
-    inksepolia: true,
-    kyvetestnet: true,
-    megaethtestnet: true,
+    incentivtestnet: true,
+    kyvetestnet: false,
+    megaethtestnet: false,
     milkywaytestnet: true,
     modetestnet: true,
     monadtestnet: true,
-    nobletestnet: true,
-    odysseytestnet: true,
+    neuratestnet: true,
+    nobletestnet: false,
     optimismsepolia: true,
-    plumetestnet2: true,
+    paradexsepolia: true,
     polygonamoy: true,
+    radixtestnet: true,
     scrollsepolia: true,
     sepolia: true,
     solanatestnet: true,
-    soneiumtestnet: true,
     somniatestnet: true,
-    sonicblaze: true,
     sonicsvmtestnet: false,
-    suavetoliman: false,
-    subtensortestnet: true,
-    superpositiontestnet: true,
-    unichaintestnet: true,
-    weavevmtestnet: true,
+    starknetsepolia: true,
+    subtensortestnet: false,
   },
   [Role.Relayer]: {
-    abstracttestnet: true,
-    alephzeroevmtestnet: true,
-    alfajores: true,
     arbitrumsepolia: true,
     arcadiatestnet2: true,
     auroratestnet: true,
     basecamptestnet: true,
     basesepolia: true,
-    bepolia: true,
     bsctestnet: true,
     carrchaintestnet: true,
-    chronicleyellowstone: true,
+    celestiatestnet: true,
+    celosepolia: true,
     citreatestnet: true,
-    connextsepolia: true,
     cotitestnet: true,
-    ecotestnet: true,
     eclipsetestnet: false,
-    flametestnet: true,
-    formtestnet: true,
     fuji: true,
-    holesky: true,
+    giwasepolia: true,
     hyperliquidevmtestnet: true,
-    infinityvmmonza: true,
-    inksepolia: true,
-    kyvetestnet: true,
-    megaethtestnet: true,
+    incentivtestnet: true,
+    kyvetestnet: false,
+    megaethtestnet: false,
     milkywaytestnet: true,
     modetestnet: true,
     monadtestnet: true,
-    nobletestnet: true,
-    odysseytestnet: true,
+    neuratestnet: true,
+    nobletestnet: false,
     optimismsepolia: true,
-    plumetestnet2: true,
+    paradexsepolia: true,
     polygonamoy: true,
+    radixtestnet: true,
     scrollsepolia: true,
     sepolia: true,
     solanatestnet: true,
-    soneiumtestnet: true,
     somniatestnet: true,
-    sonicblaze: true,
     sonicsvmtestnet: false,
-    suavetoliman: false,
-    subtensortestnet: true,
-    superpositiontestnet: true,
-    unichaintestnet: true,
-    weavevmtestnet: true,
+    starknetsepolia: true,
+    subtensortestnet: false,
   },
   [Role.Scraper]: {
-    abstracttestnet: true,
-    alephzeroevmtestnet: true,
-    alfajores: true,
     arbitrumsepolia: true,
     arcadiatestnet2: true,
     auroratestnet: true,
     basecamptestnet: true,
     basesepolia: true,
-    bepolia: true,
     bsctestnet: true,
     carrchaintestnet: true,
-    chronicleyellowstone: true,
+    celestiatestnet: true,
+    celosepolia: true,
     citreatestnet: true,
-    connextsepolia: false,
     cotitestnet: true,
-    ecotestnet: true,
     eclipsetestnet: false,
-    flametestnet: true,
-    formtestnet: true,
     fuji: true,
-    holesky: true,
+    giwasepolia: true,
     hyperliquidevmtestnet: true,
-    infinityvmmonza: true,
-    inksepolia: true,
-    kyvetestnet: true,
-    megaethtestnet: true,
+    incentivtestnet: true,
+    kyvetestnet: false,
+    megaethtestnet: false,
     milkywaytestnet: true,
     modetestnet: true,
     monadtestnet: true,
-    nobletestnet: true,
-    odysseytestnet: true,
+    neuratestnet: true,
+    nobletestnet: false,
     optimismsepolia: true,
-    plumetestnet2: true,
+    paradexsepolia: true,
     polygonamoy: true,
+    radixtestnet: true,
     scrollsepolia: true,
     sepolia: true,
-    solanatestnet: false,
+    solanatestnet: true,
     somniatestnet: true,
-    soneiumtestnet: true,
-    sonicblaze: true,
     sonicsvmtestnet: false,
-    suavetoliman: false,
-    subtensortestnet: true,
-    superpositiontestnet: false,
-    unichaintestnet: true,
-    weavevmtestnet: true,
+    starknetsepolia: true,
+    subtensortestnet: false,
   },
 };
 
@@ -219,6 +183,13 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
         originDomain: getDomainId('nobletestnet'),
         destinationDomain: getDomainId('hyperliquidevmtestnet'),
       },
+      // Temporary workaround due to IGP not being implemented on starknet chain.
+      // starknetsepolia
+      { originDomain: getDomainId('starknetsepolia') },
+      { destinationDomain: getDomainId('starknetsepolia') },
+      // paradexsepolia
+      { originDomain: getDomainId('paradexsepolia') },
+      { destinationDomain: getDomainId('paradexsepolia') },
     ],
   },
   {
@@ -235,15 +206,11 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
         originDomain: getDomainId('bsctestnet'),
         destinationDomain: getDomainId('milkywaytestnet'),
       },
-    ],
-  },
-  {
-    type: GasPaymentEnforcementPolicyType.None,
-    matchingList: [
-      // Temporary workaround due to InfinityVM Monza whitelisting.
-      { originDomain: getDomainId('infinityvmmonza') },
-      // Temporary workaround due to InfinityVM Monza whitelisting.
-      { destinationDomain: getDomainId('infinityvmmonza') },
+      // Workaround for gas price fluctuations
+      // Works in tandem with increased igp overhead
+      {
+        destinationDomain: getDomainId('somniatestnet'),
+      },
     ],
   },
   // Default policy is OnChainFeeQuoting
@@ -389,12 +356,18 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'b98468d-20250516-114242',
+      tag: '09ba565-20251111-105255',
     },
     blacklist: [...releaseCandidateHelloworldMatchingList, ...relayBlacklist],
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
+    batch: {
+      batchSizeOverrides: {
+        starknetsepolia: 16,
+        paradexsepolia: 16,
+      },
+    },
     cache: {
       enabled: true,
     },
@@ -404,7 +377,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '1363c76-20250507-120738',
+      tag: '20c24dc-20251106-222459',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
     resources: validatorResources,
@@ -413,7 +386,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'b98468d-20250516-114242',
+      tag: '20c24dc-20251106-222459',
     },
     resources: scraperResources,
   },
@@ -428,12 +401,18 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'b98468d-20250516-114242',
+      tag: '09ba565-20251111-105255',
     },
     blacklist: relayBlacklist,
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
+    batch: {
+      batchSizeOverrides: {
+        starknetsepolia: 16,
+        paradexsepolia: 16,
+      },
+    },
     cache: {
       enabled: true,
     },
@@ -443,7 +422,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '385b307-20250418-150728',
+      tag: '20c24dc-20251106-222459',
     },
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
     resources: validatorResources,
@@ -457,107 +436,49 @@ export const kesselRunnerNetworks = [
   'bsctestnet',
   'optimismsepolia',
 ];
+
+// Relayer Neutron Testnet is not running at the moment, but we keep the config
+// If you would like to run it for testing purposes, you should configure it
+// only for chains you would like to run it.
 const neutron: RootAgentConfig = {
   ...contextBase,
   context: Contexts.Neutron,
-  contextChainNames: {
-    validator: [],
-    relayer: kesselRunnerNetworks,
-    scraper: [],
-  },
+  contextChainNames: hyperlaneContextAgentChainNames,
   rolesWithKeys: [Role.Relayer],
   relayer: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '385b307-20250418-150728',
+      tag: '20c24dc-20251106-222459',
     },
-    whitelist: kesselMatchingList,
+    blacklist: relayBlacklist,
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
-    cache: {
-      enabled: true,
-      // Cache for 10 minutes
-      defaultExpirationSeconds: 10 * 60,
-    },
-    resources: {
-      requests: {
-        cpu: '20000m',
-        memory: '32Gi',
+    batch: {
+      batchSizeOverrides: {
+        starknetsepolia: 16,
+        paradexsepolia: 16,
       },
     },
+    cache: {
+      enabled: true,
+    },
+    resources: relayerResources,
   },
-};
-
-const getVanguardRootAgentConfig = (index: number): RootAgentConfig => ({
-  ...contextBase,
-  context: mustBeValidContext(`vanguard${index}`),
-  contextChainNames: {
-    validator: [],
-    relayer: kesselRunnerNetworks,
-    scraper: [],
-  },
-  rolesWithKeys: [Role.Relayer],
-  relayer: {
+  validators: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      // includes gasPriceCap overrides + per-chain maxSubmitQueueLength
-      tag: '9d20c65-20250418-220918',
+      tag: '20c24dc-20251106-222459',
     },
-    whitelist: kesselMatchingList,
-    gasPaymentEnforcement: [
-      {
-        type: GasPaymentEnforcementPolicyType.None,
-        matchingList: kesselMatchingList,
-      },
-    ],
-    metricAppContextsGetter,
-    ismCacheConfigs,
-    cache: {
-      enabled: true,
-    },
-    resources: {
-      requests: {
-        cpu: '30000m',
-        memory: '100Gi',
-      },
-    },
-    dbBootstrap: true,
-    mixing: {
-      enabled: true,
-      // Arbitrary salt to ensure different agents have different sorting behavior for pending messages
-      salt: 69690 + index,
-    },
-    batch: {
-      defaultBatchSize: 32,
-      batchSizeOverrides: {
-        // Slightly lower to ideally fit within 5M
-        sepolia: 26,
-      },
-      bypassBatchSimulation: true,
-      maxSubmitQueueLength: {
-        arbitrumsepolia: 350,
-        basesepolia: 350,
-        bsctestnet: 350,
-        optimismsepolia: 350,
-        sepolia: 75,
-      },
-    },
-    txIdIndexingEnabled: false,
-    igpIndexingEnabled: false,
+    chains: validatorChainConfig(Contexts.ReleaseCandidate),
+    resources: validatorResources,
   },
-});
+};
 
 export const agents = {
   [Contexts.Hyperlane]: hyperlane,
   [Contexts.ReleaseCandidate]: releaseCandidate,
   [Contexts.Neutron]: neutron,
-  [Contexts.Vanguard0]: getVanguardRootAgentConfig(0),
-  [Contexts.Vanguard1]: getVanguardRootAgentConfig(1),
-  [Contexts.Vanguard2]: getVanguardRootAgentConfig(2),
-  [Contexts.Vanguard3]: getVanguardRootAgentConfig(3),
-  [Contexts.Vanguard4]: getVanguardRootAgentConfig(4),
-  [Contexts.Vanguard5]: getVanguardRootAgentConfig(5),
 };

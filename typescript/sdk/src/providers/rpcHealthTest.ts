@@ -9,6 +9,7 @@ import {
   CosmJsWasmProvider,
   EthersV5Provider,
   ProviderType,
+  RadixProvider,
   SolanaWeb3Provider,
   StarknetJsProvider,
 } from './ProviderType.js';
@@ -33,6 +34,8 @@ export async function isRpcHealthy(
     return isCosmJsProviderHealthy(provider.provider, metadata);
   else if (provider.type === ProviderType.Starknet)
     return isStarknetJsProviderHealthy(provider.provider, metadata);
+  else if (provider.type === ProviderType.Radix)
+    return isRadixProviderHealthy(provider.provider, metadata);
   else
     throw new Error(
       `Unsupported provider type ${provider.type}, new health check required`,
@@ -100,4 +103,23 @@ export async function isStarknetJsProviderHealthy(
   if (!blockNumber || blockNumber < 0) return false;
   rootLogger.debug(`Block number is okay for ${metadata.name}`);
   return true;
+}
+
+export async function isRadixProviderHealthy(
+  provider: RadixProvider['provider'],
+  metadata: ChainMetadata,
+): Promise<boolean> {
+  try {
+    const healthy = await provider.isHealthy();
+    if (healthy) {
+      rootLogger.debug(`Gateway is healthy for ${metadata.name}`);
+    }
+    return healthy;
+  } catch (err) {
+    rootLogger.warn(
+      `Radix gateway health check threw for ${metadata.name}`,
+      err as Error,
+    );
+    return false;
+  }
 }

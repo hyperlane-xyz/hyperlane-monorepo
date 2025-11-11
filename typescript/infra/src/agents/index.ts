@@ -206,14 +206,13 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
     // Divide the keys between the configmap and the env config.
     const configMapConfig: RelayerConfigMapConfig = {
       addressBlacklist: config.addressBlacklist,
-      metricAppContexts: config.metricAppContexts,
       gasPaymentEnforcement: config.gasPaymentEnforcement,
       ismCacheConfigs: config.ismCacheConfigs,
     };
-    const envConfig = objOmitKeys<RelayerConfig>(
-      config,
-      Object.keys(configMapConfig),
-    ) as RelayerEnvConfig;
+    const envConfig = objOmitKeys<RelayerConfig>(config, [
+      ...Object.keys(configMapConfig),
+      'metricAppContexts',
+    ]) as RelayerEnvConfig;
 
     values.hyperlane.relayer = {
       enabled: true,
@@ -250,15 +249,6 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
       value: 'relayer',
       effect: 'NoSchedule',
     });
-
-    if (this.context.includes('vanguard')) {
-      values.tolerations.push({
-        key: 'context-family',
-        operator: 'Equal',
-        value: 'vanguard',
-        effect: 'NoSchedule',
-      });
-    }
 
     return values;
   }
@@ -372,6 +362,12 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
   async helmValues(): Promise<HelmRootAgentValues> {
     const helmValues = await super.helmValues();
     const cfg = await this.config.buildConfig();
+
+    // Only care about the origin chain for the helm values. This
+    // prevents getting secret endpoints for all chains in the environment.
+    helmValues.hyperlane.chains = helmValues.hyperlane.chains.filter(
+      (chain) => chain.name === cfg.originChainName,
+    );
 
     helmValues.hyperlane.validator = {
       enabled: true,

@@ -1,0 +1,16 @@
+{
+  "apechain": {
+    "type": "synthetic",
+    "decimals": 6,
+    "name": "Unicorn Fart Dust",
+    "symbol": "UFD",
+    "foreignDeployment": "0xC58eeC72352b04358b0b6979ba10462190f0d54C"
+  },
+  "solanamainnet": {
+    "type": "collateral",
+    "decimals": 6,
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
+    "owner": "B1q2dsjCE4F6wi5ktn4anmFq9572JpziBUg2TqCS2dFn",
+    "token": "eL5fUxj2J4CiQsmW85k5FG9DvuQjjUoBHoQBi2Kpump"
+  }
+}

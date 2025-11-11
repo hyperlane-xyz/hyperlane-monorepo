@@ -112,14 +112,6 @@ const DOMAINS: &[RawDomain] = &[
         is_deprecated: false,
     },
     RawDomain {
-        name: "cheesechain",
-        token: "CHEESE",
-        domain: 383353,
-        chain_id: 383353,
-        is_test_net: false,
-        is_deprecated: false,
-    },
-    RawDomain {
         name: "connextsepolia",
         token: "ETH",
         domain: 6398,
@@ -513,7 +505,38 @@ const DOMAINS: &[RawDomain] = &[
         is_test_net: true,
         is_deprecated: false,
     },
-    // ---------- End: E2E tests chains ----------------
+    RawDomain {
+        name: "starknettest23448593",
+        token: "ETH",
+        domain: 23448593,
+        chain_id: 23448593,
+        is_test_net: true,
+        is_deprecated: false,
+    },
+    RawDomain {
+        name: "starknettest23448594",
+        token: "ETH",
+        domain: 23448594,
+        chain_id: 23448594,
+        is_test_net: true,
+        is_deprecated: false,
+    },
+    RawDomain {
+        name: "radixtest0",
+        token: "XRD",
+        domain: 9913374,
+        chain_id: 9913374,
+        is_test_net: true,
+        is_deprecated: false,
+    },
+    RawDomain {
+        name: "radixtest1",
+        token: "XRD",
+        domain: 9913375,
+        chain_id: 9913375,
+        is_test_net: true,
+        is_deprecated: false,
+    }, // ---------- End: E2E tests chains ----------------
 ];
 
 #[derive(DeriveMigrationName)]

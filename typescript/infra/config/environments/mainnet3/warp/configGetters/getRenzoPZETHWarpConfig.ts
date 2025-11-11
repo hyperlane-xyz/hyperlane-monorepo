@@ -2,6 +2,7 @@ import { ChainMap } from '@hyperlane-xyz/sdk';
 import { pick } from '@hyperlane-xyz/utils';
 
 import {
+  ezEthOwners,
   ezEthSafes,
   ezEthValidators,
   getRenzoWarpConfigGenerator,
@@ -25,19 +26,21 @@ export const pzEthChainsToDeploy = [
   'berachain',
 ];
 
-const pzEthValidators = pick(ezEthValidators, pzEthChainsToDeploy);
+export const pzEthValidators = {
+  ethereum: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x1fd889337f60986aa57166bc5ac121efd13e4fdd',
+        alias: 'Everclear',
+      },
+      { address: '0xc7f7b94a6baf2fffa54dfe1dde6e5fcbb749e04f', alias: 'Renzo' },
+    ],
+  },
+  ...pick(ezEthValidators, ['swell', 'zircuit', 'unichain', 'berachain']),
+};
 const pzEthSafes = pick(ezEthSafes, pzEthChainsToDeploy);
 export const pzEthTokenPrices = pick(renzoTokenPrices, pzEthChainsToDeploy);
-const existingProxyAdmins: ChainMap<{ address: string; owner: string }> = {
-  ethereum: {
-    address: '0x4f4671Ce69c9af15e33eB7Cf6D1358d1B39Af3bF',
-    owner: '0xD1e6626310fD54Eceb5b9a51dA2eC329D6D4B68A',
-  },
-  zircuit: {
-    address: '0x8b789B4A56675240c9f0985B467752b870c75711',
-    owner: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
-  },
-};
 
 export const getRenzoPZETHWarpConfig = getRenzoWarpConfigGenerator({
   chainsToDeploy: pzEthChainsToDeploy,
@@ -46,5 +49,4 @@ export const getRenzoPZETHWarpConfig = getRenzoWarpConfigGenerator({
   xERC20Addresses: pzEthAddresses,
   xERC20Lockbox: pzEthProductionLockbox,
   tokenPrices: pzEthTokenPrices,
-  existingProxyAdmins: existingProxyAdmins,
 });

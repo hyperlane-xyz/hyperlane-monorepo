@@ -4,9 +4,9 @@
 use std::{collections::HashMap, fmt::Debug, str::FromStr, sync::Arc};
 
 use derive_new::new;
-use eyre::Context;
 use futures::{stream, StreamExt};
 use hyperlane_ethereum::Signers;
+use maplit::hashmap;
 use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 
@@ -18,16 +18,25 @@ use hyperlane_base::{
 };
 use hyperlane_core::{
     accumulator::merkle::Proof, AggregationIsm, CcipReadIsm, Checkpoint, HyperlaneDomain,
-    HyperlaneMessage, InterchainSecurityModule, MultisigIsm, RoutingIsm, ValidatorAnnounce, H160,
-    H256,
+    HyperlaneMessage, InterchainSecurityModule, ModuleType, MultisigIsm, RoutingIsm,
+    ValidatorAnnounce, H160, H256,
 };
 
-use crate::merkle_tree::builder::MerkleTreeBuilder;
 use crate::msg::metadata::base_builder::validator_announced_storages::fetch_storage_locations_helper;
+use crate::{merkle_tree::builder::MerkleTreeBuilder, msg::metadata::MetadataBuildError};
 
 use super::{base::IsmCachePolicyClassifier, IsmAwareAppContextClassifier};
 
 mod validator_announced_storages;
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct IsmBuildMetricsParams {
+    pub app_context: Option<String>,
+    pub origin: HyperlaneDomain,
+    pub destination: HyperlaneDomain,
+    pub ism_type: ModuleType,
+    pub success: bool,
+}
 
 /// Base metadata builder with types used by higher level metadata builders.
 #[allow(clippy::too_many_arguments)]
@@ -44,6 +53,7 @@ pub struct BaseMetadataBuilder {
     app_context_classifier: IsmAwareAppContextClassifier,
     ism_cache_policy_classifier: IsmCachePolicyClassifier,
     signer: Option<Signers>,
+    ignore_reorg_reports: bool,
 }
 
 impl Debug for BaseMetadataBuilder {
@@ -65,7 +75,13 @@ pub trait BuildsBaseMetadata: Send + Sync + Debug {
     fn cache(&self) -> &OptionalCache<MeteredCache<LocalCache>>;
     fn get_signer(&self) -> Option<&Signers>;
 
-    async fn get_proof(&self, leaf_index: u32, checkpoint: Checkpoint) -> eyre::Result<Proof>;
+    fn update_ism_metric(&self, params: IsmBuildMetricsParams);
+
+    async fn get_proof(
+        &self,
+        leaf_index: u32,
+        checkpoint: Checkpoint,
+    ) -> Result<Proof, MetadataBuildError>;
     async fn highest_known_leaf_index(&self) -> Option<u32>;
     async fn get_merkle_leaf_id_by_message_id(&self, message_id: H256)
         -> eyre::Result<Option<u32>>;
@@ -103,14 +119,28 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
         &self.cache
     }
 
-    async fn get_proof(&self, leaf_index: u32, checkpoint: Checkpoint) -> eyre::Result<Proof> {
-        const CTX: &str = "When fetching message proof";
+    fn update_ism_metric(&self, params: IsmBuildMetricsParams) {
+        let labels = hashmap! {
+            "app_context" => params.app_context.as_deref().unwrap_or("Unknown"),
+            "origin" => params.origin.name(),
+            "remote" => params.destination.name(),
+            "ism_type" => params.ism_type.as_str(),
+            "status" => if params.success { "success" } else { "failure" },
+        };
+        self.metrics.ism_build_count().with(&labels).inc();
+    }
+
+    async fn get_proof(
+        &self,
+        leaf_index: u32,
+        checkpoint: Checkpoint,
+    ) -> Result<Proof, MetadataBuildError> {
         let proof = self
             .origin_prover_sync
             .read()
             .await
             .get_proof(leaf_index, checkpoint.index)
-            .context(CTX)?;
+            .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
 
         if proof.root() != checkpoint.root {
             info!(
@@ -118,6 +148,12 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
                 canonical_root = ?proof.root(),
                 "Could not fetch metadata: checkpoint root does not match canonical root from merkle proof"
             );
+            self.metrics.set_merkle_root_mismatch(self.origin_domain());
+
+            return Err(MetadataBuildError::MerkleRootMismatch {
+                root: checkpoint.root,
+                canonical_root: proof.root(),
+            });
         }
         Ok(proof)
     }
@@ -221,25 +257,9 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
                             continue;
                         }
 
-                        match config.build_and_validate(None).await {
-                            Ok(checkpoint_syncer) => {
-                                // found the syncer for this validator
-                                return Ok(Some((*validator, checkpoint_syncer)));
-                            }
-                            Err(CheckpointSyncerBuildError::ReorgEvent(reorg_event)) => {
-                                // If a reorg event has been posted to a checkpoint syncer,
-                                // we refuse to build
-                                // This will result in a short circuit and return an error for the entire build process of all syncers 
-                                return Err(CheckpointSyncerBuildError::ReorgEvent(reorg_event));
-                            }
-                            Err(err) => {
-                                debug!(
-                                    error=%err,
-                                    ?config,
-                                    ?validator,
-                                    "Error when loading checkpoint syncer; will attempt to use the next config"
-                                );
-                            }
+                        if let Some(syncer) = self.build_and_validate(&config, validator).await? {
+                            // found the syncer for this validator
+                            return Ok(Some((*validator, syncer)));
                         }
                     }
                     warn!(
@@ -258,7 +278,7 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
             .collect::<Vec<_>>()
             .await
             .into_iter()
-            .collect::<Result<Vec<_>, _>>()? // Collect results into a single vector and return if any of them returns an error
+            .collect::<Result<Vec<_>, CheckpointSyncerBuildError>>()? // Collect results into a single vector and return if any of them returns an error
             .into_iter()
             .flatten() // Flatten Option<_>
             .collect::<Vec<_>>();
@@ -286,5 +306,41 @@ impl BaseMetadataBuilder {
     ) -> eyre::Result<Vec<Vec<String>>> {
         fetch_storage_locations_helper(validators, &self.cache, &*self.origin_validator_announce)
             .await
+    }
+
+    async fn build_and_validate(
+        &self,
+        config: &CheckpointSyncerConf,
+        validator: &H256,
+    ) -> Result<Option<Box<dyn CheckpointSyncer>>, CheckpointSyncerBuildError> {
+        match config.build_and_validate(None).await {
+            Ok(checkpoint_syncer) => {
+                return Ok(Some(checkpoint_syncer));
+            }
+            Err(CheckpointSyncerBuildError::ReorgEvent(reorg_event)) => {
+                if self.ignore_reorg_reports {
+                    warn!(
+                        ?reorg_event,
+                        ?config,
+                        ?validator,
+                        "Ignoring reorg event for checkpoint syncer build"
+                    );
+                    return Ok(None);
+                }
+                // If a reorg event has been posted to a checkpoint syncer,
+                // we refuse to build
+                // This will result in a short circuit and return an error for the entire build process of all syncers
+                return Err(CheckpointSyncerBuildError::ReorgEvent(reorg_event));
+            }
+            Err(err) => {
+                debug!(
+                    error=%err,
+                    ?config,
+                    ?validator,
+                    "Error when loading checkpoint syncer; will attempt to use the next config"
+                );
+            }
+        }
+        Ok(None)
     }
 }

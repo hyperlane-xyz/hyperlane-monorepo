@@ -1,7 +1,7 @@
 node_modules
 test_deploy.env
 
-**/.env
+**/.env*
 **/tsconfig.tsbuildinfo
 **/tmp.*
 **/*.swp
@@ -24,7 +24,19 @@ solidity/artifacts
 .yarn/cache
 yarn-error.log
 
+.turbo
+
 .idea
 **/*.ignore
 
 tsconfig.editor.json
+
+# yalc
+yalc.lock
+.yalc
+
+**/keys
+!typescript/infra/scripts/keys
+**/warp-route-deployer-key.json
+**/key.json
+**/deployer-key.json

@@ -4,7 +4,7 @@
 //! and validations it defines are not applied here, we should mirror them.
 //! ANY CHANGES HERE NEED TO BE REFLECTED IN THE TYPESCRIPT SDK.
 
-use std::{collections::HashSet, default::Default};
+use std::{collections::HashSet, default::Default, ops::Add};
 
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
 use eyre::Context;
@@ -43,6 +43,7 @@ impl FromRawConf<RawScraperSettings> for ScraperSettings {
         raw: RawScraperSettings,
         cwp: &ConfigPath,
         _filter: (),
+        agent_name: &str,
     ) -> ConfigResult<Self> {
         let mut err = ConfigParsingError::default();
 
@@ -59,6 +60,7 @@ impl FromRawConf<RawScraperSettings> for ScraperSettings {
             .parse_from_raw_config::<Settings, RawAgentConf, Option<&HashSet<&str>>>(
                 chains_names_to_scrape.as_ref(),
                 "Parsing base config",
+                agent_name.to_string(),
             )
             .take_config_err(&mut err);
 
@@ -75,7 +77,7 @@ impl FromRawConf<RawScraperSettings> for ScraperSettings {
                 .filter_map(|chain| {
                     base.lookup_domain(chain)
                         .context("Missing configuration for a chain in `chainsToScrape`")
-                        .into_config_result(|| cwp + "chains_to_scrape")
+                        .into_config_result(|| cwp.add("chains_to_scrape"))
                         .take_config_err(&mut err)
                 })
                 .collect()

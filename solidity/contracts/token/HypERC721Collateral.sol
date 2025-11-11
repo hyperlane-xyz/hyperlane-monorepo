@@ -1,9 +1,11 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
+// ============ Internal Imports ============
 import {TokenRouter} from "./libs/TokenRouter.sol";
-import {TokenMessage} from "./libs/TokenMessage.sol";
+import {ERC721Collateral} from "./libs/TokenCollateral.sol";
 
+// ============ External Imports ============
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 /**
@@ -11,13 +13,15 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
  * @author Abacus Works
  */
 contract HypERC721Collateral is TokenRouter {
+    using ERC721Collateral for IERC721;
+
     IERC721 public immutable wrappedToken;
 
     /**
      * @notice Constructor
      * @param erc721 Address of the token to keep as collateral
      */
-    constructor(address erc721, address _mailbox) TokenRouter(_mailbox) {
+    constructor(address erc721, address _mailbox) TokenRouter(1, _mailbox) {
         wrappedToken = IERC721(erc721);
     }
 
@@ -31,34 +35,31 @@ contract HypERC721Collateral is TokenRouter {
         address _hook,
         address _interchainSecurityModule,
         address _owner
-    ) public virtual initializer {
+    ) public initializer {
         _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
     }
 
-    function ownerOf(uint256 _tokenId) external view returns (address) {
-        return IERC721(wrappedToken).ownerOf(_tokenId);
+    /**
+     * @inheritdoc TokenRouter
+     */
+    function token() public view override returns (address) {
+        return address(wrappedToken);
     }
 
     /**
-     * @dev Returns the balance of `_account` for `wrappedToken`.
      * @inheritdoc TokenRouter
+     * @dev NFTs cannot have a fee recipient
      */
-    function balanceOf(
-        address _account
-    ) external view override returns (uint256) {
-        return IERC721(wrappedToken).balanceOf(_account);
+    function feeRecipient() public view override returns (address) {
+        return address(0);
     }
 
     /**
      * @dev Transfers `_tokenId` of `wrappedToken` from `msg.sender` to this contract.
      * @inheritdoc TokenRouter
      */
-    function _transferFromSender(
-        uint256 _tokenId
-    ) internal virtual override returns (bytes memory) {
-        // safeTransferFrom not used here because recipient is this contract
-        wrappedToken.transferFrom(msg.sender, address(this), _tokenId);
-        return bytes(""); // no metadata
+    function _transferFromSender(uint256 _tokenId) internal override {
+        wrappedToken._transferFromSender(_tokenId);
     }
 
     /**
@@ -67,9 +68,8 @@ contract HypERC721Collateral is TokenRouter {
      */
     function _transferTo(
         address _recipient,
-        uint256 _tokenId,
-        bytes calldata // no metadata
+        uint256 _tokenId
     ) internal override {
-        wrappedToken.safeTransferFrom(address(this), _recipient, _tokenId);
+        wrappedToken._transferTo(_recipient, _tokenId);
     }
 }

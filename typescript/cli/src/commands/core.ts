@@ -13,12 +13,12 @@ import {
   createCoreDeployConfig,
   readCoreDeployConfigs,
 } from '../config/core.js';
+import { MultiProtocolSignerManager } from '../context/strategies/signer/MultiProtocolSignerManager.js';
 import {
   CommandModuleWithContext,
   CommandModuleWithWriteContext,
 } from '../context/types.js';
 import { runCoreApply, runCoreDeploy } from '../deploy/core.js';
-import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { log, logCommandHeader, logGreen } from '../logger.js';
 import { executeCoreRead } from '../read/core.js';
 import {
@@ -31,10 +31,9 @@ import { formatYamlViolationsOutput } from '../utils/output.js';
 import {
   DEFAULT_CORE_DEPLOYMENT_CONFIG_PATH,
   chainCommandOption,
-  dryRunCommandOption,
-  fromAddressCommandOption,
   inputFileCommandOption,
   outputFileCommandOption,
+  strategyCommandOption,
 } from './options.js';
 
 /**
@@ -58,6 +57,7 @@ export const coreCommand: CommandModule = {
 export const apply: CommandModuleWithWriteContext<{
   chain: string;
   config: string;
+  strategy?: string;
 }> = {
   command: 'apply',
   describe:
@@ -72,8 +72,14 @@ export const apply: CommandModuleWithWriteContext<{
       true,
       'The path to output a Core Config JSON or YAML file.',
     ),
+    strategy: { ...strategyCommandOption, demandOption: false },
   },
-  handler: async ({ context, chain, config: configFilePath }) => {
+  handler: async ({
+    context,
+    chain,
+    config: configFilePath,
+    strategy: strategyUrl,
+  }) => {
     logCommandHeader(`Hyperlane Core Apply`);
 
     const addresses = (await context.registry.getChainAddresses(
@@ -88,6 +94,7 @@ export const apply: CommandModuleWithWriteContext<{
       chain,
       config,
       deployedCoreAddresses: addresses,
+      strategyUrl,
     });
     process.exit(0);
   },
@@ -102,8 +109,7 @@ export const apply: CommandModuleWithWriteContext<{
 export const deploy: CommandModuleWithWriteContext<{
   chain: string;
   config: string;
-  dryRun: string;
-  fromAddress: string;
+  multiProtocolSigner?: MultiProtocolSignerManager;
 }> = {
   command: 'deploy',
   describe: 'Deploy Hyperlane contracts',
@@ -114,22 +120,22 @@ export const deploy: CommandModuleWithWriteContext<{
       false,
       'The path to a JSON or YAML file with a core deployment config.',
     ),
-    'dry-run': dryRunCommandOption,
-    'from-address': fromAddressCommandOption,
   },
-  handler: async ({ context, chain, config: configFilePath, dryRun }) => {
-    logCommandHeader(`Hyperlane Core deployment${dryRun ? ' dry-run' : ''}`);
+  handler: async ({
+    context,
+    chain,
+    config: configFilePath,
+    multiProtocolSigner,
+  }) => {
+    logCommandHeader(`Hyperlane Core deployment`);
 
-    try {
-      await runCoreDeploy({
-        context,
-        chain,
-        config: readYamlOrJson(configFilePath),
-      });
-    } catch (error: any) {
-      evaluateIfDryRunFailure(error, dryRun);
-      throw error;
-    }
+    await runCoreDeploy({
+      context,
+      chain,
+      config: readYamlOrJson(configFilePath),
+      multiProtocolSigner,
+    });
+
     process.exit(0);
   },
 };

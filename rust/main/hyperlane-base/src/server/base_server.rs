@@ -22,7 +22,7 @@ impl Server {
     ///
     /// routes:
     ///  - metrics - serving OpenMetrics format reports on `/metrics`
-    ///     (this is compatible with Prometheus, which ought to be configured to scrape this endpoint)
+    ///    (this is compatible with Prometheus, which ought to be configured to scrape this endpoint)
     ///  - custom_routes - additional routes to be served by the server as per the specific agent
     pub fn run_with_custom_router(self: Arc<Self>, router: Router) -> JoinHandle<()> {
         let port = self.listen_port;
@@ -40,7 +40,7 @@ impl Server {
         tokio::task::Builder::new()
             .name("agent::server")
             .spawn(async move {
-                let url = format!("0.0.0.0:{}", port);
+                let url = format!("0.0.0.0:{port}");
                 let listener = tokio::net::TcpListener::bind(url)
                     .await
                     .expect("Failed to bind to TCP port");

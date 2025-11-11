@@ -1,11 +1,12 @@
+use std::str::FromStr;
+
 use cosmrs::crypto::PublicKey;
-use cosmwasm_std::HexBinary;
 
 use crypto::decompress_public_key;
 use hyperlane_core::AccountAddressType;
 use AccountAddressType::{Bitcoin, Ethereum};
 
-use crate::CosmosAccountId;
+use crate::{utils::cometbft_pubkey_to_cosmrs_pubkey, CosmosAccountId};
 
 const COMPRESSED_PUBLIC_KEY: &str =
     "02962d010010b6eec66846322704181570d89e28236796579c535d2e44d20931f4";
@@ -60,15 +61,17 @@ fn test_ethereum_style() {
 
 fn compressed_public_key() -> PublicKey {
     let hex = hex::decode(COMPRESSED_PUBLIC_KEY).unwrap();
-    let tendermint = tendermint::PublicKey::from_raw_secp256k1(&hex).unwrap();
+    let cometbft_key = cometbft::PublicKey::from_raw_secp256k1(&hex).unwrap();
 
-    PublicKey::from(tendermint)
+    cometbft_pubkey_to_cosmrs_pubkey(&cometbft_key)
+        .expect("Failed to deserialize cosmrs::PublicKey")
 }
 
 fn decompressed_public_key() -> PublicKey {
     let hex = hex::decode(COMPRESSED_PUBLIC_KEY).unwrap();
     let decompressed = decompress_public_key(&hex).unwrap();
-    let tendermint = tendermint::PublicKey::from_raw_secp256k1(&decompressed).unwrap();
+    let cometbft_key = cometbft::PublicKey::from_raw_secp256k1(&decompressed).unwrap();
 
-    PublicKey::from(tendermint)
+    cometbft_pubkey_to_cosmrs_pubkey(&cometbft_key)
+        .expect("Failed to deserialize cosmrs::PublicKey")
 }

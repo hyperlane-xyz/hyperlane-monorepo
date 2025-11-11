@@ -110,7 +110,6 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> ForwardSequenceAwareS
     /// If there are no logs to index, returns `None`.
     /// If there are logs to index, returns the range of logs, either by sequence or block number
     /// depending on the mode.
-    #[instrument(ret)]
     pub async fn get_next_range(&mut self) -> Result<Option<RangeInclusive<u32>>> {
         // Skip any already indexed logs.
         self.skip_indexed().await?;
@@ -196,7 +195,9 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> ForwardSequenceAwareS
         Some(
             self.current_indexing_snapshot.at_block
                 ..=u32::min(
-                    self.current_indexing_snapshot.at_block + self.chunk_size,
+                    self.current_indexing_snapshot
+                        .at_block
+                        .saturating_add(self.chunk_size),
                     tip,
                 ),
         )
@@ -210,12 +211,17 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> ForwardSequenceAwareS
         target_sequence: u32,
     ) -> RangeInclusive<u32> {
         // Query the sequence range starting from the cursor count.
-        current_sequence..=u32::min(target_sequence, current_sequence + self.chunk_size)
+        current_sequence
+            ..=u32::min(
+                target_sequence,
+                current_sequence.saturating_add(self.chunk_size),
+            )
     }
 
     /// Reads the DB to check if the current indexing sequence has already been indexed,
     /// iterating until we find a sequence that hasn't been indexed.
     async fn skip_indexed(&mut self) -> Result<()> {
+        let prev_indexed_snapshot = self.last_indexed_snapshot.clone();
         // Check if any new logs have been inserted into the DB,
         // and update the cursor accordingly.
         while let Some(block_number) = self
@@ -228,11 +234,12 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> ForwardSequenceAwareS
             };
 
             self.current_indexing_snapshot = self.last_indexed_snapshot.next_target();
-
+        }
+        if prev_indexed_snapshot != self.last_indexed_snapshot {
             debug!(
-                last_indexed_snapshot=?self.last_indexed_snapshot,
+                last_indexed_snapshot=?prev_indexed_snapshot,
                 current_indexing_snapshot=?self.current_indexing_snapshot,
-                "Fast forwarded current sequence"
+                "Fast forwarded current sequence to"
             );
         }
 
@@ -274,7 +281,10 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> ForwardSequenceAwareS
         // We require no sequence gaps and to build upon the last snapshot.
         // A non-inclusive range is used to allow updates without any logs.
         let expected_sequences = (self.current_indexing_snapshot.sequence
-            ..(self.current_indexing_snapshot.sequence + logs.len() as u32))
+            ..(self
+                .current_indexing_snapshot
+                .sequence
+                .saturating_add(logs.len() as u32)))
             .collect::<HashSet<_>>();
         if all_log_sequences != &expected_sequences {
             // If there are any missing sequences, rewind to just after the last snapshot.
@@ -284,7 +294,10 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> ForwardSequenceAwareS
 
         // Update the current indexing snapshot forward.
         self.current_indexing_snapshot = TargetSnapshot {
-            sequence: self.current_indexing_snapshot.sequence + logs.len() as u32,
+            sequence: self
+                .current_indexing_snapshot
+                .sequence
+                .saturating_add(logs.len() as u32),
             at_block: *range.end(),
         };
 

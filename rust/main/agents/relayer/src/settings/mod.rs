@@ -4,7 +4,7 @@
 //! and validations it defines are not applied here, we should mirror them.
 //! ANY CHANGES HERE NEED TO BE REFLECTED IN THE TYPESCRIPT SDK.
 
-use std::{collections::HashSet, path::PathBuf};
+use std::{collections::HashSet, ops::Add, path::PathBuf};
 
 use convert_case::Case;
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
@@ -19,7 +19,7 @@ use hyperlane_base::{
 };
 use hyperlane_core::{cfg_unwrap_all, config::*, HyperlaneDomain, U256};
 use itertools::Itertools;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{
@@ -87,7 +87,7 @@ pub struct GasPaymentEnforcementConf {
 }
 
 /// Config for a GasPaymentEnforcementPolicy
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq)]
 pub enum GasPaymentEnforcementPolicy {
     /// No requirement - all messages are processed regardless of gas payment
     /// and regardless of whether a payment for the message was processed by the specified IGP.
@@ -120,6 +120,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
         raw: RawRelayerSettings,
         cwp: &ConfigPath,
         _filter: (),
+        agent_name: &str,
     ) -> ConfigResult<Self> {
         let mut err = ConfigParsingError::default();
 
@@ -136,14 +137,17 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             .parse_from_raw_config::<Settings, RawAgentConf, Option<&HashSet<&str>>>(
                 relay_chain_names.as_ref(),
                 "Parsing base config",
+                agent_name.to_string(),
             )
             .take_config_err(&mut err);
+
+        let current_dir = std::env::current_dir().expect("Failed to get current directory");
 
         let db = p
             .chain(&mut err)
             .get_opt_key("db")
             .parse_from_str("Expected database path")
-            .unwrap_or_else(|| std::env::current_dir().unwrap().join("hyperlane_db"));
+            .unwrap_or_else(|| current_dir.join("hyperlane_db"));
 
         // is_gas_payment_enforcement_set determines if we should be checking for the correct gas payment enforcement policy has been provided with "gasPaymentEnforcement" key
         let (
@@ -155,18 +159,18 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
                 Ok(Some(parser)) => match parse_json_array(parser) {
                     Some((path, value)) => (path, value, true),
                     None => (
-                        &p.cwp + "gas_payment_enforcement",
+                        (&p.cwp).add("gas_payment_enforcement"),
                         Value::Array(vec![]),
                         true,
                     ),
                 },
                 Ok(None) => (
-                    &p.cwp + "gas_payment_enforcement",
+                    (&p.cwp).add("gas_payment_enforcement"),
                     Value::Array(vec![]),
                     false,
                 ),
                 Err(_) => (
-                    &p.cwp + "gas_payment_enforcement",
+                    (&p.cwp).add("gas_payment_enforcement"),
                     Value::Array(vec![]),
                     false,
                 ),
@@ -182,11 +186,11 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             && gas_payment_enforcement_parser
                 .val
                 .as_array()
-                .unwrap()
-                .is_empty()
+                .map(|v| v.is_empty())
+                .unwrap_or(true)
         {
             Err::<(), eyre::Report>(eyre!("GASPAYMENTENFORCEMENT policy cannot be parsed"))
-                .take_err(&mut err, || cwp + "gas_payment_enforcement");
+                .take_err(&mut err, || cwp.add("gas_payment_enforcement"));
         }
 
         let mut gas_payment_enforcement = gas_payment_enforcement_parser.into_array_iter().map(|itr| {
@@ -210,24 +214,32 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
                         let (numerator, denominator) = gas_fraction
                             .split_once('/')
                             .ok_or_else(|| eyre!("Invalid `gas_fraction` for OnChainFeeQuoting gas payment enforcement policy; expected `numerator / denominator`"))
-                            .take_err(&mut err, || &policy.cwp + "gas_fraction")
+                            .take_err(&mut err, || (&policy.cwp).add("gas_fraction"))
                             .unwrap_or(("1", "1"));
 
+                        let gas_fraction_numerator = numerator
+                            .parse()
+                            .context("Error parsing gas fraction numerator")
+                            .take_err(&mut err, || (&policy.cwp).add("gas_fraction"))
+                            .unwrap_or(1);
+                        let gas_fraction_denominator = denominator
+                            .parse()
+                            .context("Error parsing gas fraction denominator")
+                            .take_err(&mut err, || (&policy.cwp).add("gas_fraction"))
+                            .unwrap_or(1);
+                        if gas_fraction_denominator == 0 {
+                            err.push(
+                                (&policy.cwp).add("gas_fraction"),
+                                eyre!("gas_fraction denominator cannot be 0"),
+                            );
+                        }
                         Some(GasPaymentEnforcementPolicy::OnChainFeeQuoting {
-                            gas_fraction_numerator: numerator
-                                .parse()
-                                .context("Error parsing gas fraction numerator")
-                                .take_err(&mut err, || &policy.cwp + "gas_fraction")
-                                .unwrap_or(1),
-                            gas_fraction_denominator: denominator
-                                .parse()
-                                .context("Error parsing gas fraction denominator")
-                                .take_err(&mut err, || &policy.cwp + "gas_fraction")
-                                .unwrap_or(1),
+                            gas_fraction_numerator,
+                            gas_fraction_denominator,
                         })
                     }
                     Some(pt) => Err(eyre!("Unknown gas payment enforcement policy type `{pt}`"))
-                        .take_err(&mut err, || cwp + "type"),
+                        .take_err(&mut err, || cwp.add("type")),
                 }.map(|policy| GasPaymentEnforcementConf {
                     policy,
                     matching_list,
@@ -255,7 +267,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             .get_opt_key("addressBlacklist")
             .parse_string()
             .end()
-            .map(|str| parse_address_list(str, &mut err, || &p.cwp + "address_blacklist"))
+            .map(|str| parse_address_list(str, &mut err, || (&p.cwp).add("address_blacklist")))
             .unwrap_or_default();
 
         let transaction_gas_limit = p
@@ -284,7 +296,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             .filter_map(|chain| {
                 base.lookup_domain(chain)
                     .context("Missing configuration for a chain in `skipTransactionGasLimitFor`")
-                    .into_config_result(|| cwp + "skip_transaction_gas_limit_for")
+                    .into_config_result(|| cwp.add("skip_transaction_gas_limit_for"))
                     .take_config_err(&mut err)
             })
             .map(|d| d.id())
@@ -296,7 +308,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             .filter_map(|chain| {
                 base.lookup_domain(chain)
                     .context("Missing configuration for a chain in `relayChains`")
-                    .into_config_result(|| cwp + "relay_chains")
+                    .into_config_result(|| cwp.add("relay_chains"))
                     .take_config_err(&mut err)
             })
             .collect();
@@ -305,7 +317,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             .get_opt_key("metricAppContexts")
             .take_config_err_flat(&mut err)
             .and_then(parse_json_array)
-            .unwrap_or_else(|| (&p.cwp + "metric_app_contexts", Value::Array(vec![])));
+            .unwrap_or_else(|| ((&p.cwp).add("metric_app_contexts"), Value::Array(vec![])));
 
         let metric_app_contexts_parser =
             ValueParser::new(raw_metric_app_contexts_path, &raw_metric_app_contexts);
@@ -504,9 +516,9 @@ mod test {
         ]
         "#;
 
-        let value = serde_json::from_str::<Value>(raw).unwrap();
+        let value = serde_json::from_str::<Value>(raw).expect("Failed to parse json");
         let p = ValueParser::new(ConfigPath::default(), &value);
-        let configs = parse_ism_cache_configs(p).unwrap();
+        let configs = parse_ism_cache_configs(p).expect("Failed to parse ism cache config");
         assert_eq!(configs.len(), 2);
     }
 }

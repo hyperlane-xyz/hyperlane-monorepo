@@ -1,0 +1,29 @@
+name: 'Determine Base SHA'
+description: 'Determine base and current SHA for different GitHub events'
+outputs:
+  base_sha:
+    description: 'The base commit SHA'
+    value: ${{ steps.determine-base-sha.outputs.base_sha }}
+  current_sha:
+    description: 'The current commit SHA'
+    value: ${{ steps.determine-base-sha.outputs.current_sha }}
+runs:
+  using: 'composite'
+  steps:
+    - name: Determine BASE_SHA
+      id: determine-base-sha
+      shell: bash
+      run: |
+        if [ "${{ github.event_name }}" == "pull_request" ]; then
+          echo "base_sha=${{ github.event.pull_request.base.sha }}" >> $GITHUB_OUTPUT
+          echo "current_sha=${{ github.event.pull_request.head.sha }}" >> $GITHUB_OUTPUT
+        elif [ "${{ github.event_name }}" == "merge_group" ]; then
+          echo "base_sha=${{ github.event.merge_group.base_sha }}" >> $GITHUB_OUTPUT
+          echo "current_sha=${{ github.event.merge_group.head_sha }}" >> $GITHUB_OUTPUT
+        elif [ "${{ github.event_name }}" == "push" ]; then
+          echo "base_sha=${{ github.event.before }}" >> $GITHUB_OUTPUT
+          echo "current_sha=${{ github.event.after }}" >> $GITHUB_OUTPUT
+        else
+          echo "base_sha=$(git rev-parse HEAD^)" >> $GITHUB_OUTPUT
+          echo "current_sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+        fi

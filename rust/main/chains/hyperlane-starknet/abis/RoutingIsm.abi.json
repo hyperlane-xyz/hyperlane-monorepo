@@ -1,0 +1,521 @@
+{
+  "sierra_program": [],
+  "sierra_program_debug_info": {
+    "type_names": [],
+    "libfunc_names": [],
+    "user_func_names": []
+  },
+  "contract_class_version": "0.1.0",
+  "entry_points_by_type": {
+    "EXTERNAL": [
+      {
+        "selector": "0x52580a92c73f4428f1a260c5d768ef462b25955307de00f99957df119865d",
+        "function_idx": 11
+      },
+      {
+        "selector": "0x4da940c769b8672196a9c1177a985dc19f1f14eeecd30157e09bec52980e9b",
+        "function_idx": 6
+      },
+      {
+        "selector": "0x79dc0da7c54b95f10aa182ad0a46400db63156920adb65eca2654c0945a463",
+        "function_idx": 1
+      },
+      {
+        "selector": "0xa03f0ea0c028bdcdc197a02c45efb0dd69a45142bfb55e29e0a33c9e758415",
+        "function_idx": 5
+      },
+      {
+        "selector": "0xf2f7c15cbe06c8d94597cd91fd7f3369eae842359235712def5584f8d270cd",
+        "function_idx": 0
+      },
+      {
+        "selector": "0x1068cb7a4466c74282c7b53b6335949a97d400c172b52cc508c1bae4d7cfcb8",
+        "function_idx": 7
+      },
+      {
+        "selector": "0x1beb02629d7130562392564d40be516b141108416538d0d4d76d2060e4632ce",
+        "function_idx": 4
+      },
+      {
+        "selector": "0x1d27a19ebb249760a6490a8d33442a54b5c3c8504068964b74388bfe83458be",
+        "function_idx": 3
+      },
+      {
+        "selector": "0x2016836a56b71f0d02689e69e326f4f4c1b9057164ef592671cf0d37c8040c0",
+        "function_idx": 9
+      },
+      {
+        "selector": "0x27ea29384deca9928aa65088faae7fc2e5a99fd6512125ef320c18227e0f7d3",
+        "function_idx": 8
+      },
+      {
+        "selector": "0x2a3bb1eaa05b77c4b0eeee0116a3177c6d62319dd7149ae148185d9e09de74a",
+        "function_idx": 10
+      },
+      {
+        "selector": "0x2f67e6aeaad1ab7487a680eb9d3363a597afa7a3de33fa9bf3ae6edcb88435d",
+        "function_idx": 2
+      }
+    ],
+    "L1_HANDLER": [],
+    "CONSTRUCTOR": [
+      {
+        "selector": "0x28ffe4ff0f226a9107253e17a904099aa4f63a02a5621de0576e5aa71bc5194",
+        "function_idx": 12
+      }
+    ]
+  },
+  "abi": [
+    {
+      "type": "impl",
+      "name": "Upgradeable",
+      "interface_name": "openzeppelin::upgrades::interface::IUpgradeable"
+    },
+    {
+      "type": "interface",
+      "name": "openzeppelin::upgrades::interface::IUpgradeable",
+      "items": [
+        {
+          "type": "function",
+          "name": "upgrade",
+          "inputs": [
+            {
+              "name": "new_class_hash",
+              "type": "core::starknet::class_hash::ClassHash"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        }
+      ]
+    },
+    {
+      "type": "impl",
+      "name": "IDomainRoutingIsmImpl",
+      "interface_name": "hyperlane_starknet::interfaces::IDomainRoutingIsm"
+    },
+    {
+      "type": "struct",
+      "name": "core::array::Span::<core::integer::u32>",
+      "members": [
+        {
+          "name": "snapshot",
+          "type": "@core::array::Array::<core::integer::u32>"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "core::array::Span::<core::starknet::contract_address::ContractAddress>",
+      "members": [
+        {
+          "name": "snapshot",
+          "type": "@core::array::Array::<core::starknet::contract_address::ContractAddress>"
+        }
+      ]
+    },
+    {
+      "type": "interface",
+      "name": "hyperlane_starknet::interfaces::IDomainRoutingIsm",
+      "items": [
+        {
+          "type": "function",
+          "name": "initialize",
+          "inputs": [
+            {
+              "name": "_domains",
+              "type": "core::array::Span::<core::integer::u32>"
+            },
+            {
+              "name": "_modules",
+              "type": "core::array::Span::<core::starknet::contract_address::ContractAddress>"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "set",
+          "inputs": [
+            {
+              "name": "_domain",
+              "type": "core::integer::u32"
+            },
+            {
+              "name": "_module",
+              "type": "core::starknet::contract_address::ContractAddress"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "remove",
+          "inputs": [
+            {
+              "name": "_domain",
+              "type": "core::integer::u32"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "domains",
+          "inputs": [],
+          "outputs": [
+            {
+              "type": "core::array::Span::<core::integer::u32>"
+            }
+          ],
+          "state_mutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "module",
+          "inputs": [
+            {
+              "name": "_origin",
+              "type": "core::integer::u32"
+            }
+          ],
+          "outputs": [
+            {
+              "type": "core::starknet::contract_address::ContractAddress"
+            }
+          ],
+          "state_mutability": "view"
+        }
+      ]
+    },
+    {
+      "type": "impl",
+      "name": "IRoutingIsmImpl",
+      "interface_name": "hyperlane_starknet::interfaces::IRoutingIsm"
+    },
+    {
+      "type": "struct",
+      "name": "core::integer::u256",
+      "members": [
+        {
+          "name": "low",
+          "type": "core::integer::u128"
+        },
+        {
+          "name": "high",
+          "type": "core::integer::u128"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "alexandria_bytes::bytes::Bytes",
+      "members": [
+        {
+          "name": "size",
+          "type": "core::integer::u32"
+        },
+        {
+          "name": "data",
+          "type": "core::array::Array::<core::integer::u128>"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "name": "hyperlane_starknet::contracts::libs::message::Message",
+      "members": [
+        {
+          "name": "version",
+          "type": "core::integer::u8"
+        },
+        {
+          "name": "nonce",
+          "type": "core::integer::u32"
+        },
+        {
+          "name": "origin",
+          "type": "core::integer::u32"
+        },
+        {
+          "name": "sender",
+          "type": "core::integer::u256"
+        },
+        {
+          "name": "destination",
+          "type": "core::integer::u32"
+        },
+        {
+          "name": "recipient",
+          "type": "core::integer::u256"
+        },
+        {
+          "name": "body",
+          "type": "alexandria_bytes::bytes::Bytes"
+        }
+      ]
+    },
+    {
+      "type": "interface",
+      "name": "hyperlane_starknet::interfaces::IRoutingIsm",
+      "items": [
+        {
+          "type": "function",
+          "name": "route",
+          "inputs": [
+            {
+              "name": "_message",
+              "type": "hyperlane_starknet::contracts::libs::message::Message"
+            }
+          ],
+          "outputs": [
+            {
+              "type": "core::starknet::contract_address::ContractAddress"
+            }
+          ],
+          "state_mutability": "view"
+        }
+      ]
+    },
+    {
+      "type": "impl",
+      "name": "IInterchainSecurityModuleImpl",
+      "interface_name": "hyperlane_starknet::interfaces::IInterchainSecurityModule"
+    },
+    {
+      "type": "enum",
+      "name": "hyperlane_starknet::interfaces::ModuleType",
+      "variants": [
+        {
+          "name": "UNUSED",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "ROUTING",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "AGGREGATION",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "LEGACY_MULTISIG",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "MERKLE_ROOT_MULTISIG",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "MESSAGE_ID_MULTISIG",
+          "type": "core::starknet::contract_address::ContractAddress"
+        },
+        {
+          "name": "NULL",
+          "type": "()"
+        },
+        {
+          "name": "CCIP_READ",
+          "type": "core::starknet::contract_address::ContractAddress"
+        }
+      ]
+    },
+    {
+      "type": "enum",
+      "name": "core::bool",
+      "variants": [
+        {
+          "name": "False",
+          "type": "()"
+        },
+        {
+          "name": "True",
+          "type": "()"
+        }
+      ]
+    },
+    {
+      "type": "interface",
+      "name": "hyperlane_starknet::interfaces::IInterchainSecurityModule",
+      "items": [
+        {
+          "type": "function",
+          "name": "module_type",
+          "inputs": [],
+          "outputs": [
+            {
+              "type": "hyperlane_starknet::interfaces::ModuleType"
+            }
+          ],
+          "state_mutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "verify",
+          "inputs": [
+            {
+              "name": "_metadata",
+              "type": "alexandria_bytes::bytes::Bytes"
+            },
+            {
+              "name": "_message",
+              "type": "hyperlane_starknet::contracts::libs::message::Message"
+            }
+          ],
+          "outputs": [
+            {
+              "type": "core::bool"
+            }
+          ],
+          "state_mutability": "view"
+        }
+      ]
+    },
+    {
+      "type": "impl",
+      "name": "OwnableImpl",
+      "interface_name": "openzeppelin::access::ownable::interface::IOwnable"
+    },
+    {
+      "type": "interface",
+      "name": "openzeppelin::access::ownable::interface::IOwnable",
+      "items": [
+        {
+          "type": "function",
+          "name": "owner",
+          "inputs": [],
+          "outputs": [
+            {
+              "type": "core::starknet::contract_address::ContractAddress"
+            }
+          ],
+          "state_mutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "transfer_ownership",
+          "inputs": [
+            {
+              "name": "new_owner",
+              "type": "core::starknet::contract_address::ContractAddress"
+            }
+          ],
+          "outputs": [],
+          "state_mutability": "external"
+        },
+        {
+          "type": "function",
+          "name": "renounce_ownership",
+          "inputs": [],
+          "outputs": [],
+          "state_mutability": "external"
+        }
+      ]
+    },
+    {
+      "type": "constructor",
+      "name": "constructor",
+      "inputs": [
+        {
+          "name": "_owner",
+          "type": "core::starknet::contract_address::ContractAddress"
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "openzeppelin::access::ownable::ownable::OwnableComponent::OwnershipTransferred",
+      "kind": "struct",
+      "members": [
+        {
+          "name": "previous_owner",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "kind": "key"
+        },
+        {
+          "name": "new_owner",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "kind": "key"
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "openzeppelin::access::ownable::ownable::OwnableComponent::OwnershipTransferStarted",
+      "kind": "struct",
+      "members": [
+        {
+          "name": "previous_owner",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "kind": "key"
+        },
+        {
+          "name": "new_owner",
+          "type": "core::starknet::contract_address::ContractAddress",
+          "kind": "key"
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "openzeppelin::access::ownable::ownable::OwnableComponent::Event",
+      "kind": "enum",
+      "variants": [
+        {
+          "name": "OwnershipTransferred",
+          "type": "openzeppelin::access::ownable::ownable::OwnableComponent::OwnershipTransferred",
+          "kind": "nested"
+        },
+        {
+          "name": "OwnershipTransferStarted",
+          "type": "openzeppelin::access::ownable::ownable::OwnableComponent::OwnershipTransferStarted",
+          "kind": "nested"
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "openzeppelin::upgrades::upgradeable::UpgradeableComponent::Upgraded",
+      "kind": "struct",
+      "members": [
+        {
+          "name": "class_hash",
+          "type": "core::starknet::class_hash::ClassHash",
+          "kind": "data"
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "openzeppelin::upgrades::upgradeable::UpgradeableComponent::Event",
+      "kind": "enum",
+      "variants": [
+        {
+          "name": "Upgraded",
+          "type": "openzeppelin::upgrades::upgradeable::UpgradeableComponent::Upgraded",
+          "kind": "nested"
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "name": "hyperlane_starknet::contracts::isms::routing::domain_routing_ism::domain_routing_ism::Event",
+      "kind": "enum",
+      "variants": [
+        {
+          "name": "OwnableEvent",
+          "type": "openzeppelin::access::ownable::ownable::OwnableComponent::Event",
+          "kind": "flat"
+        },
+        {
+          "name": "UpgradeableEvent",
+          "type": "openzeppelin::upgrades::upgradeable::UpgradeableComponent::Event",
+          "kind": "flat"
+        }
+      ]
+    }
+  ]
+}

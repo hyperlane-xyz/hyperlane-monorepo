@@ -4,19 +4,18 @@ import {
   DeployedCoreAddresses,
   DeployedCoreAddressesSchema,
   EvmCoreModule,
-  MultiProvider,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { readCoreDeployConfigs } from '../../../config/core.js';
-import { readChainSubmissionStrategyConfig } from '../../../config/strategy.js';
 import { getWarpRouteDeployConfig } from '../../../config/warp.js';
+import { RebalancerConfig } from '../../../rebalancer/config/RebalancerConfig.js';
 import {
-  extractChainsFromObj,
   runMultiChainSelectionStep,
   runSingleChainSelectionStep,
 } from '../../../utils/chains.js';
 import { getWarpConfigs } from '../../../utils/warp.js';
+import { requestAndSaveApiKeys } from '../../context.js';
 
 import { ChainResolver } from './types.js';
 
@@ -24,8 +23,10 @@ enum ChainSelectionMode {
   AGENT_KURTOSIS,
   WARP_CONFIG,
   WARP_APPLY,
+  WARP_REBALANCER,
   STRATEGY,
   CORE_APPLY,
+  CORE_DEPLOY,
   DEFAULT,
 }
 
@@ -40,16 +41,19 @@ export class MultiChainResolver implements ChainResolver {
 
   async resolveChains(argv: ChainMap<any>): Promise<ChainName[]> {
     switch (this.mode) {
+      case ChainSelectionMode.STRATEGY:
       case ChainSelectionMode.WARP_CONFIG:
         return this.resolveWarpRouteConfigChains(argv);
       case ChainSelectionMode.WARP_APPLY:
         return this.resolveWarpApplyChains(argv);
+      case ChainSelectionMode.WARP_REBALANCER:
+        return this.resolveWarpRebalancerChains(argv);
       case ChainSelectionMode.AGENT_KURTOSIS:
         return this.resolveAgentChains(argv);
-      case ChainSelectionMode.STRATEGY:
-        return this.resolveStrategyChains(argv);
       case ChainSelectionMode.CORE_APPLY:
         return this.resolveCoreApplyChains(argv);
+      case ChainSelectionMode.CORE_DEPLOY:
+        return this.resolveCoreDeployChains(argv);
       case ChainSelectionMode.DEFAULT:
       default:
         return this.resolveRelayerChains(argv);
@@ -95,6 +99,21 @@ export class MultiChainResolver implements ChainResolver {
     return argv.context.chains;
   }
 
+  private async resolveWarpRebalancerChains(
+    argv: Record<string, any>,
+  ): Promise<ChainName[]> {
+    // Load rebalancer config to get the configured chains
+    const rebalancerConfig = RebalancerConfig.load(argv.config);
+
+    // Extract chain names from the rebalancer config's strategy.chains
+    // This ensures we only create signers for chains we can actually rebalance
+    const chains = Object.keys(rebalancerConfig.strategyConfig.chains);
+
+    assert(chains.length !== 0, 'No chains configured in rebalancer config');
+
+    return chains;
+  }
+
   private async resolveAgentChains(
     argv: Record<string, any>,
   ): Promise<ChainName[]> {
@@ -118,13 +137,6 @@ export class MultiChainResolver implements ChainResolver {
     return [argv.origin, ...argv.targets];
   }
 
-  private async resolveStrategyChains(
-    argv: Record<string, any>,
-  ): Promise<ChainName[]> {
-    const strategy = await readChainSubmissionStrategyConfig(argv.strategy);
-    return extractChainsFromObj(strategy);
-  }
-
   private async resolveRelayerChains(
     argv: Record<string, any>,
   ): Promise<ChainName[]> {
@@ -146,9 +158,14 @@ export class MultiChainResolver implements ChainResolver {
       return Array.from(new Set([...chains, ...additionalChains]));
     }
 
-    // If no destination is specified, return all EVM chains
+    // If no destination is specified, return all EVM chains only
     if (!argv.destination) {
-      return Array.from(this.getEvmChains(multiProvider));
+      const chains = multiProvider.getKnownChainNames();
+
+      return chains.filter(
+        (chain: string) =>
+          ProtocolType.Ethereum === multiProvider.getProtocol(chain),
+      );
     }
 
     chains.add(argv.destination);
@@ -172,17 +189,26 @@ export class MultiChainResolver implements ChainResolver {
         addresses,
       ) as DeployedCoreAddresses;
 
-      const evmCoreModule = new EvmCoreModule(argv.context.multiProvider, {
-        chain: argv.chain,
-        config,
-        addresses: coreAddresses,
-      });
+      const protocolType = argv.context.multiProvider.getProtocol(argv.chain);
 
-      const transactions = await evmCoreModule.update(config);
+      switch (protocolType) {
+        case ProtocolType.Ethereum: {
+          const evmCoreModule = new EvmCoreModule(argv.context.multiProvider, {
+            chain: argv.chain,
+            config,
+            addresses: coreAddresses,
+          });
 
-      return Array.from(new Set(transactions.map((tx) => tx.chainId))).map(
-        (chainId) => argv.context.multiProvider.getChainName(chainId),
-      );
+          const transactions = await evmCoreModule.update(config);
+
+          return Array.from(new Set(transactions.map((tx) => tx.chainId))).map(
+            (chainId) => argv.context.multiProvider.getChainName(chainId),
+          );
+        }
+        default: {
+          return [argv.chain];
+        }
+      }
     } catch (error) {
       throw new Error(`Failed to resolve core apply chains`, {
         cause: error,
@@ -190,12 +216,38 @@ export class MultiChainResolver implements ChainResolver {
     }
   }
 
-  private getEvmChains(multiProvider: MultiProvider): ChainName[] {
-    const chains = multiProvider.getKnownChainNames();
+  private async resolveCoreDeployChains(
+    argv: Record<string, any>,
+  ): Promise<ChainName[]> {
+    try {
+      const { chainMetadata, registry, skipConfirmation } = argv.context;
 
-    return chains.filter(
-      (chain) => multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
-    );
+      let chain: string;
+
+      if (argv.chain) {
+        chain = argv.chain;
+      } else {
+        if (skipConfirmation) throw new Error('No chain provided');
+        chain = await runSingleChainSelectionStep(
+          chainMetadata,
+          'Select chain to connect:',
+        );
+      }
+      if (!skipConfirmation) {
+        argv.context.apiKeys = await requestAndSaveApiKeys(
+          [chain],
+          chainMetadata,
+          registry,
+        );
+      }
+
+      argv.chain = chain;
+      return [chain];
+    } catch (error) {
+      throw new Error(`Failed to resolve core deploy chains`, {
+        cause: error,
+      });
+    }
   }
 
   static forAgentKurtosis(): MultiChainResolver {
@@ -217,8 +269,16 @@ export class MultiChainResolver implements ChainResolver {
     return new MultiChainResolver(ChainSelectionMode.WARP_APPLY);
   }
 
+  static forWarpRebalancer(): MultiChainResolver {
+    return new MultiChainResolver(ChainSelectionMode.WARP_REBALANCER);
+  }
+
   static forCoreApply(): MultiChainResolver {
     return new MultiChainResolver(ChainSelectionMode.CORE_APPLY);
+  }
+
+  static forCoreDeploy(): MultiChainResolver {
+    return new MultiChainResolver(ChainSelectionMode.CORE_DEPLOY);
   }
 
   static default(): MultiChainResolver {

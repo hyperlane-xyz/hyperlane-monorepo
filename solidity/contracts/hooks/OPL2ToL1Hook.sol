@@ -20,7 +20,6 @@ import {AbstractMessageIdAuthorizedIsm} from "../isms/hook/AbstractMessageIdAuth
 import {StandardHookMetadata} from "./libs/StandardHookMetadata.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
-import {InterchainGasPaymaster} from "./igp/InterchainGasPaymaster.sol";
 
 // ============ External Imports ============
 import {ICrossDomainMessenger} from "../interfaces/optimism/ICrossDomainMessenger.sol";
@@ -59,7 +58,7 @@ contract OPL2ToL1Hook is AbstractMessageIdAuthHook {
 
     /// @inheritdoc IPostDispatchHook
     function hookType() external pure override returns (uint8) {
-        return uint8(IPostDispatchHook.Types.OP_L2_TO_L1);
+        return uint8(IPostDispatchHook.HookTypes.OP_L2_TO_L1);
     }
 
     /// @inheritdoc AbstractPostDispatchHook

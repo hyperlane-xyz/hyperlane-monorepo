@@ -6,7 +6,8 @@
     "name": "Turbo USD",
     "symbol": "tUSD",
     "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/71b97e47ffe47348b2ea9cb1bde344ca78daea50/deployments/warp_routes/tUSD/metadata.json",
-    "interchainGasPaymaster": "3Wp4qKkgf4tjXz1soGyTSndCgBPLZFSrZkiDZ8Qp9EEj"
+    "interchainGasPaymaster": "3Wp4qKkgf4tjXz1soGyTSndCgBPLZFSrZkiDZ8Qp9EEj",
+    "owner": "AU4NKGYw4EnKSruxfFQaN3JhjjCQZpVnt6CJepmkxnU"
   },
   "ethereum": {
     "type": "collateral",
