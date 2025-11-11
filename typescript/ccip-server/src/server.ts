@@ -14,6 +14,7 @@ import { HealthService } from './services/HealthService.js';
 import { OPStackService } from './services/OPStackService.js';
 import {
   PrometheusMetrics,
+  UnhandledErrorReason,
   startPrometheusServer,
 } from './utils/prometheus.js';
 
@@ -76,10 +77,14 @@ async function startServer() {
         {
           moduleName: name,
           error,
+          error_reason: UnhandledErrorReason.MODULE_INITIALIZATION_FAILED,
         },
         'Error initializing module',
       );
-      PrometheusMetrics.logUnhandledError(name);
+      PrometheusMetrics.logUnhandledError(
+        name,
+        UnhandledErrorReason.MODULE_INITIALIZATION_FAILED,
+      );
       throw error;
     }
   }
