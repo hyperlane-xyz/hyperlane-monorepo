@@ -221,13 +221,13 @@ jobs:
           if [ -n "$EXISTING_PR" ]; then
             echo "Updating existing PR #$EXISTING_PR"
             gh pr edit "$EXISTING_PR" \
-              --title "release: agents v${NEW_VERSION}" \
+              --title "chore: release agents v${NEW_VERSION}" \
               --body "$PR_BODY"
             echo "Updated PR: $(gh pr view $EXISTING_PR --json url --jq .url)"
           else
             echo "Creating new draft PR"
             gh pr create \
-              --title "release: agents v${NEW_VERSION}" \
+              --title "chore: release agents v${NEW_VERSION}" \
               --body "$PR_BODY" \
               --base main \
               --head "$BRANCH_NAME" \
