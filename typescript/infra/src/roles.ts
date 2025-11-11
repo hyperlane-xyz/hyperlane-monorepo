@@ -36,6 +36,7 @@ export enum TurnkeyRole {
 
   // EVM operational roles
   EvmDeployer = 'evm-deployer',
+  EvmLegacyDeployer = 'evm-legacy-deployer',
   EvmRebalancer = 'evm-rebalancer',
   EvmIgpClaimer = 'evm-igp-claimer',
   EvmIgpUpdater = 'evm-igp-updater',

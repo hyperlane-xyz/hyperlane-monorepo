@@ -108,6 +108,7 @@ export async function createTurnkeySigner(
         signer = new TurnkeySealevelSigner(turnkeyConfig);
         break;
       case TurnkeyRole.EvmDeployer:
+      case TurnkeyRole.EvmLegacyDeployer:
       case TurnkeyRole.EvmRebalancer:
       case TurnkeyRole.EvmIgpClaimer:
       case TurnkeyRole.EvmIgpUpdater:

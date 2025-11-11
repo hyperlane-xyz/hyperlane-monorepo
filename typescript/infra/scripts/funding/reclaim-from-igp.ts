@@ -66,7 +66,7 @@ async function main() {
   await setTurnkeySignerForEvmChains(
     multiProvider,
     environment,
-    TurnkeyRole.EvmIgpClaimer,
+    TurnkeyRole.EvmLegacyDeployer,
   );
 
   const igp = HyperlaneIgp.fromAddressesMap(
