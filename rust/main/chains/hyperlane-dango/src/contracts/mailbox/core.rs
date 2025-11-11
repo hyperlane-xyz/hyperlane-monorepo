@@ -36,14 +36,13 @@ hyperlane_contract!(DangoMailbox);
 #[async_trait]
 impl Mailbox for DangoMailbox {
     async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
+        self.provider.validate_reorg_period(reorg_period).await?;
         Ok(self
             .provider
             .query_wasm_smart(
                 self.address.try_convert()?,
                 mailbox::QueryNonceRequest {},
-                self.provider
-                    .get_block_height_by_reorg_period(reorg_period)
-                    .await?,
+                None,
             )
             .await?)
     }

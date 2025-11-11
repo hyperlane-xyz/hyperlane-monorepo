@@ -1,9 +1,9 @@
 use {
     super::DangoMerkleTree,
-    crate::{DangoConvertor, ExecutionBlock, SearchLog, SearchTxOutcomeExt, TryDangoConvertor},
+    crate::{DangoConvertor, SearchLog, SearchTxOutcomeExt, TryDangoConvertor},
     async_trait::async_trait,
     dango_hyperlane_types::mailbox::PostDispatch,
-    grug::{BlockClient, SearchTxClient},
+    grug::SearchTxClient,
     hyperlane_core::{
         ChainResult, HyperlaneContract, Indexed, Indexer, LogMeta, MerkleTreeInsertion,
         SequenceAwareIndexer, H512,
@@ -28,7 +28,7 @@ impl Indexer<MerkleTreeInsertion> for DangoMerkleTree {
 
     /// Get the chain's latest block number that has reached finality
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        Ok(self.provider.query_block(None).await?.info.height as u32)
+        Ok(self.provider.latest_block().await? as u32)
     }
 
     /// Fetch list of logs emitted in a transaction with the given hash.
@@ -54,10 +54,7 @@ fn search_fn(event: PostDispatch) -> Indexed<MerkleTreeInsertion> {
 impl SequenceAwareIndexer<MerkleTreeInsertion> for DangoMerkleTree {
     /// Return the latest finalized sequence (if any) and block number
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let last_height = self.provider.query_block(None).await?.info.height;
-        let (_, dango_tree) = self
-            .dango_tree(ExecutionBlock::Defined(last_height))
-            .await?;
+        let (dango_tree, last_height) = self.dango_tree_with_height().await?;
 
         return Ok((Some(dango_tree.count as u32), last_height as u32));
     }

@@ -6,7 +6,7 @@ use {
         crate::{DangoConvertor, SearchLog, TryDangoConvertor},
         async_trait::async_trait,
         dango_hyperlane_types::mailbox,
-        grug::{BlockClient, Inner, QueryClientExt, SearchTxClient},
+        grug::{Inner, SearchTxClient},
         hyperlane_core::{
             ChainResult, HyperlaneContract, HyperlaneMessage, Indexed, Indexer, LogMeta,
             SequenceAwareIndexer, H256, H512,
@@ -36,7 +36,7 @@ impl Indexer<HyperlaneMessage> for DangoMailbox {
 
     /// Get the chain's latest block number that has reached finality
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        Ok(self.provider.latest_block().await?)
+        Ok(self.provider.latest_block().await? as u32)
     }
 
     /// Fetch list of logs emitted in a transaction with the given hash.
@@ -57,13 +57,11 @@ impl Indexer<HyperlaneMessage> for DangoMailbox {
 #[async_trait]
 impl SequenceAwareIndexer<HyperlaneMessage> for DangoMailbox {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let last_height = self.provider.query_block(None).await?.info.height;
-        let nonce = self
+        let (nonce, last_height) = self
             .provider
-            .query_wasm_smart(
+            .query_wasm_smart_with_height(
                 self.address().try_convert()?,
                 mailbox::QueryNonceRequest {},
-                Some(last_height),
             )
             .await?;
         Ok((Some(nonce), last_height as u32))
@@ -102,7 +100,7 @@ impl Indexer<Delivery> for DangoMailbox {
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        Ok(self.provider.latest_block().await?)
+        Ok(self.provider.latest_block().await? as u32)
     }
 
     async fn fetch_logs_by_tx_hash(
@@ -122,10 +120,8 @@ impl Indexer<Delivery> for DangoMailbox {
 #[async_trait]
 impl SequenceAwareIndexer<Delivery> for DangoMailbox {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let last_height = self.provider.query_block(None).await?.info.height;
-
         // No sequence for message deliveries.
-        Ok((None, last_height as u32))
+        Ok((None, self.provider.latest_block().await? as u32))
     }
 }
 

@@ -1,7 +1,7 @@
 use {
     crate::{
         BlockLogs, ClientWrapper, ConnectionConf, DangoConvertor, DangoError, DangoResult,
-        DangoSigner, ExecutionBlock, TryDangoConvertor,
+        DangoSigner, TryDangoConvertor,
     },
     anyhow::anyhow,
     async_trait::async_trait,
@@ -10,8 +10,8 @@ use {
     grug::{
         Addr, Binary, Block, BlockClient, BlockOutcome, BroadcastClient, BroadcastClientExt,
         BroadcastTxOutcome, Defined, GasOption, Hash256, Inner, JsonDeExt, JsonSerExt, Message,
-        MsgExecute, NonEmpty, Query, QueryClient, QueryClientExt, QueryResponse, SearchTxClient,
-        SearchTxOutcome, Signer, Tx, TxOutcome, UnsignedTx,
+        MsgExecute, NonEmpty, Query, QueryClient, QueryClientExt, QueryRequest, QueryResponse,
+        SearchTxClient, SearchTxOutcome, Signer, Tx, TxOutcome, UnsignedTx,
     },
     grug_indexer_client::HttpClient,
     hyperlane_core::{
@@ -19,6 +19,7 @@ use {
         BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, HyperlaneChain,
         HyperlaneDomain, HyperlaneProvider, ReorgPeriod, TxnInfo, H256, H512, U256,
     },
+    serde::{de::DeserializeOwned, Serialize},
     std::{
         ops::{Deref, DerefMut, RangeInclusive},
         str::FromStr,
@@ -187,52 +188,64 @@ impl DangoProvider {
 
     // Utility
 
-    /// Get the block height for a given reorg period.
-    pub async fn get_block_height_by_reorg_period(
-        &self,
-        reorg_period: &ReorgPeriod,
-    ) -> ChainResult<Option<u64>> {
-        let block_height = match reorg_period {
-            ReorgPeriod::Blocks(blocks) => {
-                let last_block = self.query_block(None).await?;
-                let block_height = last_block
-                    .info
-                    .height
-                    .checked_sub(blocks.get() as u64)
-                    .ok_or(DangoError::ReorgPeriodTooLarge {
-                        current_block_height: last_block.info.height,
-                        reorg_period: blocks.get() as u64,
-                    })?;
-                Some(block_height)
-            }
-            ReorgPeriod::None => None,
-            ReorgPeriod::Tag(_) => {
-                return Err(anyhow::anyhow!(
-                    "Tag reorg period is not supported in Dango MerkleTreeHook"
-                )
-                .into())
-            }
-        };
+    /// Validate the reorg period.
+    pub async fn validate_reorg_period(&self, reorg_period: &ReorgPeriod) -> ChainResult<()> {
+        // Currently we support only None reorg period
 
-        Ok(block_height)
-    }
-
-    /// Get the block height for a given execution block.
-    pub async fn get_block_height_by_execution_block(
-        &self,
-        execution_block: ExecutionBlock,
-    ) -> ChainResult<Option<u64>> {
-        match execution_block {
-            ExecutionBlock::ReorgPeriod(reorg_period) => {
-                self.get_block_height_by_reorg_period(&reorg_period).await
-            }
-            ExecutionBlock::Defined(height) => Ok(Some(height)),
+        if let ReorgPeriod::None = reorg_period {
+            return Ok(());
+        } else {
+            return Err(DangoError::InvalidReorgPeriod(reorg_period.clone()).into());
         }
+
+        // let block_height = match reorg_period {
+        //     ReorgPeriod::Blocks(blocks) => {
+        //         let last_block = self.latest_block().await?;
+        //         let block_height = last_block.checked_sub(blocks.get() as u64).ok_or(
+        //             DangoError::ReorgPeriodTooLarge {
+        //                 current_block_height: last_block,
+        //                 reorg_period: blocks.get() as u64,
+        //             },
+        //         )?;
+        //         Some(block_height)
+        //     }
+        //     ReorgPeriod::None => None,
+        //     ReorgPeriod::Tag(_) => {
+        //         return Err(anyhow::anyhow!(
+        //             "Tag reorg period is not supported in Dango MerkleTreeHook"
+        //         )
+        //         .into())
+        //     }
+        // };
     }
 
     /// Get the latest block number
-    pub async fn latest_block(&self) -> ChainResult<u32> {
-        self.query_block(None).await.map(|b| b.info.height as u32)
+    pub async fn latest_block(&self) -> ChainResult<u64> {
+        self.query_status(None)
+            .await
+            .map(|res| res.last_finalized_block.height)
+    }
+
+    pub async fn query_wasm_smart_with_height<R>(
+        &self,
+        contract: Addr,
+        req: R,
+    ) -> ChainResult<(R::Response, u64)>
+    where
+        R: QueryRequest + Send,
+        R::Message: Serialize + Send,
+        R::Response: DeserializeOwned,
+    {
+        let msg = R::Message::from(req);
+
+        let [wasm_smart_response, status_response] = self
+            .query_multi([Query::wasm_smart(contract, &msg)?, Query::status()], None)
+            .await?;
+
+        Ok((
+            wasm_smart_response?.as_wasm_smart().deserialize_json()?,
+            status_response?.as_status().last_finalized_block.height,
+        ))
     }
 }
 

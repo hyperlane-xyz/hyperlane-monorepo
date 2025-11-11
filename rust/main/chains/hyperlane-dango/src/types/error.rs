@@ -35,6 +35,9 @@ pub enum DangoError {
 
     #[error("cron event not found")]
     CronEvtNotFound {},
+
+    #[error("invalid reorg period, dango only supports `none`reorg period: {0:?}")]
+    InvalidReorgPeriod(hyperlane_core::ReorgPeriod),
 }
 
 impl DangoError {

@@ -1,7 +1,7 @@
 use {
     crate::{
         hyperlane_contract, ConnectionConf, DangoConvertor, DangoProvider, DangoResult,
-        DangoSigner, ExecutionBlock, TryDangoConvertor,
+        DangoSigner, TryDangoConvertor,
     },
     anyhow::anyhow,
     async_trait::async_trait,
@@ -29,7 +29,8 @@ hyperlane_contract!(DangoMerkleTree);
 #[async_trait]
 impl MerkleTreeHook for DangoMerkleTree {
     async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkleAtBlock> {
-        let (block_height, dango_tree) = self.dango_tree(reorg_period.clone().into()).await?;
+        self.provider.validate_reorg_period(reorg_period).await?;
+        let (dango_tree, block_height) = self.dango_tree_with_height().await?;
 
         let tree = IncrementalMerkle::new(
             dango_tree
@@ -44,19 +45,24 @@ impl MerkleTreeHook for DangoMerkleTree {
             dango_tree.count as usize,
         );
 
-        Ok(IncrementalMerkleAtBlock { tree, block_height })
+        Ok(IncrementalMerkleAtBlock {
+            tree,
+            block_height: block_height.into(),
+        })
     }
 
     #[tracing::instrument("merkle_tree_hook::count", skip_all)]
     async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
-        Ok(self.dango_tree(reorg_period.clone().into()).await?.1.count as u32)
+        self.provider.validate_reorg_period(reorg_period).await?;
+        Ok(self.dango_tree().await?.count as u32)
     }
 
     async fn latest_checkpoint(
         &self,
         reorg_period: &ReorgPeriod,
     ) -> ChainResult<CheckpointAtBlock> {
-        let (block_height, dango_tree) = self.dango_tree(reorg_period.clone().into()).await?;
+        self.provider.validate_reorg_period(reorg_period).await?;
+        let (dango_tree, block_height) = self.dango_tree_with_height().await?;
         let index = if dango_tree.count == 0 {
             0
         } else {
@@ -70,11 +76,13 @@ impl MerkleTreeHook for DangoMerkleTree {
                 root: dango_tree.root().convert(),
                 index: index as u32,
             },
-            block_height,
+            block_height: Some(block_height),
         })
     }
 
-    async fn latest_checkpoint_at_block(&self, height: u64) -> ChainResult<CheckpointAtBlock> {
+    async fn latest_checkpoint_at_block(&self, _height: u64) -> ChainResult<CheckpointAtBlock> {
+        // TODO: We don't support querying at a specific block height, so the latest checkpoint will be returned.
+
         let addr = self.address.try_convert()?;
         let res = self
             .provider
@@ -82,12 +90,13 @@ impl MerkleTreeHook for DangoMerkleTree {
                 [
                     Query::wasm_smart(addr, &mailbox::QueryMsg::Nonce {})?,
                     Query::wasm_smart(addr, &mailbox::QueryMsg::Tree {})?,
+                    Query::status(),
                 ],
-                Some(height),
+                None,
             )
             .await?;
 
-        let [nonce, tree] = parse_response(res)?;
+        let [nonce, tree, status] = parse_response(res)?;
         let nonce: u32 = nonce.as_wasm_smart().deserialize_json()?;
         let tree: DangoIncrementalMerkleTree = tree.as_wasm_smart().deserialize_json()?;
 
@@ -98,7 +107,7 @@ impl MerkleTreeHook for DangoMerkleTree {
                 root: tree.root().convert(),
                 index: nonce,
             },
-            block_height: Some(height),
+            block_height: Some(status.as_status().last_finalized_block.height),
         })
     }
 }
@@ -138,28 +147,15 @@ impl DangoMerkleTree {
         })
     }
 
-    /// Query the chain and return the DangoTree (same as IncrementalMerkleTree
-    /// but with different values types).
-    pub async fn dango_tree(
-        &self,
-        execution_block: ExecutionBlock,
-    ) -> ChainResult<(Option<u64>, DangoIncrementalMerkleTree)> {
-        let block_height = self
-            .provider
-            .get_block_height_by_execution_block(execution_block)
-            .await?;
+    pub async fn dango_tree(&self) -> ChainResult<DangoIncrementalMerkleTree> {
+        self.provider
+            .query_wasm_smart(self.address.try_convert()?, QueryTreeRequest {}, None)
+            .await
+    }
 
-        let tree = self
-            .provider
-            .query_wasm_smart(
-                self.address.try_convert()?,
-                QueryTreeRequest {},
-                block_height,
-            )
-            .await?;
-
-        tracing::info!("block height: {:?} - count: {:?}", block_height, tree.count);
-
-        Ok((block_height, tree))
+    pub async fn dango_tree_with_height(&self) -> ChainResult<(DangoIncrementalMerkleTree, u64)> {
+        self.provider
+            .query_wasm_smart_with_height(self.address.try_convert()?, QueryTreeRequest {})
+            .await
     }
 }

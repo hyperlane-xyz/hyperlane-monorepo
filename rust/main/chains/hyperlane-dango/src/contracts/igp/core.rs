@@ -1,7 +1,6 @@
 use {
     crate::{ConnectionConf, DangoProvider, DangoResult},
     async_trait::async_trait,
-    grug::BlockClient,
     hyperlane_core::{ChainResult, HyperlaneDomain, InterchainGasPayment, SequenceAwareIndexer},
 };
 
@@ -21,7 +20,9 @@ impl DangoIGP {
 #[async_trait]
 impl SequenceAwareIndexer<InterchainGasPayment> for DangoIGP {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let height = self.provider.query_block(None).await?.info.height;
+        let height = self
+            .provider
+            .latest_block().await?;
         Ok((None, height as u32))
     }
 }
