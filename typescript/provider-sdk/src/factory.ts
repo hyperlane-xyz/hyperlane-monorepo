@@ -1,8 +1,9 @@
 import { IProvider, ISigner } from './altvm.js';
+import { ArtifactProvider } from './artifact.js';
 import { ChainMetadataForAltVM } from './chain.js';
 import { HookConfig } from './hook.js';
 import { IsmConfig } from './ism.js';
-import { AnnotatedTx, HypModuleFactory, TxReceipt } from './module.js';
+import { AnnotatedTx, TxReceipt } from './module.js';
 import {
   ITransactionSubmitter,
   JsonRpcSubmitterConfig,
@@ -19,24 +20,24 @@ export type SignerConfig = Pick<
  * Interface describing the artifacts that should be implemented in a specific protocol
  * implementation
  */
-export interface IProtocolProviderFactory {
-  getProvider(chainMetadata: ChainMetadataForAltVM): Promise<IProvider>;
-  getSigner(
+export interface ProtocolProvider {
+  createProvider(chainMetadata: ChainMetadataForAltVM): Promise<IProvider>;
+  createSigner(
     chainMetadata: ChainMetadataForAltVM,
     config: SignerConfig,
   ): Promise<ISigner<AnnotatedTx, TxReceipt>>;
-  getSubmitter(
+  createSubmitter<TConfig extends TransactionSubmitterConfig>(
     chainMetadata: ChainMetadataForAltVM,
-    config: TransactionSubmitterConfig<never>,
+    config: TConfig,
   ): Promise<ITransactionSubmitter>;
-  registerSubmitterFactory(
+  registerSubmitterFactory<TConfig extends TransactionSubmitterConfig>(
     type: string,
     factory: (
       chainMetadata: ChainMetadataForAltVM,
-      config: TransactionSubmitterConfig<never>,
+      config: TConfig,
     ) => Promise<ITransactionSubmitter>,
   ): void;
-  ismFactory(): HypModuleFactory<IsmConfig, { ismAddress: string }>;
-  hookFactory(): HypModuleFactory<HookConfig, { hookAddress: string }>;
-  tokenRouterFactory(): HypModuleFactory<WarpConfig, { tokenAddress: string }>;
+  ismProvider(): ArtifactProvider<IsmConfig, { ismAddress: string }>;
+  hookProvider(): ArtifactProvider<HookConfig, { hookAddress: string }>;
+  tokenRouterProvider(): ArtifactProvider<WarpConfig, { tokenAddress: string }>;
 }
