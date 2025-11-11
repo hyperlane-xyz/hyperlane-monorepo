@@ -19,19 +19,20 @@ function withForce<T>(args: any) {
     .default('force', false);
 }
 
-type ReclaimStatus =
-  | 'SUCCESS'
-  | 'BELOW_THRESHOLD'
-  | 'INSUFFICIENT_FOR_GAS'
-  | 'NO_GAS_PRICE'
-  | 'ERROR';
+const ReclaimStatus = {
+  SUCCESS: 'SUCCESS',
+  BELOW_THRESHOLD: 'BELOW_THRESHOLD',
+  INSUFFICIENT_FOR_GAS: 'INSUFFICIENT_FOR_GAS',
+  NO_GAS_PRICE: 'NO_GAS_PRICE',
+  ERROR: 'ERROR',
+} as const;
+type ReclaimStatus = (typeof ReclaimStatus)[keyof typeof ReclaimStatus];
 
 interface ReclaimResult {
   chain: string;
   balance: string;
   threshold: string;
   status: ReclaimStatus;
-  result: string;
 }
 
 // Format to 5 significant figures
@@ -106,8 +107,7 @@ async function main() {
             chain,
             balance: formatTo5SF(formattedBalance),
             threshold: formatTo5SF(thresholdStr),
-            status: 'BELOW_THRESHOLD' as ReclaimStatus,
-            result: '-',
+            status: ReclaimStatus.BELOW_THRESHOLD,
           };
         }
 
@@ -122,8 +122,7 @@ async function main() {
             chain,
             balance: formatTo5SF(formattedBalance),
             threshold: formatTo5SF(thresholdStr),
-            status: 'NO_GAS_PRICE' as ReclaimStatus,
-            result: '-',
+            status: ReclaimStatus.NO_GAS_PRICE,
           };
         }
 
@@ -136,20 +135,20 @@ async function main() {
             chain,
             balance: formatTo5SF(formattedBalance),
             threshold: formatTo5SF(thresholdStr),
-            status: 'INSUFFICIENT_FOR_GAS' as ReclaimStatus,
-            result: '-',
+            status: ReclaimStatus.INSUFFICIENT_FOR_GAS,
           };
         }
 
+        console.log(`Claiming from IGP on ${chain}...`);
         const tx = await paymaster.claim();
         const explorerUrl = multiProvider.tryGetExplorerTxUrl(chain, tx);
+        console.log(`  ✓ ${explorerUrl || tx.hash}`);
 
         return {
           chain,
           balance: formatTo5SF(formattedBalance),
           threshold: formatTo5SF(thresholdStr),
-          status: 'SUCCESS' as ReclaimStatus,
-          result: explorerUrl || tx.hash,
+          status: ReclaimStatus.SUCCESS,
         };
       } catch (error) {
         const provider = multiProvider.getProvider(chain);
@@ -162,13 +161,13 @@ async function main() {
 
         const errorMsg = error instanceof Error ? error.message : String(error);
         // Extract just the key error info, not the full stack
-        const shortError = errorMsg.split('\n')[0].substring(0, 80);
+        const shortError = errorMsg.split('\n')[0];
+        console.log(`  ✗ ${chain}: ${shortError}`);
         return {
           chain,
           balance,
           threshold: formatTo5SF(thresholdStr),
-          status: 'ERROR' as ReclaimStatus,
-          result: shortError,
+          status: ReclaimStatus.ERROR,
         };
       }
     }),
@@ -179,21 +178,41 @@ async function main() {
     if (result) results.push(result);
   });
 
-  // Create table-friendly format
-  const tableData = results.map((r) => ({
-    chain: r.chain,
-    balance: r.balance,
-    threshold: r.threshold,
-    status: r.status,
-    result: r.result,
-  }));
+  // Only show chains with interesting statuses in the table
+  const interestingResults = results.filter(
+    (r) => r.status !== ReclaimStatus.BELOW_THRESHOLD,
+  );
 
-  console.table(tableData);
+  if (interestingResults.length > 0) {
+    console.log('\n=== Summary ===\n');
+    const tableData = interestingResults.map((r) => ({
+      chain: r.chain,
+      balance: r.balance,
+      threshold: r.threshold,
+      status: r.status,
+    }));
+    console.table(tableData);
+  }
 
-  const successCount = results.filter((r) => r.status === 'SUCCESS').length;
+  const successCount = results.filter(
+    (r) => r.status === ReclaimStatus.SUCCESS,
+  ).length;
+  const errorCount = results.filter(
+    (r) => r.status === ReclaimStatus.ERROR,
+  ).length;
+  const belowThresholdCount = results.filter(
+    (r) => r.status === ReclaimStatus.BELOW_THRESHOLD,
+  ).length;
+
   console.log(`\n✓ Successfully claimed from ${successCount} chain(s)`);
+  if (errorCount > 0) {
+    console.log(`✗ ${errorCount} chain(s) encountered errors`);
+  }
+  if (belowThresholdCount > 0) {
+    console.log(`- ${belowThresholdCount} chain(s) below threshold (skipped)`);
+  }
   if (force) {
-    console.log('   (--force mode: bypassed threshold and gas checks)');
+    console.log('\n(--force mode: bypassed threshold and gas checks)');
   }
 }
 
