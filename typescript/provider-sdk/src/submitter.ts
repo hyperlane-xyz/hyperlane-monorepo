@@ -1,27 +1,28 @@
 import { AnnotatedTx, TxReceipt } from './module.js';
 
-// By default each VM implementation should at least define a JSON rpc submitter
-export const TransactionSubmitterType = {
-  JSON_RPC: 'jsonRpc',
-} as const;
+export interface TransactionSubmitterConfigs {
+  jsonRpc: JsonRpcSubmitterConfig;
+  file: FileSubmitterConfig;
+}
 
-export type TransactionSubmitterType =
-  (typeof TransactionSubmitterType)[keyof typeof TransactionSubmitterType];
+export type TransactionSubmitterType = keyof TransactionSubmitterConfigs;
+export type TransactionSubmitterConfig =
+  TransactionSubmitterConfigs[TransactionSubmitterType];
 
-export interface JsonRpcSubmitterConfig {
-  type: typeof TransactionSubmitterType.JSON_RPC;
+interface BaseSubmitterConfig<T extends keyof TransactionSubmitterConfigs> {
+  type: T;
+  chain: string;
+}
+
+export interface JsonRpcSubmitterConfig extends BaseSubmitterConfig<'jsonRpc'> {
   privateKey: string;
   accountAddress?: string;
 }
 
-export type TransactionSubmitterConfig<T extends { type: string }> =
-  | JsonRpcSubmitterConfig
-  | T;
+export interface FileSubmitterConfig extends BaseSubmitterConfig<'file'> {
+  filepath: string;
+}
 
-export interface ITransactionSubmitter<
-  TSubmitterType extends string = TransactionSubmitterType,
-> {
-  type: TSubmitterType;
-
+export interface ITransactionSubmitter {
   submit(...transactions: AnnotatedTx[]): Promise<TxReceipt[]>;
 }
