@@ -884,6 +884,12 @@ export {
   MultiProtocolSignerSignerAccountInfo,
 } from './signers/signers.js';
 export {
+  TurnkeyClientManager,
+  TurnkeyConfig,
+} from './signers/utils/turnkey-client.js';
+export { TurnkeyEvmSigner } from './signers/evm/turnkey.js';
+export { TurnkeySealevelSigner } from './signers/svm/turnkey.js';
+export {
   SvmTransactionSigner,
   KeypairSvmTransactionSigner,
   SvmMultiProtocolSignerAdapter,
