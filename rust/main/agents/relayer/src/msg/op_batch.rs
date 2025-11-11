@@ -171,7 +171,7 @@ mod tests {
     use crate::{
         merkle_tree::builder::MerkleTreeBuilder,
         msg::{
-            db_loader::test::{dummy_cache_metrics, DummyApplicationOperationVerifier},
+            db_loader::tests::{dummy_cache_metrics, DummyApplicationOperationVerifier},
             gas_payment::GasPaymentEnforcer,
             metadata::{
                 BaseMetadataBuilder, DefaultIsmCache, IsmAwareAppContextClassifier,

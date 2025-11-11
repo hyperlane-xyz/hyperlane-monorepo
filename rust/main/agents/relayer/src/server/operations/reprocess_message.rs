@@ -185,7 +185,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        msg::db_loader::test::dummy_cache_metrics,
+        msg::db_loader::tests::dummy_cache_metrics,
         test_utils::dummy_data::{dummy_message_context, dummy_metadata_builder},
     };
 
