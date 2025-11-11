@@ -21,7 +21,7 @@ use lander::{
     PayloadUuid, TransactionDropReason, TransactionStatus,
 };
 
-use super::super::has_operation_been_submitted;
+use super::super::{operation_disposition_by_payload_status, OperationDisposition};
 
 // Mock QueueOperation for testing
 #[derive(Debug, Serialize)]
@@ -247,7 +247,7 @@ mock! {
 }
 
 #[tokio::test]
-async fn test_has_operation_been_submitted_db_error() {
+async fn test_operation_disposition_by_payload_status_db_error() {
     let mut mock_db = MockHyperlaneDb::new();
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
 
@@ -267,18 +267,21 @@ async fn test_has_operation_been_submitted_db_error() {
 
     let op = Box::new(MockQueueOperation { id: message_id }) as QueueOperation;
 
-    let result = has_operation_been_submitted(
+    let result = operation_disposition_by_payload_status(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
         &op,
     )
     .await;
 
-    assert!(!result, "Should return false when db returns error");
+    assert!(
+        matches!(result, OperationDisposition::Prepare),
+        "Should return Prepare when db returns error"
+    );
 }
 
 #[tokio::test]
-async fn test_has_operation_been_submitted_no_payload_uuids() {
+async fn test_operation_disposition_by_payload_status_no_payload_uuids() {
     let mut mock_db = MockHyperlaneDb::new();
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
 
@@ -294,18 +297,21 @@ async fn test_has_operation_been_submitted_no_payload_uuids() {
 
     let op = Box::new(MockQueueOperation { id: message_id }) as QueueOperation;
 
-    let result = has_operation_been_submitted(
+    let result = operation_disposition_by_payload_status(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
         &op,
     )
     .await;
 
-    assert!(!result, "Should return false when no payload UUIDs exist");
+    assert!(
+        matches!(result, OperationDisposition::Prepare),
+        "Should return Prepare when no payload UUIDs exist"
+    );
 }
 
 #[tokio::test]
-async fn test_has_operation_been_submitted_empty_payload_uuids() {
+async fn test_operation_disposition_by_payload_status_empty_payload_uuids() {
     let mut mock_db = MockHyperlaneDb::new();
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
 
@@ -321,7 +327,7 @@ async fn test_has_operation_been_submitted_empty_payload_uuids() {
 
     let op = Box::new(MockQueueOperation { id: message_id }) as QueueOperation;
 
-    let result = has_operation_been_submitted(
+    let result = operation_disposition_by_payload_status(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
         &op,
@@ -329,13 +335,13 @@ async fn test_has_operation_been_submitted_empty_payload_uuids() {
     .await;
 
     assert!(
-        !result,
-        "Should return false when payload UUIDs list is empty"
+        matches!(result, OperationDisposition::Prepare),
+        "Should return Prepare when payload UUIDs list is empty"
     );
 }
 
 #[tokio::test]
-async fn test_has_operation_been_submitted_payload_dropped() {
+async fn test_operation_disposition_by_payload_status_payload_dropped() {
     let mut mock_db = MockHyperlaneDb::new();
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
 
@@ -358,7 +364,7 @@ async fn test_has_operation_been_submitted_payload_dropped() {
 
     let op = Box::new(MockQueueOperation { id: message_id }) as QueueOperation;
 
-    let result = has_operation_been_submitted(
+    let result = operation_disposition_by_payload_status(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
         &op,
@@ -366,13 +372,13 @@ async fn test_has_operation_been_submitted_payload_dropped() {
     .await;
 
     assert!(
-        !result,
-        "Should return false when payload status is Dropped"
+        matches!(result, OperationDisposition::Prepare),
+        "Should return Prepare when payload status is Dropped"
     );
 }
 
 #[tokio::test]
-async fn test_has_operation_been_submitted_transaction_dropped() {
+async fn test_operation_disposition_by_payload_status_transaction_dropped() {
     let mut mock_db = MockHyperlaneDb::new();
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
 
@@ -399,7 +405,7 @@ async fn test_has_operation_been_submitted_transaction_dropped() {
 
     let op = Box::new(MockQueueOperation { id: message_id }) as QueueOperation;
 
-    let result = has_operation_been_submitted(
+    let result = operation_disposition_by_payload_status(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
         &op,
@@ -407,13 +413,13 @@ async fn test_has_operation_been_submitted_transaction_dropped() {
     .await;
 
     assert!(
-        !result,
-        "Should return false when transaction status is Dropped"
+        matches!(result, OperationDisposition::Prepare),
+        "Should return Prepare when transaction status is Dropped"
     );
 }
 
 #[tokio::test]
-async fn test_has_operation_been_submitted_success_pending_inclusion() {
+async fn test_operation_disposition_by_payload_status_success_pending_inclusion() {
     let mut mock_db = MockHyperlaneDb::new();
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
 
@@ -440,7 +446,7 @@ async fn test_has_operation_been_submitted_success_pending_inclusion() {
 
     let op = Box::new(MockQueueOperation { id: message_id }) as QueueOperation;
 
-    let result = has_operation_been_submitted(
+    let result = operation_disposition_by_payload_status(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
         &op,
@@ -448,13 +454,13 @@ async fn test_has_operation_been_submitted_success_pending_inclusion() {
     .await;
 
     assert!(
-        result,
-        "Should return true when transaction is pending inclusion"
+        matches!(result, OperationDisposition::Confirm),
+        "Should return Confirm when transaction is pending inclusion"
     );
 }
 
 #[tokio::test]
-async fn test_has_operation_been_submitted_success_finalized() {
+async fn test_operation_disposition_by_payload_status_success_finalized() {
     let mut mock_db = MockHyperlaneDb::new();
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
 
@@ -477,18 +483,21 @@ async fn test_has_operation_been_submitted_success_finalized() {
 
     let op = Box::new(MockQueueOperation { id: message_id }) as QueueOperation;
 
-    let result = has_operation_been_submitted(
+    let result = operation_disposition_by_payload_status(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
         &op,
     )
     .await;
 
-    assert!(result, "Should return true when transaction is finalized");
+    assert!(
+        matches!(result, OperationDisposition::Confirm),
+        "Should return Confirm when transaction is finalized"
+    );
 }
 
 #[tokio::test]
-async fn test_has_operation_been_submitted_entrypoint_error() {
+async fn test_operation_disposition_by_payload_status_entrypoint_error() {
     let mut mock_db = MockHyperlaneDb::new();
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
 
@@ -511,18 +520,21 @@ async fn test_has_operation_been_submitted_entrypoint_error() {
 
     let op = Box::new(MockQueueOperation { id: message_id }) as QueueOperation;
 
-    let result = has_operation_been_submitted(
+    let result = operation_disposition_by_payload_status(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
         &op,
     )
     .await;
 
-    assert!(!result, "Should return false when entrypoint returns error");
+    assert!(
+        matches!(result, OperationDisposition::Prepare),
+        "Should return Prepare when entrypoint returns error"
+    );
 }
 
 #[tokio::test]
-async fn test_has_operation_been_submitted_multiple_payload_uuids() {
+async fn test_operation_disposition_by_payload_status_multiple_payload_uuids() {
     let mut mock_db = MockHyperlaneDb::new();
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
 
@@ -552,7 +564,7 @@ async fn test_has_operation_been_submitted_multiple_payload_uuids() {
 
     let op = Box::new(MockQueueOperation { id: message_id }) as QueueOperation;
 
-    let result = has_operation_been_submitted(
+    let result = operation_disposition_by_payload_status(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
         &op,
@@ -560,13 +572,13 @@ async fn test_has_operation_been_submitted_multiple_payload_uuids() {
     .await;
 
     assert!(
-        result,
-        "Should return true when checking first payload UUID in list"
+        matches!(result, OperationDisposition::Confirm),
+        "Should return Confirm when checking first payload UUID in list"
     );
 }
 
 #[tokio::test]
-async fn test_has_operation_been_submitted_ready_to_submit() {
+async fn test_operation_disposition_by_payload_status_ready_to_submit() {
     let mut mock_db = MockHyperlaneDb::new();
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
 
@@ -589,7 +601,7 @@ async fn test_has_operation_been_submitted_ready_to_submit() {
 
     let op = Box::new(MockQueueOperation { id: message_id }) as QueueOperation;
 
-    let result = has_operation_been_submitted(
+    let result = operation_disposition_by_payload_status(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
         &op,
@@ -597,13 +609,13 @@ async fn test_has_operation_been_submitted_ready_to_submit() {
     .await;
 
     assert!(
-        result,
-        "Should return true when payload status is ReadyToSubmit"
+        matches!(result, OperationDisposition::Confirm),
+        "Should return Confirm when payload status is ReadyToSubmit"
     );
 }
 
 #[tokio::test]
-async fn test_has_operation_been_submitted_retry() {
+async fn test_operation_disposition_by_payload_status_retry() {
     let mut mock_db = MockHyperlaneDb::new();
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
 
@@ -626,7 +638,7 @@ async fn test_has_operation_been_submitted_retry() {
 
     let op = Box::new(MockQueueOperation { id: message_id }) as QueueOperation;
 
-    let result = has_operation_been_submitted(
+    let result = operation_disposition_by_payload_status(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
         &op,
@@ -634,13 +646,13 @@ async fn test_has_operation_been_submitted_retry() {
     .await;
 
     assert!(
-        result,
-        "Should return true when payload is being retried (was previously submitted)"
+        matches!(result, OperationDisposition::Confirm),
+        "Should return Confirm when payload is being retried (was previously submitted)"
     );
 }
 
 #[tokio::test]
-async fn test_has_operation_been_submitted_transaction_mempool() {
+async fn test_operation_disposition_by_payload_status_transaction_mempool() {
     let mut mock_db = MockHyperlaneDb::new();
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
 
@@ -663,7 +675,7 @@ async fn test_has_operation_been_submitted_transaction_mempool() {
 
     let op = Box::new(MockQueueOperation { id: message_id }) as QueueOperation;
 
-    let result = has_operation_been_submitted(
+    let result = operation_disposition_by_payload_status(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
         &op,
@@ -671,13 +683,13 @@ async fn test_has_operation_been_submitted_transaction_mempool() {
     .await;
 
     assert!(
-        result,
-        "Should return true when transaction is in mempool (accepted by node)"
+        matches!(result, OperationDisposition::Confirm),
+        "Should return Confirm when transaction is in mempool (accepted by node)"
     );
 }
 
 #[tokio::test]
-async fn test_has_operation_been_submitted_transaction_included() {
+async fn test_operation_disposition_by_payload_status_transaction_included() {
     let mut mock_db = MockHyperlaneDb::new();
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
 
@@ -700,7 +712,7 @@ async fn test_has_operation_been_submitted_transaction_included() {
 
     let op = Box::new(MockQueueOperation { id: message_id }) as QueueOperation;
 
-    let result = has_operation_been_submitted(
+    let result = operation_disposition_by_payload_status(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
         &op,
@@ -708,7 +720,7 @@ async fn test_has_operation_been_submitted_transaction_included() {
     .await;
 
     assert!(
-        result,
-        "Should return true when transaction is included in unfinalized block"
+        matches!(result, OperationDisposition::Confirm),
+        "Should return Confirm when transaction is included in unfinalized block"
     );
 }

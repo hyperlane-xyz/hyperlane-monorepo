@@ -25,7 +25,7 @@ use lander::{
 use crate::msg::op_queue::OpQueue;
 use crate::server::operations::message_retry::MessageRetryRequest;
 
-use super::super::confirm_already_submitted_operations;
+use super::super::filter_operations_for_preparation;
 
 // Mock QueueOperation for testing
 #[derive(Debug, Serialize, Clone)]
@@ -294,14 +294,14 @@ fn create_test_queue() -> OpQueue {
 }
 
 #[tokio::test]
-async fn test_confirm_already_submitted_operations_empty_batch() {
+async fn test_filter_operations_for_preparation_empty_batch() {
     let mock_db = MockHyperlaneDb::new();
     let mock_entrypoint = MockDispatcherEntrypoint::new();
     let confirm_queue = create_test_queue();
 
     let batch = vec![];
 
-    let result = confirm_already_submitted_operations(
+    let result = filter_operations_for_preparation(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
         &confirm_queue,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
@@ -321,7 +321,7 @@ async fn test_confirm_already_submitted_operations_empty_batch() {
 }
 
 #[tokio::test]
-async fn test_confirm_already_submitted_operations_all_manual_retry() {
+async fn test_filter_operations_for_preparation_all_manual_retry() {
     let mut mock_db = MockHyperlaneDb::new();
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
     let confirm_queue = create_test_queue();
@@ -345,7 +345,7 @@ async fn test_confirm_already_submitted_operations_all_manual_retry() {
 
     let batch = vec![op1, op2, op3];
 
-    let result = confirm_already_submitted_operations(
+    let result = filter_operations_for_preparation(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
         &confirm_queue,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
@@ -369,7 +369,7 @@ async fn test_confirm_already_submitted_operations_all_manual_retry() {
 }
 
 #[tokio::test]
-async fn test_confirm_already_submitted_operations_all_submitted() {
+async fn test_filter_operations_for_preparation_all_submitted() {
     let mut mock_db = MockHyperlaneDb::new();
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
     let confirm_queue = create_test_queue();
@@ -413,7 +413,7 @@ async fn test_confirm_already_submitted_operations_all_submitted() {
 
     let batch = vec![op1, op2, op3];
 
-    let result = confirm_already_submitted_operations(
+    let result = filter_operations_for_preparation(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
         &confirm_queue,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
@@ -437,7 +437,7 @@ async fn test_confirm_already_submitted_operations_all_submitted() {
 }
 
 #[tokio::test]
-async fn test_confirm_already_submitted_operations_none_submitted() {
+async fn test_filter_operations_for_preparation_none_submitted() {
     let mut mock_db = MockHyperlaneDb::new();
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
     let confirm_queue = create_test_queue();
@@ -459,7 +459,7 @@ async fn test_confirm_already_submitted_operations_none_submitted() {
 
     let batch = vec![op1, op2];
 
-    let result = confirm_already_submitted_operations(
+    let result = filter_operations_for_preparation(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
         &confirm_queue,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
@@ -483,7 +483,7 @@ async fn test_confirm_already_submitted_operations_none_submitted() {
 }
 
 #[tokio::test]
-async fn test_confirm_already_submitted_operations_mixed_batch() {
+async fn test_filter_operations_for_preparation_mixed_batch() {
     let mut mock_db = MockHyperlaneDb::new();
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
     let confirm_queue = create_test_queue();
@@ -539,7 +539,7 @@ async fn test_confirm_already_submitted_operations_mixed_batch() {
 
     let batch = vec![op1, op2, op3, op4];
 
-    let result = confirm_already_submitted_operations(
+    let result = filter_operations_for_preparation(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
         &confirm_queue,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
@@ -574,7 +574,7 @@ async fn test_confirm_already_submitted_operations_mixed_batch() {
 }
 
 #[tokio::test]
-async fn test_confirm_already_submitted_operations_db_error() {
+async fn test_filter_operations_for_preparation_db_error() {
     let mut mock_db = MockHyperlaneDb::new();
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
     let confirm_queue = create_test_queue();
@@ -597,7 +597,7 @@ async fn test_confirm_already_submitted_operations_db_error() {
     let op = Box::new(MockQueueOperation::with_first_prepare(message_id)) as QueueOperation;
     let batch = vec![op];
 
-    let result = confirm_already_submitted_operations(
+    let result = filter_operations_for_preparation(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
         &confirm_queue,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
@@ -622,7 +622,7 @@ async fn test_confirm_already_submitted_operations_db_error() {
 }
 
 #[tokio::test]
-async fn test_confirm_already_submitted_operations_payload_dropped() {
+async fn test_filter_operations_for_preparation_payload_dropped() {
     let mut mock_db = MockHyperlaneDb::new();
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
     let confirm_queue = create_test_queue();
@@ -644,7 +644,7 @@ async fn test_confirm_already_submitted_operations_payload_dropped() {
     let op = Box::new(MockQueueOperation::with_first_prepare(message_id)) as QueueOperation;
     let batch = vec![op];
 
-    let result = confirm_already_submitted_operations(
+    let result = filter_operations_for_preparation(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
         &confirm_queue,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
@@ -669,7 +669,7 @@ async fn test_confirm_already_submitted_operations_payload_dropped() {
 }
 
 #[tokio::test]
-async fn test_confirm_already_submitted_operations_transaction_dropped() {
+async fn test_filter_operations_for_preparation_transaction_dropped() {
     let mut mock_db = MockHyperlaneDb::new();
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
     let confirm_queue = create_test_queue();
@@ -695,7 +695,7 @@ async fn test_confirm_already_submitted_operations_transaction_dropped() {
     let op = Box::new(MockQueueOperation::with_first_prepare(message_id)) as QueueOperation;
     let batch = vec![op];
 
-    let result = confirm_already_submitted_operations(
+    let result = filter_operations_for_preparation(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
         &confirm_queue,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
@@ -720,7 +720,7 @@ async fn test_confirm_already_submitted_operations_transaction_dropped() {
 }
 
 #[tokio::test]
-async fn test_confirm_already_submitted_operations_entrypoint_error() {
+async fn test_filter_operations_for_preparation_entrypoint_error() {
     let mut mock_db = MockHyperlaneDb::new();
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
     let confirm_queue = create_test_queue();
@@ -742,7 +742,7 @@ async fn test_confirm_already_submitted_operations_entrypoint_error() {
     let op = Box::new(MockQueueOperation::with_first_prepare(message_id)) as QueueOperation;
     let batch = vec![op];
 
-    let result = confirm_already_submitted_operations(
+    let result = filter_operations_for_preparation(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
         &confirm_queue,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
@@ -767,7 +767,7 @@ async fn test_confirm_already_submitted_operations_entrypoint_error() {
 }
 
 #[tokio::test]
-async fn test_confirm_already_submitted_operations_non_manual_retry() {
+async fn test_filter_operations_for_preparation_non_manual_retry() {
     let mut mock_db = MockHyperlaneDb::new();
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
     let confirm_queue = create_test_queue();
@@ -794,7 +794,7 @@ async fn test_confirm_already_submitted_operations_non_manual_retry() {
     )) as QueueOperation;
     let batch = vec![op];
 
-    let result = confirm_already_submitted_operations(
+    let result = filter_operations_for_preparation(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
         &confirm_queue,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
@@ -818,7 +818,7 @@ async fn test_confirm_already_submitted_operations_non_manual_retry() {
 }
 
 #[tokio::test]
-async fn test_confirm_already_submitted_operations_empty_payload_uuids() {
+async fn test_filter_operations_for_preparation_empty_payload_uuids() {
     let mut mock_db = MockHyperlaneDb::new();
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
     let confirm_queue = create_test_queue();
@@ -837,7 +837,7 @@ async fn test_confirm_already_submitted_operations_empty_payload_uuids() {
     let op = Box::new(MockQueueOperation::with_first_prepare(message_id)) as QueueOperation;
     let batch = vec![op];
 
-    let result = confirm_already_submitted_operations(
+    let result = filter_operations_for_preparation(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
         &confirm_queue,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
