@@ -301,6 +301,8 @@ export class RadixSigner
   async createInterchainGasPaymasterHook(
     req: Omit<AltVM.ReqCreateInterchainGasPaymasterHook, 'signer'>,
   ): Promise<AltVM.ResCreateInterchainGasPaymasterHook> {
+    assert(req.denom, `denom required by ${RadixProvider.name}`);
+
     return {
       hookAddress: await this.tx.core.createIgp({
         denom: req.denom,
@@ -334,6 +336,20 @@ export class RadixSigner
     };
   }
 
+  async removeDestinationGasConfig(
+    _req: Omit<AltVM.ReqRemoveDestinationGasConfig, 'signer'>,
+  ): Promise<AltVM.ResRemoveDestinationGasConfig> {
+    throw new Error(
+      `RemoveDestinationGasConfig is currently not supported on Radix`,
+    );
+  }
+
+  async createNoopHook(
+    _req: Omit<AltVM.ReqCreateNoopHook, 'signer'>,
+  ): Promise<AltVM.ResCreateNoopHook> {
+    throw new Error(`CreateNoopHook is currently not supported on Radix`);
+  }
+
   async createValidatorAnnounce(
     req: Omit<AltVM.ReqCreateValidatorAnnounce, 'signer'>,
   ): Promise<AltVM.ResCreateValidatorAnnounce> {
@@ -345,6 +361,12 @@ export class RadixSigner
   }
 
   // ### TX WARP ###
+
+  async createNativeToken(
+    _req: Omit<AltVM.ReqCreateNativeToken, 'signer'>,
+  ): Promise<AltVM.ResCreateNativeToken> {
+    throw new Error(`Native Token is not supported on Radix`);
+  }
 
   async createCollateralToken(
     req: Omit<AltVM.ReqCreateCollateralToken, 'signer'>,
@@ -427,6 +449,8 @@ export class RadixSigner
   async transfer(
     req: Omit<AltVM.ReqTransfer, 'signer'>,
   ): Promise<AltVM.ResTransfer> {
+    assert(req.denom, `denom required by ${RadixProvider.name}`);
+
     const manifest = await this.base.transfer({
       from_address: this.account.address,
       to_address: req.recipient,
