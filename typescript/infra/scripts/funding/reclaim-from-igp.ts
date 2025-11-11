@@ -1,8 +1,8 @@
-import { BigNumber } from 'ethers';
+import chalk from 'chalk';
 import { formatEther, parseEther } from 'ethers/lib/utils.js';
 
 import { HyperlaneIgp } from '@hyperlane-xyz/sdk';
-import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
+import { objMap, promiseObjAll, rootLogger } from '@hyperlane-xyz/utils';
 
 import { getEnvAddresses } from '../../config/registry.js';
 import { getKeyFunderConfig } from '../../src/funding/key-funder.js';
@@ -20,11 +20,11 @@ function withForce<T>(args: any) {
 }
 
 const ReclaimStatus = {
-  SUCCESS: 'SUCCESS',
-  BELOW_THRESHOLD: 'BELOW_THRESHOLD',
-  INSUFFICIENT_FOR_GAS: 'INSUFFICIENT_FOR_GAS',
-  NO_GAS_PRICE: 'NO_GAS_PRICE',
-  ERROR: 'ERROR',
+  SUCCESS: '🟢',
+  BELOW_THRESHOLD: '🔵',
+  INSUFFICIENT_FOR_GAS: '🟡',
+  NO_GAS_PRICE: '🟡',
+  ERROR: '🔴',
 } as const;
 type ReclaimStatus = (typeof ReclaimStatus)[keyof typeof ReclaimStatus];
 
@@ -141,10 +141,12 @@ async function main() {
           };
         }
 
-        console.log(`Claiming from IGP on ${chain}...`);
+        rootLogger.debug(`Claiming from IGP on ${chain}...`);
         const tx = await paymaster.claim();
         const explorerUrl = multiProvider.tryGetExplorerTxUrl(chain, tx);
-        console.log(`  ✓ ${explorerUrl || tx.hash}`);
+        rootLogger.info(
+          `Claimed from IGP on ${chain}: ${explorerUrl || tx.hash}`,
+        );
 
         return {
           chain,
@@ -164,7 +166,9 @@ async function main() {
         const errorMsg = error instanceof Error ? error.message : String(error);
         // Extract just the key error info, not the full stack
         const shortError = errorMsg.split('\n')[0];
-        console.log(`  ✗ ${chain}: ${shortError}`);
+        rootLogger.error(
+          chalk.red(`Error claiming from IGP on ${chain}: ${shortError}`),
+        );
         return {
           chain,
           balance,
@@ -186,7 +190,6 @@ async function main() {
   );
 
   if (interestingResults.length > 0) {
-    console.log('\n=== Summary ===\n');
     const tableData = interestingResults.map((r) => ({
       chain: r.chain,
       balance: r.balance,
@@ -206,21 +209,34 @@ async function main() {
     (r) => r.status === ReclaimStatus.BELOW_THRESHOLD,
   ).length;
 
-  console.log(`\n✓ Successfully claimed from ${successCount} chain(s)`);
+  rootLogger.info(
+    chalk.green(`\nSuccessfully claimed from ${successCount} chain(s)`),
+  );
   if (errorCount > 0) {
-    console.log(`✗ ${errorCount} chain(s) encountered errors`);
+    rootLogger.error(
+      chalk.red(
+        `Encountered ${errorCount} errors on: ${results
+          .filter((r) => r.status === ReclaimStatus.ERROR)
+          .map((r) => r.chain)
+          .join(', ')}`,
+      ),
+    );
   }
   if (belowThresholdCount > 0) {
-    console.log(`- ${belowThresholdCount} chain(s) below threshold (skipped)`);
+    rootLogger.info(
+      chalk.yellow(`${belowThresholdCount} chain(s) below threshold (skipped)`),
+    );
   }
   if (force) {
-    console.log('\n(--force mode: bypassed threshold and gas checks)');
+    rootLogger.info(
+      chalk.yellow('\n(--force mode: bypassed threshold and gas checks)'),
+    );
   }
 }
 
 main()
   .then(() => process.exit(0))
   .catch((error) => {
-    console.error('Fatal error:', error.message);
+    rootLogger.error(chalk.red('Fatal error:', error.message));
     process.exit(1);
   });
