@@ -4,7 +4,7 @@ This directory implements four distinct fee models for cross-chain token transfe
 
 ## Visual Comparison
 
-![Fee Curves Comparison](./fee_curves.png)
+![Fee Curves Comparison](./fee_curves.svg)
 
 _Comprehensive comparison of all three fee models showing absolute fees, fee percentages, zoomed intersection view, and numerical comparison table. Generated using `visualize_fees.py`._
 
@@ -52,23 +52,6 @@ fee = min(maxFee, (amount × maxFee) / (2 × halfAmount))
 | 2,000 | 10 | 0.5% |
 | 4,000 | 10 | 0.25% (capped) |
 
-**Curve Shape:**
-
-```
-Fee (tokens)
-    │
-maxFee├────────────────── (capped)
-    │                ╱
-    │              ╱
-    │            ╱
-maxFee/2├──────╱
-    │      ╱
-    │    ╱
-    │  ╱
-  0 └──────────────────────> Amount
-       halfAmount  2×halfAmount
-```
-
 ---
 
 ### 2. Progressive Fee (ProgressiveFee.sol)
@@ -95,35 +78,6 @@ fee = (maxFee × amount²) / (halfAmount² + amount²)
 | 20,000 | 800 | 4.00% |
 | 50,000 | 961.5 | 1.92% |
 
-**Curve Shape:**
-
-```
-Fee (tokens)
-    │
-maxFee├- - - - - - - - - - - (asymptote)
-    │              ╱────────
-    │            ╱
-    │          ╱
-maxFee/2├────╱
-    │    ╱
-    │  ╱
-  0 └────────────────────────> Amount
-       halfAmount
-```
-
-**Fee Percentage:**
-
-```
-Fee %
-    │     ╱‾‾╲
-    │    ╱    ╲
-    │   ╱      ╲
-    │  ╱        ╲___
-    │ ╱              ╲____
-  0 └────────────────────────> Amount
-       halfAmount
-```
-
 ---
 
 ### 3. Regressive Fee (RegressiveFee.sol)
@@ -149,36 +103,6 @@ fee = (maxFee × amount) / (halfAmount + amount)
 | 10,000 | 666.7 | 6.67% |
 | 20,000 | 800 | 4.00% |
 | 50,000 | 909.1 | 1.82% |
-
-**Curve Shape:**
-
-```
-Fee (tokens)
-    │
-maxFee├- - - - - - - - - - - (asymptote)
-    │         ╱─────────
-    │       ╱
-    │     ╱
-maxFee/2├──╱
-    │  ╱
-    │╱
-  0 └────────────────────────> Amount
-       halfAmount
-```
-
-**Fee Percentage:**
-
-```
-Fee %
-    │╲
-    │ ╲
-    │  ╲
-    │   ╲___
-    │       ╲____
-    │            ╲______
-  0 └────────────────────────> Amount
-       halfAmount
-```
 
 ---
 
