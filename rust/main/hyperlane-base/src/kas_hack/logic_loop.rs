@@ -1,4 +1,5 @@
 use crate::contract_sync::cursors::Indexable;
+use dym_kas_core::message::add_kaspa_metadata_hl_messsage;
 use dym_kas_core::{
     confirmation::ConfirmationFXG, deposit::DepositFXG, finality::is_safe_against_reorg,
 };
@@ -10,7 +11,7 @@ use eyre::Result;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, Checkpoint, CheckpointWithMessageId, HyperlaneChain,
     HyperlaneLogStore, Indexed, LogMeta, Mailbox, MultisigSignedCheckpoint, Signature,
-    SignedCheckpointWithMessageId, TxOutcome, H256,
+    SignedCheckpointWithMessageId, TxOutcome, H256, U256,
 };
 use hyperlane_cosmos::native::{h512_to_cosmos_hash, CosmosNativeMailbox};
 use kaspa_consensus_core::tx::TransactionOutpoint;
@@ -44,6 +45,7 @@ where
         hub_mailbox: Arc<CosmosNativeMailbox>,
         metadata_constructor: C,
     ) -> Self {
+        // Get config from provider, or use defaults if not available
         let config = provider
             .kaspa_time_cfg()
             .unwrap_or_else(KaspaTimeConfig::default);
@@ -57,6 +59,7 @@ where
         }
     }
 
+    /// Run deposit and progress indication loops
     pub fn run_loops(self, task_monitor: TaskMonitor) -> JoinHandle<()> {
         let foo = Arc::new(self);
 
@@ -196,6 +199,7 @@ where
         }
     }
 
+    /// Process the retry queue for failed deposit operations
     async fn process_deposit_queue(&self) {
         let mut q = self.deposit_queue.lock().await;
 
@@ -206,29 +210,81 @@ where
         }
     }
 
+    /// Decode deposit payload into Hyperlane message with Kaspa metadata
+    fn decode_and_add_kaspa_metadata(
+        &self,
+        deposit: &Deposit,
+        escrow_address: &str,
+    ) -> Result<(hyperlane_core::HyperlaneMessage, u64, usize), eyre::Error> {
+        use dym_kas_core::message::ParsedHL;
+
+        let payload = deposit
+            .payload
+            .as_ref()
+            .ok_or_else(|| eyre::eyre!("Deposit has no payload"))?;
+
+        let parsed_hl = ParsedHL::parse_string(payload)?;
+        let amt_hl = parsed_hl.token_message.amount();
+
+        // Find the index of the UTXO that satisfies the transfer amount in HL message
+        let utxo_index = deposit
+            .outputs
+            .iter()
+            .position(|utxo| {
+                U256::from(utxo.amount) >= amt_hl
+                    && utxo
+                        .script_public_key_address
+                        .as_ref()
+                        .map(|addr| addr == escrow_address)
+                        .unwrap_or(false)
+            })
+            .ok_or_else(|| {
+                eyre::eyre!(
+                    "kaspa deposit {} had insufficient sompi amount or no matching escrow output",
+                    deposit.id
+                )
+            })?;
+
+        // Add Kaspa metadata to the Hyperlane message
+        let hl_message_with_metadata =
+            add_kaspa_metadata_hl_messsage(parsed_hl, deposit.id, utxo_index)?;
+        let amount = amt_hl.low_u64();
+
+        Ok((hl_message_with_metadata, amount, utxo_index))
+    }
+
     async fn process_deposit_operation(&self, mut op: DepositOperation) {
         info!(deposit_id = %op.deposit.id, "Processing deposit operation");
 
         let start_time = op.created_at;
 
-        let amount = if let Some(payload) = &op.deposit.payload {
-            match dym_kas_core::message::ParsedHL::parse_string(payload) {
-                Ok(parsed_hl) => parsed_hl.token_message.amount().low_u64(),
+        // Decode payload and add Kaspa metadata to get the proper HL message
+        let (hl_message, amount, utxo_index) =
+            match self.decode_and_add_kaspa_metadata(&op.deposit, &op.escrow_address) {
+                Ok((msg, amt, idx)) => {
+                    // Store deposit hl message with Kaspa metadata in database
+                    self.provider
+                        .store_deposit(&msg, &op.deposit.id.to_string());
+                    (msg, amt, idx)
+                }
                 Err(e) => {
                     tracing::error!(
-                        "Failed to parse deposit payload for amount, using 0: {:?}",
-                        e
+                        deposit_id = %op.deposit.id,
+                        error = ?e,
+                        "Failed to decode deposit payload and add Kaspa metadata"
                     );
-                    0
+                    let deposit_id = format!("{:?}", op.deposit.id);
+                    self.provider
+                        .metrics()
+                        .record_deposit_failed(&deposit_id, 0);
+                    return;
                 }
-            }
-        } else {
-            tracing::error!("Deposit has no payload, using 0 for amount");
-            0
-        };
+            };
 
         let result = relayer_on_new_deposit(
-            &op.escrow_address,
+            hl_message.clone(),
+            U256::from(amount),
+            utxo_index,
             &op.deposit,
             &self.provider.rest().client.client,
         )
@@ -268,6 +324,15 @@ where
                                 .encode_hex_upper::<String>();
                         let amount = fxg.amount.low_u64();
                         let deposit_id = format!("{:?}", op.deposit.id);
+
+                        // Update the stored deposit with new HyperlaneMessage and Hub transaction ID
+                        let h256_hub_tx =
+                            hyperlane_cosmos::native::h512_to_h256(outcome.transaction_id);
+                        self.provider.update_processed_deposit(
+                            &op.deposit.id.to_string(),
+                            fxg.hl_message.clone(),
+                            &h256_hub_tx,
+                        );
 
                         if !outcome.executed {
                             error!(

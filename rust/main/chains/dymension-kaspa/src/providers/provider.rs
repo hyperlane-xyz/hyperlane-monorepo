@@ -30,7 +30,7 @@ use kaspa_wallet_core::prelude::DynRpcApi;
 use prometheus::Registry;
 use std::sync::Arc;
 use tonic::async_trait;
-use tracing::info;
+use tracing::{error, info};
 use url::Url;
 
 #[derive(Debug, Clone)]
@@ -49,6 +49,9 @@ pub struct KaspaProvider {
     pending_confirmation: Arc<PendingConfirmation>,
 
     metrics: KaspaBridgeMetrics,
+
+    /// Kaspa database for tracking deposits/withdrawals (optional, set by relayer)
+    kaspa_db: Option<Arc<dyn hyperlane_core::KaspaDb>>,
 }
 
 impl KaspaProvider {
@@ -94,6 +97,7 @@ impl KaspaProvider {
             kas_key_source,
             pending_confirmation: Arc::new(PendingConfirmation::new()),
             metrics: kaspa_metrics,
+            kaspa_db: None,
         };
 
         if let Err(e) = provider.update_balance_metrics().await {
@@ -101,6 +105,140 @@ impl KaspaProvider {
         }
 
         Ok(provider)
+    }
+
+    pub fn kaspa_db(&self) -> Option<&Arc<dyn hyperlane_core::KaspaDb>> {
+        self.kaspa_db.as_ref()
+    }
+
+    pub fn set_kaspa_db(&mut self, kaspa_db: Arc<dyn hyperlane_core::KaspaDb>) {
+        self.kaspa_db = Some(kaspa_db);
+    }
+
+    pub fn store_withdrawals(&self, withdrawals: &Vec<HyperlaneMessage>) {
+        // Store withdrawal messages in kaspa_db before processing
+        if let Some(kaspa_db) = self.kaspa_db() {
+            for msg in withdrawals {
+                let message_id = format!("0x{:x}", msg.id());
+                match kaspa_db.store_withdrawal_message(msg.clone()) {
+                    Ok(()) => {
+                        info!(
+                            message_id = %message_id,
+                            "Stored withdrawal message in kaspa_db"
+                        );
+                    }
+                    Err(e) => {
+                        error!(
+                            message_id = %message_id,
+                            error = ?e,
+                            "Failed to store withdrawal message in kaspa_db"
+                        );
+                    }
+                }
+            }
+        } else {
+            error!("Kaspa mailbox, no kaspa_db set, skipping storing withdrawal messages");
+        }
+    }
+
+    /// Store withdrawal messages and their kaspa transaction IDs in the database
+    pub fn add_kaspa_tx_id_withdrawals(&self, withdrawals: &[(HyperlaneMessage, String)]) {
+        if let Some(kaspa_db) = &self.kaspa_db {
+            for (msg, kaspa_tx) in withdrawals {
+                if !kaspa_tx.is_empty() {
+                    let message_id = msg.id();
+                    // Store kaspa_tx for the withdrawal
+                    if let Err(e) = kaspa_db.store_withdrawal_kaspa_tx(&message_id, kaspa_tx) {
+                        error!(
+                            message_id = ?message_id,
+                            kaspa_tx = %kaspa_tx,
+                            error = ?e,
+                            "Failed to store kaspa_tx for withdrawal"
+                        );
+                    } else {
+                        info!(
+                            message_id = ?message_id,
+                            kaspa_tx = %kaspa_tx,
+                            "Stored withdrawal in kaspa_db"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /// Store a deposit message in the database with the corresponding kaspa tx as deposit id
+    pub fn store_deposit(&self, message: &hyperlane_core::HyperlaneMessage, kaspa_tx_id: &str) {
+        if let Some(db) = &self.kaspa_db {
+            let message_id = message.id();
+            info!(
+                kaspa_tx_id = %kaspa_tx_id,
+                message_id = ?message_id,
+                nonce = message.nonce,
+                "Storing deposit message in database"
+            );
+            match db.store_deposit_message(message.clone(), kaspa_tx_id.to_string()) {
+                Ok(()) => {
+                    info!(
+                        message_id = ?message_id,
+                        kaspa_tx_id = %kaspa_tx_id,
+                        "Successfully stored deposit message"
+                    );
+                }
+                Err(e) => {
+                    error!(
+                        error = ?e,
+                        message_id = ?message_id,
+                        kaspa_tx_id = %kaspa_tx_id,
+                        "Failed to store deposit message in database"
+                    );
+                }
+            }
+        } else {
+            error!("No database available for storing deposit message");
+        }
+    }
+
+    /// Update a stored deposit with the new HyperlaneMessage and Hub transaction ID after successful submission
+    /// Stores the new message and hub_tx
+    pub fn update_processed_deposit(
+        &self,
+        kaspa_tx_id: &str,
+        new_message: hyperlane_core::HyperlaneMessage,
+        hub_tx: &H256,
+    ) {
+        if let Some(db) = &self.kaspa_db {
+            let new_message_id = new_message.id();
+            info!(
+                kaspa_tx = %kaspa_tx_id,
+                new_message_id = ?new_message_id,
+                hub_tx = ?hub_tx,
+                nonce = new_message.nonce,
+                "Updating deposit with new message and Hub transaction ID"
+            );
+
+            match db.update_processed_deposit(kaspa_tx_id, new_message, hub_tx) {
+                Ok(()) => {
+                    info!(
+                        kaspa_tx = %kaspa_tx_id,
+                        new_message_id = ?new_message_id,
+                        hub_tx = ?hub_tx,
+                        "Successfully updated deposit with new message and Hub transaction ID"
+                    );
+                }
+                Err(e) => {
+                    error!(
+                        error = ?e,
+                        kaspa_tx = %kaspa_tx_id,
+                        new_message_id = ?new_message_id,
+                        hub_tx = ?hub_tx,
+                        "Failed to update deposit"
+                    );
+                }
+            }
+        } else {
+            error!("No database available for updating deposit");
+        }
     }
 
     pub fn consume_pending_confirmation(&self) -> Option<ConfirmationFXG> {
@@ -165,7 +303,7 @@ impl KaspaProvider {
     pub async fn process_withdrawal_messages(
         &self,
         msgs: Vec<HyperlaneMessage>,
-    ) -> Result<Vec<HyperlaneMessage>> {
+    ) -> Result<Vec<(HyperlaneMessage, String)>> {
         let min_withdrawal_amt = self.conf.min_deposit_sompi;
         let res = on_new_withdrawals(
             msgs.clone(),
@@ -216,7 +354,7 @@ impl KaspaProvider {
                 };
 
                 match self.submit_txs(finalized.clone()).await {
-                    Ok(_) => {
+                    Ok(tx_ids) => {
                         info!("Kaspa provider, submitted TXs, now indicating progress on the Hub");
 
                         let msg_count =
@@ -240,7 +378,16 @@ impl KaspaProvider {
                             .push(ConfirmationFXG::from_msgs_outpoints(fxg.ids(), fxg.anchors));
                         info!("Kaspa provider, added to progress indication work queue");
 
-                        Ok(all_msgs)
+                        // Create result with messages and their corresponding kaspa_tx
+                        let mut result = Vec::new();
+                        for (tx_id, msgs) in tx_ids.iter().zip(fxg.messages.iter()) {
+                            let kaspa_tx = format!("{}", tx_id);
+                            for msg in msgs {
+                                result.push((msg.clone(), kaspa_tx.clone()));
+                            }
+                        }
+
+                        Ok(result)
                     }
                     Err(e) => {
                         self.metrics
@@ -251,7 +398,8 @@ impl KaspaProvider {
             }
             Ok(None) => {
                 info!("On new withdrawals decided not to handle withdrawal messages");
-                Ok(msgs)
+                // No tx was created, return messages with empty kaspa_tx
+                Ok(msgs.into_iter().map(|msg| (msg, String::new())).collect())
             }
             Err(e) => {
                 let withdrawal_batch_id = create_withdrawal_batch_id(&msgs);

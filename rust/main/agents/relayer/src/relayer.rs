@@ -52,7 +52,6 @@ use hyperlane_base::{
     AgentMetadata, BaseAgent, ChainMetrics, ContractSyncMetrics, ContractSyncer, CoreMetrics,
     HyperlaneAgentCore, RuntimeMetrics, SyncOptions,
 };
-use hyperlane_core::Mailbox;
 use hyperlane_core::{
     rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, ContractSyncCursor,
     HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, QueueOperation,
@@ -181,7 +180,7 @@ impl BaseAgent for Relayer {
         start_entity_init = Instant::now();
         let dispatcher_metrics = DispatcherMetrics::new(core_metrics.registry())
             .expect("Creating dispatcher metrics is infallible");
-        let destinations = Self::build_destinations(
+        let mut destinations = Self::build_destinations(
             &settings,
             db.clone(),
             core_metrics.clone(),
@@ -190,7 +189,8 @@ impl BaseAgent for Relayer {
         )
         .await;
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized destination chains", "Relayer startup duration measurement");
-        let dymension_args = Self::get_dymension_kaspa_args(&destinations).await?;
+
+        let dymension_args = Self::get_dymension_kaspa_args(&mut destinations, &origins).await?;
 
         let message_whitelist = Arc::new(settings.whitelist);
         let message_blacklist = Arc::new(settings.blacklist);
@@ -568,6 +568,7 @@ impl BaseAgent for Relayer {
             .iter()
             .map(|(key, origin)| (key.id(), origin.prover_sync.clone()))
             .collect();
+
         let relayer_router = relayer_server::Server::new(self.destinations.len())
             .with_op_retry(sender.clone())
             .with_message_queue(prep_queues)
@@ -575,6 +576,11 @@ impl BaseAgent for Relayer {
             .with_gas_enforcers(gas_enforcers)
             .with_msg_ctxs(msg_ctxs)
             .with_prover_sync(prover_syncs)
+            .with_kaspa_db(
+                self.dymension_kaspa_args
+                    .as_ref()
+                    .and_then(|dym_args| dym_args.kas_provider.kaspa_db().cloned()),
+            ) // Set kaspa_db to server_builder from dymension_args provider if available
             .router();
 
         let server = self
@@ -1046,34 +1052,76 @@ impl Relayer {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 struct DymensionKaspaArgs {
     kas_provider: Box<KaspaProvider>,
     dym_mailbox: Arc<CosmosNativeMailbox>,
 }
 
+// Manual Debug since KaspaMailbox now has a trait object
+impl std::fmt::Debug for DymensionKaspaArgs {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DymensionKaspaArgs")
+            .field("kas_provider", &self.kas_provider)
+            .field("kas_mailbox", &"KaspaMailbox")
+            .field("dym_mailbox", &self.dym_mailbox)
+            .finish()
+    }
+}
+
 impl Relayer {
     async fn get_dymension_kaspa_args(
-        dsts: &HashMap<HyperlaneDomain, Destination>,
+        dsts: &mut HashMap<HyperlaneDomain, Destination>,
+        origins: &HashMap<HyperlaneDomain, Origin>,
     ) -> Result<Option<DymensionKaspaArgs>> {
-        let kas_mailbox_trait = match dsts.iter().find(|(d, _)| is_kas(d)) {
-            Some((_, dst)) => dst.mailbox.clone(),
-            None => return Ok(None),
-        };
-        let kas_provider_trait = kas_mailbox_trait.provider();
-        let kas_provider = kas_provider_trait.downcast::<KaspaProvider>().unwrap();
+        use hyperlane_core::HyperlaneChain;
 
-        let dym_mailbox_trait = {
-            dsts.iter()
-                .find(|(d, _)| is_dym(d))
-                .unwrap()
-                .1
-                .mailbox
-                .clone()
+        let Some((kas_domain, kas_dst)) = dsts.iter().find(|(d, _)| is_kas(d)) else {
+            return Ok(None);
         };
-
-        let dym_mailbox = dym_mailbox_trait
+        let kas_domain = kas_domain.clone();
+        let kas_mailbox_concrete = kas_dst
+            .mailbox
+            .clone()
+            .downcast_arc::<dymension_kaspa::KaspaMailbox>()
+            .unwrap();
+        let dym_mailbox = dsts
+            .iter()
+            .find(|(d, _)| is_dym(d))
+            .unwrap()
+            .1
+            .mailbox
+            .clone()
             .downcast_arc::<CosmosNativeMailbox>()
+            .unwrap();
+
+        let kas_mailbox_updated =
+            if let Some((domain, origin)) = origins.iter().find(|(d, _)| is_kas(d)) {
+                use hyperlane_base::db::DB;
+                use hyperlane_base::kas_hack::KaspaRocksDB;
+                let db: &DB = origin.database.as_ref();
+                let kaspa_db = Arc::new(KaspaRocksDB::new(domain, db.clone()));
+
+                let mut kas_provider = kas_mailbox_concrete
+                    .provider()
+                    .downcast::<KaspaProvider>()
+                    .unwrap();
+                kas_provider.set_kaspa_db(kaspa_db as Arc<dyn hyperlane_core::KaspaDb>);
+                info!("Set kaspa_db on kaspa provider");
+
+                let updated = Arc::try_unwrap(kas_mailbox_concrete)
+                    .unwrap_or_else(|arc| (*arc).clone())
+                    .with_provider((*kas_provider).clone());
+                info!("Updated kaspa mailbox with provider containing kaspa_db");
+                Arc::new(updated)
+            } else {
+                kas_mailbox_concrete
+            };
+
+        dsts.get_mut(&kas_domain).unwrap().mailbox = kas_mailbox_updated.clone();
+        let kas_provider = kas_mailbox_updated
+            .provider()
+            .downcast::<KaspaProvider>()
             .unwrap();
 
         Ok(Some(DymensionKaspaArgs {

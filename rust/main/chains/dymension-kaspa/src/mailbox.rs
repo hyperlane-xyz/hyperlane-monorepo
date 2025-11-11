@@ -13,9 +13,10 @@ use hyperlane_core::{
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
 use hyperlane_warp_route::TokenMessage;
 use tonic::async_trait;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
-#[derive(Debug, Clone)]
+// pretends to be a mailbox
+#[derive(Clone, Debug)]
 pub struct KaspaMailbox {
     provider: KaspaProvider,
     domain: HyperlaneDomain,
@@ -131,6 +132,8 @@ impl Mailbox for KaspaMailbox {
             }
         }
 
+        self.provider.store_withdrawals(&msgs);
+
         // Cannot process withdrawals while a confirmation is pending on the Hub.
         // All operations marked failed and will be retried after confirmation completes.
         if self.provider.has_pending_confirmation() {
@@ -146,13 +149,15 @@ impl Mailbox for KaspaMailbox {
             .process_withdrawal_messages(msgs.clone())
             .await;
 
-        let processed_msgs = match res_processed {
-            Ok(msgs) => {
-                info!("Kaspa mailbox, processed withdrawals TXs");
+        let processed_messages = match res_processed {
+            Ok(results) => {
+                // Store withdrawal messages using the provider's store_withdrawals method
+                self.provider.add_kaspa_tx_id_withdrawals(&results);
 
+                // Calculate and record withdrawal latency for successfully processed messages
                 let now = std::time::Instant::now();
                 let mut ts_map = self.operation_timestamps.lock().await;
-                for msg in &msgs {
+                for (msg, _) in &results {
                     let msg_id = format!("{:?}", msg.id());
                     if let Some(start_ts) = ts_map.remove(&msg_id) {
                         let latency = now.duration_since(start_ts);
@@ -162,7 +167,8 @@ impl Mailbox for KaspaMailbox {
                 }
                 drop(ts_map);
 
-                msgs
+                // Extract just the messages for further processing
+                results.into_iter().map(|(msg, _)| msg).collect()
             }
             Err(e) => {
                 error!("Kaspa mailbox, failed to process withdrawals TXs: {:?}", e);
@@ -178,7 +184,7 @@ impl Mailbox for KaspaMailbox {
         let failed_idxs = {
             let mut failed = vec![];
             for (i, msg) in msgs.iter().enumerate() {
-                if !processed_msgs.contains(msg) {
+                if !processed_messages.contains(msg) {
                     failed.push(i);
                 }
             }

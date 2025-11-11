@@ -77,7 +77,7 @@
           "http": "https://www.google.com"
         }
       ],
-      "walletSecret": "L1cinda_14",
+      "walletSecret": "123456qwe",
       "kaspaUrlsWrpc": "api-kaspa.mzonder.com:17210",
       "kaspaUrlsRest": "https://kaspa-testnet-rest.mzonder.com",
       "validatorHosts": "http://localhost:9090",

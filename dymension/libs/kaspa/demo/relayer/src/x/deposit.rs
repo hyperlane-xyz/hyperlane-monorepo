@@ -34,6 +34,7 @@ use kaspa_wallet_core::api::{AccountsSendRequest, WalletApi};
 use kaspa_wallet_core::error::Error as KaspaError;
 use kaspa_wallet_core::tx::Fees;
 use kaspa_wallet_core::utxo::NetworkParams;
+use corelib::message::{add_kaspa_metadata_hl_messsage, ParsedHL};
 use relayer::deposit::on_new_deposit;
 use relayer::withdraw::*;
 use std::collections::HashSet;
@@ -217,10 +218,42 @@ pub async fn demo(args: DemoArgs) -> Result<(), Box<dyn Error>> {
     let result: Deposit = handle.await?;
 
     let escrow = escrow_address.clone();
+
+    // Decode payload and add Kaspa metadata
+    let payload = result.payload.as_ref()
+        .ok_or_else(|| eyre::eyre!("Deposit has no payload"))?;
+    let parsed_hl = ParsedHL::parse_string(payload)?;
+    let amt_hl = parsed_hl.token_message.amount();
+
+    // Find the UTXO index that satisfies the transfer amount
+    let escrow_str = escrow.address_to_string();
+    let utxo_index = result
+        .outputs
+        .iter()
+        .position(|utxo| {
+            U256::from(utxo.amount) >= amt_hl
+                && utxo.script_public_key_address.as_ref()
+                    .map(|addr| addr == &escrow_str)
+                    .unwrap_or(false)
+        })
+        .ok_or_else(|| eyre::eyre!(
+            "kaspa deposit {} had insufficient sompi amount or no matching escrow output",
+            result.id
+        ))?;
+
+    // Add Kaspa metadata to the Hyperlane message
+    let hl_message_with_metadata = add_kaspa_metadata_hl_messsage(parsed_hl, result.id, utxo_index)?;
+
     // handle deposit (relayer operation)
-    let deposit_fxg = on_new_deposit(&escrow.address_to_string(), &result, &client.client)
-        .await
-        .map_err(|e| eyre::eyre!("Deposit processing failed: {}", e))?;
+    let deposit_fxg = on_new_deposit(
+        hl_message_with_metadata,
+        amt_hl,
+        utxo_index,
+        &result,
+        &client.client
+    )
+    .await
+    .map_err(|e| eyre::eyre!("Deposit processing failed: {}", e))?;
 
     // deposit encode to bytes
     let deposit_bytes_recv: Bytes = (&deposit_fxg.unwrap()).into();

@@ -244,6 +244,14 @@ pub fn h512_to_cosmos_hash(h: H512) -> Hash {
     Hash::from_bytes(Algorithm::Sha256, h_256.as_bytes()).unwrap()
 }
 
+/// Extract the last 32 bytes of H512 to create H256
+/// Used for converting Cosmos transaction IDs to storage keys
+pub fn h512_to_h256(h: H512) -> H256 {
+    let mut bytes = [0u8; 32];
+    bytes.copy_from_slice(&h.as_bytes()[32..]);
+    H256::from(bytes)
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
