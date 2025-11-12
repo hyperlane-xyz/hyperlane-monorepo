@@ -4,6 +4,18 @@ export interface HookConfigs {
   interchainGasPaymaster: IgpHookConfig;
   merkleTreeHook: MerkleTreeHookConfig;
 }
+
+export type HookArtifacts = {
+  interchainGasPaymaster: {
+    config: IgpHookConfig;
+    derived: DerivedHookConfig;
+  };
+  merkleTreeHook: {
+    config: MerkleTreeHookConfig;
+    derived: DerivedHookConfig;
+  };
+};
+
 export type HookType = keyof HookConfigs;
 export type HookConfig = HookConfigs[HookType];
 export type DerivedHookConfig = WithAddress<HookConfig>;

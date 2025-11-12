@@ -7,6 +7,25 @@ export interface IsmConfigs {
   testIsm: TestIsmConfig;
 }
 
+export type IsmArtifacts = {
+  domainRoutingIsm: {
+    config: DomainRoutingIsmConfig;
+    derived: DerivedIsmConfig;
+  };
+  merkleRootMultisigIsm: {
+    config: MultisigIsmConfig;
+    derived: DerivedIsmConfig;
+  };
+  messageIdMultisigIsm: {
+    config: MultisigIsmConfig;
+    derived: DerivedIsmConfig;
+  };
+  testIsm: {
+    config: TestIsmConfig;
+    derived: DerivedIsmConfig;
+  };
+};
+
 export type IsmType = keyof IsmConfigs;
 export type IsmConfig = IsmConfigs[IsmType];
 export type DerivedIsmConfig = WithAddress<IsmConfig>;
