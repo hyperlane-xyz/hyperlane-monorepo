@@ -1,9 +1,47 @@
 import { ApiKeyStamper } from '@turnkey/api-key-stamper';
+import type { TActivity } from '@turnkey/sdk-server';
 import { TurnkeyServerClient } from '@turnkey/sdk-server';
 
 import { deepCopy, rootLogger } from '@hyperlane-xyz/utils';
 
 const logger = rootLogger.child({ module: 'sdk:turnkey-client' });
+
+/**
+ * Extract safe error message from error object
+ * Avoids logging sensitive data like API keys, stack traces, etc.
+ * Handles TurnkeyActivityError, TurnkeyRequestError, and standard Error types
+ */
+function getSafeErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return 'Unknown error';
+}
+
+/**
+ * Log Turnkey operation error safely without exposing sensitive data
+ * Accepts unknown errors from catch blocks and safely extracts error messages
+ */
+export function logTurnkeyError(operation: string, error: unknown): void {
+  const errorMessage = getSafeErrorMessage(error);
+  logger.error(`${operation}:`, errorMessage);
+}
+
+/**
+ * Validate that a Turnkey activity completed successfully
+ * The Turnkey SDK polls internally until the activity completes or max retries are reached.
+ * If we receive a non-completed status, it indicates an SDK bug or request error.
+ */
+export function validateTurnkeyActivityCompleted(
+  activity: TActivity,
+  operationType: string,
+): void {
+  if (activity.status !== 'ACTIVITY_STATUS_COMPLETED') {
+    throw new Error(
+      `${operationType} activity did not complete. Status: ${activity.status}`,
+    );
+  }
+}
 
 /**
  * Default Turnkey API base URL
@@ -96,7 +134,7 @@ export class TurnkeyClientManager {
       );
       return true;
     } catch (error) {
-      logger.error('Turnkey health check failed:', error);
+      logTurnkeyError('Turnkey health check failed', error);
       return false;
     }
   }

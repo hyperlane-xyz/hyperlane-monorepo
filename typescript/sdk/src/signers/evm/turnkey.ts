@@ -2,7 +2,12 @@ import { ethers } from 'ethers';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
 
-import { TurnkeyClientManager, TurnkeyConfig } from '../turnkeyClient.js';
+import {
+  TurnkeyClientManager,
+  TurnkeyConfig,
+  logTurnkeyError,
+  validateTurnkeyActivityCompleted,
+} from '../turnkeyClient.js';
 
 const logger = rootLogger.child({ module: 'sdk:turnkey-evm' });
 
@@ -119,15 +124,7 @@ export class TurnkeyEvmSigner extends ethers.Signer {
         unsignedTransaction: unsignedTxHex,
       });
 
-      // Defensive validation: The Turnkey SDK polls internally until the activity completes
-      // or max retries are reached. If we receive a non-completed status here, it indicates
-      // either an SDK bug or a request error (not a transient failure requiring retries).
-      // The SDK already handles exponential backoff internally via createActivityPoller.
-      if (activity.status !== 'ACTIVITY_STATUS_COMPLETED') {
-        throw new Error(
-          `Transaction signing activity did not complete. Status: ${activity.status}`,
-        );
-      }
+      validateTurnkeyActivityCompleted(activity, 'Transaction signing');
 
       const signedTx =
         activity.result?.signTransactionResult?.signedTransaction;
@@ -139,7 +136,7 @@ export class TurnkeyEvmSigner extends ethers.Signer {
       // Ensure the signed transaction has 0x prefix
       return signedTx.startsWith('0x') ? signedTx : `0x${signedTx}`;
     } catch (error) {
-      logger.error('Failed to sign transaction with Turnkey:', error);
+      logTurnkeyError('Failed to sign transaction with Turnkey', error);
       throw error;
     }
   }
@@ -167,15 +164,7 @@ export class TurnkeyEvmSigner extends ethers.Signer {
           hashFunction: 'HASH_FUNCTION_NO_OP',
         });
 
-      // Defensive validation: The Turnkey SDK polls internally until the activity completes
-      // or max retries are reached. If we receive a non-completed status here, it indicates
-      // either an SDK bug or a request error (not a transient failure requiring retries).
-      // The SDK already handles exponential backoff internally via createActivityPoller.
-      if (activity.status !== 'ACTIVITY_STATUS_COMPLETED') {
-        throw new Error(
-          `Message signing activity did not complete. Status: ${activity.status}`,
-        );
-      }
+      validateTurnkeyActivityCompleted(activity, 'Message signing');
 
       // Validate signature components
       if (!r || !s || !v) {
@@ -195,7 +184,7 @@ export class TurnkeyEvmSigner extends ethers.Signer {
       // Reconstruct the signature from r, s, v
       return ethers.utils.joinSignature({ r, s, v: vNum });
     } catch (error) {
-      logger.error('Failed to sign message with Turnkey:', error);
+      logTurnkeyError('Failed to sign message with Turnkey', error);
       throw error;
     }
   }

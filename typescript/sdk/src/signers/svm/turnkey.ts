@@ -3,7 +3,11 @@ import { TurnkeySigner as TurnkeySolanaSigner } from '@turnkey/solana';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
 
-import { TurnkeyClientManager, TurnkeyConfig } from '../turnkeyClient.js';
+import {
+  TurnkeyClientManager,
+  TurnkeyConfig,
+  logTurnkeyError,
+} from '../turnkeyClient.js';
 
 import { SvmTransactionSigner } from './solana-web3js.js';
 
@@ -91,7 +95,7 @@ export class TurnkeySealevelSigner implements SvmTransactionSigner {
       // @ts-ignore work around @solana/web3.js version mismatch
       return signedTx;
     } catch (error) {
-      logger.error('Failed to sign transaction with Turnkey:', error);
+      logTurnkeyError('Failed to sign transaction with Turnkey', error);
       throw error;
     }
   }
