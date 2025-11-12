@@ -13,17 +13,17 @@ import {
 } from './utils.js';
 
 /**
- * Stage 1: Extend route to arbitrum/base + Upgrade ethereum router
+ * Stage 2: Add rebalancing config to all EVM chains
  *
  * This config produces:
- * - Ethereum: ONLY upgrade to 9.0.16 (no rebalancing config yet)
- * - Arbitrum: Full deployment with rebalancing
- * - Base: Full deployment with rebalancing
+ * - Ethereum: Add rebalancing configuration (enroll arbitrum/base, set destination gas, add rebalancer role, add CCTP bridges)
+ * - Arbitrum: add CCTP bridges
+ * - Base: add CCTP bridges
  * - Eclipse/Solana: Unchanged
  *
  * Transactions generated:
- * - Regular Safe (ethereum): Upgrade implementation
- * - Deployer key: Deploy arbitrum + base routers
+ * - AW Safe (ethereum): Configuration transactions only
+ * - Deployer key (arbitrum/base): Configuration transactions only
  */
 const awProxyAdminAddresses: ChainMap<string> = {
   arbitrum: '0x80Cebd56A65e46c474a1A101e89E76C4c51D179c',
@@ -49,10 +49,11 @@ const deploymentChains = [
 
 type DeploymentChain = (typeof deploymentChains)[number];
 
-// Only arbitrum and base get rebalancing in Stage 1
+// All EVM chains get rebalancing in Stage 2
 const rebalanceableCollateralChains = [
   'arbitrum',
   'base',
+  'ethereum',
 ] as const satisfies DeploymentChain[];
 
 const ownersByChain: Record<DeploymentChain, string> = {
@@ -79,23 +80,7 @@ export const getEclipseUSDCWarpConfig = async (
 
   const configs: Array<[DeploymentChain, HypTokenRouterConfig]> = [];
 
-  // ETHEREUM: Upgrade only (no rebalancing config)
-  configs.push([
-    'ethereum',
-    {
-      ...routerConfig.ethereum,
-      type: TokenType.collateral,
-      token: usdcTokenAddresses.ethereum,
-      owner: ownersByChain.ethereum,
-      contractVersion: CONTRACT_VERSION,
-      proxyAdmin: {
-        owner: regularSafes.ethereum,
-        address: awProxyAdminAddresses.ethereum,
-      },
-    },
-  ]);
-
-  // ARBITRUM & BASE: Full deployment with rebalancing
+  // All EVM chains get rebalancing in Stage 2
   for (const currentChain of rebalanceableCollateralChains) {
     const baseConfig = getRebalancingUSDCConfigForChain(
       currentChain,
