@@ -34,9 +34,12 @@ export enum TurnkeyRole {
   // Sealevel roles
   SealevelDeployer = 'sealevel-deployer',
 
-  // EVM operational roles
-  EvmDeployer = 'evm-deployer',
+  // Imported keys aka "legacy"
   EvmLegacyDeployer = 'evm-legacy-deployer',
+  EvmLegacyRebalancer = 'evm-legacy-rebalancer',
+
+  // New turnkey-native keys
+  EvmDeployer = 'evm-deployer',
   EvmRebalancer = 'evm-rebalancer',
   EvmIgpClaimer = 'evm-igp-claimer',
   EvmIgpUpdater = 'evm-igp-updater',
