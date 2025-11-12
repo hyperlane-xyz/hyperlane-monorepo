@@ -1137,6 +1137,8 @@ impl Relayer {
         task_monitor: TaskMonitor,
         send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
     ) {
+        info!("Dymension: launching dymension kaspa tasks");
+
         let args = self.dymension_kaspa_args.as_ref().unwrap();
 
         let kas_provider = args.kas_provider.clone();
@@ -1148,6 +1150,8 @@ impl Relayer {
 
         // sync relayer before starting other tasks
         b.sync_hub_if_needed().await.unwrap();
+
+        info!("Dymension: did sync_hub_if_needed, starting dymension kaspa task loops");
 
         tasks.push(b.run_loops(task_monitor.clone()));
         // it observes the local db and makes sure messages are eventually written to the destination chain
