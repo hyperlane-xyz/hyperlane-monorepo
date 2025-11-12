@@ -426,120 +426,119 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
     // Provider errors are expected because deriving will call methods that may not exist in the Bytecode
     this.setSmartProviderLogLevel('silent');
 
-    // First, try checking token specific methods
-    for (const [tokenType, { factory, method }] of Object.entries(
-      contractTypes,
-    )) {
-      try {
-        const warpRoute = factory.connect(warpRouteAddress, this.provider);
-        await warpRoute[method]();
-        if (tokenType === TokenType.collateral) {
-          const wrappedToken = await warpRoute.wrappedToken();
-          try {
-            const xerc20 = IXERC20__factory.connect(
-              wrappedToken,
-              this.provider,
-            );
-            await xerc20['mintingCurrentLimitOf(address)'](warpRouteAddress);
-            return TokenType.XERC20;
-          } catch (error) {
-            this.logger.debug(
-              `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.XERC20}`,
-              error,
-            );
-          }
+    try {
+      // First, try checking token specific methods
+      for (const [tokenType, { factory, method }] of Object.entries(
+        contractTypes,
+      )) {
+        try {
+          const warpRoute = factory.connect(warpRouteAddress, this.provider);
+          await warpRoute[method]();
+          if (tokenType === TokenType.collateral) {
+            const wrappedToken = await warpRoute.wrappedToken();
+            try {
+              const xerc20 = IXERC20__factory.connect(
+                wrappedToken,
+                this.provider,
+              );
+              await xerc20['mintingCurrentLimitOf(address)'](warpRouteAddress);
+              return TokenType.XERC20;
+            } catch (error) {
+              this.logger.debug(
+                `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.XERC20}`,
+                error,
+              );
+            }
 
-          try {
-            const fiatToken = IFiatToken__factory.connect(
-              wrappedToken,
-              this.provider,
-            );
-
-            // Simulate minting tokens from the warp route contract
-            await fiatToken.callStatic.mint(NON_ZERO_SENDER_ADDRESS, 1, {
-              from: warpRouteAddress,
-            });
-
-            return TokenType.collateralFiat;
-          } catch (error) {
-            this.logger.debug(
-              `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.collateralFiat}`,
-              error,
-            );
-          }
-
-          try {
-            const maybeEverclearTokenBridge =
-              EverclearTokenBridge__factory.connect(
-                warpRouteAddress,
+            try {
+              const fiatToken = IFiatToken__factory.connect(
+                wrappedToken,
                 this.provider,
               );
 
-            await maybeEverclearTokenBridge.callStatic.everclearAdapter();
-
-            let everclearTokenType = TokenType.collateralEverclear;
-            try {
-              // if simulating an ETH transfer works this should be the WETH contract
-              await this.provider.estimateGas({
-                from: NON_ZERO_SENDER_ADDRESS,
-                to: wrappedToken,
-                data: IWETH__factory.createInterface().encodeFunctionData(
-                  'deposit',
-                ),
-                value: 0,
+              // Simulate minting tokens from the warp route contract
+              await fiatToken.callStatic.mint(NON_ZERO_SENDER_ADDRESS, 1, {
+                from: warpRouteAddress,
               });
 
-              everclearTokenType = TokenType.ethEverclear;
+              return TokenType.collateralFiat;
+            } catch (error) {
+              this.logger.debug(
+                `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.collateralFiat}`,
+                error,
+              );
+            }
+
+            try {
+              const maybeEverclearTokenBridge =
+                EverclearTokenBridge__factory.connect(
+                  warpRouteAddress,
+                  this.provider,
+                );
+
+              await maybeEverclearTokenBridge.callStatic.everclearAdapter();
+
+              let everclearTokenType = TokenType.collateralEverclear;
+              try {
+                // if simulating an ETH transfer works this should be the WETH contract
+                await this.provider.estimateGas({
+                  from: NON_ZERO_SENDER_ADDRESS,
+                  to: wrappedToken,
+                  data: IWETH__factory.createInterface().encodeFunctionData(
+                    'deposit',
+                  ),
+                  value: 0,
+                });
+
+                everclearTokenType = TokenType.ethEverclear;
+              } catch (error) {
+                this.logger.debug(
+                  `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.collateralEverclear}`,
+                  error,
+                );
+              }
+
+              return everclearTokenType;
             } catch (error) {
               this.logger.debug(
                 `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.collateralEverclear}`,
                 error,
               );
             }
-
-            return everclearTokenType;
-          } catch (error) {
-            this.logger.debug(
-              `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.collateralEverclear}`,
-              error,
-            );
           }
+
+          return tokenType as TokenType;
+        } catch {
+          continue;
         }
-
-        return tokenType as TokenType;
-      } catch {
-        continue;
-      } finally {
-        // Always restore log level, regardless of how we exit
-        this.setSmartProviderLogLevel(getLogLevel());
       }
+
+      const packageVersion = await this.fetchPackageVersion(warpRouteAddress);
+      const hasTokenFeeInterface =
+        compareVersions(packageVersion, TOKEN_FEE_CONTRACT_VERSION) >= 0;
+
+      const isNativeToken = await this.isNativeWarpToken(
+        warpRouteAddress,
+        hasTokenFeeInterface,
+      );
+      if (isNativeToken) {
+        return TokenType.native;
+      }
+
+      const isSyntheticToken = await this.isSyntheticWarpToken(
+        warpRouteAddress,
+        hasTokenFeeInterface,
+      );
+      if (isSyntheticToken) {
+        return TokenType.synthetic;
+      }
+
+      throw new Error(
+        `Error deriving token type for token at address "${warpRouteAddress}" on chain "${this.chain}"`,
+      );
+    } finally {
+      this.setSmartProviderLogLevel(getLogLevel());
     }
-
-    const packageVersion = await this.fetchPackageVersion(warpRouteAddress);
-    const hasTokenFeeInterface =
-      compareVersions(packageVersion, TOKEN_FEE_CONTRACT_VERSION) >= 0;
-
-    const isNativeToken = await this.isNativeWarpToken(
-      warpRouteAddress,
-      hasTokenFeeInterface,
-    );
-    if (isNativeToken) {
-      return TokenType.native;
-    }
-
-    const isSyntheticToken = await this.isSyntheticWarpToken(
-      warpRouteAddress,
-      hasTokenFeeInterface,
-    );
-    if (isSyntheticToken) {
-      return TokenType.synthetic;
-    }
-
-    this.setSmartProviderLogLevel(getLogLevel()); // returns to original level defined by rootLogger
-
-    throw new Error(
-      `Error deriving token type for token at address "${warpRouteAddress}" on chain "${this.chain}"`,
-    );
   }
 
   private async isNativeWarpToken(
@@ -557,7 +556,7 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
         // Native token returns address(0)
         return isZeroishAddress(tokenAddress);
       } else {
-        // Check native Using estimateGas to send 0 wei. Success implies that the Warp Route has a receive() function
+        // Check native using estimateGas to send 0 wei. Success implies that the Warp Route has a receive() function
         await this.multiProvider.estimateGas(
           this.chain,
           {
