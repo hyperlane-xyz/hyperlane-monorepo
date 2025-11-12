@@ -119,3 +119,20 @@ async fn test_get_chain_metrics() {
         H256::from_str("2306b5c843f34abe2bbac9e6f2bcfdda0926b50cd6f736dfd419aceed6b7c710").unwrap()
     );
 }
+
+// Missing blocks or transactions are indicated by corresponding HTTP responses where Reqwest handles the errors.
+// Following message can be expected in such cases:
+//
+// Err(Other(ReqwestError(reqwest::Error {
+//     kind: Status(404),
+//     url: Url {
+//         scheme: "https",
+//         cannot_be_a_base: false,
+//         username: "",
+//         password: None,
+//         host: Some(Domain("api.explorer.provable.com")),
+//         port: None,
+//         path: "/v1/mainnet//transaction/at16e9kg860d3d44yvyqswp8drwm249h2s8pwv7ylalzhcg...",
+//         ...
+//     }
+// })))
