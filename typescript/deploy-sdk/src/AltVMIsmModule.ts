@@ -1,8 +1,11 @@
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
+  DerivedIsmConfig,
   DomainRoutingIsmConfig,
   IsmConfig,
+  IsmModuleAddresses,
+  IsmModuleType,
   IsmType,
   MultisigIsmConfig,
   STATIC_ISM_TYPES,
@@ -24,11 +27,6 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { AltVMIsmReader } from './AltVMIsmReader.js';
-
-type IsmModuleAddresses = {
-  deployedIsm: Address;
-  mailbox: Address;
-};
 
 // Determines the domains to enroll and unenroll to update the current ISM config
 // to match the target ISM config.
@@ -65,9 +63,7 @@ function calculateDomainRoutingDelta(
   };
 }
 
-export class AltVMIsmModule
-  implements HypModule<IsmConfig, IsmModuleAddresses>
-{
+export class AltVMIsmModule implements HypModule<IsmModuleType> {
   protected readonly logger = rootLogger.child({
     module: 'AltVMIsmModule',
   });
@@ -79,10 +75,7 @@ export class AltVMIsmModule
 
   constructor(
     protected readonly chainLookup: ChainLookup,
-    private readonly args: HypModuleArgs<
-      IsmConfig | string,
-      IsmModuleAddresses
-    >,
+    private readonly args: HypModuleArgs<IsmModuleType>,
     protected readonly signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
   ) {
     this.mailbox = this.args.addresses.mailbox;
@@ -92,7 +85,7 @@ export class AltVMIsmModule
     this.reader = new AltVMIsmReader(chainLookup.getChainName, this.signer);
   }
 
-  public async read(): Promise<IsmConfig> {
+  public async read(): Promise<DerivedIsmConfig> {
     return this.reader.deriveIsmConfig(this.args.addresses.deployedIsm);
   }
 

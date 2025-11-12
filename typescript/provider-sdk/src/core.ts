@@ -1,6 +1,12 @@
 import type { DerivedHookConfig, HookConfig } from './hook.js';
 import type { DerivedIsmConfig, IsmConfig } from './ism.js';
 
+export type CoreModuleType = {
+  config: CoreConfig;
+  derived: DerivedCoreConfig;
+  addresses: DeployedCoreAddresses;
+};
+
 export interface CoreConfig {
   owner: string;
   defaultIsm: IsmConfig | string;

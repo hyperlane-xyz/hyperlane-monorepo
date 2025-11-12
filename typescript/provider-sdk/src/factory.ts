@@ -1,15 +1,15 @@
 import { IProvider, ISigner } from './altvm.js';
-import { ArtifactProvider } from './artifact.js';
 import { ChainMetadataForAltVM } from './chain.js';
-import { HookConfig } from './hook.js';
-import { IsmConfig } from './ism.js';
-import { AnnotatedTx, TxReceipt } from './module.js';
+import { CoreModuleType } from './core.js';
+import { HookModuleType } from './hook.js';
+import { IsmModuleType } from './ism.js';
+import { AnnotatedTx, ModuleProvider, TxReceipt } from './module.js';
 import {
   ITransactionSubmitter,
   JsonRpcSubmitterConfig,
   TransactionSubmitterConfig,
 } from './submitter.js';
-import { WarpConfig } from './warp.js';
+import { TokenRouterModuleType } from './warp.js';
 
 export type SignerConfig = Pick<
   JsonRpcSubmitterConfig,
@@ -26,6 +26,7 @@ export interface ProtocolProvider {
     chainMetadata: ChainMetadataForAltVM,
     config: SignerConfig,
   ): Promise<ISigner<AnnotatedTx, TxReceipt>>;
+
   createSubmitter<TConfig extends TransactionSubmitterConfig>(
     chainMetadata: ChainMetadataForAltVM,
     config: TConfig,
@@ -37,7 +38,11 @@ export interface ProtocolProvider {
       config: TConfig,
     ) => Promise<ITransactionSubmitter>,
   ): void;
-  ismProvider(): ArtifactProvider<IsmConfig, { ismAddress: string }>;
-  hookProvider(): ArtifactProvider<HookConfig, { hookAddress: string }>;
-  tokenRouterProvider(): ArtifactProvider<WarpConfig, { tokenAddress: string }>;
+
+  // It's unclear if these belong here or in a separate interface
+  // Currently they can only be implemented in deploy-sdk for AltVM classes
+  coreProvider(): ModuleProvider<CoreModuleType>;
+  hookProvider(): ModuleProvider<HookModuleType>;
+  ismProvider(): ModuleProvider<IsmModuleType>;
+  tokenRouterProvider(): ModuleProvider<TokenRouterModuleType>;
 }
