@@ -16,6 +16,18 @@ export type SignerConfig = Pick<
   'privateKey' | 'accountAddress'
 >;
 
+// Provider registration flow:
+//  load(protocol_name) -> register_fn(registry) -> create_provider(protocol_name)
+//  1. The app loader loads the protocol module by name (or package name)
+//  2. The protocol module registers itself with the registry
+//  3. The app loader creates a provider instance by protocol name
+
+// Provider usage flow:
+//  (chain_meta, credentials) -> (provider, signer) -> (artifacts)
+//  1. The app logic creates a provider/signer for a given chain (and credentials)
+//  2. The app logic uses the provider/signer to get an artifact object (ISM, hook, token router)
+//  3. The app logic uses the artifact object to perform its tasks
+
 /**
  * Interface describing the artifacts that should be implemented in a specific protocol
  * implementation
@@ -39,27 +51,6 @@ export interface ProtocolProvider {
       config: TConfig,
     ) => Promise<ITransactionSubmitter>,
   ): void;
-  ismProvider(): ArtifactProvider<IsmArtifacts>;
-  hookProvider(): ArtifactProvider<HookArtifacts>;
-  tokenRouterProvider(): ArtifactProvider<TokenRouterArtifacts>;
-}
-
-/* --------------------------------------------------------------- */
-
-// Provider registration flow:
-//  load(protocol_name) -> register_fn(registry) -> create_provider(protocol_name)
-//  1. The app loader loads the protocol module by name (or package name)
-//  2. The protocol module registers itself with the registry
-//  3. The app loader creates a provider instance by protocol name
-
-// Provider usage flow:
-//  (chain_meta, credentials) -> (provider, signer) -> (artifacts)
-//  1. The app logic creates a provider/signer for a given chain (and credentials)
-//  2. The app logic uses the provider/signer to get an artifact object (ISM, hook, token router)
-//  3. The app logic uses the artifact object to perform its tasks
-
-// To be merged with ProtocolProvider
-export interface ProtocolProviderPoc {
   createReader(chainMetadata: ChainMetadataForAltVM): ProtocolReader;
   createWriter(
     chainMetadata: ChainMetadataForAltVM,
@@ -67,6 +58,7 @@ export interface ProtocolProviderPoc {
   ): ProtocolWriter;
   ismProvider(): ArtifactProvider<IsmArtifacts>;
   hookProvider(): ArtifactProvider<HookArtifacts>;
+  tokenRouterProvider(): ArtifactProvider<TokenRouterArtifacts>;
 }
 
 export interface ProtocolReader {
