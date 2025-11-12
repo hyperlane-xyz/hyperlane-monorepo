@@ -1,56 +1,40 @@
-import {
-  Account,
-  AleoKeyProvider,
-  NetworkRecordProvider,
-  Program,
-  ProgramManager,
-} from '@provablehq/sdk';
-
-import { AltVM } from '@hyperlane-xyz/utils';
+import { AltVM, assert } from '@hyperlane-xyz/utils';
 
 import { loadProgramsInDeployOrder } from '../artifacts.js';
 import { AleoReceipt, AleoTransaction } from '../utils/types.js';
 
+import { AnyProgramManager } from './base.js';
 import { AleoProvider } from './provider.js';
 
 export class AleoSigner
   extends AleoProvider
   implements AltVM.ISigner<AleoTransaction, AleoReceipt>
 {
-  private readonly aleoAccount: Account;
-  private readonly keyProvider: AleoKeyProvider;
-  private readonly networkRecordProvider: NetworkRecordProvider;
-  private readonly programManager: ProgramManager;
+  private readonly programManager: AnyProgramManager;
 
   static async connectWithSigner(
     rpcUrls: string[],
     privateKey: string,
-    _extraParams?: Record<string, any>,
+    extraParams?: Record<string, any>,
   ): Promise<AltVM.ISigner<AleoTransaction, AleoReceipt>> {
-    return new AleoSigner(rpcUrls, privateKey);
+    assert(extraParams, `extra params not defined`);
+
+    const metadata = extraParams.metadata as Record<string, unknown>;
+    assert(metadata, `metadata not defined in extra params`);
+    assert(metadata.chainId, `chainId not defined in metadata extra params`);
+
+    const chainId = parseInt(metadata.chainId.toString());
+
+    return new AleoSigner(rpcUrls, chainId, privateKey);
   }
 
-  protected constructor(rpcUrls: string[], privateKey: string) {
-    super(rpcUrls);
-
-    this.aleoAccount = new Account({
-      privateKey,
-    });
-
-    this.keyProvider = new AleoKeyProvider();
-    this.keyProvider.useCache(true);
-
-    this.networkRecordProvider = new NetworkRecordProvider(
-      this.aleoAccount,
-      this.aleoClient,
-    );
-
-    this.programManager = new ProgramManager(
-      rpcUrls[0],
-      this.keyProvider,
-      this.networkRecordProvider,
-    );
-    this.programManager.setAccount(this.aleoAccount);
+  protected constructor(
+    rpcUrls: string[],
+    chainId: string | number,
+    privateKey: string,
+  ) {
+    super(rpcUrls, chainId);
+    this.programManager = this.getProgramManager(privateKey);
   }
 
   private async deployProgram(
@@ -61,7 +45,7 @@ export class AleoSigner
     let programs = loadProgramsInDeployOrder(programName);
 
     programs = programs.map((p) => {
-      return Program.fromString(
+      return this.Program.fromString(
         p
           .toString()
           .replaceAll(
@@ -76,7 +60,7 @@ export class AleoSigner
     });
 
     for (const program of programs) {
-      const isDeployed = await this.isProgramDeployed(program);
+      const isDeployed = await this.isProgramDeployed(program.id());
 
       // if the program is already deployed (which can be the case for some imports)
       // we simply skip it
@@ -97,7 +81,7 @@ export class AleoSigner
   }
 
   getSignerAddress(): string {
-    return this.aleoAccount.address().to_string();
+    return this.programManager.account!.address().to_string();
   }
 
   supportsTransactionBatching(): boolean {
@@ -125,9 +109,9 @@ export class AleoSigner
 
   // ### TX CORE ###
 
-  private async isProgramDeployed(program: Program) {
+  private async isProgramDeployed(program: string) {
     try {
-      await this.aleoClient.getProgram(program.id());
+      await this.aleoClient.getProgram(program);
       return true;
     } catch {
       return false;

@@ -1,19 +1,7 @@
-import {
-  Account,
-  AleoNetworkClient,
-  BHP256,
-  Plaintext,
-  Program,
-  ProgramManager,
-  U128,
-  getOrInitConsensusVersionTestHeights,
-  initThreadPool,
-} from '@provablehq/sdk';
 import { BigNumber } from 'bignumber.js';
 
 import { AltVM, assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
 
-import { mailbox } from '../artifacts.js';
 import {
   ALEO_NULL_ADDRESS,
   U128ToString,
@@ -23,25 +11,18 @@ import {
 } from '../utils/helper.js';
 import { AleoTransaction } from '../utils/types.js';
 
-getOrInitConsensusVersionTestHeights('0,1,2,3,4,5,6,7,8,9,10');
-await initThreadPool();
+import { AleoBase } from './base.js';
 
-export class AleoProvider implements AltVM.IProvider {
-  protected readonly aleoClient: AleoNetworkClient;
-  protected readonly rpcUrls: string[];
-
+export class AleoProvider extends AleoBase implements AltVM.IProvider {
   static async connect(
     rpcUrls: string[],
-    _chainId: string | number,
+    chainId: string | number,
   ): Promise<AleoProvider> {
-    return new AleoProvider(rpcUrls);
+    return new AleoProvider(rpcUrls, chainId);
   }
 
-  constructor(rpcUrls: string[]) {
-    assert(rpcUrls.length > 0, `got no rpcUrls`);
-
-    this.rpcUrls = rpcUrls;
-    this.aleoClient = new AleoNetworkClient(rpcUrls[0]);
+  protected constructor(rpcUrls: string[], chainId: string | number) {
+    super(rpcUrls, chainId);
   }
 
   protected getNewProgramSalt(n: number): string {
@@ -77,9 +58,9 @@ export class AleoProvider implements AltVM.IProvider {
 
   async getBalance(req: AltVM.ReqGetBalance): Promise<bigint> {
     if (req.denom) {
-      const balanceKey = new BHP256()
+      const balanceKey = new this.BHP256()
         .hash(
-          Plaintext.fromString(
+          this.Plaintext.fromString(
             `{account: ${req.address},token_id:${req.denom}}`,
           ).toBitsLe(),
         )
@@ -95,7 +76,7 @@ export class AleoProvider implements AltVM.IProvider {
         return 0n;
       }
 
-      return Plaintext.fromString(result).toObject()['balance'];
+      return this.Plaintext.fromString(result).toObject()['balance'];
     }
 
     const balance = await this.aleoClient.getPublicBalance(req.address);
@@ -117,15 +98,13 @@ export class AleoProvider implements AltVM.IProvider {
       return 0n;
     }
 
-    return Plaintext.fromString(result).toObject()['max_supply'];
+    return this.Plaintext.fromString(result).toObject()['max_supply'];
   }
 
   async estimateTransactionFee(
     req: AltVM.ReqEstimateTransactionFee<AleoTransaction>,
   ): Promise<AltVM.ResEstimateTransactionFee> {
-    const programManager = new ProgramManager(this.rpcUrls[0]);
-    programManager.setAccount(new Account());
-
+    const programManager = this.getProgramManager();
     const tx = await programManager.buildExecutionTransaction(req.transaction);
 
     return {
@@ -484,10 +463,12 @@ export class AleoProvider implements AltVM.IProvider {
 
       return {
         name: U128ToString(
-          U128.fromString(`${tokenMetadata.toObject()['name'].toString()}u128`),
+          this.U128.fromString(
+            `${tokenMetadata.toObject()['name'].toString()}u128`,
+          ),
         ),
         symbol: U128ToString(
-          U128.fromString(
+          this.U128.fromString(
             `${tokenMetadata.toObject()['symbol'].toString()}u128`,
           ),
         ),
@@ -590,7 +571,8 @@ export class AleoProvider implements AltVM.IProvider {
 
         if (!remoteRouterValue) continue;
 
-        const remoteRouter = Plaintext.fromString(remoteRouterValue).toObject();
+        const remoteRouter =
+          this.Plaintext.fromString(remoteRouterValue).toObject();
 
         remoteRouters.push({
           receiverDomainId: Number(remoteRouter['domain']),
@@ -619,9 +601,8 @@ export class AleoProvider implements AltVM.IProvider {
 
     switch (metadata.toObject()['token_type']) {
       case 0: {
-        const program = await this.aleoClient.getProgram(req.tokenAddress);
         return this.getBalance({
-          address: Program.fromString(program).address().to_string(),
+          address: this.getAddressFromProgramId(req.tokenAddress),
           denom: '',
         });
       }
@@ -631,9 +612,8 @@ export class AleoProvider implements AltVM.IProvider {
         });
       }
       case 2: {
-        const program = await this.aleoClient.getProgram(req.tokenAddress);
         return this.getBalance({
-          address: Program.fromString(program).address().to_string(),
+          address: this.getAddressFromProgramId(req.tokenAddress),
           denom: metadata.toObject()['token_id'],
         });
       }
@@ -662,7 +642,7 @@ export class AleoProvider implements AltVM.IProvider {
     }
 
     const gasLimit = new BigNumber(
-      Plaintext.fromString(remoteRouterValue).toObject()['gas'],
+      this.Plaintext.fromString(remoteRouterValue).toObject()['gas'],
     );
 
     const { mailboxAddress } = await this.getToken({
@@ -878,13 +858,7 @@ export class AleoProvider implements AltVM.IProvider {
       functionName: 'init_merkle_tree',
       priorityFee: 0,
       privateFee: false,
-      inputs: [
-        Program.fromString(
-          mailbox.replaceAll('mailbox.aleo', req.mailboxAddress),
-        )
-          .address()
-          .to_string(),
-      ],
+      inputs: [this.getAddressFromProgramId(req.mailboxAddress)],
     };
   }
 
@@ -965,11 +939,7 @@ export class AleoProvider implements AltVM.IProvider {
       priorityFee: 0,
       privateFee: false,
       inputs: [
-        Program.fromString(
-          mailbox.replaceAll('mailbox.aleo', req.mailboxAddress),
-        )
-          .address()
-          .to_string(),
+        this.getAddressFromProgramId(req.mailboxAddress),
         `${localDomain}u32`,
       ],
     };

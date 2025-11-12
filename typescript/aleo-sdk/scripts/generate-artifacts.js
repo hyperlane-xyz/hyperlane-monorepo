@@ -14,7 +14,7 @@ const folders = fs
   .map((dirent) => dirent.name);
 
 let programs = [];
-let output = `import { Program } from '@provablehq/sdk';\n\n`;
+let output = `import { Program } from '@provablehq/sdk/mainnet.js';\n\n`;
 
 const readContentFromPath = (filePath, programName) => {
   const content = fs.readFileSync(filePath, 'utf8');

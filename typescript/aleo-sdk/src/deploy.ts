@@ -10,6 +10,11 @@ const main = async () => {
     const signer = await AleoSigner.connectWithSigner(
       [localnetRpc],
       privateKey,
+      {
+        metadata: {
+          chainId: 1,
+        },
+      },
     );
 
     const address = signer.getSignerAddress();
