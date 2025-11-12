@@ -46,7 +46,6 @@ pub async fn handler(
         )
     })?;
 
-    tracing::debug!(?chain, "Chain");
     if chain.protocol != HyperlaneDomainProtocol::Ethereum {
         let err = ServerErrorResponse::new(
             StatusCode::BAD_REQUEST,
@@ -155,6 +154,11 @@ pub async fn handler(
         return Err(err);
     }
 
+    tracing::debug!(
+        domain_id,
+        new_upper_nonce = new_upper_nonce.as_u64(),
+        "Storing new upper nonce"
+    );
     chain
         .db
         .store_upper_nonce_by_signer_address(&chain.signer_address, &new_upper_nonce)
@@ -195,6 +199,13 @@ pub async fn handler(
                 continue;
             }
         };
+
+        tracing::debug!(
+            domain_id,
+            nonce = curr_nonce.as_u64(),
+            ?tx_uuid,
+            "Clearing nonce and tx uuid"
+        );
 
         if let Err(err) = chain
             .db
