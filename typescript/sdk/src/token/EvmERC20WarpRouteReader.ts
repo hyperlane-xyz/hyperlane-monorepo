@@ -1,5 +1,5 @@
 import { compareVersions } from 'compare-versions';
-import { Contract, constants } from 'ethers';
+import { BigNumber, Contract, constants } from 'ethers';
 
 import {
   EverclearTokenBridge,
@@ -264,14 +264,14 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
       compareVersions(packageVersion, TOKEN_FEE_CONTRACT_VERSION) >= 0;
 
     if (!hasTokenFeeInterface) {
-      this.logger.info(
+      this.logger.debug(
         `Token at address "${routerAddress}" on chain "${this.chain}" does not have a token fee interface`,
       );
       return undefined;
     }
 
     if (isZeroishAddress(tokenFee)) {
-      this.logger.info(
+      this.logger.debug(
         `Token at address "${routerAddress}" on chain "${this.chain}" has a no token fee`,
       );
       return undefined;
@@ -510,29 +510,106 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
       } catch {
         continue;
       } finally {
-        this.setSmartProviderLogLevel(getLogLevel()); // returns to original level defined by rootLogger
+        // Always restore log level, regardless of how we exit
+        this.setSmartProviderLogLevel(getLogLevel());
       }
     }
 
-    // Check for native vs synthetic by looking at the token() method
-    // HypNative.token() returns address(0), HypERC20.token() returns address(this)
-    const tokenRouter = TokenRouter__factory.connect(
-      warpRouteAddress,
-      this.provider,
-    );
-    const tokenAddress = await tokenRouter.token();
+    const packageVersion = await this.fetchPackageVersion(warpRouteAddress);
+    const hasTokenFeeInterface =
+      compareVersions(packageVersion, TOKEN_FEE_CONTRACT_VERSION) >= 0;
 
-    if (isZeroishAddress(tokenAddress)) {
-      // Native token returns address(0)
+    const isNativeToken = await this.isNativeWarpToken(
+      warpRouteAddress,
+      hasTokenFeeInterface,
+    );
+    if (isNativeToken) {
       return TokenType.native;
-    } else if (eqAddress(tokenAddress, warpRouteAddress)) {
-      // Synthetic token returns its own address (address(this))
+    }
+
+    const isSyntheticToken = await this.isSyntheticWarpToken(
+      warpRouteAddress,
+      hasTokenFeeInterface,
+    );
+    if (isSyntheticToken) {
       return TokenType.synthetic;
     }
+
+    this.setSmartProviderLogLevel(getLogLevel()); // returns to original level defined by rootLogger
 
     throw new Error(
       `Error deriving token type for token at address "${warpRouteAddress}" on chain "${this.chain}"`,
     );
+  }
+
+  private async isNativeWarpToken(
+    warpRouteAddress: Address,
+    hasTokenFeeInterface: boolean,
+  ): Promise<boolean> {
+    try {
+      if (hasTokenFeeInterface) {
+        const tokenRouter = TokenRouter__factory.connect(
+          warpRouteAddress,
+          this.provider,
+        );
+        const tokenAddress = await tokenRouter.token();
+
+        // Native token returns address(0)
+        return isZeroishAddress(tokenAddress);
+      } else {
+        // Check native Using estimateGas to send 0 wei. Success implies that the Warp Route has a receive() function
+        await this.multiProvider.estimateGas(
+          this.chain,
+          {
+            to: warpRouteAddress,
+            value: BigNumber.from(0),
+          },
+          NON_ZERO_SENDER_ADDRESS, // Use non-zero address as signer is not provided for read commands
+        );
+        return true;
+      }
+    } catch (e) {
+      this.logger.debug(
+        `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.native}`,
+        e,
+      );
+
+      return false;
+    }
+  }
+
+  private async isSyntheticWarpToken(
+    warpRouteAddress: Address,
+    hasTokenFeeInterface: boolean,
+  ): Promise<boolean> {
+    try {
+      if (hasTokenFeeInterface) {
+        const tokenRouter = TokenRouter__factory.connect(
+          warpRouteAddress,
+          this.provider,
+        );
+        const tokenAddress = await tokenRouter.token();
+
+        // HypERC20.token() returns address(this)
+        return eqAddress(tokenAddress, warpRouteAddress);
+      } else {
+        const tokenRouter = HypERC20__factory.connect(
+          warpRouteAddress,
+          this.provider,
+        );
+
+        await tokenRouter.decimals();
+
+        return true;
+      }
+    } catch (error) {
+      this.logger.debug(
+        `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.synthetic}`,
+        error,
+      );
+
+      return false;
+    }
   }
 
   async fetchXERC20Config(
