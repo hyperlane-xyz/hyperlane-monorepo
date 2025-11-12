@@ -33,6 +33,7 @@ runs:
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.github_token }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
         PR_NUMBER: ${{ inputs.pr_number }}
         COMMENT_TAG: ${{ inputs.comment_tag }}
         IMAGE_NAME: ${{ inputs.image_name }}
@@ -59,7 +60,7 @@ runs:
 
         # Find existing comment
         COMMENT_ID=$(gh pr view ${PR_NUMBER} \
-          --repo ${{ github.repository }} \
+          --repo ${GITHUB_REPOSITORY} \
           --json comments \
           --jq '.comments[] | select(.body | contains("'"${COMMENT_IDENTIFIER}"'")) | .id')
 
@@ -70,17 +71,17 @@ runs:
             if ! gh api \
               --method PATCH \
               -H "Accept: application/vnd.github+json" \
-              "/repos/${{ github.repository }}/issues/comments/${COMMENT_ID}" \
+              "/repos/${GITHUB_REPOSITORY}/issues/comments/${COMMENT_ID}" \
               -f body="${COMMENT_BODY}" 2>/dev/null; then
               # Comment no longer exists, create a new one
               gh pr comment ${PR_NUMBER} \
-                --repo ${{ github.repository }} \
+                --repo ${GITHUB_REPOSITORY} \
                 --body "${COMMENT_BODY}"
             fi
           else
             # Create new comment
             gh pr comment ${PR_NUMBER} \
-              --repo ${{ github.repository }} \
+              --repo ${GITHUB_REPOSITORY} \
               --body "${COMMENT_BODY}"
           fi
         else
@@ -89,6 +90,6 @@ runs:
             gh api \
               --method DELETE \
               -H "Accept: application/vnd.github+json" \
-              "/repos/${{ github.repository }}/issues/comments/${COMMENT_ID}" 2>/dev/null || true
+              "/repos/${GITHUB_REPOSITORY}/issues/comments/${COMMENT_ID}" 2>/dev/null || true
           fi
         fi
