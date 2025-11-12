@@ -22,6 +22,68 @@ env:
   RUSTC_WRAPPER: sccache
 
 jobs:
+  cargo-lock-check:
+    runs-on: depot-ubuntu-24.04-8
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Run sccache-cache
+        uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Check Cargo.lock for main workspace
+        id: check-main
+        continue-on-error: true
+        run: |
+          cargo check --workspace
+          CHANGES=$(git status -s --ignore-submodules -- Cargo.lock)
+          if [[ ! -z $CHANGES ]]; then
+            echo "out-of-sync=true" >> $GITHUB_OUTPUT
+            echo "::group::rust/main Cargo.lock changes"
+            echo "Cargo.lock is out of sync with Cargo.toml files in rust/main"
+            echo "Changes found: $CHANGES"
+            git diff Cargo.lock
+            echo "::endgroup::"
+            exit 1
+          else
+            echo "out-of-sync=false" >> $GITHUB_OUTPUT
+          fi
+        working-directory: ./rust/main
+      - name: Check Cargo.lock for sealevel workspace
+        id: check-sealevel
+        continue-on-error: true
+        run: |
+          cargo check --workspace
+          CHANGES=$(git status -s --ignore-submodules -- Cargo.lock)
+          if [[ ! -z $CHANGES ]]; then
+            echo "out-of-sync=true" >> $GITHUB_OUTPUT
+            echo "::group::rust/sealevel Cargo.lock changes"
+            echo "Cargo.lock is out of sync with Cargo.toml files in rust/sealevel"
+            echo "Changes found: $CHANGES"
+            git diff Cargo.lock
+            echo "::endgroup::"
+            exit 1
+          else
+            echo "out-of-sync=false" >> $GITHUB_OUTPUT
+          fi
+        working-directory: ./rust/sealevel
+      - name: Report Cargo.lock status
+        if: steps.check-main.outputs.out-of-sync == 'true' || steps.check-sealevel.outputs.out-of-sync == 'true'
+        run: |
+          echo "❌ Cargo.lock files are out of sync with Cargo.toml files"
+          echo ""
+          if [[ "${{ steps.check-main.outputs.out-of-sync }}" == "true" ]]; then
+            echo "- rust/main/Cargo.lock needs to be updated"
+            echo "  Run: cd rust/main && cargo build"
+          fi
+          if [[ "${{ steps.check-sealevel.outputs.out-of-sync }}" == "true" ]]; then
+            echo "- rust/sealevel/Cargo.lock needs to be updated"
+            echo "  Run: cd rust/sealevel && cargo build"
+          fi
+          echo ""
+          echo "Please commit the updated Cargo.lock file(s)"
+          exit 1
+
   lander-coverage:
     runs-on: depot-ubuntu-24.04-8
     steps:
