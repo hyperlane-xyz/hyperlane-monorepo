@@ -1,9 +1,14 @@
 import { IProvider, ISigner } from './altvm.js';
-import { type ArtifactProvider, type ArtifactProviderPoc } from './artifact.js';
+import type {
+  ArtifactProvider,
+  ArtifactProviderPoc,
+  Receipt,
+  Transaction,
+} from './artifact.js';
 import { ChainMetadataForAltVM } from './chain.js';
 import { HookArtifacts, type HookConfig } from './hook.js';
 import { IsmArtifacts, type IsmConfig } from './ism.js';
-import { AnnotatedTx, Receipt, Transaction, TxReceipt } from './module.js';
+import { AnnotatedTx, TxReceipt } from './module.js';
 import {
   ITransactionSubmitter,
   JsonRpcSubmitterConfig,

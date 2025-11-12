@@ -2,14 +2,7 @@ import { WithAddress } from '@hyperlane-xyz/utils';
 
 import { IProvider, ISigner } from './altvm.js';
 import { ProtocolReader, ProtocolWriter } from './factory.js';
-import {
-  AnnotatedTx,
-  type ArtifactReaderPoc,
-  type ArtifactType,
-  type ArtifactWriter,
-  HypModuleFactory,
-  TxReceipt,
-} from './module.js';
+import { AnnotatedTx, type HypModuleFactory, TxReceipt } from './module.js';
 
 export interface ArtifactReader<TConfig> {
   read(address: string): Promise<WithAddress<TConfig>>;
@@ -24,6 +17,44 @@ export interface ArtifactProvider<
   createModuleFactory: (
     signer: ISigner<AnnotatedTx, TxReceipt>,
   ) => HypModuleFactory<TConfig, TAddressMap>;
+}
+
+/* --------------------------------------------------------------- */
+
+export interface ArtifactType {
+  config: unknown;
+  derived: unknown;
+}
+
+export type Config<T extends { config: unknown }> = T['config'];
+export type Derived<T extends { derived: unknown }> = T['derived'];
+
+export interface Transaction<T = unknown> {
+  type: string;
+  data: T;
+}
+
+export interface Receipt<T = unknown> {
+  hash: string;
+  status: string;
+  data: T;
+}
+
+export interface ArtifactReaderPoc<T extends ArtifactType> {
+  read(address: string): Promise<Derived<T>>;
+}
+
+export interface ArtifactWriter<T extends ArtifactType> {
+  create(config: Config<T>): Promise<Derived<T>>;
+  update(
+    address: string,
+    config: Config<T>,
+  ): Promise<{
+    derived: Derived<T>;
+    receipts: Receipt[];
+    transactions: Transaction[];
+  }>;
+  transferOwnership(address: string, config: Config<T>): Promise<Transaction[]>;
 }
 
 export type ArtifactFactory<
