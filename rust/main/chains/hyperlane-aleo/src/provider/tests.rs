@@ -66,6 +66,25 @@ async fn test_get_txn_by_hash() {
 }
 
 #[tokio::test]
+async fn test_get_txn_by_hash_defaults() {
+    let provider = mock_provider();
+    provider
+        .deref()
+        .register_file(
+            "transaction/at16e9kg860d3d44yvyqswp8drwm249h2s8pwv7ylalzhcgyc5njcxqs7rr89",
+            "transaction_no_sender.json",
+        )
+        .unwrap();
+    let hash = H256::from_str("d64b641f4f6c5b5a9184041c13b46edaaa5baa070b99e27fbf15f0826293960c")
+        .unwrap()
+        .into();
+
+    let tx = provider.get_txn_by_hash(&hash).await.unwrap();
+    assert_eq!(tx.hash, hash);
+    assert_eq!(tx.sender, H256::default());
+}
+
+#[tokio::test]
 async fn test_get_balance() {
     let provider = mock_provider();
     provider

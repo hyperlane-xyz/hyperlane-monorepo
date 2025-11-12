@@ -18,6 +18,7 @@ pub fn aleo_serialize(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let (_orig_impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
     // Build impl generics: always add N: Network (struct itself does NOT gain N).
+    // It is convention to call the network parameter N.
     let impl_generics_with_n = if generics.params.is_empty() {
         quote!(<N: snarkvm::prelude::Network>)
     } else {
