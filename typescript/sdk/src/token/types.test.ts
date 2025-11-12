@@ -292,46 +292,27 @@ describe('WarpRouteDeployConfigSchema refine', () => {
       expect(parseResults.success).to.be.true;
     });
 
-    it('should reject xERC20 with synthetic', () => {
-      const config = {
-        ethereum: {
-          type: TokenType.XERC20,
-          token: SOME_ADDRESS,
-          owner: SOME_ADDRESS,
-          mailbox: SOME_ADDRESS,
-        },
-        arbitrum: {
-          type: TokenType.synthetic,
-          owner: SOME_ADDRESS,
-          mailbox: SOME_ADDRESS,
-        },
-      };
-      const parseResults = WarpRouteDeployConfigSchema.safeParse(config);
-      assert(!parseResults.success, 'must be false');
-      expect(parseResults.error.issues[0].message).to.equal(
-        'xERC20 warp routes must only contain xERC20 or collateral token types',
-      );
-    });
-
-    it('should reject xERC20 with native', () => {
-      const config = {
-        ethereum: {
-          type: TokenType.XERC20,
-          token: SOME_ADDRESS,
-          owner: SOME_ADDRESS,
-          mailbox: SOME_ADDRESS,
-        },
-        arbitrum: {
-          type: TokenType.native,
-          owner: SOME_ADDRESS,
-          mailbox: SOME_ADDRESS,
-        },
-      };
-      const parseResults = WarpRouteDeployConfigSchema.safeParse(config);
-      assert(!parseResults.success, 'must be false');
-      expect(parseResults.error.issues[0].message).to.equal(
-        'xERC20 warp routes must only contain xERC20 or collateral token types',
-      );
-    });
+    for (const invalidType of [TokenType.synthetic, TokenType.native]) {
+      it(`should reject xERC20 with ${invalidType}`, () => {
+        const config = {
+          ethereum: {
+            type: TokenType.XERC20,
+            token: SOME_ADDRESS,
+            owner: SOME_ADDRESS,
+            mailbox: SOME_ADDRESS,
+          },
+          arbitrum: {
+            type: invalidType,
+            owner: SOME_ADDRESS,
+            mailbox: SOME_ADDRESS,
+          },
+        };
+        const parseResults = WarpRouteDeployConfigSchema.safeParse(config);
+        assert(!parseResults.success, 'must be false');
+        expect(parseResults.error.issues[0].message).to.equal(
+          'xERC20 warp routes must only contain xERC20 or collateral token types',
+        );
+      });
+    }
   });
 });
