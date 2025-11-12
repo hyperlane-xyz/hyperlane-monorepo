@@ -4,7 +4,6 @@ import {
   registerProtocol,
 } from '@hyperlane-xyz/provider-sdk/registry';
 
-// Loads a set of Providers, given a chain
 export async function loadProviders(neededProtocols: ProtocolType[]) {
   await Promise.all(
     neededProtocols.map(async (protocol) => {
