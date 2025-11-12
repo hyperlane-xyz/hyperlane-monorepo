@@ -268,6 +268,7 @@ jobs:
     runs-on: depot-ubuntu-latest
     needs: [rust-only]
     if: needs.rust-only.outputs.only_rust == 'false'
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -328,6 +329,7 @@ jobs:
     runs-on: depot-ubuntu-latest
     needs: [rust-only]
     if: needs.rust-only.outputs.only_rust == 'false'
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -367,12 +369,17 @@ jobs:
     runs-on: depot-ubuntu-latest
     needs: [rust-only]
     if: needs.rust-only.outputs.only_rust == 'false'
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
         test:
           # Core Commands
           - core-deploy
+          # Warp Commands
+          - warp-deploy
+          - warp-apply-ownership-updates
+          - warp-apply-route-extension
     steps:
       - uses: actions/checkout@v5
         with:
@@ -397,6 +404,7 @@ jobs:
     runs-on: depot-ubuntu-latest
     needs: [rust-only]
     if: needs.rust-only.outputs.only_rust == 'false'
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -461,6 +469,7 @@ jobs:
     runs-on: depot-ubuntu-latest
     needs: [rust-only]
     if: needs.rust-only.outputs.only_rust == 'false'
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
         with:
@@ -518,7 +527,8 @@ jobs:
 
   e2e-matrix:
     runs-on: depot-ubuntu-24.04-8
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main' || github.base_ref == 'cli-2.0') || github.event_name == 'merge_group'
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main') || github.event_name == 'merge_group'
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
