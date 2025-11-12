@@ -33,7 +33,7 @@ edition = "2021"
 homepage = "https://hyperlane.xyz"
 license-file = "../LICENSE.md"
 publish = false
-version = "1.6.0"
+version = "1.7.0"
 
 [workspace.dependencies]
 Inflector = "0.11.4"

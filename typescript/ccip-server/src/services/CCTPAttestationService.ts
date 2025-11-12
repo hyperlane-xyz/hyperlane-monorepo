@@ -1,7 +1,10 @@
 import { BytesLike, ethers } from 'ethers';
 import { Logger } from 'pino';
 
-import { PrometheusMetrics } from '../utils/prometheus.js';
+import {
+  PrometheusMetrics,
+  UnhandledErrorReason,
+} from '../utils/prometheus.js';
 
 interface CCTPMessageEntry {
   attestation: string;
@@ -68,12 +71,14 @@ class CCTPAttestationService {
    * Get the CCTP v2 attestation
    * @param CCTP message retrieved from the MessageSend log event
    * @param transaction hash containing the MessageSent event
+   * @param messageId Hyperlane message ID for tracking
    * @param logger logger for request context
    * @returns the attestation byte array
    */
   async getAttestation(
     cctpMessage: string,
     transactionHash: string,
+    messageId: string,
     logger: Logger,
   ) {
     const version = this._getCCTPVersionFromMessage(cctpMessage);
@@ -93,10 +98,15 @@ class CCTPAttestationService {
         {
           ...context,
           version,
+          messageId,
+          error_reason: UnhandledErrorReason.CCTP_UNSUPPORTED_VERSION,
         },
         'Unsupported CCTP version',
       );
-      PrometheusMetrics.logUnhandledError(this.serviceName);
+      PrometheusMetrics.logUnhandledError(
+        this.serviceName,
+        UnhandledErrorReason.CCTP_UNSUPPORTED_VERSION,
+      );
       throw new Error(`Unsupported CCTP version: ${version}`);
     }
 
@@ -115,10 +125,15 @@ class CCTPAttestationService {
             status: resp.status,
             statusText: resp.statusText,
             url,
+            messageId,
+            error_reason: UnhandledErrorReason.CCTP_ATTESTATION_SERVICE_500,
           },
           'CCTP attestation request failed',
         );
-        PrometheusMetrics.logUnhandledError(this.serviceName);
+        PrometheusMetrics.logUnhandledError(
+          this.serviceName,
+          UnhandledErrorReason.CCTP_ATTESTATION_SERVICE_500,
+        );
         throw new Error(`CCTP attestation request failed: ${resp.statusText}`);
       }
 
@@ -142,10 +157,16 @@ class CCTPAttestationService {
           status: resp.status,
           statusText: resp.statusText,
           url,
+          messageId,
+          error_reason:
+            UnhandledErrorReason.CCTP_ATTESTATION_SERVICE_UNKNOWN_ERROR,
         },
         'CCTP attestation request failed: unknown error',
       );
-      PrometheusMetrics.logUnhandledError(this.serviceName);
+      PrometheusMetrics.logUnhandledError(
+        this.serviceName,
+        UnhandledErrorReason.CCTP_ATTESTATION_SERVICE_UNKNOWN_ERROR,
+      );
       throw new Error(`CCTP attestation request failed: ${resp.statusText}`);
     }
 
