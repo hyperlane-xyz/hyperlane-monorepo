@@ -5,7 +5,7 @@ use ethers_core::types::Address;
 
 use hyperlane_core::{HyperlaneDomain, U256};
 
-use crate::adapter::chains::ethereum::tests::{dummy_evm_tx, ExpectedTxType, MockEvmProvider};
+use crate::adapter::chains::ethereum::tests::{dummy_evm_tx, ExpectedTxType};
 use crate::adapter::chains::ethereum::Precursor;
 use crate::tests::test_utils::tmp_dbs;
 use crate::transaction::{DropReason, TransactionStatus, TransactionUuid};
@@ -594,6 +594,7 @@ async fn test_validate_assigned_nonce_committed_below_finalized() {
     let action = state.validate_assigned_nonce(&tx).await.unwrap();
     // Committed status doesn't check finalized nonce, always returns Assign
     assert_eq!(action, NonceAction::Assign { nonce: nonce_val });
+    assert_eq!(state.metrics.get_mismatched_nonce().get(), 0);
 }
 
 #[tokio::test]
