@@ -8,7 +8,6 @@ import {
   ArtifactReader,
   ArtifactType,
   ArtifactWriter,
-  HypModuleFactory,
   Receipt,
   Transaction,
   TxReceipt,
@@ -70,14 +69,14 @@ export interface ProtocolProvider {
 //  2. The app logic uses the provider/signer to get an artifact object (ISM, hook, token router)
 //  3. The app logic uses the artifact object to perform its tasks
 
-export interface ProtocolProvider {
+export interface ProtocolProviderPoc {
   createReader(chainMetadata: ChainMetadataForAltVM): ProtocolReader;
   createWriter(
     chainMetadata: ChainMetadataForAltVM,
     config: SignerConfig,
   ): ProtocolWriter;
-  ismProvider(): ArtifactProvider<IsmArtifacts>;
-  hookProvider(): ArtifactProvider<HookArtifacts>;
+  ismProvider(): ArtifactProviderPoc<IsmArtifacts>;
+  hookProvider(): ArtifactProviderPoc<HookArtifacts>;
 }
 
 export interface ProtocolReader {
@@ -101,7 +100,7 @@ export type ArtifactFactories<AT extends Record<string, ArtifactType>> = {
   [K in keyof AT]?: ArtifactFactory<AT, K>;
 };
 
-export interface ArtifactProvider<AT extends Record<string, ArtifactType>> {
+export interface ArtifactProviderPoc<AT extends Record<string, ArtifactType>> {
   availableTypes(): () => Set<keyof AT>;
   readable(
     reader: ProtocolReader,
@@ -113,7 +112,7 @@ export interface ArtifactProvider<AT extends Record<string, ArtifactType>> {
 
 export function createArtifactProvider<AT extends Record<string, ArtifactType>>(
   factories: ArtifactFactories<AT>,
-): ArtifactProvider<AT> {
+): ArtifactProviderPoc<AT> {
   return {
     availableTypes: () => () => new Set(Object.keys(factories) as (keyof AT)[]),
     readable: (reader: ProtocolReader) => {
