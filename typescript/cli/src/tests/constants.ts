@@ -17,6 +17,10 @@ export const WARP_DEPLOY_DEFAULT_FILE_NAME = `warp-route-deployment`;
 export const WARP_DEPLOY_OUTPUT_PATH = `${TEMP_PATH}/${WARP_DEPLOY_DEFAULT_FILE_NAME}.yaml`;
 export const WARP_READ_OUTPUT_PATH = `${TEMP_PATH}/${WARP_DEPLOY_DEFAULT_FILE_NAME}-read.yaml`;
 
+const EXAMPLES_PATH = './examples';
+export const JSON_RPC_ICA_STRATEGY_CONFIG_PATH = `${EXAMPLES_PATH}/submit/strategy/json-rpc-ica-strategy.yaml`;
+export const JSON_RPC_TIMELOCK_STRATEGY_CONFIG_PATH = `${EXAMPLES_PATH}/submit/strategy/json-rpc-timelock-strategy.yaml`;
+
 export const TEST_CHAIN_NAMES_BY_PROTOCOL = {
   [ProtocolType.Ethereum]: {
     CHAIN_NAME_2: 'anvil2',
