@@ -5,7 +5,7 @@
 
 # -------- Base Image with Tools --------
 # Base image containing all necessary build tools and dependencies
-FROM rust:1.86.0 AS base
+FROM rust:1.88.0 AS base
 RUN apt-get update && \
     apt-get install -y --no-install-recommends musl-tools clang && \
     apt-get clean && \
