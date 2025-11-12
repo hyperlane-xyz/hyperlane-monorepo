@@ -227,4 +227,111 @@ describe('WarpRouteDeployConfigSchema refine', () => {
       );
     });
   }
+
+  describe('xERC20 validation', () => {
+    it('should allow xERC20 with xERC20Lockbox', () => {
+      const config = {
+        ethereum: {
+          type: TokenType.XERC20Lockbox,
+          token: SOME_ADDRESS,
+          owner: SOME_ADDRESS,
+          mailbox: SOME_ADDRESS,
+        },
+        arbitrum: {
+          type: TokenType.XERC20,
+          token: SOME_ADDRESS,
+          owner: SOME_ADDRESS,
+          mailbox: SOME_ADDRESS,
+        },
+      };
+      const parseResults = WarpRouteDeployConfigSchema.safeParse(config);
+      expect(parseResults.success).to.be.true;
+    });
+
+    it('should allow xERC20 with collateral', () => {
+      const config = {
+        ethereum: {
+          type: TokenType.collateral,
+          token: SOME_ADDRESS,
+          owner: SOME_ADDRESS,
+          mailbox: SOME_ADDRESS,
+        },
+        arbitrum: {
+          type: TokenType.XERC20,
+          token: SOME_ADDRESS,
+          owner: SOME_ADDRESS,
+          mailbox: SOME_ADDRESS,
+        },
+      };
+      const parseResults = WarpRouteDeployConfigSchema.safeParse(config);
+      expect(parseResults.success).to.be.true;
+    });
+
+    it('should allow multiple xERC20 chains', () => {
+      const config = {
+        ethereum: {
+          type: TokenType.XERC20Lockbox,
+          token: SOME_ADDRESS,
+          owner: SOME_ADDRESS,
+          mailbox: SOME_ADDRESS,
+        },
+        arbitrum: {
+          type: TokenType.XERC20,
+          token: SOME_ADDRESS,
+          owner: SOME_ADDRESS,
+          mailbox: SOME_ADDRESS,
+        },
+        optimism: {
+          type: TokenType.XERC20,
+          token: SOME_ADDRESS,
+          owner: SOME_ADDRESS,
+          mailbox: SOME_ADDRESS,
+        },
+      };
+      const parseResults = WarpRouteDeployConfigSchema.safeParse(config);
+      expect(parseResults.success).to.be.true;
+    });
+
+    it('should reject xERC20 with synthetic', () => {
+      const config = {
+        ethereum: {
+          type: TokenType.XERC20,
+          token: SOME_ADDRESS,
+          owner: SOME_ADDRESS,
+          mailbox: SOME_ADDRESS,
+        },
+        arbitrum: {
+          type: TokenType.synthetic,
+          owner: SOME_ADDRESS,
+          mailbox: SOME_ADDRESS,
+        },
+      };
+      const parseResults = WarpRouteDeployConfigSchema.safeParse(config);
+      assert(!parseResults.success, 'must be false');
+      expect(parseResults.error.issues[0].message).to.equal(
+        'xERC20 warp routes must only contain xERC20 or collateral token types',
+      );
+    });
+
+    it('should reject xERC20 with native', () => {
+      const config = {
+        ethereum: {
+          type: TokenType.XERC20,
+          token: SOME_ADDRESS,
+          owner: SOME_ADDRESS,
+          mailbox: SOME_ADDRESS,
+        },
+        arbitrum: {
+          type: TokenType.native,
+          owner: SOME_ADDRESS,
+          mailbox: SOME_ADDRESS,
+        },
+      };
+      const parseResults = WarpRouteDeployConfigSchema.safeParse(config);
+      assert(!parseResults.success, 'must be false');
+      expect(parseResults.error.issues[0].message).to.equal(
+        'xERC20 warp routes must only contain xERC20 or collateral token types',
+      );
+    });
+  });
 });
