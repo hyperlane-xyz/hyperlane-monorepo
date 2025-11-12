@@ -40,7 +40,7 @@ export interface Receipt<T = unknown> {
   data: T;
 }
 
-export interface ArtifactReader<T extends ArtifactType> {
+export interface ArtifactReaderPoc<T extends ArtifactType> {
   read(address: string): Promise<Derived<T>>;
 }
 

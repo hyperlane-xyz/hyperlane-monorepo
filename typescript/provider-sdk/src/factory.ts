@@ -1,17 +1,9 @@
 import { IProvider, ISigner } from './altvm.js';
-import { ArtifactProvider } from './artifact.js';
+import { type ArtifactProvider, type ArtifactProviderPoc } from './artifact.js';
 import { ChainMetadataForAltVM } from './chain.js';
-import { HookArtifacts, HookConfig } from './hook.js';
-import { IsmArtifacts, IsmConfig } from './ism.js';
-import {
-  AnnotatedTx,
-  ArtifactReader,
-  ArtifactType,
-  ArtifactWriter,
-  Receipt,
-  Transaction,
-  TxReceipt,
-} from './module.js';
+import { HookArtifacts, type HookConfig } from './hook.js';
+import { IsmArtifacts, type IsmConfig } from './ism.js';
+import { AnnotatedTx, Receipt, Transaction, TxReceipt } from './module.js';
 import {
   ITransactionSubmitter,
   JsonRpcSubmitterConfig,
@@ -86,62 +78,4 @@ export interface ProtocolReader {
 
 export interface ProtocolWriter {
   submitTransaction(tx: Transaction): Promise<Receipt>;
-}
-
-export type ArtifactFactory<
-  AT extends Record<string, ArtifactType>,
-  K extends keyof AT,
-> = [
-  readerFactory: (reader: ProtocolReader) => ArtifactReader<AT[K]>,
-  writerFactory: (writer: ProtocolWriter) => ArtifactWriter<AT[K]>,
-];
-
-export type ArtifactFactories<AT extends Record<string, ArtifactType>> = {
-  [K in keyof AT]?: ArtifactFactory<AT, K>;
-};
-
-export interface ArtifactProviderPoc<AT extends Record<string, ArtifactType>> {
-  availableTypes(): () => Set<keyof AT>;
-  readable(
-    reader: ProtocolReader,
-  ): <K extends keyof AT>(type: K) => ArtifactReader<AT[K]>;
-  writable(
-    writer: ProtocolWriter,
-  ): <K extends keyof AT>(type: K) => ArtifactWriter<AT[K]>;
-}
-
-export function createArtifactProvider<AT extends Record<string, ArtifactType>>(
-  factories: ArtifactFactories<AT>,
-): ArtifactProviderPoc<AT> {
-  return {
-    availableTypes: () => () => new Set(Object.keys(factories) as (keyof AT)[]),
-    readable: (reader: ProtocolReader) => {
-      const cache = new Map<keyof AT, ArtifactReader<AT[keyof AT]>>();
-      return <T extends keyof AT>(type: T) => {
-        if (!cache.has(type)) {
-          const factory = factories[type];
-          if (!factory) {
-            throw new Error(`No factory registered for type ${String(type)}`);
-          }
-          const [readerFactory, _] = factory;
-          cache.set(type, readerFactory(reader));
-        }
-        return cache.get(type)! as ArtifactReader<AT[T]>;
-      };
-    },
-    writable: (writer: ProtocolWriter) => {
-      const cache = new Map<keyof AT, ArtifactWriter<AT[keyof AT]>>();
-      return <T extends keyof AT>(type: T) => {
-        if (!cache.has(type)) {
-          const factory = factories[type];
-          if (!factory) {
-            throw new Error(`No factory registered for type ${String(type)}`);
-          }
-          const [_, writerFactory] = factory;
-          cache.set(type, writerFactory(writer));
-        }
-        return cache.get(type)! as ArtifactWriter<AT[T]>;
-      };
-    },
-  };
 }
