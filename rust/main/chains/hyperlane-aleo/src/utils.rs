@@ -1,7 +1,18 @@
 use hyperlane_core::{ChainResult, H256};
-use snarkvm_console_account::{FromBytes, ToBytes};
+use snarkvm::prelude::{Identifier, Network, Plaintext, ProgramID};
+use snarkvm_console_account::{Field, FromBytes, Itertools, ToBits, ToBytes};
 
 use crate::{HyperlaneAleoError, TxID};
+
+/// Converts a [U128; 2] into a H256
+/// Uses little-endian byte order
+pub(crate) fn u128_to_hash(id: &[u128; 2]) -> H256 {
+    let bytes = id
+        .iter()
+        .flat_map(|value| value.to_le_bytes())
+        .collect_vec();
+    H256::from_slice(&bytes)
+}
 
 /// Convert a H256 into a TxID
 pub(crate) fn get_tx_id(hash: impl Into<H256>) -> ChainResult<TxID> {
@@ -17,6 +28,25 @@ pub(crate) fn to_h256<T: ToBytes>(id: T) -> ChainResult<H256> {
         ));
     }
     Ok(H256::from_slice(&bytes))
+}
+
+/// Returns the key ID for the given `program ID`, `mapping name`, and `key`.
+/// Copied from snarkVM's internal implementation of mapping key hashing.
+/// See: https://github.com/ProvableHQ/snarkVM/blob/6bec0e0e165f7604afa69bce0fc383d50bed9577/ledger/store/src/program/finalize.rs#L46
+pub(crate) fn to_key_id<N: Network>(
+    program_id: &ProgramID<N>,
+    mapping_name: &Identifier<N>,
+    key: &Plaintext<N>,
+) -> ChainResult<Field<N>> {
+    // Construct the preimage.
+    let mut preimage = Vec::new();
+    program_id.write_bits_le(&mut preimage);
+    false.write_bits_le(&mut preimage); // Separator
+    mapping_name.write_bits_le(&mut preimage);
+    false.write_bits_le(&mut preimage); // Separator
+    key.write_bits_le(&mut preimage);
+    // Compute the key ID.
+    Ok(N::hash_bhp1024(&preimage).map_err(HyperlaneAleoError::from)?)
 }
 
 #[cfg(test)]
@@ -71,5 +101,31 @@ mod tests {
             h256.err().unwrap().to_string(),
             "Invalid length for H256 conversion: expected 32, got 33"
         );
+    }
+
+    #[test]
+    fn test_to_key_id() {
+        let program_id = ProgramID::<CurrentNetwork>::from_str("aleo_program.aleo").unwrap();
+        let mapping_name = Identifier::<CurrentNetwork>::from_str("my_mapping").unwrap();
+        let key = Plaintext::<CurrentNetwork>::from_str("42u64").unwrap();
+
+        let key_id = super::to_key_id(&program_id, &mapping_name, &key).unwrap();
+        let expected_key_id = Field::<CurrentNetwork>::from_str(
+            "804856378139656320849856436685808080271884643790236438308126650299339833474field",
+        )
+        .unwrap();
+        assert_eq!(key_id, expected_key_id);
+    }
+
+    #[test]
+    fn test_u128_to_hash() {
+        let id = [1u128, 2u128];
+        let hash = super::u128_to_hash(&id);
+        let expected_bytes =
+            hex::decode("0100000000000000000000000000000002000000000000000000000000000000")
+                .unwrap();
+        let expected_hash = H256::from_slice(&expected_bytes);
+
+        assert_eq!(hash, expected_hash);
     }
 }
