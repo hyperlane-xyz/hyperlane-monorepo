@@ -6,7 +6,6 @@ import {
   Program,
   ProgramManager,
   U128,
-  getOrInitConsensusVersionTestHeights,
   initThreadPool,
 } from '@provablehq/sdk';
 import { BigNumber } from 'bignumber.js';
@@ -23,7 +22,6 @@ import {
 } from '../utils/helper.js';
 import { AleoTransaction } from '../utils/types.js';
 
-getOrInitConsensusVersionTestHeights('0,1,2,3,4,5,6,7,8,9,10');
 await initThreadPool();
 
 export class AleoProvider implements AltVM.IProvider {
@@ -673,7 +671,7 @@ export class AleoProvider implements AltVM.IProvider {
       mailboxAddress,
     });
 
-    let quote = new BigNumber(0);
+    const quote = new BigNumber(0);
 
     for (const hookAddress of [mailbox.requiredHook, mailbox.defaultHook]) {
       try {

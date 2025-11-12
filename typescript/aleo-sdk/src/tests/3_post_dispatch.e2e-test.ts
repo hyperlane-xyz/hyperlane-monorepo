@@ -27,7 +27,6 @@ describe('3. aleo sdk post dispatch e2e tests', async function () {
 
     const mailbox = await signer.createMailbox({
       domainId: domainId,
-      defaultIsmAddress: '',
     });
     mailboxAddress = mailbox.mailboxAddress;
   });

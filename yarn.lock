@@ -8181,7 +8181,7 @@ __metadata:
     "@eslint/js": "npm:^9.31.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
     "@hyperlane-xyz/utils": "npm:19.7.0"
-    "@provablehq/sdk": "npm:^0.9.11"
+    "@provablehq/sdk": "portal:../../../sdk/sdk"
     "@types/mocha": "npm:^10.0.1"
     "@typescript-eslint/eslint-plugin": "npm:^8.1.6"
     "@typescript-eslint/parser": "npm:^8.1.6"
@@ -11506,9 +11506,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@provablehq/sdk@npm:^0.9.11":
-  version: 0.9.11
-  resolution: "@provablehq/sdk@npm:0.9.11"
+"@provablehq/sdk@portal:../../../sdk/sdk::locator=%40hyperlane-xyz%2Faleo-sdk%40workspace%3Atypescript%2Faleo-sdk":
+  version: 0.0.0-use.local
+  resolution: "@provablehq/sdk@portal:../../../sdk/sdk::locator=%40hyperlane-xyz%2Faleo-sdk%40workspace%3Atypescript%2Faleo-sdk"
   dependencies:
     "@provablehq/wasm": "npm:^0.9.11"
     "@scure/base": "npm:^2.0.0"
@@ -11517,9 +11517,8 @@ __metadata:
     mime: "npm:^4.0.6"
     sync-request: "npm:^6.1.0"
     xmlhttprequest-ssl: "npm:^3.1.0"
-  checksum: 10/5ed79a7a4123091c89f5d55c77c5f2ec9f8e1f2d19d720b5d2a54991e7e5eb2a09ff89106179f0be125d528f26b6d97537ed42e48cf554a44ff823ca24b3c710
   languageName: node
-  linkType: hard
+  linkType: soft
 
 "@provablehq/wasm@npm:0.9.11":
   version: 0.9.11
