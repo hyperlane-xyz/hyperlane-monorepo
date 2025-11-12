@@ -365,3 +365,156 @@ async fn test_calculate_next_nonce_only_tx_nonce() {
 
     assert_eq!(nonce_resp, U256::from(90));
 }
+
+#[tokio::test]
+async fn test_calculate_next_nonce_db_nonce_max() {
+    let (_, tx_db, nonce_db) = tmp_dbs();
+    let signer = Address::random();
+
+    let mut provider = MockEvmProvider::new();
+    provider
+        .expect_get_next_nonce_on_finalized_block()
+        .returning(|_, _| Ok(U256::from(100)));
+
+    let mut tx = dummy_evm_tx(
+        ExpectedTxType::Eip1559,
+        vec![],
+        crate::TransactionStatus::Included,
+        H160::random(),
+    );
+
+    let precursor = tx.precursor_mut();
+    precursor.tx.set_from(signer.clone());
+
+    // Store U256::MAX in database - should be treated as None
+    nonce_db
+        .store_nonce_by_transaction_uuid(&signer, &tx.uuid, &U256::MAX)
+        .await
+        .expect("Failed to store tx nonce");
+
+    let block_time = Duration::from_millis(100);
+
+    let provider = Arc::new(provider);
+    let reorg_period = EthereumReorgPeriod::Blocks(1);
+    let metrics = EthereumAdapterMetrics::dummy_instance();
+    let state = Arc::new(NonceManagerState::new(
+        nonce_db,
+        tx_db,
+        signer,
+        metrics.clone(),
+    ));
+
+    let nonce_updater = NonceUpdater::new(
+        signer,
+        reorg_period,
+        block_time,
+        provider.clone(),
+        state.clone(),
+    );
+
+    let nonce_manager = NonceManager {
+        address: signer,
+        state,
+        nonce_updater,
+    };
+
+    let nonce_resp = nonce_manager
+        .calculate_next_nonce(&tx)
+        .await
+        .expect("Failed to calculate nonce");
+
+    // Should get fresh nonce from provider since db has U256::MAX (treated as None)
+    assert_eq!(nonce_resp, U256::from(100));
+}
+
+#[tokio::test]
+async fn test_calculate_next_nonce_reassigns_outdated_nonce() {
+    let (_, tx_db, nonce_db) = tmp_dbs();
+    let signer = Address::random();
+
+    let mut provider = MockEvmProvider::new();
+    // Provider returns finalized nonce of 100
+    provider
+        .expect_get_next_nonce_on_finalized_block()
+        .returning(|_, _| Ok(U256::from(100)));
+
+    let mut tx = dummy_evm_tx(
+        ExpectedTxType::Eip1559,
+        vec![],
+        crate::TransactionStatus::PendingInclusion,
+        H160::random(),
+    );
+
+    let old_nonce = U256::from(50);
+    let precursor = tx.precursor_mut();
+    precursor.tx.set_nonce(old_nonce);
+    precursor.tx.set_from(signer.clone());
+
+    // Store old nonce in database
+    nonce_db
+        .store_nonce_by_transaction_uuid(&signer, &tx.uuid, &old_nonce)
+        .await
+        .expect("Failed to store tx nonce");
+
+    // Set the old nonce as tracked
+    nonce_db
+        .store_transaction_uuid_by_nonce_and_signer_address(&old_nonce, &signer, &tx.uuid)
+        .await
+        .expect("Failed to store tx uuid");
+
+    // Set finalized nonce above old_nonce (60 > 50)
+    nonce_db
+        .store_finalized_nonce_by_signer_address(&signer, &U256::from(60))
+        .await
+        .expect("Failed to store finalized nonce");
+
+    let block_time = Duration::from_millis(100);
+
+    let provider = Arc::new(provider);
+    let reorg_period = EthereumReorgPeriod::Blocks(1);
+    let metrics = EthereumAdapterMetrics::dummy_instance();
+    let state = Arc::new(NonceManagerState::new(
+        nonce_db.clone(),
+        tx_db,
+        signer,
+        metrics.clone(),
+    ));
+
+    let nonce_updater = NonceUpdater::new(
+        signer,
+        reorg_period,
+        block_time,
+        provider.clone(),
+        state.clone(),
+    );
+
+    let nonce_manager = NonceManager {
+        address: signer,
+        state: state.clone(),
+        nonce_updater,
+    };
+
+    let nonce_resp = nonce_manager
+        .calculate_next_nonce(&tx)
+        .await
+        .expect("Failed to calculate nonce");
+
+    // Should get new nonce (100) since old nonce (50) is below finalized (60)
+    assert_eq!(nonce_resp, U256::from(100));
+
+    // Verify old nonce mapping is updated
+    let tracked_uuid = nonce_db
+        .retrieve_transaction_uuid_by_nonce_and_signer_address(&old_nonce, &signer)
+        .await
+        .expect("Failed to retrieve tracked uuid");
+
+    // Old nonce should no longer be tracked (or tracked by a different tx)
+    assert_ne!(tracked_uuid, Some(tx.uuid.clone()));
+
+    // Verify new nonce is tracked
+    let new_tracked_uuid = nonce_db
+        .retrieve_transaction_uuid_by_nonce_and_signer_address(&nonce_resp, &signer)
+        .await
+        .expect("Failed to retrieve new tracked uuid");
+    assert_eq!(new_tracked_uuid, Some(tx.uuid));
+}
