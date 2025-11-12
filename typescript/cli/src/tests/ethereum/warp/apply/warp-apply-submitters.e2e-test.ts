@@ -96,6 +96,53 @@ describe('hyperlane warp apply with submitters', async function () {
     writeYamlOrJson(DEFAULT_EVM_WARP_DEPLOY_PATH, warpDeployConfig);
   }
 
+  function formatTimelockStrategyFile(
+    proposerSubmitter?: SubmissionStrategy['submitter'],
+  ) {
+    // Update the submitter config to use the deployed timelock address
+    const timelockSubmitterConfig = ChainSubmissionStrategySchema.parse(
+      readYamlOrJson(JSON_RPC_TIMELOCK_STRATEGY_CONFIG_PATH),
+    );
+
+    const chain3SubmissionStrategy =
+      timelockSubmitterConfig[
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
+      ];
+    assert(
+      chain3SubmissionStrategy.submitter.type ===
+        TxSubmitterType.TIMELOCK_CONTROLLER,
+      `expected submitter config to be of type ${TxSubmitterType.TIMELOCK_CONTROLLER}`,
+    );
+
+    chain3SubmissionStrategy.submitter.timelockAddress =
+      timelockInstance.address;
+    if (proposerSubmitter) {
+      chain3SubmissionStrategy.submitter.proposerSubmitter = proposerSubmitter;
+    }
+
+    timelockSubmitterConfig[
+      TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
+    ] = chain3SubmissionStrategy;
+
+    writeYamlOrJson(
+      FORMATTED_TIMELOCK_SUBMITTER_STRATEGY_PATH,
+      timelockSubmitterConfig,
+    );
+  }
+
+  async function deployAndExportWarpRoute(): Promise<WarpRouteDeployConfig> {
+    // currently warp deploy is not writing the deploy config to the registry
+    // should remove this once the deploy config is written to the registry
+    writeYamlOrJson(WARP_DEPLOY_CONFIG_PATH, warpDeployConfig);
+    await evmWarpCommands.deploy(
+      DEFAULT_EVM_WARP_DEPLOY_PATH,
+      HYP_KEY_BY_PROTOCOL.ethereum,
+      DEFAULT_EVM_WARP_ID,
+    );
+
+    return warpDeployConfig;
+  }
+
   before(async function () {
     const chain2Metadata =
       TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2;
@@ -167,60 +214,11 @@ describe('hyperlane warp apply with submitters', async function () {
     await evmChain2Core.apply(HYP_KEY_BY_PROTOCOL.ethereum);
   });
 
-  // Restore the chain to the state after running
-  // the before hook so no need to redeploy for each test
   beforeEach(async function () {
     restoreWarpRouteConfig();
 
     formatTimelockStrategyFile();
   });
-
-  function formatTimelockStrategyFile(
-    proposerSubmitter?: SubmissionStrategy['submitter'],
-  ) {
-    // Update the submitter config to use the deployed timelock address
-    const timelockSubmitterConfig = ChainSubmissionStrategySchema.parse(
-      readYamlOrJson(JSON_RPC_TIMELOCK_STRATEGY_CONFIG_PATH),
-    );
-
-    const chain3SubmissionStrategy =
-      timelockSubmitterConfig[
-        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
-      ];
-    assert(
-      chain3SubmissionStrategy.submitter.type ===
-        TxSubmitterType.TIMELOCK_CONTROLLER,
-      `expected submitter config to be of type ${TxSubmitterType.TIMELOCK_CONTROLLER}`,
-    );
-
-    chain3SubmissionStrategy.submitter.timelockAddress =
-      timelockInstance.address;
-    if (proposerSubmitter) {
-      chain3SubmissionStrategy.submitter.proposerSubmitter = proposerSubmitter;
-    }
-
-    timelockSubmitterConfig[
-      TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
-    ] = chain3SubmissionStrategy;
-
-    writeYamlOrJson(
-      FORMATTED_TIMELOCK_SUBMITTER_STRATEGY_PATH,
-      timelockSubmitterConfig,
-    );
-  }
-
-  async function deployAndExportWarpRoute(): Promise<WarpRouteDeployConfig> {
-    // currently warp deploy is not writing the deploy config to the registry
-    // should remove this once the deploy config is written to the registry
-    writeYamlOrJson(WARP_DEPLOY_CONFIG_PATH, warpDeployConfig);
-    await evmWarpCommands.deploy(
-      DEFAULT_EVM_WARP_DEPLOY_PATH,
-      HYP_KEY_BY_PROTOCOL.ethereum,
-      DEFAULT_EVM_WARP_ID,
-    );
-
-    return warpDeployConfig;
-  }
 
   function getTimelockExecuteTxFile(logs: string): CallData {
     const maybeGeneratedTxFilePath = logs.match(

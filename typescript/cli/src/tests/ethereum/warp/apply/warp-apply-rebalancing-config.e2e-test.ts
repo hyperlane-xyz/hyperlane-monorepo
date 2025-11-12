@@ -1,6 +1,5 @@
 import { JsonRpcProvider } from '@ethersproject/providers';
 import { expect } from 'chai';
-import { Wallet } from 'ethers';
 
 import {
   ERC20Test,
@@ -17,7 +16,6 @@ import {
   randomAddress,
 } from '@hyperlane-xyz/sdk';
 import {
-  Address,
   ProtocolType,
   addressToBytes32,
   assert,
@@ -63,8 +61,6 @@ describe('hyperlane warp apply owner update tests', async function () {
   let tokenChain2: ERC20Test;
   let everclearBridgeAdapterMock: MockEverclearAdapter;
 
-  let ownerAddress: Address;
-  let walletChain2: Wallet;
   let providerChain2: JsonRpcProvider;
 
   const evmChain2Core = new HyperlaneE2ECoreTestCommands(
@@ -106,11 +102,7 @@ describe('hyperlane warp apply owner update tests', async function () {
   before(async function () {
     const chain2Metadata =
       TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2;
-    providerChain2 = new JsonRpcProvider(chain2Metadata.rpcUrls[0].http);
-    walletChain2 = new Wallet(HYP_KEY_BY_PROTOCOL.ethereum).connect(
-      providerChain2,
-    );
-    ownerAddress = walletChain2.address;
+    providerChain2 = new JsonRpcProvider(chain2Metadata.rpcUrl);
 
     tokenChain2 = await deployToken(
       HYP_KEY_BY_PROTOCOL.ethereum,
@@ -225,7 +217,7 @@ describe('hyperlane warp apply owner update tests', async function () {
             ...warpDeployConfig[
               TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2
             ],
-            owner: ownerAddress,
+            owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
             remoteRouters: {
               [chain3DomainId]: { address: randomAddress() },
             },
@@ -273,7 +265,7 @@ describe('hyperlane warp apply owner update tests', async function () {
     > = {
       type: TokenType.collateralEverclear,
       token: tokenChain2.address,
-      owner: ownerAddress,
+      owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
       everclearBridgeAddress: everclearBridgeAdapterMock.address,
       everclearFeeParams: {
         [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
@@ -292,7 +284,7 @@ describe('hyperlane warp apply owner update tests', async function () {
         everclearTokenConfig,
       [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
         type: TokenType.synthetic,
-        owner: ownerAddress,
+        owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
       },
     };
 
