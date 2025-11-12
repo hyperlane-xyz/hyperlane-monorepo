@@ -17,7 +17,7 @@ use crate::{
     merkle_tree::builder::MerkleTreeBuilder,
     metrics::message_submission::MessageSubmissionMetrics,
     msg::{
-        db_loader::test::DummyApplicationOperationVerifier,
+        db_loader::tests::DummyApplicationOperationVerifier,
         gas_payment::GasPaymentEnforcer,
         metadata::{
             BaseMetadataBuilder, DefaultIsmCache, IsmAwareAppContextClassifier,

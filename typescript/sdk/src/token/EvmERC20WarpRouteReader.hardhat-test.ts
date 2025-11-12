@@ -25,6 +25,7 @@ import {
   MockWETH__factory,
   PackageVersioned__factory,
   ProxyAdmin__factory,
+  TokenRouter__factory,
   XERC20LockboxTest__factory,
   XERC20Test__factory,
 } from '@hyperlane-xyz/core';
@@ -924,5 +925,179 @@ describe('ERC20WarpRouterReader', async () => {
     expect(derivedConfig.tokenFee).to.be.undefined;
 
     fetchPackageVersionStub.restore();
+  });
+
+  describe('Backward compatibility for token type detection', () => {
+    // Test table for token type detection
+    const tokenTypeTestCases = [
+      {
+        version: '9.0.0',
+        tokenType: TokenType.native,
+        description: 'legacy native token using estimateGas fallback',
+        isLegacy: true,
+      },
+      {
+        version: '9.0.0',
+        tokenType: TokenType.synthetic,
+        description: 'legacy synthetic token using decimals() fallback',
+        isLegacy: true,
+      },
+      {
+        version: TOKEN_FEE_CONTRACT_VERSION,
+        tokenType: TokenType.native,
+        description: 'modern native token using token() method',
+        isLegacy: false,
+      },
+      {
+        version: TOKEN_FEE_CONTRACT_VERSION,
+        tokenType: TokenType.synthetic,
+        description: 'modern synthetic token using token() method',
+        isLegacy: false,
+      },
+    ] as const;
+
+    for (const testCase of tokenTypeTestCases) {
+      it(`should detect ${testCase.description} (v${testCase.version})`, async () => {
+        const config: WarpRouteDeployConfigMailboxRequired = {
+          [chain]: {
+            type: testCase.tokenType,
+            hook: await mailbox.defaultHook(),
+            ...(testCase.tokenType === TokenType.synthetic
+              ? {
+                  name: TOKEN_NAME,
+                  symbol: TOKEN_NAME,
+                  decimals: TOKEN_DECIMALS,
+                  initialSupply: TOKEN_SUPPLY,
+                }
+              : {}),
+            ...baseConfig,
+          },
+        };
+
+        const warpRoute = await deployer.deploy(config);
+        const warpAddress = warpRoute[chain][testCase.tokenType].address;
+
+        // Stub package version for legacy contracts
+        let fetchPackageVersionStub;
+        if (testCase.isLegacy) {
+          const mockPackageVersioned = {
+            PACKAGE_VERSION: sinon.stub().resolves(testCase.version),
+          };
+          fetchPackageVersionStub = sinon
+            .stub(PackageVersioned__factory, 'connect')
+            .returns(mockPackageVersioned as any);
+        }
+
+        const derivedTokenType =
+          await evmERC20WarpRouteReader.deriveTokenType(warpAddress);
+
+        expect(derivedTokenType).to.equal(testCase.tokenType);
+
+        // Cleanup
+        if (fetchPackageVersionStub) {
+          fetchPackageVersionStub.restore();
+        }
+      });
+    }
+
+    // Test table for full config derivation
+    const fullConfigTestCases = [
+      {
+        version: '9.0.0',
+        tokenType: TokenType.native,
+        description: 'legacy native contract',
+      },
+      {
+        version: '9.0.0',
+        tokenType: TokenType.synthetic,
+        description: 'legacy synthetic contract',
+      },
+    ] as const;
+
+    for (const testCase of fullConfigTestCases) {
+      it(`should derive warp route config for ${testCase.description} (v${testCase.version})`, async () => {
+        const config: WarpRouteDeployConfigMailboxRequired = {
+          [chain]: {
+            type: testCase.tokenType,
+            hook: await mailbox.defaultHook(),
+            ...(testCase.tokenType === TokenType.synthetic
+              ? {
+                  name: TOKEN_NAME,
+                  symbol: TOKEN_NAME,
+                  decimals: TOKEN_DECIMALS,
+                  initialSupply: TOKEN_SUPPLY,
+                }
+              : {}),
+            ...baseConfig,
+          },
+        };
+
+        const warpRoute = await deployer.deploy(config);
+        const warpAddress = warpRoute[chain][testCase.tokenType].address;
+
+        // Stub package version to simulate legacy contract
+        const mockPackageVersioned = {
+          PACKAGE_VERSION: sinon.stub().resolves(testCase.version),
+        };
+        const fetchPackageVersionStub = sinon
+          .stub(PackageVersioned__factory, 'connect')
+          .returns(mockPackageVersioned as any);
+
+        const derivedConfig =
+          await evmERC20WarpRouteReader.deriveWarpRouteConfig(warpAddress);
+
+        expect(derivedConfig.type).to.equal(testCase.tokenType);
+        expect(derivedConfig.contractVersion).to.equal(testCase.version);
+
+        if (testCase.tokenType === TokenType.native) {
+          expect(derivedConfig.decimals).to.equal(TOKEN_DECIMALS);
+        } else if (testCase.tokenType === TokenType.synthetic) {
+          expect(derivedConfig.name).to.equal(TOKEN_NAME);
+          expect(derivedConfig.symbol).to.equal(TOKEN_NAME);
+          expect(derivedConfig.decimals).to.equal(TOKEN_DECIMALS);
+        }
+
+        fetchPackageVersionStub.restore();
+      });
+    }
+
+    it('should fail when modern version contract claims v10.0.0+ but is missing token() method', async () => {
+      const config: WarpRouteDeployConfigMailboxRequired = {
+        [chain]: {
+          type: TokenType.native,
+          hook: await mailbox.defaultHook(),
+          ...baseConfig,
+        },
+      };
+
+      const warpRoute = await deployer.deploy(config);
+      const warpAddress = warpRoute[chain].native.address;
+
+      // Stub package version to claim it's modern (10.0.0+)
+      const mockPackageVersioned = {
+        PACKAGE_VERSION: sinon.stub().resolves(TOKEN_FEE_CONTRACT_VERSION),
+      };
+      const fetchPackageVersionStub = sinon
+        .stub(PackageVersioned__factory, 'connect')
+        .returns(mockPackageVersioned as any);
+
+      // Stub token() to throw error (simulating missing method)
+      const mockTokenRouter = {
+        token: sinon.stub().rejects(new Error('token() method not found')),
+      };
+      const tokenRouterStub = sinon
+        .stub(TokenRouter__factory, 'connect')
+        .returns(mockTokenRouter as any);
+
+      await expect(
+        evmERC20WarpRouteReader.deriveTokenType(warpAddress),
+      ).to.be.rejectedWith(
+        `Error deriving token type for token at address "${warpAddress}"`,
+      );
+
+      // Cleanup
+      fetchPackageVersionStub.restore();
+      tokenRouterStub.restore();
+    });
   });
 });
