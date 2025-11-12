@@ -250,11 +250,6 @@ async fn test_validate_assigned_nonce_tx_and_db_equal() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let signer = Address::random();
 
-    let mut provider = MockEvmProvider::new();
-    provider
-        .expect_get_next_nonce_on_finalized_block()
-        .returning(|_, _| Ok(U256::from(100)));
-
     let mut tx = dummy_evm_tx(
         ExpectedTxType::Eip1559,
         vec![],
@@ -294,11 +289,6 @@ async fn test_validate_assigned_nonce_tx_and_db_equal() {
 async fn test_validate_assigned_nonce_tx_and_db_mismatch() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let signer = Address::random();
-
-    let mut provider = MockEvmProvider::new();
-    provider
-        .expect_get_next_nonce_on_finalized_block()
-        .returning(|_, _| Ok(U256::from(90)));
 
     let mut tx = dummy_evm_tx(
         ExpectedTxType::Eip1559,
@@ -340,11 +330,6 @@ async fn test_validate_assigned_nonce_only_db_nonce() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let signer = Address::random();
 
-    let mut provider = MockEvmProvider::new();
-    provider
-        .expect_get_next_nonce_on_finalized_block()
-        .returning(|_, _| Ok(U256::from(90)));
-
     let mut tx = dummy_evm_tx(
         ExpectedTxType::Eip1559,
         vec![],
@@ -385,11 +370,6 @@ async fn test_validate_assigned_nonce_only_tx_nonce() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let metrics = EthereumAdapterMetrics::dummy_instance();
     let signer = Address::random();
-
-    let mut provider = MockEvmProvider::new();
-    provider
-        .expect_get_next_nonce_on_finalized_block()
-        .returning(|_, _| Ok(U256::from(90)));
 
     let mut tx = dummy_evm_tx(
         ExpectedTxType::Eip1559,
