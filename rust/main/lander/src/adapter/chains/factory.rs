@@ -58,6 +58,7 @@ impl AdapterFactory {
                 let adapter = RadixAdapter::from_conf(conf, core_metrics, &connection_conf)?;
                 Arc::new(adapter)
             }
+            ChainConnectionConf::Dango(_) => todo!(),
         };
         Ok(adapter)
     }
