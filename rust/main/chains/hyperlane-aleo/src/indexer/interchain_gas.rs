@@ -79,13 +79,13 @@ impl AleoIndexer for AleoInterchainGasIndexer {
         &self.program
     }
 
-    /// Returns the lastest event index of that specific block
+    /// Returns the latest event index of that specific block
     async fn get_latest_event_index(&self, height: u32) -> ChainResult<u32> {
         let key = HookEventIndex {
             hook: self.aleo_address,
             block_height: height,
         };
-        // The lastest event index for hooks is composition of block_height & hook_address
+        // The latest event index for hooks is composition of block_height & hook_address
         let last_event_index: u32 = self
             .get_client()
             .get_mapping_value(self.get_program(), Self::INDEX_MAPPING, &key)
