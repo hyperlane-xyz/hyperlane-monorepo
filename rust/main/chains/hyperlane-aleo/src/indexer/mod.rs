@@ -40,10 +40,16 @@ pub(crate) trait AleoIndexer {
         self.get_client().get_latest_height().await
     }
 
+    /// Returns the mapping key to index into the event mapping
+    /// For simple u32 indexed mappings, this is just the index as a plaintext
+    /// For hook indexed mappings, this is a struct with hook address and index
     fn get_mapping_key<N: Network>(&self, index: u32) -> ChainResult<Plaintext<N>> {
         Ok(index.to_plaintext().map_err(HyperlaneAleoError::from)?)
     }
 
+    /// Returns the latest event index of that specific block
+    /// This index represents the last sequence number of events emitted in that block
+    /// Meaning if there were 3 events emitted in that block and sequence was 5 before, the latest event index would be 8
     async fn get_latest_event_index(&self, height: u32) -> ChainResult<u32> {
         self.get_client()
             .get_mapping_value(self.get_program(), Self::INDEX_MAPPING, &height)
@@ -151,15 +157,25 @@ pub(crate) trait AleoIndexer {
             .into_transitions()
             .filter(|x| *x.program_id() == program_id)
             .collect_vec();
+
+        // Early return if no transitions found
         if transitions.is_empty() {
             return Ok(Default::default());
         }
 
+        // Get the latest event index for the block
+        // This will return an error if no events were emitted in this block
         let last_event_index = match self.get_latest_event_index(height).await {
             Ok(index) => index,
             Err(_) => return Ok(Default::default()),
         };
 
+        // Aleo doesn't provide an easy way to map from transition to mapping key
+        // It only provides a hash of that mapping key
+        // Therefore, we precompute all possible mapping keys for the events in this block
+        // and map them by their key id (hash)
+        // Because we know the latest event index and the number of transitions in this block
+        // We can compute the possible event indices and their corresponding mapping keys
         let possible_key_ids: HashMap<_, _> = (0..transitions.len())
             .map(|i| {
                 let index = last_event_index.saturating_sub(i as u32);
@@ -183,6 +199,7 @@ pub(crate) trait AleoIndexer {
             let mut event_indicies = HashMap::<u32, Plaintext<N>>::new();
             for operation in transaction.finalize_operations().iter() {
                 match operation {
+                    // We are only interested in mapping insert/update operations
                     FinalizeOperation::InsertKeyValue(_, key, _)
                     | FinalizeOperation::UpdateKeyValue(_, key, _) => {
                         if let Some((index, plain_key)) = possible_key_ids.get(key) {
@@ -195,6 +212,8 @@ pub(crate) trait AleoIndexer {
                 }
             }
 
+            // At this point we have recovered all event indices emitted in this transaction
+            // We can now fetch the event data from the mapping using these indices
             for (index, key) in event_indicies {
                 let event: Self::AleoType = self
                     .get_client()
