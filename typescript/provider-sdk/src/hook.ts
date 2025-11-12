@@ -9,10 +9,12 @@ export type HookArtifacts = {
   interchainGasPaymaster: {
     config: IgpHookConfig;
     derived: DerivedHookConfig;
+    addresses: Record<string, unknown>;
   };
   merkleTreeHook: {
     config: MerkleTreeHookConfig;
     derived: DerivedHookConfig;
+    addresses: Record<string, unknown>;
   };
 };
 

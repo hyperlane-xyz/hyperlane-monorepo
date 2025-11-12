@@ -1,6 +1,19 @@
 import type { DerivedHookConfig, HookConfig } from './hook.js';
 import type { DerivedIsmConfig, IsmConfig } from './ism.js';
 
+export type TokenRouterArtifacts = {
+  collateral: {
+    config: CollateralWarpConfig;
+    derived: DerivedCollateralWarpConfig;
+    addresses: Record<string, unknown>;
+  };
+  synthetic: {
+    config: SyntheticWarpConfig;
+    derived: DerivedSyntheticWarpConfig;
+    addresses: Record<string, unknown>;
+  };
+};
+
 export const TokenType = {
   synthetic: 'synthetic',
   collateral: 'collateral',

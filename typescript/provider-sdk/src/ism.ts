@@ -11,18 +11,22 @@ export type IsmArtifacts = {
   domainRoutingIsm: {
     config: DomainRoutingIsmConfig;
     derived: DerivedIsmConfig;
+    addresses: Record<string, unknown>;
   };
   merkleRootMultisigIsm: {
     config: MultisigIsmConfig;
     derived: DerivedIsmConfig;
+    addresses: Record<string, unknown>;
   };
   messageIdMultisigIsm: {
     config: MultisigIsmConfig;
     derived: DerivedIsmConfig;
+    addresses: Record<string, unknown>;
   };
   testIsm: {
     config: TestIsmConfig;
     derived: DerivedIsmConfig;
+    addresses: Record<string, unknown>;
   };
 };
 

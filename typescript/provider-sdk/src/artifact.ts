@@ -1,34 +1,18 @@
-import { WithAddress } from '@hyperlane-xyz/utils';
-
 import { IProvider, ISigner } from './altvm.js';
 import { ProtocolReader, ProtocolWriter } from './factory.js';
 import { AnnotatedTx, type HypModuleFactory, TxReceipt } from './module.js';
-
-export interface ArtifactReader<TConfig> {
-  read(address: string): Promise<WithAddress<TConfig>>;
-}
-
-export interface ArtifactProvider<
-  TConfig,
-  TAddressMap extends Record<string, unknown>,
-> {
-  availableTypes: () => (keyof TConfig)[];
-  createReader: (provider: IProvider) => ArtifactReader<TConfig>;
-  createModuleFactory: (
-    signer: ISigner<AnnotatedTx, TxReceipt>,
-  ) => HypModuleFactory<TConfig, TAddressMap>;
-}
-
-/* --------------------------------------------------------------- */
 
 // Base types
 export interface ArtifactType {
   config: unknown;
   derived: unknown;
+  addresses: Record<string, unknown>;
 }
 
 export type Config<T extends { config: unknown }> = T['config'];
 export type Derived<T extends { derived: unknown }> = T['derived'];
+export type AddressMap<T extends { addresses: Record<string, unknown> }> =
+  T['addresses'];
 
 // Transaction primitives
 export interface Transaction<T = unknown> {
@@ -43,7 +27,7 @@ export interface Receipt<T = unknown> {
 }
 
 // Reader/Writer interfaces
-export interface ArtifactReaderPoc<T extends ArtifactType> {
+export interface ArtifactReader<T extends ArtifactType> {
   read(address: string): Promise<Derived<T>>;
 }
 
@@ -65,7 +49,7 @@ export type ArtifactFactory<
   AT extends Record<string, ArtifactType>,
   K extends keyof AT,
 > = [
-  readerFactory: (reader: ProtocolReader) => ArtifactReaderPoc<AT[K]>,
+  readerFactory: (reader: ProtocolReader) => ArtifactReader<AT[K]>,
   writerFactory: (writer: ProtocolWriter) => ArtifactWriter<AT[K]>,
 ];
 
@@ -74,11 +58,29 @@ export type ArtifactFactories<AT extends Record<string, ArtifactType>> = {
 };
 
 // Provider interface
+
+export interface ArtifactProvider<AT extends Record<string, ArtifactType>> {
+  availableTypes(): () => Set<keyof AT>;
+  createReader(
+    provider: IProvider,
+  ): <K extends keyof AT>(type: K) => ArtifactReader<AT[K]>;
+  createReader(
+    reader: ProtocolReader,
+  ): <K extends keyof AT>(type: K) => ArtifactReader<AT[K]>;
+  createWriter(
+    writer: ProtocolWriter,
+  ): <K extends keyof AT>(type: K) => ArtifactWriter<AT[K]>;
+  createModuleFactory<K extends keyof AT>(
+    type: K,
+    signer: ISigner<AnnotatedTx, TxReceipt>,
+  ): HypModuleFactory<Config<AT[K]>, AddressMap<AT[K]>>;
+}
+
 export interface ArtifactProviderPoc<AT extends Record<string, ArtifactType>> {
   availableTypes(): () => Set<keyof AT>;
   readable(
     reader: ProtocolReader,
-  ): <K extends keyof AT>(type: K) => ArtifactReaderPoc<AT[K]>;
+  ): <K extends keyof AT>(type: K) => ArtifactReader<AT[K]>;
   writable(
     writer: ProtocolWriter,
   ): <K extends keyof AT>(type: K) => ArtifactWriter<AT[K]>;
@@ -90,7 +92,7 @@ export function createArtifactProvider<AT extends Record<string, ArtifactType>>(
   return {
     availableTypes: () => () => new Set(Object.keys(factories) as (keyof AT)[]),
     readable: (reader: ProtocolReader) => {
-      const cache = new Map<keyof AT, ArtifactReaderPoc<AT[keyof AT]>>();
+      const cache = new Map<keyof AT, ArtifactReader<AT[keyof AT]>>();
       return <T extends keyof AT>(type: T) => {
         if (!cache.has(type)) {
           const factory = factories[type];
@@ -100,7 +102,7 @@ export function createArtifactProvider<AT extends Record<string, ArtifactType>>(
           const [readerFactory, _] = factory;
           cache.set(type, readerFactory(reader));
         }
-        return cache.get(type)! as ArtifactReaderPoc<AT[T]>;
+        return cache.get(type)! as ArtifactReader<AT[T]>;
       };
     },
     writable: (writer: ProtocolWriter) => {

@@ -6,15 +6,15 @@ import type {
   Transaction,
 } from './artifact.js';
 import { ChainMetadataForAltVM } from './chain.js';
-import { HookArtifacts, type HookConfig } from './hook.js';
-import { IsmArtifacts, type IsmConfig } from './ism.js';
+import { HookArtifacts } from './hook.js';
+import { IsmArtifacts } from './ism.js';
 import { AnnotatedTx, TxReceipt } from './module.js';
 import {
   ITransactionSubmitter,
   JsonRpcSubmitterConfig,
   TransactionSubmitterConfig,
 } from './submitter.js';
-import { WarpConfig } from './warp.js';
+import { TokenRouterArtifacts } from './warp.js';
 
 export type SignerConfig = Pick<
   JsonRpcSubmitterConfig,
@@ -47,9 +47,9 @@ export interface ProtocolProvider {
   // FIXME this part of the interface was supposed to return the ISM/Hook/TokenRouter factories,
   // not the artirfacts themselves; the big difference is that the factories
   // return distinct artirfact implementations for each supported ISM/Hook/TokenRouter type.
-  ismProvider(): ArtifactProvider<IsmConfig, { ismAddress: string }>;
-  hookProvider(): ArtifactProvider<HookConfig, { hookAddress: string }>;
-  tokenRouterProvider(): ArtifactProvider<WarpConfig, { tokenAddress: string }>;
+  ismProvider(): ArtifactProvider<IsmArtifacts>;
+  hookProvider(): ArtifactProvider<HookArtifacts>;
+  tokenRouterProvider(): ArtifactProvider<TokenRouterArtifacts>;
 }
 
 /* --------------------------------------------------------------- */
