@@ -14,7 +14,7 @@ import {
 import { addressToBytes32, assert } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
-import { awIcasLegacy } from '../../governance/ica/_awLegacy.js';
+import { awIcas } from '../../governance/ica/aw.js';
 import { awSafes } from '../../governance/safe/aw.js';
 
 // Everclear-supported chains from chains.txt
@@ -100,7 +100,7 @@ const wethTokenAddresses: Record<EverclearChain, string> = {
 };
 
 // USDT token addresses extracted from signatures.json asset field
-const usdtTokenAddresses: Record<EverclearChain, string> = {
+const usdtTokenAddresses: Partial<Record<EverclearChain, string>> = {
   ethereum: '0xdAC17F958D2ee523a2206206994597C13D831ec7',
   bsc: '0x55d398326f99059fF775485246999027B3197955',
   optimism: '0x94b008aA00579c1307B0EF2c499aD98a8ce58e58',
@@ -111,7 +111,6 @@ const usdtTokenAddresses: Record<EverclearChain, string> = {
   unichain: '0x588CE4F028D8e7B53B687865d6A67b3A54C75518',
   sonic: '0x6047828dc181963ba44974801FF68e538dA5eaF9',
   mantle: '0x201EBa5CC46D216Ce6DC03F6a759e8E766e956aE',
-  ink: '0x0000000000000000000000000000000000000000', // USDT address not available for ink
   linea: '0xa219439258ca9da29e9cc4ce5596924745e12b93',
   scroll: '0xf55BEC9cafDbE8730f096Aa55dad6D22d44099Df',
   zircuit: '0x46dDa6a5a559d861c06EC9a95Fb395f5C3Db0742',
@@ -119,25 +118,32 @@ const usdtTokenAddresses: Record<EverclearChain, string> = {
   base: '0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2',
 };
 
-// Ownership configuration (following CCTP pattern)
-const owners: Record<EverclearChain, string> = {
-  ethereum: awSafes['ethereum'],
-  bsc: awSafes['bsc'],
-  optimism: awSafes['optimism'],
-  zksync: awSafes['zksync'],
-  arbitrum: awSafes['arbitrum'],
-  polygon: awSafes['polygon'],
-  avalanche: awSafes['avalanche'],
-  unichain: awSafes['unichain'],
-  sonic: awSafes['sonic'],
-  mantle: awSafes['mantle'],
-  ink: awSafes['ink'],
-  linea: awSafes['linea'],
-  scroll: awSafes['scroll'],
-  zircuit: awSafes['zircuit'],
-  mode: awSafes['mode'],
-  base: awSafes['base'],
-};
+function getTokenAddress(chain: EverclearChain, asset: EverclearAsset): string {
+  let assetAddress: string | undefined;
+  switch (asset) {
+    case 'USDC':
+      assetAddress = usdcTokenAddresses[chain];
+      break;
+    case 'WETH':
+      assetAddress = wethTokenAddresses[chain];
+      break;
+    case 'USDT':
+      assetAddress = usdtTokenAddresses[chain];
+      break;
+  }
+  if (!assetAddress) {
+    throw new Error(`Token address not found for ${asset} on chain ${chain}`);
+  }
+  return assetAddress;
+}
+
+// Function to get owner address for a given chain
+function getOwner(chain: EverclearChain): string {
+  if (chain === 'ethereum') {
+    return awSafes[chain];
+  }
+  return awIcas[chain] || awSafes[chain] || '';
+}
 
 // Chain ID to name mapping for signatures.json parsing
 const CHAIN_ID_TO_NAME: Record<string, EverclearChain> = {
@@ -186,18 +192,18 @@ function fetchFeeData(asset: EverclearAsset) {
     signaturesData.signatures[asset],
   )) {
     const originName = CHAIN_ID_TO_NAME[originChainId];
-    if (!originName) continue;
-    result[originName] = {};
+    if (!originName) continue; // Everclear supports this chain, but we don't want it in warp route
+
+    const originDestinations: Partial<Record<EverclearChain, FeeData>> = {};
+    result[originName] = originDestinations;
 
     for (const [destChainId, feeInfo] of Object.entries(
-      destinations as Record<string, any>,
+      destinations as Record<string, FeeData>,
     )) {
       const destName = CHAIN_ID_TO_NAME[destChainId];
       if (!destName) continue;
 
-      result[originName][destName] = {
-        ...feeInfo,
-      };
+      originDestinations[destName] = feeInfo;
     }
   }
 
@@ -209,36 +215,30 @@ const getConfigFromFeeData = (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): ChainMap<HypTokenRouterConfig> => {
   const feeDataByChain = fetchFeeData(asset);
-  const tokenAddresses =
-    asset === 'USDC'
-      ? usdcTokenAddresses
-      : asset === 'WETH'
-        ? wethTokenAddresses
-        : usdtTokenAddresses;
 
   // USDT is not supported on ink chain
-  let originChains = [...EVERCLEAR_CHAINS];
+  let chains = [...EVERCLEAR_CHAINS];
   if (asset === 'USDT') {
-    originChains = originChains.filter((chain) => chain !== 'ink');
+    chains = chains.filter((chain) => chain !== 'ink');
   }
 
   return Object.fromEntries(
-    originChains.map((chain) => {
-      const owner = owners[chain];
+    chains.map((chain) => {
+      const owner = getOwner(chain);
       assert(owner, `Owner not found for ${chain}`);
 
       // Define output assets and fee parameters per destination using real signature data
       const outputAssets = Object.fromEntries(
-        originChains
+        chains
           .filter((c) => c !== chain)
           .map((destChain) => [
             destChain,
-            addressToBytes32(tokenAddresses[destChain]),
+            addressToBytes32(getTokenAddress(destChain, asset)),
           ]),
       );
 
       const everclearFeeParams = Object.fromEntries(
-        originChains
+        chains
           .filter((c) => c !== chain)
           .map((destChain) => {
             const feeData = feeDataByChain[chain]?.[destChain];
@@ -259,7 +259,7 @@ const getConfigFromFeeData = (
               owner,
               mailbox: routerConfig[chain].mailbox,
               type: TokenType.ethEverclear,
-              wethAddress: tokenAddresses[chain],
+              wethAddress: getTokenAddress(chain, 'WETH'),
               everclearBridgeAddress: everclearAdapterAddresses[chain],
               outputAssets,
               everclearFeeParams,
@@ -268,7 +268,7 @@ const getConfigFromFeeData = (
               owner,
               mailbox: routerConfig[chain].mailbox,
               type: TokenType.collateralEverclear,
-              token: tokenAddresses[chain],
+              token: getTokenAddress(chain, asset),
               everclearBridgeAddress: everclearAdapterAddresses[chain],
               outputAssets,
               everclearFeeParams,
@@ -311,11 +311,9 @@ const safeSubmitter: SubmitterMetadata = {
   safeAddress: icaOwner,
 };
 
-const icaChains = Object.keys(awIcasLegacy);
-
 export const getEverclearStrategyConfig = (): ChainSubmissionStrategy => {
   const submitterMetadata = EVERCLEAR_CHAINS.map((chain): SubmitterMetadata => {
-    if (!icaChains.includes(chain)) {
+    if (!(chain in awIcas)) {
       return {
         type: TxSubmitterType.GNOSIS_SAFE,
         chain,
