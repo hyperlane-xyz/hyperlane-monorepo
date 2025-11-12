@@ -69,10 +69,13 @@ runs:
           echo "Found existing comment(s), deleting to avoid duplicates..."
           while IFS= read -r comment_id; do
             if [ -n "$comment_id" ]; then
-              gh api \
-                --method DELETE \
-                -H "Accept: application/vnd.github+json" \
-                "/repos/${GITHUB_REPOSITORY}/issues/comments/${comment_id}" 2>/dev/null || true
+              # Use GraphQL mutation to delete by node ID
+              gh api graphql -f query='
+                mutation($id: ID!) {
+                  deleteIssueComment(input: {id: $id}) {
+                    clientMutationId
+                  }
+                }' -f id="$comment_id" 2>/dev/null || true
             fi
           done <<< "$COMMENT_IDS"
         fi
