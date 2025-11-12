@@ -36,7 +36,6 @@ import {
 import {
   createSnapshot,
   exportWarpConfigsToFilePaths,
-  getDeployedWarpAddress,
   restoreSnapshot,
 } from '../../commands/helpers.js';
 
@@ -155,7 +154,7 @@ describe('hyperlane warp apply owner update tests', async function () {
     });
 
     // getDeployedWarpAddress() throws if address does not exist
-    const extendAddress = getDeployedWarpAddress(
+    const extendAddress = evmWarpCommands.getDeployedWarpAddress(
       TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
       updatedWarpCorePath,
     );

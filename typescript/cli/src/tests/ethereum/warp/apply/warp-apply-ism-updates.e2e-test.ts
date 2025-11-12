@@ -4,12 +4,12 @@ import { ethers } from 'ethers';
 import {
   IsmConfig,
   IsmType,
+  TokenType,
   WarpRouteDeployConfig,
   normalizeConfig,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { TokenType } from '../../../../../../utils/dist/altvm.js';
 import { writeYamlOrJson } from '../../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../../commands/core.js';
 import { HyperlaneE2EWarpTestCommands } from '../../../commands/warp.js';
