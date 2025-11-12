@@ -42,7 +42,7 @@ runs:
       run: |
         # Define comment identifier
         COMMENT_IDENTIFIER="<!-- ${COMMENT_TAG} -->"
-        
+
         # Prepare comment body based on job status
         if [ "$JOB_STATUS" == "success" ]; then
           COMMENT_BODY="${COMMENT_IDENTIFIER}
@@ -92,4 +92,3 @@ runs:
               "/repos/${{ github.repository }}/issues/comments/${COMMENT_ID}" 2>/dev/null || true
           fi
         fi
-
