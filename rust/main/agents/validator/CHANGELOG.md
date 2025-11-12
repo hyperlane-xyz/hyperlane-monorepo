@@ -1,3 +1,7 @@
+## [1.7.0] - 2025-11-10
+
+* feat: make validator startup more resilient (#7342)
+
 ## [1.6.0] - 2025-11-06
 
 * feat(validator): record reorg logs (#7238)

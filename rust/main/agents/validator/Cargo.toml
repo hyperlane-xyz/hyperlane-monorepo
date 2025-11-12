@@ -51,6 +51,7 @@ tracing-test.workspace = true
 reqwest.workspace = true
 hyperlane-test = { path = "../../hyperlane-test" }
 k256.workspace = true
+hyperlane-core = { path = "../../hyperlane-core", features = ["test-utils"] }
 hyperlane-ethereum = { path = "../../chains/hyperlane-ethereum", features = ["test-utils"] }
 
 [features]

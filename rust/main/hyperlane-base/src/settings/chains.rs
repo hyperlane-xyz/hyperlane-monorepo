@@ -19,6 +19,7 @@ use hyperlane_core::{
 use hyperlane_metric::prometheus_metric::ChainInfo;
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
 
+use hyperlane_aleo::{self as h_aleo, AleoProvider};
 use hyperlane_cosmos::{
     self as h_cosmos, cw::CwQueryClient, native::ModuleQueryClient, CosmosProvider,
 };
@@ -177,6 +178,8 @@ pub enum ChainConnectionConf {
     CosmosNative(h_cosmos::ConnectionConf),
     /// Radix configuration
     Radix(h_radix::ConnectionConf),
+    /// Aleo configuration
+    Aleo(h_aleo::ConnectionConf),
 }
 
 impl ChainConnectionConf {
@@ -190,6 +193,7 @@ impl ChainConnectionConf {
             Self::Starknet(_) => HyperlaneDomainProtocol::Starknet,
             Self::CosmosNative(_) => HyperlaneDomainProtocol::CosmosNative,
             Self::Radix(_) => HyperlaneDomainProtocol::Radix,
+            Self::Aleo(_) => HyperlaneDomainProtocol::Aleo,
         }
     }
 
@@ -264,7 +268,6 @@ impl ChainConf {
                 h_starknet::application::StarknetApplicationOperationVerifier::new(),
             )
                 as Box<dyn ApplicationOperationVerifier>),
-            // applicatino verification is the same for cosmos native and cw
             ChainConnectionConf::CosmosNative(_) => Ok(Box::new(
                 h_cosmos::application::CosmosApplicationOperationVerifier::new(),
             )
@@ -273,6 +276,7 @@ impl ChainConf {
                 h_radix::application::RadixApplicationOperationVerifier::new(),
             )
                 as Box<dyn ApplicationOperationVerifier>),
+            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
         };
 
         result.context(ctx)
@@ -318,6 +322,10 @@ impl ChainConf {
             }
             ChainConnectionConf::Radix(conf) => {
                 let provider = build_radix_provider(self, conf, metrics, &locator, None)?;
+                Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
+            }
+            ChainConnectionConf::Aleo(conf) => {
+                let provider = build_aleo_provider(self, conf, metrics, &locator)?;
                 Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
             }
         }
@@ -388,6 +396,7 @@ impl ChainConf {
                 let mailbox = h_radix::RadixMailbox::new(provider, &locator, conf)?;
                 Ok(Box::new(mailbox) as Box<dyn Mailbox>)
             }
+            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
         }
         .context(ctx)
     }
@@ -443,6 +452,7 @@ impl ChainConf {
 
                 Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
             }
+            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
         }
         .context(ctx)
     }
@@ -519,6 +529,7 @@ impl ChainConf {
 
                 Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
             }
+            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
         }
         .context(ctx)
     }
@@ -591,6 +602,7 @@ impl ChainConf {
 
                 Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<H256>>)
             }
+            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
         }
         .context(ctx)
     }
@@ -655,6 +667,7 @@ impl ChainConf {
                 )?);
                 Ok(indexer as Box<dyn InterchainGasPaymaster>)
             }
+            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
         }
         .context(ctx)
     }
@@ -723,6 +736,7 @@ impl ChainConf {
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
             }
+            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
         }
         .context(ctx)
     }
@@ -799,6 +813,7 @@ impl ChainConf {
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
             }
+            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
         }
         .context(ctx)
     }
@@ -873,6 +888,7 @@ impl ChainConf {
                     h_radix::RadixValidatorAnnounce::new(provider, &locator, conf)?;
                 Ok(Box::new(validator_announce) as Box<dyn ValidatorAnnounce>)
             }
+            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
         }
         .context("Building ValidatorAnnounce")
     }
@@ -935,6 +951,7 @@ impl ChainConf {
                 let ism = h_radix::RadixIsm::new(provider, &locator, conf)?;
                 Ok(Box::new(ism) as Box<dyn InterchainSecurityModule>)
             }
+            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
         }
         .context(ctx)
     }
@@ -953,7 +970,6 @@ impl ChainConf {
                 self.build_ethereum(conf, &locator, metrics, h_eth::MultisigIsmBuilder {})
                     .await
             }
-
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let keypair = self.sealevel_signer().await.context(ctx)?;
@@ -990,6 +1006,7 @@ impl ChainConf {
                 let ism = h_radix::RadixIsm::new(provider, &locator, conf)?;
                 Ok(Box::new(ism) as Box<dyn MultisigIsm>)
             }
+            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
         }
         .context(ctx)
     }
@@ -1039,6 +1056,7 @@ impl ChainConf {
                 let ism = h_radix::RadixIsm::new(provider, &locator, conf)?;
                 Ok(Box::new(ism) as Box<dyn RoutingIsm>)
             }
+            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
         }
         .context(ctx)
     }
@@ -1088,6 +1106,7 @@ impl ChainConf {
             ChainConnectionConf::Radix(_) => {
                 todo!("Radix aggregation ISM not yet implemented")
             }
+            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
         }
         .context(ctx)
     }
@@ -1125,6 +1144,7 @@ impl ChainConf {
             ChainConnectionConf::Radix(_) => {
                 Err(eyre!("Radix does not support CCIP read ISM yet")).context(ctx)
             }
+            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
         }
         .context(ctx)
     }
@@ -1158,6 +1178,7 @@ impl ChainConf {
                 ChainConnectionConf::Radix(_) => {
                     Box::new(conf.build::<h_radix::RadixSigner>().await?)
                 }
+                ChainConnectionConf::Aleo(_) => return Ok(None),
             };
             Ok(Some(chain_signer))
         } else {
@@ -1388,4 +1409,13 @@ fn build_starknet_provider(
         metrics.clone(),
         middleware_metrics.chain.clone(),
     ))
+}
+
+fn build_aleo_provider(
+    _chain_conf: &ChainConf,
+    connection_conf: &h_aleo::ConnectionConf,
+    _metrics: &CoreMetrics,
+    locator: &ContractLocator,
+) -> ChainResult<AleoProvider> {
+    AleoProvider::new(connection_conf, locator.domain.clone())
 }

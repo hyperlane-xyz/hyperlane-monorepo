@@ -1,6 +1,3 @@
-/// Mock Checkpoint Syncer
-pub mod mock_checkpoint_syncer;
-
 use hyperlane_core::CheckpointWithMessageId;
 
 const PRIVATE_KEY_1: &str = "254bf805ec98536bbcfcf7bd88f58aa17bcf2955138237d3d06288d39fabfecb";

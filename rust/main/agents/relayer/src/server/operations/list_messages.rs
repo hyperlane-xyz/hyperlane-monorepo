@@ -110,7 +110,7 @@ mod tests {
 
     use crate::{
         msg::op_queue::{
-            test::{dummy_metrics_and_label, MockPendingOperation},
+            tests::{dummy_metrics_and_label, MockPendingOperation},
             OpQueue,
         },
         test_utils::request::parse_body_to_string,
@@ -187,33 +187,33 @@ mod tests {
   {{
     "id": "0x1acbee9798118b11ebef0d94b0a2936eafd58e3bfab91b05da875825c4a1c39b",
     "operation": {{
+      "type": "MockPendingOperation",
+      "id": "0x1acbee9798118b11ebef0d94b0a2936eafd58e3bfab91b05da875825c4a1c39b",
+      "sender_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
+      "origin_domain_id": 0,
+      "destination_domain_id": 42161,
+      "recipient_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
+      "seconds_to_next_attempt": 1,
       "destination_domain": {{
         "Known": "Arbitrum"
       }},
-      "destination_domain_id": 42161,
-      "id": "0x1acbee9798118b11ebef0d94b0a2936eafd58e3bfab91b05da875825c4a1c39b",
-      "origin_domain_id": 0,
-      "recipient_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
-      "retry_count": {retry_count_1},
-      "seconds_to_next_attempt": 1,
-      "sender_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
-      "type": "MockPendingOperation"
+      "retry_count": 1
     }}
   }},
   {{
     "id": "0x51e7be221ce90a49dee46ca0d0270c48d338a7b9d85c2a89d83fac0816571914",
     "operation": {{
+      "type": "MockPendingOperation",
+      "id": "0x51e7be221ce90a49dee46ca0d0270c48d338a7b9d85c2a89d83fac0816571914",
+      "sender_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
+      "origin_domain_id": 0,
+      "destination_domain_id": 42161,
+      "recipient_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
+      "seconds_to_next_attempt": 2,
       "destination_domain": {{
         "Known": "Arbitrum"
       }},
-      "destination_domain_id": 42161,
-      "id": "0x51e7be221ce90a49dee46ca0d0270c48d338a7b9d85c2a89d83fac0816571914",
-      "origin_domain_id": 0,
-      "recipient_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
-      "retry_count": {retry_count_2},
-      "seconds_to_next_attempt": 2,
-      "sender_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
-      "type": "MockPendingOperation"
+      "retry_count": 2
     }}
   }}
 ]"#
@@ -254,33 +254,33 @@ mod tests {
   {{
     "id": "0x51e7be221ce90a49dee46ca0d0270c48d338a7b9d85c2a89d83fac0816571914",
     "operation": {{
+      "type": "MockPendingOperation",
+      "id": "0x51e7be221ce90a49dee46ca0d0270c48d338a7b9d85c2a89d83fac0816571914",
+      "sender_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
+      "origin_domain_id": 0,
+      "destination_domain_id": 42161,
+      "recipient_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
+      "seconds_to_next_attempt": 2,
       "destination_domain": {{
         "Known": "Arbitrum"
       }},
-      "destination_domain_id": 42161,
-      "id": "0x51e7be221ce90a49dee46ca0d0270c48d338a7b9d85c2a89d83fac0816571914",
-      "origin_domain_id": 0,
-      "recipient_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
-      "retry_count": {retry_count_2},
-      "seconds_to_next_attempt": 2,
-      "sender_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
-      "type": "MockPendingOperation"
+      "retry_count": 1
     }}
   }},
   {{
     "id": "0x1acbee9798118b11ebef0d94b0a2936eafd58e3bfab91b05da875825c4a1c39b",
     "operation": {{
+      "type": "MockPendingOperation",
+      "id": "0x1acbee9798118b11ebef0d94b0a2936eafd58e3bfab91b05da875825c4a1c39b",
+      "sender_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
+      "origin_domain_id": 0,
+      "destination_domain_id": 42161,
+      "recipient_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
+      "seconds_to_next_attempt": 1,
       "destination_domain": {{
         "Known": "Arbitrum"
       }},
-      "destination_domain_id": 42161,
-      "id": "0x1acbee9798118b11ebef0d94b0a2936eafd58e3bfab91b05da875825c4a1c39b",
-      "origin_domain_id": 0,
-      "recipient_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
-      "retry_count": {retry_count_1},
-      "seconds_to_next_attempt": 1,
-      "sender_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
-      "type": "MockPendingOperation"
+      "retry_count": 4
     }}
   }}
 ]"#

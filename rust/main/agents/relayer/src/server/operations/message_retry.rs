@@ -108,7 +108,7 @@ mod tests {
     use tower::ServiceExt;
 
     use crate::{
-        msg::op_queue::test::MockPendingOperation, server::ENDPOINT_MESSAGES_QUEUE_SIZE,
+        msg::op_queue::tests::MockPendingOperation, server::ENDPOINT_MESSAGES_QUEUE_SIZE,
         test_utils::request::parse_body_to_json,
     };
 
