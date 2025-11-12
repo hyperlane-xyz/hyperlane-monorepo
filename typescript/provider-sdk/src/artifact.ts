@@ -21,6 +21,7 @@ export interface ArtifactProvider<
 
 /* --------------------------------------------------------------- */
 
+// Base types
 export interface ArtifactType {
   config: unknown;
   derived: unknown;
@@ -29,6 +30,7 @@ export interface ArtifactType {
 export type Config<T extends { config: unknown }> = T['config'];
 export type Derived<T extends { derived: unknown }> = T['derived'];
 
+// Transaction primitives
 export interface Transaction<T = unknown> {
   type: string;
   data: T;
@@ -40,6 +42,7 @@ export interface Receipt<T = unknown> {
   data: T;
 }
 
+// Reader/Writer interfaces
 export interface ArtifactReaderPoc<T extends ArtifactType> {
   read(address: string): Promise<Derived<T>>;
 }
@@ -57,6 +60,7 @@ export interface ArtifactWriter<T extends ArtifactType> {
   transferOwnership(address: string, config: Config<T>): Promise<Transaction[]>;
 }
 
+// Factory types
 export type ArtifactFactory<
   AT extends Record<string, ArtifactType>,
   K extends keyof AT,
@@ -69,6 +73,7 @@ export type ArtifactFactories<AT extends Record<string, ArtifactType>> = {
   [K in keyof AT]?: ArtifactFactory<AT, K>;
 };
 
+// Provider interface
 export interface ArtifactProviderPoc<AT extends Record<string, ArtifactType>> {
   availableTypes(): () => Set<keyof AT>;
   readable(
