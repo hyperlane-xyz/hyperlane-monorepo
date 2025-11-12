@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/tsconfig",
-  "version": "19.7.0",
+  "version": "19.8.0",
   "description": "Hyperlane TypeScript config",
   "private": true,
   "type": "module",
