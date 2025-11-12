@@ -131,7 +131,7 @@ dependencies = [
 
 [[package]]
 name = "aleo-serialize"
-version = "1.6.0"
+version = "1.7.0"
 dependencies = [
  "anyhow",
  "snarkvm",
@@ -5877,7 +5877,7 @@ dependencies = [
 
 [[package]]
 name = "hyperlane-aleo"
-version = "1.6.0"
+version = "1.7.0"
 dependencies = [
  "aleo-serialize",
  "aleo-serialize-macro",

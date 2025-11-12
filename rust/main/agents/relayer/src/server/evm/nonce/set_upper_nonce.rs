@@ -19,7 +19,7 @@ pub struct RequestBody {
 }
 
 /// Response Body
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct ResponseBody {
     pub old_upper_nonce: u64,
     pub new_upper_nonce: u64,
@@ -35,6 +35,7 @@ pub async fn handler(
         new_upper_nonce,
     } = payload;
 
+    tracing::debug!(domain_id, "Fetching chain");
     let chain = state.chains.get(&domain_id).ok_or_else(|| {
         tracing::debug!(domain_id, "Domain does not exist");
         ServerErrorResponse::new(
@@ -45,6 +46,7 @@ pub async fn handler(
         )
     })?;
 
+    tracing::debug!(?chain, "Chain");
     if chain.protocol != HyperlaneDomainProtocol::Ethereum {
         let err = ServerErrorResponse::new(
             StatusCode::BAD_REQUEST,
@@ -236,7 +238,7 @@ mod tests {
     use hyperlane_base::db::{HyperlaneRocksDB, DB};
     use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain, H160};
 
-    use crate::server::evm::nonce::ChainWithNonce;
+    use crate::{server::evm::nonce::ChainWithNonce, test_utils::request::parse_body_to_json};
 
     use super::super::ServerState;
     use super::*;
@@ -256,7 +258,7 @@ mod tests {
                 let base_db = HyperlaneRocksDB::new(domain, db);
                 let chain_with_nonce = ChainWithNonce {
                     signer_address: H160::random().into(),
-                    protocol: HyperlaneDomainProtocol::Ethereum,
+                    protocol: domain.domain_protocol(),
                     db: Arc::new(base_db),
                 };
                 (domain.id(), chain_with_nonce)
@@ -291,7 +293,7 @@ mod tests {
         let chain = state.chains.get(&domains[0].id()).expect("Chain not found");
         chain
             .db
-            .store_upper_nonce_by_signer_address(&chain.signer_address, &U256::from(130))
+            .store_upper_nonce_by_signer_address(&chain.signer_address, &U256::from(150))
             .await
             .expect("Failed to store upper nonce");
         chain
@@ -301,10 +303,12 @@ mod tests {
             .expect("Failed to store finalized nonce");
 
         let transactions = [
-            (TransactionUuid::random(), U256::from(110)),
-            (TransactionUuid::random(), U256::from(120)),
+            (TransactionUuid::random(), U256::from(105)),
+            (TransactionUuid::random(), U256::from(115)),
+            (TransactionUuid::random(), U256::from(125)),
+            (TransactionUuid::random(), U256::from(135)),
+            (TransactionUuid::random(), U256::from(145)),
         ];
-
         for (tx_uuid, tx_nonce) in transactions.iter() {
             chain
                 .db
@@ -329,15 +333,28 @@ mod tests {
         };
         let response = send_request(app, &body).await;
         let resp_status = response.status();
+        let response_body: ResponseBody = parse_body_to_json(response.into_body()).await;
+        let expected_body = ResponseBody {
+            old_upper_nonce: 150,
+            new_upper_nonce: 100,
+        };
         assert_eq!(resp_status, StatusCode::OK);
+        assert_eq!(response_body, expected_body);
 
         let db_upper_nonce = chain
             .db
             .retrieve_upper_nonce_by_signer_address(&chain.signer_address)
             .await
-            .expect("Failed to retrieve finalized nonce")
+            .expect("Failed to retrieve upper nonce")
             .expect("No upper nonce found");
         assert_eq!(db_upper_nonce, U256::from(new_upper_nonce));
+        let db_finalized_nonce = chain
+            .db
+            .retrieve_finalized_nonce_by_signer_address(&chain.signer_address)
+            .await
+            .expect("Failed to retrieve finalized nonce")
+            .expect("No upper nonce found");
+        assert_eq!(db_finalized_nonce, U256::from(90));
 
         for (tx_uuid, tx_nonce) in transactions.iter() {
             let db_tx_uuid = chain
@@ -372,7 +389,7 @@ mod tests {
         let chain = state.chains.get(&domains[0].id()).expect("Chain not found");
         chain
             .db
-            .store_upper_nonce_by_signer_address(&chain.signer_address, &U256::from(130))
+            .store_upper_nonce_by_signer_address(&chain.signer_address, &U256::from(150))
             .await
             .expect("Failed to retrieve finalized nonce");
 
@@ -398,13 +415,12 @@ mod tests {
         let chain = state.chains.get(&domains[0].id()).expect("Chain not found");
         chain
             .db
-            .store_upper_nonce_by_signer_address(&chain.signer_address, &U256::from(130))
+            .store_upper_nonce_by_signer_address(&chain.signer_address, &U256::from(150))
             .await
             .expect("Failed to store upper nonce");
-        let chain = state.chains.get(&domains[0].id()).expect("Chain not found");
         chain
             .db
-            .store_finalized_nonce_by_signer_address(&chain.signer_address, &U256::from(130))
+            .store_finalized_nonce_by_signer_address(&chain.signer_address, &U256::from(150))
             .await
             .expect("Failed to store finalized nonce");
 
@@ -427,25 +443,28 @@ mod tests {
         ];
         let TestServerSetup { app, state } = setup_test_server(domains);
 
-        let new_upper_nonce: u64 = 100;
+        let finalized_nonce: u64 = 100;
         let chain = state.chains.get(&domains[0].id()).expect("Chain not found");
         chain
             .db
-            .store_upper_nonce_by_signer_address(&chain.signer_address, &U256::from(130))
+            .store_upper_nonce_by_signer_address(&chain.signer_address, &U256::from(150))
             .await
             .expect("Failed to store upper nonce");
         chain
             .db
             .store_finalized_nonce_by_signer_address(
                 &chain.signer_address,
-                &U256::from(new_upper_nonce),
+                &U256::from(finalized_nonce),
             )
             .await
             .expect("Failed to store finalized nonce");
 
         let transactions = [
-            (TransactionUuid::random(), U256::from(110)),
-            (TransactionUuid::random(), U256::from(120)),
+            (TransactionUuid::random(), U256::from(105)),
+            (TransactionUuid::random(), U256::from(115)),
+            (TransactionUuid::random(), U256::from(125)),
+            (TransactionUuid::random(), U256::from(135)),
+            (TransactionUuid::random(), U256::from(145)),
         ];
 
         for (tx_uuid, tx_nonce) in transactions.iter() {
@@ -471,23 +490,242 @@ mod tests {
         };
         let response = send_request(app, &body).await;
         let resp_status = response.status();
+        let response_body: ResponseBody = parse_body_to_json(response.into_body()).await;
+        let expected_body = ResponseBody {
+            old_upper_nonce: 150,
+            new_upper_nonce: finalized_nonce,
+        };
         assert_eq!(resp_status, StatusCode::OK);
+        assert_eq!(response_body, expected_body);
 
+        let db_upper_nonce = chain
+            .db
+            .retrieve_upper_nonce_by_signer_address(&chain.signer_address)
+            .await
+            .expect("Failed to retrieve upper nonce")
+            .expect("No upper nonce found");
+        assert_eq!(db_upper_nonce, U256::from(finalized_nonce));
         let db_finalized_nonce = chain
             .db
             .retrieve_finalized_nonce_by_signer_address(&chain.signer_address)
             .await
             .expect("Failed to retrieve finalized nonce")
             .expect("No upper nonce found");
-        assert_eq!(db_finalized_nonce, U256::from(new_upper_nonce));
+        assert_eq!(db_finalized_nonce, U256::from(finalized_nonce));
+
+        for (tx_uuid, tx_nonce) in transactions.iter() {
+            let db_tx_uuid = chain
+                .db
+                .retrieve_transaction_uuid_by_nonce_and_signer_address(
+                    &tx_nonce,
+                    &chain.signer_address,
+                )
+                .await
+                .expect("Failed to retrieve transaction uuid by nonce and signer address")
+                .expect("Transaction uuid not found");
+            assert_eq!(db_tx_uuid, TransactionUuid::default());
+            let db_tx_nonce = chain
+                .db
+                .retrieve_nonce_by_transaction_uuid(&chain.signer_address, &tx_uuid)
+                .await
+                .expect("Failed to retrieve nonce by transaction uuid")
+                .expect("Nonce not found");
+            assert_eq!(db_tx_nonce, U256::MAX);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_domain_not_found() {
+        let domains = &[
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
+        ];
+        let TestServerSetup { app, .. } = setup_test_server(domains);
+
+        let non_existent_domain_id = 99999;
+        let body = RequestBody {
+            domain_id: non_existent_domain_id,
+            new_upper_nonce: Some(100),
+        };
+        let response = send_request(app, &body).await;
+        let resp_status = response.status();
+        assert_eq!(resp_status, StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn test_non_ethereum_protocol() {
+        let domains = &[HyperlaneDomain::Known(KnownHyperlaneDomain::Neutron)];
+        let TestServerSetup { app, .. } = setup_test_server(domains);
+
+        let body = RequestBody {
+            domain_id: domains[0].id(),
+            new_upper_nonce: Some(100),
+        };
+        let response = send_request(app, &body).await;
+        let resp_status = response.status();
+        assert_eq!(resp_status, StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn test_missing_upper_nonce_in_db() {
+        let domains = &[
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
+        ];
+        let TestServerSetup { app, state } = setup_test_server(domains);
+
+        // Intentionally do not store upper nonce in the database
+        let chain = state.chains.get(&domains[0].id()).expect("Chain not found");
+        chain
+            .db
+            .store_finalized_nonce_by_signer_address(&chain.signer_address, &U256::from(90))
+            .await
+            .expect("Failed to store finalized nonce");
+
+        let body = RequestBody {
+            domain_id: domains[0].id(),
+            new_upper_nonce: Some(100),
+        };
+        let response = send_request(app, &body).await;
+        let resp_status = response.status();
+        assert_eq!(resp_status, StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[tokio::test]
+    async fn test_missing_finalized_nonce_when_none_provided() {
+        let domains = &[
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
+        ];
+        let TestServerSetup { app, state } = setup_test_server(domains);
+
+        let chain = state.chains.get(&domains[0].id()).expect("Chain not found");
+        chain
+            .db
+            .store_upper_nonce_by_signer_address(&chain.signer_address, &U256::from(150))
+            .await
+            .expect("Failed to store upper nonce");
+        // Intentionally do not store finalized nonce in the database
+
+        let body = RequestBody {
+            domain_id: domains[0].id(),
+            new_upper_nonce: None,
+        };
+        let response = send_request(app, &body).await;
+        let resp_status = response.status();
+        assert_eq!(resp_status, StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[tokio::test]
+    async fn test_transaction_clearing_with_no_transactions() {
+        let domains = &[
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
+        ];
+        let TestServerSetup { app, state } = setup_test_server(domains);
+
+        let chain = state.chains.get(&domains[0].id()).expect("Chain not found");
+        chain
+            .db
+            .store_upper_nonce_by_signer_address(&chain.signer_address, &U256::from(150))
+            .await
+            .expect("Failed to store upper nonce");
+        chain
+            .db
+            .store_finalized_nonce_by_signer_address(&chain.signer_address, &U256::from(90))
+            .await
+            .expect("Failed to store finalized nonce");
+
+        // No transactions in the range between new upper nonce and current upper nonce
+
+        let new_upper_nonce: u64 = 100;
+        let body = RequestBody {
+            domain_id: domains[0].id(),
+            new_upper_nonce: Some(new_upper_nonce),
+        };
+        let response = send_request(app, &body).await;
+        let resp_status = response.status();
+        let response_body: ResponseBody = parse_body_to_json(response.into_body()).await;
+        let expected_body = ResponseBody {
+            old_upper_nonce: 150,
+            new_upper_nonce: 100,
+        };
+        assert_eq!(resp_status, StatusCode::OK);
+        assert_eq!(response_body, expected_body);
+
         let db_upper_nonce = chain
             .db
             .retrieve_upper_nonce_by_signer_address(&chain.signer_address)
             .await
-            .expect("Failed to retrieve finalized nonce")
+            .expect("Failed to retrieve upper nonce")
             .expect("No upper nonce found");
         assert_eq!(db_upper_nonce, U256::from(new_upper_nonce));
+    }
 
+    #[tokio::test]
+    async fn test_consecutive_nonces_all_cleared() {
+        let domains = &[
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
+        ];
+        let TestServerSetup { app, state } = setup_test_server(domains);
+
+        let chain = state.chains.get(&domains[0].id()).expect("Chain not found");
+        chain
+            .db
+            .store_upper_nonce_by_signer_address(&chain.signer_address, &U256::from(110))
+            .await
+            .expect("Failed to store upper nonce");
+        chain
+            .db
+            .store_finalized_nonce_by_signer_address(&chain.signer_address, &U256::from(90))
+            .await
+            .expect("Failed to store finalized nonce");
+
+        // Create transactions at every nonce from 101 to 110
+        let mut transactions = Vec::new();
+        for nonce in 101..=110 {
+            transactions.push((TransactionUuid::random(), U256::from(nonce)));
+        }
+
+        for (tx_uuid, tx_nonce) in transactions.iter() {
+            chain
+                .db
+                .store_transaction_uuid_by_nonce_and_signer_address(
+                    &tx_nonce,
+                    &chain.signer_address,
+                    &tx_uuid,
+                )
+                .await
+                .expect("Failed to store transaction uuid by nonce and signer address");
+            chain
+                .db
+                .store_nonce_by_transaction_uuid(&chain.signer_address, &tx_uuid, &tx_nonce)
+                .await
+                .expect("Failed to store nonce by transaction uuid");
+        }
+
+        let new_upper_nonce: u64 = 100;
+        let body = RequestBody {
+            domain_id: domains[0].id(),
+            new_upper_nonce: Some(new_upper_nonce),
+        };
+        let response = send_request(app, &body).await;
+        let resp_status = response.status();
+        let response_body: ResponseBody = parse_body_to_json(response.into_body()).await;
+        let expected_body = ResponseBody {
+            old_upper_nonce: 110,
+            new_upper_nonce: 100,
+        };
+        assert_eq!(resp_status, StatusCode::OK);
+        assert_eq!(response_body, expected_body);
+
+        // Verify all transactions are properly cleared
         for (tx_uuid, tx_nonce) in transactions.iter() {
             let db_tx_uuid = chain
                 .db
