@@ -77,7 +77,7 @@ pub async fn handler(
                 ServerErrorResponse::new(
                     StatusCode::INTERNAL_SERVER_ERROR,
                     ServerErrorBody {
-                        message: format!("No finalized nonce found"),
+                        message: "No finalized nonce found".to_string(),
                     },
                 )
             })?,
@@ -101,7 +101,7 @@ pub async fn handler(
             ServerErrorResponse::new(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 ServerErrorBody {
-                    message: format!("No upper nonce found"),
+                    message: "No upper nonce found".to_string(),
                 },
             )
         })?;
@@ -124,20 +124,20 @@ pub async fn handler(
         .retrieve_finalized_nonce_by_signer_address(&chain.signer_address)
         .await
         .map_err(|err| {
-            tracing::debug!(domain_id, ?err, "Failed to fetch upper nonce");
+            tracing::debug!(domain_id, ?err, "Failed to fetch finalized nonce");
             ServerErrorResponse::new(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 ServerErrorBody {
-                    message: format!("Failed to fetch upper nonce: {err}"),
+                    message: format!("Failed to fetch finalized nonce: {err}"),
                 },
             )
         })?
         .ok_or_else(|| {
-            tracing::debug!(domain_id, "No upper nonce found");
+            tracing::debug!(domain_id, "No finalized nonce found");
             ServerErrorResponse::new(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 ServerErrorBody {
-                    message: format!("No upper nonce found"),
+                    message: "No finalized nonce found".to_string(),
                 },
             )
         })?;

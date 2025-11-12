@@ -556,19 +556,18 @@ impl BaseAgent for Relayer {
     }
 }
 
+type PrepQueue = HashMap<
+    u32,
+    Arc<
+        tokio::sync::Mutex<
+            std::collections::BinaryHeap<std::cmp::Reverse<Box<dyn PendingOperation + 'static>>>,
+        >,
+    >,
+>;
 impl Relayer {
     async fn build_router(
         &self,
-        prep_queues: HashMap<
-            u32,
-            Arc<
-                tokio::sync::Mutex<
-                    std::collections::BinaryHeap<
-                        std::cmp::Reverse<Box<dyn PendingOperation + 'static>>,
-                    >,
-                >,
-            >,
-        >,
+        prep_queues: PrepQueue,
         sender: BroadcastSender<relayer_server::operations::message_retry::MessageRetryRequest>,
     ) -> Router {
         // create a db mapping for server handlers
@@ -613,7 +612,7 @@ impl Relayer {
             };
             chains_with_nonce.insert(key.id(), data);
         }
-        let relayer_router = relayer_server::Server::new(self.destinations.len())
+        relayer_server::Server::new(self.destinations.len())
             .with_op_retry(sender)
             .with_message_queue(prep_queues)
             .with_dbs(dbs)
@@ -621,8 +620,7 @@ impl Relayer {
             .with_msg_ctxs(msg_ctxs)
             .with_prover_sync(prover_syncs)
             .with_chains_with_nonce(chains_with_nonce)
-            .router();
-        relayer_router
+            .router()
     }
 
     fn record_critical_error(
