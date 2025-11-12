@@ -58,38 +58,28 @@ runs:
           COMMENT_BODY=""
         fi
 
-        # Find existing comment
-        COMMENT_ID=$(gh pr view ${PR_NUMBER} \
+        # Find all existing comments with our identifier
+        COMMENT_IDS=$(gh pr view ${PR_NUMBER} \
           --repo ${GITHUB_REPOSITORY} \
           --json comments \
           --jq '.comments[] | select(.body | contains("'"${COMMENT_IDENTIFIER}"'")) | .id')
 
-        if [ -n "$COMMENT_BODY" ]; then
-          # Success case: create or update comment
-          if [ -n "$COMMENT_ID" ]; then
-            # Try to update existing comment, fall back to creating new one if it fails (e.g., 404)
-            if ! gh api \
-              --method PATCH \
-              -H "Accept: application/vnd.github+json" \
-              "/repos/${GITHUB_REPOSITORY}/issues/comments/${COMMENT_ID}" \
-              -f body="${COMMENT_BODY}" 2>/dev/null; then
-              # Comment no longer exists, create a new one
-              gh pr comment ${PR_NUMBER} \
-                --repo ${GITHUB_REPOSITORY} \
-                --body "${COMMENT_BODY}"
+        # Delete all existing comments with our identifier to avoid duplicates
+        if [ -n "$COMMENT_IDS" ]; then
+          echo "Found existing comment(s), deleting to avoid duplicates..."
+          while IFS= read -r comment_id; do
+            if [ -n "$comment_id" ]; then
+              gh api \
+                --method DELETE \
+                -H "Accept: application/vnd.github+json" \
+                "/repos/${GITHUB_REPOSITORY}/issues/comments/${comment_id}" 2>/dev/null || true
             fi
-          else
-            # Create new comment
-            gh pr comment ${PR_NUMBER} \
-              --repo ${GITHUB_REPOSITORY} \
-              --body "${COMMENT_BODY}"
-          fi
-        else
-          # Failure case: delete comment if it exists (ignore errors if already deleted)
-          if [ -n "$COMMENT_ID" ]; then
-            gh api \
-              --method DELETE \
-              -H "Accept: application/vnd.github+json" \
-              "/repos/${GITHUB_REPOSITORY}/issues/comments/${COMMENT_ID}" 2>/dev/null || true
-          fi
+          done <<< "$COMMENT_IDS"
+        fi
+
+        # Create new comment if job succeeded
+        if [ -n "$COMMENT_BODY" ]; then
+          gh pr comment ${PR_NUMBER} \
+            --repo ${GITHUB_REPOSITORY} \
+            --body "${COMMENT_BODY}"
         fi
