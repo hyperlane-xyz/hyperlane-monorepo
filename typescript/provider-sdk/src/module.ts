@@ -30,11 +30,6 @@ export interface HypModule<M extends ModuleType> {
   update(config: Config<M>): Promise<AnnotatedTx[]>;
 }
 
-export interface HypModuleFactory<M extends ModuleType> {
-  connect(args: HypModuleArgs<M>): HypModule<M>;
-  create(config: Config<M>): Promise<HypModule<M>>;
-}
-
 export interface ModuleProvider<M extends ModuleType> {
   connectReader: (provider: IProvider) => HypReader<M>;
   connectModule: (
