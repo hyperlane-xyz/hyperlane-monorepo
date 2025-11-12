@@ -429,6 +429,34 @@ async fn test_validate_assigned_nonce_db_nonce_max() {
 }
 
 #[tokio::test]
+async fn test_validate_assigned_nonce_db_nonce_max_tx_nonce_some() {
+    let (_, tx_db, nonce_db) = tmp_dbs();
+    let metrics = EthereumAdapterMetrics::dummy_instance();
+    let address = Address::random();
+
+    let uuid = TransactionUuid::random();
+    // Store U256::MAX in the database - should be treated as None
+    nonce_db
+        .store_nonce_by_transaction_uuid(&address, &uuid, &U256::MAX)
+        .await
+        .expect("Failed to store nonce");
+
+    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
+
+    let tx = make_tx(
+        uuid,
+        TransactionStatus::PendingInclusion,
+        Some(U256::from(100)),
+        Some(address),
+    );
+
+    let action = state.validate_assigned_nonce(&tx).await.unwrap();
+    // U256::MAX should be treated as None, so we should assign next
+    assert_eq!(action, NonceAction::AssignNext { old_nonce: None });
+    assert_eq!(state.metrics.get_mismatched_nonce().get(), 1);
+}
+
+#[tokio::test]
 async fn test_validate_assigned_nonce_taken_status_no_finalized() {
     let (_, tx_db, nonce_db) = tmp_dbs();
     let address = Address::random();
