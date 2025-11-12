@@ -110,7 +110,7 @@ mod tests {
 
     use crate::{
         msg::op_queue::{
-            test::{dummy_metrics_and_label, MockPendingOperation},
+            tests::{dummy_metrics_and_label, MockPendingOperation},
             OpQueue,
         },
         test_utils::request::parse_body_to_string,

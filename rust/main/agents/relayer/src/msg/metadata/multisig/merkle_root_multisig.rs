@@ -88,10 +88,10 @@ mod tests {
     use std::collections::HashMap;
     use std::sync::Arc;
 
-    use hyperlane_base::tests::dummy_validators;
     use hyperlane_base::tests::mock_checkpoint_syncer::{
         build_mock_checkpoint_syncs, generate_multisig_signed_checkpoint,
     };
+    use hyperlane_base::tests::test_validators::dummy_validators;
     use hyperlane_base::{CheckpointSyncer, MultisigCheckpointSyncer};
     use hyperlane_core::accumulator::merkle::Proof;
     use hyperlane_core::accumulator::TREE_DEPTH;
