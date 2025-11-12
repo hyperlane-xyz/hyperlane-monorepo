@@ -45,15 +45,17 @@ export interface ArtifactWriter<T extends ArtifactType> {
 }
 
 // Factory types
-export type ArtifactFactory<
+export interface ArtifactFactory<
   AT extends Record<string, ArtifactType>,
   K extends keyof AT,
-> = [
-  // readerFromProvider: (provider: IProvider) => ArtifactReader<AT[K]>,
-  readerFactory: (reader: ProtocolReader) => ArtifactReader<AT[K]>,
-  writerFactory: (writer: ProtocolWriter) => ArtifactWriter<AT[K]>,
-  // moduleFactory: (signer: ISigner<AnnotatedTx, TxReceipt>) => HypModuleFactory<Config<AT[K]>, AddressMap<AT[K]>>,
-];
+> {
+  readerFromProvider: (provider: IProvider) => ArtifactReader<AT[K]>;
+  readerFromProtocolReader: (reader: ProtocolReader) => ArtifactReader<AT[K]>;
+  writerFromProtocolWriter: (writer: ProtocolWriter) => ArtifactWriter<AT[K]>;
+  moduleFactory: (
+    signer: ISigner<AnnotatedTx, TxReceipt>,
+  ) => HypModuleFactory<Config<AT[K]>, AddressMap<AT[K]>>;
+}
 
 export type ArtifactFactories<AT extends Record<string, ArtifactType>> = {
   [K in keyof AT]?: ArtifactFactory<AT, K>;
@@ -63,40 +65,28 @@ export type ArtifactFactories<AT extends Record<string, ArtifactType>> = {
 
 export interface ArtifactProvider<AT extends Record<string, ArtifactType>> {
   availableTypes(): () => Set<keyof AT>;
-  // We don't need overloads, it's better to merge IProvider and ProtocolReader
-  createReader(
+  readerFromProvider(
     provider: IProvider,
   ): <K extends keyof AT>(type: K) => ArtifactReader<AT[K]>;
-  createReader(
+  readerFromProtocolReader(
     reader: ProtocolReader,
   ): <K extends keyof AT>(type: K) => ArtifactReader<AT[K]>;
-  createWriter(
+  writerFromProtocolWriter(
     writer: ProtocolWriter,
   ): <K extends keyof AT>(type: K) => ArtifactWriter<AT[K]>;
-  // We probably don't need HypModuleFactory and this method either
-  createModuleFactory<K extends keyof AT>(
-    type: K,
+  moduleFactory(
     signer: ISigner<AnnotatedTx, TxReceipt>,
-  ): HypModuleFactory<Config<AT[K]>, AddressMap<AT[K]>>;
-}
-
-// To be merged with ArtifactProvider
-export interface ArtifactProviderPoc<AT extends Record<string, ArtifactType>> {
-  availableTypes(): () => Set<keyof AT>;
-  readable(
-    reader: ProtocolReader,
-  ): <K extends keyof AT>(type: K) => ArtifactReader<AT[K]>;
-  writable(
-    writer: ProtocolWriter,
-  ): <K extends keyof AT>(type: K) => ArtifactWriter<AT[K]>;
+  ): <K extends keyof AT>(
+    type: K,
+  ) => HypModuleFactory<Config<AT[K]>, AddressMap<AT[K]>>;
 }
 
 export function createArtifactProvider<AT extends Record<string, ArtifactType>>(
   factories: ArtifactFactories<AT>,
-): ArtifactProviderPoc<AT> {
+): ArtifactProvider<AT> {
   return {
     availableTypes: () => () => new Set(Object.keys(factories) as (keyof AT)[]),
-    readable: (reader: ProtocolReader) => {
+    readerFromProvider: (provider: IProvider) => {
       const cache = new Map<keyof AT, ArtifactReader<AT[keyof AT]>>();
       return <T extends keyof AT>(type: T) => {
         if (!cache.has(type)) {
@@ -104,13 +94,25 @@ export function createArtifactProvider<AT extends Record<string, ArtifactType>>(
           if (!factory) {
             throw new Error(`No factory registered for type ${String(type)}`);
           }
-          const [readerFactory, _] = factory;
-          cache.set(type, readerFactory(reader));
+          cache.set(type, factory.readerFromProvider(provider));
         }
         return cache.get(type)! as ArtifactReader<AT[T]>;
       };
     },
-    writable: (writer: ProtocolWriter) => {
+    readerFromProtocolReader: (reader: ProtocolReader) => {
+      const cache = new Map<keyof AT, ArtifactReader<AT[keyof AT]>>();
+      return <T extends keyof AT>(type: T) => {
+        if (!cache.has(type)) {
+          const factory = factories[type];
+          if (!factory) {
+            throw new Error(`No factory registered for type ${String(type)}`);
+          }
+          cache.set(type, factory.readerFromProtocolReader(reader));
+        }
+        return cache.get(type)! as ArtifactReader<AT[T]>;
+      };
+    },
+    writerFromProtocolWriter: (writer: ProtocolWriter) => {
       const cache = new Map<keyof AT, ArtifactWriter<AT[keyof AT]>>();
       return <T extends keyof AT>(type: T) => {
         if (!cache.has(type)) {
@@ -118,10 +120,28 @@ export function createArtifactProvider<AT extends Record<string, ArtifactType>>(
           if (!factory) {
             throw new Error(`No factory registered for type ${String(type)}`);
           }
-          const [_, writerFactory] = factory;
-          cache.set(type, writerFactory(writer));
+          cache.set(type, factory.writerFromProtocolWriter(writer));
         }
         return cache.get(type)! as ArtifactWriter<AT[T]>;
+      };
+    },
+    moduleFactory: (signer: ISigner<AnnotatedTx, TxReceipt>) => {
+      const cache = new Map<
+        keyof AT,
+        HypModuleFactory<Config<AT[keyof AT]>, AddressMap<AT[keyof AT]>>
+      >();
+      return <T extends keyof AT>(type: T) => {
+        if (!cache.has(type)) {
+          const factory = factories[type];
+          if (!factory) {
+            throw new Error(`No factory registered for type ${String(type)}`);
+          }
+          cache.set(type, factory.moduleFactory(signer));
+        }
+        return cache.get(type)! as HypModuleFactory<
+          Config<AT[T]>,
+          AddressMap<AT[T]>
+        >;
       };
     },
   };

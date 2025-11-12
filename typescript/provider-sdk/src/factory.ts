@@ -1,10 +1,5 @@
 import { IProvider, ISigner } from './altvm.js';
-import type {
-  ArtifactProvider,
-  ArtifactProviderPoc,
-  Receipt,
-  Transaction,
-} from './artifact.js';
+import type { ArtifactProvider, Receipt, Transaction } from './artifact.js';
 import { ChainMetadataForAltVM } from './chain.js';
 import { HookArtifacts } from './hook.js';
 import { IsmArtifacts } from './ism.js';
@@ -70,8 +65,8 @@ export interface ProtocolProviderPoc {
     chainMetadata: ChainMetadataForAltVM,
     config: SignerConfig,
   ): ProtocolWriter;
-  ismProvider(): ArtifactProviderPoc<IsmArtifacts>;
-  hookProvider(): ArtifactProviderPoc<HookArtifacts>;
+  ismProvider(): ArtifactProvider<IsmArtifacts>;
+  hookProvider(): ArtifactProvider<HookArtifacts>;
 }
 
 export interface ProtocolReader {
