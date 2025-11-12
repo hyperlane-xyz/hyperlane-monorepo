@@ -1,3 +1,8 @@
+## [1.7.0] - 2025-11-10
+
+* fix: Add tests for functions identifying if messages are already submitted (#7346)
+* refactor: Refactor decision on operation preparation (#7352)
+
 ## [1.6.0] - 2025-11-06
 
 * chore(relayer): lower worker thread count (#6712)

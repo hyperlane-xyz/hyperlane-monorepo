@@ -281,12 +281,14 @@ mod test {
     };
     use hyperlane_ethereum::Signers;
 
+    use super::*;
     use crate::{
-        tests::{dummy_validators, mock_checkpoint_syncer::MockCheckpointSyncer, TestValidator},
+        tests::{
+            mock_checkpoint_syncer::MockCheckpointSyncer,
+            test_validators::{dummy_validators, TestValidator},
+        },
         S3Storage,
     };
-
-    use super::*;
 
     async fn build_mock_checkpoint_syncs(
         validators: &[TestValidator],
