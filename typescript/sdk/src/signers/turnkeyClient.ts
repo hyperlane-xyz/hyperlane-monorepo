@@ -1,7 +1,7 @@
 import { ApiKeyStamper } from '@turnkey/api-key-stamper';
 import { TurnkeyServerClient } from '@turnkey/sdk-server';
 
-import { rootLogger } from '@hyperlane-xyz/utils';
+import { deepCopy, rootLogger } from '@hyperlane-xyz/utils';
 
 const logger = rootLogger.child({ module: 'sdk:turnkey-client' });
 
@@ -63,7 +63,7 @@ export class TurnkeyClientManager {
    * Get a copy of the configuration (for creating new signer instances)
    */
   getConfig(): TurnkeyConfig {
-    return { ...this.config };
+    return deepCopy(this.config);
   }
 
   /**

@@ -119,7 +119,10 @@ export class TurnkeyEvmSigner extends ethers.Signer {
         unsignedTransaction: unsignedTxHex,
       });
 
-      // Check that the activity completed
+      // Defensive validation: The Turnkey SDK polls internally until the activity completes
+      // or max retries are reached. If we receive a non-completed status here, it indicates
+      // either an SDK bug or a request error (not a transient failure requiring retries).
+      // The SDK already handles exponential backoff internally via createActivityPoller.
       if (activity.status !== 'ACTIVITY_STATUS_COMPLETED') {
         throw new Error(
           `Transaction signing activity did not complete. Status: ${activity.status}`,
@@ -164,7 +167,10 @@ export class TurnkeyEvmSigner extends ethers.Signer {
           hashFunction: 'HASH_FUNCTION_NO_OP',
         });
 
-      // Check that the activity completed
+      // Defensive validation: The Turnkey SDK polls internally until the activity completes
+      // or max retries are reached. If we receive a non-completed status here, it indicates
+      // either an SDK bug or a request error (not a transient failure requiring retries).
+      // The SDK already handles exponential backoff internally via createActivityPoller.
       if (activity.status !== 'ACTIVITY_STATUS_COMPLETED') {
         throw new Error(
           `Message signing activity did not complete. Status: ${activity.status}`,
