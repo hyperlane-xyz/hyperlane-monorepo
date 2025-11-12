@@ -47,15 +47,17 @@ export function exportWarpConfigsToFilePaths({
   warpRouteId,
   warpConfig,
   warpCoreConfig,
+  registryPath = REGISTRY_PATH,
 }: {
   warpRouteId: string;
   warpConfig: WarpRouteDeployConfig;
   warpCoreConfig: WarpCoreConfig;
+  registryPath?: string;
 }): {
   warpDeployPath: string;
   warpCorePath: string;
 } {
-  const basePath = `${REGISTRY_PATH}/deployments/warp_routes/${warpRouteId}`;
+  const basePath = `${registryPath}/deployments/warp_routes/${warpRouteId}`;
   const updatedWarpConfigPath = `${basePath}-deploy.yaml`;
   const updatedWarpCorePath = `${basePath}-config.yaml`;
   writeYamlOrJson(updatedWarpConfigPath, warpConfig);
