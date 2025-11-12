@@ -44,9 +44,6 @@ export interface ProtocolProvider {
       config: TConfig,
     ) => Promise<ITransactionSubmitter>,
   ): void;
-  // FIXME this part of the interface was supposed to return the ISM/Hook/TokenRouter factories,
-  // not the artirfacts themselves; the big difference is that the factories
-  // return distinct artirfact implementations for each supported ISM/Hook/TokenRouter type.
   ismProvider(): ArtifactProvider<IsmArtifacts>;
   hookProvider(): ArtifactProvider<HookArtifacts>;
   tokenRouterProvider(): ArtifactProvider<TokenRouterArtifacts>;
@@ -66,6 +63,7 @@ export interface ProtocolProvider {
 //  2. The app logic uses the provider/signer to get an artifact object (ISM, hook, token router)
 //  3. The app logic uses the artifact object to perform its tasks
 
+// To be merged with ProtocolProvider
 export interface ProtocolProviderPoc {
   createReader(chainMetadata: ChainMetadataForAltVM): ProtocolReader;
   createWriter(

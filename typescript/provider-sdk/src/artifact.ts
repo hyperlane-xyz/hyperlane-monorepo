@@ -49,8 +49,10 @@ export type ArtifactFactory<
   AT extends Record<string, ArtifactType>,
   K extends keyof AT,
 > = [
+  // readerFromProvider: (provider: IProvider) => ArtifactReader<AT[K]>,
   readerFactory: (reader: ProtocolReader) => ArtifactReader<AT[K]>,
   writerFactory: (writer: ProtocolWriter) => ArtifactWriter<AT[K]>,
+  // moduleFactory: (signer: ISigner<AnnotatedTx, TxReceipt>) => HypModuleFactory<Config<AT[K]>, AddressMap<AT[K]>>,
 ];
 
 export type ArtifactFactories<AT extends Record<string, ArtifactType>> = {
@@ -61,6 +63,7 @@ export type ArtifactFactories<AT extends Record<string, ArtifactType>> = {
 
 export interface ArtifactProvider<AT extends Record<string, ArtifactType>> {
   availableTypes(): () => Set<keyof AT>;
+  // We don't need overloads, it's better to merge IProvider and ProtocolReader
   createReader(
     provider: IProvider,
   ): <K extends keyof AT>(type: K) => ArtifactReader<AT[K]>;
@@ -70,12 +73,14 @@ export interface ArtifactProvider<AT extends Record<string, ArtifactType>> {
   createWriter(
     writer: ProtocolWriter,
   ): <K extends keyof AT>(type: K) => ArtifactWriter<AT[K]>;
+  // We probably don't need HypModuleFactory and this method either
   createModuleFactory<K extends keyof AT>(
     type: K,
     signer: ISigner<AnnotatedTx, TxReceipt>,
   ): HypModuleFactory<Config<AT[K]>, AddressMap<AT[K]>>;
 }
 
+// To be merged with ArtifactProvider
 export interface ArtifactProviderPoc<AT extends Record<string, ArtifactType>> {
   availableTypes(): () => Set<keyof AT>;
   readable(
