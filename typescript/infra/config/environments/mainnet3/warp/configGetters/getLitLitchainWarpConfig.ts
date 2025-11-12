@@ -2,6 +2,7 @@ import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
+import { getGnosisSafeBuilderStrategyConfigGenerator } from '../../../utils.js';
 
 import {
   getCollateralTokenConfigForChain,
@@ -103,3 +104,6 @@ export const getLitchainLITKEYWarpConfig = async (
 
   return deployConfig;
 };
+
+export const getLITKEYGnosisSafeBuilderStrategyConfig =
+  getGnosisSafeBuilderStrategyConfigGenerator(ownersByChain);
