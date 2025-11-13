@@ -1,5 +1,7 @@
 # @hyperlane-xyz/github-proxy
 
+## 19.8.0
+
 ## 19.7.0
 
 ## 19.6.0
