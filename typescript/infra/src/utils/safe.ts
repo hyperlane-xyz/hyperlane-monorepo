@@ -33,6 +33,7 @@ import {
 import {
   Address,
   CallData,
+  deepCopy,
   eqAddress,
   retryAsync,
   rootLogger,
@@ -426,6 +427,148 @@ export async function getOwnerChanges(
   return { ownersToRemove, ownersToAdd };
 }
 
+/**
+ * Sentinel value used in Safe's owner linked list.
+ * From OwnerManager.sol: address internal constant SENTINEL_OWNERS = address(0x1);
+ */
+const SENTINEL_OWNERS = '0x0000000000000000000000000000000000000001';
+
+/**
+ * Finds the prevOwner for a given owner in the Safe's linked list.
+ * Safe stores owners in a linked list where SENTINEL_OWNERS points to the first owner,
+ * and the last owner points back to SENTINEL_OWNERS.
+ *
+ * The owners array from getOwners() returns owners in linked list order, so:
+ * - owners[0] is pointed to by SENTINEL_OWNERS
+ * - owners[1] is pointed to by owners[0]
+ * - etc.
+ */
+function findPrevOwner(owners: Address[], targetOwner: Address): Address {
+  const targetIndex = owners.findIndex((owner) =>
+    eqAddress(owner, targetOwner),
+  );
+
+  if (targetIndex === -1) {
+    throw new Error(`Owner ${targetOwner} not found in owners list`);
+  }
+
+  // If it's the first owner, prev is the sentinel address
+  if (targetIndex === 0) {
+    return SENTINEL_OWNERS;
+  }
+
+  // Otherwise, prev is the owner before it in the array
+  return owners[targetIndex - 1];
+}
+
+/**
+ * Creates swapOwner transactions for 1-to-1 owner replacements.
+ * This is more efficient and succinct than remove+add operations.
+ *
+ * Note: Safe owners are stored in a linked list, so we need to swap them
+ * in order. When swapping consecutive owners, the prevOwner for the second
+ * swap needs to reference the NEW owner from the first swap.
+ *
+ * We manually craft the swapOwner calldata instead of using the Safe SDK's
+ * createSwapOwnerTx because the SDK calculates prevOwner based on the current
+ * Safe state, not the effective state after previous swaps in the same multicall.
+ */
+async function createSwapOwnerTransactions(
+  safeSdk: Safe.default,
+  currentOwners: Address[],
+  ownersToRemove: Address[],
+  ownersToAdd: Address[],
+): Promise<AnnotatedCallData[]> {
+  rootLogger.info(
+    chalk.magentaBright(
+      `Using swapOwner for ${ownersToRemove.length} owner replacement(s)`,
+    ),
+  );
+
+  // Build a mapping of owners to their positions in the currentOwners array
+  const ownerPositions = new Map<Address, number>();
+  currentOwners.forEach((owner, index) => {
+    ownerPositions.set(owner, index);
+  });
+
+  // Sort ownersToRemove by their position in the currentOwners array
+  // This is important because Safe owners are stored in a linked list, and we need
+  // to swap them in the correct order to handle the prevOwner parameter correctly.
+  const sortedOwnersToRemove = deepCopy(ownersToRemove).sort((a, b) => {
+    return (ownerPositions.get(a) ?? 0) - (ownerPositions.get(b) ?? 0);
+  });
+
+  // Track the effective owner list as we perform swaps
+  // This is crucial because when swapping consecutive owners in the linked list,
+  // the prevOwner for the second swap needs to reference the NEW owner from the
+  // first swap (since we just modified the linked list).
+  const effectiveOwners = deepCopy(currentOwners);
+
+  const transactions: AnnotatedCallData[] = [];
+
+  // Get the Safe contract address
+  const safeAddress = await safeSdk.getAddress();
+
+  // Pair each old owner with the corresponding new owner
+  for (let i = 0; i < sortedOwnersToRemove.length; i++) {
+    const oldOwner = sortedOwnersToRemove[i];
+    const newOwner = ownersToAdd[i];
+
+    // Find the prevOwner based on the effective owners list
+    const prevOwner = findPrevOwner(effectiveOwners, oldOwner);
+
+    // Find the old owner's position in the effective owners list
+    const oldOwnerIndex = effectiveOwners.findIndex((owner: Address) =>
+      eqAddress(owner, oldOwner),
+    );
+
+    // Update the effective owners list to reflect this swap
+    // This ensures that subsequent swaps use the correct prevOwner
+    if (oldOwnerIndex !== -1) {
+      effectiveOwners[oldOwnerIndex] = newOwner;
+    }
+
+    // Manually encode the swapOwner calldata with the correct prevOwner
+    const data = safeInterface.encodeFunctionData('swapOwner', [
+      prevOwner,
+      oldOwner,
+      newOwner,
+    ]);
+
+    transactions.push({
+      to: safeAddress,
+      data,
+      value: BigNumber.from(0),
+      description: `Swap safe owner ${oldOwner} with ${newOwner} (prevOwner: ${prevOwner})`,
+    });
+  }
+
+  return transactions;
+}
+
+/**
+ * Creates a threshold change transaction.
+ */
+async function createThresholdTransaction(
+  safeSdk: Safe.default,
+  currentThreshold: number,
+  newThreshold: number,
+): Promise<AnnotatedCallData> {
+  rootLogger.info(
+    chalk.magentaBright(
+      `Threshold change ${currentThreshold} => ${newThreshold}`,
+    ),
+  );
+  const { data: thresholdTxData } =
+    await safeSdk.createChangeThresholdTx(newThreshold);
+  return {
+    to: thresholdTxData.to,
+    data: thresholdTxData.data,
+    value: BigNumber.from(thresholdTxData.value),
+    description: `Change safe threshold to ${newThreshold}`,
+  };
+}
+
 export async function updateSafeOwner({
   safeSdk,
   owners,
@@ -449,52 +592,34 @@ export async function updateSafeOwner({
   rootLogger.info(chalk.magentaBright('Owners to remove:', ownersToRemove));
   rootLogger.info(chalk.magentaBright('Owners to add:', ownersToAdd));
 
+  // Validate that we have equal numbers of adds and removes (swaps only)
+  if (ownersToRemove.length !== ownersToAdd.length) {
+    throw new Error(
+      `Owner changes must be 1-to-1 swaps. Found ${ownersToRemove.length} removals and ${ownersToAdd.length} additions.`,
+    );
+  }
+
   const transactions: AnnotatedCallData[] = [];
 
-  for (const ownerToRemove of ownersToRemove) {
-    const { data: removeTxData } = await safeSdk.createRemoveOwnerTx({
-      ownerAddress: ownerToRemove,
-      threshold: newThreshold,
-    });
-    transactions.push({
-      to: removeTxData.to,
-      data: removeTxData.data,
-      value: BigNumber.from(removeTxData.value),
-      description: `Remove safe owner ${ownerToRemove}`,
-    });
-  }
-
-  for (const ownerToAdd of ownersToAdd) {
-    const { data: addTxData } = await safeSdk.createAddOwnerTx({
-      ownerAddress: ownerToAdd,
-      threshold: newThreshold,
-    });
-    transactions.push({
-      to: addTxData.to,
-      data: addTxData.data,
-      value: BigNumber.from(addTxData.value),
-      description: `Add safe owner ${ownerToAdd}`,
-    });
-  }
-
-  if (
-    ownersToRemove.length === 0 &&
-    ownersToAdd.length === 0 &&
-    currentThreshold !== newThreshold
-  ) {
-    rootLogger.info(
-      chalk.magentaBright(
-        `Threshold change ${currentThreshold} => ${newThreshold}`,
-      ),
+  // Use swapOwner for all owner replacements
+  if (ownersToRemove.length > 0) {
+    const swapTxs = await createSwapOwnerTransactions(
+      safeSdk,
+      currentOwners,
+      ownersToRemove,
+      ownersToAdd,
     );
-    const { data: thresholdTxData } =
-      await safeSdk.createChangeThresholdTx(newThreshold);
-    transactions.push({
-      to: thresholdTxData.to,
-      data: thresholdTxData.data,
-      value: BigNumber.from(thresholdTxData.value),
-      description: `Change safe threshold to ${newThreshold}`,
-    });
+    transactions.push(...swapTxs);
+  }
+
+  // Handle threshold change (swapOwner doesn't take a threshold parameter)
+  if (currentThreshold !== newThreshold) {
+    const thresholdTx = await createThresholdTransaction(
+      safeSdk,
+      currentThreshold,
+      newThreshold,
+    );
+    transactions.push(thresholdTx);
   }
 
   return transactions;
@@ -628,24 +753,24 @@ export async function getPendingTxsForChains(
   );
 }
 
-export function parseSafeTx(tx: AnnotatedEV5Transaction) {
-  const safeInterface = new ethers.utils.Interface([
-    'function execTransaction(address to, uint256 value, bytes data, uint8 operation, uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken, address refundReceiver, bytes signatures)',
-    'function approveHash(bytes32 hashToApprove)',
-    'function addOwnerWithThreshold(address owner, uint256 _threshold)',
-    'function removeOwner(address prevOwner, address owner, uint256 _threshold)',
-    'function swapOwner(address prevOwner, address oldOwner, address newOwner)',
-    'function changeThreshold(uint256 _threshold)',
-    'function enableModule(address module)',
-    'function disableModule(address prevModule, address module)',
-    'function setGuard(address guard)',
-    'function setFallbackHandler(address handler)',
-    'function execTransactionFromModule(address to, uint256 value, bytes data, uint8 operation)',
-    'function execTransactionFromModuleReturnData(address to, uint256 value, bytes data, uint8 operation)',
-    'function setup(address[] _owners, uint256 _threshold, address to, bytes data, address fallbackHandler, address paymentToken, uint256 payment, address payable paymentReceiver)',
-    'function simulateAndRevert(address targetContract, bytes calldataPayload)',
-  ]);
+const safeInterface = new ethers.utils.Interface([
+  'function execTransaction(address to, uint256 value, bytes data, uint8 operation, uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken, address refundReceiver, bytes signatures)',
+  'function approveHash(bytes32 hashToApprove)',
+  'function addOwnerWithThreshold(address owner, uint256 _threshold)',
+  'function removeOwner(address prevOwner, address owner, uint256 _threshold)',
+  'function swapOwner(address prevOwner, address oldOwner, address newOwner)',
+  'function changeThreshold(uint256 _threshold)',
+  'function enableModule(address module)',
+  'function disableModule(address prevModule, address module)',
+  'function setGuard(address guard)',
+  'function setFallbackHandler(address handler)',
+  'function execTransactionFromModule(address to, uint256 value, bytes data, uint8 operation)',
+  'function execTransactionFromModuleReturnData(address to, uint256 value, bytes data, uint8 operation)',
+  'function setup(address[] _owners, uint256 _threshold, address to, bytes data, address fallbackHandler, address paymentToken, uint256 payment, address payable paymentReceiver)',
+  'function simulateAndRevert(address targetContract, bytes calldataPayload)',
+]);
 
+export function parseSafeTx(tx: AnnotatedEV5Transaction) {
   const decoded = safeInterface.parseTransaction({
     data: tx.data ?? '0x',
     value: tx.value,

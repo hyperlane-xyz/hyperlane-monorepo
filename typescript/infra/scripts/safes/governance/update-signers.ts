@@ -13,7 +13,11 @@ import { AnnotatedCallData } from '../../../src/govern/HyperlaneAppGovernor.js';
 import { SafeMultiSend } from '../../../src/govern/multisend.js';
 import { GovernanceType, withGovernanceType } from '../../../src/governance.js';
 import { Role } from '../../../src/roles.js';
-import { getSafeAndService, updateSafeOwner } from '../../../src/utils/safe.js';
+import {
+  getOwnerChanges,
+  getSafeAndService,
+  updateSafeOwner,
+} from '../../../src/utils/safe.js';
 import { withPropose } from '../../agent-utils.js';
 import { getEnvironmentConfig } from '../../core-utils.js';
 
@@ -54,6 +58,23 @@ async function main() {
       );
     } catch (error) {
       rootLogger.error(`[${chain}] could not get safe multi send: ${error}`);
+      continue;
+    }
+
+    // Check if owner changes are valid (1-to-1 swaps only)
+    const currentOwners = await safeSdk.getOwners();
+    const { ownersToRemove, ownersToAdd } = await getOwnerChanges(
+      currentOwners,
+      signers,
+    );
+
+    if (ownersToRemove.length !== ownersToAdd.length) {
+      rootLogger.error(
+        `[${chain}] Asymmetric owner changes are not supported. ` +
+          `This script only supports 1-to-1 owner swaps. ` +
+          `Got ${ownersToRemove.length} removes and ${ownersToAdd.length} adds. ` +
+          `Please ensure the number of signers remains constant.`,
+      );
       continue;
     }
 
