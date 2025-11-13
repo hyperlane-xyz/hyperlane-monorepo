@@ -22,6 +22,7 @@ import {
   toBytes,
 } from 'viem';
 
+import { ISafe__factory } from '@hyperlane-xyz/core';
 import {
   AnnotatedEV5Transaction,
   ChainName,
@@ -532,11 +533,10 @@ async function createSwapOwnerTransactions(
     }
 
     // Manually encode the swapOwner calldata with the correct prevOwner
-    const data = safeInterface.encodeFunctionData('swapOwner', [
-      prevOwner,
-      oldOwner,
-      newOwner,
-    ]);
+    const data = ISafe__factory.createInterface().encodeFunctionData(
+      'swapOwner',
+      [prevOwner, oldOwner, newOwner],
+    );
 
     transactions.push({
       to: safeAddress,
@@ -756,25 +756,8 @@ export async function getPendingTxsForChains(
   );
 }
 
-const safeInterface = new ethers.utils.Interface([
-  'function execTransaction(address to, uint256 value, bytes data, uint8 operation, uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken, address refundReceiver, bytes signatures)',
-  'function approveHash(bytes32 hashToApprove)',
-  'function addOwnerWithThreshold(address owner, uint256 _threshold)',
-  'function removeOwner(address prevOwner, address owner, uint256 _threshold)',
-  'function swapOwner(address prevOwner, address oldOwner, address newOwner)',
-  'function changeThreshold(uint256 _threshold)',
-  'function enableModule(address module)',
-  'function disableModule(address prevModule, address module)',
-  'function setGuard(address guard)',
-  'function setFallbackHandler(address handler)',
-  'function execTransactionFromModule(address to, uint256 value, bytes data, uint8 operation)',
-  'function execTransactionFromModuleReturnData(address to, uint256 value, bytes data, uint8 operation)',
-  'function setup(address[] _owners, uint256 _threshold, address to, bytes data, address fallbackHandler, address paymentToken, uint256 payment, address payable paymentReceiver)',
-  'function simulateAndRevert(address targetContract, bytes calldataPayload)',
-]);
-
 export function parseSafeTx(tx: AnnotatedEV5Transaction) {
-  const decoded = safeInterface.parseTransaction({
+  const decoded = ISafe__factory.createInterface().parseTransaction({
     data: tx.data ?? '0x',
     value: tx.value,
   });
