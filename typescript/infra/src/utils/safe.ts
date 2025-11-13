@@ -430,6 +430,7 @@ export async function getOwnerChanges(
 /**
  * Sentinel value used in Safe's owner linked list.
  * From OwnerManager.sol: address internal constant SENTINEL_OWNERS = address(0x1);
+ * https://github.com/safe-global/safe-core-sdk/blob/201c50ef97ff5c48661cbe71a013ad7dc2866ada/packages/protocol-kit/src/utils/constants.ts#L5
  */
 const SENTINEL_OWNERS = '0x0000000000000000000000000000000000000001';
 
@@ -494,9 +495,11 @@ async function createSwapOwnerTransactions(
   // Sort ownersToRemove by their position in the currentOwners array
   // This is important because Safe owners are stored in a linked list, and we need
   // to swap them in the correct order to handle the prevOwner parameter correctly.
-  const sortedOwnersToRemove = deepCopy(ownersToRemove).sort((a, b) => {
-    return (ownerPositions.get(a) ?? 0) - (ownerPositions.get(b) ?? 0);
-  });
+  const sortedOwnersToRemove = deepCopy(ownersToRemove).sort(
+    (a: Address, b: Address) => {
+      return (ownerPositions.get(a) ?? 0) - (ownerPositions.get(b) ?? 0);
+    },
+  );
 
   // Track the effective owner list as we perform swaps
   // This is crucial because when swapping consecutive owners in the linked list,
