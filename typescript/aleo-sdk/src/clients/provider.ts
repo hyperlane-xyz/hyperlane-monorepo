@@ -52,18 +52,10 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
 
   async getBalance(req: AltVM.ReqGetBalance): Promise<bigint> {
     if (req.denom) {
-      const balanceKey = new this.BHP256()
-        .hash(
-          this.Plaintext.fromString(
-            `{account: ${req.address},token_id:${req.denom}}`,
-          ).toBitsLe(),
-        )
-        .toString();
-
       const result = await this.aleoClient.getProgramMappingValue(
         'token_registry.aleo',
         'authorized_balances',
-        balanceKey,
+        this.getBalanceKey(req.address, req.denom),
       );
 
       if (result === null) {

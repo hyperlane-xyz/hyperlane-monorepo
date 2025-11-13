@@ -25,7 +25,7 @@ import {
 
 import { assert, strip0x } from '@hyperlane-xyz/utils';
 
-import { mailbox } from '../artifacts.js';
+import { credits } from '../artifacts.js';
 
 export type AnyAleoNetworkClient =
   | AleoMainnetNetworkClient
@@ -64,10 +64,6 @@ export class AleoBase {
 
   protected get Plaintext() {
     return this.chainId ? TestnetPlaintext : MainnetPlaintext;
-  }
-
-  protected get BHP256() {
-    return this.chainId ? TestnetBHP256 : MainnetBHP256;
   }
 
   protected getProgramManager(privateKey?: string): AnyProgramManager {
@@ -119,9 +115,8 @@ export class AleoBase {
   protected getAddressFromProgramId(programId: string): string {
     const program = this.chainId ? TestnetProgram : MainnetProgram;
 
-    // TODO: calculate address directly with poseidon hash
     return program
-      .fromString(mailbox.replaceAll('mailbox.aleo', programId))
+      .fromString(credits.replaceAll('credits.aleo', programId))
       .address()
       .to_string();
   }
@@ -157,5 +152,17 @@ export class AleoBase {
 
     const U128 = this.chainId ? TestnetU128 : MainnetU128;
     return `[${U128.fromBytesLe(lowBytes).toString()},${U128.fromBytesLe(highBytes).toString()}]`;
+  }
+
+  protected getBalanceKey(address: string, denom: string): string {
+    const BHP256 = this.chainId ? TestnetBHP256 : MainnetBHP256;
+
+    return new BHP256()
+      .hash(
+        this.Plaintext.fromString(
+          `{account:${address},token_id:${denom}}`,
+        ).toBitsLe(),
+      )
+      .toString();
   }
 }
