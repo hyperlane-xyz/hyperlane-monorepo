@@ -2,13 +2,7 @@ import { BigNumber } from 'bignumber.js';
 
 import { AltVM, assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
 
-import {
-  ALEO_NULL_ADDRESS,
-  U128ToString,
-  formatAddress,
-  splitToU128,
-  stringToU128,
-} from '../utils/helper.js';
+import { ALEO_NULL_ADDRESS, formatAddress } from '../utils/helper.js';
 import { AleoTransaction } from '../utils/types.js';
 
 import { AleoBase } from './base.js';
@@ -151,12 +145,12 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async isMessageDelivered(req: AltVM.ReqIsMessageDelivered): Promise<boolean> {
     try {
       // Message key needs to be separated into [u128, u128] using Little Endian.
-      const messageKey = splitToU128(req.messageId);
+      const messageKey = this.bytes32ToU128String(req.messageId);
 
       const res = await this.aleoClient.getProgramMappingPlaintext(
         req.mailboxAddress,
         'deliveries',
-        `{id:[${messageKey[0].toString()},${messageKey[1].toString()}]}`,
+        `{id:${messageKey}}`,
       );
 
       const obj = res.toObject();
@@ -462,15 +456,11 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       const metadata = tokenMetadata.toObject();
 
       return {
-        name: U128ToString(
-          this.U128.fromString(
-            `${tokenMetadata.toObject()['name'].toString()}u128`,
-          ),
+        name: this.U128StringToString(
+          `${tokenMetadata.toObject()['name'].toString()}u128`,
         ),
-        symbol: U128ToString(
-          this.U128.fromString(
-            `${tokenMetadata.toObject()['symbol'].toString()}u128`,
-          ),
+        symbol: this.U128StringToString(
+          `${tokenMetadata.toObject()['symbol'].toString()}u128`,
         ),
         decimals: metadata['decimals'],
       };
@@ -982,8 +972,8 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       priorityFee: 0,
       privateFee: false,
       inputs: [
-        stringToU128(req.name).toString(),
-        stringToU128(req.denom).toString(),
+        this.stringToU128String(req.name),
+        this.stringToU128String(req.denom),
         `${req.decimals}u8`,
         `${req.decimals}u8`,
       ],
@@ -1097,9 +1087,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       );
     }
 
-    const recipient = `[${splitToU128(req.recipient)
-      .map((u) => u.toString())
-      .join(',')}]`;
+    const recipient = this.bytes32ToU128String(req.recipient);
 
     const creditAllowance = Array(4).fill(
       `{spender:${ALEO_NULL_ADDRESS},amount:0u8}`,

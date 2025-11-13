@@ -23,7 +23,7 @@ import {
   getOrInitConsensusVersionTestHeights,
 } from '@provablehq/sdk/testnet.js';
 
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, strip0x } from '@hyperlane-xyz/utils';
 
 import { mailbox } from '../artifacts.js';
 
@@ -64,10 +64,6 @@ export class AleoBase {
 
   protected get Plaintext() {
     return this.chainId ? TestnetPlaintext : MainnetPlaintext;
-  }
-
-  protected get U128() {
-    return this.chainId ? TestnetU128 : MainnetU128;
   }
 
   protected get BHP256() {
@@ -128,5 +124,38 @@ export class AleoBase {
       .fromString(mailbox.replaceAll('mailbox.aleo', programId))
       .address()
       .to_string();
+  }
+
+  protected stringToU128String(input: string): string {
+    if (input.length > 16) {
+      throw new Error(`string "${input}" is too long to convert it into U128`);
+    }
+
+    const encoded = new TextEncoder().encode(input);
+    const bytes = new Uint8Array(16);
+    bytes.set(encoded.subarray(0, 16));
+
+    const U128 = this.chainId ? TestnetU128 : MainnetU128;
+    return U128.fromBytesLe(bytes).toString();
+  }
+
+  protected U128StringToString(input: string): string {
+    const U128 = this.chainId ? TestnetU128 : MainnetU128;
+    return new TextDecoder().decode(
+      U128.fromString(input)
+        .toBytesLe()
+        .filter((b) => b > 0),
+    );
+  }
+
+  protected bytes32ToU128String(input: string): string {
+    const bytes = Buffer.from(strip0x(input), 'hex');
+
+    // Split into two 128-bit chunks
+    const lowBytes = Uint8Array.from(bytes.subarray(0, 16));
+    const highBytes = Uint8Array.from(bytes.subarray(16, 32));
+
+    const U128 = this.chainId ? TestnetU128 : MainnetU128;
+    return `[${U128.fromBytesLe(lowBytes).toString()},${U128.fromBytesLe(highBytes).toString()}]`;
   }
 }
