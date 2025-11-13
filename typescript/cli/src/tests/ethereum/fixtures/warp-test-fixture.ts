@@ -72,7 +72,7 @@ export class WarpTestFixture {
   }
 
   async restoreSnapshot(snapshotConfig: SnapshotConfig): Promise<void> {
-    const key = snapshotConfig.chainName || snapshotConfig.rpcUrl;
+    const key = snapshotConfig.chainName;
     const snapshotId = this.snapshots.get(key);
 
     if (!snapshotId) {

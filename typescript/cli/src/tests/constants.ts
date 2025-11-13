@@ -195,6 +195,15 @@ export const TEST_CHAIN_METADATA_BY_PROTOCOL: ProtocolChainMap<
   });
 }) as any;
 
+export function getArtifactReadPath(
+  tokenSymbol: string,
+  seeds: string[] = [],
+): string {
+  return `${TEMP_PATH}/${
+    seeds.length !== 0 ? getWarpId(tokenSymbol.toUpperCase(), seeds) : ['read']
+  }.yaml`;
+}
+
 export function getWarpCoreConfigPath(
   tokenSymbol: string,
   chains: string[],
@@ -230,7 +239,7 @@ export const DEFAULT_EVM_WARP_ID = getWarpId('ETH', [
 export const DEFAULT_EVM_WARP_CORE_PATH = getWarpCoreConfigPath('ETH', [
   TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
 ]);
-export const DEFAULT_EVM_WARP_READ_OUTPUT_PATH = getWarpCoreConfigPath('ETH', [
+export const DEFAULT_EVM_WARP_READ_OUTPUT_PATH = getArtifactReadPath('ETH', [
   TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
   'read',
 ]);
