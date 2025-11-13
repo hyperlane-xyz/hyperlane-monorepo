@@ -1,5 +1,11 @@
 # @hyperlane-xyz/cli
 
+## 19.8.0
+
+### Minor Changes
+
+- 78ff6cd47: add new methods for altvm interface
+
 ## 19.7.0
 
 ### Minor Changes
