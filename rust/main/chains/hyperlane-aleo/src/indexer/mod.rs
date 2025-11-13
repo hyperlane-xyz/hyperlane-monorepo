@@ -196,14 +196,14 @@ pub(crate) trait AleoIndexer {
                 None => continue,
             };
 
-            let mut event_indicies = HashMap::<u32, Plaintext<N>>::new();
+            let mut event_indices = HashMap::<u32, Plaintext<N>>::new();
             for operation in transaction.finalize_operations().iter() {
                 match operation {
                     // We are only interested in mapping insert/update operations
                     FinalizeOperation::InsertKeyValue(_, key, _)
                     | FinalizeOperation::UpdateKeyValue(_, key, _) => {
                         if let Some((index, plain_key)) = possible_key_ids.get(key) {
-                            event_indicies
+                            event_indices
                                 .entry(*index)
                                 .or_insert_with(|| plain_key.clone());
                         }
@@ -214,7 +214,7 @@ pub(crate) trait AleoIndexer {
 
             // At this point we have recovered all event indices emitted in this transaction
             // We can now fetch the event data from the mapping using these indices
-            for (index, key) in event_indicies {
+            for (index, key) in event_indices {
                 let event: Self::AleoType = self
                     .get_client()
                     .get_mapping_value_raw(self.get_program(), Self::VALUE_MAPPING, &key)

@@ -10,7 +10,7 @@ use snarkvm::{
 };
 use snarkvm_console_account::{Address, Field, Itertools};
 
-use crate::utils::u128_to_hash;
+use crate::utils::aleo_hash_to_h256;
 
 // This actually works for all networks. I've raised this with the Aleo team, but the type annotation here doesn't actually change the underlying type.
 // The Aleo VM types all inherit a generic Network type, but that Type is not relevant for many structs of Aleo and is supposed to be more of an additional information for the internal VM processing.
@@ -21,8 +21,18 @@ pub(crate) type CurrentNetwork = MainnetV0;
 /// TxID Type
 pub(crate) type TxID = AleoID<Field<CurrentNetwork>, { hrp2!("at") }>;
 
+/// Aleo Hash Type, for performance reasons the aleo contracts use [u128;2] to represent 32 byte hashes
+/// Each u128 is encoded in little-endian byte order
+pub(crate) type AleoHash = [u128; 2];
+
 // The aleo credits have 6 decimals
-const ALEO_CREDITS_DECIMALS: u32 = 6;
+const CREDITS_DECIMALS: u32 = 6;
+// Message body is 16 u128 words this results in 256 bytes
+// Each u128 is encoded in little-endian byte order
+// This is a constant defined by the Hyperlane Aleo contracts
+const MESSAGE_BODY_U128_WORDS: usize = 16;
+// Aleo contracts define a maximum of 6 validators for multisigs
+const MAX_VALIDATORS: usize = 6;
 
 /// Aleo Merkle Tree
 #[aleo_serialize]
@@ -30,14 +40,14 @@ const ALEO_CREDITS_DECIMALS: u32 = 6;
 pub struct AleoMerkleTree {
     /// Leaf Branch
     /// Each leaf is 32Bytes encoded as [u128; 2], where the u128 is little endian encoded
-    pub branch: [[u128; 2]; 32],
+    pub branch: [AleoHash; 32],
     /// Number of inserted elements
     pub count: u32,
 }
 
 impl From<AleoMerkleTree> for IncrementalMerkle {
     fn from(val: AleoMerkleTree) -> Self {
-        let branch = val.branch.map(|hash| u128_to_hash(&hash));
+        let branch = val.branch.map(|hash| aleo_hash_to_h256(&hash));
         IncrementalMerkle {
             branch,
             count: val.count as usize,
@@ -53,7 +63,7 @@ pub struct AleoMerkleTreeHookStruct {
     pub tree: AleoMerkleTree,
     /// Computed on chain merkle root as [u128; 2]
     /// u128 is little endian encoded
-    pub root: [u128; 2],
+    pub root: AleoHash,
 }
 
 /// Aleo Eth address representation
@@ -63,8 +73,6 @@ pub struct AleoEthAddress {
     /// Address bytes
     pub bytes: [u8; 20],
 }
-
-const MAX_VALIDATORS: usize = 6;
 
 /// Aleo Message Id Multisig
 #[aleo_serialize]
@@ -82,8 +90,8 @@ pub struct AleoMessagesIdMultisig {
 #[aleo_serialize]
 #[derive(Debug)]
 pub struct GasPaymentEvent {
-    /// MessageId encoded as [u128;2] each u128 is encoded in little endian
-    pub id: [u128; 2],
+    /// MessageId encoded as [u128;2], each u128 is encoded in little endian
+    pub id: AleoHash,
     /// Destination domain
     pub destination_domain: u32,
     /// Gas amount
@@ -96,11 +104,11 @@ pub struct GasPaymentEvent {
 
 impl From<GasPaymentEvent> for InterchainGasPayment {
     fn from(val: GasPaymentEvent) -> Self {
-        let message_id = u128_to_hash(&val.id);
+        let message_id = aleo_hash_to_h256(&val.id);
         InterchainGasPayment {
             message_id,
             destination: val.destination_domain,
-            payment: to_atto(U256::from(val.payment), ALEO_CREDITS_DECIMALS).unwrap_or_default(),
+            payment: to_atto(U256::from(val.payment), CREDITS_DECIMALS).unwrap_or_default(),
             gas_amount: U256::from(val.gas_amount),
         }
     }
@@ -110,15 +118,15 @@ impl From<GasPaymentEvent> for InterchainGasPayment {
 #[aleo_serialize]
 #[derive(Debug)]
 pub struct InsertIntoTreeEvent {
-    /// MessageId encoded as [u128;2, each u128 is encoded in little endian
-    pub id: [u128; 2],
+    /// MessageId encoded as [u128;2], each u128 is encoded in little endian
+    pub id: AleoHash,
     /// Event index
     pub index: u32,
 }
 
 impl From<InsertIntoTreeEvent> for MerkleTreeInsertion {
     fn from(val: InsertIntoTreeEvent) -> Self {
-        let message_id = u128_to_hash(&val.id);
+        let message_id = aleo_hash_to_h256(&val.id);
         MerkleTreeInsertion::new(val.index, message_id)
     }
 }
@@ -139,8 +147,8 @@ pub struct AleoMessage {
     pub destination_domain: u32,
     /// Address of the message recipient (32 bytes)
     pub recipient: [u8; 32],
-    /// Message payload data (8 x 128-bit words)
-    pub body: [u128; 8],
+    /// Message payload data (16 x 128-bit words)
+    pub body: [u128; MESSAGE_BODY_U128_WORDS],
 }
 
 impl From<AleoMessage> for HyperlaneMessage {

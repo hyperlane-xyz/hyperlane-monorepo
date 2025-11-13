@@ -10,7 +10,7 @@ use hyperlane_core::{
 };
 
 use crate::{
-    indexer::AleoIndexer, utils::u128_to_hash, AleoMerkleTreeHookStruct, AleoProvider,
+    indexer::AleoIndexer, utils::aleo_hash_to_h256, AleoMerkleTreeHookStruct, AleoProvider,
     ConnectionConf, CurrentNetwork, HookEventIndex, HyperlaneAleoError, InsertIntoTreeEvent,
 };
 
@@ -191,7 +191,7 @@ impl MerkleTreeHook for AleoMerkleTreeHook {
             checkpoint: Checkpoint {
                 merkle_tree_hook_address: self.address,
                 mailbox_domain: self.domain.id(),
-                root: u128_to_hash(&mth.root),
+                root: aleo_hash_to_h256(&mth.root),
                 index: mth.tree.count.saturating_sub(1),
             },
             block_height: Some(block_height.into()),

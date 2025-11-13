@@ -2,11 +2,11 @@ use hyperlane_core::{ChainResult, H256};
 use snarkvm::prelude::{Identifier, Network, Plaintext, ProgramID};
 use snarkvm_console_account::{Field, FromBytes, Itertools, ToBits, ToBytes};
 
-use crate::{HyperlaneAleoError, TxID};
+use crate::{AleoHash, HyperlaneAleoError, TxID};
 
-/// Converts a [U128; 2] into a H256
+/// Converts a AleoHash/[U128; 2] into a H256
 /// Uses little-endian byte order
-pub(crate) fn u128_to_hash(id: &[u128; 2]) -> H256 {
+pub(crate) fn aleo_hash_to_h256(id: &AleoHash) -> H256 {
     let bytes = id
         .iter()
         .flat_map(|value| value.to_le_bytes())
@@ -120,7 +120,7 @@ mod tests {
     #[test]
     fn test_u128_to_hash() {
         let id = [1u128, 2u128];
-        let hash = super::u128_to_hash(&id);
+        let hash = super::aleo_hash_to_h256(&id);
         let expected_bytes =
             hex::decode("0100000000000000000000000000000002000000000000000000000000000000")
                 .unwrap();

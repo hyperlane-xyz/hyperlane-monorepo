@@ -7,7 +7,8 @@ use hyperlane_core::{
     HyperlaneProvider, Indexed, Indexer, LogMeta, SequenceAwareIndexer, H256, H512,
 };
 
-use crate::utils::u128_to_hash;
+use crate::utils::aleo_hash_to_h256;
+use crate::AleoHash;
 use crate::{indexer::AleoIndexer, AleoMailboxStruct, AleoProvider, ConnectionConf};
 
 /// Aleo Delivery Indexer
@@ -35,8 +36,8 @@ impl AleoIndexer for AleoDeliveryIndexer {
     const INDEX_MAPPING: &str = "process_event_index";
     const VALUE_MAPPING: &str = "process_events";
 
-    type Type = [u128; 2];
-    type AleoType = [u128; 2];
+    type Type = AleoHash;
+    type AleoType = AleoHash;
 
     fn get_client(&self) -> &AleoProvider {
         &self.provider
@@ -77,7 +78,7 @@ impl Indexer<H256> for AleoDeliveryIndexer {
         Ok(logs
             .into_iter()
             .map(|(indexed, meta)| {
-                let id = u128_to_hash(indexed.inner());
+                let id = aleo_hash_to_h256(indexed.inner());
                 let mut update = Indexed::new(id);
                 if let Some(sequence) = indexed.sequence {
                     update = update.with_sequence(sequence);
@@ -101,7 +102,7 @@ impl Indexer<H256> for AleoDeliveryIndexer {
         Ok(logs
             .into_iter()
             .map(|(indexed, meta)| {
-                let id = u128_to_hash(indexed.inner());
+                let id = aleo_hash_to_h256(indexed.inner());
                 let mut update = Indexed::new(id);
                 if let Some(sequence) = indexed.sequence {
                     update = update.with_sequence(sequence);
