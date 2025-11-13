@@ -59,7 +59,7 @@ async function main() {
 
   // Get the IGP claim thresholds from the key funder config
   const keyFunderConfig = getKeyFunderConfig(environmentConfig);
-  const igpClaimThresholds = keyFunderConfig.igpClaimThresholdPerChain ?? {};
+  const igpClaimThresholds = keyFunderConfig.igpClaimThresholdPerChain;
   const desiredBalances = keyFunderConfig.desiredBalancePerChain;
 
   // Filter chains if provided
@@ -116,7 +116,7 @@ async function main() {
         // Get the threshold for this chain from config, default to 0.1 ETH if not set
         // Fallback to 1/5th of desired balance if no threshold configured, matching fund-keys-from-deployer.ts logic
         let threshold: bigint;
-        const thresholdStr = igpClaimThresholds?.[chain];
+        const thresholdStr = igpClaimThresholds[chain];
         if (thresholdStr) {
           // igpClaimThresholds values are in ETH (e.g., '0.1'), need to parse as ether
           threshold = BigInt(parseEther(thresholdStr).toString());
@@ -217,7 +217,7 @@ async function main() {
         } catch {}
 
         // Calculate threshold for display
-        const thresholdStr = igpClaimThresholds?.[chain];
+        const thresholdStr = igpClaimThresholds[chain];
         if (thresholdStr) {
           thresholdDisplay = thresholdStr;
         } else {
