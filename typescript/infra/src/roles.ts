@@ -25,3 +25,22 @@ export const ALL_AGENT_ROLES = [
 ] as const;
 export type AgentRole = (typeof ALL_AGENT_ROLES)[number];
 export type AgentChainNames = Record<AgentRole, string[]>;
+
+/**
+ * Turnkey operational roles (not agent roles)
+ * These are used for one-off scripts and operational tasks with Turnkey signers
+ */
+export enum TurnkeyRole {
+  // Sealevel roles
+  SealevelDeployer = 'sealevel-deployer',
+
+  // Imported keys aka "legacy"
+  EvmLegacyDeployer = 'evm-legacy-deployer',
+  EvmLegacyRebalancer = 'evm-legacy-rebalancer',
+
+  // New turnkey-native keys
+  EvmDeployer = 'evm-deployer',
+  EvmRebalancer = 'evm-rebalancer',
+  EvmIgpClaimer = 'evm-igp-claimer',
+  EvmIgpUpdater = 'evm-igp-updater',
+}
