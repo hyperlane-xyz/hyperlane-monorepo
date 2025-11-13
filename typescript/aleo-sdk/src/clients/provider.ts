@@ -71,7 +71,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
 
   async getTotalSupply(req: AltVM.ReqGetTotalSupply): Promise<bigint> {
     if (!req.denom) {
-      throw new Error(`Can not get total supply of credits`);
+      return 0n;
     }
 
     const result = await this.aleoClient.getProgramMappingValue(
