@@ -18,12 +18,17 @@ import {
   getSafeAndService,
   updateSafeOwner,
 } from '../../../src/utils/safe.js';
-import { withPropose } from '../../agent-utils.js';
+import { withChainsRequired, withPropose } from '../../agent-utils.js';
 import { getEnvironmentConfig } from '../../core-utils.js';
 
 async function main() {
-  const { propose, governanceType = GovernanceType.Regular } =
-    await withGovernanceType(withPropose(yargs(process.argv.slice(2)))).argv;
+  const {
+    propose,
+    governanceType = GovernanceType.Regular,
+    chains,
+  } = await withChainsRequired(
+    withGovernanceType(withPropose(yargs(process.argv.slice(2)))),
+  ).argv;
 
   const { signers, threshold } = getGovernanceSigners(governanceType);
   const safes = getGovernanceSafes(governanceType);
@@ -36,7 +41,13 @@ async function main() {
     Object.keys(safes),
   );
 
-  for (const [chain, safeAddress] of Object.entries(safes)) {
+  for (const chain of chains) {
+    const safeAddress = safes[chain];
+    if (!safeAddress) {
+      rootLogger.error(`[${chain}] safe not found`);
+      continue;
+    }
+
     let safeSdk: Safe.default;
     try {
       ({ safeSdk } = await getSafeAndService(
