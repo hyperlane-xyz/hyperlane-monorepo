@@ -8137,10 +8137,10 @@ __metadata:
   dependencies:
     "@eth-optimism/sdk": "npm:^3.3.3"
     "@google-cloud/pino-logging-gcp-config": "npm:^1.0.6"
-    "@hyperlane-xyz/core": "npm:10.0.1"
-    "@hyperlane-xyz/sdk": "npm:19.7.0"
+    "@hyperlane-xyz/core": "npm:10.0.2"
+    "@hyperlane-xyz/sdk": "npm:19.8.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
-    "@hyperlane-xyz/utils": "npm:19.7.0"
+    "@hyperlane-xyz/utils": "npm:19.8.0"
     "@jest/globals": "npm:^29.7.0"
     "@prisma/client": "npm:^6.8.2"
     "@types/cors": "npm:^2"
@@ -8180,12 +8180,12 @@ __metadata:
     "@eslint/js": "npm:^9.31.0"
     "@ethersproject/abi": "npm:*"
     "@ethersproject/providers": "npm:*"
-    "@hyperlane-xyz/cosmos-sdk": "npm:19.7.0"
-    "@hyperlane-xyz/http-registry-server": "npm:19.7.0"
+    "@hyperlane-xyz/cosmos-sdk": "npm:19.8.0"
+    "@hyperlane-xyz/http-registry-server": "npm:19.8.0"
     "@hyperlane-xyz/registry": "npm:20.0.0"
-    "@hyperlane-xyz/sdk": "npm:19.7.0"
+    "@hyperlane-xyz/sdk": "npm:19.8.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
-    "@hyperlane-xyz/utils": "npm:19.7.0"
+    "@hyperlane-xyz/utils": "npm:19.8.0"
     "@inquirer/core": "npm:9.0.10"
     "@inquirer/figures": "npm:1.0.5"
     "@inquirer/prompts": "npm:3.3.2"
@@ -8228,7 +8228,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/core@npm:10.0.1, @hyperlane-xyz/core@workspace:solidity":
+"@hyperlane-xyz/core@npm:10.0.2, @hyperlane-xyz/core@workspace:solidity":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/core@workspace:solidity"
   dependencies:
@@ -8236,7 +8236,7 @@ __metadata:
     "@chainlink/contracts-ccip": "npm:^1.5.0"
     "@eth-optimism/contracts": "npm:^0.6.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
-    "@hyperlane-xyz/utils": "npm:19.7.0"
+    "@hyperlane-xyz/utils": "npm:19.8.0"
     "@matterlabs/hardhat-zksync-solc": "npm:1.2.5"
     "@matterlabs/hardhat-zksync-verify": "npm:1.7.1"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
@@ -8274,15 +8274,15 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/cosmos-sdk@npm:19.7.0, @hyperlane-xyz/cosmos-sdk@workspace:typescript/cosmos-sdk":
+"@hyperlane-xyz/cosmos-sdk@npm:19.8.0, @hyperlane-xyz/cosmos-sdk@workspace:typescript/cosmos-sdk":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/cosmos-sdk@workspace:typescript/cosmos-sdk"
   dependencies:
     "@cosmjs/stargate": "npm:^0.32.4"
     "@eslint/js": "npm:^9.31.0"
-    "@hyperlane-xyz/cosmos-types": "npm:19.7.0"
+    "@hyperlane-xyz/cosmos-types": "npm:19.8.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
-    "@hyperlane-xyz/utils": "npm:19.7.0"
+    "@hyperlane-xyz/utils": "npm:19.8.0"
     "@types/mocha": "npm:^10.0.1"
     "@typescript-eslint/eslint-plugin": "npm:^8.1.6"
     "@typescript-eslint/parser": "npm:^8.1.6"
@@ -8298,7 +8298,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/cosmos-types@npm:19.7.0, @hyperlane-xyz/cosmos-types@workspace:typescript/cosmos-types":
+"@hyperlane-xyz/cosmos-types@npm:19.8.0, @hyperlane-xyz/cosmos-types@workspace:typescript/cosmos-types":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/cosmos-types@workspace:typescript/cosmos-types"
   dependencies:
@@ -8348,14 +8348,14 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/helloworld@npm:19.7.0, @hyperlane-xyz/helloworld@workspace:typescript/helloworld":
+"@hyperlane-xyz/helloworld@npm:19.8.0, @hyperlane-xyz/helloworld@workspace:typescript/helloworld":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/helloworld@workspace:typescript/helloworld"
   dependencies:
     "@eslint/js": "npm:^9.31.0"
-    "@hyperlane-xyz/core": "npm:10.0.1"
+    "@hyperlane-xyz/core": "npm:10.0.2"
     "@hyperlane-xyz/registry": "npm:20.0.0"
-    "@hyperlane-xyz/sdk": "npm:19.7.0"
+    "@hyperlane-xyz/sdk": "npm:19.8.0"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
     "@openzeppelin/contracts-upgradeable": "npm:^4.9.3"
@@ -8390,14 +8390,14 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/http-registry-server@npm:19.7.0, @hyperlane-xyz/http-registry-server@workspace:typescript/http-registry-server":
+"@hyperlane-xyz/http-registry-server@npm:19.8.0, @hyperlane-xyz/http-registry-server@workspace:typescript/http-registry-server":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/http-registry-server@workspace:typescript/http-registry-server"
   dependencies:
     "@hyperlane-xyz/registry": "npm:20.0.0"
-    "@hyperlane-xyz/sdk": "npm:19.7.0"
+    "@hyperlane-xyz/sdk": "npm:19.8.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
-    "@hyperlane-xyz/utils": "npm:19.7.0"
+    "@hyperlane-xyz/utils": "npm:19.8.0"
     "@types/chai": "npm:^4.2.21"
     "@types/chai-as-promised": "npm:^8"
     "@types/express": "npm:^5.0.3"
@@ -8439,11 +8439,11 @@ __metadata:
     "@ethersproject/providers": "npm:*"
     "@google-cloud/pino-logging-gcp-config": "npm:^1.0.6"
     "@google-cloud/secret-manager": "npm:^5.5.0"
-    "@hyperlane-xyz/helloworld": "npm:19.7.0"
+    "@hyperlane-xyz/helloworld": "npm:19.8.0"
     "@hyperlane-xyz/registry": "npm:20.0.0"
-    "@hyperlane-xyz/sdk": "npm:19.7.0"
+    "@hyperlane-xyz/sdk": "npm:19.8.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
-    "@hyperlane-xyz/utils": "npm:19.7.0"
+    "@hyperlane-xyz/utils": "npm:19.8.0"
     "@inquirer/prompts": "npm:3.3.2"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-etherscan": "npm:^3.0.3"
@@ -8454,8 +8454,8 @@ __metadata:
     "@solana/web3.js": "npm:^1.98.4"
     "@sqds/multisig": "npm:2.1.4"
     "@turnkey/api-key-stamper": "npm:^0.5.0"
-    "@turnkey/sdk-server": "npm:^4.10.4"
-    "@turnkey/solana": "npm:^1.1.9"
+    "@turnkey/sdk-server": "npm:^4.12.0"
+    "@turnkey/solana": "npm:^1.1.12"
     "@types/bs58": "npm:^5.0.0"
     "@types/chai": "npm:^4.2.21"
     "@types/json-stable-stringify": "npm:^1.0.36"
@@ -8517,13 +8517,13 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/radix-sdk@npm:19.7.0, @hyperlane-xyz/radix-sdk@workspace:typescript/radix-sdk":
+"@hyperlane-xyz/radix-sdk@npm:19.8.0, @hyperlane-xyz/radix-sdk@workspace:typescript/radix-sdk":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/radix-sdk@workspace:typescript/radix-sdk"
   dependencies:
     "@eslint/js": "npm:^9.31.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
-    "@hyperlane-xyz/utils": "npm:19.7.0"
+    "@hyperlane-xyz/utils": "npm:19.8.0"
     "@radixdlt/babylon-core-api-sdk": "npm:^1.3.0"
     "@radixdlt/babylon-gateway-api-sdk": "npm:^1.10.1"
     "@radixdlt/radix-engine-toolkit": "npm:^1.0.5"
@@ -8554,7 +8554,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@hyperlane-xyz/sdk@npm:19.7.0, @hyperlane-xyz/sdk@workspace:typescript/sdk":
+"@hyperlane-xyz/sdk@npm:19.8.0, @hyperlane-xyz/sdk@workspace:typescript/sdk":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/sdk@workspace:typescript/sdk"
   dependencies:
@@ -8564,13 +8564,13 @@ __metadata:
     "@cosmjs/cosmwasm-stargate": "npm:^0.32.4"
     "@cosmjs/proto-signing": "npm:^0.32.4"
     "@cosmjs/stargate": "npm:^0.32.4"
-    "@hyperlane-xyz/core": "npm:10.0.1"
-    "@hyperlane-xyz/cosmos-sdk": "npm:19.7.0"
+    "@hyperlane-xyz/core": "npm:10.0.2"
+    "@hyperlane-xyz/cosmos-sdk": "npm:19.8.0"
     "@hyperlane-xyz/eslint-config": "workspace:^"
-    "@hyperlane-xyz/radix-sdk": "npm:19.7.0"
-    "@hyperlane-xyz/starknet-core": "npm:19.7.0"
+    "@hyperlane-xyz/radix-sdk": "npm:19.8.0"
+    "@hyperlane-xyz/starknet-core": "npm:19.8.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
-    "@hyperlane-xyz/utils": "npm:19.7.0"
+    "@hyperlane-xyz/utils": "npm:19.8.0"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
     "@safe-global/api-kit": "npm:4.0.0"
@@ -8579,6 +8579,9 @@ __metadata:
     "@safe-global/safe-deployments": "npm:1.37.47"
     "@solana/spl-token": "npm:^0.4.9"
     "@solana/web3.js": "npm:^1.98.4"
+    "@turnkey/api-key-stamper": "npm:^0.5.0"
+    "@turnkey/sdk-server": "npm:^4.12.0"
+    "@turnkey/solana": "npm:^1.1.12"
     "@types/chai-as-promised": "npm:^8"
     "@types/mocha": "npm:^10.0.1"
     "@types/node": "npm:^18.14.5"
@@ -8614,7 +8617,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/starknet-core@npm:19.7.0, @hyperlane-xyz/starknet-core@workspace:starknet":
+"@hyperlane-xyz/starknet-core@npm:19.8.0, @hyperlane-xyz/starknet-core@workspace:starknet":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/starknet-core@workspace:starknet"
   dependencies:
@@ -8640,7 +8643,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/utils@npm:19.7.0, @hyperlane-xyz/utils@workspace:typescript/utils":
+"@hyperlane-xyz/utils@npm:19.8.0, @hyperlane-xyz/utils@workspace:typescript/utils":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/utils@workspace:typescript/utils"
   dependencies:
@@ -8693,11 +8696,11 @@ __metadata:
     "@emotion/styled": "npm:^11.13.0"
     "@eslint/js": "npm:^9.31.0"
     "@headlessui/react": "npm:^2.1.8"
-    "@hyperlane-xyz/cosmos-sdk": "npm:19.7.0"
+    "@hyperlane-xyz/cosmos-sdk": "npm:19.8.0"
     "@hyperlane-xyz/registry": "npm:20.0.0"
-    "@hyperlane-xyz/sdk": "npm:19.7.0"
+    "@hyperlane-xyz/sdk": "npm:19.8.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
-    "@hyperlane-xyz/utils": "npm:19.7.0"
+    "@hyperlane-xyz/utils": "npm:19.8.0"
     "@interchain-ui/react": "npm:^1.23.28"
     "@radixdlt/babylon-gateway-api-sdk": "npm:^1.10.1"
     "@radixdlt/radix-dapp-toolkit": "npm:^2.2.1"
@@ -11165,7 +11168,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@peculiar/asn1-schema@npm:^2.3.13, @peculiar/asn1-schema@npm:^2.3.8, @peculiar/asn1-schema@npm:^2.5.0":
+"@peculiar/asn1-schema@npm:^2.3.13, @peculiar/asn1-schema@npm:^2.5.0":
   version: 2.5.0
   resolution: "@peculiar/asn1-schema@npm:2.5.0"
   dependencies:
@@ -11197,28 +11200,6 @@ __metadata:
     pvtsutils: "npm:^1.3.6"
     tslib: "npm:^2.8.1"
   checksum: 10/d9bcaec630ef2e378395b16cd30de5e8c0dba4ffbdd394d69a7cbc712693f9d87f6005194fa8dd32199f9b600f6b1a6d7ba1c7f4b6948a3ba8551c1daf95b4ea
-  languageName: node
-  linkType: hard
-
-"@peculiar/json-schema@npm:^1.1.12":
-  version: 1.1.12
-  resolution: "@peculiar/json-schema@npm:1.1.12"
-  dependencies:
-    tslib: "npm:^2.0.0"
-  checksum: 10/dfec178afe63a02b6d45da8a18e51ef417e9f5412a8c2809c9a07b29b9376fadee1b4f2ea2d92d4e5a7b8eba76d9e99afbef6d7e9a27bd85257f69c4da228cbc
-  languageName: node
-  linkType: hard
-
-"@peculiar/webcrypto@npm:1.5.0":
-  version: 1.5.0
-  resolution: "@peculiar/webcrypto@npm:1.5.0"
-  dependencies:
-    "@peculiar/asn1-schema": "npm:^2.3.8"
-    "@peculiar/json-schema": "npm:^1.1.12"
-    pvtsutils: "npm:^1.3.5"
-    tslib: "npm:^2.6.2"
-    webcrypto-core: "npm:^1.8.0"
-  checksum: 10/a6658390c37b1d386f46066e796985eb56f6f86a772e1373c364ec9a8257adf8623f156596613d2828b489e2b5f32f9d2b0820289b4981646001cba7d21ae2f6
   languageName: node
   linkType: hard
 
@@ -16824,15 +16805,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@turnkey/core@npm:1.5.1":
-  version: 1.5.1
-  resolution: "@turnkey/core@npm:1.5.1"
+"@turnkey/core@npm:1.7.0":
+  version: 1.7.0
+  resolution: "@turnkey/core@npm:1.7.0"
   dependencies:
     "@turnkey/api-key-stamper": "npm:0.5.0"
-    "@turnkey/crypto": "npm:2.8.3"
+    "@turnkey/crypto": "npm:2.8.5"
     "@turnkey/encoding": "npm:0.6.0"
-    "@turnkey/http": "npm:3.13.1"
-    "@turnkey/sdk-types": "npm:0.6.3"
+    "@turnkey/http": "npm:3.15.0"
+    "@turnkey/sdk-types": "npm:0.8.0"
     "@turnkey/webauthn-stamper": "npm:0.6.0"
     "@wallet-standard/app": "npm:^1.1.0"
     "@wallet-standard/base": "npm:^1.1.0"
@@ -16845,7 +16826,7 @@ __metadata:
     viem: "npm:^2.33.1"
   peerDependencies:
     "@react-native-async-storage/async-storage": ^2.2.0
-    "@turnkey/react-native-passkey-stamper": 1.2.3
+    "@turnkey/react-native-passkey-stamper": 1.2.5
     react-native-keychain: ^8.1.0 || ^9.2.2 || ^10.0.0
   peerDependenciesMeta:
     "@react-native-async-storage/async-storage":
@@ -16854,24 +16835,23 @@ __metadata:
       optional: true
     react-native-keychain:
       optional: true
-  checksum: 10/69ef1ef1586e61df8ebef34b52d496c898734de35f64919e6e1923c85a1c34c4d201942d3482aaeb01c76b2b00e9d7d9d1e41fba444797a427558b0232bf4f97
+  checksum: 10/391b6f88780f78b20e92652ee09cf0537af64b8225517807d0e65281c13704f9cfb8391dfba6226850ee59a2175b327d424724b9fb43aeb4cc716586de2c0e51
   languageName: node
   linkType: hard
 
-"@turnkey/crypto@npm:2.8.3":
-  version: 2.8.3
-  resolution: "@turnkey/crypto@npm:2.8.3"
+"@turnkey/crypto@npm:2.8.5":
+  version: 2.8.5
+  resolution: "@turnkey/crypto@npm:2.8.5"
   dependencies:
     "@noble/ciphers": "npm:1.3.0"
     "@noble/curves": "npm:1.9.0"
     "@noble/hashes": "npm:1.8.0"
-    "@peculiar/webcrypto": "npm:1.5.0"
     "@peculiar/x509": "npm:1.12.3"
     "@turnkey/encoding": "npm:0.6.0"
-    "@turnkey/sdk-types": "npm:0.6.3"
+    "@turnkey/sdk-types": "npm:0.8.0"
     borsh: "npm:2.0.0"
     cbor-js: "npm:0.1.0"
-  checksum: 10/e477401c2c76df2a73529c086f07d48030c9be280d9154073cfaff60d8e5752c0df02da652477bd69cd383f843d1d751c0f13bcb10d11a2478b9858da6dfa3be
+  checksum: 10/459bef5900ddf4ac4d04be2cf4ccbcaa4b5dfa929f5b049852961f019654ac932f7fd00bba9b459916760fcb86bfc6ffb54875ffc94dc946f777ab42efb23ec1
   languageName: node
   linkType: hard
 
@@ -16885,15 +16865,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@turnkey/http@npm:3.13.1":
-  version: 3.13.1
-  resolution: "@turnkey/http@npm:3.13.1"
+"@turnkey/http@npm:3.15.0":
+  version: 3.15.0
+  resolution: "@turnkey/http@npm:3.15.0"
   dependencies:
     "@turnkey/api-key-stamper": "npm:0.5.0"
     "@turnkey/encoding": "npm:0.6.0"
     "@turnkey/webauthn-stamper": "npm:0.6.0"
     cross-fetch: "npm:^3.1.5"
-  checksum: 10/5af4a21bf737e1306b6d02de3d2adc4b33f66d7433bac957de5521ba6baabb1dac5929efb79a81d325949e4154a5207bbcb78b26d255fc041403bf105a77244e
+  checksum: 10/c5557d7f9f637285dd236abb268f15e95325b05f74e199a885831d15d7a4464e7506d6532cefecacfc4481eded082ae71812daef4c5488506d4ed049b4b97c90
   languageName: node
   linkType: hard
 
@@ -16914,70 +16894,70 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@turnkey/sdk-browser@npm:5.11.5":
-  version: 5.11.5
-  resolution: "@turnkey/sdk-browser@npm:5.11.5"
+"@turnkey/sdk-browser@npm:5.13.0":
+  version: 5.13.0
+  resolution: "@turnkey/sdk-browser@npm:5.13.0"
   dependencies:
     "@turnkey/api-key-stamper": "npm:0.5.0"
-    "@turnkey/crypto": "npm:2.8.3"
+    "@turnkey/crypto": "npm:2.8.5"
     "@turnkey/encoding": "npm:0.6.0"
-    "@turnkey/http": "npm:3.13.1"
+    "@turnkey/http": "npm:3.15.0"
     "@turnkey/iframe-stamper": "npm:2.7.0"
     "@turnkey/indexed-db-stamper": "npm:1.2.0"
-    "@turnkey/sdk-types": "npm:0.6.3"
-    "@turnkey/wallet-stamper": "npm:1.1.5"
+    "@turnkey/sdk-types": "npm:0.8.0"
+    "@turnkey/wallet-stamper": "npm:1.1.7"
     "@turnkey/webauthn-stamper": "npm:0.6.0"
     buffer: "npm:^6.0.3"
     cross-fetch: "npm:^3.1.5"
     hpke-js: "npm:^1.2.7"
-  checksum: 10/99a374bc11361115ca077cd2028ba02d22ed7a700db730986d18a143a185dc001ede36356a21dd8484df96fbefc5fda658d36d3f8c760b304e5013cb1030ed1e
+  checksum: 10/991895dc2550c7717f1bcd1d913bfff760e5b1f1afaca5ab384c73f02288dc2abe26909a0346fbc4c920bebdd1b8921c24b509d1103453ae7bc85139bcd2b01a
   languageName: node
   linkType: hard
 
-"@turnkey/sdk-server@npm:4.10.4, @turnkey/sdk-server@npm:^4.10.4":
-  version: 4.10.4
-  resolution: "@turnkey/sdk-server@npm:4.10.4"
+"@turnkey/sdk-server@npm:4.12.0, @turnkey/sdk-server@npm:^4.12.0":
+  version: 4.12.0
+  resolution: "@turnkey/sdk-server@npm:4.12.0"
   dependencies:
     "@turnkey/api-key-stamper": "npm:0.5.0"
-    "@turnkey/http": "npm:3.13.1"
-    "@turnkey/wallet-stamper": "npm:1.1.5"
+    "@turnkey/http": "npm:3.15.0"
+    "@turnkey/wallet-stamper": "npm:1.1.7"
     buffer: "npm:^6.0.3"
     cross-fetch: "npm:^3.1.5"
-  checksum: 10/c409e8e5291c5641785d4de6650aef25c5554b8511394d5c58145145dd68583e66ff3ce7e01a76f7a0ad1649a566f6e82f40e69324ef8bfe09fbcd87ef7b22cb
+  checksum: 10/2d9357d48eca241c5670ba3e029323f57072b5260912543b8d565900202979c5d48c23d517f23e98d04428682e31b6f43ba0e5f8a73643c49cd1300d5db49ee9
   languageName: node
   linkType: hard
 
-"@turnkey/sdk-types@npm:0.6.3":
-  version: 0.6.3
-  resolution: "@turnkey/sdk-types@npm:0.6.3"
-  checksum: 10/4e62c9a02941aab4a8d191a7877c0640fccd40c7894d5b70f87d5252ba9cf40c303d294a5470d1aa8b187979b4e27359b059b3ac5cb3c4e933bc3d43f7a909b3
+"@turnkey/sdk-types@npm:0.8.0":
+  version: 0.8.0
+  resolution: "@turnkey/sdk-types@npm:0.8.0"
+  checksum: 10/274fb54f7b17ed86478047848a17e327f897f1e8bcd6e1333c64cad85a302b72ed4cdfe0cf7ed1ebafcd2a67a903d8fed3855f31e3e07f4de18e19b70d9a3cc7
   languageName: node
   linkType: hard
 
-"@turnkey/solana@npm:^1.1.9":
-  version: 1.1.9
-  resolution: "@turnkey/solana@npm:1.1.9"
+"@turnkey/solana@npm:^1.1.12":
+  version: 1.1.12
+  resolution: "@turnkey/solana@npm:1.1.12"
   dependencies:
     "@solana/web3.js": "npm:^1.95.8"
-    "@turnkey/core": "npm:1.5.1"
-    "@turnkey/http": "npm:3.13.1"
-    "@turnkey/sdk-browser": "npm:5.11.5"
-    "@turnkey/sdk-server": "npm:4.10.4"
-  checksum: 10/c909f0f62e1b7b95b73f45c5bc23471fa3f37c920e1d56b612c2e8f8dc38e35034e597db8c6f6771e60d13807b16d99307ee155a46ee47024e6a7d18d6404304
+    "@turnkey/core": "npm:1.7.0"
+    "@turnkey/http": "npm:3.15.0"
+    "@turnkey/sdk-browser": "npm:5.13.0"
+    "@turnkey/sdk-server": "npm:4.12.0"
+  checksum: 10/91756531b7b865367ed5542683ccf2e778b95885c310118ae7b9c1a53e2d8001ab6433c863966c1f73c392d1648e6459a2c68b43a62cf5c47609025cf7af8c82
   languageName: node
   linkType: hard
 
-"@turnkey/wallet-stamper@npm:1.1.5":
-  version: 1.1.5
-  resolution: "@turnkey/wallet-stamper@npm:1.1.5"
+"@turnkey/wallet-stamper@npm:1.1.7":
+  version: 1.1.7
+  resolution: "@turnkey/wallet-stamper@npm:1.1.7"
   dependencies:
-    "@turnkey/crypto": "npm:2.8.3"
+    "@turnkey/crypto": "npm:2.8.5"
     "@turnkey/encoding": "npm:0.6.0"
     viem: "npm:^2.21.35"
   dependenciesMeta:
     viem:
       optional: true
-  checksum: 10/3260eabe997539670f9a75766b76620833522ffc6f73dd6b140988b8cc62a2869ebd390a38db436ef38ca872df759d8be80adb206dbf2260b48013670b8b7d9e
+  checksum: 10/249e669ca226ccbd82c1bc99cc588e80dd8d30e51e3f3dac84b57ccc2a9f8168c231428187434c062d44e84a2686f74341d69e76857783e28aba50101142775d
   languageName: node
   linkType: hard
 
@@ -41626,19 +41606,6 @@ __metadata:
     "@noble/curves": "npm:^1.4.0"
     "@noble/hashes": "npm:^1.4.0"
   checksum: 10/dde2b6313b6a0f20996f7ee90181258fc7685bfff401df7d904578da75b374f25d5b9c1189cd2fcec30625b1f276b393188d156d49783f0611623cd713bb5b09
-  languageName: node
-  linkType: hard
-
-"webcrypto-core@npm:^1.8.0":
-  version: 1.8.1
-  resolution: "webcrypto-core@npm:1.8.1"
-  dependencies:
-    "@peculiar/asn1-schema": "npm:^2.3.13"
-    "@peculiar/json-schema": "npm:^1.1.12"
-    asn1js: "npm:^3.0.5"
-    pvtsutils: "npm:^1.3.5"
-    tslib: "npm:^2.7.0"
-  checksum: 10/1a03144cb0b34433da0ebff79b1f8b81a17e4edee32614ae310af2b92e97cec24fcf82319a457798fa2c2259808d9cdaecda186655e4ec2616adf8669ffa505c
   languageName: node
   linkType: hard
 

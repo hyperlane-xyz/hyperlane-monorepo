@@ -1,7 +1,7 @@
 {
   "name": "solhint-plugin-hyperlane",
   "private": true,
-  "version": "19.7.0",
+  "version": "19.8.0",
   "description": "",
   "license": "Apache-2.0",
   "type": "commonjs",

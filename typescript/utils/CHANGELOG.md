@@ -1,5 +1,13 @@
 # @hyperlane-xyz/utils
 
+## 19.8.0
+
+### Minor Changes
+
+- 2ed21c97d: Fix bug in the address detection logic that prevented radix localnet addresses to be recognized as valid radix addresses
+- 78ff6cd47: add new methods for altvm interface
+- 3f75ad86d: Add `inKubernetes` util fn.
+
 ## 19.7.0
 
 ## 19.6.0
