@@ -8247,6 +8247,7 @@ __metadata:
     "@eslint/js": "npm:^9.31.0"
     "@ethersproject/abi": "npm:*"
     "@ethersproject/providers": "npm:*"
+    "@hyperlane-xyz/aleo-sdk": "npm:19.4.0"
     "@hyperlane-xyz/cosmos-sdk": "npm:19.7.0"
     "@hyperlane-xyz/http-registry-server": "npm:19.7.0"
     "@hyperlane-xyz/registry": "npm:20.0.0"
