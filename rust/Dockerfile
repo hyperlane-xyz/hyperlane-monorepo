@@ -70,7 +70,7 @@ COPY --from=builder /release/* .
 # Install runtime dependencies
 # remove /var/lib/apt/lists/* to clean up the package lists
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends openssl ca-certificates tini && \
+    apt-get install -y --no-install-recommends openssl ca-certificates tini libcurl4 && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
     chmod 777 /app && \
