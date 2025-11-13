@@ -44,8 +44,8 @@ contract DomainRoutingHook is AbstractPostDispatchHook, MailboxClient {
     // ============ External Functions ============
 
     /// @inheritdoc IPostDispatchHook
-    function hookType() external pure virtual override returns (uint8) {
-        return uint8(IPostDispatchHook.Types.ROUTING);
+    function hookType() external pure virtual returns (uint8) {
+        return uint8(IPostDispatchHook.HookTypes.ROUTING);
     }
 
     function setHook(uint32 _destination, address _hook) public onlyOwner {
@@ -60,7 +60,7 @@ contract DomainRoutingHook is AbstractPostDispatchHook, MailboxClient {
 
     function supportsMetadata(
         bytes calldata
-    ) public pure virtual override returns (bool) {
+    ) public pure override returns (bool) {
         // routing hook does not care about metadata shape
         return true;
     }
@@ -68,6 +68,7 @@ contract DomainRoutingHook is AbstractPostDispatchHook, MailboxClient {
     // ============ Internal Functions ============
 
     /// @inheritdoc AbstractPostDispatchHook
+    // solhint-disable-next-line hyperlane/no-virtual-override
     function _postDispatch(
         bytes calldata metadata,
         bytes calldata message
@@ -82,7 +83,7 @@ contract DomainRoutingHook is AbstractPostDispatchHook, MailboxClient {
     function _quoteDispatch(
         bytes calldata metadata,
         bytes calldata message
-    ) internal view virtual override returns (uint256) {
+    ) internal view override returns (uint256) {
         return _getConfiguredHook(message).quoteDispatch(metadata, message);
     }
 

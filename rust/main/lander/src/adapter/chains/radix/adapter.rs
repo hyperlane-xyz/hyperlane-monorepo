@@ -444,7 +444,7 @@ impl AdaptsChain for RadixAdapter {
 
         match resp.status {
             gateway_api_client::models::TransactionStatus::Unknown => {
-                Err(LanderError::TxHashNotFound(format!("{:x}", hash)))
+                Err(LanderError::TxHashNotFound(format!("{hash:x}")))
             }
             gateway_api_client::models::TransactionStatus::Pending => {
                 Ok(TransactionStatus::Mempool)

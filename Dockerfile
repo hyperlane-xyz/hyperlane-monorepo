@@ -30,6 +30,9 @@ COPY typescript/sdk/package.json ./typescript/sdk/
 COPY typescript/tsconfig/package.json ./typescript/tsconfig/
 COPY typescript/utils/package.json ./typescript/utils/
 COPY typescript/widgets/package.json ./typescript/widgets/
+COPY solidity/package.json ./solidity/
+COPY solhint-plugin/package.json ./solhint-plugin/
+COPY starknet/package.json ./starknet/
 
 RUN yarn install && yarn cache clean
 
@@ -37,6 +40,7 @@ RUN yarn install && yarn cache clean
 COPY turbo.json ./
 COPY typescript ./typescript
 COPY solidity ./solidity
+COPY solhint-plugin ./solhint-plugin
 COPY starknet ./starknet
 
 RUN yarn build

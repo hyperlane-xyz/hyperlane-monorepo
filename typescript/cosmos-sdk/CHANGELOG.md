@@ -1,5 +1,50 @@
 # @hyperlane-xyz/cosmos-sdk
 
+## 19.8.0
+
+### Minor Changes
+
+- 78ff6cd47: add new methods for altvm interface
+
+### Patch Changes
+
+- Updated dependencies [2ed21c97d]
+- Updated dependencies [78ff6cd47]
+- Updated dependencies [3f75ad86d]
+  - @hyperlane-xyz/utils@19.8.0
+  - @hyperlane-xyz/cosmos-types@19.8.0
+
+## 19.7.0
+
+### Patch Changes
+
+- @hyperlane-xyz/cosmos-types@19.7.0
+- @hyperlane-xyz/utils@19.7.0
+
+## 19.6.0
+
+### Patch Changes
+
+- Updated dependencies [419e16910]
+  - @hyperlane-xyz/utils@19.6.0
+  - @hyperlane-xyz/cosmos-types@19.6.0
+
+## 19.6.0-beta.0
+
+### Patch Changes
+
+- Updated dependencies [419e16910]
+  - @hyperlane-xyz/utils@19.6.0-beta.0
+  - @hyperlane-xyz/cosmos-types@19.6.0-beta.0
+
+## 19.5.0
+
+### Patch Changes
+
+- Updated dependencies [312826d10]
+  - @hyperlane-xyz/utils@19.5.0
+  - @hyperlane-xyz/cosmos-types@19.5.0
+
 ## 19.4.0
 
 ### Patch Changes

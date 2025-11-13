@@ -147,7 +147,10 @@ contract AggregationHookTest is Test {
 
     function testHookType() public {
         deployHooks(1, 0);
-        assertEq(hook.hookType(), uint8(IPostDispatchHook.Types.AGGREGATION));
+        assertEq(
+            hook.hookType(),
+            uint8(IPostDispatchHook.HookTypes.AGGREGATION)
+        );
     }
 
     receive() external payable {}

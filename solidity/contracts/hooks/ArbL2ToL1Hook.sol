@@ -58,7 +58,7 @@ contract ArbL2ToL1Hook is AbstractMessageIdAuthHook {
 
     /// @inheritdoc IPostDispatchHook
     function hookType() external pure override returns (uint8) {
-        return uint8(IPostDispatchHook.Types.ARB_L2_TO_L1);
+        return uint8(IPostDispatchHook.HookTypes.ARB_L2_TO_L1);
     }
 
     /// @inheritdoc AbstractPostDispatchHook

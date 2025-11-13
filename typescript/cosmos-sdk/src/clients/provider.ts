@@ -37,6 +37,7 @@ import {
 import {
   MsgCreateIgpEncodeObject,
   MsgCreateMerkleTreeHookEncodeObject,
+  MsgCreateNoopHookEncodeObject,
   MsgSetDestinationGasConfigEncodeObject,
   MsgSetIgpOwnerEncodeObject,
 } from '../hyperlane/post_dispatch/messages.js';
@@ -65,6 +66,9 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
   private readonly registry: Registry;
   private readonly cometClient: CometClient;
   private readonly rpcUrls: string[];
+
+  private static NULL_ADDRESS =
+    '0x0000000000000000000000000000000000000000000000000000000000000000';
 
   static async connect(
     rpcUrls: string[],
@@ -114,11 +118,15 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
   }
 
   async getBalance(req: AltVM.ReqGetBalance): Promise<bigint> {
+    assert(req.denom, `denom required by ${CosmosNativeProvider.name}`);
+
     const coin = await this.query.bank.balance(req.address, req.denom);
     return BigInt(coin.amount);
   }
 
   async getTotalSupply(req: AltVM.ReqGetTotalSupply): Promise<bigint> {
+    assert(req.denom, `denom required by ${CosmosNativeProvider.name}`);
+
     const coin = await this.query.bank.supplyOf(req.denom);
     return BigInt(coin.amount);
   }
@@ -174,6 +182,10 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
       id: req.mailboxAddress,
     });
     assert(mailbox, `found no mailbox for id ${req.mailboxAddress}`);
+
+    if (mailbox.default_ism === CosmosNativeProvider.NULL_ADDRESS) {
+      mailbox.default_ism = '';
+    }
 
     return {
       address: mailbox.id,
@@ -354,6 +366,17 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     };
   }
 
+  async getNoopHook(req: AltVM.ReqGetNoopHook): Promise<AltVM.ResGetNoopHook> {
+    const { noop_hook } = await this.query.postDispatch.NoopHook({
+      id: req.hookAddress,
+    });
+    assert(noop_hook, `found no noop hook for id ${req.hookAddress}`);
+
+    return {
+      address: noop_hook.id,
+    };
+  }
+
   // ### QUERY WARP ###
 
   async getToken(req: AltVM.ReqGetToken): Promise<AltVM.ResGetToken> {
@@ -448,7 +471,6 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
       typeUrl: R.MsgCreateMailbox.proto.type,
       value: R.MsgCreateMailbox.proto.converter.create({
         local_domain: req.domainId,
-        default_ism: req.defaultIsmAddress,
         owner: req.signer,
       }),
     };
@@ -661,15 +683,40 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     };
   }
 
+  async getRemoveDestinationGasConfigTransaction(
+    _req: AltVM.ReqRemoveDestinationGasConfig,
+  ): Promise<EncodeObject> {
+    throw new Error(
+      `RemoveDestinationGasConfig is currently not supported on Cosmos Native`,
+    );
+  }
+
+  async getCreateNoopHookTransaction(
+    req: AltVM.ReqCreateNoopHook,
+  ): Promise<MsgCreateNoopHookEncodeObject> {
+    return {
+      typeUrl: R.MsgCreateNoopHook.proto.type,
+      value: R.MsgCreateNoopHook.proto.converter.create({
+        owner: req.signer,
+      }),
+    };
+  }
+
   async getCreateValidatorAnnounceTransaction(
     _req: AltVM.ReqCreateValidatorAnnounce,
-  ): Promise<any> {
+  ): Promise<EncodeObject> {
     throw new Error(
       'Cosmos Native does not support populateCreateValidatorAnnounce',
     );
   }
 
   // ### GET WARP TXS ###
+
+  async getCreateNativeTokenTransaction(
+    _req: AltVM.ReqCreateNativeToken,
+  ): Promise<EncodeObject> {
+    throw new Error(`Native Token is not supported on Cosmos Native`);
+  }
 
   async getCreateCollateralTokenTransaction(
     req: AltVM.ReqCreateCollateralToken,
@@ -756,6 +803,8 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
   async getTransferTransaction(
     req: AltVM.ReqTransfer,
   ): Promise<MsgSendEncodeObject> {
+    assert(req.denom, `denom required by ${CosmosNativeProvider.name}`);
+
     return {
       typeUrl: '/cosmos.bank.v1beta1.MsgSend',
       value: {

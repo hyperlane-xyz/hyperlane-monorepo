@@ -1,5 +1,50 @@
 # @hyperlane-xyz/radix-sdk
 
+## 19.8.0
+
+### Minor Changes
+
+- 78ff6cd47: add new methods for altvm interface
+
+### Patch Changes
+
+- Updated dependencies [2ed21c97d]
+- Updated dependencies [78ff6cd47]
+- Updated dependencies [3f75ad86d]
+  - @hyperlane-xyz/utils@19.8.0
+
+## 19.7.0
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@19.7.0
+
+## 19.6.0
+
+### Patch Changes
+
+- Updated dependencies [419e16910]
+  - @hyperlane-xyz/utils@19.6.0
+
+## 19.6.0-beta.0
+
+### Patch Changes
+
+- Updated dependencies [419e16910]
+  - @hyperlane-xyz/utils@19.6.0-beta.0
+
+## 19.5.0
+
+### Minor Changes
+
+- 312826d10: - Add the RadixBase.createPublishPackageManifest method to build a compiled package publishing transaction.
+  - Add the RadixSigner.publishPackage method to publish packages on a radix network
+
+### Patch Changes
+
+- Updated dependencies [312826d10]
+  - @hyperlane-xyz/utils@19.5.0
+
 ## 19.4.0
 
 ### Patch Changes

@@ -40,7 +40,7 @@ impl Server {
         tokio::task::Builder::new()
             .name("agent::server")
             .spawn(async move {
-                let url = format!("0.0.0.0:{}", port);
+                let url = format!("0.0.0.0:{port}");
                 let listener = tokio::net::TcpListener::bind(url)
                     .await
                     .expect("Failed to bind to TCP port");

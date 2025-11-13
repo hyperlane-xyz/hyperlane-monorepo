@@ -286,9 +286,7 @@ contract HyperlaneServiceManager is ECDSAServiceManagerBase, PackageVersioned {
     }
 
     /// @inheritdoc ECDSAServiceManagerBase
-    function _deregisterOperatorFromAVS(
-        address operator
-    ) internal virtual override {
+    function _deregisterOperatorFromAVS(address operator) internal override {
         address[] memory challengers = getOperatorChallengers(operator);
         _completeUnenrollment(operator, challengers);
 

@@ -19,14 +19,11 @@ describe('2. cosmos sdk core e2e tests', async function () {
 
   step('create new mailbox', async () => {
     // ARRANGE
-    const { ismAddress } = await signer.createNoopIsm({});
-
     const domainId = 1234;
 
     // ACT
     const txResponse = await signer.createMailbox({
       domainId: domainId,
-      defaultIsmAddress: ismAddress,
     });
 
     // ASSERT
@@ -42,20 +39,17 @@ describe('2. cosmos sdk core e2e tests', async function () {
     expect(mailbox.address).to.equal(txResponse.mailboxAddress);
     expect(mailbox.owner).to.equal(signer.getSignerAddress());
     expect(mailbox.localDomain).to.equal(domainId);
-    expect(mailbox.defaultIsm).to.equal(ismAddress);
+    expect(mailbox.defaultIsm).to.be.empty;
     expect(mailbox.defaultHook).to.be.empty;
     expect(mailbox.requiredHook).to.be.empty;
   });
 
   step('set mailbox owner', async () => {
     // ARRANGE
-    const { ismAddress } = await signer.createNoopIsm({});
-
     const domainId = 1234;
 
     const { mailboxAddress } = await signer.createMailbox({
       domainId: domainId,
-      defaultIsmAddress: ismAddress,
     });
 
     let mailbox = await signer.getMailbox({ mailboxAddress });
@@ -74,7 +68,7 @@ describe('2. cosmos sdk core e2e tests', async function () {
     expect(mailbox.owner).to.equal(bobSigner.getSignerAddress());
   });
 
-  step('set mailbox default hook', async () => {
+  step('set mailbox default ism', async () => {
     // ARRANGE
     const { ismAddress } = await signer.createNoopIsm({});
 
@@ -82,7 +76,28 @@ describe('2. cosmos sdk core e2e tests', async function () {
 
     const { mailboxAddress } = await signer.createMailbox({
       domainId: domainId,
-      defaultIsmAddress: ismAddress,
+    });
+
+    let mailbox = await signer.getMailbox({ mailboxAddress });
+    expect(mailbox.defaultIsm).to.be.empty;
+
+    // ACT
+    await signer.setDefaultIsm({
+      mailboxAddress,
+      ismAddress,
+    });
+
+    // ASSERT
+    mailbox = await signer.getMailbox({ mailboxAddress });
+    expect(mailbox.defaultIsm).to.equal(ismAddress);
+  });
+
+  step('set mailbox default hook', async () => {
+    // ARRANGE
+    const domainId = 1234;
+
+    const { mailboxAddress } = await signer.createMailbox({
+      domainId: domainId,
     });
 
     const { hookAddress } = await signer.createMerkleTreeHook({
@@ -105,13 +120,10 @@ describe('2. cosmos sdk core e2e tests', async function () {
 
   step('set mailbox required hook', async () => {
     // ARRANGE
-    const { ismAddress } = await signer.createNoopIsm({});
-
     const domainId = 1234;
 
     const { mailboxAddress } = await signer.createMailbox({
       domainId: domainId,
-      defaultIsmAddress: ismAddress,
     });
 
     const { hookAddress } = await signer.createMerkleTreeHook({

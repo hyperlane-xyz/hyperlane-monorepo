@@ -1,5 +1,33 @@
 # @hyperlane-xyz/utils
 
+## 19.8.0
+
+### Minor Changes
+
+- 2ed21c97d: Fix bug in the address detection logic that prevented radix localnet addresses to be recognized as valid radix addresses
+- 78ff6cd47: add new methods for altvm interface
+- 3f75ad86d: Add `inKubernetes` util fn.
+
+## 19.7.0
+
+## 19.6.0
+
+### Minor Changes
+
+- 419e16910: add the objDiff function to determine the field with primitive values that are different or not present when comparing 2 objects of the same type
+
+## 19.6.0-beta.0
+
+### Minor Changes
+
+- 419e16910: add the objDiff function to determine the field with primitive values that are different or not present when comparing 2 objects of the same type
+
+## 19.5.0
+
+### Minor Changes
+
+- 312826d10: Updated the AltVM provider connect interface so that it can optionally accept extra params needed for instantiating the provider
+
 ## 19.4.0
 
 ### Patch Changes
