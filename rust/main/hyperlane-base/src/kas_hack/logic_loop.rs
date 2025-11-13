@@ -256,8 +256,6 @@ where
     async fn process_deposit_operation(&self, mut op: DepositOperation) {
         info!(deposit_id = %op.deposit.id, "Processing deposit operation");
 
-        let start_time = op.created_at;
-
         // Decode payload and add Kaspa metadata to get the proper HL message
         let (hl_message, amount, utxo_index) =
             match self.decode_and_add_kaspa_metadata(&op.deposit, &op.escrow_address) {
@@ -355,12 +353,9 @@ where
                                 "Dymension, got sigs and sent new deposit to hub"
                             );
 
-                            let latency_ms = start_time.elapsed().as_millis() as i64;
-
                             self.provider
                                 .metrics()
                                 .record_deposit_processed(&deposit_id, amount);
-                            self.provider.metrics().update_deposit_latency(latency_ms);
 
                             op.reset_attempts();
                         }

@@ -53,21 +53,21 @@ impl ValidatorsClient {
         fxg: &DepositFXG,
     ) -> ChainResult<Vec<SignedCheckpointWithMessageId>> {
         info!(
-            "Dymension, asking validators for deposit sigs, number of validators: {:?}",
-            self.hosts().len()
+            validators_count = self.hosts().len(),
+            "dymension: asking validators for deposit sigs"
         );
 
         let futures = self.hosts().into_iter().map(|host| async move {
             let h = host.to_string();
             match request_validate_new_deposits(host, fxg).await {
                 Ok(Some(sig)) => {
-                    info!("Dymension, got deposit sig response ok, validator: {:?}", h);
+                    info!(validator = ?h, "dymension: got deposit sig response ok");
                     Ok((h, sig))
                 }
                 Ok(None) => {
                     error!(
-                        "Dymension, got deposit sig response None, validator: {:?}",
-                        h
+                        validator = ?h,
+                        "dymension: got deposit sig response None"
                     );
                     Err(eyre!("No signature received"))
                 }
@@ -75,22 +75,25 @@ impl ValidatorsClient {
                     let error_str = e.to_string();
                     if error_str.contains("TransactionRejected") {
                         error!(
-                            "Dymension, transaction rejected, validator: {:?}, error: {:?}",
-                            h, e
+                            validator = ?h,
+                            error = ?e,
+                            "dymension: transaction rejected"
                         );
                         // This is non-retryable - mark as permanent failure
                         Err(e)
                     } else if error_str.contains("ServiceUnavailable") {
                         error!(
-                            "Dymension, service unavailable, validator: {:?}, error: {:?}",
-                            h, e
+                            validator = ?h,
+                            error = ?e,
+                            "dymension: service unavailable"
                         );
                         // This is retryable with longer backoff
                         Err(e)
                     } else {
                         error!(
-                            "Dymension, got deposit sig response Err, validator: {:?}, error: {:?}",
-                            h, e
+                            validator = ?h,
+                            error = ?e,
+                            "dymension: got deposit sig response Err"
                         );
                         Err(e)
                     }
@@ -119,9 +122,9 @@ impl ValidatorsClient {
         fxg: &ConfirmationFXG,
     ) -> ChainResult<Vec<Signature>> {
         info!(
-            "Dymension, getting confirmation sigs, number of validators: {:?}, fxg: {:?}",
-            self.hosts().len(),
-            fxg
+            validators_count = self.hosts().len(),
+            fxg = ?fxg,
+            "dymension: getting confirmation sigs"
         );
 
         let futures = self
@@ -133,15 +136,15 @@ impl ValidatorsClient {
                 let h = host.to_string();
                 match request_validate_new_confirmation(host, &fxg_clone).await {
                     Ok(Some(sig)) => {
-                        info!("Dymension, got confirmation sig response ok, validator: {:?}", h);
+                        info!(validator = ?h, "dymension: got confirmation sig response ok");
                         Ok((h, sig))
                     }
                     Ok(None) => {
-                        error!("Dymension, got confirmation sig response None, validator: {:?}", h);
+                        error!(validator = ?h, "dymension: got confirmation sig response None");
                         Err(eyre!("No signature received"))
                     }
                     Err(e) => {
-                        error!("Dymension, got confirmation sig response Err, validator: {:?}, error: {:?}", h, e);
+                        error!(validator = ?h, error = ?e, "dymension: got confirmation sig response Err");
                         Err(e)
                     }
                 }
@@ -165,8 +168,8 @@ impl ValidatorsClient {
 
     pub async fn get_withdraw_sigs(&self, fxg: &WithdrawFXG) -> ChainResult<Vec<Bundle>> {
         info!(
-            "Dymension, getting withdrawal sigs, number of validators: {:?}",
-            self.hosts().len()
+            validators_count = self.hosts().len(),
+            "dymension: getting withdrawal sigs"
         );
 
         let futures = self.hosts().into_iter().map(|host| async move {
@@ -174,22 +177,23 @@ impl ValidatorsClient {
             match request_sign_withdrawal_bundle(host, fxg).await {
                 Ok(Some(bundle)) => {
                     info!(
-                        "Dymension, got withdrawal sig response ok, validator: {:?}",
-                        h
+                        validator = ?h,
+                        "dymension: got withdrawal sig response ok"
                     );
                     Ok(bundle)
                 }
                 Ok(None) => {
                     error!(
-                        "Dymension, got withdrawal sig response None, validator: {:?}",
-                        h
+                        validator = ?h,
+                        "dymension: got withdrawal sig response None"
                     );
                     Err(eyre!("No bundle received"))
                 }
                 Err(e) => {
                     error!(
-                        "Dymension, got withdrawal sig response Err, validator: {:?}, error: {:?}",
-                        h, e
+                        validator = ?h,
+                        error = ?e,
+                        "dymension: got withdrawal sig response Err"
                     );
                     Err(e)
                 }
@@ -213,8 +217,8 @@ pub async fn request_validate_new_deposits(
     deposits: &DepositFXG,
 ) -> Result<Option<SignedCheckpointWithMessageId>> {
     info!(
-        "Dymension, requesting deposit sigs from validator: {:?}",
-        host
+        validator = %host,
+        "dymension: requesting deposit sigs from validator"
     );
     let bz = Bytes::from(deposits);
     let client = reqwest::Client::new();
@@ -286,8 +290,8 @@ pub async fn request_sign_withdrawal_bundle(
     fxg: &WithdrawFXG,
 ) -> Result<Option<Bundle>> {
     info!(
-        "Dymension, requesting withdrawal sigs from validator: {:?}",
-        host
+        validator = %host,
+        "dymension: requesting withdrawal sigs from validator"
     );
     let bz = Bytes::try_from(fxg)?;
     let client = reqwest::Client::new();

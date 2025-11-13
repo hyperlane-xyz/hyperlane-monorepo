@@ -1,6 +1,4 @@
-use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::Mutex;
 
 use super::consts::*;
 use crate::KaspaProvider;
@@ -21,7 +19,6 @@ pub struct KaspaMailbox {
     provider: KaspaProvider,
     domain: HyperlaneDomain,
     address: H256,
-    operation_timestamps: Arc<Mutex<HashMap<String, std::time::Instant>>>,
 }
 
 impl KaspaMailbox {
@@ -30,7 +27,6 @@ impl KaspaMailbox {
             provider,
             address: locator.address,
             domain: locator.domain.clone(),
-            operation_timestamps: Arc::new(Mutex::new(HashMap::new())),
         })
     }
 
@@ -39,7 +35,6 @@ impl KaspaMailbox {
             provider,
             domain: self.domain.clone(),
             address: self.address,
-            operation_timestamps: self.operation_timestamps.clone(),
         }
     }
 }
@@ -69,7 +64,7 @@ impl Mailbox for KaspaMailbox {
     // Not a precise answer since actually depends on subsequent confirmation step on Kaspa,
     // so may often return false negative (says not delivered when it actually is)
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
-        info!("Kaspa mailbox, checking if message is delivered already (querying hub), id: {id:?}");
+        info!(message_id = ?id, "kaspa mailbox: checking if message is delivered already, querying hub");
         let wid = WithdrawalId {
             message_id: bytes_to_hex(id.as_ref()),
         };
@@ -114,8 +109,8 @@ impl Mailbox for KaspaMailbox {
     // Instead of single mailbox.process() call, we build multiple Kaspa TXs that must execute in sequence.
     async fn process_batch<'a>(&self, ops: Vec<&'a QueueOperation>) -> ChainResult<BatchResult> {
         info!(
-            "Kaspa mailbox, processing/submitting kaspa batch of size: {}",
-            ops.len()
+            batch_size = ops.len(),
+            "kaspa mailbox: processing/submitting kaspa batch"
         );
 
         let msgs: Vec<HyperlaneMessage> = ops
@@ -123,23 +118,16 @@ impl Mailbox for KaspaMailbox {
             .map(|op| op.try_batch().map(|item| item.data))
             .collect::<ChainResult<Vec<HyperlaneMessage>>>()?;
 
-        let current_ts = std::time::Instant::now();
-        {
-            let mut ts_map = self.operation_timestamps.lock().await;
-            for msg in &msgs {
-                let msg_id = format!("{:?}", msg.id());
-                ts_map.entry(msg_id).or_insert(current_ts);
-            }
-        }
-
-        self.provider.store_withdrawals(&msgs);
+        // TODO: there's not need for this, withdrawals are already tracked by the relaye using vanilla hyperlane tech
+        // this is just a double storage and moreover, its not at the earliest time that the relayer actually observes the mailbox
+        // on the hub..
+        self.provider.hack_store_withdrawals_for_query(&msgs);
 
         // Cannot process withdrawals while a confirmation is pending on the Hub.
         // All operations marked failed and will be retried after confirmation completes.
         if self.provider.has_pending_confirmation() {
-            let failed_idxs: Vec<usize> = (0..ops.len()).collect();
             return Ok(BatchResult {
-                failed_indexes: failed_idxs,
+                failed_indexes: (0..ops.len()).collect(),
                 outcome: None,
             });
         }
@@ -154,29 +142,16 @@ impl Mailbox for KaspaMailbox {
                 // Store withdrawal messages using the provider's store_withdrawals method
                 self.provider.add_kaspa_tx_id_withdrawals(&results);
 
-                // Calculate and record withdrawal latency for successfully processed messages
-                let now = std::time::Instant::now();
-                let mut ts_map = self.operation_timestamps.lock().await;
-                for (msg, _) in &results {
-                    let msg_id = format!("{:?}", msg.id());
-                    if let Some(start_ts) = ts_map.remove(&msg_id) {
-                        let latency = now.duration_since(start_ts);
-                        let metrics = self.provider.metrics();
-                        metrics.update_withdrawal_latency(latency.as_millis() as i64);
-                    }
-                }
-                drop(ts_map);
-
                 // Extract just the messages for further processing
                 results.into_iter().map(|(msg, _)| msg).collect()
             }
             Err(e) => {
-                error!("Kaspa mailbox, failed to process withdrawals TXs: {:?}", e);
+                error!(error = ?e, "kaspa mailbox: failed to process withdrawals TXs");
                 Vec::new()
             }
         };
 
-        info!("Kaspa mailbox, processed withdrawals TXs");
+        info!("kaspa mailbox: processed withdrawals TXs");
 
         // Return value doesn't correspond 1:1 to what we did since we sent multiple Kaspa TXs.
         // However, since TXs must execute in sequence, we can use the last one knowing prior ones succeeded.
@@ -188,14 +163,19 @@ impl Mailbox for KaspaMailbox {
                     failed.push(i);
                 }
             }
-            error!(
-                "Kaspa mailbox, processed batch, failed indexes: {:?}",
-                failed
-            );
+
             failed
         };
 
+        if !failed_idxs.is_empty() {
+            error!(
+                failed_indexes = ?failed_idxs,
+                "kaspa mailbox: processed batch with failed indexes"
+            );
+        }
+
         Ok(BatchResult {
+            // outcome intentionally bogus
             outcome: Some(TxOutcome {
                 transaction_id: H512::zero(),
                 executed: false,

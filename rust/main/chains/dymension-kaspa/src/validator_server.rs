@@ -139,7 +139,7 @@ async fn respond_kaspa_ping<
     State(_): State<Arc<ValidatorServerResources<S, H>>>,
     _body: Bytes,
 ) -> HandlerResult<Json<String>> {
-    error!("VALIDATOR SERVER, GOT KASPA PING");
+    error!("validator server: got kaspa ping");
     Ok(Json("pong".to_string()))
 }
 
@@ -221,7 +221,7 @@ async fn respond_validate_new_deposits<
     State(res): State<Arc<ValidatorServerResources<S, H>>>,
     body: Bytes,
 ) -> HandlerResult<Json<SignedCheckpointWithMessageId>> {
-    info!("Validator: checking new kaspa deposit");
+    info!("validator: checking new kaspa deposit");
     let deposits: DepositFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
     if res.must_val_stuff().toggles.deposit_enabled {
         validate_new_deposit(
@@ -245,8 +245,8 @@ async fn respond_validate_new_deposits<
         })?;
     }
     info!(
-        "Validator: deposit is valid: id = {:?}",
-        deposits.hl_message.id()
+        message_id = ?deposits.hl_message.id(),
+        "validator: deposit is valid"
     );
 
     let msg_id = deposits.hl_message.id();
@@ -268,7 +268,7 @@ async fn respond_validate_new_deposits<
         .sign_with_fallback(to_sign)
         .await
         .map_err(|e| AppError(e.into()))?;
-    info!("Validator: signed deposit");
+    info!("validator: signed deposit");
 
     Ok(Json(sig))
 }
@@ -280,7 +280,7 @@ async fn respond_sign_pskts<
     State(res): State<Arc<ValidatorServerResources<S, H>>>,
     body: Bytes,
 ) -> HandlerResult<Json<Bundle>> {
-    info!("Validator: signing pskts");
+    info!("validator: signing pskts");
 
     let fxg: WithdrawFXG = body.try_into().map_err(|e: Report| AppError(e))?;
     let escrow = res.must_escrow();
@@ -402,7 +402,7 @@ async fn respond_validate_confirmed_withdrawals<
     State(res): State<Arc<ValidatorServerResources<S, H>>>,
     body: Bytes,
 ) -> HandlerResult<Json<HLCoreSignature>> {
-    info!("Validator: checking confirmed kaspa withdrawal");
+    info!("validator: checking confirmed kaspa withdrawal");
     let conf_fxg: ConfirmationFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
 
     if res.must_val_stuff().toggles.withdrawal_confirmation_enabled {
@@ -412,7 +412,7 @@ async fn respond_validate_confirmed_withdrawals<
                 eprintln!("Withdrawal confirmation validation failed: {:?}", e);
                 AppError(Report::from(e))
             })?;
-        info!("Validator: confirmed withdrawal is valid");
+        info!("validator: confirmed withdrawal is valid");
     }
 
     let progress_indication = &conf_fxg.progress_indication;
@@ -425,7 +425,7 @@ async fn respond_validate_confirmed_withdrawals<
         .await
         .map_err(|e| AppError(e.into()))?;
 
-    info!("Validator: signed confirmed withdrawal");
+    info!("validator: signed confirmed withdrawal");
 
     Ok(Json(sig.signature))
 }

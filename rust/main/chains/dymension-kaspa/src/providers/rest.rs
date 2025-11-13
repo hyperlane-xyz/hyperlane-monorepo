@@ -11,7 +11,7 @@ pub use dym_kas_core::api::base::{get_config, RateLimitConfig};
 pub use dym_kas_core::api::client::*;
 
 use crate::ConnectionConf;
-use hyperlane_cosmos::Signer;
+use hyperlane_cosmos::Signer as CosmosSigner;
 
 #[derive(Debug)]
 pub struct KaspaHttpClient {
@@ -23,7 +23,7 @@ pub struct KaspaHttpClient {
 #[derive(Debug, Clone)]
 pub struct RestProvider {
     pub client: KaspaHttpClient,
-    signer: Option<Signer>,
+    cosmos_signer: Option<CosmosSigner>,
 }
 
 #[async_trait]
@@ -90,7 +90,7 @@ impl RestProvider {
     /// Returns a new Rpc Provider
     pub fn new(
         cfg: ConnectionConf,
-        signer: Option<Signer>,
+        signer: Option<CosmosSigner>,
         metrics: PrometheusClientMetrics,
         chain: Option<hyperlane_metric::prometheus_metric::ChainInfo>,
     ) -> ChainResult<Self> {
@@ -105,7 +105,7 @@ impl RestProvider {
 
         Ok(RestProvider {
             client: clients[0].clone(),
-            signer,
+            cosmos_signer: signer,
         })
     }
 
@@ -114,9 +114,9 @@ impl RestProvider {
         self.client.client.get_config()
     }
 
-    /// Gets a signer, or returns an error if one is not available.
-    pub fn get_signer(&self) -> ChainResult<&Signer> {
-        self.signer
+    /// Gets a signer, or returns an error if one is not available. TODO: can probably remove for kaspa
+    pub fn get_signer(&self) -> ChainResult<&CosmosSigner> {
+        self.cosmos_signer
             .as_ref()
             .ok_or(ChainCommunicationError::SignerUnavailable)
     }

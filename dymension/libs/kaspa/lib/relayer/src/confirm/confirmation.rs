@@ -28,8 +28,9 @@ pub async fn expensive_trace_transactions(
     out_old: TransactionOutpoint,
 ) -> Result<ConfirmationFXG> {
     info!(
-        "Starting transaction trace from candidate new anchor {:?} to old anchor {:?}",
-        out_new_candidate, out_old
+        new_anchor = ?out_new_candidate,
+        old_anchor = ?out_old,
+        "starting transaction trace"
     );
 
     let mut processed_withdrawals: Vec<MessageID> = Vec::new();
@@ -46,12 +47,12 @@ pub async fn expensive_trace_transactions(
     .await?;
 
     info!(
-        "Trace completed. Found {} UTXOs in lineage with {} processed withdrawals",
-        outpoint_sequence.len(),
-        processed_withdrawals.len()
+        utxos_count = outpoint_sequence.len(),
+        processed_withdrawals_count = processed_withdrawals.len(),
+        "trace completed"
     );
     for o in outpoint_sequence.clone() {
-        info!("Lineage Outpoint: {:?}", o);
+        info!(outpoint = ?o, "lineage outpoint");
     }
     Ok(ConfirmationFXG::from_msgs_outpoints(
         processed_withdrawals,
@@ -73,14 +74,14 @@ pub async fn recursive_trace_transactions(
         return Ok(());
     }
 
-    info!("Tracing lineage backwards from UTXO: {:?}", out_curr);
+    info!(utxo = ?out_curr, "tracing lineage backwards from UTXO");
 
     // tx that created the candidate
     let tx = client_rest
         .get_tx_by_id(&out_curr.transaction_id.to_string())
         .await?;
 
-    info!("Queried kaspa tx: {:?}", tx);
+    info!(tx = ?tx, "queried kaspa tx");
 
     let inputs = tx
         .inputs
@@ -90,7 +91,7 @@ pub async fn recursive_trace_transactions(
     // we skip inputs that are not from the escrow address
     // we do recursive call for inputs that are from the escrow address
     for input in inputs {
-        info!("Checking input: {:?}", input.index);
+        info!(input_index = ?input.index, "checking input");
 
         let spent_escrow_funds = {
             let input_address = input
@@ -101,7 +102,7 @@ pub async fn recursive_trace_transactions(
             input_address == escrow_addr
         };
         if !spent_escrow_funds {
-            info!("Skipping input from non-escrow address");
+            info!("skipping input from non-escrow address");
             continue;
         }
 

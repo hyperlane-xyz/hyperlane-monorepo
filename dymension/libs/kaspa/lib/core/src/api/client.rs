@@ -102,7 +102,7 @@ pub struct HttpClient {
 impl HttpClient {
     pub fn new(url: String, config: RateLimitConfig) -> Self {
         let c = get_client(config);
-        info!("Created Kaspa REST API Client: {}", url);
+        info!(url = %url, "created Kaspa REST API Client");
         Self { url, client: c }
     }
 
@@ -116,7 +116,7 @@ impl HttpClient {
         let mut upper_bound_t = 0i64;
 
         let c = self.get_config();
-        info!("Dymension query kaspa deposits, url: {:?}", c.base_path);
+        info!(url = ?c.base_path, "dymension query kaspa deposits");
 
         let mut txs: Vec<TxModel> = Vec::new();
 
@@ -176,7 +176,7 @@ impl HttpClient {
 
     // TODO: we should pass block hash hint in validator (he can get it from relayer)
     pub async fn get_tx_by_id(&self, tx_id: &str) -> Result<TxModel> {
-        info!("Querying kaspa tx by id: {:?}", tx_id);
+        info!(tx_id = ?tx_id, "querying kaspa tx by id");
         let c = self.get_config();
 
         let tx = get_tx_by_id(
@@ -198,7 +198,7 @@ impl HttpClient {
         tx_id: &str,
         block_hash_hint: Option<String>,
     ) -> Result<TxModel> {
-        info!("Querying kaspa tx by id slim: {:?}", tx_id);
+        info!(tx_id = ?tx_id, "querying kaspa tx by id slim");
         let c = self.get_config();
 
         let tx = get_tx_by_id(

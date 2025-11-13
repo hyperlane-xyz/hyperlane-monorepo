@@ -69,13 +69,13 @@ pub async fn on_new_withdrawals(
     min_withdrawal_sompi: U256,
     tx_fee_multiplier: f64,
 ) -> Result<Option<WithdrawFXG>> {
-    info!("Kaspa relayer, getting pending withdrawals");
+    info!("kaspa relayer: getting pending withdrawals");
 
     let (current_anchor, pending_msgs) = filter_pending_withdrawals(messages, cosmos.query())
         .await
         .map_err(|e| eyre::eyre!("Get pending withdrawals: {}", e))?;
 
-    info!("Kaspa relayer, got pending withdrawals");
+    info!("kaspa relayer: got pending withdrawals");
 
     build_withdrawal_fxg(
         pending_msgs,
@@ -108,12 +108,12 @@ pub async fn build_withdrawal_fxg(
         .map_err(|e| eyre::eyre!("Get normal bucket feerate: {e}"))?;
 
     if outputs.is_empty() {
-        info!("Kaspa relayer, no valid pending withdrawals, all in batch are already processed and confirmed on hub");
+        info!("kaspa relayer: no valid pending withdrawals, all in batch are already processed and confirmed on hub");
         return Ok(None); // nothing to process
     }
     info!(
-        "Kaspa relayer, got pending withdrawals, building PSKT, withdrawal num: {}",
-        outputs.len()
+        withdrawal_num = outputs.len(),
+        "kaspa relayer: got pending withdrawals, building PSKT"
     );
 
     // Get all the UTXOs for the escrow and the relayer
@@ -173,9 +173,9 @@ pub async fn build_withdrawal_fxg(
             .map_err(|e| eyre::eyre!("Create input from sweeping bundle: {}", e))?;
 
         info!(
-            "constructed sweeping bundle: pskt_count: {}, escrow_inputs_swept: {}",
-            sweeping_bundle.0.len(),
-            to_sweep_num
+            pskt_count = sweeping_bundle.0.len(),
+            escrow_inputs_swept = to_sweep_num,
+            "constructed sweeping bundle"
         );
 
         let mut inputs = Vec::with_capacity(swept_outputs.len() + 1);
@@ -184,7 +184,7 @@ pub async fn build_withdrawal_fxg(
 
         (Some(sweeping_bundle), inputs)
     } else {
-        info!("No sweep needed, continue to withdrawal");
+        info!("no sweep needed, continue to withdrawal");
 
         let mut inputs = Vec::with_capacity(escrow_inputs.len() + relayer_inputs.len());
         inputs.extend(escrow_inputs);

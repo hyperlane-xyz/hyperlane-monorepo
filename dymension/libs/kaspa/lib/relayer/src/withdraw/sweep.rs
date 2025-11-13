@@ -75,22 +75,22 @@ fn calculate_sweep_size(
     ) {
         Ok(mass) if mass <= MAXIMUM_STANDARD_TRANSACTION_MASS => {
             info!(
-                "Kaspa sweeping: all {} escrow inputs fit (mass: {})",
-                escrow_inputs.len(),
-                mass
+                escrow_inputs_count = escrow_inputs.len(),
+                mass = mass,
+                "kaspa sweeping: all escrow inputs fit"
             );
             return Ok(escrow_inputs.len());
         }
         Ok(mass) => {
             info!(
-                "Kaspa sweeping: all inputs exceed mass limit ({}), starting binary search",
-                mass
+                mass = mass,
+                "kaspa sweeping: all inputs exceed mass limit, starting binary search"
             );
         }
         Err(e) => {
             info!(
-                "Kaspa sweeping: mass calculation failed: {}, starting binary search",
-                e
+                error = %e,
+                "kaspa sweeping: mass calculation failed, starting binary search"
             );
         }
     }
@@ -130,18 +130,23 @@ fn calculate_sweep_size(
             Ok(mass) if mass <= MAXIMUM_STANDARD_TRANSACTION_MASS => {
                 best_size = mid;
                 low = mid + 1;
-                info!("Kaspa sweeping: batch size {} works (mass: {})", mid, mass);
+                info!(
+                    batch_size = mid,
+                    mass = mass,
+                    "kaspa sweeping: batch size works"
+                );
             }
             Ok(mass) => {
                 high = mid - 1;
                 info!(
-                    "Kaspa sweeping: batch size {} too large (mass: {})",
-                    mid, mass
+                    batch_size = mid,
+                    mass = mass,
+                    "kaspa sweeping: batch size too large"
                 );
             }
             Err(e) => {
                 high = mid - 1;
-                info!("Kaspa sweeping: batch size {} failed: {}", mid, e);
+                info!(batch_size = mid, error = %e, "kaspa sweeping: batch size failed");
             }
         }
     }
@@ -152,7 +157,7 @@ fn calculate_sweep_size(
         ));
     }
 
-    info!("Kaspa sweeping: optimal batch size: {}", best_size);
+    info!(best_size = best_size, "kaspa sweeping: optimal batch size");
     Ok(best_size)
 }
 
@@ -278,8 +283,13 @@ fn prepare_next_iteration_inputs(
     // Add the escrow output from previous PSKT to the beginning of remaining escrow inputs
     escrow_inputs.insert(0, escrow_input);
 
-    info!("Kaspa sweeping: chaining escrow output {} ({} sompi) and relayer output {} ({} sompi) for next batch", 
-          escrow_idx, escrow_output.amount, relayer_idx, relayer_output.amount);
+    info!(
+        escrow_idx = escrow_idx,
+        escrow_amount = escrow_output.amount,
+        relayer_idx = relayer_idx,
+        relayer_amount = relayer_output.amount,
+        "kaspa sweeping: chaining escrow output and relayer output for next batch"
+    );
 
     Ok((new_relayer_inputs, escrow_inputs))
 }
@@ -324,8 +334,11 @@ pub async fn create_sweeping_bundle(
     let mut bundle = Bundle::new();
 
     info!(
-        "Kaspa sweeping: starting with {} escrow inputs, {} relayer inputs, need {} sompi for withdrawals (anchor has {} sompi)",
-        escrow_inputs.len(), relayer_inputs.len(), total_withdrawal_amount, anchor_amount
+        escrow_inputs_count = escrow_inputs.len(),
+        relayer_inputs_count = relayer_inputs.len(),
+        total_withdrawal_amount = total_withdrawal_amount,
+        anchor_amount = anchor_amount,
+        "kaspa sweeping: starting"
     );
 
     let mut total_swept_amount = 0u64;
@@ -334,8 +347,10 @@ pub async fn create_sweeping_bundle(
     // Calculate how much more we need to sweep considering the anchor amount
     let withdrawal_amount_without_anchor = total_withdrawal_amount.saturating_sub(anchor_amount);
     info!(
-        "Kaspa sweeping: need to sweep {} sompi (total withdrawals {} sompi - anchor {} sompi)",
-        withdrawal_amount_without_anchor, total_withdrawal_amount, anchor_amount
+        to_sweep = withdrawal_amount_without_anchor,
+        total_withdrawals = total_withdrawal_amount,
+        anchor = anchor_amount,
+        "kaspa sweeping: need to sweep sompi"
     );
     // Process escrow inputs recursively until:
     // 1. All are consumed, OR
@@ -346,8 +361,10 @@ pub async fn create_sweeping_bundle(
             && total_inputs_swept >= MAX_SWEEP_INPUTS
         {
             info!(
-                "Kaspa sweeping: stopping - swept {} sompi (covers effective withdrawal amount of {} sompi) and reached maximum of {} inputs",
-                total_swept_amount, withdrawal_amount_without_anchor, MAX_SWEEP_INPUTS
+                total_swept_amount = total_swept_amount,
+                withdrawal_amount_without_anchor = withdrawal_amount_without_anchor,
+                max_inputs = MAX_SWEEP_INPUTS,
+                "kaspa sweeping: stopping, swept enough and reached maximum inputs"
             );
             break;
         }
@@ -381,10 +398,10 @@ pub async fn create_sweeping_bundle(
         )?;
 
         info!(
-            "Kaspa sweeping: batch {} escrow inputs, fee: {} sompi, relayer output: {} sompi",
-            batch_escrow_inputs.len(),
-            estimated_fee,
-            relayer_output_amount
+            batch_escrow_inputs_count = batch_escrow_inputs.len(),
+            estimated_fee = estimated_fee,
+            relayer_output_amount = relayer_output_amount,
+            "kaspa sweeping: batch escrow inputs"
         );
 
         // Create PSKT
@@ -443,11 +460,15 @@ pub async fn create_sweeping_bundle(
         }
 
         bundle.add_pskt(pskt_signer);
-        info!("Kaspa sweeping: created PSKT {}", pskt_id);
+        info!(pskt_id = %pskt_id, "kaspa sweeping: created PSKT");
     }
     info!(
-        "Kaspa sweeping: completed with {} PSKTs, swept {} inputs totaling {} sompi (total available: {} sompi for {} sompi withdrawals)",
-        bundle.0.len(), total_inputs_swept, total_swept_amount, anchor_amount + total_swept_amount, total_withdrawal_amount
+        pskts_count = bundle.0.len(),
+        inputs_swept = total_inputs_swept,
+        swept_amount = total_swept_amount,
+        total_available = anchor_amount + total_swept_amount,
+        total_withdrawals = total_withdrawal_amount,
+        "kaspa sweeping: completed"
     );
     Ok(bundle)
 }
