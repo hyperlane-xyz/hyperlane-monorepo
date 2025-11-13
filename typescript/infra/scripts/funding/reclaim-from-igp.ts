@@ -21,7 +21,10 @@ function withForce<T>(args: any) {
     .describe('force', 'Force claim even if below threshold')
     .boolean('force')
     .alias('f', 'force')
-    .default('force', false);
+    .default('force', false)
+    .describe('dry-run', 'Perform all checks without executing claims')
+    .boolean('dry-run')
+    .default('dry-run', false);
 }
 
 const ReclaimStatus = {
@@ -48,13 +51,15 @@ function formatTo5SF(value: string): string {
 }
 
 async function main() {
-  const { environment, chains, force } = await withForce(withChains(getArgs()))
-    .argv;
+  const { environment, chains, force, dryRun } = await withForce(
+    withChains(getArgs()),
+  ).argv;
   const environmentConfig = getEnvironmentConfig(environment);
 
   // Get the IGP claim thresholds from the key funder config
   const keyFunderConfig = getKeyFunderConfig(environmentConfig);
   const igpClaimThresholds = keyFunderConfig.igpClaimThresholdPerChain;
+  const desiredBalances = keyFunderConfig.desiredBalancePerChain;
 
   // Filter chains if provided
   const chainsToProcess = chains?.length
@@ -108,15 +113,48 @@ async function main() {
         const formattedBalance = formatEther(balance);
 
         // Get the threshold for this chain from config, default to 0.1 ETH if not set
-        const thresholdStr = igpClaimThresholds[chain] || '0.1';
-        const threshold = parseEther(thresholdStr);
+        // Fallback to 1/5th of desired balance if no threshold configured, matching fund-keys-from-deployer.ts logic
+        let threshold: bigint;
+        const thresholdStr = igpClaimThresholds[chain];
+        if (thresholdStr) {
+          // igpClaimThresholds values are in ETH (e.g., '0.1'), need to parse as ether
+          threshold = BigInt(parseEther(thresholdStr).toString());
+        } else {
+          // Use desired balance / 5 as fallback threshold if not explicitly set
+          const desired = desiredBalances[chain];
+          if (desired) {
+            const fallback = parseEther(desired).div(5);
+            threshold = BigInt(fallback.toString());
+            rootLogger.debug(
+              { chain },
+              'Inferring IGP claim threshold from desired balance',
+            );
+          } else {
+            // Default minimal fallback, e.g. 0.1 ETH
+            threshold = BigInt(parseEther('0.1').toString());
+            rootLogger.warn(
+              { chain },
+              'No IGP claim threshold or desired balance for chain, using default',
+            );
+          }
+        }
+
+        // Skip if balance is zero (even with --force)
+        if (balance.isZero()) {
+          return {
+            chain,
+            balance: formatTo5SF(formattedBalance),
+            threshold: formatTo5SF(formatEther(threshold)),
+            status: ReclaimStatus.BELOW_THRESHOLD,
+          };
+        }
 
         // Only reclaim when greater than the reclaim threshold (unless --force is used)
         if (!force && balance.lt(threshold)) {
           return {
             chain,
             balance: formatTo5SF(formattedBalance),
-            threshold: formatTo5SF(thresholdStr),
+            threshold: formatTo5SF(formatEther(threshold)),
             status: ReclaimStatus.BELOW_THRESHOLD,
           };
         }
@@ -144,32 +182,49 @@ async function main() {
           return {
             chain,
             balance: formatTo5SF(formattedBalance),
-            threshold: formatTo5SF(thresholdStr),
+            threshold: formatTo5SF(formatEther(threshold)),
             status: ReclaimStatus.INSUFFICIENT_FOR_GAS,
           };
         }
 
         rootLogger.debug(`Claiming from IGP on ${chain}...`);
-        const tx = await paymaster.claim();
-        const explorerUrl = multiProvider.tryGetExplorerTxUrl(chain, tx);
-        rootLogger.info(
-          `Claimed from IGP on ${chain}: ${explorerUrl || tx.hash}`,
-        );
+        let tx;
+        let explorerUrl;
+        if (dryRun) {
+          rootLogger.info(`[DRY RUN] Would claim from IGP on ${chain}`);
+        } else {
+          tx = await paymaster.claim();
+          explorerUrl = multiProvider.tryGetExplorerTxUrl(chain, tx);
+          rootLogger.info(
+            `Claimed from IGP on ${chain}: ${explorerUrl || tx.hash}`,
+          );
+        }
 
         return {
           chain,
           balance: formatTo5SF(formattedBalance),
-          threshold: formatTo5SF(thresholdStr),
+          threshold: formatTo5SF(formatEther(threshold)),
           status: ReclaimStatus.SUCCESS,
         };
       } catch (error) {
         const provider = multiProvider.getProvider(chain);
         let balance = 'N/A';
-        let thresholdStr = igpClaimThresholds[chain] || '0.1';
+        let thresholdDisplay = '0.1';
         try {
           const bal = await provider.getBalance(paymaster.address);
           balance = formatTo5SF(formatEther(bal));
         } catch {}
+
+        // Calculate threshold for display
+        const thresholdStr = igpClaimThresholds[chain];
+        if (thresholdStr) {
+          thresholdDisplay = thresholdStr;
+        } else {
+          const desired = desiredBalances[chain];
+          if (desired) {
+            thresholdDisplay = formatEther(parseEther(desired).div(5));
+          }
+        }
 
         const errorMsg = error instanceof Error ? error.message : String(error);
         // Extract just the key error info, not the full stack
@@ -180,7 +235,7 @@ async function main() {
         return {
           chain,
           balance,
-          threshold: formatTo5SF(thresholdStr),
+          threshold: formatTo5SF(thresholdDisplay),
           status: ReclaimStatus.ERROR,
         };
       }
@@ -192,13 +247,9 @@ async function main() {
     if (result) results.push(result);
   });
 
-  // Only show chains with interesting statuses in the table
-  const interestingResults = results.filter(
-    (r) => r.status !== ReclaimStatus.BELOW_THRESHOLD,
-  );
-
-  if (interestingResults.length > 0) {
-    const tableData = interestingResults.map((r) => ({
+  // Show all chains in the table
+  if (results.length > 0) {
+    const tableData = results.map((r) => ({
       chain: r.chain,
       balance: r.balance,
       threshold: r.threshold,
@@ -233,6 +284,13 @@ async function main() {
   if (belowThresholdCount > 0) {
     rootLogger.info(
       chalk.yellow(`${belowThresholdCount} chain(s) below threshold (skipped)`),
+    );
+  }
+  if (dryRun) {
+    rootLogger.info(
+      chalk.cyan(
+        '\n(--dry-run mode: no claims were executed, this was a simulation)',
+      ),
     );
   }
   if (force) {
