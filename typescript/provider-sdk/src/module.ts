@@ -39,5 +39,5 @@ export interface ModuleProvider<M extends ModuleType> {
   createModule: (
     signer: ISigner<AnnotatedTx, TxReceipt>,
     config: Config<M>,
-  ) => HypModule<M>;
+  ) => Promise<HypModule<M>>;
 }
