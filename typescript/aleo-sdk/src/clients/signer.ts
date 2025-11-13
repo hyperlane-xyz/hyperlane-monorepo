@@ -42,42 +42,27 @@ export class AleoSigner
     coreSalt: string,
     warpSalt?: string,
   ): Promise<string[]> {
-    let programs = loadProgramsInDeployOrder(programName);
+    const programs = loadProgramsInDeployOrder(programName, coreSalt, warpSalt);
 
-    programs = programs.map((p) => {
-      return this.Program.fromString(
-        p
-          .toString()
-          .replaceAll(
-            /(mailbox|dispatch_proxy|validator_announce)\.aleo/g,
-            (_, p1) => `${p1}_${coreSalt}.aleo`,
-          )
-          .replaceAll(
-            /(hyp_native|hyp_collateral|hyp_synthetic)\.aleo/g,
-            (_, p1) => `${p1}_${warpSalt || coreSalt}.aleo`,
-          ),
-      );
-    });
+    for (const { id, program } of programs) {
+      try {
+        const txId = await this.programManager.deploy(program, 0, false);
 
-    for (const program of programs) {
-      const isDeployed = await this.isProgramDeployed(program.id());
+        await this.aleoClient.waitForTransactionConfirmation(txId);
+      } catch (err) {
+        if (
+          err instanceof Error &&
+          err.message ===
+            `Error validating program: Program ${id} already exists on the network, please rename your program`
+        ) {
+          continue;
+        }
 
-      // if the program is already deployed (which can be the case for some imports)
-      // we simply skip it
-      if (isDeployed) {
-        continue;
+        throw err;
       }
-
-      const txId = await this.programManager.deploy(
-        program.toString(),
-        0,
-        false,
-      );
-
-      await this.aleoClient.waitForTransactionConfirmation(txId);
     }
 
-    return programs.map((p) => p.id());
+    return programs.map((p) => p.id);
   }
 
   getSignerAddress(): string {
@@ -108,15 +93,6 @@ export class AleoSigner
   }
 
   // ### TX CORE ###
-
-  private async isProgramDeployed(program: string) {
-    try {
-      await this.aleoClient.getProgram(program);
-      return true;
-    } catch {
-      return false;
-    }
-  }
 
   async createMailbox(
     req: Omit<AltVM.ReqCreateMailbox, 'signer'>,

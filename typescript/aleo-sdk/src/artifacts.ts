@@ -24,7 +24,11 @@ export const programRegistry: Record<string, string> = {
   validator_announce,
 };
 
-export function loadProgramsInDeployOrder(programName: string): Program[] {
+export function loadProgramsInDeployOrder(
+  programName: string,
+  coreSalt: string,
+  warpSalt?: string,
+): { id: string; program: string }[] {
   const visited = new Set<string>();
   const programs: Program[] = [];
 
@@ -46,5 +50,18 @@ export function loadProgramsInDeployOrder(programName: string): Program[] {
   }
 
   visit(programName);
-  return programs;
+
+  return programs.map((p) => ({
+    id: p.id(),
+    program: p
+      .toString()
+      .replaceAll(
+        /(mailbox|dispatch_proxy|validator_announce).aleo/g,
+        (_, p1) => `${p1}_${coreSalt}.aleo`,
+      )
+      .replaceAll(
+        /(hyp_native|hyp_collateral|hyp_synthetic).aleo/g,
+        (_, p1) => `${p1}_${warpSalt || coreSalt}.aleo`,
+      ),
+  }));
 }

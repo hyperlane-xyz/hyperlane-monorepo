@@ -26,13 +26,10 @@ const main = async () => {
     });
     console.log('signer credits balance: ', balance);
 
-    // const { mailboxAddress } = await signer.createMailbox({
-    //   domainId: 1337,
-    //   defaultIsmAddress: '',
-    // });
-    // console.log('mailboxAddress', mailboxAddress);
-
-    const mailboxAddress = 'mailbox_ympq4slu6xiq.aleo';
+    const { mailboxAddress } = await signer.createMailbox({
+      domainId: 1337,
+    });
+    console.log('mailboxAddress', mailboxAddress);
 
     const { tokenAddress } = await signer.createSyntheticToken({
       mailboxAddress,

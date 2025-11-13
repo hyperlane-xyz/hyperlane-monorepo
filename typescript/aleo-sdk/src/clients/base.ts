@@ -58,10 +58,6 @@ export class AleoBase {
       : new AleoMainnetNetworkClient(rpcUrls[0]);
   }
 
-  protected get Program() {
-    return this.chainId ? TestnetProgram : MainnetProgram;
-  }
-
   protected get Plaintext() {
     return this.chainId ? TestnetPlaintext : MainnetPlaintext;
   }
