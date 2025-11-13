@@ -167,9 +167,12 @@ export function defaultRadixProviderBuilder(
 
 export function defaultAleoProviderBuilder(
   rpcUrls: RpcUrl[],
-  _network: string | number,
+  network: string | number,
 ): AleoProvider {
-  const provider = new AleoSDKProvider(rpcUrls.map((rpc) => rpc.http));
+  const provider = new AleoSDKProvider(
+    rpcUrls.map((rpc) => rpc.http),
+    network,
+  );
   return { provider, type: ProviderType.Aleo };
 }
 

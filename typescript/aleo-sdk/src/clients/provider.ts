@@ -15,7 +15,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     return new AleoProvider(rpcUrls, chainId);
   }
 
-  protected constructor(rpcUrls: string[], chainId: string | number) {
+  constructor(rpcUrls: string[], chainId: string | number) {
     super(rpcUrls, chainId);
   }
 
