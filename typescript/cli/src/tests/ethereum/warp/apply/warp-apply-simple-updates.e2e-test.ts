@@ -6,7 +6,6 @@ import {
   HypTokenRouterConfig,
   TokenType,
   WarpCoreConfig,
-  WarpRouteDeployConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
 import {
@@ -33,18 +32,22 @@ import {
   TEST_CHAIN_METADATA_BY_PROTOCOL,
   TEST_CHAIN_NAMES_BY_PROTOCOL,
 } from '../../../constants.js';
-import {
-  createSnapshot,
-  exportWarpConfigsToFilePaths,
-  restoreSnapshot,
-} from '../../commands/helpers.js';
+import { exportWarpConfigsToFilePaths } from '../../commands/helpers.js';
+import { WarpTestFixture } from '../../fixtures/warp-test-fixture.js';
 
 describe('hyperlane warp apply owner update tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
 
-  let warpDeployConfig: WarpRouteDeployConfig;
-  let warpCoreConfig: WarpCoreConfig;
-  let chain2SnapshotId: string;
+  const fixture = new WarpTestFixture({
+    initialDeployConfig: {
+      [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
+        type: TokenType.native,
+        owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
+      },
+    },
+    deployConfigPath: DEFAULT_EVM_WARP_DEPLOY_PATH,
+    coreConfigPath: DEFAULT_EVM_WARP_CORE_PATH,
+  });
 
   let chain3Addresses: ChainAddresses;
   const chain3Metadata = TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_3;
@@ -71,53 +74,32 @@ describe('hyperlane warp apply owner update tests', async function () {
     DEFAULT_EVM_WARP_READ_OUTPUT_PATH,
   );
 
-  function restoreWarpRouteConfig() {
-    warpDeployConfig = {
-      [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
-        type: TokenType.native,
-        owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
-      },
-    };
-    writeYamlOrJson(DEFAULT_EVM_WARP_DEPLOY_PATH, warpDeployConfig);
-
-    if (warpCoreConfig) {
-      writeYamlOrJson(DEFAULT_EVM_WARP_CORE_PATH, warpCoreConfig);
-    }
-  }
-
   before(async function () {
     [, chain3Addresses] = await Promise.all([
       evmChain2Core.deployOrUseExistingCore(HYP_KEY_BY_PROTOCOL.ethereum),
       evmChain3Core.deployOrUseExistingCore(HYP_KEY_BY_PROTOCOL.ethereum),
     ]);
 
-    restoreWarpRouteConfig();
+    fixture.writeConfigs();
     await evmWarpCommands.deploy(
       DEFAULT_EVM_WARP_DEPLOY_PATH,
       HYP_KEY_BY_PROTOCOL.ethereum,
       DEFAULT_EVM_WARP_ID,
     );
 
-    warpCoreConfig = readYamlOrJson(DEFAULT_EVM_WARP_CORE_PATH);
-
-    // Create a snapshot of the current chain state so that it can be restored before each test run
-    chain2SnapshotId = await createSnapshot(
-      TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2.rpcUrl,
-    );
+    fixture.loadCoreConfig();
+    await fixture.createSnapshot({
+      rpcUrl: TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2.rpcUrl,
+      chainName: TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+    });
   });
 
-  // Restore the chain to the state after running
-  // the before hook so no need to redeploy for each test
   beforeEach(async function () {
-    restoreWarpRouteConfig();
-
-    await restoreSnapshot(
-      TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2.rpcUrl,
-      chain2SnapshotId,
-    );
-    chain2SnapshotId = await createSnapshot(
-      TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2.rpcUrl,
-    );
+    fixture.restoreConfigs();
+    await fixture.restoreSnapshot({
+      rpcUrl: TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2.rpcUrl,
+      chainName: TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+    });
   });
 
   it('should extend a warp route with a custom warp route id', async () => {
@@ -131,6 +113,7 @@ describe('hyperlane warp apply owner update tests', async function () {
       type: TokenType.native,
     };
 
+    const warpDeployConfig = fixture.getDeployConfig();
     warpDeployConfig[TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3] =
       chain3Config;
 
@@ -164,6 +147,7 @@ describe('hyperlane warp apply owner update tests', async function () {
 
   it('should apply changes to a warp route with a custom warp route id', async () => {
     // Update the existing warp route config
+    const warpDeployConfig = fixture.getDeployConfig();
     warpDeployConfig[TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2].owner =
       BURN_ADDRESS_BY_PROTOCOL.ethereum;
 
@@ -200,6 +184,7 @@ describe('hyperlane warp apply owner update tests', async function () {
 
   it('should update the remote gas and routers configuration when specified using the domain name', async () => {
     const expectedRemoteGasSetting = '30000';
+    const warpDeployConfig = fixture.getDeployConfig();
     warpDeployConfig[
       TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2
     ].destinationGas = {

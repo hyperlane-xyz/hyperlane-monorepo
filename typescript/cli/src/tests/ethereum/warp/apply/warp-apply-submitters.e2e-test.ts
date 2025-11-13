@@ -38,9 +38,16 @@ import {
   TEST_CHAIN_METADATA_BY_PROTOCOL,
   TEST_CHAIN_NAMES_BY_PROTOCOL,
 } from '../../../constants.js';
+import { WarpTestFixture } from '../../fixtures/warp-test-fixture.js';
 
 describe('hyperlane warp apply with submitters', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
+
+  const fixture = new WarpTestFixture({
+    initialDeployConfig: {},
+    deployConfigPath: DEFAULT_EVM_WARP_DEPLOY_PATH,
+    coreConfigPath: DEFAULT_EVM_WARP_CORE_PATH,
+  });
 
   let chain2Signer: Signer;
   let chain3Signer: Signer;
@@ -49,7 +56,6 @@ describe('hyperlane warp apply with submitters', async function () {
   let initialOwnerAddress: Address;
   let chain2DomainId: Domain;
   let chain3DomainId: Domain;
-  let warpDeployConfig: WarpRouteDeployConfig;
   let timelockInstance: TimelockController;
   let chain3IcaAddress: Address;
   const WARP_DEPLOY_CONFIG_PATH: string = DEFAULT_EVM_WARP_DEPLOY_PATH;
@@ -78,23 +84,6 @@ describe('hyperlane warp apply with submitters', async function () {
     REGISTRY_PATH,
     DEFAULT_EVM_WARP_READ_OUTPUT_PATH,
   );
-
-  function restoreWarpRouteConfig() {
-    warpDeployConfig = {
-      [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
-        type: TokenType.native,
-        mailbox: chain2Addresses.mailbox,
-        owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
-      },
-      [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
-        type: TokenType.synthetic,
-        mailbox: chain3Addresses.mailbox,
-        owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
-      },
-    };
-
-    writeYamlOrJson(DEFAULT_EVM_WARP_DEPLOY_PATH, warpDeployConfig);
-  }
 
   function formatTimelockStrategyFile(
     proposerSubmitter?: SubmissionStrategy['submitter'],
@@ -131,6 +120,7 @@ describe('hyperlane warp apply with submitters', async function () {
   }
 
   async function deployAndExportWarpRoute(): Promise<WarpRouteDeployConfig> {
+    const warpDeployConfig = fixture.getDeployConfig();
     // currently warp deploy is not writing the deploy config to the registry
     // should remove this once the deploy config is written to the registry
     writeYamlOrJson(WARP_DEPLOY_CONFIG_PATH, warpDeployConfig);
@@ -212,10 +202,24 @@ describe('hyperlane warp apply with submitters', async function () {
       coreConfigChain2,
     );
     await evmChain2Core.apply(HYP_KEY_BY_PROTOCOL.ethereum);
+
+    // Set initial deploy config after addresses are available
+    fixture.updateDeployConfig({
+      [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
+        type: TokenType.native,
+        mailbox: chain2Addresses.mailbox,
+        owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
+      },
+      [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
+        type: TokenType.synthetic,
+        mailbox: chain3Addresses.mailbox,
+        owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
+      },
+    });
   });
 
   beforeEach(async function () {
-    restoreWarpRouteConfig();
+    fixture.restoreConfigs();
 
     formatTimelockStrategyFile();
   });
@@ -239,6 +243,7 @@ describe('hyperlane warp apply with submitters', async function () {
 
   describe(TxSubmitterType.TIMELOCK_CONTROLLER, () => {
     it('should be able to propose transactions to a timelock contract and execute them', async () => {
+      const warpDeployConfig = fixture.getDeployConfig();
       warpDeployConfig[
         TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
       ].owner = timelockInstance.address;
@@ -277,6 +282,7 @@ describe('hyperlane warp apply with submitters', async function () {
     });
 
     it('should be able to propose transactions to a timelock contract using an ICA', async () => {
+      const warpDeployConfig = fixture.getDeployConfig();
       warpDeployConfig[
         TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
       ].owner = timelockInstance.address;
@@ -331,6 +337,7 @@ describe('hyperlane warp apply with submitters', async function () {
   describe(TxSubmitterType.INTERCHAIN_ACCOUNT, () => {
     it('should relay the ICA transaction to update the warp on the destination chain', async () => {
       // Transfer ownership of the warp token on chain3 to the ICA account
+      const warpDeployConfig = fixture.getDeployConfig();
       warpDeployConfig[
         TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
       ].owner = chain3IcaAddress;

@@ -1,14 +1,9 @@
 import { expect } from 'chai';
 
-import {
-  TokenType,
-  WarpCoreConfig,
-  WarpRouteDeployConfig,
-  randomAddress,
-} from '@hyperlane-xyz/sdk';
+import { TokenType, randomAddress } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType, normalizeAddress } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson, writeYamlOrJson } from '../../../../utils/files.js';
+import { writeYamlOrJson } from '../../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../../commands/core.js';
 import { HyperlaneE2EWarpTestCommands } from '../../../commands/warp.js';
 import {
@@ -26,14 +21,21 @@ import {
   TEST_CHAIN_METADATA_BY_PROTOCOL,
   TEST_CHAIN_NAMES_BY_PROTOCOL,
 } from '../../../constants.js';
-import { createSnapshot, restoreSnapshot } from '../../commands/helpers.js';
+import { WarpTestFixture } from '../../fixtures/warp-test-fixture.js';
 
 describe('hyperlane warp apply E2E (ownership updates)', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
 
-  let warpDeployConfig: WarpRouteDeployConfig;
-  let warpCoreConfig: WarpCoreConfig;
-  let chain2SnapshotId: string;
+  const fixture = new WarpTestFixture({
+    initialDeployConfig: {
+      [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
+        type: TokenType.native,
+        owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
+      },
+    },
+    deployConfigPath: DEFAULT_EVM_WARP_DEPLOY_PATH,
+    coreConfigPath: DEFAULT_EVM_WARP_CORE_PATH,
+  });
 
   const evmChain2Core = new HyperlaneE2ECoreTestCommands(
     ProtocolType.Ethereum,
@@ -49,50 +51,29 @@ describe('hyperlane warp apply E2E (ownership updates)', async function () {
     DEFAULT_EVM_WARP_READ_OUTPUT_PATH,
   );
 
-  function restoreWarpRouteConfig() {
-    warpDeployConfig = {
-      [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
-        type: TokenType.native,
-        owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
-      },
-    };
-    writeYamlOrJson(DEFAULT_EVM_WARP_DEPLOY_PATH, warpDeployConfig);
-
-    if (warpCoreConfig) {
-      writeYamlOrJson(DEFAULT_EVM_WARP_CORE_PATH, warpCoreConfig);
-    }
-  }
-
   before(async function () {
     await evmChain2Core.deployOrUseExistingCore(HYP_KEY_BY_PROTOCOL.ethereum);
 
-    restoreWarpRouteConfig();
+    fixture.writeConfigs();
     await evmWarpCommands.deploy(
       DEFAULT_EVM_WARP_DEPLOY_PATH,
       HYP_KEY_BY_PROTOCOL.ethereum,
       DEFAULT_EVM_WARP_ID,
     );
 
-    warpCoreConfig = readYamlOrJson(DEFAULT_EVM_WARP_CORE_PATH);
-
-    // Create a snapshot of the current chain state so that it can be restored before each test run
-    chain2SnapshotId = await createSnapshot(
-      TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2.rpcUrl,
-    );
+    fixture.loadCoreConfig();
+    await fixture.createSnapshot({
+      rpcUrl: TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2.rpcUrl,
+      chainName: TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+    });
   });
 
-  // Restore the chain to the state after running
-  // the before hook so no need to redeploy for each test
   beforeEach(async function () {
-    restoreWarpRouteConfig();
-
-    await restoreSnapshot(
-      TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2.rpcUrl,
-      chain2SnapshotId,
-    );
-    chain2SnapshotId = await createSnapshot(
-      TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2.rpcUrl,
-    );
+    fixture.restoreConfigs();
+    await fixture.restoreSnapshot({
+      rpcUrl: TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2.rpcUrl,
+      chainName: TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+    });
   });
 
   it('should not update the same owner', async () => {
@@ -140,6 +121,7 @@ describe('hyperlane warp apply E2E (ownership updates)', async function () {
       const expectedProxyAdminOwner: Address =
         proxyAdminOwner ?? expectedTokenOwner;
 
+      const warpDeployConfig = fixture.getDeployConfig();
       warpDeployConfig[
         TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2
       ].owner = tokenOwner;
