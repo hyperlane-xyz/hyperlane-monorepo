@@ -6,7 +6,7 @@ This directory implements four distinct fee models for cross-chain token transfe
 
 ![Fee Curves Comparison](./fee_curves.svg)
 
-_Comprehensive comparison of all three fee models showing absolute fees, fee percentages, zoomed intersection view, and numerical comparison table. Generated using `visualize_fees.py`._
+_Comprehensive comparison of all three fee models showing absolute fees, fee percentages, zoomed intersection view, and numerical comparison table. Generated using the interactive Jupyter notebook `fee_explorer.ipynb`._
 
 ### 🎮 Interactive Explorer
 
@@ -233,29 +233,18 @@ enum FeeType {
 
 ## Generating Custom Visualizations
 
-Use the included Python script to generate fee curve visualizations with custom parameters:
+Use the included Jupyter notebook to generate fee curve visualizations with custom parameters:
 
-```bash
-# Setup (first time only)
-python3 -m venv .venv
-source .venv/bin/activate
-pip install numpy matplotlib
+1. **Open the notebook:** `fee_explorer.ipynb`
+2. **Choose your visualization type:**
+   - **Interactive Explorer** - Adjust sliders in real-time for parameter exploration
+   - **Comprehensive Analysis** - 4-panel detailed view with custom parameters
+3. **Export options:**
+   - Take a screenshot for documentation
+   - Use the SVG export cell to save as scalable vector graphics
 
-# Generate with default parameters (maxFee=1000, halfAmount=10000)
-python visualize_fees.py
+The notebook includes both interactive widgets and programmatic visualization options, supporting:
 
-# Generate with custom parameters
-python visualize_fees.py --maxfee 100 --halfamount 5000 --maxamount 25000
-
-# Custom output filename
-python visualize_fees.py --output my_custom_curves
-```
-
-**Available Options:**
-
-- `--maxfee`: Maximum fee in token units (default: 1000)
-- `--halfamount`: Amount at which fee equals maxFee/2 (default: 10000)
-- `--maxamount`: Maximum amount to visualize on x-axis (default: 50000)
-- `--output`: Output file prefix without extension (default: fee_curves)
-
-The script generates SVG format for maximum compatibility and scalability.
+- Custom `maxFee`, `halfAmount`, and `maxAmount` parameters
+- Toggle between USD and token display modes
+- Single-line SVG export for version control friendly output
