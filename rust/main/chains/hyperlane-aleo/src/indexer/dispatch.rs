@@ -22,12 +22,12 @@ pub struct AleoDispatchIndexer {
 impl AleoDispatchIndexer {
     /// Creates a new Dispatch Indexer
     pub fn new(provider: AleoProvider, locator: &ContractLocator, conf: &ConnectionConf) -> Self {
-        return Self {
+        Self {
             provider,
             address: locator.address,
             program: conf.mailbox_program.clone(),
             domain: locator.domain.clone(),
-        };
+        }
     }
 }
 

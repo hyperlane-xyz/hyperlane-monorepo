@@ -35,12 +35,12 @@ pub struct AleoMerkleTree {
     pub count: u32,
 }
 
-impl Into<IncrementalMerkle> for AleoMerkleTree {
-    fn into(self) -> IncrementalMerkle {
-        let branch = self.branch.map(|hash| u128_to_hash(&hash));
+impl From<AleoMerkleTree> for IncrementalMerkle {
+    fn from(val: AleoMerkleTree) -> Self {
+        let branch = val.branch.map(|hash| u128_to_hash(&hash));
         IncrementalMerkle {
             branch,
-            count: self.count as usize,
+            count: val.count as usize,
         }
     }
 }
@@ -94,14 +94,14 @@ pub struct GasPaymentEvent {
     pub index: u32,
 }
 
-impl Into<InterchainGasPayment> for GasPaymentEvent {
-    fn into(self) -> InterchainGasPayment {
-        let message_id = u128_to_hash(&self.id);
+impl From<GasPaymentEvent> for InterchainGasPayment {
+    fn from(val: GasPaymentEvent) -> Self {
+        let message_id = u128_to_hash(&val.id);
         InterchainGasPayment {
             message_id,
-            destination: self.destination_domain,
-            payment: to_atto(U256::from(self.payment), ALEO_CREDITS_DECIMALS).unwrap_or_default(),
-            gas_amount: U256::from(self.gas_amount),
+            destination: val.destination_domain,
+            payment: to_atto(U256::from(val.payment), ALEO_CREDITS_DECIMALS).unwrap_or_default(),
+            gas_amount: U256::from(val.gas_amount),
         }
     }
 }
@@ -116,10 +116,10 @@ pub struct InsertIntoTreeEvent {
     pub index: u32,
 }
 
-impl Into<MerkleTreeInsertion> for InsertIntoTreeEvent {
-    fn into(self) -> MerkleTreeInsertion {
-        let message_id = u128_to_hash(&self.id);
-        MerkleTreeInsertion::new(self.index, message_id)
+impl From<InsertIntoTreeEvent> for MerkleTreeInsertion {
+    fn from(val: InsertIntoTreeEvent) -> Self {
+        let message_id = u128_to_hash(&val.id);
+        MerkleTreeInsertion::new(val.index, message_id)
     }
 }
 
@@ -143,18 +143,18 @@ pub struct AleoMessage {
     pub body: [u128; 8],
 }
 
-impl Into<HyperlaneMessage> for AleoMessage {
-    fn into(self) -> HyperlaneMessage {
+impl From<AleoMessage> for HyperlaneMessage {
+    fn from(val: AleoMessage) -> Self {
         // Aleo encodes its integers with little endian
-        let body = self.body.iter().flat_map(|x| x.to_le_bytes()).collect_vec();
-        let sender = H256::from(self.sender);
-        let recipient = H256::from(self.recipient);
+        let body = val.body.iter().flat_map(|x| x.to_le_bytes()).collect_vec();
+        let sender = H256::from(val.sender);
+        let recipient = H256::from(val.recipient);
         HyperlaneMessage {
-            version: self.version,
-            nonce: self.nonce,
-            origin: self.origin_domain,
+            version: val.version,
+            nonce: val.nonce,
+            origin: val.origin_domain,
             sender,
-            destination: self.destination_domain,
+            destination: val.destination_domain,
             recipient,
             body,
         }

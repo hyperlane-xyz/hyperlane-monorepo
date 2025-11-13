@@ -33,13 +33,13 @@ impl AleoMerkleTreeHook {
     ) -> ChainResult<Self> {
         let aleo_address = Address::<CurrentNetwork>::from_bytes_le(locator.address.as_bytes())
             .map_err(HyperlaneAleoError::from)?;
-        return Ok(Self {
+        Ok(Self {
             client: provider,
             address: locator.address,
             program: conf.hook_manager_program.clone(),
             aleo_address,
             domain: locator.domain.clone(),
-        });
+        })
     }
 }
 

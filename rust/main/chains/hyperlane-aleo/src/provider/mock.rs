@@ -46,7 +46,7 @@ impl MockHttpClient {
     ) -> ChainResult<()> {
         let file = self.base_path.join(relative_file.into());
         let data = std::fs::read_to_string(&file).map_err(|e| {
-            HyperlaneAleoError::Other(format!("Failed reading mock file {:?}: {e}", file))
+            HyperlaneAleoError::Other(format!("Failed reading mock file {file:?}: {e}"))
         })?;
         let json: Value = if data.trim().is_empty() {
             Value::Null
@@ -68,7 +68,7 @@ impl MockHttpClient {
                     "No mock response registered for endpoint: {path}"
                 ))
             })
-            .map(|v| Ok(v))
+            .map(Ok)
             .unwrap()
     }
 }

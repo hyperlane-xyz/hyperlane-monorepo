@@ -64,7 +64,7 @@ pub(crate) trait AleoIndexer {
             MainnetV0::ID => self.fetch_network_logs_in_range::<MainnetV0>(range).await,
             TestnetV0::ID => self.fetch_network_logs_in_range::<TestnetV0>(range).await,
             CanaryV0::ID => self.fetch_network_logs_in_range::<CanaryV0>(range).await,
-            id => return Err(HyperlaneAleoError::UnknownNetwork(id).into()),
+            id => Err(HyperlaneAleoError::UnknownNetwork(id).into()),
         }
     }
 
@@ -133,7 +133,7 @@ pub(crate) trait AleoIndexer {
                     .await?;
                 self.get_logs_for_block(block).await
             }
-            id => return Err(HyperlaneAleoError::UnknownNetwork(id).into()),
+            id => Err(HyperlaneAleoError::UnknownNetwork(id).into()),
         }
     }
 
