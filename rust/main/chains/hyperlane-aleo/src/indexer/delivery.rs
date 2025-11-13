@@ -78,8 +78,11 @@ impl Indexer<H256> for AleoDeliveryIndexer {
             .into_iter()
             .map(|(indexed, meta)| {
                 let id = u128_to_hash(indexed.inner());
-                let indexed = Indexed::new(id).with_sequence(indexed.sequence.unwrap());
-                (indexed, meta)
+                let mut update = Indexed::new(id);
+                if let Some(sequence) = indexed.sequence {
+                    update = update.with_sequence(sequence);
+                };
+                (update, meta)
             })
             .collect())
     }
@@ -99,8 +102,11 @@ impl Indexer<H256> for AleoDeliveryIndexer {
             .into_iter()
             .map(|(indexed, meta)| {
                 let id = u128_to_hash(indexed.inner());
-                let indexed = Indexed::new(id).with_sequence(indexed.sequence.unwrap());
-                (indexed, meta)
+                let mut update = Indexed::new(id);
+                if let Some(sequence) = indexed.sequence {
+                    update = update.with_sequence(sequence);
+                };
+                (update, meta)
             })
             .collect())
     }
