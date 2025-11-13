@@ -165,6 +165,20 @@ const CHAIN_ID_TO_NAME: Record<string, EverclearChain> = {
   '8453': 'base',
 };
 
+function geScale(chain: EverclearChain): number {
+  if (chain === 'bsc') {
+    return 1;
+  }
+  return 10 ** 12;
+}
+
+function getDecimals(chain: EverclearChain): number {
+  if (chain === 'bsc') {
+    return 18;
+  }
+  return 6;
+}
+
 interface FeeData {
   sig: string;
   deadline: string;
@@ -272,7 +286,10 @@ const getConfigFromFeeData = (
               everclearBridgeAddress: everclearAdapterAddresses[chain],
               outputAssets,
               everclearFeeParams,
+              scale: geScale(chain),
+              decimals: getDecimals(chain),
             };
+      console.log('config', chain, config);
       return [chain, config];
     }),
   ) as ChainMap<HypTokenRouterConfig>;
