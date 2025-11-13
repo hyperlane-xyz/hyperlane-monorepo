@@ -13,16 +13,6 @@ use snarkvm::{
 use crate::utils::{get_tx_id, to_h256, to_key_id};
 use crate::{AleoProvider, HyperlaneAleoError};
 
-mod delivery;
-mod dispatch;
-mod interchain_gas;
-mod merkle_tree_hook;
-
-pub use delivery::*;
-pub use dispatch::*;
-pub use interchain_gas::*;
-pub use merkle_tree_hook::*;
-
 pub(crate) trait AleoIndexer {
     const INDEX_MAPPING: &str;
     const VALUE_MAPPING: &str;
