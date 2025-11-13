@@ -50,13 +50,6 @@ export interface ProtocolProvider {
     chainMetadata: ChainMetadataForAltVM,
     config: TConfig,
   ): Promise<ITransactionSubmitter>;
-  registerSubmitterFactory<TConfig extends TransactionSubmitterConfig>(
-    type: string,
-    factory: (
-      chainMetadata: ChainMetadataForAltVM,
-      config: TConfig,
-    ) => Promise<ITransactionSubmitter>,
-  ): void;
 }
 
 /**
