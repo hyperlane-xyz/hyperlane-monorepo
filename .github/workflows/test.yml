@@ -794,7 +794,7 @@ jobs:
           path_pattern: 'solidity/'
 
   coverage-run:
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: depot-ubuntu-24.04-8
     needs: [check-solidity-changes]
     if: needs.check-solidity-changes.outputs.has_solidity_changes == 'true'
     steps:
