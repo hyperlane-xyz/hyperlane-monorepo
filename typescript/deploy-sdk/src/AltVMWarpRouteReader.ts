@@ -1,11 +1,13 @@
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
+import { HypReader } from '@hyperlane-xyz/provider-sdk/module';
 import {
   DerivedCollateralWarpConfig,
   DerivedSyntheticWarpConfig,
   DerivedWarpConfig,
   DestinationGas,
   RemoteRouters,
+  TokenRouterModuleType,
   TokenType,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import { Address, ensure0x, rootLogger } from '@hyperlane-xyz/utils';
@@ -13,7 +15,7 @@ import { Address, ensure0x, rootLogger } from '@hyperlane-xyz/utils';
 import { AltVMHookReader } from './AltVMHookReader.js';
 import { AltVMIsmReader } from './AltVMIsmReader.js';
 
-export class AltVMWarpRouteReader {
+export class AltVMWarpRouteReader implements HypReader<TokenRouterModuleType> {
   protected readonly logger: ReturnType<typeof rootLogger.child>;
   hookReader: AltVMHookReader;
   ismReader: AltVMIsmReader;
@@ -31,6 +33,17 @@ export class AltVMWarpRouteReader {
     this.logger = rootLogger.child({
       module: AltVMWarpRouteReader.name,
     });
+  }
+
+  /**
+   * Reads the configuration for a Warp Route at the given address.
+   * Implements the HypReader interface.
+   *
+   * @param address - The address of the Warp Route contract.
+   * @returns The derived Warp Route configuration.
+   */
+  async read(address: string): Promise<DerivedWarpConfig> {
+    return this.deriveWarpRouteConfig(address);
   }
 
   /**

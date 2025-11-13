@@ -1,6 +1,12 @@
 import type { DerivedHookConfig, HookConfig } from './hook.js';
 import type { DerivedIsmConfig, IsmConfig } from './ism.js';
 
+export type TokenRouterModuleType = {
+  config: WarpConfig;
+  derived: DerivedWarpConfig;
+  addresses: WarpRouteAddresses;
+};
+
 export const TokenType = {
   synthetic: 'synthetic',
   collateral: 'collateral',
@@ -61,3 +67,7 @@ export interface DerivedSyntheticWarpConfig extends BaseDerivedWarpConfig {
 export type DerivedWarpConfig =
   | DerivedCollateralWarpConfig
   | DerivedSyntheticWarpConfig;
+
+export type WarpRouteAddresses = {
+  deployedTokenRoute: string;
+};

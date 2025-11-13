@@ -7,3 +7,7 @@ export { AltVMIsmReader } from './AltVMIsmReader.js';
 export { AltVMWarpModule } from './AltVMWarpModule.js';
 export { AltVMWarpRouteReader } from './AltVMWarpRouteReader.js';
 export { AltVMDeployer } from './AltVMWarpDeployer.js';
+export { coreModuleProvider } from './core-module.js';
+export { hookModuleProvider } from './hook-module.js';
+export { ismModuleProvider } from './ism-module.js';
+export { warpModuleProvider } from './warp-module.js';
