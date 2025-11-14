@@ -1,5 +1,17 @@
 # @hyperlane-xyz/sdk
 
+## 19.9.0
+
+### Patch Changes
+
+- 8c027d852: Fixed SmartProvider fallback logic to stop retrying on blockchain errors
+- Updated dependencies [8c027d852]
+  - @hyperlane-xyz/utils@19.9.0
+  - @hyperlane-xyz/core@10.0.3
+  - @hyperlane-xyz/cosmos-sdk@19.9.0
+  - @hyperlane-xyz/radix-sdk@19.9.0
+  - @hyperlane-xyz/starknet-core@19.9.0
+
 ## 19.8.0
 
 ### Minor Changes
