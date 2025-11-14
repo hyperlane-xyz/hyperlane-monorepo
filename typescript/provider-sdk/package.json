@@ -29,7 +29,7 @@
     "prettier": "prettier --write ."
   },
   "dependencies": {
-    "@hyperlane-xyz/utils": "19.8.0",
+    "@hyperlane-xyz/utils": "19.9.0",
     "zod": "^3.21.2"
   },
   "devDependencies": {
