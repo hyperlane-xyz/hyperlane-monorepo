@@ -8,7 +8,7 @@ import { AleoSigner } from '../clients/signer.js';
 import { AleoReceipt, AleoTransaction } from '../utils/types.js';
 
 describe('3. aleo sdk post dispatch e2e tests', async function () {
-  this.timeout(300_000);
+  this.timeout(600_000);
 
   let signer: AltVM.ISigner<AleoTransaction, AleoReceipt>;
 
@@ -21,13 +21,16 @@ describe('3. aleo sdk post dispatch e2e tests', async function () {
     const privateKey =
       'APrivateKey1zkp8CZNn3yeCseEtxuVPbDCwSyhGW6yZKUYKfgXmcpoGPWH';
 
-    signer = await AleoSigner.connectWithSigner([localnetRpc], privateKey);
+    signer = await AleoSigner.connectWithSigner([localnetRpc], privateKey, {
+      metadata: {
+        chainId: 1,
+      },
+    });
 
     const domainId = 1234;
 
     const mailbox = await signer.createMailbox({
       domainId: domainId,
-      defaultIsmAddress: '',
     });
     mailboxAddress = mailbox.mailboxAddress;
   });

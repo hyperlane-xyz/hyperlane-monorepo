@@ -119,6 +119,7 @@ export class AleoSigner
       priorityFee: 0,
       privateFee: false,
       inputs: [dispatchProxyAddress],
+      skipProof: this.skipProof,
     });
     await this.aleoClient.waitForTransactionConfirmation(setDispatchProxyTxId);
 
@@ -200,8 +201,11 @@ export class AleoSigner
   async createMessageIdMultisigIsm(
     req: Omit<AltVM.ReqCreateMessageIdMultisigIsm, 'signer'>,
   ): Promise<AltVM.ResCreateMessageIdMultisigIsm> {
+    const mailboxSalt = this.getNewProgramSalt(12);
+    const programs = await this.deployProgram('ism_manager', mailboxSalt);
+
     let nonce = await this.aleoClient.getProgramMappingValue(
-      'ism_manager.aleo',
+      programs[programs.length - 1],
       'nonce',
       'true',
     );
@@ -219,7 +223,7 @@ export class AleoSigner
     await this.aleoClient.waitForTransactionConfirmation(txId);
 
     const ismAddress = await this.aleoClient.getProgramMappingValue(
-      'ism_manager.aleo',
+      programs[programs.length - 1],
       'ism_addresses',
       nonce,
     );
@@ -238,8 +242,11 @@ export class AleoSigner
   async createRoutingIsm(
     req: Omit<AltVM.ReqCreateRoutingIsm, 'signer'>,
   ): Promise<AltVM.ResCreateRoutingIsm> {
+    const mailboxSalt = this.getNewProgramSalt(12);
+    const programs = await this.deployProgram('ism_manager', mailboxSalt);
+
     let nonce = await this.aleoClient.getProgramMappingValue(
-      'ism_manager.aleo',
+      programs[programs.length - 1],
       'nonce',
       'true',
     );
@@ -257,7 +264,7 @@ export class AleoSigner
     await this.aleoClient.waitForTransactionConfirmation(txId);
 
     const ismAddress = await this.aleoClient.getProgramMappingValue(
-      'ism_manager.aleo',
+      programs[programs.length - 1],
       'ism_addresses',
       nonce,
     );
@@ -324,8 +331,11 @@ export class AleoSigner
   async createNoopIsm(
     req: Omit<AltVM.ReqCreateNoopIsm, 'signer'>,
   ): Promise<AltVM.ResCreateNoopIsm> {
+    const mailboxSalt = this.getNewProgramSalt(12);
+    const programs = await this.deployProgram('ism_manager', mailboxSalt);
+
     let nonce = await this.aleoClient.getProgramMappingValue(
-      'ism_manager.aleo',
+      programs[programs.length - 1],
       'nonce',
       'true',
     );
@@ -343,7 +353,7 @@ export class AleoSigner
     await this.aleoClient.waitForTransactionConfirmation(txId);
 
     const ismAddress = await this.aleoClient.getProgramMappingValue(
-      'ism_manager.aleo',
+      programs[programs.length - 1],
       'ism_addresses',
       nonce,
     );
@@ -362,8 +372,11 @@ export class AleoSigner
   async createMerkleTreeHook(
     req: Omit<AltVM.ReqCreateMerkleTreeHook, 'signer'>,
   ): Promise<AltVM.ResCreateMerkleTreeHook> {
+    const mailboxSalt = this.getNewProgramSalt(12);
+    const programs = await this.deployProgram('hook_manager', mailboxSalt);
+
     let nonce = await this.aleoClient.getProgramMappingValue(
-      'hook_manager.aleo',
+      programs[programs.length - 1],
       'nonce',
       'true',
     );
@@ -381,7 +394,7 @@ export class AleoSigner
     await this.aleoClient.waitForTransactionConfirmation(txId);
 
     const hookAddress = await this.aleoClient.getProgramMappingValue(
-      'hook_manager.aleo',
+      programs[programs.length - 1],
       'hook_addresses',
       nonce,
     );
@@ -400,8 +413,11 @@ export class AleoSigner
   async createInterchainGasPaymasterHook(
     req: Omit<AltVM.ReqCreateInterchainGasPaymasterHook, 'signer'>,
   ): Promise<AltVM.ResCreateInterchainGasPaymasterHook> {
+    const mailboxSalt = this.getNewProgramSalt(12);
+    const programs = await this.deployProgram('hook_manager', mailboxSalt);
+
     let nonce = await this.aleoClient.getProgramMappingValue(
-      'hook_manager.aleo',
+      programs[programs.length - 1],
       'nonce',
       'true',
     );
@@ -419,7 +435,7 @@ export class AleoSigner
     await this.aleoClient.waitForTransactionConfirmation(txId);
 
     const hookAddress = await this.aleoClient.getProgramMappingValue(
-      'hook_manager.aleo',
+      programs[programs.length - 1],
       'hook_addresses',
       nonce,
     );
@@ -486,8 +502,11 @@ export class AleoSigner
   async createNoopHook(
     req: Omit<AltVM.ReqCreateNoopHook, 'signer'>,
   ): Promise<AltVM.ResCreateNoopHook> {
+    const mailboxSalt = this.getNewProgramSalt(12);
+    const programs = await this.deployProgram('hook_manager', mailboxSalt);
+
     let nonce = await this.aleoClient.getProgramMappingValue(
-      'hook_manager.aleo',
+      programs[programs.length - 1],
       'nonce',
       'true',
     );
@@ -505,7 +524,7 @@ export class AleoSigner
     await this.aleoClient.waitForTransactionConfirmation(txId);
 
     const hookAddress = await this.aleoClient.getProgramMappingValue(
-      'hook_manager.aleo',
+      programs[programs.length - 1],
       'hook_addresses',
       nonce,
     );

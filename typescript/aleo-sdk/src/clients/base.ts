@@ -20,7 +20,7 @@ import {
   Program as TestnetProgram,
   ProgramManager as TestnetProgramManager,
   U128 as TestnetU128,
-  getOrInitConsensusVersionTestHeights,
+  // getOrInitConsensusVersionTestHeights,
 } from '@provablehq/sdk/testnet.js';
 
 import { assert, strip0x } from '@hyperlane-xyz/utils';
@@ -40,6 +40,7 @@ export class AleoBase {
   protected readonly chainId: number;
 
   protected readonly aleoClient: AnyAleoNetworkClient;
+  protected readonly skipProof: boolean;
 
   constructor(rpcUrls: string[], chainId: string | number) {
     assert(
@@ -48,7 +49,7 @@ export class AleoBase {
     );
     assert(rpcUrls.length > 0, `got no rpcUrls`);
 
-    getOrInitConsensusVersionTestHeights('0,1,2,3,4,5,6,7,8,9,10');
+    // getOrInitConsensusVersionTestHeights('0,1,2,3,4,5,6,7,8,9,10');
 
     this.rpcUrls = rpcUrls;
     this.chainId = +chainId;
@@ -56,6 +57,10 @@ export class AleoBase {
     this.aleoClient = this.chainId
       ? new AleoTestnetNetworkClient(rpcUrls[0])
       : new AleoMainnetNetworkClient(rpcUrls[0]);
+
+    this.skipProof = process.env['ALEO_SKIP_PROOF']
+      ? JSON.parse(process.env['ALEO_SKIP_PROOF'])
+      : false;
   }
 
   protected get Plaintext() {

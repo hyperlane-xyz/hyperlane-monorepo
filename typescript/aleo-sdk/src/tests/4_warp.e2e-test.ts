@@ -14,7 +14,6 @@ import { AltVM } from '@hyperlane-xyz/utils';
 
 import { hyp_synthetic } from '../artifacts.js';
 import { AleoSigner } from '../clients/signer.js';
-import { stringToU128 } from '../utils/helper.js';
 import { AleoReceipt, AleoTransaction } from '../utils/types.js';
 
 describe('4. aleo sdk warp e2e tests', async function () {
@@ -31,7 +30,11 @@ describe('4. aleo sdk warp e2e tests', async function () {
     const privateKey =
       'APrivateKey1zkp8CZNn3yeCseEtxuVPbDCwSyhGW6yZKUYKfgXmcpoGPWH';
 
-    signer = await AleoSigner.connectWithSigner([localnetRpc], privateKey);
+    signer = await AleoSigner.connectWithSigner([localnetRpc], privateKey, {
+      metadata: {
+        chainId: 1,
+      },
+    });
 
     const aleoAccount = new Account({
       privateKey,
@@ -63,8 +66,8 @@ describe('4. aleo sdk warp e2e tests', async function () {
       privateFee: false,
       inputs: [
         collateralDenom,
-        stringToU128('test').toString(),
-        stringToU128('test').toString(),
+        (signer as any)['stringToU128String']('test'),
+        (signer as any)['stringToU128String']('test'),
         `6u8`,
         `100000000u128`,
         `false`,

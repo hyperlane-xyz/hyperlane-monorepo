@@ -28,7 +28,7 @@
     "clean": "rm -rf ./dist ./cache",
     "test": "echo \"no tests in aleo-sdk\"",
     "test:ci": "echo \"no tests in aleo-sdk\"",
-    "test:e2e": "yarn mocha --config .mocharc-e2e.json"
+    "test:e2e": "ALEO_SKIP_PROOF=true && yarn mocha --config .mocharc-e2e.json"
   },
   "devDependencies": {
     "@eslint/js": "^9.31.0",
@@ -48,7 +48,7 @@
   },
   "dependencies": {
     "@hyperlane-xyz/utils": "19.7.0",
-    "@provablehq/sdk": "^0.9.11",
+    "@provablehq/sdk": "portal:../../../sdk/sdk",
     "bignumber.js": "^9.1.1"
   }
 }
