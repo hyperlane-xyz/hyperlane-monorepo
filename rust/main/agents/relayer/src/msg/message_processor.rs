@@ -426,7 +426,7 @@ enum OperationDisposition {
     /// Operation has not been submitted yet - should be prepared or submitted
     PreSubmit,
     /// Operation has already been submitted - should go to confirmation queue
-    Confirm,
+    PostSubmit,
 }
 
 /// Filters operations from a batch to determine which should proceed to preparation.
@@ -474,7 +474,7 @@ async fn filter_operations_for_preparation(
             OperationDisposition::PreSubmit => {
                 ops_to_prepare.push(op);
             }
-            OperationDisposition::Confirm => {
+            OperationDisposition::PostSubmit => {
                 let status = Some(Confirm(AlreadySubmitted));
                 confirm_queue.push(op, status).await;
             }
@@ -501,14 +501,14 @@ async fn determine_operation_disposition(
 }
 
 /// Determines the disposition of an operation based on its payload submission status.
-/// Returns Confirm if the payload has been submitted and is not dropped, Prepare otherwise.
+/// Returns PostSubmit if the payload has been submitted and is not dropped, PreSubmit otherwise.
 /// If payload status cannot be determined, operation will be prepared.
 async fn operation_disposition_by_payload_status(
     entrypoint: Arc<dyn Entrypoint + Send + Sync>,
     db: Arc<dyn HyperlaneDb>,
     op: &QueueOperation,
 ) -> OperationDisposition {
-    use OperationDisposition::{Confirm, PreSubmit};
+    use OperationDisposition::{PostSubmit, PreSubmit};
 
     let id = op.id();
 
@@ -530,7 +530,7 @@ async fn operation_disposition_by_payload_status(
     match status {
         Ok(PayloadStatus::Dropped(_)) => PreSubmit,
         Ok(PayloadStatus::InTransaction(TransactionStatus::Dropped(_))) => PreSubmit,
-        Ok(_) => Confirm,
+        Ok(_) => PostSubmit,
         Err(_) => PreSubmit,
     }
 }
