@@ -39,7 +39,7 @@ impl AleoIndexer for AleoDeliveryIndexer {
     type Type = AleoHash;
     type AleoType = AleoHash;
 
-    fn get_client(&self) -> &AleoProvider {
+    fn get_provider(&self) -> &AleoProvider {
         &self.provider
     }
 

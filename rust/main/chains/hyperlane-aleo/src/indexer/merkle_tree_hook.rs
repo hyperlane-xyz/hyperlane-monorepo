@@ -69,7 +69,7 @@ impl AleoIndexer for AleoMerkleTreeHook {
     type AleoType = InsertIntoTreeEvent;
     type Type = MerkleTreeInsertion;
 
-    fn get_client(&self) -> &AleoProvider {
+    fn get_provider(&self) -> &AleoProvider {
         &self.client
     }
 
@@ -85,7 +85,7 @@ impl AleoIndexer for AleoMerkleTreeHook {
         };
         // The latest event index for hooks is composition of block_height & hook_address
         let last_event_index: u32 = self
-            .get_client()
+            .get_provider()
             .get_mapping_value(self.get_program(), Self::INDEX_MAPPING, &key)
             .await?;
         Ok(last_event_index)
@@ -142,8 +142,7 @@ impl SequenceAwareIndexer<MerkleTreeInsertion> for AleoMerkleTreeHook {
 impl MerkleTreeHook for AleoMerkleTreeHook {
     /// Return the incremental merkle tree in storage
     ///
-    /// - `reorg_period` is how far behind the current block to query, if not specified
-    ///   it will query at the latest block.
+    /// - `reorg_period` is ignored as Aleo has a BFT consensus algorithm with instant finality.
     async fn tree(&self, _reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkleAtBlock> {
         let (mth, block_height) = self
             .client
@@ -161,8 +160,7 @@ impl MerkleTreeHook for AleoMerkleTreeHook {
 
     /// Gets the current leaf count of the merkle tree
     ///
-    /// - `reorg_period` is how far behind the current block to query, if not specified
-    ///   it will query at the latest block.
+    /// - `reorg_period` is ignored as Aleo has a BFT consensus algorithm with instant finality.
     async fn count(&self, _reorg_period: &ReorgPeriod) -> ChainResult<u32> {
         let mth: AleoMerkleTreeHookStruct = self
             .client
@@ -173,8 +171,7 @@ impl MerkleTreeHook for AleoMerkleTreeHook {
 
     /// Get the latest checkpoint.
     ///
-    /// - `reorg_period` is how far behind the current block to query, if not specified
-    ///   it will query at the latest block.
+    /// - `reorg_period` is ignored as Aleo has a BFT consensus algorithm with instant finality.
     async fn latest_checkpoint(
         &self,
         _reorg_period: &ReorgPeriod,

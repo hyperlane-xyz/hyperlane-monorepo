@@ -71,7 +71,7 @@ impl AleoIndexer for AleoInterchainGasIndexer {
     type AleoType = GasPaymentEvent;
     type Type = InterchainGasPayment;
 
-    fn get_client(&self) -> &AleoProvider {
+    fn get_provider(&self) -> &AleoProvider {
         &self.client
     }
 
@@ -87,7 +87,7 @@ impl AleoIndexer for AleoInterchainGasIndexer {
         };
         // The latest event index for hooks is composition of block_height & hook_address
         let last_event_index: u32 = self
-            .get_client()
+            .get_provider()
             .get_mapping_value(self.get_program(), Self::INDEX_MAPPING, &key)
             .await?;
         Ok(last_event_index)

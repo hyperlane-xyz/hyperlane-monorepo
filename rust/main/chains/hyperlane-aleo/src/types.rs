@@ -4,11 +4,8 @@ use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, utils::to_atto, HyperlaneMessage,
     InterchainGasPayment, MerkleTreeInsertion, H256, U256,
 };
-use snarkvm::{
-    console::network::{const_assert, hrp2, AleoID},
-    prelude::{MainnetV0, Network},
-};
-use snarkvm_console_account::{Address, Field, Itertools};
+use snarkvm::prelude::{MainnetV0, Network};
+use snarkvm_console_account::{Address, Itertools};
 
 use crate::utils::aleo_hash_to_h256;
 
@@ -18,8 +15,6 @@ use crate::utils::aleo_hash_to_h256;
 // We pass CurrentNetwork into a lot of types, because we don't have to generate ZK Proofs in almost every situation - except when submitting a TX. There is one exception to this and that is when parsing/handling with Blocks.
 // The Block type verifies its validity on creation and that changes based on the Network type, that's why we have to pass the correct Type when dealing with blocks.
 pub(crate) type CurrentNetwork = MainnetV0;
-/// TxID Type
-pub(crate) type TxID = AleoID<Field<CurrentNetwork>, { hrp2!("at") }>;
 
 /// Aleo Hash Type, for performance reasons the aleo contracts use [u128;2] to represent 32 byte hashes
 /// Each u128 is encoded in little-endian byte order
@@ -154,6 +149,7 @@ pub struct AleoMessage {
 impl From<AleoMessage> for HyperlaneMessage {
     fn from(val: AleoMessage) -> Self {
         // Aleo encodes its integers with little endian
+        // We only need to convert the body bytes as only the body is encoded as u128 words in the contracts
         let body = val.body.iter().flat_map(|x| x.to_le_bytes()).collect_vec();
         let sender = H256::from(val.sender);
         let recipient = H256::from(val.recipient);

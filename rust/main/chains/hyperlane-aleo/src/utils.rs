@@ -2,7 +2,7 @@ use hyperlane_core::{ChainResult, H256};
 use snarkvm::prelude::{Identifier, Network, Plaintext, ProgramID};
 use snarkvm_console_account::{Field, FromBytes, Itertools, ToBits, ToBytes};
 
-use crate::{AleoHash, HyperlaneAleoError, TxID};
+use crate::{AleoHash, HyperlaneAleoError};
 
 /// Converts a AleoHash/[U128; 2] into a H256
 /// Uses little-endian byte order
@@ -15,8 +15,11 @@ pub(crate) fn aleo_hash_to_h256(id: &AleoHash) -> H256 {
 }
 
 /// Convert a H256 into a TxID
-pub(crate) fn get_tx_id(hash: impl Into<H256>) -> ChainResult<TxID> {
-    Ok(TxID::from_bytes_le(hash.into().as_bytes()).map_err(HyperlaneAleoError::from)?)
+pub(crate) fn get_tx_id<N: Network>(hash: impl Into<H256>) -> ChainResult<N::TransactionID> {
+    Ok(
+        N::TransactionID::from_bytes_le(hash.into().as_bytes())
+            .map_err(HyperlaneAleoError::from)?,
+    )
 }
 
 /// Convert a TxID or any other struct that implements ToBytes to H256
@@ -53,6 +56,7 @@ pub(crate) fn to_key_id<N: Network>(
 mod tests {
     use std::str::FromStr;
 
+    use snarkvm::prelude::TestnetV0;
     use snarkvm_console_account::Address;
 
     use super::*;
@@ -72,7 +76,7 @@ mod tests {
     #[test]
     fn test_get_tx_id() {
         let hash = H256::zero();
-        let tx_id = super::get_tx_id(hash).unwrap();
+        let tx_id = super::get_tx_id::<TestnetV0>(hash).unwrap();
 
         let bytes = tx_id.to_bytes_le().unwrap();
         assert_eq!(bytes.as_slice(), &[0u8; 32]);
@@ -118,7 +122,7 @@ mod tests {
     }
 
     #[test]
-    fn test_u128_to_hash() {
+    fn test_aleo_hash_to_h256() {
         let id = [1u128, 2u128];
         let hash = super::aleo_hash_to_h256(&id);
         let expected_bytes =

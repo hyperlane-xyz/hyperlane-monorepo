@@ -57,7 +57,7 @@ impl AleoIndexer for AleoDispatchIndexer {
     type AleoType = AleoMessage;
     type Type = HyperlaneMessage;
 
-    fn get_client(&self) -> &AleoProvider {
+    fn get_provider(&self) -> &AleoProvider {
         &self.provider
     }
 
