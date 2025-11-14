@@ -80,6 +80,7 @@
     "decimals": 9,
     "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
     "name": "Lit Protocol",
+    "owner": "APMbPfXwwHQ2MKSRBTsFrQeBaeqj4UKnVrxFQvXN2Sq3",
     "symbol": "LITKEY",
     "remoteDecimals": 18,
     "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/93a21a90c1fcff8bf6e449c1fc4db9290c43f62e/deployments/warp_routes/LITKEY/metadata.json"
