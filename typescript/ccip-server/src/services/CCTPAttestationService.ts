@@ -186,14 +186,23 @@ class CCTPAttestationService {
 
     json.messages.forEach((message) => {
       if (message.attestation === 'PENDING') {
-        const errorString = `CCTP attestation is pending due to ${message.delayReason}`;
+        const errorString = 'CCTP attestation is pending';
         switch (message.delayReason) {
           case 'insufficient_fee':
           case 'amount_above_max':
           case 'insufficient_allowance_available':
-            PrometheusMetrics.logUnhandledError(this.serviceName);
+            PrometheusMetrics.logUnhandledError(
+              this.serviceName,
+              UnhandledErrorReason.CCTP_ATTESTATION_SERVICE_PENDING,
+            );
+            logger.error(
+              context,
+              errorString + ` due to ${message.delayReason}`,
+            );
+            break;
+          default:
+            logger.info(context, errorString);
         }
-        logger.error(context, errorString);
         throw new Error(errorString);
       }
     });
