@@ -30,7 +30,7 @@ export function loadProgramsInDeployOrder(
   warpSalt?: string,
 ): { id: string; program: string }[] {
   const visited = new Set<string>();
-  const programs: Program[] = [];
+  let programs: Program[] = [];
 
   function visit(p: string) {
     if (visited.has(p)) return;
@@ -51,17 +51,23 @@ export function loadProgramsInDeployOrder(
 
   visit(programName);
 
+  programs = programs.map((p) =>
+    Program.fromString(
+      p
+        .toString()
+        .replaceAll(
+          /(mailbox|dispatch_proxy|validator_announce).aleo/g,
+          (_, p1) => `${p1}_${coreSalt}.aleo`,
+        )
+        .replaceAll(
+          /(hyp_native|hyp_collateral|hyp_synthetic).aleo/g,
+          (_, p1) => `${p1}_${warpSalt || coreSalt}.aleo`,
+        ),
+    ),
+  );
+
   return programs.map((p) => ({
     id: p.id(),
-    program: p
-      .toString()
-      .replaceAll(
-        /(mailbox|dispatch_proxy|validator_announce).aleo/g,
-        (_, p1) => `${p1}_${coreSalt}.aleo`,
-      )
-      .replaceAll(
-        /(hyp_native|hyp_collateral|hyp_synthetic).aleo/g,
-        (_, p1) => `${p1}_${warpSalt || coreSalt}.aleo`,
-      ),
+    program: p.toString(),
   }));
 }
