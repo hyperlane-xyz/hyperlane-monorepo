@@ -423,8 +423,8 @@ async fn prepare_lander_task(
 enum OperationDisposition {
     /// Operation requires manual intervention - should be prepared
     Manual,
-    /// Operation has not been submitted yet - should be prepared
-    Prepare,
+    /// Operation has not been submitted yet - should be prepared or submitted
+    PreSubmit,
     /// Operation has already been submitted - should go to confirmation queue
     Confirm,
 }
@@ -457,7 +457,21 @@ async fn filter_operations_for_preparation(
     let mut ops_to_prepare = Vec::new();
     for (op, disposition) in operations_with_disposition {
         match disposition {
-            OperationDisposition::Manual | OperationDisposition::Prepare => {
+            OperationDisposition::Manual => {
+                // Remove link between message and payload for Manual operations
+                // to allow re-processing even if payload status filtering is
+                // applied in other stages (submit, confirm)
+                let message_id = op.id();
+                if let Err(e) = db.store_payload_uuids_by_message_id(&message_id, vec![]) {
+                    warn!(
+                        ?e,
+                        ?message_id,
+                        "Failed to remove payload UUID mapping for manual operation"
+                    );
+                }
+                ops_to_prepare.push(op);
+            }
+            OperationDisposition::PreSubmit => {
                 ops_to_prepare.push(op);
             }
             OperationDisposition::Confirm => {
@@ -494,18 +508,18 @@ async fn operation_disposition_by_payload_status(
     db: Arc<dyn HyperlaneDb>,
     op: &QueueOperation,
 ) -> OperationDisposition {
-    use OperationDisposition::{Confirm, Prepare};
+    use OperationDisposition::{Confirm, PreSubmit};
 
     let id = op.id();
 
     let payload_uuids = match db.retrieve_payload_uuids_by_message_id(&id) {
         Ok(uuids) => uuids,
-        Err(_) => return Prepare,
+        Err(_) => return PreSubmit,
     };
 
     let payload_uuids = match payload_uuids {
-        None => return Prepare,
-        Some(uuids) if uuids.is_empty() => return Prepare,
+        None => return PreSubmit,
+        Some(uuids) if uuids.is_empty() => return PreSubmit,
         Some(uuids) => uuids,
     };
 
@@ -514,10 +528,10 @@ async fn operation_disposition_by_payload_status(
     let status = entrypoint.payload_status(payload_uuid).await;
 
     match status {
-        Ok(PayloadStatus::Dropped(_)) => Prepare,
-        Ok(PayloadStatus::InTransaction(TransactionStatus::Dropped(_))) => Prepare,
+        Ok(PayloadStatus::Dropped(_)) => PreSubmit,
+        Ok(PayloadStatus::InTransaction(TransactionStatus::Dropped(_))) => PreSubmit,
         Ok(_) => Confirm,
-        Err(_) => Prepare,
+        Err(_) => PreSubmit,
     }
 }
 
