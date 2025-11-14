@@ -87,15 +87,16 @@ export class OffchainLookupMetadataBuilder implements MetadataBuilder {
         continue;
       }
 
-      const responseJson = await res.json();
-      if (!res.ok) {
+      try {
+        const responseJson = await res.json();
+        if (res.ok) {
+          return ensure0x(responseJson.data);
+        }
+      } catch (error) {
         this.core.logger.warn(
-          `Server at ${url} responded with error: ${responseJson.error}`,
+          `CCIP-read metadata fetch failed for ${url}: ${error}`,
         );
         // try next URL
-        continue;
-      } else {
-        return ensure0x(responseJson.data);
       }
     }
 
