@@ -307,6 +307,7 @@ fn launch_cosmos_relayer(
         .hyp_env("CHAINS_COSMOSTEST99991_MAXBATCHSIZE", "5")
         .hyp_env("TRACING_LEVEL", if debug { "debug" } else { "info" })
         .hyp_env("GASPAYMENTENFORCEMENT", "[{\"type\": \"none\"}]")
+        .hyp_env("CACHEDEFAULTEXPIRATIONSECONDS", "5")
         .hyp_env("METRICSPORT", metrics.to_string())
         .spawn("RLY", None);
 
