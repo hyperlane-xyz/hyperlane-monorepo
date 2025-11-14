@@ -30,7 +30,7 @@ export const getEthereumSuperseedUSDCWarpConfig = async (
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const rebalancingConfig = getUSDCRebalancingBridgesConfigFor(
     Object.keys(owners),
-    [WarpRouteIds.MainnetCCTPV1],
+    [WarpRouteIds.MainnetCCTPV2Standard],
   );
 
   const ethereum: HypTokenRouterConfig = {
