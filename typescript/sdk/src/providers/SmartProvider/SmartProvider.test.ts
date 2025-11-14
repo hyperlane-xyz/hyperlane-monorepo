@@ -9,6 +9,7 @@ import { ProviderStatus } from './types.js';
 class MockProvider extends providers.BaseProvider implements IProviderMethods {
   public readonly supportedMethods = AllProviderMethods;
   public called = false;
+  public thrownError?: Error;
 
   static success(successValue?: any, responseDelayMs = 0) {
     return new MockProvider(
@@ -49,6 +50,7 @@ class MockProvider extends providers.BaseProvider implements IProviderMethods {
     }
 
     if (this.errorToThrow) {
+      this.thrownError = this.errorToThrow;
       throw this.errorToThrow;
     }
 
@@ -253,6 +255,7 @@ describe('SmartProvider', () => {
 
       expect(result).to.deep.equal('success2');
       expect(provider1.called).to.be.true;
+      expect(provider1.thrownError).to.equal(serverError);
       expect(provider2.called).to.be.true;
     });
 
@@ -303,7 +306,9 @@ describe('SmartProvider', () => {
         expect(e.isRecoverable).to.be.undefined;
         expect(e.cause).to.equal(serverError1); // First error should be the cause
         expect(provider1.called).to.be.true;
+        expect(provider1.thrownError).to.equal(serverError1);
         expect(provider2.called).to.be.true;
+        expect(provider2.thrownError).to.equal(serverError2);
       }
     });
 
@@ -343,6 +348,7 @@ describe('SmartProvider', () => {
         expect(e.message).to.equal('execution reverted');
         expect(e.cause).to.equal(blockchainError);
         expect(provider1.called).to.be.true;
+        expect(provider1.thrownError).to.equal(blockchainError);
         expect(provider2.called).to.be.false; // Key test - second provider should NOT be called
       }
     });
@@ -370,7 +376,9 @@ describe('SmartProvider', () => {
         expect(e.message).to.equal('insufficient funds');
         expect(e.cause).to.equal(blockchainError);
         expect(provider1.called).to.be.true;
+        expect(provider1.thrownError).to.equal(serverError);
         expect(provider2.called).to.be.true;
+        expect(provider2.thrownError).to.equal(blockchainError);
       }
     });
   });
