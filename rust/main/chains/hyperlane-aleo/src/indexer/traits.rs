@@ -184,7 +184,7 @@ pub(crate) trait AleoIndexer {
         let mut logs = Vec::with_capacity(transitions.len());
 
         for transition in transitions {
-            // Check that the corresponding transaction is excuted and didn't get reverted
+            // Check that the corresponding transaction is executed and didn't get reverted
             let transaction = block
                 .find_transaction_for_transition_id(transition.id())
                 .and_then(|tx| block.get_confirmed_transaction(&tx.id()));
