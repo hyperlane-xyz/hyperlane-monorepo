@@ -204,6 +204,7 @@ pub(crate) trait AleoIndexer {
             for operation in transaction.finalize_operations().iter() {
                 match operation {
                     // We are only interested in mapping insert/update operations
+                    // As these are the only operations of the contracts
                     FinalizeOperation::InsertKeyValue(_, key, _)
                     | FinalizeOperation::UpdateKeyValue(_, key, _) => {
                         if let Some((index, plain_key)) = possible_key_ids.get(key) {
