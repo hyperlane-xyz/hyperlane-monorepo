@@ -98,7 +98,7 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
       chain: chainName,
       config: config.defaultIsm,
       addresses: {
-        mailbox: '',
+        mailbox: mailbox.mailboxAddress,
       },
       chainLookup,
       signer,

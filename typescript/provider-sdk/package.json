@@ -7,19 +7,46 @@
     "dist"
   ],
   "exports": {
-    ".": "./dist/index.js",
-    "./altvm": "./dist/altvm.js",
-    "./module": "./dist/module.js",
-    "./protocol": "./dist/protocol.js",
-    "./chain": "./dist/chain.js",
-    "./hook": "./dist/hook.js",
-    "./ism": "./dist/ism.js",
-    "./core": "./dist/core.js",
-    "./warp": "./dist/warp.js",
-    "./factory": "./dist/factory.js",
-    "./submitter": "./dist/submitter.js",
-    "./registry": "./dist/registry.js",
-    "./artifact": "./dist/artifact.js"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./altvm": {
+      "types": "./dist/altvm.d.ts",
+      "import": "./dist/altvm.js"
+    },
+    "./chain": {
+      "types": "./dist/chain.d.ts",
+      "import": "./dist/chain.js"
+    },
+    "./core": {
+      "types": "./dist/core.d.ts",
+      "import": "./dist/core.js"
+    },
+    "./hook": {
+      "types": "./dist/hook.d.ts",
+      "import": "./dist/hook.js"
+    },
+    "./ism": {
+      "types": "./dist/ism.d.ts",
+      "import": "./dist/ism.js"
+    },
+    "./module": {
+      "types": "./dist/module.d.ts",
+      "import": "./dist/module.js"
+    },
+    "./protocol": {
+      "types": "./dist/protocol.d.ts",
+      "import": "./dist/protocol.js"
+    },
+    "./submitter": {
+      "types": "./dist/submitter.d.ts",
+      "import": "./dist/submitter.js"
+    },
+    "./warp": {
+      "types": "./dist/warp.d.ts",
+      "import": "./dist/warp.js"
+    }
   },
   "scripts": {
     "build": "tsc",
