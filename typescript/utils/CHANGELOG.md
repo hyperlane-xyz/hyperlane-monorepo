@@ -1,5 +1,11 @@
 # @hyperlane-xyz/utils
 
+## 19.9.0
+
+### Minor Changes
+
+- 8c027d852: Let retryAsync() to break the retry loop for non-recoverable errors
+
 ## 19.8.0
 
 ### Minor Changes
