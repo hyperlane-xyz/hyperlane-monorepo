@@ -11,8 +11,8 @@ use lander::{
     TransactionStatus,
 };
 
-use super::super::filter_operations_for_preparation;
-use super::tests_common::{
+use crate::msg::message_processor::stage::prepare::filter_operations_for_preparation;
+use crate::msg::message_processor::tests::tests_common::{
     create_test_queue, MockDispatcherEntrypoint, MockHyperlaneDb, MockQueueOperation,
 };
 

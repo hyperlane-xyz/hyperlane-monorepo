@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
 use hyperlane_base::db::HyperlaneDb;
+use hyperlane_core::PendingOperationStatus;
 use hyperlane_core::QueueOperation;
+use hyperlane_core::ReprepareReason;
 use lander::Entrypoint;
 
 /// Disposition for how to handle an operation during submission check
@@ -14,13 +16,12 @@ pub enum OperationDisposition {
     PostSubmit,
 }
 
-pub async fn determine_operation_disposition(
+pub(crate) async fn determine_operation_disposition(
     entrypoint: Arc<dyn Entrypoint + Send + Sync>,
     db: Arc<dyn HyperlaneDb>,
     op: &QueueOperation,
 ) -> OperationDisposition {
-    use hyperlane_core::PendingOperationStatus::Retry;
-    use hyperlane_core::ReprepareReason;
+    use PendingOperationStatus::Retry;
 
     // Check if operation requires manual intervention
     if let Retry(ReprepareReason::Manual) = op.status() {
@@ -34,7 +35,7 @@ pub async fn determine_operation_disposition(
 /// Determines the disposition of an operation based on its payload submission status.
 /// Returns PostSubmit if the payload has been submitted and is not dropped, PreSubmit otherwise.
 /// If payload status cannot be determined, operation will be prepared.
-pub async fn operation_disposition_by_payload_status(
+async fn operation_disposition_by_payload_status(
     entrypoint: Arc<dyn Entrypoint + Send + Sync>,
     db: Arc<dyn HyperlaneDb>,
     op: &QueueOperation,
