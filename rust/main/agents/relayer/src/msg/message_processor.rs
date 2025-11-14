@@ -399,8 +399,8 @@ async fn prepare_lander_task(
             continue;
         };
 
-        let batch_to_process = confirm_already_submitted_operations(
-            entrypoint.clone(),
+        let batch_to_process = filter_operations_for_preparation(
+            entrypoint.clone() as Arc<dyn Entrypoint + Send + Sync>,
             &confirm_queue,
             db.clone(),
             batch,
@@ -419,49 +419,107 @@ async fn prepare_lander_task(
     }
 }
 
-/// This function checks the status of the payloads associated with the operations in the batch.
-/// If the payload is not dropped, the operation is pushed to the confirmation queue.
-/// If the payload is dropped, does not exist or there is issue in retrieving payload or its status, the operation will go through prepare logic.
-async fn confirm_already_submitted_operations(
-    entrypoint: Arc<DispatcherEntrypoint>,
+/// Disposition for how to handle an operation during submission check
+enum OperationDisposition {
+    /// Operation requires manual intervention - should be prepared
+    Manual,
+    /// Operation has not been submitted yet - should be prepared or submitted
+    PreSubmit,
+    /// Operation has already been submitted - should go to confirmation queue
+    Confirm,
+}
+
+/// Filters operations from a batch to determine which should proceed to preparation.
+///
+/// Operations already submitted (and not dropped) are pushed to the confirmation queue.
+/// Operations that need preparation are returned for further processing.
+///
+/// # Returns
+/// A vector of operations that should proceed to the preparation phase.
+async fn filter_operations_for_preparation(
+    entrypoint: Arc<dyn Entrypoint + Send + Sync>,
     confirm_queue: &OpQueue,
     db: Arc<dyn HyperlaneDb>,
     batch: Vec<QueueOperation>,
 ) -> Vec<QueueOperation> {
     use ConfirmReason::AlreadySubmitted;
-    use PendingOperationStatus::{Confirm, Retry};
+    use PendingOperationStatus::Confirm;
 
-    let mut ops_to_prepare = vec![];
-    for op in batch.into_iter() {
-        if let Retry(ReprepareReason::Manual) = op.status() {
-            ops_to_prepare.push(op);
-            continue;
-        }
-        if !has_operation_been_submitted(entrypoint.clone(), db.clone(), &op).await {
-            ops_to_prepare.push(op);
-            continue;
-        }
-        let status = Some(Confirm(AlreadySubmitted));
-        confirm_queue.push(op, status).await;
+    // Phase 1: Determine disposition for each operation
+    let mut operations_with_disposition = Vec::with_capacity(batch.len());
+    for op in batch {
+        let disposition =
+            determine_operation_disposition(entrypoint.clone(), db.clone(), &op).await;
+        operations_with_disposition.push((op, disposition));
     }
+
+    // Phase 2: Process operations based on their disposition
+    let mut ops_to_prepare = Vec::new();
+    for (op, disposition) in operations_with_disposition {
+        match disposition {
+            OperationDisposition::Manual => {
+                // Remove link between message and payload for Manual operations
+                // to allow re-processing even if payload status filtering is
+                // applied in other stages (submit, confirm)
+                let message_id = op.id();
+                if let Err(e) = db.store_payload_uuids_by_message_id(&message_id, vec![]) {
+                    warn!(
+                        ?e,
+                        ?message_id,
+                        "Failed to remove payload UUID mapping for manual operation"
+                    );
+                }
+                ops_to_prepare.push(op);
+            }
+            OperationDisposition::PreSubmit => {
+                ops_to_prepare.push(op);
+            }
+            OperationDisposition::Confirm => {
+                let status = Some(Confirm(AlreadySubmitted));
+                confirm_queue.push(op, status).await;
+            }
+        }
+    }
+
     ops_to_prepare
 }
 
-async fn has_operation_been_submitted(
-    entrypoint: Arc<DispatcherEntrypoint>,
+async fn determine_operation_disposition(
+    entrypoint: Arc<dyn Entrypoint + Send + Sync>,
     db: Arc<dyn HyperlaneDb>,
     op: &QueueOperation,
-) -> bool {
+) -> OperationDisposition {
+    use PendingOperationStatus::Retry;
+
+    // Check if operation requires manual intervention
+    if let Retry(ReprepareReason::Manual) = op.status() {
+        return OperationDisposition::Manual;
+    }
+
+    // Determine disposition based on payload status
+    operation_disposition_by_payload_status(entrypoint, db, op).await
+}
+
+/// Determines the disposition of an operation based on its payload submission status.
+/// Returns Confirm if the payload has been submitted and is not dropped, Prepare otherwise.
+/// If payload status cannot be determined, operation will be prepared.
+async fn operation_disposition_by_payload_status(
+    entrypoint: Arc<dyn Entrypoint + Send + Sync>,
+    db: Arc<dyn HyperlaneDb>,
+    op: &QueueOperation,
+) -> OperationDisposition {
+    use OperationDisposition::{Confirm, PreSubmit};
+
     let id = op.id();
 
     let payload_uuids = match db.retrieve_payload_uuids_by_message_id(&id) {
         Ok(uuids) => uuids,
-        Err(_) => return false,
+        Err(_) => return PreSubmit,
     };
 
     let payload_uuids = match payload_uuids {
-        None => return false,
-        Some(uuids) if uuids.is_empty() => return false,
+        None => return PreSubmit,
+        Some(uuids) if uuids.is_empty() => return PreSubmit,
         Some(uuids) => uuids,
     };
 
@@ -470,10 +528,10 @@ async fn has_operation_been_submitted(
     let status = entrypoint.payload_status(payload_uuid).await;
 
     match status {
-        Ok(PayloadStatus::Dropped(_)) => false,
-        Ok(PayloadStatus::InTransaction(TransactionStatus::Dropped(_))) => false,
-        Ok(_) => true,
-        Err(_) => false,
+        Ok(PayloadStatus::Dropped(_)) => PreSubmit,
+        Ok(PayloadStatus::InTransaction(TransactionStatus::Dropped(_))) => PreSubmit,
+        Ok(_) => Confirm,
+        Err(_) => PreSubmit,
     }
 }
 
@@ -702,7 +760,7 @@ async fn prepare_op(
     use PendingOperationStatus::Retry;
 
     let status = Retry(reason.clone());
-    let result = op.on_reprepare(Some(format!("{:?}", err)), reason);
+    let result = op.on_reprepare(Some(format!("{err:?}")), reason);
     warn!(?err, ?status, ?result, msg);
     prepare_queue.push(op, Some(status)).await;
 }
@@ -1073,3 +1131,6 @@ impl MessageProcessorMetrics {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

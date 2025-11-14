@@ -6,6 +6,7 @@ import { Contexts } from '../../contexts.js';
 
 import desiredRebalancerBalances from './balances/desiredRebalancerBalances.json' with { type: 'json' };
 import desiredRelayerBalances from './balances/desiredRelayerBalances.json' with { type: 'json' };
+import lowUrgencyKeyFunderBalances from './balances/lowUrgencyKeyFunderBalance.json' with { type: 'json' };
 import { environment } from './chains.js';
 import { mainnet3SupportedChainNames } from './supportedChainNames.js';
 
@@ -23,12 +24,19 @@ const desiredRebalancerBalancePerChain = objMap(
   (_, balance) => balance.toString(),
 ) as Record<DesiredRebalancerBalanceChains, string>;
 
+type LowUrgencyKeyFunderBalanceChains =
+  keyof typeof lowUrgencyKeyFunderBalances;
+const lowUrgencyKeyFunderBalancePerChain = objMap(
+  lowUrgencyKeyFunderBalances,
+  (_, balance) => balance.toString(),
+) as Record<LowUrgencyKeyFunderBalanceChains, string>;
+
 export const keyFunderConfig: KeyFunderConfig<
   typeof mainnet3SupportedChainNames
 > = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-    tag: '7940322-20251007-112427',
+    tag: '032b3b0-20251105-200907',
   },
   // We're currently using the same deployer/key funder key as mainnet2.
   // To minimize nonce clobbering we offset the key funder cron
@@ -55,7 +63,6 @@ export const keyFunderConfig: KeyFunderConfig<
     bob: '0',
     bsc: '0.35',
     celo: '150',
-    cheesechain: '0',
     cyber: '0',
     degenchain: '0',
     endurance: '0',
@@ -110,7 +117,6 @@ export const keyFunderConfig: KeyFunderConfig<
     bob: '0.1',
     bsc: '0.3',
     celo: '5',
-    cheesechain: '25',
     cyber: '0.025',
     degenchain: '50',
     endurance: '10',
@@ -153,4 +159,10 @@ export const keyFunderConfig: KeyFunderConfig<
     soon: '0',
     sonicsvm: '0',
   },
+  // Low urgency key funder balance thresholds for sweep calculations
+  // Automatic sweep enabled by default for all chains with these thresholds
+  // Defaults: sweep to 0x478be6076f31E9666123B9721D0B6631baD944AF when balance > 2x threshold, leave 1.5x threshold
+  lowUrgencyKeyFunderBalances: lowUrgencyKeyFunderBalancePerChain,
+  // Per-chain overrides for sweep (optional)
+  sweepOverrides: {},
 };

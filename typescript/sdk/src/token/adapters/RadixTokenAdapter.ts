@@ -1,6 +1,6 @@
 import { BigNumber } from 'bignumber.js';
 
-import { RadixSDK } from '@hyperlane-xyz/radix-sdk';
+import { RadixProvider, RadixSDKTransaction } from '@hyperlane-xyz/radix-sdk';
 import {
   Address,
   Domain,
@@ -12,7 +12,6 @@ import {
 
 import { BaseRadixAdapter } from '../../app/MultiProtocolApp.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
-import { RadixSDKTransaction } from '../../providers/ProviderType.js';
 import { ChainName } from '../../types.js';
 import { TokenMetadata } from '../types.js';
 
@@ -20,15 +19,16 @@ import {
   IHypTokenAdapter,
   ITokenAdapter,
   InterchainGasQuote,
+  QuoteTransferRemoteParams,
   TransferParams,
   TransferRemoteParams,
 } from './ITokenAdapter.js';
 
-export class RadixNativeTokenAdapter
+export class RadixTokenAdapter
   extends BaseRadixAdapter
   implements ITokenAdapter<RadixSDKTransaction>
 {
-  protected provider: RadixSDK;
+  protected provider: RadixProvider;
   protected tokenAddress: string;
 
   protected async getResourceAddress(): Promise<string> {
@@ -47,20 +47,17 @@ export class RadixNativeTokenAdapter
   }
 
   async getBalance(address: string): Promise<bigint> {
-    const resource = await this.getResourceAddress();
-    return this.provider.base.getBalance({
+    const denom = await this.getResourceAddress();
+    return this.provider.getBalance({
       address,
-      resource,
+      denom,
     });
   }
 
   async getMetadata(): Promise<TokenMetadata> {
-    const {
-      name,
-      symbol,
-      divisibility: decimals,
-    } = await this.provider.query.warp.getToken({
-      token: this.tokenAddress,
+    // Work around to access the base radix provider getMetadata method
+    const { name, symbol, decimals } = await this.provider['base'].getMetadata({
+      resource: this.tokenAddress,
     });
 
     assert(
@@ -104,39 +101,52 @@ export class RadixNativeTokenAdapter
   async populateTransferTx(
     transferParams: TransferParams,
   ): Promise<RadixSDKTransaction> {
-    const resource = await this.getResourceAddress();
+    const denom = await this.getResourceAddress();
 
+    const { decimals } = await this.getMetadata();
+    assert(
+      decimals,
+      `Token decimals not found for "${this.getResourceAddress()}" on chain "${this.chainName}"`,
+    );
+    assert(transferParams.fromAccountOwner, `no sender in transfer params`);
+
+    return this.provider.getTransferTransaction({
+      signer: transferParams.fromAccountOwner,
+      recipient: transferParams.recipient,
+      denom,
+      amount: fromWei(transferParams.weiAmountOrId.toString(), decimals),
+    });
+  }
+
+  async getTotalSupply(): Promise<bigint | undefined> {
+    const denom = await this.getResourceAddress();
+    return this.provider.getTotalSupply({
+      denom,
+    });
+  }
+}
+
+export class RadixNativeTokenAdapter
+  extends RadixTokenAdapter
+  implements ITokenAdapter<RadixSDKTransaction>
+{
+  override async getMetadata(): Promise<TokenMetadata> {
     const { nativeToken } = this.multiProvider.getChainMetadata(this.chainName);
     assert(
       nativeToken,
       `Native token data is required for ${RadixNativeTokenAdapter.name}`,
     );
-    assert(transferParams.fromAccountOwner, `no sender in transfer params`);
 
     return {
-      networkId: this.provider.getNetworkId(),
-      manifest: await this.provider.base.transfer({
-        from_address: transferParams.fromAccountOwner!,
-        to_address: transferParams.recipient,
-        resource_address: resource,
-        amount: fromWei(
-          transferParams.weiAmountOrId.toString(),
-          nativeToken.decimals,
-        ),
-      }),
+      name: nativeToken.name,
+      symbol: nativeToken.symbol,
+      decimals: nativeToken.decimals,
     };
-  }
-
-  async getTotalSupply(): Promise<bigint | undefined> {
-    const resource = await this.getResourceAddress();
-    return this.provider.base.getTotalSupply({
-      resource,
-    });
   }
 }
 
 export class RadixHypCollateralAdapter
-  extends RadixNativeTokenAdapter
+  extends RadixTokenAdapter
   implements IHypTokenAdapter<RadixSDKTransaction>
 {
   constructor(
@@ -148,65 +158,93 @@ export class RadixHypCollateralAdapter
   }
 
   protected async getResourceAddress(): Promise<string> {
-    const { origin_denom } = await this.provider.query.warp.getToken({
-      token: this.tokenAddress,
+    const { denom } = await this.provider.getToken({
+      tokenAddress: this.tokenAddress,
     });
-    return origin_denom;
+    return denom;
+  }
+
+  override async getMetadata(): Promise<TokenMetadata> {
+    // Only works for HypTokens
+    const { name, symbol, decimals } = await this.provider.getToken({
+      tokenAddress: this.tokenAddress,
+    });
+
+    assert(
+      name !== undefined,
+      `name on radix token ${this.tokenAddress} is undefined`,
+    );
+    assert(
+      symbol !== undefined,
+      `symbol on radix token ${this.tokenAddress} is undefined`,
+    );
+    assert(
+      decimals !== undefined,
+      `divisibility on radix token ${this.tokenAddress} is undefined`,
+    );
+
+    return {
+      name,
+      symbol,
+      decimals,
+    };
   }
 
   async getDomains(): Promise<Domain[]> {
-    const { remote_routers } = await this.provider.query.warp.getRemoteRouters({
-      token: this.tokenAddress,
+    const { remoteRouters } = await this.provider.getRemoteRouters({
+      tokenAddress: this.tokenAddress,
     });
 
-    return remote_routers.map((router) => parseInt(router.receiver_domain));
+    return remoteRouters.map((router) => router.receiverDomainId);
   }
 
   async getRouterAddress(domain: Domain): Promise<Buffer> {
-    const { remote_routers } = await this.provider.query.warp.getRemoteRouters({
-      token: this.tokenAddress,
+    const { remoteRouters } = await this.provider.getRemoteRouters({
+      tokenAddress: this.tokenAddress,
     });
 
-    const router = remote_routers.find(
-      (router) => parseInt(router.receiver_domain) === domain,
+    const router = remoteRouters.find(
+      (router) => router.receiverDomainId === domain,
     );
 
     if (!router) {
       throw new Error(`Router with domain "${domain}" not found`);
     }
 
-    return Buffer.from(strip0x(router.receiver_contract), 'hex');
+    return Buffer.from(strip0x(router.receiverAddress), 'hex');
   }
 
   async getAllRouters(): Promise<Array<{ domain: Domain; address: Buffer }>> {
-    const { remote_routers } = await this.provider.query.warp.getRemoteRouters({
-      token: this.tokenAddress,
+    const { remoteRouters } = await this.provider.getRemoteRouters({
+      tokenAddress: this.tokenAddress,
     });
 
-    return remote_routers.map((router) => ({
-      domain: parseInt(router.receiver_domain),
-      address: Buffer.from(strip0x(router.receiver_contract), 'hex'),
+    return remoteRouters.map((router) => ({
+      domain: router.receiverDomainId,
+      address: Buffer.from(strip0x(router.receiverAddress), 'hex'),
     }));
   }
 
   async getBridgedSupply(): Promise<bigint | undefined> {
-    return this.provider.query.warp.getBridgedSupply({
-      token: this.tokenAddress,
+    return this.provider.getBridgedSupply({
+      tokenAddress: this.tokenAddress,
     });
   }
 
-  async quoteTransferRemoteGas(
-    destination: Domain,
-  ): Promise<InterchainGasQuote> {
-    const { resource: addressOrDenom, amount } =
-      await this.provider.query.warp.quoteRemoteTransfer({
-        token: this.tokenAddress,
-        destination_domain: destination,
+  async quoteTransferRemoteGas({
+    destination,
+  }: QuoteTransferRemoteParams): Promise<InterchainGasQuote> {
+    const { denom: addressOrDenom, amount } =
+      await this.provider.quoteRemoteTransfer({
+        tokenAddress: this.tokenAddress,
+        destinationDomainId: destination,
       });
 
     return {
-      addressOrDenom,
-      amount,
+      igpQuote: {
+        addressOrDenom,
+        amount,
+      },
     };
   }
 
@@ -216,17 +254,17 @@ export class RadixHypCollateralAdapter
     assert(params.fromAccountOwner, `no sender in remote transfer params`);
 
     if (!params.interchainGas) {
-      params.interchainGas = await this.quoteTransferRemoteGas(
-        params.destination,
-      );
+      params.interchainGas = await this.quoteTransferRemoteGas({
+        destination: params.destination,
+      });
     }
 
-    const { remote_routers } = await this.provider.query.warp.getRemoteRouters({
-      token: this.tokenAddress,
+    const { remoteRouters } = await this.provider.getRemoteRouters({
+      tokenAddress: this.tokenAddress,
     });
 
-    const router = remote_routers.find(
-      (router) => parseInt(router.receiver_domain) === params.destination,
+    const router = remoteRouters.find(
+      (router) => router.receiverDomainId === params.destination,
     );
 
     if (!router) {
@@ -235,32 +273,28 @@ export class RadixHypCollateralAdapter
       );
     }
 
-    if (!params.interchainGas.addressOrDenom) {
+    if (!params.interchainGas.igpQuote?.addressOrDenom) {
       throw new Error(
         `Require denom for max fee, didn't receive and denom in the interchainGas quote`,
       );
     }
 
-    return {
-      networkId: this.provider.getNetworkId(),
-      manifest: await this.provider.populate.warp.remoteTransfer({
-        from_address: params.fromAccountOwner!,
-        recipient: strip0x(addressToBytes32(params.recipient)),
-        amount: params.weiAmountOrId.toString(),
-        token: this.tokenAddress,
-        destination_domain: params.destination,
-        gas_limit: router.gas,
-        custom_hook_id: params.customHook || '',
-        custom_hook_metadata: '',
-        max_fee: {
-          denom: params.interchainGas.addressOrDenom || '',
-          // convert the attos back to a Decimal with scale 18
-          amount: new BigNumber(params.interchainGas.amount.toString())
-            .div(new BigNumber(10).pow(18))
-            .toString(),
-        },
-      }),
-    };
+    return this.provider.getRemoteTransferTransaction({
+      signer: params.fromAccountOwner!,
+      tokenAddress: this.tokenAddress,
+      destinationDomainId: params.destination,
+      recipient: strip0x(addressToBytes32(params.recipient)),
+      amount: params.weiAmountOrId.toString(),
+      customHookAddress: params.customHook,
+      gasLimit: router.gas,
+      maxFee: {
+        denom: params.interchainGas.igpQuote?.addressOrDenom,
+        // convert the attos back to a Decimal with scale 18
+        amount: new BigNumber(params.interchainGas.igpQuote?.amount.toString())
+          .div(new BigNumber(10).pow(18))
+          .toString(),
+      },
+    });
   }
 }
 

@@ -1,5 +1,162 @@
 # @hyperlane-xyz/widgets
 
+## 19.8.0
+
+### Patch Changes
+
+- Updated dependencies [500d81246]
+- Updated dependencies [4614a503e]
+- Updated dependencies [2ed21c97d]
+- Updated dependencies [78ff6cd47]
+- Updated dependencies [00b014a3e]
+- Updated dependencies [3f75ad86d]
+  - @hyperlane-xyz/sdk@19.8.0
+  - @hyperlane-xyz/utils@19.8.0
+  - @hyperlane-xyz/cosmos-sdk@19.8.0
+
+## 19.7.0
+
+### Patch Changes
+
+- Updated dependencies [bdfa2047e]
+- Updated dependencies [69ad3473e]
+- Updated dependencies [211e245cb]
+- Updated dependencies [343737271]
+- Updated dependencies [c68722d93]
+- Updated dependencies [5c4cef1d4]
+  - @hyperlane-xyz/sdk@19.7.0
+  - @hyperlane-xyz/cosmos-sdk@19.7.0
+  - @hyperlane-xyz/utils@19.7.0
+
+## 19.6.0
+
+### Patch Changes
+
+- Updated dependencies [e67aca4a1]
+- Updated dependencies [419e16910]
+- Updated dependencies [b259966fe]
+- Updated dependencies [e0c69e255]
+- Updated dependencies [ec406fcbe]
+- Updated dependencies [18c32ed2b]
+- Updated dependencies [b259966fe]
+- Updated dependencies [419e16910]
+- Updated dependencies [9185b9c5b]
+  - @hyperlane-xyz/sdk@19.6.0
+  - @hyperlane-xyz/utils@19.6.0
+  - @hyperlane-xyz/cosmos-sdk@19.6.0
+
+## 19.6.0-beta.0
+
+### Patch Changes
+
+- Updated dependencies [e67aca4a1]
+- Updated dependencies [419e16910]
+- Updated dependencies [b259966fe]
+- Updated dependencies [e0c69e255]
+- Updated dependencies [ec406fcbe]
+- Updated dependencies [18c32ed2b]
+- Updated dependencies [b259966fe]
+- Updated dependencies [419e16910]
+- Updated dependencies [9185b9c5b]
+  - @hyperlane-xyz/sdk@19.6.0-beta.0
+  - @hyperlane-xyz/utils@19.6.0-beta.0
+  - @hyperlane-xyz/cosmos-sdk@19.6.0-beta.0
+
+## 19.5.0
+
+### Patch Changes
+
+- Updated dependencies [312826d10]
+- Updated dependencies [bf2c2caa6]
+- Updated dependencies [312826d10]
+- Updated dependencies [79a51debe]
+  - @hyperlane-xyz/sdk@19.5.0
+  - @hyperlane-xyz/utils@19.5.0
+  - @hyperlane-xyz/cosmos-sdk@19.5.0
+
+## 19.4.0
+
+### Minor Changes
+
+- 79f55e09d: Add Skeleton and FuelPump component
+
+### Patch Changes
+
+- 5a4e22d34: Bump @solana/web3.js dependency explicitly from ^1.95.4 to ^1.98.4.
+- Updated dependencies [4011a4561]
+- Updated dependencies [8fd3bf78c]
+- Updated dependencies [5a4e22d34]
+- Updated dependencies [79f55e09d]
+- Updated dependencies [5a4e22d34]
+- Updated dependencies [517bbaa42]
+  - @hyperlane-xyz/sdk@19.4.0
+  - @hyperlane-xyz/utils@19.4.0
+  - @hyperlane-xyz/cosmos-sdk@19.4.0
+
+## 19.3.0
+
+### Patch Changes
+
+- Updated dependencies [fcdda58a8]
+  - @hyperlane-xyz/sdk@19.3.0
+  - @hyperlane-xyz/cosmos-sdk@19.3.0
+  - @hyperlane-xyz/utils@19.3.0
+
+## 19.2.0
+
+### Minor Changes
+
+- bfea74dac: Add optional callback for when protocol is selected in MultiProtocolWalletModal
+
+### Patch Changes
+
+- Updated dependencies [f68419605]
+  - @hyperlane-xyz/sdk@19.2.0
+  - @hyperlane-xyz/cosmos-sdk@19.2.0
+  - @hyperlane-xyz/utils@19.2.0
+
+## 19.1.1
+
+### Patch Changes
+
+- 0781b7947: chore: update naming in wallet modal from ethereum to evm
+  - @hyperlane-xyz/cosmos-sdk@19.1.1
+  - @hyperlane-xyz/sdk@19.1.1
+  - @hyperlane-xyz/utils@19.1.1
+
+## 19.1.0
+
+### Patch Changes
+
+- Updated dependencies [554ff1a66]
+  - @hyperlane-xyz/sdk@19.1.0
+  - @hyperlane-xyz/cosmos-sdk@19.1.0
+  - @hyperlane-xyz/utils@19.1.0
+
+## 19.0.0
+
+### Major Changes
+
+- 32479e139: feat: use new AltVM providers
+
+### Minor Changes
+
+- e42a0e8e1: chore: updated AltVM interface
+
+### Patch Changes
+
+- Updated dependencies [8eab305bd]
+- Updated dependencies [e42a0e8e1]
+- Updated dependencies [70354d6d9]
+- Updated dependencies [e42a0e8e1]
+- Updated dependencies [dd4928b1c]
+- Updated dependencies [32479e139]
+- Updated dependencies [32479e139]
+- Updated dependencies [32479e139]
+  - @hyperlane-xyz/cosmos-sdk@19.0.0
+  - @hyperlane-xyz/utils@19.0.0
+  - @hyperlane-xyz/sdk@19.0.0
+
 ## 18.3.0
 
 ### Patch Changes

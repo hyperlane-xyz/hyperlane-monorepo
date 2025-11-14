@@ -55,9 +55,10 @@ impl AdapterFactory {
             ChainConnectionConf::Starknet(_) => todo!(),
             ChainConnectionConf::CosmosNative(_) => todo!(),
             ChainConnectionConf::Radix(connection_conf) => {
-                let adapter = RadixAdapter::from_conf(conf, &connection_conf)?;
+                let adapter = RadixAdapter::from_conf(conf, core_metrics, &connection_conf)?;
                 Arc::new(adapter)
             }
+            ChainConnectionConf::Aleo(_) => todo!(),
         };
         Ok(adapter)
     }

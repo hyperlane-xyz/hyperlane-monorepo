@@ -1,6 +1,6 @@
 import { Logger } from 'pino';
 
-import { Address, AltVM, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, AltVM, ensure0x, rootLogger } from '@hyperlane-xyz/utils';
 
 import { AltVMHookReader } from '../hook/AltVMHookReader.js';
 import { AltVMIsmReader } from '../ism/AltVMIsmReader.js';
@@ -134,7 +134,7 @@ export class AltVMWarpRouteReader {
     const routers: Record<string, { address: string }> = {};
     for (const router of remoteRouters) {
       routers[router.receiverDomainId] = {
-        address: router.receiverAddress,
+        address: ensure0x(router.receiverAddress),
       };
     }
 

@@ -114,7 +114,7 @@ export class RadixCorePopulate {
     routes,
   }: {
     from_address: string;
-    routes: { ism: string; domain: number }[];
+    routes: { ismAddress: string; domainId: number }[];
   }) {
     return this.base.createCallFunctionManifest(
       from_address,
@@ -124,7 +124,7 @@ export class RadixCorePopulate {
       [
         array(
           ValueKind.Tuple,
-          ...routes.map((r) => tuple(u32(r.domain), address(r.ism))),
+          ...routes.map((r) => tuple(u32(r.domainId), address(r.ismAddress))),
         ),
       ],
     );
@@ -137,13 +137,13 @@ export class RadixCorePopulate {
   }: {
     from_address: string;
     ism: string;
-    route: { domain: number; ism_address: string };
+    route: { domainId: number; ismAddress: string };
   }) {
     return this.base.createCallMethodManifestWithOwner(
       from_address,
       ism,
       'set_route',
-      [u32(route.domain), address(route.ism_address)],
+      [u32(route.domainId), address(route.ismAddress)],
     );
   }
 
@@ -239,17 +239,17 @@ export class RadixCorePopulate {
   public async setDestinationGasConfig({
     from_address,
     igp,
-    destination_gas_config,
+    destinationGasConfig,
   }: {
     from_address: string;
     igp: string;
-    destination_gas_config: {
-      remote_domain: string;
-      gas_oracle: {
-        token_exchange_rate: string;
-        gas_price: string;
+    destinationGasConfig: {
+      remoteDomainId: number;
+      gasOracle: {
+        tokenExchangeRate: string;
+        gasPrice: string;
       };
-      gas_overhead: string;
+      gasOverhead: string;
     };
   }) {
     return this.base.createCallMethodManifestWithOwner(
@@ -260,13 +260,13 @@ export class RadixCorePopulate {
         array(
           ValueKind.Tuple,
           tuple(
-            u32(destination_gas_config.remote_domain),
+            u32(destinationGasConfig.remoteDomainId),
             tuple(
               tuple(
-                u128(destination_gas_config.gas_oracle.token_exchange_rate),
-                u128(destination_gas_config.gas_oracle.gas_price),
+                u128(destinationGasConfig.gasOracle.tokenExchangeRate),
+                u128(destinationGasConfig.gasOracle.gasPrice),
               ),
-              u128(destination_gas_config.gas_overhead),
+              u128(destinationGasConfig.gasOverhead),
             ),
           ),
         ),

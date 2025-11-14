@@ -6,6 +6,7 @@ import {
   Domain,
   ProtocolType,
   addressToBytes32,
+  assert,
   convertToProtocolAddress,
   isAddressCosmos,
 } from '@hyperlane-xyz/utils';
@@ -20,12 +21,10 @@ import {
   IHypTokenAdapter,
   ITokenAdapter,
   InterchainGasQuote,
+  QuoteTransferRemoteParams,
   TransferParams,
   TransferRemoteParams,
 } from './ITokenAdapter.js';
-
-const COSMOS_TYPE_URL_SEND = '/cosmos.bank.v1beta1.MsgSend';
-const COSMOS_EMPTY_VALUE = '';
 
 class CosmosModuleTokenAdapter
   extends BaseCosmNativeAdapter
@@ -102,20 +101,17 @@ class CosmosModuleTokenAdapter
   async populateTransferTx(
     transferParams: TransferParams,
   ): Promise<MsgSendEncodeObject> {
+    const provider = await this.getProvider();
     const denom = await this.getDenom();
-    return {
-      typeUrl: COSMOS_TYPE_URL_SEND,
-      value: {
-        fromAddress: transferParams.fromAccountOwner,
-        toAddress: transferParams.recipient,
-        amount: [
-          {
-            denom,
-            amount: transferParams.weiAmountOrId.toString(),
-          },
-        ],
-      },
-    };
+
+    assert(transferParams.fromAccountOwner, `no sender in transfer params`);
+
+    return provider.getTransferTransaction({
+      signer: transferParams.fromAccountOwner,
+      recipient: transferParams.recipient,
+      denom,
+      amount: transferParams.weiAmountOrId.toString(),
+    });
   }
 
   async getTotalSupply(): Promise<bigint | undefined> {
@@ -197,23 +193,23 @@ export class CosmNativeHypCollateralAdapter
     });
   }
 
-  async quoteTransferRemoteGas(
-    destination: Domain,
-    _?: Address,
-    customHook?: Address,
-  ): Promise<InterchainGasQuote> {
+  async quoteTransferRemoteGas({
+    destination,
+    customHook,
+  }: QuoteTransferRemoteParams): Promise<InterchainGasQuote> {
     const provider = await this.getProvider();
     const { denom: addressOrDenom, amount } =
       await provider.quoteRemoteTransfer({
         tokenAddress: this.tokenAddress,
         destinationDomainId: destination,
-        customHookAddress: customHook || COSMOS_EMPTY_VALUE,
-        customHookMetadata: COSMOS_EMPTY_VALUE,
+        customHookAddress: customHook,
       });
 
     return {
-      addressOrDenom,
-      amount,
+      igpQuote: {
+        addressOrDenom,
+        amount,
+      },
     };
   }
 
@@ -221,11 +217,10 @@ export class CosmNativeHypCollateralAdapter
     params: TransferRemoteParams,
   ): Promise<MsgRemoteTransferEncodeObject> {
     if (!params.interchainGas) {
-      params.interchainGas = await this.quoteTransferRemoteGas(
-        params.destination,
-        undefined,
-        params.customHook,
-      );
+      params.interchainGas = await this.quoteTransferRemoteGas({
+        destination: params.destination,
+        customHook: params.customHook,
+      });
     }
 
     const provider = await this.getProvider();
@@ -244,7 +239,8 @@ export class CosmNativeHypCollateralAdapter
       );
     }
 
-    if (!params.interchainGas.addressOrDenom) {
+    const { igpQuote } = params.interchainGas;
+    if (!igpQuote.addressOrDenom) {
       throw new Error(
         `Require denom for max fee, didn't receive and denom in the interchainGas quote`,
       );
@@ -268,12 +264,11 @@ export class CosmNativeHypCollateralAdapter
         destinationProtocol,
       ),
       amount: params.weiAmountOrId.toString(),
-      customHookAddress: params.customHook || '',
-      customHookMetadata: '',
+      customHookAddress: params.customHook,
       gasLimit: router.gas,
       maxFee: {
-        denom: params.interchainGas.addressOrDenom || '',
-        amount: params.interchainGas.amount.toString(),
+        denom: igpQuote.addressOrDenom || '',
+        amount: igpQuote.amount.toString(),
       },
     });
   }

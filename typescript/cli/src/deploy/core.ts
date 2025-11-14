@@ -25,6 +25,7 @@ import {
   runPreflightChecksForChains,
   validateCoreIsmCompatibility,
 } from './utils.js';
+import { getSubmitterByStrategy } from './warp.js';
 
 interface DeployParams {
   context: WriteCommandContext;
@@ -35,6 +36,7 @@ interface DeployParams {
 
 interface ApplyParams extends DeployParams {
   deployedCoreAddresses: DeployedCoreAddresses;
+  strategyUrl?: string;
 }
 
 /**
@@ -163,6 +165,12 @@ export async function runCoreApply(params: ApplyParams) {
     default: {
       const signer = context.altVmSigner.get(chain);
 
+      const { submitter } = await getSubmitterByStrategy({
+        chain,
+        context: params.context,
+        strategyUrl: params.strategyUrl,
+      });
+
       const coreModule = new AltVMCoreModule(multiProvider, signer, {
         chain,
         config,
@@ -174,13 +182,7 @@ export async function runCoreApply(params: ApplyParams) {
       if (transactions.length) {
         logGray('Updating deployed core contracts');
 
-        if (signer.supportsTransactionBatching()) {
-          await signer.sendAndConfirmBatchTransactions(transactions);
-        } else {
-          for (const tx of transactions) {
-            await signer.sendAndConfirmTransaction(tx);
-          }
-        }
+        await submitter.submit(...transactions);
 
         logGreen(`Core config updated on ${chain}.`);
       } else {

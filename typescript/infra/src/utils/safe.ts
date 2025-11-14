@@ -5,14 +5,27 @@ import SafeApiKit, {
 import Safe from '@safe-global/protocol-kit';
 import {
   MetaTransactionData,
+  OperationType,
   SafeTransaction,
 } from '@safe-global/safe-core-sdk-types';
 import chalk from 'chalk';
 import { BigNumber, ethers } from 'ethers';
 import { formatUnits } from 'ethers/lib/utils.js';
+import {
+  Hex,
+  bytesToHex,
+  decodeFunctionData,
+  encodePacked,
+  getAddress,
+  isHex,
+  parseAbi,
+  toBytes,
+} from 'viem';
 
+import { ISafe__factory } from '@hyperlane-xyz/core';
 import {
   AnnotatedEV5Transaction,
+  ChainName,
   ChainNameOrId,
   MultiProvider,
   getSafe,
@@ -21,29 +34,87 @@ import {
 import {
   Address,
   CallData,
+  deepCopy,
   eqAddress,
   retryAsync,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { Contexts } from '../../config/contexts.js';
+import { getSecretDeployerKey } from '../agents/index.js';
 // eslint-disable-next-line import/no-cycle
 import { AnnotatedCallData } from '../govern/HyperlaneAppGovernor.js';
+
+import { fetchGCPSecret } from './gcloud.js';
 
 const TX_FETCH_RETRIES = 5;
 const TX_FETCH_RETRY_DELAY = 5000;
 
+const safeApiKeySecretName = 'gnosis-safe-api-key';
+
+const MIN_SAFE_API_VERSION = '5.18.0';
+
+export async function getSafeApiKey(): Promise<string> {
+  return (await fetchGCPSecret(safeApiKeySecretName, false)) as string;
+}
+
 export async function getSafeAndService(
-  chain: ChainNameOrId,
+  chain: ChainName,
   multiProvider: MultiProvider,
   safeAddress: Address,
 ) {
-  const safeService: SafeApiKit.default = getSafeService(chain, multiProvider);
-  const safeSdk: Safe.default = await retryAsync(
-    () => getSafe(chain, multiProvider, safeAddress),
-    5,
-    1000,
+  let safeService: SafeApiKit.default;
+  try {
+    safeService = getSafeService(chain, multiProvider);
+  } catch (error) {
+    throw new Error(
+      `Failed to initialize Safe service for chain ${chain}: ${error}`,
+    );
+  }
+
+  const { version } = await safeService.getServiceInfo();
+  const isLegacy = await isLegacySafeApi(version);
+  if (isLegacy) {
+    throw new Error(
+      `The Safe Transaction Service API for chain "${chain}" is running an outdated (legacy) version. ` +
+        `Please contact the API owner to upgrade to at least version ${MIN_SAFE_API_VERSION} or newer. ` +
+        `This application requires Safe Transaction Service version ${MIN_SAFE_API_VERSION} or higher to function correctly.`,
+    );
+  }
+
+  const deployerKey = await getSecretDeployerKey(
+    'mainnet3',
+    Contexts.Hyperlane,
+    chain,
   );
+  let safeSdk: Safe.default;
+  try {
+    safeSdk = await retryAsync(
+      () => getSafe(chain, multiProvider, safeAddress, deployerKey),
+      5,
+      1000,
+    );
+  } catch (error) {
+    throw new Error(`Failed to initialize Safe for chain ${chain}: ${error}`);
+  }
   return { safeSdk, safeService };
+}
+
+export async function isLegacySafeApi(version?: string): Promise<boolean> {
+  if (!version) {
+    throw new Error('Version is required');
+  }
+  // Compare semver: legacy if < MIN_SAFE_API_VERSION
+  const legacyVersion = MIN_SAFE_API_VERSION.split('.').map((v: string) =>
+    parseInt(v, 10),
+  );
+  const versionParts = version.split('.').map((v: string) => parseInt(v, 10));
+  for (let i = 0; i < legacyVersion.length; ++i) {
+    const v = versionParts[i] ?? 0;
+    if (v < legacyVersion[i]) return true;
+    if (v > legacyVersion[i]) return false;
+  }
+  return false;
 }
 
 export function createSafeTransactionData(call: CallData): MetaTransactionData {
@@ -55,7 +126,7 @@ export function createSafeTransactionData(call: CallData): MetaTransactionData {
 }
 
 export async function executeTx(
-  chain: ChainNameOrId,
+  chain: ChainName,
   multiProvider: MultiProvider,
   safeAddress: Address,
   safeTxHash: string,
@@ -104,15 +175,15 @@ export async function createSafeTransaction(
   safeSdk: Safe.default,
   safeService: SafeApiKit.default,
   safeAddress: Address,
-  safeTransactionData: MetaTransactionData[],
+  transactions: MetaTransactionData[],
   onlyCalls?: boolean,
   nonce?: number,
 ): Promise<SafeTransaction> {
   const nextNonce = await safeService.getNextNonce(safeAddress);
   return safeSdk.createTransaction({
-    safeTransactionData,
+    transactions,
     onlyCalls,
-    options: { nonce: nonce ?? nextNonce },
+    options: { nonce: Number(nonce ?? nextNonce) },
   });
 }
 
@@ -148,12 +219,16 @@ export async function deleteAllPendingSafeTxs(
 ): Promise<void> {
   const txServiceUrl =
     multiProvider.getChainMetadata(chain).gnosisSafeTransactionServiceUrl;
+  const safeApiKey = await getSafeApiKey();
 
   // Fetch all pending transactions
-  const pendingTxsUrl = `${txServiceUrl}/api/v1/safes/${safeAddress}/multisig-transactions/?executed=false&limit=100`;
+  const pendingTxsUrl = `${txServiceUrl}/api/v2/safes/${safeAddress}/multisig-transactions/?executed=false&limit=100`;
   const pendingTxsResponse = await fetch(pendingTxsUrl, {
     method: 'GET',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${safeApiKey}`,
+    },
   });
 
   if (!pendingTxsResponse.ok) {
@@ -182,15 +257,19 @@ export async function getSafeTx(
 ): Promise<any> {
   const txServiceUrl =
     multiProvider.getChainMetadata(chain).gnosisSafeTransactionServiceUrl;
+  const safeApiKey = await getSafeApiKey();
 
-  const txDetailsUrl = `${txServiceUrl}/api/v1/multisig-transactions/${safeTxHash}/`;
+  const txDetailsUrl = `${txServiceUrl}/api/v2/multisig-transactions/${safeTxHash}/`;
 
   try {
     return await retryAsync(
       async () => {
         const txDetailsResponse = await fetch(txDetailsUrl, {
           method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${safeApiKey}`,
+          },
         });
 
         if (!txDetailsResponse.ok) {
@@ -222,12 +301,16 @@ export async function deleteSafeTx(
   const chainId = multiProvider.getEvmChainId(chain);
   const txServiceUrl =
     multiProvider.getChainMetadata(chain).gnosisSafeTransactionServiceUrl;
+  const safeApiKey = await getSafeApiKey();
 
   // Fetch the transaction details to get the proposer
-  const txDetailsUrl = `${txServiceUrl}/api/v1/multisig-transactions/${safeTxHash}/`;
+  const txDetailsUrl = `${txServiceUrl}/api/v2/multisig-transactions/${safeTxHash}/`;
   const txDetailsResponse = await fetch(txDetailsUrl, {
     method: 'GET',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${safeApiKey}`,
+    },
   });
 
   if (!txDetailsResponse.ok) {
@@ -295,10 +378,13 @@ export async function deleteSafeTx(
     );
 
     // Make the API call to delete the transaction
-    const deleteUrl = `${txServiceUrl}/api/v1/multisig-transactions/${safeTxHash}/`;
+    const deleteUrl = `${txServiceUrl}/api/v2/multisig-transactions/${safeTxHash}/`;
     const res = await fetch(deleteUrl, {
       method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${safeApiKey}`,
+      },
       body: JSON.stringify({ safeTxHash: safeTxHash, signature: signature }),
     });
 
@@ -342,6 +428,150 @@ export async function getOwnerChanges(
   return { ownersToRemove, ownersToAdd };
 }
 
+/**
+ * Sentinel value used in Safe's owner linked list.
+ * From OwnerManager.sol: address internal constant SENTINEL_OWNERS = address(0x1);
+ * https://github.com/safe-global/safe-core-sdk/blob/201c50ef97ff5c48661cbe71a013ad7dc2866ada/packages/protocol-kit/src/utils/constants.ts#L5
+ */
+const SENTINEL_OWNERS = '0x0000000000000000000000000000000000000001';
+
+/**
+ * Finds the prevOwner for a given owner in the Safe's linked list.
+ * Safe stores owners in a linked list where SENTINEL_OWNERS points to the first owner,
+ * and the last owner points back to SENTINEL_OWNERS.
+ *
+ * The owners array from getOwners() returns owners in linked list order, so:
+ * - owners[0] is pointed to by SENTINEL_OWNERS
+ * - owners[1] is pointed to by owners[0]
+ * - etc.
+ */
+function findPrevOwner(owners: Address[], targetOwner: Address): Address {
+  const targetIndex = owners.findIndex((owner) =>
+    eqAddress(owner, targetOwner),
+  );
+
+  if (targetIndex === -1) {
+    throw new Error(`Owner ${targetOwner} not found in owners list`);
+  }
+
+  // If it's the first owner, prev is the sentinel address
+  if (targetIndex === 0) {
+    return SENTINEL_OWNERS;
+  }
+
+  // Otherwise, prev is the owner before it in the array
+  return owners[targetIndex - 1];
+}
+
+/**
+ * Creates swapOwner transactions for 1-to-1 owner replacements.
+ * This is more efficient and succinct than remove+add operations.
+ *
+ * Note: Safe owners are stored in a linked list, so we need to swap them
+ * in order. When swapping consecutive owners, the prevOwner for the second
+ * swap needs to reference the NEW owner from the first swap.
+ *
+ * We manually craft the swapOwner calldata instead of using the Safe SDK's
+ * createSwapOwnerTx because the SDK calculates prevOwner based on the current
+ * Safe state, not the effective state after previous swaps in the same multicall.
+ */
+async function createSwapOwnerTransactions(
+  safeSdk: Safe.default,
+  currentOwners: Address[],
+  ownersToRemove: Address[],
+  ownersToAdd: Address[],
+): Promise<AnnotatedCallData[]> {
+  rootLogger.info(
+    chalk.magentaBright(
+      `Using swapOwner for ${ownersToRemove.length} owner replacement(s)`,
+    ),
+  );
+
+  // Build a mapping of owners to their positions in the currentOwners array
+  const ownerPositions = new Map<Address, number>();
+  currentOwners.forEach((owner, index) => {
+    ownerPositions.set(owner, index);
+  });
+
+  // Sort ownersToRemove by their position in the currentOwners array
+  // This is important because Safe owners are stored in a linked list, and we need
+  // to swap them in the correct order to handle the prevOwner parameter correctly.
+  const sortedOwnersToRemove = deepCopy(ownersToRemove).sort(
+    (a: Address, b: Address) => {
+      return (ownerPositions.get(a) ?? 0) - (ownerPositions.get(b) ?? 0);
+    },
+  );
+
+  // Track the effective owner list as we perform swaps
+  // This is crucial because when swapping consecutive owners in the linked list,
+  // the prevOwner for the second swap needs to reference the NEW owner from the
+  // first swap (since we just modified the linked list).
+  const effectiveOwners = deepCopy(currentOwners);
+
+  const transactions: AnnotatedCallData[] = [];
+
+  // Get the Safe contract address
+  const safeAddress = await safeSdk.getAddress();
+
+  // Pair each old owner with the corresponding new owner
+  for (let i = 0; i < sortedOwnersToRemove.length; i++) {
+    const oldOwner = sortedOwnersToRemove[i];
+    const newOwner = ownersToAdd[i];
+
+    // Find the prevOwner based on the effective owners list
+    const prevOwner = findPrevOwner(effectiveOwners, oldOwner);
+
+    // Find the old owner's position in the effective owners list
+    const oldOwnerIndex = effectiveOwners.findIndex((owner: Address) =>
+      eqAddress(owner, oldOwner),
+    );
+
+    // Update the effective owners list to reflect this swap
+    // This ensures that subsequent swaps use the correct prevOwner
+    if (oldOwnerIndex !== -1) {
+      effectiveOwners[oldOwnerIndex] = newOwner;
+    }
+
+    // Manually encode the swapOwner calldata with the correct prevOwner
+    const data = ISafe__factory.createInterface().encodeFunctionData(
+      'swapOwner',
+      [prevOwner, oldOwner, newOwner],
+    );
+
+    transactions.push({
+      to: safeAddress,
+      data,
+      value: BigNumber.from(0),
+      description: `Swap safe owner ${oldOwner} with ${newOwner} (prevOwner: ${prevOwner})`,
+    });
+  }
+
+  return transactions;
+}
+
+/**
+ * Creates a threshold change transaction.
+ */
+async function createThresholdTransaction(
+  safeSdk: Safe.default,
+  currentThreshold: number,
+  newThreshold: number,
+): Promise<AnnotatedCallData> {
+  rootLogger.info(
+    chalk.magentaBright(
+      `Threshold change ${currentThreshold} => ${newThreshold}`,
+    ),
+  );
+  const { data: thresholdTxData } =
+    await safeSdk.createChangeThresholdTx(newThreshold);
+  return {
+    to: thresholdTxData.to,
+    data: thresholdTxData.data,
+    value: BigNumber.from(thresholdTxData.value),
+    description: `Change safe threshold to ${newThreshold}`,
+  };
+}
+
 export async function updateSafeOwner({
   safeSdk,
   owners,
@@ -365,52 +595,34 @@ export async function updateSafeOwner({
   rootLogger.info(chalk.magentaBright('Owners to remove:', ownersToRemove));
   rootLogger.info(chalk.magentaBright('Owners to add:', ownersToAdd));
 
+  // Validate that we have equal numbers of adds and removes (swaps only)
+  if (ownersToRemove.length !== ownersToAdd.length) {
+    throw new Error(
+      `Owner changes must be 1-to-1 swaps. Found ${ownersToRemove.length} removals and ${ownersToAdd.length} additions.`,
+    );
+  }
+
   const transactions: AnnotatedCallData[] = [];
 
-  for (const ownerToRemove of ownersToRemove) {
-    const { data: removeTxData } = await safeSdk.createRemoveOwnerTx({
-      ownerAddress: ownerToRemove,
-      threshold: newThreshold,
-    });
-    transactions.push({
-      to: removeTxData.to,
-      data: removeTxData.data,
-      value: BigNumber.from(removeTxData.value),
-      description: `Remove safe owner ${ownerToRemove}`,
-    });
-  }
-
-  for (const ownerToAdd of ownersToAdd) {
-    const { data: addTxData } = await safeSdk.createAddOwnerTx({
-      ownerAddress: ownerToAdd,
-      threshold: newThreshold,
-    });
-    transactions.push({
-      to: addTxData.to,
-      data: addTxData.data,
-      value: BigNumber.from(addTxData.value),
-      description: `Add safe owner ${ownerToAdd}`,
-    });
-  }
-
-  if (
-    ownersToRemove.length === 0 &&
-    ownersToAdd.length === 0 &&
-    currentThreshold !== newThreshold
-  ) {
-    rootLogger.info(
-      chalk.magentaBright(
-        `Threshold change ${currentThreshold} => ${newThreshold}`,
-      ),
+  // Use swapOwner for all owner replacements
+  if (ownersToRemove.length > 0) {
+    const swapTxs = await createSwapOwnerTransactions(
+      safeSdk,
+      currentOwners,
+      ownersToRemove,
+      ownersToAdd,
     );
-    const { data: thresholdTxData } =
-      await safeSdk.createChangeThresholdTx(newThreshold);
-    transactions.push({
-      to: thresholdTxData.to,
-      data: thresholdTxData.data,
-      value: BigNumber.from(thresholdTxData.value),
-      description: `Change safe threshold to ${newThreshold}`,
-    });
+    transactions.push(...swapTxs);
+  }
+
+  // Handle threshold change (swapOwner doesn't take a threshold parameter)
+  if (currentThreshold !== newThreshold) {
+    const thresholdTx = await createThresholdTransaction(
+      safeSdk,
+      currentThreshold,
+      newThreshold,
+    );
+    transactions.push(thresholdTx);
   }
 
   return transactions;
@@ -524,7 +736,7 @@ export async function getPendingTxsForChains(
 
           txs.push({
             chain,
-            nonce,
+            nonce: Number(nonce),
             submissionDate: new Date(submissionDate).toDateString(),
             shortTxHash: `${safeTxHash.slice(0, 6)}...${safeTxHash.slice(-4)}`,
             fullTxHash: safeTxHash,
@@ -545,27 +757,57 @@ export async function getPendingTxsForChains(
 }
 
 export function parseSafeTx(tx: AnnotatedEV5Transaction) {
-  const safeInterface = new ethers.utils.Interface([
-    'function execTransaction(address to, uint256 value, bytes data, uint8 operation, uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken, address refundReceiver, bytes signatures)',
-    'function approveHash(bytes32 hashToApprove)',
-    'function addOwnerWithThreshold(address owner, uint256 _threshold)',
-    'function removeOwner(address prevOwner, address owner, uint256 _threshold)',
-    'function swapOwner(address prevOwner, address oldOwner, address newOwner)',
-    'function changeThreshold(uint256 _threshold)',
-    'function enableModule(address module)',
-    'function disableModule(address prevModule, address module)',
-    'function setGuard(address guard)',
-    'function setFallbackHandler(address handler)',
-    'function execTransactionFromModule(address to, uint256 value, bytes data, uint8 operation)',
-    'function execTransactionFromModuleReturnData(address to, uint256 value, bytes data, uint8 operation)',
-    'function setup(address[] _owners, uint256 _threshold, address to, bytes data, address fallbackHandler, address paymentToken, uint256 payment, address payable paymentReceiver)',
-    'function simulateAndRevert(address targetContract, bytes calldataPayload)',
-  ]);
-
-  const decoded = safeInterface.parseTransaction({
+  const decoded = ISafe__factory.createInterface().parseTransaction({
     data: tx.data ?? '0x',
     value: tx.value,
   });
 
   return decoded;
+}
+
+// Copied from https://github.com/safe-global/safe-core-sdk/blob/201c50ef97ff5c48661cbe71a013ad7dc2866ada/packages/protocol-kit/src/utils/types.ts#L15-L17
+export function asHex(hex?: string): Hex {
+  return isHex(hex) ? (hex as Hex) : (`0x${hex}` as Hex);
+}
+
+// Copied from https://github.com/safe-global/safe-core-sdk/blob/201c50ef97ff5c48661cbe71a013ad7dc2866ada/packages/protocol-kit/src/utils/transactions/utils.ts#L159-L193
+export function decodeMultiSendData(
+  encodedData: string,
+): MetaTransactionData[] {
+  const decodedData = decodeFunctionData({
+    abi: parseAbi([
+      'function multiSend(bytes memory transactions) public payable',
+    ]),
+    data: asHex(encodedData),
+  });
+
+  const args = decodedData.args;
+  const txs: MetaTransactionData[] = [];
+
+  // Decode after 0x
+  let index = 2;
+
+  if (args) {
+    const [transactionBytes] = args;
+    while (index < transactionBytes.length) {
+      // As we are decoding hex encoded bytes calldata, each byte is represented by 2 chars
+      // uint8 operation, address to, value uint256, dataLength uint256
+
+      const operation = `0x${transactionBytes.slice(index, (index += 2))}`;
+      const to = `0x${transactionBytes.slice(index, (index += 40))}`;
+      const value = `0x${transactionBytes.slice(index, (index += 64))}`;
+      const dataLength =
+        parseInt(`${transactionBytes.slice(index, (index += 64))}`, 16) * 2;
+      const data = `0x${transactionBytes.slice(index, (index += dataLength))}`;
+
+      txs.push({
+        operation: Number(operation) as OperationType,
+        to: getAddress(to),
+        value: BigInt(value).toString(),
+        data,
+      });
+    }
+  }
+
+  return txs;
 }

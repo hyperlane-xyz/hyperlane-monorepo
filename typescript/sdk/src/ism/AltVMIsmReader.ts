@@ -26,6 +26,10 @@ export class AltVMIsmReader {
     try {
       const ism_type = await this.provider.getIsmType({ ismAddress: address });
 
+      this.logger.debug(
+        `Deriving ISM config with type ${ism_type} for address: ${address}`,
+      );
+
       switch (ism_type) {
         case AltVM.IsmType.MERKLE_ROOT_MULTISIG:
           return this.deriveMerkleRootMultisigConfig(address);
@@ -100,6 +104,10 @@ export class AltVMIsmReader {
     const domains: DomainRoutingIsmConfig['domains'] = {};
 
     for (const route of ism.routes) {
+      this.logger.debug(
+        `Deriving ism config for route with domain id ${route.domainId}`,
+      );
+
       const chainName = this.metadataManager.tryGetChainName(route.domainId);
       if (!chainName) {
         this.logger.warn(

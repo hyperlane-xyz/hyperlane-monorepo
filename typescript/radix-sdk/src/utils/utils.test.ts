@@ -5,9 +5,9 @@ import { addressToBytes32, assert, strip0x } from '@hyperlane-xyz/utils';
 
 import { getTransferRemoteManifest } from '../warp/populate.js';
 
-import { transactionManifestFromString } from './utils.js';
+import { stringToTransactionManifest } from './utils.js';
 
-describe(transactionManifestFromString.name, function () {
+describe(stringToTransactionManifest.name, function () {
   it('should convert a string manifest to an object manifest', async function () {
     const stringManifest = getTransferRemoteManifest({
       destination_domain: 1,
@@ -28,7 +28,7 @@ describe(transactionManifestFromString.name, function () {
       tokenAmount: '1',
     });
 
-    const res = await transactionManifestFromString(stringManifest, 1);
+    const res = await stringToTransactionManifest(stringManifest, 1);
 
     expect(res.instructions.kind).to.eq(InstructionsKind.Parsed);
     expect(res.instructions.value).to.be.an('array');

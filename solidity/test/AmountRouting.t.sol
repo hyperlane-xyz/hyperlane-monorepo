@@ -141,7 +141,7 @@ contract AmountRoutingTest is Test {
     function test_hookType() public view {
         assertEq(
             hook.hookType(),
-            uint8(IPostDispatchHook.Types.AMOUNT_ROUTING)
+            uint8(IPostDispatchHook.HookTypes.AMOUNT_ROUTING)
         );
     }
 

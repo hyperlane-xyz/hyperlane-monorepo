@@ -171,13 +171,13 @@ mod tests {
     use crate::{
         merkle_tree::builder::MerkleTreeBuilder,
         msg::{
-            db_loader::test::{dummy_cache_metrics, DummyApplicationOperationVerifier},
+            db_loader::tests::{dummy_cache_metrics, DummyApplicationOperationVerifier},
             gas_payment::GasPaymentEnforcer,
             metadata::{
                 BaseMetadataBuilder, DefaultIsmCache, IsmAwareAppContextClassifier,
                 IsmCachePolicyClassifier,
             },
-            op_queue::test::MockPendingOperation,
+            op_queue::tests::MockPendingOperation,
             pending_message::{MessageContext, PendingMessage},
         },
         settings::{
@@ -429,7 +429,7 @@ mod tests {
                 message.clone(),
                 message_context.clone(),
                 PendingOperationStatus::FirstPrepareAttempt,
-                Some(format!("test-{}", b)),
+                Some(format!("test-{b}")),
                 attempts,
             );
             pending_message.submission_data = Some(Box::new(MessageSubmissionData {

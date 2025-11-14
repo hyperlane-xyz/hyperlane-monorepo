@@ -8,8 +8,10 @@ import {
   ProtocolType,
   assert,
   deepEquals,
+  eqAddress,
   intersection,
   rootLogger,
+  sleep,
 } from '@hyperlane-xyz/utils';
 
 import {
@@ -217,6 +219,8 @@ export class AltVMIsmModule<PT extends ProtocolType> extends HyperlaneModule<
       validators: config.validators,
       threshold: config.threshold,
     });
+
+    this.logger.debug(`Deployed merkle root multisig ISM to ${ismAddress}`);
     return ismAddress;
   }
 
@@ -231,6 +235,8 @@ export class AltVMIsmModule<PT extends ProtocolType> extends HyperlaneModule<
       validators: config.validators,
       threshold: config.threshold,
     });
+
+    this.logger.debug(`Deployed message id multisig ISM to ${ismAddress}`);
     return ismAddress;
   }
 
@@ -259,6 +265,15 @@ export class AltVMIsmModule<PT extends ProtocolType> extends HyperlaneModule<
     const { ismAddress } = await this.signer.createRoutingIsm({
       routes,
     });
+
+    if (!eqAddress(this.signer.getSignerAddress(), config.owner)) {
+      await this.signer.setRoutingIsmOwner({
+        ismAddress,
+        newOwner: config.owner,
+      });
+    }
+
+    this.logger.debug(`Deployed routing ISM to ${ismAddress}`);
     return ismAddress;
   }
 
@@ -271,6 +286,8 @@ export class AltVMIsmModule<PT extends ProtocolType> extends HyperlaneModule<
     expected: DomainRoutingIsmConfig;
     logger: Logger;
   }): Promise<AnnotatedTypedTransaction<PT>[]> {
+    this.logger.debug(`Start creating routing ISM update transactions`);
+
     const updateTxs: AnnotatedTypedTransaction<PT>[] = [];
 
     const knownChains = new Set(this.metadataManager.getKnownChainNames());
@@ -291,11 +308,21 @@ export class AltVMIsmModule<PT extends ProtocolType> extends HyperlaneModule<
         config: expected.domains[origin],
       });
 
+      const { blocks } = this.metadataManager.getChainMetadata(this.chain);
+
+      if (blocks) {
+        // we assume at least one confirmation
+        const confirmations = blocks.confirmations ?? 1;
+        const estimateBlockTime = blocks.estimateBlockTime ?? 0;
+
+        await sleep(confirmations * estimateBlockTime);
+      }
+
       const domainId = this.metadataManager.getDomainId(origin);
       updateTxs.push({
         annotation: `Setting new ISM for origin ${origin}...`,
         ...(await this.signer.getSetRoutingIsmRouteTransaction({
-          signer: this.signer.getSignerAddress(),
+          signer: actual.owner,
           ismAddress: this.args.addresses.deployedIsm,
           route: {
             ismAddress,
@@ -316,7 +343,7 @@ export class AltVMIsmModule<PT extends ProtocolType> extends HyperlaneModule<
       updateTxs.push({
         annotation: `Unenrolling originDomain ${domainId} from preexisting routing ISM at ${this.args.addresses.deployedIsm}...`,
         ...(await this.signer.getRemoveRoutingIsmRouteTransaction({
-          signer: this.signer.getSignerAddress(),
+          signer: actual.owner,
           ismAddress: this.args.addresses.deployedIsm,
           domainId,
         })),
@@ -330,18 +357,24 @@ export class AltVMIsmModule<PT extends ProtocolType> extends HyperlaneModule<
           actual.owner
         } to ${expected.owner}`,
         ...(await this.signer.getSetRoutingIsmOwnerTransaction({
-          signer: this.signer.getSignerAddress(),
+          signer: actual.owner,
           ismAddress: this.args.addresses.deployedIsm,
           newOwner: expected.owner,
         })),
       });
     }
 
+    this.logger.debug(
+      `Created ${updateTxs.length} update routing ISM transactions.`,
+    );
+
     return updateTxs;
   }
 
   protected async deployNoopIsm(): Promise<Address> {
     const { ismAddress } = await this.signer.createNoopIsm({});
+
+    this.logger.debug(`Deployed noop ISM to ${ismAddress}`);
     return ismAddress;
   }
 }

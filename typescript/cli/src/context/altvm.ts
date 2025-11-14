@@ -4,6 +4,7 @@ import {
   CosmosNativeProvider,
   CosmosNativeSigner,
 } from '@hyperlane-xyz/cosmos-sdk';
+import { RadixProvider, RadixSigner } from '@hyperlane-xyz/radix-sdk';
 import {
   AltVMJsonRpcTxSubmitter,
   AnyProtocolReceipt,
@@ -15,7 +16,6 @@ import {
   SubmitterFactory,
   SubmitterMetadata,
   TxSubmitterType,
-  isJsonRpcSubmitterConfig,
 } from '@hyperlane-xyz/sdk';
 import {
   AltVM,
@@ -24,7 +24,11 @@ import {
   assert,
 } from '@hyperlane-xyz/utils';
 
-import { ExtendedChainSubmissionStrategy } from '../submitters/types.js';
+import { AltVMFileSubmitter } from '../submitters/AltVMFileSubmitter.js';
+import {
+  CustomTxSubmitterType,
+  ExtendedChainSubmissionStrategy,
+} from '../submitters/types.js';
 
 import { SignerKeyProtocolMap } from './types.js';
 
@@ -40,13 +44,17 @@ const ALT_VM_SUPPORTED_PROTOCOLS: AltVMProtocol = {
       AVS_GAS: BigInt(3e6),
     },
   },
+  [ProtocolType.Radix]: {
+    provider: RadixProvider,
+    signer: RadixSigner,
+  },
   // [NEW PROTOCOL]: {...}
 };
 
 type AltVMProtocol = ProtocolMap<{
   provider: AltVM.IProviderConnect;
   signer: AltVM.ISignerConnect<AnyProtocolTransaction, AnyProtocolReceipt>;
-  gas: MinimumRequiredGasByAction;
+  gas?: MinimumRequiredGasByAction;
 }>;
 
 class AltVMSupportedProtocols implements AltVM.ISupportedProtocols {
@@ -63,6 +71,15 @@ class AltVMSupportedProtocols implements AltVM.ISupportedProtocols {
 
     if (!protocolDefinition) {
       throw new Error(`Protocol type ${protocol} not supported in AltVM`);
+    }
+
+    if (!protocolDefinition.gas) {
+      return {
+        CORE_DEPLOY_GAS: BigInt(0),
+        WARP_DEPLOY_GAS: BigInt(0),
+        TEST_SEND_GAS: BigInt(0),
+        AVS_GAS: BigInt(0),
+      };
     }
 
     return protocolDefinition.gas;
@@ -93,6 +110,8 @@ export class AltVMProviderFactory
 
     return protocolDefinition.provider.connect(
       metadata.rpcUrls.map((rpc) => rpc.http),
+      metadata.chainId,
+      { metadata },
     );
   }
 }
@@ -149,19 +168,16 @@ export class AltVMSignerFactory
     // was provided for our chain where we can read our private key
     if (strategyConfig[chain]) {
       const rawConfig = strategyConfig[chain]!.submitter;
-      if (!isJsonRpcSubmitterConfig(rawConfig)) {
-        throw new Error(
-          `found unknown submitter in strategy config for chain ${chain}`,
-        );
-      }
 
-      if (!rawConfig.privateKey) {
-        throw new Error(
-          `missing private key in strategy config for chain ${chain}`,
-        );
-      }
+      if (rawConfig.type === TxSubmitterType.JSON_RPC) {
+        if (!rawConfig.privateKey) {
+          throw new Error(
+            `missing private key in strategy config for chain ${chain}`,
+          );
+        }
 
-      return rawConfig.privateKey;
+        return rawConfig.privateKey;
+      }
     }
 
     // 3. Finally, if no key flag or strategy was provided we prompt the user
@@ -187,20 +203,10 @@ export class AltVMSignerFactory
     for (const chain of chains) {
       const metadata = metadataManager.getChainMetadata(chain);
 
-      if (metadata.protocol === ProtocolType.Ethereum) {
-        continue;
-      }
-
-      if (metadata.protocol === ProtocolType.Sealevel) {
-        continue;
-      }
-
       const protocol = ALT_VM_SUPPORTED_PROTOCOLS[metadata.protocol];
 
       if (!protocol) {
-        throw new Error(
-          `Chain ${chain} with protocol type ${metadata.protocol} not supported in AltVM`,
-        );
+        continue;
       }
 
       const privateKey = await AltVMSignerFactory.loadPrivateKey(
@@ -222,13 +228,23 @@ export class AltVMSignerFactory
     return new AltVMSignerFactory(metadataManager, signers);
   }
 
-  public submitterFactories(): ProtocolMap<Record<string, SubmitterFactory>> {
+  public submitterFactories(
+    chain: string,
+  ): ProtocolMap<Record<string, SubmitterFactory>> {
+    const protocol = this.metadataManager.getProtocol(chain);
+
     const factories: ProtocolMap<Record<string, SubmitterFactory>> = {};
+
+    if (!ALT_VM_SUPPORTED_PROTOCOLS[protocol]) {
+      return factories;
+    }
+
+    const signer = this.get(chain);
 
     for (const protocol of this.getSupportedProtocols()) {
       factories[protocol] = {
         [TxSubmitterType.JSON_RPC]: (
-          multiProvider: MultiProvider,
+          _multiProvider: MultiProvider,
           metadata: SubmitterMetadata,
         ) => {
           // Used to type narrow metadata
@@ -236,7 +252,13 @@ export class AltVMSignerFactory
             metadata.type === TxSubmitterType.JSON_RPC,
             `Invalid metadata type: ${metadata.type}, expected ${TxSubmitterType.JSON_RPC}`,
           );
-          return new AltVMJsonRpcTxSubmitter(multiProvider, this, metadata);
+          return new AltVMJsonRpcTxSubmitter(signer, metadata);
+        },
+        [CustomTxSubmitterType.FILE]: (
+          _multiProvider: MultiProvider,
+          metadata: any,
+        ) => {
+          return new AltVMFileSubmitter(signer, metadata);
         },
       };
     }

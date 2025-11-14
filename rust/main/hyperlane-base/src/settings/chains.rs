@@ -19,6 +19,7 @@ use hyperlane_core::{
 use hyperlane_metric::prometheus_metric::ChainInfo;
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
 
+use hyperlane_aleo::{self as h_aleo, AleoProvider};
 use hyperlane_cosmos::{
     self as h_cosmos, cw::CwQueryClient, native::ModuleQueryClient, CosmosProvider,
 };
@@ -31,7 +32,7 @@ use hyperlane_radix::{self as h_radix, RadixProvider};
 use hyperlane_sealevel::{
     self as h_sealevel, fallback::SealevelFallbackRpcClient, SealevelProvider, TransactionSubmitter,
 };
-use hyperlane_starknet::{self as h_starknet};
+use hyperlane_starknet::{self as h_starknet, StarknetProvider};
 
 use crate::{
     metrics::AgentMetricsConf,
@@ -177,6 +178,8 @@ pub enum ChainConnectionConf {
     CosmosNative(h_cosmos::ConnectionConf),
     /// Radix configuration
     Radix(h_radix::ConnectionConf),
+    /// Aleo configuration
+    Aleo(h_aleo::ConnectionConf),
 }
 
 impl ChainConnectionConf {
@@ -190,6 +193,7 @@ impl ChainConnectionConf {
             Self::Starknet(_) => HyperlaneDomainProtocol::Starknet,
             Self::CosmosNative(_) => HyperlaneDomainProtocol::CosmosNative,
             Self::Radix(_) => HyperlaneDomainProtocol::Radix,
+            Self::Aleo(_) => HyperlaneDomainProtocol::Aleo,
         }
     }
 
@@ -264,7 +268,6 @@ impl ChainConf {
                 h_starknet::application::StarknetApplicationOperationVerifier::new(),
             )
                 as Box<dyn ApplicationOperationVerifier>),
-            // applicatino verification is the same for cosmos native and cw
             ChainConnectionConf::CosmosNative(_) => Ok(Box::new(
                 h_cosmos::application::CosmosApplicationOperationVerifier::new(),
             )
@@ -273,6 +276,7 @@ impl ChainConf {
                 h_radix::application::RadixApplicationOperationVerifier::new(),
             )
                 as Box<dyn ApplicationOperationVerifier>),
+            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
         };
 
         result.context(ctx)
@@ -309,7 +313,7 @@ impl ChainConf {
                 Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
             }
             ChainConnectionConf::Starknet(conf) => {
-                let provider = h_starknet::StarknetProvider::new(locator.domain.clone(), conf);
+                let provider = build_starknet_provider(self, conf, metrics, &locator)?;
                 Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
             }
             ChainConnectionConf::CosmosNative(conf) => {
@@ -318,6 +322,10 @@ impl ChainConf {
             }
             ChainConnectionConf::Radix(conf) => {
                 let provider = build_radix_provider(self, conf, metrics, &locator, None)?;
+                Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
+            }
+            ChainConnectionConf::Aleo(conf) => {
+                let provider = build_aleo_provider(self, conf, metrics, &locator)?;
                 Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
             }
         }
@@ -369,7 +377,8 @@ impl ChainConf {
             }
             ChainConnectionConf::Starknet(conf) => {
                 let signer = self.starknet_signer().await.context(ctx)?;
-                h_starknet::StarknetMailbox::new(conf, &locator, signer)
+                let provider = build_starknet_provider(self, conf, metrics, &locator)?;
+                h_starknet::StarknetMailbox::new(provider, conf, &locator, signer)
                     .await
                     .map(|m| Box::new(m) as Box<dyn Mailbox>)
                     .map_err(Into::into)
@@ -387,6 +396,7 @@ impl ChainConf {
                 let mailbox = h_radix::RadixMailbox::new(provider, &locator, conf)?;
                 Ok(Box::new(mailbox) as Box<dyn Mailbox>)
             }
+            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
         }
         .context(ctx)
     }
@@ -425,7 +435,8 @@ impl ChainConf {
                 Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
             }
             ChainConnectionConf::Starknet(conf) => {
-                let hook = h_starknet::StarknetMerkleTreeHook::new(conf, &locator)?;
+                let provider = build_starknet_provider(self, conf, metrics, &locator)?;
+                let hook = h_starknet::StarknetMerkleTreeHook::new(provider, conf, &locator)?;
                 Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
             }
             ChainConnectionConf::CosmosNative(conf) => {
@@ -441,6 +452,7 @@ impl ChainConf {
 
                 Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
             }
+            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
         }
         .context(ctx)
     }
@@ -495,8 +507,9 @@ impl ChainConf {
                 Ok(indexer as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
             }
             ChainConnectionConf::Starknet(conf) => {
+                let provider = build_starknet_provider(self, conf, metrics, &locator)?;
                 let indexer = Box::new(h_starknet::StarknetMailboxIndexer::new(
-                    conf.clone(),
+                    provider,
                     locator,
                     &self.reorg_period,
                 )?);
@@ -516,6 +529,7 @@ impl ChainConf {
 
                 Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
             }
+            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
         }
         .context(ctx)
     }
@@ -566,8 +580,9 @@ impl ChainConf {
                 Ok(indexer as Box<dyn SequenceAwareIndexer<H256>>)
             }
             ChainConnectionConf::Starknet(conf) => {
+                let provider = build_starknet_provider(self, conf, metrics, &locator)?;
                 let indexer = Box::new(h_starknet::StarknetMailboxIndexer::new(
-                    conf.clone(),
+                    provider,
                     locator,
                     &self.reorg_period,
                 )?);
@@ -587,6 +602,7 @@ impl ChainConf {
 
                 Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<H256>>)
             }
+            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
         }
         .context(ctx)
     }
@@ -630,8 +646,10 @@ impl ChainConf {
                 Ok(paymaster as Box<dyn InterchainGasPaymaster>)
             }
             ChainConnectionConf::Starknet(conf) => {
+                let provider = build_starknet_provider(self, conf, metrics, &locator)?;
                 let paymaster = Box::new(h_starknet::StarknetInterchainGasPaymaster::new(
-                    conf, &locator,
+                    provider,
+                    conf.clone(),
                 )?);
                 Ok(paymaster as Box<dyn InterchainGasPaymaster>)
             }
@@ -649,6 +667,7 @@ impl ChainConf {
                 )?);
                 Ok(indexer as Box<dyn InterchainGasPaymaster>)
             }
+            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
         }
         .context(ctx)
     }
@@ -717,6 +736,7 @@ impl ChainConf {
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
             }
+            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
         }
         .context(ctx)
     }
@@ -771,8 +791,9 @@ impl ChainConf {
                 Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
             }
             ChainConnectionConf::Starknet(conf) => {
+                let provider = build_starknet_provider(self, conf, metrics, &locator)?;
                 let indexer = Box::new(h_starknet::StarknetMerkleTreeHookIndexer::new(
-                    conf.clone(),
+                    provider,
                     locator,
                     &self.reorg_period,
                 )?);
@@ -792,6 +813,7 @@ impl ChainConf {
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
             }
+            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
         }
         .context(ctx)
     }
@@ -837,9 +859,15 @@ impl ChainConf {
             }
             ChainConnectionConf::Starknet(conf) => {
                 let signer = self.starknet_signer().await.context(ctx)?;
+                let provider = build_starknet_provider(self, conf, metrics, &locator)?;
                 let va = Box::new(
-                    h_starknet::StarknetValidatorAnnounce::new(conf, &locator.clone(), signer)
-                        .await?,
+                    h_starknet::StarknetValidatorAnnounce::new(
+                        provider,
+                        conf,
+                        &locator.clone(),
+                        signer,
+                    )
+                    .await?,
                 );
                 Ok(va as Box<dyn ValidatorAnnounce>)
             }
@@ -860,6 +888,7 @@ impl ChainConf {
                     h_radix::RadixValidatorAnnounce::new(provider, &locator, conf)?;
                 Ok(Box::new(validator_announce) as Box<dyn ValidatorAnnounce>)
             }
+            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
         }
         .context("Building ValidatorAnnounce")
     }
@@ -906,8 +935,9 @@ impl ChainConf {
                 Ok(ism as Box<dyn InterchainSecurityModule>)
             }
             ChainConnectionConf::Starknet(conf) => {
+                let provider = build_starknet_provider(self, conf, metrics, &locator)?;
                 let ism = Box::new(h_starknet::StarknetInterchainSecurityModule::new(
-                    conf, &locator,
+                    provider, conf, &locator,
                 )?);
                 Ok(ism as Box<dyn InterchainSecurityModule>)
             }
@@ -921,6 +951,7 @@ impl ChainConf {
                 let ism = h_radix::RadixIsm::new(provider, &locator, conf)?;
                 Ok(Box::new(ism) as Box<dyn InterchainSecurityModule>)
             }
+            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
         }
         .context(ctx)
     }
@@ -939,7 +970,6 @@ impl ChainConf {
                 self.build_ethereum(conf, &locator, metrics, h_eth::MultisigIsmBuilder {})
                     .await
             }
-
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let keypair = self.sealevel_signer().await.context(ctx)?;
@@ -960,7 +990,10 @@ impl ChainConf {
                 Ok(ism as Box<dyn MultisigIsm>)
             }
             ChainConnectionConf::Starknet(conf) => {
-                let ism = Box::new(h_starknet::StarknetMultisigIsm::new(conf, &locator)?);
+                let provider = build_starknet_provider(self, conf, metrics, &locator)?;
+                let ism = Box::new(h_starknet::StarknetMultisigIsm::new(
+                    provider, conf, &locator,
+                )?);
                 Ok(ism as Box<dyn MultisigIsm>)
             }
             ChainConnectionConf::CosmosNative(conf) => {
@@ -973,6 +1006,7 @@ impl ChainConf {
                 let ism = h_radix::RadixIsm::new(provider, &locator, conf)?;
                 Ok(Box::new(ism) as Box<dyn MultisigIsm>)
             }
+            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
         }
         .context(ctx)
     }
@@ -1006,7 +1040,10 @@ impl ChainConf {
                 Ok(ism as Box<dyn RoutingIsm>)
             }
             ChainConnectionConf::Starknet(conf) => {
-                let ism = Box::new(h_starknet::StarknetRoutingIsm::new(conf, &locator)?);
+                let provider = build_starknet_provider(self, conf, metrics, &locator)?;
+                let ism = Box::new(h_starknet::StarknetRoutingIsm::new(
+                    provider, conf, &locator,
+                )?);
                 Ok(ism as Box<dyn RoutingIsm>)
             }
             ChainConnectionConf::CosmosNative(conf) => {
@@ -1019,6 +1056,7 @@ impl ChainConf {
                 let ism = h_radix::RadixIsm::new(provider, &locator, conf)?;
                 Ok(Box::new(ism) as Box<dyn RoutingIsm>)
             }
+            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
         }
         .context(ctx)
     }
@@ -1055,7 +1093,10 @@ impl ChainConf {
                 Ok(ism as Box<dyn AggregationIsm>)
             }
             ChainConnectionConf::Starknet(conf) => {
-                let ism = Box::new(h_starknet::StarknetAggregationIsm::new(conf, &locator)?);
+                let provider = build_starknet_provider(self, conf, metrics, &locator)?;
+                let ism = Box::new(h_starknet::StarknetAggregationIsm::new(
+                    provider, conf, &locator,
+                )?);
 
                 Ok(ism as Box<dyn AggregationIsm>)
             }
@@ -1065,6 +1106,7 @@ impl ChainConf {
             ChainConnectionConf::Radix(_) => {
                 todo!("Radix aggregation ISM not yet implemented")
             }
+            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
         }
         .context(ctx)
     }
@@ -1102,6 +1144,7 @@ impl ChainConf {
             ChainConnectionConf::Radix(_) => {
                 Err(eyre!("Radix does not support CCIP read ISM yet")).context(ctx)
             }
+            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
         }
         .context(ctx)
     }
@@ -1135,6 +1178,7 @@ impl ChainConf {
                 ChainConnectionConf::Radix(_) => {
                     Box::new(conf.build::<h_radix::RadixSigner>().await?)
                 }
+                ChainConnectionConf::Aleo(_) => return Ok(None),
             };
             Ok(Some(chain_signer))
         } else {
@@ -1334,9 +1378,43 @@ fn build_cosmos_native_provider(
 fn build_radix_provider(
     chain_conf: &ChainConf,
     connection_conf: &h_radix::ConnectionConf,
-    _metrics: &CoreMetrics,
+    metrics: &CoreMetrics,
     locator: &ContractLocator,
     signer: Option<h_radix::RadixSigner>,
 ) -> ChainResult<RadixProvider> {
-    RadixProvider::new(signer, connection_conf, locator, &chain_conf.reorg_period)
+    let middleware_metrics = chain_conf.metrics_conf();
+    let metrics = metrics.client_metrics();
+    RadixProvider::new(
+        signer,
+        connection_conf,
+        locator,
+        &chain_conf.reorg_period,
+        metrics,
+        middleware_metrics.chain,
+    )
+}
+
+fn build_starknet_provider(
+    chain_conf: &ChainConf,
+    connection_conf: &h_starknet::ConnectionConf,
+    metrics: &CoreMetrics,
+    locator: &ContractLocator,
+) -> ChainResult<StarknetProvider> {
+    let middleware_metrics = chain_conf.metrics_conf();
+    let metrics = metrics.client_metrics();
+    Ok(StarknetProvider::new(
+        locator.domain.clone(),
+        connection_conf,
+        metrics.clone(),
+        middleware_metrics.chain.clone(),
+    ))
+}
+
+fn build_aleo_provider(
+    _chain_conf: &ChainConf,
+    connection_conf: &h_aleo::ConnectionConf,
+    _metrics: &CoreMetrics,
+    locator: &ContractLocator,
+) -> ChainResult<AleoProvider> {
+    AleoProvider::new(connection_conf, locator.domain.clone())
 }

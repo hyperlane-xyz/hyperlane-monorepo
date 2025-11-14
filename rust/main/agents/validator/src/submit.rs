@@ -128,8 +128,7 @@ impl ValidatorSubmitter {
             .await;
 
             self.metrics
-                .latest_checkpoint_observed
-                .set(latest_checkpoint.index as i64);
+                .set_latest_checkpoint_observed(&latest_checkpoint);
 
             if should_log_checkpoint_info() {
                 info!(
@@ -269,8 +268,7 @@ impl ValidatorSubmitter {
                 .await
             {
                 panic_message.push_str(&format!(
-                    " Reorg troubleshooting details couldn't be written to checkpoint storage: {}",
-                    e
+                    " Reorg troubleshooting details couldn't be written to checkpoint storage: {e}"
                 ));
             }
             panic!("{panic_message}");
@@ -497,6 +495,18 @@ impl ValidatorSubmitterMetrics {
                 .reached_initial_consistency()
                 .with_label_values(&[chain_name]),
         }
+    }
+
+    fn set_latest_checkpoint_observed(&self, checkpoint: &CheckpointAtBlock) {
+        let prev_checkpoint_index = self.latest_checkpoint_observed.get();
+
+        if prev_checkpoint_index > checkpoint.index as i64 {
+            tracing::warn!(
+                ?checkpoint,
+                prev_checkpoint_index,
+                checkpoint_index=checkpoint.index, "Observed a checkpoint with index that is lower than previous checkpoint. Did a reorg occur?");
+        }
+        self.latest_checkpoint_observed.set(checkpoint.index as i64);
     }
 }
 

@@ -23,6 +23,7 @@ use gateway_api_client::{
         TransactionStatusResponse,
     },
 };
+use hyperlane_metric::prometheus_metric::{ChainInfo, PrometheusClientMetrics};
 use radix_common::traits::ScryptoEvent;
 use radix_transactions::{
     builder::{
@@ -32,7 +33,8 @@ use radix_transactions::{
     prelude::DetailedNotarizedTransactionV2,
     signing::PrivateKey,
 };
-use reqwest::ClientBuilder;
+use reqwest::Client;
+use reqwest_utils::parse_custom_rpc_headers;
 use scrypto::{
     address::AddressBech32Decoder,
     constants::XRD,
@@ -47,15 +49,21 @@ use scrypto::{
 };
 
 use hyperlane_core::{
-    rpc_clients::FallbackProvider, BlockInfo, ChainCommunicationError, ChainInfo, ChainResult,
+    rpc_clients::FallbackProvider, BlockInfo, ChainCommunicationError, ChainResult,
     ContractLocator, Encode, HyperlaneChain, HyperlaneDomain, HyperlaneProvider, LogMeta,
     ReorgPeriod, TxOutcome, TxnInfo, TxnReceiptInfo, H256, H512, U256,
 };
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    decimal_to_u256, decode_bech32, encode_tx, manifest::find_fee_payer_from_manifest,
-    provider::RadixGatewayProvider, radix_address_bytes_to_h256, signer::RadixSigner,
+    decimal_to_u256, decode_bech32, encode_tx,
+    manifest::find_fee_payer_from_manifest,
+    provider::{
+        metric::{RadixMetricCoreProvider, RadixMetricGatewayProvider},
+        RadixGatewayProvider,
+    },
+    radix_address_bytes_to_h256,
+    signer::RadixSigner,
     ConnectionConf, HyperlaneRadixError, RadixBaseCoreProvider, RadixBaseGatewayProvider,
     RadixCoreProvider, RadixFallbackProvider,
 };
@@ -79,37 +87,37 @@ impl Deref for RadixProvider {
 }
 
 impl RadixProvider {
-    fn build_fallback_provider(conf: &ConnectionConf) -> ChainResult<RadixFallbackProvider> {
+    fn build_fallback_provider(
+        conf: &ConnectionConf,
+        metrics: PrometheusClientMetrics,
+        chain: Option<ChainInfo>,
+    ) -> ChainResult<RadixFallbackProvider> {
         let mut gateway_provider = Vec::with_capacity(conf.gateway.len());
-        for (index, url) in conf.gateway.iter().enumerate() {
-            let map = conf.gateway_header.get(index).cloned().unwrap_or_default();
-            let header = reqwest::header::HeaderMap::try_from(&map)
-                .map_err(ChainCommunicationError::from_other)?;
-
-            let client = ClientBuilder::new()
-                .default_headers(header)
+        for url in conf.gateway.iter() {
+            let (headers, url) =
+                parse_custom_rpc_headers(url).map_err(ChainCommunicationError::from_other)?;
+            let client = Client::builder()
+                .default_headers(headers)
                 .build()
-                .map_err(ChainCommunicationError::from_other)?;
-
+                .map_err(HyperlaneRadixError::from)?;
             let provider = RadixBaseGatewayProvider::new(GatewayConfig {
                 client,
                 base_path: url.to_string().trim_end_matches('/').to_string(),
                 ..Default::default()
             });
+            let provider =
+                RadixMetricGatewayProvider::new(provider, &url, metrics.clone(), chain.clone());
             gateway_provider.push(provider);
         }
 
         let mut core_provider = Vec::with_capacity(conf.core.len());
-        for (index, url) in conf.core.iter().enumerate() {
-            let map = conf.core_header.get(index).cloned().unwrap_or_default();
-            let header = reqwest::header::HeaderMap::try_from(&map)
-                .map_err(ChainCommunicationError::from_other)?;
-
-            let client = ClientBuilder::new()
-                .default_headers(header)
+        for url in conf.core.iter() {
+            let (headers, url) =
+                parse_custom_rpc_headers(url).map_err(ChainCommunicationError::from_other)?;
+            let client = Client::builder()
+                .default_headers(headers)
                 .build()
-                .map_err(ChainCommunicationError::from_other)?;
-
+                .map_err(HyperlaneRadixError::from)?;
             let provider = RadixBaseCoreProvider::new(
                 CoreConfig {
                     client,
@@ -118,6 +126,8 @@ impl RadixProvider {
                 },
                 conf.network.clone(),
             );
+            let provider =
+                RadixMetricCoreProvider::new(provider, &url, metrics.clone(), chain.clone());
             core_provider.push(provider);
         }
         Ok(RadixFallbackProvider::new(
@@ -132,12 +142,14 @@ impl RadixProvider {
         conf: &ConnectionConf,
         locator: &ContractLocator,
         reorg: &ReorgPeriod,
+        metrics: PrometheusClientMetrics,
+        chain: Option<ChainInfo>,
     ) -> ChainResult<RadixProvider> {
         Ok(Self {
             domain: locator.domain.clone(),
             signer,
             reorg: reorg.clone(),
-            provider: Self::build_fallback_provider(conf)?,
+            provider: Self::build_fallback_provider(conf, metrics, chain)?,
             conf: conf.clone(),
         })
     }
@@ -572,8 +584,7 @@ impl RadixProvider {
                     attempt += 1;
                     if attempt >= N {
                         return Err(HyperlaneRadixError::Other(format!(
-                            "Transaction timed out after {} seconds",
-                            TIMEOUT_DELAY
+                            "Transaction timed out after {TIMEOUT_DELAY} seconds"
                         ))
                         .into());
                     }
@@ -713,8 +724,7 @@ impl HyperlaneProvider for RadixProvider {
 
         if tx.items.is_empty() {
             return Err(HyperlaneRadixError::Other(format!(
-                "Expected at least one tx for state version: {}",
-                height
+                "Expected at least one tx for state version: {height}"
             ))
             .into());
         }
@@ -813,8 +823,10 @@ impl HyperlaneProvider for RadixProvider {
     }
 
     /// Fetch metrics related to this chain
-    async fn get_chain_metrics(&self) -> ChainResult<Option<ChainInfo>> {
-        return Ok(None);
+    async fn get_chain_metrics(&self) -> ChainResult<Option<hyperlane_core::ChainInfo>> {
+        let state_version = self.get_state_version(None).await?;
+        let block_info = self.get_block_by_height(state_version).await?;
+        Ok(Some(hyperlane_core::ChainInfo::new(block_info, None)))
     }
 }
 

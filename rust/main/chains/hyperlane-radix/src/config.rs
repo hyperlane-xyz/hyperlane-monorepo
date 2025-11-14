@@ -1,4 +1,4 @@
-use std::{collections::HashMap, str::FromStr};
+use std::str::FromStr;
 
 use scrypto::network::NetworkDefinition;
 use url::Url;
@@ -12,21 +12,11 @@ pub struct ConnectionConf {
     pub gateway: Vec<Url>,
     /// Network definitions
     pub network: NetworkDefinition,
-    /// Core Headers
-    pub core_header: Vec<HashMap<String, String>>,
-    /// Gateway Headers
-    pub gateway_header: Vec<HashMap<String, String>>,
 }
 
 impl ConnectionConf {
     /// Returns a new Connection Config
-    pub fn new(
-        core: Vec<Url>,
-        gateway: Vec<Url>,
-        network_name: String,
-        core_header: Vec<HashMap<String, String>>,
-        gateway_header: Vec<HashMap<String, String>>,
-    ) -> Self {
+    pub fn new(core: Vec<Url>, gateway: Vec<Url>, network_name: String) -> Self {
         let network = match network_name.as_str() {
             "localnet" => NetworkDefinition::localnet(),
             _ => NetworkDefinition::from_str(&network_name).unwrap_or(NetworkDefinition::mainnet()),
@@ -34,9 +24,7 @@ impl ConnectionConf {
 
         Self {
             core,
-            core_header,
             gateway,
-            gateway_header,
             network,
         }
     }

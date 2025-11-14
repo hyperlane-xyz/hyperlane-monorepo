@@ -22,6 +22,7 @@ use crate::HyperlaneRadixError;
 
 mod fallback;
 mod lander;
+mod metric;
 mod radix;
 
 pub use {

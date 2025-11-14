@@ -15,10 +15,9 @@ use starknet::{
         types::{EmittedEvent, Felt, TransactionReceipt},
         utils::{cairo_short_string_to_felt, CairoShortStringToFeltError},
     },
-    providers::{JsonRpcClient, Provider},
+    providers::Provider,
     signers::LocalWallet,
 };
-use url::Url;
 
 use crate::contracts::{
     aggregation_ism, interchain_security_module, mailbox, multisig_ism, routing_ism,
@@ -29,7 +28,7 @@ use crate::{
     contracts::{interchain_security_module::ModuleType as StarknetModuleType, mailbox::Message},
     HyperlaneStarknetError,
 };
-use crate::{FallbackHttpTransport, JsonProvider, Signer};
+use crate::{JsonProvider, Signer};
 
 /// Polls the rpc client until the transaction receipt is available.
 pub async fn get_transaction_receipt(
@@ -75,12 +74,10 @@ pub async fn get_transaction_receipt(
 /// * `account_address` - The address of the account.
 /// * `is_legacy` - Whether the account is legacy (Cairo 0) or not.
 pub async fn build_single_owner_account(
-    rpc_urls: Vec<Url>,
     signer: Option<Signer>,
+    provider: &JsonProvider,
 ) -> ChainResult<SingleOwnerAccount<JsonProvider, LocalWallet>> {
-    let rpc_client = JsonRpcClient::new(FallbackHttpTransport::new(rpc_urls));
-
-    let chain_id = rpc_client.chain_id().await.map_err(|_| {
+    let chain_id = provider.chain_id().await.map_err(|_| {
         ChainCommunicationError::from_other_str("Failed to get chain id from rpc client")
     })?;
 
@@ -95,7 +92,7 @@ pub async fn build_single_owner_account(
     };
 
     Ok(SingleOwnerAccount::new(
-        rpc_client,
+        provider.clone(),
         signer.local_wallet(),
         signer.address,
         chain_id,

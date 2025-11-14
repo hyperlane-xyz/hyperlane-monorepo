@@ -169,7 +169,7 @@ export class AltVMHookModule<PT extends ProtocolType> extends HyperlaneModule<
       updateTxs.push({
         annotation: `Setting gas params for ${this.chain}`,
         ...(await this.signer.getSetDestinationGasConfigTransaction({
-          signer: this.signer.getSignerAddress(),
+          signer: currentConfig.owner,
           hookAddress: this.args.addresses.deployedHook,
           destinationGasConfig: {
             remoteDomainId: remoteDomain,
@@ -188,7 +188,7 @@ export class AltVMHookModule<PT extends ProtocolType> extends HyperlaneModule<
       updateTxs.push({
         annotation: 'Transferring ownership of ownable Hook...',
         ...(await this.signer.getSetInterchainGasPaymasterHookOwnerTransaction({
-          signer: this.signer.getSignerAddress(),
+          signer: currentConfig.owner,
           hookAddress: this.args.addresses.deployedHook,
           newOwner: targetConfig.owner,
         })),
@@ -287,6 +287,7 @@ export class AltVMHookModule<PT extends ProtocolType> extends HyperlaneModule<
       });
     }
 
+    this.logger.debug(`Deployed IGP hook to ${hookAddress}`);
     return hookAddress;
   }
 
@@ -297,6 +298,7 @@ export class AltVMHookModule<PT extends ProtocolType> extends HyperlaneModule<
       mailboxAddress: this.args.addresses.mailbox,
     });
 
+    this.logger.debug(`Deployed merkle tree hook to ${hookAddress}`);
     return hookAddress;
   }
 }

@@ -300,12 +300,12 @@ impl SealevelAdapter {
             .await
         {
             Ok(_) => {
-                info!("transaction pending inclusion");
-                return Ok(TransactionStatus::PendingInclusion);
+                info!("transaction is in mempool");
+                Ok(TransactionStatus::Mempool)
             }
             Err(err) => {
                 warn!(?err, "Failed to get transaction status by hash");
-                return Err(LanderError::TxHashNotFound(err.to_string()));
+                Err(LanderError::TxHashNotFound(err.to_string()))
             }
         }
     }

@@ -4,7 +4,6 @@ import {
   DeployedCoreAddresses,
   DeployedCoreAddressesSchema,
   EvmCoreModule,
-  WarpCore,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
@@ -103,29 +102,14 @@ export class MultiChainResolver implements ChainResolver {
   private async resolveWarpRebalancerChains(
     argv: Record<string, any>,
   ): Promise<ChainName[]> {
-    // Load rebalancer config to get the warp route ID
+    // Load rebalancer config to get the configured chains
     const rebalancerConfig = RebalancerConfig.load(argv.config);
 
-    // Get warp route config from registry using the warp route ID
-    const warpCoreConfig = await argv.context.registry.getWarpRoute(
-      rebalancerConfig.warpRouteId,
-    );
-    if (!warpCoreConfig) {
-      throw new Error(
-        `Warp route config for ${rebalancerConfig.warpRouteId} not found in registry`,
-      );
-    }
+    // Extract chain names from the rebalancer config's strategy.chains
+    // This ensures we only create signers for chains we can actually rebalance
+    const chains = Object.keys(rebalancerConfig.strategyConfig.chains);
 
-    // Create WarpCore instance to extract chain names from tokens
-    const warpCore = WarpCore.FromConfig(
-      argv.context.multiProvider,
-      warpCoreConfig,
-    );
-
-    // Extract chain names from the tokens in the warp core
-    const chains = warpCore.tokens.map((token) => token.chainName);
-
-    assert(chains.length !== 0, 'No chains found in warp route config');
+    assert(chains.length !== 0, 'No chains configured in rebalancer config');
 
     return chains;
   }
@@ -156,7 +140,7 @@ export class MultiChainResolver implements ChainResolver {
   private async resolveRelayerChains(
     argv: Record<string, any>,
   ): Promise<ChainName[]> {
-    const { multiProvider, supportedProtocols } = argv.context;
+    const { multiProvider } = argv.context;
     const chains = new Set<ChainName>();
 
     if (argv.origin) {
@@ -174,12 +158,13 @@ export class MultiChainResolver implements ChainResolver {
       return Array.from(new Set([...chains, ...additionalChains]));
     }
 
-    // If no destination is specified, return all EVM and AltVM chains
+    // If no destination is specified, return all EVM chains only
     if (!argv.destination) {
       const chains = multiProvider.getKnownChainNames();
 
-      return chains.filter((chain: string) =>
-        supportedProtocols.includes(multiProvider.getProtocol(chain)),
+      return chains.filter(
+        (chain: string) =>
+          ProtocolType.Ethereum === multiProvider.getProtocol(chain),
       );
     }
 

@@ -95,10 +95,6 @@
     "amount": "25.001",
     "decimals": 9
   },
-  "cheesechain": {
-    "amount": "1.0",
-    "decimals": 9
-  },
   "chilizmainnet": {
     "amount": "2501.0",
     "decimals": 9
@@ -108,7 +104,7 @@
     "decimals": 9
   },
   "coti": {
-    "amount": "2.000000007",
+    "amount": "4.813238472",
     "decimals": 9
   },
   "cyber": {
@@ -116,7 +112,7 @@
     "decimals": 9
   },
   "degenchain": {
-    "amount": "100.0",
+    "amount": "120.0",
     "decimals": 9
   },
   "dogechain": {
@@ -180,7 +176,7 @@
     "decimals": 9
   },
   "gnosis": {
-    "amount": "0.003290698",
+    "amount": "0.004298706",
     "decimals": 9
   },
   "gravity": {
@@ -200,7 +196,7 @@
     "decimals": 9
   },
   "hyperevm": {
-    "amount": "1.782719282",
+    "amount": "4.174817029",
     "decimals": 9
   },
   "immutablezkevmmainnet": {
@@ -280,7 +276,7 @@
     "decimals": 9
   },
   "metis": {
-    "amount": "3.477821089",
+    "amount": "6.360456245",
     "decimals": 9
   },
   "milkyway": {
@@ -296,7 +292,7 @@
     "decimals": 9
   },
   "mitosis": {
-    "amount": "18.000000003",
+    "amount": "82.5",
     "decimals": 9
   },
   "mode": {
@@ -316,7 +312,7 @@
     "decimals": 9
   },
   "morph": {
-    "amount": "0.05",
+    "amount": "0.1212",
     "decimals": 9
   },
   "neutron": {
@@ -388,7 +384,7 @@
     "decimals": 9
   },
   "pulsechain": {
-    "amount": "864796.928803394",
+    "amount": "1692988.645737178",
     "decimals": 9
   },
   "radix": {
@@ -400,7 +396,7 @@
     "decimals": 9
   },
   "reactive": {
-    "amount": "100.001",
+    "amount": "600.0",
     "decimals": 9
   },
   "redstone": {
@@ -432,7 +428,7 @@
     "decimals": 1
   },
   "soneium": {
-    "amount": "0.001592499",
+    "amount": "0.001999792",
     "decimals": 9
   },
   "sonic": {
@@ -449,10 +445,6 @@
   },
   "sophon": {
     "amount": "8316.314493515",
-    "decimals": 9
-  },
-  "sovachain": {
-    "amount": "0.001000251",
     "decimals": 9
   },
   "starknet": {
@@ -532,7 +524,7 @@
     "decimals": 9
   },
   "zerogravity": {
-    "amount": "13.200000021",
+    "amount": "19.15210198",
     "decimals": 9
   },
   "zeronetwork": {

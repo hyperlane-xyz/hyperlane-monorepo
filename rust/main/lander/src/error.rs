@@ -16,8 +16,10 @@ pub enum LanderError {
     TxReverted,
     #[error("The transaction hash was not found: {0}")]
     TxHashNotFound(String),
+    #[error("Transaction won't be resubmitted")]
+    TxWontBeResubmitted,
     #[error("Failed to send over a channel {0}")]
-    ChannelSendFailure(#[from] tokio::sync::mpsc::error::SendError<Transaction>),
+    ChannelSendFailure(#[from] Box<tokio::sync::mpsc::error::SendError<Transaction>>),
     #[error("Channel closed")]
     ChannelClosed,
     #[error("{0}")]
@@ -47,6 +49,8 @@ impl LanderError {
             TxSubmissionError(_) => "TxSubmissionError".to_string(),
             TxAlreadyExists => "TxAlreadyExists".to_string(),
             TxReverted => "TxReverted".to_string(),
+            TxHashNotFound(_) => "TxHashNotFound".to_string(),
+            TxWontBeResubmitted => "TxWontBeResubmitted".to_string(),
             ChannelSendFailure(_) => "ChannelSendFailure".to_string(),
             ChannelClosed => "ChannelClosed".to_string(),
             EyreError(_) => "EyreError".to_string(),
@@ -56,7 +60,6 @@ impl LanderError {
             NonRetryableError(_) => "NonRetryableError".to_string(),
             DbError(_) => "DbError".to_string(),
             ChainCommunicationError(_) => "ChainCommunicationError".to_string(),
-            TxHashNotFound(_) => "TxHashNotFound".to_string(),
         }
     }
 }
@@ -128,7 +131,8 @@ impl IsRetryable for LanderError {
             | PayloadNotFound
             | TxAlreadyExists
             | DbError(_)
-            | TxHashNotFound(_) => false,
+            | TxHashNotFound(_)
+            | TxWontBeResubmitted => false,
         }
     }
 }

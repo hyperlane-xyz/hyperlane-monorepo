@@ -7,17 +7,20 @@ import {
   ChainName,
   HyperlaneSmartProvider,
   ProviderRetryOptions,
+  safeApiKeyRequired,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
   ProtocolType,
   inCIMode,
+  inKubernetes,
   objFilter,
   objMerge,
 } from '@hyperlane-xyz/utils';
 
 import { getChain, getRegistryWithOverrides } from '../../config/registry.js';
 import { getSecretRpcEndpoints } from '../agents/index.js';
+import { getSafeApiKey } from '../utils/safe.js';
 
 import { DeployEnvironment } from './environment.js';
 
@@ -53,6 +56,9 @@ export const legacyEthIcaRouter = '0x5E532F7B610618eE73C2B462978e94CB1F7995Ce';
 // Used by scripts like check-owner-ica.ts to exclude chains that are temporarily
 // unsupported (e.g. zksync, zeronetwork) or have known issues
 export const chainsToSkip: ChainName[] = [
+  // svmbnb support is deprecated
+  'svmbnb',
+
   // not AW owned
   'forma',
 
@@ -189,6 +195,19 @@ export async function getSecretMetadataOverrides(
     chainMetadataOverrides[chain] = {
       rpcUrls: metadataRpcUrls,
     };
+  }
+
+  // Only fetch Safe API key when running locally (not in k8s)
+  // Safe API is only needed for infra + http registry usage
+  const safeApiKey = !inKubernetes() ? await getSafeApiKey() : undefined;
+  if (safeApiKey) {
+    for (const chain of chains) {
+      const chainMetadata = getChain(chain);
+      const txServiceUrl = chainMetadata.gnosisSafeTransactionServiceUrl;
+      if (txServiceUrl && safeApiKeyRequired(txServiceUrl)) {
+        chainMetadataOverrides[chain].gnosisSafeApiKey = safeApiKey;
+      }
+    }
   }
 
   return chainMetadataOverrides;

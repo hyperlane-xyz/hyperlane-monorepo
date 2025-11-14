@@ -3,6 +3,7 @@ pub use metrics::EthereumAdapterMetrics;
 pub use precursor::EthereumTxPrecursor;
 
 mod adapter;
+mod gas_price;
 mod metrics;
 mod nonce;
 mod payload;

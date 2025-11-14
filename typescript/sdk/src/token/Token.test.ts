@@ -123,6 +123,17 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
     symbol: 'USDC',
     name: 'USDC',
   },
+  [TokenStandard.EvmM0PortalLite]: {
+    chainName: TestChainName.test2,
+    standard: TokenStandard.EvmM0PortalLite,
+    addressOrDenom: '0x36f586A30502AE3afb555b8aA4dCc05d233c2ecE', // Portal address
+    collateralAddressOrDenom: '0xaca92e438df0b2401ff60da7e4337b687a2435da', // mUSD token address
+    decimals: 6,
+    symbol: 'mUSD',
+    name: 'MetaMask USD',
+  },
+  [TokenStandard.EvmHypEverclearCollateral]: null,
+  [TokenStandard.EvmHypEverclearEth]: null,
 
   // Sealevel
   [TokenStandard.SealevelSpl]: {
@@ -221,6 +232,7 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
   [TokenStandard.CosmNativeHypSynthetic]: null,
 
   //TODO: check this and manage it.
+  [TokenStandard.StarknetNative]: null,
   [TokenStandard.StarknetHypCollateral]: null,
   [TokenStandard.StarknetHypNative]: null,
   [TokenStandard.StarknetHypSynthetic]: null,
@@ -273,6 +285,11 @@ describe('Token', () => {
       adapter.contract = {
         balanceOf: async () => '100',
       };
+
+      // @ts-ignore
+      adapter.getWrappedTokenAdapter = () => ({
+        getBalance: async () => 100n,
+      });
 
       const balance = await adapter.getBalance(balanceCheckAddress);
       expect(typeof balance).to.eql('bigint');

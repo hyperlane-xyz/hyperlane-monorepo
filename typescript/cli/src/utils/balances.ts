@@ -72,7 +72,10 @@ export async function nativeBalancesAreSufficient(
           nativeToken.denom,
           `nativeToken denom is not defined on chain ${chain}`,
         );
-        assert(gasPrice, `gasPrice is not defined on chain ${chain}`);
+
+        if (!gasPrice) {
+          return;
+        }
 
         const ALT_VM_GAS = altVmSigner.getMinGas(protocol);
         requiredMinBalanceNativeDenom = BigNumber.from(

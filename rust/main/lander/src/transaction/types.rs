@@ -49,7 +49,9 @@ pub enum TransactionStatus {
     Mempool,
     /// in an unfinalized block
     Included,
-    /// in a block older than the configured `reorgPeriod`
+    /// in a block older than the configured `reorgPeriod`.
+    /// If a transaction fails on-chain, it is still considered finalized because it
+    /// consumed a nonce on EVM.
     Finalized,
     /// the tx was drop either by the submitter or by the chain
     Dropped(DropReason),
@@ -81,10 +83,10 @@ impl TransactionStatus {
             return TransactionStatus::Finalized;
         } else if *included_count > 0 {
             return TransactionStatus::Included;
-        } else if *pending_count > 0 {
-            return TransactionStatus::PendingInclusion;
         } else if *mempool_count > 0 {
             return TransactionStatus::Mempool;
+        } else if *pending_count > 0 {
+            return TransactionStatus::PendingInclusion;
         } else if !status_counts.is_empty() {
             // if the hashmap is not empty, it must mean that the hashes were dropped,
             // because the hashmap is populated only if the status query was successful
@@ -108,7 +110,7 @@ pub enum DropReason {
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub enum VmSpecificTxData {
     CosmWasm,
-    Evm(EthereumTxPrecursor),
+    Evm(Box<EthereumTxPrecursor>),
     Radix(Box<RadixTxPrecursor>),
     Svm(SealevelTxPrecursor),
 }
@@ -189,7 +191,6 @@ mod tests {
 
         let statuses = vec![
             Ok(TransactionStatus::Dropped(DropReason::DroppedByChain)),
-            Ok(TransactionStatus::Mempool),
             Ok(TransactionStatus::PendingInclusion),
             Err(LanderError::NetworkError("Network error".to_string())),
         ];
@@ -206,6 +207,7 @@ mod tests {
         let statuses = vec![
             Err(LanderError::NetworkError("Network error".to_string())),
             Ok(TransactionStatus::Mempool),
+            Ok(TransactionStatus::PendingInclusion),
             Ok(TransactionStatus::Dropped(DropReason::DroppedByChain)),
         ];
 

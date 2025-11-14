@@ -65,8 +65,6 @@ mod tests {
                 core: Vec::new(),
                 gateway: Vec::new(),
                 network: NetworkDefinition::mainnet(),
-                core_header: Vec::new(),
-                gateway_header: Vec::new(),
             }),
         );
 
@@ -83,8 +81,6 @@ mod tests {
                 core: Vec::new(),
                 gateway: Vec::new(),
                 network: NetworkDefinition::mainnet(),
-                core_header: Vec::new(),
-                gateway_header: Vec::new(),
             }),
         );
 

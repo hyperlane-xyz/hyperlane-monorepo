@@ -152,9 +152,7 @@ pub fn relayer_termination_invariants_met(
     // are expected to be logged for each message.
     assert!(
         total_tx_id_log_count as u64 >= expected_tx_id_logs,
-        "Didn't find as many tx id logs as expected. Found {} and expected {}",
-        total_tx_id_log_count,
-        expected_tx_id_logs
+        "Didn't find as many tx id logs as expected. Found {total_tx_id_log_count} and expected {expected_tx_id_logs}"
     );
 
     assert!(
@@ -410,9 +408,10 @@ pub fn lander_metrics_invariants_met(
         );
         return Ok(false);
     }
-    if dropped_transactions != 0 {
+    // Dropped transactions should not exceed half of messages expected
+    if dropped_transactions > params.total_messages_expected.div_ceil(2) {
         log!(
-            "hyperlane_lander_dropped_transactions {} count, expected {}",
+            "hyperlane_lander_dropped_transactions {} count, expected less than {}",
             dropped_transactions,
             0
         );

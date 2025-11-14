@@ -111,7 +111,12 @@ export class AltVMCoreModule<PT extends ProtocolType> extends HyperlaneModule<
     const chainName = multiProvider.getChainName(chain);
     const domainId = multiProvider.getDomainId(chain);
 
-    // 1. Deploy default ISM
+    // 1. Deploy Mailbox with initial configuration
+    const mailbox = await signer.createMailbox({
+      domainId: domainId,
+    });
+
+    // 2. Deploy default ISM
     const ismModule = await AltVMIsmModule.create({
       chain: chainName,
       config: config.defaultIsm,
@@ -123,12 +128,6 @@ export class AltVMCoreModule<PT extends ProtocolType> extends HyperlaneModule<
     });
 
     const { deployedIsm: defaultIsm } = ismModule.serialize();
-
-    // 2. Deploy Mailbox with initial configuration
-    const mailbox = await signer.createMailbox({
-      domainId: domainId,
-      defaultIsmAddress: defaultIsm,
-    });
 
     // 3. Deploy default hook
     const defaultHookModule = await AltVMHookModule.create({
@@ -279,7 +278,7 @@ export class AltVMCoreModule<PT extends ProtocolType> extends HyperlaneModule<
       {
         annotation: `Transferring ownership of Mailbox from ${actualConfig.owner} to ${expectedConfig.owner}`,
         ...(await this.signer.getSetMailboxOwnerTransaction({
-          signer: this.signer.getSignerAddress(),
+          signer: actualConfig.owner,
           mailboxAddress: this.args.addresses.mailbox,
           newOwner: expectedConfig.owner,
         })),
@@ -318,7 +317,7 @@ export class AltVMCoreModule<PT extends ProtocolType> extends HyperlaneModule<
       updateTransactions.push({
         annotation: `Updating default ISM of Mailbox from ${actualDefaultIsmConfig.address} to ${deployedIsm}`,
         ...(await this.signer.getSetDefaultIsmTransaction({
-          signer: this.signer.getSignerAddress(),
+          signer: actualConfig.owner,
           mailboxAddress: mailbox,
           ismAddress: deployedIsm,
         })),
@@ -395,7 +394,7 @@ export class AltVMCoreModule<PT extends ProtocolType> extends HyperlaneModule<
       updateTransactions.push({
         annotation: `Updating default Hook of Mailbox from ${actualDefaultHookConfig.address} to ${deployedHook}`,
         ...(await this.signer.getSetDefaultHookTransaction({
-          signer: this.signer.getSignerAddress(),
+          signer: actualConfig.owner,
           mailboxAddress: mailbox,
           hookAddress: deployedHook,
         })),
@@ -437,7 +436,7 @@ export class AltVMCoreModule<PT extends ProtocolType> extends HyperlaneModule<
       updateTransactions.push({
         annotation: `Updating required Hook of Mailbox from ${actualRequiredHookConfig.address} to ${deployedHook}`,
         ...(await this.signer.getSetRequiredHookTransaction({
-          signer: this.signer.getSignerAddress(),
+          signer: actualConfig.owner,
           mailboxAddress: mailbox,
           hookAddress: deployedHook,
         })),

@@ -26,7 +26,7 @@ use scrypto::{
 };
 use uuid::Uuid;
 
-use hyperlane_base::settings::ChainConf;
+use hyperlane_base::{settings::ChainConf, CoreMetrics};
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, ReorgPeriod, H256, H512,
 };
@@ -63,6 +63,7 @@ pub struct RadixTxBuilder {
 impl RadixAdapter {
     pub fn from_conf(
         conf: &ChainConf,
+        metrics: &CoreMetrics,
         connection_conf: &hyperlane_radix::ConnectionConf,
     ) -> Result<Self, LanderError> {
         // We must have a signer if we want to land transactions.
@@ -72,11 +73,17 @@ impl RadixAdapter {
             domain: &conf.domain,
             address: H256::zero(),
         };
+
+        let chain_info = conf.metrics_conf().chain;
+        let client_metrics = metrics.client_metrics();
+
         let provider = RadixProvider::new(
             Some(signer.clone()),
             connection_conf,
             &locator,
             &conf.reorg_period,
+            client_metrics,
+            chain_info,
         )?;
 
         let network = connection_conf.network.clone();
@@ -437,7 +444,7 @@ impl AdaptsChain for RadixAdapter {
 
         match resp.status {
             gateway_api_client::models::TransactionStatus::Unknown => {
-                Err(LanderError::TxHashNotFound(format!("{:x}", hash)))
+                Err(LanderError::TxHashNotFound(format!("{hash:x}")))
             }
             gateway_api_client::models::TransactionStatus::Pending => {
                 Ok(TransactionStatus::Mempool)

@@ -35,27 +35,35 @@ export const ezEthChainsToDeploy = [
   'unichain',
   'berachain',
   'worldchain',
+  'plasma',
+  'ink',
+  'monad',
+  'xlayer',
 ];
 export const MAX_PROTOCOL_FEE = parseEther('100').toString(); // Changing this will redeploy the PROTOCOL_FEE hook
 
-// Used to stabilize the protocolFee of ProtocolHook such that we don't get diffs every time tokenPrices.json is updated
+// Used to stabilize the protocolFee of ProtocolHook upon deployment such that we don't get diffs every time tokenPrices.json is updated
 export const renzoTokenPrices: ChainMap<string> = {
-  arbitrum: '3157.26',
-  optimism: '3157.26',
-  base: '3157.26',
-  blast: '3157.26',
-  bsc: '673.59',
-  mode: '3157.26',
-  linea: '3157.26',
-  ethereum: '3157.26',
-  fraxtal: '3168.75',
-  zircuit: '3157.26',
-  taiko: '3157.26',
-  sei: '0.354988',
-  swell: '3157.26',
-  unichain: '2602.66',
-  berachain: '10',
-  worldchain: '1599.53',
+  arbitrum: '3157.26', // ETH
+  optimism: '3157.26', // ETH
+  base: '3157.26', // ETH
+  blast: '3157.26', // ETH
+  bsc: '673.59', // BNB
+  mode: '3157.26', // ETH
+  linea: '3157.26', // ETH
+  ethereum: '3157.26', // ETH
+  fraxtal: '3168.75', // ETH
+  zircuit: '3157.26', // ETH
+  taiko: '3157.26', // ETH
+  sei: '0.354988', // SEI
+  swell: '3157.26', // ETH
+  unichain: '2602.66', // ETH
+  berachain: '10', // BERA
+  worldchain: '1599.53', // ETH
+  plasma: '0.90', // XPL
+  ink: '3900', // ETH
+  monad: '1', // MON placeholder price to avoid division by zero
+  xlayer: '165', // OKB
 };
 export function getProtocolFee(chain: ChainName) {
   const price = renzoTokenPrices[chain];
@@ -64,6 +72,7 @@ export function getProtocolFee(chain: ChainName) {
 }
 
 // Fetched using: hyperlane warp check --warpRouteId EZETH/renzo-prod
+// Set After deployment
 const chainProtocolFee: Record<ChainName, string> = {
   arbitrum: '400000000000000',
   base: '400000000000000',
@@ -75,7 +84,7 @@ const chainProtocolFee: Record<ChainName, string> = {
   mode: '400000000000000',
   optimism: '400000000000000',
   sei: '798889224400000000',
-  swell: '129871800000000',
+  swell: '400000000000000',
   taiko: '400000000000000',
   unichain: '400000000000000',
   worldchain: '400000000000000',
@@ -127,6 +136,10 @@ const ezEthAddresses: Record<(typeof ezEthChainsToDeploy)[number], string> = {
   unichain: '0x2416092f143378750bb29b79eD961ab195CcEea5',
   berachain: '0x2416092f143378750bb29b79eD961ab195CcEea5',
   worldchain: '0x2416092f143378750bb29b79eD961ab195CcEea5',
+  plasma: '0x2416092f143378750bb29b79eD961ab195CcEea5',
+  ink: '0x2416092f143378750bb29b79eD961ab195CcEea5',
+  monad: '0x2416092f143378750bb29b79eD961ab195CcEea5',
+  xlayer: '0x2416092f143378750bb29b79eD961ab195CcEea5',
 };
 
 export const ezEthValidators: ChainMap<MultisigConfig> = {
@@ -134,8 +147,8 @@ export const ezEthValidators: ChainMap<MultisigConfig> = {
     threshold: 1,
     validators: [
       {
-        address: '0x9bccfad3bd12ef0ee8ae839dd9ed7835bccadc9d',
-        alias: 'Everclear',
+        address: '0x57ddf0cd46f31ead8084069ce481507f4305c716',
+        alias: 'Luganodes',
       },
       { address: '0xc27032c6bbd48c20005f552af3aaa0dbf14260f3', alias: 'Renzo' },
     ],
@@ -144,8 +157,8 @@ export const ezEthValidators: ChainMap<MultisigConfig> = {
     threshold: 1,
     validators: [
       {
-        address: '0x6f4cb8e96db5d44422a4495faa73fffb9d30e9e2',
-        alias: 'Everclear',
+        address: '0xf9dfaa5c20ae1d84da4b2696b8dc80c919e48b12',
+        alias: 'Luganodes',
       },
       { address: '0xe2593d205f5e7f74a50fa900824501084e092ebd', alias: 'Renzo' },
     ],
@@ -155,8 +168,8 @@ export const ezEthValidators: ChainMap<MultisigConfig> = {
     validators: [
       { address: '0x25ba4ee5268cbfb8d69bac531aa10368778702bd', alias: 'Renzo' },
       {
-        address: '0x9ec803b503e9c7d2611e231521ef3fde73f7a21c',
-        alias: 'Everclear',
+        address: '0xe957310e17730f29862e896709cce62d24e4b773',
+        alias: 'Luganodes',
       },
     ],
   },
@@ -175,8 +188,8 @@ export const ezEthValidators: ChainMap<MultisigConfig> = {
     validators: [
       { address: '0x3156db97a3b3e2dcc3d69fddfd3e12dc7c937b6d', alias: 'Renzo' },
       {
-        address: '0x9a0326c43e4713ae2477f09e0f28ffedc24d8266',
-        alias: 'Everclear',
+        address: '0xc67789546a7a983bf06453425231ab71c119153f',
+        alias: 'Luganodes',
       },
     ],
   },
@@ -184,8 +197,8 @@ export const ezEthValidators: ChainMap<MultisigConfig> = {
     threshold: 1,
     validators: [
       {
-        address: '0x456fbbe05484fc9f2f38ea09648424f54d6872be',
-        alias: 'Everclear',
+        address: '0x485a4f0009d9afbbf44521016f9b8cdd718e36ea',
+        alias: 'Luganodes',
       },
       { address: '0x7e29608c6e5792bbf9128599ca309be0728af7b4', alias: 'Renzo' },
     ],
@@ -194,8 +207,8 @@ export const ezEthValidators: ChainMap<MultisigConfig> = {
     threshold: 1,
     validators: [
       {
-        address: '0x06a5a2a429560034d38bf62ca6d470942535947e',
-        alias: 'Everclear',
+        address: '0x0c760f4bcb508db9144b0579e26f5ff8d94daf4d',
+        alias: 'Luganodes',
       },
       { address: '0xcb3e44edd2229860bdbaa58ba2c3817d111bee9a', alias: 'Renzo' },
     ],
@@ -204,8 +217,8 @@ export const ezEthValidators: ChainMap<MultisigConfig> = {
     threshold: 1,
     validators: [
       {
-        address: '0x1fd889337f60986aa57166bc5ac121efd13e4fdd',
-        alias: 'Everclear',
+        address: '0xb683b742b378632a5f73a2a5a45801b3489bba44',
+        alias: 'AVS: Luganodes',
       },
       { address: '0xc7f7b94a6baf2fffa54dfe1dde6e5fcbb749e04f', alias: 'Renzo' },
     ],
@@ -290,7 +303,72 @@ export const ezEthValidators: ChainMap<MultisigConfig> = {
       { address: '0x650a1bcb489BE2079d82602c10837780ef6dADA8', alias: 'Renzo' },
     ],
   },
+  plasma: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x8516146068f7de5df6d65a54a631c968121df782',
+        alias: 'Luganodes',
+      },
+      { address: '0x9A336232b3cc7399b500D09821AB14Caed008b7e', alias: 'Renzo' },
+    ],
+  },
+  ink: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x4d3d970a2468c25d4b5c6af860d11b48223ca94b',
+        alias: 'Luganodes',
+      },
+      { address: '0xe42562c4b4d72f28a11e6d02e5a641706f5815b3', alias: 'Renzo' },
+    ],
+  },
+  monad: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x552d5a478d78a558eb473d844e4524de36d79cd9',
+        alias: 'Luganodes',
+      },
+      { address: '0x59f6f0beb754f74a6d6b95d37f70066a474f2de7', alias: 'Renzo' },
+    ],
+  },
+  xlayer: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xfcbd33064565403c9d8f038abf7d931140f3fd7d',
+        alias: 'Luganodes',
+      },
+      { address: '0xecbe0864d34b215964c1abc21623aa8d0d75c723', alias: 'Renzo' },
+    ],
+  },
 };
+
+// Renzo's custom ICA-like owners
+export const ezEthOwners: Record<(typeof ezEthChainsToDeploy)[number], string> =
+  {
+    arbitrum: '0xE5219Cf568D366ae4b96Efb04d826E6f2e72DaA0',
+    optimism: '0x365DC37679F21B3Ef629158CA962f05Bac7f0236',
+    base: '0xa87C18C9865e47f507e0C739d16C336aD764Fd95',
+    blast: '0xa3A3488613A3e8C578e6AD466a5000Fb1c0897FB',
+    bsc: '0x1bD739c88Cb90f88264488B914b6A1398840D426',
+    mode: '0x0683c3cc018Fb76874FdCC8620d15c4E467e34CA',
+    linea: '0xBAACd5f849024dcC80520BAA952f11aDFc59F9D0',
+    ethereum: '0xD1e6626310fD54Eceb5b9a51dA2eC329D6D4B68A',
+    fraxtal: '0x365DC37679F21B3Ef629158CA962f05Bac7f0236',
+    zircuit: '0xc1036D6bBa2FE24c65823110B348Ee80D3386ACd',
+    taiko: '0xE5219Cf568D366ae4b96Efb04d826E6f2e72DaA0',
+    sei: '0x5247eCbF210f289C244813e89212bC3aEd75aAC1',
+    swell: '0x672fb1C0F35DBD2074742765d23d18b80cbAAf22',
+    unichain: '0xfC67503Ab4DF366C19858A13c3f8a68781c64DD5',
+    berachain: '0xc1036D6bBa2FE24c65823110B348Ee80D3386ACd',
+    worldchain: '0x672fb1C0F35DBD2074742765d23d18b80cbAAf22',
+    plasma: '0x3eA4D0467C976e9877Adb96869Fdeb0551fd0930',
+    ink: '0x42A4E564836AE98C2522368Be2faA6e96Ff7a07f',
+    monad: '0xf2a0775ED23887F3C47Bf1f0D01cc580281dA2E4',
+    xlayer: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
+  };
 
 export const ezEthSafes: Record<(typeof ezEthChainsToDeploy)[number], string> =
   {
@@ -310,56 +388,70 @@ export const ezEthSafes: Record<(typeof ezEthChainsToDeploy)[number], string> =
     unichain: '0x70aF964829DA7F3f51973EE806AEeAB9225F2661',
     berachain: '0x865BA5789D82F2D4C5595a3968dad729A8C3daE6',
     worldchain: '0x7Be36310285cA4e809C296526745DA983c8F8e0f',
+    plasma: '0x76Cd13F5Bfb73f501795988Ef5d017606Bb16DBd',
   };
 
-const existingProxyAdmins: ChainMap<{ address: string; owner: string }> = {
+type ChainOwnerOverrides = ChainMap<Partial<{ proxyAdmin: string }>>;
+export const ezEthChainOwnerOverrides: ChainOwnerOverrides = {
   arbitrum: {
-    address: '0xdcB558d5C0F9A35C53Fa343c77eD0d346576e2Cf',
-    owner: ezEthSafes.arbitrum,
+    proxyAdmin: ezEthSafes.arbitrum,
   },
   optimism: {
-    address: '0xa50910ae66Df6A5F8e85dac032FD45BC2b7be6fF',
-    owner: ezEthSafes.optimism,
+    proxyAdmin: ezEthSafes.optimism,
   },
   base: {
-    address: '0xec1DdF05ff85D2B22B7d27E5b5E0B82961B7D889',
-    owner: ezEthSafes.base,
+    proxyAdmin: ezEthSafes.base,
   },
   blast: {
-    address: '0xA26F8cE2E21A503bf9e18c213965d7BC14997F48',
-    owner: ezEthSafes.blast,
+    proxyAdmin: ezEthSafes.blast,
   },
   bsc: {
-    address: '0x486b39378f99f073A3043C6Aabe8666876A8F3C5',
-    owner: ezEthSafes.bsc,
+    proxyAdmin: ezEthSafes.bsc,
   },
   mode: {
-    address: '0x2F78F22a1D7491500C9ED9352b8239fbAbcDd84E',
-    owner: ezEthSafes.mode,
+    proxyAdmin: ezEthSafes.mode,
   },
   fraxtal: {
-    address: '0x8bB69721B4E9b9df08bEdaeaA193008C7317Db59',
-    owner: ezEthSafes.fraxtal,
+    proxyAdmin: ezEthSafes.fraxtal,
   },
   linea: {
-    address: '0x2F78F22a1D7491500C9ED9352b8239fbAbcDd84E',
-    owner: ezEthSafes.linea,
+    proxyAdmin: ezEthSafes.linea,
   },
   ethereum: {
-    address: '0x2F78F22a1D7491500C9ED9352b8239fbAbcDd84E',
-    owner: ezEthSafes.ethereum,
+    proxyAdmin: ezEthSafes.ethereum,
   },
   zircuit: {
-    address: '0xec1DdF05ff85D2B22B7d27E5b5E0B82961B7D889',
-    owner: ezEthSafes.zircuit,
+    proxyAdmin: ezEthSafes.zircuit,
   },
   sei: {
-    address: '0x33219fEF24C198d979F05d692a17507E41a0A73e',
-    owner: ezEthSafes.sei,
+    proxyAdmin: ezEthSafes.sei,
   },
   taiko: {
-    address: '0xA3666f8a327AADB666F1906A38B17937e5F11f92',
-    owner: ezEthSafes.taiko,
+    proxyAdmin: ezEthSafes.taiko,
+  },
+  swell: {
+    proxyAdmin: ezEthSafes.swell,
+  },
+  unichain: {
+    proxyAdmin: ezEthSafes.unichain,
+  },
+  berachain: {
+    proxyAdmin: ezEthSafes.berachain,
+  },
+  worldchain: {
+    proxyAdmin: ezEthSafes.worldchain,
+  },
+  plasma: {
+    proxyAdmin: ezEthSafes.plasma,
+  },
+  ink: {
+    proxyAdmin: ezEthOwners.ink,
+  },
+  monad: {
+    proxyAdmin: ezEthOwners.monad,
+  },
+  xlayer: {
+    proxyAdmin: ezEthOwners.xlayer,
   },
 };
 
@@ -370,7 +462,7 @@ export function getRenzoWarpConfigGenerator(params: {
   xERC20Addresses: Record<string, string>;
   xERC20Lockbox: string;
   tokenPrices: ChainMap<string>;
-  existingProxyAdmins?: ChainMap<{ address: string; owner: string }>;
+  chainOwnerOverrides?: ChainOwnerOverrides;
 }) {
   const {
     chainsToDeploy,
@@ -379,7 +471,7 @@ export function getRenzoWarpConfigGenerator(params: {
     xERC20Addresses,
     xERC20Lockbox,
     tokenPrices,
-    existingProxyAdmins,
+    chainOwnerOverrides,
   } = params;
   return async (): Promise<ChainMap<HypTokenRouterConfig>> => {
     const config = getEnvironmentConfig('mainnet3');
@@ -445,49 +537,45 @@ export function getRenzoWarpConfigGenerator(params: {
               multiProvider.getProvider(chain),
             );
             const defaultHook = await mailboxContract.defaultHook();
-            const ret: [string, HypTokenRouterConfig] = [
-              chain,
-              {
-                isNft: false,
-                type:
-                  chain === lockboxChain
-                    ? TokenType.XERC20Lockbox
-                    : TokenType.XERC20,
-                token:
-                  chain === lockboxChain
-                    ? xERC20Lockbox
-                    : xERC20Addresses[chain],
-                owner: safes[chain],
-                gas: warpRouteOverheadGas,
-                mailbox,
-                interchainSecurityModule: {
-                  type: IsmType.AGGREGATION,
-                  threshold: 2,
-                  modules: [
-                    {
-                      type: IsmType.ROUTING,
-                      owner: safes[chain],
-                      domains: buildAggregationIsmConfigs(
-                        chain,
-                        chainsToDeploy,
-                        validators,
-                      ),
-                    },
-                    {
-                      type: IsmType.FALLBACK_ROUTING,
-                      domains: {},
-                      owner: safes[chain],
-                    },
-                  ],
-                },
-                hook: getRenzoHook(defaultHook, chain, safes[chain]),
-                ...(existingProxyAdmins?.[chain]
-                  ? { proxyAdmin: existingProxyAdmins?.[chain] }
-                  : {}),
+            const ret: HypTokenRouterConfig = {
+              isNft: false,
+              type:
+                chain === lockboxChain
+                  ? TokenType.XERC20Lockbox
+                  : TokenType.XERC20,
+              token:
+                chain === lockboxChain ? xERC20Lockbox : xERC20Addresses[chain],
+              owner: safes[chain],
+              gas: warpRouteOverheadGas,
+              mailbox,
+              interchainSecurityModule: {
+                type: IsmType.AGGREGATION,
+                threshold: 2,
+                modules: [
+                  {
+                    type: IsmType.ROUTING,
+                    owner: safes[chain],
+                    domains: buildAggregationIsmConfigs(
+                      chain,
+                      chainsToDeploy,
+                      validators,
+                    ),
+                  },
+                  {
+                    type: IsmType.FALLBACK_ROUTING,
+                    domains: {},
+                    owner: safes[chain],
+                  },
+                ],
               },
-            ];
+              hook: getRenzoHook(defaultHook, chain, safes[chain]),
+            };
 
-            return ret;
+            if (chainOwnerOverrides?.[chain]) {
+              ret.ownerOverrides = chainOwnerOverrides[chain];
+            }
+
+            return [chain, ret];
           },
         ),
       ),
@@ -500,12 +588,12 @@ export function getRenzoWarpConfigGenerator(params: {
 export const getRenzoEZETHWarpConfig = getRenzoWarpConfigGenerator({
   chainsToDeploy: ezEthChainsToDeploy,
   validators: ezEthValidators,
-  safes: ezEthSafes,
+  safes: ezEthOwners,
   xERC20Addresses: ezEthAddresses,
   xERC20Lockbox: ezEthProductionLockbox,
   tokenPrices: renzoTokenPrices,
-  existingProxyAdmins: existingProxyAdmins,
+  chainOwnerOverrides: ezEthChainOwnerOverrides,
 });
 
 export const getEZETHGnosisSafeBuilderStrategyConfig =
-  getGnosisSafeBuilderStrategyConfigGenerator(ezEthSafes);
+  getGnosisSafeBuilderStrategyConfigGenerator(ezEthOwners);
