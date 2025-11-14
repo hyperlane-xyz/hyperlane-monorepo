@@ -24,7 +24,7 @@ export function getUSDCRebalancingBridgesConfigFor(
   deploymentChains: readonly ChainName[],
 ): ChainMap<RebalancingConfig> {
   const registry = getRegistry();
-  const mainnetCCTP = registry.getWarpRoute(WarpRouteIds.MainnetCCTPV1);
+  const mainnetCCTP = registry.getWarpRoute(WarpRouteIds.MainnetCCTPV2Standard);
 
   assert(mainnetCCTP, 'MainnetCCTP warp route not found');
 
