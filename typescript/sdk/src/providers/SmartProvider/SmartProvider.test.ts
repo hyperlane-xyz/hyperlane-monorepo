@@ -186,44 +186,43 @@ describe('SmartProvider', () => {
       expect(e.cause).to.equal(error);
     });
 
-    it('prioritizes BlockchainError when mixed with SERVER_ERROR', () => {
-      const serverError = new ProviderError(
-        'connection refused',
-        EthersError.SERVER_ERROR,
-      );
-      const blockchainError = new ProviderError(
-        'execution reverted',
-        EthersError.CALL_EXCEPTION,
-      );
-      const CombinedError = provider.testGetCombinedProviderError(
-        [serverError, blockchainError],
-        'Test fallback message',
-      );
+    const mixedErrorTestCases = [
+      {
+        name: 'SERVER_ERROR',
+        errors: () => [
+          new ProviderError('connection refused', EthersError.SERVER_ERROR),
+          new ProviderError('execution reverted', EthersError.CALL_EXCEPTION),
+        ],
+        expectedMessage: 'execution reverted',
+      },
+      {
+        name: 'TIMEOUT',
+        errors: () => [
+          { status: ProviderStatus.Timeout },
+          new ProviderError(
+            'insufficient funds',
+            EthersError.INSUFFICIENT_FUNDS,
+          ),
+        ],
+        expectedMessage: 'insufficient funds',
+      },
+    ];
 
-      const e: any = new CombinedError();
+    mixedErrorTestCases.forEach(({ name, errors, expectedMessage }) => {
+      it(`prioritizes BlockchainError when mixed with ${name}`, () => {
+        const [firstError, secondError] = errors();
+        const CombinedError = provider.testGetCombinedProviderError(
+          [firstError, secondError],
+          'Test fallback message',
+        );
 
-      expect(e).to.be.instanceOf(BlockchainError);
-      expect(e.isRecoverable).to.equal(false);
-      expect(e.message).to.equal('execution reverted');
-      expect(e.cause).to.equal(blockchainError);
-    });
+        const e = new CombinedError();
 
-    it('prioritizes BlockchainError when mixed with TIMEOUT', () => {
-      const timeoutError = { status: ProviderStatus.Timeout };
-      const blockchainError = new ProviderError(
-        'insufficient funds',
-        EthersError.INSUFFICIENT_FUNDS,
-      );
-      const CombinedError = provider.testGetCombinedProviderError(
-        [timeoutError, blockchainError],
-        'Test fallback message',
-      );
-      const e: any = new CombinedError();
-
-      expect(e).to.be.instanceOf(BlockchainError);
-      expect(e.isRecoverable).to.equal(false);
-      expect(e.message).to.equal('insufficient funds');
-      expect(e.cause).to.equal(blockchainError);
+        expect(e).to.be.instanceOf(BlockchainError);
+        expect((e as BlockchainError).isRecoverable).to.equal(false);
+        expect(e.message).to.equal(expectedMessage);
+        expect(e.cause).to.equal(secondError);
+      });
     });
   });
 
