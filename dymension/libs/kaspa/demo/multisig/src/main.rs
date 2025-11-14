@@ -90,7 +90,7 @@ async fn load_wallet(args: &Args, url: Option<&str>) -> Result<EasyKaspaWallet> 
 async fn demo() -> Result<()> {
     kaspa_core::log::init_logger(None, "");
 
-    let mut args = Args::parse();
+    let args = Args::parse();
 
     let w = load_wallet(&args, None).await?;
 

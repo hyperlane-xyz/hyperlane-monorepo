@@ -102,7 +102,7 @@ pub struct HttpClient {
 impl HttpClient {
     pub fn new(url: String, config: RateLimitConfig) -> Self {
         let c = get_client(config);
-        info!(url = %url, "created Kaspa REST API Client");
+        info!(url = %url, "kaspa: created REST API client");
         Self { url, client: c }
     }
 
@@ -116,9 +116,9 @@ impl HttpClient {
         let mut upper_bound_t = 0i64;
 
         let c = self.get_config();
-        info!(url = ?c.base_path, "dymension query kaspa deposits");
+        info!(url = ?c.base_path, "kaspa: querying deposits");
 
-        let mut txs: Vec<TxModel> = Vec::new();
+        let mut deposits: Vec<Deposit> = Vec::new();
 
         let mut lower_bound_t = initial_lower_bound_t;
         loop {
@@ -128,7 +128,7 @@ impl HttpClient {
                 lower_bound_t = 0;
             }
 
-            let mut res = transactions_page(
+            let res = transactions_page(
                 &c,
                 args {
                     kaspa_address: address.to_string(),
@@ -136,20 +136,49 @@ impl HttpClient {
                     before: Some(upper_bound_t),
                     after: Some(lower_bound_t),
                     fields: None,
-                    resolve_previous_outpoints: None,
+                    resolve_previous_outpoints: Some("no".to_string()),
                     acceptance: Some(AcceptanceMode::Accepted),
                 },
             )
             .await?;
 
             let txs_found = res.len();
-            // txs should be in descendent order, so we save last returned tx time and we continue from there
-            if let Some(last_val) = res.last() {
-                if let Some(t) = last_val.block_time {
+
+            // Filter and convert in one pass to avoid holding all raw txs in memory
+            for tx in res {
+                // Update pagination cursor from last tx regardless of filtering
+                if let Some(t) = tx.block_time {
                     upper_bound_t = t - 1;
                 }
+
+                // Early exits for cheap checks first
+                if tx.payload.is_none() {
+                    continue;
+                }
+
+                if !is_valid_escrow_transfer(&tx, &address.to_string())? {
+                    continue;
+                }
+
+                if !has_valid_hyperlane_payload(&tx) {
+                    continue;
+                }
+
+                let tx_id = tx.transaction_id.clone();
+                let tx_time = tx.block_time;
+                match Deposit::try_from(tx) {
+                    Ok(deposit) => deposits.push(deposit),
+                    Err(e) => {
+                        tracing::info!(
+                            tx_id = ?tx_id,
+                            block_time = ?tx_time,
+                            error = ?e,
+                            "kaspa: skipped invalid deposit"
+                        );
+                        continue;
+                    }
+                }
             }
-            txs.append(&mut res);
 
             // if txs found are less than n, or we already did paging till the initial lower bound
             if txs_found < n as usize || upper_bound_t < initial_lower_bound_t {
@@ -157,15 +186,7 @@ impl HttpClient {
             }
         }
 
-        // return txs filtered by txs that include utxos with destination escrow address and including a payload
-        txs.into_iter()
-            .filter(|tx| {
-                is_valid_escrow_transfer(tx, &address.to_string()).expect("unable to validate txs")
-                    && tx.payload.is_some()
-                    && tx.is_accepted.unwrap_or(false)
-            })
-            .map(Deposit::try_from)
-            .collect::<Result<Vec<Deposit>>>()
+        Ok(deposits)
     }
 
     pub fn get_config(&self) -> Configuration {
@@ -176,7 +197,7 @@ impl HttpClient {
 
     // TODO: we should pass block hash hint in validator (he can get it from relayer)
     pub async fn get_tx_by_id(&self, tx_id: &str) -> Result<TxModel> {
-        info!(tx_id = ?tx_id, "querying kaspa tx by id");
+        info!(tx_id = ?tx_id, "kaspa: querying transaction by id");
         let c = self.get_config();
 
         let tx = get_tx_by_id(
@@ -198,7 +219,7 @@ impl HttpClient {
         tx_id: &str,
         block_hash_hint: Option<String>,
     ) -> Result<TxModel> {
-        info!(tx_id = ?tx_id, "querying kaspa tx by id slim");
+        info!(tx_id = ?tx_id, "kaspa: querying transaction by id (slim)");
         let c = self.get_config();
 
         let tx = get_tx_by_id(
@@ -252,6 +273,15 @@ fn is_valid_escrow_transfer(tx: &TxModel, address: &String) -> Result<bool> {
         }
     }
     Ok(false)
+}
+
+fn has_valid_hyperlane_payload(tx: &TxModel) -> bool {
+    use crate::message::ParsedHL;
+
+    match &tx.payload {
+        Some(payload) => ParsedHL::parse_string(payload).is_ok(),
+        None => false,
+    }
 }
 
 #[cfg(test)]

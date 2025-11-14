@@ -27,8 +27,14 @@ fn create_test_outputs(
     relayer_balance: u64,
     escrow: &EscrowPublic,
     relayer_address: &kaspa_addresses::Address,
-) -> Vec<TransactionOutput> {
-    vec![
+) -> Result<Vec<TransactionOutput>> {
+    if escrow_balance == 0 {
+        return Err(eyre!("escrow_balance cannot be zero"));
+    }
+    if relayer_balance == 0 {
+        return Err(eyre!("relayer_balance cannot be zero"));
+    }
+    Ok(vec![
         TransactionOutput {
             value: escrow_balance,
             script_public_key: escrow.p2sh.clone(),
@@ -37,7 +43,7 @@ fn create_test_outputs(
             value: relayer_balance,
             script_public_key: pay_to_address_script(relayer_address),
         },
-    ]
+    ])
 }
 
 /// Calculate the maximum number of escrow inputs when sweeping that fit within mass limit using binary search
@@ -58,7 +64,7 @@ fn calculate_sweep_size(
         total_relayer_balance,
         escrow,
         relayer_address,
-    );
+    )?;
 
     let all_inputs: Vec<_> = escrow_inputs
         .iter()
@@ -77,20 +83,20 @@ fn calculate_sweep_size(
             info!(
                 escrow_inputs_count = escrow_inputs.len(),
                 mass = mass,
-                "kaspa sweeping: all escrow inputs fit"
+                "kaspa relayer sweeping: all escrow inputs fit within mass limit"
             );
             return Ok(escrow_inputs.len());
         }
         Ok(mass) => {
             info!(
                 mass = mass,
-                "kaspa sweeping: all inputs exceed mass limit, starting binary search"
+                "kaspa relayer sweeping: all inputs exceed mass limit, starting binary search"
             );
         }
         Err(e) => {
             info!(
                 error = %e,
-                "kaspa sweeping: mass calculation failed, starting binary search"
+                "kaspa relayer sweeping: mass calculation failed, starting binary search"
             );
         }
     }
@@ -113,7 +119,7 @@ fn calculate_sweep_size(
             total_relayer_balance,
             escrow,
             relayer_address,
-        );
+        )?;
 
         let test_inputs: Vec<_> = test_escrow_batch
             .into_iter()
@@ -133,7 +139,7 @@ fn calculate_sweep_size(
                 info!(
                     batch_size = mid,
                     mass = mass,
-                    "kaspa sweeping: batch size works"
+                    "kaspa relayer sweeping: batch size fits within mass limit"
                 );
             }
             Ok(mass) => {
@@ -141,12 +147,12 @@ fn calculate_sweep_size(
                 info!(
                     batch_size = mid,
                     mass = mass,
-                    "kaspa sweeping: batch size too large"
+                    "kaspa relayer sweeping: batch size exceeds mass limit"
                 );
             }
             Err(e) => {
                 high = mid - 1;
-                info!(batch_size = mid, error = %e, "kaspa sweeping: batch size failed");
+                info!(batch_size = mid, error = %e, "kaspa relayer sweeping: mass calculation failed for batch size");
             }
         }
     }
@@ -157,7 +163,10 @@ fn calculate_sweep_size(
         ));
     }
 
-    info!(best_size = best_size, "kaspa sweeping: optimal batch size");
+    info!(
+        best_size = best_size,
+        "kaspa relayer sweeping: determined optimal batch size"
+    );
     Ok(best_size)
 }
 
@@ -180,7 +189,7 @@ fn calculate_relayer_fee(
         total_relayer_balance,
         escrow,
         relayer_address,
-    );
+    )?;
 
     let all_inputs: Vec<_> = batch_escrow_inputs
         .iter()
@@ -207,7 +216,7 @@ fn calculate_relayer_fee(
         estimated_relayer_output,
         escrow,
         relayer_address,
-    );
+    )?;
 
     let mass = estimate_mass(
         all_inputs,
@@ -288,7 +297,7 @@ fn prepare_next_iteration_inputs(
         escrow_amount = escrow_output.amount,
         relayer_idx = relayer_idx,
         relayer_amount = relayer_output.amount,
-        "kaspa sweeping: chaining escrow output and relayer output for next batch"
+        "kaspa relayer sweeping: chained escrow and relayer outputs for next batch"
     );
 
     Ok((new_relayer_inputs, escrow_inputs))
@@ -338,7 +347,7 @@ pub async fn create_sweeping_bundle(
         relayer_inputs_count = relayer_inputs.len(),
         total_withdrawal_amount = total_withdrawal_amount,
         anchor_amount = anchor_amount,
-        "kaspa sweeping: starting"
+        "kaspa relayer sweeping: started"
     );
 
     let mut total_swept_amount = 0u64;
@@ -347,10 +356,10 @@ pub async fn create_sweeping_bundle(
     // Calculate how much more we need to sweep considering the anchor amount
     let withdrawal_amount_without_anchor = total_withdrawal_amount.saturating_sub(anchor_amount);
     info!(
-        to_sweep = withdrawal_amount_without_anchor,
+        amount_to_sweep = withdrawal_amount_without_anchor,
         total_withdrawals = total_withdrawal_amount,
-        anchor = anchor_amount,
-        "kaspa sweeping: need to sweep sompi"
+        anchor_amount = anchor_amount,
+        "kaspa relayer sweeping: calculated amount to sweep (sompi)"
     );
     // Process escrow inputs recursively until:
     // 1. All are consumed, OR
@@ -364,7 +373,7 @@ pub async fn create_sweeping_bundle(
                 total_swept_amount = total_swept_amount,
                 withdrawal_amount_without_anchor = withdrawal_amount_without_anchor,
                 max_inputs = MAX_SWEEP_INPUTS,
-                "kaspa sweeping: stopping, swept enough and reached maximum inputs"
+                "kaspa relayer sweeping: stopped, swept sufficient amount and reached maximum input limit"
             );
             break;
         }
@@ -383,8 +392,9 @@ pub async fn create_sweeping_bundle(
             .iter()
             .map(|(_, e, _)| e.amount)
             .sum::<u64>();
+        let batch_escrow_inputs_count = batch_escrow_inputs.len();
         total_swept_amount += batch_escrow_balance;
-        total_inputs_swept += batch_escrow_inputs.len();
+        total_inputs_swept += batch_escrow_inputs_count;
 
         // Calculate relayer fee and output amount
         let (estimated_fee, relayer_output_amount) = calculate_relayer_fee(
@@ -396,13 +406,6 @@ pub async fn create_sweeping_bundle(
             relayer_wallet.net.network_id,
             feerate,
         )?;
-
-        info!(
-            batch_escrow_inputs_count = batch_escrow_inputs.len(),
-            estimated_fee = estimated_fee,
-            relayer_output_amount = relayer_output_amount,
-            "kaspa sweeping: batch escrow inputs"
-        );
 
         // Create PSKT
         let mut pskt = PSKT::<Creator>::default().constructor();
@@ -460,7 +463,13 @@ pub async fn create_sweeping_bundle(
         }
 
         bundle.add_pskt(pskt_signer);
-        info!(pskt_id = %pskt_id, "kaspa sweeping: created PSKT");
+        info!(
+            pskt_id = %pskt_id,
+            batch_escrow_inputs_count = batch_escrow_inputs_count,
+            estimated_fee = estimated_fee,
+            relayer_output_amount = relayer_output_amount,
+            "kaspa relayer sweeping: created PSKT"
+        );
     }
     info!(
         pskts_count = bundle.0.len(),
@@ -468,7 +477,7 @@ pub async fn create_sweeping_bundle(
         swept_amount = total_swept_amount,
         total_available = anchor_amount + total_swept_amount,
         total_withdrawals = total_withdrawal_amount,
-        "kaspa sweeping: completed"
+        "kaspa relayer sweeping: completed"
     );
     Ok(bundle)
 }

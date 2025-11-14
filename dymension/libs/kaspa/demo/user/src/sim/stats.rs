@@ -1,32 +1,74 @@
 use crate::sim::util::som_to_kas;
 use cometbft::Hash as TendermintHash;
-use eyre::Error;
+use eyre::Result;
 use kaspa_addresses::Address;
 use kaspa_consensus_core::tx::TransactionId;
 use serde::Serialize;
-use std::fs::File;
+use std::fs::OpenOptions;
+use std::io::Write;
+use std::sync::Arc;
+use std::sync::Mutex;
 use std::time::Duration;
-use std::time::{Instant, SystemTime};
+use std::time::SystemTime;
 use tracing::info;
 
-pub fn render_stats(stats: Vec<RoundTripStats>, total_spend: u64, total_ops: u64) {
-    info!("Total spend: {}", som_to_kas(total_spend));
-    info!("Total ops: {}", total_ops);
-    for s in stats {
-        info!("{:#?}", s);
-        info!("stage: {:?}", s.stage());
-        if s.deposit_credit_time.is_some() {
-            info!("deposit credit time: {:?}", s.deposit_time());
+/// Continuous stats writer that appends to JSONL file immediately
+pub struct StatsWriter {
+    file: Arc<Mutex<std::fs::File>>,
+}
+
+impl StatsWriter {
+    pub fn new(stats_file_path: String) -> Result<Self> {
+        let file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&stats_file_path)?;
+
+        Ok(Self {
+            file: Arc::new(Mutex::new(file)),
+        })
+    }
+
+    pub fn write_stat(&self, stat: &RoundTripStats) -> Result<()> {
+        let mut file = self.file.lock().unwrap();
+        let json = serde_json::to_string(stat)?;
+        writeln!(file, "{}", json)?;
+        file.flush()?;
+        Ok(())
+    }
+
+    pub fn log_stat(&self, stat: &RoundTripStats) {
+        info!("{:#?}", stat);
+        info!("stage: {:?}", stat.stage());
+        if stat.deposit_credit_time.is_some() {
+            info!("deposit credit time: {:?}", stat.deposit_time());
         }
-        if s.withdraw_credit_time.is_some() {
-            info!("withdraw credit time: {:?}", s.withdraw_time());
+        if stat.withdraw_credit_time.is_some() {
+            info!("withdraw credit time: {:?}", stat.withdraw_time());
         }
     }
 }
 
-pub fn write_stats(file_path: &str, stats: Vec<RoundTripStats>, total_spend: u64, total_ops: u64) {
-    let mut file = File::create(file_path).unwrap();
-    serde_json::to_writer_pretty(&mut file, &stats).unwrap();
+#[derive(Debug, Clone, Serialize)]
+pub struct MetadataStats {
+    pub total_spend: u64,
+    pub total_ops: u64,
+    pub total_spend_kas: String,
+}
+
+pub fn write_metadata(file_path: &str, total_spend: u64, total_ops: u64) -> Result<()> {
+    let metadata = MetadataStats {
+        total_spend,
+        total_ops,
+        total_spend_kas: som_to_kas(total_spend),
+    };
+    let file = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open(file_path)?;
+    serde_json::to_writer_pretty(file, &metadata)?;
+    Ok(())
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -43,15 +85,6 @@ pub struct RoundTripStats {
     pub withdraw_credit_error: Option<String>,
     pub deposit_addr_hub: Option<String>,
     pub withdraw_addr_kaspa: Option<Address>,
-}
-
-#[derive(Debug, Clone, Copy)]
-enum Stage {
-    PreDeposit,
-    PostDepositNotCredited,
-    PreWithdrawal,
-    PostWithdrawalNotCredited,
-    Complete,
 }
 
 impl RoundTripStats {
@@ -73,19 +106,19 @@ impl RoundTripStats {
             .duration_since(self.hub_withdraw_tx_time.unwrap())
             .unwrap()
     }
-    pub fn stage(&self) -> Stage {
+    pub fn stage(&self) -> &'static str {
         if !self.kaspa_deposit_tx_time.is_some() {
-            return Stage::PreDeposit;
+            return "PreDeposit";
         }
         if self.deposit_credit_error.is_some() {
-            return Stage::PostDepositNotCredited;
+            return "PostDepositNotCredited";
         }
         if !self.hub_withdraw_tx_time.is_some() {
-            return Stage::PreWithdrawal;
+            return "PreWithdrawal";
         }
         if self.withdraw_credit_error.is_some() {
-            return Stage::PostWithdrawalNotCredited;
+            return "PostWithdrawalNotCredited";
         }
-        Stage::Complete
+        "Complete"
     }
 }

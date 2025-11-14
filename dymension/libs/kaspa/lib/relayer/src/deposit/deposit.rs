@@ -4,7 +4,7 @@ use corelib::finality::is_safe_against_reorg;
 use eyre::Result;
 use hyperlane_core::U256;
 pub use secp256k1::PublicKey;
-use tracing::{info, warn};
+use tracing::{debug, info};
 
 /// Error type for deposit processing that includes retry timing information
 #[derive(Debug)]
@@ -53,14 +53,10 @@ impl From<eyre::Error> for KaspaTxError {
     }
 }
 
-pub async fn on_new_deposit(
-    hl_message: hyperlane_core::HyperlaneMessage,
-    amount: U256,
-    utxo_index: usize,
+pub async fn check_deposit_finality(
     deposit: &Deposit,
     rest_client: &HttpClient,
-) -> Result<Option<DepositFXG>, KaspaTxError> {
-    // Check if the deposit is safe against reorg first
+) -> Result<(), KaspaTxError> {
     let finality_status = is_safe_against_reorg(
         rest_client,
         &deposit.id.to_string(),
@@ -71,18 +67,17 @@ pub async fn on_new_deposit(
     if !finality_status.is_final() {
         let pending_confirmations =
             finality_status.required_confirmations - finality_status.confirmations;
-        // we assume 10 confirmations per second, so retry after 0.1 seconds per confirmation needed
         let retry_after_secs = if pending_confirmations > 0 {
             pending_confirmations as f64 * 0.1
         } else {
-            10.0 // Fallback to 10 seconds if no confirmations returned, since it can happen if the accepting block is not yet known to the node
+            10.0
         };
-        warn!(
-            "Deposit {} is not yet safe against reorg. Confirmations: {}/{}. Will retry in {:.1}s",
-            deposit.id,
-            finality_status.confirmations,
-            finality_status.required_confirmations,
-            retry_after_secs
+        debug!(
+            deposit_id = %deposit.id,
+            confirmations = finality_status.confirmations,
+            required_confirmations = finality_status.required_confirmations,
+            retry_after_secs = retry_after_secs,
+            "kaspa relayer: deposit not yet safe against reorg"
         );
 
         return Err(KaspaTxError::NotFinalError {
@@ -93,29 +88,39 @@ pub async fn on_new_deposit(
     }
 
     info!(
-        "Deposit {} is safe against reorg with {} confirmations",
-        deposit.id, finality_status.confirmations
+        deposit_id = %deposit.id,
+        confirmations = finality_status.confirmations,
+        "kaspa relayer: deposit safe against reorg"
     );
 
     if deposit.block_hashes.is_empty() {
-        return Err(eyre::eyre!("kaspa deposit had no block hashes").into());
+        return Err(eyre::eyre!("Deposit had no block hashes").into());
     }
 
-    // build response for validator
-    let tx = DepositFXG {
+    Ok(())
+}
+
+pub fn build_deposit_fxg(
+    hl_message: hyperlane_core::HyperlaneMessage,
+    amount: U256,
+    utxo_index: usize,
+    deposit: &Deposit,
+) -> DepositFXG {
+    DepositFXG {
         tx_id: deposit.id.to_string(),
         utxo_index,
         amount,
         accepting_block_hash: deposit.accepting_block_hash.clone(),
-        containing_block_hash: deposit.block_hashes[0].clone(), // used by validator to find tx by block
+        containing_block_hash: deposit.block_hashes[0].clone(),
         hl_message,
-    };
-    Ok(Some(tx))
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use corelib::message::ParsedHL;
+
     #[test]
     fn test_parsed_hl_parse() {
         let inputs = [

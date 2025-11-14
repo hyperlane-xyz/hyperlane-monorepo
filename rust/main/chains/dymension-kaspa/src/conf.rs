@@ -52,33 +52,35 @@ pub use dym_kas_kms::AwsKeyConfig;
 #[derive(Debug, Clone)]
 pub struct RelayerStuff {
     pub validator_hosts: Vec<String>,
-    pub deposit_look_back_mins: Option<u64>,
-    pub kaspa_time_config: KaspaTimeConfig,
+    pub deposit_timings: RelayerDepositTimings,
     pub tx_fee_multiplier: f64,
 }
 
 #[derive(Debug, Clone)]
-pub struct KaspaTimeConfig {
-    pub base_retry_delay_secs: u64,
-    pub poll_interval_secs: u64,
+pub struct RelayerDepositTimings {
+    pub poll_interval: std::time::Duration,
+    pub retry_delay_base: std::time::Duration,
+    pub retry_delay_exponent: f64,
+    pub retry_delay_max: std::time::Duration,
+    pub deposit_look_back: Option<std::time::Duration>,
 }
 
-impl Default for KaspaTimeConfig {
+impl Default for RelayerDepositTimings {
     fn default() -> Self {
         Self {
-            base_retry_delay_secs: 30,
-            poll_interval_secs: 5,
+            poll_interval: std::time::Duration::from_secs(5),
+            retry_delay_base: std::time::Duration::from_secs(30),
+            retry_delay_exponent: 2.0,
+            retry_delay_max: std::time::Duration::from_secs(3600),
+            deposit_look_back: None,
         }
     }
 }
 
-impl KaspaTimeConfig {
-    pub fn poll_interval(&self) -> std::time::Duration {
-        std::time::Duration::from_secs(self.poll_interval_secs)
-    }
-
-    pub fn base_retry_delay(&self) -> std::time::Duration {
-        std::time::Duration::from_secs(self.base_retry_delay_secs)
+impl RelayerDepositTimings {
+    pub fn lower_bound_unix_time(&self) -> Option<i64> {
+        self.deposit_look_back
+            .map(|dur| kaspa_core::time::unix_now() as i64 - dur.as_millis() as i64)
     }
 }
 
@@ -112,12 +114,11 @@ impl ConnectionConf {
         multisig_threshold_hub_ism: usize,
         multisig_threshold_kaspa_schnorr: usize,
         hub_grpc_urls: Vec<Url>,
-        deposit_look_back_mins: Option<u64>,
         hub_mailbox_id: String,
         op_submission_config: OpSubmissionConfig,
-        validation_conf: ValidationConf,
+        _validation_conf: ValidationConf,
         min_deposit_sompi: U256,
-        kaspa_time_config: Option<KaspaTimeConfig>,
+        kaspa_time_config: Option<RelayerDepositTimings>,
 
         hub_domain: u32,
         hub_token_id: H256,
@@ -152,9 +153,8 @@ impl ConnectionConf {
         let r = match validator_hosts.len() {
             0 => None,
             _ => Some(RelayerStuff {
-                deposit_look_back_mins,
                 validator_hosts,
-                kaspa_time_config: kaspa_time_config.unwrap_or_default(),
+                deposit_timings: kaspa_time_config.unwrap_or_default(),
                 tx_fee_multiplier: kas_tx_fee_multiplier,
             }),
         };

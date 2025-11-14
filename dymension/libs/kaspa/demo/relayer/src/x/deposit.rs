@@ -35,7 +35,7 @@ use kaspa_wallet_core::api::{AccountsSendRequest, WalletApi};
 use kaspa_wallet_core::error::Error as KaspaError;
 use kaspa_wallet_core::tx::Fees;
 use kaspa_wallet_core::utxo::NetworkParams;
-use relayer::deposit::on_new_deposit;
+use relayer::deposit::{build_deposit_fxg, check_deposit_finality};
 use relayer::withdraw::*;
 use std::collections::HashSet;
 use std::error::Error;
@@ -252,18 +252,14 @@ pub async fn demo(args: DemoArgs) -> Result<(), Box<dyn Error>> {
         add_kaspa_metadata_hl_messsage(parsed_hl, result.id, utxo_index)?;
 
     // handle deposit (relayer operation)
-    let deposit_fxg = on_new_deposit(
-        hl_message_with_metadata,
-        amt_hl,
-        utxo_index,
-        &result,
-        &client.client,
-    )
-    .await
-    .map_err(|e| eyre::eyre!("Deposit processing failed: {}", e))?;
+    check_deposit_finality(&result, &client.client)
+        .await
+        .map_err(|e| eyre::eyre!("Deposit processing failed: {}", e))?;
+
+    let deposit_fxg = build_deposit_fxg(hl_message_with_metadata, amt_hl, utxo_index, &result);
 
     // deposit encode to bytes
-    let deposit_bytes_recv: Bytes = (&deposit_fxg.unwrap()).into();
+    let deposit_bytes_recv: Bytes = (&deposit_fxg).into();
 
     // deposit from bytes
     let deposit_recv = DepositFXG::try_from(deposit_bytes_recv)?;

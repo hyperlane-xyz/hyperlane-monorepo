@@ -69,13 +69,11 @@ pub async fn on_new_withdrawals(
     min_withdrawal_sompi: U256,
     tx_fee_multiplier: f64,
 ) -> Result<Option<WithdrawFXG>> {
-    info!("kaspa relayer: getting pending withdrawals");
-
     let (current_anchor, pending_msgs) = filter_pending_withdrawals(messages, cosmos.query())
         .await
         .map_err(|e| eyre::eyre!("Get pending withdrawals: {}", e))?;
 
-    info!("kaspa relayer: got pending withdrawals");
+    info!("kaspa relayer: filtered pending withdrawals");
 
     build_withdrawal_fxg(
         pending_msgs,
@@ -103,18 +101,10 @@ pub async fn build_withdrawal_fxg(
         min_withdrawal_sompi,
     );
 
-    let feerate = get_normal_bucket_feerate(&relayer.api())
-        .await
-        .map_err(|e| eyre::eyre!("Get normal bucket feerate: {e}"))?;
-
     if outputs.is_empty() {
-        info!("kaspa relayer: no valid pending withdrawals, all in batch are already processed and confirmed on hub");
+        info!("kaspa relayer: no valid pending withdrawals found, all in batch already processed and confirmed on hub");
         return Ok(None); // nothing to process
     }
-    info!(
-        withdrawal_num = outputs.len(),
-        "kaspa relayer: got pending withdrawals, building PSKT"
-    );
 
     // Get all the UTXOs for the escrow and the relayer
     let escrow_inputs = fetch_input_utxos(
@@ -175,7 +165,7 @@ pub async fn build_withdrawal_fxg(
         info!(
             pskt_count = sweeping_bundle.0.len(),
             escrow_inputs_swept = to_sweep_num,
-            "constructed sweeping bundle"
+            "kaspa relayer: constructed sweeping bundle"
         );
 
         let mut inputs = Vec::with_capacity(swept_outputs.len() + 1);
@@ -184,7 +174,7 @@ pub async fn build_withdrawal_fxg(
 
         (Some(sweeping_bundle), inputs)
     } else {
-        info!("no sweep needed, continue to withdrawal");
+        info!("kaspa relayer: no sweep needed, continuing to withdrawal");
 
         let mut inputs = Vec::with_capacity(escrow_inputs.len() + relayer_inputs.len());
         inputs.extend(escrow_inputs);
@@ -204,9 +194,13 @@ pub async fn build_withdrawal_fxg(
 
     let payload = MessageIDs::from(&final_msgs).to_bytes();
 
+    let feerate = get_normal_bucket_feerate(&relayer.api())
+        .await
+        .map_err(|e| eyre::eyre!("Get normal bucket feerate: {e}"))?;
+
     let pskt = build_withdrawal_pskt(
         inputs,
-        final_outputs,
+        final_outputs.clone(),
         payload,
         &escrow_public,
         &relayer_address,
@@ -215,6 +209,11 @@ pub async fn build_withdrawal_fxg(
         tx_mass,
     )
     .map_err(|e| eyre::eyre!("Build withdrawal PSKT: {}", e))?;
+
+    info!(
+        withdrawal_count = final_outputs.len(),
+        "kaspa relayer: built withdrawal PSKT"
+    );
 
     // Contract: the last output of the withdrawal PSKT is the new anchor
     let new_anchor = TransactionOutpoint::new(pskt.calculate_id(), (pskt.outputs.len() - 1) as u32);
@@ -253,8 +252,7 @@ mod tests {
     use base64::{engine::general_purpose::STANDARD, Engine as _};
     use hyperlane_core::Decode;
     use hyperlane_warp_route::TokenMessage;
-    use kaspa_hashes::Hash;
-    use kaspa_wallet_core::tx::{Generator, GeneratorSettings};
+
     use std::io::Cursor;
 
     #[test]
