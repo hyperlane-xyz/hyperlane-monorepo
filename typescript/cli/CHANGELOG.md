@@ -1,5 +1,7 @@
 # @hyperlane-xyz/cli
 
+## 19.9.0
+
 ## 19.8.0
 
 ### Minor Changes

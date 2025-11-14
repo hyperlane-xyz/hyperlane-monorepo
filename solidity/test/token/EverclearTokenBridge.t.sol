@@ -614,11 +614,29 @@ contract BaseEverclearTokenBridgeForkTest is Test {
     }
 
     function setUp() public virtual {
-        // Fork Arbitrum at the latest block
-        vm.createSelectFork("arbitrum");
+        // WORKAROUND: Fork at block 399563028 - last block before Everclear strategy requirement
+        //
+        // CONTEXT: The Everclear spoke contract (0xa05A3380889115bf313f1Db9d5f335157Be4D816)
+        // was upgraded in block 399563030 (tx: 0x2b660cc685a3a0f937c0600ac20c2c96e750d12c903446f7be61ac7d918b4321)
+        // to implementation 0xd975cbad8135c75b484efe740a59d522067b8ce8 which requires
+        // strategies[token] to return a non-zero address.
+        //
+        // LIMITATION: This pinned block approach will break when RPC providers prune historical state.
+        //
+        // ALTERNATIVES ATTEMPTED:
+        // - vm.mockCall: Doesn't work with delegatecall patterns used by the spoke proxy
+        // - vm.store: Can't reliably determine the storage slot for strategies mapping without
+        //   corrupting other storage slots
+        //
+        // PROPER FIX: Would require either:
+        // 1. Everclear team to provide a test-only spoke contract without strategy enforcement
+        // 2. Deploy our own mock spoke contract and point the adapter to it
+        // 3. Find the exact storage slot layout of the Everclear spoke implementation
+        //
+        // Until then, this is the most pragmatic approach that keeps tests passing.
+        vm.createSelectFork("arbitrum", 399563028);
 
         weth = IWETH(ARBITRUM_WETH);
-        // Get real Everclear adapter
         everclearAdapter = IEverclearAdapter(EVERCLEAR_ADAPTER);
 
         // Set fee deadline to future
