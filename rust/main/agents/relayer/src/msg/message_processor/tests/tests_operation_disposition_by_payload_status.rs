@@ -41,8 +41,8 @@ async fn test_operation_disposition_by_payload_status_db_error() {
     .await;
 
     assert!(
-        matches!(result, OperationDisposition::Prepare),
-        "Should return Prepare when db returns error"
+        matches!(result, OperationDisposition::PreSubmit),
+        "Should return PreSubmit when db returns error"
     );
 }
 
@@ -71,8 +71,8 @@ async fn test_operation_disposition_by_payload_status_no_payload_uuids() {
     .await;
 
     assert!(
-        matches!(result, OperationDisposition::Prepare),
-        "Should return Prepare when no payload UUIDs exist"
+        matches!(result, OperationDisposition::PreSubmit),
+        "Should return PreSubmit when no payload UUIDs exist"
     );
 }
 
@@ -101,8 +101,8 @@ async fn test_operation_disposition_by_payload_status_empty_payload_uuids() {
     .await;
 
     assert!(
-        matches!(result, OperationDisposition::Prepare),
-        "Should return Prepare when payload UUIDs list is empty"
+        matches!(result, OperationDisposition::PreSubmit),
+        "Should return PreSubmit when payload UUIDs list is empty"
     );
 }
 
@@ -138,8 +138,8 @@ async fn test_operation_disposition_by_payload_status_payload_dropped() {
     .await;
 
     assert!(
-        matches!(result, OperationDisposition::Prepare),
-        "Should return Prepare when payload status is Dropped"
+        matches!(result, OperationDisposition::PreSubmit),
+        "Should return PreSubmit when payload status is Dropped"
     );
 }
 
@@ -179,8 +179,8 @@ async fn test_operation_disposition_by_payload_status_transaction_dropped() {
     .await;
 
     assert!(
-        matches!(result, OperationDisposition::Prepare),
-        "Should return Prepare when transaction status is Dropped"
+        matches!(result, OperationDisposition::PreSubmit),
+        "Should return PreSubmit when transaction status is Dropped"
     );
 }
 
@@ -294,8 +294,8 @@ async fn test_operation_disposition_by_payload_status_entrypoint_error() {
     .await;
 
     assert!(
-        matches!(result, OperationDisposition::Prepare),
-        "Should return Prepare when entrypoint returns error"
+        matches!(result, OperationDisposition::PreSubmit),
+        "Should return PreSubmit when entrypoint returns error"
     );
 }
 
