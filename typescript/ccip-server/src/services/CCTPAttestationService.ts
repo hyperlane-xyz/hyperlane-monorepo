@@ -182,7 +182,24 @@ class CCTPAttestationService {
       throw new Error(`CCTP attestation request failed: ${resp.statusText}`);
     }
 
-    const json: CCTPData = await resp.json();
+    let json: CCTPData;
+    try {
+      json = await resp.json();
+    } catch (error) {
+      logger.error(
+        {
+          ...context,
+          status: resp.status,
+          statusText: resp.statusText,
+          url,
+          messageId,
+          error_reason:
+            UnhandledErrorReason.CCTP_ATTESTATION_SERVICE_JSON_PARSE_ERROR,
+        },
+        'CCTP attestation response parsing failed',
+      );
+      throw new Error(`CCTP service response parsing failed: ${error}`);
+    }
 
     json.messages.forEach((message) => {
       if (message.attestation === 'PENDING') {
