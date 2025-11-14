@@ -25,7 +25,7 @@ pub struct ResponseBody {
     pub new_upper_nonce: u64,
 }
 
-/// Manually insert messages into the database
+/// Reset the upper nonce for an EVM chain
 pub async fn handler(
     State(state): State<ServerState>,
     Json(payload): Json<RequestBody>,
@@ -56,30 +56,38 @@ pub async fn handler(
         return Err(err);
     }
 
+    let current_finalized_nonce = chain
+        .db
+        .retrieve_finalized_nonce_by_signer_address(&chain.signer_address)
+        .await
+        .map_err(|err| {
+            tracing::debug!(domain_id, ?err, "Failed to fetch finalized nonce");
+            ServerErrorResponse::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                ServerErrorBody {
+                    message: format!("Failed to fetch finalized nonce: {err}"),
+                },
+            )
+        })?
+        .ok_or_else(|| {
+            tracing::debug!(domain_id, "No finalized nonce found");
+            ServerErrorResponse::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                ServerErrorBody {
+                    message: "No finalized nonce found".to_string(),
+                },
+            )
+        })?;
+
     let new_upper_nonce = match new_upper_nonce {
         Some(s) => U256::from(s),
-        None => chain
-            .db
-            .retrieve_finalized_nonce_by_signer_address(&chain.signer_address)
-            .await
-            .map_err(|err| {
-                tracing::debug!(domain_id, ?err, "Failed to fetch finalized nonce");
-                ServerErrorResponse::new(
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    ServerErrorBody {
-                        message: format!("Failed to fetch finalized nonce: {err}"),
-                    },
-                )
-            })?
-            .ok_or_else(|| {
-                tracing::debug!(domain_id, "No finalized nonce found");
-                ServerErrorResponse::new(
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    ServerErrorBody {
-                        message: "No finalized nonce found".to_string(),
-                    },
-                )
-            })?,
+        None => {
+            tracing::debug!(
+                finalized_nonce = current_finalized_nonce.as_u64(),
+                "No upper nonce provided, using finalized nonce"
+            );
+            current_finalized_nonce
+        }
     };
 
     let current_upper_nonce = chain
@@ -109,7 +117,7 @@ pub async fn handler(
             StatusCode::BAD_REQUEST,
             ServerErrorBody {
                 message: format!(
-                    "New upper nonce ({}) is higher than current upper nonce ({})",
+                    "New upper nonce ({}) must be lower than current upper nonce ({})",
                     new_upper_nonce,
                     current_upper_nonce.as_u64(),
                 ),
@@ -118,28 +126,6 @@ pub async fn handler(
         return Err(err);
     }
 
-    let current_finalized_nonce = chain
-        .db
-        .retrieve_finalized_nonce_by_signer_address(&chain.signer_address)
-        .await
-        .map_err(|err| {
-            tracing::debug!(domain_id, ?err, "Failed to fetch finalized nonce");
-            ServerErrorResponse::new(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                ServerErrorBody {
-                    message: format!("Failed to fetch finalized nonce: {err}"),
-                },
-            )
-        })?
-        .ok_or_else(|| {
-            tracing::debug!(domain_id, "No finalized nonce found");
-            ServerErrorResponse::new(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                ServerErrorBody {
-                    message: "No finalized nonce found".to_string(),
-                },
-            )
-        })?;
     if new_upper_nonce < current_finalized_nonce {
         let err = ServerErrorResponse::new(
             StatusCode::BAD_REQUEST,
@@ -174,17 +160,17 @@ pub async fn handler(
         })?;
 
     // We need to clear all nonces between [new_upper_nonce, current_upper_nonce]
-    let mut curr_nonce = new_upper_nonce;
-    while curr_nonce <= current_upper_nonce && curr_nonce != U256::MAX {
+    let mut nonce_to_clear = new_upper_nonce;
+    while nonce_to_clear <= current_upper_nonce && nonce_to_clear != U256::MAX {
         let tx_uuid_res = chain
             .db
             .retrieve_transaction_uuid_by_nonce_and_signer_address(
-                &curr_nonce,
+                &nonce_to_clear,
                 &chain.signer_address,
             )
             .await
             .map_err(|err| {
-                tracing::debug!(domain_id, ?err, ?curr_nonce, "Failed to fetch tx uuid");
+                tracing::debug!(domain_id, ?err, ?nonce_to_clear, "Failed to fetch tx uuid");
                 ServerErrorResponse::new(
                     StatusCode::INTERNAL_SERVER_ERROR,
                     ServerErrorBody {
@@ -195,14 +181,14 @@ pub async fn handler(
         let tx_uuid = match tx_uuid_res {
             Some(s) => s,
             None => {
-                curr_nonce = curr_nonce.saturating_add(U256::one());
+                nonce_to_clear = nonce_to_clear.saturating_add(U256::one());
                 continue;
             }
         };
 
         tracing::debug!(
             domain_id,
-            nonce = curr_nonce.as_u64(),
+            nonce = nonce_to_clear.as_u64(),
             ?tx_uuid,
             "Clearing nonce and tx uuid"
         );
@@ -210,22 +196,22 @@ pub async fn handler(
         if let Err(err) = chain
             .db
             .store_transaction_uuid_by_nonce_and_signer_address(
-                &curr_nonce,
+                &nonce_to_clear,
                 &chain.signer_address,
                 &TransactionUuid::default(),
             )
             .await
         {
-            tracing::error!(domain_id, ?err, ?curr_nonce, "Failed to clear tx uuid");
+            tracing::error!(domain_id, ?err, ?nonce_to_clear, "Failed to clear tx uuid");
         }
         if let Err(err) = chain
             .db
             .store_nonce_by_transaction_uuid(&chain.signer_address, &tx_uuid, &U256::MAX)
             .await
         {
-            tracing::error!(domain_id, ?err, ?curr_nonce, "Failed to clear tx nonce");
+            tracing::error!(domain_id, ?err, ?nonce_to_clear, "Failed to clear tx nonce");
         };
-        curr_nonce = curr_nonce.saturating_add(U256::one());
+        nonce_to_clear = nonce_to_clear.saturating_add(U256::one());
     }
 
     let resp = ResponseBody {
