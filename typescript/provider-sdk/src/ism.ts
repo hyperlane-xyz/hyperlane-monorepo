@@ -1,5 +1,11 @@
 import { WithAddress } from '@hyperlane-xyz/utils';
 
+export type IsmModuleType = {
+  config: IsmConfig;
+  derived: DerivedIsmConfig;
+  addresses: IsmModuleAddresses;
+};
+
 export interface IsmConfigs {
   domainRoutingIsm: DomainRoutingIsmConfig;
   merkleRootMultisigIsm: MultisigIsmConfig;
@@ -31,3 +37,8 @@ export interface DomainRoutingIsmConfig {
   owner: string;
   domains: Record<string, IsmConfig | string>;
 }
+
+export type IsmModuleAddresses = {
+  deployedIsm: string;
+  mailbox: string;
+};

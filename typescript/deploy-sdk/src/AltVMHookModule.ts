@@ -1,7 +1,10 @@
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
+  DerivedHookConfig,
   HookConfig,
+  HookModuleAddresses,
+  HookModuleType,
   HookType,
   IgpHookConfig,
   MUTABLE_HOOK_TYPE,
@@ -23,14 +26,7 @@ import {
 
 import { AltVMHookReader } from './AltVMHookReader.js';
 
-type HookModuleAddresses = {
-  deployedHook: Address;
-  mailbox: Address;
-};
-
-export class AltVMHookModule
-  implements HypModule<HookConfig, HookModuleAddresses>
-{
+export class AltVMHookModule implements HypModule<HookModuleType> {
   protected readonly logger = rootLogger.child({
     module: 'AltVMHookModule',
   });
@@ -41,7 +37,7 @@ export class AltVMHookModule
 
   constructor(
     protected readonly chainLookup: ChainLookup,
-    private readonly args: HypModuleArgs<HookConfig, HookModuleAddresses>,
+    private readonly args: HypModuleArgs<HookModuleType>,
     protected readonly signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
   ) {
     // this.args.config = HookConfigSchema.parse(this.args.config);
@@ -52,7 +48,7 @@ export class AltVMHookModule
     this.chain = metadata.name;
   }
 
-  public async read(): Promise<HookConfig> {
+  public async read(): Promise<DerivedHookConfig> {
     return this.reader.deriveHookConfig(this.args.addresses.deployedHook);
   }
 

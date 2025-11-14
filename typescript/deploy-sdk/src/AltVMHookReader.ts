@@ -3,12 +3,14 @@ import { ChainMetadataLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
   DerivedHookConfig,
   HookConfig,
+  HookModuleType,
   IgpHookConfig,
   MerkleTreeHookConfig,
 } from '@hyperlane-xyz/provider-sdk/hook';
+import { HypReader } from '@hyperlane-xyz/provider-sdk/module';
 import { Address, WithAddress, rootLogger } from '@hyperlane-xyz/utils';
 
-export class AltVMHookReader {
+export class AltVMHookReader implements HypReader<HookModuleType> {
   protected readonly logger = rootLogger.child({
     module: 'AltVMHookReader',
   });
@@ -17,6 +19,10 @@ export class AltVMHookReader {
     protected readonly getChainMetadata: ChainMetadataLookup,
     protected readonly provider: AltVM.IProvider,
   ) {}
+
+  async read(address: string): Promise<DerivedHookConfig> {
+    return this.deriveHookConfig(address);
+  }
 
   async deriveHookConfigFromAddress(
     address: Address,

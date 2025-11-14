@@ -4,11 +4,13 @@ import {
   DerivedIsmConfig,
   DomainRoutingIsmConfig,
   IsmConfig,
+  IsmModuleType,
   MultisigIsmConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
+import { HypReader } from '@hyperlane-xyz/provider-sdk/module';
 import { Address, WithAddress, rootLogger } from '@hyperlane-xyz/utils';
 
-export class AltVMIsmReader {
+export class AltVMIsmReader implements HypReader<IsmModuleType> {
   protected readonly logger = rootLogger.child({
     module: 'AltVMIsmReader',
   });
@@ -17,6 +19,10 @@ export class AltVMIsmReader {
     protected readonly getChainName: ChainNameLookup,
     protected readonly provider: AltVM.IProvider,
   ) {}
+
+  async read(address: string): Promise<DerivedIsmConfig> {
+    return this.deriveIsmConfig(address);
+  }
 
   async deriveIsmConfigFromAddress(
     address: Address,

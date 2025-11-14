@@ -9,7 +9,9 @@ import {
 } from '@hyperlane-xyz/provider-sdk/module';
 import {
   DerivedWarpConfig,
+  TokenRouterModuleType,
   WarpConfig,
+  WarpRouteAddresses,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import {
   Address,
@@ -23,13 +25,7 @@ import { AltVMIsmModule } from './AltVMIsmModule.js';
 import { AltVMDeployer } from './AltVMWarpDeployer.js';
 import { AltVMWarpRouteReader } from './AltVMWarpRouteReader.js';
 
-type WarpRouteAddresses = {
-  deployedTokenRoute: Address;
-};
-
-export class AltVMWarpModule
-  implements HypModule<WarpConfig, WarpRouteAddresses>
-{
+export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
   protected logger: ReturnType<typeof rootLogger.child<never>>;
 
   reader: AltVMWarpRouteReader;
@@ -38,7 +34,7 @@ export class AltVMWarpModule
   constructor(
     protected readonly chainLookup: ChainLookup,
     protected readonly signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
-    private readonly args: HypModuleArgs<WarpConfig, WarpRouteAddresses>,
+    private readonly args: HypModuleArgs<TokenRouterModuleType>,
   ) {
     const metadata = chainLookup.getChainMetadata(args.chain);
     this.chainName = metadata.name;

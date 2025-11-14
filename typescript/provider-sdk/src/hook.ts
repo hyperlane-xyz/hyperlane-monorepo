@@ -1,5 +1,11 @@
 import { WithAddress } from '@hyperlane-xyz/utils';
 
+export type HookModuleType = {
+  config: HookConfig;
+  derived: DerivedHookConfig;
+  addresses: HookModuleAddresses;
+};
+
 export interface HookConfigs {
   interchainGasPaymaster: IgpHookConfig;
   merkleTreeHook: MerkleTreeHookConfig;
@@ -35,3 +41,8 @@ export interface IgpHookConfig {
 export interface MerkleTreeHookConfig {
   type: 'merkleTreeHook';
 }
+
+export type HookModuleAddresses = {
+  deployedHook: string;
+  mailbox: string;
+};

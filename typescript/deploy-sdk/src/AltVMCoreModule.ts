@@ -2,6 +2,7 @@ import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
   CoreConfig,
+  CoreModuleType,
   DeployedCoreAddresses,
   DerivedCoreConfig,
 } from '@hyperlane-xyz/provider-sdk/core';
@@ -22,9 +23,7 @@ import { AltVMCoreReader } from './AltVMCoreReader.js';
 import { AltVMHookModule } from './AltVMHookModule.js';
 import { AltVMIsmModule } from './AltVMIsmModule.js';
 
-export class AltVMCoreModule
-  implements HypModule<CoreConfig, DeployedCoreAddresses>
-{
+export class AltVMCoreModule implements HypModule<CoreModuleType> {
   protected logger = rootLogger.child({ module: 'AltVMCoreModule' });
   protected coreReader: AltVMCoreReader;
 
@@ -34,7 +33,7 @@ export class AltVMCoreModule
   constructor(
     protected readonly chainLookup: ChainLookup,
     protected readonly signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
-    private readonly args: HypModuleArgs<CoreConfig, DeployedCoreAddresses>,
+    private readonly args: HypModuleArgs<CoreModuleType>,
   ) {
     const metadata = chainLookup.getChainMetadata(args.chain);
     this.chainName = metadata.name;
