@@ -49,10 +49,16 @@ async fn test_filter_operations_for_preparation_all_manual_retry() {
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
     let confirm_queue = create_test_queue();
 
-    // DB and entrypoint should NOT be called for manual retry (early return optimization)
+    // DB retrieval should NOT be called for manual retry (early return optimization)
     mock_db
         .expect_retrieve_payload_uuids_by_message_id()
         .times(0);
+
+    // But store should be called to remove the payload UUID mapping
+    mock_db
+        .expect_store_payload_uuids_by_message_id()
+        .times(3)
+        .returning(|_, _| Ok(()));
 
     mock_entrypoint.expect_payload_status().times(0);
 
@@ -79,7 +85,7 @@ async fn test_filter_operations_for_preparation_all_manual_retry() {
     assert_eq!(
         result.len(),
         3,
-        "All manual retry operations should be returned for prepare"
+        "All manual retry operations should be returned for pre-submit"
     );
 
     // Verify confirm queue is empty for manual retry operations
@@ -88,6 +94,151 @@ async fn test_filter_operations_for_preparation_all_manual_retry() {
         queue_contents.len(),
         0,
         "Confirm queue should be empty for manual retry operations"
+    );
+}
+
+#[tokio::test]
+async fn test_filter_operations_for_preparation_manual_retry_db_store_failure() {
+    let mut mock_db = MockHyperlaneDb::new();
+    let mut mock_entrypoint = MockDispatcherEntrypoint::new();
+    let confirm_queue = create_test_queue();
+
+    // DB retrieval should NOT be called for manual retry
+    mock_db
+        .expect_retrieve_payload_uuids_by_message_id()
+        .times(0);
+
+    // Store should be called but will fail
+    mock_db
+        .expect_store_payload_uuids_by_message_id()
+        .times(2)
+        .returning(|_, _| {
+            Err(hyperlane_base::db::DbError::Other(
+                "Mock DB store failure".to_string(),
+            ))
+        });
+
+    mock_entrypoint.expect_payload_status().times(0);
+
+    let op1 = Box::new(MockQueueOperation::with_manual_retry(
+        H256::from_low_u64_be(1),
+    )) as QueueOperation;
+    let op2 = Box::new(MockQueueOperation::with_manual_retry(
+        H256::from_low_u64_be(2),
+    )) as QueueOperation;
+
+    let batch = vec![op1, op2];
+
+    let result = filter_operations_for_preparation(
+        Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
+        &confirm_queue,
+        Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
+        batch,
+    )
+    .await;
+
+    assert_eq!(
+        result.len(),
+        2,
+        "Manual retry operations should still be returned for pre-submit even if DB store fails"
+    );
+
+    // Verify confirm queue is empty
+    let queue_contents = confirm_queue.queue.lock().await;
+    assert_eq!(
+        queue_contents.len(),
+        0,
+        "Confirm queue should be empty for manual retry operations"
+    );
+}
+
+#[tokio::test]
+async fn test_filter_operations_for_preparation_manual_retry_db_store_failure_mixed_batch() {
+    let mut mock_db = MockHyperlaneDb::new();
+    let mut mock_entrypoint = MockDispatcherEntrypoint::new();
+    let confirm_queue = create_test_queue();
+
+    let message_id1 = H256::from_low_u64_be(1); // Manual retry with DB store failure
+    let message_id2 = H256::from_low_u64_be(2); // Submitted - should go to confirm
+    let message_id3 = H256::from_low_u64_be(3); // Not submitted - should go to pre-submit
+
+    let payload_uuid2 = UniqueIdentifier::new(Uuid::new_v4());
+
+    // Store should be called for manual operation and fail
+    mock_db
+        .expect_store_payload_uuids_by_message_id()
+        .times(1)
+        .returning(|_, _| {
+            Err(hyperlane_base::db::DbError::Other(
+                "Mock DB store failure".to_string(),
+            ))
+        });
+
+    // DB retrieval for non-manual operations
+    let payload_uuid2_clone = payload_uuid2.clone();
+    mock_db
+        .expect_retrieve_payload_uuids_by_message_id()
+        .times(2) // Op2 and Op3 (Op1 is manual, not called)
+        .returning(move |id| {
+            if *id == message_id2 {
+                Ok(Some(vec![payload_uuid2_clone.clone()]))
+            } else if *id == message_id3 {
+                Ok(None)
+            } else {
+                Ok(None)
+            }
+        });
+
+    // Mock entrypoint
+    let payload_uuid2_for_ep = payload_uuid2.clone();
+    mock_entrypoint
+        .expect_payload_status()
+        .times(1) // Only Op2
+        .returning(move |uuid| {
+            if *uuid == *payload_uuid2_for_ep {
+                Ok(PayloadStatus::InTransaction(TransactionStatus::Finalized))
+            } else {
+                Err(LanderError::PayloadNotFound)
+            }
+        });
+
+    let op1 = Box::new(MockQueueOperation::with_manual_retry(message_id1)) as QueueOperation;
+    let op2 = Box::new(MockQueueOperation::with_first_prepare(message_id2)) as QueueOperation;
+    let op3 = Box::new(MockQueueOperation::with_first_prepare(message_id3)) as QueueOperation;
+
+    let batch = vec![op1, op2, op3];
+
+    let result = filter_operations_for_preparation(
+        Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
+        &confirm_queue,
+        Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
+        batch,
+    )
+    .await;
+
+    assert_eq!(
+        result.len(),
+        2,
+        "Manual retry (with DB failure) and not submitted operations should be returned for pre-submit"
+    );
+
+    // Verify the IDs of operations to pre-submit
+    let result_ids: Vec<H256> = result.iter().map(|op| op.id()).collect();
+    assert!(
+        result_ids.contains(&message_id1),
+        "Manual retry operation should be in pre-submit list even with DB store failure"
+    );
+    assert!(
+        result_ids.contains(&message_id3),
+        "Not submitted operation should be in pre-submit list"
+    );
+
+    // Verify the submitted operation (op2) was pushed to confirm queue
+    let queue_contents = confirm_queue.queue.lock().await;
+    assert_eq!(
+        queue_contents.len(),
+        1,
+        "Submitted operation should be in confirm queue, unaffected by manual operation DB failure"
     );
 }
 
@@ -147,7 +298,7 @@ async fn test_filter_operations_for_preparation_all_submitted() {
     assert_eq!(
         result.len(),
         0,
-        "All submitted operations should go to confirm queue, not prepare"
+        "All submitted operations should go to confirm queue, not pre-submit"
     );
 
     // Verify all 3 operations were pushed to confirm queue
@@ -193,7 +344,7 @@ async fn test_filter_operations_for_preparation_none_submitted() {
     assert_eq!(
         result.len(),
         2,
-        "All non-submitted operations should be returned for prepare"
+        "All non-submitted operations should be returned for pre-submit"
     );
 
     // Verify confirm queue is empty when no operations are submitted
@@ -211,9 +362,9 @@ async fn test_filter_operations_for_preparation_mixed_batch() {
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
     let confirm_queue = create_test_queue();
 
-    let message_id1 = H256::from_low_u64_be(1); // Manual retry - should go to prepare
+    let message_id1 = H256::from_low_u64_be(1); // Manual retry - should go to pre-submit
     let message_id2 = H256::from_low_u64_be(2); // Submitted - should go to confirm
-    let message_id3 = H256::from_low_u64_be(3); // Not submitted - should go to prepare
+    let message_id3 = H256::from_low_u64_be(3); // Not submitted - should go to pre-submit
     let message_id4 = H256::from_low_u64_be(4); // Submitted - should go to confirm
 
     let payload_uuid2 = UniqueIdentifier::new(Uuid::new_v4());
@@ -236,6 +387,12 @@ async fn test_filter_operations_for_preparation_mixed_batch() {
                 Ok(None)
             }
         });
+
+    // Store should be called once to remove the payload UUID mapping for manual operation
+    mock_db
+        .expect_store_payload_uuids_by_message_id()
+        .times(1)
+        .returning(|_, _| Ok(()));
 
     // Mock entrypoint with flexible expectation
     let payload_uuid2_for_ep = payload_uuid2.clone();
@@ -273,18 +430,18 @@ async fn test_filter_operations_for_preparation_mixed_batch() {
     assert_eq!(
         result.len(),
         2,
-        "2 operations (manual retry + not submitted) should be returned for prepare"
+        "2 operations (manual retry + not submitted) should be returned for pre-submit"
     );
 
-    // Verify the IDs of operations to prepare
+    // Verify the IDs of operations to pre-submit
     let result_ids: Vec<H256> = result.iter().map(|op| op.id()).collect();
     assert!(
         result_ids.contains(&message_id1),
-        "Manual retry operation should be in prepare list"
+        "Manual retry operation should be in pre-submit list"
     );
     assert!(
         result_ids.contains(&message_id3),
-        "Not submitted operation should be in prepare list"
+        "Not submitted operation should be in pre-submit list"
     );
 
     // Verify the 2 submitted operations (op2 and op4) were pushed to confirm queue
@@ -331,7 +488,7 @@ async fn test_filter_operations_for_preparation_db_error() {
     assert_eq!(
         result.len(),
         1,
-        "Operation with DB error should be returned for prepare"
+        "Operation with DB error should be returned for pre-submit"
     );
     assert_eq!(result[0].id(), message_id);
 
@@ -378,7 +535,7 @@ async fn test_filter_operations_for_preparation_payload_dropped() {
     assert_eq!(
         result.len(),
         1,
-        "Operation with dropped payload should be returned for prepare"
+        "Operation with dropped payload should be returned for pre-submit"
     );
     assert_eq!(result[0].id(), message_id);
 
@@ -429,7 +586,7 @@ async fn test_filter_operations_for_preparation_transaction_dropped() {
     assert_eq!(
         result.len(),
         1,
-        "Operation with dropped transaction should be returned for prepare"
+        "Operation with dropped transaction should be returned for pre-submit"
     );
     assert_eq!(result[0].id(), message_id);
 
@@ -476,7 +633,7 @@ async fn test_filter_operations_for_preparation_entrypoint_error() {
     assert_eq!(
         result.len(),
         1,
-        "Operation with entrypoint error should be returned for prepare"
+        "Operation with entrypoint error should be returned for pre-submit"
     );
     assert_eq!(result[0].id(), message_id);
 
@@ -571,7 +728,7 @@ async fn test_filter_operations_for_preparation_empty_payload_uuids() {
     assert_eq!(
         result.len(),
         1,
-        "Operation with empty payload UUIDs should be returned for prepare"
+        "Operation with empty payload UUIDs should be returned for pre-submit"
     );
     assert_eq!(result[0].id(), message_id);
 

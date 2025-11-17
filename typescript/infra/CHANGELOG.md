@@ -1,5 +1,15 @@
 # @hyperlane-xyz/infra
 
+## 19.9.0
+
+### Patch Changes
+
+- Updated dependencies [8c027d852]
+- Updated dependencies [8c027d852]
+  - @hyperlane-xyz/utils@19.9.0
+  - @hyperlane-xyz/sdk@19.9.0
+  - @hyperlane-xyz/helloworld@19.9.0
+
 ## 19.8.0
 
 ### Patch Changes
