@@ -139,6 +139,7 @@ fn launch_cosmos_relayer(
                 "payment": "1"
             }]"#,
         )
+        .hyp_env("CACHEDEFAULTEXPIRATIONSECONDS", "5")
         .hyp_env("METRICSPORT", metrics.to_string())
         .spawn("RLY", None);
 
