@@ -19,6 +19,7 @@ use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument
 
 use hyperlane_base::db::{HyperlaneDb, HyperlaneRocksDB};
 use hyperlane_base::CoreMetrics;
+use hyperlane_core::PendingOperationStatus::ReadyToSubmit;
 use hyperlane_core::{
     ConfirmReason, HyperlaneDomain, HyperlaneDomainProtocol, PendingOperationResult,
     PendingOperationStatus, QueueOperation, ReprepareReason,
@@ -645,7 +646,11 @@ async fn submit_via_lander(
 
     // Push to submit queue - the filtering logic will move it to confirm queue
     // once the transaction is actually included on-chain
-    submit_queue.push(op, None).await;
+    // We are not differentiating operations which arrived to Submit queue
+    // for the first time and operations which stuck there at the moment.
+    // Depending on type of failures with submission, we can add more variants of
+    // PendingOperationStatus which will allow to identify the root cause quicker.
+    submit_queue.push(op, Some(ReadyToSubmit)).await;
 }
 
 async fn prepare_op(
