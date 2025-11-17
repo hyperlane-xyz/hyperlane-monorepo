@@ -94,6 +94,8 @@ export async function signerMiddleware(argv: Record<string, any>) {
     chains.map((chain) => argv.context.multiProvider.getProtocol(chain)),
   );
 
+  argv.context.altVmProvider;
+
   return argv;
 }
 
@@ -125,7 +127,7 @@ export async function getContext({
   const multiProvider = await getMultiProvider(registry);
   const multiProtocolProvider = await getMultiProtocolProvider(registry);
 
-  const supportedProtocols = [ProtocolType.Ethereum];
+  const supportedProtocols = [ProtocolType.Ethereum, ProtocolType.CosmosNative];
 
   return {
     registry,
