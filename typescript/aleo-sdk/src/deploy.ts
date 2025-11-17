@@ -24,6 +24,12 @@ const main = async () => {
     const bytes = addressToBytesAleo(address);
     console.log('signer bytes', bytes);
     console.log('signer address from bytes', bytesToAddressAleo(bytes));
+
+    const mailboxAddress = 'mailbox.aleo';
+    console.log('mailbox address: ', mailboxAddress);
+    const bytes1 = addressToBytesAleo(mailboxAddress);
+    console.log('mailbox bytes', bytes1);
+    console.log('mailbox address from bytes', bytesToAddressAleo(bytes1));
   } catch (err) {
     console.log(err);
   }

@@ -1,4 +1,5 @@
 import { fromBech32, normalizeBech32, toBech32 } from '@cosmjs/encoding';
+import { Program } from '@provablehq/sdk/mainnet.js';
 import { PublicKey } from '@solana/web3.js';
 import { bech32m } from 'bech32';
 import { Wallet, utils as ethersUtils } from 'ethers';
@@ -19,7 +20,7 @@ const COSMOS_NATIVE_ADDRESS_REGEX = /^(0x)?[0-9a-fA-F]{64}$/;
 const STARKNET_ADDRESS_REGEX = /^(0x)?[0-9a-fA-F]{64}$/;
 const RADIX_ADDRESS_REGEX =
   /^(account|component)_(rdx|sim|tdx_[\d]_)[a-z0-9]{55}$/;
-const ALEO_ADDRESS_REGEX = /^aleo1[a-z0-9]{58}$/;
+const ALEO_ADDRESS_REGEX = /^(aleo1[a-z0-9]{58}|[A-Za-z0-9_]+\.aleo)$/;
 
 const HEX_BYTES32_REGEX = /^0x[a-fA-F0-9]{64}$/;
 
@@ -431,8 +432,20 @@ export function addressToBytesRadix(address: Address): Uint8Array {
 }
 
 export function addressToBytesAleo(address: Address): Uint8Array {
+  let aleoAddress = address;
+
+  if (new RegExp('^[A-Za-z0-9_]+\.aleo$').test(address)) {
+    aleoAddress = Program.fromString(
+      Program.getCreditsProgram()
+        .toString()
+        .replaceAll('credits.aleo', address),
+    )
+      .address()
+      .to_string();
+  }
+
   let byteArray = new Uint8Array(
-    bech32m.fromWords(bech32m.decode(address).words),
+    bech32m.fromWords(bech32m.decode(aleoAddress).words),
   );
 
   return byteArray;
