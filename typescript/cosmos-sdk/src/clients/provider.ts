@@ -65,6 +65,8 @@ import {
 import { WarpExtension, setupWarpExtension } from '../hyperlane/warp/query.js';
 import { COSMOS_MODULE_MESSAGE_REGISTRY as R } from '../registry.js';
 
+import { CosmosNativeSigner } from './signer.js';
+
 export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
   private readonly query: QueryClient &
     BankExtension &
@@ -856,7 +858,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
 }
 
 // @TODO: Complete this as part of https://linear.app/hyperlane-xyz/issue/ENG-2397/adapt-cosmos-sdk-to-the-protocol-api
-export class CosmosNativeProviderV2 implements ProtocolProvider {
+export class CosmosNativeProtocolProvider implements ProtocolProvider {
   createProvider(chainMetadata: ChainMetadataForAltVM): Promise<IProvider> {
     assert(chainMetadata.rpcUrls, 'rpc urls undefined');
     const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
@@ -867,7 +869,15 @@ export class CosmosNativeProviderV2 implements ProtocolProvider {
     chainMetadata: ChainMetadataForAltVM,
     config: SignerConfig,
   ): Promise<AltVM.ISigner<AnnotatedTx, TxReceipt>> {
-    throw Error('Not implemented');
+    assert(chainMetadata.rpcUrls, 'rpc urls undefined');
+    const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
+
+    const { privateKey, ...extraParams } = config;
+    return CosmosNativeSigner.connectWithSigner(
+      rpcUrls,
+      privateKey,
+      extraParams,
+    );
   }
 
   createSubmitter<TConfig extends TransactionSubmitterConfig>(
