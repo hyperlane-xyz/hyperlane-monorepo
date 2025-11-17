@@ -106,6 +106,7 @@ impl EthereumAdapter {
             dispatcher_metrics.get_batched_transactions(),
             dispatcher_metrics.get_finalized_nonce(domain, &signer.to_string()),
             dispatcher_metrics.get_upper_nonce(domain, &signer.to_string()),
+            dispatcher_metrics.get_mismatched_nonce(domain, &signer.to_string()),
         );
 
         let payload_db = db.clone() as Arc<dyn PayloadDb>;
@@ -201,7 +202,13 @@ impl EthereumAdapter {
         Ok(())
     }
 
-    fn update_tx(&self, tx: &mut Transaction, nonce: U256, gas_price: GasPrice) {
+    fn update_tx_nonce(tx: &mut Transaction, nonce: U256) {
+        let precursor = tx.precursor_mut();
+        precursor.tx.set_nonce(nonce);
+        info!(?tx, "updated transaction with nonce");
+    }
+
+    fn update_tx_gas_price(tx: &mut Transaction, gas_price: GasPrice) {
         let precursor = tx.precursor_mut();
 
         if let GasPrice::Eip1559 {
@@ -210,7 +217,6 @@ impl EthereumAdapter {
         } = gas_price
         {
             // Re-create the whole EIP-1559 transaction request in this case
-
             let tx = precursor.tx.clone();
 
             let mut request = Eip1559TransactionRequest::new();
@@ -249,9 +255,7 @@ impl EthereumAdapter {
             }
             GasPrice::Eip1559 { .. } => {}
         }
-        precursor.tx.set_nonce(nonce);
-
-        info!(?tx, "updated transaction with nonce and gas price");
+        info!(?tx, "updated transaction with gas price");
     }
 
     fn filter<I: Clone>(items: &[I], indices: Vec<usize>) -> Vec<I> {
@@ -651,9 +655,13 @@ impl AdaptsChain for EthereumAdapter {
             self.estimate_gas_price(&tx_for_gas_price)
         )?;
 
+        // Update the transaction with nonce before checking if resubmission makes sense
+        // This ensures the nonce is stored even if we decide not to resubmit due to gas price limits
+        Self::update_tx_nonce(tx, nonce);
+
         Self::check_if_resubmission_makes_sense(tx, &gas_price)?;
 
-        self.update_tx(tx, nonce, gas_price);
+        Self::update_tx_gas_price(tx, gas_price);
 
         info!(?tx, "submitting transaction");
 
