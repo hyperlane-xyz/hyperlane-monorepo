@@ -4,8 +4,8 @@ use tracing::warn;
 
 use hyperlane_base::db::HyperlaneDb;
 use hyperlane_core::ConfirmReason::AlreadySubmitted;
-use hyperlane_core::PendingOperationStatus::Confirm;
-use hyperlane_core::QueueOperation;
+use hyperlane_core::PendingOperationStatus::{Confirm, Retry};
+use hyperlane_core::{QueueOperation, ReprepareReason};
 use lander::Entrypoint;
 
 use crate::msg::message_processor::disposition;
@@ -29,7 +29,7 @@ pub(crate) async fn filter_operations_for_preparation(
     let mut operations_with_disposition = Vec::with_capacity(batch.len());
     for op in batch {
         let disposition =
-            disposition::determine_operation_disposition(entrypoint.clone(), db.clone(), &op).await;
+            determine_operation_disposition(entrypoint.clone(), db.clone(), &op).await;
         operations_with_disposition.push((op, disposition));
     }
 
@@ -37,20 +37,6 @@ pub(crate) async fn filter_operations_for_preparation(
     let mut ops_to_prepare = Vec::new();
     for (op, disposition) in operations_with_disposition {
         match disposition {
-            OperationDisposition::Manual => {
-                // Remove link between message and payload for Manual operations
-                // to allow re-processing even if payload status filtering is
-                // applied in other stages (submit, confirm)
-                let message_id = op.id();
-                if let Err(e) = db.store_payload_uuids_by_message_id(&message_id, vec![]) {
-                    warn!(
-                        ?e,
-                        ?message_id,
-                        "Failed to remove payload UUID mapping for manual operation"
-                    );
-                }
-                ops_to_prepare.push(op);
-            }
             OperationDisposition::PreSubmit => {
                 ops_to_prepare.push(op);
             }
@@ -62,6 +48,31 @@ pub(crate) async fn filter_operations_for_preparation(
     }
 
     ops_to_prepare
+}
+
+async fn determine_operation_disposition(
+    entrypoint: Arc<dyn Entrypoint + Send + Sync>,
+    db: Arc<dyn HyperlaneDb>,
+    op: &QueueOperation,
+) -> OperationDisposition {
+    // Check if operation requires manual intervention
+    if let Retry(ReprepareReason::Manual) = op.status() {
+        // Remove link between message and payload for Manual operations
+        // to allow re-processing even if payload status filtering is
+        // applied in other stages (submit, confirm)
+        // Once this linkage is removed, operation disposition will be PreSubmit
+        let message_id = op.id();
+        if let Err(e) = db.store_payload_uuids_by_message_id(&message_id, vec![]) {
+            warn!(
+                ?e,
+                ?message_id,
+                "Failed to remove payload UUID mapping for manual operation"
+            );
+        }
+    }
+
+    // Determine disposition based on payload status
+    disposition::operation_disposition_by_payload_status(entrypoint, db, op).await
 }
 
 #[cfg(test)]

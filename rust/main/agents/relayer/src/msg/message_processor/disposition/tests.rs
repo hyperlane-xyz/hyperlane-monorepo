@@ -9,12 +9,11 @@ use lander::{
     TransactionDropReason, TransactionStatus,
 };
 
-use crate::msg::message_processor::disposition::{
-    operation_disposition_by_payload_status, OperationDisposition,
-};
 use crate::msg::message_processor::tests::tests_common::{
     MockDispatcherEntrypoint, MockHyperlaneDb, MockQueueOperation,
 };
+
+use super::super::disposition::{operation_disposition_by_payload_status, OperationDisposition};
 
 #[tokio::test]
 async fn test_operation_disposition_by_payload_status_db_error() {
