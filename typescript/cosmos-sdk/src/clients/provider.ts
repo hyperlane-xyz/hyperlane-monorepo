@@ -65,8 +65,6 @@ import {
 import { WarpExtension, setupWarpExtension } from '../hyperlane/warp/query.js';
 import { COSMOS_MODULE_MESSAGE_REGISTRY as R } from '../registry.js';
 
-import { CosmosNativeSigner } from './signer.js';
-
 export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
   private readonly query: QueryClient &
     BankExtension &
@@ -865,13 +863,15 @@ export class CosmosNativeProtocolProvider implements ProtocolProvider {
     return CosmosNativeProvider.connect(rpcUrls, chainMetadata.domainId);
   }
 
-  createSigner(
+  async createSigner(
     chainMetadata: ChainMetadataForAltVM,
     config: SignerConfig,
   ): Promise<AltVM.ISigner<AnnotatedTx, TxReceipt>> {
     assert(chainMetadata.rpcUrls, 'rpc urls undefined');
     const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
 
+    // Import dynamically to avoid circular dependency
+    const { CosmosNativeSigner } = await import('./signer.js');
     const { privateKey, ...extraParams } = config;
     return CosmosNativeSigner.connectWithSigner(
       rpcUrls,
