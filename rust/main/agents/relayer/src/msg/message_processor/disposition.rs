@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use tracing::warn;
+
 use hyperlane_base::db::HyperlaneDb;
 use hyperlane_core::QueueOperation;
 use lander::{Entrypoint, PayloadStatus, TransactionStatus};
@@ -31,7 +33,10 @@ pub(crate) async fn operation_disposition_by_payload_status(
 
     let payload_uuids = match db.retrieve_payload_uuids_by_message_id(&id) {
         Ok(uuids) => uuids,
-        Err(_) => return PreSubmit,
+        Err(e) => {
+            warn!("Failed to retrieve payload uuids by message id: message_id={id:?}, error={e:?}");
+            return PreSubmit;
+        }
     };
 
     let payload_uuids = match payload_uuids {
@@ -42,8 +47,12 @@ pub(crate) async fn operation_disposition_by_payload_status(
 
     // checking only the first payload uuid since we support a single payload per message at this point
     let payload_uuid = payload_uuids[0].clone();
-    let Ok(status) = entrypoint.payload_status(payload_uuid).await else {
-        return PreSubmit;
+    let status = match entrypoint.payload_status(payload_uuid.clone()).await {
+        Ok(status) => status,
+        Err(e) => {
+            warn!("Failed to retrieve payload status by its uuid: message_id={id:?}, payload_uuid={payload_uuid:?}, error={e:?}");
+            return PreSubmit;
+        }
     };
 
     match status {

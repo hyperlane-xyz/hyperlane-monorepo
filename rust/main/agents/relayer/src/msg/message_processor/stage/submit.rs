@@ -49,6 +49,10 @@ pub(crate) async fn filter_operations_for_submit(
                 ops_to_submit.push(op);
             }
             Submit => {
+                // We are not differentiating operations which arrived to Submit queue
+                // for the first time and operations which stuck there at the moment.
+                // Depending on type of failures with submission, we can add more variants of
+                // PendingOperationStatus which will allow to identify the root cause quicker.
                 submit_queue.push(op, Some(ReadyToSubmit)).await;
             }
             PostSubmit => {
