@@ -64,7 +64,22 @@ contract HypERC20Collateral is LpCollateralRouter {
 
     function _addBridge(uint32 domain, ITokenBridge bridge) internal override {
         MovableCollateralRouter._addBridge(domain, bridge);
-        IERC20(wrappedToken).safeApprove(address(bridge), type(uint256).max);
+
+        uint256 bridgeAllowance = wrappedToken.allowance(
+            address(this),
+            address(bridge)
+        );
+        if (bridgeAllowance == type(uint256).max) {
+            return;
+        }
+
+        // If the current allowance is non-0 we need to reset it
+        // before giving max allowance to the bridge
+        if (bridgeAllowance != 0) {
+            wrappedToken.safeApprove(address(bridge), 0);
+        }
+
+        wrappedToken.safeApprove(address(bridge), type(uint256).max);
     }
 
     function _removeBridge(
