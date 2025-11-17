@@ -4,7 +4,7 @@ use tracing::warn;
 
 use hyperlane_base::db::HyperlaneDb;
 use hyperlane_core::ConfirmReason::AlreadySubmitted;
-use hyperlane_core::PendingOperationStatus::{Confirm, Retry};
+use hyperlane_core::PendingOperationStatus::{Confirm, ReadyToSubmit, Retry};
 use hyperlane_core::{QueueOperation, ReprepareReason};
 use lander::Entrypoint;
 
@@ -46,7 +46,11 @@ pub(crate) async fn filter_operations_for_preparation(
                 ops_to_prepare.push(op);
             }
             Submit => {
-                submit_queue.push(op, None).await;
+                // We are not differentiating operations which arrived to Submit queue
+                // for the first time and operations which stuck there at the moment.
+                // Depending on type of failures with submission, we can add more variants of
+                // PendingOperationStatus which will allow to identify the root cause quicker.
+                submit_queue.push(op, Some(ReadyToSubmit)).await;
             }
             PostSubmit => {
                 let status = Some(Confirm(AlreadySubmitted));
