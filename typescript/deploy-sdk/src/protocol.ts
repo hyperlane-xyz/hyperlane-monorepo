@@ -5,10 +5,10 @@ export async function loadProviders(neededProtocols: ProtocolType[]) {
     neededProtocols.map(async (protocol) => {
       switch (protocol) {
         case ProtocolType.CosmosNative: {
-          const { CosmosNativeProviderFactory } = await import(
+          const { CosmosNativeProviderV2 } = await import(
             '@hyperlane-xyz/cosmos-sdk'
           );
-          registerProtocol(protocol, () => new CosmosNativeProviderFactory());
+          registerProtocol(protocol, () => new CosmosNativeProviderV2());
           break;
         }
       }
