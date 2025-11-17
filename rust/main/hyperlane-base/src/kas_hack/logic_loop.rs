@@ -4,7 +4,7 @@ use dym_kas_core::{
     confirmation::ConfirmationFXG, deposit::DepositFXG, finality::is_safe_against_reorg,
 };
 use dym_kas_relayer::confirm::expensive_trace_transactions;
-use dym_kas_relayer::deposit::{build_deposit_fxg, check_deposit_finality, KaspaTxError};
+use dym_kas_relayer::deposit::{on_new_deposit as relayer_on_new_deposit, KaspaTxError};
 use dymension_kaspa::{Deposit, KaspaProvider};
 use ethers::utils::hex::ToHex;
 use eyre::Result;
@@ -15,45 +15,25 @@ use hyperlane_core::{
 };
 use hyperlane_cosmos::native::{h512_to_cosmos_hash, CosmosNativeMailbox};
 use kaspa_consensus_core::tx::TransactionOutpoint;
+use kaspa_core::time::unix_now;
 use std::{collections::HashSet, fmt::Debug, hash::Hash, sync::Arc, time::Duration};
 use tokio::{sync::Mutex, task::JoinHandle, time};
 use tokio_metrics::TaskMonitor;
 use tracing::{debug, error, info, info_span, Instrument};
 
 use super::{
-    deposit_operation::{DepositOperation, DepositTracker},
+    deposit_operation::{DepositOpQueue, DepositOperation},
     error::KaspaDepositError,
 };
-use dymension_kaspa::conf::RelayerDepositTimings;
-
-enum DepositRelayResult {
-    Success {
-        deposit_id: String,
-        amount: u64,
-        hub_tx_hash: H256,
-    },
-    AlreadyDelivered {
-        deposit_id: String,
-    },
-    Retryable {
-        deposit_id: String,
-        amount: u64,
-        error: eyre::Error,
-        custom_delay: Option<Duration>,
-    },
-    NonRetryable {
-        deposit_id: String,
-        amount: u64,
-        error: eyre::Error,
-    },
-}
+use dymension_kaspa::conf::KaspaTimeConfig;
 
 pub struct Foo<C: MetadataConstructor> {
     provider: Box<KaspaProvider>,
     hub_mailbox: Arc<CosmosNativeMailbox>,
     metadata_constructor: C,
-    deposit_tracker: Mutex<DepositTracker>,
-    config: RelayerDepositTimings,
+    deposit_cache: DepositCache,
+    deposit_queue: Mutex<DepositOpQueue>,
+    config: KaspaTimeConfig,
 }
 
 impl<C: MetadataConstructor> Foo<C>
@@ -66,12 +46,15 @@ where
         metadata_constructor: C,
     ) -> Self {
         // Get config from provider, or use defaults if not available
-        let config = provider.must_relayer_stuff().deposit_timings.clone();
+        let config = provider
+            .kaspa_time_cfg()
+            .unwrap_or_else(KaspaTimeConfig::default);
         Self {
             provider,
             hub_mailbox,
             metadata_constructor,
-            deposit_tracker: Mutex::new(DepositTracker::new()),
+            deposit_cache: DepositCache::new(),
+            deposit_queue: Mutex::new(DepositOpQueue::new()),
             config,
         }
     }
@@ -114,79 +97,116 @@ where
     // https://github.com/dymensionxyz/hyperlane-monorepo/blob/20b9e669afcfb7728e66b5932e85c0f7fcbd50c1/dymension/libs/kaspa/lib/relayer/note.md#L102-L119
     async fn deposit_loop(&self) {
         info!("Dymension, starting deposit loop with queue");
-
-        // First iteration: use full lookback to catch up on missed deposits
-        // Subsequent iterations: only look back 2x poll interval to handle clock skew
-        let mut lookback_ms = self.config.deposit_look_back.map(|d| d.as_millis() as i64);
-
+        let lower_bound_unix_time: Option<i64> =
+            match self.provider.must_relayer_stuff().deposit_look_back_mins {
+                Some(offset) => {
+                    let secs = offset * 60;
+                    let dur = Duration::new(secs, 0);
+                    Some(unix_now() as i64 - dur.as_millis() as i64)
+                }
+                None => None,
+            };
         loop {
             self.process_deposit_queue().await;
-
-            let now = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .expect("System time before Unix epoch")
-                .as_millis() as i64;
-
-            let lower_bound = lookback_ms.map(|lb| now - lb);
-
-            match self
+            let result = self
                 .provider
                 .rest()
-                .get_deposits(&self.provider.escrow_address().to_string(), lower_bound)
-                .await
-            {
-                Ok(deposits) => {
-                    self.queue_new_deposits(deposits).await;
-                }
+                .get_deposits(
+                    &self.provider.escrow_address().to_string(),
+                    lower_bound_unix_time,
+                )
+                .await;
+            let deposits = match result {
+                Ok(deposits) => deposits,
                 Err(e) => {
                     error!(error = ?e, "Dymension, query new Kaspa deposits failed");
+                    time::sleep(self.config.poll_interval()).await;
+                    continue;
                 }
-            }
+            };
+            info!(
+                deposit_count = deposits.len(),
+                "Dymension, queried kaspa deposits"
+            );
+            self.handle_new_deposits(deposits).await;
 
-            lookback_ms = Some(self.config.poll_interval.as_millis() as i64 * 4); // look back 4x poll interval to account for any slowness
-            time::sleep(self.config.poll_interval).await;
+            time::sleep(self.config.poll_interval()).await;
         }
     }
 
-    async fn queue_new_deposits(&self, deposits: Vec<Deposit>) {
+    async fn handle_new_deposits(&self, deposits: Vec<Deposit>) {
+        let mut new_deposits = Vec::new();
         let escrow_address = self.provider.escrow_address().to_string();
-        let mut tracker = self.deposit_tracker.lock().await;
-        let mut new_count = 0;
 
-        for dep in deposits {
-            if tracker.track(dep.clone(), escrow_address.clone()) {
-                info!(deposit = ?dep, "Dymension, new deposit seen");
-                new_count += 1;
+        for dep in deposits.into_iter() {
+            if !self.deposit_cache.has_seen(&dep).await {
+                self.deposit_cache.mark_as_seen(dep.clone()).await;
+                match self.is_deposit(&dep, &escrow_address).await {
+                    Ok(true) => {
+                        info!(deposit = ?dep, "Dymension, new deposit seen");
+                        new_deposits.push(dep);
+                    }
+                    Ok(false) => {
+                        info!(deposit_id = %dep.id, "Dymension, skipping deposit with invalid or missing Hyperlane payload");
+                    }
+                    Err(e) => {
+                        error!(deposit_id = %dep.id, error = ?e, "Dymension, failed to check if deposit is genuine, skipping");
+                    }
+                }
             }
         }
 
-        drop(tracker);
-
-        if new_count > 0 {
-            info!(
-                deposit_count = new_count,
-                "Dymension, queried new kaspa deposits"
-            );
+        if !new_deposits.is_empty() {
             if let Err(e) = self.provider.update_balance_metrics().await {
                 error!("Failed to update balance metrics: {:?}", e);
+            }
+        }
+
+        for dep in &new_deposits {
+            let op = DepositOperation::new(dep.clone(), self.provider.escrow_address().to_string());
+            self.process_deposit_operation(op).await;
+        }
+    }
+
+    async fn is_deposit(&self, deposit: &Deposit, _escrow_address: &str) -> Result<bool> {
+        use dym_kas_core::message::ParsedHL;
+
+        let payload = match &deposit.payload {
+            Some(payload) => payload,
+            None => {
+                info!(deposit_id = %deposit.id, "Deposit has no payload, skipping");
+                return Ok(false);
+            }
+        };
+
+        match ParsedHL::parse_string(payload) {
+            Ok(parsed_hl) => {
+                info!(
+                    deposit_id = %deposit.id,
+                    message_id = ?parsed_hl.hl_message.id(),
+                    "Valid Hyperlane message found in deposit payload"
+                );
+                Ok(true)
+            }
+            Err(e) => {
+                info!(
+                    deposit_id = %deposit.id,
+                    error = ?e,
+                    "Invalid Hyperlane payload, skipping deposit"
+                );
+                Ok(false)
             }
         }
     }
 
     /// Process the retry queue for failed deposit operations
     async fn process_deposit_queue(&self) {
-        loop {
-            let op = {
-                let mut tracker = self.deposit_tracker.lock().await;
-                tracker.pop_ready()
-            };
+        let mut q = self.deposit_queue.lock().await;
 
-            match op {
-                Some(operation) => {
-                    self.try_relay_deposit(operation).await;
-                }
-                None => break,
-            }
+        while let Some(op) = q.pop_ready() {
+            drop(q);
+            self.process_deposit_operation(op).await;
+            q = self.deposit_queue.lock().await;
         }
     }
 
@@ -233,169 +253,172 @@ where
         Ok((hl_message_with_metadata, amount, utxo_index))
     }
 
-    async fn try_relay_deposit(&self, mut op: DepositOperation) {
+    async fn process_deposit_operation(&self, mut op: DepositOperation) {
         info!(deposit_id = %op.deposit.id, "Processing deposit operation");
 
-        match self.try_relay_deposit_inner(&op).await {
-            DepositRelayResult::Success {
-                deposit_id,
-                amount,
-                hub_tx_hash,
-            } => {
-                // Metrics are recorded inside try_relay_deposit_inner with timing info
-                info!(
-                    deposit_id = %deposit_id,
-                    hub_tx_hash = ?hub_tx_hash,
-                    amount = %amount,
-                    "Deposit successfully processed and relayed to hub"
-                );
-            }
-            DepositRelayResult::AlreadyDelivered { deposit_id } => {
-                info!(
-                    deposit_id = %deposit_id,
-                    "Deposit already delivered, skipping"
-                );
-            }
-            DepositRelayResult::Retryable {
-                deposit_id,
-                amount,
-                error,
-                custom_delay,
-            } => {
-                self.provider
-                    .metrics()
-                    .record_deposit_failed(&deposit_id, amount);
-                op.mark_failed(&self.config, custom_delay);
-                self.deposit_tracker.lock().await.requeue(op);
-                error!(
-                    deposit_id = %deposit_id,
-                    error = ?error,
-                    "Deposit processing error (retryable), requeued"
-                );
-            }
-            DepositRelayResult::NonRetryable {
-                deposit_id,
-                amount,
-                error,
-            } => {
-                self.provider
-                    .metrics()
-                    .record_deposit_failed(&deposit_id, amount);
-                error!(
-                    deposit_id = %deposit_id,
-                    error = ?error,
-                    "Deposit processing error (non-retryable), dropping"
-                );
-            }
-        }
-    }
-
-    async fn try_relay_deposit_inner(&self, op: &DepositOperation) -> DepositRelayResult {
-        let deposit_id = format!("{:?}", op.deposit.id);
-
-        // Step 1: Get the HL message and add kaspa metadata
+        // Decode payload and add Kaspa metadata to get the proper HL message
         let (hl_message, amount, utxo_index) =
             match self.decode_and_add_kaspa_metadata(&op.deposit, &op.escrow_address) {
-                Ok(v) => v,
-                Err(error) => {
-                    return DepositRelayResult::NonRetryable {
-                        deposit_id,
-                        amount: 0,
-                        error,
-                    }
+                Ok((msg, amt, idx)) => {
+                    // Store deposit hl message with Kaspa metadata in database
+                    self.provider
+                        .store_deposit(&msg, &op.deposit.id.to_string());
+                    (msg, amt, idx)
+                }
+                Err(e) => {
+                    tracing::error!(
+                        deposit_id = %op.deposit.id,
+                        error = ?e,
+                        "Failed to decode deposit payload and add Kaspa metadata"
+                    );
+                    let deposit_id = format!("{:?}", op.deposit.id);
+                    self.provider
+                        .metrics()
+                        .record_deposit_failed(&deposit_id, 0);
+                    return;
                 }
             };
 
-        // Step 2: Check if already delivered (before expensive finality check)
-        match self.hub_mailbox.delivered(hl_message.id()).await {
-            Ok(true) => {
-                return DepositRelayResult::AlreadyDelivered { deposit_id };
-            }
-            Err(e) => {
-                return DepositRelayResult::Retryable {
-                    deposit_id,
-                    amount,
-                    error: eyre::eyre!("Check if deposit is delivered: {}", e),
-                    custom_delay: None,
-                };
-            }
-            _ => {}
-        }
+        let result = relayer_on_new_deposit(
+            hl_message.clone(),
+            U256::from(amount),
+            utxo_index,
+            &op.deposit,
+            &self.provider.rest().client.client,
+        )
+        .await;
 
-        // Step 3: Save to DB
-        self.provider.store_deposit(&hl_message, &deposit_id);
+        match result {
+            Ok(Some(fxg)) => {
+                info!(fxg = ?fxg, "Dymension, built new deposit FXG");
 
-        // Step 4: Check finality
-        if let Err(e) =
-            check_deposit_finality(&op.deposit, &self.provider.rest().client.client).await
-        {
-            let kaspa_err = KaspaDepositError::from(e);
-            let custom_delay = kaspa_err
-                .retry_delay_hint()
-                .map(|secs| Duration::from_secs_f64(secs));
-            return DepositRelayResult::Retryable {
-                deposit_id,
-                amount,
-                error: eyre::eyre!("{}", kaspa_err),
-                custom_delay,
-            };
-        }
-
-        // Step 5: Build FXG for validators
-        let fxg = build_deposit_fxg(hl_message, U256::from(amount), utxo_index, &op.deposit);
-        info!(fxg = ?fxg, "Built deposit FXG");
-
-        // Step 6: Get signatures and relay
-        let outcome = match self.get_deposit_validator_sigs_and_send_to_hub(&fxg).await {
-            Ok(outcome) => outcome,
-            Err(e) => {
-                let kaspa_err = self.chain_error_to_kaspa_error(&e);
-                return if kaspa_err.is_retryable() {
-                    DepositRelayResult::Retryable {
-                        deposit_id,
-                        amount,
-                        error: eyre::eyre!("Gather sigs and send deposit to hub: {}", e),
-                        custom_delay: None,
+                let result = self.hub_mailbox.delivered(fxg.hl_message.id()).await;
+                match result {
+                    Ok(true) => {
+                        info!(
+                            message_id = ?fxg.hl_message.id(),
+                            "Dymension, deposit already delivered, skipping"
+                        );
+                        return;
                     }
+                    Err(e) => {
+                        error!(error = ?e, "Dymension, check if deposit is delivered");
+                        let deposit_id = format!("{:?}", op.deposit.id);
+                        self.provider
+                            .metrics()
+                            .record_deposit_failed(&deposit_id, amount);
+                        op.mark_failed(&self.config);
+                        self.deposit_queue.lock().await.requeue(op);
+                        return;
+                    }
+                    _ => {}
+                };
+
+                let result = self.get_deposit_validator_sigs_and_send_to_hub(&fxg).await;
+                match result {
+                    Ok(outcome) => {
+                        let tx_hash =
+                            hyperlane_cosmos::native::h512_to_cosmos_hash(outcome.transaction_id)
+                                .encode_hex_upper::<String>();
+                        let amount = fxg.amount.low_u64();
+                        let deposit_id = format!("{:?}", op.deposit.id);
+
+                        // Update the stored deposit with new HyperlaneMessage and Hub transaction ID
+                        let h256_hub_tx =
+                            hyperlane_cosmos::native::h512_to_h256(outcome.transaction_id);
+                        self.provider.update_processed_deposit(
+                            &op.deposit.id.to_string(),
+                            fxg.hl_message.clone(),
+                            &h256_hub_tx,
+                        );
+
+                        if !outcome.executed {
+                            error!(
+                                message_id = ?fxg.hl_message.id(),
+                                tx_hash = %tx_hash,
+                                gas_used = %outcome.gas_used,
+                                "Dymension, deposit process() failed - TX was not executed on-chain"
+                            );
+
+                            self.provider
+                                .metrics()
+                                .record_deposit_failed(&deposit_id, amount);
+
+                            op.mark_failed(&self.config);
+                            self.deposit_queue.lock().await.requeue(op);
+                        } else {
+                            info!(
+                                fxg = ?fxg,
+                                tx_hash = %tx_hash,
+                                "Dymension, got sigs and sent new deposit to hub"
+                            );
+
+                            self.provider
+                                .metrics()
+                                .record_deposit_processed(&deposit_id, amount);
+
+                            op.reset_attempts();
+                        }
+                    }
+                    Err(e) => {
+                        let kaspa_err = self.chain_error_to_kaspa_error(&e);
+                        if kaspa_err.is_retryable() {
+                            error!(
+                                error = ?e,
+                                "Dymension, gather sigs and send deposit to hub (retryable)"
+                            );
+                            let deposit_id = format!("{:?}", op.deposit.id);
+                            self.provider
+                                .metrics()
+                                .record_deposit_failed(&deposit_id, amount);
+                            op.mark_failed(&self.config);
+                            self.deposit_queue.lock().await.requeue(op);
+                        } else {
+                            error!(
+                                error = ?e,
+                                "Dymension, gather sigs and send deposit to hub (non-retryable)"
+                            );
+                            let deposit_id = format!("{:?}", op.deposit.id);
+                            self.provider
+                                .metrics()
+                                .record_deposit_failed(&deposit_id, amount);
+                            info!(
+                                deposit_id = %op.deposit.id,
+                                "Dropping operation due to non-retryable error"
+                            );
+                        }
+                    }
+                }
+            }
+            Ok(None) => {
+                info!("Dymension, F() new deposit returned none, will retry");
+                let deposit_id = format!("{:?}", op.deposit.id);
+                self.provider
+                    .metrics()
+                    .record_deposit_failed(&deposit_id, amount);
+                op.mark_failed(&self.config);
+                self.deposit_queue.lock().await.requeue(op);
+            }
+            Err(e) => {
+                let kaspa_err = KaspaDepositError::from(e);
+
+                let deposit_id = format!("{:?}", op.deposit.id);
+                self.provider
+                    .metrics()
+                    .record_deposit_failed(&deposit_id, amount);
+
+                if let Some(retry_delay_secs) = kaspa_err.retry_delay_hint() {
+                    let delay = Duration::from_secs_f64(retry_delay_secs);
+                    op.mark_failed_with_custom_delay(delay, &kaspa_err.to_string());
                 } else {
-                    DepositRelayResult::NonRetryable {
-                        deposit_id,
-                        amount,
-                        error: eyre::eyre!("Gather sigs and send deposit to hub: {}", e),
-                    }
-                };
+                    error!(
+                        error = ?kaspa_err,
+                        "Dymension, F() new deposit processing error, will retry"
+                    );
+                    op.mark_failed(&self.config);
+                }
+                self.deposit_queue.lock().await.requeue(op);
             }
-        };
-
-        if !outcome.executed {
-            let tx_hash = hyperlane_cosmos::native::h512_to_cosmos_hash(outcome.transaction_id)
-                .encode_hex_upper::<String>();
-            return DepositRelayResult::Retryable {
-                deposit_id,
-                amount,
-                error: eyre::eyre!(
-                    "TX was not executed on-chain, tx hash: {}, gas used: {}",
-                    tx_hash,
-                    outcome.gas_used
-                ),
-                custom_delay: None,
-            };
-        }
-
-        // Step 7: Save hub tx to DB and record metrics
-        let hub_tx_hash = hyperlane_cosmos::native::h512_to_h256(outcome.transaction_id);
-        self.provider
-            .update_processed_deposit(&deposit_id, fxg.hl_message, &hub_tx_hash);
-
-        // Record deposit metrics with timing from operation creation
-        self.provider
-            .metrics()
-            .record_deposit_processed(&deposit_id, amount, op.created_at);
-
-        DepositRelayResult::Success {
-            deposit_id,
-            amount,
-            hub_tx_hash,
         }
     }
 
@@ -445,7 +468,7 @@ where
                 }
             }
 
-            time::sleep(self.config.poll_interval).await;
+            time::sleep(self.config.poll_interval()).await;
         }
     }
 
@@ -698,7 +721,7 @@ where
         Ok(())
     }
 
-    // for deposits
+    // TODO: can probably just use the ad hoc method
     fn format_checkpoint_signatures(
         &self,
         sigs: &mut Vec<SignedCheckpointWithMessageId>,
@@ -723,7 +746,6 @@ where
         Ok(meta.to_vec())
     }
 
-    // for withdrawal confirmations
     fn format_ad_hoc_signatures(
         &self,
         sigs: &mut Vec<Signature>,
@@ -756,6 +778,28 @@ where
 
         let meta = self.metadata_constructor.metadata(&ckpt)?;
         Ok(meta.to_vec())
+    }
+}
+
+pub struct DepositCache {
+    seen: Mutex<HashSet<Deposit>>,
+}
+
+impl DepositCache {
+    pub fn new() -> Self {
+        Self {
+            seen: Mutex::new(HashSet::new()),
+        }
+    }
+
+    async fn has_seen(&self, dep: &Deposit) -> bool {
+        let guard = self.seen.lock().await;
+        guard.contains(dep)
+    }
+
+    async fn mark_as_seen(&self, dep: Deposit) {
+        let mut guard = self.seen.lock().await;
+        guard.insert(dep);
     }
 }
 

@@ -1,133 +1,102 @@
-use dymension_kaspa::{conf::RelayerDepositTimings, Deposit};
-use rand::Rng;
-use std::cmp::Ordering;
+use dymension_kaspa::{conf::KaspaTimeConfig, Deposit};
 use std::time::{Duration, Instant};
-use tracing::error;
+use tracing::{debug, error};
 
 #[derive(Debug, Clone)]
 pub struct DepositOperation {
     pub deposit: Deposit,
     pub escrow_address: String,
     pub retry_count: u32,
-    pub next_attempt_after: Instant,
+    pub next_attempt_after: Option<Instant>,
     pub created_at: Instant,
-}
-
-impl PartialEq for DepositOperation {
-    fn eq(&self, other: &Self) -> bool {
-        self.deposit.id == other.deposit.id
-    }
-}
-
-impl Eq for DepositOperation {}
-
-impl PartialOrd for DepositOperation {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for DepositOperation {
-    fn cmp(&self, other: &Self) -> Ordering {
-        match self
-            .next_attempt_after
-            .cmp(&other.next_attempt_after)
-            .reverse()
-        {
-            Ordering::Equal => self.deposit.id.cmp(&other.deposit.id),
-            other => other,
-        }
-    }
 }
 
 impl DepositOperation {
     pub fn new(deposit: Deposit, escrow_address: String) -> Self {
-        let now = Instant::now();
         Self {
             deposit,
             escrow_address,
             retry_count: 0,
-            next_attempt_after: now,
-            created_at: now,
+            next_attempt_after: None,
+            created_at: Instant::now(),
         }
     }
 
     pub fn is_ready(&self) -> bool {
-        Instant::now() >= self.next_attempt_after
+        match self.next_attempt_after {
+            Some(next_attempt) => Instant::now() >= next_attempt,
+            None => true,
+        }
     }
 
-    pub fn mark_failed(&mut self, cfg: &RelayerDepositTimings, custom_delay: Option<Duration>) {
+    pub fn mark_failed(&mut self, cfg: &KaspaTimeConfig) {
         self.retry_count += 1;
+        // Exponential backoff capped at 2^5 to prevent excessive delays
+        let secs = cfg.base_retry_delay_secs * (1 << (self.retry_count - 1).min(5));
+        self.next_attempt_after = Some(Instant::now() + Duration::from_secs(secs));
+        error!(
+            deposit_id = %self.deposit.id,
+            retry_count = self.retry_count,
+            retry_after_secs = secs,
+            "Deposit operation failed, scheduling retry"
+        );
+    }
 
-        let delay = match custom_delay {
-            Some(d) => d,
-            None => {
-                let base_delay = if self.retry_count == 1 {
-                    cfg.retry_delay_base
-                } else {
-                    let base_secs = cfg.retry_delay_base.as_secs_f64();
-                    let exponential_delay =
-                        base_secs * cfg.retry_delay_exponent.powi((self.retry_count - 1) as i32);
-                    let max_secs = cfg.retry_delay_max.as_secs_f64();
-                    Duration::from_secs_f64(exponential_delay.min(max_secs))
-                };
-
-                // Add jitter: random multiplier between 0.75 and 1.25
-                let mut rng = rand::thread_rng();
-                let jitter = rng.gen_range(0.75..=1.25);
-                let delay_secs = base_delay.as_secs_f64() * jitter;
-                Duration::from_secs_f64(delay_secs)
-            }
-        };
-
-        self.next_attempt_after = Instant::now() + delay;
+    pub fn mark_failed_with_custom_delay(&mut self, delay: Duration, reason: &str) {
+        self.retry_count += 1;
+        self.next_attempt_after = Some(Instant::now() + delay);
         error!(
             deposit_id = %self.deposit.id,
             retry_count = self.retry_count,
             retry_after_secs = delay.as_secs_f64(),
-            "Deposit operation failed"
+            reason = %reason,
+            "Deposit operation failed with custom delay"
         );
+    }
+
+    pub fn reset_attempts(&mut self) {
+        self.retry_count = 0;
+        self.next_attempt_after = None;
     }
 }
 
 #[derive(Debug)]
-pub struct DepositTracker {
-    seen: std::collections::HashSet<kaspa_consensus_core::tx::TransactionId>,
-    pending: std::collections::BinaryHeap<DepositOperation>,
+pub struct DepositOpQueue {
+    operations: std::collections::VecDeque<DepositOperation>,
 }
 
-impl DepositTracker {
+impl DepositOpQueue {
     pub fn new() -> Self {
         Self {
-            seen: std::collections::HashSet::new(),
-            pending: std::collections::BinaryHeap::new(),
+            operations: std::collections::VecDeque::new(),
         }
     }
 
-    pub fn has_seen(&self, deposit: &Deposit) -> bool {
-        self.seen.contains(&deposit.id)
-    }
-
-    pub fn track(&mut self, deposit: Deposit, escrow_address: String) -> bool {
-        if self.seen.insert(deposit.id) {
-            let op = DepositOperation::new(deposit, escrow_address);
-            self.pending.push(op);
-            true
-        } else {
-            false
-        }
+    pub fn push(&mut self, op: DepositOperation) {
+        let id = op.deposit.id;
+        self.operations.push_back(op);
+        debug!("Added deposit operation to queue: {}", id);
     }
 
     pub fn pop_ready(&mut self) -> Option<DepositOperation> {
-        if let Some(op) = self.pending.peek() {
-            if op.is_ready() {
-                return self.pending.pop();
-            }
+        if let Some(pos) = self.operations.iter().position(|op| op.is_ready()) {
+            self.operations.remove(pos)
+        } else {
+            None
         }
-        None
     }
 
     pub fn requeue(&mut self, op: DepositOperation) {
-        self.pending.push(op);
+        let id = op.deposit.id;
+        self.operations.push_back(op);
+        debug!("Re-queued deposit operation: {}", id);
+    }
+
+    pub fn len(&self) -> usize {
+        self.operations.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.operations.is_empty()
     }
 }

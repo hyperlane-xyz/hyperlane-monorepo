@@ -207,7 +207,7 @@ pub async fn filter_pending_withdrawals(
 mod tests {
     use super::*;
     use bytes::Bytes;
-    use kaspa_wallet_pskt::prelude::{Version, PSKT};
+    use kaspa_wallet_pskt::prelude::PSKT;
 
     #[test]
     fn test_withdrawfxg_bytes_roundtrip() {

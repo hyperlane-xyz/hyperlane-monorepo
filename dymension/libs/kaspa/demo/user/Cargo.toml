@@ -21,8 +21,6 @@ kaspa-wallet-core = { workspace = true }
 kaspa-wallet-keys = { workspace = true }
 kaspa-consensus-core = { workspace = true }
 kaspa-addresses = { workspace = true }
-workflow-core = { workspace = true }
-uuid = { version = "1.11", features = ["v4"] }
 hyperlane-core = { path = "../../../../../rust/main/hyperlane-core" }
 hyperlane-cosmos = { path = "../../../../../rust/main/chains/hyperlane-cosmos" }
 hyperlane-metric = { path = "../../../../../rust/main/hyperlane-metric" }

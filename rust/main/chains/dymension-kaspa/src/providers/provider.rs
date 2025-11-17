@@ -2,12 +2,12 @@ use super::confirmation_queue::PendingConfirmation;
 use super::validators::ValidatorsClient;
 use super::RestProvider;
 use crate::util::domain_to_kas_network;
-use crate::withdrawal_utils::{record_withdrawal_batch_metrics, WithdrawalStage};
 use crate::ConnectionConf;
 use crate::RelayerStuff;
 use crate::ValidatorStuff;
 use dym_kas_core::confirmation::ConfirmationFXG;
 use dym_kas_core::escrow::EscrowPublic;
+use dym_kas_core::message::{calculate_total_withdrawal_amount, create_withdrawal_batch_id};
 use dym_kas_core::wallet::{EasyKaspaWallet, EasyKaspaWalletArgs};
 use dym_kas_relayer::withdraw::hub_to_kaspa::combine_bundles_with_fee;
 use dym_kas_relayer::withdraw::messages::on_new_withdrawals;
@@ -32,11 +32,6 @@ use std::sync::Arc;
 use tonic::async_trait;
 use tracing::{error, info};
 use url::Url;
-
-struct ProcessedWithdrawals {
-    fxg: dym_kas_core::withdraw::WithdrawFXG,
-    tx_ids: Vec<RpcTransactionId>,
-}
 
 #[derive(Debug, Clone)]
 pub struct KaspaProvider {
@@ -147,10 +142,7 @@ impl KaspaProvider {
     }
 
     /// Store withdrawal messages and their kaspa transaction IDs in the database
-    pub fn hack_store_withdrawals_kaspa_tx_for_query(
-        &self,
-        withdrawals: &[(HyperlaneMessage, String)],
-    ) {
+    pub fn add_kaspa_tx_id_withdrawals(&self, withdrawals: &[(HyperlaneMessage, String)]) {
         if let Some(kaspa_db) = &self.kaspa_db {
             for (msg, kaspa_tx) in withdrawals {
                 if !kaspa_tx.is_empty() {
@@ -299,98 +291,124 @@ impl KaspaProvider {
         self.conf.relayer_stuff.as_ref().unwrap()
     }
 
+    pub fn kaspa_time_cfg(&self) -> Option<crate::conf::KaspaTimeConfig> {
+        self.conf
+            .relayer_stuff
+            .as_ref()
+            .map(|r| r.kaspa_time_config.clone())
+    }
+
     // Process withdrawals from Hub to Kaspa by building and submitting Kaspa transactions.
     // Returns the subset of messages that were successfully processed.
     pub async fn process_withdrawal_messages(
         &self,
         msgs: Vec<HyperlaneMessage>,
     ) -> Result<Vec<(HyperlaneMessage, String)>> {
-        match self.process_withdrawal_messages_inner(msgs.clone()).await {
-            Ok(Some(processed)) => {
-                let all_processed_msgs: Vec<_> =
-                    processed.fxg.messages.iter().flatten().cloned().collect();
-
-                record_withdrawal_batch_metrics(
-                    &self.metrics,
-                    &all_processed_msgs,
-                    WithdrawalStage::Processed,
-                );
-
-                if let Some(last_anchor) = processed.fxg.anchors.last() {
-                    let current_ts = kaspa_core::time::unix_now();
-                    self.metrics.update_last_anchor_point(
-                        &last_anchor.transaction_id.to_string(),
-                        last_anchor.index as u64,
-                        current_ts,
-                    );
-                }
-
-                self.pending_confirmation
-                    .push(ConfirmationFXG::from_msgs_outpoints(
-                        processed.fxg.ids(),
-                        processed.fxg.anchors,
-                    ));
-                info!("kaspa provider: added to progress indication work queue");
-
-                let mut result = Vec::new();
-                for (tx_id, msgs) in processed.tx_ids.iter().zip(processed.fxg.messages.iter()) {
-                    let kaspa_tx = format!("{}", tx_id);
-                    for msg in msgs {
-                        result.push((msg.clone(), kaspa_tx.clone()));
-                    }
-                }
-
-                self.hack_store_withdrawals_kaspa_tx_for_query(&result);
-
-                Ok(result)
-            }
-            Ok(None) => {
-                info!("on new withdrawals decided not to handle withdrawal messages");
-                Ok(msgs.into_iter().map(|msg| (msg, String::new())).collect())
-            }
-            Err(error) => {
-                record_withdrawal_batch_metrics(&self.metrics, &msgs, WithdrawalStage::Failed);
-                Err(error)
-            }
-        }
-    }
-
-    async fn process_withdrawal_messages_inner(
-        &self,
-        msgs: Vec<HyperlaneMessage>,
-    ) -> Result<Option<ProcessedWithdrawals>> {
-        let fxg = match on_new_withdrawals(
+        let min_withdrawal_amt = self.conf.min_deposit_sompi;
+        let res = on_new_withdrawals(
             msgs.clone(),
             self.easy_wallet.clone(),
             self.cosmos_rpc.clone(),
             self.escrow(),
-            self.get_min_deposit_sompi(),
+            min_withdrawal_amt,
             self.must_relayer_stuff().tx_fee_multiplier,
         )
-        .await?
-        {
-            Some(fxg) => fxg,
-            None => return Ok(None),
-        };
+        .await;
 
-        info!("kaspa provider: constructed withdrawal TXs, got withdrawal FXG, now gathering sigs and signing relayer fee");
+        match res {
+            Ok(Some(fxg)) => {
+                info!("kaspa provider: constructed withdrawal TXs");
+                info!("kaspa provider: got withdrawal FXG, now gathering sigs and signing relayer fee");
 
-        let bundles_validators = self.validators().get_withdraw_sigs(&fxg).await?;
+                // Create withdrawal batch ID and calculate total amount
+                let all_msgs: Vec<_> = fxg.messages.iter().flatten().cloned().collect();
+                let withdrawal_batch_id = create_withdrawal_batch_id(&all_msgs);
+                let total_amt = calculate_total_withdrawal_amount(&all_msgs);
 
-        let finalized = combine_bundles_with_fee(
-            bundles_validators,
-            &fxg,
-            self.conf.multisig_threshold_kaspa,
-            &self.escrow(),
-            &self.easy_wallet,
-        )
-        .await?;
+                let bundles_validators = match self.validators().get_withdraw_sigs(&fxg).await {
+                    Ok(bundles) => bundles,
+                    Err(e) => {
+                        // Record withdrawal failure with deduplication
+                        self.metrics
+                            .record_withdrawal_failed(&withdrawal_batch_id, total_amt);
+                        return Err(e.into());
+                    }
+                };
 
-        let tx_ids = self.submit_txs(finalized.clone()).await?;
+                let finalized = match combine_bundles_with_fee(
+                    bundles_validators,
+                    &fxg,
+                    self.conf.multisig_threshold_kaspa,
+                    &self.escrow(),
+                    &self.easy_wallet,
+                )
+                .await
+                {
+                    Ok(fin) => fin,
+                    Err(e) => {
+                        // Record withdrawal failure with deduplication
+                        self.metrics
+                            .record_withdrawal_failed(&withdrawal_batch_id, total_amt);
+                        return Err(e);
+                    }
+                };
 
-        info!("kaspa provider: submitted TXs, now indicating progress on the Hub");
+                match self.submit_txs(finalized.clone()).await {
+                    Ok(tx_ids) => {
+                        info!("kaspa provider: submitted TXs, now indicating progress on the Hub");
 
-        Ok(Some(ProcessedWithdrawals { fxg, tx_ids }))
+                        let msg_count =
+                            fxg.messages.iter().map(|msgs| msgs.len()).sum::<usize>() as u64;
+                        self.metrics.record_withdrawal_processed(
+                            &withdrawal_batch_id,
+                            total_amt,
+                            msg_count,
+                        );
+
+                        if let Some(last_anchor) = fxg.anchors.last() {
+                            let current_ts = kaspa_core::time::unix_now();
+                            self.metrics.update_last_anchor_point(
+                                &last_anchor.transaction_id.to_string(),
+                                last_anchor.index as u64,
+                                current_ts,
+                            );
+                        }
+
+                        self.pending_confirmation
+                            .push(ConfirmationFXG::from_msgs_outpoints(fxg.ids(), fxg.anchors));
+                        info!("kaspa provider: added to progress indication work queue");
+
+                        // Create result with messages and their corresponding kaspa_tx
+                        let mut result = Vec::new();
+                        for (tx_id, msgs) in tx_ids.iter().zip(fxg.messages.iter()) {
+                            let kaspa_tx = format!("{}", tx_id);
+                            for msg in msgs {
+                                result.push((msg.clone(), kaspa_tx.clone()));
+                            }
+                        }
+
+                        Ok(result)
+                    }
+                    Err(e) => {
+                        self.metrics
+                            .record_withdrawal_failed(&withdrawal_batch_id, total_amt);
+                        Err(e)
+                    }
+                }
+            }
+            Ok(None) => {
+                info!("on new withdrawals decided not to handle withdrawal messages");
+                // No tx was created, return messages with empty kaspa_tx
+                Ok(msgs.into_iter().map(|msg| (msg, String::new())).collect())
+            }
+            Err(e) => {
+                let withdrawal_batch_id = create_withdrawal_batch_id(&msgs);
+                let failed_amt = calculate_total_withdrawal_amount(&msgs);
+                self.metrics
+                    .record_withdrawal_failed(&withdrawal_batch_id, failed_amt);
+                Err(e)
+            }
+        }
     }
 
     async fn submit_txs(&self, txs: Vec<RpcTransaction>) -> Result<Vec<RpcTransactionId>> {

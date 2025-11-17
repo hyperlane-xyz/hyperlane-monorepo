@@ -126,8 +126,8 @@ pub struct SimulateTrafficCli {
     #[arg(long, required = true)]
     pub ops_per_minute: u64,
 
-    /// Minimum deposit amount in sompi (must be at least 4000000000 = 40 KAS for withdrawals to work)
-    #[arg(long, default_value = "4000000000")]
+    /// Minimum deposit amount in sompi
+    #[arg(long, required = true)]
     pub min_deposit_sompi: u64,
 
     /// Kaspa HL domain
@@ -153,46 +153,12 @@ pub struct SimulateTrafficCli {
     #[command(flatten)]
     pub wallet: WalletCli,
 
-    /// Hub RPC URL (default: https://rpc-dymension-playground35.mzonder.com:443)
-    #[arg(
-        long,
-        default_value = "https://rpc-dymension-playground35.mzonder.com:443"
-    )]
-    pub hub_rpc_url: String,
-
-    /// Hub gRPC URL (default: https://grpc-dymension-playground35.mzonder.com:443)
-    #[arg(
-        long,
-        default_value = "https://grpc-dymension-playground35.mzonder.com:443"
-    )]
-    pub hub_grpc_url: String,
-
-    /// Hub chain ID (default: dymension_3405-1)
-    #[arg(long, default_value = "dymension_3405-1")]
-    pub hub_chain_id: String,
-
-    /// Hub address prefix (default: dym)
-    #[arg(long, default_value = "dym")]
-    pub hub_prefix: String,
-
-    /// Hub native denom (default: adym)
-    #[arg(long, default_value = "adym")]
-    pub hub_denom: String,
-
-    /// Hub native token decimals (default: 18)
-    #[arg(long, default_value = "18")]
-    pub hub_decimals: u32,
-
-    /// Kaspa REST API URL (default: https://api-tn10.kaspa.org/)
-    #[arg(long, default_value = "https://api-tn10.kaspa.org/")]
-    pub kaspa_rest_url: String,
-
+    #[arg(long, required = false, default_value = "false")]
     /// If true, just simply does one round trip and then exists, ignoring time and budget etc
-    #[arg(long, default_value = "false")]
     pub simple: bool,
 
-    /// The number of seconds to wait for the simulation to cancel (default: 180)
-    #[arg(long, default_value = "180")]
+    #[arg(long, required = true, default_value = "180")]
+    /// The number of seconds to wait for the simulation to cancel
     pub cancel_wait: u64,
 }
 

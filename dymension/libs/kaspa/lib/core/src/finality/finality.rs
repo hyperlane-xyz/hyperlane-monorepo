@@ -73,9 +73,8 @@ pub async fn is_safe_against_reorg_n_confs(
     if confirmations < 0 {
         confirmations = 0; // This can happen if the accepting block is not yet known to the node
         error!(
-            virtual_blue_score = virtual_blue_score,
-            accepting_blue_score = accepting_blue_score,
-            "kaspa: virtual blue score is less than accepting block blue score"
+            "Virtual blue score {} is less than accepting block blue score {}",
+            virtual_blue_score, accepting_blue_score
         );
     }
     Ok(FinalityStatus {

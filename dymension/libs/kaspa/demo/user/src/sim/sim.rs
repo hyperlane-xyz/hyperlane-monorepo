@@ -2,18 +2,18 @@ use super::key_cosmos::EasyHubKey;
 use super::round_trip::do_round_trip;
 use super::round_trip::TaskArgs;
 use super::round_trip::TaskResources;
-use super::stats::write_metadata;
-use super::stats::StatsWriter;
-use super::worker::WorkerWallet;
+use super::stats::render_stats;
+use super::stats::write_stats;
+use super::util::som_to_kas;
 use chrono::{DateTime, Utc};
 use corelib::api::base::RateLimitConfig;
 use corelib::api::client::HttpClient;
 use corelib::wallet::EasyKaspaWallet;
 use corelib::wallet::{EasyKaspaWalletArgs, Network};
 use eyre::Result;
+use hardcode;
 use hyperlane_cosmos::ConnectionConf as CosmosConnectionConf;
 use hyperlane_cosmos::{native::ModuleQueryClient, CosmosProvider};
-use kaspa_wallet_core::prelude::Secret;
 use rand_distr::{Distribution, Exp};
 use std::time::SystemTime;
 use std::time::{Duration, Instant};
@@ -37,33 +37,31 @@ use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use tracing::info;
 use url::Url;
 
-/// Minimum withdrawal amount for Kaspa (40 KAS in sompi)
-pub const MIN_KASPA_WITHDRAWAL_SOMPI: u64 = 4_000_000_000;
+const DEFAULT_RPC_URL: &str = "https://rpc-dymension-playground35.mzonder.com:443";
+const DEFAULT_GRPC_URL: &str = "https://grpc-dymension-playground35.mzonder.com:443";
+const DEFAULT_CHAIN_ID: &str = "dymension_3405-1";
+const DEFAULT_PREFIX: &str = "dym";
+const DEFAULT_DENOM: &str = "adym";
+const DEFAULT_DECIMALS: u32 = 18;
+const DEFAULT_WRPC_URL: &str = "localhost:17210";
+const DEFAULT_REST_URL: &str = "https://api-tn10.kaspa.org/";
 
-async fn cosmos_provider(
-    signer_key_hex: &str,
-    rpc_url: &str,
-    grpc_url: &str,
-    chain_id: &str,
-    prefix: &str,
-    denom: &str,
-    decimals: u32,
-) -> Result<CosmosProvider<ModuleQueryClient>> {
+async fn cosmos_provider(signer_key_hex: &str) -> Result<CosmosProvider<ModuleQueryClient>> {
     let conf = CosmosConnectionConf::new(
-        vec![Url::parse(grpc_url).map_err(|e| eyre::eyre!("Invalid gRPC URL: {}", e))?],
-        vec![Url::parse(rpc_url).map_err(|e| eyre::eyre!("Invalid RPC URL: {}", e))?],
-        chain_id.to_string(),
-        prefix.to_string(),
-        denom.to_string(),
+        vec![Url::parse(DEFAULT_GRPC_URL).unwrap()],
+        vec![Url::parse(DEFAULT_RPC_URL).unwrap()],
+        DEFAULT_CHAIN_ID.to_string(),
+        DEFAULT_PREFIX.to_string(),
+        DEFAULT_DENOM.to_string(),
         RawCosmosAmount {
             amount: "100000000000.0".to_string(),
-            denom: denom.to_string(),
+            denom: DEFAULT_DENOM.to_string(),
         },
         32,
         OpSubmissionConfig::default(),
         NativeToken {
-            decimals,
-            denom: denom.to_string(),
+            decimals: DEFAULT_DECIMALS,
+            denom: DEFAULT_DENOM.to_string(),
         },
         1.0,
         None,
@@ -93,15 +91,21 @@ pub struct Params {
 impl Params {
     /// Used to draw value of each op, in sompi
     pub fn distr_value(&self) -> Exp<f64> {
+        // TODO: need to use some clamping/minimum
         Exp::new(1.0 / self.op_budget()).unwrap()
     }
-    /// Sample deposit value - must be at least MIN_KASPA_WITHDRAWAL_SOMPI
+    /// Sample deposit value
     pub fn sample_value(&self) -> u64 {
         if self.simple_mode {
-            return self.min_value.max(MIN_KASPA_WITHDRAWAL_SOMPI);
+            return self.min_value;
         }
+        // TODO: use proper clamping, or this will blow the budget
         let v = self.distr_value().sample(&mut rand::rng()) as u64;
-        v.max(self.min_value).max(MIN_KASPA_WITHDRAWAL_SOMPI)
+        if v < self.min_value {
+            self.min_value
+        } else {
+            v
+        }
     }
     /// Used to draw time between ops, in milliseconds
     pub fn distr_time(&self) -> Exp<f64> {
@@ -122,15 +126,8 @@ pub struct SimulateTrafficArgs {
     pub params: Params,
     pub task_args: TaskArgs,
     pub wallet: WalletCli,
-    pub hub_whale_priv_key: String,
+    pub hub_whale_priv_key: String, // in hex
     pub output_dir: String,
-    pub hub_rpc_url: String,
-    pub hub_grpc_url: String,
-    pub hub_chain_id: String,
-    pub hub_prefix: String,
-    pub hub_denom: String,
-    pub hub_decimals: u32,
-    pub kaspa_rest_url: String,
 }
 
 impl TryFrom<SimulateTrafficCli> for SimulateTrafficArgs {
@@ -158,13 +155,6 @@ impl TryFrom<SimulateTrafficCli> for SimulateTrafficArgs {
             wallet: cli.wallet,
             hub_whale_priv_key: cli.hub_whale_priv_key,
             output_dir: cli.output_dir,
-            hub_rpc_url: cli.hub_rpc_url,
-            hub_grpc_url: cli.hub_grpc_url,
-            hub_chain_id: cli.hub_chain_id,
-            hub_prefix: cli.hub_prefix,
-            hub_denom: cli.hub_denom,
-            hub_decimals: cli.hub_decimals,
-            kaspa_rest_url: cli.kaspa_rest_url,
         })
     }
 }
@@ -172,163 +162,50 @@ impl TryFrom<SimulateTrafficCli> for SimulateTrafficArgs {
 pub struct TrafficSim {
     params: Params,
     resources: TaskResources,
-    whale_wallet: EasyKaspaWallet,
-    whale_secret: Secret,
-    wrpc_url: String,
     output_dir: String,
 }
 
 impl TrafficSim {
     pub async fn new(args: SimulateTrafficArgs) -> Result<Self> {
-        let wrpc_url = args.wallet.rpc_url.clone();
-        let net = Network::KaspaTest10;
-        let whale_secret = Secret::from(args.wallet.wallet_secret.clone());
-
         let w = EasyKaspaWallet::try_new(EasyKaspaWalletArgs {
             wallet_secret: args.wallet.wallet_secret,
-            wrpc_url: wrpc_url.clone(),
-            net: net.clone(),
-            storage_folder: args.wallet.wallet_dir.clone(),
+            wrpc_url: DEFAULT_WRPC_URL.to_string(),
+            net: Network::KaspaTest10,
+            storage_folder: None,
         })
         .await?;
-
         let resources = TaskResources {
+            w: w.clone(),
             args: args.task_args,
-            hub: cosmos_provider(
-                &args.hub_whale_priv_key,
-                &args.hub_rpc_url,
-                &args.hub_grpc_url,
-                &args.hub_chain_id,
-                &args.hub_prefix,
-                &args.hub_denom,
-                args.hub_decimals,
-            )
-            .await?,
-            kas_rest: HttpClient::new(args.kaspa_rest_url.clone(), RateLimitConfig::default()),
+            hub: cosmos_provider(&args.hub_whale_priv_key).await?,
+            kas_rest: HttpClient::new(DEFAULT_REST_URL.to_string(), RateLimitConfig::default()),
         };
         Ok(TrafficSim {
             params: args.params,
             resources,
-            whale_wallet: w,
-            whale_secret,
-            wrpc_url,
             output_dir: args.output_dir,
         })
     }
 
     pub async fn run(&self) -> Result<()> {
         let mut rng = rand::rng();
-
-        // Validate budget is sufficient for minimum withdrawals
-        let min_budget_needed = (self.params.num_ops() * MIN_KASPA_WITHDRAWAL_SOMPI as f64) as u64;
-        if self.params.budget < min_budget_needed {
-            return Err(eyre::eyre!(
-                "Budget {} sompi is insufficient. Need at least {} sompi for {} ops with 40 KAS minimum per withdrawal",
-                self.params.budget,
-                min_budget_needed,
-                self.params.num_ops()
-            ));
-        }
-
-        // Pre-create and fund worker wallets
-        let estimated_ops = (self.params.num_ops() * 1.1) as usize; // 10% buffer
-        info!("Creating and funding {} worker wallets", estimated_ops);
-
-        let mut workers = Vec::new();
-        for i in 0..estimated_ops {
-            // Create worker
-            let worker =
-                WorkerWallet::create_new(i, self.wrpc_url.clone(), Network::KaspaTest10).await?;
-
-            // Fund worker from whale
-            let worker_address = worker.receive_address()?;
-            // Fund each worker with 2x the budget, but ensure at least minimum withdrawal amount
-            let fund_amount = (self.params.op_budget() as u64 * 2).max(MIN_KASPA_WITHDRAWAL_SOMPI);
-
-            use kaspa_wallet_core::tx::{Fees, PaymentDestination, PaymentOutput};
-
-            let dst = PaymentDestination::from(PaymentOutput::new(worker_address, fund_amount));
-            let fees = Fees::from(0i64);
-
-            self.whale_wallet
-                .wallet
-                .account()?
-                .send(
-                    dst,
-                    None,
-                    fees,
-                    None,
-                    self.whale_secret.clone(),
-                    None,
-                    &workflow_core::abortable::Abortable::new(),
-                    None,
-                )
-                .await?;
-
-            workers.push(worker);
-
-            // Delay between funding to allow UTXO settlement
-            if i > 0 && i % 10 == 0 {
-                info!("Funded {}/{} workers", i + 1, estimated_ops);
-            }
-            tokio::time::sleep(Duration::from_millis(1500)).await;
-        }
-
-        info!("All workers funded, starting simulation");
-
-        let random_filename = H256::random();
-        let now = SystemTime::now();
-        let datetime: DateTime<Utc> = now.into();
-        let stats_file_path = format!(
-            "{}/stats_{}_{}.jsonl",
-            self.output_dir,
-            random_filename,
-            datetime.format("%Y-%m-%d_%H-%M-%S")
-        );
-        let metadata_file_path = format!(
-            "{}/metadata_{}_{}.json",
-            self.output_dir,
-            random_filename,
-            datetime.format("%Y-%m-%d_%H-%M-%S")
-        );
-
-        let stats_writer = StatsWriter::new(stats_file_path.clone())?;
-        info!("Writing stats to {}", stats_file_path);
+        let start_time = Instant::now();
+        let mut total_ops = 0;
+        let mut total_spend = 0;
 
         let (stats_tx, mut stats_rx) = mpsc::channel(100);
 
         let collector_handle = tokio::spawn(async move {
-            let mut count = 0u64;
+            let mut collected_stats = Vec::new();
             while let Some(stats) = stats_rx.recv().await {
-                stats_writer.log_stat(&stats);
-                if let Err(e) = stats_writer.write_stat(&stats) {
-                    tracing::error!("Failed to write stat: {:?}", e);
-                }
-                count += 1;
-                if count % 10 == 0 {
-                    info!("Wrote {} stats to file", count);
-                }
+                collected_stats.push(stats);
             }
-            info!("Total stats written: {}", count);
-            count
+            collected_stats
         });
 
-        let start_time = Instant::now();
-        let mut total_ops = 0;
-        let mut total_spend = 0;
+        info!("Starting tasks");
         let cancel = CancellationToken::new();
-
-        let mut worker_iter = workers.into_iter();
-
         while start_time.elapsed() < self.params.time_limit {
-            let worker = match worker_iter.next() {
-                Some(w) => w,
-                None => {
-                    info!("Ran out of pre-funded workers at {} ops", total_ops);
-                    break;
-                }
-            };
-
             let nominal_value = self.params.sample_value();
             let tx_clone = stats_tx.clone();
             let r = self.resources.clone();
@@ -336,11 +213,9 @@ impl TrafficSim {
             let hub_key = EasyHubKey::new();
             fund_hub_addr(&hub_key, &r.hub, self.params.hub_fund_amount).await?;
             let cancel_token_clone = cancel.clone();
-
             tokio::spawn(async move {
                 do_round_trip(
                     r,
-                    worker,
                     nominal_value,
                     &tx_clone,
                     task_id,
@@ -348,42 +223,42 @@ impl TrafficSim {
                     cancel_token_clone,
                 )
                 .await;
-                drop(tx_clone);
+                drop(tx_clone); // TODO: needed?
             });
-
             total_spend += nominal_value;
             total_ops += 1;
-
             let sleep_millis = self.params.distr_time().sample(&mut rng) as u64;
             tokio::time::sleep(Duration::from_millis(sleep_millis)).await;
-
-            if total_ops % 10 == 0 {
-                info!(
-                    "Started {} ops, elapsed: {}s",
-                    total_ops,
-                    start_time.elapsed().as_secs()
-                );
-            }
-
+            info!(
+                "elasped millis {}, interval {}, value {}",
+                start_time.elapsed().as_millis(),
+                sleep_millis,
+                som_to_kas(nominal_value)
+            );
             if self.params.simple_mode {
                 break;
             }
         }
-
         info!("Waiting for tasks to finish");
+
         drop(stats_tx);
-        tokio::time::sleep(self.params.max_wait_for_cancel).await;
+        tokio::time::sleep(self.params.max_wait_for_cancel).await; // TODO: should only wait if need to
         cancel.cancel();
 
-        let stats_count = collector_handle.await?;
-        info!("Total stats collected: {}", stats_count);
+        let final_stats = collector_handle.await?;
+        render_stats(final_stats.clone(), total_spend, total_ops);
 
-        info!("Writing metadata to {}", metadata_file_path);
-        write_metadata(&metadata_file_path, total_spend, total_ops)?;
-
-        info!("Simulation complete");
-        info!("Stats file: {}", stats_file_path);
-        info!("Metadata file: {}", metadata_file_path);
+        let random_filename = H256::random();
+        let now = SystemTime::now();
+        let datetime: DateTime<Utc> = now.into();
+        let file_path = format!(
+            "{}/stats_{}_{}.json",
+            self.output_dir,
+            random_filename,
+            datetime.format("%Y-%m-%d_%H-%M-%S")
+        );
+        info!("Writing stats to {}", file_path);
+        write_stats(&file_path, final_stats, total_spend, total_ops);
 
         Ok(())
     }
@@ -457,17 +332,7 @@ mod tests {
         let recipient = EasyHubKey::new();
         println!("recipient: {:?}", recipient.signer().address_string);
         let k = "7c3ea937a1578534cbe33bc22486d837436d99d0fb66cf1e5f9c9aa120e05964";
-        let hub = cosmos_provider(
-            &k,
-            "https://rpc-dymension-playground35.mzonder.com:443",
-            "https://grpc-dymension-playground35.mzonder.com:443",
-            "dymension_3405-1",
-            "dym",
-            "adym",
-            18,
-        )
-        .await
-        .unwrap();
+        let hub = cosmos_provider(&k).await.unwrap();
         fund_hub_addr(&recipient, &hub, 100).await.unwrap();
     }
 }

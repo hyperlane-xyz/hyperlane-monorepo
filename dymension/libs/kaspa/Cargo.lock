@@ -2669,9 +2669,7 @@ dependencies = [
  "tracing-futures",
  "tracing-subscriber",
  "url",
- "uuid 1.11.0",
  "validator",
- "workflow-core",
 ]
 
 [[package]]

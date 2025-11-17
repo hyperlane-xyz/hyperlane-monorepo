@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 pub const DUST_AMOUNT: u64 = 20_000_001;
 
 // Kaspa sweeping PSKT generator incorrectly computes TX fee if there is one party in the multisig.

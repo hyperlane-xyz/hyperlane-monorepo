@@ -401,6 +401,12 @@ pub fn build_kaspa_connection_conf(
     let grpcs =
         parse_base_and_override_urls(chain, "grpcUrls", "customGrpcUrls", "http", &mut local_err);
 
+    let offset_relay_time_hours = chain
+        .chain(err)
+        .get_opt_key("depositLookBackMins")
+        .parse_u64()
+        .end();
+
     let hub_mailbox_id = chain
         .chain(err)
         .get_key("hubMailboxId")
@@ -480,36 +486,19 @@ pub fn build_kaspa_connection_conf(
 
     // Parse KaspaTimeConfig if provided
     let kaspa_time_config = if validator_hosts.len() > 0 {
-        Some(dymension_kaspa::RelayerDepositTimings {
-            poll_interval: chain
+        Some(dymension_kaspa::KaspaTimeConfig {
+            base_retry_delay_secs: chain
                 .chain(err)
-                .get_opt_key("depositPollInterval")
-                .parse_duration()
+                .get_opt_key("kaspaTimeBaseRetryDelaySecs")
+                .parse_u64()
                 .end()
-                .unwrap_or(std::time::Duration::from_secs(5)),
-            retry_delay_base: chain
+                .unwrap_or(30),
+            poll_interval_secs: chain
                 .chain(err)
-                .get_opt_key("depositRetryDelayBase")
-                .parse_duration()
+                .get_opt_key("kaspaTimePollIntervalSecs")
+                .parse_u64()
                 .end()
-                .unwrap_or(std::time::Duration::from_secs(30)),
-            retry_delay_exponent: chain
-                .chain(err)
-                .get_opt_key("depositRetryDelayExponent")
-                .parse_f64()
-                .end()
-                .unwrap_or(2.0),
-            retry_delay_max: chain
-                .chain(err)
-                .get_opt_key("depositRetryDelayMax")
-                .parse_duration()
-                .end()
-                .unwrap_or(std::time::Duration::from_secs(3600)),
-            deposit_look_back: chain
-                .chain(err)
-                .get_opt_key("depositLookBack")
-                .parse_duration()
-                .end(),
+                .unwrap_or(10),
         })
     } else {
         None
@@ -527,6 +516,7 @@ pub fn build_kaspa_connection_conf(
             threshold_ism as usize,
             threshold_escrow as usize,
             grpcs,
+            offset_relay_time_hours,
             hub_mailbox_id.to_owned(),
             operation_batch,
             validation_conf,

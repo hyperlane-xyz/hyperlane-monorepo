@@ -1,11 +1,13 @@
 use super::key_cosmos::EasyHubKey;
 use super::key_kaspa::get_kaspa_keypair;
 use super::stats::RoundTripStats;
-use super::worker::WorkerWallet;
 use crate::x;
+use cometbft::abci::Code;
 use cometbft::Hash as TendermintHash;
 use corelib::api::client::HttpClient;
+use corelib::user::deposit::deposit_with_payload;
 use corelib::user::payload::make_deposit_payload_easy;
+use corelib::wallet::EasyKaspaWallet;
 use cosmos_sdk_proto::cosmos::base::v1beta1::Coin;
 use cosmrs::Any;
 use eyre::Result;
@@ -16,8 +18,9 @@ use hyperlane_cosmos_rs::hyperlane::warp::v1::MsgRemoteTransfer;
 use hyperlane_cosmos_rs::prost::{Message, Name};
 use kaspa_addresses::Address;
 use kaspa_consensus_core::tx::TransactionId;
+use std::str::FromStr;
 use std::time::Duration;
-use std::time::SystemTime;
+use std::time::{Instant, SystemTime};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use tracing::debug;
@@ -26,6 +29,7 @@ use tracing::error;
 #[derive(Debug, Clone)]
 pub struct TaskResources {
     pub hub: CosmosProvider<ModuleQueryClient>,
+    pub w: EasyKaspaWallet,
     pub args: TaskArgs,
     pub kas_rest: HttpClient,
 }
@@ -59,14 +63,13 @@ Stages
  */
 pub async fn do_round_trip(
     res: TaskResources,
-    worker: WorkerWallet,
     value: u64,
     tx: &mpsc::Sender<RoundTripStats>,
     task_id: u64,
     hub_key: EasyHubKey,
     cancel_token: CancellationToken,
 ) {
-    let mut rt = RoundTrip::new(res, worker, value, task_id, hub_key.clone(), cancel_token);
+    let mut rt = RoundTrip::new(res, value, task_id, hub_key.clone(), cancel_token);
     do_round_trip_inner(hub_key.clone(), &mut rt).await;
     tx.send(rt.stats).await.unwrap();
 }
@@ -115,7 +118,6 @@ async fn do_round_trip_inner(hub_key: EasyHubKey, rt: &mut RoundTrip) {
 
 struct RoundTrip {
     res: TaskResources,
-    worker: WorkerWallet,
     value: u64,
     task_id: u64,
     stats: RoundTripStats,
@@ -126,7 +128,6 @@ struct RoundTrip {
 impl RoundTrip {
     pub fn new(
         res: TaskResources,
-        worker: WorkerWallet,
         value: u64,
         task_id: u64,
         hub_k: EasyHubKey,
@@ -136,7 +137,6 @@ impl RoundTrip {
         res.hub.rpc = res.hub.rpc().with_signer(hub_k.signer());
         Self {
             res,
-            worker,
             value,
             stats: RoundTripStats::new(task_id, value),
             hub_key: hub_k,
@@ -147,11 +147,12 @@ impl RoundTrip {
 
     async fn deposit(&self) -> Result<(TransactionId, SystemTime)> {
         debug!(
-            "start deposit, task_id: {}, worker_id: {}, hub_addr: {}",
+            "start deposit, task_id: {}, hub_addr: {}",
             self.task_id,
-            self.worker.worker_id,
             self.hub_key.signer().address_string
         );
+        let w = &self.res.w;
+        let s = &w.secret;
         let a = self.res.args.escrow_address.clone();
         let amt = self.value;
         let payload = make_deposit_payload_easy(
@@ -162,7 +163,7 @@ impl RoundTrip {
             amt,
             &self.hub_key.signer(),
         );
-        let tx_id = self.worker.deposit_with_payload(a, amt, payload).await?;
+        let tx_id = deposit_with_payload(&w.wallet, &s, a, amt, payload).await?;
         Ok((tx_id, SystemTime::now()))
     }
 

@@ -1,4 +1,4 @@
-use std::{fmt::Debug, ops::Add, str::FromStr, time::Duration};
+use std::{fmt::Debug, ops::Add, str::FromStr};
 
 use convert_case::{Case, Casing};
 use derive_new::new;
@@ -192,22 +192,6 @@ impl<'v> ValueParser<'v> {
             .into_config_result(|| self.cwp.clone())
     }
 
-    /// Parse a duration value from a string like "5s", "30s", "15m", "1h"
-    pub fn parse_duration(&self) -> ConfigResult<Duration> {
-        match self.val.as_str() {
-            Some(s) => humantime::parse_duration(s)
-                .with_context(|| {
-                    format!("Expected a duration string like '5s', '30s', '15m', got `{s}`")
-                })
-                .into_config_result(|| self.cwp.clone()),
-            None => Err(eyre!(
-                "Expected a duration string like '5s', '30s', '15m', got `{:?}`",
-                self.val
-            ))
-            .into_config_result(|| self.cwp.clone()),
-        }
-    }
-
     /// Parse a u256 value allowing for it to be represented as string or number.
     pub fn parse_u256(&self) -> ConfigResult<U256> {
         match self.val {
@@ -331,7 +315,6 @@ define_basic_parse!(
     parse_u32: u32,
     parse_u16: u16,
     parse_i32: i32,
-    parse_duration: Duration,
     parse_u256: U256,
     parse_bool: bool,
     parse_string: &'v str,
