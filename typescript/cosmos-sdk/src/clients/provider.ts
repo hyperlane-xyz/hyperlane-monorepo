@@ -12,7 +12,16 @@ import {
 import { CometClient, connectComet } from '@cosmjs/tendermint-rpc';
 
 import { isTypes, warpTypes } from '@hyperlane-xyz/cosmos-types';
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import {
+  AltVM,
+  ChainMetadataForAltVM,
+  ITransactionSubmitter,
+  ProtocolProvider,
+  SignerConfig,
+  TransactionSubmitterConfig,
+} from '@hyperlane-xyz/provider-sdk';
+import { IProvider } from '@hyperlane-xyz/provider-sdk/altvm';
+import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import { assert, strip0x } from '@hyperlane-xyz/utils';
 
 import {
@@ -843,5 +852,28 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
         custom_hook_metadata: req.customHookMetadata,
       }),
     };
+  }
+}
+
+// @TODO: Complete this as part of https://linear.app/hyperlane-xyz/issue/ENG-2397/adapt-cosmos-sdk-to-the-protocol-api
+export class CosmosNativeProviderFactory implements ProtocolProvider {
+  createProvider(chainMetadata: ChainMetadataForAltVM): Promise<IProvider> {
+    assert(chainMetadata.rpcUrls, 'rpc urls undefined');
+    const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
+    return CosmosNativeProvider.connect(rpcUrls, chainMetadata.domainId);
+  }
+
+  createSigner(
+    chainMetadata: ChainMetadataForAltVM,
+    config: SignerConfig,
+  ): Promise<AltVM.ISigner<AnnotatedTx, TxReceipt>> {
+    throw Error('Not implemented');
+  }
+
+  createSubmitter<TConfig extends TransactionSubmitterConfig>(
+    chainMetadata: ChainMetadataForAltVM,
+    config: TConfig,
+  ): Promise<ITransactionSubmitter> {
+    throw Error('Not implemented');
   }
 }
