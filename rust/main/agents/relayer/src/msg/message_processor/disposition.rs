@@ -36,7 +36,7 @@ pub(super) async fn operation_disposition_by_payload_status(
         Some(uuids) => uuids,
     };
 
-    // TODO checking only the first payload uuid since we support a single payload per message at this point
+    // checking only the first payload uuid since we support a single payload per message at this point
     let payload_uuid = payload_uuids[0].clone();
     let status = entrypoint.payload_status(payload_uuid).await;
 
