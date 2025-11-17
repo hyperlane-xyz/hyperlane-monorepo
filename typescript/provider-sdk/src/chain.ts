@@ -18,6 +18,9 @@ export interface ChainMetadataForAltVM {
     confirmations?: number;
     estimateBlockTime?: number;
   };
+  rpcUrls?: {
+    http: string;
+  }[];
 }
 
 /**
