@@ -70,6 +70,9 @@ pub struct KaspaBridgeMetrics {
 
     /// Last withdrawal anchor point information (info metric tracking last confirmed withdrawal)
     pub last_anchor_point_info: GaugeVec,
+
+    /// Relayer receive address information (info metric with receive address)
+    pub relayer_receive_address_info: GaugeVec,
 }
 
 impl KaspaBridgeMetrics {
@@ -86,7 +89,7 @@ impl KaspaBridgeMetrics {
 
         // Create Kaspa relayer metrics using the provided registry
         let relayer_address_funds = IntGauge::new(
-            "kaspa_relayer_address_funds_sompi",
+            "kaspa_relayer_balance_sompi",
             "Current balance of the relayer address in sompi",
         )?;
         // Register the metric - if already exists, just continue
@@ -200,6 +203,15 @@ impl KaspaBridgeMetrics {
         )?;
         let _ = registry.register(Box::new(last_anchor_point_info.clone()));
 
+        let relayer_receive_address_info = GaugeVec::new(
+            Opts::new(
+                "kaspa_relay_receive_address",
+                "Relayer wallet receive address",
+            ),
+            &["receive_address"],
+        )?;
+        let _ = registry.register(Box::new(relayer_receive_address_info.clone()));
+
         let new_instance = Self {
             relayer_address_funds,
             funds_escrowed,
@@ -223,6 +235,7 @@ impl KaspaBridgeMetrics {
             failed_withdrawal_amounts: Arc::new(RwLock::new(HashMap::new())),
             hub_anchor_point_info,
             last_anchor_point_info,
+            relayer_receive_address_info,
         };
 
         // Store the instance in our singleton map

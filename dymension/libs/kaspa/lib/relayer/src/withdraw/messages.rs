@@ -15,7 +15,7 @@ use hyperlane_core::U256;
 use hyperlane_cosmos::{native::ModuleQueryClient, CosmosProvider};
 use kaspa_consensus_core::tx::{TransactionInput, TransactionOutpoint, UtxoEntry};
 use kaspa_wallet_pskt::bundle::Bundle;
-use tracing::info;
+use tracing::{error, info};
 
 // (input, entry, optional_redeem_script)
 pub(crate) type PopulatedInput = (TransactionInput, UtxoEntry, Option<Vec<u8>>);
@@ -127,7 +127,10 @@ pub async fn build_withdrawal_fxg(
     .await
     .map_err(|e| eyre::eyre!("Fetch escrow UTXOs: {}", e))?;
 
+    // Get relayer change address for the withdrawal PSKT change output
     let relayer_address = relayer.account().change_address()?;
+
+    // Fetch relayer UTXOs from change address
     let relayer_inputs = fetch_input_utxos(
         &relayer.api(),
         &relayer_address,
@@ -136,7 +139,16 @@ pub async fn build_withdrawal_fxg(
         relayer.net.network_id,
     )
     .await
-    .map_err(|e| eyre::eyre!("Fetch relayer UTXOs: {}", e))?;
+    .map_err(|e| eyre::eyre!("Fetch relayer change address UTXOs: {}", e))?;
+
+    // Early validation of relayer funds available (otherwise it will panic later during PSKT building)
+    if relayer_inputs.is_empty() {
+        error!(
+            "Relayer has no UTXOs available. Cannot process withdrawals without relayer funds to pay transaction fees. \
+            Please fund relayer address. All withdrawal operations will be marked as failed and retried later."
+        );
+        return Ok(None);
+    }
 
     let (sweeping_bundle, inputs) = if escrow_inputs.len() > SWEEPING_THRESHOLD {
         // Sweep
