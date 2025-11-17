@@ -1,8 +1,4 @@
-import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
-import {
-  ProtocolRegistrar,
-  registerProtocol,
-} from '@hyperlane-xyz/provider-sdk/registry';
+import { ProtocolType, registerProtocol } from '@hyperlane-xyz/provider-sdk';
 
 export async function loadProviders(neededProtocols: ProtocolType[]) {
   await Promise.all(
@@ -12,12 +8,7 @@ export async function loadProviders(neededProtocols: ProtocolType[]) {
           const { CosmosNativeProviderFactory } = await import(
             '@hyperlane-xyz/cosmos-sdk'
           );
-          registerProtocol((registrar: ProtocolRegistrar) => {
-            registrar.registerProtocol(
-              protocol,
-              () => new CosmosNativeProviderFactory(),
-            );
-          });
+          registerProtocol(protocol, () => new CosmosNativeProviderFactory());
           break;
         }
       }
