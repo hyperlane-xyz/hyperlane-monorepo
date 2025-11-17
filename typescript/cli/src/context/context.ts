@@ -2,6 +2,7 @@ import { confirm } from '@inquirer/prompts';
 import { ethers } from 'ethers';
 
 import { loadProviders } from '@hyperlane-xyz/deploy-sdk';
+import { AltVM, getProtocolProvider } from '@hyperlane-xyz/provider-sdk';
 import { IRegistry } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import {
@@ -94,6 +95,18 @@ export async function signerMiddleware(argv: Record<string, any>) {
     chains.map((chain) => argv.context.multiProvider.getProtocol(chain)),
   );
 
+  await Promise.all(
+    chains.map(async (chain) => {
+      const { context, multiProvider } = argv.context;
+      const protocol = multiProvider.getProtocol(chain);
+      const metadata = multiProvider.getChainMetadata(chain);
+      context.altVmProvider.set(
+        chain,
+        await getProtocolProvider(protocol).createProvider(metadata),
+      );
+    }),
+  );
+
   return argv;
 }
 
@@ -124,8 +137,13 @@ export async function getContext({
 
   const multiProvider = await getMultiProvider(registry);
   const multiProtocolProvider = await getMultiProtocolProvider(registry);
+  const altVmProvider = new Map<string, AltVM.IProvider>();
 
-  const supportedProtocols = [ProtocolType.Ethereum, ProtocolType.CosmosNative];
+  const supportedProtocols = [
+    ProtocolType.Ethereum,
+    ProtocolType.CosmosNative,
+    ProtocolType.Radix,
+  ];
 
   return {
     registry,
@@ -133,6 +151,7 @@ export async function getContext({
     chainMetadata: multiProvider.metadata,
     multiProvider,
     multiProtocolProvider,
+    altVmProvider,
     supportedProtocols,
     key: keyMap,
     skipConfirmation: !!skipConfirmation,

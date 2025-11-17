@@ -2,6 +2,7 @@ import type { ethers } from 'ethers';
 import type { CommandModule } from 'yargs';
 import { z } from 'zod';
 
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import type { IRegistry } from '@hyperlane-xyz/registry';
 import type {
   ChainMap,
@@ -48,6 +49,7 @@ export interface CommandContext
   chainMetadata: ChainMap<ChainMetadata>;
   multiProvider: MultiProvider;
   multiProtocolProvider: MultiProtocolProvider;
+  altVmProvider: Map<string, AltVM.IProvider>;
   supportedProtocols: ProtocolType[];
   skipConfirmation: boolean;
   // just for evm chains backward compatibility
