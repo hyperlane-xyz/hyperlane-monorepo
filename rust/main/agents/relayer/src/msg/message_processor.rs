@@ -405,6 +405,7 @@ async fn prepare_lander_task(
 
         let batch_to_process = prepare::filter_operations_for_preparation(
             entrypoint.clone() as Arc<dyn Entrypoint + Send + Sync>,
+            &submit_queue,
             &confirm_queue,
             db.clone(),
             batch,
@@ -561,19 +562,27 @@ async fn submit_lander_task(
     metrics: MessageProcessorMetrics,
     db: Arc<dyn HyperlaneDb>,
 ) {
+    use stage::submit::filter_operations_for_submit;
+
     let recv_limit = max_batch_size as usize;
     loop {
         let batch = submit_queue.pop_many(recv_limit).await;
-        for op in batch.into_iter() {
-            submit_via_lander(
-                op,
-                &entrypoint,
-                &prepare_queue,
-                &confirm_queue,
-                &metrics,
-                db.clone(),
-            )
-            .await;
+
+        // Filter operations based on their current payload status
+        let operations_to_process = filter_operations_for_submit(
+            entrypoint.clone() as Arc<dyn Entrypoint + Send + Sync>,
+            &submit_queue,
+            &confirm_queue,
+            &metrics,
+            db.clone(),
+            batch,
+        )
+        .await;
+
+        // Process remaining operations in submit queue
+        for op in operations_to_process {
+            // Operation needs a new payload created and sent
+            submit_via_lander(op, &entrypoint, &prepare_queue, &submit_queue, db.clone()).await;
         }
     }
 }
@@ -582,8 +591,7 @@ async fn submit_via_lander(
     op: QueueOperation,
     entrypoint: &Arc<DispatcherEntrypoint>,
     prepare_queue: &OpQueue,
-    confirm_queue: &OpQueue,
-    metrics: &MessageProcessorMetrics,
+    submit_queue: &OpQueue,
     db: Arc<dyn HyperlaneDb>,
 ) {
     let operation_payload = match op.payload().await {
@@ -635,7 +643,9 @@ async fn submit_via_lander(
         return;
     }
 
-    confirm_op(op, confirm_queue, metrics).await;
+    // Push to submit queue - the filtering logic will move it to confirm queue
+    // once the transaction is actually included on-chain
+    submit_queue.push(op, None).await;
 }
 
 async fn prepare_op(

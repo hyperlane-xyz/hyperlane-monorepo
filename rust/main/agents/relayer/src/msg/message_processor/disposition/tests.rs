@@ -223,8 +223,8 @@ async fn test_operation_disposition_by_payload_status_success_pending_inclusion(
     .await;
 
     assert!(
-        matches!(result, OperationDisposition::PostSubmit),
-        "Should return Confirm when transaction is pending inclusion"
+        matches!(result, OperationDisposition::Submit),
+        "Should return Submit when transaction is pending inclusion"
     );
 }
 
@@ -378,8 +378,8 @@ async fn test_operation_disposition_by_payload_status_ready_to_submit() {
     .await;
 
     assert!(
-        matches!(result, OperationDisposition::PostSubmit),
-        "Should return Confirm when payload status is ReadyToSubmit"
+        matches!(result, OperationDisposition::Submit),
+        "Should return Submit when payload status is ReadyToSubmit"
     );
 }
 
@@ -415,8 +415,8 @@ async fn test_operation_disposition_by_payload_status_retry() {
     .await;
 
     assert!(
-        matches!(result, OperationDisposition::PostSubmit),
-        "Should return Confirm when payload is being retried (was previously submitted)"
+        matches!(result, OperationDisposition::PreSubmit),
+        "Should return PreSubmit when payload needs retry (was dropped/failed)"
     );
 }
 
@@ -452,8 +452,8 @@ async fn test_operation_disposition_by_payload_status_transaction_mempool() {
     .await;
 
     assert!(
-        matches!(result, OperationDisposition::PostSubmit),
-        "Should return Confirm when transaction is in mempool (accepted by node)"
+        matches!(result, OperationDisposition::Submit),
+        "Should return Submit when transaction is in mempool (accepted by node)"
     );
 }
 

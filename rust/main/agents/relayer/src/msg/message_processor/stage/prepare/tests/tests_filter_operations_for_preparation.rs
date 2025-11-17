@@ -5,7 +5,9 @@ use uuid::Uuid;
 use hyperlane_base::db::HyperlaneDb;
 use hyperlane_base::tests::mock_hyperlane_db::MockHyperlaneDb;
 use hyperlane_core::identifiers::UniqueIdentifier;
-use hyperlane_core::{PendingOperationStatus, QueueOperation, ReprepareReason, H256};
+use hyperlane_core::{
+    HyperlaneDomain, PendingOperationStatus, QueueOperation, ReprepareReason, H256,
+};
 use lander::{
     Entrypoint, LanderError, PayloadDropReason, PayloadStatus, TransactionDropReason,
     TransactionStatus,
@@ -21,12 +23,14 @@ use super::super::filter_operations_for_preparation;
 async fn test_filter_operations_for_preparation_empty_batch() {
     let mock_db = MockHyperlaneDb::new();
     let mock_entrypoint = MockDispatcherEntrypoint::new();
+    let submit_queue = create_test_queue();
     let confirm_queue = create_test_queue();
 
     let batch = vec![];
 
     let result = filter_operations_for_preparation(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
+        &submit_queue,
         &confirm_queue,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
         batch,
@@ -35,19 +39,16 @@ async fn test_filter_operations_for_preparation_empty_batch() {
 
     assert_eq!(result.len(), 0, "Empty batch should return empty result");
 
-    // Verify confirm queue is empty for empty batch
-    let queue_contents = confirm_queue.queue.lock().await;
-    assert_eq!(
-        queue_contents.len(),
-        0,
-        "Confirm queue should be empty for empty batch"
-    );
+    // Verify queues are empty for empty batch
+    assert_eq!(submit_queue.len().await, 0);
+    assert_eq!(confirm_queue.len().await, 0);
 }
 
 #[tokio::test]
 async fn test_filter_operations_for_preparation_all_manual_retry() {
     let mut mock_db = MockHyperlaneDb::new();
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
+    let submit_queue = create_test_queue();
     let confirm_queue = create_test_queue();
 
     // Store should be called to remove the payload UUID mapping for each manual operation
@@ -78,6 +79,7 @@ async fn test_filter_operations_for_preparation_all_manual_retry() {
 
     let result = filter_operations_for_preparation(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
+        &submit_queue,
         &confirm_queue,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
         batch,
@@ -90,19 +92,16 @@ async fn test_filter_operations_for_preparation_all_manual_retry() {
         "All manual retry operations should be returned for pre-submit"
     );
 
-    // Verify confirm queue is empty for manual retry operations
-    let queue_contents = confirm_queue.queue.lock().await;
-    assert_eq!(
-        queue_contents.len(),
-        0,
-        "Confirm queue should be empty for manual retry operations"
-    );
+    // Verify queues are empty for manual retry operations
+    assert_eq!(submit_queue.len().await, 0);
+    assert_eq!(confirm_queue.len().await, 0);
 }
 
 #[tokio::test]
 async fn test_filter_operations_for_preparation_manual_retry_db_store_failure() {
     let mut mock_db = MockHyperlaneDb::new();
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
+    let submit_queue = create_test_queue();
     let confirm_queue = create_test_queue();
 
     // Store should be called but will fail
@@ -134,6 +133,7 @@ async fn test_filter_operations_for_preparation_manual_retry_db_store_failure() 
 
     let result = filter_operations_for_preparation(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
+        &submit_queue,
         &confirm_queue,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
         batch,
@@ -146,19 +146,16 @@ async fn test_filter_operations_for_preparation_manual_retry_db_store_failure() 
         "Manual retry operations should still be returned for pre-submit even if DB store fails"
     );
 
-    // Verify confirm queue is empty
-    let queue_contents = confirm_queue.queue.lock().await;
-    assert_eq!(
-        queue_contents.len(),
-        0,
-        "Confirm queue should be empty for manual retry operations"
-    );
+    // Verify queues are empty
+    assert_eq!(submit_queue.len().await, 0);
+    assert_eq!(confirm_queue.len().await, 0);
 }
 
 #[tokio::test]
 async fn test_filter_operations_for_preparation_manual_retry_db_store_failure_mixed_batch() {
     let mut mock_db = MockHyperlaneDb::new();
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
+    let submit_queue = create_test_queue();
     let confirm_queue = create_test_queue();
 
     let message_id1 = H256::from_low_u64_be(1); // Manual retry with DB store failure
@@ -213,6 +210,7 @@ async fn test_filter_operations_for_preparation_manual_retry_db_store_failure_mi
 
     let result = filter_operations_for_preparation(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
+        &submit_queue,
         &confirm_queue,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
         batch,
@@ -237,9 +235,8 @@ async fn test_filter_operations_for_preparation_manual_retry_db_store_failure_mi
     );
 
     // Verify the submitted operation (op2) was pushed to confirm queue
-    let queue_contents = confirm_queue.queue.lock().await;
     assert_eq!(
-        queue_contents.len(),
+        confirm_queue.len().await,
         1,
         "Submitted operation should be in confirm queue, unaffected by manual operation DB failure"
     );
@@ -249,6 +246,7 @@ async fn test_filter_operations_for_preparation_manual_retry_db_store_failure_mi
 async fn test_filter_operations_for_preparation_all_submitted() {
     let mut mock_db = MockHyperlaneDb::new();
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
+    let submit_queue = create_test_queue();
     let confirm_queue = create_test_queue();
 
     let message_id1 = H256::from_low_u64_be(1);
@@ -292,6 +290,7 @@ async fn test_filter_operations_for_preparation_all_submitted() {
 
     let result = filter_operations_for_preparation(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
+        &submit_queue,
         &confirm_queue,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
         batch,
@@ -305,9 +304,8 @@ async fn test_filter_operations_for_preparation_all_submitted() {
     );
 
     // Verify all 3 operations were pushed to confirm queue
-    let queue_contents = confirm_queue.queue.lock().await;
     assert_eq!(
-        queue_contents.len(),
+        confirm_queue.len().await,
         3,
         "All 3 operations should be in confirm queue"
     );
@@ -317,6 +315,7 @@ async fn test_filter_operations_for_preparation_all_submitted() {
 async fn test_filter_operations_for_preparation_none_submitted() {
     let mut mock_db = MockHyperlaneDb::new();
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
+    let submit_queue = create_test_queue();
     let confirm_queue = create_test_queue();
 
     let message_id1 = H256::from_low_u64_be(1);
@@ -338,6 +337,7 @@ async fn test_filter_operations_for_preparation_none_submitted() {
 
     let result = filter_operations_for_preparation(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
+        &submit_queue,
         &confirm_queue,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
         batch,
@@ -350,25 +350,22 @@ async fn test_filter_operations_for_preparation_none_submitted() {
         "All non-submitted operations should be returned for pre-submit"
     );
 
-    // Verify confirm queue is empty when no operations are submitted
-    let queue_contents = confirm_queue.queue.lock().await;
-    assert_eq!(
-        queue_contents.len(),
-        0,
-        "Confirm queue should be empty when no operations are submitted"
-    );
+    // Verify queues are empty when no operations are submitted
+    assert_eq!(submit_queue.len().await, 0);
+    assert_eq!(confirm_queue.len().await, 0);
 }
 
 #[tokio::test]
 async fn test_filter_operations_for_preparation_mixed_batch() {
     let mut mock_db = MockHyperlaneDb::new();
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
+    let submit_queue = create_test_queue();
     let confirm_queue = create_test_queue();
 
     let message_id1 = H256::from_low_u64_be(1); // Manual retry - should go to pre-submit
-    let message_id2 = H256::from_low_u64_be(2); // Submitted - should go to confirm
+    let message_id2 = H256::from_low_u64_be(2); // Finalized - should go to confirm
     let message_id3 = H256::from_low_u64_be(3); // Not submitted - should go to pre-submit
-    let message_id4 = H256::from_low_u64_be(4); // Submitted - should go to confirm
+    let message_id4 = H256::from_low_u64_be(4); // Pending inclusion - should go to submit queue
 
     let payload_uuid2 = UniqueIdentifier::new(Uuid::new_v4());
     let payload_uuid4 = UniqueIdentifier::new(Uuid::new_v4());
@@ -424,6 +421,7 @@ async fn test_filter_operations_for_preparation_mixed_batch() {
 
     let result = filter_operations_for_preparation(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
+        &submit_queue,
         &confirm_queue,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
         batch,
@@ -447,12 +445,18 @@ async fn test_filter_operations_for_preparation_mixed_batch() {
         "Not submitted operation should be in pre-submit list"
     );
 
-    // Verify the 2 submitted operations (op2 and op4) were pushed to confirm queue
-    let queue_contents = confirm_queue.queue.lock().await;
+    // Verify op2 (finalized) went to confirm queue
     assert_eq!(
-        queue_contents.len(),
-        2,
-        "2 submitted operations should be in confirm queue"
+        confirm_queue.len().await,
+        1,
+        "Finalized operation should be in confirm queue"
+    );
+
+    // Verify op4 (pending inclusion) went to submit queue
+    assert_eq!(
+        submit_queue.len().await,
+        1,
+        "Pending inclusion operation should be in submit queue"
     );
 }
 
@@ -460,6 +464,7 @@ async fn test_filter_operations_for_preparation_mixed_batch() {
 async fn test_filter_operations_for_preparation_db_error() {
     let mut mock_db = MockHyperlaneDb::new();
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
+    let submit_queue = create_test_queue();
     let confirm_queue = create_test_queue();
 
     let message_id = H256::from_low_u64_be(1);
@@ -482,6 +487,7 @@ async fn test_filter_operations_for_preparation_db_error() {
 
     let result = filter_operations_for_preparation(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
+        &submit_queue,
         &confirm_queue,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
         batch,
@@ -495,19 +501,16 @@ async fn test_filter_operations_for_preparation_db_error() {
     );
     assert_eq!(result[0].id(), message_id);
 
-    // Verify confirm queue is empty when DB error occurs
-    let queue_contents = confirm_queue.queue.lock().await;
-    assert_eq!(
-        queue_contents.len(),
-        0,
-        "Confirm queue should be empty when DB error occurs"
-    );
+    // Verify queues are empty when DB error occurs
+    assert_eq!(submit_queue.len().await, 0);
+    assert_eq!(confirm_queue.len().await, 0);
 }
 
 #[tokio::test]
 async fn test_filter_operations_for_preparation_payload_dropped() {
     let mut mock_db = MockHyperlaneDb::new();
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
+    let submit_queue = create_test_queue();
     let confirm_queue = create_test_queue();
 
     let message_id = H256::from_low_u64_be(1);
@@ -529,6 +532,7 @@ async fn test_filter_operations_for_preparation_payload_dropped() {
 
     let result = filter_operations_for_preparation(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
+        &submit_queue,
         &confirm_queue,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
         batch,
@@ -542,19 +546,16 @@ async fn test_filter_operations_for_preparation_payload_dropped() {
     );
     assert_eq!(result[0].id(), message_id);
 
-    // Verify confirm queue is empty when payload is dropped
-    let queue_contents = confirm_queue.queue.lock().await;
-    assert_eq!(
-        queue_contents.len(),
-        0,
-        "Confirm queue should be empty when payload is dropped"
-    );
+    // Verify queues are empty when payload is dropped
+    assert_eq!(submit_queue.len().await, 0);
+    assert_eq!(confirm_queue.len().await, 0);
 }
 
 #[tokio::test]
 async fn test_filter_operations_for_preparation_transaction_dropped() {
     let mut mock_db = MockHyperlaneDb::new();
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
+    let submit_queue = create_test_queue();
     let confirm_queue = create_test_queue();
 
     let message_id = H256::from_low_u64_be(1);
@@ -580,6 +581,7 @@ async fn test_filter_operations_for_preparation_transaction_dropped() {
 
     let result = filter_operations_for_preparation(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
+        &submit_queue,
         &confirm_queue,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
         batch,
@@ -593,19 +595,16 @@ async fn test_filter_operations_for_preparation_transaction_dropped() {
     );
     assert_eq!(result[0].id(), message_id);
 
-    // Verify confirm queue is empty when transaction is dropped
-    let queue_contents = confirm_queue.queue.lock().await;
-    assert_eq!(
-        queue_contents.len(),
-        0,
-        "Confirm queue should be empty when transaction is dropped"
-    );
+    // Verify queues are empty when transaction is dropped
+    assert_eq!(submit_queue.len().await, 0);
+    assert_eq!(confirm_queue.len().await, 0);
 }
 
 #[tokio::test]
 async fn test_filter_operations_for_preparation_entrypoint_error() {
     let mut mock_db = MockHyperlaneDb::new();
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
+    let submit_queue = create_test_queue();
     let confirm_queue = create_test_queue();
 
     let message_id = H256::from_low_u64_be(1);
@@ -627,6 +626,7 @@ async fn test_filter_operations_for_preparation_entrypoint_error() {
 
     let result = filter_operations_for_preparation(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
+        &submit_queue,
         &confirm_queue,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
         batch,
@@ -640,19 +640,16 @@ async fn test_filter_operations_for_preparation_entrypoint_error() {
     );
     assert_eq!(result[0].id(), message_id);
 
-    // Verify confirm queue is empty when entrypoint returns error
-    let queue_contents = confirm_queue.queue.lock().await;
-    assert_eq!(
-        queue_contents.len(),
-        0,
-        "Confirm queue should be empty when entrypoint returns error"
-    );
+    // Verify queues are empty when entrypoint returns error
+    assert_eq!(submit_queue.len().await, 0);
+    assert_eq!(confirm_queue.len().await, 0);
 }
 
 #[tokio::test]
 async fn test_filter_operations_for_preparation_non_manual_retry() {
     let mut mock_db = MockHyperlaneDb::new();
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
+    let submit_queue = create_test_queue();
     let confirm_queue = create_test_queue();
 
     let message_id = H256::from_low_u64_be(1);
@@ -671,14 +668,17 @@ async fn test_filter_operations_for_preparation_non_manual_retry() {
         .returning(|_| Ok(PayloadStatus::InTransaction(TransactionStatus::Finalized)));
 
     // Use ErrorSubmitting as an example of non-manual retry
+    let destination = HyperlaneDomain::new_test_domain("test");
     let op = Box::new(MockQueueOperation::new(
         message_id,
         PendingOperationStatus::Retry(ReprepareReason::ErrorSubmitting),
+        destination,
     )) as QueueOperation;
     let batch = vec![op];
 
     let result = filter_operations_for_preparation(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
+        &submit_queue,
         &confirm_queue,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
         batch,
@@ -692,9 +692,8 @@ async fn test_filter_operations_for_preparation_non_manual_retry() {
     );
 
     // Verify the operation was pushed to confirm queue
-    let queue_contents = confirm_queue.queue.lock().await;
     assert_eq!(
-        queue_contents.len(),
+        confirm_queue.len().await,
         1,
         "Operation should be in confirm queue"
     );
@@ -704,6 +703,7 @@ async fn test_filter_operations_for_preparation_non_manual_retry() {
 async fn test_filter_operations_for_preparation_empty_payload_uuids() {
     let mut mock_db = MockHyperlaneDb::new();
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
+    let submit_queue = create_test_queue();
     let confirm_queue = create_test_queue();
 
     let message_id = H256::from_low_u64_be(1);
@@ -722,6 +722,7 @@ async fn test_filter_operations_for_preparation_empty_payload_uuids() {
 
     let result = filter_operations_for_preparation(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
+        &submit_queue,
         &confirm_queue,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
         batch,
@@ -735,11 +736,315 @@ async fn test_filter_operations_for_preparation_empty_payload_uuids() {
     );
     assert_eq!(result[0].id(), message_id);
 
-    // Verify confirm queue is empty when payload UUIDs list is empty
-    let queue_contents = confirm_queue.queue.lock().await;
+    // Verify queues are empty when payload UUIDs list is empty
+    assert_eq!(submit_queue.len().await, 0);
+    assert_eq!(confirm_queue.len().await, 0);
+}
+
+#[tokio::test]
+async fn test_filter_operations_for_preparation_ready_to_submit_status() {
+    // Test that ReadyToSubmit status routes operation to submit queue
+    let mut mock_db = MockHyperlaneDb::new();
+    let mut mock_entrypoint = MockDispatcherEntrypoint::new();
+    let submit_queue = create_test_queue();
+    let confirm_queue = create_test_queue();
+
+    let message_id = H256::from_low_u64_be(1);
+    let payload_uuid = UniqueIdentifier::new(Uuid::new_v4());
+
+    let payload_uuid_clone = payload_uuid.clone();
+    mock_db
+        .expect_retrieve_payload_uuids_by_message_id()
+        .times(1)
+        .returning(move |_| Ok(Some(vec![payload_uuid_clone.clone()])));
+
+    mock_entrypoint
+        .expect_payload_status()
+        .times(1)
+        .returning(|_| Ok(PayloadStatus::ReadyToSubmit));
+
+    let op = Box::new(MockQueueOperation::with_first_prepare(message_id)) as QueueOperation;
+    let batch = vec![op];
+
+    let result = filter_operations_for_preparation(
+        Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
+        &submit_queue,
+        &confirm_queue,
+        Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
+        batch,
+    )
+    .await;
+
     assert_eq!(
-        queue_contents.len(),
+        result.len(),
         0,
-        "Confirm queue should be empty when payload UUIDs list is empty"
+        "ReadyToSubmit operation should go to submit queue, not pre-submit"
     );
+
+    // Verify operation was pushed to submit queue
+    assert_eq!(
+        submit_queue.len().await,
+        1,
+        "Operation should be in submit queue"
+    );
+    assert_eq!(confirm_queue.len().await, 0);
+}
+
+#[tokio::test]
+async fn test_filter_operations_for_preparation_mempool_status() {
+    // Test that Mempool status routes operation to submit queue
+    let mut mock_db = MockHyperlaneDb::new();
+    let mut mock_entrypoint = MockDispatcherEntrypoint::new();
+    let submit_queue = create_test_queue();
+    let confirm_queue = create_test_queue();
+
+    let message_id = H256::from_low_u64_be(1);
+    let payload_uuid = UniqueIdentifier::new(Uuid::new_v4());
+
+    let payload_uuid_clone = payload_uuid.clone();
+    mock_db
+        .expect_retrieve_payload_uuids_by_message_id()
+        .times(1)
+        .returning(move |_| Ok(Some(vec![payload_uuid_clone.clone()])));
+
+    mock_entrypoint
+        .expect_payload_status()
+        .times(1)
+        .returning(|_| Ok(PayloadStatus::InTransaction(TransactionStatus::Mempool)));
+
+    let op = Box::new(MockQueueOperation::with_first_prepare(message_id)) as QueueOperation;
+    let batch = vec![op];
+
+    let result = filter_operations_for_preparation(
+        Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
+        &submit_queue,
+        &confirm_queue,
+        Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
+        batch,
+    )
+    .await;
+
+    assert_eq!(
+        result.len(),
+        0,
+        "Mempool operation should go to submit queue, not pre-submit"
+    );
+
+    // Verify operation was pushed to submit queue
+    assert_eq!(
+        submit_queue.len().await,
+        1,
+        "Operation should be in submit queue"
+    );
+    assert_eq!(confirm_queue.len().await, 0);
+}
+
+#[tokio::test]
+async fn test_filter_operations_for_preparation_included_status() {
+    // Test that Included status (not just Finalized) routes operation to confirm queue
+    let mut mock_db = MockHyperlaneDb::new();
+    let mut mock_entrypoint = MockDispatcherEntrypoint::new();
+    let submit_queue = create_test_queue();
+    let confirm_queue = create_test_queue();
+
+    let message_id = H256::from_low_u64_be(1);
+    let payload_uuid = UniqueIdentifier::new(Uuid::new_v4());
+
+    let payload_uuid_clone = payload_uuid.clone();
+    mock_db
+        .expect_retrieve_payload_uuids_by_message_id()
+        .times(1)
+        .returning(move |_| Ok(Some(vec![payload_uuid_clone.clone()])));
+
+    mock_entrypoint
+        .expect_payload_status()
+        .times(1)
+        .returning(|_| Ok(PayloadStatus::InTransaction(TransactionStatus::Included)));
+
+    let op = Box::new(MockQueueOperation::with_first_prepare(message_id)) as QueueOperation;
+    let batch = vec![op];
+
+    let result = filter_operations_for_preparation(
+        Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
+        &submit_queue,
+        &confirm_queue,
+        Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
+        batch,
+    )
+    .await;
+
+    assert_eq!(
+        result.len(),
+        0,
+        "Included operation should go to confirm queue, not pre-submit"
+    );
+
+    // Verify operation was pushed to confirm queue
+    assert_eq!(submit_queue.len().await, 0);
+    assert_eq!(
+        confirm_queue.len().await,
+        1,
+        "Operation should be in confirm queue"
+    );
+}
+
+#[tokio::test]
+async fn test_filter_operations_for_preparation_all_to_submit_queue() {
+    // Test batch where ALL operations route to submit queue
+    let mut mock_db = MockHyperlaneDb::new();
+    let mut mock_entrypoint = MockDispatcherEntrypoint::new();
+    let submit_queue = create_test_queue();
+    let confirm_queue = create_test_queue();
+
+    let message_id1 = H256::from_low_u64_be(1);
+    let message_id2 = H256::from_low_u64_be(2);
+    let message_id3 = H256::from_low_u64_be(3);
+
+    let payload_uuid1 = UniqueIdentifier::new(Uuid::new_v4());
+    let payload_uuid2 = UniqueIdentifier::new(Uuid::new_v4());
+    let payload_uuid3 = UniqueIdentifier::new(Uuid::new_v4());
+
+    // Mock DB to return payload UUIDs for all operations
+    let payload_uuid1_clone = payload_uuid1.clone();
+    let payload_uuid2_clone = payload_uuid2.clone();
+    let payload_uuid3_clone = payload_uuid3.clone();
+    mock_db
+        .expect_retrieve_payload_uuids_by_message_id()
+        .times(3)
+        .returning(move |id| {
+            if *id == message_id1 {
+                Ok(Some(vec![payload_uuid1_clone.clone()]))
+            } else if *id == message_id2 {
+                Ok(Some(vec![payload_uuid2_clone.clone()]))
+            } else if *id == message_id3 {
+                Ok(Some(vec![payload_uuid3_clone.clone()]))
+            } else {
+                Ok(None)
+            }
+        });
+
+    // All operations have PendingInclusion status (Submit disposition)
+    mock_entrypoint
+        .expect_payload_status()
+        .times(3)
+        .returning(|_| {
+            Ok(PayloadStatus::InTransaction(
+                TransactionStatus::PendingInclusion,
+            ))
+        });
+
+    let op1 = Box::new(MockQueueOperation::with_first_prepare(message_id1)) as QueueOperation;
+    let op2 = Box::new(MockQueueOperation::with_first_prepare(message_id2)) as QueueOperation;
+    let op3 = Box::new(MockQueueOperation::with_first_prepare(message_id3)) as QueueOperation;
+
+    let batch = vec![op1, op2, op3];
+
+    let result = filter_operations_for_preparation(
+        Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
+        &submit_queue,
+        &confirm_queue,
+        Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
+        batch,
+    )
+    .await;
+
+    assert_eq!(
+        result.len(),
+        0,
+        "All operations with Submit disposition should go to submit queue, not pre-submit"
+    );
+
+    // Verify all 3 operations were pushed to submit queue
+    assert_eq!(
+        submit_queue.len().await,
+        3,
+        "All 3 operations should be in submit queue"
+    );
+    assert_eq!(confirm_queue.len().await, 0);
+}
+
+#[tokio::test]
+async fn test_filter_operations_for_preparation_mix_of_submit_variants() {
+    // Test batch with all three Submit disposition variants (ReadyToSubmit, PendingInclusion, Mempool)
+    let mut mock_db = MockHyperlaneDb::new();
+    let mut mock_entrypoint = MockDispatcherEntrypoint::new();
+    let submit_queue = create_test_queue();
+    let confirm_queue = create_test_queue();
+
+    let message_id1 = H256::from_low_u64_be(1); // ReadyToSubmit
+    let message_id2 = H256::from_low_u64_be(2); // PendingInclusion
+    let message_id3 = H256::from_low_u64_be(3); // Mempool
+
+    let payload_uuid1 = UniqueIdentifier::new(Uuid::new_v4());
+    let payload_uuid2 = UniqueIdentifier::new(Uuid::new_v4());
+    let payload_uuid3 = UniqueIdentifier::new(Uuid::new_v4());
+
+    // Mock DB to return payload UUIDs for all operations
+    let payload_uuid1_clone = payload_uuid1.clone();
+    let payload_uuid2_clone = payload_uuid2.clone();
+    let payload_uuid3_clone = payload_uuid3.clone();
+    mock_db
+        .expect_retrieve_payload_uuids_by_message_id()
+        .times(3)
+        .returning(move |id| {
+            if *id == message_id1 {
+                Ok(Some(vec![payload_uuid1_clone.clone()]))
+            } else if *id == message_id2 {
+                Ok(Some(vec![payload_uuid2_clone.clone()]))
+            } else if *id == message_id3 {
+                Ok(Some(vec![payload_uuid3_clone.clone()]))
+            } else {
+                Ok(None)
+            }
+        });
+
+    // Mock entrypoint to return different Submit disposition statuses
+    let payload_uuid1_for_ep = payload_uuid1.clone();
+    let payload_uuid2_for_ep = payload_uuid2.clone();
+    let payload_uuid3_for_ep = payload_uuid3.clone();
+    mock_entrypoint
+        .expect_payload_status()
+        .times(3)
+        .returning(move |uuid| {
+            if *uuid == *payload_uuid1_for_ep {
+                Ok(PayloadStatus::ReadyToSubmit)
+            } else if *uuid == *payload_uuid2_for_ep {
+                Ok(PayloadStatus::InTransaction(
+                    TransactionStatus::PendingInclusion,
+                ))
+            } else if *uuid == *payload_uuid3_for_ep {
+                Ok(PayloadStatus::InTransaction(TransactionStatus::Mempool))
+            } else {
+                Err(LanderError::PayloadNotFound)
+            }
+        });
+
+    let op1 = Box::new(MockQueueOperation::with_first_prepare(message_id1)) as QueueOperation;
+    let op2 = Box::new(MockQueueOperation::with_first_prepare(message_id2)) as QueueOperation;
+    let op3 = Box::new(MockQueueOperation::with_first_prepare(message_id3)) as QueueOperation;
+
+    let batch = vec![op1, op2, op3];
+
+    let result = filter_operations_for_preparation(
+        Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
+        &submit_queue,
+        &confirm_queue,
+        Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
+        batch,
+    )
+    .await;
+
+    assert_eq!(
+        result.len(),
+        0,
+        "All Submit disposition variants should go to submit queue, not pre-submit"
+    );
+
+    // Verify all 3 operations were pushed to submit queue
+    assert_eq!(
+        submit_queue.len().await,
+        3,
+        "All 3 Submit disposition variants (ReadyToSubmit, PendingInclusion, Mempool) should be in submit queue"
+    );
+    assert_eq!(confirm_queue.len().await, 0);
 }

@@ -14,17 +14,22 @@ use crate::msg::op_queue::OpQueue;
 
 /// Filters operations from a batch to determine which should proceed to preparation.
 ///
-/// Operations already submitted (and not dropped) are pushed to the confirmation queue.
-/// Operations that need preparation are returned for further processing.
+/// Operations are routed based on their disposition:
+/// - PreSubmit: Returned for preparation
+/// - Submit: Pushed to submit queue
+/// - PostSubmit: Pushed to confirmation queue
 ///
 /// # Returns
 /// A vector of operations that should proceed to the preparation phase.
 pub(crate) async fn filter_operations_for_preparation(
     entrypoint: Arc<dyn Entrypoint + Send + Sync>,
+    submit_queue: &OpQueue,
     confirm_queue: &OpQueue,
     db: Arc<dyn HyperlaneDb>,
     batch: Vec<QueueOperation>,
 ) -> Vec<QueueOperation> {
+    use OperationDisposition::{PostSubmit, PreSubmit, Submit};
+
     // Phase 1: Determine disposition for each operation
     let mut operations_with_disposition = Vec::with_capacity(batch.len());
     for op in batch {
@@ -37,10 +42,13 @@ pub(crate) async fn filter_operations_for_preparation(
     let mut ops_to_prepare = Vec::new();
     for (op, disposition) in operations_with_disposition {
         match disposition {
-            OperationDisposition::PreSubmit => {
+            PreSubmit => {
                 ops_to_prepare.push(op);
             }
-            OperationDisposition::PostSubmit => {
+            Submit => {
+                submit_queue.push(op, None).await;
+            }
+            PostSubmit => {
                 let status = Some(Confirm(AlreadySubmitted));
                 confirm_queue.push(op, status).await;
             }
