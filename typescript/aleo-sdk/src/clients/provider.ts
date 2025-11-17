@@ -679,7 +679,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       priorityFee: 0,
       privateFee: false,
       inputs: [`${req.domainId}u32`],
-      skipProof: this.skipProof,
+      // skipProof: this.skipProof,
     };
   }
 
@@ -692,7 +692,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       priorityFee: 0,
       privateFee: false,
       inputs: [req.ismAddress],
-      skipProof: this.skipProof,
+      // skipProof: this.skipProof,
     };
   }
 
@@ -705,7 +705,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       priorityFee: 0,
       privateFee: false,
       inputs: [req.hookAddress],
-      skipProof: this.skipProof,
+      // skipProof: this.skipProof,
     };
   }
 
@@ -718,7 +718,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       priorityFee: 0,
       privateFee: false,
       inputs: [req.hookAddress],
-      skipProof: this.skipProof,
+      // skipProof: this.skipProof,
     };
   }
 
@@ -731,7 +731,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       priorityFee: 0,
       privateFee: false,
       inputs: [req.newOwner],
-      skipProof: this.skipProof,
+      // skipProof: this.skipProof,
     };
   }
 
@@ -770,7 +770,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
         `${req.validators.length}u8`,
         `${req.threshold}u8`,
       ],
-      skipProof: this.skipProof,
+      // skipProof: this.skipProof,
     };
   }
 
@@ -783,7 +783,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       priorityFee: 0,
       privateFee: false,
       inputs: [],
-      skipProof: this.skipProof,
+      // skipProof: this.skipProof,
     };
   }
 
@@ -800,7 +800,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
         `${req.route.domainId}u32`,
         req.route.ismAddress,
       ],
-      skipProof: this.skipProof,
+      // skipProof: this.skipProof,
     };
   }
 
@@ -813,7 +813,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       priorityFee: 0,
       privateFee: false,
       inputs: [req.ismAddress, `${req.domainId}u32`],
-      skipProof: this.skipProof,
+      // skipProof: this.skipProof,
     };
   }
 
@@ -826,7 +826,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       priorityFee: 0,
       privateFee: false,
       inputs: [req.ismAddress, req.newOwner],
-      skipProof: this.skipProof,
+      // skipProof: this.skipProof,
     };
   }
 
@@ -839,7 +839,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       priorityFee: 0,
       privateFee: false,
       inputs: [],
-      skipProof: this.skipProof,
+      // skipProof: this.skipProof,
     };
   }
 
@@ -852,7 +852,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       priorityFee: 0,
       privateFee: false,
       inputs: [this.getAddressFromProgramId(req.mailboxAddress)],
-      skipProof: this.skipProof,
+      // skipProof: this.skipProof,
     };
   }
 
@@ -865,7 +865,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       priorityFee: 0,
       privateFee: false,
       inputs: [],
-      skipProof: this.skipProof,
+      // skipProof: this.skipProof,
     };
   }
 
@@ -878,7 +878,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       priorityFee: 0,
       privateFee: false,
       inputs: [req.hookAddress, req.newOwner],
-      skipProof: this.skipProof,
+      // skipProof: this.skipProof,
     };
   }
 
@@ -895,7 +895,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
         `${req.destinationGasConfig.remoteDomainId}u32`,
         `{gas_overhead:${req.destinationGasConfig.gasOverhead}u128,exchange_rate:${req.destinationGasConfig.gasOracle.tokenExchangeRate}u128,gas_price:${req.destinationGasConfig.gasOracle.gasPrice}u128}`,
       ],
-      skipProof: this.skipProof,
+      // skipProof: this.skipProof,
     };
   }
 
@@ -908,7 +908,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       priorityFee: 0,
       privateFee: false,
       inputs: [req.hookAddress, `${req.remoteDomainId}u32`],
-      skipProof: this.skipProof,
+      // skipProof: this.skipProof,
     };
   }
 
@@ -921,7 +921,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       priorityFee: 0,
       privateFee: false,
       inputs: [],
-      skipProof: this.skipProof,
+      // skipProof: this.skipProof,
     };
   }
 
@@ -941,7 +941,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
         this.getAddressFromProgramId(req.mailboxAddress),
         `${localDomain}u32`,
       ],
-      skipProof: this.skipProof,
+      // skipProof: this.skipProof,
     };
   }
 
@@ -956,7 +956,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       priorityFee: 0,
       privateFee: false,
       inputs: [`0u8`],
-      skipProof: this.skipProof,
+      // skipProof: this.skipProof,
     };
   }
 
@@ -971,7 +971,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       priorityFee: 0,
       privateFee: false,
       inputs: [req.collateralDenom, `${metadata.decimals}u8`],
-      skipProof: this.skipProof,
+      // skipProof: this.skipProof,
     };
   }
 
@@ -989,7 +989,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
         `${req.decimals}u8`,
         `${req.decimals}u8`,
       ],
-      skipProof: this.skipProof,
+      // skipProof: this.skipProof,
     };
   }
 
@@ -1002,7 +1002,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       priorityFee: 0,
       privateFee: false,
       inputs: [req.newOwner],
-      skipProof: this.skipProof,
+      // skipProof: this.skipProof,
     };
   }
 
@@ -1015,16 +1015,18 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       priorityFee: 0,
       privateFee: false,
       inputs: [req.ismAddress],
-      skipProof: this.skipProof,
+      // skipProof: this.skipProof,
     };
   }
 
   async getEnrollRemoteRouterTransaction(
     req: AltVM.ReqEnrollRemoteRouter,
   ): Promise<AleoTransaction> {
-    const bytes = [...Buffer.from(req.remoteRouter.receiverAddress, 'hex')].map(
-      (b) => `${b}u8`,
-    );
+    const bytes = [
+      ...Buffer.from(strip0x(req.remoteRouter.receiverAddress), 'hex'),
+    ].map((b) => `${b}u8`);
+
+    console.log(JSON.stringify(bytes).replaceAll('"', ''));
 
     return {
       programName: req.tokenAddress,
@@ -1036,7 +1038,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
         JSON.stringify(bytes).replaceAll('"', ''),
         `${req.remoteRouter.gas}u128`,
       ],
-      skipProof: this.skipProof,
+      // skipProof: this.skipProof,
     };
   }
 
@@ -1049,7 +1051,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       priorityFee: 0,
       privateFee: false,
       inputs: [`${req.receiverDomainId}u32`],
-      skipProof: this.skipProof,
+      // skipProof: this.skipProof,
     };
   }
 
@@ -1063,7 +1065,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
         priorityFee: 0,
         privateFee: false,
         inputs: [req.denom, req.recipient, `${req.amount}u128`],
-        skipProof: this.skipProof,
+        // skipProof: this.skipProof,
       };
     }
 
@@ -1073,7 +1075,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       priorityFee: 0,
       privateFee: false,
       inputs: [req.recipient, `${req.amount}u64`],
-      skipProof: this.skipProof,
+      // skipProof: this.skipProof,
     };
   }
 
@@ -1172,7 +1174,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
           req.customHookAddress,
           JSON.stringify(hookMetadata).replaceAll('"', ''),
         ],
-        skipProof: this.skipProof,
+        // skipProof: this.skipProof,
       };
     }
 
@@ -1190,7 +1192,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
         `${req.amount}u128`,
         JSON.stringify(creditAllowance).replaceAll('"', ''),
       ],
-      skipProof: this.skipProof,
+      // skipProof: this.skipProof,
     };
   }
 }

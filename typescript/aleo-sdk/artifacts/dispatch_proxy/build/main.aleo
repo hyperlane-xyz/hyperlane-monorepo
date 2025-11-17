@@ -16,7 +16,7 @@ struct Message:
     sender as [u8; 32u32];
     destination_domain as u32;
     recipient as [u8; 32u32];
-    body as [u128; 8u32];
+    body as [u128; 16u32];
 
 struct EthAddress:
     bytes as [u8; 20u32];
@@ -44,6 +44,10 @@ struct CreditAllowance:
     spender as address;
     amount as u64;
 
+struct HookMetadata:
+    gas_limit as u128;
+    extra_data as [u8; 64u32];
+
 function get_address:
     output dispatch_proxy.aleo as address.private;
 
@@ -51,9 +55,9 @@ function dispatch:
     input r0 as MailboxState.public;
     input r1 as u32.public;
     input r2 as [u8; 32u32].public;
-    input r3 as [u128; 8u32].public;
+    input r3 as [u128; 16u32].public;
     input r4 as address.public;
-    input r5 as [u8; 256u32].public;
+    input r5 as HookMetadata.public;
     input r6 as [CreditAllowance; 4u32].public;
     assert.neq r0.default_hook aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc;
     assert.neq r0.required_hook aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc;

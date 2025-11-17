@@ -10,7 +10,7 @@ struct Message:
     sender as [u8; 32u32];
     destination_domain as u32;
     recipient as [u8; 32u32];
-    body as [u128; 8u32];
+    body as [u128; 16u32];
 
 struct InterchainGasPaymaster:
     hook_owner as address;
@@ -62,6 +62,10 @@ struct EventIndexKey:
 struct CreditAllowance:
     spender as address;
     amount as u64;
+
+struct HookMetadata:
+    gas_limit as u128;
+    extra_data as [u8; 64u32];
 
 struct EthAddress:
     bytes as [u8; 20u32];
@@ -337,7 +341,7 @@ finalize init_merkle_tree:
 
 function post_dispatch:
     input r0 as address.public;
-    input r1 as [u8; 256u32].public;
+    input r1 as HookMetadata.public;
     input r2 as [CreditAllowance; 4u32].public;
     is.eq r2[0u32].spender r0 into r3;
     ternary r3 r2[0u32].amount 0u64 into r4;
@@ -353,7 +357,7 @@ function post_dispatch:
 
 finalize post_dispatch:
     input r0 as address.public;
-    input r1 as [u8; 256u32].public;
+    input r1 as HookMetadata.public;
     input r2 as address.public;
     input r3 as u64.public;
     input r4 as credits.aleo/transfer_public_as_signer.future;
@@ -1313,76 +1317,28 @@ finalize post_dispatch:
     cast r0 r10.destination_domain into r945 as GasConfigKey;
     cast 0u128 0u128 0u128 into r946 as DomainGasConfig;
     get.or_use destination_gas_configs[r945] r946 into r947;
-    shl 0u128 8u32 into r948;
-    cast r1[0u32] into r949 as u128;
-    or r948 r949 into r950;
-    shl r950 8u32 into r951;
-    cast r1[1u32] into r952 as u128;
-    or r951 r952 into r953;
-    shl r953 8u32 into r954;
-    cast r1[2u32] into r955 as u128;
-    or r954 r955 into r956;
-    shl r956 8u32 into r957;
-    cast r1[3u32] into r958 as u128;
-    or r957 r958 into r959;
-    shl r959 8u32 into r960;
-    cast r1[4u32] into r961 as u128;
-    or r960 r961 into r962;
-    shl r962 8u32 into r963;
-    cast r1[5u32] into r964 as u128;
-    or r963 r964 into r965;
-    shl r965 8u32 into r966;
-    cast r1[6u32] into r967 as u128;
-    or r966 r967 into r968;
-    shl r968 8u32 into r969;
-    cast r1[7u32] into r970 as u128;
-    or r969 r970 into r971;
-    shl r971 8u32 into r972;
-    cast r1[8u32] into r973 as u128;
-    or r972 r973 into r974;
-    shl r974 8u32 into r975;
-    cast r1[9u32] into r976 as u128;
-    or r975 r976 into r977;
-    shl r977 8u32 into r978;
-    cast r1[10u32] into r979 as u128;
-    or r978 r979 into r980;
-    shl r980 8u32 into r981;
-    cast r1[11u32] into r982 as u128;
-    or r981 r982 into r983;
-    shl r983 8u32 into r984;
-    cast r1[12u32] into r985 as u128;
-    or r984 r985 into r986;
-    shl r986 8u32 into r987;
-    cast r1[13u32] into r988 as u128;
-    or r987 r988 into r989;
-    shl r989 8u32 into r990;
-    cast r1[14u32] into r991 as u128;
-    or r990 r991 into r992;
-    shl r992 8u32 into r993;
-    cast r1[15u32] into r994 as u128;
-    or r993 r994 into r995;
-    is.eq r995 0u128 into r996;
-    ternary r996 50000u128 r995 into r997;
-    add r997 r947.gas_overhead into r998;
-    mul r998 r947.gas_price into r999;
-    mul r999 r947.exchange_rate into r1000;
-    div r1000 10000000000u128 into r1001;
-    lte r1001 18446744073709551615u128 into r1002;
-    assert.eq r1002 true;
-    cast r1001 into r1003 as u64;
-    assert.eq r1003 r3;
-    cast r0 r944.count into r1004 as HookIndexKey;
-    cast r12 r10.destination_domain r998 r1003 r944.count into r1005 as GasPaymentEvent;
-    set r1005 into gas_payment_events[r1004];
+    is.eq r1.gas_limit 0u128 into r948;
+    ternary r948 50000u128 r1.gas_limit into r949;
+    add r949 r947.gas_overhead into r950;
+    mul r950 r947.gas_price into r951;
+    mul r951 r947.exchange_rate into r952;
+    div r952 10000000000u128 into r953;
+    lte r953 18446744073709551615u128 into r954;
+    assert.eq r954 true;
+    cast r953 into r955 as u64;
+    assert.eq r955 r3;
+    cast r0 r944.count into r956 as HookIndexKey;
+    cast r12 r10.destination_domain r950 r955 r944.count into r957 as GasPaymentEvent;
+    set r957 into gas_payment_events[r956];
     set r944.count into last_event_index[r13];
-    add r944.balance r3 into r1006;
-    add r944.count 1u32 into r1007;
-    cast r944.hook_owner r944.nonce r1006 r1007 into r1008 as InterchainGasPaymaster;
-    set r1008 into igps[r0];
+    add r944.balance r3 into r958;
+    add r944.count 1u32 into r959;
+    cast r944.hook_owner r944.nonce r958 r959 into r960 as InterchainGasPaymaster;
+    set r960 into igps[r0];
     branch.eq true true to end_otherwise_1_5;
     position end_then_1_4;
-    is.eq r6 0u8 into r1009;
-    branch.eq r1009 false to end_then_2_6;
+    is.eq r6 0u8 into r961;
+    branch.eq r961 false to end_then_2_6;
     assert.eq r3 0u64;
     branch.eq true true to end_otherwise_2_7;
     position end_then_2_6;

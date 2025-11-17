@@ -119,7 +119,7 @@ export class AleoSigner
       priorityFee: 0,
       privateFee: false,
       inputs: [dispatchProxyAddress],
-      skipProof: this.skipProof,
+      // skipProof: this.skipProof,
     });
     await this.aleoClient.waitForTransactionConfirmation(setDispatchProxyTxId);
 

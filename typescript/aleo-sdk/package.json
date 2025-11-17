@@ -48,7 +48,7 @@
   },
   "dependencies": {
     "@hyperlane-xyz/utils": "19.7.0",
-    "@provablehq/sdk": "portal:../../../sdk/sdk",
+    "@provablehq/sdk": "^0.9.11",
     "bignumber.js": "^9.1.1"
   }
 }

@@ -7,7 +7,7 @@ struct Message:
     sender as [u8; 32u32];
     destination_domain as u32;
     recipient as [u8; 32u32];
-    body as [u128; 8u32];
+    body as [u128; 16u32];
 
 struct EthAddress:
     bytes as [u8; 20u32];
@@ -37,6 +37,14 @@ mapping nonce:
     key as boolean.public;
     value as u32.public;
 
+mapping ism_addresses:
+    key as u32.public;
+    value as address.public;
+
+mapping isms:
+    key as address.public;
+    value as u8.public;
+
 mapping domain_routing_isms:
     key as address.public;
     value as DomainRoutingIsm.public;
@@ -56,14 +64,6 @@ mapping route_length:
 mapping message_id_multisigs:
     key as address.public;
     value as MessageIdMultisigIsm.public;
-
-mapping ism_addresses:
-    key as u32.public;
-    value as address.public;
-
-mapping isms:
-    key as address.public;
-    value as u8.public;
 
 function init_noop:
     async init_noop into r0;
@@ -94,7 +94,7 @@ finalize init_message_id_multisig:
     input r2 as u8.public;
     gt r2 0u8 into r3;
     assert.eq r3 true;
-    lte r2 6u8 into r4;
+    lte r2 r1 into r4;
     assert.eq r4 true;
     lte r1 6u8 into r5;
     assert.eq r5 true;

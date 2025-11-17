@@ -7,7 +7,7 @@ struct Message:
     sender as [u8; 32u32];
     destination_domain as u32;
     recipient as [u8; 32u32];
-    body as [u128; 8u32];
+    body as [u128; 16u32];
 
 struct EthAddress:
     bytes as [u8; 20u32];
@@ -37,6 +37,14 @@ mapping nonce:
     key as boolean.public;
     value as u32.public;
 
+mapping ism_addresses:
+    key as u32.public;
+    value as address.public;
+
+mapping isms:
+    key as address.public;
+    value as u8.public;
+
 mapping domain_routing_isms:
     key as address.public;
     value as DomainRoutingIsm.public;
@@ -57,14 +65,6 @@ mapping message_id_multisigs:
     key as address.public;
     value as MessageIdMultisigIsm.public;
 
-mapping ism_addresses:
-    key as u32.public;
-    value as address.public;
-
-mapping isms:
-    key as address.public;
-    value as u8.public;
-
 function init_noop:
     async init_noop into r0;
     output r0 as ism_manager.aleo/init_noop.future;
@@ -78,7 +78,7 @@ finalize init_noop:
     assert.eq r4 true;
     add r0 1u32 into r5;
     set r5 into nonce[true];
-    set 0u8 into isms[r2];
+    set 6u8 into isms[r2];
     set r2 into ism_addresses[r0];
 
 function init_message_id_multisig:
@@ -94,7 +94,7 @@ finalize init_message_id_multisig:
     input r2 as u8.public;
     gt r2 0u8 into r3;
     assert.eq r3 true;
-    lte r2 6u8 into r4;
+    lte r2 r1 into r4;
     assert.eq r4 true;
     lte r1 6u8 into r5;
     assert.eq r5 true;
@@ -264,7 +264,7 @@ finalize verify:
     assert.eq r57 true;
     branch.eq true true to end_otherwise_0_3;
     position end_then_0_2;
-    is.eq r35 0u8 into r58;
+    is.eq r35 6u8 into r58;
     is.eq r35 1u8 into r59;
     or r58 r59 into r60;
     branch.eq r60 false to end_then_1_4;
@@ -303,7 +303,7 @@ finalize verify:
     assert.eq r85 true;
     branch.eq true true to end_otherwise_0_7;
     position end_then_0_6;
-    is.eq r63 0u8 into r86;
+    is.eq r63 6u8 into r86;
     is.eq r63 1u8 into r87;
     or r86 r87 into r88;
     branch.eq r88 false to end_then_1_8;
@@ -342,7 +342,7 @@ finalize verify:
     assert.eq r113 true;
     branch.eq true true to end_otherwise_0_11;
     position end_then_0_10;
-    is.eq r91 0u8 into r114;
+    is.eq r91 6u8 into r114;
     is.eq r91 1u8 into r115;
     or r114 r115 into r116;
     branch.eq r116 false to end_then_1_12;
@@ -381,7 +381,7 @@ finalize verify:
     assert.eq r141 true;
     branch.eq true true to end_otherwise_0_15;
     position end_then_0_14;
-    is.eq r119 0u8 into r142;
+    is.eq r119 6u8 into r142;
     is.eq r119 1u8 into r143;
     or r142 r143 into r144;
     branch.eq r144 false to end_then_1_16;
