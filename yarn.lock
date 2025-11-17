@@ -8325,6 +8325,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/deploy-sdk@workspace:typescript/deploy-sdk"
   dependencies:
+    "@hyperlane-xyz/cosmos-sdk": "npm:19.9.0"
     "@hyperlane-xyz/eslint-config": "workspace:^"
     "@hyperlane-xyz/provider-sdk": "npm:0.1.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
