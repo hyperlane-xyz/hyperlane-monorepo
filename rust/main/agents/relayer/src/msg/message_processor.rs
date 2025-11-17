@@ -36,6 +36,7 @@ use super::op_queue::OpQueue;
 use super::op_queue::OperationPriorityQueue;
 
 use stage::prepare;
+use stage::submit::filter_operations_for_submit;
 
 mod disposition;
 mod stage;
@@ -563,8 +564,6 @@ async fn submit_lander_task(
     metrics: MessageProcessorMetrics,
     db: Arc<dyn HyperlaneDb>,
 ) {
-    use stage::submit::filter_operations_for_submit;
-
     let recv_limit = max_batch_size as usize;
     loop {
         let batch = submit_queue.pop_many(recv_limit).await;
