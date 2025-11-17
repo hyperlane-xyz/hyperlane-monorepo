@@ -186,7 +186,7 @@ pub(crate) trait AleoIndexer {
                     block_hash: to_h256(block.hash())?,
                     transaction_id: to_h256(transaction.id())?.into(),
                     transaction_index: transaction.index().into(),
-                    log_index: hyperlane_core::U256::zero(),
+                    log_index: index.into(),
                 };
                 logs.push((indexed, meta))
             }
