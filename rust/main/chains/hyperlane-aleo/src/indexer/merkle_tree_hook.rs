@@ -6,7 +6,7 @@ use snarkvm::prelude::{Address, FromBytes, Network, Plaintext};
 use hyperlane_core::{
     ChainResult, Checkpoint, CheckpointAtBlock, ContractLocator, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneProvider, IncrementalMerkleAtBlock, Indexed, Indexer, LogMeta,
-    MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer, H256, H512,
+    MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer, H256,
 };
 
 use crate::{
@@ -111,14 +111,6 @@ impl Indexer<MerkleTreeInsertion> for AleoMerkleTreeHook {
     /// Get the chain's latest block number that has reached finality
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         AleoIndexer::get_finalized_block_number(self).await
-    }
-
-    /// Fetch list of logs emitted in a transaction with the given hash.
-    async fn fetch_logs_by_tx_hash(
-        &self,
-        tx_hash: H512,
-    ) -> ChainResult<Vec<(Indexed<MerkleTreeInsertion>, LogMeta)>> {
-        AleoIndexer::fetch_logs_by_tx_hash(self, tx_hash).await
     }
 }
 
