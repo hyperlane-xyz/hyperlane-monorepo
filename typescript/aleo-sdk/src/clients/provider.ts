@@ -1022,6 +1022,10 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async getEnrollRemoteRouterTransaction(
     req: AltVM.ReqEnrollRemoteRouter,
   ): Promise<AleoTransaction> {
+    const bytes = [...Buffer.from(req.remoteRouter.receiverAddress, 'hex')].map(
+      (b) => `${b}u8`,
+    );
+
     return {
       programName: req.tokenAddress,
       functionName: 'enroll_remote_router',
@@ -1029,7 +1033,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       privateFee: false,
       inputs: [
         `${req.remoteRouter.receiverDomainId}u32`,
-        req.remoteRouter.receiverAddress,
+        JSON.stringify(bytes).replaceAll('"', ''),
         `${req.remoteRouter.gas}u128`,
       ],
       skipProof: this.skipProof,

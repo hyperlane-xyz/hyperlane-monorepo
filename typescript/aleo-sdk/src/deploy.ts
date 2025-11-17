@@ -1,3 +1,5 @@
+import { addressToBytesAleo, bytesToAddressAleo } from '@hyperlane-xyz/utils';
+
 import { AleoSigner } from './clients/signer.js';
 
 const main = async () => {
@@ -19,25 +21,9 @@ const main = async () => {
 
     const address = signer.getSignerAddress();
     console.log('signer address: ', address);
-
-    const balance = await signer.getBalance({
-      address,
-      denom: '',
-    });
-    console.log('signer credits balance: ', balance);
-
-    const { mailboxAddress } = await signer.createMailbox({
-      domainId: 1337,
-    });
-    console.log('mailboxAddress', mailboxAddress);
-
-    const { tokenAddress } = await signer.createSyntheticToken({
-      mailboxAddress,
-      name: 'usdc',
-      denom: 'usdc',
-      decimals: 18,
-    });
-    console.log('tokenAddress', tokenAddress);
+    const bytes = addressToBytesAleo(address);
+    console.log('signer bytes', bytes);
+    console.log('signer address from bytes', bytesToAddressAleo(bytes));
   } catch (err) {
     console.log(err);
   }
