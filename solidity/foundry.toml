@@ -25,6 +25,7 @@ optimism = "https://mainnet.optimism.io	"
 polygon = "https://rpc-mainnet.matic.quiknode.pro"
 arbitrum = "https://arbitrum.drpc.org"
 base = "https://mainnet.base.org"
+incentive = "https://rpc-archive.incentiv.io"
 
 [fuzz]
 runs = 50
