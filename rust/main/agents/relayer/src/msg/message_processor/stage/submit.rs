@@ -29,6 +29,10 @@ pub(crate) async fn filter_operations_for_submit(
 ) -> Vec<QueueOperation> {
     use OperationDisposition::{PostSubmit, PreSubmit, Submit};
 
+    if batch.is_empty() {
+        return vec![];
+    }
+
     // Phase 1: Determine disposition for each operation
     let mut operations_with_disposition = Vec::with_capacity(batch.len());
     for op in batch {
