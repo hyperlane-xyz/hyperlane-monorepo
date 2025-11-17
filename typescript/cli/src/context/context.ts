@@ -3,6 +3,7 @@ import { ethers } from 'ethers';
 
 import { loadProviders } from '@hyperlane-xyz/deploy-sdk';
 import { AltVM, getProtocolProvider } from '@hyperlane-xyz/provider-sdk';
+import { RadixProvider } from '@hyperlane-xyz/radix-sdk';
 import { IRegistry } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import {
@@ -104,6 +105,10 @@ export async function signerMiddleware(argv: Record<string, any>) {
         chain,
         await getProtocolProvider(protocol).createProvider(metadata),
       );
+
+      // TODO: Remove this after implementing Radix as a ProtocolProvider
+      if (protocol === ProtocolType.Radix)
+        context.altVmProvider.set(ProtocolType.Radix, RadixProvider);
     }),
   );
 
@@ -137,6 +142,8 @@ export async function getContext({
 
   const multiProvider = await getMultiProvider(registry);
   const multiProtocolProvider = await getMultiProtocolProvider(registry);
+
+  // This mapping gets populated as part of signerMiddleware
   const altVmProvider = new Map<string, AltVM.IProvider>();
 
   const supportedProtocols = [
