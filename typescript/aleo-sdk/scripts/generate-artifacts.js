@@ -80,7 +80,7 @@ export function loadProgramsInDeployOrder(
   programName: string,
   coreSalt: string,
   warpSalt?: string,
-): { id: string, program: string }[] {
+): { id: string; program: string }[] {
   const visited = new Set<string>();
   let programs: Program[] = [];
 
