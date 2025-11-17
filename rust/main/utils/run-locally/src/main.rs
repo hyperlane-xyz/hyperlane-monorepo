@@ -513,6 +513,7 @@ fn create_relayer(rocks_db_dir: &TempDir) -> Program {
                 "payment": "1"
             }]"#,
         )
+        .hyp_env("CACHEDEFAULTEXPIRATIONSECONDS", "5")
         .arg(
             "chains.test1.customRpcUrls",
             "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",

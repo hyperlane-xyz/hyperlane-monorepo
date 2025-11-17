@@ -9,8 +9,11 @@ use lander::{
     TransactionDropReason, TransactionStatus,
 };
 
-use super::super::{operation_disposition_by_payload_status, OperationDisposition};
-use super::tests_common::{MockDispatcherEntrypoint, MockHyperlaneDb, MockQueueOperation};
+use crate::msg::message_processor::tests::tests_common::{
+    MockDispatcherEntrypoint, MockHyperlaneDb, MockQueueOperation,
+};
+
+use super::super::disposition::{operation_disposition_by_payload_status, OperationDisposition};
 
 #[tokio::test]
 async fn test_operation_disposition_by_payload_status_db_error() {
@@ -41,8 +44,8 @@ async fn test_operation_disposition_by_payload_status_db_error() {
     .await;
 
     assert!(
-        matches!(result, OperationDisposition::Prepare),
-        "Should return Prepare when db returns error"
+        matches!(result, OperationDisposition::PreSubmit),
+        "Should return PreSubmit when db returns error"
     );
 }
 
@@ -71,8 +74,8 @@ async fn test_operation_disposition_by_payload_status_no_payload_uuids() {
     .await;
 
     assert!(
-        matches!(result, OperationDisposition::Prepare),
-        "Should return Prepare when no payload UUIDs exist"
+        matches!(result, OperationDisposition::PreSubmit),
+        "Should return PreSubmit when no payload UUIDs exist"
     );
 }
 
@@ -101,8 +104,8 @@ async fn test_operation_disposition_by_payload_status_empty_payload_uuids() {
     .await;
 
     assert!(
-        matches!(result, OperationDisposition::Prepare),
-        "Should return Prepare when payload UUIDs list is empty"
+        matches!(result, OperationDisposition::PreSubmit),
+        "Should return PreSubmit when payload UUIDs list is empty"
     );
 }
 
@@ -138,8 +141,8 @@ async fn test_operation_disposition_by_payload_status_payload_dropped() {
     .await;
 
     assert!(
-        matches!(result, OperationDisposition::Prepare),
-        "Should return Prepare when payload status is Dropped"
+        matches!(result, OperationDisposition::PreSubmit),
+        "Should return PreSubmit when payload status is Dropped"
     );
 }
 
@@ -179,8 +182,8 @@ async fn test_operation_disposition_by_payload_status_transaction_dropped() {
     .await;
 
     assert!(
-        matches!(result, OperationDisposition::Prepare),
-        "Should return Prepare when transaction status is Dropped"
+        matches!(result, OperationDisposition::PreSubmit),
+        "Should return PreSubmit when transaction status is Dropped"
     );
 }
 
@@ -220,7 +223,7 @@ async fn test_operation_disposition_by_payload_status_success_pending_inclusion(
     .await;
 
     assert!(
-        matches!(result, OperationDisposition::Confirm),
+        matches!(result, OperationDisposition::PostSubmit),
         "Should return Confirm when transaction is pending inclusion"
     );
 }
@@ -257,7 +260,7 @@ async fn test_operation_disposition_by_payload_status_success_finalized() {
     .await;
 
     assert!(
-        matches!(result, OperationDisposition::Confirm),
+        matches!(result, OperationDisposition::PostSubmit),
         "Should return Confirm when transaction is finalized"
     );
 }
@@ -294,8 +297,8 @@ async fn test_operation_disposition_by_payload_status_entrypoint_error() {
     .await;
 
     assert!(
-        matches!(result, OperationDisposition::Prepare),
-        "Should return Prepare when entrypoint returns error"
+        matches!(result, OperationDisposition::PreSubmit),
+        "Should return PreSubmit when entrypoint returns error"
     );
 }
 
@@ -338,7 +341,7 @@ async fn test_operation_disposition_by_payload_status_multiple_payload_uuids() {
     .await;
 
     assert!(
-        matches!(result, OperationDisposition::Confirm),
+        matches!(result, OperationDisposition::PostSubmit),
         "Should return Confirm when checking first payload UUID in list"
     );
 }
@@ -375,7 +378,7 @@ async fn test_operation_disposition_by_payload_status_ready_to_submit() {
     .await;
 
     assert!(
-        matches!(result, OperationDisposition::Confirm),
+        matches!(result, OperationDisposition::PostSubmit),
         "Should return Confirm when payload status is ReadyToSubmit"
     );
 }
@@ -412,7 +415,7 @@ async fn test_operation_disposition_by_payload_status_retry() {
     .await;
 
     assert!(
-        matches!(result, OperationDisposition::Confirm),
+        matches!(result, OperationDisposition::PostSubmit),
         "Should return Confirm when payload is being retried (was previously submitted)"
     );
 }
@@ -449,7 +452,7 @@ async fn test_operation_disposition_by_payload_status_transaction_mempool() {
     .await;
 
     assert!(
-        matches!(result, OperationDisposition::Confirm),
+        matches!(result, OperationDisposition::PostSubmit),
         "Should return Confirm when transaction is in mempool (accepted by node)"
     );
 }
@@ -486,7 +489,7 @@ async fn test_operation_disposition_by_payload_status_transaction_included() {
     .await;
 
     assert!(
-        matches!(result, OperationDisposition::Confirm),
+        matches!(result, OperationDisposition::PostSubmit),
         "Should return Confirm when transaction is included in unfinalized block"
     );
 }
