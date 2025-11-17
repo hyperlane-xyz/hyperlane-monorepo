@@ -94,8 +94,6 @@ export async function signerMiddleware(argv: Record<string, any>) {
     chains.map((chain) => argv.context.multiProvider.getProtocol(chain)),
   );
 
-  argv.context.altVmProvider;
-
   return argv;
 }
 
