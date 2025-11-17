@@ -580,6 +580,14 @@ async fn submit_lander_task(
         )
         .await;
 
+        if operations_to_process.is_empty() {
+            // There are no operations to submit, so give some time before checking again
+            // the operations which were already send, but waiting to be included,
+            // to prevent burning CPU
+            sleep(Duration::from_millis(100)).await;
+            continue;
+        }
+
         // Process remaining operations in submit queue
         for op in operations_to_process {
             // Operation needs a new payload created and sent
