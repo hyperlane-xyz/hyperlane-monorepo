@@ -56,7 +56,7 @@ pub fn parse_withdrawal_amount(msg: &HyperlaneMessage) -> Option<u64> {
             let amount_u256 = token_message.amount();
             // Convert U256 to u64, handling overflow
             if amount_u256 > U256::from(u64::MAX) {
-                tracing::warn!("Withdrawal amount exceeds u64::MAX, using u64::MAX");
+                tracing::info!("kaspa: withdrawal amount exceeded u64::MAX, using u64::MAX");
                 Some(u64::MAX)
             } else {
                 Some(amount_u256.as_u64())
@@ -64,20 +64,12 @@ pub fn parse_withdrawal_amount(msg: &HyperlaneMessage) -> Option<u64> {
         }
         Err(e) => {
             tracing::error!(
-                "Failed to parse token message for withdrawal amount: {:?}",
-                e
+                error = ?e,
+                "kaspa: failed to parse token message for withdrawal amount"
             );
             None
         }
     }
-}
-
-/// Create withdrawal batch ID from messages
-pub fn create_withdrawal_batch_id(msgs: &[HyperlaneMessage]) -> String {
-    msgs.iter()
-        .next()
-        .map(|msg| format!("{:?}", msg.id()))
-        .unwrap_or_else(|| "unknown".to_string())
 }
 
 /// Calculate total withdrawal amount from messages

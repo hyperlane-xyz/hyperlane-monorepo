@@ -68,7 +68,7 @@ impl<
                     tracing::debug!(attempt, "Signed with direct signer");
                     return Ok(signed);
                 }
-                Err(err) => {
+                Err(_err) => {
                     tokio::time::sleep(tokio::time::Duration::from_millis(RETRY_DELAY_MS)).await;
                 }
             }

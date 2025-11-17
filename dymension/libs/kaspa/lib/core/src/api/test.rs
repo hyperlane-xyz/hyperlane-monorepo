@@ -5,15 +5,11 @@
 mod tests {
     use crate::api::client::HttpClient;
     use eyre::Result;
-    use kaspa_addresses::Prefix;
 
-    use api_rs::apis::configuration;
     use api_rs::apis::kaspa_addresses_api::*;
     use api_rs::apis::kaspa_transactions_api::*;
-    use url::Url;
 
     use crate::api::base::RateLimitConfig;
-    use crate::escrow::{Escrow, EscrowPublic};
 
     const DAN_TESTNET_ADDR: &str =
         "kaspatest:qq3r5cj2r3a7kfne7wwwcf0n8kc8e5y3cy2xgm2tcuqygs4lrktswcc3d9l3p";
