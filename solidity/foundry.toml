@@ -29,3 +29,6 @@ base = "https://mainnet.base.org"
 [fuzz]
 runs = 50
 dictionary_weight = 80
+
+[lint]
+lint_on_build = false
