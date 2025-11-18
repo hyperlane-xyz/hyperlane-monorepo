@@ -44,7 +44,7 @@ impl AleoApplicationOperationVerifier {
         // Aleo only supports messages bodies that are a multiple of 16 bytes, there are a couple of exceptions to this
         // See the contract implementation for reference: https://github.com/hyperlane-xyz/hyperlane-aleo/blob/main/mailbox/src/main.leo#L258
         let body_bytes = message.body.len();
-        if (body_bytes % 16 != 0 && body_bytes == 129 && body_bytes == 72 && body_bytes == 80)
+        if (body_bytes % 16 != 0 && body_bytes != 129 && body_bytes != 72 && body_bytes != 80)
             || body_bytes > 256
         {
             return Some(MalformedMessage(message.clone()));
