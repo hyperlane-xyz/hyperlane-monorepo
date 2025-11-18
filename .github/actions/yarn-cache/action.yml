@@ -30,11 +30,11 @@ runs:
       uses: buildjet/cache@v4
       with:
         path: |
-          **/node_modules
-          .yarn
-        key: ${{ runner.os }}-yarn-4.5.1-cache-${{ hashFiles('./yarn.lock') }}
+          .yarn/cache
+          .yarn/install-state.gz
+        key: ${{ runner.os }}-yarn-4.5.1-${{ hashFiles('**/yarn.lock') }}
         restore-keys: |
-          ${{ runner.os }}-yarn-4.5.1-cache-
+          ${{ runner.os }}-yarn-4.5.1-
 
     - name: Cache (GitHub)
       id: github-cache
@@ -42,8 +42,8 @@ runs:
       uses: actions/cache@v4
       with:
         path: |
-          **/node_modules
-          .yarn
-        key: ${{ runner.os }}-yarn-4.5.1-cache-${{ hashFiles('./yarn.lock') }}
+          .yarn/cache
+          .yarn/install-state.gz
+        key: ${{ runner.os }}-yarn-4.5.1-${{ hashFiles('**/yarn.lock') }}
         restore-keys: |
-          ${{ runner.os }}-yarn-4.5.1-cache-
+          ${{ runner.os }}-yarn-4.5.1-
