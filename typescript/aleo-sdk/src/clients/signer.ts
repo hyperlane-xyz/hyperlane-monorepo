@@ -1,6 +1,7 @@
 import { AltVM, assert } from '@hyperlane-xyz/utils';
 
 import { loadProgramsInDeployOrder } from '../artifacts.js';
+import { programIdToPlaintext } from '../utils/helper.js';
 import { AleoReceipt, AleoTransaction } from '../utils/types.js';
 
 import { AnyProgramManager } from './base.js';
@@ -587,14 +588,7 @@ export class AleoSigner
     const tokenAddress = programs[programs.length - 1];
     tx.programName = tokenAddress;
 
-    let programId = Array(128).fill(`0u8`);
-    Array.from(tokenAddress)
-      .map((c) => `${c.charCodeAt(0)}u8`)
-      .forEach((c, i) => {
-        programId[i] = c;
-      });
-
-    tx.inputs = [JSON.stringify(programId).replaceAll('"', ''), ...tx.inputs];
+    tx.inputs = [programIdToPlaintext(tokenAddress), ...tx.inputs];
 
     const txId = await this.programManager.execute(tx);
     await this.aleoClient.waitForTransactionConfirmation(txId);
@@ -626,14 +620,7 @@ export class AleoSigner
     const tokenAddress = programs[programs.length - 1];
     tx.programName = tokenAddress;
 
-    let programId = Array(128).fill(`0u8`);
-    Array.from(tokenAddress)
-      .map((c) => `${c.charCodeAt(0)}u8`)
-      .forEach((c, i) => {
-        programId[i] = c;
-      });
-
-    tx.inputs = [JSON.stringify(programId).replaceAll('"', ''), ...tx.inputs];
+    tx.inputs = [programIdToPlaintext(tokenAddress), ...tx.inputs];
 
     const txId = await this.programManager.execute(tx);
     await this.aleoClient.waitForTransactionConfirmation(txId);
@@ -663,14 +650,7 @@ export class AleoSigner
     const tokenAddress = programs[programs.length - 1];
     tx.programName = tokenAddress;
 
-    let programId = Array(128).fill(`0u8`);
-    Array.from(tokenAddress)
-      .map((c) => `${c.charCodeAt(0)}u8`)
-      .forEach((c, i) => {
-        programId[i] = c;
-      });
-
-    tx.inputs = [JSON.stringify(programId).replaceAll('"', ''), ...tx.inputs];
+    tx.inputs = [programIdToPlaintext(tokenAddress), ...tx.inputs];
 
     const txId = await this.programManager.execute(tx);
     await this.aleoClient.waitForTransactionConfirmation(txId);

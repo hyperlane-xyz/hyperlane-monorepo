@@ -2,7 +2,12 @@ import { BigNumber } from 'bignumber.js';
 
 import { AltVM, assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
 
-import { ALEO_NULL_ADDRESS, formatAddress } from '../utils/helper.js';
+import {
+  ALEO_NULL_ADDRESS,
+  arrayToPlaintext,
+  fillArray,
+  formatAddress,
+} from '../utils/helper.js';
 import { AleoTransaction } from '../utils/types.js';
 
 import { AleoBase } from './base.js';
@@ -750,15 +755,13 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       throw new Error(`maximum ${MAXIMUM_VALIDATORS} validators allowed`);
     }
 
-    const validators = Array(MAXIMUM_VALIDATORS).fill({
-      bytes: Array(20).fill(`0u8`),
-    });
-
-    req.validators
-      .map((v) => ({
+    const validators = fillArray(
+      req.validators.map((v) => ({
         bytes: [...Buffer.from(strip0x(v), 'hex')].map((b) => `${b}u8`),
-      }))
-      .forEach((v, i) => (validators[i] = v));
+      })),
+      MAXIMUM_VALIDATORS,
+      Array(20).fill(`0u8`),
+    );
 
     return {
       programName: 'ism_manager.aleo',
@@ -766,7 +769,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       priorityFee: 0,
       privateFee: false,
       inputs: [
-        JSON.stringify(validators).replaceAll('"', ''),
+        arrayToPlaintext(validators),
         `${req.validators.length}u8`,
         `${req.threshold}u8`,
       ],
@@ -1026,8 +1029,6 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       ...Buffer.from(strip0x(req.remoteRouter.receiverAddress), 'hex'),
     ].map((b) => `${b}u8`);
 
-    console.log(JSON.stringify(bytes).replaceAll('"', ''));
-
     return {
       programName: req.tokenAddress,
       functionName: 'enroll_remote_router',
@@ -1035,7 +1036,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       privateFee: false,
       inputs: [
         `${req.remoteRouter.receiverDomainId}u32`,
-        JSON.stringify(bytes).replaceAll('"', ''),
+        arrayToPlaintext(bytes),
         `${req.remoteRouter.gas}u128`,
       ],
       // skipProof: this.skipProof,
@@ -1153,7 +1154,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       const hookMetadata = Array(256).fill(`0u8`);
 
       if (req.customHookMetadata) {
-        Buffer.from(req.customHookMetadata, 'hex').forEach((b, i) => {
+        Buffer.from(strip0x(req.customHookMetadata), 'hex').forEach((b, i) => {
           hookMetadata[i] = `${b}u8`;
         });
       }
@@ -1170,9 +1171,9 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
           `${req.destinationDomainId}u8`,
           recipient,
           `${req.amount}u128`,
-          JSON.stringify(creditAllowance).replaceAll('"', ''),
+          arrayToPlaintext(creditAllowance),
           req.customHookAddress,
-          JSON.stringify(hookMetadata).replaceAll('"', ''),
+          arrayToPlaintext(hookMetadata),
         ],
         // skipProof: this.skipProof,
       };
@@ -1190,7 +1191,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
         `${req.destinationDomainId}u8`,
         recipient,
         `${req.amount}u128`,
-        JSON.stringify(creditAllowance).replaceAll('"', ''),
+        arrayToPlaintext(creditAllowance),
       ],
       // skipProof: this.skipProof,
     };
