@@ -51,8 +51,6 @@ export async function signerMiddleware(argv: Record<string, any>) {
   const { key, requiresKey, strategyPath, multiProtocolProvider } =
     argv.context;
 
-  if (!requiresKey) return argv;
-
   const strategyConfig = strategyPath
     ? await readChainSubmissionStrategyConfig(strategyPath)
     : {};
@@ -66,6 +64,30 @@ export async function signerMiddleware(argv: Record<string, any>) {
    * Resolves chains based on the chain strategy.
    */
   const chains = await chainStrategy.resolveChains(argv);
+
+  await loadProviders(
+    new Set(
+      chains.map((chain) => argv.context.multiProvider.getProtocol(chain)),
+    ),
+  );
+
+  await Promise.all(
+    chains.map(async (chain) => {
+      const { altVmProvider, multiProvider } = argv.context;
+      const protocol = multiProvider.getProtocol(chain);
+      const metadata = multiProvider.getChainMetadata(chain);
+      altVmProvider.set(
+        chain,
+        await getProtocolProvider(protocol).createProvider(metadata),
+      );
+
+      // TODO: Remove this after implementing Radix as a ProtocolProvider
+      if (protocol === ProtocolType.Radix)
+        altVmProvider.set(ProtocolType.Radix, RadixProvider);
+    }),
+  );
+
+  if (!requiresKey) return argv;
 
   /**
    * Extracts signer config
@@ -90,28 +112,6 @@ export async function signerMiddleware(argv: Record<string, any>) {
     chains,
     key,
     strategyConfig,
-  );
-
-  await loadProviders(
-    new Set(
-      chains.map((chain) => argv.context.multiProvider.getProtocol(chain)),
-    ),
-  );
-
-  await Promise.all(
-    chains.map(async (chain) => {
-      const { altVmProvider, multiProvider } = argv.context;
-      const protocol = multiProvider.getProtocol(chain);
-      const metadata = multiProvider.getChainMetadata(chain);
-      altVmProvider.set(
-        chain,
-        await getProtocolProvider(protocol).createProvider(metadata),
-      );
-
-      // TODO: Remove this after implementing Radix as a ProtocolProvider
-      if (protocol === ProtocolType.Radix)
-        altVmProvider.set(ProtocolType.Radix, RadixProvider);
-    }),
   );
 
   return argv;
