@@ -19,7 +19,7 @@ const SEALEVEL_ADDRESS_REGEX = /^[a-zA-Z0-9]{36,44}$/;
 const COSMOS_NATIVE_ADDRESS_REGEX = /^(0x)?[0-9a-fA-F]{64}$/;
 const STARKNET_ADDRESS_REGEX = /^(0x)?[0-9a-fA-F]{64}$/;
 const RADIX_ADDRESS_REGEX =
-  /^(account|component)_(rdx|sim|tdx_[\d]_)[a-z0-9]{55}$/;
+  /^(account|component)_(rdx|loc|sim|tdx_[\d]_)[a-z0-9]{55}$/;
 const ALEO_ADDRESS_REGEX = /^(aleo1[a-z0-9]{58}|[A-Za-z0-9_]+\.aleo)$/;
 
 const HEX_BYTES32_REGEX = /^0x[a-fA-F0-9]{64}$/;

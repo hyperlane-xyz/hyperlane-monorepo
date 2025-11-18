@@ -1,4 +1,4 @@
-bech32Prefix: account_rdx
+bech32Prefix: loc
 blockExplorers:
   - apiUrl: https://radix-local.com/api
     family: other

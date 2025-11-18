@@ -899,3 +899,10 @@ export {
   TokenFeeConfigInput,
 } from './fee/types.js';
 export { convertToBps } from './fee/utils.js';
+
+export {
+  TurnkeyClientManager,
+  TurnkeyConfig,
+} from './signers/turnkeyClient.js';
+export { TurnkeyEvmSigner } from './signers/evm/turnkey.js';
+export { TurnkeySealevelSigner } from './signers/svm/turnkey.js';

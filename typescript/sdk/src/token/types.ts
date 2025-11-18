@@ -517,7 +517,7 @@ export const WarpRouteDeployConfigSchema = z
       ? z.NEVER
       : warpRouteDeployConfig;
   })
-  // Verify that xERC20 are only with xERC20s
+  // Verify that xERC20 are only with xERC20s or collateral
   .transform((warpRouteDeployConfig, ctx) => {
     const isXERC20Route = Object.values(warpRouteDeployConfig).some(
       isXERC20TokenConfig,
@@ -527,14 +527,15 @@ export const WarpRouteDeployConfigSchema = z
       return warpRouteDeployConfig;
     }
 
-    const isAllXERC20s = Object.values(warpRouteDeployConfig).every(
-      isXERC20TokenConfig,
+    const isAllXERC20sOrCollateral = Object.values(warpRouteDeployConfig).every(
+      (config) =>
+        isXERC20TokenConfig(config) || isCollateralTokenConfig(config),
     );
 
-    if (!isAllXERC20s) {
+    if (!isAllXERC20sOrCollateral) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: `All chains must be xERC20 warp route tokens`,
+        message: `xERC20 warp routes must only contain xERC20 or collateral token types`,
       });
 
       return z.NEVER;
