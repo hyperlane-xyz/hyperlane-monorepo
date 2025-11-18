@@ -466,11 +466,17 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
   async getCreateMailboxTransaction(
     req: AltVM.ReqCreateMailbox,
   ): Promise<MsgCreateMailboxEncodeObject> {
+    assert(
+      req.defaultIsmAddress,
+      `defaultIsmAddress required in Cosmos Native`,
+    );
+
     return {
       typeUrl: R.MsgCreateMailbox.proto.type,
       value: R.MsgCreateMailbox.proto.converter.create({
         local_domain: req.domainId,
         owner: req.signer,
+        default_ism: req.defaultIsmAddress,
       }),
     };
   }
