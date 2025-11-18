@@ -113,6 +113,38 @@ export class AleoBase {
     return programManager;
   }
 
+  protected async queryMappingValue(
+    programId: string,
+    mappingName: string,
+    key: string,
+    fallbackValue?: any,
+  ): Promise<any> {
+    try {
+      const result = await this.aleoClient.getProgramMappingValue(
+        programId,
+        mappingName,
+        key,
+      );
+
+      if (result === null) {
+        if (fallbackValue !== undefined) {
+          return fallbackValue;
+        }
+
+        throw new Error(
+          `Value for key ${key} on mapping ${mappingName} is empty`,
+        );
+      }
+
+      const Plaintext = this.chainId ? TestnetPlaintext : MainnetPlaintext;
+      return Plaintext.fromString(result).toObject();
+    } catch (err) {
+      throw new Error(
+        `Failed to query mapping value for program ${programId}/${mappingName}/${key}: ${err}`,
+      );
+    }
+  }
+
   protected getAddressFromProgramId(programId: string): string {
     const program = this.chainId ? TestnetProgram : MainnetProgram;
 

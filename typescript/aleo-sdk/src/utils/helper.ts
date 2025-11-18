@@ -17,5 +17,5 @@ export function arrayToPlaintext(array: string[]): string {
 
 export function programIdToPlaintext(programId: string): string {
   const bytes = Array.from(programId).map((c) => `${c.charCodeAt(0)}u8`);
-  return arrayToPlaintext(fillArray(bytes, 128, `u8`));
+  return arrayToPlaintext(fillArray(bytes, 128, `0u8`));
 }

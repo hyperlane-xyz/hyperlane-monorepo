@@ -561,9 +561,19 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
         const remoteRouter =
           this.Plaintext.fromString(remoteRouterValue).toObject();
 
+        if (
+          remoteRouters.find(
+            (r) => r.receiverDomainId === Number(remoteRouter['domain']),
+          )
+        ) {
+          continue;
+        }
+
         remoteRouters.push({
           receiverDomainId: Number(remoteRouter['domain']),
-          receiverAddress: remoteRouter['recipient'],
+          receiverAddress: ensure0x(
+            Buffer.from(remoteRouter['recipient']).toString('hex'),
+          ),
           gas: remoteRouter['gas'].toString(),
         });
       }
@@ -1025,9 +1035,13 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async getEnrollRemoteRouterTransaction(
     req: AltVM.ReqEnrollRemoteRouter,
   ): Promise<AleoTransaction> {
-    const bytes = [
-      ...Buffer.from(strip0x(req.remoteRouter.receiverAddress), 'hex'),
-    ].map((b) => `${b}u8`);
+    const bytes = fillArray(
+      [...Buffer.from(strip0x(req.remoteRouter.receiverAddress), 'hex')].map(
+        (b) => `${b}u8`,
+      ),
+      32,
+      `0u8`,
+    );
 
     return {
       programName: req.tokenAddress,

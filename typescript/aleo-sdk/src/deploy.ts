@@ -1,5 +1,3 @@
-import { addressToBytesAleo, bytesToAddressAleo } from '@hyperlane-xyz/utils';
-
 import { AleoSigner } from './clients/signer.js';
 
 const main = async () => {
@@ -19,17 +17,16 @@ const main = async () => {
       },
     );
 
-    const address = signer.getSignerAddress();
-    console.log('signer address: ', address);
-    const bytes = addressToBytesAleo(address);
-    console.log('signer bytes', bytes);
-    console.log('signer address from bytes', bytesToAddressAleo(bytes));
+    const remoteRouters = await signer.getRemoteRouters({
+      tokenAddress: 'hyp_native_9rrek5ci8nc3.aleo',
+    });
 
-    const mailboxAddress = 'mailbox.aleo';
-    console.log('mailbox address: ', mailboxAddress);
-    const bytes1 = addressToBytesAleo(mailboxAddress);
-    console.log('mailbox bytes', bytes1);
-    console.log('mailbox address from bytes', bytesToAddressAleo(bytes1));
+    console.log('remoteRouters', remoteRouters);
+
+    await signer.unenrollRemoteRouter({
+      tokenAddress: 'hyp_native_9rrek5ci8nc3.aleo',
+      receiverDomainId: 1234,
+    });
   } catch (err) {
     console.log(err);
   }
