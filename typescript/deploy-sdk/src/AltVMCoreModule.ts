@@ -17,14 +17,14 @@ import {
   HypModuleArgs,
   TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
-import { Address, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, Logger, rootLogger } from '@hyperlane-xyz/utils';
 
 import { AltVMCoreReader } from './AltVMCoreReader.js';
 import { AltVMHookModule } from './AltVMHookModule.js';
 import { AltVMIsmModule } from './AltVMIsmModule.js';
 
 export class AltVMCoreModule implements HypModule<CoreModuleType> {
-  protected logger = rootLogger.child({ module: 'AltVMCoreModule' });
+  protected logger: Logger = rootLogger.child({ module: 'AltVMCoreModule' });
   protected coreReader: AltVMCoreReader;
 
   // Cached chain name

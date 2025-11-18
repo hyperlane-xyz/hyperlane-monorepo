@@ -18,6 +18,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/module';
 import {
   Address,
+  Logger,
   assert,
   deepEquals,
   eqAddress,
@@ -65,7 +66,7 @@ function calculateDomainRoutingDelta(
 }
 
 export class AltVMIsmModule implements HypModule<IsmModuleType> {
-  protected readonly logger = rootLogger.child({
+  protected readonly logger: Logger = rootLogger.child({
     module: 'AltVMIsmModule',
   });
   protected readonly reader: AltVMIsmReader;
