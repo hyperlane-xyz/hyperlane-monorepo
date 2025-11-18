@@ -770,7 +770,9 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
         bytes: [...Buffer.from(strip0x(v), 'hex')].map((b) => `${b}u8`),
       })),
       MAXIMUM_VALIDATORS,
-      Array(20).fill(`0u8`),
+      {
+        bytes: Array(20).fill(`0u8`),
+      },
     );
 
     return {
@@ -779,7 +781,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       priorityFee: 0,
       privateFee: false,
       inputs: [
-        arrayToPlaintext(validators),
+        JSON.stringify(validators).replaceAll('"', ''),
         `${req.validators.length}u8`,
         `${req.threshold}u8`,
       ],
