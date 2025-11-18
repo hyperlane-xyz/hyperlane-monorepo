@@ -1,5 +1,19 @@
 # @hyperlane-xyz/cli
 
+## 19.9.0
+
+## 19.8.0
+
+### Minor Changes
+
+- 78ff6cd47: add new methods for altvm interface
+
+## 19.7.0
+
+### Minor Changes
+
+- a03b02e47: Fix `hyperlane warp send` where an error is thrown if `--chains` or `--origin` and `--destination` are not provided
+
 ## 19.6.0
 
 ### Minor Changes

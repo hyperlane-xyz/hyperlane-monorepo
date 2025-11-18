@@ -1,5 +1,56 @@
 # @hyperlane-xyz/sdk
 
+## 19.9.0
+
+### Patch Changes
+
+- 8c027d852: Fixed SmartProvider fallback logic to stop retrying on blockchain errors
+- Updated dependencies [8c027d852]
+  - @hyperlane-xyz/utils@19.9.0
+  - @hyperlane-xyz/core@10.0.3
+  - @hyperlane-xyz/cosmos-sdk@19.9.0
+  - @hyperlane-xyz/radix-sdk@19.9.0
+  - @hyperlane-xyz/starknet-core@19.9.0
+
+## 19.8.0
+
+### Minor Changes
+
+- 500d81246: Add turnkey dependencies and create signers for EVM, SVM.
+- 78ff6cd47: add new methods for altvm interface
+
+### Patch Changes
+
+- 4614a503e: Allow both xerc20 and collateral types in xerc20 config validation.
+- 00b014a3e: fix sdk regression that prevented warp tokens pre-fee support to be derived when deriving on chain config
+- Updated dependencies [2ed21c97d]
+- Updated dependencies [78ff6cd47]
+- Updated dependencies [3f75ad86d]
+  - @hyperlane-xyz/utils@19.8.0
+  - @hyperlane-xyz/cosmos-sdk@19.8.0
+  - @hyperlane-xyz/radix-sdk@19.8.0
+  - @hyperlane-xyz/core@10.0.2
+  - @hyperlane-xyz/starknet-core@19.8.0
+
+## 19.7.0
+
+### Minor Changes
+
+- 69ad3473e: Implemented the getMetadata method on native token adapters and fixed the populateTransferTx method for SVM token adapters when the receiver does not have a created associated token account
+- 211e245cb: Create EvmHypBaseCollateralAdapter, now EvmHypCollateralAdapter and EvmHypRebaseCollateralAdapter extends from it
+- c68722d93: Update fetchPackageVersion() to return 0.0.0 when unknown error is thrown. This error is logged out and is no longer rethrown.
+
+### Patch Changes
+
+- bdfa2047e: Fix CCTP v2 deployer constructor argument encoding
+- 343737271: Assert code exists on eth_storageAt requests
+- 5c4cef1d4: Fixed a bug where EvmHypCollateralAdapter:getWrappedTokenAddress() would not return the correct address if the route had the old versions. Add fallback for contract.getPackageVersion()
+  - @hyperlane-xyz/starknet-core@19.7.0
+  - @hyperlane-xyz/cosmos-sdk@19.7.0
+  - @hyperlane-xyz/radix-sdk@19.7.0
+  - @hyperlane-xyz/utils@19.7.0
+  - @hyperlane-xyz/core@10.0.1
+
 ## 19.6.0
 
 ### Minor Changes

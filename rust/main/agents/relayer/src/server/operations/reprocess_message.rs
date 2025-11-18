@@ -153,7 +153,7 @@ async fn handler(
     })?;
 
     // just a debug to show what was inserted into the prepare queue
-    let message_str = format!("{:?}", pending_message);
+    let message_str = format!("{pending_message:?}");
 
     prep_queue
         .lock()
@@ -185,7 +185,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        msg::db_loader::test::dummy_cache_metrics,
+        msg::db_loader::tests::dummy_cache_metrics,
         test_utils::dummy_data::{dummy_message_context, dummy_metadata_builder},
     };
 
@@ -270,7 +270,7 @@ mod tests {
     ) {
         dbs.get(&domain.id())
             .expect("DB not found")
-            .store_message(&message, dispatched_block_number)
+            .store_message(message, dispatched_block_number)
             .expect("DB Error");
     }
 

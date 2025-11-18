@@ -614,70 +614,6 @@
       "staticMessageIdWeightedMultisigIsmFactory": "0x58924b11A3B03D533192Dd5a92bc358F5a970E34",
       "technicalStack": "opstack"
     },
-    "cheesechain": {
-      "aggregationHook": "0x424D339cB52046Ab69D7C1579faC3D3c23FCF3a0",
-      "blockExplorers": [
-        {
-          "apiUrl": "https://fetascan.xyz/api",
-          "family": "blockscout",
-          "name": "Fetascan",
-          "url": "https://fetascan.xyz"
-        }
-      ],
-      "blocks": {
-        "confirmations": 1,
-        "estimateBlockTime": 30,
-        "reorgPeriod": 1
-      },
-      "chainId": 383353,
-      "deployer": {
-        "name": "Abacus Works",
-        "url": "https://www.hyperlane.xyz"
-      },
-      "displayName": "CheeseChain",
-      "domainId": 383353,
-      "domainRoutingIsm": "0xBD70Ea9D599a0FC8158B026797177773C3445730",
-      "domainRoutingIsmFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
-      "fallbackRoutingHook": "0x03E20381530F2D50A0c9Ef153C19E74695c03433",
-      "gasCurrencyCoinGeckoId": "cheese-2",
-      "index": {
-        "from": 50650
-      },
-      "interchainAccountRouter": "0xBF4f96006d98780120f950b36505bC317aC6b6a4",
-      "interchainGasPaymaster": "0x7E27456a839BFF31CA642c060a2b68414Cb6e503",
-      "interchainSecurityModule": "0xc53C9586Dac984797c896F68F92a9B11824eEB5F",
-      "mailbox": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
-      "merkleTreeHook": "0x0054D19613f20dD72721A146ED408971a2CCA9BD",
-      "name": "cheesechain",
-      "nativeToken": {
-        "decimals": 18,
-        "name": "Cheese",
-        "symbol": "CHEESE"
-      },
-      "pausableHook": "0x7b75b29caD47e10146e29BBf7BD9025e021a7023",
-      "pausableIsm": "0x273Bc6b01D9E88c064b6E5e409BdF998246AEF42",
-      "protocol": "ethereum",
-      "protocolFee": "0x01aE937A7B05d187bBCBE80F44F41879D3D335a4",
-      "proxyAdmin": "0x0761b0827849abbf7b0cC09CE14e1C93D87f5004",
-      "rpcUrls": [
-        {
-          "http": "https://cheesechain.calderachain.xyz/http"
-        }
-      ],
-      "staticAggregationHookFactory": "0x89cfF15fC96c62427A8B06CA7D031674B338b781",
-      "staticAggregationIsm": "0xD3bd8f20e169364d14c7dBFE698258D780FC71e3",
-      "staticAggregationIsmFactory": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
-      "staticMerkleRootMultisigIsmFactory": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
-      "staticMessageIdMultisigIsmFactory": "0x8b83fefd896fAa52057798f6426E9f0B080FCCcE",
-      "storageGasOracle": "0xe4057c5B0c43Dc18E36b08C39B419F190D29Ac2d",
-      "technicalStack": "arbitrumnitro",
-      "testRecipient": "0x4848d54987ffc732aD313827cdC25DF2eedD79d8",
-      "timelockController": "0x0000000000000000000000000000000000000000",
-      "validatorAnnounce": "0x047ba6c9949baB22d13C347B40819b7A20C4C53a",
-      "staticMerkleRootWeightedMultisigIsmFactory": "0x148CF67B8A242c1360bb2C93fCe203EC4d4f9B56",
-      "staticMessageIdWeightedMultisigIsmFactory": "0xcd849e612Aaa138f03698C3Edb42a34117BFF631",
-      "gnosisSafeTransactionServiceUrl": "https://prod.cheese.transaction.keypersafe.xyz/"
-    },
     "cyber": {
       "aggregationHook": "0xEbC5f50e7d655f60DBDc072BEaDcd4c9e4DBF477",
       "blockExplorers": [
@@ -6175,9 +6111,6 @@
       "protocol": "starknet",
       "rpcUrls": [
         {
-          "http": "https://starknet-mainnet.public.blastapi.io/rpc/v0_8"
-        },
-        {
           "http": "https://rpc.starknet.lava.build:443/"
         }
       ],
@@ -8300,8 +8233,8 @@
       "validatorAnnounce": "0x04cc184bc56545c39a71717fc9b62bef3374268d33450095f5b6904788087b68",
       "signer": {
         "type": "starkKey",
-        "key": "0x03a9eec01324d9619ad9523d44c17622a979a20086fccc8d2daa78730a81a4f7",
-        "address": "0x07e49344eeae42bdc178ed5f32aad98ab6cb27e1bf1501bb87bd1c0e09cc922d"
+        "key": "0x35cb2ba13dc76ba1ae3b843a0b6507ce17f129a84a778b0daa6c664006026b23",
+        "address": "0x03143bdb39af0b4b36f8b1a2aab21882ff4d8eb69158d20e06d1b83520c98c67"
       }
     },
     "solaxy": {
@@ -9272,6 +9205,7 @@
         "from": 82206
       },
       "transactionOverrides": {
+        "gasPrice": 60000000000,
         "minGasPrice": 1000000000,
         "minFeePerGas": 1000000000,
         "minPriorityFeePerGas": 1000000000

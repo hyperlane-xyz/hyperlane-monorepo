@@ -95,7 +95,7 @@ impl InclusionStage {
         loop {
             state
                 .metrics
-                .update_liveness_metric(format!("{}::receive_txs", STAGE_NAME).as_str(), &domain);
+                .update_liveness_metric(format!("{STAGE_NAME}::receive_txs").as_str(), &domain);
             if let Some(tx) = building_stage_receiver.recv().await {
                 let pool_len = {
                     let mut pool_lock = pool.lock().await;
@@ -143,7 +143,7 @@ impl InclusionStage {
     ) -> Result<(), LanderError> {
         state
             .metrics
-            .update_liveness_metric(format!("{}::process_txs", STAGE_NAME).as_str(), domain);
+            .update_liveness_metric(format!("{STAGE_NAME}::process_txs").as_str(), domain);
 
         let pool_snapshot = {
             let pool_snapshot = pool.lock().await;
@@ -168,7 +168,7 @@ impl InclusionStage {
             // This prevents alert misfires when there are many txs to process.
             state
                 .metrics
-                .update_liveness_metric(format!("{}::process_txs", STAGE_NAME).as_str(), domain);
+                .update_liveness_metric(format!("{STAGE_NAME}::process_txs").as_str(), domain);
 
             if !Self::tx_ready_for_processing(base_interval, now, &tx) {
                 continue;
@@ -197,7 +197,7 @@ impl InclusionStage {
         };
         loop {
             state.metrics.update_liveness_metric(
-                format!("{}::receive_reprocess_txs", STAGE_NAME).as_str(),
+                format!("{STAGE_NAME}::receive_reprocess_txs").as_str(),
                 &domain,
             );
 
@@ -374,8 +374,10 @@ impl InclusionStage {
         // update tx status in db
         update_tx_status(state, &mut tx, TransactionStatus::Mempool).await?;
 
-        // update the pool entry of this tx, to reflect any changes such as the gas price, hash, etc
+        // update the pool entry of this tx, to reflect any changes such as
+        // the gas price, hash, etc
         pool.lock().await.insert(tx.uuid.clone(), tx.clone());
+
         Ok(())
     }
 
@@ -400,7 +402,7 @@ impl InclusionStage {
                     match submit_result {
                         Ok(()) => Ok(tx_guard.clone()),
                         Err(err) if matches!(err, LanderError::TxAlreadyExists) => {
-                            warn!(?tx, ?err, "Transaction resubmission failed, will check the status of transaction before dropping it");
+                            warn!(tx=?tx_guard, ?err, "Transaction resubmission failed, will check the status of transaction before dropping it");
                             Ok(tx_guard.clone())
                         }
                         Err(err) => Err(err),
@@ -409,8 +411,7 @@ impl InclusionStage {
             },
             "Submitting transaction",
             state,
-        )
-        .await
+        ).await
     }
 
     async fn estimate_tx(

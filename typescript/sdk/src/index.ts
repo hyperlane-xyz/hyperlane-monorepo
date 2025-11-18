@@ -224,13 +224,20 @@ export {
   multisigConfigToIsmConfig,
 } from './ism/multisig.js';
 export {
+  SealevelAccessControlData,
+  SealevelAccessControlDataSchema,
+  SealevelDomainData,
+  SealevelDomainDataSchema,
   SealevelMultisigIsmInstructionName,
   SealevelMultisigIsmInstructionType,
   SealevelMultisigIsmSetValidatorsInstruction,
   SealevelMultisigIsmSetValidatorsInstructionSchema,
   SealevelMultisigIsmTransferOwnershipInstruction,
   SealevelMultisigIsmTransferOwnershipInstructionSchema,
+  SealevelValidatorsAndThreshold,
+  SealevelValidatorsAndThresholdSchema,
 } from './ism/serialization.js';
+export { SealevelMultisigAdapter } from './ism/adapters/SealevelMultisigAdapter.js';
 export {
   SealevelMailboxInstructionName,
   SealevelMailboxInstructionType,
@@ -892,3 +899,10 @@ export {
   TokenFeeConfigInput,
 } from './fee/types.js';
 export { convertToBps } from './fee/utils.js';
+
+export {
+  TurnkeyClientManager,
+  TurnkeyConfig,
+} from './signers/turnkeyClient.js';
+export { TurnkeyEvmSigner } from './signers/evm/turnkey.js';
+export { TurnkeySealevelSigner } from './signers/svm/turnkey.js';

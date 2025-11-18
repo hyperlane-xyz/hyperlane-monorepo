@@ -110,7 +110,7 @@ pub fn fmt_duration(dur: Duration) -> String {
 
     let sec = dur.as_secs_f64();
     if sec < 60. {
-        format!("{:.0}s", sec)
+        format!("{sec:.0}s")
     } else if sec < HOUR {
         format!("{:.1}m", sec / MIN)
     } else if sec < DAY {

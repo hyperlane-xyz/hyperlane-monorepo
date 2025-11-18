@@ -25,7 +25,6 @@ use hyperlane_core::{
 };
 use lander::{
     DispatcherEntrypoint, Entrypoint, FullPayload, LanderError, PayloadStatus, PayloadUuid,
-    TransactionStatus,
 };
 
 use crate::msg::pending_message::CONFIRM_DELAY;
@@ -34,6 +33,11 @@ use crate::server::operations::message_retry::MessageRetryRequest;
 use super::op_batch::OperationBatch;
 use super::op_queue::OpQueue;
 use super::op_queue::OperationPriorityQueue;
+
+use stage::prepare;
+
+mod disposition;
+mod stage;
 
 /// This is needed for logic where we need to allocate
 /// based on how many queues exist in each MessageProcessor.
@@ -399,8 +403,8 @@ async fn prepare_lander_task(
             continue;
         };
 
-        let batch_to_process = confirm_already_submitted_operations(
-            entrypoint.clone(),
+        let batch_to_process = prepare::filter_operations_for_preparation(
+            entrypoint.clone() as Arc<dyn Entrypoint + Send + Sync>,
             &confirm_queue,
             db.clone(),
             batch,
@@ -416,64 +420,6 @@ async fn prepare_lander_task(
             &metrics,
         )
         .await;
-    }
-}
-
-/// This function checks the status of the payloads associated with the operations in the batch.
-/// If the payload is not dropped, the operation is pushed to the confirmation queue.
-/// If the payload is dropped, does not exist or there is issue in retrieving payload or its status, the operation will go through prepare logic.
-async fn confirm_already_submitted_operations(
-    entrypoint: Arc<DispatcherEntrypoint>,
-    confirm_queue: &OpQueue,
-    db: Arc<dyn HyperlaneDb>,
-    batch: Vec<QueueOperation>,
-) -> Vec<QueueOperation> {
-    use ConfirmReason::AlreadySubmitted;
-    use PendingOperationStatus::{Confirm, Retry};
-
-    let mut ops_to_prepare = vec![];
-    for op in batch.into_iter() {
-        if let Retry(ReprepareReason::Manual) = op.status() {
-            ops_to_prepare.push(op);
-            continue;
-        }
-        if !has_operation_been_submitted(entrypoint.clone(), db.clone(), &op).await {
-            ops_to_prepare.push(op);
-            continue;
-        }
-        let status = Some(Confirm(AlreadySubmitted));
-        confirm_queue.push(op, status).await;
-    }
-    ops_to_prepare
-}
-
-async fn has_operation_been_submitted(
-    entrypoint: Arc<DispatcherEntrypoint>,
-    db: Arc<dyn HyperlaneDb>,
-    op: &QueueOperation,
-) -> bool {
-    let id = op.id();
-
-    let payload_uuids = match db.retrieve_payload_uuids_by_message_id(&id) {
-        Ok(uuids) => uuids,
-        Err(_) => return false,
-    };
-
-    let payload_uuids = match payload_uuids {
-        None => return false,
-        Some(uuids) if uuids.is_empty() => return false,
-        Some(uuids) => uuids,
-    };
-
-    // TODO checking only the first payload uuid since we support a single payload per message at this point
-    let payload_uuid = payload_uuids[0].clone();
-    let status = entrypoint.payload_status(payload_uuid).await;
-
-    match status {
-        Ok(PayloadStatus::Dropped(_)) => false,
-        Ok(PayloadStatus::InTransaction(TransactionStatus::Dropped(_))) => false,
-        Ok(_) => true,
-        Err(_) => false,
     }
 }
 
@@ -702,7 +648,7 @@ async fn prepare_op(
     use PendingOperationStatus::Retry;
 
     let status = Retry(reason.clone());
-    let result = op.on_reprepare(Some(format!("{:?}", err)), reason);
+    let result = op.on_reprepare(Some(format!("{err:?}")), reason);
     warn!(?err, ?status, ?result, msg);
     prepare_queue.push(op, Some(status)).await;
 }
@@ -1073,3 +1019,6 @@ impl MessageProcessorMetrics {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

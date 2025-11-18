@@ -11,7 +11,10 @@ import { MultiProvider } from '@hyperlane-xyz/sdk';
 import { parseMessage } from '@hyperlane-xyz/utils';
 
 import { createAbiHandler } from '../utils/abiHandler.js';
-import { PrometheusMetrics } from '../utils/prometheus.js';
+import {
+  PrometheusMetrics,
+  UnhandledErrorReason,
+} from '../utils/prometheus.js';
 
 import {
   BaseService,
@@ -83,6 +86,7 @@ class CCTPService extends BaseService {
 
   async getCCTPMessageFromReceipt(
     receipt: ethers.providers.TransactionReceipt,
+    messageId: string,
     logger: Logger,
   ) {
     logger.info(
@@ -112,10 +116,17 @@ class CCTPService extends BaseService {
     }
 
     logger.error(
-      { transactionHash: receipt.transactionHash },
+      {
+        transactionHash: receipt.transactionHash,
+        messageId,
+        error_reason: UnhandledErrorReason.CCTP_MESSAGE_SENT_NOT_FOUND,
+      },
       'Unable to find MessageSent event in logs',
     );
-    PrometheusMetrics.logUnhandledError(this.config.serviceName);
+    PrometheusMetrics.logUnhandledError(
+      this.config.serviceName,
+      UnhandledErrorReason.CCTP_MESSAGE_SENT_NOT_FOUND,
+    );
     throw new Error('Unable to find MessageSent event in logs');
   }
 
@@ -147,12 +158,17 @@ class CCTPService extends BaseService {
     const receipt = await this.multiProvider
       .getProvider(parsedMessage.origin)
       .getTransactionReceipt(txHash);
-    const cctpMessage = await this.getCCTPMessageFromReceipt(receipt, log);
+    const cctpMessage = await this.getCCTPMessageFromReceipt(
+      receipt,
+      messageId,
+      log,
+    );
 
     const [relayedCctpMessage, attestation] =
       await this.cctpAttestationService.getAttestation(
         cctpMessage,
         txHash,
+        messageId,
         log,
       );
 

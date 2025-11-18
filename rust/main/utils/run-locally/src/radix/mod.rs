@@ -223,6 +223,7 @@ fn launch_radix_relayer(agent_config_path: String, relay_chains: Vec<String>) ->
                 "payment": "1"
             }]"#,
         )
+        .hyp_env("CACHEDEFAULTEXPIRATIONSECONDS", "5")
         .hyp_env("METRICSPORT", RELAYER_METRICS_PORT)
         .spawn("RLY", Some(&AGENT_LOGGING_DIR));
 

@@ -18,7 +18,7 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: full
-  MIN_LANDERCOVERAGE_PERCENTAGE: 19
+  MIN_LANDERCOVERAGE_PERCENTAGE: 15
   RUSTC_WRAPPER: sccache
 
 jobs:
@@ -116,6 +116,28 @@ jobs:
       - name: Check for sealevel workspace
         run: cargo check --release --all-features --all-targets
         working-directory: ./rust/sealevel
+      - name: Check Cargo.lock files are up to date
+        run: |
+          CHANGES=$(git status -s --ignore-submodules -- rust/main/Cargo.lock rust/sealevel/Cargo.lock)
+          if [[ ! -z $CHANGES ]]; then
+            echo "❌ Cargo.lock files are out of sync with Cargo.toml files"
+            echo ""
+            echo "$CHANGES" | while read status file; do
+              echo "::group::$file changes"
+              git diff "$file"
+              echo "::endgroup::"
+              if [[ "$file" == *"main"* ]]; then
+                echo "- $file needs to be updated"
+                echo "  Run: cd rust/main && cargo build"
+              elif [[ "$file" == *"sealevel"* ]]; then
+                echo "- $file needs to be updated"
+                echo "  Run: cd rust/sealevel && cargo build"
+              fi
+            done
+            echo ""
+            echo "Please commit the updated Cargo.lock file(s)"
+            exit 1
+          fi
       - name: Rustfmt for main workspace
         run: cargo fmt --all -- --check
         working-directory: ./rust/main

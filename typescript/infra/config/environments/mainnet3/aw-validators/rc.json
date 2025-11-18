@@ -49,9 +49,6 @@
       "0xd796c1d4fcfb3c63acfa6e4113aa6ae1399b337c"
     ]
   },
-  "cheesechain": {
-    "validators": ["0xa481835355309ed46540c742a1c04b58380aa7b4"]
-  },
   "coredao": {
     "validators": ["0x9767df5bcebce5ca89fdca5efbfb3b891cf30c5b"]
   },
