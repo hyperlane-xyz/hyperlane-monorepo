@@ -17,7 +17,7 @@ const owners = {
   ethereum: '0x11BEBBf509248735203BAAAe90c1a27EEE70D567',
   superseed: '0x6652010BaCE855DF870D427daA6141c313994929',
   base: '0x11BEBBf509248735203BAAAe90c1a27EEE70D567',
-  ink: '0x11BEBBf509248735203BAAAe90c1a27EEE70D567',
+  ink: '0x3fb137161365f273ebb8262a26569c117b6cbafb',
   optimism: '0x11BEBBf509248735203BAAAe90c1a27EEE70D567',
   arbitrum: '0x11BEBBf509248735203BAAAe90c1a27EEE70D567',
   solanamainnet: 'JAPPhnuChtzCGmskmFdurvAxENWwcAqXCV5Jn5SSiuWE',
@@ -80,7 +80,8 @@ export const getSuperseedUSDCWarpConfig = async (
     ...routerConfig.ink,
     owner: owners.ink,
     type: TokenType.collateral,
-    token: tokens.ink.USDCe,
+    token: tokens.ink.USDC,
+    ...rebalancingConfig.ink,
   };
 
   const solanamainnet: HypTokenRouterConfig = {
