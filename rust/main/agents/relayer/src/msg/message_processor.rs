@@ -25,7 +25,6 @@ use hyperlane_core::{
 };
 use lander::{
     DispatcherEntrypoint, Entrypoint, FullPayload, LanderError, PayloadStatus, PayloadUuid,
-    TransactionStatus,
 };
 
 use crate::msg::pending_message::CONFIRM_DELAY;
@@ -34,6 +33,11 @@ use crate::server::operations::message_retry::MessageRetryRequest;
 use super::op_batch::OperationBatch;
 use super::op_queue::OpQueue;
 use super::op_queue::OperationPriorityQueue;
+
+use stage::prepare;
+
+mod disposition;
+mod stage;
 
 /// This is needed for logic where we need to allocate
 /// based on how many queues exist in each MessageProcessor.
@@ -399,7 +403,7 @@ async fn prepare_lander_task(
             continue;
         };
 
-        let batch_to_process = filter_operations_for_preparation(
+        let batch_to_process = prepare::filter_operations_for_preparation(
             entrypoint.clone() as Arc<dyn Entrypoint + Send + Sync>,
             &confirm_queue,
             db.clone(),
@@ -416,122 +420,6 @@ async fn prepare_lander_task(
             &metrics,
         )
         .await;
-    }
-}
-
-/// Disposition for how to handle an operation during submission check
-enum OperationDisposition {
-    /// Operation requires manual intervention - should be prepared
-    Manual,
-    /// Operation has not been submitted yet - should be prepared or submitted
-    PreSubmit,
-    /// Operation has already been submitted - should go to confirmation queue
-    Confirm,
-}
-
-/// Filters operations from a batch to determine which should proceed to preparation.
-///
-/// Operations already submitted (and not dropped) are pushed to the confirmation queue.
-/// Operations that need preparation are returned for further processing.
-///
-/// # Returns
-/// A vector of operations that should proceed to the preparation phase.
-async fn filter_operations_for_preparation(
-    entrypoint: Arc<dyn Entrypoint + Send + Sync>,
-    confirm_queue: &OpQueue,
-    db: Arc<dyn HyperlaneDb>,
-    batch: Vec<QueueOperation>,
-) -> Vec<QueueOperation> {
-    use ConfirmReason::AlreadySubmitted;
-    use PendingOperationStatus::Confirm;
-
-    // Phase 1: Determine disposition for each operation
-    let mut operations_with_disposition = Vec::with_capacity(batch.len());
-    for op in batch {
-        let disposition =
-            determine_operation_disposition(entrypoint.clone(), db.clone(), &op).await;
-        operations_with_disposition.push((op, disposition));
-    }
-
-    // Phase 2: Process operations based on their disposition
-    let mut ops_to_prepare = Vec::new();
-    for (op, disposition) in operations_with_disposition {
-        match disposition {
-            OperationDisposition::Manual => {
-                // Remove link between message and payload for Manual operations
-                // to allow re-processing even if payload status filtering is
-                // applied in other stages (submit, confirm)
-                let message_id = op.id();
-                if let Err(e) = db.store_payload_uuids_by_message_id(&message_id, vec![]) {
-                    warn!(
-                        ?e,
-                        ?message_id,
-                        "Failed to remove payload UUID mapping for manual operation"
-                    );
-                }
-                ops_to_prepare.push(op);
-            }
-            OperationDisposition::PreSubmit => {
-                ops_to_prepare.push(op);
-            }
-            OperationDisposition::Confirm => {
-                let status = Some(Confirm(AlreadySubmitted));
-                confirm_queue.push(op, status).await;
-            }
-        }
-    }
-
-    ops_to_prepare
-}
-
-async fn determine_operation_disposition(
-    entrypoint: Arc<dyn Entrypoint + Send + Sync>,
-    db: Arc<dyn HyperlaneDb>,
-    op: &QueueOperation,
-) -> OperationDisposition {
-    use PendingOperationStatus::Retry;
-
-    // Check if operation requires manual intervention
-    if let Retry(ReprepareReason::Manual) = op.status() {
-        return OperationDisposition::Manual;
-    }
-
-    // Determine disposition based on payload status
-    operation_disposition_by_payload_status(entrypoint, db, op).await
-}
-
-/// Determines the disposition of an operation based on its payload submission status.
-/// Returns Confirm if the payload has been submitted and is not dropped, Prepare otherwise.
-/// If payload status cannot be determined, operation will be prepared.
-async fn operation_disposition_by_payload_status(
-    entrypoint: Arc<dyn Entrypoint + Send + Sync>,
-    db: Arc<dyn HyperlaneDb>,
-    op: &QueueOperation,
-) -> OperationDisposition {
-    use OperationDisposition::{Confirm, PreSubmit};
-
-    let id = op.id();
-
-    let payload_uuids = match db.retrieve_payload_uuids_by_message_id(&id) {
-        Ok(uuids) => uuids,
-        Err(_) => return PreSubmit,
-    };
-
-    let payload_uuids = match payload_uuids {
-        None => return PreSubmit,
-        Some(uuids) if uuids.is_empty() => return PreSubmit,
-        Some(uuids) => uuids,
-    };
-
-    // TODO checking only the first payload uuid since we support a single payload per message at this point
-    let payload_uuid = payload_uuids[0].clone();
-    let status = entrypoint.payload_status(payload_uuid).await;
-
-    match status {
-        Ok(PayloadStatus::Dropped(_)) => PreSubmit,
-        Ok(PayloadStatus::InTransaction(TransactionStatus::Dropped(_))) => PreSubmit,
-        Ok(_) => Confirm,
-        Err(_) => PreSubmit,
     }
 }
 

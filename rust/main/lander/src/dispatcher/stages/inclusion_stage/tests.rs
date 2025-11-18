@@ -51,6 +51,9 @@ async fn test_unincluded_txs_reach_mempool() {
 
     let mut mock_adapter = MockAdapter::new();
     mock_adapter
+        .expect_reprocess_txs_poll_rate()
+        .returning(|| None);
+    mock_adapter
         .expect_estimated_block_time()
         .return_const(Duration::from_millis(400));
 
@@ -234,6 +237,9 @@ async fn test_transaction_status_dropped() {
 #[tokio::test]
 async fn test_transaction_not_ready_for_resubmission() {
     let mut mock_adapter = MockAdapter::new();
+    mock_adapter
+        .expect_reprocess_txs_poll_rate()
+        .returning(|| None);
     mock_adapter
         .expect_estimated_block_time()
         .return_const(Duration::from_millis(400));
@@ -490,6 +496,9 @@ async fn test_reasonable_receipt_query_frequency() {
     let call_counter_clone = call_counter.clone();
 
     let mut mock_adapter = MockAdapter::new();
+    mock_adapter
+        .expect_reprocess_txs_poll_rate()
+        .returning(|| None);
     mock_adapter
         .expect_estimated_block_time()
         .return_const(Duration::from_millis(12000)); // Ethereum block time ~12s
