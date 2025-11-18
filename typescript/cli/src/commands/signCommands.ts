@@ -31,4 +31,5 @@ export enum CommandType {
   RELAYER = 'relayer:',
   CORE_APPLY = 'core:apply',
   CORE_DEPLOY = 'core:deploy',
+  CORE_READ = 'core:read',
 }

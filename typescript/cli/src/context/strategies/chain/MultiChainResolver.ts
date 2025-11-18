@@ -27,6 +27,7 @@ enum ChainSelectionMode {
   STRATEGY,
   CORE_APPLY,
   CORE_DEPLOY,
+  CORE_READ,
   DEFAULT,
 }
 
@@ -52,6 +53,7 @@ export class MultiChainResolver implements ChainResolver {
         return this.resolveAgentChains(argv);
       case ChainSelectionMode.CORE_APPLY:
         return this.resolveCoreApplyChains(argv);
+      case ChainSelectionMode.CORE_READ:
       case ChainSelectionMode.CORE_DEPLOY:
         return this.resolveCoreDeployChains(argv);
       case ChainSelectionMode.DEFAULT:
@@ -279,6 +281,10 @@ export class MultiChainResolver implements ChainResolver {
 
   static forCoreDeploy(): MultiChainResolver {
     return new MultiChainResolver(ChainSelectionMode.CORE_DEPLOY);
+  }
+
+  static forCoreRead(): MultiChainResolver {
+    return new MultiChainResolver(ChainSelectionMode.CORE_READ);
   }
 
   static default(): MultiChainResolver {
