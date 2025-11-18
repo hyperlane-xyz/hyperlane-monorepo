@@ -98,17 +98,17 @@ export async function signerMiddleware(argv: Record<string, any>) {
 
   await Promise.all(
     chains.map(async (chain) => {
-      const { context, multiProvider } = argv.context;
+      const { altVmProvider, multiProvider } = argv.context;
       const protocol = multiProvider.getProtocol(chain);
       const metadata = multiProvider.getChainMetadata(chain);
-      context.altVmProvider.set(
+      altVmProvider.set(
         chain,
         await getProtocolProvider(protocol).createProvider(metadata),
       );
 
       // TODO: Remove this after implementing Radix as a ProtocolProvider
       if (protocol === ProtocolType.Radix)
-        context.altVmProvider.set(ProtocolType.Radix, RadixProvider);
+        altVmProvider.set(ProtocolType.Radix, RadixProvider);
     }),
   );
 
