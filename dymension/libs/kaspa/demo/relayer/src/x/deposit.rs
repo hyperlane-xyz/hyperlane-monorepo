@@ -112,10 +112,11 @@ pub async fn get_deposits(
     lower_bound_unix_time: i64,
     client: &KaspaHttpClient,
     address: &str,
+    domain_kas: u32,
 ) -> ChainResult<Vec<Deposit>> {
     let res = client
         .client
-        .get_deposits_by_address(Some(lower_bound_unix_time), address)
+        .get_deposits_by_address(Some(lower_bound_unix_time), address, domain_kas)
         .await;
     res.map_err(|e| ChainCommunicationError::from_other_str(&e.to_string()))
         .map(|deposits| deposits.into_iter().collect())
@@ -133,7 +134,13 @@ async fn deposit_loop(
     loop {
         time::sleep(Duration::from_secs(10)).await;
         let deposits_res: std::result::Result<Vec<Deposit>, ChainCommunicationError> =
-            get_deposits(start_relay_time, client, &address).await;
+            get_deposits(
+                start_relay_time,
+                client,
+                &address,
+                hardcode::hl::HL_DOMAIN_KASPA_TEST10,
+            )
+            .await;
 
         let deposits = match deposits_res {
             Ok(deposits) => deposits,

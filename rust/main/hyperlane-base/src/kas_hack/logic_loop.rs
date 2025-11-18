@@ -132,7 +132,11 @@ where
             match self
                 .provider
                 .rest()
-                .get_deposits(&self.provider.escrow_address().to_string(), lower_bound)
+                .get_deposits(
+                    &self.provider.escrow_address().to_string(),
+                    lower_bound,
+                    self.provider.domain().id(),
+                )
                 .await
             {
                 Ok(deposits) => {

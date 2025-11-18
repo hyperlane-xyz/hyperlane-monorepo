@@ -110,6 +110,7 @@ impl HttpClient {
         &self,
         lower_bound_unix_time: Option<i64>,
         address: &str,
+        domain_kas: u32,
     ) -> Result<Vec<Deposit>> {
         let n: i64 = 500;
         let initial_lower_bound_t = lower_bound_unix_time.unwrap_or(0);
@@ -160,7 +161,7 @@ impl HttpClient {
                     continue;
                 }
 
-                if !has_valid_hyperlane_payload(&tx) {
+                if !has_valid_hyperlane_payload(&tx, domain_kas) {
                     continue;
                 }
 
@@ -274,11 +275,20 @@ fn is_valid_escrow_transfer(tx: &TxModel, address: &String) -> Result<bool> {
     Ok(false)
 }
 
-fn has_valid_hyperlane_payload(tx: &TxModel) -> bool {
+// check both that the it deserializes to a HL message, but also that the origin is correct
+// the parse can easily pass for random blobs, so we check the domain to be really sure
+// TODO: move to hyperlane-monorepo/dymension/libs/kaspa/lib/core/src/user/payload.rs
+fn has_valid_hyperlane_payload(tx: &TxModel, domain_kas: u32) -> bool {
     use crate::message::ParsedHL;
 
     match &tx.payload {
-        Some(payload) => ParsedHL::parse_string(payload).is_ok(),
+        Some(payload) => {
+            let parsed = match ParsedHL::parse_string(payload) {
+                Ok(p) => p,
+                Err(_) => return false,
+            };
+            parsed.hl_message.origin == domain_kas
+        }
         None => false,
     }
 }
@@ -286,6 +296,8 @@ fn has_valid_hyperlane_payload(tx: &TxModel) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::message::ParsedHL;
+    use hardcode::hl::HL_DOMAIN_KASPA_TEST10;
 
     #[tokio::test]
     #[ignore = "dont hil real api"]
@@ -298,7 +310,7 @@ mod tests {
         let address = "kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr";
 
         let deposits = client
-            .get_deposits_by_address(Some(1751299515650), address)
+            .get_deposits_by_address(Some(1751299515650), address, HL_DOMAIN_KASPA_TEST10)
             .await;
 
         match deposits {
@@ -324,5 +336,12 @@ mod tests {
         let tx_id = "1ffa672605af17906d99ba9506dd49406a2e8a3faa2969ab0c8929373aca51d1";
         let tx = client.get_tx_by_id(tx_id).await;
         println!("Tx: {:?}", tx);
+    }
+
+    #[tokio::test]
+    async fn test_parse() {
+        let s = "0a20020c0a41a75218b6f6e3fbf19c828239f368abb983ff4d6b16a3ea594f6b19770a204fd1e8d1ce6debfbc425d262785ab26167f71d3800e6d5be8af59bac7b548e960a2003c7520e12eda99f6e0da65eebd82823980594361cc719439dd05c5ffe9b8b4d0a20e4772ae63275386a3f3ba6582ac8edbecdacc817529af21f29b7c3dafd0ed9820a20cd26ff93e58234a18da37119ee4452975654721ee95df637114dde146b4493ba0a2039170a92263b1bbc7ad539e33cdced96f149db7a246cd62bc6dced1538448ecc0a20dbd9ba9bfdafb77fa13324044be150283815f4e0587ce863d2151e3782537e380a2013a4cbdfad246476602b4a6c384a427f4afc13c931957d3b7081cf2548dc11420a20ef88cd0cdde1d955258dd62febc2fe818b75d74e1bb211acce4dd2061c4a7b660a20e824d5f6f83869430bf04332978d87dc65b50102cd680ade24da240fe84ddef60a20ab9ef65d2fa925e9be3f1409c19416e8e3a36a8e0fa11e1169bc958b7f7febe00a2033569543493e026add696ec883ae11821fa66905af1ef502d5b7bc903478046d0a2045be6ff58cca1b077a5e77a5e9458ab5f86fc50f6d8e4ebf905d024e0677b8470a20f41a429e7f732880b6760fda7ad0a4918ee347e92ed341358dc86c6d658738610a204d9c9a5087544f68a81200c3c0660579aef5329685ab2142280727fadbfb1ac70a202501746dd5b4ed854cb6c15df0f4baf4af0f9d7f6eee3b260a50dc30164c3c53";
+        let parsed = ParsedHL::parse_string(s);
+        assert!(parsed.is_ok(), "Failed to parse payload");
     }
 }

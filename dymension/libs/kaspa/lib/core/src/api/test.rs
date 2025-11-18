@@ -134,7 +134,11 @@ mod tests {
         let address = "kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr";
 
         let deposits = client
-            .get_deposits_by_address(Some(1751299515650), address)
+            .get_deposits_by_address(
+                Some(1751299515650),
+                address,
+                hardcode::hl::HL_DOMAIN_KASPA_TEST10,
+            )
             .await;
 
         match deposits {

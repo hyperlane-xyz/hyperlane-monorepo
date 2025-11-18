@@ -131,11 +131,12 @@ impl RestProvider {
         &self,
         escrow_addr: &str,
         lower_bound_ts: Option<i64>,
+        domain_kas: u32,
     ) -> ChainResult<Vec<Deposit>> {
         let res = self
             .client
             .client
-            .get_deposits_by_address(lower_bound_ts, escrow_addr)
+            .get_deposits_by_address(lower_bound_ts, escrow_addr, domain_kas)
             .await;
         res.map_err(|e| ChainCommunicationError::from_other_str(&e.to_string()))
             .map(|deposits| deposits.into_iter().collect())
