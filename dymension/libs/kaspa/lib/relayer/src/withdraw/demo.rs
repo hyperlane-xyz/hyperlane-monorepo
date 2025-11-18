@@ -20,7 +20,13 @@ pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
     fee: u64,
     amt: u64,
 ) -> Result<PSKT<Signer>, Error> {
-    let utxos_e = rpc.get_utxos_by_addresses(vec![e.addr.clone()]).await?;
+    let utxos_e = corelib::rpc_retry::rpc_call_with_retry(|| async {
+        rpc.get_utxos_by_addresses(vec![e.addr.clone()])
+            .await
+            .map_err(|e| eyre::eyre!(e))
+    })
+    .await
+    .map_err(|e| Error::Custom(e.to_string()))?;
     let utxo_e_first = utxos_e
         .into_iter()
         .next()

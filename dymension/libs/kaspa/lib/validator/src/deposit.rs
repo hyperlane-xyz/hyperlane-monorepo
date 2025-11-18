@@ -179,12 +179,16 @@ pub async fn validate_new_deposit_inner(
         });
     }
 
-    let containing_block: RpcBlock = client_node
-        .get_block(containing_block_hash, true)
-        .await
-        .map_err(|e| ValidationError::KaspaNodeError {
-            reason: e.to_string(),
-        })?;
+    let containing_block: RpcBlock = corelib::rpc_retry::rpc_call_with_retry(|| async {
+        client_node
+            .get_block(containing_block_hash, true)
+            .await
+            .map_err(|e| eyre::eyre!(e))
+    })
+    .await
+    .map_err(|e| ValidationError::KaspaNodeError {
+        reason: e.to_string(),
+    })?;
 
     let tx_id_rpc =
         d_untrusted

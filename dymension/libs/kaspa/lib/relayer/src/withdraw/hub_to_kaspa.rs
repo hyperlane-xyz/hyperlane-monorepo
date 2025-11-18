@@ -63,7 +63,13 @@ pub async fn fetch_input_utxos(
 }
 
 pub async fn get_normal_bucket_feerate(kaspa_rpc: &Arc<DynRpcApi>) -> Result<f64> {
-    let feerate = kaspa_rpc.get_fee_estimate().await?;
+    let feerate = corelib::rpc_retry::rpc_call_with_retry(|| async {
+        kaspa_rpc
+            .get_fee_estimate()
+            .await
+            .map_err(|e| eyre::eyre!(e))
+    })
+    .await?;
     // Due to the documentation:
     // > The first value of this vector is guaranteed to exist
     Ok(feerate.normal_buckets.first().unwrap().feerate)
@@ -331,15 +337,21 @@ async fn get_utxo_to_spend(
     kaspa_rpc: &Arc<DynRpcApi>,
     network_id: NetworkId,
 ) -> Result<Vec<RpcUtxosByAddressesEntry>> {
-    let mut utxos = kaspa_rpc
-        .get_utxos_by_addresses(vec![addr.clone()])
-        .await
-        .map_err(|e| eyre::eyre!("Get escrow UTXOs: {}", e))?;
+    let mut utxos = corelib::rpc_retry::rpc_call_with_retry(|| async {
+        kaspa_rpc
+            .get_utxos_by_addresses(vec![addr.clone()])
+            .await
+            .map_err(|e| eyre::eyre!("Get escrow UTXOs: {}", e))
+    })
+    .await?;
 
-    let b = kaspa_rpc
-        .get_block_dag_info()
-        .await
-        .map_err(|e| eyre::eyre!("Get block DAG info: {}", e))?;
+    let b = corelib::rpc_retry::rpc_call_with_retry(|| async {
+        kaspa_rpc
+            .get_block_dag_info()
+            .await
+            .map_err(|e| eyre::eyre!("Get block DAG info: {}", e))
+    })
+    .await?;
 
     // Descending order – older UTXOs first
     utxos.sort_by_key(|u| std::cmp::Reverse(u.utxo_entry.block_daa_score));

@@ -331,14 +331,18 @@ pub async fn create_sweeping_bundle(
     escrow_inputs.sort_by(|a, b| b.1.amount.cmp(&a.1.amount));
 
     let relayer_address = relayer_wallet.account().change_address()?;
-    let feerate = relayer_wallet
-        .api()
-        .get_fee_estimate()
-        .await?
-        .normal_buckets
-        .first()
-        .unwrap()
-        .feerate;
+    let feerate = corelib::rpc_retry::rpc_call_with_retry(|| async {
+        relayer_wallet
+            .api()
+            .get_fee_estimate()
+            .await
+            .map_err(|e| eyre::eyre!(e))
+    })
+    .await?
+    .normal_buckets
+    .first()
+    .unwrap()
+    .feerate;
 
     let mut bundle = Bundle::new();
 
