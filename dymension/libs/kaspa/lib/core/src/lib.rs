@@ -9,6 +9,7 @@ pub mod finality;
 pub mod message;
 pub mod payload;
 pub mod pskt;
+pub mod rpc_retry;
 pub mod user;
 pub mod util;
 pub mod wallet;
