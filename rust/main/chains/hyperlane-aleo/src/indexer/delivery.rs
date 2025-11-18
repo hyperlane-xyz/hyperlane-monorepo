@@ -7,22 +7,27 @@ use hyperlane_core::{
     HyperlaneProvider, Indexed, Indexer, LogMeta, SequenceAwareIndexer, H256,
 };
 
+use crate::provider::{AleoClient, BaseHttpClient};
 use crate::utils::aleo_hash_to_h256;
 use crate::AleoHash;
 use crate::{indexer::AleoIndexer, AleoMailboxStruct, AleoProvider, ConnectionConf};
 
 /// Aleo Delivery Indexer
 #[derive(Debug, Clone)]
-pub struct AleoDeliveryIndexer {
-    provider: AleoProvider,
+pub struct AleoDeliveryIndexer<C: AleoClient = BaseHttpClient> {
+    provider: AleoProvider<C>,
     address: H256,
     program: String,
     domain: HyperlaneDomain,
 }
 
-impl AleoDeliveryIndexer {
+impl<C: AleoClient> AleoDeliveryIndexer<C> {
     /// Creates a new Delivery Indexer
-    pub fn new(provider: AleoProvider, locator: &ContractLocator, conf: &ConnectionConf) -> Self {
+    pub fn new(
+        provider: AleoProvider<C>,
+        locator: &ContractLocator,
+        conf: &ConnectionConf,
+    ) -> Self {
         Self {
             provider,
             address: locator.address,
@@ -32,14 +37,14 @@ impl AleoDeliveryIndexer {
     }
 }
 
-impl AleoIndexer for AleoDeliveryIndexer {
+impl<C: AleoClient> AleoIndexer for AleoDeliveryIndexer<C> {
     const INDEX_MAPPING: &str = "process_event_index";
     const VALUE_MAPPING: &str = "process_events";
 
     type Type = AleoHash;
     type AleoType = AleoHash;
 
-    fn get_provider(&self) -> &AleoProvider {
+    fn get_provider(&self) -> &AleoProvider<impl AleoClient> {
         &self.provider
     }
 
@@ -68,7 +73,7 @@ impl HyperlaneContract for AleoDeliveryIndexer {
 }
 
 #[async_trait]
-impl Indexer<H256> for AleoDeliveryIndexer {
+impl<C: AleoClient> Indexer<H256> for AleoDeliveryIndexer<C> {
     /// Fetch list of logs between blocks `from` and `to`, inclusive.
     async fn fetch_logs_in_range(
         &self,
@@ -95,7 +100,7 @@ impl Indexer<H256> for AleoDeliveryIndexer {
 }
 
 #[async_trait]
-impl SequenceAwareIndexer<H256> for AleoDeliveryIndexer {
+impl<C: AleoClient> SequenceAwareIndexer<H256> for AleoDeliveryIndexer<C> {
     /// Return the latest finalized sequence (if any) and block number
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let (mailbox, height) = self

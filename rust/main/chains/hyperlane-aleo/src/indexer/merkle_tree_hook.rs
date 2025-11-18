@@ -10,24 +10,27 @@ use hyperlane_core::{
 };
 
 use crate::{
-    indexer::AleoIndexer, utils::aleo_hash_to_h256, AleoMerkleTreeHookStruct, AleoProvider,
-    ConnectionConf, CurrentNetwork, HookEventIndex, HyperlaneAleoError, InsertIntoTreeEvent,
+    indexer::AleoIndexer,
+    provider::{AleoClient, BaseHttpClient},
+    utils::aleo_hash_to_h256,
+    AleoMerkleTreeHookStruct, AleoProvider, ConnectionConf, CurrentNetwork, HookEventIndex,
+    HyperlaneAleoError, InsertIntoTreeEvent,
 };
 
 /// Aleo MerkleTreeHook Indexer
 #[derive(Debug, Clone)]
-pub struct AleoMerkleTreeHook {
-    client: AleoProvider,
+pub struct AleoMerkleTreeHook<C: AleoClient = BaseHttpClient> {
+    client: AleoProvider<C>,
     address: H256,
     program: String,
     aleo_address: Address<CurrentNetwork>,
     domain: HyperlaneDomain,
 }
 
-impl AleoMerkleTreeHook {
+impl<C: AleoClient> AleoMerkleTreeHook<C> {
     /// Creates a new Merkle Tree Hook
     pub fn new(
-        provider: AleoProvider,
+        provider: AleoProvider<C>,
         locator: &ContractLocator,
         conf: &ConnectionConf,
     ) -> ChainResult<Self> {
@@ -43,7 +46,7 @@ impl AleoMerkleTreeHook {
     }
 }
 
-impl HyperlaneChain for AleoMerkleTreeHook {
+impl<C: AleoClient> HyperlaneChain for AleoMerkleTreeHook<C> {
     /// Return the domain
     fn domain(&self) -> &HyperlaneDomain {
         &self.domain
@@ -55,21 +58,21 @@ impl HyperlaneChain for AleoMerkleTreeHook {
     }
 }
 
-impl HyperlaneContract for AleoMerkleTreeHook {
+impl<C: AleoClient> HyperlaneContract for AleoMerkleTreeHook<C> {
     /// Address
     fn address(&self) -> H256 {
         self.address
     }
 }
 
-impl AleoIndexer for AleoMerkleTreeHook {
+impl<C: AleoClient> AleoIndexer for AleoMerkleTreeHook<C> {
     const INDEX_MAPPING: &str = "last_event_index";
     const VALUE_MAPPING: &str = "inserted_into_tree_events";
 
     type AleoType = InsertIntoTreeEvent;
     type Type = MerkleTreeInsertion;
 
-    fn get_provider(&self) -> &AleoProvider {
+    fn get_provider(&self) -> &AleoProvider<impl AleoClient> {
         &self.client
     }
 
@@ -99,7 +102,7 @@ impl AleoIndexer for AleoMerkleTreeHook {
 }
 
 #[async_trait]
-impl Indexer<MerkleTreeInsertion> for AleoMerkleTreeHook {
+impl<C: AleoClient> Indexer<MerkleTreeInsertion> for AleoMerkleTreeHook<C> {
     /// Fetch list of logs between blocks `from` and `to`, inclusive.
     async fn fetch_logs_in_range(
         &self,
@@ -115,7 +118,7 @@ impl Indexer<MerkleTreeInsertion> for AleoMerkleTreeHook {
 }
 
 #[async_trait]
-impl SequenceAwareIndexer<MerkleTreeInsertion> for AleoMerkleTreeHook {
+impl<C: AleoClient> SequenceAwareIndexer<MerkleTreeInsertion> for AleoMerkleTreeHook<C> {
     /// Return the latest finalized sequence (if any) and block number
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let (mth, height) = self
@@ -131,7 +134,7 @@ impl SequenceAwareIndexer<MerkleTreeInsertion> for AleoMerkleTreeHook {
 }
 
 #[async_trait]
-impl MerkleTreeHook for AleoMerkleTreeHook {
+impl<C: AleoClient> MerkleTreeHook for AleoMerkleTreeHook<C> {
     /// Return the incremental merkle tree in storage
     ///
     /// - `reorg_period` is ignored as Aleo has a BFT consensus algorithm with instant finality.

@@ -31,11 +31,11 @@ impl MockHttpClient {
     }
 
     /// Register a JSON value directly for an endpoint path.
-    pub fn register_value(&self, endpoint: impl Into<String>, value: Value) {
+    pub fn register_value(&self, endpoint: impl Into<String>, value: impl Into<Value>) {
         self.responses
             .write()
             .unwrap()
-            .insert(endpoint.into(), value);
+            .insert(endpoint.into(), value.into());
     }
 
     /// Register a file (json) for an endpoint. File path is relative to base_path.
@@ -68,8 +68,7 @@ impl MockHttpClient {
                     "No mock response registered for endpoint: {path}"
                 ))
             })
-            .map(Ok)
-            .unwrap()
+            .map(Ok)?
     }
 }
 
@@ -80,7 +79,12 @@ impl HttpClient for MockHttpClient {
         path: &str,
         _query: impl Into<Option<Value>> + Send,
     ) -> ChainResult<T> {
-        let value = self.get(path)?;
+        let path = path
+            .trim()
+            .chars()
+            .filter(|c| !c.is_whitespace())
+            .collect::<String>();
+        let value = self.get(&path)?;
         let parsed: T = serde_json::from_value(value).map_err(HyperlaneAleoError::from)?;
         Ok(parsed)
     }

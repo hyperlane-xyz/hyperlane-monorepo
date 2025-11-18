@@ -11,3 +11,6 @@ mod interchain_gas;
 mod merkle_tree_hook;
 
 mod traits;
+
+#[cfg(test)]
+mod tests;

@@ -7,20 +7,28 @@ use hyperlane_core::{
     HyperlaneMessage, HyperlaneProvider, Indexed, Indexer, LogMeta, SequenceAwareIndexer, H256,
 };
 
-use crate::{indexer::AleoIndexer, AleoMailboxStruct, AleoMessage, AleoProvider, ConnectionConf};
+use crate::{
+    indexer::AleoIndexer,
+    provider::{AleoClient, BaseHttpClient},
+    AleoMailboxStruct, AleoMessage, AleoProvider, ConnectionConf,
+};
 
 /// Aleo Dispatch Indexer
 #[derive(Debug, Clone)]
-pub struct AleoDispatchIndexer {
-    provider: AleoProvider,
+pub struct AleoDispatchIndexer<C: AleoClient = BaseHttpClient> {
+    provider: AleoProvider<C>,
     address: H256,
     program: String,
     domain: HyperlaneDomain,
 }
 
-impl AleoDispatchIndexer {
+impl<C: AleoClient> AleoDispatchIndexer<C> {
     /// Creates a new Dispatch Indexer
-    pub fn new(provider: AleoProvider, locator: &ContractLocator, conf: &ConnectionConf) -> Self {
+    pub fn new(
+        provider: AleoProvider<C>,
+        locator: &ContractLocator,
+        conf: &ConnectionConf,
+    ) -> Self {
         Self {
             provider,
             address: locator.address,
@@ -49,14 +57,14 @@ impl HyperlaneContract for AleoDispatchIndexer {
     }
 }
 
-impl AleoIndexer for AleoDispatchIndexer {
+impl<C: AleoClient> AleoIndexer for AleoDispatchIndexer<C> {
     const INDEX_MAPPING: &str = "dispatch_event_index";
     const VALUE_MAPPING: &str = "dispatch_events";
 
     type AleoType = AleoMessage;
     type Type = HyperlaneMessage;
 
-    fn get_provider(&self) -> &AleoProvider {
+    fn get_provider(&self) -> &AleoProvider<impl AleoClient> {
         &self.provider
     }
 
@@ -66,7 +74,7 @@ impl AleoIndexer for AleoDispatchIndexer {
 }
 
 #[async_trait]
-impl Indexer<HyperlaneMessage> for AleoDispatchIndexer {
+impl<C: AleoClient> Indexer<HyperlaneMessage> for AleoDispatchIndexer<C> {
     /// Fetch list of logs between blocks `from` and `to`, inclusive.
     async fn fetch_logs_in_range(
         &self,
@@ -82,7 +90,7 @@ impl Indexer<HyperlaneMessage> for AleoDispatchIndexer {
 }
 
 #[async_trait]
-impl SequenceAwareIndexer<HyperlaneMessage> for AleoDispatchIndexer {
+impl<C: AleoClient> SequenceAwareIndexer<HyperlaneMessage> for AleoDispatchIndexer<C> {
     /// Return the latest finalized sequence (if any) and block number
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let (mailbox, height) = self

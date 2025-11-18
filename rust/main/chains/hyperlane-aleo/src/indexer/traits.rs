@@ -11,6 +11,7 @@ use snarkvm::{
     synthesizer::program::FinalizeOperation,
 };
 
+use crate::provider::AleoClient;
 use crate::utils::{to_h256, to_key_id};
 use crate::{AleoProvider, HyperlaneAleoError};
 
@@ -23,7 +24,7 @@ pub(crate) trait AleoIndexer {
         + Into<Self::Type>;
     type Type;
 
-    fn get_provider(&self) -> &AleoProvider;
+    fn get_provider(&self) -> &AleoProvider<impl AleoClient>;
 
     fn get_program(&self) -> &str;
 
@@ -143,7 +144,7 @@ pub(crate) trait AleoIndexer {
             })
             .collect::<ChainResult<_>>()?;
 
-        let mut logs = Vec::with_capacity(transitions.len());
+        let mut logs = HashMap::with_capacity(possible_key_ids.len());
 
         for transition in transitions {
             // Check that the corresponding transaction is executed and didn't get reverted
@@ -188,9 +189,9 @@ pub(crate) trait AleoIndexer {
                     transaction_index: transaction.index().into(),
                     log_index: index.into(),
                 };
-                logs.push((indexed, meta))
+                logs.entry(index).or_insert_with(|| (indexed, meta));
             }
         }
-        Ok(logs)
+        Ok(logs.into_values().collect())
     }
 }

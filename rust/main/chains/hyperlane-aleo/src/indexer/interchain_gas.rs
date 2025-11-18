@@ -10,24 +10,26 @@ use hyperlane_core::{
 };
 
 use crate::{
-    indexer::AleoIndexer, AleoInterchainGasPaymaster, AleoProvider, ConnectionConf, CurrentNetwork,
-    GasPaymentEvent, HookEventIndex, HyperlaneAleoError,
+    indexer::AleoIndexer,
+    provider::{AleoClient, BaseHttpClient},
+    AleoInterchainGasPaymaster, AleoProvider, ConnectionConf, CurrentNetwork, GasPaymentEvent,
+    HookEventIndex, HyperlaneAleoError,
 };
 
 /// Aleo InterchainGas Indexer
 #[derive(Debug, Clone)]
-pub struct AleoInterchainGasIndexer {
-    client: AleoProvider,
+pub struct AleoInterchainGasIndexer<C: AleoClient = BaseHttpClient> {
+    client: AleoProvider<C>,
     address: H256,
     program: String,
     aleo_address: Address<CurrentNetwork>,
     domain: HyperlaneDomain,
 }
 
-impl AleoInterchainGasIndexer {
+impl<C: AleoClient> AleoInterchainGasIndexer<C> {
     /// Creates a new IGP Indexer
     pub fn new(
-        provider: AleoProvider,
+        provider: AleoProvider<C>,
         locator: &ContractLocator,
         conf: &ConnectionConf,
     ) -> ChainResult<Self> {
@@ -64,14 +66,14 @@ impl HyperlaneContract for AleoInterchainGasIndexer {
 
 impl InterchainGasPaymaster for AleoInterchainGasIndexer {}
 
-impl AleoIndexer for AleoInterchainGasIndexer {
+impl<C: AleoClient> AleoIndexer for AleoInterchainGasIndexer<C> {
     const INDEX_MAPPING: &str = "last_event_index";
     const VALUE_MAPPING: &str = "gas_payment_events";
 
     type AleoType = GasPaymentEvent;
     type Type = InterchainGasPayment;
 
-    fn get_provider(&self) -> &AleoProvider {
+    fn get_provider(&self) -> &AleoProvider<impl AleoClient> {
         &self.client
     }
 
@@ -101,7 +103,7 @@ impl AleoIndexer for AleoInterchainGasIndexer {
 }
 
 #[async_trait]
-impl Indexer<InterchainGasPayment> for AleoInterchainGasIndexer {
+impl<C: AleoClient> Indexer<InterchainGasPayment> for AleoInterchainGasIndexer<C> {
     /// Fetch list of logs between blocks `from` and `to`, inclusive.
     async fn fetch_logs_in_range(
         &self,
@@ -117,7 +119,7 @@ impl Indexer<InterchainGasPayment> for AleoInterchainGasIndexer {
 }
 
 #[async_trait]
-impl SequenceAwareIndexer<InterchainGasPayment> for AleoInterchainGasIndexer {
+impl<C: AleoClient> SequenceAwareIndexer<InterchainGasPayment> for AleoInterchainGasIndexer<C> {
     /// Return the latest finalized sequence (if any) and block number
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let (igp, height) = self
