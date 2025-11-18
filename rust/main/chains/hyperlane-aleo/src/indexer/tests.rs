@@ -1,10 +1,10 @@
 use std::{path::PathBuf, str::FromStr};
 
+use hyperlane_core::InterchainGasPayment;
 use hyperlane_core::{
-    ContractLocator, HyperlaneDomain, HyperlaneMessage, Indexer, MerkleTreeInsertion, ReorgPeriod,
+    ContractLocator, HyperlaneDomain, HyperlaneMessage, Indexer, MerkleTreeInsertion,
     SequenceAwareIndexer, H256,
 };
-use hyperlane_core::{InterchainGasPayment, MerkleTreeHook};
 
 use serde_json::json;
 use snarkvm::prelude::{ProgramID, TestnetV0};
