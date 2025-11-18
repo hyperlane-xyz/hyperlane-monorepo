@@ -6,13 +6,60 @@ use hyperlane_base::db::HyperlaneDb;
 use hyperlane_core::QueueOperation;
 use lander::{Entrypoint, PayloadStatus, TransactionStatus};
 
-/// Disposition for how to handle an operation during submission check
+/// Disposition for routing operations through the message processor pipeline.
+///
+/// This enum determines how operations should be handled across the three-stage
+/// message processing pipeline (Prepare → Submit → Confirm).
+///
+/// # Stage-specific behavior
+///
+/// ## Prepare Stage
+/// When `filter_operations_for_preparation` evaluates an operation:
+/// - `PreSubmit`: Returned to caller for preparation (metadata fetch, gas estimation, payload creation)
+/// - `Submit`: Pushed to submit queue with `ReadyToSubmit` status (payload already exists)
+/// - `PostSubmit`: Pushed to confirm queue with `Confirm(AlreadySubmitted)` status (already on-chain)
+///
+/// ## Submit Stage
+/// When `filter_operations_for_submit` evaluates an operation:
+/// - `PreSubmit`: Returned to caller for immediate payload creation and submission (failed/dropped payload)
+/// - `Submit`: Re-queued to submit queue with `ReadyToSubmit` status (waiting for blockchain inclusion)
+/// - `PostSubmit`: Moved to confirm queue via `confirm_op` (transaction included in block)
+///
+/// ## Confirm Stage
+/// The confirm stage does not use disposition logic - it directly processes operations
+/// to verify finality and commit delivery status to the database.
 pub enum OperationDisposition {
-    /// Operation has not been submitted yet - should be prepared or submitted
+    /// Operation requires preparation or has failed submission.
+    ///
+    /// Indicates that:
+    /// - No payload exists for this operation (new message)
+    /// - Payload was dropped or reverted (needs retry)
+    /// - Payload requires retry due to reorg
+    /// - Cannot determine payload status (DB/RPC error - assume needs preparation)
+    ///
+    /// **Prepare stage**: Returns operation to caller for preparation (metadata, gas, payload)
+    /// **Submit stage**: Returns operation to caller for immediate payload creation and submission
     PreSubmit,
-    /// Operation is in the submission pipeline - should remain in submit queue
+
+    /// Operation is actively in the submission pipeline.
+    ///
+    /// Indicates that:
+    /// - Payload exists and is ready to submit (`ReadyToSubmit`)
+    /// - Transaction is pending blockchain inclusion (`PendingInclusion`)
+    /// - Transaction is in mempool (`Mempool`)
+    ///
+    /// **Prepare stage**: Pushes to submit queue (payload already exists, skip preparation)
+    /// **Submit stage**: Re-queues to submit queue (waiting for inclusion, check again later)
     Submit,
-    /// Operation has been submitted and included - should go to confirmation queue
+
+    /// Operation has been included in a block.
+    ///
+    /// Indicates that:
+    /// - Transaction has been included in a block (`Included`)
+    /// - Transaction has been finalized (`Finalized`)
+    ///
+    /// **Prepare stage**: Pushes to confirm queue with `AlreadySubmitted` reason
+    /// **Submit stage**: Moves to confirm queue for finality verification
     PostSubmit,
 }
 
