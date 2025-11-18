@@ -12,7 +12,10 @@ use hyperlane_sealevel_token_lib::{
     instruction::{Init, Instruction as TokenIxn, TransferRemote},
     processor::HyperlaneSealevelToken,
 };
-use solana_program::{account_info::AccountInfo, entrypoint::ProgramResult, msg, pubkey::Pubkey};
+use solana_program::{
+    account_info::AccountInfo, entrypoint::ProgramResult, msg, program_error::ProgramError,
+    pubkey::Pubkey,
+};
 
 use crate::plugin::NativePlugin;
 
@@ -63,6 +66,10 @@ pub fn process_instruction(
     match TokenIxn::decode(instruction_data)? {
         TokenIxn::Init(init) => initialize(program_id, accounts, init),
         TokenIxn::TransferRemote(xfer) => transfer_remote(program_id, accounts, xfer),
+        TokenIxn::TransferRemoteMemo(_) => {
+            msg!("TransferRemoteMemo is not supported by this program. Use the -memo variant.");
+            Err(ProgramError::InvalidInstructionData)
+        }
         TokenIxn::EnrollRemoteRouter(config) => enroll_remote_router(program_id, accounts, config),
         TokenIxn::EnrollRemoteRouters(configs) => {
             enroll_remote_routers(program_id, accounts, configs)

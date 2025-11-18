@@ -32,6 +32,7 @@ hyperlane-sealevel-message-recipient-interface = { path = "../../libraries/messa
 hyperlane-sealevel-token-lib = { path = "../../libraries/hyperlane-sealevel-token" }
 hyperlane-warp-route = { path = "../../../main/applications/hyperlane-warp-route" }
 serializable-account-meta = { path = "../../libraries/serializable-account-meta" }
+hyperlane-sealevel-token = { path = "../hyperlane-sealevel-token" }
 
 [dev-dependencies]
 solana-program-test.workspace = true

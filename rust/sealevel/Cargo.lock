@@ -2805,6 +2805,7 @@ dependencies = [
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",
  "hyperlane-sealevel-test-ism",
+ "hyperlane-sealevel-token",
  "hyperlane-sealevel-token-lib",
  "hyperlane-test-utils",
  "hyperlane-warp-route",
