@@ -22,7 +22,6 @@ import {
 } from '@radixdlt/radix-engine-toolkit';
 import { BigNumber } from 'bignumber.js';
 import { Decimal } from 'decimal.js';
-import { utils } from 'ethers';
 
 import { assert, sleep } from '@hyperlane-xyz/utils';
 
@@ -66,7 +65,9 @@ export class RadixBase {
   }: {
     transactionManifest: TransactionManifest | string;
   }): Promise<{ gasUnits: bigint; gasPrice: number; fee: bigint }> {
-    const pk = new PrivateKey.Ed25519(new Uint8Array(utils.randomBytes(32)));
+    const pk = new PrivateKey.Ed25519(
+      globalThis.crypto.getRandomValues(new Uint8Array(32)),
+    );
     const constructionMetadata =
       await this.gateway.transaction.innerClient.transactionConstruction();
 
