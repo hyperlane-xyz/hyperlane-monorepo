@@ -20,11 +20,13 @@ import {MovableCollateralRouter} from "./libs/MovableCollateralRouter.sol";
 import {LpCollateralRouter} from "./libs/LpCollateralRouter.sol";
 import {ITokenBridge, Quote} from "../interfaces/ITokenBridge.sol";
 import {ERC20Collateral} from "./libs/TokenCollateral.sol";
+import {EnumerableMapExtended} from "../libs/EnumerableMapExtended.sol";
 
 // ============ External Imports ============
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 /**
  * @title Hyperlane ERC20 Token Collateral that wraps an existing ERC20 with remote transfer functionality.
@@ -33,6 +35,8 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 contract HypERC20Collateral is LpCollateralRouter {
     using SafeERC20 for IERC20;
     using ERC20Collateral for IERC20;
+    using EnumerableSet for EnumerableSet.AddressSet;
+    using EnumerableMapExtended for EnumerableMapExtended.UintToBytes32Map;
 
     IERC20 public immutable wrappedToken;
 
@@ -65,21 +69,13 @@ contract HypERC20Collateral is LpCollateralRouter {
     function _addBridge(uint32 domain, ITokenBridge bridge) internal override {
         MovableCollateralRouter._addBridge(domain, bridge);
 
-        uint256 bridgeAllowance = wrappedToken.allowance(
+        uint256 allowance = wrappedToken.allowance(
             address(this),
             address(bridge)
         );
-        if (bridgeAllowance == type(uint256).max) {
-            return;
+        if (allowance != type(uint256).max) {
+            wrappedToken.forceApprove(address(bridge), type(uint256).max);
         }
-
-        // If the current allowance is non-0 we need to reset it
-        // before giving max allowance to the bridge
-        if (bridgeAllowance != 0) {
-            wrappedToken.safeApprove(address(bridge), 0);
-        }
-
-        wrappedToken.safeApprove(address(bridge), type(uint256).max);
     }
 
     function _removeBridge(
@@ -87,7 +83,23 @@ contract HypERC20Collateral is LpCollateralRouter {
         ITokenBridge bridge
     ) internal override {
         MovableCollateralRouter._removeBridge(domain, bridge);
-        IERC20(wrappedToken).safeApprove(address(bridge), 0);
+
+        bool shouldRevoke = true;
+        uint32[] memory knownDomains = _routers.uint32Keys();
+
+        // This for should be fine as there won't be an unbound amount of domains
+        // enrolled chains on this router
+        for (uint256 i = 0; i < knownDomains.length; i++) {
+            EnumerableSet.AddressSet storage bridges = _allowed.bridges[
+                knownDomains[i]
+            ];
+
+            shouldRevoke = shouldRevoke && !bridges.contains(address(bridge));
+        }
+
+        if (shouldRevoke) {
+            wrappedToken.forceApprove(address(bridge), 0);
+        }
     }
 
     /**
