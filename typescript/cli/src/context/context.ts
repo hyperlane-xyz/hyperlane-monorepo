@@ -93,7 +93,9 @@ export async function signerMiddleware(argv: Record<string, any>) {
   );
 
   await loadProviders(
-    chains.map((chain) => argv.context.multiProvider.getProtocol(chain)),
+    new Set(
+      ...chains.map((chain) => argv.context.multiProvider.getProtocol(chain)),
+    ),
   );
 
   await Promise.all(
