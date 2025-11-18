@@ -590,8 +590,6 @@ export class AleoSigner
 
     tx.inputs = [programIdToPlaintext(tokenAddress), ...tx.inputs];
 
-    console.log('native token init inputs:', tx.inputs);
-
     const txId = await this.programManager.execute(tx);
     await this.aleoClient.waitForTransactionConfirmation(txId);
 

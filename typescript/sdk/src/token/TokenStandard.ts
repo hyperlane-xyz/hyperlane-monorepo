@@ -213,6 +213,9 @@ export const TOKEN_HYP_STANDARDS = [
   TokenStandard.StarknetHypSynthetic,
   TokenStandard.RadixHypCollateral,
   TokenStandard.RadixHypSynthetic,
+  TokenStandard.AleoNative,
+  TokenStandard.AleoHypCollateral,
+  TokenStandard.AleoHypSynthetic,
 ];
 
 export const TOKEN_MULTI_CHAIN_STANDARDS = [
@@ -262,6 +265,21 @@ export const tokenTypeToStandard = (
       ) {
         return RADIX_TOKEN_TYPE_TO_STANDARD[
           tokenType as RadixSupportedTokenTypes
+        ];
+      }
+
+      throw new Error(
+        `token type ${tokenType} not available on protocol ${protocolType}`,
+      );
+    }
+    case ProtocolType.Aleo: {
+      if (
+        ALEO_SUPPORTED_TOKEN_TYPES.includes(
+          tokenType as AleoSupportedTokenTypes,
+        )
+      ) {
+        return ALEO_TOKEN_TYPE_TO_STANDARD[
+          tokenType as AleoSupportedTokenTypes
         ];
       }
 
@@ -377,6 +395,23 @@ export const RADIX_TOKEN_TYPE_TO_STANDARD: Record<
 > = {
   [TokenType.collateral]: TokenStandard.RadixHypCollateral,
   [TokenType.synthetic]: TokenStandard.RadixHypSynthetic,
+};
+
+export const ALEO_SUPPORTED_TOKEN_TYPES = [
+  TokenType.native,
+  TokenType.collateral,
+  TokenType.synthetic,
+] as const;
+
+type AleoSupportedTokenTypes = (typeof ALEO_SUPPORTED_TOKEN_TYPES)[number];
+
+export const ALEO_TOKEN_TYPE_TO_STANDARD: Record<
+  AleoSupportedTokenTypes,
+  TokenStandard
+> = {
+  [TokenType.native]: TokenStandard.AleoNative,
+  [TokenType.collateral]: TokenStandard.AleoHypCollateral,
+  [TokenType.synthetic]: TokenStandard.AleoHypSynthetic,
 };
 
 export const PROTOCOL_TO_NATIVE_STANDARD: Record<ProtocolType, TokenStandard> =
