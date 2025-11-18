@@ -5,21 +5,25 @@ use std::time::{Duration, Instant, SystemTime};
 
 use chrono::{TimeZone, Utc};
 use ethers::types::transaction::eip2718::TypedTransaction;
-use ethers::types::{Address, Bloom, TransactionReceipt, H160, U256 as EthersU256, U64};
+use ethers::types::{
+    Address, Bloom, Eip1559TransactionRequest, TransactionReceipt, H160, U256 as EthersU256, U64,
+};
 use ethers::utils::EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE;
+use hyperlane_ethereum::TransactionOverrides;
 use tokio::{select, sync::mpsc};
 use tracing_test::traced_test;
 
-use hyperlane_core::{ChainCommunicationError, KnownHyperlaneDomain, H256};
+use hyperlane_core::{ChainCommunicationError, KnownHyperlaneDomain, H256, H512, U256};
 
 use crate::adapter::chains::ethereum::{
     apply_estimate_buffer_to_ethers,
     tests::{ExpectedEvmTxState, ExpectedTxType, MockEvmProvider},
     Precursor,
 };
-use crate::dispatcher::{InclusionStage, TransactionDb};
+use crate::dispatcher::{DispatcherState, InclusionStage, TransactionDb};
+use crate::tests::test_utils::tmp_dbs;
 use crate::transaction::Transaction;
-use crate::{PayloadStatus, TransactionStatus};
+use crate::{DispatcherMetrics, PayloadStatus, TransactionStatus};
 
 use super::test_utils::*;
 
@@ -1099,6 +1103,122 @@ async fn test_tx_finalized_but_failed() {
     );
 }
 
+/// Test case where tx is already in mempool, but is assigned a new
+/// nonce. In this case, we still need to make sure tx has new nonce
+/// stored.
+#[tokio::test]
+#[traced_test]
+async fn test_tx_mempool_but_assigned_new_nonce() {
+    let block_time = TEST_BLOCK_TIME;
+
+    let mut mock_evm_provider = MockEvmProvider::new();
+    mock_finalized_block_number(&mut mock_evm_provider);
+    mock_estimate_gas_limit(&mut mock_evm_provider);
+    mock_get_block(&mut mock_evm_provider);
+    mock_get_next_nonce_on_finalized_block(&mut mock_evm_provider);
+
+    mock_evm_provider.expect_fee_history().returning(|_, _, _| {
+        let base_fee = 10;
+        let prio_fee = 10;
+        Ok(mock_fee_history(base_fee, prio_fee))
+    });
+    mock_evm_provider
+        .expect_send()
+        .returning(|_, _| Ok(H256::random()));
+    mock_evm_provider
+        .expect_get_transaction_receipt()
+        .returning(move |_| {
+            Ok(Some(TransactionReceipt {
+                transaction_hash: H256::random().into(),
+                block_number: None,
+                ..Default::default()
+            }))
+        });
+
+    let signer = H160::random();
+    let (payload_db, tx_db, nonce_db) = tmp_dbs();
+    let mut adapter = mock_ethereum_adapter(
+        mock_evm_provider,
+        payload_db.clone(),
+        tx_db.clone(),
+        nonce_db.clone(),
+        signer,
+        block_time,
+        TEST_MINIMUM_TIME_BETWEEN_RESUBMISSIONS,
+    );
+    // Set transactions override so transaction
+    // reaches max gas cap.
+    adapter.transaction_overrides = TransactionOverrides {
+        gas_price_cap: Some(U256::from(1000)),
+        max_priority_fee_per_gas: Some(U256::from(1000)),
+        ..Default::default()
+    };
+    let dispatcher_state = DispatcherState::new(
+        payload_db,
+        tx_db.clone(),
+        Arc::new(adapter),
+        DispatcherMetrics::dummy_instance(),
+        "test".to_string(),
+    );
+    let (finality_stage_sender, _receiver) = mpsc::channel(100);
+    let inclusion_stage_pool = Arc::new(tokio::sync::Mutex::new(HashMap::new()));
+
+    let created_txs = mock_evm_txs(
+        1,
+        &dispatcher_state.payload_db,
+        &dispatcher_state.tx_db,
+        TransactionStatus::Mempool,
+        signer,
+        ExpectedTxType::Eip1559,
+    )
+    .await;
+
+    // set nonce to 100, set gas to something that is already really high
+    // compared to fee history
+    let mut created_tx = created_txs[0].clone();
+    created_tx.tx_hashes.push(H512::random());
+    let precursor = created_tx.precursor_mut();
+    precursor.tx = TypedTransaction::Eip1559(Eip1559TransactionRequest {
+        from: Some(signer),
+        to: Some(ethers::types::NameOrAddress::Address(H160::random())),
+        nonce: Some(EthersU256::from(100)),
+        max_fee_per_gas: Some(EthersU256::from(300_000)),
+        max_priority_fee_per_gas: Some(EthersU256::from(100_000)),
+        ..Default::default()
+    });
+
+    inclusion_stage_pool
+        .lock()
+        .await
+        .insert(created_tx.uuid.clone(), created_tx.clone());
+
+    let mock_domain = TEST_DOMAIN.as_str();
+    InclusionStage::process_txs_step(
+        &inclusion_stage_pool,
+        &finality_stage_sender,
+        &dispatcher_state,
+        mock_domain,
+    )
+    .await
+    .unwrap();
+
+    // check nonce is stored correctly in db
+    let stored_nonce = nonce_db
+        .retrieve_nonce_by_transaction_uuid(&signer, &created_tx.uuid)
+        .await
+        .unwrap();
+    assert_eq!(stored_nonce, Some(U256::from(1)));
+
+    let retrieved_tx = tx_db
+        .retrieve_transaction_by_uuid(&created_tx.uuid)
+        .await
+        .unwrap()
+        .unwrap();
+    let evm_tx = &retrieved_tx.precursor().tx;
+    assert_eq!(evm_tx.nonce(), Some(&EthersU256::from(1)));
+    assert_eq!(retrieved_tx.status, TransactionStatus::Mempool,);
+}
+
 async fn run_and_expect_successful_inclusion(
     initial_tx_type: ExpectedTxType,
     mut expected_tx_states: Vec<ExpectedEvmTxState>,
@@ -1135,7 +1255,8 @@ async fn run_and_expect_successful_inclusion(
     let expected_tx_state = expected_tx_states.remove(0);
     assert_tx_db_state(&expected_tx_state, &dispatcher_state.tx_db, &created_tx).await;
 
-    for expected_tx_state in expected_tx_states.iter() {
+    for (i, expected_tx_state) in expected_tx_states.iter().enumerate() {
+        tracing::debug!(iteration = i, "run_and_expect_successful_inclusion");
         InclusionStage::process_txs_step(
             &inclusion_stage_pool,
             &finality_stage_sender,
