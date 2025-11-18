@@ -38,7 +38,7 @@
     "version:prepare": "yarn changeset version && turbo run version:update && yarn install --no-immutable",
     "version:check": "yarn changeset status",
     "release": "yarn build && yarn changeset publish",
-    "postinstall": "husky install"
+    "prepare": "husky install"
   },
   "workspaces": [
     "solhint-plugin",

@@ -14,7 +14,6 @@
   "type": "module",
   "moduleResolution": "nodenext",
   "scripts": {
-    "postinstall": "prisma generate",
     "build": "prisma generate && tsc -p tsconfig.json",
     "start": "tsx src/server.ts",
     "dev": "NODE_ENV=development LOG_FORMAT=pretty tsx watch src/server.ts",
