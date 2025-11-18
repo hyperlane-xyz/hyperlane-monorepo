@@ -25,7 +25,7 @@ const owners = {
 
 export const CONTRACT_VERSION = '8.0.0';
 
-export const getEthereumSuperseedUSDCWarpConfig = async (
+export const getSuperseedUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const rebalancingConfig = getUSDCRebalancingBridgesConfigFor(
@@ -106,7 +106,7 @@ export const getEthereumSuperseedUSDCSTAGEWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const { ethereum, superseed, arbitrum, base, optimism, ink, solanamainnet } =
-    await getEthereumSuperseedUSDCWarpConfig(routerConfig);
+    await getSuperseedUSDCWarpConfig(routerConfig);
 
   return {
     ethereum,
