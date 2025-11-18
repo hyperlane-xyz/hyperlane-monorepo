@@ -8225,6 +8225,7 @@ __metadata:
     sinon: "npm:^13.0.2"
     terminal-link: "npm:^3.0.0"
     testcontainers: "npm:11.7.0"
+    ts-node: "npm:^10.8.0"
     tsx: "npm:^4.19.1"
     typescript: "npm:5.3.3"
     viem: "npm:^2.21.45"
