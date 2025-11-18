@@ -32,15 +32,27 @@ describe('HyperlaneIgpDeployer', () => {
     igp = contracts[local].interchainGasPaymaster;
   });
 
+  // Note: We use .eq() method for BigNumber comparisons instead of deep.equal because:
+  // 1. The monorepo no longer hoists packages, so solidity/ and typescript/sdk/ have separate ethers installations
+  // 2. deployedConfig contains BigNumbers from @hyperlane-xyz/core (solidity's ethers)
+  // 3. expected contains BigNumbers from typescript/sdk's ethers
+  // 4. While they have the same values, they're different class instances, so deep.equal fails
+  // 5. BigNumber.eq() works correctly across different ethers instances (see DUAL_ETHERS_BIGNUMBER_ISSUE.md)
   it('should deploy storage gas oracle with config given', async () => {
     // Assert
     const deployedConfig = await igp.getExchangeRateAndGasPrice(remoteId);
-    expect({
-      gasPrice: deployedConfig.gasPrice,
-      tokenExchangeRate: deployedConfig.tokenExchangeRate,
-    }).to.deep.equal(
-      oracleConfigToOracleData(testConfig[local].oracleConfig![remote]),
+    const expected = oracleConfigToOracleData(
+      testConfig[local].oracleConfig![remote],
     );
+
+    expect(
+      deployedConfig.gasPrice.eq(expected.gasPrice),
+      `gasPrice mismatch: expected ${expected.gasPrice.toString()}, got ${deployedConfig.gasPrice.toString()}`,
+    ).to.be.true;
+    expect(
+      deployedConfig.tokenExchangeRate.eq(expected.tokenExchangeRate),
+      `tokenExchangeRate mismatch: expected ${expected.tokenExchangeRate.toString()}, got ${deployedConfig.tokenExchangeRate.toString()}`,
+    ).to.be.true;
   });
 
   it('should configure new oracle config', async () => {
@@ -57,11 +69,17 @@ describe('HyperlaneIgpDeployer', () => {
     igp = localContracts.interchainGasPaymaster;
 
     const modifiedConfig = await igp.getExchangeRateAndGasPrice(remoteId);
-    expect({
-      gasPrice: modifiedConfig.gasPrice,
-      tokenExchangeRate: modifiedConfig.tokenExchangeRate,
-    }).to.deep.equal(
-      oracleConfigToOracleData(testConfig[local].oracleConfig![remote]),
+    const expected = oracleConfigToOracleData(
+      testConfig[local].oracleConfig![remote],
     );
+
+    expect(
+      modifiedConfig.gasPrice.eq(expected.gasPrice),
+      `gasPrice mismatch: expected ${expected.gasPrice.toString()}, got ${modifiedConfig.gasPrice.toString()}`,
+    ).to.be.true;
+    expect(
+      modifiedConfig.tokenExchangeRate.eq(expected.tokenExchangeRate),
+      `tokenExchangeRate mismatch: expected ${expected.tokenExchangeRate.toString()}, got ${modifiedConfig.tokenExchangeRate.toString()}`,
+    ).to.be.true;
   });
 });
