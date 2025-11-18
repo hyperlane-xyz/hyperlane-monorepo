@@ -204,3 +204,12 @@ pub struct HookEventIndex<N: Network = CurrentNetwork> {
     /// Height
     pub block_height: u32,
 }
+
+#[aleo_serialize]
+#[derive(Debug)]
+pub struct RouteKey<N: Network = CurrentNetwork> {
+    /// Ism address
+    pub ism: Address<N>,
+    /// Domain
+    pub domain: u32,
+}
