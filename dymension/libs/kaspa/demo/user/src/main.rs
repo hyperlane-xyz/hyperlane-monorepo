@@ -7,6 +7,9 @@ mod x;
 
 async fn run(cli: Cli) {
     tracing_subscriber::fmt::init();
+    rustls::crypto::aws_lc_rs::default_provider()
+        .install_default()
+        .expect("Failed to install rustls crypto provider");
     match cli.command {
         Commands::Recipient(args) => {
             let converted = x::addr::hl_recipient(&args.address);

@@ -13,6 +13,7 @@ secp256k1 = { workspace = true }
 serde = { version = "^1.0", features = ["derive"] }
 serde_json = { workspace = true }
 hex = "0.4.3"
+rustls = {workspace = true}
 clap = { workspace = true, features = ["derive"] }
 tokio = { workspace = true, features = ["full"] }
 tokio-util = { version = "0.7.15" }

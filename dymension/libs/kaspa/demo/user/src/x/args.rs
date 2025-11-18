@@ -98,37 +98,33 @@ pub struct RecipientCli {
 
 #[derive(Args, Debug)]
 /// Simulate/benchmark traffic on Kaspa and the Hub
-/// Launches some tasks with amounts and times sampled from realistic (poisson and exponential) distribution.
-/// Each task does a kaspa deposit to a new hub address, and then transfers back to a kaspa address.
+/// Launches tasks at Poisson-distributed intervals with fixed 41 KAS transfers
+/// Each task does a kaspa deposit from a whale to escrow, then transfers back to a kaspa address
 /// In this way errors and latencies can be tracked
 pub struct SimulateTrafficCli {
-    /// The amount to fund each hub address with adym to pay fees on the withdrawal
-    #[arg(long, required = true)]
-    pub hub_fund_amount: u64,
+    /// Comma-separated kaspa whale wallet secrets (need ~450 for 90 ops/sec)
+    #[arg(long, required = true, value_delimiter = ',')]
+    pub kaspa_whale_secrets: Vec<String>,
 
-    /// Filesystem dir to write logs/stats/debuf info from the run
+    /// Comma-separated hub whale private keys in hex (need ~450 for 90 ops/sec)
+    #[arg(long, required = true, value_delimiter = ',')]
+    pub hub_whale_priv_keys: Vec<String>,
+
+    /// Optional: shared wallet directory prefix for kaspa whales
+    #[arg(long)]
+    pub kaspa_whale_wallet_dir_prefix: Option<String>,
+
+    /// Filesystem dir to write logs/stats/debug info from the run
     #[arg(long, required = true)]
     pub output_dir: String,
 
-    /// Hex private key of hub account which has dym funds which can be used to pay fees on the withdrawals
-    #[arg(long, required = true)]
-    pub hub_whale_priv_key: String,
-
-    /// Approx total time limit to run the simulation in seconds
+    /// Total time limit to run the simulation in seconds
     #[arg(long, required = true)]
     pub time_limit: u64,
 
-    /// Approx kaspa budget to fund deposits, from the kaspa whale account (in sompi)
-    #[arg(long, required = true)]
-    pub budget: u64,
-
-    /// Approx number of ops per minute to run. E.g. osmosis does 90 IBC transfers per minute
+    /// Number of ops per minute to run (e.g. 90 for osmosis-level traffic)
     #[arg(long, required = true)]
     pub ops_per_minute: u64,
-
-    /// Minimum deposit amount in sompi (must be at least 4000000000 = 40 KAS for withdrawals to work)
-    #[arg(long, default_value = "4000000000")]
-    pub min_deposit_sompi: u64,
 
     /// Kaspa HL domain
     #[arg(long, required = true)]
@@ -150,49 +146,40 @@ pub struct SimulateTrafficCli {
     #[arg(long, required = true)]
     pub escrow_address: String,
 
-    #[command(flatten)]
-    pub wallet: WalletCli,
+    /// Kaspa wRPC URL
+    #[arg(long, required = true)]
+    pub kaspa_wrpc_url: String,
 
-    /// Hub RPC URL (default: https://rpc-dymension-playground35.mzonder.com:443)
-    #[arg(
-        long,
-        default_value = "https://rpc-dymension-playground35.mzonder.com:443"
-    )]
+    /// Hub RPC URL
+    #[arg(long, required = true)]
     pub hub_rpc_url: String,
 
-    /// Hub gRPC URL (default: https://grpc-dymension-playground35.mzonder.com:443)
-    #[arg(
-        long,
-        default_value = "https://grpc-dymension-playground35.mzonder.com:443"
-    )]
+    /// Hub gRPC URL
+    #[arg(long, required = true)]
     pub hub_grpc_url: String,
 
-    /// Hub chain ID (default: dymension_3405-1)
-    #[arg(long, default_value = "dymension_3405-1")]
+    /// Hub chain ID
+    #[arg(long, required = true)]
     pub hub_chain_id: String,
 
-    /// Hub address prefix (default: dym)
-    #[arg(long, default_value = "dym")]
+    /// Hub address prefix
+    #[arg(long, required = true)]
     pub hub_prefix: String,
 
-    /// Hub native denom (default: adym)
-    #[arg(long, default_value = "adym")]
+    /// Hub native denom
+    #[arg(long, required = true)]
     pub hub_denom: String,
 
-    /// Hub native token decimals (default: 18)
-    #[arg(long, default_value = "18")]
+    /// Hub native token decimals
+    #[arg(long, required = true)]
     pub hub_decimals: u32,
 
-    /// Kaspa REST API URL (default: https://api-tn10.kaspa.org/)
-    #[arg(long, default_value = "https://api-tn10.kaspa.org/")]
+    /// Kaspa REST API URL
+    #[arg(long, required = true)]
     pub kaspa_rest_url: String,
 
-    /// If true, just simply does one round trip and then exists, ignoring time and budget etc
-    #[arg(long, default_value = "false")]
-    pub simple: bool,
-
-    /// The number of seconds to wait for the simulation to cancel (default: 180)
-    #[arg(long, default_value = "180")]
+    /// The number of seconds to wait for the simulation to cancel
+    #[arg(long, required = true)]
     pub cancel_wait: u64,
 }
 

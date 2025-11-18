@@ -37,6 +37,9 @@ kaspa-hashes = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f
 kaspa-bip32 = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }
 kaspa-consensus-client = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }
 
+rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs", "std"] }
+
+
 api-rs = { path = "../api", package = "openapi" }
 secp256k1 = { version = "0.29.0", features = ["global-context", "rand-std", "serde"] }
 serde_json = "1.0.107"

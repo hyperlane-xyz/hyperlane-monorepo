@@ -1,0 +1,172 @@
+use super::key_cosmos::EasyHubKey;
+use eyre::Result;
+use hyperlane_core::config::OpSubmissionConfig;
+use hyperlane_core::ContractLocator;
+use hyperlane_core::HyperlaneDomain;
+use hyperlane_core::KnownHyperlaneDomain;
+use hyperlane_core::NativeToken;
+use hyperlane_core::H256;
+use hyperlane_cosmos::ConnectionConf as CosmosConnectionConf;
+use hyperlane_cosmos::RawCosmosAmount;
+use hyperlane_cosmos::{native::ModuleQueryClient, CosmosProvider};
+use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
+use std::sync::{Arc, Mutex};
+use std::time::Instant;
+use tracing::{debug, info};
+use url::Url;
+
+pub struct HubWhale {
+    pub provider: CosmosProvider<ModuleQueryClient>,
+    last_used: Mutex<Instant>,
+    pub id: usize,
+}
+
+impl HubWhale {
+    fn mark_used(&self) {
+        *self.last_used.lock().unwrap() = Instant::now();
+    }
+
+    fn last_used(&self) -> Instant {
+        *self.last_used.lock().unwrap()
+    }
+}
+
+pub struct HubWhalePool {
+    whales: Vec<Arc<HubWhale>>,
+}
+
+impl HubWhalePool {
+    pub async fn new(
+        priv_keys: Vec<String>,
+        rpc_url: String,
+        grpc_url: String,
+        chain_id: String,
+        prefix: String,
+        denom: String,
+        decimals: u32,
+    ) -> Result<Self> {
+        if priv_keys.is_empty() {
+            return Err(eyre::eyre!("hub whale private keys list cannot be empty"));
+        }
+
+        info!("Initializing {} Hub whales", priv_keys.len());
+
+        let mut whales = Vec::new();
+        let base_time = Instant::now();
+
+        for (id, priv_key_hex) in priv_keys.into_iter().enumerate() {
+            let key = EasyHubKey::from_hex(&priv_key_hex);
+            let provider = Self::create_cosmos_provider(
+                &key, &rpc_url, &grpc_url, &chain_id, &prefix, &denom, decimals,
+            )
+            .await?;
+
+            debug!(
+                "Hub whale initialized: id={} address={}",
+                id,
+                key.signer().address_string
+            );
+
+            let whale = Arc::new(HubWhale {
+                provider,
+                last_used: Mutex::new(base_time - std::time::Duration::from_secs(id as u64)),
+                id,
+            });
+
+            whales.push(whale);
+
+            info!("Initialized Hub whale: id={}", id);
+        }
+
+        info!("All {} Hub whales initialized", whales.len());
+
+        Ok(Self { whales })
+    }
+
+    async fn create_cosmos_provider(
+        key: &EasyHubKey,
+        rpc_url: &str,
+        grpc_url: &str,
+        chain_id: &str,
+        prefix: &str,
+        denom: &str,
+        decimals: u32,
+    ) -> Result<CosmosProvider<ModuleQueryClient>> {
+        let conf = CosmosConnectionConf::new(
+            vec![Url::parse(grpc_url).map_err(|e| eyre::eyre!("invalid gRPC URL: {}", e))?],
+            vec![Url::parse(rpc_url).map_err(|e| eyre::eyre!("invalid RPC URL: {}", e))?],
+            chain_id.to_string(),
+            prefix.to_string(),
+            denom.to_string(),
+            RawCosmosAmount {
+                amount: "100000000000.0".to_string(),
+                denom: denom.to_string(),
+            },
+            32,
+            OpSubmissionConfig::default(),
+            NativeToken {
+                decimals,
+                denom: denom.to_string(),
+            },
+            1.0,
+            None,
+        )
+        .map_err(|e| eyre::eyre!(e))?;
+
+        let d = HyperlaneDomain::Known(KnownHyperlaneDomain::Osmosis);
+        let locator = ContractLocator::new(&d, H256::zero());
+        let signer = Some(key.signer());
+        let metrics = PrometheusClientMetrics::default();
+        let chain = None;
+
+        CosmosProvider::<ModuleQueryClient>::new(&conf, &locator, signer, metrics, chain)
+            .map_err(eyre::Report::from)
+    }
+
+    pub fn select_whale(&self) -> Arc<HubWhale> {
+        let selected = self
+            .whales
+            .iter()
+            .min_by_key(|w| w.last_used())
+            .expect("whale pool cannot be empty")
+            .clone();
+
+        selected.mark_used();
+        selected
+    }
+
+    pub fn count(&self) -> usize {
+        self.whales.len()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_lru_tracking() {
+        let base = Instant::now();
+
+        let w1 = Arc::new(HubWhale {
+            provider: unsafe { std::mem::zeroed() },
+            last_used: Mutex::new(base - std::time::Duration::from_secs(10)),
+            id: 1,
+        });
+        let w2 = Arc::new(HubWhale {
+            provider: unsafe { std::mem::zeroed() },
+            last_used: Mutex::new(base - std::time::Duration::from_secs(5)),
+            id: 2,
+        });
+
+        let pool = HubWhalePool {
+            whales: vec![w1.clone(), w2.clone()],
+        };
+
+        let selected = pool.select_whale();
+        assert_eq!(selected.id, 1);
+
+        let selected = pool.select_whale();
+        assert_eq!(selected.id, 2);
+    }
+}

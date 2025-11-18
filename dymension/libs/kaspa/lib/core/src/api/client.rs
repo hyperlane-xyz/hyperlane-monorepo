@@ -190,8 +190,7 @@ impl HttpClient {
     }
 
     pub fn get_config(&self) -> Configuration {
-        let u = self.url.clone();
-        let url = u.strip_suffix("/").unwrap();
+        let url = self.url.strip_suffix("/").unwrap_or(&self.url);
         get_config(url, self.client.clone())
     }
 

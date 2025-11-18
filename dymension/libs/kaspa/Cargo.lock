@@ -2658,6 +2658,7 @@ dependencies = [
  "rand_core 0.6.4",
  "rand_distr",
  "relayer",
+ "rustls 0.23.28",
  "secp256k1",
  "serde",
  "serde_json",
