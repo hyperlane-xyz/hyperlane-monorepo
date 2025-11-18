@@ -41,7 +41,7 @@
     "ts-jest": "^29.1.2",
     "ts-node": "^10.8.0",
     "tsx": "^4.19.1",
-    "typescript": "^5.3.3"
+    "typescript": "5.3.3"
   },
   "dependencies": {
     "@eth-optimism/sdk": "^3.3.3",

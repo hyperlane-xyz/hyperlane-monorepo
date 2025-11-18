@@ -71,7 +71,7 @@
     "prettier": "^3.5.3",
     "smol-toml": "1.4.2",
     "tsx": "^4.19.1",
-    "typescript": "^5.3.3"
+    "typescript": "5.3.3"
   },
   "private": true,
   "homepage": "https://www.hyperlane.xyz",

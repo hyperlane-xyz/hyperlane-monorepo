@@ -52,7 +52,7 @@
     "sinon": "^13.0.2",
     "supertest": "^6.3.3",
     "tsx": "^4.19.1",
-    "typescript": "^5.3.3",
+    "typescript": "5.3.3",
     "yargs": "^17.7.2"
   }
 }
