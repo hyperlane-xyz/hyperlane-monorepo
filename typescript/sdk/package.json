@@ -9,8 +9,10 @@
     "@cosmjs/cosmwasm-stargate": "^0.32.4",
     "@cosmjs/proto-signing": "^0.32.4",
     "@cosmjs/stargate": "^0.32.4",
+    "@ethersproject/providers": "^5.8.0",
     "@hyperlane-xyz/core": "10.0.3",
     "@hyperlane-xyz/cosmos-sdk": "19.9.0",
+    "@hyperlane-xyz/deploy-sdk": "0.1.0",
     "@hyperlane-xyz/provider-sdk": "0.1.0",
     "@hyperlane-xyz/radix-sdk": "19.9.0",
     "@hyperlane-xyz/starknet-core": "19.9.0",
@@ -40,6 +42,7 @@
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@nomiclabs/hardhat-ethers": "^2.2.3",
     "@nomiclabs/hardhat-waffle": "^2.0.6",
+    "@starknet-react/chains": "^3.1.2",
     "@types/chai-as-promised": "^8",
     "@types/mocha": "^10.0.1",
     "@types/node": "^18.14.5",
@@ -95,7 +98,6 @@
     "test:foundry": "./scripts/foundry-test.sh"
   },
   "peerDependencies": {
-    "@ethersproject/abi": "*",
-    "@ethersproject/providers": "*"
+    "@ethersproject/abi": "*"
   }
 }
