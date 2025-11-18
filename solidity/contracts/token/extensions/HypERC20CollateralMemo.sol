@@ -28,9 +28,13 @@ contract HypERC20CollateralMemo is HypERC20Collateral {
     function _transferFromSender(
         uint256 _amount
     ) internal virtual override returns (bytes memory) {
-        super._transferFromSender(_amount);
+        // Follow CEI pattern: read and clear _memo BEFORE external call
+        // to prevent reentrancy if wrappedToken has callbacks (ERC777, custom hooks)
         bytes memory memo = _memo;
         delete _memo;
+
+        super._transferFromSender(_amount);
+
         emit IncludedMemo(memo);
         return memo;
     }

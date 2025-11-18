@@ -28,9 +28,13 @@ contract HypERC20Memo is HypERC20 {
     function _transferFromSender(
         uint256 _amount
     ) internal virtual override returns (bytes memory) {
-        super._transferFromSender(_amount);
+        // Follow CEI pattern: read and clear _memo BEFORE burn
+        // to prevent reentrancy if child contracts override token hooks with external calls
         bytes memory memo = _memo;
         delete _memo;
+
+        super._transferFromSender(_amount);
+
         emit IncludedMemo(memo);
         return memo;
     }
