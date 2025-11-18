@@ -20,7 +20,7 @@ abstract contract MovableCollateralRouter is TokenRouter {
     using EnumerableSet for EnumerableSet.AddressSet;
     using Quotes for Quote[];
 
-    MovableCollateralRouterStorage internal _allowed;
+    MovableCollateralRouterStorage internal allowed;
 
     event CollateralMoved(
         uint32 indexed domain,
@@ -31,27 +31,27 @@ abstract contract MovableCollateralRouter is TokenRouter {
 
     modifier onlyRebalancer() {
         require(
-            _allowed.rebalancers.contains(_msgSender()),
+            allowed.rebalancers.contains(_msgSender()),
             "MCR: Only Rebalancer"
         );
         _;
     }
 
     modifier onlyAllowedBridge(uint32 domain, ITokenBridge bridge) {
-        EnumerableSet.AddressSet storage bridges = _allowed.bridges[domain];
+        EnumerableSet.AddressSet storage bridges = allowed.bridges[domain];
         require(bridges.contains(address(bridge)), "MCR: Not allowed bridge");
         _;
     }
 
     /// @notice Set of addresses that are allowed to rebalance.
     function allowedRebalancers() external view returns (address[] memory) {
-        return _allowed.rebalancers.values();
+        return allowed.rebalancers.values();
     }
 
     /// @notice Mapping of domain to allowed rebalance recipient.
     /// @dev Keys constrained to a subset of Router.domains()
     function allowedRecipient(uint32 domain) external view returns (bytes32) {
-        return _allowed.recipient[domain];
+        return allowed.recipient[domain];
     }
 
     /// @notice Mapping of domain to allowed rebalance bridges.
@@ -59,17 +59,17 @@ abstract contract MovableCollateralRouter is TokenRouter {
     function allowedBridges(
         uint32 domain
     ) external view returns (address[] memory) {
-        return _allowed.bridges[domain].values();
+        return allowed.bridges[domain].values();
     }
 
     function setRecipient(uint32 domain, bytes32 recipient) external onlyOwner {
         // constrain to a subset of Router.domains()
         _mustHaveRemoteRouter(domain);
-        _allowed.recipient[domain] = recipient;
+        allowed.recipient[domain] = recipient;
     }
 
     function removeRecipient(uint32 domain) external onlyOwner {
-        delete _allowed.recipient[domain];
+        delete allowed.recipient[domain];
     }
 
     function addBridge(uint32 domain, ITokenBridge bridge) external onlyOwner {
@@ -79,7 +79,7 @@ abstract contract MovableCollateralRouter is TokenRouter {
     }
 
     function _addBridge(uint32 domain, ITokenBridge bridge) internal virtual {
-        _allowed.bridges[domain].add(address(bridge));
+        allowed.bridges[domain].add(address(bridge));
     }
 
     function removeBridge(
@@ -93,7 +93,7 @@ abstract contract MovableCollateralRouter is TokenRouter {
         uint32 domain,
         ITokenBridge bridge
     ) internal virtual {
-        _allowed.bridges[domain].remove(address(bridge));
+        allowed.bridges[domain].remove(address(bridge));
     }
 
     /**
@@ -110,11 +110,11 @@ abstract contract MovableCollateralRouter is TokenRouter {
     }
 
     function addRebalancer(address rebalancer) external onlyOwner {
-        _allowed.rebalancers.add(rebalancer);
+        allowed.rebalancers.add(rebalancer);
     }
 
     function removeRebalancer(address rebalancer) external onlyOwner {
-        _allowed.rebalancers.remove(rebalancer);
+        allowed.rebalancers.remove(rebalancer);
     }
 
     /**
@@ -164,7 +164,7 @@ abstract contract MovableCollateralRouter is TokenRouter {
     function _recipient(
         uint32 domain
     ) internal view returns (bytes32 recipient) {
-        recipient = _allowed.recipient[domain];
+        recipient = allowed.recipient[domain];
         if (recipient == bytes32(0)) {
             recipient = _mustHaveRemoteRouter(domain);
         }
@@ -189,8 +189,8 @@ abstract contract MovableCollateralRouter is TokenRouter {
 
     /// @dev Constrains keys of rebalance mappings to Router.domains()
     function _unenrollRemoteRouter(uint32 domain) internal override {
-        delete _allowed.recipient[domain];
-        _clear(_allowed.bridges[domain]._inner);
+        delete allowed.recipient[domain];
+        _clear(allowed.bridges[domain]._inner);
         Router._unenrollRemoteRouter(domain);
     }
 }

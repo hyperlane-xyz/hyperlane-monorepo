@@ -90,7 +90,7 @@ contract HypERC20Collateral is LpCollateralRouter {
         // This for should be fine as there won't be an unbound amount of domains
         // enrolled chains on this router
         for (uint256 i = 0; i < knownDomains.length; i++) {
-            EnumerableSet.AddressSet storage bridges = _allowed.bridges[
+            EnumerableSet.AddressSet storage bridges = allowed.bridges[
                 knownDomains[i]
             ];
 
