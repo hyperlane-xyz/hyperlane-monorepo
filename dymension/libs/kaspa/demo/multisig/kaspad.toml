@@ -1,6 +1,0 @@
-testnet = true
-utxoindex = true
-rpclisten-borsh = "default" 
-
-# Loud!
-# loglevel = "DEBUG"
