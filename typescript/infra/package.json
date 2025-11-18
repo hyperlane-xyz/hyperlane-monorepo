@@ -70,6 +70,7 @@
     "mocha": "^11.5.0",
     "prettier": "^3.5.3",
     "smol-toml": "1.4.2",
+    "ts-node": "^10.8.0",
     "tsx": "^4.19.1",
     "typescript": "5.3.3"
   },

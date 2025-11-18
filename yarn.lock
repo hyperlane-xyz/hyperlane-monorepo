@@ -8536,6 +8536,7 @@ __metadata:
     prompts: "npm:^2.4.2"
     smol-toml: "npm:1.4.2"
     tmp: "npm:^0.2.3"
+    ts-node: "npm:^10.8.0"
     tsx: "npm:^4.19.1"
     typescript: "npm:5.3.3"
     yaml: "npm:2.4.5"
