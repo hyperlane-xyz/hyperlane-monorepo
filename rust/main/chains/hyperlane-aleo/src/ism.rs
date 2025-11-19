@@ -104,17 +104,7 @@ impl MultisigIsm for AleoIsm {
             .provider
             .get_mapping_value(&self.program, "message_id_multisigs", &self.aleo_address)
             .await?;
-        let validators = multisig_ism
-            .validators
-            .iter()
-            .map(|validator| {
-                let validator = H160::from(validator.bytes);
-                H256::from(validator)
-            })
-            // filter out any validator with the zero address
-            .filter(|x| !H256::is_zero(x))
-            .collect_vec();
-        Ok((validators, multisig_ism.threshold))
+        Ok(multisig_ism.validators_and_threshold())
     }
 }
 
@@ -131,5 +121,74 @@ impl RoutingIsm for AleoIsm {
             .get_mapping_value(&self.program, "routes", &key)
             .await?;
         Ok(to_h256(routed_ism)?)
+    }
+}
+
+impl AleoMessagesIdMultisig {
+    /// Extracts the validators and threshold from the multisig ISM
+    /// Returns a vector of non-zero validators and the threshold
+    fn validators_and_threshold(&self) -> (Vec<H256>, u8) {
+        let validators = self
+            .validators
+            .iter()
+            .take(self.validator_count as usize)
+            .map(|validator| {
+                let validator = H160::from(validator.bytes);
+                H256::from(validator)
+            })
+            .filter(|x| !H256::is_zero(x))
+            .collect_vec();
+        (validators, self.threshold)
+    }
+}
+#[cfg(test)]
+mod tests {
+    use crate::{AleoEthAddress, MAX_VALIDATORS};
+
+    use super::*;
+
+    #[test]
+    fn test_validators_and_threshold() {
+        // Create a multisig with 3 validators
+        let validator1 = AleoEthAddress { bytes: [1u8; 20] };
+        let validator2 = AleoEthAddress { bytes: [2u8; 20] };
+        let validator3 = AleoEthAddress { bytes: [3u8; 20] };
+        let zero_validator = AleoEthAddress { bytes: [0u8; 20] };
+
+        let mut validators = [zero_validator; MAX_VALIDATORS];
+        validators[0] = validator1;
+        validators[1] = validator2;
+        validators[2] = validator3;
+
+        let multisig = AleoMessagesIdMultisig {
+            validators,
+            validator_count: 3,
+            threshold: 2,
+        };
+
+        let (result_validators, threshold) = multisig.validators_and_threshold();
+
+        assert_eq!(result_validators.len(), 3);
+        assert_eq!(threshold, 2);
+    }
+
+    #[test]
+    fn test_validators_and_threshold_filters_zero_addresses() {
+        let validator1 = AleoEthAddress { bytes: [1u8; 20] };
+        let zero_validator = AleoEthAddress { bytes: [0u8; 20] };
+
+        let mut validators = [zero_validator; MAX_VALIDATORS];
+        validators[0] = validator1;
+
+        let multisig = AleoMessagesIdMultisig {
+            validators,
+            validator_count: 2,
+            threshold: 1,
+        };
+
+        let (result_validators, threshold) = multisig.validators_and_threshold();
+
+        assert_eq!(result_validators.len(), 1);
+        assert_eq!(threshold, 1);
     }
 }
