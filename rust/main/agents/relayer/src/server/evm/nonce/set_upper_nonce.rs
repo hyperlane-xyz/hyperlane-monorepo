@@ -29,7 +29,7 @@ pub async fn handler(
 
     tracing::debug!(domain_id, "Fetching chain");
 
-    let dispatcher_entrypoint = state.chains.get(&domain_id).ok_or_else(|| {
+    let dispatcher_entrypoint = state.entrypoints.get(&domain_id).ok_or_else(|| {
         tracing::debug!(domain_id, "Domain does not exist");
         ServerErrorResponse::new(
             StatusCode::NOT_FOUND,

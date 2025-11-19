@@ -8,7 +8,7 @@ use lander::DispatcherEntrypoint;
 
 #[derive(Clone, new)]
 pub struct ServerState {
-    pub chains: HashMap<u32, DispatcherEntrypoint>,
+    pub entrypoints: HashMap<u32, DispatcherEntrypoint>,
 }
 
 impl ServerState {

@@ -44,7 +44,7 @@ pub struct Server {
     #[new(default)]
     prover_syncs: Option<HashMap<u32, Arc<RwLock<MerkleTreeBuilder>>>>,
     #[new(default)]
-    chains_with_nonce: Option<HashMap<u32, DispatcherEntrypoint>>,
+    dispatcher_entrypoints: Option<HashMap<u32, DispatcherEntrypoint>>,
 }
 
 impl Server {
@@ -87,8 +87,11 @@ impl Server {
         self
     }
 
-    pub fn with_chains_with_nonce(mut self, chains: HashMap<u32, DispatcherEntrypoint>) -> Self {
-        self.chains_with_nonce = Some(chains);
+    pub fn with_dispatcher_entrypoints(
+        mut self,
+        entrypoints: HashMap<u32, DispatcherEntrypoint>,
+    ) -> Self {
+        self.dispatcher_entrypoints = Some(entrypoints);
         self
     }
 
@@ -126,7 +129,7 @@ impl Server {
         if let Some(prover_syncs) = self.prover_syncs {
             router = router.merge(proofs::ServerState::new(prover_syncs).router());
         }
-        if let Some(chains) = self.chains_with_nonce {
+        if let Some(chains) = self.dispatcher_entrypoints {
             router = router.merge(evm::nonce::ServerState::new(chains).router());
         }
 

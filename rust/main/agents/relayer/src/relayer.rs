@@ -607,7 +607,7 @@ impl Relayer {
             .with_gas_enforcers(gas_enforcers)
             .with_msg_ctxs(msg_ctxs)
             .with_prover_sync(prover_syncs)
-            .with_chains_with_nonce(dispatcher_entrypoints)
+            .with_dispatcher_entrypoints(dispatcher_entrypoints)
             .router()
     }
 
