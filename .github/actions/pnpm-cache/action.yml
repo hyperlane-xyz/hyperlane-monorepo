@@ -32,21 +32,17 @@ runs:
       if: env.cache-provider == 'buildjet'
       uses: buildjet/cache@v4
       with:
-        path: |
-          **/node_modules
-          ~/.pnpm-store
-        key: ${{ runner.os }}-pnpm-cache-${{ hashFiles('**/pnpm-lock.yaml') }}
+        path: ~/.pnpm-store
+        key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
         restore-keys: |
-          ${{ runner.os }}-pnpm-cache-
+          ${{ runner.os }}-pnpm-store-
 
     - name: Cache (GitHub)
       id: github-cache
       if: env.cache-provider == 'github'
       uses: actions/cache@v4
       with:
-        path: |
-          **/node_modules
-          ~/.pnpm-store
-        key: ${{ runner.os }}-pnpm-cache-${{ hashFiles('**/pnpm-lock.yaml') }}
+        path: ~/.pnpm-store
+        key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
         restore-keys: |
-          ${{ runner.os }}-pnpm-cache-
+          ${{ runner.os }}-pnpm-store-
