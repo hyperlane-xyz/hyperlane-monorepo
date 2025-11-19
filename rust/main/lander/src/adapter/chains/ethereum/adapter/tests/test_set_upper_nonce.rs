@@ -6,9 +6,9 @@ use hyperlane_base::db::{HyperlaneRocksDB, DB};
 use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain, H160, U256};
 
 use crate::{
-    adapter::chains::ethereum::tests::MockEvmProvider,
+    adapter::{chains::ethereum::tests::MockEvmProvider, AdaptsChain},
     tests::{evm::test_utils::mock_ethereum_adapter, test_utils::tmp_dbs},
-    TransactionUuid,
+    AdaptsChainAction, TransactionUuid,
 };
 
 use super::*;

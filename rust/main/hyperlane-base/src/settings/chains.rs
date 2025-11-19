@@ -1187,7 +1187,7 @@ impl ChainConf {
     }
 
     /// Build an ethereum signer
-    pub async fn ethereum_signer(&self) -> Result<Option<h_eth::Signers>> {
+    async fn ethereum_signer(&self) -> Result<Option<h_eth::Signers>> {
         self.signer().await
     }
 

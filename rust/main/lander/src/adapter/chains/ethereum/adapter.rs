@@ -388,8 +388,7 @@ impl EthereumAdapter {
         let current_finalized_nonce = self
             .nonce_manager
             .state
-            .nonce_db
-            .retrieve_finalized_nonce_by_signer_address(&self.signer)
+            .get_finalized_nonce()
             .await?
             .ok_or_else(|| LanderError::EyreError(eyre::eyre!("No finalized nonce found")))?;
 
