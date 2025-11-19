@@ -11,6 +11,7 @@ Dockerfile
 **/dist/
 
 .changeset/
+.pnpm-store/
 rust/
 solidity/artifacts/
 solidity/cache/
