@@ -50,8 +50,8 @@
   ],
   "license": "Apache-2.0",
   "type": "module",
-  "exports": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+    "exports": "./dist/index.js",
+    "types": "./dist/index.d.ts",
   "files": [
     "/dist",
     "/contracts"
@@ -61,7 +61,7 @@
     "url": "https://github.com/hyperlane-xyz/hyperlane-monorepo"
   },
   "scripts": {
-    "build": "pnpm hardhat-esm compile && tsc",
+    "build": "pnpm hardhat-esm compile && pnpm exec tsc",
     "clean": "pnpm hardhat-esm clean && rm -rf dist cache src/types",
     "coverage": "pnpm hardhat-esm coverage",
     "lint": "pnpm lint:sol && pnpm lint:ts",

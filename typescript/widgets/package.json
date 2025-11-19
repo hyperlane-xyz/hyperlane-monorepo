@@ -7,12 +7,16 @@
     "react-dom": "^18"
   },
   "dependencies": {
+    "@chain-registry/types": "^0.50.122",
     "@cosmjs/stargate": "^0.32.4",
     "@cosmos-kit/react": "^2.18.0",
     "@headlessui/react": "^2.1.8",
     "@hyperlane-xyz/cosmos-sdk": "workspace:*",
+    "@hyperlane-xyz/radix-sdk": "workspace:*",
     "@hyperlane-xyz/sdk": "workspace:*",
     "@hyperlane-xyz/utils": "workspace:*",
+    "@starknet-react/chains": "^0.1.0",
+    "@wagmi/core": "^2.12.26",
     "@interchain-ui/react": "^1.23.28",
     "@radixdlt/babylon-gateway-api-sdk": "^1.10.1",
     "@radixdlt/radix-dapp-toolkit": "^2.2.1",
@@ -22,10 +26,14 @@
     "@solana/web3.js": "^1.98.4",
     "@starknet-react/core": "^3.7.2",
     "clsx": "^2.1.1",
+    "ethers": "^5.8.0",
+    "pino": "^8.19.0",
     "react-tooltip": "^5.28.0",
+    "starknet": "^7.4.0",
     "starknetkit": "2.6.1",
     "viem": "^2.21.45",
-    "wagmi": "^2.12.26"
+    "wagmi": "^2.12.26",
+    "yaml": "2.4.5"
   },
   "devDependencies": {
     "@chakra-ui/react": "^2.8.2",

@@ -33,8 +33,8 @@ async function startServer() {
 
   const app = express();
   app.use(cors());
-  app.use(express.json() as express.RequestHandler);
-  app.use(pinoHttp({ logger }));
+  app.use(express.json());
+  app.use(pinoHttp({ logger: logger as any }));
 
   if (getEnabledModules().length === 0) {
     logger.warn(

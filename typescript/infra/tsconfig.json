@@ -9,12 +9,9 @@
     "module": "nodenext",
     "moduleResolution": "nodenext"
   },
-  "exclude": ["./node_modules/", "./dist/", "./tmp.ts"],
+  "exclude": ["./node_modules/", "./dist/", "./tmp.ts", "./test/**/*", "./src/**/*.test.ts", "./scripts/**/*"],
   "include": [
-    "./*.ts",
     "./config/**/*.ts",
-    "./scripts/**/*.ts",
-    "./src/**/*.ts",
-    "./test/**/*.ts"
+    "./src/**/*.ts"
   ]
 }
