@@ -4,6 +4,7 @@ import {
   OperationType,
 } from '@safe-global/safe-core-sdk-types';
 import {
+  SingletonDeployment,
   getMultiSendCallOnlyDeployments,
   getMultiSendDeployments,
 } from '@safe-global/safe-deployments';
@@ -256,12 +257,16 @@ export class GovernTransactionReader {
         `MultiSend and MultiSendCallOnly deployments not found for version ${version}`,
       );
 
-      Object.values(multiSendCallOnlyDeployments.deployments).forEach((d: any) => {
-        this.multiSendCallOnlyDeployments.push(d.address);
-      });
-      Object.values(multiSendDeployments.deployments).forEach((d: any) => {
-        this.multiSendDeployments.push(d.address);
-      });
+      Object.values(multiSendCallOnlyDeployments.deployments).forEach(
+        (d: SingletonDeployment) => {
+          this.multiSendCallOnlyDeployments.push(d.address);
+        },
+      );
+      Object.values(multiSendDeployments.deployments).forEach(
+        (d: SingletonDeployment) => {
+          this.multiSendDeployments.push(d.address);
+        },
+      );
     }
   }
 
