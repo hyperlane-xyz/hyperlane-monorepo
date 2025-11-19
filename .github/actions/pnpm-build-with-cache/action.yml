@@ -1,11 +1,6 @@
 name: 'PNPM Build with Cache'
 description: 'Run pnpm build using pnpm cache'
 
-inputs:
-  ref:
-    description: 'The Git ref to checkout'
-    required: true
-
 runs:
   using: 'composite'
   steps:

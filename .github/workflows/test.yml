@@ -64,8 +64,6 @@ jobs:
       # Build required before linting or the intra-monorepo package cycle checking won't work
       - name: pnpm-build
         uses: ./.github/actions/pnpm-build-with-cache
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: lint
         run: pnpm lint
@@ -155,8 +153,6 @@ jobs:
 
       - name: pnpm-build
         uses: ./.github/actions/pnpm-build-with-cache
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
@@ -209,8 +205,6 @@ jobs:
 
       - name: pnpm-build
         uses: ./.github/actions/pnpm-build-with-cache
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
@@ -471,8 +465,6 @@ jobs:
 
       - name: pnpm-build
         uses: ./.github/actions/pnpm-build-with-cache
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Cosmos SDK e2e tests
         run: pnpm -C typescript/cosmos-sdk test:e2e
@@ -502,8 +494,6 @@ jobs:
 
       - name: pnpm-build
         uses: ./.github/actions/pnpm-build-with-cache
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
@@ -625,8 +615,6 @@ jobs:
       - name: pnpm-build
         if: steps.check-conditions.outputs.skip-e2e != 'true'
         uses: ./.github/actions/pnpm-build-with-cache
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Install system dependencies
         if: steps.check-conditions.outputs.skip-e2e != 'true'
@@ -740,8 +728,6 @@ jobs:
 
       - name: pnpm-build
         uses: ./.github/actions/pnpm-build-with-cache
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
