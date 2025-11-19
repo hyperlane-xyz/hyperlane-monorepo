@@ -1,7 +1,23 @@
+import {
+  EventType,
+  Network,
+  disconnect,
+  requestCreateEvent,
+  useAccount,
+  useConnect,
+} from '@puzzlehq/sdk';
 import { useCallback, useMemo } from 'react';
 
-import { ChainName, IToken, MultiProtocolProvider } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { AleoTransaction } from '@hyperlane-xyz/aleo-sdk';
+import {
+  ChainName,
+  IToken,
+  MultiProtocolProvider,
+  ProviderType,
+  TypedTransactionReceipt,
+  WarpTypedTransaction,
+} from '@hyperlane-xyz/sdk';
+import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import {
   AccountInfo,
@@ -15,25 +31,24 @@ import {
 export function useAleoAccount(
   _multiProvider: MultiProtocolProvider,
 ): AccountInfo {
-  const publicKey = '';
+  const { account } = useAccount();
 
   return {
     protocol: ProtocolType.Aleo,
     addresses: [
       {
-        address: publicKey || '',
+        address: account?.address ?? '',
         chainName: 'Aleo',
       },
     ],
     publicKey: undefined, // we don't need the public key for aleo
-    isReady: !!publicKey,
+    isReady: !!account,
   };
 }
 
 export function useAleoWalletDetails() {
-  const name = 'Leo Wallet';
-  const logoUrl =
-    'https://cdn.prod.website-files.com/6559a97a91ac8fe073763dc8/656ef23110a6ecf0a7e2cf64_logo.svg';
+  const name = 'Puzzle Wallet';
+  const logoUrl = 'https://avatars.githubusercontent.com/u/102617715?s=200';
 
   return useMemo<WalletDetails>(
     () => ({
@@ -45,15 +60,32 @@ export function useAleoWalletDetails() {
 }
 
 export function useAleoConnectFn(): () => void {
-  return () => {
-    console.log('connect');
-  };
+  const { connect } = useConnect({
+    dAppInfo: {
+      name: 'Hyperlane Warp UI Template',
+      description: 'A DApp for Hyperlane Warp Route transfers',
+    },
+    permissions: {
+      programIds: {
+        [Network.AleoMainnet]: [
+          'dapp_1.aleo',
+          'dapp_2.aleo',
+          'dapp_2_imports.aleo',
+        ],
+        [Network.AleoTestnet]: [
+          'dapp_3.aleo',
+          'dapp_3_imports_1.aleo',
+          'dapp_3_imports_2.aleo',
+        ],
+      },
+    },
+  });
+
+  return connect;
 }
 
 export function useAleoDisconnectFn(): () => Promise<void> {
-  return async () => {
-    console.log('disconnect');
-  };
+  return disconnect;
 }
 
 export function useAleoActiveChain(
@@ -95,7 +127,76 @@ export function useAleoWatchAsset(
 }
 
 export function useAleoTransactionFns(
-  _multiProvider: MultiProtocolProvider,
+  multiProvider: MultiProtocolProvider,
 ): ChainTransactionFns {
-  return {} as any;
+  const { switchNetwork } = useAleoSwitchNetwork(multiProvider);
+
+  const onSendTx = useCallback(
+    async ({
+      tx,
+      chainName: _,
+      activeChainName: __,
+    }: {
+      tx: WarpTypedTransaction;
+      chainName: ChainName;
+      activeChainName?: ChainName;
+    }) => {
+      const transaction = tx.transaction as AleoTransaction;
+
+      const transactionResult = await requestCreateEvent({
+        type: EventType.Execute,
+        programId: transaction.programName,
+        functionId: transaction.functionName,
+        fee: transaction.priorityFee,
+        inputs: transaction.inputs,
+      });
+
+      if (transactionResult.error) {
+        throw transactionResult.error;
+      }
+
+      const confirm = async (): Promise<TypedTransactionReceipt> => {
+        assert(
+          transactionResult.eventId,
+          `Aleo tx failed: ${transactionResult}`,
+        );
+
+        // TODO: populate receipt
+        return {
+          type: tx.type as ProviderType.Aleo,
+          receipt: {
+            status: '',
+            type: '',
+            index: 0n,
+            transaction: {} as any,
+            finalize: [],
+            transactionHash: transactionResult.eventId || '',
+          },
+        };
+      };
+      return { hash: transactionResult.eventId || '', confirm };
+    },
+    [switchNetwork],
+  );
+
+  const onMultiSendTx = useCallback(
+    async ({
+      txs: _,
+      chainName: __,
+      activeChainName: ___,
+    }: {
+      txs: WarpTypedTransaction[];
+      chainName: ChainName;
+      activeChainName?: ChainName;
+    }) => {
+      throw new Error('Multi Transactions not supported on Aleo');
+    },
+    [],
+  );
+
+  return {
+    sendTransaction: onSendTx,
+    sendMultiTransaction: onMultiSendTx,
+    switchNetwork,
+  };
 }

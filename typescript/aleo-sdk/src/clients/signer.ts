@@ -84,7 +84,11 @@ export class AleoSigner
     transaction: AleoTransaction,
   ): Promise<AleoReceipt> {
     const txId = await this.programManager.execute(transaction);
-    return this.aleoClient.waitForTransactionConfirmation(txId);
+    const receipt = await this.aleoClient.waitForTransactionConfirmation(txId);
+    return {
+      ...receipt,
+      transactionHash: receipt.transaction.execution?.global_state_root ?? '',
+    };
   }
 
   async sendAndConfirmBatchTransactions(
