@@ -16,8 +16,6 @@ runs:
     - name: pnpm-build-with-cache
       if: inputs.no-cache == 'false'
       uses: ./.github/actions/pnpm-build-with-cache
-      with:
-        ref: ${{ inputs.ref }}
 
     - name: pnpm-install-build-without-cache
       if: inputs.no-cache != 'false'
@@ -37,4 +35,4 @@ runs:
       shell: bash
       run: |
         cd typescript/cli
-        npm i -g package.tgz
+        npm i -g hyperlane-xyz-cli-*.tgz
