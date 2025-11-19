@@ -650,7 +650,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       mailboxAddress,
     });
 
-    const quote = new BigNumber(0);
+    let quote = new BigNumber(0);
 
     for (const hookAddress of [mailbox.requiredHook, mailbox.defaultHook]) {
       try {
@@ -664,7 +664,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
           continue;
         }
 
-        quote.plus(
+        quote = quote.plus(
           gasLimit
             .plus(config.gasOverhead)
             .multipliedBy(config.gasOracle.gasPrice)
@@ -672,13 +672,12 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
             .dividedToIntegerBy(new BigNumber(10).exponentiatedBy(10)),
         );
       } catch {
-        // if the hook is no IGP we assume a quote of zero
-        quote.plus(0);
+        continue;
       }
     }
 
     return {
-      denom: '',
+      denom: '0field',
       amount: BigInt(quote.toFixed(0)),
     };
   }
@@ -1113,10 +1112,6 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       throw new Error(`found no token metadata for ${req.tokenAddress}`);
     }
 
-    const mailbox = await this.getMailbox({
-      mailboxAddress: mailboxAddress,
-    });
-
     const remoteRouterValue = await this.aleoClient.getProgramMappingValue(
       req.tokenAddress,
       'remote_routers',
@@ -1132,10 +1127,15 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     const recipient = this.bytes32ToU128String(req.recipient);
 
     const creditAllowance = Array(4).fill(
-      `{spender:${ALEO_NULL_ADDRESS},amount:0u8}`,
+      `{spender:${ALEO_NULL_ADDRESS},amount:0u64}`,
     );
 
     const gasLimit = new BigNumber(req.gasLimit);
+
+    const mailbox = await this.getMailbox({
+      mailboxAddress: mailboxAddress,
+    });
+
     const hooks = [
       req.customHookAddress || mailbox.defaultHook,
       mailbox.requiredHook,
@@ -1160,7 +1160,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
           .dividedToIntegerBy(new BigNumber(10).exponentiatedBy(10))
           .toFixed(0);
 
-        creditAllowance[i] = `{spender:${hooks[i]},amount:${quote}u8}`;
+        creditAllowance[i] = `{spender:${hooks[i]},amount:${quote}u64}`;
       } catch {
         continue;
       }
@@ -1177,16 +1177,16 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
 
       return {
         programName: req.tokenAddress,
-        functionName: 'transfer_remote',
+        functionName: 'transfer_remote_with_hook',
         priorityFee: 0,
         privateFee: false,
         inputs: [
           tokenMetadataValue,
           `{default_ism:${mailbox.defaultIsm || ALEO_NULL_ADDRESS},default_hook:${mailbox.defaultHook || ALEO_NULL_ADDRESS},required_hook:${mailbox.requiredHook || ALEO_NULL_ADDRESS}}`,
           remoteRouterValue,
-          `${req.destinationDomainId}u8`,
+          `${req.destinationDomainId}u32`,
           recipient,
-          `${req.amount}u128`,
+          `${req.amount}u64`,
           arrayToPlaintext(creditAllowance),
           req.customHookAddress,
           arrayToPlaintext(hookMetadata),
@@ -1204,9 +1204,9 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
         tokenMetadataValue,
         `{default_ism:${mailbox.defaultIsm || ALEO_NULL_ADDRESS},default_hook:${mailbox.defaultHook || ALEO_NULL_ADDRESS},required_hook:${mailbox.requiredHook || ALEO_NULL_ADDRESS}}`,
         remoteRouterValue,
-        `${req.destinationDomainId}u8`,
+        `${req.destinationDomainId}u32`,
         recipient,
-        `${req.amount}u128`,
+        `${req.amount}u64`,
         arrayToPlaintext(creditAllowance),
       ],
       // skipProof: this.skipProof,

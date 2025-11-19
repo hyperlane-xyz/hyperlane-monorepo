@@ -1,3 +1,5 @@
+import { addressToBytes32 } from '@hyperlane-xyz/utils';
+
 import { AleoSigner } from './clients/signer.js';
 
 const main = async () => {
@@ -17,15 +19,31 @@ const main = async () => {
       },
     );
 
-    const remoteRouters = await signer.getRemoteRouters({
-      tokenAddress: 'hyp_native_9rrek5ci8nc3.aleo',
+    const tokenAddress = 'hyp_native_e7likxgwafwz.aleo';
+
+    const quote = await signer.quoteRemoteTransfer({
+      tokenAddress: tokenAddress,
+      destinationDomainId: 75898669,
     });
+    console.log('quote', quote);
 
-    console.log('remoteRouters', remoteRouters);
+    const bridgedSupply = await signer.getBridgedSupply({
+      tokenAddress: tokenAddress,
+    });
+    console.log('bridgedSupply', bridgedSupply);
 
-    await signer.unenrollRemoteRouter({
-      tokenAddress: 'hyp_native_9rrek5ci8nc3.aleo',
-      receiverDomainId: 1234,
+    await signer.remoteTransfer({
+      tokenAddress,
+      destinationDomainId: 75898669,
+      recipient: addressToBytes32(
+        'aleo1g54sfzunsl7n895y7ydr7leklha860tayyjpd8tznpk4tmqvjgrs6vskya',
+      ),
+      amount: '1000000',
+      gasLimit: '75000',
+      maxFee: {
+        denom: '0field',
+        amount: '1000',
+      },
     });
   } catch (err) {
     console.log(err);
