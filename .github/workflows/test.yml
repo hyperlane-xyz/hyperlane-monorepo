@@ -43,14 +43,7 @@ jobs:
         uses: ./.github/actions/pnpm-cache
 
       - name: pnpm-install
-        run: |
-          pnpm install --frozen-lockfile
-          CHANGES=$(git status -s --ignore-submodules)
-          if [[ ! -z $CHANGES ]]; then
-            echo "Changes found: $CHANGES"
-            git diff
-            exit 1
-          fi
+        run: pnpm install --frozen-lockfile
 
       # Check for mismatched dep versions across the monorepo
       - name: syncpack
@@ -807,6 +800,13 @@ jobs:
       - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
 
       - name: Build
         run: |

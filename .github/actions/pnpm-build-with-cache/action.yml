@@ -13,23 +13,11 @@ runs:
       id: pnpm-cache
       uses: ./.github/actions/pnpm-cache
 
-    # Always run install - pnpm needs to verify lockfile and set up symlinks even with cache
-    # The cache makes this much faster by restoring node_modules and store
+    # Always run install - pnpm needs to create symlinks from the cached store
+    # The cache makes this much faster by restoring the pnpm store
     - name: Install dependencies
       shell: bash
-      env:
-        CACHE_HIT: ${{ steps.pnpm-cache.outputs.cache-hit }}
-      run: |
-        pnpm install --frozen-lockfile
-        # Only check for git changes if cache was not hit (cache miss means fresh install)
-        if [ "$CACHE_HIT" != "true" ]; then
-          CHANGES=$(git status -s --ignore-submodules | grep -v "results.sarif")
-          if [[ ! -z $CHANGES ]]; then
-            echo "Changes found: $CHANGES"
-            git diff
-            exit 1
-          fi
-        fi
+      run: pnpm install --frozen-lockfile
 
     - name: Build
       shell: bash

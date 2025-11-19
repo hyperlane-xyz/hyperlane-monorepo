@@ -25,6 +25,7 @@ packages:
 ### Step 1.2: Convert resolutions to pnpm.overrides
 
 **Current (`package.json`):**
+
 ```json
 {
   "resolutions": {
@@ -45,6 +46,7 @@ packages:
 ```
 
 **New (`package.json`):**
+
 ```json
 {
   "pnpm": {
@@ -89,7 +91,7 @@ Create `.npmrc` in root:
 # nodeLinker: node-modules -> default for pnpm
 
 # Disable scripts during install (equivalent to enableScripts: false)
-ignore-scripts=false
+ignore-scripts=true
 
 # Use node_modules linker (default, but explicit)
 node-linker=hoisted
@@ -101,6 +103,7 @@ store-dir=~/.pnpm-store
 ### Step 1.5: Update packageManager Field
 
 **Current (`package.json`):**
+
 ```json
 {
   "packageManager": "yarn@4.5.1"
@@ -108,6 +111,7 @@ store-dir=~/.pnpm-store
 ```
 
 **New (`package.json`):**
+
 ```json
 {
   "packageManager": "pnpm@10.22.0"
@@ -119,6 +123,7 @@ store-dir=~/.pnpm-store
 ### Step 2.1: Update Root package.json Scripts
 
 **Current:**
+
 ```json
 {
   "scripts": {
@@ -131,6 +136,7 @@ store-dir=~/.pnpm-store
 ```
 
 **New:**
+
 ```json
 {
   "scripts": {
@@ -145,6 +151,7 @@ store-dir=~/.pnpm-store
 ### Step 2.2: Update solidity/package.json Scripts
 
 **Current:**
+
 ```json
 {
   "scripts": {
@@ -157,6 +164,7 @@ store-dir=~/.pnpm-store
 ```
 
 **New:**
+
 ```json
 {
   "scripts": {
@@ -171,6 +179,7 @@ store-dir=~/.pnpm-store
 ### Step 2.3: Update typescript/cli/package.json Scripts
 
 **Current:**
+
 ```json
 {
   "scripts": {
@@ -181,6 +190,7 @@ store-dir=~/.pnpm-store
 ```
 
 **New:**
+
 ```json
 {
   "scripts": {
@@ -227,6 +237,7 @@ pnpm build
 ### Step 4.1: Update GitHub Actions Cache
 
 **Current (`.github/actions/yarn-cache/action.yml`):**
+
 ```yaml
 - uses: actions/cache@v4
   with:
@@ -237,10 +248,11 @@ pnpm build
 ```
 
 **New (`.github/actions/pnpm-cache/action.yml`):**
+
 ```yaml
 - uses: pnpm/action-setup@v4
   with:
-        version: 10.22.0
+    version: 10.22.0
 - uses: actions/cache@v4
   with:
     path: |
@@ -254,6 +266,7 @@ pnpm build
 ### Step 4.2: Update yarn-build-with-cache Action
 
 **Current (`.github/actions/yarn-build-with-cache/action.yml`):**
+
 ```yaml
 - name: Install dependencies
   if: steps.yarn-cache.outputs.cache-hit != 'true'
@@ -273,6 +286,7 @@ pnpm build
 ```
 
 **New (`.github/actions/pnpm-build-with-cache/action.yml`):**
+
 ```yaml
 - name: pnpm-cache
   id: pnpm-cache
@@ -298,6 +312,7 @@ pnpm build
 ### Step 4.3: Update test.yml Workflow
 
 Replace all instances:
+
 - `yarn install` → `pnpm install --frozen-lockfile`
 - `yarn install --immutable` → `pnpm install --frozen-lockfile`
 - `yarn build` → `pnpm build`
@@ -311,6 +326,7 @@ Replace all instances:
 ### Step 4.4: Update release.yml Workflow
 
 **Current:**
+
 ```yaml
 - name: Install Dependencies
   run: yarn install --immutable
@@ -328,11 +344,12 @@ Replace all instances:
 ```
 
 **New:**
+
 ```yaml
 - name: Setup pnpm
   uses: pnpm/action-setup@v4
   with:
-        version: 10.22.0
+    version: 10.22.0
 
 - name: Install Dependencies
   run: pnpm install --frozen-lockfile
@@ -354,6 +371,7 @@ Replace all instances:
 ### Step 5.1: Update Dockerfile
 
 **Current:**
+
 ```dockerfile
 RUN apk add --update --no-cache git g++ make py3-pip jq bash curl && \
     yarn set version 4.5.1
@@ -367,6 +385,7 @@ RUN yarn install && yarn cache clean
 ```
 
 **New:**
+
 ```dockerfile
 RUN apk add --update --no-cache git g++ make py3-pip jq bash curl && \
     npm install -g pnpm@10.22.0
@@ -380,11 +399,13 @@ RUN pnpm install --frozen-lockfile && pnpm store prune
 ### Step 5.2: Update docker-entrypoint.sh
 
 **Current:**
+
 ```bash
 yarn workspace @hyperlane-xyz/cli add @google-cloud/pino-logging-gcp-config
 ```
 
 **New:**
+
 ```bash
 pnpm --filter @hyperlane-xyz/cli add @google-cloud/pino-logging-gcp-config
 ```
@@ -394,11 +415,13 @@ pnpm --filter @hyperlane-xyz/cli add @google-cloud/pino-logging-gcp-config
 ### Step 6.1: Update typescript/infra/fork.sh
 
 **Current:**
+
 ```bash
 LOG_LEVEL=error yarn tsx ./scripts/run-anvil.ts -e $ENVIRONMENT -c $CHAIN &
 ```
 
 **New:**
+
 ```bash
 LOG_LEVEL=error pnpm tsx ./scripts/run-anvil.ts -e $ENVIRONMENT -c $CHAIN &
 ```
@@ -406,12 +429,14 @@ LOG_LEVEL=error pnpm tsx ./scripts/run-anvil.ts -e $ENVIRONMENT -c $CHAIN &
 ### Step 6.2: Update .husky/pre-commit
 
 **Current:**
+
 ```bash
 yarn lint-staged
 echo "📝 If you haven't yet, please add a changeset for your changes via 'yarn changeset'"
 ```
 
 **New:**
+
 ```bash
 pnpm lint-staged
 echo "📝 If you haven't yet, please add a changeset for your changes via 'pnpm changeset'"
@@ -422,6 +447,7 @@ echo "📝 If you haven't yet, please add a changeset for your changes via 'pnpm
 ### Step 7.1: Update CLAUDE.md
 
 Replace all `yarn` commands with `pnpm` equivalents:
+
 - `yarn install` → `pnpm install`
 - `yarn --cwd <dir> <cmd>` → `pnpm -C <dir> <cmd>`
 - `yarn build` → `pnpm build`
@@ -430,12 +456,14 @@ Replace all `yarn` commands with `pnpm` equivalents:
 ### Step 7.2: Update README.md
 
 **Current:**
+
 ```markdown
 yarn install
 yarn build
 ```
 
 **New:**
+
 ```markdown
 pnpm install
 pnpm build
@@ -498,18 +526,23 @@ Remove yarn-specific entries if present.
 ## Troubleshooting
 
 ### Issue: "Cannot find module" errors
+
 **Solution**: pnpm is stricter. Ensure all dependencies are in `package.json`. Run `pnpm install` to verify.
 
 ### Issue: Workspace dependencies not resolving
+
 **Solution**: Use workspace names from `package.json` (e.g., `@hyperlane-xyz/cli`) not paths.
 
 ### Issue: Patch not applying
+
 **Solution**: Verify patch format matches pnpm expectations. May need to regenerate patch.
 
 ### Issue: CI cache not working
+
 **Solution**: Ensure cache paths include `~/.pnpm-store` and use `pnpm-lock.yaml` as key.
 
 ### Issue: Scripts fail with pnpm
+
 **Solution**: Some scripts may need `pnpm exec` prefix or workspace filtering adjustments.
 
 ## Rollback Plan

@@ -2,8 +2,6 @@ import { Provider } from '@ethersproject/providers';
 import { BigNumber as BigNumberJs } from 'bignumber.js';
 import { BigNumber, ethers } from 'ethers';
 
-type BigNumberJsType = InstanceType<typeof BigNumberJs>;
-
 import {
   ProtocolType,
   assert,
@@ -141,7 +139,7 @@ function getTokenExchangeRate({
   remote: ChainName;
   tokenPrices: ChainMap<string>;
   exchangeRateMarginPct: number;
-}): BigNumberJsType {
+}): InstanceType<typeof BigNumberJs> {
   // Workaround for chicken-egg dependency problem.
   // We need to provide some default value here to satisfy the config on initial load,
   // whilst knowing that it will get overwritten when a script actually gets run.
@@ -163,7 +161,7 @@ function getTokenExchangeRate({
 
 function getProtocolExchangeRate(
   localProtocolType: ProtocolType,
-  exchangeRate: BigNumberJsType,
+  exchangeRate: InstanceType<typeof BigNumberJs>,
 ): BigNumber {
   const multiplierDecimals = getProtocolExchangeRateDecimals(localProtocolType);
   const multiplier = new BigNumberJs(10).pow(multiplierDecimals);
