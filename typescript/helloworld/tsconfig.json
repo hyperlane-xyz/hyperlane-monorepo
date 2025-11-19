@@ -27,7 +27,7 @@
     "preserveWatchOutput": true,
     "pretty": false,
     "resolveJsonModule": true,
-    "rootDir": "./",
+    "rootDir": "./src",
     "skipLibCheck": true,
     "noImplicitOverride": false,
     "sourceMap": true,
