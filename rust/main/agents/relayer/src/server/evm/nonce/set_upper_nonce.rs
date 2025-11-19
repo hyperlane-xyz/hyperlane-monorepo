@@ -17,7 +17,6 @@ pub struct RequestBody {
     pub new_upper_nonce: Option<u64>,
 }
 
-#[axum::debug_handler]
 /// Reset the upper nonce for an EVM chain
 pub async fn handler(
     State(state): State<ServerState>,
