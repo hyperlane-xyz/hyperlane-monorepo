@@ -86,10 +86,6 @@ web_modules/
 
 \*.tgz
 
-# Yarn Integrity file
-
-.yarn-integrity
-
 # dotenv environment variable files
 
 .env

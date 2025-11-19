@@ -16,8 +16,4 @@ typescript/*/node_modules
 typescript/**/tsconfig.tsbuildinfo
 **/**/tsconfig.tsbuildinfo
 
-.yarn/install-state.gz
-.yarn/cache
-yarn-error.log
-
 .idea
