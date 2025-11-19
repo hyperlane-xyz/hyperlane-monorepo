@@ -374,6 +374,9 @@ importers:
       lodash-es:
         specifier: ^4.17.21
         version: 4.17.21
+      pino:
+        specifier: ^8.19.0
+        version: 8.21.0
       viem:
         specifier: ^2.21.45
         version: 2.39.3(bufferutil@4.0.9)(typescript@5.3.3)(utf-8-validate@5.0.10)(zod@3.25.76)
@@ -429,6 +432,9 @@ importers:
       '@types/chai-as-promised':
         specifier: ^8
         version: 8.0.2
+      '@types/lodash-es':
+        specifier: ^4.17.12
+        version: 4.17.12
       '@types/mocha':
         specifier: ^10.0.1
         version: 10.0.10

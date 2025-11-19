@@ -6,7 +6,7 @@
     "prettier.configPath": "../.prettierrc",
     "workbench.editor.labelFormat": "medium",
     "npm.autoDetect": "on",
-    "npm.packageManager": "yarn",
+    "npm.packageManager": "pnpm",
     "npm.enableRunFromFolder": true,
     "npm.scriptExplorerAction": "run",
     "npm.fetchOnlinePackageInfo": true,
