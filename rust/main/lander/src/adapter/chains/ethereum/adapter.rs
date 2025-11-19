@@ -393,6 +393,7 @@ impl EthereumAdapter {
             .await?
             .ok_or_else(|| LanderError::EyreError(eyre::eyre!("No finalized nonce found")))?;
 
+        // The new upper nonce we want to set
         let desired_upper_nonce = match desired_nonce {
             Some(s) => U256::from(s),
             None => {
@@ -419,6 +420,7 @@ impl EthereumAdapter {
             return Err(err);
         }
 
+        // set upper nonce in the db
         self.nonce_manager
             .state
             .set_upper_nonce(&desired_upper_nonce)
