@@ -221,15 +221,15 @@ async fn test_submit_assigns_correct_nonce_after_reset() {
         tx_db.store_transaction_by_uuid(&tx_clone).await.unwrap();
     }
 
-    // Submit the transaction - update_boundaries will set finalized=90, but upper stays at 100
-    // because finalized (90) < upper (100)
+    // Submit the transaction - update_boundaries will set finalized=90, but upper stays at 150
+    // because finalized (90) < upper (150)
     adapter
         .submit(&mut tx)
         .await
         .expect("Failed to submit transaction");
 
-    // Verify the transaction was assigned nonce 101 (upper nonce + 1)
-    // This demonstrates that run_command successfully reset the nonce
+    // Verify the transaction was assigned nonce 150 (upper nonce)
+    // This demonstrates that upper nonce has not been reset yet
     let assigned_nonce = tx
         .precursor()
         .tx
@@ -254,7 +254,7 @@ async fn test_submit_assigns_correct_nonce_after_reset() {
         .await
         .expect("Failed to submit transaction");
 
-    // Verify the transaction was assigned nonce 101 (upper nonce + 1)
+    // Verify the transaction was assigned nonce 100 (upper nonce)
     // This demonstrates that run_command successfully reset the nonce
     let assigned_nonce = tx
         .precursor()
@@ -264,7 +264,7 @@ async fn test_submit_assigns_correct_nonce_after_reset() {
     assert_eq!(
         *assigned_nonce,
         EthersU256::from(100),
-        "New transaction should be assigned nonce 101 (upper after reset + 1)"
+        "New transaction should be assigned nonce 100 (upper after reset)"
     );
 
     // Verify the upper nonce was incremented to 101
@@ -330,7 +330,7 @@ async fn test_multiple_submissions_after_reset() {
         minimum_time_between_resubmissions,
     );
 
-    // Set up initial state: finalized = 90, upper = 150
+    // Set up initial state: finalized = 100, upper = 150
     adapter
         .nonce_manager
         .state
@@ -344,7 +344,7 @@ async fn test_multiple_submissions_after_reset() {
         .await
         .unwrap();
 
-    // Reset upper nonce to 100 using run_command
+    // Reset upper nonce to 101 using run_command
     adapter
         .run_command(AdaptsChainAction::SetUpperNonce { nonce: Some(101) })
         .await
@@ -367,7 +367,7 @@ async fn test_multiple_submissions_after_reset() {
     }
 
     // Submit three transactions and verify nonce increments
-    // First submit will call update_boundaries (setting finalized=99, upper=100)
+    // First submit will call update_boundaries (setting finalized=100, upper=101)
     // Subsequent submits happen too quickly to trigger another update_boundaries
     let expected_nonces = vec![101, 102, 103];
 
@@ -508,7 +508,7 @@ async fn test_submit_after_reset_to_finalized_plus_one() {
         .await
         .expect("Failed to submit transaction");
 
-    // Verify the transaction was assigned nonce 76 (upper)
+    // Verify the transaction was assigned nonce 76 (upper nonce after reset to finalized+1)
     let assigned_nonce = tx
         .precursor()
         .tx
@@ -517,7 +517,7 @@ async fn test_submit_after_reset_to_finalized_plus_one() {
     assert_eq!(
         *assigned_nonce,
         EthersU256::from(76),
-        "Transaction should be assigned nonce 76 (upper after reset to finalized+1, then incremented)"
+        "Transaction should be assigned nonce 76 (upper after reset to finalized+1)"
     );
 
     // Verify the upper nonce
@@ -598,7 +598,7 @@ async fn test_submit_with_interleaved_resets() {
         .unwrap();
 
     // First submission - update_boundaries sets finalized=50, upper stays at 100
-    // Next nonce will be 101
+    // Next nonce will be 100
     let mut tx1 = build_and_store_transaction(&adapter, &payload_db).await;
 
     // Make sure all the nonces are in use.
@@ -645,7 +645,7 @@ async fn test_submit_with_interleaved_resets() {
         "Second transaction should have nonce 80 after reset"
     );
 
-    // Third submission - upper is now 81, so next nonce is 82
+    // Third submission - upper is now 81, so next nonce is 81
     let mut tx3 = build_and_store_transaction(&adapter, &payload_db).await;
     adapter
         .submit(&mut tx3)
@@ -668,7 +668,7 @@ async fn test_submit_with_interleaved_resets() {
     assert_eq!(
         final_upper_nonce,
         hyperlane_core::U256::from(82),
-        "Final upper nonce should be 81"
+        "Final upper nonce should be 82"
     );
 }
 
