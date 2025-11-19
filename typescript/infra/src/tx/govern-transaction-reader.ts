@@ -4,7 +4,6 @@ import {
   OperationType,
 } from '@safe-global/safe-core-sdk-types';
 import {
-  SingletonDeployment,
   getMultiSendCallOnlyDeployments,
   getMultiSendDeployments,
 } from '@safe-global/safe-deployments';
@@ -258,12 +257,12 @@ export class GovernTransactionReader {
       );
 
       Object.values(multiSendCallOnlyDeployments.deployments).forEach(
-        (d: SingletonDeployment) => {
+        (d: { address: string; codeHash: string }) => {
           this.multiSendCallOnlyDeployments.push(d.address);
         },
       );
       Object.values(multiSendDeployments.deployments).forEach(
-        (d: SingletonDeployment) => {
+        (d: { address: string; codeHash: string }) => {
           this.multiSendDeployments.push(d.address);
         },
       );
