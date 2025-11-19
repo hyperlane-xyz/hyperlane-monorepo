@@ -38,7 +38,7 @@ impl NonceManagerState {
         }
         if desired_upper_nonce < current_finalized_nonce {
             let err = LanderError::EyreError(eyre::eyre!(
-                "desired_upper_nonce lower than current_finalized_nocne"
+                "desired_upper_nonce lower than current_finalized_nonce"
             ));
             return Err(err);
         }
@@ -48,7 +48,7 @@ impl NonceManagerState {
 
         // We need to clear all nonces between [desired_upper_nonce, current_upper_nonce]
         let mut nonce_to_clear = desired_upper_nonce;
-        while nonce_to_clear <= current_upper_nonce && nonce_to_clear != U256::MAX {
+        while nonce_to_clear < current_upper_nonce {
             let tx_uuid = self.get_tracked_tx_uuid(&nonce_to_clear).await?;
 
             if tx_uuid == TransactionUuid::default() {

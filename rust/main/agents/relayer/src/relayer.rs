@@ -532,7 +532,7 @@ impl BaseAgent for Relayer {
             .expect("Failed to create server");
         let server_task = tokio::spawn(
             async move {
-                server.run_with_custom_router(relayer_router);
+                let _ = server.run_with_custom_router(relayer_router).await;
             }
             .instrument(info_span!("Relayer server")),
         );
