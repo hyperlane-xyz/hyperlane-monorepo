@@ -7,6 +7,7 @@ use crate::U256;
 const ETHEREUM_DECIMALS: u8 = 18;
 const COSMOS_DECIMALS: u8 = 6;
 const SOLANA_DECIMALS: u8 = 9;
+const SOVEREIGN_DECIMALS: u8 = 8;
 
 /// Interval for querying the prometheus metrics endpoint.
 /// This should be whatever the prometheus scrape interval is
@@ -25,6 +26,7 @@ pub fn decimals_by_protocol(protocol: HyperlaneDomainProtocol) -> u8 {
     match protocol {
         HyperlaneDomainProtocol::Cosmos | HyperlaneDomainProtocol::CosmosNative => COSMOS_DECIMALS,
         HyperlaneDomainProtocol::Sealevel => SOLANA_DECIMALS,
+        HyperlaneDomainProtocol::Sovereign => SOVEREIGN_DECIMALS,
         _ => ETHEREUM_DECIMALS,
     }
 }

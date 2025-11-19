@@ -637,5 +637,24 @@ pub fn build_connection_conf(
         HyperlaneDomainProtocol::Aleo => {
             build_aleo_connection_conf(rpcs, chain, err, operation_batch)
         }
+        HyperlaneDomainProtocol::Sovereign => {
+            build_sovereign_connection_conf(rpcs, chain, err, operation_batch)
+        }
     }
+}
+
+pub fn build_sovereign_connection_conf(
+    rpcs: &[Url],
+    _chain: &ValueParser,
+    _err: &mut ConfigParsingError,
+    op_submission_config: OpSubmissionConfig,
+) -> Option<ChainConnectionConf> {
+    let Some(url) = rpcs.first() else { return None };
+
+    Some(ChainConnectionConf::Sovereign(
+        h_sovereign::ConnectionConf {
+            url: url.clone(),
+            op_submission_config,
+        },
+    ))
 }

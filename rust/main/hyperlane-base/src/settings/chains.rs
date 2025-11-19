@@ -32,6 +32,7 @@ use hyperlane_radix::{self as h_radix, RadixProvider};
 use hyperlane_sealevel::{
     self as h_sealevel, fallback::SealevelFallbackRpcClient, SealevelProvider, TransactionSubmitter,
 };
+use hyperlane_sovereign::{self as h_sovereign};
 use hyperlane_starknet::{self as h_starknet, StarknetProvider};
 
 use crate::{
@@ -180,6 +181,8 @@ pub enum ChainConnectionConf {
     Radix(h_radix::ConnectionConf),
     /// Aleo configuration
     Aleo(h_aleo::ConnectionConf),
+    /// Sovereign configuration
+    Sovereign(h_sovereign::ConnectionConf),
 }
 
 impl ChainConnectionConf {
@@ -194,6 +197,7 @@ impl ChainConnectionConf {
             Self::CosmosNative(_) => HyperlaneDomainProtocol::CosmosNative,
             Self::Radix(_) => HyperlaneDomainProtocol::Radix,
             Self::Aleo(_) => HyperlaneDomainProtocol::Aleo,
+            Self::Sovereign(_) => HyperlaneDomainProtocol::Sovereign,
         }
     }
 
@@ -204,6 +208,7 @@ impl ChainConnectionConf {
             Self::Cosmos(conf) => Some(&conf.op_submission_config),
             Self::Sealevel(conf) => Some(&conf.op_submission_config),
             Self::Starknet(config) => Some(&config.op_submission_config),
+            Self::Sovereign(config) => Some(&config.op_submission_config),
             _ => None,
         }
     }
@@ -277,6 +282,10 @@ impl ChainConf {
             )
                 as Box<dyn ApplicationOperationVerifier>),
             ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
+            ChainConnectionConf::Sovereign(_) => Ok(Box::new(
+                h_sovereign::application::SovereignApplicationOperationVerifier::new(),
+            )
+                as Box<dyn ApplicationOperationVerifier>),
         };
 
         result.context(ctx)
@@ -318,6 +327,13 @@ impl ChainConf {
             }
             ChainConnectionConf::CosmosNative(conf) => {
                 let provider = build_cosmos_native_provider(self, conf, metrics, &locator, None)?;
+                Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
+            }
+            ChainConnectionConf::Sovereign(conf) => {
+                let signer = self.sovereign_signer().await?;
+                let provider =
+                    h_sovereign::SovereignProvider::new(locator.domain.clone(), conf, signer)
+                        .await?;
                 Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
             }
             ChainConnectionConf::Radix(conf) => {
@@ -397,6 +413,13 @@ impl ChainConf {
                 Ok(Box::new(mailbox) as Box<dyn Mailbox>)
             }
             ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
+            ChainConnectionConf::Sovereign(conf) => {
+                let signer = self.sovereign_signer().await.context(ctx)?;
+                h_sovereign::SovereignMailbox::new(conf, locator, signer)
+                    .await
+                    .map(|m| Box::new(m) as Box<dyn Mailbox>)
+                    .map_err(Into::into)
+            }
         }
         .context(ctx)
     }
@@ -453,6 +476,16 @@ impl ChainConf {
                 Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
             }
             ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
+            ChainConnectionConf::Sovereign(conf) => {
+                let signer = self.sovereign_signer().await.context(ctx)?;
+                let hook = h_sovereign::SovereignMerkleTreeHook::new(
+                    &conf.clone(),
+                    locator.clone(),
+                    signer,
+                )
+                .await?;
+                Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
+            }
         }
         .context(ctx)
     }
@@ -520,6 +553,14 @@ impl ChainConf {
                 let indexer = Box::new(h_cosmos::native::CosmosNativeDispatchIndexer::new(
                     provider, locator,
                 )?);
+                Ok(indexer as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
+            }
+            ChainConnectionConf::Sovereign(conf) => {
+                let signer = self.sovereign_signer().await.context(ctx)?;
+                let indexer = Box::new(
+                    h_sovereign::SovereignMailboxIndexer::new(conf.clone(), locator, signer)
+                        .await?,
+                );
                 Ok(indexer as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
             }
             ChainConnectionConf::Radix(conf) => {
@@ -603,6 +644,15 @@ impl ChainConf {
                 Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<H256>>)
             }
             ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
+            ChainConnectionConf::Sovereign(conf) => {
+                let signer = self.sovereign_signer().await.context(ctx)?;
+                let provider =
+                    h_sovereign::SovereignProvider::new(locator.domain.clone(), conf, signer)
+                        .await?;
+                let indexer = h_sovereign::SovereignDeliveryIndexer::new(provider)?;
+
+                Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<H256>>)
+            }
         }
         .context(ctx)
     }
@@ -668,6 +718,16 @@ impl ChainConf {
                 Ok(indexer as Box<dyn InterchainGasPaymaster>)
             }
             ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
+            ChainConnectionConf::Sovereign(conf) => {
+                let signer = self.sovereign_signer().await.context(ctx)?;
+                let igp = h_sovereign::SovereignInterchainGasPaymaster::new(
+                    &conf.clone(),
+                    locator.clone(),
+                    signer,
+                )
+                .await?;
+                Ok(Box::new(igp) as Box<dyn InterchainGasPaymaster>)
+            }
         }
         .context(ctx)
     }
@@ -737,6 +797,18 @@ impl ChainConf {
                 Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
             }
             ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
+            ChainConnectionConf::Sovereign(conf) => {
+                let signer = self.sovereign_signer().await?;
+                let indexer = Box::new(
+                    h_sovereign::SovereignInterchainGasPaymasterIndexer::new(
+                        conf.clone(),
+                        locator,
+                        signer,
+                    )
+                    .await?,
+                );
+                Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
+            }
         }
         .context(ctx)
     }
@@ -814,6 +886,14 @@ impl ChainConf {
                 Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
             }
             ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
+            ChainConnectionConf::Sovereign(conf) => {
+                let signer = self.sovereign_signer().await.context(ctx)?;
+                let indexer = Box::new(
+                    h_sovereign::SovereignMerkleTreeHookIndexer::new(conf.clone(), locator, signer)
+                        .await?,
+                );
+                Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
+            }
         }
         .context(ctx)
     }
@@ -879,6 +959,13 @@ impl ChainConf {
                     locator.clone(),
                 )?);
 
+                Ok(va as Box<dyn ValidatorAnnounce>)
+            }
+            ChainConnectionConf::Sovereign(conf) => {
+                let signer = self.sovereign_signer().await.context(ctx)?;
+                let va = Box::new(
+                    h_sovereign::SovereignValidatorAnnounce::new(conf, locator, signer).await?,
+                );
                 Ok(va as Box<dyn ValidatorAnnounce>)
             }
             ChainConnectionConf::Radix(conf) => {
@@ -952,6 +1039,16 @@ impl ChainConf {
                 Ok(Box::new(ism) as Box<dyn InterchainSecurityModule>)
             }
             ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
+            ChainConnectionConf::Sovereign(conf) => {
+                let signer = self.sovereign_signer().await.context(ctx)?;
+                let ism = h_sovereign::SovereignInterchainSecurityModule::new(
+                    &conf.clone(),
+                    locator.clone(),
+                    signer,
+                )
+                .await?;
+                Ok(Box::new(ism) as Box<dyn InterchainSecurityModule>)
+            }
         }
         .context(ctx)
     }
@@ -1007,6 +1104,13 @@ impl ChainConf {
                 Ok(Box::new(ism) as Box<dyn MultisigIsm>)
             }
             ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
+            ChainConnectionConf::Sovereign(conf) => {
+                let signer = self.sovereign_signer().await.context(ctx)?;
+                let multisign_ism =
+                    h_sovereign::SovereignMultisigIsm::new(&conf.clone(), locator.clone(), signer)
+                        .await?;
+                Ok(Box::new(multisign_ism) as Box<dyn MultisigIsm>)
+            }
         }
         .context(ctx)
     }
@@ -1057,6 +1161,9 @@ impl ChainConf {
                 Ok(Box::new(ism) as Box<dyn RoutingIsm>)
             }
             ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
+            ChainConnectionConf::Sovereign(_) => {
+                Err(eyre!("Sovereign does not support routing ISM")).context(ctx)
+            }
         }
         .context(ctx)
     }
@@ -1107,6 +1214,9 @@ impl ChainConf {
                 todo!("Radix aggregation ISM not yet implemented")
             }
             ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
+            ChainConnectionConf::Sovereign(_conf) => {
+                Err(eyre!("Sovereign does not support aggregation ISM yet")).context(ctx)
+            }
         }
         .context(ctx)
     }
@@ -1145,6 +1255,9 @@ impl ChainConf {
                 Err(eyre!("Radix does not support CCIP read ISM yet")).context(ctx)
             }
             ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
+            ChainConnectionConf::Sovereign(_conf) => {
+                Err(eyre!("Sovereign does not support CCIP read ISM yet")).context(ctx)
+            }
         }
         .context(ctx)
     }
@@ -1179,6 +1292,9 @@ impl ChainConf {
                     Box::new(conf.build::<h_radix::RadixSigner>().await?)
                 }
                 ChainConnectionConf::Aleo(_) => return Ok(None),
+                ChainConnectionConf::Sovereign(_) => {
+                    Box::new(conf.build::<h_sovereign::Signer>().await?)
+                }
             };
             Ok(Some(chain_signer))
         } else {
@@ -1205,6 +1321,10 @@ impl ChainConf {
     }
 
     async fn starknet_signer(&self) -> Result<Option<h_starknet::Signer>> {
+        self.signer().await
+    }
+
+    async fn sovereign_signer(&self) -> Result<Option<h_sovereign::Signer>> {
         self.signer().await
     }
 
