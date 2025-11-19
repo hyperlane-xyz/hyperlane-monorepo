@@ -1,7 +1,7 @@
 import { confirm } from '@inquirer/prompts';
 import { ethers } from 'ethers';
 
-import { loadProviders } from '@hyperlane-xyz/deploy-sdk';
+import { loadProtocolProviders } from '@hyperlane-xyz/deploy-sdk';
 import { AltVM, getProtocolProvider } from '@hyperlane-xyz/provider-sdk';
 import { RadixProvider } from '@hyperlane-xyz/radix-sdk';
 import { IRegistry } from '@hyperlane-xyz/registry';
@@ -65,14 +65,22 @@ export async function signerMiddleware(argv: Record<string, any>) {
    */
   const chains = await chainStrategy.resolveChains(argv);
 
-  await loadProviders(
+  /**
+   * Load and create AltVM Providers
+   */
+  const altVmChains = chains.filter(
+    (chain) =>
+      argv.context.multiProvider.getProtocol(chain) !== ProtocolType.Ethereum,
+  );
+
+  await loadProtocolProviders(
     new Set(
-      chains.map((chain) => argv.context.multiProvider.getProtocol(chain)),
+      altVmChains.map((chain) => argv.context.multiProvider.getProtocol(chain)),
     ),
   );
 
   await Promise.all(
-    chains.map(async (chain) => {
+    altVmChains.map(async (chain) => {
       const { altVmProvider, multiProvider } = argv.context;
       const protocol = multiProvider.getProtocol(chain);
       const metadata = multiProvider.getChainMetadata(chain);
