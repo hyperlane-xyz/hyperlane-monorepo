@@ -48,7 +48,12 @@ pub async fn handler(
         .run_command(action)
         .await
         .map_err(|err| {
-            tracing::debug!(domain_id, ?err, "Failed to set upper nonce");
+            tracing::debug!(
+                domain_id,
+                ?new_upper_nonce,
+                ?err,
+                "Failed to set upper nonce"
+            );
             ServerErrorResponse::new(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 ServerErrorBody {
