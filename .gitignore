@@ -21,8 +21,6 @@ typescript/infra/config/environments/test/create2/*json
 typescript/infra/config/environments/test/testrecipient/*json
 solidity/artifacts
 
-# Yarn (removed - using pnpm now)
-
 # pnpm
 .pnpm-store/
 pnpm-debug.log*
