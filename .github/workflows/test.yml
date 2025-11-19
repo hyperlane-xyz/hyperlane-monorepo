@@ -811,7 +811,7 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
 
       - name: Run tests with coverage
-        run: yarn coverage
+        run: pnpm coverage
         env:
           NODE_OPTIONS: --max_old_space_size=4096
 
