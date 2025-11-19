@@ -435,7 +435,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       // Kill the process and wait for it to exit to prevent hangs
       try {
         await rebalancer.kill('SIGINT');
-      } catch (e) {
+      } catch {
         // Process may have already exited, which is fine
       }
     });
@@ -1262,7 +1262,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     // Kill the process to finish the test
     try {
       await rebalancer.kill('SIGINT');
-    } catch (e) {
+    } catch {
       // Process may have already exited, which is fine
     }
 
@@ -1379,7 +1379,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
     try {
       await rebalancer.kill('SIGINT');
-    } catch (e) {
+    } catch {
       // Process may have already exited, which is fine
     }
   });
@@ -1430,7 +1430,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     } finally {
       try {
         await rebalancer.kill('SIGINT');
-      } catch (e) {
+      } catch {
         // Process may have already exited, which is fine
       }
     }
@@ -1576,7 +1576,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     } finally {
       try {
         await relayer.kill('SIGINT');
-      } catch (e) {
+      } catch {
         // Process may have already exited, which is fine
       }
     }
@@ -1748,7 +1748,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       // Kill the process to finish the test
       try {
         await rebalancer.kill('SIGINT');
-      } catch (e) {
+      } catch {
         // Process may have already exited, which is fine
       }
 
@@ -1915,7 +1915,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       } finally {
         try {
           await relayer.kill('SIGINT');
-        } catch (e) {
+        } catch {
           // Process may have already exited, which is fine
         }
       }
