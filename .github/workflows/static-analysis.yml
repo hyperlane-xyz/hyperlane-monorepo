@@ -23,13 +23,13 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
 
-      - name: yarn-cache
-        uses: ./.github/actions/yarn-cache
+      - name: pnpm-cache
+        uses: ./.github/actions/pnpm-cache
         with:
           cache-provider: buildjet
 
-      - name: yarn-install
-        run: yarn install
+      - name: pnpm-install
+        run: pnpm install --frozen-lockfile
 
       - name: foundry-install
         uses: foundry-rs/foundry-toolchain@v1

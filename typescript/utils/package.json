@@ -4,6 +4,8 @@
   "version": "19.10.0",
   "dependencies": {
     "@cosmjs/encoding": "^0.32.4",
+    "@ethersproject/bytes": "^5.7.0",
+    "@ethersproject/units": "^5.7.0",
     "@solana/web3.js": "^1.98.4",
     "bech32": "^2.0.0",
     "bignumber.js": "^9.1.1",
@@ -62,7 +64,7 @@
     "lint": "eslint -c ./eslint.config.mjs",
     "prettier": "prettier --write ./src",
     "test": "mocha --config .mocharc.json './src/**/*.test.ts'",
-    "test:ci": "yarn test"
+    "test:ci": "pnpm test"
   },
   "type": "module",
   "exports": {

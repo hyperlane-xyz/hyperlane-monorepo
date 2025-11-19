@@ -256,10 +256,10 @@ export class GovernTransactionReader {
         `MultiSend and MultiSendCallOnly deployments not found for version ${version}`,
       );
 
-      Object.values(multiSendCallOnlyDeployments.deployments).forEach((d) => {
+      Object.values(multiSendCallOnlyDeployments.deployments).forEach((d: any) => {
         this.multiSendCallOnlyDeployments.push(d.address);
       });
-      Object.values(multiSendDeployments.deployments).forEach((d) => {
+      Object.values(multiSendDeployments.deployments).forEach((d: any) => {
         this.multiSendDeployments.push(d.address);
       });
     }

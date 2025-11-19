@@ -48,7 +48,7 @@ export abstract class BaseService {
    * Helper method to add service context to a logger.
    */
   protected addLoggerServiceContext(logger: Logger): Logger {
-    logger.setBindings({ service: this.constructor.name });
+    (logger as any).setBindings({ service: this.constructor.name });
     return logger;
   }
 

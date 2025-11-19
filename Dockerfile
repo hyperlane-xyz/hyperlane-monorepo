@@ -3,13 +3,11 @@ FROM node:20-alpine
 WORKDIR /hyperlane-monorepo
 
 RUN apk add --update --no-cache git g++ make py3-pip jq bash curl && \
-    yarn set version 4.5.1
+    npm install -g pnpm@10.22.0
 
 # Copy package.json and friends
-COPY package.json yarn.lock .yarnrc.yml ./
-COPY .yarn/plugins ./.yarn/plugins
-COPY .yarn/releases ./.yarn/releases
-COPY .yarn/patches ./.yarn/patches
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+COPY patches ./patches
 
 COPY typescript/ccip-server/package.json ./typescript/ccip-server/
 COPY typescript/ccip-server/prisma ./typescript/ccip-server/prisma
@@ -32,7 +30,7 @@ COPY solidity/package.json ./solidity/
 COPY solhint-plugin/package.json ./solhint-plugin/
 COPY starknet/package.json ./starknet/
 
-RUN yarn install && yarn cache clean
+RUN pnpm install --frozen-lockfile && pnpm store prune
 
 # Copy everything else
 COPY turbo.json ./
@@ -41,7 +39,7 @@ COPY solidity ./solidity
 COPY solhint-plugin ./solhint-plugin
 COPY starknet ./starknet
 
-RUN yarn build
+RUN pnpm build
 
 # Baked-in registry version
 # keep for back-compat until we update all usage of the monorepo image (e.g. key-funder)

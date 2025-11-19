@@ -21,9 +21,11 @@ typescript/infra/config/environments/test/create2/*json
 typescript/infra/config/environments/test/testrecipient/*json
 solidity/artifacts
 
-.yarn/install-state.gz
-.yarn/cache
-yarn-error.log
+# Yarn (removed - using pnpm now)
+
+# pnpm
+.pnpm-store/
+pnpm-debug.log*
 
 .turbo
 

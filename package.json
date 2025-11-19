@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/monorepo",
-  "description": "A yarn workspace of core Hyperlane packages",
+  "description": "A pnpm workspace of core Hyperlane packages",
   "version": "0.0.0",
   "devDependencies": {
     "@eslint/js": "^9.31.0",
@@ -23,10 +23,16 @@
   "dependencies": {
     "@changesets/cli": "^2.26.2"
   },
-  "packageManager": "yarn@4.5.1",
+  "packageManager": "pnpm@10.22.0",
   "private": true,
+  "workspaces": [
+    "solhint-plugin",
+    "solidity",
+    "typescript/*",
+    "starknet"
+  ],
   "scripts": {
-    "agent-configs": "yarn --cwd typescript/infra/ update-agent-config:mainnet3 && yarn --cwd typescript/infra/ update-agent-config:testnet4",
+    "agent-configs": "pnpm -C typescript/infra update-agent-config:mainnet3 && pnpm -C typescript/infra update-agent-config:testnet4",
     "build": "turbo run build",
     "clean": "turbo run clean",
     "prettier": "turbo run prettier",
@@ -34,29 +40,27 @@
     "test": "turbo run test --continue",
     "test:ci": "turbo run test:ci",
     "coverage": "turbo run coverage",
-    "version:prepare": "yarn changeset version && turbo run version:update && yarn install --no-immutable",
-    "version:check": "yarn changeset status",
-    "release": "yarn build && yarn changeset publish",
+    "version:prepare": "pnpm changeset version && turbo run version:update && pnpm install",
+    "version:check": "pnpm changeset status",
+    "release": "pnpm build && pnpm changeset publish",
     "postinstall": "husky install"
   },
-  "workspaces": [
-    "solhint-plugin",
-    "solidity",
-    "typescript/*",
-    "starknet"
-  ],
-  "resolutions": {
-    "async": "^2.6.4",
-    "fetch-ponyfill": "^7.1",
-    "flat": "^5.0.2",
-    "globals": "^14.0.0",
-    "lodash": "^4.17.21",
-    "recursive-readdir": "^2.2.3",
-    "underscore": "^1.13",
-    "undici": "^5.11",
-    "@trivago/prettier-plugin-sort-imports/@babel/parser": "^7.22.7",
-    "@typechain/ethers-v5": "11.1.2",
-    "typechain@npm:^8.0.0": "patch:typechain@npm%3A8.3.2#~/.yarn/patches/typechain-npm-8.3.2-b02e27439e.patch",
-    "node-fetch": "^3.3.2"
+  "pnpm": {
+    "overrides": {
+      "async": "^2.6.4",
+      "fetch-ponyfill": "^7.1",
+      "flat": "^5.0.2",
+      "globals": "^14.0.0",
+      "lodash": "^4.17.21",
+      "recursive-readdir": "^2.2.3",
+      "underscore": "^1.13",
+      "undici": "^5.11",
+      "@babel/parser": "^7.22.7",
+      "@typechain/ethers-v5": "11.1.2",
+      "node-fetch": "^3.3.2"
+    },
+    "patchedDependencies": {
+      "typechain@8.3.2": "patches/typechain@8.3.2.patch"
+    }
   }
 }

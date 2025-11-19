@@ -9,8 +9,8 @@ It can be used as a standalone SDK for frontend or in backend applications which
 # Install with NPM
 npm install @hyperlane-xyz/radix-sdk
 
-# Or with Yarn
-yarn add @hyperlane-xyz/radix-sdk
+# Or with pnpm
+pnpm add @hyperlane-xyz/radix-sdk
 ```
 
 ## Usage
