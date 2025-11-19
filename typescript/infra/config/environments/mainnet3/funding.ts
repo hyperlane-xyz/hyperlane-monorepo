@@ -47,6 +47,7 @@ export const keyFunderConfig: KeyFunderConfig<
   desiredBalancePerChain: desiredRelayerBalancePerChain,
   // if not set, keyfunder defaults to 0
   desiredKathyBalancePerChain: {
+    sepolia: '0',
     ancient8: '0',
     arbitrum: '0.1',
     avalanche: '6',
@@ -103,6 +104,7 @@ export const keyFunderConfig: KeyFunderConfig<
   desiredRebalancerBalancePerChain,
   // if not set, keyfunder defaults to using desired balance * 0.2 as the threshold
   igpClaimThresholdPerChain: {
+    sepolia: '0',
     ancient8: '0.1',
     arbitrum: '0.1',
     avalanche: '2',

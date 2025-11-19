@@ -461,9 +461,18 @@ export class HyperlaneSmartProvider
       });
     } else {
       this.logger.error(
+        {
+          errors: errors.map((e) => ({
+            message: e?.message,
+            code: e?.code,
+            reason: e?.reason,
+            status: e?.status,
+            stack: e?.stack,
+          })),
+        },
         'Unhandled error case in combined provider error handler',
       );
-      throw Error(fallbackMsg);
+      throw Error(fallbackMsg, { cause: errors[0] });
     }
   }
 }
