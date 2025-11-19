@@ -4,17 +4,14 @@
 
 See Epic for more info
 
-## Structure
+## Structure
 
 ```
-├──  demo
-│   ├──  multisig // self contained demo for most basic multisig + relayer kaspa TX flow
-│   ├──  relayer // self contained demo for relayer (with/without HL/Hub parts)
-│   └──  validator // self contained demo for validator (with/without HL/Hub parts)
-├──  lib
-│   ├──  core // shared by relayer and validator libs
-│   ├──  relayer // not used by validator lib
-│   └──  validator // not used by relayer lib
+├──  tooling // tooling for users, validator operators, developers etc
+├──  lib
+│   ├──  core // shared by relayer and validator libs
+│   ├──  relayer // not used by validator lib
+│   └──  validator // not used by relayer lib
 ```
 
 ## HL integrations

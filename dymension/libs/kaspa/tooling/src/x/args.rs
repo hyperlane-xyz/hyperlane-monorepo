@@ -6,7 +6,7 @@ use std::str::FromStr;
 
 #[derive(Parser, Debug)]
 #[command(
-    name = "demo-user",
+    name = "kaspa-tools",
     author,
     version, // `version()` is automatically called by clap
     about = "Tools for users, validator operators, developers etc",
