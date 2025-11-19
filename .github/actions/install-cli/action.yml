@@ -17,6 +17,10 @@ runs:
       if: inputs.no-cache == 'false'
       uses: ./.github/actions/pnpm-build-with-cache
 
+    - name: Setup pnpm (no-cache path)
+      if: inputs.no-cache != 'false'
+      uses: pnpm/action-setup@v4
+
     - name: pnpm-install-build-without-cache
       if: inputs.no-cache != 'false'
       shell: bash
