@@ -52,7 +52,7 @@
     "Typescript"
   ],
   "license": "Apache-2.0",
-  "prepublish": "yarn build",
+  "prepublish": "pnpm build",
   "scripts": {
     "dev": "tsc -w",
     "build": "tsc --excludeFiles \"**/*.test.ts\"",
@@ -61,7 +61,7 @@
     "lint": "eslint -c ./eslint.config.mjs",
     "prettier": "prettier --write ./src",
     "test": "mocha --config .mocharc.json './src/**/*.test.ts'",
-    "test:ci": "yarn test"
+    "test:ci": "pnpm test"
   },
   "type": "module",
   "exports": {

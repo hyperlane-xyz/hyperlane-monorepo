@@ -1,0 +1,32 @@
+name: 'PNPM Build with Cache'
+description: 'Run pnpm build using pnpm cache'
+
+inputs:
+  ref:
+    description: 'The Git ref to checkout'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: pnpm-cache
+      id: pnpm-cache
+      uses: ./.github/actions/pnpm-cache
+
+    # Typically, the cache will be hit, but if there's a network error when
+    # restoring the cache, let's run the install step ourselves.
+    - name: Install dependencies
+      if: steps.pnpm-cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        pnpm install --frozen-lockfile
+        CHANGES=$(git status -s --ignore-submodules | grep -v "results.sarif")
+        if [[ ! -z $CHANGES ]]; then
+          echo "Changes found: $CHANGES"
+          git diff
+          exit 1
+        fi
+
+    - name: Build
+      shell: bash
+      run: pnpm build

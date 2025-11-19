@@ -92,7 +92,7 @@
     "url": "https://github.com/hyperlane-xyz/hyperlane-monorepo"
   },
   "scripts": {
-    "build": "yarn build:ts && yarn build:css",
+    "build": "pnpm build:ts && pnpm build:css",
     "build:ts": "tsc",
     "build:css": "tailwindcss -c ./tailwind.config.cjs -i ./src/styles.css -o ./dist/styles.css --minify",
     "clean": "rm -rf ./dist ./cache ./storybook-static",

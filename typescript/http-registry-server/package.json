@@ -20,8 +20,8 @@
     "dev": "tsc --watch",
     "lint": "eslint -c ./eslint.config.mjs",
     "prettier": "prettier --write ./src ./test",
-    "test": "yarn test:unit",
-    "test:ci": "yarn test",
+    "test": "pnpm test:unit",
+    "test:ci": "pnpm test",
     "test:unit": "mocha --config .mocharc.json './test/**/*.ts' --exit"
   },
   "dependencies": {

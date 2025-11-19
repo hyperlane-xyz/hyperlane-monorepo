@@ -13,25 +13,25 @@ inputs:
 runs:
   using: 'composite'
   steps:
-    - name: yarn-build-with-cache
+    - name: pnpm-build-with-cache
       if: inputs.no-cache == 'false'
-      uses: ./.github/actions/yarn-build-with-cache
+      uses: ./.github/actions/pnpm-build-with-cache
       with:
         ref: ${{ inputs.ref }}
 
-    - name: yarn-install-build-without-cache
+    - name: pnpm-install-build-without-cache
       if: inputs.no-cache != 'false'
       shell: bash
       run: |
-        yarn install
-        yarn build
+        pnpm install --frozen-lockfile
+        pnpm build
 
     - name: Pack the CLI
       shell: bash
       id: pack-cli
       run: |
         cd typescript/cli
-        yarn pack
+        pnpm pack
 
     - name: Install the packaged CLI
       shell: bash
