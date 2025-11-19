@@ -67,3 +67,137 @@ impl AleoApplicationOperationVerifier {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use hyperlane_core::{HyperlaneMessage, H256};
+
+    fn create_test_message(body: Vec<u8>) -> HyperlaneMessage {
+        HyperlaneMessage {
+            version: 3,
+            nonce: 0,
+            origin: 1,
+            sender: H256::zero(),
+            destination: 2,
+            recipient: H256::zero(),
+            body,
+        }
+    }
+
+    #[test]
+    fn test_no_app_context() {
+        let message = create_test_message(vec![0u8; 16]);
+        let result = AleoApplicationOperationVerifier::verify_message(&None, &message);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_non_warp_route_context() {
+        let message = create_test_message(vec![0u8; 16]);
+        let result = AleoApplicationOperationVerifier::verify_message(
+            &Some("some_context".to_string()),
+            &message,
+        );
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_body_size_multiple_of_16() {
+        let message = create_test_message(vec![0u8; 16]);
+        let result = AleoApplicationOperationVerifier::verify_message(
+            &Some("warp/route".to_string()),
+            &message,
+        );
+        assert!(result.is_some()); // Will fail token message parsing
+    }
+
+    #[test]
+    fn test_body_size_exception_72() {
+        let message = create_test_message(vec![0u8; 72]);
+        let result = AleoApplicationOperationVerifier::verify_message(
+            &Some("warp/route".to_string()),
+            &message,
+        );
+        assert!(result.is_none()); // Should not fail
+    }
+
+    #[test]
+    fn test_body_size_exception_80() {
+        let message = create_test_message(vec![0u8; 80]);
+        let result = AleoApplicationOperationVerifier::verify_message(
+            &Some("warp/route".to_string()),
+            &message,
+        );
+        assert!(result.is_none()); // Should not fail
+    }
+
+    #[test]
+    fn test_body_size_exception_129() {
+        let message = create_test_message(vec![0u8; 129]);
+        let result = AleoApplicationOperationVerifier::verify_message(
+            &Some("warp/route".to_string()),
+            &message,
+        );
+        assert!(result.is_none()); // Should not fail
+    }
+
+    #[test]
+    fn test_body_size_invalid_not_multiple_of_16() {
+        let message = create_test_message(vec![0u8; 17]);
+        let result = AleoApplicationOperationVerifier::verify_message(
+            &Some("warp/route".to_string()),
+            &message,
+        );
+        assert!(matches!(
+            result,
+            Some(ApplicationOperationVerifierReport::MalformedMessage(_))
+        ));
+    }
+
+    #[test]
+    fn test_body_size_exceeds_256() {
+        let message = create_test_message(vec![0u8; 257]);
+        let result = AleoApplicationOperationVerifier::verify_message(
+            &Some("warp/route".to_string()),
+            &message,
+        );
+        assert!(matches!(
+            result,
+            Some(ApplicationOperationVerifierReport::MalformedMessage(_))
+        ));
+    }
+
+    #[test]
+    fn test_body_size_exactly_256() {
+        let message = create_test_message(vec![0u8; 256]);
+        let result = AleoApplicationOperationVerifier::verify_message(
+            &Some("warp/route".to_string()),
+            &message,
+        );
+        assert!(result.is_none()); // Should not fail
+    }
+
+    #[test]
+    fn test_body_size_empty() {
+        let message = create_test_message(vec![]);
+        let result = AleoApplicationOperationVerifier::verify_message(
+            &Some("warp/route".to_string()),
+            &message,
+        );
+        assert!(result.is_some()); // Will fail token message parsing
+    }
+
+    #[test]
+    fn test_invalid_token_message() {
+        let message = create_test_message(vec![0u8; 32]);
+        let result = AleoApplicationOperationVerifier::verify_message(
+            &Some("warp/route".to_string()),
+            &message,
+        );
+        assert!(matches!(
+            result,
+            Some(ApplicationOperationVerifierReport::MalformedMessage(_))
+        ));
+    }
+}
