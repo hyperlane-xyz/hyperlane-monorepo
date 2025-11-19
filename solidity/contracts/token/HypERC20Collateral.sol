@@ -68,14 +68,7 @@ contract HypERC20Collateral is LpCollateralRouter {
 
     function _addBridge(uint32 domain, ITokenBridge bridge) internal override {
         MovableCollateralRouter._addBridge(domain, bridge);
-
-        uint256 allowance = wrappedToken.allowance(
-            address(this),
-            address(bridge)
-        );
-        if (allowance != type(uint256).max) {
-            wrappedToken.forceApprove(address(bridge), type(uint256).max);
-        }
+        wrappedToken.forceApprove(address(bridge), type(uint256).max);
     }
 
     function _removeBridge(
@@ -84,22 +77,20 @@ contract HypERC20Collateral is LpCollateralRouter {
     ) internal override {
         MovableCollateralRouter._removeBridge(domain, bridge);
 
-        bool shouldRevoke = true;
         uint32[] memory knownDomains = _routers.uint32Keys();
 
-        // This for should be fine as there won't be an unbound amount of domains
-        // enrolled chains on this router
+        // Iteration is fine as number of enrolled domains is bounded
         for (uint256 i = 0; i < knownDomains.length; i++) {
             EnumerableSet.AddressSet storage bridges = allowed.bridges[
                 knownDomains[i]
             ];
 
-            shouldRevoke = shouldRevoke && !bridges.contains(address(bridge));
+            if (bridges.contains(address(bridge))) {
+                return;
+            }
         }
 
-        if (shouldRevoke) {
-            wrappedToken.forceApprove(address(bridge), 0);
-        }
+        wrappedToken.forceApprove(address(bridge), 0);
     }
 
     /**

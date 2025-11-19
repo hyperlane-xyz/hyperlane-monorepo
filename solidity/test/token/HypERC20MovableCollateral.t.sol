@@ -110,12 +110,7 @@ contract HypERC20MovableCollateralRouterTest is Test {
             "Allowance should be max after first addBridge call"
         );
 
-        // Second call to addBridge with the same address but different domain should work and not require allowance to be set again
-        vm.expectCall(
-            address(token),
-            abi.encodeWithSelector(token.approve.selector),
-            0
-        );
+        // Second call to addBridge with the same address but different domain should work
         router.addBridge(otherDestinationDomain, vtb);
 
         // Allowance should not have changed
@@ -185,7 +180,7 @@ contract HypERC20MovableCollateralRouterTest is Test {
         assertEq(
             token.allowance(address(router), address(vtb)),
             type(uint256).max,
-            "Allowance should be max after first addBridge call"
+            "Allowance should be max after addBridge call"
         );
 
         // Should not call approve to revoke
