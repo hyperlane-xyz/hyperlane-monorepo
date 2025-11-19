@@ -61,7 +61,7 @@
   ],
   "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "scripts": {
-    "build": "pnpm hardhat-esm compile && pnpm exec tsc",
+    "build": "pnpm hardhat-esm clean && pnpm hardhat-esm compile && pnpm exec tsc",
     "clean": "pnpm hardhat-esm clean && rm -rf dist cache src/types",
     "coverage": "pnpm hardhat-esm coverage",
     "lint": "pnpm lint:sol && pnpm lint:ts",
