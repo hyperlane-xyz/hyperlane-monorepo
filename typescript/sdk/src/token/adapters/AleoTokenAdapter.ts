@@ -1,4 +1,8 @@
-import { AleoProvider, AleoTransaction } from '@hyperlane-xyz/aleo-sdk';
+import {
+  ALEO_NATIVE_DENOM,
+  AleoProvider,
+  AleoTransaction,
+} from '@hyperlane-xyz/aleo-sdk';
 import {
   Address,
   Domain,
@@ -30,7 +34,7 @@ export class AleoTokenAdapter
   protected tokenAddress: string;
 
   protected async getDenom(): Promise<string> {
-    return this.tokenAddress;
+    return ALEO_NATIVE_DENOM;
   }
 
   constructor(
@@ -154,7 +158,7 @@ export class AleoHypCollateralAdapter
     super(chainName, multiProvider, addresses);
   }
 
-  protected async getResourceAddress(): Promise<string> {
+  protected async getDenom(): Promise<string> {
     const { denom } = await this.provider.getToken({
       tokenAddress: this.tokenAddress,
     });

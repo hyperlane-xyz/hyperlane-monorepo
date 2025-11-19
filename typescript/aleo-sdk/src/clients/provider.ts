@@ -3,6 +3,7 @@ import { BigNumber } from 'bignumber.js';
 import { AltVM, assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
 
 import {
+  ALEO_NATIVE_DENOM,
   ALEO_NULL_ADDRESS,
   arrayToPlaintext,
   fillArray,
@@ -677,7 +678,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     }
 
     return {
-      denom: '0field',
+      denom: ALEO_NATIVE_DENOM,
       amount: BigInt(quote.toFixed(0)),
     };
   }

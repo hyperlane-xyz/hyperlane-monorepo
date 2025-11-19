@@ -9,7 +9,7 @@
     "@eslint/js": "^9.31.0",
     "@ethersproject/abi": "*",
     "@ethersproject/providers": "*",
-    "@hyperlane-xyz/aleo-sdk": "19.4.0",
+    "@hyperlane-xyz/aleo-sdk": "19.9.0",
     "@hyperlane-xyz/cosmos-sdk": "19.9.0",
     "@hyperlane-xyz/http-registry-server": "19.9.0",
     "@hyperlane-xyz/registry": "20.0.0",

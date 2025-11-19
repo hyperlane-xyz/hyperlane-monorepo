@@ -1,23 +1,47 @@
 # Hyperlane Aleo SDK
 
-To test the current implementation build the monorepo
+The Hyperlane Aleo SDK is a fully typed TypeScript SDK for the [Aleo Implementation](https://github.com/hyperlane-xyz/hyperlane-aleo).
+It can be used as a standalone SDK for frontend or in backend applications which want to connect to a Aleo chain which has the Hyperlane blueprint installed.
+
+## Install
 
 ```bash
-yarn install
-yarn build
-cd typescript/aleo-sdk
+# Install with NPM
+npm install @hyperlane-xyz/aleo-sdk
+
+# Or with Yarn
+yarn add @hyperlane-xyz/aleo-sdk
 ```
 
-To start a local aleo testnet run (needs to download 5GB image and after starting it can also take up to 5mins)
+## Usage
 
-```bash
-docker compose up
+```ts
+import { AleoProvider, AleoSigner } from "@hyperlane-xyz/aleo-sdk";
+
+const signer = await AleoSigner.connectWithSigner(
+  ['http://localhost:3030'],
+  PRIV_KEY,
+  {
+    metadata: {
+      chainId: 1
+    }
+  }
+);
+
+const mailboxAddress = await signer.createMailbox({ domainId: 75898670 });
+
+const mailbox = await signer.getMailbox({ mailboxAddress });
+...
+
+// performing queries without signer
+const provider = await AleoProvider.connect(
+  ['http://localhost:3030'],
+  1
+);
+
+const mailbox = await provider.getMailbox({ mailboxAddress });
 ```
 
-Verify the aleo node is running by visiting `http://localhost:3030/testnet/block/latest`.
+## Setup
 
-Now run the aleo code
-
-```
-yarn node dist/index.js
-```
+Node 18 or newer is required.
