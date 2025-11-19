@@ -16,7 +16,7 @@ on:
       - '!typescript/tsconfig/**'
       - 'solidity/**'
       - 'starknet/**'
-      - 'yarn.lock'
+      - 'pnpm-lock.yaml'
       - '.github/workflows/release.yml'
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
@@ -52,14 +52,19 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.22.0
+
       - name: Install Dependencies
-        run: yarn install --immutable
+        run: pnpm install --frozen-lockfile
 
       - name: Create Release PR
         id: changesets
         uses: changesets/action@v1
         with:
-          version: yarn version:prepare
+          version: pnpm version:prepare
         env:
           NPM_CONFIG_PROVENANCE: true
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -147,15 +152,20 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.22.0
+
       - name: Install Dependencies
-        run: yarn install --immutable
+        run: pnpm install --frozen-lockfile
 
       - name: Publish Release to NPM
         id: changesets
         uses: changesets/action@v1
         with:
-          version: yarn version:prepare
-          publish: yarn release
+          version: pnpm version:prepare
+          publish: pnpm release
         env:
           NPM_CONFIG_PROVENANCE: true
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

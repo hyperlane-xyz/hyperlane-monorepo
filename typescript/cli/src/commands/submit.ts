@@ -47,7 +47,7 @@ export const submitCommand: CommandModuleWithWriteContext<{
     );
 
     await promiseObjAll(
-      objMap(chainTransactions, async (chainId, transactions) => {
+      objMap(chainTransactions, async (chainId: string | number, transactions) => {
         const chain = context.multiProvider.getChainName(chainId);
 
         await runSubmit({

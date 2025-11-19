@@ -27,7 +27,7 @@ env:
   TURBO_TEAM: ${{ secrets.DEPOT_ORG_ID }}
 
 jobs:
-  yarn-install:
+  pnpm-install:
     runs-on: depot-ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -39,12 +39,12 @@ jobs:
         with:
           node-version-file: .nvmrc
 
-      - name: yarn-cache
-        uses: ./.github/actions/yarn-cache
+      - name: pnpm-cache
+        uses: ./.github/actions/pnpm-cache
 
-      - name: yarn-install
+      - name: pnpm-install
         run: |
-          yarn install
+          pnpm install --frozen-lockfile
           CHANGES=$(git status -s --ignore-submodules)
           if [[ ! -z $CHANGES ]]; then
             echo "Changes found: $CHANGES"
@@ -54,7 +54,7 @@ jobs:
 
       # Check for mismatched dep versions across the monorepo
       - name: syncpack
-        run: yarn syncpack list-mismatches
+        run: pnpm syncpack list-mismatches
 
       # Check publishable packages have required fields for npm provenance
       - name: check-package-json
@@ -73,13 +73,13 @@ jobs:
           node-version-file: .nvmrc
 
       # Build required before linting or the intra-monorepo package cycle checking won't work
-      - name: yarn-build
-        uses: ./.github/actions/yarn-build-with-cache
+      - name: pnpm-build
+        uses: ./.github/actions/pnpm-build-with-cache
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: lint
-        run: yarn lint
+        run: pnpm lint
 
       - name: Get changed PR files
         if: github.event_name == 'pull_request'
@@ -93,12 +93,12 @@ jobs:
         if: github.event_name == 'pull_request'
         run: >-
           cat changed_files.txt |
-          xargs -r yarn exec prettier --check --ignore-unknown --no-error-on-unmatched-pattern
+          xargs -r pnpm exec prettier --check --ignore-unknown --no-error-on-unmatched-pattern
 
       - name: Run prettier (all files)
         if: github.event_name != 'pull_request'
         run: >-
-          yarn exec prettier --check --ignore-unknown --no-error-on-unmatched-pattern .
+          pnpm exec prettier --check --ignore-unknown --no-error-on-unmatched-pattern .
         continue-on-error: true
 
       - name: Clean up
@@ -150,7 +150,7 @@ jobs:
           echo "only_rust=false" >> $GITHUB_OUTPUT
           echo "Push event to main detected. Setting only_rust to false."
 
-  yarn-test-run:
+  pnpm-test-run:
     runs-on: depot-ubuntu-latest
     needs: [rust-only]
     timeout-minutes: 10
@@ -170,8 +170,8 @@ jobs:
         run: |
           echo "FOUNDRY_RPC_URL_ARBITRUM=${MAINNET3_ARBITRUM_RPC_URLS%%,*}" >> $GITHUB_ENV
 
-      - name: yarn-build
-        uses: ./.github/actions/yarn-build-with-cache
+      - name: pnpm-build
+        uses: ./.github/actions/pnpm-build-with-cache
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -179,19 +179,19 @@ jobs:
         uses: ./.github/actions/checkout-registry
 
       - name: Unit Tests
-        run: yarn test:ci
+        run: pnpm test:ci
 
-  yarn-test:
+  pnpm-test:
     runs-on: ubuntu-latest
-    needs: [yarn-test-run]
+    needs: [pnpm-test-run]
     if: always()
     steps:
       - uses: actions/checkout@v5
-      - name: Check yarn-test status
+      - name: Check pnpm-test status
         uses: ./.github/actions/check-job-status
         with:
-          job_name: 'Yarn Test'
-          result: ${{ needs.yarn-test-run.result }}
+          job_name: 'PNPM Test'
+          result: ${{ needs.pnpm-test-run.result }}
 
   infra-test:
     runs-on: depot-ubuntu-latest
@@ -224,8 +224,8 @@ jobs:
             echo "WARP_CONFIG_CHANGES=true" >> $GITHUB_ENV
           fi
 
-      - name: yarn-build
-        uses: ./.github/actions/yarn-build-with-cache
+      - name: pnpm-build
+        uses: ./.github/actions/pnpm-build-with-cache
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -234,15 +234,15 @@ jobs:
 
       - name: GitLeaks Tests
         if: steps.gitleaks-install.outcome != 'skipped'
-        run: yarn --cwd typescript/infra test:gitleaks
+        run: pnpm -C typescript/infra test:gitleaks
 
       - name: Balance Tests
         if: env.BALANCE_CHANGES == 'true'
-        run: yarn --cwd typescript/infra test:balance
+        run: pnpm -C typescript/infra test:balance
 
       - name: Warp Config Tests
         if: env.WARP_CONFIG_CHANGES == 'true'
-        run: yarn --cwd typescript/infra test:warp
+        run: pnpm -C typescript/infra test:warp
 
   cli-install-test-run:
     runs-on: depot-ubuntu-24.04
@@ -331,7 +331,7 @@ jobs:
         uses: ./.github/actions/checkout-registry
 
       - name: CLI ethereum e2e tests (${{ matrix.test }})
-        run: yarn --cwd typescript/cli test:ethereum:e2e
+        run: pnpm -C typescript/cli test:ethereum:e2e
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
 
@@ -371,7 +371,7 @@ jobs:
         uses: ./.github/actions/checkout-registry
 
       - name: CLI cosmosnative e2e tests (${{ matrix.test }})
-        run: yarn --cwd typescript/cli test:cosmosnative:e2e
+        run: pnpm -C typescript/cli test:cosmosnative:e2e
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
 
@@ -406,7 +406,7 @@ jobs:
         uses: ./.github/actions/checkout-registry
 
       - name: CLI radix e2e tests (${{ matrix.test }})
-        run: yarn --cwd typescript/cli test:radix:e2e
+        run: pnpm -C typescript/cli test:radix:e2e
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
 
@@ -438,7 +438,7 @@ jobs:
         uses: ./.github/actions/checkout-registry
 
       - name: CLI cross chain e2e tests (${{ matrix.test }})
-        run: yarn --cwd typescript/cli test:cross-chain:e2e
+        run: pnpm -C typescript/cli test:cross-chain:e2e
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
 
@@ -486,13 +486,13 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
 
-      - name: yarn-build
-        uses: ./.github/actions/yarn-build-with-cache
+      - name: pnpm-build
+        uses: ./.github/actions/pnpm-build-with-cache
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Cosmos SDK e2e tests
-        run: yarn --cwd typescript/cosmos-sdk test:e2e
+        run: pnpm -C typescript/cosmos-sdk test:e2e
 
   cosmos-sdk-e2e:
     runs-on: ubuntu-latest
@@ -517,8 +517,8 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      - name: yarn-build
-        uses: ./.github/actions/yarn-build-with-cache
+      - name: pnpm-build
+        uses: ./.github/actions/pnpm-build-with-cache
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -528,7 +528,7 @@ jobs:
       - name: Generate ${{ matrix.environment }} agent config
         run: |
           cd typescript/infra
-          yarn tsx ./scripts/agents/update-agent-config.ts -e ${{ matrix.environment }}
+          pnpm tsx ./scripts/agents/update-agent-config.ts -e ${{ matrix.environment }}
           CHANGES=$(git status -s . :/rust/main/config)
           if [[ ! -z $CHANGES ]]; then
             echo "Changes found in agent config: $CHANGES"
@@ -635,9 +635,9 @@ jobs:
         if: steps.check-conditions.outputs.skip-e2e != 'true'
         uses: rui314/setup-mold@v1
 
-      - name: yarn-build
+      - name: pnpm-build
         if: steps.check-conditions.outputs.skip-e2e != 'true'
-        uses: ./.github/actions/yarn-build-with-cache
+        uses: ./.github/actions/pnpm-build-with-cache
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -751,8 +751,8 @@ jobs:
       - name: foundry-install
         uses: foundry-rs/foundry-toolchain@v1
 
-      - name: yarn-build
-        uses: ./.github/actions/yarn-build-with-cache
+      - name: pnpm-build
+        uses: ./.github/actions/pnpm-build-with-cache
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -810,14 +810,14 @@ jobs:
 
       - name: Build
         run: |
-          yarn install
-          yarn build
+          pnpm install --frozen-lockfile
+          pnpm build
 
       - name: foundry-install
         uses: foundry-rs/foundry-toolchain@v1
 
       - name: Run tests with coverage
-        run: yarn coverage
+        run: pnpm coverage
         env:
           NODE_OPTIONS: --max_old_space_size=4096
 
