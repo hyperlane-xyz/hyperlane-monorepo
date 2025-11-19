@@ -1,23 +1,14 @@
 pub mod set_upper_nonce;
 
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
 use axum::{routing::post, Router};
 use derive_new::new;
-use ethers::types::Address;
-use hyperlane_base::db::HyperlaneRocksDB;
-use hyperlane_core::HyperlaneDomainProtocol;
+use lander::DispatcherEntrypoint;
 
-#[derive(Clone, Debug)]
-pub struct ChainWithNonce {
-    pub signer_address: Address,
-    pub protocol: HyperlaneDomainProtocol,
-    pub db: Arc<HyperlaneRocksDB>,
-}
-
-#[derive(Clone, Debug, new)]
+#[derive(Clone, new)]
 pub struct ServerState {
-    pub chains: HashMap<u32, ChainWithNonce>,
+    pub chains: HashMap<u32, DispatcherEntrypoint>,
 }
 
 impl ServerState {

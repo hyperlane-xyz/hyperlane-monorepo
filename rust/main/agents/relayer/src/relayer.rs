@@ -32,16 +32,12 @@ use hyperlane_base::{
 };
 use hyperlane_core::{
     rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, ContractSyncCursor,
-    HyperlaneDomain, HyperlaneMessage, HyperlaneSigner, InterchainGasPayment, MerkleTreeInsertion,
-    PendingOperation, QueueOperation, H512, U256,
+    HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, PendingOperation,
+    QueueOperation, H512, U256,
 };
 use lander::DispatcherMetrics;
 
-use crate::{
-    db_loader::DbLoader,
-    relayer::origin::Origin,
-    server::{evm::nonce::ChainWithNonce, ENDPOINT_MESSAGES_QUEUE_SIZE},
-};
+use crate::{db_loader::DbLoader, relayer::origin::Origin, server::ENDPOINT_MESSAGES_QUEUE_SIZE};
 use crate::{
     db_loader::DbLoaderExt,
     merkle_tree::db_loader::{MerkleTreeDbLoader, MerkleTreeDbLoaderMetrics},
@@ -598,19 +594,11 @@ impl Relayer {
             .iter()
             .map(|(key, origin)| (key.id(), origin.prover_sync.clone()))
             .collect();
-        let mut chains_with_nonce: HashMap<_, _> = HashMap::new();
+        let mut dispatcher_entrypoints: HashMap<_, _> = HashMap::new();
         for (key, dest) in self.destinations.iter() {
-            let signer = match dest.chain_conf.ethereum_signer().await {
-                Ok(Some(s)) => s,
-                _ => continue,
-            };
-
-            let data = ChainWithNonce {
-                protocol: dest.chain_conf.domain.domain_protocol(),
-                signer_address: signer.eth_address().into(),
-                db: Arc::new(dest.database.clone()),
-            };
-            chains_with_nonce.insert(key.id(), data);
+            if let Some(entrypoint) = dest.dispatcher_entrypoint.as_ref() {
+                dispatcher_entrypoints.insert(key.id(), entrypoint.clone());
+            }
         }
         relayer_server::Server::new(self.destinations.len())
             .with_op_retry(sender)
@@ -619,7 +607,7 @@ impl Relayer {
             .with_gas_enforcers(gas_enforcers)
             .with_msg_ctxs(msg_ctxs)
             .with_prover_sync(prover_syncs)
-            .with_chains_with_nonce(chains_with_nonce)
+            .with_chains_with_nonce(dispatcher_entrypoints)
             .router()
     }
 

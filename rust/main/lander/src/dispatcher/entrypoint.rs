@@ -1,6 +1,8 @@
 // TODO: re-enable clippy warnings
 #![allow(dead_code)]
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use eyre::{eyre, Result};
 use tracing::info;
@@ -9,6 +11,7 @@ use crate::{
     adapter::GasLimit,
     error::LanderError,
     payload::{FullPayload, PayloadStatus, PayloadUuid},
+    AdaptsChain,
 };
 
 use super::{metrics::DispatcherMetrics, DispatcherSettings, DispatcherState};
@@ -41,6 +44,10 @@ impl DispatcherEntrypoint {
 
     fn from_inner(inner: DispatcherState) -> Self {
         Self { inner }
+    }
+
+    pub fn adapter(&self) -> &Arc<dyn AdaptsChain> {
+        &self.inner.adapter
     }
 }
 

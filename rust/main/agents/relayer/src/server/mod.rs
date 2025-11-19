@@ -5,6 +5,7 @@ use std::sync::Arc;
 use axum::Router;
 use derive_new::new;
 use hyperlane_core::HyperlaneDomain;
+use lander::DispatcherEntrypoint;
 use tokio::sync::broadcast::Sender;
 
 use hyperlane_base::db::HyperlaneRocksDB;
@@ -15,7 +16,6 @@ use crate::msg::gas_payment::GasPaymentEnforcer;
 use crate::msg::op_queue::OperationPriorityQueue;
 use crate::msg::pending_message::MessageContext;
 use crate::server::environment_variable::EnvironmentVariableApi;
-use crate::server::evm::nonce::ChainWithNonce;
 
 pub const ENDPOINT_MESSAGES_QUEUE_SIZE: usize = 100;
 
@@ -44,7 +44,7 @@ pub struct Server {
     #[new(default)]
     prover_syncs: Option<HashMap<u32, Arc<RwLock<MerkleTreeBuilder>>>>,
     #[new(default)]
-    chains_with_nonce: Option<HashMap<u32, ChainWithNonce>>,
+    chains_with_nonce: Option<HashMap<u32, DispatcherEntrypoint>>,
 }
 
 impl Server {
@@ -87,7 +87,7 @@ impl Server {
         self
     }
 
-    pub fn with_chains_with_nonce(mut self, chains: HashMap<u32, ChainWithNonce>) -> Self {
+    pub fn with_chains_with_nonce(mut self, chains: HashMap<u32, DispatcherEntrypoint>) -> Self {
         self.chains_with_nonce = Some(chains);
         self
     }
