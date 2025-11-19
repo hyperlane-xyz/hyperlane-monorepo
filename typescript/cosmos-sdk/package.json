@@ -46,7 +46,11 @@
     "typescript-eslint": "^8.37.0"
   },
   "dependencies": {
+    "@cosmjs/amino": "^0.32.4",
+    "@cosmjs/math": "^0.32.4",
+    "@cosmjs/proto-signing": "^0.32.4",
     "@cosmjs/stargate": "^0.32.4",
+    "@cosmjs/tendermint-rpc": "^0.32.4",
     "@hyperlane-xyz/cosmos-types": "workspace:*",
     "@hyperlane-xyz/utils": "workspace:*"
   }

@@ -29,12 +29,13 @@
     "resolveJsonModule": true,
     "rootDir": "./src",
     "skipLibCheck": true,
+    "noImplicitOverride": false,
     "sourceMap": true,
     "strict": true,
     "target": "es2022"
   },
-  "exclude": ["./node_modules/", "./dist/", "./src/types/hardhat.d.ts"],
-  "include": ["./src/"],
+  "exclude": ["./node_modules/", "./dist/", "./src/types", "./src/test", "./src/**/*.test.ts"],
+  "include": ["./src/app/**/*.ts", "./src/multiProtocolApp/**/*.ts", "./src/scripts/**/*.ts"],
   "ts-node": {
     "experimentalSpecifierResolution": "node",
     "experimentalResolver": true,
