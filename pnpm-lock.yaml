@@ -589,6 +589,9 @@ importers:
       '@typescript-eslint/parser':
         specifier: ^8.1.6
         version: 8.37.0(eslint@9.31.0(jiti@2.6.1))(typescript@5.3.3)
+      chai:
+        specifier: ^4.5.0
+        version: 4.5.0
       eslint:
         specifier: ^9.31.0
         version: 9.31.0(jiti@2.6.1)
@@ -762,6 +765,9 @@ importers:
       '@eslint/js':
         specifier: ^9.31.0
         version: 9.31.0
+      '@ethereum-waffle/chai':
+        specifier: ^4.0.10
+        version: 4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))
       '@nomiclabs/hardhat-ethers':
         specifier: ^2.2.3
         version: 2.2.3(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(hardhat@2.27.0(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@18.19.130)(typescript@5.3.3))(typescript@5.3.3)(utf-8-validate@5.0.10))
@@ -783,6 +789,9 @@ importers:
       '@types/chai':
         specifier: ^4.2.21
         version: 4.3.20
+      '@types/chai-as-promised':
+        specifier: ^8
+        version: 8.0.2
       '@types/mocha':
         specifier: ^10.0.1
         version: 10.0.10
@@ -795,6 +804,9 @@ importers:
       chai:
         specifier: ^4.5.0
         version: 4.5.0
+      chai-as-promised:
+        specifier: ^8.0.1
+        version: 8.0.2(chai@4.5.0)
       eslint:
         specifier: ^9.31.0
         version: 9.31.0(jiti@2.6.1)
