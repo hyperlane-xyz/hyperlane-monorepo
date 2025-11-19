@@ -3,7 +3,7 @@ name: test
 on:
   # Triggers the workflow on pushes to main branch
   push:
-    branches: [main, 'audit-*', 'feat/multi-vm']
+    branches: [main, 'audit-*']
   # Triggers on pull requests
   pull_request:
     branches:
@@ -528,7 +528,7 @@ jobs:
 
   e2e-matrix:
     runs-on: depot-ubuntu-24.04-8
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main' || github.base_ref == 'feat/multi-vm') || github.event_name == 'merge_group'
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && (github.base_ref == 'main' || github.base_ref == 'feat/multi-vm')) || github.event_name == 'merge_group'
     strategy:
       fail-fast: false
       matrix:
