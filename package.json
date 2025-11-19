@@ -25,6 +25,12 @@
   },
   "packageManager": "pnpm@10.22.0",
   "private": true,
+  "workspaces": [
+    "solhint-plugin",
+    "solidity",
+    "typescript/*",
+    "starknet"
+  ],
   "scripts": {
     "agent-configs": "pnpm -C typescript/infra update-agent-config:mainnet3 && pnpm -C typescript/infra update-agent-config:testnet4",
     "build": "turbo run build",
