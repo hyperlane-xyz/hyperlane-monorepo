@@ -256,7 +256,7 @@ impl BuildableWithSignerConf for hyperlane_aleo::AleoSigner {
         if let SignerConf::HexKey { key } = conf {
             Ok(hyperlane_aleo::AleoSigner::new(key.as_bytes())?)
         } else {
-            bail!(format!("{conf:?} key is not supported by radix"));
+            bail!(format!("{conf:?} key is not supported by aleo"));
         }
     }
 }
