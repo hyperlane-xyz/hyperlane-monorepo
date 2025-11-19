@@ -17,6 +17,7 @@ pub struct RequestBody {
     pub new_upper_nonce: Option<u64>,
 }
 
+#[axum::debug_handler]
 /// Reset the upper nonce for an EVM chain
 pub async fn handler(
     State(state): State<ServerState>,
@@ -44,8 +45,7 @@ pub async fn handler(
     };
 
     dispatcher_entrypoint
-        .adapter()
-        .run_command(action)
+        .execute_command(action)
         .await
         .map_err(|err| {
             tracing::debug!(

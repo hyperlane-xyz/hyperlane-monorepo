@@ -45,10 +45,6 @@ impl DispatcherEntrypoint {
     fn from_inner(inner: DispatcherState) -> Self {
         Self { inner }
     }
-
-    pub fn adapter(&self) -> &Arc<dyn AdaptsChain> {
-        &self.inner.adapter
-    }
 }
 
 #[async_trait]

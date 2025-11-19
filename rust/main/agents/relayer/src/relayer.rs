@@ -35,7 +35,7 @@ use hyperlane_core::{
     HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, PendingOperation,
     QueueOperation, H512, U256,
 };
-use lander::DispatcherMetrics;
+use lander::{CommandEntrypoint, DispatcherMetrics};
 
 use crate::{db_loader::DbLoader, relayer::origin::Origin, server::ENDPOINT_MESSAGES_QUEUE_SIZE};
 use crate::{
@@ -598,9 +598,12 @@ impl Relayer {
             .destinations
             .iter()
             .filter_map(|(domain, dest)| {
-                dest.dispatcher_entrypoint
-                    .as_ref()
-                    .map(|entrypoint| (domain.id(), entrypoint.clone()))
+                dest.dispatcher_entrypoint.as_ref().map(|entrypoint| {
+                    (
+                        domain.id(),
+                        Arc::new(entrypoint.clone()) as Arc<dyn CommandEntrypoint>,
+                    )
+                })
             })
             .collect();
         relayer_server::Server::new(self.destinations.len())

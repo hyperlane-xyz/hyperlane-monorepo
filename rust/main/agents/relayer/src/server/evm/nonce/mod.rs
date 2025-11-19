@@ -1,14 +1,14 @@
 pub mod set_upper_nonce;
 
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use axum::{routing::post, Router};
 use derive_new::new;
-use lander::DispatcherEntrypoint;
+use lander::CommandEntrypoint;
 
 #[derive(Clone, new)]
 pub struct ServerState {
-    pub entrypoints: HashMap<u32, DispatcherEntrypoint>,
+    pub entrypoints: HashMap<u32, Arc<dyn CommandEntrypoint>>,
 }
 
 impl ServerState {

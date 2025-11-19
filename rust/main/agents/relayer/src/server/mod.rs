@@ -5,7 +5,7 @@ use std::sync::Arc;
 use axum::Router;
 use derive_new::new;
 use hyperlane_core::HyperlaneDomain;
-use lander::DispatcherEntrypoint;
+use lander::CommandEntrypoint;
 use tokio::sync::broadcast::Sender;
 
 use hyperlane_base::db::HyperlaneRocksDB;
@@ -44,7 +44,7 @@ pub struct Server {
     #[new(default)]
     prover_syncs: Option<HashMap<u32, Arc<RwLock<MerkleTreeBuilder>>>>,
     #[new(default)]
-    dispatcher_entrypoints: Option<HashMap<u32, DispatcherEntrypoint>>,
+    dispatcher_entrypoints: Option<HashMap<u32, Arc<dyn CommandEntrypoint>>>,
 }
 
 impl Server {
@@ -89,7 +89,7 @@ impl Server {
 
     pub fn with_dispatcher_entrypoints(
         mut self,
-        entrypoints: HashMap<u32, DispatcherEntrypoint>,
+        entrypoints: HashMap<u32, Arc<dyn CommandEntrypoint>>,
     ) -> Self {
         self.dispatcher_entrypoints = Some(entrypoints);
         self
