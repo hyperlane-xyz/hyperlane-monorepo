@@ -46,7 +46,7 @@ impl NonceManagerState {
         // set upper nonce in the db
         self.set_upper_nonce(&desired_upper_nonce).await?;
 
-        // We need to clear all nonces between [desired_upper_nonce, current_upper_nonce]
+        // We need to clear all nonces between [desired_upper_nonce, current_upper_nonce)
         let mut nonce_to_clear = desired_upper_nonce;
         while nonce_to_clear < current_upper_nonce {
             let tx_uuid = self.get_tracked_tx_uuid(&nonce_to_clear).await?;
