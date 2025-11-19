@@ -2,7 +2,11 @@ import { confirm } from '@inquirer/prompts';
 import { ethers } from 'ethers';
 
 import { loadProtocolProviders } from '@hyperlane-xyz/deploy-sdk';
-import { AltVM, getProtocolProvider } from '@hyperlane-xyz/provider-sdk';
+import {
+  AltVM,
+  getProtocolProvider,
+  hasProtocol,
+} from '@hyperlane-xyz/provider-sdk';
 import { RadixProvider } from '@hyperlane-xyz/radix-sdk';
 import { IRegistry } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
@@ -84,10 +88,12 @@ export async function signerMiddleware(argv: Record<string, any>) {
       const { altVmProvider, multiProvider } = argv.context;
       const protocol = multiProvider.getProtocol(chain);
       const metadata = multiProvider.getChainMetadata(chain);
-      altVmProvider.set(
-        chain,
-        await getProtocolProvider(protocol).createProvider(metadata),
-      );
+
+      if (hasProtocol(protocol))
+        altVmProvider.set(
+          chain,
+          await getProtocolProvider(protocol).createProvider(metadata),
+        );
 
       // TODO: Remove this after implementing Radix as a ProtocolProvider
       if (protocol === ProtocolType.Radix)
