@@ -47,18 +47,21 @@ export const submitCommand: CommandModuleWithWriteContext<{
     );
 
     await promiseObjAll(
-      objMap(chainTransactions, async (chainId: string | number, transactions) => {
-        const chain = context.multiProvider.getChainName(chainId);
+      objMap(
+        chainTransactions,
+        async (chainId: string | number, transactions) => {
+          const chain = context.multiProvider.getChainName(chainId);
 
-        await runSubmit({
-          context,
-          chain,
-          transactions,
-          strategyPath,
-          receiptsFilepath,
-        });
-        logBlue(`✅ Submission complete for chain ${chain}`);
-      }),
+          await runSubmit({
+            context,
+            chain,
+            transactions,
+            strategyPath,
+            receiptsFilepath,
+          });
+          logBlue(`✅ Submission complete for chain ${chain}`);
+        },
+      ),
     );
 
     process.exit(0);
