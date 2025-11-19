@@ -18,6 +18,7 @@
     "@cosmjs/stargate": "^0.32.4",
     "@eslint/js": "^9.31.0",
     "@ethersproject/abi": "*",
+    "@ethersproject/constants": "*",
     "@ethersproject/providers": "*",
     "@hyperlane-xyz/core": "workspace:*",
     "@hyperlane-xyz/cosmos-sdk": "workspace:*",
