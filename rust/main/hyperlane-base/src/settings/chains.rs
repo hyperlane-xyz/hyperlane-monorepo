@@ -1178,7 +1178,7 @@ impl ChainConf {
                 ChainConnectionConf::Radix(_) => {
                     Box::new(conf.build::<h_radix::RadixSigner>().await?)
                 }
-                ChainConnectionConf::Aleo(_) => return Ok(None),
+                ChainConnectionConf::Aleo(_) => Box::new(conf.build::<h_aleo::AleoSigner>().await?),
             };
             Ok(Some(chain_signer))
         } else {
