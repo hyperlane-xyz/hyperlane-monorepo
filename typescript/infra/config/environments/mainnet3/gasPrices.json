@@ -304,7 +304,7 @@
     "decimals": 9
   },
   "monad": {
-    "amount": "52.0",
+    "amount": "102.0",
     "decimals": 9
   },
   "moonbeam": {
@@ -312,7 +312,7 @@
     "decimals": 9
   },
   "morph": {
-    "amount": "0.1212",
+    "amount": "0.1375",
     "decimals": 9
   },
   "neutron": {
@@ -368,7 +368,7 @@
     "decimals": 9
   },
   "polygon": {
-    "amount": "104.348697715",
+    "amount": "225.399111295",
     "decimals": 9
   },
   "polygonzkevm": {
@@ -452,7 +452,7 @@
     "decimals": 1
   },
   "story": {
-    "amount": "0.001001186",
+    "amount": "0.002050755",
     "decimals": 9
   },
   "stride": {
@@ -484,7 +484,7 @@
     "decimals": 9
   },
   "taiko": {
-    "amount": "0.0495",
+    "amount": "0.125",
     "decimals": 9
   },
   "tangle": {
