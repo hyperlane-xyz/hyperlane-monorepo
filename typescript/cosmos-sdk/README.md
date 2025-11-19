@@ -9,8 +9,8 @@ It can be used as a standalone SDK for frontend or in backend applications which
 # Install with NPM
 npm install @hyperlane-xyz/cosmos-sdk
 
-# Or with Yarn
-yarn add @hyperlane-xyz/cosmos-sdk
+# Or with pnpm
+pnpm add @hyperlane-xyz/cosmos-sdk
 ```
 
 ## Usage
@@ -76,8 +76,8 @@ We have a `cosmos-sdk-e2e` job in CI that first runs a local node and then runs 
 
 ## Contribute
 
-First you need to install the dependencies by running `yarn install`.
+First you need to install the dependencies by running `pnpm install`.
 
 ### Building the project
 
-You can build the project with `yarn build`, the build output can be found under `dist`.
+You can build the project with `pnpm build`, the build output can be found under `dist`.
