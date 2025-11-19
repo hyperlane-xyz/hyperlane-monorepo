@@ -23,6 +23,11 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
       - name: pnpm-cache
         uses: ./.github/actions/pnpm-cache
         with:
