@@ -83,7 +83,7 @@
     "clean": "rm -rf ./dist && rm -rf ./cli-bundle",
     "lint": "eslint -c ./eslint.config.mjs",
     "prettier": "prettier --write ./src ./examples",
-    "test:ci": "pnpm mocha --config .mocharc.json",
+    "test:ci": "mocha --config .mocharc.json",
     "test:ethereum:e2e": "./src/tests/ethereum/run-e2e-test.sh",
     "test:cross-chain:e2e": "./src/tests/cross-chain/run-e2e-test.sh",
     "test:cosmosnative:e2e": "./src/tests/cosmosnative/run-e2e-test.sh",
