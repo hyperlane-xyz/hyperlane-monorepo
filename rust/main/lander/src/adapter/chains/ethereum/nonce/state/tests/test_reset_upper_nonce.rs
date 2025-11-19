@@ -12,8 +12,10 @@ use crate::{
     },
     dispatcher::TransactionDb,
     tests::{evm::test_utils::mock_ethereum_adapter, test_utils::tmp_dbs},
-    AdaptsChainAction, NonceDb, TransactionUuid,
+    AdaptsChainAction, TransactionUuid,
 };
+
+use super::super::super::NonceDb;
 
 use super::*;
 
