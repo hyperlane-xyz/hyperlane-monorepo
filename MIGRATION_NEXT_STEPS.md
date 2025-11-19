@@ -129,6 +129,17 @@ git push origin your-branch-name
 # Monitor CI/CD pipelines to ensure they pass
 ```
 
+## ⚠️ Important: Node Linker Configuration
+
+The migration uses pnpm's **default isolated node_modules** (not hoisted). This provides stricter dependency resolution and prevents phantom dependencies.
+
+**If you encounter dependency errors** (e.g., "Cannot find module" errors), you have two options:
+
+1. **Fix the dependencies** (recommended) - See PR #7401 for examples of fixes when avoiding hoisting
+2. **Temporarily use hoisted mode** - Add `node-linker=hoisted` to `.npmrc` if needed for quick fixes
+
+The isolated mode is better long-term as it catches dependency issues early.
+
 ## 🔍 Troubleshooting
 
 ### If `pnpm install` fails with workspace dependency errors:
