@@ -7,6 +7,7 @@
 mod config;
 mod error;
 mod indexer;
+mod ism;
 mod provider;
 mod types;
 mod utils;
@@ -15,5 +16,6 @@ pub(crate) use types::*;
 
 pub use {
     config::*, error::*, indexer::AleoDeliveryIndexer, indexer::AleoDispatchIndexer,
-    indexer::AleoInterchainGasIndexer, indexer::AleoMerkleTreeHook, provider::AleoProvider,
+    indexer::AleoInterchainGasIndexer, indexer::AleoMerkleTreeHook, ism::AleoIsm,
+    provider::AleoProvider,
 };

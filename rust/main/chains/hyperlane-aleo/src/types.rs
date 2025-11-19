@@ -27,7 +27,7 @@ const CREDITS_DECIMALS: u32 = 6;
 // This is a constant defined by the Hyperlane Aleo contracts
 const MESSAGE_BODY_U128_WORDS: usize = 16;
 // Aleo contracts define a maximum of 6 validators for multisigs
-const MAX_VALIDATORS: usize = 6;
+pub(crate) const MAX_VALIDATORS: usize = 6;
 
 /// Aleo Merkle Tree
 #[aleo_serialize]
@@ -63,7 +63,7 @@ pub struct AleoMerkleTreeHookStruct {
 
 /// Aleo Eth address representation
 #[aleo_serialize]
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct AleoEthAddress {
     /// Address bytes
     pub bytes: [u8; 20],
@@ -203,4 +203,13 @@ pub struct HookEventIndex<N: Network = CurrentNetwork> {
     pub hook: Address<N>,
     /// Height
     pub block_height: u32,
+}
+
+#[aleo_serialize]
+#[derive(Debug)]
+pub struct RouteKey<N: Network = CurrentNetwork> {
+    /// Ism address
+    pub ism: Address<N>,
+    /// Domain
+    pub domain: u32,
 }
