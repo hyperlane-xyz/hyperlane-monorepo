@@ -272,7 +272,7 @@ async fn test_consecutive_nonces_all_cleared() {
 
     // Create transactions at every nonce from 101 to 110
     let mut transactions = Vec::new();
-    for nonce in 101..=110 {
+    for nonce in 101..110 {
         transactions.push((TransactionUuid::random(), U256::from(nonce)));
     }
 
