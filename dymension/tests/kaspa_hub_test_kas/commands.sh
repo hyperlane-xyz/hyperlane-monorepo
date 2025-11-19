@@ -28,7 +28,7 @@
 #### Step 1. Setup escrow
 #### Create hyperlane validators keys and addresses, and kaspa escrow keys and address, seed the escrow
 
-# in libs/kaspa/demo/user
+# in libs/kaspa/tooling
 cargo run validator-with-escrow
 Validator infos: {
   "validator_ism_addr": "0x172ed756c7c04f6e5370f9fc181f85b7779643eb",
@@ -219,7 +219,7 @@ dymd q forward hl-message-kaspa $TOKEN_ID $HUB_USER_ADDR $DEPOSIT_AMT $KAS_TOKEN
 # NOTE: payload should not have 0x prefix
 HL_PAYLOAD=$(dymd q forward hl-message-kaspa $TOKEN_ID $HUB_USER_ADDR $DEPOSIT_AMT $KAS_TOKEN_ID $KASTEST_DOMAIN $HUB_DOMAIN | cut -c 3-)
 
-# In hyperlane-monorepo/dymension/libs/kaspa/demo/relayer
+# In hyperlane-monorepo/dymension/libs/kaspa/demo/relayer (Removed https://github.com/dymensionxyz/hyperlane-monorepo/pull/326)
 # Put payload in the arguments
 cargo run -- \
   --escrow-address $ESCROW_ADDR \
@@ -240,7 +240,7 @@ dymd q bank balance $HUB_USER_ADDR $KAS_TOKEN_DENOM
 ### *WITHDRAWALS*
 
 # convert your kaspa address to something that can be interpreted by Hub CLI
-# in demos/user
+# in tooling/
 KASPA_RECIPIENT=$(cargo run recipient kaspatest:qrjmshvw4ucgyhm8rlc257g4mz9fy64kf0gkr8tgktsdwtplvtcs26durxukf) # (Dan's tn10 address, put your own address here)
 # output like 0xdf2dc917540c7380a86e51fad4b8e1101a0efa27473a5ca9b97ceb846cc402ab
 
