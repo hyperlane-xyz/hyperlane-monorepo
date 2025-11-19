@@ -1,22 +1,7 @@
-import {
-  DecryptPermission,
-  Transaction,
-  WalletAdapterNetwork,
-  WalletNotConnectedError,
-} from '@demox-labs/aleo-wallet-adapter-base';
-import { useWallet } from '@demox-labs/aleo-wallet-adapter-react';
 import { useCallback, useMemo } from 'react';
 
-import { AleoTransaction as AleoSDKTransaction } from '@hyperlane-xyz/aleo-sdk';
-import {
-  ChainName,
-  IToken,
-  MultiProtocolProvider,
-  ProviderType,
-  TypedTransactionReceipt,
-  WarpTypedTransaction,
-} from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { ChainName, IToken, MultiProtocolProvider } from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import {
   AccountInfo,
@@ -30,7 +15,7 @@ import {
 export function useAleoAccount(
   _multiProvider: MultiProtocolProvider,
 ): AccountInfo {
-  const { publicKey } = useWallet();
+  const publicKey = '';
 
   return {
     protocol: ProtocolType.Aleo,
@@ -60,17 +45,15 @@ export function useAleoWalletDetails() {
 }
 
 export function useAleoConnectFn(): () => void {
-  const { connect } = useWallet();
-
   return () => {
-    connect(DecryptPermission.NoDecrypt, WalletAdapterNetwork.MainnetBeta);
+    console.log('connect');
   };
 }
 
 export function useAleoDisconnectFn(): () => Promise<void> {
-  const { disconnect } = useWallet();
-
-  return disconnect;
+  return async () => {
+    console.log('disconnect');
+  };
 }
 
 export function useAleoActiveChain(
@@ -112,73 +95,7 @@ export function useAleoWatchAsset(
 }
 
 export function useAleoTransactionFns(
-  multiProvider: MultiProtocolProvider,
+  _multiProvider: MultiProtocolProvider,
 ): ChainTransactionFns {
-  const { publicKey, requestTransaction, transactionStatus } = useWallet();
-  const { switchNetwork } = useAleoSwitchNetwork(multiProvider);
-
-  const onSendTx = useCallback(
-    async ({
-      tx,
-      chainName: _,
-      activeChainName: __,
-    }: {
-      tx: WarpTypedTransaction;
-      chainName: ChainName;
-      activeChainName?: ChainName;
-    }) => {
-      if (!publicKey) throw new WalletNotConnectedError();
-
-      const transaction = tx.transaction as AleoSDKTransaction;
-
-      const aleoTransaction = Transaction.createTransaction(
-        publicKey,
-        WalletAdapterNetwork.MainnetBeta,
-        transaction.programName,
-        transaction.functionName,
-        transaction.inputs,
-        transaction.priorityFee,
-        transaction.privateFee,
-      );
-
-      assert(requestTransaction, `requestTransaction not defined`);
-      const transactionId = await requestTransaction(aleoTransaction);
-
-      const confirm = async (): Promise<TypedTransactionReceipt> => {
-        assert(transactionStatus, `transactionStatus not defined`);
-        const status = await transactionStatus(transactionId);
-        console.log('status', status);
-
-        return {
-          type: tx.type as ProviderType.Aleo,
-          receipt: {
-            transactionHash: '',
-          } as any,
-        };
-      };
-      return { hash: '', confirm };
-    },
-    [switchNetwork],
-  );
-
-  const onMultiSendTx = useCallback(
-    async ({
-      txs: _,
-      chainName: __,
-      activeChainName: ___,
-    }: {
-      txs: WarpTypedTransaction[];
-      chainName: ChainName;
-      activeChainName?: ChainName;
-    }) => {
-      throw new Error('Multi Transactions not supported on Aleo');
-    },
-    [],
-  );
-
-  return {
-    sendTransaction: onSendTx,
-    sendMultiTransaction: onMultiSendTx,
-    switchNetwork,
-  };
+  return {} as any;
 }

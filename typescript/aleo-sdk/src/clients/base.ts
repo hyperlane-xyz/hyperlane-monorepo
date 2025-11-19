@@ -9,7 +9,6 @@ import {
   ProgramManager as MainnetProgramManager,
   U128 as MainnetU128,
 } from '@provablehq/sdk/mainnet.js';
-import { initThreadPool } from '@provablehq/sdk/mainnet.js';
 import {
   AleoKeyProvider as AleoTestnetKeyProvider,
   AleoNetworkClient as AleoTestnetNetworkClient,
@@ -32,8 +31,6 @@ export type AnyAleoNetworkClient =
   | AleoTestnetNetworkClient;
 
 export type AnyProgramManager = MainnetProgramManager | TestnetProgramManager;
-
-await initThreadPool();
 
 export class AleoBase {
   protected readonly rpcUrls: string[];

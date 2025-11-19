@@ -9,10 +9,6 @@
   "dependencies": {
     "@cosmjs/stargate": "^0.32.4",
     "@cosmos-kit/react": "^2.18.0",
-    "@demox-labs/aleo-wallet-adapter-base": "^0.0.23",
-    "@demox-labs/aleo-wallet-adapter-leo": "^0.0.25",
-    "@demox-labs/aleo-wallet-adapter-react": "^0.0.22",
-    "@demox-labs/aleo-wallet-adapter-reactui": "^0.0.36",
     "@headlessui/react": "^2.1.8",
     "@hyperlane-xyz/cosmos-sdk": "19.9.0",
     "@hyperlane-xyz/sdk": "19.9.0",

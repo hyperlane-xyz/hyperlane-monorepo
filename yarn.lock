@@ -5309,49 +5309,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@demox-labs/aleo-wallet-adapter-base@npm:^0.0.23":
-  version: 0.0.23
-  resolution: "@demox-labs/aleo-wallet-adapter-base@npm:0.0.23"
-  dependencies:
-    eventemitter3: "npm:^4.0.7"
-  checksum: 10/15c7a47c4dd0d974036ea4d4269f51c350ed75cf052cc35f9ae99e32d5da6078265d9618861a145a04b37c6e87af237dfbaa025abe26d4d2995808c1bf334df6
-  languageName: node
-  linkType: hard
-
-"@demox-labs/aleo-wallet-adapter-leo@npm:^0.0.25":
-  version: 0.0.25
-  resolution: "@demox-labs/aleo-wallet-adapter-leo@npm:0.0.25"
-  dependencies:
-    "@demox-labs/aleo-wallet-adapter-base": "npm:^0.0.23"
-    nanoid: "npm:^4.0.0"
-  checksum: 10/95827fbe5621b18bae64bb7323834795c2f0ab1b55f931ed2abfda744957df98afc1598250b57b3cdc875ea73932577f656a36800df6c05da4c83430c4a00700
-  languageName: node
-  linkType: hard
-
-"@demox-labs/aleo-wallet-adapter-react@npm:^0.0.22":
-  version: 0.0.22
-  resolution: "@demox-labs/aleo-wallet-adapter-react@npm:0.0.22"
-  dependencies:
-    "@demox-labs/aleo-wallet-adapter-base": "npm:^0.0.23"
-  peerDependencies:
-    react: ^18.2.0
-  checksum: 10/9e2932ad837a86ecd022fd2a74bf3e8478809733420e01e5884368642f3bb5cd88d8a0ba6f7adf6163a09672f54074f9320769615da98f779b35cc644129f958
-  languageName: node
-  linkType: hard
-
-"@demox-labs/aleo-wallet-adapter-reactui@npm:^0.0.36":
-  version: 0.0.36
-  resolution: "@demox-labs/aleo-wallet-adapter-reactui@npm:0.0.36"
-  dependencies:
-    "@demox-labs/aleo-wallet-adapter-base": "npm:^0.0.23"
-    "@demox-labs/aleo-wallet-adapter-react": "npm:^0.0.22"
-  peerDependencies:
-    react: ^18.2.0
-    react-dom: ^18.2.0
-  checksum: 10/e9d8255cd370e9b6513f0dbed337933e2c660135adb97511b4969640606c2357df99de623f21fe95854bdcd0a0d41412251d3913460e257fdcdc437aef49c824
-  languageName: node
-  linkType: hard
-
 "@discoveryjs/json-ext@npm:^0.5.3":
   version: 0.5.7
   resolution: "@discoveryjs/json-ext@npm:0.5.7"
@@ -8567,6 +8524,7 @@ __metadata:
   dependencies:
     "@changesets/cli": "npm:^2.26.2"
     "@eslint/js": "npm:^9.31.0"
+    "@puzzlehq/sdk-core": "npm:^1.0.4"
     "@trivago/prettier-plugin-sort-imports": "npm:^5.2.2"
     "@typescript-eslint/eslint-plugin": "npm:^8.1.6"
     "@typescript-eslint/parser": "npm:^8.1.6"
@@ -8762,10 +8720,6 @@ __metadata:
     "@cosmjs/cosmwasm-stargate": "npm:^0.32.4"
     "@cosmjs/stargate": "npm:^0.32.4"
     "@cosmos-kit/react": "npm:^2.18.0"
-    "@demox-labs/aleo-wallet-adapter-base": "npm:^0.0.23"
-    "@demox-labs/aleo-wallet-adapter-leo": "npm:^0.0.25"
-    "@demox-labs/aleo-wallet-adapter-react": "npm:^0.0.22"
-    "@demox-labs/aleo-wallet-adapter-reactui": "npm:^0.0.36"
     "@emotion/react": "npm:^11.13.3"
     "@emotion/styled": "npm:^11.13.0"
     "@eslint/js": "npm:^9.31.0"
@@ -11515,6 +11469,30 @@ __metadata:
   version: 0.9.11
   resolution: "@provablehq/wasm@patch:@provablehq/wasm@npm%3A0.9.11#~/.yarn/patches/@provablehq-wasm-npm-0.9.11-d2c7cc012d.patch::version=0.9.11&hash=afe84a"
   checksum: 10/a9602b6e40880ff27840cfd5351f849093057a5a0808595a0129665408e219dadb2f3e754763cc8f352915d69076ccfca210d28b029bf430ed7f6243402d2e53
+  languageName: node
+  linkType: hard
+
+"@puzzlehq/sdk-core@npm:^1.0.4":
+  version: 1.0.4
+  resolution: "@puzzlehq/sdk-core@npm:1.0.4"
+  dependencies:
+    "@puzzlehq/types": "npm:1.0.32"
+    debug: "npm:^4.3.4"
+    events: "npm:^3.3.0"
+    ws: "npm:^8.16.0"
+    zod: "npm:3.21.1"
+  peerDependencies:
+    buffer: ^6.0.3
+  checksum: 10/6ad0bd311fe12b5def98b0843da5ddc331752dca935eea141177bd93b8399191a33e59a9270c1794a29935422e1624c22923a6e65821ca9113a39dc485548e90
+  languageName: node
+  linkType: hard
+
+"@puzzlehq/types@npm:1.0.32":
+  version: 1.0.32
+  resolution: "@puzzlehq/types@npm:1.0.32"
+  dependencies:
+    zod: "npm:3.21.1"
+  checksum: 10/68a0759a5479e399570f4efdba0c9c0cfff724274182de85a3d831c21a65f0e437bfe2cc62b64b8430cd6c32baea7ce7a1bda7f8722d8f320f4f37611f423128
   languageName: node
   linkType: hard
 
@@ -32790,15 +32768,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"nanoid@npm:^4.0.0":
-  version: 4.0.2
-  resolution: "nanoid@npm:4.0.2"
-  bin:
-    nanoid: bin/nanoid.js
-  checksum: 10/8c0c267de44cddcad79c3361d2cbd281694c36bf7ab6a163f36dd8f6e6ee43e9783561302c55fab2986a2fa847e7a6b30fedabd1e117fdb8aecc5ab21555428d
-  languageName: node
-  linkType: hard
-
 "napi-build-utils@npm:^1.0.1":
   version: 1.0.2
   resolution: "napi-build-utils@npm:1.0.2"
@@ -42241,7 +42210,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"ws@npm:8.18.3":
+"ws@npm:8.18.3, ws@npm:^8.16.0":
   version: 8.18.3
   resolution: "ws@npm:8.18.3"
   peerDependencies:
@@ -42673,6 +42642,13 @@ __metadata:
   peerDependencies:
     zod: ^3.18.0
   checksum: 10/19574cbc453c7a41105de572546e95191958f459dd93440f541a42c0ff209b56f1cd54e8f8ab1899430dd7c183e11cd16e8cace0bd4fc5d356ef772645210792
+  languageName: node
+  linkType: hard
+
+"zod@npm:3.21.1":
+  version: 3.21.1
+  resolution: "zod@npm:3.21.1"
+  checksum: 10/333c3f423fd63704468e08661c915da06e8b56b3b429fecc7882aa088dbe81e392fa996c42b7e0589b3724aae0a8b4654b06e959c3738f99a162103dbbaebc0e
   languageName: node
   linkType: hard
 
