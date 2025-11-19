@@ -1,6 +1,8 @@
 import { ProtocolType, registerProtocol } from '@hyperlane-xyz/provider-sdk';
 
-export async function loadProviders(neededProtocols: Set<ProtocolType>) {
+export async function loadProtocolProviders(
+  neededProtocols: Set<ProtocolType>,
+) {
   for (const protocol of neededProtocols) {
     switch (protocol) {
       case ProtocolType.CosmosNative: {
