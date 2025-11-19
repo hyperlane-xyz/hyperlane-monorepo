@@ -3,7 +3,7 @@ FROM node:20-alpine
 WORKDIR /hyperlane-monorepo
 
 RUN apk add --update --no-cache git g++ make py3-pip jq bash curl && \
-    npm install -g pnpm@9
+    npm install -g pnpm@10.22.0
 
 # Copy package.json and friends
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./

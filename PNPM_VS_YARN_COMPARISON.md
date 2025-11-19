@@ -4,7 +4,7 @@ Detailed comparison of features used in this repository and their equivalents.
 
 ## Core Features
 
-| Feature | Yarn 4.5.1 | pnpm 9.x | Status |
+| Feature | Yarn 4.5.1 | pnpm 10.x | Status |
 |---------|------------|----------|--------|
 | Workspaces | ✅ `workspaces` in package.json | ✅ `pnpm-workspace.yaml` | ✅ Compatible |
 | Dependency Overrides | ✅ `resolutions` | ✅ `pnpm.overrides` | ✅ Compatible |
@@ -209,7 +209,7 @@ patches/
 ```yaml
 - uses: pnpm/action-setup@v4
   with:
-    version: 9
+    version: 10.22.0
 - uses: actions/cache@v4
   with:
     path: |
@@ -222,7 +222,7 @@ patches/
 
 ## Performance Comparison
 
-| Metric | Yarn 4.5.1 | pnpm 9.x | Winner |
+| Metric | Yarn 4.5.1 | pnpm 10.x | Winner |
 |--------|------------|----------|--------|
 | Install Speed | Fast | Faster | 🏆 pnpm |
 | Disk Usage | Moderate | Lower | 🏆 pnpm |

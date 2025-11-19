@@ -110,7 +110,7 @@ store-dir=~/.pnpm-store
 **New (`package.json`):**
 ```json
 {
-  "packageManager": "pnpm@9.0.0"
+  "packageManager": "pnpm@10.22.0"
 }
 ```
 
@@ -240,7 +240,7 @@ pnpm build
 ```yaml
 - uses: pnpm/action-setup@v4
   with:
-    version: 9
+        version: 10.22.0
 - uses: actions/cache@v4
   with:
     path: |
@@ -332,7 +332,7 @@ Replace all instances:
 - name: Setup pnpm
   uses: pnpm/action-setup@v4
   with:
-    version: 9
+        version: 10.22.0
 
 - name: Install Dependencies
   run: pnpm install --frozen-lockfile
@@ -369,7 +369,7 @@ RUN yarn install && yarn cache clean
 **New:**
 ```dockerfile
 RUN apk add --update --no-cache git g++ make py3-pip jq bash curl && \
-    npm install -g pnpm@9
+    npm install -g pnpm@10.22.0
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY patches ./patches

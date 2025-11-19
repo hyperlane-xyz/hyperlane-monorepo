@@ -152,7 +152,7 @@ packages:
 ```yaml
 - uses: pnpm/action-setup@v4
   with:
-    version: 9
+    version: 10.22.0
 - uses: actions/cache@v4
   with:
     path: |
