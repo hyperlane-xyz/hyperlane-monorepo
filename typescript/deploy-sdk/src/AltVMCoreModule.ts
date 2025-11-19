@@ -88,12 +88,7 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
     const chainName = metadata.name;
     const domainId = metadata.domainId;
 
-    // 1. Deploy Mailbox with initial configuration
-    const mailbox = await signer.createMailbox({
-      domainId: domainId,
-    });
-
-    // 2. Deploy default ISM
+    // 1. Deploy default ISM
     const ismModule = await AltVMIsmModule.create({
       chain: chainName,
       config: config.defaultIsm,
@@ -105,6 +100,12 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
     });
 
     const { deployedIsm: defaultIsm } = ismModule.serialize();
+
+    // 2. Deploy Mailbox with initial configuration
+    const mailbox = await signer.createMailbox({
+      domainId: domainId,
+      defaultIsmAddress: defaultIsm,
+    });
 
     // 3. Deploy default hook
     const defaultHookModule = await AltVMHookModule.create({

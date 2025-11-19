@@ -3,18 +3,19 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use hyperlane_base::db::HyperlaneDb;
-use hyperlane_core::{
-    identifiers::UniqueIdentifier, PendingOperationStatus, QueueOperation, ReprepareReason, H256,
-};
+use hyperlane_base::tests::mock_hyperlane_db::MockHyperlaneDb;
+use hyperlane_core::identifiers::UniqueIdentifier;
+use hyperlane_core::{PendingOperationStatus, QueueOperation, ReprepareReason, H256};
 use lander::{
     Entrypoint, LanderError, PayloadDropReason, PayloadStatus, TransactionDropReason,
     TransactionStatus,
 };
 
-use super::super::filter_operations_for_preparation;
-use super::tests_common::{
-    create_test_queue, MockDispatcherEntrypoint, MockHyperlaneDb, MockQueueOperation,
+use crate::msg::message_processor::tests::tests_common::{
+    create_test_queue, MockDispatcherEntrypoint, MockQueueOperation,
 };
+
+use super::super::filter_operations_for_preparation;
 
 #[tokio::test]
 async fn test_filter_operations_for_preparation_empty_batch() {
@@ -49,16 +50,17 @@ async fn test_filter_operations_for_preparation_all_manual_retry() {
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
     let confirm_queue = create_test_queue();
 
-    // DB retrieval should NOT be called for manual retry (early return optimization)
-    mock_db
-        .expect_retrieve_payload_uuids_by_message_id()
-        .times(0);
-
-    // But store should be called to remove the payload UUID mapping
+    // Store should be called to remove the payload UUID mapping for each manual operation
     mock_db
         .expect_store_payload_uuids_by_message_id()
         .times(3)
         .returning(|_, _| Ok(()));
+
+    // After clearing, retrieve IS called for each operation by operation_disposition_by_payload_status
+    mock_db
+        .expect_retrieve_payload_uuids_by_message_id()
+        .times(3)
+        .returning(|_| Ok(None));
 
     mock_entrypoint.expect_payload_status().times(0);
 
@@ -103,11 +105,6 @@ async fn test_filter_operations_for_preparation_manual_retry_db_store_failure() 
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
     let confirm_queue = create_test_queue();
 
-    // DB retrieval should NOT be called for manual retry
-    mock_db
-        .expect_retrieve_payload_uuids_by_message_id()
-        .times(0);
-
     // Store should be called but will fail
     mock_db
         .expect_store_payload_uuids_by_message_id()
@@ -117,6 +114,12 @@ async fn test_filter_operations_for_preparation_manual_retry_db_store_failure() 
                 "Mock DB store failure".to_string(),
             ))
         });
+
+    // After store failure, retrieve IS still called by operation_disposition_by_payload_status
+    mock_db
+        .expect_retrieve_payload_uuids_by_message_id()
+        .times(2)
+        .returning(|_| Ok(None));
 
     mock_entrypoint.expect_payload_status().times(0);
 
@@ -174,18 +177,18 @@ async fn test_filter_operations_for_preparation_manual_retry_db_store_failure_mi
             ))
         });
 
-    // DB retrieval for non-manual operations
+    // DB retrieval for all operations (including manual after store failure)
     let payload_uuid2_clone = payload_uuid2.clone();
     mock_db
         .expect_retrieve_payload_uuids_by_message_id()
-        .times(2) // Op2 and Op3 (Op1 is manual, not called)
+        .times(3) // Op1 (manual), Op2, and Op3
         .returning(move |id| {
             if *id == message_id2 {
                 Ok(Some(vec![payload_uuid2_clone.clone()]))
             } else if *id == message_id3 {
                 Ok(None)
             } else {
-                Ok(None)
+                Ok(None) // Op1 manual returns None
             }
         });
 
@@ -370,12 +373,18 @@ async fn test_filter_operations_for_preparation_mixed_batch() {
     let payload_uuid2 = UniqueIdentifier::new(Uuid::new_v4());
     let payload_uuid4 = UniqueIdentifier::new(Uuid::new_v4());
 
-    // Mock DB with flexible expectation handling all operations
+    // Store should be called once to remove the payload UUID mapping for manual operation
+    mock_db
+        .expect_store_payload_uuids_by_message_id()
+        .times(1)
+        .returning(|_, _| Ok(()));
+
+    // Mock DB with flexible expectation handling all operations (including manual after store)
     let payload_uuid2_clone = payload_uuid2.clone();
     let payload_uuid4_clone = payload_uuid4.clone();
     mock_db
         .expect_retrieve_payload_uuids_by_message_id()
-        .times(3) // Op1 has manual retry (not called), Op2, Op3, Op4
+        .times(4) // Op1 (manual), Op2, Op3, Op4
         .returning(move |id| {
             if *id == message_id2 {
                 Ok(Some(vec![payload_uuid2_clone.clone()]))
@@ -384,15 +393,9 @@ async fn test_filter_operations_for_preparation_mixed_batch() {
             } else if *id == message_id4 {
                 Ok(Some(vec![payload_uuid4_clone.clone()]))
             } else {
-                Ok(None)
+                Ok(None) // Op1 manual returns None
             }
         });
-
-    // Store should be called once to remove the payload UUID mapping for manual operation
-    mock_db
-        .expect_store_payload_uuids_by_message_id()
-        .times(1)
-        .returning(|_, _| Ok(()));
 
     // Mock entrypoint with flexible expectation
     let payload_uuid2_for_ep = payload_uuid2.clone();
