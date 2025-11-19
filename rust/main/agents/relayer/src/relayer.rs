@@ -594,12 +594,15 @@ impl Relayer {
             .iter()
             .map(|(key, origin)| (key.id(), origin.prover_sync.clone()))
             .collect();
-        let mut dispatcher_entrypoints: HashMap<_, _> = HashMap::new();
-        for (key, dest) in self.destinations.iter() {
-            if let Some(entrypoint) = dest.dispatcher_entrypoint.as_ref() {
-                dispatcher_entrypoints.insert(key.id(), entrypoint.clone());
-            }
-        }
+        let dispatcher_entrypoints: HashMap<_, _> = self
+            .destinations
+            .iter()
+            .filter_map(|(domain, dest)| {
+                dest.dispatcher_entrypoint
+                    .as_ref()
+                    .map(|entrypoint| (domain.id(), entrypoint.clone()))
+            })
+            .collect();
         relayer_server::Server::new(self.destinations.len())
             .with_op_retry(sender)
             .with_message_queue(prep_queues)

@@ -62,12 +62,16 @@ impl NonceManagerState {
                 "Clearing nonce and tx uuid"
             );
 
-            if let Err(err) = self.clear_tracked_tx_uuid(&nonce_to_clear).await {
-                tracing::error!(?err, ?nonce_to_clear, "Failed to clear tx uuid");
-            }
-            if let Err(err) = self.clear_tracked_tx_nonce(&tx_uuid).await {
+            self.clear_tracked_tx_uuid(&nonce_to_clear)
+                .await
+                .map_err(|err| {
+                    tracing::error!(?err, ?nonce_to_clear, "Failed to clear tx uuid");
+                    err
+                })?;
+            self.clear_tracked_tx_nonce(&tx_uuid).await.map_err(|err| {
                 tracing::error!(?err, ?nonce_to_clear, "Failed to clear tx nonce");
-            };
+                err
+            })?;
             nonce_to_clear = nonce_to_clear.saturating_add(U256::one());
         }
         Ok(desired_upper_nonce)
