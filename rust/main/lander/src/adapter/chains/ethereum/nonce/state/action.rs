@@ -1,30 +1,35 @@
+use tracing::{debug, error};
+
 use hyperlane_core::U256;
 
-use super::NonceManagerState;
-
 use crate::{adapter::chains::ethereum::nonce::error::NonceResult, LanderError, TransactionUuid};
+
+use super::NonceManagerState;
 
 impl NonceManagerState {
     /// Reset upper nonce to the desired nonce.
     /// In the process, also clearing all the nonces/tx_uuid mappings between
     /// [desired_nonce, current_upper_nonce]
-    pub async fn reset_upper_nonce(&self, desired_nonce: Option<u64>) -> Result<U256, LanderError> {
-        tracing::debug!(?desired_nonce, "Resetting to new upper nonce");
+    pub async fn overwrite_upper_nonce(
+        &self,
+        desired_nonce: Option<u64>,
+    ) -> Result<U256, LanderError> {
+        debug!(?desired_nonce, "Overwriting to new upper nonce");
 
         let current_finalized_nonce = self
             .get_finalized_nonce()
             .await?
             .ok_or_else(|| LanderError::EyreError(eyre::eyre!("No finalized nonce found")))?;
 
-        // The new upper nonce we want to set
+        // The new desired upper nonce we want to set
         let desired_upper_nonce = match desired_nonce {
             Some(s) => U256::from(s),
             None => {
-                tracing::debug!(
+                debug!(
                     finalized_nonce = current_finalized_nonce.as_u64(),
                     "No upper nonce provided, using finalized nonce"
                 );
-                current_finalized_nonce
+                current_finalized_nonce.saturating_add(U256::one())
             }
         };
 
@@ -36,7 +41,7 @@ impl NonceManagerState {
             ));
             return Err(err);
         }
-        if desired_upper_nonce < current_finalized_nonce {
+        if desired_upper_nonce <= current_finalized_nonce {
             let err = LanderError::EyreError(eyre::eyre!(
                 "desired_upper_nonce lower than current_finalized_nonce"
             ));
@@ -56,7 +61,7 @@ impl NonceManagerState {
                 continue;
             }
 
-            tracing::debug!(
+            debug!(
                 nonce = nonce_to_clear.as_u64(),
                 ?tx_uuid,
                 "Clearing nonce and tx uuid"
@@ -65,11 +70,11 @@ impl NonceManagerState {
             self.clear_tracked_tx_uuid(&nonce_to_clear)
                 .await
                 .map_err(|err| {
-                    tracing::error!(?err, ?nonce_to_clear, "Failed to clear tx uuid");
+                    error!(?err, ?nonce_to_clear, "Failed to clear tx uuid");
                     err
                 })?;
             self.clear_tracked_tx_nonce(&tx_uuid).await.map_err(|err| {
-                tracing::error!(?err, ?nonce_to_clear, "Failed to clear tx nonce");
+                error!(?err, ?nonce_to_clear, "Failed to clear tx nonce");
                 err
             })?;
             nonce_to_clear = nonce_to_clear.saturating_add(U256::one());

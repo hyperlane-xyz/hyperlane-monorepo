@@ -52,7 +52,7 @@ async fn test_reset_upper_nonce_happy_path() {
             .expect("Failed to store nonce and transaction uuid");
     }
 
-    assert!(state.reset_upper_nonce(Some(100)).await.is_ok());
+    assert!(state.overwrite_upper_nonce(Some(100)).await.is_ok());
 
     // check upper nonce has been updated
     let db_upper_nonce = state
@@ -104,7 +104,7 @@ async fn test_higher_than_current_upper_nonce() {
             .expect("Failed to store nonce and transaction uuid");
     }
 
-    assert!(state.reset_upper_nonce(Some(200)).await.is_err());
+    assert!(state.overwrite_upper_nonce(Some(200)).await.is_err());
 
     let db_upper_nonce = state
         .get_upper_nonce()
@@ -140,7 +140,7 @@ async fn test_lower_than_current_finalized_nonce() {
     state.set_upper_nonce(&U256::from(150)).await.unwrap();
     state.set_finalized_nonce(&U256::from(150)).await.unwrap();
 
-    assert!(state.reset_upper_nonce(Some(100)).await.is_err());
+    assert!(state.overwrite_upper_nonce(Some(100)).await.is_err());
 
     let db_upper_nonce = state
         .get_upper_nonce()
@@ -177,13 +177,13 @@ async fn test_set_to_finalized() {
             .expect("Failed to store nonce and transaction uuid");
     }
 
-    assert!(state.reset_upper_nonce(None).await.is_ok());
+    assert!(state.overwrite_upper_nonce(None).await.is_ok());
 
     let db_upper_nonce = state
         .get_upper_nonce()
         .await
         .expect("Failed to retrieve upper nonce");
-    assert_eq!(db_upper_nonce, U256::from(100));
+    assert_eq!(db_upper_nonce, U256::from(101));
     let db_finalized_nonce = state
         .get_finalized_nonce()
         .await
@@ -212,7 +212,7 @@ async fn test_missing_upper_nonce_in_db() {
 
     state.set_finalized_nonce(&U256::from(100)).await.unwrap();
 
-    assert!(state.reset_upper_nonce(Some(150)).await.is_err());
+    assert!(state.overwrite_upper_nonce(Some(150)).await.is_err());
 
     let db_finalized_nonce = state
         .get_finalized_nonce()
@@ -229,7 +229,7 @@ async fn test_missing_finalized_nonce_when_none_provided() {
 
     state.set_upper_nonce(&U256::from(150)).await.unwrap();
 
-    assert!(state.reset_upper_nonce(Some(120)).await.is_err());
+    assert!(state.overwrite_upper_nonce(Some(120)).await.is_err());
 
     let db_finalized_nonce = state
         .get_upper_nonce()
@@ -247,7 +247,7 @@ async fn test_transaction_clearing_with_no_transactions() {
     state.set_upper_nonce(&U256::from(150)).await.unwrap();
     state.set_finalized_nonce(&U256::from(90)).await.unwrap();
 
-    assert!(state.reset_upper_nonce(Some(100)).await.is_ok());
+    assert!(state.overwrite_upper_nonce(Some(100)).await.is_ok());
 
     let db_upper_nonce = state
         .get_upper_nonce()
@@ -283,7 +283,7 @@ async fn test_consecutive_nonces_all_cleared() {
             .expect("Failed to store nonce and transaction uuid");
     }
 
-    assert!(state.reset_upper_nonce(Some(100)).await.is_ok());
+    assert!(state.overwrite_upper_nonce(Some(100)).await.is_ok());
 
     let db_upper_nonce = state
         .get_upper_nonce()
@@ -320,7 +320,7 @@ async fn test_equal_to_current_upper_nonce() {
     state.set_finalized_nonce(&U256::from(90)).await.unwrap();
 
     // Setting upper nonce equal to current upper nonce should fail
-    assert!(state.reset_upper_nonce(Some(150)).await.is_err());
+    assert!(state.overwrite_upper_nonce(Some(150)).await.is_err());
 
     let db_upper_nonce = state
         .get_upper_nonce()
@@ -339,7 +339,7 @@ async fn test_boundary_finalized_plus_one() {
     state.set_finalized_nonce(&U256::from(100)).await.unwrap();
 
     // Setting upper nonce to finalized + 1 should succeed
-    assert!(state.reset_upper_nonce(Some(101)).await.is_ok());
+    assert!(state.overwrite_upper_nonce(Some(101)).await.is_ok());
 
     let db_upper_nonce = state
         .get_upper_nonce()
@@ -373,7 +373,7 @@ async fn test_partial_transaction_clearing() {
             .expect("Failed to store nonce and transaction uuid");
     }
 
-    assert!(state.reset_upper_nonce(Some(100)).await.is_ok());
+    assert!(state.overwrite_upper_nonce(Some(100)).await.is_ok());
 
     let db_upper_nonce = state
         .get_upper_nonce()
