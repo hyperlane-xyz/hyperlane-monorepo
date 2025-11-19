@@ -85,10 +85,10 @@
     "check": "tsc --noEmit",
     "clean": "rm -rf ./dist ./cache",
     "lint": "eslint -c ./eslint.config.mjs",
-    "prepublishOnly": "yarn build",
+    "prepublishOnly": "pnpm build",
     "prettier": "prettier --write ./src",
-    "test": "yarn test:unit && yarn test:hardhat && yarn test:foundry",
-    "test:ci": "yarn test",
+    "test": "pnpm test:unit && pnpm test:hardhat && pnpm test:foundry",
+    "test:ci": "pnpm test",
     "test:unit": "mocha --config .mocharc.json './src/**/*.test.ts' --exit",
     "test:hardhat": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only --no-warnings=ExperimentalWarning' hardhat --config hardhat.config.cts test $(find ./src -name \"*.hardhat-test.ts\")",
     "test:foundry": "./scripts/foundry-test.sh"

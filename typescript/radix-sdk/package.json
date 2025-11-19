@@ -27,7 +27,7 @@
     "clean": "rm -rf ./dist ./cache",
     "test": "echo \"no tests in radix-sdk\"",
     "test:unit": "mocha --config .mocharc.json",
-    "test:ci": "yarn test:unit",
+    "test:ci": "pnpm test:unit",
     "test:e2e": "echo \"no e2e tests in radix-sdk\""
   },
   "devDependencies": {
