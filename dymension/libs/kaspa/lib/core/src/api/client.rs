@@ -108,34 +108,34 @@ impl HttpClient {
 
     pub async fn get_deposits_by_address(
         &self,
-        lower_bound_unix_time: Option<i64>,
+        from_unix_time: Option<i64>,
         address: &str,
         domain_kas: u32,
     ) -> Result<Vec<Deposit>> {
-        let n: i64 = 500;
-        let initial_lower_bound_t = lower_bound_unix_time.unwrap_or(0);
-        let mut upper_bound_t = 0i64;
-
+        /*
+        https://api-tn10.kaspa.org/docs#/Kaspa%20addresses/get_full_transactions_for_address_page_addresses__kaspaAddress__full_transactions_page_get
+         */
+        let limit: i64 = 500;
         let c = self.get_config();
-        info!(url = ?c.base_path, "kaspa: querying deposits");
+
+        info!(
+            url = ?c.base_path,
+            address = %address,
+            from_unix_time = ?from_unix_time,
+            "kaspa: querying deposits"
+        );
 
         let mut deposits: Vec<Deposit> = Vec::new();
+        let mut after = from_unix_time;
 
-        let mut lower_bound_t = initial_lower_bound_t;
         loop {
-            // only upper_bound_t or lower_bound_t can be used in the query, not both.
-            // so in case upper_bound_t is set (>0) it means we need to page and we use the last tx received timestamp as upper_bound_t
-            if upper_bound_t > 0 {
-                lower_bound_t = 0;
-            }
-
-            let res = transactions_page(
+            let page_txs = transactions_page(
                 &c,
                 args {
                     kaspa_address: address.to_string(),
-                    limit: Some(n),
-                    before: Some(upper_bound_t),
-                    after: Some(lower_bound_t),
+                    limit: Some(limit),
+                    before: None,
+                    after,
                     fields: None,
                     resolve_previous_outpoints: Some("no".to_string()),
                     acceptance: Some(AcceptanceMode::Accepted),
@@ -143,18 +143,26 @@ impl HttpClient {
             )
             .await?;
 
-            let txs_found = res.len();
+            let page_count = page_txs.len();
+            info!(
+                page_count = page_count,
+                after = ?after,
+                "kaspa: received transaction page"
+            );
 
-            // Filter and convert in one pass to avoid holding all raw txs in memory
-            for tx in res {
-                // Update pagination cursor from last tx regardless of filtering
-                if let Some(t) = tx.block_time {
-                    upper_bound_t = t - 1;
-                }
+            if page_txs.is_empty() {
+                break;
+            }
 
-                // Early exits for cheap checks first
-                if tx.payload.is_none() {
-                    continue;
+            let mut newest_block_time: Option<i64> = None;
+
+            for tx in page_txs {
+                if let Some(block_time) = tx.block_time {
+                    newest_block_time = Some(
+                        newest_block_time
+                            .map(|t| t.max(block_time))
+                            .unwrap_or(block_time),
+                    );
                 }
 
                 if !is_valid_escrow_transfer(&tx, &address.to_string())? {
@@ -170,7 +178,7 @@ impl HttpClient {
                 match Deposit::try_from(tx) {
                     Ok(deposit) => deposits.push(deposit),
                     Err(e) => {
-                        tracing::info!(
+                        info!(
                             tx_id = ?tx_id,
                             block_time = ?tx_time,
                             error = ?e,
@@ -181,12 +189,17 @@ impl HttpClient {
                 }
             }
 
-            // if txs found are less than n, or we already did paging till the initial lower bound
-            if txs_found < n as usize || upper_bound_t < initial_lower_bound_t {
+            if (page_count as i64) < limit {
                 break;
             }
+
+            after = newest_block_time;
         }
 
+        info!(
+            deposits_count = deposits.len(),
+            "kaspa: finished querying deposits"
+        );
         Ok(deposits)
     }
 
@@ -297,10 +310,10 @@ fn has_valid_hyperlane_payload(tx: &TxModel, domain_kas: u32) -> bool {
 mod tests {
     use super::*;
     use crate::message::ParsedHL;
-    use hardcode::hl::HL_DOMAIN_KASPA_TEST10;
+    use hardcode::hl::{HL_DOMAIN_KASPA_TEST10, HL_DOMAIN_KASPA_TEST10_LEGACY};
 
     #[tokio::test]
-    #[ignore = "dont hil real api"]
+    #[ignore = "dont hit real api"]
     async fn test_get_deposits() {
         // https://explorer-tn10.kaspa.org/addresses/kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr?page=1
         let client = HttpClient::new(
@@ -319,6 +332,38 @@ mod tests {
                 for deposit in deposits {
                     println!("Deposit: {:?}", deposit);
                 }
+            }
+            Err(e) => {
+                println!("Query deposits: {:?}", e);
+            }
+        }
+    }
+
+    #[tokio::test]
+    #[ignore = "dont hit real api"]
+    async fn test_get_deposit_stress() {
+        /*
+        Tries to check if its really working as we observed that the relayer missed many deposits
+         */
+        let client = HttpClient::new(
+            "https://api-tn10.kaspa.org/".to_string(),
+            RateLimitConfig::default(),
+        );
+        // blumbus address Nov 19 2025
+        let address = "kaspatest:pzwcd30pvdn0k4snvj5awkmlm6srzuw8d8e766ff5vwceg2akta3799nq2a3p";
+
+        let deposits = client
+            // at time of writing test, am absolutely sure how many deposits are just after this time, because of stress testing
+            .get_deposits_by_address(Some(1763568168707), address, HL_DOMAIN_KASPA_TEST10_LEGACY)
+            .await;
+
+        match deposits {
+            Ok(deposits) => {
+                let n = deposits.len();
+                for deposit in deposits {
+                    println!("Deposit: {:?}", deposit);
+                }
+                println!("Found deposits: n = {:?}", n);
             }
             Err(e) => {
                 println!("Query deposits: {:?}", e);

@@ -62,7 +62,8 @@ pub struct RelayerDepositTimings {
     pub retry_delay_base: std::time::Duration,
     pub retry_delay_exponent: f64,
     pub retry_delay_max: std::time::Duration,
-    pub deposit_look_back: Option<std::time::Duration>,
+    pub deposit_look_back: std::time::Duration,
+    pub deposit_query_overlap: std::time::Duration,
 }
 
 impl Default for RelayerDepositTimings {
@@ -72,15 +73,9 @@ impl Default for RelayerDepositTimings {
             retry_delay_base: std::time::Duration::from_secs(30),
             retry_delay_exponent: 2.0,
             retry_delay_max: std::time::Duration::from_secs(3600),
-            deposit_look_back: None,
+            deposit_look_back: std::time::Duration::from_secs(0),
+            deposit_query_overlap: std::time::Duration::from_secs(60 * 5),
         }
-    }
-}
-
-impl RelayerDepositTimings {
-    pub fn lower_bound_unix_time(&self) -> Option<i64> {
-        self.deposit_look_back
-            .map(|dur| kaspa_core::time::unix_now() as i64 - dur.as_millis() as i64)
     }
 }
 

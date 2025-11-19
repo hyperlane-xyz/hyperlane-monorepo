@@ -115,9 +115,13 @@ where
     async fn deposit_loop(&self) {
         info!("Dymension, starting deposit loop with queue");
 
-        // First iteration: use full lookback to catch up on missed deposits
-        // Subsequent iterations: only look back 2x poll interval to handle clock skew
-        let mut lookback_ms = self.config.deposit_look_back.map(|d| d.as_millis() as i64);
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("System time before Unix epoch")
+            .as_millis() as i64;
+
+        let mut from_time = Some(now - self.config.deposit_look_back.as_millis() as i64);
+        let mut last_query_time = 0i64;
 
         loop {
             self.process_deposit_queue().await;
@@ -127,14 +131,25 @@ where
                 .expect("System time before Unix epoch")
                 .as_millis() as i64;
 
-            let lower_bound = lookback_ms.map(|lb| now - lb);
+            let elapsed = now - last_query_time;
+            let poll_interval_ms = self.config.poll_interval.as_millis() as i64;
+            let to_sleep = poll_interval_ms.saturating_sub(elapsed);
+
+            if to_sleep > 0 {
+                time::sleep(Duration::from_millis(to_sleep as u64)).await;
+            }
+
+            last_query_time = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("System time before Unix epoch")
+                .as_millis() as i64;
 
             match self
                 .provider
                 .rest()
                 .get_deposits(
                     &self.provider.escrow_address().to_string(),
-                    lower_bound,
+                    from_time,
                     self.provider.domain().id(),
                 )
                 .await
@@ -147,8 +162,8 @@ where
                 }
             }
 
-            lookback_ms = Some(self.config.poll_interval.as_millis() as i64 * 4); // look back 4x poll interval to account for any slowness
-            time::sleep(self.config.poll_interval).await;
+            from_time =
+                Some(last_query_time - self.config.deposit_query_overlap.as_millis() as i64);
         }
     }
 

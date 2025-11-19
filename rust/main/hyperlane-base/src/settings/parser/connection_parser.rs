@@ -504,12 +504,19 @@ pub fn build_kaspa_connection_conf(
                 .get_opt_key("depositRetryDelayMax")
                 .parse_duration()
                 .end()
-                .unwrap_or(std::time::Duration::from_secs(3600)),
+                .unwrap_or(std::time::Duration::from_secs(60 * 60)),
             deposit_look_back: chain
                 .chain(err)
                 .get_opt_key("depositLookBack")
                 .parse_duration()
-                .end(),
+                .end()
+                .unwrap_or(std::time::Duration::from_secs(0)),
+            deposit_query_overlap: chain
+                .chain(err)
+                .get_opt_key("depositQueryOverlap")
+                .parse_duration()
+                .end()
+                .unwrap_or(std::time::Duration::from_secs(60 * 5)),
         })
     } else {
         None
