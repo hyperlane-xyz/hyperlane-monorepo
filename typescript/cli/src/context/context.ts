@@ -55,6 +55,8 @@ export async function signerMiddleware(argv: Record<string, any>) {
   const { key, requiresKey, strategyPath, multiProtocolProvider } =
     argv.context;
 
+  if (!requiresKey) return argv;
+
   const strategyConfig = strategyPath
     ? await readChainSubmissionStrategyConfig(strategyPath)
     : {};
@@ -100,8 +102,6 @@ export async function signerMiddleware(argv: Record<string, any>) {
         altVmProvider.set(ProtocolType.Radix, RadixProvider);
     }),
   );
-
-  if (!requiresKey) return argv;
 
   /**
    * Extracts signer config
