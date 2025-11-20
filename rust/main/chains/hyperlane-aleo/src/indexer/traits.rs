@@ -3,7 +3,7 @@ use std::{ops::RangeInclusive, str::FromStr};
 
 use aleo_serialize::AleoSerialize;
 use futures::future;
-use hyperlane_core::{ChainResult, Indexed, LogMeta};
+use hyperlane_core::{ChainResult, Indexed, LogMeta, H512};
 use snarkvm::ledger::Block;
 use snarkvm::prelude::{CanaryV0, Itertools, MainnetV0, Network, TestnetV0};
 use snarkvm::{
@@ -12,7 +12,7 @@ use snarkvm::{
 };
 
 use crate::provider::AleoClient;
-use crate::utils::{to_h256, to_key_id};
+use crate::utils::{get_tx_id, to_h256, to_key_id};
 use crate::{AleoProvider, HyperlaneAleoError};
 
 pub(crate) trait AleoIndexer {
@@ -87,7 +87,8 @@ pub(crate) trait AleoIndexer {
             .into_iter()
             .map(|(height, latest_event_index)| async move {
                 let block = self.get_provider().get_block::<N>(height).await?;
-                self.get_logs_for_block(block, latest_event_index).await
+                self.get_logs_for_block(block, latest_event_index, None)
+                    .await
             })
             .collect_vec();
         let result = future::join_all(block_logs_futures)
@@ -100,12 +101,49 @@ pub(crate) trait AleoIndexer {
         Ok(result)
     }
 
+    /// Fetch list of logs from a tx hash
+    async fn fetch_logs_by_tx_hash(
+        &self,
+        tx_hash: H512,
+    ) -> ChainResult<Vec<(Indexed<Self::Type>, LogMeta)>> {
+        match self.get_provider().chain_id() {
+            MainnetV0::ID => self.get_logs_for_tx::<MainnetV0>(tx_hash).await,
+            CanaryV0::ID => self.get_logs_for_tx::<CanaryV0>(tx_hash).await,
+            TestnetV0::ID => self.get_logs_for_tx::<TestnetV0>(tx_hash).await,
+            id => Err(HyperlaneAleoError::UnknownNetwork(id).into()),
+        }
+    }
+
+    async fn get_logs_for_tx<N: Network>(
+        &self,
+        tx_hash: H512,
+    ) -> ChainResult<Vec<(Indexed<Self::Type>, LogMeta)>>
+    where
+        Self::AleoType: AleoSerialize<N>,
+    {
+        if tx_hash.is_zero() {
+            return Ok(vec![]);
+        }
+        let tx_id = get_tx_id::<N>(tx_hash)?;
+        let hash = self
+            .get_provider()
+            .find_block_hash_by_transaction_id::<N>(&tx_id)
+            .await?;
+        let block = self.get_provider().get_block_by_hash::<N>(&hash).await?;
+        let latest_event_index = self
+            .get_latest_event_index(block.metadata().height())
+            .await?;
+        self.get_logs_for_block(block, latest_event_index, Some(tx_id))
+            .await
+    }
+
     /// Fetch logs for a specific block
     /// If tx_id is provided, only logs from that transaction are returned
     async fn get_logs_for_block<N: Network>(
         &self,
         block: Block<N>,
         last_event_index: u32,
+        tx_id: Option<N::TransactionID>,
     ) -> ChainResult<Vec<(Indexed<Self::Type>, LogMeta)>>
     where
         Self::AleoType: AleoSerialize<N>,
@@ -155,6 +193,13 @@ pub(crate) trait AleoIndexer {
                 Some(v) => v,
                 None => continue,
             };
+
+            // If a specific tx_id is provided, skip other transactions
+            if let Some(tx_id) = tx_id {
+                if transaction.id() != tx_id {
+                    continue;
+                }
+            }
 
             let mut event_indices = HashMap::<u32, Plaintext<N>>::new();
             for operation in transaction.finalize_operations().iter() {

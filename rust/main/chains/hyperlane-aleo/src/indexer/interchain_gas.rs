@@ -6,7 +6,7 @@ use snarkvm::prelude::{Address, FromBytes, Network, Plaintext};
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneProvider, Indexed, Indexer, InterchainGasPaymaster, InterchainGasPayment, LogMeta,
-    SequenceAwareIndexer, H256,
+    SequenceAwareIndexer, H256, H512,
 };
 
 use crate::{
@@ -115,6 +115,14 @@ impl<C: AleoClient> Indexer<InterchainGasPayment> for AleoInterchainGasIndexer<C
     /// Get the chain's latest block number that has reached finality
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         AleoIndexer::get_finalized_block_number(self).await
+    }
+
+    /// Fetch list of logs emitted in a transaction with the given hash.
+    async fn fetch_logs_by_tx_hash(
+        &self,
+        tx_hash: H512,
+    ) -> ChainResult<Vec<(Indexed<InterchainGasPayment>, LogMeta)>> {
+        AleoIndexer::fetch_logs_by_tx_hash(self, tx_hash).await
     }
 }
 

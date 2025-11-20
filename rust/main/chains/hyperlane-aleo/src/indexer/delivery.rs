@@ -4,7 +4,7 @@ use async_trait::async_trait;
 
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneProvider, Indexed, Indexer, LogMeta, SequenceAwareIndexer, H256,
+    HyperlaneProvider, Indexed, Indexer, LogMeta, SequenceAwareIndexer, H256, H512,
 };
 
 use crate::provider::{AleoClient, BaseHttpClient};
@@ -96,6 +96,25 @@ impl<C: AleoClient> Indexer<H256> for AleoDeliveryIndexer<C> {
     /// Get the chain's latest block number that has reached finality
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         AleoIndexer::get_finalized_block_number(self).await
+    }
+
+    /// Fetch list of logs emitted in a transaction with the given hash.
+    async fn fetch_logs_by_tx_hash(
+        &self,
+        tx_hash: H512,
+    ) -> ChainResult<Vec<(Indexed<H256>, LogMeta)>> {
+        let logs = AleoIndexer::fetch_logs_by_tx_hash(self, tx_hash).await?;
+        Ok(logs
+            .into_iter()
+            .map(|(indexed, meta)| {
+                let id = aleo_hash_to_h256(indexed.inner());
+                let mut update = Indexed::new(id);
+                if let Some(sequence) = indexed.sequence {
+                    update = update.with_sequence(sequence);
+                };
+                (update, meta)
+            })
+            .collect())
     }
 }
 
