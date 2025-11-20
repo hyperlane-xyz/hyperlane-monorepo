@@ -34,10 +34,9 @@ const main = async () => {
       ismAddress,
     });
 
-    // const { hookAddress } = await signer.createMerkleTreeHook({
-    //   mailboxAddress: ,
-    // });
-    const { hookAddress } = await signer.createNoopHook({});
+    const { hookAddress } = await signer.createMerkleTreeHook({
+      mailboxAddress,
+    });
     await signer.setDefaultHook({
       mailboxAddress,
       hookAddress,
@@ -151,6 +150,9 @@ const main = async () => {
         amount: '1000000',
       },
     });
+
+    const mailbox = await signer.getMailbox({ mailboxAddress });
+    console.log(mailbox);
   } catch (err) {
     console.log(err);
   }

@@ -328,6 +328,9 @@ describe('4. aleo sdk warp e2e tests', async function () {
     const { hookAddress } = await signer.createMerkleTreeHook({
       mailboxAddress,
     });
+    const { hookAddress: igp } = await signer.createNoopHook({
+      mailboxAddress,
+    });
 
     await signer.setDefaultIsm({
       mailboxAddress,
@@ -337,6 +340,11 @@ describe('4. aleo sdk warp e2e tests', async function () {
     await signer.setDefaultHook({
       mailboxAddress,
       hookAddress,
+    });
+
+    await signer.setRequiredHook({
+      mailboxAddress,
+      hookAddress: igp,
     });
 
     let mailbox = await signer.getMailbox({

@@ -871,7 +871,11 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       functionName: 'init_merkle_tree',
       priorityFee: 0,
       privateFee: false,
-      inputs: [this.getAddressFromProgramId(req.mailboxAddress)],
+      inputs: [
+        this.getAddressFromProgramId(
+          req.mailboxAddress.replaceAll('mailbox_', 'dispatch_proxy_'),
+        ),
+      ],
       skipProof: this.skipProof,
     };
   }
