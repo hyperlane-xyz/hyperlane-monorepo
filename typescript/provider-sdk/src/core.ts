@@ -20,14 +20,8 @@ export interface DerivedCoreConfig extends CoreConfig {
   requiredHook: DerivedHookConfig;
 }
 
-export type DeployedCoreAddresses = {
-  staticMerkleRootMultisigIsmFactory: string;
-  staticMessageIdMultisigIsmFactory: string;
-  staticAggregationIsmFactory: string;
-  staticAggregationHookFactory: string;
-  domainRoutingIsmFactory: string;
-  staticMerkleRootWeightedMultisigIsmFactory: string;
-  staticMessageIdWeightedMultisigIsmFactory: string;
+// Base addresses - protocol-agnostic, without EVM-specific factories
+export type BaseCoreAddresses = {
   mailbox: string;
   validatorAnnounce: string;
   proxyAdmin: string;
@@ -36,4 +30,16 @@ export type DeployedCoreAddresses = {
   interchainAccountRouter: string;
   merkleTreeHook?: string;
   interchainGasPaymaster?: string;
+};
+
+// Deployed core addresses with optional EVM factories
+// This allows both EVM chains (with factories) and AltVM chains (without factories)
+export type DeployedCoreAddresses = BaseCoreAddresses & {
+  staticMerkleRootMultisigIsmFactory?: string;
+  staticMessageIdMultisigIsmFactory?: string;
+  staticAggregationIsmFactory?: string;
+  staticAggregationHookFactory?: string;
+  domainRoutingIsmFactory?: string;
+  staticMerkleRootWeightedMultisigIsmFactory?: string;
+  staticMessageIdWeightedMultisigIsmFactory?: string;
 };

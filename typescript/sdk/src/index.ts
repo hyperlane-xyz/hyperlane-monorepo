@@ -97,6 +97,8 @@ export {
   TestRecipientDeployer,
 } from './core/TestRecipientDeployer.js';
 export {
+  BaseCoreAddresses,
+  BaseCoreAddressesSchema,
   CoreConfig,
   CoreConfigSchema,
   CoreViolationType,
@@ -105,6 +107,8 @@ export {
   DerivedCoreConfig,
   DerivedCoreConfigSchema,
   DispatchedMessage,
+  EvmCoreAddresses,
+  EvmCoreAddressesSchema,
   MailboxMultisigIsmViolation,
   MailboxViolation,
   MailboxViolationType,
