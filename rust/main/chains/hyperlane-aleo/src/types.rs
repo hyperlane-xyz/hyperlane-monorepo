@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use snarkvm::{
     console::network::{const_assert, hrp2, AleoID},
     prelude::{MainnetV0, TestnetV0},
@@ -12,3 +13,33 @@ use snarkvm_console_account::Field;
 pub(crate) type CurrentNetwork = MainnetV0;
 /// TxID Type
 pub(crate) type TxID = AleoID<Field<TestnetV0>, { hrp2!("at") }>;
+
+/// Proving Request
+#[derive(Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ProvingRequest {
+    /// The function that needs to be executed
+    pub authorization: serde_json::Value, // Some type of Authorization::<Network>
+    /// Fee for the TX
+    pub fee_authorization: Option<serde_json::Value>,
+    /// Whether or not the service will broadcast the transaction
+    pub broadcast: bool,
+}
+
+/// Proving Response
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ProvingResponse {
+    /// Transaction with Proof
+    pub transaction: serde_json::Value, // Transaction::<Network>
+    /// Whether or not it was broadcasted
+    #[serde(default)]
+    pub broadcast: Option<bool>,
+}
+
+pub struct FeeEstimate {
+    /// Base fee
+    pub base_fee: u64,
+    /// Priority fee
+    pub priority_fee: u64,
+    /// Total fee
+    pub total_fee: u64,
+}

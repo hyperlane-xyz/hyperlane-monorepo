@@ -3,7 +3,8 @@ use derive_new::new;
 use reqwest::Client as ReqestClient;
 use serde::de::DeserializeOwned;
 
-use hyperlane_core::ChainResult;
+use hyperlane_core::{ChainCommunicationError, ChainResult};
+use tokio::{runtime::Handle, task::block_in_place};
 
 use crate::{provider::HttpClient, HyperlaneAleoError};
 
@@ -36,6 +37,36 @@ impl HttpClient for BaseHttpClient {
             .map_err(HyperlaneAleoError::from)?;
         let json = response.json().await.map_err(HyperlaneAleoError::from)?;
         Ok(json)
+    }
+
+    /// Makes a blocking GET request to the API
+    fn request_blocking<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        query: impl Into<Option<serde_json::Value>> + Send,
+    ) -> ChainResult<T> {
+        let url = format!("{}/{}", self.base_url, path);
+        let query: serde_json::Value = query.into().unwrap_or_default();
+
+        block_in_place(|| {
+            Handle::current().block_on(async {
+                let response = self
+                    .client
+                    .get(&url)
+                    .query(&query)
+                    .send()
+                    .await
+                    .map_err(HyperlaneAleoError::from)?;
+                let response = response
+                    .error_for_status()
+                    .map_err(HyperlaneAleoError::from)?;
+                response
+                    .json::<T>()
+                    .await
+                    .map_err(HyperlaneAleoError::from)
+                    .map_err(ChainCommunicationError::from)
+            })
+        })
     }
 
     /// Makes a POST request to the API

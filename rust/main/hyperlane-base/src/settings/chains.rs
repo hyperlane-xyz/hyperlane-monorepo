@@ -325,7 +325,7 @@ impl ChainConf {
                 Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
             }
             ChainConnectionConf::Aleo(conf) => {
-                let provider = build_aleo_provider(self, conf, metrics, &locator)?;
+                let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
                 Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
             }
         }
@@ -1415,6 +1415,7 @@ fn build_aleo_provider(
     connection_conf: &h_aleo::ConnectionConf,
     _metrics: &CoreMetrics,
     locator: &ContractLocator,
+    signer: Option<h_aleo::AleoSigner>,
 ) -> ChainResult<AleoProvider> {
-    AleoProvider::new(connection_conf, locator.domain.clone())
+    AleoProvider::new(connection_conf, locator.domain.clone(), signer)
 }

@@ -161,7 +161,8 @@ fn parse_chain(
         .parse_value("Invalid reorgPeriod")
         .unwrap_or(ReorgPeriod::from_blocks(1));
 
-    let rpcs = parse_base_and_override_urls(&chain, "rpcUrls", "customRpcUrls", "http", &mut err);
+    let rpcs =
+        parse_base_and_override_urls(&chain, "rpcUrls", "customRpcUrls", "http", &mut err, false);
 
     let from = chain
         .chain(&mut err)
@@ -526,10 +527,14 @@ fn parse_urls(
     key: &str,
     protocol: &str,
     err: &mut ConfigParsingError,
+    optional: bool,
 ) -> Vec<Url> {
+    let chain = if optional {
+        chain.chain(err).get_opt_key(key)
+    } else {
+        chain.chain(err).get_key(key)
+    };
     chain
-        .chain(err)
-        .get_key(key)
         .into_array_iter()
         .map(|urls| {
             urls.filter_map(|v| {
@@ -566,12 +571,13 @@ fn parse_base_and_override_urls(
     override_key: &str,
     protocol: &str,
     err: &mut ConfigParsingError,
+    optional: bool,
 ) -> Vec<Url> {
-    let base = parse_urls(chain, base_key, protocol, err);
+    let base = parse_urls(chain, base_key, protocol, err, optional);
     let overrides = parse_custom_urls(chain, override_key, err);
     let combined = overrides.unwrap_or(base);
 
-    if combined.is_empty() {
+    if combined.is_empty() && !optional {
         let config_path = (&chain.cwp).add(base_key.to_ascii_lowercase());
         err.push(
             config_path,

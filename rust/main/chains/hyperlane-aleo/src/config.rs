@@ -1,7 +1,7 @@
 use snarkvm_console_account::Itertools;
 use url::Url;
 
-/// Aleo connection configuration
+/// Cosmos connection configuration
 #[derive(Debug, Clone)]
 pub struct ConnectionConf {
     /// Aleo RPC
@@ -16,6 +16,11 @@ pub struct ConnectionConf {
     pub validator_announce_program: String,
     /// Chain Id
     pub chain_id: u16,
+    /// Proofing service
+    pub proofing_service: Option<Url>,
+    /// Priority fee multiplier
+    /// This multiplier will be multiplied by the base fee to determine the priority fee to include in transactions
+    pub priority_fee_multiplier: f64,
 }
 
 impl ConnectionConf {
@@ -28,11 +33,11 @@ impl ConnectionConf {
         validator_announce_program: String,
         chain_id: u16,
         consensus_heights: Option<Vec<u32>>,
+        proofing_service: Vec<Url>,
+        priority_fee_multiplier: f64,
     ) -> Self {
         if let Some(consensus_heights) = consensus_heights {
             // Set the consensus heights in the environment.
-            // ZK proof generation is done differently for different chains and relies on these heights. These are hardcoded in the Aleo VM for all known networks, like testnet and mainnet.
-            // However, when we want to run the relayer with a local chain, that network is unknown and we need to set the correct heights there as well; this is the only way to set the heights.
             #[allow(unsafe_code)]
             unsafe {
                 // SAFETY:
@@ -54,6 +59,8 @@ impl ConnectionConf {
             ism_manager_program,
             validator_announce_program,
             chain_id,
+            proofing_service: proofing_service.first().cloned(),
+            priority_fee_multiplier,
         }
     }
 }

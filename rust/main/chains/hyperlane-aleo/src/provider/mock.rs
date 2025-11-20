@@ -85,6 +85,17 @@ impl HttpClient for MockHttpClient {
         Ok(parsed)
     }
 
+    /// Makes a GET request to the API in a blocking manner
+    fn request_blocking<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        _query: impl Into<Option<serde_json::Value>> + Send,
+    ) -> ChainResult<T> {
+        let value = self.get(path)?;
+        let parsed: T = serde_json::from_value(value).map_err(HyperlaneAleoError::from)?;
+        Ok(parsed)
+    }
+
     async fn request_post<T: DeserializeOwned>(&self, path: &str, _body: &Value) -> ChainResult<T> {
         // Treat POST similarly; retrieve registered response.
         let value = self.get(path)?;
