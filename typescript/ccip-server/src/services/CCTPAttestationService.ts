@@ -213,12 +213,23 @@ class CCTPAttestationService {
               UnhandledErrorReason.CCTP_ATTESTATION_SERVICE_PENDING,
             );
             logger.error(
-              context,
+              {
+                error_reason:
+                  UnhandledErrorReason.CCTP_ATTESTATION_SERVICE_PENDING,
+                ...message,
+                ...context,
+              },
               errorString + ` due to ${message.delayReason}`,
             );
             break;
           default:
-            logger.info(context, errorString);
+            logger.info(
+              {
+                ...context,
+                ...message,
+              },
+              errorString,
+            );
         }
         throw new Error(errorString);
       }
