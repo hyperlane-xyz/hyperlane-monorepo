@@ -1,7 +1,7 @@
 use snarkvm_console_account::Itertools;
 use url::Url;
 
-/// Cosmos connection configuration
+/// Aleo connection configuration
 #[derive(Debug, Clone)]
 pub struct ConnectionConf {
     /// Aleo RPC
@@ -39,6 +39,8 @@ impl ConnectionConf {
     ) -> Self {
         if let Some(consensus_heights) = consensus_heights {
             // Set the consensus heights in the environment.
+            // ZK proof generation is done differently for different chains and relies on these heights. These are hardcoded in the Aleo VM for all known networks, like testnet and mainnet.
+            // However, when we want to run the relayer with a local chain, that network is unknown and we need to set the correct heights there as well; this is the only way to set the heights.
             #[allow(unsafe_code)]
             unsafe {
                 // SAFETY:

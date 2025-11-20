@@ -8,8 +8,6 @@ use std::{
 use aleo_std::StorageMode;
 use async_trait::async_trait;
 use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
-use reqwest::Client;
-use reqwest_utils::parse_custom_rpc_headers;
 use snarkvm::{
     ledger::{
         store::{helpers::memory::ConsensusMemory, ConsensusStore},
@@ -56,19 +54,11 @@ impl AleoProvider<BaseHttpClient> {
         domain: HyperlaneDomain,
         signer: Option<AleoSigner>,
     ) -> ChainResult<Self> {
-        let base_url = conf.rpc.to_string().trim_end_matches('/').to_string();
-        let client = BaseHttpClient::new(Client::new(), base_url);
+        let client = BaseHttpClient::new(conf.rpc.clone())?;
 
         let proofing_service = if let Some(proofing_url) = &conf.proofing_service {
-            let (headers, url) = parse_custom_rpc_headers(proofing_url)
-                .map_err(ChainCommunicationError::from_other)?;
-            let client = Client::builder()
-                .default_headers(headers)
-                .build()
-                .map_err(ChainCommunicationError::from_other)?;
-            let client =
-                BaseHttpClient::new(client, url.to_string().trim_end_matches("/").to_string());
-            Some(ProofingClient::new(client.clone()))
+            let client = BaseHttpClient::new(proofing_url.clone())?;
+            Some(ProofingClient::new(client))
         } else {
             None
         };
@@ -97,7 +87,16 @@ impl AleoProvider<BaseHttpClient> {
         &self,
         vm: &VM<N, ConsensusMemory<N>>,
         program_id: &ProgramID<N>,
+        depth: usize,
     ) -> ChainResult<()> {
+        if depth > N::MAX_IMPORTS {
+            return Err(HyperlaneAleoError::Other(format!(
+                "Exceeded maximum program import depth when loading program: {}",
+                program_id
+            ))
+            .into());
+        }
+
         // No need to fetch all imports again when we already added the program to the VM
         if vm.contains_program(program_id) {
             return Ok(());
@@ -110,7 +109,7 @@ impl AleoProvider<BaseHttpClient> {
             if imports == program_id {
                 continue;
             }
-            let future = Box::pin(self.load_program(vm, imports));
+            let future = Box::pin(self.load_program(vm, imports, depth.saturating_add(1)));
             future.await?;
         }
 
@@ -188,7 +187,7 @@ impl AleoProvider<BaseHttpClient> {
         let private_key = signer.get_private_key()?;
         let mut rng = ChaCha20Rng::from_entropy();
         // Load program + dependencies.
-        self.load_program(&vm, &program_id_parsed).await?;
+        self.load_program(&vm, &program_id_parsed, 0).await?;
         // Create authorization.
         let authorization = vm
             .authorize(
@@ -379,7 +378,7 @@ impl AleoProvider<BaseHttpClient> {
                 }
                 _ => {
                     // Broadcast the transaction again in case it was not received
-                    println!("Transaction still pending, continuing to poll: {hash} {attempt}",);
+                    debug!("Transaction still pending, continuing to poll: {hash} {attempt}",);
                     // Transaction is still pending, continue polling
                     attempt = attempt.saturating_add(1);
                     if attempt >= N {
