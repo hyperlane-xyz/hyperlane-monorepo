@@ -14,7 +14,10 @@ import {
   runMultiChainSelectionStep,
   runSingleChainSelectionStep,
 } from '../../../utils/chains.js';
-import { getWarpConfigs } from '../../../utils/warp.js';
+import {
+  getWarpConfigs,
+  getWarpCoreConfigOrExit,
+} from '../../../utils/warp.js';
 import { requestAndSaveApiKeys } from '../../context.js';
 
 import { ChainResolver } from './types.js';
@@ -23,6 +26,7 @@ enum ChainSelectionMode {
   AGENT_KURTOSIS,
   WARP_CONFIG,
   WARP_APPLY,
+  WARP_READ,
   WARP_REBALANCER,
   STRATEGY,
   CORE_APPLY,
@@ -46,6 +50,8 @@ export class MultiChainResolver implements ChainResolver {
         return this.resolveWarpRouteConfigChains(argv);
       case ChainSelectionMode.WARP_APPLY:
         return this.resolveWarpApplyChains(argv);
+      case ChainSelectionMode.WARP_READ:
+        return this.resolveWarpReadChains(argv);
       case ChainSelectionMode.WARP_REBALANCER:
         return this.resolveWarpRebalancerChains(argv);
       case ChainSelectionMode.AGENT_KURTOSIS:
@@ -75,6 +81,25 @@ export class MultiChainResolver implements ChainResolver {
       argv.context.chains.length !== 0,
       'No chains found in warp route deployment config',
     );
+    return argv.context.chains;
+  }
+
+  private async resolveWarpReadChains(
+    argv: Record<string, any>,
+  ): Promise<ChainName[]> {
+    if (argv.chain) {
+      argv.context.chains = [argv.chain];
+    } else if (argv.symbol || argv.config || argv.warpRouteId) {
+      const warpCoreConfig = await getWarpCoreConfigOrExit({
+        context: argv.context,
+        symbol: argv.symbol,
+        warp: argv.config,
+        warpRouteId: argv.warpRouteId,
+      });
+      argv.context.chains = warpCoreConfig.tokens.map(
+        (token) => token.chainName,
+      );
+    }
     return argv.context.chains;
   }
 
@@ -259,6 +284,9 @@ export class MultiChainResolver implements ChainResolver {
   }
   static forWarpApply(): MultiChainResolver {
     return new MultiChainResolver(ChainSelectionMode.WARP_APPLY);
+  }
+  static forWarpRead(): MultiChainResolver {
+    return new MultiChainResolver(ChainSelectionMode.WARP_READ);
   }
 
   static forWarpRebalancer(): MultiChainResolver {
