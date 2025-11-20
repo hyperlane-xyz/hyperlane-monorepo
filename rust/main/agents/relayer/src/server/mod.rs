@@ -44,7 +44,7 @@ pub struct Server {
     #[new(default)]
     prover_syncs: Option<HashMap<u32, Arc<RwLock<MerkleTreeBuilder>>>>,
     #[new(default)]
-    dispatcher_entrypoints: Option<HashMap<u32, Arc<dyn CommandEntrypoint>>>,
+    dispatcher_command_entrypoints: Option<HashMap<u32, Arc<dyn CommandEntrypoint>>>,
 }
 
 impl Server {
@@ -91,7 +91,7 @@ impl Server {
         mut self,
         entrypoints: HashMap<u32, Arc<dyn CommandEntrypoint>>,
     ) -> Self {
-        self.dispatcher_entrypoints = Some(entrypoints);
+        self.dispatcher_command_entrypoints = Some(entrypoints);
         self
     }
 
@@ -129,7 +129,7 @@ impl Server {
         if let Some(prover_syncs) = self.prover_syncs {
             router = router.merge(proofs::ServerState::new(prover_syncs).router());
         }
-        if let Some(chains) = self.dispatcher_entrypoints {
+        if let Some(chains) = self.dispatcher_command_entrypoints {
             router = router.merge(evm::nonce::ServerState::new(chains).router());
         }
 
