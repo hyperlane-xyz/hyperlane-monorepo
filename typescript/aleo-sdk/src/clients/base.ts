@@ -19,7 +19,6 @@ import {
   Program as TestnetProgram,
   ProgramManager as TestnetProgramManager,
   U128 as TestnetU128,
-  getOrInitConsensusVersionTestHeights,
 } from '@provablehq/sdk/testnet.js';
 
 import { assert, strip0x } from '@hyperlane-xyz/utils';
@@ -45,8 +44,6 @@ export class AleoBase {
       `Unknown chain id ${chainId} for Aleo, only 0 or 1 allowed`,
     );
     assert(rpcUrls.length > 0, `got no rpcUrls`);
-
-    getOrInitConsensusVersionTestHeights('0,1,2,3,4,5,6,7,8,9,10');
 
     this.rpcUrls = rpcUrls;
     this.chainId = +chainId;

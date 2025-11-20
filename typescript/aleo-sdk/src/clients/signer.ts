@@ -47,7 +47,17 @@ export class AleoSigner
 
     for (const { id, program } of programs) {
       try {
-        const txId = await this.programManager.deploy(program, 0, false);
+        const tx = await this.programManager.buildDeploymentTransaction(
+          program,
+          0,
+          false,
+          undefined,
+          undefined,
+          undefined,
+          this.skipProof,
+        );
+        const txId =
+          await this.programManager.networkClient.submitTransaction(tx);
 
         await this.aleoClient.waitForTransactionConfirmation(txId);
       } catch (err) {
@@ -87,7 +97,7 @@ export class AleoSigner
     const receipt = await this.aleoClient.waitForTransactionConfirmation(txId);
     return {
       ...receipt,
-      transactionHash: receipt.transaction.execution?.global_state_root ?? '',
+      transactionHash: receipt.transaction.id,
     };
   }
 
@@ -124,7 +134,7 @@ export class AleoSigner
       priorityFee: 0,
       privateFee: false,
       inputs: [dispatchProxyAddress],
-      // skipProof: this.skipProof,
+      skipProof: this.skipProof,
     });
     await this.aleoClient.waitForTransactionConfirmation(setDispatchProxyTxId);
 

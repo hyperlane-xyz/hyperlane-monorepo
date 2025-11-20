@@ -12,7 +12,7 @@ import { step } from 'mocha-steps';
 
 import { AltVM, addressToBytes32 } from '@hyperlane-xyz/utils';
 
-import { hyp_synthetic } from '../artifacts.js';
+import { hyp_synthetic, token_registry } from '../artifacts.js';
 import { AleoSigner } from '../clients/signer.js';
 import { AleoReceipt, AleoTransaction } from '../utils/types.js';
 
@@ -60,6 +60,21 @@ describe('4. aleo sdk warp e2e tests', async function () {
 
     collateralDenom = '1field';
 
+    try {
+      const tx = await programManager.buildDeploymentTransaction(
+        token_registry,
+        0,
+        false,
+        undefined,
+        undefined,
+        undefined,
+        true,
+      );
+      const txId = await programManager.networkClient.submitTransaction(tx);
+
+      await aleoClient.waitForTransactionConfirmation(txId);
+    } catch {}
+
     await programManager.execute({
       programName: 'token_registry.aleo',
       functionName: 'register_token',
@@ -74,7 +89,7 @@ describe('4. aleo sdk warp e2e tests', async function () {
         `false`,
         `aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc`,
       ],
-      // skipProof: true,
+      skipProof: true,
     });
 
     await programManager.execute({
@@ -88,7 +103,7 @@ describe('4. aleo sdk warp e2e tests', async function () {
         `100000000u128`,
         `0u32`,
       ],
-      // skipProof: true,
+      skipProof: true,
     });
 
     const domainId = 1234;
