@@ -12,6 +12,7 @@ use hyperlane_cosmos::{native::ModuleQueryClient, CosmosProvider};
 use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
+use tokio::sync::Mutex as AsyncMutex;
 use tracing::{debug, info};
 use url::Url;
 
@@ -19,6 +20,7 @@ pub struct HubWhale {
     pub provider: CosmosProvider<ModuleQueryClient>,
     last_used: Mutex<Instant>,
     pub id: usize,
+    tx_lock: AsyncMutex<()>,
 }
 
 impl HubWhale {
@@ -28,6 +30,10 @@ impl HubWhale {
 
     fn last_used(&self) -> Instant {
         *self.last_used.lock().unwrap()
+    }
+
+    pub async fn lock_for_tx(&self) -> tokio::sync::MutexGuard<'_, ()> {
+        self.tx_lock.lock().await
     }
 }
 
@@ -71,6 +77,7 @@ impl HubWhalePool {
                 provider,
                 last_used: Mutex::new(base_time - std::time::Duration::from_secs(id as u64)),
                 id,
+                tx_lock: AsyncMutex::new(()),
             });
 
             whales.push(whale);
@@ -152,11 +159,13 @@ mod tests {
             provider: unsafe { std::mem::zeroed() },
             last_used: Mutex::new(base - std::time::Duration::from_secs(10)),
             id: 1,
+            tx_lock: AsyncMutex::new(()),
         });
         let w2 = Arc::new(HubWhale {
             provider: unsafe { std::mem::zeroed() },
             last_used: Mutex::new(base - std::time::Duration::from_secs(5)),
             id: 2,
+            tx_lock: AsyncMutex::new(()),
         });
 
         let pool = HubWhalePool {

@@ -20,8 +20,6 @@ use crate::x::args::SimulateTrafficCli;
 use hyperlane_core::H256;
 use tracing::info;
 
-pub const FIXED_TRANSFER_SOMPI: u64 = 4_100_000_000;
-
 pub struct Params {
     pub time_limit: Duration,
     pub ops_per_minute: u64,
@@ -76,6 +74,8 @@ impl TryFrom<SimulateTrafficCli> for SimulateTrafficArgs {
                 domain_hub: cli.domain_hub,
                 token_hub: cli.token_hub,
                 escrow_address: addr,
+                deposit_amount: cli.deposit_amount,
+                withdrawal_fee_pct: cli.withdrawal_fee_pct,
             },
             kaspa_whale_secrets: cli.kaspa_whale_secrets,
             hub_whale_priv_keys: cli.hub_whale_priv_keys,
@@ -178,7 +178,7 @@ impl TrafficSim {
         let stats_writer = StatsWriter::new(stats_file_path.clone())?;
         info!("Writing stats to: {}", stats_file_path);
 
-        let (stats_tx, mut stats_rx) = mpsc::channel(100);
+        let (stats_tx, mut stats_rx) = mpsc::channel(10000);
 
         let collector_handle = tokio::spawn(async move {
             let mut count = 0u64;
@@ -244,7 +244,7 @@ impl TrafficSim {
         let stats_count = collector_handle.await?;
         info!("stats collection complete: count={}", stats_count);
 
-        let total_spend = total_ops * FIXED_TRANSFER_SOMPI;
+        let total_spend = total_ops * self.resources.args.deposit_amount;
         info!("writing metadata to: {}", metadata_file_path);
         write_metadata(&metadata_file_path, total_spend, total_ops)?;
 
