@@ -5,10 +5,12 @@ import { AltVMCoreModule } from '@hyperlane-xyz/deploy-sdk';
 import { GasAction, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
+  BaseCoreAddresses,
   ChainName,
   ContractVerifier,
   CoreConfig,
   DeployedCoreAddresses,
+  EvmCoreAddresses,
   EvmCoreModule,
   ExplorerLicenseType,
   altVmChainLookup,
@@ -138,10 +140,12 @@ export async function runCoreApply(params: ApplyParams) {
 
   switch (multiProvider.getProtocol(chain)) {
     case ProtocolType.Ethereum: {
+      // Assert EVM-specific addresses for strict type checking
+      const evmAddresses = deployedCoreAddresses as EvmCoreAddresses;
       const evmCoreModule = new EvmCoreModule(multiProvider, {
         chain,
         config,
-        addresses: deployedCoreAddresses,
+        addresses: evmAddresses,
       });
 
       const transactions = await evmCoreModule.update(config);
@@ -175,13 +179,15 @@ export async function runCoreApply(params: ApplyParams) {
 
       const validatedConfig = validateCoreConfigForAltVM(config, chain);
 
+      // Assert base addresses for AltVM chains (no EVM factories)
+      const baseAddresses = deployedCoreAddresses as BaseCoreAddresses;
       const coreModule = new AltVMCoreModule(
         altVmChainLookup(multiProvider),
         signer,
         {
           chain,
           config: validatedConfig,
-          addresses: deployedCoreAddresses,
+          addresses: baseAddresses,
         },
       );
 

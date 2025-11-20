@@ -136,6 +136,18 @@ Mirror types in provider-sdk with factories as optional fields.
 - Simplified logic for setting optional hook addresses
 - No longer pollutes the data model with fake factory addresses
 
+### 6. `typescript/cli/src/commands/core.ts`
+
+- **Protocol-aware validation**: Uses `EvmCoreAddressesSchema` for EVM chains and `BaseCoreAddressesSchema` for AltVM chains
+- Strict type checking ensures EVM chains have all required factory addresses
+- No lenient validation that would allow incomplete EVM deployments
+
+### 7. `typescript/cli/src/context/strategies/chain/MultiChainResolver.ts`
+
+- **Protocol-aware validation**: Validates addresses based on chain protocol
+- Uses strict `EvmCoreAddressesSchema` when dealing with EVM chains
+- Ensures type safety when passing addresses to protocol-specific modules
+
 ## Benefits
 
 ### 1. **Semantically Correct**
@@ -155,22 +167,50 @@ Mirror types in provider-sdk with factories as optional fields.
 - Clear separation of concerns between protocols
 - Protocol-specific types are properly scoped
 - Base abstractions are truly protocol-agnostic
+- **Protocol-aware validation** at boundaries (CLI, registry parsing)
 
-### 4. **Backward Compatible**
+### 4. **Strict Validation**
+
+- EVM chains **require** all factory addresses (caught at parse time)
+- AltVM chains validated against base schema (no factory requirements)
+- Protocol-specific validation prevents incomplete deployments
+- Type system enforces correct address types for each module
+
+### 5. **Backward Compatible**
 
 - Existing EVM deployments continue to work
-- Registry parsing handles both old (with factories) and new (without factories) data
-- CLI validation works for all chain types
+- Registry can contain both EVM (with factories) and AltVM (without) data
+- Validation is protocol-aware and handles both cases correctly
 
-### 5. **Maintainable**
+### 6. **Maintainable**
 
 - Future protocol additions don't need EVM-specific fields
 - Easier to understand which fields apply to which protocols
 - No workarounds or hacks needed
+- Compile-time guarantees prevent mixing protocol-specific types
 
-## Validation
+## Protocol-Aware Validation
 
-The fix was validated with a test demonstrating both scenarios:
+The solution implements **strict protocol-aware validation** at the CLI level:
+
+```typescript
+// CLI commands use protocol-specific schemas
+const protocol = context.multiProvider.getProtocol(chain);
+
+if (protocol === ProtocolType.Ethereum) {
+  const evmAddresses = await context.registry.getChainAddresses(chain);
+  EvmCoreAddressesSchema.parse(evmAddresses); // ✓ Requires ALL factories
+  addresses = evmAddresses;
+} else {
+  const baseAddresses = await context.registry.getChainAddresses(chain);
+  BaseCoreAddressesSchema.parse(baseAddresses); // ✓ No factory requirements
+  addresses = baseAddresses;
+}
+```
+
+### Test Results
+
+The fix was validated with tests demonstrating strict validation:
 
 ```javascript
 // Test 1: EVM chain with all factories ✓
@@ -194,17 +234,38 @@ const altVmAddresses = {
   interchainAccountRouter: '',
   // No factory fields at all
 };
-DeployedCoreAddressesSchema.parse(altVmAddresses); // ✓ PASSES
+BaseCoreAddressesSchema.parse(altVmAddresses); // ✓ PASSES
+
+// Test 3: Incomplete EVM addresses should FAIL ✓
+const incompleteEvmAddresses = {
+  mailbox: '0x123',
+  // ... missing factories
+};
+EvmCoreAddressesSchema.parse(incompleteEvmAddresses); // ✗ FAILS (as expected)
 ```
+
+This ensures:
+
+- ✅ EVM chains cannot be deployed without all required factories
+- ✅ AltVM chains don't need to provide EVM-specific contracts
+- ✅ Type safety at compile time and runtime
 
 ## Migration Path
 
 No migration is required:
 
-- Existing EVM registry data will continue to work (factories present)
+- Existing EVM registry data will continue to work (factories present and validated)
 - New AltVM deployments won't include factory fields
-- Both are valid according to `DeployedCoreAddressesSchema`
+- Protocol detection at runtime ensures correct schema is used for validation
+- Type system prevents incorrect address types from being passed to modules
 
 ## Conclusion
 
-This solution properly addresses the architectural issue by recognizing that EVM-specific proxy factories should not be required for non-EVM chains. The type hierarchy now correctly represents the protocol differences, making the codebase more maintainable and semantically correct.
+This solution properly addresses the architectural issue by:
+
+1. **Separating protocol-specific concerns**: EVM-specific proxy factories are isolated to EVM types
+2. **Strict validation**: Protocol-aware validation at CLI boundaries ensures data integrity
+3. **Type safety**: Compile-time guarantees prevent mixing protocol-specific types
+4. **Clean architecture**: Each module uses the appropriate type for its protocol
+
+The type hierarchy and validation strategy now correctly represent protocol differences, making the codebase more maintainable, type-safe, and semantically correct. EVM chains get strict validation requiring all factories, while AltVM chains use a simpler base schema without EVM-specific contracts.

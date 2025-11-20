@@ -2,12 +2,15 @@ import { stringify as yamlStringify } from 'yaml';
 import { CommandModule } from 'yargs';
 
 import {
+  BaseCoreAddresses,
+  BaseCoreAddressesSchema,
   CoreConfig,
   DeployedCoreAddresses,
-  DeployedCoreAddressesSchema,
+  EvmCoreAddresses,
+  EvmCoreAddressesSchema,
   normalizeConfig,
 } from '@hyperlane-xyz/sdk';
-import { diffObjMerge } from '@hyperlane-xyz/utils';
+import { ProtocolType, diffObjMerge } from '@hyperlane-xyz/utils';
 
 import {
   createCoreDeployConfig,
@@ -82,10 +85,23 @@ export const apply: CommandModuleWithWriteContext<{
   }) => {
     logCommandHeader(`Hyperlane Core Apply`);
 
-    const addresses = (await context.registry.getChainAddresses(
-      chain,
-    )) as DeployedCoreAddresses;
-    DeployedCoreAddressesSchema.parse(addresses);
+    // Use protocol-specific schema for strict validation
+    const protocol = context.multiProvider.getProtocol(chain);
+    let addresses: DeployedCoreAddresses;
+
+    if (protocol === ProtocolType.Ethereum) {
+      const evmAddresses = (await context.registry.getChainAddresses(
+        chain,
+      )) as EvmCoreAddresses;
+      EvmCoreAddressesSchema.parse(evmAddresses);
+      addresses = evmAddresses;
+    } else {
+      const baseAddresses = (await context.registry.getChainAddresses(
+        chain,
+      )) as BaseCoreAddresses;
+      BaseCoreAddressesSchema.parse(baseAddresses);
+      addresses = baseAddresses;
+    }
 
     const config = readCoreDeployConfigs(configFilePath);
 
