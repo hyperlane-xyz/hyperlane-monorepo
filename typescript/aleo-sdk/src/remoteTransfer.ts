@@ -34,28 +34,30 @@ const main = async () => {
       ismAddress,
     });
 
-    const { hookAddress } = await signer.createMerkleTreeHook({
-      mailboxAddress,
-    });
+    // const { hookAddress } = await signer.createMerkleTreeHook({
+    //   mailboxAddress: ,
+    // });
+    const { hookAddress } = await signer.createNoopHook({});
     await signer.setDefaultHook({
       mailboxAddress,
       hookAddress,
     });
 
-    const { hookAddress: igp } = await signer.createInterchainGasPaymasterHook(
-      {},
-    );
-    await signer.setDestinationGasConfig({
-      hookAddress: igp,
-      destinationGasConfig: {
-        remoteDomainId: domainId,
-        gasOracle: {
-          tokenExchangeRate: '1000',
-          gasPrice: '1000',
-        },
-        gasOverhead: '50000',
-      },
-    });
+    // const { hookAddress: igp } = await signer.createInterchainGasPaymasterHook(
+    //   {},
+    // );
+    // await signer.setDestinationGasConfig({
+    //   hookAddress: igp,
+    //   destinationGasConfig: {
+    //     remoteDomainId: domainId,
+    //     gasOracle: {
+    //       tokenExchangeRate: '1000',
+    //       gasPrice: '1000',
+    //     },
+    //     gasOverhead: '50000',
+    //   },
+    // });
+    const { hookAddress: igp } = await signer.createNoopHook({});
     await signer.setRequiredHook({
       mailboxAddress,
       hookAddress: igp,
@@ -78,6 +80,11 @@ const main = async () => {
       destinationDomainId: domainId,
     });
     console.log('quote', quote); // -> { denom: '0field', amount: 25n }
+    console.log('mailboxAddress', mailboxAddress);
+    console.log('default ism', ismAddress);
+    console.log('required hook', igp);
+    console.log('default hook', hookAddress);
+    console.log('tokenAddress', tokenAddress);
 
     // remote transfer inputs:
     // [
@@ -138,7 +145,7 @@ const main = async () => {
       destinationDomainId: domainId,
       recipient: addressToBytes32(new Account().address().to_string()),
       amount: '1000000',
-      gasLimit: '200000',
+      gasLimit: '0',
       maxFee: {
         denom: ALEO_NATIVE_DENOM,
         amount: '1000000',
