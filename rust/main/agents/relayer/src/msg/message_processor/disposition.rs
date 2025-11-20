@@ -26,7 +26,7 @@ use lander::{Entrypoint, PayloadStatus, TransactionStatus};
 /// - `PostSubmit`: Moved to confirm queue via `confirm_op` (transaction included in block)
 ///
 /// ## Confirm Stage
-/// The confirm stage does not use disposition logic - it directly processes operations
+/// The Confirm stage does not use disposition logic - it directly processes operations
 /// to verify finality and commit delivery status to the database.
 pub enum OperationDisposition {
     /// Operation requires preparation or has failed submission.
@@ -60,21 +60,45 @@ pub enum OperationDisposition {
     ///
     /// **Prepare stage**: Pushes to confirm queue with `AlreadySubmitted` reason
     /// **Submit stage**: Moves to confirm queue for finality verification
-    PostSubmit,
+    PostSubmitSuccess,
+
+    /// Operation's transaction was dropped or failed after submission.
+    ///
+    /// Indicates that:
+    /// - Payload was dropped before transaction creation (`Dropped`)
+    /// - Transaction was dropped from mempool (`InTransaction(Dropped(_))`)
+    /// - Operation requires retry due to submission failure (`Retry`)
+    ///
+    /// **Prepare stage**: Removes message-payload linkage and returns operation for re-preparation
+    /// **Submit stage**: Routes to confirm queue to verify transaction was not delivered before re-preparation
+    ///
+    /// This disposition is critical for preventing infinite loops when transactions drop.
+    /// By routing through the Confirm stage, we verify that the message wasn't actually
+    /// delivered before creating a new payload, avoiding duplicate message delivery.
+    PostSubmitFailure,
 }
 
 /// Determines the disposition of an operation based on its payload submission status.
 ///
-/// Returns:
-/// - `PreSubmit`: No payload exists, payload dropped, or cannot determine status
+/// Queries the database for payload UUIDs associated with the message, then checks the
+/// payload status via the lander entrypoint to determine the appropriate routing.
+///
+/// # Returns
+/// - `PreSubmit`: No payload exists, cannot retrieve status, or database error (assume needs preparation)
 /// - `Submit`: Payload exists and is in submission pipeline (ReadyToSubmit, PendingInclusion, Mempool)
-/// - `PostSubmit`: Payload has been included in a block (Included, Finalized)
+/// - `PostSubmitSuccess`: Payload transaction has been included in a block (Included, Finalized)
+/// - `PostSubmitFailure`: Payload transaction was dropped or failed (Dropped, InTransaction(Dropped), Retry)
+///
+/// # Arguments
+/// * `entrypoint` - The lander entrypoint for checking payload status
+/// * `db` - Database for retrieving payload UUID mappings
+/// * `op` - The queue operation to evaluate
 pub(crate) async fn operation_disposition_by_payload_status(
     entrypoint: Arc<dyn Entrypoint + Send + Sync>,
     db: Arc<dyn HyperlaneDb>,
     op: &QueueOperation,
 ) -> OperationDisposition {
-    use OperationDisposition::{PostSubmit, PreSubmit, Submit};
+    use OperationDisposition::{PostSubmitFailure, PostSubmitSuccess, PreSubmit, Submit};
 
     let id = op.id();
 
@@ -103,19 +127,19 @@ pub(crate) async fn operation_disposition_by_payload_status(
     };
 
     match status {
-        // Failed or dropped - needs re-preparation
-        PayloadStatus::Dropped(_) => PreSubmit,
-        PayloadStatus::InTransaction(TransactionStatus::Dropped(_)) => PreSubmit,
-        PayloadStatus::Retry(_) => PreSubmit,
-
         // In submission pipeline - keep in Submit queue
         PayloadStatus::ReadyToSubmit => Submit,
         PayloadStatus::InTransaction(TransactionStatus::PendingInclusion) => Submit,
         PayloadStatus::InTransaction(TransactionStatus::Mempool) => Submit,
 
         // Included in block - move to Confirm queue
-        PayloadStatus::InTransaction(TransactionStatus::Included) => PostSubmit,
-        PayloadStatus::InTransaction(TransactionStatus::Finalized) => PostSubmit,
+        PayloadStatus::InTransaction(TransactionStatus::Included) => PostSubmitSuccess,
+        PayloadStatus::InTransaction(TransactionStatus::Finalized) => PostSubmitSuccess,
+
+        // Failed or dropped - needs re-preparation
+        PayloadStatus::Dropped(_) => PostSubmitFailure,
+        PayloadStatus::InTransaction(TransactionStatus::Dropped(_)) => PostSubmitFailure,
+        PayloadStatus::Retry(_) => PostSubmitFailure,
     }
 }
 

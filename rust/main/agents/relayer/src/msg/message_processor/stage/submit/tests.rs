@@ -9,11 +9,12 @@ use lander::{
     TransactionDropReason, TransactionStatus,
 };
 
-use crate::msg::message_processor::stage::submit::filter_operations_for_submit;
 use crate::msg::message_processor::tests::tests_common::{
     create_test_metrics, create_test_queue, MockDispatcherEntrypoint, MockHyperlaneDb,
     MockQueueOperation,
 };
+
+use super::filter_operations_for_submit;
 
 #[tokio::test]
 async fn test_filter_operations_for_submit_empty_batch() {
@@ -207,13 +208,17 @@ async fn test_filter_operations_for_submit_payload_dropped() {
 
     assert_eq!(
         result.len(),
-        1,
-        "Dropped operation should be returned for immediate resubmission"
+        0,
+        "Dropped operation should not be returned (PostSubmitFailure goes to confirm queue)"
     );
 
-    // Verify queues are empty (dropped ops are returned, not queued)
+    // Verify dropped operation moved to confirm queue
     assert_eq!(submit_queue.len().await, 0);
-    assert_eq!(confirm_queue.len().await, 0);
+    assert_eq!(
+        confirm_queue.len().await,
+        1,
+        "Dropped operation should be in confirm queue for delivery check"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -224,9 +229,9 @@ async fn test_filter_operations_for_submit_mixed_batch() {
     let confirm_queue = create_test_queue();
     let metrics = create_test_metrics();
 
-    let message_id1 = H256::from_low_u64_be(1); // Dropped - should be returned for resubmission
+    let message_id1 = H256::from_low_u64_be(1); // Dropped - should go to confirm (PostSubmitFailure)
     let message_id2 = H256::from_low_u64_be(2); // PendingInclusion - should be re-queued to submit
-    let message_id3 = H256::from_low_u64_be(3); // Finalized - should go to confirm
+    let message_id3 = H256::from_low_u64_be(3); // Finalized - should go to confirm (PostSubmitSuccess)
 
     let payload_uuid1 = UniqueIdentifier::new(Uuid::new_v4());
     let payload_uuid2 = UniqueIdentifier::new(Uuid::new_v4());
@@ -290,20 +295,24 @@ async fn test_filter_operations_for_submit_mixed_batch() {
 
     assert_eq!(
         result.len(),
-        1,
-        "Only dropped operation should be returned for resubmission"
+        0,
+        "No operations should be returned (PostSubmitFailure goes to confirm queue)"
     );
 
     // Verify submit queue has 1 operation (pending inclusion re-queued)
     assert_eq!(submit_queue.len().await, 1);
 
-    // Verify confirm queue has 1 operation (finalized)
-    assert_eq!(confirm_queue.len().await, 1);
+    // Verify confirm queue has 2 operations (dropped + finalized)
+    assert_eq!(
+        confirm_queue.len().await,
+        2,
+        "Both dropped and finalized operations should be in confirm queue"
+    );
 }
 
 #[tokio::test]
 async fn test_filter_operations_for_submit_retry_status() {
-    // Test that Retry status (e.g., Reorged) returns operation for resubmission
+    // Test that Retry status (e.g., Reorged) goes to confirm queue (PostSubmitFailure)
     let mut mock_db = MockHyperlaneDb::new();
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
     let submit_queue = create_test_queue();
@@ -339,13 +348,17 @@ async fn test_filter_operations_for_submit_retry_status() {
 
     assert_eq!(
         result.len(),
-        1,
-        "Retry (Reorged) operation should be returned for resubmission"
+        0,
+        "Retry (Reorged) operation should not be returned (PostSubmitFailure goes to confirm queue)"
     );
 
-    // Verify queues are empty (operation returned for resubmission)
+    // Verify operation moved to confirm queue
     assert_eq!(submit_queue.len().await, 0);
-    assert_eq!(confirm_queue.len().await, 0);
+    assert_eq!(
+        confirm_queue.len().await,
+        1,
+        "Retry operation should be in confirm queue for delivery check"
+    );
 }
 
 #[tokio::test]
@@ -568,7 +581,7 @@ async fn test_filter_operations_for_submit_empty_payload_uuids() {
 
 #[tokio::test]
 async fn test_filter_operations_for_submit_all_payload_drop_reasons() {
-    // Test that all PayloadDropReason variants return operations for resubmission
+    // Test that all PayloadDropReason variants go to confirm queue (PostSubmitFailure)
     let test_cases = vec![
         (
             "FailedToBuildAsTransaction",
@@ -616,19 +629,24 @@ async fn test_filter_operations_for_submit_all_payload_drop_reasons() {
 
         assert_eq!(
             result.len(),
-            1,
-            "{} should return operation for resubmission",
+            0,
+            "{} should not return operation (PostSubmitFailure goes to confirm queue)",
             test_name
         );
 
         assert_eq!(submit_queue.len().await, 0);
-        assert_eq!(confirm_queue.len().await, 0);
+        assert_eq!(
+            confirm_queue.len().await,
+            1,
+            "{} should send operation to confirm queue",
+            test_name
+        );
     }
 }
 
 #[tokio::test]
 async fn test_filter_operations_for_submit_all_transaction_drop_reasons() {
-    // Test that all TransactionDropReason variants return operations for resubmission
+    // Test that all TransactionDropReason variants go to confirm queue (PostSubmitFailure)
     let test_cases = vec![
         ("DroppedByChain", TransactionDropReason::DroppedByChain),
         ("FailedSimulation", TransactionDropReason::FailedSimulation),
@@ -675,13 +693,18 @@ async fn test_filter_operations_for_submit_all_transaction_drop_reasons() {
 
         assert_eq!(
             result.len(),
-            1,
-            "{} should return operation for resubmission",
+            0,
+            "{} should not return operation (PostSubmitFailure goes to confirm queue)",
             test_name
         );
 
         assert_eq!(submit_queue.len().await, 0);
-        assert_eq!(confirm_queue.len().await, 0);
+        assert_eq!(
+            confirm_queue.len().await,
+            1,
+            "{} should send operation to confirm queue",
+            test_name
+        );
     }
 }
 

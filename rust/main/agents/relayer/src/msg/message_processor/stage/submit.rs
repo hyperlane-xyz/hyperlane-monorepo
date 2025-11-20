@@ -4,20 +4,37 @@ use hyperlane_base::db::HyperlaneDb;
 use hyperlane_core::PendingOperationStatus::ReadyToSubmit;
 use hyperlane_core::QueueOperation;
 use lander::Entrypoint;
+use tracing::warn;
 
-use crate::msg::message_processor::disposition::OperationDisposition;
-use crate::msg::message_processor::{confirm_op, disposition, MessageProcessorMetrics};
 use crate::msg::op_queue::OpQueue;
+
+use super::super::disposition::{operation_disposition_by_payload_status, OperationDisposition};
+use super::super::{confirm_op, MessageProcessorMetrics};
 
 /// Filters operations from the Submit queue to determine their next stage.
 ///
-/// Operations are routed based on their disposition:
-/// - PreSubmit: Payload failed/dropped, return for immediate resubmission
-/// - Submit: Payload still in submission pipeline, re-queue to submit queue
-/// - PostSubmit: Payload included/finalized, move to confirm queue
+/// This function determines the disposition of each operation and routes them accordingly:
+/// - `PreSubmit`: Operations returned for immediate resubmission (payload failed/dropped before submission)
+/// - `Submit`: Operations re-queued to submit queue (still in submission pipeline: ReadyToSubmit, PendingInclusion, Mempool)
+/// - `PostSubmitSuccess`: Operations moved to confirm queue (transaction included/finalized in block)
+/// - `PostSubmitFailure`: Operations moved to confirm queue (transaction dropped after submission)
+///
+/// # Critical PostSubmitFailure Handling
+/// Both `PostSubmitSuccess` and `PostSubmitFailure` are routed to the Confirm stage to verify
+/// message delivery status. For `PostSubmitFailure`, this prevents infinite loops by ensuring
+/// the message wasn't actually delivered before returning to the prepare stage for re-preparation.
+/// The Confirm stage will verify non-delivery and then route back to prepare with linkage removed.
+///
+/// # Arguments
+/// * `entrypoint` - The lander entrypoint for checking payload status
+/// * `submit_queue` - Queue for operations in submission pipeline
+/// * `confirm_queue` - Queue for operations awaiting confirmation
+/// * `metrics` - Message processor metrics for tracking
+/// * `db` - Database for retrieving payload UUID mappings
+/// * `batch` - Vector of operations to filter
 ///
 /// # Returns
-/// A vector of operations with PreSubmit disposition that need immediate payload resubmission.
+/// A vector of operations with `PreSubmit` disposition that need immediate payload resubmission.
 /// Other operations are routed to their appropriate queues internally.
 pub(crate) async fn filter_operations_for_submit(
     entrypoint: Arc<dyn Entrypoint + Send + Sync>,
@@ -27,7 +44,7 @@ pub(crate) async fn filter_operations_for_submit(
     db: Arc<dyn HyperlaneDb>,
     batch: Vec<QueueOperation>,
 ) -> Vec<QueueOperation> {
-    use OperationDisposition::{PostSubmit, PreSubmit, Submit};
+    use OperationDisposition::{PostSubmitFailure, PostSubmitSuccess, PreSubmit, Submit};
 
     if batch.is_empty() {
         return vec![];
@@ -36,12 +53,8 @@ pub(crate) async fn filter_operations_for_submit(
     // Phase 1: Determine disposition for each operation
     let mut operations_with_disposition = Vec::with_capacity(batch.len());
     for op in batch {
-        let disposition = disposition::operation_disposition_by_payload_status(
-            entrypoint.clone(),
-            db.clone(),
-            &op,
-        )
-        .await;
+        let disposition =
+            operation_disposition_by_payload_status(entrypoint.clone(), db.clone(), &op).await;
         operations_with_disposition.push((op, disposition));
     }
 
@@ -59,8 +72,15 @@ pub(crate) async fn filter_operations_for_submit(
                 // PendingOperationStatus which will allow to identify the root cause quicker.
                 submit_queue.push(op, Some(ReadyToSubmit)).await;
             }
-            PostSubmit => {
-                // Payload has been included, move to confirm queue
+            PostSubmitSuccess => {
+                // PostSubmitSuccess is sent to Confirm stage.
+                confirm_op(op, confirm_queue, metrics).await;
+            }
+            PostSubmitFailure => {
+                // PostSubmitFailure is sent to Confirm stage so that it can check if message was
+                // delivered by another means and, if not, send it back to Prepare stage
+                let id = op.id();
+                warn!("Failed to submit message: message_id={id:?}");
                 confirm_op(op, confirm_queue, metrics).await;
             }
         }

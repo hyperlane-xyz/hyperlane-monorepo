@@ -141,8 +141,8 @@ async fn test_operation_disposition_by_payload_status_payload_dropped() {
     .await;
 
     assert!(
-        matches!(result, OperationDisposition::PreSubmit),
-        "Should return PreSubmit when payload status is Dropped"
+        matches!(result, OperationDisposition::PostSubmitFailure),
+        "Should return PostSubmitFailure when payload status is Dropped"
     );
 }
 
@@ -182,8 +182,8 @@ async fn test_operation_disposition_by_payload_status_transaction_dropped() {
     .await;
 
     assert!(
-        matches!(result, OperationDisposition::PreSubmit),
-        "Should return PreSubmit when transaction status is Dropped"
+        matches!(result, OperationDisposition::PostSubmitFailure),
+        "Should return PostSubmitFailure when transaction status is Dropped"
     );
 }
 
@@ -260,7 +260,7 @@ async fn test_operation_disposition_by_payload_status_success_finalized() {
     .await;
 
     assert!(
-        matches!(result, OperationDisposition::PostSubmit),
+        matches!(result, OperationDisposition::PostSubmitSuccess),
         "Should return Confirm when transaction is finalized"
     );
 }
@@ -341,7 +341,7 @@ async fn test_operation_disposition_by_payload_status_multiple_payload_uuids() {
     .await;
 
     assert!(
-        matches!(result, OperationDisposition::PostSubmit),
+        matches!(result, OperationDisposition::PostSubmitSuccess),
         "Should return Confirm when checking first payload UUID in list"
     );
 }
@@ -415,8 +415,8 @@ async fn test_operation_disposition_by_payload_status_retry() {
     .await;
 
     assert!(
-        matches!(result, OperationDisposition::PreSubmit),
-        "Should return PreSubmit when payload needs retry (was dropped/failed)"
+        matches!(result, OperationDisposition::PostSubmitFailure),
+        "Should return PostSubmitFailure when payload needs retry (was dropped/failed)"
     );
 }
 
@@ -489,7 +489,7 @@ async fn test_operation_disposition_by_payload_status_transaction_included() {
     .await;
 
     assert!(
-        matches!(result, OperationDisposition::PostSubmit),
+        matches!(result, OperationDisposition::PostSubmitSuccess),
         "Should return Confirm when transaction is included in unfinalized block"
     );
 }

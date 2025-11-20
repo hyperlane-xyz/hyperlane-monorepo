@@ -522,6 +522,13 @@ async fn test_filter_operations_for_preparation_payload_dropped() {
         .times(1)
         .returning(move |_| Ok(Some(vec![payload_uuid_clone.clone()])));
 
+    // PostSubmitFailure disposition causes linkage to be removed
+    mock_db
+        .expect_store_payload_uuids_by_message_id()
+        .times(1)
+        .withf(move |id, uuids| *id == message_id && uuids.is_empty())
+        .returning(|_, _| Ok(()));
+
     mock_entrypoint
         .expect_payload_status()
         .times(1)
@@ -542,7 +549,7 @@ async fn test_filter_operations_for_preparation_payload_dropped() {
     assert_eq!(
         result.len(),
         1,
-        "Operation with dropped payload should be returned for pre-submit"
+        "Operation with dropped payload should be returned for pre-submit (PostSubmitFailure with linkage removed)"
     );
     assert_eq!(result[0].id(), message_id);
 
@@ -566,6 +573,13 @@ async fn test_filter_operations_for_preparation_transaction_dropped() {
         .expect_retrieve_payload_uuids_by_message_id()
         .times(1)
         .returning(move |_| Ok(Some(vec![payload_uuid_clone.clone()])));
+
+    // PostSubmitFailure disposition causes linkage to be removed
+    mock_db
+        .expect_store_payload_uuids_by_message_id()
+        .times(1)
+        .withf(move |id, uuids| *id == message_id && uuids.is_empty())
+        .returning(|_, _| Ok(()));
 
     mock_entrypoint
         .expect_payload_status()
@@ -591,7 +605,7 @@ async fn test_filter_operations_for_preparation_transaction_dropped() {
     assert_eq!(
         result.len(),
         1,
-        "Operation with dropped transaction should be returned for pre-submit"
+        "Operation with dropped transaction should be returned for pre-submit (PostSubmitFailure with linkage removed)"
     );
     assert_eq!(result[0].id(), message_id);
 
