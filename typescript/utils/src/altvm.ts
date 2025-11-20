@@ -191,6 +191,7 @@ export type ResQuoteRemoteTransfer = { denom: string; amount: bigint };
 export type ReqCreateMailbox = {
   signer: string;
   domainId: number;
+  defaultIsmAddress?: string;
 };
 export type ResCreateMailbox = { mailboxAddress: string };
 
