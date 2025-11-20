@@ -25,6 +25,7 @@ pub struct ConnectionConf {
 
 impl ConnectionConf {
     /// New Aleo Connection Config
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         rpc_urls: Vec<Url>,
         mailbox_program: String,

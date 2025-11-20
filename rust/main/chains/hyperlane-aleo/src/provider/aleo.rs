@@ -100,11 +100,11 @@ impl AleoProvider<BaseHttpClient> {
     ) -> ChainResult<()> {
         // No need to fetch all imports again when we already added the program to the VM
         if vm.contains_program(program_id) {
-            return Ok(Default::default());
+            return Ok(());
         }
 
         debug!("Getting program: {}", program_id);
-        let program = self.get_program(&program_id).await?;
+        let program = self.get_program(program_id).await?;
 
         for imports in program.imports().keys() {
             if imports == program_id {
@@ -148,7 +148,7 @@ impl AleoProvider<BaseHttpClient> {
             cost_in_microcredits_v3(&stack, function_name).map_err(HyperlaneAleoError::from)?;
         let execution_cost = execution_cost_for_authorization(
             &vm.process().read(),
-            &authorization,
+            authorization,
             consensus_version,
         )
         .map_err(HyperlaneAleoError::from)?
@@ -194,7 +194,7 @@ impl AleoProvider<BaseHttpClient> {
             .authorize(
                 &private_key,
                 program_id_parsed,
-                &function_name_parsed,
+                function_name_parsed,
                 input.into_iter(),
                 &mut rng,
             )
@@ -329,8 +329,7 @@ impl AleoProvider<BaseHttpClient> {
         let output = self.broadcast_transaction(transaction).await?;
         if output != id.to_string() {
             return Err(HyperlaneAleoError::Other(format!(
-                "Transaction revered with reason: {}",
-                output
+                "Transaction reverted with reason: {output}"
             ))
             .into());
         }
@@ -368,7 +367,7 @@ impl AleoProvider<BaseHttpClient> {
         const TIMEOUT_DELAY: u64 = 30;
         const POLLING_INTERVAL: u64 = 2;
         const N: usize = (TIMEOUT_DELAY / POLLING_INTERVAL) as usize;
-        let mut attempt = 0;
+        let mut attempt: usize = 0;
 
         let confirmed_tx = loop {
             let result = self.get_transaction_status(&hash).await;
@@ -380,16 +379,12 @@ impl AleoProvider<BaseHttpClient> {
                 }
                 _ => {
                     // Broadcast the transaction again in case it was not received
-                    println!(
-                        "Transaction still pending, continuing to poll: {} {}",
-                        hash, attempt,
-                    );
+                    println!("Transaction still pending, continuing to poll: {hash} {attempt}",);
                     // Transaction is still pending, continue polling
-                    attempt += 1;
+                    attempt = attempt.saturating_add(1);
                     if attempt >= N {
                         return Err(HyperlaneAleoError::Other(format!(
-                            "Transaction timed out after {} seconds",
-                            TIMEOUT_DELAY
+                            "Transaction timed out after {TIMEOUT_DELAY} seconds"
                         ))
                         .into());
                     }
