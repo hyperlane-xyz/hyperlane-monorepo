@@ -261,7 +261,7 @@ async fn test_operation_disposition_by_payload_status_success_finalized() {
 
     assert!(
         matches!(result, OperationDisposition::PostSubmitSuccess),
-        "Should return Confirm when transaction is finalized"
+        "Should return PostSubmitSuccess when transaction is finalized"
     );
 }
 
@@ -342,7 +342,7 @@ async fn test_operation_disposition_by_payload_status_multiple_payload_uuids() {
 
     assert!(
         matches!(result, OperationDisposition::PostSubmitSuccess),
-        "Should return Confirm when checking first payload UUID in list"
+        "Should return PostSubmitSuccess when checking first payload UUID in list"
     );
 }
 
@@ -490,6 +490,6 @@ async fn test_operation_disposition_by_payload_status_transaction_included() {
 
     assert!(
         matches!(result, OperationDisposition::PostSubmitSuccess),
-        "Should return Confirm when transaction is included in unfinalized block"
+        "Should return PostSubmitSuccess when transaction is included in unfinalized block"
     );
 }
