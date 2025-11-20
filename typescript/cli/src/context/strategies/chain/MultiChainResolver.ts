@@ -89,18 +89,18 @@ export class MultiChainResolver implements ChainResolver {
   ): Promise<ChainName[]> {
     if (argv.chain) {
       argv.context.chains = [argv.chain];
-    } else if (argv.symbol || argv.config || argv.warpRouteId) {
+    } else if (argv.symbol || argv.warpRouteId) {
       const warpCoreConfig = await getWarpCoreConfigOrExit({
         context: argv.context,
         symbol: argv.symbol,
-        warp: argv.config,
         warpRouteId: argv.warpRouteId,
       });
       argv.context.chains = warpCoreConfig.tokens.map(
         (token) => token.chainName,
       );
     }
-    return argv.context.chains;
+
+    return argv.context.chains || [];
   }
 
   private async resolveWarpApplyChains(
