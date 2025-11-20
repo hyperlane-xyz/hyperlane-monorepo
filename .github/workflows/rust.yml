@@ -4,10 +4,14 @@ on:
   # Triggers the workflow on pushes to main branch
   push:
     branches: [main]
+    paths-ignore:
+      - 'rust/sealevel/images/**'
   # Triggers on pull requests
   pull_request:
     branches:
       - '*'
+    paths-ignore:
+      - 'rust/sealevel/images/**'
   merge_group:
   workflow_dispatch:
 
