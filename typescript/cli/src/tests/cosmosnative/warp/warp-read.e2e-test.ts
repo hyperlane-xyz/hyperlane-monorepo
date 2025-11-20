@@ -74,7 +74,9 @@ describe('hyperlane warp read e2e tests', async function () {
 
     chain1Addresses = await hyperlaneCore1.deployOrUseExistingCore(HYP_KEY);
     chain2Addresses = await hyperlaneCore2.deployOrUseExistingCore(HYP_KEY);
+  });
 
+  beforeEach(async function () {
     warpConfig = {
       [CHAIN_NAME_1]: {
         type: TokenType.collateral,
