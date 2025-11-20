@@ -12,6 +12,13 @@ export async function loadProtocolProviders(
         registerProtocol(protocol, () => new CosmosNativeProtocolProvider());
         break;
       }
+      case ProtocolType.Radix: {
+        const { RadixProtocolProvider } = await import(
+          '@hyperlane-xyz/radix-sdk'
+        );
+        registerProtocol(protocol, () => new RadixProtocolProvider());
+        break;
+      }
     }
   }
 }

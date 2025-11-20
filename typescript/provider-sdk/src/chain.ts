@@ -1,4 +1,4 @@
-import { Domain } from '@hyperlane-xyz/utils';
+import { ChainId, Domain } from '@hyperlane-xyz/utils';
 
 type ChainNameOrId = string | number;
 
@@ -10,6 +10,7 @@ type ChainNameOrId = string | number;
 export interface ChainMetadataForAltVM {
   name: string;
   domainId: Domain;
+  chainId: ChainId;
   nativeToken?: {
     decimals?: number;
     denom?: string;

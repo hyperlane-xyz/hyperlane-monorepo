@@ -7,7 +7,6 @@ import {
   getProtocolProvider,
   hasProtocol,
 } from '@hyperlane-xyz/provider-sdk';
-import { RadixProvider } from '@hyperlane-xyz/radix-sdk';
 import { IRegistry } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import {
@@ -94,10 +93,6 @@ export async function signerMiddleware(argv: Record<string, any>) {
           chain,
           await getProtocolProvider(protocol).createProvider(metadata),
         );
-
-      // TODO: Remove this after implementing Radix as a ProtocolProvider
-      if (protocol === ProtocolType.Radix)
-        altVmProvider.set(ProtocolType.Radix, RadixProvider);
     }),
   );
 
