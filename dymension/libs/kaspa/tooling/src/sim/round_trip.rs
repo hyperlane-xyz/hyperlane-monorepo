@@ -408,9 +408,10 @@ impl<'a> RoundTrip<'a> {
         let fee_denom = self.res.args.hub_denom();
 
         let kaspa_recipient = get_kaspa_keypair();
+        let hub_user_addr = hub_user_key.signer().address_string.clone();
         debug!(
-            "withdraw starting: task_id={} hub_whale_id={} kaspa_recipient_addr={} amount={} fee_amount={} fee_denom={}",
-            self.task_id, self.hub_whale.id, kaspa_recipient.address, withdrawal_amount, fee_amount, fee_denom
+            "withdraw starting: task_id={} hub_whale_id={} hub_user_addr={} kaspa_recipient_addr={} amount={} fee_amount={} fee_denom={}",
+            self.task_id, self.hub_whale.id, hub_user_addr, kaspa_recipient.address, withdrawal_amount, fee_amount, fee_denom
         );
 
         let mut res_hub = self.res.hub.clone();
@@ -429,9 +430,10 @@ impl<'a> RoundTrip<'a> {
                 let rpc = res_hub.rpc();
                 let amount = withdrawal_amount.to_string();
                 let recipient = x::addr::hl_recipient(&kaspa_addr.to_string());
+                let sender = rpc.get_signer()?.address_string.clone();
 
                 let req = MsgRemoteTransfer {
-                    sender: rpc.get_signer()?.address_string.clone(),
+                    sender: sender.clone(),
                     token_id: token_hub_str,
                     destination_domain: domain_kas,
                     recipient,
@@ -459,7 +461,11 @@ impl<'a> RoundTrip<'a> {
                             Err(RoundTripError::WithdrawalTxFailed { response }.into())
                         }
                     }
-                    Err(e) => Err(eyre::eyre!("hub send error: {:?}", e)),
+                    Err(e) => Err(eyre::eyre!(
+                        "hub send error: sender={} error={:?}",
+                        sender,
+                        e
+                    )),
                 }
             }
         })
