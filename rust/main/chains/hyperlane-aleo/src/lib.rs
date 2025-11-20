@@ -7,9 +7,10 @@
 mod config;
 mod error;
 mod provider;
+mod signer;
 mod types;
 mod utils;
 
 pub(crate) use types::*;
 
-pub use {config::*, error::*, provider::AleoProvider};
+pub use {config::*, error::*, provider::AleoProvider, signer::AleoSigner};
