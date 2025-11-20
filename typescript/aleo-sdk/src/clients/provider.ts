@@ -634,7 +634,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
 
     if (!remoteRouterValue) {
       return {
-        denom: '',
+        denom: ALEO_NATIVE_DENOM,
         amount: 0n,
       };
     }
@@ -653,7 +653,12 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
 
     let quote = new BigNumber(0);
 
-    for (const hookAddress of [mailbox.requiredHook, mailbox.defaultHook]) {
+    const hooks = [
+      req.customHookAddress || mailbox.defaultHook,
+      mailbox.requiredHook,
+    ];
+
+    for (const hookAddress of hooks) {
       try {
         const igp = await this.getInterchainGasPaymasterHook({
           hookAddress,

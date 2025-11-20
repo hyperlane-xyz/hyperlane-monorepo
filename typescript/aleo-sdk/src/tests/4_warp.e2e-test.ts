@@ -14,6 +14,7 @@ import { AltVM, addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import { hyp_synthetic, token_registry } from '../artifacts.js';
 import { AleoSigner } from '../clients/signer.js';
+import { ALEO_NATIVE_DENOM } from '../utils/helper.js';
 import { AleoReceipt, AleoTransaction } from '../utils/types.js';
 
 describe('4. aleo sdk warp e2e tests', async function () {
@@ -23,7 +24,12 @@ describe('4. aleo sdk warp e2e tests', async function () {
 
   let mailboxAddress: string;
   let collateralDenom: string;
-  let tokenAddress: string;
+
+  let nativeTokenAddress: string;
+  let collateralTokenAddress: string;
+  let syntheticTokenAddress: string;
+
+  const domainId = 1234;
 
   before(async () => {
     const localnetRpc = 'http://localhost:3030';
@@ -106,8 +112,6 @@ describe('4. aleo sdk warp e2e tests', async function () {
       skipProof: true,
     });
 
-    const domainId = 1234;
-
     const mailbox = await signer.createMailbox({
       domainId: domainId,
     });
@@ -139,7 +143,7 @@ describe('4. aleo sdk warp e2e tests', async function () {
     expect(token.ismAddress).to.be.empty;
     expect(token.tokenType).to.equal(AltVM.TokenType.native);
 
-    tokenAddress = txResponse.tokenAddress;
+    nativeTokenAddress = txResponse.tokenAddress;
   });
 
   step('create new collateral token', async () => {
@@ -167,6 +171,8 @@ describe('4. aleo sdk warp e2e tests', async function () {
     expect(token.decimals).to.equal(6);
     expect(token.ismAddress).to.be.empty;
     expect(token.tokenType).to.equal(AltVM.TokenType.collateral);
+
+    collateralTokenAddress = txResponse.tokenAddress;
   });
 
   step('create new synthetic token', async () => {
@@ -204,30 +210,75 @@ describe('4. aleo sdk warp e2e tests', async function () {
     expect(token.decimals).to.equal(6);
     expect(token.ismAddress).to.be.empty;
     expect(token.tokenType).to.equal(AltVM.TokenType.synthetic);
+
+    syntheticTokenAddress = txResponse.tokenAddress;
+  });
+
+  step('set token ISM', async () => {
+    // ARRANGE
+    let token = await signer.getToken({
+      tokenAddress: collateralTokenAddress,
+    });
+    expect(token.ismAddress).to.be.empty;
+
+    const { ismAddress } = await signer.createNoopIsm({});
+
+    // ACT
+    await signer.setTokenIsm({
+      tokenAddress: collateralTokenAddress,
+      ismAddress,
+    });
+
+    // ASSERT
+    token = await signer.getToken({
+      tokenAddress: collateralTokenAddress,
+    });
+    expect(token.ismAddress).to.equal(ismAddress);
+  });
+
+  step('set token owner', async () => {
+    // ARRANGE
+    let token = await signer.getToken({
+      tokenAddress: syntheticTokenAddress,
+    });
+    expect(token.owner).to.equal(signer.getSignerAddress());
+
+    const newOwner = new Account().address().to_string();
+
+    // ACT
+    await signer.setTokenOwner({
+      tokenAddress: syntheticTokenAddress,
+      newOwner,
+    });
+
+    // ASSERT
+    token = await signer.getToken({
+      tokenAddress: syntheticTokenAddress,
+    });
+    expect(token.owner).to.equal(newOwner);
   });
 
   step('enroll remote router', async () => {
     // ARRANGE
     let remoteRouters = await signer.getRemoteRouters({
-      tokenAddress,
+      tokenAddress: nativeTokenAddress,
     });
     expect(remoteRouters.remoteRouters).to.have.lengthOf(0);
-    const domainId = 1234;
-    const gas = '10000';
+    const gas = '200000';
 
     // ACT
     await signer.enrollRemoteRouter({
-      tokenAddress,
+      tokenAddress: nativeTokenAddress,
       remoteRouter: {
         receiverDomainId: domainId,
-        receiverAddress: addressToBytes32(tokenAddress),
+        receiverAddress: addressToBytes32(nativeTokenAddress),
         gas,
       },
     });
 
     // ASSERT
     remoteRouters = await signer.getRemoteRouters({
-      tokenAddress,
+      tokenAddress: nativeTokenAddress,
     });
     expect(remoteRouters.remoteRouters).to.have.lengthOf(1);
 
@@ -235,29 +286,100 @@ describe('4. aleo sdk warp e2e tests', async function () {
 
     expect(remoteRouter.receiverDomainId).to.equal(domainId);
     expect(remoteRouter.receiverAddress).to.equal(
-      addressToBytes32(tokenAddress),
+      addressToBytes32(nativeTokenAddress),
     );
     expect(remoteRouter.gas).to.equal(gas);
   });
 
+  step('quote remote transfer', async () => {
+    // ARRANGE
+    const { hookAddress } = await signer.createInterchainGasPaymasterHook({});
+    await signer.setDestinationGasConfig({
+      hookAddress,
+      destinationGasConfig: {
+        remoteDomainId: domainId,
+        gasOracle: {
+          tokenExchangeRate: '1000',
+          gasPrice: '1000',
+        },
+        gasOverhead: '50000',
+      },
+    });
+
+    await signer.setRequiredHook({
+      mailboxAddress,
+      hookAddress,
+    });
+
+    // ACT
+    const quote = await signer.quoteRemoteTransfer({
+      tokenAddress: nativeTokenAddress,
+      destinationDomainId: domainId,
+    });
+
+    // ASSERT
+    expect(quote.denom).to.equal(ALEO_NATIVE_DENOM);
+    expect(quote.amount).to.equal(25n);
+  });
+
+  step('remote transfer', async () => {
+    // ARRANGE
+    const { ismAddress } = await signer.createNoopIsm({});
+    const { hookAddress } = await signer.createMerkleTreeHook({
+      mailboxAddress,
+    });
+
+    await signer.setDefaultIsm({
+      mailboxAddress,
+      ismAddress,
+    });
+
+    await signer.setDefaultHook({
+      mailboxAddress,
+      hookAddress,
+    });
+
+    let mailbox = await signer.getMailbox({
+      mailboxAddress,
+    });
+    expect(mailbox.nonce).to.equal(0);
+
+    // ACT
+    await signer.remoteTransfer({
+      tokenAddress: nativeTokenAddress,
+      destinationDomainId: domainId,
+      recipient: addressToBytes32(new Account().address().to_string()),
+      amount: '1000000',
+      gasLimit: '200000',
+      maxFee: {
+        denom: ALEO_NATIVE_DENOM,
+        amount: '1000000',
+      },
+    });
+
+    // ASSERT
+    mailbox = await signer.getMailbox({
+      mailboxAddress,
+    });
+    expect(mailbox.nonce).to.equal(1);
+  });
+
   step('unenroll remote router', async () => {
     // ARRANGE
-    const domainId = 1234;
-
     let remoteRouters = await signer.getRemoteRouters({
-      tokenAddress,
+      tokenAddress: nativeTokenAddress,
     });
     expect(remoteRouters.remoteRouters).to.have.lengthOf(1);
 
     // ACT
     await signer.unenrollRemoteRouter({
-      tokenAddress,
+      tokenAddress: nativeTokenAddress,
       receiverDomainId: domainId,
     });
 
     // ASSERT
     remoteRouters = await signer.getRemoteRouters({
-      tokenAddress,
+      tokenAddress: nativeTokenAddress,
     });
     expect(remoteRouters.remoteRouters).to.have.lengthOf(0);
   });
