@@ -13,7 +13,7 @@ use std::time::Duration;
 
 // Default timeouts
 pub const DEFAULT_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
-pub const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+pub const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// Base Http client that performs REST-ful queries
 #[derive(Clone, Debug)]
