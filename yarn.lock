@@ -8067,11 +8067,11 @@ __metadata:
   linkType: hard
 
 "@hpke/core@npm:^1.7.4":
-  version: 1.7.4
-  resolution: "@hpke/core@npm:1.7.4"
+  version: 1.7.5
+  resolution: "@hpke/core@npm:1.7.5"
   dependencies:
     "@hpke/common": "npm:^1.8.1"
-  checksum: 10/64621dd1b9f3f453350c5548309ce98d337f25cda5ad801ea88e6faab00a6b1d190722cb47e267e7eb6496b2f790e1faafeac961fe8cbc828d95663a594fa2ad
+  checksum: 10/e63fe9142e715c68b8eec74f33a70bcef80901af13bde0ce254a1f2f0e1cececf49820871aeeaa910ee00f1feef170521663f5c79e4778fe41ae3fb377276ac8
   languageName: node
   linkType: hard
 
