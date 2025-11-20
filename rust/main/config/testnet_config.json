@@ -526,7 +526,7 @@
           "apiUrl": "https://api-sepolia.scrollscan.com/api",
           "family": "etherscan",
           "name": "Scroll Explorer",
-          "url": "https://sepolia.scrollscan.dev/"
+          "url": "https://sepolia.scrollscan.dev"
         }
       ],
       "blocks": {
@@ -744,7 +744,10 @@
       "protocol": "starknet",
       "rpcUrls": [
         {
-          "http": "https://starknet-sepolia.public.blastapi.io/rpc/v0_8"
+          "http": "https://starknet-sepolia-rpc.publicnode.com"
+        },
+        {
+          "http": "https://rpc.starknet-testnet.lava.build/"
         }
       ],
       "defaultHook": "0x01b99baf9dffac163065478b345429bd2ed21fdbfc5e3eec7ceabcde3d55c214",

@@ -33,7 +33,7 @@ pub async fn handler(
                 matching_list: match matching_list.0.as_ref() {
                     Some(list_elements) => list_elements
                         .iter()
-                        .map(|element| format!("{:?}", element))
+                        .map(|element| format!("{element:?}"))
                         .collect(),
                     None => Vec::new(),
                 },

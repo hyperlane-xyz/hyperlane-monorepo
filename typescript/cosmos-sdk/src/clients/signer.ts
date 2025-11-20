@@ -385,6 +385,8 @@ export class CosmosNativeSigner
   async createInterchainGasPaymasterHook(
     req: Omit<AltVM.ReqCreateInterchainGasPaymasterHook, 'signer'>,
   ): Promise<AltVM.ResCreateInterchainGasPaymasterHook> {
+    assert(req.denom, `denom required by ${CosmosNativeSigner.name}`);
+
     const msg = await this.getCreateInterchainGasPaymasterHookTransaction({
       ...req,
       signer: this.account.address,
@@ -424,6 +426,28 @@ export class CosmosNativeSigner
     };
   }
 
+  async removeDestinationGasConfig(
+    _req: Omit<AltVM.ReqRemoveDestinationGasConfig, 'signer'>,
+  ): Promise<AltVM.ResRemoveDestinationGasConfig> {
+    throw new Error(
+      `RemoveDestinationGasConfig is currently not supported on Cosmos Native`,
+    );
+  }
+
+  async createNoopHook(
+    req: Omit<AltVM.ReqCreateNoopHook, 'signer'>,
+  ): Promise<AltVM.ResCreateNoopHook> {
+    const msg = await this.getCreateNoopHookTransaction({
+      ...req,
+      signer: this.account.address,
+    });
+
+    const result = await this.submitTx(msg);
+    return {
+      hookAddress: result.id,
+    };
+  }
+
   async createValidatorAnnounce(
     _req: Omit<AltVM.ReqCreateValidatorAnnounce, 'signer'>,
   ): Promise<AltVM.ResCreateValidatorAnnounce> {
@@ -432,6 +456,12 @@ export class CosmosNativeSigner
   }
 
   // ### TX WARP ###
+
+  async createNativeToken(
+    _req: Omit<AltVM.ReqCreateNativeToken, 'signer'>,
+  ): Promise<AltVM.ResCreateNativeToken> {
+    throw new Error(`Native Token is not supported on Cosmos Native`);
+  }
 
   async createCollateralToken(
     req: Omit<AltVM.ReqCreateCollateralToken, 'signer'>,
@@ -520,6 +550,8 @@ export class CosmosNativeSigner
   async transfer(
     req: Omit<AltVM.ReqTransfer, 'signer'>,
   ): Promise<AltVM.ResTransfer> {
+    assert(req.denom, `denom required by ${CosmosNativeSigner.name}`);
+
     const msg = await this.getTransferTransaction({
       ...req,
       signer: this.account.address,

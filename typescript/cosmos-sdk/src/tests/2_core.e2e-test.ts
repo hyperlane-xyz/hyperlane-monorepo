@@ -77,6 +77,33 @@ describe('2. cosmos sdk core e2e tests', async function () {
     expect(mailbox.owner).to.equal(bobSigner.getSignerAddress());
   });
 
+  step('set mailbox default ism', async () => {
+    // ARRANGE
+    const { ismAddress: defaultIsmAddress } = await signer.createNoopIsm({});
+
+    const domainId = 1234;
+
+    const { mailboxAddress } = await signer.createMailbox({
+      domainId: domainId,
+      defaultIsmAddress,
+    });
+
+    let mailbox = await signer.getMailbox({ mailboxAddress });
+    expect(mailbox.defaultIsm).to.equal(defaultIsmAddress);
+
+    const { ismAddress } = await signer.createNoopIsm({});
+
+    // ACT
+    await signer.setDefaultIsm({
+      mailboxAddress,
+      ismAddress,
+    });
+
+    // ASSERT
+    mailbox = await signer.getMailbox({ mailboxAddress });
+    expect(mailbox.defaultIsm).to.equal(ismAddress);
+  });
+
   step('set mailbox default hook', async () => {
     // ARRANGE
     const { ismAddress } = await signer.createNoopIsm({});

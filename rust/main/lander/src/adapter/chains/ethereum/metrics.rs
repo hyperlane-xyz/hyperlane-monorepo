@@ -19,6 +19,9 @@ pub struct EthereumAdapterMetrics {
     finalized_nonce: IntGauge,
     /// Upper nonce, namely the nonce which can be used next for each destination
     upper_nonce: IntGauge,
+    /// Counts how many times we've noticed the nonce in tx is different from nonce
+    /// stored in db
+    mismatch_nonce: IntGauge,
 }
 
 impl EthereumAdapterMetrics {
@@ -27,12 +30,14 @@ impl EthereumAdapterMetrics {
         batched_transaction: IntCounterVec,
         finalized_nonce: IntGauge,
         upper_nonce: IntGauge,
+        mismatch_nonce: IntGauge,
     ) -> Self {
         Self {
             domain,
             batched_transaction,
             finalized_nonce,
             upper_nonce,
+            mismatch_nonce,
         }
     }
 
@@ -53,6 +58,14 @@ impl EthereumAdapterMetrics {
     pub fn get_batched_transactions(&self) -> &IntCounterVec {
         &self.batched_transaction
     }
+
+    pub fn increment_mismatch_nonce(&self) {
+        self.get_mismatched_nonce().inc();
+    }
+
+    pub fn get_mismatched_nonce(&self) -> &IntGauge {
+        &self.mismatch_nonce
+    }
 }
 
 #[cfg(test)]
@@ -63,13 +76,14 @@ impl EthereumAdapterMetrics {
         let domain = "test1";
         let signer = "test_signer";
         let dispatcher_metrics = DispatcherMetrics::dummy_instance();
-        let metrics = Self::new(
+
+        Self::new(
             HyperlaneDomain::new_test_domain(domain),
             dispatcher_metrics.get_batched_transactions(),
             dispatcher_metrics.get_finalized_nonce(domain, signer),
             dispatcher_metrics.get_upper_nonce(domain, signer),
-        );
-        metrics
+            dispatcher_metrics.get_mismatched_nonce(domain, signer),
+        )
     }
 
     pub fn get_finalized_nonce(&self) -> i64 {

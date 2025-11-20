@@ -72,7 +72,7 @@ async fn handler(
         .map_err(|err| {
             // Technically it's bad practice to print the error message to the user, but
             // this endpoint is for debugging purposes only.
-            format!("Failed to send retry request to the queue: {}", err)
+            format!("Failed to send retry request to the queue: {err}")
         })?;
 
     let mut resp = MessageRetryResponse {
@@ -108,7 +108,7 @@ mod tests {
     use tower::ServiceExt;
 
     use crate::{
-        msg::op_queue::test::MockPendingOperation, server::ENDPOINT_MESSAGES_QUEUE_SIZE,
+        msg::op_queue::tests::MockPendingOperation, server::ENDPOINT_MESSAGES_QUEUE_SIZE,
         test_utils::request::parse_body_to_json,
     };
 
@@ -173,7 +173,7 @@ mod tests {
             vec![Box::new(pending_operation.clone()) as QueueOperation],
             vec![(1, 1)],
         );
-        tokio::task::spawn(async { respond_task.await });
+        tokio::task::spawn(respond_task);
 
         let body = json!([
             {
@@ -209,7 +209,7 @@ mod tests {
             vec![Box::new(pending_operation.clone()) as QueueOperation],
             vec![(1, 1)],
         );
-        tokio::task::spawn(async { respond_task.await });
+        tokio::task::spawn(respond_task);
 
         let body = json!([
             {
@@ -245,7 +245,7 @@ mod tests {
             vec![Box::new(pending_operation.clone()) as QueueOperation],
             vec![(1, 1)],
         );
-        tokio::task::spawn(async { respond_task.await });
+        tokio::task::spawn(respond_task);
 
         let body = json!([
             {
@@ -277,7 +277,7 @@ mod tests {
             vec![Box::new(pending_operation.clone()) as QueueOperation],
             vec![(1, 1)],
         );
-        tokio::task::spawn(async { respond_task.await });
+        tokio::task::spawn(respond_task);
 
         let body = json!([
             {
@@ -309,7 +309,7 @@ mod tests {
             vec![Box::new(pending_operation.clone()) as QueueOperation],
             vec![(1, 1)],
         );
-        tokio::task::spawn(async { respond_task.await });
+        tokio::task::spawn(respond_task);
 
         let body = json!([
             {
@@ -345,7 +345,7 @@ mod tests {
             vec![Box::new(pending_operation.clone()) as QueueOperation],
             vec![(1, 1)],
         );
-        tokio::task::spawn(async { respond_task.await });
+        tokio::task::spawn(respond_task);
 
         let body = json!([
             {

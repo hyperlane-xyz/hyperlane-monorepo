@@ -23,6 +23,7 @@ concurrency:
 permissions:
   contents: write
   pull-requests: write
+  actions: write
 
 env:
   CARGO_TERM_COLOR: always
@@ -100,7 +101,8 @@ jobs:
     needs: check-release-status
     if: |
       github.event_name == 'push' &&
-      needs.check-release-status.outputs.has_changes == 'true'
+      needs.check-release-status.outputs.has_changes == 'true' &&
+      needs.check-release-status.outputs.should_release == 'false'
     steps:
       - uses: actions/checkout@v5
         with:
@@ -220,13 +222,13 @@ jobs:
           if [ -n "$EXISTING_PR" ]; then
             echo "Updating existing PR #$EXISTING_PR"
             gh pr edit "$EXISTING_PR" \
-              --title "release: agents v${NEW_VERSION}" \
+              --title "chore: release agents v${NEW_VERSION}" \
               --body "$PR_BODY"
             echo "Updated PR: $(gh pr view $EXISTING_PR --json url --jq .url)"
           else
             echo "Creating new draft PR"
             gh pr create \
-              --title "release: agents v${NEW_VERSION}" \
+              --title "chore: release agents v${NEW_VERSION}" \
               --body "$PR_BODY" \
               --base main \
               --head "$BRANCH_NAME" \
@@ -355,7 +357,25 @@ jobs:
             $PRERELEASE_FLAG \
             --repo "${{ github.repository }}"
 
+          # Trigger dependent workflows
+          # Note: We trigger explicitly because git push with GITHUB_TOKEN doesn't trigger workflows
+          echo "Triggering agent-release-artifacts workflow for $TAG_NAME..."
+          gh workflow run agent-release-artifacts.yml \
+            --ref "$TAG_NAME" \
+            --repo "${{ github.repository }}" || {
+              echo "Warning: Failed to trigger agent-release-artifacts workflow."
+            }
+
+          echo "Triggering rust-docker workflow for $TAG_NAME (including arm64)..."
+          gh workflow run rust-docker.yml \
+            --ref "$TAG_NAME" \
+            --field include_arm64=true \
+            --repo "${{ github.repository }}" || {
+              echo "Warning: Failed to trigger rust-docker workflow."
+            }
+
           echo "$RELEASE_TYPE $TAG_NAME published successfully!" >> $GITHUB_STEP_SUMMARY
           [ "$IS_PRERELEASE" = "true" ] && echo "This is marked as a pre-release on GitHub." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Binary artifacts will be built automatically by the agent-release-artifacts workflow." >> $GITHUB_STEP_SUMMARY
+          echo "Binary artifacts will be built by the agent-release-artifacts workflow." >> $GITHUB_STEP_SUMMARY
+          echo "Docker images will be built by the rust-docker workflow." >> $GITHUB_STEP_SUMMARY

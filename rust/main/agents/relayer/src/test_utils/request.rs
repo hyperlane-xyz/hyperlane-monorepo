@@ -25,7 +25,5 @@ pub async fn parse_body_to_string(body: Body) -> String {
         .into_iter()
         .collect();
 
-    let resp_body_string =
-        String::from_utf8(resp_body).expect("Failed to parse body string to UTF-8");
-    resp_body_string
+    String::from_utf8(resp_body).expect("Failed to parse body string to UTF-8")
 }
