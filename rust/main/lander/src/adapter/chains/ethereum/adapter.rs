@@ -791,7 +791,7 @@ impl AdaptsChain for EthereumAdapter {
 
     async fn run_command(&self, action: AdaptsChainAction) -> Result<(), LanderError> {
         match action {
-            AdaptsChainAction::SetUpperNonce { nonce } => {
+            AdaptsChainAction::OverwriteUpperNonce { nonce } => {
                 self.nonce_manager
                     .state
                     .overwrite_upper_nonce(nonce)

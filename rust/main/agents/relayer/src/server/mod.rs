@@ -4,12 +4,12 @@ use std::sync::Arc;
 
 use axum::Router;
 use derive_new::new;
-use hyperlane_core::HyperlaneDomain;
-use lander::CommandEntrypoint;
 use tokio::sync::broadcast::Sender;
+use tokio::sync::RwLock;
 
 use hyperlane_base::db::HyperlaneRocksDB;
-use tokio::sync::RwLock;
+use hyperlane_core::HyperlaneDomain;
+use lander::CommandEntrypoint;
 
 use crate::merkle_tree::builder::MerkleTreeBuilder;
 use crate::msg::gas_payment::GasPaymentEnforcer;
@@ -87,7 +87,7 @@ impl Server {
         self
     }
 
-    pub fn with_dispatcher_entrypoints(
+    pub fn with_dispatcher_command_entrypoints(
         mut self,
         entrypoints: HashMap<u32, Arc<dyn CommandEntrypoint>>,
     ) -> Self {

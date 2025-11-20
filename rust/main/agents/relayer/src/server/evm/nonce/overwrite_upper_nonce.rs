@@ -1,10 +1,11 @@
 use axum::{extract::State, http::StatusCode, Json};
-use lander::AdaptsChainAction;
 use serde::{Deserialize, Serialize};
+use tracing::{debug, warn};
 
 use hyperlane_base::server::utils::{
     ServerErrorBody, ServerErrorResponse, ServerResult, ServerSuccessResponse,
 };
+use lander::AdaptsChainAction;
 
 use super::ServerState;
 
@@ -17,7 +18,7 @@ pub struct RequestBody {
     pub new_upper_nonce: Option<u64>,
 }
 
-/// Reset the upper nonce for an EVM chain
+/// Overwrite the upper nonce for an EVM chain
 pub async fn handler(
     State(state): State<ServerState>,
     Json(payload): Json<RequestBody>,
@@ -27,10 +28,10 @@ pub async fn handler(
         new_upper_nonce,
     } = payload;
 
-    tracing::debug!(domain_id, "Fetching chain");
+    debug!(domain_id, "Fetching chain");
 
     let dispatcher_entrypoint = state.entrypoints.get(&domain_id).ok_or_else(|| {
-        tracing::debug!(domain_id, "Domain does not exist");
+        warn!(domain_id, "Domain does not exist");
         ServerErrorResponse::new(
             StatusCode::NOT_FOUND,
             ServerErrorBody {
@@ -39,7 +40,7 @@ pub async fn handler(
         )
     })?;
 
-    let action = AdaptsChainAction::SetUpperNonce {
+    let action = AdaptsChainAction::OverwriteUpperNonce {
         nonce: new_upper_nonce,
     };
 
@@ -47,16 +48,16 @@ pub async fn handler(
         .execute_command(action)
         .await
         .map_err(|err| {
-            tracing::debug!(
+            warn!(
                 domain_id,
                 ?new_upper_nonce,
                 ?err,
-                "Failed to set upper nonce"
+                "Failed to overwrite upper nonce"
             );
             ServerErrorResponse::new(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 ServerErrorBody {
-                    message: format!("Failed to set upper nonce: {err}"),
+                    message: format!("Failed to overwrite upper nonce: {err}"),
                 },
             )
         })?;

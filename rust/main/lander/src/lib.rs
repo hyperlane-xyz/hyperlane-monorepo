@@ -1,7 +1,7 @@
 #![deny(clippy::unwrap_used, clippy::panic)]
 #![deny(clippy::arithmetic_side_effects)]
 
-pub use adapter::{AdaptsChain, AdaptsChainAction};
+pub use adapter::AdaptsChainAction;
 pub use dispatcher::command_entrypoint::CommandEntrypoint;
 pub use dispatcher::entrypoint::{DispatcherEntrypoint, Entrypoint};
 pub use dispatcher::{DatabaseOrPath, Dispatcher, DispatcherMetrics, DispatcherSettings};

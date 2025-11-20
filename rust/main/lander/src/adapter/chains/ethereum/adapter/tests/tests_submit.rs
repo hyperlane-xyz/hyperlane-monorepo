@@ -241,11 +241,11 @@ async fn test_submit_assigns_correct_nonce_after_reset() {
         "New transaction should be assigned nonce 150 (upper nonce)"
     );
 
-    // Reset upper nonce to 100 using run_command
+    // Overwrite upper nonce to 100 using run_command
     adapter
-        .run_command(AdaptsChainAction::SetUpperNonce { nonce: Some(100) })
+        .run_command(AdaptsChainAction::OverwriteUpperNonce { nonce: Some(100) })
         .await
-        .expect("Failed to reset nonce");
+        .expect("Failed to overwrite nonce");
 
     // Submit the transaction - update_boundaries will set finalized=90, but upper stays at 100
     // because finalized (90) < upper (100)
@@ -255,7 +255,7 @@ async fn test_submit_assigns_correct_nonce_after_reset() {
         .expect("Failed to submit transaction");
 
     // Verify the transaction was assigned nonce 100 (upper nonce)
-    // This demonstrates that run_command successfully reset the nonce
+    // This demonstrates that run_command successfully overwrite the nonce
     let assigned_nonce = tx
         .precursor()
         .tx
@@ -344,11 +344,11 @@ async fn test_multiple_submissions_after_reset() {
         .await
         .unwrap();
 
-    // Reset upper nonce to 101 using run_command
+    // Overwrite upper nonce to 101 using run_command
     adapter
-        .run_command(AdaptsChainAction::SetUpperNonce { nonce: Some(101) })
+        .run_command(AdaptsChainAction::OverwriteUpperNonce { nonce: Some(101) })
         .await
-        .expect("Failed to reset nonce");
+        .expect("Failed to overwrite nonce");
 
     let tx1 = build_and_store_transaction(&adapter, &payload_db).await;
     // Make sure all the nonces are in use.
@@ -406,14 +406,14 @@ async fn test_multiple_submissions_after_reset() {
     }
 
     // Verify the final upper nonce
-    let final_upper_nonce = adapter
+    let db_upper_nonce = adapter
         .nonce_manager
         .state
         .get_upper_nonce_test()
         .await
         .unwrap();
     assert_eq!(
-        final_upper_nonce,
+        db_upper_nonce,
         hyperlane_core::U256::from(104),
         "Upper nonce should be 104 after three submissions"
     );
@@ -483,11 +483,11 @@ async fn test_submit_after_reset_to_finalized_plus_one() {
         .await
         .unwrap();
 
-    // Reset upper nonce to None (finalized + 1 = 76)
+    // Overwrite upper nonce to None (finalized + 1 = 76)
     adapter
-        .run_command(AdaptsChainAction::SetUpperNonce { nonce: None })
+        .run_command(AdaptsChainAction::OverwriteUpperNonce { nonce: None })
         .await
-        .expect("Failed to reset nonce to finalized + 1");
+        .expect("Failed to overwrite nonce to finalized + 1");
 
     // Build and submit a transaction
     let data = build_mock_typed_tx_and_function();
@@ -628,9 +628,9 @@ async fn test_submit_with_interleaved_resets() {
 
     // Reset to 80 - effectively rolling back the nonce
     adapter
-        .run_command(AdaptsChainAction::SetUpperNonce { nonce: Some(80) })
+        .run_command(AdaptsChainAction::OverwriteUpperNonce { nonce: Some(80) })
         .await
-        .expect("Failed to reset nonce to 80");
+        .expect("Failed to overwrite nonce to 80");
 
     // Second submission - upper is now 80
     let mut tx2 = build_and_store_transaction(&adapter, &payload_db).await;
@@ -659,14 +659,14 @@ async fn test_submit_with_interleaved_resets() {
     );
 
     // Final upper nonce should be 82
-    let final_upper_nonce = adapter
+    let db_upper_nonce = adapter
         .nonce_manager
         .state
         .get_upper_nonce_test()
         .await
         .unwrap();
     assert_eq!(
-        final_upper_nonce,
+        db_upper_nonce,
         hyperlane_core::U256::from(82),
         "Final upper nonce should be 82"
     );

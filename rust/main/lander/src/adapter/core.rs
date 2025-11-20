@@ -23,7 +23,7 @@ pub type GasLimit = U256;
 
 #[derive(Clone, Debug)]
 pub enum AdaptsChainAction {
-    SetUpperNonce { nonce: Option<u64> },
+    OverwriteUpperNonce { nonce: Option<u64> },
 }
 
 #[derive(new, Debug, Clone, PartialEq)]

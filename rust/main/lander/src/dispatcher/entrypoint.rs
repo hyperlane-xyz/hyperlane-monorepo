@@ -11,7 +11,6 @@ use crate::{
     adapter::GasLimit,
     error::LanderError,
     payload::{FullPayload, PayloadStatus, PayloadUuid},
-    AdaptsChain,
 };
 
 use super::{metrics::DispatcherMetrics, DispatcherSettings, DispatcherState};

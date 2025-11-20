@@ -7,7 +7,7 @@ use crate::{adapter::chains::ethereum::nonce::error::NonceResult, LanderError, T
 use super::NonceManagerState;
 
 impl NonceManagerState {
-    /// Reset upper nonce to the desired nonce.
+    /// Overwrite upper nonce to the desired nonce.
     /// In the process, also clearing all the nonces/tx_uuid mappings between
     /// [desired_nonce, current_upper_nonce]
     pub async fn overwrite_upper_nonce(
@@ -16,10 +16,8 @@ impl NonceManagerState {
     ) -> Result<U256, LanderError> {
         debug!(?desired_nonce, "Overwriting to new upper nonce");
 
-        let current_finalized_nonce = self
-            .get_finalized_nonce()
-            .await?
-            .ok_or_else(|| LanderError::EyreError(eyre::eyre!("No finalized nonce found")))?;
+        // default to 0 finalized nonce if we don't have anything set
+        let current_finalized_nonce = self.get_finalized_nonce().await?.unwrap_or_default();
 
         // The new desired upper nonce we want to set
         let desired_upper_nonce = match desired_nonce {
