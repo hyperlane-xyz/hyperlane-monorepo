@@ -148,7 +148,10 @@ export async function getWarpConfigs({
 }> {
   const hasDeployConfigFilePath = !!warpDeployConfigPath;
   const hasCoreConfigFilePath = !!warpCoreConfigPath;
-
+  assert(
+    hasDeployConfigFilePath === hasCoreConfigFilePath,
+    'Both --config/-wd and --warp/-wc must be provided together when using individual file paths',
+  );
   if (hasDeployConfigFilePath && hasCoreConfigFilePath) {
     return loadWarpConfigsFromFiles({
       warpDeployConfigPath,
