@@ -263,6 +263,7 @@ where
                 }
             };
 
+            debug!("Action: {:?}", action);
             let range = match action {
                 CursorAction::Sleep(duration) => {
                     trace!(
