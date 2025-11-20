@@ -17,7 +17,9 @@ export class RadixProtocolProvider implements ProtocolProvider {
   createProvider(chainMetadata: ChainMetadataForAltVM): Promise<IProvider> {
     assert(chainMetadata.rpcUrls, 'rpc urls undefined');
     const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
-    return RadixProvider.connect(rpcUrls, chainMetadata.chainId);
+    return RadixProvider.connect(rpcUrls, chainMetadata.chainId, {
+      metadata: chainMetadata,
+    });
   }
 
   async createSigner(
