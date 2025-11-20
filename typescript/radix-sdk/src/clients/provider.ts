@@ -12,6 +12,7 @@ import {
   RadixIsmTypes,
   RadixSDKOptions,
   RadixSDKTransaction,
+  ismTypeFromRadixIsmType,
 } from '../utils/types.js';
 import { RadixWarpPopulate } from '../warp/populate.js';
 import { RadixWarpQuery } from '../warp/query.js';
@@ -175,22 +176,7 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
       ism: req.ismAddress,
     });
 
-    switch (ismType) {
-      case RadixIsmTypes.MERKLE_ROOT_MULTISIG: {
-        return AltVM.IsmType.MERKLE_ROOT_MULTISIG;
-      }
-      case RadixIsmTypes.MESSAGE_ID_MULTISIG: {
-        return AltVM.IsmType.MESSAGE_ID_MULTISIG;
-      }
-      case RadixIsmTypes.ROUTING_ISM: {
-        return AltVM.IsmType.ROUTING;
-      }
-      case RadixIsmTypes.NOOP_ISM: {
-        return AltVM.IsmType.TEST_ISM;
-      }
-      default:
-        throw new Error(`Unknown ISM ModuleType: ${ismType}`);
-    }
+    return ismTypeFromRadixIsmType(ismType);
   }
 
   async getMessageIdMultisigIsm(

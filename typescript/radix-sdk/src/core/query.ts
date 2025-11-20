@@ -5,8 +5,9 @@ import {
 } from '@radixdlt/radix-engine-toolkit';
 import { utils } from 'ethers';
 
-import { assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
+import { assert, strip0x } from '@hyperlane-xyz/utils';
 
+import { getMultisigIsmConfig } from '../ism/query.js';
 import { RadixBase } from '../utils/base.js';
 import {
   EntityDetails,
@@ -141,23 +142,7 @@ export class RadixCoreQuery {
     threshold: number;
     validators: string[];
   }> {
-    const details =
-      await this.gateway.state.getEntityDetailsVaultAggregated(ism);
-
-    const fields = (details.details as EntityDetails).state.fields;
-
-    const result = {
-      address: ism,
-      type: (details.details as EntityDetails).blueprint_name as MultisigIsms,
-      validators: (
-        fields.find((f) => f.field_name === 'validators')?.elements ?? []
-      ).map((v) => ensure0x(v.hex)),
-      threshold: parseInt(
-        fields.find((f) => f.field_name === 'threshold')?.value ?? '0',
-      ),
-    };
-
-    return result;
+    return getMultisigIsmConfig(this.gateway, { ismAddress: ism });
   }
 
   public async getRoutingIsm({ ism }: { ism: string }): Promise<{

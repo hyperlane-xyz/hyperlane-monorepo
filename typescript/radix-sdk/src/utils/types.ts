@@ -5,6 +5,8 @@ import {
   TransactionManifest,
 } from '@radixdlt/radix-engine-toolkit';
 
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
+
 export interface RadixSDKTransaction {
   networkId: number;
   manifest: TransactionManifest | string;
@@ -48,6 +50,27 @@ export enum RadixIsmTypes {
   MESSAGE_ID_MULTISIG = 'MessageIdMultisigIsm',
   ROUTING_ISM = 'RoutingIsm',
   NOOP_ISM = 'NoopIsm',
+}
+
+export function ismTypeFromRadixIsmType(
+  radixIsmType: RadixIsmTypes,
+): AltVM.IsmType {
+  switch (radixIsmType) {
+    case RadixIsmTypes.MERKLE_ROOT_MULTISIG: {
+      return AltVM.IsmType.MERKLE_ROOT_MULTISIG;
+    }
+    case RadixIsmTypes.MESSAGE_ID_MULTISIG: {
+      return AltVM.IsmType.MESSAGE_ID_MULTISIG;
+    }
+    case RadixIsmTypes.ROUTING_ISM: {
+      return AltVM.IsmType.ROUTING;
+    }
+    case RadixIsmTypes.NOOP_ISM: {
+      return AltVM.IsmType.TEST_ISM;
+    }
+    default:
+      throw new Error(`Unknown ISM ModuleType: ${radixIsmType}`);
+  }
 }
 
 export type MultisigIsms =
