@@ -21,11 +21,19 @@ export interface DerivedCoreConfig extends CoreConfig {
 }
 
 export type DeployedCoreAddresses = {
+  staticMerkleRootMultisigIsmFactory: string;
+  staticMessageIdMultisigIsmFactory: string;
+  staticAggregationIsmFactory: string;
+  staticAggregationHookFactory: string;
+  domainRoutingIsmFactory: string;
+  staticMerkleRootWeightedMultisigIsmFactory: string;
+  staticMessageIdWeightedMultisigIsmFactory: string;
   mailbox: string;
-  staticMerkleRootMultisigIsmFactory?: string;
-  staticMessageIdMultisigIsmFactory?: string;
   validatorAnnounce: string;
-  domainRoutingIsmFactory?: string;
+  proxyAdmin: string;
+  testRecipient: string;
+  timelockController?: string;
+  interchainAccountRouter: string;
   merkleTreeHook?: string;
   interchainGasPaymaster?: string;
 };
