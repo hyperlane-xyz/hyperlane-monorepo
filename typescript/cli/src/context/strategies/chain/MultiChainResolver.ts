@@ -165,6 +165,7 @@ export class MultiChainResolver implements ChainResolver {
   private async resolveRelayerChains(
     argv: Record<string, any>,
   ): Promise<ChainName[]> {
+    const { multiProvider } = argv.context;
     const chains = new Set<ChainName>();
 
     if (argv.origin) {
@@ -184,6 +185,11 @@ export class MultiChainResolver implements ChainResolver {
 
     if (argv.destination) {
       chains.add(argv.destination);
+    }
+
+    // If no chains are specified, then return all EVM chains
+    if (chains.size === 0) {
+      return multiProvider.getKnownChainNames();
     }
 
     return Array.from(chains);
