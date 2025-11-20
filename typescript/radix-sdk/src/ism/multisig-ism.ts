@@ -16,15 +16,13 @@ import { ismTypeFromRadixIsmType } from '../utils/types.js';
 
 import { getMultisigIsmConfig } from './query.js';
 
-type MessageIdMultisigIsmIsmModule = {
+type MultisigIsmModule = {
   config: MultisigIsmConfig;
   addresses: IsmModuleAddresses;
   derived: WithAddress<MultisigIsmConfig>;
 };
 
-export class RadixMultisigIsmReader
-  implements HypReader<MessageIdMultisigIsmIsmModule>
-{
+export class RadixMultisigIsmReader implements HypReader<MultisigIsmModule> {
   constructor(private readonly provider: RadixProvider) {}
 
   async read(address: string): Promise<WithAddress<MultisigIsmConfig>> {
@@ -51,12 +49,10 @@ export class RadixMultisigIsmReader
   }
 }
 
-export class RadixMultisigIsmIsmModule
-  implements HypModule<MessageIdMultisigIsmIsmModule>
-{
+export class RadixMultisigIsmModule implements HypModule<MultisigIsmModule> {
   constructor(
-    private readonly args: HypModuleArgs<MessageIdMultisigIsmIsmModule>,
-    private readonly reader: HypReader<MessageIdMultisigIsmIsmModule>,
+    private readonly args: HypModuleArgs<MultisigIsmModule>,
+    private readonly reader: HypReader<MultisigIsmModule>,
   ) {}
 
   read(): Promise<WithAddress<MultisigIsmConfig>> {
