@@ -91,8 +91,7 @@ impl AleoProvider<BaseHttpClient> {
     ) -> ChainResult<()> {
         if depth > N::MAX_IMPORTS {
             return Err(HyperlaneAleoError::Other(format!(
-                "Exceeded maximum program import depth when loading program: {}",
-                program_id
+                "Exceeded maximum program import depth when loading program: {program_id}",
             ))
             .into());
         }
