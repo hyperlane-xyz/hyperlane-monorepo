@@ -250,7 +250,9 @@ where
     ) {
         loop {
             Self::update_liveness_metric(&liveness_metric);
-            indexed_height_metric.set(cursor.latest_queried_block() as i64);
+            let latest_queried_block = cursor.latest_queried_block() as i64;
+            debug!(?latest_queried_block, "Updating indexed height metric");
+            indexed_height_metric.set(latest_queried_block);
 
             let (action, eta) = match cursor.next_action().await {
                 Ok((action, eta)) => (action, eta),
