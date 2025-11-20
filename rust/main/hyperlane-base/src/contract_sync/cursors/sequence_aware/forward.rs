@@ -111,6 +111,7 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> ForwardSequenceAwareS
     /// If there are logs to index, returns the range of logs, either by sequence or block number
     /// depending on the mode.
     pub async fn get_next_range(&mut self) -> Result<Option<RangeInclusive<u32>>> {
+        tracing::warn!("get_next_range skip_indexed");
         // Skip any already indexed logs.
         self.skip_indexed().await?;
 
@@ -121,10 +122,16 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> ForwardSequenceAwareS
         {
             (Some(onchain_sequence_count), tip) => (onchain_sequence_count, tip),
             val => {
-                tracing::warn!(?val, "latest_sequence_count_and_tip");
+                tracing::warn!("get_next_range latest_sequence_count_and_tip");
                 return Ok(None);
             }
         };
+
+        tracing::warn!(
+            onchain_sequence_count,
+            tip,
+            "get_next_range latest_sequence_count_and_tip"
+        );
 
         // for updating metrics even if there's no indexable events available
         let max_sequence = onchain_sequence_count.saturating_sub(1) as i64;
@@ -132,7 +139,8 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> ForwardSequenceAwareS
 
         let current_sequence = self.current_indexing_snapshot.sequence;
         let res = current_sequence.cmp(&onchain_sequence_count);
-        tracing::debug!("current_sequence.cmp: {:?}", res);
+
+        tracing::warn!(?res, "get_next_range current_sequence");
         let range = match res {
             Ordering::Equal => {
                 // We are synced up to the latest sequence so we don't need to index anything.
