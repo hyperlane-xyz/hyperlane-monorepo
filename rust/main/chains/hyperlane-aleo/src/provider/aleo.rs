@@ -72,6 +72,31 @@ impl AleoProvider<BaseHttpClient> {
             priority_fee_multiplier: conf.priority_fee_multiplier,
         })
     }
+}
+
+impl<C: AleoClient> AleoProvider<C> {
+    #[cfg(test)]
+    /// Generic constructor allowing a pre-built client (used in tests with a mock client)
+    pub fn with_client(
+        client: C,
+        domain: HyperlaneDomain,
+        chain_id: u16,
+        signer: Option<AleoSigner>,
+    ) -> Self {
+        Self {
+            client: RpcClient::new(client),
+            domain,
+            network: chain_id,
+            proofing_service: None,
+            signer: signer,
+            priority_fee_multiplier: 0.0,
+        }
+    }
+
+    /// Returns the current chain id
+    pub fn chain_id(&self) -> u16 {
+        self.network
+    }
 
     /// Get the Aleo Signer
     pub fn get_signer(&self) -> ChainResult<&AleoSigner> {
@@ -404,26 +429,6 @@ impl AleoProvider<BaseHttpClient> {
             gas_used: U256::from(*fee),
             gas_price: FixedPointNumber::from_str("1")?,
         })
-    }
-}
-
-impl<C: AleoClient> AleoProvider<C> {
-    #[cfg(test)]
-    /// Generic constructor allowing a pre-built client (used in tests with a mock client)
-    pub fn with_client(client: C, domain: HyperlaneDomain, chain_id: u16) -> Self {
-        Self {
-            client: RpcClient::new(client),
-            domain,
-            network: chain_id,
-            proofing_service: None,
-            signer: None,
-            priority_fee_multiplier: 0.0,
-        }
-    }
-
-    /// Returns the current chain id
-    pub fn chain_id(&self) -> u16 {
-        self.network
     }
 }
 

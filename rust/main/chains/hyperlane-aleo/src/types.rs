@@ -35,6 +35,7 @@ pub struct ProvingResponse {
     pub broadcast: Option<bool>,
 }
 
+#[derive(Debug)]
 pub struct FeeEstimate {
     /// Base fee
     pub base_fee: u64,
