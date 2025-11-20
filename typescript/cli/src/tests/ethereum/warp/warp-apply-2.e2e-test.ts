@@ -356,7 +356,7 @@ describe('hyperlane warp apply owner update tests', async function () {
 
     const everclearTokenConfig: Extract<
       WarpRouteDeployConfig[string],
-      { type: TokenType.collateralEverclear }
+      { type: typeof TokenType.collateralEverclear }
     > = {
       type: TokenType.collateralEverclear,
       token: tokenChain2.address,

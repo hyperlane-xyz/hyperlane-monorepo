@@ -5,8 +5,8 @@ import {
   HypXERC20__factory,
   IXERC20__factory,
 } from '@hyperlane-xyz/core';
+import { AltVMWarpRouteReader } from '@hyperlane-xyz/deploy-sdk';
 import {
-  AltVMWarpRouteReader,
   ChainMap,
   ChainName,
   DerivedWarpRouteDeployConfig,
@@ -15,6 +15,7 @@ import {
   MultiProvider,
   TokenStandard,
   WarpCoreConfig,
+  altVmChainLookup,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
@@ -132,8 +133,7 @@ async function deriveWarpRouteConfigs(
         default: {
           const provider = await context.altVmProvider.get(chain);
           return new AltVMWarpRouteReader(
-            multiProvider,
-            chain,
+            altVmChainLookup(multiProvider),
             provider,
           ).deriveWarpRouteConfig(address);
         }

@@ -2,16 +2,20 @@ import chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import Sinon from 'sinon';
 
-import { AltVM } from '@hyperlane-xyz/utils';
-
-import { TestChainName } from '../consts/testChains.js';
-import { IsmType } from '../ism/types.js';
-import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
-import { MockSigner } from '../test/AltVMMockSigner.js';
+import { AltVM, MockSigner } from '@hyperlane-xyz/provider-sdk';
+import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
+import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
+import {
+  DerivedWarpConfig,
+  TokenType,
+  WarpConfig,
+} from '@hyperlane-xyz/provider-sdk/warp';
 
 import { AltVMWarpModule } from './AltVMWarpModule.js';
-import { TokenType } from './config.js';
-import { DerivedTokenRouterConfig, HypTokenRouterConfig } from './types.js';
+
+const TestChainName = {
+  test1: 'test1',
+} as const;
 
 chai.use(chaiAsPromised);
 const expect = chai.expect;
@@ -35,24 +39,18 @@ TEST CASES - AltVMWarpModule tests
 */
 
 describe('AltVMWarpModule', () => {
-  let signer: AltVM.ISigner<any, any>;
-  let warpModule: AltVMWarpModule<any>;
+  let signer: AltVM.ISigner<AnnotatedTx, TxReceipt>;
+  let warpModule: AltVMWarpModule;
+  let chainLookup: ChainLookup;
 
   const tokenAddress =
     '0x726f757465725f61707000000000000000000000000000010000000000000000';
 
-  const multiProvider = MultiProtocolProvider.createTestMultiProtocolProvider<{
-    mailbox?: string;
-  }>();
-
-  const actualConfig: HypTokenRouterConfig = {
+  const actualConfig: WarpConfig = {
     type: TokenType.collateral,
     owner: 'hyp1jq304cthpx0lwhpqzrdjrcza559ukyy3sc4dw5',
     mailbox:
       '0x68797065726c616e650000000000000000000000000000000000000000000000',
-    name: 'TEST',
-    symbol: 'TEST',
-    decimals: 18,
     token: 'uhyp',
     remoteRouters: {
       '1234': {
@@ -72,20 +70,24 @@ describe('AltVMWarpModule', () => {
 
     Sinon.stub(signer, 'getSignerAddress').returns(actualConfig.owner);
 
-    warpModule = new AltVMWarpModule(
-      multiProvider,
-      {
-        chain: TestChainName.test1,
-        config: actualConfig,
-        addresses: {
-          deployedTokenRoute: tokenAddress,
-        },
+    // Create mock chainLookup
+    chainLookup = {
+      getChainMetadata: () => ({ name: TestChainName.test1, domainId: 1 }),
+      getChainName: () => TestChainName.test1,
+      getDomainId: () => 1,
+      getKnownChainNames: () => [TestChainName.test1],
+    } as any;
+
+    warpModule = new AltVMWarpModule(chainLookup, signer, {
+      chain: TestChainName.test1,
+      config: actualConfig,
+      addresses: {
+        deployedTokenRoute: tokenAddress,
       },
-      signer,
-    );
+    });
 
     readStub = Sinon.stub(warpModule, 'read').resolves(
-      actualConfig as DerivedTokenRouterConfig,
+      actualConfig as DerivedWarpConfig,
     );
   });
 
@@ -450,7 +452,7 @@ describe('AltVMWarpModule', () => {
     const newIsmAddress =
       '0x726f757465725f69736d00000000000000000000000000050000000000000000';
     const newIsm = {
-      type: IsmType.MESSAGE_ID_MULTISIG,
+      type: 'messageIdMultisigIsm' as const,
       validators: ['0xe699ceCa237DD38e8f2Fa308D7d1a2BeCFC5493E'],
       threshold: 1,
     };
@@ -471,9 +473,7 @@ describe('AltVMWarpModule', () => {
     ).resolves();
 
     // ACT
-    const updateTransactions = await warpModule.update(
-      expectedConfig as HypTokenRouterConfig,
-    );
+    const updateTransactions = await warpModule.update(expectedConfig);
 
     // ASSERT
     expect(updateTransactions).to.have.lengthOf(1);
@@ -497,16 +497,19 @@ describe('AltVMWarpModule', () => {
 
   it('update existing ISM', async () => {
     // ARRANGE
+    const existingIsmAddress =
+      '0x726f757465725f69736d00000000000000000000000000040000000000000000';
     const existingIsm = {
-      type: IsmType.MESSAGE_ID_MULTISIG,
+      type: 'messageIdMultisigIsm' as const,
       validators: ['0xe699ceCa237DD38e8f2Fa308D7d1a2BeCFC5493E'],
       threshold: 1,
+      address: existingIsmAddress,
     };
 
     const newIsmAddress =
       '0x726f757465725f69736d00000000000000000000000000050000000000000000';
     const newIsm = {
-      type: IsmType.MERKLE_ROOT_MULTISIG,
+      type: 'merkleRootMultisigIsm' as const,
       validators: ['0xe699ceCa237DD38e8f2Fa308D7d1a2BeCFC5493E'],
       threshold: 1,
     };
@@ -514,13 +517,22 @@ describe('AltVMWarpModule', () => {
     readStub.restore();
     Sinon.stub(warpModule, 'read').resolves({
       ...actualConfig,
+      token: tokenAddress,
       interchainSecurityModule: existingIsm,
-    } as DerivedTokenRouterConfig);
+    } as DerivedWarpConfig);
 
     const expectedConfig = {
       ...actualConfig,
       interchainSecurityModule: newIsm,
     };
+
+    // Stub ISM reading methods
+    Sinon.stub(signer, 'getIsmType').resolves('messageIdMultisigIsm' as any);
+    Sinon.stub(signer, 'getMessageIdMultisigIsm').resolves({
+      address: existingIsmAddress,
+      validators: existingIsm.validators,
+      threshold: existingIsm.threshold,
+    });
 
     const createIsm = Sinon.stub(
       signer,
@@ -534,27 +546,32 @@ describe('AltVMWarpModule', () => {
     ).resolves();
 
     // ACT
-    const updateTransactions = await warpModule.update(
-      expectedConfig as HypTokenRouterConfig,
-    );
+    const updateTransactions = await warpModule.update(expectedConfig);
 
     // ASSERT
     expect(updateTransactions).to.have.lengthOf(1);
     expect(updateTransactions[0].annotation).to.include(
       'Setting ISM for Warp Route to',
     );
-    expect(
-      createIsm.calledOnceWith({
-        validators: newIsm.validators,
-        threshold: newIsm.threshold,
-      }),
-    ).to.be.true;
-    expect(
-      updateIsm.calledOnceWith({
-        signer: actualConfig.owner,
-        tokenAddress,
-        ismAddress: newIsmAddress,
-      }),
-    ).to.be.true;
+
+    // Check createIsm was called once
+    expect(createIsm.callCount).to.equal(1);
+    const createIsmCall = createIsm.getCall(0);
+    expect(createIsmCall.args[0].threshold).to.equal(newIsm.threshold);
+    expect(createIsmCall.args[0].validators.length).to.equal(
+      newIsm.validators.length,
+    );
+    expect(createIsmCall.args[0].validators[0].toLowerCase()).to.equal(
+      newIsm.validators[0].toLowerCase(),
+    );
+
+    // Check updateIsm was called once
+    expect(updateIsm.callCount).to.equal(1);
+    const updateIsmCall = updateIsm.getCall(0);
+    expect(updateIsmCall.args[0]).to.deep.equal({
+      signer: actualConfig.owner,
+      tokenAddress,
+      ismAddress: newIsmAddress,
+    });
   });
 });

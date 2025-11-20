@@ -3,7 +3,8 @@ import {
   TransactionManifest,
 } from '@radixdlt/radix-engine-toolkit';
 
-import { AltVM, assert, strip0x } from '@hyperlane-xyz/utils';
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { assert, strip0x } from '@hyperlane-xyz/utils';
 
 import { RadixCoreTx } from '../core/tx.js';
 import { RadixBaseSigner } from '../utils/signer.js';
