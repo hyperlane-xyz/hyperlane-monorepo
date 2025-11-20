@@ -3,7 +3,6 @@ use std::sync::{Arc, LazyLock};
 use std::time::{Duration, Instant, SystemTime};
 
 use chrono::{TimeZone, Utc};
-use core::panic;
 use ethers::types::transaction::eip2718::TypedTransaction;
 use ethers::types::{
     Address, Bloom, Eip1559TransactionRequest, TransactionReceipt, H160, U256 as EthersU256, U64,
