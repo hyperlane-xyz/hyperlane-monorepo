@@ -42,6 +42,14 @@ struct Mailbox:
     dispatch_proxy as address;
     mailbox_owner as address;
 
+struct CreditAllowance:
+    spender as address;
+    amount as u64;
+
+struct HookMetadata:
+    gas_limit as u128;
+    extra_data as [u8; 64u32];
+
 struct Tree:
     branch as [[u128; 2u32]; 32u32];
     count as u32;
@@ -50,14 +58,6 @@ struct DomainGasConfig:
     gas_overhead as u128;
     exchange_rate as u128;
     gas_price as u128;
-
-struct CreditAllowance:
-    spender as address;
-    amount as u64;
-
-struct HookMetadata:
-    gas_limit as u128;
-    extra_data as [u8; 64u32];
 
 struct MailboxState:
     default_ism as address;

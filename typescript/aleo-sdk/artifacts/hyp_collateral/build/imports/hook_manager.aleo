@@ -12,11 +12,13 @@ struct Message:
     recipient as [u8; 32u32];
     body as [u128; 16u32];
 
-struct InterchainGasPaymaster:
-    hook_owner as address;
-    nonce as u32;
-    balance as u64;
-    count as u32;
+struct CreditAllowance:
+    spender as address;
+    amount as u64;
+
+struct HookMetadata:
+    gas_limit as u128;
+    extra_data as [u8; 64u32];
 
 struct Tree:
     branch as [[u128; 2u32]; 32u32];
@@ -28,12 +30,18 @@ struct MerkleTreeHook:
     tree as Tree;
     nonce as u32;
 
-struct NoopHook:
-    nonce as u32;
-
 struct InsertedIntoTreeEvent:
     id as [u128; 2u32];
     index as u32;
+
+struct NoopHook:
+    nonce as u32;
+
+struct InterchainGasPaymaster:
+    hook_owner as address;
+    nonce as u32;
+    balance as u64;
+    count as u32;
 
 struct GasConfigKey:
     igp as address;
@@ -59,14 +67,6 @@ struct EventIndexKey:
     hook as address;
     block_height as u32;
 
-struct CreditAllowance:
-    spender as address;
-    amount as u64;
-
-struct HookMetadata:
-    gas_limit as u128;
-    extra_data as [u8; 64u32];
-
 struct EthAddress:
     bytes as [u8; 20u32];
 
@@ -83,6 +83,14 @@ struct Mailbox:
 mapping nonce:
     key as boolean.public;
     value as u32.public;
+
+mapping hooks:
+    key as address.public;
+    value as u8.public;
+
+mapping hook_addresses:
+    key as u32.public;
+    value as address.public;
 
 mapping igps:
     key as address.public;
@@ -103,14 +111,6 @@ mapping destination_gas_config_length:
 mapping merkle_tree_hooks:
     key as address.public;
     value as MerkleTreeHook.public;
-
-mapping hooks:
-    key as address.public;
-    value as u8.public;
-
-mapping hook_addresses:
-    key as u32.public;
-    value as address.public;
 
 mapping gas_payment_events:
     key as HookIndexKey.public;
