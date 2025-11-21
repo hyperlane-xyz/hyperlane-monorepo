@@ -187,10 +187,17 @@ export class MultiChainResolver implements ChainResolver {
       chains.add(argv.destination);
     }
 
-    // If no chains are specified, then return all EVM chains
-    if (chains.size === 0) {
-      return multiProvider.getKnownChainNames();
+    // If no destination is specified, return all EVM chains only
+    if (!argv.destination) {
+      const chains = multiProvider.getKnownChainNames();
+
+      return chains.filter(
+        (chain: string) =>
+          ProtocolType.Ethereum === multiProvider.getProtocol(chain),
+      );
     }
+
+    chains.add(argv.destination);
 
     return Array.from(chains);
   }
@@ -288,9 +295,11 @@ export class MultiChainResolver implements ChainResolver {
   static forWarpRouteConfig(): MultiChainResolver {
     return new MultiChainResolver(ChainSelectionMode.WARP_CONFIG);
   }
+
   static forWarpApply(): MultiChainResolver {
     return new MultiChainResolver(ChainSelectionMode.WARP_APPLY);
   }
+
   static forWarpRead(): MultiChainResolver {
     return new MultiChainResolver(ChainSelectionMode.WARP_READ);
   }
