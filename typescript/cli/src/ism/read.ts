@@ -34,7 +34,7 @@ export async function readIsmConfig({
     stringConfig = stringifyObject(config, resolveFileFormat(out), 2);
   } else {
     const provider = context.altVmProvider.get(chain);
-    assert(provider, `Cannot find ${provider}`);
+    assert(provider, `Cannot find provider for ${chain}`);
     const ismReader = new AltVMIsmReader(
       (chain) => context.multiProvider.tryGetChainName(chain),
       provider,

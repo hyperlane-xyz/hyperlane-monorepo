@@ -37,6 +37,7 @@ export class RadixProtocolProvider implements ProtocolProvider {
     _chainMetadata: ChainMetadataForAltVM,
     _config: TConfig,
   ): Promise<ITransactionSubmitter> {
+    // @TODO Implement in a follow up PR
     throw Error('Not implemented');
   }
 }

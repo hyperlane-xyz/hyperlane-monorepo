@@ -41,7 +41,7 @@ export async function readHookConfig({
     }
     default: {
       const provider = context.altVmProvider.get(chain);
-      assert(provider, `Cannot find ${provider}`);
+      assert(provider, `Cannot find provider for chain ${chain}`);
       const hookReader = new AltVMHookReader(
         (chain) => context.multiProvider.getChainMetadata(chain),
         provider,

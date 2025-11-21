@@ -272,7 +272,7 @@ export async function expandWarpDeployConfig(params: {
           }
           default: {
             const provider = altVmProvider.get(chain);
-            assert(provider, `Cannot find ${provider}`);
+            assert(provider, `Cannot find provider for ${chain}`);
             const reader = new AltVMHookReader(
               (chain) => multiProvider.getChainMetadata(chain),
               provider,
@@ -301,7 +301,7 @@ export async function expandWarpDeployConfig(params: {
           }
           default: {
             const provider = altVmProvider.get(chain);
-            assert(provider, `Cannot find ${provider}`);
+            assert(provider, `Cannot find provider for ${chain}`);
             const reader = new AltVMIsmReader(
               (chain) => multiProvider.tryGetChainName(chain),
               provider,

@@ -132,7 +132,7 @@ async function deriveWarpRouteConfigs(
         }
         default: {
           const provider = context.altVmProvider.get(chain);
-          assert(provider, `Cannot find ${provider}`);
+          assert(provider, `Cannot find provider for ${chain}`);
           return new AltVMWarpRouteReader(
             altVmChainLookup(multiProvider),
             provider,
