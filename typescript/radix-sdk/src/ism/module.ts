@@ -31,6 +31,7 @@ import { RadixRoutingIsmTx } from './tx.js';
 class RadixIsmModuleProvider implements ModuleProvider<IsmModuleType> {
   constructor(
     private readonly radixNetworkId: number,
+    private readonly chainLookup: ChainLookup,
     private readonly base: RadixBase,
     private readonly gateway: GatewayApiClient,
   ) {}
@@ -86,6 +87,7 @@ class RadixIsmModuleProvider implements ModuleProvider<IsmModuleType> {
       case IsmType.ROUTING: {
         return new RadixRoutingIsmModule(
           this.radixNetworkId,
+          this.chainLookup,
           { addresses, chain, config },
           new RadixRoutingIsmReader(signer, this.gateway, this),
           new RadixRoutingIsmTx(this.base),
@@ -103,7 +105,10 @@ class RadixIsmModuleProvider implements ModuleProvider<IsmModuleType> {
     _signer: ISigner<AnnotatedTx, TxReceipt>,
     _config: IsmConfig,
   ): Promise<HypModule<IsmModuleType>> {
-    throw new Error('Deploy not yet implemented');
+    throw new Error(
+      'ISM deployment not yet implemented. Will be added in follow-up PR. ' +
+        'For now, use string addresses for nested ISMs in routing configs.',
+    );
   }
 }
 
@@ -115,6 +120,11 @@ export function radixIsmModuleProvider(
     chainLookup.getChainMetadata(chainName);
 
   const parsedRadixNetworkId = parseInt(radixNetworkId.toString());
+  assert(
+    !isNaN(parsedRadixNetworkId),
+    `Invalid Radix network ID: ${radixNetworkId}`,
+  );
+
   const gateway = GatewayApiClient.initialize({
     applicationName: DEFAULT_APPLICATION_NAME,
     basePath: gatewayUrls?.[0]?.http,
@@ -127,5 +137,10 @@ export function radixIsmModuleProvider(
     DEFAULT_GAS_MULTIPLIER,
   );
 
-  return new RadixIsmModuleProvider(parsedRadixNetworkId, base, gateway);
+  return new RadixIsmModuleProvider(
+    parsedRadixNetworkId,
+    chainLookup,
+    base,
+    gateway,
+  );
 }

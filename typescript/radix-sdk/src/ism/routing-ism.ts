@@ -1,6 +1,7 @@
 import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 
 import { IProvider, ISigner, IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
+import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
   DerivedIsmConfig,
   DomainRoutingIsmConfig,
@@ -18,7 +19,7 @@ import {
   ReaderProvider,
   TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
-import { WithAddress, eqAddressRadix } from '@hyperlane-xyz/utils';
+import { WithAddress, assert, eqAddressRadix } from '@hyperlane-xyz/utils';
 
 import { getDomainRoutingIsmConfig } from './query.js';
 import { RadixRoutingIsmTx } from './tx.js';
@@ -63,6 +64,7 @@ export class RadixRoutingIsmReader implements HypReader<RoutingIsmModule> {
 export class RadixRoutingIsmModule implements HypModule<RoutingIsmModule> {
   constructor(
     private readonly radixNetworkId: number,
+    private readonly chainLookup: ChainLookup,
     private readonly args: HypModuleArgs<RoutingIsmModule>,
     private readonly reader: HypReader<RoutingIsmModule>,
     private readonly txHelper: RadixRoutingIsmTx,
@@ -91,11 +93,11 @@ export class RadixRoutingIsmModule implements HypModule<RoutingIsmModule> {
 
     // Update owner last as previous updates need to be executed
     // by the current owner
-    const updateOwnerTx = await this.createOwnerUpdateTxs(
+    const updateOwnerTxs = await this.createOwnerUpdateTxs(
       actualConfig,
       expectedConfig,
     );
-    transactions.push(updateOwnerTx);
+    transactions.push(...updateOwnerTxs);
 
     return transactions;
   }
@@ -103,7 +105,7 @@ export class RadixRoutingIsmModule implements HypModule<RoutingIsmModule> {
   private async createOwnerUpdateTxs(
     actualConfig: WithAddress<DomainRoutingIsmConfig>,
     expectedConfig: DomainRoutingIsmConfig,
-  ): Promise<AnnotatedTx> {
+  ): Promise<AnnotatedTx[]> {
     if (eqAddressRadix(actualConfig.owner, expectedConfig.owner)) {
       return [];
     }
@@ -125,26 +127,50 @@ export class RadixRoutingIsmModule implements HypModule<RoutingIsmModule> {
     ];
   }
 
+  private normalizeDomainKeys(
+    config: DomainRoutingIsmConfig,
+  ): DomainRoutingIsmConfig {
+    const normalizedDomains: Record<string, IsmConfig | string> = {};
+
+    for (const chainNameOrId of Object.keys(config.domains)) {
+      const domainId = this.chainLookup.getDomainId(chainNameOrId);
+      assert(
+        domainId,
+        `Expected domainId to be defined for chain ${chainNameOrId}`,
+      );
+
+      normalizedDomains[domainId] = config.domains[chainNameOrId];
+    }
+
+    return {
+      ...config,
+      domains: normalizedDomains,
+    };
+  }
+
   private async createRouteUpdateTxs(
     actualConfig: WithAddress<DomainRoutingIsmConfig>,
     expectedConfig: DomainRoutingIsmConfig,
   ): Promise<AnnotatedTx[]> {
     const transactions: AnnotatedTx[] = [];
 
+    const normalizedActual = this.normalizeDomainKeys(actualConfig);
+    const normalizedExpected = this.normalizeDomainKeys(expectedConfig);
+
     const { domainsToEnroll, domainsToUnenroll } =
-      calculateDomainRoutingIsmDelta(actualConfig, expectedConfig);
+      calculateDomainRoutingIsmDelta(normalizedActual, normalizedExpected);
 
     const owner = actualConfig.owner;
 
-    for (const domain of domainsToUnenroll) {
-      const tx = await this.createRemoveRouteTx(domain, owner);
+    for (const domainId of domainsToUnenroll) {
+      const tx = await this.createRemoveRouteTx(parseInt(domainId), owner);
       transactions.push(tx);
     }
 
-    for (const domain of domainsToEnroll) {
+    for (const domainId of domainsToEnroll) {
       const tx = await this.createSetRouteTx(
-        domain,
-        expectedConfig.domains[domain],
+        parseInt(domainId),
+        normalizedExpected.domains[domainId],
         owner,
       );
       transactions.push(tx);
@@ -154,7 +180,7 @@ export class RadixRoutingIsmModule implements HypModule<RoutingIsmModule> {
   }
 
   private async createRemoveRouteTx(
-    domain: string,
+    domainId: number,
     owner: string,
   ): Promise<AnnotatedTx> {
     const ismAddress = this.args.addresses.deployedIsm;
@@ -162,19 +188,19 @@ export class RadixRoutingIsmModule implements HypModule<RoutingIsmModule> {
     const manifest = await this.txHelper.buildRemoveDomainIsmTransaction({
       from_address: owner,
       ism: ismAddress,
-      domain: parseInt(domain),
+      domain: domainId,
     });
 
     return {
-      annotation: `Removing route for domain ${domain} from RoutingIsm ${ismAddress}`,
+      annotation: `Removing route for domain ${domainId} from RoutingIsm ${ismAddress}`,
       networkId: this.radixNetworkId,
       manifest,
     };
   }
 
   private async createSetRouteTx(
-    domain: string,
-    domainConfig: string | IsmConfig,
+    domainId: number,
+    domainConfig: string | IsmConfig | DerivedIsmConfig,
     owner: string,
   ): Promise<AnnotatedTx> {
     const ismAddress = this.args.addresses.deployedIsm;
@@ -182,6 +208,8 @@ export class RadixRoutingIsmModule implements HypModule<RoutingIsmModule> {
     let targetIsmAddress: string;
     if (typeof domainConfig === 'string') {
       targetIsmAddress = domainConfig;
+    } else if ('address' in domainConfig) {
+      targetIsmAddress = domainConfig.address;
     } else {
       const nestedModule = await this.moduleProvider.createModule(
         this.signer,
@@ -194,13 +222,13 @@ export class RadixRoutingIsmModule implements HypModule<RoutingIsmModule> {
       from_address: owner,
       ism: ismAddress,
       route: {
-        domainId: parseInt(domain),
+        domainId,
         ismAddress: targetIsmAddress,
       },
     });
 
     return {
-      annotation: `Setting route for domain ${domain} to ISM ${targetIsmAddress} on RoutingIsm ${ismAddress}`,
+      annotation: `Setting route for domain ${domainId} to ISM ${targetIsmAddress} on RoutingIsm ${ismAddress}`,
       networkId: this.radixNetworkId,
       manifest,
     };
