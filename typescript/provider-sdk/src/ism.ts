@@ -80,7 +80,7 @@ export function calculateDomainRoutingIsmDelta(
 }
 
 /**
- * Extracts the ISM address from a domain config
+ * Extracts the ISM address from a config
  */
 export function extractIsmAddress(
   domainConfig: string | DerivedIsmConfig,

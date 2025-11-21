@@ -9,6 +9,7 @@ import {
   IsmModuleAddresses,
   IsmModuleType,
   calculateDomainRoutingIsmDelta,
+  extractIsmAddress,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import {
   AnnotatedTx,
@@ -206,10 +207,8 @@ export class RadixRoutingIsmModule implements HypModule<RoutingIsmModule> {
     const ismAddress = this.args.addresses.deployedIsm;
 
     let targetIsmAddress: string;
-    if (typeof domainConfig === 'string') {
-      targetIsmAddress = domainConfig;
-    } else if ('address' in domainConfig) {
-      targetIsmAddress = domainConfig.address;
+    if (typeof domainConfig === 'string' || 'address' in domainConfig) {
+      targetIsmAddress = extractIsmAddress(domainConfig);
     } else {
       const nestedModule = await this.moduleProvider.createModule(
         this.signer,

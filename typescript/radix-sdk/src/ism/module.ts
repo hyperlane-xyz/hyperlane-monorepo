@@ -75,7 +75,9 @@ class RadixIsmModuleProvider implements ModuleProvider<IsmModuleType> {
       case IsmType.MERKLE_ROOT_MULTISIG:
         return new RadixMultisigIsmModule(
           { addresses, chain, config },
+          signer,
           new RadixMultisigIsmReader(this.gateway),
+          this,
         );
 
       case IsmType.TEST_ISM:

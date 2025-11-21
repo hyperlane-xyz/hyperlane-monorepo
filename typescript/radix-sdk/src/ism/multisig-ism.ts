@@ -1,8 +1,9 @@
 import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 
-import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
+import { ISigner, IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   IsmModuleAddresses,
+  IsmModuleType,
   MultisigIsmConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import {
@@ -10,8 +11,15 @@ import {
   HypModule,
   HypModuleArgs,
   HypReader,
+  ModuleProvider,
+  TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
-import { WithAddress, assert } from '@hyperlane-xyz/utils';
+import {
+  WithAddress,
+  assert,
+  deepEquals,
+  normalizeConfig,
+} from '@hyperlane-xyz/utils';
 
 import { ismTypeFromRadixIsmType } from '../utils/types.js';
 
@@ -53,7 +61,9 @@ export class RadixMultisigIsmReader implements HypReader<MultisigIsmModule> {
 export class RadixMultisigIsmModule implements HypModule<MultisigIsmModule> {
   constructor(
     private readonly args: HypModuleArgs<MultisigIsmModule>,
+    private readonly signer: ISigner<AnnotatedTx, TxReceipt>,
     private readonly reader: HypReader<MultisigIsmModule>,
+    private readonly moduleProvider: ModuleProvider<IsmModuleType>,
   ) {}
 
   read(): Promise<WithAddress<MultisigIsmConfig>> {
@@ -64,8 +74,25 @@ export class RadixMultisigIsmModule implements HypModule<MultisigIsmModule> {
     return this.args.addresses;
   }
 
-  async update(_config: MultisigIsmConfig): Promise<AnnotatedTx[]> {
+  async update(expectedConfig: MultisigIsmConfig): Promise<AnnotatedTx[]> {
+    const currentConfig = await this.read();
+
+    const normalizedExpectedConfig = normalizeConfig(expectedConfig);
+    const normalizedCurrentConfig = normalizeConfig(currentConfig);
+
+    if (deepEquals(normalizedExpectedConfig, normalizedCurrentConfig)) {
+      return [];
+    }
+
     // The Multisig ISMs need to be redeployed if the config changes
+    const newIsm = await this.moduleProvider.createModule(
+      this.signer,
+      normalizedExpectedConfig,
+    );
+
+    this.args.config = normalizedExpectedConfig;
+    this.args.addresses = newIsm.serialize();
+
     return [];
   }
 }

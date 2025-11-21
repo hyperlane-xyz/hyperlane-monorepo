@@ -23,7 +23,7 @@ export interface ChainMetadataForAltVM {
     http: string;
   }[];
 
-  // TODO: remove these once Le PR is merged
+  // TODO: remove these once Le PR is merged: https://github.com/hyperlane-xyz/hyperlane-monorepo/pull/7336
   chainId: ChainId;
   rpcUrls?: {
     http: string;
