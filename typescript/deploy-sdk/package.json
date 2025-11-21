@@ -21,6 +21,7 @@
   "dependencies": {
     "@hyperlane-xyz/cosmos-sdk": "19.9.0",
     "@hyperlane-xyz/provider-sdk": "0.1.0",
+    "@hyperlane-xyz/radix-sdk": "19.9.0",
     "zod": "^3.21.2"
   },
   "devDependencies": {
