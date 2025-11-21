@@ -50,6 +50,19 @@ abstract contract TokenBridgeCctpBase is
     using TypeCasts for bytes32;
     using SafeERC20 for IERC20;
 
+    error InvalidCCTPVersion();
+    error CircleDomainNotConfigured();
+    error HyperlaneDomainNotConfigured();
+    error InvalidTokenMessageRecipient();
+    error InvalidCircleRecipient();
+    error NotMessageTransmitter();
+    error UnauthorizedCircleSender();
+    error MessageNotDispatched();
+    error InvalidBurnSender();
+    error InvalidMintAmount();
+    error InvalidMintRecipient();
+    error InvalidMessageId();
+
     uint256 private constant _SCALE = 1;
 
     IERC20 public immutable wrappedToken;
@@ -87,16 +100,12 @@ abstract contract TokenBridgeCctpBase is
         IMessageTransmitter _messageTransmitter,
         ITokenMessenger _tokenMessenger
     ) TokenRouter(_SCALE, _mailbox) {
-        require(
-            _messageTransmitter.version() == _getCCTPVersion(),
-            "Invalid messageTransmitter CCTP version"
-        );
+        if (_messageTransmitter.version() != _getCCTPVersion())
+            revert InvalidCCTPVersion();
         messageTransmitter = _messageTransmitter;
 
-        require(
-            _tokenMessenger.messageBodyVersion() == _getCCTPVersion(),
-            "Invalid TokenMessenger CCTP version"
-        );
+        if (_tokenMessenger.messageBodyVersion() != _getCCTPVersion())
+            revert InvalidCCTPVersion();
         tokenMessenger = _tokenMessenger;
 
         wrappedToken = IERC20(_erc20);
@@ -208,10 +217,8 @@ abstract contract TokenBridgeCctpBase is
         uint32 _hyperlaneDomain
     ) public view returns (uint32) {
         Domain memory domain = _hyperlaneDomainMap[_hyperlaneDomain];
-        require(
-            domain.hyperlane == _hyperlaneDomain,
-            "Circle domain not configured"
-        );
+        if (domain.hyperlane != _hyperlaneDomain)
+            revert CircleDomainNotConfigured();
 
         return domain.circle;
     }
@@ -220,10 +227,8 @@ abstract contract TokenBridgeCctpBase is
         uint32 _circleDomain
     ) public view returns (uint32) {
         Domain memory domain = _circleDomainMap[_circleDomain];
-        require(
-            domain.circle == _circleDomain,
-            "Hyperlane domain not configured"
-        );
+        if (domain.circle != _circleDomain)
+            revert HyperlaneDomainNotConfigured();
 
         return domain.hyperlane;
     }
@@ -274,10 +279,8 @@ abstract contract TokenBridgeCctpBase is
         if (circleRecipient == address(tokenMessenger)) {
             // prevent hyperlane message recipient configured with CCTP ISM
             // from verifying and handling token messages
-            require(
-                _hyperlaneMessage.recipientAddress() == address(this),
-                "Invalid token message recipient"
-            );
+            if (_hyperlaneMessage.recipientAddress() != address(this))
+                revert InvalidTokenMessageRecipient();
             _validateTokenMessage(_hyperlaneMessage, cctpMessage);
         }
         // check if CCTP message is a GMP message to this contract
@@ -286,7 +289,7 @@ abstract contract TokenBridgeCctpBase is
         }
         // disallow other CCTP message destinations
         else {
-            revert("Invalid circle recipient");
+            revert InvalidCircleRecipient();
         }
 
         // for GMP messages, this.verifiedMessages[hyperlaneMessage.id()] will be set
@@ -299,17 +302,13 @@ abstract contract TokenBridgeCctpBase is
         bytes32 circleSender,
         bytes32 messageId
     ) internal returns (bool) {
-        require(
-            msg.sender == address(messageTransmitter),
-            "Not message transmitter"
-        );
+        if (msg.sender != address(messageTransmitter))
+            revert NotMessageTransmitter();
 
         // ensure that the message was sent from the hook on the origin chain
         uint32 origin = circleDomainToHyperlaneDomain(circleSource);
-        require(
-            _mustHaveRemoteRouter(origin) == circleSender,
-            "Unauthorized circle sender"
-        );
+        if (_mustHaveRemoteRouter(origin) != circleSender)
+            revert UnauthorizedCircleSender();
 
         isVerified[messageId] = true;
 
@@ -343,7 +342,7 @@ abstract contract TokenBridgeCctpBase is
         bytes calldata message
     ) internal override {
         bytes32 id = message.id();
-        require(_isLatestDispatched(id), "Message not dispatched");
+        if (!_isLatestDispatched(id)) revert MessageNotDispatched();
 
         uint32 destination = message.destination();
         bytes32 ism = _mustHaveRemoteRouter(destination);

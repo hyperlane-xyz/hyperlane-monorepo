@@ -52,23 +52,18 @@ contract TokenBridgeCctpV1 is TokenBridgeCctpBase, IMessageHandler {
         burnMessage._validateBurnMessageFormat();
 
         bytes32 circleBurnSender = burnMessage._getMessageSender();
-        require(
-            circleBurnSender == hyperlaneMessage.sender(),
-            "Invalid burn sender"
-        );
+        if (circleBurnSender != hyperlaneMessage.sender())
+            revert InvalidBurnSender();
 
         bytes calldata tokenMessage = hyperlaneMessage.body();
 
-        require(
-            TokenMessage.amount(tokenMessage) == burnMessage._getAmount(),
-            "Invalid mint amount"
-        );
+        if (TokenMessage.amount(tokenMessage) != burnMessage._getAmount())
+            revert InvalidMintAmount();
 
-        require(
-            TokenMessage.recipient(tokenMessage) ==
-                burnMessage._getMintRecipient(),
-            "Invalid mint recipient"
-        );
+        if (
+            TokenMessage.recipient(tokenMessage) !=
+            burnMessage._getMintRecipient()
+        ) revert InvalidMintRecipient();
     }
 
     function _validateHookMessage(
@@ -76,7 +71,7 @@ contract TokenBridgeCctpV1 is TokenBridgeCctpBase, IMessageHandler {
         bytes29 cctpMessage
     ) internal pure override {
         bytes32 circleMessageId = cctpMessage._messageBody().index(0, 32);
-        require(circleMessageId == hyperlaneMessage.id(), "Invalid message id");
+        if (circleMessageId != hyperlaneMessage.id()) revert InvalidMessageId();
     }
 
     /// @inheritdoc IMessageHandler

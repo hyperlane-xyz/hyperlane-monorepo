@@ -473,7 +473,7 @@ contract TokenBridgeCctpV1Test is Test {
         bytes memory attestation = bytes("");
         bytes memory metadata = abi.encode(cctpMessage, attestation);
 
-        vm.expectRevert(bytes("Invalid mint amount"));
+        vm.expectRevert(TokenBridgeCctpBase.InvalidMintAmount.selector);
         tbDestination.verify(metadata, message);
     }
 
@@ -491,7 +491,7 @@ contract TokenBridgeCctpV1Test is Test {
         bytes memory attestation = bytes("");
         bytes memory metadata = abi.encode(cctpMessage, attestation);
 
-        vm.expectRevert(bytes("Invalid mint recipient"));
+        vm.expectRevert(TokenBridgeCctpBase.InvalidMintRecipient.selector);
         tbDestination.verify(metadata, message);
     }
 
@@ -513,7 +513,7 @@ contract TokenBridgeCctpV1Test is Test {
         bytes memory attestation = bytes("");
         bytes memory metadata = abi.encode(cctpMessage, attestation);
 
-        vm.expectRevert(bytes("Invalid burn sender"));
+        vm.expectRevert(TokenBridgeCctpBase.InvalidBurnSender.selector);
         tbDestination.verify(metadata, message);
     }
 
@@ -544,17 +544,21 @@ contract TokenBridgeCctpV1Test is Test {
         bytes memory attestation = bytes("");
         bytes memory metadata = abi.encode(cctpMessage, attestation);
 
-        vm.expectRevert(bytes("Invalid token message recipient"));
+        vm.expectRevert(
+            TokenBridgeCctpBase.InvalidTokenMessageRecipient.selector
+        );
         tbDestination.verify(metadata, invalidMessage);
 
-        vm.expectRevert(bytes("Invalid token message recipient"));
+        vm.expectRevert(
+            TokenBridgeCctpBase.InvalidTokenMessageRecipient.selector
+        );
         mailboxDestination.process(metadata, invalidMessage);
     }
 
     function test_revertsWhen_versionIsNotSupported() public virtual {
         tokenMessengerOrigin.setVersion(CCTP_VERSION_2);
 
-        vm.expectRevert(bytes("Invalid TokenMessenger CCTP version"));
+        vm.expectRevert(TokenBridgeCctpBase.InvalidCCTPVersion.selector);
         TokenBridgeCctpV1 v1 = new TokenBridgeCctpV1(
             address(tokenOrigin),
             address(mailboxOrigin),
@@ -563,7 +567,7 @@ contract TokenBridgeCctpV1Test is Test {
         );
 
         messageTransmitterOrigin.setVersion(CCTP_VERSION_2);
-        vm.expectRevert(bytes("Invalid messageTransmitter CCTP version"));
+        vm.expectRevert(TokenBridgeCctpBase.InvalidCCTPVersion.selector);
         v1 = new TokenBridgeCctpV1(
             address(tokenOrigin),
             address(mailboxOrigin),
@@ -619,7 +623,7 @@ contract TokenBridgeCctpV1Test is Test {
         vm.assume(unconfiguredHyperlaneDomain != origin);
         vm.assume(unconfiguredHyperlaneDomain != destination);
 
-        vm.expectRevert(bytes("Circle domain not configured"));
+        vm.expectRevert(TokenBridgeCctpBase.CircleDomainNotConfigured.selector);
         tbOrigin.hyperlaneDomainToCircleDomain(unconfiguredHyperlaneDomain);
 
         // covers the case where circleDomain is 0
@@ -755,7 +759,7 @@ contract TokenBridgeCctpV1Test is Test {
         ism.addDomain(origin, 6);
 
         // Sender validation happens inside receiveMessage via callback to _authenticateCircleSender
-        vm.expectRevert(bytes("Unauthorized circle sender"));
+        vm.expectRevert(TokenBridgeCctpBase.UnauthorizedCircleSender.selector);
         ism.verify(metadata, message);
 
         // CCTP message was sent by deployer on origin chain
@@ -784,7 +788,7 @@ contract TokenBridgeCctpV1Test is Test {
             recipient,
             body
         );
-        vm.expectRevert(bytes("Message not dispatched"));
+        vm.expectRevert(TokenBridgeCctpBase.MessageNotDispatched.selector);
         tbOrigin.postDispatch(bytes(""), message);
     }
 
@@ -883,7 +887,7 @@ contract TokenBridgeCctpV1Test is Test {
         bytes memory metadata = abi.encode(cctpMessage, attestation);
 
         // Sender validation happens inside receiveMessage via callback to _authenticateCircleSender
-        vm.expectRevert(bytes("Unauthorized circle sender"));
+        vm.expectRevert(TokenBridgeCctpBase.UnauthorizedCircleSender.selector);
         tbDestination.verify(metadata, message);
     }
 
@@ -909,7 +913,7 @@ contract TokenBridgeCctpV1Test is Test {
         bytes memory attestation = bytes("");
         bytes memory metadata = abi.encode(cctpMessage, attestation);
 
-        vm.expectRevert(bytes("Invalid message id"));
+        vm.expectRevert(TokenBridgeCctpBase.InvalidMessageId.selector);
         tbDestination.verify(metadata, message);
     }
 
@@ -937,7 +941,7 @@ contract TokenBridgeCctpV1Test is Test {
         bytes memory attestation = bytes("");
         bytes memory metadata = abi.encode(cctpMessage, attestation);
 
-        vm.expectRevert(bytes("Invalid circle recipient"));
+        vm.expectRevert(TokenBridgeCctpBase.InvalidCircleRecipient.selector);
         tbDestination.verify(metadata, message);
     }
 
@@ -965,7 +969,7 @@ contract TokenBridgeCctpV1Test is Test {
     ) public virtual {
         // Try to call from an unauthorized address
         vm.prank(address(messageTransmitterDestination));
-        vm.expectRevert(bytes("Unauthorized circle sender"));
+        vm.expectRevert(TokenBridgeCctpBase.UnauthorizedCircleSender.selector);
         TokenBridgeCctpV1(address(tbDestination)).handleReceiveMessage(
             cctpOrigin,
             evil.addressToBytes32(),
@@ -978,7 +982,7 @@ contract TokenBridgeCctpV1Test is Test {
     ) public virtual {
         // Try to call from a non-message-transmitter address
         vm.prank(evil);
-        vm.expectRevert(bytes("Not message transmitter"));
+        vm.expectRevert(TokenBridgeCctpBase.NotMessageTransmitter.selector);
         TokenBridgeCctpV1(address(tbDestination)).handleReceiveMessage(
             cctpOrigin,
             address(tbOrigin).addressToBytes32(),
@@ -995,7 +999,9 @@ contract TokenBridgeCctpV1Test is Test {
         vm.assume(badDomain != cctpDestination);
 
         vm.prank(address(messageTransmitterDestination));
-        vm.expectRevert(bytes("Hyperlane domain not configured"));
+        vm.expectRevert(
+            TokenBridgeCctpBase.HyperlaneDomainNotConfigured.selector
+        );
         TokenBridgeCctpV1(address(tbDestination)).handleReceiveMessage(
             badDomain,
             address(tbOrigin).addressToBytes32(),
@@ -1011,7 +1017,7 @@ contract TokenBridgeCctpV1Test is Test {
         vm.assume(badRouter != address(tbOrigin).addressToBytes32());
 
         vm.prank(address(messageTransmitterDestination));
-        vm.expectRevert(bytes("Unauthorized circle sender"));
+        vm.expectRevert(TokenBridgeCctpBase.UnauthorizedCircleSender.selector);
         TokenBridgeCctpV1(address(tbDestination)).handleReceiveMessage(
             cctpOrigin,
             badRouter,
@@ -1551,7 +1557,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
     function test_revertsWhen_versionIsNotSupported() public override {
         tokenMessengerOrigin.setVersion(CCTP_VERSION_1);
 
-        vm.expectRevert(bytes("Invalid TokenMessenger CCTP version"));
+        vm.expectRevert(TokenBridgeCctpBase.InvalidCCTPVersion.selector);
         TokenBridgeCctpV2 v2 = new TokenBridgeCctpV2(
             address(tokenOrigin),
             address(mailboxOrigin),
@@ -1562,7 +1568,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         );
 
         messageTransmitterOrigin.setVersion(CCTP_VERSION_1);
-        vm.expectRevert(bytes("Invalid messageTransmitter CCTP version"));
+        vm.expectRevert(TokenBridgeCctpBase.InvalidCCTPVersion.selector);
         v2 = new TokenBridgeCctpV2(
             address(tokenOrigin),
             address(mailboxOrigin),
@@ -1666,7 +1672,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         uint32 finalityThreshold
     ) public {
         vm.prank(address(messageTransmitterDestination));
-        vm.expectRevert(bytes("Unauthorized circle sender"));
+        vm.expectRevert(TokenBridgeCctpBase.UnauthorizedCircleSender.selector);
         TokenBridgeCctpV2(address(tbDestination)).handleReceiveFinalizedMessage(
             cctpOrigin,
             evil.addressToBytes32(),
@@ -1680,7 +1686,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         uint32 finalityThreshold
     ) public {
         vm.prank(evil);
-        vm.expectRevert(bytes("Not message transmitter"));
+        vm.expectRevert(TokenBridgeCctpBase.NotMessageTransmitter.selector);
         TokenBridgeCctpV2(address(tbDestination)).handleReceiveFinalizedMessage(
             cctpOrigin,
             address(tbOrigin).addressToBytes32(),
@@ -1698,7 +1704,9 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         vm.assume(badDomain != cctpDestination);
 
         vm.prank(address(messageTransmitterDestination));
-        vm.expectRevert(bytes("Hyperlane domain not configured"));
+        vm.expectRevert(
+            TokenBridgeCctpBase.HyperlaneDomainNotConfigured.selector
+        );
         TokenBridgeCctpV2(address(tbDestination)).handleReceiveFinalizedMessage(
             badDomain,
             address(tbOrigin).addressToBytes32(),
@@ -1715,7 +1723,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         vm.assume(badRouter != address(tbOrigin).addressToBytes32());
 
         vm.prank(address(messageTransmitterDestination));
-        vm.expectRevert(bytes("Unauthorized circle sender"));
+        vm.expectRevert(TokenBridgeCctpBase.UnauthorizedCircleSender.selector);
         TokenBridgeCctpV2(address(tbDestination)).handleReceiveFinalizedMessage(
             cctpOrigin,
             badRouter,
@@ -1752,7 +1760,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         uint32 finalityThreshold
     ) public {
         vm.prank(address(messageTransmitterDestination));
-        vm.expectRevert(bytes("Unauthorized circle sender"));
+        vm.expectRevert(TokenBridgeCctpBase.UnauthorizedCircleSender.selector);
         TokenBridgeCctpV2(address(tbDestination))
             .handleReceiveUnfinalizedMessage(
                 cctpOrigin,
@@ -1767,7 +1775,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         uint32 finalityThreshold
     ) public {
         vm.prank(evil);
-        vm.expectRevert(bytes("Not message transmitter"));
+        vm.expectRevert(TokenBridgeCctpBase.NotMessageTransmitter.selector);
         TokenBridgeCctpV2(address(tbDestination))
             .handleReceiveUnfinalizedMessage(
                 cctpOrigin,
@@ -1786,7 +1794,9 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         vm.assume(badDomain != cctpDestination);
 
         vm.prank(address(messageTransmitterDestination));
-        vm.expectRevert(bytes("Hyperlane domain not configured"));
+        vm.expectRevert(
+            TokenBridgeCctpBase.HyperlaneDomainNotConfigured.selector
+        );
         TokenBridgeCctpV2(address(tbDestination))
             .handleReceiveUnfinalizedMessage(
                 badDomain,
@@ -1804,7 +1814,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         vm.assume(badRouter != address(tbOrigin).addressToBytes32());
 
         vm.prank(address(messageTransmitterDestination));
-        vm.expectRevert(bytes("Unauthorized circle sender"));
+        vm.expectRevert(TokenBridgeCctpBase.UnauthorizedCircleSender.selector);
         TokenBridgeCctpV2(address(tbDestination))
             .handleReceiveUnfinalizedMessage(
                 cctpOrigin,
