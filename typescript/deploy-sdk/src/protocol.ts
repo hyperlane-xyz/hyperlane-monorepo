@@ -1,9 +1,18 @@
-import { ProtocolType, registerProtocol } from '@hyperlane-xyz/provider-sdk';
+import {
+  ProtocolType,
+  hasProtocol,
+  registerProtocol,
+} from '@hyperlane-xyz/provider-sdk';
+import { rootLogger } from '@hyperlane-xyz/utils';
 
 export async function loadProtocolProviders(
   neededProtocols: Set<ProtocolType>,
 ) {
   for (const protocol of neededProtocols) {
+    if (hasProtocol(protocol)) {
+      rootLogger.debug(`${protocol} already loaded`);
+      continue;
+    }
     switch (protocol) {
       case ProtocolType.CosmosNative: {
         const { CosmosNativeProtocolProvider } = await import(

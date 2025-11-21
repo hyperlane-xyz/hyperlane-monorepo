@@ -93,7 +93,7 @@ export class MultiChainResolver implements ChainResolver {
     argv: Record<string, any>,
   ): Promise<ChainName[]> {
     if (argv.chain) {
-      argv.context.chains = [argv.chain]; // @TODO: use resolveChain
+      return this.resolveChain(argv);
     } else if (argv.symbol || argv.warpRouteId) {
       const warpCoreConfig = await getWarpCoreConfigOrExit({
         context: argv.context,
