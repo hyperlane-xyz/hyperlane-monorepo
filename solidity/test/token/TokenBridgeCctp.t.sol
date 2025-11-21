@@ -1063,12 +1063,8 @@ contract TokenBridgeCctpV1Test is Test {
             amount
         );
 
-        // Deliver the CCTP message directly via receiveMessage (simulates CCTP delivering the burn message)
-        // This mints the tokens to the recipient
-        messageTransmitterDestination.receiveMessage(cctpMessage, bytes(""));
-
-        // Now try to verify with the same message - should revert because CCTP already processed it
         bytes memory metadata = abi.encode(cctpMessage, bytes(""));
+        tbDestination.verify(metadata, message);
 
         // The exact revert message depends on the mock implementation
         // In a real scenario, Circle's MessageTransmitter would revert with a nonce already used error
@@ -1893,12 +1889,8 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             amount
         );
 
-        // Deliver the CCTP message directly via receiveMessage (simulates CCTP delivering the burn message)
-        // This mints the tokens to the recipient
-        messageTransmitterDestination.receiveMessage(cctpMessage, bytes(""));
-
-        // Now try to verify with the same message - should revert because CCTP already processed it
         bytes memory metadata = abi.encode(cctpMessage, bytes(""));
+        tbDestination.verify(metadata, message);
 
         // The exact revert message depends on the mock implementation
         // In a real scenario, Circle's MessageTransmitter would revert with a nonce already used error
