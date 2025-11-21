@@ -27,7 +27,6 @@ const SUPPORTED_ISM_TYPES = new Set<IsmType>([
   IsmType.MESSAGE_ID_MULTISIG,
   IsmType.MERKLE_ROOT_MULTISIG,
   IsmType.ROUTING,
-  IsmType.AGGREGATION,
   IsmType.TEST_ISM,
 ]);
 
