@@ -1,81 +1,65 @@
 import fs from 'fs';
+import fetch from 'node-fetch';
 import path from 'path';
+import unzipper from 'unzipper';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const artifactsDir = path.join(__dirname, '../artifacts');
 const outputFile = path.join(__dirname, '../src/artifacts.ts');
 
-const folders = fs
-  .readdirSync(artifactsDir, { withFileTypes: true })
-  .filter((dirent) => dirent.isDirectory())
-  .map((dirent) => dirent.name);
+const VERSION = 'v1.0.0-beta0';
 
-let programs = [];
-let output = `import { Program } from '@provablehq/sdk/mainnet.js';\n\n`;
+const main = async () => {
+  const res = await fetch(
+    `https://github.com/hyperlane-xyz/hyperlane-aleo/releases/download/${VERSION}/programs.zip`,
+    {
+      cache: 'no-store',
+    },
+  );
+  if (!res.ok) throw new Error(`Download failed: ${res.statusText}`);
 
-const readContentFromPath = (filePath, programName) => {
-  const content = fs.readFileSync(filePath, 'utf8');
+  const buffer = Buffer.from(await res.arrayBuffer());
 
-  const escaped = content
-    .replace(/\\/g, '\\\\')
-    .replace(/'/g, "\\'")
-    .replace(/`/g, '\\`')
-    .replace(/\r?\n/g, '\\n');
+  const directory = await unzipper.Open.buffer(buffer);
 
-  return 'export const ' + `${programName}` + ' = `' + `${escaped}` + '`;\n';
-};
+  const files = [];
 
-for (const folder of folders) {
-  try {
-    const filePath = path.join(artifactsDir, folder, 'build', 'main.aleo');
-    const programName = folder.replace(/-/g, '_'); // sanitize folder name for variable names
+  for (const entry of directory.files) {
+    if (entry.type === 'File') {
+      const filename = entry.path.replace('.aleo', '');
+      const content = (await entry.buffer())
+        .toString('utf8')
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'")
+        .replace(/`/g, '\\`')
+        .replace(/\r?\n/g, '\\n');
 
-    if (!programs.includes(programName)) {
-      console.log('reading main.aleo file at ', filePath);
-      output += readContentFromPath(filePath, programName);
-      programs.push(programName);
+      files.push({ filename, content });
     }
-
-    const importsDir = path.join(artifactsDir, folder, 'build', 'imports');
-    const importFiles = fs
-      .readdirSync(importsDir, { withFileTypes: true })
-      .filter((dirent) => dirent.isFile())
-      .map((dirent) => dirent.name);
-
-    for (const importFile of importFiles) {
-      const importFilePath = path.join(importsDir, importFile);
-      const importFileName = importFile.replace('.aleo', '');
-
-      if (!programs.includes(importFileName)) {
-        console.log(
-          `reading import file ${importFileName} for ${folder} at ${importFilePath}`,
-        );
-        output += readContentFromPath(importFilePath, importFileName);
-        programs.push(importFileName);
-      }
-    }
-  } catch (err) {
-    console.warn(`Skipping folder ${folder}, error: ${err.message}`);
   }
-}
 
-output += `
-export const programRegistry: Record<string, string> = {
-  dispatch_proxy,
-  credits,
-  hook_manager,
-  ism_manager,
-  mailbox,
-  hyp_collateral,
-  token_registry,
-  hyp_native,
-  hyp_synthetic,
-  validator_announce,
-};
+  let output = `import { Program } from '@provablehq/sdk/mainnet.js';\n\n`;
 
+  for (const file of files) {
+    output +=
+      'export const ' +
+      `${file.filename}` +
+      ' = `' +
+      `${file.content}` +
+      '`;\n';
+  }
+
+  output += `\nexport const programRegistry: Record<string, string> = {`;
+
+  for (const file of files) {
+    output += `\n  ${file.filename},`;
+  }
+
+  output += `\n};\n`;
+
+  output += `
 export function loadProgramsInDeployOrder(
   programName: string,
   coreSalt: string,
@@ -125,5 +109,8 @@ export function loadProgramsInDeployOrder(
 }
 `;
 
-fs.writeFileSync(outputFile, output, 'utf8');
-console.log('artifacts.ts generated successfully!');
+  fs.writeFileSync(outputFile, output, 'utf8');
+  console.log('artifacts.ts generated successfully!');
+};
+
+main();
