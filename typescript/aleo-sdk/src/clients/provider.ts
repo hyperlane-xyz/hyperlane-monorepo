@@ -1204,7 +1204,8 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
           .dividedToIntegerBy(new BigNumber(10).exponentiatedBy(10))
           .toFixed(0);
 
-        creditAllowance[i] = `{spender:${hooks[i]},amount:${quote}u64}`;
+        creditAllowance[i] =
+          `{spender:${hooks[i].split('/')[1]},amount:${quote}u64}`;
         totalQuote = totalQuote.plus(quote);
       } catch {
         continue;

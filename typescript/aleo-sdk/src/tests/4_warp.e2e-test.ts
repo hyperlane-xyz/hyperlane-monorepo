@@ -330,8 +330,20 @@ describe('4. aleo sdk warp e2e tests', async function () {
     const { hookAddress } = await signer.createMerkleTreeHook({
       mailboxAddress,
     });
-    const { hookAddress: igp } = await signer.createNoopHook({
+    const { hookAddress: igp } = await signer.createInterchainGasPaymasterHook({
       mailboxAddress,
+    });
+
+    await signer.setDestinationGasConfig({
+      hookAddress: igp,
+      destinationGasConfig: {
+        remoteDomainId: domainId,
+        gasOracle: {
+          tokenExchangeRate: '1000',
+          gasPrice: '1000',
+        },
+        gasOverhead: '50000',
+      },
     });
 
     await signer.setDefaultIsm({
@@ -363,7 +375,7 @@ describe('4. aleo sdk warp e2e tests', async function () {
       gasLimit: '200000',
       maxFee: {
         denom: ALEO_NATIVE_DENOM,
-        amount: '1000000',
+        amount: '100',
       },
     });
 

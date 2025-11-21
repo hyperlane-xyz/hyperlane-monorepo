@@ -1,11 +1,15 @@
 import { Account } from '@provablehq/sdk';
-import { expect } from 'chai';
+import chai from 'chai';
+import chaiAsPromised from 'chai-as-promised';
 import { step } from 'mocha-steps';
 
 import { AltVM } from '@hyperlane-xyz/utils';
 
 import { AleoSigner } from '../clients/signer.js';
 import { AleoReceipt, AleoTransaction } from '../utils/types.js';
+
+chai.use(chaiAsPromised);
+const { expect } = chai;
 
 describe('1. aleo sdk interchain security e2e tests', async function () {
   this.timeout(100_000);
@@ -73,6 +77,27 @@ describe('1. aleo sdk interchain security e2e tests', async function () {
     expect(ism.address).to.equal(txResponse.ismAddress);
     expect(ism.threshold).to.equal(threshold);
     expect(ism.validators).deep.equal(validators);
+  });
+
+  step('create new MerkleRootMultisig ISM', async () => {
+    // ARRANGE
+    const threshold = 2;
+    const validators = [
+      '0x3C24F29fa75869A1C9D19d9d6589Aae0B5227c3c',
+      '0xf719b4CC64d0E3a380e52c2720Abab13835F6d9c',
+      '0x98A56EdE1d6Dd386216DA8217D9ac1d2EE7c27c7',
+    ];
+
+    // note that the validators need to be sorted alphabetically
+    validators.sort();
+
+    // ACT && ASSERT
+    await expect(
+      signer.createMerkleRootMultisigIsm({
+        validators,
+        threshold,
+      }),
+    ).to.be.rejected;
   });
 
   step('create new Routing ISM', async () => {
