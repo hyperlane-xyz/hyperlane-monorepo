@@ -1,4 +1,4 @@
-import { Domain } from '@hyperlane-xyz/utils';
+import { ChainId, Domain } from '@hyperlane-xyz/utils';
 
 type ChainNameOrId = string | number;
 
@@ -18,6 +18,16 @@ export interface ChainMetadataForAltVM {
     confirmations?: number;
     estimateBlockTime?: number;
   };
+
+  gatewayUrls?: {
+    http: string;
+  }[];
+
+  // TODO: remove these once Le PR is merged
+  chainId: ChainId;
+  rpcUrls?: {
+    http: string;
+  }[];
 }
 
 /**
