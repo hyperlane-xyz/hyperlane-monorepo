@@ -24,8 +24,8 @@ export class ChainResolverFactory {
     [CommandType.RELAYER, () => MultiChainResolver.forRelayer()],
     [CommandType.CORE_APPLY, () => MultiChainResolver.forCoreApply()],
     [CommandType.CORE_DEPLOY, () => MultiChainResolver.forCoreDeploy()],
-    [CommandType.CORE_READ, () => MultiChainResolver.forCoreDeploy()],
-    [CommandType.CORE_CHECK, () => MultiChainResolver.forCoreDeploy()],
+    [CommandType.CORE_READ, () => MultiChainResolver.forCoreRead()],
+    [CommandType.CORE_CHECK, () => MultiChainResolver.forCoreRead()],
   ]);
 
   /**

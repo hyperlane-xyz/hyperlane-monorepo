@@ -32,6 +32,7 @@ enum ChainSelectionMode {
   CORE_APPLY,
   CORE_DEPLOY,
   CORE_READ,
+  CORE_CHECK,
   DEFAULT,
 }
 
@@ -57,6 +58,7 @@ export class MultiChainResolver implements ChainResolver {
         return this.resolveWarpRebalancerChains(argv);
       case ChainSelectionMode.AGENT_KURTOSIS:
         return this.resolveAgentChains(argv);
+      case ChainSelectionMode.CORE_CHECK:
       case ChainSelectionMode.CORE_READ:
         return this.resolveChain(argv);
       case ChainSelectionMode.CORE_APPLY:
@@ -325,6 +327,10 @@ export class MultiChainResolver implements ChainResolver {
 
   static forCoreRead(): MultiChainResolver {
     return new MultiChainResolver(ChainSelectionMode.CORE_READ);
+  }
+
+  static forCoreCheck(): MultiChainResolver {
+    return new MultiChainResolver(ChainSelectionMode.CORE_CHECK);
   }
 
   static default(): MultiChainResolver {
