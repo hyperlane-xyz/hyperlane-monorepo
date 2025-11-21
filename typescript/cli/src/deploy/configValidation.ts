@@ -9,14 +9,16 @@
  */
 import { CoreConfig as ProviderCoreConfig } from '@hyperlane-xyz/provider-sdk/core';
 import {
+  CollateralWarpConfig,
   TokenType as ProviderTokenType,
   WarpConfig as ProviderWarpConfig,
+  SyntheticWarpConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import {
   CoreConfig,
   IsmType,
   TokenType,
-  WarpRouteDeployConfig,
+  WarpRouteDeployConfigMailboxRequired,
 } from '@hyperlane-xyz/sdk';
 
 /**
@@ -105,22 +107,20 @@ export function validateCoreConfigForAltVM(
  * @throws Error if config contains unsupported token types
  */
 export function validateWarpConfigForAltVM(
-  config: WarpRouteDeployConfig[string],
+  config: WarpRouteDeployConfigMailboxRequired[string],
   chain: string,
 ): ProviderWarpConfig {
-  const tokenType = config.type;
-
   // Check if token type is supported
-  if (!SUPPORTED_TOKEN_TYPES.has(tokenType)) {
+  if (!SUPPORTED_TOKEN_TYPES.has(config.type)) {
     const supportedTypes = Array.from(SUPPORTED_TOKEN_TYPES).join(', ');
     const errorMsg =
-      `Unsupported token type '${tokenType}' for Alt-VM chain '${chain}'.\n` +
+      `Unsupported token type '${config.type}' for Alt-VM chain '${chain}'.\n` +
       `Supported token types: ${supportedTypes}.`;
     throw new Error(errorMsg);
   }
 
   // Validate the token conforms to basic collateral or synthetic structure
-  if (tokenType === TokenType.collateral) {
+  if (config.type === TokenType.collateral) {
     if (!('token' in config)) {
       const errorMsg = `Collateral token config for chain '${chain}' must specify 'token' address`;
       throw new Error(errorMsg);
@@ -150,19 +150,23 @@ export function validateWarpConfigForAltVM(
     destinationGas: config.destinationGas,
   };
 
-  if (tokenType === TokenType.collateral) {
+  if (config.type === TokenType.collateral) {
     return {
       ...baseConfig,
       type: ProviderTokenType.collateral,
       token: (config as any).token,
-    } as ProviderWarpConfig;
-  } else {
+    } as CollateralWarpConfig;
+  } else if (config.type === TokenType.synthetic) {
     return {
       ...baseConfig,
       type: ProviderTokenType.synthetic,
       name: config.name,
       symbol: config.symbol,
       decimals: config.decimals,
-    } as ProviderWarpConfig;
+    } as SyntheticWarpConfig;
+  } else {
+    throw new Error(
+      `Unsupported token type '${config.type}' for Alt-VM chain '${chain}'.`,
+    );
   }
 }
