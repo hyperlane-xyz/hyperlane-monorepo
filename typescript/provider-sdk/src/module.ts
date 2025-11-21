@@ -30,8 +30,12 @@ export interface HypModule<M extends ModuleType> {
   update(config: Config<M>): Promise<AnnotatedTx[]>;
 }
 
-export interface ModuleProvider<M extends ModuleType> {
+export interface ReaderProvider<M extends ModuleType> {
   connectReader: (provider: IProvider) => HypReader<M>;
+}
+
+export interface ModuleProvider<M extends ModuleType>
+  extends ReaderProvider<M> {
   connectModule: (
     signer: ISigner<AnnotatedTx, TxReceipt>,
     args: HypModuleArgs<M>,
