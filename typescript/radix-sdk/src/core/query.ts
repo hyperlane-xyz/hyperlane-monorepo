@@ -7,7 +7,10 @@ import { utils } from 'ethers';
 
 import { assert, strip0x } from '@hyperlane-xyz/utils';
 
-import { getMultisigIsmConfig } from '../ism/query.js';
+import {
+  getDomainRoutingIsmConfig,
+  getMultisigIsmConfig,
+} from '../ism/query.js';
 import { RadixBase } from '../utils/base.js';
 import {
   EntityDetails,
@@ -153,70 +156,7 @@ export class RadixCoreQuery {
       ismAddress: string;
     }[];
   }> {
-    const details =
-      await this.gateway.state.getEntityDetailsVaultAggregated(ism);
-
-    const ownerResource = (details.details as EntityDetails).role_assignments
-      .owner.rule.access_rule.proof_rule.requirement.resource;
-
-    const { items: holders } =
-      await this.gateway.extensions.getResourceHolders(ownerResource);
-
-    const resourceHolders = [
-      ...new Set(holders.map((item) => item.holder_address)),
-    ];
-
-    assert(
-      resourceHolders.length === 1,
-      `expected token holders of resource ${ownerResource} to be one, found ${resourceHolders.length} holders instead`,
-    );
-
-    const type = (details.details as EntityDetails).blueprint_name;
-    assert(
-      type === 'RoutingIsm',
-      `ism is not a RoutingIsm, instead got ${type}`,
-    );
-
-    const fields = (details.details as EntityDetails).state.fields;
-
-    const routesKeyValueStore =
-      fields.find((f) => f.field_name === 'routes')?.value ?? '';
-    assert(routesKeyValueStore, `found no routes on RoutingIsm ${ism}`);
-
-    const keys = await this.base.getKeysFromKeyValueStore(routesKeyValueStore);
-
-    const routes = [];
-
-    for (const key of keys) {
-      const { entries } =
-        await this.gateway.state.innerClient.keyValueStoreData({
-          stateKeyValueStoreDataRequest: {
-            key_value_store_address: routesKeyValueStore,
-            keys: [
-              {
-                key_hex: key.raw_hex,
-              },
-            ],
-          },
-        });
-
-      const domainId = parseInt(
-        (key.programmatic_json as EntityField)?.value ?? '0',
-      );
-      const ismAddress = (entries[0].value.programmatic_json as EntityField)
-        .value;
-
-      routes.push({
-        domainId,
-        ismAddress,
-      });
-    }
-
-    return {
-      address: ism,
-      owner: resourceHolders[0],
-      routes,
-    };
+    return getDomainRoutingIsmConfig(this.gateway, { ism });
   }
 
   public async getHookType({ hook }: { hook: string }): Promise<Hooks> {
