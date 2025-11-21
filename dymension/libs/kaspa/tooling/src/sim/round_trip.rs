@@ -136,6 +136,10 @@ impl TaskArgs {
     pub fn hub_denom(&self) -> String {
         format!("hyperlane/{}", self.token_hub_str())
     }
+    /// Net amount to withdraw such that withdrawal + fee < deposit_amount
+    pub fn net_withdrawal_amount(&self) -> u64 {
+        (self.deposit_amount as f64 / (1.0 + self.withdrawal_fee_pct)) as u64 - 1
+    }
 }
 
 /*
@@ -403,8 +407,8 @@ impl<'a> RoundTrip<'a> {
     }
 
     async fn withdraw(&self, hub_user_key: &EasyHubKey) -> Result<(Address, String, u128)> {
-        let withdrawal_amount = self.res.args.deposit_amount;
-        let fee_amount = (withdrawal_amount as f64 * self.res.args.withdrawal_fee_pct) as u64;
+        let withdrawal_amount = self.res.args.net_withdrawal_amount();
+        let fee_amount = self.res.args.deposit_amount - withdrawal_amount;
         let fee_denom = self.res.args.hub_denom();
 
         let kaspa_recipient = get_kaspa_keypair();
@@ -475,7 +479,7 @@ impl<'a> RoundTrip<'a> {
     }
 
     async fn await_kaspa_credit(&self, kaspa_addr: Address) -> Result<()> {
-        let expected_credit = self.res.args.deposit_amount;
+        let expected_credit = self.res.args.net_withdrawal_amount();
 
         debug!(
             "await kaspa credit starting: task_id={} hub_whale_id={} kaspa_addr={} expected_value={}",
