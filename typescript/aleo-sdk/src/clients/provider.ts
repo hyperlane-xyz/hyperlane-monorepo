@@ -1224,7 +1224,16 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     }`;
 
     if (req.customHookAddress) {
-      const hookMetadata = `{gas_limit:0u128,extra_data:[${Array(64).fill(`0u8`).join(',')}]}`;
+      const metadataBytes: number[] = fillArray(
+        [...Buffer.from(strip0x(req.customHookMetadata || ''), 'hex')],
+        64,
+        0,
+      );
+      const gasLimit = this.U128.fromBytesLe(
+        Uint8Array.from(metadataBytes.slice(0, 16)),
+      ).toString();
+
+      const hookMetadata = `{gas_limit:${gasLimit},extra_data:[${metadataBytes.map((b) => `${b}u8`).join(',')}]}`;
 
       console.log('transfer_remote_with_hook', [
         tokenMetadataValue,
@@ -1234,7 +1243,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
         recipient,
         `${req.amount}u64`,
         arrayToPlaintext(creditAllowance),
-        req.customHookAddress,
+        req.customHookAddress.split('/')[1],
         hookMetadata,
       ]);
 
@@ -1251,7 +1260,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
           recipient,
           `${req.amount}u64`,
           arrayToPlaintext(creditAllowance),
-          req.customHookAddress,
+          req.customHookAddress.split('/')[1],
           hookMetadata,
         ],
         skipProof: this.skipProof,

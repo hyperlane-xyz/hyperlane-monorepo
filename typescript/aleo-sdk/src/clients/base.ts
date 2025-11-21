@@ -57,6 +57,10 @@ export class AleoBase {
     return this.chainId ? TestnetPlaintext : MainnetPlaintext;
   }
 
+  protected get U128() {
+    return this.chainId ? TestnetU128 : MainnetU128;
+  }
+
   protected getProgramManager(privateKey?: string): AnyProgramManager {
     if (this.chainId) {
       const account = privateKey
