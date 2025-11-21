@@ -81,9 +81,9 @@ export class AltVMWarpRouteReader implements HypReader<TokenRouterModuleType> {
       hook,
       remoteRouters,
       destinationGas,
-      name: token.name || undefined,
-      symbol: token.symbol || undefined,
-      decimals: token.decimals || undefined,
+      name: token.name ?? undefined,
+      symbol: token.symbol ?? undefined,
+      decimals: token.decimals ?? undefined,
     };
 
     // Return discriminated union based on type
