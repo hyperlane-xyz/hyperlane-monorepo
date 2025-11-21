@@ -4,7 +4,7 @@ use std::sync::Arc;
 use derive_new::new;
 use eyre::Result;
 use futures::StreamExt;
-use tracing::{debug, instrument, warn};
+use tracing::{debug, info, instrument, warn};
 
 use hyperlane_core::{
     HyperlaneDomain, MultisigSignedCheckpoint, SignedCheckpointWithMessageId, H160, H256,
@@ -68,12 +68,12 @@ impl MultisigCheckpointSyncer {
                     debug!(?validator, ?index, "Validator returned latest index");
                     latest_indices.insert(*validator, Some(index));
                 }
-                result => {
-                    debug!(
-                        ?validator,
-                        ?result,
-                        "Failed to get latest index from validator"
-                    );
+                Ok(None) => {
+                    debug!(?validator, "Validator returned no latest index");
+                    latest_indices.insert(*validator, None);
+                }
+                Err(err) => {
+                    info!(?validator, %err, "Error fetching latest index from validator");
                     latest_indices.insert(*validator, None);
                 }
             }
@@ -130,7 +130,10 @@ impl MultisigCheckpointSyncer {
         );
 
         if latest_indices.is_empty() {
-            debug!("No validators returned a latest index");
+            info!(
+                validators_count = validators.len(),
+                "Quorum unreachable: no validators returned a latest index"
+            );
             return Ok(None);
         }
 
@@ -144,7 +147,14 @@ impl MultisigCheckpointSyncer {
             // generate a proof.
             let start_index = highest_quorum_index.min(maximum_index);
             if minimum_index > start_index {
-                debug!(%start_index, %highest_quorum_index, "Highest quorum index is below the minimum index");
+                info!(
+                    %minimum_index,
+                    %start_index,
+                    %highest_quorum_index,
+                    validators_with_indices = latest_indices.len(),
+                    threshold,
+                    "Quorum unreachable: highest quorum index is below minimum required"
+                );
                 return Ok(None);
             }
 
@@ -154,8 +164,14 @@ impl MultisigCheckpointSyncer {
                     return Ok(Some(checkpoint));
                 }
             }
+            info!(
+                %minimum_index,
+                %start_index,
+                validators_with_indices = latest_indices.len(),
+                threshold,
+                "Quorum unreachable: no valid checkpoint found in searched range"
+            );
         }
-        debug!("No checkpoint found in range");
         Ok(None)
     }
 
@@ -209,11 +225,20 @@ impl MultisigCheckpointSyncer {
                 // signed the checkpoint at `index`.
                 let signed_checkpoint = match checkpoint {
                     Ok(Some(c)) => c,
-                    _ => {
+                    Ok(None) => {
                         debug!(
                             validator = format!("{:#x}", validator),
                             index = index,
-                            "Unable to find signed checkpoint"
+                            "Checkpoint not found for validator"
+                        );
+                        continue;
+                    }
+                    Err(err) => {
+                        info!(
+                            validator = format!("{:#x}", validator),
+                            index = index,
+                            %err,
+                            "Error fetching checkpoint from validator"
                         );
                         continue;
                     }
