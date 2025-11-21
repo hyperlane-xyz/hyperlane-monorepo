@@ -8,7 +8,7 @@ import { AleoSigner } from '../clients/signer.js';
 import { AleoReceipt, AleoTransaction } from '../utils/types.js';
 
 describe('1. aleo sdk interchain security e2e tests', async function () {
-  this.timeout(3_600_000);
+  this.timeout(100_000);
 
   let signer: AltVM.ISigner<AleoTransaction, AleoReceipt>;
 

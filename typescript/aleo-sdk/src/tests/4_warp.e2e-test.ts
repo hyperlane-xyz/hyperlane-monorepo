@@ -18,7 +18,7 @@ import { ALEO_NATIVE_DENOM } from '../utils/helper.js';
 import { AleoReceipt, AleoTransaction } from '../utils/types.js';
 
 describe('4. aleo sdk warp e2e tests', async function () {
-  this.timeout(3_600_000);
+  this.timeout(100_000);
 
   let signer: AltVM.ISigner<AleoTransaction, AleoReceipt>;
 
@@ -293,7 +293,9 @@ describe('4. aleo sdk warp e2e tests', async function () {
 
   step('quote remote transfer', async () => {
     // ARRANGE
-    const { hookAddress } = await signer.createInterchainGasPaymasterHook({});
+    const { hookAddress } = await signer.createInterchainGasPaymasterHook({
+      mailboxAddress,
+    });
     await signer.setDestinationGasConfig({
       hookAddress,
       destinationGasConfig: {

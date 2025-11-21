@@ -387,11 +387,13 @@ export class AleoSigner
   async createMerkleTreeHook(
     req: Omit<AltVM.ReqCreateMerkleTreeHook, 'signer'>,
   ): Promise<AltVM.ResCreateMerkleTreeHook> {
-    const mailboxSalt = this.getNewProgramSalt(12);
+    const mailboxSalt = this.getProgramSaltFromAddress(req.mailboxAddress);
     const programs = await this.deployProgram('hook_manager', mailboxSalt);
 
+    const hookManagerProgramId = programs[programs.length - 1];
+
     let nonce = await this.aleoClient.getProgramMappingValue(
-      programs[programs.length - 1],
+      hookManagerProgramId,
       'nonce',
       'true',
     );
@@ -409,30 +411,32 @@ export class AleoSigner
     await this.aleoClient.waitForTransactionConfirmation(txId);
 
     const hookAddress = await this.aleoClient.getProgramMappingValue(
-      programs[programs.length - 1],
+      hookManagerProgramId,
       'hook_addresses',
       nonce,
     );
 
     if (hookAddress === null) {
       throw new Error(
-        `could not read hook address with nonce ${nonce} from hook_manager`,
+        `could not read hook address with nonce ${nonce} from hook_manager ${hookManagerProgramId}`,
       );
     }
 
     return {
-      hookAddress,
+      hookAddress: `${hookManagerProgramId}/${hookAddress}`,
     };
   }
 
   async createInterchainGasPaymasterHook(
     req: Omit<AltVM.ReqCreateInterchainGasPaymasterHook, 'signer'>,
   ): Promise<AltVM.ResCreateInterchainGasPaymasterHook> {
-    const mailboxSalt = this.getNewProgramSalt(12);
+    const mailboxSalt = this.getProgramSaltFromAddress(req.mailboxAddress);
     const programs = await this.deployProgram('hook_manager', mailboxSalt);
 
+    const hookManagerProgramId = programs[programs.length - 1];
+
     let nonce = await this.aleoClient.getProgramMappingValue(
-      programs[programs.length - 1],
+      hookManagerProgramId,
       'nonce',
       'true',
     );
@@ -450,7 +454,7 @@ export class AleoSigner
     await this.aleoClient.waitForTransactionConfirmation(txId);
 
     const hookAddress = await this.aleoClient.getProgramMappingValue(
-      programs[programs.length - 1],
+      hookManagerProgramId,
       'hook_addresses',
       nonce,
     );
@@ -462,7 +466,7 @@ export class AleoSigner
     }
 
     return {
-      hookAddress,
+      hookAddress: `${hookManagerProgramId}/${hookAddress}`,
     };
   }
 
@@ -517,11 +521,13 @@ export class AleoSigner
   async createNoopHook(
     req: Omit<AltVM.ReqCreateNoopHook, 'signer'>,
   ): Promise<AltVM.ResCreateNoopHook> {
-    const mailboxSalt = this.getNewProgramSalt(12);
+    const mailboxSalt = this.getProgramSaltFromAddress(req.mailboxAddress);
     const programs = await this.deployProgram('hook_manager', mailboxSalt);
 
+    const hookManagerProgramId = programs[programs.length - 1];
+
     let nonce = await this.aleoClient.getProgramMappingValue(
-      programs[programs.length - 1],
+      hookManagerProgramId,
       'nonce',
       'true',
     );
@@ -539,7 +545,7 @@ export class AleoSigner
     await this.aleoClient.waitForTransactionConfirmation(txId);
 
     const hookAddress = await this.aleoClient.getProgramMappingValue(
-      programs[programs.length - 1],
+      hookManagerProgramId,
       'hook_addresses',
       nonce,
     );
@@ -551,7 +557,7 @@ export class AleoSigner
     }
 
     return {
-      hookAddress,
+      hookAddress: `${hookManagerProgramId}/${hookAddress}`,
     };
   }
 

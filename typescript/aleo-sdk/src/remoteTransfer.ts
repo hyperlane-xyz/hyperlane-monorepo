@@ -22,7 +22,7 @@ const main = async () => {
       },
     );
 
-    const domainId = 1234;
+    const domainId = 1;
 
     const { mailboxAddress } = await signer.createMailbox({
       domainId,
@@ -42,21 +42,21 @@ const main = async () => {
       hookAddress,
     });
 
-    // const { hookAddress: igp } = await signer.createInterchainGasPaymasterHook(
-    //   {},
-    // );
-    // await signer.setDestinationGasConfig({
-    //   hookAddress: igp,
-    //   destinationGasConfig: {
-    //     remoteDomainId: domainId,
-    //     gasOracle: {
-    //       tokenExchangeRate: '1000',
-    //       gasPrice: '1000',
-    //     },
-    //     gasOverhead: '50000',
-    //   },
-    // });
-    const { hookAddress: igp } = await signer.createNoopHook({});
+    const { hookAddress: igp } = await signer.createInterchainGasPaymasterHook({
+      mailboxAddress,
+    });
+    await signer.setDestinationGasConfig({
+      hookAddress: igp,
+      destinationGasConfig: {
+        remoteDomainId: domainId,
+        gasOracle: {
+          tokenExchangeRate: '5000000000',
+          gasPrice: '4',
+        },
+        gasOverhead: '10',
+      },
+    });
+    // const { hookAddress: igp } = await signer.createNoopHook({});
     await signer.setRequiredHook({
       mailboxAddress,
       hookAddress: igp,
@@ -70,7 +70,7 @@ const main = async () => {
       remoteRouter: {
         receiverDomainId: domainId,
         receiverAddress: addressToBytes32(tokenAddress),
-        gas: '200000',
+        gas: '1000',
       },
     });
 
@@ -84,6 +84,12 @@ const main = async () => {
     console.log('required hook', igp);
     console.log('default hook', hookAddress);
     console.log('tokenAddress', tokenAddress);
+
+    console.log(
+      await signer.getMailbox({
+        mailboxAddress,
+      }),
+    );
 
     // remote transfer inputs:
     // [
@@ -143,8 +149,8 @@ const main = async () => {
       tokenAddress,
       destinationDomainId: domainId,
       recipient: addressToBytes32(new Account().address().to_string()),
-      amount: '1000000',
-      gasLimit: '0',
+      amount: '1234',
+      gasLimit: '1000',
       maxFee: {
         denom: ALEO_NATIVE_DENOM,
         amount: '1000000',

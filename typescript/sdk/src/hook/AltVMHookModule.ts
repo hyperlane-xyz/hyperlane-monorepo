@@ -258,6 +258,7 @@ export class AltVMHookModule<PT extends ProtocolType> extends HyperlaneModule<
 
     const { hookAddress } = await this.signer.createInterchainGasPaymasterHook({
       denom: nativeToken.denom,
+      mailboxAddress: this.args.addresses.mailbox,
     });
 
     for (const [remote, c] of Object.entries(config.oracleConfig)) {

@@ -56,7 +56,7 @@ export function loadProgramsInDeployOrder(
       p
         .toString()
         .replaceAll(
-          /(mailbox|dispatch_proxy|validator_announce).aleo/g,
+          /(mailbox|hook_manager|dispatch_proxy|validator_announce).aleo/g,
           (_, p1) => `${p1}_${coreSalt}.aleo`,
         )
         .replaceAll(

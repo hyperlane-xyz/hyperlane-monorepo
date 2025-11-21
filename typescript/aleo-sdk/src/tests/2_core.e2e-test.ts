@@ -8,7 +8,7 @@ import { AleoSigner } from '../clients/signer.js';
 import { AleoReceipt, AleoTransaction } from '../utils/types.js';
 
 describe('2. aleo sdk core e2e tests', async function () {
-  this.timeout(3_600_000);
+  this.timeout(100_000);
 
   let signer: AltVM.ISigner<AleoTransaction, AleoReceipt>;
 
@@ -93,7 +93,7 @@ describe('2. aleo sdk core e2e tests', async function () {
 
     // ASSERT
     mailbox = await signer.getMailbox({ mailboxAddress });
-    expect(mailbox.defaultHook).to.equal(hookAddress);
+    expect(mailbox.defaultHook).to.equal(hookAddress.split('/')[1]);
   });
 
   step('set mailbox required hook', async () => {
@@ -109,7 +109,7 @@ describe('2. aleo sdk core e2e tests', async function () {
 
     // ASSERT
     mailbox = await signer.getMailbox({ mailboxAddress });
-    expect(mailbox.requiredHook).to.equal(hookAddress);
+    expect(mailbox.requiredHook).to.equal(hookAddress.split('/')[1]);
   });
 
   step('set mailbox owner', async () => {

@@ -23,8 +23,6 @@ import {
 
 import { assert, strip0x } from '@hyperlane-xyz/utils';
 
-import { credits } from '../artifacts.js';
-
 export type AnyAleoNetworkClient =
   | AleoMainnetNetworkClient
   | AleoTestnetNetworkClient;
@@ -52,9 +50,7 @@ export class AleoBase {
       ? new AleoTestnetNetworkClient(rpcUrls[0])
       : new AleoMainnetNetworkClient(rpcUrls[0]);
 
-    this.skipProof = process.env['ALEO_SKIP_PROOF']
-      ? JSON.parse(process.env['ALEO_SKIP_PROOF'])
-      : false;
+    this.skipProof = JSON.parse(process.env['ALEO_SKIP_PROOF'] || 'false');
   }
 
   protected get Plaintext() {
@@ -130,8 +126,7 @@ export class AleoBase {
         );
       }
 
-      const Plaintext = this.chainId ? TestnetPlaintext : MainnetPlaintext;
-      return Plaintext.fromString(result).toObject();
+      return this.Plaintext.fromString(result).toObject();
     } catch (err) {
       throw new Error(
         `Failed to query mapping value for program ${programId}/${mappingName}/${key}: ${err}`,
@@ -140,10 +135,13 @@ export class AleoBase {
   }
 
   protected getAddressFromProgramId(programId: string): string {
-    const program = this.chainId ? TestnetProgram : MainnetProgram;
+    const Program = this.chainId ? TestnetProgram : MainnetProgram;
 
-    return program
-      .fromString(credits.replaceAll('credits.aleo', programId))
+    return Program.fromString(
+      Program.getCreditsProgram()
+        .toString()
+        .replaceAll('credits.aleo', programId),
+    )
       .address()
       .to_string();
   }

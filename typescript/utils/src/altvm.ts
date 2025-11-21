@@ -301,6 +301,7 @@ export type ResCreateMerkleTreeHook = {
 
 export type ReqCreateInterchainGasPaymasterHook = {
   signer: string;
+  mailboxAddress: string;
   denom?: string;
 };
 export type ResCreateInterchainGasPaymasterHook = {
@@ -350,6 +351,7 @@ export type ResRemoveDestinationGasConfig = {
 
 export type ReqCreateNoopHook = {
   signer: string;
+  mailboxAddress: string;
 };
 export type ResCreateNoopHook = {
   hookAddress: string;
