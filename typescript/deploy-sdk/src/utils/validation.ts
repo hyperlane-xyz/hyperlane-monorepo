@@ -42,7 +42,7 @@ export function validateIsmType(
  * @param config - ISM configuration (can be string address or config object)
  * @param chain - Chain name for error messages
  * @param context - Context string for error messages (e.g., "warp route", "core")
- * @throws Error if ISM type is not supported
+ * @throws UnsupportedIsmTypeError if ISM type is not supported
  */
 export function validateIsmConfig(
   config: IsmConfig | string,

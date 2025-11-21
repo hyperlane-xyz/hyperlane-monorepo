@@ -40,8 +40,6 @@ export class AltVMHookModule implements HypModule<HookModuleType> {
     private readonly args: HypModuleArgs<HookModuleType>,
     protected readonly signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
   ) {
-    // this.args.config = HookConfigSchema.parse(this.args.config);
-
     this.reader = new AltVMHookReader(chainLookup.getChainMetadata, signer);
 
     const metadata = chainLookup.getChainMetadata(this.args.chain);
@@ -62,8 +60,6 @@ export class AltVMHookModule implements HypModule<HookModuleType> {
     if (typeof targetConfig === 'string' && isZeroishAddress(targetConfig)) {
       return Promise.resolve([]);
     }
-
-    // targetConfig = HookConfigSchema.parse(targetConfig);
 
     // Do not support updating to a custom Hook address
     if (typeof targetConfig === 'string') {
@@ -208,8 +204,6 @@ export class AltVMHookModule implements HypModule<HookModuleType> {
   }: {
     config: HookConfig | string;
   }): Promise<Address> {
-    // config = HookConfigSchema.parse(config);
-
     if (typeof config === 'string') {
       return config;
     }
