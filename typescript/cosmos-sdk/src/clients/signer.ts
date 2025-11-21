@@ -519,6 +519,12 @@ export class CosmosNativeSigner
     };
   }
 
+  async setTokenHook(
+    _req: Omit<AltVM.ReqSetTokenHook, 'signer'>,
+  ): Promise<AltVM.ResSetTokenHook> {
+    throw new Error(`SetTokenHook is currently not supported on Cosmos Native`);
+  }
+
   async enrollRemoteRouter(
     req: Omit<AltVM.ReqEnrollRemoteRouter, 'signer'>,
   ): Promise<AltVM.ResEnrollRemoteRouter> {

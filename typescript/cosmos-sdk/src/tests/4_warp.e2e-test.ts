@@ -56,6 +56,7 @@ describe('4. cosmos sdk warp e2e tests', async function () {
     expect(token.mailboxAddress).to.equal(mailboxAddress);
     expect(token.denom).to.equal(denom);
     expect(token.ismAddress).to.be.empty;
+    expect(token.hookAddress).to.be.empty;
     expect(token.tokenType).to.equal(AltVM.TokenType.collateral);
   });
 
@@ -159,6 +160,7 @@ describe('4. cosmos sdk warp e2e tests', async function () {
 
     const { hookAddress: igp_id } =
       await signer.createInterchainGasPaymasterHook({
+        mailboxAddress,
         denom,
       });
 

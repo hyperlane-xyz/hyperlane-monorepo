@@ -257,6 +257,7 @@ export class AltVMHookModule<PT extends ProtocolType> extends HyperlaneModule<
     assert(nativeToken?.denom, `found no native token for chain ${this.chain}`);
 
     const { hookAddress } = await this.signer.createInterchainGasPaymasterHook({
+      mailboxAddress: this.args.addresses.mailbox,
       denom: nativeToken.denom,
       mailboxAddress: this.args.addresses.mailbox,
     });
