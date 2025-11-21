@@ -208,11 +208,13 @@ export class AleoHypCollateralAdapter
 
   async quoteTransferRemoteGas({
     destination,
+    customHook,
   }: QuoteTransferRemoteParams): Promise<InterchainGasQuote> {
     const { denom: addressOrDenom, amount } =
       await this.provider.quoteRemoteTransfer({
         tokenAddress: this.tokenAddress,
         destinationDomainId: destination,
+        customHookAddress: customHook,
       });
 
     return {

@@ -657,9 +657,22 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       };
     }
 
-    const gasLimit = new BigNumber(
+    let gasLimit = new BigNumber(
       this.Plaintext.fromString(remoteRouterValue).toObject()['gas'],
     );
+
+    if (req.customHookAddress && req.customHookMetadata) {
+      const metadataBytes: number[] = fillArray(
+        [...Buffer.from(strip0x(req.customHookMetadata || ''), 'hex')],
+        64,
+        0,
+      );
+      gasLimit = new BigNumber(
+        this.U128.fromBytesLe(Uint8Array.from(metadataBytes.slice(0, 16)))
+          .toString()
+          .replace('u128', ''),
+      );
+    }
 
     const { mailboxAddress } = await this.getToken({
       tokenAddress: req.tokenAddress,
@@ -1168,7 +1181,20 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       `{spender:${ALEO_NULL_ADDRESS},amount:0u64}`,
     );
 
-    const gasLimit = new BigNumber(req.gasLimit);
+    let gasLimit = new BigNumber(req.gasLimit);
+
+    if (req.customHookAddress && req.customHookMetadata) {
+      const metadataBytes: number[] = fillArray(
+        [...Buffer.from(strip0x(req.customHookMetadata || ''), 'hex')],
+        64,
+        0,
+      );
+      gasLimit = new BigNumber(
+        this.U128.fromBytesLe(Uint8Array.from(metadataBytes.slice(0, 16)))
+          .toString()
+          .replace('u128', ''),
+      );
+    }
 
     const mailbox = await this.getMailbox({
       mailboxAddress: mailboxAddress,
@@ -1235,18 +1261,6 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
 
       const hookMetadata = `{gas_limit:${gasLimit},extra_data:[${metadataBytes.map((b) => `${b}u8`).join(',')}]}`;
 
-      console.log('transfer_remote_with_hook', [
-        tokenMetadataValue,
-        mailboxValue,
-        remoteRouterValue,
-        `${req.destinationDomainId}u32`,
-        recipient,
-        `${req.amount}u64`,
-        arrayToPlaintext(creditAllowance),
-        req.customHookAddress.split('/')[1],
-        hookMetadata,
-      ]);
-
       return {
         programName: req.tokenAddress,
         functionName: 'transfer_remote_with_hook',
@@ -1266,16 +1280,6 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
         skipProof: this.skipProof,
       };
     }
-
-    console.log('transfer_remote', [
-      tokenMetadataValue,
-      mailboxValue,
-      remoteRouterValue,
-      `${req.destinationDomainId}u32`,
-      recipient,
-      `${req.amount}u64`,
-      arrayToPlaintext(creditAllowance),
-    ]);
 
     return {
       programName: req.tokenAddress,
