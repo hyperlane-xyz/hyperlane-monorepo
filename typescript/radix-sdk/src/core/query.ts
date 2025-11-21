@@ -3,7 +3,6 @@ import {
   PrivateKey,
   generateRandomNonce,
 } from '@radixdlt/radix-engine-toolkit';
-import { utils } from 'ethers';
 
 import { assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
 
@@ -87,7 +86,9 @@ export class RadixCoreQuery {
     mailbox: string;
     message_id: string;
   }): Promise<boolean> {
-    const pk = new PrivateKey.Ed25519(new Uint8Array(utils.randomBytes(32)));
+    const pk = new PrivateKey.Ed25519(
+      globalThis.crypto.getRandomValues(new Uint8Array(32)),
+    );
 
     const constructionMetadata =
       await this.gateway.transaction.innerClient.transactionConstruction();

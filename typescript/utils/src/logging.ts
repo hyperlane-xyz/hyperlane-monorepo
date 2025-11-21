@@ -3,6 +3,9 @@ import { LevelWithSilent, Logger, LoggerOptions, pino } from 'pino';
 
 import { inKubernetes, safelyAccessEnvVar } from './env.js';
 
+// Re-export Logger type for consuming packages
+export type { Logger };
+
 // Level and format here should correspond with the agent options as much as possible
 // https://docs.hyperlane.xyz/docs/operate/config-reference#logfmt
 
@@ -144,7 +147,7 @@ export async function tryInitializeGcpLogger(options?: {
 
   try {
     const { createGcpLoggingPinoConfig } = await import(
-      /* webpackIgnore: true */ '@google-cloud/pino-logging-gcp-config'
+      /* webpackIgnore: true */ '@google-cloud/pino-logging-gcp-config' as any
     );
     const serviceContext = options
       ? {

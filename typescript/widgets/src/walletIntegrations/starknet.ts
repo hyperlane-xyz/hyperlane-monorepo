@@ -8,7 +8,7 @@ import {
   useSwitchChain,
 } from '@starknet-react/core';
 import { useCallback, useMemo } from 'react';
-import { Call } from 'starknet';
+import { type Call } from 'starknet';
 import { StarknetkitConnector, useStarknetkitConnectModal } from 'starknetkit';
 
 import {

@@ -59,7 +59,7 @@ export function getRegistry(): FileSystemRegistry {
     rootLogger.debug({ registryUri }, 'Using registry URI');
     registry = new FileSystemRegistry({
       uri: registryUri,
-      logger: rootLogger.child({ module: 'infra-registry' }),
+      logger: rootLogger.child<never>({ module: 'infra-registry' }),
     });
   }
   return registry;

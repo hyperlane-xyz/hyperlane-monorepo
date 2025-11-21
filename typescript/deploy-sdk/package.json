@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@hyperlane-xyz/provider-sdk": "0.1.0",
+    "@hyperlane-xyz/utils": "19.9.0",
     "zod": "^3.21.2"
   },
   "devDependencies": {
@@ -26,7 +27,7 @@
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@types/chai-as-promised": "^8",
     "@types/mocha": "^10.0.1",
-    "@types/node": "^18.14.5",
+    "@types/node": "^20.0.0",
     "@types/sinon": "^17.0.1",
     "@types/sinon-chai": "^3.2.12",
     "chai": "^4.5.0",

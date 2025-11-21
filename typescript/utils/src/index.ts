@@ -112,6 +112,7 @@ export {
   rootLogger,
   setRootLogger,
 } from './logging.js';
+export type { Logger } from './logging.js';
 export { mean, median, randomInt, stdDev, sum } from './math.js';
 export {
   formatMessage,

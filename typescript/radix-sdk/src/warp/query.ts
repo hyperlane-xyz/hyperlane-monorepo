@@ -4,7 +4,6 @@ import {
   generateRandomNonce,
 } from '@radixdlt/radix-engine-toolkit';
 import { BigNumber } from 'bignumber.js';
-import { utils } from 'ethers';
 
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -200,7 +199,9 @@ export class RadixWarpQuery {
     token: string;
     destination_domain: number;
   }): Promise<{ denom: string; amount: bigint }> {
-    const pk = new PrivateKey.Ed25519(new Uint8Array(utils.randomBytes(32)));
+    const pk = new PrivateKey.Ed25519(
+      globalThis.crypto.getRandomValues(new Uint8Array(32)),
+    );
 
     const constructionMetadata =
       await this.gateway.transaction.innerClient.transactionConstruction();

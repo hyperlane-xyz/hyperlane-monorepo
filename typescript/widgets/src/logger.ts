@@ -1,3 +1,3 @@
-import { rootLogger } from '@hyperlane-xyz/utils';
+import { type Logger, rootLogger } from '@hyperlane-xyz/utils';
 
-export const widgetLogger = rootLogger.child({ module: 'widgets' });
+export const widgetLogger: Logger = rootLogger.child({ module: 'widgets' });

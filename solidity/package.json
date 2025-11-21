@@ -13,13 +13,15 @@
     "@openzeppelin/contracts-upgradeable": "^4.9.3"
   },
   "devDependencies": {
+    "@ethersproject/abi": "*",
+    "@ethersproject/providers": "*",
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@nomiclabs/hardhat-ethers": "^2.2.3",
     "@nomiclabs/hardhat-waffle": "^2.0.6",
     "@typechain/ethers-v5": "^11.1.2",
     "@typechain/ethers-v6": "^0.5.1",
     "@typechain/hardhat": "^9.1.0",
-    "@types/node": "^18.14.5",
+    "@types/node": "^20.0.0",
     "chai": "^4.5.0",
     "eslint": "^9.31.0",
     "ethereum-waffle": "^4.0.10",

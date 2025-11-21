@@ -17,6 +17,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/module';
 import {
   Address,
+  Logger,
   assert,
   deepEquals,
   isZeroishAddress,
@@ -27,7 +28,7 @@ import {
 import { AltVMHookReader } from './AltVMHookReader.js';
 
 export class AltVMHookModule implements HypModule<HookModuleType> {
-  protected readonly logger = rootLogger.child({
+  protected readonly logger: Logger = rootLogger.child({
     module: 'AltVMHookModule',
   });
   protected readonly reader: AltVMHookReader;
