@@ -229,13 +229,13 @@ async fn test_missing_finalized_nonce_when_none_provided() {
 
     state.set_upper_nonce(&U256::from(150)).await.unwrap();
 
-    assert!(state.overwrite_upper_nonce(Some(120)).await.is_err());
+    assert!(state.overwrite_upper_nonce(Some(120)).await.is_ok());
 
-    let db_finalized_nonce = state
+    let db_upper_nonce = state
         .get_upper_nonce()
         .await
         .expect("Failed to retrieve upper nonce");
-    assert_eq!(db_finalized_nonce, U256::from(150));
+    assert_eq!(db_upper_nonce, U256::from(120));
 }
 
 #[tokio::test]
