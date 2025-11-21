@@ -35,13 +35,17 @@ impl NonceManagerState {
         // we don't want to set the desired upper nonce even higher than current
         if current_upper_nonce <= desired_upper_nonce {
             let err = LanderError::EyreError(eyre::eyre!(
-                "desired_upper_nonce higher than current_upper_nonce"
+                "desired_upper_nonce ({}) higher than current_upper_nonce ({})",
+                desired_upper_nonce.as_u64(),
+                current_upper_nonce.as_u64(),
             ));
             return Err(err);
         }
         if desired_upper_nonce <= current_finalized_nonce {
             let err = LanderError::EyreError(eyre::eyre!(
-                "desired_upper_nonce lower than current_finalized_nonce"
+                "desired_upper_nonce ({}) lower than current_finalized_nonce ({})",
+                desired_upper_nonce.as_u64(),
+                current_finalized_nonce.as_u64(),
             ));
             return Err(err);
         }
