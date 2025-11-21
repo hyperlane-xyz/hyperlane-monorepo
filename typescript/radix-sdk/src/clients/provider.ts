@@ -4,6 +4,7 @@ import { NetworkId } from '@radixdlt/radix-engine-toolkit';
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert } from '@hyperlane-xyz/utils';
 
+import { DEFAULT_GAS_MULTIPLIER } from '../const.js';
 import { RadixCorePopulate } from '../core/populate.js';
 import { RadixCoreQuery } from '../core/query.js';
 import { RadixBase } from '../utils/base.js';
@@ -16,8 +17,6 @@ import {
 } from '../utils/types.js';
 import { RadixWarpPopulate } from '../warp/populate.js';
 import { RadixWarpQuery } from '../warp/query.js';
-
-const DEFAULT_GAS_MULTIPLIER = 1.2;
 
 const NETWORKS = {
   [NetworkId.Stokenet]: {

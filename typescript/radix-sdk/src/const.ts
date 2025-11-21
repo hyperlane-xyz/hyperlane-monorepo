@@ -1,0 +1,1 @@
+export const DEFAULT_GAS_MULTIPLIER = 1.2;
