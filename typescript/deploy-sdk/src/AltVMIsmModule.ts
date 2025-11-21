@@ -117,7 +117,7 @@ export class AltVMIsmModule implements HypModule<IsmModuleType> {
       logger.debug(`Updating ${expectedConfig.type} on ${this.chain}`);
 
       updateTxs = await this.updateRoutingIsm({
-        actual: actualConfig,
+        actual: actualConfig as DomainRoutingIsmConfig,
         expected: expectedConfig,
         logger,
       });
