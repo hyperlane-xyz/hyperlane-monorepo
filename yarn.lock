@@ -8328,6 +8328,7 @@ __metadata:
     "@hyperlane-xyz/cosmos-sdk": "npm:19.9.0"
     "@hyperlane-xyz/eslint-config": "workspace:^"
     "@hyperlane-xyz/provider-sdk": "npm:0.1.0"
+    "@hyperlane-xyz/radix-sdk": "npm:19.9.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
     "@types/chai-as-promised": "npm:^8"
     "@types/mocha": "npm:^10.0.1"
