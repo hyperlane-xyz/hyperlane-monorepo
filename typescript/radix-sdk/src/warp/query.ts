@@ -28,6 +28,7 @@ export class RadixWarpQuery {
     tokenType: 'Collateral' | 'Synthetic';
     mailboxAddress: string;
     ismAddress: string;
+    hookAddress: string;
     denom: string;
     name: string;
     symbol: string;
@@ -101,6 +102,7 @@ export class RadixWarpQuery {
       mailboxAddress:
         fields.find((f) => f.field_name === 'mailbox')?.value ?? '',
       ismAddress: ismFields[0]?.value ?? '',
+      hookAddress: '',
       denom: origin_denom,
       ...metadata,
     };
