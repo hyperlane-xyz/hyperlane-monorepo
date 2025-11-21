@@ -1,0 +1,81 @@
+# .terraformignore - Exclude files/directories from Terraform operations
+# Similar to .gitignore but specifically for Terraform
+
+# Local Terraform state files
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+
+# Crash log files
+crash.log
+crash.*.log
+
+# Lock files (if using workspaces, may want to commit .terraform.lock.hcl)
+# .terraform.lock.hcl
+
+# Directory for local Terraform modules
+.terraform/
+
+# Local override files (used for local development)
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Variable files that may contain sensitive data
+terraform.tfvars
+*.auto.tfvars
+*.auto.tfvars.json
+
+# Ignore CLI configuration files
+.terraformrc
+terraform.rc
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# OS files
+Thumbs.db
+desktop.ini
+
+# Temporary files
+*.tmp
+*.bak
+*.backup
+
+# Documentation and examples that don't need to be uploaded
+# (keep terraform.tfvars.example as it's a template)
+docs/
+examples/
+
+# Test files and directories
+test/
+tests/
+*_test.go
+
+# CI/CD files
+.github/
+.gitlab-ci.yml
+.circleci/
+
+# Version control
+.git/
+.gitignore
+
+# Logs
+*.log
+
+# Archive files
+*.zip
+*.tar.gz
+*.tgz
+*.rar
+
+# Plan files (may contain sensitive data)
+*.tfplan
+plan.out

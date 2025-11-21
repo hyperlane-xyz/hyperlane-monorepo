@@ -1,0 +1,94 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: kaspa-explorer
+  labels:
+    app: kaspa-explorer
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 8080
+    name: http
+  selector:
+    app: kaspa-explorer
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kaspa-rest-server
+  labels:
+    app: kaspa-rest-server
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8000
+    targetPort: 8000
+    name: http
+  selector:
+    app: kaspa-rest-server
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: simply-kaspa-socket-server
+  labels:
+    app: simply-kaspa-socket-server
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8001
+    targetPort: 8000
+    name: ws
+  selector:
+    app: simply-kaspa-socket-server
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kaspa-ingress
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: explorer.tn.kaspa.rollapp.network,rest.tn.kaspa.rollapp.network,ws.tn.kaspa.rollapp.network,rpc.tn.kaspa.rollapp.network
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: explorer.tn.kaspa.rollapp.network
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: kaspa-explorer
+            port:
+              number: 8080
+  - host: rest.tn.kaspa.rollapp.network
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: kaspa-rest-server
+            port:
+              number: 8000
+  - host: ws.tn.kaspa.rollapp.network
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: simply-kaspa-socket-server
+            port:
+              number: 8001
+  - host: rpc.tn.kaspa.rollapp.network
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: kaspad
+            port:
+              number: 16210

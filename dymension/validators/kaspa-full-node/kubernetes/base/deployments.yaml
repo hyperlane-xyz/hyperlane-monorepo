@@ -1,0 +1,138 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kaspa-explorer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kaspa-explorer
+  template:
+    metadata:
+      labels:
+        app: kaspa-explorer
+    spec:
+      containers:
+      - name: kaspa-explorer
+        image: supertypo/kaspa-explorer:latest
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: API_URI
+          value: http://kaspa-rest-server:8000
+        - name: API_WS_URI
+          value: ws://simply-kaspa-socket-server:8001
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kaspa-rest-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kaspa-rest-server
+  template:
+    metadata:
+      labels:
+        app: kaspa-rest-server
+    spec:
+      containers:
+      - name: kaspa-rest-server
+        image: kaspanet/kaspa-rest-server:latest
+        ports:
+        - containerPort: 8000
+          name: http
+        env:
+        - name: KASPAD_HOST_1
+          value: kaspad:16210
+        - name: SQL_URI
+          value: postgresql+asyncpg://postgres:postgres@kaspa-db:5432/postgres
+        - name: NETWORK_TYPE
+          value: testnet
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "1"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: simply-kaspa-socket-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: simply-kaspa-socket-server
+  template:
+    metadata:
+      labels:
+        app: simply-kaspa-socket-server
+    spec:
+      containers:
+      - name: simply-kaspa-socket-server
+        image: supertypo/simply-kaspa-socket-server:unstable
+        ports:
+        - containerPort: 8000
+          name: ws
+        env:
+        - name: NETWORK_TYPE
+          value: testnet
+        args:
+        - "-x"
+        - "20"
+        - "-s"
+        - "ws://kaspad-testnet:17210"
+        - "--network"
+        - "testnet-10"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: simply-kaspa-indexer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: simply-kaspa-indexer
+  template:
+    metadata:
+      labels:
+        app: simply-kaspa-indexer
+    spec:
+      containers:
+      - name: simply-kaspa-indexer
+        image: supertypo/simply-kaspa-indexer:latest
+        args:
+        - "-u"
+        - "-s"
+        - "ws://kaspad-testnet:17210"
+        - "-d"
+        - "postgresql://postgres:postgres@kaspa-db-testnet:5432/postgres"
+        - "--network"
+        - "testnet-10"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "1"

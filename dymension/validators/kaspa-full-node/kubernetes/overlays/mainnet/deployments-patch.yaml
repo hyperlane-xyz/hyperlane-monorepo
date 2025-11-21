@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kaspa-explorer
+spec:
+  template:
+    spec:
+      containers:
+      - name: kaspa-explorer
+        env:
+        - name: API_URI
+          value: http://kaspa-rest-server-mainnet:8000
+        - name: API_WS_URI
+          value: ws://simply-kaspa-socket-server-mainnet:8001
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kaspa-rest-server
+spec:
+  template:
+    spec:
+      containers:
+      - name: kaspa-rest-server
+        env:
+        - name: KASPAD_HOST_1
+          value: kaspad-mainnet:16110
+        - name: SQL_URI
+          value: postgresql+asyncpg://postgres:postgres@kaspa-db-mainnet:5432/postgres
+        - name: NETWORK_TYPE
+          value: mainnet
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: simply-kaspa-socket-server
+spec:
+  template:
+    spec:
+      containers:
+      - name: simply-kaspa-socket-server
+        env:
+        - name: NETWORK_TYPE
+          value: mainnet
+        args:
+        - "-x"
+        - "20"
+        - "-s"
+        - "ws://kaspad-mainnet:17110"
+        - "--network"
+        - "mainnet"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: simply-kaspa-indexer
+spec:
+  template:
+    spec:
+      containers:
+      - name: simply-kaspa-indexer
+        args:
+        - "-u"
+        - "-s"
+        - "ws://kaspad-mainnet:17110"
+        - "-d"
+        - "postgresql://postgres:postgres@kaspa-db-mainnet:5432/postgres"
+        - "--network"
+        - "mainnet"

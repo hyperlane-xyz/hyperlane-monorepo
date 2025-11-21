@@ -1,0 +1,56 @@
+{
+  "chains": {
+    "kaspatest10": {
+      "protocol": "kaspa",
+      "name": "kaspatest10",
+      "domainId": 80808082,
+      "interchainGasPaymaster": "0x726f757465725f706f73745f6469737061746368000000040000000000000001",
+      "mailbox": "0x68797065726c616e650000000000000000000000000000000000000000000000",
+      "merkleTreeHook": "0x726f757465725f706f73745f6469737061746368000000030000000000000000",
+      "validatorAnnounce": "0x68797065726c616e650000000000000000000000000000000000000000000000",
+      "maxBatchSize": 100,
+      "maxSubmitQueueLength": 100,
+      "bypassBatchSimulation": false,
+      "rpcUrls": [
+        {
+          "http": "https://www.google.com"
+        }
+      ],
+      "walletSecret": "lkjsdf",
+      "kaspaUrlsWrpc": "<kaspa-network-rpc-url-without-protocol>:17210",
+      "kaspaUrlsRest": "(http|https)://<kaspa-network-rest-url>",
+      "validatorHosts": "",
+      "validatorPubsKaspa": "0333472f5b60a1226bee286bb9cb3ac918e98af1da2ca56ede8b912d255b125f84,02ab80ce96c19aae12da2c815aee219803ccc26515ee9dad5630037ab4d67dd1b9,020118f7b9735a22f852054e55a2755774729b2f4447152c0be43617940bf0881e,03983054dfd85b18c1be240a6e207b75ac53f66de294cce4b3ea52bb831ddb7b0b,02e926ea0c33857a19feaa939b2171e95bb42a2a3d14f39d1124ff58b249400c5d,037c0d01608e7a6a212b5f4b1ed218b9dbc110f0e0342b1796bcdde8be2bd1b173,024f41b3d42748985115372a2bc5c3ef8781a496ca819645dc4391e19082fee190,02964c14bd7056faf56c8e5f148c79f50130dd493dbf3e628099123b976e502113,03c9a2e4ca0592e2de37d94d3ee16e7423a7a0b575a933b12407ebc871b0c77e9c,036611f55361dee173e1a5dcffdbcf6ccd142e37ba7a8d8b32caf1bbf8d2465a97,038877fae74f896bde636821d85d569bcef0448f0093130e0f243d020e6a25c330,02738607ae959b3e40fa5d942d9f40fc2b1b3f75e87613840295af8723d96aa50a,0383b43f35d74e30a7e10e94f946bea5e6e5ea936b7ee4b503213450e88b66d52f,0367730046e0f723d5c4ddf59c53b9d7a0c9e536b4b83c212205afa7cd14135ec3,02b9dccbd579ee180f5bdea99fd2baabb08aadb7aa4092d5c9bb4d6f75ebd6cd84",
+      "kaspaEscrowPrivateKey": "<validator_escrow_secret> (keep quotes)",
+      "kaspaMultisigThresholdHubIsm": 8,
+      "kaspaMultisigThresholdEscrow": 8,
+      "kaspaMinDepositSompi": 4000000000,
+      "hubMailboxId": "0x68797065726c616e650000000000000000000000000000000000000000000000",
+      "depositLookBackMins": 3,
+      "validateDeposit": true,
+      "validateWithdrawal": true,
+      "validateWithdrawalConfirmation": true,
+      "hubDomain": 482195613,
+      "hubTokenId": "0x726f757465725f61707000000000000000000000000000020000000000000002",
+      "kasDomain": 80808082,
+      "kasTokenId": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "grpcUrls": [
+        {
+          "http": "(http|https)://<dymension-hub-grpc-url>:<port>"
+        }
+      ]
+    }
+  },
+  "defaultRpcConsensusType": "fallback",
+  "origin_chains": [
+    "kaspatest10",
+    "dymension"
+  ],
+  "destination_chains": [
+    "kaspatest10",
+    "dymension"
+  ],
+  "validator": {
+    "key": "<validator_ism_priv_key>"
+  }
+}

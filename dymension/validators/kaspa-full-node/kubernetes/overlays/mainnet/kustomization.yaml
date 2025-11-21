@@ -1,0 +1,35 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: kaspa-node-mainnet
+
+resources:
+  - ../../base
+
+nameSuffix: -mainnet
+
+patches:
+  - path: kaspad-patch.yaml
+    target:
+      kind: StatefulSet
+      name: kaspad
+  - patch: |-
+      - op: replace
+        path: /spec/ports
+        value:
+        - port: 16110
+          name: rpc
+        - port: 17110
+          name: rpc-borsh
+    target:
+      kind: Service
+      name: kaspad
+  - path: ingress-patch.yaml
+    target:
+      kind: Ingress
+      name: kaspa-ingress
+  - path: deployments-patch.yaml
+
+replicas:
+  - name: kaspad
+    count: 2

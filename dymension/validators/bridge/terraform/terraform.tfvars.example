@@ -1,0 +1,20 @@
+# Environment Configuration
+environment = "tn"  # pg (playground), tn (testnet), or mn (mainnet)
+aws_region  = "eu-central-1"
+
+# EC2 Configuration
+instance_type       = "t3.xlarge"
+allocate_elastic_ip = true
+
+# Validator Configuration
+dym_validators = {
+  yourname = {
+    email   = "yourname@example.com"
+    ssh_key = "ssh-ed25519 AAAAC3... yourname@example.com"
+    enabled = true
+    secret_paths = [
+      "validators/yourname/hyperlane/tn/kaspa-key",
+      "validators/yourname/hyperlane/tn/dymension-key"
+    ]
+  }
+}

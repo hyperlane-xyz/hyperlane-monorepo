@@ -1,0 +1,145 @@
+# .gitignore - Exclude files from version control
+
+# Local .terraform directories
+**/.terraform/*
+
+# .tfstate files - NEVER commit state files (contain sensitive data)
+*.tfstate
+*.tfstate.*
+
+*.terraform.lock.hcl*
+
+# Crash log files
+crash.log
+crash.*.log
+
+# Exclude all .tfvars files, which may contain sensitive data
+# IMPORTANT: These often contain secrets, API keys, passwords
+*.tfvars
+*.tfvars.json
+
+# Keep .tfvars.example files (these are templates)
+!*.tfvars.example
+!terraform.tfvars.example
+
+# Ignore override files as they are usually used to override resources locally
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Ignore transient lock info files created by terraform apply
+.terraform.tfstate.lock.info
+
+# Include tfplan files to ignore the plan output of command: terraform plan -out=tfplan
+*.tfplan
+*tfplan*
+
+# Ignore CLI configuration files
+.terraformrc
+terraform.rc
+
+# Ignore any private key files
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# SSH keys
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+
+# AWS credentials
+credentials
+*.credentials
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# IDE and Editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*.swn
+*~
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Temporary files
+*.tmp
+*.bak
+*.backup
+*.orig
+
+# Logs
+*.log
+logs/
+
+# Backup files
+*~
+*.backup
+*.old
+
+# Archive files
+*.zip
+*.tar.gz
+*.tgz
+*.rar
+*.7z
+
+# Node modules (if using any Node-based tooling)
+node_modules/
+
+# Python (if using any Python tooling)
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+venv/
+env/
+*.egg-info/
+
+# Go (if using any Go tooling)
+*.exe
+*.dll
+*.so
+*.dylib
+vendor/
+
+# Terraform plugin cache
+.terraform.d/plugins/
+
+# Test directories and files
+test-results/
+coverage/
+*.test
+
+# Documentation build artifacts
+_site/
+.jekyll-cache/
+
+# Terraform module cache
+.terraform.lock.hcl.backup
+
+# Keep dependency lock file (recommended to commit this)
+# Comment out if you want to ignore it
+# .terraform.lock.hcl

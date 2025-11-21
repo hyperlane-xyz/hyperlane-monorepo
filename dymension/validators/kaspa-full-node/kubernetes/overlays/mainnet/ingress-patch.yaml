@@ -1,0 +1,59 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kaspa-ingress
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: explorer.mn.kaspa.rollapp.network,rest.mn.kaspa.rollapp.network,ws.mn.kaspa.rollapp.network,rpc.mn.kaspa.rollapp.network,wrpc.mn.kaspa.rollapp.network
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: explorer.mn.kaspa.rollapp.network
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: kaspa-explorer-mainnet
+            port:
+              number: 8080
+  - host: rest.mn.kaspa.rollapp.network
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: kaspa-rest-server-mainnet
+            port:
+              number: 8000
+  - host: ws.mn.kaspa.rollapp.network
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: simply-kaspa-socket-server-mainnet
+            port:
+              number: 8001
+  - host: rpc.mn.kaspa.rollapp.network
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: kaspad-mainnet
+            port:
+              number: 16110
+  - host: wrpc.mn.kaspa.rollapp.network
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: kaspad-mainnet
+            port:
+              number: 17110

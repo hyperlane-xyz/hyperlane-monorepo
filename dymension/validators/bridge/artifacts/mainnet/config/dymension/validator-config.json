@@ -1,0 +1,63 @@
+{
+    "chains": {
+      "dymension": {
+        "name": "dymension",
+        "chainId": "dymension_1100-1",
+        "domainId": "1570310961",
+        "protocol": "cosmosnative",
+        "bech32Prefix": "dym",
+        "rpcUrls": [
+          {
+            "http": "https://rpc-dymension.mzonder.com"
+          }
+        ],
+        "grpcUrls": [
+          {
+            "http": "https://grpc-dymension.mzonder.com:443"
+          }
+        ],
+        "gasPrice": {
+          "amount": "20000000000",
+          "denom": "adym"
+        },
+        "slip44": 118,
+        "nativeToken": {
+          "name": "Dymension",
+          "symbol": "DYM",
+          "decimals": 18,
+          "denom": "adym"
+        },
+        "contractAddressBytes": 32,
+        "canonicalAsset": "adym",
+        "mailbox": "<mailbox_address-PROVIDED_BY_DIMENSION>",
+        "interchainGasPaymaster": "<interchain_gas_paymaster_address-PROVIDED_BY_DIMENSION>",
+        "validatorAnnounce": "<validator_announce_address-PROVIDED_BY_DIMENSION>",
+        "merkleTreeHook": "<merkle_tree_hook_address-PROVIDED_BY_DIMENSION>",
+        "blocks": {
+          "reorgPeriod": 0,
+          "confirmations": 1,
+          "estimateBlockTime": 3
+        },
+        "signer": {
+          "type": "cosmosKey",
+          "prefix": "dym",
+          "key": "<hyperlane_announcement_priv_key>"
+        }
+      }
+    },
+    "defaultRpcConsensusType": "fallback",
+    "originChainName": "dymension",
+    "validator": {
+      "id": "<dymension_kms_key_arn>",
+      "type": "aws",
+      "region": "eu-central-1"
+    },
+    "checkpointSyncer": {
+      "type": "s3",
+      "bucket": "<dymension_s3_bucket_arn>",
+      "region": "eu-central-1"
+    },
+    "reorgPeriod": 0,
+    "interval": 30,
+    "metricsPort": 9091
+  }

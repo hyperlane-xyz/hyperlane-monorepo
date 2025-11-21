@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  validator-dymension:
+    image: gcr.io/abacus-labs-dev/hyperlane-agent:agents-v1.4.0
+    container_name: hyperlane-dym-validator
+    restart: unless-stopped
+    command: >
+      ./validator
+      --db /hyperlane_db
+      --originChainName dymension
+      --reorgPeriod 1
+    volumes:
+      - ./db:/hyperlane_db
+      - ./config:/app/config:ro
+      - ./logs:/logs
+    environment:
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}
+    network_mode: "host"
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536

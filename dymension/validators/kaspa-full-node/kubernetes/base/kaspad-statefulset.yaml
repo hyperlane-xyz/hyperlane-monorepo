@@ -1,0 +1,70 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: kaspad
+  labels:
+    app: kaspad
+spec:
+  ports:
+  - port: 16210
+    name: rpc
+  - port: 17210
+    name: rpc-borsh
+  clusterIP: None
+  selector:
+    app: kaspad
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: kaspad
+spec:
+  serviceName: kaspad
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kaspad
+  template:
+    metadata:
+      labels:
+        app: kaspad
+    spec:
+      containers:
+      - name: kaspad
+        image: supertypo/rusty-kaspad:latest
+        ports:
+        - containerPort: 16210
+          name: rpc
+        - containerPort: 17210
+          name: rpc-borsh
+        volumeMounts:
+        - name: kaspad-data
+          mountPath: /app/data
+        command:
+        - kaspad
+        args:
+        - --yes
+        - --nologfiles
+        - --disable-upnp
+        - --utxoindex
+        - --rpclisten=0.0.0.0:16210
+        - --rpclisten-borsh=0.0.0.0:17210
+        - --testnet
+        - --netsuffix=10
+        - --retention-period-days=21
+        resources:
+          requests:
+            memory: "4Gi"
+            cpu: "2"
+          limits:
+            memory: "8Gi"
+            cpu: "2"
+  volumeClaimTemplates:
+  - metadata:
+      name: kaspad-data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: standard-rwo
+      resources:
+        requests:
+          storage: 300Gi

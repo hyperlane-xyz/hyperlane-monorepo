@@ -1,0 +1,56 @@
+{
+  "chains": {
+    "kaspa": {
+      "protocol": "kaspa",
+      "name": "kaspa",
+      "domainId": 1000000,
+      "interchainGasPaymaster": "<interchain_gas_paymaster_address-PROVIDED_BY_DIMENSION>",
+      "mailbox": "<mailbox_address-PROVIDED_BY_DIMENSION>",
+      "merkleTreeHook": "<merkle_tree_hook_address-PROVIDED_BY_DIMENSION>",
+      "validatorAnnounce": "<validator_announce_address-PROVIDED_BY_DIMENSION>",
+      "maxBatchSize": 100,
+      "maxSubmitQueueLength": 100,
+      "bypassBatchSimulation": false,
+      "rpcUrls": [
+        {
+          "http": "https://www.google.com"
+        }
+      ],
+      "walletSecret": "lkjsdf",
+      "kaspaUrlsWrpc": "<kaspa-network-rpc-url-without-protocol>:17210",
+      "kaspaUrlsRest": "(http|https)://<kaspa-network-rest-url>",
+      "validatorHosts": "",
+      "validatorPubsKaspa": "<all_validator_pub_keys_separated_by_commas-PROVIDED_BY_DIMENSION>",
+      "kaspaEscrowPrivateKey": "<validator_escrow_secret> (keep quotes)",
+      "kaspaMultisigThresholdHubIsm": 8,
+      "kaspaMultisigThresholdEscrow": 8,
+      "kaspaMinDepositSompi": 4000000000,
+      "hubMailboxId": "TODO",
+      "depositLookBackMins": 3,
+      "validateDeposit": true,
+      "validateWithdrawal": true,
+      "validateWithdrawalConfirmation": true,
+      "hubDomain": 10000000,
+      "hubTokenId": "TODO",
+      "kasDomain": 10000000,
+      "kasTokenId": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "grpcUrls": [
+        {
+          "http": "(http|https)://<dymension-hub-grpc-url>:<port>"
+        }
+      ]
+    }
+  },
+  "defaultRpcConsensusType": "fallback",
+  "origin_chains": [
+    "kaspa",
+    "dymension"
+  ],
+  "destination_chains": [
+    "kaspa",
+    "dymension"
+  ],
+  "validator": {
+    "key": "<validator_ism_priv_key>"
+  }
+}

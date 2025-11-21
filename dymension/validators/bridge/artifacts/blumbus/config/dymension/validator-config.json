@@ -1,0 +1,64 @@
+{
+    "chains": {
+      "dymension": {
+        "name": "dymension",
+        "chainId": "blumbus_111-1",
+        "domainId": "482195613",
+        "protocol": "cosmosnative",
+        "bech32Prefix": "dym",
+        "rpcUrls": [
+          {
+            "http": "https://rpc-blumbus.mzonder.com"
+          }
+        ],
+        "grpcUrls": [
+          {
+            "http": "https://grpc-blumbus.mzonder.com:443"
+          }
+        ],
+        "gasPrice": {
+          "amount": "20000000000",
+          "denom": "adym"
+        },
+        "slip44": 118,
+        "nativeToken": {
+          "name": "Dymension",
+          "symbol": "DYM",
+          "decimals": 18,
+          "denom": "adym"
+        },
+        "contractAddressBytes": 32,
+        "canonicalAsset": "adym",
+        "mailbox": "0x68797065726c616e650000000000000000000000000000000000000000000000",
+        "interchainGasPaymaster": "0x726f757465725f706f73745f6469737061746368000000040000000000000001",
+        "validatorAnnounce": "0x68797065726c616e650000000000000000000000000000000000000000000000",
+        "merkleTreeHook": "0x726f757465725f706f73745f6469737061746368000000030000000000000000",
+        "blocks": {
+          "reorgPeriod": 0,
+          "confirmations": 1,
+          "estimateBlockTime": 3
+        },
+        "signer": {
+          "type": "cosmosKey",
+          "prefix": "dym",
+          "key": "0x<hyperlane_announcement_priv_key>",
+          "accountAddressType": "Bitcoin"
+        }
+      }
+    },
+    "defaultRpcConsensusType": "fallback",
+    "originChainName": "dymension",
+    "validator": {
+      "id": "<dymension_kms_key_arn>",
+      "type": "aws",
+      "region": "eu-central-1"
+    },
+    "checkpointSyncer": {
+      "type": "s3",
+      "bucket": "<dymension_s3_bucket_arn>",
+      "region": "eu-central-1"
+    },
+    "reorgPeriod": 0,
+    "interval": 30,
+    "metricsPort": 9091
+  }

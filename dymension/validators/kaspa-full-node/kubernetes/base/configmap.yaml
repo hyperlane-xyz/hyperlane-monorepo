@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kaspa-config
+data:
+  NETWORK_TYPE: "testnet"
+  NETWORK_SUFFIX: "10"

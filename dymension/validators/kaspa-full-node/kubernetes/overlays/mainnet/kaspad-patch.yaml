@@ -1,0 +1,17 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: kaspad
+spec:
+  template:
+    spec:
+      containers:
+      - name: kaspad
+        args:
+        - --yes
+        - --nologfiles
+        - --disable-upnp
+        - --utxoindex
+        - --rpclisten=0.0.0.0:16110
+        - --rpclisten-borsh=0.0.0.0:17110
+        - --retention-period-days=21

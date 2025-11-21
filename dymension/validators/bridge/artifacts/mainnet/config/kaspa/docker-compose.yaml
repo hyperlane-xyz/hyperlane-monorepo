@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  validator-kaspa:
+    image: hyperlane-kaspa-validator:latest
+    container_name: hyperlane-kaspa-validator
+    restart: unless-stopped
+    command: /usr/local/bin/validator --checkpointSyncer.type localStorage --checkpointSyncer.path ARBITRARY_VALUE_FOOBAR  --originChainName kaspa --reorgPeriod 1
+    volumes:
+      - ./config:/app/config:ro
+      - ./config/kaspa.wallet:/root/.kaspa/kaspa.wallet:ro
+      - ./db:/hyperlane_db
+      - ./logs:/logs
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - CONFIG_FILES=/app/config/validator-config.json
+      - RUST_BACKTRACE=full
+      - AWS_REGION=eu-central-1
+    ports:
+      - "9090:9090"
+    network_mode: "host"
