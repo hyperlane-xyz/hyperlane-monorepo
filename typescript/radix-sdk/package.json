@@ -25,6 +25,7 @@
     "lint": "eslint -c ./eslint.config.mjs",
     "prettier": "prettier --write ./src",
     "clean": "rm -rf ./dist ./cache",
+    "dev": "tsc --watch",
     "test": "echo \"no tests in radix-sdk\"",
     "test:unit": "mocha --config .mocharc.json",
     "test:ci": "yarn test:unit",

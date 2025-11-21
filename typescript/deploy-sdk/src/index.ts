@@ -16,3 +16,4 @@ export {
   validateIsmType,
   UnsupportedIsmTypeError,
 } from './utils/validation.js';
+export { loadProtocolProviders } from './protocol.js';

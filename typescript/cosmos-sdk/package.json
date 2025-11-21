@@ -25,6 +25,7 @@
     "lint": "eslint -c ./eslint.config.mjs",
     "prettier": "prettier --write ./src",
     "clean": "rm -rf ./dist ./cache",
+    "dev": "tsc --watch",
     "test": "echo \"no tests in cosmos-sdk\"",
     "test:ci": "echo \"no tests in cosmos-sdk\"",
     "test:e2e": "./scripts/run-e2e-test.sh"

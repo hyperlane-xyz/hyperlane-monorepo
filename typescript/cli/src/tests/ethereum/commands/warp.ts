@@ -14,10 +14,7 @@ import {
 import { Address, ProtocolType, randomInt } from '@hyperlane-xyz/utils';
 
 import { readChainSubmissionStrategyConfig } from '../../../config/strategy.js';
-import {
-  AltVMProviderFactory,
-  AltVMSignerFactory,
-} from '../../../context/altvm.js';
+import { AltVMSignerFactory } from '../../../context/altvm.js';
 import { getContext } from '../../../context/context.js';
 import { CommandContext } from '../../../context/types.js';
 import { extendWarpRoute as extendWarpRouteWithoutApplyTransactions } from '../../../deploy/warp.js';
@@ -622,8 +619,6 @@ export async function setupIncompleteWarpRouteExtension(
   const strategyConfig = context.strategyPath
     ? await readChainSubmissionStrategyConfig(context.strategyPath)
     : {};
-
-  context.altVmProvider = new AltVMProviderFactory(context.multiProvider);
 
   const altVmSigner = await AltVMSignerFactory.createSigners(
     context.multiProvider,

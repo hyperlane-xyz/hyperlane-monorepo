@@ -131,7 +131,7 @@ export function getRouterAddressesFromWarpCoreConfig(
  */
 export async function expandWarpDeployConfig(params: {
   multiProvider: MultiProvider;
-  altVmProvider: AltVM.IProviderFactory;
+  altVmProvider: Map<string, AltVM.IProvider>;
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   deployedRoutersAddresses: ChainMap<Address>;
   expandedOnChainWarpConfig?: WarpRouteDeployConfigMailboxRequired;
@@ -271,8 +271,8 @@ export async function expandWarpDeployConfig(params: {
             break;
           }
           default: {
-            const provider = await altVmProvider.get(chain);
-
+            const provider = altVmProvider.get(chain);
+            assert(provider, `Cannot find provider for ${chain}`);
             const reader = new AltVMHookReader(
               (chain) => multiProvider.getChainMetadata(chain),
               provider,
@@ -300,8 +300,8 @@ export async function expandWarpDeployConfig(params: {
             break;
           }
           default: {
-            const provider = await altVmProvider.get(chain);
-
+            const provider = altVmProvider.get(chain);
+            assert(provider, `Cannot find provider for ${chain}`);
             const reader = new AltVMIsmReader(
               (chain) => multiProvider.tryGetChainName(chain),
               provider,

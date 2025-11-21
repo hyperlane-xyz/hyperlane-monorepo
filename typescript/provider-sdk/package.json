@@ -24,6 +24,7 @@
   "scripts": {
     "build": "tsc",
     "check": "tsc --noEmit",
+    "dev": "tsc --watch",
     "lint": "eslint",
     "clean": "rm -rf ./dist",
     "prettier": "prettier --write ."
