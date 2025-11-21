@@ -33,4 +33,5 @@ export enum CommandType {
   CORE_APPLY = 'core:apply',
   CORE_DEPLOY = 'core:deploy',
   CORE_READ = 'core:read',
+  CORE_CHECK = 'core:check',
 }
