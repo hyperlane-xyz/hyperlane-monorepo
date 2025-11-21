@@ -113,7 +113,7 @@ export function validateWarpConfigForAltVM(
     return {
       ...baseConfig,
       type: ProviderTokenType.collateral,
-      token: (config as any).token,
+      token: config.token,
     } as CollateralWarpConfig;
   } else if (config.type === TokenType.synthetic) {
     return {
