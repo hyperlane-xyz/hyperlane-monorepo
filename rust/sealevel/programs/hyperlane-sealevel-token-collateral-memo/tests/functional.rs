@@ -38,7 +38,8 @@ use hyperlane_sealevel_token_lib::{
     accounts::{convert_decimals, HyperlaneToken, HyperlaneTokenAccount},
     hyperlane_token_pda_seeds,
     instruction::{
-        Init, Instruction as HyperlaneTokenInstruction, TransferRemote, TransferRemoteMemo,
+        DymInstruction, Init, Instruction as HyperlaneTokenInstruction, TransferRemote,
+        TransferRemoteMemo,
     },
 };
 use hyperlane_test_utils::{
@@ -652,7 +653,7 @@ async fn test_transfer_remote_memo(spl_token_program_id: Pubkey) {
     let transaction = Transaction::new_signed_with_payer(
         &[Instruction::new_with_bytes(
             program_id,
-            &HyperlaneTokenInstruction::TransferRemoteMemo(TransferRemoteMemo {
+            &DymInstruction::TransferRemoteMemo(TransferRemoteMemo {
                 base: TransferRemote {
                     destination_domain: REMOTE_DOMAIN,
                     recipient: remote_token_recipient,

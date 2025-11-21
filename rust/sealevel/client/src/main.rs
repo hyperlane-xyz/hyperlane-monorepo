@@ -54,8 +54,8 @@ use hyperlane_sealevel_token_lib::{
     hyperlane_token_pda_seeds,
     instruction::{
         enroll_remote_routers_instruction, set_destination_gas_configs,
-        Instruction as HtInstruction, TransferRemote as HtTransferRemote,
-        TransferRemoteMemo as HtTransferRemoteMemo,
+        DymInstruction as DymHtInstruction, Instruction as HtInstruction,
+        TransferRemote as HtTransferRemote, TransferRemoteMemo as DymHtTransferRemoteMemo,
     },
 };
 use hyperlane_sealevel_token_memo::{
@@ -1493,7 +1493,7 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
             let (mailbox_outbox_account, _mailbox_outbox_bump) =
                 Pubkey::find_program_address(mailbox_outbox_pda_seeds!(), &token.mailbox);
 
-            let ixn = HtInstruction::TransferRemoteMemo(HtTransferRemoteMemo {
+            let ixn = DymHtInstruction::TransferRemoteMemo(DymHtTransferRemoteMemo {
                 base: HtTransferRemote {
                     destination_domain: xfer.destination_domain,
                     recipient,

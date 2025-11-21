@@ -9,7 +9,9 @@ use hyperlane_sealevel_message_recipient_interface::{
     HandleInstruction, MessageRecipientInstruction,
 };
 use hyperlane_sealevel_token_lib::{
-    instruction::{Init, Instruction as TokenIxn, TransferRemote, TransferRemoteMemo},
+    instruction::{
+        DymInstruction, Init, Instruction as TokenIxn, TransferRemote, TransferRemoteMemo,
+    },
     processor::HyperlaneSealevelToken,
 };
 use solana_program::{account_info::AccountInfo, entrypoint::ProgramResult, msg, pubkey::Pubkey};
@@ -58,12 +60,22 @@ pub fn process_instruction(
             }
         };
     }
+    if let Ok(instr) = DymInstruction::decode(instruction_data) {
+        return match instr {
+            DymInstruction::TransferRemoteMemo(xfer) => {
+                transfer_remote_memo(program_id, accounts, xfer)
+            }
+        }
+        .map_err(|err| {
+            msg!("{}", err);
+            err
+        });
+    }
 
     // Otherwise, try decoding a "normal" token instruction
     match TokenIxn::decode(instruction_data)? {
         TokenIxn::Init(init) => initialize(program_id, accounts, init),
         TokenIxn::TransferRemote(xfer) => transfer_remote(program_id, accounts, xfer),
-        TokenIxn::TransferRemoteMemo(xfer) => transfer_remote_memo(program_id, accounts, xfer),
         TokenIxn::EnrollRemoteRouter(config) => enroll_remote_router(program_id, accounts, config),
         TokenIxn::EnrollRemoteRouters(configs) => {
             enroll_remote_routers(program_id, accounts, configs)
