@@ -192,10 +192,6 @@ export class MultiChainResolver implements ChainResolver {
       return Array.from(new Set([...chains, ...additionalChains]));
     }
 
-    if (argv.destination) {
-      chains.add(argv.destination);
-    }
-
     // If no destination is specified, return all EVM chains only
     if (!argv.destination) {
       const chains = multiProvider.getKnownChainNames();
@@ -207,7 +203,6 @@ export class MultiChainResolver implements ChainResolver {
     }
 
     chains.add(argv.destination);
-
     return Array.from(chains);
   }
 
