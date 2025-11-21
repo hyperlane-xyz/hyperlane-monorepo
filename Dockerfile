@@ -11,8 +11,6 @@ COPY .yarn/plugins ./.yarn/plugins
 COPY .yarn/releases ./.yarn/releases
 COPY .yarn/patches ./.yarn/patches
 
-COPY solidity/package.json ./solidity/
-COPY starknet/package.json ./starknet/
 COPY typescript/ccip-server/package.json ./typescript/ccip-server/
 COPY typescript/ccip-server/prisma ./typescript/ccip-server/prisma
 COPY typescript/cli/package.json ./typescript/cli/

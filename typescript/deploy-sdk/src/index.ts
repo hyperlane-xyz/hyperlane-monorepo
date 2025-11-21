@@ -11,3 +11,8 @@ export { coreModuleProvider } from './core-module.js';
 export { hookModuleProvider } from './hook-module.js';
 export { ismModuleProvider } from './ism-module.js';
 export { warpModuleProvider } from './warp-module.js';
+export {
+  validateIsmConfig,
+  validateIsmType,
+  UnsupportedIsmTypeError,
+} from './utils/validation.js';

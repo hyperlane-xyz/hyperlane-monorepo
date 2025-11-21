@@ -4,7 +4,6 @@ import { stringify as yamlStringify } from 'yaml';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import { AltVMWarpModule } from '@hyperlane-xyz/deploy-sdk';
 import { GasAction, ProtocolType } from '@hyperlane-xyz/provider-sdk';
-import { WarpConfig as ProviderWarpConfig } from '@hyperlane-xyz/provider-sdk/warp';
 import {
   AddWarpRouteConfigOptions,
   BaseRegistry,
@@ -81,6 +80,7 @@ import {
 } from '../utils/files.js';
 import { canSelfRelay, runSelfRelay } from '../utils/relay.js';
 
+import { validateWarpConfigForAltVM } from './configValidation.js';
 import {
   completeDeploy,
   getBalances,
@@ -676,12 +676,16 @@ async function updateExistingWarpRoute(
           }
           default: {
             const signer = altVmSigner.get(chain);
+            const validatedConfig = validateWarpConfigForAltVM(
+              configWithMailbox,
+              chain,
+            );
+
             const warpModule = new AltVMWarpModule(
               altVmChainLookup(multiProvider),
               signer,
               {
-                // TODO: Remove this cast when all token types are supported
-                config: configWithMailbox as ProviderWarpConfig,
+                config: validatedConfig,
                 chain,
                 addresses: {
                   deployedTokenRoute,
@@ -689,10 +693,7 @@ async function updateExistingWarpRoute(
               },
             );
 
-            const transactions = await warpModule.update(
-              // TODO: Remove this cast when all token types are supported
-              configWithMailbox as ProviderWarpConfig,
-            );
+            const transactions = await warpModule.update(validatedConfig);
             updateTransactions[chain] = transactions;
             break;
           }

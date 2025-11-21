@@ -114,7 +114,8 @@ export class AltVMWarpRouteReader implements HypReader<TokenRouterModuleType> {
    * Derives the token type for a given Warp Route address using specific methods
    *
    * @param warpRouteAddress - The Warp Route address to derive the token type for.
-   * @returns The derived token type, which can be one of: collateralVault, collateral, native, or synthetic.
+   * @returns The derived TokenType, which can be either 'collateral' or 'synthetic'.
+   * @throws Error if the token type is not supported (i.e., not collateral or synthetic).
    */
   async deriveTokenType(warpRouteAddress: Address): Promise<TokenType> {
     const token = await this.provider.getToken({

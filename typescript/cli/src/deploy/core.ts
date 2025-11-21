@@ -3,7 +3,6 @@ import { stringify as yamlStringify } from 'yaml';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import { AltVMCoreModule } from '@hyperlane-xyz/deploy-sdk';
 import { GasAction, ProtocolType } from '@hyperlane-xyz/provider-sdk';
-import { CoreConfig as ProviderCoreConfig } from '@hyperlane-xyz/provider-sdk/core';
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   ChainName,
@@ -20,6 +19,7 @@ import { WriteCommandContext } from '../context/types.js';
 import { log, logBlue, logGray, logGreen } from '../logger.js';
 import { indentYamlOrJson } from '../utils/files.js';
 
+import { validateCoreConfigForAltVM } from './configValidation.js';
 import {
   completeDeploy,
   getBalances,
@@ -111,8 +111,7 @@ export async function runCoreDeploy(params: DeployParams) {
 
       const coreModule = await AltVMCoreModule.create({
         chain,
-        // TODO: Remove this cast when all ISM and Hook types are supported
-        config: config as ProviderCoreConfig,
+        config: validateCoreConfigForAltVM(config, chain),
         chainLookup: altVmChainLookup(multiProvider),
         signer,
       });
@@ -174,21 +173,19 @@ export async function runCoreApply(params: ApplyParams) {
         strategyUrl: params.strategyUrl,
       });
 
+      const validatedConfig = validateCoreConfigForAltVM(config, chain);
+
       const coreModule = new AltVMCoreModule(
         altVmChainLookup(multiProvider),
         signer,
         {
           chain,
-          // TODO: Remove this cast when all ISM and Hook types are supported
-          config: config as ProviderCoreConfig,
+          config: validatedConfig,
           addresses: deployedCoreAddresses,
         },
       );
 
-      const transactions = await coreModule.update(
-        // TODO: Remove this cast when all ISM and Hook types are supported
-        config as ProviderCoreConfig,
-      );
+      const transactions = await coreModule.update(validatedConfig);
 
       if (transactions.length) {
         logGray('Updating deployed core contracts');
