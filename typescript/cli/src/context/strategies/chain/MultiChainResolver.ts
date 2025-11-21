@@ -31,6 +31,7 @@ enum ChainSelectionMode {
   STRATEGY,
   CORE_APPLY,
   CORE_DEPLOY,
+  CORE_READ,
   DEFAULT,
 }
 
@@ -56,6 +57,8 @@ export class MultiChainResolver implements ChainResolver {
         return this.resolveWarpRebalancerChains(argv);
       case ChainSelectionMode.AGENT_KURTOSIS:
         return this.resolveAgentChains(argv);
+      case ChainSelectionMode.CORE_READ:
+        return this.resolveChain(argv);
       case ChainSelectionMode.CORE_APPLY:
         return this.resolveCoreApplyChains(argv);
       case ChainSelectionMode.CORE_DEPLOY:
@@ -88,7 +91,7 @@ export class MultiChainResolver implements ChainResolver {
     argv: Record<string, any>,
   ): Promise<ChainName[]> {
     if (argv.chain) {
-      argv.context.chains = [argv.chain];
+      argv.context.chains = [argv.chain]; // @TODO: use resolveChain
     } else if (argv.symbol || argv.warpRouteId) {
       const warpCoreConfig = await getWarpCoreConfigOrExit({
         context: argv.context,
@@ -101,6 +104,10 @@ export class MultiChainResolver implements ChainResolver {
     }
 
     return argv.context.chains || [];
+  }
+
+  private async resolveChain(argv: Record<string, any>): Promise<ChainName[]> {
+    return argv.chain ? [argv.chain] : [];
   }
 
   private async resolveWarpApplyChains(
@@ -314,6 +321,10 @@ export class MultiChainResolver implements ChainResolver {
 
   static forCoreDeploy(): MultiChainResolver {
     return new MultiChainResolver(ChainSelectionMode.CORE_DEPLOY);
+  }
+
+  static forCoreRead(): MultiChainResolver {
+    return new MultiChainResolver(ChainSelectionMode.CORE_READ);
   }
 
   static default(): MultiChainResolver {
