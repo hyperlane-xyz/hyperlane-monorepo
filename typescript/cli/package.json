@@ -51,7 +51,7 @@
     "zksync-ethers": "^5.10.0",
     "zod": "^3.21.2",
     "zod-validation-error": "^3.3.0",
-    "zx": "^8.1.4"
+    "zx": "^8.8.5"
   },
   "scripts": {
     "hyperlane": "node ./dist/cli.js",
