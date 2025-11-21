@@ -85,6 +85,7 @@ export { EvmCoreReader } from './core/EvmCoreReader.js';
 export { HyperlaneCore } from './core/HyperlaneCore.js';
 export { HyperlaneCoreChecker } from './core/HyperlaneCoreChecker.js';
 export { HyperlaneCoreDeployer } from './core/HyperlaneCoreDeployer.js';
+export { sendMessageWithoutIgp } from './core/sendMessageWithoutIgp.js';
 export {
   HyperlaneRelayer,
   RelayerCacheSchema,
