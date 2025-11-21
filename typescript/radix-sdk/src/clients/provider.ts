@@ -4,7 +4,7 @@ import { NetworkId } from '@radixdlt/radix-engine-toolkit';
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert } from '@hyperlane-xyz/utils';
 
-import { DEFAULT_GAS_MULTIPLIER } from '../const.js';
+import { DEFAULT_APPLICATION_NAME, DEFAULT_GAS_MULTIPLIER } from '../const.js';
 import { RadixCorePopulate } from '../core/populate.js';
 import { RadixCoreQuery } from '../core/query.js';
 import { RadixBase } from '../utils/base.js';
@@ -20,17 +20,17 @@ import { RadixWarpQuery } from '../warp/query.js';
 
 const NETWORKS = {
   [NetworkId.Stokenet]: {
-    applicationName: 'hyperlane',
+    applicationName: DEFAULT_APPLICATION_NAME,
     packageAddress:
       'package_tdx_2_1pkn2zdcw8q8rax6mxetdkgp7493mf379afhq7a7peh4wnftz3zej4h',
   },
   [NetworkId.Mainnet]: {
-    applicationName: 'hyperlane',
+    applicationName: DEFAULT_APPLICATION_NAME,
     packageAddress:
       'package_rdx1pkzmcj4mtal34ddx9jrt8um6u3yqheqpfvcj4s0ulmgyt094fw0jzh',
   },
   [NetworkId.LocalNet]: {
-    applicationName: 'hyperlane',
+    applicationName: DEFAULT_APPLICATION_NAME,
   },
 };
 
