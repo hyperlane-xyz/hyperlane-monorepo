@@ -1,3 +1,5 @@
+import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
+
 import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   IsmModuleAddresses,
@@ -11,7 +13,6 @@ import {
 } from '@hyperlane-xyz/provider-sdk/module';
 import { WithAddress, assert } from '@hyperlane-xyz/utils';
 
-import { RadixProvider } from '../clients/provider.js';
 import { ismTypeFromRadixIsmType } from '../utils/types.js';
 
 import { getMultisigIsmConfig } from './query.js';
@@ -23,11 +24,11 @@ type MultisigIsmModule = {
 };
 
 export class RadixMultisigIsmReader implements HypReader<MultisigIsmModule> {
-  constructor(private readonly provider: RadixProvider) {}
+  constructor(private readonly gateway: GatewayApiClient) {}
 
   async read(address: string): Promise<WithAddress<MultisigIsmConfig>> {
     const { threshold, validators, type } = await getMultisigIsmConfig(
-      this.provider['gateway'],
+      this.gateway,
       {
         ismAddress: address,
       },
