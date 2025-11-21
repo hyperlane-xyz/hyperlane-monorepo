@@ -129,13 +129,24 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       nonce,
     } = res.toObject();
 
+    const hookManagerProgramId = req.mailboxAddress.replace(
+      'mailbox_',
+      'hook_manager_',
+    );
+
     return {
       address: req.mailboxAddress,
       owner: mailbox_owner,
       localDomain: local_domain,
       defaultIsm: formatAddress(default_ism),
-      defaultHook: formatAddress(default_hook),
-      requiredHook: formatAddress(required_hook),
+      defaultHook:
+        default_hook === ALEO_NULL_ADDRESS
+          ? ''
+          : `${hookManagerProgramId}/${default_hook}`,
+      requiredHook:
+        required_hook === ALEO_NULL_ADDRESS
+          ? ''
+          : `${hookManagerProgramId}/${required_hook}`,
       nonce: nonce,
     };
   }
@@ -660,16 +671,19 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
 
     let quote = new BigNumber(0);
 
-    // TODO: split custom hook?
     const hooks = [
       req.customHookAddress || mailbox.defaultHook,
       mailbox.requiredHook,
     ];
 
     for (const hookAddress of hooks) {
+      if (!hookAddress) {
+        continue;
+      }
+
       try {
         const igp = await this.getInterchainGasPaymasterHook({
-          hookAddress: `${mailboxAddress.replace('mailbox_', 'hook_manager_')}/${hookAddress}`,
+          hookAddress,
         });
 
         const config = igp.destinationGasConfigs[req.destinationDomainId];
@@ -1126,7 +1140,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       tokenAddress: req.tokenAddress,
     });
 
-    let tokenMetadataValue = await this.aleoClient.getProgramMappingValue(
+    const tokenMetadataValue = await this.aleoClient.getProgramMappingValue(
       req.tokenAddress,
       'token_metadata',
       'true',
@@ -1168,9 +1182,13 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     let totalQuote = new BigNumber(0);
 
     for (let i = 0; i < hooks.length; i++) {
+      if (!hooks[i]) {
+        continue;
+      }
+
       try {
         const igp = await this.getInterchainGasPaymasterHook({
-          hookAddress: `${mailboxAddress.replace('mailbox_', 'hook_manager_')}/${hooks[i]}`,
+          hookAddress: hooks[i],
         });
 
         const config = igp.destinationGasConfigs[req.destinationDomainId];
@@ -1198,12 +1216,18 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       `total quote ${totalQuote.toFixed(0)} is bigger than max fee ${req.maxFee.amount}`,
     );
 
+    const mailboxValue = `{
+      default_ism:${mailbox.defaultIsm || ALEO_NULL_ADDRESS},
+      default_hook:${mailbox.defaultHook ? mailbox.defaultHook.split('/')[1] : ALEO_NULL_ADDRESS},
+      required_hook:${mailbox.requiredHook ? mailbox.requiredHook.split('/')[1] : ALEO_NULL_ADDRESS}
+    }`;
+
     if (req.customHookAddress) {
       const hookMetadata = `{gas_limit:0u128,extra_data:[${Array(64).fill(`0u8`).join(',')}]}`;
 
       console.log('transfer_remote_with_hook', [
         tokenMetadataValue,
-        `{default_ism:${mailbox.defaultIsm || ALEO_NULL_ADDRESS},default_hook:${mailbox.defaultHook || ALEO_NULL_ADDRESS},required_hook:${mailbox.requiredHook || ALEO_NULL_ADDRESS}}`,
+        mailboxValue,
         remoteRouterValue,
         `${req.destinationDomainId}u32`,
         recipient,
@@ -1220,7 +1244,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
         privateFee: false,
         inputs: [
           tokenMetadataValue,
-          `{default_ism:${mailbox.defaultIsm || ALEO_NULL_ADDRESS},default_hook:${mailbox.defaultHook || ALEO_NULL_ADDRESS},required_hook:${mailbox.requiredHook || ALEO_NULL_ADDRESS}}`,
+          mailboxValue,
           remoteRouterValue,
           `${req.destinationDomainId}u32`,
           recipient,
@@ -1235,7 +1259,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
 
     console.log('transfer_remote', [
       tokenMetadataValue,
-      `{default_ism:${mailbox.defaultIsm || ALEO_NULL_ADDRESS},default_hook:${mailbox.defaultHook || ALEO_NULL_ADDRESS},required_hook:${mailbox.requiredHook || ALEO_NULL_ADDRESS}}`,
+      mailboxValue,
       remoteRouterValue,
       `${req.destinationDomainId}u32`,
       recipient,
@@ -1250,7 +1274,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       privateFee: false,
       inputs: [
         tokenMetadataValue,
-        `{default_ism:${mailbox.defaultIsm || ALEO_NULL_ADDRESS},default_hook:${mailbox.defaultHook || ALEO_NULL_ADDRESS},required_hook:${mailbox.requiredHook || ALEO_NULL_ADDRESS}}`,
+        mailboxValue,
         remoteRouterValue,
         `${req.destinationDomainId}u32`,
         recipient,

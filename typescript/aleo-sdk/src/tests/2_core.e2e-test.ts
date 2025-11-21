@@ -93,7 +93,7 @@ describe('2. aleo sdk core e2e tests', async function () {
 
     // ASSERT
     mailbox = await signer.getMailbox({ mailboxAddress });
-    expect(mailbox.defaultHook).to.equal(hookAddress.split('/')[1]);
+    expect(mailbox.defaultHook).to.equal(hookAddress);
   });
 
   step('set mailbox required hook', async () => {
@@ -109,7 +109,7 @@ describe('2. aleo sdk core e2e tests', async function () {
 
     // ASSERT
     mailbox = await signer.getMailbox({ mailboxAddress });
-    expect(mailbox.requiredHook).to.equal(hookAddress.split('/')[1]);
+    expect(mailbox.requiredHook).to.equal(hookAddress);
   });
 
   step('set mailbox owner', async () => {
