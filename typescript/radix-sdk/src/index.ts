@@ -9,3 +9,4 @@ export {
 
 export { RadixProvider } from './clients/provider.js';
 export { RadixSigner } from './clients/signer.js';
+export { radixIsmModuleProvider } from './ism/module.js';
