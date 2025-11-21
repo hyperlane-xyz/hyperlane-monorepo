@@ -30,8 +30,19 @@ export interface HypModule<M extends ModuleType> {
   update(config: Config<M>): Promise<AnnotatedTx[]>;
 }
 
-export interface ModuleProvider<M extends ModuleType> {
+/**
+ * Provides read-only access to artifacts modules on-chain.
+ */
+export interface ReaderProvider<M extends ModuleType> {
+  /**
+   * @param provider - Chain provider for making RPC calls
+   * @returns A reader instance that can query module state
+   */
   connectReader: (provider: IProvider) => HypReader<M>;
+}
+
+export interface ModuleProvider<M extends ModuleType>
+  extends ReaderProvider<M> {
   connectModule: (
     signer: ISigner<AnnotatedTx, TxReceipt>,
     args: HypModuleArgs<M>,

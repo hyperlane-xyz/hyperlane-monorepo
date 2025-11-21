@@ -9,6 +9,7 @@ import {
   IsmType,
   MultisigIsmConfig,
   STATIC_ISM_TYPES,
+  calculateDomainRoutingIsmDelta,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import {
   AnnotatedTx,
@@ -29,41 +30,6 @@ import {
 
 import { AltVMIsmReader } from './AltVMIsmReader.js';
 import { validateIsmConfig } from './utils/validation.js';
-
-// Determines the domains to enroll and unenroll to update the current ISM config
-// to match the target ISM config.
-function calculateDomainRoutingDelta(
-  current: DomainRoutingIsmConfig,
-  target: DomainRoutingIsmConfig,
-): { domainsToEnroll: string[]; domainsToUnenroll: string[] } {
-  const domainsToEnroll = [];
-  for (const origin of Object.keys(target.domains)) {
-    if (!current.domains[origin]) {
-      domainsToEnroll.push(origin);
-    } else {
-      const subModuleMatches = deepEquals(
-        current.domains[origin],
-        target.domains[origin],
-      );
-      if (!subModuleMatches) domainsToEnroll.push(origin);
-    }
-  }
-
-  const domainsToUnenroll = Object.keys(current.domains).reduce(
-    (acc, origin) => {
-      if (!Object.keys(target.domains).includes(origin)) {
-        acc.push(origin);
-      }
-      return acc;
-    },
-    [] as string[],
-  );
-
-  return {
-    domainsToEnroll,
-    domainsToUnenroll,
-  };
-}
 
 export class AltVMIsmModule implements HypModule<IsmModuleType> {
   protected readonly logger = rootLogger.child({
@@ -155,7 +121,7 @@ export class AltVMIsmModule implements HypModule<IsmModuleType> {
       logger.debug(`Updating ${expectedConfig.type} on ${this.chain}`);
 
       updateTxs = await this.updateRoutingIsm({
-        actual: actualConfig,
+        actual: actualConfig as DomainRoutingIsmConfig,
         expected: expectedConfig,
         logger,
       });
@@ -316,10 +282,8 @@ export class AltVMIsmModule implements HypModule<IsmModuleType> {
 
     const knownChains = new Set(this.chainLookup.getKnownChainNames());
 
-    const { domainsToEnroll, domainsToUnenroll } = calculateDomainRoutingDelta(
-      actual,
-      expected,
-    );
+    const { domainsToEnroll, domainsToUnenroll } =
+      calculateDomainRoutingIsmDelta(actual, expected);
 
     const knownEnrolls = intersection(knownChains, new Set(domainsToEnroll));
 

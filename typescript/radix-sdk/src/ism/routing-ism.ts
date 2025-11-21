@@ -1,0 +1,235 @@
+import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
+
+import { IProvider, ISigner, IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
+import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
+import {
+  DerivedIsmConfig,
+  DomainRoutingIsmConfig,
+  IsmConfig,
+  IsmModuleAddresses,
+  IsmModuleType,
+  calculateDomainRoutingIsmDelta,
+  extractIsmAddress,
+} from '@hyperlane-xyz/provider-sdk/ism';
+import {
+  AnnotatedTx,
+  HypModule,
+  HypModuleArgs,
+  HypReader,
+  ModuleProvider,
+  ReaderProvider,
+  TxReceipt,
+} from '@hyperlane-xyz/provider-sdk/module';
+import { WithAddress, assert, eqAddressRadix } from '@hyperlane-xyz/utils';
+
+import { getDomainRoutingIsmConfig } from './query.js';
+import { RadixRoutingIsmTx } from './tx.js';
+
+type RoutingIsmModule = {
+  config: DomainRoutingIsmConfig;
+  addresses: IsmModuleAddresses;
+  derived: WithAddress<DomainRoutingIsmConfig>;
+};
+
+export class RadixRoutingIsmReader implements HypReader<RoutingIsmModule> {
+  constructor(
+    private readonly provider: IProvider,
+    private readonly radixGateway: GatewayApiClient,
+    private readonly readerProvider: ReaderProvider<IsmModuleType>,
+  ) {}
+
+  async read(address: string): Promise<WithAddress<DomainRoutingIsmConfig>> {
+    const { owner, routes } = await getDomainRoutingIsmConfig(
+      this.radixGateway,
+      { ism: address },
+    );
+
+    const ismReader = this.readerProvider.connectReader(this.provider);
+
+    const domains: Record<string, DerivedIsmConfig> = {};
+    for (const route of routes) {
+      domains[route.domainId.toString()] = await ismReader.read(
+        route.ismAddress,
+      );
+    }
+
+    return {
+      address,
+      type: IsmType.ROUTING,
+      owner,
+      domains,
+    };
+  }
+}
+
+export class RadixRoutingIsmModule implements HypModule<RoutingIsmModule> {
+  constructor(
+    private readonly radixNetworkId: number,
+    private readonly chainLookup: ChainLookup,
+    private readonly args: HypModuleArgs<RoutingIsmModule>,
+    private readonly reader: HypReader<RoutingIsmModule>,
+    private readonly txHelper: RadixRoutingIsmTx,
+    private readonly moduleProvider: ModuleProvider<IsmModuleType>,
+    private readonly signer: ISigner<AnnotatedTx, TxReceipt>,
+  ) {}
+
+  read(): Promise<WithAddress<DomainRoutingIsmConfig>> {
+    return this.reader.read(this.args.addresses.deployedIsm);
+  }
+
+  serialize(): IsmModuleAddresses {
+    return this.args.addresses;
+  }
+
+  async update(expectedConfig: DomainRoutingIsmConfig): Promise<AnnotatedTx[]> {
+    const actualConfig = await this.read();
+
+    const transactions: AnnotatedTx[] = [];
+
+    const updateDomainIsmTxs = await this.createRouteUpdateTxs(
+      actualConfig,
+      expectedConfig,
+    );
+    transactions.push(...updateDomainIsmTxs);
+
+    // Update owner last as previous updates need to be executed
+    // by the current owner
+    const updateOwnerTxs = await this.createOwnerUpdateTxs(
+      actualConfig,
+      expectedConfig,
+    );
+    transactions.push(...updateOwnerTxs);
+
+    return transactions;
+  }
+
+  private async createOwnerUpdateTxs(
+    actualConfig: WithAddress<DomainRoutingIsmConfig>,
+    expectedConfig: DomainRoutingIsmConfig,
+  ): Promise<AnnotatedTx[]> {
+    if (eqAddressRadix(actualConfig.owner, expectedConfig.owner)) {
+      return [];
+    }
+
+    const ismAddress = this.args.addresses.deployedIsm;
+
+    const manifest = await this.txHelper.buildUpdateOwnershipTransaction({
+      from_address: actualConfig.owner,
+      ism: ismAddress,
+      new_owner: expectedConfig.owner,
+    });
+
+    return [
+      {
+        annotation: `Transferring ownership of RoutingIsm ${ismAddress} from ${actualConfig.owner} to ${expectedConfig.owner}`,
+        networkId: this.radixNetworkId,
+        manifest,
+      },
+    ];
+  }
+
+  private normalizeDomainKeys(
+    config: DomainRoutingIsmConfig,
+  ): DomainRoutingIsmConfig {
+    const normalizedDomains: Record<string, IsmConfig | string> = {};
+
+    for (const chainNameOrId of Object.keys(config.domains)) {
+      const domainId = this.chainLookup.getDomainId(chainNameOrId);
+      assert(
+        domainId,
+        `Expected domainId to be defined for chain ${chainNameOrId}`,
+      );
+
+      normalizedDomains[domainId] = config.domains[chainNameOrId];
+    }
+
+    return {
+      ...config,
+      domains: normalizedDomains,
+    };
+  }
+
+  private async createRouteUpdateTxs(
+    actualConfig: WithAddress<DomainRoutingIsmConfig>,
+    expectedConfig: DomainRoutingIsmConfig,
+  ): Promise<AnnotatedTx[]> {
+    const transactions: AnnotatedTx[] = [];
+
+    const normalizedActual = this.normalizeDomainKeys(actualConfig);
+    const normalizedExpected = this.normalizeDomainKeys(expectedConfig);
+
+    const { domainsToEnroll, domainsToUnenroll } =
+      calculateDomainRoutingIsmDelta(normalizedActual, normalizedExpected);
+
+    const owner = actualConfig.owner;
+
+    for (const domainId of domainsToUnenroll) {
+      const tx = await this.createRemoveRouteTx(parseInt(domainId), owner);
+      transactions.push(tx);
+    }
+
+    for (const domainId of domainsToEnroll) {
+      const tx = await this.createSetRouteTx(
+        parseInt(domainId),
+        normalizedExpected.domains[domainId],
+        owner,
+      );
+      transactions.push(tx);
+    }
+
+    return transactions;
+  }
+
+  private async createRemoveRouteTx(
+    domainId: number,
+    owner: string,
+  ): Promise<AnnotatedTx> {
+    const ismAddress = this.args.addresses.deployedIsm;
+
+    const manifest = await this.txHelper.buildRemoveDomainIsmTransaction({
+      from_address: owner,
+      ism: ismAddress,
+      domain: domainId,
+    });
+
+    return {
+      annotation: `Removing route for domain ${domainId} from RoutingIsm ${ismAddress}`,
+      networkId: this.radixNetworkId,
+      manifest,
+    };
+  }
+
+  private async createSetRouteTx(
+    domainId: number,
+    domainConfig: string | IsmConfig | DerivedIsmConfig,
+    owner: string,
+  ): Promise<AnnotatedTx> {
+    const ismAddress = this.args.addresses.deployedIsm;
+
+    let targetIsmAddress: string;
+    if (typeof domainConfig === 'string' || 'address' in domainConfig) {
+      targetIsmAddress = extractIsmAddress(domainConfig);
+    } else {
+      const nestedModule = await this.moduleProvider.createModule(
+        this.signer,
+        domainConfig,
+      );
+      targetIsmAddress = nestedModule.serialize().deployedIsm;
+    }
+
+    const manifest = await this.txHelper.buildAddDomainIsmTransaction({
+      from_address: owner,
+      ism: ismAddress,
+      route: {
+        domainId,
+        ismAddress: targetIsmAddress,
+      },
+    });
+
+    return {
+      annotation: `Setting route for domain ${domainId} to ISM ${targetIsmAddress} on RoutingIsm ${ismAddress}`,
+      networkId: this.radixNetworkId,
+      manifest,
+    };
+  }
+}

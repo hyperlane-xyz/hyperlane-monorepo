@@ -4,6 +4,7 @@ import { NetworkId } from '@radixdlt/radix-engine-toolkit';
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert } from '@hyperlane-xyz/utils';
 
+import { DEFAULT_APPLICATION_NAME, DEFAULT_GAS_MULTIPLIER } from '../const.js';
 import { RadixCorePopulate } from '../core/populate.js';
 import { RadixCoreQuery } from '../core/query.js';
 import { RadixBase } from '../utils/base.js';
@@ -12,25 +13,24 @@ import {
   RadixIsmTypes,
   RadixSDKOptions,
   RadixSDKTransaction,
+  ismTypeFromRadixIsmType,
 } from '../utils/types.js';
 import { RadixWarpPopulate } from '../warp/populate.js';
 import { RadixWarpQuery } from '../warp/query.js';
 
-const DEFAULT_GAS_MULTIPLIER = 1.2;
-
 const NETWORKS = {
   [NetworkId.Stokenet]: {
-    applicationName: 'hyperlane',
+    applicationName: DEFAULT_APPLICATION_NAME,
     packageAddress:
       'package_tdx_2_1pkn2zdcw8q8rax6mxetdkgp7493mf379afhq7a7peh4wnftz3zej4h',
   },
   [NetworkId.Mainnet]: {
-    applicationName: 'hyperlane',
+    applicationName: DEFAULT_APPLICATION_NAME,
     packageAddress:
       'package_rdx1pkzmcj4mtal34ddx9jrt8um6u3yqheqpfvcj4s0ulmgyt094fw0jzh',
   },
   [NetworkId.LocalNet]: {
-    applicationName: 'hyperlane',
+    applicationName: DEFAULT_APPLICATION_NAME,
   },
 };
 
@@ -175,22 +175,7 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
       ism: req.ismAddress,
     });
 
-    switch (ismType) {
-      case RadixIsmTypes.MERKLE_ROOT_MULTISIG: {
-        return AltVM.IsmType.MERKLE_ROOT_MULTISIG;
-      }
-      case RadixIsmTypes.MESSAGE_ID_MULTISIG: {
-        return AltVM.IsmType.MESSAGE_ID_MULTISIG;
-      }
-      case RadixIsmTypes.ROUTING_ISM: {
-        return AltVM.IsmType.ROUTING;
-      }
-      case RadixIsmTypes.NOOP_ISM: {
-        return AltVM.IsmType.TEST_ISM;
-      }
-      default:
-        throw new Error(`Unknown ISM ModuleType: ${ismType}`);
-    }
+    return ismTypeFromRadixIsmType(ismType);
   }
 
   async getMessageIdMultisigIsm(
