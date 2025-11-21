@@ -18,6 +18,25 @@ const SUPPORTED_ISM_TYPES: Set<IsmType> = new Set([
 ]);
 
 /**
+ * Validates that an ISM type is supported by provider-sdk.
+ *
+ * @param ismType - The ISM type string to validate
+ * @param chain - Chain name for error messages
+ * @param context - Context string for error messages (e.g., "warp route", "core")
+ * @throws UnsupportedIsmTypeError if ISM type is not supported
+ */
+export function validateIsmType(
+  ismType: string,
+  chain: string,
+  context: string = 'configuration',
+): void {
+  if (!SUPPORTED_ISM_TYPES.has(ismType as IsmType)) {
+    const supportedTypes = Array.from(SUPPORTED_ISM_TYPES).join(', ');
+    throw new UnsupportedIsmTypeError(ismType, chain, context, supportedTypes);
+  }
+}
+
+/**
  * Validates that an ISM configuration is supported by provider-sdk.
  *
  * @param config - ISM configuration (can be string address or config object)
@@ -36,14 +55,10 @@ export function validateIsmConfig(
   }
 
   // Validate the ISM type
-  const ismType = config.type;
-  if (!SUPPORTED_ISM_TYPES.has(ismType)) {
-    const supportedTypes = Array.from(SUPPORTED_ISM_TYPES).join(', ');
-    throw new UnsupportedIsmTypeError(ismType, chain, context, supportedTypes);
-  }
+  validateIsmType(config.type, chain, context);
 
   // Recursively validate nested ISMs in routing configs
-  if (ismType === 'domainRoutingIsm') {
+  if (config.type === 'domainRoutingIsm') {
     for (const [domain, domainConfig] of Object.entries(config.domains)) {
       validateIsmConfig(
         domainConfig,

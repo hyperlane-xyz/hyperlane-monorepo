@@ -7,7 +7,9 @@
  * These functions validate that SDK configs are compatible with provider-sdk
  * requirements and provide clear error messages for unsupported features.
  */
+import { validateIsmConfig } from '@hyperlane-xyz/deploy-sdk';
 import { CoreConfig as ProviderCoreConfig } from '@hyperlane-xyz/provider-sdk/core';
+import { IsmConfig as ProviderIsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
 import {
   CollateralWarpConfig,
   TokenType as ProviderTokenType,
@@ -16,21 +18,9 @@ import {
 } from '@hyperlane-xyz/provider-sdk/warp';
 import {
   CoreConfig,
-  IsmType,
   TokenType,
   WarpRouteDeployConfigMailboxRequired,
 } from '@hyperlane-xyz/sdk';
-
-/**
- * Supported ISM types in provider-sdk.
- * Currently only basic ISM types are supported for Alt-VM chains.
- */
-const SUPPORTED_ISM_TYPES = new Set<IsmType>([
-  IsmType.MESSAGE_ID_MULTISIG,
-  IsmType.MERKLE_ROOT_MULTISIG,
-  IsmType.ROUTING,
-  IsmType.TEST_ISM,
-]);
 
 /**
  * Supported token types in provider-sdk.
@@ -40,28 +30,6 @@ const SUPPORTED_TOKEN_TYPES = new Set<TokenType>([
   TokenType.synthetic,
   TokenType.collateral,
 ]);
-
-/**
- * Validates that an ISM type is supported by provider-sdk.
- *
- * @param ismType - The ISM type to validate
- * @param chain - Chain name for error messages
- * @param context - Additional context for error message (e.g., "nested ISM", "warp config")
- * @throws Error if ISM type is not supported
- */
-function validateIsmType(
-  ismType: IsmType,
-  chain: string,
-  context: string = '',
-): void {
-  if (!SUPPORTED_ISM_TYPES.has(ismType)) {
-    const prefix = context ? `${context} ` : '';
-    const errorMsg =
-      `Unsupported ${prefix}ISM type '${ismType}' for Alt-VM chain '${chain}'.\n` +
-      `Supported ISM types: ${Array.from(SUPPORTED_ISM_TYPES).join(', ')}.`;
-    throw new Error(errorMsg);
-  }
-}
 
 /**
  * Validates that a CoreConfig is compatible with provider-sdk requirements.
@@ -75,18 +43,13 @@ export function validateCoreConfigForAltVM(
   config: CoreConfig,
   chain: string,
 ): ProviderCoreConfig {
-  // Validate ISM configuration
-  if (typeof config.defaultIsm === 'object' && 'type' in config.defaultIsm) {
-    validateIsmType(config.defaultIsm.type, chain);
-
-    // Recursively validate nested ISMs
-    if ('isms' in config.defaultIsm && Array.isArray(config.defaultIsm.isms)) {
-      for (const nestedIsm of config.defaultIsm.isms) {
-        if (typeof nestedIsm === 'object' && 'type' in nestedIsm) {
-          validateIsmType(nestedIsm.type, chain, 'nested');
-        }
-      }
-    }
+  // Validate ISM configuration (handles recursion for routing ISMs)
+  if (config.defaultIsm) {
+    validateIsmConfig(
+      config.defaultIsm as ProviderIsmConfig | string,
+      chain,
+      'core config',
+    );
   }
 
   // Validate Hook configuration
@@ -95,7 +58,7 @@ export function validateCoreConfigForAltVM(
 
   // Type assertion is safe here because we've validated the structure
   // and provider-sdk types are a subset of SDK types
-  return config as unknown as ProviderCoreConfig;
+  return config as ProviderCoreConfig;
 }
 
 /**
@@ -127,16 +90,12 @@ export function validateWarpConfigForAltVM(
     }
   }
 
-  // Validate ISM if present
-  if (
-    config.interchainSecurityModule &&
-    typeof config.interchainSecurityModule === 'object' &&
-    'type' in config.interchainSecurityModule
-  ) {
-    validateIsmType(
-      config.interchainSecurityModule.type,
+  // Validate ISM if present (handles recursion for routing ISMs)
+  if (config.interchainSecurityModule) {
+    validateIsmConfig(
+      config.interchainSecurityModule as ProviderIsmConfig | string,
       chain,
-      'in warp config',
+      'warp config',
     );
   }
 
