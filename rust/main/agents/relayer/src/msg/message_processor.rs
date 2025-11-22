@@ -19,6 +19,7 @@ use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument
 
 use hyperlane_base::db::{HyperlaneDb, HyperlaneRocksDB};
 use hyperlane_base::CoreMetrics;
+use hyperlane_core::PendingOperationStatus::ReadyToSubmit;
 use hyperlane_core::{
     ConfirmReason, HyperlaneDomain, HyperlaneDomainProtocol, PendingOperationResult,
     PendingOperationStatus, QueueOperation, ReprepareReason,
@@ -35,6 +36,7 @@ use super::op_queue::OpQueue;
 use super::op_queue::OperationPriorityQueue;
 
 use stage::prepare;
+use stage::submit::filter_operations_for_submit;
 
 mod disposition;
 mod stage;
@@ -405,6 +407,7 @@ async fn prepare_lander_task(
 
         let batch_to_process = prepare::filter_operations_for_preparation(
             entrypoint.clone() as Arc<dyn Entrypoint + Send + Sync>,
+            &submit_queue,
             &confirm_queue,
             db.clone(),
             batch,
@@ -564,16 +567,28 @@ async fn submit_lander_task(
     let recv_limit = max_batch_size as usize;
     loop {
         let batch = submit_queue.pop_many(recv_limit).await;
-        for op in batch.into_iter() {
-            submit_via_lander(
-                op,
-                &entrypoint,
-                &prepare_queue,
-                &confirm_queue,
-                &metrics,
-                db.clone(),
-            )
-            .await;
+
+        // Filter operations based on their current payload status
+        let operations_to_process = filter_operations_for_submit(
+            entrypoint.clone() as Arc<dyn Entrypoint + Send + Sync>,
+            &submit_queue,
+            &confirm_queue,
+            &metrics,
+            db.clone(),
+            batch,
+        )
+        .await;
+
+        if operations_to_process.is_empty() {
+            // There are no operations to submit, so give some time before checking again
+            sleep(Duration::from_millis(100)).await;
+            continue;
+        }
+
+        // Process remaining operations in submit queue
+        for op in operations_to_process {
+            // Operation needs a new payload created and sent
+            submit_via_lander(op, &entrypoint, &prepare_queue, &submit_queue, db.clone()).await;
         }
     }
 }
@@ -582,8 +597,7 @@ async fn submit_via_lander(
     op: QueueOperation,
     entrypoint: &Arc<DispatcherEntrypoint>,
     prepare_queue: &OpQueue,
-    confirm_queue: &OpQueue,
-    metrics: &MessageProcessorMetrics,
+    submit_queue: &OpQueue,
     db: Arc<dyn HyperlaneDb>,
 ) {
     let operation_payload = match op.payload().await {
@@ -635,7 +649,13 @@ async fn submit_via_lander(
         return;
     }
 
-    confirm_op(op, confirm_queue, metrics).await;
+    // Push to submit queue - the filtering logic will move it to confirm queue
+    // once the transaction is actually included on-chain
+    // We are not differentiating operations which arrived to Submit queue
+    // for the first time and operations which stuck there at the moment.
+    // Depending on type of failures with submission, we can add more variants of
+    // PendingOperationStatus which will allow to identify the root cause quicker.
+    submit_queue.push(op, Some(ReadyToSubmit)).await;
 }
 
 async fn prepare_op(
