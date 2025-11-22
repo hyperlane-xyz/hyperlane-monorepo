@@ -231,6 +231,10 @@
     "amount": "3",
     "decimals": 1
   },
+  "lazai": {
+    "amount": "1",
+    "decimals": 9
+  },
   "linea": {
     "amount": "0.098465617",
     "decimals": 9
@@ -426,6 +430,10 @@
   "solaxy": {
     "amount": "0.5",
     "decimals": 1
+  },
+  "somnia": {
+    "amount": "6.0",
+    "decimals": 9
   },
   "soneium": {
     "amount": "0.001999792",

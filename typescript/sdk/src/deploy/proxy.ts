@@ -50,9 +50,13 @@ export async function isInitialized(
 ): Promise<boolean> {
   await assertCodeExists(provider, contract);
   // Using OZ's Initializable 4.9 which keeps it at the 0x0 slot
-  const storageValue = ethers.BigNumber.from(
-    await provider.getStorageAt(contract, '0x0'),
-  );
+  const rawValue = await provider.getStorageAt(contract, '0x0');
+  // Handle malformed RPC responses that return empty hex string (e.g., Somnia)
+  // Empty hex string means uninitialized (value of 0)
+  if (rawValue === '0x' || rawValue === '') {
+    return false;
+  }
+  const storageValue = ethers.BigNumber.from(rawValue);
   return storageValue.eq(1) || storageValue.eq(255);
 }
 
@@ -68,7 +72,8 @@ export async function proxyAdmin(
   );
 
   // Return zero address if storage value is empty
-  if (storageValue === '0x' || storageValue === '0x0') {
+  // Empty hex string means uninitialized (value of 0)
+  if (storageValue === '' || storageValue === '0x' || storageValue === '0x0') {
     return ethers.constants.AddressZero;
   }
 

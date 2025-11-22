@@ -400,5 +400,11 @@
   },
   "zoramainnet": {
     "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
+  },
+  "somnia": {
+    "validators": ["0xf484907083d32fdc0848bfb998dfdde835e6f9cb"]
+  },
+  "lazai": {
+    "validators": ["0x3b00fe3518e739bb978b04d28e1492d8d865d96e"]
   }
 }
