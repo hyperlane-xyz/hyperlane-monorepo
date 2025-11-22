@@ -1,5 +1,7 @@
 # solhint-plugin-hyperlane
 
+## 19.10.0
+
 ## 19.9.0
 
 ## 19.8.0

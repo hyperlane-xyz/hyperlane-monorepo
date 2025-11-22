@@ -1,5 +1,23 @@
 # @hyperlane-xyz/sdk
 
+## 19.10.0
+
+### Minor Changes
+
+- c2a64e8c5: feat: add setTokenHook to altvm interface
+- a97a9939c: Fix core deployment on cosmos chains failing as the ism was not set properly on mailbox creation
+
+### Patch Changes
+
+- c0583af62: Improve CCTP offchain lookup server error handling
+- Updated dependencies [c2a64e8c5]
+- Updated dependencies [a97a9939c]
+  - @hyperlane-xyz/cosmos-sdk@19.10.0
+  - @hyperlane-xyz/radix-sdk@19.10.0
+  - @hyperlane-xyz/utils@19.10.0
+  - @hyperlane-xyz/core@10.0.4
+  - @hyperlane-xyz/starknet-core@19.10.0
+
 ## 19.9.0
 
 ### Patch Changes

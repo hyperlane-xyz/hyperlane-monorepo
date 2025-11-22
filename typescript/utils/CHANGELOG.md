@@ -1,5 +1,11 @@
 # @hyperlane-xyz/utils
 
+## 19.10.0
+
+### Minor Changes
+
+- c2a64e8c5: feat: add setTokenHook to altvm interface
+
 ## 19.9.0
 
 ### Minor Changes

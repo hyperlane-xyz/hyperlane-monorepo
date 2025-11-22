@@ -1,5 +1,18 @@
 # @hyperlane-xyz/cosmos-sdk
 
+## 19.10.0
+
+### Minor Changes
+
+- c2a64e8c5: feat: add setTokenHook to altvm interface
+- a97a9939c: Fix core deployment on cosmos chains failing as the ism was not set properly on mailbox creation
+
+### Patch Changes
+
+- Updated dependencies [c2a64e8c5]
+  - @hyperlane-xyz/utils@19.10.0
+  - @hyperlane-xyz/cosmos-types@19.10.0
+
 ## 19.9.0
 
 ### Patch Changes
