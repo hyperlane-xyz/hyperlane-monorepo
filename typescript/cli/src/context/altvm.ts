@@ -1,5 +1,6 @@
 import { password } from '@inquirer/prompts';
 
+import { AleoProvider, AleoSigner } from '@hyperlane-xyz/aleo-sdk';
 import {
   CosmosNativeProvider,
   CosmosNativeSigner,
@@ -47,6 +48,10 @@ const ALT_VM_SUPPORTED_PROTOCOLS: AltVMProtocol = {
   [ProtocolType.Radix]: {
     provider: RadixProvider,
     signer: RadixSigner,
+  },
+  [ProtocolType.Aleo]: {
+    provider: AleoProvider,
+    signer: AleoSigner,
   },
   // [NEW PROTOCOL]: {...}
 };

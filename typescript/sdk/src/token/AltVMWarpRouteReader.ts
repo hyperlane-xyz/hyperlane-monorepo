@@ -72,6 +72,8 @@ export class AltVMWarpRouteReader {
     });
 
     switch (token.tokenType) {
+      case AltVM.TokenType.native:
+        return TokenType.native;
       case AltVM.TokenType.collateral:
         return TokenType.collateral;
       case AltVM.TokenType.synthetic:
