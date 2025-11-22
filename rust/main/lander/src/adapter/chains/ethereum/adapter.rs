@@ -37,6 +37,7 @@ use hyperlane_ethereum::{
 use crate::adapter::chains::ethereum::metrics::{
     LABEL_BATCHED_TRANSACTION_FAILED, LABEL_BATCHED_TRANSACTION_SUCCESS,
 };
+use crate::AdaptsChainAction;
 use crate::{
     adapter::{core::TxBuildingResult, AdaptsChain, GasLimit},
     dispatcher::{PayloadDb, PostInclusionMetricsSource, TransactionDb},
@@ -786,6 +787,18 @@ impl AdaptsChain for EthereumAdapter {
     fn update_vm_specific_metrics(&self, tx: &Transaction, metrics: &DispatcherMetrics) {
         let metrics_source = Self::extract_vm_specific_metrics(tx);
         metrics.set_post_inclusion_metrics(&metrics_source, self.domain.as_ref());
+    }
+
+    async fn run_command(&self, action: AdaptsChainAction) -> Result<(), LanderError> {
+        match action {
+            AdaptsChainAction::OverwriteUpperNonce { nonce } => {
+                self.nonce_manager
+                    .state
+                    .overwrite_upper_nonce(nonce)
+                    .await?;
+            }
+        }
+        Ok(())
     }
 }
 

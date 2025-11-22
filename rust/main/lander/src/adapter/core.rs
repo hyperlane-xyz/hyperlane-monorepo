@@ -21,6 +21,11 @@ use crate::{
 
 pub type GasLimit = U256;
 
+#[derive(Clone, Debug)]
+pub enum AdaptsChainAction {
+    OverwriteUpperNonce { nonce: Option<u64> },
+}
+
 #[derive(new, Debug, Clone, PartialEq)]
 pub struct TxBuildingResult {
     /// payload details for the payloads in this transaction
@@ -132,5 +137,10 @@ pub trait AdaptsChain: Send + Sync {
     /// as part of determining which transactions need reprocessing.
     async fn get_reprocess_txs(&self) -> Result<Vec<Transaction>, LanderError> {
         Ok(Vec::new())
+    }
+
+    async fn run_command(&self, action: AdaptsChainAction) -> Result<(), LanderError> {
+        tracing::debug!(?action, "Not implemented");
+        Ok(())
     }
 }

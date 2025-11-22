@@ -1,6 +1,8 @@
 // TODO: re-enable clippy warnings
 #![allow(dead_code)]
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use eyre::{eyre, Result};
 use tracing::info;

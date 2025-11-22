@@ -40,7 +40,6 @@ impl NonceManagerState {
         let next_nonce = self
             .identify_next_nonce(finalized_nonce, upper_nonce)
             .await?;
-
         if next_nonce == upper_nonce {
             // If we reached the upper nonce, we need to update it.
             self.set_upper_nonce(&(next_nonce.saturating_add(U256::one())))
@@ -71,7 +70,6 @@ impl NonceManagerState {
             next_nonce = next_nonce.saturating_add(U256::one());
 
             let tracked_tx_uuid = self.get_tracked_tx_uuid(&next_nonce).await?;
-
             if tracked_tx_uuid == TransactionUuid::default() {
                 // If the nonce is not tracked, we can use it.
                 debug!(
