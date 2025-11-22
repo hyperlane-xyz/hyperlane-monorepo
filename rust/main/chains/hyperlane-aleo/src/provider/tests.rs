@@ -3,8 +3,9 @@
 use std::{ops::Deref, path::PathBuf, str::FromStr};
 
 use hyperlane_core::{HyperlaneProvider, H256, U256};
+use serde_json::{json, Value};
 
-use crate::{provider::mock::MockHttpClient, AleoProvider};
+use crate::{provider::mock::MockHttpClient, AleoProvider, AleoSigner};
 
 // Helper constructing provider with mock client
 fn mock_provider() -> AleoProvider<MockHttpClient> {
@@ -12,7 +13,7 @@ fn mock_provider() -> AleoProvider<MockHttpClient> {
     let client: MockHttpClient = MockHttpClient::new(base_path);
     let domain =
         hyperlane_core::HyperlaneDomain::Known(hyperlane_core::KnownHyperlaneDomain::Abstract);
-    AleoProvider::with_client(client, domain, 0u16)
+    AleoProvider::with_client(client, domain, 0u16, None)
 }
 
 #[tokio::test]
@@ -136,3 +137,98 @@ async fn test_get_chain_metrics() {
 //         ...
 //     }
 // })))
+
+fn get_mock_provider_with_programs() -> AleoProvider<MockHttpClient> {
+    let base_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/provider/mock_responses");
+    let client: MockHttpClient = MockHttpClient::new(base_path);
+    let domain =
+        hyperlane_core::HyperlaneDomain::Known(hyperlane_core::KnownHyperlaneDomain::Abstract);
+    let private_key =
+        hex::decode("5e5b34fbf0e6e22375fde0d2af0dcd789bd607a9423ece32bc281d7a28fa3612").unwrap();
+    let signer = AleoSigner::new(&private_key).unwrap();
+    let provider = AleoProvider::with_client(client, domain, 0u16, Some(signer));
+    provider
+        .register_file("program/credits.aleo", "programs/credits.aleo")
+        .unwrap();
+    provider.register_value("block/height/latest", json!(12668791));
+    provider.register_value("program/unknown.aleo", Value::Null);
+    provider
+}
+
+#[tokio::test]
+async fn test_estimate_tx() {
+    let provider = get_mock_provider_with_programs();
+    let result = provider
+        .estimate_tx(
+            "credits.aleo",
+            vec![
+                "aleo1qkjr490qe7p9v45qrd5pjemmqn4vmgqt8vzc8j0jfwhc7mf5f5zqly7vze".to_owned(),
+                "5u64".to_owned(),
+            ],
+            "transfer_public",
+        )
+        .await;
+    assert!(result.is_ok(), "Estimate TX failed");
+    let result = result.unwrap();
+    assert_eq!(result.base_fee, 4030);
+    assert_eq!(result.priority_fee, 0u64);
+    assert_eq!(result.total_fee, 4030);
+}
+
+#[tokio::test]
+async fn test_estimate_tx_invalid_inputs() {
+    let provider = get_mock_provider_with_programs();
+    let result = provider
+        .estimate_tx(
+            "credits.aleo",
+            vec![
+                "aleo1qkjr490qe7p9v45qrd5pjemmqn4vmgqt8vzc8j0jfwhc7mf5f5zqly7vze".to_owned(),
+                "5u64".to_owned(),
+                "5u64".to_owned(),
+            ],
+            "transfer_public",
+        )
+        .await;
+    assert!(
+        !result.is_ok(),
+        "Estimate TX with invalid inputs should fail"
+    );
+}
+
+#[tokio::test]
+async fn test_estimate_tx_unknown_function() {
+    let provider = get_mock_provider_with_programs();
+    let result = provider
+        .estimate_tx(
+            "credits.aleo",
+            vec![
+                "aleo1qkjr490qe7p9v45qrd5pjemmqn4vmgqt8vzc8j0jfwhc7mf5f5zqly7vze".to_owned(),
+                "5u64".to_owned(),
+            ],
+            "transfer_public_super",
+        )
+        .await;
+    assert!(
+        !result.is_ok(),
+        "Estimate TX with invalid inputs should fail"
+    );
+}
+
+#[tokio::test]
+async fn test_estimate_tx_unknown_program() {
+    let provider = get_mock_provider_with_programs();
+    let result = provider
+        .estimate_tx(
+            "unknown.aleo",
+            vec![
+                "aleo1qkjr490qe7p9v45qrd5pjemmqn4vmgqt8vzc8j0jfwhc7mf5f5zqly7vze".to_owned(),
+                "5u64".to_owned(),
+            ],
+            "transfer_public",
+        )
+        .await;
+    assert!(
+        !result.is_ok(),
+        "Estimate TX with invalid inputs should fail"
+    );
+}
