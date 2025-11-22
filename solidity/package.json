@@ -51,7 +51,8 @@
     "./buildArtifact.js": "./dist/buildArtifact.js",
     "./buildArtifact.json": "./dist/buildArtifact.json",
     "./buildArtifact-zksync.js": "./dist/zksync/buildArtifact.js",
-    "./contracts": "./contracts"
+    "./contracts": "./contracts",
+    "./contracts/*": "./contracts/*"
   },
   "types": "./dist/index.d.ts",
   "files": [
