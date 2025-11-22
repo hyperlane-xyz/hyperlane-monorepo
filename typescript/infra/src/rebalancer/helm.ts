@@ -75,7 +75,7 @@ export class RebalancerHelmManager extends HelmManager {
     return {
       image: {
         repository: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-        tag: '5931d91-20251113-090707',
+        tag: '4db5741-20251121-230509',
       },
       withMetrics: this.withMetrics,
       fullnameOverride: this.helmReleaseName,
