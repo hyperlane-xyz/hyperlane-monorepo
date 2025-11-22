@@ -20,7 +20,7 @@ abstract contract MovableCollateralRouter is TokenRouter {
     using EnumerableSet for EnumerableSet.AddressSet;
     using Quotes for Quote[];
 
-    MovableCollateralRouterStorage private allowed;
+    MovableCollateralRouterStorage internal allowed;
 
     event CollateralMoved(
         uint32 indexed domain,
@@ -179,6 +179,7 @@ abstract contract MovableCollateralRouter is TokenRouter {
         }
         _unsafeSetLength(set._values, 0);
     }
+
     /// @dev A helper for `_clear`. See https://github.com/OpenZeppelin/openzeppelin-contracts/blob/39f5a0284e7eb539354e44b76fcbb69033b22b56/contracts/utils/Arrays.sol#L466
     function _unsafeSetLength(bytes32[] storage array, uint256 len) internal {
         assembly ("memory-safe") {
