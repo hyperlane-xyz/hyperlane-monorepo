@@ -141,7 +141,7 @@ const getAvsOperators = async (
       toBlock,
     );
 
-    logs.forEach((log) => {
+    logs.forEach((log: any) => {
       const event = ecdsaStakeRegistry.interface.parseLog(log);
       const operatorKey = event.args.operator;
       const signingKey = event.args.newSigningKey;

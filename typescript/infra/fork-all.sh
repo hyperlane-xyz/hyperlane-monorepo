@@ -6,7 +6,7 @@ if [ -z "$ENVIRONMENT" ] || [ -z "$MODULE" ]; then
   exit 1
 fi
 
-CHAINS=`yarn tsx ./scripts/print-chain-metadatas.ts -e $ENVIRONMENT | \
+CHAINS=`pnpm tsx ./scripts/print-chain-metadatas.ts -e $ENVIRONMENT | \
     jq -r 'to_entries | map(select(.value.protocol=="ethereum")) | map(.key) ' | \
     tr -d '\"[],'`
 

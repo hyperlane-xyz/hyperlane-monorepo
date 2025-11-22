@@ -4,6 +4,8 @@
   "version": "19.9.0",
   "dependencies": {
     "@cosmjs/encoding": "^0.32.4",
+    "@ethersproject/bytes": "^5.7.0",
+    "@ethersproject/units": "^5.7.0",
     "@solana/web3.js": "^1.98.4",
     "bech32": "^2.0.0",
     "bignumber.js": "^9.1.1",
@@ -39,10 +41,12 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-import-resolver-typescript": "^4.4.4",
     "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-yml": "^1.18.0",
     "mocha": "^11.5.0",
     "prettier": "^3.5.3",
     "sinon": "^13.0.2",
-    "typescript": "5.3.3"
+    "typescript": "5.3.3",
+    "yaml-eslint-parser": "^1.2.2"
   },
   "homepage": "https://www.hyperlane.xyz",
   "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
@@ -52,7 +56,7 @@
     "Typescript"
   ],
   "license": "Apache-2.0",
-  "prepublish": "yarn build",
+  "prepublish": "pnpm build",
   "scripts": {
     "dev": "tsc -w",
     "build": "tsc --excludeFiles \"**/*.test.ts\"",
@@ -61,7 +65,7 @@
     "lint": "eslint -c ./eslint.config.mjs",
     "prettier": "prettier --write ./src",
     "test": "mocha --config .mocharc.json './src/**/*.test.ts'",
-    "test:ci": "yarn test"
+    "test:ci": "pnpm test"
   },
   "type": "module",
   "exports": {
