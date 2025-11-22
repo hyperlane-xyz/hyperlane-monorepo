@@ -14,14 +14,14 @@ use crate::{CurrentNetwork, HyperlaneAleoError};
 /// HttpClient trait defines the base layer that Aleo provider will use
 pub trait HttpClient {
     /// Makes a GET request to the API
-    async fn request<T: DeserializeOwned>(
+    async fn request<T: DeserializeOwned + Send>(
         &self,
         path: &str,
         query: impl Into<Option<serde_json::Value>> + Send,
     ) -> ChainResult<T>;
 
     /// Makes a POST request to the API
-    async fn request_post<T: DeserializeOwned>(
+    async fn request_post<T: DeserializeOwned + Send>(
         &self,
         path: &str,
         body: &serde_json::Value,

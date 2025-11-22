@@ -10,7 +10,7 @@ publish.workspace = true
 version.workspace = true
 
 [dependencies]
-hyperlane-core = { path = "../../hyperlane-core" }
+hyperlane-core = { path = "../../hyperlane-core", features = ["async"] }
 hyperlane-operation-verifier = { path = "../../applications/hyperlane-operation-verifier" }
 hyperlane-warp-route = { path = "../../applications/hyperlane-warp-route" }
 aleo-serialize = { path = "../../utils/aleo-serialize" }
