@@ -188,6 +188,13 @@ chmod +x scripts/install-dependencies.sh
 scripts/install-dependencies.sh
 ```
 
+Install foundry:
+
+```bash
+source ~/.zshrc
+foundryup
+```
+
 install docker
 
 ```bash
