@@ -46,9 +46,9 @@ Give Dymension team `validator_ism_addr` and `validator_escrow_pub_key`. Don't w
 
 Use the config json template provided by Dymension team at: `hyperlane-monorepo/dymension/validators/bridge/artifacts/<network>/config/kaspa/validator-config.json`. 
 
-Note: `<network>` palceholder should be replaced with either `blubmus` or `mainnet`
+Note: `<network>` placeholder should be replaced with either `blubmus` or `mainnet`
 
-Populate `.chains.<kaspa-network-name>.kaspaEscrowPrivateKey` with the escrow secret value `validator_escrow_secret` (keep quotes ⚠️). Also populate `.validator.key` with validator_ism_priv_key and prefix with '0x'. Your file should look something like:
+Populate `.chains.<kaspa-network-name>.kaspaEscrowPrivateKey` with the escrow secret value `validator_escrow_secret` (keep quotes ⚠️). Also populate `.validator.key` with `validator_ism_priv_key` and prefix with '0x'. Your file should look something like:
 
 ```
 {
@@ -68,7 +68,7 @@ Populate `.chains.<kaspa-network-name>.kaspaEscrowPrivateKey` with the escrow se
 
 #### Running
 
-Copy the dummy `kaspa.wallet` from `hyperlane-deployments/validators/artifacts/<network>/config/kaspa/kaspa.wallet` to `~/.kaspa/kaspa.wallet`: `cp <dummy> ~/.kaspa/kaspa.wallet`. This wallet is just to stop the Kaspa query client crashing because it expects a key. Signing uses the `validator_escrow_secret` generated before!
+Copy the dummy `kaspa.wallet` from `hyperlane-monorepo/dymension/validators/bridge/artifacts/<network>/config/kaspa/kaspa.wallet` to `~/.kaspa/kaspa.wallet`: `cp <dummy> ~/.kaspa/kaspa.wallet`. This wallet is just to stop the Kaspa query client crashing because it expects a key. Signing uses the `validator_escrow_secret` generated before!
 
 Make a database directory in place of your choosing (such as `mkdir valdb`)
 
