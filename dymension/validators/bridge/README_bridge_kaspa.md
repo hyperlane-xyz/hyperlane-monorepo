@@ -263,9 +263,25 @@ Copy config to a kaspa local directory. replace `<network>` with either `blumbus
 cp -r ${HOME}/hyperlane-monorepo/dymension/validators/bridge/artifacts/<network>/config/kaspa/* ${HOME}/kaspa/config/
 ```
 
-Update all placeholders inside  and `${HOME}/kaspa/config/validator-config.json` files. Concretely this requires THREE things:
+Update all placeholders inside `${HOME}/kaspa/config/validator-config.json`. Below is an index of all placeholders that need to be configured:
 
-1. Add a pointer to your AWS hosted key which allows minting of KAS on Dymension (replacing the preexisting 'validator' subobject)
+| Placeholder                                                          | Description                                | Example                         |
+| -------------------------------------------------------------------- | ------------------------------------------ | ------------------------------- |
+| `<interchain_gas_paymaster_address-PROVIDED_BY_DIMENSION>`           | Interchain gas paymaster contract address  | `0x1234567890abcdef...`         |
+| `<mailbox_address-PROVIDED_BY_DIMENSION>`                            | Mailbox contract address                   | `0xabcdef1234567890...`         |
+| `<merkle_tree_hook_address-PROVIDED_BY_DIMENSION>`                   | Merkle tree hook contract address          | `0x9876543210fedcba...`         |
+| `<validator_announce_address-PROVIDED_BY_DIMENSION>`                 | Validator announce contract address        | `0xfedcba0987654321...`         |
+| `<all_validator_pub_keys_separated_by_commas-PROVIDED_BY_DIMENSION>` | All validator public keys                  | `pubkey1,pubkey2,pubkey3`       |
+| `<kaspa-network-rpc-url-without-protocol>`                           | Kaspa network wRPC URL without protocol    | `wrpc-kaspa.example.com`        |
+| `<kaspa-network-rest-url>`                                           | Kaspa network REST API URL                 | `https://api-kaspa.example.com` |
+| `<validator_escrow_secret>`                                          | Validator escrow private key (keep quotes) | `"your-private-key-here"`       |
+| `<dymension-hub-grpc-url>`                                           | Dymension hub gRPC URL                     | `https://grpc.example.com`      |
+| `<port>`                                                             | Respectful port number of the service      | `443`                           |
+| `<validator_ism_priv_key>`                                           | Validator ISM private key                  | `0xabcd1234...`                 |
+
+**Additional AWS KMS Configuration:**
+
+1. Add a pointer to your AWS hosted key which allows minting of KAS on Dymension (replacing the preexisting 'validator' subobject):
 
 ```json
 // in the TOP LEVEL object
@@ -276,10 +292,10 @@ Update all placeholders inside  and `${HOME}/kaspa/config/validator-config.json`
     }
 ```
 
-2. Add a pointer to your AWS hosted key which allows release KAS escrow
+2. Add a pointer to your AWS hosted key which allows release KAS escrow:
 
 ```json
-// in the chains.kaspatest10 object
+// in the chains.<kaspa-network-name> object
    "kaspaKey": {
           "type": "aws",
           "secretId": "<kaspa_secret_arn>",
@@ -288,7 +304,7 @@ Update all placeholders inside  and `${HOME}/kaspa/config/validator-config.json`
       }
 ```
 
-3. Zero out the `kaspaEscrowPrivateKey` field
+3. Zero out the `kaspaEscrowPrivateKey` field:
 ```json
   "kaspaEscrowPrivateKey":"",
 ```
