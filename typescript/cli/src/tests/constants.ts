@@ -17,6 +17,10 @@ export const WARP_DEPLOY_DEFAULT_FILE_NAME = `warp-route-deployment`;
 export const WARP_DEPLOY_OUTPUT_PATH = `${TEMP_PATH}/${WARP_DEPLOY_DEFAULT_FILE_NAME}.yaml`;
 export const WARP_READ_OUTPUT_PATH = `${TEMP_PATH}/${WARP_DEPLOY_DEFAULT_FILE_NAME}-read.yaml`;
 
+const EXAMPLES_PATH = './examples';
+export const JSON_RPC_ICA_STRATEGY_CONFIG_PATH = `${EXAMPLES_PATH}/submit/strategy/json-rpc-ica-strategy.yaml`;
+export const JSON_RPC_TIMELOCK_STRATEGY_CONFIG_PATH = `${EXAMPLES_PATH}/submit/strategy/json-rpc-timelock-strategy.yaml`;
+
 export const TEST_CHAIN_NAMES_BY_PROTOCOL = {
   [ProtocolType.Ethereum]: {
     CHAIN_NAME_2: 'anvil2',
@@ -158,6 +162,7 @@ export const TEST_CHAIN_METADATA_PATH_BY_PROTOCOL: ProtocolChainMap<
 
 export type TestChainMetadata = ChainMetadata & {
   rpcPort: number;
+  rpcUrl: string;
   restPort: number;
   // The ChainMetadata type does not define this property yet
   gatewayUrls?: { http: string }[];
@@ -183,11 +188,21 @@ export const TEST_CHAIN_METADATA_BY_PROTOCOL: ProtocolChainMap<
 
     return {
       ...currentChainMetadata,
+      rpcUrl,
       rpcPort,
       restPort,
     };
   });
 }) as any;
+
+export function getArtifactReadPath(
+  tokenSymbol: string,
+  seeds: string[] = [],
+): string {
+  return `${TEMP_PATH}/${
+    seeds.length !== 0 ? getWarpId(tokenSymbol.toUpperCase(), seeds) : ['read']
+  }.yaml`;
+}
 
 export function getWarpCoreConfigPath(
   tokenSymbol: string,
@@ -217,3 +232,17 @@ export function getWarpId(tokenSymbol: string, chains: string[]): string {
 }
 
 export const TEST_TOKEN_SYMBOL = 'TST';
+
+export const DEFAULT_EVM_WARP_ID = getWarpId('ETH', [
+  TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+]);
+export const DEFAULT_EVM_WARP_CORE_PATH = getWarpCoreConfigPath('ETH', [
+  TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+]);
+export const DEFAULT_EVM_WARP_READ_OUTPUT_PATH = getArtifactReadPath('ETH', [
+  TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+  'read',
+]);
+export const DEFAULT_EVM_WARP_DEPLOY_PATH = getWarpDeployConfigPath('ETH', [
+  TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+]);

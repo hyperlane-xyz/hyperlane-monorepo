@@ -47,15 +47,17 @@ export function exportWarpConfigsToFilePaths({
   warpRouteId,
   warpConfig,
   warpCoreConfig,
+  registryPath = REGISTRY_PATH,
 }: {
   warpRouteId: string;
   warpConfig: WarpRouteDeployConfig;
   warpCoreConfig: WarpCoreConfig;
+  registryPath?: string;
 }): {
   warpDeployPath: string;
   warpCorePath: string;
 } {
-  const basePath = `${REGISTRY_PATH}/deployments/warp_routes/${warpRouteId}`;
+  const basePath = `${registryPath}/deployments/warp_routes/${warpRouteId}`;
   const updatedWarpConfigPath = `${basePath}-deploy.yaml`;
   const updatedWarpCorePath = `${basePath}-config.yaml`;
   writeYamlOrJson(updatedWarpConfigPath, warpConfig);
@@ -174,9 +176,10 @@ export async function deployToken(
   decimals = 18,
   symbol = 'TOKEN',
   name = 'token',
+  registryPath = REGISTRY_PATH,
 ): Promise<ERC20Test> {
   const { multiProvider } = await getContext({
-    registryUris: [REGISTRY_PATH],
+    registryUris: [registryPath],
     key: privateKey,
   });
 
@@ -299,9 +302,10 @@ export async function deployTestOffchainLookupISM(
   privateKey: string,
   chain: string,
   urls: string[] = [],
+  registryPath: string = REGISTRY_PATH,
 ): Promise<AbstractCcipReadIsm> {
   const { multiProvider } = await getContext({
-    registryUris: [REGISTRY_PATH],
+    registryUris: [registryPath],
     key: privateKey,
   });
 
@@ -321,9 +325,10 @@ export async function deployTestOffchainLookupISM(
 export async function deployEverclearBridgeAdapter(
   privateKey: string,
   chain: string,
+  registryPath: string,
 ): Promise<MockEverclearAdapter> {
   const { multiProvider } = await getContext({
-    registryUris: [REGISTRY_PATH],
+    registryUris: [registryPath],
     key: privateKey,
   });
 
