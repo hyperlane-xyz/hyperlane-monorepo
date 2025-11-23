@@ -219,6 +219,8 @@ foundryup
 
 build the validator container (takes time), you can proceed with most of other steps in another terminal window while the container is building. Note - `<network>` placeholder in the following path should be replaced with either `blumbus` or `mainnet`:
 
+⚠️ - It may require running as `sudo` 
+
 ```bash
 docker build -t hyperlane-kaspa-validator \
   -f ~/hyperlane-monorepo/dymension/validators/bridge/artifacts/<network>/config/kaspa/Dockerfile \
