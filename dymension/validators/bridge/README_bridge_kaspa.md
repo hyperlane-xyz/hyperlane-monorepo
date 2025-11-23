@@ -256,18 +256,11 @@ Give Dymension team `validator_ism_addr` and `validator_escrow_pub_key`
 
 ### PHASE 2: CONFIG POPULATION AND RUNNING
 
-Work from inside the unzipped directory:
+
+Copy config to a kaspa local directory. replace `<network>` with either `blumbus` or `mainnet`:
 
 ```bash
-cd validators
-```
-
-Use `artifacts/<network>/config/kaspa/validator-config.yaml` to configure the validator, once updated, copy the file to the remote host
-
-```bash
-cp artifacts/<network>/config/kaspa/validator-config.json ${HOME}/kaspa/config/validator-config.json
-cp artifacts/<network>/config/kaspa/docker-compose.yaml ${HOME}/kaspa/docker-compose.yaml
-cp artifacts/<network>/config/kaspa/kaspa.wallet ${HOME}/kaspa/config/kaspa.wallet 
+cp -r ${HOME}/hyperlane-monorepo/dymension/validators/bridge/artifacts/<network>/config/kaspa/* ${HOME}/kaspa/config/
 ```
 
 Update all placeholders inside  and `${HOME}/kaspa/config/validator-config.json` files. Concretely this requires THREE things:
