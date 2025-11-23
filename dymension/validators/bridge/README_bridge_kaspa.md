@@ -229,7 +229,7 @@ docker build -t hyperlane-kaspa-validator \
 
 ### PHASE 1: KEY GENERATION AND SHARING
 
-Use the key generation tool to securely store two key pairs in AWS
+Use the key generation tool to securely store two key pairs in AWS. replace `<kaspa_kms_key_arn>` , `<kaspa_secret_path>` and `<kaspa_dym_kms_key_arn>` with relevant values.
 
 ```bash
 mkdir -p ~/kaspa/{db,config,logs}
