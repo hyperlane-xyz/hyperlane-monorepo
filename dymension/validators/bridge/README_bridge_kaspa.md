@@ -44,7 +44,11 @@ Give Dymension team `validator_ism_addr` and `validator_escrow_pub_key`. Don't w
 
 #### Config
 
-Use the config json template provided by Dymension team at `hyperlane-monorepo/dymension/validators/bridge/artifacts/<network>/config/kaspa/validator-config.json`. Populate `.chains.<kaspa-network-name>.kaspaEscrowPrivateKey` with the escrow secret value `validator_escrow_secret` (keep quotes ⚠️). Also populate `.validator.key` with validator_ism_priv_key and prefix with '0x'. Your file should look something like:
+Use the config json template provided by Dymension team at: `hyperlane-monorepo/dymension/validators/bridge/artifacts/<network>/config/kaspa/validator-config.json`. 
+
+Note: `<network>` palceholder should be replaced with either `blubmus` or `mainnet`
+
+Populate `.chains.<kaspa-network-name>.kaspaEscrowPrivateKey` with the escrow secret value `validator_escrow_secret` (keep quotes ⚠️). Also populate `.validator.key` with validator_ism_priv_key and prefix with '0x'. Your file should look something like:
 
 ```
 {
@@ -213,7 +217,7 @@ go
 foundryup
 ```
 
-build the validator container (takes time), you can proceed with most of other steps in another terminal window while the container is building
+build the validator container (takes time), you can proceed with most of other steps in another terminal window while the container is building. Note - `<network>` placeholder in the following path should be replaced with either `blumbus` or `mainnet`:
 
 ```bash
 docker build -t hyperlane-kaspa-validator \
