@@ -191,7 +191,7 @@ scripts/install-dependencies.sh
 Install foundry:
 
 ```bash
-source ~/.zshrc
+source ~/.bashrc
 foundryup
 ```
 
