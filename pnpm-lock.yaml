@@ -411,9 +411,15 @@ importers:
       '@hyperlane-xyz/cosmos-sdk':
         specifier: workspace:*
         version: link:../cosmos-sdk
+      '@hyperlane-xyz/deploy-sdk':
+        specifier: workspace:*
+        version: link:../deploy-sdk
       '@hyperlane-xyz/http-registry-server':
         specifier: workspace:*
         version: link:../http-registry-server
+      '@hyperlane-xyz/provider-sdk':
+        specifier: workspace:*
+        version: link:../provider-sdk
       '@hyperlane-xyz/registry':
         specifier: 20.0.0
         version: 20.0.0
@@ -570,6 +576,9 @@ importers:
       '@hyperlane-xyz/cosmos-types':
         specifier: workspace:*
         version: link:../cosmos-types
+      '@hyperlane-xyz/provider-sdk':
+        specifier: workspace:*
+        version: link:../provider-sdk
       '@hyperlane-xyz/utils':
         specifier: workspace:*
         version: link:../utils
@@ -577,6 +586,9 @@ importers:
       '@eslint/js':
         specifier: ^9.31.0
         version: 9.31.0
+      '@hyperlane-xyz/eslint-config':
+        specifier: workspace:^
+        version: link:../eslint-config
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
         version: link:../tsconfig
@@ -671,6 +683,61 @@ importers:
       typescript-eslint:
         specifier: ^8.37.0
         version: 8.47.0(eslint@9.31.0(jiti@2.6.1))(typescript@5.3.3)
+
+  typescript/deploy-sdk:
+    dependencies:
+      '@hyperlane-xyz/provider-sdk':
+        specifier: workspace:*
+        version: link:../provider-sdk
+      '@hyperlane-xyz/utils':
+        specifier: workspace:*
+        version: link:../utils
+      zod:
+        specifier: ^3.21.2
+        version: 3.25.76
+    devDependencies:
+      '@hyperlane-xyz/eslint-config':
+        specifier: workspace:^
+        version: link:../eslint-config
+      '@hyperlane-xyz/tsconfig':
+        specifier: workspace:^
+        version: link:../tsconfig
+      '@types/chai-as-promised':
+        specifier: ^8
+        version: 8.0.2
+      '@types/mocha':
+        specifier: ^10.0.1
+        version: 10.0.10
+      '@types/node':
+        specifier: ^18.14.5
+        version: 18.19.130
+      '@types/sinon':
+        specifier: ^17.0.1
+        version: 17.0.4
+      '@types/sinon-chai':
+        specifier: ^3.2.12
+        version: 3.2.12
+      chai:
+        specifier: ^4.5.0
+        version: 4.5.0
+      chai-as-promised:
+        specifier: ^8.0.1
+        version: 8.0.2(chai@4.5.0)
+      eslint:
+        specifier: ^9.31.0
+        version: 9.31.0(jiti@2.6.1)
+      mocha:
+        specifier: ^11.5.0
+        version: 11.7.5
+      sinon:
+        specifier: ^13.0.2
+        version: 13.0.2
+      tsx:
+        specifier: ^4.19.1
+        version: 4.19.1
+      typescript:
+        specifier: 5.3.3
+        version: 5.3.3
 
   typescript/eslint-config:
     dependencies:
@@ -1170,8 +1237,36 @@ importers:
         specifier: 5.3.3
         version: 5.3.3
 
+  typescript/provider-sdk:
+    dependencies:
+      '@hyperlane-xyz/utils':
+        specifier: workspace:*
+        version: link:../utils
+      zod:
+        specifier: ^3.21.2
+        version: 3.25.76
+    devDependencies:
+      '@hyperlane-xyz/eslint-config':
+        specifier: workspace:^
+        version: link:../eslint-config
+      '@hyperlane-xyz/tsconfig':
+        specifier: workspace:^
+        version: link:../tsconfig
+      '@types/node':
+        specifier: ^18.14.5
+        version: 18.19.130
+      eslint:
+        specifier: ^9.31.0
+        version: 9.31.0(jiti@2.6.1)
+      typescript:
+        specifier: 5.3.3
+        version: 5.3.3
+
   typescript/radix-sdk:
     dependencies:
+      '@hyperlane-xyz/provider-sdk':
+        specifier: workspace:*
+        version: link:../provider-sdk
       '@hyperlane-xyz/utils':
         specifier: workspace:*
         version: link:../utils
@@ -1197,6 +1292,9 @@ importers:
       '@eslint/js':
         specifier: ^9.31.0
         version: 9.31.0
+      '@hyperlane-xyz/eslint-config':
+        specifier: workspace:^
+        version: link:../eslint-config
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
         version: link:../tsconfig
@@ -1293,6 +1391,12 @@ importers:
       '@hyperlane-xyz/cosmos-sdk':
         specifier: workspace:*
         version: link:../cosmos-sdk
+      '@hyperlane-xyz/deploy-sdk':
+        specifier: workspace:*
+        version: link:../deploy-sdk
+      '@hyperlane-xyz/provider-sdk':
+        specifier: workspace:*
+        version: link:../provider-sdk
       '@hyperlane-xyz/radix-sdk':
         specifier: workspace:*
         version: link:../radix-sdk
@@ -1555,6 +1659,9 @@ importers:
       '@hyperlane-xyz/cosmos-sdk':
         specifier: workspace:*
         version: link:../cosmos-sdk
+      '@hyperlane-xyz/provider-sdk':
+        specifier: workspace:*
+        version: link:../provider-sdk
       '@hyperlane-xyz/radix-sdk':
         specifier: workspace:*
         version: link:../radix-sdk
