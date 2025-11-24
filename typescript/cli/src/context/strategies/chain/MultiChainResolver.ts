@@ -93,7 +93,7 @@ export class MultiChainResolver implements ChainResolver {
     argv: Record<string, any>,
   ): Promise<ChainName[]> {
     if (argv.chain) {
-      argv.context.chains = this.resolveChain(argv);
+      argv.context.chains = await this.resolveChain(argv);
     }
 
     if (argv.symbol || argv.warpRouteId) {
