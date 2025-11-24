@@ -215,7 +215,7 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
 
   async getSanctionedAddresses() {
     // All Ethereum-style addresses from https://github.com/0xB10C/ofac-sanctioned-digital-currency-addresses/tree/lists
-    const currencies = ['ARB', 'ETC', 'ETH', 'USDC', 'USDT', 'BSC'];
+    const currencies = ['ARB', 'BSC', 'ETC', 'ETH', 'USDC', 'USDT'];
 
     const schema = z.array(z.string());
 
