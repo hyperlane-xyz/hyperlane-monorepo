@@ -108,7 +108,7 @@ export class MultiChainResolver implements ChainResolver {
     }
 
     assert(
-      argv.context.chains.length !== 0,
+      argv.context.chains && argv.context.chains.length !== 0,
       'No chains found in warp route deployment config',
     );
 
