@@ -1,24 +1,28 @@
-import { Address, AltVM, WithAddress, rootLogger } from '@hyperlane-xyz/utils';
-
-import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
-
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { ChainMetadataLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
   DerivedHookConfig,
   HookConfig,
-  HookType,
+  HookModuleType,
   IgpHookConfig,
   MerkleTreeHookConfig,
-} from './types.js';
+} from '@hyperlane-xyz/provider-sdk/hook';
+import { HypReader } from '@hyperlane-xyz/provider-sdk/module';
+import { Address, WithAddress, rootLogger } from '@hyperlane-xyz/utils';
 
-export class AltVMHookReader {
+export class AltVMHookReader implements HypReader<HookModuleType> {
   protected readonly logger = rootLogger.child({
     module: 'AltVMHookReader',
   });
 
   constructor(
-    protected readonly metadataManager: ChainMetadataManager,
+    protected readonly getChainMetadata: ChainMetadataLookup,
     protected readonly provider: AltVM.IProvider,
   ) {}
+
+  async read(address: string): Promise<DerivedHookConfig> {
+    return this.deriveHookConfig(address);
+  }
 
   async deriveHookConfigFromAddress(
     address: Address,
@@ -42,7 +46,9 @@ export class AltVMHookReader {
     }
   }
 
-  async deriveHookConfig(config: HookConfig): Promise<DerivedHookConfig> {
+  async deriveHookConfig(
+    config: HookConfig | Address,
+  ): Promise<DerivedHookConfig> {
     if (typeof config === 'string')
       return this.deriveHookConfigFromAddress(config);
 
@@ -60,8 +66,7 @@ export class AltVMHookReader {
     const oracleConfig: IgpHookConfig['oracleConfig'] = {};
 
     Object.keys(igp.destinationGasConfigs).forEach((domain_id) => {
-      const { name, nativeToken } =
-        this.metadataManager.getChainMetadata(domain_id);
+      const { name, nativeToken } = this.getChainMetadata(domain_id);
       overhead[name] = parseInt(
         igp.destinationGasConfigs[domain_id].gasOverhead,
       );
@@ -76,7 +81,7 @@ export class AltVMHookReader {
     });
 
     return {
-      type: HookType.INTERCHAIN_GAS_PAYMASTER,
+      type: 'interchainGasPaymaster',
       owner: igp.owner,
       beneficiary: igp.owner,
       oracleKey: igp.owner,
@@ -94,7 +99,7 @@ export class AltVMHookReader {
     });
 
     return {
-      type: HookType.MERKLE_TREE,
+      type: 'merkleTreeHook',
       address: merkle_tree_hook.address,
     };
   }
