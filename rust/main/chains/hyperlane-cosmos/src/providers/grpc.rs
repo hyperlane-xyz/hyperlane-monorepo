@@ -24,6 +24,7 @@ pub struct GrpcProvider {
 }
 
 /// gRPC request timeout
+const MAX_MESSAGE_SIZE: usize = 8 * 1024 * 1024;
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// GrpcChannel is a wrapper used by the FallbackProvider
@@ -39,7 +40,8 @@ pub struct GrpcChannel {
 #[async_trait]
 impl BlockNumberGetter for GrpcChannel {
     async fn get_block_number(&self) -> Result<u64, ChainCommunicationError> {
-        let mut client = ServiceClient::new(self.channel.clone());
+        let mut client =
+            ServiceClient::new(self.channel.clone()).max_decoding_message_size(MAX_MESSAGE_SIZE);
         let request = tonic::Request::new(GetLatestBlockRequest {});
         let response = client
             .get_latest_block(request)
