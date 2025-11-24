@@ -85,7 +85,7 @@ export async function signerMiddleware(argv: Record<string, any>) {
       ),
     );
   } catch (e) {
-    new Error(
+    throw new Error(
       `Failed to load providers in context for ${altVmChains.join(', ')}`,
       { cause: e },
     );
