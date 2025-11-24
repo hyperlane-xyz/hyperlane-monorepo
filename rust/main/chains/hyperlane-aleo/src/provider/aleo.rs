@@ -478,7 +478,7 @@ impl<C: AleoClient> HyperlaneProvider for AleoProvider<C> {
 
     /// Get txn info for a given txn hash
     async fn get_txn_by_hash(&self, hash: &H512) -> ChainResult<TxnInfo> {
-        let tx_id = get_tx_id(*hash)?;
+        let tx_id = get_tx_id::<CurrentNetwork>(*hash)?;
         let tx_id = tx_id.to_string();
         let transaction = self.get_transaction(&tx_id).await?;
         // Aleo doesn't have a concept of gas, we use the paid tokens as the gas limit and say that the gas_price is always one

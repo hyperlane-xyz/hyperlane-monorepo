@@ -7,6 +7,6 @@ mod base;
 mod traits;
 
 #[cfg(test)]
-mod mock;
+pub(crate) mod mock;
 #[cfg(test)]
 mod tests;

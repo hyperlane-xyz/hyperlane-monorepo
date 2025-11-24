@@ -76,9 +76,9 @@ impl<Client: HttpClient> RpcClient<Client> {
     }
 
     /// Finds the block hash containing a transaction
-    pub async fn find_block_hash_by_transaction_id(
+    pub async fn find_block_hash_by_transaction_id<N: Network>(
         &self,
-        transaction_id: &str,
+        transaction_id: &N::TransactionID,
     ) -> ChainResult<String> {
         self.request(&format!("find/blockHash/{transaction_id}"), None)
             .await
