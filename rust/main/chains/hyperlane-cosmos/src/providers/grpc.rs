@@ -2,7 +2,6 @@ use std::ops::Deref;
 use std::time::Duration;
 
 use derive_new::new;
-use ibc_proto::cosmos::base::tendermint::v1beta1::GetLatestValidatorSetRequest;
 use tonic::async_trait;
 use tonic::transport::{Channel, Endpoint};
 
@@ -13,7 +12,7 @@ use hyperlane_metric::prometheus_metric::{
 };
 
 use cosmrs::proto::cosmos::base::tendermint::v1beta1::service_client::ServiceClient;
-use cosmrs::proto::cosmos::base::tendermint::v1beta1::GetLatestBlockRequest;
+use cosmrs::proto::cosmos::base::tendermint::v1beta1::GetLatestValidatorSetRequest;
 use url::Url;
 
 use crate::{ConnectionConf, HyperlaneCosmosError, MetricsChannel};
