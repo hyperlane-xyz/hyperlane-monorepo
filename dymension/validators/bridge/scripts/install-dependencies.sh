@@ -10,7 +10,8 @@ echo "=========================================="
 echo ""
 echo "Step 1/3: Installing dependencies..."
 echo "=========================================="
-sudo apt update && sudo apt install build-essential net-tools pkg-config libssl-dev jq unzip -y
+sudo apt update && sudo apt install build-essential net-tools pkg-config libssl-dev clang llvm-dev libclang-dev jq unzip -y
+
 
 sudo apt install protobuf-compiler
 curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
