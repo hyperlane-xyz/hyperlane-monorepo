@@ -1,6 +1,6 @@
 pub const ALLOWED_HL_MESSAGE_VERSION: u8 = 3;
 
-pub const HL_DOMAIN_DYM_MAINNET: u32 = 180352072;
+pub const HL_DOMAIN_DYM_MAINNET: u32 = 1570310961; // NOTE: was patched to this value just before mainnet release. The old value did not do modulo on derivation.
 pub const HL_DOMAIN_DYM_LOCAL: u32 = 587907060;
 pub const HL_DOMAIN_DYM_TESTNET_BLUMBUS: u32 = 482195613;
 pub const HL_DOMAIN_DYM_PLAYGROUND_202507: u32 = 180353102;
