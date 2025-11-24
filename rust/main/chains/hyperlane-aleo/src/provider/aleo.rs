@@ -294,7 +294,7 @@ impl<C: AleoClient> AleoProvider<C> {
     }
 
     /// Executes the transactions for the given network
-    pub async fn execute<N: Network, I, V>(
+    async fn execute<N: Network, I, V>(
         &self,
         program_id: &str,
         function_name: &str,
