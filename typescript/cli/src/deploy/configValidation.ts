@@ -68,7 +68,7 @@ export function validateCoreConfigForAltVM(
  *
  * @param config - WarpRouteDeployConfig from the main SDK
  * @param chain - Chain name for error messages
- * @returns The same config, typed as ProviderWarpConfig
+ * @returns a provider-sdk WarpConfig derived from the given config
  * @throws Error if config contains unsupported token types
  */
 export function validateWarpConfigForAltVM(
@@ -86,7 +86,7 @@ export function validateWarpConfigForAltVM(
 
   // Validate the token conforms to basic collateral or synthetic structure
   if (config.type === TokenType.collateral) {
-    if (!('token' in config)) {
+    if (!config.token) {
       const errorMsg = `Collateral token config for chain '${chain}' must specify 'token' address`;
       throw new Error(errorMsg);
     }
