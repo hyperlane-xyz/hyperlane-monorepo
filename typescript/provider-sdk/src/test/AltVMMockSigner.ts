@@ -1,4 +1,4 @@
-import { AltVM } from '@hyperlane-xyz/utils';
+import * as AltVM from '../altvm.js';
 
 import { MockProvider } from './AltVMMockProvider.js';
 
@@ -184,6 +184,12 @@ export class MockSigner
   async setTokenIsm(
     _req: Omit<AltVM.ReqSetTokenIsm, 'signer'>,
   ): Promise<AltVM.ResSetTokenIsm> {
+    throw new Error(`not implemented`);
+  }
+
+  async setTokenHook(
+    _req: Omit<AltVM.ReqSetTokenHook, 'signer'>,
+  ): Promise<AltVM.ResSetTokenHook> {
     throw new Error(`not implemented`);
   }
 

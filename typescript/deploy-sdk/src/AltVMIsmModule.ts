@@ -1,99 +1,113 @@
-import { Logger } from 'pino';
-
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
+import {
+  DerivedIsmConfig,
+  DomainRoutingIsmConfig,
+  IsmConfig,
+  IsmModuleAddresses,
+  IsmModuleType,
+  IsmType,
+  MultisigIsmConfig,
+  STATIC_ISM_TYPES,
+} from '@hyperlane-xyz/provider-sdk/ism';
+import {
+  AnnotatedTx,
+  HypModule,
+  HypModuleArgs,
+  TxReceipt,
+} from '@hyperlane-xyz/provider-sdk/module';
 import {
   Address,
-  AltVM,
-  ChainId,
-  Domain,
-  ProtocolType,
   assert,
   deepEquals,
   eqAddress,
   intersection,
+  normalizeConfig,
   rootLogger,
   sleep,
 } from '@hyperlane-xyz/utils';
 
-import {
-  HyperlaneModule,
-  HyperlaneModuleParams,
-} from '../core/AbstractHyperlaneModule.js';
-import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
-import {
-  AnnotatedTypedTransaction,
-  ProtocolReceipt,
-} from '../providers/ProviderType.js';
-import { ChainName, ChainNameOrId } from '../types.js';
-import { normalizeConfig } from '../utils/ism.js';
-
 import { AltVMIsmReader } from './AltVMIsmReader.js';
-import {
-  DomainRoutingIsmConfig,
-  IsmConfig,
-  IsmConfigSchema,
-  IsmType,
-  MultisigIsmConfig,
-  STATIC_ISM_TYPES,
-} from './types.js';
-import { calculateDomainRoutingDelta } from './utils.js';
+import { validateIsmConfig } from './utils/validation.js';
 
-type IsmModuleAddresses = {
-  deployedIsm: Address;
-  mailbox: Address;
-};
+// Determines the domains to enroll and unenroll to update the current ISM config
+// to match the target ISM config.
+function calculateDomainRoutingDelta(
+  current: DomainRoutingIsmConfig,
+  target: DomainRoutingIsmConfig,
+): { domainsToEnroll: string[]; domainsToUnenroll: string[] } {
+  const domainsToEnroll = [];
+  for (const origin of Object.keys(target.domains)) {
+    if (!current.domains[origin]) {
+      domainsToEnroll.push(origin);
+    } else {
+      const subModuleMatches = deepEquals(
+        current.domains[origin],
+        target.domains[origin],
+      );
+      if (!subModuleMatches) domainsToEnroll.push(origin);
+    }
+  }
 
-export class AltVMIsmModule<PT extends ProtocolType> extends HyperlaneModule<
-  PT,
-  IsmConfig,
-  IsmModuleAddresses
-> {
+  const domainsToUnenroll = Object.keys(current.domains).reduce(
+    (acc, origin) => {
+      if (!Object.keys(target.domains).includes(origin)) {
+        acc.push(origin);
+      }
+      return acc;
+    },
+    [] as string[],
+  );
+
+  return {
+    domainsToEnroll,
+    domainsToUnenroll,
+  };
+}
+
+export class AltVMIsmModule implements HypModule<IsmModuleType> {
   protected readonly logger = rootLogger.child({
     module: 'AltVMIsmModule',
   });
   protected readonly reader: AltVMIsmReader;
   protected readonly mailbox: Address;
 
-  // Adding these to reduce how often we need to grab from MetadataManager.
-  public readonly chain: ChainName;
-  public readonly chainId: ChainId;
-  public readonly domainId: Domain;
+  // Cached chain name
+  public readonly chain: string;
 
   constructor(
-    protected readonly metadataManager: ChainMetadataManager,
-    params: HyperlaneModuleParams<IsmConfig, IsmModuleAddresses>,
-    protected readonly signer: AltVM.ISigner<
-      AnnotatedTypedTransaction<PT>,
-      ProtocolReceipt<PT>
-    >,
+    protected readonly chainLookup: ChainLookup,
+    private readonly args: HypModuleArgs<IsmModuleType>,
+    protected readonly signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
   ) {
-    params.config = IsmConfigSchema.parse(params.config);
-    super(params);
+    this.mailbox = this.args.addresses.mailbox;
+    const metadata = chainLookup.getChainMetadata(this.args.chain);
+    this.chain = metadata.name;
 
-    this.mailbox = params.addresses.mailbox;
-    this.chain = metadataManager.getChainName(this.args.chain);
-    this.chainId = metadataManager.getChainId(this.chain);
-    this.domainId = metadataManager.getDomainId(this.chain);
-
-    this.reader = new AltVMIsmReader(this.metadataManager, this.signer);
+    this.reader = new AltVMIsmReader(chainLookup.getChainName, this.signer);
   }
 
-  public async read(): Promise<IsmConfig> {
+  public async read(): Promise<DerivedIsmConfig> {
     return this.reader.deriveIsmConfig(this.args.addresses.deployedIsm);
+  }
+
+  public serialize(): IsmModuleAddresses {
+    return this.args.addresses;
   }
 
   // whoever calls update() needs to ensure that targetConfig has a valid owner
   public async update(
-    expectedConfig: IsmConfig,
-  ): Promise<AnnotatedTypedTransaction<PT>[]> {
-    expectedConfig = IsmConfigSchema.parse(expectedConfig);
-
+    expectedConfig: IsmConfig | string,
+  ): Promise<AnnotatedTx[]> {
     // Do not support updating to a custom ISM address
     if (typeof expectedConfig === 'string') {
       throw new Error(
         'Invalid targetConfig: Updating to a custom ISM address is not supported. Please provide a valid ISM configuration.',
       );
     }
+
+    // Validate ISM configuration is supported by provider-sdk
+    validateIsmConfig(expectedConfig, this.chain, 'ISM update');
 
     // if there is no ism deployed yet we deploy one
     if (!this.args.addresses.deployedIsm) {
@@ -132,8 +146,8 @@ export class AltVMIsmModule<PT extends ProtocolType> extends HyperlaneModule<
       return [];
     }
 
-    let updateTxs: AnnotatedTypedTransaction<PT>[] = [];
-    if (expectedConfig.type === IsmType.ROUTING) {
+    let updateTxs: AnnotatedTx[] = [];
+    if (expectedConfig.type === 'domainRoutingIsm') {
       const logger = this.logger.child({
         destination: this.chain,
         ismType: expectedConfig.type,
@@ -151,23 +165,23 @@ export class AltVMIsmModule<PT extends ProtocolType> extends HyperlaneModule<
   }
 
   // manually write static create function
-  public static async create<PT extends ProtocolType>({
+  public static async create({
     chain,
     config,
     addresses,
-    multiProvider,
+    chainLookup,
     signer,
   }: {
-    chain: ChainNameOrId;
-    config: IsmConfig;
+    chain: string;
+    config: IsmConfig | string;
     addresses: {
       mailbox: string;
     };
-    multiProvider: MultiProvider;
-    signer: AltVM.ISigner<AnnotatedTypedTransaction<PT>, ProtocolReceipt<PT>>;
-  }): Promise<AltVMIsmModule<PT>> {
-    const module = new AltVMIsmModule<PT>(
-      multiProvider,
+    chainLookup: ChainLookup;
+    signer: AltVM.ISigner<AnnotatedTx, TxReceipt>;
+  }): Promise<AltVMIsmModule> {
+    const module = new AltVMIsmModule(
+      chainLookup,
       {
         addresses: {
           ...addresses,
@@ -183,28 +197,38 @@ export class AltVMIsmModule<PT extends ProtocolType> extends HyperlaneModule<
     return module;
   }
 
-  protected async deploy({ config }: { config: IsmConfig }): Promise<Address> {
+  protected async deploy({
+    config,
+  }: {
+    config: IsmConfig | string;
+  }): Promise<Address> {
     if (typeof config === 'string') {
       return config;
     }
+
+    // Validate ISM configuration before deployment
+    validateIsmConfig(config, this.chain, 'ISM deployment');
+
     const ismType = config.type;
     this.logger.info(`Deploying ${ismType} to ${this.chain}`);
 
     switch (ismType) {
-      case IsmType.MERKLE_ROOT_MULTISIG: {
+      case 'merkleRootMultisigIsm': {
         return this.deployMerkleRootMultisigIsm(config);
       }
-      case IsmType.MESSAGE_ID_MULTISIG: {
+      case 'messageIdMultisigIsm': {
         return this.deployMessageIdMultisigIsm(config);
       }
-      case IsmType.ROUTING: {
+      case 'domainRoutingIsm': {
         return this.deployRoutingIsm(config);
       }
-      case IsmType.TEST_ISM: {
+      case 'testIsm': {
         return this.deployNoopIsm();
       }
       default:
-        throw new Error(`ISM type ${ismType} is not supported on AltVM`);
+        throw new Error(
+          `ISM type ${ismType as IsmType} is not supported on AltVM`,
+        );
     }
   }
 
@@ -247,7 +271,7 @@ export class AltVMIsmModule<PT extends ProtocolType> extends HyperlaneModule<
 
     // deploy ISMs for each domain
     for (const chainName of Object.keys(config.domains)) {
-      const domainId = this.metadataManager.tryGetDomainId(chainName);
+      const domainId = this.chainLookup.getDomainId(chainName);
       if (!domainId) {
         this.logger.warn(
           `Unknown chain ${chainName}, skipping ISM configuration`,
@@ -284,13 +308,13 @@ export class AltVMIsmModule<PT extends ProtocolType> extends HyperlaneModule<
   }: {
     actual: DomainRoutingIsmConfig;
     expected: DomainRoutingIsmConfig;
-    logger: Logger;
-  }): Promise<AnnotatedTypedTransaction<PT>[]> {
+    logger: ReturnType<typeof rootLogger.child<never>>;
+  }): Promise<AnnotatedTx[]> {
     this.logger.debug(`Start creating routing ISM update transactions`);
 
-    const updateTxs: AnnotatedTypedTransaction<PT>[] = [];
+    const updateTxs: AnnotatedTx[] = [];
 
-    const knownChains = new Set(this.metadataManager.getKnownChainNames());
+    const knownChains = new Set(this.chainLookup.getKnownChainNames());
 
     const { domainsToEnroll, domainsToUnenroll } = calculateDomainRoutingDelta(
       actual,
@@ -308,7 +332,7 @@ export class AltVMIsmModule<PT extends ProtocolType> extends HyperlaneModule<
         config: expected.domains[origin],
       });
 
-      const { blocks } = this.metadataManager.getChainMetadata(this.chain);
+      const { blocks } = this.chainLookup.getChainMetadata(this.chain);
 
       if (blocks) {
         // we assume at least one confirmation
@@ -318,7 +342,8 @@ export class AltVMIsmModule<PT extends ProtocolType> extends HyperlaneModule<
         await sleep(confirmations * estimateBlockTime);
       }
 
-      const domainId = this.metadataManager.getDomainId(origin);
+      const domainId = this.chainLookup.getDomainId(origin);
+      assert(domainId !== null, `Domain ID not found for chain ${origin}`);
       updateTxs.push({
         annotation: `Setting new ISM for origin ${origin}...`,
         ...(await this.signer.getSetRoutingIsmRouteTransaction({
@@ -339,7 +364,8 @@ export class AltVMIsmModule<PT extends ProtocolType> extends HyperlaneModule<
 
     // Unenroll domains
     for (const origin of knownUnenrolls) {
-      const domainId = this.metadataManager.getDomainId(origin);
+      const domainId = this.chainLookup.getDomainId(origin);
+      assert(domainId !== null, `Domain ID not found for chain ${origin}`);
       updateTxs.push({
         annotation: `Unenrolling originDomain ${domainId} from preexisting routing ISM at ${this.args.addresses.deployedIsm}...`,
         ...(await this.signer.getRemoveRoutingIsmRouteTransaction({

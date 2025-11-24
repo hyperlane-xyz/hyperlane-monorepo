@@ -1,68 +1,46 @@
-import { Logger } from 'pino';
-import { zeroAddress } from 'viem';
-
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
+import { DerivedIsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
+import {
+  AnnotatedTx,
+  HypModule,
+  HypModuleArgs,
+  TxReceipt,
+} from '@hyperlane-xyz/provider-sdk/module';
+import {
+  DerivedWarpConfig,
+  TokenRouterModuleType,
+  WarpConfig,
+  WarpRouteAddresses,
+} from '@hyperlane-xyz/provider-sdk/warp';
 import {
   Address,
-  AltVM,
-  Domain,
-  ProtocolType,
   addressToBytes32,
   assert,
+  isZeroishAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import {
-  HyperlaneModule,
-  HyperlaneModuleParams,
-} from '../core/AbstractHyperlaneModule.js';
-import { AltVMIsmModule } from '../ism/AltVMIsmModule.js';
-import { DerivedIsmConfig } from '../ism/types.js';
-import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
-import {
-  AnnotatedTypedTransaction,
-  ProtocolReceipt,
-  ProtocolTransaction,
-} from '../providers/ProviderType.js';
-import { ChainName, ChainNameOrId } from '../types.js';
-
+import { AltVMIsmModule } from './AltVMIsmModule.js';
+import { AltVMDeployer } from './AltVMWarpDeployer.js';
 import { AltVMWarpRouteReader } from './AltVMWarpRouteReader.js';
-import { AltVMDeployer } from './altVMDeploy.js';
-import {
-  DerivedTokenRouterConfig,
-  HypTokenRouterConfig,
-  HypTokenRouterConfigSchema,
-} from './types.js';
+import { validateIsmConfig } from './utils/validation.js';
 
-type WarpRouteAddresses = {
-  deployedTokenRoute: Address;
-};
-
-export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
-  PT,
-  HypTokenRouterConfig,
-  WarpRouteAddresses
-> {
-  protected logger: Logger;
+export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
+  protected logger: ReturnType<typeof rootLogger.child<never>>;
 
   reader: AltVMWarpRouteReader;
-  public readonly chainName: ChainName;
-  public readonly chainId: string;
-  public readonly domainId: Domain;
+  public readonly chainName: string;
 
   constructor(
-    protected readonly metadataManager: ChainMetadataManager,
-    args: HyperlaneModuleParams<HypTokenRouterConfig, WarpRouteAddresses>,
-    protected readonly signer: AltVM.ISigner<
-      AnnotatedTypedTransaction<PT>,
-      ProtocolReceipt<PT>
-    >,
+    protected readonly chainLookup: ChainLookup,
+    protected readonly signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
+    private readonly args: HypModuleArgs<TokenRouterModuleType>,
   ) {
-    super(args);
-    this.reader = new AltVMWarpRouteReader(metadataManager, args.chain, signer);
-    this.chainName = this.metadataManager.getChainName(args.chain);
-    this.chainId = metadataManager.getChainId(args.chain).toString();
-    this.domainId = metadataManager.getDomainId(args.chain);
+    const metadata = chainLookup.getChainMetadata(args.chain);
+    this.chainName = metadata.name;
+
+    this.reader = new AltVMWarpRouteReader(chainLookup, signer);
 
     this.logger = rootLogger.child({
       module: AltVMWarpModule.name,
@@ -75,10 +53,14 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
    * @param address - The address to derive the token router configuration from.
    * @returns A promise that resolves to the token router configuration.
    */
-  async read(): Promise<DerivedTokenRouterConfig> {
+  async read(): Promise<DerivedWarpConfig> {
     return this.reader.deriveWarpRouteConfig(
       this.args.addresses.deployedTokenRoute,
     );
+  }
+
+  public serialize(): WarpRouteAddresses {
+    return this.args.addresses;
   }
 
   /**
@@ -87,10 +69,7 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
    * @param expectedConfig - The configuration for the token router to be updated.
    * @returns An array of transactions that were executed to update the contract, or an error if the update failed.
    */
-  async update(
-    expectedConfig: HypTokenRouterConfig,
-  ): Promise<AnnotatedTypedTransaction<PT>[]> {
-    HypTokenRouterConfigSchema.parse(expectedConfig);
+  async update(expectedConfig: WarpConfig): Promise<AnnotatedTx[]> {
     const actualConfig = await this.read();
 
     const transactions = [];
@@ -118,12 +97,12 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
    * @returns An array with transactions that need to be executed to enroll the routers
    */
   async createRemoteRouterUpdateTxs(
-    actualConfig: DerivedTokenRouterConfig,
-    expectedConfig: HypTokenRouterConfig,
-  ): Promise<AnnotatedTypedTransaction<PT>[]> {
+    actualConfig: DerivedWarpConfig,
+    expectedConfig: WarpConfig,
+  ): Promise<AnnotatedTx[]> {
     this.logger.debug(`Start creating remote router update transactions`);
 
-    const updateTransactions: AnnotatedTypedTransaction<PT>[] = [];
+    const updateTransactions: AnnotatedTx[] = [];
     if (!expectedConfig.remoteRouters) {
       return [];
     }
@@ -253,12 +232,12 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
    * @returns transaction that need to be executed to update the ISM configuration.
    */
   async createIsmUpdateTxs(
-    actualConfig: DerivedTokenRouterConfig,
-    expectedConfig: HypTokenRouterConfig,
-  ): Promise<AnnotatedTypedTransaction<PT>[]> {
+    actualConfig: DerivedWarpConfig,
+    expectedConfig: WarpConfig,
+  ): Promise<AnnotatedTx[]> {
     this.logger.debug(`Start creating token ISM update transactions`);
 
-    const updateTransactions: AnnotatedTypedTransaction<PT>[] = [];
+    const updateTransactions: AnnotatedTx[] = [];
 
     if (
       actualConfig.interchainSecurityModule ===
@@ -272,7 +251,8 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
 
     if (
       !expectedConfig.interchainSecurityModule ||
-      expectedConfig.interchainSecurityModule === zeroAddress
+      (typeof expectedConfig.interchainSecurityModule === 'string' &&
+        isZeroishAddress(expectedConfig.interchainSecurityModule))
     ) {
       this.logger.debug(`Token ISM config is empty. No updates needed.`);
       return updateTransactions;
@@ -318,9 +298,9 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
    * @returns transaction that need to be executed to update the owner.
    */
   async createOwnershipUpdateTxs(
-    actualConfig: DerivedTokenRouterConfig,
-    expectedConfig: HypTokenRouterConfig,
-  ): Promise<AnnotatedTypedTransaction<PT>[]> {
+    actualConfig: DerivedWarpConfig,
+    expectedConfig: WarpConfig,
+  ): Promise<AnnotatedTx[]> {
     this.logger.debug(`Start creating token owner update transactions`);
 
     if (actualConfig.owner === expectedConfig.owner) {
@@ -350,18 +330,25 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
    * @returns Object with deployedIsm address, and update Transactions
    */
   async deployOrUpdateIsm(
-    actualConfig: DerivedTokenRouterConfig,
-    expectedConfig: HypTokenRouterConfig,
+    actualConfig: DerivedWarpConfig,
+    expectedConfig: WarpConfig,
   ): Promise<{
     deployedIsm: Address;
-    updateTransactions: AnnotatedTypedTransaction<PT>[];
+    updateTransactions: AnnotatedTx[];
   }> {
     this.logger.debug(`Start deploying token ISM`);
 
     assert(expectedConfig.interchainSecurityModule, 'Ism derived incorrectly');
 
+    // Validate ISM configuration is supported by provider-sdk
+    validateIsmConfig(
+      expectedConfig.interchainSecurityModule,
+      this.chainName,
+      'warp route ISM',
+    );
+
     const ismModule = new AltVMIsmModule(
-      this.metadataManager,
+      this.chainLookup,
       {
         chain: this.args.chain,
         config: expectedConfig.interchainSecurityModule,
@@ -391,38 +378,30 @@ export class AltVMWarpModule<PT extends ProtocolType> extends HyperlaneModule<
    *
    * @param chain - The chain to deploy the module on.
    * @param config - The configuration for the token router.
-   * @param multiProvider - The multi-provider instance to use.
+   * @param chainLookup - Chain metadata lookup functions
    * @param signer - The AltVM signing client
    * @returns A new instance of the AltVMWarpModule.
    */
-  static async create<PT extends ProtocolType>(params: {
-    chain: ChainNameOrId;
-    config: HypTokenRouterConfig;
-    multiProvider: MultiProvider;
-    signer: AltVM.ISigner<ProtocolTransaction<PT>, ProtocolReceipt<PT>>;
-  }): Promise<AltVMWarpModule<PT>> {
-    const { chain, config, multiProvider, signer } = params;
-
-    const deployer = new AltVMDeployer(multiProvider, {
-      [chain]: signer,
+  static async create(params: {
+    chain: string;
+    config: WarpConfig;
+    chainLookup: ChainLookup;
+    signer: AltVM.ISigner<AnnotatedTx, TxReceipt>;
+  }): Promise<AltVMWarpModule> {
+    const deployer = new AltVMDeployer({
+      [params.chain]: params.signer,
     });
 
-    const { [chain]: deployedTokenRoute } = await deployer.deploy({
-      [chain]: config,
+    const { [params.chain]: deployedTokenRoute } = await deployer.deploy({
+      [params.chain]: params.config,
     });
 
-    const warpModule = new AltVMWarpModule<PT>(
-      multiProvider,
-      {
-        addresses: {
-          deployedTokenRoute,
-        },
-        chain,
-        config,
+    return new AltVMWarpModule(params.chainLookup, params.signer, {
+      addresses: {
+        deployedTokenRoute,
       },
-      signer,
-    );
-
-    return warpModule;
+      chain: params.chain,
+      config: params.config,
+    });
   }
 }

@@ -1,9 +1,11 @@
 import { zeroAddress } from 'viem';
 
+import { AltVMHookReader, AltVMIsmReader } from '@hyperlane-xyz/deploy-sdk';
+import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { HookConfig } from '@hyperlane-xyz/provider-sdk/hook';
+import { IsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
 import {
   Address,
-  AltVM,
-  ProtocolType,
   TransformObjectTransformer,
   addressToBytes32,
   assert,
@@ -20,9 +22,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { isProxy } from '../deploy/proxy.js';
-import { AltVMHookReader } from '../hook/AltVMHookReader.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
-import { AltVMIsmReader } from '../ism/AltVMIsmReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { DestinationGas, RemoteRouters } from '../router/types.js';
@@ -273,8 +273,14 @@ export async function expandWarpDeployConfig(params: {
           default: {
             const provider = await altVmProvider.get(chain);
 
-            const reader = new AltVMHookReader(multiProvider, provider);
-            chainConfig.hook = await reader.deriveHookConfig(chainConfig.hook);
+            const reader = new AltVMHookReader(
+              (chain) => multiProvider.getChainMetadata(chain),
+              provider,
+            );
+            chainConfig.hook = await reader.deriveHookConfig(
+              // FIXME: not all hook types are supported yet
+              chainConfig.hook as HookConfig | Address,
+            );
           }
         }
       }
@@ -296,9 +302,13 @@ export async function expandWarpDeployConfig(params: {
           default: {
             const provider = await altVmProvider.get(chain);
 
-            const reader = new AltVMIsmReader(multiProvider, provider);
+            const reader = new AltVMIsmReader(
+              (chain) => multiProvider.tryGetChainName(chain),
+              provider,
+            );
             chainConfig.interchainSecurityModule = await reader.deriveIsmConfig(
-              chainConfig.interchainSecurityModule,
+              // FIXME: not all ISM types are supported yet
+              chainConfig.interchainSecurityModule as IsmConfig | Address,
             );
           }
         }
