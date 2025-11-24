@@ -39,9 +39,7 @@ export class RadixMultisigIsmReader implements HypReader<MultisigIsmModule> {
   async read(address: string): Promise<WithAddress<MultisigIsmConfig>> {
     const { threshold, validators, type } = await getMultisigIsmConfig(
       this.gateway,
-      {
-        ismAddress: address,
-      },
+      address,
     );
 
     const ismType = ismTypeFromRadixIsmType(type);

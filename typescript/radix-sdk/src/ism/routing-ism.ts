@@ -40,7 +40,7 @@ export class RadixRoutingIsmReader implements HypReader<RoutingIsmModule> {
   async read(address: string): Promise<WithAddress<DomainRoutingIsmConfig>> {
     const { owner, routes } = await getDomainRoutingIsmConfig(
       this.radixGateway,
-      { ism: address },
+      address,
     );
 
     const ismReader = this.readerProvider.connectReader(this.provider);

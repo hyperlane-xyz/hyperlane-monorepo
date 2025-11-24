@@ -145,7 +145,7 @@ export class RadixCoreQuery {
     threshold: number;
     validators: string[];
   }> {
-    return getMultisigIsmConfig(this.gateway, { ismAddress: ism });
+    return getMultisigIsmConfig(this.gateway, ism);
   }
 
   public async getRoutingIsm({ ism }: { ism: string }): Promise<{
@@ -156,7 +156,7 @@ export class RadixCoreQuery {
       ismAddress: string;
     }[];
   }> {
-    return getDomainRoutingIsmConfig(this.gateway, { ism });
+    return getDomainRoutingIsmConfig(this.gateway, ism);
   }
 
   public async getHookType({ hook }: { hook: string }): Promise<Hooks> {

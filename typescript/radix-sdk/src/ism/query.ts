@@ -7,7 +7,7 @@ import { EntityDetails, EntityField, MultisigIsms } from '../utils/types.js';
 
 export async function getMultisigIsmConfig(
   gateway: Readonly<GatewayApiClient>,
-  { ismAddress }: { ismAddress: string },
+  ismAddress: string,
 ): Promise<{
   address: string;
   type: MultisigIsms;
@@ -47,7 +47,7 @@ export async function getMultisigIsmConfig(
 
 export async function getDomainRoutingIsmConfig(
   gateway: Readonly<GatewayApiClient>,
-  { ism }: { ism: string },
+  ismAddress: string,
 ): Promise<{
   address: string;
   owner: string;
@@ -56,7 +56,8 @@ export async function getDomainRoutingIsmConfig(
     ismAddress: string;
   }[];
 }> {
-  const details = await gateway.state.getEntityDetailsVaultAggregated(ism);
+  const details =
+    await gateway.state.getEntityDetailsVaultAggregated(ismAddress);
 
   const ownerResource = (details.details as EntityDetails).role_assignments
     .owner.rule.access_rule.proof_rule.requirement.resource;
@@ -80,7 +81,7 @@ export async function getDomainRoutingIsmConfig(
 
   const routesKeyValueStore =
     fields.find((f) => f.field_name === 'routes')?.value ?? '';
-  assert(routesKeyValueStore, `found no routes on RoutingIsm ${ism}`);
+  assert(routesKeyValueStore, `found no routes on RoutingIsm ${ismAddress}`);
 
   const keys = await getKeysFromKeyValueStore(gateway, routesKeyValueStore);
 
@@ -111,7 +112,7 @@ export async function getDomainRoutingIsmConfig(
   }
 
   return {
-    address: ism,
+    address: ismAddress,
     owner: resourceHolders[0],
     routes,
   };
