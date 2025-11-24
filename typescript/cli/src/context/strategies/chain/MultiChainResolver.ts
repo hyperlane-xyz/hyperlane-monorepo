@@ -109,14 +109,16 @@ export class MultiChainResolver implements ChainResolver {
 
     assert(
       argv.context.chains && argv.context.chains.length !== 0,
-      'No chains found in warp route deployment config',
+      'No chains found set in parameters',
     );
 
     return argv.context.chains;
   }
 
   private async resolveChain(argv: Record<string, any>): Promise<ChainName[]> {
-    return argv.chain ? [argv.chain] : [];
+    const chains = argv.chain ? [argv.chain] : [];
+    assert(chains.length !== 0, 'No chains found set in parameters');
+    return chains;
   }
 
   private async resolveWarpApplyChains(
