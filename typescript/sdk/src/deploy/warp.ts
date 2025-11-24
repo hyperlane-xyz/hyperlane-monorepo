@@ -351,7 +351,7 @@ async function createWarpHook({
     default: {
       const signer = altVmSigner.get(chain);
 
-      const hooModule = await AltVMHookModule.create({
+      const hookModule = await AltVMHookModule.create({
         chain,
         multiProvider: multiProvider,
         addresses: {
@@ -361,7 +361,7 @@ async function createWarpHook({
         config: hook,
         signer,
       });
-      const { deployedHook } = hooModule.serialize();
+      const { deployedHook } = hookModule.serialize();
       return deployedHook;
     }
   }
