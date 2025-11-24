@@ -89,7 +89,7 @@ describe('hyperlane warp read e2e tests', async function () {
       const output = await hyperlaneWarp.readRaw({}).nothrow();
 
       expect(output.exitCode).to.equal(1);
-      expect(output.text()).to.include('No chains resolved.');
+      expect(output.text()).to.include('No chains found.');
     });
   });
 

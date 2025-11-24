@@ -68,10 +68,6 @@ export async function signerMiddleware(argv: Record<string, any>) {
    */
   const chains = await chainStrategy.resolveChains(argv);
 
-  if (chains.length === 0) {
-    throw new Error('No chains resolved.');
-  }
-
   /**
    * Load and create AltVM Providers
    */
