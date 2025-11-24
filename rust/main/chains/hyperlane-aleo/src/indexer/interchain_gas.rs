@@ -45,7 +45,7 @@ impl<C: AleoClient> AleoInterchainGasIndexer<C> {
     }
 }
 
-impl HyperlaneChain for AleoInterchainGasIndexer {
+impl<C: AleoClient> HyperlaneChain for AleoInterchainGasIndexer<C> {
     /// Return the domain
     fn domain(&self) -> &HyperlaneDomain {
         &self.domain
@@ -57,14 +57,14 @@ impl HyperlaneChain for AleoInterchainGasIndexer {
     }
 }
 
-impl HyperlaneContract for AleoInterchainGasIndexer {
+impl<C: AleoClient> HyperlaneContract for AleoInterchainGasIndexer<C> {
     /// Address
     fn address(&self) -> H256 {
         self.address
     }
 }
 
-impl InterchainGasPaymaster for AleoInterchainGasIndexer {}
+impl<C: AleoClient> InterchainGasPaymaster for AleoInterchainGasIndexer<C> {}
 
 impl<C: AleoClient> AleoIndexer for AleoInterchainGasIndexer<C> {
     const INDEX_MAPPING: &str = "last_event_index";

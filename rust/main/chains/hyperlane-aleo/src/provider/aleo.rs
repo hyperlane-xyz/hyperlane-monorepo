@@ -1,7 +1,6 @@
 use std::{fmt::Debug, ops::Deref, str::FromStr};
 
 use async_trait::async_trait;
-use reqwest::Client;
 use snarkvm::prelude::{CanaryV0, MainnetV0, TestnetV0};
 use snarkvm_console_account::Address;
 
@@ -11,7 +10,7 @@ use hyperlane_core::{
 };
 
 use crate::{
-    provider::{BaseHttpClient, HttpClient, RpcClient},
+    provider::{fallback::FallbackHttpClient, HttpClient, RpcClient},
     utils::{get_tx_id, to_h256},
     ConnectionConf, CurrentNetwork, HyperlaneAleoError,
 };
@@ -22,19 +21,17 @@ impl<T> AleoClient for T where T: HttpClient + Clone + Debug + Send + Sync + 'st
 
 /// Aleo Rest Client. Generic over an underlying HttpClient to allow injection of a mock for testing.
 #[derive(Debug, Clone)]
-pub struct AleoProvider<C: AleoClient = BaseHttpClient> {
+pub struct AleoProvider<C: AleoClient = FallbackHttpClient> {
     client: RpcClient<C>,
     domain: HyperlaneDomain,
     network: u16,
 }
 
-impl AleoProvider<BaseHttpClient> {
+impl AleoProvider<FallbackHttpClient> {
     /// Creates a new production AleoProvider
     pub fn new(conf: &ConnectionConf, domain: HyperlaneDomain) -> ChainResult<Self> {
-        let base_url = conf.rpc.to_string().trim_end_matches('/').to_string();
-        let client = BaseHttpClient::new(Client::new(), base_url);
         Ok(Self {
-            client: RpcClient::new(client),
+            client: RpcClient::new(FallbackHttpClient::new(conf.rpcs.clone())),
             domain,
             network: conf.chain_id,
         })

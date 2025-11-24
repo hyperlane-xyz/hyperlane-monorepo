@@ -21,7 +21,7 @@ const DOMAIN: HyperlaneDomain =
 
 fn connection_conf() -> ConnectionConf {
     ConnectionConf {
-        rpc: url::Url::from_str("http://localhost:3030").unwrap(),
+        rpcs: vec![url::Url::from_str("http://localhost:3030").unwrap()],
         mailbox_program: "test_mailbox.aleo".to_string(),
         hook_manager_program: "test_hook_manager.aleo".to_string(),
         ism_manager_program: "test_ism_manager.aleo".to_string(),
