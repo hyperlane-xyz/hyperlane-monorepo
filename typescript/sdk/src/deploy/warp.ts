@@ -348,7 +348,7 @@ async function createWarpHook({
       const { deployedHook } = evmHookModule.serialize();
       return deployedHook;
     }
-    default:
+    default: {
       const signer = altVmSigner.get(chain);
 
       const hooModule = await AltVMHookModule.create({
@@ -363,6 +363,7 @@ async function createWarpHook({
       });
       const { deployedHook } = hooModule.serialize();
       return deployedHook;
+    }
   }
 }
 
