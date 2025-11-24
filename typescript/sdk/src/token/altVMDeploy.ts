@@ -98,6 +98,15 @@ export class AltVMDeployer<PT extends ProtocolType> {
         });
       }
 
+      if (config.hook && typeof config.hook === 'string') {
+        this.logger.info(`Set Hook for token`);
+
+        await this.signersMap[chain].setTokenHook({
+          tokenAddress: result[chain],
+          hookAddress: config.hook,
+        });
+      }
+
       this.logger.info(`Successfully deployed contracts on ${chain}`);
     }
 

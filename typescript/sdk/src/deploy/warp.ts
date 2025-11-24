@@ -20,6 +20,7 @@ import {
   HyperlaneContracts,
   HyperlaneContractsMap,
 } from '../contracts/types.js';
+import { AltVMHookModule } from '../hook/AltVMHookModule.js';
 import { EvmHookModule } from '../hook/EvmHookModule.js';
 import { HookConfig } from '../hook/types.js';
 import { AltVMIsmModule } from '../ism/AltVMIsmModule.js';
@@ -190,6 +191,7 @@ async function resolveWarpIsmAndHook(
         chain,
         chainAddresses,
         multiProvider,
+        altVmSigner,
         contractVerifier,
         ismFactoryDeployer,
         warpConfig: config,
@@ -285,6 +287,7 @@ async function createWarpHook({
   chain,
   chainAddresses,
   multiProvider,
+  altVmSigner,
   contractVerifier,
   warpConfig,
 }: {
@@ -292,6 +295,7 @@ async function createWarpHook({
   chain: string;
   chainAddresses: Record<string, string>;
   multiProvider: MultiProvider;
+  altVmSigner: AltVM.ISignerFactory<AnyProtocolTransaction, AnyProtocolReceipt>;
   contractVerifier?: ContractVerifier;
   warpConfig: HypTokenRouterConfig;
   ismFactoryDeployer: HyperlaneProxyFactoryDeployer;
@@ -345,10 +349,20 @@ async function createWarpHook({
       return deployedHook;
     }
     default:
-      rootLogger.warn(
-        `Skipping token hooks because they are not supported on protocol type ${protocolType}`,
-      );
-      return hook;
+      const signer = altVmSigner.get(chain);
+
+      const hooModule = await AltVMHookModule.create({
+        chain,
+        multiProvider: multiProvider,
+        addresses: {
+          deployedHook: '',
+          mailbox: chainAddresses.mailbox,
+        },
+        config: hook,
+        signer,
+      });
+      const { deployedHook } = hooModule.serialize();
+      return deployedHook;
   }
 }
 
