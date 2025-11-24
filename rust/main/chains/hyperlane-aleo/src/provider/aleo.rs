@@ -27,7 +27,7 @@ use hyperlane_core::{
 use tracing::debug;
 
 use crate::{
-    provider::{BaseHttpClient, HttpClient, ProvingClient, RpcClient},
+    provider::{fallback::FallbackHttpClient, HttpClient, ProvingClient, RpcClient},
     utils::{get_tx_id, to_h256},
     AleoSigner, ConnectionConf, CurrentNetwork, FeeEstimate, HyperlaneAleoError,
 };
@@ -38,7 +38,7 @@ impl<T> AleoClient for T where T: HttpClient + Clone + Debug + Send + Sync + 'st
 
 /// Aleo Rest Client. Generic over an underlying HttpClient to allow injection of a mock for testing.
 #[derive(Debug, Clone)]
-pub struct AleoProvider<C: AleoClient = BaseHttpClient> {
+pub struct AleoProvider<C: AleoClient = FallbackHttpClient> {
     client: RpcClient<C>,
     domain: HyperlaneDomain,
     network: u16,
@@ -47,24 +47,22 @@ pub struct AleoProvider<C: AleoClient = BaseHttpClient> {
     priority_fee_multiplier: f64,
 }
 
-impl AleoProvider<BaseHttpClient> {
+impl AleoProvider<FallbackHttpClient> {
     /// Creates a new production AleoProvider
     pub fn new(
         conf: &ConnectionConf,
         domain: HyperlaneDomain,
         signer: Option<AleoSigner>,
     ) -> ChainResult<Self> {
-        let client = BaseHttpClient::new(conf.rpc.clone())?;
-
-        let proofing_service = if let Some(proofing_url) = &conf.proofing_service {
-            let client = BaseHttpClient::new(proofing_url.clone())?;
+        let proofing_service = if !conf.proofing_service.is_empty() {
+            let client = FallbackHttpClient::new(conf.proofing_service.clone())?;
             Some(ProvingClient::new(client))
         } else {
             None
         };
 
         Ok(Self {
-            client: RpcClient::new(client),
+            client: RpcClient::new(FallbackHttpClient::new(conf.rpcs.clone())?),
             domain,
             network: conf.chain_id,
             proofing_service,
@@ -389,7 +387,7 @@ impl<C: AleoClient> AleoProvider<C> {
         // Polling delay is the total amount of seconds to wait before we call a timeout
         const TIMEOUT_DELAY: u64 = 30;
         const POLLING_INTERVAL: u64 = 2;
-        const N: usize = (TIMEOUT_DELAY / POLLING_INTERVAL) as usize;
+        const NUM_RETRIES: usize = (TIMEOUT_DELAY / POLLING_INTERVAL) as usize;
         let mut attempt: usize = 0;
 
         let confirmed_tx = loop {
@@ -401,11 +399,10 @@ impl<C: AleoClient> AleoProvider<C> {
                     )
                 }
                 _ => {
-                    // Broadcast the transaction again in case it was not received
                     debug!("Transaction still pending, continuing to poll: {hash} {attempt}",);
                     // Transaction is still pending, continue polling
                     attempt = attempt.saturating_add(1);
-                    if attempt >= N {
+                    if attempt >= NUM_RETRIES {
                         return Err(HyperlaneAleoError::Other(format!(
                             "Transaction timed out after {TIMEOUT_DELAY} seconds"
                         ))

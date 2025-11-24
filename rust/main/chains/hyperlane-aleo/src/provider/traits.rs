@@ -13,6 +13,8 @@ use snarkvm::prelude::{
 
 use hyperlane_core::ChainResult;
 use snarkvm_console_account::Field;
+use tokio::runtime::Handle;
+use tokio::task::block_in_place;
 
 use crate::{CurrentNetwork, HyperlaneAleoError, ProvingRequest, ProvingResponse};
 
@@ -20,21 +22,23 @@ use crate::{CurrentNetwork, HyperlaneAleoError, ProvingRequest, ProvingResponse}
 /// HttpClient trait defines the base layer that Aleo provider will use
 pub trait HttpClient {
     /// Makes a GET request to the API
-    async fn request<T: DeserializeOwned>(
+    async fn request<T: DeserializeOwned + Send>(
         &self,
         path: &str,
         query: impl Into<Option<serde_json::Value>> + Send,
     ) -> ChainResult<T>;
 
     /// Makes a GET request to the API in a blocking manner
-    fn request_blocking<T: DeserializeOwned>(
+    fn request_blocking<T: DeserializeOwned + Send>(
         &self,
         path: &str,
         query: impl Into<Option<serde_json::Value>> + Send,
-    ) -> ChainResult<T>;
+    ) -> ChainResult<T> {
+        block_in_place(|| Handle::current().block_on(async { self.request(path, query).await }))
+    }
 
     /// Makes a POST request to the API
-    async fn request_post<T: DeserializeOwned>(
+    async fn request_post<T: DeserializeOwned + Send>(
         &self,
         path: &str,
         body: &serde_json::Value,

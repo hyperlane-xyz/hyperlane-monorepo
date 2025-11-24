@@ -21,14 +21,14 @@ const DOMAIN: HyperlaneDomain =
 
 fn connection_conf() -> ConnectionConf {
     ConnectionConf {
-        rpc: url::Url::from_str("http://localhost:3030").unwrap(),
+        rpcs: vec![url::Url::from_str("http://localhost:3030").unwrap()],
         mailbox_program: "test_mailbox.aleo".to_string(),
         hook_manager_program: "test_hook_manager.aleo".to_string(),
         ism_manager_program: "test_ism_manager.aleo".to_string(),
         validator_announce_program: "test_validator_announce.aleo".to_string(),
         chain_id: 1u16,
         priority_fee_multiplier: 0f64,
-        proofing_service: None,
+        proofing_service: vec![],
     }
 }
 

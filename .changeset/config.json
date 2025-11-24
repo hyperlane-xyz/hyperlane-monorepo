@@ -2,8 +2,31 @@
   "$schema": "https://unpkg.com/@changesets/config@2.3.1/schema.json",
   "changelog": "@changesets/cli/changelog",
   "commit": true,
-  "fixed": [["@hyperlane-xyz/!(core)|*"]],
-  "linked": [],
+  "fixed": [
+    [
+      "@hyperlane-xyz/starknet-core",
+      "@hyperlane-xyz/ccip-server",
+      "@hyperlane-xyz/cli",
+      "@hyperlane-xyz/cosmos-sdk",
+      "@hyperlane-xyz/cosmos-types",
+      "@hyperlane-xyz/eslint-config",
+      "@hyperlane-xyz/github-proxy",
+      "@hyperlane-xyz/helloworld",
+      "@hyperlane-xyz/http-registry-server",
+      "@hyperlane-xyz/infra",
+      "@hyperlane-xyz/radix-sdk",
+      "@hyperlane-xyz/sdk",
+      "@hyperlane-xyz/tsconfig",
+      "@hyperlane-xyz/utils",
+      "@hyperlane-xyz/widgets"
+    ]
+  ],
+  "linked": [
+    [
+      "@hyperlane-xyz/deploy-sdk",
+      "@hyperlane-xyz/provider-sdk"
+    ]
+  ],
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
