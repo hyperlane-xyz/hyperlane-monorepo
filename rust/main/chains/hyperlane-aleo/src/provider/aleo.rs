@@ -274,8 +274,8 @@ impl<C: AleoClient> AleoProvider<C> {
     pub async fn estimate_tx(
         &self,
         program_id: &str,
-        input: impl IntoIterator<Item = String>,
         function_name: &str,
+        input: impl IntoIterator<Item = String>,
     ) -> ChainResult<FeeEstimate> {
         let input_vec = input.into_iter().collect_vec();
         match self.chain_id() {

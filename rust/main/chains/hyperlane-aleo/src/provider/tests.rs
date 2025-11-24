@@ -161,11 +161,11 @@ async fn test_estimate_tx() {
     let result = provider
         .estimate_tx(
             "credits.aleo",
+            "transfer_public",
             vec![
                 "aleo1qkjr490qe7p9v45qrd5pjemmqn4vmgqt8vzc8j0jfwhc7mf5f5zqly7vze".to_owned(),
                 "5u64".to_owned(),
             ],
-            "transfer_public",
         )
         .await;
     assert!(result.is_ok(), "Estimate TX should succeed");
@@ -181,12 +181,12 @@ async fn test_estimate_tx_invalid_inputs() {
     let result = provider
         .estimate_tx(
             "credits.aleo",
+            "transfer_public",
             vec![
                 "aleo1qkjr490qe7p9v45qrd5pjemmqn4vmgqt8vzc8j0jfwhc7mf5f5zqly7vze".to_owned(),
                 "5u64".to_owned(),
                 "5u64".to_owned(),
             ],
-            "transfer_public",
         )
         .await;
     assert!(
@@ -201,11 +201,11 @@ async fn test_estimate_tx_unknown_function() {
     let result = provider
         .estimate_tx(
             "credits.aleo",
+            "transfer_public_super",
             vec![
                 "aleo1qkjr490qe7p9v45qrd5pjemmqn4vmgqt8vzc8j0jfwhc7mf5f5zqly7vze".to_owned(),
                 "5u64".to_owned(),
             ],
-            "transfer_public_super",
         )
         .await;
     assert!(
@@ -220,11 +220,11 @@ async fn test_estimate_tx_unknown_program() {
     let result = provider
         .estimate_tx(
             "unknown.aleo",
+            "transfer_public",
             vec![
                 "aleo1qkjr490qe7p9v45qrd5pjemmqn4vmgqt8vzc8j0jfwhc7mf5f5zqly7vze".to_owned(),
                 "5u64".to_owned(),
             ],
-            "transfer_public",
         )
         .await;
     assert!(
