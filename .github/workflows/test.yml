@@ -625,9 +625,6 @@ jobs:
       - name: Install mold linker
         if: steps.check-conditions.outputs.skip-e2e != 'true'
         uses: rui314/setup-mold@v1
-        with:
-          mold-version: 2.0.0
-          make-default: true
 
       - name: yarn-build
         if: steps.check-conditions.outputs.skip-e2e != 'true'
