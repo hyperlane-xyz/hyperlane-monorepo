@@ -87,6 +87,9 @@ pub struct EscrowCli {
     /// Required signatures
     #[arg(required = true, index = 2)]
     pub required_signatures: u8,
+    /// Kaspa environment (testnet or mainnet)
+    #[arg(long, required = true)]
+    pub env: String,
 }
 
 #[derive(Args, Debug)]

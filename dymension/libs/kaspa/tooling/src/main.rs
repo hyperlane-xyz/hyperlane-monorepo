@@ -27,7 +27,7 @@ async fn run(cli: Cli) {
                 .split(",")
                 .map(|s| s.trim())
                 .collect::<Vec<_>>();
-            let e = x::escrow::get_escrow_address(pub_keys, args.required_signatures);
+            let e = x::escrow::get_escrow_address(pub_keys, args.required_signatures, &args.env);
             println!("Escrow address: {e}");
         }
         Commands::Validator { action } => match action {
