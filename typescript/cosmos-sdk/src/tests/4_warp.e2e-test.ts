@@ -26,10 +26,13 @@ describe('4. cosmos sdk warp e2e tests', async function () {
 
   step('create new collateral token', async () => {
     // ARRANGE
+    const { ismAddress } = await signer.createNoopIsm({});
+
     const domainId = 1234;
 
     const { mailboxAddress } = await signer.createMailbox({
       domainId: domainId,
+      defaultIsmAddress: ismAddress,
     });
     const denom = 'uhyp';
 
@@ -53,15 +56,19 @@ describe('4. cosmos sdk warp e2e tests', async function () {
     expect(token.mailboxAddress).to.equal(mailboxAddress);
     expect(token.denom).to.equal(denom);
     expect(token.ismAddress).to.be.empty;
+    expect(token.hookAddress).to.be.empty;
     expect(token.tokenType).to.equal(AltVM.TokenType.collateral);
   });
 
   step('create new synthetic token', async () => {
     // ARRANGE
+    const { ismAddress } = await signer.createNoopIsm({});
+
     const domainId = 1234;
 
     const { mailboxAddress } = await signer.createMailbox({
       domainId: domainId,
+      defaultIsmAddress: ismAddress,
     });
 
     // ACT
@@ -90,10 +97,13 @@ describe('4. cosmos sdk warp e2e tests', async function () {
 
   step('enroll remote router', async () => {
     // ARRANGE
+    const { ismAddress } = await signer.createNoopIsm({});
+
     const domainId = 1234;
 
     const { mailboxAddress } = await signer.createMailbox({
       domainId: domainId,
+      defaultIsmAddress: ismAddress,
     });
     const denom = 'uhyp';
 
@@ -133,10 +143,13 @@ describe('4. cosmos sdk warp e2e tests', async function () {
 
   step('remote transfer', async () => {
     // ARRANGE
+    const { ismAddress } = await signer.createNoopIsm({});
+
     const domainId = 1234;
 
     const { mailboxAddress } = await signer.createMailbox({
       domainId: domainId,
+      defaultIsmAddress: ismAddress,
     });
     const denom = 'uhyp';
 
@@ -147,6 +160,7 @@ describe('4. cosmos sdk warp e2e tests', async function () {
 
     const { hookAddress: igp_id } =
       await signer.createInterchainGasPaymasterHook({
+        mailboxAddress,
         denom,
       });
 
@@ -233,10 +247,13 @@ describe('4. cosmos sdk warp e2e tests', async function () {
 
   step('unenroll remote router', async () => {
     // ARRANGE
+    const { ismAddress } = await signer.createNoopIsm({});
+
     const domainId = 1234;
 
     const { mailboxAddress } = await signer.createMailbox({
       domainId: domainId,
+      defaultIsmAddress: ismAddress,
     });
     const denom = 'uhyp';
 
@@ -292,10 +309,13 @@ describe('4. cosmos sdk warp e2e tests', async function () {
     // ARRANGE
     const newOwner = (await createSigner('bob')).getSignerAddress();
 
+    const { ismAddress } = await signer.createNoopIsm({});
+
     const domainId = 1234;
 
     const { mailboxAddress } = await signer.createMailbox({
       domainId: domainId,
+      defaultIsmAddress: ismAddress,
     });
     const denom = 'uhyp';
 
@@ -320,12 +340,14 @@ describe('4. cosmos sdk warp e2e tests', async function () {
 
   step('set token ism', async () => {
     // ARRANGE
+    const { ismAddress } = await signer.createNoopIsm({});
     const { ismAddress: ism_id_new } = await signer.createNoopIsm({});
 
     const domainId = 1234;
 
     const { mailboxAddress } = await signer.createMailbox({
       domainId: domainId,
+      defaultIsmAddress: ismAddress,
     });
     const denom = 'uhyp';
 

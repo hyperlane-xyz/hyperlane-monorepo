@@ -405,6 +405,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
       tokenType: token_type,
       mailboxAddress: token.origin_mailbox,
       ismAddress: token.ism_id,
+      hookAddress: '',
       denom: token.origin_denom,
       name: '',
       symbol: '',
@@ -466,11 +467,17 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
   async getCreateMailboxTransaction(
     req: AltVM.ReqCreateMailbox,
   ): Promise<MsgCreateMailboxEncodeObject> {
+    assert(
+      req.defaultIsmAddress,
+      `defaultIsmAddress required in Cosmos Native`,
+    );
+
     return {
       typeUrl: R.MsgCreateMailbox.proto.type,
       value: R.MsgCreateMailbox.proto.converter.create({
         local_domain: req.domainId,
         owner: req.signer,
+        default_ism: req.defaultIsmAddress,
       }),
     };
   }
@@ -767,6 +774,12 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
         ism_id: req.ismAddress,
       }),
     };
+  }
+
+  async getSetTokenHookTransaction(
+    _req: AltVM.ReqSetTokenHook,
+  ): Promise<MsgSetTokenEncodeObject> {
+    throw new Error(`SetTokenHook is currently not supported on Cosmos Native`);
   }
 
   async getEnrollRemoteRouterTransaction(

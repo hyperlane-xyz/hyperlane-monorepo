@@ -418,6 +418,12 @@ export class RadixSigner
     };
   }
 
+  async setTokenHook(
+    _req: Omit<AltVM.ReqSetTokenHook, 'signer'>,
+  ): Promise<AltVM.ResSetTokenHook> {
+    throw new Error(`SetTokenHook is currently not supported on Radix`);
+  }
+
   async enrollRemoteRouter(
     req: Omit<AltVM.ReqEnrollRemoteRouter, 'signer'>,
   ): Promise<AltVM.ResEnrollRemoteRouter> {

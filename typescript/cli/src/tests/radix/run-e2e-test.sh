@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+set -e
+
 echo "Running E2E tests"
 if [ -n "${CLI_E2E_TEST}" ]; then
   echo "Running only ${CLI_E2E_TEST} test"

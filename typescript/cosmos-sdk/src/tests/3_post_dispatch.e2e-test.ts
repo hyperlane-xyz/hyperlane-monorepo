@@ -24,8 +24,18 @@ describe('3. cosmos sdk post dispatch e2e tests', async function () {
     // ARRANGE
     const denom = 'uhyp';
 
+    const { ismAddress } = await signer.createNoopIsm({});
+
+    const domainId = 1234;
+
+    const { mailboxAddress } = await signer.createMailbox({
+      domainId: domainId,
+      defaultIsmAddress: ismAddress,
+    });
+
     // ACT
     const txResponse = await signer.createInterchainGasPaymasterHook({
+      mailboxAddress,
       denom,
     });
 
@@ -44,10 +54,13 @@ describe('3. cosmos sdk post dispatch e2e tests', async function () {
 
   step('create new Merkle Tree hook', async () => {
     // ARRANGE
+    const { ismAddress } = await signer.createNoopIsm({});
+
     const domainId = 1234;
 
     const { mailboxAddress } = await signer.createMailbox({
       domainId: domainId,
+      defaultIsmAddress: ismAddress,
     });
 
     // ACT
@@ -72,7 +85,17 @@ describe('3. cosmos sdk post dispatch e2e tests', async function () {
     // ARRANGE
     const denom = 'uhyp';
 
+    const { ismAddress } = await signer.createNoopIsm({});
+
+    const domainId = 1234;
+
+    const { mailboxAddress } = await signer.createMailbox({
+      domainId: domainId,
+      defaultIsmAddress: ismAddress,
+    });
+
     const { hookAddress } = await signer.createInterchainGasPaymasterHook({
+      mailboxAddress,
       denom,
     });
 
@@ -116,7 +139,17 @@ describe('3. cosmos sdk post dispatch e2e tests', async function () {
     // ARRANGE
     const denom = 'uhyp';
 
+    const { ismAddress } = await signer.createNoopIsm({});
+
+    const domainId = 1234;
+
+    const { mailboxAddress } = await signer.createMailbox({
+      domainId: domainId,
+      defaultIsmAddress: ismAddress,
+    });
+
     const { hookAddress } = await signer.createInterchainGasPaymasterHook({
+      mailboxAddress,
       denom,
     });
 
