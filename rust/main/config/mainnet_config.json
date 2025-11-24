@@ -9462,6 +9462,7 @@
       "testRecipient": "0x55Dc6325F6eA1DDa5286257E1e8EE4E1d281bD8D",
       "validatorAnnounce": "0xfa656a97b8FD2D7A94a728c0373cfd820b1f0747",
       "index": {
+        "chunk": 999,
         "from": 153973092
       }
     }
