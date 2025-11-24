@@ -27,6 +27,8 @@ export enum UnhandledErrorReason {
   CCTP_UNSUPPORTED_VERSION = 'cctp_unsupported_version',
   CCTP_ATTESTATION_SERVICE_500 = 'cctp_attestation_service_500',
   CCTP_ATTESTATION_SERVICE_UNKNOWN_ERROR = 'cctp_attestation_service_unknown_error',
+  CCTP_ATTESTATION_SERVICE_JSON_PARSE_ERROR = 'cctp_attestation_service_json_parse_error',
+  CCTP_ATTESTATION_SERVICE_PENDING = 'cctp_attestation_service_pending',
 
   // CallCommitments errors
   CALL_COMMITMENTS_DATABASE_ERROR = 'call_commitments_database_error',

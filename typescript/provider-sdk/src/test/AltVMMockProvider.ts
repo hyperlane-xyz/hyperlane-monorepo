@@ -261,6 +261,12 @@ export class MockProvider implements AltVM.IProvider {
     throw new Error(`not implemented`);
   }
 
+  async getSetTokenHookTransaction(
+    _req: AltVM.ReqSetTokenHook,
+  ): Promise<MockTransaction> {
+    throw new Error(`not implemented`);
+  }
+
   async getEnrollRemoteRouterTransaction(
     _req: AltVM.ReqEnrollRemoteRouter,
   ): Promise<MockTransaction> {

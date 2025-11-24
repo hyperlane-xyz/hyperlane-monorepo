@@ -234,6 +234,7 @@ export class AltVMHookModule implements HypModule<HookModuleType> {
     assert(nativeToken?.denom, `found no native token for chain ${this.chain}`);
 
     const { hookAddress } = await this.signer.createInterchainGasPaymasterHook({
+      mailboxAddress: this.args.addresses.mailbox,
       denom: nativeToken.denom,
     });
 
