@@ -208,6 +208,7 @@ fn launch_starknet_relayer(
         .hyp_env("ALLOWLOCALCHECKPOINTSYNCERS", "true")
         .hyp_env("TRACING_LEVEL", if debug { "debug" } else { "info" })
         .hyp_env("GASPAYMENTENFORCEMENT", "[{\"type\": \"none\"}]")
+        .hyp_env("CACHEDEFAULTEXPIRATIONSECONDS", "5")
         .hyp_env("METRICSPORT", metrics.to_string())
         .spawn("RLY", None);
 

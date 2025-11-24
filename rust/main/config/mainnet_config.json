@@ -278,9 +278,6 @@
       "proxyAdmin": "0x4Ed7d626f1E96cD1C0401607Bf70D95243E3dEd1",
       "rpcUrls": [
         {
-          "http": "https://base.publicnode.com"
-        },
-        {
           "http": "https://mainnet.base.org"
         },
         {
@@ -324,7 +321,7 @@
           "apiUrl": "https://api.etherscan.io/v2/api?chainid=81457",
           "family": "etherscan",
           "name": "BlastScan",
-          "url": "https://blastscan.io/"
+          "url": "https://blastscan.io"
         },
         {
           "apiUrl": "https://api.routescan.io/v2/network/mainnet/evm/81457/etherscan/api",
@@ -746,10 +743,10 @@
     "eclipsemainnet": {
       "blockExplorers": [
         {
-          "apiUrl": "https://api.eclipsescan.xyz/",
+          "apiUrl": "https://api.eclipsescan.xyz",
           "family": "other",
           "name": "Eclipse Explorer",
-          "url": "https://eclipsescan.xyz/"
+          "url": "https://eclipsescan.xyz"
         }
       ],
       "blocks": {
@@ -2452,7 +2449,7 @@
           "apiUrl": "https://api.etherscan.io/v2/api?chainid=534352",
           "family": "etherscan",
           "name": "Scroll Explorer",
-          "url": "https://scrollscan.com/"
+          "url": "https://scrollscan.com"
         }
       ],
       "blocks": {
@@ -3914,6 +3911,13 @@
     "apechain": {
       "blockExplorers": [
         {
+          "apiKey": "GP69JEAP2W7YFJT9ZJTEPGQT6Y6KMW44ZN",
+          "apiUrl": "https://apescan.io/api",
+          "family": "etherscan",
+          "name": "Apescan",
+          "url": "https://apescan.io"
+        },
+        {
           "apiUrl": "https://apechain.calderaexplorer.xyz/api",
           "family": "blockscout",
           "name": "ApeChain Explorer",
@@ -3980,7 +3984,7 @@
           "apiUrl": "https://api-nova.arbiscan.io/api",
           "family": "etherscan",
           "name": "Arbiscan Nova",
-          "url": "https://nova.arbiscan.io/"
+          "url": "https://nova.arbiscan.io"
         }
       ],
       "blocks": {
@@ -5086,7 +5090,7 @@
           "apiUrl": "https://explorer.superposition.so/api",
           "family": "blockscout",
           "name": "Superposition Explorer",
-          "url": "https://explorer.superposition.so/"
+          "url": "https://explorer.superposition.so"
         }
       ],
       "blocks": {
@@ -6085,7 +6089,7 @@
           "apiUrl": "https://voyager.online/api",
           "family": "voyager",
           "name": "Starknet Explorer",
-          "url": "https://voyager.online/"
+          "url": "https://voyager.online"
         }
       ],
       "blocks": {
@@ -6110,9 +6114,6 @@
       },
       "protocol": "starknet",
       "rpcUrls": [
-        {
-          "http": "https://starknet-mainnet.public.blastapi.io/rpc/v0_8"
-        },
         {
           "http": "https://rpc.starknet.lava.build:443/"
         }
@@ -6149,10 +6150,10 @@
     "soon": {
       "blockExplorers": [
         {
-          "apiUrl": "https://explorer.soo.network/",
+          "apiUrl": "https://explorer.soo.network",
           "family": "other",
           "name": "SOON Explorer",
-          "url": "https://explorer.soo.network/"
+          "url": "https://explorer.soo.network"
         }
       ],
       "blocks": {
@@ -6680,7 +6681,7 @@
     "berachain": {
       "blockExplorers": [
         {
-          "apiUrl": "https://api.routescan.io/v2/network/mainnet/evm/80094/etherscan/api/",
+          "apiUrl": "https://api.routescan.io/v2/network/mainnet/evm/80094/etherscan/api",
           "family": "routescan",
           "name": "Berachain Explorer",
           "url": "https://beratrail.io"
@@ -7704,7 +7705,7 @@
           "apiUrl": "https://explorer.ont.io/api",
           "family": "other",
           "name": "Ontology Explorer",
-          "url": "https://explorer.ont.io/"
+          "url": "https://explorer.ont.io"
         }
       ],
       "blocks": {
@@ -7768,7 +7769,7 @@
           "apiUrl": "https://peaq.subscan.io/api",
           "family": "other",
           "name": "Peaq Explorer",
-          "url": "https://peaq.subscan.io/"
+          "url": "https://peaq.subscan.io"
         }
       ],
       "blocks": {
@@ -8687,7 +8688,7 @@
           "apiUrl": "https://api.routescan.io/v2/network/mainnet/evm/124816/etherscan/api",
           "family": "routescan",
           "name": "Mitosis Explorer",
-          "url": "https://mitoscan.io/"
+          "url": "https://mitoscan.io"
         }
       ]
     },
@@ -8767,7 +8768,7 @@
           "apiUrl": "https://api.scan.pulsechain.com/api",
           "family": "blockscout",
           "name": "Pulsechain Explorer",
-          "url": "https://scan.pulsechainfoundation.org/#/"
+          "url": "https://scan.pulsechainfoundation.org/#"
         },
         {
           "apiUrl": "https://api.scan.pulsechain.com/api",
@@ -9208,6 +9209,7 @@
         "from": 82206
       },
       "transactionOverrides": {
+        "gasPrice": 60000000000,
         "minGasPrice": 1000000000,
         "minFeePerGas": 1000000000,
         "minPriorityFeePerGas": 1000000000

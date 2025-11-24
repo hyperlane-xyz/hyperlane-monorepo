@@ -1,7 +1,8 @@
 import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 import { NetworkId } from '@radixdlt/radix-engine-toolkit';
 
-import { AltVM, assert } from '@hyperlane-xyz/utils';
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { RadixCorePopulate } from '../core/populate.js';
 import { RadixCoreQuery } from '../core/query.js';
@@ -132,6 +133,8 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   }
 
   async getBalance(req: AltVM.ReqGetBalance): Promise<bigint> {
+    assert(req.denom, `denom required by ${RadixProvider.name}`);
+
     return this.base.getBalance({
       address: req.address,
       resource: req.denom,
@@ -139,6 +142,8 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   }
 
   async getTotalSupply(req: AltVM.ReqGetTotalSupply): Promise<bigint> {
+    assert(req.denom, `denom required by ${RadixProvider.name}`);
+
     return this.base.getTotalSupply({
       resource: req.denom,
     });
@@ -268,6 +273,10 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
     req: AltVM.ReqGetMerkleTreeHook,
   ): Promise<AltVM.ResGetMerkleTreeHook> {
     return this.query.core.getMerkleTreeHook({ hook: req.hookAddress });
+  }
+
+  async getNoopHook(_req: AltVM.ReqGetNoopHook): Promise<AltVM.ResGetNoopHook> {
+    throw new Error(`Noop Hook is currently not supported on Radix`);
   }
 
   // ### QUERY WARP ###
@@ -479,6 +488,8 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   async getCreateInterchainGasPaymasterHookTransaction(
     req: AltVM.ReqCreateInterchainGasPaymasterHook,
   ): Promise<RadixSDKTransaction> {
+    assert(req.denom, `denom required by ${RadixProvider.name}`);
+
     return {
       networkId: this.networkId,
       manifest: await this.populate.core.createIgp({
@@ -514,6 +525,20 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
     };
   }
 
+  async getRemoveDestinationGasConfigTransaction(
+    _req: AltVM.ReqRemoveDestinationGasConfig,
+  ): Promise<RadixSDKTransaction> {
+    throw new Error(
+      `RemoveDestinationGasConfig is currently not supported on Radix`,
+    );
+  }
+
+  async getCreateNoopHookTransaction(
+    _req: AltVM.ReqCreateNoopHook,
+  ): Promise<RadixSDKTransaction> {
+    throw new Error(`CreateNoopHook is currently not supported on Radix`);
+  }
+
   async getCreateValidatorAnnounceTransaction(
     req: AltVM.ReqCreateValidatorAnnounce,
   ): Promise<RadixSDKTransaction> {
@@ -527,6 +552,12 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   }
 
   // ### GET WARP TXS ###
+
+  async getCreateNativeTokenTransaction(
+    _req: AltVM.ReqCreateNativeToken,
+  ): Promise<RadixSDKTransaction> {
+    throw new Error(`Native Token is not supported on Radix`);
+  }
 
   async getCreateCollateralTokenTransaction(
     req: AltVM.ReqCreateCollateralToken,
@@ -582,6 +613,12 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
     };
   }
 
+  async getSetTokenHookTransaction(
+    _req: AltVM.ReqSetTokenHook,
+  ): Promise<RadixSDKTransaction> {
+    throw new Error(`SetTokenHook is currently not supported on Radix`);
+  }
+
   async getEnrollRemoteRouterTransaction(
     req: AltVM.ReqEnrollRemoteRouter,
   ): Promise<RadixSDKTransaction> {
@@ -613,6 +650,8 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   async getTransferTransaction(
     req: AltVM.ReqTransfer,
   ): Promise<RadixSDKTransaction> {
+    assert(req.denom, `denom required by ${RadixProvider.name}`);
+
     return {
       networkId: this.networkId,
       manifest: await this.base.transfer({

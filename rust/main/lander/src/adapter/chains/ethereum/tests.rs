@@ -127,7 +127,7 @@ pub fn dummy_evm_tx(
     Transaction {
         uuid: UniqueIdentifier::random(),
         tx_hashes: vec![],
-        vm_specific_data: VmSpecificTxData::Evm(dummy_tx_precursor(tx_type, signer)),
+        vm_specific_data: VmSpecificTxData::Evm(Box::new(dummy_tx_precursor(tx_type, signer))),
         payload_details: details.clone(),
         status,
         submission_attempts: 0,

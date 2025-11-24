@@ -4,11 +4,15 @@ import {
   CosmosNativeProvider,
   CosmosNativeSigner,
 } from '@hyperlane-xyz/cosmos-sdk';
+import {
+  AltVM,
+  type MinimumRequiredGasByAction,
+} from '@hyperlane-xyz/provider-sdk';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import { RadixProvider, RadixSigner } from '@hyperlane-xyz/radix-sdk';
 import {
   AltVMJsonRpcTxSubmitter,
-  AnyProtocolReceipt,
-  AnyProtocolTransaction,
   ChainMap,
   ChainMetadataManager,
   MultiProvider,
@@ -17,12 +21,7 @@ import {
   SubmitterMetadata,
   TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
-import {
-  AltVM,
-  type MinimumRequiredGasByAction,
-  ProtocolType,
-  assert,
-} from '@hyperlane-xyz/utils';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { AltVMFileSubmitter } from '../submitters/AltVMFileSubmitter.js';
 import {
@@ -53,7 +52,7 @@ const ALT_VM_SUPPORTED_PROTOCOLS: AltVMProtocol = {
 
 type AltVMProtocol = ProtocolMap<{
   provider: AltVM.IProviderConnect;
-  signer: AltVM.ISignerConnect<AnyProtocolTransaction, AnyProtocolReceipt>;
+  signer: AltVM.ISignerConnect<AnnotatedTx, TxReceipt>;
   gas?: MinimumRequiredGasByAction;
 }>;
 
@@ -118,16 +117,14 @@ export class AltVMProviderFactory
 
 export class AltVMSignerFactory
   extends AltVMSupportedProtocols
-  implements AltVM.ISignerFactory<AnyProtocolTransaction, AnyProtocolReceipt>
+  implements AltVM.ISignerFactory<AnnotatedTx, TxReceipt>
 {
   private readonly metadataManager: ChainMetadataManager;
-  private readonly chains: ChainMap<
-    AltVM.ISigner<AnyProtocolTransaction, AnyProtocolReceipt>
-  >;
+  private readonly chains: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>>;
 
   private constructor(
     metadataManager: ChainMetadataManager,
-    chains: ChainMap<AltVM.ISigner<AnyProtocolTransaction, AnyProtocolReceipt>>,
+    chains: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>>,
   ) {
     super();
 
@@ -135,9 +132,7 @@ export class AltVMSignerFactory
     this.chains = chains;
   }
 
-  public get(
-    chain: string,
-  ): AltVM.ISigner<AnyProtocolTransaction, AnyProtocolReceipt> {
+  public get(chain: string): AltVM.ISigner<AnnotatedTx, TxReceipt> {
     const protocol = this.metadataManager.getProtocol(chain);
 
     if (!this.supports(protocol)) {
@@ -196,27 +191,15 @@ export class AltVMSignerFactory
     keyByProtocol: SignerKeyProtocolMap,
     strategyConfig: Partial<ExtendedChainSubmissionStrategy>,
   ) {
-    const signers: ChainMap<
-      AltVM.ISigner<AnyProtocolTransaction, AnyProtocolReceipt>
-    > = {};
+    const signers: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>> = {};
 
     for (const chain of chains) {
       const metadata = metadataManager.getChainMetadata(chain);
 
-      if (metadata.protocol === ProtocolType.Ethereum) {
-        continue;
-      }
-
-      if (metadata.protocol === ProtocolType.Sealevel) {
-        continue;
-      }
-
       const protocol = ALT_VM_SUPPORTED_PROTOCOLS[metadata.protocol];
 
       if (!protocol) {
-        throw new Error(
-          `Chain ${chain} with protocol type ${metadata.protocol} not supported in AltVM`,
-        );
+        continue;
       }
 
       const privateKey = await AltVMSignerFactory.loadPrivateKey(
@@ -245,10 +228,7 @@ export class AltVMSignerFactory
 
     const factories: ProtocolMap<Record<string, SubmitterFactory>> = {};
 
-    if (
-      protocol === ProtocolType.Ethereum ||
-      protocol === ProtocolType.Sealevel
-    ) {
+    if (!ALT_VM_SUPPORTED_PROTOCOLS[protocol]) {
       return factories;
     }
 

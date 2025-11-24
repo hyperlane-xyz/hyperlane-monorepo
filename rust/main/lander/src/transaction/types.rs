@@ -110,7 +110,7 @@ pub enum DropReason {
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub enum VmSpecificTxData {
     CosmWasm,
-    Evm(EthereumTxPrecursor),
+    Evm(Box<EthereumTxPrecursor>),
     Radix(Box<RadixTxPrecursor>),
     Svm(SealevelTxPrecursor),
 }

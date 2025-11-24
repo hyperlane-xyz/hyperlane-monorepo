@@ -4,7 +4,7 @@
  *
  * Similar to govern-transaction-reader.ts but for SVM/Squads multisigs
  */
-import { PublicKey } from '@solana/web3.js';
+import { ComputeBudgetProgram, PublicKey } from '@solana/web3.js';
 import { accounts, getTransactionPda, types } from '@sqds/multisig';
 import { deserializeUnchecked } from 'borsh';
 import chalk from 'chalk';
@@ -33,16 +33,13 @@ import { rootLogger } from '@hyperlane-xyz/utils';
 import { Contexts } from '../../config/contexts.js';
 import { DeployEnvironment } from '../config/environment.js';
 import {
-  COMPUTE_BUDGET_PROGRAM_ID,
   ErrorMessage,
-  FIRST_REAL_INSTRUCTION_INDEX,
   HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE,
   InstructionType,
   MAILBOX_DISCRIMINATOR_SIZE,
   MAX_SOLANA_ACCOUNTS,
   MAX_SOLANA_ACCOUNT_SIZE,
   ProgramName,
-  SOLANA_PUBKEY_SIZE,
   SYSTEM_PROGRAM_ID,
   SvmMultisigConfigMap,
   WarningMessage,
@@ -60,6 +57,8 @@ import {
   decodePermissions,
   getSquadAndProvider,
   getSquadProposal,
+  isConfigTransaction,
+  isVaultTransaction,
 } from '../utils/squads.js';
 
 import { GovernTransaction } from './govern-transaction-reader.js';
@@ -250,8 +249,8 @@ export class SquadsTransactionReader {
   /**
    * Read and parse a MultisigIsm instruction using Borsh schemas
    *
-   * Note: MultisigIsm instructions have an 8-byte program discriminator prefix
-   * that must be handled before Borsh deserialization
+   * Note: MultisigIsm instructions MUST have an 8-byte program discriminator prefix
+   * that must be handled before Borsh deserialization.
    */
   private readMultisigIsmInstruction(
     chain: ChainName,
@@ -445,17 +444,13 @@ export class SquadsTransactionReader {
     const parsedInstructions: ParsedInstruction[] = [];
     const warnings: string[] = [];
     const accountKeys = vaultTransaction.message.accountKeys;
+    const computeBudgetProgramId = ComputeBudgetProgram.programId;
 
-    // Skip the first instruction - it's a dummy system program instruction
+    // Parse all instructions, skipping compute budget setup instructions
     for (const [
       idx,
       instruction,
     ] of vaultTransaction.message.instructions.entries()) {
-      if (idx < FIRST_REAL_INSTRUCTION_INDEX) {
-        rootLogger.debug(chalk.gray(`Skipping dummy instruction at index 0`));
-        continue;
-      }
-
       try {
         // Validate programIdIndex
         if (
@@ -482,6 +477,14 @@ export class SquadsTransactionReader {
           throw new Error(
             `Program ID not found at index ${instruction.programIdIndex}`,
           );
+        }
+
+        // Skip compute budget instructions (setup, not program logic)
+        if (programId.equals(computeBudgetProgramId)) {
+          rootLogger.debug(
+            chalk.gray(`Skipping compute budget instruction at index ${idx}`),
+          );
+          continue;
         }
 
         const instructionData = Buffer.from(instruction.data);
@@ -547,19 +550,6 @@ export class SquadsTransactionReader {
           continue;
         }
 
-        if (programId.equals(COMPUTE_BUDGET_PROGRAM_ID)) {
-          programName = ProgramName.COMPUTE_BUDGET;
-          parsedInstructions.push({
-            programId,
-            programName,
-            instructionType: InstructionType.COMPUTE_BUDGET,
-            data: {},
-            accounts,
-            warnings: [],
-          });
-          continue;
-        }
-
         // Unknown program - add warning
         programName = ProgramName.UNKNOWN;
         const unknownWarnings = [
@@ -596,19 +586,6 @@ export class SquadsTransactionReader {
     }
 
     return { instructions: parsedInstructions, warnings };
-  }
-
-  /**
-   * Check if transaction account is a ConfigTransaction
-   */
-  private isConfigTransaction(accountData: Buffer): boolean {
-    const discriminator = accountData.subarray(
-      0,
-      SQUADS_ACCOUNT_DISCRIMINATOR_SIZE,
-    );
-    return discriminator.equals(
-      SQUADS_ACCOUNT_DISCRIMINATORS[SquadsAccountType.CONFIG],
-    );
   }
 
   /**
@@ -649,19 +626,6 @@ export class SquadsTransactionReader {
       multisig: proposalData.multisigPda.toBase58(),
       instructions,
     };
-  }
-
-  /**
-   * Check if transaction account is a VaultTransaction
-   */
-  private isVaultTransaction(accountData: Buffer): boolean {
-    const discriminator = accountData.subarray(
-      0,
-      SQUADS_ACCOUNT_DISCRIMINATOR_SIZE,
-    );
-    return discriminator.equals(
-      SQUADS_ACCOUNT_DISCRIMINATORS[SquadsAccountType.VAULT],
-    );
   }
 
   /**
@@ -754,12 +718,12 @@ export class SquadsTransactionReader {
       );
 
       // Check transaction type and delegate to appropriate handler
-      if (this.isConfigTransaction(accountInfo.data)) {
+      if (isConfigTransaction(accountInfo.data)) {
         return this.readConfigTransaction(chain, proposalData, accountInfo);
       }
 
       // Warn if unknown transaction type
-      if (!this.isVaultTransaction(accountInfo.data)) {
+      if (!isVaultTransaction(accountInfo.data)) {
         const discriminator = accountInfo.data.slice(
           0,
           SQUADS_ACCOUNT_DISCRIMINATOR_SIZE,

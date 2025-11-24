@@ -162,9 +162,7 @@ describe('EvmIsmModule', async () => {
 
     for (const type of [IsmType.ROUTING, IsmType.FALLBACK_ROUTING]) {
       it(`deploys ${type} routingIsm with correct routes`, async () => {
-        exampleRoutingConfig.type = type as
-          | IsmType.ROUTING
-          | IsmType.FALLBACK_ROUTING;
+        exampleRoutingConfig.type = type;
         await createIsm(exampleRoutingConfig);
       });
     }
@@ -189,9 +187,7 @@ describe('EvmIsmModule', async () => {
   describe('update', async () => {
     for (const type of [IsmType.ROUTING, IsmType.FALLBACK_ROUTING]) {
       beforeEach(() => {
-        exampleRoutingConfig.type = type as
-          | IsmType.ROUTING
-          | IsmType.FALLBACK_ROUTING;
+        exampleRoutingConfig.type = type;
       });
 
       it(`should skip deployment with warning if no chain metadata configured ${type}`, async () => {

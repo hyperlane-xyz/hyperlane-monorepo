@@ -111,6 +111,7 @@ fn run_locally() {
                 "payment": "1"
             }]"#,
         )
+        .hyp_env("CACHEDEFAULTEXPIRATIONSECONDS", "5")
         .arg("defaultSigner.key", RELAYER_KEYS[0])
         .arg("relayChains", "sealeveltest1,sealeveltest2");
 

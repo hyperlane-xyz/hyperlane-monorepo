@@ -111,10 +111,13 @@ export const MAX_SOLANA_ACCOUNTS = 256;
 export const MAX_SOLANA_ACCOUNT_SIZE = 10240;
 
 /**
- * First real instruction index in Solana transactions
- * (index 0 is typically a dummy instruction)
+ * Solana compute budget constants
+ * From solana_program_runtime::compute_budget
+ * See: rust/sealevel/client/src/main.rs
  */
-export const FIRST_REAL_INSTRUCTION_INDEX = 1;
+export const DEFAULT_INSTRUCTION_COMPUTE_UNIT_LIMIT = 200_000;
+export const MAX_COMPUTE_UNIT_LIMIT = 1_400_000;
+export const MAX_HEAP_FRAME_BYTES = 256 * 1024; // 262,144 bytes
 
 // ============================================================================
 // Well-Known Solana Program IDs
@@ -297,7 +300,7 @@ export const multisigIsmConfigPath = (
  * restricted to config type MESSAGE_ID_MULTISIG
  */
 export type SvmMultisigConfig = Omit<MultisigIsmConfig, 'type'> & {
-  type: IsmType.MESSAGE_ID_MULTISIG;
+  type: typeof IsmType.MESSAGE_ID_MULTISIG;
 };
 export type SvmMultisigConfigMap = ChainMap<SvmMultisigConfig>;
 
@@ -646,8 +649,62 @@ export function serializeMultisigIsmDifference(
   return parts.length > 0 ? parts.join(', ') : chalk.gray('No changes');
 }
 
+// ============================================================================
+// Compute Budget Helpers
+// ============================================================================
+
+/**
+ * Determine if a chain needs explicit compute budget instructions in vault transactions
+ *
+ * Solana mainnet's Squads UI handles compute budget automatically during execution.
+ * Alt-SVM chains need explicit compute budget in the vault transaction itself.
+ *
+ * @param chain - Chain name
+ * @returns true if compute budget instructions should be added to the transaction
+ */
+export function shouldAddComputeBudgetInstructions(chain: ChainName): boolean {
+  // Solana mainnet Squads UI handles compute budget automatically
+  // Alt-SVM Squads UIs need explicit compute budget (matching Rust CLI)
+  return chain !== 'solanamainnet';
+}
+
+/**
+ * Build standard compute budget instructions for SVM transactions
+ *
+ * Creates instructions for:
+ * - Request heap frame (256KB)
+ * - Set compute unit limit (1.4M CU - transaction maximum)
+ *
+ * See: rust/sealevel/client/src/main.rs
+ *
+ * @returns Array of compute budget instructions
+ */
+export function buildComputeBudgetInstructions(): TransactionInstruction[] {
+  return [
+    ComputeBudgetProgram.requestHeapFrame({ bytes: MAX_HEAP_FRAME_BYTES }),
+    ComputeBudgetProgram.setComputeUnitLimit({ units: MAX_COMPUTE_UNIT_LIMIT }),
+  ];
+}
+
+/**
+ * Check if a transaction instruction is a compute budget instruction
+ *
+ * @param instruction - Transaction instruction to check
+ * @returns true if the instruction targets the ComputeBudget program
+ */
+export function isComputeBudgetInstruction(
+  instruction: TransactionInstruction,
+): boolean {
+  return instruction.programId.equals(ComputeBudgetProgram.programId);
+}
+
+// ============================================================================
+// MultisigIsm Instruction Building
+// ============================================================================
+
 /**
  * Build MultisigIsm SetValidatorsAndThreshold instructions
+ * @param chain - Chain name (to determine if compute budget is needed)
  * @param multisigIsmProgramId - MultisigIsm program ID
  * @param owner - Owner public key (signer)
  * @param configs - Map of chain name -> config
@@ -655,6 +712,7 @@ export function serializeMultisigIsmDifference(
  * @returns Array of transaction instructions
  */
 export function buildMultisigIsmInstructions(
+  chain: ChainName,
   multisigIsmProgramId: PublicKey,
   owner: PublicKey,
   configs: SvmMultisigConfigMap,
@@ -662,10 +720,10 @@ export function buildMultisigIsmInstructions(
 ): TransactionInstruction[] {
   const instructions: TransactionInstruction[] = [];
 
-  // Add compute budget instruction (like Rust CLI does)
-  instructions.push(
-    ComputeBudgetProgram.setComputeUnitLimit({ units: 1_400_000 }),
-  );
+  // Add compute budget instructions if needed for this chain
+  if (shouldAddComputeBudgetInstructions(chain)) {
+    instructions.push(...buildComputeBudgetInstructions());
+  }
 
   // Derive the access control PDA (same for all instructions)
   const accessControlPda =
@@ -720,9 +778,17 @@ export function buildMultisigIsmInstructions(
       }),
     });
 
-    const data = Buffer.from(
-      serialize(SealevelMultisigIsmSetValidatorsInstructionSchema, value),
+    const serializedData = serialize(
+      SealevelMultisigIsmSetValidatorsInstructionSchema,
+      value,
     );
+
+    // Prepend 8-byte program discriminator (required by Rust program)
+    // See: rust/sealevel/libraries/account-utils/src/discriminator.rs
+    const data = Buffer.concat([
+      Buffer.from([1, 1, 1, 1, 1, 1, 1, 1]), // PROGRAM_INSTRUCTION_DISCRIMINATOR
+      Buffer.from(serializedData),
+    ]);
 
     const instruction = new TransactionInstruction({
       keys,
