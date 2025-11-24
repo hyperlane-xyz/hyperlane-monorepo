@@ -25,7 +25,7 @@ import { utils } from 'ethers';
 
 import { assert } from '@hyperlane-xyz/utils';
 
-import { getKeysFromKeyValueStore } from '../ism/query.js';
+import { getKeysFromKeyValueStore } from '../utils/query.js';
 
 import { EntityDetails, INSTRUCTIONS, RadixSDKReceipt } from './types.js';
 import { stringToTransactionManifest } from './utils.js';

@@ -1,48 +1,9 @@
-import {
-  GatewayApiClient,
-  LedgerStateSelector,
-  ScryptoSborValue,
-} from '@radixdlt/babylon-gateway-api-sdk';
+import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 
-import { assert, ensure0x, isNullish, sleep } from '@hyperlane-xyz/utils';
+import { assert, ensure0x, isNullish } from '@hyperlane-xyz/utils';
 
+import { getKeysFromKeyValueStore } from '../utils/query.js';
 import { EntityDetails, EntityField, MultisigIsms } from '../utils/types.js';
-
-// TODO: move this to another file
-export async function getKeysFromKeyValueStore(
-  gateway: Readonly<GatewayApiClient>,
-  key_value_store_address: string,
-): Promise<ScryptoSborValue[]> {
-  let cursor: string | null = null;
-  let at_ledger_state: LedgerStateSelector | null = null;
-  const keys = [];
-  const request_limit = 50;
-
-  for (let i = 0; i < request_limit; i++) {
-    const { items, next_cursor, ledger_state } =
-      await gateway.state.innerClient.keyValueStoreKeys({
-        stateKeyValueStoreKeysRequest: {
-          key_value_store_address,
-          at_ledger_state,
-          cursor,
-        },
-      });
-
-    keys.push(...items.map((i) => i.key));
-
-    if (!next_cursor) {
-      return keys;
-    }
-
-    cursor = next_cursor;
-    at_ledger_state = { state_version: ledger_state.state_version };
-    await sleep(50);
-  }
-
-  throw new Error(
-    `Failed to fetch keys from key value store ${key_value_store_address}, reached request limit of ${request_limit}`,
-  );
-}
 
 export async function getMultisigIsmConfig(
   gateway: Readonly<GatewayApiClient>,
