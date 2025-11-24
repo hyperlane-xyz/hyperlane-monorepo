@@ -254,15 +254,13 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
       '0x97a05beCc2e7891D07F382457Cd5d57FD242e4e8',
     ];
 
-    const uniqueAddresses = Array.from(
-      new Set(
-        [...sanctionedEthereumAdresses, ...radiantExploiter].map((address) =>
-          address.toLowerCase(),
-        ),
+    const uniqueAddresses = new Set(
+      [...sanctionedEthereumAdresses, ...radiantExploiter].map((address) =>
+        address.toLowerCase(),
       ),
     );
 
-    return uniqueAddresses;
+    return Array.from(uniqueAddresses);
   }
 
   // Returns whether the relayer requires AWS credentials
