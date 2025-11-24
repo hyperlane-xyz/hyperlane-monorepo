@@ -76,11 +76,20 @@ export async function signerMiddleware(argv: Record<string, any>) {
       argv.context.multiProvider.getProtocol(chain) !== ProtocolType.Ethereum,
   );
 
-  await loadProtocolProviders(
-    new Set(
-      altVmChains.map((chain) => argv.context.multiProvider.getProtocol(chain)),
-    ),
-  );
+  try {
+    await loadProtocolProviders(
+      new Set(
+        altVmChains.map((chain) =>
+          argv.context.multiProvider.getProtocol(chain),
+        ),
+      ),
+    );
+  } catch (e) {
+    new Error(
+      `Failed to load providers in context for ${altVmChains.join(', ')}`,
+      { cause: e },
+    );
+  }
 
   await Promise.all(
     altVmChains.map(async (chain) => {
