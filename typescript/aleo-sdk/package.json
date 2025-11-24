@@ -28,7 +28,7 @@
     "clean": "rm -rf ./dist ./cache",
     "test": "echo \"no tests in aleo-sdk\"",
     "test:ci": "echo \"no tests in aleo-sdk\"",
-    "test:e2e": "ALEO_SKIP_PROOF=true && yarn mocha --config .mocharc-e2e.json"
+    "test:e2e": "./scripts/run-e2e-test.sh"
   },
   "devDependencies": {
     "@eslint/js": "^9.31.0",

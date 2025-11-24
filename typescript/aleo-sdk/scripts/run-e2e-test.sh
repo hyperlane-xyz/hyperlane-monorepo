@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
+set -e
 
 function cleanup() {
   docker compose down
 }
+
+# Ensure cleanup runs even on error
+trap cleanup EXIT
 
 cleanup
 
@@ -10,13 +14,12 @@ echo "Preparing E2E tests"
 docker compose up --detach --wait
 
 if [[ $? -ne 0 ]]; then
-  echo "Failure starting local aleo chain"
+  echo "Failure starting local aleo devnode"
   exit 1
 fi
 
 echo "Running E2E tests"
+export ALEO_SKIP_PROOF=true
 yarn mocha --config .mocharc-e2e.json
-
-cleanup
 
 echo "Completed E2E tests"
