@@ -21,6 +21,17 @@ export type UpgradeConfig = {
   };
 };
 
+/**
+ * Checks if a storage value represents empty/uninitialized storage.
+ * Some RPC providers (e.g., Somnia) return empty hex strings ('0x' or '')
+ * instead of the standard '0x0' for uninitialized storage slots.
+ * @param rawValue - The raw storage value from provider.getStorageAt()
+ * @returns true if the storage slot is empty/uninitialized
+ */
+export function isStorageEmpty(rawValue: string): boolean {
+  return rawValue === '0x' || rawValue === '' || rawValue === '0x0';
+}
+
 async function assertCodeExists(
   provider: EthersLikeProvider,
   contract: Address,
@@ -41,6 +52,9 @@ export async function proxyImplementation(
     proxy,
     '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc',
   );
+  if (isStorageEmpty(storageValue)) {
+    return ethers.constants.AddressZero;
+  }
   return ethers.utils.getAddress(storageValue.slice(26));
 }
 
@@ -50,14 +64,12 @@ export async function isInitialized(
 ): Promise<boolean> {
   await assertCodeExists(provider, contract);
   // Using OZ's Initializable 4.9 which keeps it at the 0x0 slot
-  const rawValue = await provider.getStorageAt(contract, '0x0');
-  // Handle malformed RPC responses that return empty hex string (e.g., Somnia)
-  // Empty hex string means uninitialized (value of 0)
-  if (rawValue === '0x' || rawValue === '') {
+  const storageValue = await provider.getStorageAt(contract, '0x0');
+  if (isStorageEmpty(storageValue)) {
     return false;
   }
-  const storageValue = ethers.BigNumber.from(rawValue);
-  return storageValue.eq(1) || storageValue.eq(255);
+  const value = ethers.BigNumber.from(storageValue);
+  return value.eq(1) || value.eq(255);
 }
 
 export async function proxyAdmin(
@@ -70,13 +82,9 @@ export async function proxyAdmin(
     proxy,
     '0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103',
   );
-
-  // Return zero address if storage value is empty
-  // Empty hex string means uninitialized (value of 0)
-  if (storageValue === '' || storageValue === '0x' || storageValue === '0x0') {
+  if (isStorageEmpty(storageValue)) {
     return ethers.constants.AddressZero;
   }
-
   return ethers.utils.getAddress(storageValue.slice(26));
 }
 
