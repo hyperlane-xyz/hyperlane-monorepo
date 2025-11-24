@@ -452,7 +452,12 @@ impl ChainConf {
 
                 Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
             }
-            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
+            ChainConnectionConf::Aleo(conf) => {
+                let provider = build_aleo_provider(self, conf, metrics, &locator)?;
+                let hook = h_aleo::AleoMerkleTreeHook::new(provider, &locator, conf)?;
+
+                Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
+            }
         }
         .context(ctx)
     }
@@ -529,7 +534,12 @@ impl ChainConf {
 
                 Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
             }
-            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
+            ChainConnectionConf::Aleo(conf) => {
+                let provider = build_aleo_provider(self, conf, metrics, &locator)?;
+                let indexer = h_aleo::AleoDispatchIndexer::new(provider, &locator, conf);
+
+                Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
+            }
         }
         .context(ctx)
     }
@@ -602,7 +612,12 @@ impl ChainConf {
 
                 Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<H256>>)
             }
-            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
+            ChainConnectionConf::Aleo(conf) => {
+                let provider = build_aleo_provider(self, conf, metrics, &locator)?;
+                let indexer = h_aleo::AleoDeliveryIndexer::new(provider, &locator, conf);
+
+                Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<H256>>)
+            }
         }
         .context(ctx)
     }
@@ -667,7 +682,12 @@ impl ChainConf {
                 )?);
                 Ok(indexer as Box<dyn InterchainGasPaymaster>)
             }
-            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
+            ChainConnectionConf::Aleo(conf) => {
+                let provider = build_aleo_provider(self, conf, metrics, &locator)?;
+                let indexer = h_aleo::AleoInterchainGasIndexer::new(provider, &locator, conf)?;
+
+                Ok(Box::new(indexer) as Box<dyn InterchainGasPaymaster>)
+            }
         }
         .context(ctx)
     }
@@ -736,7 +756,12 @@ impl ChainConf {
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
             }
-            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
+            ChainConnectionConf::Aleo(conf) => {
+                let provider = build_aleo_provider(self, conf, metrics, &locator)?;
+                let indexer = h_aleo::AleoInterchainGasIndexer::new(provider, &locator, conf)?;
+
+                Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
+            }
         }
         .context(ctx)
     }
@@ -813,7 +838,12 @@ impl ChainConf {
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
             }
-            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
+            ChainConnectionConf::Aleo(conf) => {
+                let provider = build_aleo_provider(self, conf, metrics, &locator)?;
+                let indexer = h_aleo::AleoMerkleTreeHook::new(provider, &locator, conf)?;
+
+                Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
+            }
         }
         .context(ctx)
     }

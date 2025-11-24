@@ -6,6 +6,7 @@
 
 mod config;
 mod error;
+mod indexer;
 mod provider;
 mod signer;
 mod types;
@@ -13,4 +14,8 @@ mod utils;
 
 pub(crate) use types::*;
 
-pub use {config::*, error::*, provider::AleoProvider, signer::AleoSigner};
+pub use {
+    config::*, error::*, indexer::AleoDeliveryIndexer, indexer::AleoDispatchIndexer,
+    indexer::AleoInterchainGasIndexer, indexer::AleoMerkleTreeHook, provider::AleoProvider,
+    signer::AleoSigner,
+};
