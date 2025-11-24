@@ -93,8 +93,10 @@ export class MultiChainResolver implements ChainResolver {
     argv: Record<string, any>,
   ): Promise<ChainName[]> {
     if (argv.chain) {
-      return this.resolveChain(argv);
-    } else if (argv.symbol || argv.warpRouteId) {
+      argv.context.chains = this.resolveChain(argv);
+    }
+
+    if (argv.symbol || argv.warpRouteId) {
       const warpCoreConfig = await getWarpCoreConfigOrExit({
         context: argv.context,
         symbol: argv.symbol,
@@ -105,7 +107,12 @@ export class MultiChainResolver implements ChainResolver {
       );
     }
 
-    return argv.context.chains || [];
+    assert(
+      argv.context.chains.length !== 0,
+      'No chains found in warp route deployment config',
+    );
+
+    return argv.context.chains;
   }
 
   private async resolveChain(argv: Record<string, any>): Promise<ChainName[]> {
