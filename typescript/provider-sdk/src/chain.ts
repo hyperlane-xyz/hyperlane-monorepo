@@ -10,6 +10,7 @@ type ChainNameOrId = string | number;
 export interface ChainMetadataForAltVM {
   name: string;
   domainId: Domain;
+  chainId: ChainId;
   nativeToken?: {
     decimals?: number;
     denom?: string;
@@ -18,13 +19,9 @@ export interface ChainMetadataForAltVM {
     confirmations?: number;
     estimateBlockTime?: number;
   };
-
   gatewayUrls?: {
     http: string;
   }[];
-
-  // TODO: remove these once Le PR is merged: https://github.com/hyperlane-xyz/hyperlane-monorepo/pull/7336
-  chainId: ChainId;
   rpcUrls?: {
     http: string;
   }[];
