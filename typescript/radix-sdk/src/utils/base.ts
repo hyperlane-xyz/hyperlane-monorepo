@@ -57,6 +57,34 @@ export class RadixBase {
     return status.ledger_state.state_version > 0;
   }
 
+  // Code adapted from:
+  // https://github.com/radixdlt/typescript-radix-engine-toolkit/blob/34f04995ef897d3f2a672a6373eea4b379afc793/src/lts/builders.ts#L122
+  public async createXrdFaucetTransactionManifest(
+    toAccount: string,
+    amount: number = 10000,
+  ): Promise<TransactionManifest> {
+    const knownAddresses = await LTSRadixEngineToolkit.Derive.knownAddresses(
+      this.networkId,
+    );
+    const faucetComponentAddress = knownAddresses.components.faucet;
+    const xrdResourceAddress = knownAddresses.resources.xrdResource;
+
+    return new ManifestBuilder()
+      .callMethod(faucetComponentAddress, 'lock_fee', [decimal('10')])
+      .callMethod(faucetComponentAddress, 'free', [])
+      .takeFromWorktop(
+        xrdResourceAddress,
+        new Decimal(amount),
+        (builder, bucketId) => {
+          return builder.callMethod(toAccount, 'try_deposit_or_abort', [
+            bucket(bucketId),
+            enumeration(0),
+          ]);
+        },
+      )
+      .build();
+  }
+
   public async getStateVersion(): Promise<number> {
     const status = await this.gateway.status.getCurrent();
     return status.ledger_state.state_version;

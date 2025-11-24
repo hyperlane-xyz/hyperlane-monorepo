@@ -29,6 +29,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { AltVMIsmReader } from './AltVMIsmReader.js';
+import { validateIsmConfig } from './utils/validation.js';
 
 export class AltVMIsmModule implements HypModule<IsmModuleType> {
   protected readonly logger = rootLogger.child({
@@ -70,6 +71,9 @@ export class AltVMIsmModule implements HypModule<IsmModuleType> {
         'Invalid targetConfig: Updating to a custom ISM address is not supported. Please provide a valid ISM configuration.',
       );
     }
+
+    // Validate ISM configuration is supported by provider-sdk
+    validateIsmConfig(expectedConfig, this.chain, 'ISM update');
 
     // if there is no ism deployed yet we deploy one
     if (!this.args.addresses.deployedIsm) {
@@ -167,6 +171,10 @@ export class AltVMIsmModule implements HypModule<IsmModuleType> {
     if (typeof config === 'string') {
       return config;
     }
+
+    // Validate ISM configuration before deployment
+    validateIsmConfig(config, this.chain, 'ISM deployment');
+
     const ismType = config.type;
     this.logger.info(`Deploying ${ismType} to ${this.chain}`);
 

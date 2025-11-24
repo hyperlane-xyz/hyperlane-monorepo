@@ -22,6 +22,7 @@ import { Address, rootLogger } from '@hyperlane-xyz/utils';
 import { AltVMCoreReader } from './AltVMCoreReader.js';
 import { AltVMHookModule } from './AltVMHookModule.js';
 import { AltVMIsmModule } from './AltVMIsmModule.js';
+import { validateIsmConfig } from './utils/validation.js';
 
 export class AltVMCoreModule implements HypModule<CoreModuleType> {
   protected logger = rootLogger.child({ module: 'AltVMCoreModule' });
@@ -87,6 +88,9 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
     const metadata = chainLookup.getChainMetadata(chain);
     const chainName = metadata.name;
     const domainId = metadata.domainId;
+
+    // Validate ISM configuration before deployment
+    validateIsmConfig(config.defaultIsm, chainName, 'core default ISM');
 
     // 1. Deploy default ISM
     const ismModule = await AltVMIsmModule.create({

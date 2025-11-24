@@ -10,6 +10,7 @@ export type TokenRouterModuleType = {
 export const TokenType = {
   synthetic: 'synthetic',
   collateral: 'collateral',
+  native: 'native',
 } as const;
 
 export type TokenType = (typeof TokenType)[keyof typeof TokenType];
@@ -38,7 +39,14 @@ export interface SyntheticWarpConfig extends BaseWarpConfig {
   decimals?: number;
 }
 
-export type WarpConfig = CollateralWarpConfig | SyntheticWarpConfig;
+export interface NativeWarpConfig extends BaseWarpConfig {
+  type: 'native';
+}
+
+export type WarpConfig =
+  | CollateralWarpConfig
+  | SyntheticWarpConfig
+  | NativeWarpConfig;
 
 export interface BaseDerivedWarpConfig {
   owner: string;
@@ -64,9 +72,14 @@ export interface DerivedSyntheticWarpConfig extends BaseDerivedWarpConfig {
   decimals?: number;
 }
 
+export interface DerivedNativeWarpConfig extends BaseDerivedWarpConfig {
+  type: 'native';
+}
+
 export type DerivedWarpConfig =
   | DerivedCollateralWarpConfig
-  | DerivedSyntheticWarpConfig;
+  | DerivedSyntheticWarpConfig
+  | DerivedNativeWarpConfig;
 
 export type WarpRouteAddresses = {
   deployedTokenRoute: string;

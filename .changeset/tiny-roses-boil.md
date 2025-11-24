@@ -1,6 +1,6 @@
 ---
-"@hyperlane-xyz/provider-sdk": patch
-"@hyperlane-xyz/deploy-sdk": patch
+"@hyperlane-xyz/provider-sdk": minor
+"@hyperlane-xyz/deploy-sdk": minor
 ---
 
-created new packages for upcoming provider package restructure
+created new packages for provider package restructure

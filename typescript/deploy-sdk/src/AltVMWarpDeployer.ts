@@ -27,7 +27,9 @@ export class AltVMDeployer {
 
       this.logger.info(`Deploying ${config.type} token to chain ${chain}`);
 
-      if (config.type === TokenType.collateral) {
+      if (config.type === TokenType.native) {
+        result[chain] = await this.deployNativeToken(chain, config.mailbox);
+      } else if (config.type === TokenType.collateral) {
         result[chain] = await this.deployCollateralToken(
           chain,
           config.mailbox,
@@ -65,6 +67,17 @@ export class AltVMDeployer {
     }
 
     return result;
+  }
+
+  private async deployNativeToken(
+    chain: string,
+    originMailbox: Address,
+  ): Promise<Address> {
+    this.logger.info(`Deploying native token to ${chain}`);
+    const { tokenAddress } = await this.signersMap[chain].createNativeToken({
+      mailboxAddress: originMailbox,
+    });
+    return tokenAddress;
   }
 
   private async deployCollateralToken(

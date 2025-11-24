@@ -24,6 +24,7 @@ import {
 import { AltVMIsmModule } from './AltVMIsmModule.js';
 import { AltVMDeployer } from './AltVMWarpDeployer.js';
 import { AltVMWarpRouteReader } from './AltVMWarpRouteReader.js';
+import { validateIsmConfig } from './utils/validation.js';
 
 export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
   protected logger: ReturnType<typeof rootLogger.child<never>>;
@@ -339,11 +340,17 @@ export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
 
     assert(expectedConfig.interchainSecurityModule, 'Ism derived incorrectly');
 
+    // Validate ISM configuration is supported by provider-sdk
+    validateIsmConfig(
+      expectedConfig.interchainSecurityModule,
+      this.chainName,
+      'warp route ISM',
+    );
+
     const ismModule = new AltVMIsmModule(
       this.chainLookup,
       {
         chain: this.args.chain,
-        // FIXME: not all ISM types are supported yet
         config: expectedConfig.interchainSecurityModule,
         addresses: {
           ...this.args.addresses,
@@ -359,7 +366,6 @@ export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
       `Comparing target ISM config with ${this.args.chain} chain`,
     );
     const updateTransactions = await ismModule.update(
-      // FIXME: not all ISM types are supported yet
       expectedConfig.interchainSecurityModule,
     );
     const { deployedIsm } = ismModule.serialize();

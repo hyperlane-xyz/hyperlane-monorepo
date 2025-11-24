@@ -187,6 +187,12 @@ export class MockSigner
     throw new Error(`not implemented`);
   }
 
+  async setTokenHook(
+    _req: Omit<AltVM.ReqSetTokenHook, 'signer'>,
+  ): Promise<AltVM.ResSetTokenHook> {
+    throw new Error(`not implemented`);
+  }
+
   async enrollRemoteRouter(
     _req: Omit<AltVM.ReqEnrollRemoteRouter, 'signer'>,
   ): Promise<AltVM.ResEnrollRemoteRouter> {

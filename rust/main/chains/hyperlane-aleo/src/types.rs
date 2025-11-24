@@ -1,8 +1,13 @@
-use snarkvm::{
-    console::network::{const_assert, hrp2, AleoID},
-    prelude::{MainnetV0, TestnetV0},
+use aleo_serialize_macro::aleo_serialize;
+
+use hyperlane_core::{
+    accumulator::incremental::IncrementalMerkle, utils::to_atto, HyperlaneMessage,
+    InterchainGasPayment, MerkleTreeInsertion, H256, U256,
 };
-use snarkvm_console_account::Field;
+use snarkvm::prelude::{MainnetV0, Network};
+use snarkvm_console_account::{Address, Itertools};
+
+use crate::utils::aleo_hash_to_h256;
 
 // This actually works for all networks. I've raised this with the Aleo team, but the type annotation here doesn't actually change the underlying type.
 // The Aleo VM types all inherit a generic Network type, but that Type is not relevant for many structs of Aleo and is supposed to be more of an additional information for the internal VM processing.
@@ -10,5 +15,201 @@ use snarkvm_console_account::Field;
 // We pass CurrentNetwork into a lot of types, because we don't have to generate ZK Proofs in almost every situation - except when submitting a TX. There is one exception to this and that is when parsing/handling with Blocks.
 // The Block type verifies its validity on creation and that changes based on the Network type, that's why we have to pass the correct Type when dealing with blocks.
 pub(crate) type CurrentNetwork = MainnetV0;
-/// TxID Type
-pub(crate) type TxID = AleoID<Field<TestnetV0>, { hrp2!("at") }>;
+
+/// Aleo Hash Type, for performance reasons the aleo contracts use [u128;2] to represent 32 byte hashes
+/// Each u128 is encoded in little-endian byte order
+pub(crate) type AleoHash = [u128; 2];
+
+// The aleo credits have 6 decimals
+const CREDITS_DECIMALS: u32 = 6;
+// Message body is 16 u128 words this results in 256 bytes
+// Each u128 is encoded in little-endian byte order
+// This is a constant defined by the Hyperlane Aleo contracts
+const MESSAGE_BODY_U128_WORDS: usize = 16;
+// Aleo contracts define a maximum of 6 validators for multisigs
+pub(crate) const MAX_VALIDATORS: usize = 6;
+
+/// Aleo Merkle Tree
+#[aleo_serialize]
+#[derive(Debug)]
+pub struct AleoMerkleTree {
+    /// Leaf Branch
+    /// Each leaf is 32Bytes encoded as [u128; 2], where the u128 is little endian encoded
+    pub branch: [AleoHash; 32],
+    /// Number of inserted elements
+    pub count: u32,
+}
+
+impl From<AleoMerkleTree> for IncrementalMerkle {
+    fn from(val: AleoMerkleTree) -> Self {
+        let branch = val.branch.map(|hash| aleo_hash_to_h256(&hash));
+        IncrementalMerkle {
+            branch,
+            count: val.count as usize,
+        }
+    }
+}
+
+/// Aleo Merkle Tree Hook
+#[aleo_serialize]
+#[derive(Debug)]
+pub struct AleoMerkleTreeHookStruct {
+    /// Merkle Tree
+    pub tree: AleoMerkleTree,
+    /// Computed on chain merkle root as [u128; 2]
+    /// u128 is little endian encoded
+    pub root: AleoHash,
+}
+
+/// Aleo Eth address representation
+#[aleo_serialize]
+#[derive(Debug, Copy, Clone)]
+pub struct AleoEthAddress {
+    /// Address bytes
+    pub bytes: [u8; 20],
+}
+
+/// Aleo Message Id Multisig
+#[aleo_serialize]
+#[derive(Debug)]
+pub struct AleoMessagesIdMultisig {
+    /// Validators, empty valiadtors will be zero-address
+    pub validators: [AleoEthAddress; MAX_VALIDATORS],
+    /// Validator count
+    pub validator_count: u8,
+    /// Threshold
+    pub threshold: u8,
+}
+
+/// Aleo GasPaymentEvent
+#[aleo_serialize]
+#[derive(Debug)]
+pub struct GasPaymentEvent {
+    /// MessageId encoded as [u128;2], each u128 is encoded in little endian
+    pub id: AleoHash,
+    /// Destination domain
+    pub destination_domain: u32,
+    /// Gas amount
+    pub gas_amount: u128,
+    /// Payment in Aleo credits
+    pub payment: u64,
+    /// Event index
+    pub index: u32,
+}
+
+impl From<GasPaymentEvent> for InterchainGasPayment {
+    fn from(val: GasPaymentEvent) -> Self {
+        let message_id = aleo_hash_to_h256(&val.id);
+        InterchainGasPayment {
+            message_id,
+            destination: val.destination_domain,
+            payment: to_atto(U256::from(val.payment), CREDITS_DECIMALS).unwrap_or_default(),
+            gas_amount: U256::from(val.gas_amount),
+        }
+    }
+}
+
+/// InsertedIntoTree Event
+#[aleo_serialize]
+#[derive(Debug)]
+pub struct InsertIntoTreeEvent {
+    /// MessageId encoded as [u128;2], each u128 is encoded in little endian
+    pub id: AleoHash,
+    /// Event index
+    pub index: u32,
+}
+
+impl From<InsertIntoTreeEvent> for MerkleTreeInsertion {
+    fn from(val: InsertIntoTreeEvent) -> Self {
+        let message_id = aleo_hash_to_h256(&val.id);
+        MerkleTreeInsertion::new(val.index, message_id)
+    }
+}
+
+/// Represents a cross-chain message in the Hyperlane protocol on Aleo network.
+#[aleo_serialize]
+#[derive(Debug)]
+pub struct AleoMessage {
+    /// Message format version
+    pub version: u8,
+    /// Unique message identifier
+    pub nonce: u32,
+    /// Domain ID of the source chain
+    pub origin_domain: u32,
+    /// Address of the message sender (32 bytes)
+    pub sender: [u8; 32],
+    /// Domain ID of the destination chain
+    pub destination_domain: u32,
+    /// Address of the message recipient (32 bytes)
+    pub recipient: [u8; 32],
+    /// Message payload data (16 x 128-bit words)
+    pub body: [u128; MESSAGE_BODY_U128_WORDS],
+}
+
+impl From<AleoMessage> for HyperlaneMessage {
+    fn from(val: AleoMessage) -> Self {
+        // Aleo encodes its integers with little endian
+        // We only need to convert the body bytes as only the body is encoded as u128 words in the contracts
+        let body = val.body.iter().flat_map(|x| x.to_le_bytes()).collect_vec();
+        let sender = H256::from(val.sender);
+        let recipient = H256::from(val.recipient);
+        HyperlaneMessage {
+            version: val.version,
+            nonce: val.nonce,
+            origin: val.origin_domain,
+            sender,
+            destination: val.destination_domain,
+            recipient,
+            body,
+        }
+    }
+}
+
+/// Aleo Mailbox struct
+#[aleo_serialize]
+#[derive(Debug)]
+pub struct AleoMailboxStruct<N: Network = CurrentNetwork> {
+    /// Number of processed messages
+    pub process_count: u32,
+    /// Number of dispatched messages
+    pub nonce: u32,
+    /// Default ISM
+    pub default_ism: Address<N>,
+}
+
+/// Aleo InterchainGasPaymaster struct
+#[aleo_serialize]
+#[derive(Debug)]
+pub struct AleoInterchainGasPaymaster {
+    /// Used for sequencing events
+    pub count: u32,
+}
+
+/// Aleo delivery
+#[aleo_serialize]
+#[derive(Debug)]
+pub struct Delivery<N: Network = CurrentNetwork> {
+    /// Address that executed the process
+    pub processor: Address<N>,
+    /// The block height of the delivery
+    pub block_number: u32,
+}
+
+/// Hook Event Index
+#[aleo_serialize]
+#[derive(Debug)]
+pub struct HookEventIndex<N: Network = CurrentNetwork> {
+    /// Hook
+    pub hook: Address<N>,
+    /// Height
+    pub block_height: u32,
+}
+
+#[aleo_serialize]
+#[derive(Debug)]
+pub struct RouteKey<N: Network = CurrentNetwork> {
+    /// Ism address
+    pub ism: Address<N>,
+    /// Domain
+    pub domain: u32,
+}

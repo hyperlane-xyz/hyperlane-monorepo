@@ -1,0 +1,16 @@
+{
+  "solanamainnet": {
+    "type": "collateral",
+    "decimals": 6,
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
+    "token": "PoGqbndpKNADjr2eGFjJz6Vu2fTpk37LDPbm6xCeY2v",
+    "owner": "69GQU3Qi6NJa9hqaPHz66UMdLbxEbaSqdwVZcN93pg1X"
+  },
+  "apechain": {
+    "type": "synthetic",
+    "decimals": 6,
+    "foreignDeployment": "0x633268639892C73Fa7340Ec1da4e397cf3913c8C",
+    "name": "POG Coin",
+    "symbol": "POG"
+  }
+}

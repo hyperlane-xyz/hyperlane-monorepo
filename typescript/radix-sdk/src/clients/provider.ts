@@ -598,6 +598,12 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
     };
   }
 
+  async getSetTokenHookTransaction(
+    _req: AltVM.ReqSetTokenHook,
+  ): Promise<RadixSDKTransaction> {
+    throw new Error(`SetTokenHook is currently not supported on Radix`);
+  }
+
   async getEnrollRemoteRouterTransaction(
     req: AltVM.ReqEnrollRemoteRouter,
   ): Promise<RadixSDKTransaction> {
