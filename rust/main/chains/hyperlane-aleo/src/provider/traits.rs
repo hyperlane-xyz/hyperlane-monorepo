@@ -219,11 +219,11 @@ impl<Client: HttpClient> RpcClient<Client> {
     }
 }
 
-/// Implements high level Aleo Proofing Service requests based on a raw HttpClient
+/// Implements high level Aleo Proving Service requests based on a raw HttpClient
 #[derive(Debug, Clone, new)]
-pub struct ProofingClient<Client: HttpClient>(Client);
+pub struct ProvingClient<Client: HttpClient>(Client);
 
-impl<Client: HttpClient> ProofingClient<Client> {
+impl<Client: HttpClient> ProvingClient<Client> {
     /// Makes a POST request to the API
     pub async fn proofing_request<N: Network>(
         &self,

@@ -168,7 +168,7 @@ async fn test_estimate_tx() {
             "transfer_public",
         )
         .await;
-    assert!(result.is_ok(), "Estimate TX failed");
+    assert!(result.is_ok(), "Estimate TX should succeed");
     let result = result.unwrap();
     assert_eq!(result.base_fee, 4030);
     assert_eq!(result.priority_fee, 0u64);

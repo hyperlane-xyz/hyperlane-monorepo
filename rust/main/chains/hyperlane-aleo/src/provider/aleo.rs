@@ -27,7 +27,7 @@ use hyperlane_core::{
 use tracing::debug;
 
 use crate::{
-    provider::{BaseHttpClient, HttpClient, ProofingClient, RpcClient},
+    provider::{BaseHttpClient, HttpClient, ProvingClient, RpcClient},
     utils::{get_tx_id, to_h256},
     AleoSigner, ConnectionConf, CurrentNetwork, FeeEstimate, HyperlaneAleoError,
 };
@@ -42,7 +42,7 @@ pub struct AleoProvider<C: AleoClient = BaseHttpClient> {
     client: RpcClient<C>,
     domain: HyperlaneDomain,
     network: u16,
-    proofing_service: Option<ProofingClient<C>>,
+    proofing_service: Option<ProvingClient<C>>,
     signer: Option<AleoSigner>,
     priority_fee_multiplier: f64,
 }
@@ -58,7 +58,7 @@ impl AleoProvider<BaseHttpClient> {
 
         let proofing_service = if let Some(proofing_url) = &conf.proofing_service {
             let client = BaseHttpClient::new(proofing_url.clone())?;
-            Some(ProofingClient::new(client))
+            Some(ProvingClient::new(client))
         } else {
             None
         };
