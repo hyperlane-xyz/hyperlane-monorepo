@@ -1,0 +1,4 @@
+{
+  "data": "{\n  local_domain: 1617853565u32,\n  nonce: 2u32,\n  process_count: 2u32,\n  default_ism: aleo14jhcyx6f9x94gnwhsn2ufkyj60xl8mtuuxy80e7w6zygenn0pv9qk50u8z,\n  default_hook: aleo1479wmm58gcyg28z37dvua77l53dwrmwct80k4ruf906ulp7smupsyg6ak2,\n  required_hook: aleo18n8sg8cz6qc76vzflr8la98u0r4w8r96c9wdxee4wvetsvuz0vxs0r2hk8,\n  dispatch_proxy: aleo1uad80l2e00nxgrtp62xkfp9g89mchc79v88euapzlq9xpq7zjygqpcaksm,\n  mailbox_owner: aleo1yr3k99my65ec7a97a9n8tqqmr7ef687x3vthv68ezats30hcgvgs2f8ac5\n}",
+  "height": 12620133
+}

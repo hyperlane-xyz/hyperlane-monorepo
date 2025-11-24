@@ -1,7 +1,7 @@
 import { utils } from 'ethers';
 
 import { AbstractCcipReadIsm__factory } from '@hyperlane-xyz/core';
-import { WithAddress } from '@hyperlane-xyz/utils';
+import { WithAddress, ensure0x } from '@hyperlane-xyz/utils';
 
 import { HyperlaneCore } from '../../core/HyperlaneCore.js';
 import { IsmType, OffchainLookupIsmConfig } from '../types.js';
@@ -58,11 +58,11 @@ export class OffchainLookupMetadataBuilder implements MetadataBuilder {
       const url = urlTemplate
         .replace('{sender}', sender)
         .replace('{data}', callDataHex);
+
+      let res: Response;
       try {
-        let responseJson: any;
         if (urlTemplate.includes('{data}')) {
-          const res = await fetch(url);
-          responseJson = await res.json();
+          res = await fetch(url);
         } else {
           const signature = await signer.signMessage(
             utils.arrayify(
@@ -73,16 +73,26 @@ export class OffchainLookupMetadataBuilder implements MetadataBuilder {
               ),
             ),
           );
-          const res = await fetch(url, {
+          res = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ sender, data: callDataHex, signature }),
           });
-          responseJson = await res.json();
         }
-        const rawHex = responseJson.data as string;
-        return rawHex.startsWith('0x') ? rawHex : `0x${rawHex}`;
       } catch (error: any) {
+        this.core.logger.warn(
+          `CCIP-read metadata fetch failed for ${url}: ${error}`,
+        );
+        // try next URL
+        continue;
+      }
+
+      try {
+        const responseJson = await res.json();
+        if (res.ok) {
+          return ensure0x(responseJson.data);
+        }
+      } catch (error) {
         this.core.logger.warn(
           `CCIP-read metadata fetch failed for ${url}: ${error}`,
         );
