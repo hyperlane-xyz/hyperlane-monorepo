@@ -984,7 +984,11 @@ impl ChainConf {
                 let ism = h_radix::RadixIsm::new(provider, &locator, conf)?;
                 Ok(Box::new(ism) as Box<dyn InterchainSecurityModule>)
             }
-            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
+            ChainConnectionConf::Aleo(conf) => {
+                let provider = build_aleo_provider(self, conf, metrics, &locator)?;
+                let ism = h_aleo::AleoIsm::new(provider, &locator, conf)?;
+                Ok(Box::new(ism) as Box<dyn InterchainSecurityModule>)
+            }
         }
         .context(ctx)
     }
@@ -1039,7 +1043,11 @@ impl ChainConf {
                 let ism = h_radix::RadixIsm::new(provider, &locator, conf)?;
                 Ok(Box::new(ism) as Box<dyn MultisigIsm>)
             }
-            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
+            ChainConnectionConf::Aleo(conf) => {
+                let provider = build_aleo_provider(self, conf, metrics, &locator)?;
+                let ism = h_aleo::AleoIsm::new(provider, &locator, conf)?;
+                Ok(Box::new(ism) as Box<dyn MultisigIsm>)
+            }
         }
         .context(ctx)
     }
@@ -1089,7 +1097,11 @@ impl ChainConf {
                 let ism = h_radix::RadixIsm::new(provider, &locator, conf)?;
                 Ok(Box::new(ism) as Box<dyn RoutingIsm>)
             }
-            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
+            ChainConnectionConf::Aleo(conf) => {
+                let provider = build_aleo_provider(self, conf, metrics, &locator)?;
+                let ism = h_aleo::AleoIsm::new(provider, &locator, conf)?;
+                Ok(Box::new(ism) as Box<dyn RoutingIsm>)
+            }
         }
         .context(ctx)
     }
