@@ -492,11 +492,23 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       tokenType: AltVM.TokenType.native,
       mailboxAddress: '',
       ismAddress: '',
+      hookAddress: '',
       denom: '',
       name: '',
       symbol: '',
       decimals: 0,
     };
+
+    try {
+      const imports = await this.aleoClient.getProgramImportNames(
+        req.tokenAddress,
+      );
+      token.mailboxAddress = imports.find((i) => i.includes('mailbox')) || '';
+    } catch {
+      throw new Error(
+        `Found no imports for token address: ${req.tokenAddress}`,
+      );
+    }
 
     try {
       const tokenMetadata = await this.aleoClient.getProgramMappingPlaintext(
@@ -507,6 +519,10 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
 
       token.owner = formatAddress(tokenMetadata.toObject().token_owner);
       token.ismAddress = formatAddress(tokenMetadata.toObject().ism || '');
+      token.hookAddress =
+        tokenMetadata.toObject().hook === ALEO_NULL_ADDRESS
+          ? ''
+          : `${token.mailboxAddress.replace('mailbox_', 'hook_manager_')}/${tokenMetadata.toObject().hook}`;
       token.denom = tokenMetadata.toObject().token_id || '';
 
       if (token.denom) {
@@ -530,17 +546,6 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       }
     } catch {
       throw new Error(`Found no token for address: ${req.tokenAddress}`);
-    }
-
-    try {
-      const imports = await this.aleoClient.getProgramImportNames(
-        req.tokenAddress,
-      );
-      token.mailboxAddress = imports.find((i) => i.includes('mailbox')) || '';
-    } catch {
-      throw new Error(
-        `Found no imports for token address: ${req.tokenAddress}`,
-      );
     }
 
     return token;
@@ -1080,6 +1085,19 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       priorityFee: 0,
       privateFee: false,
       inputs: [req.ismAddress],
+      skipProof: this.skipProof,
+    };
+  }
+
+  async getSetTokenHookTransaction(
+    req: AltVM.ReqSetTokenHook,
+  ): Promise<AleoTransaction> {
+    return {
+      programName: req.tokenAddress,
+      functionName: 'set_custom_hook',
+      priorityFee: 0,
+      privateFee: false,
+      inputs: [req.hookAddress.split('/')[1]],
       skipProof: this.skipProof,
     };
   }

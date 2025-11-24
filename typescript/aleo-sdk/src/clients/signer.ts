@@ -714,6 +714,22 @@ export class AleoSigner
     };
   }
 
+  async setTokenHook(
+    req: Omit<AltVM.ReqSetTokenHook, 'signer'>,
+  ): Promise<AltVM.ResSetTokenHook> {
+    const tx = await this.getSetTokenHookTransaction({
+      signer: this.getSignerAddress(),
+      ...req,
+    });
+
+    const txId = await this.programManager.execute(tx);
+    await this.aleoClient.waitForTransactionConfirmation(txId);
+
+    return {
+      hookAddress: req.hookAddress,
+    };
+  }
+
   async enrollRemoteRouter(
     req: Omit<AltVM.ReqEnrollRemoteRouter, 'signer'>,
   ): Promise<AltVM.ResEnrollRemoteRouter> {

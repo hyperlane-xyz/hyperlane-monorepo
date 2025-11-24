@@ -237,6 +237,30 @@ describe('4. aleo sdk warp e2e tests', async function () {
     expect(token.ismAddress).to.equal(ismAddress);
   });
 
+  step('set token Hook', async () => {
+    // ARRANGE
+    let token = await signer.getToken({
+      tokenAddress: collateralTokenAddress,
+    });
+    expect(token.hookAddress).to.be.empty;
+
+    const { hookAddress } = await signer.createNoopHook({
+      mailboxAddress,
+    });
+
+    // ACT
+    await signer.setTokenHook({
+      tokenAddress: collateralTokenAddress,
+      hookAddress,
+    });
+
+    // ASSERT
+    token = await signer.getToken({
+      tokenAddress: collateralTokenAddress,
+    });
+    expect(token.hookAddress).to.equal(hookAddress);
+  });
+
   step('set token owner', async () => {
     // ARRANGE
     let token = await signer.getToken({
