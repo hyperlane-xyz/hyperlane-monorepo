@@ -2,6 +2,7 @@ import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 
 import { ISigner, IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
+  ExtractIsmModuleType,
   IsmModuleAddresses,
   IsmModuleType,
   MultisigIsmConfig,
@@ -28,11 +29,9 @@ import {
 
 import { getMultisigIsmConfig } from './query.js';
 
-type MultisigIsmModule = {
-  config: MultisigIsmConfig;
-  addresses: IsmModuleAddresses;
-  derived: WithAddress<MultisigIsmConfig>;
-};
+type MultisigIsmModule = ExtractIsmModuleType<
+  'merkleRootMultisigIsm' | 'messageIdMultisigIsm'
+>;
 
 export class RadixMultisigIsmReader implements HypReader<MultisigIsmModule> {
   constructor(private readonly gateway: GatewayApiClient) {}

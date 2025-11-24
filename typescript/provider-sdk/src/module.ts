@@ -10,6 +10,22 @@ export interface ModuleType {
   addresses: AddrMap;
 }
 
+/**
+ * Helper type to extract a concrete ModuleType from config type.
+ */
+export type ExtractModuleType<
+  TModule extends {
+    config: { type: string };
+    derived: { type: string };
+    addresses: AddrMap;
+  },
+  TType extends TModule['config']['type'],
+> = {
+  config: Extract<TModule['config'], { type: TType }>;
+  derived: Extract<TModule['derived'], { type: TType }>;
+  addresses: TModule['addresses'];
+};
+
 export type Config<M extends ModuleType> = M['config'];
 export type Derived<M extends ModuleType> = M['derived'];
 export type Addresses<M extends ModuleType> = M['addresses'];

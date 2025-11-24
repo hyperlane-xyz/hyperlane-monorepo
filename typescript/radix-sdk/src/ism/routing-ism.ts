@@ -5,6 +5,7 @@ import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
   DerivedIsmConfig,
   DomainRoutingIsmConfig,
+  ExtractIsmModuleType,
   IsmConfig,
   IsmModuleAddresses,
   IsmModuleType,
@@ -27,11 +28,7 @@ import { AnnotatedRadixTransaction } from '../utils/types.js';
 import { getDomainRoutingIsmConfig } from './query.js';
 import { RadixRoutingIsmTx } from './tx.js';
 
-type RoutingIsmModule = {
-  config: DomainRoutingIsmConfig;
-  addresses: IsmModuleAddresses;
-  derived: WithAddress<DomainRoutingIsmConfig>;
-};
+type RoutingIsmModule = ExtractIsmModuleType<'domainRoutingIsm'>;
 
 export class RadixRoutingIsmReader implements HypReader<RoutingIsmModule> {
   constructor(

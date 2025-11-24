@@ -1,10 +1,20 @@
 import { WithAddress, deepEquals } from '@hyperlane-xyz/utils';
 
+import { ExtractModuleType } from './module.js';
+
 export type IsmModuleType = {
   config: IsmConfig;
   derived: DerivedIsmConfig;
   addresses: IsmModuleAddresses;
 };
+
+/**
+ * Helper type for ISM module types.
+ */
+export type ExtractIsmModuleType<TType extends IsmType> = ExtractModuleType<
+  IsmModuleType,
+  TType
+>;
 
 export interface IsmConfigs {
   domainRoutingIsm: DomainRoutingIsmConfig;

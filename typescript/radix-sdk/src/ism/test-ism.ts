@@ -1,5 +1,6 @@
 import { IProvider, IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
+  ExtractIsmModuleType,
   IsmModuleAddresses,
   TestIsmConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
@@ -12,11 +13,7 @@ import { WithAddress, assert } from '@hyperlane-xyz/utils';
 
 import { AnnotatedRadixTransaction } from '../utils/types.js';
 
-type TestIsmModule = {
-  config: TestIsmConfig;
-  addresses: IsmModuleAddresses;
-  derived: WithAddress<TestIsmConfig>;
-};
+type TestIsmModule = ExtractIsmModuleType<'testIsm'>;
 
 export class RadixTestIsmReader implements HypReader<TestIsmModule> {
   constructor(private readonly provider: IProvider) {}
