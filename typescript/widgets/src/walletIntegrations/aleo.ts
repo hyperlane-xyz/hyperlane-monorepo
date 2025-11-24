@@ -68,14 +68,20 @@ export function useAleoConnectFn(): () => void {
     permissions: {
       programIds: {
         [Network.AleoMainnet]: [
-          'dapp_1.aleo',
-          'dapp_2.aleo',
-          'dapp_2_imports.aleo',
+          'credits.aleo',
+          'token_registry.aleo',
+          'test_mailbox.aleo',
+          'test_ism_manager.aleo',
+          'test_hook_manager.aleo',
+          'test_hyp_native.aleo',
         ],
         [Network.AleoTestnet]: [
-          'dapp_3.aleo',
-          'dapp_3_imports_1.aleo',
-          'dapp_3_imports_2.aleo',
+          'credits.aleo',
+          'token_registry.aleo',
+          'test_mailbox.aleo',
+          'test_ism_manager.aleo',
+          'test_hook_manager.aleo',
+          'test_hyp_native.aleo',
         ],
       },
     },

@@ -66,6 +66,7 @@ export enum TokenStandard {
 
   // Aleo
   AleoNative = 'AleoNative',
+  AleoHypNative = 'AleoHypNative',
   AleoHypCollateral = 'AleoHypCollateral',
   AleoHypSynthetic = 'AleoHypSynthetic',
 }
@@ -130,6 +131,7 @@ export const TOKEN_STANDARD_TO_PROTOCOL: Record<TokenStandard, ProtocolType> = {
 
   // Aleo
   AleoNative: ProtocolType.Aleo,
+  AleoHypNative: ProtocolType.Aleo,
   AleoHypCollateral: ProtocolType.Aleo,
   AleoHypSynthetic: ProtocolType.Aleo,
 };
@@ -165,6 +167,8 @@ export const TOKEN_COLLATERALIZED_STANDARDS = [
   TokenStandard.CosmNativeHypCollateral,
   TokenStandard.EvmHypXERC20Lockbox,
   TokenStandard.EvmHypVSXERC20Lockbox,
+  TokenStandard.AleoHypNative,
+  TokenStandard.AleoHypCollateral,
 ];
 
 export const XERC20_STANDARDS = [
@@ -213,7 +217,7 @@ export const TOKEN_HYP_STANDARDS = [
   TokenStandard.StarknetHypSynthetic,
   TokenStandard.RadixHypCollateral,
   TokenStandard.RadixHypSynthetic,
-  TokenStandard.AleoNative,
+  TokenStandard.AleoHypNative,
   TokenStandard.AleoHypCollateral,
   TokenStandard.AleoHypSynthetic,
 ];
@@ -409,7 +413,7 @@ export const ALEO_TOKEN_TYPE_TO_STANDARD: Record<
   AleoSupportedTokenTypes,
   TokenStandard
 > = {
-  [TokenType.native]: TokenStandard.AleoNative,
+  [TokenType.native]: TokenStandard.AleoHypNative,
   [TokenType.collateral]: TokenStandard.AleoHypCollateral,
   [TokenType.synthetic]: TokenStandard.AleoHypSynthetic,
 };
@@ -436,5 +440,5 @@ export const PROTOCOL_TO_HYP_NATIVE_STANDARD: Record<
   // collateral and native are the same for cosmosnative and radix
   [ProtocolType.Radix]: TokenStandard.RadixHypCollateral,
   [ProtocolType.CosmosNative]: TokenStandard.CosmNativeHypCollateral,
-  [ProtocolType.Aleo]: TokenStandard.AleoNative,
+  [ProtocolType.Aleo]: TokenStandard.AleoHypNative,
 };

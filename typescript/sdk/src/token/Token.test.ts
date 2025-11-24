@@ -241,8 +241,9 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
   [TokenStandard.RadixNative]: null,
   [TokenStandard.RadixHypSynthetic]: null,
 
-  [TokenStandard.AleoHypCollateral]: null,
   [TokenStandard.AleoNative]: null,
+  [TokenStandard.AleoHypNative]: null,
+  [TokenStandard.AleoHypCollateral]: null,
   [TokenStandard.AleoHypSynthetic]: null,
 };
 

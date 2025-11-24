@@ -57,7 +57,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   }
 
   async getBalance(req: AltVM.ReqGetBalance): Promise<bigint> {
-    if (req.denom) {
+    if (req.denom && req.denom !== ALEO_NATIVE_DENOM) {
       const result = await this.aleoClient.getProgramMappingValue(
         'token_registry.aleo',
         'authorized_balances',
@@ -97,10 +97,13 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     req: AltVM.ReqEstimateTransactionFee<AleoTransaction>,
   ): Promise<AltVM.ResEstimateTransactionFee> {
     const programManager = this.getProgramManager();
-    const tx = await programManager.buildExecutionTransaction(req.transaction);
+    const fee = await programManager.estimateExecutionFee({
+      programName: req.transaction.programName,
+      functionName: req.transaction.functionName,
+    });
 
     return {
-      fee: tx.feeAmount(),
+      fee,
       gasUnits: 0n,
       gasPrice: 0,
     };

@@ -30,6 +30,7 @@ import {
 } from './TokenStandard.js';
 import {
   AleoHypCollateralAdapter,
+  AleoHypNativeAdapter,
   AleoHypSyntheticAdapter,
   AleoNativeTokenAdapter,
 } from './adapters/AleoTokenAdapter.js';
@@ -351,6 +352,10 @@ export class Token implements IToken {
       });
     } else if (standard === TokenStandard.RadixHypSynthetic) {
       return new RadixHypSyntheticAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+      });
+    } else if (standard === TokenStandard.AleoHypNative) {
+      return new AleoHypNativeAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
     } else if (standard === TokenStandard.AleoHypCollateral) {

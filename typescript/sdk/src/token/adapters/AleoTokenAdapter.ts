@@ -273,3 +273,26 @@ export class AleoHypCollateralAdapter
 }
 
 export class AleoHypSyntheticAdapter extends AleoHypCollateralAdapter {}
+
+export class AleoHypNativeAdapter
+  extends AleoHypCollateralAdapter
+  implements ITokenAdapter<AleoTransaction>
+{
+  override async getDenom(): Promise<string> {
+    return ALEO_NATIVE_DENOM;
+  }
+
+  override async getMetadata(): Promise<TokenMetadata> {
+    const { nativeToken } = this.multiProvider.getChainMetadata(this.chainName);
+    assert(
+      nativeToken,
+      `Native token data is required for ${AleoHypNativeAdapter.name}`,
+    );
+
+    return {
+      name: nativeToken.name,
+      symbol: nativeToken.symbol,
+      decimals: nativeToken.decimals,
+    };
+  }
+}
