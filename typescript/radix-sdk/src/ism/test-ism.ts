@@ -4,12 +4,13 @@ import {
   TestIsmConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import {
-  AnnotatedTx,
   HypModule,
   HypModuleArgs,
   HypReader,
 } from '@hyperlane-xyz/provider-sdk/module';
 import { WithAddress, assert } from '@hyperlane-xyz/utils';
+
+import { AnnotatedRadixTransaction } from '../utils/types.js';
 
 type TestIsmModule = {
   config: TestIsmConfig;
@@ -51,7 +52,7 @@ export class RadixTestIsmModule implements HypModule<TestIsmModule> {
     return this.args.addresses;
   }
 
-  async update(_config: TestIsmConfig): Promise<AnnotatedTx[]> {
+  async update(_config: TestIsmConfig): Promise<AnnotatedRadixTransaction[]> {
     // The TestIsm does not have any updatable properties
     return [];
   }

@@ -21,7 +21,10 @@ import {
   normalizeConfig,
 } from '@hyperlane-xyz/utils';
 
-import { ismTypeFromRadixIsmType } from '../utils/types.js';
+import {
+  AnnotatedRadixTransaction,
+  ismTypeFromRadixIsmType,
+} from '../utils/types.js';
 
 import { getMultisigIsmConfig } from './query.js';
 
@@ -74,7 +77,9 @@ export class RadixMultisigIsmModule implements HypModule<MultisigIsmModule> {
     return this.args.addresses;
   }
 
-  async update(expectedConfig: MultisigIsmConfig): Promise<AnnotatedTx[]> {
+  async update(
+    expectedConfig: MultisigIsmConfig,
+  ): Promise<AnnotatedRadixTransaction[]> {
     const currentConfig = await this.read();
 
     const normalizedExpectedConfig = normalizeConfig(expectedConfig);

@@ -6,11 +6,14 @@ import {
 } from '@radixdlt/radix-engine-toolkit';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { Annotated } from '@hyperlane-xyz/utils';
 
 export interface RadixSDKTransaction {
   networkId: number;
   manifest: TransactionManifest | string;
 }
+
+export type AnnotatedRadixTransaction = Annotated<RadixSDKTransaction>;
 
 export interface RadixSDKReceipt extends TransactionCommittedDetailsResponse {
   transactionHash: string;

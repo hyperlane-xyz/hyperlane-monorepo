@@ -22,6 +22,8 @@ import {
 } from '@hyperlane-xyz/provider-sdk/module';
 import { WithAddress, assert, eqAddressRadix } from '@hyperlane-xyz/utils';
 
+import { AnnotatedRadixTransaction } from '../utils/types.js';
+
 import { getDomainRoutingIsmConfig } from './query.js';
 import { RadixRoutingIsmTx } from './tx.js';
 
@@ -81,10 +83,12 @@ export class RadixRoutingIsmModule implements HypModule<RoutingIsmModule> {
     return this.args.addresses;
   }
 
-  async update(expectedConfig: DomainRoutingIsmConfig): Promise<AnnotatedTx[]> {
+  async update(
+    expectedConfig: DomainRoutingIsmConfig,
+  ): Promise<AnnotatedRadixTransaction[]> {
     const actualConfig = await this.read();
 
-    const transactions: AnnotatedTx[] = [];
+    const transactions: AnnotatedRadixTransaction[] = [];
 
     const updateDomainIsmTxs = await this.createRouteUpdateTxs(
       actualConfig,
@@ -106,7 +110,7 @@ export class RadixRoutingIsmModule implements HypModule<RoutingIsmModule> {
   private async createOwnerUpdateTxs(
     actualConfig: WithAddress<DomainRoutingIsmConfig>,
     expectedConfig: DomainRoutingIsmConfig,
-  ): Promise<AnnotatedTx[]> {
+  ): Promise<AnnotatedRadixTransaction[]> {
     if (eqAddressRadix(actualConfig.owner, expectedConfig.owner)) {
       return [];
     }
@@ -152,8 +156,8 @@ export class RadixRoutingIsmModule implements HypModule<RoutingIsmModule> {
   private async createRouteUpdateTxs(
     actualConfig: WithAddress<DomainRoutingIsmConfig>,
     expectedConfig: DomainRoutingIsmConfig,
-  ): Promise<AnnotatedTx[]> {
-    const transactions: AnnotatedTx[] = [];
+  ): Promise<AnnotatedRadixTransaction[]> {
+    const transactions: AnnotatedRadixTransaction[] = [];
 
     const normalizedActual = this.normalizeDomainKeys(actualConfig);
     const normalizedExpected = this.normalizeDomainKeys(expectedConfig);
@@ -183,7 +187,7 @@ export class RadixRoutingIsmModule implements HypModule<RoutingIsmModule> {
   private async createRemoveRouteTx(
     domainId: number,
     owner: string,
-  ): Promise<AnnotatedTx> {
+  ): Promise<AnnotatedRadixTransaction> {
     const ismAddress = this.args.addresses.deployedIsm;
 
     const manifest = await this.txHelper.buildRemoveDomainIsmTransaction({
@@ -203,7 +207,7 @@ export class RadixRoutingIsmModule implements HypModule<RoutingIsmModule> {
     domainId: number,
     domainConfig: string | IsmConfig | DerivedIsmConfig,
     owner: string,
-  ): Promise<AnnotatedTx> {
+  ): Promise<AnnotatedRadixTransaction> {
     const ismAddress = this.args.addresses.deployedIsm;
 
     let targetIsmAddress: string;
