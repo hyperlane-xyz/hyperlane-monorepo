@@ -41,23 +41,32 @@ class RadixIsmModuleProvider implements ModuleProvider<IsmModuleType> {
       read: async (address: string): Promise<DerivedIsmConfig> => {
         const ismType = await provider.getIsmType({ ismAddress: address });
 
+        let ismReader: HypReader<IsmModuleType>;
         switch (ismType) {
           case IsmType.MESSAGE_ID_MULTISIG:
           case IsmType.MERKLE_ROOT_MULTISIG:
-            return new RadixMultisigIsmReader(this.gateway).read(address);
+            ismReader = new RadixMultisigIsmReader(this.gateway);
+            break;
 
           case IsmType.TEST_ISM:
-            return new RadixTestIsmReader(provider).read(address);
+            ismReader = new RadixTestIsmReader(provider);
+            break;
 
-          case IsmType.ROUTING: {
-            return new RadixRoutingIsmReader(provider, this.gateway, this).read(
-              address,
-            );
-          }
+          case IsmType.ROUTING:
+            {
+              ismReader = new RadixRoutingIsmReader(
+                provider,
+                this.gateway,
+                this,
+              );
+            }
+            break;
 
           default:
             throw new Error(`Unsupported ISM type: ${ismType}`);
         }
+
+        return ismReader.read(address);
       },
     };
   }
