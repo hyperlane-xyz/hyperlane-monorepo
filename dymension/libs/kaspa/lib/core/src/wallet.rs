@@ -209,9 +209,14 @@ impl NetworkInfo {
                 address_version: Version::PubKey,
                 rpc_url,
             },
-            _ => todo!("only tn10 supported"),
+            Network::KaspaMainnet => Self {
+                network_id: NetworkId::new(NetworkType::Mainnet),
+                network_type: NetworkType::Mainnet,
+                address_prefix: Prefix::Mainnet,
+                address_version: Version::PubKey,
+                rpc_url,
+            },
         }
-        // TODO: finish
     }
 }
 
