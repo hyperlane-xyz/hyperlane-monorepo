@@ -215,7 +215,7 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
 
   async getSanctionedAddresses() {
     // All Ethereum-style addresses from https://github.com/0xB10C/ofac-sanctioned-digital-currency-addresses/tree/lists
-    const currencies = ['ARB', 'ETC', 'ETH', 'USDC', 'USDT'];
+    const currencies = ['ARB', 'ETC', 'ETH', 'USDC', 'USDT', 'BSC'];
 
     const schema = z.array(z.string());
 
@@ -254,7 +254,15 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
       '0x97a05beCc2e7891D07F382457Cd5d57FD242e4e8',
     ];
 
-    return [...sanctionedEthereumAdresses, ...radiantExploiter];
+    const uniqueAddresses = Array.from(
+      new Set(
+        [...sanctionedEthereumAdresses, ...radiantExploiter].map((address) =>
+          address.toLowerCase(),
+        ),
+      ),
+    );
+
+    return uniqueAddresses;
   }
 
   // Returns whether the relayer requires AWS credentials
