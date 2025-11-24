@@ -1,6 +1,7 @@
 use std::str::FromStr;
 
 use derive_new::new;
+use dym_kas_hardcode as hardcode;
 use url::Url;
 
 use hyperlane_core::{
@@ -54,6 +55,8 @@ pub struct RelayerStuff {
     pub validator_hosts: Vec<String>,
     pub deposit_timings: RelayerDepositTimings,
     pub tx_fee_multiplier: f64,
+    pub max_sweep_inputs: Option<usize>,
+    pub max_sweep_bundle_bytes: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -121,6 +124,7 @@ impl ConnectionConf {
         kas_domain: u32,
         kas_token_placeholder: H256,
         kas_tx_fee_multiplier: f64,
+        max_sweep_inputs: Option<usize>,
     ) -> Self {
         let v = match kaspa_escrow_key_source {
             Some(kas_escrow_key_source) => {
@@ -151,6 +155,10 @@ impl ConnectionConf {
                 validator_hosts,
                 deposit_timings: kaspa_time_config.unwrap_or_default(),
                 tx_fee_multiplier: kas_tx_fee_multiplier,
+                max_sweep_inputs, // None by default, only enforced if configured
+                // Validator accepts 10 MB body limit. Use 8 MB for sweeping bundle
+                // to leave 2 MB margin for messages, anchors, and protobuf overhead
+                max_sweep_bundle_bytes: 8 * 1024 * 1024,
             }),
         };
 

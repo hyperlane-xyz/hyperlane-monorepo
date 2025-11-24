@@ -5,7 +5,7 @@ use corelib::escrow::EscrowPublic;
 use corelib::util::input_sighash_type;
 use corelib::wallet::EasyKaspaWallet;
 use eyre::{eyre, Result};
-use hardcode::tx::{DUST_AMOUNT, MAX_SWEEP_INPUTS, RELAYER_SWEEPING_PRIORITY_FEE};
+use hardcode::tx::{DUST_AMOUNT, RELAYER_SWEEPING_PRIORITY_FEE};
 use kaspa_consensus_client::{
     TransactionOutpoint as ClientTransactionOutpoint, UtxoEntry as ClientUtxoEntry,
 };
@@ -313,6 +313,8 @@ fn prepare_next_iteration_inputs(
 ///
 /// # Parameters
 /// * `anchor_amount` - The amount available in the anchor UTXO that will be used for withdrawals (not swept)
+/// * `max_sweep_inputs` - Optional maximum number of inputs to sweep (if None, only bundle size limit applies)
+/// * `max_sweep_bundle_bytes` - Maximum bundle size in bytes (to fit within validator body limit)
 pub async fn create_sweeping_bundle(
     relayer_wallet: &EasyKaspaWallet,
     escrow: &EscrowPublic,
@@ -320,6 +322,8 @@ pub async fn create_sweeping_bundle(
     mut relayer_inputs: Vec<PopulatedInput>,
     total_withdrawal_amount: u64,
     anchor_amount: u64,
+    max_sweep_inputs: Option<usize>,
+    max_sweep_bundle_bytes: usize,
 ) -> Result<Bundle> {
     use kaspa_txscript::standard::pay_to_address_script;
 
@@ -363,19 +367,21 @@ pub async fn create_sweeping_bundle(
     );
     // Process escrow inputs recursively until:
     // 1. All are consumed, OR
-    // 2. We have enough for withdrawals AND reached the maximum number of inputs (1000)
+    // 2. Reached the maximum bundle size (always enforced), OR
+    // 3. Reached the maximum number of inputs (if configured)
     while !escrow_inputs.is_empty() {
-        // Check if we've swept enough to cover withdrawals AND reached the maximum inputs
-        if total_swept_amount >= withdrawal_amount_without_anchor
-            && total_inputs_swept >= MAX_SWEEP_INPUTS
-        {
-            info!(
-                total_swept_amount = total_swept_amount,
-                withdrawal_amount_without_anchor = withdrawal_amount_without_anchor,
-                max_inputs = MAX_SWEEP_INPUTS,
-                "kaspa relayer sweeping: stopped, swept sufficient amount and reached maximum input limit"
-            );
-            break;
+        // Check input count limit if configured
+        if let Some(max_inputs) = max_sweep_inputs {
+            if total_inputs_swept >= max_inputs {
+                info!(
+                    total_swept_amount = total_swept_amount,
+                    total_inputs_swept = total_inputs_swept,
+                    max_inputs = max_inputs,
+                    remaining_escrow_inputs = escrow_inputs.len(),
+                    "kaspa relayer sweeping: stopped at configured max_sweep_inputs limit"
+                );
+                break;
+            }
         }
         // Find batch size that fits within mass limit
         let batch_size = calculate_sweep_size(
@@ -463,11 +469,29 @@ pub async fn create_sweeping_bundle(
         }
 
         bundle.add_pskt(pskt_signer);
+
+        // Check bundle size limit
+        let bundle_bytes = bundle
+            .serialize()
+            .map_err(|e| eyre!("Serialize bundle to check size: {}", e))?;
+        let bundle_size = bundle_bytes.len();
+
+        if bundle_size >= max_sweep_bundle_bytes {
+            info!(
+                bundle_size_bytes = bundle_size,
+                max_bundle_bytes = max_sweep_bundle_bytes,
+                pskts_count = bundle.0.len(),
+                "kaspa relayer sweeping: reached max bundle size limit, stopping"
+            );
+            break;
+        }
+
         info!(
             pskt_id = %pskt_id,
             batch_escrow_inputs_count = batch_escrow_inputs_count,
             estimated_fee = estimated_fee,
             relayer_output_amount = relayer_output_amount,
+            bundle_size_bytes = bundle_size,
             "kaspa relayer sweeping: created PSKT"
         );
     }

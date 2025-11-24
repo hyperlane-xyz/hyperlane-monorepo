@@ -3,7 +3,7 @@ use super::endpoints::*;
 use super::providers::KaspaProvider;
 use axum::{
     body::Bytes,
-    extract::State,
+    extract::{DefaultBodyLimit, State},
     http::StatusCode,
     response::{IntoResponse, Json, Response},
     routing::post,
@@ -32,6 +32,7 @@ use kaspa_wallet_pskt::prelude::*;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha3::{digest::Update, Digest, Keccak256};
 use std::sync::Arc;
+use tower_http::limit::RequestBodyLimitLayer;
 use tracing::{error, info};
 
 #[derive(Clone)]
@@ -118,17 +119,30 @@ pub fn router<
 >(
     resources: ValidatorServerResources<S, H>,
 ) -> Router {
+    const WITHDRAWAL_BODY_LIMIT: usize = 10 * 1024 * 1024; // 10 MB for large PSKT bundles
+    const DEFAULT_BODY_LIMIT: usize = 2 * 1024 * 1024; // 2 MB for other routes
+
     Router::new()
         .route(
             ROUTE_VALIDATE_NEW_DEPOSITS,
-            post(respond_validate_new_deposits::<S, H>),
+            post(respond_validate_new_deposits::<S, H>)
+                .layer(RequestBodyLimitLayer::new(DEFAULT_BODY_LIMIT)),
         )
         .route(
             ROUTE_VALIDATE_CONFIRMED_WITHDRAWALS,
-            post(respond_validate_confirmed_withdrawals::<S, H>),
+            post(respond_validate_confirmed_withdrawals::<S, H>)
+                .layer(RequestBodyLimitLayer::new(DEFAULT_BODY_LIMIT)),
         )
-        .route(ROUTE_SIGN_PSKTS, post(respond_sign_pskts::<S, H>))
-        .route("/kaspa-ping", post(respond_kaspa_ping::<S, H>))
+        .route(
+            ROUTE_SIGN_PSKTS,
+            post(respond_sign_pskts::<S, H>)
+                .layer(RequestBodyLimitLayer::new(WITHDRAWAL_BODY_LIMIT)),
+        )
+        .route(
+            "/kaspa-ping",
+            post(respond_kaspa_ping::<S, H>).layer(RequestBodyLimitLayer::new(DEFAULT_BODY_LIMIT)),
+        )
+        .layer(DefaultBodyLimit::disable())
         .with_state(Arc::new(resources))
 }
 

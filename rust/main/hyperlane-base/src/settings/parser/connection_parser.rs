@@ -478,6 +478,13 @@ pub fn build_kaspa_connection_conf(
         .end()
         .unwrap_or(1.5);
 
+    let max_sweep_inputs = chain
+        .chain(err)
+        .get_opt_key("maxSweepInputs")
+        .parse_u64()
+        .end()
+        .map(|v| v as usize);
+
     // Parse KaspaTimeConfig if provided
     let kaspa_time_config = if validator_hosts.len() > 0 {
         Some(dymension_kaspa::RelayerDepositTimings {
@@ -544,6 +551,7 @@ pub fn build_kaspa_connection_conf(
             kas_domain,
             kas_token_placeholder,
             kaspa_tx_fee_multiplier,
+            max_sweep_inputs,
         ),
     ))
 }

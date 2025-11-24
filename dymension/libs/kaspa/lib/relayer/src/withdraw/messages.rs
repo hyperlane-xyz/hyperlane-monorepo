@@ -20,6 +20,48 @@ use tracing::{error, info};
 // (input, entry, optional_redeem_script)
 pub(crate) type PopulatedInput = (TransactionInput, UtxoEntry, Option<Vec<u8>>);
 
+/// Adjusts outputs and messages to fit within available funds from swept inputs
+/// Returns (adjusted_outputs, adjusted_messages)
+fn adjust_outputs_for_available_funds_swept(
+    inputs: &[PopulatedInput],
+    mut outputs: Vec<kaspa_consensus_core::tx::TransactionOutput>,
+    mut messages: Vec<HyperlaneMessage>,
+) -> Result<(
+    Vec<kaspa_consensus_core::tx::TransactionOutput>,
+    Vec<HyperlaneMessage>,
+)> {
+    // Calculate total available funds from escrow inputs only (excluding relayer inputs)
+    let total_available: u64 = inputs
+        .iter()
+        .filter(|(_, _, redeem_script)| redeem_script.is_some()) // escrow inputs have redeem script
+        .map(|(_, entry, _)| entry.amount)
+        .sum();
+
+    let mut total_requested: u64 = outputs.iter().map(|o| o.value).sum();
+
+    if total_requested <= total_available {
+        return Ok((outputs, messages));
+    }
+
+    // Remove outputs until total fits within available funds
+    while total_requested > total_available && !outputs.is_empty() {
+        let removed_output = outputs.pop();
+        messages.pop();
+        if let Some(out) = removed_output {
+            total_requested -= out.value;
+        }
+    }
+
+    if outputs.is_empty() {
+        return Err(eyre::eyre!(
+            "Cannot process any withdrawals - available funds ({} sompi) insufficient even for smallest withdrawal",
+            total_available
+        ));
+    }
+
+    Ok((outputs, messages))
+}
+
 /// Adjusts outputs and messages to fit within transaction mass limits
 /// Returns (adjusted_outputs, adjusted_messages, final_mass)
 fn adjust_outputs_for_mass_limit(
@@ -68,6 +110,8 @@ pub async fn on_new_withdrawals(
     escrow_public: EscrowPublic,
     min_withdrawal_sompi: U256,
     tx_fee_multiplier: f64,
+    max_sweep_inputs: Option<usize>,
+    max_sweep_bundle_bytes: usize,
 ) -> Result<Option<WithdrawFXG>> {
     let (current_anchor, pending_msgs) = filter_pending_withdrawals(messages, cosmos.query())
         .await
@@ -82,6 +126,8 @@ pub async fn on_new_withdrawals(
         escrow_public,
         min_withdrawal_sompi,
         tx_fee_multiplier,
+        max_sweep_inputs,
+        max_sweep_bundle_bytes,
     )
     .await
 }
@@ -93,6 +139,8 @@ pub async fn build_withdrawal_fxg(
     escrow_public: EscrowPublic,
     min_withdrawal_sompi: U256,
     tx_fee_multiplier: f64,
+    max_sweep_inputs: Option<usize>,
+    max_sweep_bundle_bytes: usize,
 ) -> Result<Option<WithdrawFXG>> {
     // Filter out dust messages and create Kaspa outputs for the rest
     let (valid_msgs, outputs) = get_outputs_from_msgs(
@@ -140,7 +188,9 @@ pub async fn build_withdrawal_fxg(
         return Ok(None);
     }
 
-    let (sweeping_bundle, inputs) = if escrow_inputs.len() > SWEEPING_THRESHOLD {
+    let (sweeping_bundle, inputs, adjusted_outputs, adjusted_msgs) = if escrow_inputs.len()
+        > SWEEPING_THRESHOLD
+    {
         // Sweep
 
         // Extract the current anchor from the escrow UTXO set.
@@ -165,6 +215,8 @@ pub async fn build_withdrawal_fxg(
             relayer_inputs,
             total_withdrawal_amount,
             anchor_amount,
+            max_sweep_inputs,
+            max_sweep_bundle_bytes,
         )
         .await
         .map_err(|e| eyre::eyre!("Create sweeping bundle: {}", e))?;
@@ -184,7 +236,16 @@ pub async fn build_withdrawal_fxg(
         inputs.push(anchor_input);
         inputs.extend(swept_outputs); // use the swept outputs for the withdrawal inputs
 
-        (Some(sweeping_bundle), inputs)
+        // Adjust outputs to fit within swept funds before checking mass limits
+        let (adjusted_outputs, adjusted_msgs) =
+            adjust_outputs_for_available_funds_swept(&inputs, outputs, valid_msgs)?;
+
+        (
+            Some(sweeping_bundle),
+            inputs,
+            adjusted_outputs,
+            adjusted_msgs,
+        )
     } else {
         info!("kaspa relayer: no sweep needed, continuing to withdrawal");
 
@@ -192,14 +253,14 @@ pub async fn build_withdrawal_fxg(
         inputs.extend(escrow_inputs);
         inputs.extend(relayer_inputs);
 
-        (None, inputs)
+        (None, inputs, outputs, valid_msgs)
     };
 
     // Estimate mass and remove outputs if necessary
     let (final_outputs, final_msgs, tx_mass) = adjust_outputs_for_mass_limit(
         inputs.clone(),
-        outputs.clone(),
-        valid_msgs.clone(),
+        adjusted_outputs,
+        adjusted_msgs,
         relayer.net.network_id,
         escrow_public.m() as u16,
     )?;

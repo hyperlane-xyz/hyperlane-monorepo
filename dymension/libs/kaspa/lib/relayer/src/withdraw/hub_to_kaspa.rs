@@ -315,7 +315,7 @@ pub fn get_outputs_from_msgs(
             info!(
                 amount = o.value,
                 message_id = ?m.id(),
-                "kaspa relayer: skipped withdrawal, amount below dust threshold"
+                "kaspa relayer: skipped withdrawal, amount below minimum withdrawal threshold"
             );
             continue;
         }

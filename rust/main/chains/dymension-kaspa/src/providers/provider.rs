@@ -375,6 +375,8 @@ impl KaspaProvider {
             self.escrow(),
             self.get_min_deposit_sompi(),
             self.must_relayer_stuff().tx_fee_multiplier,
+            self.must_relayer_stuff().max_sweep_inputs,
+            self.must_relayer_stuff().max_sweep_bundle_bytes,
         )
         .await?
         {
