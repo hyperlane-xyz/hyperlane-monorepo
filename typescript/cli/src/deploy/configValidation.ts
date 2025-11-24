@@ -12,6 +12,7 @@ import { CoreConfig as ProviderCoreConfig } from '@hyperlane-xyz/provider-sdk/co
 import { IsmConfig as ProviderIsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
 import {
   CollateralWarpConfig,
+  NativeWarpConfig,
   TokenType as ProviderTokenType,
   WarpConfig as ProviderWarpConfig,
   SyntheticWarpConfig,
@@ -24,11 +25,12 @@ import {
 
 /**
  * Supported token types in provider-sdk.
- * Alt-VM chains currently only support basic collateral and synthetic tokens.
+ * Alt-VM chains currently support collateral, synthetic, and native tokens.
  */
 const SUPPORTED_TOKEN_TYPES = new Set<TokenType>([
   TokenType.synthetic,
   TokenType.collateral,
+  TokenType.native,
 ]);
 
 /**
@@ -123,6 +125,11 @@ export function validateWarpConfigForAltVM(
       symbol: config.symbol,
       decimals: config.decimals,
     } as SyntheticWarpConfig;
+  } else if (config.type === TokenType.native) {
+    return {
+      ...baseConfig,
+      type: ProviderTokenType.native,
+    } as NativeWarpConfig;
   } else {
     throw new Error(
       `Unsupported token type '${config.type}' for Alt-VM chain '${chain}'.`,
