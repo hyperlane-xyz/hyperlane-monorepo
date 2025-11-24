@@ -3,6 +3,15 @@ use serde::{Deserialize, Serialize};
 
 use crate::{ReorgPeriod, H256};
 
+/// A response about a chain reorg, from an agent's perspective
+#[derive(Debug, Clone, Serialize, Deserialize, new, PartialEq, Default)]
+pub struct ReorgEventResponse {
+    /// Whether a reorg event exists
+    pub exists: bool,
+    /// Details on the actual reorg if parsable
+    pub event: Option<ReorgEvent>,
+}
+
 /// Details about a detected chain reorg, from an agent's perspective
 #[derive(Debug, Clone, Serialize, Deserialize, new, PartialEq, Default)]
 pub struct ReorgEvent {

@@ -1,15 +1,18 @@
+use std::{env, path::PathBuf};
+
+use aws_config::Region;
+use core::str::FromStr;
+use eyre::{eyre, Context, Report, Result};
+use prometheus::IntGauge;
+use tracing::error;
+use ya_gcp::{AuthFlow, ServiceAccountAuth};
+
+use hyperlane_core::{ChainCommunicationError, ReorgEvent};
+
 use crate::{
     CheckpointSyncer, GcsStorageClientBuilder, LocalStorage, S3Storage, GCS_SERVICE_ACCOUNT_KEY,
     GCS_USER_SECRET,
 };
-use aws_config::Region;
-use core::str::FromStr;
-use eyre::{eyre, Context, Report, Result};
-use hyperlane_core::{ChainCommunicationError, ReorgEvent};
-use prometheus::IntGauge;
-use std::{env, path::PathBuf};
-use tracing::error;
-use ya_gcp::{AuthFlow, ServiceAccountAuth};
 
 /// Checkpoint Syncer types
 #[derive(Debug, Clone)]
@@ -130,8 +133,14 @@ impl CheckpointSyncerConf {
         let syncer: Box<dyn CheckpointSyncer> = self.build(latest_index_gauge).await?;
 
         match syncer.reorg_status().await {
-            Ok(Some(reorg_event)) => {
-                return Err(CheckpointSyncerBuildError::ReorgEvent(reorg_event));
+            Ok(event) => {
+                if event.exists {
+                    if let Some(reorg_event) = event.event {
+                        return Err(CheckpointSyncerBuildError::ReorgEvent(reorg_event));
+                    }
+                    // failed to parse the reorg event, so just use default
+                    return Err(CheckpointSyncerBuildError::ReorgEvent(ReorgEvent::default()));
+                }
             }
             Err(err) => {
                 error!(
@@ -139,7 +148,6 @@ impl CheckpointSyncerConf {
                     "Failed to read reorg status. Assuming no reorg occurred."
                 );
             }
-            _ => {}
         }
         Ok(syncer)
     }
