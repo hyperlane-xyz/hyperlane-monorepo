@@ -363,7 +363,7 @@ async function createWarpHook({
           deployedHook: '',
           mailbox: chainAddresses.mailbox,
         },
-        // FIXME: not all ISM types are supported yet
+        // FIXME: not all Hook types are supported yet
         config: hook as ProviderHookConfig | string,
         signer,
       });
