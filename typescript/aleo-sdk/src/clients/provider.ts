@@ -1,6 +1,7 @@
 import { BigNumber } from 'bignumber.js';
 
-import { AltVM, assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
 
 import {
   ALEO_NATIVE_DENOM,

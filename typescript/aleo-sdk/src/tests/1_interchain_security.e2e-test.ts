@@ -3,7 +3,7 @@ import chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import { step } from 'mocha-steps';
 
-import { AltVM } from '@hyperlane-xyz/utils';
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
 
 import { AleoSigner } from '../clients/signer.js';
 import { AleoReceipt, AleoTransaction } from '../utils/types.js';

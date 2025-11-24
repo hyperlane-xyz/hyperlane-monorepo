@@ -478,7 +478,7 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
 
               await maybeEverclearTokenBridge.callStatic.everclearAdapter();
 
-              let everclearTokenType = TokenType.collateralEverclear;
+              let everclearTokenType: TokenType = TokenType.collateralEverclear;
               try {
                 // if simulating an ETH transfer works this should be the WETH contract
                 await this.provider.estimateGas({

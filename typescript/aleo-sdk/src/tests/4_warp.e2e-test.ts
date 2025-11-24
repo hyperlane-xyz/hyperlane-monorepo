@@ -11,7 +11,8 @@ import {
 import { expect } from 'chai';
 import { step } from 'mocha-steps';
 
-import { AltVM, addressToBytes32, ensure0x } from '@hyperlane-xyz/utils';
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { addressToBytes32, ensure0x } from '@hyperlane-xyz/utils';
 
 import { hyp_synthetic, token_registry } from '../artifacts.js';
 import { AleoSigner } from '../clients/signer.js';

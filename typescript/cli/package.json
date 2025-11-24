@@ -12,6 +12,7 @@
     "@hyperlane-xyz/aleo-sdk": "19.9.0",
     "@hyperlane-xyz/cosmos-sdk": "19.9.0",
     "@hyperlane-xyz/http-registry-server": "19.9.0",
+    "@hyperlane-xyz/provider-sdk": "0.1.0",
     "@hyperlane-xyz/registry": "20.0.0",
     "@hyperlane-xyz/sdk": "19.9.0",
     "@hyperlane-xyz/tsconfig": "workspace:^",

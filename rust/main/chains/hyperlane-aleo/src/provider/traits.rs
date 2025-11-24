@@ -14,14 +14,14 @@ use crate::{CurrentNetwork, HyperlaneAleoError};
 /// HttpClient trait defines the base layer that Aleo provider will use
 pub trait HttpClient {
     /// Makes a GET request to the API
-    async fn request<T: DeserializeOwned>(
+    async fn request<T: DeserializeOwned + Send>(
         &self,
         path: &str,
         query: impl Into<Option<serde_json::Value>> + Send,
     ) -> ChainResult<T>;
 
     /// Makes a POST request to the API
-    async fn request_post<T: DeserializeOwned>(
+    async fn request_post<T: DeserializeOwned + Send>(
         &self,
         path: &str,
         body: &serde_json::Value,
@@ -63,9 +63,9 @@ impl<Client: HttpClient> RpcClient<Client> {
     }
 
     /// Finds the block hash containing a transaction
-    pub async fn find_block_hash_by_transaction_id(
+    pub async fn find_block_hash_by_transaction_id<N: Network>(
         &self,
-        transaction_id: &str,
+        transaction_id: &N::TransactionID,
     ) -> ChainResult<String> {
         self.request(&format!("find/blockHash/{transaction_id}"), None)
             .await

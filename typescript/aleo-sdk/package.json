@@ -50,6 +50,7 @@
     "typescript-eslint": "^8.37.0"
   },
   "dependencies": {
+    "@hyperlane-xyz/provider-sdk": "0.1.0",
     "@hyperlane-xyz/utils": "19.9.0",
     "@provablehq/sdk": "portal:../../../sdk/sdk",
     "bignumber.js": "^9.1.1",

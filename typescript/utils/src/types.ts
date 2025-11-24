@@ -20,6 +20,7 @@ export const ProtocolSmallestUnit = {
   [ProtocolType.CosmosNative]: 'uATOM',
   [ProtocolType.Starknet]: 'fri',
   [ProtocolType.Radix]: 'attos',
+  [ProtocolType.Aleo]: 'microcredits',
 };
 
 /********* BASIC TYPES *********/

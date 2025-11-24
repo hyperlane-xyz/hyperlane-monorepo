@@ -425,7 +425,7 @@ export function generateWarpConfigs(
   chain1Config: GetWarpTokenConfigOptions,
   chain2Config: GetWarpTokenConfigOptions,
 ): ReadonlyArray<WarpRouteDeployConfig> {
-  const ignoreTokenTypes = new Set([
+  const ignoreTokenTypes: Set<TokenType> = new Set([
     TokenType.XERC20,
     TokenType.XERC20Lockbox,
     TokenType.collateralFiat,
