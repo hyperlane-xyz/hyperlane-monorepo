@@ -4,6 +4,8 @@
 #![deny(clippy::unwrap_used, clippy::panic)]
 #![deny(clippy::arithmetic_side_effects)]
 
+/// Hyperlane Application specific functionality
+pub mod application;
 mod config;
 mod error;
 mod indexer;
