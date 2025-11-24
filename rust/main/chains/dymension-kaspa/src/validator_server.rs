@@ -27,7 +27,6 @@ use hyperlane_core::{HyperlaneChain, HyperlaneDomain, Signature as HLCoreSignatu
 use hyperlane_cosmos::{native::ModuleQueryClient, CosmosProvider};
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
 use hyperlane_cosmos_rs::prost::Message;
-use kaspa_wallet_core::prelude::DynRpcApi;
 use kaspa_wallet_pskt::prelude::*;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha3::{digest::Update, Digest, Keccak256};
@@ -186,9 +185,6 @@ impl<
     fn kas_key_source(&self) -> crate::conf::KaspaEscrowKeySource {
         self.kas_provider.as_ref().unwrap().kas_key_source().clone()
     }
-    fn must_api(&self) -> Arc<DynRpcApi> {
-        self.must_wallet().api()
-    }
 
     fn must_escrow(&self) -> EscrowPublic {
         self.kas_provider.as_ref().unwrap().escrow()
@@ -212,6 +208,14 @@ impl<
 
     fn must_val_stuff(&self) -> &ValidatorStuff {
         self.kas_provider.as_ref().unwrap().must_validator_stuff()
+    }
+
+    fn must_kaspa_grpc_client(&self) -> kaspa_grpc_client::GrpcClient {
+        self.kas_provider
+            .as_ref()
+            .unwrap()
+            .grpc_client()
+            .expect("gRPC client required for validator")
     }
 }
 
@@ -239,7 +243,6 @@ async fn respond_validate_new_deposits<
     let deposits: DepositFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
     if res.must_val_stuff().toggles.deposit_enabled {
         validate_new_deposit(
-            &res.must_api(),
             res.must_rest_client(),
             &deposits,
             &res.must_wallet().net,
@@ -251,6 +254,7 @@ async fn respond_validate_new_deposits<
                 res.must_val_stuff().kas_domain,
                 res.must_val_stuff().kas_token_placeholder,
             ),
+            res.must_kaspa_grpc_client(),
         )
         .await
         .map_err(|e| {

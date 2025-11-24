@@ -26,6 +26,7 @@ use hyperlane_cosmos::{native::ModuleQueryClient, CosmosProvider};
 use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use kaspa_addresses::Address;
 use kaspa_rpc_core::model::{RpcTransaction, RpcTransactionId};
+use kaspa_rpc_core::notify::mode::NotificationMode;
 use kaspa_wallet_core::prelude::DynRpcApi;
 use prometheus::Registry;
 use std::sync::Arc;
@@ -57,6 +58,9 @@ pub struct KaspaProvider {
 
     /// Kaspa database for tracking deposits/withdrawals purely for informational purposes (optional, set by relayer)
     kaspa_db: Option<Arc<dyn hyperlane_core::KaspaDb>>,
+
+    /// gRPC client for validator operations (None for relayer)
+    grpc_client: Option<kaspa_grpc_client::GrpcClient>,
 }
 
 impl KaspaProvider {
@@ -92,6 +96,31 @@ impl KaspaProvider {
                 .expect("Failed to create default KaspaBridgeMetrics")
         };
 
+        // Create gRPC client for validator if configured
+        let grpc_client = if let Some(validator_stuff) = &cfg.validator_stuff {
+            let grpc_url = &validator_stuff.kaspa_grpc_urls[0]; // Use first URL, similar to wrpc
+            info!(
+                grpc_url = %grpc_url,
+                "kaspa provider: initializing gRPC client with reconnection support"
+            );
+            Some(
+                kaspa_grpc_client::GrpcClient::connect_with_args(
+                    NotificationMode::Direct,
+                    grpc_url.clone(),
+                    None,  // subscription_context
+                    true,  // reconnect - enable automatic reconnection
+                    None,  // connection_event_sender
+                    false, // override_handle_stop_notify
+                    None,  // timeout_duration - use default
+                    Arc::new(kaspa_utils_tower::counters::TowerConnectionCounters::default()),
+                )
+                .await
+                .expect("Failed to create Kaspa gRPC client"),
+            )
+        } else {
+            None
+        };
+
         let provider = KaspaProvider {
             domain: domain.clone(),
             conf: cfg.clone(),
@@ -103,6 +132,7 @@ impl KaspaProvider {
             pending_confirmation: Arc::new(PendingConfirmation::new()),
             metrics: kaspa_metrics,
             kaspa_db: None,
+            grpc_client,
         };
 
         if let Err(e) = provider.update_balance_metrics().await {
@@ -306,6 +336,10 @@ impl KaspaProvider {
 
     pub fn must_relayer_stuff(&self) -> &RelayerStuff {
         self.conf.relayer_stuff.as_ref().unwrap()
+    }
+
+    pub fn grpc_client(&self) -> Option<kaspa_grpc_client::GrpcClient> {
+        self.grpc_client.clone()
     }
 
     // Process withdrawals from Hub to Kaspa by building and submitting Kaspa transactions.

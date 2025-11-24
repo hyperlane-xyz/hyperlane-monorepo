@@ -379,6 +379,14 @@ pub fn build_kaspa_connection_conf(
             None
         };
 
+    let grpc_urls: Vec<String> = chain
+        .chain(err)
+        .get_opt_key("kaspaUrlsGrpc")
+        .parse_string()
+        .end()
+        .map(|s| s.split(',').map(|s| s.trim().to_string()).collect())
+        .unwrap_or_default();
+
     let threshold_ism = chain
         .chain(err)
         .get_key("kaspaMultisigThresholdHubIsm")
@@ -538,6 +546,7 @@ pub fn build_kaspa_connection_conf(
             validator_hosts,
             validator_pubks,
             kaspa_escrow_key_source,
+            grpc_urls,
             threshold_ism as usize,
             threshold_escrow as usize,
             grpcs,

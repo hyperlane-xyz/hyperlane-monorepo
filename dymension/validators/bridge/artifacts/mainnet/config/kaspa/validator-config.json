@@ -18,6 +18,7 @@
       ],
       "walletSecret": "lkjsdf",
       "kaspaUrlsWrpc": "<kaspa-network-rpc-url-without-protocol>:17210",
+      "kaspaUrlsGrpc": "grpc://<kaspa-network-rpc-url>:16210",
       "kaspaUrlsRest": "(http|https)://<kaspa-network-rest-url>",
       "validatorHosts": "",
       "validatorPubsKaspa": "<all_validator_pub_keys_separated_by_commas-PROVIDED_BY_DIMENSION>",

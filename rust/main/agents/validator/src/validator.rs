@@ -226,6 +226,7 @@ impl BaseAgent for Validator {
                 Arc::new(self.raw_signer.clone()),
                 self.signer.clone(),
             );
+
             router = router.merge(dymension_kaspa::router(
                 dymension_kaspa::ValidatorServerResources::new(signing, prov),
             ))

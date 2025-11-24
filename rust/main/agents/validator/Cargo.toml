@@ -39,6 +39,9 @@ hyperlane-base = { path = "../../hyperlane-base" }
 hyperlane-ethereum = { path = "../../chains/hyperlane-ethereum" }
 hyperlane-cosmos = { path = "../../chains/hyperlane-cosmos" }
 dymension-kaspa = { path = "../../chains/dymension-kaspa" }
+kaspa-grpc-client = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }
+kaspa-rpc-core = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }
+kaspa-utils-tower = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }
 
 # Dependency version is determined by ethers
 rusoto_core = '*'
