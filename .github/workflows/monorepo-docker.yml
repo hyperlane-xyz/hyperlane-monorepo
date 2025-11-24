@@ -118,7 +118,6 @@ jobs:
         with:
           comment_tag: monorepo-docker-image
           image_name: Monorepo Docker Image
-          emoji: 🐳
           image_tags: ${{ steps.meta.outputs.tags }}
           pr_number: ${{ github.event.pull_request.number }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
