@@ -29,7 +29,7 @@ claude mcp add --scope user google-cloud-mcp -- docker run -i \
 
 ### Grafana MCP Server
 
-1. Go to https://abacusworks.grafana.net
+1. Go to [https://abacusworks.grafana.net](https://abacusworks.grafana.net)
 2. On the left, find "Administration -> Users and access -> Service accounts"
 3. Click "Add a service account"
 4. Add a name like "yourname-mcp", and give it the Viewer role, and create it
