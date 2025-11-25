@@ -399,7 +399,12 @@ impl ChainConf {
                 let mailbox = h_radix::RadixMailbox::new(provider, &locator, conf)?;
                 Ok(Box::new(mailbox) as Box<dyn Mailbox>)
             }
-            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
+            ChainConnectionConf::Aleo(conf) => {
+                let signer = self.aleo_signer().await?;
+                let provider = build_aleo_provider(self, conf, metrics, &locator, signer)?;
+                let mailbox = h_aleo::AleoMailbox::new(provider, &locator, conf);
+                Ok(Box::new(mailbox) as Box<dyn Mailbox>)
+            }
         }
         .context(ctx)
     }
@@ -1254,6 +1259,10 @@ impl ChainConf {
     }
 
     async fn radix_signer(&self) -> Result<Option<hyperlane_radix::RadixSigner>> {
+        self.signer().await
+    }
+
+    async fn aleo_signer(&self) -> Result<Option<hyperlane_aleo::AleoSigner>> {
         self.signer().await
     }
 

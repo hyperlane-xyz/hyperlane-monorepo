@@ -10,6 +10,7 @@ mod config;
 mod error;
 mod indexer;
 mod ism;
+mod mailbox;
 mod provider;
 mod signer;
 mod types;
@@ -20,5 +21,5 @@ pub(crate) use types::*;
 pub use {
     config::*, error::*, indexer::AleoDeliveryIndexer, indexer::AleoDispatchIndexer,
     indexer::AleoInterchainGasIndexer, indexer::AleoMerkleTreeHook, ism::AleoIsm,
-    provider::AleoProvider, signer::AleoSigner,
+    mailbox::AleoMailbox, provider::AleoProvider, signer::AleoSigner,
 };

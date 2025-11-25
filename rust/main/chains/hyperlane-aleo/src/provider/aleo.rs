@@ -361,8 +361,8 @@ impl<C: AleoClient> AleoProvider<C> {
     pub async fn submit_tx(
         &self,
         program_id: &str,
-        input: impl IntoIterator<Item = String>,
         function_name: &str,
+        input: impl IntoIterator<Item = String>,
     ) -> ChainResult<TxOutcome> {
         let input = input.into_iter().collect_vec();
         let hash = match self.chain_id() {
