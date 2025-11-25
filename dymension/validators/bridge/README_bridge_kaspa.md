@@ -4,13 +4,29 @@ As explained in the master [README.md](./README.md) you will run ONE validator c
 
 This doc contains TWO _alternative_ instruction sets, one to use 'bare metal', i.e. systemd and locally available keys, and the other to run with AWS KMS and Docker etc.
 
-BOTH methods have the same structure 
+BOTH methods have the same structure
 
 1. Generate key pairs (⚠️ _the keys don't need to be funded_ ⚠️)
 2. Share pub keys to Dymension team
 3. Await config template file from Dymension team
 4. Fill in template with own info (keys or key locations)
 5. Run
+
+- [HOW TO RUN VALIDATOR INSTANCE FOR BRIDGING DYMENSION \<-\> KASPA](#how-to-run-validator-instance-for-bridging-dymension---kaspa)
+  - [HARDWARE REQUIREMENTS](#hardware-requirements)
+  - [INSTRUCTIONS BARE METAL](#instructions-bare-metal)
+    - [PHASE 1: KEY GENERATION AND SHARING](#phase-1-key-generation-and-sharing)
+    - [PHASE 2: CONFIG POPULATION AND RUNNING](#phase-2-config-population-and-running)
+      - [Config](#config)
+      - [Running](#running)
+      - [Updating](#updating)
+  - [INSTRUCTIONS AWS AND KMS](#instructions-aws-and-kms)
+    - [PHASE 0: MACHINE SETUP](#phase-0-machine-setup)
+    - [PHASE 1: KEY GENERATION AND SHARING](#phase-1-key-generation-and-sharing-1)
+    - [PHASE 2: CONFIG POPULATION AND RUNNING](#phase-2-config-population-and-running-1)
+      - [Config](#config-1)
+      - [Running](#running-1)
+      - [Updating](#updating-1)
 
 ## HARDWARE REQUIREMENTS
 
@@ -44,7 +60,7 @@ Give Dymension team `validator_ism_addr` and `validator_escrow_pub_key`. Don't w
 
 #### Config
 
-Use the config json template provided by Dymension team at: `hyperlane-monorepo/dymension/validators/bridge/artifacts/<network>/config/kaspa/validator-config.json`. 
+Use the config json template provided by Dymension team at: `hyperlane-monorepo/dymension/validators/bridge/artifacts/<network>/config/kaspa/validator-config.json`.
 
 Note: `<network>` placeholder should be replaced with either `blubmus` or `mainnet`
 
@@ -66,20 +82,35 @@ Populate `.chains.<kaspa-network-name>.kaspaEscrowPrivateKey` with the escrow se
 }
 ```
 
+additionally, populate the following placeholders:
+
+| JSON Path                                       | Description                             | Example                               |
+| ----------------------------------------------- | --------------------------------------- | ------------------------------------- |
+| `.chains.<kaspa-network-name>.kaspaUrlsWrpc`    | Kaspa network wRPC URL without protocol | `wrpc-kaspa.example.com:17210`        |
+| `.chains.<kaspa-network-name>.kaspaUrlsGrpc`    | Kaspa network gRPC URL                  | `grpc://grpc-kaspa.example.com:16210` |
+| `.chains.<kaspa-network-name>.kaspaUrlsRest`    | Kaspa network REST API URL              | `https://api-kaspa.example.com`       |
+| `.chains.<kaspa-network-name>.grpcUrls[0].http` | Dymension hub gRPC URL with port        | `https://grpc.example.com:443`        |
+
 #### Running
 
 Copy the dummy `kaspa.wallet` from `hyperlane-monorepo/dymension/validators/bridge/artifacts/<network>/config/kaspa/kaspa.wallet` to `~/.kaspa/kaspa.wallet`: `cp <dummy> ~/.kaspa/kaspa.wallet`. This wallet is just to stop the Kaspa query client crashing because it expects a key. Signing uses the `validator_escrow_secret` generated before!
 
 Make a database directory in place of your choosing (such as `mkdir valdb`)
 
-*Build*
+_Build_
 
 ```bash
 cd ${HOME}/hyperlane-monorepo/rust/main
 cargo build --release --bin validator
 ```
 
-*Setup Environment Variables*
+_Copy Binary to Standard Path_
+
+```bash
+sudo cp ${HOME}/hyperlane-monorepo/rust/main/target/release/validator /usr/local/bin/hyperlane-validator
+```
+
+_Setup Environment Variables_
 
 ```bash
 export CONFIG_FILES=<absolute path to populated agent-config.json> # REQUIRED!!
@@ -87,7 +118,7 @@ export DB_VALIDATOR=<your database directory>
 export ORIGIN_CHAIN=kaspatest10  # or mainnet
 ```
 
-*Option 1: Run with systemd (recommended)*
+_Option 1: Run with systemd (recommended)_
 
 ```bash
 # Create systemd service
@@ -99,7 +130,7 @@ After=network-online.target
 WorkingDirectory=${HOME}/hyperlane-monorepo/rust/main
 User=$USER
 Environment="CONFIG_FILES=${CONFIG_FILES}"
-ExecStart=${HOME}/hyperlane-monorepo/rust/main/target/release/validator \
+ExecStart=/usr/local/bin/hyperlane-validator \
 --db ${DB_VALIDATOR} \
 --originChainName ${ORIGIN_CHAIN} \
 --reorgPeriod 1 \
@@ -123,13 +154,12 @@ sudo systemctl start validator
 journalctl -u validator -f -o cat
 ```
 
-*Option 2: Run with tmux*
+_Option 2: Run with tmux_
 
 ```bash
 tmux
 echo $DB_VALIDATOR && echo $CONFIG_FILES && sleep 3s
-cd ${HOME}/hyperlane-monorepo/rust/main
-./target/release/validator \
+/usr/local/bin/hyperlane-validator \
 --db $DB_VALIDATOR \
 --originChainName $ORIGIN_CHAIN \
 --reorgPeriod 1 \
@@ -139,7 +169,7 @@ cd ${HOME}/hyperlane-monorepo/rust/main
 --log.level info
 ```
 
-*Managing the systemd Service*
+_Managing the systemd Service_
 
 ```bash
 # Check status
@@ -158,11 +188,25 @@ sudo systemctl disable validator
 journalctl -u validator -f -o cat
 ```
 
-*Exposure*
+_Exposure_
 
 Make sure 9090 or whatever chosen metrics-port is exposed and tell Dymension team. Your validator will answer queries at that port.
 
 Now you are finished
+
+#### Updating to a newer version
+
+To update the validator, pull the latest changes from the `main-dym` branch and build the validator.
+
+```bash
+cd ~/hyperlane-monorepo
+git pull origin main-dym
+cd rust/main
+cargo build --release --bin validator
+sudo systemctl stop validator
+sudo cp target/release/validator /usr/local/bin/hyperlane-validator
+sudo systemctl start validator
+```
 
 ## INSTRUCTIONS AWS AND KMS
 
@@ -226,7 +270,7 @@ foundryup
 
 build the validator container (takes time), you can proceed with most of other steps in another terminal window while the container is building. Note - `<network>` placeholder in the following path should be replaced with either `blumbus` or `mainnet`:
 
-⚠️ - It may require running as `sudo` 
+⚠️ - It may require running as `sudo`
 
 ```bash
 docker build -t hyperlane-kaspa-validator \
@@ -256,6 +300,7 @@ Give Dymension team `validator_ism_addr` and `validator_escrow_pub_key`
 
 ### PHASE 2: CONFIG POPULATION AND RUNNING
 
+#### Config
 
 Copy config to a kaspa local directory. replace `<network>` with either `blumbus` or `mainnet`:
 
@@ -263,23 +308,7 @@ Copy config to a kaspa local directory. replace `<network>` with either `blumbus
 cp -r ${HOME}/hyperlane-monorepo/dymension/validators/bridge/artifacts/<network>/config/kaspa/* ${HOME}/kaspa/config/
 ```
 
-Update all placeholders inside `${HOME}/kaspa/config/validator-config.json`. Below is an index of all placeholders that need to be configured:
-
-| Placeholder                                                          | Description                                | Example                         |
-| -------------------------------------------------------------------- | ------------------------------------------ | ------------------------------- |
-| `<interchain_gas_paymaster_address-PROVIDED_BY_DIMENSION>`           | Interchain gas paymaster contract address  | `0x1234567890abcdef...`         |
-| `<mailbox_address-PROVIDED_BY_DIMENSION>`                            | Mailbox contract address                   | `0xabcdef1234567890...`         |
-| `<merkle_tree_hook_address-PROVIDED_BY_DIMENSION>`                   | Merkle tree hook contract address          | `0x9876543210fedcba...`         |
-| `<validator_announce_address-PROVIDED_BY_DIMENSION>`                 | Validator announce contract address        | `0xfedcba0987654321...`         |
-| `<all_validator_pub_keys_separated_by_commas-PROVIDED_BY_DIMENSION>` | All validator public keys                  | `pubkey1,pubkey2,pubkey3`       |
-| `<kaspa-network-rpc-url-without-protocol>`                           | Kaspa network wRPC URL without protocol    | `wrpc-kaspa.example.com`        |
-| `<kaspa-network-rest-url>`                                           | Kaspa network REST API URL                 | `https://api-kaspa.example.com` |
-| `<validator_escrow_secret>`                                          | Validator escrow private key (keep quotes) | `"your-private-key-here"`       |
-| `<dymension-hub-grpc-url>`                                           | Dymension hub gRPC URL                     | `https://grpc.example.com`      |
-| `<port>`                                                             | Respectful port number of the service      | `443`                           |
-| `<validator_ism_priv_key>`                                           | Validator ISM private key                  | `0xabcd1234...`                 |
-
-**Additional AWS KMS Configuration:**
+**Configure agent to use AWS KMS:**
 
 1. Add a pointer to your AWS hosted key which allows minting of KAS on Dymension (replacing the preexisting 'validator' subobject):
 
@@ -304,14 +333,49 @@ Update all placeholders inside `${HOME}/kaspa/config/validator-config.json`. Bel
       }
 ```
 
-3. Zero out the `kaspaEscrowPrivateKey` field:
-```json
-  "kaspaEscrowPrivateKey":"",
-```
+Now populate urls inside `${HOME}/kaspa/config/validator-config.json`. Below is all url placeholders that need to be configured:
+
+| JSON Path                                       | Description                             | Example                               |
+| ----------------------------------------------- | --------------------------------------- | ------------------------------------- |
+| `.chains.<kaspa-network-name>.kaspaUrlsWrpc`    | Kaspa network wRPC URL without protocol | `wrpc-kaspa.example.com:17210`        |
+| `.chains.<kaspa-network-name>.kaspaUrlsGrpc`    | Kaspa network gRPC URL                  | `grpc://grpc-kaspa.example.com:16210` |
+| `.chains.<kaspa-network-name>.kaspaUrlsRest`    | Kaspa network REST API URL              | `https://api-kaspa.example.com`       |
+| `.chains.<kaspa-network-name>.grpcUrls[0].http` | Dymension hub gRPC URL with port        | `https://grpc.example.com:443`        |
+
+#### Running
 
 Start the validators on the remote host
 
 ```bash
 cd ~/kaspa
+docker compose up -d
+```
+
+#### Updating to a newer version
+
+To update the validator docker image, pull the latest changes from the `main-dym` branch and build the docker image.
+
+```bash
+cd ~/hyperlane-monorepo
+git pull origin main-dym
+
+# OR
+git clone https://github.com/dymensionxyz/hyperlane-monorepo.git --branch main-dym
+cd hyperlane-monorepo
+```
+
+Re-build the docker image
+
+```bash
+docker build -t hyperlane-kaspa-validator \
+  -f dymension/validators/bridge/artifacts/<network>/config/kaspa/Dockerfile \
+  .
+```
+
+Then, restart the validator container.
+
+```bash
+cd ~/kaspa
+docker compose down
 docker compose up -d
 ```
