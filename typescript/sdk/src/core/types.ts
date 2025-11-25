@@ -32,7 +32,8 @@ export const DerivedCoreConfigSchema = CoreConfigSchema.merge(
   }),
 );
 
-export const DeployedCoreAddressesSchema = ProxyFactoryFactoriesSchema.extend({
+// Base core addresses without EVM-specific factories (protocol-agnostic)
+export const BaseCoreAddressesSchema = z.object({
   mailbox: z.string(),
   validatorAnnounce: z.string(),
   proxyAdmin: z.string(),
@@ -43,6 +44,19 @@ export const DeployedCoreAddressesSchema = ProxyFactoryFactoriesSchema.extend({
   interchainGasPaymaster: z.string().optional(),
 });
 
+// EVM-specific core addresses with required proxy factory factories
+export const EvmCoreAddressesSchema = BaseCoreAddressesSchema.merge(
+  ProxyFactoryFactoriesSchema,
+);
+
+// Deployed core addresses with optional factories (for registry parsing and backward compatibility)
+// This allows both EVM chains (with factories) and AltVM chains (without factories)
+export const DeployedCoreAddressesSchema = BaseCoreAddressesSchema.merge(
+  ProxyFactoryFactoriesSchema.partial(),
+);
+
+export type BaseCoreAddresses = z.infer<typeof BaseCoreAddressesSchema>;
+export type EvmCoreAddresses = z.infer<typeof EvmCoreAddressesSchema>;
 export type DeployedCoreAddresses = z.infer<typeof DeployedCoreAddressesSchema>;
 
 export type CoreConfig = z.infer<typeof CoreConfigSchema> & {

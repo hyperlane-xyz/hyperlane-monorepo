@@ -1,8 +1,8 @@
 import {
   ChainMap,
   ChainName,
-  DeployedCoreAddresses,
-  DeployedCoreAddressesSchema,
+  EvmCoreAddresses,
+  EvmCoreAddressesSchema,
   EvmCoreModule,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
@@ -225,21 +225,20 @@ export class MultiChainResolver implements ChainResolver {
         return [argv.chain];
       }
 
-      const addresses = await argv.context.registry.getChainAddresses(
-        argv.chain,
-      );
-      const coreAddresses = DeployedCoreAddressesSchema.parse(
-        addresses,
-      ) as DeployedCoreAddresses;
-
       const protocolType = argv.context.multiProvider.getProtocol(argv.chain);
 
       switch (protocolType) {
         case ProtocolType.Ethereum: {
+          // Use EVM-specific schema for strict validation
+          const addresses = (await argv.context.registry.getChainAddresses(
+            argv.chain,
+          )) as EvmCoreAddresses;
+          const evmCoreAddresses = EvmCoreAddressesSchema.parse(addresses);
+
           const evmCoreModule = new EvmCoreModule(argv.context.multiProvider, {
             chain: argv.chain,
             config,
-            addresses: coreAddresses,
+            addresses: evmCoreAddresses,
           });
 
           const transactions = await evmCoreModule.update(config);

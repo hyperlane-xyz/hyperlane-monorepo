@@ -25,8 +25,8 @@ import {
   CoreConfig,
   CoreConfigHookFieldKey,
   CoreConfigSchema,
-  DeployedCoreAddresses,
   DerivedCoreConfig,
+  EvmCoreAddresses,
 } from '../core/types.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import {
@@ -62,7 +62,7 @@ import { CoreFactories } from './contracts.js';
 export class EvmCoreModule extends HyperlaneModule<
   ProtocolType.Ethereum,
   CoreConfig,
-  DeployedCoreAddresses
+  EvmCoreAddresses
 > {
   protected logger = rootLogger.child({ module: 'EvmCoreModule' });
   protected coreReader: EvmCoreReader;
@@ -74,7 +74,7 @@ export class EvmCoreModule extends HyperlaneModule<
 
   constructor(
     protected readonly multiProvider: MultiProvider,
-    args: HyperlaneModuleParams<CoreConfig, DeployedCoreAddresses>,
+    args: HyperlaneModuleParams<CoreConfig, EvmCoreAddresses>,
   ) {
     super(args);
     this.coreReader = new EvmCoreReader(multiProvider, args.chain);
@@ -339,7 +339,7 @@ export class EvmCoreModule extends HyperlaneModule<
     multiProvider: MultiProvider;
     chain: ChainNameOrId;
     contractVerifier?: ContractVerifier;
-  }): Promise<DeployedCoreAddresses> {
+  }): Promise<EvmCoreAddresses> {
     const { config, multiProvider, chain, contractVerifier } = params;
     const { name: chainName, technicalStack } =
       multiProvider.getChainMetadata(chain);

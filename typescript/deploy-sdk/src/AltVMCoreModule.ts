@@ -1,9 +1,9 @@
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
+  BaseCoreAddresses,
   CoreConfig,
   CoreModuleType,
-  DeployedCoreAddresses,
   DerivedCoreConfig,
 } from '@hyperlane-xyz/provider-sdk/core';
 import {
@@ -50,7 +50,7 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
     return this.coreReader.deriveCoreConfig(this.args.addresses.mailbox);
   }
 
-  public serialize(): DeployedCoreAddresses {
+  public serialize(): BaseCoreAddresses {
     return this.args.addresses;
   }
 
@@ -82,7 +82,7 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
     chainLookup: ChainLookup;
     chain: string;
     signer: AltVM.ISigner<AnnotatedTx, TxReceipt>;
-  }): Promise<DeployedCoreAddresses> {
+  }): Promise<BaseCoreAddresses> {
     const { config, chainLookup, chain, signer } = params;
 
     const metadata = chainLookup.getChainMetadata(chain);
@@ -164,61 +164,28 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
       mailboxAddress: mailbox.mailboxAddress,
     });
 
-    const addresses: DeployedCoreAddresses = {
+    const addresses: BaseCoreAddresses = {
       mailbox: mailbox.mailboxAddress,
-      staticMerkleRootMultisigIsmFactory: '',
       proxyAdmin: '',
-      staticMerkleRootWeightedMultisigIsmFactory: '',
-      staticAggregationHookFactory: '',
-      staticAggregationIsmFactory: '',
-      staticMessageIdMultisigIsmFactory: '',
-      staticMessageIdWeightedMultisigIsmFactory: '',
       validatorAnnounce: validatorAnnounce.validatorAnnounceId,
       testRecipient: '',
       interchainAccountRouter: '',
-      domainRoutingIsmFactory: '',
     };
 
-    if (config.defaultIsm && typeof config.defaultIsm !== 'string') {
-      switch (config.defaultIsm.type) {
-        case 'merkleRootMultisigIsm': {
-          addresses.staticMerkleRootMultisigIsmFactory = defaultIsm;
-          break;
-        }
-        case 'messageIdMultisigIsm': {
-          addresses.staticMessageIdMultisigIsmFactory = defaultIsm;
-          break;
-        }
-        case 'domainRoutingIsm': {
-          addresses.domainRoutingIsmFactory = defaultIsm;
-          break;
-        }
-      }
-    }
-
+    // Set optional hook addresses based on what was deployed
     if (config.defaultHook && typeof config.defaultHook !== 'string') {
-      switch (config.defaultHook.type) {
-        case 'interchainGasPaymaster': {
-          addresses.interchainGasPaymaster = defaultHook;
-          break;
-        }
-        case 'merkleTreeHook': {
-          addresses.merkleTreeHook = defaultHook;
-          break;
-        }
+      if (config.defaultHook.type === 'interchainGasPaymaster') {
+        addresses.interchainGasPaymaster = defaultHook;
+      } else if (config.defaultHook.type === 'merkleTreeHook') {
+        addresses.merkleTreeHook = defaultHook;
       }
     }
 
     if (config.requiredHook && typeof config.requiredHook !== 'string') {
-      switch (config.requiredHook.type) {
-        case 'interchainGasPaymaster': {
-          addresses.interchainGasPaymaster = requiredHook;
-          break;
-        }
-        case 'merkleTreeHook': {
-          addresses.merkleTreeHook = requiredHook;
-          break;
-        }
+      if (config.requiredHook.type === 'interchainGasPaymaster') {
+        addresses.interchainGasPaymaster = requiredHook;
+      } else if (config.requiredHook.type === 'merkleTreeHook') {
+        addresses.merkleTreeHook = requiredHook;
       }
     }
 
