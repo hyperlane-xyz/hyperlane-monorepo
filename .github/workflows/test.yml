@@ -167,6 +167,9 @@ jobs:
         run: |
           echo "FOUNDRY_RPC_URL_ARBITRUM=${MAINNET3_ARBITRUM_RPC_URLS%%,*}" >> $GITHUB_ENV
 
+      - name: foundry-install
+        uses: foundry-rs/foundry-toolchain@v1
+
       - name: yarn-build
         uses: ./.github/actions/yarn-build-with-cache
         with:

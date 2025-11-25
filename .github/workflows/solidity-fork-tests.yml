@@ -1,0 +1,66 @@
+name: Solidity Fork Tests
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/solidity-fork-tests.yml'
+  pull_request:
+    paths:
+      - '.github/workflows/solidity-fork-tests.yml'
+  schedule:
+    # Run daily at 6:00 UTC
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: solidity-fork-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fork-tests:
+    runs-on: depot-ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: foundry-install
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Set Foundry RPC URLs for fork tests
+        env:
+          MAINNET3_ETHEREUM_RPC_URLS: ${{ secrets.MAINNET3_ETHEREUM_RPC_URLS }}
+          MAINNET3_OPTIMISM_RPC_URLS: ${{ secrets.MAINNET3_OPTIMISM_RPC_URLS }}
+          MAINNET3_POLYGON_RPC_URLS: ${{ secrets.MAINNET3_POLYGON_RPC_URLS }}
+          MAINNET3_ARBITRUM_RPC_URLS: ${{ secrets.MAINNET3_ARBITRUM_RPC_URLS }}
+          MAINNET3_BASE_RPC_URLS: ${{ secrets.MAINNET3_BASE_RPC_URLS }}
+        run: |
+          # Extract first URL from comma-separated list and update foundry.toml
+          if [ -n "$MAINNET3_ETHEREUM_RPC_URLS" ]; then
+            sed -i "s|mainnet = \".*\"|mainnet = \"${MAINNET3_ETHEREUM_RPC_URLS%%,*}\"|" solidity/foundry.toml
+          fi
+          if [ -n "$MAINNET3_OPTIMISM_RPC_URLS" ]; then
+            sed -i "s|optimism = \".*\"|optimism = \"${MAINNET3_OPTIMISM_RPC_URLS%%,*}\"|" solidity/foundry.toml
+          fi
+          if [ -n "$MAINNET3_POLYGON_RPC_URLS" ]; then
+            sed -i "s|polygon = \".*\"|polygon = \"${MAINNET3_POLYGON_RPC_URLS%%,*}\"|" solidity/foundry.toml
+          fi
+          if [ -n "$MAINNET3_ARBITRUM_RPC_URLS" ]; then
+            sed -i "s|arbitrum = \".*\"|arbitrum = \"${MAINNET3_ARBITRUM_RPC_URLS%%,*}\"|" solidity/foundry.toml
+          fi
+          if [ -n "$MAINNET3_BASE_RPC_URLS" ]; then
+            sed -i "s|base = \".*\"|base = \"${MAINNET3_BASE_RPC_URLS%%,*}\"|" solidity/foundry.toml
+          fi
+
+      - name: yarn-build
+        uses: ./.github/actions/yarn-build-with-cache
+
+      - name: Run Fork Tests
+        working-directory: ./solidity
+        run: |
+          yarn fixtures
+          forge test -vvv --match-test testFork
+          forge test -vvv --match-contract ForkTest
