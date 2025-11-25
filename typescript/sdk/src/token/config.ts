@@ -1,23 +1,25 @@
-export enum TokenType {
-  synthetic = 'synthetic',
-  syntheticRebase = 'syntheticRebase',
-  syntheticUri = 'syntheticUri',
-  collateral = 'collateral',
-  collateralVault = 'collateralVault',
-  collateralVaultRebase = 'collateralVaultRebase',
-  XERC20 = 'xERC20',
-  XERC20Lockbox = 'xERC20Lockbox',
-  collateralFiat = 'collateralFiat',
-  collateralUri = 'collateralUri',
-  collateralCctp = 'collateralCctp',
-  collateralEverclear = 'collateralEverclear',
-  native = 'native',
-  nativeOpL2 = 'nativeOpL2',
-  nativeOpL1 = 'nativeOpL1',
-  ethEverclear = 'ethEverclear',
+export const TokenType = {
+  synthetic: 'synthetic',
+  syntheticRebase: 'syntheticRebase',
+  syntheticUri: 'syntheticUri',
+  collateral: 'collateral',
+  collateralVault: 'collateralVault',
+  collateralVaultRebase: 'collateralVaultRebase',
+  XERC20: 'xERC20',
+  XERC20Lockbox: 'xERC20Lockbox',
+  collateralFiat: 'collateralFiat',
+  collateralUri: 'collateralUri',
+  collateralCctp: 'collateralCctp',
+  collateralEverclear: 'collateralEverclear',
+  native: 'native',
+  nativeOpL2: 'nativeOpL2',
+  nativeOpL1: 'nativeOpL1',
+  ethEverclear: 'ethEverclear',
   // backwards compatible alias to native
-  nativeScaled = 'nativeScaled',
-}
+  nativeScaled: 'nativeScaled',
+} as const;
+
+export type TokenType = (typeof TokenType)[keyof typeof TokenType];
 
 // A token is defined movable collateral if its solidity contract implementation
 // is a subclass of MovableCollateralRouter
@@ -48,8 +50,8 @@ export type MovableTokenType = {
 }[keyof typeof isMovableCollateralTokenTypeMap];
 
 export type EverclearTokenBridgeTokenType =
-  | TokenType.ethEverclear
-  | TokenType.collateralEverclear;
+  | typeof TokenType.ethEverclear
+  | typeof TokenType.collateralEverclear;
 
 export function isMovableCollateralTokenType(type: TokenType): boolean {
   return !!isMovableCollateralTokenTypeMap[type];
@@ -60,6 +62,7 @@ export const gasOverhead = (tokenType: TokenType): number => {
     case TokenType.synthetic:
       return 64_000;
     case TokenType.native:
+    case TokenType.nativeScaled:
       return 44_000;
     default:
       return 68_000;

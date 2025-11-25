@@ -16,11 +16,13 @@ COPY typescript/ccip-server/prisma ./typescript/ccip-server/prisma
 COPY typescript/cli/package.json ./typescript/cli/
 COPY typescript/cosmos-sdk/package.json ./typescript/cosmos-sdk/
 COPY typescript/cosmos-types/package.json ./typescript/cosmos-types/
+COPY typescript/deploy-sdk/package.json ./typescript/deploy-sdk/
 COPY typescript/eslint-config/package.json ./typescript/eslint-config/
 COPY typescript/github-proxy/package.json ./typescript/github-proxy/
 COPY typescript/helloworld/package.json ./typescript/helloworld/
 COPY typescript/http-registry-server/package.json ./typescript/http-registry-server/
 COPY typescript/infra/package.json ./typescript/infra/
+COPY typescript/provider-sdk/package.json ./typescript/provider-sdk/
 COPY typescript/radix-sdk/package.json ./typescript/radix-sdk/
 COPY typescript/sdk/package.json ./typescript/sdk/
 COPY typescript/tsconfig/package.json ./typescript/tsconfig/

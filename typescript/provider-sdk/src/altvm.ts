@@ -1,5 +1,5 @@
 import { MinimumRequiredGasByAction } from './mingas.js';
-import { ProtocolType } from './types.js';
+import type { ProtocolType } from './protocol.js';
 
 // ### QUERY BASE ###
 export type ReqGetBalance = { address: string; denom?: string };
@@ -160,6 +160,7 @@ export type ResGetToken = {
   tokenType: TokenType;
   mailboxAddress: string;
   ismAddress: string;
+  hookAddress: string;
   denom: string;
   name: string;
   symbol: string;
@@ -301,6 +302,7 @@ export type ResCreateMerkleTreeHook = {
 
 export type ReqCreateInterchainGasPaymasterHook = {
   signer: string;
+  mailboxAddress: string;
   denom?: string;
 };
 export type ResCreateInterchainGasPaymasterHook = {
@@ -350,6 +352,7 @@ export type ResRemoveDestinationGasConfig = {
 
 export type ReqCreateNoopHook = {
   signer: string;
+  mailboxAddress: string;
 };
 export type ResCreateNoopHook = {
   hookAddress: string;
@@ -409,6 +412,15 @@ export type ReqSetTokenIsm = {
 };
 export type ResSetTokenIsm = {
   ismAddress: string;
+};
+
+export type ReqSetTokenHook = {
+  signer: string;
+  tokenAddress: string;
+  hookAddress: string;
+};
+export type ResSetTokenHook = {
+  hookAddress: string;
 };
 
 export type ReqEnrollRemoteRouter = {
@@ -587,6 +599,8 @@ export interface IProvider<T = any> {
 
   getSetTokenIsmTransaction(req: ReqSetTokenIsm): Promise<T>;
 
+  getSetTokenHookTransaction(req: ReqSetTokenHook): Promise<T>;
+
   getEnrollRemoteRouterTransaction(req: ReqEnrollRemoteRouter): Promise<T>;
 
   getUnenrollRemoteRouterTransaction(req: ReqUnenrollRemoteRouter): Promise<T>;
@@ -704,6 +718,8 @@ export interface ISigner<T, R> extends IProvider<T> {
   ): Promise<ResSetTokenOwner>;
 
   setTokenIsm(req: Omit<ReqSetTokenIsm, 'signer'>): Promise<ResSetTokenIsm>;
+
+  setTokenHook(req: Omit<ReqSetTokenHook, 'signer'>): Promise<ResSetTokenHook>;
 
   enrollRemoteRouter(
     req: Omit<ReqEnrollRemoteRouter, 'signer'>,

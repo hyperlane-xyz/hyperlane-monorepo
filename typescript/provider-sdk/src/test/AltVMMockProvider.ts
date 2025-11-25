@@ -1,4 +1,4 @@
-import { AltVM } from '@hyperlane-xyz/utils';
+import * as AltVM from '../altvm.js';
 
 type MockTransaction = any;
 
@@ -257,6 +257,12 @@ export class MockProvider implements AltVM.IProvider {
 
   async getSetTokenIsmTransaction(
     _req: AltVM.ReqSetTokenIsm,
+  ): Promise<MockTransaction> {
+    throw new Error(`not implemented`);
+  }
+
+  async getSetTokenHookTransaction(
+    _req: AltVM.ReqSetTokenHook,
   ): Promise<MockTransaction> {
     throw new Error(`not implemented`);
   }

@@ -14,7 +14,10 @@ import {
   runMultiChainSelectionStep,
   runSingleChainSelectionStep,
 } from '../../../utils/chains.js';
-import { getWarpConfigs } from '../../../utils/warp.js';
+import {
+  getWarpConfigs,
+  getWarpCoreConfigOrExit,
+} from '../../../utils/warp.js';
 import { requestAndSaveApiKeys } from '../../context.js';
 
 import { ChainResolver } from './types.js';
@@ -23,10 +26,13 @@ enum ChainSelectionMode {
   AGENT_KURTOSIS,
   WARP_CONFIG,
   WARP_APPLY,
+  WARP_READ,
   WARP_REBALANCER,
   STRATEGY,
   CORE_APPLY,
   CORE_DEPLOY,
+  CORE_READ,
+  CORE_CHECK,
   DEFAULT,
 }
 
@@ -46,10 +52,15 @@ export class MultiChainResolver implements ChainResolver {
         return this.resolveWarpRouteConfigChains(argv);
       case ChainSelectionMode.WARP_APPLY:
         return this.resolveWarpApplyChains(argv);
+      case ChainSelectionMode.WARP_READ:
+        return this.resolveWarpReadChains(argv);
       case ChainSelectionMode.WARP_REBALANCER:
         return this.resolveWarpRebalancerChains(argv);
       case ChainSelectionMode.AGENT_KURTOSIS:
         return this.resolveAgentChains(argv);
+      case ChainSelectionMode.CORE_CHECK:
+      case ChainSelectionMode.CORE_READ:
+        return this.resolveChain(argv);
       case ChainSelectionMode.CORE_APPLY:
         return this.resolveCoreApplyChains(argv);
       case ChainSelectionMode.CORE_DEPLOY:
@@ -76,6 +87,38 @@ export class MultiChainResolver implements ChainResolver {
       'No chains found in warp route deployment config',
     );
     return argv.context.chains;
+  }
+
+  private async resolveWarpReadChains(
+    argv: Record<string, any>,
+  ): Promise<ChainName[]> {
+    if (argv.chain) {
+      argv.context.chains = await this.resolveChain(argv);
+    }
+
+    if (argv.symbol || argv.warpRouteId) {
+      const warpCoreConfig = await getWarpCoreConfigOrExit({
+        context: argv.context,
+        symbol: argv.symbol,
+        warpRouteId: argv.warpRouteId,
+      });
+      argv.context.chains = warpCoreConfig.tokens.map(
+        (token) => token.chainName,
+      );
+    }
+
+    assert(
+      argv.context.chains && argv.context.chains.length !== 0,
+      'No chains found set in parameters',
+    );
+
+    return argv.context.chains;
+  }
+
+  private async resolveChain(argv: Record<string, any>): Promise<ChainName[]> {
+    const chains = argv.chain ? [argv.chain] : [];
+    assert(chains.length !== 0, 'No chains found set in parameters');
+    return chains;
   }
 
   private async resolveWarpApplyChains(
@@ -265,8 +308,13 @@ export class MultiChainResolver implements ChainResolver {
   static forWarpRouteConfig(): MultiChainResolver {
     return new MultiChainResolver(ChainSelectionMode.WARP_CONFIG);
   }
+
   static forWarpApply(): MultiChainResolver {
     return new MultiChainResolver(ChainSelectionMode.WARP_APPLY);
+  }
+
+  static forWarpRead(): MultiChainResolver {
+    return new MultiChainResolver(ChainSelectionMode.WARP_READ);
   }
 
   static forWarpRebalancer(): MultiChainResolver {
@@ -279,6 +327,14 @@ export class MultiChainResolver implements ChainResolver {
 
   static forCoreDeploy(): MultiChainResolver {
     return new MultiChainResolver(ChainSelectionMode.CORE_DEPLOY);
+  }
+
+  static forCoreRead(): MultiChainResolver {
+    return new MultiChainResolver(ChainSelectionMode.CORE_READ);
+  }
+
+  static forCoreCheck(): MultiChainResolver {
+    return new MultiChainResolver(ChainSelectionMode.CORE_CHECK);
   }
 
   static default(): MultiChainResolver {

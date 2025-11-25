@@ -300,7 +300,7 @@ export const multisigIsmConfigPath = (
  * restricted to config type MESSAGE_ID_MULTISIG
  */
 export type SvmMultisigConfig = Omit<MultisigIsmConfig, 'type'> & {
-  type: IsmType.MESSAGE_ID_MULTISIG;
+  type: typeof IsmType.MESSAGE_ID_MULTISIG;
 };
 export type SvmMultisigConfigMap = ChainMap<SvmMultisigConfig>;
 

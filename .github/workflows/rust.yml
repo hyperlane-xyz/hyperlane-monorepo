@@ -80,9 +80,6 @@ jobs:
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
       - name: Install mold linker
         uses: rui314/setup-mold@v1
-        with:
-          mold-version: 2.0.0
-          make-default: true
       - name: Run sccache-cache
         uses: mozilla-actions/sccache-action@v0.0.9
       - name: Run tests for main workspace
