@@ -1,6 +1,7 @@
 use {
     crate::DangoResult,
-    dango_client::SingleSigner,
+    dango_client::{Secp256k1, Secret, SingleSigner},
+    dango_types::auth::Nonce,
     grug::{Addr, Defined},
     std::{ops::Deref, sync::Arc},
     tokio::sync::RwLock,
@@ -9,12 +10,13 @@ use {
 #[derive(Clone, Debug)]
 pub struct DangoSigner {
     pub address: Addr,
-    key: Arc<RwLock<SingleSigner<Defined<u32>>>>,
+    key: Arc<RwLock<SingleSigner<Secp256k1, Defined<Nonce>>>>,
 }
 
 impl DangoSigner {
     pub fn new(username: &str, key: [u8; 32], address: Addr) -> DangoResult<Self> {
-        let sign = SingleSigner::from_private_key(username, address, key)?;
+        let secret = Secp256k1::from_bytes(key)?;
+        let sign = SingleSigner::new(username, address, secret)?;
         Ok(Self {
             address,
             key: Arc::new(RwLock::new(sign.with_nonce(0))),
@@ -23,7 +25,8 @@ impl DangoSigner {
 }
 
 impl Deref for DangoSigner {
-    type Target = Arc<RwLock<SingleSigner<Defined<u32>>>>;
+    type Target = Arc<RwLock<SingleSigner<Secp256k1, Defined<Nonce>>>>;
+
     fn deref(&self) -> &Self::Target {
         &self.key
     }

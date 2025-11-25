@@ -245,8 +245,8 @@ impl DangoProvider {
             .await?;
 
         Ok((
-            wasm_smart_response?.as_wasm_smart().deserialize_json()?,
-            status_response?.as_status().last_finalized_block.height,
+            wasm_smart_response?.into_wasm_smart().deserialize_json()?,
+            status_response?.into_status().last_finalized_block.height,
         ))
     }
 }

@@ -129,7 +129,7 @@ pin-project = "1.1.9"
 pretty_env_logger = "0.5.0"
 primitive-types = "=0.12.1"
 prometheus = "0.13"
-protobuf = "*"
+protobuf = "2.28"
 rand = "0.8.5"
 regex = "1.5"
 reqwest = "0.11"
@@ -209,17 +209,17 @@ hyperlane-cosmos-rs = "0.1.4"
 
 
 ## dango
-grug = { git = "https://github.com/left-curve/left-curve.git", rev = "8d659bd847d16f105c560230dfff9a867cc34998" }
-grug-app = { git = "https://github.com/left-curve/left-curve.git", rev = "8d659bd847d16f105c560230dfff9a867cc34998" }
-grug-jmt = { git = "https://github.com/left-curve/left-curve.git", rev = "8d659bd847d16f105c560230dfff9a867cc34998" }
-grug-indexer-client = { git = "https://github.com/left-curve/left-curve.git", package = "indexer-client", rev = "8d659bd847d16f105c560230dfff9a867cc34998" }
-dango-types = { git = "https://github.com/left-curve/left-curve.git", rev = "8d659bd847d16f105c560230dfff9a867cc34998" }
-dango-client = { git = "https://github.com/left-curve/left-curve.git", rev = "8d659bd847d16f105c560230dfff9a867cc34998" }
-dango-hyperlane-types = { git = "https://github.com/left-curve/left-curve.git", package = "hyperlane-types", rev = "8d659bd847d16f105c560230dfff9a867cc34998" }
-dango-hyperlane-testing = { git = "https://github.com/left-curve/left-curve.git", package = "hyperlane-testing", rev = "8d659bd847d16f105c560230dfff9a867cc34998" }
-dango-mock-httpd = { git = "https://github.com/left-curve/left-curve.git", rev = "8d659bd847d16f105c560230dfff9a867cc34998" }
-dango-testing = { git = "https://github.com/left-curve/left-curve.git", rev = "8d659bd847d16f105c560230dfff9a867cc34998" }
-dango-genesis = { git = "https://github.com/left-curve/left-curve.git", rev = "8d659bd847d16f105c560230dfff9a867cc34998" }
+grug = { git = "https://github.com/left-curve/left-curve.git", rev = "427f48d" }
+grug-app = { git = "https://github.com/left-curve/left-curve.git", rev = "427f48d" }
+grug-jmt = { git = "https://github.com/left-curve/left-curve.git", rev = "427f48d" }
+grug-indexer-client = { git = "https://github.com/left-curve/left-curve.git", package = "indexer-client", rev = "427f48d" }
+dango-types = { git = "https://github.com/left-curve/left-curve.git", rev = "427f48d" }
+dango-client = { git = "https://github.com/left-curve/left-curve.git", rev = "427f48d" }
+dango-hyperlane-types = { git = "https://github.com/left-curve/left-curve.git", package = "hyperlane-types", rev = "427f48d" }
+dango-hyperlane-testing = { git = "https://github.com/left-curve/left-curve.git", package = "hyperlane-testing", rev = "427f48d" }
+dango-mock-httpd = { git = "https://github.com/left-curve/left-curve.git", rev = "427f48d" }
+dango-testing = { git = "https://github.com/left-curve/left-curve.git", rev = "427f48d" }
+dango-genesis = { git = "https://github.com/left-curve/left-curve.git", rev = "427f48d" }
 
 ## TODO: remove this
 cosmwasm-schema = "2.2.0"

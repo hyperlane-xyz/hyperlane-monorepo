@@ -87,7 +87,7 @@ impl Mailbox for DangoMailbox {
                 None,
             )
             .await?
-            .as_interchain_security_module()
+            .into_interchain_security_module()
         {
             Ok(ism.convert())
         } else {
