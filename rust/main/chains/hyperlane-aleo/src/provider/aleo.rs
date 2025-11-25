@@ -42,7 +42,7 @@ pub struct AleoProvider<C: AleoClient = FallbackHttpClient> {
     client: RpcClient<C>,
     domain: HyperlaneDomain,
     network: u16,
-    proofing_service: Option<ProvingClient<C>>,
+    proving_service: Option<ProvingClient<C>>,
     signer: Option<AleoSigner>,
     priority_fee_multiplier: f64,
 }
@@ -54,8 +54,8 @@ impl AleoProvider<FallbackHttpClient> {
         domain: HyperlaneDomain,
         signer: Option<AleoSigner>,
     ) -> ChainResult<Self> {
-        let proofing_service = if !conf.proofing_service.is_empty() {
-            let client = FallbackHttpClient::new(conf.proofing_service.clone())?;
+        let proving_service = if !conf.proving_service.is_empty() {
+            let client = FallbackHttpClient::new(conf.proving_service.clone())?;
             Some(ProvingClient::new(client))
         } else {
             None
@@ -65,7 +65,7 @@ impl AleoProvider<FallbackHttpClient> {
             client: RpcClient::new(FallbackHttpClient::new(conf.rpcs.clone())?),
             domain,
             network: conf.chain_id,
-            proofing_service,
+            proving_service,
             signer,
             priority_fee_multiplier: conf.priority_fee_multiplier,
         })
@@ -85,7 +85,7 @@ impl<C: AleoClient> AleoProvider<C> {
             client: RpcClient::new(client),
             domain,
             network: chain_id,
-            proofing_service: None,
+            proving_service: None,
             signer: signer,
             priority_fee_multiplier: 0.0,
         }
@@ -127,11 +127,8 @@ impl<C: AleoClient> AleoProvider<C> {
         debug!("Getting program: {}", program_id);
         let program = self.get_program(program_id).await?;
 
-        for imports in program.imports().keys() {
-            if imports == program_id {
-                continue;
-            }
-            let future = Box::pin(self.load_program(vm, imports, depth.saturating_add(1)));
+        for import in program.imports().keys() {
+            let future = Box::pin(self.load_program(vm, import, depth.saturating_add(1)));
             future.await?;
         }
 
@@ -335,9 +332,9 @@ impl<C: AleoClient> AleoProvider<C> {
             .map_err(HyperlaneAleoError::from)?;
         let time = Instant::now().duration_since(start);
 
-        // Either use the proofing service or generate the proof locally
-        let transaction = match self.proofing_service {
-            Some(ref client) => client.proofing_request(authorization, fee).await,
+        // Either use the proving service or generate the proof locally
+        let transaction = match self.proving_service {
+            Some(ref client) => client.proving_request(authorization, fee).await,
             None => Ok(vm
                 .execute_authorization(authorization, Some(fee), Some(&self.client), &mut rng)
                 .map_err(HyperlaneAleoError::from)?),

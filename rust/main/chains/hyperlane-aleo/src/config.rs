@@ -16,8 +16,8 @@ pub struct ConnectionConf {
     pub validator_announce_program: String,
     /// Chain Id
     pub chain_id: u16,
-    /// Proofing service
-    pub proofing_service: Vec<Url>,
+    /// Proving service
+    pub proving_service: Vec<Url>,
     /// Priority fee multiplier
     /// This multiplier will be multiplied by the base fee to determine the priority fee to include in transactions
     pub priority_fee_multiplier: f64,
@@ -34,7 +34,7 @@ impl ConnectionConf {
         validator_announce_program: String,
         chain_id: u16,
         consensus_heights: Option<Vec<u32>>,
-        proofing_service: Vec<Url>,
+        proving_service: Vec<Url>,
         priority_fee_multiplier: f64,
     ) -> Self {
         if let Some(consensus_heights) = consensus_heights {
@@ -62,7 +62,7 @@ impl ConnectionConf {
             ism_manager_program,
             validator_announce_program,
             chain_id,
-            proofing_service,
+            proving_service,
             priority_fee_multiplier,
         }
     }
