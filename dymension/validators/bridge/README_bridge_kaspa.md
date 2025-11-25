@@ -310,7 +310,7 @@ cp -r ${HOME}/hyperlane-monorepo/dymension/validators/bridge/artifacts/<network>
 
 **Configure agent to use AWS KMS:**
 
-1. Add a pointer to your AWS hosted key which allows minting of KAS on Dymension (replacing the preexisting 'validator' subobject):
+1. Add a pointer to your AWS hosted key which allows minting of KAS on Dymension (⚠️ *replacing* the preexisting 'validator' subobject ⚠️):
 
 ```json
 // in the TOP LEVEL object
@@ -321,7 +321,7 @@ cp -r ${HOME}/hyperlane-monorepo/dymension/validators/bridge/artifacts/<network>
     }
 ```
 
-2. Add a pointer to your AWS hosted key which allows release KAS escrow:
+2. Add a pointer to your AWS hosted key which allows release KAS escrow (⚠️ this is a new field ⚠️):
 
 ```json
 // in the chains.<kaspa-network-name> object
