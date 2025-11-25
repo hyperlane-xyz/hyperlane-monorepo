@@ -15,6 +15,7 @@ mod provider;
 mod signer;
 mod types;
 mod utils;
+mod validator_announce;
 
 pub(crate) use types::*;
 
@@ -22,4 +23,5 @@ pub use {
     config::*, error::*, indexer::AleoDeliveryIndexer, indexer::AleoDispatchIndexer,
     indexer::AleoInterchainGasIndexer, indexer::AleoMerkleTreeHook, ism::AleoIsm,
     mailbox::AleoMailbox, provider::AleoProvider, signer::AleoSigner,
+    validator_announce::AleoValidatorAnnounce,
 };

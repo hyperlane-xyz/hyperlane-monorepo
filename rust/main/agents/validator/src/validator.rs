@@ -477,7 +477,7 @@ impl Validator {
             validator: address,
             mailbox_address: self.mailbox.address(),
             mailbox_domain: self.mailbox.domain().id(),
-            storage_location: announcement_location.clone(),
+            storage_location: self.announcement_location()?, // Use formatted location for the signed announcement
         };
         let signed_announcement = self.signer.sign(announcement.clone()).await?;
         self.checkpoint_syncer
@@ -562,5 +562,34 @@ impl Validator {
                 .report_with_reorg_period(&reorg_event.reorg_period)
                 .await;
         }
+    }
+
+    fn announcement_location(&self) -> Result<String> {
+        let location = self.checkpoint_syncer.announcement_location();
+        if self.origin_chain.domain_protocol() == hyperlane_core::HyperlaneDomainProtocol::Aleo {
+            Self::aleo_announcement_location(location)
+        } else {
+            Ok(location)
+        }
+    }
+
+    fn aleo_announcement_location(announcement_location: String) -> Result<String> {
+        // Aleo announcement locations are fixed size C strings of 480 bytes (include nulls)
+        let mut bytes = announcement_location.into_bytes();
+        // Ensure it fits within 479 bytes (leaving room for null terminator)
+        if bytes.len() > 479 {
+            return Err(eyre!(
+                "Aleo announcement location too long: {} bytes (max 479)",
+                bytes.len()
+            ));
+        }
+        // Pad remaining bytes with nulls up to 480 total
+        bytes.resize(480, 0);
+        String::from_utf8(bytes).map_err(|e| {
+            eyre!(
+                "Failed to convert Aleo announcement location to string: {}",
+                e
+            )
+        })
     }
 }

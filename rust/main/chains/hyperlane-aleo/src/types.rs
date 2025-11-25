@@ -278,3 +278,13 @@ pub struct FeeEstimate {
     /// Total fee
     pub total_fee: u64,
 }
+
+/// Storage location
+#[aleo_serialize]
+#[derive(Debug)]
+pub struct StorageLocationKey {
+    /// Validator
+    pub validator: [u8; 20],
+    /// Index
+    pub index: u8,
+}
