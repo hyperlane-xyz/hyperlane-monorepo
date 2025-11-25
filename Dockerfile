@@ -9,7 +9,7 @@ COPY package.json ./
 RUN corepack enable && corepack install
 
 # Copy remaining config files
-COPY pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+COPY pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY patches ./patches
 
 COPY typescript/ccip-server/package.json ./typescript/ccip-server/
