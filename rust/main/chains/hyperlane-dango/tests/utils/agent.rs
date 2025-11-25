@@ -8,7 +8,8 @@ use {
     hyperlane_dango::DangoConvertor,
     std::{
         collections::{BTreeMap, BTreeSet},
-        path::PathBuf,
+        fs,
+        path::{Path, PathBuf},
         process::{Child, Command},
         vec,
     },
@@ -16,21 +17,29 @@ use {
     tracing::info,
 };
 
-pub enum CheckpointSyncerLocation {
-    LocalStorage,
+pub enum Location {
+    Temp,
+    Persistent(PathBuf),
+}
+
+impl Location {
+    pub fn persistent<P: AsRef<Path>>(path: P) -> Self {
+        Self::Persistent(path.as_ref().to_path_buf())
+    }
 }
 
 #[derive(Default)]
 pub struct AgentBuilder<'a> {
     agent: Agent,
     addresses: BTreeMap<&'a str, AppAddresses>,
-    checkpoint_syncer: Option<CheckpointSyncerLocation>,
+    checkpoint_syncer: Option<CheckpointSyncer>,
     origin_chain_name: Option<OriginChainName>,
     allow_local_checkpoint_syncer: Option<AllowLocalCheckpointSyncer>,
     chain_signers: BTreeMap<&'a str, SignerConf>,
     validator_signer: Option<ValidatorSigner>,
     relay_chains: Option<RelayChains<'a>>,
     metrics_port: Option<MetricsPort>,
+    db: Option<Db>,
     chain_helpers: BTreeMap<&'a str, &'a ChainHelper>,
 }
 
@@ -57,8 +66,8 @@ impl<'a> AgentBuilder<'a> {
         self
     }
 
-    pub fn with_checkpoint_syncer(mut self, checkpoint_syncer: CheckpointSyncerLocation) -> Self {
-        self.checkpoint_syncer = Some(checkpoint_syncer);
+    pub fn with_checkpoint_syncer(mut self, location: Location) -> Self {
+        self.checkpoint_syncer = Some(CheckpointSyncer(location));
         self
     }
 
@@ -97,38 +106,54 @@ impl<'a> AgentBuilder<'a> {
     pub fn launch(self) -> Child {
         let path = format!("./target/debug/{}", self.agent.args().first().unwrap());
 
-        Command::new(path)
-            .args(self.chain_helpers.args())
+        let mut cmd = Command::new(path);
+
+        cmd.args(self.chain_helpers.args())
             .args(self.addresses.args())
             .args(self.origin_chain_name.args())
+            .args(self.db.unwrap_or_default().args())
             .args(self.checkpoint_syncer.args())
             .args(self.chain_signers.args())
             .args(self.validator_signer.args())
             .args(self.relay_chains.args())
             .args(self.allow_local_checkpoint_syncer.args())
             .args(self.metrics_port.args())
-            .args(Db.args())
-            .current_dir(workspace())
-            .spawn()
-            .unwrap()
+            .current_dir(workspace());
+
+        println!("{:?}", cmd.get_args());
+
+        cmd.spawn().unwrap()
+
+        // .spawn()
+        // .unwrap()
     }
 }
 
 // -------------------------------- Args trait ---------------------------------
 
+struct CheckpointSyncer(Location);
+
 pub trait Args {
     fn args(self) -> Vec<String>;
 }
 
-impl Args for CheckpointSyncerLocation {
+impl Args for CheckpointSyncer {
     fn args(self) -> Vec<String> {
-        match self {
-            Self::LocalStorage => {
+        match self.0 {
+            Location::Temp => {
                 vec![
                     "--checkpointSyncer.type".to_string(),
                     "localStorage".to_string(),
                     "--checkpointSyncer.path".to_string(),
-                    TempDir::new().unwrap().path().to_string_lossy().to_string(),
+                    tempdir(),
+                ]
+            }
+            Location::Persistent(path) => {
+                vec![
+                    "--checkpointSyncer.type".to_string(),
+                    "localStorage".to_string(),
+                    "--checkpointSyncer.path".to_string(),
+                    path.to_string_lossy().to_string(),
                 ]
             }
         }
@@ -270,11 +295,27 @@ impl Args for MetricsPort {
     }
 }
 
-pub struct Db;
+pub struct Db(Location);
+
+impl Default for Db {
+    fn default() -> Self {
+        Self(Location::Temp)
+    }
+}
 
 impl Args for Db {
     fn args(self) -> Vec<String> {
-        vec!["--db".to_string(), tempdir()]
+        let path = match self.0 {
+            Location::Temp => tempdir(),
+            Location::Persistent(path) => {
+                if !path.exists() {
+                    fs::create_dir_all(&path).unwrap();
+                }
+                path.to_string_lossy().to_string()
+            }
+        };
+
+        vec!["--db".to_string(), path]
     }
 }
 

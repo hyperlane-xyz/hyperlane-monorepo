@@ -1,7 +1,7 @@
 use {
     crate::utils::{
-        build_agents, startup_tests, try_for, Agent, AgentBuilder, CheckpointSyncerLocation,
-        DangoBuilder, SetupChain, ValidatorKey,
+        build_agents, startup_tests, try_for, Agent, AgentBuilder, DangoBuilder, Location,
+        SetupChain, ValidatorKey,
     },
     dango_types::{constants::dango, gateway::Origin},
     grug::{
@@ -37,7 +37,7 @@ async fn dango_one_way() -> anyhow::Result<()> {
         AgentBuilder::new(Agent::Validator)
             .with_origin_chain_name(chain_name1)
             .with_chain_helper(chain_name1, &ch1)
-            .with_checkpoint_syncer(CheckpointSyncerLocation::LocalStorage)
+            .with_checkpoint_syncer(Location::Temp)
             .with_validator_signer(validator_key.key.clone())
             .with_chain_signer(chain_name1, &ch1.accounts.user2)
             .launch();

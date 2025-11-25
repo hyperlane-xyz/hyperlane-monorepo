@@ -33,7 +33,7 @@ cargo_metadata = { workspace = true }
 dango-mock-httpd = { workspace = true }
 dango-genesis = { workspace = true }
 dango-testing = { workspace = true }
+dango-hyperlane-testing = { workspace = true }
 hyperlane-base = { path = "../../hyperlane-base" }
 k256 = { workspace = true }
 tempfile = { workspace = true }
-

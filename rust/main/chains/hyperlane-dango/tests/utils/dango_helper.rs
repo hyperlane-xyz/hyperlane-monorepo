@@ -201,3 +201,9 @@ impl IntoSignerConf for &TestAccount {
         }
     }
 }
+
+impl IntoSignerConf for SignerConf {
+    fn as_signer_conf(&self) -> SignerConf {
+        self.clone()
+    }
+}

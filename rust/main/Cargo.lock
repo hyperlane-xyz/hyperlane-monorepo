@@ -8945,6 +8945,7 @@ dependencies = [
  "hyperlane-base",
  "hyperlane-core",
  "hyperlane-operation-verifier",
+ "hyperlane-testing",
  "hyperlane-types",
  "indexer-client",
  "k256 0.13.4",

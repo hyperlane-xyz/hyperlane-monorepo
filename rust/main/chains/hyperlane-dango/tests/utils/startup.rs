@@ -1,7 +1,7 @@
 use {
     crate::utils::{
-        dango_helper::ChainHelper, get_free_port, Agent, AgentBuilder, CheckpointSyncerLocation,
-        DangoBuilder, ValidatorKey,
+        dango_helper::ChainHelper, get_free_port, Agent, AgentBuilder, DangoBuilder, Location,
+        ValidatorKey,
     },
     dango_types::gateway::Origin,
     futures_util::try_join,
@@ -84,7 +84,7 @@ fn run_validators(
             AgentBuilder::new(Agent::Validator)
                 .with_origin_chain_name(chain_name)
                 .with_chain_helper(chain_name, ch)
-                .with_checkpoint_syncer(CheckpointSyncerLocation::LocalStorage)
+                .with_checkpoint_syncer(Location::Temp)
                 .with_validator_signer(key.key.clone())
                 .with_chain_signer(chain_name, ch.get_account(&format!("user{}", i)))
                 .with_metrics_port(get_free_port())
