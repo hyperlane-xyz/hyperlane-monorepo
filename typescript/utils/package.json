@@ -54,7 +54,6 @@
     "Typescript"
   ],
   "license": "Apache-2.0",
-  "prepublish": "yarn build",
   "scripts": {
     "dev": "tsc -w",
     "build": "tsc --excludeFiles \"**/*.test.ts\"",

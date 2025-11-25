@@ -83,7 +83,6 @@
   ],
   "license": "Apache-2.0",
   "type": "module",
-  "prepublish": "yarn build",
   "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "scripts": {
     "start:http-registry": "tsx scripts/http-registry.ts",
