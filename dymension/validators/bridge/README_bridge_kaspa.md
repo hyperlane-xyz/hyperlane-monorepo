@@ -351,9 +351,11 @@ cd ~/kaspa
 docker compose up -d
 ```
 
-#### Updating to a newer version
+## APPENDIX (shouldn't run on happy flow)
 
-To update the validator docker image, pull the latest changes from the `main-dym` branch and build the docker image.
+## Updating to a newer version
+
+In a case you need to update the validator docker image, pull the latest changes from the `main-dym` branch and build the docker image.
 
 ```bash
 cd ~/hyperlane-monorepo
