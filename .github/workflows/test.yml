@@ -160,12 +160,6 @@ jobs:
       - name: foundry-install
         uses: foundry-rs/foundry-toolchain@v1
 
-      - name: Set Foundry RPC URLs for fork tests
-        env:
-          MAINNET3_ARBITRUM_RPC_URLS: ${{ secrets.MAINNET3_ARBITRUM_RPC_URLS }}
-        run: |
-          echo "FOUNDRY_RPC_URL_ARBITRUM=${MAINNET3_ARBITRUM_RPC_URLS%%,*}" >> $GITHUB_ENV
-
       - name: yarn-build
         uses: ./.github/actions/yarn-build-with-cache
         with:

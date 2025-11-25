@@ -723,7 +723,7 @@ contract BaseEverclearTokenBridgeForkTest is Test {
 contract EverclearTokenBridgeForkTest is BaseEverclearTokenBridgeForkTest {
     using TypeCasts for *;
 
-    function testFuzz_ForkTransferRemote(uint256 amount) public {
+    function testFork_FuzzTransferRemote(uint256 amount) public {
         // Fund Alice with WETH by wrapping ETH
         amount = bound(amount, 1, 100e6 ether);
         uint depositAmount = amount + FEE_AMOUNT;
