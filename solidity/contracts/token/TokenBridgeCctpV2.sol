@@ -80,6 +80,8 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
         bytes32,
         uint256 amount
     ) internal view override returns (uint256 feeAmount) {
+        // round up because depositForBurn maxFee is an upper bound
+        // enforced offchain by the Iris attestation service without precision loss
         return
             Math.mulDiv(
                 amount,
