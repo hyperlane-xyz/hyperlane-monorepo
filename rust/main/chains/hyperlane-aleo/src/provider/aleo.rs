@@ -18,7 +18,7 @@ use snarkvm::{
         Identifier, MainnetV0, Network, ProgramID, TestnetV0, Value, VM,
     },
 };
-use snarkvm_console_account::{Address, Itertools, PrivateKey};
+use snarkvm_console_account::{Address, PrivateKey};
 
 use hyperlane_core::{
     BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, FixedPointNumber, HyperlaneChain,
@@ -266,24 +266,27 @@ impl<C: AleoClient> AleoProvider<C> {
     }
 
     /// Public estimation entrypoint selecting the network
-    pub async fn estimate_tx(
+    pub async fn estimate_tx<I>(
         &self,
         program_id: &str,
         function_name: &str,
-        input: impl IntoIterator<Item = String>,
-    ) -> ChainResult<FeeEstimate> {
-        let input_vec = input.into_iter().collect_vec();
+        input: I,
+    ) -> ChainResult<FeeEstimate>
+    where
+        I: IntoIterator<Item = String>,
+        I::IntoIter: ExactSizeIterator,
+    {
         match self.chain_id() {
             0 => {
-                self.estimate::<MainnetV0, _, _>(program_id, function_name, input_vec)
+                self.estimate::<MainnetV0, _, _>(program_id, function_name, input)
                     .await
             }
             1 => {
-                self.estimate::<TestnetV0, _, _>(program_id, function_name, input_vec)
+                self.estimate::<TestnetV0, _, _>(program_id, function_name, input)
                     .await
             }
             2 => {
-                self.estimate::<CanaryV0, _, _>(program_id, function_name, input_vec)
+                self.estimate::<CanaryV0, _, _>(program_id, function_name, input)
                     .await
             }
             id => Err(HyperlaneAleoError::UnknownNetwork(id).into()),
@@ -355,13 +358,16 @@ impl<C: AleoClient> AleoProvider<C> {
     }
 
     /// Submits a transaction
-    pub async fn submit_tx(
+    pub async fn submit_tx<I>(
         &self,
         program_id: &str,
-        input: impl IntoIterator<Item = String>,
+        input: I,
         function_name: &str,
-    ) -> ChainResult<TxOutcome> {
-        let input = input.into_iter().collect_vec();
+    ) -> ChainResult<TxOutcome>
+    where
+        I: IntoIterator<Item = String>,
+        I::IntoIter: ExactSizeIterator,
+    {
         let hash = match self.chain_id() {
             0 => {
                 // Mainnet
