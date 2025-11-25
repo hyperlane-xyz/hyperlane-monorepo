@@ -1,4 +1,3 @@
-import { rootLogger } from '@hyperlane-xyz/utils';
+import { Logger, rootLogger } from '@hyperlane-xyz/utils';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const widgetLogger: any = rootLogger.child({ module: 'widgets' });
+export const widgetLogger: Logger = rootLogger.child({ module: 'widgets' });
