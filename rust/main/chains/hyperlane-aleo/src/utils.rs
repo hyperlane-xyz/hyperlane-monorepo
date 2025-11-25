@@ -18,10 +18,10 @@ pub(crate) fn aleo_hash_to_h256(id: &AleoHash) -> H256 {
 pub(crate) fn hash_to_u128(id: &H256) -> ChainResult<[u128; 2]> {
     let first = &id.as_fixed_bytes()[..16];
     let second = &id.as_fixed_bytes()[16..];
-    return Ok([
+    Ok([
         u128::from_bytes_le(first).map_err(HyperlaneAleoError::from)?,
         u128::from_bytes_le(second).map_err(HyperlaneAleoError::from)?,
-    ]);
+    ])
 }
 
 /// Convert a H256 into a TxID
@@ -79,12 +79,14 @@ pub(crate) fn bytes_to_u128_words(bytes: &[u8]) -> [u128; 16] {
 #[macro_export]
 macro_rules! aleo_args {
     ($($arg:expr),* $(,)?) => {{
-        let mut out = Vec::new();
-        $(
-            out.push(aleo_serialize::AleoSerialize::<$crate::CurrentNetwork>::to_plaintext(&$arg).map_err($crate::HyperlaneAleoError::from)?.to_string());
-        )*
-        ::hyperlane_core::ChainResult::Ok(out)
-    }};
+        ::hyperlane_core::ChainResult::Ok(vec![
+            $(
+                aleo_serialize::AleoSerialize::<$crate::CurrentNetwork>::to_plaintext(&$arg)
+                    .map_err($crate::HyperlaneAleoError::from)?
+                    .to_string()
+            ),*
+        ])
+    }}
 }
 
 #[cfg(test)]

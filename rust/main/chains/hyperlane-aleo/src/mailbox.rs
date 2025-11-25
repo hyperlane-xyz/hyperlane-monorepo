@@ -28,12 +28,12 @@ pub struct AleoMailbox {
 impl AleoMailbox {
     /// Returns a new Mailbox
     pub fn new(provider: AleoProvider, locator: &ContractLocator, conf: &ConnectionConf) -> Self {
-        return Self {
+        Self {
             provider,
             address: locator.address,
             program: conf.mailbox_program.clone(),
             domain: locator.domain.clone(),
-        };
+        }
     }
 
     /// Get the ProgramID for a recipient address
@@ -53,8 +53,7 @@ impl AleoMailbox {
             .await
             .map_err(|_| {
                 HyperlaneAleoError::Other(format!(
-                    "Expected recipient to be registered, but was not: {}",
-                    aleo_address,
+                    "Expected recipient to be registered, but was not: {aleo_address}",
                 ))
             })?;
         let program_id =
