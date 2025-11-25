@@ -1,5 +1,6 @@
 node_modules
 test_deploy.env
+results.sarif
 
 **/.env*
 **/tsconfig.tsbuildinfo

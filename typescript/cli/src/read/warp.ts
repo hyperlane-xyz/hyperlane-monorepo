@@ -6,6 +6,7 @@ import {
   IXERC20__factory,
 } from '@hyperlane-xyz/core';
 import { AltVMWarpRouteReader } from '@hyperlane-xyz/deploy-sdk';
+import { hasProtocol } from '@hyperlane-xyz/provider-sdk';
 import {
   ChainMap,
   ChainName,
@@ -20,6 +21,7 @@ import {
 import {
   Address,
   ProtocolType,
+  assert,
   objFilter,
   objMap,
   promiseObjAll,
@@ -72,16 +74,14 @@ export async function runWarpRouteRead({
     addresses,
     (chain, _address): _address is string =>
       context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum ||
-      context.altVmProvider.supports(context.multiProvider.getProtocol(chain)),
+      hasProtocol(context.multiProvider.getProtocol(chain)),
   );
   if (warpCoreConfig) {
     warpCoreConfig.tokens = warpCoreConfig.tokens.filter(
       (config) =>
         context.multiProvider.getProtocol(config.chainName) ===
           ProtocolType.Ethereum ||
-        context.altVmProvider.supports(
-          context.multiProvider.getProtocol(config.chainName),
-        ),
+        hasProtocol(context.multiProvider.getProtocol(config.chainName)),
     );
   }
 
@@ -131,7 +131,8 @@ async function deriveWarpRouteConfigs(
           ).deriveWarpRouteConfig(address);
         }
         default: {
-          const provider = await context.altVmProvider.get(chain);
+          const provider = context.altVmProvider.get(chain);
+          assert(provider, `Cannot find provider for ${chain}`);
           return new AltVMWarpRouteReader(
             altVmChainLookup(multiProvider),
             provider,

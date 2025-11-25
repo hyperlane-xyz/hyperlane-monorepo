@@ -16,6 +16,7 @@ contract HypERC20MovableCollateralRouterTest is Test {
     MockITokenBridge internal vtb;
     ERC20Test internal token;
     uint32 internal constant destinationDomain = 2;
+    uint32 internal constant otherDestinationDomain = 3;
     address internal constant alice = address(1);
 
     function setUp() public {
@@ -79,5 +80,122 @@ contract HypERC20MovableCollateralRouterTest is Test {
         // Assert
         assertEq(token.balanceOf(address(router)), 0);
         assertEq(token.balanceOf(address(vtb)), amount);
+    }
+
+    function test_addBridge_call_with_same_bridge_address_multiple_times()
+        public
+    {
+        // Configuration
+        router.addRebalancer(address(this));
+        router.enrollRemoteRouter(
+            destinationDomain,
+            bytes32(uint256(uint160(alice)))
+        );
+        router.enrollRemoteRouter(
+            otherDestinationDomain,
+            bytes32(uint256(uint160(alice)))
+        );
+
+        // Should call approve to give max allowance to the bridge
+        vm.expectCall(
+            address(token),
+            abi.encodeCall(token.approve, (address(vtb), type(uint256).max))
+        );
+        router.addBridge(destinationDomain, vtb);
+
+        // Verify allowance is set to max
+        assertEq(
+            token.allowance(address(router), address(vtb)),
+            type(uint256).max,
+            "Allowance should be max after first addBridge call"
+        );
+
+        // Second call to addBridge with the same address but different domain should work
+        router.addBridge(otherDestinationDomain, vtb);
+
+        // Allowance should not have changed
+        assertEq(
+            token.allowance(address(router), address(vtb)),
+            type(uint256).max,
+            "Allowance should still be max after second addBridge call"
+        );
+    }
+
+    function test_removeBridge_should_revoke_allowance_if_bridge_is_not_set_for_other_domains()
+        public
+    {
+        // Configuration
+        router.addRebalancer(address(this));
+        router.enrollRemoteRouter(
+            destinationDomain,
+            bytes32(uint256(uint160(alice)))
+        );
+        router.enrollRemoteRouter(
+            otherDestinationDomain,
+            bytes32(uint256(uint160(alice)))
+        );
+
+        router.addBridge(destinationDomain, vtb);
+
+        // Verify allowance is set to max
+        assertEq(
+            token.allowance(address(router), address(vtb)),
+            type(uint256).max,
+            "Allowance should be max after first addBridge call"
+        );
+
+        // Allowance should be set to 0
+        vm.expectCall(
+            address(token),
+            abi.encodeCall(token.approve, (address(vtb), 0))
+        );
+        router.removeBridge(destinationDomain, vtb);
+
+        // Allowance should be reset
+        assertEq(
+            token.allowance(address(router), address(vtb)),
+            uint256(0),
+            "Allowance should be 0 after removing the bridge"
+        );
+    }
+
+    function test_removeBridge_should_not_revoke_allowance_if_bridge_is_set_for_other_domains()
+        public
+    {
+        // Configuration
+        router.addRebalancer(address(this));
+        router.enrollRemoteRouter(
+            destinationDomain,
+            bytes32(uint256(uint160(alice)))
+        );
+        router.enrollRemoteRouter(
+            otherDestinationDomain,
+            bytes32(uint256(uint160(alice)))
+        );
+
+        router.addBridge(destinationDomain, vtb);
+        router.addBridge(otherDestinationDomain, vtb);
+
+        // Verify allowance is set to max
+        assertEq(
+            token.allowance(address(router), address(vtb)),
+            type(uint256).max,
+            "Allowance should be max after addBridge call"
+        );
+
+        // Should not call approve to revoke
+        vm.expectCall(
+            address(token),
+            abi.encodeWithSelector(token.approve.selector),
+            0
+        );
+        router.removeBridge(destinationDomain, vtb);
+
+        // Allowance should still be set to max
+        assertEq(
+            token.allowance(address(router), address(vtb)),
+            type(uint256).max,
+            "Allowance should still be set to max after removing the bridge only for one domain"
+        );
     }
 }

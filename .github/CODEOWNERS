@@ -10,7 +10,7 @@ rust/ @ameten @kamiyaa @yjamin
 ## SDK
 typescript/utils @yorhodes @ltyu @paulbalaji @xaroz @xeno097 @antigremlin
 typescript/sdk @yorhodes @ltyu @paulbalaji @xaroz @xeno097 @antigremlin
-typescript/widgets @xaroz @cmcewen @antigremlin
+typescript/widgets @xaroz @xeno097 @antigremlin
 
 ## Multi-VM SDK
 typescript/deploy-sdk @ltyu @xeno097 @troykessler @antigremlin
