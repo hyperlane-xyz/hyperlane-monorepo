@@ -433,7 +433,11 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       // Perform a cleanup at the end
       clearTimeout(timeoutId);
       // Kill the process and wait for it to exit to prevent hangs
-      await rebalancer.kill('SIGINT');
+      try {
+        await rebalancer.kill('SIGINT');
+      } catch {
+        // Process may have already exited, which is fine
+      }
     });
   }
 
@@ -1256,7 +1260,11 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     expect(destBalance.toString()).to.equal(toWei(15));
 
     // Kill the process to finish the test
-    await rebalancer.kill('SIGINT');
+    try {
+      await rebalancer.kill('SIGINT');
+    } catch {
+      // Process may have already exited, which is fine
+    }
 
     // Running the rebalancer again should not trigger any rebalance given that it is already balanced.
     await startRebalancerAndExpectLog(
@@ -1369,7 +1377,11 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     // Check that metrics endpoint is not responding
     await expect(fetch(DEFAULT_METRICS_SERVER)).to.be.rejected;
 
-    await rebalancer.kill('SIGINT');
+    try {
+      await rebalancer.kill('SIGINT');
+    } catch {
+      // Process may have already exited, which is fine
+    }
   });
 
   it('should start the metrics server and expose prometheus metrics', async () => {
@@ -1416,7 +1428,11 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       // Check for specific Hyperlane metrics
       expect(metricsText).to.include('hyperlane_wallet_balance');
     } finally {
-      await rebalancer.kill('SIGINT');
+      try {
+        await rebalancer.kill('SIGINT');
+      } catch {
+        // Process may have already exited, which is fine
+      }
     }
   });
 
@@ -1558,7 +1574,11 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         { timeout: 30000, checkFrequency: 1000 },
       );
     } finally {
-      await relayer.kill('SIGINT');
+      try {
+        await relayer.kill('SIGINT');
+      } catch {
+        // Process may have already exited, which is fine
+      }
     }
   });
 
@@ -1726,7 +1746,11 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       );
 
       // Kill the process to finish the test
-      await rebalancer.kill('SIGINT');
+      try {
+        await rebalancer.kill('SIGINT');
+      } catch {
+        // Process may have already exited, which is fine
+      }
 
       // Running the rebalancer again should not trigger any rebalance given that it is already balanced.
       await startRebalancerAndExpectLog(
@@ -1889,7 +1913,11 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
           },
         );
       } finally {
-        await relayer.kill('SIGINT');
+        try {
+          await relayer.kill('SIGINT');
+        } catch {
+          // Process may have already exited, which is fine
+        }
       }
     });
   });
