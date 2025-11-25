@@ -25,7 +25,7 @@ import { detectAndConfirmOrPrompt } from '../utils/input.js';
 import { getSigner } from '../utils/keys.js';
 
 import { AltVMSignerFactory } from './altvm.js';
-import { ChainResolverFactory } from './strategies/chain/ChainResolverFactory.js';
+import { resolveChains } from './strategies/chain/chainResolver.js';
 import { MultiProtocolSignerManager } from './strategies/signer/MultiProtocolSignerManager.js';
 import {
   CommandContext,
@@ -59,14 +59,9 @@ export async function signerMiddleware(argv: Record<string, any>) {
     : {};
 
   /**
-   * Intercepts Hyperlane command to determine chains.
+   * Resolves chains based on the command type.
    */
-  const chainStrategy = ChainResolverFactory.getStrategy(argv);
-
-  /**
-   * Resolves chains based on the chain strategy.
-   */
-  const chains = await chainStrategy.resolveChains(argv);
+  const chains = await resolveChains(argv);
 
   /**
    * Load and create AltVM Providers
