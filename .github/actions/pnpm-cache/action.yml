@@ -27,12 +27,17 @@ runs:
       shell: bash
       run: echo "cache-provider=${{ inputs.cache-provider }}" >> $GITHUB_ENV
 
+    - name: Get pnpm store directory
+      id: pnpm-store
+      shell: bash
+      run: echo "path=$(pnpm store path)" >> $GITHUB_OUTPUT
+
     - name: Cache (Buildjet)
       id: buildjet-cache
       if: env.cache-provider == 'buildjet'
       uses: buildjet/cache@v4
       with:
-        path: ~/.pnpm-store
+        path: ${{ steps.pnpm-store.outputs.path }}
         key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
         restore-keys: |
           ${{ runner.os }}-pnpm-store-
@@ -42,7 +47,7 @@ runs:
       if: env.cache-provider == 'github'
       uses: actions/cache@v4
       with:
-        path: ~/.pnpm-store
+        path: ${{ steps.pnpm-store.outputs.path }}
         key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
         restore-keys: |
           ${{ runner.os }}-pnpm-store-
