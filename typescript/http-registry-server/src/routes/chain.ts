@@ -1,4 +1,4 @@
-import { Request, Response, Router } from 'express';
+import { type IRouter, Request, Response, Router } from 'express';
 
 import { UpdateChainSchema } from '@hyperlane-xyz/registry';
 import { ZChainName } from '@hyperlane-xyz/sdk';
@@ -10,7 +10,7 @@ import {
 } from '../middleware/validateRequest.js';
 import { ChainService } from '../services/chainService.js';
 
-export function createChainRouter(chainService: ChainService) {
+export function createChainRouter(chainService: ChainService): IRouter {
   const router = Router();
 
   router.get(

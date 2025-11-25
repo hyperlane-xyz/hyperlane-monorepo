@@ -24,6 +24,7 @@ COPY typescript/http-registry-server/package.json ./typescript/http-registry-ser
 COPY typescript/infra/package.json ./typescript/infra/
 COPY typescript/provider-sdk/package.json ./typescript/provider-sdk/
 COPY typescript/radix-sdk/package.json ./typescript/radix-sdk/
+COPY typescript/rebalancer/package.json ./typescript/rebalancer/
 COPY typescript/sdk/package.json ./typescript/sdk/
 COPY typescript/tsconfig/package.json ./typescript/tsconfig/
 COPY typescript/utils/package.json ./typescript/utils/

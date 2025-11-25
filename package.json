@@ -46,6 +46,7 @@
     "starknet"
   ],
   "resolutions": {
+    "zod": "3.21.2",
     "async": "^2.6.4",
     "fetch-ponyfill": "^7.1",
     "flat": "^5.0.2",

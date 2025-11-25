@@ -1,12 +1,14 @@
 import http from 'http';
-import { Gauge, Pushgateway, Registry } from 'prom-client';
+import { Gauge, Pushgateway, Registry, RegistryContentType } from 'prom-client';
 import { format } from 'util';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
 
 const logger = rootLogger.child({ module: 'metrics' });
 
-function getPushGateway(register: Registry): Pushgateway | null {
+function getPushGateway(
+  register: Registry,
+): Pushgateway<RegistryContentType> | null {
   const gatewayAddr = process.env['PROMETHEUS_PUSH_GATEWAY'];
   if (gatewayAddr) {
     return new Pushgateway(gatewayAddr, [], register);
