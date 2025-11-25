@@ -1205,6 +1205,9 @@ importers:
       '@types/prompts':
         specifier: ^2.0.14
         version: 2.4.9
+      '@types/sinon':
+        specifier: ^17.0.1
+        version: 17.0.4
       '@types/sinon-chai':
         specifier: ^3.2.12
         version: 3.2.12
@@ -1235,6 +1238,9 @@ importers:
       prettier:
         specifier: ^3.5.3
         version: 3.5.3
+      sinon:
+        specifier: ^13.0.2
+        version: 13.0.2
       smol-toml:
         specifier: 1.4.2
         version: 1.4.2
