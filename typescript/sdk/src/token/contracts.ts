@@ -48,7 +48,7 @@ export type HypERC20contracts = typeof hypERC20contracts;
 
 type HypERC20TokenType = Exclude<
   TokenType,
-  TokenType.syntheticUri | TokenType.collateralUri
+  typeof TokenType.syntheticUri | typeof TokenType.collateralUri
 >;
 
 export const hypERC20factories = {
