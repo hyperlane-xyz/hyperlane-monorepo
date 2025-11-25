@@ -347,7 +347,7 @@ Now populate urls inside `${HOME}/kaspa/config/validator-config.json`. Below is 
 Start the validators on the remote host
 
 ```bash
-cd ~/kaspa
+cd ~/kaspa/config
 docker compose up -d
 ```
 
