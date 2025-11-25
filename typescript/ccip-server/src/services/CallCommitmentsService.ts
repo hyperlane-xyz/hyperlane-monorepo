@@ -73,7 +73,7 @@ export class CallCommitmentsService extends BaseService {
   }
 
   public async handleCommitment(req: Request, res: Response) {
-    const logger = this.addLoggerServiceContext(req.log as unknown as Logger);
+    const logger = this.addLoggerServiceContext(req.log);
 
     logger.info({ body: req.body }, 'Received commitment creation request');
 

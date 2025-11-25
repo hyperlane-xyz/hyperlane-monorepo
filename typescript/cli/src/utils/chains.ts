@@ -112,7 +112,7 @@ export async function runMultiChainSelectionStep({
         helpMode: 'always',
       },
       pageSize: calculatePageSize(2),
-      validate: (answer: any): string | boolean => {
+      validate: (answer): string | boolean => {
         if (answer.length < requireNumber) {
           return `Please select at least ${requireNumber} chains`;
         }

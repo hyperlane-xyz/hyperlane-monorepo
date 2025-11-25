@@ -2,11 +2,14 @@ FROM node:20-alpine
 
 WORKDIR /hyperlane-monorepo
 
-RUN apk add --update --no-cache git g++ make py3-pip jq bash curl && \
-    npm install -g pnpm@10.22.0
+RUN apk add --update --no-cache git g++ make py3-pip jq bash curl
 
-# Copy package.json and friends
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+# Copy package.json first for corepack to read packageManager field
+COPY package.json ./
+RUN corepack enable && corepack install
+
+# Copy remaining config files
+COPY pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY patches ./patches
 
 COPY typescript/ccip-server/package.json ./typescript/ccip-server/

@@ -45,6 +45,7 @@
     "typescript": "5.3.3"
   },
   "dependencies": {
+    "@eth-optimism/core-utils": "^0.13.2",
     "@eth-optimism/sdk": "^3.3.3",
     "@ethersproject/abi": "*",
     "@ethersproject/providers": "*",

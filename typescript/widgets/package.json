@@ -16,7 +16,7 @@
     "@hyperlane-xyz/radix-sdk": "workspace:*",
     "@hyperlane-xyz/sdk": "workspace:*",
     "@hyperlane-xyz/utils": "workspace:*",
-    "@starknet-react/chains": "^0.1.0",
+    "@starknet-react/chains": "^3.1.2",
     "@wagmi/core": "^2.12.26",
     "@interchain-ui/react": "^1.23.28",
     "@radixdlt/babylon-gateway-api-sdk": "^1.10.1",
