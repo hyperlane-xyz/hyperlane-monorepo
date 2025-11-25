@@ -50,6 +50,8 @@ abstract contract TokenBridgeCctpBase is
     using TypeCasts for bytes32;
     using SafeERC20 for IERC20;
 
+    // using custom errors for bytecode size limitations
+    // end users will not see these in their wallet (at config and process time)
     error InvalidCCTPVersion();
     error CircleDomainNotConfigured();
     error HyperlaneDomainNotConfigured();
