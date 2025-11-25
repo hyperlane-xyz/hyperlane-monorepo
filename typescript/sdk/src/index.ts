@@ -211,9 +211,6 @@ export {
   ProtocolFeeSchema,
 } from './hook/types.js';
 export { isHookCompatible } from './hook/utils.js';
-export { AltVMIsmReader } from './ism/AltVMIsmReader.js';
-export { AltVMWarpModule } from './token/AltVMWarpModule.js';
-export { AltVMWarpRouteReader } from './token/AltVMWarpRouteReader.js';
 export { EvmIsmReader } from './ism/EvmIsmReader.js';
 export { HyperlaneIsmFactory } from './ism/HyperlaneIsmFactory.js';
 export { BaseMetadataBuilder } from './ism/metadata/builder.js';
@@ -314,6 +311,7 @@ export {
 export {
   ChainMetadataManager,
   ChainMetadataManagerOptions,
+  altVmChainLookup,
 } from './metadata/ChainMetadataManager.js';
 export {
   BlockExplorer,
@@ -515,8 +513,6 @@ export {
   getCCIPRouterAddress,
   getChainNameFromCCIPSelector,
 } from './ccip/utils.js';
-export { AltVMCoreModule } from './core/AltVMCoreModule.js';
-export { AltVMCoreReader } from './core/AltVMCoreReader.js';
 export { EvmCoreModule } from './core/EvmCoreModule.js';
 export {
   isProxy,
@@ -558,8 +554,6 @@ export {
   NativeTokenPriceConfig,
 } from './gas/utils.js';
 export { GcpValidator } from './gcp/validator.js';
-export { AltVMHookModule } from './hook/AltVMHookModule.js';
-export { AltVMHookReader } from './hook/AltVMHookReader.js';
 export { EvmHookModule } from './hook/EvmHookModule.js';
 export {
   DerivedIcaRouterConfig,
@@ -568,7 +562,6 @@ export {
   IcaRouterConfigSchema,
   IcaRouterConfig as InterchainAccountConfig,
 } from './ica/types.js';
-export { AltVMIsmModule } from './ism/AltVMIsmModule.js';
 export { EvmIsmModule } from './ism/EvmIsmModule.js';
 export { offchainLookupRequestMessageHash } from './ism/metadata/ccipread.js';
 export {
@@ -707,7 +700,6 @@ export {
   HypERC721Factories,
   TokenFactories,
 } from './token/contracts.js';
-export { AltVMDeployer } from './token/altVMDeploy.js';
 export { HypERC20Deployer, HypERC721Deployer } from './token/deploy.js';
 export { EvmERC20WarpModule } from './token/EvmERC20WarpModule.js';
 export { EvmERC20WarpRouteReader } from './token/EvmERC20WarpRouteReader.js';
@@ -899,3 +891,10 @@ export {
   TokenFeeConfigInput,
 } from './fee/types.js';
 export { convertToBps } from './fee/utils.js';
+
+export {
+  TurnkeyClientManager,
+  TurnkeyConfig,
+} from './signers/turnkeyClient.js';
+export { TurnkeyEvmSigner } from './signers/evm/turnkey.js';
+export { TurnkeySealevelSigner } from './signers/svm/turnkey.js';

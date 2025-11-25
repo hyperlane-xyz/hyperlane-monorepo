@@ -6,6 +6,7 @@ members = [
   "applications/hyperlane-application",
   "applications/hyperlane-operation-verifier",
   "applications/hyperlane-warp-route",
+  "chains/hyperlane-aleo",
   "chains/hyperlane-cosmos",
   "chains/hyperlane-ethereum",
   "chains/hyperlane-fuel",
@@ -20,6 +21,8 @@ members = [
   "hyperlane-test",
   "lander",
   "utils/abigen",
+  "utils/aleo-serialize",
+  "utils/aleo-serialize-macro",
   "utils/backtrace-oneline",
   "utils/crypto",
   "utils/hex",
@@ -34,7 +37,7 @@ edition = "2021"
 homepage = "https://hyperlane.xyz"
 license-file = "../LICENSE.md"
 publish = false
-version = "1.6.0"
+version = "1.7.0"
 
 [workspace.dependencies]
 Inflector = "0.11.4"
@@ -220,6 +223,16 @@ dango-genesis = { git = "https://github.com/left-curve/left-curve.git", rev = "8
 
 ## TODO: remove this
 cosmwasm-schema = "2.2.0"
+
+snarkvm = { version = "4.3.0", features = [
+  "async",
+  "test_targets",
+  "test_consensus_heights",
+] }
+snarkvm-algorithms = { version = "4.3.0" }
+snarkvm-console-account = { version = "4.3.0" }
+aleo-std = { version = "1.0.3" }
+aleo-std-storage = { version = "1.0.3" }
 
 [profile.release.package.access-control]
 overflow-checks = true

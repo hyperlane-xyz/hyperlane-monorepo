@@ -19,6 +19,7 @@ use hyperlane_core::{
 use hyperlane_metric::prometheus_metric::ChainInfo;
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
 
+use hyperlane_aleo::{self as h_aleo, AleoProvider};
 use hyperlane_cosmos::{
     self as h_cosmos, cw::CwQueryClient, native::ModuleQueryClient, CosmosProvider,
 };
@@ -179,6 +180,8 @@ pub enum ChainConnectionConf {
     CosmosNative(h_cosmos::ConnectionConf),
     /// Radix configuration
     Radix(h_radix::ConnectionConf),
+    /// Aleo configuration
+    Aleo(h_aleo::ConnectionConf),
     /// Dango configuration
     Dango(h_dango::ConnectionConf),
 }
@@ -194,6 +197,7 @@ impl ChainConnectionConf {
             Self::Starknet(_) => HyperlaneDomainProtocol::Starknet,
             Self::CosmosNative(_) => HyperlaneDomainProtocol::CosmosNative,
             Self::Radix(_) => HyperlaneDomainProtocol::Radix,
+            Self::Aleo(_) => HyperlaneDomainProtocol::Aleo,
             Self::Dango(_) => HyperlaneDomainProtocol::Dango,
         }
     }
@@ -269,13 +273,16 @@ impl ChainConf {
                 h_starknet::application::StarknetApplicationOperationVerifier::new(),
             )
                 as Box<dyn ApplicationOperationVerifier>),
-            // applicatino verification is the same for cosmos native and cw
             ChainConnectionConf::CosmosNative(_) => Ok(Box::new(
                 h_cosmos::application::CosmosApplicationOperationVerifier::new(),
             )
                 as Box<dyn ApplicationOperationVerifier>),
             ChainConnectionConf::Radix(_) => Ok(Box::new(
                 h_radix::application::RadixApplicationOperationVerifier::new(),
+            )
+                as Box<dyn ApplicationOperationVerifier>),
+            ChainConnectionConf::Aleo(_) => Ok(Box::new(
+                h_aleo::application::AleoApplicationOperationVerifier::new(),
             )
                 as Box<dyn ApplicationOperationVerifier>),
             ChainConnectionConf::Dango(_) => Ok(Box::new(
@@ -326,6 +333,10 @@ impl ChainConf {
             }
             ChainConnectionConf::Radix(conf) => {
                 let provider = build_radix_provider(self, conf, metrics, &locator, None)?;
+                Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
+            }
+            ChainConnectionConf::Aleo(conf) => {
+                let provider = build_aleo_provider(self, conf, metrics, &locator)?;
                 Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
             }
             ChainConnectionConf::Dango(conf) => Ok(conf.build_provider(locator.domain, None)?),
@@ -397,6 +408,7 @@ impl ChainConf {
                 let mailbox = h_radix::RadixMailbox::new(provider, &locator, conf)?;
                 Ok(Box::new(mailbox) as Box<dyn Mailbox>)
             }
+            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
             ChainConnectionConf::Dango(conf) => {
                 let signer: Option<hyperlane_dango::DangoSigner> =
                     self.dango_signer().await.context(ctx)?;
@@ -456,6 +468,12 @@ impl ChainConf {
             ChainConnectionConf::Radix(conf) => {
                 let provider = build_radix_provider(self, conf, metrics, &locator, None)?;
                 let hook = h_radix::indexer::RadixMerkleTreeIndexer::new(provider, &locator, conf)?;
+
+                Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
+            }
+            ChainConnectionConf::Aleo(conf) => {
+                let provider = build_aleo_provider(self, conf, metrics, &locator)?;
+                let hook = h_aleo::AleoMerkleTreeHook::new(provider, &locator, conf)?;
 
                 Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
             }
@@ -541,6 +559,12 @@ impl ChainConf {
 
                 Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
             }
+            ChainConnectionConf::Aleo(conf) => {
+                let provider = build_aleo_provider(self, conf, metrics, &locator)?;
+                let indexer = h_aleo::AleoDispatchIndexer::new(provider, &locator, conf);
+
+                Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
+            }
             ChainConnectionConf::Dango(conf) => {
                 let signer = self.dango_signer().await.context(ctx)?;
                 let indexer = Box::new(h_dango::contracts::DangoMailbox::new(
@@ -620,6 +644,12 @@ impl ChainConf {
 
                 Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<H256>>)
             }
+            ChainConnectionConf::Aleo(conf) => {
+                let provider = build_aleo_provider(self, conf, metrics, &locator)?;
+                let indexer = h_aleo::AleoDeliveryIndexer::new(provider, &locator, conf);
+
+                Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<H256>>)
+            }
             ChainConnectionConf::Dango(confg) => {
                 let indexer = Box::new(h_dango::contracts::DangoMailbox::new(
                     confg, &locator, None,
@@ -690,6 +720,12 @@ impl ChainConf {
                 )?);
                 Ok(indexer as Box<dyn InterchainGasPaymaster>)
             }
+            ChainConnectionConf::Aleo(conf) => {
+                let provider = build_aleo_provider(self, conf, metrics, &locator)?;
+                let indexer = h_aleo::AleoInterchainGasIndexer::new(provider, &locator, conf)?;
+
+                Ok(Box::new(indexer) as Box<dyn InterchainGasPaymaster>)
+            }
             // Not be implemented because dango does not support IGP.
             ChainConnectionConf::Dango(_) => unimplemented!(),
         }
@@ -759,6 +795,12 @@ impl ChainConf {
                     provider, &locator, conf,
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
+            }
+            ChainConnectionConf::Aleo(conf) => {
+                let provider = build_aleo_provider(self, conf, metrics, &locator)?;
+                let indexer = h_aleo::AleoInterchainGasIndexer::new(provider, &locator, conf)?;
+
+                Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
             }
             ChainConnectionConf::Dango(conf) => {
                 let igp = h_dango::contracts::DangoIGP::new(conf, locator.domain)?;
@@ -840,6 +882,12 @@ impl ChainConf {
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
             }
+            ChainConnectionConf::Aleo(conf) => {
+                let provider = build_aleo_provider(self, conf, metrics, &locator)?;
+                let indexer = h_aleo::AleoMerkleTreeHook::new(provider, &locator, conf)?;
+
+                Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
+            }
             ChainConnectionConf::Dango(conf) => {
                 let indexer = Box::new(h_dango::contracts::DangoMerkleTree::new(
                     conf, &locator, None,
@@ -920,6 +968,7 @@ impl ChainConf {
                     h_radix::RadixValidatorAnnounce::new(provider, &locator, conf)?;
                 Ok(Box::new(validator_announce) as Box<dyn ValidatorAnnounce>)
             }
+            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
             ChainConnectionConf::Dango(conf) => {
                 let signer = self.dango_signer().await.context(ctx)?;
                 Ok(Box::new(h_dango::contracts::DangoValidatorAnnounce::new(
@@ -988,6 +1037,11 @@ impl ChainConf {
                 let ism = h_radix::RadixIsm::new(provider, &locator, conf)?;
                 Ok(Box::new(ism) as Box<dyn InterchainSecurityModule>)
             }
+            ChainConnectionConf::Aleo(conf) => {
+                let provider = build_aleo_provider(self, conf, metrics, &locator)?;
+                let ism = h_aleo::AleoIsm::new(provider, &locator, conf)?;
+                Ok(Box::new(ism) as Box<dyn InterchainSecurityModule>)
+            }
             ChainConnectionConf::Dango(conf) => {
                 let ism = Box::new(h_dango::contracts::DangoIsm::new(conf, &locator, None)?);
                 Ok(ism as Box<dyn InterchainSecurityModule>)
@@ -1010,7 +1064,6 @@ impl ChainConf {
                 self.build_ethereum(conf, &locator, metrics, h_eth::MultisigIsmBuilder {})
                     .await
             }
-
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let keypair = self.sealevel_signer().await.context(ctx)?;
@@ -1045,6 +1098,11 @@ impl ChainConf {
             ChainConnectionConf::Radix(conf) => {
                 let provider = build_radix_provider(self, conf, metrics, &locator, None)?;
                 let ism = h_radix::RadixIsm::new(provider, &locator, conf)?;
+                Ok(Box::new(ism) as Box<dyn MultisigIsm>)
+            }
+            ChainConnectionConf::Aleo(conf) => {
+                let provider = build_aleo_provider(self, conf, metrics, &locator)?;
+                let ism = h_aleo::AleoIsm::new(provider, &locator, conf)?;
                 Ok(Box::new(ism) as Box<dyn MultisigIsm>)
             }
             ChainConnectionConf::Dango(conf) => {
@@ -1100,6 +1158,11 @@ impl ChainConf {
                 let ism = h_radix::RadixIsm::new(provider, &locator, conf)?;
                 Ok(Box::new(ism) as Box<dyn RoutingIsm>)
             }
+            ChainConnectionConf::Aleo(conf) => {
+                let provider = build_aleo_provider(self, conf, metrics, &locator)?;
+                let ism = h_aleo::AleoIsm::new(provider, &locator, conf)?;
+                Ok(Box::new(ism) as Box<dyn RoutingIsm>)
+            }
             ChainConnectionConf::Dango(_) => {
                 Err(eyre!("Dango does not support routing ISM yet")).context(ctx)
             }
@@ -1152,6 +1215,7 @@ impl ChainConf {
             ChainConnectionConf::Radix(_) => {
                 todo!("Radix aggregation ISM not yet implemented")
             }
+            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
             ChainConnectionConf::Dango(_) => {
                 Err(eyre!("Dango does not support aggregation ISM yet")).context(ctx)
             }
@@ -1192,6 +1256,7 @@ impl ChainConf {
             ChainConnectionConf::Radix(_) => {
                 Err(eyre!("Radix does not support CCIP read ISM yet")).context(ctx)
             }
+            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
             ChainConnectionConf::Dango(_) => {
                 Err(eyre!("Dango does not support CCIP read ISM yet")).context(ctx)
             }
@@ -1228,6 +1293,7 @@ impl ChainConf {
                 ChainConnectionConf::Radix(_) => {
                     Box::new(conf.build::<h_radix::RadixSigner>().await?)
                 }
+                ChainConnectionConf::Aleo(_) => Box::new(conf.build::<h_aleo::AleoSigner>().await?),
                 ChainConnectionConf::Dango(_) => {
                     Box::new(conf.build::<h_dango::DangoSigner>().await?)
                 }
@@ -1464,4 +1530,13 @@ fn build_starknet_provider(
         metrics.clone(),
         middleware_metrics.chain.clone(),
     ))
+}
+
+fn build_aleo_provider(
+    _chain_conf: &ChainConf,
+    connection_conf: &h_aleo::ConnectionConf,
+    _metrics: &CoreMetrics,
+    locator: &ContractLocator,
+) -> ChainResult<AleoProvider> {
+    AleoProvider::new(connection_conf, locator.domain.clone())
 }

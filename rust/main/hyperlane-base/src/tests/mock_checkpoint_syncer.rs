@@ -11,7 +11,8 @@ use hyperlane_core::{
 };
 use hyperlane_ethereum::Signers;
 
-use crate::{tests::TestValidator, CheckpointSyncer};
+use crate::tests::test_validators::TestValidator;
+use crate::CheckpointSyncer;
 
 type ResponseList<T> = Arc<Mutex<VecDeque<T>>>;
 

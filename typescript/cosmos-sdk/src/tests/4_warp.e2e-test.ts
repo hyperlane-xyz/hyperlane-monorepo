@@ -3,15 +3,13 @@ import { DeliverTxResponse } from '@cosmjs/stargate';
 import { expect } from 'chai';
 import { step } from 'mocha-steps';
 
+import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
-  AltVM,
   addressToBytes32,
   bytes32ToAddress,
   convertToProtocolAddress,
   isValidAddressEvm,
 } from '@hyperlane-xyz/utils';
-
-import { ProtocolType } from '../../../utils/src/types.js';
 
 import { createSigner } from './utils.js';
 
@@ -56,6 +54,7 @@ describe('4. cosmos sdk warp e2e tests', async function () {
     expect(token.mailboxAddress).to.equal(mailboxAddress);
     expect(token.denom).to.equal(denom);
     expect(token.ismAddress).to.be.empty;
+    expect(token.hookAddress).to.be.empty;
     expect(token.tokenType).to.equal(AltVM.TokenType.collateral);
   });
 
@@ -159,6 +158,7 @@ describe('4. cosmos sdk warp e2e tests', async function () {
 
     const { hookAddress: igp_id } =
       await signer.createInterchainGasPaymasterHook({
+        mailboxAddress,
         denom,
       });
 

@@ -1,3 +1,4 @@
+export * from './clients/protocol.js';
 export * from './clients/provider.js';
 export * from './clients/signer.js';
 

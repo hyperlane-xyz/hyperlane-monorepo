@@ -285,8 +285,8 @@ async function main() {
     const confirmConfig =
       chains && chains.length > 0
         ? objFilter(config, (chain, _): _ is unknown =>
-          (chains ?? []).includes(chain),
-        )
+            (chains ?? []).includes(chain),
+          )
         : config;
 
     // Have to print plan per chain because full plan is too big
