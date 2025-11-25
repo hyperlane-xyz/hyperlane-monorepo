@@ -25,6 +25,9 @@ export interface ChainMetadataForAltVM {
   gatewayUrls?: {
     http: string;
   }[];
+  // Used in radix tests after deploying
+  // the package address to the local chain
+  packageAddress?: string;
 }
 
 /**
