@@ -41,3 +41,39 @@ export interface ModuleProvider<M extends ModuleType> {
     config: Config<M>,
   ) => Promise<HypModule<M>>;
 }
+
+// == Artifact API ==
+
+export type Artifact<C> = ArtifactNew<C> | ArtifactDeployed<C, unknown>;
+
+export type ArtifactNew<C> = {
+  artifactState?: 'new';
+  config: C;
+};
+
+export type ArtifactDeployed<C, D> = {
+  artifactState: 'deployed';
+  config: C;
+  deployed: D;
+};
+
+export type RawArtifact<C, D> = {
+  [K in keyof C]: C[K] extends Artifact<infer CC>
+    ? ArtifactDeployed<CC, D>
+    : C[K] extends Artifact<infer CC>[]
+      ? ArtifactDeployed<CC, D>[]
+      : C[K] extends { [L: string]: Artifact<infer CC> }
+        ? { [L in keyof C[K]]: ArtifactDeployed<CC, D> }
+        : C[K];
+};
+
+export interface ArtifactReader<C, D> {
+  read(address: string): Promise<ArtifactDeployed<C, D>>;
+}
+export interface ArtifactWriter<C, D> {
+  create(config: Artifact<C>): Promise<[ArtifactDeployed<C, D>, TxReceipt[]]>;
+  update(
+    address: string,
+    config: ArtifactDeployed<C, D>,
+  ): Promise<AnnotatedTx[]>;
+}
