@@ -35,7 +35,7 @@ use tracing::{error, info};
 use url::Url;
 
 struct ProcessedWithdrawals {
-    fxg: dym_kas_core::withdraw::WithdrawFXG,
+    fxg: std::sync::Arc<dym_kas_core::withdraw::WithdrawFXG>,
     tx_ids: Vec<RpcTransactionId>,
 }
 
@@ -73,28 +73,32 @@ impl KaspaProvider {
         registry: Option<&Registry>,
     ) -> ChainResult<Self> {
         let rest = RestProvider::new(cfg.clone(), signer, metrics.clone(), chain.clone())?;
-        let validators = ValidatorsClient::new(cfg.clone())?;
+
+        let kaspa_metrics = if let Some(reg) = registry {
+            KaspaBridgeMetrics::new(reg).expect("create KaspaBridgeMetrics")
+        } else {
+            KaspaBridgeMetrics::new(&prometheus::default_registry())
+                .expect("create default KaspaBridgeMetrics")
+        };
+
+        let validators = ValidatorsClient::new(
+            cfg.clone(),
+            Some(kaspa_metrics.validator_request_duration.clone()),
+        )?;
 
         let easy_wallet = get_easy_wallet(
             domain.clone(),
-            cfg.kaspa_urls_wrpc[0].clone(), // TODO: try all of them as needed
+            cfg.kaspa_urls_wrpc[0].clone(),
             cfg.wallet_secret.clone(),
             cfg.wallet_dir.clone(),
         )
         .await
-        .map_err(|e| eyre::eyre!("Failed to create easy wallet: {}", e))?;
+        .map_err(|e| eyre::eyre!("create easy wallet: {}", e))?;
 
         let kas_key_source = cfg
             .validator_stuff
             .as_ref()
             .map(|v| v.kas_escrow_key_source.clone());
-
-        let kaspa_metrics = if let Some(reg) = registry {
-            KaspaBridgeMetrics::new(reg).expect("Failed to create KaspaBridgeMetrics")
-        } else {
-            KaspaBridgeMetrics::new(&prometheus::default_registry())
-                .expect("Failed to create default KaspaBridgeMetrics")
-        };
 
         // Create gRPC client for validator if configured
         let grpc_client = if let Some(validator_stuff) = &cfg.validator_stuff {
@@ -115,7 +119,7 @@ impl KaspaProvider {
                     Arc::new(kaspa_utils_tower::counters::TowerConnectionCounters::default()),
                 )
                 .await
-                .expect("Failed to create Kaspa gRPC client"),
+                .expect("create Kaspa gRPC client"),
             )
         } else {
             None
@@ -136,7 +140,7 @@ impl KaspaProvider {
         };
 
         if let Err(e) = provider.update_balance_metrics().await {
-            tracing::error!("Failed to initialize balance metrics on startup: {:?}", e);
+            tracing::error!(error=?e, "initialize balance metrics on startup");
         }
 
         // Set relayer change address metric on startup
@@ -175,7 +179,7 @@ impl KaspaProvider {
                         error!(
                             message_id = %message_id,
                             error = ?e,
-                            "Failed to store withdrawal message in kaspa_db"
+                            "store withdrawal message in kaspa_db"
                         );
                     }
                 }
@@ -200,7 +204,7 @@ impl KaspaProvider {
                             message_id = ?message_id,
                             kaspa_tx = %kaspa_tx,
                             error = ?e,
-                            "Failed to store kaspa_tx for withdrawal"
+                            "store kaspa_tx for withdrawal"
                         );
                     } else {
                         info!(
@@ -237,7 +241,7 @@ impl KaspaProvider {
                         error = ?e,
                         message_id = ?message_id,
                         kaspa_tx_id = %kaspa_tx_id,
-                        "Failed to store deposit message in database"
+                        "store deposit message in database"
                     );
                 }
             }
@@ -279,7 +283,7 @@ impl KaspaProvider {
                         kaspa_tx = %kaspa_tx_id,
                         new_message_id = ?new_message_id,
                         hub_tx = ?hub_tx,
-                        "Failed to update deposit"
+                        "update deposit"
                     );
                 }
             }
@@ -371,7 +375,7 @@ impl KaspaProvider {
                 self.pending_confirmation
                     .push(ConfirmationFXG::from_msgs_outpoints(
                         processed.fxg.ids(),
-                        processed.fxg.anchors,
+                        processed.fxg.anchors.clone(),
                     ));
                 info!("kaspa provider: added to progress indication work queue");
 
@@ -420,11 +424,12 @@ impl KaspaProvider {
 
         info!("kaspa provider: constructed withdrawal TXs, got withdrawal FXG, now gathering sigs and signing relayer fee");
 
-        let bundles_validators = self.validators().get_withdraw_sigs(&fxg).await?;
+        let fxg_arc = std::sync::Arc::new(fxg);
+        let bundles_validators = self.validators().get_withdraw_sigs(fxg_arc.clone()).await?;
 
         let finalized = combine_bundles_with_fee(
             bundles_validators,
-            &fxg,
+            fxg_arc.as_ref(),
             self.conf.multisig_threshold_kaspa,
             &self.escrow(),
             &self.easy_wallet,
@@ -435,7 +440,10 @@ impl KaspaProvider {
 
         info!("kaspa provider: submitted TXs, now indicating progress on the Hub");
 
-        Ok(Some(ProcessedWithdrawals { fxg, tx_ids }))
+        Ok(Some(ProcessedWithdrawals {
+            fxg: fxg_arc,
+            tx_ids,
+        }))
     }
 
     async fn submit_txs(&self, txs: Vec<RpcTransaction>) -> Result<Vec<RpcTransactionId>> {
@@ -452,7 +460,7 @@ impl KaspaProvider {
         }
 
         if let Err(e) = self.update_balance_metrics().await {
-            tracing::error!("Failed to update balance metrics: {:?}", e);
+            tracing::error!(error=?e, "update balance metrics");
         }
 
         Ok(tx_ids)
@@ -463,7 +471,7 @@ impl KaspaProvider {
             .rpc()
             .get_utxos_by_addresses(vec![self.escrow_address()])
             .await
-            .map_err(|e| eyre::eyre!("Failed to get UTXOs for escrow address: {}", e))?;
+            .map_err(|e| eyre::eyre!("get UTXOs for escrow address: {}", e))?;
 
         let total_escrow_bal: u64 = utxos.iter().map(|utxo| utxo.utxo_entry.amount).sum();
 
@@ -477,7 +485,7 @@ impl KaspaProvider {
             .rpc()
             .get_utxos_by_addresses(vec![change_addr])
             .await
-            .map_err(|e| eyre::eyre!("Failed to get UTXOs for change address: {}", e))?;
+            .map_err(|e| eyre::eyre!("get UTXOs for change address: {}", e))?;
 
         let total_change_bal: u64 = change_utxos.iter().map(|utxo| utxo.utxo_entry.amount).sum();
         self.metrics().update_relayer_funds(total_change_bal as i64);
@@ -524,13 +532,11 @@ impl HyperlaneProvider for KaspaProvider {
     }
 
     async fn is_contract(&self, _address: &H256) -> ChainResult<bool> {
-        // TODO: check if the address is a recipient (this is a hyperlane team todo)
-        return Ok(true);
+        Ok(true)
     }
 
     async fn get_balance(&self, _address: String) -> ChainResult<U256> {
-        // TODO: maybe I can return just a larger number here?
-        return Ok(0.into());
+        Ok(0.into())
     }
 
     async fn get_chain_metrics(&self) -> ChainResult<Option<ChainInfo>> {
@@ -570,17 +576,16 @@ fn cosmos_grpc_client(urls: Vec<Url>) -> CosmosProvider<ModuleQueryClient> {
         1.0,
         None, // compat_mode
     )
-    .unwrap(); // TODO: no unwrap for Result
+    .expect("create Hub connection config with default values");
     let metrics = PrometheusClientMetrics::default();
     let chain = None;
-    // Create dummy locator since we only need the query client, not full provider functionality
     let dummy_domain = hyperlane_core::HyperlaneDomain::new_test_domain("dummy");
     let loc = hyperlane_core::ContractLocator {
         domain: &dummy_domain,
         address: hyperlane_core::H256::zero(),
     };
-    CosmosProvider::<ModuleQueryClient>::new(&hub_cfg, &loc, None, metrics, chain).unwrap()
-    // TODO: no unwrap
+    CosmosProvider::<ModuleQueryClient>::new(&hub_cfg, &loc, None, metrics, chain)
+        .expect("create CosmosProvider for query client")
 }
 
 #[cfg(test)]
@@ -592,8 +597,7 @@ mod tests {
         // Install rustls crypto provider (required for rustls 0.23+)
         let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
 
-        let url = Url::parse("https://grpc-dymension-playground35.mzonder.com")
-            .expect("Failed to parse URL");
+        let url = Url::parse("https://grpc-dymension-playground35.mzonder.com").expect("parse URL");
         let _client = cosmos_grpc_client(vec![url]);
     }
 }

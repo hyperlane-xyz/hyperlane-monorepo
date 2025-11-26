@@ -6,28 +6,38 @@ use hyperlane_core::{
 };
 
 use bytes::Bytes;
-use eyre::eyre;
 use eyre::Result;
 use reqwest::StatusCode;
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 use crate::ConnectionConf;
+use futures::stream::{FuturesUnordered, StreamExt};
+use std::sync::Arc;
+use std::time::Instant;
 
 use crate::endpoints::*;
 use dym_kas_core::{confirmation::ConfirmationFXG, deposit::DepositFXG, withdraw::WithdrawFXG};
-use futures::future::join_all;
 use kaspa_wallet_pskt::prelude::Bundle;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ValidatorsClient {
     pub conf: ConnectionConf,
+    http_client: reqwest::Client,
+    metrics: Option<prometheus::HistogramVec>,
+}
+
+impl std::fmt::Debug for ValidatorsClient {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ValidatorsClient")
+            .field("conf", &self.conf)
+            .finish()
+    }
 }
 
 #[async_trait]
 impl BlockNumberGetter for ValidatorsClient {
-    // TODO: needed?
     async fn get_block_number(&self) -> Result<u64, ChainCommunicationError> {
-        return ChainResult::Err(ChainCommunicationError::from_other_str("not implemented"));
+        ChainResult::Err(ChainCommunicationError::from_other_str("not implemented"))
     }
 }
 
@@ -41,187 +51,223 @@ impl ValidatorsClient {
             .clone()
     }
 
+    async fn collect_with_threshold<T, F>(
+        hosts: Vec<String>,
+        metrics: Option<prometheus::HistogramVec>,
+        request_type: &str,
+        threshold: usize,
+        request_fn: F,
+    ) -> ChainResult<Vec<T>>
+    where
+        T: Send + 'static,
+        F: Fn(String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<T>> + Send>>
+            + Send
+            + Sync
+            + 'static,
+    {
+        info!(
+            validators_count = hosts.len(),
+            threshold = threshold,
+            request_type = request_type,
+            "kaspa: collecting validator responses"
+        );
+
+        let mut futures: FuturesUnordered<_> = hosts
+            .iter()
+            .enumerate()
+            .map(|(index, host)| {
+                let host = host.clone();
+                let request_type = request_type.to_string();
+                let start = Instant::now();
+                let fut = request_fn(host.clone());
+                let metrics_clone = metrics.clone();
+
+                async move {
+                    let result = fut.await;
+                    let duration = start.elapsed();
+                    let status = if result.is_ok() { "success" } else { "failure" };
+
+                    if let Some(metrics) = &metrics_clone {
+                        metrics
+                            .with_label_values(&[&host, &request_type, status])
+                            .observe(duration.as_secs_f64());
+                    }
+
+                    (index, host, result, duration)
+                }
+            })
+            .collect();
+
+        let mut successes: Vec<(usize, T)> = Vec::new();
+
+        while let Some((index, host, result, duration)) = futures.next().await {
+            match result {
+                Ok(value) => {
+                    info!(
+                        validator = ?host,
+                        validator_index = index,
+                        duration_ms = duration.as_millis(),
+                        request_type = request_type,
+                        "kaspa: validator response success"
+                    );
+                    successes.push((index, value));
+
+                    if successes.len() >= threshold {
+                        info!(
+                            collected = successes.len(),
+                            threshold = threshold,
+                            remaining = futures.len(),
+                            request_type = request_type,
+                            "kaspa: reached threshold, returning early"
+                        );
+
+                        let request_type_owned = request_type.to_string();
+                        tokio::spawn(async move {
+                            while let Some((_, host, result, duration)) = futures.next().await {
+                                let status = if result.is_ok() { "success" } else { "failure" };
+                                debug!(
+                                    validator = ?host,
+                                    duration_ms = duration.as_millis(),
+                                    status = status,
+                                    request_type = %request_type_owned,
+                                    "kaspa: background validator response"
+                                );
+                                if let Err(e) = result {
+                                    error!(
+                                        validator = ?host,
+                                        error = ?e,
+                                        request_type = %request_type_owned,
+                                        "kaspa: background validator failed"
+                                    );
+                                }
+                            }
+                        });
+
+                        // Sort by index to preserve host order
+                        successes.sort_by_key(|(idx, _)| *idx);
+                        return Ok(successes.into_iter().map(|(_, v)| v).collect());
+                    }
+                }
+                Err(e) => {
+                    error!(
+                        validator = ?host,
+                        validator_index = index,
+                        error = ?e,
+                        duration_ms = duration.as_millis(),
+                        request_type = request_type,
+                        "kaspa: validator response failed"
+                    );
+                }
+            }
+        }
+
+        // All futures completed without reaching threshold
+        Err(ChainCommunicationError::from_other_str(&format!(
+            "collect {}: threshold={} but got only {} successes from {} validators",
+            request_type,
+            threshold,
+            successes.len(),
+            hosts.len()
+        )))
+    }
+
     pub fn new(
         cfg: ConnectionConf,
-        // TODO: prom metrics?
+        metrics: Option<prometheus::HistogramVec>,
     ) -> ChainResult<Self> {
-        Ok(ValidatorsClient { conf: cfg })
+        let timeout = cfg
+            .relayer_stuff
+            .as_ref()
+            .map(|r| r.validator_request_timeout)
+            .unwrap_or(std::time::Duration::from_secs(15));
+
+        let http_client = reqwest::Client::builder()
+            .timeout(timeout)
+            .connect_timeout(std::time::Duration::from_secs(10))
+            .build()
+            .map_err(|e| {
+                ChainCommunicationError::from_other_str(&format!("build HTTP client: {}", e))
+            })?;
+
+        Ok(ValidatorsClient {
+            conf: cfg,
+            http_client,
+            metrics,
+        })
     }
 
     pub async fn get_deposit_sigs(
         &self,
         fxg: &DepositFXG,
     ) -> ChainResult<Vec<SignedCheckpointWithMessageId>> {
-        info!(
-            validators_count = self.hosts().len(),
-            "dymension: asking validators for deposit sigs"
-        );
-
-        let futures = self.hosts().into_iter().map(|host| async move {
-            let h = host.to_string();
-            match request_validate_new_deposits(host, fxg).await {
-                Ok(Some(sig)) => {
-                    info!(validator = ?h, "dymension: got deposit sig response ok");
-                    Ok((h, sig))
-                }
-                Ok(None) => {
-                    error!(
-                        validator = ?h,
-                        "dymension: got deposit sig response None"
-                    );
-                    Err(eyre!("No signature received"))
-                }
-                Err(e) => {
-                    let error_str = e.to_string();
-                    if error_str.contains("TransactionRejected") {
-                        error!(
-                            validator = ?h,
-                            error = ?e,
-                            "dymension: transaction rejected"
-                        );
-                        // This is non-retryable - mark as permanent failure
-                        Err(e)
-                    } else if error_str.contains("ServiceUnavailable") {
-                        error!(
-                            validator = ?h,
-                            error = ?e,
-                            "dymension: service unavailable"
-                        );
-                        // This is retryable with longer backoff
-                        Err(e)
-                    } else {
-                        error!(
-                            validator = ?h,
-                            error = ?e,
-                            "dymension: got deposit sig response Err"
-                        );
-                        Err(e)
-                    }
-                }
-            }
-        });
-
-        let results = join_all(futures).await;
-        let sigs: Vec<(String, SignedCheckpointWithMessageId)> =
-            results.into_iter().filter_map(Result::ok).collect();
-
+        let threshold = self.multisig_threshold_hub_ism();
+        let client = self.http_client.clone();
         let hosts = self.hosts();
-        let mut sig_map = sigs
-            .into_iter()
-            .collect::<std::collections::HashMap<_, _>>();
-        let sigs = hosts
-            .into_iter()
-            .filter_map(|h| sig_map.remove(&h))
-            .collect::<Vec<SignedCheckpointWithMessageId>>();
+        let metrics = self.metrics.clone();
+        let fxg = fxg.clone();
 
-        Ok(sigs)
+        Self::collect_with_threshold(hosts, metrics, "deposit", threshold, move |host| {
+            let client = client.clone();
+            let fxg = fxg.clone();
+            Box::pin(async move { request_validate_new_deposits(&client, host, &fxg).await })
+        })
+        .await
     }
 
     pub async fn get_confirmation_sigs(
         &self,
         fxg: &ConfirmationFXG,
     ) -> ChainResult<Vec<Signature>> {
-        info!(
-            validators_count = self.hosts().len(),
-            fxg = ?fxg,
-            "dymension: getting confirmation sigs"
-        );
-
-        let futures = self
-        .hosts()
-        .into_iter()
-        .map(|host| {
-            let fxg_clone = fxg.clone();
-            async move {
-                let h = host.to_string();
-                match request_validate_new_confirmation(host, &fxg_clone).await {
-                    Ok(Some(sig)) => {
-                        info!(validator = ?h, "dymension: got confirmation sig response ok");
-                        Ok((h, sig))
-                    }
-                    Ok(None) => {
-                        error!(validator = ?h, "dymension: got confirmation sig response None");
-                        Err(eyre!("No signature received"))
-                    }
-                    Err(e) => {
-                        error!(validator = ?h, error = ?e, "dymension: got confirmation sig response Err");
-                        Err(e)
-                    }
-                }
-            }
-        });
-
-        let results = join_all(futures).await;
-        let sigs: Vec<(String, Signature)> = results.into_iter().filter_map(Result::ok).collect();
-
+        let threshold = self.multisig_threshold_hub_ism();
+        let client = self.http_client.clone();
         let hosts = self.hosts();
-        let mut sig_map = sigs
-            .into_iter()
-            .collect::<std::collections::HashMap<_, _>>();
-        let sigs = hosts
-            .into_iter()
-            .filter_map(|h| sig_map.remove(&h))
-            .collect::<Vec<Signature>>();
+        let metrics = self.metrics.clone();
+        let fxg = fxg.clone();
 
-        Ok(sigs)
+        Self::collect_with_threshold(hosts, metrics, "confirmation", threshold, move |host| {
+            let client = client.clone();
+            let fxg = fxg.clone();
+            Box::pin(async move { request_validate_new_confirmation(&client, host, &fxg).await })
+        })
+        .await
     }
 
-    pub async fn get_withdraw_sigs(&self, fxg: &WithdrawFXG) -> ChainResult<Vec<Bundle>> {
-        info!(
-            validators_count = self.hosts().len(),
-            "dymension: getting withdrawal sigs"
-        );
+    pub async fn get_withdraw_sigs(&self, fxg: Arc<WithdrawFXG>) -> ChainResult<Vec<Bundle>> {
+        let threshold = self.multisig_threshold_escrow();
+        let hosts = self.hosts();
+        let client = self.http_client.clone();
+        let metrics = self.metrics.clone();
 
-        let futures = self.hosts().into_iter().map(|host| async move {
-            let h = host.to_string();
-            match request_sign_withdrawal_bundle(host, fxg).await {
-                Ok(Some(bundle)) => {
-                    info!(
-                        validator = ?h,
-                        "dymension: got withdrawal sig response ok"
-                    );
-                    Ok(bundle)
-                }
-                Ok(None) => {
-                    error!(
-                        validator = ?h,
-                        "dymension: got withdrawal sig response None"
-                    );
-                    Err(eyre!("No bundle received"))
-                }
-                Err(e) => {
-                    error!(
-                        validator = ?h,
-                        error = ?e,
-                        "dymension: got withdrawal sig response Err"
-                    );
-                    Err(e)
-                }
-            }
-        });
-
-        let results = join_all(futures).await;
-        let successful_bundles: Vec<Bundle> = results.into_iter().filter_map(Result::ok).collect();
-        Ok(successful_bundles)
+        Self::collect_with_threshold(hosts, metrics, "withdrawal", threshold, move |host| {
+            let client = client.clone();
+            let fxg = fxg.clone();
+            Box::pin(
+                async move { request_sign_withdrawal_bundle(&client, host, fxg.as_ref()).await },
+            )
+        })
+        .await
     }
 
     pub fn multisig_threshold_hub_ism(&self) -> usize {
-        // TODO: clearly distinguish with kaspa multisig
         self.conf.multisig_threshold_hub_ism
+    }
+
+    pub fn multisig_threshold_escrow(&self) -> usize {
+        self.conf.multisig_threshold_kaspa
     }
 }
 
 // see https://github.com/dymensionxyz/hyperlane-monorepo/blob/fe1c79156f5ef6ead5bc60f26a373d0867848532/rust/main/hyperlane-base/src/types/local_storage.rs#L80
 pub async fn request_validate_new_deposits(
+    client: &reqwest::Client,
     host: String,
     deposits: &DepositFXG,
-) -> Result<Option<SignedCheckpointWithMessageId>> {
+) -> Result<SignedCheckpointWithMessageId> {
     info!(
         validator = %host,
         "dymension: requesting deposit sigs from validator"
     );
     let bz = Bytes::from(deposits);
-    let client = reqwest::Client::new();
     let res = client
         // calls to https://github.com/dymensionxyz/hyperlane-monorepo/blob/1a603d65e0073037da896534fc52da4332a7a7b1/rust/main/chains/dymension-kaspa/src/router.rs#L40
         .post(format!("{}{}", host, ROUTE_VALIDATE_NEW_DEPOSITS))
@@ -232,22 +278,18 @@ pub async fn request_validate_new_deposits(
     let status = res.status();
     if status == StatusCode::OK {
         let body = res.json::<SignedCheckpointWithMessageId>().await?;
-        Ok(Some(body))
+        Ok(body)
     } else {
         let err_msg = res.text().await.unwrap_or_else(|_| status.to_string());
 
-        // Create more specific errors based on HTTP status code for retry semantics
         let err = match status {
             StatusCode::ACCEPTED => {
-                // 202 Accepted: Deposit not final, retryable with backoff
                 eyre::eyre!("DepositNotFinal: {}", err_msg)
             }
             StatusCode::UNPROCESSABLE_ENTITY => {
-                // 422 Unprocessable Entity: Transaction rejected, non-retryable
                 eyre::eyre!("TransactionRejected: {}", err_msg)
             }
             StatusCode::SERVICE_UNAVAILABLE => {
-                // 503 Service Unavailable: Service down, retryable
                 eyre::eyre!("ServiceUnavailable: {}", err_msg)
             }
             _ => {
@@ -260,11 +302,11 @@ pub async fn request_validate_new_deposits(
 }
 
 pub async fn request_validate_new_confirmation(
+    client: &reqwest::Client,
     host: String,
     conf: &ConfirmationFXG,
-) -> Result<Option<Signature>> {
+) -> Result<Signature> {
     let bz = Bytes::try_from(conf)?;
-    let client = reqwest::Client::new();
     let res = client
         .post(format!("{}{}", host, ROUTE_VALIDATE_CONFIRMED_WITHDRAWALS))
         .body(bz)
@@ -274,11 +316,11 @@ pub async fn request_validate_new_confirmation(
     let status = res.status();
     if status == StatusCode::OK {
         let body = res.json::<Signature>().await?;
-        Ok(Some(body))
+        Ok(body)
     } else {
         let err_msg = res.text().await.unwrap_or_else(|_| status.to_string());
         Err(eyre::eyre!(
-            "Failed to validate confirmation: {} - {}",
+            "validate confirmation: {} - {}",
             status,
             err_msg
         ))
@@ -286,15 +328,15 @@ pub async fn request_validate_new_confirmation(
 }
 
 pub async fn request_sign_withdrawal_bundle(
+    client: &reqwest::Client,
     host: String,
     fxg: &WithdrawFXG,
-) -> Result<Option<Bundle>> {
+) -> Result<Bundle> {
     info!(
         validator = %host,
         "dymension: requesting withdrawal sigs from validator"
     );
     let bz = Bytes::try_from(fxg)?;
-    let client = reqwest::Client::new();
     let res = client
         .post(format!("{}{}", host, ROUTE_SIGN_PSKTS))
         .body(bz)
@@ -304,11 +346,11 @@ pub async fn request_sign_withdrawal_bundle(
     let status = res.status();
     if status == StatusCode::OK {
         let bundle = res.json::<Bundle>().await?;
-        Ok(Some(bundle))
+        Ok(bundle)
     } else {
         let err_msg = res.text().await.unwrap_or_else(|_| status.to_string());
         Err(eyre::eyre!(
-            "Failed to sign withdrawal bundle: {} - {}",
+            "sign withdrawal bundle: {} - {}",
             status,
             err_msg
         ))
@@ -324,9 +366,13 @@ mod tests {
     #[tokio::test]
     #[ignore = "Requires real validator server"]
     async fn test_server_smoke() {
-        let host = "http://localhost:9090"; // local validator
+        let host = "http://localhost:9090";
         let deposits = DepositFXG::default();
-        let res = request_validate_new_deposits(host.to_string(), &deposits).await;
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(15))
+            .build()
+            .unwrap();
+        let res = request_validate_new_deposits(&client, host.to_string(), &deposits).await;
         let _ = res;
         println!("res: {:?}", res);
     }

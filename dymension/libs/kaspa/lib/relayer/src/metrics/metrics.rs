@@ -1,4 +1,6 @@
-use prometheus::{GaugeVec, Histogram, HistogramOpts, IntCounter, IntGauge, Opts, Registry};
+use prometheus::{
+    GaugeVec, Histogram, HistogramOpts, HistogramVec, IntCounter, IntGauge, Opts, Registry,
+};
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, OnceLock, RwLock};
 use std::time::Instant;
@@ -78,6 +80,10 @@ pub struct KaspaBridgeMetrics {
 
     /// Relayer receive address information (info metric with receive address)
     pub relayer_receive_address_info: GaugeVec,
+
+    // Validator request metrics
+    /// Distribution of validator HTTP request latency in seconds
+    pub validator_request_duration: HistogramVec,
 
     // Internal tracking state (not exposed as metrics)
     /// Track unique failed deposits to avoid double counting
@@ -289,6 +295,18 @@ impl KaspaBridgeMetrics {
         )?;
         let _ = registry.register(Box::new(relayer_receive_address_info.clone()));
 
+        let validator_request_duration = HistogramVec::new(
+            HistogramOpts::new(
+                "kaspa_validator_request_duration_seconds",
+                "Distribution of validator HTTP request latency in seconds",
+            )
+            .buckets(vec![
+                0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 15.0, 30.0,
+            ]),
+            &["validator_host", "request_type", "status"],
+        )?;
+        let _ = registry.register(Box::new(validator_request_duration.clone()));
+
         let new_instance = Self {
             // Balances
             relayer_address_funds,
@@ -317,6 +335,8 @@ impl KaspaBridgeMetrics {
             hub_anchor_point_info,
             last_anchor_point_info,
             relayer_receive_address_info,
+            // Validators
+            validator_request_duration,
             // Internal tracking
             failed_deposit_ids: Arc::new(RwLock::new(HashSet::new())),
             failed_deposit_amounts: Arc::new(RwLock::new(HashMap::new())),

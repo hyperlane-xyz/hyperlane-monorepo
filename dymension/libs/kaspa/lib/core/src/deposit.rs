@@ -8,7 +8,7 @@ use kaspa_rpc_core::RpcHash;
 use prost::Message;
 use std::str::FromStr;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct DepositFXG {
     pub amount: U256,
     pub tx_id: String,

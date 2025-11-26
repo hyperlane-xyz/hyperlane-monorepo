@@ -94,7 +94,7 @@ impl RestProvider {
         metrics: PrometheusClientMetrics,
         chain: Option<hyperlane_metric::prometheus_metric::ChainInfo>,
     ) -> ChainResult<Self> {
-        let clients = [cfg.kaspa_urls_rest[0].clone()] // TODO: allow more as fallback
+        let clients = [cfg.kaspa_urls_rest[0].clone()]
             .iter()
             .map(|url| {
                 let metrics_cfg =
@@ -114,7 +114,6 @@ impl RestProvider {
         self.client.client.get_config()
     }
 
-    /// Gets a signer, or returns an error if one is not available. TODO: can probably remove for kaspa
     pub fn get_signer(&self) -> ChainResult<&CosmosSigner> {
         self.cosmos_signer
             .as_ref()
