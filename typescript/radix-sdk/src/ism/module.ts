@@ -146,7 +146,6 @@ class RadixIsmModuleProvider implements ModuleProvider<IsmModuleType> {
           this.config,
           this.chainLookup,
           signer,
-          signer,
           this.base,
           this.gateway,
           this,

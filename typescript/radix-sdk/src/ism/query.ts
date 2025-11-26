@@ -28,7 +28,10 @@ export async function getMultisigIsmConfig(
   const validators: any[] | undefined = fields.find(
     (f) => f.field_name === 'validators',
   )?.elements;
-  assert(validators, `Expected the validators field to be defined on the `);
+  assert(
+    validators,
+    `Expected the validators field to be defined on ISM ${ismAddress}`,
+  );
 
   const threshold: string | undefined = fields.find(
     (f) => f.field_name === 'threshold',
@@ -102,12 +105,12 @@ export async function getDomainRoutingIsmConfig(
     const domainId = parseInt(
       (key.programmatic_json as EntityField)?.value ?? '0',
     );
-    const ismAddress = (entries[0].value.programmatic_json as EntityField)
+    const domainIsmAddress = (entries[0].value.programmatic_json as EntityField)
       .value;
 
     routes.push({
       domainId,
-      ismAddress,
+      ismAddress: domainIsmAddress,
     });
   }
 

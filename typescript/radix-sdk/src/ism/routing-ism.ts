@@ -90,7 +90,6 @@ export class RadixRoutingIsmModule implements HypModule<RoutingIsmModule> {
     networkConfig: RadixNetworkConfig,
     chainLookup: ChainLookup,
     signer: ISigner<AnnotatedTx, TxReceipt>,
-    provider: IProvider,
     base: RadixBase,
     gateway: GatewayApiClient,
     moduleProvider: ModuleProvider<IsmModuleType>,
@@ -156,7 +155,7 @@ export class RadixRoutingIsmModule implements HypModule<RoutingIsmModule> {
         chain: chainName,
         config: ismConfig,
       },
-      new RadixRoutingIsmReader(provider, gateway, moduleProvider),
+      new RadixRoutingIsmReader(signer, gateway, moduleProvider),
       txHelper,
       moduleProvider,
       signer,
@@ -224,7 +223,7 @@ export class RadixRoutingIsmModule implements HypModule<RoutingIsmModule> {
         `Expected domainId to be defined for chain ${chainNameOrId}`,
       );
 
-      normalizedDomains[domainId] = config.domains[chainNameOrId];
+      normalizedDomains[domainId.toString()] = config.domains[chainNameOrId];
     }
 
     return {
@@ -247,19 +246,24 @@ export class RadixRoutingIsmModule implements HypModule<RoutingIsmModule> {
 
     const owner = actualConfig.owner;
 
-    for (const domainId of domainsToUnenroll) {
-      const tx = await this.createRemoveRouteTx(parseInt(domainId), owner);
-      transactions.push(tx);
-    }
+    const [unenrollTxs, enrollTxs] = await Promise.all([
+      Promise.all(
+        domainsToUnenroll.map((domainId) =>
+          this.createRemoveRouteTx(parseInt(domainId), owner),
+        ),
+      ),
+      Promise.all(
+        domainsToEnroll.map((domainId) =>
+          this.createSetRouteTx(
+            parseInt(domainId),
+            normalizedExpected.domains[domainId],
+            owner,
+          ),
+        ),
+      ),
+    ]);
 
-    for (const domainId of domainsToEnroll) {
-      const tx = await this.createSetRouteTx(
-        parseInt(domainId),
-        normalizedExpected.domains[domainId],
-        owner,
-      );
-      transactions.push(tx);
-    }
+    transactions.push(...unenrollTxs, ...enrollTxs);
 
     return transactions;
   }
