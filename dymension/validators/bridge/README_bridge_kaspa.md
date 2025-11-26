@@ -327,7 +327,7 @@ cp -r ${HOME}/hyperlane-monorepo/dymension/validators/bridge/artifacts/<network>
 // in the chains.<kaspa-network-name> object
    "kaspaKey": {
           "type": "aws",
-          "secretId": "<kaspa_secret_arn>",
+          "secretId": "<kaspa_secret_path>",
           "kmsKeyId": "<kaspa_kms_key_arn>",
           "region": "eu-central-1"
       }
