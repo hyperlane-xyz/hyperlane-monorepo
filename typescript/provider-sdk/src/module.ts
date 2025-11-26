@@ -30,6 +30,20 @@ export interface HypModule<M extends ModuleType> {
   update(config: Config<M>): Promise<AnnotatedTx[]>;
 }
 
+export interface ArtifactType {
+  config: unknown;
+  addresses: AddrMap;
+}
+
+export interface ArtifactReader<A extends ArtifactType> {
+  read(address: string): Promise<A['config']>;
+}
+
+export interface ArtifactWriter<A extends ArtifactType> {
+  create(config: A['config']): Promise<[A['addresses'], TxReceipt[]]>;
+  update(address: string, config: A['config']): Promise<AnnotatedTx[]>;
+}
+
 export interface ModuleProvider<M extends ModuleType> {
   connectReader: (provider: IProvider) => HypReader<M>;
   connectModule: (
