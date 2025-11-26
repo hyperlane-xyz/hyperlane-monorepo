@@ -192,6 +192,10 @@ pub struct SimulateTrafficCli {
     /// Withdrawal fee percentage as decimal in [0,1] (e.g. 0.01 for 1%)
     #[arg(long, required = true)]
     pub withdrawal_fee_pct: f64,
+
+    /// Kaspa network (testnet or mainnet)
+    #[arg(long, required = true)]
+    pub kaspa_network: String,
 }
 
 #[derive(Args, Debug, Clone)]

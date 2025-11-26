@@ -55,6 +55,7 @@ pub struct SimulateTrafficArgs {
     pub hub_denom: String,
     pub hub_decimals: u32,
     pub kaspa_rest_url: String,
+    pub kaspa_network: Network,
 }
 
 impl TryFrom<SimulateTrafficCli> for SimulateTrafficArgs {
@@ -62,6 +63,11 @@ impl TryFrom<SimulateTrafficCli> for SimulateTrafficArgs {
 
     fn try_from(cli: SimulateTrafficCli) -> Result<Self, Self::Error> {
         let addr = kaspa_addresses::Address::try_from(cli.escrow_address.clone())?;
+        let kaspa_network = match cli.kaspa_network.to_lowercase().as_str() {
+            "testnet" => Network::KaspaTest10,
+            "mainnet" => Network::KaspaMainnet,
+            _ => return Err(eyre::eyre!("invalid kaspa network: {}", cli.kaspa_network)),
+        };
         Ok(SimulateTrafficArgs {
             params: Params {
                 time_limit: std::time::Duration::from_secs(cli.time_limit),
@@ -89,6 +95,7 @@ impl TryFrom<SimulateTrafficCli> for SimulateTrafficArgs {
             hub_denom: cli.hub_denom,
             hub_decimals: cli.hub_decimals,
             kaspa_rest_url: cli.kaspa_rest_url,
+            kaspa_network,
         })
     }
 }
@@ -103,18 +110,17 @@ pub struct TrafficSim {
 
 impl TrafficSim {
     pub async fn new(args: SimulateTrafficArgs) -> Result<Self> {
-        let net = Network::KaspaTest10;
-
         info!(
-            "Initializing whale pools: kaspa_whales={} hub_whales={}",
+            "Initializing whale pools: kaspa_whales={} hub_whales={} network={:?}",
             args.kaspa_whale_secrets.len(),
-            args.hub_whale_priv_keys.len()
+            args.hub_whale_priv_keys.len(),
+            args.kaspa_network
         );
 
         let kaspa_whale_pool = KaspaWhalePool::new(
             args.kaspa_whale_secrets,
             args.kaspa_wrpc_url.clone(),
-            net.clone(),
+            args.kaspa_network.clone(),
             args.kaspa_whale_wallet_dir_prefix,
         )
         .await?;
