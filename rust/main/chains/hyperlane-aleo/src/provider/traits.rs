@@ -229,7 +229,7 @@ pub struct ProvingClient<Client: HttpClient>(Client);
 
 impl<Client: HttpClient> ProvingClient<Client> {
     /// Makes a POST request to the API
-    pub async fn proofing_request<N: Network>(
+    pub async fn proving_request<N: Network>(
         &self,
         authorization: Authorization<N>,
         fee: Authorization<N>,

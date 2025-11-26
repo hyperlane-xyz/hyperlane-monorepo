@@ -28,7 +28,7 @@ fn connection_conf() -> ConnectionConf {
         validator_announce_program: "test_validator_announce.aleo".to_string(),
         chain_id: 1u16,
         priority_fee_multiplier: 0f64,
-        proofing_service: vec![],
+        proving_service: vec![],
     }
 }
 

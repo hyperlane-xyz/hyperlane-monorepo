@@ -110,7 +110,7 @@ flowchart LR
 
 ## Destination Chain Sequence Diagrams
 
-### 1. Token Message with Hyperlane Relayer
+### 1. Token Message
 
 ```mermaid
 sequenceDiagram
@@ -134,34 +134,7 @@ sequenceDiagram
     TBCCTP-->>Recipient: emit event reflecting tokens were transferred
 ```
 
-### 2. Token Message with CCTP Relayer and Hyperlane Relayer
-
-```mermaid
-sequenceDiagram
-    participant CR as CCTP Relayer
-    participant HR as Hyperlane Relayer
-    participant Mailbox as Mailbox
-    participant TBCCTP as TokenBridgeCctp
-    participant MT as MessageTransmitter
-    participant TM as TokenMessenger
-    participant USDC as USDC
-    participant Recipient as Recipient
-
-    Note over CR: CCTP Relayer submits<br/>burn message first
-    CR->>TBCCTP: receiveMessage(burnMessage, attestation)
-    TBCCTP->>MT: receiveMessage(burnMessage, attestation)
-    MT->>TM: handleReceiveMessage(burnMessage)
-    TM->>USDC: mint(amount, recipient)
-    USDC-->>Recipient: amount minted
-
-    Note over HR: Hyperlane Relayer delivers<br/>token message
-    HR->>Mailbox: process([], tokenMessage)
-    Mailbox->>TBCCTP: verify([], tokenMessage)
-    TBCCTP-xMailbox: REVERT: Burn message already processed
-    Note over Mailbox: Transaction reverts,<br/>handle never called
-```
-
-### 3. GMP Message with Hyperlane Relayer
+### 2. GMP Message
 
 ```mermaid
 sequenceDiagram
@@ -176,33 +149,6 @@ sequenceDiagram
     TBCCTP->>MT: receiveMessage(cctpMessage, attestation)
     MT->>TBCCTP: handleReceiveMessage(cctpMessage)
     Note over TBCCTP: Verifies message ID matches
-
-    Note over Mailbox: Marks message as delivered<br/>in delivered mapping
-    Mailbox->>Recipient: handle(hyperlaneMessage)
-    Note over Recipient: Application receives message
-```
-
-### 4. GMP Message with CCTP Relayer and Hyperlane Relayer
-
-```mermaid
-sequenceDiagram
-    participant CR as CCTP Relayer
-    participant HR as Hyperlane Relayer
-    participant Mailbox as Mailbox
-    participant TBCCTP as TokenBridgeCctp (ISM)
-    participant MT as MessageTransmitter
-    participant Recipient as Recipient App
-
-    Note over CR: CCTP Relayer submits<br/>message first
-    CR->>TBCCTP: receiveMessage(cctpMessage, attestation)
-    TBCCTP->>MT: receiveMessage(cctpMessage, attestation)
-    MT->>TBCCTP: handleReceiveMessage(cctpMessage)
-    Note over TBCCTP: Stores message ID
-
-    Note over HR: Hyperlane Relayer delivers<br/>GMP message
-    HR->>Mailbox: process([], hyperlaneMessage)
-    Mailbox->>TBCCTP: verify([], hyperlaneMessage)
-    Note over TBCCTP: CCTP message already processed,<br/>verifies message ID
 
     Note over Mailbox: Marks message as delivered<br/>in delivered mapping
     Mailbox->>Recipient: handle(hyperlaneMessage)

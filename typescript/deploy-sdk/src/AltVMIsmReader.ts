@@ -8,10 +8,10 @@ import {
   MultisigIsmConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import { HypReader } from '@hyperlane-xyz/provider-sdk/module';
-import { Address, WithAddress, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, Logger, WithAddress, rootLogger } from '@hyperlane-xyz/utils';
 
 export class AltVMIsmReader implements HypReader<IsmModuleType> {
-  protected readonly logger = rootLogger.child({
+  protected readonly logger: Logger = rootLogger.child({
     module: 'AltVMIsmReader',
   });
 

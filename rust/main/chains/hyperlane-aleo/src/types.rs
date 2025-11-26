@@ -232,22 +232,6 @@ pub struct RouteKey<N: Network = CurrentNetwork> {
     pub domain: u32,
 }
 
-#[aleo_serialize]
-#[derive(Debug)]
-pub struct DeliveryKey {
-    /// Messaeg Id
-    pub id: AleoHash,
-}
-
-#[aleo_serialize]
-#[derive(Debug)]
-pub struct AppMetadata<N: Network = CurrentNetwork> {
-    /// Custom ISM used by the application
-    pub ism: Address<N>,
-    /// Custom Hook used by the application
-    pub hook: Address<N>,
-}
-
 /// Proving Request
 #[derive(Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ProvingRequest {
@@ -277,4 +261,20 @@ pub struct FeeEstimate {
     pub priority_fee: u64,
     /// Total fee
     pub total_fee: u64,
+}
+
+#[aleo_serialize]
+#[derive(Debug)]
+pub struct DeliveryKey {
+    /// Messaeg Id
+    pub id: AleoHash,
+}
+
+#[aleo_serialize]
+#[derive(Debug)]
+pub struct AppMetadata<N: Network = CurrentNetwork> {
+    /// Custom ISM used by the application
+    pub ism: Address<N>,
+    /// Custom Hook used by the application
+    pub hook: Address<N>,
 }

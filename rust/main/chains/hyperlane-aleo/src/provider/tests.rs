@@ -150,6 +150,15 @@ fn get_mock_provider_with_programs() -> AleoProvider<MockHttpClient> {
     provider
         .register_file("program/credits.aleo", "programs/credits.aleo")
         .unwrap();
+    provider
+        .register_file("program/hook_manager.aleo", "programs/hook_manager.aleo")
+        .unwrap();
+    provider
+        .register_file("program/ism_manager.aleo", "programs/ism_manager.aleo")
+        .unwrap();
+    provider
+        .register_file("program/mailbox.aleo", "programs/mailbox.aleo")
+        .unwrap();
     provider.register_value("block/height/latest", json!(12668791));
     provider.register_value("program/unknown.aleo", Value::Null);
     provider
@@ -178,6 +187,7 @@ async fn test_estimate_tx() {
 #[tokio::test]
 async fn test_estimate_tx_invalid_inputs() {
     let provider = get_mock_provider_with_programs();
+    // transfer_public takes 2 inputs, providing 3 should fail
     let result = provider
         .estimate_tx(
             "credits.aleo",
@@ -191,13 +201,14 @@ async fn test_estimate_tx_invalid_inputs() {
         .await;
     assert!(
         !result.is_ok(),
-        "Estimate TX with invalid inputs should fail"
+        "Estimate TX with invalid arguments should fail"
     );
 }
 
 #[tokio::test]
 async fn test_estimate_tx_unknown_function() {
     let provider = get_mock_provider_with_programs();
+    // transfer_public_super does not exist
     let result = provider
         .estimate_tx(
             "credits.aleo",
@@ -210,13 +221,14 @@ async fn test_estimate_tx_unknown_function() {
         .await;
     assert!(
         !result.is_ok(),
-        "Estimate TX with invalid inputs should fail"
+        "Estimate TX with unknown function should fail"
     );
 }
 
 #[tokio::test]
 async fn test_estimate_tx_unknown_program() {
     let provider = get_mock_provider_with_programs();
+    // unknown.aleo does not exist
     let result = provider
         .estimate_tx(
             "unknown.aleo",
@@ -229,6 +241,19 @@ async fn test_estimate_tx_unknown_program() {
         .await;
     assert!(
         !result.is_ok(),
-        "Estimate TX with invalid inputs should fail"
+        "Estimate TX with unknown program should fail"
     );
+}
+
+#[tokio::test]
+async fn test_program_with_imports() {
+    let provider = get_mock_provider_with_programs();
+    let result = provider
+        .estimate_tx(
+            "mailbox.aleo",
+            "main",
+            vec!["5u32".to_owned(), "5u32".to_owned()],
+        )
+        .await;
+    assert!(result.is_ok(), "Estimate TX should succeed");
 }

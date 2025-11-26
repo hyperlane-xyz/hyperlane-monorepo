@@ -18,7 +18,7 @@ use snarkvm::{
         Identifier, MainnetV0, Network, ProgramID, TestnetV0, Value, VM,
     },
 };
-use snarkvm_console_account::{Address, Itertools, PrivateKey};
+use snarkvm_console_account::{Address, PrivateKey};
 
 use hyperlane_core::{
     BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, FixedPointNumber, HyperlaneChain,
@@ -42,7 +42,7 @@ pub struct AleoProvider<C: AleoClient = FallbackHttpClient> {
     client: RpcClient<C>,
     domain: HyperlaneDomain,
     network: u16,
-    proofing_service: Option<ProvingClient<C>>,
+    proving_service: Option<ProvingClient<C>>,
     signer: Option<AleoSigner>,
     priority_fee_multiplier: f64,
 }
@@ -54,8 +54,8 @@ impl AleoProvider<FallbackHttpClient> {
         domain: HyperlaneDomain,
         signer: Option<AleoSigner>,
     ) -> ChainResult<Self> {
-        let proofing_service = if !conf.proofing_service.is_empty() {
-            let client = FallbackHttpClient::new(conf.proofing_service.clone())?;
+        let proving_service = if !conf.proving_service.is_empty() {
+            let client = FallbackHttpClient::new(conf.proving_service.clone())?;
             Some(ProvingClient::new(client))
         } else {
             None
@@ -65,7 +65,7 @@ impl AleoProvider<FallbackHttpClient> {
             client: RpcClient::new(FallbackHttpClient::new(conf.rpcs.clone())?),
             domain,
             network: conf.chain_id,
-            proofing_service,
+            proving_service,
             signer,
             priority_fee_multiplier: conf.priority_fee_multiplier,
         })
@@ -85,7 +85,7 @@ impl<C: AleoClient> AleoProvider<C> {
             client: RpcClient::new(client),
             domain,
             network: chain_id,
-            proofing_service: None,
+            proving_service: None,
             signer: signer,
             priority_fee_multiplier: 0.0,
         }
@@ -127,11 +127,8 @@ impl<C: AleoClient> AleoProvider<C> {
         debug!("Getting program: {}", program_id);
         let program = self.get_program(program_id).await?;
 
-        for imports in program.imports().keys() {
-            if imports == program_id {
-                continue;
-            }
-            let future = Box::pin(self.load_program(vm, imports, depth.saturating_add(1)));
+        for import in program.imports().keys() {
+            let future = Box::pin(self.load_program(vm, import, depth.saturating_add(1)));
             future.await?;
         }
 
@@ -269,24 +266,27 @@ impl<C: AleoClient> AleoProvider<C> {
     }
 
     /// Public estimation entrypoint selecting the network
-    pub async fn estimate_tx(
+    pub async fn estimate_tx<I>(
         &self,
         program_id: &str,
         function_name: &str,
-        input: impl IntoIterator<Item = String>,
-    ) -> ChainResult<FeeEstimate> {
-        let input_vec = input.into_iter().collect_vec();
+        input: I,
+    ) -> ChainResult<FeeEstimate>
+    where
+        I: IntoIterator<Item = String>,
+        I::IntoIter: ExactSizeIterator,
+    {
         match self.chain_id() {
             0 => {
-                self.estimate::<MainnetV0, _, _>(program_id, function_name, input_vec)
+                self.estimate::<MainnetV0, _, _>(program_id, function_name, input)
                     .await
             }
             1 => {
-                self.estimate::<TestnetV0, _, _>(program_id, function_name, input_vec)
+                self.estimate::<TestnetV0, _, _>(program_id, function_name, input)
                     .await
             }
             2 => {
-                self.estimate::<CanaryV0, _, _>(program_id, function_name, input_vec)
+                self.estimate::<CanaryV0, _, _>(program_id, function_name, input)
                     .await
             }
             id => Err(HyperlaneAleoError::UnknownNetwork(id).into()),
@@ -335,9 +335,9 @@ impl<C: AleoClient> AleoProvider<C> {
             .map_err(HyperlaneAleoError::from)?;
         let time = Instant::now().duration_since(start);
 
-        // Either use the proofing service or generate the proof locally
-        let transaction = match self.proofing_service {
-            Some(ref client) => client.proofing_request(authorization, fee).await,
+        // Either use the proving service or generate the proof locally
+        let transaction = match self.proving_service {
+            Some(ref client) => client.proving_request(authorization, fee).await,
             None => Ok(vm
                 .execute_authorization(authorization, Some(fee), Some(&self.client), &mut rng)
                 .map_err(HyperlaneAleoError::from)?),
@@ -358,13 +358,16 @@ impl<C: AleoClient> AleoProvider<C> {
     }
 
     /// Submits a transaction
-    pub async fn submit_tx(
+    pub async fn submit_tx<I>(
         &self,
         program_id: &str,
         function_name: &str,
-        input: impl IntoIterator<Item = String>,
-    ) -> ChainResult<TxOutcome> {
-        let input = input.into_iter().collect_vec();
+        input: I,
+    ) -> ChainResult<TxOutcome>
+    where
+        I: IntoIterator<Item = String>,
+        I::IntoIter: ExactSizeIterator,
+    {
         let hash = match self.chain_id() {
             0 => {
                 // Mainnet

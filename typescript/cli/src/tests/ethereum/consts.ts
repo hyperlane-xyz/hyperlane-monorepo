@@ -34,6 +34,10 @@ export const WARP_CORE_CONFIG_PATH_2 = getCombinedWarpRoutePath('ETH', [
   CHAIN_NAME_2,
 ]);
 
+export const WARP_DEPLOY_CONFIG_PATH_2 = getCombinedWarpDeployPath('ETH', [
+  CHAIN_NAME_2,
+]);
+
 export const REBALANCER_CONFIG_PATH = `${TEMP_PATH}/rebalancer-config.json`;
 
 export const WARP_DEPLOY_CONFIG_CHAIN_2 = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
@@ -52,4 +56,14 @@ export function getCombinedWarpRoutePath(
     tokenSymbol.toUpperCase(),
     chains.sort().join('-'),
   )}-config.yaml`;
+}
+
+export function getCombinedWarpDeployPath(
+  tokenSymbol: string,
+  chains: string[],
+): string {
+  return `${REGISTRY_PATH}/deployments/warp_routes/${createWarpRouteConfigId(
+    tokenSymbol.toUpperCase(),
+    chains.sort().join('-'),
+  )}-deploy.yaml`;
 }

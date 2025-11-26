@@ -596,10 +596,10 @@ pub fn build_aleo_connection_conf(
         .parse_f64()
         .end();
 
-    let proofing_service_urls = parse_base_and_override_urls(
+    let proving_service_urls = parse_base_and_override_urls(
         chain,
-        "proofingServiceUrls",
-        "customProofingServiceUrls",
+        "provingServiceUrls",
+        "customProvingServiceUrls",
         "http",
         &mut local_err,
         true,
@@ -618,7 +618,7 @@ pub fn build_aleo_connection_conf(
                 validator_announce_program?.to_string(),
                 chain_id?,
                 consensus_heights,
-                proofing_service_urls,
+                proving_service_urls,
                 priority_fee_multiplier.unwrap_or_default(),
             ),
         ))

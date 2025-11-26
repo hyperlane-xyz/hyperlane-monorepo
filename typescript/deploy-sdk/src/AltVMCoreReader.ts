@@ -5,13 +5,13 @@ import {
   DerivedCoreConfig,
 } from '@hyperlane-xyz/provider-sdk/core';
 import { HypReader } from '@hyperlane-xyz/provider-sdk/module';
-import { Address, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, Logger, rootLogger } from '@hyperlane-xyz/utils';
 
 import { AltVMHookReader } from './AltVMHookReader.js';
 import { AltVMIsmReader } from './AltVMIsmReader.js';
 
 export class AltVMCoreReader implements HypReader<CoreModuleType> {
-  protected readonly logger = rootLogger.child({
+  protected readonly logger: Logger = rootLogger.child({
     module: 'AltVMCoreReader',
   });
   protected ismReader: AltVMIsmReader;
