@@ -1,10 +1,6 @@
 name: NPM Beta Release
 
 on:
-  # TEMPORARY: for testing - remove after
-  push:
-    branches:
-      - pbio/preview-release-workflows
   workflow_dispatch:
     inputs:
       snapshot_tag:
