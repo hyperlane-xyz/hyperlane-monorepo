@@ -60,36 +60,36 @@ impl MustMatch {
         if self.partial_message.version != other.version {
             return Err(eyre::eyre!(
                 "version is incorrect, expected: {}, got: {}",
-                other.version,
-                self.partial_message.version
+                self.partial_message.version,
+                other.version
             ));
         }
         if self.partial_message.origin != other.origin {
             return Err(eyre::eyre!(
                 "origin is incorrect, expected: {}, got: {}",
-                other.origin,
-                self.partial_message.origin
+                self.partial_message.origin,
+                other.origin
             ));
         }
         if self.partial_message.sender != other.sender {
             return Err(eyre::eyre!(
                 "sender is incorrect, expected: {}, got: {}",
-                other.sender,
-                self.partial_message.sender
+                self.partial_message.sender,
+                other.sender
             ));
         }
         if self.partial_message.destination != other.destination {
             return Err(eyre::eyre!(
                 "destination is incorrect, expected: {}, got: {}",
-                other.destination,
-                self.partial_message.destination
+                self.partial_message.destination,
+                other.destination
             ));
         }
         if self.partial_message.recipient != other.recipient {
             return Err(eyre::eyre!(
                 "recipient is incorrect, expected: {}, got: {}",
-                other.recipient,
-                self.partial_message.recipient
+                self.partial_message.recipient,
+                other.recipient
             ));
         }
         Ok(())
