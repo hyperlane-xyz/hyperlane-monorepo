@@ -91,10 +91,7 @@
     "Typescript"
   ],
   "license": "Apache-2.0",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/hyperlane-xyz/hyperlane-monorepo"
-  },
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "scripts": {
     "build": "yarn build:ts && yarn build:css",
     "build:ts": "tsc",

@@ -56,6 +56,10 @@ jobs:
       - name: syncpack
         run: yarn syncpack list-mismatches
 
+      # Check publishable packages have required fields for npm provenance
+      - name: check-package-json
+        run: ./scripts/check-package-json.sh
+
   lint-prettier:
     runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 5
