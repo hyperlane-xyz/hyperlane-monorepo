@@ -170,9 +170,15 @@ jobs:
           cd ../sealevel
           cargo update --workspace --offline 2>/dev/null || cargo update --workspace
           echo "Updated rust/sealevel/Cargo.lock"
+      - name: Generate GitHub App Token
+        id: generate-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.HYPERLANE_GITHUB_APP_ID }}
+          private-key: ${{ secrets.HYPERLANE_GITHUB_APP_PRIVATE_KEY }}
       - name: Create or update release PR
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
           NEW_VERSION: ${{ steps.next_version.outputs.new_version }}
           BUMP_TYPE: ${{ steps.next_version.outputs.bump_type }}
           CHANGELOG: ${{ steps.changelog.outputs.changelog }}
