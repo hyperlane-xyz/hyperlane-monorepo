@@ -1,5 +1,6 @@
 import { Program } from '@provablehq/sdk/mainnet.js';
 
+const upgradeAuthority = process.env['ALEO_UPGRADE_AUTHORITY'] || '';
 const originalProgramIds = JSON.parse(
   process.env['ALEO_USE_ORIGINAL_PROGRAM_IDS'] || 'false',
 );
@@ -70,6 +71,45 @@ export function loadProgramsInDeployOrder(
           ),
       ),
     );
+  }
+
+  if (upgradeAuthority) {
+    if (new RegExp(/^(aleo1[a-z0-9]{58})$/).test(upgradeAuthority)) {
+      programs = programs.map((p) =>
+        Program.fromString(
+          p.toString().replaceAll(
+            `constructor:
+    assert.eq edition 0u16;`,
+            `constructor:
+    assert.eq program_owner ${upgradeAuthority};`,
+          ),
+        ),
+      );
+    } else if (upgradeAuthority.split('/').length === 3) {
+      const [program, mapping, key] = upgradeAuthority.split('/');
+
+      programs = programs.map((p) =>
+        Program.fromString(
+          p.toString().includes(`constructor:
+    assert.eq edition 0u16;`)
+            ? `import ${program};\n` +
+                p.toString().replaceAll(
+                  `constructor:
+    assert.eq edition 0u16;`,
+                  `constructor:
+    branch.eq edition 0u16 to end;
+    get ${program}/${mapping}[${key}] into r0;
+    assert.eq checksum r0;
+    position end;`,
+                )
+            : p.toString(),
+        ),
+      );
+    } else {
+      throw new Error(
+        `upgrade authority must be an aleo account address or of format "program.aleo/mapping/key"`,
+      );
+    }
   }
 
   return programs.map((p) => ({

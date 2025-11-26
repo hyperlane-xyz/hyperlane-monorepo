@@ -42,6 +42,15 @@ const provider = await AleoProvider.connect(
 const mailbox = await provider.getMailbox({ mailboxAddress });
 ```
 
+## Environment variables
+
+A couple of env variables are used to influence the behaviour of the aleo-sdk.
+
+- **ALEO_SKIP_PROOFS=true/false**: if set to true it will build transactions specifically for the aleo devnode skipping proof generation and making the execution much faster. This is very helpful for running e2e tests or for testnet deploys.
+- **ALEO_USE_ORIGINAL_PROGRAM_IDS=true/false**: if set to true it will deploy all contracts with the original program id. This is only needed for the first ever core deploy.
+- **ALEO_UPGRADE_AUTHORITY=\<authority>**: if this is set the aleo-sdk will make all programs upgradable during the deploy step. For normal aleo wallets the value should simply be
+  the aleo account address. For multisigs the format should be the following: "my_multisig.aleo/my_mapping/my_key"
+
 ## Setup
 
 Node 18 or newer is required.
