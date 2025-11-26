@@ -328,7 +328,7 @@ impl ChainConf {
                 Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
             }
             ChainConnectionConf::Aleo(conf) => {
-                let provider = build_aleo_provider(self, conf, metrics, &locator)?;
+                let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
                 Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
             }
         }
@@ -456,7 +456,7 @@ impl ChainConf {
                 Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
             }
             ChainConnectionConf::Aleo(conf) => {
-                let provider = build_aleo_provider(self, conf, metrics, &locator)?;
+                let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
                 let hook = h_aleo::AleoMerkleTreeHook::new(provider, &locator, conf)?;
 
                 Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
@@ -538,7 +538,7 @@ impl ChainConf {
                 Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
             }
             ChainConnectionConf::Aleo(conf) => {
-                let provider = build_aleo_provider(self, conf, metrics, &locator)?;
+                let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
                 let indexer = h_aleo::AleoDispatchIndexer::new(provider, &locator, conf);
 
                 Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
@@ -616,7 +616,7 @@ impl ChainConf {
                 Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<H256>>)
             }
             ChainConnectionConf::Aleo(conf) => {
-                let provider = build_aleo_provider(self, conf, metrics, &locator)?;
+                let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
                 let indexer = h_aleo::AleoDeliveryIndexer::new(provider, &locator, conf);
 
                 Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<H256>>)
@@ -686,7 +686,7 @@ impl ChainConf {
                 Ok(indexer as Box<dyn InterchainGasPaymaster>)
             }
             ChainConnectionConf::Aleo(conf) => {
-                let provider = build_aleo_provider(self, conf, metrics, &locator)?;
+                let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
                 let indexer = h_aleo::AleoInterchainGasIndexer::new(provider, &locator, conf)?;
 
                 Ok(Box::new(indexer) as Box<dyn InterchainGasPaymaster>)
@@ -760,7 +760,7 @@ impl ChainConf {
                 Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
             }
             ChainConnectionConf::Aleo(conf) => {
-                let provider = build_aleo_provider(self, conf, metrics, &locator)?;
+                let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
                 let indexer = h_aleo::AleoInterchainGasIndexer::new(provider, &locator, conf)?;
 
                 Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
@@ -842,7 +842,7 @@ impl ChainConf {
                 Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
             }
             ChainConnectionConf::Aleo(conf) => {
-                let provider = build_aleo_provider(self, conf, metrics, &locator)?;
+                let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
                 let indexer = h_aleo::AleoMerkleTreeHook::new(provider, &locator, conf)?;
 
                 Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
@@ -985,7 +985,7 @@ impl ChainConf {
                 Ok(Box::new(ism) as Box<dyn InterchainSecurityModule>)
             }
             ChainConnectionConf::Aleo(conf) => {
-                let provider = build_aleo_provider(self, conf, metrics, &locator)?;
+                let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
                 let ism = h_aleo::AleoIsm::new(provider, &locator, conf)?;
                 Ok(Box::new(ism) as Box<dyn InterchainSecurityModule>)
             }
@@ -1044,7 +1044,7 @@ impl ChainConf {
                 Ok(Box::new(ism) as Box<dyn MultisigIsm>)
             }
             ChainConnectionConf::Aleo(conf) => {
-                let provider = build_aleo_provider(self, conf, metrics, &locator)?;
+                let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
                 let ism = h_aleo::AleoIsm::new(provider, &locator, conf)?;
                 Ok(Box::new(ism) as Box<dyn MultisigIsm>)
             }
@@ -1098,7 +1098,7 @@ impl ChainConf {
                 Ok(Box::new(ism) as Box<dyn RoutingIsm>)
             }
             ChainConnectionConf::Aleo(conf) => {
-                let provider = build_aleo_provider(self, conf, metrics, &locator)?;
+                let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
                 let ism = h_aleo::AleoIsm::new(provider, &locator, conf)?;
                 Ok(Box::new(ism) as Box<dyn RoutingIsm>)
             }
@@ -1460,6 +1460,7 @@ fn build_aleo_provider(
     connection_conf: &h_aleo::ConnectionConf,
     _metrics: &CoreMetrics,
     locator: &ContractLocator,
+    signer: Option<h_aleo::AleoSigner>,
 ) -> ChainResult<AleoProvider> {
-    AleoProvider::new(connection_conf, locator.domain.clone())
+    AleoProvider::new(connection_conf, locator.domain.clone(), signer)
 }

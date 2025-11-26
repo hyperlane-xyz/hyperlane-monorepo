@@ -17,6 +17,7 @@ use hyperlane_core::{
 };
 use lander::{Entrypoint, FullPayload, LanderError, PayloadStatus, PayloadUuid};
 
+use crate::msg::message_processor::MessageProcessorMetrics;
 use crate::msg::op_queue::OpQueue;
 use crate::server::operations::message_retry::MessageRetryRequest;
 
@@ -25,19 +26,30 @@ use crate::server::operations::message_retry::MessageRetryRequest;
 pub struct MockQueueOperation {
     pub id: H256,
     pub status: PendingOperationStatus,
+    pub destination: HyperlaneDomain,
 }
 
 impl MockQueueOperation {
-    pub fn new(id: H256, status: PendingOperationStatus) -> Self {
-        Self { id, status }
+    pub fn new(id: H256, status: PendingOperationStatus, destination: HyperlaneDomain) -> Self {
+        Self {
+            id,
+            status,
+            destination,
+        }
     }
 
     pub fn with_first_prepare(id: H256) -> Self {
-        Self::new(id, PendingOperationStatus::FirstPrepareAttempt)
+        let destination = HyperlaneDomain::new_test_domain("test");
+        Self::new(id, PendingOperationStatus::FirstPrepareAttempt, destination)
     }
 
     pub fn with_manual_retry(id: H256) -> Self {
-        Self::new(id, PendingOperationStatus::Retry(ReprepareReason::Manual))
+        let destination = HyperlaneDomain::new_test_domain("test");
+        Self::new(
+            id,
+            PendingOperationStatus::Retry(ReprepareReason::Manual),
+            destination,
+        )
     }
 }
 
@@ -63,7 +75,7 @@ impl PendingOperation for MockQueueOperation {
         )
     }
     fn destination_domain(&self) -> &HyperlaneDomain {
-        unimplemented!()
+        &self.destination
     }
     fn sender_address(&self) -> &H256 {
         unimplemented!()
@@ -167,4 +179,36 @@ pub fn create_test_queue() -> OpQueue {
         "test_confirm_queue".to_string(),
         Arc::new(tokio::sync::Mutex::new(rx)),
     )
+}
+
+/// Helper function to create test metrics for testing
+pub fn create_test_metrics() -> MessageProcessorMetrics {
+    use prometheus::{IntCounterVec, Opts};
+
+    let processor_queue_length = IntGaugeVec::new(
+        Opts::new("test_processor_queue_length", "Test processor queue length"),
+        &[
+            "destination",
+            "queue_metrics_label",
+            "operation_status",
+            "app_context",
+        ],
+    )
+    .unwrap();
+
+    let ops_processed = IntCounterVec::new(
+        Opts::new("test_ops_processed", "Test operations processed"),
+        &["chain", "phase", "app_context"],
+    )
+    .unwrap();
+
+    MessageProcessorMetrics {
+        destination: "test".to_string(),
+        processor_queue_length,
+        ops_prepared: ops_processed.clone(),
+        ops_submitted: ops_processed.clone(),
+        ops_confirmed: ops_processed.clone(),
+        ops_failed: ops_processed.clone(),
+        ops_dropped: ops_processed.clone(),
+    }
 }
