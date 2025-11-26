@@ -1,3 +1,7 @@
+## [1.8.0] - 2025-11-26
+
+* feat: aleo fallback provider (#7407)
+
 ## [1.7.0] - 2025-11-10
 
 * feat: make validator startup more resilient (#7342)
