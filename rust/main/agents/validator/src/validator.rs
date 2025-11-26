@@ -555,7 +555,7 @@ impl Validator {
         reorg_reporter: &Arc<dyn ReorgReporter>,
         checkpoint_syncer_result: &Result<Box<dyn CheckpointSyncer>, CheckpointSyncerBuildError>,
     ) {
-        if let Err(CheckpointSyncerBuildError::ReorgEvent(reorg_event)) =
+        if let Err(CheckpointSyncerBuildError::ReorgFlag(reorg_event)) =
             checkpoint_syncer_result.as_ref()
         {
             reorg_reporter

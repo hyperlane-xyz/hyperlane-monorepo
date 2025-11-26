@@ -4,12 +4,14 @@ use serde::{Deserialize, Serialize};
 use crate::{ReorgPeriod, H256};
 
 /// A response about a chain reorg, from an agent's perspective
-#[derive(Debug, Clone, Serialize, Deserialize, new, PartialEq, Default)]
+#[derive(Debug, Clone)]
 pub struct ReorgEventResponse {
     /// Whether a reorg event exists
     pub exists: bool,
     /// Details on the actual reorg if parsable
     pub event: Option<ReorgEvent>,
+    /// Details on the actual reorg as a string
+    pub contents: Option<String>,
 }
 
 /// Details about a detected chain reorg, from an agent's perspective

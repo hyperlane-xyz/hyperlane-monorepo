@@ -50,7 +50,7 @@ pub enum CheckpointSyncerConf {
 pub enum CheckpointSyncerBuildError {
     /// A reorg event has been detected in the checkpoint syncer when building it
     #[error("Fatal: A reorg event has been detected. Please reach out for help, this is a potentially serious error impacting signed messages. Do NOT forcefully resume operation of this validator. Keep it crashlooping or shut down until receive support. {0:?}")]
-    ReorgEvent(ReorgEvent),
+    ReorgFlag(ReorgEvent),
     /// Error communicating with the chain
     #[error(transparent)]
     ChainError(#[from] ChainCommunicationError),
@@ -135,11 +135,9 @@ impl CheckpointSyncerConf {
         match syncer.reorg_status().await {
             Ok(event) => {
                 if event.exists {
-                    if let Some(reorg_event) = event.event {
-                        return Err(CheckpointSyncerBuildError::ReorgEvent(reorg_event));
-                    }
-                    // failed to parse the reorg event, so just use default
-                    return Err(CheckpointSyncerBuildError::ReorgEvent(ReorgEvent::default()));
+                    return Err(CheckpointSyncerBuildError::ReorgFlag(
+                        event.event.unwrap_or_default(),
+                    ));
                 }
             }
             Err(err) => {
@@ -243,7 +241,7 @@ mod test {
         // Initialize a new checkpoint syncer and expect it to panic due to the reorg event.
         let result = checkpoint_syncer_conf.build_and_validate(None).await;
         match result {
-            Err(CheckpointSyncerBuildError::ReorgEvent(e)) => {
+            Err(CheckpointSyncerBuildError::ReorgFlag(e)) => {
                 assert_eq!(e, dummy_reorg_event, "Reported reorg event doesn't match");
             }
             _ => panic!("Expected a reorg event error"),

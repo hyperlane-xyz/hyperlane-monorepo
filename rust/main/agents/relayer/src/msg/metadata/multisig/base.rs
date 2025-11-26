@@ -237,7 +237,7 @@ async fn metadata_build<T: MultisigIsmMetadataBuilder>(
         .await
     {
         Ok(syncer) => syncer,
-        Err(CheckpointSyncerBuildError::ReorgEvent(reorg_event)) => {
+        Err(CheckpointSyncerBuildError::ReorgFlag(reorg_event)) => {
             let err =
                 MetadataBuildError::Refused(format!("A reorg event occurred {reorg_event:?}"));
             return Err(err);
