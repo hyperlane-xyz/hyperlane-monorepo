@@ -51,8 +51,8 @@
   },
   "dependencies": {
     "@hyperlane-xyz/provider-sdk": "0.2.0",
-    "@hyperlane-xyz/utils": "19.9.0",
-    "@provablehq/sdk": "portal:../../../sdk/sdk",
+    "@hyperlane-xyz/utils": "19.10.0",
+    "@provablehq/sdk": "^0.9.13",
     "bignumber.js": "^9.1.1",
     "unzipper": "^0.12.3"
   }

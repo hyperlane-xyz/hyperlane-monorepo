@@ -19,6 +19,7 @@ import {
   Program as TestnetProgram,
   ProgramManager as TestnetProgramManager,
   U128 as TestnetU128,
+  getOrInitConsensusVersionTestHeights,
 } from '@provablehq/sdk/testnet.js';
 
 import { assert, strip0x } from '@hyperlane-xyz/utils';
@@ -51,6 +52,10 @@ export class AleoBase {
       : new AleoMainnetNetworkClient(rpcUrls[0]);
 
     this.skipProof = JSON.parse(process.env['ALEO_SKIP_PROOF'] || 'false');
+
+    if (+chainId === 1) {
+      getOrInitConsensusVersionTestHeights('0,1,2,3,4,5,6,7,8,9,10,11');
+    }
   }
 
   protected get Plaintext() {

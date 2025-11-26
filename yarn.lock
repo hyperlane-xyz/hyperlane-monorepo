@@ -8138,8 +8138,8 @@ __metadata:
     "@eslint/js": "npm:^9.31.0"
     "@hyperlane-xyz/provider-sdk": "npm:0.2.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
-    "@hyperlane-xyz/utils": "npm:19.9.0"
-    "@provablehq/sdk": "portal:../../../sdk/sdk"
+    "@hyperlane-xyz/utils": "npm:19.10.0"
+    "@provablehq/sdk": "npm:^0.9.13"
     "@types/chai-as-promised": "npm:^8"
     "@types/mocha": "npm:^10.0.1"
     "@types/unzipper": "npm:^0"
@@ -8761,7 +8761,7 @@ __metadata:
     "@cosmjs/encoding": "npm:^0.32.4"
     "@eslint/js": "npm:^9.31.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
-    "@provablehq/sdk": "npm:^0.9.11"
+    "@provablehq/sdk": "npm:^0.9.13"
     "@solana/web3.js": "npm:^1.98.4"
     "@types/lodash-es": "npm:^4.17.12"
     "@types/mocha": "npm:^10.0.1"
@@ -8797,31 +8797,6 @@ __metadata:
       optional: true
   languageName: unknown
   linkType: soft
-
-"@hyperlane-xyz/utils@npm:19.9.0":
-  version: 19.9.0
-  resolution: "@hyperlane-xyz/utils@npm:19.9.0"
-  dependencies:
-    "@cosmjs/encoding": "npm:^0.32.4"
-    "@solana/web3.js": "npm:^1.98.4"
-    bech32: "npm:^2.0.0"
-    bignumber.js: "npm:^9.1.1"
-    ethers: "npm:^5.8.0"
-    lodash-es: "npm:^4.17.21"
-    pino: "npm:^8.19.0"
-    starknet: "npm:^7.4.0"
-    yaml: "npm:2.4.5"
-  peerDependencies:
-    "@google-cloud/pino-logging-gcp-config": ^1.0.6
-    pino-pretty: ">=10.0.0"
-  peerDependenciesMeta:
-    "@google-cloud/pino-logging-gcp-config":
-      optional: true
-    pino-pretty:
-      optional: true
-  checksum: 10/d39d5f0613e91b0db4be7e8dfc872993c728bf626f8ec120ac27e89d889470e71def7c99c1f86c8e6e8ffd4ee2f64d358911a10de0305d227045b8d572537553
-  languageName: node
-  linkType: hard
 
 "@hyperlane-xyz/widgets@workspace:typescript/widgets":
   version: 0.0.0-use.local
@@ -11559,46 +11534,25 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@provablehq/sdk@npm:^0.9.11":
-  version: 0.9.11
-  resolution: "@provablehq/sdk@npm:0.9.11"
+"@provablehq/sdk@npm:^0.9.13":
+  version: 0.9.13
+  resolution: "@provablehq/sdk@npm:0.9.13"
   dependencies:
-    "@provablehq/wasm": "npm:^0.9.11"
+    "@provablehq/wasm": "npm:^0.9.13"
     "@scure/base": "npm:^2.0.0"
     comlink: "npm:^4.4.2"
     core-js: "npm:^3.40.0"
     mime: "npm:^4.0.6"
     sync-request: "npm:^6.1.0"
     xmlhttprequest-ssl: "npm:^3.1.0"
-  checksum: 10/5ed79a7a4123091c89f5d55c77c5f2ec9f8e1f2d19d720b5d2a54991e7e5eb2a09ff89106179f0be125d528f26b6d97537ed42e48cf554a44ff823ca24b3c710
+  checksum: 10/918a806f675b33f55c7ac111438d3cabc7fe0570deea2d3564661c66840e3d0dea34f224f5d5fd51503eef6b7b7a6d3ef68319a0c1cf520be7aedcf9c48d20fd
   languageName: node
   linkType: hard
 
-"@provablehq/sdk@portal:../../../sdk/sdk::locator=%40hyperlane-xyz%2Faleo-sdk%40workspace%3Atypescript%2Faleo-sdk":
-  version: 0.0.0-use.local
-  resolution: "@provablehq/sdk@portal:../../../sdk/sdk::locator=%40hyperlane-xyz%2Faleo-sdk%40workspace%3Atypescript%2Faleo-sdk"
-  dependencies:
-    "@provablehq/wasm": "npm:^0.9.11"
-    "@scure/base": "npm:^2.0.0"
-    comlink: "npm:^4.4.2"
-    core-js: "npm:^3.40.0"
-    mime: "npm:^4.0.6"
-    sync-request: "npm:^6.1.0"
-    xmlhttprequest-ssl: "npm:^3.1.0"
-  languageName: node
-  linkType: soft
-
-"@provablehq/wasm@npm:0.9.11":
-  version: 0.9.11
-  resolution: "@provablehq/wasm@npm:0.9.11"
-  checksum: 10/3833c94f1ddc9dbd614ad2c6f1846f6ff64b4873df12c8dcd6e208e8fb792bfc971bbb2d8126999e2acd4f74f3540de76452cd1403587809e8306ef0d8c022ae
-  languageName: node
-  linkType: hard
-
-"@provablehq/wasm@patch:@provablehq/wasm@npm%3A0.9.11#~/.yarn/patches/@provablehq-wasm-npm-0.9.11-d2c7cc012d.patch":
-  version: 0.9.11
-  resolution: "@provablehq/wasm@patch:@provablehq/wasm@npm%3A0.9.11#~/.yarn/patches/@provablehq-wasm-npm-0.9.11-d2c7cc012d.patch::version=0.9.11&hash=afe84a"
-  checksum: 10/a9602b6e40880ff27840cfd5351f849093057a5a0808595a0129665408e219dadb2f3e754763cc8f352915d69076ccfca210d28b029bf430ed7f6243402d2e53
+"@provablehq/wasm@npm:^0.9.13":
+  version: 0.9.13
+  resolution: "@provablehq/wasm@npm:0.9.13"
+  checksum: 10/3c8f1c0bbe48253772f1794d04367d4f02b203811f6caa5aa6b04c1e00c8f1cd430bbbae9ec333424e997b7fde8558d13170c37972390ae96ae66843ff86c10f
   languageName: node
   linkType: hard
 

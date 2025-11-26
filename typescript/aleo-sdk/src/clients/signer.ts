@@ -48,15 +48,21 @@ export class AleoSigner
 
     for (const { id, program } of programs) {
       try {
-        const tx = await this.programManager.buildDeploymentTransaction(
-          program,
-          0,
-          false,
-          undefined,
-          undefined,
-          undefined,
-          this.skipProof,
-        );
+        const tx = this.skipProof
+          ? await this.programManager.buildDevnodeDeploymentTransaction({
+              program,
+              priorityFee: 0,
+              privateFee: false,
+            })
+          : await this.programManager.buildDeploymentTransaction(
+              program,
+              0,
+              false,
+              undefined,
+              undefined,
+              undefined,
+            );
+
         const txId =
           await this.programManager.networkClient.submitTransaction(tx);
 
@@ -94,8 +100,13 @@ export class AleoSigner
   async sendAndConfirmTransaction(
     transaction: AleoTransaction,
   ): Promise<AleoReceipt> {
-    const txId = await this.programManager.execute(transaction);
+    const tx = this.skipProof
+      ? await this.programManager.buildDevnodeExecutionTransaction(transaction)
+      : await this.programManager.buildExecutionTransaction(transaction);
+
+    const txId = await this.programManager.networkClient.submitTransaction(tx);
     const receipt = await this.aleoClient.waitForTransactionConfirmation(txId);
+
     return {
       ...receipt,
       transactionHash: receipt.transaction.id,
@@ -126,18 +137,14 @@ export class AleoSigner
 
     tx.programName = mailboxAddress;
 
-    const txId = await this.programManager.execute(tx);
-    await this.aleoClient.waitForTransactionConfirmation(txId);
-
-    const setDispatchProxyTxId = await this.programManager.execute({
+    await this.sendAndConfirmTransaction(tx);
+    await this.sendAndConfirmTransaction({
       programName: mailboxAddress,
       functionName: 'set_dispatch_proxy',
       priorityFee: 0,
       privateFee: false,
       inputs: [dispatchProxyAddress],
-      skipProof: this.skipProof,
     });
-    await this.aleoClient.waitForTransactionConfirmation(setDispatchProxyTxId);
 
     return {
       mailboxAddress,
@@ -152,8 +159,7 @@ export class AleoSigner
       ...req,
     });
 
-    const txId = await this.programManager.execute(tx);
-    await this.aleoClient.waitForTransactionConfirmation(txId);
+    await this.sendAndConfirmTransaction(tx);
 
     return {
       ismAddress: req.ismAddress,
@@ -168,8 +174,7 @@ export class AleoSigner
       ...req,
     });
 
-    const txId = await this.programManager.execute(tx);
-    await this.aleoClient.waitForTransactionConfirmation(txId);
+    await this.sendAndConfirmTransaction(tx);
 
     return {
       hookAddress: req.hookAddress,
@@ -184,8 +189,7 @@ export class AleoSigner
       ...req,
     });
 
-    const txId = await this.programManager.execute(tx);
-    await this.aleoClient.waitForTransactionConfirmation(txId);
+    await this.sendAndConfirmTransaction(tx);
 
     return {
       hookAddress: req.hookAddress,
@@ -200,8 +204,7 @@ export class AleoSigner
       ...req,
     });
 
-    const txId = await this.programManager.execute(tx);
-    await this.aleoClient.waitForTransactionConfirmation(txId);
+    await this.sendAndConfirmTransaction(tx);
 
     return {
       newOwner: req.newOwner,
@@ -235,8 +238,7 @@ export class AleoSigner
       ...req,
     });
 
-    const txId = await this.programManager.execute(tx);
-    await this.aleoClient.waitForTransactionConfirmation(txId);
+    await this.sendAndConfirmTransaction(tx);
 
     const ismAddress = await this.aleoClient.getProgramMappingValue(
       programs[programs.length - 1],
@@ -276,8 +278,7 @@ export class AleoSigner
       ...req,
     });
 
-    const txId = await this.programManager.execute(tx);
-    await this.aleoClient.waitForTransactionConfirmation(txId);
+    await this.sendAndConfirmTransaction(tx);
 
     const ismAddress = await this.aleoClient.getProgramMappingValue(
       programs[programs.length - 1],
@@ -304,8 +305,7 @@ export class AleoSigner
       ...req,
     });
 
-    const txId = await this.programManager.execute(tx);
-    await this.aleoClient.waitForTransactionConfirmation(txId);
+    await this.sendAndConfirmTransaction(tx);
 
     return {
       route: req.route,
@@ -320,8 +320,7 @@ export class AleoSigner
       ...req,
     });
 
-    const txId = await this.programManager.execute(tx);
-    await this.aleoClient.waitForTransactionConfirmation(txId);
+    await this.sendAndConfirmTransaction(tx);
 
     return {
       domainId: req.domainId,
@@ -336,8 +335,7 @@ export class AleoSigner
       ...req,
     });
 
-    const txId = await this.programManager.execute(tx);
-    await this.aleoClient.waitForTransactionConfirmation(txId);
+    await this.sendAndConfirmTransaction(tx);
 
     return {
       newOwner: req.newOwner,
@@ -365,8 +363,7 @@ export class AleoSigner
       ...req,
     });
 
-    const txId = await this.programManager.execute(tx);
-    await this.aleoClient.waitForTransactionConfirmation(txId);
+    await this.sendAndConfirmTransaction(tx);
 
     const ismAddress = await this.aleoClient.getProgramMappingValue(
       programs[programs.length - 1],
@@ -408,8 +405,7 @@ export class AleoSigner
       ...req,
     });
 
-    const txId = await this.programManager.execute(tx);
-    await this.aleoClient.waitForTransactionConfirmation(txId);
+    await this.sendAndConfirmTransaction(tx);
 
     const hookAddress = await this.aleoClient.getProgramMappingValue(
       hookManagerProgramId,
@@ -451,8 +447,7 @@ export class AleoSigner
       ...req,
     });
 
-    const txId = await this.programManager.execute(tx);
-    await this.aleoClient.waitForTransactionConfirmation(txId);
+    await this.sendAndConfirmTransaction(tx);
 
     const hookAddress = await this.aleoClient.getProgramMappingValue(
       hookManagerProgramId,
@@ -479,8 +474,7 @@ export class AleoSigner
       ...req,
     });
 
-    const txId = await this.programManager.execute(tx);
-    await this.aleoClient.waitForTransactionConfirmation(txId);
+    await this.sendAndConfirmTransaction(tx);
 
     return {
       newOwner: req.newOwner,
@@ -495,8 +489,7 @@ export class AleoSigner
       ...req,
     });
 
-    const txId = await this.programManager.execute(tx);
-    await this.aleoClient.waitForTransactionConfirmation(txId);
+    await this.sendAndConfirmTransaction(tx);
 
     return {
       destinationGasConfig: req.destinationGasConfig,
@@ -511,8 +504,7 @@ export class AleoSigner
       ...req,
     });
 
-    const txId = await this.programManager.execute(tx);
-    await this.aleoClient.waitForTransactionConfirmation(txId);
+    await this.sendAndConfirmTransaction(tx);
 
     return {
       remoteDomainId: req.remoteDomainId,
@@ -542,8 +534,7 @@ export class AleoSigner
       ...req,
     });
 
-    const txId = await this.programManager.execute(tx);
-    await this.aleoClient.waitForTransactionConfirmation(txId);
+    await this.sendAndConfirmTransaction(tx);
 
     const hookAddress = await this.aleoClient.getProgramMappingValue(
       hookManagerProgramId,
@@ -581,8 +572,7 @@ export class AleoSigner
     const validatorAnnounceId = programs[programs.length - 1];
     tx.programName = validatorAnnounceId;
 
-    const txId = await this.programManager.execute(tx);
-    await this.aleoClient.waitForTransactionConfirmation(txId);
+    await this.sendAndConfirmTransaction(tx);
 
     return {
       validatorAnnounceId,
@@ -613,8 +603,7 @@ export class AleoSigner
 
     tx.inputs = [programIdToPlaintext(tokenAddress), ...tx.inputs];
 
-    const txId = await this.programManager.execute(tx);
-    await this.aleoClient.waitForTransactionConfirmation(txId);
+    await this.sendAndConfirmTransaction(tx);
 
     return {
       tokenAddress,
@@ -645,8 +634,7 @@ export class AleoSigner
 
     tx.inputs = [programIdToPlaintext(tokenAddress), ...tx.inputs];
 
-    const txId = await this.programManager.execute(tx);
-    await this.aleoClient.waitForTransactionConfirmation(txId);
+    await this.sendAndConfirmTransaction(tx);
 
     return {
       tokenAddress,
@@ -675,8 +663,7 @@ export class AleoSigner
 
     tx.inputs = [programIdToPlaintext(tokenAddress), ...tx.inputs];
 
-    const txId = await this.programManager.execute(tx);
-    await this.aleoClient.waitForTransactionConfirmation(txId);
+    await this.sendAndConfirmTransaction(tx);
 
     return {
       tokenAddress,
@@ -691,8 +678,7 @@ export class AleoSigner
       ...req,
     });
 
-    const txId = await this.programManager.execute(tx);
-    await this.aleoClient.waitForTransactionConfirmation(txId);
+    await this.sendAndConfirmTransaction(tx);
 
     return {
       newOwner: req.newOwner,
@@ -707,8 +693,7 @@ export class AleoSigner
       ...req,
     });
 
-    const txId = await this.programManager.execute(tx);
-    await this.aleoClient.waitForTransactionConfirmation(txId);
+    await this.sendAndConfirmTransaction(tx);
 
     return {
       ismAddress: req.ismAddress,
@@ -723,8 +708,7 @@ export class AleoSigner
       ...req,
     });
 
-    const txId = await this.programManager.execute(tx);
-    await this.aleoClient.waitForTransactionConfirmation(txId);
+    await this.sendAndConfirmTransaction(tx);
 
     return {
       hookAddress: req.hookAddress,
@@ -739,8 +723,7 @@ export class AleoSigner
       ...req,
     });
 
-    const txId = await this.programManager.execute(tx);
-    await this.aleoClient.waitForTransactionConfirmation(txId);
+    await this.sendAndConfirmTransaction(tx);
 
     return {
       receiverDomainId: req.remoteRouter.receiverDomainId,
@@ -755,8 +738,7 @@ export class AleoSigner
       ...req,
     });
 
-    const txId = await this.programManager.execute(tx);
-    await this.aleoClient.waitForTransactionConfirmation(txId);
+    await this.sendAndConfirmTransaction(tx);
 
     return {
       receiverDomainId: req.receiverDomainId,
@@ -771,8 +753,7 @@ export class AleoSigner
       ...req,
     });
 
-    const txId = await this.programManager.execute(tx);
-    await this.aleoClient.waitForTransactionConfirmation(txId);
+    await this.sendAndConfirmTransaction(tx);
 
     return {
       recipient: req.recipient,
@@ -787,8 +768,7 @@ export class AleoSigner
       ...req,
     });
 
-    const txId = await this.programManager.execute(tx);
-    await this.aleoClient.waitForTransactionConfirmation(txId);
+    await this.sendAndConfirmTransaction(tx);
 
     return {
       tokenAddress: req.tokenAddress,

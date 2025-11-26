@@ -4,7 +4,7 @@
   "version": "19.10.0",
   "dependencies": {
     "@cosmjs/encoding": "^0.32.4",
-    "@provablehq/sdk": "^0.9.11",
+    "@provablehq/sdk": "^0.9.13",
     "@solana/web3.js": "^1.98.4",
     "bech32": "^2.0.0",
     "bignumber.js": "^9.1.1",

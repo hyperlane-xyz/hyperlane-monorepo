@@ -69,21 +69,17 @@ describe('4. aleo sdk warp e2e tests', async function () {
     collateralDenom = '1field';
 
     try {
-      const tx = await programManager.buildDeploymentTransaction(
-        token_registry,
-        0,
-        false,
-        undefined,
-        undefined,
-        undefined,
-        true,
-      );
+      const tx = await programManager.buildDevnodeDeploymentTransaction({
+        program: token_registry,
+        priorityFee: 0,
+        privateFee: false,
+      });
       const txId = await programManager.networkClient.submitTransaction(tx);
 
       await aleoClient.waitForTransactionConfirmation(txId);
     } catch {}
 
-    await programManager.execute({
+    await signer.sendAndConfirmTransaction({
       programName: 'token_registry.aleo',
       functionName: 'register_token',
       priorityFee: 0,
@@ -97,10 +93,9 @@ describe('4. aleo sdk warp e2e tests', async function () {
         `false`,
         `aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc`,
       ],
-      skipProof: true,
     });
 
-    await programManager.execute({
+    await signer.sendAndConfirmTransaction({
       programName: 'token_registry.aleo',
       functionName: 'mint_public',
       priorityFee: 0,
@@ -111,7 +106,6 @@ describe('4. aleo sdk warp e2e tests', async function () {
         `100000000u128`,
         `0u32`,
       ],
-      skipProof: true,
     });
 
     const mailbox = await signer.createMailbox({
@@ -291,6 +285,9 @@ describe('4. aleo sdk warp e2e tests', async function () {
     });
     expect(remoteRouters.remoteRouters).to.have.lengthOf(0);
     const gas = '200000';
+
+    console.log('nativeTokenAddress', nativeTokenAddress);
+    console.log('addressToBytes32', addressToBytes32(nativeTokenAddress));
 
     // ACT
     await signer.enrollRemoteRouter({
