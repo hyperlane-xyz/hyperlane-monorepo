@@ -1,4 +1,4 @@
-import { retryAsync, rootLogger } from '@hyperlane-xyz/utils';
+import { assert, retryAsync, rootLogger } from '@hyperlane-xyz/utils';
 
 import { RadixSigner } from '../clients/signer.js';
 
@@ -57,13 +57,12 @@ export async function deployHyperlaneRadixPackage(
   // no Hyperlane package is deployed on the new node
   const metadata = { ...chainMetadata, packageAddress: 'not-yet-deployed' };
 
-  const signer = (await RadixSigner.connectWithSigner(
-    metadata.rpcUrls!.map((rpc) => rpc.http),
-    privateKey,
-    {
-      metadata,
-    },
-  )) as RadixSigner;
+  const rpcUrls = metadata.rpcUrls?.map((rpc) => rpc.http) ?? [];
+  assert(rpcUrls.length > 0, `Expected radix rpc urls not to be empty`);
+
+  const signer = (await RadixSigner.connectWithSigner(rpcUrls, privateKey, {
+    metadata,
+  })) as RadixSigner;
 
   // Fund the account with the internal signer
   // Use retryAsync to handle transient errors (e.g., epoch expiry)

@@ -1,7 +1,9 @@
-// this file is not exported by the main package export
-/* eslint-disable */
+// this file is not exported by the main package export so it is ok to
+// to use node.js specific imports
+// eslint-disable-next-line
 import { dirname } from 'path';
 import { DockerComposeEnvironment, Wait } from 'testcontainers';
+// eslint-disable-next-line
 import { fileURLToPath } from 'url';
 
 import { assert, rootLogger, sleep } from '@hyperlane-xyz/utils';
