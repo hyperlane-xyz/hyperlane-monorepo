@@ -403,5 +403,11 @@
   },
   "zoramainnet": {
     "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
+  },
+  "megaeth": {
+    "validators": ["0x051ddac8ecf4bae2532b8b7caa626b5567dab528"]
+  },
+  "adichain": {
+    "validators": ["0x4b11a6310bc06300b529b0397683ca3376407eca"]
   }
 }

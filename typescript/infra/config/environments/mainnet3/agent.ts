@@ -68,6 +68,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Validator]: {
     abstract: true,
     // acala: true,
+    adichain: true,
     ancient8: true,
     apechain: true,
     appchain: true,
@@ -135,6 +136,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     mantle: true,
     mantra: true,
     matchain: true,
+    megaeth: true,
     merlin: true,
     metal: true,
     metis: true,
@@ -210,6 +212,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Relayer]: {
     abstract: true,
     // acala: true,
+    adichain: true,
     ancient8: true,
     apechain: true,
     appchain: true,
@@ -277,6 +280,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     mantle: true,
     mantra: true,
     matchain: true,
+    megaeth: true,
     merlin: true,
     metal: true,
     metis: true,
@@ -352,6 +356,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Scraper]: {
     abstract: true,
     // acala: true,
+    adichain: true,
     ancient8: true,
     apechain: true,
     appchain: true,
@@ -419,6 +424,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     mantle: true,
     mantra: true,
     matchain: true,
+    megaeth: true,
     merlin: true,
     metal: true,
     metis: true,

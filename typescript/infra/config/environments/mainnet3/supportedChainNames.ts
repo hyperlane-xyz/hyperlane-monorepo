@@ -2,6 +2,7 @@
 // Placing them here instead of adjacent chains file to avoid circular dep
 export const mainnet3SupportedChainNames = [
   'abstract',
+  'adichain',
   'ancient8',
   'apechain',
   'appchain',
@@ -69,6 +70,7 @@ export const mainnet3SupportedChainNames = [
   'mantle',
   'mantra',
   'matchain',
+  'megaeth',
   'merlin',
   'metal',
   'metis',
