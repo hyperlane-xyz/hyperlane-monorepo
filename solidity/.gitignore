@@ -16,6 +16,8 @@ flattened/
 buildArtifact.json
 fixtures/
 broadcast/
+# Soldeer
+dependencies/
 # ZKSync
 artifacts-zk
 cache-zk
