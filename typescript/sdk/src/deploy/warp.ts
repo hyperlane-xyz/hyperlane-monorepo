@@ -2,10 +2,12 @@ import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   AltVMDeployer,
+  AltVMHookModule,
   AltVMIsmModule,
   AltVMWarpModule,
 } from '@hyperlane-xyz/deploy-sdk';
 import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { HookConfig as ProviderHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
 import { IsmConfig as ProviderIsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import { WarpConfig as ProviderWarpConfig } from '@hyperlane-xyz/provider-sdk/warp';
@@ -193,6 +195,7 @@ async function resolveWarpIsmAndHook(
         chain,
         chainAddresses,
         multiProvider,
+        altVmSigner,
         contractVerifier,
         ismFactoryDeployer,
         warpConfig: config,
@@ -289,6 +292,7 @@ async function createWarpHook({
   chain,
   chainAddresses,
   multiProvider,
+  altVmSigner,
   contractVerifier,
   warpConfig,
 }: {
@@ -296,6 +300,7 @@ async function createWarpHook({
   chain: string;
   chainAddresses: Record<string, string>;
   multiProvider: MultiProvider;
+  altVmSigner: AltVM.ISignerFactory<AnnotatedTx, TxReceipt>;
   contractVerifier?: ContractVerifier;
   warpConfig: HypTokenRouterConfig;
   ismFactoryDeployer: HyperlaneProxyFactoryDeployer;
@@ -348,11 +353,23 @@ async function createWarpHook({
       const { deployedHook } = evmHookModule.serialize();
       return deployedHook;
     }
-    default:
-      rootLogger.warn(
-        `Skipping token hooks because they are not supported on protocol type ${protocolType}`,
-      );
-      return hook;
+    default: {
+      const signer = altVmSigner.get(chain);
+
+      const hookModule = await AltVMHookModule.create({
+        chain,
+        chainLookup: multiProvider,
+        addresses: {
+          deployedHook: '',
+          mailbox: chainAddresses.mailbox,
+        },
+        // FIXME: not all Hook types are supported yet
+        config: hook as ProviderHookConfig | string,
+        signer,
+      });
+      const { deployedHook } = hookModule.serialize();
+      return deployedHook;
+    }
   }
 }
 

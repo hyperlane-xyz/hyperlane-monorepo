@@ -11,6 +11,7 @@ import {TypeCasts} from "../libs/TypeCasts.sol";
 import {IMessageHandlerV2} from "../interfaces/cctp/IMessageHandlerV2.sol";
 import {ITokenMessengerV2} from "../interfaces/cctp/ITokenMessengerV2.sol";
 import {IMessageTransmitterV2} from "../interfaces/cctp/IMessageTransmitterV2.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 // @dev Supports only CCTP V2
 contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
@@ -20,6 +21,8 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
 
     using Message for bytes;
     using TypeCasts for bytes32;
+
+    error MaxFeeTooHigh();
 
     // see https://developers.circle.com/cctp/cctp-finality-and-fees#defined-finality-thresholds
     uint32 public immutable minFinalityThreshold;
@@ -40,7 +43,7 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
             _tokenMessenger
         )
     {
-        require(_maxFeeBps < 10_000, "maxFeeBps must be less than 100%");
+        if (_maxFeeBps >= 10_000) revert MaxFeeTooHigh();
         maxFeeBps = _maxFeeBps;
         minFinalityThreshold = _minFinalityThreshold;
     }
@@ -77,7 +80,15 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
         bytes32,
         uint256 amount
     ) internal view override returns (uint256 feeAmount) {
-        return (amount * maxFeeBps) / (10_000 - maxFeeBps);
+        // round up because depositForBurn maxFee is an upper bound
+        // enforced offchain by the Iris attestation service without precision loss
+        return
+            Math.mulDiv(
+                amount,
+                maxFeeBps,
+                10_000 - maxFeeBps,
+                Math.Rounding.Up
+            );
     }
 
     function _getCCTPVersion() internal pure override returns (uint32) {
@@ -98,23 +109,18 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
         burnMessage._validateBurnMessageFormat();
 
         bytes32 circleBurnSender = burnMessage._getMessageSender();
-        require(
-            circleBurnSender == hyperlaneMessage.sender(),
-            "Invalid burn sender"
-        );
+        if (circleBurnSender != hyperlaneMessage.sender())
+            revert InvalidBurnSender();
 
         bytes calldata tokenMessage = hyperlaneMessage.body();
 
-        require(
-            TokenMessage.amount(tokenMessage) == burnMessage._getAmount(),
-            "Invalid mint amount"
-        );
+        if (TokenMessage.amount(tokenMessage) != burnMessage._getAmount())
+            revert InvalidMintAmount();
 
-        require(
-            TokenMessage.recipient(tokenMessage) ==
-                burnMessage._getMintRecipient(),
-            "Invalid mint recipient"
-        );
+        if (
+            TokenMessage.recipient(tokenMessage) !=
+            burnMessage._getMintRecipient()
+        ) revert InvalidMintRecipient();
     }
 
     function _validateHookMessage(
@@ -122,7 +128,7 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
         bytes29 cctpMessage
     ) internal pure override {
         bytes32 circleMessageId = cctpMessage._getMessageBody().index(0, 32);
-        require(circleMessageId == hyperlaneMessage.id(), "Invalid message id");
+        if (circleMessageId != hyperlaneMessage.id()) revert InvalidMessageId();
     }
 
     // @inheritdoc IMessageHandlerV2
@@ -163,7 +169,7 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
         IMessageTransmitterV2(address(messageTransmitter)).sendMessage(
             destinationDomain,
             ism,
-            bytes32(0), // allow anyone to relay
+            ism,
             minFinalityThreshold,
             abi.encode(messageId)
         );
@@ -173,14 +179,15 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
         uint32 circleDomain,
         bytes32 _recipient,
         uint256 _amount,
-        uint256 _maxFee
+        uint256 _maxFee,
+        bytes32 _ism
     ) internal override {
         ITokenMessengerV2(address(tokenMessenger)).depositForBurn(
             _amount,
             circleDomain,
             _recipient,
             address(wrappedToken),
-            bytes32(0), // allow anyone to relay
+            _ism,
             _maxFee,
             minFinalityThreshold
         );

@@ -8,10 +8,10 @@ import {
   MerkleTreeHookConfig,
 } from '@hyperlane-xyz/provider-sdk/hook';
 import { HypReader } from '@hyperlane-xyz/provider-sdk/module';
-import { Address, WithAddress, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, Logger, WithAddress, rootLogger } from '@hyperlane-xyz/utils';
 
 export class AltVMHookReader implements HypReader<HookModuleType> {
-  protected readonly logger = rootLogger.child({
+  protected readonly logger: Logger = rootLogger.child({
     module: 'AltVMHookReader',
   });
 
