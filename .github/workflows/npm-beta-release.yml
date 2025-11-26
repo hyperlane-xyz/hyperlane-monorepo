@@ -1,0 +1,88 @@
+name: NPM Beta Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      snapshot_tag:
+        description: 'NPM dist-tag for the beta release'
+        required: true
+        default: 'beta'
+        type: choice
+        options:
+          - beta
+          - alpha
+          - rc
+          - preview
+
+concurrency:
+  group: npm-beta-release
+  cancel-in-progress: false
+
+env:
+  LOG_FORMAT: PRETTY
+  TURBO_TELEMETRY_DISABLED: 1
+  TURBO_API: https://cache.depot.dev
+  TURBO_TOKEN: ${{ secrets.DEPOT_TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.DEPOT_ORG_ID }}
+
+jobs:
+  beta-release:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Get short SHA
+        id: sha
+        run: echo "short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Get base version
+        id: version
+        run: |
+          BASE_VERSION=$(node -p "require('./typescript/sdk/package.json').version")
+          BETA_VERSION="${BASE_VERSION}-${{ inputs.snapshot_tag }}.${{ steps.sha.outputs.short }}"
+          echo "base=$BASE_VERSION" >> $GITHUB_OUTPUT
+          echo "beta=$BETA_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Create snapshot versions
+        run: yarn changeset version --snapshot ${{ inputs.snapshot_tag || 'beta' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build packages
+        run: yarn build
+
+      - name: Publish beta packages
+        run: |
+          echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> $HOME/.npmrc
+          yarn changeset publish --tag ${{ inputs.snapshot_tag || 'beta' }}
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true
+
+      - name: Summary
+        run: |
+          echo "### Beta Release Published" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** \`${{ steps.version.outputs.beta }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**NPM Tag:** \`${{ inputs.snapshot_tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Install with:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "npm install @hyperlane-xyz/sdk@${{ inputs.snapshot_tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "npm install @hyperlane-xyz/cli@${{ inputs.snapshot_tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
