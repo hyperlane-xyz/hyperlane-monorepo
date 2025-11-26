@@ -23,7 +23,12 @@ import {
 } from '@hyperlane-xyz/provider-sdk/module';
 import { WithAddress, assert, eqAddressRadix } from '@hyperlane-xyz/utils';
 
-import { AnnotatedRadixTransaction } from '../utils/types.js';
+import { RadixBase } from '../utils/base.js';
+import {
+  AnnotatedRadixTransaction,
+  RadixNetworkConfig,
+  RadixSDKReceipt,
+} from '../utils/types.js';
 
 import { getDomainRoutingIsmConfig } from './query.js';
 import { RadixRoutingIsmTx } from './tx.js';
@@ -78,6 +83,84 @@ export class RadixRoutingIsmModule implements HypModule<RoutingIsmModule> {
 
   serialize(): IsmModuleAddresses {
     return this.args.addresses;
+  }
+
+  static async create(
+    ismConfig: DomainRoutingIsmConfig,
+    networkConfig: RadixNetworkConfig,
+    chainLookup: ChainLookup,
+    signer: ISigner<AnnotatedTx, TxReceipt>,
+    provider: IProvider,
+    base: RadixBase,
+    gateway: GatewayApiClient,
+    moduleProvider: ModuleProvider<IsmModuleType>,
+  ): Promise<HypModule<RoutingIsmModule>> {
+    const { chainName, hyperlanePackageAddress, radixNetworkId } =
+      networkConfig;
+
+    const txHelper = new RadixRoutingIsmTx(
+      {
+        chainName,
+        hyperlanePackageAddress,
+        radixNetworkId,
+      },
+      base,
+    );
+
+    const routes: { domainId: number; ismAddress: string }[] = [];
+    for (const [chainNameOrId, domainConfig] of Object.entries(
+      ismConfig.domains,
+    )) {
+      const domainId = chainLookup.getDomainId(chainNameOrId);
+      assert(
+        domainId,
+        `Expected domainId to be defined for chain ${chainNameOrId}`,
+      );
+
+      let targetIsmAddress: string;
+      if (typeof domainConfig === 'string' || 'address' in domainConfig) {
+        targetIsmAddress = extractIsmAddress(
+          domainConfig as string | DerivedIsmConfig,
+        );
+      } else {
+        const nestedModule = await moduleProvider.createModule(
+          signer,
+          domainConfig,
+        );
+        targetIsmAddress = nestedModule.serialize().deployedIsm;
+      }
+
+      routes.push({
+        domainId: parseInt(domainId.toString()),
+        ismAddress: targetIsmAddress,
+      });
+    }
+
+    const deployTransaction = await txHelper.buildDeploymentTx(
+      signer.getSignerAddress(),
+      routes,
+    );
+
+    const res = await signer.sendAndConfirmTransaction(deployTransaction);
+
+    const address = await base.getNewComponent(res as RadixSDKReceipt);
+
+    return new RadixRoutingIsmModule(
+      radixNetworkId,
+      chainLookup,
+      {
+        addresses: {
+          deployedIsm: address,
+          mailbox: '',
+        },
+        chain: chainName,
+        config: ismConfig,
+      },
+      new RadixRoutingIsmReader(provider, gateway, moduleProvider),
+      txHelper,
+      moduleProvider,
+      signer,
+    );
   }
 
   async update(

@@ -1,6 +1,14 @@
-import { address, u32 } from '@radixdlt/radix-engine-toolkit';
+import {
+  ValueKind,
+  address,
+  array,
+  tuple,
+  u32,
+  u64,
+} from '@radixdlt/radix-engine-toolkit';
 
 import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
+import { strip0x } from '@hyperlane-xyz/utils';
 
 import { RadixBase } from '../utils/base.js';
 import {
@@ -9,11 +17,13 @@ import {
   RadixIsmTypes,
   RadixNetworkConfig,
 } from '../utils/types.js';
+import { bytes } from '../utils/utils.js';
 
-// This class extracts the relevant routing ism update methods from the
-// RadixCoreTx class
 export class RadixRoutingIsmTx {
-  constructor(private readonly base: RadixBase) {}
+  constructor(
+    private readonly config: RadixNetworkConfig,
+    private readonly base: RadixBase,
+  ) {}
 
   async buildAddDomainIsmTransaction(params: {
     from_address: string;
@@ -53,6 +63,30 @@ export class RadixRoutingIsmTx {
       [address(params.new_owner)],
     );
   }
+
+  async buildDeploymentTx(
+    deployerAddress: string,
+    routes: { domainId: number; ismAddress: string }[],
+  ): Promise<AnnotatedRadixTransaction> {
+    const manifest = await this.base.createCallFunctionManifest(
+      deployerAddress,
+      this.config.hyperlanePackageAddress,
+      RadixIsmTypes.ROUTING_ISM,
+      INSTRUCTIONS.INSTANTIATE,
+      [
+        array(
+          ValueKind.Tuple,
+          ...routes.map((r) => tuple(u32(r.domainId), address(r.ismAddress))),
+        ),
+      ],
+    );
+
+    return {
+      manifest,
+      networkId: this.config.radixNetworkId,
+      annotation: `Deploying ${IsmType.ROUTING} on chain ${this.config.chainName}`,
+    };
+  }
 }
 
 export class RadixTestIsmTx {
@@ -76,6 +110,42 @@ export class RadixTestIsmTx {
       manifest,
       networkId: this.config.radixNetworkId,
       annotation: `Deploying ${IsmType.TEST_ISM} on chain ${this.config.chainName}`,
+    };
+  }
+}
+
+export class RadixMultisigIsmTx {
+  constructor(
+    private readonly config: RadixNetworkConfig,
+    private readonly base: RadixBase,
+  ) {}
+
+  public async buildDeploymentTx(
+    deployerAddress: string,
+    ismType: IsmType.MESSAGE_ID_MULTISIG | IsmType.MERKLE_ROOT_MULTISIG,
+    validators: string[],
+    threshold: number,
+  ): Promise<AnnotatedRadixTransaction> {
+    const blueprintName =
+      ismType === IsmType.MESSAGE_ID_MULTISIG
+        ? RadixIsmTypes.MESSAGE_ID_MULTISIG
+        : RadixIsmTypes.MERKLE_ROOT_MULTISIG;
+
+    const manifest = await this.base.createCallFunctionManifest(
+      deployerAddress,
+      this.config.hyperlanePackageAddress,
+      blueprintName,
+      INSTRUCTIONS.INSTANTIATE,
+      [
+        array(ValueKind.Array, ...validators.map((v) => bytes(strip0x(v)))),
+        u64(threshold),
+      ],
+    );
+
+    return {
+      manifest,
+      networkId: this.config.radixNetworkId,
+      annotation: `Deploying ${ismType} on chain ${this.config.chainName}`,
     };
   }
 }

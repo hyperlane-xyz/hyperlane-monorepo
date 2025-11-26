@@ -105,7 +105,7 @@ class RadixIsmModuleProvider implements ModuleProvider<IsmModuleType> {
           this.chainLookup,
           { addresses, chain, config },
           new RadixRoutingIsmReader(signer, this.gateway, this),
-          new RadixRoutingIsmTx(this.base),
+          new RadixRoutingIsmTx(this.config, this.base),
           this,
           signer,
         );
@@ -129,11 +129,31 @@ class RadixIsmModuleProvider implements ModuleProvider<IsmModuleType> {
           this.base,
         );
 
-      default:
-        throw new Error(
-          'ISM deployment not yet implemented. Will be added in follow-up PR. ' +
-            'For now, use string addresses for nested ISMs in routing configs.',
+      case IsmType.MESSAGE_ID_MULTISIG:
+      case IsmType.MERKLE_ROOT_MULTISIG:
+        return RadixMultisigIsmModule.create(
+          config,
+          this.config,
+          signer,
+          this.base,
+          this.gateway,
+          this,
         );
+
+      case IsmType.ROUTING:
+        return RadixRoutingIsmModule.create(
+          config,
+          this.config,
+          this.chainLookup,
+          signer,
+          signer,
+          this.base,
+          this.gateway,
+          this,
+        );
+
+      default:
+        throw new Error(`Unsupported ISM type for deployment: ${config.type}`);
     }
   }
 }

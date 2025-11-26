@@ -22,12 +22,16 @@ import {
   normalizeConfig,
 } from '@hyperlane-xyz/utils';
 
+import { RadixBase } from '../utils/base.js';
 import {
   AnnotatedRadixTransaction,
+  RadixNetworkConfig,
+  RadixSDKReceipt,
   ismTypeFromRadixIsmType,
 } from '../utils/types.js';
 
 import { getMultisigIsmConfig } from './query.js';
+import { RadixMultisigIsmTx } from './tx.js';
 
 type MultisigIsmModule = ExtractIsmModuleType<
   'merkleRootMultisigIsm' | 'messageIdMultisigIsm'
@@ -72,6 +76,54 @@ export class RadixMultisigIsmModule implements HypModule<MultisigIsmModule> {
 
   serialize(): IsmModuleAddresses {
     return this.args.addresses;
+  }
+
+  static async create(
+    ismConfig: MultisigIsmConfig,
+    networkConfig: RadixNetworkConfig,
+    signer: ISigner<AnnotatedTx, TxReceipt>,
+    base: RadixBase,
+    gateway: GatewayApiClient,
+    moduleProvider: ModuleProvider<IsmModuleType>,
+  ): Promise<HypModule<MultisigIsmModule>> {
+    const { chainName, hyperlanePackageAddress, radixNetworkId } =
+      networkConfig;
+
+    const txBuilder = new RadixMultisigIsmTx(
+      {
+        chainName,
+        hyperlanePackageAddress,
+        radixNetworkId,
+      },
+      base,
+    );
+
+    const deployTransaction = await txBuilder.buildDeploymentTx(
+      signer.getSignerAddress(),
+      ismConfig.type === IsmType.MERKLE_ROOT_MULTISIG
+        ? IsmType.MERKLE_ROOT_MULTISIG
+        : IsmType.MESSAGE_ID_MULTISIG,
+      ismConfig.validators,
+      ismConfig.threshold,
+    );
+
+    const res = await signer.sendAndConfirmTransaction(deployTransaction);
+
+    const address = await base.getNewComponent(res as RadixSDKReceipt);
+
+    return new RadixMultisigIsmModule(
+      {
+        addresses: {
+          deployedIsm: address,
+          mailbox: '',
+        },
+        chain: chainName,
+        config: ismConfig,
+      },
+      signer,
+      new RadixMultisigIsmReader(gateway),
+      moduleProvider,
+    );
   }
 
   async update(
