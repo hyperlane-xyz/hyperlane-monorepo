@@ -52,7 +52,7 @@ export interface RawDomainRoutingIsmConfig {
 export interface RawIsmConfigs {
   domainRoutingIsm: RawDomainRoutingIsmConfig;
   merkleRootMultisigIsm: MultisigIsmConfig;
-  messageMultisigIsm: MultisigIsmConfig;
+  messageIdMultisigIsm: MultisigIsmConfig;
   testIsm: TestIsmConfig;
 }
 

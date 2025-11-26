@@ -15,4 +15,11 @@ export { RadixSigner } from './clients/signer.js';
 export {
   DomainRoutingIsmArtifactReader,
   DomainRoutingIsmArtifactWriter,
-} from './core/ism.js';
+} from './core/routing-ism.js';
+
+export {
+  MerkleRootMultisigIsmArtifactReader,
+  MerkleRootMultisigIsmArtifactWriter,
+  MessageIdMultisigIsmArtifactReader,
+  MessageIdMultisigIsmArtifactWriter,
+} from './core/multisig-ism.js';
