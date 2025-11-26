@@ -10,7 +10,7 @@ use hyperlane_core::{
     TxOutcome, H256, U256,
 };
 
-use crate::utils::{hash_to_u128, to_h256};
+use crate::utils::{hash_to_aleo_hash, to_h256};
 use crate::{
     aleo_args, AleoMailboxStruct, AleoMessage, AleoProvider, AppMetadata, ConnectionConf,
     CurrentNetwork, Delivery, DeliveryKey, HyperlaneAleoError,
@@ -89,7 +89,7 @@ impl AleoMailbox {
         let ism = self.recipient_ism(message.recipient).await?;
         let ism = Address::<CurrentNetwork>::from_bytes_le(ism.as_bytes())
             .map_err(HyperlaneAleoError::from)?;
-        let id = hash_to_u128(&message.id())?;
+        let id = hash_to_aleo_hash(&message.id())?;
 
         let recipient = self.get_recipient(message.recipient).await?.to_string();
         let app_metadata: Plaintext<CurrentNetwork> = self
@@ -145,7 +145,7 @@ impl Mailbox for AleoMailbox {
     /// Fetch the status of a message
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
         let key = DeliveryKey {
-            id: hash_to_u128(&id)?,
+            id: hash_to_aleo_hash(&id)?,
         };
 
         let delivered: ChainResult<Delivery> = self

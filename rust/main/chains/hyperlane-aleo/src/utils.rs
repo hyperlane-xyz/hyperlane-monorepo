@@ -14,8 +14,8 @@ pub(crate) fn aleo_hash_to_h256(id: &AleoHash) -> H256 {
     H256::from_slice(&bytes)
 }
 
-/// Converts a H256 into [U128; 2]
-pub(crate) fn hash_to_u128(id: &H256) -> ChainResult<[u128; 2]> {
+/// Converts a H256 into an AleoHash [U128; 2]
+pub(crate) fn hash_to_aleo_hash(id: &H256) -> ChainResult<AleoHash> {
     let first = &id.as_fixed_bytes()[..16];
     let second = &id.as_fixed_bytes()[16..];
     Ok([
