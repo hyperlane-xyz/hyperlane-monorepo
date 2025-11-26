@@ -1,3 +1,8 @@
+## [1.8.0] - 2025-11-26
+
+* feat: add integration test for no tx receipt getting dropped (#7413)
+* feat: store newly assigned nonce to tx and db (#7317)
+
 ## [1.6.0] - 2025-11-06
 
 * feat(lander): EVM `tx_ready_for_resubmission` impl; update block_time configs (#6680)
