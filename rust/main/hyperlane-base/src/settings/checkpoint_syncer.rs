@@ -196,6 +196,8 @@ impl CheckpointSyncerConf {
 
 #[cfg(test)]
 mod test {
+    use std::{fs::File, io::Write};
+
     use hyperlane_core::{ReorgPeriod, H256};
 
     #[tokio::test]
@@ -238,6 +240,34 @@ mod test {
                 .unwrap();
         }
 
+        // Initialize a new checkpoint syncer and expect it to panic due to the reorg event.
+        let result = checkpoint_syncer_conf.build_and_validate(None).await;
+        match result {
+            Err(CheckpointSyncerBuildError::ReorgFlag(e)) => {
+                assert_eq!(e, dummy_reorg_event, "Reported reorg event doesn't match");
+            }
+            _ => panic!("Expected a reorg event error"),
+        }
+    }
+
+    /// When we can't parse reorg_flag.json
+    #[tokio::test]
+    async fn test_build_and_validate_invalid_json() {
+        use super::*;
+
+        // initialize a local checkpoint store
+        let temp_checkpoint_dir = tempfile::tempdir().unwrap();
+        let checkpoint_path = format!("file://{}", temp_checkpoint_dir.path().to_str().unwrap());
+        let checkpoint_syncer_conf = CheckpointSyncerConf::from_str(&checkpoint_path).unwrap();
+
+        {
+            let mut reorg_flag_path = temp_checkpoint_dir.path().to_path_buf();
+            reorg_flag_path.push("reorg_flag.json");
+            let mut file = File::create(reorg_flag_path).unwrap();
+            file.write_all(b"abc").unwrap();
+        }
+
+        let dummy_reorg_event = ReorgEvent::default();
         // Initialize a new checkpoint syncer and expect it to panic due to the reorg event.
         let result = checkpoint_syncer_conf.build_and_validate(None).await;
         match result {
