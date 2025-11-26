@@ -59,8 +59,8 @@ jobs:
         id: generate-token
         uses: actions/create-github-app-token@v1
         with:
-          app-id: ${{ secrets.HYPERLANE_GITHUB_APP_ID }}
-          private-key: ${{ secrets.HYPERLANE_GITHUB_APP_PRIVATE_KEY }}
+          app-id: ${{ secrets.HYPER_GONK_APP_ID }}
+          private-key: ${{ secrets.HYPER_GONK_PRIVATE_KEY }}
 
       - name: Create Release PR
         id: changesets
@@ -162,8 +162,8 @@ jobs:
         id: generate-token
         uses: actions/create-github-app-token@v1
         with:
-          app-id: ${{ secrets.HYPERLANE_GITHUB_APP_ID }}
-          private-key: ${{ secrets.HYPERLANE_GITHUB_APP_PRIVATE_KEY }}
+          app-id: ${{ secrets.HYPER_GONK_APP_ID }}
+          private-key: ${{ secrets.HYPER_GONK_PRIVATE_KEY }}
 
       - name: Publish Release to NPM
         id: changesets
