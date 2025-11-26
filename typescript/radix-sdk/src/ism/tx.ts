@@ -1,6 +1,14 @@
 import { address, u32 } from '@radixdlt/radix-engine-toolkit';
 
+import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
+
 import { RadixBase } from '../utils/base.js';
+import {
+  AnnotatedRadixTransaction,
+  INSTRUCTIONS,
+  RadixIsmTypes,
+  RadixNetworkConfig,
+} from '../utils/types.js';
 
 // This class extracts the relevant routing ism update methods from the
 // RadixCoreTx class
@@ -44,5 +52,30 @@ export class RadixRoutingIsmTx {
       'set_owner',
       [address(params.new_owner)],
     );
+  }
+}
+
+export class RadixTestIsmTx {
+  constructor(
+    private readonly config: RadixNetworkConfig,
+    private readonly base: RadixBase,
+  ) {}
+
+  public async buildDeploymentTx(
+    deployerAddress: string,
+  ): Promise<AnnotatedRadixTransaction> {
+    const manifest = await this.base.createCallFunctionManifest(
+      deployerAddress,
+      this.config.hyperlanePackageAddress,
+      RadixIsmTypes.NOOP_ISM,
+      INSTRUCTIONS.INSTANTIATE,
+      [],
+    );
+
+    return {
+      manifest,
+      networkId: this.config.radixNetworkId,
+      annotation: `Deploying ${IsmType.TEST_ISM} on chain ${this.config.chainName}`,
+    };
   }
 }

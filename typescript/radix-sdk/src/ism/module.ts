@@ -17,8 +17,12 @@ import {
 } from '@hyperlane-xyz/provider-sdk/module';
 import { assert } from '@hyperlane-xyz/utils';
 
-import { DEFAULT_APPLICATION_NAME, DEFAULT_GAS_MULTIPLIER } from '../const.js';
+import {
+  DEFAULT_GAS_MULTIPLIER,
+  getRadixHyperlanePackageDef,
+} from '../const.js';
 import { RadixBase } from '../utils/base.js';
+import { RadixNetworkConfig } from '../utils/types.js';
 
 import {
   RadixMultisigIsmModule,
@@ -30,7 +34,7 @@ import { RadixRoutingIsmTx } from './tx.js';
 
 class RadixIsmModuleProvider implements ModuleProvider<IsmModuleType> {
   constructor(
-    private readonly radixNetworkId: number,
+    private readonly config: RadixNetworkConfig,
     private readonly chainLookup: ChainLookup,
     private readonly base: RadixBase,
     private readonly gateway: GatewayApiClient,
@@ -97,7 +101,7 @@ class RadixIsmModuleProvider implements ModuleProvider<IsmModuleType> {
 
       case IsmType.ROUTING: {
         return new RadixRoutingIsmModule(
-          this.radixNetworkId,
+          this.config.radixNetworkId,
           this.chainLookup,
           { addresses, chain, config },
           new RadixRoutingIsmReader(signer, this.gateway, this),
@@ -113,13 +117,24 @@ class RadixIsmModuleProvider implements ModuleProvider<IsmModuleType> {
   }
 
   async createModule(
-    _signer: ISigner<AnnotatedTx, TxReceipt>,
-    _config: IsmConfig,
+    signer: ISigner<AnnotatedTx, TxReceipt>,
+    config: IsmConfig,
   ): Promise<HypModule<IsmModuleType>> {
-    throw new Error(
-      'ISM deployment not yet implemented. Will be added in follow-up PR. ' +
-        'For now, use string addresses for nested ISMs in routing configs.',
-    );
+    switch (config.type) {
+      case IsmType.TEST_ISM:
+        return RadixTestIsmModule.create(
+          config,
+          this.config,
+          signer,
+          this.base,
+        );
+
+      default:
+        throw new Error(
+          'ISM deployment not yet implemented. Will be added in follow-up PR. ' +
+            'For now, use string addresses for nested ISMs in routing configs.',
+        );
+    }
   }
 }
 
@@ -127,8 +142,11 @@ export function radixIsmModuleProvider(
   chainLookup: ChainLookup,
   chainName: string,
 ): ModuleProvider<IsmModuleType> {
-  const { chainId: radixNetworkId, gatewayUrls } =
-    chainLookup.getChainMetadata(chainName);
+  const {
+    chainId: radixNetworkId,
+    gatewayUrls,
+    packageAddress,
+  } = chainLookup.getChainMetadata(chainName);
 
   const parsedRadixNetworkId = parseInt(radixNetworkId.toString());
   assert(
@@ -136,8 +154,13 @@ export function radixIsmModuleProvider(
     `Invalid Radix network ID: ${radixNetworkId}`,
   );
 
+  const hyperlanePackageDef = getRadixHyperlanePackageDef({
+    networkId: parsedRadixNetworkId,
+    packageAddress,
+  });
+
   const gateway = GatewayApiClient.initialize({
-    applicationName: DEFAULT_APPLICATION_NAME,
+    applicationName: hyperlanePackageDef.applicationName,
     basePath: gatewayUrls?.[0]?.http,
     networkId: parsedRadixNetworkId,
   });
@@ -149,7 +172,11 @@ export function radixIsmModuleProvider(
   );
 
   return new RadixIsmModuleProvider(
-    parsedRadixNetworkId,
+    {
+      chainName,
+      hyperlanePackageAddress: hyperlanePackageDef.packageAddress,
+      radixNetworkId: parsedRadixNetworkId,
+    },
     chainLookup,
     base,
     gateway,
