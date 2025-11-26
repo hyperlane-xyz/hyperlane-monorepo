@@ -5,6 +5,7 @@ pub use traits::*;
 mod aleo;
 mod base;
 mod fallback;
+mod metric;
 mod traits;
 
 #[cfg(test)]

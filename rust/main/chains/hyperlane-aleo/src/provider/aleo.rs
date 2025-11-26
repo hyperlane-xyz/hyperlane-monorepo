@@ -7,6 +7,7 @@ use std::{
 
 use aleo_std::StorageMode;
 use async_trait::async_trait;
+use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
 use snarkvm::{
     ledger::{
@@ -53,16 +54,22 @@ impl AleoProvider<FallbackHttpClient> {
         conf: &ConnectionConf,
         domain: HyperlaneDomain,
         signer: Option<AleoSigner>,
+        metrics: PrometheusClientMetrics,
+        chain: Option<hyperlane_metric::prometheus_metric::ChainInfo>,
     ) -> ChainResult<Self> {
         let proving_service = if !conf.proving_service.is_empty() {
-            let client = FallbackHttpClient::new(conf.proving_service.clone())?;
+            let client = FallbackHttpClient::new(
+                conf.proving_service.clone(),
+                metrics.clone(),
+                chain.clone(),
+            )?;
             Some(ProvingClient::new(client))
         } else {
             None
         };
 
         Ok(Self {
-            client: RpcClient::new(FallbackHttpClient::new(conf.rpcs.clone())?),
+            client: RpcClient::new(FallbackHttpClient::new(conf.rpcs.clone(), metrics, chain)?),
             domain,
             network: conf.chain_id,
             proving_service,

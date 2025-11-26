@@ -1456,11 +1456,19 @@ fn build_starknet_provider(
 }
 
 fn build_aleo_provider(
-    _chain_conf: &ChainConf,
+    chain_conf: &ChainConf,
     connection_conf: &h_aleo::ConnectionConf,
-    _metrics: &CoreMetrics,
+    metrics: &CoreMetrics,
     locator: &ContractLocator,
     signer: Option<h_aleo::AleoSigner>,
 ) -> ChainResult<AleoProvider> {
-    AleoProvider::new(connection_conf, locator.domain.clone(), signer)
+    let middleware_metrics = chain_conf.metrics_conf();
+    let metrics = metrics.client_metrics();
+    AleoProvider::new(
+        connection_conf,
+        locator.domain.clone(),
+        signer,
+        metrics.clone(),
+        middleware_metrics.chain.clone(),
+    )
 }
