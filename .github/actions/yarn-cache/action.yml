@@ -31,7 +31,8 @@ runs:
       with:
         path: |
           **/node_modules
-          .yarn
+          .yarn/cache
+          .yarn/install-state.gz
         key: ${{ runner.os }}-yarn-4.5.1-cache-${{ hashFiles('./yarn.lock') }}
         restore-keys: |
           ${{ runner.os }}-yarn-4.5.1-cache-
@@ -43,7 +44,8 @@ runs:
       with:
         path: |
           **/node_modules
-          .yarn
+          .yarn/cache
+          .yarn/install-state.gz
         key: ${{ runner.os }}-yarn-4.5.1-cache-${{ hashFiles('./yarn.lock') }}
         restore-keys: |
           ${{ runner.os }}-yarn-4.5.1-cache-
