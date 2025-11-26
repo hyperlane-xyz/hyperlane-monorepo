@@ -42,3 +42,21 @@ export type IsmModuleAddresses = {
   deployedIsm: string;
   mailbox: string;
 };
+
+export interface RawDomainRoutingIsmConfig {
+  type: 'domainRoutingIsm';
+  owner: string;
+  domains: Record<string, string>;
+}
+
+export interface RawIsmConfigs {
+  domainRoutingIsm: RawDomainRoutingIsmConfig;
+  merkleRootMultisigIsm: MultisigIsmConfig;
+  messageMultisigIsm: MultisigIsmConfig;
+  testIsm: TestIsmConfig;
+}
+
+export interface IsmArtifact<T extends keyof RawIsmConfigs> {
+  config: RawIsmConfigs[T];
+  addresses: { deployedIsm: string };
+}
