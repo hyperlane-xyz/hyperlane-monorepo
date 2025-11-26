@@ -1,5 +1,6 @@
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
+import { DerivedHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
 import { DerivedIsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
 import {
   AnnotatedTx,
@@ -21,6 +22,7 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { AltVMHookModule } from './AltVMHookModule.js';
 import { AltVMIsmModule } from './AltVMIsmModule.js';
 import { AltVMDeployer } from './AltVMWarpDeployer.js';
 import { AltVMWarpRouteReader } from './AltVMWarpRouteReader.js';
@@ -77,11 +79,11 @@ export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
     /**
      * @remark
      * The order of operations matter
-     * 1. createOwnershipUpdateTxs() must always be LAST because no updates possible after ownership transferred
-     * 2. createRemoteRoutersUpdateTxs() must always be BEFORE createSetDestinationGasUpdateTxs() because gas enumeration depends on domains
+     * createOwnershipUpdateTxs() must always be LAST because no updates possible after ownership transferred
      */
     transactions.push(
       ...(await this.createIsmUpdateTxs(actualConfig, expectedConfig)),
+      ...(await this.createHookUpdateTxs(actualConfig, expectedConfig)),
       ...(await this.createRemoteRouterUpdateTxs(actualConfig, expectedConfig)),
       ...(await this.createOwnershipUpdateTxs(actualConfig, expectedConfig)),
     );
@@ -291,6 +293,68 @@ export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
   }
 
   /**
+   * Create transactions to update an existing Hook config, or deploy a new Hook and return a tx to setHook
+   *
+   * @param actualConfig - The on-chain router configuration, including the ISM configuration, and address.
+   * @param expectedConfig - The expected token router configuration, including the ISM configuration.
+   * @returns transaction that need to be executed to update the ISM configuration.
+   */
+  async createHookUpdateTxs(
+    actualConfig: DerivedWarpConfig,
+    expectedConfig: WarpConfig,
+  ): Promise<AnnotatedTx[]> {
+    this.logger.debug(`Start creating token Hook update transactions`);
+
+    const updateTransactions: AnnotatedTx[] = [];
+
+    if (actualConfig.hook === expectedConfig.hook) {
+      this.logger.debug(
+        `Token Hook config is the same as target. No updates needed.`,
+      );
+      return updateTransactions;
+    }
+
+    if (
+      !expectedConfig.hook ||
+      (typeof expectedConfig.hook === 'string' &&
+        isZeroishAddress(expectedConfig.hook))
+    ) {
+      this.logger.debug(`Token Hook config is empty. No updates needed.`);
+      return updateTransactions;
+    }
+
+    const actualDeployedHook =
+      (actualConfig.hook as DerivedHookConfig)?.address ?? '';
+
+    // Try to update (may also deploy) Hook with the expected config
+    const {
+      deployedHook: expectedDeployedHook,
+      updateTransactions: hookUpdateTransactions,
+    } = await this.deployOrUpdateHook(actualConfig, expectedConfig);
+
+    // If an Hook is updated in-place, push the update txs
+    updateTransactions.push(...hookUpdateTransactions);
+
+    // If a new Hook is deployed, push the setHook tx
+    if (actualDeployedHook !== expectedDeployedHook) {
+      updateTransactions.push({
+        annotation: `Setting Hook for Warp Route to ${expectedDeployedHook}`,
+        ...(await this.signer.getSetTokenHookTransaction({
+          signer: actualConfig.owner,
+          tokenAddress: this.args.addresses.deployedTokenRoute,
+          hookAddress: expectedDeployedHook,
+        })),
+      });
+    }
+
+    this.logger.debug(
+      `Created ${updateTransactions.length} update token Hook transactions.`,
+    );
+
+    return updateTransactions;
+  }
+
+  /**
    * Transfer ownership of an existing Warp route with a given config.
    *
    * @param actualConfig - The on-chain router configuration.
@@ -371,6 +435,44 @@ export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
     const { deployedIsm } = ismModule.serialize();
 
     return { deployedIsm, updateTransactions };
+  }
+
+  /**
+   * Updates or deploys the Hook using the provided configuration.
+   *
+   * @returns Object with deployedHook address, and update Transactions
+   */
+  async deployOrUpdateHook(
+    actualConfig: DerivedWarpConfig,
+    expectedConfig: WarpConfig,
+  ): Promise<{
+    deployedHook: Address;
+    updateTransactions: AnnotatedTx[];
+  }> {
+    this.logger.debug(`Start deploying token Hook`);
+
+    assert(expectedConfig.hook, 'Hook derived incorrectly');
+
+    const hookModule = new AltVMHookModule(
+      this.chainLookup,
+      {
+        chain: this.args.chain,
+        config: expectedConfig.hook,
+        addresses: {
+          ...this.args.addresses,
+          mailbox: expectedConfig.mailbox,
+          deployedHook: (actualConfig.hook as DerivedHookConfig)?.address ?? '',
+        },
+      },
+      this.signer,
+    );
+    this.logger.debug(
+      `Comparing target Hook config with ${this.args.chain} chain`,
+    );
+    const updateTransactions = await hookModule.update(expectedConfig.hook);
+    const { deployedHook } = hookModule.serialize();
+
+    return { deployedHook, updateTransactions };
   }
 
   /**
