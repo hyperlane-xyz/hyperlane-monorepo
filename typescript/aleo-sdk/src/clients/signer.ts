@@ -292,6 +292,16 @@ export class AleoSigner
       );
     }
 
+    for (const route of req.routes) {
+      const routeTx = await this.getSetRoutingIsmRouteTransaction({
+        signer: this.getSignerAddress(),
+        ismAddress,
+        route,
+      });
+
+      await this.sendAndConfirmTransaction(routeTx);
+    }
+
     return {
       ismAddress,
     };

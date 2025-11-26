@@ -41,7 +41,9 @@ const main = async () => {
   }
 
   let output = `import { Program } from '@provablehq/sdk/mainnet.js';\n\n`;
-  output += `const originalProgramIds = JSON.parse(process.env['ALEO_USE_ORIGINAL_PROGRAM_IDS'] || 'false');\n\n`;
+  output += `const originalProgramIds = JSON.parse(
+  process.env['ALEO_USE_ORIGINAL_PROGRAM_IDS'] || 'false',
+);\n\n`;
 
   for (const file of files) {
     output +=

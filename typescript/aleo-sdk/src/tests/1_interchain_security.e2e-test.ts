@@ -102,10 +102,18 @@ describe('1. aleo sdk interchain security e2e tests', async function () {
 
   step('create new Routing ISM', async () => {
     // ARRANGE
+    const domainId = 1337;
+
+    const { ismAddress } = await signer.createNoopIsm({});
 
     // ACT
     const txResponse = await signer.createRoutingIsm({
-      routes: [],
+      routes: [
+        {
+          domainId,
+          ismAddress,
+        },
+      ],
     });
 
     // ASSERT
@@ -118,7 +126,11 @@ describe('1. aleo sdk interchain security e2e tests', async function () {
     expect(ism.address).to.equal(txResponse.ismAddress);
     expect(ism.owner).to.equal(signer.getSignerAddress());
 
-    expect(ism.routes).to.be.empty;
+    expect(ism.routes).to.have.lengthOf(1);
+    expect(ism.routes[0]).to.deep.equal({
+      ismAddress,
+      domainId,
+    });
 
     routing_ism = ism.address;
   });
@@ -140,8 +152,8 @@ describe('1. aleo sdk interchain security e2e tests', async function () {
       ismAddress: routing_ism,
     });
 
-    expect(ism.routes).to.have.lengthOf(1);
-    expect(ism.routes[0]).to.deep.equal({
+    expect(ism.routes).to.have.lengthOf(2);
+    expect(ism.routes[1]).to.deep.equal({
       ismAddress: noop_ism,
       domainId: 1234,
     });
@@ -153,8 +165,8 @@ describe('1. aleo sdk interchain security e2e tests', async function () {
       ismAddress: routing_ism,
     });
 
-    expect(ism.routes).to.have.lengthOf(1);
-    expect(ism.routes[0]).to.deep.equal({
+    expect(ism.routes).to.have.lengthOf(2);
+    expect(ism.routes[1]).to.deep.equal({
       ismAddress: noop_ism,
       domainId: 1234,
     });
@@ -170,7 +182,7 @@ describe('1. aleo sdk interchain security e2e tests', async function () {
       ismAddress: routing_ism,
     });
 
-    expect(ism.routes).to.be.empty;
+    expect(ism.routes).to.have.lengthOf(1);
   });
 
   step('update Routing Ism owner', async () => {
