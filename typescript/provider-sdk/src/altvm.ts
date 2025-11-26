@@ -36,28 +36,30 @@ export type ReqIsMessageDelivered = {
   messageId: string;
 };
 
-export enum IsmType {
-  CUSTOM = 'custom',
-  OP_STACK = 'opStackIsm',
-  ROUTING = 'domainRoutingIsm',
-  FALLBACK_ROUTING = 'defaultFallbackRoutingIsm',
-  AMOUNT_ROUTING = 'amountRoutingIsm',
-  INTERCHAIN_ACCOUNT_ROUTING = 'interchainAccountRouting',
-  AGGREGATION = 'staticAggregationIsm',
-  STORAGE_AGGREGATION = 'storageAggregationIsm',
-  MERKLE_ROOT_MULTISIG = 'merkleRootMultisigIsm',
-  MESSAGE_ID_MULTISIG = 'messageIdMultisigIsm',
-  STORAGE_MERKLE_ROOT_MULTISIG = 'storageMerkleRootMultisigIsm',
-  STORAGE_MESSAGE_ID_MULTISIG = 'storageMessageIdMultisigIsm',
-  TEST_ISM = 'testIsm',
-  PAUSABLE = 'pausableIsm',
-  TRUSTED_RELAYER = 'trustedRelayerIsm',
-  ARB_L2_TO_L1 = 'arbL2ToL1Ism',
-  WEIGHTED_MERKLE_ROOT_MULTISIG = 'weightedMerkleRootMultisigIsm',
-  WEIGHTED_MESSAGE_ID_MULTISIG = 'weightedMessageIdMultisigIsm',
-  CCIP = 'ccipIsm',
-  OFFCHAIN_LOOKUP = 'offchainLookupIsm',
-}
+export const IsmType = {
+  CUSTOM: 'custom',
+  OP_STACK: 'opStackIsm',
+  ROUTING: 'domainRoutingIsm',
+  FALLBACK_ROUTING: 'defaultFallbackRoutingIsm',
+  AMOUNT_ROUTING: 'amountRoutingIsm',
+  INTERCHAIN_ACCOUNT_ROUTING: 'interchainAccountRouting',
+  AGGREGATION: 'staticAggregationIsm',
+  STORAGE_AGGREGATION: 'storageAggregationIsm',
+  MERKLE_ROOT_MULTISIG: 'merkleRootMultisigIsm',
+  MESSAGE_ID_MULTISIG: 'messageIdMultisigIsm',
+  STORAGE_MERKLE_ROOT_MULTISIG: 'storageMerkleRootMultisigIsm',
+  STORAGE_MESSAGE_ID_MULTISIG: 'storageMessageIdMultisigIsm',
+  TEST_ISM: 'testIsm',
+  PAUSABLE: 'pausableIsm',
+  TRUSTED_RELAYER: 'trustedRelayerIsm',
+  ARB_L2_TO_L1: 'arbL2ToL1Ism',
+  WEIGHTED_MERKLE_ROOT_MULTISIG: 'weightedMerkleRootMultisigIsm',
+  WEIGHTED_MESSAGE_ID_MULTISIG: 'weightedMessageIdMultisigIsm',
+  CCIP: 'ccipIsm',
+  OFFCHAIN_LOOKUP: 'offchainLookupIsm',
+} as const;
+
+export type IsmType = (typeof IsmType)[keyof typeof IsmType];
 
 export type ReqGetIsmType = { ismAddress: string };
 
