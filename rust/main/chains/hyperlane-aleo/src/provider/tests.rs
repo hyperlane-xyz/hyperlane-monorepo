@@ -255,6 +255,5 @@ async fn test_program_with_imports() {
             vec!["5u32".to_owned(), "5u32".to_owned()],
         )
         .await;
-    println!("HERERER");
     assert!(result.is_ok(), "Estimate TX should succeed");
 }
