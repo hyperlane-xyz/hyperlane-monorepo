@@ -23,3 +23,8 @@ export {
   MessageIdMultisigIsmArtifactReader,
   MessageIdMultisigIsmArtifactWriter,
 } from './core/multisig-ism.js';
+
+export {
+  TestIsmArtifactReader,
+  TestIsmArtifactWriter,
+} from './core/test-ism.js';
