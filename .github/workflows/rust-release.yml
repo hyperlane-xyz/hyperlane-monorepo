@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - pbio/npm-preview-release-workflow  # TEMPORARY: for testing Hyper Gonk
     paths:
       - 'rust/main/**'
       - 'rust/scripts/ci/**'
