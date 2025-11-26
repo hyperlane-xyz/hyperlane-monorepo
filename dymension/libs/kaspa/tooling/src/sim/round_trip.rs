@@ -7,6 +7,7 @@ use crate::x;
 use cometbft_rpc::endpoint::broadcast::tx_commit::Response as HubResponse;
 use corelib::api::client::HttpClient;
 use corelib::user::payload::make_deposit_payload_easy;
+use corelib::wallet::Network;
 use cosmos_sdk_proto::cosmos::bank::v1beta1::MsgSend;
 use cosmos_sdk_proto::cosmos::base::v1beta1::Coin;
 use cosmrs::Any;
@@ -116,6 +117,7 @@ pub struct TaskResources {
     pub hub: CosmosProvider<ModuleQueryClient>,
     pub args: TaskArgs,
     pub kas_rest: HttpClient,
+    pub kaspa_network: Network,
 }
 
 #[derive(Debug, Clone)]
@@ -172,6 +174,7 @@ pub async fn do_round_trip(
 
 async fn do_round_trip_inner(rt: &mut RoundTrip<'_>) {
     let hub_user_key = EasyHubKey::new();
+    info!("hub_user_key: {:?}", hub_user_key.private.to_bytes());
     let hub_user_addr = hub_user_key.signer().address_string.clone();
 
     rt.stats.deposit_addr_hub = Some(hub_user_addr.clone());
@@ -411,8 +414,16 @@ impl<'a> RoundTrip<'a> {
         let fee_amount = self.res.args.deposit_amount - withdrawal_amount;
         let fee_denom = self.res.args.hub_denom();
 
-        let kaspa_recipient = get_kaspa_keypair();
+        let kaspa_prefix = match self.res.kaspa_network {
+            Network::KaspaTest10 => kaspa_addresses::Prefix::Testnet,
+            Network::KaspaMainnet => kaspa_addresses::Prefix::Mainnet,
+        };
+        let kaspa_recipient = get_kaspa_keypair(kaspa_prefix);
         let hub_user_addr = hub_user_key.signer().address_string.clone();
+        info!(
+            "kaspa_recipient_key: {:?}",
+            kaspa_recipient.private_key.secret_bytes()
+        );
         debug!(
             "withdraw starting: task_id={} hub_whale_id={} hub_user_addr={} kaspa_recipient_addr={} amount={} fee_amount={} fee_denom={}",
             self.task_id, self.hub_whale.id, hub_user_addr, kaspa_recipient.address, withdrawal_amount, fee_amount, fee_denom

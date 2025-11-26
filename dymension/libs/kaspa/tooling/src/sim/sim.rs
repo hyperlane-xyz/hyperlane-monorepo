@@ -141,6 +141,7 @@ impl TrafficSim {
             args: args.task_args,
             hub: first_hub_whale.provider.clone(),
             kas_rest: HttpClient::new(args.kaspa_rest_url.clone(), RateLimitConfig::default()),
+            kaspa_network: args.kaspa_network.clone(),
         };
 
         Ok(TrafficSim {

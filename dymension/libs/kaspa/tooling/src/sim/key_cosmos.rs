@@ -5,7 +5,7 @@ use rand_core::OsRng;
 
 #[derive(Clone)]
 pub struct EasyHubKey {
-    private: K256SigningKey,
+    pub private: K256SigningKey,
 }
 
 impl EasyHubKey {
