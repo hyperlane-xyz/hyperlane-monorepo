@@ -58,14 +58,22 @@ jobs:
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Generate GitHub App Token
+        id: generate-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.HYPERLANE_GITHUB_APP_ID }}
+          private-key: ${{ secrets.HYPERLANE_GITHUB_APP_PRIVATE_KEY }}
+
       - name: Create Release PR
         id: changesets
         uses: changesets/action@v1
         with:
           version: pnpm version:prepare
+          title: 'chore: release npm packages'
         env:
           NPM_CONFIG_PROVENANCE: true
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   check-latest-published:
@@ -156,13 +164,21 @@ jobs:
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Generate GitHub App Token
+        id: generate-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.HYPERLANE_GITHUB_APP_ID }}
+          private-key: ${{ secrets.HYPERLANE_GITHUB_APP_PRIVATE_KEY }}
+
       - name: Publish Release to NPM
         id: changesets
         uses: changesets/action@v1
         with:
           version: pnpm version:prepare
           publish: pnpm release
+          title: 'chore: release npm packages'
         env:
           NPM_CONFIG_PROVENANCE: true
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
