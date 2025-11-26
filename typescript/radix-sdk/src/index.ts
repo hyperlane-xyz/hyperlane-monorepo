@@ -28,3 +28,5 @@ export {
   TestIsmArtifactReader,
   TestIsmArtifactWriter,
 } from './core/test-ism.js';
+
+export { RadixIsmArtifactManager } from './artifacts/ism-manager.js';
