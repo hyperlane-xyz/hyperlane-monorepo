@@ -1,5 +1,15 @@
 # @hyperlane-xyz/core
 
+## 10.0.4
+
+### Patch Changes
+
+- 6cfde25d8: Fix fast CCTP v2 token transfers
+- 29ad1d225: Fix bug that prevents addBridge to be called multiple times with the same address on collateral token adapters
+- Updated dependencies [aad2988c9]
+- Updated dependencies [c2a64e8c5]
+  - @hyperlane-xyz/utils@19.10.0
+
 ## 10.0.3
 
 ### Patch Changes

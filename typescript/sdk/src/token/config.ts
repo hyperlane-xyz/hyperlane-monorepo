@@ -62,6 +62,7 @@ export const gasOverhead = (tokenType: TokenType): number => {
     case TokenType.synthetic:
       return 64_000;
     case TokenType.native:
+    case TokenType.nativeScaled:
       return 44_000;
     default:
       return 68_000;

@@ -8131,12 +8131,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@hyperlane-xyz/aleo-sdk@npm:19.9.0, @hyperlane-xyz/aleo-sdk@workspace:typescript/aleo-sdk":
+"@hyperlane-xyz/aleo-sdk@npm:19.10.0, @hyperlane-xyz/aleo-sdk@workspace:typescript/aleo-sdk":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/aleo-sdk@workspace:typescript/aleo-sdk"
   dependencies:
     "@eslint/js": "npm:^9.31.0"
-    "@hyperlane-xyz/provider-sdk": "npm:0.1.0"
+    "@hyperlane-xyz/provider-sdk": "npm:0.2.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
     "@hyperlane-xyz/utils": "npm:19.9.0"
     "@provablehq/sdk": "portal:../../../sdk/sdk"
@@ -8166,10 +8166,11 @@ __metadata:
   dependencies:
     "@eth-optimism/sdk": "npm:^3.3.3"
     "@google-cloud/pino-logging-gcp-config": "npm:^1.0.6"
-    "@hyperlane-xyz/core": "npm:10.0.3"
-    "@hyperlane-xyz/sdk": "npm:19.9.0"
+    "@hyperlane-xyz/core": "npm:10.0.4"
+    "@hyperlane-xyz/registry": "npm:20.0.0"
+    "@hyperlane-xyz/sdk": "npm:19.10.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
-    "@hyperlane-xyz/utils": "npm:19.9.0"
+    "@hyperlane-xyz/utils": "npm:19.10.0"
     "@jest/globals": "npm:^29.7.0"
     "@prisma/client": "npm:^6.8.2"
     "@types/cors": "npm:^2"
@@ -8209,21 +8210,26 @@ __metadata:
     "@eslint/js": "npm:^9.31.0"
     "@ethersproject/abi": "npm:*"
     "@ethersproject/providers": "npm:*"
-    "@hyperlane-xyz/aleo-sdk": "npm:19.9.0"
-    "@hyperlane-xyz/cosmos-sdk": "npm:19.9.0"
-    "@hyperlane-xyz/http-registry-server": "npm:19.9.0"
-    "@hyperlane-xyz/provider-sdk": "npm:0.1.0"
+    "@hyperlane-xyz/aleo-sdk": "npm:19.10.0"
+    "@hyperlane-xyz/core": "npm:10.0.4"
+    "@hyperlane-xyz/cosmos-sdk": "npm:19.10.0"
+    "@hyperlane-xyz/deploy-sdk": "npm:0.2.0"
+    "@hyperlane-xyz/http-registry-server": "npm:19.10.0"
+    "@hyperlane-xyz/provider-sdk": "npm:0.2.0"
+    "@hyperlane-xyz/radix-sdk": "npm:19.10.0"
     "@hyperlane-xyz/registry": "npm:20.0.0"
-    "@hyperlane-xyz/sdk": "npm:19.9.0"
+    "@hyperlane-xyz/sdk": "npm:19.10.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
-    "@hyperlane-xyz/utils": "npm:19.9.0"
+    "@hyperlane-xyz/utils": "npm:19.10.0"
     "@inquirer/core": "npm:9.0.10"
     "@inquirer/figures": "npm:1.0.5"
     "@inquirer/prompts": "npm:3.3.2"
     "@inquirer/search": "npm:^3.0.1"
     "@types/chai-as-promised": "npm:^8"
+    "@types/lodash-es": "npm:^4.17.12"
     "@types/mocha": "npm:^10.0.1"
     "@types/node": "npm:^18.14.5"
+    "@types/sinon": "npm:^17.0.1"
     "@types/yargs": "npm:^17.0.24"
     "@typescript-eslint/eslint-plugin": "npm:^8.1.6"
     "@typescript-eslint/parser": "npm:^8.1.6"
@@ -8241,13 +8247,18 @@ __metadata:
     ethers: "npm:^5.8.0"
     execa: "npm:^9.5.3"
     latest-version: "npm:^8.0.0"
+    lodash-es: "npm:^4.17.21"
     mocha: "npm:^11.5.0"
+    pino: "npm:^8.19.0"
     prettier: "npm:^3.5.3"
     prom-client: "npm:^14.0.1"
+    sinon: "npm:^13.0.2"
     terminal-link: "npm:^3.0.0"
     testcontainers: "npm:11.7.0"
+    ts-node: "npm:^10.8.0"
     tsx: "npm:^4.19.1"
     typescript: "npm:5.3.3"
+    viem: "npm:^2.21.45"
     yaml: "npm:2.4.5"
     yargs: "npm:^17.7.2"
     zksync-ethers: "npm:^5.10.0"
@@ -8259,15 +8270,17 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/core@npm:10.0.3, @hyperlane-xyz/core@workspace:solidity":
+"@hyperlane-xyz/core@npm:10.0.4, @hyperlane-xyz/core@workspace:solidity":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/core@workspace:solidity"
   dependencies:
     "@arbitrum/nitro-contracts": "npm:^1.2.1"
     "@chainlink/contracts-ccip": "npm:^1.5.0"
     "@eth-optimism/contracts": "npm:^0.6.0"
+    "@ethersproject/abi": "npm:*"
+    "@ethersproject/providers": "npm:*"
     "@hyperlane-xyz/tsconfig": "workspace:^"
-    "@hyperlane-xyz/utils": "npm:19.9.0"
+    "@hyperlane-xyz/utils": "npm:19.10.0"
     "@matterlabs/hardhat-zksync-solc": "npm:1.2.5"
     "@matterlabs/hardhat-zksync-verify": "npm:1.7.1"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
@@ -8305,17 +8318,17 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/cosmos-sdk@npm:19.9.0, @hyperlane-xyz/cosmos-sdk@workspace:typescript/cosmos-sdk":
+"@hyperlane-xyz/cosmos-sdk@npm:19.10.0, @hyperlane-xyz/cosmos-sdk@workspace:typescript/cosmos-sdk":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/cosmos-sdk@workspace:typescript/cosmos-sdk"
   dependencies:
     "@cosmjs/stargate": "npm:^0.32.4"
     "@eslint/js": "npm:^9.31.0"
-    "@hyperlane-xyz/cosmos-types": "npm:19.9.0"
+    "@hyperlane-xyz/cosmos-types": "npm:19.10.0"
     "@hyperlane-xyz/eslint-config": "workspace:^"
-    "@hyperlane-xyz/provider-sdk": "npm:0.1.0"
+    "@hyperlane-xyz/provider-sdk": "npm:0.2.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
-    "@hyperlane-xyz/utils": "npm:19.9.0"
+    "@hyperlane-xyz/utils": "npm:19.10.0"
     "@types/mocha": "npm:^10.0.1"
     "@typescript-eslint/eslint-plugin": "npm:^8.1.6"
     "@typescript-eslint/parser": "npm:^8.1.6"
@@ -8331,7 +8344,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/cosmos-types@npm:19.9.0, @hyperlane-xyz/cosmos-types@workspace:typescript/cosmos-types":
+"@hyperlane-xyz/cosmos-types@npm:19.10.0, @hyperlane-xyz/cosmos-types@workspace:typescript/cosmos-types":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/cosmos-types@workspace:typescript/cosmos-types"
   dependencies:
@@ -8351,13 +8364,16 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/deploy-sdk@workspace:typescript/deploy-sdk":
+"@hyperlane-xyz/deploy-sdk@npm:0.2.0, @hyperlane-xyz/deploy-sdk@workspace:typescript/deploy-sdk":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/deploy-sdk@workspace:typescript/deploy-sdk"
   dependencies:
+    "@hyperlane-xyz/cosmos-sdk": "npm:19.10.0"
     "@hyperlane-xyz/eslint-config": "workspace:^"
-    "@hyperlane-xyz/provider-sdk": "npm:0.1.0"
+    "@hyperlane-xyz/provider-sdk": "npm:0.2.0"
+    "@hyperlane-xyz/radix-sdk": "npm:19.10.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
+    "@hyperlane-xyz/utils": "npm:19.10.0"
     "@types/chai-as-promised": "npm:^8"
     "@types/mocha": "npm:^10.0.1"
     "@types/node": "npm:^18.14.5"
@@ -8404,23 +8420,31 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/helloworld@npm:19.9.0, @hyperlane-xyz/helloworld@workspace:typescript/helloworld":
+"@hyperlane-xyz/helloworld@npm:19.10.0, @hyperlane-xyz/helloworld@workspace:typescript/helloworld":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/helloworld@workspace:typescript/helloworld"
   dependencies:
     "@eslint/js": "npm:^9.31.0"
-    "@hyperlane-xyz/core": "npm:10.0.3"
+    "@ethersproject/abi": "npm:*"
+    "@ethersproject/providers": "npm:*"
+    "@hyperlane-xyz/core": "npm:10.0.4"
     "@hyperlane-xyz/registry": "npm:20.0.0"
-    "@hyperlane-xyz/sdk": "npm:19.9.0"
+    "@hyperlane-xyz/sdk": "npm:19.10.0"
+    "@hyperlane-xyz/utils": "npm:19.10.0"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
+    "@openzeppelin/contracts": "npm:^4.9.3"
     "@openzeppelin/contracts-upgradeable": "npm:^4.9.3"
+    "@solana/web3.js": "npm:^1.98.4"
     "@trivago/prettier-plugin-sort-imports": "npm:^5.2.2"
     "@typechain/ethers-v5": "npm:^11.1.2"
     "@typechain/ethers-v6": "npm:^0.5.1"
     "@typechain/hardhat": "npm:^9.1.0"
+    "@types/chai": "npm:^4.3.11"
+    "@types/mocha": "npm:^10.0.1"
     "@typescript-eslint/eslint-plugin": "npm:^8.1.6"
     "@typescript-eslint/parser": "npm:^8.1.6"
+    borsh: "npm:^0.7.0"
     chai: "npm:^4.5.0"
     eslint: "npm:^9.31.0"
     eslint-config-prettier: "npm:^10.1.8"
@@ -8446,15 +8470,15 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/http-registry-server@npm:19.9.0, @hyperlane-xyz/http-registry-server@workspace:typescript/http-registry-server":
+"@hyperlane-xyz/http-registry-server@npm:19.10.0, @hyperlane-xyz/http-registry-server@workspace:typescript/http-registry-server":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/http-registry-server@workspace:typescript/http-registry-server"
   dependencies:
     "@hyperlane-xyz/registry": "npm:20.0.0"
-    "@hyperlane-xyz/sdk": "npm:19.9.0"
+    "@hyperlane-xyz/sdk": "npm:19.10.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
-    "@hyperlane-xyz/utils": "npm:19.9.0"
-    "@types/chai": "npm:^4.2.21"
+    "@hyperlane-xyz/utils": "npm:19.10.0"
+    "@types/chai": "npm:^4.3.11"
     "@types/chai-as-promised": "npm:^8"
     "@types/express": "npm:^5.0.3"
     "@types/mocha": "npm:^10.0.1"
@@ -8490,16 +8514,19 @@ __metadata:
     "@aws-sdk/client-s3": "npm:^3.577.0"
     "@cosmjs/amino": "npm:^0.32.4"
     "@eth-optimism/sdk": "npm:^3.3.3"
+    "@ethersproject/abi": "npm:*"
     "@ethersproject/experimental": "npm:^5.7.0"
     "@ethersproject/hardware-wallets": "npm:^5.7.0"
     "@ethersproject/providers": "npm:*"
     "@google-cloud/pino-logging-gcp-config": "npm:^1.0.6"
     "@google-cloud/secret-manager": "npm:^5.5.0"
-    "@hyperlane-xyz/helloworld": "npm:19.9.0"
+    "@hyperlane-xyz/core": "npm:10.0.4"
+    "@hyperlane-xyz/helloworld": "npm:19.10.0"
+    "@hyperlane-xyz/http-registry-server": "npm:19.10.0"
     "@hyperlane-xyz/registry": "npm:20.0.0"
-    "@hyperlane-xyz/sdk": "npm:19.9.0"
+    "@hyperlane-xyz/sdk": "npm:19.10.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
-    "@hyperlane-xyz/utils": "npm:19.9.0"
+    "@hyperlane-xyz/utils": "npm:19.10.0"
     "@inquirer/prompts": "npm:3.3.2"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-etherscan": "npm:^3.0.3"
@@ -8513,7 +8540,8 @@ __metadata:
     "@turnkey/sdk-server": "npm:^4.12.0"
     "@turnkey/solana": "npm:^1.1.12"
     "@types/bs58": "npm:^5.0.0"
-    "@types/chai": "npm:^4.2.21"
+    "@types/chai": "npm:^4.3.11"
+    "@types/chai-as-promised": "npm:^8"
     "@types/json-stable-stringify": "npm:^1.0.36"
     "@types/mocha": "npm:^10.0.1"
     "@types/node": "npm:^18.14.5"
@@ -8523,11 +8551,12 @@ __metadata:
     "@types/yargs": "npm:^17.0.24"
     asn1.js: "npm:^5.4.1"
     aws-kms-ethers-signer: "npm:^0.1.3"
+    bignumber.js: "npm:^9.1.1"
     bs58: "npm:^6.0.0"
     chai: "npm:^4.5.0"
+    chai-as-promised: "npm:^8.0.1"
     deep-object-diff: "npm:^1.1.9"
     dotenv: "npm:^10.0.0"
-    eslint-plugin-yml: "npm:^1.18.0"
     ethereum-waffle: "npm:^4.0.10"
     ethers: "npm:^5.8.0"
     hardhat: "npm:^2.22.2"
@@ -8539,13 +8568,14 @@ __metadata:
     prompts: "npm:^2.4.2"
     smol-toml: "npm:1.4.2"
     tmp: "npm:^0.2.3"
+    ts-node: "npm:^10.8.0"
     tsx: "npm:^4.19.1"
     typescript: "npm:5.3.3"
     yaml: "npm:2.4.5"
     yargs: "npm:^17.7.2"
+    zksync-ethers: "npm:^5.10.0"
     zod: "npm:^3.21.2"
-  peerDependencies:
-    "@ethersproject/abi": "*"
+    zod-validation-error: "npm:^3.3.0"
   languageName: unknown
   linkType: soft
 
@@ -8574,13 +8604,13 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/provider-sdk@npm:0.1.0, @hyperlane-xyz/provider-sdk@workspace:typescript/provider-sdk":
+"@hyperlane-xyz/provider-sdk@npm:0.2.0, @hyperlane-xyz/provider-sdk@workspace:typescript/provider-sdk":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/provider-sdk@workspace:typescript/provider-sdk"
   dependencies:
     "@hyperlane-xyz/eslint-config": "workspace:^"
     "@hyperlane-xyz/tsconfig": "workspace:^"
-    "@hyperlane-xyz/utils": "npm:19.9.0"
+    "@hyperlane-xyz/utils": "npm:19.10.0"
     "@types/node": "npm:^18.14.5"
     eslint: "npm:^9.31.0"
     typescript: "npm:5.3.3"
@@ -8588,22 +8618,24 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/radix-sdk@npm:19.9.0, @hyperlane-xyz/radix-sdk@workspace:typescript/radix-sdk":
+"@hyperlane-xyz/radix-sdk@npm:19.10.0, @hyperlane-xyz/radix-sdk@workspace:typescript/radix-sdk":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/radix-sdk@workspace:typescript/radix-sdk"
   dependencies:
     "@eslint/js": "npm:^9.31.0"
     "@hyperlane-xyz/eslint-config": "workspace:^"
-    "@hyperlane-xyz/provider-sdk": "npm:0.1.0"
+    "@hyperlane-xyz/provider-sdk": "npm:0.2.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
-    "@hyperlane-xyz/utils": "npm:19.9.0"
+    "@hyperlane-xyz/utils": "npm:19.10.0"
     "@radixdlt/babylon-core-api-sdk": "npm:^1.3.0"
     "@radixdlt/babylon-gateway-api-sdk": "npm:^1.10.1"
     "@radixdlt/radix-engine-toolkit": "npm:^1.0.5"
+    "@types/chai": "npm:^4.3.11"
     "@types/mocha": "npm:^10.0.1"
     "@typescript-eslint/eslint-plugin": "npm:^8.1.6"
     "@typescript-eslint/parser": "npm:^8.1.6"
     bignumber.js: "npm:^9.1.1"
+    chai: "npm:^4.5.0"
     eslint: "npm:^9.31.0"
     eslint-config-prettier: "npm:^10.1.8"
     eslint-import-resolver-typescript: "npm:^4.4.4"
@@ -8627,7 +8659,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@hyperlane-xyz/sdk@npm:19.9.0, @hyperlane-xyz/sdk@workspace:typescript/sdk":
+"@hyperlane-xyz/sdk@npm:19.10.0, @hyperlane-xyz/sdk@workspace:typescript/sdk":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/sdk@workspace:typescript/sdk"
   dependencies:
@@ -8637,15 +8669,17 @@ __metadata:
     "@cosmjs/cosmwasm-stargate": "npm:^0.32.4"
     "@cosmjs/proto-signing": "npm:^0.32.4"
     "@cosmjs/stargate": "npm:^0.32.4"
-    "@hyperlane-xyz/aleo-sdk": "npm:19.9.0"
-    "@hyperlane-xyz/core": "npm:10.0.3"
-    "@hyperlane-xyz/cosmos-sdk": "npm:19.9.0"
+    "@ethersproject/providers": "npm:*"
+    "@hyperlane-xyz/aleo-sdk": "npm:19.10.0"
+    "@hyperlane-xyz/core": "npm:10.0.4"
+    "@hyperlane-xyz/cosmos-sdk": "npm:19.10.0"
+    "@hyperlane-xyz/deploy-sdk": "npm:0.2.0"
     "@hyperlane-xyz/eslint-config": "workspace:^"
-    "@hyperlane-xyz/provider-sdk": "npm:0.1.0"
-    "@hyperlane-xyz/radix-sdk": "npm:19.9.0"
-    "@hyperlane-xyz/starknet-core": "npm:19.9.0"
+    "@hyperlane-xyz/provider-sdk": "npm:0.2.0"
+    "@hyperlane-xyz/radix-sdk": "npm:19.10.0"
+    "@hyperlane-xyz/starknet-core": "npm:19.10.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
-    "@hyperlane-xyz/utils": "npm:19.9.0"
+    "@hyperlane-xyz/utils": "npm:19.10.0"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
     "@safe-global/api-kit": "npm:4.0.0"
@@ -8654,6 +8688,7 @@ __metadata:
     "@safe-global/safe-deployments": "npm:1.37.47"
     "@solana/spl-token": "npm:^0.4.9"
     "@solana/web3.js": "npm:^1.98.4"
+    "@starknet-react/chains": "npm:^3.1.2"
     "@turnkey/api-key-stamper": "npm:^0.5.0"
     "@turnkey/sdk-server": "npm:^4.12.0"
     "@turnkey/solana": "npm:^1.1.12"
@@ -8674,10 +8709,12 @@ __metadata:
     ethereum-waffle: "npm:^4.0.10"
     ethers: "npm:^5.8.0"
     hardhat: "npm:^2.22.2"
+    hardhat-gas-reporter: "npm:^1.0.9"
     mocha: "npm:^11.5.0"
     pino: "npm:^8.19.0"
     prettier: "npm:^3.5.3"
     sinon: "npm:^13.0.2"
+    solidity-coverage: "npm:^0.8.3"
     starknet: "npm:^7.4.0"
     ts-node: "npm:^10.8.0"
     tsx: "npm:^4.19.1"
@@ -8688,11 +8725,10 @@ __metadata:
     zod: "npm:^3.21.2"
   peerDependencies:
     "@ethersproject/abi": "*"
-    "@ethersproject/providers": "*"
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/starknet-core@npm:19.9.0, @hyperlane-xyz/starknet-core@workspace:starknet":
+"@hyperlane-xyz/starknet-core@npm:19.10.0, @hyperlane-xyz/starknet-core@workspace:starknet":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/starknet-core@workspace:starknet"
   dependencies:
@@ -8718,7 +8754,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/utils@npm:19.9.0, @hyperlane-xyz/utils@workspace:typescript/utils":
+"@hyperlane-xyz/utils@npm:19.10.0, @hyperlane-xyz/utils@workspace:typescript/utils":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/utils@workspace:typescript/utils"
   dependencies:
@@ -8740,6 +8776,7 @@ __metadata:
     eslint-config-prettier: "npm:^10.1.8"
     eslint-import-resolver-typescript: "npm:^4.4.4"
     eslint-plugin-import: "npm:^2.32.0"
+    eslint-plugin-yml: "npm:^1.18.0"
     ethers: "npm:^5.8.0"
     lodash-es: "npm:^4.17.21"
     mocha: "npm:^11.5.0"
@@ -8749,6 +8786,7 @@ __metadata:
     starknet: "npm:^7.4.0"
     typescript: "npm:5.3.3"
     yaml: "npm:2.4.5"
+    yaml-eslint-parser: "npm:^1.3.0"
   peerDependencies:
     "@google-cloud/pino-logging-gcp-config": ^1.0.6
     pino-pretty: ">=10.0.0"
@@ -8759,6 +8797,31 @@ __metadata:
       optional: true
   languageName: unknown
   linkType: soft
+
+"@hyperlane-xyz/utils@npm:19.9.0":
+  version: 19.9.0
+  resolution: "@hyperlane-xyz/utils@npm:19.9.0"
+  dependencies:
+    "@cosmjs/encoding": "npm:^0.32.4"
+    "@solana/web3.js": "npm:^1.98.4"
+    bech32: "npm:^2.0.0"
+    bignumber.js: "npm:^9.1.1"
+    ethers: "npm:^5.8.0"
+    lodash-es: "npm:^4.17.21"
+    pino: "npm:^8.19.0"
+    starknet: "npm:^7.4.0"
+    yaml: "npm:2.4.5"
+  peerDependencies:
+    "@google-cloud/pino-logging-gcp-config": ^1.0.6
+    pino-pretty: ">=10.0.0"
+  peerDependenciesMeta:
+    "@google-cloud/pino-logging-gcp-config":
+      optional: true
+    pino-pretty:
+      optional: true
+  checksum: 10/d39d5f0613e91b0db4be7e8dfc872993c728bf626f8ec120ac27e89d889470e71def7c99c1f86c8e6e8ffd4ee2f64d358911a10de0305d227045b8d572537553
+  languageName: node
+  linkType: hard
 
 "@hyperlane-xyz/widgets@workspace:typescript/widgets":
   version: 0.0.0-use.local
@@ -8772,13 +8835,14 @@ __metadata:
     "@emotion/styled": "npm:^11.13.0"
     "@eslint/js": "npm:^9.31.0"
     "@headlessui/react": "npm:^2.1.8"
-    "@hyperlane-xyz/aleo-sdk": "npm:19.9.0"
-    "@hyperlane-xyz/cosmos-sdk": "npm:19.9.0"
-    "@hyperlane-xyz/provider-sdk": "npm:0.1.0"
+    "@hyperlane-xyz/aleo-sdk": "npm:19.10.0"
+    "@hyperlane-xyz/cosmos-sdk": "npm:19.10.0"
+    "@hyperlane-xyz/provider-sdk": "npm:0.2.0"
+    "@hyperlane-xyz/radix-sdk": "npm:19.10.0"
     "@hyperlane-xyz/registry": "npm:20.0.0"
-    "@hyperlane-xyz/sdk": "npm:19.9.0"
+    "@hyperlane-xyz/sdk": "npm:19.10.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
-    "@hyperlane-xyz/utils": "npm:19.9.0"
+    "@hyperlane-xyz/utils": "npm:19.10.0"
     "@interchain-ui/react": "npm:^1.23.28"
     "@radixdlt/babylon-gateway-api-sdk": "npm:^1.10.1"
     "@radixdlt/radix-dapp-toolkit": "npm:^2.2.1"
@@ -8811,12 +8875,14 @@ __metadata:
     eslint-plugin-react: "npm:^7.37.2"
     eslint-plugin-react-hooks: "npm:^5.0.0"
     eslint-plugin-storybook: "npm:^0.11.1"
+    ethers: "npm:^5.8.0"
     framer-motion: "npm:^10.16.4"
     postcss: "npm:^8.4.21"
     prettier: "npm:^3.5.3"
     react: "npm:^18.2.0"
     react-dom: "npm:^18.2.0"
     react-tooltip: "npm:^5.28.0"
+    starknet: "npm:^7.4.0"
     starknetkit: "npm:2.6.1"
     storybook: "npm:^7.6.14"
     tailwindcss: "npm:^3.4.13"
@@ -17374,7 +17440,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/chai@npm:*, @types/chai@npm:^4.2.21":
+"@types/chai@npm:*":
   version: 4.3.1
   resolution: "@types/chai@npm:4.3.1"
   checksum: 10/8d5a1d80e27d9453dd8d7789d13fedad5322709829b2d2153ece0ba19f39fac00183ce2d2890533510749f6035415b541405f9b2d87237969682cfe601091d16
@@ -17385,6 +17451,13 @@ __metadata:
   version: 4.3.16
   resolution: "@types/chai@npm:4.3.16"
   checksum: 10/f84a9049a7f13284f7237236872ed4afce5045dd6ea3926c8b0ac995490f5a524b247b2e70fcd3ebc85832201349a8f026bd0c336b90b5baca9eed0c7a4dbd3f
+  languageName: node
+  linkType: hard
+
+"@types/chai@npm:^4.3.11":
+  version: 4.3.20
+  resolution: "@types/chai@npm:4.3.20"
+  checksum: 10/94fd87036fb63f62c79caf58ccaec88e23cc109e4d41607d83adc609acd6b24eabc345feb7850095a53f76f99c470888251da9bd1b90849c8b2b5a813296bb19
   languageName: node
   linkType: hard
 
@@ -42617,7 +42690,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"yaml-eslint-parser@npm:^1.2.1":
+"yaml-eslint-parser@npm:^1.2.1, yaml-eslint-parser@npm:^1.3.0":
   version: 1.3.0
   resolution: "yaml-eslint-parser@npm:1.3.0"
   dependencies:

@@ -21,6 +21,7 @@ export function isSignCommand(argv: any): boolean {
 
 export enum CommandType {
   WARP_DEPLOY = 'warp:deploy',
+  WARP_READ = 'warp:read',
   WARP_SEND = 'warp:send',
   WARP_APPLY = 'warp:apply',
   WARP_REBALANCER = 'warp:rebalancer',
@@ -31,4 +32,6 @@ export enum CommandType {
   RELAYER = 'relayer:',
   CORE_APPLY = 'core:apply',
   CORE_DEPLOY = 'core:deploy',
+  CORE_READ = 'core:read',
+  CORE_CHECK = 'core:check',
 }

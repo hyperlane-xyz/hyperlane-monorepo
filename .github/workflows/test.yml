@@ -8,7 +8,6 @@ on:
   pull_request:
     branches:
       - '*'
-      - 'feat/multi-vm'
   merge_group:
   workflow_dispatch:
 
@@ -160,6 +159,12 @@ jobs:
 
       - name: foundry-install
         uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Set Foundry RPC URLs for fork tests
+        env:
+          MAINNET3_ARBITRUM_RPC_URLS: ${{ secrets.MAINNET3_ARBITRUM_RPC_URLS }}
+        run: |
+          echo "FOUNDRY_RPC_URL_ARBITRUM=${MAINNET3_ARBITRUM_RPC_URLS%%,*}" >> $GITHUB_ENV
 
       - name: yarn-build
         uses: ./.github/actions/yarn-build-with-cache
@@ -528,7 +533,7 @@ jobs:
 
   e2e-matrix:
     runs-on: depot-ubuntu-24.04-8
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && (github.base_ref == 'main' || github.base_ref == 'feat/multi-vm')) || github.event_name == 'merge_group'
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main') || github.event_name == 'merge_group'
     strategy:
       fail-fast: false
       matrix:
@@ -625,9 +630,6 @@ jobs:
       - name: Install mold linker
         if: steps.check-conditions.outputs.skip-e2e != 'true'
         uses: rui314/setup-mold@v1
-        with:
-          mold-version: 2.0.0
-          make-default: true
 
       - name: yarn-build
         if: steps.check-conditions.outputs.skip-e2e != 'true'

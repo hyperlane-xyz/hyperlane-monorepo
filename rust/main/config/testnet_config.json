@@ -2135,7 +2135,7 @@
       },
       "grpcUrls": [
         {
-          "http": "https://grpc-celestia-testnet.mzonder.com:443"
+          "http": "http://public-celestia-mocha4-consensus.numia.xyz:9090"
         }
       ],
       "index": {

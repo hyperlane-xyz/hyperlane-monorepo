@@ -23,10 +23,10 @@ import {
   DEFAULT_E2E_TEST_TIMEOUT,
   E2E_TEST_BURN_ADDRESS,
   TEMP_PATH,
-  WARP_CONFIG_PATH_2,
   WARP_CONFIG_PATH_EXAMPLE,
   WARP_CORE_CONFIG_PATH_2,
   WARP_DEPLOY_2_ID,
+  WARP_DEPLOY_CONFIG_PATH_2,
 } from '../consts.js';
 
 describe('hyperlane warp apply owner update tests', async function () {
@@ -34,17 +34,16 @@ describe('hyperlane warp apply owner update tests', async function () {
 
   before(async function () {
     await deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY);
+  });
 
-    // Create a new warp config using the example
+  beforeEach(async function () {
     const warpConfig: WarpRouteDeployConfig = readYamlOrJson(
       WARP_CONFIG_PATH_EXAMPLE,
     );
     const anvil2Config = { anvil2: { ...warpConfig.anvil1 } };
-    writeYamlOrJson(WARP_CONFIG_PATH_2, anvil2Config);
-  });
+    writeYamlOrJson(WARP_DEPLOY_CONFIG_PATH_2, anvil2Config);
 
-  beforeEach(async function () {
-    await hyperlaneWarpDeploy(WARP_CONFIG_PATH_2, WARP_DEPLOY_2_ID);
+    await hyperlaneWarpDeploy(WARP_DEPLOY_CONFIG_PATH_2, WARP_DEPLOY_2_ID);
   });
 
   it('should burn owner address', async function () {

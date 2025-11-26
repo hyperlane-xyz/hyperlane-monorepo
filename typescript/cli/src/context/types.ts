@@ -2,6 +2,7 @@ import type { ethers } from 'ethers';
 import type { CommandModule } from 'yargs';
 import { z } from 'zod';
 
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import type { IRegistry } from '@hyperlane-xyz/registry';
 import type {
   ChainMap,
@@ -13,7 +14,7 @@ import type {
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { AltVMProviderFactory, AltVMSignerFactory } from './altvm.js';
+import { AltVMSignerFactory } from './altvm.js';
 
 export const SignerKeyProtocolMapSchema = z
   .record(z.nativeEnum(ProtocolType), z.string().nonempty(), {
@@ -48,7 +49,7 @@ export interface CommandContext
   chainMetadata: ChainMap<ChainMetadata>;
   multiProvider: MultiProvider;
   multiProtocolProvider: MultiProtocolProvider;
-  altVmProvider: AltVMProviderFactory;
+  altVmProvider: Map<string, AltVM.IProvider>;
   supportedProtocols: ProtocolType[];
   skipConfirmation: boolean;
   // just for evm chains backward compatibility
