@@ -22,6 +22,9 @@ export interface ChainMetadataForAltVM {
   rpcUrls?: {
     http: string;
   }[];
+  gatewayUrls?: {
+    http: string;
+  }[];
 }
 
 /**
