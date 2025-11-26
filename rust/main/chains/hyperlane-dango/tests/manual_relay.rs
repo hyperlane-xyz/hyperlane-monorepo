@@ -7,11 +7,7 @@ use {
         multisig_hash, Addr32,
     },
     dango_testing::constants::user4,
-    dango_types::{
-        account_factory::{self, Username},
-        auth::{Key, SignDoc},
-        config::AppConfig,
-    },
+    dango_types::{account_factory::Username, config::AppConfig, warp::TokenMessage},
     ethers::{
         contract::abigen,
         providers::{Http, Provider},
@@ -20,10 +16,9 @@ use {
     },
     grug::{
         Addr, AddrEncoder, Api, BroadcastClientExt, Coins, EncodedBytes, GasOption, Hash256,
-        HexByteArray, Inner, Json, JsonDeExt, JsonSerExt, MockApi, NonEmpty, QueryClientExt,
+        HexByteArray, Inner, Json, JsonDeExt, JsonSerExt, MockApi, QueryClientExt,
         __private::hex_literal::hex, addr, btree_set,
     },
-    grug_app::GAS_COSTS,
     grug_indexer_client::HttpClient,
     serde::{Deserialize, Serialize},
     std::{
@@ -58,9 +53,9 @@ abigen!(
 
 // --- MESSAGE INFO ---
 
-const BLOCK_NUMBER: u64 = 9691945;
+const BLOCK_NUMBER: u64 = 9711837;
 const MESSAGE_ID: [u8; 32] =
-    hex!("74421f506aac42c8f30c4f8bb80fa8c8ecbcaab0e9de14f7d99eda308dfda4a9");
+    hex!("e2367ca657667c3b4e56530f35dfa171b5dee9ac09f0f96ed491a7ad9601d96f");
 
 // --- ADDRESSES ---
 
@@ -79,6 +74,7 @@ const VALSET: LazyLock<BTreeSet<H160>> = LazyLock::new(|| {
 });
 
 // --- DANGO ---
+
 const DANGO_URL: &str = "https://api-pr-1414-ovh2.dango.zone";
 static DANGO_USERNAME: LazyLock<Username> = LazyLock::new(|| user4::USERNAME.clone());
 const DANGO_PRIVATE_KEY: [u8; 32] = user4::PRIVATE_KEY;
@@ -114,6 +110,14 @@ async fn manual_relay() -> anyhow::Result<()> {
     let Some(msg) = msg else {
         return Err(anyhow::anyhow!("Message not found"));
     };
+
+    println!("msg: {}", msg.to_json_string_pretty()?);
+
+    let body = TokenMessage::decode(&msg.body)?;
+
+    println!("body: {:#?}", body);
+
+    // panic!();
 
     let index: Option<u32> = mth
         .inserted_into_tree_filter()
@@ -193,36 +197,13 @@ async fn manual_relay() -> anyhow::Result<()> {
     let app_config: AppConfig = dango_client.query_app_config(None).await?;
     let chain_id = dango_client.query_status(None).await?.chain_id;
 
-    let keys = dango_client
-        .query_wasm_smart(
-            app_config.addresses.account_factory,
-            account_factory::QueryKeysByUserRequest {
-                username: DANGO_USERNAME.clone(),
-            },
-            None,
-        )
-        .await?;
-
-    println!("chain id: {}", chain_id);
-
-    for (hash, k) in keys {
-        println!("hash: {}, key: {}", hash, k);
-
-        if let Key::Secp256k1(k) = k {
-            println!("{:?}", k.into_inner());
-        }
-    }
-
-    let secret = Secp256k1::from_bytes(DANGO_PRIVATE_KEY)?;
-
-    let pk = secret.public_key();
-    println!("{:?}", pk);
-
-    let mut dango_signer = SingleSigner::new(&DANGO_USERNAME.to_string(), DANGO_ADDRESS, secret)?
-        .with_query_nonce(&dango_client)
-        .await?;
-
-    println!("dango signer: {:?}", dango_signer);
+    let mut dango_signer = SingleSigner::new(
+        &DANGO_USERNAME.to_string(),
+        DANGO_ADDRESS,
+        Secp256k1::from_bytes(DANGO_PRIVATE_KEY)?,
+    )?
+    .with_query_nonce(&dango_client)
+    .await?;
 
     let result = dango_client
         .execute(
@@ -238,7 +219,7 @@ async fn manual_relay() -> anyhow::Result<()> {
         )
         .await?;
 
-    println!("result: {:?}", result);
+    println!("result: {}", result.to_json_string_pretty()?);
 
     Ok(())
 }
@@ -294,71 +275,4 @@ async fn get_checkpoint_from_s3(s3: &str, index_msg: &str) -> anyhow::Result<Che
         message_id: json["value"]["message_id"].clone().deserialize_json()?,
         serialized_signature: json["serialized_signature"].clone().deserialize_json()?,
     })
-}
-
-use grug::Signer;
-
-#[tokio::test]
-async fn transfer() -> anyhow::Result<()> {
-    let dango_client = HttpClient::new("https://api-devnet.dango.zone")?;
-
-    let chain_id = dango_client.query_status(None).await?.chain_id;
-
-    let mut dango_signer = SingleSigner::new(
-        user4::USERNAME.as_ref(),
-        addr!("5a7213b5a8f12e826e88d67c083be371a442689c"),
-        Secp256k1::from_bytes(user4::PRIVATE_KEY)?,
-    )?
-    .with_query_nonce(&dango_client)
-    .await?;
-
-    let tx = dango_signer.sign_transaction(
-        NonEmpty::new_unchecked(vec![grug::Message::transfer(
-            addr!("0fbc6c01f7c334500f465ba456826c890f3c8160"),
-            Coins::one("uusdc", 1000)?,
-        )?]),
-        &chain_id,
-        1000000,
-    )?;
-
-    println!("{}", tx.to_json_string_pretty()?);
-
-    // let result = dango_client
-    //     .transfer(
-    //         &mut dango_signer,
-    //         addr!("0fbc6c01f7c334500f465ba456826c890f3c8160"),
-    //         Coins::default(),
-    //         GasOption::Simulate {
-    //             scale: 2.,
-    //             flat_increase: GAS_COSTS.secp256k1_verify,
-    //         },
-    //         &chain_id,
-    //     )
-    //     .await?;
-    // println!("{}", result.to_json_string_pretty()?);
-
-    use grug::SignData;
-
-    let a = SignDoc {
-        sender: dango_signer.address,
-        gas_limit: 1000000,
-        messages: NonEmpty::new_unchecked(vec![grug::Message::transfer(
-            addr!("0fbc6c01f7c334500f465ba456826c890f3c8160"),
-            Coins::one("uusdc", 1000)?,
-        )?]),
-        data: dango_types::auth::Metadata {
-            username: user4::USERNAME.clone(),
-            chain_id: chain_id.clone(),
-            nonce: dango_signer.nonce.into_inner(),
-            expiry: None,
-        },
-    };
-
-    println!("{:#?}", a);
-
-    println!("as sign data: {:?}", a.to_sign_data()?);
-
-    println!("as prehash sign data: {:#?}", a.to_json_value()?);
-
-    Ok(())
 }

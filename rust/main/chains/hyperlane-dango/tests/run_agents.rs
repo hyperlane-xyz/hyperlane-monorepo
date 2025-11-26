@@ -1,11 +1,14 @@
 use {
-    crate::utils::{build_agents, Agent, AgentBuilder, Location},
+    crate::utils::{
+        build_agents, Agent, AgentBuilder, DangoChainSettings, EvmChainSettings, Launcher,
+        Location, RelayerAgent,
+    },
     dango_hyperlane_testing::constants::MOCK_HYPERLANE_VALIDATOR_SIGNING_KEYS,
     dango_testing::constants::user4,
-    grug::{btree_set, Addr, HexByteArray},
+    grug::{addr, btree_set, HexByteArray, QueryClientExt},
+    grug_indexer_client::HttpClient,
     hyperlane_base::settings::SignerConf,
     hyperlane_core::H256,
-    std::str::FromStr,
 };
 
 pub mod utils;
@@ -49,11 +52,39 @@ async fn run_relayers() -> anyhow::Result<()> {
             SignerConf::Dango {
                 username: user4::USERNAME.clone(),
                 key: HexByteArray::from_inner(user4::PRIVATE_KEY),
-                address: Addr::from_str("0x5a7213b5a8f12e826e88d67c083be371a442689c")?,
+                address: addr!("5a7213b5a8f12e826e88d67c083be371a442689c"),
             },
         )
         .with_allow_local_checkpoint_syncer(true)
         .with_metrics_port(9093)
+        .launch();
+
+    loop {}
+}
+
+#[tokio::test]
+async fn run_relayer2() -> anyhow::Result<()> {
+    build_agents();
+
+    let dango_client = HttpClient::new("https://api-pr-1414-ovh2.dango.zone")?;
+    let app_cfg = dango_client.query_app_config(None).await?;
+
+    RelayerAgent::default()
+        .with_chain(EvmChainSettings::new("sepolia").with_index(9712111, Some(20)))
+        .with_chain(
+            DangoChainSettings::new("dangolocal2")
+                .with_chain_signer(SignerConf::Dango {
+                    username: user4::USERNAME.clone(),
+                    key: HexByteArray::from_inner(user4::PRIVATE_KEY),
+                    address: addr!("5a7213b5a8f12e826e88d67c083be371a442689c"),
+                })
+                .with_index(739345, Some(200))
+                .with_chain_settings(|dango| {
+                    dango.with_app_cfg(app_cfg);
+                    dango.with_chain_id("pr-1414".to_string());
+                    dango.with_httpd_urls(["https://api-pr-1414-ovh2.dango.zone"]);
+                }),
+        )
         .launch();
 
     loop {}

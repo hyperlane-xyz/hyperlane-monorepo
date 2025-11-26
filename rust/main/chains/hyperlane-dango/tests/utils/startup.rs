@@ -1,11 +1,10 @@
 use {
     crate::utils::{
-        dango_helper::ChainHelper, get_free_port, Agent, AgentBuilder, DangoBuilder, Location,
-        ValidatorKey,
+        Agent, AgentBuilder, DangoBuilder, Location, ValidatorKey, dango_helper::ChainHelper, get_free_port
     },
     dango_types::gateway::Origin,
     futures_util::try_join,
-    grug::{btree_set, HexByteArray, ResultExt},
+    grug::{HexByteArray, ResultExt, btree_set},
     std::collections::BTreeSet,
 };
 

@@ -1,12 +1,10 @@
 use {
     crate::utils::{
-        build_agents, startup_tests, try_for, Agent, AgentBuilder, DangoBuilder, Location,
-        SetupChain, ValidatorKey,
+        Agent, AgentBuilder, DangoBuilder, Location, SetupChain, ValidatorKey, build_agents, startup_tests, try_for
     },
     dango_types::{constants::dango, gateway::Origin},
     grug::{
-        btree_set, setup_tracing_subscriber, BlockCreation, Coin, Denom, Part, QueryClientExt,
-        ResultExt,
+        BlockCreation, Coin, Denom, Part, QueryClientExt, ResultExt, btree_set, setup_tracing_subscriber
     },
     std::time::Duration,
     tracing::Level,

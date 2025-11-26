@@ -2438,7 +2438,7 @@
       "name": "dangolocal2",
       "blocks": {
         "confirmations": 0,
-        "estimateBlockTime": 1,
+        "estimateBlockTime": 5,
         "reorgPeriod": 0
       },
       "rpcUrls": [

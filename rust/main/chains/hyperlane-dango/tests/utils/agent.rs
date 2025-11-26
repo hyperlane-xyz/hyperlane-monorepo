@@ -1,7 +1,7 @@
 use {
     crate::utils::dango_helper::{ChainHelper, IntoSignerConf},
     cargo_metadata::MetadataCommand,
-    dango_types::config::AppAddresses,
+    dango_types::config::{AppAddresses, AppConfig},
     grug::JsonSerExt,
     hyperlane_base::settings::SignerConf,
     hyperlane_core::H256,
@@ -26,6 +26,11 @@ impl Location {
     pub fn persistent<P: AsRef<Path>>(path: P) -> Self {
         Self::Persistent(path.as_ref().to_path_buf())
     }
+}
+
+pub struct ChainSetting{
+    pub cfg: Option<AppConfig>,
+    pub chain_id: Option<String>
 }
 
 #[derive(Default)]

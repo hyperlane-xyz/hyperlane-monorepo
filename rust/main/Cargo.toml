@@ -207,19 +207,18 @@ sbor = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git", branch =
 ] }
 hyperlane-cosmos-rs = "0.1.4"
 
-
 ## dango
-grug = { git = "https://github.com/left-curve/left-curve.git", rev = "96d63b08cf15a9d96b2eb584902df383b6c6ac6a" }
-grug-app = { git = "https://github.com/left-curve/left-curve.git", rev = "96d63b08cf15a9d96b2eb584902df383b6c6ac6a" }
-grug-jmt = { git = "https://github.com/left-curve/left-curve.git", rev = "96d63b08cf15a9d96b2eb584902df383b6c6ac6a" }
-grug-indexer-client = { git = "https://github.com/left-curve/left-curve.git", package = "indexer-client", rev = "96d63b08cf15a9d96b2eb584902df383b6c6ac6a" }
-dango-types = { git = "https://github.com/left-curve/left-curve.git", rev = "96d63b08cf15a9d96b2eb584902df383b6c6ac6a" }
-dango-client = { git = "https://github.com/left-curve/left-curve.git", rev = "96d63b08cf15a9d96b2eb584902df383b6c6ac6a" }
-dango-hyperlane-types = { git = "https://github.com/left-curve/left-curve.git", package = "hyperlane-types", rev = "96d63b08cf15a9d96b2eb584902df383b6c6ac6a" }
-dango-hyperlane-testing = { git = "https://github.com/left-curve/left-curve.git", package = "hyperlane-testing", rev = "96d63b08cf15a9d96b2eb584902df383b6c6ac6a" }
-dango-mock-httpd = { git = "https://github.com/left-curve/left-curve.git", rev = "96d63b08cf15a9d96b2eb584902df383b6c6ac6a" }
-dango-testing = { git = "https://github.com/left-curve/left-curve.git", rev = "96d63b08cf15a9d96b2eb584902df383b6c6ac6a" }
-dango-genesis = { git = "https://github.com/left-curve/left-curve.git", rev = "96d63b08cf15a9d96b2eb584902df383b6c6ac6a" }
+grug = { git = "https://github.com/left-curve/left-curve.git", rev = "eaaf1d38d2101ab7ef2f33e2c798a1eb8bcdf46c" }
+grug-app = { git = "https://github.com/left-curve/left-curve.git", rev = "eaaf1d38d2101ab7ef2f33e2c798a1eb8bcdf46c" }
+grug-jmt = { git = "https://github.com/left-curve/left-curve.git", rev = "eaaf1d38d2101ab7ef2f33e2c798a1eb8bcdf46c" }
+grug-indexer-client = { git = "https://github.com/left-curve/left-curve.git", package = "indexer-client", rev = "eaaf1d38d2101ab7ef2f33e2c798a1eb8bcdf46c" }
+dango-types = { git = "https://github.com/left-curve/left-curve.git", rev = "eaaf1d38d2101ab7ef2f33e2c798a1eb8bcdf46c" }
+dango-client = { git = "https://github.com/left-curve/left-curve.git", rev = "eaaf1d38d2101ab7ef2f33e2c798a1eb8bcdf46c" }
+dango-hyperlane-types = { git = "https://github.com/left-curve/left-curve.git", package = "hyperlane-types", rev = "eaaf1d38d2101ab7ef2f33e2c798a1eb8bcdf46c" }
+dango-hyperlane-testing = { git = "https://github.com/left-curve/left-curve.git", package = "hyperlane-testing", rev = "eaaf1d38d2101ab7ef2f33e2c798a1eb8bcdf46c" }
+dango-mock-httpd = { git = "https://github.com/left-curve/left-curve.git", rev = "eaaf1d38d2101ab7ef2f33e2c798a1eb8bcdf46c" }
+dango-testing = { git = "https://github.com/left-curve/left-curve.git", rev = "eaaf1d38d2101ab7ef2f33e2c798a1eb8bcdf46c" }
+dango-genesis = { git = "https://github.com/left-curve/left-curve.git", rev = "eaaf1d38d2101ab7ef2f33e2c798a1eb8bcdf46c" }
 
 ## TODO: remove this
 cosmwasm-schema = "2.2.0"
