@@ -61,7 +61,6 @@ impl DangoBuilder {
                         },
                         ..Preset::preset_test()
                     },
-                    true,
                     None,
                     |accounts, _, _, _, _| {
                         *thread_test_accounts.lock().unwrap() = Some(accounts);
