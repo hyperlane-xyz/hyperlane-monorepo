@@ -46,7 +46,7 @@ export async function downloadRadixContracts(): Promise<RadixContractArtifacts> 
 }
 
 /**
- * Deploys the Hyperlane Radix package to a test chain
+ * Deploys the Hyperlane Radix package to a test chain and adds it to the provided metadata
  */
 export async function deployHyperlaneRadixPackage(
   chainMetadata: TestChainMetadata = TEST_RADIX_CHAIN_METADATA,

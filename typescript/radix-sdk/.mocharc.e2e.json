@@ -1,10 +1,6 @@
 {
-  "import": ["ts"],
+  "import": ["tsx"],
   "file": ["src/tests/e2e-test.setup.ts"],
   "spec": ["src/tests/**/*.e2e-test.ts"],
-  "node-option": [
-    "experimental-specifier-resolution=node",
-    "loader=ts-node/esm"
-  ],
   "exit": true
 }
