@@ -19,7 +19,7 @@ if [[ $? -ne 0 ]]; then
 fi
 
 echo "Running E2E tests"
-export ALEO_SKIP_PROOF=true
+export ALEO_SKIP_PROOFS=true
 yarn mocha --config .mocharc-e2e.json
 
 echo "Completed E2E tests"

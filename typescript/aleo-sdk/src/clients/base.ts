@@ -51,7 +51,7 @@ export class AleoBase {
       ? new AleoTestnetNetworkClient(rpcUrls[0])
       : new AleoMainnetNetworkClient(rpcUrls[0]);
 
-    this.skipProof = JSON.parse(process.env['ALEO_SKIP_PROOF'] || 'false');
+    this.skipProof = JSON.parse(process.env['ALEO_SKIP_PROOFS'] || 'false');
 
     if (+chainId === 1) {
       getOrInitConsensusVersionTestHeights('0,1,2,3,4,5,6,7,8,9,10,11');

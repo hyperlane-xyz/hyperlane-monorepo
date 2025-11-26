@@ -134,8 +134,8 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     } = res.toObject();
 
     const hookManagerProgramId = req.mailboxAddress.replace(
-      'mailbox_',
-      'hook_manager_',
+      'mailbox',
+      'hook_manager',
     );
 
     return {
@@ -526,7 +526,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       token.hookAddress =
         tokenMetadata.toObject().hook === ALEO_NULL_ADDRESS
           ? ''
-          : `${token.mailboxAddress.replace('mailbox_', 'hook_manager_')}/${tokenMetadata.toObject().hook}`;
+          : `${token.mailboxAddress.replace('mailbox', 'hook_manager')}/${tokenMetadata.toObject().hook}`;
       token.denom = tokenMetadata.toObject().token_id || '';
 
       if (token.denom) {
@@ -900,13 +900,13 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     req: AltVM.ReqCreateMerkleTreeHook,
   ): Promise<AleoTransaction> {
     return {
-      programName: req.mailboxAddress.replace('mailbox_', 'hook_manager_'),
+      programName: req.mailboxAddress.replace('mailbox', 'hook_manager'),
       functionName: 'init_merkle_tree',
       priorityFee: 0,
       privateFee: false,
       inputs: [
         this.getAddressFromProgramId(
-          req.mailboxAddress.replace('mailbox_', 'dispatch_proxy_'),
+          req.mailboxAddress.replace('mailbox', 'dispatch_proxy'),
         ),
       ],
     };
@@ -916,7 +916,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     req: AltVM.ReqCreateInterchainGasPaymasterHook,
   ): Promise<AleoTransaction> {
     return {
-      programName: req.mailboxAddress.replace('mailbox_', 'hook_manager_'),
+      programName: req.mailboxAddress.replace('mailbox', 'hook_manager'),
       functionName: 'init_igp',
       priorityFee: 0,
       privateFee: false,
@@ -974,7 +974,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     req: AltVM.ReqCreateNoopHook,
   ): Promise<AleoTransaction> {
     return {
-      programName: req.mailboxAddress.replace('mailbox_', 'hook_manager_'),
+      programName: req.mailboxAddress.replace('mailbox', 'hook_manager'),
       functionName: 'init_noop',
       priorityFee: 0,
       privateFee: false,

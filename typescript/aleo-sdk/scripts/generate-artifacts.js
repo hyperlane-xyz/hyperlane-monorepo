@@ -41,6 +41,7 @@ const main = async () => {
   }
 
   let output = `import { Program } from '@provablehq/sdk/mainnet.js';\n\n`;
+  output += `const originalProgramIds = JSON.parse(process.env['ALEO_USE_ORIGINAL_PROGRAM_IDS'] || 'false');\n\n`;
 
   for (const file of files) {
     output +=
@@ -87,20 +88,22 @@ export function loadProgramsInDeployOrder(
 
   visit(programName);
 
-  programs = programs.map((p) =>
-    Program.fromString(
-      p
-        .toString()
-        .replaceAll(
-          /(mailbox|hook_manager|dispatch_proxy|validator_announce).aleo/g,
-          (_, p1) => \`\${p1}_\${coreSalt}.aleo\`,
-        )
-        .replaceAll(
-          /(hyp_native|hyp_collateral|hyp_synthetic).aleo/g,
-          (_, p1) => \`\${p1}_\${warpSalt || coreSalt}.aleo\`,
-        ),
-    ),
-  );
+  if (!originalProgramIds) {
+    programs = programs.map((p) =>
+      Program.fromString(
+        p
+          .toString()
+          .replaceAll(
+            /(mailbox|hook_manager|dispatch_proxy|validator_announce).aleo/g,
+            (_, p1) => \`\${p1}_\${coreSalt}.aleo\`,
+          )
+          .replaceAll(
+            /(hyp_native|hyp_collateral|hyp_synthetic).aleo/g,
+            (_, p1) => \`\${p1}_\${warpSalt || coreSalt}.aleo\`,
+          ),
+      ),
+    );
+  }
 
   return programs.map((p) => ({
     id: p.id(),
