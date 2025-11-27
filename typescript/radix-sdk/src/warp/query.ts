@@ -9,6 +9,7 @@ import { utils } from 'ethers';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { RadixBase } from '../utils/base.js';
+import { getKeysFromKeyValueStore } from '../utils/query.js';
 import { EntityDetails, EntityField, Receipt } from '../utils/types.js';
 
 export class RadixWarpQuery {
@@ -137,7 +138,8 @@ export class RadixWarpQuery {
 
     const remoteRouters = [];
 
-    const keys = await this.base.getKeysFromKeyValueStore(
+    const keys = await getKeysFromKeyValueStore(
+      this.gateway,
       enrolledRoutersKeyValueStore,
     );
 

@@ -8,6 +8,7 @@ import { utils } from 'ethers';
 import { assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
 
 import { RadixBase } from '../utils/base.js';
+import { getKeysFromKeyValueStore } from '../utils/query.js';
 import {
   EntityDetails,
   EntityField,
@@ -198,7 +199,10 @@ export class RadixCoreQuery {
       fields.find((f) => f.field_name === 'routes')?.value ?? '';
     assert(routesKeyValueStore, `found no routes on RoutingIsm ${ism}`);
 
-    const keys = await this.base.getKeysFromKeyValueStore(routesKeyValueStore);
+    const keys = await getKeysFromKeyValueStore(
+      this.gateway,
+      routesKeyValueStore,
+    );
 
     const routes = [];
 
@@ -290,7 +294,8 @@ export class RadixCoreQuery {
 
     const destinationGasConfigs = {};
 
-    const keys = await this.base.getKeysFromKeyValueStore(
+    const keys = await getKeysFromKeyValueStore(
+      this.gateway,
       destinationGasConfigsKeyValueStore,
     );
 
