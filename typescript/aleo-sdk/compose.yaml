@@ -1,6 +1,6 @@
 services:
   devnode:
-    build: .
+    image: gcr.io/abacus-labs-dev/hyperlane-aleo-tools:v1.0.1
     entrypoint: ['leo', 'devnode', 'start', '--listener-addr', '0.0.0.0:3030']
     ports:
       - 3030:3030
