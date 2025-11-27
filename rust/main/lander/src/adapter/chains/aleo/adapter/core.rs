@@ -2,7 +2,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use tracing::debug;
 
 use hyperlane_aleo::{AleoProvider, AleoProviderForLander, AleoSigner};
 use hyperlane_base::settings::ChainConf;
@@ -12,13 +11,12 @@ use hyperlane_core::{ContractLocator, H256, H512};
 use crate::adapter::{AdaptsChain, GasLimit, TxBuildingResult};
 use crate::payload::PayloadDetails;
 use crate::transaction::Transaction;
-use crate::{
-    DispatcherMetrics, FullPayload, LanderError, TransactionDropReason, TransactionStatus,
-};
+use crate::{DispatcherMetrics, FullPayload, LanderError, TransactionStatus};
 
 use super::super::conf::create_signer;
 use super::super::transaction::Precursor;
 use super::build::build_transaction_from_payload;
+use super::status;
 use super::submit::submit_transaction;
 
 pub struct AleoAdapter<P: AleoProviderForLander = AleoProvider> {
@@ -88,8 +86,8 @@ impl<P: AleoProviderForLander> AdaptsChain for AleoAdapter<P> {
         submit_transaction(&*self.provider, tx).await
     }
 
-    async fn get_tx_hash_status(&self, _hash: H512) -> Result<TransactionStatus, LanderError> {
-        Ok(TransactionStatus::PendingInclusion)
+    async fn get_tx_hash_status(&self, hash: H512) -> Result<TransactionStatus, LanderError> {
+        status::get_tx_hash_status(&self.provider, hash).await
     }
 
     async fn tx_ready_for_resubmission(&self, _tx: &Transaction) -> bool {
