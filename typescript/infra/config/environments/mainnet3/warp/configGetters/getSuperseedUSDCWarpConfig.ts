@@ -4,11 +4,13 @@ import {
   HypTokenRouterConfig,
   TokenType,
 } from '@hyperlane-xyz/sdk';
+import { objFilter } from '@hyperlane-xyz/utils';
 
 import {
   RouterConfigWithoutOwner,
   tokens,
 } from '../../../../../src/config/warp.js';
+import { getGnosisSafeBuilderStrategyConfigGenerator } from '../../../utils.js';
 import { WarpRouteIds } from '../warpIds.js';
 
 import { getUSDCRebalancingBridgesConfigFor } from './utils.js';
@@ -125,3 +127,11 @@ export const getEthereumSuperseedUSDCSTAGEWarpConfig = async (
     } as Extract<HypTokenConfig, { type: typeof TokenType.collateralFiat }>,
   };
 };
+
+export const getSuperseedUSDCStrategyConfig =
+  getGnosisSafeBuilderStrategyConfigGenerator(
+    objFilter(
+      owners,
+      (chain, _v): _v is string => chain !== 'solanamainnet' && chain !== 'ink',
+    ),
+  );

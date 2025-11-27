@@ -97,7 +97,10 @@ import {
   getRezStagingWarpConfig,
 } from './environments/mainnet3/warp/configGetters/getRenzoREZStaging.js';
 import { getSubtensorUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getSubtensorUSDCWarpConfig.js';
-import { getSuperseedUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getSuperseedUSDCWarpConfig.js';
+import {
+  getSuperseedUSDCStrategyConfig,
+  getSuperseedUSDCWarpConfig,
+} from './environments/mainnet3/warp/configGetters/getSuperseedUSDCWarpConfig.js';
 import {
   getoUSDTTokenProductionWarpConfig,
   getoUSDTTokenStagingWarpConfig,
@@ -210,6 +213,7 @@ export const strategyConfigGetterMap: Record<string, StrategyConfigGetter> = {
   [WarpRouteIds.MainnetCCTPV2Standard]: getCCTPV2StrategyConfig,
   [WarpRouteIds.MatchainUSDC]: getMatchainUSDCStrategyConfig,
   [WarpRouteIds.oXAUT]: getoXAUTGnosisSafeSubmitterStrategyConfig,
+  [WarpRouteIds.SuperseedUSDC]: getSuperseedUSDCStrategyConfig,
 };
 
 /**
