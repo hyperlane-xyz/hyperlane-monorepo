@@ -4,6 +4,14 @@ use snarkvm_console_account::{Field, FromBytes, Itertools, ToBits, ToBytes};
 
 use crate::{AleoHash, HyperlaneAleoError, MESSAGE_BODY_U128_WORDS};
 
+/// Padding utility function
+pub(crate) fn pad_to_length<const LENGTH: usize>(data: Vec<u8>, pad_byte: u8) -> [u8; LENGTH] {
+    let copy_len = core::cmp::min(data.len(), LENGTH);
+    let mut buf = [pad_byte; LENGTH];
+    buf[..copy_len].copy_from_slice(&data[..copy_len]);
+    buf
+}
+
 /// Converts a AleoHash/[U128; 2] into a H256
 /// Uses little-endian byte order
 pub(crate) fn aleo_hash_to_h256(id: &AleoHash) -> H256 {
@@ -241,5 +249,40 @@ mod tests {
         for w in &words {
             assert_eq!(*w, max);
         }
+    }
+
+    #[test]
+    fn test_pad_to_length_exact_size() {
+        let data = vec![1u8, 2, 3, 4];
+        let res = pad_to_length::<4>(data, 0xAA);
+        assert_eq!(res, [1u8, 2, 3, 4]);
+    }
+
+    #[test]
+    fn test_pad_to_length_smaller_than_length() {
+        let data = vec![0x01, 0x02];
+        let res = pad_to_length::<5>(data, 0xFF);
+        assert_eq!(res, [0x01, 0x02, 0xFF, 0xFF, 0xFF]);
+    }
+
+    #[test]
+    fn test_pad_to_length_empty_input() {
+        let data = Vec::<u8>::new();
+        let res = pad_to_length::<3>(data, 0x00);
+        assert_eq!(res, [0x00, 0x00, 0x00]);
+    }
+
+    #[test]
+    fn test_pad_to_length_truncates_extra_bytes() {
+        let data = vec![10u8, 20, 30, 40, 50, 60];
+        let res = pad_to_length::<4>(data, 0xEE);
+        assert_eq!(res, [10u8, 20, 30, 40]); // last two bytes are truncated
+    }
+
+    #[test]
+    fn test_pad_to_length_custom_pad_byte() {
+        let data = vec![0xAB];
+        let res = pad_to_length::<4>(data, 0x7F);
+        assert_eq!(res, [0xAB, 0x7F, 0x7F, 0x7F]);
     }
 }

@@ -10,7 +10,8 @@ use hyperlane_core::{
     TxOutcome, H256, U256,
 };
 
-use crate::utils::{hash_to_aleo_hash, to_h256};
+use crate::provider::{AleoClient, FallbackHttpClient};
+use crate::utils::{hash_to_aleo_hash, pad_to_length, to_h256};
 use crate::{
     aleo_args, AleoMailboxStruct, AleoMessage, AleoProvider, AppMetadata, ConnectionConf,
     CurrentNetwork, Delivery, DeliveryKey, HyperlaneAleoError,
@@ -18,16 +19,20 @@ use crate::{
 
 /// Aleo Ism
 #[derive(Debug, Clone)]
-pub struct AleoMailbox {
-    provider: AleoProvider,
+pub struct AleoMailbox<C: AleoClient = FallbackHttpClient> {
+    provider: AleoProvider<C>,
     address: H256,
     program: String,
     domain: HyperlaneDomain,
 }
 
-impl AleoMailbox {
+impl<C: AleoClient> AleoMailbox<C> {
     /// Returns a new Mailbox
-    pub fn new(provider: AleoProvider, locator: &ContractLocator, conf: &ConnectionConf) -> Self {
+    pub fn new(
+        provider: AleoProvider<C>,
+        locator: &ContractLocator,
+        conf: &ConnectionConf,
+    ) -> Self {
         Self {
             provider,
             address: locator.address,
@@ -79,12 +84,8 @@ impl AleoMailbox {
         let message_length = message.to_vec().len() as u32;
         let aleo_message: AleoMessage = message.clone().into();
 
-        // Pad or truncate metadata to 512 bytes
-        let copy_len = metadata.len().min(512);
-        // Initialize with 1s as Aleo will error on zero bytes for the ECDSA recovery
-        let mut buf = [1u8; 512];
-        buf[..copy_len].copy_from_slice(&metadata[..copy_len]);
-        let metadata = buf;
+        // Pad with 1u8 as Aleo will error on zero bytes for the ECDSA recovery
+        let metadata = pad_to_length::<512>(metadata.to_vec(), 1u8);
 
         let ism = self.recipient_ism(message.recipient).await?;
         let ism = Address::<CurrentNetwork>::from_bytes_le(ism.as_bytes())
@@ -109,7 +110,7 @@ impl AleoMailbox {
 }
 
 #[async_trait]
-impl HyperlaneChain for AleoMailbox {
+impl<C: AleoClient> HyperlaneChain for AleoMailbox<C> {
     /// Return the domain
     fn domain(&self) -> &HyperlaneDomain {
         &self.domain
@@ -121,7 +122,7 @@ impl HyperlaneChain for AleoMailbox {
     }
 }
 
-impl HyperlaneContract for AleoMailbox {
+impl<C: AleoClient> HyperlaneContract for AleoMailbox<C> {
     /// Address
     fn address(&self) -> H256 {
         self.address
@@ -129,7 +130,7 @@ impl HyperlaneContract for AleoMailbox {
 }
 
 #[async_trait]
-impl Mailbox for AleoMailbox {
+impl<C: AleoClient> Mailbox for AleoMailbox<C> {
     /// Gets the current leaf count of the merkle tree
     ///
     /// - `reorg_period` is how far behind the current block to query, if not specified
@@ -236,5 +237,61 @@ impl Mailbox for AleoMailbox {
     fn delivered_calldata(&self, _message_id: H256) -> ChainResult<Option<Vec<u8>>> {
         // Not implemented, only needed for lander
         unimplemented!()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{provider::mock::MockHttpClient, AleoMailbox, AleoProvider, ConnectionConf};
+    use std::{path::PathBuf, str::FromStr};
+    const DOMAIN: HyperlaneDomain =
+        HyperlaneDomain::Known(hyperlane_core::KnownHyperlaneDomain::Abstract);
+
+    fn connection_conf() -> ConnectionConf {
+        ConnectionConf {
+            rpcs: vec![url::Url::from_str("http://localhost:3030").unwrap()],
+            mailbox_program: "test_mailbox.aleo".to_string(),
+            hook_manager_program: "test_hook_manager.aleo".to_string(),
+            ism_manager_program: "test_ism_manager.aleo".to_string(),
+            validator_announce_program: "test_validator_announce.aleo".to_string(),
+            chain_id: 1u16,
+            priority_fee_multiplier: 0f64,
+            proving_service: vec![],
+        }
+    }
+
+    fn get_mock_mailbox() -> AleoMailbox<MockHttpClient> {
+        let base_path =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/mailbox/mock_responses");
+        let client: MockHttpClient = MockHttpClient::new(base_path);
+
+        let provider = AleoProvider::with_client(client, DOMAIN, 0u16, None);
+        let locator = ContractLocator::new(&DOMAIN, H256::zero());
+        AleoMailbox::new(provider, &locator, &connection_conf())
+    }
+
+    #[tokio::test]
+    async fn test_get_recipient() {
+        let mailbox = get_mock_mailbox();
+        mailbox.provider.register_value("program/test_mailbox.aleo/mapping/registered_applications/aleo18n8sg8cz6qc76vzflr8la98u0r4w8r96c9wdxee4wvetsvuz0vxs0r2hk8", "[\n  116u8,\n  101u8,\n  115u8,\n  116u8,\n  95u8,\n  104u8,\n  121u8,\n  112u8,\n  95u8,\n  110u8,\n  97u8,\n  116u8,\n  105u8,\n  118u8,\n  101u8,\n  46u8,\n  97u8,\n  108u8,\n  101u8,\n  111u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8\n]");
+        let recipient_address =
+            H256::from_str("0x3ccf041f02d031ed3049f8cffe94fc78eae38cbac15cd367357332b833827b0d")
+                .unwrap();
+        let result = mailbox.get_recipient(recipient_address).await;
+        assert!(result.is_ok(), "Get recipient should succeed");
+        let result = result.unwrap();
+        assert_eq!(result.to_string(), "test_hyp_native.aleo");
+    }
+
+    #[tokio::test]
+    async fn test_get_unknown_recipient() {
+        let mailbox = get_mock_mailbox();
+        mailbox.provider.register_value("program/test_mailbox.aleo/mapping/registered_applications/aleo18n8sg8cz6qc76vzflr8la98u0r4w8r96c9wdxee4wvetsvuz0vqsylpe9n", "[\n  116u8,\n  101u8,\n  115u8,\n  116u8,\n  95u8,\n  104u8,\n  121u8,\n  112u8,\n  95u8,\n  110u8,\n  97u8,\n  116u8,\n  105u8,\n  118u8,\n  101u8,\n  46u8,\n  97u8,\n  108u8,\n  101u8,\n  111u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8\n]");
+        let recipient_address =
+            H256::from_str("0x3ccf041f02d031ed3049f8cffe94fc78eae38cbac15cd367357332b833827b0d")
+                .unwrap();
+        let result = mailbox.get_recipient(recipient_address).await;
+        assert!(result.is_err(), "Get unknown recipient should fail");
     }
 }
