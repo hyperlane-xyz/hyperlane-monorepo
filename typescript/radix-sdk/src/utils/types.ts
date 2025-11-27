@@ -141,3 +141,9 @@ export interface Receipt {
   }[];
   error_message?: string;
 }
+
+export interface RadixNetworkConfig {
+  hyperlanePackageAddress: string;
+  chainName: string;
+  radixNetworkId: number;
+}

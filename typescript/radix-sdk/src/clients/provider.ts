@@ -4,7 +4,10 @@ import { NetworkId } from '@radixdlt/radix-engine-toolkit';
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert } from '@hyperlane-xyz/utils';
 
-import { DEFAULT_APPLICATION_NAME, DEFAULT_GAS_MULTIPLIER } from '../const.js';
+import {
+  DEFAULT_GAS_MULTIPLIER,
+  getRadixHyperlanePackageDef,
+} from '../const.js';
 import { RadixCorePopulate } from '../core/populate.js';
 import { RadixCoreQuery } from '../core/query.js';
 import { RadixBase } from '../utils/base.js';
@@ -17,22 +20,6 @@ import {
 } from '../utils/types.js';
 import { RadixWarpPopulate } from '../warp/populate.js';
 import { RadixWarpQuery } from '../warp/query.js';
-
-const NETWORKS = {
-  [NetworkId.Stokenet]: {
-    applicationName: DEFAULT_APPLICATION_NAME,
-    packageAddress:
-      'package_tdx_2_1pkn2zdcw8q8rax6mxetdkgp7493mf379afhq7a7peh4wnftz3zej4h',
-  },
-  [NetworkId.Mainnet]: {
-    applicationName: DEFAULT_APPLICATION_NAME,
-    packageAddress:
-      'package_rdx1pkzmcj4mtal34ddx9jrt8um6u3yqheqpfvcj4s0ulmgyt094fw0jzh',
-  },
-  [NetworkId.LocalNet]: {
-    applicationName: DEFAULT_APPLICATION_NAME,
-  },
-};
 
 export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   protected rpcUrls: string[];
@@ -73,20 +60,13 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
     this.rpcUrls = options.rpcUrls;
     this.networkId = options.networkId ?? NetworkId.Mainnet;
 
-    const networkBaseConfig = NETWORKS[this.networkId];
-    assert(
-      networkBaseConfig,
-      `Network with id ${this.networkId} not supported with the Hyperlane RadixSDK. Supported network ids: ${Object.keys(NETWORKS).join(', ')}`,
-    );
+    const networkBaseConfig = getRadixHyperlanePackageDef({
+      networkId: this.networkId,
+      packageAddress: options.packageAddress,
+    });
 
     this.applicationName = networkBaseConfig.applicationName;
-    const packageAddress =
-      options.packageAddress ?? networkBaseConfig.packageAddress;
-    assert(
-      packageAddress,
-      `Expected package address to be defined for radix network with id ${this.networkId}`,
-    );
-    this.packageAddress = packageAddress;
+    this.packageAddress = networkBaseConfig.packageAddress;
 
     this.gateway = GatewayApiClient.initialize({
       applicationName: this.applicationName,
