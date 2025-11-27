@@ -69,14 +69,28 @@ export class StarknetTokenAdapter
       provider,
     );
 
+    if (contractInstance.get_implementation) {
+      const { implementation } = await contractInstance.get_implementation();
+      const contractClass = await provider.getClassByHash(implementation);
+      const implementationContract = new Contract(
+        contractClass.abi,
+        this.addresses.tokenAddress,
+        provider,
+      );
+      return (this.tokenContract = implementationContract);
+    }
+
     this.tokenContract = contractInstance;
     return contractInstance;
   }
 
   async getBalance(address: Address): Promise<bigint> {
     const contract = await this.getContractInstance();
+    if (contract.balance_of) return contract.balance_of(address);
 
-    return contract.balance_of(address);
+    const response = await contract.balanceOf(address);
+    if (response.balance.low) return response.balance.low;
+    return response;
   }
 
   async getMetadata(_isNft?: boolean): Promise<TokenMetadata> {
@@ -167,7 +181,9 @@ class BaseStarknetHypTokenAdapter
   }
 
   async getBalance(address: Address): Promise<bigint> {
-    return this.contract.balance_of(address);
+    if (this.contract.balance_of) return this.contract.balance_of(address);
+
+    return this.contract.balanceOf(address);
   }
 
   async getMetadata(_isNft?: boolean): Promise<TokenMetadata> {
