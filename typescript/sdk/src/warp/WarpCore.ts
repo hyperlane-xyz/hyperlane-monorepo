@@ -435,6 +435,7 @@ export class WarpCore {
       this.logger.info(
         `${txCategory} required for transfer of ${token.symbol}`,
       );
+      console.log('populateApproveTx1');
       const approveTxReq = await hypAdapter.populateApproveTx({
         weiAmountOrId: approveAmount,
         recipient: token.addressOrDenom,
@@ -456,6 +457,7 @@ export class WarpCore {
       const interchainFeeAdapter = interchainFee.token.getAdapter(
         this.multiProvider,
       );
+      console.log('isapprove');
       const isRequired = await interchainFeeAdapter.isApproveRequired(
         sender,
         token.addressOrDenom,
@@ -473,6 +475,7 @@ export class WarpCore {
         this.logger.info(
           `${txCategory} required for transfer of ${interchainFee.token.symbol}`,
         );
+        console.log('populateApproveTx2');
         const approveTxReq = await interchainFeeAdapter.populateApproveTx({
           weiAmountOrId: interchainFee.amount,
           recipient: token.addressOrDenom,
@@ -488,7 +491,7 @@ export class WarpCore {
         transactions.push(approveTx);
       }
     }
-
+    console.log('populateTransferRemoteTx');
     const transferTxReq = await hypAdapter.populateTransferRemoteTx({
       weiAmountOrId: amount.toString(),
       destination: destinationDomainId,

@@ -366,6 +366,11 @@ export class EvmHypSyntheticAdapter
     ) {
       nativeValue += interchainGas.tokenFeeQuote?.amount ?? 0n;
     }
+    console.log('recipient', recipient);
+    const hex = addressToByteHexString(recipient);
+    console.log('hexString', hex);
+    const a32 = addressToBytes32(hex);
+    console.log('a32', a32);
 
     const recipBytes32 = addressToBytes32(addressToByteHexString(recipient));
     return this.contract.populateTransaction[

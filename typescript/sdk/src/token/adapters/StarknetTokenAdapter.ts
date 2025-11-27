@@ -89,6 +89,7 @@ export class StarknetTokenAdapter
     if (contract.balance_of) return contract.balance_of(address);
 
     const response = await contract.balanceOf(address);
+    console.log('response', response);
     if (response.balance.low) return response.balance.low;
     return response;
   }
