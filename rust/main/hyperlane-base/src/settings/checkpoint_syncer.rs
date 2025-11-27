@@ -223,12 +223,6 @@ mod test {
             unix_timestamp,
             reorg_period,
         };
-        let dummy_reorg_response = ReorgEventResponse {
-            exists: true,
-            event: Some(dummy_reorg_event.clone()),
-            contents: Some(serde_json::to_string(&dummy_reorg_event).unwrap()),
-        };
-
         // create a checkpoint syncer and write a reorg event
         // then `drop` it, to simulate a restart
         {
@@ -242,6 +236,12 @@ mod test {
                 .await
                 .unwrap();
         }
+
+        let dummy_reorg_response = ReorgEventResponse {
+            exists: true,
+            event: Some(dummy_reorg_event.clone()),
+            contents: Some(serde_json::to_string_pretty(&dummy_reorg_event).unwrap()),
+        };
 
         // Initialize a new checkpoint syncer and expect it to panic due to the reorg event.
         let result = checkpoint_syncer_conf.build_and_validate(None).await;
