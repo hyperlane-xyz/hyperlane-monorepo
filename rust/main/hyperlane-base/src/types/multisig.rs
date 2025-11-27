@@ -65,11 +65,11 @@ impl MultisigCheckpointSyncer {
         for (validator, latest_index) in validator_index_results {
             match latest_index {
                 Ok(Some(index)) => {
-                    debug!(?validator, ?index, "Validator returned latest index");
+                    info!(?validator, ?index, "Validator returned latest index");
                     latest_indices.insert(*validator, Some(index));
                 }
                 Ok(None) => {
-                    debug!(?validator, "Validator returned no latest index");
+                    info!(?validator, "Validator returned no latest index");
                     latest_indices.insert(*validator, None);
                 }
                 Err(err) => {
@@ -157,6 +157,16 @@ impl MultisigCheckpointSyncer {
                 );
                 return Ok(None);
             }
+
+            info!(
+                %minimum_index,
+                %start_index,
+                %highest_quorum_index,
+                validators_with_indices = latest_indices.len(),
+                threshold,
+                ?latest_indices,
+                "Searching for checkpoint in range"
+            );
 
             for index in (minimum_index..=start_index).rev() {
                 let checkpoint_res = self.fetch_checkpoint(validators, threshold, index).await;

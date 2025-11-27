@@ -8,7 +8,7 @@ use futures::{stream, StreamExt};
 use hyperlane_ethereum::Signers;
 use maplit::hashmap;
 use tokio::sync::RwLock;
-use tracing::{debug, info, warn};
+use tracing::{info, warn};
 
 use hyperlane_base::{
     cache::{LocalCache, MeteredCache, OptionalCache},
@@ -210,7 +210,7 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
     ) -> Result<MultisigCheckpointSyncer, CheckpointSyncerBuildError> {
         let storage_locations = self.fetch_storage_locations(validators).await?;
 
-        debug!(
+        info!(
             hyp_message=?message,
             ?validators,
             validators_len = ?validators.len(),
@@ -225,7 +225,7 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
             .iter()
             .zip(storage_locations)
             .filter_map(|(validator, validator_storage_locations)| {
-                debug!(hyp_message=?message, ?validator, ?validator_storage_locations, "Validator and its storage locations for message");
+                info!(hyp_message=?message, ?validator, ?validator_storage_locations, "Validator and its storage locations for message");
                 if validator_storage_locations.is_empty() {
                     // If the validator has not announced any storage locations, we skip it
                     // and log a warning.
@@ -237,7 +237,7 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
                     // Reverse the order of storage locations to prefer the most recently announced
                     for storage_location in validator_storage_locations.iter().rev() {
                         let Ok(config) = CheckpointSyncerConf::from_str(storage_location) else {
-                            debug!(
+                            info!(
                                 ?validator,
                                 ?storage_location,
                                 "Could not parse checkpoint syncer config for validator"
@@ -250,7 +250,7 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
                         if !self.allow_local_checkpoint_syncers
                             && matches!(config, CheckpointSyncerConf::LocalStorage { .. })
                         {
-                            debug!(
+                            info!(
                                 ?config,
                                 "Ignoring disallowed LocalStorage based checkpoint syncer"
                             );
@@ -286,6 +286,14 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
         for (validator, checkpoint_syncer) in checkpoint_syncers_results {
             checkpoint_syncers.insert(validator.into(), checkpoint_syncer.into());
         }
+
+        info!(
+            hyp_message=?message,
+            checkpoint_syncers_count = checkpoint_syncers.len(),
+            validators_count = validators.len(),
+            ?checkpoint_syncers,
+            "Successfully built checkpoint syncers"
+        );
 
         Ok(MultisigCheckpointSyncer::new(
             checkpoint_syncers,
@@ -333,7 +341,7 @@ impl BaseMetadataBuilder {
                 return Err(CheckpointSyncerBuildError::ReorgEvent(reorg_event));
             }
             Err(err) => {
-                debug!(
+                info!(
                     error=%err,
                     ?config,
                     ?validator,
