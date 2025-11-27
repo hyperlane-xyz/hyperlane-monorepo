@@ -1,4 +1,4 @@
-# HOW TO RUN VALIDATOR INSTANCE FOR BRIDGING DYMENSION <-> OTHER 
+# HOW TO RUN VALIDATOR INSTANCE FOR BRIDGING DYMENSION <-> OTHER
 
 As explained in the master [README.md](./README.md) you will run ONE validator containing TWO key pairs to facilitate sending various tokens between DYMENSION and ETHEREUM/BASE/BINANCE/SOLANA etc.
 
@@ -23,6 +23,8 @@ The second pair is a Cosmos pair and is less important. It's simply for sending 
 Generate the first keypair type, see [hex key instructions](https://docs.hyperlane.xyz/docs/operate/set-up-agent-keys#generate-a-hexadecimal-key).
 
 To configure the binary to use the key, see [checkpoint signer instructions](https://docs.hyperlane.xyz/docs/operate/validators/run-validators#checkpoint-signer-configuration)
+
+Share the generated address with Dymension team.
 
 #### The Cosmos style announcement key
 
@@ -50,7 +52,7 @@ Set the `.signer.key` in the dymension sub object in the config. Make sure there
           "type": "cosmosKey",
           "prefix": "dym",
           "key": "0x485a13000989c3dfe8f0981c9858447a84f0b24c5b0757c06c7daeffae894555",
-          "accountAddressType": "Bitcoin" 
+          "accountAddressType": "Bitcoin"
         }
 ```
 
@@ -116,7 +118,7 @@ running the validator in docker is taken from [official Hyperlane docs](https://
 pull the validator container
 
 ```bash
-docker pull --platform linux/amd64 gcr.io/abacus-labs-dev/hyperlane-agent:agents-v1.4.0
+docker pull --platform linux/amd64 gcr.io/abacus-labs-dev/hyperlane-agent:agents-v1.7.0
 ```
 
 ### PHASE 1: KEY GENERATION AND SHARING
@@ -128,7 +130,7 @@ mkdir -p ~/dym/{db,config,logs}
 echo '<dymension_kms_key_arn>' > ~/dym/dymension-kms-key-arn
 
 AWS_KMS_KEY_ID=$(cat ~/dym/dymension-kms-key-arn) cast wallet address --aws
-# Give Dymension team the retrieved public key
+# !! Give Dymension team the retrieved address !!
 ```
 
 Create and retrieve the `hyperlane_announcement_priv_key`
@@ -158,7 +160,7 @@ cp artifacts/<network>/config/dymension/validator-config.json ${HOME}/dym/config
 cp artifacts/<network>/config/dymension/docker-compose.yaml ${HOME}/dym/docker-compose.yaml
 ```
 
-Update all placeholders inside  and `${HOME}/dym/config/validator-config.json` files.
+Update all placeholders inside and `${HOME}/dym/config/validator-config.json` files.
 
 1. Add a pointer to your AWS hosted key which allows will perform the signing
 
