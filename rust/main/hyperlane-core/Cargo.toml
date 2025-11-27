@@ -10,6 +10,7 @@ publish = { workspace = true }
 version = { workspace = true }
 
 [dependencies]
+anyhow.workspace = true
 async-trait.workspace = true
 async-rwlock.workspace = true
 auto_impl.workspace = true
@@ -29,6 +30,7 @@ eyre.workspace = true
 fixed-hash.workspace = true
 futures = { workspace = true, optional = true }
 getrandom.workspace = true
+grug = { workspace = true}
 hex.workspace = true
 itertools.workspace = true
 num = { workspace = true, features = ["serde"] }

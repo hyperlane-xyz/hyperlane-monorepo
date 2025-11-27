@@ -244,6 +244,7 @@ fn parse_chain(
         .unwrap_or(false);
 
     cfg_unwrap_all!(&chain.cwp, err: [domain]);
+
     let connection = build_connection_conf(
         domain.domain_protocol(),
         &rpcs,
@@ -444,6 +445,33 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
                 suffix: suffix.to_owned(),
             })
         }};
+        (dangoKey) => {{
+            let key = signer
+                .chain(&mut err)
+                .get_key("key")
+                .parse_value::<grug::HexByteArray<32>>("fail deserialize dango key")
+                .end();
+
+            let username = signer
+                .chain(&mut err)
+                .get_key("username")
+                .parse_value::<dango_types::account_factory::Username>(
+                    "fail deserialize dango username",
+                )
+                .end();
+
+            let address = signer
+                .chain(&mut err)
+                .get_key("address")
+                .parse_value::<grug::Addr>("fail deserialize dango address")
+                .end();
+
+            err.into_result(SignerConf::Dango {
+                username: username.unwrap(),
+                key: key.unwrap(),
+                address: address.unwrap(),
+            })
+        }};
     }
 
     match signer_type {
@@ -452,6 +480,7 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
         Some("cosmosKey") => parse_signer!(cosmosKey),
         Some("starkKey") => parse_signer!(starkKey),
         Some("radixKey") => parse_signer!(radixKey),
+        Some("dangoKey") => parse_signer!(dangoKey),
         Some(t) => {
             Err(eyre!("Unknown signer type `{t}`")).into_config_result(|| (&signer.cwp).add("type"))
         }

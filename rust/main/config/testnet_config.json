@@ -2399,6 +2399,67 @@
       "index": {
         "from": 5292654
       }
+    },
+    "dangolocal1": {
+      "displayName": "dango1",
+      "domainId": 88888887,
+      "name": "dangolocal1",
+      "blocks": {
+        "confirmations": 0,
+        "estimateBlockTime": 1,
+        "reorgPeriod": 0
+      },
+      "rpcUrls": [
+        {
+          "http": "http://localhost:26657"
+        }
+      ],
+      "protocol": "dango",
+      "gas_price": {
+        "denom": "dango",
+        "amount": "0"
+      },
+      "gas_scale": 1.2,
+      "flat_gas_increase": 1000000,
+      "search_sleep_duration": "500ms",
+      "post_broadcast_sleep": "2s",
+      "search_retry_attempts": 10,
+      "checkpointSyncer": {
+        "type": "localStorage"
+      },
+      "index": {
+        "chunk": 10,
+        "from": 1
+      }
+    },
+    "dangolocal2": {
+      "displayName": "dango2",
+      "domainId": 88888888,
+      "name": "dangolocal2",
+      "blocks": {
+        "confirmations": 0,
+        "estimateBlockTime": 5,
+        "reorgPeriod": 0
+      },
+      "rpcUrls": [
+        {
+          "http": "http://localhost:26657"
+        }
+      ],
+      "protocol": "dango",
+      "gas_price": {
+        "denom": "dango",
+        "amount": "0"
+      },
+      "gas_scale": 1.2,
+      "flat_gas_increase": 1000000,
+      "search_sleep_duration": "500ms",
+      "post_broadcast_sleep": "2s",
+      "search_retry_attempts": 10,
+      "index": {
+        "chunk": 10,
+        "from": 1
+      }
     }
   }
 }

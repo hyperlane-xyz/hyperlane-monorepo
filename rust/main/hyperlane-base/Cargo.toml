@@ -26,6 +26,7 @@ eyre.workspace = true
 fuels.workspace = true
 futures.workspace = true
 futures-util.workspace = true
+humantime.workspace = true
 itertools.workspace = true
 maplit.workspace = true
 mockall.workspace = true
@@ -66,6 +67,11 @@ hyperlane-cosmos = { path = "../chains/hyperlane-cosmos" }
 hyperlane-starknet = { path = "../chains/hyperlane-starknet" }
 hyperlane-sealevel = { path = "../chains/hyperlane-sealevel" }
 hyperlane-radix = { path = "../chains/hyperlane-radix" }
+hyperlane-dango= { path = "../chains/hyperlane-dango" }
+
+grug.workspace = true
+dango-types.workspace = true
+
 
 # dependency version is determined by etheres
 rusoto_core = "*"

@@ -59,6 +59,7 @@ impl AdapterFactory {
                 Arc::new(adapter)
             }
             ChainConnectionConf::Aleo(_) => todo!(),
+            ChainConnectionConf::Dango(_) => todo!(),
         };
         Ok(adapter)
     }

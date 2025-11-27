@@ -1,9 +1,12 @@
 use std::ops::Add;
+use std::str::FromStr;
+use std::time::Duration;
 
 use eyre::eyre;
 use hyperlane_sealevel::{
     HeliusPriorityFeeLevel, HeliusPriorityFeeOracleConfig, PriorityFeeOracleConfig,
 };
+use serde_json::Value;
 use url::Url;
 
 use h_eth::TransactionOverrides;
@@ -13,8 +16,9 @@ use hyperlane_core::{config::ConfigParsingError, HyperlaneDomainProtocol, Native
 
 use hyperlane_starknet as h_starknet;
 
-use crate::settings::envs::*;
-use crate::settings::ChainConnectionConf;
+use hyperlane_dango as h_dango;
+
+use crate::settings::{envs::*, ChainConnectionConf};
 
 use super::{parse_base_and_override_urls, parse_cosmos_gas_price, ValueParser};
 
@@ -243,6 +247,111 @@ pub fn build_cosmos_connection_conf(
     }
 }
 
+fn build_dango_connection_conf(
+    rpcs: &[Url],
+    chain: &ValueParser,
+    err: &mut ConfigParsingError,
+    operation_batch: OpSubmissionConfig,
+) -> Option<ChainConnectionConf> {
+    let mut local_err = ConfigParsingError::default();
+
+    let chain_id = chain
+        .chain(&mut local_err)
+        .get_key("chain_id")
+        .parse_string()
+        .end()
+        .or_else(|| {
+            local_err.push(&chain.cwp + "chain_id", eyre!("Missing chain_id"));
+            None
+        });
+
+    let httpd_url = chain
+        .chain(&mut local_err)
+        .get_key("httpd_urls")
+        .end()
+        .and_then(|vp| match vp.val {
+            Value::String(val) => {
+                serde_json::from_str::<Vec<Url>>(val).take_err(&mut local_err, || vp.cwp)
+            }
+            Value::Array(values) => values
+                .iter()
+                .map(|v| {
+                    v.as_str()
+                        .ok_or(eyre!("Expected `Value::String`, found {}", v))
+                        .take_err(&mut local_err, || vp.cwp.clone())
+                        .and_then(|str| {
+                            Url::from_str(str).take_err(&mut local_err, || vp.cwp.clone())
+                        })
+                })
+                .collect(),
+            _ => todo!(),
+        });
+
+    let gas_price = chain
+        .chain(&mut local_err)
+        .get_key("gas_price")
+        .parse_value::<grug::Coin>("fails to deserialize grug::Coin")
+        .end();
+
+    let gas_scale = chain
+        .chain(&mut local_err)
+        .get_key("gas_scale")
+        .parse_f64()
+        .end()
+        .or_else(|| {
+            local_err.push(&chain.cwp + "gas_scale", eyre!("Missing gas_scale"));
+            None
+        });
+
+    let flat_gas_increase = chain
+        .chain(&mut local_err)
+        .get_key("flat_gas_increase")
+        .parse_u64()
+        .end()
+        .or_else(|| {
+            local_err.push(
+                &chain.cwp + "flat_gas_increase",
+                eyre!("Missing flat_gas_increase"),
+            );
+            None
+        });
+
+    let search_retry_attempts = chain
+        .chain(&mut local_err)
+        .get_key("search_retry_attempts")
+        .parse_u16()
+        .end()
+        .or_else(|| {
+            local_err.push(
+                &chain.cwp + "search_retry_attempts",
+                eyre!("Missing search_retry_attempts"),
+            );
+            None
+        });
+
+    let search_sleep_duration = parse_duration(chain, &mut local_err, "search_sleep_duration");
+
+    let post_broadcast_sleep = parse_duration(chain, &mut local_err, "post_broadcast_sleep");
+
+    if !local_err.is_ok() {
+        err.merge(local_err);
+        None
+    } else {
+        Some(ChainConnectionConf::Dango(h_dango::ConnectionConf {
+            httpd_urls: httpd_url?,
+            gas_price: gas_price?,
+            gas_scale: gas_scale?,
+            flat_gas_increase: flat_gas_increase?,
+            search_sleep_duration: search_sleep_duration?,
+            search_retry_attempts: search_retry_attempts?,
+            post_broadcast_sleep: post_broadcast_sleep?,
+            chain_id: chain_id?.to_string(),
+            rpcs: rpcs.to_owned(),
+            operation_batch,
+        }))
+    }
+}
+
 fn build_starknet_connection_conf(
     urls: &[Url],
     chain: &ValueParser,
@@ -465,6 +574,33 @@ fn parse_transaction_submitter_config(
     }
 }
 
+fn parse_duration(
+    chain: &ValueParser,
+    local_err: &mut ConfigParsingError,
+    key: &str,
+) -> Option<Duration> {
+    chain
+        .chain(local_err)
+        .get_key(key)
+        .parse_string()
+        .end()
+        .or_else(|| {
+            local_err.push(&chain.cwp + key, eyre!("Missing {key}"));
+            None
+        })
+        .and_then(|str| {
+            humantime::parse_duration(str)
+                .map(Some)
+                .unwrap_or_else(|e| {
+                    local_err.push(
+                        &chain.cwp + key,
+                        eyre!("Invalid search sleep duration: {e}"),
+                    );
+                    None
+                })
+        })
+}
+
 pub fn build_radix_connection_conf(
     rpcs: &[Url],
     chain: &ValueParser,
@@ -660,6 +796,9 @@ pub fn build_connection_conf(
         }
         HyperlaneDomainProtocol::Aleo => {
             build_aleo_connection_conf(rpcs, chain, err, operation_batch)
+        }
+        HyperlaneDomainProtocol::Dango => {
+            build_dango_connection_conf(rpcs, chain, err, operation_batch)
         }
     }
 }
