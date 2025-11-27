@@ -6,7 +6,7 @@ use {
 
 #[derive(Default)]
 pub struct Relayer {
-    allow_local_checkpoint_syncer: Option<AllowLocalCheckpointSyncer2>,
+    allow_local_checkpoint_syncer: Option<AllowLocalCheckpointSyncer>,
 }
 
 impl Relayer {
@@ -15,7 +15,7 @@ impl Relayer {
         allow_local_checkpoint_syncer: bool,
     ) -> Self {
         self.allow_local_checkpoint_syncer =
-            Some(AllowLocalCheckpointSyncer2(allow_local_checkpoint_syncer));
+            Some(AllowLocalCheckpointSyncer(allow_local_checkpoint_syncer));
         self
     }
 }
@@ -38,9 +38,9 @@ impl AgentArgs for Relayer {
 
 // ---- ARGS ----
 
-pub struct AllowLocalCheckpointSyncer2(bool);
+pub struct AllowLocalCheckpointSyncer(bool);
 
-impl Args for AllowLocalCheckpointSyncer2 {
+impl Args for AllowLocalCheckpointSyncer {
     fn args(self) -> BTreeMap<String, String> {
         btree_map! {
             "allowLocalCheckpointSyncers".to_string() => self.0.to_string(),

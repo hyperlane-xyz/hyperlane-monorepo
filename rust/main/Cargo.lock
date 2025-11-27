@@ -8973,6 +8973,7 @@ dependencies = [
  "dango-mock-httpd",
  "dango-testing",
  "dango-types",
+ "dotenvy",
  "ethers",
  "futures-util",
  "grug",

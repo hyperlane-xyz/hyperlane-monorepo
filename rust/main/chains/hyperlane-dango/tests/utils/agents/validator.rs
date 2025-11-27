@@ -8,7 +8,7 @@ use {
 #[derive(Default)]
 pub struct Validator {
     origin_chain_name: Option<OriginChainName>,
-    checkpoint_syncer: Option<CheckpointSyncer2>,
+    checkpoint_syncer: Option<CheckpointSyncer>,
     validator_signer: Option<ValidatorSigner>,
 }
 
@@ -18,7 +18,7 @@ impl Validator {
         self
     }
 
-    pub fn with_checkpoint_syncer(mut self, checkpoint_syncer: CheckpointSyncer2) -> Self {
+    pub fn with_checkpoint_syncer(mut self, checkpoint_syncer: CheckpointSyncer) -> Self {
         self.checkpoint_syncer = Some(checkpoint_syncer);
         self
     }
@@ -51,19 +51,19 @@ pub struct S3CheckpointSyncer {
     folder: String,
 }
 
-pub enum CheckpointSyncer2 {
+pub enum CheckpointSyncer {
     LocalStorage(Location2),
     S3(S3CheckpointSyncer),
 }
 
-impl Args for CheckpointSyncer2 {
+impl Args for CheckpointSyncer {
     fn args(self) -> BTreeMap<String, String> {
         match self {
-            CheckpointSyncer2::LocalStorage(location2) => btree_map! {
+            CheckpointSyncer::LocalStorage(location2) => btree_map! {
                 "checkpointSyncer.type".to_string() => "localStorage".to_string(),
                 "checkpointSyncer.path".to_string() => location2.get_path(),
             },
-            CheckpointSyncer2::S3(s3_checkpoint_syncer) => btree_map! {
+            CheckpointSyncer::S3(s3_checkpoint_syncer) => btree_map! {
                 "checkpointSyncer.type".to_string() => "s3".to_string(),
                 "checkpointSyncer.bucket".to_string() => s3_checkpoint_syncer.bucket,
                 "checkpointSyncer.region".to_string() => s3_checkpoint_syncer.region,

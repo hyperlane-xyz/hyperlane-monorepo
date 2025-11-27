@@ -1,6 +1,6 @@
 use {
     crate::utils::{
-        dango_helper::ChainHelper, get_free_port, Agent, CheckpointSyncer2, DangoBuilder,
+        dango_helper::ChainHelper, get_free_port, Agent, CheckpointSyncer, DangoBuilder,
         DangoSettings, HexKey, Location2, Relayer, Validator, ValidatorSigner,
     },
     dango_types::gateway::Origin,
@@ -94,7 +94,7 @@ fn run_validators(
             Agent::new(
                 Validator::default()
                     .with_origin_chain_name(chain_name)
-                    .with_checkpoint_syncer(CheckpointSyncer2::LocalStorage(Location2::Temp))
+                    .with_checkpoint_syncer(CheckpointSyncer::LocalStorage(Location2::Temp))
                     .with_validator_signer(ValidatorSigner::Hex(key.key.clone())),
             )
             .with_chain(

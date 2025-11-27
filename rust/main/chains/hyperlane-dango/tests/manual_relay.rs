@@ -1,13 +1,15 @@
 use {
     dango_client::{Secp256k1, Secret, SingleSigner},
     dango_hyperlane_types::{
-        domain_hash, eip191_hash,
-        isms::{multisig::Metadata, HYPERLANE_DOMAIN_KEY},
-        mailbox::Message,
-        multisig_hash, Addr32,
+        Addr32, domain_hash, eip191_hash, isms::{HYPERLANE_DOMAIN_KEY, multisig::Metadata}, mailbox::Message, multisig_hash
     },
-    dango_testing::constants::user4,
-    dango_types::{account_factory::Username, config::AppConfig, warp::TokenMessage},
+    dango_testing::constants::{user4, user5},
+    dango_types::{
+        account_factory::Username,
+        config::AppConfig,
+        gateway::{self, Remote},
+        warp::TokenMessage,
+    },
     ethers::{
         contract::abigen,
         providers::{Http, Provider},
@@ -15,15 +17,13 @@ use {
         utils::keccak256,
     },
     grug::{
-        Addr, AddrEncoder, Api, BroadcastClientExt, Coins, EncodedBytes, GasOption, Hash256,
-        HexByteArray, Inner, Json, JsonDeExt, JsonSerExt, MockApi, QueryClientExt,
-        __private::hex_literal::hex, addr, btree_set,
+        __private::hex_literal::hex, Addr, AddrEncoder, Api, BroadcastClientExt, Coins, EncodedBytes, GasOption, Hash256, HexByteArray, Inner, Json, JsonDeExt, JsonSerExt, MockApi, QueryClientExt, addr, btree_set
     },
     grug_indexer_client::HttpClient,
     serde::{Deserialize, Serialize},
     std::{
         collections::BTreeSet,
-        sync::{Arc, LazyLock},
+        sync::{Arc, LazyLock}, time::Duration,
     },
 };
 
@@ -53,9 +53,9 @@ abigen!(
 
 // --- MESSAGE INFO ---
 
-const BLOCK_NUMBER: u64 = 9711837;
+const BLOCK_NUMBER: u64 = 9718329;
 const MESSAGE_ID: [u8; 32] =
-    hex!("e2367ca657667c3b4e56530f35dfa171b5dee9ac09f0f96ed491a7ad9601d96f");
+    hex!("187a8e60b7cbff99c67d5a2a2f4a5c5cea8d5c4a049fe297c6eb6eafa5ad920e");
 
 // --- ADDRESSES ---
 
@@ -275,4 +275,60 @@ async fn get_checkpoint_from_s3(s3: &str, index_msg: &str) -> anyhow::Result<Che
         message_id: json["value"]["message_id"].clone().deserialize_json()?,
         serialized_signature: json["serialized_signature"].clone().deserialize_json()?,
     })
+}
+
+#[tokio::test]
+async fn balance() -> anyhow::Result<()> {
+    let dango_client = HttpClient::new(DANGO_URL)?;
+
+    loop {
+        let balance = dango_client
+            .query_balances(
+                addr!("a20a0e1a71b82d50fc046bc6e3178ad0154fd184"),
+                None,
+                None,
+                None,
+            )
+            .await?;
+
+        println!("balance: {}", balance.to_json_string_pretty()?);
+
+        tokio::time::sleep(Duration::from_secs(1)).await;
+    }
+}
+
+#[tokio::test]
+async fn send_to_sepolia() -> anyhow::Result<()> {
+    let dango_client = HttpClient::new(DANGO_URL)?;
+
+    let cfg: AppConfig = dango_client.query_app_config(None).await?;
+
+    let mut user5 = SingleSigner::new(
+        &user5::USERNAME.clone().to_string(),
+        addr!("a20a0e1a71b82d50fc046bc6e3178ad0154fd184"),
+        Secp256k1::from_bytes(user5::PRIVATE_KEY)?,
+    )?
+    .with_query_nonce(&dango_client)
+    .await?;
+
+    let res = dango_client
+        .execute(
+            &mut user5,
+            cfg.addresses.gateway,
+            &gateway::ExecuteMsg::TransferRemote {
+                remote: Remote::Warp {
+                    domain: 11155111,
+                    contract: addr!("34dc3f292fc04e3dcc2830ac69bb5d4cd5e8f654").into(),
+                },
+                recipient: addr!("f63130398dE6467a539020ac2B6d876B7A850C5F").into(),
+            },
+            Coins::one("bridge/sepoliaETH", 55)?,
+            GasOption::Predefined { gas_limit: 1000000 },
+            "pr-1414",
+        )
+        .await?;
+
+    println!("res: {}", res.to_json_string_pretty()?);
+
+    Ok(())
 }
