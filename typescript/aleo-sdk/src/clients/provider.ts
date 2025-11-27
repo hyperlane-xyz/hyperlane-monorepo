@@ -59,17 +59,14 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
 
   async getBalance(req: AltVM.ReqGetBalance): Promise<bigint> {
     if (req.denom && req.denom !== ALEO_NATIVE_DENOM) {
-      const result = await this.aleoClient.getProgramMappingValue(
+      const result = await this.queryMappingValue(
         'token_registry.aleo',
         'authorized_balances',
         this.getBalanceKey(req.address, req.denom),
+        { balance: 0n },
       );
 
-      if (result === null) {
-        return 0n;
-      }
-
-      return this.Plaintext.fromString(result).toObject()['balance'];
+      return result['balance'];
     }
 
     const balance = await this.aleoClient.getPublicBalance(req.address);
@@ -81,17 +78,14 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       return 0n;
     }
 
-    const result = await this.aleoClient.getProgramMappingValue(
+    const result = await this.queryMappingValue(
       'token_registry.aleo',
       'registered_tokens',
       req.denom,
+      { max_supply: 0n },
     );
 
-    if (result === null) {
-      return 0n;
-    }
-
-    return this.Plaintext.fromString(result).toObject()['max_supply'];
+    return result['max_supply'];
   }
 
   async estimateTransactionFee(
@@ -113,17 +107,6 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   // ### QUERY CORE ###
 
   async getMailbox(req: AltVM.ReqGetMailbox): Promise<AltVM.ResGetMailbox> {
-    let res;
-    try {
-      res = await this.aleoClient.getProgramMappingPlaintext(
-        req.mailboxAddress,
-        'mailbox',
-        'true',
-      );
-    } catch {
-      throw new Error(`Found no Mailbox for address: ${req.mailboxAddress}`);
-    }
-
     const {
       mailbox_owner,
       local_domain,
@@ -131,7 +114,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       default_hook,
       required_hook,
       nonce,
-    } = res.toObject();
+    } = await this.queryMappingValue(req.mailboxAddress, 'mailbox', 'true');
 
     const hookManagerProgramId = req.mailboxAddress.replace(
       'mailbox',
@@ -156,37 +139,31 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   }
 
   async isMessageDelivered(req: AltVM.ReqIsMessageDelivered): Promise<boolean> {
-    try {
-      // Message key needs to be separated into [u128, u128] using Little Endian.
-      const messageKey = this.bytes32ToU128String(req.messageId);
+    // Message key needs to be separated into [u128, u128] using Little Endian.
+    const messageKey = this.bytes32ToU128String(req.messageId);
 
-      const res = await this.aleoClient.getProgramMappingPlaintext(
-        req.mailboxAddress,
-        'deliveries',
-        `{id:${messageKey}}`,
-      );
+    const result = await this.queryMappingValue(
+      req.mailboxAddress,
+      'deliveries',
+      `{id:${messageKey}}`,
+      null,
+    );
 
-      const obj = res.toObject();
-
-      return Boolean(obj.processor && obj.block_number);
-    } catch {
+    if (result === null) {
       return false;
     }
+
+    return Boolean(result.processor && result.block_number);
   }
 
   async getIsmType(req: AltVM.ReqGetIsmType): Promise<AltVM.IsmType> {
-    let res;
-    try {
-      res = await this.aleoClient.getProgramMappingPlaintext(
-        'ism_manager.aleo',
-        'isms',
-        req.ismAddress,
-      );
-    } catch {
-      throw new Error(`Found no ISM for address: ${req.ismAddress}`);
-    }
+    const result = await this.queryMappingValue(
+      'ism_manager.aleo',
+      'isms',
+      req.ismAddress,
+    );
 
-    switch (res.toObject()) {
+    switch (result) {
       case 0:
         return AltVM.IsmType.TEST_ISM;
       case 1:
@@ -203,18 +180,11 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async getMessageIdMultisigIsm(
     req: AltVM.ReqMessageIdMultisigIsm,
   ): Promise<AltVM.ResMessageIdMultisigIsm> {
-    let res;
-    try {
-      res = await this.aleoClient.getProgramMappingPlaintext(
-        'ism_manager.aleo',
-        'message_id_multisigs',
-        req.ismAddress,
-      );
-    } catch {
-      throw new Error(`Found no ISM for address: ${req.ismAddress}`);
-    }
-
-    const { validators, threshold } = res.toObject();
+    const { validators, threshold } = await this.queryMappingValue(
+      'ism_manager.aleo',
+      'message_id_multisigs',
+      req.ismAddress,
+    );
 
     return {
       address: req.ismAddress,
@@ -292,15 +262,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   }
 
   async getNoopIsm(req: AltVM.ReqNoopIsm): Promise<AltVM.ResNoopIsm> {
-    try {
-      await this.aleoClient.getProgramMappingPlaintext(
-        'ism_manager.aleo',
-        'isms',
-        req.ismAddress,
-      );
-    } catch {
-      throw new Error(`Found no ISM for address: ${req.ismAddress}`);
-    }
+    await this.queryMappingValue('ism_manager.aleo', 'isms', req.ismAddress);
 
     return {
       address: req.ismAddress,
@@ -310,18 +272,13 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async getHookType(req: AltVM.ReqGetHookType): Promise<AltVM.HookType> {
     const [programId, hookAddress] = req.hookAddress.split('/');
 
-    let res;
-    try {
-      res = await this.aleoClient.getProgramMappingPlaintext(
-        programId,
-        'hooks',
-        hookAddress,
-      );
-    } catch {
-      throw new Error(`Found no Hook for address: ${req.hookAddress}`);
-    }
+    const result = await this.queryMappingValue(
+      programId,
+      'hooks',
+      hookAddress,
+    );
 
-    switch (res.toObject()) {
+    switch (result) {
       case 0:
         return AltVM.HookType.CUSTOM;
       case 3:
@@ -417,17 +374,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   ): Promise<AltVM.ResGetMerkleTreeHook> {
     const [programId, hookAddress] = req.hookAddress.split('/');
 
-    try {
-      await this.aleoClient.getProgramMappingPlaintext(
-        programId,
-        'merkle_tree_hooks',
-        hookAddress,
-      );
-    } catch {
-      throw new Error(
-        `Found no MerkleTreeHook for address: ${req.hookAddress}`,
-      );
-    }
+    await this.queryMappingValue(programId, 'merkle_tree_hooks', hookAddress);
 
     return {
       address: req.hookAddress,
@@ -439,20 +386,8 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   ): Promise<AltVM.ResGetMerkleTreeHook> {
     const [programId, hookAddress] = req.hookAddress.split('/');
 
-    try {
-      const hook = await this.aleoClient.getProgramMappingPlaintext(
-        programId,
-        'hooks',
-        hookAddress,
-      );
-
-      assert(
-        hook.toObject() === 0,
-        `hook of address ${req.hookAddress} is no noop hook`,
-      );
-    } catch {
-      throw new Error(`Found no Noop Hook for address: ${req.hookAddress}`);
-    }
+    const hook = await this.queryMappingValue(programId, 'hooks', hookAddress);
+    assert(hook === 0, `hook of address ${req.hookAddress} is no noop hook`);
 
     return {
       address: req.hookAddress,
@@ -466,27 +401,19 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     symbol: string;
     decimals: number;
   }> {
-    try {
-      const tokenMetadata = await this.aleoClient.getProgramMappingPlaintext(
-        'token_registry.aleo',
-        'registered_tokens',
-        tokenId,
-      );
+    const tokenMetadata = await this.queryMappingValue(
+      'token_registry.aleo',
+      'registered_tokens',
+      tokenId,
+    );
 
-      const metadata = tokenMetadata.toObject();
-
-      return {
-        name: this.U128StringToString(
-          `${tokenMetadata.toObject()['name'].toString()}u128`,
-        ),
-        symbol: this.U128StringToString(
-          `${tokenMetadata.toObject()['symbol'].toString()}u128`,
-        ),
-        decimals: metadata['decimals'],
-      };
-    } catch {
-      throw new Error(`Found no token for token id: ${tokenId}`);
-    }
+    return {
+      name: this.U128StringToString(`${tokenMetadata['name'].toString()}u128`),
+      symbol: this.U128StringToString(
+        `${tokenMetadata['symbol'].toString()}u128`,
+      ),
+      decimals: tokenMetadata['decimals'],
+    };
   }
 
   async getToken(req: AltVM.ReqGetToken): Promise<AltVM.ResGetToken> {
@@ -503,53 +430,43 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       decimals: 0,
     };
 
-    try {
-      const imports = await this.aleoClient.getProgramImportNames(
-        req.tokenAddress,
-      );
-      token.mailboxAddress = imports.find((i) => i.includes('mailbox')) || '';
-    } catch {
-      throw new Error(
-        `Found no imports for token address: ${req.tokenAddress}`,
-      );
+    const imports = await this.aleoClient.getProgramImportNames(
+      req.tokenAddress,
+    );
+    token.mailboxAddress = imports.find((i) => i.includes('mailbox')) || '';
+
+    const tokenMetadata = await this.queryMappingValue(
+      req.tokenAddress,
+      'token_metadata',
+      'true',
+    );
+
+    token.owner = formatAddress(tokenMetadata.token_owner);
+    token.ismAddress = formatAddress(tokenMetadata.ism || '');
+    token.hookAddress =
+      tokenMetadata.hook === ALEO_NULL_ADDRESS
+        ? ''
+        : `${token.mailboxAddress.replace('mailbox', 'hook_manager')}/${tokenMetadata.hook}`;
+    token.denom = tokenMetadata.token_id || '';
+
+    if (token.denom) {
+      const tokenRegistryMetadata = await this.getTokenMetadata(token.denom);
+
+      token.name = tokenRegistryMetadata.name;
+      token.symbol = tokenRegistryMetadata.symbol;
+      token.decimals = tokenRegistryMetadata.decimals;
     }
 
-    try {
-      const tokenMetadata = await this.aleoClient.getProgramMappingPlaintext(
-        req.tokenAddress,
-        'token_metadata',
-        'true',
-      );
-
-      token.owner = formatAddress(tokenMetadata.toObject().token_owner);
-      token.ismAddress = formatAddress(tokenMetadata.toObject().ism || '');
-      token.hookAddress =
-        tokenMetadata.toObject().hook === ALEO_NULL_ADDRESS
-          ? ''
-          : `${token.mailboxAddress.replace('mailbox', 'hook_manager')}/${tokenMetadata.toObject().hook}`;
-      token.denom = tokenMetadata.toObject().token_id || '';
-
-      if (token.denom) {
-        const tokenRegistryMetadata = await this.getTokenMetadata(token.denom);
-
-        token.name = tokenRegistryMetadata.name;
-        token.symbol = tokenRegistryMetadata.symbol;
-        token.decimals = tokenRegistryMetadata.decimals;
-      }
-
-      switch (tokenMetadata.toObject().token_type) {
-        case 0:
-          token.tokenType = AltVM.TokenType.native;
-          break;
-        case 1:
-          token.tokenType = AltVM.TokenType.synthetic;
-          break;
-        case 2:
-          token.tokenType = AltVM.TokenType.collateral;
-          break;
-      }
-    } catch {
-      throw new Error(`Found no token for address: ${req.tokenAddress}`);
+    switch (tokenMetadata.token_type) {
+      case 0:
+        token.tokenType = AltVM.TokenType.native;
+        break;
+      case 1:
+        token.tokenType = AltVM.TokenType.synthetic;
+        break;
+      case 2:
+        token.tokenType = AltVM.TokenType.collateral;
+        break;
     }
 
     return token;
@@ -618,13 +535,13 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   }
 
   async getBridgedSupply(req: AltVM.ReqGetBridgedSupply): Promise<bigint> {
-    const metadata = await this.aleoClient.getProgramMappingPlaintext(
+    const metadata = await this.queryMappingValue(
       req.tokenAddress,
       'token_metadata',
       'true',
     );
 
-    switch (metadata.toObject()['token_type']) {
+    switch (metadata['token_type']) {
       case 0: {
         return this.getBalance({
           address: this.getAddressFromProgramId(req.tokenAddress),
@@ -633,19 +550,17 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       }
       case 1: {
         return this.getTotalSupply({
-          denom: metadata.toObject()['token_id'],
+          denom: metadata['token_id'],
         });
       }
       case 2: {
         return this.getBalance({
           address: this.getAddressFromProgramId(req.tokenAddress),
-          denom: metadata.toObject()['token_id'],
+          denom: metadata['token_id'],
         });
       }
       default: {
-        throw new Error(
-          `Unknown token type ${metadata.toObject()['token_type']}`,
-        );
+        throw new Error(`Unknown token type ${metadata['token_type']}`);
       }
     }
   }
@@ -653,22 +568,21 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async quoteRemoteTransfer(
     req: AltVM.ReqQuoteRemoteTransfer,
   ): Promise<AltVM.ResQuoteRemoteTransfer> {
-    const remoteRouterValue = await this.aleoClient.getProgramMappingValue(
+    const remoteRouter = await this.queryMappingValue(
       req.tokenAddress,
       'remote_routers',
       `${req.destinationDomainId}u32`,
+      null,
     );
 
-    if (!remoteRouterValue) {
+    if (!remoteRouter) {
       return {
         denom: ALEO_NATIVE_DENOM,
         amount: 0n,
       };
     }
 
-    let gasLimit = new BigNumber(
-      this.Plaintext.fromString(remoteRouterValue).toObject()['gas'],
-    );
+    let gasLimit = new BigNumber(remoteRouter['gas']);
 
     if (req.customHookAddress && req.customHookMetadata) {
       const metadataBytes: number[] = fillArray(

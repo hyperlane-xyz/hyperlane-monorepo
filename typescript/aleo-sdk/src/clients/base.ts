@@ -35,7 +35,7 @@ export class AleoBase {
   protected readonly chainId: number;
 
   protected readonly aleoClient: AnyAleoNetworkClient;
-  protected readonly skipProof: boolean;
+  protected readonly skipProofs: boolean;
 
   constructor(rpcUrls: string[], chainId: string | number) {
     assert(
@@ -51,7 +51,7 @@ export class AleoBase {
       ? new AleoTestnetNetworkClient(rpcUrls[0])
       : new AleoMainnetNetworkClient(rpcUrls[0]);
 
-    this.skipProof = JSON.parse(process.env['ALEO_SKIP_PROOFS'] || 'false');
+    this.skipProofs = JSON.parse(process.env['ALEO_SKIP_PROOFS'] || 'false');
 
     if (+chainId === 1) {
       getOrInitConsensusVersionTestHeights('0,1,2,3,4,5,6,7,8,9,10,11');
@@ -112,12 +112,12 @@ export class AleoBase {
     return programManager;
   }
 
-  protected async queryMappingValue(
+  protected async queryMappingRaw<T = string>(
     programId: string,
     mappingName: string,
     key: string,
-    fallbackValue?: any,
-  ): Promise<any> {
+    fallbackValue?: T,
+  ): Promise<string | T> {
     try {
       const result = await this.aleoClient.getProgramMappingValue(
         programId,
@@ -135,12 +135,27 @@ export class AleoBase {
         );
       }
 
-      return this.Plaintext.fromString(result).toObject();
+      return result;
     } catch (err) {
       throw new Error(
         `Failed to query mapping value for program ${programId}/${mappingName}/${key}: ${err}`,
       );
     }
+  }
+
+  protected async queryMappingValue(
+    programId: string,
+    mappingName: string,
+    key: string,
+    fallbackValue?: any,
+  ): Promise<any> {
+    const result = await this.queryMappingRaw(
+      programId,
+      mappingName,
+      key,
+      fallbackValue,
+    );
+    return this.Plaintext.fromString(result).toObject();
   }
 
   protected getAddressFromProgramId(programId: string): string {

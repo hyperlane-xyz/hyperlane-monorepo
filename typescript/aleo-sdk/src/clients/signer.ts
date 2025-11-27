@@ -48,7 +48,7 @@ export class AleoSigner
 
     for (const { id, program } of programs) {
       try {
-        const tx = this.skipProof
+        const tx = this.skipProofs
           ? await this.programManager.buildDevnodeDeploymentTransaction({
               program,
               priorityFee: 0,
@@ -100,7 +100,7 @@ export class AleoSigner
   async sendAndConfirmTransaction(
     transaction: AleoTransaction,
   ): Promise<AleoReceipt> {
-    const tx = this.skipProof
+    const tx = this.skipProofs
       ? await this.programManager.buildDevnodeExecutionTransaction(transaction)
       : await this.programManager.buildExecutionTransaction(transaction);
 
