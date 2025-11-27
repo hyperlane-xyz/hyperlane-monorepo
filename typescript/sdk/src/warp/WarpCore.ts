@@ -435,7 +435,6 @@ export class WarpCore {
       this.logger.info(
         `${txCategory} required for transfer of ${token.symbol}`,
       );
-      console.log('populateApproveTx1');
       const approveTxReq = await hypAdapter.populateApproveTx({
         weiAmountOrId: approveAmount,
         recipient: token.addressOrDenom,
@@ -491,7 +490,6 @@ export class WarpCore {
         transactions.push(approveTx);
       }
     }
-    console.log('populateTransferRemoteTx');
     const transferTxReq = await hypAdapter.populateTransferRemoteTx({
       weiAmountOrId: amount.toString(),
       destination: destinationDomainId,

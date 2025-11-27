@@ -117,7 +117,6 @@ function routeAddressUtil<T>(
   protocol?: ProtocolType,
 ) {
   protocol ||= getAddressProtocolType(param);
-  if (protocol !== ProtocolType.Ethereum) console.log('protocol', protocol);
   if (protocol && fns[protocol]) return fns[protocol]!(param);
   else if (!isNullish(fallback)) return fallback;
   else throw new Error(`Unsupported protocol ${protocol}`);
@@ -383,7 +382,6 @@ export function addressToBytesCosmosNative(address: Address): Uint8Array {
 
 export function addressToBytesStarknet(address: Address): Uint8Array {
   const normalizedAddress = normalizeAddressStarknet(address);
-  console.log('normalizedAddress', normalizeAddress);
   return num.hexToBytes(normalizedAddress);
 }
 
@@ -406,8 +404,6 @@ export function addressToBytes(
   address: Address,
   protocol?: ProtocolType,
 ): Uint8Array {
-  console.log('address', address);
-  console.log('addressProtocol', protocol);
   const bytes = routeAddressUtil(
     {
       [ProtocolType.Ethereum]: addressToBytesEvm,
