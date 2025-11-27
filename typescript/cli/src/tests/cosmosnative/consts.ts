@@ -38,6 +38,9 @@ export const WARP_DEPLOY_1_ID = 'TEST/hyp1';
 export const WARP_CORE_CONFIG_PATH_1 = getCombinedWarpRoutePath('TEST', [
   CHAIN_NAME_1,
 ]);
+export const WARP_DEPLOY_CONFIG_PATH_1 = getCombinedWarpDeployPath('TEST', [
+  CHAIN_NAME_1,
+]);
 
 export function getCombinedWarpRoutePath(
   tokenSymbol: string,
@@ -47,4 +50,14 @@ export function getCombinedWarpRoutePath(
     tokenSymbol.toUpperCase(),
     chains.sort().join('-'),
   )}-config.yaml`;
+}
+
+export function getCombinedWarpDeployPath(
+  tokenSymbol: string,
+  chains: string[],
+): string {
+  return `${REGISTRY_PATH}/deployments/warp_routes/${createWarpRouteConfigId(
+    tokenSymbol.toUpperCase(),
+    chains.sort().join('-'),
+  )}-deploy.yaml`;
 }

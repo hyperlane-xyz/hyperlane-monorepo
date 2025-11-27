@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -e
 
 function setup() {
   echo "Starting hyp chain for Cosmos Native E2E tests"
@@ -24,9 +25,11 @@ function cleanup() {
   docker compose down
 }
 
+# Ensure cleanup runs even on error
+trap cleanup EXIT
+
 cleanup
 setup
 run
-cleanup
 
 echo "Completed E2E tests"

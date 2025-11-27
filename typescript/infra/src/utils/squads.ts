@@ -345,6 +345,7 @@ export function logProposals(pendingProposals: SquadProposalStatus[]) {
 
 /**
  * Squads V4 account types (for transaction discriminators)
+ * Also used to identify transaction types (VaultTransaction vs ConfigTransaction)
  */
 export enum SquadsAccountType {
   VAULT = 0,
@@ -783,6 +784,79 @@ export async function submitProposalToSquads(
 }
 
 /**
+ * Check if transaction account data is a VaultTransaction
+ */
+export function isVaultTransaction(accountData: Buffer): boolean {
+  const discriminator = accountData.subarray(
+    0,
+    SQUADS_ACCOUNT_DISCRIMINATOR_SIZE,
+  );
+  return discriminator.equals(
+    SQUADS_ACCOUNT_DISCRIMINATORS[SquadsAccountType.VAULT],
+  );
+}
+
+/**
+ * Check if transaction account data is a ConfigTransaction
+ */
+export function isConfigTransaction(accountData: Buffer): boolean {
+  const discriminator = accountData.subarray(
+    0,
+    SQUADS_ACCOUNT_DISCRIMINATOR_SIZE,
+  );
+  return discriminator.equals(
+    SQUADS_ACCOUNT_DISCRIMINATORS[SquadsAccountType.CONFIG],
+  );
+}
+
+/**
+ * Determine if a transaction is a VaultTransaction or ConfigTransaction
+ *
+ * @param chain - The chain to check the transaction on
+ * @param mpp - Multi-protocol provider
+ * @param transactionIndex - The transaction index to check
+ * @returns SquadsAccountType.VAULT or SquadsAccountType.CONFIG
+ * @throws Error if transaction account not found or unknown transaction type
+ */
+export async function getTransactionType(
+  chain: ChainName,
+  mpp: MultiProtocolProvider,
+  transactionIndex: number,
+): Promise<SquadsAccountType> {
+  const { svmProvider, multisigPda, programId } = await getSquadAndProvider(
+    chain,
+    mpp,
+  );
+
+  const [transactionPda] = getTransactionPda({
+    multisigPda,
+    index: BigInt(transactionIndex),
+    programId,
+  });
+
+  const accountInfo = await svmProvider.getAccountInfo(transactionPda);
+  if (!accountInfo) {
+    throw new Error(
+      `Transaction account not found at ${transactionPda.toBase58()}`,
+    );
+  }
+
+  if (isVaultTransaction(accountInfo.data)) {
+    return SquadsAccountType.VAULT;
+  } else if (isConfigTransaction(accountInfo.data)) {
+    return SquadsAccountType.CONFIG;
+  } else {
+    const discriminator = accountInfo.data.subarray(
+      0,
+      SQUADS_ACCOUNT_DISCRIMINATOR_SIZE,
+    );
+    throw new Error(
+      `Unknown transaction type with discriminator: [${Array.from(discriminator).join(', ')}]. Expected VaultTransaction or ConfigTransaction.`,
+    );
+  }
+}
+
+/**
  * Execute an approved Squads proposal
  *
  * @param chain - The chain to execute the proposal on
@@ -816,40 +890,68 @@ export async function executeProposal(
     );
   }
 
+  // Determine transaction type
+  const txType = await getTransactionType(chain, mpp, transactionIndex);
   rootLogger.info(
-    chalk.cyan(`Executing proposal ${transactionIndex} on ${chain}...`),
+    chalk.cyan(
+      `Executing ${txType} proposal ${transactionIndex} on ${chain}...`,
+    ),
   );
 
   // Get executor public key
   const executorPublicKey = signerAdapter.publicKey();
 
-  // Build the execution instruction
-  const { instruction, lookupTableAccounts } =
-    await instructions.vaultTransactionExecute({
-      connection: svmProvider,
-      multisigPda,
-      transactionIndex: BigInt(transactionIndex),
-      member: executorPublicKey,
-      programId,
-    });
+  try {
+    let instruction: TransactionInstruction;
 
-  // Error if lookup tables are present - Solaxy doesn't support versioned transactions
-  if (lookupTableAccounts.length > 0) {
-    throw new Error(
-      `Transaction requires ${lookupTableAccounts.length} address lookup table(s). ` +
-        `Versioned transactions are not supported on Solaxy. ` +
-        `This transaction may have too many accounts to fit in a legacy transaction.`,
+    if (txType === SquadsAccountType.VAULT) {
+      // Build the vault transaction execution instruction
+      const { instruction: vaultInstruction, lookupTableAccounts } =
+        await instructions.vaultTransactionExecute({
+          connection: svmProvider,
+          multisigPda,
+          transactionIndex: BigInt(transactionIndex),
+          member: executorPublicKey,
+          programId,
+        });
+
+      // Error if lookup tables are present - some chains don't support versioned transactions
+      if (lookupTableAccounts.length > 0) {
+        throw new Error(
+          `Transaction requires ${lookupTableAccounts.length} address lookup table(s). ` +
+            `Versioned transactions are not supported on ${chain}. ` +
+            `This transaction may have too many accounts to fit in a legacy transaction.`,
+        );
+      }
+
+      instruction = vaultInstruction;
+    } else {
+      // Build the config transaction execution instruction
+      instruction = instructions.configTransactionExecute({
+        multisigPda,
+        transactionIndex: BigInt(transactionIndex),
+        member: executorPublicKey,
+        programId,
+      });
+    }
+
+    // Execute the transaction using legacy transaction format
+    const signature = await signerAdapter.buildAndSendTransaction([
+      instruction,
+    ]);
+
+    rootLogger.info(
+      chalk.green.bold(
+        `Executed proposal ${transactionIndex} on ${chain}: ${signature}`,
+      ),
     );
+  } catch (error) {
+    rootLogger.error(
+      chalk.red(`Error executing proposal ${transactionIndex} on ${chain}:`),
+    );
+    console.error(error);
+    throw error;
   }
-
-  // Execute the transaction using legacy transaction format (perfect for Solaxy)
-  const signature = await signerAdapter.buildAndSendTransaction([instruction]);
-
-  rootLogger.info(
-    chalk.green.bold(
-      `Executed proposal ${transactionIndex} on ${chain}: ${signature}`,
-    ),
-  );
 }
 
 // ============================================================================

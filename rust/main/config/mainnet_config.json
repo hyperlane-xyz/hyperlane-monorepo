@@ -278,9 +278,6 @@
       "proxyAdmin": "0x4Ed7d626f1E96cD1C0401607Bf70D95243E3dEd1",
       "rpcUrls": [
         {
-          "http": "https://base.publicnode.com"
-        },
-        {
           "http": "https://mainnet.base.org"
         },
         {
@@ -324,7 +321,7 @@
           "apiUrl": "https://api.etherscan.io/v2/api?chainid=81457",
           "family": "etherscan",
           "name": "BlastScan",
-          "url": "https://blastscan.io/"
+          "url": "https://blastscan.io"
         },
         {
           "apiUrl": "https://api.routescan.io/v2/network/mainnet/evm/81457/etherscan/api",
@@ -746,10 +743,10 @@
     "eclipsemainnet": {
       "blockExplorers": [
         {
-          "apiUrl": "https://api.eclipsescan.xyz/",
+          "apiUrl": "https://api.eclipsescan.xyz",
           "family": "other",
           "name": "Eclipse Explorer",
-          "url": "https://eclipsescan.xyz/"
+          "url": "https://eclipsescan.xyz"
         }
       ],
       "blocks": {
@@ -2452,7 +2449,7 @@
           "apiUrl": "https://api.etherscan.io/v2/api?chainid=534352",
           "family": "etherscan",
           "name": "Scroll Explorer",
-          "url": "https://scrollscan.com/"
+          "url": "https://scrollscan.com"
         }
       ],
       "blocks": {
@@ -3914,6 +3911,13 @@
     "apechain": {
       "blockExplorers": [
         {
+          "apiKey": "GP69JEAP2W7YFJT9ZJTEPGQT6Y6KMW44ZN",
+          "apiUrl": "https://apescan.io/api",
+          "family": "etherscan",
+          "name": "Apescan",
+          "url": "https://apescan.io"
+        },
+        {
           "apiUrl": "https://apechain.calderaexplorer.xyz/api",
           "family": "blockscout",
           "name": "ApeChain Explorer",
@@ -3980,7 +3984,7 @@
           "apiUrl": "https://api-nova.arbiscan.io/api",
           "family": "etherscan",
           "name": "Arbiscan Nova",
-          "url": "https://nova.arbiscan.io/"
+          "url": "https://nova.arbiscan.io"
         }
       ],
       "blocks": {
@@ -5086,7 +5090,7 @@
           "apiUrl": "https://explorer.superposition.so/api",
           "family": "blockscout",
           "name": "Superposition Explorer",
-          "url": "https://explorer.superposition.so/"
+          "url": "https://explorer.superposition.so"
         }
       ],
       "blocks": {
@@ -6085,7 +6089,7 @@
           "apiUrl": "https://voyager.online/api",
           "family": "voyager",
           "name": "Starknet Explorer",
-          "url": "https://voyager.online/"
+          "url": "https://voyager.online"
         }
       ],
       "blocks": {
@@ -6146,10 +6150,10 @@
     "soon": {
       "blockExplorers": [
         {
-          "apiUrl": "https://explorer.soo.network/",
+          "apiUrl": "https://explorer.soo.network",
           "family": "other",
           "name": "SOON Explorer",
-          "url": "https://explorer.soo.network/"
+          "url": "https://explorer.soo.network"
         }
       ],
       "blocks": {
@@ -6677,7 +6681,7 @@
     "berachain": {
       "blockExplorers": [
         {
-          "apiUrl": "https://api.routescan.io/v2/network/mainnet/evm/80094/etherscan/api/",
+          "apiUrl": "https://api.routescan.io/v2/network/mainnet/evm/80094/etherscan/api",
           "family": "routescan",
           "name": "Berachain Explorer",
           "url": "https://beratrail.io"
@@ -7701,7 +7705,7 @@
           "apiUrl": "https://explorer.ont.io/api",
           "family": "other",
           "name": "Ontology Explorer",
-          "url": "https://explorer.ont.io/"
+          "url": "https://explorer.ont.io"
         }
       ],
       "blocks": {
@@ -7765,7 +7769,7 @@
           "apiUrl": "https://peaq.subscan.io/api",
           "family": "other",
           "name": "Peaq Explorer",
-          "url": "https://peaq.subscan.io/"
+          "url": "https://peaq.subscan.io"
         }
       ],
       "blocks": {
@@ -8684,7 +8688,7 @@
           "apiUrl": "https://api.routescan.io/v2/network/mainnet/evm/124816/etherscan/api",
           "family": "routescan",
           "name": "Mitosis Explorer",
-          "url": "https://mitoscan.io/"
+          "url": "https://mitoscan.io"
         }
       ]
     },
@@ -8764,7 +8768,7 @@
           "apiUrl": "https://api.scan.pulsechain.com/api",
           "family": "blockscout",
           "name": "Pulsechain Explorer",
-          "url": "https://scan.pulsechainfoundation.org/#/"
+          "url": "https://scan.pulsechainfoundation.org/#"
         },
         {
           "apiUrl": "https://api.scan.pulsechain.com/api",
@@ -9242,7 +9246,7 @@
       "protocol": "ethereum",
       "rpcUrls": [
         {
-          "http": "https://rpc.monad.xyz"
+          "http": "https://rpc-mainnet.monadinfra.com"
         }
       ],
       "technicalStack": "other",
@@ -9335,6 +9339,132 @@
       "storageGasOracle": "0x5887BDA66EC9e854b0da6BFFe423511e69d327DC",
       "testRecipient": "0x89Ebf977E83087959aD78e5372F4AF15DcdC8143",
       "validatorAnnounce": "0xBCD18636e5876DFd7AAb5F2B2a5Eb5ca168BA1d8"
+    },
+    "lazai": {
+      "blockExplorers": [
+        {
+          "apiUrl": "https://explorer-api.mainnet.lazai.network/api",
+          "family": "blockscout",
+          "name": "LazAI Explorer",
+          "url": "https://explorer.mainnet.lazai.network"
+        }
+      ],
+      "blocks": {
+        "confirmations": 1,
+        "estimateBlockTime": 1,
+        "reorgPeriod": 5
+      },
+      "chainId": 52924,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
+      "displayName": "LazAI",
+      "domainId": 52924,
+      "gasCurrencyCoinGeckoId": "metis-token",
+      "name": "lazai",
+      "nativeToken": {
+        "decimals": 18,
+        "name": "METIS",
+        "symbol": "METIS"
+      },
+      "protocol": "ethereum",
+      "rpcUrls": [
+        {
+          "http": "https://mainnet.lazai.network"
+        }
+      ],
+      "technicalStack": "other",
+      "aggregationHook": "0x3e9326f4073C84e468AEcaE2Bf1512b341CA9D78",
+      "domainRoutingIsm": "0x2b0225778a567D11F612D8955b6D01a722490A58",
+      "domainRoutingIsmFactory": "0x7f50C5776722630a0024fAE05fDe8b47571D7B39",
+      "fallbackRoutingHook": "0x89Ebf977E83087959aD78e5372F4AF15DcdC8143",
+      "interchainAccountRouter": "0x946E9f4540E032a9fAc038AE58187eFcad9DE952",
+      "interchainGasPaymaster": "0xF6CC9B10c607afB777380bF71F272E4D7037C3A9",
+      "interchainSecurityModule": "0x19f142AE9A7Ff81c9dEd4A3FE1B8E34b75717Bb7",
+      "mailbox": "0xCB5C99F908410add8241b558299fe9aadC06bA99",
+      "merkleTreeHook": "0xBCD18636e5876DFd7AAb5F2B2a5Eb5ca168BA1d8",
+      "pausableHook": "0x284226F651eb5cbd696365BC27d333028FCc5D54",
+      "pausableIsm": "0x5244d3359065C883BDfeEEff5329DE38c0Bd227e",
+      "protocolFee": "0x6c5012B7eDfE317Be53D13Fc730a460f4810e234",
+      "proxyAdmin": "0x23ce76645EC601148fa451e751eeB75785b97A00",
+      "staticAggregationHookFactory": "0x3a867fCfFeC2B790970eeBDC9023E75B0a172aa7",
+      "staticAggregationIsm": "0x19f142AE9A7Ff81c9dEd4A3FE1B8E34b75717Bb7",
+      "staticAggregationIsmFactory": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E",
+      "staticMerkleRootMultisigIsmFactory": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
+      "staticMerkleRootWeightedMultisigIsmFactory": "0x2f9DB5616fa3fAd1aB06cB2C906830BA63d135e3",
+      "staticMessageIdMultisigIsmFactory": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
+      "staticMessageIdWeightedMultisigIsmFactory": "0x02d16BC51af6BfD153d67CA61754cF912E82C4d9",
+      "storageGasOracle": "0x0DbB60c348DF645c295Fd0ce26F87bB850710185",
+      "testRecipient": "0x2ed6030D204745aC0Cd6be8301C3a63bf14D97Cc",
+      "validatorAnnounce": "0xA28344Ac1Fc47C1dc212E178540dD0F3e7a781A6",
+      "index": {
+        "from": 104537
+      }
+    },
+    "somnia": {
+      "blockExplorers": [
+        {
+          "apiUrl": "https://explorer.somnia.network/api",
+          "family": "blockscout",
+          "name": "Somnia Explorer",
+          "url": "https://explorer.somnia.network"
+        }
+      ],
+      "blocks": {
+        "confirmations": 1,
+        "estimateBlockTime": 1,
+        "reorgPeriod": 10
+      },
+      "chainId": 5031,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
+      "displayName": "Somnia",
+      "domainId": 5031,
+      "gasCurrencyCoinGeckoId": "somnia",
+      "name": "somnia",
+      "nativeToken": {
+        "decimals": 18,
+        "name": "SOMI",
+        "symbol": "SOMI"
+      },
+      "protocol": "ethereum",
+      "rpcUrls": [
+        {
+          "http": "https://api.infra.mainnet.somnia.network"
+        }
+      ],
+      "technicalStack": "other",
+      "aggregationHook": "0xd05C7683a70C1a7289afA38F26f676E013781F0F",
+      "batchContractAddress": "0x5e44F178E8cF9B2F5409B6f18ce936aB817C5a11",
+      "domainRoutingIsm": "0x7435a14717769dCD7fa672B5487149e8471BbD0e",
+      "domainRoutingIsmFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
+      "fallbackRoutingHook": "0xbC8AA096dabDf4A0200BB9f8D4Cbb644C3D86d7B",
+      "interchainAccountRouter": "0x8EC2D100Bc36D80e5C5EF9479Ae5b3eC636a0B46",
+      "interchainGasPaymaster": "0xdBa3b98DC83fec149c8C8F6617700b9e45937a2b",
+      "interchainSecurityModule": "0xf142AD8698613FB8375605adD48A37E752EA5f0c",
+      "mailbox": "0xc5068BB6803ADbe5600DE5189fe27A4dAcE31170",
+      "merkleTreeHook": "0x11EF91d17c5ad3330DbCa709a8841743d3Af6819",
+      "pausableHook": "0xe522A5DcA58e3ab7fEd2bf25DA3E8d90c14083a8",
+      "pausableIsm": "0x8E273260EAd8B72A085B19346A676d355740e875",
+      "protocolFee": "0x7eFF14440AbE077dBb05C7668079Bc1cD2CD9bd0",
+      "proxyAdmin": "0x3E12271EbD523d0886D0D51A4FF8D8e046CF2E1D",
+      "staticAggregationHookFactory": "0xEb9FcFDC9EfDC17c1EC5E1dc085B98485da213D6",
+      "staticAggregationIsm": "0xf142AD8698613FB8375605adD48A37E752EA5f0c",
+      "staticAggregationIsmFactory": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
+      "staticMerkleRootMultisigIsmFactory": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
+      "staticMerkleRootWeightedMultisigIsmFactory": "0x0761b0827849abbf7b0cC09CE14e1C93D87f5004",
+      "staticMessageIdMultisigIsmFactory": "0x8b83fefd896fAa52057798f6426E9f0B080FCCcE",
+      "staticMessageIdWeightedMultisigIsmFactory": "0x4Ed7d626f1E96cD1C0401607Bf70D95243E3dEd1",
+      "storageGasOracle": "0x53642476e24E28c3218E8Da44eDEBB4adB9DE13e",
+      "testRecipient": "0x55Dc6325F6eA1DDa5286257E1e8EE4E1d281bD8D",
+      "validatorAnnounce": "0xfa656a97b8FD2D7A94a728c0373cfd820b1f0747",
+      "index": {
+        "chunk": 999,
+        "from": 153973092
+      }
     }
   }
 }

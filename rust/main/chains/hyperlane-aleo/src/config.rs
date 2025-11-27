@@ -5,7 +5,7 @@ use url::Url;
 #[derive(Debug, Clone)]
 pub struct ConnectionConf {
     /// Aleo RPC
-    pub rpc: Url,
+    pub rpcs: Vec<Url>,
     /// Plaintext program name of the mailbox
     pub mailbox_program: String,
     /// Hook manager program name
@@ -16,10 +16,16 @@ pub struct ConnectionConf {
     pub validator_announce_program: String,
     /// Chain Id
     pub chain_id: u16,
+    /// Proving service
+    pub proving_service: Vec<Url>,
+    /// Priority fee multiplier
+    /// This multiplier will be multiplied by the base fee to determine the priority fee to include in transactions
+    pub priority_fee_multiplier: f64,
 }
 
 impl ConnectionConf {
     /// New Aleo Connection Config
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         rpc_urls: Vec<Url>,
         mailbox_program: String,
@@ -28,6 +34,8 @@ impl ConnectionConf {
         validator_announce_program: String,
         chain_id: u16,
         consensus_heights: Option<Vec<u32>>,
+        proving_service: Vec<Url>,
+        priority_fee_multiplier: f64,
     ) -> Self {
         if let Some(consensus_heights) = consensus_heights {
             // Set the consensus heights in the environment.
@@ -48,12 +56,14 @@ impl ConnectionConf {
         }
 
         Self {
-            rpc: rpc_urls[0].clone(),
+            rpcs: rpc_urls,
             mailbox_program,
             hook_manager_program,
             ism_manager_program,
             validator_announce_program,
             chain_id,
+            proving_service,
+            priority_fee_multiplier,
         }
     }
 }

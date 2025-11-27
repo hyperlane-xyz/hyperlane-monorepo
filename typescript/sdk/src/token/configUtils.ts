@@ -1,9 +1,11 @@
 import { zeroAddress } from 'viem';
 
+import { AltVMHookReader, AltVMIsmReader } from '@hyperlane-xyz/deploy-sdk';
+import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { HookConfig } from '@hyperlane-xyz/provider-sdk/hook';
+import { IsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
 import {
   Address,
-  AltVM,
-  ProtocolType,
   TransformObjectTransformer,
   addressToBytes32,
   assert,
@@ -20,9 +22,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { isProxy } from '../deploy/proxy.js';
-import { AltVMHookReader } from '../hook/AltVMHookReader.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
-import { AltVMIsmReader } from '../ism/AltVMIsmReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { DestinationGas, RemoteRouters } from '../router/types.js';
@@ -131,7 +131,7 @@ export function getRouterAddressesFromWarpCoreConfig(
  */
 export async function expandWarpDeployConfig(params: {
   multiProvider: MultiProvider;
-  altVmProvider: AltVM.IProviderFactory;
+  altVmProvider: Map<string, AltVM.IProvider>;
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   deployedRoutersAddresses: ChainMap<Address>;
   expandedOnChainWarpConfig?: WarpRouteDeployConfigMailboxRequired;
@@ -271,10 +271,16 @@ export async function expandWarpDeployConfig(params: {
             break;
           }
           default: {
-            const provider = await altVmProvider.get(chain);
-
-            const reader = new AltVMHookReader(multiProvider, provider);
-            chainConfig.hook = await reader.deriveHookConfig(chainConfig.hook);
+            const provider = altVmProvider.get(chain);
+            assert(provider, `Cannot find provider for ${chain}`);
+            const reader = new AltVMHookReader(
+              (chain) => multiProvider.getChainMetadata(chain),
+              provider,
+            );
+            chainConfig.hook = await reader.deriveHookConfig(
+              // FIXME: not all hook types are supported yet
+              chainConfig.hook as HookConfig | Address,
+            );
           }
         }
       }
@@ -294,11 +300,15 @@ export async function expandWarpDeployConfig(params: {
             break;
           }
           default: {
-            const provider = await altVmProvider.get(chain);
-
-            const reader = new AltVMIsmReader(multiProvider, provider);
+            const provider = altVmProvider.get(chain);
+            assert(provider, `Cannot find provider for ${chain}`);
+            const reader = new AltVMIsmReader(
+              (chain) => multiProvider.tryGetChainName(chain),
+              provider,
+            );
             chainConfig.interchainSecurityModule = await reader.deriveIsmConfig(
-              chainConfig.interchainSecurityModule,
+              // FIXME: not all ISM types are supported yet
+              chainConfig.interchainSecurityModule as IsmConfig | Address,
             );
           }
         }

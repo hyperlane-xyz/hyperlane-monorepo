@@ -133,8 +133,14 @@ pub fn build_cosmos_connection_conf(
     protocol: HyperlaneDomainProtocol,
 ) -> Option<ChainConnectionConf> {
     let mut local_err = ConfigParsingError::default();
-    let grpcs =
-        parse_base_and_override_urls(chain, "grpcUrls", "customGrpcUrls", "http", &mut local_err);
+    let grpcs = parse_base_and_override_urls(
+        chain,
+        "grpcUrls",
+        "customGrpcUrls",
+        "http",
+        &mut local_err,
+        false,
+    );
 
     let chain_id = chain
         .chain(&mut local_err)
@@ -472,6 +478,7 @@ pub fn build_radix_connection_conf(
         "customGatewayUrls",
         "http",
         &mut local_err,
+        false,
     );
 
     let network_name = chain
@@ -583,6 +590,21 @@ pub fn build_aleo_connection_conf(
                 .unwrap_or_default()
         });
 
+    let priority_fee_multiplier = chain
+        .chain(err)
+        .get_opt_key("priorityFeeMultiplier")
+        .parse_f64()
+        .end();
+
+    let proving_service_urls = parse_base_and_override_urls(
+        chain,
+        "provingServiceUrls",
+        "customProvingServiceUrls",
+        "http",
+        &mut local_err,
+        true,
+    );
+
     if !local_err.is_ok() {
         err.merge(local_err);
         None
@@ -596,6 +618,8 @@ pub fn build_aleo_connection_conf(
                 validator_announce_program?.to_string(),
                 chain_id?,
                 consensus_heights,
+                proving_service_urls,
+                priority_fee_multiplier.unwrap_or_default(),
             ),
         ))
     }

@@ -199,7 +199,11 @@ impl LatestCheckpointReorgReporter {
                 updated_conn.core = vec![url];
                 Radix(updated_conn)
             }),
-            Aleo(conn) => vec![(conn.rpc.clone(), ChainConnectionConf::Aleo(conn))],
+            Aleo(conn) => Self::map_urls_to_connections(conn.rpcs.clone(), conn, |conn, url| {
+                let mut updated_conn = conn.clone();
+                updated_conn.rpcs = vec![url];
+                Aleo(updated_conn)
+            }),
         };
 
         chain_conn_confs

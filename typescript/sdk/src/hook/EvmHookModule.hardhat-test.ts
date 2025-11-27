@@ -731,9 +731,7 @@ describe('EvmHookModule', async () => {
 
     for (const type of [HookType.ROUTING, HookType.FALLBACK_ROUTING]) {
       beforeEach(() => {
-        exampleRoutingConfig.type = type as
-          | HookType.ROUTING
-          | HookType.FALLBACK_ROUTING;
+        exampleRoutingConfig.type = type;
       });
 
       it(`should skip deployment with warning if no chain metadata configured ${type}`, async () => {

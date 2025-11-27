@@ -39,7 +39,11 @@ describe('hyperlane relayer e2e tests', async function () {
       await hyperlaneSendMessage(CHAIN_NAME_2, CHAIN_NAME_3);
       await hyperlaneSendMessage(CHAIN_NAME_3, CHAIN_NAME_2);
 
-      await process.kill('SIGINT');
+      try {
+        await process.kill('SIGINT');
+      } catch {
+        // Process may have already exited, which is fine
+      }
     });
 
     it('should relay warp messages', async () => {
@@ -77,7 +81,11 @@ describe('hyperlane relayer e2e tests', async function () {
         relay: false,
       });
 
-      await process.kill('SIGINT');
+      try {
+        await process.kill('SIGINT');
+      } catch {
+        // Process may have already exited, which is fine
+      }
     });
   });
 });

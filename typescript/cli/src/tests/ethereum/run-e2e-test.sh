@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -e
 
 function cleanup() {
   set +e
@@ -10,6 +11,9 @@ function cleanup() {
   rm -f ./test-configs/anvil/chains/anvil4/addresses.yaml
   set -e
 }
+
+# Ensure cleanup runs even on error
+trap cleanup EXIT
 
 cleanup
 
@@ -25,7 +29,5 @@ if [ -n "${CLI_E2E_TEST}" ]; then
 else
   yarn mocha --config src/tests/ethereum/.mocharc-e2e.json "src/tests/ethereum/**/*.e2e-test.ts"
 fi
-
-cleanup
 
 echo "Completed E2E tests"

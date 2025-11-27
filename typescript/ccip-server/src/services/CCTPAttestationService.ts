@@ -6,9 +6,21 @@ import {
   UnhandledErrorReason,
 } from '../utils/prometheus.js';
 
+// https://developers.circle.com/api-reference/cctp/all/get-messages-v-2
+type DelayReason =
+  | 'insufficient_fee'
+  | 'amount_above_max'
+  | 'insufficient_allowance_available';
+type Status = 'complete' | 'pending_confirmations';
+
 interface CCTPMessageEntry {
   attestation: string;
   message: string;
+  eventNonce: string;
+  // CCTP v2 only
+  cctpVersion?: string;
+  status?: Status;
+  delayReason?: DelayReason;
 }
 
 interface CCTPData {
@@ -170,8 +182,60 @@ class CCTPAttestationService {
       throw new Error(`CCTP attestation request failed: ${resp.statusText}`);
     }
 
-    const json: CCTPData = await resp.json();
+    let json: CCTPData;
+    try {
+      json = await resp.json();
+    } catch (error) {
+      logger.error(
+        {
+          ...context,
+          status: resp.status,
+          statusText: resp.statusText,
+          url,
+          messageId,
+          error_reason:
+            UnhandledErrorReason.CCTP_ATTESTATION_SERVICE_JSON_PARSE_ERROR,
+        },
+        'CCTP attestation response parsing failed',
+      );
+      throw new Error(`CCTP service response parsing failed: ${error}`);
+    }
 
+    json.messages.forEach((message) => {
+      if (message.attestation === 'PENDING') {
+        const errorString = 'CCTP attestation is pending';
+        switch (message.delayReason) {
+          case 'insufficient_fee':
+          case 'amount_above_max':
+          case 'insufficient_allowance_available':
+            PrometheusMetrics.logUnhandledError(
+              this.serviceName,
+              UnhandledErrorReason.CCTP_ATTESTATION_SERVICE_PENDING,
+            );
+            logger.error(
+              {
+                error_reason:
+                  UnhandledErrorReason.CCTP_ATTESTATION_SERVICE_PENDING,
+                ...message,
+                ...context,
+              },
+              errorString + ` due to ${message.delayReason}`,
+            );
+            break;
+          default:
+            logger.info(
+              {
+                ...context,
+                ...message,
+              },
+              errorString,
+            );
+        }
+        throw new Error(errorString);
+      }
+    });
+
+    // TODO: handle multiple messages in one tx hash
     return [json.messages[0].message, json.messages[0].attestation];
   }
 }

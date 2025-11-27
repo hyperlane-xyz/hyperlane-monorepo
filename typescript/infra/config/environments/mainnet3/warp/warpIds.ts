@@ -122,6 +122,8 @@ export enum WarpRouteIds {
 
   LitchainLITKEY = 'LITKEY/litchain',
 
+  ApechainPOG = 'POG/apechain',
+
   MainnetCCTPV1 = 'USDC/mainnet-cctp',
   MainnetCCTPV2Fast = 'USDC/mainnet-cctp-v2-fast',
   MainnetCCTPV2Standard = 'USDC/mainnet-cctp-v2-standard',

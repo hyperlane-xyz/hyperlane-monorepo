@@ -66,4 +66,39 @@ export const typescriptRules = ts.config({
   },
 });
 
+export const restrictedSdkAndUtilsImportRules = [
+  {
+    name: 'import-restriction-rules',
+    rules: {
+      // The monorepo default already includes this but needs to be set here too
+      // as eslint will override the config with the latest definition in the flattened config
+      'import/no-nodejs-modules': 'error',
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@hyperlane-xyz/sdk',
+              message:
+                'Imports from @hyperlane-xyz/sdk are not allowed in this package',
+            },
+            {
+              name: '@hyperlane-xyz/utils',
+              // These have been duplicated to reduce the changes
+              // while work is completed on the multivm packages
+              importNames: [
+                'ProtocolType',
+                'ProtocolTypeValue',
+                'ProtocolSmallestUnit',
+              ],
+              message:
+                'Use the export from the `@hyperlane-xyz/protocol-sdk` package',
+            },
+          ],
+        },
+      ],
+    },
+  },
+];
+
 export default jsRules;

@@ -1,5 +1,7 @@
 import { NetworkId } from '@radixdlt/radix-engine-toolkit';
 
+export { RadixProtocolProvider } from './clients/protocol.js';
+
 export { NetworkId };
 export { RadixSDKTransaction, RadixSDKReceipt } from './utils/types.js';
 export {

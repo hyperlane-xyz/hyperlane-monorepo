@@ -3,7 +3,8 @@ import {
   TransactionManifest,
 } from '@radixdlt/radix-engine-toolkit';
 
-import { AltVM, assert, strip0x } from '@hyperlane-xyz/utils';
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { assert, strip0x } from '@hyperlane-xyz/utils';
 
 import { RadixCoreTx } from '../core/tx.js';
 import { RadixBaseSigner } from '../utils/signer.js';
@@ -416,6 +417,12 @@ export class RadixSigner
     return {
       ismAddress: req.ismAddress,
     };
+  }
+
+  async setTokenHook(
+    _req: Omit<AltVM.ReqSetTokenHook, 'signer'>,
+  ): Promise<AltVM.ResSetTokenHook> {
+    throw new Error(`SetTokenHook is currently not supported on Radix`);
   }
 
   async enrollRemoteRouter(

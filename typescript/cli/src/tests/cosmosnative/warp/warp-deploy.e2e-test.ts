@@ -19,7 +19,6 @@ import {
   handlePrompts,
 } from '../../commands/helpers.js';
 import { HyperlaneE2EWarpTestCommands } from '../../commands/warp.js';
-import { GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH } from '../commands/helpers.js';
 import {
   CHAIN_NAME_1,
   CHAIN_NAME_2,
@@ -30,7 +29,8 @@ import {
   HYP_KEY,
   REGISTRY_PATH,
   WARP_CONFIG_PATH_1,
-  WARP_DEPLOY_OUTPUT_PATH,
+  WARP_CORE_CONFIG_PATH_1,
+  WARP_DEPLOY_CONFIG_PATH_1,
 } from '../consts.js';
 
 chai.use(chaiAsPromised);
@@ -138,12 +138,6 @@ describe('hyperlane warp deploy e2e tests', async function () {
     });
 
     it(`should successfully deploy a ${TokenType.collateral} -> ${TokenType.synthetic} warp route`, async function () {
-      const COMBINED_WARP_CORE_CONFIG_PATH =
-        GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH(
-          WARP_DEPLOY_OUTPUT_PATH,
-          'TEST',
-        );
-
       const warpConfig: WarpRouteDeployConfig = {
         [CHAIN_NAME_1]: {
           type: TokenType.collateral,
@@ -164,7 +158,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
         },
       };
 
-      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+      writeYamlOrJson(WARP_DEPLOY_CONFIG_PATH_1, warpConfig);
 
       const steps: TestPromptAction[] = [
         {
@@ -186,7 +180,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       // Deploy
       const output = hyperlaneWarp
-        .deployRaw({ warpDeployPath: WARP_DEPLOY_OUTPUT_PATH })
+        .deployRaw({ warpDeployPath: WARP_DEPLOY_CONFIG_PATH_1 })
         .stdio('pipe')
         .nothrow();
 
@@ -197,7 +191,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       for (const chainName of [CHAIN_NAME_1, CHAIN_NAME_2]) {
         await assertWarpRouteConfig(
           warpConfig,
-          COMBINED_WARP_CORE_CONFIG_PATH,
+          WARP_CORE_CONFIG_PATH_1,
           chainName,
         );
       }
@@ -300,12 +294,6 @@ describe('hyperlane warp deploy e2e tests', async function () {
     });
 
     it(`should successfully deploy a ${TokenType.collateral} -> ${TokenType.synthetic} warp route`, async function () {
-      const COMBINED_WARP_CORE_CONFIG_PATH =
-        GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH(
-          WARP_DEPLOY_OUTPUT_PATH,
-          'TEST',
-        );
-
       const warpConfig: WarpRouteDeployConfig = {
         [CHAIN_NAME_1]: {
           type: TokenType.collateral,
@@ -326,7 +314,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
         },
       };
 
-      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+      writeYamlOrJson(WARP_DEPLOY_CONFIG_PATH_1, warpConfig);
 
       const steps: TestPromptAction[] = [
         {
@@ -344,7 +332,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       // Deploy
       const output = hyperlaneWarp
         .deployRaw({
-          warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+          warpDeployPath: WARP_DEPLOY_CONFIG_PATH_1,
           skipConfirmationPrompts: true,
         })
         .stdio('pipe')
@@ -357,7 +345,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       for (const chainName of [CHAIN_NAME_1, CHAIN_NAME_2]) {
         await assertWarpRouteConfig(
           warpConfig,
-          COMBINED_WARP_CORE_CONFIG_PATH,
+          WARP_CORE_CONFIG_PATH_1,
           chainName,
         );
       }

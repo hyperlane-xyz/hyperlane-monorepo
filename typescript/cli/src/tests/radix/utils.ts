@@ -26,8 +26,9 @@ export async function deployHyperlaneRadixPackageDefinition(
   await retryAsync(
     () => signer['signer'].getTestnetXrd(),
     3, // attempts
-    1000, // base retry delay (1 second)
+    3000, // base retry delay (3 second)
   );
+
   console.log(
     `Funded test account on ${chainMetadata.name} before publishing the hyperlane package`,
   );

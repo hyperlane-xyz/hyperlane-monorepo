@@ -1,5 +1,24 @@
 # @hyperlane-xyz/helloworld
 
+## 19.10.0
+
+### Patch Changes
+
+- Updated dependencies [aad2988c9]
+- Updated dependencies [b2a693ac6]
+- Updated dependencies [c2a64e8c5]
+- Updated dependencies [c0583af62]
+- Updated dependencies [6cfde25d8]
+- Updated dependencies [9770b732c]
+- Updated dependencies [a97a9939c]
+- Updated dependencies [66bed7126]
+- Updated dependencies [43ecd628c]
+- Updated dependencies [29ad1d225]
+- Updated dependencies [f604423b9]
+  - @hyperlane-xyz/utils@19.10.0
+  - @hyperlane-xyz/sdk@19.10.0
+  - @hyperlane-xyz/core@10.0.4
+
 ## 19.9.0
 
 ### Patch Changes

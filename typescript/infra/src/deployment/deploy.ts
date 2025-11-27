@@ -217,6 +217,9 @@ export async function baseDeploy<
         console.error(
           chalk.red.bold(`Deployment failed on ${chain}. ${error}`),
         );
+        if (error?.stack) {
+          console.error(chalk.gray(error.stack));
+        }
       });
   };
 

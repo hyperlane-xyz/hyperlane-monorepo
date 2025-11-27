@@ -1,23 +1,71 @@
 use async_trait::async_trait;
-use derive_new::new;
 use reqwest::Client as ReqestClient;
+use reqwest_utils::parse_custom_rpc_headers;
 use serde::de::DeserializeOwned;
 
-use hyperlane_core::ChainResult;
+use hyperlane_core::{ChainCommunicationError, ChainResult};
+use url::Url;
 
-use crate::{provider::HttpClient, HyperlaneAleoError};
+use crate::provider::HttpClient;
+use crate::HyperlaneAleoError;
+use std::time::Duration;
+
+// Default timeouts
+pub const DEFAULT_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+pub const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// Base Http client that performs REST-ful queries
-#[derive(Clone, Debug, new)]
+#[derive(Clone, Debug)]
 pub struct BaseHttpClient {
     client: ReqestClient,
     base_url: String,
 }
 
+impl BaseHttpClient {
+    pub fn new(base_url: Url) -> ChainResult<Self> {
+        let (headers, url) =
+            parse_custom_rpc_headers(&base_url).map_err(ChainCommunicationError::from_other)?;
+        let client = ReqestClient::builder()
+            .connect_timeout(DEFAULT_CONNECT_TIMEOUT)
+            .timeout(DEFAULT_REQUEST_TIMEOUT)
+            .default_headers(headers)
+            .build()
+            .map_err(HyperlaneAleoError::from)?;
+        Ok(Self {
+            client,
+            base_url: url.to_string().trim_end_matches("/").into(),
+        })
+    }
+
+    pub fn with_timeouts(
+        base_url: impl Into<String>,
+        connect_timeout: Duration,
+        request_timeout: Duration,
+    ) -> Result<Self, HyperlaneAleoError> {
+        let client = ReqestClient::builder()
+            .connect_timeout(connect_timeout)
+            .timeout(request_timeout)
+            .build()
+            .map_err(HyperlaneAleoError::from)?;
+        Ok(Self {
+            client,
+            base_url: base_url.into(),
+        })
+    }
+
+    pub fn client(&self) -> &ReqestClient {
+        &self.client
+    }
+
+    pub fn base_url(&self) -> &str {
+        &self.base_url
+    }
+}
+
 #[async_trait]
 impl HttpClient for BaseHttpClient {
     /// Makes a GET request to the API
-    async fn request<T: DeserializeOwned>(
+    async fn request<T: DeserializeOwned + Send>(
         &self,
         path: &str,
         query: impl Into<Option<serde_json::Value>> + Send,
@@ -39,7 +87,7 @@ impl HttpClient for BaseHttpClient {
     }
 
     /// Makes a POST request to the API
-    async fn request_post<T: DeserializeOwned>(
+    async fn request_post<T: DeserializeOwned + Send>(
         &self,
         path: &str,
         body: &serde_json::Value,

@@ -15,7 +15,8 @@ import {
 } from '@cosmjs/stargate';
 import { CometClient, connectComet } from '@cosmjs/tendermint-rpc';
 
-import { AltVM, assert, isUrl, strip0x } from '@hyperlane-xyz/utils';
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { assert, isUrl, strip0x } from '@hyperlane-xyz/utils';
 
 import { COSMOS_MODULE_MESSAGE_REGISTRY as R } from '../registry.js';
 
@@ -517,6 +518,12 @@ export class CosmosNativeSigner
     return {
       ismAddress: req.ismAddress,
     };
+  }
+
+  async setTokenHook(
+    _req: Omit<AltVM.ReqSetTokenHook, 'signer'>,
+  ): Promise<AltVM.ResSetTokenHook> {
+    throw new Error(`SetTokenHook is currently not supported on Cosmos Native`);
   }
 
   async enrollRemoteRouter(

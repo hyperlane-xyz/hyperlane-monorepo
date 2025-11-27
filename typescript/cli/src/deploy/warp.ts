@@ -2,6 +2,8 @@ import { confirm } from '@inquirer/prompts';
 import { stringify as yamlStringify } from 'yaml';
 
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
+import { AltVMWarpModule } from '@hyperlane-xyz/deploy-sdk';
+import { GasAction, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   AddWarpRouteConfigOptions,
   BaseRegistry,
@@ -9,7 +11,6 @@ import {
 } from '@hyperlane-xyz/registry';
 import {
   AggregationIsmConfig,
-  AltVMWarpModule,
   CCIPContractCache,
   ChainMap,
   ChainName,
@@ -32,6 +33,7 @@ import {
   WarpCoreConfigSchema,
   WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigSchema,
+  altVmChainLookup,
   enrollCrossChainRouters,
   executeWarpDeploy,
   expandWarpDeployConfig,
@@ -46,8 +48,6 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
-  GasAction,
-  ProtocolType,
   assert,
   objFilter,
   objMap,
@@ -80,6 +80,7 @@ import {
 } from '../utils/files.js';
 import { canSelfRelay, runSelfRelay } from '../utils/relay.js';
 
+import { validateWarpConfigForAltVM } from './configValidation.js';
 import {
   completeDeploy,
   getBalances,
@@ -675,19 +676,24 @@ async function updateExistingWarpRoute(
           }
           default: {
             const signer = altVmSigner.get(chain);
+            const validatedConfig = validateWarpConfigForAltVM(
+              configWithMailbox,
+              chain,
+            );
+
             const warpModule = new AltVMWarpModule(
-              multiProvider,
+              altVmChainLookup(multiProvider),
+              signer,
               {
-                config: configWithMailbox,
+                config: validatedConfig,
                 chain,
                 addresses: {
                   deployedTokenRoute,
                 },
               },
-              signer,
             );
 
-            const transactions = await warpModule.update(configWithMailbox);
+            const transactions = await warpModule.update(validatedConfig);
             updateTransactions[chain] = transactions;
             break;
           }

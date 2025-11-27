@@ -1128,6 +1128,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  lazai: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x3b00fe3518e739bb978b04d28e1492d8d865d96e',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   linea: {
     threshold: 4,
     validators: [
@@ -2035,6 +2045,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: AW_VALIDATOR_ALIAS,
       },
       DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
+  somnia: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xf484907083d32fdc0848bfb998dfdde835e6f9cb',
+        alias: AW_VALIDATOR_ALIAS,
+      },
     ],
   },
 

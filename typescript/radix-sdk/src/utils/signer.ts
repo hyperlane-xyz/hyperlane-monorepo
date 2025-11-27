@@ -4,7 +4,6 @@ import {
   RadixEngineToolkit,
   Signature,
   SignatureWithPublicKey,
-  SimpleTransactionBuilder,
   TransactionBuilder,
   TransactionHeader,
   TransactionManifest,
@@ -74,27 +73,15 @@ export class RadixBaseSigner {
   }
 
   public async getTestnetXrd() {
-    const constructionMetadata =
-      await this.gateway.transaction.innerClient.transactionConstruction();
+    // Creating a transaction manifest instead of using the freeXrdFromFaucet
+    // method from the radix sdk as the starting epoch from which the transaction is valid
+    // might expire before the transaction is sent on chain
+    const manifest = await this.base.createXrdFaucetTransactionManifest(
+      this.account.address,
+    );
 
-    const freeXrdForAccountTransaction =
-      await SimpleTransactionBuilder.freeXrdFromFaucet({
-        networkId: this.networkId,
-        toAccount: this.account.address,
-        validFromEpoch: constructionMetadata.ledger_state.epoch,
-      });
-
-    const intentHashTransactionId =
-      freeXrdForAccountTransaction.transactionId.id;
-
-    await this.gateway.transaction.innerClient.transactionSubmit({
-      transactionSubmitRequest: {
-        notarized_transaction_hex: freeXrdForAccountTransaction.toHex(),
-      },
-    });
-    await this.base.pollForCommit(intentHashTransactionId);
-
-    return intentHashTransactionId;
+    const receipt = await this.signAndBroadcast(manifest);
+    return receipt.transactionHash;
   }
 
   private signIntent = (hashToSign: Uint8Array): SignatureWithPublicKey => {
