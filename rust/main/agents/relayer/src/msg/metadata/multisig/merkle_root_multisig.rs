@@ -42,7 +42,10 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
     ) -> Result<Option<MultisigMetadata>, MetadataBuildError> {
         let highest_leaf_index = unwrap_or_none_result!(
             self.base_builder().highest_known_leaf_index().await,
-            info!("Couldn't get highest known leaf index")
+            info!(
+                hyp_message=?message,
+                "Couldn't get highest known leaf index"
+            )
         );
         let leaf_index = unwrap_or_none_result!(
             self.base_builder()
@@ -68,7 +71,10 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
                 .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?,
             info!(
                 leaf_index,
-                highest_leaf_index, "Couldn't get checkpoint in range"
+                highest_leaf_index,
+                threshold,
+                validators_count = validators.len(),
+                "No quorum checkpoint found in range"
             )
         );
         let proof = self

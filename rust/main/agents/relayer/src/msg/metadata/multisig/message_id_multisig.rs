@@ -7,7 +7,7 @@ use derive_new::new;
 use eyre::Result;
 use hyperlane_base::MultisigCheckpointSyncer;
 use hyperlane_core::{unwrap_or_none_result, HyperlaneMessage, ModuleType, H256};
-use tracing::{debug, warn};
+use tracing::{debug, info, warn};
 
 use super::base::{MetadataToken, MultisigIsmMetadataBuilder, MultisigMetadata};
 use crate::msg::metadata::{MessageMetadataBuilder, MetadataBuildError};
@@ -63,7 +63,12 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
                 .fetch_checkpoint(validators, threshold as usize, leaf_index)
                 .await
                 .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?,
-            debug!("No quorum checkpoint found")
+            info!(
+                leaf_index,
+                threshold,
+                validators_count = validators.len(),
+                "No quorum checkpoint found for leaf_index"
+            )
         );
 
         if quorum_checkpoint.checkpoint.message_id != message_id {

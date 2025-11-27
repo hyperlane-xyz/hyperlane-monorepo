@@ -179,6 +179,7 @@ impl MultisigCheckpointSyncer {
                 %start_index,
                 validators_with_indices = latest_indices.len(),
                 threshold,
+                ?latest_indices,
                 "Quorum unreachable: no valid checkpoint found in searched range"
             );
         }
@@ -301,7 +302,14 @@ impl MultisigCheckpointSyncer {
             }
         }
 
-        debug!("No quorum checkpoint found for message");
+        info!(
+            index,
+            threshold,
+            validators_queried = validators.len(),
+            roots_found = signed_checkpoints_per_root.len(),
+            signatures_per_root = ?signed_checkpoints_per_root.iter().map(|(root, sigs)| (format!("{:#x}", root), sigs.len())).collect::<Vec<_>>(),
+            "No quorum checkpoint found: insufficient signatures for any root"
+        );
         Ok(None)
     }
 }
