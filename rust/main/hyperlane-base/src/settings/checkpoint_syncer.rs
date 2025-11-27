@@ -7,7 +7,7 @@ use prometheus::IntGauge;
 use tracing::error;
 use ya_gcp::{AuthFlow, ServiceAccountAuth};
 
-use hyperlane_core::{ChainCommunicationError, ReorgEvent};
+use hyperlane_core::{ChainCommunicationError, ReorgEventResponse};
 
 use crate::{
     CheckpointSyncer, GcsStorageClientBuilder, LocalStorage, S3Storage, GCS_SERVICE_ACCOUNT_KEY,
@@ -50,7 +50,7 @@ pub enum CheckpointSyncerConf {
 pub enum CheckpointSyncerBuildError {
     /// A reorg event has been detected in the checkpoint syncer when building it
     #[error("Fatal: A reorg event has been detected. Please reach out for help, this is a potentially serious error impacting signed messages. Do NOT forcefully resume operation of this validator. Keep it crashlooping or shut down until receive support. {0:?}")]
-    ReorgFlag(ReorgEvent),
+    ReorgFlag(ReorgEventResponse),
     /// Error communicating with the chain
     #[error(transparent)]
     ChainError(#[from] ChainCommunicationError),
@@ -135,9 +135,7 @@ impl CheckpointSyncerConf {
         match syncer.reorg_status().await {
             Ok(event) => {
                 if event.exists {
-                    return Err(CheckpointSyncerBuildError::ReorgFlag(
-                        event.event.unwrap_or_default(),
-                    ));
+                    return Err(CheckpointSyncerBuildError::ReorgFlag(event));
                 }
             }
             Err(err) => {
@@ -198,7 +196,7 @@ impl CheckpointSyncerConf {
 mod test {
     use std::{fs::File, io::Write};
 
-    use hyperlane_core::{ReorgPeriod, H256};
+    use hyperlane_core::{ReorgEvent, ReorgPeriod, H256};
 
     #[tokio::test]
     async fn test_build_and_validate() {
@@ -225,6 +223,11 @@ mod test {
             unix_timestamp,
             reorg_period,
         };
+        let dummy_reorg_response = ReorgEventResponse {
+            exists: true,
+            event: Some(dummy_reorg_event.clone()),
+            contents: Some(serde_json::to_string(&dummy_reorg_event).unwrap()),
+        };
 
         // create a checkpoint syncer and write a reorg event
         // then `drop` it, to simulate a restart
@@ -244,7 +247,10 @@ mod test {
         let result = checkpoint_syncer_conf.build_and_validate(None).await;
         match result {
             Err(CheckpointSyncerBuildError::ReorgFlag(e)) => {
-                assert_eq!(e, dummy_reorg_event, "Reported reorg event doesn't match");
+                assert_eq!(
+                    e, dummy_reorg_response,
+                    "Reported reorg event doesn't match"
+                );
             }
             _ => panic!("Expected a reorg event error"),
         }
@@ -267,12 +273,19 @@ mod test {
             file.write_all(b"abc").unwrap();
         }
 
-        let dummy_reorg_event = ReorgEvent::default();
+        let dummy_reorg_response = ReorgEventResponse {
+            exists: true,
+            event: None,
+            contents: Some("abc".to_string()),
+        };
         // Initialize a new checkpoint syncer and expect it to panic due to the reorg event.
         let result = checkpoint_syncer_conf.build_and_validate(None).await;
         match result {
             Err(CheckpointSyncerBuildError::ReorgFlag(e)) => {
-                assert_eq!(e, dummy_reorg_event, "Reported reorg event doesn't match");
+                assert_eq!(
+                    e, dummy_reorg_response,
+                    "Reported reorg event doesn't match"
+                );
             }
             _ => panic!("Expected a reorg event error"),
         }

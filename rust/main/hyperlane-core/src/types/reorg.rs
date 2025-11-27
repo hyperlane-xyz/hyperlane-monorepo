@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::{ReorgPeriod, H256};
 
 /// A response about a chain reorg, from an agent's perspective
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ReorgEventResponse {
     /// Whether a reorg event exists
     pub exists: bool,
