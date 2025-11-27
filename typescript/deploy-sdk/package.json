@@ -2,6 +2,8 @@
   "name": "@hyperlane-xyz/deploy-sdk",
   "version": "0.2.0",
   "description": "Deployer SDK for the Hyperlane Protocol",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
+  "license": "Apache-2.0",
   "type": "module",
   "files": [
     "dist"
