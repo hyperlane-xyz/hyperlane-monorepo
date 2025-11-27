@@ -4,11 +4,11 @@ use {
     k256::{ecdsa::SigningKey, elliptic_curve::rand_core::OsRng},
 };
 
-pub struct ValidatorKey {
+pub struct HexKey {
     pub key: H256,
 }
 
-impl ValidatorKey {
+impl HexKey {
     pub fn new_random() -> Self {
         let sk = SigningKey::random(&mut OsRng);
         let key = H256::from(Into::<[u8; 32]>::into(sk.to_bytes()));

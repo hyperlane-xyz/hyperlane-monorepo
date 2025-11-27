@@ -1,10 +1,11 @@
 use {
     crate::utils::{
-        Agent, AgentBuilder, DangoBuilder, Location, ValidatorKey, dango_helper::ChainHelper, get_free_port
+        dango_helper::ChainHelper, get_free_port, Agent, CheckpointSyncer2, DangoBuilder,
+        DangoSettings, HexKey, Location2, Relayer, Validator, ValidatorSigner,
     },
     dango_types::gateway::Origin,
     futures_util::try_join,
-    grug::{HexByteArray, ResultExt, btree_set},
+    grug::{HexByteArray, ResultExt},
     std::collections::BTreeSet,
 };
 
@@ -51,20 +52,30 @@ pub async fn startup_tests(
     )
     .await?;
 
-    AgentBuilder::new(Agent::Relayer)
-        .with_chain_helper(chain_name1, &ch1)
-        .with_chain_helper(chain_name2, &ch2)
-        .with_relay_chains(btree_set!(chain_name1, chain_name2))
-        .with_chain_signer(
-            chain_name1,
-            ch1.get_account(&format!("user{}", chain_1.validators + 2)),
+    Agent::new(Relayer::default().with_allow_local_checkpoint_syncer(true))
+        .with_chain(
+            DangoSettings::new(chain_name1)
+                .with_chain_signer(ch1.get_account(&format!("user{}", chain_1.validators + 2)))
+                .with_chain_settings(|dango| {
+                    dango
+                        .with_app_cfg(ch1.cfg.clone())
+                        .with_chain_id(ch1.chain_id.clone())
+                        .with_httpd_urls(ch1.httpd_urls.clone());
+                }),
         )
-        .with_chain_signer(
-            chain_name2,
-            ch2.get_account(&format!("user{}", chain_2.validators + 2)),
+        .with_chain(
+            DangoSettings::new(chain_name2)
+                .with_chain_signer(ch2.get_account(&format!("user{}", chain_2.validators + 2)))
+                .with_chain_settings(|dango| {
+                    dango
+                        .with_app_cfg(ch2.cfg.clone())
+                        .with_chain_id(ch2.chain_id.clone())
+                        .with_httpd_urls(ch2.httpd_urls.clone());
+                }),
         )
-        .with_allow_local_checkpoint_syncer(true)
+        .with_db(Location2::Temp)
         .with_metrics_port(get_free_port())
+        .with_db(Location2::Temp)
         .launch();
 
     Ok((ch1, ch2))
@@ -78,16 +89,27 @@ fn run_validators(
     (2..=setup.validators + 1)
         .into_iter()
         .map(|i| {
-            let key = ValidatorKey::new_random();
+            let key = HexKey::new_random();
 
-            AgentBuilder::new(Agent::Validator)
-                .with_origin_chain_name(chain_name)
-                .with_chain_helper(chain_name, ch)
-                .with_checkpoint_syncer(Location::Temp)
-                .with_validator_signer(key.key.clone())
-                .with_chain_signer(chain_name, ch.get_account(&format!("user{}", i)))
-                .with_metrics_port(get_free_port())
-                .launch();
+            Agent::new(
+                Validator::default()
+                    .with_origin_chain_name(chain_name)
+                    .with_checkpoint_syncer(CheckpointSyncer2::LocalStorage(Location2::Temp))
+                    .with_validator_signer(ValidatorSigner::Hex(key.key.clone())),
+            )
+            .with_chain(
+                DangoSettings::new(chain_name)
+                    .with_chain_signer(ch.get_account(&format!("user{}", i)))
+                    .with_chain_settings(|dango| {
+                        dango
+                            .with_app_cfg(ch.cfg.clone())
+                            .with_chain_id(ch.chain_id.clone())
+                            .with_httpd_urls(ch.httpd_urls.clone());
+                    }),
+            )
+            .with_metrics_port(get_free_port())
+            .with_db(Location2::Temp)
+            .launch();
 
             Ok(key.address())
         })

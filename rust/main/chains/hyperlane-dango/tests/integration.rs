@@ -1,10 +1,13 @@
 use {
     crate::utils::{
-        Agent, AgentBuilder, DangoBuilder, Location, SetupChain, ValidatorKey, build_agents, startup_tests, try_for
+        build_agents, get_free_port, startup_tests, try_for, Agent, CheckpointSyncer2,
+        DangoBuilder, DangoSettings, HexKey, Location2, Relayer, SetupChain,
+        Validator, ValidatorSigner,
     },
     dango_types::{constants::dango, gateway::Origin},
     grug::{
-        BlockCreation, Coin, Denom, Part, QueryClientExt, ResultExt, btree_set, setup_tracing_subscriber
+        btree_set, setup_tracing_subscriber, BlockCreation, Coin, Denom, Part, QueryClientExt,
+        ResultExt,
     },
     std::time::Duration,
     tracing::Level,
@@ -28,29 +31,55 @@ async fn dango_one_way() -> anyhow::Result<()> {
     let chain_name1 = "dangolocal1";
     let chain_name2 = "dangolocal2";
 
-    let validator_key = ValidatorKey::new_random();
+    let validator_key = HexKey::new_random();
 
     // run Validator
     {
-        AgentBuilder::new(Agent::Validator)
-            .with_origin_chain_name(chain_name1)
-            .with_chain_helper(chain_name1, &ch1)
-            .with_checkpoint_syncer(Location::Temp)
-            .with_validator_signer(validator_key.key.clone())
-            .with_chain_signer(chain_name1, &ch1.accounts.user2)
-            .launch();
+        Agent::new(
+            Validator::default()
+                .with_origin_chain_name(chain_name1)
+                .with_checkpoint_syncer(CheckpointSyncer2::LocalStorage(Location2::Temp))
+                .with_validator_signer(ValidatorSigner::Hex(validator_key.key.clone())),
+        )
+        .with_chain(
+            DangoSettings::new(chain_name1)
+                .with_chain_signer(&ch1.accounts.user2)
+                .with_chain_settings(|dango| {
+                    dango
+                        .with_app_cfg(ch1.cfg.clone())
+                        .with_chain_id(ch1.chain_id.clone())
+                        .with_httpd_urls(ch1.httpd_urls.clone());
+                }),
+        )
+        .with_metrics_port(get_free_port())
+        .with_db(Location2::Temp)
+        .launch();
     }
 
     // run Relayer
     {
-        AgentBuilder::new(Agent::Relayer)
-            .with_origin_chain_name(chain_name1)
-            .with_chain_helper(chain_name1, &ch1)
-            .with_chain_helper(chain_name2, &ch2)
-            .with_relay_chains(btree_set!(chain_name1, chain_name2))
-            .with_chain_signer(chain_name2, &ch2.accounts.user2)
-            .with_allow_local_checkpoint_syncer(true)
-            .with_metrics_port(9091)
+        Agent::new(Relayer::default().with_allow_local_checkpoint_syncer(true))
+            .with_chain(
+                DangoSettings::new(chain_name1).with_chain_settings(|dango| {
+                    dango
+                        .with_app_cfg(ch1.cfg.clone())
+                        .with_chain_id(ch1.chain_id.clone())
+                        .with_httpd_urls(ch1.httpd_urls.clone());
+                }),
+            )
+            .with_chain(
+                DangoSettings::new(chain_name2)
+                    .with_chain_signer(&ch2.accounts.user2)
+                    .with_chain_settings(|dango| {
+                        dango
+                            .with_app_cfg(ch2.cfg.clone())
+                            .with_chain_id(ch2.chain_id.clone())
+                            .with_httpd_urls(ch2.httpd_urls.clone());
+                    }),
+            )
+            .with_db(Location2::Temp)
+            .with_metrics_port(get_free_port())
+            .with_db(Location2::Temp)
             .launch();
     }
 

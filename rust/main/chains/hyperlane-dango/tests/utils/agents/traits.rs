@@ -1,6 +1,6 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
-pub trait Args2: Sized {
+pub trait Args: Sized {
     fn args(self) -> BTreeMap<String, String>;
     fn args_with_prefix<'a>(self, prefix: &'a str) -> BTreeMap<String, String> {
         self.args()
@@ -10,9 +10,9 @@ pub trait Args2: Sized {
     }
 }
 
-impl<T> Args2 for Option<T>
+impl<T> Args for Option<T>
 where
-    T: Args2,
+    T: Args,
 {
     fn args(self) -> BTreeMap<String, String> {
         if let Some(inner) = self {
@@ -21,4 +21,12 @@ where
             BTreeMap::new()
         }
     }
+}
+
+pub trait AgentArgs {
+    fn args(self, chains: BTreeSet<String>) -> BTreeMap<String, String>;
+}
+
+pub trait Launcher {
+    const PATH: &'static str;
 }

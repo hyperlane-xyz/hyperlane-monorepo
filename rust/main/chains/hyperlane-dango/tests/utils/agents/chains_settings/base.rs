@@ -1,17 +1,17 @@
 use {
-    crate::utils::agent_settings::args::Args2, grug::btree_map,
+    crate::utils::{agents::traits::Args, dango_helper::IntoSignerConf}, grug::btree_map,
     hyperlane_base::settings::SignerConf, std::collections::BTreeMap,
 };
 
 #[derive(Debug)]
-pub struct ChainSetting2<C> {
+pub struct ChainSettings<C> {
     pub(crate) chain_name: String,
     chain_signer: Option<ChainSigner>,
     index: Option<IndexSettings>,
     chain: C,
 }
 
-impl<C> ChainSetting2<C>
+impl<C> ChainSettings<C>
 where
     C: Default,
 {
@@ -25,14 +25,14 @@ where
     }
 }
 
-impl<C> ChainSetting2<C> {
+impl<C> ChainSettings<C> {
     pub fn with_chain_settings(mut self, callback: impl FnOnce(&mut C)) -> Self {
         callback(&mut self.chain);
         self
     }
 
-    pub fn with_chain_signer(mut self, chain_signer: SignerConf) -> Self {
-        self.chain_signer = Some(ChainSigner(GeneralSigner(chain_signer)));
+    pub fn with_chain_signer<S: IntoSignerConf>(mut self, chain_signer: S) -> Self {
+        self.chain_signer = Some(ChainSigner(GeneralSigner(chain_signer.as_signer_conf())));
         self
     }
 
@@ -42,9 +42,9 @@ impl<C> ChainSetting2<C> {
     }
 }
 
-impl<C> Args2 for ChainSetting2<C>
+impl<C> Args for ChainSettings<C>
 where
-    C: Args2,
+    C: Args,
 {
     fn args(self) -> BTreeMap<String, String> {
         let prefix = format!("chains.{}", self.chain_name);
@@ -61,7 +61,7 @@ where
 #[derive(Debug)]
 struct GeneralSigner(SignerConf);
 
-impl Args2 for GeneralSigner {
+impl Args for GeneralSigner {
     fn args(self) -> BTreeMap<String, String> {
         match self.0 {
             SignerConf::HexKey { key } => btree_map! {
@@ -86,7 +86,7 @@ impl Args2 for GeneralSigner {
 #[derive(Debug)]
 struct ChainSigner(GeneralSigner);
 
-impl Args2 for ChainSigner {
+impl Args for ChainSigner {
     fn args(self) -> BTreeMap<String, String> {
         self.0.args_with_prefix("signer")
     }
@@ -100,7 +100,7 @@ struct IndexSettings {
     chunk_size: Option<u32>,
 }
 
-impl Args2 for IndexSettings {
+impl Args for IndexSettings {
     fn args(self) -> BTreeMap<String, String> {
         let mut args = btree_map! {
             "index.from".to_string() => self.from.to_string(),
