@@ -77,7 +77,9 @@ describe('4. aleo sdk warp e2e tests', async function () {
       const txId = await programManager.networkClient.submitTransaction(tx);
 
       await aleoClient.waitForTransactionConfirmation(txId);
-    } catch {}
+    } catch (e) {
+      console.log('Token registry deployment skipped:', (e as Error).message);
+    }
 
     await signer.sendAndConfirmTransaction({
       programName: 'token_registry.aleo',
@@ -546,7 +548,7 @@ describe('4. aleo sdk warp e2e tests', async function () {
     expect(mailbox.nonce).to.equal(2);
   });
 
-  step('remote transfer with custom hook', async () => {
+  step('remote transfer with custom hook and metadata', async () => {
     // ARRANGE
     const { ismAddress } = await signer.createNoopIsm({});
     const { hookAddress } = await signer.createMerkleTreeHook({
