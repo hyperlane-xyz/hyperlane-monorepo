@@ -112,12 +112,12 @@ export class AleoBase {
     return programManager;
   }
 
-  protected async queryMappingRaw<T = string>(
+  protected async queryMappingValue(
     programId: string,
     mappingName: string,
     key: string,
-    fallbackValue?: T,
-  ): Promise<string | T> {
+    fallbackValue?: any,
+  ): Promise<any> {
     try {
       const result = await this.aleoClient.getProgramMappingValue(
         programId,
@@ -135,27 +135,12 @@ export class AleoBase {
         );
       }
 
-      return result;
+      return this.Plaintext.fromString(result).toObject();
     } catch (err) {
       throw new Error(
         `Failed to query mapping value for program ${programId}/${mappingName}/${key}: ${err}`,
       );
     }
-  }
-
-  protected async queryMappingValue(
-    programId: string,
-    mappingName: string,
-    key: string,
-    fallbackValue?: any,
-  ): Promise<any> {
-    const result = await this.queryMappingRaw(
-      programId,
-      mappingName,
-      key,
-      fallbackValue,
-    );
-    return this.Plaintext.fromString(result).toObject();
   }
 
   protected getAddressFromProgramId(programId: string): string {

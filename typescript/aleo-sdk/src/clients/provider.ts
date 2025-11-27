@@ -139,7 +139,6 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   }
 
   async isMessageDelivered(req: AltVM.ReqIsMessageDelivered): Promise<boolean> {
-    // Message key needs to be separated into [u128, u128] using Little Endian.
     const messageKey = this.bytes32ToU128String(req.messageId);
 
     const result = await this.queryMappingValue(
@@ -204,54 +203,45 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async getRoutingIsm(req: AltVM.ReqRoutingIsm): Promise<AltVM.ResRoutingIsm> {
     const programId = 'ism_manager.aleo';
 
-    let owner: string;
     const routes: { domainId: number; ismAddress: string }[] = [];
 
-    try {
-      const ismData = await this.aleoClient.getProgramMappingPlaintext(
+    const ismData = await this.queryMappingValue(
+      programId,
+      'domain_routing_isms',
+      req.ismAddress,
+    );
+    const owner = ismData.ism_owner;
+
+    const routeLengthRes = await this.queryMappingValue(
+      programId,
+      'route_length',
+      req.ismAddress,
+      0,
+    );
+
+    for (let i = 0; i < routeLengthRes; i++) {
+      const routeKey = await this.aleoClient.getProgramMappingPlaintext(
         programId,
-        'domain_routing_isms',
-        req.ismAddress,
+        'route_iter',
+        `{ism:${req.ismAddress},index:${i}u32}`,
       );
-      owner = ismData.toObject().ism_owner;
-    } catch {
-      throw new Error(`Found no ISM for address: ${req.ismAddress}`);
-    }
 
-    try {
-      const routeLengthRes = await this.aleoClient.getProgramMappingValue(
+      const ismAddress = await this.queryMappingValue(
         programId,
-        'route_length',
-        req.ismAddress,
+        'routes',
+        routeKey.toString(),
+        null,
       );
 
-      for (let i = 0; i < parseInt(routeLengthRes); i++) {
-        const routeKey = await this.aleoClient.getProgramMappingPlaintext(
-          programId,
-          'route_iter',
-          `{ ism: ${req.ismAddress}, index: ${i}u32}`,
-        );
+      // This is necessary because `route_iter` maintains keys for all route entries,
+      // including those from domains that have already been removed. When a domain is
+      // deleted from the Routing ISM, its key remains in the map and `routes` simply returns null.
+      if (!ismAddress) continue;
 
-        const ismAddress = await this.aleoClient.getProgramMappingValue(
-          programId,
-          'routes',
-          routeKey,
-        );
-
-        // This is necessary because `route_iter` maintains keys for all route entries,
-        // including those from domains that have already been removed. When a domain is
-        // deleted from the Routing ISM, its key remains in the map and `routes` simply returns null.
-        if (!ismAddress) continue;
-
-        routes.push({
-          ismAddress: ismAddress,
-          domainId: routeKey.toObject().domain,
-        });
-      }
-    } catch {
-      throw new Error(
-        `Failed to found routes for ISM address: ${req.ismAddress}`,
-      );
+      routes.push({
+        ismAddress: ismAddress,
+        domainId: routeKey.toObject().domain,
+      });
     }
 
     return {
@@ -297,8 +287,6 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   ): Promise<AltVM.ResGetInterchainGasPaymasterHook> {
     const [programId, hookAddress] = req.hookAddress.split('/');
 
-    let owner: string;
-
     const destinationGasConfigs: {
       [domainId: string]: {
         gasOracle: {
@@ -309,57 +297,46 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       };
     } = {};
 
-    try {
-      const igpDat = await this.aleoClient.getProgramMappingPlaintext(
+    const igpData = await this.queryMappingValue(
+      programId,
+      'igps',
+      hookAddress,
+    );
+    const owner = igpData.hook_owner;
+
+    const gasConfigLength = await this.queryMappingValue(
+      programId,
+      'destination_gas_config_length',
+      hookAddress,
+      0,
+    );
+
+    for (let i = 0; i < gasConfigLength; i++) {
+      const gasConfigKey = await this.aleoClient.getProgramMappingPlaintext(
         programId,
-        'igps',
-        hookAddress,
+        'destination_gas_config_iter',
+        `{hook:${hookAddress},index:${i}u32}`,
       );
-      owner = igpDat.toObject().hook_owner;
-    } catch {
-      throw new Error(`Found no IGP for address: ${req.hookAddress}`);
-    }
 
-    try {
-      const gasConfigLength = await this.aleoClient.getProgramMappingValue(
+      const destinationGasConfig = await this.queryMappingValue(
         programId,
-        'destination_gas_config_length',
-        hookAddress,
+        'destination_gas_configs',
+        gasConfigKey.toString(),
+        null,
       );
 
-      for (let i = 0; i < parseInt(gasConfigLength); i++) {
-        const gasConfigKey = await this.aleoClient.getProgramMappingPlaintext(
-          programId,
-          'destination_gas_config_iter',
-          `{hook:${hookAddress},index:${i}u32}`,
-        );
+      // This is necessary because `destination_gas_config_iter` maintains keys for all destination domain entries,
+      // including those from domains that have already been removed. When a domain is
+      // deleted from the Destination Gas Configs, its key remains in the map and `destination_gas_configs` simply returns null.
+      if (!destinationGasConfig) continue;
 
-        const destinationGasConfig =
-          await this.aleoClient.getProgramMappingPlaintext(
-            programId,
-            'destination_gas_configs',
-            gasConfigKey,
-          );
-
-        // This is necessary because `destination_gas_config_iter` maintains keys for all destination domain entries,
-        // including those from domains that have already been removed. When a domain is
-        // deleted from the Destination Gas Configs, its key remains in the map and `destination_gas_configs` simply returns null.
-        if (!destinationGasConfig) continue;
-
-        destinationGasConfigs[gasConfigKey.toObject().destination] = {
-          gasOracle: {
-            tokenExchangeRate: destinationGasConfig
-              .toObject()
-              .exchange_rate.toString(),
-            gasPrice: destinationGasConfig.toObject().gas_price.toString(),
-          },
-          gasOverhead: destinationGasConfig.toObject().gas_overhead.toString(),
-        };
-      }
-    } catch {
-      throw new Error(
-        `Failed to found destination gas configs for IGP address: ${req.hookAddress}`,
-      );
+      destinationGasConfigs[gasConfigKey.toObject().destination] = {
+        gasOracle: {
+          tokenExchangeRate: destinationGasConfig.exchange_rate.toString(),
+          gasPrice: destinationGasConfig.gas_price.toString(),
+        },
+        gasOverhead: destinationGasConfig.gas_overhead.toString(),
+      };
     }
 
     return {
