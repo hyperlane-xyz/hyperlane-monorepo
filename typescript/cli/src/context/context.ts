@@ -1,10 +1,9 @@
-import { confirm, password } from '@inquirer/prompts';
+import { confirm } from '@inquirer/prompts';
 import { ethers } from 'ethers';
 
 import { loadProtocolProviders } from '@hyperlane-xyz/deploy-sdk';
 import {
   AltVM,
-  SignerConfig,
   getProtocolProvider,
   hasProtocol,
 } from '@hyperlane-xyz/provider-sdk';
@@ -17,13 +16,11 @@ import {
   ExplorerFamily,
   MultiProtocolProvider,
   MultiProvider,
-  TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
 import { isSignCommand } from '../commands/signCommands.js';
 import { readChainSubmissionStrategyConfig } from '../config/strategy.js';
-import { ExtendedChainSubmissionStrategy } from '../submitters/types.js';
 import { detectAndConfirmOrPrompt } from '../utils/input.js';
 import { getSigner } from '../utils/keys.js';
 
@@ -57,6 +54,10 @@ export async function signerMiddleware(argv: Record<string, any>) {
   const { key, requiresKey, strategyPath, multiProtocolProvider } =
     argv.context;
 
+  const strategyConfig = strategyPath
+    ? await readChainSubmissionStrategyConfig(strategyPath)
+    : {};
+
   /**
    * Resolves chains based on the command type.
    */
@@ -85,47 +86,21 @@ export async function signerMiddleware(argv: Record<string, any>) {
     );
   }
 
-  /**
-   * Add AltVM Providers & Signers to context
-   */
-  const strategyConfig = strategyPath
-    ? await readChainSubmissionStrategyConfig(strategyPath)
-    : {};
-
   await Promise.all(
     altVmChains.map(async (chain) => {
-      const { altVmProvider, altVmSigner, multiProvider } = argv.context;
+      const { altVmProvider, multiProvider } = argv.context;
       const protocol = multiProvider.getProtocol(chain);
       const metadata = multiProvider.getChainMetadata(chain);
 
-      if (hasProtocol(protocol)) {
+      if (hasProtocol(protocol))
         altVmProvider.set(
           chain,
           await getProtocolProvider(protocol).createProvider(metadata),
         );
-
-        if (requiresKey) {
-          const config = strategyConfig[chain];
-          const jsonSubmitterConfig = config.submitter as SignerConfig;
-
-          jsonSubmitterConfig.privateKey = await loadPrivateKey(
-            key,
-            strategyConfig,
-            metadata.protocol,
-            chain,
-          );
-
-          altVmSigner.set(
-            chain,
-            await getProtocolProvider(protocol).createSigner(
-              metadata,
-              jsonSubmitterConfig,
-            ),
-          );
-        }
-      }
     }),
   );
+
+  if (!requiresKey) return argv;
 
   /**
    * Extracts signer config
@@ -141,6 +116,16 @@ export async function signerMiddleware(argv: Record<string, any>) {
    * @notice Attaches signers to MultiProvider and assigns it to argv.multiProvider
    */
   argv.context.multiProvider = await multiProtocolSigner.getMultiProvider();
+
+  /**
+   * Creates AltVM signers
+   */
+  argv.context.altVmSigner = await AltVMSignerFactory.createSigners(
+    argv.context.multiProvider,
+    chains,
+    key,
+    strategyConfig,
+  );
 
   return argv;
 }
@@ -310,41 +295,4 @@ export async function requestAndSaveApiKeys(
   }
 
   return apiKeys;
-}
-
-async function loadPrivateKey(
-  keyByProtocol: SignerKeyProtocolMap,
-  strategyConfig: Partial<ExtendedChainSubmissionStrategy>,
-  protocol: ProtocolType,
-  chain: string,
-): Promise<string> {
-  // 1. First try to get private key from --key.{protocol} flag
-  if (keyByProtocol[protocol]) {
-    return keyByProtocol[protocol]!;
-  }
-
-  // 2. If no key flag was provided we check if a strategy config
-  // was provided for our chain where we can read our private key
-  if (strategyConfig[chain]) {
-    const rawConfig = strategyConfig[chain]!.submitter;
-
-    if (rawConfig.type === TxSubmitterType.JSON_RPC) {
-      if (!rawConfig.privateKey) {
-        throw new Error(
-          `missing private key in strategy config for chain ${chain}`,
-        );
-      }
-
-      return rawConfig.privateKey;
-    }
-  }
-
-  // 3. Finally, if no key flag or strategy was provided we prompt the user
-  // for the private key. We save it in the keyByProtocol map so that we can
-  // reuse it if another chain is of the same protocol
-  keyByProtocol[protocol] = await password({
-    message: `Please enter the private key for chain ${chain} (will be re-used for other chains with the same protocol type)`,
-  });
-
-  return keyByProtocol[protocol]!;
 }
