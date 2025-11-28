@@ -30,7 +30,7 @@ jobs:
   yarn-install:
     runs-on: depot-ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
@@ -64,7 +64,7 @@ jobs:
     runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -113,7 +113,7 @@ jobs:
       current_sha: ${{ steps.determine-sha.outputs.current_sha }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -127,7 +127,7 @@ jobs:
       only_rust: ${{ steps.override-main.outputs.only_rust || steps.check-rust.outputs.only_changes }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
@@ -156,7 +156,7 @@ jobs:
     timeout-minutes: 10
     if: needs.rust-only.outputs.only_rust == 'false'
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
@@ -186,7 +186,7 @@ jobs:
     needs: [yarn-test-run]
     if: always()
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Check yarn-test status
         uses: ./.github/actions/check-job-status
         with:
@@ -201,7 +201,7 @@ jobs:
       BALANCE_CHANGES: false
       WARP_CONFIG_CHANGES: false
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
@@ -249,7 +249,7 @@ jobs:
     needs: [rust-only]
     if: needs.rust-only.outputs.only_rust == 'false'
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -267,7 +267,7 @@ jobs:
     needs: [cli-install-test-run]
     if: always()
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Check cli-install-test status
         uses: ./.github/actions/check-job-status
         with:
@@ -313,7 +313,7 @@ jobs:
           - warp-rebalancer
           - warp-send
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
@@ -353,7 +353,7 @@ jobs:
           - warp-deploy
           - warp-read
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
@@ -391,7 +391,7 @@ jobs:
           - warp-apply-ownership-updates
           - warp-apply-route-extension
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
@@ -423,7 +423,7 @@ jobs:
           - warp-apply
           - warp-deploy
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
@@ -453,7 +453,7 @@ jobs:
       ]
     if: always()
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Check CLI EVM E2E status
         uses: ./.github/actions/check-job-status
         with:
@@ -481,7 +481,7 @@ jobs:
     if: needs.rust-only.outputs.only_rust == 'false'
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
@@ -499,7 +499,7 @@ jobs:
     needs: [cosmos-sdk-e2e-run]
     if: always()
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Check cosmos-sdk-e2e status
         uses: ./.github/actions/check-job-status
         with:
@@ -513,7 +513,7 @@ jobs:
       matrix:
         environment: [mainnet3, testnet4]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -543,7 +543,7 @@ jobs:
       matrix:
         e2e-type: [cosmwasm, cosmosnative, evm, sealevel, starknet, radix]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
@@ -744,7 +744,7 @@ jobs:
             module: core
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -774,7 +774,7 @@ jobs:
     needs: env-test-matrix
     if: always()
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Check env-test matrix status
         uses: ./.github/actions/check-job-status
         with:
@@ -787,7 +787,7 @@ jobs:
     outputs:
       has_solidity_changes: ${{ steps.check-solidity.outputs.has_changes }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -804,7 +804,7 @@ jobs:
     needs: [check-solidity-changes]
     if: needs.check-solidity-changes.outputs.has_solidity_changes == 'true'
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
