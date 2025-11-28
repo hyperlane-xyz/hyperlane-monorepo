@@ -159,7 +159,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
 
   async getIsmType(req: AltVM.ReqGetIsmType): Promise<AltVM.IsmType> {
     const result = await this.queryMappingValue(
-      'ism_manager.aleo',
+      this.ismManager,
       'isms',
       req.ismAddress,
     );
@@ -182,7 +182,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     req: AltVM.ReqMessageIdMultisigIsm,
   ): Promise<AltVM.ResMessageIdMultisigIsm> {
     const { validators, threshold } = await this.queryMappingValue(
-      'ism_manager.aleo',
+      this.ismManager,
       'message_id_multisigs',
       req.ismAddress,
     );
@@ -203,7 +203,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   }
 
   async getRoutingIsm(req: AltVM.ReqRoutingIsm): Promise<AltVM.ResRoutingIsm> {
-    const programId = 'ism_manager.aleo';
+    const programId = this.ismManager;
 
     const routes: { domainId: number; ismAddress: string }[] = [];
 
@@ -252,7 +252,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   }
 
   async getNoopIsm(req: AltVM.ReqNoopIsm): Promise<AltVM.ResNoopIsm> {
-    await this.queryMappingValue('ism_manager.aleo', 'isms', req.ismAddress);
+    await this.queryMappingValue(this.ismManager, 'isms', req.ismAddress);
 
     return {
       address: req.ismAddress,
@@ -707,7 +707,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     );
 
     return {
-      programName: 'ism_manager.aleo',
+      programName: this.ismManager,
       functionName: 'init_message_id_multisig',
       priorityFee: 0,
       privateFee: false,
@@ -723,7 +723,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     _req: AltVM.ReqCreateRoutingIsm,
   ): Promise<AleoTransaction> {
     return {
-      programName: 'ism_manager.aleo',
+      programName: this.ismManager,
       functionName: 'init_domain_routing',
       priorityFee: 0,
       privateFee: false,
@@ -735,7 +735,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     req: AltVM.ReqSetRoutingIsmRoute,
   ): Promise<AleoTransaction> {
     return {
-      programName: 'ism_manager.aleo',
+      programName: this.ismManager,
       functionName: 'set_domain',
       priorityFee: 0,
       privateFee: false,
@@ -751,7 +751,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     req: AltVM.ReqRemoveRoutingIsmRoute,
   ): Promise<AleoTransaction> {
     return {
-      programName: 'ism_manager.aleo',
+      programName: this.ismManager,
       functionName: 'remove_domain',
       priorityFee: 0,
       privateFee: false,
@@ -763,7 +763,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     req: AltVM.ReqSetRoutingIsmOwner,
   ): Promise<AleoTransaction> {
     return {
-      programName: 'ism_manager.aleo',
+      programName: this.ismManager,
       functionName: 'transfer_routing_ism_ownership',
       priorityFee: 0,
       privateFee: false,
@@ -775,7 +775,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     _req: AltVM.ReqCreateNoopIsm,
   ): Promise<AleoTransaction> {
     return {
-      programName: 'ism_manager.aleo',
+      programName: this.ismManager,
       functionName: 'init_noop',
       priorityFee: 0,
       privateFee: false,

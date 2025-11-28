@@ -6,6 +6,7 @@ const upgradeAuthority = process.env['ALEO_UPGRADE_AUTHORITY'] || '';
 const originalProgramIds = JSON.parse(
   process.env['ALEO_USE_ORIGINAL_PROGRAM_IDS'] || 'false',
 );
+const ismManager = process.env['ALEO_ISM_MANAGER'];
 
 export function loadProgramsInDeployOrder(
   programName: string,
@@ -47,6 +48,14 @@ export function loadProgramsInDeployOrder(
             /(hyp_native|hyp_collateral|hyp_synthetic).aleo/g,
             (_, p1) => `${p1}_${warpSalt || coreSalt}.aleo`,
           ),
+      ),
+    );
+  }
+
+  if (ismManager) {
+    programs = programs.map((p) =>
+      Program.fromString(
+        p.toString().replaceAll('ism_manager.aleo', ismManager),
       ),
     );
   }

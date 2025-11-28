@@ -34,6 +34,7 @@ export class AleoBase {
   protected readonly aleoClient: AnyAleoNetworkClient;
   protected readonly skipProofs: boolean;
   protected readonly consensusVersionHeights: string;
+  protected readonly ismManager: string;
 
   constructor(rpcUrls: string[], chainId: string | number) {
     assert(
@@ -56,6 +57,8 @@ export class AleoBase {
     if (this.consensusVersionHeights) {
       getOrInitConsensusVersionTestHeights(this.consensusVersionHeights);
     }
+
+    this.ismManager = process.env['ALEO_ISM_MANAGER'] || 'ism_manager.aleo';
   }
 
   protected getProgramManager(privateKey?: string): AnyProgramManager {
