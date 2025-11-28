@@ -593,3 +593,69 @@ impl Validator {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn aleo_announcement_location_exactly_max_minus_null() -> Result<()> {
+        // 479 bytes input should be padded to 480 with a single null
+        let input = "a".repeat(479);
+        let out = Validator::aleo_announcement_location(input.clone())?;
+        let bytes = out.into_bytes();
+        assert_eq!(bytes.len(), 480);
+        assert_eq!(bytes[..479], input.as_bytes()[..]);
+        assert_eq!(bytes[479], 0);
+        Ok(())
+    }
+
+    #[test]
+    fn aleo_announcement_location_short_input_padded_to_480() -> Result<()> {
+        let input = "hello";
+        let out = Validator::aleo_announcement_location(input.to_string())?;
+        let bytes = out.into_bytes();
+        assert_eq!(bytes.len(), 480);
+        assert_eq!(&bytes[..5], input.as_bytes());
+        assert!(bytes[5..].iter().all(|&b| b == 0));
+        Ok(())
+    }
+
+    #[test]
+    fn aleo_announcement_location_empty_string_padded_to_480() -> Result<()> {
+        let input = "";
+        let out = Validator::aleo_announcement_location(input.to_string())?;
+        let bytes = out.into_bytes();
+        assert_eq!(bytes.len(), 480);
+        assert!(bytes.iter().all(|&b| b == 0));
+        Ok(())
+    }
+
+    #[test]
+    fn aleo_announcement_location_rejects_too_long() {
+        // 480 bytes input would exceed allowed (must be <= 479)
+        let input = "b".repeat(480);
+        let err = Validator::aleo_announcement_location(input).unwrap_err();
+        let msg = format!("{}", err);
+        assert!(msg.contains("Aleo announcement location too long"));
+        assert!(msg.contains("max 479"));
+    }
+
+    #[test]
+    fn aleo_announcement_location_preserves_existing_nulls_and_utf8() -> Result<()> {
+        // Input containing interior null bytes and multi-byte UTF-8
+        let mut input_bytes = Vec::new();
+        input_bytes.extend_from_slice("αβγ".as_bytes()); // UTF-8 multi-byte
+        input_bytes.push(0); // interior null
+        input_bytes.extend_from_slice("xyz".as_bytes());
+        let input = String::from_utf8(input_bytes.clone()).unwrap();
+        let out = Validator::aleo_announcement_location(input.clone())?;
+        let out_bytes = out.into_bytes();
+
+        // Leading content preserved
+        assert_eq!(&out_bytes[..input_bytes.len()], &input_bytes[..]);
+        // Padded with zeros to 480
+        assert_eq!(out_bytes.len(), 480);
+        assert!(out_bytes[input_bytes.len()..].iter().all(|&b| b == 0));
+        Ok(())
+    }
+}
