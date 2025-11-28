@@ -67,14 +67,22 @@ export enum RadixHookTypes {
 
 export type Hooks = RadixHookTypes.IGP | RadixHookTypes.MERKLE_TREE;
 
+export interface RadixElement {
+  kind: string;
+  type_name: string;
+  element_kind: string;
+  hex: string;
+}
+
 export interface EntityField {
   field_name: string;
   type_name: string;
   variant_name?: string;
   value?: any;
-  elements?: any[];
+  elements?: RadixElement[];
   fields?: EntityField[];
   hex?: string;
+  kind: string;
 }
 
 export interface EntityDetails {
