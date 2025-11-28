@@ -6,6 +6,7 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import { RadixCorePopulate } from '../core/populate.js';
 import { RadixCoreQuery } from '../core/query.js';
+import { getIgpHookConfig, getMerkleTreeHookConfig } from '../hook/query.js';
 import {
   getDomainRoutingIsmConfig,
   getMultisigIsmConfig,
@@ -268,13 +269,29 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   async getInterchainGasPaymasterHook(
     req: AltVM.ReqGetInterchainGasPaymasterHook,
   ): Promise<AltVM.ResGetInterchainGasPaymasterHook> {
-    return this.query.core.getIgpHook({ hook: req.hookAddress });
+    const { address, destinationGasConfigs, owner } = await getIgpHookConfig(
+      this.gateway,
+      req.hookAddress,
+    );
+
+    return {
+      address,
+      destinationGasConfigs,
+      owner,
+    };
   }
 
   async getMerkleTreeHook(
     req: AltVM.ReqGetMerkleTreeHook,
   ): Promise<AltVM.ResGetMerkleTreeHook> {
-    return this.query.core.getMerkleTreeHook({ hook: req.hookAddress });
+    const { address } = await getMerkleTreeHookConfig(
+      this.gateway,
+      req.hookAddress,
+    );
+
+    return {
+      address,
+    };
   }
 
   async getNoopHook(_req: AltVM.ReqGetNoopHook): Promise<AltVM.ResGetNoopHook> {
