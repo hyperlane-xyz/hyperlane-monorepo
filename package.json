@@ -21,8 +21,7 @@
     "turbo": "^2.5.3"
   },
   "dependencies": {
-    "@changesets/cli": "^2.26.2",
-    "@puzzlehq/sdk": "^1.0.4"
+    "@changesets/cli": "^2.26.2"
   },
   "packageManager": "yarn@4.5.1",
   "private": true,

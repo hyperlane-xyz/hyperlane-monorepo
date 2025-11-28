@@ -1,11 +1,6 @@
-import {
-  EventType,
-  Network,
-  disconnect,
-  requestCreateEvent,
-  useAccount,
-  useConnect,
-} from '@puzzlehq/sdk';
+import { Network } from '@provablehq/aleo-types';
+import { GalileoWalletAdapter } from '@provablehq/aleo-wallet-adaptor-prove-alpha';
+import { WalletDecryptPermission } from '@provablehq/aleo-wallet-standard';
 import { useCallback, useMemo } from 'react';
 
 import { AleoTransaction } from '@hyperlane-xyz/aleo-sdk';
@@ -28,27 +23,27 @@ import {
   WatchAssetFns,
 } from './types.js';
 
+const adapter = new GalileoWalletAdapter();
+
 export function useAleoAccount(
   _multiProvider: MultiProtocolProvider,
 ): AccountInfo {
-  const { account } = useAccount();
-
   return {
     protocol: ProtocolType.Aleo,
     addresses: [
       {
-        address: account?.address ?? '',
+        address: adapter.account?.address ?? '',
         chainName: 'Aleo',
       },
     ],
     publicKey: undefined, // we don't need the public key for aleo
-    isReady: !!account,
+    isReady: !!adapter.account,
   };
 }
 
 export function useAleoWalletDetails() {
-  const name = 'Puzzle Wallet';
-  const logoUrl = 'https://avatars.githubusercontent.com/u/102617715?s=200';
+  const name = adapter.name;
+  const logoUrl = adapter.icon;
 
   return useMemo<WalletDetails>(
     () => ({
@@ -60,38 +55,21 @@ export function useAleoWalletDetails() {
 }
 
 export function useAleoConnectFn(): () => void {
-  const { connect } = useConnect({
-    dAppInfo: {
-      name: 'Hyperlane Warp UI Template',
-      description: 'A DApp for Hyperlane Warp Route transfers',
-    },
-    permissions: {
-      programIds: {
-        [Network.AleoMainnet]: [
-          'credits.aleo',
-          'token_registry.aleo',
-          'test_mailbox.aleo',
-          'test_ism_manager.aleo',
-          'test_hook_manager.aleo',
-          'test_hyp_native.aleo',
-        ],
-        [Network.AleoTestnet]: [
-          'credits.aleo',
-          'token_registry.aleo',
-          'test_mailbox.aleo',
-          'test_ism_manager.aleo',
-          'test_hook_manager.aleo',
-          'test_hyp_native.aleo',
-        ],
-      },
-    },
-  });
-
-  return connect;
+  return () => {
+    adapter.connect(Network.TESTNET3, WalletDecryptPermission.AutoDecrypt, [
+      'credits.aleo',
+      'test_ism_manager.aleo',
+      'test_mailbox.aleo',
+      'test_hook_manager.aleo',
+      'test_dispatch_proxy.aleo',
+      'token_registry.aleo',
+      'test_hyp_native.aleo',
+    ]);
+  };
 }
 
 export function useAleoDisconnectFn(): () => Promise<void> {
-  return disconnect;
+  return adapter.disconnect;
 }
 
 export function useAleoActiveChain(
@@ -140,7 +118,7 @@ export function useAleoTransactionFns(
   const onSendTx = useCallback(
     async ({
       tx,
-      chainName: _,
+      chainName,
       activeChainName: __,
     }: {
       tx: WarpTypedTransaction;
@@ -149,21 +127,26 @@ export function useAleoTransactionFns(
     }) => {
       const transaction = tx.transaction as AleoTransaction;
 
-      const transactionResult = await requestCreateEvent({
-        type: EventType.Execute,
-        programId: transaction.programName,
-        functionId: transaction.functionName,
-        fee: transaction.priorityFee,
-        inputs: transaction.inputs,
+      const provider = multiProvider.getAleoProvider(chainName);
+      const { fee } = await provider.estimateTransactionFee({
+        transaction,
       });
 
-      if (transactionResult.error) {
-        throw transactionResult.error;
+      const transactionResult = await adapter.executeTransaction({
+        program: transaction.programName,
+        function: transaction.functionName,
+        fee: Number(fee),
+        inputs: transaction.inputs,
+        privateFee: transaction.privateFee,
+      });
+
+      if (!transactionResult) {
+        throw new Error(`Failed to execute Aleo transaction`);
       }
 
       const confirm = async (): Promise<TypedTransactionReceipt> => {
         assert(
-          transactionResult.eventId,
+          transactionResult.transactionId,
           `Aleo tx failed: ${transactionResult}`,
         );
 
@@ -176,11 +159,11 @@ export function useAleoTransactionFns(
             index: 0n,
             transaction: {} as any,
             finalize: [],
-            transactionHash: transactionResult.eventId || '',
+            transactionHash: transactionResult.transactionId || '',
           },
         };
       };
-      return { hash: transactionResult.eventId || '', confirm };
+      return { hash: transactionResult.transactionId || '', confirm };
     },
     [switchNetwork],
   );
