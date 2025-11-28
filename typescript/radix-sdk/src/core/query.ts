@@ -8,7 +8,7 @@ import { utils } from 'ethers';
 import { assert, strip0x } from '@hyperlane-xyz/utils';
 
 import { RadixBase } from '../utils/base.js';
-import { EntityDetails, Hooks, Receipt } from '../utils/types.js';
+import { EntityDetails, Receipt } from '../utils/types.js';
 
 export class RadixCoreQuery {
   protected networkId: number;
@@ -118,12 +118,5 @@ export class RadixCoreQuery {
     assert(output.length, `found no output for delivered method`);
 
     return (output[0].programmatic_json as { value: boolean }).value;
-  }
-
-  public async getHookType({ hook }: { hook: string }): Promise<Hooks> {
-    const details =
-      await this.gateway.state.getEntityDetailsVaultAggregated(hook);
-
-    return (details.details as EntityDetails).blueprint_name as Hooks;
   }
 }

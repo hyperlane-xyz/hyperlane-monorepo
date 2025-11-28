@@ -5,6 +5,40 @@ import { assert } from '@hyperlane-xyz/utils';
 import { getKeysFromKeyValueStore } from '../utils/query.js';
 import { EntityDetails, EntityField, RadixHookTypes } from '../utils/types.js';
 
+function assertIsHookType(
+  maybeHookType: string,
+): maybeHookType is RadixHookTypes {
+  switch (maybeHookType) {
+    case RadixHookTypes.IGP:
+    case RadixHookTypes.MERKLE_TREE:
+      return true;
+  }
+
+  return false;
+}
+
+export async function getHookType(
+  gateway: Readonly<GatewayApiClient>,
+  hookAddress: string,
+): Promise<RadixHookTypes> {
+  const details =
+    await gateway.state.getEntityDetailsVaultAggregated(hookAddress);
+  const hookDetails = details.details;
+
+  assert(
+    hookDetails?.type === 'Component',
+    `Expected the provided address "${hookAddress}" to be a radix component`,
+  );
+
+  const maybeHookType = hookDetails.blueprint_name;
+  assert(
+    assertIsHookType(maybeHookType),
+    `Expected the provided address to be a Hook but got ${maybeHookType}`,
+  );
+
+  return maybeHookType;
+}
+
 export async function getIgpHookConfig(
   gateway: Readonly<GatewayApiClient>,
   hookAddress: string,

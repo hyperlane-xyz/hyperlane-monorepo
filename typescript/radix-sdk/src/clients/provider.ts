@@ -6,7 +6,11 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import { RadixCorePopulate } from '../core/populate.js';
 import { RadixCoreQuery } from '../core/query.js';
-import { getIgpHookConfig, getMerkleTreeHookConfig } from '../hook/query.js';
+import {
+  getHookType,
+  getIgpHookConfig,
+  getMerkleTreeHookConfig,
+} from '../hook/query.js';
 import {
   getDomainRoutingIsmConfig,
   getIsmType,
@@ -249,9 +253,7 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   }
 
   async getHookType(req: AltVM.ReqGetHookType): Promise<AltVM.HookType> {
-    const hookType = await this.query.core.getHookType({
-      hook: req.hookAddress,
-    });
+    const hookType = await getHookType(this.gateway, req.hookAddress);
 
     switch (hookType) {
       case RadixHookTypes.IGP: {
