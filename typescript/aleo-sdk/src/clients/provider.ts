@@ -1,3 +1,4 @@
+import { Plaintext, U128 } from '@provablehq/sdk/mainnet.js';
 import { BigNumber } from 'bignumber.js';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
@@ -63,8 +64,11 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
         'token_registry.aleo',
         'authorized_balances',
         this.getBalanceKey(req.address, req.denom),
-        { balance: 0n },
       );
+
+      if (!result) {
+        return 0n;
+      }
 
       return result['balance'];
     }
@@ -82,8 +86,11 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       'token_registry.aleo',
       'registered_tokens',
       req.denom,
-      { max_supply: 0n },
     );
+
+    if (!result) {
+      0n;
+    }
 
     return result['max_supply'];
   }
@@ -145,19 +152,14 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       req.mailboxAddress,
       'deliveries',
       `{id:${messageKey}}`,
-      null,
     );
 
-    if (result === null) {
-      return false;
-    }
-
-    return Boolean(result.processor && result.block_number);
+    return !!result;
   }
 
   async getIsmType(req: AltVM.ReqGetIsmType): Promise<AltVM.IsmType> {
     const result = await this.queryMappingValue(
-      'ism_manager.aleo',
+      this.ismManager,
       'isms',
       req.ismAddress,
     );
@@ -180,7 +182,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     req: AltVM.ReqMessageIdMultisigIsm,
   ): Promise<AltVM.ResMessageIdMultisigIsm> {
     const { validators, threshold } = await this.queryMappingValue(
-      'ism_manager.aleo',
+      this.ismManager,
       'message_id_multisigs',
       req.ismAddress,
     );
@@ -201,7 +203,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   }
 
   async getRoutingIsm(req: AltVM.ReqRoutingIsm): Promise<AltVM.ResRoutingIsm> {
-    const programId = 'ism_manager.aleo';
+    const programId = this.ismManager;
 
     const routes: { domainId: number; ismAddress: string }[] = [];
 
@@ -216,10 +218,9 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       programId,
       'route_length',
       req.ismAddress,
-      0,
     );
 
-    for (let i = 0; i < routeLengthRes; i++) {
+    for (let i = 0; i < (routeLengthRes || 0); i++) {
       const routeKey = await this.aleoClient.getProgramMappingPlaintext(
         programId,
         'route_iter',
@@ -230,7 +231,6 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
         programId,
         'routes',
         routeKey.toString(),
-        null,
       );
 
       // This is necessary because `route_iter` maintains keys for all route entries,
@@ -252,7 +252,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   }
 
   async getNoopIsm(req: AltVM.ReqNoopIsm): Promise<AltVM.ResNoopIsm> {
-    await this.queryMappingValue('ism_manager.aleo', 'isms', req.ismAddress);
+    await this.queryMappingValue(this.ismManager, 'isms', req.ismAddress);
 
     return {
       address: req.ismAddress,
@@ -308,10 +308,9 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       programId,
       'destination_gas_config_length',
       hookAddress,
-      0,
     );
 
-    for (let i = 0; i < gasConfigLength; i++) {
+    for (let i = 0; i < (gasConfigLength || 0); i++) {
       const gasConfigKey = await this.aleoClient.getProgramMappingPlaintext(
         programId,
         'destination_gas_config_iter',
@@ -322,7 +321,6 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
         programId,
         'destination_gas_configs',
         gasConfigKey.toString(),
-        null,
       );
 
       // This is necessary because `destination_gas_config_iter` maintains keys for all destination domain entries,
@@ -480,8 +478,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
 
         if (!remoteRouterValue) continue;
 
-        const remoteRouter =
-          this.Plaintext.fromString(remoteRouterValue).toObject();
+        const remoteRouter = Plaintext.fromString(remoteRouterValue).toObject();
 
         if (
           remoteRouters.find(
@@ -549,7 +546,6 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       req.tokenAddress,
       'remote_routers',
       `${req.destinationDomainId}u32`,
-      null,
     );
 
     if (!remoteRouter) {
@@ -568,7 +564,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
         0,
       );
       gasLimit = new BigNumber(
-        this.U128.fromBytesLe(Uint8Array.from(metadataBytes.slice(0, 16)))
+        U128.fromBytesLe(Uint8Array.from(metadataBytes.slice(0, 16)))
           .toString()
           .replace('u128', ''),
       );
@@ -711,7 +707,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     );
 
     return {
-      programName: 'ism_manager.aleo',
+      programName: this.ismManager,
       functionName: 'init_message_id_multisig',
       priorityFee: 0,
       privateFee: false,
@@ -727,7 +723,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     _req: AltVM.ReqCreateRoutingIsm,
   ): Promise<AleoTransaction> {
     return {
-      programName: 'ism_manager.aleo',
+      programName: this.ismManager,
       functionName: 'init_domain_routing',
       priorityFee: 0,
       privateFee: false,
@@ -739,7 +735,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     req: AltVM.ReqSetRoutingIsmRoute,
   ): Promise<AleoTransaction> {
     return {
-      programName: 'ism_manager.aleo',
+      programName: this.ismManager,
       functionName: 'set_domain',
       priorityFee: 0,
       privateFee: false,
@@ -755,7 +751,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     req: AltVM.ReqRemoveRoutingIsmRoute,
   ): Promise<AleoTransaction> {
     return {
-      programName: 'ism_manager.aleo',
+      programName: this.ismManager,
       functionName: 'remove_domain',
       priorityFee: 0,
       privateFee: false,
@@ -767,7 +763,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     req: AltVM.ReqSetRoutingIsmOwner,
   ): Promise<AleoTransaction> {
     return {
-      programName: 'ism_manager.aleo',
+      programName: this.ismManager,
       functionName: 'transfer_routing_ism_ownership',
       priorityFee: 0,
       privateFee: false,
@@ -779,7 +775,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     _req: AltVM.ReqCreateNoopIsm,
   ): Promise<AleoTransaction> {
     return {
-      programName: 'ism_manager.aleo',
+      programName: this.ismManager,
       functionName: 'init_noop',
       priorityFee: 0,
       privateFee: false,
@@ -1075,7 +1071,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
         0,
       );
       gasLimit = new BigNumber(
-        this.U128.fromBytesLe(Uint8Array.from(metadataBytes.slice(0, 16)))
+        U128.fromBytesLe(Uint8Array.from(metadataBytes.slice(0, 16)))
           .toString()
           .replace('u128', ''),
       );
@@ -1140,7 +1136,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
         64,
         0,
       );
-      const gasLimit = this.U128.fromBytesLe(
+      const gasLimit = U128.fromBytesLe(
         Uint8Array.from(metadataBytes.slice(0, 16)),
       ).toString();
 
