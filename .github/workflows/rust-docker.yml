@@ -43,6 +43,13 @@ jobs:
     needs: [check-env]
     if: needs.check-env.outputs.gcloud-service-key == 'true'
     steps:
+      - name: Generate GitHub App Token
+        id: generate-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.HYPER_GONK_APP_ID }}
+          private-key: ${{ secrets.HYPER_GONK_PRIVATE_KEY }}
+
       - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -121,5 +128,5 @@ jobs:
           emoji: 🦀
           image_tags: ${{ steps.meta.outputs.tags }}
           pr_number: ${{ github.event.pull_request.number }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_token: ${{ steps.generate-token.outputs.token }}
           job_status: ${{ job.status }}
