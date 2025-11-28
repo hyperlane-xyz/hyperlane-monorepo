@@ -351,7 +351,8 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
         NON_ZERO_SENDER_ADDRESS,
       );
 
-      // It's a native token type - check if it has memo support
+      // Check if it has memo support
+      let hasMemoSupport = false;
       try {
         // Use minimal ABI to check for transferRemoteMemo without importing full factory
         const memoCheckAbi = [
@@ -368,9 +369,46 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
           0,
           '0x',
         ]);
-        return TokenType.nativeMemo;
+        hasMemoSupport = true;
       } catch {
-        return TokenType.native;
+        hasMemoSupport = false;
+      }
+
+      // Both nativeMemo and syntheticMemo have transferRemoteMemo
+      // Distinguish by checking for ERC20 totalSupply (synthetic has it, native doesn't)
+      if (hasMemoSupport) {
+        try {
+          const erc20Abi = ['function totalSupply() view returns (uint256)'];
+          const erc20Contract = new Contract(
+            warpRouteAddress,
+            erc20Abi,
+            this.provider,
+          );
+          await erc20Contract.totalSupply();
+          // Has totalSupply, so it's a synthetic token with memo support
+          // Don't return here - let it fall through to standard detection
+          // which will properly detect it as syntheticMemo
+        } catch {
+          // No totalSupply means it's a native wrapper with memo support
+          return TokenType.nativeMemo;
+        }
+      } else {
+        // Gas estimation passed but no memo support
+        // Check if it's truly a native token or synthetic
+        try {
+          const erc20Abi = ['function totalSupply() view returns (uint256)'];
+          const erc20Contract = new Contract(
+            warpRouteAddress,
+            erc20Abi,
+            this.provider,
+          );
+          await erc20Contract.totalSupply();
+          // Has totalSupply, so it's a synthetic token
+          // Don't return here - let it fall through to standard detection
+        } catch {
+          // No totalSupply means it's a native wrapper without memo support
+          return TokenType.native;
+        }
       }
     } catch {
       // Not a native token, continue with standard detection
