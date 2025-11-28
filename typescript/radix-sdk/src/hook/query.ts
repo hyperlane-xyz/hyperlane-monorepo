@@ -2,12 +2,16 @@ import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 
 import { assert } from '@hyperlane-xyz/utils';
 
-import { getKeysFromKeyValueStore } from '../utils/query.js';
-import { EntityDetails, EntityField, RadixHookTypes } from '../utils/types.js';
+import {
+  getComponentOwner,
+  getComponentState,
+  getFieldValueFromEntityState,
+  getKeysFromKeyValueStore,
+  isRadixComponent,
+} from '../utils/query.js';
+import { EntityField, RadixHookTypes } from '../utils/types.js';
 
-function assertIsHookType(
-  maybeHookType: string,
-): maybeHookType is RadixHookTypes {
+function isHookType(maybeHookType: string): maybeHookType is RadixHookTypes {
   switch (maybeHookType) {
     case RadixHookTypes.IGP:
     case RadixHookTypes.MERKLE_TREE:
@@ -26,13 +30,13 @@ export async function getHookType(
   const hookDetails = details.details;
 
   assert(
-    hookDetails?.type === 'Component',
-    `Expected the provided address "${hookAddress}" to be a radix component`,
+    isRadixComponent(hookDetails),
+    `Expected on chain details to be defined for radix hook at address ${hookAddress}`,
   );
 
   const maybeHookType = hookDetails.blueprint_name;
   assert(
-    assertIsHookType(maybeHookType),
+    isHookType(maybeHookType),
     `Expected the provided address to be a Hook but got ${maybeHookType}`,
   );
 
@@ -58,11 +62,11 @@ export async function getIgpHookConfig(
 }> {
   const details =
     await gateway.state.getEntityDetailsVaultAggregated(hookAddress);
-  const hookDetails = details.details;
 
+  const hookDetails = details.details;
   assert(
-    hookDetails?.type === 'Component',
-    `Expected the provided address "${hookAddress}" to be a radix component`,
+    isRadixComponent(hookDetails),
+    `Expected on chain details to be defined for radix hook at address ${hookAddress}`,
   );
 
   const hookType = hookDetails.blueprint_name;
@@ -71,29 +75,15 @@ export async function getIgpHookConfig(
     `Expected contract at address ${hookAddress} to be "${RadixHookTypes.IGP}" but got ${hookType}`,
   );
 
-  const ownerResource = (details.details as EntityDetails).role_assignments
-    .owner.rule.access_rule.proof_rule.requirement.resource;
+  const owner = await getComponentOwner(gateway, hookAddress, hookDetails);
 
-  const { items: holders } =
-    await gateway.extensions.getResourceHolders(ownerResource);
-
-  const resourceHolders = [
-    ...new Set(holders.map((item) => item.holder_address)),
-  ];
-
-  assert(
-    resourceHolders.length === 1,
-    `expected token holders of resource ${ownerResource} to be one, found ${resourceHolders.length} holders instead`,
-  );
-
-  const fields = (details.details as EntityDetails).state.fields;
-
-  const destinationGasConfigsKeyValueStoreAddress: string | undefined =
-    fields.find((f) => f.field_name === 'destination_gas_configs')?.value;
-  assert(
-    destinationGasConfigsKeyValueStoreAddress,
-    `found no destination gas configs on hook ${hookAddress}`,
-  );
+  const hookState = getComponentState(hookAddress, hookDetails);
+  const destinationGasConfigsKeyValueStoreAddress =
+    getFieldValueFromEntityState(
+      'destination_gas_configs',
+      hookAddress,
+      hookState,
+    );
 
   const keys = await getKeysFromKeyValueStore(
     gateway,
@@ -113,27 +103,46 @@ export async function getIgpHookConfig(
       },
     });
 
-    const remoteDomain = (key.programmatic_json as EntityField)?.value ?? '0';
+    const rawRemoteDomain = key.programmatic_json;
+    assert(
+      rawRemoteDomain.kind === 'U32',
+      `Expected domain id to be stored as a number on IGP at address ${hookAddress}`,
+    );
+    const remoteDomain = rawRemoteDomain.value;
 
-    const gasConfigFields = (entries[0].value.programmatic_json as EntityField)
-      .fields;
+    const [entry] = entries;
+    assert(
+      entry,
+      `Expected to find at least one entry for gas config with key ${remoteDomain} on IGP at address ${hookAddress}`,
+    );
 
+    const rawGasConfig = entry.value.programmatic_json;
+    assert(
+      rawGasConfig.kind === 'Tuple',
+      `Expected gasConfig to be an object on IGP at address ${hookAddress}`,
+    );
+
+    const gasConfigFields = (rawGasConfig as EntityField).fields ?? [];
     const gasOracleFields =
       gasConfigFields?.find((r) => r.field_name === 'gas_oracle')?.fields ?? [];
 
     Object.assign(destinationGasConfigs, {
       [remoteDomain]: {
         gasOracle: {
-          tokenExchangeRate:
-            gasOracleFields.find((r) => r.field_name === 'token_exchange_rate')
-              ?.value ?? '0',
-          gasPrice:
-            gasOracleFields.find((r) => r.field_name === 'gas_price')?.value ??
-            '0',
+          tokenExchangeRate: getFieldValueFromEntityState(
+            'token_exchange_rate',
+            hookAddress,
+            {
+              fields: gasOracleFields,
+            },
+          ),
+          gasPrice: getFieldValueFromEntityState('gas_price', hookAddress, {
+            fields: gasOracleFields,
+          }),
         },
-        gasOverhead:
-          gasConfigFields?.find((r) => r.field_name === 'gas_overhead')
-            ?.value ?? '0',
+        gasOverhead: getFieldValueFromEntityState('gas_overhead', hookAddress, {
+          fields: gasConfigFields,
+        }),
       },
     });
   }
@@ -141,7 +150,7 @@ export async function getIgpHookConfig(
   return {
     type: RadixHookTypes.IGP,
     address: hookAddress,
-    owner: resourceHolders[0],
+    owner,
     destinationGasConfigs,
   };
 }
@@ -158,8 +167,8 @@ export async function getMerkleTreeHookConfig(
   const hookDetails = details.details;
 
   assert(
-    hookDetails?.type === 'Component',
-    `Expected the provided address "${hookAddress}" to be a radix component`,
+    isRadixComponent(hookDetails),
+    `Expected on chain details to be defined for radix hook at address ${hookAddress}`,
   );
 
   const hookType = hookDetails.blueprint_name;
