@@ -15,7 +15,7 @@ use crate::{
     StorageLocationKey,
 };
 
-/// Aleo Ism
+/// Aleo Validator Announce
 #[derive(Debug, Clone)]
 pub struct AleoValidatorAnnounce<C: AleoClient = FallbackHttpClient> {
     provider: AleoProvider<C>,
@@ -62,7 +62,15 @@ impl<C: AleoClient> HyperlaneContract for AleoValidatorAnnounce<C> {
 
 impl<C: AleoClient> AleoValidatorAnnounce<C> {
     /// Get announcement inputs
-    /// Converts the announcement into fixed size inputs for the Aleo announce function
+    ///
+    /// Converts the announcement into fixed size inputs for the Aleo announce function.
+    ///
+    /// # Requirements
+    /// - `storage_location` must be exactly 480 bytes (C-string format with null terminator)
+    /// - `signature` must be exactly 65 bytes
+    ///
+    /// # Errors
+    /// Returns `HyperlaneAleoError` if size conversions fail    
     fn get_announcement_inputs(
         &self,
         announcement: SignedType<Announcement>,
@@ -163,7 +171,8 @@ impl<C: AleoClient> ValidatorAnnounce for AleoValidatorAnnounce<C> {
             .estimate_tx(&self.program, "announce", args)
             .await
             .ok()?;
-        Some(balance.saturating_sub(estimate.total_fee.into()))
+        let estimated_fee: U256 = estimate.total_fee.into();
+        Some(estimated_fee.saturating_sub(balance))
     }
 }
 

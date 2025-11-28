@@ -282,7 +282,7 @@ pub struct AppMetadata<N: Network = CurrentNetwork> {
 #[aleo_serialize]
 #[derive(Debug)]
 pub struct StorageLocationKey {
-    /// Storage location as string
+    /// Validator
     pub validator: [u8; 20],
     /// Index
     pub index: u8,
