@@ -9,6 +9,7 @@ import { RadixCoreQuery } from '../core/query.js';
 import { getIgpHookConfig, getMerkleTreeHookConfig } from '../hook/query.js';
 import {
   getDomainRoutingIsmConfig,
+  getIsmType,
   getMultisigIsmConfig,
   getTestIsmConfig,
 } from '../ism/query.js';
@@ -177,9 +178,7 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   }
 
   async getIsmType(req: AltVM.ReqGetIsmType): Promise<AltVM.IsmType> {
-    const ismType = await this.query.core.getIsmType({
-      ism: req.ismAddress,
-    });
+    const ismType = await getIsmType(this.gateway, req.ismAddress);
 
     switch (ismType) {
       case RadixIsmTypes.MERKLE_ROOT_MULTISIG: {

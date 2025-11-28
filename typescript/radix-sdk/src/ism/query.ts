@@ -10,6 +10,40 @@ import {
   RadixIsmTypes,
 } from '../utils/types.js';
 
+function assertIsIsmType(maybeIsmType: string): maybeIsmType is RadixIsmTypes {
+  switch (maybeIsmType) {
+    case RadixIsmTypes.MERKLE_ROOT_MULTISIG:
+    case RadixIsmTypes.MESSAGE_ID_MULTISIG:
+    case RadixIsmTypes.NOOP_ISM:
+    case RadixIsmTypes.ROUTING_ISM:
+      return true;
+  }
+
+  return false;
+}
+
+export async function getIsmType(
+  gateway: Readonly<GatewayApiClient>,
+  ismAddress: string,
+): Promise<RadixIsmTypes> {
+  const details =
+    await gateway.state.getEntityDetailsVaultAggregated(ismAddress);
+  const ismDetails = details.details;
+
+  assert(
+    ismDetails?.type === 'Component',
+    `Expected the provided address "${ismAddress}" to be a radix component`,
+  );
+
+  const maybeIsmType = ismDetails.blueprint_name;
+  assert(
+    assertIsIsmType(maybeIsmType),
+    `Expected the provided address to be an ISM but got ${maybeIsmType}`,
+  );
+
+  return maybeIsmType;
+}
+
 export async function getTestIsmConfig(
   gateway: Readonly<GatewayApiClient>,
   ismAddress: string,
