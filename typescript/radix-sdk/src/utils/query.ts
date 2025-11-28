@@ -5,7 +5,7 @@ import {
   StateEntityDetailsResponseItemDetails,
 } from '@radixdlt/babylon-gateway-api-sdk';
 
-import { assert, sleep } from '@hyperlane-xyz/utils';
+import { assert, isNullish, sleep } from '@hyperlane-xyz/utils';
 
 import { EntityDetails, RadixElement } from './types.js';
 
@@ -14,12 +14,39 @@ type RadixComponentDetails = Extract<
   { type: 'Component' }
 >;
 
-export function isRadixComponent(
-  component: StateEntityDetailsResponseItemDetails | undefined,
-): component is RadixComponentDetails {
-  return component?.type === 'Component';
+/**
+ * Fetches and validates Radix component details from the gateway.
+ *
+ * @param gateway - The Radix Gateway API client
+ * @param entityAddress - The on-chain address of the component
+ * @param componentName - Human-readable name for error messages (e.g., "mailbox", "ISM", "hook")
+ *
+ * @throws {Error} If the entity is not a Radix component
+ */
+export async function getRadixComponentDetails(
+  gateway: Readonly<GatewayApiClient>,
+  entityAddress: string,
+  componentName: string,
+): Promise<RadixComponentDetails> {
+  const details =
+    await gateway.state.getEntityDetailsVaultAggregated(entityAddress);
+  const componentDetails = details.details;
+
+  assert(
+    componentDetails?.type === 'Component',
+    `Expected on chain details to be defined for radix ${componentName} at address ${entityAddress}`,
+  );
+
+  return componentDetails;
 }
 
+/**
+ * Fetches all keys from a Radix key-value store.
+ *
+ * @param gateway - The Radix Gateway API client
+ * @param keyValueStoreAddress - The on-chain address of the key-value store
+ * @returns Array of all keys in the key-value store
+ */
 export async function getKeysFromKeyValueStore(
   gateway: Readonly<GatewayApiClient>,
   keyValueStoreAddress: string,
@@ -55,6 +82,19 @@ export async function getKeysFromKeyValueStore(
   );
 }
 
+/**
+ * Extracts the owner address of a Radix component.
+ *
+ * Radix components use role-based access control where ownership is represented
+ * by holding a specific resource. This function finds the holder of that resource.
+ *
+ * @param gateway - The Radix Gateway API client
+ * @param entityAddress - The on-chain address of the component (used for error messages)
+ * @param entityDetails - The component details containing ownership information
+ * @returns The address of the component owner
+ *
+ * @throws {Error} If ownership info is missing or if there are multiple resource holders
+ */
 export async function getComponentOwner(
   gateway: Readonly<GatewayApiClient>,
   entityAddress: string,
@@ -84,6 +124,15 @@ export async function getComponentOwner(
   return resourceHolders[0];
 }
 
+/**
+ * Extracts the state object from Radix component details.
+ *
+ * @param entityAddress - The on-chain address of the component (used for error messages)
+ * @param entityDetails - The component details containing the state
+ * @returns The component state containing
+ *
+ * @throws {Error} If the state is not defined in the component details
+ */
 export function getComponentState(
   entityAddress: string,
   entityDetails: RadixComponentDetails,
@@ -96,6 +145,26 @@ export function getComponentState(
   return entityDetails.state as EntityDetails['state'];
 }
 
+/**
+ * Extracts a field value from a Radix component's entity state.
+ *
+ * Handles both regular fields and Radix Option enums. For Option enums, it automatically
+ * extracts the value from the Some variant.
+ *
+ * @param fieldName - The name of the field to extract
+ * @param entityAddress - The on-chain address of the component (used for error messages)
+ * @param entityState - The component state containing the fields
+ * @returns The field value as a string
+ *
+ * @throws {Error} If the field is not found in the state
+ *
+ * @overload
+ * @param fieldName - The name of the field to extract
+ * @param entityAddress - The on-chain address of the component (used for error messages)
+ * @param entityState - The component state containing the fields
+ * @param formatter - Function to transform the string value into a different type
+ * @returns The formatted field value
+ */
 export function getFieldValueFromEntityState(
   fieldName: string,
   entityAddress: string,
@@ -113,22 +182,45 @@ export function getFieldValueFromEntityState<T>(
   entityState: EntityDetails['state'],
   formatter?: (value: string) => T,
 ): T | string {
-  const [value]: (string | undefined)[] = entityState.fields
+  const [value]: string[] | undefined = entityState.fields
     .filter((f) => f.field_name === fieldName)
     .map((f) =>
+      // If the current value is an Option we need to extract
+      // its value otherwise we can use the .value property
+      // directly
       f.kind === 'Enum' && f.type_name === 'Option'
         ? f.fields?.at(0)?.value
         : f.value,
     );
 
   assert(
-    value,
+    !isNullish(value),
     `Expected ${fieldName} field to be defined on radix component at ${entityAddress}`,
   );
 
   return formatter ? formatter(value) : value;
 }
 
+/**
+ * Extracts field elements (array values) from a Radix component's entity state.
+ *
+ * Used for fields that contain arrays of elements, such as validator lists or
+ * multi-value configurations.
+ *
+ * @param fieldName - The name of the field to extract
+ * @param entityAddress - The on-chain address of the component (used for error messages)
+ * @param entityState - The component state containing the fields
+ * @returns Array of RadixElement objects
+ *
+ * @throws {Error} If the field is not found in the state
+ *
+ * @overload
+ * @param fieldName - The name of the field to extract
+ * @param entityAddress - The on-chain address of the component (used for error messages)
+ * @param entityState - The component state containing the fields
+ * @param formatter - Function to transform the RadixElement array into a different type
+ * @returns The formatted element array
+ */
 export function getFieldElementsFromEntityState(
   fieldName: string,
   entityAddress: string,
@@ -149,7 +241,7 @@ export function getFieldElementsFromEntityState<T>(
   const value: EntityDetails['state']['fields'][number]['elements'] =
     entityState.fields.find((f) => f.field_name === fieldName)?.elements;
   assert(
-    value,
+    !isNullish(value),
     `Expected ${fieldName} field to be defined on radix component at ${entityAddress}`,
   );
 

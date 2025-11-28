@@ -8,7 +8,7 @@ import {
   getFieldElementsFromEntityState,
   getFieldValueFromEntityState,
   getKeysFromKeyValueStore,
-  isRadixComponent,
+  getRadixComponentDetails,
 } from '../utils/query.js';
 import {
   EntityField,
@@ -33,19 +33,12 @@ export async function getIsmType(
   gateway: Readonly<GatewayApiClient>,
   ismAddress: string,
 ): Promise<RadixIsmTypes> {
-  const details =
-    await gateway.state.getEntityDetailsVaultAggregated(ismAddress);
-
-  const ismDetails = details.details;
-  assert(
-    isRadixComponent(ismDetails),
-    `Expected the provided address "${ismAddress}" to be a radix component`,
-  );
+  const ismDetails = await getRadixComponentDetails(gateway, ismAddress, 'ISM');
 
   const ismType = ismDetails.blueprint_name;
   assert(
     isIsmType(ismType),
-    `Expected the provided address to be an ISM but got ${ismType}`,
+    `Expected component at address ${ismAddress} to be an ism but got ${ismType}`,
   );
 
   return ismType;
@@ -58,19 +51,12 @@ export async function getTestIsmConfig(
   type: RadixIsmTypes.NOOP_ISM;
   address: string;
 }> {
-  const details =
-    await gateway.state.getEntityDetailsVaultAggregated(ismAddress);
-
-  const ismDetails = details.details;
-  assert(
-    isRadixComponent(ismDetails),
-    `Expected on chain details to be defined for radix ISM at address ${ismAddress}`,
-  );
+  const ismDetails = await getRadixComponentDetails(gateway, ismAddress, 'ISM');
 
   const ismType = ismDetails.blueprint_name;
   assert(
     ismType === RadixIsmTypes.NOOP_ISM,
-    `Expected Ism at address ${ismAddress} to be of type ${RadixIsmTypes.NOOP_ISM}`,
+    `Expected ism at address ${ismAddress} to be of type ${RadixIsmTypes.NOOP_ISM}`,
   );
 
   return {
@@ -99,19 +85,12 @@ export async function getMultisigIsmConfig(
   threshold: number;
   validators: string[];
 }> {
-  const details =
-    await gateway.state.getEntityDetailsVaultAggregated(ismAddress);
-
-  const ismDetails = details.details;
-  assert(
-    isRadixComponent(ismDetails),
-    `Expected on chain details to be defined for radix ism at address ${ismAddress}`,
-  );
+  const ismDetails = await getRadixComponentDetails(gateway, ismAddress, 'ISM');
 
   const ismType = ismDetails.blueprint_name;
   assert(
     isMultisigIsmType(ismType),
-    `Expected Ism at address ${ismAddress} to be of type ${RadixIsmTypes.MESSAGE_ID_MULTISIG} or ${RadixIsmTypes.MESSAGE_ID_MULTISIG}`,
+    `Expected ism at address ${ismAddress} to be of type ${RadixIsmTypes.MESSAGE_ID_MULTISIG} or ${RadixIsmTypes.MERKLE_ROOT_MULTISIG}`,
   );
 
   const ismState = getComponentState(ismAddress, ismDetails);
@@ -128,7 +107,7 @@ export async function getMultisigIsmConfig(
       'threshold',
       ismAddress,
       ismState,
-      parseInt,
+      (v) => parseInt(v, 10),
     ),
   };
 }
@@ -145,19 +124,12 @@ export async function getDomainRoutingIsmConfig(
     ismAddress: string;
   }[];
 }> {
-  const details =
-    await gateway.state.getEntityDetailsVaultAggregated(ismAddress);
-
-  const ismDetails = details.details;
-  assert(
-    isRadixComponent(ismDetails),
-    `Expected on chain details to be defined for radix ISM at address ${ismAddress}`,
-  );
+  const ismDetails = await getRadixComponentDetails(gateway, ismAddress, 'ISM');
 
   const ismType = ismDetails.blueprint_name;
   assert(
     ismType === RadixIsmTypes.ROUTING_ISM,
-    `Expected Ism at address ${ismAddress} to be of type ${RadixIsmTypes.ROUTING_ISM}`,
+    `Expected ism at address ${ismAddress} to be of type ${RadixIsmTypes.ROUTING_ISM}`,
   );
 
   const owner = await getComponentOwner(gateway, ismAddress, ismDetails);
@@ -186,13 +158,20 @@ export async function getDomainRoutingIsmConfig(
 
     const domainId = parseInt(
       (key.programmatic_json as EntityField)?.value ?? '0',
+      10,
     );
-    const ismAddress = (entries[0].value.programmatic_json as EntityField)
+
+    const [entry] = entries;
+    assert(
+      entry,
+      `Expected to find route ISM address entry for domain ${domainId} in routing ISM at address ${ismAddress}`,
+    );
+    const domainIsmAddress = (entry.value.programmatic_json as EntityField)
       .value;
 
     routes.push({
       domainId,
-      ismAddress,
+      ismAddress: domainIsmAddress,
     });
   }
 

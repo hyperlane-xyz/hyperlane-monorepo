@@ -16,7 +16,7 @@ import {
   getMultisigIsmConfig,
   getTestIsmConfig,
 } from '../ism/query.js';
-import { getMailbox, isMessageDelivered } from '../mailbox/query.js';
+import { getMailboxConfig, isMessageDelivered } from '../mailbox/query.js';
 import { RadixBase } from '../utils/base.js';
 import {
   RadixHookTypes,
@@ -169,7 +169,7 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   // ### QUERY CORE ###
 
   async getMailbox(req: AltVM.ReqGetMailbox): Promise<AltVM.ResGetMailbox> {
-    return getMailbox(this.gateway, req.mailboxAddress);
+    return getMailboxConfig(this.gateway, req.mailboxAddress);
   }
 
   async isMessageDelivered(req: AltVM.ReqIsMessageDelivered): Promise<boolean> {

@@ -7,7 +7,7 @@ import {
   getComponentState,
   getFieldValueFromEntityState,
   getKeysFromKeyValueStore,
-  isRadixComponent,
+  getRadixComponentDetails,
 } from '../utils/query.js';
 import { EntityField, RadixHookTypes } from '../utils/types.js';
 
@@ -25,22 +25,19 @@ export async function getHookType(
   gateway: Readonly<GatewayApiClient>,
   hookAddress: string,
 ): Promise<RadixHookTypes> {
-  const details =
-    await gateway.state.getEntityDetailsVaultAggregated(hookAddress);
-  const hookDetails = details.details;
-
-  assert(
-    isRadixComponent(hookDetails),
-    `Expected on chain details to be defined for radix hook at address ${hookAddress}`,
+  const hookDetails = await getRadixComponentDetails(
+    gateway,
+    hookAddress,
+    'hook',
   );
 
-  const maybeHookType = hookDetails.blueprint_name;
+  const hookType = hookDetails.blueprint_name;
   assert(
-    isHookType(maybeHookType),
-    `Expected the provided address to be a Hook but got ${maybeHookType}`,
+    isHookType(hookType),
+    `Expected component at address ${hookAddress} to be a hook but got ${hookType}`,
   );
 
-  return maybeHookType;
+  return hookType;
 }
 
 export async function getIgpHookConfig(
@@ -60,19 +57,16 @@ export async function getIgpHookConfig(
     };
   };
 }> {
-  const details =
-    await gateway.state.getEntityDetailsVaultAggregated(hookAddress);
-
-  const hookDetails = details.details;
-  assert(
-    isRadixComponent(hookDetails),
-    `Expected on chain details to be defined for radix hook at address ${hookAddress}`,
+  const hookDetails = await getRadixComponentDetails(
+    gateway,
+    hookAddress,
+    'hook',
   );
 
   const hookType = hookDetails.blueprint_name;
   assert(
     hookType === RadixHookTypes.IGP,
-    `Expected contract at address ${hookAddress} to be "${RadixHookTypes.IGP}" but got ${hookType}`,
+    `Expected component at address ${hookAddress} to be "${RadixHookTypes.IGP}" but got ${hookType}`,
   );
 
   const owner = await getComponentOwner(gateway, hookAddress, hookDetails);
@@ -162,19 +156,16 @@ export async function getMerkleTreeHookConfig(
   type: RadixHookTypes.MERKLE_TREE;
   address: string;
 }> {
-  const details =
-    await gateway.state.getEntityDetailsVaultAggregated(hookAddress);
-  const hookDetails = details.details;
-
-  assert(
-    isRadixComponent(hookDetails),
-    `Expected on chain details to be defined for radix hook at address ${hookAddress}`,
+  const hookDetails = await getRadixComponentDetails(
+    gateway,
+    hookAddress,
+    'hook',
   );
 
   const hookType = hookDetails.blueprint_name;
   assert(
     hookType === RadixHookTypes.MERKLE_TREE,
-    `Expected contract at address ${hookAddress} to be "${RadixHookTypes.MERKLE_TREE}" but got ${hookType}`,
+    `Expected component at address ${hookAddress} to be "${RadixHookTypes.MERKLE_TREE}" but got ${hookType}`,
   );
 
   return {

@@ -11,11 +11,11 @@ import {
   getComponentOwner,
   getComponentState,
   getFieldValueFromEntityState,
-  isRadixComponent,
+  getRadixComponentDetails,
 } from '../utils/query.js';
 import { Receipt } from '../utils/types.js';
 
-export async function getMailbox(
+export async function getMailboxConfig(
   gateway: Readonly<GatewayApiClient>,
   mailboxAddress: string,
 ): Promise<{
@@ -27,13 +27,10 @@ export async function getMailbox(
   defaultHook: string;
   requiredHook: string;
 }> {
-  const details =
-    await gateway.state.getEntityDetailsVaultAggregated(mailboxAddress);
-
-  const mailboxDetails = details.details;
-  assert(
-    isRadixComponent(mailboxDetails),
-    `Expected on chain details to be defined for radix mailbox at address ${mailboxAddress}`,
+  const mailboxDetails = await getRadixComponentDetails(
+    gateway,
+    mailboxAddress,
+    'mailbox',
   );
 
   const mailboxState = getComponentState(mailboxAddress, mailboxDetails);
@@ -50,13 +47,13 @@ export async function getMailbox(
       'local_domain',
       mailboxAddress,
       mailboxState,
-      parseInt,
+      (v) => parseInt(v, 10),
     ),
     nonce: getFieldValueFromEntityState(
       'nonce',
       mailboxAddress,
       mailboxState,
-      parseInt,
+      (v) => parseInt(v, 10),
     ),
     defaultIsm: getFieldValueFromEntityState(
       'default_ism',
