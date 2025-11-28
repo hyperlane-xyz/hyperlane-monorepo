@@ -5,7 +5,6 @@ import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { RadixCorePopulate } from '../core/populate.js';
-import { RadixCoreQuery } from '../core/query.js';
 import {
   getHookType,
   getIgpHookConfig,
@@ -17,6 +16,7 @@ import {
   getMultisigIsmConfig,
   getTestIsmConfig,
 } from '../ism/query.js';
+import { getMailbox, isMessageDelivered } from '../mailbox/query.js';
 import { RadixBase } from '../utils/base.js';
 import {
   RadixHookTypes,
@@ -55,7 +55,6 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
 
   protected base: RadixBase;
   protected query: {
-    core: RadixCoreQuery;
     warp: RadixWarpQuery;
   };
   protected populate: {
@@ -112,7 +111,6 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
     );
 
     this.query = {
-      core: new RadixCoreQuery(this.networkId, this.gateway, this.base),
       warp: new RadixWarpQuery(this.networkId, this.gateway, this.base),
     };
 
@@ -171,14 +169,11 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   // ### QUERY CORE ###
 
   async getMailbox(req: AltVM.ReqGetMailbox): Promise<AltVM.ResGetMailbox> {
-    return this.query.core.getMailbox({ mailbox: req.mailboxAddress });
+    return getMailbox(this.gateway, req.mailboxAddress);
   }
 
   async isMessageDelivered(req: AltVM.ReqIsMessageDelivered): Promise<boolean> {
-    return this.query.core.isMessageDelivered({
-      mailbox: req.mailboxAddress,
-      message_id: req.messageId,
-    });
+    return isMessageDelivered(this.gateway, req.mailboxAddress, req.messageId);
   }
 
   async getIsmType(req: AltVM.ReqGetIsmType): Promise<AltVM.IsmType> {
