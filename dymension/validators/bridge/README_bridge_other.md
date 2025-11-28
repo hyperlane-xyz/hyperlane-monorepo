@@ -200,3 +200,28 @@ export AWS_SESSION_TOKEN=$(echo "$creds" | jq -r '.Token')
 cd ~/dym
 docker compose up -d
 ```
+
+4. Currently, hyperlane validator does not support automatic credential refresh. You need to manually refresh the credentials by running the following command:
+
+4.1. save the `./scripts/refresh-aws-for-vals.sh` script on the validator vm at `/usr/local/bin/refresh_aws_for_vals.sh`
+4.2. make it runnable
+
+```bash
+chmod +x /usr/local/bin/refresh_aws_for_vals.sh
+touch /var/log/refresh_aws_dym.log 
+```
+
+3. create a cron job
+
+```bash
+crontab -e 
+```
+
+3.1 add this line:
+
+```bash
+SHELL=/bin/bash
+HOME=/home/ubuntu
+
+0 * * * * /usr/local/bin/refresh_aws_and_restart_dym.sh >> /var/log/refresh_aws_dym.log 2>&1
+```
