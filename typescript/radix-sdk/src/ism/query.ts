@@ -156,10 +156,12 @@ export async function getDomainRoutingIsmConfig(
       },
     });
 
-    const domainId = parseInt(
-      (key.programmatic_json as EntityField)?.value ?? '0',
-      10,
+    const rawRemoteDomain = key.programmatic_json;
+    assert(
+      rawRemoteDomain.kind === 'U32',
+      `Expected domain id to be stored as a number on ISM at address ${ismAddress}`,
     );
+    const domainId = parseInt(rawRemoteDomain.value);
 
     const [entry] = entries;
     assert(
