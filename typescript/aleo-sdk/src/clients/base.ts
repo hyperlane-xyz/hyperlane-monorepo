@@ -33,6 +33,7 @@ export class AleoBase {
 
   protected readonly aleoClient: AnyAleoNetworkClient;
   protected readonly skipProofs: boolean;
+  protected readonly consensusVersionHeights: string;
 
   constructor(rpcUrls: string[], chainId: string | number) {
     assert(
@@ -49,9 +50,11 @@ export class AleoBase {
       : new AleoMainnetNetworkClient(rpcUrls[0]);
 
     this.skipProofs = JSON.parse(process.env['ALEO_SKIP_PROOFS'] || 'false');
+    this.consensusVersionHeights =
+      process.env['ALEO_CONSENSUS_VERSION_HEIGHTS'] || '';
 
-    if (+chainId === 1) {
-      getOrInitConsensusVersionTestHeights('0,1,2,3,4,5,6,7,8,9,10,11');
+    if (this.consensusVersionHeights) {
+      getOrInitConsensusVersionTestHeights(this.consensusVersionHeights);
     }
   }
 
@@ -105,8 +108,7 @@ export class AleoBase {
     programId: string,
     mappingName: string,
     key: string,
-    fallbackValue?: any,
-  ): Promise<any> {
+  ): Promise<any | undefined> {
     try {
       const result = await this.aleoClient.getProgramMappingValue(
         programId,
@@ -115,13 +117,7 @@ export class AleoBase {
       );
 
       if (result === null) {
-        if (fallbackValue !== undefined) {
-          return fallbackValue;
-        }
-
-        throw new Error(
-          `Value for key ${key} on mapping ${mappingName} is empty`,
-        );
+        return;
       }
 
       return Plaintext.fromString(result).toObject();

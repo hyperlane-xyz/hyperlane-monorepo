@@ -1,3 +1,4 @@
+import { Plaintext, U128 } from '@provablehq/sdk/mainnet.js';
 import { BigNumber } from 'bignumber.js';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
@@ -63,8 +64,11 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
         'token_registry.aleo',
         'authorized_balances',
         this.getBalanceKey(req.address, req.denom),
-        { balance: 0n },
       );
+
+      if (!result) {
+        return 0n;
+      }
 
       return result['balance'];
     }
@@ -82,8 +86,11 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       'token_registry.aleo',
       'registered_tokens',
       req.denom,
-      { max_supply: 0n },
     );
+
+    if (!result) {
+      0n;
+    }
 
     return result['max_supply'];
   }
@@ -145,14 +152,9 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       req.mailboxAddress,
       'deliveries',
       `{id:${messageKey}}`,
-      null,
     );
 
-    if (result === null) {
-      return false;
-    }
-
-    return Boolean(result.processor && result.block_number);
+    return !!result;
   }
 
   async getIsmType(req: AltVM.ReqGetIsmType): Promise<AltVM.IsmType> {
@@ -216,10 +218,9 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       programId,
       'route_length',
       req.ismAddress,
-      0,
     );
 
-    for (let i = 0; i < routeLengthRes; i++) {
+    for (let i = 0; i < (routeLengthRes || 0); i++) {
       const routeKey = await this.aleoClient.getProgramMappingPlaintext(
         programId,
         'route_iter',
@@ -230,7 +231,6 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
         programId,
         'routes',
         routeKey.toString(),
-        null,
       );
 
       // This is necessary because `route_iter` maintains keys for all route entries,
@@ -308,10 +308,9 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       programId,
       'destination_gas_config_length',
       hookAddress,
-      0,
     );
 
-    for (let i = 0; i < gasConfigLength; i++) {
+    for (let i = 0; i < (gasConfigLength || 0); i++) {
       const gasConfigKey = await this.aleoClient.getProgramMappingPlaintext(
         programId,
         'destination_gas_config_iter',
@@ -322,7 +321,6 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
         programId,
         'destination_gas_configs',
         gasConfigKey.toString(),
-        null,
       );
 
       // This is necessary because `destination_gas_config_iter` maintains keys for all destination domain entries,
@@ -480,8 +478,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
 
         if (!remoteRouterValue) continue;
 
-        const remoteRouter =
-          this.Plaintext.fromString(remoteRouterValue).toObject();
+        const remoteRouter = Plaintext.fromString(remoteRouterValue).toObject();
 
         if (
           remoteRouters.find(
@@ -549,7 +546,6 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       req.tokenAddress,
       'remote_routers',
       `${req.destinationDomainId}u32`,
-      null,
     );
 
     if (!remoteRouter) {
@@ -568,7 +564,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
         0,
       );
       gasLimit = new BigNumber(
-        this.U128.fromBytesLe(Uint8Array.from(metadataBytes.slice(0, 16)))
+        U128.fromBytesLe(Uint8Array.from(metadataBytes.slice(0, 16)))
           .toString()
           .replace('u128', ''),
       );
@@ -1075,7 +1071,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
         0,
       );
       gasLimit = new BigNumber(
-        this.U128.fromBytesLe(Uint8Array.from(metadataBytes.slice(0, 16)))
+        U128.fromBytesLe(Uint8Array.from(metadataBytes.slice(0, 16)))
           .toString()
           .replace('u128', ''),
       );
@@ -1140,7 +1136,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
         64,
         0,
       );
-      const gasLimit = this.U128.fromBytesLe(
+      const gasLimit = U128.fromBytesLe(
         Uint8Array.from(metadataBytes.slice(0, 16)),
       ).toString();
 

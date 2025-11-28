@@ -23,6 +23,7 @@ echo "Running E2E tests"
 export ALEO_SKIP_PROOFS=true
 export ALEO_USE_ORIGINAL_PROGRAM_IDS=false
 export ALEO_UPGRADE_AUTHORITY=""
+export ALEO_CONSENSUS_VERSION_HEIGHTS="0,1,2,3,4,5,6,7,8,9,10,11"
 
 yarn mocha --config .mocharc-e2e.json
 
