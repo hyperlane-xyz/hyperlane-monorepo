@@ -160,7 +160,7 @@ impl<C: AleoClient> ValidatorAnnounce for AleoValidatorAnnounce<C> {
         let args = self.get_announcement_inputs(announcement).ok()?;
         let estimate = self
             .provider
-            .estimate_tx(&self.program, "announcer", args)
+            .estimate_tx(&self.program, "announce", args)
             .await
             .ok()?;
         Some(balance.saturating_sub(estimate.total_fee.into()))
