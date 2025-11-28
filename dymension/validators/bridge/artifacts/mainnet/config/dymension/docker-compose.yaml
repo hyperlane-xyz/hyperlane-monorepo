@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   validator-dymension:
-    image: gcr.io/abacus-labs-dev/hyperlane-agent:agents-v1.4.0
+    image: gcr.io/abacus-labs-dev/hyperlane-agent:agents-v1.7.0
     container_name: hyperlane-dym-validator
     restart: unless-stopped
     command: >

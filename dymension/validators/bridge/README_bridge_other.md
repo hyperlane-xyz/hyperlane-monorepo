@@ -136,6 +136,12 @@ AWS_KMS_KEY_ID=$(cat ~/dym/dymension-kms-key-arn) cast wallet address --aws
 Create and retrieve the `hyperlane_announcement_priv_key`
 
 ```bash
+# install `dymd` binary
+git clone https://github.com/dymensionxyz/dymension.git --branch v4.0.1 --depth 1
+cd dymension && make install && cd .. && rm -rf dymension
+dymd version
+
+
 dymd keys add hyperlane-announcement --key-type secp256k1 --keyring-backend test
 dymd keys export hyperlane-announcement --unarmored-hex --unsafe --keyring-backend test
 
@@ -149,8 +155,8 @@ Fund the announcement key with a small amount of DYM, enough to pay gas for one 
 Work from inside the unzipped directory:
 
 ```bash
-cd
-cd validator
+git clone https://github.com/dymensionxyz/hyperlane-monorepo.git --branch main-dym
+cd hyperlane-monorepo/dymension/validators/bridge
 ```
 
 Use `artifacts/<network>/config/dymension/validator-config.yaml` to configure the validator, once updated, copy the file to the remote host
