@@ -1,24 +1,21 @@
 import {
   AleoKeyProvider as AleoMainnetKeyProvider,
   AleoNetworkClient as AleoMainnetNetworkClient,
+  BHP256,
   Account as MainnetAccount,
-  BHP256 as MainnetBHP256,
   NetworkRecordProvider as MainnetNetworkRecordProvider,
-  Plaintext as MainnetPlaintext,
   Program as MainnetProgram,
   ProgramManager as MainnetProgramManager,
-  U128 as MainnetU128,
+  Plaintext,
+  U128,
 } from '@provablehq/sdk/mainnet.js';
 import {
   AleoKeyProvider as AleoTestnetKeyProvider,
   AleoNetworkClient as AleoTestnetNetworkClient,
   Account as TestnetAccount,
-  BHP256 as TestnetBHP256,
   NetworkRecordProvider as TestnetNetworkRecordProvider,
-  Plaintext as TestnetPlaintext,
   Program as TestnetProgram,
   ProgramManager as TestnetProgramManager,
-  U128 as TestnetU128,
   getOrInitConsensusVersionTestHeights,
 } from '@provablehq/sdk/testnet.js';
 
@@ -56,14 +53,6 @@ export class AleoBase {
     if (+chainId === 1) {
       getOrInitConsensusVersionTestHeights('0,1,2,3,4,5,6,7,8,9,10,11');
     }
-  }
-
-  protected get Plaintext() {
-    return this.chainId ? TestnetPlaintext : MainnetPlaintext;
-  }
-
-  protected get U128() {
-    return this.chainId ? TestnetU128 : MainnetU128;
   }
 
   protected getProgramManager(privateKey?: string): AnyProgramManager {
@@ -135,7 +124,7 @@ export class AleoBase {
         );
       }
 
-      return this.Plaintext.fromString(result).toObject();
+      return Plaintext.fromString(result).toObject();
     } catch (err) {
       throw new Error(
         `Failed to query mapping value for program ${programId}/${mappingName}/${key}: ${err}`,
@@ -164,12 +153,10 @@ export class AleoBase {
     const bytes = new Uint8Array(16);
     bytes.set(encoded.subarray(0, 16));
 
-    const U128 = this.chainId ? TestnetU128 : MainnetU128;
     return U128.fromBytesLe(bytes).toString();
   }
 
   protected U128StringToString(input: string): string {
-    const U128 = this.chainId ? TestnetU128 : MainnetU128;
     return new TextDecoder().decode(
       U128.fromString(input)
         .toBytesLe()
@@ -184,16 +171,13 @@ export class AleoBase {
     const lowBytes = Uint8Array.from(bytes.subarray(0, 16));
     const highBytes = Uint8Array.from(bytes.subarray(16, 32));
 
-    const U128 = this.chainId ? TestnetU128 : MainnetU128;
     return `[${U128.fromBytesLe(lowBytes).toString()},${U128.fromBytesLe(highBytes).toString()}]`;
   }
 
   protected getBalanceKey(address: string, denom: string): string {
-    const BHP256 = this.chainId ? TestnetBHP256 : MainnetBHP256;
-
     return new BHP256()
       .hash(
-        this.Plaintext.fromString(
+        Plaintext.fromString(
           `{account:${address},token_id:${denom}}`,
         ).toBitsLe(),
       )
