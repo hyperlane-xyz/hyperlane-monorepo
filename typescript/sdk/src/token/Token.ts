@@ -410,7 +410,6 @@ export class Token implements IToken {
   ): Promise<TokenAmount> {
     const adapter = this.getAdapter(multiProvider);
     const balance = await adapter.getBalance(address);
-    console.log('balance', balance);
     return new TokenAmount(balance, this);
   }
 

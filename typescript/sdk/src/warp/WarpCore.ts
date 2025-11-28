@@ -456,7 +456,6 @@ export class WarpCore {
       const interchainFeeAdapter = interchainFee.token.getAdapter(
         this.multiProvider,
       );
-      console.log('isapprove');
       const isRequired = await interchainFeeAdapter.isApproveRequired(
         sender,
         token.addressOrDenom,
@@ -474,7 +473,6 @@ export class WarpCore {
         this.logger.info(
           `${txCategory} required for transfer of ${interchainFee.token.symbol}`,
         );
-        console.log('populateApproveTx2');
         const approveTxReq = await interchainFeeAdapter.populateApproveTx({
           weiAmountOrId: interchainFee.amount,
           recipient: token.addressOrDenom,
