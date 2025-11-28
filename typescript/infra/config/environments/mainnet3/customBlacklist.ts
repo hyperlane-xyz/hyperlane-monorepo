@@ -185,4 +185,9 @@ export const blacklistedMessageIds = [
   '0x877abbed278c80fc9a343a0614ab253237d065846bc18a94863b0b9232ddcdde',
   '0xb583224a1cf26a7538d1c9ab411d7943462854a90e7d4d04503f77ff7666957e',
   '0x15a8a6a62dd4e2e7e4375726ffdb267f4c33a429f6cc94de40b32c9fe34b42ff',
+
+  // USDC/radix
+  // 11/26/2025 (or 2025-11-26)
+  // warp messages with the USDC contract as a warp recipient.
+  '0xdae65a8dd678bf8ea03faed7d53b99e52f5bdbae7c95834eff009cc37a18103c',
 ];
