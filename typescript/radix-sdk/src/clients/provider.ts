@@ -6,6 +6,11 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import { RadixCorePopulate } from '../core/populate.js';
 import { RadixCoreQuery } from '../core/query.js';
+import {
+  getDomainRoutingIsmConfig,
+  getMultisigIsmConfig,
+  getTestIsmConfig,
+} from '../ism/query.js';
 import { RadixBase } from '../utils/base.js';
 import {
   RadixHookTypes,
@@ -196,8 +201,7 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   async getMessageIdMultisigIsm(
     req: AltVM.ReqMessageIdMultisigIsm,
   ): Promise<AltVM.ResMessageIdMultisigIsm> {
-    const ism = await this.query.core.getMultisigIsm({ ism: req.ismAddress });
-
+    const ism = await getMultisigIsmConfig(this.gateway, req.ismAddress);
     assert(
       ism.type === RadixIsmTypes.MESSAGE_ID_MULTISIG,
       `ism with address ${req.ismAddress} is no ${RadixIsmTypes.MESSAGE_ID_MULTISIG}`,
@@ -213,8 +217,7 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   async getMerkleRootMultisigIsm(
     req: AltVM.ReqMerkleRootMultisigIsm,
   ): Promise<AltVM.ResMerkleRootMultisigIsm> {
-    const ism = await this.query.core.getMultisigIsm({ ism: req.ismAddress });
-
+    const ism = await getMultisigIsmConfig(this.gateway, req.ismAddress);
     assert(
       ism.type === RadixIsmTypes.MERKLE_ROOT_MULTISIG,
       `ism with address ${req.ismAddress} is no ${RadixIsmTypes.MERKLE_ROOT_MULTISIG}`,
@@ -228,21 +231,20 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   }
 
   async getRoutingIsm(req: AltVM.ReqRoutingIsm): Promise<AltVM.ResRoutingIsm> {
-    return this.query.core.getRoutingIsm({
-      ism: req.ismAddress,
-    });
+    const ism = await getDomainRoutingIsmConfig(this.gateway, req.ismAddress);
+
+    return {
+      address: ism.address,
+      owner: ism.owner,
+      routes: ism.routes,
+    };
   }
 
   async getNoopIsm(req: AltVM.ReqNoopIsm): Promise<AltVM.ResNoopIsm> {
-    const ism = await this.query.core.getMultisigIsm({ ism: req.ismAddress });
-
-    assert(
-      ism.type === RadixIsmTypes.NOOP_ISM,
-      `ism with address ${req.ismAddress} is no ${RadixIsmTypes.NOOP_ISM}`,
-    );
+    const ism = await getTestIsmConfig(this.gateway, req.ismAddress);
 
     return {
-      address: req.ismAddress,
+      address: ism.address,
     };
   }
 
