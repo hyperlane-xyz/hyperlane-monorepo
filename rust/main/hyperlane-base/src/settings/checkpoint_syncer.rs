@@ -249,7 +249,7 @@ mod test {
             Err(CheckpointSyncerBuildError::ReorgFlag(e)) => {
                 assert_eq!(
                     e, dummy_reorg_response,
-                    "Reported reorg event doesn't match"
+                    "Reported reorg response doesn't match"
                 );
             }
             _ => panic!("Expected a reorg event error"),
