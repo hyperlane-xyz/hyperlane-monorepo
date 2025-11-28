@@ -7,7 +7,13 @@ import { utils } from 'ethers';
 
 import { assert, strip0x } from '@hyperlane-xyz/utils';
 
-import { EntityDetails, Receipt } from '../utils/types.js';
+import {
+  getComponentOwner,
+  getComponentState,
+  getFieldValueFromEntityState,
+  isRadixComponent,
+} from '../utils/query.js';
+import { Receipt } from '../utils/types.js';
 
 export async function getMailbox(
   gateway: Readonly<GatewayApiClient>,
@@ -23,76 +29,50 @@ export async function getMailbox(
 }> {
   const details =
     await gateway.state.getEntityDetailsVaultAggregated(mailboxAddress);
+
   const mailboxDetails = details.details;
   assert(
-    mailboxDetails?.type === 'Component',
-    `Expected the provided address "${mailboxAddress}" to be a radix component`,
+    isRadixComponent(mailboxDetails),
+    `Expected on chain details to be defined for radix mailbox at address ${mailboxAddress}`,
   );
 
-  const fields = (mailboxDetails.state as EntityDetails['state']).fields;
-
-  const ownerResource = (details.details as EntityDetails).role_assignments
-    .owner.rule.access_rule.proof_rule.requirement.resource;
-
-  const { items } = await gateway.extensions.getResourceHolders(ownerResource);
-
-  const resourceHolders = [
-    ...new Set(items.map((item) => item.holder_address)),
-  ];
-
-  assert(
-    resourceHolders.length === 1,
-    `expected token holders of resource ${ownerResource} to be one, found ${resourceHolders.length} holders instead`,
-  );
-
-  const localDomain: string | undefined = fields.find(
-    (f) => f.field_name === 'local_domain',
-  )?.value;
-  assert(
-    localDomain,
-    `Expected local_domain field to be defined on radix component at ${mailboxAddress}`,
-  );
-
-  const nonce: string | undefined = fields.find(
-    (f) => f.field_name === 'nonce',
-  )?.value;
-  assert(
-    nonce,
-    `Expected nonce field to be defined on radix component at ${mailboxAddress}`,
-  );
-
-  const defaultIsmAddress: string | undefined = fields
-    .find((f) => f.field_name === 'default_ism')
-    ?.fields?.at(0)?.value;
-  assert(
-    defaultIsmAddress,
-    `Expected default_ism field to be defined on radix component at ${mailboxAddress}`,
-  );
-
-  const defaultHookAddress: string | undefined = fields
-    .find((f) => f.field_name === 'default_hook')
-    ?.fields?.at(0)?.value;
-  assert(
-    defaultHookAddress,
-    `Expected default_hook field to be defined on radix component at ${mailboxAddress}`,
-  );
-
-  const requiredHookAddress: string | undefined = fields
-    .find((f) => f.field_name === 'required_hook')
-    ?.fields?.at(0)?.value;
-  assert(
-    requiredHookAddress,
-    `Expected required_hook field to be defined on radix component at ${mailboxAddress}`,
+  const mailboxState = getComponentState(mailboxAddress, mailboxDetails);
+  const owner = await getComponentOwner(
+    gateway,
+    mailboxAddress,
+    mailboxDetails,
   );
 
   return {
     address: mailboxAddress,
-    owner: resourceHolders[0],
-    localDomain: parseInt(localDomain),
-    nonce: parseInt(nonce),
-    defaultIsm: defaultIsmAddress,
-    defaultHook: defaultHookAddress,
-    requiredHook: requiredHookAddress,
+    owner,
+    localDomain: getFieldValueFromEntityState(
+      'local_domain',
+      mailboxAddress,
+      mailboxState,
+      parseInt,
+    ),
+    nonce: getFieldValueFromEntityState(
+      'nonce',
+      mailboxAddress,
+      mailboxState,
+      parseInt,
+    ),
+    defaultIsm: getFieldValueFromEntityState(
+      'default_ism',
+      mailboxAddress,
+      mailboxState,
+    ),
+    defaultHook: getFieldValueFromEntityState(
+      'default_hook',
+      mailboxAddress,
+      mailboxState,
+    ),
+    requiredHook: getFieldValueFromEntityState(
+      'required_hook',
+      mailboxAddress,
+      mailboxState,
+    ),
   };
 }
 
