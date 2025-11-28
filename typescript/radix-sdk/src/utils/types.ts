@@ -52,8 +52,7 @@ export enum RadixIsmTypes {
 
 export type MultisigIsms =
   | RadixIsmTypes.MERKLE_ROOT_MULTISIG
-  | RadixIsmTypes.MESSAGE_ID_MULTISIG
-  | RadixIsmTypes.NOOP_ISM;
+  | RadixIsmTypes.MESSAGE_ID_MULTISIG;
 
 export type Isms =
   | RadixIsmTypes.MERKLE_ROOT_MULTISIG
