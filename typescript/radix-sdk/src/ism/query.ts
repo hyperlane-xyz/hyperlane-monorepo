@@ -1,16 +1,23 @@
 import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 
-import { assert, ensure0x, isNullish } from '@hyperlane-xyz/utils';
+import { assert, ensure0x } from '@hyperlane-xyz/utils';
 
-import { getKeysFromKeyValueStore } from '../utils/query.js';
 import {
-  EntityDetails,
+  getComponentOwner,
+  getComponentState,
+  getFieldElementsFromEntityState,
+  getFieldValueFromEntityState,
+  getKeysFromKeyValueStore,
+  isRadixComponent,
+} from '../utils/query.js';
+import {
   EntityField,
   MultisigIsms,
+  RadixElement,
   RadixIsmTypes,
 } from '../utils/types.js';
 
-function assertIsIsmType(maybeIsmType: string): maybeIsmType is RadixIsmTypes {
+function isIsmType(maybeIsmType: string): maybeIsmType is RadixIsmTypes {
   switch (maybeIsmType) {
     case RadixIsmTypes.MERKLE_ROOT_MULTISIG:
     case RadixIsmTypes.MESSAGE_ID_MULTISIG:
@@ -28,20 +35,20 @@ export async function getIsmType(
 ): Promise<RadixIsmTypes> {
   const details =
     await gateway.state.getEntityDetailsVaultAggregated(ismAddress);
-  const ismDetails = details.details;
 
+  const ismDetails = details.details;
   assert(
-    ismDetails?.type === 'Component',
+    isRadixComponent(ismDetails),
     `Expected the provided address "${ismAddress}" to be a radix component`,
   );
 
-  const maybeIsmType = ismDetails.blueprint_name;
+  const ismType = ismDetails.blueprint_name;
   assert(
-    assertIsIsmType(maybeIsmType),
-    `Expected the provided address to be an ISM but got ${maybeIsmType}`,
+    isIsmType(ismType),
+    `Expected the provided address to be an ISM but got ${ismType}`,
   );
 
-  return maybeIsmType;
+  return ismType;
 }
 
 export async function getTestIsmConfig(
@@ -53,11 +60,11 @@ export async function getTestIsmConfig(
 }> {
   const details =
     await gateway.state.getEntityDetailsVaultAggregated(ismAddress);
-  const ismDetails = details.details;
 
+  const ismDetails = details.details;
   assert(
-    ismDetails?.type === 'Component',
-    `Expected the provided address "${ismAddress}" to be a radix component`,
+    isRadixComponent(ismDetails),
+    `Expected on chain details to be defined for radix ISM at address ${ismAddress}`,
   );
 
   const ismType = ismDetails.blueprint_name;
@@ -67,12 +74,12 @@ export async function getTestIsmConfig(
   );
 
   return {
-    address: ismType,
+    address: ismAddress,
     type: RadixIsmTypes.NOOP_ISM,
   };
 }
 
-function assertIsMultisigIsmType(
+function isMultisigIsmType(
   ismType: string,
 ): ismType is
   | RadixIsmTypes.MERKLE_ROOT_MULTISIG
@@ -94,42 +101,35 @@ export async function getMultisigIsmConfig(
 }> {
   const details =
     await gateway.state.getEntityDetailsVaultAggregated(ismAddress);
-  const ismDetails = details.details;
 
+  const ismDetails = details.details;
   assert(
-    ismDetails?.type === 'Component',
-    `Expected the provided address "${ismAddress}" to be a radix component`,
+    isRadixComponent(ismDetails),
+    `Expected on chain details to be defined for radix ism at address ${ismAddress}`,
   );
-  assert(ismDetails.state, 'Expected state to be defined');
 
   const ismType = ismDetails.blueprint_name;
   assert(
-    assertIsMultisigIsmType(ismType),
+    isMultisigIsmType(ismType),
     `Expected Ism at address ${ismAddress} to be of type ${RadixIsmTypes.MESSAGE_ID_MULTISIG} or ${RadixIsmTypes.MESSAGE_ID_MULTISIG}`,
   );
 
-  const fields = (ismDetails.state as EntityDetails['state']).fields;
-  const validators: any[] | undefined = fields.find(
-    (f) => f.field_name === 'validators',
-  )?.elements;
-  assert(
-    validators,
-    `Expected the validators field to be defined on the ${ismType} at address ${ismAddress}`,
-  );
-
-  const threshold: string | undefined = fields.find(
-    (f) => f.field_name === 'threshold',
-  )?.value;
-  assert(
-    !isNullish(threshold),
-    `Expected threshold to be defined on the ${ismType} at address ${ismAddress}`,
-  );
-
+  const ismState = getComponentState(ismAddress, ismDetails);
   return {
     address: ismAddress,
     type: ismType,
-    validators: validators.map((v) => ensure0x(v.hex)),
-    threshold: parseInt(threshold),
+    validators: getFieldElementsFromEntityState(
+      'validators',
+      ismAddress,
+      ismState,
+      (validators: RadixElement[]) => validators.map((v) => ensure0x(v.hex)),
+    ),
+    threshold: getFieldValueFromEntityState(
+      'threshold',
+      ismAddress,
+      ismState,
+      parseInt,
+    ),
   };
 }
 
@@ -149,10 +149,9 @@ export async function getDomainRoutingIsmConfig(
     await gateway.state.getEntityDetailsVaultAggregated(ismAddress);
 
   const ismDetails = details.details;
-
   assert(
-    ismDetails?.type === 'Component',
-    `Expected the provided address "${ismAddress}" to be a radix component`,
+    isRadixComponent(ismDetails),
+    `Expected on chain details to be defined for radix ISM at address ${ismAddress}`,
   );
 
   const ismType = ismDetails.blueprint_name;
@@ -161,32 +160,14 @@ export async function getDomainRoutingIsmConfig(
     `Expected Ism at address ${ismAddress} to be of type ${RadixIsmTypes.ROUTING_ISM}`,
   );
 
-  const ownershipInfo = ismDetails?.role_assignments?.owner as
-    | EntityDetails['role_assignments']['owner']
-    | undefined;
-  assert(
-    ownershipInfo,
-    `Expected ownership info to be defined on the ${ismType} at address ${ismAddress}`,
+  const owner = await getComponentOwner(gateway, ismAddress, ismDetails);
+
+  const ismState = getComponentState(ismAddress, ismDetails);
+  const routesKeyValueStore = getFieldValueFromEntityState(
+    'routes',
+    ismAddress,
+    ismState,
   );
-
-  const ownerResource =
-    ownershipInfo.rule.access_rule.proof_rule.requirement.resource;
-
-  const { items: holders } =
-    await gateway.extensions.getResourceHolders(ownerResource);
-  const resourceHolders = [
-    ...new Set(holders.map((item) => item.holder_address)),
-  ];
-
-  assert(
-    resourceHolders.length === 1,
-    `expected token holders of resource ${ownerResource} to be one, found ${resourceHolders.length} holders instead`,
-  );
-
-  const fields = (details.details as EntityDetails).state.fields;
-  const routesKeyValueStore =
-    fields.find((f) => f.field_name === 'routes')?.value ?? '';
-  assert(routesKeyValueStore, `found no routes on RoutingIsm ${ismAddress}`);
 
   const keys = await getKeysFromKeyValueStore(gateway, routesKeyValueStore);
 
@@ -216,9 +197,9 @@ export async function getDomainRoutingIsmConfig(
   }
 
   return {
-    type: RadixIsmTypes.ROUTING_ISM,
     address: ismAddress,
-    owner: resourceHolders[0],
+    owner,
     routes,
+    type: RadixIsmTypes.ROUTING_ISM,
   };
 }
