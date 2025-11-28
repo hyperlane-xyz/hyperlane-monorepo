@@ -1,11 +1,11 @@
 use std::time::Instant;
 
 use async_trait::async_trait;
+use snarkvm_console_account::DeserializeOwned;
+use url::Url;
 
 use hyperlane_core::ChainResult;
 use hyperlane_metric::prometheus_metric::{PrometheusClientMetrics, PrometheusConfig};
-use snarkvm_console_account::DeserializeOwned;
-use url::Url;
 
 use crate::provider::{BaseHttpClient, HttpClient, RpcClient};
 

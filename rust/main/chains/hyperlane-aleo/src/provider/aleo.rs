@@ -7,7 +7,6 @@ use std::{
 
 use aleo_std::StorageMode;
 use async_trait::async_trait;
-use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
 use snarkvm::{
     ledger::{
@@ -20,12 +19,13 @@ use snarkvm::{
     },
 };
 use snarkvm_console_account::{Address, PrivateKey};
+use tracing::debug;
 
 use hyperlane_core::{
     BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, FixedPointNumber, HyperlaneChain,
     HyperlaneDomain, HyperlaneProvider, TxOutcome, TxnInfo, TxnReceiptInfo, H256, H512, U256,
 };
-use tracing::debug;
+use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 
 use crate::{
     provider::{fallback::FallbackHttpClient, HttpClient, ProvingClient, RpcClient},
