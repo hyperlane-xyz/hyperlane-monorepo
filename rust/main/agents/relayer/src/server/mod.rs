@@ -4,11 +4,12 @@ use std::sync::Arc;
 
 use axum::Router;
 use derive_new::new;
-use hyperlane_core::HyperlaneDomain;
 use tokio::sync::broadcast::Sender;
+use tokio::sync::RwLock;
 
 use hyperlane_base::db::HyperlaneRocksDB;
-use tokio::sync::RwLock;
+use hyperlane_core::HyperlaneDomain;
+use lander::CommandEntrypoint;
 
 use crate::merkle_tree::builder::MerkleTreeBuilder;
 use crate::msg::gas_payment::GasPaymentEnforcer;
@@ -19,6 +20,7 @@ use crate::server::environment_variable::EnvironmentVariableApi;
 pub const ENDPOINT_MESSAGES_QUEUE_SIZE: usize = 100;
 
 pub mod environment_variable;
+pub mod evm;
 pub mod igp;
 pub mod merkle_tree_insertions;
 pub mod messages;
@@ -41,6 +43,8 @@ pub struct Server {
     msg_ctxs: HashMap<(u32, u32), Arc<MessageContext>>,
     #[new(default)]
     prover_syncs: Option<HashMap<u32, Arc<RwLock<MerkleTreeBuilder>>>>,
+    #[new(default)]
+    dispatcher_command_entrypoints: Option<HashMap<u32, Arc<dyn CommandEntrypoint>>>,
 }
 
 impl Server {
@@ -83,6 +87,14 @@ impl Server {
         self
     }
 
+    pub fn with_dispatcher_command_entrypoints(
+        mut self,
+        entrypoints: HashMap<u32, Arc<dyn CommandEntrypoint>>,
+    ) -> Self {
+        self.dispatcher_command_entrypoints = Some(entrypoints);
+        self
+    }
+
     // return a custom router that can be used in combination with other routers
     pub fn router(self) -> Router {
         let mut router = Router::new();
@@ -116,6 +128,9 @@ impl Server {
         }
         if let Some(prover_syncs) = self.prover_syncs {
             router = router.merge(proofs::ServerState::new(prover_syncs).router());
+        }
+        if let Some(chains) = self.dispatcher_command_entrypoints {
+            router = router.merge(evm::nonce::ServerState::new(chains).router());
         }
 
         let expose_environment_variable_endpoint =

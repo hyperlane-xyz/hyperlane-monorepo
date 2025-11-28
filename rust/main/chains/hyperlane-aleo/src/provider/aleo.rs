@@ -368,8 +368,8 @@ impl<C: AleoClient> AleoProvider<C> {
     pub async fn submit_tx<I>(
         &self,
         program_id: &str,
-        input: I,
         function_name: &str,
+        input: I,
     ) -> ChainResult<TxOutcome>
     where
         I: IntoIterator<Item = String>,
