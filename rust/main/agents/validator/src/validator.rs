@@ -565,6 +565,9 @@ impl Validator {
                         .await;
                 }
                 None => {
+                    tracing::error!(
+                        "Failed to parse reorg event, reporting with default reorg period"
+                    );
                     reorg_reporter
                         .report_with_reorg_period(&ReorgPeriod::None)
                         .await;
