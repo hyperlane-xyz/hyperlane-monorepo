@@ -1,8 +1,10 @@
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert } from '@hyperlane-xyz/utils';
 
-import { loadProgramsInDeployOrder } from '../artifacts.js';
-import { programIdToPlaintext } from '../utils/helper.js';
+import {
+  loadProgramsInDeployOrder,
+  programIdToPlaintext,
+} from '../utils/helper.js';
 import { AleoReceipt, AleoTransaction } from '../utils/types.js';
 
 import { AnyProgramManager } from './base.js';
