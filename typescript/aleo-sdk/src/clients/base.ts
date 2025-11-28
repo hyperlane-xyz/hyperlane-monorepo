@@ -76,7 +76,7 @@ export class AleoBase {
       keyProvider.useCache(true);
 
       const networkRecordProvider = new TestnetNetworkRecordProvider(
-        new TestnetAccount({ privateKey }),
+        account,
         new AleoTestnetNetworkClient(this.rpcUrls[0]),
       );
 
@@ -98,7 +98,7 @@ export class AleoBase {
     keyProvider.useCache(true);
 
     const networkRecordProvider = new MainnetNetworkRecordProvider(
-      new MainnetAccount({ privateKey }),
+      account,
       new AleoMainnetNetworkClient(this.rpcUrls[0]),
     );
 

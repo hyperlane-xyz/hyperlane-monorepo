@@ -12,7 +12,7 @@ import { expect } from 'chai';
 import { step } from 'mocha-steps';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { addressToBytes32, ensure0x } from '@hyperlane-xyz/utils';
+import { ensure0x } from '@hyperlane-xyz/utils';
 
 import { hyp_synthetic, token_registry } from '../artifacts.js';
 import { AleoSigner } from '../clients/signer.js';
@@ -77,7 +77,9 @@ describe('4. aleo sdk warp e2e tests', async function () {
       const txId = await programManager.networkClient.submitTransaction(tx);
 
       await aleoClient.waitForTransactionConfirmation(txId);
-    } catch {}
+    } catch (e) {
+      console.log('Token registry deployment skipped:', (e as Error).message);
+    }
 
     await signer.sendAndConfirmTransaction({
       programName: 'token_registry.aleo',
@@ -284,17 +286,17 @@ describe('4. aleo sdk warp e2e tests', async function () {
       tokenAddress: nativeTokenAddress,
     });
     expect(remoteRouters.remoteRouters).to.have.lengthOf(0);
-    const gas = '200000';
 
-    console.log('nativeTokenAddress', nativeTokenAddress);
-    console.log('addressToBytes32', addressToBytes32(nativeTokenAddress));
+    const receiverAddress =
+      '0xe98b09dff7176053c651a4dc025af3e4f6a442415e9b85dd076ac0ff66b4b1ed';
+    const gas = '200000';
 
     // ACT
     await signer.enrollRemoteRouter({
       tokenAddress: nativeTokenAddress,
       remoteRouter: {
         receiverDomainId: domainId,
-        receiverAddress: addressToBytes32(nativeTokenAddress),
+        receiverAddress,
         gas,
       },
     });
@@ -308,9 +310,7 @@ describe('4. aleo sdk warp e2e tests', async function () {
     const remoteRouter = remoteRouters.remoteRouters[0];
 
     expect(remoteRouter.receiverDomainId).to.equal(domainId);
-    expect(remoteRouter.receiverAddress).to.equal(
-      addressToBytes32(nativeTokenAddress),
-    );
+    expect(remoteRouter.receiverAddress).to.equal(receiverAddress);
     expect(remoteRouter.gas).to.equal(gas);
   });
 
@@ -456,11 +456,14 @@ describe('4. aleo sdk warp e2e tests', async function () {
     });
     expect(mailbox.nonce).to.equal(0);
 
+    const recipient =
+      '0xe98b09dff7176053c651a4dc025af3e4f6a442415e9b85dd076ac0ff66b4b1ed';
+
     // ACT
     await signer.remoteTransfer({
       tokenAddress: nativeTokenAddress,
       destinationDomainId: domainId,
-      recipient: addressToBytes32(new Account().address().to_string()),
+      recipient,
       amount: '1000000',
       gasLimit: '200000',
       maxFee: {
@@ -521,11 +524,14 @@ describe('4. aleo sdk warp e2e tests', async function () {
     });
     expect(mailbox.nonce).to.equal(1);
 
+    const recipient =
+      '0xe98b09dff7176053c651a4dc025af3e4f6a442415e9b85dd076ac0ff66b4b1ed';
+
     // ACT
     await signer.remoteTransfer({
       tokenAddress: nativeTokenAddress,
       destinationDomainId: domainId,
-      recipient: addressToBytes32(new Account().address().to_string()),
+      recipient,
       amount: '1000000',
       gasLimit: '200000',
       maxFee: {
@@ -542,7 +548,7 @@ describe('4. aleo sdk warp e2e tests', async function () {
     expect(mailbox.nonce).to.equal(2);
   });
 
-  step('remote transfer with custom hook', async () => {
+  step('remote transfer with custom hook and metadata', async () => {
     // ARRANGE
     const { ismAddress } = await signer.createNoopIsm({});
     const { hookAddress } = await signer.createMerkleTreeHook({
@@ -587,11 +593,14 @@ describe('4. aleo sdk warp e2e tests', async function () {
     });
     expect(mailbox.nonce).to.equal(2);
 
+    const recipient =
+      '0xe98b09dff7176053c651a4dc025af3e4f6a442415e9b85dd076ac0ff66b4b1ed';
+
     // ACT
     await signer.remoteTransfer({
       tokenAddress: nativeTokenAddress,
       destinationDomainId: domainId,
-      recipient: addressToBytes32(new Account().address().to_string()),
+      recipient,
       amount: '1000000',
       gasLimit: '200000',
       maxFee: {
