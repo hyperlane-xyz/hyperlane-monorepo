@@ -83,7 +83,6 @@ export async function runDeployPlanStep({
     chainMetadata: chainMetadataMap,
     multiProvider,
     skipConfirmation,
-    altVmSigner,
   } = context;
 
   let address: Address;
@@ -94,7 +93,9 @@ export async function runDeployPlanStep({
       break;
     }
     default: {
-      address = altVmSigner.get(chain).getSignerAddress();
+      const signer = context.altVmSigner.get(chain);
+      assert(signer, `Cannot find signer for chain ${chain}`);
+      address = signer.getSignerAddress();
     }
   }
 
@@ -152,7 +153,7 @@ export async function getBalances(
   chains: ChainName[],
   userAddress?: Address,
 ): Promise<Record<string, BigNumber>> {
-  const { multiProvider, altVmSigner } = context;
+  const { multiProvider } = context;
   const balances: Record<string, BigNumber> = {};
 
   for (const chain of chains) {
@@ -169,7 +170,8 @@ export async function getBalances(
         `nativeToken.denom is required for ${chain} (AltVM)`,
       );
 
-      const signer = altVmSigner.get(chain);
+      const signer = context.altVmSigner.get(chain);
+      assert(signer, `Cannot find signer for chain ${chain}`);
       const address = userAddress ?? signer.getSignerAddress();
       balances[chain] = BigNumber.from(
         await signer.getBalance({

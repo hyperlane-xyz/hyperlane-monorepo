@@ -54,7 +54,7 @@ type ChainAddresses = Record<string, string>;
 export async function executeWarpDeploy(
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
   multiProvider: MultiProvider,
-  altVmSigner: AltVM.ISignerFactory<AnnotatedTx, TxReceipt>,
+  altVmSigner: Map<string, AltVM.ISigner<AnnotatedTx, TxReceipt>>,
   registryAddresses: ChainMap<ChainAddresses>,
   apiKeys: ChainMap<string>,
 ): Promise<ChainMap<Address>> {
@@ -140,9 +140,11 @@ export async function executeWarpDeploy(
         break;
       }
       default: {
-        const signersMap = objMap(protocolSpecificConfig, (chain, _) =>
-          altVmSigner.get(chain),
-        );
+        const signersMap = objMap(protocolSpecificConfig, (chain, _) => {
+          const signer = altVmSigner.get(chain);
+          assert(signer, `Cannot find signer for chain ${chain}`);
+          return signer;
+        });
 
         const deployer = new AltVMDeployer(signersMap);
         deployedContracts = {
@@ -163,7 +165,7 @@ export async function executeWarpDeploy(
 async function resolveWarpIsmAndHook(
   warpConfig: WarpRouteDeployConfigMailboxRequired,
   multiProvider: MultiProvider,
-  altVmSigner: AltVM.ISignerFactory<AnnotatedTx, TxReceipt>,
+  altVmSigner: Map<string, AltVM.ISigner<AnnotatedTx, TxReceipt>>,
   registryAddresses: ChainMap<ChainAddresses>,
   ismFactoryDeployer: HyperlaneProxyFactoryDeployer,
   contractVerifier: ContractVerifier,
@@ -220,7 +222,7 @@ async function createWarpIsm({
   chain: string;
   chainAddresses: Record<string, string>;
   multiProvider: MultiProvider;
-  altVmSigner: AltVM.ISignerFactory<AnnotatedTx, TxReceipt>;
+  altVmSigner: Map<string, AltVM.ISigner<AnnotatedTx, TxReceipt>>;
   contractVerifier?: ContractVerifier;
   warpConfig: HypTokenRouterConfig;
   ismFactoryDeployer: HyperlaneProxyFactoryDeployer;
@@ -267,7 +269,7 @@ async function createWarpIsm({
     }
     default: {
       const signer = altVmSigner.get(chain);
-
+      assert(signer, `Cannot find signer for chain ${chain}`);
       const ismModule = await AltVMIsmModule.create({
         chain,
         addresses: {
@@ -364,7 +366,7 @@ export async function enrollCrossChainRouters(
     warpDeployConfig,
   }: {
     multiProvider: MultiProvider;
-    altVmSigner: AltVM.ISignerFactory<AnnotatedTx, TxReceipt>;
+    altVmSigner: Map<string, AltVM.ISigner<AnnotatedTx, TxReceipt>>;
     registryAddresses: ChainMap<ChainAddresses>;
     warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   },
@@ -464,6 +466,7 @@ export async function enrollCrossChainRouters(
       }
       default: {
         const signer = altVmSigner.get(currentChain);
+        assert(signer, `Cannot find provider for chain ${currentChain}`);
 
         const warpModule = new AltVMWarpModule(
           altVmChainLookup(multiProvider),

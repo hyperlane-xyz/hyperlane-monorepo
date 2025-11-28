@@ -141,7 +141,7 @@ export async function runWarpRouteDeploy({
   const deploymentChains = chains.filter(
     (chain) =>
       chainMetadata[chain].protocol === ProtocolType.Ethereum ||
-      altVmSigner.supports(chainMetadata[chain].protocol),
+      altVmSigner.has(chainMetadata[chain].protocol),
   );
 
   await runPreflightChecksForChains({
@@ -394,10 +394,12 @@ export async function runWarpRouteApply(
           ...config,
           owner: await context.multiProvider.getSignerAddress(chain),
         };
-      } else if (context.altVmSigner.supports(protocolType)) {
+      } else if (context.altVmSigner.has(protocolType)) {
+        const signer = context.altVmSigner.get(chain);
+        assert(signer, `Cannot find signer for chain ${chain}`);
         return {
           ...config,
-          owner: context.altVmSigner.get(chain).getSignerAddress(),
+          owner: signer.getSignerAddress(),
         };
       } else {
         return config;
@@ -639,7 +641,7 @@ async function updateExistingWarpRoute(
         const protocolType = multiProvider.getProtocol(chain);
         if (
           protocolType !== ProtocolType.Ethereum &&
-          !altVmSigner.supports(protocolType)
+          !altVmSigner.has(protocolType)
         ) {
           logBlue(`Skipping non-compatible chain ${chain}`);
           return;
@@ -676,6 +678,7 @@ async function updateExistingWarpRoute(
           }
           default: {
             const signer = altVmSigner.get(chain);
+            assert(signer, `Cannot find signer for chain ${chain}`);
             const validatedConfig = validateWarpConfigForAltVM(
               configWithMailbox,
               chain,
@@ -1024,7 +1027,7 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
             return new EV5FileSubmitter(metadata);
           },
         },
-        ...altVmSigner.submitterFactories(chain),
+        ...altVmSigner.get(chain),
       },
     }),
     config: submissionStrategy,

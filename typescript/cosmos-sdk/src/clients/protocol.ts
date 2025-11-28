@@ -2,6 +2,7 @@ import {
   AltVM,
   ChainMetadataForAltVM,
   ITransactionSubmitter,
+  MinimumRequiredGasByAction,
   ProtocolProvider,
   SignerConfig,
   TransactionSubmitterConfig,
@@ -40,5 +41,14 @@ export class CosmosNativeProtocolProvider implements ProtocolProvider {
     _config: TConfig,
   ): Promise<ITransactionSubmitter> {
     throw Error('Not implemented');
+  }
+
+  getMinGas(): MinimumRequiredGasByAction {
+    return {
+      CORE_DEPLOY_GAS: BigInt(1e6),
+      WARP_DEPLOY_GAS: BigInt(3e6),
+      TEST_SEND_GAS: BigInt(3e5),
+      AVS_GAS: BigInt(3e6),
+    };
   }
 }

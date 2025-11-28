@@ -2,6 +2,7 @@ import {
   AltVM,
   ChainMetadataForAltVM,
   ITransactionSubmitter,
+  MinimumRequiredGasByAction,
   ProtocolProvider,
   SignerConfig,
   TransactionSubmitterConfig,
@@ -39,5 +40,14 @@ export class RadixProtocolProvider implements ProtocolProvider {
   ): Promise<ITransactionSubmitter> {
     // @TODO Implement in a follow up PR
     throw Error('Not implemented');
+  }
+
+  getMinGas(): MinimumRequiredGasByAction {
+    return {
+      CORE_DEPLOY_GAS: 0n,
+      WARP_DEPLOY_GAS: 0n,
+      TEST_SEND_GAS: 0n,
+      AVS_GAS: 0n,
+    };
   }
 }

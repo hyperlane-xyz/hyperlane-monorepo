@@ -7,6 +7,9 @@ import {
 import {
   AltVM,
   type MinimumRequiredGasByAction,
+  SignerConfig,
+  getProtocolProvider,
+  hasProtocol,
 } from '@hyperlane-xyz/provider-sdk';
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
@@ -161,34 +164,38 @@ export class AltVMSignerFactory
     keyByProtocol: SignerKeyProtocolMap,
     strategyConfig: Partial<ExtendedChainSubmissionStrategy>,
   ) {
-    const signers: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>> = {};
+    const signers: Map<
+      string,
+      AltVM.ISigner<AnnotatedTx, TxReceipt>
+    > = new Map();
 
     for (const chain of chains) {
       const metadata = metadataManager.getChainMetadata(chain);
 
-      const protocol = ALT_VM_SUPPORTED_PROTOCOLS[metadata.protocol];
-
-      if (!protocol) {
+      if (!hasProtocol(metadata.protocol)) {
         continue;
       }
 
-      const privateKey = await AltVMSignerFactory.loadPrivateKey(
+      const config = strategyConfig[chain];
+      const jsonSubmitterConfig = config?.submitter as SignerConfig; // TODO: Fix
+
+      jsonSubmitterConfig.privateKey = await AltVMSignerFactory.loadPrivateKey(
         keyByProtocol,
         strategyConfig,
         metadata.protocol,
         chain,
       );
 
-      signers[chain] = await protocol.signer.connectWithSigner(
-        metadata.rpcUrls.map((rpc) => rpc.http),
-        privateKey,
-        {
+      signers.set(
+        chain,
+        await getProtocolProvider(metadata.protocol).createSigner(
           metadata,
-        },
+          jsonSubmitterConfig,
+        ),
       );
     }
 
-    return new AltVMSignerFactory(metadataManager, signers);
+    return signers;
   }
 
   public submitterFactories(
