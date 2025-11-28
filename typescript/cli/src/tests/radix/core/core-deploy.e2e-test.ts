@@ -38,6 +38,7 @@ describe('hyperlane core deploy (Radix E2E tests)', async function () {
     expectedDefaultIsmOwner: Address;
   };
 
+  // see typescript/cli/examples/radix/core-config.yaml
   function assertTestRadixCoreConfig(
     coreConfig: DerivedCoreConfig,
     options: CoreConfigOwnershipAssertion,
@@ -56,6 +57,20 @@ describe('hyperlane core deploy (Radix E2E tests)', async function () {
     expect(deployedDefaultHook.oracleKey).to.equal(
       options.expectedDefaultHookOwner,
     );
+
+    const gasConfig =
+      deployedDefaultHook.oracleConfig[
+        TEST_CHAIN_NAMES_BY_PROTOCOL.radix.CHAIN_NAME_2
+      ];
+    expect(gasConfig).to.exist;
+    expect(gasConfig.tokenExchangeRate).to.equal('347026904130352406214');
+    expect(gasConfig.gasPrice).to.equal('201383436');
+    const gasOverheadConfig =
+      deployedDefaultHook.overhead[
+        TEST_CHAIN_NAMES_BY_PROTOCOL.radix.CHAIN_NAME_2
+      ];
+    expect(gasOverheadConfig).to.exist;
+    expect(gasOverheadConfig).to.equal(100);
 
     const deployedRequiredHook = coreConfig.requiredHook;
     assert(

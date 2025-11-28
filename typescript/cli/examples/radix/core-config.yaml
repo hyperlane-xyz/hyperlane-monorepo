@@ -1,8 +1,12 @@
 defaultHook:
   beneficiary: account_loc12ytsy99ajzkwy7ce0444fs8avat7jy3fkj5mk64yz2z3yml6s7y7x3
-  oracleConfig: {}
+  oracleConfig:
+    radix2:
+      tokenExchangeRate: "347026904130352406214"
+      gasPrice: "201383436"
   oracleKey: account_loc12ytsy99ajzkwy7ce0444fs8avat7jy3fkj5mk64yz2z3yml6s7y7x3
-  overhead: {}
+  overhead:
+    radix2: "100"
   owner: account_loc12ytsy99ajzkwy7ce0444fs8avat7jy3fkj5mk64yz2z3yml6s7y7x3
   type: interchainGasPaymaster
 defaultIsm:
