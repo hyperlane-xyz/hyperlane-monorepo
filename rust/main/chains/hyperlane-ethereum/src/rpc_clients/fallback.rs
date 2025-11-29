@@ -1,3 +1,8 @@
+#[cfg(test)]
+mod mock;
+#[cfg(test)]
+mod tests;
+
 use std::fmt::{Debug, Formatter};
 use std::future::Future;
 use std::ops::Deref;
@@ -20,6 +25,7 @@ use hyperlane_metric::prometheus_metric::PrometheusConfigExt;
 use crate::rpc_clients::{categorize_client_response, CategorizedResponse};
 
 const METHOD_SEND_RAW_TRANSACTION: &str = "eth_sendRawTransaction";
+const METHOD_GET_TRANSACTION_RECEIPT: &str = "eth_getTransactionReceipt";
 
 /// Wrapper of `FallbackProvider` for use in `hyperlane-ethereum`
 /// The wrapper uses two distinct strategies to place requests to chains:
@@ -196,7 +202,7 @@ where
 
         let params = serde_json::to_value(params).expect("valid");
 
-        let mut errors = vec![];
+        let mut errors: Vec<ProviderError> = vec![];
         // make sure we do at least 4 total retries.
         while errors.len() <= 3 {
             if !errors.is_empty() {
@@ -221,6 +227,27 @@ where
 
                 match categorize_client_response(provider_host.as_str(), method, resp) {
                     IsOk(v) => {
+                        // If we received null for transaction receipt, we also
+                        // want to deprioritize it. But we don't want to
+                        // increase its error count, because technically, they
+                        // did not return an error
+                        if method == METHOD_GET_TRANSACTION_RECEIPT {
+                            if v.is_null() {
+                                tracing::debug!(
+                                    fallback_count = idx,
+                                    provider_index = priority.index,
+                                    provider_host = provider_host.as_str(),
+                                    method,
+                                    ?v,
+                                    "fallback_request: deprioritizing provider because received null for transaction receipt"
+                                );
+                                self.deprioritize_provider(priority.clone()).await;
+                                errors.push(ProviderError::CustomError(
+                                    "Transaction Receipt is null".into(),
+                                ));
+                                continue;
+                            }
+                        }
                         // Add log to identify content of v when no tx receipt is found
                         if v.is_null() {
                             tracing::debug!(
@@ -271,6 +298,3 @@ where
         unordered
     }
 }
-
-#[cfg(test)]
-mod tests;

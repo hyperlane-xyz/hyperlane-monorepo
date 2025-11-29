@@ -138,7 +138,8 @@ where
         Self::builder().add_providers(providers).build()
     }
 
-    async fn deprioritize_provider(&self, priority: PrioritizedProviderInner) {
+    /// Deprioritize a provider
+    pub async fn deprioritize_provider(&self, priority: PrioritizedProviderInner) {
         // De-prioritize the current provider by moving it to the end of the queue
         let mut priorities = self.inner.priorities.write().await;
         priorities.retain(|&p| p.index != priority.index);
