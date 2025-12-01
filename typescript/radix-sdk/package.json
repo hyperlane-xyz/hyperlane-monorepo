@@ -15,7 +15,8 @@
   },
   "types": "dist/index.d.ts",
   "files": [
-    "/dist"
+    "/dist",
+    "docker-compose.yml"
   ],
   "homepage": "https://www.hyperlane.xyz",
   "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
@@ -27,7 +28,7 @@
   ],
   "license": "Apache-2.0",
   "scripts": {
-    "build": "rm -rf ./dist && tsc && cp src/testing/docker-compose.yml dist/testing/",
+    "build": "rm -rf ./dist && tsc",
     "format": "prettier --write .",
     "lint": "eslint -c ./eslint.config.mjs",
     "prettier": "prettier --write ./src",

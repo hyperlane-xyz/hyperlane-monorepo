@@ -1,9 +1,7 @@
-// this file is not exported by the main package export so it is ok to
-// to use node.js specific imports
-// eslint-disable-next-line
-import { dirname } from 'path';
+/* eslint-disable import/no-nodejs-modules */
+import { dirname, join } from 'path';
 import { DockerComposeEnvironment, Wait } from 'testcontainers';
-// eslint-disable-next-line
+/* eslint-disable import/no-nodejs-modules */
 import { fileURLToPath } from 'url';
 
 import { TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
@@ -38,7 +36,8 @@ export async function runRadixNode(
   const gatewayPort = new URL(gatewayUrl).port;
 
   const environment = await new DockerComposeEnvironment(
-    __dirname,
+    // move back to the root of this package
+    join(__dirname, '..', '..'),
     'docker-compose.yml',
   )
     .withEnvironment({
