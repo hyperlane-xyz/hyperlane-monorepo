@@ -7,9 +7,9 @@ import {
 import {
   AltVM,
   type MinimumRequiredGasByAction,
-  SignerConfig,
   getProtocolProvider,
   hasProtocol,
+  listProtocols,
 } from '@hyperlane-xyz/provider-sdk';
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
@@ -168,7 +168,6 @@ export class AltVMSignerFactory
       string,
       AltVM.ISigner<AnnotatedTx, TxReceipt>
     > = new Map();
-
     for (const chain of chains) {
       const metadata = metadataManager.getChainMetadata(chain);
 
@@ -176,18 +175,20 @@ export class AltVMSignerFactory
         continue;
       }
 
-      const config = strategyConfig[chain];
-      const jsonSubmitterConfig = config?.submitter as SignerConfig; // TODO: Fix
-
-      jsonSubmitterConfig.privateKey = await AltVMSignerFactory.loadPrivateKey(
-        keyByProtocol,
-        strategyConfig,
-        metadata.protocol,
+      // const config = strategyConfig[chain];
+      const jsonSubmitterConfig = {
+        type: 'jsonRpc',
         chain,
-      );
+        privateKey: await AltVMSignerFactory.loadPrivateKey(
+          keyByProtocol,
+          strategyConfig,
+          metadata.protocol,
+          chain,
+        ),
+      };
 
       signers.set(
-        chain,
+        metadata.protocol,
         await getProtocolProvider(metadata.protocol).createSigner(
           metadata,
           jsonSubmitterConfig,
@@ -198,10 +199,12 @@ export class AltVMSignerFactory
     return signers;
   }
 
-  public submitterFactories(
+  public static submitterFactories(
+    metadataManager: ChainMetadataManager,
+    altVmSigner: Map<string, AltVM.ISigner<AnnotatedTx, TxReceipt>>,
     chain: string,
   ): ProtocolMap<Record<string, SubmitterFactory>> {
-    const protocol = this.metadataManager.getProtocol(chain);
+    const protocol = metadataManager.getProtocol(chain);
 
     const factories: ProtocolMap<Record<string, SubmitterFactory>> = {};
 
@@ -209,9 +212,12 @@ export class AltVMSignerFactory
       return factories;
     }
 
-    const signer = this.get(chain);
-
-    for (const protocol of this.getSupportedProtocols()) {
+    const signer = altVmSigner.get(protocol);
+    assert(
+      signer,
+      `Cannot find signer for protocol ${protocol} for chain ${chain}`,
+    );
+    for (const protocol of listProtocols()) {
       factories[protocol] = {
         [TxSubmitterType.JSON_RPC]: (
           _multiProvider: MultiProvider,
