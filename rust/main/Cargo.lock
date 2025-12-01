@@ -4043,6 +4043,7 @@ dependencies = [
 name = "dymension-kaspa"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "async-trait",
  "axum 0.8.4",
  "base64 0.21.7",
@@ -4108,6 +4109,7 @@ dependencies = [
  "tracing-futures",
  "url",
  "validator 0.2.0",
+ "vergen",
 ]
 
 [[package]]

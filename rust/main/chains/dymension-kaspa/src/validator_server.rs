@@ -6,7 +6,7 @@ use axum::{
     extract::{DefaultBodyLimit, State},
     http::StatusCode,
     response::{IntoResponse, Json, Response},
-    routing::post,
+    routing::{get, post},
     Router,
 };
 use dym_kas_core::api::client::HttpClient;
@@ -33,6 +33,19 @@ use sha3::{digest::Update, Digest, Keccak256};
 use std::sync::Arc;
 use tower_http::limit::RequestBodyLimitLayer;
 use tracing::{error, info};
+
+/// Returns latest git commit hash at the time when agent was built.
+///
+/// If .git was not present at the time of build,
+/// the variable defaults to "VERGEN_IDEMPOTENT_OUTPUT".
+pub fn git_sha() -> String {
+    env!("VERGEN_GIT_SHA").to_string()
+}
+
+#[derive(Serialize)]
+struct VersionResponse {
+    git_sha: String,
+}
 
 #[derive(Clone)]
 pub struct ValidatorISMSigningResources<
@@ -141,6 +154,7 @@ pub fn router<
             "/kaspa-ping",
             post(respond_kaspa_ping::<S, H>).layer(RequestBodyLimitLayer::new(DEFAULT_BODY_LIMIT)),
         )
+        .route("/version", get(respond_version::<S, H>))
         .layer(DefaultBodyLimit::disable())
         .with_state(Arc::new(resources))
 }
@@ -154,6 +168,16 @@ async fn respond_kaspa_ping<
 ) -> HandlerResult<Json<String>> {
     error!("validator server: got kaspa ping");
     Ok(Json("pong".to_string()))
+}
+
+async fn respond_version<
+    S: HyperlaneSignerExt + Send + Sync + 'static,
+    H: HyperlaneSignerExt + Clone + Send + Sync + 'static,
+>(
+    State(_): State<Arc<ValidatorServerResources<S, H>>>,
+) -> HandlerResult<Json<VersionResponse>> {
+    info!("validator: version requested");
+    Ok(Json(VersionResponse { git_sha: git_sha() }))
 }
 
 #[derive(Clone)]
