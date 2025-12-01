@@ -304,7 +304,7 @@ impl CheckpointSyncer for S3Storage {
                 return Ok(ReorgEventResponse {
                     exists: false,
                     event: None,
-                    contents: None,
+                    content: None,
                 })
             }
         };
@@ -312,14 +312,14 @@ impl CheckpointSyncer for S3Storage {
             Ok(s) => Ok(ReorgEventResponse {
                 exists: true,
                 event: Some(s),
-                contents: Some(String::from_utf8_lossy(&contents).to_string()),
+                content: Some(String::from_utf8_lossy(&contents).to_string()),
             }),
             Err(err) => {
                 error!(?err, "Failed to parse reorg event");
                 Ok(ReorgEventResponse {
                     exists: true,
                     event: None,
-                    contents: Some(String::from_utf8_lossy(&contents).to_string()),
+                    content: Some(String::from_utf8_lossy(&contents).to_string()),
                 })
             }
         }

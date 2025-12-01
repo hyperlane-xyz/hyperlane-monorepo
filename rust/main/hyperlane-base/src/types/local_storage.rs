@@ -141,7 +141,7 @@ impl CheckpointSyncer for LocalStorage {
                 return Ok(ReorgEventResponse {
                     exists: false,
                     event: None,
-                    contents: None,
+                    content: None,
                 });
             }
         };
@@ -149,14 +149,14 @@ impl CheckpointSyncer for LocalStorage {
             Ok(s) => Ok(ReorgEventResponse {
                 exists: true,
                 event: Some(s),
-                contents: Some(String::from_utf8_lossy(&data).to_string()),
+                content: Some(String::from_utf8_lossy(&data).to_string()),
             }),
             Err(err) => {
                 error!(?err, "Failed to parse reorg event");
                 Ok(ReorgEventResponse {
                     exists: true,
                     event: None,
-                    contents: Some(String::from_utf8_lossy(&data).to_string()),
+                    content: Some(String::from_utf8_lossy(&data).to_string()),
                 })
             }
         }

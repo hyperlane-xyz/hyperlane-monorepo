@@ -11,7 +11,7 @@ pub struct ReorgEventResponse {
     /// Details on the actual reorg if parsable
     pub event: Option<ReorgEvent>,
     /// Details on the actual reorg as a string
-    pub contents: Option<String>,
+    pub content: Option<String>,
 }
 
 /// Details about a detected chain reorg, from an agent's perspective
