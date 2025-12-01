@@ -13,6 +13,9 @@ hyperlane-core = { path = "../../hyperlane-core", features = ["float"] }
 hyperlane-cosmos = { path = "../../chains/hyperlane-cosmos" }
 hyperlane-radix = { path = "../../chains/hyperlane-radix" }
 hyperlane-starknet = { path = "../../chains/hyperlane-starknet" }
+aleo-serialize = { path = "../aleo-serialize" }
+aleo-serialize-macro = { path = "../aleo-serialize-macro" }
+anyhow.workspace = true
 core-api-client = { workspace = true }
 cosmwasm-schema.workspace = true
 ctrlc.workspace = true
@@ -41,6 +44,7 @@ scrypto = { workspace = true }
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
+snarkvm.workspace = true
 starknet.workspace = true
 tempfile.workspace = true
 tokio.workspace = true
@@ -48,6 +52,7 @@ toml_edit.workspace = true
 ureq = { workspace = true, default-features = false }
 url = { workspace = true }
 which.workspace = true
+indexmap.workspace = true
 
 [build-dependencies]
 anyhow = { workspace = true }
@@ -59,3 +64,4 @@ starknet = []
 cosmosnative = []
 sealevel = []
 radix = []
+aleo = []

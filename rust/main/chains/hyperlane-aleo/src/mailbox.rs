@@ -175,7 +175,14 @@ impl<C: AleoClient> Mailbox for AleoMailbox<C> {
             .get_mapping_value(&recipient.to_string(), "app_metadata", &true)
             .await;
         match metadata {
-            Ok(metadata) => to_h256(metadata.ism),
+            Ok(metadata) => {
+                let address = to_h256(metadata.ism)?;
+                if address.is_zero() {
+                    self.default_ism().await
+                } else {
+                    Ok(address)
+                }
+            }
             Err(_) => self.default_ism().await,
         }
     }
