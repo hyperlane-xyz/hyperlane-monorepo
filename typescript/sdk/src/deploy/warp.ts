@@ -309,7 +309,7 @@ async function createWarpHook({
   chain: string;
   chainAddresses: Record<string, string>;
   multiProvider: MultiProvider;
-  altVmSigner: AltVM.ISignerFactory<AnnotatedTx, TxReceipt>;
+  altVmSigner: Map<string, AltVM.ISigner<AnnotatedTx, TxReceipt>>;
   contractVerifier?: ContractVerifier;
   warpConfig: HypTokenRouterConfig;
   ismFactoryDeployer: HyperlaneProxyFactoryDeployer;
@@ -363,8 +363,11 @@ async function createWarpHook({
       return deployedHook;
     }
     default: {
-      const signer = altVmSigner.get(chain);
-
+      const signer = altVmSigner.get(protocolType);
+      assert(
+        signer,
+        `Cannot find signer for protocol ${protocolType} for chain ${chain}`,
+      );
       const hookModule = await AltVMHookModule.create({
         chain,
         chainLookup: multiProvider,
