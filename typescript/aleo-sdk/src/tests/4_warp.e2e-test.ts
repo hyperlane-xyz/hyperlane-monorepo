@@ -16,7 +16,7 @@ import { ensure0x } from '@hyperlane-xyz/utils';
 
 import { hyp_synthetic, token_registry } from '../artifacts.js';
 import { AleoSigner } from '../clients/signer.js';
-import { ALEO_NATIVE_DENOM, stringToU128String } from '../utils/helper.js';
+import { ALEO_NATIVE_DENOM, stringToU128 } from '../utils/helper.js';
 import { AleoReceipt, AleoTransaction } from '../utils/types.js';
 
 describe('4. aleo sdk warp e2e tests', async function () {
@@ -68,6 +68,8 @@ describe('4. aleo sdk warp e2e tests', async function () {
 
     collateralDenom = '1field';
 
+    console.log(`${stringToU128('test').toString()}u128`);
+
     try {
       const tx = await programManager.buildDevnodeDeploymentTransaction({
         program: token_registry,
@@ -88,8 +90,8 @@ describe('4. aleo sdk warp e2e tests', async function () {
       privateFee: false,
       inputs: [
         collateralDenom,
-        stringToU128String('test'),
-        stringToU128String('test'),
+        `${stringToU128('test').toString()}u128`,
+        `${stringToU128('test').toString()}u128`,
         `6u8`,
         `100000000u128`,
         `false`,

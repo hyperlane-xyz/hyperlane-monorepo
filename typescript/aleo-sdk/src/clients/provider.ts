@@ -7,7 +7,7 @@ import { assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
 import {
   ALEO_NATIVE_DENOM,
   ALEO_NULL_ADDRESS,
-  U128StringToString,
+  U128ToString,
   arrayToPlaintext,
   bytes32ToU128String,
   fillArray,
@@ -16,7 +16,7 @@ import {
   getBalanceKey,
   getProgramIdFromSalt,
   getSaltFromAddress,
-  stringToU128String,
+  stringToU128,
 } from '../utils/helper.js';
 import {
   AleoHookType,
@@ -391,8 +391,8 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     );
 
     return {
-      name: U128StringToString(`${tokenMetadata['name'].toString()}u128`),
-      symbol: U128StringToString(`${tokenMetadata['symbol'].toString()}u128`),
+      name: U128ToString(tokenMetadata['name']),
+      symbol: U128ToString(tokenMetadata['symbol']),
       decimals: tokenMetadata['decimals'],
     };
   }
@@ -959,8 +959,8 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       priorityFee: 0,
       privateFee: false,
       inputs: [
-        stringToU128String(req.name),
-        stringToU128String(req.denom),
+        `${stringToU128(req.name).toString()}u128`,
+        `${stringToU128(req.denom).toString()}u128`,
         `${req.decimals}u8`,
         `${req.decimals}u8`,
       ],

@@ -142,24 +142,45 @@ export function getProgramIdFromSalt(program: AleoProgram, salt: string) {
   return `${program}_${salt}.aleo`;
 }
 
-export function stringToU128String(input: string): string {
-  if (input.length > 16) {
-    throw new Error(`string "${input}" is too long to convert it into U128`);
+export function stringToU128(str: string, littleEndian = false): bigint {
+  if (str.length > 16) {
+    throw new RangeError('String must not exceed 16 bytes for u128');
   }
 
-  const encoded = new TextEncoder().encode(input);
-  const bytes = new Uint8Array(16);
-  bytes.set(encoded.subarray(0, 16));
+  const inputBytes = Uint8Array.from(str, (c) => c.charCodeAt(0));
 
-  return U128.fromBytesLe(bytes).toString();
+  const bytes = new Uint8Array(16);
+  bytes.set(inputBytes, 0);
+
+  let value = 0n;
+  if (!littleEndian) {
+    for (let i = 0; i < 16; i++) {
+      value = (value << 8n) | BigInt(bytes[i]);
+    }
+  } else {
+    for (let i = 15; i >= 0; i--) {
+      value = (value << 8n) | BigInt(bytes[i]);
+    }
+  }
+
+  return value;
 }
 
-export function U128StringToString(input: string): string {
-  return new TextDecoder().decode(
-    U128.fromString(input)
-      .toBytesLe()
-      .filter((b) => b > 0),
-  );
+export function U128ToString(value: bigint, littleEndian = false): string {
+  if (value < 0n || value >= 1n << 128n) {
+    throw new RangeError('Value out of range for u128');
+  }
+
+  const bytes = new Uint8Array(16);
+  let temp = value;
+
+  for (let i = 0; i < 16; i++) {
+    const byte = Number(temp & 0xffn);
+    bytes[littleEndian ? i : 15 - i] = byte;
+    temp >>= 8n;
+  }
+
+  return String.fromCharCode(...bytes.filter((b) => b > 0));
 }
 
 export function bytes32ToU128String(input: string): string {
