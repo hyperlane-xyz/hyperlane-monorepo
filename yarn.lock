@@ -7915,6 +7915,19 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@hyperlane-xyz/core@npm:0.0.0-beta-20251201223252":
+  version: 0.0.0-beta-20251201223252
+  resolution: "@hyperlane-xyz/core@npm:0.0.0-beta-20251201223252"
+  dependencies:
+    "@hyperlane-xyz/utils": "npm:0.0.0-beta-20251201223252"
+  peerDependencies:
+    "@ethersproject/abi": "*"
+    "@ethersproject/providers": "*"
+    "@types/sinon-chai": "*"
+  checksum: 10/77cd58fd12380020118851e555c6fb508c2d0bb99fdeed4fb0125efdbc451200308c34df0b7894ab234a90e6a979c381827246c2f89df2ba48573c23a2575328
+  languageName: node
+  linkType: hard
+
 "@hyperlane-xyz/core@npm:10.0.4, @hyperlane-xyz/core@workspace:solidity":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/core@workspace:solidity"
@@ -8068,7 +8081,7 @@ __metadata:
     "@eslint/js": "npm:^9.31.0"
     "@ethersproject/abi": "npm:*"
     "@ethersproject/providers": "npm:*"
-    "@hyperlane-xyz/core": "npm:10.0.4"
+    "@hyperlane-xyz/core": "npm:0.0.0-beta-20251201223252"
     "@hyperlane-xyz/registry": "npm:20.0.0"
     "@hyperlane-xyz/sdk": "npm:19.10.0"
     "@hyperlane-xyz/utils": "npm:19.10.0"
@@ -8392,6 +8405,31 @@ __metadata:
   resolution: "@hyperlane-xyz/tsconfig@workspace:typescript/tsconfig"
   languageName: unknown
   linkType: soft
+
+"@hyperlane-xyz/utils@npm:0.0.0-beta-20251201223252":
+  version: 0.0.0-beta-20251201223252
+  resolution: "@hyperlane-xyz/utils@npm:0.0.0-beta-20251201223252"
+  dependencies:
+    "@cosmjs/encoding": "npm:^0.32.4"
+    "@solana/web3.js": "npm:^1.98.4"
+    bech32: "npm:^2.0.0"
+    bignumber.js: "npm:^9.1.1"
+    ethers: "npm:^5.8.0"
+    lodash-es: "npm:^4.17.21"
+    pino: "npm:^8.19.0"
+    starknet: "npm:^7.4.0"
+    yaml: "npm:2.4.5"
+  peerDependencies:
+    "@google-cloud/pino-logging-gcp-config": ^1.0.6
+    pino-pretty: ">=10.0.0"
+  peerDependenciesMeta:
+    "@google-cloud/pino-logging-gcp-config":
+      optional: true
+    pino-pretty:
+      optional: true
+  checksum: 10/3481ac337f3ba0bcb101d5ac68ba4b32d77c602e301ef293d6c4fb0296fbe15b5420efa20997585d6fc508da4c252424008c379dd963a564899cb71fd4c26a15
+  languageName: node
+  linkType: hard
 
 "@hyperlane-xyz/utils@npm:19.10.0, @hyperlane-xyz/utils@workspace:typescript/utils":
   version: 0.0.0-use.local
