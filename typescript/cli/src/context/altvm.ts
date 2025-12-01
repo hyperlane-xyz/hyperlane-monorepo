@@ -175,7 +175,6 @@ export class AltVMSignerFactory
         continue;
       }
 
-      // const config = strategyConfig[chain];
       const jsonSubmitterConfig = {
         type: 'jsonRpc',
         chain,

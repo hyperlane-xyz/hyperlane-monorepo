@@ -28,13 +28,17 @@ export async function readIsmConfig({
   let config: DerivedIsmConfig;
   let stringConfig: string;
 
-  if (context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum) {
+  const protocol = context.multiProvider.getProtocol(chain);
+  if (protocol === ProtocolType.Ethereum) {
     const ismReader = new EvmIsmReader(context.multiProvider, chain);
     config = await ismReader.deriveIsmConfig(address);
     stringConfig = stringifyObject(config, resolveFileFormat(out), 2);
   } else {
-    const provider = context.altVmProvider.get(chain);
-    assert(provider, `Cannot find provider for ${chain}`);
+    const provider = context.altVmProvider.get(protocol);
+    assert(
+      provider,
+      `Cannot find provider for protocol ${protocol} on chain ${chain}`,
+    );
     const ismReader = new AltVMIsmReader(
       (chain) => context.multiProvider.tryGetChainName(chain),
       provider,

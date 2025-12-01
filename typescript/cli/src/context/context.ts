@@ -94,7 +94,7 @@ export async function signerMiddleware(argv: Record<string, any>) {
 
       if (hasProtocol(protocol))
         altVmProvider.set(
-          chain, // @TODO: Update this to be by protocol
+          protocol,
           await getProtocolProvider(protocol).createProvider(metadata),
         );
     }),

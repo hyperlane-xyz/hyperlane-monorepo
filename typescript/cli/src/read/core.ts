@@ -49,8 +49,11 @@ export async function executeCoreRead({
       break;
     }
     default: {
-      const provider = context.altVmProvider.get(chain);
-      assert(provider, `Cannot find provider for ${chain}`);
+      const provider = context.altVmProvider.get(protocolType);
+      assert(
+        provider,
+        `Cannot find provider for protocol ${protocolType} on chain ${chain}`,
+      );
       const coreReader = new AltVMCoreReader(
         altVmChainLookup(context.multiProvider),
         provider,
