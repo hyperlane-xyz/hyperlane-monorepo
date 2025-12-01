@@ -54,7 +54,8 @@
   "types": "./dist/index.d.ts",
   "files": [
     "/dist",
-    "/contracts"
+    "/contracts",
+    "/dependencies"
   ],
   "engines": {
     "node": ">=16"
