@@ -143,7 +143,7 @@ export async function executeWarpDeploy(
         break;
       }
       default: {
-        const signersMap = objMap(protocolSpecificConfig, (chain, _) => {
+        const signersMap = objMap(protocolSpecificConfig, (_chain, _) => {
           const signer = mustGet(altVmSigner, protocol);
 
           return signer;
