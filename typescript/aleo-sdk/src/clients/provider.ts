@@ -418,7 +418,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
 
     const tokenMetadata = await this.queryMappingValue(
       req.tokenAddress,
-      'token_metadata',
+      'app_metadata',
       'true',
     );
 
@@ -517,7 +517,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async getBridgedSupply(req: AltVM.ReqGetBridgedSupply): Promise<bigint> {
     const metadata = await this.queryMappingValue(
       req.tokenAddress,
-      'token_metadata',
+      'app_metadata',
       'true',
     );
 
@@ -1070,7 +1070,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
 
     const tokenMetadataValue = await this.aleoClient.getProgramMappingValue(
       req.tokenAddress,
-      'token_metadata',
+      'app_metadata',
       'true',
     );
 
@@ -1130,7 +1130,6 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     }
 
     const mailboxValue = `{
-      default_ism:${mailbox.defaultIsm || ALEO_NULL_ADDRESS},
       default_hook:${mailbox.defaultHook ? mailbox.defaultHook.split('/')[1] : ALEO_NULL_ADDRESS},
       required_hook:${mailbox.requiredHook ? mailbox.requiredHook.split('/')[1] : ALEO_NULL_ADDRESS}
     }`;

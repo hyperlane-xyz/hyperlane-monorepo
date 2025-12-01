@@ -68,8 +68,6 @@ describe('4. aleo sdk warp e2e tests', async function () {
 
     collateralDenom = '1field';
 
-    console.log(`${stringToU128('test').toString()}u128`);
-
     try {
       const tx = await programManager.buildDevnodeDeploymentTransaction({
         program: token_registry,

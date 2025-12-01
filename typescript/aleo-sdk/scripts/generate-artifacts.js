@@ -9,7 +9,7 @@ const __dirname = path.dirname(__filename);
 
 const outputFile = path.join(__dirname, '../src/artifacts.ts');
 
-const VERSION = 'v1.0.0-beta0';
+const VERSION = 'v1.0.0';
 
 const main = async () => {
   const res = await fetch(
