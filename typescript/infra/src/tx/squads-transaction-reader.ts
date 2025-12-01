@@ -57,6 +57,8 @@ import {
   decodePermissions,
   getSquadAndProvider,
   getSquadProposal,
+  isConfigTransaction,
+  isVaultTransaction,
 } from '../utils/squads.js';
 
 import { GovernTransaction } from './govern-transaction-reader.js';
@@ -587,19 +589,6 @@ export class SquadsTransactionReader {
   }
 
   /**
-   * Check if transaction account is a ConfigTransaction
-   */
-  private isConfigTransaction(accountData: Buffer): boolean {
-    const discriminator = accountData.subarray(
-      0,
-      SQUADS_ACCOUNT_DISCRIMINATOR_SIZE,
-    );
-    return discriminator.equals(
-      SQUADS_ACCOUNT_DISCRIMINATORS[SquadsAccountType.CONFIG],
-    );
-  }
-
-  /**
    * Read and format a ConfigTransaction
    */
   private async readConfigTransaction(
@@ -637,19 +626,6 @@ export class SquadsTransactionReader {
       multisig: proposalData.multisigPda.toBase58(),
       instructions,
     };
-  }
-
-  /**
-   * Check if transaction account is a VaultTransaction
-   */
-  private isVaultTransaction(accountData: Buffer): boolean {
-    const discriminator = accountData.subarray(
-      0,
-      SQUADS_ACCOUNT_DISCRIMINATOR_SIZE,
-    );
-    return discriminator.equals(
-      SQUADS_ACCOUNT_DISCRIMINATORS[SquadsAccountType.VAULT],
-    );
   }
 
   /**
@@ -742,12 +718,12 @@ export class SquadsTransactionReader {
       );
 
       // Check transaction type and delegate to appropriate handler
-      if (this.isConfigTransaction(accountInfo.data)) {
+      if (isConfigTransaction(accountInfo.data)) {
         return this.readConfigTransaction(chain, proposalData, accountInfo);
       }
 
       // Warn if unknown transaction type
-      if (!this.isVaultTransaction(accountInfo.data)) {
+      if (!isVaultTransaction(accountInfo.data)) {
         const discriminator = accountInfo.data.slice(
           0,
           SQUADS_ACCOUNT_DISCRIMINATOR_SIZE,

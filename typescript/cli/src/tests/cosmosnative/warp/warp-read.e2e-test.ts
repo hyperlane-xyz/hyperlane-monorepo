@@ -26,7 +26,7 @@ import {
   WARP_CONFIG_PATH_1,
   WARP_CORE_CONFIG_PATH_1,
   WARP_DEPLOY_1_ID,
-  WARP_DEPLOY_OUTPUT_PATH,
+  WARP_DEPLOY_CONFIG_PATH_1,
 } from '../consts.js';
 
 describe('hyperlane warp read e2e tests', async function () {
@@ -74,7 +74,9 @@ describe('hyperlane warp read e2e tests', async function () {
 
     chain1Addresses = await hyperlaneCore1.deployOrUseExistingCore(HYP_KEY);
     chain2Addresses = await hyperlaneCore2.deployOrUseExistingCore(HYP_KEY);
+  });
 
+  beforeEach(async function () {
     warpConfig = {
       [CHAIN_NAME_1]: {
         type: TokenType.collateral,
@@ -95,19 +97,17 @@ describe('hyperlane warp read e2e tests', async function () {
       },
     };
 
-    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+    writeYamlOrJson(WARP_DEPLOY_CONFIG_PATH_1, warpConfig);
   });
 
   describe('hyperlane warp read --config ...', () => {
     it('should exit early if no symbol or no chain and address', async () => {
-      await hyperlaneWarp.deploy(WARP_DEPLOY_OUTPUT_PATH, HYP_KEY);
+      await hyperlaneWarp.deploy(WARP_DEPLOY_CONFIG_PATH_1, HYP_KEY);
 
       const output = await hyperlaneWarp.readRaw({}).nothrow();
 
       expect(output.exitCode).to.equal(1);
-      expect(output.text()).to.include(
-        'Invalid input parameters. Please provide either a token symbol or both chain name and token address',
-      );
+      expect(output.text()).to.include('No chains found');
     });
   });
 
@@ -135,8 +135,8 @@ describe('hyperlane warp read e2e tests', async function () {
         },
       };
 
-      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
-      await hyperlaneWarp.deploy(WARP_DEPLOY_OUTPUT_PATH, HYP_KEY);
+      writeYamlOrJson(WARP_DEPLOY_CONFIG_PATH_1, warpConfig);
+      await hyperlaneWarp.deploy(WARP_DEPLOY_CONFIG_PATH_1, HYP_KEY);
 
       const steps: TestPromptAction[] = [
         // Select the hyp1-hyp2 HYP route from the selection prompt
@@ -149,8 +149,8 @@ describe('hyperlane warp read e2e tests', async function () {
 
       const output = hyperlaneWarp
         .readRaw({
-          symbol: 'TEST',
           outputPath: readOutputPath,
+          warpRouteId: 'TEST/hyp1',
         })
         .stdio('pipe')
         .nothrow();
@@ -172,7 +172,7 @@ describe('hyperlane warp read e2e tests', async function () {
   describe('hyperlane warp read --chain ... --config ...', () => {
     it('should be able to read a warp route', async function () {
       await hyperlaneWarp.deploy(
-        WARP_DEPLOY_OUTPUT_PATH,
+        WARP_DEPLOY_CONFIG_PATH_1,
         HYP_KEY,
         WARP_DEPLOY_1_ID,
       );

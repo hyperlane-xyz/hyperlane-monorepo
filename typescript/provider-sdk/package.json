@@ -1,0 +1,45 @@
+{
+  "name": "@hyperlane-xyz/provider-sdk",
+  "version": "0.2.0",
+  "description": "Protocol Provider SDK for the Hyperlane Protocol",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
+  "license": "Apache-2.0",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": "./dist/index.js",
+    "./altvm": "./dist/altvm.js",
+    "./module": "./dist/module.js",
+    "./protocol": "./dist/protocol.js",
+    "./chain": "./dist/chain.js",
+    "./hook": "./dist/hook.js",
+    "./ism": "./dist/ism.js",
+    "./core": "./dist/core.js",
+    "./warp": "./dist/warp.js",
+    "./factory": "./dist/factory.js",
+    "./submitter": "./dist/submitter.js",
+    "./registry": "./dist/registry.js",
+    "./artifact": "./dist/artifact.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "check": "tsc --noEmit",
+    "dev": "tsc --watch",
+    "lint": "eslint",
+    "clean": "rm -rf ./dist",
+    "prettier": "prettier --write ."
+  },
+  "dependencies": {
+    "@hyperlane-xyz/utils": "19.10.0",
+    "zod": "^3.21.2"
+  },
+  "devDependencies": {
+    "@hyperlane-xyz/eslint-config": "workspace:^",
+    "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@types/node": "^18.14.5",
+    "eslint": "^9.31.0",
+    "typescript": "5.3.3"
+  }
+}

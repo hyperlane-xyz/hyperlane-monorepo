@@ -1,5 +1,51 @@
 # @hyperlane-xyz/sdk
 
+## 19.10.0
+
+### Minor Changes
+
+- c2a64e8c5: feat: add setTokenHook to altvm interface
+- a97a9939c: Fix core deployment on cosmos chains failing as the ism was not set properly on mailbox creation
+- 66bed7126: migrated AltVm modules to provider-sdk and deploy-sdk
+- f604423b9: - Remove AltVMProviderFactory to new API in deploy-sdk (loadlProtocolProviders) and Registry singleton.
+  - Add `chainId` and `rpcUrls` to `ChainMetadataForAltVM`. Add `CosmosNativeProtocolProvider` and `RadixProtocolProvider` to both cosmos-sdk and radix-sdk, respectively.
+  - Add `forWarpRead`, `forCoreRead`, and `forCoreCheck` to signerMiddleware to enable chain resolving for these CLI functions.
+  - Add `assert` after some `altVmProvider.get` calls in SDK configUtils.
+
+### Patch Changes
+
+- b2a693ac6: corrected gas overhead values for nativeScaled token type
+- c0583af62: Improve CCTP offchain lookup server error handling
+- 9770b732c: Fix handling of malformed getStorageAt responses from RPC providers (e.g., Somnia) that return empty hex strings.
+- 43ecd628c: updated the ISM schema to allow STORAGE_AGGREGATION type that was already supported
+- Updated dependencies [aad2988c9]
+- Updated dependencies [c2a64e8c5]
+- Updated dependencies [6cfde25d8]
+- Updated dependencies [a97a9939c]
+- Updated dependencies [a0ba5e2fb]
+- Updated dependencies [66bed7126]
+- Updated dependencies [29ad1d225]
+- Updated dependencies [f604423b9]
+  - @hyperlane-xyz/utils@19.10.0
+  - @hyperlane-xyz/deploy-sdk@0.2.0
+  - @hyperlane-xyz/cosmos-sdk@19.10.0
+  - @hyperlane-xyz/radix-sdk@19.10.0
+  - @hyperlane-xyz/core@10.0.4
+  - @hyperlane-xyz/provider-sdk@0.2.0
+  - @hyperlane-xyz/starknet-core@19.10.0
+
+## 19.9.0
+
+### Patch Changes
+
+- 8c027d852: Fixed SmartProvider fallback logic to stop retrying on blockchain errors
+- Updated dependencies [8c027d852]
+  - @hyperlane-xyz/utils@19.9.0
+  - @hyperlane-xyz/core@10.0.3
+  - @hyperlane-xyz/cosmos-sdk@19.9.0
+  - @hyperlane-xyz/radix-sdk@19.9.0
+  - @hyperlane-xyz/starknet-core@19.9.0
+
 ## 19.8.0
 
 ### Minor Changes

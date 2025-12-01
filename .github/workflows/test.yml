@@ -56,6 +56,10 @@ jobs:
       - name: syncpack
         run: yarn syncpack list-mismatches
 
+      # Check publishable packages have required fields for npm provenance
+      - name: check-package-json
+        run: ./scripts/check-package-json.sh
+
   lint-prettier:
     runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 5
@@ -159,6 +163,12 @@ jobs:
 
       - name: foundry-install
         uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Set Foundry RPC URLs for fork tests
+        env:
+          MAINNET3_ARBITRUM_RPC_URLS: ${{ secrets.MAINNET3_ARBITRUM_RPC_URLS }}
+        run: |
+          echo "FOUNDRY_RPC_URL_ARBITRUM=${MAINNET3_ARBITRUM_RPC_URLS%%,*}" >> $GITHUB_ENV
 
       - name: yarn-build
         uses: ./.github/actions/yarn-build-with-cache
@@ -533,7 +543,6 @@ jobs:
   e2e-matrix:
     runs-on: depot-ubuntu-24.04-8
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main') || github.event_name == 'merge_group'
-    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -630,9 +639,6 @@ jobs:
       - name: Install mold linker
         if: steps.check-conditions.outputs.skip-e2e != 'true'
         uses: rui314/setup-mold@v1
-        with:
-          mold-version: 2.0.0
-          make-default: true
 
       - name: yarn-build
         if: steps.check-conditions.outputs.skip-e2e != 'true'
@@ -799,7 +805,7 @@ jobs:
           path_pattern: 'solidity/'
 
   coverage-run:
-    runs-on: depot-ubuntu-24.04
+    runs-on: ubuntu-latest
     needs: [check-solidity-changes]
     if: needs.check-solidity-changes.outputs.has_solidity_changes == 'true'
     steps:
@@ -807,10 +813,11 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      - name: yarn-build
-        uses: ./.github/actions/yarn-build-with-cache
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Build
+        run: |
+          yarn install
+          yarn build
+
       - name: foundry-install
         uses: foundry-rs/foundry-toolchain@v1
 

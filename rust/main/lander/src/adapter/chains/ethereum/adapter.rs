@@ -37,6 +37,7 @@ use hyperlane_ethereum::{
 use crate::adapter::chains::ethereum::metrics::{
     LABEL_BATCHED_TRANSACTION_FAILED, LABEL_BATCHED_TRANSACTION_SUCCESS,
 };
+use crate::AdaptsChainAction;
 use crate::{
     adapter::{core::TxBuildingResult, AdaptsChain, GasLimit},
     dispatcher::{PayloadDb, PostInclusionMetricsSource, TransactionDb},
@@ -106,6 +107,7 @@ impl EthereumAdapter {
             dispatcher_metrics.get_batched_transactions(),
             dispatcher_metrics.get_finalized_nonce(domain, &signer.to_string()),
             dispatcher_metrics.get_upper_nonce(domain, &signer.to_string()),
+            dispatcher_metrics.get_mismatched_nonce(domain, &signer.to_string()),
         );
 
         let payload_db = db.clone() as Arc<dyn PayloadDb>;
@@ -201,7 +203,13 @@ impl EthereumAdapter {
         Ok(())
     }
 
-    fn update_tx(&self, tx: &mut Transaction, nonce: U256, gas_price: GasPrice) {
+    fn update_tx_nonce(tx: &mut Transaction, nonce: U256) {
+        let precursor = tx.precursor_mut();
+        precursor.tx.set_nonce(nonce);
+        info!(?tx, "updated transaction with nonce");
+    }
+
+    fn update_tx_gas_price(tx: &mut Transaction, gas_price: GasPrice) {
         let precursor = tx.precursor_mut();
 
         if let GasPrice::Eip1559 {
@@ -210,7 +218,6 @@ impl EthereumAdapter {
         } = gas_price
         {
             // Re-create the whole EIP-1559 transaction request in this case
-
             let tx = precursor.tx.clone();
 
             let mut request = Eip1559TransactionRequest::new();
@@ -249,9 +256,7 @@ impl EthereumAdapter {
             }
             GasPrice::Eip1559 { .. } => {}
         }
-        precursor.tx.set_nonce(nonce);
-
-        info!(?tx, "updated transaction with nonce and gas price");
+        info!(?tx, "updated transaction with gas price");
     }
 
     fn filter<I: Clone>(items: &[I], indices: Vec<usize>) -> Vec<I> {
@@ -651,9 +656,13 @@ impl AdaptsChain for EthereumAdapter {
             self.estimate_gas_price(&tx_for_gas_price)
         )?;
 
+        // Update the transaction with nonce before checking if resubmission makes sense
+        // This ensures the nonce is stored even if we decide not to resubmit due to gas price limits
+        Self::update_tx_nonce(tx, nonce);
+
         Self::check_if_resubmission_makes_sense(tx, &gas_price)?;
 
-        self.update_tx(tx, nonce, gas_price);
+        Self::update_tx_gas_price(tx, gas_price);
 
         info!(?tx, "submitting transaction");
 
@@ -778,6 +787,18 @@ impl AdaptsChain for EthereumAdapter {
     fn update_vm_specific_metrics(&self, tx: &Transaction, metrics: &DispatcherMetrics) {
         let metrics_source = Self::extract_vm_specific_metrics(tx);
         metrics.set_post_inclusion_metrics(&metrics_source, self.domain.as_ref());
+    }
+
+    async fn run_command(&self, action: AdaptsChainAction) -> Result<(), LanderError> {
+        match action {
+            AdaptsChainAction::OverwriteUpperNonce { nonce } => {
+                self.nonce_manager
+                    .state
+                    .overwrite_upper_nonce(nonce)
+                    .await?;
+            }
+        }
+        Ok(())
     }
 }
 

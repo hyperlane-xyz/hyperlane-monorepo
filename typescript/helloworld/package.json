@@ -1,22 +1,30 @@
 {
   "name": "@hyperlane-xyz/helloworld",
   "description": "A basic skeleton of an Hyperlane app",
-  "version": "19.8.0",
+  "version": "19.10.0",
   "dependencies": {
-    "@hyperlane-xyz/core": "10.0.2",
+    "@hyperlane-xyz/core": "10.0.4",
     "@hyperlane-xyz/registry": "20.0.0",
-    "@hyperlane-xyz/sdk": "19.8.0",
+    "@hyperlane-xyz/sdk": "19.10.0",
+    "@hyperlane-xyz/utils": "19.10.0",
+    "@openzeppelin/contracts": "^4.9.3",
     "@openzeppelin/contracts-upgradeable": "^4.9.3",
+    "@solana/web3.js": "^1.98.4",
+    "borsh": "^0.7.0",
     "ethers": "^5.8.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.31.0",
+    "@ethersproject/abi": "*",
+    "@ethersproject/providers": "*",
     "@nomiclabs/hardhat-ethers": "^2.2.3",
     "@nomiclabs/hardhat-waffle": "^2.0.6",
     "@trivago/prettier-plugin-sort-imports": "^5.2.2",
     "@typechain/ethers-v5": "^11.1.2",
     "@typechain/ethers-v6": "^0.5.1",
     "@typechain/hardhat": "^9.1.0",
+    "@types/chai": "^4.3.11",
+    "@types/mocha": "^10.0.1",
     "@typescript-eslint/eslint-plugin": "^8.1.6",
     "@typescript-eslint/parser": "^8.1.6",
     "chai": "^4.5.0",
@@ -51,10 +59,7 @@
     "/dist",
     "/contracts"
   ],
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/hyperlane-xyz/hyperlane-monorepo"
-  },
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "scripts": {
     "build": "yarn hardhat-esm compile && tsc",
     "clean": "yarn hardhat-esm clean && rm -rf dist cache src/types",

@@ -276,7 +276,10 @@ impl ChainConf {
                 h_radix::application::RadixApplicationOperationVerifier::new(),
             )
                 as Box<dyn ApplicationOperationVerifier>),
-            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
+            ChainConnectionConf::Aleo(_) => Ok(Box::new(
+                h_aleo::application::AleoApplicationOperationVerifier::new(),
+            )
+                as Box<dyn ApplicationOperationVerifier>),
         };
 
         result.context(ctx)
@@ -325,7 +328,7 @@ impl ChainConf {
                 Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
             }
             ChainConnectionConf::Aleo(conf) => {
-                let provider = build_aleo_provider(self, conf, metrics, &locator)?;
+                let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
                 Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
             }
         }
@@ -396,7 +399,12 @@ impl ChainConf {
                 let mailbox = h_radix::RadixMailbox::new(provider, &locator, conf)?;
                 Ok(Box::new(mailbox) as Box<dyn Mailbox>)
             }
-            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
+            ChainConnectionConf::Aleo(conf) => {
+                let signer = self.aleo_signer().await?;
+                let provider = build_aleo_provider(self, conf, metrics, &locator, signer)?;
+                let mailbox = h_aleo::AleoMailbox::new(provider, &locator, conf);
+                Ok(Box::new(mailbox) as Box<dyn Mailbox>)
+            }
         }
         .context(ctx)
     }
@@ -452,7 +460,12 @@ impl ChainConf {
 
                 Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
             }
-            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
+            ChainConnectionConf::Aleo(conf) => {
+                let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
+                let hook = h_aleo::AleoMerkleTreeHook::new(provider, &locator, conf)?;
+
+                Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
+            }
         }
         .context(ctx)
     }
@@ -529,7 +542,12 @@ impl ChainConf {
 
                 Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
             }
-            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
+            ChainConnectionConf::Aleo(conf) => {
+                let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
+                let indexer = h_aleo::AleoDispatchIndexer::new(provider, &locator, conf);
+
+                Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
+            }
         }
         .context(ctx)
     }
@@ -602,7 +620,12 @@ impl ChainConf {
 
                 Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<H256>>)
             }
-            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
+            ChainConnectionConf::Aleo(conf) => {
+                let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
+                let indexer = h_aleo::AleoDeliveryIndexer::new(provider, &locator, conf);
+
+                Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<H256>>)
+            }
         }
         .context(ctx)
     }
@@ -667,7 +690,12 @@ impl ChainConf {
                 )?);
                 Ok(indexer as Box<dyn InterchainGasPaymaster>)
             }
-            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
+            ChainConnectionConf::Aleo(conf) => {
+                let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
+                let indexer = h_aleo::AleoInterchainGasIndexer::new(provider, &locator, conf)?;
+
+                Ok(Box::new(indexer) as Box<dyn InterchainGasPaymaster>)
+            }
         }
         .context(ctx)
     }
@@ -736,7 +764,12 @@ impl ChainConf {
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
             }
-            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
+            ChainConnectionConf::Aleo(conf) => {
+                let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
+                let indexer = h_aleo::AleoInterchainGasIndexer::new(provider, &locator, conf)?;
+
+                Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
+            }
         }
         .context(ctx)
     }
@@ -813,7 +846,12 @@ impl ChainConf {
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
             }
-            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
+            ChainConnectionConf::Aleo(conf) => {
+                let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
+                let indexer = h_aleo::AleoMerkleTreeHook::new(provider, &locator, conf)?;
+
+                Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
+            }
         }
         .context(ctx)
     }
@@ -888,7 +926,13 @@ impl ChainConf {
                     h_radix::RadixValidatorAnnounce::new(provider, &locator, conf)?;
                 Ok(Box::new(validator_announce) as Box<dyn ValidatorAnnounce>)
             }
-            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
+            ChainConnectionConf::Aleo(conf) => {
+                let signer = self.aleo_signer().await?;
+                let provider = build_aleo_provider(self, conf, metrics, &locator, signer)?;
+                let validator_announce =
+                    h_aleo::AleoValidatorAnnounce::new(provider, &locator, conf);
+                Ok(Box::new(validator_announce) as Box<dyn ValidatorAnnounce>)
+            }
         }
         .context("Building ValidatorAnnounce")
     }
@@ -951,7 +995,11 @@ impl ChainConf {
                 let ism = h_radix::RadixIsm::new(provider, &locator, conf)?;
                 Ok(Box::new(ism) as Box<dyn InterchainSecurityModule>)
             }
-            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
+            ChainConnectionConf::Aleo(conf) => {
+                let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
+                let ism = h_aleo::AleoIsm::new(provider, &locator, conf)?;
+                Ok(Box::new(ism) as Box<dyn InterchainSecurityModule>)
+            }
         }
         .context(ctx)
     }
@@ -1006,7 +1054,11 @@ impl ChainConf {
                 let ism = h_radix::RadixIsm::new(provider, &locator, conf)?;
                 Ok(Box::new(ism) as Box<dyn MultisigIsm>)
             }
-            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
+            ChainConnectionConf::Aleo(conf) => {
+                let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
+                let ism = h_aleo::AleoIsm::new(provider, &locator, conf)?;
+                Ok(Box::new(ism) as Box<dyn MultisigIsm>)
+            }
         }
         .context(ctx)
     }
@@ -1056,7 +1108,11 @@ impl ChainConf {
                 let ism = h_radix::RadixIsm::new(provider, &locator, conf)?;
                 Ok(Box::new(ism) as Box<dyn RoutingIsm>)
             }
-            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
+            ChainConnectionConf::Aleo(conf) => {
+                let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
+                let ism = h_aleo::AleoIsm::new(provider, &locator, conf)?;
+                Ok(Box::new(ism) as Box<dyn RoutingIsm>)
+            }
         }
         .context(ctx)
     }
@@ -1178,7 +1234,7 @@ impl ChainConf {
                 ChainConnectionConf::Radix(_) => {
                     Box::new(conf.build::<h_radix::RadixSigner>().await?)
                 }
-                ChainConnectionConf::Aleo(_) => return Ok(None),
+                ChainConnectionConf::Aleo(_) => Box::new(conf.build::<h_aleo::AleoSigner>().await?),
             };
             Ok(Some(chain_signer))
         } else {
@@ -1186,6 +1242,7 @@ impl ChainConf {
         }
     }
 
+    /// Build an ethereum signer
     async fn ethereum_signer(&self) -> Result<Option<h_eth::Signers>> {
         self.signer().await
     }
@@ -1209,6 +1266,10 @@ impl ChainConf {
     }
 
     async fn radix_signer(&self) -> Result<Option<hyperlane_radix::RadixSigner>> {
+        self.signer().await
+    }
+
+    async fn aleo_signer(&self) -> Result<Option<hyperlane_aleo::AleoSigner>> {
         self.signer().await
     }
 
@@ -1415,6 +1476,7 @@ fn build_aleo_provider(
     connection_conf: &h_aleo::ConnectionConf,
     _metrics: &CoreMetrics,
     locator: &ContractLocator,
+    signer: Option<h_aleo::AleoSigner>,
 ) -> ChainResult<AleoProvider> {
-    AleoProvider::new(connection_conf, locator.domain.clone())
+    AleoProvider::new(connection_conf, locator.domain.clone(), signer)
 }

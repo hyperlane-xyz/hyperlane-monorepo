@@ -1,7 +1,7 @@
 {
   "name": "@hyperlane-xyz/sdk",
   "description": "The official SDK for the Hyperlane Network",
-  "version": "19.8.0",
+  "version": "19.10.0",
   "dependencies": {
     "@arbitrum/sdk": "^4.0.0",
     "@aws-sdk/client-s3": "^3.577.0",
@@ -9,17 +9,20 @@
     "@cosmjs/cosmwasm-stargate": "^0.32.4",
     "@cosmjs/proto-signing": "^0.32.4",
     "@cosmjs/stargate": "^0.32.4",
-    "@hyperlane-xyz/core": "10.0.2",
-    "@hyperlane-xyz/cosmos-sdk": "19.8.0",
-    "@hyperlane-xyz/radix-sdk": "19.8.0",
-    "@hyperlane-xyz/starknet-core": "19.8.0",
-    "@hyperlane-xyz/utils": "19.8.0",
+    "@hyperlane-xyz/core": "10.0.4",
+    "@hyperlane-xyz/cosmos-sdk": "19.10.0",
+    "@hyperlane-xyz/deploy-sdk": "0.2.0",
+    "@hyperlane-xyz/provider-sdk": "0.2.0",
+    "@hyperlane-xyz/radix-sdk": "19.10.0",
+    "@hyperlane-xyz/starknet-core": "19.10.0",
+    "@hyperlane-xyz/utils": "19.10.0",
     "@safe-global/api-kit": "4.0.0",
     "@safe-global/protocol-kit": "6.1.1",
     "@safe-global/safe-core-sdk-types": "5.1.0",
     "@safe-global/safe-deployments": "1.37.47",
     "@solana/spl-token": "^0.4.9",
     "@solana/web3.js": "^1.98.4",
+    "@starknet-react/chains": "^3.1.2",
     "@turnkey/api-key-stamper": "^0.5.0",
     "@turnkey/sdk-server": "^4.12.0",
     "@turnkey/solana": "^1.1.12",
@@ -35,6 +38,7 @@
     "zod": "^3.21.2"
   },
   "devDependencies": {
+    "@ethersproject/providers": "*",
     "@hyperlane-xyz/eslint-config": "workspace:^",
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@nomiclabs/hardhat-ethers": "^2.2.3",
@@ -51,9 +55,11 @@
     "eslint": "^9.31.0",
     "ethereum-waffle": "^4.0.10",
     "hardhat": "^2.22.2",
+    "hardhat-gas-reporter": "^1.0.9",
     "mocha": "^11.5.0",
     "prettier": "^3.5.3",
     "sinon": "^13.0.2",
+    "solidity-coverage": "^0.8.3",
     "ts-node": "^10.8.0",
     "tsx": "^4.19.1",
     "typescript": "5.3.3",
@@ -94,7 +100,6 @@
     "test:foundry": "./scripts/foundry-test.sh"
   },
   "peerDependencies": {
-    "@ethersproject/abi": "*",
-    "@ethersproject/providers": "*"
+    "@ethersproject/abi": "*"
   }
 }

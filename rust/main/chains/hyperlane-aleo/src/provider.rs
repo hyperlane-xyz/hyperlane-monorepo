@@ -1,12 +1,14 @@
 pub use aleo::*;
 pub use base::*;
+pub(crate) use fallback::FallbackHttpClient;
 pub use traits::*;
 
 mod aleo;
 mod base;
+mod fallback;
 mod traits;
 
 #[cfg(test)]
-mod mock;
+pub(crate) mod mock;
 #[cfg(test)]
 mod tests;

@@ -96,6 +96,7 @@ export {
   isS3Checkpoint,
   isS3CheckpointWithId,
 } from './checkpoints.js';
+export { normalizeConfig, sortArraysInConfig } from './config.js';
 export { domainHash } from './domains.js';
 export { safelyAccessEnvVar, inCIMode, inKubernetes } from './env.js';
 export { canonizeId, evmId } from './ids.js';
@@ -111,6 +112,7 @@ export {
   rootLogger,
   setRootLogger,
 } from './logging.js';
+export type { Logger } from './logging.js';
 export { mean, median, randomInt, stdDev, sum } from './math.js';
 export {
   formatMessage,
@@ -203,5 +205,3 @@ export { assert } from './validation.js';
 export { BaseValidator, ValidatorConfig } from './validator.js';
 export { tryParseJsonOrYaml } from './yaml.js';
 export { createServiceLogger } from './logging.js';
-export { MinimumRequiredGasByAction, GasAction } from './mingas.js';
-export * as AltVM from './altvm.js';

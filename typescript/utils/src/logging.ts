@@ -3,6 +3,9 @@ import { LevelWithSilent, Logger, LoggerOptions, pino } from 'pino';
 
 import { inKubernetes, safelyAccessEnvVar } from './env.js';
 
+// Re-export Logger type for other packages to use
+export type { Logger };
+
 // Level and format here should correspond with the agent options as much as possible
 // https://docs.hyperlane.xyz/docs/operate/config-reference#logfmt
 

@@ -246,7 +246,7 @@ describe('hyperlane warp apply owner update tests', async function () {
   it('should update the Everclear fee params and output asset addresses', async () => {
     const everclearTokenConfig: Extract<
       WarpRouteDeployConfig[string],
-      { type: TokenType.collateralEverclear }
+      { type: typeof TokenType.collateralEverclear }
     > = {
       type: TokenType.collateralEverclear,
       token: tokenChain2.address,

@@ -55,14 +55,28 @@ jobs:
       - name: Install Dependencies
         run: yarn install --immutable
 
+      - name: Generate GitHub App Token
+        id: generate-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.HYPER_GONK_APP_ID }}
+          private-key: ${{ secrets.HYPER_GONK_PRIVATE_KEY }}
+
+      - name: Configure Git for Hyper Gonk
+        run: |
+          git config user.name "${{ steps.generate-token.outputs.app-slug }}[bot]"
+          git config user.email "${{ secrets.HYPER_GONK_APP_ID }}+${{ steps.generate-token.outputs.app-slug }}[bot]@users.noreply.github.com"
+
       - name: Create Release PR
         id: changesets
         uses: changesets/action@v1
         with:
           version: yarn version:prepare
+          title: 'chore: release npm packages'
+          setupGitUser: false
         env:
           NPM_CONFIG_PROVENANCE: true
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   check-latest-published:

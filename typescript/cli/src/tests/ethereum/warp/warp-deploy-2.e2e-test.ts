@@ -41,8 +41,10 @@ import {
   ANVIL_KEY,
   CHAIN_2_METADATA_PATH,
   CHAIN_3_METADATA_PATH,
+  CHAIN_4_METADATA_PATH,
   CHAIN_NAME_2,
   CHAIN_NAME_3,
+  CHAIN_NAME_4,
   CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
   REGISTRY_PATH,
@@ -84,6 +86,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
   let chain2Metadata: ChainMetadata;
   let chain3DomainId: number;
+  let chain4DomainId: number;
 
   let ownerAddress: Address;
   let walletChain2: Wallet;
@@ -98,12 +101,17 @@ describe('hyperlane warp deploy e2e tests', async function () {
     const chain3Metadata: ChainMetadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
     chain3DomainId = chain3Metadata.domainId;
 
+    const chain4Metadata: ChainMetadata = readYamlOrJson(CHAIN_4_METADATA_PATH);
+    chain4DomainId = chain4Metadata.domainId;
+
     // Deploy core contracts to populate the registry
     await Promise.all([
       deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY),
       deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, ANVIL_KEY),
+      deployOrUseExistingCore(CHAIN_NAME_4, CORE_CONFIG_PATH, ANVIL_KEY),
     ]);
   });
+
   describe(`hyperlane warp deploy --config ... --yes --key ...`, () => {
     let tokenChain2: ERC20Test;
     let everclearBridgeAdapterMock: MockEverclearAdapter;
@@ -116,6 +124,10 @@ describe('hyperlane warp deploy e2e tests', async function () {
         REGISTRY_PATH,
       );
     });
+
+    const MAX_UINT256 =
+      115792089237316195423570985008687907853269984665640564039457584007913129639935n;
+
     it('should set the allowed bridges and the related token approvals', async function () {
       const bridges = [randomAddress(), randomAddress()];
       const warpConfig: WarpRouteDeployConfig = {
@@ -158,8 +170,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
         chain2TokenConfig.addressOrDenom!,
         providerChain2,
       );
-      const MAX_UINT256 =
-        115792089237316195423570985008687907853269984665640564039457584007913129639935n;
+
       for (const bridge of bridges) {
         const allowance = await tokenChain2.callStatic.allowance(
           chain2TokenConfig.addressOrDenom!,
@@ -173,6 +184,79 @@ describe('hyperlane warp deploy e2e tests', async function () {
         expect(
           new Set(allowedBridgesOnDomain.map(normalizeAddressEvm)).has(
             normalizeAddressEvm(bridge),
+          ),
+        );
+      }
+    });
+
+    it('should allow setting the same bridge on different domains', async function () {
+      const allowedBridge = randomAddress();
+      const warpConfig: WarpRouteDeployConfig = {
+        [CHAIN_NAME_2]: {
+          type: TokenType.collateral,
+          token: tokenChain2.address,
+          owner: ownerAddress,
+          allowedRebalancingBridges: {
+            [chain3DomainId]: [
+              {
+                bridge: allowedBridge,
+                approvedTokens: [tokenChain2.address],
+              },
+            ],
+            [chain4DomainId]: [
+              {
+                bridge: allowedBridge,
+                approvedTokens: [tokenChain2.address],
+              },
+            ],
+          },
+        },
+        [CHAIN_NAME_3]: {
+          type: TokenType.synthetic,
+          owner: ownerAddress,
+        },
+        [CHAIN_NAME_4]: {
+          type: TokenType.synthetic,
+          owner: ownerAddress,
+        },
+      };
+
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+
+      const COMBINED_WARP_CORE_CONFIG_PATH =
+        GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH(
+          WARP_DEPLOY_OUTPUT_PATH,
+          await tokenChain2.symbol(),
+        );
+
+      const coreConfig: WarpCoreConfig = readYamlOrJson(
+        COMBINED_WARP_CORE_CONFIG_PATH,
+      );
+
+      const [chain2TokenConfig] = coreConfig.tokens.filter(
+        (config) => config.chainName === CHAIN_NAME_2,
+      );
+      expect(chain2TokenConfig).to.exist;
+
+      const movableToken = MovableCollateralRouter__factory.connect(
+        chain2TokenConfig.addressOrDenom!,
+        providerChain2,
+      );
+
+      for (const domain of [chain3DomainId, chain4DomainId]) {
+        const allowance = await tokenChain2.callStatic.allowance(
+          chain2TokenConfig.addressOrDenom!,
+          allowedBridge,
+        );
+        expect(allowance.toBigInt() === MAX_UINT256).to.be.true;
+
+        const allowedBridgesOnDomain =
+          await movableToken.callStatic.allowedBridges(domain);
+        expect(allowedBridgesOnDomain.length).to.eql(1);
+        expect(
+          new Set(allowedBridgesOnDomain.map(normalizeAddressEvm)).has(
+            normalizeAddressEvm(allowedBridge),
           ),
         );
       }

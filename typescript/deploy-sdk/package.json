@@ -1,0 +1,46 @@
+{
+  "name": "@hyperlane-xyz/deploy-sdk",
+  "version": "0.2.0",
+  "description": "Deployer SDK for the Hyperlane Protocol",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
+  "license": "Apache-2.0",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "check": "tsc --noEmit",
+    "dev": "tsc --watch",
+    "lint": "eslint",
+    "clean": "rm -rf ./dist",
+    "prettier": "prettier --write .",
+    "test": "mocha --config .mocharc.json './src/**/*.test.ts' --exit"
+  },
+  "dependencies": {
+    "@hyperlane-xyz/cosmos-sdk": "19.10.0",
+    "@hyperlane-xyz/provider-sdk": "0.2.0",
+    "@hyperlane-xyz/radix-sdk": "19.10.0",
+    "@hyperlane-xyz/utils": "19.10.0",
+    "zod": "^3.21.2"
+  },
+  "devDependencies": {
+    "@hyperlane-xyz/eslint-config": "workspace:^",
+    "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@types/chai-as-promised": "^8",
+    "@types/mocha": "^10.0.1",
+    "@types/node": "^18.14.5",
+    "@types/sinon": "^17.0.1",
+    "@types/sinon-chai": "^3.2.12",
+    "chai": "^4.5.0",
+    "chai-as-promised": "^8.0.1",
+    "eslint": "^9.31.0",
+    "mocha": "^11.5.0",
+    "sinon": "^13.0.2",
+    "tsx": "^4.19.1",
+    "typescript": "5.3.3"
+  }
+}

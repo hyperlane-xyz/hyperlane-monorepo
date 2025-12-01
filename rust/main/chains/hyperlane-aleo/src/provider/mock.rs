@@ -31,11 +31,11 @@ impl MockHttpClient {
     }
 
     /// Register a JSON value directly for an endpoint path.
-    pub fn register_value(&self, endpoint: impl Into<String>, value: Value) {
+    pub fn register_value(&self, endpoint: impl Into<String>, value: impl Into<Value>) {
         self.responses
             .write()
             .unwrap()
-            .insert(endpoint.into(), value);
+            .insert(endpoint.into(), value.into());
     }
 
     /// Register a file (json) for an endpoint. File path is relative to base_path.
@@ -46,7 +46,7 @@ impl MockHttpClient {
     ) -> ChainResult<()> {
         let file = self.base_path.join(relative_file.into());
         let data = std::fs::read_to_string(&file).map_err(|e| {
-            HyperlaneAleoError::Other(format!("Failed reading mock file {:?}: {e}", file))
+            HyperlaneAleoError::Other(format!("Failed reading mock file {file:?}: {e}"))
         })?;
         let json: Value = if data.trim().is_empty() {
             Value::Null
@@ -68,8 +68,7 @@ impl MockHttpClient {
                     "No mock response registered for endpoint: {path}"
                 ))
             })
-            .map(|v| Ok(v))
-            .unwrap()
+            .map(Ok)?
     }
 }
 
@@ -79,6 +78,22 @@ impl HttpClient for MockHttpClient {
         &self,
         path: &str,
         _query: impl Into<Option<Value>> + Send,
+    ) -> ChainResult<T> {
+        let path = path
+            .trim()
+            .chars()
+            .filter(|c| !c.is_whitespace())
+            .collect::<String>();
+        let value = self.get(&path)?;
+        let parsed: T = serde_json::from_value(value).map_err(HyperlaneAleoError::from)?;
+        Ok(parsed)
+    }
+
+    /// Makes a GET request to the API in a blocking manner
+    fn request_blocking<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        _query: impl Into<Option<serde_json::Value>> + Send,
     ) -> ChainResult<T> {
         let value = self.get(path)?;
         let parsed: T = serde_json::from_value(value).map_err(HyperlaneAleoError::from)?;
