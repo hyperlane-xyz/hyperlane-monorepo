@@ -60,5 +60,6 @@ export const TEST_RADIX_CHAIN_METADATA: TestChainMetadata = {
     },
   ],
   rpcPort: 3333,
+  rpcUrl: 'http://127.0.0.1:3333',
   restPort: 3333,
 };

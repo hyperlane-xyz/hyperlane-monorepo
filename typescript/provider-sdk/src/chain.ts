@@ -38,6 +38,7 @@ export interface ChainMetadataForAltVM {
  */
 export interface TestChainMetadata extends ChainMetadataForAltVM {
   rpcPort: number;
+  rpcUrl: string;
   restPort: number;
 }
 
