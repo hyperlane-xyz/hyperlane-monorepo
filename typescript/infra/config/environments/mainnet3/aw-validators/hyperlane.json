@@ -155,9 +155,6 @@
   "incentiv": {
     "validators": ["0x72669f47b6f119289f1a42641b02a9656cc8fecd"]
   },
-  "inevm": {
-    "validators": ["0xf9e35ee88e4448a3673b4676a4e153e3584a08eb"]
-  },
   "injective": {
     "validators": ["0xbfb8911b72cfb138c7ce517c57d9c691535dc517"]
   },
