@@ -176,8 +176,6 @@ export class AltVMSignerFactory
       }
 
       const jsonSubmitterConfig = {
-        type: 'jsonRpc',
-        chain,
         privateKey: await AltVMSignerFactory.loadPrivateKey(
           keyByProtocol,
           strategyConfig,
