@@ -27,6 +27,8 @@ fn connection_conf() -> ConnectionConf {
         ism_manager_program: "test_ism_manager.aleo".to_string(),
         validator_announce_program: "test_validator_announce.aleo".to_string(),
         chain_id: 1u16,
+        priority_fee_multiplier: 0f64,
+        proving_service: vec![],
     }
 }
 
@@ -35,7 +37,7 @@ fn mock_provider() -> AleoProvider<MockHttpClient> {
     let base_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/indexer/mock_responses");
     let client: MockHttpClient = MockHttpClient::new(base_path);
 
-    AleoProvider::with_client(client, DOMAIN, 1u16)
+    AleoProvider::with_client(client, DOMAIN, 1u16, None)
 }
 
 #[tokio::test]

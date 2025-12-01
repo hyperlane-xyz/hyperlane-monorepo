@@ -4,7 +4,7 @@ use hyperlane_core::{
     rpc_clients::{BlockNumberGetter, FallbackProvider},
     ChainResult,
 };
-use snarkvm_console_account::{DeserializeOwned, Itertools};
+use snarkvm_console_account::DeserializeOwned;
 use url::Url;
 
 use crate::provider::{BaseHttpClient, HttpClient, RpcClient};
@@ -17,19 +17,17 @@ pub struct FallbackHttpClient {
 
 impl FallbackHttpClient {
     /// Creates a new FallbackHttpClient from a list of base urls
-    pub fn new(urls: Vec<Url>) -> Self {
+    pub fn new(urls: Vec<Url>) -> ChainResult<Self> {
         let clients = urls
             .into_iter()
-            .map(|url| {
-                let base_client = BaseHttpClient::new(
-                    reqwest::Client::new(),
-                    url.to_string().trim_end_matches('/').to_string(),
-                );
-                RpcClient::new(base_client)
-            })
-            .collect_vec();
+            .map(BaseHttpClient::new)
+            .collect::<ChainResult<Vec<_>>>()?
+            .into_iter()
+            .map(RpcClient::new)
+            .collect::<Vec<_>>();
+
         let fallback = FallbackProvider::new(clients);
-        Self { fallback }
+        Ok(Self { fallback })
     }
 }
 
