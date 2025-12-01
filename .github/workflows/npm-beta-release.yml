@@ -87,7 +87,7 @@ jobs:
 
       - name: Build packages
         if: steps.changesets.outputs.count != '0'
-        run: yarn build
+        run: yarn build && yarn build:zk
 
       - name: Publish beta packages
         if: steps.changesets.outputs.count != '0'
