@@ -341,6 +341,9 @@
   "sophon": {
     "validators": ["0xb84c5d02120ed0b39d0f78bbc0e298d89ebcd10b"]
   },
+  "stable": {
+    "validators": ["0x21820baebcd972c769e490415cfee43a894f3c18"]
+  },
   "story": {
     "validators": ["0x501eda013378c60557d763df98d617b6ba55447a"]
   },
@@ -409,8 +412,5 @@
   },
   "zoramainnet": {
     "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
-  },
-  "stable": {
-    "validators": ["0x21820baebcd972c769e490415cfee43a894f3c18"]
   }
 }
