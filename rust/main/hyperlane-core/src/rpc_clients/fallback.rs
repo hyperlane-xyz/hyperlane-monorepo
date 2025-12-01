@@ -179,6 +179,7 @@ where
             .unwrap_or(priority.last_block_height.0);
         if current_block_height <= priority.last_block_height.0 {
             let new_priority = priority.reset_failed_count();
+
             // The `max_block_time` elapsed but the block number returned by the provider has not increased
             self.deprioritize_provider(new_priority).await;
             info!(

@@ -308,8 +308,12 @@ where
                                 "fallback_request: deprioritizing provider because received null for transaction receipt"
                             );
                             self.deprioritize_provider(priority.clone()).await;
+                            errors.push(ProviderError::CustomError(
+                                "Transaction Receipt is null".into(),
+                            ));
                             continue;
                         }
+                        return Ok(serde_json::from_value(v)?);
                     }
                     RetryableErr(e) | RateLimitErr(e) => errors.push(e.into()),
                     NonRetryableErr(e) => return Err(e.into()),
