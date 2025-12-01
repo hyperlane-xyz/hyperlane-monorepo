@@ -141,8 +141,12 @@ export async function executeWarpDeploy(
       }
       default: {
         const signersMap = objMap(protocolSpecificConfig, (chain, _) => {
-          const signer = altVmSigner.get(chain);
-          assert(signer, `Cannot find signer for chain ${chain}`);
+          const signer = altVmSigner.get(protocol);
+          assert(
+            signer,
+            `Cannot find signer for protocol ${protocol} for chain ${chain}`,
+          );
+
           return signer;
         });
 
@@ -268,8 +272,11 @@ async function createWarpIsm({
       return deployedIsm;
     }
     default: {
-      const signer = altVmSigner.get(chain);
-      assert(signer, `Cannot find signer for chain ${chain}`);
+      const signer = altVmSigner.get(protocolType);
+      assert(
+        signer,
+        `Cannot find signer for protocol ${protocolType} for chain ${chain}`,
+      );
       const ismModule = await AltVMIsmModule.create({
         chain,
         addresses: {
@@ -465,8 +472,11 @@ export async function enrollCrossChainRouters(
         break;
       }
       default: {
-        const signer = altVmSigner.get(currentChain);
-        assert(signer, `Cannot find provider for chain ${currentChain}`);
+        const signer = altVmSigner.get(protocol);
+        assert(
+          signer,
+          `Cannot find signer for protocol ${protocol} for chain ${currentChain}`,
+        );
 
         const warpModule = new AltVMWarpModule(
           altVmChainLookup(multiProvider),

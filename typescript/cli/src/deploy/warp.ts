@@ -56,6 +56,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { TypedAnnotatedTransaction } from '../../../sdk/dist/providers/ProviderType.js';
+import { AltVMSignerFactory } from '../context/altvm.js';
 import { requestAndSaveApiKeys } from '../context/context.js';
 import { WriteCommandContext } from '../context/types.js';
 import {
@@ -395,8 +396,11 @@ export async function runWarpRouteApply(
           owner: await context.multiProvider.getSignerAddress(chain),
         };
       } else if (context.altVmSigner.has(protocolType)) {
-        const signer = context.altVmSigner.get(chain);
-        assert(signer, `Cannot find signer for chain ${chain}`);
+        const signer = context.altVmSigner.get(protocolType);
+        assert(
+          signer,
+          `Cannot find signer for protocol ${protocolType} for chain ${chain}`,
+        );
         return {
           ...config,
           owner: signer.getSignerAddress(),
@@ -677,8 +681,11 @@ async function updateExistingWarpRoute(
             break;
           }
           default: {
-            const signer = altVmSigner.get(chain);
-            assert(signer, `Cannot find signer for chain ${chain}`);
+            const signer = altVmSigner.get(protocolType);
+            assert(
+              signer,
+              `Cannot find signer for protocol ${protocolType} for chain ${chain}`,
+            );
             const validatedConfig = validateWarpConfigForAltVM(
               configWithMailbox,
               chain,
@@ -1027,7 +1034,11 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
             return new EV5FileSubmitter(metadata);
           },
         },
-        ...altVmSigner.get(chain),
+        ...AltVMSignerFactory.submitterFactories(
+          multiProvider,
+          altVmSigner,
+          chain,
+        ),
       },
     }),
     config: submissionStrategy,

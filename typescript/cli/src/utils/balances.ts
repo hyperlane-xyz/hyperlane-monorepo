@@ -56,8 +56,11 @@ export async function nativeBalancesAreSufficient(
         break;
       }
       default: {
-        const signer = altVmSigner.get(chain);
-        assert(signer, `Cannot find signer for chain ${chain}`);
+        const signer = altVmSigner.get(protocolType);
+        assert(
+          signer,
+          `Cannot find signer for protocol ${protocolType} for chain ${chain}`,
+        );
         address = signer.getSignerAddress();
 
         const { gasPrice, nativeToken, protocol } =

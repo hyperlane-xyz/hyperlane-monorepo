@@ -28,12 +28,11 @@ export class CosmosNativeProtocolProvider implements ProtocolProvider {
     assert(chainMetadata.rpcUrls, 'rpc urls undefined');
     const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
 
-    const { privateKey, ...extraParams } = config;
-    return CosmosNativeSigner.connectWithSigner(
-      rpcUrls,
-      privateKey,
-      extraParams,
-    );
+    const { privateKey } = config;
+
+    return CosmosNativeSigner.connectWithSigner(rpcUrls, privateKey, {
+      metadata: chainMetadata,
+    });
   }
 
   createSubmitter<TConfig extends TransactionSubmitterConfig>(

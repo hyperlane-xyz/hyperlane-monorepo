@@ -68,7 +68,8 @@ export async function runCoreDeploy(params: DeployParams) {
   });
 
   let deployedAddresses: ChainAddresses;
-  switch (multiProvider.getProtocol(chain)) {
+  const protocol = multiProvider.getProtocol(chain);
+  switch (protocol) {
     case ProtocolType.Ethereum:
       {
         const signer = multiProvider.getSigner(chain);
@@ -103,8 +104,11 @@ export async function runCoreDeploy(params: DeployParams) {
       }
       break;
     default: {
-      const signer = context.altVmSigner.get(chain);
-      assert(signer, `Cannot find signer for chain ${chain}`);
+      const signer = context.altVmSigner.get(protocol);
+      assert(
+        signer,
+        `Cannot find signer for protocol ${protocol} for chain ${chain}`,
+      );
       logBlue('🚀 All systems ready, captain! Beginning deployment...');
 
       const userAddress = signer.getSignerAddress();
@@ -137,7 +141,8 @@ export async function runCoreApply(params: ApplyParams) {
   const { context, chain, deployedCoreAddresses, config } = params;
   const { multiProvider } = context;
 
-  switch (multiProvider.getProtocol(chain)) {
+  const protocol = multiProvider.getProtocol(chain);
+  switch (protocol) {
     case ProtocolType.Ethereum: {
       const evmCoreModule = new EvmCoreModule(multiProvider, {
         chain,
@@ -166,8 +171,11 @@ export async function runCoreApply(params: ApplyParams) {
       break;
     }
     default: {
-      const signer = context.altVmSigner.get(chain);
-      assert(signer, `Cannot find signer for chain ${chain}`);
+      const signer = context.altVmSigner.get(protocol);
+      assert(
+        signer,
+        `Cannot find signer for protocol ${protocol} for chain ${chain}`,
+      );
 
       const { submitter } = await getSubmitterByStrategy({
         chain,
