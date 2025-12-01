@@ -183,8 +183,10 @@ jobs:
           BUMP_TYPE: ${{ steps.next_version.outputs.bump_type }}
           CHANGELOG: ${{ steps.changelog.outputs.changelog }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Get bot user ID for proper avatar attribution
+          BOT_USER_ID=$(gh api /users/${{ steps.generate-token.outputs.app-slug }}[bot] --jq .id)
+          git config user.name "${{ steps.generate-token.outputs.app-slug }}[bot]"
+          git config user.email "${BOT_USER_ID}+${{ steps.generate-token.outputs.app-slug }}[bot]@users.noreply.github.com"
 
           BRANCH_NAME="release-agents-v${NEW_VERSION}"
 
