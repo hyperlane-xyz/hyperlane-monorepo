@@ -53,7 +53,7 @@ before(async function () {
   ) as (keyof typeof TEST_CHAIN_METADATA_PATH_BY_PROTOCOL.radix)[];
 
   for (const chain of t) {
-    await deployHyperlaneRadixPackage(
+    const hyperlanePackageAddress = await deployHyperlaneRadixPackage(
       TEST_CHAIN_METADATA_BY_PROTOCOL.radix[chain],
       {
         code: new Uint8Array(code),
@@ -65,6 +65,8 @@ before(async function () {
     // when starting the node
     const metadataPath = TEST_CHAIN_METADATA_PATH_BY_PROTOCOL.radix[chain];
     const updatedMetadata = TEST_CHAIN_METADATA_BY_PROTOCOL.radix[chain];
+
+    updatedMetadata.packageAddress = hyperlanePackageAddress;
     writeYamlOrJson(metadataPath, updatedMetadata);
   }
 });

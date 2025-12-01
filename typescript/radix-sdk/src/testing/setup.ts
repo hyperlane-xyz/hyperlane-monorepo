@@ -55,7 +55,10 @@ export async function deployHyperlaneRadixPackage(
 ): Promise<string> {
   // Adding dummy package address to avoid the signer crashing because
   // no Hyperlane package is deployed on the new node
-  const metadata = { ...chainMetadata, packageAddress: 'not-yet-deployed' };
+  const metadata: TestChainMetadata = {
+    ...chainMetadata,
+    packageAddress: 'not-yet-deployed',
+  };
 
   const rpcUrls = metadata.rpcUrls?.map((rpc) => rpc.http) ?? [];
   assert(rpcUrls.length > 0, `Expected radix rpc urls not to be empty`);
@@ -73,7 +76,7 @@ export async function deployHyperlaneRadixPackage(
   );
 
   rootLogger.info(
-    `Funded test account on ${chainMetadata.name} before publishing the hyperlane package`,
+    `Funded test account on ${metadata.name} before publishing the hyperlane package`,
   );
 
   const packageAddress = await signer.publishPackage({
@@ -82,9 +85,6 @@ export async function deployHyperlaneRadixPackage(
   });
 
   rootLogger.info(`Deployed Hyperlane package to: ${packageAddress}`);
-
-  // Update the chain metadata with the deployed package address
-  chainMetadata.packageAddress = packageAddress;
 
   return packageAddress;
 }
