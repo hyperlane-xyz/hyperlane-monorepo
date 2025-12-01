@@ -7,9 +7,14 @@ import { assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
 import {
   ALEO_NATIVE_DENOM,
   ALEO_NULL_ADDRESS,
+  U128StringToString,
   arrayToPlaintext,
+  bytes32ToU128String,
   fillArray,
   formatAddress,
+  getAddressFromProgramId,
+  getBalanceKey,
+  stringToU128String,
 } from '../utils/helper.js';
 import { AleoTransaction } from '../utils/types.js';
 
@@ -63,7 +68,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       const result = await this.queryMappingValue(
         'token_registry.aleo',
         'authorized_balances',
-        this.getBalanceKey(req.address, req.denom),
+        getBalanceKey(req.address, req.denom),
       );
 
       if (!result) {
@@ -146,7 +151,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   }
 
   async isMessageDelivered(req: AltVM.ReqIsMessageDelivered): Promise<boolean> {
-    const messageKey = this.bytes32ToU128String(req.messageId);
+    const messageKey = bytes32ToU128String(req.messageId);
 
     const result = await this.queryMappingValue(
       req.mailboxAddress,
@@ -383,10 +388,8 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     );
 
     return {
-      name: this.U128StringToString(`${tokenMetadata['name'].toString()}u128`),
-      symbol: this.U128StringToString(
-        `${tokenMetadata['symbol'].toString()}u128`,
-      ),
+      name: U128StringToString(`${tokenMetadata['name'].toString()}u128`),
+      symbol: U128StringToString(`${tokenMetadata['symbol'].toString()}u128`),
       decimals: tokenMetadata['decimals'],
     };
   }
@@ -518,7 +521,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     switch (metadata['token_type']) {
       case 0: {
         return this.getBalance({
-          address: this.getAddressFromProgramId(req.tokenAddress),
+          address: getAddressFromProgramId(req.tokenAddress),
           denom: '',
         });
       }
@@ -529,7 +532,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       }
       case 2: {
         return this.getBalance({
-          address: this.getAddressFromProgramId(req.tokenAddress),
+          address: getAddressFromProgramId(req.tokenAddress),
           denom: metadata['token_id'],
         });
       }
@@ -792,7 +795,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       priorityFee: 0,
       privateFee: false,
       inputs: [
-        this.getAddressFromProgramId(
+        getAddressFromProgramId(
           req.mailboxAddress.replace('mailbox', 'dispatch_proxy'),
         ),
       ],
@@ -882,7 +885,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       priorityFee: 0,
       privateFee: false,
       inputs: [
-        this.getAddressFromProgramId(req.mailboxAddress),
+        getAddressFromProgramId(req.mailboxAddress),
         `${localDomain}u32`,
       ],
     };
@@ -925,8 +928,8 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       priorityFee: 0,
       privateFee: false,
       inputs: [
-        this.stringToU128String(req.name),
-        this.stringToU128String(req.denom),
+        stringToU128String(req.name),
+        stringToU128String(req.denom),
         `${req.decimals}u8`,
         `${req.decimals}u8`,
       ],
@@ -1056,7 +1059,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       );
     }
 
-    const recipient = this.bytes32ToU128String(req.recipient);
+    const recipient = bytes32ToU128String(req.recipient);
 
     const creditAllowance = Array(4).fill(
       `{spender:${ALEO_NULL_ADDRESS},amount:0u64}`,

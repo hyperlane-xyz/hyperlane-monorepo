@@ -1,4 +1,6 @@
-import { Program } from '@provablehq/sdk/mainnet.js';
+import { BHP256, Plaintext, Program, U128 } from '@provablehq/sdk/mainnet.js';
+
+import { strip0x } from '@hyperlane-xyz/utils';
 
 import { programRegistry } from '../artifacts.js';
 
@@ -126,4 +128,46 @@ export function arrayToPlaintext(array: string[]): string {
 export function programIdToPlaintext(programId: string): string {
   const bytes = Array.from(programId).map((c) => `${c.charCodeAt(0)}u8`);
   return arrayToPlaintext(fillArray(bytes, 128, `0u8`));
+}
+
+export function getAddressFromProgramId(programId: string): string {
+  return Plaintext.fromString(programId).toString();
+}
+
+export function stringToU128String(input: string): string {
+  if (input.length > 16) {
+    throw new Error(`string "${input}" is too long to convert it into U128`);
+  }
+
+  const encoded = new TextEncoder().encode(input);
+  const bytes = new Uint8Array(16);
+  bytes.set(encoded.subarray(0, 16));
+
+  return U128.fromBytesLe(bytes).toString();
+}
+
+export function U128StringToString(input: string): string {
+  return new TextDecoder().decode(
+    U128.fromString(input)
+      .toBytesLe()
+      .filter((b) => b > 0),
+  );
+}
+
+export function bytes32ToU128String(input: string): string {
+  const bytes = Buffer.from(strip0x(input), 'hex');
+
+  // Split into two 128-bit chunks
+  const lowBytes = Uint8Array.from(bytes.subarray(0, 16));
+  const highBytes = Uint8Array.from(bytes.subarray(16, 32));
+
+  return `[${U128.fromBytesLe(lowBytes).toString()},${U128.fromBytesLe(highBytes).toString()}]`;
+}
+
+export function getBalanceKey(address: string, denom: string): string {
+  return new BHP256()
+    .hash(
+      Plaintext.fromString(`{account:${address},token_id:${denom}}`).toBitsLe(),
+    )
+    .toString();
 }

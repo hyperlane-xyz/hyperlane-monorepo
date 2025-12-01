@@ -1,25 +1,21 @@
 import {
   AleoKeyProvider as AleoMainnetKeyProvider,
   AleoNetworkClient as AleoMainnetNetworkClient,
-  BHP256,
   Account as MainnetAccount,
   NetworkRecordProvider as MainnetNetworkRecordProvider,
-  Program as MainnetProgram,
   ProgramManager as MainnetProgramManager,
   Plaintext,
-  U128,
 } from '@provablehq/sdk/mainnet.js';
 import {
   AleoKeyProvider as AleoTestnetKeyProvider,
   AleoNetworkClient as AleoTestnetNetworkClient,
   Account as TestnetAccount,
   NetworkRecordProvider as TestnetNetworkRecordProvider,
-  Program as TestnetProgram,
   ProgramManager as TestnetProgramManager,
   getOrInitConsensusVersionTestHeights,
 } from '@provablehq/sdk/testnet.js';
 
-import { assert, strip0x } from '@hyperlane-xyz/utils';
+import { assert } from '@hyperlane-xyz/utils';
 
 export type AnyAleoNetworkClient =
   | AleoMainnetNetworkClient
@@ -129,57 +125,5 @@ export class AleoBase {
         `Failed to query mapping value for program ${programId}/${mappingName}/${key}: ${err}`,
       );
     }
-  }
-
-  protected getAddressFromProgramId(programId: string): string {
-    const Program = this.chainId ? TestnetProgram : MainnetProgram;
-
-    return Program.fromString(
-      Program.getCreditsProgram()
-        .toString()
-        .replaceAll('credits.aleo', programId),
-    )
-      .address()
-      .to_string();
-  }
-
-  protected stringToU128String(input: string): string {
-    if (input.length > 16) {
-      throw new Error(`string "${input}" is too long to convert it into U128`);
-    }
-
-    const encoded = new TextEncoder().encode(input);
-    const bytes = new Uint8Array(16);
-    bytes.set(encoded.subarray(0, 16));
-
-    return U128.fromBytesLe(bytes).toString();
-  }
-
-  protected U128StringToString(input: string): string {
-    return new TextDecoder().decode(
-      U128.fromString(input)
-        .toBytesLe()
-        .filter((b) => b > 0),
-    );
-  }
-
-  protected bytes32ToU128String(input: string): string {
-    const bytes = Buffer.from(strip0x(input), 'hex');
-
-    // Split into two 128-bit chunks
-    const lowBytes = Uint8Array.from(bytes.subarray(0, 16));
-    const highBytes = Uint8Array.from(bytes.subarray(16, 32));
-
-    return `[${U128.fromBytesLe(lowBytes).toString()},${U128.fromBytesLe(highBytes).toString()}]`;
-  }
-
-  protected getBalanceKey(address: string, denom: string): string {
-    return new BHP256()
-      .hash(
-        Plaintext.fromString(
-          `{account:${address},token_id:${denom}}`,
-        ).toBitsLe(),
-      )
-      .toString();
   }
 }
