@@ -175,7 +175,7 @@ export class AltVMSignerFactory
         continue;
       }
 
-      const jsonSubmitterConfig = {
+      const signerConfig = {
         privateKey: await AltVMSignerFactory.loadPrivateKey(
           keyByProtocol,
           strategyConfig,
@@ -188,7 +188,7 @@ export class AltVMSignerFactory
         metadata.protocol,
         await getProtocolProvider(metadata.protocol).createSigner(
           metadata,
-          jsonSubmitterConfig,
+          signerConfig,
         ),
       );
     }
