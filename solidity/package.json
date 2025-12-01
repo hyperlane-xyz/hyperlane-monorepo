@@ -3,7 +3,7 @@
   "description": "Core solidity contracts for Hyperlane",
   "version": "10.0.4",
   "dependencies": {
-    "@hyperlane-xyz/utils": "19.9.0"
+    "@hyperlane-xyz/utils": "19.10.0"
   },
   "devDependencies": {
     "@ethersproject/abi": "*",
