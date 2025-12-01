@@ -93,10 +93,8 @@ export async function signerMiddleware(argv: Record<string, any>) {
       const metadata = multiProvider.getChainMetadata(chain);
 
       if (hasProtocol(protocol))
-        altVmProvider.set(
-          protocol,
-          await getProtocolProvider(protocol).createProvider(metadata),
-        );
+        altVmProvider[protocol] =
+          await getProtocolProvider(protocol).createProvider(metadata);
     }),
   );
 
@@ -159,7 +157,7 @@ export async function getContext({
   const multiProtocolProvider = await getMultiProtocolProvider(registry);
 
   // This mapping gets populated as part of signerMiddleware
-  const altVmProvider = new Map<string, AltVM.IProvider>();
+  const altVmProvider: ChainMap<AltVM.IProvider> = {};
 
   const supportedProtocols = [
     ProtocolType.Ethereum,

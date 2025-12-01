@@ -3,7 +3,7 @@ import { ChainName, DerivedIsmConfig, EvmIsmReader } from '@hyperlane-xyz/sdk';
 import {
   Address,
   ProtocolType,
-  assert,
+  mustGet,
   stringifyObject,
 } from '@hyperlane-xyz/utils';
 
@@ -34,11 +34,7 @@ export async function readIsmConfig({
     config = await ismReader.deriveIsmConfig(address);
     stringConfig = stringifyObject(config, resolveFileFormat(out), 2);
   } else {
-    const provider = context.altVmProvider.get(protocol);
-    assert(
-      provider,
-      `Cannot find provider for protocol ${protocol} on chain ${chain}`,
-    );
+    const provider = mustGet(context.altVmProvider, protocol);
     const ismReader = new AltVMIsmReader(
       (chain) => context.multiProvider.tryGetChainName(chain),
       provider,

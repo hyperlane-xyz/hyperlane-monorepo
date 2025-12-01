@@ -3,7 +3,7 @@ import { ChainName, EvmHookReader } from '@hyperlane-xyz/sdk';
 import {
   Address,
   ProtocolType,
-  assert,
+  mustGet,
   stringifyObject,
 } from '@hyperlane-xyz/utils';
 
@@ -41,11 +41,7 @@ export async function readHookConfig({
       break;
     }
     default: {
-      const provider = context.altVmProvider.get(protocol);
-      assert(
-        provider,
-        `Cannot find provider for protocol ${protocol} on chain ${chain}`,
-      );
+      const provider = mustGet(context.altVmProvider, protocol);
       const hookReader = new AltVMHookReader(
         (chain) => context.multiProvider.getChainMetadata(chain),
         provider,

@@ -21,7 +21,7 @@ import {
 import {
   Address,
   ProtocolType,
-  assert,
+  mustGet,
   objFilter,
   objMap,
   promiseObjAll,
@@ -132,11 +132,7 @@ async function deriveWarpRouteConfigs(
           ).deriveWarpRouteConfig(address);
         }
         default: {
-          const provider = context.altVmProvider.get(protocol);
-          assert(
-            provider,
-            `Cannot find provider for protocol ${protocol} on chain ${chain}`,
-          );
+          const provider = mustGet(context.altVmProvider, protocol);
           return new AltVMWarpRouteReader(
             altVmChainLookup(multiProvider),
             provider,
