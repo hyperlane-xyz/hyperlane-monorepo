@@ -18,7 +18,12 @@ import {
   getSaltFromAddress,
   stringToU128String,
 } from '../utils/helper.js';
-import { AleoTransaction } from '../utils/types.js';
+import {
+  AleoHookType,
+  AleoIsmType,
+  AleoTokenType,
+  AleoTransaction,
+} from '../utils/types.js';
 
 import { AleoBase } from './base.js';
 
@@ -168,13 +173,13 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     );
 
     switch (result) {
-      case 0:
+      case AleoIsmType.TEST_ISM:
         return AltVM.IsmType.TEST_ISM;
-      case 1:
+      case AleoIsmType.ROUTING:
         return AltVM.IsmType.ROUTING;
-      case 4:
+      case AleoIsmType.MERKLE_ROOT_MULTISIG:
         return AltVM.IsmType.MERKLE_ROOT_MULTISIG;
-      case 5:
+      case AleoIsmType.MESSAGE_ID_MULTISIG:
         return AltVM.IsmType.MESSAGE_ID_MULTISIG;
       default:
         throw new Error(`Unknown ISM type for address: ${req.ismAddress}`);
@@ -272,13 +277,13 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     );
 
     switch (result) {
-      case 0:
+      case AleoHookType.CUSTOM:
         return AltVM.HookType.CUSTOM;
-      case 3:
+      case AleoHookType.MERKLE_TREE:
         return AltVM.HookType.MERKLE_TREE;
-      case 4:
+      case AleoHookType.INTERCHAIN_GAS_PAYMASTER:
         return AltVM.HookType.INTERCHAIN_GAS_PAYMASTER;
-      case 7:
+      case AleoHookType.PAUSABLE:
         return AltVM.HookType.PAUSABLE;
       default:
         throw new Error(`Unknown Hook type for address: ${req.hookAddress}`);
@@ -434,13 +439,13 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     }
 
     switch (tokenMetadata.token_type) {
-      case 0:
+      case AleoTokenType.NATIVE:
         token.tokenType = AltVM.TokenType.native;
         break;
-      case 1:
+      case AleoTokenType.SYNTHETIC:
         token.tokenType = AltVM.TokenType.synthetic;
         break;
-      case 2:
+      case AleoTokenType.COLLATERAL:
         token.tokenType = AltVM.TokenType.collateral;
         break;
     }
@@ -517,18 +522,18 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     );
 
     switch (metadata['token_type']) {
-      case 0: {
+      case AleoTokenType.NATIVE: {
         return this.getBalance({
           address: getAddressFromProgramId(req.tokenAddress),
           denom: '',
         });
       }
-      case 1: {
+      case AleoTokenType.SYNTHETIC: {
         return this.getTotalSupply({
           denom: metadata['token_id'],
         });
       }
-      case 2: {
+      case AleoTokenType.COLLATERAL: {
         return this.getBalance({
           address: getAddressFromProgramId(req.tokenAddress),
           denom: metadata['token_id'],
