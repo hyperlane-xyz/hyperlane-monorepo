@@ -90,6 +90,7 @@
     "gas-ci": "yarn gas --check --tolerance 2 || (echo 'Manually update gas snapshot' && exit 1)",
     "slither": "slither .",
     "storage": "./storage.sh",
+    "bytecode": "./bytecode.sh",
     "version:update": "sh ./bytecodeversion.sh",
     "version:changed": "yarn version:update && git diff --exit-code contracts/PackageVersioned.sol",
     "version:exhaustive": "yarn tsx ./test/exhaustiveversion.test.ts"

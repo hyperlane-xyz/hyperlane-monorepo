@@ -1,0 +1,82 @@
+name: Check Bytecode Changes
+
+on:
+  pull_request:
+    branches:
+      - '*'
+    paths:
+      - 'solidity/**'
+  workflow_dispatch:
+    inputs:
+      base:
+        description: 'Branch to compare against'
+        required: true
+        default: 'main'
+
+jobs:
+  diff-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout the PR branch
+      - name: Checkout PR branch
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: yarn-cache
+        uses: ./.github/actions/yarn-cache
+        with:
+          cache-provider: buildjet
+
+      - name: yarn-install
+        run: yarn install
+
+      - name: foundry-install
+        uses: foundry-rs/foundry-toolchain@v1
+
+      # Run the command on PR branch
+      - name: Run command on PR branch
+        run: yarn workspace @hyperlane-xyz/core bytecode HEAD-bytecode
+
+      # Checkout the target branch (base)
+      - name: Checkout target branch (base) contracts
+        env:
+          BASE_REF: ${{ github.event.inputs.base || github.event.pull_request.base.sha }}
+        run: |
+          # Fetch the base reference
+          git fetch origin $BASE_REF
+          # Check if BASE_REF is a commit SHA (40 hex characters) or a branch name
+          if [[ "$BASE_REF" =~ ^[0-9a-f]{40}$ ]]; then
+            # For commit SHAs, checkout directly without origin/ prefix
+            git checkout $BASE_REF -- solidity/contracts
+          else
+            # For branch names, use origin/ prefix
+            git checkout origin/$BASE_REF -- solidity/contracts
+          fi
+
+      # Run the command on the target branch
+      - name: Run command on target branch
+        run: yarn workspace @hyperlane-xyz/core bytecode base-bytecode
+
+      # Compare outputs
+      - name: Compare outputs (fail on any changes)
+        run: |
+          DIFF_OUTPUT=$(diff --unified --recursive solidity/base-bytecode solidity/HEAD-bytecode || true)
+
+          if [ -z "$DIFF_OUTPUT" ]; then
+            echo "No bytecode changes detected."
+            exit 0
+          fi
+
+          echo "Detected bytecode changes:"
+          echo "$DIFF_OUTPUT"
+          echo ""
+          echo "ERROR: Bytecode changes detected. This job fails if there are any bytecode changes."
+          echo "If these changes are expected, please review them carefully."
+          exit 1
