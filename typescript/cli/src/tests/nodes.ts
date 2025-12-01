@@ -1,6 +1,6 @@
 import { GenericContainer, Wait } from 'testcontainers';
 
-import { TestChainMetadata } from './constants.js';
+import { TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
 
 export async function runEvmNode({ rpcPort, chainId }: TestChainMetadata) {
   const container = await new GenericContainer(

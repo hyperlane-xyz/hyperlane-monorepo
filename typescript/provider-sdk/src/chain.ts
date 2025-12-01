@@ -9,11 +9,14 @@ type ChainNameOrId = string | number;
  */
 export interface ChainMetadataForAltVM {
   name: string;
+  bech32Prefix?: string;
   domainId: Domain;
   chainId: ChainId;
   nativeToken?: {
     decimals?: number;
     denom?: string;
+    symbol: string;
+    name: string;
   };
   blocks?: {
     confirmations?: number;
@@ -28,6 +31,14 @@ export interface ChainMetadataForAltVM {
   // Used in radix tests after deploying
   // the package address to the local chain
   packageAddress?: string;
+}
+
+/**
+ * Test chain metadata type with additional fields for testing
+ */
+export interface TestChainMetadata extends ChainMetadataForAltVM {
+  rpcPort: number;
+  restPort: number;
 }
 
 /**

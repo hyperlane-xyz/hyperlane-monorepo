@@ -1,3 +1,4 @@
+import { TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
 import { assert, retryAsync, rootLogger } from '@hyperlane-xyz/utils';
 
 import { RadixSigner } from '../clients/signer.js';
@@ -7,7 +8,6 @@ import {
   HYPERLANE_RADIX_VERSION,
   TEST_RADIX_CHAIN_METADATA,
   TEST_RADIX_PRIVATE_KEY,
-  TestChainMetadata,
 } from './constants.js';
 
 export interface RadixContractArtifacts {

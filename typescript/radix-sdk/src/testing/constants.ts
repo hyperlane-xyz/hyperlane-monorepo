@@ -1,4 +1,4 @@
-import { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk';
+import { TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
 
 /**
  * Test timeout for operations that require node startup and deployment
@@ -32,14 +32,6 @@ export const TEST_RADIX_BURN_ADDRESS =
   'account_loc1294g56ga4ckdzhksx6vnrns2jj0v47ju87flsyscxdjxu9wrkjp5vt';
 
 /**
- * Test chain metadata type with additional fields for testing
- */
-export type TestChainMetadata = ChainMetadataForAltVM & {
-  rpcPort: number;
-  restPort?: number;
-};
-
-/**
  * Default test chain metadata for Radix local network
  */
 export const TEST_RADIX_CHAIN_METADATA: TestChainMetadata = {
@@ -48,6 +40,8 @@ export const TEST_RADIX_CHAIN_METADATA: TestChainMetadata = {
   domainId: 1421493353,
   nativeToken: {
     decimals: 18,
+    name: 'Radix',
+    symbol: 'XRD',
     denom:
       'resource_rdx1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxradxrd',
   },

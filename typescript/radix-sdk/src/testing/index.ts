@@ -12,7 +12,6 @@ export {
   TEST_RADIX_CHAIN_METADATA,
   TEST_RADIX_DEPLOYER_ADDRESS,
   TEST_RADIX_PRIVATE_KEY,
-  TestChainMetadata,
 } from './constants.js';
 
 // Node management

@@ -6,9 +6,9 @@ import { DockerComposeEnvironment, Wait } from 'testcontainers';
 // eslint-disable-next-line
 import { fileURLToPath } from 'url';
 
+import { TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
 import { assert, rootLogger, sleep } from '@hyperlane-xyz/utils';
 
-import { TestChainMetadata } from './constants.js';
 import {
   RadixContractArtifacts,
   deployHyperlaneRadixPackage,
