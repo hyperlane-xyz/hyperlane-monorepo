@@ -49,6 +49,7 @@ import {
 import {
   Address,
   assert,
+  mustGet,
   objFilter,
   objMap,
   promiseObjAll,
@@ -142,7 +143,7 @@ export async function runWarpRouteDeploy({
   const deploymentChains = chains.filter(
     (chain) =>
       chainMetadata[chain].protocol === ProtocolType.Ethereum ||
-      altVmSigner.has(chainMetadata[chain].protocol),
+      !!altVmSigner[chainMetadata[chain].protocol],
   );
 
   await runPreflightChecksForChains({
@@ -395,12 +396,8 @@ export async function runWarpRouteApply(
           ...config,
           owner: await context.multiProvider.getSignerAddress(chain),
         };
-      } else if (context.altVmSigner.has(protocolType)) {
-        const signer = context.altVmSigner.get(protocolType);
-        assert(
-          signer,
-          `Cannot find signer for protocol ${protocolType} for chain ${chain}`,
-        );
+      } else if (context.altVmSigner[protocolType]) {
+        const signer = mustGet(context.altVmSigner, protocolType);
         return {
           ...config,
           owner: signer.getSignerAddress(),
@@ -645,7 +642,7 @@ async function updateExistingWarpRoute(
         const protocolType = multiProvider.getProtocol(chain);
         if (
           protocolType !== ProtocolType.Ethereum &&
-          !altVmSigner.has(protocolType)
+          !altVmSigner[protocolType]
         ) {
           logBlue(`Skipping non-compatible chain ${chain}`);
           return;
@@ -681,11 +678,7 @@ async function updateExistingWarpRoute(
             break;
           }
           default: {
-            const signer = altVmSigner.get(protocolType);
-            assert(
-              signer,
-              `Cannot find signer for protocol ${protocolType} for chain ${chain}`,
-            );
+            const signer = mustGet(altVmSigner, protocolType);
             const validatedConfig = validateWarpConfigForAltVM(
               configWithMailbox,
               chain,

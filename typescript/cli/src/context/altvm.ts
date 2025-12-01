@@ -24,7 +24,7 @@ import {
   SubmitterMetadata,
   TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, mustGet } from '@hyperlane-xyz/utils';
 
 import { AltVMFileSubmitter } from '../submitters/AltVMFileSubmitter.js';
 import {
@@ -164,10 +164,7 @@ export class AltVMSignerFactory
     keyByProtocol: SignerKeyProtocolMap,
     strategyConfig: Partial<ExtendedChainSubmissionStrategy>,
   ) {
-    const signers: Map<
-      string,
-      AltVM.ISigner<AnnotatedTx, TxReceipt>
-    > = new Map();
+    const signers: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>> = {};
     for (const chain of chains) {
       const metadata = metadataManager.getChainMetadata(chain);
 
@@ -184,13 +181,9 @@ export class AltVMSignerFactory
         ),
       };
 
-      signers.set(
+      signers[metadata.protocol] = await getProtocolProvider(
         metadata.protocol,
-        await getProtocolProvider(metadata.protocol).createSigner(
-          metadata,
-          signerConfig,
-        ),
-      );
+      ).createSigner(metadata, signerConfig);
     }
 
     return signers;
@@ -198,7 +191,7 @@ export class AltVMSignerFactory
 
   public static submitterFactories(
     metadataManager: ChainMetadataManager,
-    altVmSigner: Map<string, AltVM.ISigner<AnnotatedTx, TxReceipt>>,
+    altVmSigner: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>>,
     chain: string,
   ): ProtocolMap<Record<string, SubmitterFactory>> {
     const protocol = metadataManager.getProtocol(chain);
@@ -209,11 +202,7 @@ export class AltVMSignerFactory
       return factories;
     }
 
-    const signer = altVmSigner.get(protocol);
-    assert(
-      signer,
-      `Cannot find signer for protocol ${protocol} for chain ${chain}`,
-    );
+    const signer = mustGet(altVmSigner, protocol);
     for (const protocol of listProtocols()) {
       factories[protocol] = {
         [TxSubmitterType.JSON_RPC]: (

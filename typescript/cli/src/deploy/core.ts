@@ -13,7 +13,7 @@ import {
   ExplorerLicenseType,
   altVmChainLookup,
 } from '@hyperlane-xyz/sdk';
-import { assert } from '@hyperlane-xyz/utils';
+import { mustGet } from '@hyperlane-xyz/utils';
 
 import { MultiProtocolSignerManager } from '../context/strategies/signer/MultiProtocolSignerManager.js';
 import { WriteCommandContext } from '../context/types.js';
@@ -104,11 +104,7 @@ export async function runCoreDeploy(params: DeployParams) {
       }
       break;
     default: {
-      const signer = context.altVmSigner.get(protocol);
-      assert(
-        signer,
-        `Cannot find signer for protocol ${protocol} for chain ${chain}`,
-      );
+      const signer = mustGet(context.altVmSigner, protocol);
       logBlue('🚀 All systems ready, captain! Beginning deployment...');
 
       const userAddress = signer.getSignerAddress();
@@ -171,11 +167,7 @@ export async function runCoreApply(params: ApplyParams) {
       break;
     }
     default: {
-      const signer = context.altVmSigner.get(protocol);
-      assert(
-        signer,
-        `Cannot find signer for protocol ${protocol} for chain ${chain}`,
-      );
+      const signer = mustGet(context.altVmSigner, protocol);
 
       const { submitter } = await getSubmitterByStrategy({
         chain,

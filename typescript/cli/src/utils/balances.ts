@@ -9,8 +9,8 @@ import {
   getProtocolProvider,
 } from '@hyperlane-xyz/provider-sdk';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
-import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
-import { Address, assert } from '@hyperlane-xyz/utils';
+import { ChainMap, ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
+import { Address, assert, mustGet } from '@hyperlane-xyz/utils';
 
 import { autoConfirm } from '../config/prompts.js';
 import { ETHEREUM_MINIMUM_GAS } from '../consts.js';
@@ -18,7 +18,7 @@ import { logBlue, logGreen, logRed, warnYellow } from '../logger.js';
 
 export async function nativeBalancesAreSufficient(
   multiProvider: MultiProvider,
-  altVmSigner: Map<string, AltVM.ISigner<AnnotatedTx, TxReceipt>>,
+  altVmSigner: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>>,
   chains: ChainName[],
   minGas: GasAction,
   skipConfirmation: boolean,
@@ -56,11 +56,7 @@ export async function nativeBalancesAreSufficient(
         break;
       }
       default: {
-        const signer = altVmSigner.get(protocolType);
-        assert(
-          signer,
-          `Cannot find signer for protocol ${protocolType} for chain ${chain}`,
-        );
+        const signer = mustGet(altVmSigner, protocolType);
         address = signer.getSignerAddress();
 
         const { gasPrice, nativeToken, protocol } =
