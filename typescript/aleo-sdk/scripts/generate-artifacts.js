@@ -9,7 +9,7 @@ const __dirname = path.dirname(__filename);
 
 const outputFile = path.join(__dirname, '../src/artifacts.ts');
 
-const VERSION = 'v1.0.0-beta0';
+const VERSION = 'v1.0.0';
 
 const main = async () => {
   const res = await fetch(
@@ -51,7 +51,15 @@ const main = async () => {
       '`;\n';
   }
 
-  output += `\nexport const programRegistry: Record<string, string> = {`;
+  output += `\nexport type AleoProgram =`;
+
+  for (const file of files) {
+    output += `\n  | '${file.filename}'`;
+  }
+
+  output += `;`;
+
+  output += `\n\nexport const programRegistry: Record<AleoProgram, string> = {`;
 
   for (const file of files) {
     output += `\n  ${file.filename},`;

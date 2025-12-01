@@ -7,11 +7,23 @@ import { assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
 import {
   ALEO_NATIVE_DENOM,
   ALEO_NULL_ADDRESS,
+  U128ToString,
   arrayToPlaintext,
+  bytes32ToU128String,
   fillArray,
   formatAddress,
+  getAddressFromProgramId,
+  getBalanceKey,
+  getProgramIdFromSalt,
+  getSaltFromAddress,
+  stringToU128,
 } from '../utils/helper.js';
-import { AleoTransaction } from '../utils/types.js';
+import {
+  AleoHookType,
+  AleoIsmType,
+  AleoTokenType,
+  AleoTransaction,
+} from '../utils/types.js';
 
 import { AleoBase } from './base.js';
 
@@ -39,10 +51,6 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     return result;
   }
 
-  protected getProgramSaltFromAddress(address: string): string {
-    return (address.split('_').at(-1) || '').replaceAll('.aleo', '');
-  }
-
   // ### QUERY BASE ###
 
   async isHealthy() {
@@ -63,7 +71,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       const result = await this.queryMappingValue(
         'token_registry.aleo',
         'authorized_balances',
-        this.getBalanceKey(req.address, req.denom),
+        getBalanceKey(req.address, req.denom),
       );
 
       if (!result) {
@@ -89,7 +97,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     );
 
     if (!result) {
-      return 0n;
+      0n;
     }
 
     return result['max_supply'];
@@ -123,9 +131,9 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       nonce,
     } = await this.queryMappingValue(req.mailboxAddress, 'mailbox', 'true');
 
-    const hookManagerProgramId = req.mailboxAddress.replace(
-      'mailbox',
+    const hookManagerProgramId = getProgramIdFromSalt(
       'hook_manager',
+      getSaltFromAddress(req.mailboxAddress),
     );
 
     return {
@@ -146,7 +154,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   }
 
   async isMessageDelivered(req: AltVM.ReqIsMessageDelivered): Promise<boolean> {
-    const messageKey = this.bytes32ToU128String(req.messageId);
+    const messageKey = bytes32ToU128String(req.messageId);
 
     const result = await this.queryMappingValue(
       req.mailboxAddress,
@@ -165,13 +173,13 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     );
 
     switch (result) {
-      case 0:
+      case AleoIsmType.TEST_ISM:
         return AltVM.IsmType.TEST_ISM;
-      case 1:
+      case AleoIsmType.ROUTING:
         return AltVM.IsmType.ROUTING;
-      case 4:
+      case AleoIsmType.MERKLE_ROOT_MULTISIG:
         return AltVM.IsmType.MERKLE_ROOT_MULTISIG;
-      case 5:
+      case AleoIsmType.MESSAGE_ID_MULTISIG:
         return AltVM.IsmType.MESSAGE_ID_MULTISIG;
       default:
         throw new Error(`Unknown ISM type for address: ${req.ismAddress}`);
@@ -269,13 +277,13 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     );
 
     switch (result) {
-      case 0:
+      case AleoHookType.CUSTOM:
         return AltVM.HookType.CUSTOM;
-      case 3:
+      case AleoHookType.MERKLE_TREE:
         return AltVM.HookType.MERKLE_TREE;
-      case 4:
+      case AleoHookType.INTERCHAIN_GAS_PAYMASTER:
         return AltVM.HookType.INTERCHAIN_GAS_PAYMASTER;
-      case 7:
+      case AleoHookType.PAUSABLE:
         return AltVM.HookType.PAUSABLE;
       default:
         throw new Error(`Unknown Hook type for address: ${req.hookAddress}`);
@@ -383,10 +391,8 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     );
 
     return {
-      name: this.U128StringToString(`${tokenMetadata['name'].toString()}u128`),
-      symbol: this.U128StringToString(
-        `${tokenMetadata['symbol'].toString()}u128`,
-      ),
+      name: U128ToString(tokenMetadata['name']),
+      symbol: U128ToString(tokenMetadata['symbol']),
       decimals: tokenMetadata['decimals'],
     };
   }
@@ -412,7 +418,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
 
     const tokenMetadata = await this.queryMappingValue(
       req.tokenAddress,
-      'token_metadata',
+      'app_metadata',
       'true',
     );
 
@@ -421,7 +427,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     token.hookAddress =
       tokenMetadata.hook === ALEO_NULL_ADDRESS
         ? ''
-        : `${token.mailboxAddress.replace('mailbox', 'hook_manager')}/${tokenMetadata.hook}`;
+        : `${getProgramIdFromSalt('hook_manager', getSaltFromAddress(token.mailboxAddress))}/${tokenMetadata.hook}`;
     token.denom = tokenMetadata.token_id || '';
 
     if (token.denom) {
@@ -433,13 +439,13 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     }
 
     switch (tokenMetadata.token_type) {
-      case 0:
+      case AleoTokenType.NATIVE:
         token.tokenType = AltVM.TokenType.native;
         break;
-      case 1:
+      case AleoTokenType.SYNTHETIC:
         token.tokenType = AltVM.TokenType.synthetic;
         break;
-      case 2:
+      case AleoTokenType.COLLATERAL:
         token.tokenType = AltVM.TokenType.collateral;
         break;
     }
@@ -511,25 +517,25 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async getBridgedSupply(req: AltVM.ReqGetBridgedSupply): Promise<bigint> {
     const metadata = await this.queryMappingValue(
       req.tokenAddress,
-      'token_metadata',
+      'app_metadata',
       'true',
     );
 
     switch (metadata['token_type']) {
-      case 0: {
+      case AleoTokenType.NATIVE: {
         return this.getBalance({
-          address: this.getAddressFromProgramId(req.tokenAddress),
+          address: getAddressFromProgramId(req.tokenAddress),
           denom: '',
         });
       }
-      case 1: {
+      case AleoTokenType.SYNTHETIC: {
         return this.getTotalSupply({
           denom: metadata['token_id'],
         });
       }
-      case 2: {
+      case AleoTokenType.COLLATERAL: {
         return this.getBalance({
-          address: this.getAddressFromProgramId(req.tokenAddress),
+          address: getAddressFromProgramId(req.tokenAddress),
           denom: metadata['token_id'],
         });
       }
@@ -537,6 +543,59 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
         throw new Error(`Unknown token type ${metadata['token_type']}`);
       }
     }
+  }
+
+  private async getQuotes(
+    gasLimit: string,
+    destinationDomainId: number,
+    hooks: string[],
+  ): Promise<{
+    total_quote: string;
+    quotes: { spender: string; quote: string }[];
+  }> {
+    let total_quote = new BigNumber(0);
+    const quotes = [];
+
+    for (const hookAddress of hooks) {
+      if (!hookAddress) {
+        continue;
+      }
+
+      try {
+        const [igpProgramId, igpAddress] = hookAddress.split('/');
+
+        const config = await this.queryMappingValue(
+          igpProgramId,
+          'destination_gas_configs',
+          `{igp:${igpAddress},destination:${destinationDomainId}u32}`,
+        );
+
+        if (!config) {
+          continue;
+        }
+
+        const quote = new BigNumber(gasLimit)
+          .plus(config.gas_overhead.toString())
+          .multipliedBy(config.gas_price.toString())
+          .multipliedBy(config.exchange_rate.toString())
+          .dividedToIntegerBy(new BigNumber(10).exponentiatedBy(10))
+          .toFixed(0);
+
+        total_quote = total_quote.plus(quote);
+
+        quotes.push({
+          spender: igpAddress,
+          quote,
+        });
+      } catch {
+        continue;
+      }
+    }
+
+    return {
+      total_quote: total_quote.toFixed(0),
+      quotes,
+    };
   }
 
   async quoteRemoteTransfer(
@@ -555,7 +614,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       };
     }
 
-    let gasLimit = new BigNumber(remoteRouter['gas']);
+    let gasLimit = remoteRouter['gas'] as string;
 
     if (req.customHookAddress && req.customHookMetadata) {
       const metadataBytes: number[] = fillArray(
@@ -563,11 +622,9 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
         64,
         0,
       );
-      gasLimit = new BigNumber(
-        U128.fromBytesLe(Uint8Array.from(metadataBytes.slice(0, 16)))
-          .toString()
-          .replace('u128', ''),
-      );
+      gasLimit = U128.fromBytesLe(Uint8Array.from(metadataBytes.slice(0, 16)))
+        .toString()
+        .replace('u128', '');
     }
 
     const { mailboxAddress } = await this.getToken({
@@ -578,44 +635,15 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       mailboxAddress,
     });
 
-    let quote = new BigNumber(0);
-
-    const hooks = [
-      req.customHookAddress || mailbox.defaultHook,
-      mailbox.requiredHook,
-    ];
-
-    for (const hookAddress of hooks) {
-      if (!hookAddress) {
-        continue;
-      }
-
-      try {
-        const igp = await this.getInterchainGasPaymasterHook({
-          hookAddress,
-        });
-
-        const config = igp.destinationGasConfigs[req.destinationDomainId];
-
-        if (!config) {
-          continue;
-        }
-
-        quote = quote.plus(
-          gasLimit
-            .plus(config.gasOverhead)
-            .multipliedBy(config.gasOracle.gasPrice)
-            .multipliedBy(config.gasOracle.tokenExchangeRate)
-            .dividedToIntegerBy(new BigNumber(10).exponentiatedBy(10)),
-        );
-      } catch {
-        continue;
-      }
-    }
+    const { total_quote } = await this.getQuotes(
+      gasLimit,
+      req.destinationDomainId,
+      [req.customHookAddress || mailbox.defaultHook, mailbox.requiredHook],
+    );
 
     return {
       denom: ALEO_NATIVE_DENOM,
-      amount: BigInt(quote.toFixed(0)),
+      amount: BigInt(total_quote),
     };
   }
 
@@ -786,15 +814,15 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async getCreateMerkleTreeHookTransaction(
     req: AltVM.ReqCreateMerkleTreeHook,
   ): Promise<AleoTransaction> {
+    const salt = getSaltFromAddress(req.mailboxAddress);
+
     return {
-      programName: req.mailboxAddress.replace('mailbox', 'hook_manager'),
+      programName: getProgramIdFromSalt('hook_manager', salt),
       functionName: 'init_merkle_tree',
       priorityFee: 0,
       privateFee: false,
       inputs: [
-        this.getAddressFromProgramId(
-          req.mailboxAddress.replace('mailbox', 'dispatch_proxy'),
-        ),
+        getAddressFromProgramId(getProgramIdFromSalt('dispatch_proxy', salt)),
       ],
     };
   }
@@ -803,7 +831,10 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     req: AltVM.ReqCreateInterchainGasPaymasterHook,
   ): Promise<AleoTransaction> {
     return {
-      programName: req.mailboxAddress.replace('mailbox', 'hook_manager'),
+      programName: getProgramIdFromSalt(
+        'hook_manager',
+        getSaltFromAddress(req.mailboxAddress),
+      ),
       functionName: 'init_igp',
       priorityFee: 0,
       privateFee: false,
@@ -861,7 +892,10 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     req: AltVM.ReqCreateNoopHook,
   ): Promise<AleoTransaction> {
     return {
-      programName: req.mailboxAddress.replace('mailbox', 'hook_manager'),
+      programName: getProgramIdFromSalt(
+        'hook_manager',
+        getSaltFromAddress(req.mailboxAddress),
+      ),
       functionName: 'init_noop',
       priorityFee: 0,
       privateFee: false,
@@ -882,7 +916,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       priorityFee: 0,
       privateFee: false,
       inputs: [
-        this.getAddressFromProgramId(req.mailboxAddress),
+        getAddressFromProgramId(req.mailboxAddress),
         `${localDomain}u32`,
       ],
     };
@@ -925,8 +959,8 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       priorityFee: 0,
       privateFee: false,
       inputs: [
-        this.stringToU128String(req.name),
-        this.stringToU128String(req.denom),
+        `${stringToU128(req.name).toString()}u128`,
+        `${stringToU128(req.denom).toString()}u128`,
         `${req.decimals}u8`,
         `${req.decimals}u8`,
       ],
@@ -1036,7 +1070,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
 
     const tokenMetadataValue = await this.aleoClient.getProgramMappingValue(
       req.tokenAddress,
-      'token_metadata',
+      'app_metadata',
       'true',
     );
 
@@ -1056,13 +1090,13 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       );
     }
 
-    const recipient = this.bytes32ToU128String(req.recipient);
+    const recipient = bytes32ToU128String(req.recipient);
 
     const creditAllowance = Array(4).fill(
       `{spender:${ALEO_NULL_ADDRESS},amount:0u64}`,
     );
 
-    let gasLimit = new BigNumber(req.gasLimit);
+    let gasLimit = req.gasLimit;
 
     if (req.customHookAddress && req.customHookMetadata) {
       const metadataBytes: number[] = fillArray(
@@ -1070,62 +1104,32 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
         64,
         0,
       );
-      gasLimit = new BigNumber(
-        U128.fromBytesLe(Uint8Array.from(metadataBytes.slice(0, 16)))
-          .toString()
-          .replace('u128', ''),
-      );
+      gasLimit = U128.fromBytesLe(Uint8Array.from(metadataBytes.slice(0, 16)))
+        .toString()
+        .replace('u128', '');
     }
 
     const mailbox = await this.getMailbox({
       mailboxAddress: mailboxAddress,
     });
 
-    const hooks = [
-      req.customHookAddress || mailbox.defaultHook,
-      mailbox.requiredHook,
-    ];
-
-    let totalQuote = new BigNumber(0);
-
-    for (let i = 0; i < hooks.length; i++) {
-      if (!hooks[i]) {
-        continue;
-      }
-
-      try {
-        const igp = await this.getInterchainGasPaymasterHook({
-          hookAddress: hooks[i],
-        });
-
-        const config = igp.destinationGasConfigs[req.destinationDomainId];
-
-        if (!config) {
-          continue;
-        }
-
-        const quote = gasLimit
-          .plus(config.gasOverhead)
-          .multipliedBy(config.gasOracle.gasPrice)
-          .multipliedBy(config.gasOracle.tokenExchangeRate)
-          .dividedToIntegerBy(new BigNumber(10).exponentiatedBy(10))
-          .toFixed(0);
-
-        creditAllowance[i] =
-          `{spender:${hooks[i].split('/')[1]},amount:${quote}u64}`;
-        totalQuote = totalQuote.plus(quote);
-      } catch {
-        continue;
-      }
-    }
-
-    assert(
-      totalQuote.lte(req.maxFee.amount),
-      `total quote ${totalQuote.toFixed(0)} is bigger than max fee ${req.maxFee.amount}`,
+    const { total_quote, quotes } = await this.getQuotes(
+      gasLimit,
+      req.destinationDomainId,
+      [req.customHookAddress || mailbox.defaultHook, mailbox.requiredHook],
     );
 
+    assert(
+      new BigNumber(total_quote).lte(req.maxFee.amount),
+      `total quote ${total_quote} is bigger than max fee ${req.maxFee.amount}`,
+    );
+
+    for (let i = 0; i < quotes.length; i++) {
+      creditAllowance[i] =
+        `{spender:${quotes[i].spender},amount:${quotes[i].quote}u64}`;
+    }
+
     const mailboxValue = `{
-      default_ism:${mailbox.defaultIsm || ALEO_NULL_ADDRESS},
       default_hook:${mailbox.defaultHook ? mailbox.defaultHook.split('/')[1] : ALEO_NULL_ADDRESS},
       required_hook:${mailbox.requiredHook ? mailbox.requiredHook.split('/')[1] : ALEO_NULL_ADDRESS}
     }`;

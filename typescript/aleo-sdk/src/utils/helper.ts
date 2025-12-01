@@ -1,6 +1,8 @@
-import { Program } from '@provablehq/sdk/mainnet.js';
+import { BHP256, Plaintext, Program, U128 } from '@provablehq/sdk/mainnet.js';
 
-import { programRegistry } from '../artifacts.js';
+import { strip0x } from '@hyperlane-xyz/utils';
+
+import { AleoProgram, programRegistry } from '../artifacts.js';
 
 const upgradeAuthority = process.env['ALEO_UPGRADE_AUTHORITY'] || '';
 const originalProgramIds = JSON.parse(
@@ -9,14 +11,14 @@ const originalProgramIds = JSON.parse(
 const ismManager = process.env['ALEO_ISM_MANAGER'];
 
 export function loadProgramsInDeployOrder(
-  programName: string,
+  programName: AleoProgram,
   coreSalt: string,
   warpSalt?: string,
 ): { id: string; program: string }[] {
   const visited = new Set<string>();
   let programs: Program[] = [];
 
-  function visit(p: string) {
+  function visit(p: AleoProgram) {
     if (visited.has(p)) return;
     visited.add(p);
 
@@ -126,4 +128,75 @@ export function arrayToPlaintext(array: string[]): string {
 export function programIdToPlaintext(programId: string): string {
   const bytes = Array.from(programId).map((c) => `${c.charCodeAt(0)}u8`);
   return arrayToPlaintext(fillArray(bytes, 128, `0u8`));
+}
+
+export function getAddressFromProgramId(programId: string): string {
+  return Plaintext.fromString(programId).toString();
+}
+
+export function getSaltFromAddress(address: string): string {
+  return (address.split('_').at(-1) || '').replaceAll('.aleo', '');
+}
+
+export function getProgramIdFromSalt(program: AleoProgram, salt: string) {
+  return `${program}_${salt}.aleo`;
+}
+
+export function stringToU128(str: string, littleEndian = false): bigint {
+  if (str.length > 16) {
+    throw new RangeError('String must not exceed 16 bytes for u128');
+  }
+
+  const inputBytes = Uint8Array.from(str, (c) => c.charCodeAt(0));
+
+  const bytes = new Uint8Array(16);
+  bytes.set(inputBytes, 0);
+
+  let value = 0n;
+  if (!littleEndian) {
+    for (let i = 0; i < 16; i++) {
+      value = (value << 8n) | BigInt(bytes[i]);
+    }
+  } else {
+    for (let i = 15; i >= 0; i--) {
+      value = (value << 8n) | BigInt(bytes[i]);
+    }
+  }
+
+  return value;
+}
+
+export function U128ToString(value: bigint, littleEndian = false): string {
+  if (value < 0n || value >= 1n << 128n) {
+    throw new RangeError('Value out of range for u128');
+  }
+
+  const bytes = new Uint8Array(16);
+  let temp = value;
+
+  for (let i = 0; i < 16; i++) {
+    const byte = Number(temp & 0xffn);
+    bytes[littleEndian ? i : 15 - i] = byte;
+    temp >>= 8n;
+  }
+
+  return String.fromCharCode(...bytes.filter((b) => b > 0));
+}
+
+export function bytes32ToU128String(input: string): string {
+  const bytes = Buffer.from(strip0x(input), 'hex');
+
+  // Split into two 128-bit chunks
+  const lowBytes = Uint8Array.from(bytes.subarray(0, 16));
+  const highBytes = Uint8Array.from(bytes.subarray(16, 32));
+
+  return `[${U128.fromBytesLe(lowBytes).toString()},${U128.fromBytesLe(highBytes).toString()}]`;
+}
+
+export function getBalanceKey(address: string, denom: string): string {
+  return new BHP256()
+    .hash(
+      Plaintext.fromString(`{account:${address},token_id:${denom}}`).toBitsLe(),
+    )
+    .toString();
 }
