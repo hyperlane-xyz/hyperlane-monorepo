@@ -453,9 +453,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
           : IsmType.STORAGE_MESSAGE_ID_MULTISIG;
     }
 
-    const [validators, threshold] = await ism.validatorsAndThreshold(
-      ethers.constants.AddressZero,
-    );
+    const [validators, threshold] = await ism.validatorsAndThreshold('0x');
 
     return {
       address,
