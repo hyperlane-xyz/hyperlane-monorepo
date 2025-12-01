@@ -7,7 +7,6 @@ import {
   LTSRadixEngineToolkit,
   ManifestBuilder,
   ManifestSborStringRepresentation,
-  PrivateKey,
   RadixEngineToolkit,
   TransactionManifest,
   Value,
@@ -20,10 +19,10 @@ import {
 } from '@radixdlt/radix-engine-toolkit';
 import { BigNumber } from 'bignumber.js';
 import { Decimal } from 'decimal.js';
-import { utils } from 'ethers';
 
 import { assert } from '@hyperlane-xyz/utils';
 
+import { READ_ACCOUNT_HEX_PUBLIC_KEY } from './constants.js';
 import { EntityDetails, INSTRUCTIONS, RadixSDKReceipt } from './types.js';
 import { stringToTransactionManifest } from './utils.js';
 
@@ -92,7 +91,6 @@ export class RadixBase {
   }: {
     transactionManifest: TransactionManifest | string;
   }): Promise<{ gasUnits: bigint; gasPrice: number; fee: bigint }> {
-    const pk = new PrivateKey.Ed25519(new Uint8Array(utils.randomBytes(32)));
     const constructionMetadata =
       await this.gateway.transaction.innerClient.transactionConstruction();
 
@@ -115,7 +113,7 @@ export class RadixBase {
           signer_public_keys: [
             {
               key_type: 'EddsaEd25519',
-              key_hex: pk.publicKeyHex(),
+              key_hex: READ_ACCOUNT_HEX_PUBLIC_KEY,
             },
           ],
           flags: {

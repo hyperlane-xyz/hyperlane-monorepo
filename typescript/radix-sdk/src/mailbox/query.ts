@@ -1,12 +1,9 @@
 import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
-import {
-  PrivateKey,
-  generateRandomNonce,
-} from '@radixdlt/radix-engine-toolkit';
-import { utils } from 'ethers';
+import { generateRandomNonce } from '@radixdlt/radix-engine-toolkit';
 
 import { assert, strip0x } from '@hyperlane-xyz/utils';
 
+import { READ_ACCOUNT_HEX_PUBLIC_KEY } from '../utils/constants.js';
 import {
   getComponentOwner,
   getComponentState,
@@ -78,8 +75,6 @@ export async function isMessageDelivered(
   mailboxAddress: string,
   messageId: string,
 ): Promise<boolean> {
-  const pk = new PrivateKey.Ed25519(new Uint8Array(utils.randomBytes(32)));
-
   const constructionMetadata =
     await gateway.transaction.innerClient.transactionConstruction();
 
@@ -96,7 +91,7 @@ export async function isMessageDelivered(
       signer_public_keys: [
         {
           key_type: 'EddsaEd25519',
-          key_hex: pk.publicKeyHex(),
+          key_hex: READ_ACCOUNT_HEX_PUBLIC_KEY,
         },
       ],
       flags: {
