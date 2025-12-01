@@ -431,9 +431,7 @@ export function addressToBytesRadix(address: Address): Uint8Array {
 }
 
 export function addressToBytesAleo(address: Address): Uint8Array {
-  let aleoAddress = address;
-
-  return new Uint8Array(bech32m.fromWords(bech32m.decode(aleoAddress).words));
+  return new Uint8Array(bech32m.fromWords(bech32m.decode(address).words));
 }
 
 export function addressToBytes(
