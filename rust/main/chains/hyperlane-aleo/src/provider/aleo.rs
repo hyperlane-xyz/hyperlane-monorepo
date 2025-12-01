@@ -533,7 +533,8 @@ impl<C: AleoClient> HyperlaneProvider for AleoProvider<C> {
         let address = Address::from_str(&address).map_err(HyperlaneAleoError::from)?;
         let balance: u64 = self
             .get_mapping_value("credits.aleo", "account", &address)
-            .await?;
+            .await?
+            .unwrap_or_default();
         Ok(U256::from(balance))
     }
 
