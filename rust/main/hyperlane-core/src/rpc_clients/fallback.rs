@@ -387,6 +387,13 @@ pub mod test {
                 })
                 .collect()
         }
+
+        /// Get list of priorities
+        pub async fn get_priorities<T: Deref<Target = ProviderMock>, B>(
+            fallback_provider: &FallbackProvider<T, B>,
+        ) -> Vec<PrioritizedProviderInner> {
+            fallback_provider.inner.priorities.read().await.clone()
+        }
     }
 
     #[async_trait::async_trait]

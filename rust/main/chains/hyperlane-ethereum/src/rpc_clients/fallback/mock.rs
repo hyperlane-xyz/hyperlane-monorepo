@@ -1,23 +1,33 @@
+use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::ops::Deref;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use ethers::providers::{HttpClientError, JsonRpcClient};
 use ethers::types::TransactionReceipt;
-use ethers_prometheus::json_rpc_client::JsonRpcBlockGetter;
+use ethers_prometheus::json_rpc_client::{JsonRpcBlockGetter, BLOCK_NUMBER_RPC};
 use hyperlane_core::rpc_clients::test::ProviderMock;
 use hyperlane_metric::prometheus_metric::PrometheusConfigExt;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use tokio::time::sleep;
 
-use crate::rpc_clients::fallback::METHOD_GET_TRANSACTION_RECEIPT;
+use crate::rpc_clients::fallback::{METHOD_GET_TRANSACTION_RECEIPT, METHOD_SEND_RAW_TRANSACTION};
 
-#[derive(Debug, Clone)]
+type ResponseList<T> = Arc<Mutex<VecDeque<T>>>;
+
+#[derive(Clone, Debug, Default)]
+pub struct EthereumProviderMockResponses {
+    pub get_block_number: ResponseList<Option<u64>>,
+    pub get_tx_receipt: ResponseList<Option<TransactionReceipt>>,
+    pub send_raw_transaction: ResponseList<Option<u64>>,
+}
+
+#[derive(Clone, Debug)]
 pub struct EthereumProviderMock {
-    provider: ProviderMock,
-    block_number: Option<u64>,
-    pub tx_receipt: Option<TransactionReceipt>,
+    pub provider: ProviderMock,
+    pub responses: EthereumProviderMockResponses,
 }
 
 impl Deref for EthereumProviderMock {
@@ -29,11 +39,10 @@ impl Deref for EthereumProviderMock {
 }
 
 impl EthereumProviderMock {
-    pub fn new(request_sleep: Option<Duration>, block_number: Option<u64>) -> Self {
+    pub fn new(request_sleep: Option<Duration>) -> Self {
         Self {
             provider: ProviderMock::new(request_sleep),
-            block_number,
-            tx_receipt: None,
+            responses: EthereumProviderMockResponses::default(),
         }
     }
 }
@@ -44,30 +53,10 @@ impl From<EthereumProviderMock> for JsonRpcBlockGetter<EthereumProviderMock> {
     }
 }
 
-fn dummy_success_return_value<R: DeserializeOwned>(
-    block_number: u64,
-) -> Result<R, HttpClientError> {
-    serde_json::from_str(&block_number.to_string()).map_err(|e| HttpClientError::SerdeJson {
-        err: e,
-        text: "".to_owned(),
-    })
-}
-
 fn dummy_error_return_value<R: DeserializeOwned>() -> Result<R, HttpClientError> {
     serde_json::from_str("not-a-json").map_err(|e| HttpClientError::SerdeJson {
         err: e,
         text: "".to_owned(),
-    })
-}
-
-fn get_tx_receipt<R: DeserializeOwned>(
-    tx_receipt: &Option<TransactionReceipt>,
-) -> Result<R, HttpClientError> {
-    serde_json::from_str(&serde_json::to_string(tx_receipt).unwrap()).map_err(|e| {
-        HttpClientError::SerdeJson {
-            err: e,
-            text: "".to_owned(),
-        }
     })
 }
 
@@ -86,14 +75,50 @@ impl JsonRpcClient for EthereumProviderMock {
         if let Some(sleep_duration) = self.provider.request_sleep() {
             sleep(sleep_duration).await;
         }
+        tracing::debug!("Called {method}");
+        if method == BLOCK_NUMBER_RPC {
+            let resp = match self.responses.get_block_number.lock().unwrap().pop_front() {
+                Some(s) => s,
+                None => return dummy_error_return_value(),
+            };
+            return serde_json::from_str(&serde_json::to_string(&resp).unwrap()).map_err(|e| {
+                HttpClientError::SerdeJson {
+                    err: e,
+                    text: "".to_owned(),
+                }
+            });
+        }
         if method == METHOD_GET_TRANSACTION_RECEIPT {
-            return get_tx_receipt(&self.tx_receipt);
+            let resp = match self.responses.get_tx_receipt.lock().unwrap().pop_front() {
+                Some(s) => s,
+                None => return dummy_error_return_value(),
+            };
+            return serde_json::from_str(&serde_json::to_string(&resp).unwrap()).map_err(|e| {
+                HttpClientError::SerdeJson {
+                    err: e,
+                    text: "".to_owned(),
+                }
+            });
         }
-        if self.block_number.is_none() {
-            dummy_error_return_value()
-        } else {
-            dummy_success_return_value(self.block_number.unwrap())
+        if method == METHOD_SEND_RAW_TRANSACTION {
+            let resp = match self
+                .responses
+                .send_raw_transaction
+                .lock()
+                .unwrap()
+                .pop_front()
+            {
+                Some(s) => s,
+                None => return dummy_error_return_value(),
+            };
+            return serde_json::from_str(&serde_json::to_string(&resp).unwrap()).map_err(|e| {
+                HttpClientError::SerdeJson {
+                    err: e,
+                    text: "".to_owned(),
+                }
+            });
         }
+        dummy_error_return_value()
     }
 }
 

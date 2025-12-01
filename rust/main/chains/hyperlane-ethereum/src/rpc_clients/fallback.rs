@@ -38,13 +38,19 @@ const METHOD_GET_TRANSACTION_RECEIPT: &str = "eth_getTransactionReceipt";
 /// Multicast strategy is used to submit transactions into the chain, namely with RPC method
 /// `eth_sendRawTransaction` while fallback strategy is used for all the other RPC methods.
 #[derive(new)]
-pub struct EthereumFallbackProvider<C, B>(FallbackProvider<C, B>);
+pub struct EthereumFallbackProvider<C, B> {
+    /// Fallback provider
+    pub provider: FallbackProvider<C, B>,
+    /// If enabled and eth_getTransactionReceipt returns Ok(Value::null())
+    /// we will rotate the provider.
+    pub rotate_no_transaction_receipt: bool,
+}
 
 impl<C, B> Deref for EthereumFallbackProvider<C, B> {
     type Target = FallbackProvider<C, B>;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.provider
     }
 }
 
@@ -113,6 +119,8 @@ where
     {
         if method == METHOD_SEND_RAW_TRANSACTION {
             self.multicast(method, params).await
+        } else if method == METHOD_GET_TRANSACTION_RECEIPT && self.rotate_no_transaction_receipt {
+            self.fallback_transaction_receipt(method, params).await
         } else {
             self.fallback(method, params).await
         }
@@ -227,27 +235,6 @@ where
 
                 match categorize_client_response(provider_host.as_str(), method, resp) {
                     IsOk(v) => {
-                        // If we received null for transaction receipt, we also
-                        // want to deprioritize it. But we don't want to
-                        // increase its error count, because technically, they
-                        // did not return an error
-                        if method == METHOD_GET_TRANSACTION_RECEIPT {
-                            if v.is_null() {
-                                tracing::debug!(
-                                    fallback_count = idx,
-                                    provider_index = priority.index,
-                                    provider_host = provider_host.as_str(),
-                                    method,
-                                    ?v,
-                                    "fallback_request: deprioritizing provider because received null for transaction receipt"
-                                );
-                                self.deprioritize_provider(priority.clone()).await;
-                                errors.push(ProviderError::CustomError(
-                                    "Transaction Receipt is null".into(),
-                                ));
-                                continue;
-                            }
-                        }
                         // Add log to identify content of v when no tx receipt is found
                         if v.is_null() {
                             tracing::debug!(
@@ -260,6 +247,69 @@ where
                             );
                         }
                         return Ok(serde_json::from_value(v)?);
+                    }
+                    RetryableErr(e) | RateLimitErr(e) => errors.push(e.into()),
+                    NonRetryableErr(e) => return Err(e.into()),
+                }
+            }
+        }
+        Err(FallbackError::AllProvidersFailed(errors).into())
+    }
+
+    async fn fallback_transaction_receipt<T, R>(
+        &self,
+        method: &str,
+        params: T,
+    ) -> Result<R, ProviderError>
+    where
+        T: Serialize,
+        R: DeserializeOwned,
+    {
+        use CategorizedResponse::*;
+
+        let params = serde_json::to_value(params).expect("valid");
+
+        let mut errors: Vec<ProviderError> = vec![];
+        // make sure we do at least 4 total retries.
+        while errors.len() <= 3 {
+            if !errors.is_empty() {
+                sleep(Duration::from_millis(100)).await;
+            }
+            let priorities_snapshot = self.take_priorities_snapshot().await;
+            for (idx, priority) in priorities_snapshot.iter().enumerate() {
+                let provider = &self.inner.providers[priority.index];
+                let fut = Self::provider_request(provider, method, &params);
+                let (provider_host, resp) = fut.await;
+                self.handle_stalled_provider(priority, provider).await;
+                if resp.is_err() {
+                    self.handle_failed_provider(priority).await;
+                }
+                tracing::debug!(
+                    fallback_count = idx,
+                    provider_index = priority.index,
+                    provider_host = provider_host.as_str(),
+                    method,
+                    "fallback_request"
+                );
+
+                match categorize_client_response(provider_host.as_str(), method, resp) {
+                    IsOk(v) => {
+                        // If we received null for transaction receipt, we also
+                        // want to deprioritize it. But we don't want to
+                        // increase its error count, because technically, they
+                        // did not return an error
+                        if v.is_null() {
+                            tracing::debug!(
+                                fallback_count = idx,
+                                provider_index = priority.index,
+                                provider_host = provider_host.as_str(),
+                                method,
+                                ?v,
+                                "fallback_request: deprioritizing provider because received null for transaction receipt"
+                            );
+                            self.deprioritize_provider(priority.clone()).await;
+                            continue;
+                        }
                     }
                     RetryableErr(e) | RateLimitErr(e) => errors.push(e.into()),
                     NonRetryableErr(e) => return Err(e.into()),

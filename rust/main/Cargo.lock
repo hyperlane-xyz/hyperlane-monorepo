@@ -6146,6 +6146,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-futures",
+ "tracing-test",
  "url",
 ]
 
