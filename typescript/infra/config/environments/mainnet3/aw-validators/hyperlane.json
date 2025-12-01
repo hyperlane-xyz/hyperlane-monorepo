@@ -5,6 +5,9 @@
   "forma": {
     "validators": []
   },
+  "adichain": {
+    "validators": ["0x4b11a6310bc06300b529b0397683ca3376407eca"]
+  },
   "ancient8": {
     "validators": ["0xbb5842ae0e05215b53df4787a29144efb7e67551"]
   },
@@ -199,6 +202,9 @@
   },
   "matchain": {
     "validators": ["0x8a052f7934b0626105f34f980c875ec03aaf82e8"]
+  },
+  "megaeth": {
+    "validators": ["0x051ddac8ecf4bae2532b8b7caa626b5567dab528"]
   },
   "merlin": {
     "validators": ["0xc1d6600cb9326ed2198cc8c4ba8d6668e8671247"]
@@ -404,10 +410,7 @@
   "zoramainnet": {
     "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
   },
-  "megaeth": {
-    "validators": ["0x051ddac8ecf4bae2532b8b7caa626b5567dab528"]
-  },
-  "adichain": {
-    "validators": ["0x4b11a6310bc06300b529b0397683ca3376407eca"]
+  "stable": {
+    "validators": ["0x21820baebcd972c769e490415cfee43a894f3c18"]
   }
 }

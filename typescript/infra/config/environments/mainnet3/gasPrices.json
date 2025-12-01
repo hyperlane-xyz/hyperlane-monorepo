@@ -463,6 +463,10 @@
     "amount": "8316.314493515",
     "decimals": 9
   },
+  "stable": {
+    "amount": "1.125",
+    "decimals": 9
+  },
   "starknet": {
     "amount": "5000",
     "decimals": 1

@@ -1,6 +1,6 @@
 {
   "abstract": 0.0342,
-  "adichain": 25,
+  "adichain": 5,
   "ancient8": 0.0202,
   "apechain": 88.8,
   "appchain": 0.124,
@@ -115,6 +115,7 @@
   "sonicsvm": 1.54,
   "soon": 0.0156,
   "sophon": 50,
+  "stable": 5,
   "starknet": 200,
   "story": 13.4,
   "stride": 501,

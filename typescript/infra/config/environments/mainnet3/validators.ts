@@ -1611,5 +1611,15 @@ export const validatorChainConfig = (
         'adichain',
       ),
     },
+    stable: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('stable'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x21820baebcd972c769e490415cfee43a894f3c18'],
+        },
+        'stable',
+      ),
+    },
   };
 };
