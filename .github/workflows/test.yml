@@ -161,7 +161,7 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
 
       - name: Install Soldeer dependencies
-        run: forge soldeer update
+        run: forge soldeer install
         working-directory: ./solidity
 
       - name: Set Foundry RPC URLs for fork tests
