@@ -30,8 +30,11 @@ export class RadixProtocolProvider implements ProtocolProvider {
     assert(chainMetadata.rpcUrls, 'rpc urls undefined');
     const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
 
-    const { privateKey, ...extraParams } = config;
-    return RadixSigner.connectWithSigner(rpcUrls, privateKey, extraParams);
+    const { privateKey } = config;
+
+    return RadixSigner.connectWithSigner(rpcUrls, privateKey, {
+      metadata: chainMetadata,
+    });
   }
 
   createSubmitter<TConfig extends TransactionSubmitterConfig>(
