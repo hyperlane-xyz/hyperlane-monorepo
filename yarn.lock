@@ -8729,6 +8729,7 @@ __metadata:
     "@cosmjs/encoding": "npm:^0.32.4"
     "@eslint/js": "npm:^9.31.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
+    "@provablehq/sdk": "npm:^0.9.13"
     "@solana/web3.js": "npm:^1.98.4"
     "@types/lodash-es": "npm:^4.17.12"
     "@types/mocha": "npm:^10.0.1"
@@ -11500,6 +11501,28 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@provablehq/sdk@npm:^0.9.13":
+  version: 0.9.13
+  resolution: "@provablehq/sdk@npm:0.9.13"
+  dependencies:
+    "@provablehq/wasm": "npm:^0.9.13"
+    "@scure/base": "npm:^2.0.0"
+    comlink: "npm:^4.4.2"
+    core-js: "npm:^3.40.0"
+    mime: "npm:^4.0.6"
+    sync-request: "npm:^6.1.0"
+    xmlhttprequest-ssl: "npm:^3.1.0"
+  checksum: 10/918a806f675b33f55c7ac111438d3cabc7fe0570deea2d3564661c66840e3d0dea34f224f5d5fd51503eef6b7b7a6d3ef68319a0c1cf520be7aedcf9c48d20fd
+  languageName: node
+  linkType: hard
+
+"@provablehq/wasm@npm:^0.9.13":
+  version: 0.9.13
+  resolution: "@provablehq/wasm@npm:0.9.13"
+  checksum: 10/3c8f1c0bbe48253772f1794d04367d4f02b203811f6caa5aa6b04c1e00c8f1cd430bbbae9ec333424e997b7fde8558d13170c37972390ae96ae66843ff86c10f
+  languageName: node
+  linkType: hard
+
 "@radix-ui/number@npm:1.0.1":
   version: 1.0.1
   resolution: "@radix-ui/number@npm:1.0.1"
@@ -14244,6 +14267,13 @@ __metadata:
   version: 1.1.9
   resolution: "@scure/base@npm:1.1.9"
   checksum: 10/f0ab7f687bbcdee2a01377fe3cd808bf63977999672751295b6a92625d5322f4754a96d40f6bd579bc367aad48ecf8a4e6d0390e70296e6ded1076f52adb16bb
+  languageName: node
+  linkType: hard
+
+"@scure/base@npm:^2.0.0":
+  version: 2.0.0
+  resolution: "@scure/base@npm:2.0.0"
+  checksum: 10/8fb86024f22e9c532d513b8df8a672252e58bd5695920ce646162287f0accd38e89cab58722a738b3d247b5dcf7760362ae2d82d502be7e62a555f5d98f8a110
   languageName: node
   linkType: hard
 
@@ -22693,6 +22723,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"comlink@npm:^4.4.2":
+  version: 4.4.2
+  resolution: "comlink@npm:4.4.2"
+  checksum: 10/ecee53b5b4536b3aa3f7636c383f831e68fbc013def77665cc7fad873d72cfa23b994e1ec4b49e83e4e909c1089a03acae03a523e33a5e5ed938cdb613456434
+  languageName: node
+  linkType: hard
+
 "command-exists@npm:^1.2.8":
   version: 1.2.9
   resolution: "command-exists@npm:1.2.9"
@@ -23044,6 +23081,13 @@ __metadata:
   version: 3.22.8
   resolution: "core-js-pure@npm:3.22.8"
   checksum: 10/50185d9132dc75ad52c4feb499d43da5baed860220cf57f235863e1883dbf0cb0afa0c0e5cc37384d7a2b77b2ce7cb47d09f94836c533296294230ffc66c3717
+  languageName: node
+  linkType: hard
+
+"core-js@npm:^3.40.0":
+  version: 3.47.0
+  resolution: "core-js@npm:3.47.0"
+  checksum: 10/c02dc6a091c7e6799e3527dc06a428c44bbcff7f8f6ee700ff818b90aa2ebaf1f17b0234146e692811da97cda5a39a6095ecadec9fd1a74b1135103eb0e96cb1
   languageName: node
   linkType: hard
 
@@ -32132,6 +32176,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"mime@npm:^4.0.6":
+  version: 4.1.0
+  resolution: "mime@npm:4.1.0"
+  bin:
+    mime: bin/cli.js
+  checksum: 10/154c06eeaf803c4a87f44b3dbd3fafc50afed7154f9ea2d2dde4ae464be33a7c6943de6981d636abd5da3523d2bd66ee1ad2adb2e4c2e7a2fe5e0075bcde62d5
+  languageName: node
+  linkType: hard
+
 "mimic-fn@npm:^2.1.0":
   version: 2.1.0
   resolution: "mimic-fn@npm:2.1.0"
@@ -39147,7 +39200,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"sync-request@npm:^6.0.0":
+"sync-request@npm:^6.0.0, sync-request@npm:^6.1.0":
   version: 6.1.0
   resolution: "sync-request@npm:6.1.0"
   dependencies:
@@ -42272,6 +42325,13 @@ __metadata:
     utf-8-validate:
       optional: true
   checksum: 10/1769532b6fdab9ff659f0b17810e7501831d34ecca23fd179ee64091dd93a51f42c59f6c7bb4c7a384b6c229aca8076fb312aa35626257c18081511ef62a161d
+  languageName: node
+  linkType: hard
+
+"xmlhttprequest-ssl@npm:^3.1.0":
+  version: 3.1.0
+  resolution: "xmlhttprequest-ssl@npm:3.1.0"
+  checksum: 10/6e38deb5de7b396d901e47249d47f46f12ffcc5e704ba5da3c65ecbae8b9003dca00f2d1198745c0a3ac98841a88a40f4a15b944bb9d1550d502631b550b2519
   languageName: node
   linkType: hard
 
