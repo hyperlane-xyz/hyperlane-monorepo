@@ -51,7 +51,15 @@ const main = async () => {
       '`;\n';
   }
 
-  output += `\nexport const programRegistry: Record<string, string> = {`;
+  output += `\nexport type AleoProgram =`;
+
+  for (const file of files) {
+    output += `\n  | '${file.filename}'`;
+  }
+
+  output += `;`;
+
+  output += `\n\nexport const programRegistry: Record<AleoProgram, string> = {`;
 
   for (const file of files) {
     output += `\n  ${file.filename},`;

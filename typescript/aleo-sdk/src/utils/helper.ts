@@ -2,7 +2,7 @@ import { BHP256, Plaintext, Program, U128 } from '@provablehq/sdk/mainnet.js';
 
 import { strip0x } from '@hyperlane-xyz/utils';
 
-import { programRegistry } from '../artifacts.js';
+import { AleoProgram, programRegistry } from '../artifacts.js';
 
 const upgradeAuthority = process.env['ALEO_UPGRADE_AUTHORITY'] || '';
 const originalProgramIds = JSON.parse(
@@ -11,14 +11,14 @@ const originalProgramIds = JSON.parse(
 const ismManager = process.env['ALEO_ISM_MANAGER'];
 
 export function loadProgramsInDeployOrder(
-  programName: string,
+  programName: AleoProgram,
   coreSalt: string,
   warpSalt?: string,
 ): { id: string; program: string }[] {
   const visited = new Set<string>();
   let programs: Program[] = [];
 
-  function visit(p: string) {
+  function visit(p: AleoProgram) {
     if (visited.has(p)) return;
     visited.add(p);
 
@@ -132,6 +132,14 @@ export function programIdToPlaintext(programId: string): string {
 
 export function getAddressFromProgramId(programId: string): string {
   return Plaintext.fromString(programId).toString();
+}
+
+export function getSaltFromAddress(address: string): string {
+  return (address.split('_').at(-1) || '').replaceAll('.aleo', '');
+}
+
+export function getProgramIdFromSalt(program: AleoProgram, salt: string) {
+  return `${program}_${salt}.aleo`;
 }
 
 export function stringToU128String(input: string): string {

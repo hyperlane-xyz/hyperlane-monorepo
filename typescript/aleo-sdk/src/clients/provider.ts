@@ -14,6 +14,8 @@ import {
   formatAddress,
   getAddressFromProgramId,
   getBalanceKey,
+  getProgramIdFromSalt,
+  getSaltFromAddress,
   stringToU128String,
 } from '../utils/helper.js';
 import { AleoTransaction } from '../utils/types.js';
@@ -42,10 +44,6 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     }
 
     return result;
-  }
-
-  protected getProgramSaltFromAddress(address: string): string {
-    return (address.split('_').at(-1) || '').replaceAll('.aleo', '');
   }
 
   // ### QUERY BASE ###
@@ -128,9 +126,9 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       nonce,
     } = await this.queryMappingValue(req.mailboxAddress, 'mailbox', 'true');
 
-    const hookManagerProgramId = req.mailboxAddress.replace(
-      'mailbox',
+    const hookManagerProgramId = getProgramIdFromSalt(
       'hook_manager',
+      getSaltFromAddress(req.mailboxAddress),
     );
 
     return {
@@ -424,7 +422,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     token.hookAddress =
       tokenMetadata.hook === ALEO_NULL_ADDRESS
         ? ''
-        : `${token.mailboxAddress.replace('mailbox', 'hook_manager')}/${tokenMetadata.hook}`;
+        : `${getProgramIdFromSalt('hook_manager', getSaltFromAddress(token.mailboxAddress))}/${tokenMetadata.hook}`;
     token.denom = tokenMetadata.token_id || '';
 
     if (token.denom) {
@@ -789,15 +787,15 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async getCreateMerkleTreeHookTransaction(
     req: AltVM.ReqCreateMerkleTreeHook,
   ): Promise<AleoTransaction> {
+    const salt = getSaltFromAddress(req.mailboxAddress);
+
     return {
-      programName: req.mailboxAddress.replace('mailbox', 'hook_manager'),
+      programName: getProgramIdFromSalt('hook_manager', salt),
       functionName: 'init_merkle_tree',
       priorityFee: 0,
       privateFee: false,
       inputs: [
-        getAddressFromProgramId(
-          req.mailboxAddress.replace('mailbox', 'dispatch_proxy'),
-        ),
+        getAddressFromProgramId(getProgramIdFromSalt('dispatch_proxy', salt)),
       ],
     };
   }
@@ -806,7 +804,10 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     req: AltVM.ReqCreateInterchainGasPaymasterHook,
   ): Promise<AleoTransaction> {
     return {
-      programName: req.mailboxAddress.replace('mailbox', 'hook_manager'),
+      programName: getProgramIdFromSalt(
+        'hook_manager',
+        getSaltFromAddress(req.mailboxAddress),
+      ),
       functionName: 'init_igp',
       priorityFee: 0,
       privateFee: false,
@@ -864,7 +865,10 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     req: AltVM.ReqCreateNoopHook,
   ): Promise<AleoTransaction> {
     return {
-      programName: req.mailboxAddress.replace('mailbox', 'hook_manager'),
+      programName: getProgramIdFromSalt(
+        'hook_manager',
+        getSaltFromAddress(req.mailboxAddress),
+      ),
       functionName: 'init_noop',
       priorityFee: 0,
       privateFee: false,

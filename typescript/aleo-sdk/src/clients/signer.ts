@@ -1,7 +1,9 @@
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert } from '@hyperlane-xyz/utils';
 
+import { AleoProgram } from '../artifacts.js';
 import {
+  getSaltFromAddress,
   loadProgramsInDeployOrder,
   programIdToPlaintext,
 } from '../utils/helper.js';
@@ -42,7 +44,7 @@ export class AleoSigner
   }
 
   private async deployProgram(
-    programName: string,
+    programName: AleoProgram,
     coreSalt: string,
     warpSalt?: string,
   ): Promise<string[]> {
@@ -397,7 +399,7 @@ export class AleoSigner
   async createMerkleTreeHook(
     req: Omit<AltVM.ReqCreateMerkleTreeHook, 'signer'>,
   ): Promise<AltVM.ResCreateMerkleTreeHook> {
-    const mailboxSalt = this.getProgramSaltFromAddress(req.mailboxAddress);
+    const mailboxSalt = getSaltFromAddress(req.mailboxAddress);
     const programs = await this.deployProgram('hook_manager', mailboxSalt);
 
     const hookManagerProgramId = programs[programs.length - 1];
@@ -439,7 +441,7 @@ export class AleoSigner
   async createInterchainGasPaymasterHook(
     req: Omit<AltVM.ReqCreateInterchainGasPaymasterHook, 'signer'>,
   ): Promise<AltVM.ResCreateInterchainGasPaymasterHook> {
-    const mailboxSalt = this.getProgramSaltFromAddress(req.mailboxAddress);
+    const mailboxSalt = getSaltFromAddress(req.mailboxAddress);
     const programs = await this.deployProgram('hook_manager', mailboxSalt);
 
     const hookManagerProgramId = programs[programs.length - 1];
@@ -526,7 +528,7 @@ export class AleoSigner
   async createNoopHook(
     req: Omit<AltVM.ReqCreateNoopHook, 'signer'>,
   ): Promise<AltVM.ResCreateNoopHook> {
-    const mailboxSalt = this.getProgramSaltFromAddress(req.mailboxAddress);
+    const mailboxSalt = getSaltFromAddress(req.mailboxAddress);
     const programs = await this.deployProgram('hook_manager', mailboxSalt);
 
     const hookManagerProgramId = programs[programs.length - 1];
@@ -568,9 +570,7 @@ export class AleoSigner
   async createValidatorAnnounce(
     req: Omit<AltVM.ReqCreateValidatorAnnounce, 'signer'>,
   ): Promise<AltVM.ResCreateValidatorAnnounce> {
-    const validatorAnnounceSalt = this.getProgramSaltFromAddress(
-      req.mailboxAddress,
-    );
+    const validatorAnnounceSalt = getSaltFromAddress(req.mailboxAddress);
     const programs = await this.deployProgram(
       'validator_announce',
       validatorAnnounceSalt,
@@ -597,7 +597,7 @@ export class AleoSigner
     req: Omit<AltVM.ReqCreateNativeToken, 'signer'>,
   ): Promise<AltVM.ResCreateNativeToken> {
     const tokenSalt = this.getNewProgramSalt(12);
-    const mailboxSalt = this.getProgramSaltFromAddress(req.mailboxAddress);
+    const mailboxSalt = getSaltFromAddress(req.mailboxAddress);
 
     const programs = await this.deployProgram(
       'hyp_native',
@@ -628,7 +628,7 @@ export class AleoSigner
     const { symbol } = await this.getTokenMetadata(req.collateralDenom);
 
     const tokenSalt = `${symbol}_${this.getNewProgramSalt(6)}`;
-    const mailboxSalt = this.getProgramSaltFromAddress(req.mailboxAddress);
+    const mailboxSalt = getSaltFromAddress(req.mailboxAddress);
 
     const programs = await this.deployProgram(
       'hyp_collateral',
@@ -657,7 +657,7 @@ export class AleoSigner
     req: Omit<AltVM.ReqCreateSyntheticToken, 'signer'>,
   ): Promise<AltVM.ResCreateSyntheticToken> {
     const tokenSalt = `${req.denom.toLowerCase()}_${this.getNewProgramSalt(6)}`;
-    const mailboxSalt = this.getProgramSaltFromAddress(req.mailboxAddress);
+    const mailboxSalt = getSaltFromAddress(req.mailboxAddress);
 
     const programs = await this.deployProgram(
       'hyp_synthetic',
