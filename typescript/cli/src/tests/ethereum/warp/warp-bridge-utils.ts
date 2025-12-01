@@ -196,6 +196,7 @@ export async function setupChains(): Promise<WarpBridgeTestConfig> {
   const everclearBridgeAdapterChain2 = await deployEverclearBridgeAdapter(
     ANVIL_KEY,
     CHAIN_NAME_2,
+    REGISTRY_PATH,
   );
 
   const tokenChain3 = await deployToken(ANVIL_KEY, CHAIN_NAME_3);
@@ -220,6 +221,7 @@ export async function setupChains(): Promise<WarpBridgeTestConfig> {
   const everclearBridgeAdapterChain3 = await deployEverclearBridgeAdapter(
     ANVIL_KEY,
     CHAIN_NAME_3,
+    REGISTRY_PATH,
   );
 
   return {

@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/ccip-server",
-  "version": "19.9.0",
+  "version": "19.10.0",
   "description": "CCIP server",
   "typings": "dist/index.d.ts",
   "typedocMain": "src/index.ts",
@@ -47,10 +47,10 @@
   "dependencies": {
     "@eth-optimism/sdk": "^3.3.3",
     "@google-cloud/pino-logging-gcp-config": "^1.0.6",
-    "@hyperlane-xyz/core": "10.0.3",
+    "@hyperlane-xyz/core": "10.0.4",
     "@hyperlane-xyz/registry": "20.0.0",
-    "@hyperlane-xyz/sdk": "19.9.0",
-    "@hyperlane-xyz/utils": "19.9.0",
+    "@hyperlane-xyz/sdk": "19.10.0",
+    "@hyperlane-xyz/utils": "19.10.0",
     "@prisma/client": "^6.8.2",
     "cors": "^2.8.5",
     "dotenv-flow": "^4.1.0",

@@ -1,5 +1,6 @@
 pub use aleo::*;
 pub use base::*;
+pub(crate) use fallback::FallbackHttpClient;
 pub use traits::*;
 
 mod aleo;
