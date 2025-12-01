@@ -56,7 +56,7 @@ export async function getTestIsmConfig(
   const ismType = ismDetails.blueprint_name;
   assert(
     ismType === RadixIsmTypes.NOOP_ISM,
-    `Expected ism at address ${ismAddress} to be of type ${RadixIsmTypes.NOOP_ISM}`,
+    `Expected ism at address ${ismAddress} to be of type ${RadixIsmTypes.NOOP_ISM} but got ${ismType}`,
   );
 
   return {
@@ -90,7 +90,7 @@ export async function getMultisigIsmConfig(
   const ismType = ismDetails.blueprint_name;
   assert(
     isMultisigIsmType(ismType),
-    `Expected ism at address ${ismAddress} to be of type ${RadixIsmTypes.MESSAGE_ID_MULTISIG} or ${RadixIsmTypes.MERKLE_ROOT_MULTISIG}`,
+    `Expected ism at address ${ismAddress} to be of type ${RadixIsmTypes.MESSAGE_ID_MULTISIG} or ${RadixIsmTypes.MERKLE_ROOT_MULTISIG} but got ${ismType}`,
   );
 
   const ismState = getComponentState(ismAddress, ismDetails);
@@ -129,7 +129,7 @@ export async function getDomainRoutingIsmConfig(
   const ismType = ismDetails.blueprint_name;
   assert(
     ismType === RadixIsmTypes.ROUTING_ISM,
-    `Expected ism at address ${ismAddress} to be of type ${RadixIsmTypes.ROUTING_ISM}`,
+    `Expected ism at address ${ismAddress} to be of type ${RadixIsmTypes.ROUTING_ISM} but got ${ismType}`,
   );
 
   const owner = await getComponentOwner(gateway, ismAddress, ismDetails);
