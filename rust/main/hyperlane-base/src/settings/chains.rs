@@ -926,7 +926,13 @@ impl ChainConf {
                     h_radix::RadixValidatorAnnounce::new(provider, &locator, conf)?;
                 Ok(Box::new(validator_announce) as Box<dyn ValidatorAnnounce>)
             }
-            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
+            ChainConnectionConf::Aleo(conf) => {
+                let signer = self.aleo_signer().await?;
+                let provider = build_aleo_provider(self, conf, metrics, &locator, signer)?;
+                let validator_announce =
+                    h_aleo::AleoValidatorAnnounce::new(provider, &locator, conf);
+                Ok(Box::new(validator_announce) as Box<dyn ValidatorAnnounce>)
+            }
         }
         .context("Building ValidatorAnnounce")
     }

@@ -278,3 +278,12 @@ pub struct AppMetadata<N: Network = CurrentNetwork> {
     /// Custom Hook used by the application
     pub hook: Address<N>,
 }
+
+#[aleo_serialize]
+#[derive(Debug)]
+pub struct StorageLocationKey {
+    /// Validator
+    pub validator: [u8; 20],
+    /// Index
+    pub index: u8,
+}
