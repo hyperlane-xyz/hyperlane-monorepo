@@ -76,6 +76,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # Need to install foundry for the build step. `hardhat-foundry` expects foundry to be installed.
+      - name: foundry-install
+        uses: foundry-rs/foundry-toolchain@v1
+
       - name: Build packages
         if: steps.changesets.outputs.count != '0'
         run: yarn build
