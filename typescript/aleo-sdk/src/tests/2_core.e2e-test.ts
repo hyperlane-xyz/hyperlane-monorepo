@@ -129,4 +129,11 @@ describe('2. aleo sdk core e2e tests', async function () {
     mailbox = await signer.getMailbox({ mailboxAddress });
     expect(mailbox.owner).to.equal(newOwner);
   });
+
+  step('create validator announce', async () => {
+    // ARRANGE & ACT & ASSERT
+    await signer.createValidatorAnnounce({
+      mailboxAddress,
+    });
+  });
 });

@@ -584,7 +584,9 @@ export class AleoSigner
   async createValidatorAnnounce(
     req: Omit<AltVM.ReqCreateValidatorAnnounce, 'signer'>,
   ): Promise<AltVM.ResCreateValidatorAnnounce> {
-    const validatorAnnounceSalt = getSaltFromProgramId(req.mailboxAddress);
+    const validatorAnnounceSalt = getSaltFromProgramId(
+      fromAleoAddress(req.mailboxAddress).programId,
+    );
     const programs = await this.deployProgram(
       'validator_announce',
       validatorAnnounceSalt,
