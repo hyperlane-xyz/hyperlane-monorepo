@@ -24,7 +24,7 @@ import { readChainSubmissionStrategyConfig } from '../config/strategy.js';
 import { detectAndConfirmOrPrompt } from '../utils/input.js';
 import { getSigner } from '../utils/keys.js';
 
-import { AltVMSignerFactory } from './altvm.js';
+import { createAltVMSigners } from './altvm.js';
 import { resolveChains } from './strategies/chain/chainResolver.js';
 import { MultiProtocolSignerManager } from './strategies/signer/MultiProtocolSignerManager.js';
 import {
@@ -118,7 +118,7 @@ export async function signerMiddleware(argv: Record<string, any>) {
   /**
    * Creates AltVM signers
    */
-  argv.context.altVmSigner = await AltVMSignerFactory.createSigners(
+  argv.context.altVmSigner = await createAltVMSigners(
     argv.context.multiProvider,
     chains,
     key,

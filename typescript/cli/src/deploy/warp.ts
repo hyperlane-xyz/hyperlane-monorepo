@@ -57,7 +57,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { TypedAnnotatedTransaction } from '../../../sdk/dist/providers/ProviderType.js';
-import { AltVMSignerFactory } from '../context/altvm.js';
+import { createAltVMSubmitterFactories } from '../context/altvm.js';
 import { requestAndSaveApiKeys } from '../context/context.js';
 import { WriteCommandContext } from '../context/types.js';
 import {
@@ -1024,11 +1024,7 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
             return new EV5FileSubmitter(metadata);
           },
         },
-        ...AltVMSignerFactory.submitterFactories(
-          multiProvider,
-          altVmSigner,
-          chain,
-        ),
+        ...createAltVMSubmitterFactories(multiProvider, altVmSigner, chain),
       },
     }),
     config: submissionStrategy,
