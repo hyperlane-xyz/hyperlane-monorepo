@@ -549,8 +549,14 @@ where
 
         let utxos = self
             .provider
-            .rpc()
-            .get_utxos_by_addresses(vec![escrow_addr.clone()])
+            .rpc_with_reconnect(|api| {
+                let addr = escrow_addr.clone();
+                async move {
+                    api.get_utxos_by_addresses(vec![addr])
+                        .await
+                        .map_err(|e| eyre::eyre!("{}", e))
+                }
+            })
             .await?;
 
         info!("Queried utxos for escrow address: {:?}", utxos.len());

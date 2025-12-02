@@ -318,8 +318,14 @@ impl KaspaProvider {
         &self.rest
     }
 
-    pub fn rpc(&self) -> Arc<DynRpcApi> {
-        self.easy_wallet.api()
+    /// Execute RPC operation with automatic reconnection on WebSocket errors.
+    /// This delegates to the wallet's reconnection logic for a DRY implementation.
+    pub async fn rpc_with_reconnect<T, F, Fut>(&self, op: F) -> eyre::Result<T>
+    where
+        F: Fn(Arc<DynRpcApi>) -> Fut,
+        Fut: std::future::Future<Output = eyre::Result<T>>,
+    {
+        self.easy_wallet.rpc_with_reconnect(op).await
     }
 
     pub fn validators(&self) -> &ValidatorsClient {
@@ -452,9 +458,14 @@ impl KaspaProvider {
             // allow_orphan controls whether TX can be submitted without parent TX being in DAG. Set to false to ensure TX chain integrity
             let allow_orphan = false;
             let tx_id = self
-                .easy_wallet
-                .api()
-                .submit_transaction(tx, allow_orphan)
+                .rpc_with_reconnect(|api| {
+                    let tx_clone = tx.clone();
+                    async move {
+                        api.submit_transaction(tx_clone, allow_orphan)
+                            .await
+                            .map_err(|e| eyre::eyre!("{}", e))
+                    }
+                })
                 .await?;
             tx_ids.push(tx_id);
         }
@@ -467,11 +478,17 @@ impl KaspaProvider {
     }
 
     pub async fn update_balance_metrics(&self) -> Result<()> {
+        let escrow_addr = self.escrow_address();
         let utxos = self
-            .rpc()
-            .get_utxos_by_addresses(vec![self.escrow_address()])
-            .await
-            .map_err(|e| eyre::eyre!("get UTXOs for escrow address: {}", e))?;
+            .rpc_with_reconnect(|api| {
+                let addr = escrow_addr.clone();
+                async move {
+                    api.get_utxos_by_addresses(vec![addr])
+                        .await
+                        .map_err(|e| eyre::eyre!("get UTXOs for escrow address: {}", e))
+                }
+            })
+            .await?;
 
         let total_escrow_bal: u64 = utxos.iter().map(|utxo| utxo.utxo_entry.amount).sum();
 
@@ -482,10 +499,15 @@ impl KaspaProvider {
         // Get change address balance
         let change_addr = self.wallet().account().change_address()?;
         let change_utxos = self
-            .rpc()
-            .get_utxos_by_addresses(vec![change_addr])
-            .await
-            .map_err(|e| eyre::eyre!("get UTXOs for change address: {}", e))?;
+            .rpc_with_reconnect(|api| {
+                let addr = change_addr.clone();
+                async move {
+                    api.get_utxos_by_addresses(vec![addr])
+                        .await
+                        .map_err(|e| eyre::eyre!("get UTXOs for change address: {}", e))
+                }
+            })
+            .await?;
 
         let total_change_bal: u64 = change_utxos.iter().map(|utxo| utxo.utxo_entry.amount).sum();
         self.metrics().update_relayer_funds(total_change_bal as i64);

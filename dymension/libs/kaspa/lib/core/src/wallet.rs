@@ -128,7 +128,7 @@ impl EasyKaspaWallet {
         })
     }
 
-    pub fn api(&self) -> Arc<DynRpcApi> {
+    fn api(&self) -> Arc<DynRpcApi> {
         self.wallet.rpc_api()
     }
 
@@ -170,6 +170,44 @@ impl EasyKaspaWallet {
 
     pub async fn pub_key(&self) -> Result<secp256k1::PublicKey> {
         Ok(self.signing_resources().await?.key_pair.public_key())
+    }
+
+    /// Reconnect the wallet's WRPC connection
+    pub async fn reconnect(&self) -> Result<()> {
+        self.wallet
+            .clone()
+            .connect(Some(self.net.rpc_url.clone()), &self.net.network_id)
+            .await
+            .map_err(|e| eyre::eyre!("reconnect WRPC: {}", e))?;
+        info!("kaspa: reconnected WRPC");
+        Ok(())
+    }
+
+    /// Execute RPC operation with automatic reconnection on error
+    pub async fn rpc_with_reconnect<T, F, Fut>(&self, op: F) -> Result<T>
+    where
+        F: Fn(Arc<DynRpcApi>) -> Fut,
+        Fut: std::future::Future<Output = Result<T>>,
+    {
+        let api = self.api();
+        match op(api).await {
+            Ok(result) => Ok(result),
+            Err(e) => {
+                let err_str = e.to_string();
+                if err_str.contains("WebSocket is not connected")
+                    || err_str.contains("not connected")
+                {
+                    if let Err(reconnect_err) = self.reconnect().await {
+                        tracing::error!(reconnect_error = %reconnect_err, "kaspa: failed to reconnect WRPC");
+                        return Err(e);
+                    }
+                    let new_api = self.api();
+                    op(new_api).await
+                } else {
+                    Err(e)
+                }
+            }
+        }
     }
 }
 
