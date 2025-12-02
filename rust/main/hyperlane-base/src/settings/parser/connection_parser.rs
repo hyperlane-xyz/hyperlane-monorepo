@@ -544,6 +544,12 @@ pub fn build_kaspa_connection_conf(
         .end()
         .unwrap_or(std::time::Duration::from_secs(15));
 
+    let wrpc_reconnect_on_error = chain
+        .chain(err)
+        .get_opt_key("wrpcReconnectOnError")
+        .parse_bool()
+        .end();
+
     Some(ChainConnectionConf::Kaspa(
         dymension_kaspa::ConnectionConf::new(
             wallet_secret.to_owned(),
@@ -569,6 +575,7 @@ pub fn build_kaspa_connection_conf(
             kaspa_tx_fee_multiplier,
             max_sweep_inputs,
             validator_request_timeout,
+            wrpc_reconnect_on_error,
         ),
     ))
 }
