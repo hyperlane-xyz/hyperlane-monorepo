@@ -226,17 +226,39 @@ impl<C: AleoClient> Mailbox for AleoMailbox<C> {
     /// against the provided signed checkpoint
     async fn process_calldata(
         &self,
-        _message: &HyperlaneMessage,
-        _metadata: &[u8],
+        message: &HyperlaneMessage,
+        metadata: &[u8],
     ) -> ChainResult<Vec<u8>> {
-        // Not implemented, only needed for lander
-        unimplemented!()
+        let recipient = self.get_recipient(message.recipient).await?.to_string();
+        let inputs = self.get_process_args(message, metadata).await?;
+
+        let calldata = crate::AleoTxCalldata {
+            program_id: recipient,
+            function_name: "process".to_string(),
+            inputs,
+        };
+
+        let json_str = serde_json::to_string(&calldata)
+            .map_err(hyperlane_core::ChainCommunicationError::JsonParseError)?;
+        Ok(json_str.as_bytes().to_vec())
     }
 
     /// Get the calldata for a call which allows to check if a particular messages was delivered
-    fn delivered_calldata(&self, _message_id: H256) -> ChainResult<Option<Vec<u8>>> {
-        // Not implemented, only needed for lander
-        unimplemented!()
+    fn delivered_calldata(&self, message_id: H256) -> ChainResult<Option<Vec<u8>>> {
+        let id = hash_to_aleo_hash(&message_id)?;
+        let key = DeliveryKey { id };
+
+        // For Aleo, we need to create calldata that can be used to check if a delivery exists
+        // This would typically query the "deliveries" mapping in the mailbox program
+        let calldata = crate::AleoTxCalldata {
+            program_id: self.program.clone(),
+            function_name: "deliveries".to_string(),
+            inputs: vec![format!("{:?}", key)],
+        };
+
+        let json_val = serde_json::to_vec(&calldata)
+            .map_err(hyperlane_core::ChainCommunicationError::JsonParseError)?;
+        Ok(Some(json_val))
     }
 }
 

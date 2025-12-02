@@ -22,6 +22,7 @@ pub(crate) use types::*;
 pub use {
     config::*, error::*, indexer::AleoDeliveryIndexer, indexer::AleoDispatchIndexer,
     indexer::AleoInterchainGasIndexer, indexer::AleoMerkleTreeHook, ism::AleoIsm,
-    mailbox::AleoMailbox, provider::AleoProvider, signer::AleoSigner,
-    validator_announce::AleoValidatorAnnounce,
+    mailbox::AleoMailbox, provider::AleoProvider, provider::AleoProviderForLander,
+    signer::AleoSigner, snarkvm::ledger::Transaction as AleoUnconfirmedTransaction,
+    types::AleoTxCalldata, types::FeeEstimate, validator_announce::AleoValidatorAnnounce,
 };

@@ -30,7 +30,8 @@ use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use crate::{
     provider::{fallback::FallbackHttpClient, HttpClient, ProvingClient, RpcClient},
     utils::{get_tx_id, to_h256},
-    AleoSigner, ConnectionConf, CurrentNetwork, FeeEstimate, HyperlaneAleoError,
+    AleoProviderForLander, AleoSigner, ConnectionConf, CurrentNetwork, FeeEstimate,
+    HyperlaneAleoError,
 };
 
 /// Aleo Http Client trait alias
@@ -47,6 +48,8 @@ pub struct AleoProvider<C: AleoClient = FallbackHttpClient> {
     signer: Option<AleoSigner>,
     priority_fee_multiplier: f64,
 }
+
+impl AleoProviderForLander for AleoProvider {}
 
 impl AleoProvider<FallbackHttpClient> {
     /// Creates a new production AleoProvider
