@@ -4,9 +4,9 @@ import { BigNumber } from 'bignumber.js';
 
 import { assert } from '@hyperlane-xyz/utils';
 
+import { getKeysFromKvStore } from '../utils/base-query.js';
 import { RadixBase } from '../utils/base.js';
 import { READ_ACCOUNT_HEX_PUBLIC_KEY } from '../utils/constants.js';
-import { getKeysFromKeyValueStore } from '../utils/query.js';
 import { EntityDetails, EntityField, Receipt } from '../utils/types.js';
 
 export class RadixWarpQuery {
@@ -135,7 +135,7 @@ export class RadixWarpQuery {
 
     const remoteRouters = [];
 
-    const keys = await getKeysFromKeyValueStore(
+    const keys = await getKeysFromKvStore(
       this.gateway,
       enrolledRoutersKeyValueStore,
     );

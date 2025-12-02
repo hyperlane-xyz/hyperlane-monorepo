@@ -9,14 +9,17 @@ import {
   getHookType,
   getIgpHookConfig,
   getMerkleTreeHookConfig,
-} from '../hook/query.js';
+} from '../hook/hook-query.js';
 import {
   getDomainRoutingIsmConfig,
   getIsmType,
   getMultisigIsmConfig,
   getTestIsmConfig,
-} from '../ism/query.js';
-import { getMailboxConfig, isMessageDelivered } from '../mailbox/query.js';
+} from '../ism/ism-query.js';
+import {
+  getMailboxConfig,
+  isMessageDelivered,
+} from '../mailbox/mailbox-query.js';
 import { RadixBase } from '../utils/base.js';
 import {
   RadixHookTypes,

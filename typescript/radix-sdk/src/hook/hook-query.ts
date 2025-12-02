@@ -6,9 +6,9 @@ import {
   getComponentOwner,
   getComponentState,
   getFieldValueFromEntityState,
-  getKeysFromKeyValueStore,
+  getKeysFromKvStore,
   getRadixComponentDetails,
-} from '../utils/query.js';
+} from '../utils/base-query.js';
 import { EntityField, RadixHookTypes } from '../utils/types.js';
 
 function isHookType(maybeHookType: string): maybeHookType is RadixHookTypes {
@@ -79,7 +79,7 @@ export async function getIgpHookConfig(
       hookState,
     );
 
-  const keys = await getKeysFromKeyValueStore(
+  const keys = await getKeysFromKvStore(
     gateway,
     destinationGasConfigsKeyValueStoreAddress,
   );

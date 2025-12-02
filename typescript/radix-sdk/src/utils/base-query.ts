@@ -47,7 +47,7 @@ export async function getRadixComponentDetails(
  * @param keyValueStoreAddress - The on-chain address of the key-value store
  * @returns Array of all keys in the key-value store
  */
-export async function getKeysFromKeyValueStore(
+export async function getKeysFromKvStore(
   gateway: Readonly<GatewayApiClient>,
   keyValueStoreAddress: string,
 ): Promise<ScryptoSborValue[]> {
@@ -73,7 +73,11 @@ export async function getKeysFromKeyValueStore(
     }
 
     cursor = next_cursor;
-    at_ledger_state = { state_version: ledger_state.state_version };
+    // Set the ledger version so that subsequent requests use the same
+    // version as the first one
+    if (!at_ledger_state) {
+      at_ledger_state = { state_version: ledger_state.state_version };
+    }
     await sleep(50);
   }
 

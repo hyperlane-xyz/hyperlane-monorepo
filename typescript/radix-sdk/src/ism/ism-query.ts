@@ -7,9 +7,9 @@ import {
   getComponentState,
   getFieldElementsFromEntityState,
   getFieldValueFromEntityState,
-  getKeysFromKeyValueStore,
+  getKeysFromKvStore,
   getRadixComponentDetails,
-} from '../utils/query.js';
+} from '../utils/base-query.js';
 import {
   EntityField,
   MultisigIsms,
@@ -141,7 +141,7 @@ export async function getDomainRoutingIsmConfig(
     ismState,
   );
 
-  const keys = await getKeysFromKeyValueStore(gateway, routesKeyValueStore);
+  const keys = await getKeysFromKvStore(gateway, routesKeyValueStore);
 
   const routes = [];
   for (const key of keys) {
