@@ -241,7 +241,8 @@ impl CosmosNativeMailbox {
 /// Convert H512 to Cosmos hash format (used by Kaspa bridge)
 pub fn h512_to_cosmos_hash(h: H512) -> Hash {
     let h_256: H256 = h.into();
-    Hash::from_bytes(Algorithm::Sha256, h_256.as_bytes()).unwrap()
+    Hash::from_bytes(Algorithm::Sha256, h_256.as_bytes())
+        .expect("H256 bytes are always valid SHA-256 hash")
 }
 
 /// Extract the last 32 bytes of H512 to create H256

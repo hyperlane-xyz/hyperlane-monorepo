@@ -332,7 +332,7 @@ async fn respond_validate_new_deposits<
         .must_signing()
         .sign_with_fallback(to_sign)
         .await
-        .map_err(|e| AppError(e.into()))?;
+        .map_err(AppError)?;
     info!("validator: signed deposit");
 
     Ok(Json(sig))
@@ -384,7 +384,7 @@ async fn respond_sign_pskts<
     .await
     .map_err(|e| {
         eprintln!("Withdrawal validation and singing failed: {:?}", e);
-        AppError(Report::from(e))
+        AppError(e)
     })?;
 
     Ok(Json(bundle))
@@ -488,7 +488,7 @@ async fn respond_validate_confirmed_withdrawals<
             progress_indication: progress_indication.clone(),
         })
         .await
-        .map_err(|e| AppError(e.into()))?;
+        .map_err(AppError)?;
 
     info!("validator: signed confirmed withdrawal");
 

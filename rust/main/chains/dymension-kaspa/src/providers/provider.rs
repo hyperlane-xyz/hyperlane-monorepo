@@ -77,7 +77,7 @@ impl KaspaProvider {
         let kaspa_metrics = if let Some(reg) = registry {
             KaspaBridgeMetrics::new(reg).expect("create KaspaBridgeMetrics")
         } else {
-            KaspaBridgeMetrics::new(&prometheus::default_registry())
+            KaspaBridgeMetrics::new(prometheus::default_registry())
                 .expect("create default KaspaBridgeMetrics")
         };
 

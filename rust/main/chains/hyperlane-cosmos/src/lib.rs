@@ -18,6 +18,7 @@ mod libs;
 /// CosmosModule/CosmosNative specific modules
 pub mod native;
 mod providers;
+/// Cosmos signer implementations
 pub mod signers;
 mod trait_builder;
 mod utils;

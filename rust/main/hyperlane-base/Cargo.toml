@@ -41,7 +41,7 @@ solana-sdk.workspace = true
 static_assertions.workspace = true
 tempfile = { workspace = true, optional = true }
 thiserror.workspace = true
-tokio = { workspace = true, features = ["rt", "macros", "parking_lot"] }
+tokio = { workspace = true, features = ["rt", "macros", "parking_lot", "tracing"] }
 tokio-metrics.workspace = true
 tracing-error.workspace = true
 tracing-futures.workspace = true

@@ -48,6 +48,7 @@ pub trait BuildableQueryClient: Sized + std::fmt::Debug + Sync + Send + 'static 
 #[derive(Debug, Clone)]
 pub struct CosmosProvider<QueryClient> {
     conf: ConnectionConf,
+    /// RPC provider for Cosmos chain
     pub rpc: RpcProvider,
     domain: HyperlaneDomain,
     query: QueryClient,

@@ -306,7 +306,7 @@ pub async fn request_validate_new_confirmation(
     host: String,
     conf: &ConfirmationFXG,
 ) -> Result<Signature> {
-    let bz = Bytes::try_from(conf)?;
+    let bz = Bytes::from(conf);
     let res = client
         .post(format!("{}{}", host, ROUTE_VALIDATE_CONFIRMED_WITHDRAWALS))
         .body(bz)
