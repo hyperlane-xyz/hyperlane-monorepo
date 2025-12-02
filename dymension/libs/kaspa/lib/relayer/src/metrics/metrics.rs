@@ -1,5 +1,6 @@
 use prometheus::{
-    GaugeVec, Histogram, HistogramOpts, HistogramVec, IntCounter, IntGauge, Opts, Registry,
+    GaugeVec, Histogram, HistogramOpts, HistogramVec, IntCounter, IntCounterVec, IntGauge, Opts,
+    Registry,
 };
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, OnceLock, RwLock};
@@ -84,6 +85,16 @@ pub struct KaspaBridgeMetrics {
     // Validator request metrics
     /// Distribution of validator HTTP request latency in seconds
     pub validator_request_duration: HistogramVec,
+
+    // WRPC connection health metrics
+    /// Total number of WRPC connection recreations by reason
+    pub wrpc_reconnections_total: IntCounterVec,
+
+    /// Age of current WRPC connection in seconds
+    pub wrpc_connection_age_seconds: IntGauge,
+
+    /// Total number of WRPC connection errors
+    pub wrpc_connection_errors_total: IntCounter,
 
     // Internal tracking state (not exposed as metrics)
     /// Track unique failed deposits to avoid double counting
@@ -307,6 +318,27 @@ impl KaspaBridgeMetrics {
         )?;
         let _ = registry.register(Box::new(validator_request_duration.clone()));
 
+        let wrpc_reconnections_total = IntCounterVec::new(
+            Opts::new(
+                "kaspa_wrpc_reconnections_total",
+                "Total number of WRPC connection recreations by reason",
+            ),
+            &["reason"],
+        )?;
+        let _ = registry.register(Box::new(wrpc_reconnections_total.clone()));
+
+        let wrpc_connection_age_seconds = IntGauge::new(
+            "kaspa_wrpc_connection_age_seconds",
+            "Age of current WRPC connection in seconds",
+        )?;
+        let _ = registry.register(Box::new(wrpc_connection_age_seconds.clone()));
+
+        let wrpc_connection_errors_total = IntCounter::new(
+            "kaspa_wrpc_connection_errors_total",
+            "Total number of WRPC connection errors",
+        )?;
+        let _ = registry.register(Box::new(wrpc_connection_errors_total.clone()));
+
         let new_instance = Self {
             // Balances
             relayer_address_funds,
@@ -337,6 +369,10 @@ impl KaspaBridgeMetrics {
             relayer_receive_address_info,
             // Validators
             validator_request_duration,
+            // WRPC connection health
+            wrpc_reconnections_total,
+            wrpc_connection_age_seconds,
+            wrpc_connection_errors_total,
             // Internal tracking
             failed_deposit_ids: Arc::new(RwLock::new(HashSet::new())),
             failed_deposit_amounts: Arc::new(RwLock::new(HashMap::new())),
