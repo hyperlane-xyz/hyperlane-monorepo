@@ -124,6 +124,10 @@ where
         let mut last_query_time = 0i64;
 
         loop {
+            if let Err(e) = self.provider.maybe_recreate_periodically().await {
+                error!(error = ?e, "Dymension, periodic WRPC connection recreation failed");
+            }
+
             self.process_deposit_queue().await;
 
             let now = std::time::SystemTime::now()
