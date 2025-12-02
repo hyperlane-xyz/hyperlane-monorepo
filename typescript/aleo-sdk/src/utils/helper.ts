@@ -43,7 +43,7 @@ export function loadProgramsInDeployOrder(
           .toString()
           .replaceAll(
             /(mailbox|hook_manager|dispatch_proxy|validator_announce).aleo/g,
-            (_, p1) => `${p1}_${coreSuffix}.aleo`,
+            (_, p1) => (coreSuffix ? `${p1}_${coreSuffix}.aleo` : `${p1}.aleo`),
           )
           .replaceAll(
             /(hyp_native|hyp_collateral|hyp_synthetic).aleo/g,
@@ -152,11 +152,24 @@ export function fromAleoAddress(aleoAddress: string): {
 }
 
 export function getProgramSuffix(address: string): string {
-  return (address.split('_').at(-1) || '').replaceAll('.aleo', '');
+  let suffix = address;
+
+  for (const key of Object.keys(programRegistry)) {
+    suffix = suffix.replaceAll(key, '');
+  }
+
+  suffix = suffix.replaceAll('.aleo', '');
+  suffix = suffix.replaceAll('_', '');
+
+  return suffix;
 }
 
 export function getProgramIdFromSuffix(program: AleoProgram, suffix: string) {
-  return skipSuffixes ? `${program}.aleo` : `${program}_${suffix}.aleo`;
+  if (skipSuffixes || !suffix) {
+    return `${program}.aleo`;
+  }
+
+  return `${program}_${suffix}.aleo`;
 }
 
 export function stringToU128(str: string, littleEndian = false): bigint {
