@@ -1,10 +1,20 @@
-import { WithAddress } from '@hyperlane-xyz/utils';
+import { WithAddress, deepEquals } from '@hyperlane-xyz/utils';
+
+import { ExtractModuleType } from './module.js';
 
 export type IsmModuleType = {
   config: IsmConfig;
   derived: DerivedIsmConfig;
   addresses: IsmModuleAddresses;
 };
+
+/**
+ * Helper type for ISM module types.
+ */
+export type ExtractIsmModuleType<TType extends IsmType> = ExtractModuleType<
+  IsmModuleType,
+  TType
+>;
 
 export interface IsmConfigs {
   domainRoutingIsm: DomainRoutingIsmConfig;
@@ -42,3 +52,51 @@ export type IsmModuleAddresses = {
   deployedIsm: string;
   mailbox: string;
 };
+
+/**
+ * Calculates the routing delta between the current and target routing ISM configurations
+ * Returns the domains that need to be enrolled or unenrolled
+ */
+export function calculateDomainRoutingIsmDelta(
+  current: DomainRoutingIsmConfig,
+  target: DomainRoutingIsmConfig,
+): {
+  domainsToEnroll: string[];
+  domainsToUnenroll: string[];
+} {
+  const domainsToEnroll: string[] = [];
+  for (const domain of Object.keys(target.domains)) {
+    const currentIsmConfig = current.domains[domain];
+    const targetIsmConfig = target.domains[domain];
+
+    if (!currentIsmConfig) {
+      domainsToEnroll.push(domain);
+    } else {
+      const subModuleMatches = deepEquals(currentIsmConfig, targetIsmConfig);
+      if (!subModuleMatches) {
+        domainsToEnroll.push(domain);
+      }
+    }
+  }
+
+  const domainsToUnenroll = Object.keys(current.domains).filter(
+    (domain) => !Object.keys(target.domains).includes(domain),
+  );
+
+  return {
+    domainsToEnroll,
+    domainsToUnenroll,
+  };
+}
+
+/**
+ * Extracts the ISM address from a config
+ */
+export function extractIsmAddress(
+  domainConfig: string | DerivedIsmConfig,
+): string {
+  if (typeof domainConfig === 'string') {
+    return domainConfig;
+  }
+  return domainConfig.address;
+}

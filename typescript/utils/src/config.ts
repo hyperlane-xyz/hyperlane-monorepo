@@ -1,5 +1,3 @@
-import { WithAddress } from './types.js';
-
 /**
  * Utilities for normalizing and comparing configuration objects.
  * Used across ISM, Hook, and other Hyperlane configurations.
@@ -14,7 +12,7 @@ import { WithAddress } from './types.js';
  * @param obj - Configuration object to normalize
  * @returns Normalized configuration object
  */
-export function normalizeConfig(obj: WithAddress<any>): any {
+export function normalizeConfig<T = any>(obj: T): T {
   return sortArraysInConfig(lowerCaseConfig(obj));
 }
 
