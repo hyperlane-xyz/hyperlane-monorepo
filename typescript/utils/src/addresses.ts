@@ -19,7 +19,7 @@ const COSMOS_NATIVE_ADDRESS_REGEX = /^(0x)?[0-9a-fA-F]{64}$/;
 const STARKNET_ADDRESS_REGEX = /^(0x)?[0-9a-fA-F]{64}$/;
 const RADIX_ADDRESS_REGEX =
   /^(account|component)_(rdx|loc|sim|tdx_[\d]_)[a-z0-9]{55}$/;
-const ALEO_ADDRESS_REGEX = /^(aleo1[a-z0-9]{58}|[A-Za-z0-9_]+\.aleo)$/;
+const ALEO_ADDRESS_REGEX = /^[A-Za-z0-9_]+\.aleo\/aleo1[a-z0-9]{58}$/;
 
 const HEX_BYTES32_REGEX = /^0x[a-fA-F0-9]{64}$/;
 
@@ -47,7 +47,7 @@ const COSMOS_NATIVE_ZEROISH_ADDRESS_REGEX = /^(0x)?0*$/;
 const STARKNET_ZEROISH_ADDRESS_REGEX = /^(0x)?0*$/;
 const RADIX_ZEROISH_ADDRESS_REGEX = /^0*$/;
 const ALEO_ZEROISH_ADDRESS_REGEX =
-  /^aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc$/;
+  /^[A-Za-z0-9_]+\.aleo\/aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc$/;
 
 export const ZERO_ADDRESS_HEX_32 =
   '0x0000000000000000000000000000000000000000000000000000000000000000';
@@ -92,8 +92,6 @@ export function getAddressProtocolType(address: Address) {
   if (!address) return undefined;
   if (isAddressEvm(address)) {
     return ProtocolType.Ethereum;
-  } else if (isAddressAleo(address)) {
-    return ProtocolType.Aleo;
   } else if (isAddressCosmos(address)) {
     return ProtocolType.Cosmos;
   } else if (isAddressCosmosNative(address)) {
@@ -104,6 +102,8 @@ export function getAddressProtocolType(address: Address) {
     return ProtocolType.Starknet;
   } else if (isAddressRadix(address)) {
     return ProtocolType.Radix;
+  } else if (isAddressAleo(address)) {
+    return ProtocolType.Aleo;
   } else {
     return undefined;
   }
@@ -431,7 +431,8 @@ export function addressToBytesRadix(address: Address): Uint8Array {
 }
 
 export function addressToBytesAleo(address: Address): Uint8Array {
-  return new Uint8Array(bech32m.fromWords(bech32m.decode(address).words));
+  const [_, aleoAddress] = address.split('/');
+  return new Uint8Array(bech32m.fromWords(bech32m.decode(aleoAddress).words));
 }
 
 export function addressToBytes(
@@ -561,7 +562,7 @@ export function bytesToAddressRadix(
 }
 
 export function bytesToAddressAleo(bytes: Uint8Array): Address {
-  return bech32m.encode('aleo', bech32m.toWords(bytes));
+  return `program.aleo/${bech32m.encode('aleo', bech32m.toWords(bytes))}`;
 }
 
 export function bytesToProtocolAddress(
@@ -583,10 +584,10 @@ export function bytesToProtocolAddress(
     return bytesToAddressCosmosNative(bytes, prefix!);
   } else if (toProtocol === ProtocolType.Starknet) {
     return bytesToAddressStarknet(bytes);
-  } else if (toProtocol === ProtocolType.Aleo) {
-    return bytesToAddressAleo(bytes);
   } else if (toProtocol === ProtocolType.Radix) {
     return bytesToAddressRadix(bytes, prefix!);
+  } else if (toProtocol === ProtocolType.Aleo) {
+    return bytesToAddressAleo(bytes);
   } else {
     throw new Error(`Unsupported protocol for address ${toProtocol}`);
   }
