@@ -384,7 +384,7 @@ describe('hyperlane warp apply with submitters', async function () {
     });
   });
 
-  describe.only(`${TxSubmitterType.GNOSIS_TX_BUILDER}/${TxSubmitterType.GNOSIS_SAFE}`, () => {
+  describe(`${TxSubmitterType.GNOSIS_TX_BUILDER}/${TxSubmitterType.GNOSIS_SAFE}`, () => {
     let mockSafeApiServer: Awaited<ReturnType<typeof createMockSafeApi>>;
 
     before(async function () {
