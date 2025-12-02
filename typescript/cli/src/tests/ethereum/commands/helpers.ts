@@ -19,6 +19,7 @@ import {
   XERC20VSTest,
   XERC20VSTest__factory,
 } from '@hyperlane-xyz/core';
+import { TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
 import {
   WarpCoreConfig,
   WarpCoreConfigSchema,
@@ -29,7 +30,6 @@ import { Address, assert, inCIMode } from '@hyperlane-xyz/utils';
 import { getContext } from '../../../context/context.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { KeyBoardKeys, TestPromptAction } from '../../commands/helpers.js';
-import { TestChainMetadata } from '../../constants.js';
 import {
   ANVIL_KEY,
   REGISTRY_PATH,
