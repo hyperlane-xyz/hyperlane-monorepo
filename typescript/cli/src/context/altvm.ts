@@ -9,7 +9,6 @@ import {
   type MinimumRequiredGasByAction,
   getProtocolProvider,
   hasProtocol,
-  listProtocols,
 } from '@hyperlane-xyz/provider-sdk';
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
@@ -142,27 +141,25 @@ export function createAltVMSubmitterFactories(
   }
 
   const signer = mustGet(altVmSigners, chain);
-  for (const protocol of listProtocols()) {
-    factories[protocol] = {
-      [TxSubmitterType.JSON_RPC]: (
-        _multiProvider: MultiProvider,
-        metadata: SubmitterMetadata,
-      ) => {
-        // Used to type narrow metadata
-        assert(
-          metadata.type === TxSubmitterType.JSON_RPC,
-          `Invalid metadata type: ${metadata.type}, expected ${TxSubmitterType.JSON_RPC}`,
-        );
-        return new AltVMJsonRpcTxSubmitter(signer, metadata);
-      },
-      [CustomTxSubmitterType.FILE]: (
-        _multiProvider: MultiProvider,
-        metadata: any,
-      ) => {
-        return new AltVMFileSubmitter(signer, metadata);
-      },
-    };
-  }
+  factories[protocol] = {
+    [TxSubmitterType.JSON_RPC]: (
+      _multiProvider: MultiProvider,
+      metadata: SubmitterMetadata,
+    ) => {
+      // Used to type narrow metadata
+      assert(
+        metadata.type === TxSubmitterType.JSON_RPC,
+        `Invalid metadata type: ${metadata.type}, expected ${TxSubmitterType.JSON_RPC}`,
+      );
+      return new AltVMJsonRpcTxSubmitter(signer, metadata);
+    },
+    [CustomTxSubmitterType.FILE]: (
+      _multiProvider: MultiProvider,
+      metadata: any,
+    ) => {
+      return new AltVMFileSubmitter(signer, metadata);
+    },
+  };
 
   return factories;
 }
