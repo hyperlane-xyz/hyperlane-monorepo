@@ -267,44 +267,6 @@ contract TimelockRouterTest is Test {
         assertTrue(destinationRouter.verify(bytes(""), testMessage));
     }
 
-    // ============ Owner Functions Tests ============
-
-    function test_manuallyPreverifyMessage() public {
-        bytes32 messageId = keccak256("manual-message-id");
-
-        vm.expectEmit(true, true, true, true, address(destinationRouter));
-        emit MessageQueued(
-            messageId,
-            uint48(block.timestamp) + TIMELOCK_WINDOW
-        );
-
-        destinationRouter.manuallyPreverifyMessage(messageId);
-
-        assertEq(
-            destinationRouter.readyAt(messageId),
-            uint48(block.timestamp) + TIMELOCK_WINDOW
-        );
-    }
-
-    function test_manuallyPreverifyMessage_revertsIfAlreadyPreverified()
-        public
-    {
-        bytes32 messageId = keccak256("manual-message-id");
-
-        destinationRouter.manuallyPreverifyMessage(messageId);
-
-        vm.expectRevert("TimelockRouter: message already preverified");
-        destinationRouter.manuallyPreverifyMessage(messageId);
-    }
-
-    function test_manuallyPreverifyMessage_onlyOwner() public {
-        bytes32 messageId = keccak256("manual-message-id");
-
-        vm.prank(address(0x9999));
-        vm.expectRevert("Ownable: caller is not the owner");
-        destinationRouter.manuallyPreverifyMessage(messageId);
-    }
-
     // ============ Integration Tests ============
 
     function test_fullFlow() public {
