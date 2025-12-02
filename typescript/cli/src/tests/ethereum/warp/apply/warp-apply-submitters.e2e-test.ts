@@ -384,20 +384,60 @@ describe('hyperlane warp apply with submitters', async function () {
     });
   });
 
-  describe(TxSubmitterType.GNOSIS_TX_BUILDER, () => {
+  describe.only(`${TxSubmitterType.GNOSIS_TX_BUILDER}/${TxSubmitterType.GNOSIS_SAFE}`, () => {
     let mockSafeApiServer: Awaited<ReturnType<typeof createMockSafeApi>>;
 
     before(async function () {
       mockSafeApiServer = await createMockSafeApi(
         TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
-        initialOwnerAddress,
         safeAddress,
+        initialOwnerAddress,
         5,
       );
     });
 
     after(async function () {
       await mockSafeApiServer.close();
+    });
+
+    it('should propose the transaction file to the Safe API', async () => {
+      const warpDeployConfig = fixture.getDeployConfig();
+      warpDeployConfig[
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
+      ].owner = safeAddress;
+      await deployAndExportWarpRoute();
+
+      const txBuilderStrategy: ChainSubmissionStrategy = {
+        [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
+          submitter: {
+            type: TxSubmitterType.GNOSIS_SAFE,
+            chain: TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+            safeAddress: safeAddress,
+          },
+        },
+      };
+
+      writeYamlOrJson(
+        SAFE_TX_BUILDER_SUBMITTER_STRATEGY_PATH,
+        txBuilderStrategy,
+      );
+
+      warpDeployConfig[
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
+      ].destinationGas = {
+        [chain2DomainId]: '100000',
+      };
+      writeYamlOrJson(WARP_DEPLOY_CONFIG_PATH, warpDeployConfig);
+
+      const output = await evmWarpCommands.applyRaw({
+        warpRouteId: WARP_ROUTE_ID,
+        strategyUrl: SAFE_TX_BUILDER_SUBMITTER_STRATEGY_PATH,
+        hypKey: HYP_KEY_BY_PROTOCOL.ethereum,
+      });
+
+      expect(output.text()).not.to.include(
+        'Error in submitWarpApplyTransactions Error:',
+      );
     });
 
     it('should generate the JSON transaction file to be submitted to the Safe Transaction Builder', async () => {

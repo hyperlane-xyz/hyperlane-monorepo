@@ -450,9 +450,15 @@ export async function createMockSafeApi(
 
   const server = http.createServer((req, res) => {
     const url = req.url || '';
+    console.info('Mock safe API received request', req.method, url);
 
-    if (url.includes('/safes/') && !url.includes('/delegates')) {
-      // Mock GET /api/v1/safes/{address}/ - getSafeInfo
+    if (url.includes('/safes/') && url.includes('multisig-transactions')) {
+      // Mock GET /v2/safes/${address}/multisig-transactions/`
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+
+      res.end(JSON.stringify({ count: 0, results: [] }));
+    } else if (url.includes('/safes/')) {
+      // Mock GET /api/v1/safes/{address}/
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(
         JSON.stringify({
@@ -466,19 +472,18 @@ export async function createMockSafeApi(
         }),
       );
     } else if (url.includes('/delegates')) {
-      // Mock GET /api/v1/safes/{address}/delegates/
+      // Mock GET /api/v2/delegates?safe={address}
       res.writeHead(200, { 'Content-Type': 'application/json' });
 
-      res.end(JSON.stringify({ results: [{ delegate: safeOwner }] }));
-    } else if (req.method === 'POST' && url.includes('/transactions')) {
-      // Mock POST /api/v1/transactions/ - proposeTransaction
+      res.end(JSON.stringify({ count: 1, results: [{ delegate: safeOwner }] }));
+    } else if (
+      req.method === 'POST' &&
+      url.includes('/multisig-transactions')
+    ) {
+      // Mock POST /api/v2/safes/{address}/multisig-transactions/
       res.writeHead(201, { 'Content-Type': 'application/json' });
 
       res.end(JSON.stringify({ success: true }));
-    } else if (url.includes('/all-transactions/')) {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-
-      res.end(JSON.stringify(nonce.toString()));
     } else {
       res.statusCode = 404;
       res.end();
