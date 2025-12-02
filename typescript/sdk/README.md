@@ -10,8 +10,8 @@ For more details on Hyperlane concepts, [see the documentation](https://docs.hyp
 # Install with NPM
 npm install @hyperlane-xyz/sdk
 
-# Or with Yarn
-yarn add @hyperlane-xyz/sdk
+# Or with pnpm
+pnpm add @hyperlane-xyz/sdk
 ```
 
 Note, this package uses [ESM Modules](https://gist.github.com/sindresorhus/a39789f98801d908bbc7ff3ecc99d99c#pure-esm-package)

@@ -19,6 +19,6 @@ if [[ $? -ne 0 ]]; then
 fi
 
 echo "Running E2E tests"
-yarn mocha --config .mocharc-e2e.json
+pnpm mocha --config .mocharc-e2e.json
 
 echo "Completed E2E tests"
