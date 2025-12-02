@@ -25,7 +25,7 @@ fn test_new() {
 }
 
 #[test]
-fn test_from_aleo_tx_calldata() {
+fn test_from_aleo_tx_data() {
     let tx_data = AleoTxData {
         program_id: "hyperlane.aleo".to_string(),
         function_name: "dispatch".to_string(),

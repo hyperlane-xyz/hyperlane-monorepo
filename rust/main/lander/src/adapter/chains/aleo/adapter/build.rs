@@ -25,7 +25,7 @@ fn deserialize_and_create_transaction(full_payload: &FullPayload) -> Option<Tran
         .map(|operation_payload| create_transaction(operation_payload, full_payload))
 }
 
-/// Creates a transaction from deserialized calldata
+/// Creates a transaction from deserialized tx data
 fn create_transaction(operation_payload: AleoTxData, full_payload: &FullPayload) -> Transaction {
     let precursor = AleoTxPrecursor::from(operation_payload);
     Transaction {

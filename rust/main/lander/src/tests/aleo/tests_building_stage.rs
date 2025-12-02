@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -12,7 +13,7 @@ use crate::transaction::Transaction;
 use crate::{DispatcherMetrics, FullPayload, PayloadStatus, PayloadUuid, TransactionStatus};
 
 fn create_aleo_payload() -> FullPayload {
-    let calldata = AleoTxData {
+    let tx_data = AleoTxData {
         program_id: "test_program.aleo".to_string(),
         function_name: "test_function".to_string(),
         inputs: vec!["input1".to_string(), "input2".to_string()],
@@ -27,7 +28,7 @@ fn create_aleo_payload() -> FullPayload {
             metadata: format!("test-payload-{}", payload_uuid),
             success_criteria,
         },
-        data: serde_json::to_vec(&calldata).unwrap(),
+        data: serde_json::to_vec(&tx_data).unwrap(),
         to: H256::zero(),
         status: PayloadStatus::ReadyToSubmit,
         value: None,
@@ -150,22 +151,22 @@ async fn verify_payload_status_transition(
     );
 }
 
-/// Helper function to verify calldata field validation (Check 12)
-fn verify_calldata_preserved(tx: &Transaction, original_calldata: &AleoTxData) {
+/// Helper function to verify tx_data field validation (Check 12)
+fn verify_tx_data_preserved(tx: &Transaction, original_tx_data: &AleoTxData) {
     // Extract the Aleo transaction precursor from vm_specific_data
     match &tx.vm_specific_data {
         crate::transaction::VmSpecificTxData::Aleo(precursor) => {
-            // Verify all calldata fields are preserved correctly
+            // Verify all tx_data fields are preserved correctly
             assert_eq!(
-                precursor.program_id, original_calldata.program_id,
+                precursor.program_id, original_tx_data.program_id,
                 "program_id should be preserved"
             );
             assert_eq!(
-                precursor.function_name, original_calldata.function_name,
+                precursor.function_name, original_tx_data.function_name,
                 "function_name should be preserved"
             );
             assert_eq!(
-                precursor.inputs, original_calldata.inputs,
+                precursor.inputs, original_tx_data.inputs,
                 "inputs should be preserved"
             );
         }
@@ -179,7 +180,7 @@ async fn test_building_stage_single_payload() {
 
     // Create and enqueue a valid Aleo payload
     let payload = create_aleo_payload();
-    let original_calldata: AleoTxData = serde_json::from_slice(&payload.data).unwrap();
+    let original_tx_data: AleoTxData = serde_json::from_slice(&payload.data).unwrap();
     initialize_payload_db(&building_stage.state.payload_db, &payload).await;
     queue.push_back(payload.clone()).await;
 
@@ -202,7 +203,7 @@ async fn test_building_stage_single_payload() {
     // Check 2: Verify payload status transition
     verify_payload_status_transition(&building_stage, &payload.details.uuid).await;
 
-    // Check 12: Verify calldata field validation
+    // Check 12: Verify tx_data field validation
     let stored_tx = building_stage
         .state
         .tx_db
@@ -210,7 +211,7 @@ async fn test_building_stage_single_payload() {
         .await
         .unwrap()
         .unwrap();
-    verify_calldata_preserved(&stored_tx, &original_calldata);
+    verify_tx_data_preserved(&stored_tx, &original_tx_data);
 
     // Queue should be empty after processing
     assert_eq!(queue.len().await, 0);
@@ -225,11 +226,18 @@ async fn test_building_stage_multiple_payloads_no_batching() {
     let payload2 = create_aleo_payload();
     let payload3 = create_aleo_payload();
 
-    // Store original calldata for each payload
-    let calldata1: AleoTxData = serde_json::from_slice(&payload1.data).unwrap();
-    let calldata2: AleoTxData = serde_json::from_slice(&payload2.data).unwrap();
-    let calldata3: AleoTxData = serde_json::from_slice(&payload3.data).unwrap();
-    let original_calldatas = vec![calldata1, calldata2, calldata3];
+    // Store original tx_data for each payload
+    let tx_data1: AleoTxData = serde_json::from_slice(&payload1.data).unwrap();
+    let tx_data2: AleoTxData = serde_json::from_slice(&payload2.data).unwrap();
+    let tx_data3: AleoTxData = serde_json::from_slice(&payload3.data).unwrap();
+
+    let tx_data_map: HashMap<_, _> = [
+        (payload1.details.uuid.clone(), tx_data1),
+        (payload2.details.uuid.clone(), tx_data2),
+        (payload3.details.uuid.clone(), tx_data3),
+    ]
+    .into_iter()
+    .collect();
 
     // Initialize in DB and enqueue
     for payload in [&payload1, &payload2, &payload3] {
@@ -244,11 +252,11 @@ async fn test_building_stage_multiple_payloads_no_batching() {
     assert_eq!(txs.len(), 3);
 
     // Verify each transaction
-    for (i, tx) in txs.iter().enumerate() {
+    for tx in txs.iter() {
         // Check 1: Verify transaction-level validations
         verify_transaction_fields(tx);
 
-        // Check 12: Verify calldata field validation
+        // Check 1.2: Verify tx_data field validation
         let stored_tx = building_stage
             .state
             .tx_db
@@ -256,7 +264,11 @@ async fn test_building_stage_multiple_payloads_no_batching() {
             .await
             .unwrap()
             .unwrap();
-        verify_calldata_preserved(&stored_tx, &original_calldatas[i]);
+        let payload_uuid = &stored_tx.payload_details[0].uuid;
+        let expected_tx_data = tx_data_map
+            .get(payload_uuid)
+            .expect("UUID should exist in map");
+        verify_tx_data_preserved(&stored_tx, expected_tx_data);
     }
 
     // Check 2: Verify payload status transitions for all payloads
@@ -280,7 +292,7 @@ async fn test_building_stage_multiple_payloads_no_batching() {
 async fn test_building_stage_invalid_payload() {
     let (building_stage, mut receiver, queue) = setup_building_stage();
 
-    // Create a payload with invalid data that can't be deserialized as AleoTxCalldata
+    // Create a payload with invalid data that can't be deserialized as AleoTxtx_data
     let mut payload = create_aleo_payload();
     payload.data = vec![1, 2, 3]; // Invalid JSON
 
@@ -316,7 +328,7 @@ async fn test_building_stage_mixed_valid_and_invalid_payloads() {
 
     // Create one valid and two invalid payloads
     let valid_payload = create_aleo_payload();
-    let original_calldata: AleoTxData = serde_json::from_slice(&valid_payload.data).unwrap();
+    let original_tx_data: AleoTxData = serde_json::from_slice(&valid_payload.data).unwrap();
     let mut invalid_payload1 = create_aleo_payload();
     invalid_payload1.data = vec![1, 2, 3]; // Invalid JSON
 
@@ -342,7 +354,7 @@ async fn test_building_stage_mixed_valid_and_invalid_payloads() {
     // Check 2: Verify payload status transition for valid payload
     verify_payload_status_transition(&building_stage, &valid_payload.details.uuid).await;
 
-    // Check 12: Verify calldata field validation
+    // Check 12: Verify tx_data field validation
     let stored_tx = building_stage
         .state
         .tx_db
@@ -350,7 +362,7 @@ async fn test_building_stage_mixed_valid_and_invalid_payloads() {
         .await
         .unwrap()
         .unwrap();
-    verify_calldata_preserved(&stored_tx, &original_calldata);
+    verify_tx_data_preserved(&stored_tx, &original_tx_data);
 
     // Invalid payloads should be marked as Dropped
     for invalid_payload in [&invalid_payload1, &invalid_payload2] {
