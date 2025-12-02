@@ -1,3 +1,7 @@
+## [1.8.0] - 2025-12-02
+
+* fix: Reduce run time for e2e tests (#7380)
+
 ## [1.6.0] - 2025-11-06
 
 * feat(submitter): Naive NonceManager implementation with passing E2E (#6378)

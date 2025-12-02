@@ -1,3 +1,12 @@
+## [1.8.0] - 2025-12-02
+
+* feat: Aleo HyperlaneProvider (#7344)
+* feat: Lander Transaction Submission Observability (#7393)
+* feat: add relayer API endpoint to reset upper nonce for a given evm chain (#7372)
+* fix: Clear link between message and payload for manual reprocessing (#7360)
+* refactor: OperationDisposition: Rename Confirm into PostSubmit and Remove Manual (#7384)
+* refactor: Remove duplication and move tests into separate files (#7357)
+
 ## [1.7.0] - 2025-11-10
 
 * fix: Add tests for functions identifying if messages are already submitted (#7346)
