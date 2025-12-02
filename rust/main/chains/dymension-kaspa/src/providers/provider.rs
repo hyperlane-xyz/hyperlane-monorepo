@@ -30,6 +30,7 @@ use kaspa_rpc_core::notify::mode::NotificationMode;
 use kaspa_wallet_core::prelude::DynRpcApi;
 use prometheus::Registry;
 use std::sync::Arc;
+use tokio::sync::RwLock;
 use tonic::async_trait;
 use tracing::{error, info};
 use url::Url;
@@ -39,11 +40,11 @@ struct ProcessedWithdrawals {
     tx_ids: Vec<RpcTransactionId>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct KaspaProvider {
     conf: ConnectionConf,
     domain: HyperlaneDomain,
-    easy_wallet: EasyKaspaWallet,
+    easy_wallet: Arc<RwLock<EasyKaspaWallet>>,
     rest: RestProvider,
     validators: ValidatorsClient,
     cosmos_rpc: CosmosProvider<ModuleQueryClient>,
@@ -61,6 +62,12 @@ pub struct KaspaProvider {
 
     /// gRPC client for validator operations (None for relayer)
     grpc_client: Option<kaspa_grpc_client::GrpcClient>,
+
+    /// Cached escrow public key data computed from validator_pub_keys and address_prefix.
+    /// Cached because easy_wallet is wrapped in RwLock for reconnection support, so we
+    /// can't synchronously access wallet.net.address_prefix needed for EscrowPublic::from_strs().
+    /// This escrow data is immutable and determined entirely by config at initialization.
+    escrow: EscrowPublic,
 }
 
 impl KaspaProvider {
@@ -125,10 +132,16 @@ impl KaspaProvider {
             None
         };
 
+        let escrow = EscrowPublic::from_strs(
+            cfg.validator_pub_keys.clone(),
+            easy_wallet.net.address_prefix,
+            cfg.multisig_threshold_kaspa as u8,
+        );
+
         let provider = KaspaProvider {
             domain: domain.clone(),
             conf: cfg.clone(),
-            easy_wallet,
+            easy_wallet: Arc::new(RwLock::new(easy_wallet)),
             rest,
             validators,
             cosmos_rpc: cosmos_grpc_client(cfg.hub_grpc_urls.clone()),
@@ -137,6 +150,7 @@ impl KaspaProvider {
             metrics: kaspa_metrics,
             kaspa_db: None,
             grpc_client,
+            escrow,
         };
 
         if let Err(e) = provider.update_balance_metrics().await {
@@ -144,12 +158,15 @@ impl KaspaProvider {
         }
 
         // Set relayer change address metric on startup
-        if let Ok(change_addr) = provider.wallet().account().change_address() {
-            provider
-                .metrics()
-                .relayer_receive_address_info
-                .with_label_values(&[&change_addr.to_string()])
-                .set(1.0);
+        {
+            let wallet = provider.easy_wallet.read().await;
+            if let Ok(change_addr) = wallet.account().change_address() {
+                provider
+                    .metrics()
+                    .relayer_receive_address_info
+                    .with_label_values(&[&change_addr.to_string()])
+                    .set(1.0);
+            }
         }
 
         Ok(provider)
@@ -318,8 +335,9 @@ impl KaspaProvider {
         &self.rest
     }
 
-    pub fn rpc(&self) -> Arc<DynRpcApi> {
-        self.easy_wallet.api()
+    async fn rpc(&self) -> Arc<DynRpcApi> {
+        let wallet = self.easy_wallet.read().await;
+        wallet.api()
     }
 
     pub fn validators(&self) -> &ValidatorsClient {
@@ -330,8 +348,56 @@ impl KaspaProvider {
         &self.cosmos_rpc
     }
 
-    pub fn wallet(&self) -> &EasyKaspaWallet {
-        &self.easy_wallet
+    /// Recreate the WRPC wallet connection
+    async fn recreate_wallet_connection(&self) -> Result<()> {
+        let new_wallet = get_easy_wallet(
+            self.domain.clone(),
+            self.conf.kaspa_urls_wrpc[0].clone(),
+            self.conf.wallet_secret.clone(),
+            self.conf.wallet_dir.clone(),
+        )
+        .await
+        .map_err(|e| eyre::eyre!("recreate wallet connection: {}", e))?;
+
+        let mut wallet = self.easy_wallet.write().await;
+        *wallet = new_wallet;
+
+        info!("kaspa: recreated WRPC wallet connection");
+        Ok(())
+    }
+
+    /// Execute RPC operation with automatic reconnection on error
+    async fn rpc_with_reconnect<T, F, Fut>(&self, op: F) -> Result<T>
+    where
+        F: Fn(Arc<DynRpcApi>) -> Fut,
+        Fut: std::future::Future<Output = Result<T>>,
+    {
+        let rpc = self.rpc().await;
+        match op(rpc).await {
+            Ok(result) => Ok(result),
+            Err(e) => {
+                let err_str = e.to_string();
+                if err_str.contains("WebSocket is not connected")
+                    || err_str.contains("not connected")
+                {
+                    if let Err(recreate_err) = self.recreate_wallet_connection().await {
+                        error!(recreate_error = %recreate_err, "kaspa: failed to recreate WRPC connection");
+                        return Err(e);
+                    }
+
+                    let new_rpc = self.rpc().await;
+                    op(new_rpc).await
+                } else {
+                    Err(e)
+                }
+            }
+        }
+    }
+
+    /// Clone the wallet under read lock
+    async fn clone_wallet(&self) -> dym_kas_core::wallet::EasyKaspaWallet {
+        let wallet = self.easy_wallet.read().await;
+        wallet.clone()
     }
 
     pub fn must_validator_stuff(&self) -> &ValidatorStuff {
@@ -406,9 +472,10 @@ impl KaspaProvider {
         &self,
         msgs: Vec<HyperlaneMessage>,
     ) -> Result<Option<ProcessedWithdrawals>> {
+        let wallet_clone = self.clone_wallet().await;
         let fxg = match on_new_withdrawals(
             msgs.clone(),
-            self.easy_wallet.clone(),
+            wallet_clone,
             self.cosmos_rpc.clone(),
             self.escrow(),
             self.get_min_deposit_sompi(),
@@ -427,12 +494,13 @@ impl KaspaProvider {
         let fxg_arc = std::sync::Arc::new(fxg);
         let bundles_validators = self.validators().get_withdraw_sigs(fxg_arc.clone()).await?;
 
+        let wallet_for_fee = self.clone_wallet().await;
         let finalized = combine_bundles_with_fee(
             bundles_validators,
             fxg_arc.as_ref(),
             self.conf.multisig_threshold_kaspa,
             &self.escrow(),
-            &self.easy_wallet,
+            &wallet_for_fee,
         )
         .await?;
 
@@ -451,10 +519,16 @@ impl KaspaProvider {
         for tx in txs {
             // allow_orphan controls whether TX can be submitted without parent TX being in DAG. Set to false to ensure TX chain integrity
             let allow_orphan = false;
+            let tx_clone = tx.clone();
             let tx_id = self
-                .easy_wallet
-                .api()
-                .submit_transaction(tx, allow_orphan)
+                .rpc_with_reconnect(move |rpc| {
+                    let tx = tx_clone.clone();
+                    async move {
+                        rpc.submit_transaction(tx, allow_orphan)
+                            .await
+                            .map_err(|e| eyre::eyre!("submit transaction: {}", e))
+                    }
+                })
                 .await?;
             tx_ids.push(tx_id);
         }
@@ -467,11 +541,17 @@ impl KaspaProvider {
     }
 
     pub async fn update_balance_metrics(&self) -> Result<()> {
+        let escrow_addr = self.escrow_address();
         let utxos = self
-            .rpc()
-            .get_utxos_by_addresses(vec![self.escrow_address()])
-            .await
-            .map_err(|e| eyre::eyre!("get UTXOs for escrow address: {}", e))?;
+            .rpc_with_reconnect(move |rpc| {
+                let addr = escrow_addr.clone();
+                async move {
+                    rpc.get_utxos_by_addresses(vec![addr])
+                        .await
+                        .map_err(|e| eyre::eyre!("get UTXOs for escrow address: {}", e))
+                }
+            })
+            .await?;
 
         let total_escrow_bal: u64 = utxos.iter().map(|utxo| utxo.utxo_entry.amount).sum();
 
@@ -480,12 +560,17 @@ impl KaspaProvider {
         self.metrics().update_escrow_utxo_count(utxos.len() as i64);
 
         // Get change address balance
-        let change_addr = self.wallet().account().change_address()?;
+        let change_addr = self.clone_wallet().await.account().change_address()?;
         let change_utxos = self
-            .rpc()
-            .get_utxos_by_addresses(vec![change_addr])
-            .await
-            .map_err(|e| eyre::eyre!("get UTXOs for change address: {}", e))?;
+            .rpc_with_reconnect(move |rpc| {
+                let addr = change_addr.clone();
+                async move {
+                    rpc.get_utxos_by_addresses(vec![addr])
+                        .await
+                        .map_err(|e| eyre::eyre!("get UTXOs for change address: {}", e))
+                }
+            })
+            .await?;
 
         let total_change_bal: u64 = change_utxos.iter().map(|utxo| utxo.utxo_entry.amount).sum();
         self.metrics().update_relayer_funds(total_change_bal as i64);
@@ -494,11 +579,7 @@ impl KaspaProvider {
     }
 
     pub fn escrow(&self) -> EscrowPublic {
-        EscrowPublic::from_strs(
-            self.conf.validator_pub_keys.clone(),
-            self.easy_wallet.net.address_prefix,
-            self.conf.multisig_threshold_kaspa as u8,
-        )
+        self.escrow.clone()
     }
 
     pub fn escrow_address(&self) -> Address {
@@ -507,6 +588,42 @@ impl KaspaProvider {
 
     pub fn metrics(&self) -> &KaspaBridgeMetrics {
         &self.metrics
+    }
+
+    /// Get the address prefix from the wallet
+    pub async fn address_prefix(&self) -> kaspa_addresses::Prefix {
+        self.easy_wallet.read().await.net.address_prefix
+    }
+
+    /// Get the wallet network info (cloned)
+    pub async fn wallet_net(&self) -> dym_kas_core::wallet::NetworkInfo {
+        self.easy_wallet.read().await.net.clone()
+    }
+
+    /// Get UTXOs by addresses with automatic reconnection on WebSocket errors
+    pub async fn get_utxos_by_addresses(
+        &self,
+        addresses: Vec<kaspa_addresses::Address>,
+    ) -> Result<Vec<kaspa_rpc_core::RpcUtxosByAddressesEntry>> {
+        self.rpc_with_reconnect(move |rpc| {
+            let addrs = addresses.clone();
+            async move {
+                rpc.get_utxos_by_addresses(addrs)
+                    .await
+                    .map_err(|e| eyre::eyre!("get UTXOs by addresses: {}", e))
+            }
+        })
+        .await
+    }
+}
+
+impl std::fmt::Debug for KaspaProvider {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("KaspaProvider")
+            .field("domain", &self.domain)
+            .field("easy_wallet", &"<RwLock<EasyKaspaWallet>>")
+            .field("escrow", &self.escrow)
+            .finish()
     }
 }
 

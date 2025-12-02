@@ -12,7 +12,6 @@ use axum::{
 use dym_kas_core::api::client::HttpClient;
 use dym_kas_core::deposit::DepositFXG;
 use dym_kas_core::escrow::EscrowPublic;
-use dym_kas_core::wallet::EasyKaspaWallet;
 use dym_kas_core::{confirmation::ConfirmationFXG, withdraw::WithdrawFXG};
 use dym_kas_validator::confirmation::validate_confirmed_withdrawals;
 use dym_kas_validator::deposit::{validate_new_deposit, MustMatch as DepositMustMatch};
@@ -237,8 +236,12 @@ impl<
         self.kas_provider.as_ref().unwrap().escrow()
     }
 
-    fn must_wallet(&self) -> &EasyKaspaWallet {
-        self.kas_provider.as_ref().unwrap().wallet()
+    async fn must_wallet_net(&self) -> dym_kas_core::wallet::NetworkInfo {
+        self.kas_provider.as_ref().unwrap().wallet_net().await
+    }
+
+    async fn must_address_prefix(&self) -> kaspa_addresses::Prefix {
+        self.kas_provider.as_ref().unwrap().address_prefix().await
     }
 
     fn must_hub_rpc(&self) -> &CosmosProvider<ModuleQueryClient> {
@@ -289,10 +292,11 @@ async fn respond_validate_new_deposits<
     info!("validator: checking new kaspa deposit");
     let deposits: DepositFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
     if res.must_val_stuff().toggles.deposit_enabled {
+        let wallet_net = res.must_wallet_net().await;
         validate_new_deposit(
             res.must_rest_client(),
             &deposits,
-            &res.must_wallet().net,
+            &wallet_net,
             &res.must_escrow().addr,
             res.must_hub_rpc(),
             DepositMustMatch::new(
@@ -372,7 +376,7 @@ async fn respond_sign_pskts<
             }
         },
         WithdrawMustMatch::new(
-            res.must_wallet().net.address_prefix,
+            res.must_address_prefix().await,
             res.must_escrow(),
             val_stuff.hub_domain,
             val_stuff.hub_token_id,

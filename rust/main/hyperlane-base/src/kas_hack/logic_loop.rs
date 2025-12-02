@@ -135,9 +135,7 @@ where
             let poll_interval_ms = self.config.poll_interval.as_millis() as i64;
             let to_sleep = poll_interval_ms.saturating_sub(elapsed);
 
-            if to_sleep > 0 {
-                time::sleep(Duration::from_millis(to_sleep as u64)).await;
-            }
+            time::sleep(Duration::from_millis(to_sleep as u64)).await;
 
             last_query_time = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -549,7 +547,6 @@ where
 
         let utxos = self
             .provider
-            .rpc()
             .get_utxos_by_addresses(vec![escrow_addr.clone()])
             .await?;
 
