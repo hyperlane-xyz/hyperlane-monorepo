@@ -93,7 +93,7 @@ export async function signerMiddleware(argv: Record<string, any>) {
       const metadata = multiProvider.getChainMetadata(chain);
 
       if (hasProtocol(protocol))
-        altVmProvider[protocol] =
+        altVmProvider[chain] =
           await getProtocolProvider(protocol).createProvider(metadata);
     }),
   );

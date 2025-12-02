@@ -56,7 +56,7 @@ export async function nativeBalancesAreSufficient(
         break;
       }
       default: {
-        const signer = mustGet(altVmSigner, protocolType);
+        const signer = mustGet(altVmSigner, chain);
         address = signer.getSignerAddress();
 
         const { gasPrice, nativeToken, protocol } =

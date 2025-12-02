@@ -53,7 +53,7 @@ export async function runPreflightChecksForChains({
     const signer =
       metadata.protocol === ProtocolType.Ethereum
         ? multiProvider.getSigner(chain)
-        : altVmSigner[metadata.protocol];
+        : altVmSigner[chain];
 
     if (!signer) {
       throw new Error('signer is invalid');
@@ -94,7 +94,7 @@ export async function runDeployPlanStep({
       break;
     }
     default: {
-      const signer = mustGet(context.altVmSigner, protocol);
+      const signer = mustGet(context.altVmSigner, chain);
       address = signer.getSignerAddress();
     }
   }
@@ -170,7 +170,7 @@ export async function getBalances(
         `nativeToken.denom is required for ${chain} (AltVM)`,
       );
 
-      const signer = mustGet(context.altVmSigner, protocol);
+      const signer = mustGet(context.altVmSigner, chain);
       const address = userAddress ?? signer.getSignerAddress();
       balances[chain] = BigNumber.from(
         await signer.getBalance({

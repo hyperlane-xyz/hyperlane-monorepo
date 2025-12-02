@@ -181,7 +181,7 @@ export class AltVMSignerFactory
         ),
       };
 
-      signers[metadata.protocol] = await getProtocolProvider(
+      signers[chain] = await getProtocolProvider(
         metadata.protocol,
       ).createSigner(metadata, signerConfig);
     }
@@ -202,7 +202,7 @@ export class AltVMSignerFactory
       return factories;
     }
 
-    const signer = mustGet(altVmSigner, protocol);
+    const signer = mustGet(altVmSigner, chain);
     for (const protocol of listProtocols()) {
       factories[protocol] = {
         [TxSubmitterType.JSON_RPC]: (
