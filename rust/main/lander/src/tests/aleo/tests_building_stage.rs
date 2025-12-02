@@ -94,10 +94,7 @@ async fn run_building_stage_once(
 /// Helper function to verify transaction-level validations (Check 1)
 fn verify_transaction_fields(tx: &Transaction) {
     // Verify transaction UUID is set
-    assert!(
-        tx.uuid.to_string().len() > 0,
-        "Transaction UUID should be set"
-    );
+    assert!(!tx.uuid.is_nil(), "Transaction UUID should be set");
 
     // Verify transaction status is correct
     assert_eq!(
