@@ -118,7 +118,7 @@ export async function signerMiddleware(argv: Record<string, any>) {
   /**
    * Creates AltVM signers
    */
-  argv.context.altVmSigner = await createAltVMSigners(
+  argv.context.altVmSigners = await createAltVMSigners(
     argv.context.multiProvider,
     chains,
     key,

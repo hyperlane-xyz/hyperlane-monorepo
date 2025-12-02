@@ -18,7 +18,7 @@ import { logBlue, logGreen, logRed, warnYellow } from '../logger.js';
 
 export async function nativeBalancesAreSufficient(
   multiProvider: MultiProvider,
-  altVmSigner: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>>,
+  altVmSigners: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>>,
   chains: ChainName[],
   minGas: GasAction,
   skipConfirmation: boolean,
@@ -56,7 +56,7 @@ export async function nativeBalancesAreSufficient(
         break;
       }
       default: {
-        const signer = mustGet(altVmSigner, chain);
+        const signer = mustGet(altVmSigners, chain);
         address = signer.getSignerAddress();
 
         const { gasPrice, nativeToken, protocol } =

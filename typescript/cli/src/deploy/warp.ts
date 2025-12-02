@@ -120,7 +120,7 @@ export async function runWarpRouteDeploy({
     chainMetadata,
     registry,
     multiProvider,
-    altVmSigner,
+    altVmSigners,
   } = context;
 
   // Validate ISM compatibility for all chains
@@ -143,7 +143,7 @@ export async function runWarpRouteDeploy({
   const deploymentChains = chains.filter(
     (chain) =>
       chainMetadata[chain].protocol === ProtocolType.Ethereum ||
-      !!altVmSigner[chain],
+      !!altVmSigners[chain],
   );
 
   await runPreflightChecksForChains({
@@ -159,7 +159,7 @@ export async function runWarpRouteDeploy({
   const registryAddresses = await registry.getAddresses();
 
   const enrollTxs = await enrollCrossChainRouters(
-    { multiProvider, altVmSigner, registryAddresses, warpDeployConfig },
+    { multiProvider, altVmSigners, registryAddresses, warpDeployConfig },
     deployedContracts,
   );
 
@@ -243,7 +243,7 @@ async function executeDeploy(
 
   const {
     warpDeployConfig,
-    context: { multiProvider, altVmSigner, registry },
+    context: { multiProvider, altVmSigners, registry },
   } = params;
 
   const registryAddresses = await registry.getAddresses();
@@ -251,7 +251,7 @@ async function executeDeploy(
   const deployedContracts = await executeWarpDeploy(
     warpDeployConfig,
     multiProvider,
-    altVmSigner,
+    altVmSigners,
     registryAddresses,
     apiKeys,
   );
@@ -396,8 +396,8 @@ export async function runWarpRouteApply(
           ...config,
           owner: await context.multiProvider.getSignerAddress(chain),
         };
-      } else if (context.altVmSigner[chain]) {
-        const signer = mustGet(context.altVmSigner, chain);
+      } else if (context.altVmSigners[chain]) {
+        const signer = mustGet(context.altVmSigners, chain);
         return {
           ...config,
           owner: signer.getSignerAddress(),
@@ -610,7 +610,7 @@ async function updateExistingWarpRoute(
   warpCoreConfig: WarpCoreConfig,
 ): Promise<ChainMap<TypedAnnotatedTransaction[]>> {
   logBlue('Updating deployed Warp Routes');
-  const { multiProvider, altVmProvider, altVmSigner, registry } =
+  const { multiProvider, altVmProvider, altVmSigners, registry } =
     params.context;
 
   const registryAddresses =
@@ -640,7 +640,7 @@ async function updateExistingWarpRoute(
     objMap(expandedWarpDeployConfig, async (chain, config) => {
       await retryAsync(async () => {
         const protocolType = multiProvider.getProtocol(chain);
-        if (protocolType !== ProtocolType.Ethereum && !altVmSigner[chain]) {
+        if (protocolType !== ProtocolType.Ethereum && !altVmSigners[chain]) {
           logBlue(`Skipping non-compatible chain ${chain}`);
           return;
         }
@@ -675,7 +675,7 @@ async function updateExistingWarpRoute(
             break;
           }
           default: {
-            const signer = mustGet(altVmSigner, chain);
+            const signer = mustGet(altVmSigners, chain);
             const validatedConfig = validateWarpConfigForAltVM(
               configWithMailbox,
               chain,
@@ -997,7 +997,7 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
   submitter: TxSubmitterBuilder<T>;
   config: ExtendedSubmissionStrategy;
 }> {
-  const { multiProvider, altVmSigner, registry } = context;
+  const { multiProvider, altVmSigners, registry } = context;
 
   const defaultSubmitter: ExtendedSubmissionStrategy = {
     submitter: {
@@ -1024,7 +1024,7 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
             return new EV5FileSubmitter(metadata);
           },
         },
-        ...createAltVMSubmitterFactories(multiProvider, altVmSigner, chain),
+        ...createAltVMSubmitterFactories(multiProvider, altVmSigners, chain),
       },
     }),
     config: submissionStrategy,

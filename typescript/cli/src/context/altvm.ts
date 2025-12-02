@@ -130,7 +130,7 @@ export async function createAltVMSigners(
 
 export function createAltVMSubmitterFactories(
   metadataManager: ChainMetadataManager,
-  altVmSigner: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>>,
+  altVmSigners: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>>,
   chain: string,
 ): ProtocolMap<Record<string, SubmitterFactory>> {
   const protocol = metadataManager.getProtocol(chain);
@@ -141,7 +141,7 @@ export function createAltVMSubmitterFactories(
     return factories;
   }
 
-  const signer = mustGet(altVmSigner, chain);
+  const signer = mustGet(altVmSigners, chain);
   for (const protocol of listProtocols()) {
     factories[protocol] = {
       [TxSubmitterType.JSON_RPC]: (

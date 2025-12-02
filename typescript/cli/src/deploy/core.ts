@@ -104,7 +104,7 @@ export async function runCoreDeploy(params: DeployParams) {
       }
       break;
     default: {
-      const signer = mustGet(context.altVmSigner, chain);
+      const signer = mustGet(context.altVmSigners, chain);
       logBlue('🚀 All systems ready, captain! Beginning deployment...');
 
       const userAddress = signer.getSignerAddress();
@@ -167,7 +167,7 @@ export async function runCoreApply(params: ApplyParams) {
       break;
     }
     default: {
-      const signer = mustGet(context.altVmSigner, chain);
+      const signer = mustGet(context.altVmSigners, chain);
 
       const { submitter } = await getSubmitterByStrategy({
         chain,
