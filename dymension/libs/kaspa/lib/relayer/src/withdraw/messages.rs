@@ -155,34 +155,29 @@ pub async fn build_withdrawal_fxg(
     }
 
     // Get all the UTXOs for the escrow and the relayer
-    let escrow_addr = escrow_public.addr.clone();
-    let escrow_redeem = escrow_public.redeem_script.clone();
-    let escrow_n = escrow_public.n() as u8;
-    let network_id = relayer.net.network_id;
-    let escrow_inputs = relayer
-        .rpc_with_reconnect(|api| {
-            let addr = escrow_addr.clone();
-            let redeem = escrow_redeem.clone();
-            async move { fetch_input_utxos(&api, &addr, Some(redeem), escrow_n, network_id).await }
-        })
-        .await
-        .map_err(|e| eyre::eyre!("Fetch escrow UTXOs: {}", e))?;
+    let escrow_inputs = fetch_input_utxos(
+        &relayer.api(),
+        &escrow_public.addr,
+        Some(escrow_public.redeem_script.clone()),
+        escrow_public.n() as u8,
+        relayer.net.network_id,
+    )
+    .await
+    .map_err(|e| eyre::eyre!("Fetch escrow UTXOs: {}", e))?;
 
     // Get relayer change address for the withdrawal PSKT change output
     let relayer_address = relayer.account().change_address()?;
 
     // Fetch relayer UTXOs from change address
-    let relayer_addr_clone = relayer_address.clone();
-    let relayer_inputs =
-        relayer
-            .rpc_with_reconnect(|api| {
-                let addr = relayer_addr_clone.clone();
-                async move {
-                    fetch_input_utxos(&api, &addr, None, RELAYER_SIG_OP_COUNT, network_id).await
-                }
-            })
-            .await
-            .map_err(|e| eyre::eyre!("Fetch relayer change address UTXOs: {}", e))?;
+    let relayer_inputs = fetch_input_utxos(
+        &relayer.api(),
+        &relayer_address,
+        None,
+        RELAYER_SIG_OP_COUNT,
+        relayer.net.network_id,
+    )
+    .await
+    .map_err(|e| eyre::eyre!("Fetch relayer change address UTXOs: {}", e))?;
 
     // Early validation of relayer funds available (otherwise it will panic later during PSKT building)
     if relayer_inputs.is_empty() {
@@ -272,8 +267,7 @@ pub async fn build_withdrawal_fxg(
 
     let payload = MessageIDs::from(&final_msgs).to_bytes();
 
-    let feerate = relayer
-        .rpc_with_reconnect(|api| async move { get_normal_bucket_feerate(&api).await })
+    let feerate = get_normal_bucket_feerate(&relayer.api())
         .await
         .map_err(|e| eyre::eyre!("Get normal bucket feerate: {e}"))?;
 

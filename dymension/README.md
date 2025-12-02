@@ -56,8 +56,11 @@ How to work on the typescript CLI (locally):
         yarn clean; yarn install; yarn build; # CLEAN IS VERY IMPORTANT!
         #in typescript/cli
         npm uninstall -g @hyperlane-xyz/cli;
-        yarn install; yarn build; yarn bundle;
-        npm install -g; hyperlane --version;
+        yarn install
+        yarn build
+        yarn bundle
+        npm install -g
+        hyperlane --version
 
 Publishing our CLI fork:
     node use 20

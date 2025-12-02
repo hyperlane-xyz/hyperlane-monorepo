@@ -336,13 +336,13 @@ pub async fn create_sweeping_bundle(
 
     let relayer_address = relayer_wallet.account().change_address()?;
     let feerate = relayer_wallet
-        .rpc_with_reconnect(|api| async move {
-            api.get_fee_estimate()
-                .await
-                .map(|estimate| estimate.normal_buckets.first().unwrap().feerate)
-                .map_err(|e| eyre::eyre!("{}", e))
-        })
-        .await?;
+        .api()
+        .get_fee_estimate()
+        .await?
+        .normal_buckets
+        .first()
+        .unwrap()
+        .feerate;
 
     let mut bundle = Bundle::new();
 
