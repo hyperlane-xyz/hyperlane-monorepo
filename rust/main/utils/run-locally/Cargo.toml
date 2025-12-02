@@ -44,7 +44,11 @@ scrypto = { workspace = true }
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
-snarkvm.workspace = true
+snarkvm = { workspace = true, features = [
+    "dev_skip_checks",
+    "test_targets",
+    "test_consensus_heights",
+] }
 starknet.workspace = true
 tempfile.workspace = true
 tokio.workspace = true
