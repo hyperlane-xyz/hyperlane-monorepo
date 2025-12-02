@@ -144,7 +144,7 @@ export async function executeWarpDeploy(
       }
       default: {
         const signersMap = objMap(protocolSpecificConfig, (_chain, _) => {
-          const signer = mustGet(altVmSigners, protocol);
+          const signer = mustGet(altVmSigners, _chain);
 
           return signer;
         });
@@ -272,7 +272,7 @@ async function createWarpIsm({
       return deployedIsm;
     }
     default: {
-      const signer = mustGet(altVmSigners, protocolType);
+      const signer = mustGet(altVmSigners, chain);
       const ismModule = await AltVMIsmModule.create({
         chain,
         addresses: {
@@ -356,7 +356,7 @@ async function createWarpHook({
       return deployedHook;
     }
     default: {
-      const signer = mustGet(altVmSigners, protocolType);
+      const signer = mustGet(altVmSigners, chain);
       const hookModule = await AltVMHookModule.create({
         chain,
         chainLookup: multiProvider,
@@ -481,7 +481,7 @@ export async function enrollCrossChainRouters(
         break;
       }
       default: {
-        const signer = mustGet(altVmSigners, protocol);
+        const signer = mustGet(altVmSigners, currentChain);
 
         const warpModule = new AltVMWarpModule(
           altVmChainLookup(multiProvider),
