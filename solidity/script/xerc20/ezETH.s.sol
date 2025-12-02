@@ -45,6 +45,7 @@ contract ezETH is Script {
         vm.selectFork(ethereumFork);
         HypXERC20Lockbox hypXERC20Lockbox = new HypXERC20Lockbox(
             ethereumLockbox,
+            1,
             ethereumMailbox
         );
         ProxyAdmin ethAdmin = new ProxyAdmin();
@@ -59,7 +60,7 @@ contract ezETH is Script {
         hypXERC20Lockbox = HypXERC20Lockbox(address(ethProxy));
 
         vm.selectFork(blastFork);
-        HypXERC20 hypXERC20 = new HypXERC20(blastXERC20, blastMailbox);
+        HypXERC20 hypXERC20 = new HypXERC20(blastXERC20, 1, blastMailbox);
         ProxyAdmin blastAdmin = new ProxyAdmin();
         TransparentUpgradeableProxy blastProxy = new TransparentUpgradeableProxy(
                 address(hypXERC20),
@@ -83,7 +84,8 @@ contract ezETH is Script {
         vm.prank(0x7BE481D464CAD7ad99500CE8A637599eB8d0FCDB); // ezETH whale
         IXERC20(blastXERC20).transfer(address(this), amount);
         IXERC20(blastXERC20).approve(address(hypXERC20), amount);
-        uint256 value = hypXERC20.quoteGasPayment(ethereumDomainId);
+        uint256 value = hypXERC20
+        .quoteTransferRemote(ethereumDomainId, recipient, amount)[0].amount;
         hypXERC20.transferRemote{value: value}(
             ethereumDomainId,
             recipient,

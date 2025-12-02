@@ -49,7 +49,7 @@ pub async fn initialize_igp_accounts(
         GasOracle::RemoteGasData(RemoteGasData {
             token_exchange_rate: TOKEN_EXCHANGE_RATE_SCALE,
             gas_price: 1u128,
-            /// The number of decimals for the remote token.
+            // The number of decimals for the remote token.
             token_decimals: SOL_DECIMALS,
         }),
         None,

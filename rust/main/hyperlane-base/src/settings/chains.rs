@@ -1,25 +1,38 @@
-use axum::async_trait;
+use std::collections::HashMap;
+use std::sync::Arc;
+use std::time::Duration;
+
+use async_trait::async_trait;
 use ethers::prelude::Selector;
-use h_cosmos::CosmosProvider;
-use std::{collections::HashMap, sync::Arc};
+use ethers_prometheus::middleware::{ContractInfo, PrometheusMiddlewareConf};
+use eyre::{eyre, Context, Report, Result};
+use serde_json::Value;
+use tracing::instrument;
 
-use eyre::{eyre, Context, Result};
-
-use ethers_prometheus::middleware::{ChainInfo, ContractInfo, PrometheusMiddlewareConf};
 use hyperlane_core::{
-    config::OperationBatchConfig, AggregationIsm, CcipReadIsm, ContractLocator, HyperlaneAbi,
-    HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider, IndexMode,
-    InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
-    MerkleTreeHook, MerkleTreeInsertion, MultisigIsm, RoutingIsm, SequenceAwareIndexer,
-    ValidatorAnnounce, H256,
+    config::OpSubmissionConfig, AggregationIsm, CcipReadIsm, ChainResult, ContractLocator,
+    HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider,
+    IndexMode, InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
+    MerkleTreeHook, MerkleTreeInsertion, MultisigIsm, ReorgPeriod, RoutingIsm,
+    SequenceAwareIndexer, SubmitterType, ValidatorAnnounce, H256,
 };
-use hyperlane_cosmos as h_cosmos;
+use hyperlane_metric::prometheus_metric::ChainInfo;
+use hyperlane_operation_verifier::ApplicationOperationVerifier;
+
+use hyperlane_aleo::{self as h_aleo, AleoProvider};
+use hyperlane_cosmos::{
+    self as h_cosmos, cw::CwQueryClient, native::ModuleQueryClient, CosmosProvider,
+};
 use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
-    EthereumValidatorAnnounceAbi,
+    EthereumReorgPeriod, EthereumValidatorAnnounceAbi,
 };
 use hyperlane_fuel as h_fuel;
-use hyperlane_sealevel as h_sealevel;
+use hyperlane_radix::{self as h_radix, RadixProvider};
+use hyperlane_sealevel::{
+    self as h_sealevel, fallback::SealevelFallbackRpcClient, SealevelProvider, TransactionSubmitter,
+};
+use hyperlane_starknet::{self as h_starknet, StarknetProvider};
 
 use crate::{
     metrics::AgentMetricsConf,
@@ -33,7 +46,23 @@ use super::ChainSigner;
 #[async_trait]
 pub trait TryFromWithMetrics<T>: Sized {
     /// Try to convert the chain configuration into the type
-    async fn try_from_with_metrics(conf: &ChainConf, metrics: &CoreMetrics) -> Result<Self>;
+    async fn try_from_with_metrics(
+        conf: &ChainConf,
+        metrics: &CoreMetrics,
+        advanced_log_meta: bool,
+    ) -> Result<Self>;
+}
+
+/// Contains JSON value which can contain chain-specific configuration which is parsed by
+/// AdaptsChain trait implementation.
+#[allow(dead_code)]
+#[derive(Clone, Debug, Default)]
+pub struct RawChainConf(Value);
+
+impl From<Value> for RawChainConf {
+    fn from(value: Value) -> Self {
+        Self(value)
+    }
 }
 
 /// A chain setup is a domain ID, an address on that chain (where the mailbox is
@@ -44,8 +73,12 @@ pub struct ChainConf {
     pub domain: HyperlaneDomain,
     /// Signer configuration for this chain
     pub signer: Option<SignerConf>,
+    /// Submitter type for this chain
+    pub submitter: SubmitterType,
+    /// The estimated block time, i.e. the average time the next block is added to the chain
+    pub estimated_block_time: Duration,
     /// The reorg period of the chain, i.e. the number of blocks until finality
-    pub reorg_period: u32,
+    pub reorg_period: ReorgPeriod,
     /// Addresses of contracts on the chain
     pub addresses: CoreContractAddresses,
     /// The chain connection details
@@ -56,6 +89,9 @@ pub struct ChainConf {
     pub metrics_conf: PrometheusMiddlewareConf,
     /// Settings for event indexing
     pub index: IndexSettings,
+    /// Whether to ignore reorg reports from this chain
+    /// when it is the origin of a message.
+    pub ignore_reorg_reports: bool,
 }
 
 /// A sequence-aware indexer for messages
@@ -72,22 +108,38 @@ pub type MerkleTreeHookIndexer = Arc<dyn SequenceAwareIndexer<MerkleTreeInsertio
 
 #[async_trait]
 impl TryFromWithMetrics<ChainConf> for MessageIndexer {
-    async fn try_from_with_metrics(conf: &ChainConf, metrics: &CoreMetrics) -> Result<Self> {
-        conf.build_message_indexer(metrics).await.map(Into::into)
+    async fn try_from_with_metrics(
+        conf: &ChainConf,
+        metrics: &CoreMetrics,
+        advanced_log_meta: bool,
+    ) -> Result<Self> {
+        conf.build_message_indexer(metrics, advanced_log_meta)
+            .await
+            .map(Into::into)
     }
 }
 
 #[async_trait]
 impl TryFromWithMetrics<ChainConf> for DeliveryIndexer {
-    async fn try_from_with_metrics(conf: &ChainConf, metrics: &CoreMetrics) -> Result<Self> {
-        conf.build_delivery_indexer(metrics).await.map(Into::into)
+    async fn try_from_with_metrics(
+        conf: &ChainConf,
+        metrics: &CoreMetrics,
+        advanced_log_meta: bool,
+    ) -> Result<Self> {
+        conf.build_delivery_indexer(metrics, advanced_log_meta)
+            .await
+            .map(Into::into)
     }
 }
 
 #[async_trait]
 impl TryFromWithMetrics<ChainConf> for IgpIndexer {
-    async fn try_from_with_metrics(conf: &ChainConf, metrics: &CoreMetrics) -> Result<Self> {
-        conf.build_interchain_gas_payment_indexer(metrics)
+    async fn try_from_with_metrics(
+        conf: &ChainConf,
+        metrics: &CoreMetrics,
+        advanced_log_meta: bool,
+    ) -> Result<Self> {
+        conf.build_interchain_gas_payment_indexer(metrics, advanced_log_meta)
             .await
             .map(Into::into)
     }
@@ -95,8 +147,12 @@ impl TryFromWithMetrics<ChainConf> for IgpIndexer {
 
 #[async_trait]
 impl TryFromWithMetrics<ChainConf> for MerkleTreeHookIndexer {
-    async fn try_from_with_metrics(conf: &ChainConf, metrics: &CoreMetrics) -> Result<Self> {
-        conf.build_merkle_tree_hook_indexer(metrics)
+    async fn try_from_with_metrics(
+        conf: &ChainConf,
+        metrics: &CoreMetrics,
+        advanced_log_meta: bool,
+    ) -> Result<Self> {
+        conf.build_merkle_tree_hook_indexer(metrics, advanced_log_meta)
             .await
             .map(Into::into)
     }
@@ -104,6 +160,9 @@ impl TryFromWithMetrics<ChainConf> for MerkleTreeHookIndexer {
 
 /// A connection to _some_ blockchain.
 #[derive(Clone, Debug)]
+// TODO: re-enable this clippy check once the new submitter is shipped,
+// since it might take in configs in a different way
+#[allow(clippy::large_enum_variant)]
 pub enum ChainConnectionConf {
     /// Ethereum configuration
     Ethereum(h_eth::ConnectionConf),
@@ -113,6 +172,14 @@ pub enum ChainConnectionConf {
     Sealevel(h_sealevel::ConnectionConf),
     /// Cosmos configuration.
     Cosmos(h_cosmos::ConnectionConf),
+    /// Starknet configuration.
+    Starknet(h_starknet::ConnectionConf),
+    /// Cosmos native configuration
+    CosmosNative(h_cosmos::ConnectionConf),
+    /// Radix configuration
+    Radix(h_radix::ConnectionConf),
+    /// Aleo configuration
+    Aleo(h_aleo::ConnectionConf),
 }
 
 impl ChainConnectionConf {
@@ -123,15 +190,20 @@ impl ChainConnectionConf {
             Self::Fuel(_) => HyperlaneDomainProtocol::Fuel,
             Self::Sealevel(_) => HyperlaneDomainProtocol::Sealevel,
             Self::Cosmos(_) => HyperlaneDomainProtocol::Cosmos,
+            Self::Starknet(_) => HyperlaneDomainProtocol::Starknet,
+            Self::CosmosNative(_) => HyperlaneDomainProtocol::CosmosNative,
+            Self::Radix(_) => HyperlaneDomainProtocol::Radix,
+            Self::Aleo(_) => HyperlaneDomainProtocol::Aleo,
         }
     }
 
     /// Get the message batch configuration for this chain.
-    pub fn operation_batch_config(&self) -> Option<&OperationBatchConfig> {
+    pub fn operation_submission_config(&self) -> Option<&OpSubmissionConfig> {
         match self {
-            Self::Ethereum(conf) => Some(&conf.operation_batch),
-            Self::Cosmos(conf) => Some(&conf.operation_batch),
-            Self::Sealevel(conf) => Some(&conf.operation_batch),
+            Self::Ethereum(conf) => Some(&conf.op_submission_config),
+            Self::Cosmos(conf) => Some(&conf.op_submission_config),
+            Self::Sealevel(conf) => Some(&conf.op_submission_config),
+            Self::Starknet(config) => Some(&config.op_submission_config),
             _ => None,
         }
     }
@@ -153,8 +225,9 @@ pub struct CoreContractAddresses {
 /// Indexing settings
 #[derive(Debug, Default, Clone)]
 pub struct IndexSettings {
-    /// The height at which to start indexing contracts.
-    pub from: u32,
+    /// The height at which to start indexing contracts for watermark synchs.
+    /// The lowest sequence to index for sequence-aware synchs.
+    pub from: i64,
     /// The number of blocks to query at once when indexing contracts.
     pub chunk_size: u32,
     /// The indexing mode.
@@ -165,6 +238,51 @@ impl ChainConf {
     /// Fetch the index settings and index mode, since they are often used together.
     pub fn index_settings(&self) -> IndexSettings {
         self.index.clone()
+    }
+
+    /// Try to convert the chain settings into an ApplicationOperationVerifier.
+    pub async fn build_application_operation_verifier(
+        &self,
+        metrics: &CoreMetrics,
+    ) -> Result<Box<dyn ApplicationOperationVerifier>> {
+        let ctx = "Building application operation verifier";
+        let locator = self.locator(H256::zero());
+        let result: Result<Box<dyn ApplicationOperationVerifier>, Report> = match &self.connection {
+            ChainConnectionConf::Ethereum(_conf) => Ok(Box::new(
+                h_eth::application::EthereumApplicationOperationVerifier::new(),
+            )
+                as Box<dyn ApplicationOperationVerifier>),
+            ChainConnectionConf::Fuel(_) => todo!(),
+            ChainConnectionConf::Sealevel(conf) => {
+                let provider =
+                    Arc::new(build_sealevel_provider(self, &locator, &[], conf, metrics));
+                let verifier =
+                    h_sealevel::application::SealevelApplicationOperationVerifier::new(provider);
+                Ok(Box::new(verifier) as Box<dyn ApplicationOperationVerifier>)
+            }
+            ChainConnectionConf::Cosmos(_conf) => Ok(Box::new(
+                h_cosmos::application::CosmosApplicationOperationVerifier::new(),
+            )
+                as Box<dyn ApplicationOperationVerifier>),
+            ChainConnectionConf::Starknet(_conf) => Ok(Box::new(
+                h_starknet::application::StarknetApplicationOperationVerifier::new(),
+            )
+                as Box<dyn ApplicationOperationVerifier>),
+            ChainConnectionConf::CosmosNative(_) => Ok(Box::new(
+                h_cosmos::application::CosmosApplicationOperationVerifier::new(),
+            )
+                as Box<dyn ApplicationOperationVerifier>),
+            ChainConnectionConf::Radix(_) => Ok(Box::new(
+                h_radix::application::RadixApplicationOperationVerifier::new(),
+            )
+                as Box<dyn ApplicationOperationVerifier>),
+            ChainConnectionConf::Aleo(_) => Ok(Box::new(
+                h_aleo::application::AleoApplicationOperationVerifier::new(),
+            )
+                as Box<dyn ApplicationOperationVerifier>),
+        };
+
+        result.context(ctx)
     }
 
     /// Try to convert the chain settings into an HyperlaneProvider.
@@ -180,17 +298,37 @@ impl ChainConf {
                     .await
             }
             ChainConnectionConf::Fuel(_) => todo!(),
-            ChainConnectionConf::Sealevel(conf) => Ok(Box::new(h_sealevel::SealevelProvider::new(
-                locator.domain.clone(),
-                conf,
-            )) as Box<dyn HyperlaneProvider>),
+            ChainConnectionConf::Sealevel(conf) => {
+                let provider = build_sealevel_provider(
+                    self,
+                    &locator,
+                    &[
+                        self.addresses.mailbox,
+                        self.addresses.interchain_gas_paymaster,
+                    ],
+                    conf,
+                    metrics,
+                );
+                Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
+            }
             ChainConnectionConf::Cosmos(conf) => {
-                let provider = CosmosProvider::new(
-                    locator.domain.clone(),
-                    conf.clone(),
-                    locator.clone(),
-                    None,
-                )?;
+                let provider = build_cosmos_wasm_provider(self, conf, metrics, &locator, None)?;
+                Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
+            }
+            ChainConnectionConf::Starknet(conf) => {
+                let provider = build_starknet_provider(self, conf, metrics, &locator)?;
+                Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
+            }
+            ChainConnectionConf::CosmosNative(conf) => {
+                let provider = build_cosmos_native_provider(self, conf, metrics, &locator, None)?;
+                Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
+            }
+            ChainConnectionConf::Radix(conf) => {
+                let provider = build_radix_provider(self, conf, metrics, &locator, None)?;
+                Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
+            }
+            ChainConnectionConf::Aleo(conf) => {
+                let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
                 Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
             }
         }
@@ -216,15 +354,56 @@ impl ChainConf {
             }
             ChainConnectionConf::Sealevel(conf) => {
                 let keypair = self.sealevel_signer().await.context(ctx)?;
-                h_sealevel::SealevelMailbox::new(conf, locator, keypair)
-                    .map(|m| Box::new(m) as Box<dyn Mailbox>)
-                    .map_err(Into::into)
+
+                let provider =
+                    Arc::new(build_sealevel_provider(self, &locator, &[], conf, metrics));
+                let tx_submitter =
+                    build_sealevel_tx_submitter(&provider, self, conf, &locator, metrics);
+
+                h_sealevel::SealevelMailbox::new(
+                    provider,
+                    tx_submitter,
+                    conf,
+                    &locator,
+                    keypair.map(h_sealevel::SealevelKeypair::new),
+                )
+                .map(|m| Box::new(m) as Box<dyn Mailbox>)
+                .map_err(Into::into)
             }
             ChainConnectionConf::Cosmos(conf) => {
                 let signer = self.cosmos_signer().await.context(ctx)?;
-                h_cosmos::CosmosMailbox::new(conf.clone(), locator.clone(), signer.clone())
+                let provider = build_cosmos_wasm_provider(self, conf, metrics, &locator, signer)?;
+
+                h_cosmos::cw::CwMailbox::new(provider, conf.clone(), locator.clone())
                     .map(|m| Box::new(m) as Box<dyn Mailbox>)
                     .map_err(Into::into)
+            }
+            ChainConnectionConf::Starknet(conf) => {
+                let signer = self.starknet_signer().await.context(ctx)?;
+                let provider = build_starknet_provider(self, conf, metrics, &locator)?;
+                h_starknet::StarknetMailbox::new(provider, conf, &locator, signer)
+                    .await
+                    .map(|m| Box::new(m) as Box<dyn Mailbox>)
+                    .map_err(Into::into)
+            }
+            ChainConnectionConf::CosmosNative(conf) => {
+                let signer = self.cosmos_signer().await.context(ctx)?;
+                let provider = build_cosmos_native_provider(self, conf, metrics, &locator, signer)?;
+                h_cosmos::native::CosmosNativeMailbox::new(provider, locator.clone())
+                    .map(|m| Box::new(m) as Box<dyn Mailbox>)
+                    .map_err(Into::into)
+            }
+            ChainConnectionConf::Radix(conf) => {
+                let signer = self.radix_signer().await?;
+                let provider = build_radix_provider(self, conf, metrics, &locator, signer)?;
+                let mailbox = h_radix::RadixMailbox::new(provider, &locator, conf)?;
+                Ok(Box::new(mailbox) as Box<dyn Mailbox>)
+            }
+            ChainConnectionConf::Aleo(conf) => {
+                let signer = self.aleo_signer().await?;
+                let provider = build_aleo_provider(self, conf, metrics, &locator, signer)?;
+                let mailbox = h_aleo::AleoMailbox::new(provider, &locator, conf);
+                Ok(Box::new(mailbox) as Box<dyn Mailbox>)
             }
         }
         .context(ctx)
@@ -247,14 +426,43 @@ impl ChainConf {
                 todo!("Fuel does not support merkle tree hooks yet")
             }
             ChainConnectionConf::Sealevel(conf) => {
-                h_sealevel::SealevelMailbox::new(conf, locator, None)
+                let provider =
+                    Arc::new(build_sealevel_provider(self, &locator, &[], conf, metrics));
+                let tx_submitter =
+                    build_sealevel_tx_submitter(&provider, self, conf, &locator, metrics);
+
+                h_sealevel::SealevelMailbox::new(provider, tx_submitter, conf, &locator, None)
                     .map(|m| Box::new(m) as Box<dyn MerkleTreeHook>)
                     .map_err(Into::into)
             }
             ChainConnectionConf::Cosmos(conf) => {
                 let signer = self.cosmos_signer().await.context(ctx)?;
+                let provider = build_cosmos_wasm_provider(self, conf, metrics, &locator, signer)?;
+                let hook = h_cosmos::cw::CwMerkleTreeHook::new(provider, locator.clone())?;
+
+                Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
+            }
+            ChainConnectionConf::Starknet(conf) => {
+                let provider = build_starknet_provider(self, conf, metrics, &locator)?;
+                let hook = h_starknet::StarknetMerkleTreeHook::new(provider, conf, &locator)?;
+                Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
+            }
+            ChainConnectionConf::CosmosNative(conf) => {
+                let provider = build_cosmos_native_provider(self, conf, metrics, &locator, None)?;
                 let hook =
-                    h_cosmos::CosmosMerkleTreeHook::new(conf.clone(), locator.clone(), signer)?;
+                    h_cosmos::native::CosmosNativeMerkleTreeHook::new(provider, locator.clone())?;
+
+                Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
+            }
+            ChainConnectionConf::Radix(conf) => {
+                let provider = build_radix_provider(self, conf, metrics, &locator, None)?;
+                let hook = h_radix::indexer::RadixMerkleTreeIndexer::new(provider, &locator, conf)?;
+
+                Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
+            }
+            ChainConnectionConf::Aleo(conf) => {
+                let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
+                let hook = h_aleo::AleoMerkleTreeHook::new(provider, &locator, conf)?;
 
                 Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
             }
@@ -266,36 +474,79 @@ impl ChainConf {
     pub async fn build_message_indexer(
         &self,
         metrics: &CoreMetrics,
+        advanced_log_meta: bool,
     ) -> Result<Box<dyn SequenceAwareIndexer<HyperlaneMessage>>> {
         let ctx = "Building delivery indexer";
         let locator = self.locator(self.addresses.mailbox);
 
         match &self.connection {
             ChainConnectionConf::Ethereum(conf) => {
+                let reorg_period =
+                    EthereumReorgPeriod::try_from(&self.reorg_period).context(ctx)?;
                 self.build_ethereum(
                     conf,
                     &locator,
                     metrics,
-                    h_eth::SequenceIndexerBuilder {
-                        reorg_period: self.reorg_period,
-                    },
+                    h_eth::SequenceIndexerBuilder { reorg_period },
                 )
                 .await
             }
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
-                let indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(conf, locator)?);
+                let provider =
+                    Arc::new(build_sealevel_provider(self, &locator, &[], conf, metrics));
+                let tx_submitter =
+                    build_sealevel_tx_submitter(&provider, self, conf, &locator, metrics);
+
+                let indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(
+                    provider,
+                    tx_submitter,
+                    &locator,
+                    conf,
+                    advanced_log_meta,
+                )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
             }
             ChainConnectionConf::Cosmos(conf) => {
-                let signer = self.cosmos_signer().await.context(ctx)?;
-                let indexer = Box::new(h_cosmos::CosmosMailboxDispatchIndexer::new(
-                    conf.clone(),
+                let provider = build_cosmos_wasm_provider(self, conf, metrics, &locator, None)?;
+
+                let mailbox =
+                    h_cosmos::cw::CwMailbox::new(provider.clone(), conf.clone(), locator.clone())?;
+                let indexer = Box::new(
+                    h_cosmos::cw::dispatch_indexer::CwMailboxDispatchIndexer::new(
+                        provider, mailbox, &locator,
+                    )?,
+                );
+                Ok(indexer as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
+            }
+            ChainConnectionConf::Starknet(conf) => {
+                let provider = build_starknet_provider(self, conf, metrics, &locator)?;
+                let indexer = Box::new(h_starknet::StarknetMailboxIndexer::new(
+                    provider,
                     locator,
-                    signer,
-                    self.reorg_period,
+                    &self.reorg_period,
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
+            }
+            ChainConnectionConf::CosmosNative(conf) => {
+                let provider = build_cosmos_native_provider(self, conf, metrics, &locator, None)?;
+                let indexer = Box::new(h_cosmos::native::CosmosNativeDispatchIndexer::new(
+                    provider, locator,
+                )?);
+                Ok(indexer as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
+            }
+            ChainConnectionConf::Radix(conf) => {
+                let provider = build_radix_provider(self, conf, metrics, &locator, None)?;
+                let indexer =
+                    h_radix::indexer::RadixDispatchIndexer::new(provider, &locator, conf)?;
+
+                Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
+            }
+            ChainConnectionConf::Aleo(conf) => {
+                let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
+                let indexer = h_aleo::AleoDispatchIndexer::new(provider, &locator, conf);
+
+                Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
             }
         }
         .context(ctx)
@@ -305,36 +556,75 @@ impl ChainConf {
     pub async fn build_delivery_indexer(
         &self,
         metrics: &CoreMetrics,
+        advanced_log_meta: bool,
     ) -> Result<Box<dyn SequenceAwareIndexer<H256>>> {
         let ctx = "Building delivery indexer";
         let locator = self.locator(self.addresses.mailbox);
 
         match &self.connection {
             ChainConnectionConf::Ethereum(conf) => {
+                let reorg_period =
+                    EthereumReorgPeriod::try_from(&self.reorg_period).context(ctx)?;
                 self.build_ethereum(
                     conf,
                     &locator,
                     metrics,
-                    h_eth::DeliveryIndexerBuilder {
-                        reorg_period: self.reorg_period,
-                    },
+                    h_eth::DeliveryIndexerBuilder { reorg_period },
                 )
                 .await
             }
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
-                let indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(conf, locator)?);
+                let provider =
+                    Arc::new(build_sealevel_provider(self, &locator, &[], conf, metrics));
+                let tx_submitter =
+                    build_sealevel_tx_submitter(&provider, self, conf, &locator, metrics);
+                let indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(
+                    provider,
+                    tx_submitter,
+                    &locator,
+                    conf,
+                    advanced_log_meta,
+                )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<H256>>)
             }
             ChainConnectionConf::Cosmos(conf) => {
-                let signer = self.cosmos_signer().await.context(ctx)?;
-                let indexer = Box::new(h_cosmos::CosmosMailboxDeliveryIndexer::new(
-                    conf.clone(),
+                let provider = build_cosmos_wasm_provider(self, conf, metrics, &locator, None)?;
+                let indexer = Box::new(
+                    h_cosmos::cw::delivery_indexer::CwMailboxDeliveryIndexer::new(
+                        provider, &locator,
+                    ),
+                );
+                Ok(indexer as Box<dyn SequenceAwareIndexer<H256>>)
+            }
+            ChainConnectionConf::Starknet(conf) => {
+                let provider = build_starknet_provider(self, conf, metrics, &locator)?;
+                let indexer = Box::new(h_starknet::StarknetMailboxIndexer::new(
+                    provider,
                     locator,
-                    signer,
-                    self.reorg_period,
+                    &self.reorg_period,
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<H256>>)
+            }
+            ChainConnectionConf::CosmosNative(conf) => {
+                let provider = build_cosmos_native_provider(self, conf, metrics, &locator, None)?;
+                let indexer = Box::new(h_cosmos::native::CosmosNativeDeliveryIndexer::new(
+                    provider, locator,
+                )?);
+                Ok(indexer as Box<dyn SequenceAwareIndexer<H256>>)
+            }
+            ChainConnectionConf::Radix(conf) => {
+                let provider = build_radix_provider(self, conf, metrics, &locator, None)?;
+                let indexer =
+                    h_radix::indexer::RadixDeliveryIndexer::new(provider, &locator, conf)?;
+
+                Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<H256>>)
+            }
+            ChainConnectionConf::Aleo(conf) => {
+                let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
+                let indexer = h_aleo::AleoDeliveryIndexer::new(provider, &locator, conf);
+
+                Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<H256>>)
             }
         }
         .context(ctx)
@@ -361,19 +651,50 @@ impl ChainConf {
             }
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
+                let provider =
+                    Arc::new(build_sealevel_provider(self, &locator, &[], conf, metrics));
                 let paymaster = Box::new(
-                    h_sealevel::SealevelInterchainGasPaymaster::new(conf, &locator).await?,
+                    h_sealevel::SealevelInterchainGasPaymaster::new(provider, &locator).await?,
                 );
                 Ok(paymaster as Box<dyn InterchainGasPaymaster>)
             }
             ChainConnectionConf::Cosmos(conf) => {
                 let signer = self.cosmos_signer().await.context(ctx)?;
-                let paymaster = Box::new(h_cosmos::CosmosInterchainGasPaymaster::new(
-                    conf.clone(),
+                let provider = build_cosmos_wasm_provider(self, conf, metrics, &locator, signer)?;
+
+                let paymaster = Box::new(h_cosmos::cw::CwInterchainGasPaymaster::new(
+                    provider,
                     locator.clone(),
-                    signer,
                 )?);
                 Ok(paymaster as Box<dyn InterchainGasPaymaster>)
+            }
+            ChainConnectionConf::Starknet(conf) => {
+                let provider = build_starknet_provider(self, conf, metrics, &locator)?;
+                let paymaster = Box::new(h_starknet::StarknetInterchainGasPaymaster::new(
+                    provider,
+                    conf.clone(),
+                )?);
+                Ok(paymaster as Box<dyn InterchainGasPaymaster>)
+            }
+            ChainConnectionConf::CosmosNative(conf) => {
+                let provider = build_cosmos_native_provider(self, conf, metrics, &locator, None)?;
+                let indexer = Box::new(h_cosmos::native::CosmosNativeInterchainGas::new(
+                    provider, conf, locator,
+                )?);
+                Ok(indexer as Box<dyn InterchainGasPaymaster>)
+            }
+            ChainConnectionConf::Radix(conf) => {
+                let provider = build_radix_provider(self, conf, metrics, &locator, None)?;
+                let indexer = Box::new(h_radix::indexer::RadixInterchainGasIndexer::new(
+                    provider, &locator, conf,
+                )?);
+                Ok(indexer as Box<dyn InterchainGasPaymaster>)
+            }
+            ChainConnectionConf::Aleo(conf) => {
+                let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
+                let indexer = h_aleo::AleoInterchainGasIndexer::new(provider, &locator, conf)?;
+
+                Ok(Box::new(indexer) as Box<dyn InterchainGasPaymaster>)
             }
         }
         .context(ctx)
@@ -383,37 +704,71 @@ impl ChainConf {
     pub async fn build_interchain_gas_payment_indexer(
         &self,
         metrics: &CoreMetrics,
+        advanced_log_meta: bool,
     ) -> Result<Box<dyn SequenceAwareIndexer<InterchainGasPayment>>> {
         let ctx = "Building IGP indexer";
         let locator = self.locator(self.addresses.interchain_gas_paymaster);
 
         match &self.connection {
             ChainConnectionConf::Ethereum(conf) => {
+                let reorg_period =
+                    EthereumReorgPeriod::try_from(&self.reorg_period).context(ctx)?;
                 self.build_ethereum(
                     conf,
                     &locator,
                     metrics,
                     h_eth::InterchainGasPaymasterIndexerBuilder {
                         mailbox_address: self.addresses.mailbox.into(),
-                        reorg_period: self.reorg_period,
+                        reorg_period,
                     },
                 )
                 .await
             }
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
+                let provider =
+                    Arc::new(build_sealevel_provider(self, &locator, &[], conf, metrics));
                 let indexer = Box::new(
-                    h_sealevel::SealevelInterchainGasPaymasterIndexer::new(conf, locator).await?,
+                    h_sealevel::SealevelInterchainGasPaymasterIndexer::new(
+                        provider,
+                        locator,
+                        advanced_log_meta,
+                    )
+                    .await?,
                 );
                 Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
             }
             ChainConnectionConf::Cosmos(conf) => {
-                let indexer = Box::new(h_cosmos::CosmosInterchainGasPaymasterIndexer::new(
-                    conf.clone(),
-                    locator,
-                    self.reorg_period,
+                let provider = build_cosmos_wasm_provider(self, conf, metrics, &locator, None)?;
+
+                let indexer = Box::new(h_cosmos::cw::CwInterchainGasPaymasterIndexer::new(
+                    provider, &locator,
+                ));
+                Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
+            }
+            ChainConnectionConf::Starknet(_) => {
+                let indexer = Box::new(h_starknet::StarknetInterchainGasPaymasterIndexer {});
+                Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
+            }
+            ChainConnectionConf::CosmosNative(conf) => {
+                let provider = build_cosmos_native_provider(self, conf, metrics, &locator, None)?;
+                let indexer = Box::new(h_cosmos::native::CosmosNativeInterchainGas::new(
+                    provider, conf, locator,
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
+            }
+            ChainConnectionConf::Radix(conf) => {
+                let provider = build_radix_provider(self, conf, metrics, &locator, None)?;
+                let indexer = Box::new(h_radix::indexer::RadixInterchainGasIndexer::new(
+                    provider, &locator, conf,
+                )?);
+                Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
+            }
+            ChainConnectionConf::Aleo(conf) => {
+                let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
+                let indexer = h_aleo::AleoInterchainGasIndexer::new(provider, &locator, conf)?;
+
+                Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
             }
         }
         .context(ctx)
@@ -423,26 +778,37 @@ impl ChainConf {
     pub async fn build_merkle_tree_hook_indexer(
         &self,
         metrics: &CoreMetrics,
+        advanced_log_meta: bool,
     ) -> Result<Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>> {
         let ctx = "Building merkle tree hook indexer";
         let locator = self.locator(self.addresses.merkle_tree_hook);
 
         match &self.connection {
             ChainConnectionConf::Ethereum(conf) => {
+                let reorg_period =
+                    EthereumReorgPeriod::try_from(&self.reorg_period).context(ctx)?;
                 self.build_ethereum(
                     conf,
                     &locator,
                     metrics,
-                    h_eth::MerkleTreeHookIndexerBuilder {
-                        reorg_period: self.reorg_period,
-                    },
+                    h_eth::MerkleTreeHookIndexerBuilder { reorg_period },
                 )
                 .await
             }
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
-                let mailbox_indexer =
-                    Box::new(h_sealevel::SealevelMailboxIndexer::new(conf, locator)?);
+                let provider =
+                    Arc::new(build_sealevel_provider(self, &locator, &[], conf, metrics));
+                let tx_submitter =
+                    build_sealevel_tx_submitter(&provider, self, conf, &locator, metrics);
+
+                let mailbox_indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(
+                    provider,
+                    tx_submitter,
+                    &locator,
+                    conf,
+                    advanced_log_meta,
+                )?);
                 let indexer = Box::new(h_sealevel::SealevelMerkleTreeHookIndexer::new(
                     *mailbox_indexer,
                 ));
@@ -450,14 +816,41 @@ impl ChainConf {
             }
             ChainConnectionConf::Cosmos(conf) => {
                 let signer = self.cosmos_signer().await.context(ctx)?;
-                let indexer = Box::new(h_cosmos::CosmosMerkleTreeHookIndexer::new(
-                    conf.clone(),
-                    locator,
-                    // TODO: remove signer requirement entirely
-                    signer,
-                    self.reorg_period,
+
+                let provider = build_cosmos_wasm_provider(self, conf, metrics, &locator, signer)?;
+                let indexer = Box::new(h_cosmos::cw::CwMerkleTreeHookIndexer::new(
+                    provider, locator,
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
+            }
+            ChainConnectionConf::Starknet(conf) => {
+                let provider = build_starknet_provider(self, conf, metrics, &locator)?;
+                let indexer = Box::new(h_starknet::StarknetMerkleTreeHookIndexer::new(
+                    provider,
+                    locator,
+                    &self.reorg_period,
+                )?);
+                Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
+            }
+            ChainConnectionConf::CosmosNative(conf) => {
+                let provider = build_cosmos_native_provider(self, conf, metrics, &locator, None)?;
+                let indexer = Box::new(h_cosmos::native::CosmosNativeMerkleTreeHook::new(
+                    provider, locator,
+                )?);
+                Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
+            }
+            ChainConnectionConf::Radix(conf) => {
+                let provider = build_radix_provider(self, conf, metrics, &locator, None)?;
+                let indexer = Box::new(h_radix::indexer::RadixMerkleTreeIndexer::new(
+                    provider, &locator, conf,
+                )?);
+                Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
+            }
+            ChainConnectionConf::Aleo(conf) => {
+                let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
+                let indexer = h_aleo::AleoMerkleTreeHook::new(provider, &locator, conf)?;
+
+                Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
             }
         }
         .context(ctx)
@@ -477,18 +870,68 @@ impl ChainConf {
             }
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
-                let va = Box::new(h_sealevel::SealevelValidatorAnnounce::new(conf, locator));
+                let signer = self.sealevel_signer().await.context(ctx)?;
+                let provider =
+                    Arc::new(build_sealevel_provider(self, &locator, &[], conf, metrics));
+                let tx_submitter =
+                    build_sealevel_tx_submitter(&provider, self, conf, &locator, metrics);
+                let va = Box::new(h_sealevel::SealevelValidatorAnnounce::new(
+                    provider,
+                    tx_submitter,
+                    conf.clone(),
+                    &locator,
+                    signer.map(h_sealevel::SealevelKeypair::new),
+                ));
                 Ok(va as Box<dyn ValidatorAnnounce>)
             }
             ChainConnectionConf::Cosmos(conf) => {
                 let signer = self.cosmos_signer().await.context(ctx)?;
-                let va = Box::new(h_cosmos::CosmosValidatorAnnounce::new(
-                    conf.clone(),
+                let provider = build_cosmos_wasm_provider(self, conf, metrics, &locator, signer)?;
+
+                let va = Box::new(h_cosmos::cw::CwValidatorAnnounce::new(
+                    provider,
                     locator.clone(),
-                    signer,
                 )?);
 
                 Ok(va as Box<dyn ValidatorAnnounce>)
+            }
+            ChainConnectionConf::Starknet(conf) => {
+                let signer = self.starknet_signer().await.context(ctx)?;
+                let provider = build_starknet_provider(self, conf, metrics, &locator)?;
+                let va = Box::new(
+                    h_starknet::StarknetValidatorAnnounce::new(
+                        provider,
+                        conf,
+                        &locator.clone(),
+                        signer,
+                    )
+                    .await?,
+                );
+                Ok(va as Box<dyn ValidatorAnnounce>)
+            }
+            ChainConnectionConf::CosmosNative(conf) => {
+                let signer = self.cosmos_signer().await.context(ctx)?;
+                let provider = build_cosmos_native_provider(self, conf, metrics, &locator, signer)?;
+                let va = Box::new(h_cosmos::native::CosmosNativeValidatorAnnounce::new(
+                    provider,
+                    locator.clone(),
+                )?);
+
+                Ok(va as Box<dyn ValidatorAnnounce>)
+            }
+            ChainConnectionConf::Radix(conf) => {
+                let signer = self.radix_signer().await?;
+                let provider = build_radix_provider(self, conf, metrics, &locator, signer)?;
+                let validator_announce =
+                    h_radix::RadixValidatorAnnounce::new(provider, &locator, conf)?;
+                Ok(Box::new(validator_announce) as Box<dyn ValidatorAnnounce>)
+            }
+            ChainConnectionConf::Aleo(conf) => {
+                let signer = self.aleo_signer().await?;
+                let provider = build_aleo_provider(self, conf, metrics, &locator, signer)?;
+                let validator_announce =
+                    h_aleo::AleoValidatorAnnounce::new(provider, &locator, conf);
+                Ok(Box::new(validator_announce) as Box<dyn ValidatorAnnounce>)
             }
         }
         .context("Building ValidatorAnnounce")
@@ -517,17 +960,45 @@ impl ChainConf {
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let keypair = self.sealevel_signer().await.context(ctx)?;
+                let provider =
+                    Arc::new(build_sealevel_provider(self, &locator, &[], conf, metrics));
                 let ism = Box::new(h_sealevel::SealevelInterchainSecurityModule::new(
-                    conf, locator, keypair,
+                    provider,
+                    locator,
+                    keypair.map(h_sealevel::SealevelKeypair::new),
                 ));
                 Ok(ism as Box<dyn InterchainSecurityModule>)
             }
             ChainConnectionConf::Cosmos(conf) => {
                 let signer = self.cosmos_signer().await.context(ctx)?;
-                let ism = Box::new(h_cosmos::CosmosInterchainSecurityModule::new(
-                    conf, locator, signer,
+                let provider = build_cosmos_wasm_provider(self, conf, metrics, &locator, signer)?;
+
+                let ism = Box::new(h_cosmos::cw::CwInterchainSecurityModule::new(
+                    provider, locator,
                 )?);
                 Ok(ism as Box<dyn InterchainSecurityModule>)
+            }
+            ChainConnectionConf::Starknet(conf) => {
+                let provider = build_starknet_provider(self, conf, metrics, &locator)?;
+                let ism = Box::new(h_starknet::StarknetInterchainSecurityModule::new(
+                    provider, conf, &locator,
+                )?);
+                Ok(ism as Box<dyn InterchainSecurityModule>)
+            }
+            ChainConnectionConf::CosmosNative(conf) => {
+                let provider = build_cosmos_native_provider(self, conf, metrics, &locator, None)?;
+                let ism = Box::new(h_cosmos::native::CosmosNativeIsm::new(provider, locator)?);
+                Ok(ism as Box<dyn InterchainSecurityModule>)
+            }
+            ChainConnectionConf::Radix(conf) => {
+                let provider = build_radix_provider(self, conf, metrics, &locator, None)?;
+                let ism = h_radix::RadixIsm::new(provider, &locator, conf)?;
+                Ok(Box::new(ism) as Box<dyn InterchainSecurityModule>)
+            }
+            ChainConnectionConf::Aleo(conf) => {
+                let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
+                let ism = h_aleo::AleoIsm::new(provider, &locator, conf)?;
+                Ok(Box::new(ism) as Box<dyn InterchainSecurityModule>)
             }
         }
         .context(ctx)
@@ -547,21 +1018,46 @@ impl ChainConf {
                 self.build_ethereum(conf, &locator, metrics, h_eth::MultisigIsmBuilder {})
                     .await
             }
-
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let keypair = self.sealevel_signer().await.context(ctx)?;
-                let ism = Box::new(h_sealevel::SealevelMultisigIsm::new(conf, locator, keypair));
+                let provider =
+                    Arc::new(build_sealevel_provider(self, &locator, &[], conf, metrics));
+                let ism = Box::new(h_sealevel::SealevelMultisigIsm::new(
+                    provider,
+                    locator,
+                    keypair.map(h_sealevel::SealevelKeypair::new),
+                ));
                 Ok(ism as Box<dyn MultisigIsm>)
             }
             ChainConnectionConf::Cosmos(conf) => {
                 let signer = self.cosmos_signer().await.context(ctx)?;
-                let ism = Box::new(h_cosmos::CosmosMultisigIsm::new(
-                    conf.clone(),
-                    locator.clone(),
-                    signer,
+                let provider = build_cosmos_wasm_provider(self, conf, metrics, &locator, signer)?;
+
+                let ism = Box::new(h_cosmos::cw::CwMultisigIsm::new(provider, locator.clone())?);
+                Ok(ism as Box<dyn MultisigIsm>)
+            }
+            ChainConnectionConf::Starknet(conf) => {
+                let provider = build_starknet_provider(self, conf, metrics, &locator)?;
+                let ism = Box::new(h_starknet::StarknetMultisigIsm::new(
+                    provider, conf, &locator,
                 )?);
                 Ok(ism as Box<dyn MultisigIsm>)
+            }
+            ChainConnectionConf::CosmosNative(conf) => {
+                let provider = build_cosmos_native_provider(self, conf, metrics, &locator, None)?;
+                let ism = Box::new(h_cosmos::native::CosmosNativeIsm::new(provider, locator)?);
+                Ok(ism as Box<dyn MultisigIsm>)
+            }
+            ChainConnectionConf::Radix(conf) => {
+                let provider = build_radix_provider(self, conf, metrics, &locator, None)?;
+                let ism = h_radix::RadixIsm::new(provider, &locator, conf)?;
+                Ok(Box::new(ism) as Box<dyn MultisigIsm>)
+            }
+            ChainConnectionConf::Aleo(conf) => {
+                let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
+                let ism = h_aleo::AleoIsm::new(provider, &locator, conf)?;
+                Ok(Box::new(ism) as Box<dyn MultisigIsm>)
             }
         }
         .context(ctx)
@@ -590,12 +1086,32 @@ impl ChainConf {
             }
             ChainConnectionConf::Cosmos(conf) => {
                 let signer = self.cosmos_signer().await.context(ctx)?;
-                let ism = Box::new(h_cosmos::CosmosRoutingIsm::new(
-                    &conf.clone(),
-                    locator.clone(),
-                    signer,
+                let provider = build_cosmos_wasm_provider(self, conf, metrics, &locator, signer)?;
+
+                let ism = Box::new(h_cosmos::cw::CwRoutingIsm::new(provider, locator.clone())?);
+                Ok(ism as Box<dyn RoutingIsm>)
+            }
+            ChainConnectionConf::Starknet(conf) => {
+                let provider = build_starknet_provider(self, conf, metrics, &locator)?;
+                let ism = Box::new(h_starknet::StarknetRoutingIsm::new(
+                    provider, conf, &locator,
                 )?);
                 Ok(ism as Box<dyn RoutingIsm>)
+            }
+            ChainConnectionConf::CosmosNative(conf) => {
+                let provider = build_cosmos_native_provider(self, conf, metrics, &locator, None)?;
+                let ism = Box::new(h_cosmos::native::CosmosNativeIsm::new(provider, locator)?);
+                Ok(ism as Box<dyn RoutingIsm>)
+            }
+            ChainConnectionConf::Radix(conf) => {
+                let provider = build_radix_provider(self, conf, metrics, &locator, None)?;
+                let ism = h_radix::RadixIsm::new(provider, &locator, conf)?;
+                Ok(Box::new(ism) as Box<dyn RoutingIsm>)
+            }
+            ChainConnectionConf::Aleo(conf) => {
+                let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
+                let ism = h_aleo::AleoIsm::new(provider, &locator, conf)?;
+                Ok(Box::new(ism) as Box<dyn RoutingIsm>)
             }
         }
         .context(ctx)
@@ -624,14 +1140,29 @@ impl ChainConf {
             }
             ChainConnectionConf::Cosmos(conf) => {
                 let signer = self.cosmos_signer().await.context(ctx)?;
-                let ism = Box::new(h_cosmos::CosmosAggregationIsm::new(
-                    conf.clone(),
+                let provider = build_cosmos_wasm_provider(self, conf, metrics, &locator, signer)?;
+                let ism = Box::new(h_cosmos::cw::CwAggregationIsm::new(
+                    provider,
                     locator.clone(),
-                    signer,
                 )?);
 
                 Ok(ism as Box<dyn AggregationIsm>)
             }
+            ChainConnectionConf::Starknet(conf) => {
+                let provider = build_starknet_provider(self, conf, metrics, &locator)?;
+                let ism = Box::new(h_starknet::StarknetAggregationIsm::new(
+                    provider, conf, &locator,
+                )?);
+
+                Ok(ism as Box<dyn AggregationIsm>)
+            }
+            ChainConnectionConf::CosmosNative(_) => {
+                Err(eyre!("Cosmos Native does not support aggregation ISM yet")).context(ctx)
+            }
+            ChainConnectionConf::Radix(_) => {
+                todo!("Radix aggregation ISM not yet implemented")
+            }
+            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
         }
         .context(ctx)
     }
@@ -660,10 +1191,21 @@ impl ChainConf {
             ChainConnectionConf::Cosmos(_) => {
                 Err(eyre!("Cosmos does not support CCIP read ISM yet")).context(ctx)
             }
+            ChainConnectionConf::Starknet(_) => {
+                Err(eyre!("Starknet does not support CCIP read ISM yet")).context(ctx)
+            }
+            ChainConnectionConf::CosmosNative(_) => {
+                Err(eyre!("Cosmos Native does not support CCIP read ISM yet")).context(ctx)
+            }
+            ChainConnectionConf::Radix(_) => {
+                Err(eyre!("Radix does not support CCIP read ISM yet")).context(ctx)
+            }
+            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
         }
         .context(ctx)
     }
 
+    #[instrument(skip_all, fields(domain=%self.domain.name()))]
     async fn signer<S: BuildableWithSignerConf>(&self) -> Result<Option<S>> {
         if let Some(conf) = &self.signer {
             Ok(Some(conf.build::<S>().await?))
@@ -683,7 +1225,16 @@ impl ChainConf {
                 ChainConnectionConf::Sealevel(_) => {
                     Box::new(conf.build::<h_sealevel::Keypair>().await?)
                 }
-                ChainConnectionConf::Cosmos(_) => Box::new(conf.build::<h_cosmos::Signer>().await?),
+                ChainConnectionConf::Cosmos(_) | ChainConnectionConf::CosmosNative(_) => {
+                    Box::new(conf.build::<h_cosmos::Signer>().await?)
+                }
+                ChainConnectionConf::Starknet(_) => {
+                    Box::new(conf.build::<h_starknet::Signer>().await?)
+                }
+                ChainConnectionConf::Radix(_) => {
+                    Box::new(conf.build::<h_radix::RadixSigner>().await?)
+                }
+                ChainConnectionConf::Aleo(_) => Box::new(conf.build::<h_aleo::AleoSigner>().await?),
             };
             Ok(Some(chain_signer))
         } else {
@@ -691,6 +1242,7 @@ impl ChainConf {
         }
     }
 
+    /// Build an ethereum signer
     async fn ethereum_signer(&self) -> Result<Option<h_eth::Signers>> {
         self.signer().await
     }
@@ -706,6 +1258,18 @@ impl ChainConf {
     }
 
     async fn cosmos_signer(&self) -> Result<Option<h_cosmos::Signer>> {
+        self.signer().await
+    }
+
+    async fn starknet_signer(&self) -> Result<Option<h_starknet::Signer>> {
+        self.signer().await
+    }
+
+    async fn radix_signer(&self) -> Result<Option<hyperlane_radix::RadixSigner>> {
+        self.signer().await
+    }
+
+    async fn aleo_signer(&self) -> Result<Option<hyperlane_aleo::AleoSigner>> {
         self.signer().await
     }
 
@@ -737,7 +1301,7 @@ impl ChainConf {
                     name: Some(name.into()),
                     functions: fns
                         .into_iter()
-                        .map(|s| (Selector::try_from(s.0).unwrap(), s.1))
+                        .map(|s| (Selector::try_from(s.0).expect("Failed to parse bytes"), s.1))
                         .collect(),
                 });
         };
@@ -773,7 +1337,8 @@ impl ChainConf {
         }
     }
 
-    async fn build_ethereum<B>(
+    /// Try to convert the chain settings into a provider
+    pub async fn build_ethereum<B>(
         &self,
         conf: &h_eth::ConnectionConf,
         locator: &ContractLocator<'_>,
@@ -788,11 +1353,138 @@ impl ChainConf {
             signer = self.ethereum_signer().await?;
         }
         let metrics_conf = self.metrics_conf();
-        let rpc_metrics = Some(metrics.json_rpc_client_metrics());
+        let client_metrics = metrics.client_metrics();
+
+        let client_metrics = Some(client_metrics);
         let middleware_metrics = Some((metrics.provider_metrics(), metrics_conf));
+
         let res = builder
-            .build_with_connection_conf(conf, locator, signer, rpc_metrics, middleware_metrics)
+            .build_with_connection_conf(conf, locator, signer, client_metrics, middleware_metrics)
             .await;
         Ok(res?)
     }
+}
+
+/// Helper to build a sealevel provider
+fn build_sealevel_provider(
+    chain_conf: &ChainConf,
+    locator: &ContractLocator,
+    contract_addresses: &[H256],
+    conf: &h_sealevel::ConnectionConf,
+    metrics: &CoreMetrics,
+) -> SealevelProvider {
+    let middleware_metrics = chain_conf.metrics_conf();
+    let client_metrics = metrics.client_metrics();
+
+    let chain = middleware_metrics.chain.clone();
+    let urls = conf.urls.clone();
+    let rpc_client = SealevelFallbackRpcClient::from_urls(chain, urls, client_metrics);
+    SealevelProvider::new(rpc_client, locator.domain.clone(), contract_addresses, conf)
+}
+
+fn build_sealevel_tx_submitter(
+    provider: &Arc<SealevelProvider>,
+    chain_conf: &ChainConf,
+    connection_conf: &h_sealevel::ConnectionConf,
+    locator: &ContractLocator,
+    metrics: &CoreMetrics,
+) -> Arc<dyn TransactionSubmitter> {
+    let middleware_metrics = chain_conf.metrics_conf();
+    let client_metrics = metrics.client_metrics();
+    connection_conf.transaction_submitter.create_submitter(
+        provider,
+        client_metrics,
+        middleware_metrics.chain.clone(),
+        locator.domain.clone(),
+        connection_conf,
+    )
+}
+
+fn build_cosmos_wasm_provider(
+    chain_conf: &ChainConf,
+    connection_conf: &h_cosmos::ConnectionConf,
+    metrics: &CoreMetrics,
+    locator: &ContractLocator,
+    signer: Option<hyperlane_cosmos::Signer>,
+) -> ChainResult<CosmosProvider<CwQueryClient>> {
+    let middleware_metrics = chain_conf.metrics_conf();
+    let metrics = metrics.client_metrics();
+    CosmosProvider::new(
+        connection_conf,
+        locator,
+        signer,
+        metrics,
+        middleware_metrics.chain.clone(),
+    )
+}
+
+fn build_cosmos_native_provider(
+    chain_conf: &ChainConf,
+    connection_conf: &h_cosmos::ConnectionConf,
+    metrics: &CoreMetrics,
+    locator: &ContractLocator,
+    signer: Option<hyperlane_cosmos::Signer>,
+) -> ChainResult<CosmosProvider<ModuleQueryClient>> {
+    let middleware_metrics = chain_conf.metrics_conf();
+    let metrics = metrics.client_metrics();
+    CosmosProvider::new(
+        connection_conf,
+        locator,
+        signer,
+        metrics,
+        middleware_metrics.chain.clone(),
+    )
+}
+
+fn build_radix_provider(
+    chain_conf: &ChainConf,
+    connection_conf: &h_radix::ConnectionConf,
+    metrics: &CoreMetrics,
+    locator: &ContractLocator,
+    signer: Option<h_radix::RadixSigner>,
+) -> ChainResult<RadixProvider> {
+    let middleware_metrics = chain_conf.metrics_conf();
+    let metrics = metrics.client_metrics();
+    RadixProvider::new(
+        signer,
+        connection_conf,
+        locator,
+        &chain_conf.reorg_period,
+        metrics,
+        middleware_metrics.chain,
+    )
+}
+
+fn build_starknet_provider(
+    chain_conf: &ChainConf,
+    connection_conf: &h_starknet::ConnectionConf,
+    metrics: &CoreMetrics,
+    locator: &ContractLocator,
+) -> ChainResult<StarknetProvider> {
+    let middleware_metrics = chain_conf.metrics_conf();
+    let metrics = metrics.client_metrics();
+    Ok(StarknetProvider::new(
+        locator.domain.clone(),
+        connection_conf,
+        metrics.clone(),
+        middleware_metrics.chain.clone(),
+    ))
+}
+
+fn build_aleo_provider(
+    chain_conf: &ChainConf,
+    connection_conf: &h_aleo::ConnectionConf,
+    metrics: &CoreMetrics,
+    locator: &ContractLocator,
+    signer: Option<h_aleo::AleoSigner>,
+) -> ChainResult<AleoProvider> {
+    let middleware_metrics = chain_conf.metrics_conf();
+    let metrics = metrics.client_metrics();
+    AleoProvider::new(
+        connection_conf,
+        locator.domain.clone(),
+        signer,
+        metrics.clone(),
+        middleware_metrics.chain.clone(),
+    )
 }

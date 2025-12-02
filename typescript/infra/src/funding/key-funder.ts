@@ -45,7 +45,10 @@ export class KeyFunderHelmManager extends HelmManager {
         contextsAndRolesToFund: this.config.contextsAndRolesToFund,
         desiredBalancePerChain: this.config.desiredBalancePerChain,
         desiredKathyBalancePerChain: this.config.desiredKathyBalancePerChain,
+        desiredRebalancerBalancePerChain:
+          this.config.desiredRebalancerBalancePerChain,
         igpClaimThresholdPerChain: this.config.igpClaimThresholdPerChain,
+        chainsToSkip: this.config.chainsToSkip,
       },
       image: {
         repository: this.config.docker.repo,

@@ -13,11 +13,21 @@ import {
   useState,
 } from '@inquirer/core';
 import figures from '@inquirer/figures';
-import { KeypressEvent, confirm, input } from '@inquirer/prompts';
-import type { PartialDeep } from '@inquirer/type';
+import { KeypressEvent, confirm, input, isSpaceKey } from '@inquirer/prompts';
+import type { PartialDeep, Prompt } from '@inquirer/type';
 import ansiEscapes from 'ansi-escapes';
 import chalk from 'chalk';
 
+import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
+import { BaseRegistry, IRegistry } from '@hyperlane-xyz/registry';
+import {
+  ChainName,
+  DeployedOwnableConfig,
+  WarpRouteDeployConfig,
+} from '@hyperlane-xyz/sdk';
+import { isAddress, rootLogger } from '@hyperlane-xyz/utils';
+
+import { CommandContext } from '../context/types.js';
 import { logGray } from '../logger.js';
 
 import { indentYamlOrJson } from './files.js';
@@ -27,13 +37,16 @@ export async function detectAndConfirmOrPrompt(
   prompt: string,
   label: string,
   source?: string,
+  validate?:
+    | ((value: string) => string | boolean | Promise<string | boolean>)
+    | undefined,
 ): Promise<string> {
   let detectedValue: string | undefined;
   try {
     detectedValue = await detect();
     if (detectedValue) {
       const confirmed = await confirm({
-        message: `Detected ${label} as ${detectedValue}${
+        message: `Using ${label} as ${detectedValue}${
           source ? ` from ${source}` : ''
         }, is this correct?`,
       });
@@ -41,9 +54,14 @@ export async function detectAndConfirmOrPrompt(
         return detectedValue;
       }
     }
-    // eslint-disable-next-line no-empty
-  } catch (e) {}
-  return input({ message: `${prompt} ${label}:`, default: detectedValue });
+  } catch {
+    // Fallback to input prompt
+  }
+  return input({
+    message: `${prompt} ${label}:`,
+    default: detectedValue,
+    validate,
+  });
 }
 
 const INFO_COMMAND: string = 'i';
@@ -70,6 +88,106 @@ export async function inputWithInfo({
     if (answer === INFO_COMMAND) logGray(indentedInfo);
   } while (answer === INFO_COMMAND);
   return answer;
+}
+
+/**
+ * Prompts the user to optionally set an existing ProxyAdmin contract address to be used in a WarpToken deployment.
+ */
+export async function setProxyAdminConfig(
+  context: CommandContext,
+  chain: ChainName,
+): Promise<DeployedOwnableConfig | undefined> {
+  let defaultAdminConfig: DeployedOwnableConfig | undefined;
+
+  // default to deploying a new ProxyAdmin with `warpRouteOwner` as the owner
+  // if the user supplied the --yes flag
+  if (context.skipConfirmation) {
+    return defaultAdminConfig;
+  }
+
+  const useExistingProxy = await confirm({
+    message: `Use an existing Proxy Admin contract for the warp route deployment on chain "${chain}"?`,
+  });
+
+  if (!useExistingProxy) {
+    return defaultAdminConfig;
+  }
+
+  const proxyAdminAddress = await input({
+    message: `Please enter the address of the Proxy Admin contract to be used on chain "${chain}":`,
+    validate: isAddress,
+  });
+
+  const proxy = ProxyAdmin__factory.connect(
+    proxyAdminAddress,
+    context.multiProvider.getProvider(chain),
+  );
+
+  try {
+    const ownerAddress = await proxy.owner();
+    return {
+      address: proxyAdminAddress,
+      owner: ownerAddress,
+    };
+  } catch (error) {
+    rootLogger.error(
+      `Failed to read owner address from ProxyAdmin contract at ${proxy.address} on chain ${chain}.`,
+      error,
+    );
+    throw new Error(
+      `Failed to read owner address from ProxyAdmin contract at ${proxy.address}. Are you sure this is a ProxyAdmin contract?`,
+    );
+  }
+}
+
+/**
+ * Retrieves the warp route ID for a given WarpRouteDeployConfig and symbol.
+ *
+ * This function prompts the user to confirm or input the desired warp route ID
+ * based on the provided WarpRouteDeployConfig and symbol. It uses the
+ * `detectAndConfirmOrPrompt` utility to handle detection, confirmation, and input.
+ *
+ * @param registry The registry used to check for existing warp route configurations
+ * @param warpRouteDeployConfig The configuration for the warp route deployment
+ * @param symbol The symbol associated with the warp route
+ * @returns A Promise resolving to the unique warp route ID
+ * @throws Error if a warp route ID already exists or cannot be generated
+ */
+export async function getWarpRouteIdFromWarpDeployConfig(
+  registry: IRegistry,
+  warpRouteDeployConfig: WarpRouteDeployConfig,
+  symbol: string,
+): Promise<string> {
+  return detectAndConfirmOrPrompt(
+    // First Proposes the short or long warp route id
+    async () =>
+      BaseRegistry.warpDeployConfigToId(warpRouteDeployConfig, {
+        symbol,
+      }),
+    'Enter the desired',
+    'warp route ID',
+    'warp deployment config',
+    // Validates the user defined warpRouteId by 1) checking if its unique, and 2) check if its formatted correctly
+    async (warpRouteId) => {
+      try {
+        const idExists = !!(await registry.getWarpDeployConfig(warpRouteId));
+        if (idExists) {
+          throw Error(`Warp deploy config already exists for: ${warpRouteId}.`);
+        }
+
+        // Will throw if incorrectly formatted
+        const isIdCorrectFormat = !!BaseRegistry.warpDeployConfigToId(
+          warpRouteDeployConfig,
+          {
+            warpRouteId,
+          },
+        );
+        return isIdCorrectFormat;
+      } catch (e) {
+        return (e as Error).toString();
+      }
+    },
+  );
 }
 
 /**
@@ -283,9 +401,9 @@ function getHelpTips({
   let helpTipBottom = '';
   const defaultTopHelpTip =
     instructions ??
-    `(Press ${theme.style.key('tab')} to select, and ${theme.style.key(
-      'enter',
-    )} to proceed`;
+    `(Press ${theme.style.key('tab')} or ${theme.style.key(
+      'space',
+    )} to select, and ${theme.style.key('enter')} to proceed`;
   const defaultBottomHelpTip = `\n${theme.style.help(
     '(Use arrow keys to reveal more choices)',
   )}`;
@@ -405,7 +523,10 @@ function isDownKey(key: KeypressEvent): boolean {
   return key.name === 'down';
 }
 
-export const searchableCheckBox = createPrompt(
+export const searchableCheckBox: Prompt<
+  any,
+  SearchableCheckboxConfig<any>
+> = createPrompt(
   <Value>(
     config: SearchableCheckboxConfig<Value>,
     done: (value: Array<Value>) => void,
@@ -497,7 +618,10 @@ export const searchableCheckBox = createPrompt(
           );
           setActive(next);
         }
-      } else if (key.name === 'tab' && optionState.options.length > 0) {
+      } else if (
+        (key.name === 'tab' || isSpaceKey(key)) &&
+        optionState.options.length > 0
+      ) {
         // Avoid the message header to be printed again in the console
         rl.clearLine(0);
 

@@ -1,12 +1,13 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 
 import {
   ChainMap,
   ChainMetadata,
   ChainName,
+  ChainStatus,
   mergeChainMetadataMap,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, objMap } from '@hyperlane-xyz/utils';
 
 import {
   SearchMenu,
@@ -19,7 +20,7 @@ import { ChainAddMenu } from './ChainAddMenu.js';
 import { ChainDetailsMenu } from './ChainDetailsMenu.js';
 import { ChainLogo } from './ChainLogo.js';
 
-enum ChainSortByOption {
+export enum ChainSortByOption {
   Name = 'name',
   ChainId = 'chain id',
   Protocol = 'protocol',
@@ -29,6 +30,8 @@ enum FilterTestnetOption {
   Testnet = 'testnet',
   Mainnet = 'mainnet',
 }
+
+type DefaultSortField = ChainSortByOption | 'custom';
 
 interface ChainFilterState {
   type?: FilterTestnetOption;
@@ -53,13 +56,19 @@ export interface ChainSearchMenuProps {
   ) => void;
   onClickChain: (chain: ChainMetadata) => void;
   // Replace the default 2nd column (deployer) with custom data
-  customListItemField?: CustomListItemField;
+  customListItemField?: CustomListItemField | null;
   // Auto-navigate to a chain details menu
   showChainDetails?: ChainName;
   // Auto-navigate to a chain add menu
   showAddChainMenu?: boolean;
   // Include add button above list
   showAddChainButton?: boolean;
+  // Field by which data will be sorted by default
+  defaultSortField?: DefaultSortField;
+  /**
+   * Allow chains to be shown as disabled. Defaults to `false`
+   */
+  shouldDisableChains?: boolean;
 }
 
 export function ChainSearchMenu({
@@ -71,23 +80,36 @@ export function ChainSearchMenu({
   showChainDetails,
   showAddChainButton,
   showAddChainMenu,
+  defaultSortField,
+  shouldDisableChains = false,
 }: ChainSearchMenuProps) {
-  const [drilldownChain, setDrilldownChain] = React.useState<
-    ChainName | undefined
-  >(showChainDetails);
+  const [drilldownChain, setDrilldownChain] = useState<ChainName | undefined>(
+    showChainDetails,
+  );
 
-  const [addChain, setAddChain] = React.useState(showAddChainMenu || false);
+  const [addChain, setAddChain] = useState(showAddChainMenu || false);
 
   const { listData, mergedMetadata } = useMemo(() => {
     const mergedMetadata = mergeChainMetadataMap(
       chainMetadata,
       overrideChainMetadata,
     );
-    return { mergedMetadata, listData: Object.values(mergedMetadata) };
-  }, [chainMetadata]);
+    const disabledChainMetadata = getDisabledChains(
+      mergedMetadata,
+      shouldDisableChains,
+    );
+    return {
+      mergedMetadata: disabledChainMetadata,
+      listData: Object.values(disabledChainMetadata),
+    };
+  }, [chainMetadata, overrideChainMetadata, shouldDisableChains]);
 
   const { ListComponent, searchFn, sortOptions, defaultSortState } =
-    useCustomizedListItems(customListItemField);
+    useCustomizedListItems(
+      customListItemField,
+      shouldDisableChains,
+      defaultSortField,
+    );
 
   if (drilldownChain && mergedMetadata[drilldownChain]) {
     const isLocalOverrideChain = !chainMetadata[drilldownChain];
@@ -150,7 +172,7 @@ function ChainListItem({
   customField,
 }: {
   data: ChainMetadata;
-  customField?: CustomListItemField;
+  customField?: CustomListItemField | null;
 }) {
   return (
     <>
@@ -167,16 +189,18 @@ function ChainListItem({
           </div>
         </div>
       </div>
-      <div className="htw-text-left htw-overflow-hidden">
-        <div className="htw-text-sm truncate">
-          {customField
-            ? customField.data[chain.name].display || 'Unknown'
-            : chain.deployer?.name || 'Unknown deployer'}
+      {customField !== null && (
+        <div className="htw-text-left htw-overflow-hidden">
+          <div className="htw-text-sm truncate">
+            {customField
+              ? customField.data[chain.name].display || 'Unknown'
+              : chain.deployer?.name || 'Unknown deployer'}
+          </div>
+          <div className="htw-text-[0.7rem] htw-text-gray-500">
+            {customField ? customField.header : 'Deployer'}
+          </div>
         </div>
-        <div className="htw-text-[0.7rem] htw-text-gray-500">
-          {customField ? customField.header : 'Deployer'}
-        </div>
-      </div>
+      )}
     </>
   );
 }
@@ -218,12 +242,14 @@ function chainSearch({
   sort,
   filter,
   customListItemField,
+  shouldDisableChains,
 }: {
   data: ChainMetadata[];
   query: string;
   sort: SortState<ChainSortByOption>;
   filter: ChainFilterState;
   customListItemField?: CustomListItemField;
+  shouldDisableChains?: boolean;
 }) {
   const queryFormatted = query.trim().toLowerCase();
   return (
@@ -234,7 +260,7 @@ function chainSearch({
           chain.name.includes(queryFormatted) ||
           chain.displayName?.toLowerCase().includes(queryFormatted) ||
           chain.chainId.toString().includes(queryFormatted) ||
-          chain.domainId?.toString().includes(queryFormatted),
+          chain.domainId.toString().includes(queryFormatted),
       )
       // Filter options
       .filter((chain) => {
@@ -250,6 +276,14 @@ function chainSearch({
       })
       // Sort options
       .sort((c1, c2) => {
+        if (shouldDisableChains) {
+          // If one chain is disabled and the other is not, place the disabled chain at the bottom
+          const c1Disabled = c1.availability?.status === ChainStatus.Disabled;
+          const c2Disabled = c2.availability?.status === ChainStatus.Disabled;
+          if (c1Disabled && !c2Disabled) return 1;
+          if (!c1Disabled && c2Disabled) return -1;
+        }
+
         // Special case handling for if the chains are being sorted by the
         // custom field provided to ChainSearchMenu
         if (customListItemField && sort.sortBy === customListItemField.header) {
@@ -281,20 +315,24 @@ function chainSearch({
  * This is useful because SearchMenu will do handle the list item rendering and
  * management but the custom data is more or a chain-search-specific concern
  */
-function useCustomizedListItems(customListItemField) {
+function useCustomizedListItems(
+  customListItemField,
+  shouldDisableChains: boolean,
+  defaultSortField?: DefaultSortField,
+) {
   // Create closure of ChainListItem but with customField pre-bound
   const ListComponent = useCallback(
     ({ data }: { data: ChainMetadata<{ disabled?: boolean }> }) => (
       <ChainListItem data={data} customField={customListItemField} />
     ),
-    [ChainListItem, customListItemField],
+    [customListItemField],
   );
 
   // Bind the custom field to the search function
   const searchFn = useCallback(
     (args: Parameters<typeof chainSearch>[0]) =>
-      chainSearch({ ...args, customListItemField }),
-    [customListItemField],
+      chainSearch({ ...args, shouldDisableChains, customListItemField }),
+    [customListItemField, shouldDisableChains],
   );
 
   // Merge the custom field into the sort options if a custom field exists
@@ -306,17 +344,35 @@ function useCustomizedListItems(customListItemField) {
     [customListItemField],
   ) as ChainSortByOption[];
 
-  // Sort by the custom field by default, if one is provided
+  // Sort by defaultSortField initially, if value is "custom", sort using custom field by default
   const defaultSortState = useMemo(
     () =>
-      customListItemField
+      defaultSortField
         ? {
-            sortBy: customListItemField.header,
+            sortBy:
+              defaultSortField === 'custom' && customListItemField
+                ? customListItemField.header
+                : defaultSortField,
             sortOrder: SortOrderOption.Desc,
           }
         : undefined,
-    [customListItemField],
+    [defaultSortField, customListItemField],
   ) as SortState<ChainSortByOption> | undefined;
 
   return { ListComponent, searchFn, sortOptions, defaultSortState };
+}
+
+function getDisabledChains(
+  chainMetadata: ChainMap<ChainMetadata>,
+  shouldDisableChains: boolean,
+) {
+  if (!shouldDisableChains) return chainMetadata;
+
+  return objMap(chainMetadata, (_, chain) => {
+    if (chain.availability?.status === ChainStatus.Disabled) {
+      return { ...chain, disabled: true };
+    }
+
+    return chain;
+  });
 }

@@ -8,6 +8,8 @@ import { ENV } from '../utils/env.js';
 
 /* Global options */
 
+export const DEFAULT_LOCAL_REGISTRY = `${os.homedir()}/.hyperlane`;
+
 export const demandOption = (option: Options): Options => ({
   ...option,
   demandOption: true,
@@ -25,17 +27,27 @@ export const logLevelCommandOption: Options = {
   choices: Object.values(LogLevel),
 };
 
-export const registryUriCommandOption: Options = {
-  type: 'string',
-  description: 'Registry URI, such as a Github repo URL or a local file path',
+export const registryUrisCommandOption: Options = {
+  type: 'array',
+  string: true,
+  description:
+    'List of Github or local path registries, later registry takes priority over previous',
   alias: 'r',
-  default: DEFAULT_GITHUB_REGISTRY,
+  default: [DEFAULT_GITHUB_REGISTRY, DEFAULT_LOCAL_REGISTRY],
+};
+
+export const githubAuthTokenOption: Options = {
+  type: 'string',
+  description: 'Github auth token for accessing registry repository',
+  default: ENV.GH_AUTH_TOKEN,
+  defaultDescription: 'process.env.GH_AUTH_TOKEN',
 };
 
 export const overrideRegistryUriCommandOption: Options = {
   type: 'string',
   description: 'Path to a local registry to override the default registry',
-  default: `${os.homedir()}/.hyperlane`,
+  default: '',
+  hidden: true,
 };
 
 export const skipConfirmationOption: Options = {
@@ -48,7 +60,7 @@ export const skipConfirmationOption: Options = {
 export const keyCommandOption: Options = {
   type: 'string',
   description:
-    'A hex private key or seed phrase for transaction signing, or use the HYP_KEY env var.',
+    'A hex private key or seed phrase for transaction signing, or use the HYP_KEY env var. Use --key.{protocol} or HYP_KEY_{PROTOCOL} for chain specific key inputs',
   alias: ['k', 'private-key', 'seed-phrase'],
   default: ENV.HYP_KEY,
   defaultDescription: 'process.env.HYP_KEY',
@@ -91,11 +103,17 @@ export const hookCommandOption: Options = {
     'A path to a JSON or YAML file with Hook configs (for every chain)',
 };
 
+export const DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH =
+  './configs/warp-route-deployment.yaml';
+
+export const DEFAULT_CORE_DEPLOYMENT_CONFIG_PATH = './configs/core-config.yaml';
+export const DEFAULT_STRATEGY_CONFIG_PATH = `${os.homedir()}/.hyperlane/strategies/default-strategy.yaml`;
+
 export const warpDeploymentConfigCommandOption: Options = {
   type: 'string',
   description:
     'A path to a JSON or YAML file with a warp route deployment config.',
-  default: './configs/warp-route-deployment.yaml',
+  demandOption: false,
   alias: 'wd',
 };
 
@@ -134,24 +152,28 @@ export const outputFileCommandOption = (
   demandOption,
 });
 
-export const inputFileCommandOption: Options = {
+interface InputFileCommandOptionConfig
+  extends Pick<Options, 'demandOption' | 'alias' | 'description'> {
+  defaultPath?: string;
+}
+
+export const inputFileCommandOption = ({
+  defaultPath,
+  demandOption = true,
+  description = 'Input file path',
+  alias = 'i',
+}: InputFileCommandOptionConfig = {}): Options => ({
   type: 'string',
-  description: 'Input file path',
-  alias: 'i',
-  demandOption: true,
-};
+  description,
+  default: defaultPath,
+  alias,
+  demandOption,
+});
 
 export const fromAddressCommandOption: Options = {
   type: 'string',
   description: `An address to simulate transaction signing on a forked network`,
   alias: 'f',
-};
-
-export const dryRunCommandOption: Options = {
-  type: 'string',
-  description:
-    'Chain name to fork and simulate deployment. Please ensure an anvil node instance is running during execution via `anvil`.',
-  alias: 'd',
 };
 
 export const chainCommandOption: Options = {
@@ -180,8 +202,8 @@ export const transactionsCommandOption: Options = {
 export const strategyCommandOption: Options = {
   type: 'string',
   description: 'The submission strategy input file path.',
-  alias: 's',
-  demandOption: true,
+  alias: ['s', 'strategy'],
+  demandOption: false,
 };
 
 export const addressCommandOption = (
@@ -234,5 +256,31 @@ export const avsChainCommandOption: Options = {
   type: 'string',
   description: 'Chain to interact with the AVS on',
   demandOption: true,
-  choices: ['holesky', 'ethereum'],
+  choices: ['ethereum'],
+};
+
+export const warpRouteIdCommandOption: Options = {
+  type: 'string',
+  description: 'Warp route ID to specify the warp route',
+  alias: 'id',
+};
+
+export const forkCommandOptions: Record<string, Options> = {
+  port: {
+    type: 'number',
+    description:
+      'Port to be used as initial port from which assign port numbers to all anvil instances',
+    default: 8545,
+  },
+  'fork-config': {
+    type: 'string',
+    description:
+      'The path to a configuration file that specifies how to build the forked chains',
+  },
+  kill: {
+    type: 'boolean',
+    default: false,
+    description:
+      'If set, it will stop the forked chains once the forked config has been applied',
+  },
 };

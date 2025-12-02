@@ -1,12 +1,16 @@
 import { expect } from 'chai';
-import { ethers } from 'ethers';
 import sinon from 'sinon';
 
 import {
+  AbstractRoutingIsm__factory,
+  CCIPIsm,
+  CCIPIsm__factory,
   IInterchainSecurityModule,
   IInterchainSecurityModule__factory,
   IMultisigIsm,
   IMultisigIsm__factory,
+  InterchainAccountRouter,
+  InterchainAccountRouter__factory,
   OPStackIsm,
   OPStackIsm__factory,
   PausableIsm,
@@ -20,9 +24,11 @@ import { WithAddress } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { randomAddress } from '../test/testUtils.js';
 
 import { EvmIsmReader } from './EvmIsmReader.js';
 import {
+  InterchainAccountRouterIsm,
   IsmType,
   ModuleType,
   MultisigIsmConfig,
@@ -35,8 +41,6 @@ describe('EvmIsmReader', () => {
   let multiProvider: MultiProvider;
   let sandbox: sinon.SinonSandbox;
 
-  const generateRandomAddress = () => ethers.Wallet.createRandom().address;
-
   beforeEach(() => {
     sandbox = sinon.createSandbox();
     multiProvider = MultiProvider.createTestMultiProvider();
@@ -48,8 +52,8 @@ describe('EvmIsmReader', () => {
   });
 
   it('should derive multisig config correctly', async () => {
-    const mockAddress = generateRandomAddress();
-    const mockValidators = [generateRandomAddress(), generateRandomAddress()];
+    const mockAddress = randomAddress();
+    const mockValidators = [randomAddress(), randomAddress()];
     const mockThreshold = 2;
 
     // Mocking the connect method + returned what we need from contract object
@@ -83,8 +87,8 @@ describe('EvmIsmReader', () => {
   });
 
   it('should derive pausable config correctly', async () => {
-    const mockAddress = generateRandomAddress();
-    const mockOwner = generateRandomAddress();
+    const mockAddress = randomAddress();
+    const mockOwner = randomAddress();
     const mockPaused = true;
 
     // Mocking the connect method + returned what we need from contract object
@@ -120,7 +124,7 @@ describe('EvmIsmReader', () => {
   });
 
   it('should derive test ISM config correctly', async () => {
-    const mockAddress = generateRandomAddress();
+    const mockAddress = randomAddress();
 
     // Mocking the connect method + returned what we need from contract object
     const mockContract = {
@@ -139,6 +143,9 @@ describe('EvmIsmReader', () => {
       .stub(TrustedRelayerIsm__factory, 'connect')
       .returns(mockContract as unknown as TrustedRelayerIsm);
     sandbox
+      .stub(CCIPIsm__factory, 'connect')
+      .returns(mockContract as unknown as CCIPIsm);
+    sandbox
       .stub(IInterchainSecurityModule__factory, 'connect')
       .returns(mockContract as unknown as IInterchainSecurityModule);
 
@@ -153,6 +160,45 @@ describe('EvmIsmReader', () => {
 
     // should get same result if we call the specific method for the ism type
     const config = await evmIsmReader.deriveNullConfig(mockAddress);
+    expect(config).to.deep.equal(ismConfig);
+  });
+
+  it('should derive the ICA ism correctly', async () => {
+    const mockAddress = randomAddress();
+    const mockOwner = randomAddress();
+    const mockccipIsm = randomAddress();
+    // Mocking the connect method + returned what we need from contract object
+    const mockContract = {
+      moduleType: sandbox.stub().resolves(ModuleType.ROUTING),
+      owner: sandbox.stub().resolves(mockOwner),
+      CCIP_READ_ISM: sandbox.stub().resolves(mockccipIsm),
+    };
+    sandbox
+      .stub(AbstractRoutingIsm__factory, 'connect')
+      .returns(mockContract as unknown as InterchainAccountRouter);
+    sandbox
+      .stub(InterchainAccountRouter__factory, 'connect')
+      .returns(mockContract as unknown as InterchainAccountRouter);
+    sandbox
+      .stub(TrustedRelayerIsm__factory, 'connect')
+      .returns(mockContract as unknown as TrustedRelayerIsm);
+    sandbox
+      .stub(IInterchainSecurityModule__factory, 'connect')
+      .returns(mockContract as unknown as IInterchainSecurityModule);
+
+    const expectedConfig: WithAddress<InterchainAccountRouterIsm> = {
+      address: mockAddress,
+      type: IsmType.INTERCHAIN_ACCOUNT_ROUTING,
+      isms: {},
+      owner: mockOwner,
+    };
+
+    // top-level method infers ism type
+    const ismConfig = await evmIsmReader.deriveIsmConfig(mockAddress);
+    expect(ismConfig).to.deep.equal(expectedConfig);
+
+    // should get same result if we call the specific method for the ism type
+    const config = await evmIsmReader.deriveRoutingConfig(mockAddress);
     expect(config).to.deep.equal(ismConfig);
   });
 

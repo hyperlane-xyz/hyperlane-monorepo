@@ -2,7 +2,6 @@
 pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
-import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {AbstractMultisig} from "./AbstractMultisigIsm.sol";
 import {MessageIdMultisigIsmMetadata} from "../libs/MessageIdMultisigIsmMetadata.sol";
 import {Message} from "../../libs/Message.sol";
@@ -47,7 +46,7 @@ abstract contract AbstractMessageIdMultisigIsm is AbstractMultisig {
     function signatureAt(
         bytes calldata _metadata,
         uint256 _index
-    ) internal pure virtual override returns (bytes calldata) {
+    ) internal pure override returns (bytes calldata) {
         return _metadata.signatureAt(_index);
     }
 

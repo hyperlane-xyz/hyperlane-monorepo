@@ -68,6 +68,8 @@ contract GasRouterTest is Test {
     }
 
     function testSetDestinationGas(uint256 gas) public {
+        vm.expectEmit(true, true, true, true);
+        emit GasRouter.GasSet(originDomain, gas);
         setDestinationGas(remoteRouter, originDomain, gas);
         assertEq(remoteRouter.destinationGas(originDomain), gas);
 
@@ -75,14 +77,20 @@ contract GasRouterTest is Test {
         assertEq(originRouter.destinationGas(remoteDomain), gas);
     }
 
-    function testQuoteGasPayment(uint256 gas) public {
+    function testQuoteGasPayment(uint256 gas, bytes memory body) public {
         vm.assume(gas > 0 && type(uint256).max / gas > gasPrice);
 
         setDestinationGas(originRouter, remoteDomain, gas);
-        assertEq(originRouter.quoteGasPayment(remoteDomain), gas * gasPrice);
+        assertEq(
+            originRouter.quoteDispatch(remoteDomain, body),
+            gas * gasPrice
+        );
 
         setDestinationGas(remoteRouter, originDomain, gas);
-        assertEq(remoteRouter.quoteGasPayment(originDomain), gas * gasPrice);
+        assertEq(
+            remoteRouter.quoteDispatch(originDomain, body),
+            gas * gasPrice
+        );
     }
 
     uint256 refund = 0;

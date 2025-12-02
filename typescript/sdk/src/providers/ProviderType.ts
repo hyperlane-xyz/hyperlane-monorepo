@@ -15,22 +15,43 @@ import type {
   providers as EV5Providers,
   PopulatedTransaction as EV5Transaction,
 } from 'ethers';
+import {
+  Contract as StarknetContract,
+  Invocation as StarknetInvocation,
+  Provider as StarknetProvider,
+  GetTransactionReceiptResponse as StarknetTxReceipt,
+} from 'starknet';
 import type {
   GetContractReturnType,
   PublicClient,
   Transaction as VTransaction,
   TransactionReceipt as VTransactionReceipt,
 } from 'viem';
+import {
+  Contract as ZKSyncBaseContract,
+  Provider as ZKSyncBaseProvider,
+  types as zkSyncTypes,
+} from 'zksync-ethers';
 
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { CosmosNativeProvider } from '@hyperlane-xyz/cosmos-sdk';
+import {
+  RadixProvider as RadixSDKProvider,
+  RadixSDKReceipt,
+  RadixSDKTransaction,
+} from '@hyperlane-xyz/radix-sdk';
+import { Annotated, ProtocolType } from '@hyperlane-xyz/utils';
 
 export enum ProviderType {
   EthersV5 = 'ethers-v5',
   Viem = 'viem',
   SolanaWeb3 = 'solana-web3',
   CosmJs = 'cosmjs',
+  CosmJsNative = 'cosmjs-native',
   CosmJsWasm = 'cosmjs-wasm',
   GnosisTxBuilder = 'gnosis-txBuilder',
+  Starknet = 'starknet',
+  ZkSync = 'zksync',
+  Radix = 'radix',
 }
 
 export const PROTOCOL_TO_DEFAULT_PROVIDER_TYPE: Record<
@@ -40,6 +61,9 @@ export const PROTOCOL_TO_DEFAULT_PROVIDER_TYPE: Record<
   [ProtocolType.Ethereum]: ProviderType.EthersV5,
   [ProtocolType.Sealevel]: ProviderType.SolanaWeb3,
   [ProtocolType.Cosmos]: ProviderType.CosmJsWasm,
+  [ProtocolType.CosmosNative]: ProviderType.CosmJsNative,
+  [ProtocolType.Starknet]: ProviderType.Starknet,
+  [ProtocolType.Radix]: ProviderType.Radix,
 };
 
 export type ProviderMap<Value> = Partial<Record<ProviderType, Value>>;
@@ -63,6 +87,24 @@ type ProtocolTypesMapping = {
     contract: CosmJsWasmContract;
     receipt: CosmJsWasmTransactionReceipt;
   };
+  [ProtocolType.CosmosNative]: {
+    transaction: CosmJsNativeTransaction;
+    provider: CosmJsNativeProvider;
+    contract: null;
+    receipt: CosmJsNativeTransactionReceipt;
+  };
+  [ProtocolType.Starknet]: {
+    transaction: StarknetJsTransaction;
+    provider: StarknetJsProvider;
+    contract: StarknetJsContract;
+    receipt: StarknetJsTransactionReceipt;
+  };
+  [ProtocolType.Radix]: {
+    transaction: RadixTransaction;
+    provider: RadixProvider;
+    contract: null;
+    receipt: RadixTransactionReceipt;
+  };
 };
 
 type ProtocolTyped<
@@ -85,6 +127,18 @@ export type ProtocolTypedContract<T extends ProtocolType> = ProtocolTyped<
 export type ProtocolTypedReceipt<T extends ProtocolType> = ProtocolTyped<
   T,
   'receipt'
+>;
+
+export type AnyProtocolTransaction = ProtocolTransaction<ProtocolType>;
+export type ProtocolTransaction<T extends ProtocolType> =
+  ProtocolTypedTransaction<T>['transaction'];
+
+export type AnyProtocolReceipt = ProtocolReceipt<ProtocolType>;
+export type ProtocolReceipt<T extends ProtocolType> =
+  ProtocolTypedReceipt<T>['receipt'];
+
+export type AnnotatedTypedTransaction<T extends ProtocolType> = Annotated<
+  ProtocolTransaction<T>
 >;
 
 /**
@@ -124,13 +178,39 @@ export interface CosmJsWasmProvider
   provider: Promise<CosmWasmClient>;
 }
 
+export interface CosmJsNativeProvider
+  extends TypedProviderBase<Promise<CosmosNativeProvider>> {
+  type: ProviderType.CosmJsNative;
+  provider: Promise<CosmosNativeProvider>;
+}
+
+export interface StarknetJsProvider
+  extends TypedProviderBase<StarknetProvider> {
+  type: ProviderType.Starknet;
+  provider: StarknetProvider;
+}
+
+export interface RadixProvider extends TypedProviderBase<RadixSDKProvider> {
+  type: ProviderType.Radix;
+  provider: RadixSDKProvider;
+}
+
+export interface ZKSyncProvider extends TypedProviderBase<ZKSyncBaseProvider> {
+  type: ProviderType.ZkSync;
+  provider: ZKSyncBaseProvider;
+}
+
 export type TypedProvider =
   | EthersV5Provider
   // | EthersV6Provider
   | ViemProvider
   | SolanaWeb3Provider
   | CosmJsProvider
-  | CosmJsWasmProvider;
+  | CosmJsWasmProvider
+  | CosmJsNativeProvider
+  | StarknetJsProvider
+  | ZKSyncProvider
+  | RadixProvider;
 
 /**
  * Contracts with discriminated union of provider type
@@ -169,13 +249,26 @@ export interface CosmJsWasmContract
   contract: CosmWasmContract;
 }
 
+export interface StarknetJsContract
+  extends TypedContractBase<StarknetContract> {
+  type: ProviderType.Starknet;
+  contract: StarknetContract;
+}
+
+export interface ZKSyncContract extends TypedContractBase<ZKSyncBaseContract> {
+  type: ProviderType.ZkSync;
+  contract: ZKSyncBaseContract;
+}
+
 export type TypedContract =
   | EthersV5Contract
   // | EthersV6Contract
   | ViemContract
   | SolanaWeb3Contract
   | CosmJsContract
-  | CosmJsWasmContract;
+  | CosmJsWasmContract
+  | StarknetJsContract
+  | ZKSyncBaseContract;
 
 /**
  * Transactions with discriminated union of provider type
@@ -190,10 +283,6 @@ export interface EthersV5Transaction
   extends TypedTransactionBase<EV5Transaction> {
   type: ProviderType.EthersV5;
   transaction: EV5Transaction;
-}
-
-export interface AnnotatedEV5Transaction extends EV5Transaction {
-  annotation?: string;
 }
 
 export interface ViemTransaction extends TypedTransactionBase<VTransaction> {
@@ -218,13 +307,71 @@ export interface CosmJsWasmTransaction
   transaction: ExecuteInstruction;
 }
 
+export interface CosmJsNativeTransaction
+  extends TypedTransactionBase<CmTransaction> {
+  type: ProviderType.CosmJsNative;
+  transaction: CmTransaction;
+}
+
+export interface StarknetJsTransaction
+  extends TypedTransactionBase<StarknetInvocation> {
+  type: ProviderType.Starknet;
+  transaction: StarknetInvocation;
+}
+
+export interface RadixTransaction
+  extends TypedTransactionBase<RadixSDKTransaction> {
+  type: ProviderType.Radix;
+  transaction: RadixSDKTransaction;
+}
+
+export interface ZKSyncTransaction
+  extends TypedTransactionBase<zkSyncTypes.TransactionRequest> {
+  type: ProviderType.ZkSync;
+  transaction: zkSyncTypes.TransactionRequest;
+}
+
 export type TypedTransaction =
   | EthersV5Transaction
   // | EthersV6Transaction
   | ViemTransaction
   | SolanaWeb3Transaction
   | CosmJsTransaction
-  | CosmJsWasmTransaction;
+  | CosmJsWasmTransaction
+  | CosmJsNativeTransaction
+  | StarknetJsTransaction
+  | ZKSyncTransaction
+  | RadixTransaction;
+
+export type AnnotatedEV5Transaction = Annotated<EV5Transaction>;
+
+export type AnnotatedViemTransaction = Annotated<VTransaction>;
+
+export type AnnotatedSolanaWeb3Transaction = Annotated<SolTransaction>;
+
+export type AnnotatedCosmJsTransaction = Annotated<CmTransaction>;
+
+export type AnnotatedCosmJsWasmTransaction = Annotated<ExecuteInstruction>;
+
+export type AnnotatedCosmJsNativeTransaction = Annotated<CmTransaction>;
+
+export type AnnotatedStarknetJsTransaction = Annotated<StarknetInvocation>;
+
+export type AnnotatedZKSyncTransaction =
+  Annotated<zkSyncTypes.TransactionRequest>;
+
+export type AnnotatedRadixTransaction = Annotated<RadixSDKTransaction>;
+
+export type TypedAnnotatedTransaction =
+  | AnnotatedEV5Transaction
+  | AnnotatedViemTransaction
+  | AnnotatedSolanaWeb3Transaction
+  | AnnotatedCosmJsTransaction
+  | AnnotatedCosmJsWasmTransaction
+  | AnnotatedCosmJsNativeTransaction
+  | AnnotatedStarknetJsTransaction
+  | AnnotatedZKSyncTransaction
+  | AnnotatedRadixTransaction;
 
 /**
  * Transaction receipt/response with discriminated union of provider type
@@ -265,9 +412,37 @@ export interface CosmJsWasmTransactionReceipt
   receipt: DeliverTxResponse;
 }
 
+export interface CosmJsNativeTransactionReceipt
+  extends TypedTransactionReceiptBase<DeliverTxResponse> {
+  type: ProviderType.CosmJsNative;
+  receipt: DeliverTxResponse;
+}
+
+export interface StarknetJsTransactionReceipt
+  extends TypedTransactionReceiptBase<StarknetTxReceipt> {
+  type: ProviderType.Starknet;
+  receipt: StarknetTxReceipt;
+}
+
+export interface ZKSyncTransactionReceipt
+  extends TypedTransactionReceiptBase<zkSyncTypes.TransactionReceipt> {
+  type: ProviderType.ZkSync;
+  receipt: zkSyncTypes.TransactionReceipt;
+}
+
+export interface RadixTransactionReceipt
+  extends TypedTransactionReceiptBase<RadixSDKReceipt> {
+  type: ProviderType.Radix;
+  receipt: RadixSDKReceipt;
+}
+
 export type TypedTransactionReceipt =
   | EthersV5TransactionReceipt
   | ViemTransactionReceipt
   | SolanaWeb3TransactionReceipt
   | CosmJsTransactionReceipt
-  | CosmJsWasmTransactionReceipt;
+  | CosmJsWasmTransactionReceipt
+  | CosmJsNativeTransactionReceipt
+  | StarknetJsTransactionReceipt
+  | ZKSyncTransactionReceipt
+  | RadixTransactionReceipt;

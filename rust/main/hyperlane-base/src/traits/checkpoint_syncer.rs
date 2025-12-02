@@ -1,10 +1,11 @@
 use std::fmt::Debug;
 
 use async_trait::async_trait;
-use eyre::Result;
+use eyre::{Report, Result};
 
-use crate::AgentMetadata;
-use hyperlane_core::{ReorgEvent, SignedAnnouncement, SignedCheckpointWithMessageId};
+use hyperlane_core::{
+    ReorgEvent, ReorgEventResponse, SignedAnnouncement, SignedCheckpointWithMessageId,
+};
 
 /// A generic trait to read/write Checkpoints offchain
 #[async_trait]
@@ -15,9 +16,15 @@ pub trait CheckpointSyncer: Debug + Send + Sync {
     async fn write_latest_index(&self, index: u32) -> Result<()>;
     /// Update the latest index of this syncer if necessary
     async fn update_latest_index(&self, index: u32) -> Result<()> {
-        let curr = self.latest_index().await?.unwrap_or(0);
-        if index > curr {
-            self.write_latest_index(index).await?;
+        match self.latest_index().await? {
+            None => {
+                self.write_latest_index(index).await?;
+            }
+            Some(curr) => {
+                if index > curr {
+                    self.write_latest_index(index).await?;
+                }
+            }
         }
         Ok(())
     }
@@ -29,7 +36,7 @@ pub trait CheckpointSyncer: Debug + Send + Sync {
         signed_checkpoint: &SignedCheckpointWithMessageId,
     ) -> Result<()>;
     /// Write the agent metadata to this syncer
-    async fn write_metadata(&self, metadata: &AgentMetadata) -> Result<()>;
+    async fn write_metadata(&self, serialized_metadata: &str) -> Result<()>;
     /// Write the signed announcement to this syncer
     async fn write_announcement(&self, signed_announcement: &SignedAnnouncement) -> Result<()>;
     /// Return the announcement storage location for this syncer
@@ -38,6 +45,11 @@ pub trait CheckpointSyncer: Debug + Send + Sync {
     /// the validator agent to stop publishing checkpoints. Once any remediation is done, this flag can be reset
     /// to resume operation.
     async fn write_reorg_status(&self, reorg_event: &ReorgEvent) -> Result<()>;
+    /// Writes the provided log message to the storage destination.
+    /// This log is publicly available. It must not contain sensitive information.
+    async fn write_reorg_rpc_responses(&self, _log: String) -> Result<()> {
+        Err(Report::msg("Destination does not support log writing."))
+    }
     /// Read the reorg status of the chain being validated
-    async fn reorg_status(&self) -> Result<Option<ReorgEvent>>;
+    async fn reorg_status(&self) -> Result<ReorgEventResponse>;
 }

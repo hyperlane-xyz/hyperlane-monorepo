@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{ops::Deref, sync::Arc};
 
 use ethers::{
     abi::RawLog,
@@ -6,7 +6,9 @@ use ethers::{
     types::{H160 as EthersH160, H256 as EthersH256},
 };
 use ethers_contract::{ContractError, EthEvent, LogMeta as EthersLogMeta};
-use hyperlane_core::{ChainResult, LogMeta, H512};
+use hyperlane_core::{ChainCommunicationError, ChainResult, LogMeta, H512};
+
+use crate::EthereumReorgPeriod;
 
 pub async fn fetch_raw_logs_and_meta<T: EthEvent, M>(
     tx_hash: H512,
@@ -43,4 +45,34 @@ where
         })
         .collect();
     Ok(logs)
+}
+
+pub async fn get_finalized_block_number<M, T>(
+    provider: T,
+    reorg_period: &EthereumReorgPeriod,
+) -> ChainResult<u32>
+where
+    M: Middleware + 'static,
+    T: Deref<Target = M>,
+{
+    let number = match *reorg_period {
+        EthereumReorgPeriod::Blocks(blocks) => provider
+            .get_block_number()
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+            .as_u32()
+            .saturating_sub(blocks),
+
+        EthereumReorgPeriod::Tag(tag) => provider
+            .get_block(tag)
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+            .and_then(|block| block.number)
+            .ok_or(ChainCommunicationError::CustomError(
+                "Unable to get finalized block number".into(),
+            ))?
+            .as_u32(),
+    };
+
+    Ok(number)
 }

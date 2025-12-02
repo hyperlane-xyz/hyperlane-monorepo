@@ -10,10 +10,21 @@ import { ChainMap } from '../types.js';
 
 import { ZChainName, ZNzUint, ZUint } from './customZodTypes.js';
 
+export enum EthJsonRpcBlockParameterTag {
+  Earliest = 'earliest',
+  Latest = 'latest',
+  Safe = 'safe',
+  Finalized = 'finalized',
+  Pending = 'pending',
+}
+
 export enum ExplorerFamily {
   Etherscan = 'etherscan',
   Blockscout = 'blockscout',
   Routescan = 'routescan',
+  Voyager = 'voyager',
+  ZkSync = 'zksync',
+  RadixDashboard = 'radixdashboard',
   Other = 'other',
 }
 
@@ -23,6 +34,23 @@ export enum ChainTechnicalStack {
   PolygonCDK = 'polygoncdk',
   PolkadotSubstrate = 'polkadotsubstrate',
   ZkSync = 'zksync',
+  Other = 'other',
+}
+
+export enum ChainStatus {
+  Live = 'live',
+  Disabled = 'disabled',
+}
+
+export enum ChainDisabledReason {
+  // chain is having issues with the RPC url
+  BadRpc = 'badrpc',
+  // chain is not being used anymore
+  Deprecated = 'deprecated',
+  // chain is not public or launched yet
+  Private = 'private',
+  // chain is not available due to upgrades or maintenance
+  Unavailable = 'unavailable',
   Other = 'other',
 }
 
@@ -69,6 +97,10 @@ export const RpcUrlSchema = z.object({
     .describe(
       'Default retry settings to be used by a provider such as MultiProvider.',
     ),
+  public: z
+    .boolean()
+    .optional()
+    .describe('Flag if the RPC is publicly available.'),
 });
 
 export type RpcUrl = z.infer<typeof RpcUrlSchema>;
@@ -103,6 +135,31 @@ export const NativeTokenSchema = z.object({
   denom: z.string().optional(),
 });
 
+export const GasPriceSchema = z.object({
+  denom: z.string(),
+  amount: z.string(),
+});
+
+export const DisabledChainSchema = z.object({
+  status: z
+    .literal(ChainStatus.Disabled)
+    .describe(
+      'The status that represents the chain availability. See ChainStatus for valid values.',
+    ),
+  reasons: z
+    .array(z.nativeEnum(ChainDisabledReason))
+    .min(1)
+    .describe('List of reasons explaining why the chain is disabled.'),
+});
+
+export const EnabledChainSchema = z.object({
+  status: z
+    .literal(ChainStatus.Live)
+    .describe(
+      'The status that represents the chain availability. See ChainStatus for valid values.',
+    ),
+});
+
 export type NativeToken = z.infer<typeof NativeTokenSchema>;
 
 /**
@@ -110,6 +167,13 @@ export type NativeToken = z.infer<typeof NativeTokenSchema>;
  * Specified as a Zod schema
  */
 export const ChainMetadataSchemaObject = z.object({
+  availability: z
+    .union([DisabledChainSchema, EnabledChainSchema])
+    .optional()
+    .describe(
+      'Specifies if the chain is available and the reasons why it is disabled.',
+    ),
+
   bech32Prefix: z
     .string()
     .optional()
@@ -125,9 +189,12 @@ export const ChainMetadataSchemaObject = z.object({
       confirmations: ZUint.describe(
         'Number of blocks to wait before considering a transaction confirmed.',
       ),
-      reorgPeriod: ZUint.optional().describe(
-        'Number of blocks before a transaction has a near-zero chance of reverting.',
-      ),
+      reorgPeriod: z
+        .union([ZUint, z.string()])
+        .optional()
+        .describe(
+          'Number of blocks before a transaction has a near-zero chance of reverting or block tag.',
+        ),
       estimateBlockTime: z
         .number()
         .positive()
@@ -137,6 +204,11 @@ export const ChainMetadataSchemaObject = z.object({
     })
     .optional()
     .describe('Block settings for the chain/deployment.'),
+
+  bypassBatchSimulation: z
+    .boolean()
+    .optional()
+    .describe('Whether to bypass batch simulation for this chain.'),
 
   chainId: z
     .union([ZNzUint, z.string()])
@@ -176,8 +248,8 @@ export const ChainMetadataSchemaObject = z.object({
       'A shorter human-readable name of the chain for use in user interfaces.',
     ),
 
-  domainId: ZNzUint.optional().describe(
-    'The domainId of the chain, should generally default to `chainId`. Consumer of `ChainMetadata` should use this value if present, but otherwise fallback to `chainId`.',
+  domainId: ZNzUint.describe(
+    'The domainId of the chain, should generally default to `chainId`. Consumer of `ChainMetadata` should use this value or `name` as a unique identifier.',
   ),
 
   gasCurrencyCoinGeckoId: z
@@ -189,6 +261,11 @@ export const ChainMetadataSchemaObject = z.object({
     .string()
     .optional()
     .describe('The URL of the gnosis safe transaction service.'),
+
+  gnosisSafeApiKey: z
+    .string()
+    .optional()
+    .describe('The API key for the gnosis safe transaction service.'),
 
   grpcUrls: z
     .array(RpcUrlSchema)
@@ -254,6 +331,10 @@ export const ChainMetadataSchemaObject = z.object({
     .record(z.any())
     .optional()
     .describe('Properties to include when forming transaction requests.'),
+
+  gasPrice: GasPriceSchema.optional().describe(
+    'The gas price of Cosmos chains.',
+  ),
 });
 
 // Passthrough allows for extra fields to remain in the object (such as extensions consumers may want like `mailbox`)
@@ -270,7 +351,8 @@ export const ChainMetadataSchema = ChainMetadataSchemaExtensible.refine(
     )
       return false;
     else if (
-      metadata.protocol === ProtocolType.Cosmos &&
+      (metadata.protocol === ProtocolType.Cosmos ||
+        metadata.protocol === ProtocolType.CosmosNative) &&
       typeof metadata.chainId !== 'string'
     )
       return false;
@@ -289,7 +371,8 @@ export const ChainMetadataSchema = ChainMetadataSchemaExtensible.refine(
   .refine(
     (metadata) => {
       if (
-        metadata.protocol === ProtocolType.Cosmos &&
+        (metadata.protocol === ProtocolType.Cosmos ||
+          metadata.protocol === ProtocolType.CosmosNative) &&
         (!metadata.bech32Prefix || !metadata.slip44)
       )
         return false;
@@ -303,7 +386,8 @@ export const ChainMetadataSchema = ChainMetadataSchemaExtensible.refine(
   .refine(
     (metadata) => {
       if (
-        metadata.protocol === ProtocolType.Cosmos &&
+        (metadata.protocol === ProtocolType.Cosmos ||
+          metadata.protocol === ProtocolType.CosmosNative) &&
         (!metadata.restUrls || !metadata.grpcUrls)
       )
         return false;
@@ -317,7 +401,8 @@ export const ChainMetadataSchema = ChainMetadataSchemaExtensible.refine(
   .refine(
     (metadata) => {
       if (
-        metadata.protocol === ProtocolType.Cosmos &&
+        (metadata.protocol === ProtocolType.Cosmos ||
+          metadata.protocol === ProtocolType.CosmosNative) &&
         metadata.nativeToken &&
         !metadata.nativeToken.denom
       )
@@ -371,7 +456,7 @@ export function getChainIdNumber(chainMetadata: ChainMetadata): number {
   else throw new Error('ChainId is not a number, chain may be of Cosmos type');
 }
 
-export function getReorgPeriod(chainMetadata: ChainMetadata): number {
+export function getReorgPeriod(chainMetadata: ChainMetadata): string | number {
   if (chainMetadata.blocks?.reorgPeriod !== undefined)
     return chainMetadata.blocks.reorgPeriod;
   else throw new Error('Chain has no reorg period');

@@ -15,14 +15,11 @@ pragma solidity >=0.8.0;
 
 // ============ External Imports ============
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+
 // ============ Internal Imports ============
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {IStaticWeightedMultisigIsm} from "../../interfaces/isms/IWeightedMultisigIsm.sol";
-import {Message} from "../../libs/Message.sol";
-
-import {MerkleLib} from "../../libs/Merkle.sol";
 import {AbstractMultisig} from "./AbstractMultisigIsm.sol";
 
 /**
@@ -73,11 +70,14 @@ abstract contract AbstractStaticWeightedMultisigIsm is
 
         // assumes that signatures are ordered by validator
         for (
-            uint256 i = 0;
-            _totalWeight < _thresholdWeight && i < _validatorCount;
-            ++i
+            uint256 signatureIndex = 0;
+            _totalWeight < _thresholdWeight && signatureIndex < _validatorCount;
+            ++signatureIndex
         ) {
-            address _signer = ECDSA.recover(_digest, signatureAt(_metadata, i));
+            address _signer = ECDSA.recover(
+                _digest,
+                signatureAt(_metadata, signatureIndex)
+            );
             // loop through remaining validators until we find a match
             while (
                 _validatorIndex < _validatorCount &&
@@ -90,6 +90,7 @@ abstract contract AbstractStaticWeightedMultisigIsm is
 
             // add the weight of the current validator
             _totalWeight += _validators[_validatorIndex].weight;
+            ++_validatorIndex;
         }
         require(
             _totalWeight >= _thresholdWeight,

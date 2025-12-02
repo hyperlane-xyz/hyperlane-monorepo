@@ -1,5 +1,312 @@
 # @hyperlane-xyz/utils
 
+## 19.10.0
+
+### Minor Changes
+
+- c2a64e8c5: feat: add setTokenHook to altvm interface
+
+### Patch Changes
+
+- aad2988c9: Export Logger type from utils for explicit typing in deploy-sdk
+
+## 19.9.0
+
+### Minor Changes
+
+- 8c027d852: Let retryAsync() to break the retry loop for non-recoverable errors
+
+## 19.8.0
+
+### Minor Changes
+
+- 2ed21c97d: Fix bug in the address detection logic that prevented radix localnet addresses to be recognized as valid radix addresses
+- 78ff6cd47: add new methods for altvm interface
+- 3f75ad86d: Add `inKubernetes` util fn.
+
+## 19.7.0
+
+## 19.6.0
+
+### Minor Changes
+
+- 419e16910: add the objDiff function to determine the field with primitive values that are different or not present when comparing 2 objects of the same type
+
+## 19.6.0-beta.0
+
+### Minor Changes
+
+- 419e16910: add the objDiff function to determine the field with primitive values that are different or not present when comparing 2 objects of the same type
+
+## 19.5.0
+
+### Minor Changes
+
+- 312826d10: Updated the AltVM provider connect interface so that it can optionally accept extra params needed for instantiating the provider
+
+## 19.4.0
+
+### Patch Changes
+
+- 5a4e22d34: Bump @solana/web3.js dependency explicitly from ^1.95.4 to ^1.98.4.
+
+## 19.3.0
+
+## 19.2.0
+
+## 19.1.1
+
+## 19.1.0
+
+## 19.0.0
+
+### Major Changes
+
+- 32479e139: feat: add AltVM interface
+
+### Minor Changes
+
+- 8eab305bd: chore: add transactionToPrintableJson to altvm interface
+- e42a0e8e1: chore: updated AltVM interface
+
+## 18.3.0
+
+### Minor Changes
+
+- 2c47e1143: Update `pick` method to correctly represent the type of the returned object
+- 6b8419370: export radix ism module
+
+### Patch Changes
+
+- c41bc3b93: fix cosmos native bytes to address
+
+## 18.2.0
+
+## 18.1.0
+
+## 18.0.0
+
+### Minor Changes
+
+- cfc0eb2a7: Add radix explorer type
+
+## 17.0.0
+
+### Major Changes
+
+- 8c15edc67: Added Radix Protocol Type
+
+### Patch Changes
+
+- e0bda316a: Ignore dynamic import in webpack builds
+
+## 16.2.0
+
+## 16.1.1
+
+## 16.1.0
+
+## 16.0.0
+
+## 15.0.0
+
+### Minor Changes
+
+- 451f3f6c3: Support pino-pretty in development
+- a33c8abd4: Implement `convertToScaledAmount` for amounts that need scaling
+
+## 14.4.0
+
+## 14.3.0
+
+## 14.2.0
+
+## 14.1.0
+
+## 14.0.0
+
+### Patch Changes
+
+- 7ad8e394c: fix starknet token adapter
+
+## 13.4.0
+
+### Minor Changes
+
+- 0ec92f775: Update starknet dependency from v6 to v7.
+- ec8d196d9: Fix CosmosNative address parsing
+- bacf16a80: Export yaml eslint config
+
+## 13.3.0
+
+## 13.2.1
+
+### Patch Changes
+
+- 72887f7: Update to ethers v5.8.0.
+
+## 13.2.0
+
+## 13.1.1
+
+### Patch Changes
+
+- ba4deea: Revert workspace dependency syntax.
+
+## 13.1.0
+
+### Minor Changes
+
+- f41f766: Add sort-yaml-arrays eslint rule
+
+## 13.0.0
+
+### Minor Changes
+
+- 0de63e0: Add Starknet address and tx utils
+
+## 12.6.0
+
+### Minor Changes
+
+- d182d7d: Adds the sortArraysInObject function to properly sort arrays in an object recursively given an optional sort function
+- b360802: Add the isCosmosIbcDenomAddress function and improve the config expansion logic to correctly format the destination gas
+
+## 12.5.0
+
+## 12.4.0
+
+## 12.3.0
+
+### Minor Changes
+
+- 7500bd6fe: implemented cosmos protocol type and cosmos token adapter
+
+## 12.2.0
+
+## 12.1.0
+
+## 12.0.0
+
+## 11.0.0
+
+### Major Changes
+
+- 3b060c3e1: Stub new CosmosModule ProtocolType.
+
+## 10.0.0
+
+### Minor Changes
+
+- b8d95fc95: implement custom ESLint rule for restricted imports from exports
+
+## 9.2.1
+
+## 9.2.0
+
+## 9.1.0
+
+## 9.0.0
+
+### Major Changes
+
+- 4df37393f: Added minimal support for Starknet networks (for successful registry build)
+
+## 8.9.0
+
+### Minor Changes
+
+- 05f89650b: Added utils for fetching extra lockboxes data from a xERC20 warp route
+- 3518f8901: Add ZERO_ADDRESS_HEX_32 constant.
+
+## 8.8.1
+
+## 8.8.0
+
+## 8.7.0
+
+## 8.6.1
+
+## 8.6.0
+
+## 8.5.0
+
+## 8.4.0
+
+## 8.3.0
+
+## 8.2.0
+
+## 8.1.0
+
+## 8.0.0
+
+### Minor Changes
+
+- 79f8197f3: Added `isPrivateKeyEvm` function for validating EVM private keys
+
+### Patch Changes
+
+- 8834a8c92: Require concurrency > 0 for concurrentMap
+
+## 7.3.0
+
+## 7.2.0
+
+### Minor Changes
+
+- fa6d5f5c6: Add toUpperCamelCase and deepFind functions
+
+## 7.1.0
+
+### Minor Changes
+
+- 0e285a443: Add an isRelativeUrl function
+
+## 7.0.0
+
+### Major Changes
+
+- f48cf8766: Upgrade Viem to 2.2 and Solana Web3 to 1.9
+  Rename `chainMetadataToWagmiChain` to `chainMetadataToViemChain`
+
+### Patch Changes
+
+- e6f9d5c4f: Added a mustGet helper
+
+## 6.0.0
+
+### Major Changes
+
+- e3b97c455: Detangle assumption that chainId == domainId for EVM chains. Domain IDs and Chain Names are still unique, but chainId is no longer guaranteed to be a unique identifier. Domain ID is no longer an optional field and is now required for all chain metadata.
+
+## 5.7.0
+
+### Patch Changes
+
+- e104cf6aa: Dedupe internals of hook and ISM module deploy code
+- 04108155d: fix median utils func + add test
+- 39a9b2038: Filter undefined/null values in invertKeysAndValues function
+
+## 5.6.2
+
+### Patch Changes
+
+- 5fd4267e7: Supported non-32 byte non-EVM recipients when sending warps from Sealevel
+- a36fc5fb2: fix: isObject utils fn should return only boolean value
+
+## 5.6.1
+
+## 5.6.0
+
+### Minor Changes
+
+- 29341950e: Adds new `core check` command to compare local configuration and on chain deployments. Adds memoization to the EvmHookReader to avoid repeating configuration derivation
+
+### Patch Changes
+
+- f1712deb7: Fix objMerge implementation
+
 ## 5.5.0
 
 ### Minor Changes

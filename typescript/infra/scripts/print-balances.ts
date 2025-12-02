@@ -104,13 +104,17 @@ async function main() {
     }),
   );
 
-  const formattedBalances = balancesObject.reduce((acc, chainData) => {
-    const { chain, symbol, ...roleBalances } = chainData;
-    acc[chain] = { symbol, ...roleBalances };
-    return acc;
-  }, {} as Record<string, any>);
+  const formattedBalances = balancesObject.reduce(
+    (acc, chainData) => {
+      const { chain, symbol, ...roleBalances } = chainData;
+      acc[chain] = { symbol, ...roleBalances };
+      return acc;
+    },
+    {} as Record<string, any>,
+  );
 
   console.table(formattedBalances);
+  process.exit(0);
 }
 
 main()

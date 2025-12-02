@@ -1,6 +1,13 @@
 import { fromBech32, normalizeBech32, toBech32 } from '@cosmjs/encoding';
 import { PublicKey } from '@solana/web3.js';
-import { utils as ethersUtils } from 'ethers';
+import { bech32m } from 'bech32';
+import { Wallet, utils as ethersUtils } from 'ethers';
+import {
+  addAddressPadding,
+  encode,
+  num,
+  validateAndParseAddress,
+} from 'starknet';
 
 import { isNullish } from './typeof.js';
 import { Address, HexString, ProtocolType } from './types.js';
@@ -8,6 +15,10 @@ import { assert } from './validation.js';
 
 const EVM_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
 const SEALEVEL_ADDRESS_REGEX = /^[a-zA-Z0-9]{36,44}$/;
+const COSMOS_NATIVE_ADDRESS_REGEX = /^(0x)?[0-9a-fA-F]{64}$/;
+const STARKNET_ADDRESS_REGEX = /^(0x)?[0-9a-fA-F]{64}$/;
+const RADIX_ADDRESS_REGEX =
+  /^(account|component)_(rdx|loc|sim|tdx_[\d]_)[a-z0-9]{55}$/;
 
 const HEX_BYTES32_REGEX = /^0x[a-fA-F0-9]{64}$/;
 
@@ -24,10 +35,18 @@ const COSMOS_FACTORY_TOKEN_REGEX = new RegExp(
 const EVM_TX_HASH_REGEX = /^0x([A-Fa-f0-9]{64})$/;
 const SEALEVEL_TX_HASH_REGEX = /^[a-zA-Z1-9]{88}$/;
 const COSMOS_TX_HASH_REGEX = /^(0x)?[A-Fa-f0-9]{64}$/;
+const STARKNET_TX_HASH_REGEX = /^(0x)?[0-9a-fA-F]{64}$/;
+const RADIX_TX_HASH_REGEX = /^txid_(rdx|sim|tdx_[\d]_)[a-z0-9]{59}$/;
 
 const EVM_ZEROISH_ADDRESS_REGEX = /^(0x)?0*$/;
 const SEALEVEL_ZEROISH_ADDRESS_REGEX = /^1+$/;
 const COSMOS_ZEROISH_ADDRESS_REGEX = /^[a-z]{1,10}?1[0]+$/;
+const COSMOS_NATIVE_ZEROISH_ADDRESS_REGEX = /^(0x)?0*$/;
+const STARKNET_ZEROISH_ADDRESS_REGEX = /^(0x)?0*$/;
+const RADIX_ZEROISH_ADDRESS_REGEX = /^0*$/;
+
+export const ZERO_ADDRESS_HEX_32 =
+  '0x0000000000000000000000000000000000000000000000000000000000000000';
 
 export function isAddressEvm(address: Address) {
   return EVM_ADDRESS_REGEX.test(address);
@@ -45,14 +64,36 @@ export function isAddressCosmos(address: Address) {
   );
 }
 
+export function isAddressCosmosNative(address: Address) {
+  return COSMOS_NATIVE_ADDRESS_REGEX.test(address);
+}
+
+export function isCosmosIbcDenomAddress(address: Address): boolean {
+  return IBC_DENOM_REGEX.test(address);
+}
+
+export function isAddressStarknet(address: Address) {
+  return STARKNET_ADDRESS_REGEX.test(address);
+}
+
+export function isAddressRadix(address: Address) {
+  return RADIX_ADDRESS_REGEX.test(address);
+}
+
 export function getAddressProtocolType(address: Address) {
   if (!address) return undefined;
   if (isAddressEvm(address)) {
     return ProtocolType.Ethereum;
   } else if (isAddressCosmos(address)) {
     return ProtocolType.Cosmos;
+  } else if (isAddressCosmosNative(address)) {
+    return ProtocolType.CosmosNative;
   } else if (isAddressSealevel(address)) {
     return ProtocolType.Sealevel;
+  } else if (isAddressStarknet(address)) {
+    return ProtocolType.Starknet;
+  } else if (isAddressRadix(address)) {
+    return ProtocolType.Radix;
   } else {
     return undefined;
   }
@@ -80,7 +121,7 @@ export function isValidAddressEvm(address: Address) {
   try {
     const isValid = address && ethersUtils.isAddress(address);
     return !!isValid;
-  } catch (error) {
+  } catch {
     return false;
   }
 }
@@ -90,7 +131,7 @@ export function isValidAddressSealevel(address: Address) {
   try {
     const isValid = address && new PublicKey(address).toBase58();
     return !!isValid;
-  } catch (error) {
+  } catch {
     return false;
   }
 }
@@ -104,7 +145,25 @@ export function isValidAddressCosmos(address: Address) {
         COSMOS_FACTORY_TOKEN_REGEX.test(address) ||
         fromBech32(address));
     return !!isValid;
-  } catch (error) {
+  } catch {
+    return false;
+  }
+}
+
+export function isValidAddressStarknet(address: Address) {
+  try {
+    const isValid = address && validateAndParseAddress(address);
+    return !!isValid;
+  } catch {
+    return false;
+  }
+}
+
+export function isValidAddressRadix(address: Address) {
+  try {
+    const isValid = address && RADIX_ADDRESS_REGEX.test(address);
+    return !!isValid;
+  } catch {
     return false;
   }
 }
@@ -115,6 +174,9 @@ export function isValidAddress(address: Address, protocol?: ProtocolType) {
       [ProtocolType.Ethereum]: isValidAddressEvm,
       [ProtocolType.Sealevel]: isValidAddressSealevel,
       [ProtocolType.Cosmos]: isValidAddressCosmos,
+      [ProtocolType.CosmosNative]: isValidAddressCosmos,
+      [ProtocolType.Starknet]: isValidAddressStarknet,
+      [ProtocolType.Radix]: isValidAddressRadix,
     },
     address,
     false,
@@ -126,7 +188,7 @@ export function normalizeAddressEvm(address: Address) {
   if (isZeroishAddress(address)) return address;
   try {
     return ethersUtils.getAddress(address);
-  } catch (error) {
+  } catch {
     return address;
   }
 }
@@ -135,7 +197,7 @@ export function normalizeAddressSealevel(address: Address) {
   if (isZeroishAddress(address)) return address;
   try {
     return new PublicKey(address).toBase58();
-  } catch (error) {
+  } catch {
     return address;
   }
 }
@@ -144,9 +206,22 @@ export function normalizeAddressCosmos(address: Address) {
   if (isZeroishAddress(address)) return address;
   try {
     return normalizeBech32(address);
-  } catch (error) {
+  } catch {
     return address;
   }
+}
+
+export function normalizeAddressStarknet(address: Address) {
+  if (isZeroishAddress(address)) return address;
+  try {
+    return validateAndParseAddress(address);
+  } catch {
+    return address;
+  }
+}
+
+export function normalizeAddressRadix(address: Address) {
+  return address;
 }
 
 export function normalizeAddress(address: Address, protocol?: ProtocolType) {
@@ -155,6 +230,9 @@ export function normalizeAddress(address: Address, protocol?: ProtocolType) {
       [ProtocolType.Ethereum]: normalizeAddressEvm,
       [ProtocolType.Sealevel]: normalizeAddressSealevel,
       [ProtocolType.Cosmos]: normalizeAddressCosmos,
+      [ProtocolType.CosmosNative]: normalizeAddressCosmos,
+      [ProtocolType.Starknet]: normalizeAddressStarknet,
+      [ProtocolType.Radix]: normalizeAddressRadix,
     },
     address,
     address,
@@ -174,6 +252,14 @@ export function eqAddressCosmos(a1: Address, a2: Address) {
   return normalizeAddressCosmos(a1) === normalizeAddressCosmos(a2);
 }
 
+export function eqAddressStarknet(a1: Address, a2: Address) {
+  return normalizeAddressStarknet(a1) === normalizeAddressStarknet(a2);
+}
+
+export function eqAddressRadix(a1: Address, a2: Address) {
+  return normalizeAddressRadix(a1) === normalizeAddressRadix(a2);
+}
+
 export function eqAddress(a1: Address, a2: Address) {
   const p1 = getAddressProtocolType(a1);
   const p2 = getAddressProtocolType(a2);
@@ -183,6 +269,9 @@ export function eqAddress(a1: Address, a2: Address) {
       [ProtocolType.Ethereum]: (_a1) => eqAddressEvm(_a1, a2),
       [ProtocolType.Sealevel]: (_a1) => eqAddressSol(_a1, a2),
       [ProtocolType.Cosmos]: (_a1) => eqAddressCosmos(_a1, a2),
+      [ProtocolType.CosmosNative]: (_a1) => eqAddressCosmos(_a1, a2),
+      [ProtocolType.Starknet]: (_a1) => eqAddressStarknet(_a1, a2),
+      [ProtocolType.Radix]: (_a1) => eqAddressRadix(_a1, a2),
     },
     a1,
     false,
@@ -202,6 +291,14 @@ export function isValidTransactionHashCosmos(input: string) {
   return COSMOS_TX_HASH_REGEX.test(input);
 }
 
+export function isValidTransactionHashStarknet(input: string) {
+  return STARKNET_TX_HASH_REGEX.test(input);
+}
+
+export function isValidTransactionHashRadix(input: string) {
+  return RADIX_TX_HASH_REGEX.test(input);
+}
+
 export function isValidTransactionHash(input: string, protocol: ProtocolType) {
   if (protocol === ProtocolType.Ethereum) {
     return isValidTransactionHashEvm(input);
@@ -209,6 +306,12 @@ export function isValidTransactionHash(input: string, protocol: ProtocolType) {
     return isValidTransactionHashSealevel(input);
   } else if (protocol === ProtocolType.Cosmos) {
     return isValidTransactionHashCosmos(input);
+  } else if (protocol === ProtocolType.CosmosNative) {
+    return isValidTransactionHashCosmos(input);
+  } else if (protocol === ProtocolType.Starknet) {
+    return isValidTransactionHashStarknet(input);
+  } else if (protocol === ProtocolType.Radix) {
+    return isValidTransactionHashRadix(input);
   } else {
     return false;
   }
@@ -218,7 +321,10 @@ export function isZeroishAddress(address: Address) {
   return (
     EVM_ZEROISH_ADDRESS_REGEX.test(address) ||
     SEALEVEL_ZEROISH_ADDRESS_REGEX.test(address) ||
-    COSMOS_ZEROISH_ADDRESS_REGEX.test(address)
+    COSMOS_ZEROISH_ADDRESS_REGEX.test(address) ||
+    COSMOS_NATIVE_ZEROISH_ADDRESS_REGEX.test(address) ||
+    STARKNET_ZEROISH_ADDRESS_REGEX.test(address) ||
+    RADIX_ZEROISH_ADDRESS_REGEX.test(address)
   );
 }
 
@@ -263,6 +369,30 @@ export function addressToBytesCosmos(address: Address): Uint8Array {
   return fromBech32(address).data;
 }
 
+export function addressToBytesCosmosNative(address: Address): Uint8Array {
+  return Buffer.from(strip0x(address), 'hex');
+}
+
+export function addressToBytesStarknet(address: Address): Uint8Array {
+  const normalizedAddress = normalizeAddressStarknet(address);
+  return num.hexToBytes(normalizedAddress);
+}
+
+export function addressToBytesRadix(address: Address): Uint8Array {
+  let byteArray = new Uint8Array(
+    bech32m.fromWords(bech32m.decode(address).words),
+  );
+
+  // Ensure the byte array is 32 bytes long, padding from the left if necessary
+  if (byteArray.length < 32) {
+    const paddedArray = new Uint8Array(32);
+    paddedArray.set(byteArray, 32 - byteArray.length);
+    byteArray = paddedArray;
+  }
+
+  return byteArray;
+}
+
 export function addressToBytes(
   address: Address,
   protocol?: ProtocolType,
@@ -272,6 +402,9 @@ export function addressToBytes(
       [ProtocolType.Ethereum]: addressToBytesEvm,
       [ProtocolType.Sealevel]: addressToBytesSol,
       [ProtocolType.Cosmos]: addressToBytesCosmos,
+      [ProtocolType.CosmosNative]: addressToBytesCosmosNative,
+      [ProtocolType.Starknet]: addressToBytesStarknet,
+      [ProtocolType.Radix]: addressToBytesRadix,
     },
     address,
     new Uint8Array(),
@@ -316,6 +449,14 @@ export function bytesToBytes32(bytes: Uint8Array): string {
   );
 }
 
+// Pad bytes to a certain length, padding with 0s at the start
+export function padBytesToLength(bytes: Uint8Array, length: number) {
+  if (bytes.length > length) {
+    throw new Error(`bytes must be ${length} bytes or less`);
+  }
+  return Buffer.concat([Buffer.alloc(length - bytes.length), bytes]);
+}
+
 export function bytesToAddressEvm(bytes: Uint8Array): Address {
   return bytes32ToAddress(Buffer.from(bytes).toString('hex'));
 }
@@ -330,6 +471,51 @@ export function bytesToAddressCosmos(
 ): Address {
   if (!prefix) throw new Error('Prefix required for Cosmos address');
   return toBech32(prefix, bytes);
+}
+
+export function bytesToAddressCosmosNative(
+  bytes: Uint8Array,
+  prefix: string,
+): Address {
+  if (!prefix) throw new Error('Prefix required for Cosmos Native address');
+
+  // if the bytes are of length 32 we have to check if the bytes are a cosmos
+  // native account address or an ID from the hyperlane cosmos module. A cosmos
+  // native account address is padded with 12 bytes in front.
+  if (bytes.length === 32) {
+    if (bytes.slice(0, 12).every((b) => !b)) {
+      // since the first 12 bytes are empty we know it is an account address
+      return toBech32(prefix, bytes.slice(12));
+    }
+    // else it is an ID from the hyperlane cosmos module and we just need
+    // to represent the bytes in hex
+    return ensure0x(Buffer.from(bytes).toString('hex'));
+  }
+
+  return toBech32(prefix, bytes);
+}
+
+export function bytesToAddressStarknet(bytes: Uint8Array): Address {
+  const hexString = encode.buf2hex(bytes);
+  return addAddressPadding(hexString);
+}
+
+export function bytesToAddressRadix(
+  bytes: Uint8Array,
+  prefix: string,
+): Address {
+  if (!prefix) throw new Error('Prefix required for Radix address');
+  // If the bytes array is larger than or equal to 30 bytes, take the last 30 bytes
+  // Otherwise, pad with zeros from the left up to 30 bytes
+  if (bytes.length >= 30) {
+    bytes = bytes.slice(bytes.length - 30);
+  } else {
+    const paddedBytes = new Uint8Array(30);
+    paddedBytes.set(bytes, 30 - bytes.length);
+    bytes = paddedBytes;
+  }
+
+  return bech32m.encode(prefix, bech32m.toWords(bytes));
 }
 
 export function bytesToProtocolAddress(
@@ -347,6 +533,12 @@ export function bytesToProtocolAddress(
     return bytesToAddressSol(bytes);
   } else if (toProtocol === ProtocolType.Cosmos) {
     return bytesToAddressCosmos(bytes, prefix!);
+  } else if (toProtocol === ProtocolType.CosmosNative) {
+    return bytesToAddressCosmosNative(bytes, prefix!);
+  } else if (toProtocol === ProtocolType.Starknet) {
+    return bytesToAddressStarknet(bytes);
+  } else if (toProtocol === ProtocolType.Radix) {
+    return bytesToAddressRadix(bytes, prefix!);
   } else {
     throw new Error(`Unsupported protocol for address ${toProtocol}`);
   }
@@ -371,4 +563,25 @@ export function ensure0x(hexstr: string) {
 
 export function strip0x(hexstr: string) {
   return hexstr.startsWith('0x') ? hexstr.slice(2) : hexstr;
+}
+
+export function isPrivateKeyEvm(privateKey: string): boolean {
+  try {
+    return new Wallet(privateKey).privateKey === privateKey;
+  } catch {
+    throw new Error('Provided Private Key is not EVM compatible!');
+  }
+}
+
+export function hexToRadixCustomPrefix(
+  hex: string,
+  module: string,
+  prefix?: string,
+  length = 32,
+) {
+  let bytes = addressToBytes(hex);
+  bytes = bytes.slice(bytes.length - length);
+  prefix = prefix || 'account_rdx';
+  prefix = prefix.replace('account', module);
+  return bech32m.encode(prefix, bech32m.toWords(bytes));
 }

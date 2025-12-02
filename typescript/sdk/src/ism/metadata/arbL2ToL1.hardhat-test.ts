@@ -3,7 +3,6 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import { BigNumber } from 'ethers';
 import hre from 'hardhat';
-import { before } from 'mocha';
 import sinon from 'sinon';
 
 import {
@@ -16,8 +15,12 @@ import {
   MockArbSys__factory,
   TestRecipient,
 } from '@hyperlane-xyz/core';
-import { Address, WithAddress, objMap } from '@hyperlane-xyz/utils';
-import { bytes32ToAddress } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  WithAddress,
+  bytes32ToAddress,
+  objMap,
+} from '@hyperlane-xyz/utils';
 
 import { testChains } from '../../consts/testChains.js';
 import {
@@ -38,10 +41,10 @@ import { HyperlaneIsmFactory } from '../HyperlaneIsmFactory.js';
 import { ArbL2ToL1IsmConfig } from '../types.js';
 
 import { ArbL2ToL1MetadataBuilder } from './arbL2ToL1.js';
-import { MetadataContext } from './builder.js';
+import { MetadataContext } from './types.js';
 
 describe('ArbL2ToL1MetadataBuilder', () => {
-  const origin: ChainName = 'test1';
+  const origin: ChainName = 'test4';
   const destination: ChainName = 'test2';
   let core: HyperlaneCore;
   let ismFactory: HyperlaneIsmFactory;
@@ -93,29 +96,47 @@ describe('ArbL2ToL1MetadataBuilder', () => {
       [],
     );
     hookConfig = {
-      test1: {
+      test4: {
         type: HookType.ARB_L2_TO_L1,
         arbSys: mockArbSys.address,
         destinationChain: destination,
+        childHook: {
+          type: HookType.INTERCHAIN_GAS_PAYMASTER,
+          beneficiary: relayer.address,
+          owner: relayer.address,
+          oracleKey: relayer.address,
+          overhead: {
+            [destination]: 200000,
+          },
+          oracleConfig: {
+            [destination]: {
+              gasPrice: '20',
+              tokenExchangeRate: '10000000000',
+            },
+          },
+        },
       },
     };
 
-    factoryContracts = contractsMap.test1;
-    proxyFactoryAddresses = Object.keys(factoryContracts).reduce((acc, key) => {
-      acc[key] =
-        contractsMap[origin][key as keyof ProxyFactoryFactories].address;
-      return acc;
-    }, {} as Record<string, Address>) as HyperlaneAddresses<ProxyFactoryFactories>;
+    factoryContracts = contractsMap.test4;
+    proxyFactoryAddresses = Object.keys(factoryContracts).reduce(
+      (acc, key) => {
+        acc[key] =
+          contractsMap[origin][key as keyof ProxyFactoryFactories].address;
+        return acc;
+      },
+      {} as Record<string, Address>,
+    ) as HyperlaneAddresses<ProxyFactoryFactories>;
     arbBridge = await multiProvider.handleDeploy(
       origin,
       new MockArbBridge__factory(),
       [],
     );
-    hookConfig.test1.bridge = arbBridge.address;
+    hookConfig.test4.bridge = arbBridge.address;
 
     const hookModule = await EvmHookModule.create({
       chain: origin,
-      config: hookConfig.test1,
+      config: hookConfig.test4,
       proxyFactoryFactories: proxyFactoryAddresses,
       coreAddresses: core.getAddresses(origin),
       multiProvider,
@@ -215,9 +236,8 @@ describe('ArbL2ToL1MetadataBuilder', () => {
     it(`should build valid metadata if already preverified by 3rd party relayer`, async () => {
       setArbitrumBridgeStatus(ChildToParentMessageStatus.CONFIRMED);
 
-      const calldata = await metadataBuilder.buildArbitrumBridgeCalldata(
-        context,
-      );
+      const calldata =
+        await metadataBuilder.buildArbitrumBridgeCalldata(context);
       metadata = ArbL2ToL1MetadataBuilder.encodeArbL2ToL1Metadata(calldata);
       await arbBridge.executeTransaction(
         calldata.proof,

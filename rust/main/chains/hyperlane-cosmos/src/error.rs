@@ -14,33 +14,39 @@ pub enum HyperlaneCosmosError {
     /// base64 error
     #[error("{0}")]
     Base64(#[from] base64::DecodeError),
-    /// bech32 error
+    /// bech32 decode error
     #[error("{0}")]
-    Bech32(#[from] bech32::Error),
+    Bech32Decode(#[from] bech32::DecodeError),
+    /// bech32 encode error
+    #[error("{0}")]
+    Bech32Encode(#[from] bech32::EncodeError),
     /// gRPC error
     #[error("{0}")]
-    GrpcError(#[from] tonic::Status),
+    GrpcError(#[from] Box<tonic::Status>),
     /// Cosmos error
     #[error("{0}")]
-    CosmosError(#[from] cosmrs::Error),
+    CosmosError(#[from] Box<cosmrs::Error>),
     /// Cosmos error report
     #[error("{0}")]
-    CosmosErrorReport(#[from] cosmrs::ErrorReport),
-    #[error("{0}")]
+    CosmosErrorReport(#[from] Box<cosmrs::ErrorReport>),
     /// Cosmrs Tendermint Error
-    CosmrsTendermintError(#[from] cosmrs::tendermint::Error),
+    #[error("{0}")]
+    CosmrsTendermintError(#[from] Box<cosmrs::tendermint::Error>),
     #[error("{0}")]
     /// CosmWasm Error
-    CosmWasmError(#[from] cosmwasm_std::StdError),
+    CosmWasmError(#[from] Box<cosmwasm_std::StdError>),
     /// Tonic error
     #[error("{0}")]
     Tonic(#[from] tonic::transport::Error),
     /// Tonic codegen error
     #[error("{0}")]
     TonicGenError(#[from] tonic::codegen::StdError),
-    /// Tendermint RPC Error
+    /// Cometbft Error
     #[error(transparent)]
-    TendermintError(#[from] tendermint_rpc::error::Error),
+    CometbftError(#[from] Box<cometbft::error::Error>),
+    /// Cometbft RPC Error
+    #[error(transparent)]
+    CometbftRpcError(#[from] Box<cometbft_rpc::Error>),
     /// Prost error
     #[error("{0}")]
     Prost(#[from] prost::DecodeError),
@@ -73,6 +79,30 @@ pub enum HyperlaneCosmosError {
     ParsingAttemptsFailed(Vec<HyperlaneCosmosError>),
 }
 
+impl From<cosmrs::ErrorReport> for HyperlaneCosmosError {
+    fn from(value: cosmrs::ErrorReport) -> Self {
+        HyperlaneCosmosError::CosmosErrorReport(Box::new(value))
+    }
+}
+
+impl From<tonic::Status> for HyperlaneCosmosError {
+    fn from(value: tonic::Status) -> Self {
+        HyperlaneCosmosError::GrpcError(Box::new(value))
+    }
+}
+
+impl From<cosmrs::Error> for HyperlaneCosmosError {
+    fn from(value: cosmrs::Error) -> Self {
+        HyperlaneCosmosError::CosmosError(Box::new(value))
+    }
+}
+
+impl From<cosmwasm_std::StdError> for HyperlaneCosmosError {
+    fn from(value: cosmwasm_std::StdError) -> Self {
+        HyperlaneCosmosError::CosmWasmError(Box::new(value))
+    }
+}
+
 impl From<HyperlaneCosmosError> for ChainCommunicationError {
     fn from(value: HyperlaneCosmosError) -> Self {
         ChainCommunicationError::from_other(value)
@@ -82,5 +112,23 @@ impl From<HyperlaneCosmosError> for ChainCommunicationError {
 impl From<PublicKeyError> for HyperlaneCosmosError {
     fn from(value: PublicKeyError) -> Self {
         HyperlaneCosmosError::PublicKeyError(value.to_string())
+    }
+}
+
+impl From<cometbft_rpc::Error> for HyperlaneCosmosError {
+    fn from(value: cometbft_rpc::Error) -> Self {
+        HyperlaneCosmosError::CometbftRpcError(Box::new(value))
+    }
+}
+
+impl From<cometbft::Error> for HyperlaneCosmosError {
+    fn from(value: cometbft::Error) -> Self {
+        HyperlaneCosmosError::CometbftError(Box::new(value))
+    }
+}
+
+impl From<cosmrs::tendermint::Error> for HyperlaneCosmosError {
+    fn from(value: cosmrs::tendermint::Error) -> Self {
+        HyperlaneCosmosError::CosmrsTendermintError(Box::new(value))
     }
 }

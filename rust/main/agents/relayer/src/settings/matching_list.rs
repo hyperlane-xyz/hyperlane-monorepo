@@ -8,7 +8,13 @@ use std::{
     marker::PhantomData,
 };
 
-use hyperlane_core::{config::StrOrInt, utils::hex_or_base58_to_h256, HyperlaneMessage, H256};
+use derive_new::new;
+use ethers::utils::hex;
+use hyperlane_core::{
+    config::StrOrInt, utils::hex_or_base58_or_bech32_to_h256, HyperlaneMessage, QueueOperation,
+    H256,
+};
+use regex::Regex;
 use serde::{
     de::{Error, SeqAccess, Visitor},
     Deserialize, Deserializer,
@@ -23,10 +29,10 @@ use serde::{
 /// - single value in decimal or hex (must start with `0x`) format
 /// - list of values in decimal or hex format
 #[derive(Debug, Default, Clone)]
-pub struct MatchingList(Option<Vec<ListElement>>);
+pub struct MatchingList(pub Option<Vec<ListElement>>);
 
 #[derive(Debug, Clone, PartialEq)]
-enum Filter<T> {
+pub enum Filter<T> {
     Wildcard,
     Enumerated(Vec<T>),
 }
@@ -193,6 +199,23 @@ impl<'de> Visitor<'de> for FilterVisitor<H256> {
     }
 }
 
+impl Visitor<'_> for FilterVisitor<RegexWrapper> {
+    type Value = RegexWrapper;
+
+    fn expecting(&self, fmt: &mut Formatter) -> fmt::Result {
+        write!(fmt, "Expecting a valid regex pattern string")
+    }
+
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where
+        E: Error,
+    {
+        Regex::new(v)
+            .map(RegexWrapper)
+            .map_err(|err| E::custom(err.to_string()))
+    }
+}
+
 impl<'de> Deserialize<'de> for MatchingList {
     fn deserialize<D>(d: D) -> Result<Self, D::Error>
     where
@@ -220,9 +243,30 @@ impl<'de> Deserialize<'de> for Filter<H256> {
     }
 }
 
-#[derive(Debug, Deserialize, Clone)]
+/// Wrapper around Regex so we can impl traits for it
+#[derive(Clone, Debug)]
+pub struct RegexWrapper(pub Regex);
+
+impl<'de> Deserialize<'de> for RegexWrapper {
+    fn deserialize<D>(d: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        d.deserialize_any(FilterVisitor::<RegexWrapper>(Default::default()))
+    }
+}
+
+impl PartialEq for RegexWrapper {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.as_str() == other.0.as_str()
+    }
+}
+
+#[derive(Debug, Deserialize, Clone, PartialEq, new)]
 #[serde(tag = "type")]
-struct ListElement {
+pub struct ListElement {
+    #[serde(default, rename = "messageid")]
+    message_id: Filter<H256>,
     #[serde(default, rename = "origindomain")]
     origin_domain: Filter<u32>,
     #[serde(default, rename = "senderaddress")]
@@ -231,13 +275,16 @@ struct ListElement {
     destination_domain: Filter<u32>,
     #[serde(default, rename = "recipientaddress")]
     recipient_address: Filter<H256>,
+    #[serde(default, rename = "bodyregex")]
+    body_regex: Option<RegexWrapper>,
 }
 
 impl Display for ListElement {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "{{originDomain: {}, senderAddress: {}, destinationDomain: {}, recipientAddress: {}}}",
+            "{{messageId: {}, originDomain: {}, senderAddress: {}, destinationDomain: {}, recipientAddress: {}}}",
+            self.message_id,
             self.origin_domain,
             self.sender_address,
             self.destination_domain,
@@ -246,30 +293,75 @@ impl Display for ListElement {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 struct MatchInfo<'a> {
+    src_msg_id: H256,
     src_domain: u32,
     src_addr: &'a H256,
     dst_domain: u32,
     dst_addr: &'a H256,
+    body: String,
 }
 
 impl<'a> From<&'a HyperlaneMessage> for MatchInfo<'a> {
     fn from(msg: &'a HyperlaneMessage) -> Self {
         Self {
+            src_msg_id: msg.id(),
             src_domain: msg.origin,
             src_addr: &msg.sender,
             dst_domain: msg.destination,
             dst_addr: &msg.recipient,
+            body: hex::encode(&msg.body),
+        }
+    }
+}
+
+impl<'a> From<&'a QueueOperation> for MatchInfo<'a> {
+    fn from(op: &'a QueueOperation) -> Self {
+        Self {
+            src_msg_id: op.id(),
+            src_domain: op.origin_domain_id(),
+            src_addr: op.sender_address(),
+            dst_domain: op.destination_domain().id(),
+            dst_addr: op.recipient_address(),
+            body: hex::encode(op.body()),
         }
     }
 }
 
 impl MatchingList {
+    pub fn with_message_id(message_id: H256) -> Self {
+        Self(Some(vec![ListElement {
+            message_id: Filter::Enumerated(vec![message_id]),
+            origin_domain: Default::default(),
+            sender_address: Default::default(),
+            destination_domain: Default::default(),
+            recipient_address: Default::default(),
+            body_regex: Default::default(),
+        }]))
+    }
+
+    pub fn with_destination_domain(destination_domain: u32) -> Self {
+        Self(Some(vec![ListElement {
+            message_id: Default::default(),
+            origin_domain: Default::default(),
+            sender_address: Default::default(),
+            destination_domain: Filter::Enumerated(vec![destination_domain]),
+            recipient_address: Default::default(),
+            body_regex: Default::default(),
+        }]))
+    }
+
     /// Check if a message matches any of the rules.
     /// - `default`: What to return if the matching list is empty.
     pub fn msg_matches(&self, msg: &HyperlaneMessage, default: bool) -> bool {
         self.matches(msg.into(), default)
+    }
+
+    /// Check if queue operation matches any of the rules.
+    /// If the matching list is empty, we assume the queue operation does not match.
+    pub fn op_matches(&self, op: &QueueOperation) -> bool {
+        self.matches(op.into(), false)
     }
 
     /// Check if a message matches any of the rules.
@@ -285,10 +377,16 @@ impl MatchingList {
 
 fn matches_any_rule<'a>(mut rules: impl Iterator<Item = &'a ListElement>, info: MatchInfo) -> bool {
     rules.any(|rule| {
-        rule.origin_domain.matches(&info.src_domain)
+        rule.message_id.matches(&info.src_msg_id)
+            && rule.origin_domain.matches(&info.src_domain)
             && rule.sender_address.matches(info.src_addr)
             && rule.destination_domain.matches(&info.dst_domain)
             && rule.recipient_address.matches(info.dst_addr)
+            && rule
+                .body_regex
+                .as_ref()
+                .map(|regex| regex.0.is_match(&info.body))
+                .unwrap_or(true)
     })
 }
 
@@ -311,7 +409,7 @@ fn to_serde_err<IE: ToString, OE: Error>(e: IE) -> OE {
 }
 
 fn parse_addr<E: Error>(addr_str: &str) -> Result<H256, E> {
-    hex_or_base58_to_h256(addr_str).map_err(to_serde_err)
+    hex_or_base58_or_bech32_to_h256(addr_str).map_err(to_serde_err)
 }
 
 #[cfg(test)]
@@ -323,40 +421,46 @@ mod test {
 
     #[test]
     fn basic_config() {
-        let list: MatchingList = serde_json::from_str(r#"[{"origindomain": "*", "senderaddress": "*", "destinationdomain": "*", "recipientaddress": "*"}, {}]"#).unwrap();
+        let list: MatchingList = serde_json::from_str(r#"[{"messageid": "*", "origindomain": "*", "senderaddress": "*", "destinationdomain": "*", "recipientaddress": "*"}, {}]"#).unwrap();
         assert!(list.0.is_some());
         assert_eq!(list.0.as_ref().unwrap().len(), 2);
         let elem = &list.0.as_ref().unwrap()[0];
         assert_eq!(elem.destination_domain, Wildcard);
+        assert_eq!(elem.message_id, Wildcard);
         assert_eq!(elem.recipient_address, Wildcard);
         assert_eq!(elem.origin_domain, Wildcard);
         assert_eq!(elem.sender_address, Wildcard);
 
         let elem = &list.0.as_ref().unwrap()[1];
         assert_eq!(elem.destination_domain, Wildcard);
+        assert_eq!(elem.message_id, Wildcard);
         assert_eq!(elem.recipient_address, Wildcard);
         assert_eq!(elem.origin_domain, Wildcard);
         assert_eq!(elem.sender_address, Wildcard);
 
         assert!(list.matches(
             MatchInfo {
+                src_msg_id: H256::random(),
                 src_domain: 0,
                 src_addr: &H256::default(),
                 dst_domain: 0,
-                dst_addr: &H256::default()
+                dst_addr: &H256::default(),
+                body: "".into(),
             },
             false
         ));
 
         assert!(list.matches(
             MatchInfo {
+                src_msg_id: H256::random(),
                 src_domain: 34,
                 src_addr: &"0x9d4454B023096f34B160D6B654540c56A1F81688"
                     .parse::<H160>()
                     .unwrap()
                     .into(),
                 dst_domain: 5456,
-                dst_addr: &H256::default()
+                dst_addr: &H256::default(),
+                body: "".into(),
             },
             false
         ))
@@ -369,6 +473,7 @@ mod test {
         assert_eq!(list.0.as_ref().unwrap().len(), 1);
         let elem = &list.0.as_ref().unwrap()[0];
         assert_eq!(elem.destination_domain, Wildcard);
+        assert_eq!(elem.message_id, Wildcard);
         assert_eq!(
             elem.recipient_address,
             Enumerated(vec!["0x9d4454B023096f34B160D6B654540c56A1F81688"
@@ -387,6 +492,7 @@ mod test {
 
         assert!(list.matches(
             MatchInfo {
+                src_msg_id: H256::default(),
                 src_domain: 34,
                 src_addr: &"0x9d4454B023096f34B160D6B654540c56A1F81688"
                     .parse::<H160>()
@@ -396,20 +502,23 @@ mod test {
                 dst_addr: &"9d4454B023096f34B160D6B654540c56A1F81688"
                     .parse::<H160>()
                     .unwrap()
-                    .into()
+                    .into(),
+                body: "".into(),
             },
             false
         ));
 
         assert!(!list.matches(
             MatchInfo {
+                src_msg_id: H256::default(),
                 src_domain: 34,
                 src_addr: &"0x9d4454B023096f34B160D6B654540c56A1F81688"
                     .parse::<H160>()
                     .unwrap()
                     .into(),
                 dst_domain: 5456,
-                dst_addr: &H256::default()
+                dst_addr: &H256::default(),
+                body: "".into(),
             },
             false
         ));
@@ -423,6 +532,7 @@ mod test {
         assert_eq!(whitelist.0.as_ref().unwrap().len(), 1);
         let elem = &whitelist.0.as_ref().unwrap()[0];
         assert_eq!(elem.destination_domain, Enumerated(vec![9913372, 9913373]));
+        assert_eq!(elem.message_id, Wildcard);
         assert_eq!(elem.recipient_address, Wildcard);
         assert_eq!(elem.origin_domain, Wildcard);
         assert_eq!(elem.sender_address, Wildcard);
@@ -437,13 +547,15 @@ mod test {
     #[test]
     fn matches_empty_list() {
         let info = MatchInfo {
+            src_msg_id: H256::default(),
             src_domain: 0,
             src_addr: &H256::default(),
             dst_domain: 0,
             dst_addr: &H256::default(),
+            body: "".into(),
         };
         // whitelist use
-        assert!(MatchingList(None).matches(info, true));
+        assert!(MatchingList(None).matches(info.clone(), true));
         // blacklist use
         assert!(!MatchingList(None).matches(info, false));
     }
@@ -451,7 +563,7 @@ mod test {
     #[test]
     fn supports_base58() {
         serde_json::from_str::<MatchingList>(
-            r#"[{"origindomain":1399811151,"senderaddress":"DdTMkk9nuqH5LnD56HLkPiKMV3yB3BNEYSQfgmJHa5i7","destinationdomain":11155111,"recipientaddress":"0x6AD4DEBA8A147d000C09de6465267a9047d1c217"}]"#,
+            r#"[{"messageid": "*", "origindomain":1399811151,"senderaddress":"DdTMkk9nuqH5LnD56HLkPiKMV3yB3BNEYSQfgmJHa5i7","destinationdomain":11155111,"recipientaddress":"0x6AD4DEBA8A147d000C09de6465267a9047d1c217"}]"#,
         ).unwrap();
     }
 
@@ -468,5 +580,42 @@ mod test {
         let value_parser =
             hyperlane_base::settings::parser::ValueParser::new(Default::default(), &val);
         crate::settings::parse_matching_list(value_parser).unwrap();
+    }
+
+    #[test]
+    fn test_matching_list_regex() {
+        let list: MatchingList = serde_json::from_str(r#"[{"bodyregex": "0x([0-9]*)$"}]"#).unwrap();
+        assert!(list.matches(
+            MatchInfo {
+                src_msg_id: H256::default(),
+                src_domain: 34,
+                src_addr: &"0x9d4454B023096f34B160D6B654540c56A1F81688"
+                    .parse::<H160>()
+                    .unwrap()
+                    .into(),
+                dst_domain: 5456,
+                dst_addr: &"9d4454B023096f34B160D6B654540c56A1F81688"
+                    .parse::<H160>()
+                    .unwrap()
+                    .into(),
+                body: "0x123456789".into(),
+            },
+            false
+        ));
+
+        assert!(!list.matches(
+            MatchInfo {
+                src_msg_id: H256::default(),
+                src_domain: 34,
+                src_addr: &"0x9d4454B023096f34B160D6B654540c56A1F81688"
+                    .parse::<H160>()
+                    .unwrap()
+                    .into(),
+                dst_domain: 5456,
+                dst_addr: &H256::default(),
+                body: "0xdefg".into(),
+            },
+            false
+        ));
     }
 }

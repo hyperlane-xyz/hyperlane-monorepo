@@ -32,7 +32,7 @@ impl IncrementalMerkle {
     pub fn ingest(&mut self, element: H256) {
         let mut node = element;
         assert!(self.count < u32::MAX as usize);
-        self.count += 1;
+        self.count = self.count.saturating_add(1);
         let mut size = self.count;
         for i in 0..TREE_DEPTH {
             if (size & 1) == 1 {
@@ -69,7 +69,7 @@ impl IncrementalMerkle {
     /// Get the index
     pub fn index(&self) -> u32 {
         assert!(self.count > 0, "index is invalid when tree is empty");
-        self.count as u32 - 1
+        (self.count as u32).saturating_sub(1)
     }
 
     /// Get the leading-edge branch.
@@ -82,7 +82,7 @@ impl IncrementalMerkle {
         merkle_root_from_branch(item, &branch, 32, index)
     }
 
-    /// Verify a incremental merkle proof of inclusion
+    /// Verify an incremental merkle proof of inclusion
     pub fn verify(&self, proof: &Proof) -> bool {
         let computed = IncrementalMerkle::branch_root(proof.leaf, proof.path, proof.index);
         computed == self.root()

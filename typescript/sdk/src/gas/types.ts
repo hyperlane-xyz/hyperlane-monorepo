@@ -5,7 +5,7 @@ import { InterchainGasPaymaster } from '@hyperlane-xyz/core';
 import type { Address } from '@hyperlane-xyz/utils';
 
 import type { CheckerViolation } from '../deploy/types.js';
-import { IgpSchema } from '../hook/schemas.js';
+import { IgpSchema } from '../hook/types.js';
 import { ChainMap } from '../types.js';
 
 export type IgpConfig = z.infer<typeof IgpSchema>;

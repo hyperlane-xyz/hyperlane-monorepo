@@ -37,12 +37,13 @@ pub fn to_hex(bytes: &[u8], skip_leading_zero: bool) -> String {
         bytes
     };
 
-    let mut slice = vec![0u8; (bytes.len() + 1) * 2];
+    let slice_len = bytes.len().saturating_add(1).saturating_mul(2);
+    let mut slice = vec![0u8; slice_len];
     to_hex_raw(&mut slice, bytes, skip_leading_zero).into()
 }
 
 fn to_hex_raw<'a>(v: &'a mut [u8], bytes: &[u8], skip_leading_zero: bool) -> &'a str {
-    assert!(v.len() > 1 + bytes.len() * 2);
+    assert!(v.len() > bytes.len().saturating_mul(2).saturating_add(1));
 
     v[0] = b'0';
     v[1] = b'x';
@@ -51,15 +52,15 @@ fn to_hex_raw<'a>(v: &'a mut [u8], bytes: &[u8], skip_leading_zero: bool) -> &'a
     let first_nibble = bytes[0] >> 4;
     if first_nibble != 0 || !skip_leading_zero {
         v[idx] = CHARS[first_nibble as usize];
-        idx += 1;
+        idx = idx.saturating_add(1);
     }
     v[idx] = CHARS[(bytes[0] & 0xf) as usize];
-    idx += 1;
+    idx = idx.saturating_add(1);
 
     for &byte in bytes.iter().skip(1) {
         v[idx] = CHARS[(byte >> 4) as usize];
-        v[idx + 1] = CHARS[(byte & 0xf) as usize];
-        idx += 2;
+        v[idx.saturating_add(1)] = CHARS[(byte & 0xf) as usize];
+        idx = idx.saturating_add(2);
     }
 
     // SAFETY: all characters come either from CHARS or "0x", therefore valid UTF8
@@ -93,7 +94,7 @@ impl fmt::Display for FromHexError {
             #[allow(deprecated)]
             Self::MissingPrefix => write!(fmt, "0x prefix is missing"),
             Self::InvalidHex { character, index } => {
-                write!(fmt, "invalid hex character: {}, at {}", character, index)
+                write!(fmt, "invalid hex character: {character}, at {index}")
             }
         }
     }
@@ -102,10 +103,12 @@ impl fmt::Display for FromHexError {
 /// Decode given (both 0x-prefixed or not) hex string into a vector of bytes.
 ///
 /// Returns an error if non-hex characters are present.
+#[allow(clippy::manual_div_ceil)] // can't use `.div_ceil` because it still unstables in `sbf`
 pub fn from_hex(v: &str) -> Result<Vec<u8>, FromHexError> {
     let (v, stripped) = v.strip_prefix("0x").map_or((v, false), |v| (v, true));
 
-    let mut bytes = vec![0u8; (v.len() + 1) / 2];
+    let bytes_len = v.len().saturating_add(1).saturating_div(2);
+    let mut bytes = vec![0u8; bytes_len];
     from_hex_raw(v, &mut bytes, stripped)?;
     Ok(bytes)
 }
@@ -114,6 +117,7 @@ pub fn from_hex(v: &str) -> Result<Vec<u8>, FromHexError> {
 /// Used internally by `from_hex` and `deserialize_check_len`.
 ///
 /// The method will panic if `bytes` have incorrect length (make sure to allocate enough beforehand).
+#[allow(clippy::arithmetic_side_effects)]
 fn from_hex_raw(v: &str, bytes: &mut [u8], stripped: bool) -> Result<usize, FromHexError> {
     let bytes_len = v.len();
     let mut modulus = bytes_len % 2;
@@ -134,16 +138,16 @@ fn from_hex_raw(v: &str, bytes: &mut [u8], stripped: bool) -> Result<usize, From
                 let character = char::from(b);
                 return Err(FromHexError::InvalidHex {
                     character,
-                    index: index + if stripped { 2 } else { 0 },
+                    index: index.saturating_add(if stripped { 2 } else { 0 }),
                 });
             }
         }
 
-        modulus += 1;
+        modulus = modulus.saturating_add(1);
         if modulus == 2 {
             modulus = 0;
             bytes[pos] = buf;
-            pos += 1;
+            pos = pos.saturating_add(1);
         }
     }
 
@@ -167,7 +171,8 @@ pub fn serialize<S>(bytes: &[u8], serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
-    let mut slice = vec![0u8; (bytes.len() + 1) * 2];
+    let slice_len = bytes.len().saturating_add(1).saturating_mul(2);
+    let mut slice = vec![0u8; slice_len];
     serialize_raw(&mut slice, bytes, serializer)
 }
 
@@ -196,7 +201,7 @@ pub enum ExpectedLen<'a> {
     Between(usize, &'a mut [u8]),
 }
 
-impl<'a> fmt::Display for ExpectedLen<'a> {
+impl fmt::Display for ExpectedLen<'_> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             ExpectedLen::Exact(ref v) => write!(fmt, "{} bytes", v.len()),
@@ -271,7 +276,7 @@ where
         len: ExpectedLen<'a>,
     }
 
-    impl<'a, 'b> de::Visitor<'b> for Visitor<'a> {
+    impl<'b> de::Visitor<'b> for Visitor<'_> {
         type Value = usize;
 
         fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
@@ -287,8 +292,10 @@ where
 
             let len = v.len();
             let is_len_valid = match self.len {
-                ExpectedLen::Exact(ref slice) => len == 2 * slice.len(),
-                ExpectedLen::Between(min, ref slice) => len <= 2 * slice.len() && len > 2 * min,
+                ExpectedLen::Exact(ref slice) => len == slice.len().saturating_mul(2),
+                ExpectedLen::Between(min, ref slice) => {
+                    len <= slice.len().saturating_mul(2) && len > min.saturating_mul(2)
+                }
             };
 
             if !is_len_valid {

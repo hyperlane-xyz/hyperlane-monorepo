@@ -1,5 +1,7 @@
 import {
   AgentChainMetadata,
+  AgentSealevelPriorityFeeOracle,
+  AgentSealevelTransactionSubmitter,
   AgentSignerAwsKey,
   AgentSignerKeyType,
   ChainName,
@@ -36,6 +38,7 @@ export interface HelmRootAgentValues {
   image: HelmImageValues;
   hyperlane: HelmHyperlaneValues;
   nameOverride?: string;
+  tolerations?: KubernetesToleration[];
 }
 
 // See rust/main/helm/values.yaml for the full list of options and their defaults.
@@ -84,7 +87,20 @@ export interface AgentContextConfig extends AgentEnvConfig {
   rolesWithKeys: Role[];
   // Names of chains this context cares about (subset of environmentChainNames)
   contextChainNames: AgentChainNames;
+  sealevel?: SealevelAgentConfig;
 }
+
+export interface SealevelAgentConfig {
+  priorityFeeOracleConfigGetter?: (
+    chain: ChainName,
+  ) => AgentSealevelPriorityFeeOracle;
+  transactionSubmitterConfigGetter?: (
+    chain: ChainName,
+  ) => AgentSealevelTransactionSubmitter;
+}
+
+// An ugly way to mark a URL as a the secret Helius URL when Helm templating
+export const HELIUS_SECRET_URL_MARKER = 'helius';
 
 // incomplete common agent configuration for a role
 interface AgentRoleConfig {
@@ -106,8 +122,22 @@ export type CosmosKeyConfig = {
   type: AgentSignerKeyType.Cosmos;
   prefix: string;
 };
-export type KeyConfig = AwsKeyConfig | HexKeyConfig | CosmosKeyConfig;
-
+// Starknet uses account abstraction, these contacts are either legacy or not.
+export type StarknetKeyConfig = {
+  type: AgentSignerKeyType.Starknet;
+  legacy: boolean;
+};
+// Radix key config
+export type RadixKeyConfig = {
+  type: AgentSignerKeyType.Radix;
+  suffix: string;
+};
+export type KeyConfig =
+  | AwsKeyConfig
+  | HexKeyConfig
+  | CosmosKeyConfig
+  | StarknetKeyConfig
+  | RadixKeyConfig;
 interface IndexingConfig {
   from: number;
   chunk: number;
@@ -130,6 +160,13 @@ export interface KubernetesResources {
 export interface KubernetesComputeResources {
   cpu: string;
   memory: string;
+}
+
+export interface KubernetesToleration {
+  key: string;
+  operator: string;
+  value: string;
+  effect: string;
 }
 
 export class RootAgentConfigHelper implements AgentContextConfig {
@@ -205,13 +242,32 @@ export function defaultChainSignerKeyConfig(chainName: ChainName): KeyConfig {
 
   switch (metadata?.protocol) {
     case ProtocolType.Cosmos:
+    case ProtocolType.CosmosNative:
       if (metadata.bech32Prefix === undefined) {
         throw new Error(
           `Bech32 prefix for cosmos chain ${chainName} is undefined`,
         );
       }
       return { type: AgentSignerKeyType.Cosmos, prefix: metadata.bech32Prefix };
-    // For Ethereum and Sealevel, use a hex key
+    case ProtocolType.Radix:
+      // get the suffix based on the chain id
+      let suffix: string;
+      switch (metadata.chainId) {
+        case 240: // localnet
+          suffix = 'loc';
+          break;
+        case 2: // stokenet
+          suffix = 'tdx_2_';
+          break;
+        default: // mainnet
+          suffix = 'rdx';
+      }
+      return { type: AgentSignerKeyType.Radix, suffix: suffix };
+    // Use starknet key for starknet & paradexsepolia
+    case ProtocolType.Starknet: {
+      return { type: AgentSignerKeyType.Starknet, legacy: false };
+    }
+    // For Ethereum and Sealevel use a hex key
     case ProtocolType.Ethereum:
     case ProtocolType.Sealevel:
     default:

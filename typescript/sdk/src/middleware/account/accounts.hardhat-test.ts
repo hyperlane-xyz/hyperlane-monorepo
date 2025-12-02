@@ -7,15 +7,17 @@ import {
   InterchainAccountRouter,
   TestRecipient__factory,
 } from '@hyperlane-xyz/core';
+import { objMap } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../../consts/testChains.js';
 import { HyperlaneContractsMap } from '../../contracts/types.js';
 import { TestCoreApp } from '../../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../../deploy/HyperlaneProxyFactoryDeployer.js';
+import { IcaRouterConfig } from '../../ica/types.js';
 import { HyperlaneIsmFactory } from '../../ism/HyperlaneIsmFactory.js';
+import { IsmType } from '../../ism/types.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
-import { RouterConfig } from '../../router/types.js';
 import { ChainMap } from '../../types.js';
 
 import { InterchainAccount } from './InterchainAccount.js';
@@ -35,7 +37,7 @@ describe('InterchainAccounts', async () => {
   let multiProvider: MultiProvider;
   let coreApp: TestCoreApp;
   let app: InterchainAccount;
-  let config: ChainMap<RouterConfig>;
+  let config: ChainMap<IcaRouterConfig>;
 
   before(async () => {
     [signer] = await hre.ethers.getSigners();
@@ -46,7 +48,17 @@ describe('InterchainAccounts', async () => {
       multiProvider,
     );
     coreApp = await new TestCoreDeployer(multiProvider, ismFactory).deployApp();
-    config = coreApp.getRouterConfig(signer.address);
+    config = objMap(
+      coreApp.getRouterConfig(signer.address),
+      (_, config): IcaRouterConfig => ({
+        ...config,
+        commitmentIsm: {
+          type: IsmType.OFFCHAIN_LOOKUP,
+          owner: signer.address,
+          urls: ['some-url'],
+        },
+      }),
+    );
   });
 
   beforeEach(async () => {

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
@@ -8,10 +10,10 @@ use serializable_account_meta::SimulationReturnData;
 use solana_sdk::{
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
-    signature::Keypair,
+    signer::Signer,
 };
 
-use crate::{ConnectionConf, SealevelProvider, SealevelRpcClient};
+use crate::{SealevelKeypair, SealevelProvider};
 
 use multisig_ism::interface::{
     MultisigIsmInstruction, VALIDATORS_AND_THRESHOLD_ACCOUNT_METAS_PDA_SEEDS,
@@ -20,16 +22,19 @@ use multisig_ism::interface::{
 /// A reference to a MultisigIsm contract on some Sealevel chain
 #[derive(Debug)]
 pub struct SealevelMultisigIsm {
-    payer: Option<Keypair>,
+    payer: Option<SealevelKeypair>,
     program_id: Pubkey,
     domain: HyperlaneDomain,
-    provider: SealevelProvider,
+    provider: Arc<SealevelProvider>,
 }
 
 impl SealevelMultisigIsm {
     /// Create a new Sealevel MultisigIsm.
-    pub fn new(conf: &ConnectionConf, locator: ContractLocator, payer: Option<Keypair>) -> Self {
-        let provider = SealevelProvider::new(locator.domain.clone(), conf);
+    pub fn new(
+        provider: Arc<SealevelProvider>,
+        locator: ContractLocator,
+        payer: Option<SealevelKeypair>,
+    ) -> Self {
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
 
         Self {
@@ -38,10 +43,6 @@ impl SealevelMultisigIsm {
             domain: locator.domain.clone(),
             provider,
         }
-    }
-
-    fn rpc(&self) -> &SealevelRpcClient {
-        self.provider.rpc()
     }
 }
 
@@ -57,7 +58,7 @@ impl HyperlaneChain for SealevelMultisigIsm {
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
-        self.provider.provider()
+        Box::new(self.provider.clone())
     }
 }
 
@@ -82,12 +83,15 @@ impl MultisigIsm for SealevelMultisigIsm {
             account_metas,
         );
 
+        let payer = self
+            .payer
+            .as_ref()
+            .map(|p| p.pubkey())
+            .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?;
         let validators_and_threshold = self
-            .rpc()
+            .provider
             .simulate_instruction::<SimulationReturnData<ValidatorsAndThreshold>>(
-                self.payer
-                    .as_ref()
-                    .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?,
+                &payer,
                 instruction,
             )
             .await?
@@ -131,13 +135,10 @@ impl SealevelMultisigIsm {
             vec![AccountMeta::new_readonly(account_metas_pda_key, false)],
         );
 
-        self.rpc()
-            .get_account_metas(
-                self.payer
-                    .as_ref()
-                    .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?,
-                instruction,
-            )
-            .await
+        let payer = self
+            .payer
+            .as_ref()
+            .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?;
+        self.provider.get_account_metas(payer, instruction).await
     }
 }

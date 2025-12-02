@@ -1,36 +1,37 @@
+import { ethers } from 'ethers';
+
 import {
   ChainMap,
-  RouterConfig,
-  TokenRouterConfig,
+  HypTokenRouterConfig,
+  OwnableConfig,
   TokenType,
-  buildAggregationIsmConfigs,
-  defaultMultisigConfigs,
 } from '@hyperlane-xyz/sdk';
 
-export const getEthereumVictionETHWarpConfig = async (
-  routerConfig: ChainMap<RouterConfig>,
-): Promise<ChainMap<TokenRouterConfig>> => {
-  const ismConfig = buildAggregationIsmConfigs(
-    'ethereum',
-    ['viction'],
-    defaultMultisigConfigs,
-  ).viction;
+import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 
-  const viction: TokenRouterConfig = {
+export const getEthereumVictionETHWarpConfig = async (
+  routerConfig: ChainMap<RouterConfigWithoutOwner>,
+  abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
+): Promise<ChainMap<HypTokenRouterConfig>> => {
+  const viction: HypTokenRouterConfig = {
     ...routerConfig.viction,
+    ...abacusWorksEnvOwnerConfig.viction,
     type: TokenType.synthetic,
     name: 'ETH',
     symbol: 'ETH',
     decimals: 18,
-    totalSupply: 0,
     gas: 50_000,
+    interchainSecurityModule: ethers.constants.AddressZero,
   };
 
-  const ethereum: TokenRouterConfig = {
+  const ethereum: HypTokenRouterConfig = {
     ...routerConfig.ethereum,
+    ...abacusWorksEnvOwnerConfig.ethereum,
     type: TokenType.native,
+    decimals: 18,
     gas: 65_000,
-    interchainSecurityModule: ismConfig,
+    interchainSecurityModule: ethers.constants.AddressZero,
+    hook: '0xb87ac8ea4533ae017604e44470f7c1e550ac6f10',
   };
 
   return {

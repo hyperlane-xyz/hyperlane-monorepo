@@ -1,9 +1,9 @@
-use std::{fmt::Debug, str::FromStr};
+use std::{fmt::Debug, ops::Add, str::FromStr};
 
 use convert_case::{Case, Casing};
 use derive_new::new;
 use eyre::{eyre, Context};
-use hyperlane_core::{config::*, utils::hex_or_base58_to_h256, H256, U256};
+use hyperlane_core::{config::*, utils::hex_or_base58_or_bech32_to_h256, H256, U256};
 use itertools::Itertools;
 use serde::de::{DeserializeOwned, StdError};
 use serde_json::Value;
@@ -30,12 +30,12 @@ impl<'v> ValueParser<'v> {
     pub fn get_key(&self, key: &str) -> ConfigResult<ValueParser<'v>> {
         self.get_opt_key(&key.to_case(Case::Flat))?
             .ok_or_else(|| eyre!("Expected key `{key}` to be defined"))
-            .into_config_result(|| &self.cwp + key.to_case(Case::Snake))
+            .into_config_result(|| (&self.cwp).add(key.to_case(Case::Snake)))
     }
 
     /// Get a value at the given key allowing for it to not be set.
     pub fn get_opt_key(&self, key: &str) -> ConfigResult<Option<ValueParser<'v>>> {
-        let cwp = &self.cwp + key.to_case(Case::Snake);
+        let cwp = (&self.cwp).add(key.to_case(Case::Snake));
         match self.val {
             Value::Object(obj) => Ok(obj.get(&key.to_case(Case::Flat)).map(|val| Self {
                 val,
@@ -58,7 +58,7 @@ impl<'v> ValueParser<'v> {
                     k.clone(),
                     Self {
                         val: v,
-                        cwp: &cwp + k.to_case(Case::Snake),
+                        cwp: (&cwp).add(k.to_case(Case::Snake)),
                     },
                 )
             })),
@@ -74,7 +74,7 @@ impl<'v> ValueParser<'v> {
         match self.val {
             Value::Array(arr) => Ok(arr.iter().enumerate().map(move |(i, v)| Self {
                 val: v,
-                cwp: &cwp + i.to_string(),
+                cwp: (&cwp).add(i.to_string()),
             }))
             .map(|itr| Box::new(itr) as Box<dyn Iterator<Item = ValueParser<'v>>>),
             Value::Object(obj) => obj
@@ -100,7 +100,7 @@ impl<'v> ValueParser<'v> {
                 .map(|itr| {
                     itr.map(move |(i, v)| Self {
                         val: v,
-                        cwp: &cwp + i.to_string(),
+                        cwp: (&cwp).add(i.to_string()),
                     })
                 })
                 .map(|itr| Box::new(itr) as Box<dyn Iterator<Item = ValueParser<'v>>>),
@@ -234,12 +234,11 @@ impl<'v> ValueParser<'v> {
         .into_config_result(|| self.cwp.clone())
     }
 
-    /// Parse an address hash allowing for it to be represented as a hex or base58 string.
+    /// Parse an address hash allowing for it to be represented as a hex, bech32 or base58 string.
     pub fn parse_address_hash(&self) -> ConfigResult<H256> {
         match self.val {
-            Value::String(s) => {
-                hex_or_base58_to_h256(s).context("Expected a valid address hash in hex or base58")
-            }
+            Value::String(s) => hex_or_base58_or_bech32_to_h256(s)
+                .context("Expected a valid address hash in hex, base58 or bech32"),
             _ => Err(eyre!("Expected an address string, got `{:?}`", self.val)),
         }
         .into_config_result(|| self.cwp.clone())
@@ -248,9 +247,8 @@ impl<'v> ValueParser<'v> {
     /// Parse a private key allowing for it to be represented as a hex or base58 string.
     pub fn parse_private_key(&self) -> ConfigResult<H256> {
         match self.val {
-            Value::String(s) => {
-                hex_or_base58_to_h256(s).context("Expected a valid private key in hex or base58")
-            }
+            Value::String(s) => hex_or_base58_or_bech32_to_h256(s)
+                .context("Expected a valid private key in hex, base58 or bech32"),
             _ => Err(eyre!("Expected a private key string")),
         }
         .into_config_result(|| self.cwp.clone())
@@ -276,13 +274,25 @@ impl<'v> ValueParser<'v> {
     }
 
     /// Use FromRawConf to parse a value.
-    pub fn parse_from_raw_config<O, T, F>(&self, filter: F, ctx: &'static str) -> ConfigResult<O>
+    pub fn parse_from_raw_config<O, T, F>(
+        &self,
+        filter: F,
+        ctx: &'static str,
+        agent_name: String,
+    ) -> ConfigResult<O>
     where
         O: FromRawConf<T, F>,
         T: Debug + DeserializeOwned,
         F: Default,
     {
-        O::from_config_filtered(self.parse_value::<T>(ctx)?, &self.cwp, filter)
+        O::from_config_filtered(
+            self.parse_value::<T>(ctx)?,
+            &self.cwp,
+            filter,
+            agent_name.as_str(),
+        )
+        .context(ctx)
+        .into_config_result(|| self.cwp.clone())
     }
 }
 
@@ -350,13 +360,18 @@ impl<'v, 'e> ParseChain<'e, ValueParser<'v>> {
         )
     }
 
-    pub fn parse_from_raw_config<O, T, F>(self, filter: F, ctx: &'static str) -> ParseChain<'e, O>
+    pub fn parse_from_raw_config<O, T, F>(
+        self,
+        filter: F,
+        ctx: &'static str,
+        agent_name: String,
+    ) -> ParseChain<'e, O>
     where
         O: FromRawConf<T, F>,
         T: Debug + DeserializeOwned,
         F: Default,
     {
-        self.and_then(|v| v.parse_from_raw_config::<O, T, F>(filter, ctx))
+        self.and_then(|v| v.parse_from_raw_config::<O, T, F>(filter, ctx, agent_name))
     }
 }
 
@@ -386,7 +401,7 @@ impl<'e, T> ParseChain<'e, T> {
     }
 }
 
-impl<'e, T: Default> ParseChain<'e, T> {
+impl<T: Default> ParseChain<'_, T> {
     pub fn unwrap_or_default(self) -> T {
         self.0.unwrap_or_default()
     }

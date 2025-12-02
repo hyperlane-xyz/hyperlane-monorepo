@@ -1,0 +1,17 @@
+{
+  "eclipsemainnet": {
+    "type": "synthetic",
+    "decimals": 6,
+    "remoteDecimals": 6,
+    "name": "Celestia",
+    "symbol": "TIA",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/b21b78514a42e8c050b36472c8325fd4b5177366/deployments/warp_routes/TIA/metadata.json",
+    "interchainGasPaymaster": "3Wp4qKkgf4tjXz1soGyTSndCgBPLZFSrZkiDZ8Qp9EEj"
+  },
+  "stride": {
+    "type": "collateral",
+    "decimals": 6,
+    "token": "ibc/BF3B4F53F3694B66E13C23107C84B6485BD2B96296BB7EC680EA77BBA75B4801",
+    "foreignDeployment": "0x0b1798722ccf813f617ffa8d52d36302544807497434740d98e693e9abb245d1"
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "arbitrum": {
+    "hex": "0x0000000000000000000000005155eb1bcd30189915cf84717550acfa537068bf",
+    "base58": "11111111111128itaWLcGgPMeaS1ccv916mk2HT4"
+  },
+  "avalanche": {
+    "hex": "0x0000000000000000000000000e2a546a53678ee8f8605748193a8c114fa0317f",
+    "base58": "111111111111CSso9WXV132yty66gXycfU4mjWN"
+  },
+  "flowmainnet": {
+    "hex": "0x000000000000000000000000d3378b419feae4e3a4bb4f3349dba43a1b511760",
+    "base58": "1111111111113wfw1fbmfxSpYvFU6NfBtUNJ5q7u"
+  },
+  "optimism": {
+    "hex": "0x000000000000000000000000e36c02471e708a9f16da58168da744b059a1c6fe",
+    "base58": "1111111111114AmPuC4vLYgpwQK9Z4vycDaDMQWq"
+  },
+  "worldchain": {
+    "hex": "0x0000000000000000000000000fc7b3518c03bfa5e01995285b1ef3c4b55c8922",
+    "base58": "111111111111DkZ1qm7hv57Sa8ZhNG9yo9cp2qP"
+  },
+  "form": {
+    "hex": "0x0000000000000000000000008528baa7d1d386e7967603e480fa2b558a23644c",
+    "base58": "1111111111112rbf8mSSJDBCxvjCyPAButjBen7u"
+  },
+  "solanamainnet": {
+    "hex": "0x0f1589e8a3b501fb3eedfddd2eed7a262ef34b2292ae9bb86ab08f372c752a29",
+    "base58": "21tAY4poz2VXvghqdSQpn9j7gYravQmGpuQi8pHPx9DS"
+  },
+  "base": {
+    "hex": "0x00000000000000000000000053c0499e7e4abd3e7994ca161523fd50a12bb8c8",
+    "base58": "1111111111112Ag6Vg3QoPPGirwYeTWBQWR9VmcB"
+  }
+}

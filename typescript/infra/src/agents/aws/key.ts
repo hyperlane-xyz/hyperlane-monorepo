@@ -118,7 +118,7 @@ export class AgentAwsKey extends CloudAgentKey {
     const keyId = await this.getId();
     // If it doesn't exist, create it
     if (!keyId) {
-      this.logger.debug('Key does not exist, creating new key');
+      this.logger.warn('Key does not exist, creating new key');
       await this.create();
       // It can take a moment for the change to propagate
       await sleep(1000);
@@ -126,6 +126,11 @@ export class AgentAwsKey extends CloudAgentKey {
       this.logger.debug('Key already exists');
     }
     await this.fetch();
+  }
+
+  async exists() {
+    const keyId = await this.getId();
+    return keyId !== undefined;
   }
 
   async delete() {
@@ -257,9 +262,7 @@ export class AgentAwsKey extends CloudAgentKey {
     this.logger.debug('Keys rotated successfully');
   }
 
-  async getSigner(
-    provider?: ethers.providers.Provider,
-  ): Promise<ethers.Signer> {
+  async getSigner(provider: ethers.providers.Provider): Promise<ethers.Signer> {
     this.logger.debug('Getting signer');
     const keyId = await this.getId();
     if (!keyId) {
@@ -285,7 +288,7 @@ export class AgentAwsKey extends CloudAgentKey {
   private requireFetched() {
     if (!this.remoteKey.fetched) {
       this.logger.debug('Key has not been fetched yet');
-      throw new Error('Key not fetched');
+      throw new Error(`Key not fetched: ${this.identifier}`);
     }
     this.logger.debug('Key has been fetched');
   }

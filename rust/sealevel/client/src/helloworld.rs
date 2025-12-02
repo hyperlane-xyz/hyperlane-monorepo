@@ -16,9 +16,9 @@ use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
 
 use crate::{
     cmd_utils::account_exists,
+    registry::ChainMetadata,
     router::{
-        deploy_routers, ChainMetadata, ConnectionClient, Ownable, RouterConfig, RouterConfigGetter,
-        RouterDeployer,
+        deploy_routers, ConnectionClient, Ownable, RouterConfig, RouterConfigGetter, RouterDeployer,
     },
     Context, CoreProgramIds, HelloWorldCmd, HelloWorldDeploy, HelloWorldSubCmd, RpcClient,
 };
@@ -89,7 +89,7 @@ impl RouterDeployer<HelloWorldConfig> for HelloWorldDeployer {
         ctx: &mut Context,
         client: &RpcClient,
         core_program_ids: &CoreProgramIds,
-        chain_config: &ChainMetadata,
+        chain_metadata: &ChainMetadata,
         app_config: &HelloWorldConfig,
         program_id: Pubkey,
     ) {
@@ -100,7 +100,7 @@ impl RouterDeployer<HelloWorldConfig> for HelloWorldDeployer {
             return;
         }
 
-        let domain_id = chain_config.domain_id();
+        let domain_id = chain_metadata.domain_id;
         let mailbox = app_config
             .router_config()
             .connection_client
@@ -210,7 +210,7 @@ fn deploy_helloworld(ctx: &mut Context, deploy: HelloWorldDeploy) {
         "helloworld",
         &deploy.context,
         deploy.config_file,
-        deploy.chain_config_file,
+        deploy.registry,
         deploy.env_args.environments_dir,
         &deploy.env_args.environment,
         deploy.built_so_dir,

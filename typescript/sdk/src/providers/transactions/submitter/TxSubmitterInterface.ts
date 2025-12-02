@@ -1,4 +1,4 @@
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { Annotated, ProtocolType } from '@hyperlane-xyz/utils';
 
 import {
   ProtocolTypedProvider,
@@ -8,11 +8,14 @@ import {
 
 import { TxSubmitterType } from './TxSubmitterTypes.js';
 
-export interface TxSubmitterInterface<TProtocol extends ProtocolType> {
+export interface TxSubmitterInterface<
+  TProtocol extends ProtocolType,
+  TSubmitterType extends string = TxSubmitterType,
+> {
   /**
    * Defines the type of tx submitter.
    */
-  txSubmitterType: TxSubmitterType;
+  txSubmitterType: TSubmitterType;
   /**
    * The provider to use for transaction submission.
    */
@@ -22,7 +25,7 @@ export interface TxSubmitterInterface<TProtocol extends ProtocolType> {
    * @param txs The array of transactions to execute
    */
   submit(
-    ...txs: ProtocolTypedTransaction<TProtocol>['transaction'][]
+    ...txs: Annotated<ProtocolTypedTransaction<TProtocol>['transaction']>[]
   ): Promise<
     | ProtocolTypedReceipt<TProtocol>['receipt']
     | ProtocolTypedReceipt<TProtocol>['receipt'][]

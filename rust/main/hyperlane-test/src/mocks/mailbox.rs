@@ -1,62 +1,76 @@
 #![allow(non_snake_case)]
 
-use std::num::NonZeroU64;
-
 use async_trait::async_trait;
 use mockall::*;
 
 use hyperlane_core::{accumulator::incremental::IncrementalMerkle, *};
 
-mock! {
-    pub MailboxContract {
-        // Mailbox
-        pub fn _address(&self) -> H256 {}
+pub use mock_mailbox_contract::MockMailboxContract;
 
-        pub fn _domain(&self) -> &HyperlaneDomain {}
+mod mock_mailbox_contract {
 
-        pub fn _provider(&self) -> Box<dyn HyperlaneProvider> {}
+    #![allow(missing_docs)]
+    use super::*;
 
-        pub fn _domain_hash(&self) -> H256 {}
+    mock! {
+        pub MailboxContract {
+            // Mailbox
+            pub fn _address(&self) -> H256 {}
 
-        pub fn _raw_message_by_id(
-            &self,
-            leaf: H256,
-        ) -> ChainResult<Option<RawHyperlaneMessage>> {}
+            pub fn _domain(&self) -> &HyperlaneDomain {}
 
-        pub fn _id_by_nonce(
-            &self,
-            nonce: usize,
-        ) -> ChainResult<Option<H256>> {}
+            pub fn _provider(&self) -> Box<dyn HyperlaneProvider> {}
 
-        pub fn _tree(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {}
+            pub fn _domain_hash(&self) -> H256 {}
 
-        pub fn _count(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {}
+            pub fn _raw_message_by_id(
+                &self,
+                leaf: H256,
+            ) -> ChainResult<Option<RawHyperlaneMessage>> {}
 
-        pub fn _latest_checkpoint(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {}
+            pub fn _id_by_nonce(
+                &self,
+                nonce: usize,
+            ) -> ChainResult<Option<H256>> {}
 
-        pub fn _default_ism(&self) -> ChainResult<H256> {}
-        pub fn _recipient_ism(&self, recipient: H256) -> ChainResult<H256> {}
+            pub fn _tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkle> {}
 
-        pub fn _delivered(&self, id: H256) -> ChainResult<bool> {}
+            pub fn _count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {}
 
-        pub fn process(
-            &self,
-            message: &HyperlaneMessage,
-            metadata: &[u8],
-            tx_gas_limit: Option<U256>,
-        ) -> ChainResult<TxOutcome> {}
+            pub fn _latest_checkpoint(&self, reorg_period: &ReorgPeriod) -> ChainResult<Checkpoint> {}
 
-        pub fn process_estimate_costs(
-            &self,
-            message: &HyperlaneMessage,
-            metadata: &[u8],
-        ) -> ChainResult<TxCostEstimate> {}
+            pub fn _default_ism(&self) -> ChainResult<H256> {}
+            pub fn _recipient_ism(&self, recipient: H256) -> ChainResult<H256> {}
 
-        pub fn process_calldata(
-            &self,
-            message: &HyperlaneMessage,
-            metadata: &[u8],
-        ) -> Vec<u8> {}
+            pub fn _delivered(&self, id: H256) -> ChainResult<bool> {}
+
+            pub fn process(
+                &self,
+                message: &HyperlaneMessage,
+                metadata: &[u8],
+                tx_gas_limit: Option<U256>,
+            ) -> ChainResult<TxOutcome> {}
+
+            pub fn process_estimate_costs(
+                &self,
+                message: &HyperlaneMessage,
+                metadata: &[u8],
+            ) -> ChainResult<TxCostEstimate> {}
+
+            pub fn process_calldata(
+                &self,
+                message: &HyperlaneMessage,
+                metadata: &[u8],
+            ) -> Vec<u8> {}
+
+            pub fn process_batch<'a>(
+                &self,
+                ops: Vec<&'a QueueOperation>,
+            ) -> ChainResult<BatchResult> {}
+
+            pub fn supports_batching(&self) -> bool {
+            }
+        }
     }
 }
 
@@ -68,8 +82,8 @@ impl std::fmt::Debug for MockMailboxContract {
 
 #[async_trait]
 impl Mailbox for MockMailboxContract {
-    async fn count(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
-        self._count(maybe_lag)
+    async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
+        self._count(reorg_period)
     }
 
     async fn default_ism(&self) -> ChainResult<H256> {
@@ -93,13 +107,6 @@ impl Mailbox for MockMailboxContract {
         self.process(message, metadata, tx_gas_limit)
     }
 
-    async fn process_batch(
-        &self,
-        messages: &[BatchItem<HyperlaneMessage>],
-    ) -> ChainResult<BatchResult> {
-        self.process_batch(messages).await
-    }
-
     async fn process_estimate_costs(
         &self,
         message: &HyperlaneMessage,
@@ -108,8 +115,24 @@ impl Mailbox for MockMailboxContract {
         self.process_estimate_costs(message, metadata)
     }
 
-    fn process_calldata(&self, message: &HyperlaneMessage, metadata: &[u8]) -> Vec<u8> {
-        self.process_calldata(message, metadata)
+    async fn process_calldata(
+        &self,
+        message: &HyperlaneMessage,
+        metadata: &[u8],
+    ) -> ChainResult<Vec<u8>> {
+        Ok(self.process_calldata(message, metadata))
+    }
+
+    fn delivered_calldata(&self, _message_id: H256) -> ChainResult<Option<Vec<u8>>> {
+        Ok(None)
+    }
+
+    async fn process_batch<'a>(&self, ops: Vec<&'a QueueOperation>) -> ChainResult<BatchResult> {
+        self.process_batch(ops)
+    }
+
+    fn supports_batching(&self) -> bool {
+        self.supports_batching()
     }
 }
 
@@ -126,5 +149,15 @@ impl HyperlaneChain for MockMailboxContract {
 impl HyperlaneContract for MockMailboxContract {
     fn address(&self) -> H256 {
         self._address()
+    }
+}
+
+impl MockMailboxContract {
+    /// Create a new mock mailbox contract with a default ISM
+    pub fn new_with_default_ism(default_ism: H256) -> Self {
+        let mut mock = Self::new();
+        mock.expect__default_ism()
+            .returning(move || Ok(default_ism));
+        mock
     }
 }

@@ -1,6 +1,12 @@
 import { stringify as yamlStringify } from 'yaml';
 
-import { CoreConfigSchema, HookConfig, IsmConfig } from '@hyperlane-xyz/sdk';
+import {
+  CoreConfig,
+  CoreConfigSchema,
+  HookConfig,
+  IsmConfig,
+  OwnableConfig,
+} from '@hyperlane-xyz/sdk';
 
 import { CommandContext } from '../context/types.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
@@ -18,6 +24,9 @@ import {
 } from './hooks.js';
 import { createAdvancedIsmConfig, createTrustedRelayerConfig } from './ism.js';
 
+const ENTER_DESIRED_VALUE_MSG = 'Enter the desired';
+const SIGNER_PROMPT_LABEL = 'signer';
+
 export async function createCoreDeployConfig({
   context,
   configFilePath,
@@ -30,10 +39,10 @@ export async function createCoreDeployConfig({
   logBlue('Creating a new core deployment config...');
 
   const owner = await detectAndConfirmOrPrompt(
-    async () => context.signer?.getAddress(),
-    'Enter the desired',
+    async () => context.signerAddress,
+    ENTER_DESIRED_VALUE_MSG,
     'owner address',
-    'signer',
+    SIGNER_PROMPT_LABEL,
   );
 
   const defaultIsm: IsmConfig = advanced
@@ -41,6 +50,7 @@ export async function createCoreDeployConfig({
     : await createTrustedRelayerConfig(context, advanced);
 
   let defaultHook: HookConfig, requiredHook: HookConfig;
+  let proxyAdmin: OwnableConfig;
   if (advanced) {
     defaultHook = await createHookConfig({
       context,
@@ -52,9 +62,20 @@ export async function createCoreDeployConfig({
       selectMessage: 'Select required hook type',
       advanced,
     });
+    proxyAdmin = {
+      owner: await detectAndConfirmOrPrompt(
+        async () => context.signerAddress,
+        ENTER_DESIRED_VALUE_MSG,
+        'ProxyAdmin owner address',
+        SIGNER_PROMPT_LABEL,
+      ),
+    };
   } else {
     defaultHook = await createMerkleTreeConfig();
     requiredHook = await createProtocolFeeConfig(context, advanced);
+    proxyAdmin = {
+      owner,
+    };
   }
 
   try {
@@ -63,6 +84,7 @@ export async function createCoreDeployConfig({
       defaultIsm,
       defaultHook,
       requiredHook,
+      proxyAdmin,
     });
     logBlue(`Core config is valid, writing to file ${configFilePath}:\n`);
     log(indentYamlOrJson(yamlStringify(coreConfig, null, 2), 4));
@@ -74,7 +96,7 @@ export async function createCoreDeployConfig({
   }
 }
 
-export async function readCoreDeployConfigs(filePath: string) {
+export function readCoreDeployConfigs(filePath: string): CoreConfig {
   const config = readYamlOrJson(filePath);
   return CoreConfigSchema.parse(config);
 }

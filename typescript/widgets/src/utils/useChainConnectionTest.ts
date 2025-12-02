@@ -26,7 +26,7 @@ export function useConnectionHealthTest(
     timeout(tester(chainMetadata, index), HEALTH_TEST_TIMEOUT)
       .then((result) => setIsHealthy(result))
       .catch(() => setIsHealthy(false));
-  }, [chainMetadata, index, tester]);
+  }, [chainMetadata, index, type, tester]);
 
   return isHealthy;
 }

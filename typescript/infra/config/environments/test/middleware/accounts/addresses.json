@@ -1,7 +1,4 @@
 {
-  "alfajores": {
-    "router": "0xc011170d9795a7a2d065E384EAd1CA3394A7d35E"
-  },
   "fuji": {
     "router": "0xc011170d9795a7a2d065E384EAd1CA3394A7d35E"
   },

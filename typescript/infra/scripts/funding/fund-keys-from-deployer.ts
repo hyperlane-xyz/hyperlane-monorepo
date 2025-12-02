@@ -1,22 +1,20 @@
-import { EthBridger, getL2Network } from '@arbitrum/sdk';
+import { EthBridger, getArbitrumNetwork } from '@arbitrum/sdk';
 import { CrossChainMessenger } from '@eth-optimism/sdk';
-import { Connection, PublicKey } from '@solana/web3.js';
 import { BigNumber, ethers } from 'ethers';
-import { Gauge, Registry } from 'prom-client';
+import { Registry } from 'prom-client';
 import { format } from 'util';
 
-import { eclipsemainnet } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
   ChainName,
   HyperlaneIgp,
   MultiProvider,
+  defaultMultisigConfigs,
 } from '@hyperlane-xyz/sdk';
 import { Address, objFilter, objMap, rootLogger } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { getEnvAddresses } from '../../config/registry.js';
-import { getSecretRpcEndpoints } from '../../src/agents/index.js';
 import {
   KeyAsAddress,
   fetchLocalKeyAddresses,
@@ -32,9 +30,14 @@ import {
   ContextAndRoles,
   ContextAndRolesMap,
   KeyFunderConfig,
+  SweepOverrideConfig,
+  validateSweepConfig,
 } from '../../src/config/funding.js';
 import { FundableRole, Role } from '../../src/roles.js';
-import { submitMetrics } from '../../src/utils/metrics.js';
+import {
+  getWalletBalanceGauge,
+  submitMetrics,
+} from '../../src/utils/metrics.js';
 import {
   assertContext,
   assertFundableRole,
@@ -45,11 +48,16 @@ import {
 import { getAgentConfig, getArgs } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
-import L1ETHGateway from './utils/L1ETHGateway.json';
-import L1MessageQueue from './utils/L1MessageQueue.json';
-import L1ScrollMessenger from './utils/L1ScrollMessenger.json';
+import L1ETHGateway from './utils/L1ETHGateway.json' with { type: 'json' };
+import L1MessageQueue from './utils/L1MessageQueue.json' with { type: 'json' };
+import L1ScrollMessenger from './utils/L1ScrollMessenger.json' with { type: 'json' };
 
 const logger = rootLogger.child({ module: 'fund-keys' });
+
+// Default sweep configuration
+const DEFAULT_SWEEP_ADDRESS = '0x478be6076f31E9666123B9721D0B6631baD944AF';
+const DEFAULT_TARGET_MULTIPLIER = 1.5; // Leave 1.5x threshold after sweep
+const DEFAULT_TRIGGER_MULTIPLIER = 2.0; // Sweep when balance > 2x threshold
 
 const nativeBridges = {
   scrollsepolia: {
@@ -66,80 +74,30 @@ const L2ToL1: ChainMap<ChainName> = {
   base: 'ethereum',
 };
 
+// Manually adding these labels as we are using a push gateway,
+// and ordinarily these labels would be added via K8s annotations
 const constMetricLabels = {
-  // this needs to get set in main because of async reasons
   hyperlane_deployment: '',
   hyperlane_context: 'hyperlane',
 };
 
 const metricsRegister = new Registry();
 
-const walletBalanceGauge = new Gauge({
-  // Mirror the rust/main/ethers-prometheus `wallet_balance` gauge metric.
-  name: 'hyperlane_wallet_balance',
-  help: 'Current balance of eth and other tokens in the `tokens` map for the wallet addresses in the `wallets` set',
-  registers: [metricsRegister],
-  labelNames: [
-    'chain',
-    'wallet_address',
-    'wallet_name',
-    'token_address',
-    'token_symbol',
-    'token_name',
-    ...(Object.keys(constMetricLabels) as (keyof typeof constMetricLabels)[]),
-  ],
-});
-metricsRegister.registerMetric(walletBalanceGauge);
+const walletBalanceGauge = getWalletBalanceGauge(
+  metricsRegister,
+  Object.keys(constMetricLabels),
+);
 
-// Min delta is 50% of the desired balance
-const MIN_DELTA_NUMERATOR = ethers.BigNumber.from(5);
+// Min delta is 60% of the desired balance
+const MIN_DELTA_NUMERATOR = ethers.BigNumber.from(6);
 const MIN_DELTA_DENOMINATOR = ethers.BigNumber.from(10);
 
 // Don't send the full amount over to RC keys
 const RC_FUNDING_DISCOUNT_NUMERATOR = ethers.BigNumber.from(2);
 const RC_FUNDING_DISCOUNT_DENOMINATOR = ethers.BigNumber.from(10);
 
-interface SealevelAccount {
-  pubkey: PublicKey;
-  walletName: string;
-}
-
-const sealevelAccountsToTrack: ChainMap<SealevelAccount[]> = {
-  solanamainnet: [
-    {
-      // WIF warp route ATA payer
-      pubkey: new PublicKey('R5oMfxcbjx4ZYK1B2Aic1weqwt2tQsRzFEGe5WJfAxh'),
-      walletName: 'WIF/eclipsemainnet-solanamainnet/ata-payer',
-    },
-    {
-      // USDC warp route ATA payer
-      pubkey: new PublicKey('A1XtL9mAzkNEpBPinrCpDRrPqVAFjgaxDk4ATFVoQVyc'),
-      walletName: 'USDC/eclipsemainnet-ethereum-solanamainnet/ata-payer',
-    },
-  ],
-  eclipsemainnet: [
-    {
-      // WIF warp route ATA payer
-      pubkey: new PublicKey('HCQAfDd5ytAEidzR9g7CipjEGv2ZrSSZq1UY34oDFv8h'),
-      walletName: 'WIF/eclipsemainnet-solanamainnet/ata-payer',
-    },
-    {
-      // USDC warp route ATA payer
-      pubkey: new PublicKey('7arS1h8nwVVmmTVWSsu9rQ4WjLBN8iAi4DvHi8gWjBNC'),
-      walletName: 'USDC/eclipsemainnet-ethereum-solanamainnet/ata-payer',
-    },
-    {
-      // tETH warp route ATA payer
-      pubkey: new PublicKey('Hyy4jryRxgZm5pvuSx29fXxJ9J55SuDtXiCo89kmNuz5'),
-      walletName: 'tETH/eclipsemainnet-ethereum/ata-payer',
-    },
-    {
-      // SOL warp route ATA payer
-      pubkey: new PublicKey('CijxTbPs9JZxTUfo8Hmz2imxzHtKnDFD3kZP3RPy34uJ'),
-      walletName: 'SOL/eclipsemainnet-solanamainnet/ata-payer',
-    },
-  ],
-};
+const CONTEXT_FUNDING_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+const CHAIN_FUNDING_TIMEOUT_MS = 1 * 60 * 1000; // 1 minute
 
 // Funds key addresses for multiple contexts from the deployer key of the context
 // specified via the `--context` flag.
@@ -192,6 +150,14 @@ async function main() {
     )
     .coerce('desired-kathy-balance-per-chain', parseBalancePerChain)
 
+    .string('desired-rebalancer-balance-per-chain')
+    .array('desired-rebalancer-balance-per-chain')
+    .describe(
+      'desired-rebalancer-balance-per-chain',
+      'Array indicating target balance to fund Rebalancer for each chain. Each element is expected as <chainName>=<balance>',
+    )
+    .coerce('desired-rebalancer-balance-per-chain', parseBalancePerChain)
+
     .string('igp-claim-threshold-per-chain')
     .array('igp-claim-threshold-per-chain')
     .describe(
@@ -202,7 +168,11 @@ async function main() {
 
     .boolean('skip-igp-claim')
     .describe('skip-igp-claim', 'If true, never claims funds from the IGP')
-    .default('skip-igp-claim', false).argv;
+    .default('skip-igp-claim', false)
+
+    .array('chain-skip-override')
+    .describe('chain-skip-override', 'Array of chains to skip funding for')
+    .default('chain-skip-override', []).argv;
 
   constMetricLabels.hyperlane_deployment = environment;
   const config = getEnvironmentConfig(environment);
@@ -210,6 +180,12 @@ async function main() {
     Contexts.Hyperlane, // Always fund from the hyperlane context
     Role.Deployer, // Always fund from the deployer
   );
+
+  // Load sweep overrides and low urgency balances from the environment config
+  const keyFunderConfig = config.keyFunderConfig;
+  const sweepOverrides = keyFunderConfig?.sweepOverrides;
+  const lowUrgencyKeyFunderBalances =
+    keyFunderConfig?.lowUrgencyKeyFunderBalances ?? {};
 
   let contextFunders: ContextFunder[];
 
@@ -220,9 +196,13 @@ async function main() {
         multiProvider,
         argv.contextsAndRoles,
         argv.skipIgpClaim,
+        argv.chainSkipOverride,
         argv.desiredBalancePerChain,
         argv.desiredKathyBalancePerChain ?? {},
+        argv.desiredRebalancerBalancePerChain ?? {},
         argv.igpClaimThresholdPerChain ?? {},
+        sweepOverrides,
+        lowUrgencyKeyFunderBalances,
         path,
       ),
     );
@@ -236,9 +216,13 @@ async function main() {
           context,
           argv.contextsAndRoles[context]!,
           argv.skipIgpClaim,
+          argv.chainSkipOverride,
           argv.desiredBalancePerChain,
           argv.desiredKathyBalancePerChain ?? {},
+          argv.desiredRebalancerBalancePerChain ?? {},
           argv.igpClaimThresholdPerChain ?? {},
+          sweepOverrides,
+          lowUrgencyKeyFunderBalances,
         ),
       ),
     );
@@ -246,7 +230,25 @@ async function main() {
 
   let failureOccurred = false;
   for (const funder of contextFunders) {
-    failureOccurred ||= await funder.fund();
+    const { promise, cleanup } = createTimeoutPromise(
+      CONTEXT_FUNDING_TIMEOUT_MS,
+      `Funding timed out for context ${funder.context} after ${
+        CONTEXT_FUNDING_TIMEOUT_MS / 1000
+      }s`,
+    );
+
+    try {
+      await Promise.race([funder.fund(), promise]);
+    } catch (error) {
+      logger.error('Error funding context', {
+        error: format(error),
+        context: funder.context,
+        timeoutMs: CONTEXT_FUNDING_TIMEOUT_MS,
+      });
+      failureOccurred = true;
+    } finally {
+      cleanup();
+    }
   }
 
   await submitMetrics(metricsRegister, `key-funder-${environment}`);
@@ -270,15 +272,21 @@ class ContextFunder {
     public readonly context: Contexts,
     public readonly rolesToFund: FundableRole[],
     public readonly skipIgpClaim: boolean,
+    public readonly chainSkipOverride: ChainName[],
     public readonly desiredBalancePerChain: KeyFunderConfig<
       ChainName[]
     >['desiredBalancePerChain'],
     public readonly desiredKathyBalancePerChain: KeyFunderConfig<
       ChainName[]
     >['desiredKathyBalancePerChain'],
+    public readonly desiredRebalancerBalancePerChain: KeyFunderConfig<
+      ChainName[]
+    >['desiredRebalancerBalancePerChain'],
     public readonly igpClaimThresholdPerChain: KeyFunderConfig<
       ChainName[]
     >['igpClaimThresholdPerChain'],
+    public readonly sweepOverrides: ChainMap<SweepOverrideConfig> | undefined,
+    public readonly lowUrgencyKeyFunderBalances: ChainMap<string>,
   ) {
     // At the moment, only blessed EVM chains are supported
     roleKeysPerChain = objFilter(
@@ -317,15 +325,21 @@ class ContextFunder {
     multiProvider: MultiProvider,
     contextsAndRolesToFund: ContextAndRolesMap,
     skipIgpClaim: boolean,
+    chainSkipOverride: ChainName[],
     desiredBalancePerChain: KeyFunderConfig<
       ChainName[]
     >['desiredBalancePerChain'],
     desiredKathyBalancePerChain: KeyFunderConfig<
       ChainName[]
     >['desiredKathyBalancePerChain'],
+    desiredRebalancerBalancePerChain: KeyFunderConfig<
+      ChainName[]
+    >['desiredRebalancerBalancePerChain'],
     igpClaimThresholdPerChain: KeyFunderConfig<
       ChainName[]
     >['igpClaimThresholdPerChain'],
+    sweepOverrides: ChainMap<SweepOverrideConfig> | undefined,
+    lowUrgencyKeyFunderBalances: ChainMap<string>,
     filePath: string,
   ) {
     logger.info({ filePath }, 'Reading identifiers and addresses from file');
@@ -344,10 +358,13 @@ class ContextFunder {
 
     // Indexed by the identifier for quicker lookup
     const idsAndAddresses: Record<string, KeyAsAddress> =
-      allIdsAndAddresses.reduce((agg, idAndAddress) => {
-        agg[idAndAddress.identifier] = idAndAddress;
-        return agg;
-      }, {} as Record<string, KeyAsAddress>);
+      allIdsAndAddresses.reduce(
+        (agg, idAndAddress) => {
+          agg[idAndAddress.identifier] = idAndAddress;
+          return agg;
+        },
+        {} as Record<string, KeyAsAddress>,
+      );
 
     const agentConfig = getAgentConfig(context, environment);
     // Unfetched keys per chain and role, so we know which keys
@@ -392,9 +409,13 @@ class ContextFunder {
       context,
       contextsAndRolesToFund[context]!,
       skipIgpClaim,
+      chainSkipOverride,
       desiredBalancePerChain,
       desiredKathyBalancePerChain,
+      desiredRebalancerBalancePerChain,
       igpClaimThresholdPerChain,
+      sweepOverrides,
+      lowUrgencyKeyFunderBalances,
     );
   }
 
@@ -405,20 +426,27 @@ class ContextFunder {
     context: Contexts,
     rolesToFund: FundableRole[],
     skipIgpClaim: boolean,
+    chainSkipOverride: ChainName[],
     desiredBalancePerChain: KeyFunderConfig<
       ChainName[]
     >['desiredBalancePerChain'],
     desiredKathyBalancePerChain: KeyFunderConfig<
       ChainName[]
     >['desiredKathyBalancePerChain'],
+    desiredRebalancerBalancePerChain: KeyFunderConfig<
+      ChainName[]
+    >['desiredRebalancerBalancePerChain'],
     igpClaimThresholdPerChain: KeyFunderConfig<
       ChainName[]
     >['igpClaimThresholdPerChain'],
+    sweepOverrides: ChainMap<SweepOverrideConfig> | undefined,
+    lowUrgencyKeyFunderBalances: ChainMap<string>,
   ) {
     // only roles that are fundable keys ie. relayer and kathy
     const fundableRoleKeys: Record<FundableRole, Address> = {
       [Role.Relayer]: '',
       [Role.Kathy]: '',
+      [Role.Rebalancer]: '',
     };
     const roleKeysPerChain: ChainMap<Record<FundableRole, BaseAgentKey[]>> = {};
     const { supportedChainNames } = getEnvironmentConfig(environment);
@@ -437,6 +465,7 @@ class ContextFunder {
           roleKeysPerChain[chain as ChainName] = {
             [Role.Relayer]: [],
             [Role.Kathy]: [],
+            [Role.Rebalancer]: [],
           };
         }
         roleKeysPerChain[chain][role] = [
@@ -457,107 +486,163 @@ class ContextFunder {
       context,
       rolesToFund,
       skipIgpClaim,
+      chainSkipOverride,
       desiredBalancePerChain,
       desiredKathyBalancePerChain,
+      desiredRebalancerBalancePerChain,
       igpClaimThresholdPerChain,
+      sweepOverrides,
+      lowUrgencyKeyFunderBalances,
     );
   }
 
-  // Funds all the roles in this.rolesToFund
-  // Returns whether a failure occurred.
-  async fund(): Promise<boolean> {
+  // Funds all the roles in this.keysToFundPerChain.
+  // Throws if any funding operations fail.
+  async fund(): Promise<void> {
     const chainKeyEntries = Object.entries(this.keysToFundPerChain);
-    const promises = chainKeyEntries.map(async ([chain, keys]) => {
-      let failureOccurred = false;
-      if (keys.length > 0) {
-        if (!this.skipIgpClaim) {
-          failureOccurred ||= await gracefullyHandleError(
-            () => this.attemptToClaimFromIgp(chain),
-            chain,
-            'Error claiming from IGP',
-          );
-        }
-
-        failureOccurred ||= await gracefullyHandleError(
-          () => this.bridgeIfL2(chain),
-          chain,
-          'Error bridging to L2',
-        );
-      }
-      for (const key of keys) {
-        const failure = await this.attemptToFundKey(key, chain);
-        failureOccurred ||= failure;
-      }
-      return failureOccurred;
-    });
-
-    // A failure occurred if any of the promises rejected or
-    // if any of them resolved with true, indicating a failure
-    // somewhere along the way
-    const failureOccurred = (await Promise.allSettled(promises)).reduce(
-      (failureAgg, result, i) => {
-        if (result.status === 'rejected') {
-          logger.error(
-            {
-              chain: chainKeyEntries[i][0],
-              error: format(result.reason),
-            },
-            'Funding promise for chain rejected',
-          );
-          return true;
-        }
-        return result.value || failureAgg;
-      },
-      false,
+    const results = await Promise.allSettled(
+      chainKeyEntries.map(([chain, keys]) => this.fundChain(chain, keys)),
     );
 
-    if (
-      this.environment === 'mainnet3' &&
-      this.context === Contexts.Hyperlane
-    ) {
-      await this.updateSolanaWalletBalanceGauge();
+    if (results.some((result) => result.status === 'rejected')) {
+      logger.error('One or more chains failed to fund');
+      throw new Error('One or more chains failed to fund');
+    }
+  }
+
+  private async fundChain(chain: string, keys: BaseAgentKey[]): Promise<void> {
+    if (this.chainSkipOverride.includes(chain)) {
+      logger.warn(
+        { chain },
+        `Configured to skip funding operations for chain ${chain}, skipping`,
+      );
+      return;
     }
 
-    return failureOccurred;
+    const { promise, cleanup } = createTimeoutPromise(
+      CHAIN_FUNDING_TIMEOUT_MS,
+      `Timed out funding chain ${chain} after ${
+        CHAIN_FUNDING_TIMEOUT_MS / 1000
+      }s`,
+    );
+
+    try {
+      await Promise.race([this.executeFundingOperations(chain, keys), promise]);
+    } catch (error) {
+      logger.error(
+        {
+          chain,
+          error: format(error),
+          timeoutMs: CHAIN_FUNDING_TIMEOUT_MS,
+          keysCount: keys.length,
+        },
+        `Funding operations failed for chain ${chain}.`,
+      );
+      throw error;
+    } finally {
+      cleanup();
+    }
+  }
+
+  private async executeFundingOperations(
+    chain: string,
+    keys: BaseAgentKey[],
+  ): Promise<void> {
+    if (keys.length === 0) {
+      return;
+    }
+
+    if (!this.skipIgpClaim) {
+      try {
+        await this.attemptToClaimFromIgp(chain);
+      } catch (err) {
+        logger.error(
+          {
+            chain,
+            error: err,
+          },
+          `Error claiming from IGP on chain ${chain}`,
+        );
+      }
+    }
+
+    try {
+      await this.bridgeIfL2(chain);
+    } catch (err) {
+      logger.error(
+        {
+          chain,
+          error: err,
+        },
+        `Error bridging to L2 chain ${chain}`,
+      );
+      throw err;
+    }
+
+    const failedKeys: BaseAgentKey[] = [];
+    for (const key of keys) {
+      try {
+        await this.attemptToFundKey(key, chain);
+      } catch (err) {
+        logger.error(
+          {
+            chain,
+            key: await getKeyInfo(
+              key,
+              chain,
+              this.multiProvider.getProvider(chain),
+            ),
+            context: this.context,
+            error: err,
+          },
+          `Error funding key ${key.address} on chain ${chain}`,
+        );
+        failedKeys.push(key);
+      }
+    }
+
+    // Attempt to sweep excess funds after all claim/funding operations are complete
+    // Only sweep when processing the Hyperlane context to avoid duplicate sweeps
+    if (this.context === Contexts.Hyperlane) {
+      try {
+        await this.attemptToSweepExcessFunds(chain);
+      } catch (err) {
+        logger.error(
+          {
+            chain,
+            error: err,
+          },
+          `Error sweeping excess funds on chain ${chain}`,
+        );
+      }
+    }
+
+    if (failedKeys.length > 0) {
+      throw new Error(
+        `Failed to fund ${
+          failedKeys.length
+        } keys on chain ${chain}: ${failedKeys
+          .map(({ address, role }) => `${address} (${role})`)
+          .join(', ')}`,
+      );
+    }
   }
 
   private async attemptToFundKey(
     key: BaseAgentKey,
     chain: ChainName,
-  ): Promise<boolean> {
+  ): Promise<void> {
     const provider = this.multiProvider.tryGetProvider(chain);
     if (!provider) {
-      logger.error({ chain }, 'Cannot get chain connection');
-      // Consider this an error, but don't throw and prevent all future funding attempts
-      return true;
+      throw new Error(`Cannot get chain connection for ${chain}`);
     }
+
     const desiredBalance = this.getDesiredBalanceForRole(chain, key.role);
-
-    let failureOccurred = false;
-
-    try {
-      await this.fundKeyIfRequired(chain, key, desiredBalance);
-    } catch (err) {
-      logger.error(
-        {
-          key: await getKeyInfo(
-            key,
-            chain,
-            this.multiProvider.getProvider(chain),
-          ),
-          context: this.context,
-          error: err,
-        },
-        'Error funding key',
-      );
-      failureOccurred = true;
-    }
+    await this.fundKeyIfRequired(chain, key, desiredBalance);
     await this.updateWalletBalanceGauge(chain);
-
-    return failureOccurred;
   }
 
-  private async bridgeIfL2(chain: ChainName) {
+  private async bridgeIfL2(chain: ChainName): Promise<void> {
     if (L2Chains.includes(chain)) {
       const funderAddress = await this.multiProvider.getSignerAddress(chain)!;
       const desiredBalanceEther = ethers.utils.parseUnits(
@@ -578,9 +663,143 @@ class ContextFunder {
     }
   }
 
+  // Attempts to sweep excess funds to a given address when balance exceeds threshold.
+  // To avoid churning txs, only sweep when balance > triggerMultiplier * threshold,
+  // and leave targetMultiplier * threshold after sweep.
+  private async attemptToSweepExcessFunds(chain: ChainName): Promise<void> {
+    // Skip if the chain isn't in production yet i.e. if the validator set size is still 1
+    if (defaultMultisigConfigs[chain].validators.length === 1) {
+      logger.debug(
+        { chain },
+        'Chain is not in production yet, skipping sweep.',
+      );
+      return;
+    }
+
+    // Skip if we don't have a threshold configured for this chain
+    const lowUrgencyBalanceStr = this.lowUrgencyKeyFunderBalances[chain];
+    if (!lowUrgencyBalanceStr) {
+      logger.debug(
+        { chain },
+        'No low urgency balance configured for chain, skipping sweep',
+      );
+      return;
+    }
+
+    const lowUrgencyBalance = ethers.utils.parseEther(lowUrgencyBalanceStr);
+
+    // Skip if threshold is zero or negligible
+    if (lowUrgencyBalance.lte(0)) {
+      logger.debug({ chain }, 'Low urgency balance is zero, skipping sweep');
+      return;
+    }
+
+    // Get override config for this chain, if any
+    const override = this.sweepOverrides?.[chain];
+
+    // Use override or default sweep address
+    const sweepAddress = override?.sweepAddress ?? DEFAULT_SWEEP_ADDRESS;
+
+    // Use override or default multipliers
+    const targetMultiplier =
+      override?.targetMultiplier ?? DEFAULT_TARGET_MULTIPLIER;
+    const triggerMultiplier =
+      override?.triggerMultiplier ?? DEFAULT_TRIGGER_MULTIPLIER;
+
+    // If we have overrides, validate the full config with all overrides applied.
+    if (override) {
+      try {
+        validateSweepConfig({
+          sweepAddress,
+          targetMultiplier,
+          triggerMultiplier,
+        });
+      } catch (error) {
+        logger.error(
+          {
+            chain,
+            override,
+            error: format(error),
+          },
+          'Invalid sweep override configuration',
+        );
+        throw new Error(
+          `Invalid sweep override configuration for chain ${chain}: ${error}`,
+        );
+      }
+    }
+
+    // Calculate threshold amounts
+    const targetBalance = lowUrgencyBalance
+      .mul(Math.floor(targetMultiplier * 100))
+      .div(100);
+    const triggerThreshold = lowUrgencyBalance
+      .mul(Math.floor(triggerMultiplier * 100))
+      .div(100);
+
+    // Get current funder balance
+    const funderAddress = await this.multiProvider.getSignerAddress(chain);
+    const funderBalance = await this.multiProvider
+      .getSigner(chain)
+      .getBalance();
+
+    logger.info(
+      {
+        chain,
+        funderAddress,
+        funderBalance: ethers.utils.formatEther(funderBalance),
+        lowUrgencyBalance: ethers.utils.formatEther(lowUrgencyBalance),
+        targetBalance: ethers.utils.formatEther(targetBalance),
+        triggerThreshold: ethers.utils.formatEther(triggerThreshold),
+        targetMultiplier,
+        triggerMultiplier,
+      },
+      'Checking if sweep is needed',
+    );
+
+    // Only sweep if balance exceeds trigger threshold
+    if (funderBalance.gt(triggerThreshold)) {
+      const sweepAmount = funderBalance.sub(targetBalance);
+
+      logger.info(
+        {
+          chain,
+          sweepAmount: ethers.utils.formatEther(sweepAmount),
+          sweepAddress,
+          funderBalance: ethers.utils.formatEther(funderBalance),
+          remainingBalance: ethers.utils.formatEther(targetBalance),
+        },
+        'Sweeping excess funds',
+      );
+
+      const tx = await this.multiProvider.sendTransaction(chain, {
+        to: sweepAddress,
+        value: sweepAmount,
+      });
+
+      logger.info(
+        {
+          chain,
+          tx:
+            this.multiProvider.tryGetExplorerTxUrl(chain, {
+              hash: tx.transactionHash,
+            }) ?? tx.transactionHash,
+          sweepAmount: ethers.utils.formatEther(sweepAmount),
+          sweepAddress,
+        },
+        'Successfully swept excess funds',
+      );
+    } else {
+      logger.info(
+        { chain },
+        'Funder balance below trigger threshold, no sweep needed',
+      );
+    }
+  }
+
   // Attempts to claim from the IGP if the balance exceeds the claim threshold.
   // If no threshold is set, infer it by reading the desired balance and dividing that by 5.
-  private async attemptToClaimFromIgp(chain: ChainName) {
+  private async attemptToClaimFromIgp(chain: ChainName): Promise<void> {
     // Determine the IGP claim threshold in Ether for the given chain.
     // If a specific threshold is not set, use the desired balance for the chain.
     const igpClaimThresholdEther =
@@ -660,6 +879,18 @@ class ContextFunder {
       } else {
         desiredBalanceEther = this.desiredKathyBalancePerChain[chain];
       }
+    } else if (role === Role.Rebalancer) {
+      const desiredRebalancerBalance =
+        this.desiredRebalancerBalancePerChain[chain];
+      if (desiredRebalancerBalance === undefined) {
+        logger.warn(
+          { chain },
+          'No desired balance for Rebalancer, not funding',
+        );
+        desiredBalanceEther = '0';
+      } else {
+        desiredBalanceEther = this.desiredRebalancerBalancePerChain[chain];
+      }
     } else {
       desiredBalanceEther = this.desiredBalancePerChain[chain];
     }
@@ -701,23 +932,23 @@ class ContextFunder {
         'Skipping funding for key',
       );
       return;
-    } else {
-      logger.info(
-        {
-          chain,
-          amount: ethers.utils.formatEther(fundingAmount),
-          key: keyInfo,
-          funder: {
-            address: funderAddress,
-            balance: ethers.utils.formatEther(
-              await this.multiProvider.getSigner(chain).getBalance(),
-            ),
-          },
-          context: this.context,
-        },
-        'Funding key',
-      );
     }
+
+    logger.info(
+      {
+        chain,
+        amount: ethers.utils.formatEther(fundingAmount),
+        key: keyInfo,
+        funder: {
+          address: funderAddress,
+          balance: ethers.utils.formatEther(
+            await this.multiProvider.getSigner(chain).getBalance(),
+          ),
+        },
+        context: this.context,
+      },
+      'Funding key',
+    );
 
     const tx = await this.multiProvider.sendTransaction(chain, {
       to: key.address,
@@ -749,6 +980,8 @@ class ContextFunder {
     const l1Chain = L2ToL1[l2Chain];
     logger.info(
       {
+        l1Chain,
+        l2Chain,
         amount: ethers.utils.formatEther(amount),
         l1Funder: await getAddressInfo(
           await this.multiProvider.getSignerAddress(l1Chain),
@@ -783,8 +1016,8 @@ class ContextFunder {
   ) {
     const l1Chain = L2ToL1[l2Chain];
     const crossChainMessenger = new CrossChainMessenger({
-      l1ChainId: this.multiProvider.getDomainId(l1Chain),
-      l2ChainId: this.multiProvider.getDomainId(l2Chain),
+      l1ChainId: this.multiProvider.getEvmChainId(l1Chain),
+      l2ChainId: this.multiProvider.getEvmChainId(l2Chain),
       l1SignerOrProvider: this.multiProvider.getSignerOrProvider(l1Chain),
       l2SignerOrProvider: this.multiProvider.getSignerOrProvider(l2Chain),
     });
@@ -796,13 +1029,13 @@ class ContextFunder {
 
   private async bridgeToArbitrum(l2Chain: ChainName, amount: BigNumber) {
     const l1Chain = L2ToL1[l2Chain];
-    const l2Network = await getL2Network(
-      this.multiProvider.getDomainId(l2Chain),
+    const l2Network = await getArbitrumNetwork(
+      this.multiProvider.getEvmChainId(l2Chain),
     );
     const ethBridger = new EthBridger(l2Network);
     return ethBridger.deposit({
       amount,
-      l1Signer: this.multiProvider.getSigner(l1Chain),
+      parentSigner: this.multiProvider.getSigner(l1Chain),
       overrides: this.multiProvider.getTransactionOverrides(l1Chain),
     });
   }
@@ -831,9 +1064,8 @@ class ContextFunder {
       L1MessageQueue.abi,
       l1ChainSigner,
     );
-    const gasQuote = await l1MessageQueue.estimateCrossDomainMessageFee(
-      l2GasLimit,
-    );
+    const gasQuote =
+      await l1MessageQueue.estimateCrossDomainMessageFee(l2GasLimit);
     const totalAmount = amount.add(gasQuote);
     return l1EthGateway['depositETH(address,uint256,uint256)'](
       to,
@@ -863,54 +1095,6 @@ class ContextFunder {
           ),
         ),
       );
-  }
-
-  private async updateSolanaWalletBalanceGauge() {
-    for (const chain of Object.keys(sealevelAccountsToTrack) as ChainName[]) {
-      await this.updateSealevelWalletBalanceAccounts(
-        chain,
-        sealevelAccountsToTrack[chain],
-      );
-    }
-  }
-
-  private async updateSealevelWalletBalanceAccounts(
-    chain: ChainName,
-    accounts: SealevelAccount[],
-  ) {
-    const rpcUrls = await getSecretRpcEndpoints(this.environment, chain);
-    const provider = new Connection(rpcUrls[0], 'confirmed');
-
-    for (const { pubkey, walletName } of accounts) {
-      logger.info(
-        {
-          chain,
-          pubkey: pubkey.toString(),
-          walletName,
-        },
-        'Fetching sealevel wallet balance',
-      );
-      const balance = await provider.getBalance(pubkey);
-      logger.info(
-        {
-          balance,
-          chain,
-          pubkey: pubkey.toString(),
-          walletName,
-        },
-        'Retrieved sealevel chain wallet balance',
-      );
-      walletBalanceGauge
-        .labels({
-          chain,
-          wallet_address: pubkey.toString(),
-          wallet_name: walletName,
-          token_symbol: 'Native',
-          token_name: 'Native',
-          ...constMetricLabels,
-        })
-        .set(balance / 1e9);
-    }
   }
 }
 
@@ -964,7 +1148,7 @@ function parseContextAndRoles(str: string): ContextAndRoles {
   }
 
   // For now, restrict the valid roles we think are reasonable to want to fund
-  const validRoles = new Set([Role.Relayer, Role.Kathy]);
+  const validRoles = new Set([Role.Relayer, Role.Kathy, Role.Rebalancer]);
   for (const role of roles) {
     if (!validRoles.has(role)) {
       throw Error(
@@ -993,25 +1177,20 @@ function parseBalancePerChain(strs: string[]): ChainMap<string> {
   return balanceMap;
 }
 
-// Returns whether an error occurred
-async function gracefullyHandleError(
-  fn: () => Promise<void>,
-  chain: ChainName,
+// Utility function to create a timeout promise
+function createTimeoutPromise(
+  timeoutMs: number,
   errorMessage: string,
-): Promise<boolean> {
-  try {
-    await fn();
-    return false;
-  } catch (err) {
-    logger.error(
-      {
-        chain,
-        error: format(err),
-      },
-      errorMessage,
+): { promise: Promise<void>; cleanup: () => void } {
+  let cleanup: () => void;
+  const promise = new Promise<void>((_, reject) => {
+    const timeout = setTimeout(
+      () => reject(new Error(errorMessage)),
+      timeoutMs,
     );
-  }
-  return true;
+    cleanup = () => clearTimeout(timeout);
+  });
+  return { promise, cleanup: cleanup! };
 }
 
 main().catch((err) => {

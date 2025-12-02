@@ -1,0 +1,17 @@
+{
+  "eclipsemainnet": {
+    "type": "synthetic",
+    "decimals": 6,
+    "remoteDecimals": 6,
+    "name": "Stride Staked TIA",
+    "symbol": "stTIA",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/dee58183e51f4eb43e84dbac0e595a4b389dbe80/deployments/warp_routes/stTIA/metadata.json",
+    "interchainGasPaymaster": "3Wp4qKkgf4tjXz1soGyTSndCgBPLZFSrZkiDZ8Qp9EEj"
+  },
+  "stride": {
+    "type": "collateral",
+    "decimals": 6,
+    "token": "stutia",
+    "foreignDeployment": "0x8d7a6737fdd9545dc77d1c5cc2d26cb1321f6c67f0facb030149da9cc58f0cbe"
+  }
+}

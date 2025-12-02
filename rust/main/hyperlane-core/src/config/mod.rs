@@ -24,11 +24,18 @@ pub type NoFilter = ();
 
 /// Config for batching messages
 #[derive(Debug, Clone, Default)]
-pub struct OperationBatchConfig {
+pub struct OpSubmissionConfig {
     /// Optional batch contract address (e.g. Multicall3 on EVM chains)
     pub batch_contract_address: Option<H256>,
+
     /// Batch size
     pub max_batch_size: u32,
+
+    /// bypass batch simulation
+    pub bypass_batch_simulation: bool,
+
+    /// max submit queue length
+    pub max_submit_queue_length: Option<u32>,
 }
 
 /// A trait that allows for constructing `Self` from a raw config type.
@@ -40,8 +47,8 @@ where
     /// Construct `Self` from a raw config type.
     /// - `raw` is the raw config value
     /// - `cwp` is the current working path
-    fn from_config(raw: T, cwp: &ConfigPath) -> ConfigResult<Self> {
-        Self::from_config_filtered(raw, cwp, F::default())
+    fn from_config(raw: T, cwp: &ConfigPath, agent_name: &str) -> ConfigResult<Self> {
+        Self::from_config_filtered(raw, cwp, F::default(), agent_name)
     }
 
     /// Construct `Self` from a raw config type with a filter to limit what
@@ -49,7 +56,12 @@ where
     /// - `raw` is the raw config value
     /// - `cwp` is the current working path
     /// - `filter` can define what config paths are parsed
-    fn from_config_filtered(raw: T, cwp: &ConfigPath, filter: F) -> ConfigResult<Self>;
+    fn from_config_filtered(
+        raw: T,
+        cwp: &ConfigPath,
+        filter: F,
+        agent_name: &str,
+    ) -> ConfigResult<Self>;
 }
 
 /// A trait that allows for converting a raw config type into a "parsed" type.
@@ -59,11 +71,16 @@ pub trait IntoParsedConf<F: Default>: Debug + Sized {
         self,
         cwp: &ConfigPath,
         filter: F,
+        agent_name: &str,
     ) -> ConfigResult<O>;
 
     /// Parse the config.
-    fn parse_config<O: FromRawConf<Self, F>>(self, cwp: &ConfigPath) -> ConfigResult<O> {
-        self.parse_config_with_filter(cwp, F::default())
+    fn parse_config<O: FromRawConf<Self, F>>(
+        self,
+        cwp: &ConfigPath,
+        agent_name: &str,
+    ) -> ConfigResult<O> {
+        self.parse_config_with_filter(cwp, F::default(), agent_name)
     }
 }
 
@@ -76,8 +93,9 @@ where
         self,
         cwp: &ConfigPath,
         filter: F,
+        agent_name: &str,
     ) -> ConfigResult<O> {
-        O::from_config_filtered(self, cwp, filter)
+        O::from_config_filtered(self, cwp, filter, agent_name)
     }
 }
 

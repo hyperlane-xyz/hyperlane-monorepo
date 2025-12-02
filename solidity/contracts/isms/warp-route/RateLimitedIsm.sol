@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-import {IMailbox} from "contracts/interfaces/IMailbox.sol";
-import {MailboxClient} from "contracts/client/MailboxClient.sol";
-import {RateLimited} from "contracts/libs/RateLimited.sol";
-import {IInterchainSecurityModule} from "contracts/interfaces/IInterchainSecurityModule.sol";
-import {Message} from "contracts/libs/Message.sol";
-import {TokenMessage} from "contracts/token/libs/TokenMessage.sol";
+// ============ Internal Imports ============
+import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
+import {MailboxClient} from "../../client/MailboxClient.sol";
+import {RateLimited} from "../../libs/RateLimited.sol";
+import {Message} from "../../libs/Message.sol";
+import {TokenMessage} from "../../token/libs/TokenMessage.sol";
 
 contract RateLimitedIsm is
     MailboxClient,
@@ -61,7 +61,7 @@ contract RateLimitedIsm is
         require(_isDelivered(_message.id()), "InvalidDeliveredMessage");
 
         uint256 newAmount = _message.body().amount();
-        validateAndConsumeFilledLevel(newAmount);
+        _validateAndConsumeFilledLevel(newAmount);
 
         return true;
     }

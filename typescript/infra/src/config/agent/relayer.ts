@@ -9,6 +9,7 @@ import {
   HyperlaneAddresses,
   HyperlaneAddressesMap,
   HyperlaneFactories,
+  IsmCacheConfig,
   MatchingList,
   RelayerConfig as RelayerAgentConfig,
 } from '@hyperlane-xyz/sdk';
@@ -17,10 +18,15 @@ import {
   ProtocolType,
   addressToBytes32,
   isValidAddressEvm,
+  objMap,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { getChain, getDomainId } from '../../../config/registry.js';
+import {
+  getChain,
+  getDomainId,
+  getWarpAddresses,
+} from '../../../config/registry.js';
 import { AgentAwsUser } from '../../agents/aws/user.js';
 import { Role } from '../../roles.js';
 import { HelmStatefulSetValues } from '../infrastructure.js';
@@ -37,6 +43,23 @@ export interface MetricAppContext {
   matchingList: MatchingList;
 }
 
+export interface RelayerMixingConfig {
+  enabled: boolean;
+  salt?: number;
+}
+
+export interface RelayerCacheConfig {
+  enabled: boolean;
+  defaultExpirationSeconds?: number;
+}
+
+export interface RelayerBatchConfig {
+  bypassBatchSimulation?: boolean;
+  defaultBatchSize?: number;
+  batchSizeOverrides?: ChainMap<number>;
+  maxSubmitQueueLength?: ChainMap<number>;
+}
+
 // Incomplete basic relayer agent config
 export interface BaseRelayerConfig {
   gasPaymentEnforcement: GasPaymentEnforcement[];
@@ -45,17 +68,56 @@ export interface BaseRelayerConfig {
   addressBlacklist?: string;
   transactionGasLimit?: BigNumberish;
   skipTransactionGasLimitFor?: string[];
-  metricAppContexts?: MetricAppContext[];
+  metricAppContextsGetter?: () => MetricAppContext[];
+  ismCacheConfigs?: Array<IsmCacheConfig>;
+  dbBootstrap?: boolean;
+  mixing?: RelayerMixingConfig;
+  environmentVariableEndpointEnabled?: boolean;
+  cache?: RelayerCacheConfig;
+  batch?: RelayerBatchConfig;
+  txIdIndexingEnabled?: boolean;
+  igpIndexingEnabled?: boolean;
 }
 
 // Full relayer-specific agent config for a single chain
 export type RelayerConfig = Omit<RelayerAgentConfig, keyof AgentConfig>;
+// Config intended to be set as configMap values, these are usually really long
+// and are intended to derisk hitting max env var length limits.
+export type RelayerConfigMapConfig = Pick<
+  RelayerConfig,
+  'addressBlacklist' | 'gasPaymentEnforcement' | 'ismCacheConfigs'
+>;
+// Config that will be embedded into relayer docker image because
+// of its large size.
+export type RelayerAppContextConfig = Pick<RelayerConfig, 'metricAppContexts'>;
+// The rest of the config is intended to be set as env vars.
+export type RelayerEnvConfig = Omit<
+  Omit<RelayerConfig, keyof RelayerAppContextConfig>,
+  keyof RelayerConfigMapConfig
+>;
 
 // See rust/main/helm/values.yaml for the full list of options and their defaults.
 // This is at `.hyperlane.relayer` in the values file.
 export interface HelmRelayerValues extends HelmStatefulSetValues {
   aws: boolean;
-  config?: RelayerConfig;
+  // Config intended to be set as env vars
+  envConfig?: RelayerEnvConfig;
+  // Config intended to be set as configMap values
+  configMapConfig?: RelayerConfigMapConfig;
+  // Config for setting up the database
+  dbBootstrap?: RelayerDbBootstrapConfig;
+  // Config for setting up the mixing service
+  mixing?: RelayerMixingConfig;
+  // Config for the environment variable endpoint
+  environmentVariableEndpointEnabled?: boolean;
+  // Config for the cache
+  cacheDefaultExpirationSeconds?: number;
+}
+
+export interface RelayerDbBootstrapConfig {
+  enabled: boolean;
+  bucket: string;
+  object_targz: string;
 }
 
 // See rust/main/helm/values.yaml for the full list of options and their defaults.
@@ -66,7 +128,7 @@ export interface HelmRelayerChainValues {
 }
 
 export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
-  readonly #relayerConfig: BaseRelayerConfig;
+  readonly relayerConfig: BaseRelayerConfig;
   readonly logger: Logger<never>;
 
   constructor(agentConfig: RootAgentConfig) {
@@ -74,12 +136,12 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
       throw Error('Relayer is not defined for this context');
     super(agentConfig, agentConfig.relayer);
 
-    this.#relayerConfig = agentConfig.relayer;
+    this.relayerConfig = agentConfig.relayer;
     this.logger = rootLogger.child({ module: 'RelayerConfigHelper' });
   }
 
   async buildConfig(): Promise<RelayerConfig> {
-    const baseConfig = this.#relayerConfig!;
+    const baseConfig = this.relayerConfig!;
 
     const relayerConfig: RelayerConfig = {
       relayChains: this.relayChains.join(','),
@@ -105,11 +167,15 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
       relayerConfig.skipTransactionGasLimitFor =
         baseConfig.skipTransactionGasLimitFor.join(',');
     }
-    if (baseConfig.metricAppContexts) {
-      relayerConfig.metricAppContexts = JSON.stringify(
-        baseConfig.metricAppContexts,
-      );
+    if (baseConfig.metricAppContextsGetter) {
+      relayerConfig.metricAppContexts = baseConfig.metricAppContextsGetter();
     }
+    if (baseConfig.ismCacheConfigs) {
+      relayerConfig.ismCacheConfigs = baseConfig.ismCacheConfigs;
+    }
+    relayerConfig.allowContractCallCaching = baseConfig.cache?.enabled ?? false;
+    relayerConfig.txIdIndexingEnabled = baseConfig.txIdIndexingEnabled ?? true;
+    relayerConfig.igpIndexingEnabled = baseConfig.igpIndexingEnabled ?? true;
 
     return relayerConfig;
   }
@@ -149,7 +215,7 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
 
   async getSanctionedAddresses() {
     // All Ethereum-style addresses from https://github.com/0xB10C/ofac-sanctioned-digital-currency-addresses/tree/lists
-    const currencies = ['ARB', 'ETC', 'ETH', 'USDC', 'USDT'];
+    const currencies = ['ARB', 'BSC', 'ETC', 'ETH', 'USDC', 'USDT'];
 
     const schema = z.array(z.string());
 
@@ -188,14 +254,20 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
       '0x97a05beCc2e7891D07F382457Cd5d57FD242e4e8',
     ];
 
-    return [...sanctionedEthereumAdresses, ...radiantExploiter];
+    const uniqueAddresses = new Set(
+      [...sanctionedEthereumAdresses, ...radiantExploiter].map((address) =>
+        address.toLowerCase(),
+      ),
+    );
+
+    return Array.from(uniqueAddresses);
   }
 
   // Returns whether the relayer requires AWS credentials
   get requiresAwsCredentials(): boolean {
     // If AWS is present on the agentConfig, we are using AWS keys and need credentials regardless.
     if (!this.aws) {
-      console.warn(
+      this.logger.warn(
         `Relayer does not have AWS credentials. Be sure this is a non-k8s-based environment!`,
       );
       return false;
@@ -213,10 +285,58 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
   }
 }
 
+// Gets the matching list for the given warp route using addresses from the registry.
+export function warpRouteMatchingList(warpRouteId: string): MatchingList {
+  return matchingList(getWarpAddresses(warpRouteId));
+}
+
 export function routerMatchingList(
   routers: ChainMap<{ router: Address }>,
 ): MatchingList {
   return matchingList(routers);
+}
+
+// Create a matching list for the given senders to any destination or recipient
+export function senderMatchingList(
+  senders: ChainMap<{ sender: Address }>,
+): MatchingList {
+  return Object.entries(senders).map(([chain, { sender }]) => ({
+    originDomain: getDomainId(chain),
+    senderAddress: addressToBytes32(sender),
+    destinationDomain: '*',
+    recipientAddress: '*',
+  }));
+}
+
+// A matching list to match messages sent to or from the given address
+// between any chains.
+export function consistentSenderRecipientMatchingList(
+  address: Address,
+): MatchingList {
+  return [
+    {
+      originDomain: '*',
+      senderAddress: addressToBytes32(address),
+      destinationDomain: '*',
+      recipientAddress: '*',
+    },
+    {
+      originDomain: '*',
+      senderAddress: '*',
+      destinationDomain: '*',
+      recipientAddress: addressToBytes32(address),
+    },
+  ];
+}
+
+export function chainMapMatchingList(
+  chainMap: ChainMap<Address>,
+): MatchingList {
+  // Convert to a router matching list
+  const routers = objMap(chainMap, (chain, address) => ({
+    router: address,
+  }));
+  return routerMatchingList(routers);
 }
 
 // Create a matching list for the given contract addresses

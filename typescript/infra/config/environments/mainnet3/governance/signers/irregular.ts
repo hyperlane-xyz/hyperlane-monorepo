@@ -1,0 +1,13 @@
+import { Address } from '@hyperlane-xyz/utils';
+
+export const irregularSigners: Address[] = [
+  '0x9f500df92175b2ac36f8d443382b219d211d354a',
+  '0x82950a6356316272dF1928C72F5F0A44D9673c88',
+  '0x861FC61a961F8AFDf115B8DE274101B9ECea2F26',
+  '0x3b548E88BA3259A6f45DEeA91449cdda5cF164b3',
+  '0xD5c0D17cCb9071D27a4F7eD8255F59989b9aee0d',
+  '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6',
+  '0x87fcEcb180E0275C22CEF213FF301816bB24E74B',
+];
+
+export const irregularThreshold = 5;

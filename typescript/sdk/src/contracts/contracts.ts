@@ -1,20 +1,31 @@
-import { Contract, ethers } from 'ethers';
+import { constants } from 'ethers';
 
-import { Ownable } from '@hyperlane-xyz/core';
+import { Ownable, Ownable__factory } from '@hyperlane-xyz/core';
 import {
   Address,
+  EvmChainId,
   ProtocolType,
   ValueOf,
+  addressToByteHexString,
+  assert,
+  eqAddress,
   hexOrBase58ToHex,
   objFilter,
   objMap,
   pick,
-  promiseObjAll,
+  rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { EthersLikeProvider } from '../deploy/proxy.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainMap, Connection } from '../types.js';
+import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import {
+  ChainMap,
+  ChainNameOrId,
+  Connection,
+  OwnableConfig,
+} from '../types.js';
 
 import {
   HyperlaneAddresses,
@@ -59,9 +70,35 @@ export function filterAddressesMap<F extends HyperlaneFactories>(
   const pickedAddressesMap = objMap(addressesMap, (_, addresses) =>
     pick(addresses, factoryKeys),
   );
+
+  const chainsWithMissingAddresses = new Set<string>();
+  const filledAddressesMap = objMap(
+    pickedAddressesMap,
+    (chainName, addresses) =>
+      objMap(addresses, (key, value) => {
+        if (!value) {
+          rootLogger.warn(
+            `Missing address for contract "${key}" on chain ${chainName}`,
+          );
+          chainsWithMissingAddresses.add(chainName);
+          return constants.AddressZero;
+        }
+        return value;
+      }),
+  );
+  // Add summary warning if any addresses were missing
+  if (chainsWithMissingAddresses.size > 0) {
+    rootLogger.warn(
+      `Warning: Core deployment incomplete for chain(s): ${Array.from(
+        chainsWithMissingAddresses,
+      ).join(', ')}. ` +
+        `Please run 'core deploy' again for these chains to fix the deployment.`,
+    );
+  }
+
   // Filter out chains for which we do not have a complete set of addresses
   return objFilter(
-    pickedAddressesMap,
+    filledAddressesMap,
     (_, addresses): addresses is HyperlaneAddresses<F> => {
       return Object.keys(addresses).every((a) => factoryKeys.includes(a));
     },
@@ -159,7 +196,12 @@ export function attachContractsMapAndGetForeignDeployments<
           throw new Error('Ethereum chain should not have foreign deployments');
 
         case ProtocolType.Cosmos:
+        case ProtocolType.CosmosNative:
+        case ProtocolType.Starknet:
           return router;
+
+        case ProtocolType.Radix:
+          return addressToByteHexString(router, ProtocolType.Radix);
 
         case ProtocolType.Sealevel:
           return hexOrBase58ToHex(router);
@@ -209,21 +251,13 @@ export function connectContractsMap<F extends HyperlaneFactories>(
   );
 }
 
-export async function filterOwnableContracts(
-  contracts: HyperlaneContracts<any>,
-): Promise<{ [key: string]: Ownable }> {
-  const isOwnable = async (_: string, contract: Contract): Promise<boolean> => {
-    try {
-      await contract.owner();
-      return true;
-    } catch (_) {
-      return false;
-    }
-  };
-  const isOwnableContracts = await promiseObjAll(objMap(contracts, isOwnable));
+// NOTE: does not perform any onchain checks
+export function filterOwnableContracts(contracts: HyperlaneContracts<any>): {
+  [key: string]: Ownable;
+} {
   return objFilter(
     contracts,
-    (name, contract): contract is Ownable => isOwnableContracts[name],
+    (_, contract): contract is Ownable => 'owner' in contract.functions,
   );
 }
 
@@ -235,31 +269,15 @@ export function appFromAddressesMapHelper<F extends HyperlaneFactories>(
   contractsMap: HyperlaneContractsMap<F>;
   multiProvider: MultiProvider;
 } {
-  // Hack to accommodate non-Ethereum artifacts, while still retaining their
-  // presence in the addressesMap so that they are included in the list of chains
-  // on the MultiProvider (needed for getting metadata). A non-Ethereum-style address
-  // from another execution environment will cause Ethers to throw if we try to attach
-  // it, so we just replace it with the zero address.
-  const addressesMapWithEthereumizedAddresses = objMap(
+  // Filter out non-Ethereum chains from the addressesMap
+  const ethereumAddressesMap = objFilter(
     addressesMap,
-    (chain, addresses) => {
-      const metadata = multiProvider.getChainMetadata(chain);
-      if (metadata.protocol === ProtocolType.Ethereum) {
-        return addresses;
-      }
-      return objMap(
-        addresses,
-        (_key, _address) => ethers.constants.AddressZero,
-      );
-    },
+    (chain, _): _ is HyperlaneAddresses<F> =>
+      multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
   );
 
-  // Attaches contracts for each chain for which we have a complete set of
-  // addresses
-  const contractsMap = attachContractsMap(
-    addressesMapWithEthereumizedAddresses,
-    factories,
-  );
+  // Attaches contracts for each Ethereum chain for which we have a complete set of addresses
+  const contractsMap = attachContractsMap(ethereumAddressesMap, factories);
 
   // Filters out providers for chains for which we don't have a complete set
   // of addresses
@@ -270,6 +288,73 @@ export function appFromAddressesMapHelper<F extends HyperlaneFactories>(
 
   return {
     contractsMap: filteredContractsMap,
-    multiProvider: multiProvider,
+    multiProvider,
   };
+}
+
+export function transferOwnershipTransactions(
+  chainId: EvmChainId,
+  contract: Address,
+  actual: OwnableConfig,
+  expected: OwnableConfig,
+  label?: string,
+): AnnotatedEV5Transaction[] {
+  if (eqAddress(actual.owner, expected.owner)) {
+    return [];
+  }
+
+  return [
+    {
+      chainId,
+      annotation: `Transferring ownership of ${label ?? contract} from ${
+        actual.owner
+      } to ${expected.owner}`,
+      to: contract,
+      data: Ownable__factory.createInterface().encodeFunctionData(
+        'transferOwnership',
+        [expected.owner],
+      ),
+    },
+  ];
+}
+
+export async function isAddressActive(
+  provider: EthersLikeProvider,
+  address: Address,
+): Promise<boolean> {
+  const [code, txnCount] = await Promise.all([
+    provider.getCode(address),
+    provider.getTransactionCount(address),
+  ]);
+
+  return code !== '0x' || txnCount > 0;
+}
+
+/**
+ * Checks if the provided address is a contract
+ */
+export async function isContractAddress(
+  multiProvider: MultiProvider,
+  chain: ChainNameOrId,
+  address: string,
+  blockNumber?: number,
+) {
+  const provider = multiProvider.getProvider(chain);
+  const code = await provider.getCode(address, blockNumber);
+
+  return code !== '0x';
+}
+
+/**
+ * Checks if the provided address is a contract and throws if it isn't
+ */
+export async function assertIsContractAddress(
+  multiProvider: MultiProvider,
+  chain: ChainNameOrId,
+  address: string,
+) {
+  assert(
+    await isContractAddress(multiProvider, chain, address),
+    `Address "${address}" on chain "${chain}" is not a contract`,
+  );
 }

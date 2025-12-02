@@ -1,27 +1,28 @@
 #![allow(missing_docs)]
-use std::num::NonZeroU64;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use ethers::prelude::Middleware;
+use ethers_contract::builders::ContractCall;
+use ethers_core::types::{BlockId, BlockNumber};
 use hyperlane_core::accumulator::incremental::IncrementalMerkle;
 use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
 use tracing::instrument;
 
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, Checkpoint, ContractLocator, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexed, Indexer, LogMeta,
-    MerkleTreeHook, MerkleTreeInsertion, SequenceAwareIndexer, H256, H512,
+    ChainResult, Checkpoint, CheckpointAtBlock, ContractLocator, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneProvider, IncrementalMerkleAtBlock, Indexed, Indexer, LogMeta,
+    MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer, H256, H512,
 };
 
 use crate::interfaces::merkle_tree_hook::{
     InsertedIntoTreeFilter, MerkleTreeHook as MerkleTreeHookContract, Tree,
 };
-use crate::tx::call_with_lag;
-use crate::{BuildableWithProvider, ConnectionConf, EthereumProvider};
+use crate::tx::call_with_reorg_period;
+use crate::{BuildableWithProvider, ConnectionConf, EthereumProvider, EthereumReorgPeriod};
 
-use super::utils::fetch_raw_logs_and_meta;
+use super::utils::{fetch_raw_logs_and_meta, get_finalized_block_number};
 
 // We don't need the reverse of this impl, so it's ok to disable the clippy lint
 #[allow(clippy::from_over_into)]
@@ -35,7 +36,7 @@ impl Into<IncrementalMerkle> for Tree {
             // we're iterating over a fixed-size array and want to collect into a
             // fixed-size array of the same size (32), so this is safe
             .try_into()
-            .unwrap();
+            .expect("Failed to convert vec into fixed sized array");
         IncrementalMerkle::new(branch, self.count.as_usize())
     }
 }
@@ -58,7 +59,7 @@ impl BuildableWithProvider for MerkleTreeHookBuilder {
 }
 
 pub struct MerkleTreeHookIndexerBuilder {
-    pub reorg_period: u32,
+    pub reorg_period: EthereumReorgPeriod,
 }
 
 #[async_trait]
@@ -88,7 +89,7 @@ where
 {
     contract: Arc<MerkleTreeHookContract<M>>,
     provider: Arc<M>,
-    reorg_period: u32,
+    reorg_period: EthereumReorgPeriod,
 }
 
 impl<M> EthereumMerkleTreeHookIndexer<M>
@@ -96,7 +97,11 @@ where
     M: Middleware + 'static,
 {
     /// Create new EthereumMerkleTreeHookIndexer
-    pub fn new(provider: Arc<M>, locator: &ContractLocator, reorg_period: u32) -> Self {
+    pub fn new(
+        provider: Arc<M>,
+        locator: &ContractLocator,
+        reorg_period: EthereumReorgPeriod,
+    ) -> Self {
         Self {
             contract: Arc::new(MerkleTreeHookContract::new(
                 locator.address,
@@ -114,7 +119,6 @@ where
     M: Middleware + 'static,
 {
     /// Note: This call may return duplicates depending on the provider used
-    #[instrument(err, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn fetch_logs_in_range(
         &self,
@@ -140,16 +144,9 @@ where
         Ok(logs)
     }
 
-    #[instrument(level = "debug", err, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        Ok(self
-            .provider
-            .get_block_number()
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .as_u32()
-            .saturating_sub(self.reorg_period))
+        get_finalized_block_number(&self.provider, &self.reorg_period).await
     }
 
     async fn fetch_logs_by_tx_hash(
@@ -253,31 +250,83 @@ where
     M: Middleware + 'static,
 {
     #[instrument(skip(self))]
-    async fn latest_checkpoint(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
-        let call =
-            call_with_lag(self.contract.latest_checkpoint(), &self.provider, maybe_lag).await?;
+    async fn latest_checkpoint(
+        &self,
+        reorg_period: &ReorgPeriod,
+    ) -> ChainResult<CheckpointAtBlock> {
+        let call = call_with_reorg_period(
+            self.contract.latest_checkpoint(),
+            &self.provider,
+            reorg_period,
+        )
+        .await?;
+
+        let block_height = Self::block_height(&call);
 
         let (root, index) = call.call().await?;
-        Ok(Checkpoint {
+        let checkpoint = Checkpoint {
             merkle_tree_hook_address: self.address(),
             mailbox_domain: self.domain.id(),
             root: root.into(),
             index,
+        };
+        Ok(CheckpointAtBlock {
+            checkpoint,
+            block_height,
+        })
+    }
+
+    #[instrument(skip(self))]
+    async fn latest_checkpoint_at_block(&self, height: u64) -> ChainResult<CheckpointAtBlock> {
+        let call = self
+            .contract
+            .latest_checkpoint()
+            .block(BlockId::Number(BlockNumber::Number(height.into())));
+
+        let (root, index) = call.call().await?;
+        let checkpoint = Checkpoint {
+            merkle_tree_hook_address: self.address(),
+            mailbox_domain: self.domain.id(),
+            root: root.into(),
+            index,
+        };
+        Ok(CheckpointAtBlock {
+            checkpoint,
+            block_height: Some(height),
         })
     }
 
     #[instrument(skip(self))]
     #[allow(clippy::needless_range_loop)]
-    async fn tree(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {
-        let call = call_with_lag(self.contract.tree(), &self.provider, maybe_lag).await?;
+    async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkleAtBlock> {
+        let call =
+            call_with_reorg_period(self.contract.tree(), &self.provider, reorg_period).await?;
+        let tree = call.call().await?;
+        let block_height = Self::block_height(&call);
 
-        Ok(call.call().await?.into())
+        Ok(IncrementalMerkleAtBlock {
+            tree: tree.into(),
+            block_height,
+        })
     }
 
     #[instrument(skip(self))]
-    async fn count(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
-        let call = call_with_lag(self.contract.count(), &self.provider, maybe_lag).await?;
+    async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
+        let call =
+            call_with_reorg_period(self.contract.count(), &self.provider, reorg_period).await?;
         let count = call.call().await?;
         Ok(count)
+    }
+}
+
+impl<M> EthereumMerkleTreeHook<M>
+where
+    M: 'static + Middleware,
+{
+    fn block_height<D>(call: &ContractCall<M, D>) -> Option<u64> {
+        if let Some(BlockId::Number(BlockNumber::Number(n))) = call.block {
+            return Some(n.as_u64());
+        }
+        None
     }
 }

@@ -7,6 +7,8 @@ import "@openzeppelin/contracts/utils/Strings.sol";
 
 import {IAggregationIsm} from "../../contracts/interfaces/isms/IAggregationIsm.sol";
 import {StaticAggregationIsmFactory} from "../../contracts/isms/aggregation/StaticAggregationIsmFactory.sol";
+import {IThresholdAddressFactory} from "../../contracts/interfaces/IThresholdAddressFactory.sol";
+import {StorageAggregationIsmFactory} from "../../contracts/isms/aggregation/StorageAggregationIsm.sol";
 import {AggregationIsmMetadata} from "../../contracts/isms/libs/AggregationIsmMetadata.sol";
 import {TestIsm, ThresholdTestUtils} from "./IsmTestUtils.sol";
 
@@ -16,10 +18,10 @@ contract AggregationIsmTest is Test {
 
     string constant fixtureKey = "fixture";
 
-    StaticAggregationIsmFactory factory;
+    IThresholdAddressFactory factory;
     IAggregationIsm ism;
 
-    function setUp() public {
+    function setUp() public virtual {
         factory = new StaticAggregationIsmFactory();
     }
 
@@ -46,6 +48,8 @@ contract AggregationIsmTest is Test {
         uint8 n,
         bytes32 seed
     ) internal returns (address[] memory) {
+        vm.assume(m > 0 && m <= n && n < 10);
+
         bytes32 randomness = seed;
         address[] memory isms = new address[](n);
         for (uint256 i = 0; i < n; i++) {
@@ -91,7 +95,6 @@ contract AggregationIsmTest is Test {
     }
 
     function testVerify(uint8 m, uint8 n, bytes32 seed) public {
-        vm.assume(0 < m && m <= n && n < 10);
         deployIsms(m, n, seed);
 
         bytes memory metadata = getMetadata(m, seed);
@@ -104,7 +107,7 @@ contract AggregationIsmTest is Test {
         uint8 i,
         bytes32 seed
     ) public {
-        vm.assume(0 < m && m <= n && n < 10 && i < n);
+        vm.assume(i < n);
         deployIsms(m, n, seed);
         (address[] memory modules, ) = ism.modulesAndThreshold("");
         bytes memory noMetadata;
@@ -115,7 +118,6 @@ contract AggregationIsmTest is Test {
     }
 
     function testVerifyMissingMetadata(uint8 m, uint8 n, bytes32 seed) public {
-        vm.assume(0 < m && m <= n && n < 10);
         deployIsms(m, n, seed);
 
         // Populate metadata for one fewer ISMs than needed.
@@ -129,7 +131,6 @@ contract AggregationIsmTest is Test {
         uint8 n,
         bytes32 seed
     ) public {
-        vm.assume(0 < m && m <= n && n < 10);
         deployIsms(m, n, seed);
 
         bytes memory metadata = getMetadata(m, seed);
@@ -141,11 +142,26 @@ contract AggregationIsmTest is Test {
     }
 
     function testModulesAndThreshold(uint8 m, uint8 n, bytes32 seed) public {
-        vm.assume(0 < m && m <= n && n < 10);
         address[] memory expectedIsms = deployIsms(m, n, seed);
         (address[] memory actualIsms, uint8 actualThreshold) = ism
             .modulesAndThreshold("");
         assertEq(abi.encode(actualIsms), abi.encode(expectedIsms));
         assertEq(actualThreshold, m);
+    }
+
+    function testZeroThreshold() public {
+        vm.expectRevert("Invalid threshold");
+        factory.deploy(new address[](1), 0);
+    }
+
+    function testThresholdExceedsLength() public {
+        vm.expectRevert("Invalid threshold");
+        factory.deploy(new address[](1), 2);
+    }
+}
+
+contract StorageAggregationIsmTest is AggregationIsmTest {
+    function setUp() public override {
+        factory = new StorageAggregationIsmFactory();
     }
 }

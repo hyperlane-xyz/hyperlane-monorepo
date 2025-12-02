@@ -1,4 +1,3 @@
-import { ChainMetadata } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
 import {
@@ -6,17 +5,25 @@ import {
   getExplorerBaseUrl,
   getExplorerTxUrl,
 } from '../metadata/blockExplorer.js';
+import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 
 const PROTOCOL_TO_ADDRESS: Record<ProtocolType, Address> = {
   [ProtocolType.Ethereum]: '0x0000000000000000000000000000000000000000',
   [ProtocolType.Sealevel]: '11111111111111111111111111111111',
   [ProtocolType.Cosmos]: 'cosmos100000000000000000000000000000000000000',
+  [ProtocolType.CosmosNative]: 'cosmos100000000000000000000000000000000000000',
+  [ProtocolType.Starknet]:
+    '0x0000000000000000000000000000000000000000000000000000000000000000',
+  [ProtocolType.Radix]:
+    'account_sim0000000000000000000000000000000000000000000000000000000',
 };
 
 const PROTOCOL_TO_TX_HASH: Partial<Record<ProtocolType, Address>> = {
   [ProtocolType.Ethereum]:
     '0x0000000000000000000000000000000000000000000000000000000000000000',
   [ProtocolType.Cosmos]:
+    '0000000000000000000000000000000000000000000000000000000000000000',
+  [ProtocolType.CosmosNative]:
     '0000000000000000000000000000000000000000000000000000000000000000',
 };
 

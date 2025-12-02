@@ -26,18 +26,22 @@ export class EV5ImpersonatedAccountTxSubmitter extends EV5JsonRpcTxSubmitter {
     multiProvider: MultiProvider,
     public readonly props: EV5ImpersonatedAccountTxSubmitterProps,
   ) {
-    super(multiProvider);
+    super(multiProvider, props);
   }
 
   public async submit(
     ...txs: AnnotatedEV5Transaction[]
   ): Promise<TransactionReceipt[]> {
+    // It is assumed that this Submitter will be used by setting the registry url to the anvil endpoint
+    const anvilEndpoint = this.multiProvider.getChainMetadata(this.props.chain)
+      ?.rpcUrls[0].http;
     const impersonatedAccount = await impersonateAccount(
       this.props.userAddress,
+      anvilEndpoint,
     );
     this.multiProvider.setSharedSigner(impersonatedAccount);
     const transactionReceipts = await super.submit(...txs);
-    await stopImpersonatingAccount(this.props.userAddress);
+    await stopImpersonatingAccount(this.props.userAddress, anvilEndpoint);
     return transactionReceipts;
   }
 }

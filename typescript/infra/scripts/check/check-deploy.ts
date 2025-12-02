@@ -14,6 +14,7 @@ async function main() {
     fork,
     govern,
     warpRouteId,
+    registry,
   } = await getCheckDeployArgs().argv;
 
   const governor = await getGovernor(
@@ -25,6 +26,8 @@ async function main() {
     chains,
     fork,
     govern,
+    undefined,
+    registry,
   );
 
   if (fork) {
@@ -53,6 +56,8 @@ async function main() {
       console.info(`${module} checker found no violations`);
     }
   }
+
+  process.exit(0);
 }
 
 main()

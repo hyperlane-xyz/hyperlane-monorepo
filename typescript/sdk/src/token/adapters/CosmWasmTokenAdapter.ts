@@ -36,6 +36,7 @@ import {
   IHypTokenAdapter,
   ITokenAdapter,
   InterchainGasQuote,
+  QuoteTransferRemoteParams,
   TransferParams,
   TransferRemoteParams,
 } from './ITokenAdapter.js';
@@ -64,7 +65,18 @@ export class CwNativeTokenAdapter
     throw new Error('Metadata not available to native tokens');
   }
 
+  async getMinimumTransferAmount(_recipient: Address): Promise<bigint> {
+    return 0n;
+  }
+
   async isApproveRequired(): Promise<boolean> {
+    return false;
+  }
+
+  async isRevokeApprovalRequired(
+    _owner: Address,
+    _spender: Address,
+  ): Promise<boolean> {
     return false;
   }
 
@@ -89,6 +101,11 @@ export class CwNativeTokenAdapter
         },
       ],
     };
+  }
+
+  async getTotalSupply(): Promise<bigint | undefined> {
+    // Not implemented.
+    return undefined;
   }
 }
 
@@ -132,16 +149,23 @@ export class CwTokenAdapter
   }
 
   async getMetadata(): Promise<CW20Metadata> {
-    const resp = await this.queryToken<TokenInfoResponse>({
+    return this.queryToken<TokenInfoResponse>({
       token_info: {},
     });
-    return {
-      ...resp,
-      totalSupply: resp.total_supply,
-    };
+  }
+
+  async getMinimumTransferAmount(_recipient: Address): Promise<bigint> {
+    return 0n;
   }
 
   async isApproveRequired(): Promise<boolean> {
+    return false;
+  }
+
+  async isRevokeApprovalRequired(
+    _owner: Address,
+    _spender: Address,
+  ): Promise<boolean> {
     return false;
   }
 
@@ -171,6 +195,11 @@ export class CwTokenAdapter
         amount: weiAmountOrId.toString(),
       },
     });
+  }
+
+  async getTotalSupply(): Promise<bigint | undefined> {
+    // Not implemented.
+    return undefined;
   }
 }
 
@@ -274,9 +303,13 @@ export class CwHypSyntheticAdapter
       }));
   }
 
-  async quoteTransferRemoteGas(
-    _destination: Domain,
-  ): Promise<InterchainGasQuote> {
+  getBridgedSupply(): Promise<bigint | undefined> {
+    return this.getTotalSupply();
+  }
+
+  async quoteTransferRemoteGas({
+    destination: _destination,
+  }: QuoteTransferRemoteParams): Promise<InterchainGasQuote> {
     // TODO this may require separate queries to get the hook and/or mailbox
     // before making a query for the QuoteDispatchResponse
     // Punting on this given that only static quotes are used for now
@@ -299,8 +332,10 @@ export class CwHypSyntheticAdapter
     interchainGas,
   }: TransferRemoteParams): Promise<ExecuteInstruction> {
     if (!interchainGas)
-      interchainGas = await this.quoteTransferRemoteGas(destination);
-    const { addressOrDenom: igpDenom, amount: igpAmount } = interchainGas;
+      interchainGas = await this.quoteTransferRemoteGas({ destination });
+    const {
+      igpQuote: { addressOrDenom: igpDenom, amount: igpAmount },
+    } = interchainGas;
     assert(igpDenom, 'Interchain gas denom required for Cosmos');
 
     return this.prepareRouter(
@@ -366,8 +401,14 @@ export class CwHypNativeAdapter
     return this.cw20adapter.getAllRouters();
   }
 
-  quoteTransferRemoteGas(destination: Domain): Promise<InterchainGasQuote> {
-    return this.cw20adapter.quoteTransferRemoteGas(destination);
+  getBridgedSupply(): Promise<bigint> {
+    return this.getBalance(this.addresses.warpRouter);
+  }
+
+  async quoteTransferRemoteGas({
+    destination,
+  }: QuoteTransferRemoteParams): Promise<InterchainGasQuote> {
+    return this.cw20adapter.quoteTransferRemoteGas({ destination });
   }
 
   async getDenom(): Promise<string> {
@@ -390,8 +431,10 @@ export class CwHypNativeAdapter
     const collateralDenom = await this.getDenom();
 
     if (!interchainGas)
-      interchainGas = await this.quoteTransferRemoteGas(destination);
-    const { addressOrDenom: igpDenom, amount: igpAmount } = interchainGas;
+      interchainGas = await this.quoteTransferRemoteGas({ destination });
+    const {
+      igpQuote: { addressOrDenom: igpDenom, amount: igpAmount },
+    } = interchainGas;
     assert(igpDenom, 'Interchain gas denom required for Cosmos');
 
     // If more than one denom is used as funds, they must be sorted by the denom
@@ -437,5 +480,12 @@ export class CwHypCollateralAdapter
     public readonly addresses: { warpRouter: Address; token: Address },
   ) {
     super(chainName, multiProvider, addresses);
+  }
+
+  async isRevokeApprovalRequired(
+    _owner: Address,
+    _spender: Address,
+  ): Promise<boolean> {
+    return false;
   }
 }

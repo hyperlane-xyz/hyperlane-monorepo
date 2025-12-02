@@ -1,9 +1,13 @@
 import { Meta, StoryObj } from '@storybook/react';
 
 import { chainMetadata } from '@hyperlane-xyz/registry';
+import { ChainDisabledReason, ChainStatus } from '@hyperlane-xyz/sdk';
 import { pick } from '@hyperlane-xyz/utils';
 
-import { ChainSearchMenu } from '../chains/ChainSearchMenu.js';
+import {
+  ChainSearchMenu,
+  ChainSortByOption,
+} from '../chains/ChainSearchMenu.js';
 
 const meta = {
   title: 'ChainSearchMenu',
@@ -22,12 +26,12 @@ export const DefaultChainSearch = {
 
 export const WithCustomField = {
   args: {
-    chainMetadata: pick(chainMetadata, ['alfajores', 'arbitrum', 'ethereum']),
+    chainMetadata: pick(chainMetadata, ['sepolia', 'arbitrum', 'ethereum']),
     onChangeOverrideMetadata: () => {},
     customListItemField: {
       header: 'Warp Routes',
       data: {
-        alfajores: { display: '1 token', sortValue: 1 },
+        sepolia: { display: '1 token', sortValue: 1 },
         arbitrum: { display: '2 tokens', sortValue: 2 },
         ethereum: { display: '1 token', sortValue: 1 },
       },
@@ -36,13 +40,82 @@ export const WithCustomField = {
   },
 } satisfies Story;
 
+export const WithCustomFieldAsNull = {
+  args: {
+    chainMetadata: pick(chainMetadata, ['sepolia', 'arbitrum', 'ethereum']),
+    onChangeOverrideMetadata: () => {},
+    customListItemField: null,
+    showAddChainButton: true,
+  },
+} satisfies Story;
+
+export const WithDefaultSortField = {
+  args: {
+    chainMetadata: chainMetadata,
+    onChangeOverrideMetadata: () => {},
+    showAddChainButton: true,
+    defaultSortField: ChainSortByOption.Protocol,
+  },
+} satisfies Story;
+
+export const WithDefaultSortFieldAsCustom = {
+  args: {
+    chainMetadata: pick(chainMetadata, ['sepolia', 'arbitrum', 'ethereum']),
+    onChangeOverrideMetadata: () => {},
+    showAddChainButton: true,
+    customListItemField: {
+      header: 'Warp Routes',
+      data: {
+        sepolia: { display: '1 token', sortValue: 1 },
+        arbitrum: { display: '2 tokens', sortValue: 2 },
+        ethereum: { display: '1 token', sortValue: 1 },
+      },
+    },
+    defaultSortField: 'custom',
+  },
+} satisfies Story;
+
 export const WithOverrideChain = {
   args: {
-    chainMetadata: pick(chainMetadata, ['alfajores']),
+    chainMetadata: pick(chainMetadata, ['sepolia']),
     overrideChainMetadata: {
       arbitrum: { ...chainMetadata['arbitrum'], displayName: 'Fake Arb' },
     },
     onChangeOverrideMetadata: () => {},
     showAddChainButton: true,
+  },
+} satisfies Story;
+
+export const WithDisabledChains = {
+  args: {
+    chainMetadata: pick(chainMetadata, ['sepolia', 'base']),
+    overrideChainMetadata: {
+      arbitrum: {
+        ...chainMetadata['arbitrum'],
+        availability: {
+          status: ChainStatus.Disabled,
+          reasons: [ChainDisabledReason.Deprecated],
+        },
+      },
+      ethereum: {
+        ...chainMetadata['ethereum'],
+        availability: {
+          status: ChainStatus.Disabled,
+        },
+      },
+    },
+    onChangeOverrideMetadata: () => {},
+    showAddChainButton: true,
+    defaultSortField: 'custom',
+    shouldDisableChains: true,
+    customListItemField: {
+      header: 'Warp Routes',
+      data: {
+        sepolia: { display: '1 token', sortValue: 1 },
+        arbitrum: { display: '2 tokens', sortValue: 2 },
+        ethereum: { display: '1 token', sortValue: 1 },
+        base: { display: '2 tokens', sortValue: 2 },
+      },
+    },
   },
 } satisfies Story;

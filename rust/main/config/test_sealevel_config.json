@@ -11,15 +11,16 @@
       "protocol": "sealevel",
       "blocks": {
         "reorgPeriod": 0,
+        "estimateBlockTime": 0.4,
         "confirmations": 0
       },
       "rpcUrls": [
         {
-          "http": "http://localhost:8899"
+          "http": "http://127.0.0.1:8899"
         }
       ],
       "index": {
-        "from": 1,
+        "from": 0,
         "mode": "sequence"
       }
     },
@@ -34,15 +35,16 @@
       "protocol": "sealevel",
       "blocks": {
         "reorgPeriod": 0,
+        "estimateBlockTime": 0.4,
         "confirmations": 0
       },
       "rpcUrls": [
         {
-          "http": "http://localhost:8899"
+          "http": "http://127.0.0.1:8899"
         }
       ],
       "index": {
-        "from": 1,
+        "from": 0,
         "mode": "sequence"
       }
     }

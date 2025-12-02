@@ -1,13 +1,11 @@
 import { Logger } from 'pino';
 
-import { rootLogger } from '@hyperlane-xyz/utils';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { Annotated, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
 import {
   ProtocolTypedReceipt,
   ProtocolTypedTransaction,
 } from '../../../ProviderType.js';
-import { TxTransformerInterface } from '../../transformer/TxTransformerInterface.js';
 import { TxSubmitterInterface } from '../TxSubmitterInterface.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
 
@@ -18,8 +16,6 @@ import { TxSubmitterType } from '../TxSubmitterTypes.js';
  *  const eV5builder = new TxSubmitterBuilder<EV5Transaction, EV5TransactionReceipt>();
  *  let txReceipts = eV5builder.for(
  *    new EV5GnosisSafeTxSubmitter(chainA)
- *  ).transform(
- *    EV5InterchainAccountTxTransformer(chainB)
  *  ).submit(
  *    txs
  *  );
@@ -39,10 +35,7 @@ export class TxSubmitterBuilder<TProtocol extends ProtocolType>
     module: 'submitter-builder',
   });
 
-  constructor(
-    private currentSubmitter: TxSubmitterInterface<TProtocol>,
-    private currentTransformers: TxTransformerInterface<TProtocol>[] = [],
-  ) {
+  constructor(private currentSubmitter: TxSubmitterInterface<TProtocol>) {
     this.txSubmitterType = this.currentSubmitter.txSubmitterType;
   }
 
@@ -58,22 +51,11 @@ export class TxSubmitterBuilder<TProtocol extends ProtocolType>
   }
 
   /**
-   * Adds a transformer for the builder.
-   * @param txTransformerOrType The transformer to add to the builder
-   */
-  public transform(
-    ...txTransformers: TxTransformerInterface<TProtocol>[]
-  ): TxSubmitterBuilder<TProtocol> {
-    this.currentTransformers = txTransformers;
-    return this;
-  }
-
-  /**
    * Submits a set of transactions to the builder.
    * @param txs The transactions to submit
    */
   public async submit(
-    ...txs: ProtocolTypedTransaction<TProtocol>['transaction'][]
+    ...txs: Annotated<ProtocolTypedTransaction<TProtocol>['transaction']>[]
   ): Promise<
     | ProtocolTypedReceipt<TProtocol>['receipt']
     | ProtocolTypedReceipt<TProtocol>['receipt'][]
@@ -83,17 +65,9 @@ export class TxSubmitterBuilder<TProtocol extends ProtocolType>
       `Submitting ${txs.length} transactions to the ${this.currentSubmitter.txSubmitterType} submitter...`,
     );
 
-    let transformedTxs = txs;
-    for (const currentTransformer of this.currentTransformers) {
-      transformedTxs = await currentTransformer.transform(...transformedTxs);
-      this.logger.debug(
-        `🔄 Transformed ${transformedTxs.length} transactions with the ${currentTransformer.txTransformerType} transformer...`,
-      );
-    }
-
-    const txReceipts = await this.currentSubmitter.submit(...transformedTxs);
+    const txReceipts = await this.currentSubmitter.submit(...txs);
     this.logger.debug(
-      `✅ Successfully submitted ${transformedTxs.length} transactions to the ${this.currentSubmitter.txSubmitterType} submitter.`,
+      `✅ Successfully submitted ${txs.length} transactions to the ${this.currentSubmitter.txSubmitterType} submitter.`,
     );
 
     return txReceipts;

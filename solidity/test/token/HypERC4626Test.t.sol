@@ -24,7 +24,9 @@ import {MockMailbox} from "../../contracts/mock/MockMailbox.sol";
 import {HypERC20} from "../../contracts/token/HypERC20.sol";
 import {HypERC4626Collateral} from "../../contracts/token/extensions/HypERC4626Collateral.sol";
 import {HypERC4626} from "../../contracts/token/extensions/HypERC4626.sol";
+import {StandardHookMetadata} from "../../contracts/hooks/libs/StandardHookMetadata.sol";
 import "../../contracts/test/ERC4626/ERC4626Test.sol";
+import {ProtocolFee} from "../../contracts/hooks/ProtocolFee.sol";
 
 contract HypERC4626CollateralTest is HypTokenTest {
     using TypeCasts for address;
@@ -42,6 +44,8 @@ contract HypERC4626CollateralTest is HypTokenTest {
     HypERC4626Collateral localRebasingToken;
     HypERC4626 remoteRebasingToken;
     HypERC4626 peerRebasingToken;
+
+    event ExchangeRateUpdated(uint256 newExchangeRate, uint32 rateUpdateNonce);
 
     function setUp() public override {
         super.setUp();
@@ -65,6 +69,7 @@ contract HypERC4626CollateralTest is HypTokenTest {
 
         HypERC4626Collateral implementation = new HypERC4626Collateral(
             vault,
+            SCALE,
             address(localMailbox)
         );
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
@@ -81,11 +86,13 @@ contract HypERC4626CollateralTest is HypTokenTest {
 
         remoteToken = new HypERC4626(
             primaryToken.decimals(),
+            SCALE,
             address(remoteMailbox),
             localToken.localDomain()
         );
         peerToken = new HypERC4626(
             primaryToken.decimals(),
+            SCALE,
             address(peerMailbox),
             localToken.localDomain()
         );
@@ -95,6 +102,7 @@ contract HypERC4626CollateralTest is HypTokenTest {
         peerRebasingToken = HypERC4626(address(peerToken));
 
         primaryToken.transfer(ALICE, 1000e18);
+        primaryToken.transfer(BOB, 1000e18);
 
         uint32[] memory domains = new uint32[](3);
         domains[0] = ORIGIN;
@@ -106,6 +114,17 @@ contract HypERC4626CollateralTest is HypTokenTest {
         addresses[1] = address(remoteToken).addressToBytes32();
         addresses[2] = address(peerToken).addressToBytes32();
         _connectRouters(domains, addresses);
+    }
+
+    function _localTokenBalanceOf(
+        address _account
+    ) internal view override returns (uint256) {
+        return IERC20(primaryToken).balanceOf(_account);
+    }
+
+    function testDisableInitializers() public {
+        vm.expectRevert("Initializable: contract is already initialized");
+        remoteToken.initialize(0, "", "", address(0), address(0), address(0));
     }
 
     function test_collateralDomain() public view {
@@ -123,9 +142,11 @@ contract HypERC4626CollateralTest is HypTokenTest {
 
         localRebasingToken.rebase(DESTINATION);
         remoteMailbox.processNextInboundMessage();
-        assertEq(
+        assertApproxEqRelDecimal(
             remoteToken.balanceOf(BOB),
-            transferAmount + _discountedYield()
+            transferAmount + _discountedYield(),
+            1e14,
+            0
         );
     }
 
@@ -144,6 +165,47 @@ contract HypERC4626CollateralTest is HypTokenTest {
             1e14,
             0
         );
+    }
+
+    function testRebase_exchangeRateUpdateInSequence() public {
+        _performRemoteTransferWithoutExpectation(0, transferAmount);
+        _accrueYield();
+
+        uint256 exchangeRateInitially = remoteRebasingToken.exchangeRate();
+
+        vm.startPrank(BOB);
+        primaryToken.approve(address(localToken), transferAmount);
+        localToken.transferRemote(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            transferAmount
+        );
+        vm.stopPrank();
+
+        _accrueYield();
+
+        vm.startPrank(ALICE);
+        primaryToken.approve(address(localToken), transferAmount);
+        localToken.transferRemote(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            transferAmount
+        );
+        vm.stopPrank();
+
+        // process ALICE's transfer
+
+        vm.expectEmit(true, true, true, true);
+        emit ExchangeRateUpdated(10721400472, 3);
+        remoteMailbox.processInboundMessage(2);
+        uint256 exchangeRateBefore = remoteRebasingToken.exchangeRate();
+
+        // process BOB's transfer
+        remoteMailbox.processInboundMessage(1);
+        uint256 exchangeRateAfter = remoteRebasingToken.exchangeRate();
+
+        assertLt(exchangeRateInitially, exchangeRateBefore); // updates bc nonce=2 is after nonce=0
+        assertEq(exchangeRateBefore, exchangeRateAfter); // doesn't update bc nonce=1 is before nonce=0
     }
 
     function testSyntheticTransfers_withRebase() public {
@@ -172,7 +234,108 @@ contract HypERC4626CollateralTest is HypTokenTest {
         );
     }
 
+    function testTransferFrom() public {
+        _performRemoteTransferWithoutExpectation(0, transferAmount);
+        assertEq(remoteToken.balanceOf(BOB), transferAmount);
+
+        uint256 transferAmount2 = 50e18;
+        vm.prank(BOB);
+        remoteToken.approve(CAROL, transferAmount2);
+
+        vm.prank(CAROL);
+        bool success = remoteToken.transferFrom(BOB, DANIEL, transferAmount2);
+        assertTrue(success, "TransferFrom should succeed");
+
+        assertEq(
+            remoteToken.balanceOf(BOB),
+            transferAmount - transferAmount2,
+            "BOB's balance should decrease"
+        );
+        assertEq(
+            remoteToken.balanceOf(DANIEL),
+            transferAmount2,
+            "DANIEL's balance should increase"
+        );
+        assertEq(
+            remoteToken.allowance(BOB, CAROL),
+            0,
+            "Allowance should be zero after transfer"
+        );
+    }
+
+    function testTransferEvent() public {
+        _performRemoteTransferWithoutExpectation(0, transferAmount);
+        assertEq(remoteToken.balanceOf(BOB), transferAmount);
+
+        uint256 transferAmount2 = 50e18;
+        vm.expectEmit(true, true, false, true);
+        emit Transfer(BOB, CAROL, transferAmount2);
+
+        vm.prank(BOB);
+        remoteToken.transfer(CAROL, transferAmount2);
+
+        assertEq(
+            remoteToken.balanceOf(BOB),
+            transferAmount - transferAmount2,
+            "BOB's balance should decrease"
+        );
+        assertEq(
+            remoteToken.balanceOf(CAROL),
+            transferAmount2,
+            "CAROL's balance should increase"
+        );
+    }
+
+    function testTotalShares() public {
+        uint256 initialShares = remoteRebasingToken.totalShares();
+        assertEq(initialShares, 0, "Initial shares should be zero");
+
+        _performRemoteTransferWithoutExpectation(0, transferAmount);
+        uint256 sharesAfterTransfer = remoteRebasingToken.totalShares();
+        assertEq(
+            sharesAfterTransfer,
+            remoteRebasingToken.assetsToShares(transferAmount),
+            "Shares should match transferred amount converted to shares"
+        );
+
+        _accrueYield();
+        localRebasingToken.rebase(DESTINATION);
+        remoteMailbox.processNextInboundMessage();
+
+        uint256 sharesAfterYield = remoteRebasingToken.totalShares();
+        assertEq(
+            sharesAfterYield,
+            sharesAfterTransfer,
+            "Total shares should remain constant after yield accrual"
+        );
+    }
+
+    function testShareBalanceOf() public {
+        _performRemoteTransferWithoutExpectation(0, transferAmount);
+
+        uint256 bobShareBalance = remoteRebasingToken.shareBalanceOf(BOB);
+        assertEq(
+            bobShareBalance,
+            remoteRebasingToken.assetsToShares(transferAmount),
+            "Bob's share balance should match transferred amount converted to shares"
+        );
+
+        _accrueYield();
+        localRebasingToken.rebase(DESTINATION);
+        remoteMailbox.processNextInboundMessage();
+
+        uint256 bobShareBalanceAfterYield = remoteRebasingToken.shareBalanceOf(
+            BOB
+        );
+        assertEq(
+            bobShareBalanceAfterYield,
+            bobShareBalance,
+            "Bob's share balance should remain constant after yield accrual"
+        );
+    }
+
     function testWithdrawalWithoutYield() public {
+        uint256 bobPrimaryBefore = primaryToken.balanceOf(BOB);
         _performRemoteTransferWithoutExpectation(0, transferAmount);
         assertEq(remoteToken.balanceOf(BOB), transferAmount);
 
@@ -183,10 +346,14 @@ contract HypERC4626CollateralTest is HypTokenTest {
             transferAmount
         );
         localMailbox.processNextInboundMessage();
-        assertEq(primaryToken.balanceOf(BOB), transferAmount);
+        assertEq(
+            primaryToken.balanceOf(BOB) - bobPrimaryBefore,
+            transferAmount
+        );
     }
 
     function testWithdrawalWithYield() public {
+        uint256 bobPrimaryBefore = primaryToken.balanceOf(BOB);
         _performRemoteTransferWithoutExpectation(0, transferAmount);
         assertEq(remoteToken.balanceOf(BOB), transferAmount);
 
@@ -205,13 +372,22 @@ contract HypERC4626CollateralTest is HypTokenTest {
         uint256 _expectedBal = transferAmount + _discountedYield();
 
         // BOB gets the yield even though it didn't rebase
-        assertApproxEqRelDecimal(_bobBal, _expectedBal, 1e14, 0);
-        assertTrue(_bobBal < _expectedBal, "Transfer remote should round down");
+        assertApproxEqRelDecimal(
+            _bobBal - bobPrimaryBefore,
+            _expectedBal,
+            1e14,
+            0
+        );
+        assertTrue(
+            _bobBal - bobPrimaryBefore < _expectedBal,
+            "Transfer remote should round down"
+        );
 
         assertEq(vault.accumulatedFees(), YIELD / 10);
     }
 
     function testWithdrawalAfterYield() public {
+        uint256 bobPrimaryBefore = primaryToken.balanceOf(BOB);
         _performRemoteTransferWithoutExpectation(0, transferAmount);
         assertEq(remoteToken.balanceOf(BOB), transferAmount);
 
@@ -230,7 +406,7 @@ contract HypERC4626CollateralTest is HypTokenTest {
         );
         localMailbox.processNextInboundMessage();
         assertApproxEqRelDecimal(
-            primaryToken.balanceOf(BOB),
+            primaryToken.balanceOf(BOB) - bobPrimaryBefore,
             transferAmount + _discountedYield(),
             1e14,
             0
@@ -287,6 +463,7 @@ contract HypERC4626CollateralTest is HypTokenTest {
     }
 
     function testWithdrawalAfterDrawdown() public {
+        uint256 bobPrimaryBefore = primaryToken.balanceOf(BOB);
         _performRemoteTransferWithoutExpectation(0, transferAmount);
         assertEq(remoteToken.balanceOf(BOB), transferAmount);
 
@@ -306,7 +483,7 @@ contract HypERC4626CollateralTest is HypTokenTest {
         );
         localMailbox.processNextInboundMessage();
         assertApproxEqRelDecimal(
-            primaryToken.balanceOf(BOB),
+            primaryToken.balanceOf(BOB) - bobPrimaryBefore,
             transferAmount - drawdown,
             1e14,
             0
@@ -330,13 +507,50 @@ contract HypERC4626CollateralTest is HypTokenTest {
         );
         peerMailbox.processNextInboundMessage();
 
-        assertEq(remoteRebasingToken.exchangeRate(), 1045e7); // 5 * 0.9 = 4.5% yield
+        assertApproxEqRelDecimal(
+            remoteRebasingToken.exchangeRate(),
+            1045e7,
+            1e14,
+            0
+        ); // 5 * 0.9 = 4.5% yield
         assertEq(peerRebasingToken.exchangeRate(), 1e10); // assertingthat transfers by the synthetic variant don't impact the exchang rate
 
         localRebasingToken.rebase(PEER_DESTINATION);
         peerMailbox.processNextInboundMessage();
 
-        assertEq(peerRebasingToken.exchangeRate(), 1045e7); // asserting that the exchange rate is set finally by the collateral variant
+        assertApproxEqRelDecimal(
+            peerRebasingToken.exchangeRate(),
+            1045e7,
+            1e14,
+            0
+        ); // asserting that the exchange rate is set finally by the collateral variant
+    }
+
+    function test_rebasingERC20() public {
+        _performRemoteTransferWithoutExpectation(0, transferAmount);
+        assertEq(remoteToken.balanceOf(BOB), transferAmount);
+
+        _accrueYield();
+        localRebasingToken.rebase(DESTINATION); // yield is added
+        remoteMailbox.processNextInboundMessage();
+
+        uint256 balance = remoteToken.balanceOf(BOB);
+        assertApproxEqRelDecimal(
+            balance,
+            transferAmount + _discountedYield(),
+            1e14,
+            0
+        );
+
+        vm.prank(BOB);
+        remoteToken.approve(ALICE, balance);
+
+        vm.prank(ALICE);
+        remoteToken.transferFrom(BOB, CAROL, balance);
+
+        assertEq(remoteToken.allowance(BOB, ALICE), 0);
+        assertEq(remoteToken.balanceOf(BOB), 0);
+        assertEq(remoteToken.balanceOf(CAROL), balance);
     }
 
     function test_cyclicTransfers() public {
@@ -385,11 +599,30 @@ contract HypERC4626CollateralTest is HypTokenTest {
         );
     }
 
-    function testTransfer_withHookSpecified(
-        uint256,
-        bytes calldata
-    ) public override {
-        // skip
+    function testTotalSupply() public {
+        uint256 initialSupply = remoteToken.totalSupply();
+        assertEq(initialSupply, 0, "Initial supply should be zero");
+
+        _performRemoteTransferWithoutExpectation(0, transferAmount);
+        uint256 supplyAfterTransfer = remoteToken.totalSupply();
+        assertEq(
+            supplyAfterTransfer,
+            transferAmount,
+            "Supply should match transferred amount"
+        );
+
+        _accrueYield();
+        localRebasingToken.rebase(DESTINATION);
+        remoteMailbox.processNextInboundMessage();
+
+        uint256 supplyAfterYield = remoteToken.totalSupply();
+        assertApproxEqRelDecimal(
+            supplyAfterYield,
+            transferAmount + _discountedYield(),
+            1e14,
+            0,
+            "Supply should include yield"
+        );
     }
 
     function testBenchmark_overheadGasUsage() public override {
@@ -400,9 +633,11 @@ contract HypERC4626CollateralTest is HypTokenTest {
 
         localRebasingToken.rebase(DESTINATION);
         remoteMailbox.processNextInboundMessage();
-        assertEq(
+        assertApproxEqRelDecimal(
             remoteToken.balanceOf(BOB),
-            transferAmount + _discountedYield()
+            transferAmount + _discountedYield(),
+            1e14,
+            0
         );
 
         vm.prank(address(localMailbox));

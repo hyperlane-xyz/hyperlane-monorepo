@@ -1,7 +1,6 @@
 use std::{collections::HashMap, ops::Deref};
 
 use async_trait::async_trait;
-
 use fuels::{
     client::{FuelClient, PageDirection, PaginationRequest},
     prelude::Provider,
@@ -13,13 +12,14 @@ use fuels::{
         transaction::{Transaction, TransactionType},
         transaction_response::TransactionResponse,
         tx_status::TxStatus,
-        Address, Bytes32, ContractId,
+        Address, BlockHeight, Bytes32, ContractId,
     },
 };
 use futures::future::join_all;
 use hyperlane_core::{
-    BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, HyperlaneChain, HyperlaneDomain,
-    HyperlaneMessage, HyperlaneProvider, Indexed, LogMeta, TxnInfo, H256, H512, U256,
+    h512_to_bytes, BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, HyperlaneChain,
+    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, HyperlaneProviderError, Indexed, LogMeta,
+    TxnInfo, H256, H512, U256,
 };
 
 use crate::{make_client, make_provider, prelude::FuelIntoH256, ConnectionConf};
@@ -123,7 +123,7 @@ impl FuelProvider {
         &self,
         range: std::ops::RangeInclusive<u32>,
     ) -> ChainResult<(Vec<Block>, HashMap<Bytes32, (Bytes32, u64)>)> {
-        let result_amount = range.end() - range.start() + 1;
+        let result_amount = range.end().saturating_add(1).saturating_sub(*range.start());
         let req = PaginationRequest {
             cursor: Some(range.start().to_string()),
             results: i32::try_from(result_amount).expect("Invalid range"),
@@ -285,31 +285,44 @@ impl HyperlaneChain for FuelProvider {
 impl HyperlaneProvider for FuelProvider {
     /// Used by scraper
     #[allow(clippy::clone_on_copy)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn get_block_by_hash(&self, hash: &H256) -> ChainResult<BlockInfo> {
-        let block_res = self.provider.block(&hash.0.into()).await.map_err(|e| {
-            ChainCommunicationError::CustomError(format!("Failed to get block: {}", e))
-        })?;
+    async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
+        let block_res = self
+            .provider
+            .block_by_height(BlockHeight::new(height as u32))
+            .await
+            .map_err(|e| HyperlaneProviderError::CouldNotFindBlockByHeight(height))?;
 
-        match block_res {
-            Some(block) => Ok(BlockInfo {
+        let block_info = match block_res {
+            Some(block) => BlockInfo {
                 hash: H256::from_slice(block.id.as_slice()),
-                number: block.header.height.into(),
                 timestamp: block.header.time.map_or(0, |t| t.timestamp() as u64),
-            }),
-            None => Err(ChainCommunicationError::BlockNotFound(hash.clone())),
+                number: block.header.height.into(),
+            },
+            None => Err(HyperlaneProviderError::CouldNotFindBlockByHeight(height))?,
+        };
+
+        if block_info.number != height {
+            Err(HyperlaneProviderError::IncorrectBlockByHeight(
+                height,
+                block_info.number,
+            ))?;
         }
+
+        Ok(block_info)
     }
 
     /// Used by scraper
     #[allow(clippy::clone_on_copy)] // TODO: `rustc` 1.80.1 clippy issue
     #[allow(clippy::match_like_matches_macro)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn get_txn_by_hash(&self, hash: &H256) -> ChainResult<TxnInfo> {
+    async fn get_txn_by_hash(&self, hash: &H512) -> ChainResult<TxnInfo> {
+        let hash = H256::from_slice(&h512_to_bytes(hash));
+
         let transaction_res = self
             .provider
             .get_transaction_by_id(&hash.0.into())
             .await
             .map_err(|e| {
-                ChainCommunicationError::CustomError(format!("Failed to get transaction: {}", e))
+                ChainCommunicationError::CustomError(format!("Failed to get transaction: {e}"))
             })?;
 
         match transaction_res {
@@ -359,7 +372,7 @@ impl HyperlaneProvider for FuelProvider {
                 };
 
                 Ok(TxnInfo {
-                    hash: hash.clone(),
+                    hash: hash.into(),
                     gas_limit: gas_limit.into(),
                     max_priority_fee_per_gas: None,
                     max_fee_per_gas: None,
@@ -368,11 +381,11 @@ impl HyperlaneProvider for FuelProvider {
                     gas_price: Some(gas_price.into()),
                     recipient,
                     receipt: None,
+                    raw_input_data: None,
                 })
             }
             None => Err(ChainCommunicationError::CustomError(format!(
-                "Transaction not found: {}",
-                hash
+                "Transaction not found: {hash}"
             ))),
         }
     }
@@ -383,8 +396,7 @@ impl HyperlaneProvider for FuelProvider {
         match contract_res {
             Ok(contract) => Ok(contract.is_some()),
             Err(e) => Err(ChainCommunicationError::CustomError(format!(
-                "Failed to get contract: {}",
-                e
+                "Failed to get contract: {e}"
             ))),
         }
     }
@@ -398,7 +410,7 @@ impl HyperlaneProvider for FuelProvider {
             .await
             .map(|balance| Ok(U256::from(balance)))
             .map_err(|e| {
-                ChainCommunicationError::CustomError(format!("Failed to get balance: {}", e))
+                ChainCommunicationError::CustomError(format!("Failed to get balance: {e}"))
             })?
     }
 

@@ -10,10 +10,11 @@ import {
   HyperlaneIgpChecker,
   HyperlaneIsmFactory,
   InterchainAccount,
-  InterchainAccountChecker,
   InterchainAccountConfig,
   InterchainQuery,
   InterchainQueryChecker,
+  IsmType,
+  MultiProvider,
   attachContractsMapAndGetForeignDeployments,
   hypERC20factories,
   proxiedFactories,
@@ -22,12 +23,15 @@ import { eqAddress, objFilter } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { DEPLOYER } from '../../config/environments/mainnet3/owners.js';
-import { getWarpAddresses } from '../../config/registry.js';
+import { DEFAULT_OFFCHAIN_LOOKUP_ISM_URLS } from '../../config/environments/utils.js';
+import { getWarpAddressesFrom } from '../../config/registry.js';
 import { getWarpConfig } from '../../config/warp.js';
+import { chainsToSkip } from '../../src/config/chain.js';
 import { DeployEnvironment } from '../../src/config/environment.js';
 import { HyperlaneAppGovernor } from '../../src/govern/HyperlaneAppGovernor.js';
 import { HyperlaneCoreGovernor } from '../../src/govern/HyperlaneCoreGovernor.js';
 import { HyperlaneHaasGovernor } from '../../src/govern/HyperlaneHaasGovernor.js';
+import { HyperlaneICAChecker } from '../../src/govern/HyperlaneICAChecker.js';
 import { HyperlaneIgpGovernor } from '../../src/govern/HyperlaneIgpGovernor.js';
 import { ProxiedRouterGovernor } from '../../src/govern/ProxiedRouterGovernor.js';
 import { Role } from '../../src/roles.js';
@@ -36,6 +40,7 @@ import { logViolationDetails } from '../../src/utils/violation.js';
 import {
   Modules,
   getArgs as getRootArgs,
+  getWarpRouteIdInteractive,
   withAsDeployer,
   withChains,
   withContext,
@@ -46,6 +51,7 @@ import {
   withWarpRouteId,
 } from '../agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
+import { withRegistryUris } from '../github-utils.js';
 import { getHelloWorldApp } from '../helloworld/utils.js';
 
 export function getCheckBaseArgs() {
@@ -59,8 +65,14 @@ export function getCheckWarpDeployArgs() {
 }
 
 export function getCheckDeployArgs() {
-  return withWarpRouteId(withModule(getCheckBaseArgs()));
+  return withRegistryUris(withWarpRouteId(withModule(getCheckBaseArgs())));
 }
+
+const ICA_ENABLED_MODULES = [
+  Modules.INTERCHAIN_ACCOUNTS,
+  Modules.HAAS,
+  Modules.WARP,
+];
 
 export async function getGovernor(
   module: Modules,
@@ -71,9 +83,14 @@ export async function getGovernor(
   chains?: string[],
   fork?: string,
   govern?: boolean,
+  multiProvider: MultiProvider | undefined = undefined,
+  registryUris?: string[],
 ) {
   const envConfig = getEnvironmentConfig(environment);
-  let multiProvider = await envConfig.getMultiProvider();
+  // If the multiProvider is not passed in, get it from the environment
+  if (!multiProvider) {
+    multiProvider = await envConfig.getMultiProvider();
+  }
 
   // must rotate to forked provider before building core contracts
   if (fork) {
@@ -110,12 +127,15 @@ export async function getGovernor(
     (chain, _): _ is Record<string, string> =>
       !!chainAddresses[chain]?.interchainAccountRouter,
   );
-  const ica = InterchainAccount.fromAddressesMap(
-    icaChainAddresses,
-    multiProvider,
-  );
+
+  const ica =
+    ICA_ENABLED_MODULES.includes(module) &&
+    Object.keys(icaChainAddresses).length > 0
+      ? InterchainAccount.fromAddressesMap(icaChainAddresses, multiProvider)
+      : undefined;
 
   if (module === Modules.CORE) {
+    chainsToSkip.forEach((chain) => delete envConfig.core[chain]);
     const checker = new HyperlaneCoreChecker(
       multiProvider,
       core,
@@ -123,30 +143,63 @@ export async function getGovernor(
       ismFactory,
       chainAddresses,
     );
-    governor = new HyperlaneCoreGovernor(checker, ica);
+    governor = new HyperlaneCoreGovernor(checker);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     const igp = HyperlaneIgp.fromAddressesMap(chainAddresses, multiProvider);
     const checker = new HyperlaneIgpChecker(multiProvider, igp, envConfig.igp);
     governor = new HyperlaneIgpGovernor(checker);
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
-    const checker = new InterchainAccountChecker(
-      multiProvider,
-      ica,
-      objFilter(
-        routerConfig,
-        (chain, _): _ is InterchainAccountConfig => !!icaChainAddresses[chain],
-      ),
-    );
-    governor = new ProxiedRouterGovernor(checker);
+    chainsToSkip.forEach((chain) => delete routerConfig[chain]);
+
+    const icaConfig = Object.entries(routerConfig).reduce<
+      Record<string, InterchainAccountConfig>
+    >((acc, [chain, conf]) => {
+      if (icaChainAddresses[chain]) {
+        acc[chain] = {
+          ...conf,
+          commitmentIsm: {
+            type: IsmType.OFFCHAIN_LOOKUP,
+            owner: conf.owner,
+            ownerOverrides: conf.ownerOverrides,
+            urls: DEFAULT_OFFCHAIN_LOOKUP_ISM_URLS,
+          },
+        };
+      }
+      return acc;
+    }, {});
+
+    if (!ica) {
+      throw new Error('ICA app not initialized');
+    }
+
+    const icaChecker = new HyperlaneICAChecker(multiProvider, ica, icaConfig);
+    governor = new ProxiedRouterGovernor(icaChecker);
   } else if (module === Modules.HAAS) {
-    const icaChecker = new InterchainAccountChecker(
-      multiProvider,
-      ica,
-      objFilter(
-        routerConfig,
-        (chain, _): _ is InterchainAccountConfig => !!icaChainAddresses[chain],
-      ),
-    );
+    chainsToSkip.forEach((chain) => delete routerConfig[chain]);
+
+    const icaConfig = Object.entries(routerConfig).reduce<
+      Record<string, InterchainAccountConfig>
+    >((acc, [chain, conf]) => {
+      if (icaChainAddresses[chain]) {
+        acc[chain] = {
+          ...conf,
+          commitmentIsm: {
+            type: IsmType.OFFCHAIN_LOOKUP,
+            owner: conf.owner,
+            ownerOverrides: conf.ownerOverrides,
+            urls: DEFAULT_OFFCHAIN_LOOKUP_ISM_URLS,
+          },
+        };
+      }
+      return acc;
+    }, {});
+
+    if (!ica) {
+      throw new Error('ICA app not initialized');
+    }
+
+    const icaChecker = new HyperlaneICAChecker(multiProvider, ica, icaConfig);
+    chainsToSkip.forEach((chain) => delete envConfig.core[chain]);
     const coreChecker = new HyperlaneCoreChecker(
       multiProvider,
       core,
@@ -154,6 +207,9 @@ export async function getGovernor(
       ismFactory,
       chainAddresses,
     );
+    if (!ica) {
+      throw new Error('ICA app not initialized');
+    }
     governor = new HyperlaneHaasGovernor(ica, icaChecker, coreChecker);
   } else if (module === Modules.INTERCHAIN_QUERY_SYSTEM) {
     const iqs = InterchainQuery.fromAddressesMap(chainAddresses, multiProvider);
@@ -183,32 +239,51 @@ export async function getGovernor(
     governor = new ProxiedRouterGovernor(checker);
   } else if (module === Modules.WARP) {
     if (!warpRouteId) {
-      throw new Error('Warp route id required for warp module');
+      warpRouteId = await getWarpRouteIdInteractive(environment);
     }
-    const config = await getWarpConfig(multiProvider, envConfig, warpRouteId);
-    const warpAddresses = getWarpAddresses(warpRouteId);
+
+    const config = await getWarpConfig(
+      multiProvider,
+      envConfig,
+      warpRouteId,
+      registryUris,
+    ).catch((error) => {
+      console.log(
+        `Fetching warp route deploy config failed for ${warpRouteId}. Exiting with error: ${error}`,
+      );
+      process.exit(0);
+    });
+
+    const warpAddresses = await getWarpAddressesFrom(warpRouteId, registryUris);
+
     const filteredAddresses = Object.keys(warpAddresses) // filter out changes not in config
       .filter((key) => key in config)
-      .reduce((obj, key) => {
-        obj[key] = {
-          ...warpAddresses[key],
-        };
+      .reduce(
+        (obj, key) => {
+          obj[key] = {
+            ...warpAddresses[key],
+          };
 
-        // if the owner in the config is an AW account, set the proxyAdmin to the AW singleton proxyAdmin
-        // this will ensure that the checker will check that any proxies are owned by the singleton proxyAdmin
-        const proxyAdmin = eqAddress(
-          config[key].owner,
-          envConfig.owners[key]?.owner,
-        )
-          ? chainAddresses[key]?.proxyAdmin
-          : undefined;
+          // Use the specified proxyAdmin if it is set in the config
+          let proxyAdmin = config[key].proxyAdmin?.address;
+          // If the owner in the config is an AW account and there is no proxyAdmin in the config,
+          // set the proxyAdmin to the AW singleton proxyAdmin.
+          // This will ensure that the checker will check that any proxies are owned by the singleton proxyAdmin.
+          if (
+            !proxyAdmin &&
+            eqAddress(config[key].owner, envConfig.owners[key]?.owner)
+          ) {
+            proxyAdmin = chainAddresses[key]?.proxyAdmin;
+          }
 
-        if (proxyAdmin) {
-          obj[key].proxyAdmin = proxyAdmin;
-        }
+          if (proxyAdmin) {
+            obj[key].proxyAdmin = proxyAdmin;
+          }
 
-        return obj;
-      }, {} as typeof warpAddresses);
+          return obj;
+        },
+        {} as typeof warpAddresses,
+      );
 
     const { contractsMap, foreignDeployments } =
       attachContractsMapAndGetForeignDeployments(
@@ -221,8 +296,8 @@ export async function getGovernor(
     const nonEvmChains = chains
       ? chains.filter((c) => foreignDeployments[c])
       : fork && foreignDeployments[fork]
-      ? [fork]
-      : [];
+        ? [fork]
+        : [];
 
     if (nonEvmChains.length > 0) {
       const chainList = nonEvmChains.join(', ');

@@ -1,27 +1,32 @@
-use serde::{Deserialize, Serialize};
 use std::{
     cmp::Ordering,
+    env,
     fmt::{Debug, Display},
     io::Write,
+    ops::Mul,
     sync::Arc,
     time::{Duration, Instant},
 };
+
+use async_trait::async_trait;
+use num::CheckedDiv;
+use prometheus::IntGauge;
+use serde::{Deserialize, Serialize};
+use sha3::{digest::Update, Digest, Keccak256};
+use strum::Display;
+use tracing::warn;
+
+use hyperlane_application::ApplicationReport;
 
 use crate::{
     ChainResult, Decode, Encode, FixedPointNumber, HyperlaneDomain, HyperlaneMessage,
     HyperlaneProtocolError, Mailbox, TryBatchAs, TxOutcome, H256, U256,
 };
-use async_trait::async_trait;
-use num::CheckedDiv;
-use prometheus::IntGauge;
-use strum::Display;
-use tracing::warn;
 
 /// Boxed operation that can be stored in an operation queue
 pub type QueueOperation = Box<dyn PendingOperation>;
 
-/// A pending operation that will be run by the submitter and cause a
-/// transaction to be sent.
+/// A pending operation that will be processed by the MessageProcessor.
 ///
 /// There are three stages to the lifecycle of a pending operation:
 ///
@@ -60,6 +65,15 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
 
     /// The domain this operation will take place on.
     fn destination_domain(&self) -> &HyperlaneDomain;
+
+    /// The sender address of this operation.
+    fn sender_address(&self) -> &H256;
+
+    /// The recipient address of this operation.
+    fn recipient_address(&self) -> &H256;
+
+    /// The message body of this operation.
+    fn body(&self) -> &[u8];
 
     /// Label to use for metrics granularity.
     fn app_context(&self) -> Option<String>;
@@ -127,7 +141,7 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     async fn confirm(&mut self) -> PendingOperationResult;
 
     /// Record the outcome of the operation
-    fn set_operation_outcome(
+    async fn set_operation_outcome(
         &mut self,
         submission_outcome: TxOutcome,
         submission_estimated_cost: U256,
@@ -147,13 +161,28 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     fn reset_attempts(&mut self);
 
     /// Set the number of times this operation has been retried.
-    #[cfg(any(test, feature = "test-utils"))]
     fn set_retries(&mut self, retries: u32);
+
+    /// Get the number of times this operation has been retried.
+    fn get_retries(&self) -> u32;
 
     /// If this operation points to a mailbox contract, return it
     fn try_get_mailbox(&self) -> Option<Arc<dyn Mailbox>> {
         None
     }
+
+    /// Creates payload for the operation
+    async fn payload(&self) -> ChainResult<Vec<u8>>;
+
+    /// Creates success criteria for the operation
+    fn success_criteria(&self) -> ChainResult<Option<Vec<u8>>>;
+
+    /// Public version of on_reprepare method
+    fn on_reprepare(
+        &mut self,
+        err_msg: Option<String>,
+        reason: ReprepareReason,
+    ) -> PendingOperationResult;
 }
 
 #[derive(Debug, Display, Clone, Serialize, Deserialize, PartialEq)]
@@ -179,6 +208,7 @@ impl Encode for PendingOperationStatus {
         W: Write,
     {
         // Serialize to JSON and write to the writer, to avoid having to implement the encoding manually
+        #[allow(clippy::io_other_error)] // ignore this lint for this line
         let serialized = serde_json::to_vec(self)
             .map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "Failed to serialize"))?;
         writer.write(&serialized)
@@ -193,9 +223,10 @@ impl Decode for PendingOperationStatus {
     {
         // Deserialize from JSON and read from the reader, to avoid having to implement the encoding / decoding manually
         serde_json::from_reader(reader).map_err(|err| {
+            #[allow(clippy::io_other_error)] // ignore this lint for this line
             HyperlaneProtocolError::IoError(std::io::Error::new(
                 std::io::ErrorKind::Other,
-                format!("Failed to deserialize. Error: {}", err),
+                format!("Failed to deserialize. Error: {err}"),
             ))
         })
     }
@@ -206,6 +237,9 @@ impl Decode for PendingOperationStatus {
 /// WARNING: This enum is serialized to JSON and stored in the database, so to keep backwards compatibility, we shouldn't remove or rename any variants.
 /// Adding new variants is fine.
 pub enum ReprepareReason {
+    #[strum(to_string = "Manual retry")]
+    /// Failed to create payload success criteria
+    Manual,
     #[strum(to_string = "Error checking message delivery status")]
     /// Error checking message delivery status
     ErrorCheckingDeliveryStatus,
@@ -244,10 +278,31 @@ pub enum ReprepareReason {
     #[strum(to_string = "Delivery transaction reverted or reorged")]
     /// Delivery transaction reverted or reorged
     RevertedOrReorged,
+    #[strum(to_string = "Message metadata refused")]
+    /// The metadata building was refused for the message
+    MessageMetadataRefused,
+    #[strum(to_string = "ApplicationReport({0})")]
+    /// Application report
+    ApplicationReport(ApplicationReport),
+    #[strum(to_string = "Failed to create payload for message and metadata")]
+    /// Failed to create payload for message and metadata
+    ErrorCreatingPayload,
+    #[strum(to_string = "Failed to store payload uuid by message id")]
+    /// Failed to store payload uuid by message id
+    ErrorStoringPayloadUuidsByMessageId,
+    #[strum(to_string = "Failed to retrieve payload uuids by message id")]
+    /// Failed to retrieve payload uuids by message id
+    ErrorRetrievingPayloadUuids,
+    #[strum(to_string = "Failed to retrieve payload uuid status by message id")]
+    /// Failed to retrieve payload status by message id
+    ErrorRetrievingPayloadStatus,
+    #[strum(to_string = "Failed to create payload success criteria")]
+    /// Failed to create payload success criteria
+    ErrorCreatingPayloadSuccessCriteria,
 }
 
 #[derive(Display, Debug, Clone, Serialize, Deserialize, PartialEq)]
-/// Reasons for repreparing an operation
+/// Reasons for confirming an operation
 /// WARNING: This enum is serialized to JSON and stored in the database, so to keep backwards compatibility, we shouldn't remove or rename any variants.
 /// Adding new variants is fine.
 pub enum ConfirmReason {
@@ -287,7 +342,8 @@ pub fn gas_used_by_operation(
     let gas_used_by_tx = FixedPointNumber::try_from(tx_outcome.gas_used)?;
     let operation_gas_estimate = FixedPointNumber::try_from(operation_estimated_cost)?;
     let tx_gas_estimate = FixedPointNumber::try_from(tx_estimated_cost)?;
-    let gas_used_by_operation = (gas_used_by_tx * operation_gas_estimate)
+    let gas_used_by_operation = gas_used_by_tx
+        .mul(operation_gas_estimate)
         .checked_div(&tx_gas_estimate)
         .ok_or(eyre::eyre!("Division by zero"))?;
     gas_used_by_operation.try_into()
@@ -320,21 +376,38 @@ impl PartialEq for QueueOperation {
 
 impl Eq for QueueOperation {}
 
+#[allow(clippy::unnecessary_map_or)] // can't use `.is_ok_and` because it still unstables in `sbf`
 impl Ord for QueueOperation {
     fn cmp(&self, other: &Self) -> Ordering {
         use Ordering::*;
+
+        fn salted_hash(id: &H256, salt: &[u8]) -> H256 {
+            H256::from_slice(Keccak256::new().chain(id).chain(salt).finalize().as_slice())
+        }
+
         match (self.next_attempt_after(), other.next_attempt_after()) {
             (Some(a), Some(b)) => a.cmp(&b),
             // No time means it should come before
             (None, Some(_)) => Less,
             (Some(_), None) => Greater,
             (None, None) => {
-                if self.origin_domain_id() == other.origin_domain_id() {
-                    // Should execute in order of nonce for the same origin
-                    self.priority().cmp(&other.priority())
+                let mixing =
+                    env::var("HYPERLANE_RELAYER_MIXING_ENABLED").map_or(false, |v| v == "true");
+                if !mixing {
+                    if self.origin_domain_id() == other.origin_domain_id() {
+                        // Should execute in order of nonce for the same origin
+                        self.priority().cmp(&other.priority())
+                    } else {
+                        // There is no priority between these messages, so arbitrarily use the id
+                        self.id().cmp(&other.id())
+                    }
                 } else {
-                    // There is no priority between these messages, so arbitrarily use the id
-                    self.id().cmp(&other.id())
+                    let salt = env::var("HYPERLANE_RELAYER_MIXING_SALT")
+                        .map_or(0, |v| v.parse::<u32>().unwrap_or(0))
+                        .to_vec();
+                    let self_hash = salted_hash(&self.id(), &salt);
+                    let other_hash = salted_hash(&other.id(), &salt);
+                    self_hash.cmp(&other_hash)
                 }
             }
         }
@@ -357,14 +430,4 @@ pub enum PendingOperationResult {
 }
 
 #[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn test_encoding_pending_operation_status() {
-        let status = PendingOperationStatus::Retry(ReprepareReason::CouldNotFetchMetadata);
-        let encoded = status.to_vec();
-        let decoded = PendingOperationStatus::read_from(&mut &encoded[..]).unwrap();
-        assert_eq!(status, decoded);
-    }
-}
+mod tests;

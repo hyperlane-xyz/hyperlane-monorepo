@@ -1,0 +1,6 @@
+{
+  "import": ["tsx"],
+  "file": ["src/tests/e2e-test.setup.ts"],
+  "spec": ["src/tests/**/*.e2e-test.ts"],
+  "exit": true
+}

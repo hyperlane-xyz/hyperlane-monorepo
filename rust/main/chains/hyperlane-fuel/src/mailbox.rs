@@ -10,13 +10,12 @@ use fuels::{
 use hyperlane_core::{
     utils::bytes_to_hex, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
-    Indexed, Indexer, LogMeta, Mailbox, RawHyperlaneMessage, SequenceAwareIndexer, TxCostEstimate,
-    TxOutcome, H256, H512, U256,
+    Indexed, Indexer, LogMeta, Mailbox, RawHyperlaneMessage, ReorgPeriod, SequenceAwareIndexer,
+    TxCostEstimate, TxOutcome, H256, H512, U256,
 };
 use std::{
     collections::HashMap,
     fmt::{Debug, Formatter},
-    num::NonZeroU64,
     ops::RangeInclusive,
 };
 use tracing::{instrument, warn};
@@ -74,9 +73,9 @@ impl Debug for FuelMailbox {
 impl Mailbox for FuelMailbox {
     #[instrument(level = "debug", err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn count(&self, lag: Option<NonZeroU64>) -> ChainResult<u32> {
+    async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
         assert!(
-            lag.is_none(),
+            reorg_period.is_none(),
             "Fuel does not support querying point-in-time"
         );
         self.contract
@@ -185,7 +184,7 @@ impl Mailbox for FuelMailbox {
     }
 
     // Process cost of the `process` method
-    #[instrument(err, ret, skip(self), fields(msg=%message, metadata=%bytes_to_hex(metadata)))]
+    #[instrument(err, ret, skip(self), fields(hyp_message=%message, metadata=%bytes_to_hex(metadata)))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn process_estimate_costs(
         &self,
@@ -213,8 +212,16 @@ impl Mailbox for FuelMailbox {
         })
     }
 
-    fn process_calldata(&self, message: &HyperlaneMessage, metadata: &[u8]) -> Vec<u8> {
+    async fn process_calldata(
+        &self,
+        _message: &HyperlaneMessage,
+        _metadata: &[u8],
+    ) -> ChainResult<Vec<u8>> {
         // Seems like this is not needed for Fuel, as it's only used in mocks
+        todo!()
+    }
+
+    fn delivered_calldata(&self, message_id: H256) -> ChainResult<Option<Vec<u8>>> {
         todo!()
     }
 }

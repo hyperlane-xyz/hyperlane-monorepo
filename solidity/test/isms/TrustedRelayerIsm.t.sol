@@ -29,6 +29,13 @@ contract TrustedRelayerIsmTest is Test {
         recipient.setInterchainSecurityModule(address(ism));
     }
 
+    function test_revertsWhen_invalidMailboxOrRelayer() public {
+        vm.expectRevert("TrustedRelayerIsm: invalid relayer");
+        new TrustedRelayerIsm(address(mailbox), address(0));
+        vm.expectRevert("TrustedRelayerIsm: invalid mailbox");
+        new TrustedRelayerIsm(relayer, relayer);
+    }
+
     function test_verify(
         uint32 origin,
         bytes32 sender,

@@ -1,11 +1,9 @@
+import { checkbox, select } from '@inquirer/prompts';
+import chalk from 'chalk';
 import path, { join } from 'path';
 import yargs, { Argv } from 'yargs';
 
-import {
-  ChainAddresses,
-  IRegistry,
-  warpConfigToWarpAddresses,
-} from '@hyperlane-xyz/registry';
+import { ChainAddresses, IRegistry } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
   ChainMetadata,
@@ -18,15 +16,18 @@ import {
 import {
   Address,
   ProtocolType,
+  difference,
+  inCIMode,
   objFilter,
   objMap,
   promiseObjAll,
   rootLogger,
-  symmetricDifference,
 } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts.js';
 import { agents } from '../config/environments/agents.js';
+import { WarpRouteIds as Mainnet3WarpRouteIds } from '../config/environments/mainnet3/warp/warpIds.js';
+import { WarpRouteIds as Testnet4WarpRouteIds } from '../config/environments/testnet4/warp/warpIds.js';
 import { validatorBaseConfigsFn } from '../config/environments/utils.js';
 import {
   getChain,
@@ -45,18 +46,19 @@ import {
   EnvironmentConfig,
   assertEnvironment,
 } from '../src/config/environment.js';
+import { BalanceThresholdType } from '../src/config/funding/balances.js';
+import { AlertType } from '../src/config/funding/grafanaAlerts.js';
 import { Role } from '../src/roles.js';
 import {
   assertContext,
   assertRole,
   filterRemoteDomainMetadata,
   getInfraPath,
-  inCIMode,
   readJSONAtPath,
   writeMergedJSONAtPath,
 } from '../src/utils/utils.js';
 
-const debugLog = rootLogger.child({ module: 'infra:scripts:utils' }).debug;
+const logger = rootLogger.child({ module: 'infra:scripts:agent-utils' });
 
 export enum Modules {
   // TODO: change
@@ -66,12 +68,12 @@ export enum Modules {
   INTERCHAIN_GAS_PAYMASTER = 'igp',
   INTERCHAIN_ACCOUNTS = 'ica',
   INTERCHAIN_QUERY_SYSTEM = 'iqs',
-  LIQUIDITY_LAYER = 'll',
   TEST_QUERY_SENDER = 'testquerysender',
   TEST_RECIPIENT = 'testrecipient',
   HELLO_WORLD = 'helloworld',
   WARP = 'warp',
   HAAS = 'haas',
+  CCIP = 'ccip',
 }
 
 export const REGISTRY_MODULES = [
@@ -82,6 +84,7 @@ export const REGISTRY_MODULES = [
   Modules.INTERCHAIN_QUERY_SYSTEM,
   Modules.TEST_RECIPIENT,
   Modules.HOOK,
+  Modules.CCIP,
 ];
 
 export function getArgs() {
@@ -90,6 +93,12 @@ export function getArgs() {
     .coerce('environment', assertEnvironment)
     .demandOption('environment')
     .alias('e', 'environment');
+}
+
+export function withBalanceThresholdConfig<T>(args: Argv<T>) {
+  return args
+    .describe('balanceThresholdConfig', 'balance threshold config')
+    .choices('balanceThresholdConfig', Object.values(BalanceThresholdType));
 }
 
 export function withFork<T>(args: Argv<T>) {
@@ -157,24 +166,80 @@ export function withChain<T>(args: Argv<T>) {
     .alias('c', 'chain');
 }
 
-export function withChains<T>(args: Argv<T>) {
+export function withWrite<T>(args: Argv<T>) {
+  return args
+    .describe('write', 'Write output to file')
+    .boolean('write')
+    .default('write', false);
+}
+
+export function withAppend<T>(args: Argv<T>) {
+  return args
+    .describe('append', 'Write only new keys to file (preserves existing keys)')
+    .boolean('append')
+    .default('append', false);
+}
+
+export function withChains<T>(args: Argv<T>, chainOptions?: ChainName[]) {
   return (
     args
       .describe('chains', 'Set of chains to perform actions on.')
       .array('chains')
-      .choices('chains', getChains())
+      .choices(
+        'chains',
+        !chainOptions || chainOptions.length === 0 ? getChains() : chainOptions,
+      )
       // Ensure chains are unique
       .coerce('chains', (chains: string[]) => Array.from(new Set(chains)))
       .alias('c', 'chains')
   );
 }
 
-export function withChainsRequired<T>(args: Argv<T>) {
-  return withChains(args).demandOption('chains');
+export function withChainsRequired<T>(
+  args: Argv<T>,
+  chainOptions?: ChainName[],
+) {
+  return withChains(args, chainOptions).demandOption('chains');
+}
+
+export function withOutputFile<T>(args: Argv<T>) {
+  return args
+    .describe('outFile', 'output file')
+    .string('outFile')
+    .alias('o', 'outFile');
+}
+
+export function withKnownWarpRouteId<T>(args: Argv<T>) {
+  return args
+    .describe('warpRouteId', 'warp route id')
+    .string('warpRouteId')
+    .choices('warpRouteId', Object.values(Mainnet3WarpRouteIds));
 }
 
 export function withWarpRouteId<T>(args: Argv<T>) {
   return args.describe('warpRouteId', 'warp route id').string('warpRouteId');
+}
+
+export function withMetrics<T>(args: Argv<T>) {
+  return args
+    .describe('metrics', 'metrics')
+    .boolean('metrics')
+    .default('metrics', true);
+}
+
+export function withWarpRouteIdRequired<T>(args: Argv<T>) {
+  return withWarpRouteId(args).demandOption('warpRouteId');
+}
+
+export function withDryRun<T>(args: Argv<T>) {
+  return args
+    .describe('dryRun', 'Dry run')
+    .boolean('dryRun')
+    .default('dryRun', false);
+}
+
+export function withKnownWarpRouteIdRequired<T>(args: Argv<T>) {
+  return withKnownWarpRouteId(args).demandOption('warpRouteId');
 }
 
 export function withProtocol<T>(args: Argv<T>) {
@@ -185,11 +250,27 @@ export function withProtocol<T>(args: Argv<T>) {
     .demandOption('protocol');
 }
 
+export function withAlertType<T>(args: Argv<T>) {
+  return args
+    .describe('alertType', 'alert type')
+    .choices('alertType', Object.values(AlertType));
+}
+
+export function withAlertTypeRequired<T>(args: Argv<T>) {
+  return withAlertType(args).demandOption('alertType');
+}
+
+export function withConfirmAllChoices<T>(args: Argv<T>) {
+  return args
+    .describe('all', 'Confirm all choices')
+    .boolean('all')
+    .default('all', false);
+}
+
 export function withAgentRole<T>(args: Argv<T>) {
   return args
-    .describe('role', 'agent roles')
-    .array('role')
-    .coerce('role', (role: string[]): Role[] => role.map(assertRole))
+    .describe('role', 'agent role')
+    .coerce('role', (role: string): Role => assertRole(role))
     .demandOption('role')
     .alias('r', 'role');
 }
@@ -202,9 +283,14 @@ export function withAgentRoles<T>(args: Argv<T>) {
       .coerce('roles', (role: string[]): Role[] => role.map(assertRole))
       .choices('roles', Object.values(Role))
       // Ensure roles are unique
-      .coerce('roles', (roles: string[]) => Array.from(new Set(roles)))
+      .coerce('roles', (roles: Role[]) => Array.from(new Set(roles)))
       .alias('r', 'roles')
+      .alias('role', 'roles')
   );
+}
+
+export function withAgentRolesRequired<T>(args: Argv<T>) {
+  return withAgentRoles(args).demandOption('roles');
 }
 
 export function withKeyRoleAndChain<T>(args: Argv<T>) {
@@ -249,6 +335,13 @@ export function withConcurrentDeploy<T>(args: Argv<T>) {
     .default('concurrentDeploy', false);
 }
 
+export function withConcurrency<T>(args: Argv<T>) {
+  return args
+    .describe('concurrency', 'Number of concurrent deploys')
+    .number('concurrency')
+    .default('concurrency', 1);
+}
+
 export function withRpcUrls<T>(args: Argv<T>) {
   return args
     .describe(
@@ -258,6 +351,76 @@ export function withRpcUrls<T>(args: Argv<T>) {
     .string('rpcUrls')
     .demandOption('rpcUrls')
     .alias('r', 'rpcUrls');
+}
+
+export function withSkipReview<T>(args: Argv<T>) {
+  return args
+    .describe('skipReview', 'Skip review')
+    .boolean('skipReview')
+    .default('skipReview', false);
+}
+
+export function withPropose<T>(args: Argv<T>) {
+  return args
+    .describe('propose', 'Propose')
+    .boolean('propose')
+    .default('propose', false);
+}
+
+function getWarpRouteIdsByEnvironment(deployEnvironment: DeployEnvironment) {
+  switch (deployEnvironment) {
+    case 'mainnet3':
+      return Mainnet3WarpRouteIds;
+    case 'testnet4':
+      return Testnet4WarpRouteIds;
+    default:
+      throw new Error(`Unsupported environment: ${deployEnvironment}`);
+  }
+}
+// Interactively gets a single warp route ID
+export async function getWarpRouteIdInteractive(
+  deployEnvironment: DeployEnvironment,
+) {
+  const choices = Object.values(
+    getWarpRouteIdsByEnvironment(deployEnvironment) as Record<string, string>,
+  )
+    .sort()
+    .map((id) => ({
+      value: id,
+    }));
+  return select({
+    message: 'Select Warp Route ID',
+    choices,
+    pageSize: 30,
+  });
+}
+
+// Interactively gets multiple warp route IDs
+export async function getWarpRouteIdsInteractive(
+  deployEnvironment: DeployEnvironment,
+) {
+  const choices = Object.values(
+    getWarpRouteIdsByEnvironment(deployEnvironment) as Record<string, string>,
+  )
+    .sort()
+    .map((id) => ({
+      value: id,
+    }));
+
+  let selection: string[] = [];
+
+  while (!selection.length) {
+    selection = await checkbox({
+      message: 'Select Warp Route IDs',
+      choices,
+      pageSize: 30,
+    });
+    if (!selection.length) {
+      rootLogger.info('Please select at least one Warp Route ID');
+    }
+  }
+
+  return selection;
 }
 
 // not requiring to build coreConfig to get agentConfig
@@ -319,7 +482,7 @@ export async function getAgentConfigsBasedOnArgs(argv?: {
   }
 
   // Sanity check that the validator agent config is valid.
-  ensureValidatorConfigConsistency(agentConfig);
+  ensureValidatorConfigConsistency(agentConfig, context);
 
   return {
     agentConfig,
@@ -347,25 +510,50 @@ export function getAgentConfig(
 }
 
 // Ensures that the validator context chain names are in sync with the validator config.
-export function ensureValidatorConfigConsistency(agentConfig: RootAgentConfig) {
+export function ensureValidatorConfigConsistency(
+  agentConfig: RootAgentConfig,
+  context: Contexts,
+) {
   const validatorContextChainNames = new Set(
     agentConfig.contextChainNames.validator,
   );
   const validatorConfigChains = new Set(
-    Object.keys(agentConfig.validators?.chains || {}),
+    Object.entries(agentConfig.validators?.chains || {})
+      .filter(([_, chainConfig]) =>
+        chainConfig.validators.some((validator) =>
+          validator.name.startsWith(`${context}-`),
+        ),
+      )
+      .map(([chain]) => chain),
   );
-  const symDiff = symmetricDifference(
+
+  // Only error if there are context chains missing from the config
+  // (context ⊆ config is OK, but not the other way around)
+  const missingInConfig = difference(
     validatorContextChainNames,
     validatorConfigChains,
   );
-  if (symDiff.size > 0) {
-    throw new Error(
-      `Validator config invalid.\nValidator context chain names: ${[
-        ...validatorContextChainNames,
-      ]}\nValidator config chains: ${[...validatorConfigChains]}\nDiff: ${[
-        ...symDiff,
-      ]}`,
-    );
+  if (missingInConfig.size > 0) {
+    const errorMessage = `Validator context chain names:\n - ${[
+      ...validatorContextChainNames,
+    ]}\nValidator config chains:\n - ${[...validatorConfigChains]}\nChains in context but not in config:\n - ${[
+      ...missingInConfig,
+    ]}`;
+
+    // So only throw if there are missing chains in the Hyperlane context.
+    // Only a subset of chains will have ephemeral validators in RC/Neutron contexts.
+    if (context === Contexts.Hyperlane) {
+      throw new Error(
+        chalk.bold.red(`Validator config invalid.\n${errorMessage}`),
+      );
+    } else {
+      rootLogger.info(chalk.grey(errorMessage));
+      rootLogger.info(
+        chalk.bold.grey(
+          'This is expected for RC/Neutron contexts, as we only run validators for a subset of chains in them.',
+        ),
+      );
+    }
   }
 }
 
@@ -376,7 +564,7 @@ export function getKeyForRole(
   chain?: ChainName,
   index?: number,
 ): CloudAgentKey {
-  debugLog(`Getting key for ${role} role`);
+  logger.debug({ chain }, `Getting key for ${role} role`);
   const agentConfig = getAgentConfig(context, environment);
   return getCloudAgentKey(agentConfig, role, chain, index);
 }
@@ -397,10 +585,10 @@ export async function getMultiProviderForRole(
   index?: number,
 ): Promise<MultiProvider> {
   const chainMetadata = await registry.getMetadata();
-  debugLog(`Getting multiprovider for ${role} role`);
+  logger.debug(`Getting multiprovider for ${role} role`);
   const multiProvider = new MultiProvider(chainMetadata);
   if (inCIMode()) {
-    debugLog('Running in CI, returning multiprovider without secret keys');
+    logger.debug('Running in CI, returning multiprovider without secret keys');
     return multiProvider;
   }
   await promiseObjAll(
@@ -414,7 +602,11 @@ export async function getMultiProviderForRole(
       async (chain, _) => {
         if (multiProvider.getProtocol(chain) === ProtocolType.Ethereum) {
           const key = getKeyForRole(environment, context, role, chain, index);
-          const signer = await key.getSigner();
+          const provider = multiProvider.tryGetProvider(chain);
+          if (!provider) {
+            throw new Error(`Provider not found for chain ${chain}`);
+          }
+          const signer = await key.getSigner(provider);
           multiProvider.setSigner(chain, signer);
         }
       },
@@ -434,7 +626,7 @@ export async function getKeysForRole(
   index?: number,
 ): Promise<ChainMap<CloudAgentKey>> {
   if (inCIMode()) {
-    debugLog('No keys to return in CI');
+    logger.debug('No keys to return in CI');
     return {};
   }
 
@@ -461,8 +653,6 @@ export function getModuleDirectory(
         return 'middleware/accounts';
       case Modules.INTERCHAIN_QUERY_SYSTEM:
         return 'middleware/queries';
-      case Modules.LIQUIDITY_LAYER:
-        return 'middleware/liquidity-layer';
       case Modules.HELLO_WORLD:
         return `helloworld/${context}`;
       default:
@@ -485,15 +675,28 @@ function getInfraLandfillPath(environment: DeployEnvironment, module: Modules) {
   return path.join(getModuleDirectory(environment, module), 'addresses.json');
 }
 
-export function getAddresses(environment: DeployEnvironment, module: Modules) {
+export function getAddresses(
+  environment: DeployEnvironment,
+  module: Modules,
+  chains?: ChainName[],
+) {
+  let addresses;
   if (isRegistryModule(environment, module)) {
-    const allAddresses = getChainAddresses();
-    const envChains = getEnvChains(environment);
-    return objFilter(allAddresses, (chain, _): _ is ChainAddresses => {
-      return envChains.includes(chain);
+    addresses = getChainAddresses();
+  } else {
+    addresses = readJSONAtPath(getInfraLandfillPath(environment, module));
+  }
+
+  // Filter by chains if specified, otherwise use environment chains
+  if (chains && chains.length > 0) {
+    return objFilter(addresses, (chain, _): _ is ChainAddresses => {
+      return chains.includes(chain);
     });
   } else {
-    return readJSONAtPath(getInfraLandfillPath(environment, module));
+    const envChains = getEnvChains(environment);
+    return objFilter(addresses, (chain, _): _ is ChainAddresses => {
+      return envChains.includes(chain);
+    });
   }
 }
 
@@ -501,7 +704,14 @@ export function writeAddresses(
   environment: DeployEnvironment,
   module: Modules,
   addressesMap: ChainMap<Record<string, Address>>,
+  targetNetworks?: ChainName[],
 ) {
+  if (targetNetworks && targetNetworks.length > 0) {
+    addressesMap = objFilter(addressesMap, (chain, _): _ is ChainAddresses => {
+      return targetNetworks.includes(chain as ChainName);
+    });
+  }
+
   addressesMap = filterRemoteDomainMetadata(addressesMap);
 
   if (isRegistryModule(environment, module)) {
@@ -524,13 +734,26 @@ export function getAgentConfigJsonPath(environment: AgentEnvironment) {
   return path.join(getAgentConfigDirectory(), `${environment}_config.json`);
 }
 
+export function getAgentAppContextConfigDirectory() {
+  return path.join('../../', 'rust', 'main', 'app-contexts');
+}
+
+export function getAgentAppContextConfigJsonPath(
+  environment: AgentEnvironment,
+) {
+  return path.join(
+    getAgentAppContextConfigDirectory(),
+    `${environment}_config.json`,
+  );
+}
+
 export async function assertCorrectKubeContext(coreConfig: EnvironmentConfig) {
   const currentKubeContext = await getCurrentKubernetesContext();
   if (
     !currentKubeContext.endsWith(`${coreConfig.infra.kubernetes.clusterName}`)
   ) {
     const cluster = coreConfig.infra.kubernetes.clusterName;
-    console.error(
+    rootLogger.error(
       `Cowardly refusing to deploy using current k8s context ${currentKubeContext}; are you sure you have the right k8s context active?`,
       `Want clusterName ${cluster}`,
       `Run gcloud container clusters get-credentials ${cluster} --zone us-east1-c`,

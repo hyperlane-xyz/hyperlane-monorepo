@@ -1,5 +1,738 @@
 # @hyperlane-xyz/cli
 
+## 19.10.0
+
+### Minor Changes
+
+- b3d7e8373: Remove MultiChainResolver for simplified chainResolver module
+- 66bed7126: migrated AltVm modules to provider-sdk and deploy-sdk
+- f604423b9: - Remove AltVMProviderFactory to new API in deploy-sdk (loadlProtocolProviders) and Registry singleton.
+  - Add `chainId` and `rpcUrls` to `ChainMetadataForAltVM`. Add `CosmosNativeProtocolProvider` and `RadixProtocolProvider` to both cosmos-sdk and radix-sdk, respectively.
+  - Add `forWarpRead`, `forCoreRead`, and `forCoreCheck` to signerMiddleware to enable chain resolving for these CLI functions.
+  - Add `assert` after some `altVmProvider.get` calls in SDK configUtils.
+
+## 19.9.0
+
+## 19.8.0
+
+### Minor Changes
+
+- 78ff6cd47: add new methods for altvm interface
+
+## 19.7.0
+
+### Minor Changes
+
+- a03b02e47: Fix `hyperlane warp send` where an error is thrown if `--chains` or `--origin` and `--destination` are not provided
+
+## 19.6.0
+
+### Minor Changes
+
+- b259966fe: Add the Fee deploy logic into token deployer to allow warp routes to deploy with a token fee. Update Fee schemas to separate between input and output
+- ec406fcbe: Add TokenFee updates to the FeeModule and WarpModule. This enables updating immutable fees (re-deploy), routing sub-fees, and ownership
+- 9185b9c5b: Update EvmTokenFeeModule to support native fee deployment by extracting config processing into a static method that handles native tokens, modularizing deployment logic, and adding automatic BPS calculation from fee parameters.
+
+### Patch Changes
+
+- 18c32ed2b: Decouple movable collateral and hyp collateral token adapters
+
+## 19.6.0-beta.0
+
+### Minor Changes
+
+- b259966fe: Add the Fee deploy logic into token deployer to allow warp routes to deploy with a token fee. Update Fee schemas to separate between input and output
+- ec406fcbe: Add TokenFee updates to the FeeModule and WarpModule. This enables updating immutable fees (re-deploy), routing sub-fees, and ownership
+- 9185b9c5b: Update EvmTokenFeeModule to support native fee deployment by extracting config processing into a static method that handles native tokens, modularizing deployment logic, and adding automatic BPS calculation from fee parameters.
+
+### Patch Changes
+
+- 18c32ed2b: Decouple movable collateral and hyp collateral token adapters
+
+## 19.5.0
+
+## 19.4.0
+
+### Minor Changes
+
+- 4011a4561: Fix bug that prevented the warp route ism to be set to the 0 address and include logic to update a pausable ism as it was missing
+
+## 19.3.0
+
+## 19.2.0
+
+### Minor Changes
+
+- 3181c49c7: fix bug related to cli throwing error after trying to retrieve a submitter config for a chain where it wasn't defined if the chain was not an extension
+
+## 19.1.1
+
+## 19.1.0
+
+## 19.0.0
+
+### Major Changes
+
+- e42a0e8e1: feat: radix support for the cli
+- 8eab305bd: feat: add altvm file submitter
+- 32479e139: feat: register AltVM signer & provider factories
+
+### Minor Changes
+
+- 9e5dbfdf1: Update `hyperlane warp send` to include `--chains` parameter to input which chains to send to
+- 6c97a305d: Use only rebalancer config chains when resolving warp rebalance command
+- b076393b5: Remove inflight guard from rebalancer
+
+### Patch Changes
+
+- 70354d6d9: Restore foreignDeployment field behaviour to allow enrollment of unsupported chains during deployment
+
+## 18.3.0
+
+### Minor Changes
+
+- 2b16904f8: Dont check for token collateralAddressOrDenom to enable HypNative router collateral balance reads
+- 571901a6d: Fix warp read crashing when providing the `--warpRouteId` flag
+
+### Patch Changes
+
+- a5728818f: Fixed pre deploy balance check logic that attempted to convert to bignumber decimal numbers
+
+## 18.2.0
+
+### Minor Changes
+
+- dfa9d368c: updated command context initialization logic to simplify signer configuration and remove private usage assumption
+
+## 18.1.0
+
+## 18.0.0
+
+### Major Changes
+
+- 552b253b9: deprecated dry-run support in the cli in favour of `hyperlane warp fork` and `hyperlane fork` commands
+
+## 17.0.0
+
+### Minor Changes
+
+- dfa883e24: Fixes chain resolver for `hyperlane submit` by adding the STRATEGY enum into the chain resolver switch.
+
+## 16.2.0
+
+### Patch Changes
+
+- db55c3e00: fix: parse private keys as string instead of number
+
+## 16.1.1
+
+## 16.1.0
+
+## 16.0.0
+
+### Minor Changes
+
+- 3fac22334: Fix FileSubmitterStrategy to correctly append a transaction file
+- a2596f0d9: Add GET `warp-route/core` to HTTP Registry Server
+
+## 15.0.0
+
+### Minor Changes
+
+- 2bc17e200: Update submit command to be able to handle transaction file of multiple chains
+- 87213a66d: Update `warp fork` to start up an HttpRegistry
+- e0ea8910c: Add FileSubmitter to CLI. Export ChainSubmissionStrategySchema preprocess and superRefine. Some additional updates to types related to these changes.
+
+### Patch Changes
+
+- e407e8bae: Gracefully continue checking delivery of all messages even if one delivery check fails.
+
+## 14.4.0
+
+## 14.3.0
+
+### Patch Changes
+
+- b5174ada7: Fix strategy flag propagation
+
+## 14.2.0
+
+## 14.1.0
+
+## 14.0.0
+
+### Major Changes
+
+- 66c13b539: Updated ICA transaction support for allowing the CLI to send them when provided with the appropriate strategy config
+
+## 13.4.0
+
+### Minor Changes
+
+- 5f60deed3: add cosmos warp read logic in sdk
+- 83c628e2e: Update registry dependency.
+- e48e5346f: add warp fork and fork commands
+- 545324a57: updates the warp core output file logic to use the input file name as seed for the filename when a warp id is not provided
+
+### Patch Changes
+
+- f6256b351: fix: use consistent warp route selector for all warp commands
+
+## 13.3.0
+
+### Minor Changes
+
+- 509a0dc: Add partial support for the ICA router ISM to derive its on chain config when deployed and included in the config
+- 6fa767e: Added option to configure rebalancers and allowed bridges for movable collateral tokens using the cli and sdk
+
+## 13.2.1
+
+### Patch Changes
+
+- 72887f7: Update to ethers v5.8.0.
+
+## 13.2.0
+
+### Minor Changes
+
+- 4d66b73: Update warp deploy to output WarpCoreConfig to specified --warpRouteId. Bump Registry to v16.0.0
+- 0ca8676: Update warp apply to specify a warp route Id to read/write to using --warpRouteId
+- 4d66b73: Add support for zksync based networks
+
+### Patch Changes
+
+- 4d66b73: Reuse existing signer in CLI warp transfer instead of connecting a new signer from the multiprovider.
+- 4d66b73: Only prompt for API key for etherscan explorer type.
+- 4d66b73: Bump Registry to version 15.10.1 to patch addWarpRouteConfig to no longer throw when a warpRouteId exists
+
+## 13.1.1
+
+### Patch Changes
+
+- ba4deea: Revert workspace dependency syntax.
+
+## 13.1.0
+
+### Minor Changes
+
+- ac13dde: add cosmos native core cli commands
+
+### Patch Changes
+
+- 754f7ba: disable cosmos native signers and only allow evm signers for now again
+- 86a8502: Change info logs to debug logs in MultiProtocolSignerManager.extractPrivateKey().
+
+## 13.0.0
+
+## 12.6.0
+
+### Minor Changes
+
+- 2ae0f72: Add contract verification to CLI Warp Checker
+- 672d6d1: adds logic to expand an ism or hook config if it is partially defined in the input file for the warp checker
+- aec8961: Updates the `warp check` command output to only show fields that have diffs with the expected config
+- e25af4b: Fixed warp route ID lookup to use deployment configs instead of warp routes when prompting users for selection on warp deployment
+- ce0b173: Refactored warp route configuration functions to use object parameters instead of positional parameters for improved clarity and flexibility.
+- 1770318: Upgraded @hyperlane-xyz/registry to v14.0.0 and updated warp route config API usage.
+- 6a70b8d: Move executeDeploy logic from CLI to SDK
+- 248d2e1: Enables the CLI to warp check routes that include non EVM routes
+- de7c6ae: Added registry based warp configs support
+- e381a8d: Update Registry version to 15.0.0
+
+### Patch Changes
+
+- 166f849: Remove outputting isNft in warp init config
+- f6ed6ad: Fixed proxy admin ownership transfer logic when the config is not specified in the input file
+
+## 12.5.0
+
+### Minor Changes
+
+- 862f14f: feat(cli): Add registry-based warp route lookup and config validation
+
+## 12.4.0
+
+## 12.3.0
+
+### Minor Changes
+
+- 5db39f493: Fixes to support CosmosNative and warp apply with foreign deployments.
+
+## 12.2.0
+
+## 12.1.0
+
+### Patch Changes
+
+- Updated dependencies [acbf5936a]
+- Updated dependencies [c757b6a18]
+- Updated dependencies [a646f9ca1]
+- Updated dependencies [3b615c892]
+  - @hyperlane-xyz/sdk@12.1.0
+  - @hyperlane-xyz/utils@12.1.0
+
+## 12.0.0
+
+### Minor Changes
+
+- 82166916a: feat: support github auth token for authenticated registries
+
+### Patch Changes
+
+- Updated dependencies [f7ca32315]
+- Updated dependencies [4d3738d14]
+- Updated dependencies [07321f6f0]
+- Updated dependencies [59a087ded]
+- Updated dependencies [59a087ded]
+- Updated dependencies [337193305]
+  - @hyperlane-xyz/sdk@12.0.0
+  - @hyperlane-xyz/utils@12.0.0
+
+## 11.0.0
+
+### Patch Changes
+
+- Updated dependencies [888d180b6]
+- Updated dependencies [3b060c3e1]
+  - @hyperlane-xyz/sdk@11.0.0
+  - @hyperlane-xyz/utils@11.0.0
+
+## 10.0.0
+
+### Patch Changes
+
+- Updated dependencies [7dbf7e4fa]
+- Updated dependencies [b8d95fc95]
+- Updated dependencies [28ca87293]
+- Updated dependencies [4fd5623b8]
+  - @hyperlane-xyz/sdk@10.0.0
+  - @hyperlane-xyz/utils@10.0.0
+
+## 9.2.1
+
+### Patch Changes
+
+- Updated dependencies [e3d09168e]
+  - @hyperlane-xyz/sdk@9.2.1
+  - @hyperlane-xyz/utils@9.2.1
+
+## 9.2.0
+
+### Patch Changes
+
+- 2955bd990: Catch and log error instead of hard exiting when unable to get the tx receipt of a delivered message.
+- 53dd71a4b: Do not error in hyperlane status if chain does not contain block explorer URL.
+- Updated dependencies [7fe739d52]
+- Updated dependencies [3e66e8f12]
+- Updated dependencies [3852a9015]
+  - @hyperlane-xyz/sdk@9.2.0
+  - @hyperlane-xyz/utils@9.2.0
+
+## 9.1.0
+
+### Minor Changes
+
+- cad82683f: Extracted ISM and Hook factory addresses into a reusable utility function to reduce repetition and improve maintainability.
+- cad82683f: Improved warp route extension and configuration handling
+
+### Patch Changes
+
+- 9f9e2c3b5: fix `warp check` command to correctly check the remote routers in the config
+- Updated dependencies [67d91e489]
+- Updated dependencies [cad82683f]
+- Updated dependencies [97c773476]
+- Updated dependencies [351bf0010]
+- Updated dependencies [cad82683f]
+  - @hyperlane-xyz/sdk@9.1.0
+  - @hyperlane-xyz/utils@9.1.0
+
+## 9.0.0
+
+### Minor Changes
+
+- 0d8624d99: Make mailbox optional on warp deploy config
+
+### Patch Changes
+
+- Updated dependencies [0d8624d99]
+- Updated dependencies [b07e2f2ea]
+- Updated dependencies [4df37393f]
+- Updated dependencies [88970a78c]
+  - @hyperlane-xyz/sdk@9.0.0
+  - @hyperlane-xyz/utils@9.0.0
+
+## 8.9.0
+
+### Minor Changes
+
+- 05f89650b: Added utils for fetching extra lockboxes data from a xERC20 warp route
+- d121c1cb8: Add XERC20 derivation in SDK/CLI Warp Reading
+- d6ddf5b9e: make warp:read and warp:check/warp:verify operations independent of signer requirements
+- 766f50695: Change semantics of ism/hook config from undefined to 0x0 for reading/checking purposes
+- 1955579cf: Expand warpDeployConfig for checking purposes
+- 33178eaa8: Move getRegistry function from the CLI to `@hyperlane-xyz/registry` package.
+- 4147f91cb: Added support for the new AmountRoutingIsm to be deployed and managed by the cli
+- 500249649: Enable usage of CCIP Hooks and ISMs in warp routes.
+- 03266e2c2: add amount routing hook support in the sdk and cli
+
+### Patch Changes
+
+- 9fd3aa4f3: Correctly await address in native balance check.
+- a835d5c5c: Only relay specified message ID
+- Updated dependencies [05f89650b]
+- Updated dependencies [d121c1cb8]
+- Updated dependencies [3518f8901]
+- Updated dependencies [d6ddf5b9e]
+- Updated dependencies [766f50695]
+- Updated dependencies [e78060d73]
+- Updated dependencies [cb7c157f0]
+- Updated dependencies [ede0cbc15]
+- Updated dependencies [1955579cf]
+- Updated dependencies [57137dad4]
+- Updated dependencies [3518f8901]
+- Updated dependencies [500249649]
+- Updated dependencies [03266e2c2]
+- Updated dependencies [cb93c13a4]
+- Updated dependencies [456407dc7]
+- Updated dependencies [4147f91cb]
+  - @hyperlane-xyz/utils@8.9.0
+  - @hyperlane-xyz/sdk@8.9.0
+
+## 8.8.1
+
+### Patch Changes
+
+- c68529807: Update registry dependency.
+  - @hyperlane-xyz/sdk@8.8.1
+  - @hyperlane-xyz/utils@8.8.1
+
+## 8.8.0
+
+### Minor Changes
+
+- d82d24cc7: Update `hyperlane warp init` to be undefined for ISM by default.
+- b054b0424: Update `hyperlane warp init` to not output proxyAdmin by default.
+
+### Patch Changes
+
+- Updated dependencies [719d022ec]
+- Updated dependencies [c61546cb7]
+  - @hyperlane-xyz/sdk@8.8.0
+  - @hyperlane-xyz/utils@8.8.0
+
+## 8.7.0
+
+### Minor Changes
+
+- db832b803: Added support for multiple registries in CLI with prioritization.
+- 7dd1f64a6: Update submitWarpApplyTransactions() to try-catch and print safe errors
+
+### Patch Changes
+
+- Updated dependencies [bd0b8861f]
+- Updated dependencies [55db270e3]
+- Updated dependencies [b92eb1b57]
+- Updated dependencies [ede0cbc15]
+- Updated dependencies [12e3c4da0]
+- Updated dependencies [d6724c4c3]
+- Updated dependencies [d93a38cab]
+  - @hyperlane-xyz/sdk@8.7.0
+  - @hyperlane-xyz/utils@8.7.0
+
+## 8.6.1
+
+### Patch Changes
+
+- 236f27b5f: Fix cli package dependencies.
+  - @hyperlane-xyz/sdk@8.6.1
+  - @hyperlane-xyz/utils@8.6.1
+
+## 8.6.0
+
+### Minor Changes
+
+- d2bc2cfec: Update CLI package.json to be able to export functions
+
+### Patch Changes
+
+- 1e6ee0b9c: Fix default multichain strategy resolving.
+- Updated dependencies [407d82004]
+- Updated dependencies [ac984a17b]
+- Updated dependencies [276d7ce4e]
+- Updated dependencies [ba50e62fc]
+- Updated dependencies [1e6ee0b9c]
+- Updated dependencies [77946bb13]
+  - @hyperlane-xyz/sdk@8.6.0
+  - @hyperlane-xyz/utils@8.6.0
+
+## 8.5.0
+
+### Patch Changes
+
+- Updated dependencies [55b8ccdff]
+  - @hyperlane-xyz/sdk@8.5.0
+  - @hyperlane-xyz/utils@8.5.0
+
+## 8.4.0
+
+### Patch Changes
+
+- Updated dependencies [f6b682cdb]
+  - @hyperlane-xyz/sdk@8.4.0
+  - @hyperlane-xyz/utils@8.4.0
+
+## 8.3.0
+
+### Minor Changes
+
+- 228f7c3d1: Fix issue where warp deploy artifacts did not include correct symbols.
+
+### Patch Changes
+
+- Updated dependencies [7546c0181]
+- Updated dependencies [49856fbb9]
+  - @hyperlane-xyz/sdk@8.3.0
+  - @hyperlane-xyz/utils@8.3.0
+
+## 8.2.0
+
+### Minor Changes
+
+- 9eb19cac7: Add explorer link to warp send and send message commands
+- aad2c2d1e: Fixing the chain resolver checks and handling for argv.chain
+
+### Patch Changes
+
+- 1536ea570: Print displayName instead of chain name in signer validity logs.
+- Updated dependencies [69a684869]
+  - @hyperlane-xyz/sdk@8.2.0
+  - @hyperlane-xyz/utils@8.2.0
+
+## 8.1.0
+
+### Minor Changes
+
+- 2d018fa7a: Fix hyperlane warp send where --origin and --destination are out of order
+
+### Patch Changes
+
+- Updated dependencies [79c61c891]
+- Updated dependencies [9518dbc84]
+- Updated dependencies [9ab961a79]
+  - @hyperlane-xyz/sdk@8.1.0
+  - @hyperlane-xyz/utils@8.1.0
+
+## 8.0.0
+
+### Minor Changes
+
+- fd20bb1e9: Add FeeHook and Swell to pz and ez eth config generator. Bump up Registry 6.6.0
+- bb44f9b51: Add support for deploying Hooks using a HookConfig within a WarpConfig
+- c2ca8490d: fix signer strategy init for broken cli commands
+- 9f6b8c514: Allow self-relaying of all messages if there are multiple in a given dispatch transaction.
+- 3c4bc1cca: Update hyperlane warp send to send a round trip transfer to all chains in WarpCoreConfig, if --origin and/or --destination is not provided.
+- 79f8197f3: Added strategy management CLI commands and MultiProtocolSigner implementation for flexible cross-chain signer configuration and management
+- a5ece3b30: Add chain technical stack selector with Arbitrum Nitro support to `hyperlane registry init` command
+- d35502fa7: Update single chain selection to be searchable instead of a simple select
+
+### Patch Changes
+
+- 472b34670: Bump registry version to v6.3.0.
+- 0c8372447: fix: balance check skip confirmation
+- 657ac9255: Suppress help on CLI failures
+- 9349ef73e: Fix strategy flag propagation
+- cd7c41308: Fix yaml resource exhaustion
+- 98ee79c17: Added ZKSync signer support using zksync-ethers package
+- Updated dependencies [472b34670]
+- Updated dependencies [79f8197f3]
+- Updated dependencies [fd20bb1e9]
+- Updated dependencies [26fbec8f6]
+- Updated dependencies [71aefa03e]
+- Updated dependencies [9f6b8c514]
+- Updated dependencies [82cebabe4]
+- Updated dependencies [95cc9571e]
+- Updated dependencies [c690ca82f]
+- Updated dependencies [5942e9cff]
+- Updated dependencies [de1190656]
+- Updated dependencies [e9911bb9d]
+- Updated dependencies [8834a8c92]
+  - @hyperlane-xyz/sdk@8.0.0
+  - @hyperlane-xyz/utils@8.0.0
+
+## 7.3.0
+
+### Minor Changes
+
+- aa1ea9a48: updates the warp deployment config schema to be closer to the ica routing schema
+- 323f0f158: Add ICAs management in core apply command
+
+### Patch Changes
+
+- 455a897fb: Fix a bug where it would try to relay the incorrect message from a transaction that dispatches multiple messages.
+- Updated dependencies [2054f4f5b]
+- Updated dependencies [a96448fa6]
+- Updated dependencies [170a0fc73]
+- Updated dependencies [9a09afcc7]
+- Updated dependencies [24784af95]
+- Updated dependencies [3e8dd70ac]
+- Updated dependencies [aa1ea9a48]
+- Updated dependencies [665a7b8d8]
+- Updated dependencies [f0b98fdef]
+- Updated dependencies [ff9e8a72b]
+- Updated dependencies [97c1f80b7]
+- Updated dependencies [323f0f158]
+- Updated dependencies [61157097b]
+  - @hyperlane-xyz/sdk@7.3.0
+  - @hyperlane-xyz/utils@7.3.0
+
+## 7.2.0
+
+### Minor Changes
+
+- d51815760: Support using the CLI to deploy warp routes that involve foreign deployments
+- 81ab4332f: Remove ismFactoryAddresses from warpConfig
+- 4b3537470: Changed the type of defaultMultisigConfigs, to track validator aliases in addition to their addresses.
+
+### Patch Changes
+
+- Updated dependencies [81ab4332f]
+- Updated dependencies [4b3537470]
+- Updated dependencies [fa6d5f5c6]
+- Updated dependencies [fa6d5f5c6]
+  - @hyperlane-xyz/sdk@7.2.0
+  - @hyperlane-xyz/utils@7.2.0
+
+## 7.1.0
+
+### Minor Changes
+
+- 5db46bd31: Implements persistent relayer for use in CLI
+
+### Patch Changes
+
+- Updated dependencies [6f2d50fbd]
+- Updated dependencies [1159e0f4b]
+- Updated dependencies [0e285a443]
+- Updated dependencies [ff2b4e2fb]
+- Updated dependencies [0e285a443]
+- Updated dependencies [5db46bd31]
+- Updated dependencies [0cd65c571]
+  - @hyperlane-xyz/sdk@7.1.0
+  - @hyperlane-xyz/utils@7.1.0
+
+## 7.0.0
+
+### Minor Changes
+
+- fa424826c: Add support for updating the mailbox proxy admin owner
+- 836060240: Add storage based multisig ISM types
+
+### Patch Changes
+
+- Updated dependencies [bbb970a44]
+- Updated dependencies [fa424826c]
+- Updated dependencies [f48cf8766]
+- Updated dependencies [40d59a2f4]
+- Updated dependencies [0264f709e]
+- Updated dependencies [836060240]
+- Updated dependencies [ba0122279]
+- Updated dependencies [e6f9d5c4f]
+- Updated dependencies [f24835438]
+- Updated dependencies [5f41b1134]
+  - @hyperlane-xyz/sdk@7.0.0
+  - @hyperlane-xyz/utils@7.0.0
+
+## 6.0.0
+
+### Major Changes
+
+- e3b97c455: Detangle assumption that chainId == domainId for EVM chains. Domain IDs and Chain Names are still unique, but chainId is no longer guaranteed to be a unique identifier. Domain ID is no longer an optional field and is now required for all chain metadata.
+
+### Patch Changes
+
+- Updated dependencies [7b3b07900]
+- Updated dependencies [30d92c319]
+- Updated dependencies [e3b97c455]
+  - @hyperlane-xyz/sdk@6.0.0
+  - @hyperlane-xyz/utils@6.0.0
+
+## 5.7.0
+
+### Minor Changes
+
+- db0e73502: re-enable space key for multiselect cli prompt
+- 7e9e248be: Add feat to allow updates to destination gas using warp apply
+- 4c0605dca: Add optional proxy admin reuse in warp route deployments and admin proxy ownership transfer in warp apply
+- db5875cc2: Add `hyperlane warp verify` to allow post-deployment verification.
+- 956ff752a: Enable configuration of IGP hooks in the CLI
+
+### Patch Changes
+
+- Updated dependencies [5dabdf388]
+- Updated dependencies [469f2f340]
+- Updated dependencies [e104cf6aa]
+- Updated dependencies [d9505ab58]
+- Updated dependencies [04108155d]
+- Updated dependencies [7e9e248be]
+- Updated dependencies [4c0605dca]
+- Updated dependencies [db9196837]
+- Updated dependencies [db5875cc2]
+- Updated dependencies [56328e6e1]
+- Updated dependencies [956ff752a]
+- Updated dependencies [39a9b2038]
+  - @hyperlane-xyz/sdk@5.7.0
+  - @hyperlane-xyz/utils@5.7.0
+
+## 5.6.2
+
+### Patch Changes
+
+- Updated dependencies [5fd4267e7]
+- Updated dependencies [a36fc5fb2]
+  - @hyperlane-xyz/utils@5.6.2
+  - @hyperlane-xyz/sdk@5.6.2
+
+## 5.6.1
+
+### Patch Changes
+
+- 3474a8450: Explicitly define inquirer/core and inquirier/figures dependencies
+  - @hyperlane-xyz/sdk@5.6.1
+  - @hyperlane-xyz/utils@5.6.1
+
+## 5.6.0
+
+### Minor Changes
+
+- 41035aac8: Add strategyUrl detect and validation in the beginning of `warp apply`
+  Remove yaml transactions print from `warp apply`
+- 29341950e: Adds new `core check` command to compare local configuration and on chain deployments. Adds memoization to the EvmHookReader to avoid repeating configuration derivation
+- 32d0a67c2: Adds the warp check command to compare warp routes config files with on chain warp route deployments
+- 3662297fc: Add prompt in `warp init` command to choose if a trusted relayer should be used instead of making the choice by default for the user and enable the `--yes` flag to default to a trusted ISM
+- b1ff48bd1: Add rebasing yield route support into CLI/SDK
+- d41aa6928: Add `EthJsonRpcBlockParameterTag` enum for validating reorgPeriod
+- c3e9268f1: Add support for an arbitrary string in `reorgPeriod`, which is used as a block tag to get the finalized block.
+- a4d5d692f: Update `warp apply` such that it updates in place AND extends in a single call
+- 01e7070eb: updates the multi chain selection prompt by adding search functionality and an optional confirmation prompt for the current selection
+
+### Patch Changes
+
+- e89f9e35d: Update registry to v4.7.0
+- Updated dependencies [f1712deb7]
+- Updated dependencies [46044a2e9]
+- Updated dependencies [02a5b92ba]
+- Updated dependencies [29341950e]
+- Updated dependencies [8001bbbd6]
+- Updated dependencies [32d0a67c2]
+- Updated dependencies [b1ff48bd1]
+- Updated dependencies [d41aa6928]
+- Updated dependencies [c3e9268f1]
+- Updated dependencies [7d7bcc1a3]
+- Updated dependencies [7f3e0669d]
+- Updated dependencies [2317eca3c]
+  - @hyperlane-xyz/utils@5.6.0
+  - @hyperlane-xyz/sdk@5.6.0
+
 ## 5.5.0
 
 ### Patch Changes

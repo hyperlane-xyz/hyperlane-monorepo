@@ -9,31 +9,32 @@ import { avsCommand } from './src/commands/avs.js';
 import { configCommand } from './src/commands/config.js';
 import { coreCommand } from './src/commands/core.js';
 import { deployCommand } from './src/commands/deploy.js';
+import { forkCommand } from './src/commands/fork.js';
 import { hookCommand } from './src/commands/hook.js';
 import { ismCommand } from './src/commands/ism.js';
 import {
   disableProxyCommandOption,
+  githubAuthTokenOption,
   keyCommandOption,
   logFormatCommandOption,
   logLevelCommandOption,
   overrideRegistryUriCommandOption,
-  registryUriCommandOption,
+  registryUrisCommandOption,
   skipConfirmationOption,
+  strategyCommandOption,
 } from './src/commands/options.js';
 import { registryCommand } from './src/commands/registry.js';
 import { relayerCommand } from './src/commands/relayer.js';
 import { sendCommand } from './src/commands/send.js';
 import { statusCommand } from './src/commands/status.js';
+import { strategyCommand } from './src/commands/strategy.js';
 import { submitCommand } from './src/commands/submit.js';
 import { validatorCommand } from './src/commands/validator.js';
 import { warpCommand } from './src/commands/warp.js';
-import { contextMiddleware } from './src/context/context.js';
+import { contextMiddleware, signerMiddleware } from './src/context/context.js';
 import { configureLogger, errorRed } from './src/logger.js';
 import { checkVersion } from './src/utils/version-check.js';
 import { VERSION } from './src/version.js';
-
-// From yargs code:
-const MISSING_PARAMS_ERROR = 'Not enough non-option arguments';
 
 console.log(chalk.blue('Hyperlane'), chalk.magentaBright('CLI'));
 
@@ -44,17 +45,20 @@ try {
     .scriptName('hyperlane')
     .option('log', logFormatCommandOption)
     .option('verbosity', logLevelCommandOption)
-    .option('registry', registryUriCommandOption)
+    .option('registry', registryUrisCommandOption)
+    .option('authToken', githubAuthTokenOption)
     .option('overrides', overrideRegistryUriCommandOption)
     .option('key', keyCommandOption)
     .option('disableProxy', disableProxyCommandOption)
     .option('yes', skipConfirmationOption)
+    .option('strategy', strategyCommandOption)
     .global(['log', 'verbosity', 'registry', 'overrides', 'yes'])
     .middleware([
       (argv) => {
         configureLogger(argv.log as LogFormat, argv.verbosity as LogLevel);
       },
       contextMiddleware,
+      signerMiddleware,
     ])
     .command(avsCommand)
     .command(configCommand)
@@ -66,21 +70,19 @@ try {
     .command(relayerCommand)
     .command(sendCommand)
     .command(statusCommand)
+    .command(strategyCommand)
     .command(submitCommand)
     .command(validatorCommand)
     .command(warpCommand)
+    .command(forkCommand)
     .version(VERSION)
     .demandCommand()
     .strict()
     .help()
-    .fail((msg, err, yargs) => {
-      if (msg && !msg.includes(MISSING_PARAMS_ERROR)) errorRed('Error: ' + msg);
-      console.log('');
-      yargs.showHelp();
-      console.log('');
-      if (err) errorRed(err.toString());
-      process.exit(1);
-    }).argv;
+    .parserConfiguration({
+      'parse-numbers': false,
+    })
+    .showHelpOnFail(false).argv;
 } catch (error: any) {
   errorRed('Error: ' + error.message);
 }

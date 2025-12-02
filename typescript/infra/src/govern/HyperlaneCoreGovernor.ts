@@ -15,6 +15,7 @@ import {
   ProxyAdminViolation,
   ViolationType,
 } from '@hyperlane-xyz/sdk';
+import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { HyperlaneAppGovernor } from '../govern/HyperlaneAppGovernor.js';
 
@@ -77,7 +78,7 @@ export class HyperlaneCoreGovernor extends HyperlaneAppGovernor<
         return this.handleMailboxViolation(violation as MailboxViolation);
       }
       case CoreViolationType.ValidatorAnnounce: {
-        console.warn(chalk.yellow('Ignoring ValidatorAnnounce violation'));
+        rootLogger.warn(chalk.yellow('Ignoring ValidatorAnnounce violation'));
         return undefined;
       }
       case ViolationType.ProxyAdmin: {

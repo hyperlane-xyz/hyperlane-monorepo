@@ -39,9 +39,9 @@ pub enum ProverError {
     #[allow(dead_code)]
     VerificationFailed {
         /// The expected root (this tree's current root)
-        expected: H256,
+        expected: Box<H256>,
         /// The root produced by branch evaluation
-        actual: H256,
+        actual: Box<H256>,
     },
 }
 
@@ -60,8 +60,8 @@ impl Prover {
     ///
     /// This will fail if the underlying tree is full.
     pub fn ingest(&mut self, element: H256) -> Result<H256, ProverError> {
-        self.count += 1;
         self.tree.push_leaf(element, TREE_DEPTH)?;
+        self.count = self.count.saturating_add(1);
         Ok(self.tree.hash())
     }
 
@@ -103,7 +103,10 @@ impl Prover {
         if expected == actual {
             Ok(())
         } else {
-            Err(ProverError::VerificationFailed { expected, actual })
+            Err(ProverError::VerificationFailed {
+                expected: Box::new(expected),
+                actual: Box::new(actual),
+            })
         }
     }
 }

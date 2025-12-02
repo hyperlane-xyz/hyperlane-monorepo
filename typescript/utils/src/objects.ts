@@ -2,10 +2,11 @@ import { cloneDeep, isEqual } from 'lodash-es';
 import { stringify as yamlStringify } from 'yaml';
 
 import { ethersBigNumberSerializer } from './logging.js';
+import { isNullish } from './typeof.js';
 import { assert } from './validation.js';
 
-export function isObject(item: any) {
-  return item && typeof item === 'object' && !Array.isArray(item);
+export function isObject(item: any): boolean {
+  return !!item && typeof item === 'object' && !Array.isArray(item);
 }
 
 export function deepEquals(v1: any, v2: any) {
@@ -71,8 +72,8 @@ export function deepFind<I extends object, O extends I>(
   const entries = isObject(obj)
     ? Object.values(obj)
     : Array.isArray(obj)
-    ? obj
-    : [];
+      ? obj
+      : [];
   return entries.map((e) => deepFind(e as any, func, depth - 1)).find((v) => v);
 }
 
@@ -87,15 +88,18 @@ export function promiseObjAll<K extends string, V>(obj: {
 }
 
 // Get the subset of the object from key list
-export function pick<K extends string, V = any>(obj: Record<K, V>, keys: K[]) {
-  const ret: Partial<Record<K, V>> = {};
+export function pick<T extends object, K extends keyof T>(
+  obj: T,
+  keys: K[],
+): Pick<T, K> {
+  const ret = {} as Pick<T, K>;
   const objKeys = Object.keys(obj);
   for (const key of keys) {
-    if (objKeys.includes(key)) {
+    if (objKeys.includes(key.toString())) {
       ret[key] = obj[key];
     }
   }
-  return ret as Record<K, V>;
+  return ret;
 }
 
 /**
@@ -189,9 +193,18 @@ export function objOmit<T extends Record<string, any> = any>(
   return ret as T;
 }
 
+export function objOmitKeys<T extends Record<string, any> = any>(
+  obj: Record<string, any>,
+  keys: string[],
+): Partial<T> {
+  return objFilter(obj, (k, _v): _v is any => !keys.includes(k)) as Partial<T>;
+}
+
 export function invertKeysAndValues(data: any) {
   return Object.fromEntries(
-    Object.entries(data).map(([key, value]) => [value, key]),
+    Object.entries(data)
+      .filter(([_, value]) => value !== undefined && value !== null) // Filter out undefined and null values
+      .map(([key, value]) => [value, key]),
   );
 }
 
@@ -214,5 +227,262 @@ export function stringifyObject(
   if (format === 'json') {
     return json;
   }
-  return yamlStringify(JSON.parse(json), null, space);
+  return yamlStringify(JSON.parse(json), null, {
+    indent: space ?? 2,
+    sortMapEntries: true,
+  });
+}
+
+interface ObjectDiffOutput {
+  actual: any;
+  expected: any;
+}
+
+export type ObjectDiff =
+  | {
+      [key: string]: ObjectDiffOutput | ObjectDiff;
+    }
+  | ObjectDiff[]
+  | undefined;
+
+/**
+ * Merges 2 objects showing any difference in value for common fields.
+ */
+export function diffObjMerge(
+  actual: Record<string, any>,
+  expected: Record<string, any>,
+  maxDepth = 10,
+): {
+  mergedObject: ObjectDiff;
+  isInvalid: boolean;
+} {
+  if (maxDepth === 0) {
+    throw new Error('diffObjMerge tried to go too deep');
+  }
+
+  let isDiff = false;
+  if (!isObject(actual) && !isObject(expected) && actual === expected) {
+    return {
+      isInvalid: isDiff,
+      mergedObject: actual,
+    };
+  }
+
+  if (isNullish(actual) && isNullish(expected)) {
+    return { mergedObject: undefined, isInvalid: isDiff };
+  }
+
+  if (isObject(actual) && isObject(expected)) {
+    const ret: Record<string, ObjectDiff> = {};
+
+    const actualKeys = new Set(Object.keys(actual));
+    const expectedKeys = new Set(Object.keys(expected));
+    const allKeys = new Set([...actualKeys, ...expectedKeys]);
+    for (const key of allKeys.values()) {
+      if (actualKeys.has(key) && expectedKeys.has(key)) {
+        const { mergedObject, isInvalid } =
+          diffObjMerge(actual[key], expected[key], maxDepth - 1) ?? {};
+        ret[key] = mergedObject;
+        isDiff ||= isInvalid;
+      } else if (actualKeys.has(key) && !isNullish(actual[key])) {
+        ret[key] = {
+          actual: actual[key],
+          expected: '' as any,
+        };
+        isDiff = true;
+      } else if (!isNullish(expected[key])) {
+        ret[key] = {
+          actual: '' as any,
+          expected: expected[key],
+        };
+        isDiff = true;
+      }
+    }
+    return {
+      isInvalid: isDiff,
+      mergedObject: ret,
+    };
+  }
+
+  // Merge the elements of the array to see if there are any differences
+  if (
+    Array.isArray(actual) &&
+    Array.isArray(expected) &&
+    actual.length === expected.length
+  ) {
+    const merged = actual.reduce(
+      (acc: [ObjectDiff[], boolean], curr, idx) => {
+        const { isInvalid, mergedObject } = diffObjMerge(curr, expected[idx]);
+
+        acc[0].push(mergedObject);
+        acc[1] ||= isInvalid;
+
+        return acc;
+      },
+      [[], isDiff],
+    );
+    return {
+      isInvalid: merged[1],
+      mergedObject: merged[0],
+    };
+  }
+
+  return {
+    mergedObject: { expected: expected ?? '', actual: actual ?? '' },
+    isInvalid: true,
+  };
+}
+
+// Recursively visit all the fields in an object and keep
+// only those that describe mismatches
+export function keepOnlyDiffObjects(obj: any): any {
+  const result: ObjectDiff = {};
+
+  if (Array.isArray(obj)) {
+    return obj
+      .map((item) => (isObject(item) ? keepOnlyDiffObjects(item) : {}))
+      .filter((item) => !isObjEmpty(item));
+  } else if (isObject(obj)) {
+    const casted = obj as ObjectDiffOutput;
+
+    if (!isNullish(casted.expected) && !isNullish(casted.actual)) {
+      return obj;
+    } else {
+      const filtered = Object.fromEntries(
+        Object.entries(obj)
+          .map(([key, value]): [string, any] => [
+            key,
+            keepOnlyDiffObjects(value),
+          ])
+          .filter(([_key, value]) => !isObjEmpty(value)),
+      );
+
+      // if this object has a type field we include to easily
+      // identify the type of the hook or ism
+      if (!isObjEmpty(filtered) && obj.type) {
+        filtered.type = obj.type;
+      }
+
+      return filtered;
+    }
+  }
+
+  return result;
+}
+
+export function mustGet<T>(obj: Record<string, T>, key: string): T {
+  const value = obj[key];
+  if (!value) {
+    throw new Error(`Missing key ${key} in object ${JSON.stringify(obj)}`);
+  }
+  return value;
+}
+
+export type TransformObjectTransformer = (
+  obj: any,
+  propPath: ReadonlyArray<string>,
+) => any;
+
+/**
+ * Recursively applies `formatter` to the provided object
+ *
+ * @param obj
+ * @param transformer a user defined function that takes an object and transforms it.
+ * @param maxDepth the maximum depth that can be reached when going through nested fields of a property
+ *
+ * @throws if `maxDepth` is reached in an object property
+ */
+export function transformObj(
+  obj: any,
+  transformer: TransformObjectTransformer,
+  maxDepth = 15,
+): any {
+  return internalTransformObj(obj, transformer, [], maxDepth);
+}
+
+function internalTransformObj(
+  obj: any,
+  transformer: TransformObjectTransformer,
+  propPath: Array<string>,
+  maxDepth: number,
+): any {
+  if (propPath.length > maxDepth) {
+    throw new Error(`transformObj went too deep. Max depth is ${maxDepth}`);
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map((obj) =>
+      internalTransformObj(obj, transformer, [...propPath], maxDepth),
+    );
+  } else if (isObject(obj)) {
+    const newObj = Object.entries(obj)
+      .map(([key, value]) => {
+        return [
+          key,
+          internalTransformObj(
+            value,
+            transformer,
+            [...propPath, key],
+            maxDepth,
+          ),
+        ];
+      })
+      .filter(([_key, value]) => value !== undefined && value !== null);
+
+    return transformer(Object.fromEntries(newObj), propPath);
+  }
+
+  return transformer(obj, propPath);
+}
+
+export function sortArraysInObject(
+  obj: any,
+  sortFunction?: (a: any, b: any) => number,
+): any {
+  // Check if the current object is an array
+  if (Array.isArray(obj)) {
+    return obj
+      .sort(sortFunction)
+      .map((item) => sortArraysInObject(item, sortFunction));
+  }
+  // Check if it's an object and not null or undefined
+  else if (isObject(obj)) {
+    return Object.fromEntries(
+      Object.entries(obj).map(([key, value]) => [
+        key,
+        sortArraysInObject(value, sortFunction),
+      ]),
+    );
+  }
+
+  return obj;
+}
+
+type JSPrimitiveTypes =
+  | string
+  | number
+  | bigint
+  | boolean
+  | undefined
+  | symbol
+  | null;
+
+/**
+ * Returns an object where only the keys from `a` that are not in `b` or are different values, are kept
+ */
+export function objDiff<
+  TKey extends string | number,
+  TValue extends JSPrimitiveTypes,
+>(
+  a: Record<TKey, TValue>,
+  b: Record<TKey, TValue>,
+  areEquals: (a: TValue, b: TValue) => boolean = (a, b) => a === b,
+): Record<TKey, TValue> {
+  const bKeys = new Set(objKeys(b));
+
+  return objFilter(
+    a,
+    (key, value): value is TValue =>
+      !bKeys.has(key as TKey) || !areEquals(value, b[key as TKey]),
+  ) as Record<TKey, TValue>;
 }

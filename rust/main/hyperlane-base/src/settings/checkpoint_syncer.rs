@@ -1,14 +1,18 @@
+use std::{env, path::PathBuf};
+
+use aws_config::Region;
+use core::str::FromStr;
+use eyre::{eyre, Context, Report, Result};
+use prometheus::IntGauge;
+use tracing::error;
+use ya_gcp::{AuthFlow, ServiceAccountAuth};
+
+use hyperlane_core::{ChainCommunicationError, ReorgEventResponse};
+
 use crate::{
     CheckpointSyncer, GcsStorageClientBuilder, LocalStorage, S3Storage, GCS_SERVICE_ACCOUNT_KEY,
     GCS_USER_SECRET,
 };
-use core::str::FromStr;
-use eyre::{eyre, Context, Report, Result};
-use prometheus::IntGauge;
-use rusoto_core::Region;
-use std::{env, path::PathBuf};
-use tracing::error;
-use ya_gcp::{AuthFlow, ServiceAccountAuth};
 
 /// Checkpoint Syncer types
 #[derive(Debug, Clone)]
@@ -41,6 +45,20 @@ pub enum CheckpointSyncerConf {
     },
 }
 
+/// Checkpoint Syncer errors
+#[derive(Debug, thiserror::Error)]
+pub enum CheckpointSyncerBuildError {
+    /// A reorg event has been detected in the checkpoint syncer when building it
+    #[error("Fatal: A reorg event has been detected. Please reach out for help, this is a potentially serious error impacting signed messages. Do NOT forcefully resume operation of this validator. Keep it crashlooping or shut down until receive support. {0:?}")]
+    ReorgFlag(ReorgEventResponse),
+    /// Error communicating with the chain
+    #[error(transparent)]
+    ChainError(#[from] ChainCommunicationError),
+    /// Other errors
+    #[error(transparent)]
+    Other(#[from] Report),
+}
+
 impl FromStr for CheckpointSyncerConf {
     type Err = Report;
 
@@ -61,9 +79,15 @@ impl FromStr for CheckpointSyncerConf {
                 Ok(CheckpointSyncerConf::S3 {
                     bucket: bucket.into(),
                     folder,
-                    region: region
-                        .parse()
-                        .context("Invalid region when parsing storage location")?,
+                    // Wildly, aws_config doesn't provide any client-side way to validate a region string, so while
+                    // we still have Rusoto around we just use that to validate the region string :)
+                    region: aws_config::Region::new(
+                        region
+                            .parse::<rusoto_core::Region>()
+                            .context("Invalid region when parsing storage location")?
+                            .name()
+                            .to_owned(),
+                    ),
                 })
             }
             "file" => Ok(CheckpointSyncerConf::LocalStorage {
@@ -102,23 +126,17 @@ impl FromStr for CheckpointSyncerConf {
 
 impl CheckpointSyncerConf {
     /// Turn conf info a Checkpoint Syncer
-    ///
-    /// # Panics
-    ///
-    /// Panics if a reorg event has been posted to the checkpoint store,
-    /// to prevent any operation processing until the reorg is resolved.
     pub async fn build_and_validate(
         &self,
         latest_index_gauge: Option<IntGauge>,
-    ) -> Result<Box<dyn CheckpointSyncer>, Report> {
+    ) -> Result<Box<dyn CheckpointSyncer>, CheckpointSyncerBuildError> {
         let syncer: Box<dyn CheckpointSyncer> = self.build(latest_index_gauge).await?;
 
         match syncer.reorg_status().await {
-            Ok(Some(reorg_event)) => {
-                panic!(
-                    "A reorg event has been detected: {:#?}. Please resolve the reorg to continue.",
-                    reorg_event
-                );
+            Ok(event) => {
+                if event.exists {
+                    return Err(CheckpointSyncerBuildError::ReorgFlag(event));
+                }
             }
             Err(err) => {
                 error!(
@@ -126,7 +144,6 @@ impl CheckpointSyncerConf {
                     "Failed to read reorg status. Assuming no reorg occurred."
                 );
             }
-            _ => {}
         }
         Ok(syncer)
     }
@@ -177,10 +194,9 @@ impl CheckpointSyncerConf {
 
 #[cfg(test)]
 mod test {
-    use std::panic::AssertUnwindSafe;
+    use std::{fs::File, io::Write};
 
-    use futures_util::FutureExt;
-    use hyperlane_core::{ReorgEvent, H256};
+    use hyperlane_core::{ReorgEvent, ReorgPeriod, H256};
 
     #[tokio::test]
     async fn test_build_and_validate() {
@@ -191,6 +207,22 @@ mod test {
         let checkpoint_path = format!("file://{}", temp_checkpoint_dir.path().to_str().unwrap());
         let checkpoint_syncer_conf = CheckpointSyncerConf::from_str(&checkpoint_path).unwrap();
 
+        let dummy_local_merkle_root =
+            H256::from_str("0x8da44bc8198e9874db215ec2000037c58e16918c94743d70c838ecb10e243c64")
+                .unwrap();
+        let dummy_canonical_merkle_root =
+            H256::from_str("0xb437b888332ef12f7260c7f679aad3c96b91ab81c2dc7242f8b290f0b6bba92b")
+                .unwrap();
+        let dummy_checkpoint_index = 56;
+        let unix_timestamp = 1620000000;
+        let reorg_period = ReorgPeriod::from_blocks(5);
+        let dummy_reorg_event = ReorgEvent {
+            local_merkle_root: dummy_local_merkle_root,
+            canonical_merkle_root: dummy_canonical_merkle_root,
+            checkpoint_index: dummy_checkpoint_index,
+            unix_timestamp,
+            reorg_period,
+        };
         // create a checkpoint syncer and write a reorg event
         // then `drop` it, to simulate a restart
         {
@@ -199,52 +231,63 @@ mod test {
                 .await
                 .unwrap();
 
-            let dummy_local_merkle_root = H256::from_str(
-                "0x8da44bc8198e9874db215ec2000037c58e16918c94743d70c838ecb10e243c64",
-            )
-            .unwrap();
-            let dummy_canonical_merkle_root = H256::from_str(
-                "0xb437b888332ef12f7260c7f679aad3c96b91ab81c2dc7242f8b290f0b6bba92b",
-            )
-            .unwrap();
-            let dummy_checkpoint_index = 56;
-            let unix_timestamp = 1620000000;
-            let reorg_period = 5;
-            let dummy_reorg_event = ReorgEvent {
-                local_merkle_root: dummy_local_merkle_root,
-                canonical_merkle_root: dummy_canonical_merkle_root,
-                checkpoint_index: dummy_checkpoint_index,
-                unix_timestamp,
-                reorg_period,
-            };
             checkpoint_syncer
                 .write_reorg_status(&dummy_reorg_event)
                 .await
                 .unwrap();
         }
 
+        let dummy_reorg_response = ReorgEventResponse {
+            exists: true,
+            event: Some(dummy_reorg_event.clone()),
+            content: Some(serde_json::to_string_pretty(&dummy_reorg_event).unwrap()),
+        };
+
         // Initialize a new checkpoint syncer and expect it to panic due to the reorg event.
-        // `AssertUnwindSafe` is required for ignoring some type checks so the panic can be caught.
-        let startup_result = AssertUnwindSafe(checkpoint_syncer_conf.build_and_validate(None))
-            .catch_unwind()
-            .await
-            .unwrap_err();
-        if let Some(err) = startup_result.downcast_ref::<String>() {
-            assert_eq!(
-                *err,
-                r#"A reorg event has been detected: ReorgEvent {
-    local_merkle_root: 0x8da44bc8198e9874db215ec2000037c58e16918c94743d70c838ecb10e243c64,
-    canonical_merkle_root: 0xb437b888332ef12f7260c7f679aad3c96b91ab81c2dc7242f8b290f0b6bba92b,
-    checkpoint_index: 56,
-    unix_timestamp: 1620000000,
-    reorg_period: 5,
-}. Please resolve the reorg to continue."#
-            );
-        } else {
-            panic!(
-                "Caught panic has a different type than the expected one (`String`): {:?}",
-                startup_result
-            );
+        let result = checkpoint_syncer_conf.build_and_validate(None).await;
+        match result {
+            Err(CheckpointSyncerBuildError::ReorgFlag(e)) => {
+                assert_eq!(
+                    e, dummy_reorg_response,
+                    "Reported reorg response doesn't match"
+                );
+            }
+            _ => panic!("Expected a reorg response error"),
+        }
+    }
+
+    /// When we can't parse reorg_flag.json
+    #[tokio::test]
+    async fn test_build_and_validate_invalid_json() {
+        use super::*;
+
+        // initialize a local checkpoint store
+        let temp_checkpoint_dir = tempfile::tempdir().unwrap();
+        let checkpoint_path = format!("file://{}", temp_checkpoint_dir.path().to_str().unwrap());
+        let checkpoint_syncer_conf = CheckpointSyncerConf::from_str(&checkpoint_path).unwrap();
+
+        {
+            let mut reorg_flag_path = temp_checkpoint_dir.path().to_path_buf();
+            reorg_flag_path.push("reorg_flag.json");
+            let mut file = File::create(reorg_flag_path).unwrap();
+            file.write_all(b"abc").unwrap();
+        }
+
+        let dummy_reorg_response = ReorgEventResponse {
+            exists: true,
+            event: None,
+            content: Some("abc".to_string()),
+        };
+        // Initialize a new checkpoint syncer and expect it to panic due to the reorg event.
+        let result = checkpoint_syncer_conf.build_and_validate(None).await;
+        match result {
+            Err(CheckpointSyncerBuildError::ReorgFlag(e)) => {
+                assert_eq!(
+                    e, dummy_reorg_response,
+                    "Reported reorg event doesn't match"
+                );
+            }
+            _ => panic!("Expected a reorg event error"),
         }
     }
 }

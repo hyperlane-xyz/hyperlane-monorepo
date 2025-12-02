@@ -99,7 +99,10 @@ contract ERC5164IsmTest is ExternalBridgeTest {
     }
 
     function testTypes() public view {
-        assertEq(hook.hookType(), uint8(IPostDispatchHook.Types.ID_AUTH_ISM));
+        assertEq(
+            hook.hookType(),
+            uint8(IPostDispatchHook.HookTypes.ID_AUTH_ISM)
+        );
         assertEq(ism.moduleType(), uint8(IInterchainSecurityModule.Types.NULL));
     }
 
@@ -134,7 +137,7 @@ contract ERC5164IsmTest is ExternalBridgeTest {
         vm.expectRevert(
             "AbstractMessageIdAuthorizedIsm: sender is not the hook"
         );
-        ism.verifyMessageId(messageId);
+        ism.preVerifyMessage(messageId, 0);
         assertFalse(ism.isVerified(encodedMessage));
     }
 
@@ -150,6 +153,12 @@ contract ERC5164IsmTest is ExternalBridgeTest {
 
     function test_verify_valueAlreadyClaimed(uint256) public override {}
 
+    function test_verify_override_msgValue() public override {}
+
+    function testFuzz_postDispatch_refundsExtraValue(uint256) public override {}
+
+    function test_verify_false_arbitraryCall() public override {}
+
     /* ============ helper functions ============ */
 
     function _externalBridgeDestinationCall(
@@ -157,7 +166,7 @@ contract ERC5164IsmTest is ExternalBridgeTest {
         uint256 _msgValue
     ) internal override {
         vm.prank(address(executor));
-        ism.verifyMessageId(messageId);
+        ism.preVerifyMessage(messageId, 0);
     }
 
     function _encodeExternalDestinationBridgeCall(
@@ -168,7 +177,7 @@ contract ERC5164IsmTest is ExternalBridgeTest {
     ) internal override returns (bytes memory) {
         if (_from == address(hook)) {
             vm.prank(address(executor));
-            ism.verifyMessageId{value: _msgValue}(messageId);
+            ism.preVerifyMessage{value: _msgValue}(messageId, 0);
         }
     }
 }

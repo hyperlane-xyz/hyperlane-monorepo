@@ -14,7 +14,7 @@ contract ProtocolFeeTest is Test {
 
     ProtocolFee internal fees;
 
-    address internal alice = address(0x1); // alice the user
+    address internal alice = address(address(this)); // alice the user
     address internal bob = address(0x2); // bob the beneficiary
     address internal charlie = address(0x3); // charlie the crock
 
@@ -37,11 +37,17 @@ contract ProtocolFeeTest is Test {
     }
 
     function testHookType() public {
-        assertEq(fees.hookType(), uint8(IPostDispatchHook.Types.PROTOCOL_FEE));
+        assertEq(
+            fees.hookType(),
+            uint8(IPostDispatchHook.HookTypes.PROTOCOL_FEE)
+        );
     }
 
     function testSetProtocolFee(uint256 fee) public {
         fee = bound(fee, 0, fees.MAX_PROTOCOL_FEE());
+
+        vm.expectEmit(true, true, true, true);
+        emit ProtocolFee.ProtocolFeeSet(fee);
         fees.setProtocolFee(fee);
         assertEq(fees.protocolFee(), fee);
     }
@@ -67,6 +73,14 @@ contract ProtocolFeeTest is Test {
         fees.setProtocolFee(fee);
 
         assertEq(fees.protocolFee(), FEE);
+    }
+
+    function testSetBeneficiary(address beneficiary) public {
+        vm.assume(beneficiary != address(0));
+        vm.expectEmit(true, true, true, true);
+        emit ProtocolFee.BeneficiarySet(beneficiary);
+        fees.setBeneficiary(beneficiary);
+        assertEq(fees.beneficiary(), beneficiary);
     }
 
     function testSetBeneficiary_revertWhen_notOwner() public {
@@ -111,8 +125,8 @@ contract ProtocolFeeTest is Test {
 
         fees.setProtocolFee(feeRequired);
         uint256 aliceBalanceBefore = alice.balance;
-        vm.prank(alice);
 
+        vm.prank(alice);
         fees.postDispatch{value: feeSent}("", testMessage);
 
         assertEq(alice.balance, aliceBalanceBefore - feeRequired);
@@ -154,12 +168,27 @@ contract ProtocolFeeTest is Test {
 
         for (uint256 i = 0; i < dispatchCalls; i++) {
             vm.prank(alice);
-            fees.postDispatch{value: feeRequired}("", "");
+            fees.postDispatch{value: feeRequired}("", testMessage);
         }
 
         fees.collectProtocolFees();
 
         assertEq(bob.balance, balanceBefore + feeRequired * dispatchCalls);
+    }
+
+    function testFuzz_postDispatch_emitsProtocolFeePaid(
+        uint256 feeRequired,
+        uint256 feeSent
+    ) public {
+        feeRequired = bound(feeRequired, 1, fees.MAX_PROTOCOL_FEE());
+        feeSent = bound(feeSent, feeRequired, 10 * feeRequired);
+        vm.deal(alice, feeSent);
+
+        fees.setProtocolFee(feeRequired);
+
+        vm.expectEmit(true, true, true, true);
+        emit ProtocolFee.ProtocolFeePaid(alice, feeRequired);
+        fees.postDispatch{value: feeSent}("", testMessage);
     }
 
     // ============ Helper Functions ============

@@ -5,6 +5,9 @@ export enum ProtocolType {
   Ethereum = 'ethereum',
   Sealevel = 'sealevel',
   Cosmos = 'cosmos',
+  CosmosNative = 'cosmosnative',
+  Starknet = 'starknet',
+  Radix = 'radix',
 }
 // A type that also allows for literal values of the enum
 export type ProtocolTypeValue = `${ProtocolType}`;
@@ -13,10 +16,14 @@ export const ProtocolSmallestUnit = {
   [ProtocolType.Ethereum]: 'wei',
   [ProtocolType.Sealevel]: 'lamports',
   [ProtocolType.Cosmos]: 'uATOM',
+  [ProtocolType.CosmosNative]: 'uATOM',
+  [ProtocolType.Starknet]: 'fri',
+  [ProtocolType.Radix]: 'attos',
 };
 
 /********* BASIC TYPES *********/
 export type Domain = number;
+export type EvmChainId = number;
 export type ChainId = string | number;
 export type Address = string;
 export type AddressBytes32 = string;
@@ -114,4 +121,10 @@ export type ParsedLegacyMultisigIsmMetadata = {
 
 export type Annotated<T> = T & {
   annotation?: string;
+};
+
+export type ValidatorMetadata = {
+  git_sha: string;
+  rpcs?: string[];
+  allows_public_rpcs?: boolean;
 };

@@ -1,8 +1,11 @@
 import {
   TOKEN_2022_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
+  createAssociatedTokenAccountInstruction,
   createTransferInstruction,
   getAssociatedTokenAddressSync,
+  getMint,
+  getTokenMetadata,
 } from '@solana/spl-token';
 import {
   AccountMeta,
@@ -19,13 +22,21 @@ import {
   Address,
   Domain,
   addressToBytes,
+  assert,
   eqAddress,
+  isNullish,
   median,
+  padBytesToLength,
 } from '@hyperlane-xyz/utils';
 
 import { BaseSealevelAdapter } from '../../app/MultiProtocolApp.js';
 import { SEALEVEL_SPL_NOOP_ADDRESS } from '../../consts/sealevel.js';
-import { SealevelOverheadIgpAdapter } from '../../gas/adapters/SealevelIgpAdapter.js';
+import {
+  IgpPaymentKeys,
+  SealevelIgpAdapter,
+  SealevelIgpProgramAdapter,
+  SealevelOverheadIgpAdapter,
+} from '../../gas/adapters/SealevelIgpAdapter.js';
 import { SealevelInterchainGasPaymasterType } from '../../gas/adapters/serialization.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import { ChainName } from '../../types.js';
@@ -33,12 +44,14 @@ import {
   SealevelAccountDataWrapper,
   SealevelInstructionWrapper,
 } from '../../utils/sealevelSerialization.js';
+import { getLegacySPLTokenMetadata } from '../sealevel/metadata.js';
 import { TokenMetadata } from '../types.js';
 
 import {
   IHypTokenAdapter,
   ITokenAdapter,
   InterchainGasQuote,
+  QuoteTransferRemoteParams,
   TransferParams,
   TransferRemoteParams,
 } from './ITokenAdapter.js';
@@ -86,10 +99,45 @@ export class SealevelNativeTokenAdapter
   }
 
   async getMetadata(): Promise<TokenMetadata> {
-    throw new Error('Metadata not available to native tokens');
+    const { nativeToken } = this.multiProvider.getChainMetadata(this.chainName);
+    assert(
+      nativeToken,
+      `Native token data is required for ${SealevelNativeTokenAdapter.name}`,
+    );
+
+    return {
+      name: nativeToken.name,
+      symbol: nativeToken.symbol,
+      decimals: nativeToken.decimals,
+    };
+  }
+
+  // Require a minimum transfer amount to cover rent for the recipient.
+  async getMinimumTransferAmount(recipient: Address): Promise<bigint> {
+    const recipientPubkey = new PublicKey(recipient);
+    const provider = this.getProvider();
+    const recipientAccount = await provider.getAccountInfo(recipientPubkey);
+    const recipientDataLength = recipientAccount?.data.length ?? 0;
+    const recipientLamports = recipientAccount?.lamports ?? 0;
+
+    const minRequiredLamports =
+      await provider.getMinimumBalanceForRentExemption(recipientDataLength);
+
+    if (recipientLamports < minRequiredLamports) {
+      return BigInt(minRequiredLamports - recipientLamports);
+    }
+
+    return 0n;
   }
 
   async isApproveRequired(): Promise<boolean> {
+    return false;
+  }
+
+  async isRevokeApprovalRequired(
+    _owner: Address,
+    _spender: Address,
+  ): Promise<boolean> {
     return false;
   }
 
@@ -112,6 +160,11 @@ export class SealevelNativeTokenAdapter
       }),
     );
   }
+
+  async getTotalSupply(): Promise<bigint | undefined> {
+    // Not implemented.
+    return undefined;
+  }
 }
 
 // Interacts with SPL token programs
@@ -125,18 +178,18 @@ export class SealevelTokenAdapter
     public readonly chainName: ChainName,
     public readonly multiProvider: MultiProtocolProvider,
     public readonly addresses: { token: Address },
-    public readonly isSpl2022: boolean = false,
   ) {
     super(chainName, multiProvider, addresses);
     this.tokenMintPubKey = new PublicKey(addresses.token);
   }
 
   async getBalance(owner: Address): Promise<bigint> {
-    const tokenPubKey = this.deriveAssociatedTokenAccount(new PublicKey(owner));
+    const tokenPubKey = await this.deriveAssociatedTokenAccount(
+      new PublicKey(owner),
+    );
     try {
-      const response = await this.getProvider().getTokenAccountBalance(
-        tokenPubKey,
-      );
+      const response =
+        await this.getProvider().getTokenAccountBalance(tokenPubKey);
       return BigInt(response.value.amount);
     } catch (error: any) {
       if (error.message?.includes(NON_EXISTENT_ACCOUNT_ERROR)) return 0n;
@@ -145,11 +198,51 @@ export class SealevelTokenAdapter
   }
 
   async getMetadata(_isNft?: boolean): Promise<TokenMetadata> {
-    // TODO solana support
-    return { decimals: 9, symbol: 'SPL', name: 'SPL Token', totalSupply: '' };
+    const svmProvider = this.getProvider();
+
+    const isSpl2022Token = await this.isSpl2022();
+
+    const tokenAddress = new PublicKey(this.addresses.token);
+    const [tokenInfo, metadata] = await Promise.all([
+      getMint(
+        svmProvider,
+        tokenAddress,
+        'finalized',
+        isSpl2022Token ? TOKEN_2022_PROGRAM_ID : TOKEN_PROGRAM_ID,
+      ),
+      isSpl2022Token
+        ? getTokenMetadata(
+            svmProvider,
+            tokenAddress,
+            'finalized',
+            TOKEN_2022_PROGRAM_ID,
+          )
+        : getLegacySPLTokenMetadata(svmProvider, tokenAddress),
+    ]);
+
+    assert(
+      metadata,
+      `Metadata for SVM token at address "${this.addresses.token}" on chain "${this.chainName}" not found`,
+    );
+    return {
+      decimals: tokenInfo.decimals,
+      symbol: metadata.symbol,
+      name: metadata.name,
+    };
+  }
+
+  async getMinimumTransferAmount(_recipient: Address): Promise<bigint> {
+    return 0n;
   }
 
   async isApproveRequired(): Promise<boolean> {
+    return false;
+  }
+
+  async isRevokeApprovalRequired(
+    _owner: Address,
+    _spender: Address,
+  ): Promise<boolean> {
     return false;
   }
 
@@ -163,31 +256,90 @@ export class SealevelTokenAdapter
     fromAccountOwner,
     fromTokenAccount,
   }: TransferParams): Promise<Transaction> {
-    if (!fromTokenAccount)
-      throw new Error('fromTokenAccount required for Sealevel');
     if (!fromAccountOwner)
       throw new Error('fromAccountOwner required for Sealevel');
-    return new Transaction().add(
+
+    const originTokenAccount = fromTokenAccount
+      ? new PublicKey(fromTokenAccount)
+      : await this.deriveAssociatedTokenAccount(
+          new PublicKey(fromAccountOwner),
+        );
+    const destinationTokenAccount = await this.deriveAssociatedTokenAccount(
+      new PublicKey(recipient),
+    );
+    const tokenProgramAccount = (await this.isSpl2022())
+      ? TOKEN_2022_PROGRAM_ID
+      : TOKEN_PROGRAM_ID;
+
+    const transaction = new Transaction();
+
+    // if the ATA does not exist we need to create it before transferring the tokens
+    const toTokenAccountInfo = await this.getProvider().getAccountInfo(
+      destinationTokenAccount,
+    );
+    if (!toTokenAccountInfo) {
+      transaction.add(
+        createAssociatedTokenAccountInstruction(
+          new PublicKey(fromAccountOwner),
+          destinationTokenAccount,
+          new PublicKey(recipient),
+          this.tokenMintPubKey,
+          tokenProgramAccount,
+        ),
+      );
+    }
+
+    transaction.add(
       createTransferInstruction(
-        new PublicKey(fromTokenAccount),
-        new PublicKey(recipient),
+        originTokenAccount,
+        destinationTokenAccount,
         new PublicKey(fromAccountOwner),
         BigInt(weiAmountOrId),
+        [],
+        tokenProgramAccount,
       ),
     );
+
+    return transaction;
   }
 
-  getTokenProgramId(): PublicKey {
-    return this.isSpl2022 ? TOKEN_2022_PROGRAM_ID : TOKEN_PROGRAM_ID;
+  async getTokenProgramId(): Promise<PublicKey> {
+    const svmProvider = this.getProvider();
+
+    const mintInfo = await svmProvider.getAccountInfo(
+      new PublicKey(this.addresses.token),
+    );
+
+    if (!mintInfo) {
+      throw new Error(
+        `Provided SVM account ${this.addresses.token} does not exist`,
+      );
+    }
+
+    return mintInfo.owner;
   }
 
-  deriveAssociatedTokenAccount(owner: PublicKey): PublicKey {
+  async isSpl2022(): Promise<boolean> {
+    const tokenProgramId = await this.getTokenProgramId();
+
+    return tokenProgramId.equals(TOKEN_2022_PROGRAM_ID);
+  }
+
+  async deriveAssociatedTokenAccount(owner: PublicKey): Promise<PublicKey> {
+    const tokenProgramId = await this.getTokenProgramId();
     return getAssociatedTokenAddressSync(
       this.tokenMintPubKey,
       owner,
       true,
-      this.getTokenProgramId(),
+      tokenProgramId,
     );
+  }
+
+  async getTotalSupply(): Promise<bigint | undefined> {
+    const response = await this.getProvider().getTokenSupply(
+      this.tokenMintPubKey,
+    );
+    return BigInt(response.value.amount);
   }
 }
 
@@ -209,9 +361,8 @@ export abstract class SealevelHypTokenAdapter
     public readonly chainName: ChainName,
     public readonly multiProvider: MultiProtocolProvider,
     addresses: HypTokenAddresses,
-    public readonly isSpl2022: boolean = false,
   ) {
-    super(chainName, multiProvider, { token: addresses.token }, isSpl2022);
+    super(chainName, multiProvider, { token: addresses.token });
     this.addresses = addresses;
     this.warpProgramPubKey = new PublicKey(addresses.warpRouter);
   }
@@ -238,7 +389,6 @@ export abstract class SealevelHypTokenAdapter
     // TODO full token metadata support
     return {
       decimals: tokenData.decimals,
-      totalSupply: '0',
       symbol: 'HYP',
       name: 'Unknown Hyp Token',
     };
@@ -265,11 +415,37 @@ export abstract class SealevelHypTokenAdapter
     }));
   }
 
-  async quoteTransferRemoteGas(
-    _destination: Domain,
-  ): Promise<InterchainGasQuote> {
-    // TODO Solana support
-    return { amount: 0n };
+  // Intended to be overridden by subclasses
+  async getBridgedSupply(): Promise<bigint | undefined> {
+    return undefined;
+  }
+
+  // The sender is required, as simulating a transaction on Sealevel requires
+  // a payer to be specified that has sufficient funds to cover the transaction fee.
+  async quoteTransferRemoteGas({
+    destination,
+    sender,
+  }: QuoteTransferRemoteParams): Promise<InterchainGasQuote> {
+    const tokenData = await this.getTokenAccountData();
+    const destinationGas = tokenData.destination_gas?.get(destination);
+    if (isNullish(destinationGas)) {
+      return { igpQuote: { amount: 0n } };
+    }
+
+    const igp = this.getIgpAdapter(tokenData);
+    if (!igp) {
+      return { igpQuote: { amount: 0n } };
+    }
+
+    assert(sender, 'Sender required for Sealevel transfer remote gas quote');
+
+    const igpPayment = await igp.quoteGasPayment(
+      destination,
+      destinationGas,
+      new PublicKey(sender),
+    );
+
+    return { igpQuote: { amount: igpPayment } };
   }
 
   async populateTransferRemoteTx({
@@ -284,7 +460,7 @@ export abstract class SealevelHypTokenAdapter
     const fromWalletPubKey = new PublicKey(fromAccountOwner);
     const mailboxPubKey = new PublicKey(this.addresses.mailbox);
 
-    const keys = this.getTransferInstructionKeyList({
+    const keys = await this.getTransferInstructionKeyList({
       sender: fromWalletPubKey,
       mailbox: mailboxPubKey,
       randomWallet: randomWallet.publicKey,
@@ -295,7 +471,7 @@ export abstract class SealevelHypTokenAdapter
       instruction: SealevelHypTokenInstruction.TransferRemote,
       data: new SealevelTransferRemoteInstruction({
         destination_domain: destination,
-        recipient: addressToBytes(recipient),
+        recipient: padBytesToLength(addressToBytes(recipient), 32),
         amount_or_id: BigInt(weiAmountOrId),
       }),
     });
@@ -341,43 +517,19 @@ export abstract class SealevelHypTokenAdapter
     return tx;
   }
 
-  async getIgpKeys(): Promise<KeyListParams['igp']> {
+  async getIgpKeys(): Promise<IgpPaymentKeys | undefined> {
     const tokenData = await this.getTokenAccountData();
-    if (!tokenData.interchain_gas_paymaster) return undefined;
-    const igpConfig = tokenData.interchain_gas_paymaster;
-    if (igpConfig.type === SealevelInterchainGasPaymasterType.Igp) {
-      return {
-        programId: igpConfig.program_id_pubkey,
-      };
-    } else if (
-      igpConfig.type === SealevelInterchainGasPaymasterType.OverheadIgp
-    ) {
-      if (!igpConfig.igp_account_pub_key) {
-        throw new Error('igpAccount field expected for Sealevel Overhead IGP');
-      }
-      const overheadAdapter = new SealevelOverheadIgpAdapter(
-        this.chainName,
-        this.multiProvider,
-        { igp: igpConfig.igp_account_pub_key.toBase58() },
-      );
-      const overheadAccountInfo = await overheadAdapter.getAccountInfo();
-      return {
-        programId: igpConfig.program_id_pubkey,
-        igpAccount: igpConfig.igp_account_pub_key,
-        innerIgpAccount: overheadAccountInfo.inner_pub_key,
-      };
-    } else {
-      throw new Error(`Unsupported IGP type ${igpConfig.type}`);
-    }
+    const igpAdapter = this.getIgpAdapter(tokenData);
+    return igpAdapter?.getPaymentKeys();
   }
 
   // Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/libraries/hyperlane-sealevel-token/src/processor.rs#L257-L274
-  getTransferInstructionKeyList({
+  async getTransferInstructionKeyList({
     sender,
     mailbox,
     randomWallet,
     igp,
-  }: KeyListParams): Array<AccountMeta> {
+  }: KeyListParams): Promise<Array<AccountMeta>> {
     let keys = [
       // 0.   [executable] The system program.
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
@@ -439,33 +591,26 @@ export abstract class SealevelHypTokenAdapter
           isWritable: true,
         },
       ];
-      if (igp.igpAccount && igp.innerIgpAccount) {
+      if (igp.overheadIgpAccount) {
         keys = [
           ...keys,
           // 12.   [] OPTIONAL - The Overhead IGP account, if the configured IGP is an Overhead IGP
           {
-            pubkey: igp.igpAccount,
+            pubkey: igp.overheadIgpAccount,
             isSigner: false,
             isWritable: false,
           },
-          // 13.   [writeable] The Overhead's inner IGP account
-          {
-            pubkey: igp.innerIgpAccount,
-            isSigner: false,
-            isWritable: true,
-          },
-        ];
-      } else {
-        keys = [
-          ...keys,
-          // 12.   [writeable] The IGP account.
-          {
-            pubkey: igp.programId,
-            isSigner: false,
-            isWritable: true,
-          },
         ];
       }
+      keys = [
+        ...keys,
+        // 13.   [writeable] The Overhead's inner IGP account (or the normal IGP account if there's no Overhead IGP).
+        {
+          pubkey: igp.igpAccount,
+          isSigner: false,
+          isWritable: true,
+        },
+      ];
     }
     return keys;
   }
@@ -508,12 +653,28 @@ export abstract class SealevelHypTokenAdapter
     );
   }
 
+  // Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/4b3537470eff0139163a2a7aa1d19fc708a992c6/rust/sealevel/programs/hyperlane-sealevel-token/src/plugin.rs#L43-L51
+  deriveAtaPayerAccount(): PublicKey {
+    return super.derivePda(
+      ['hyperlane_token', '-', 'ata_payer'],
+      this.warpProgramPubKey,
+    );
+  }
+
   /**
    * Fetches the median prioritization fee for transfers of the collateralAddress token.
-   * @returns The median prioritization fee in micro-lamports
+   * @returns The median prioritization fee in micro-lamports, defaults to `0` when chain is not solanamainnet
    */
   async getMedianPriorityFee(): Promise<number | undefined> {
     this.logger.debug('Fetching priority fee history for token transfer');
+
+    // Currently only transactions done in solana requires a priority
+    if (this.chainName !== 'solanamainnet') {
+      this.logger.debug(
+        `Chain ${this.chainName} does not need priority fee, defaulting to 0`,
+      );
+      return 0;
+    }
 
     const collateralAddress = this.addresses.token;
     const fees = await this.getProvider().getRecentPrioritizationFees({
@@ -539,6 +700,36 @@ export abstract class SealevelHypTokenAdapter
     this.logger.debug(`Median priority fee: ${medianFee}`);
     return medianFee;
   }
+
+  protected getIgpAdapter(
+    tokenData: SealevelHyperlaneTokenData,
+  ): SealevelIgpProgramAdapter | undefined {
+    const igpConfig = tokenData.interchain_gas_paymaster;
+
+    if (!igpConfig || igpConfig.igp_account_pub_key === undefined) {
+      return undefined;
+    }
+
+    if (igpConfig.type === SealevelInterchainGasPaymasterType.Igp) {
+      return new SealevelIgpAdapter(this.chainName, this.multiProvider, {
+        igp: igpConfig.igp_account_pub_key.toBase58(),
+        programId: igpConfig.program_id_pubkey.toBase58(),
+      });
+    } else if (
+      igpConfig.type === SealevelInterchainGasPaymasterType.OverheadIgp
+    ) {
+      return new SealevelOverheadIgpAdapter(
+        this.chainName,
+        this.multiProvider,
+        {
+          overheadIgp: igpConfig.igp_account_pub_key.toBase58(),
+          programId: igpConfig.program_id_pubkey.toBase58(),
+        },
+      );
+    } else {
+      throw new Error(`Unsupported IGP type ${igpConfig.type}`);
+    }
+  }
 }
 
 // Interacts with Hyp Native token programs
@@ -554,15 +745,12 @@ export class SealevelHypNativeAdapter extends SealevelHypTokenAdapter {
       warpRouter: Address;
       mailbox: Address;
     },
-    public readonly isSpl2022: boolean = false,
   ) {
     // Pass in placeholder address for 'token' to avoid errors in the parent classes
-    super(
-      chainName,
-      multiProvider,
-      { ...addresses, token: SystemProgram.programId.toBase58() },
-      isSpl2022,
-    );
+    super(chainName, multiProvider, {
+      ...addresses,
+      token: SystemProgram.programId.toBase58(),
+    });
     this.wrappedNative = new SealevelNativeTokenAdapter(
       chainName,
       multiProvider,
@@ -580,8 +768,16 @@ export class SealevelHypNativeAdapter extends SealevelHypTokenAdapter {
     return this.wrappedNative.getBalance(owner);
   }
 
+  override async getBridgedSupply(): Promise<bigint> {
+    return this.getBalance(this.addresses.warpRouter);
+  }
+
   override async getMetadata(): Promise<TokenMetadata> {
     return this.wrappedNative.getMetadata();
+  }
+
+  override async getMinimumTransferAmount(recipient: Address): Promise<bigint> {
+    return this.wrappedNative.getMinimumTransferAmount(recipient);
   }
 
   override async getMedianPriorityFee(): Promise<number | undefined> {
@@ -590,9 +786,11 @@ export class SealevelHypNativeAdapter extends SealevelHypTokenAdapter {
     return undefined;
   }
 
-  getTransferInstructionKeyList(params: KeyListParams): Array<AccountMeta> {
+  async getTransferInstructionKeyList(
+    params: KeyListParams,
+  ): Promise<Array<AccountMeta>> {
     return [
-      ...super.getTransferInstructionKeyList(params),
+      ...(await super.getTransferInstructionKeyList(params)),
       // 9.   [executable] The system program.
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       // 10.  [writeable] The native token collateral PDA account.
@@ -611,6 +809,10 @@ export class SealevelHypNativeAdapter extends SealevelHypTokenAdapter {
       this.warpProgramPubKey,
     );
   }
+
+  deriveAtaPayerAccount(): PublicKey {
+    throw new Error('No ATA payer is used for native warp routes');
+  }
 }
 
 // Interacts with Hyp Collateral token programs
@@ -622,27 +824,34 @@ export class SealevelHypCollateralAdapter extends SealevelHypTokenAdapter {
     // the escrow account.
     if (eqAddress(owner, this.addresses.warpRouter)) {
       const collateralAccount = this.deriveEscrowAccount();
-      const response = await this.getProvider().getTokenAccountBalance(
-        collateralAccount,
-      );
+      const response =
+        await this.getProvider().getTokenAccountBalance(collateralAccount);
       return BigInt(response.value.amount);
     }
 
     return super.getBalance(owner);
   }
 
-  override getTransferInstructionKeyList(
+  override async getBridgedSupply(): Promise<bigint> {
+    return this.getBalance(this.addresses.warpRouter);
+  }
+
+  override async getTransferInstructionKeyList(
     params: KeyListParams,
-  ): Array<AccountMeta> {
+  ): Promise<Array<AccountMeta>> {
     return [
-      ...super.getTransferInstructionKeyList(params),
+      ...(await super.getTransferInstructionKeyList(params)),
       /// 9.   [executable] The SPL token program for the mint.
-      { pubkey: this.getTokenProgramId(), isSigner: false, isWritable: false },
+      {
+        pubkey: await this.getTokenProgramId(),
+        isSigner: false,
+        isWritable: false,
+      },
       /// 10.  [writeable] The mint.
       { pubkey: this.tokenMintPubKey, isSigner: false, isWritable: true },
       /// 11.  [writeable] The token sender's associated token account, from which tokens will be sent.
       {
-        pubkey: this.deriveAssociatedTokenAccount(params.sender),
+        pubkey: await this.deriveAssociatedTokenAccount(params.sender),
         isSigner: false,
         isWritable: true,
       },
@@ -661,11 +870,11 @@ export class SealevelHypCollateralAdapter extends SealevelHypTokenAdapter {
 
 // Interacts with Hyp Synthetic token programs (aka 'HypTokens')
 export class SealevelHypSyntheticAdapter extends SealevelHypTokenAdapter {
-  override getTransferInstructionKeyList(
+  override async getTransferInstructionKeyList(
     params: KeyListParams,
-  ): Array<AccountMeta> {
+  ): Promise<Array<AccountMeta>> {
     return [
-      ...super.getTransferInstructionKeyList(params),
+      ...(await super.getTransferInstructionKeyList(params)),
       /// 9. [executable] The spl_token_2022 program.
       { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
       /// 10. [writeable] The mint / mint authority PDA account.
@@ -676,7 +885,7 @@ export class SealevelHypSyntheticAdapter extends SealevelHypTokenAdapter {
       },
       /// 11. [writeable] The token sender's associated token account, from which tokens will be burned.
       {
-        pubkey: this.deriveAssociatedTokenAccount(params.sender),
+        pubkey: await this.deriveAssociatedTokenAccount(params.sender),
         isSigner: false,
         isWritable: true,
       },
@@ -684,16 +893,21 @@ export class SealevelHypSyntheticAdapter extends SealevelHypTokenAdapter {
   }
 
   override async getBalance(owner: Address): Promise<bigint> {
-    const tokenPubKey = this.deriveAssociatedTokenAccount(new PublicKey(owner));
+    const tokenPubKey = await this.deriveAssociatedTokenAccount(
+      new PublicKey(owner),
+    );
     try {
-      const response = await this.getProvider().getTokenAccountBalance(
-        tokenPubKey,
-      );
+      const response =
+        await this.getProvider().getTokenAccountBalance(tokenPubKey);
       return BigInt(response.value.amount);
     } catch (error: any) {
       if (error.message?.includes(NON_EXISTENT_ACCOUNT_ERROR)) return 0n;
       throw error;
     }
+  }
+
+  override async getBridgedSupply(): Promise<bigint> {
+    return this.getTotalSupply();
   }
 
   async getTotalSupply(): Promise<bigint> {
@@ -710,7 +924,9 @@ export class SealevelHypSyntheticAdapter extends SealevelHypTokenAdapter {
     );
   }
 
-  override deriveAssociatedTokenAccount(owner: PublicKey): PublicKey {
+  override async deriveAssociatedTokenAccount(
+    owner: PublicKey,
+  ): Promise<PublicKey> {
     return getAssociatedTokenAddressSync(
       this.deriveMintAuthorityAccount(),
       new PublicKey(owner),
@@ -724,9 +940,5 @@ interface KeyListParams {
   sender: PublicKey;
   mailbox: PublicKey;
   randomWallet: PublicKey;
-  igp?: {
-    programId: PublicKey;
-    igpAccount?: PublicKey;
-    innerIgpAccount?: PublicKey;
-  };
+  igp?: IgpPaymentKeys;
 }

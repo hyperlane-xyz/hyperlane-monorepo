@@ -17,10 +17,7 @@ pragma solidity >=0.8.0;
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 // ============ Internal Imports ============
-import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {IMultisigIsm} from "../../interfaces/isms/IMultisigIsm.sol";
-import {Message} from "../../libs/Message.sol";
-import {MerkleLib} from "../../libs/Merkle.sol";
 import {PackageVersioned} from "../../PackageVersioned.sol";
 
 /**
@@ -68,7 +65,7 @@ abstract contract AbstractMultisig is PackageVersioned {
  * @notice Manages per-domain m-of-n Validator sets of AbstractMultisig that are used to verify
  * interchain messages.
  */
-abstract contract AbstractMultisigIsm is AbstractMultisig {
+abstract contract AbstractMultisigIsm is AbstractMultisig, IMultisigIsm {
     // ============ Virtual Functions ============
     // ======= OVERRIDE THESE TO IMPLEMENT =======
 

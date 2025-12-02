@@ -1,8 +1,14 @@
-import { ChainName, EvmIsmReader } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, stringifyObject } from '@hyperlane-xyz/utils';
+import { AltVMIsmReader } from '@hyperlane-xyz/deploy-sdk';
+import { ChainName, DerivedIsmConfig, EvmIsmReader } from '@hyperlane-xyz/sdk';
+import {
+  Address,
+  ProtocolType,
+  assert,
+  stringifyObject,
+} from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
-import { log, logBlue, logRed } from '../logger.js';
+import { log, logBlue } from '../logger.js';
 import { resolveFileFormat, writeFileAtPath } from '../utils/files.js';
 
 /**
@@ -19,19 +25,29 @@ export async function readIsmConfig({
   address: Address;
   out?: string;
 }): Promise<void> {
+  let config: DerivedIsmConfig;
+  let stringConfig: string;
+
   if (context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum) {
     const ismReader = new EvmIsmReader(context.multiProvider, chain);
-    const config = await ismReader.deriveIsmConfig(address);
-    const stringConfig = stringifyObject(config, resolveFileFormat(out), 2);
-    if (!out) {
-      logBlue(`ISM Config at ${address} on ${chain}:`);
-      log(stringConfig);
-    } else {
-      writeFileAtPath(out, stringConfig + '\n');
-      logBlue(`ISM Config written to ${out}.`);
-    }
-    return;
+    config = await ismReader.deriveIsmConfig(address);
+    stringConfig = stringifyObject(config, resolveFileFormat(out), 2);
+  } else {
+    const provider = context.altVmProvider.get(chain);
+    assert(provider, `Cannot find provider for ${chain}`);
+    const ismReader = new AltVMIsmReader(
+      (chain) => context.multiProvider.tryGetChainName(chain),
+      provider,
+    );
+    config = await ismReader.deriveIsmConfig(address);
+    stringConfig = stringifyObject(config, resolveFileFormat(out), 2);
   }
 
-  logRed('Unsupported chain. Currently this command supports EVM chains only.');
+  if (!out) {
+    logBlue(`ISM Config at ${address} on ${chain}:`);
+    log(stringConfig);
+  } else {
+    writeFileAtPath(out, stringConfig + '\n');
+    logBlue(`ISM Config written to ${out}.`);
+  }
 }

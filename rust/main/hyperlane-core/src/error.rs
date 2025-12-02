@@ -1,6 +1,7 @@
 use std::any::Any;
 use std::error::Error as StdError;
 use std::fmt::{Debug, Display, Formatter};
+use std::num::TryFromIntError;
 use std::ops::Deref;
 
 use bigdecimal::ParseBigDecimalError;
@@ -10,11 +11,13 @@ use crate::config::StrOrIntParseError;
 use crate::rpc_clients::RpcClientError;
 use std::string::FromUtf8Error;
 
-use crate::HyperlaneProviderError;
-use crate::{Error as PrimitiveTypeError, HyperlaneSignerError, H256, U256};
+use crate::{
+    Error as PrimitiveTypeError, HyperlaneProviderError, HyperlaneSignerError, ReorgPeriod, H256,
+    U256,
+};
 
 /// The result of interacting with a chain.
-pub type ChainResult<T> = Result<T, ChainCommunicationError>;
+pub type ChainResult<T = ()> = Result<T, ChainCommunicationError>;
 
 /// An "Any"-typed error.
 pub trait HyperlaneCustomError: StdError + Send + Sync + Any {}
@@ -69,6 +72,9 @@ pub enum ChainCommunicationError {
     /// An error with a contract call
     #[error(transparent)]
     ContractError(HyperlaneCustomErrorWrapper),
+    /// When a transaction is not found
+    #[error("Address is not a contract {0}")]
+    ContractNotFound(String),
     /// A transaction was dropped from the mempool
     #[error("Transaction dropped from mempool {0:?}")]
     TransactionDropped(H256),
@@ -78,7 +84,7 @@ pub enum ChainCommunicationError {
     Other(HyperlaneCustomErrorWrapper),
     /// A transaction submission timed out
     #[error("Transaction submission timed out")]
-    TransactionTimeout(),
+    TransactionTimeout,
     /// No signer is available and was required for the operation
     #[error("Signer unavailable")]
     SignerUnavailable,
@@ -91,9 +97,6 @@ pub enum ChainCommunicationError {
     /// Failed to parse strings or integers
     #[error("Data parsing error {0:?}")]
     StrOrIntParseError(#[from] StrOrIntParseError),
-    /// BlockNotFoundError
-    #[error("Block not found: {0:?}")]
-    BlockNotFound(H256),
     /// utf8 error
     #[error("{0}")]
     Utf8(#[from] FromUtf8Error),
@@ -131,9 +134,9 @@ pub enum ChainCommunicationError {
     #[error("Insufficient funds. Required: {required:?}, available: {available:?}")]
     InsufficientFunds {
         /// The required amount of funds.
-        required: U256,
+        required: Box<U256>,
         /// The available amount of funds.
-        available: U256,
+        available: Box<U256>,
     },
     /// Primitive type error
     #[error(transparent)]
@@ -157,6 +160,15 @@ pub enum ChainCommunicationError {
     /// Hyperlane signer error
     #[error("{0}")]
     HyperlaneSignerError(#[from] HyperlaneSignerError),
+    /// Invalid reorg period
+    #[error("Invalid reorg period: {0:?}")]
+    InvalidReorgPeriod(ReorgPeriod),
+    /// Convert Integer Error
+    #[error("{0}")]
+    TryFromIntError(#[from] TryFromIntError),
+    /// Simulation failed
+    #[error("Simulation failed: {0}")]
+    SimulationFailed(String),
 }
 
 impl ChainCommunicationError {
@@ -247,7 +259,7 @@ pub enum HyperlaneProtocolError {
     /// Signature Error pasthrough
     #[cfg(feature = "ethers")]
     #[error(transparent)]
-    SignatureError(#[from] ethers_core::types::SignatureError),
+    SignatureError(#[from] Box<ethers_core::types::SignatureError>),
     /// IO error from Read/Write usage
     #[error(transparent)]
     IoError(#[from] std::io::Error),

@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/explicit-module-boundary-types */
-
 /* eslint-disable no-console */
 import {
   CosmWasmClient,
@@ -372,13 +370,25 @@ export async function rotateValidators() {
     [TestChainName.test1]: {
       threshold: 5,
       validators: [
-        '8e668c97ad76d0e28375275c41ece4972ab8a5bc', // hyperlane
-        '521a3e6bf8d24809fde1c1fd3494a859a16f132c', // cosmosstation
-        '25b9a0961c51e74fd83295293bc029131bf1e05a', // neutron (pablo)
-        '14025fe092f5f8a401dd9819704d9072196d2125', // p2p
-        'a0ee95e280d46c14921e524b075d0c341e7ad1c8', // cosmos spaces
-        'cc9a0b6de7fe314bd99223687d784730a75bb957', // dsrv
-        '42b6de2edbaa62c2ea2309ad85d20b3e37d38acf', // sg-1
+        {
+          address: '8e668c97ad76d0e28375275c41ece4972ab8a5bc',
+          alias: 'hyperlane',
+        },
+        {
+          address: '521a3e6bf8d24809fde1c1fd3494a859a16f132c',
+          alias: 'cosmosstation',
+        },
+        {
+          address: '25b9a0961c51e74fd83295293bc029131bf1e05a',
+          alias: 'neutron (pablo)',
+        },
+        { address: '14025fe092f5f8a401dd9819704d9072196d2125', alias: 'p2p' },
+        {
+          address: 'a0ee95e280d46c14921e524b075d0c341e7ad1c8',
+          alias: 'cosmos spaces',
+        },
+        { address: 'cc9a0b6de7fe314bd99223687d784730a75bb957', alias: 'dsrv' },
+        { address: '42b6de2edbaa62c2ea2309ad85d20b3e37d38acf', alias: 'sg-1' },
       ],
     },
   });

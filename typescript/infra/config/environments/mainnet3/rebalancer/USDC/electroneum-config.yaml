@@ -1,0 +1,28 @@
+warpRouteId: USDC/electroneum
+
+strategy:
+  rebalanceStrategy: weighted
+  chains:
+    avalanche:
+      weighted:
+        weight: 33 # should have 33% of all the collateral in this route
+        tolerance: 5 # 5% deviation on the expected balance before triggering a rebalance
+      bridgeLockTime: 1800 # 30 mins in seconds (required for CCTP latency)
+      bridgeMinAcceptedAmount: 3500
+      bridge: '0x0E8Bc62865F539889fe7d8537F2ed6db5aa0F677'
+
+    base:
+      weighted:
+        weight: 33
+        tolerance: 5
+      bridgeLockTime: 1800 # 30 mins in seconds
+      bridgeMinAcceptedAmount: 3000
+      bridge: '0x5C4aFb7e23B1Dc1B409dc1702f89C64527b25975'
+
+    ethereum:
+      weighted:
+        weight: 34
+        tolerance: 7
+      bridgeLockTime: 1800 # 30 mins in seconds
+      bridgeMinAcceptedAmount: 3000
+      bridge: '0xedCBAa585FD0F80f20073F9958246476466205b8'

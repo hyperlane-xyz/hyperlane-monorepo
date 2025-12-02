@@ -2,3 +2,8 @@
 /dist
 /cache
 /configs
+/prisma/dev.db
+/src/generated
+
+# allow check-in of .env.example
+!.env.example

@@ -1,55 +1,133 @@
 import { confirm } from '@inquirer/prompts';
 import { ethers } from 'ethers';
 
+import { loadProtocolProviders } from '@hyperlane-xyz/deploy-sdk';
 import {
-  DEFAULT_GITHUB_REGISTRY,
-  GithubRegistry,
-  IRegistry,
-  MergedRegistry,
-} from '@hyperlane-xyz/registry';
-import { FileSystemRegistry } from '@hyperlane-xyz/registry/fs';
+  AltVM,
+  getProtocolProvider,
+  hasProtocol,
+} from '@hyperlane-xyz/provider-sdk';
+import { IRegistry } from '@hyperlane-xyz/registry';
+import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import {
   ChainMap,
   ChainMetadata,
   ChainName,
+  ExplorerFamily,
+  MultiProtocolProvider,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { isHttpsUrl, isNullish, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
 import { isSignCommand } from '../commands/signCommands.js';
-import { PROXY_DEPLOYED_URL } from '../consts.js';
-import { forkNetworkToMultiProvider, verifyAnvil } from '../deploy/dry-run.js';
-import { logBlue } from '../logger.js';
-import { runSingleChainSelectionStep } from '../utils/chains.js';
+import { readChainSubmissionStrategyConfig } from '../config/strategy.js';
 import { detectAndConfirmOrPrompt } from '../utils/input.js';
-import { getImpersonatedSigner, getSigner } from '../utils/keys.js';
+import { getSigner } from '../utils/keys.js';
 
+import { AltVMSignerFactory } from './altvm.js';
+import { resolveChains } from './strategies/chain/chainResolver.js';
+import { MultiProtocolSignerManager } from './strategies/signer/MultiProtocolSignerManager.js';
 import {
   CommandContext,
   ContextSettings,
-  WriteCommandContext,
+  SignerKeyProtocolMap,
+  SignerKeyProtocolMapSchema,
 } from './types.js';
 
 export async function contextMiddleware(argv: Record<string, any>) {
-  const isDryRun = !isNullish(argv.dryRun);
   const requiresKey = isSignCommand(argv);
+
   const settings: ContextSettings = {
-    registryUri: argv.registry,
-    registryOverrideUri: argv.overrides,
+    registryUris: [...argv.registry],
     key: argv.key,
-    fromAddress: argv.fromAddress,
     requiresKey,
     disableProxy: argv.disableProxy,
     skipConfirmation: argv.yes,
+    strategyPath: argv.strategy,
+    authToken: argv.authToken,
   };
-  if (!isDryRun && settings.fromAddress)
-    throw new Error(
-      "'--from-address' or '-f' should only be used for dry-runs",
+
+  argv.context = await getContext(settings);
+}
+
+export async function signerMiddleware(argv: Record<string, any>) {
+  const { key, requiresKey, strategyPath, multiProtocolProvider } =
+    argv.context;
+
+  const strategyConfig = strategyPath
+    ? await readChainSubmissionStrategyConfig(strategyPath)
+    : {};
+
+  /**
+   * Resolves chains based on the command type.
+   */
+  const chains = await resolveChains(argv);
+
+  /**
+   * Load and create AltVM Providers
+   */
+  const altVmChains = chains.filter(
+    (chain) =>
+      argv.context.multiProvider.getProtocol(chain) !== ProtocolType.Ethereum,
+  );
+
+  try {
+    await loadProtocolProviders(
+      new Set(
+        altVmChains.map((chain) =>
+          argv.context.multiProvider.getProtocol(chain),
+        ),
+      ),
     );
-  const context = isDryRun
-    ? await getDryRunContext(settings, argv.dryRun)
-    : await getContext(settings);
-  argv.context = context;
+  } catch (e) {
+    throw new Error(
+      `Failed to load providers in context for ${altVmChains.join(', ')}`,
+      { cause: e },
+    );
+  }
+
+  await Promise.all(
+    altVmChains.map(async (chain) => {
+      const { altVmProvider, multiProvider } = argv.context;
+      const protocol = multiProvider.getProtocol(chain);
+      const metadata = multiProvider.getChainMetadata(chain);
+
+      if (hasProtocol(protocol))
+        altVmProvider.set(
+          chain,
+          await getProtocolProvider(protocol).createProvider(metadata),
+        );
+    }),
+  );
+
+  if (!requiresKey) return argv;
+
+  /**
+   * Extracts signer config
+   */
+  const multiProtocolSigner = await MultiProtocolSignerManager.init(
+    strategyConfig,
+    chains,
+    multiProtocolProvider,
+    { key },
+  );
+
+  /**
+   * @notice Attaches signers to MultiProvider and assigns it to argv.multiProvider
+   */
+  argv.context.multiProvider = await multiProtocolSigner.getMultiProvider();
+
+  /**
+   * Creates AltVM signers
+   */
+  argv.context.altVmSigner = await AltVMSignerFactory.createSigners(
+    argv.context.multiProvider,
+    chains,
+    key,
+    strategyConfig,
+  );
+
+  return argv;
 }
 
 /**
@@ -57,123 +135,95 @@ export async function contextMiddleware(argv: Record<string, any>) {
  * @returns context for the current command
  */
 export async function getContext({
-  registryUri,
-  registryOverrideUri,
+  registryUris,
   key,
   requiresKey,
   skipConfirmation,
   disableProxy = false,
+  strategyPath,
+  authToken,
 }: ContextSettings): Promise<CommandContext> {
-  const registry = getRegistry(registryUri, registryOverrideUri, !disableProxy);
+  const registry = getRegistry({
+    registryUris,
+    enableProxy: !disableProxy,
+    logger: rootLogger,
+    authToken,
+  });
 
-  let signer: ethers.Wallet | undefined = undefined;
-  if (key || requiresKey) {
-    ({ key, signer } = await getSigner({ key, skipConfirmation }));
-  }
-  const multiProvider = await getMultiProvider(registry, signer);
+  const { keyMap, ethereumSignerAddress } = await getSignerKeyMap(
+    key,
+    !!skipConfirmation,
+  );
+
+  const multiProvider = await getMultiProvider(registry);
+  const multiProtocolProvider = await getMultiProtocolProvider(registry);
+
+  // This mapping gets populated as part of signerMiddleware
+  const altVmProvider = new Map<string, AltVM.IProvider>();
+
+  const supportedProtocols = [
+    ProtocolType.Ethereum,
+    ProtocolType.CosmosNative,
+    ProtocolType.Radix,
+  ];
 
   return {
     registry,
+    requiresKey,
     chainMetadata: multiProvider.metadata,
     multiProvider,
-    key,
-    signer,
+    multiProtocolProvider,
+    altVmProvider,
+    supportedProtocols,
+    key: keyMap,
     skipConfirmation: !!skipConfirmation,
-  } as CommandContext;
+    signerAddress: ethereumSignerAddress,
+    strategyPath,
+  };
 }
 
 /**
- * Retrieves dry-run context for the user-selected command
- * @returns dry-run context for the current command
+ * Resolves private keys by protocol type by reading either the key
+ * argument passed to the CLI or falling back to reading from env
  */
-export async function getDryRunContext(
-  {
-    registryUri,
-    registryOverrideUri,
-    key,
-    fromAddress,
-    skipConfirmation,
-    disableProxy = false,
-  }: ContextSettings,
-  chain?: ChainName,
-): Promise<CommandContext> {
-  const registry = getRegistry(registryUri, registryOverrideUri, !disableProxy);
-  const chainMetadata = await registry.getMetadata();
+async function getSignerKeyMap(
+  rawKeyMap: ContextSettings['key'],
+  skipConfirmation: boolean,
+): Promise<{ keyMap: SignerKeyProtocolMap; ethereumSignerAddress?: Address }> {
+  const keyMap: SignerKeyProtocolMap = SignerKeyProtocolMapSchema.parse(
+    rawKeyMap ?? {},
+  );
 
-  if (!chain) {
-    if (skipConfirmation) throw new Error('No chains provided');
-    chain = await runSingleChainSelectionStep(
-      chainMetadata,
-      'Select chain to dry-run against:',
-    );
+  Object.values(ProtocolType).forEach((protocol) => {
+    if (keyMap[protocol]) {
+      return;
+    }
+
+    if (process.env[`HYP_KEY_${protocol.toUpperCase()}`]) {
+      keyMap[protocol] = process.env[`HYP_KEY_${protocol.toUpperCase()}`];
+      return;
+    }
+
+    if (protocol === ProtocolType.Ethereum && process.env.HYP_KEY) {
+      keyMap[protocol] = process.env.HYP_KEY;
+      return;
+    }
+  });
+
+  // Just for backward compatibility
+  let signerAddress: string | undefined = undefined;
+  if (keyMap[ProtocolType.Ethereum]) {
+    const { signer } = await getSigner({
+      key: keyMap[ProtocolType.Ethereum],
+      skipConfirmation,
+    });
+    signerAddress = await signer.getAddress();
   }
 
-  logBlue(`Dry-running against chain: ${chain}`);
-  await verifyAnvil();
-
-  let multiProvider = await getMultiProvider(registry);
-  multiProvider = await forkNetworkToMultiProvider(multiProvider, chain);
-  const { impersonatedKey, impersonatedSigner } = await getImpersonatedSigner({
-    fromAddress,
-    key,
-    skipConfirmation,
-  });
-  multiProvider.setSharedSigner(impersonatedSigner);
-
   return {
-    registry,
-    chainMetadata: multiProvider.metadata,
-    key: impersonatedKey,
-    signer: impersonatedSigner,
-    multiProvider: multiProvider,
-    skipConfirmation: !!skipConfirmation,
-    isDryRun: true,
-    dryRunChain: chain,
-  } as WriteCommandContext;
-}
-
-/**
- * Creates a new MergedRegistry using the provided URIs
- * The intention of the MergedRegistry is to join the common data
- * from a primary URI (such as the Hyperlane default Github repo)
- * and an override one (such as a local directory)
- * @returns a new MergedRegistry
- */
-function getRegistry(
-  primaryRegistryUri: string,
-  overrideRegistryUri: string,
-  enableProxy: boolean,
-): IRegistry {
-  const logger = rootLogger.child({ module: 'MergedRegistry' });
-  const registries = [primaryRegistryUri, overrideRegistryUri]
-    .map((uri) => uri.trim())
-    .filter((uri) => !!uri)
-    .map((uri, index) => {
-      const childLogger = logger.child({ uri, index });
-      if (isHttpsUrl(uri)) {
-        return new GithubRegistry({
-          uri,
-          logger: childLogger,
-          proxyUrl:
-            enableProxy && isCanonicalRepoUrl(uri)
-              ? PROXY_DEPLOYED_URL
-              : undefined,
-        });
-      } else {
-        return new FileSystemRegistry({
-          uri,
-          logger: childLogger,
-        });
-      }
-    });
-  return new MergedRegistry({
-    registries,
-    logger,
-  });
-}
-
-function isCanonicalRepoUrl(url: string) {
-  return url === DEFAULT_GITHUB_REGISTRY;
+    keyMap,
+    ethereumSignerAddress: signerAddress,
+  };
 }
 
 /**
@@ -188,15 +238,33 @@ async function getMultiProvider(registry: IRegistry, signer?: ethers.Signer) {
   return multiProvider;
 }
 
-export async function getOrRequestApiKeys(
+async function getMultiProtocolProvider(registry: IRegistry) {
+  const chainMetadata = await registry.getMetadata();
+  return new MultiProtocolProvider(chainMetadata);
+}
+
+/**
+ * Requests and saves Block Explorer API keys for the specified chains, prompting the user if necessary.
+ *
+ * @param chains - The list of chain names to request API keys for.
+ * @param chainMetadata - The chain metadata, used to determine if an API key is already configured.
+ * @param registry - The registry used to update the chain metadata with the new API key.
+ * @returns A mapping of chain names to their API keys.
+ */
+export async function requestAndSaveApiKeys(
   chains: ChainName[],
   chainMetadata: ChainMap<ChainMetadata>,
+  registry: IRegistry,
 ): Promise<ChainMap<string>> {
   const apiKeys: ChainMap<string> = {};
 
   for (const chain of chains) {
-    if (chainMetadata[chain]?.blockExplorers?.[0]?.apiKey) {
-      apiKeys[chain] = chainMetadata[chain]!.blockExplorers![0]!.apiKey!;
+    const blockExplorer = chainMetadata[chain]?.blockExplorers?.[0];
+    if (blockExplorer?.family !== ExplorerFamily.Etherscan) {
+      continue;
+    }
+    if (blockExplorer?.apiKey) {
+      apiKeys[chain] = blockExplorer.apiKey;
       continue;
     }
     const wantApiKey = await confirm({
@@ -218,6 +286,11 @@ export async function getOrRequestApiKeys(
         `${chain} api key`,
         `${chain} metadata blockExplorers config`,
       );
+      chainMetadata[chain].blockExplorers![0].apiKey = apiKeys[chain];
+      await registry.updateChain({
+        chainName: chain,
+        metadata: chainMetadata[chain],
+      });
     }
   }
 

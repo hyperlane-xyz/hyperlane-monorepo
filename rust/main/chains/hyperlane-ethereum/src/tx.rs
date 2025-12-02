@@ -1,7 +1,9 @@
-use std::num::NonZeroU64;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
+use ethers::contract::Lazy;
+use ethers::types::transaction::eip2718::TypedTransaction;
 use ethers::{
     abi::Detokenize,
     prelude::{NameOrAddress, TransactionReceipt},
@@ -9,6 +11,7 @@ use ethers::{
     types::{Block, Eip1559TransactionRequest, TxHash},
 };
 use ethers_contract::builders::ContractCall;
+use ethers_core::types::{FeeHistory, H160};
 use ethers_core::{
     types::{BlockNumber, U256 as EthersU256},
     utils::{
@@ -16,19 +19,54 @@ use ethers_core::{
         EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE,
     },
 };
-use hyperlane_core::{utils::bytes_to_hex, ChainCommunicationError, ChainResult, H256, U256};
-use tracing::{debug, error, info, warn};
+use futures_util::future::join_all;
+use tokio::sync::Mutex;
+use tokio::try_join;
+use tracing::{debug, error, info, instrument, warn};
 
-use crate::{Middleware, TransactionOverrides};
+use hyperlane_core::{
+    ChainCommunicationError, ChainResult, HyperlaneDomain, ReorgPeriod, H256, U256,
+};
 
-/// An amount of gas to add to the estimated gas
-pub const GAS_ESTIMATE_BUFFER: u32 = 75_000;
+use crate::{EthereumMailboxCache, EthereumReorgPeriod, Middleware, TransactionOverrides};
 
-pub fn apply_gas_estimate_buffer(gas: U256) -> U256 {
-    gas.saturating_add(GAS_ESTIMATE_BUFFER.into())
+/// An amount of gas to add to the estimated gas limit
+pub const GAS_LIMIT_BUFFER: u32 = 75_000;
+
+// A multiplier to apply to the estimated gas limit, i.e. 10%.
+pub const DEFAULT_GAS_LIMIT_MULTIPLIER_NUMERATOR: u32 = 11;
+pub const DEFAULT_GAS_LIMIT_MULTIPLIER_DENOMINATOR: u32 = 10;
+
+pub const PENDING_TX_TIMEOUT_SECS: u64 = 90;
+
+// We have 2 to 4 multiples of the default percentile, and we limit it to 100% percentile.
+static PERCENTILES: Lazy<Vec<f64>> = Lazy::new(|| {
+    (2..5)
+        .map(|m| EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE * m as f64)
+        .filter(|p| *p <= 100.0)
+        .collect::<Vec<_>>()
+});
+
+pub fn apply_gas_estimate_buffer(gas: U256, domain: &HyperlaneDomain) -> ChainResult<U256> {
+    // Arbitrum Nitro chains use 2d fees are especially prone to costs increasing
+    // by the time the transaction lands on chain, requiring a higher gas limit.
+    // In this case, we apply a multiplier to the gas estimate.
+    let gas = if domain.is_arbitrum_nitro() {
+        gas.saturating_mul(DEFAULT_GAS_LIMIT_MULTIPLIER_NUMERATOR.into())
+            .checked_div(DEFAULT_GAS_LIMIT_MULTIPLIER_DENOMINATOR.into())
+            .ok_or_else(|| {
+                ChainCommunicationError::from_other_str("Gas estimate buffer divide by zero")
+            })?
+    } else {
+        gas
+    };
+
+    // Always add a flat buffer
+    Ok(gas.saturating_add(GAS_LIMIT_BUFFER.into()))
 }
 
 const PENDING_TRANSACTION_POLLING_INTERVAL: Duration = Duration::from_secs(2);
+const EVM_RELAYER_ADDRESS: &str = "0x74cae0ecc47b02ed9b9d32e000fd70b9417970c5";
 
 /// Dispatches a transaction, logs the tx id, and returns the result
 pub(crate) async fn report_tx<M, D>(tx: ContractCall<M, D>) -> ChainResult<TransactionReceipt>
@@ -36,20 +74,13 @@ where
     M: Middleware + 'static,
     D: Detokenize,
 {
-    let data = tx
-        .tx
-        .data()
-        .map(|b| bytes_to_hex(b))
-        .unwrap_or_else(|| "None".into());
-
     let to = tx
         .tx
         .to()
         .cloned()
         .unwrap_or_else(|| NameOrAddress::Address(Default::default()));
 
-    info!(?to, %data, "Dispatching transaction");
-    // We can set the gas higher here!
+    info!(?to, from=?tx.tx.from(), gas_limit=?tx.tx.gas(), gas_price=?tx.tx.gas_price(), nonce=?tx.tx.nonce(), "Dispatching transaction");
     let dispatch_fut = tx.send();
     let dispatched = dispatch_fut
         .await?
@@ -57,6 +88,7 @@ where
     track_pending_tx(dispatched).await
 }
 
+#[instrument(skip(pending_tx))]
 pub(crate) async fn track_pending_tx<P: JsonRpcClient>(
     pending_tx: PendingTransaction<'_, P>,
 ) -> ChainResult<TransactionReceipt> {
@@ -64,7 +96,7 @@ pub(crate) async fn track_pending_tx<P: JsonRpcClient>(
 
     info!(?tx_hash, "Dispatched tx");
 
-    match tokio::time::timeout(Duration::from_secs(150), pending_tx).await {
+    match tokio::time::timeout(Duration::from_secs(PENDING_TX_TIMEOUT_SECS), pending_tx).await {
         // all good
         Ok(Ok(Some(receipt))) => {
             info!(?tx_hash, "confirmed transaction");
@@ -81,7 +113,7 @@ pub(crate) async fn track_pending_tx<P: JsonRpcClient>(
         // Timed out
         Err(x) => {
             error!(?tx_hash, error = ?x, "waiting for receipt timed out");
-            Err(ChainCommunicationError::TransactionTimeout())
+            Err(ChainCommunicationError::TransactionTimeout)
         }
     }
 }
@@ -91,29 +123,41 @@ pub(crate) async fn fill_tx_gas_params<M, D>(
     tx: ContractCall<M, D>,
     provider: Arc<M>,
     transaction_overrides: &TransactionOverrides,
+    domain: &HyperlaneDomain,
+    with_gas_limit_overrides: bool,
+    cache: Arc<Mutex<EthereumMailboxCache>>,
 ) -> ChainResult<ContractCall<M, D>>
 where
     M: Middleware + 'static,
     D: Detokenize,
 {
     // either use the pre-estimated gas limit or estimate it
-    let estimated_gas_limit: U256 = match tx.tx.gas() {
+    let mut estimated_gas_limit: U256 = match tx.tx.gas() {
         Some(&estimate) => estimate.into(),
         None => tx.estimate_gas().await?.into(),
     };
-    let estimated_gas_limit = apply_gas_estimate_buffer(estimated_gas_limit);
-    let gas_limit: U256 = if let Some(gas_limit) = transaction_overrides.gas_limit {
-        estimated_gas_limit.max(gas_limit)
-    } else {
-        estimated_gas_limit
+
+    if with_gas_limit_overrides {
+        estimated_gas_limit = apply_gas_estimate_buffer(estimated_gas_limit, domain)?;
+        if let Some(gas_limit) = transaction_overrides.gas_limit {
+            estimated_gas_limit = estimated_gas_limit.max(gas_limit)
+        }
+    }
+    let gas_limit = estimated_gas_limit;
+    let (cached_latest_block, cached_eip1559_fee) = {
+        let cache = cache.lock().await;
+        (cache.latest_block.clone(), cache.eip1559_fee)
     };
 
     // Cap the gas limit to the block gas limit
-    let latest_block = provider
-        .get_block(BlockNumber::Latest)
-        .await
-        .map_err(ChainCommunicationError::from_other)?
-        .ok_or_else(|| ProviderError::CustomError("Latest block not found".into()))?;
+    let latest_block = match cached_latest_block {
+        Some(block) => block,
+        None => provider
+            .get_block(BlockNumber::Latest)
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+            .ok_or_else(|| ProviderError::CustomError("Latest block not found".into()))?,
+    };
     let block_gas_limit: U256 = latest_block.gas_limit.into();
     let gas_limit = if gas_limit > block_gas_limit {
         warn!(
@@ -132,11 +176,17 @@ where
         return Ok(tx.gas_price(gas_price).gas(gas_limit));
     }
 
-    let Ok((base_fee, max_fee, max_priority_fee)) =
-        estimate_eip1559_fees(provider, None, &latest_block).await
-    else {
-        // Is not EIP 1559 chain
-        return Ok(tx.gas(gas_limit));
+    let eip1559_fee_result = match cached_eip1559_fee {
+        Some(fee) => Ok((fee, latest_block)),
+        None => estimate_eip1559_fees(provider.clone(), None, domain, &tx.tx).await,
+    };
+    let ((base_fee, max_fee, max_priority_fee), _) = match eip1559_fee_result {
+        Ok(result) => result,
+        Err(err) => {
+            warn!(?err, "Failed to estimate EIP-1559 fees");
+            // Assume it's not an EIP 1559 chain
+            return Ok(apply_legacy_overrides(tx, transaction_overrides).gas(gas_limit));
+        }
     };
 
     // If the base fee is zero, just treat the chain as a non-EIP-1559 chain.
@@ -145,18 +195,12 @@ where
     // fee lower than 3 gwei because of privileged transactions being included by block
     // producers that have a lower priority fee.
     if base_fee.is_zero() {
-        return Ok(tx.gas(gas_limit));
+        return Ok(apply_legacy_overrides(tx, transaction_overrides).gas(gas_limit));
     }
 
     // Apply overrides for EIP 1559 tx params if they exist.
-    let max_fee = transaction_overrides
-        .max_fee_per_gas
-        .map(Into::into)
-        .unwrap_or(max_fee);
-    let max_priority_fee = transaction_overrides
-        .max_priority_fee_per_gas
-        .map(Into::into)
-        .unwrap_or(max_priority_fee);
+    let (max_fee, max_priority_fee) =
+        apply_1559_overrides(max_fee, max_priority_fee, transaction_overrides);
 
     // Is EIP 1559 chain
     let mut request = Eip1559TransactionRequest::new();
@@ -179,32 +223,199 @@ where
     Ok(eip_1559_tx.gas(gas_limit))
 }
 
+fn apply_legacy_overrides<M, D>(
+    tx: ContractCall<M, D>,
+    transaction_overrides: &TransactionOverrides,
+) -> ContractCall<M, D>
+where
+    M: Middleware + 'static,
+    D: Detokenize,
+{
+    let gas_price = tx.tx.gas_price();
+    // if no gas price was set in the tx, leave the tx as is and return early
+    let Some(mut gas_price) = gas_price else {
+        return tx;
+    };
+
+    let min_price_override = transaction_overrides
+        .min_gas_price
+        .map(Into::into)
+        .unwrap_or(0.into());
+    gas_price = gas_price.max(min_price_override);
+    gas_price = apply_gas_price_cap(gas_price, transaction_overrides);
+    tx.gas_price(gas_price)
+}
+
+fn apply_1559_overrides(
+    max_fee: EthersU256,
+    max_priority_fee: EthersU256,
+    transaction_overrides: &TransactionOverrides,
+) -> (EthersU256, EthersU256) {
+    let mut max_fee = transaction_overrides
+        .max_fee_per_gas
+        .map(Into::into)
+        .unwrap_or(max_fee);
+    if let Some(min_fee) = transaction_overrides.min_fee_per_gas {
+        max_fee = max_fee.max(min_fee.into());
+    }
+
+    let mut max_priority_fee = transaction_overrides
+        .max_priority_fee_per_gas
+        .map(Into::into)
+        .unwrap_or(max_priority_fee);
+
+    if let Some(min_priority_fee) = transaction_overrides.min_priority_fee_per_gas {
+        max_priority_fee = max_priority_fee.max(min_priority_fee.into());
+    }
+    max_fee = apply_gas_price_cap(max_fee, transaction_overrides);
+    (max_fee, max_priority_fee)
+}
+
+fn apply_gas_price_cap(
+    gas_price: EthersU256,
+    transaction_overrides: &TransactionOverrides,
+) -> EthersU256 {
+    if let Some(gas_price_cap) = transaction_overrides.gas_price_cap {
+        if gas_price > gas_price_cap.into() {
+            warn!(
+                ?gas_price,
+                ?gas_price_cap,
+                "Gas price for transaction is higher than the gas price cap. Capping it to the gas price cap."
+            );
+            return gas_price_cap.into();
+        }
+    }
+    gas_price
+}
+
 type FeeEstimator = fn(EthersU256, Vec<Vec<EthersU256>>) -> (EthersU256, EthersU256);
 
-/// Pretty much a copy of the logic in ethers-rs (https://github.com/hyperlane-xyz/ethers-rs/blob/c9ced035628da59376c369be035facda1648577a/ethers-providers/src/provider.rs#L478)
-/// but returns the base fee as well as the max fee and max priority fee.
-/// Gets a heuristic recommendation of max fee per gas and max priority fee per gas for
-/// EIP-1559 compatible transactions.
-async fn estimate_eip1559_fees<M>(
-    provider: Arc<M>,
-    estimator: Option<FeeEstimator>,
-    latest_block: &Block<TxHash>,
-) -> ChainResult<(EthersU256, EthersU256, EthersU256)>
+pub type Eip1559Fee = (
+    EthersU256, // base fee
+    EthersU256, // max fee
+    EthersU256, // max priority fee
+);
+
+async fn latest_block<M>(provider: Arc<M>) -> ChainResult<Block<TxHash>>
 where
     M: Middleware + 'static,
 {
+    let latest_block = provider
+        .get_block(BlockNumber::Latest)
+        .await
+        .map_err(ChainCommunicationError::from_other)?
+        .ok_or_else(|| ProviderError::CustomError("Latest block not found".into()))?;
+    Ok(latest_block)
+}
+
+/// Use this to estimate EIP 1559 fees with some chain-specific logic.
+pub(crate) async fn estimate_eip1559_fees<M>(
+    provider: Arc<M>,
+    estimator: Option<FeeEstimator>,
+    domain: &HyperlaneDomain,
+    tx: &TypedTransaction,
+) -> ChainResult<(Eip1559Fee, Block<TxHash>)>
+where
+    M: Middleware + 'static,
+{
+    if domain.is_zksync_stack() {
+        estimate_eip1559_fees_zksync(provider, tx).await
+    } else {
+        estimate_eip1559_fees_default(provider, estimator).await
+    }
+}
+
+async fn estimate_eip1559_fees_zksync<M>(
+    provider: Arc<M>,
+    tx: &TypedTransaction,
+) -> ChainResult<(Eip1559Fee, Block<TxHash>)>
+where
+    M: Middleware + 'static,
+{
+    let latest_block = latest_block(provider.clone()).await?;
+
     let base_fee_per_gas = latest_block
         .base_fee_per_gas
         .ok_or_else(|| ProviderError::CustomError("EIP-1559 not activated".into()))?;
 
-    let fee_history = provider
-        .fee_history(
-            EIP1559_FEE_ESTIMATION_PAST_BLOCKS,
-            BlockNumber::Latest,
-            &[EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE],
-        )
-        .await
-        .map_err(ChainCommunicationError::from_other)?;
+    let response = zksync_estimate_fee(provider, tx).await?;
+    let max_fee_per_gas = response.max_fee_per_gas;
+    let max_priority_fee_per_gas = response.max_priority_fee_per_gas;
+
+    Ok((
+        (base_fee_per_gas, max_fee_per_gas, max_priority_fee_per_gas),
+        latest_block,
+    ))
+}
+
+async fn zksync_estimate_fee<M>(
+    provider: Arc<M>,
+    tx: &TypedTransaction,
+) -> ChainResult<ZksyncEstimateFeeResponse>
+where
+    M: Middleware + 'static,
+{
+    let mut tx = tx.clone();
+    tx.set_from(
+        // use the sender in the provider if one is set, otherwise default to the EVM relayer address
+        provider.default_sender().unwrap_or_else(|| {
+            H160::from_str(EVM_RELAYER_ADDRESS).expect("Invalid EVM_RELAYER_ADDRESS value")
+        }),
+    );
+
+    let result = provider
+        .provider()
+        .request("zks_estimateFee", [tx.clone()])
+        .await?;
+    tracing::debug!(?result, ?tx, "Successfully fetched zkSync fee estimate");
+    Ok(result)
+}
+
+// From
+// gas_limit: QUANTITY, 32 bytes - The maximum amount of gas that can be used.
+// max_fee_per_gas: QUANTITY, 32 bytes - The maximum fee per unit of gas that the sender is willing to pay.
+// max_priority_fee_per_gas: QUANTITY, 32 bytes - The maximum priority fee per unit of gas to incentivize miners.
+// gas_per_pubdata_limit: QUANTITY, 32 bytes - The gas limit per unit of public data.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+struct ZksyncEstimateFeeResponse {
+    gas_limit: EthersU256,
+    max_fee_per_gas: EthersU256,
+    max_priority_fee_per_gas: EthersU256,
+    gas_per_pubdata_limit: EthersU256,
+}
+
+/// Logic for a vanilla EVM chain to get EIP-1559 fees.
+/// Pretty much a copy of the logic in ethers-rs (https://github.com/hyperlane-xyz/ethers-rs/blob/c9ced035628da59376c369be035facda1648577a/ethers-providers/src/provider.rs#L478)
+/// but returns the base fee as well as the max fee and max priority fee.
+/// Gets a heuristic recommendation of max fee per gas and max priority fee per gas for
+/// EIP-1559 compatible transactions.
+async fn estimate_eip1559_fees_default<M>(
+    provider: Arc<M>,
+    estimator: Option<FeeEstimator>,
+) -> ChainResult<((EthersU256, EthersU256, EthersU256), Block<TxHash>)>
+where
+    M: Middleware + 'static,
+{
+    let latest_block = latest_block(provider.clone());
+
+    let fee_history = async {
+        provider
+            .fee_history(
+                EIP1559_FEE_ESTIMATION_PAST_BLOCKS,
+                BlockNumber::Latest,
+                &[EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE],
+            )
+            .await
+            .map_err(ChainCommunicationError::from_other)
+    };
+
+    let (latest_block, fee_history) = try_join!(latest_block, fee_history)?;
+
+    let fee_history = ensure_non_empty_rewards(provider.clone(), fee_history).await?;
+
+    let base_fee_per_gas = latest_block
+        .base_fee_per_gas
+        .ok_or_else(|| ProviderError::CustomError("EIP-1559 not activated".into()))?;
 
     // use the provided fee estimator function, or fallback to the default implementation.
     let (max_fee_per_gas, max_priority_fee_per_gas) = if let Some(es) = estimator {
@@ -213,27 +424,149 @@ where
         eip1559_default_estimator(base_fee_per_gas, fee_history.reward)
     };
 
-    Ok((base_fee_per_gas, max_fee_per_gas, max_priority_fee_per_gas))
+    Ok((
+        (base_fee_per_gas, max_fee_per_gas, max_priority_fee_per_gas),
+        latest_block,
+    ))
 }
 
-pub(crate) async fn call_with_lag<M, T>(
-    call: ethers::contract::builders::ContractCall<M, T>,
+async fn ensure_non_empty_rewards<M>(
+    provider: Arc<M>,
+    default_fee_history: FeeHistory,
+) -> ChainResult<FeeHistory>
+where
+    M: Middleware + 'static,
+{
+    if has_rewards(&default_fee_history) {
+        debug!(?default_fee_history, "default rewards non zero");
+        return Ok(default_fee_history);
+    }
+
+    let fee_history_futures = PERCENTILES
+        .clone()
+        .into_iter()
+        .map(|p| {
+            let provider = provider.clone();
+            async move {
+                provider
+                    .fee_history(
+                        EIP1559_FEE_ESTIMATION_PAST_BLOCKS,
+                        BlockNumber::Latest,
+                        &[p],
+                    )
+                    .await
+                    .map_err(ChainCommunicationError::from_other)
+            }
+        })
+        .collect::<Vec<_>>();
+
+    // Results will be ordered by percentile, so we can just take the first non-empty one.
+    let fee_histories = join_all(fee_history_futures).await;
+
+    debug!(
+        ?fee_histories,
+        ?PERCENTILES,
+        "fee history for each percentile"
+    );
+
+    // We return the first non-empty fee history.
+    // If all are empty, we return the default fee history which is empty at this point.
+    let mut chosen_fee_history = default_fee_history;
+    for fee_history in fee_histories {
+        let Ok(fee_history) = fee_history else {
+            continue;
+        };
+        if has_rewards(&fee_history) {
+            chosen_fee_history = fee_history;
+            break;
+        }
+    }
+
+    debug!(?chosen_fee_history, "chosen fee history");
+
+    Ok(chosen_fee_history)
+}
+
+fn has_rewards(fee_history: &FeeHistory) -> bool {
+    fee_history
+        .reward
+        .iter()
+        .filter_map(|r| r.first())
+        .any(|r| !r.is_zero())
+}
+
+pub(crate) async fn call_with_reorg_period<M, T>(
+    call: ContractCall<M, T>,
     provider: &M,
-    maybe_lag: Option<NonZeroU64>,
-) -> ChainResult<ethers::contract::builders::ContractCall<M, T>>
+    reorg_period: &ReorgPeriod,
+) -> ChainResult<ContractCall<M, T>>
 where
     M: Middleware + 'static,
     T: Detokenize,
 {
-    if let Some(lag) = maybe_lag {
-        let fixed_block_number: BlockNumber = provider
-            .get_block_number()
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .saturating_sub(lag.get().into())
-            .into();
-        Ok(call.block(fixed_block_number))
-    } else {
-        Ok(call)
+    let block_id = EthereumReorgPeriod::try_from(reorg_period)?
+        .into_block_id(provider)
+        .await?;
+    Ok(call.block(block_id))
+}
+
+#[cfg(test)]
+mod test {
+    use std::str::FromStr;
+    use std::sync::Arc;
+
+    use ethers::prelude::U256;
+    use ethers::{
+        providers::{Http, Provider},
+        types::{
+            transaction::eip2718::TypedTransaction, Address, Bytes, Eip1559TransactionRequest,
+            NameOrAddress,
+        },
+    };
+    use ethers_core::types::FeeHistory;
+    use url::Url;
+
+    use crate::tx::zksync_estimate_fee;
+
+    #[test]
+    fn test_is_rewards_non_zero_all_zero() {
+        let fee_history = FeeHistory {
+            reward: vec![vec![U256::zero()], vec![U256::zero()]],
+            oldest_block: U256::zero(),
+            base_fee_per_gas: vec![],
+            gas_used_ratio: vec![],
+        };
+        assert!(!super::has_rewards(&fee_history));
+    }
+
+    #[test]
+    fn test_is_rewards_non_zero_some_non_zero() {
+        let fee_history = FeeHistory {
+            reward: vec![vec![U256::zero()], vec![U256::from(1)]],
+            oldest_block: U256::zero(),
+            base_fee_per_gas: vec![],
+            gas_used_ratio: vec![],
+        };
+        assert!(super::has_rewards(&fee_history));
+    }
+
+    #[ignore = "Not running a flaky test requiring network"]
+    #[tokio::test]
+    async fn test_zksync_estimate_fees() {
+        let url: Url = "https://rpc.treasure.lol".parse().unwrap();
+        let http = Http::new(url);
+        let provider = Arc::new(Provider::new(http));
+        // Test tx to call `nonce()` on the Treasure mailbox
+        let tx = TypedTransaction::Eip1559(Eip1559TransactionRequest {
+            // the `from` field is None in prod, and gas estimation should be robust to this
+            from: None,
+            to: Some(NameOrAddress::Address(
+                Address::from_str("0x6bD0A2214797Bc81e0b006F7B74d6221BcD8cb6E").unwrap(),
+            )),
+            data: Some(Bytes::from(vec![0xaf, 0xfe, 0xd0, 0xe0])),
+            ..Default::default()
+        });
+        // Require a parsing success
+        let _response = zksync_estimate_fee(provider, &tx).await.unwrap();
     }
 }

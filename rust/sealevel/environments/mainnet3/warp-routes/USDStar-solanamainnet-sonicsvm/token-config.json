@@ -1,0 +1,17 @@
+{
+  "solanamainnet": {
+    "type": "collateral",
+    "decimals": 6,
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
+    "interchainSecurityModule": "NtVfGz6mMXe17Jy8Mt8pvStgwFbGKHkSvxPeWn1FMNu",
+    "token": "BenJy1n3WTx9mTjEvy63e8Q1j4RqUc6E4VBMz3ir4Wo6"
+  },
+  "sonicsvm": {
+    "type": "synthetic",
+    "decimals": 6,
+    "name": "USD Star",
+    "symbol": "USD*",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/63ae6c0a0415d480c00880e64ec8a9c3724b4e37/deployments/warp_routes/USD*/metadata.json",
+    "interchainGasPaymaster": "7VResHbw6jRVUa8qfD6e1cbzGmErcLGwgx4o7mLhZief"
+  }
+}

@@ -2,7 +2,13 @@ import { expect } from 'chai';
 
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { ChainMetadata, isValidChainMetadata } from './chainMetadataTypes.js';
+import {
+  ChainDisabledReason,
+  ChainMetadata,
+  ChainStatus,
+  EthJsonRpcBlockParameterTag,
+  isValidChainMetadata,
+} from './chainMetadataTypes.js';
 
 const minimalSchema: ChainMetadata = {
   chainId: 5,
@@ -62,6 +68,35 @@ describe('ChainMetadataSchema', () => {
         grpcUrls: [],
       }),
     ).to.eq(true);
+
+    expect(
+      isValidChainMetadata({
+        ...minimalSchema,
+        blocks: {
+          confirmations: 1,
+          reorgPeriod: EthJsonRpcBlockParameterTag.Finalized,
+        },
+      }),
+    ).to.eq(true);
+
+    expect(
+      isValidChainMetadata({
+        ...minimalSchema,
+        availability: {
+          status: ChainStatus.Live,
+        },
+      }),
+    ).to.eq(true);
+
+    expect(
+      isValidChainMetadata({
+        ...minimalSchema,
+        availability: {
+          status: ChainStatus.Disabled,
+          reasons: [ChainDisabledReason.Deprecated],
+        },
+      }),
+    ).to.eq(true);
   });
 
   it('Rejects invalid schemas', () => {
@@ -106,6 +141,16 @@ describe('ChainMetadataSchema', () => {
         ...minimalSchema,
         protocol: ProtocolType.Cosmos,
         chainId: 'string-id',
+      }),
+    ).to.eq(false);
+
+    expect(
+      isValidChainMetadata({
+        ...minimalSchema,
+        availability: {
+          status: ChainStatus.Disabled,
+          reasons: [],
+        },
       }),
     ).to.eq(false);
   });

@@ -7,14 +7,6 @@
       "isProxy": false
     }
   ],
-  "alfajores": [
-    {
-      "name": "HelloWorld",
-      "address": "0x4D1d8394cBb445A75aE63fDd24421A353B73FF25",
-      "constructorArguments": "000000000000000000000000ef9f292fcebc3848bf4bb92a96a04f9ecbb78e590000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": false
-    }
-  ],
   "sepolia": [
     {
       "name": "HelloWorld",

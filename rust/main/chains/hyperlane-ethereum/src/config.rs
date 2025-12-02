@@ -1,5 +1,13 @@
-use hyperlane_core::{config::OperationBatchConfig, U256};
+use ethers::providers::Middleware;
+use ethers_core::types::{BlockId, BlockNumber};
 use url::Url;
+
+use hyperlane_core::{
+    config::OpSubmissionConfig, utils::hex_or_base58_or_bech32_to_h256, ChainCommunicationError,
+    ChainResult, ReorgPeriod, H256, U256,
+};
+
+static BATCH_CONTRACT_ADDRESS_DEFAULT: &str = "0xcA11bde05977b3631167028862bE2a173976CA11";
 
 /// Ethereum RPC connection configuration
 #[derive(Debug, Clone)]
@@ -26,15 +34,45 @@ pub enum RpcConnectionConf {
     },
 }
 
+impl Default for RpcConnectionConf {
+    fn default() -> Self {
+        RpcConnectionConf::HttpFallback { urls: vec![] }
+    }
+}
+
 /// Ethereum connection configuration
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Default)]
 pub struct ConnectionConf {
     /// RPC connection configuration
     pub rpc_connection: RpcConnectionConf,
     /// Transaction overrides to use when sending transactions.
     pub transaction_overrides: TransactionOverrides,
     /// Operation batching configuration
-    pub operation_batch: OperationBatchConfig,
+    pub op_submission_config: OpSubmissionConfig,
+}
+
+impl ConnectionConf {
+    /// Returns the RPC urls for this connection configuration
+    #[allow(clippy::panic)]
+    pub fn rpc_urls(&self) -> Vec<Url> {
+        use RpcConnectionConf::{Http, HttpFallback, HttpQuorum, Ws};
+
+        match &self.rpc_connection {
+            HttpQuorum { urls } | HttpFallback { urls } => urls.clone(),
+            Http { url } => vec![url.clone()],
+            Ws { .. } => panic!("Websocket connection is not supported"),
+        }
+    }
+
+    /// Returns the address of the contract which batches operations.
+    pub fn batch_contract_address(&self) -> H256 {
+        self.op_submission_config
+            .batch_contract_address
+            .unwrap_or_else(|| {
+                hex_or_base58_or_bech32_to_h256(BATCH_CONTRACT_ADDRESS_DEFAULT)
+                    .expect("Invalid default batch contract address")
+            })
+    }
 }
 
 /// Ethereum transaction overrides.
@@ -51,4 +89,75 @@ pub struct TransactionOverrides {
     pub max_fee_per_gas: Option<U256>,
     /// Max priority fee per gas to use for EIP-1559 transactions.
     pub max_priority_fee_per_gas: Option<U256>,
+
+    /// Min gas price to use for Legacy transactions, in wei.
+    pub min_gas_price: Option<U256>,
+    /// Min fee per gas to use for EIP-1559 transactions.
+    pub min_fee_per_gas: Option<U256>,
+    /// Min priority fee per gas to use for EIP-1559 transactions.
+    pub min_priority_fee_per_gas: Option<U256>,
+
+    /// Gas price multiplier denominator to use for transactions, eg 110
+    pub gas_price_multiplier_denominator: Option<U256>,
+    /// Gas price multiplier numerator to use for transactions, eg 100
+    pub gas_price_multiplier_numerator: Option<U256>,
+    /// Gas price cap multiplier to bound escalated prices by newly estimated prices.
+    /// Default value is 3 if not specified.
+    pub gas_price_cap_multiplier: Option<U256>,
+
+    /// Gas price cap, in wei.
+    pub gas_price_cap: Option<U256>,
+    /// Gas limit cap, in wei.
+    pub gas_limit_cap: Option<U256>,
 }
+
+/// Ethereum reorg period
+#[derive(Copy, Clone, Debug)]
+pub enum EthereumReorgPeriod {
+    /// Number of blocks
+    Blocks(u32),
+    /// A block tag
+    Tag(BlockId),
+}
+
+impl TryFrom<&ReorgPeriod> for EthereumReorgPeriod {
+    type Error = ChainCommunicationError;
+
+    fn try_from(value: &ReorgPeriod) -> Result<Self, Self::Error> {
+        match value {
+            ReorgPeriod::None => Ok(EthereumReorgPeriod::Blocks(0)),
+            ReorgPeriod::Blocks(blocks) => Ok(EthereumReorgPeriod::Blocks(blocks.get())),
+            ReorgPeriod::Tag(tag) => {
+                let tag = match tag.as_str() {
+                    "latest" => BlockNumber::Latest,
+                    "finalized" => BlockNumber::Finalized,
+                    "safe" => BlockNumber::Safe,
+                    "earliest" => BlockNumber::Earliest,
+                    "pending" => BlockNumber::Pending,
+                    _ => return Err(ChainCommunicationError::InvalidReorgPeriod(value.clone())),
+                };
+                Ok(EthereumReorgPeriod::Tag(tag.into()))
+            }
+        }
+    }
+}
+
+impl EthereumReorgPeriod {
+    /// Converts the reorg period into a block id
+    pub async fn into_block_id<M: Middleware + 'static>(
+        &self,
+        provider: &M,
+    ) -> ChainResult<BlockId> {
+        let block_id = match self {
+            EthereumReorgPeriod::Blocks(_) => {
+                (crate::get_finalized_block_number(provider, self).await? as u64).into()
+            }
+            // no need to fetch the block number for the `tag`
+            EthereumReorgPeriod::Tag(tag) => *tag,
+        };
+        Ok(block_id)
+    }
+}
+
+#[cfg(test)]
+mod tests;

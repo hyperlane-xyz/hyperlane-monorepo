@@ -4,3 +4,14 @@ export enum Contexts {
   ReleaseCandidate = 'rc',
   Neutron = 'neutron',
 }
+
+function isValidContext(context: string): context is Contexts {
+  return Object.values(Contexts).includes(context as Contexts);
+}
+
+export function mustBeValidContext(context: string): Contexts {
+  if (!isValidContext(context)) {
+    throw new Error(`Invalid context: ${context}`);
+  }
+  return context as Contexts;
+}

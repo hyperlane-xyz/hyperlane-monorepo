@@ -2,7 +2,7 @@ export function median(a: number[]): number {
   const sorted = a.slice().sort();
   const mid = Math.floor(sorted.length / 2);
   const median =
-    sorted.length % 2 == 0 ? (sorted[mid] + sorted[mid + 1]) / 2 : sorted[mid];
+    sorted.length % 2 == 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
   return median;
 }
 

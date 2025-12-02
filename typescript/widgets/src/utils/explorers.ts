@@ -1,6 +1,8 @@
 import type { MultiProvider } from '@hyperlane-xyz/sdk';
 import { fetchWithTimeout } from '@hyperlane-xyz/utils';
 
+import { widgetLogger } from '../logger.js';
+
 export interface ExplorerQueryResponse<R> {
   status: string;
   message: string;
@@ -29,7 +31,7 @@ export async function queryExplorer<P>(
     throw new Error(`No URL found for explorer for chain ${chainName}`);
 
   let url = `${baseUrl}/${path}`;
-  console.debug('Querying explorer url:', url);
+  widgetLogger.debug('Querying explorer url:', url);
 
   if (apiKey) {
     url += `&apikey=${apiKey}`;
@@ -76,7 +78,7 @@ export async function queryExplorerForBlock(
   );
   if (!block?.number || parseInt(block.number.toString()) < 0) {
     const msg = 'Invalid block result';
-    console.error(msg, JSON.stringify(block), path);
+    widgetLogger.error(msg, JSON.stringify(block), path);
     throw new Error(msg);
   }
   return block;

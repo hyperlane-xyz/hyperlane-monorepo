@@ -16,10 +16,8 @@ pragma solidity >=0.8.0;
 // ============ Internal Imports ============
 
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
-import {Message} from "../../libs/Message.sol";
-import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {AbstractMessageIdAuthorizedIsm} from "./AbstractMessageIdAuthorizedIsm.sol";
-
+import {TypeCasts} from "../../libs/TypeCasts.sol";
 // ============ External Imports ============
 import {CrossChainEnabledOptimism} from "@openzeppelin/contracts/crosschain/optimism/CrossChainEnabledOptimism.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
@@ -49,7 +47,7 @@ contract OPStackIsm is
     // ============ Internal function ============
 
     /**
-     * @notice Check if sender is authorized to message `verifyMessageId`.
+     * @notice Check if sender is authorized to message `preVerifyMessage`.
      */
     function _isAuthorized() internal view override returns (bool) {
         return

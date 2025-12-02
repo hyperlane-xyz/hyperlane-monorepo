@@ -16,8 +16,7 @@ import { keyFunderConfig } from './funding.js';
 import { helloWorld } from './helloworld.js';
 import { igp } from './igp.js';
 import { infrastructure } from './infrastructure.js';
-import { bridgeAdapterConfigs, relayerConfig } from './liquidityLayer.js';
-import { ethereumChainOwners } from './owners.js';
+import { chainOwners } from './owners.js';
 import { supportedChainNames } from './supportedChainNames.js';
 import { checkWarpDeployConfig } from './warp/checkWarpDeploy.js';
 
@@ -32,15 +31,18 @@ export const environment: EnvironmentConfig = {
     role: Role = Role.Deployer,
     useSecrets?: boolean,
     chains?: ChainName[],
-  ) =>
-    getMultiProviderForRole(
+  ) => {
+    const providerChains =
+      chains && chains.length > 0 ? chains : supportedChainNames;
+    return getMultiProviderForRole(
       environmentName,
-      chains && chains.length > 0 ? chains : supportedChainNames,
-      await getRegistry(useSecrets),
+      providerChains,
+      await getRegistry(useSecrets, providerChains),
       context,
       role,
       undefined,
-    ),
+    );
+  },
   getKeys: (
     context: Contexts = Contexts.Hyperlane,
     role: Role = Role.Deployer,
@@ -48,13 +50,9 @@ export const environment: EnvironmentConfig = {
   agents,
   core,
   igp,
-  owners: ethereumChainOwners,
+  owners: chainOwners,
   infra: infrastructure,
   helloWorld,
   keyFunderConfig,
   checkWarpDeployConfig,
-  liquidityLayerConfig: {
-    bridgeAdapters: bridgeAdapterConfigs,
-    relayer: relayerConfig,
-  },
 };

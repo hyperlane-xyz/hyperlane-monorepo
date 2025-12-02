@@ -54,7 +54,7 @@ contract MerkleTreeHook is AbstractPostDispatchHook, MailboxClient, Indexed {
 
     /// @inheritdoc IPostDispatchHook
     function hookType() external pure override returns (uint8) {
-        return uint8(IPostDispatchHook.Types.MERKLE_TREE);
+        return uint8(IPostDispatchHook.HookTypes.MERKLE_TREE);
     }
 
     // ============ Internal Functions ============

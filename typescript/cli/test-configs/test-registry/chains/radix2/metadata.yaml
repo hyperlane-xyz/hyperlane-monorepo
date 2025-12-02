@@ -1,0 +1,27 @@
+bech32Prefix: loc
+blockExplorers:
+  - apiUrl: https://radix-local.com/api
+    family: other
+    name: Radix Local Explorer
+    url: https://radix-local.com/explorer
+blocks:
+  confirmations: 0
+  estimateBlockTime: 5
+  reorgPeriod: 0
+chainId: 240
+displayName: Radix2
+domainId: 1421493354
+gatewayUrls:
+  - http: http://127.0.0.1:5308
+name: radix2
+nativeToken:
+  decimals: 18
+  denom: resource_rdx1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxradxrd
+  name: Radix
+  symbol: XRD
+protocol: radix
+restPort: 3333
+rpcPort: 3333
+rpcUrls:
+  - http: http://127.0.0.1:3333/core
+technicalStack: other

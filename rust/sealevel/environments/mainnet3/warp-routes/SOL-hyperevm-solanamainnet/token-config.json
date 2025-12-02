@@ -1,0 +1,15 @@
+{
+  "hyperevm": {
+    "type": "synthetic",
+    "name": "Solana",
+    "symbol": "SOL",
+    "decimals": 9,
+    "foreignDeployment": "0x96029bcf706FAC4176492F4a05f63f7d23cE78fb"
+  },
+  "solanamainnet": {
+    "type": "native",
+    "decimals": 9,
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
+    "owner": "BNGDJ1h9brgt6FFVd8No1TVAH48Fp44d7jkuydr1URwJ"
+  }
+}

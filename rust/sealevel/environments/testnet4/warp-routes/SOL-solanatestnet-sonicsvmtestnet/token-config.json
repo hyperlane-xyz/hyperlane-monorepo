@@ -1,0 +1,14 @@
+{
+  "solanatestnet": {
+    "type": "native",
+    "decimals": 9,
+    "interchainGasPaymaster": "hBHAApi5ZoeCYHqDdCKkCzVKmBdwywdT3hMqe327eZB",
+    "owner": "6DjHX6Ezjpq3zZMZ8KsqyoFYo1zPSDoiZmLLkxD4xKXS"
+  },
+  "sonicsvmtestnet": {
+    "type": "native",
+    "decimals": 9,
+    "interchainGasPaymaster": "9Nq8bJdER4criKNYtkKt3WJDA2LjzHYCH11xKy53fX9",
+    "owner": "6DjHX6Ezjpq3zZMZ8KsqyoFYo1zPSDoiZmLLkxD4xKXS"
+  }
+}

@@ -4,7 +4,9 @@
 #![warn(missing_docs)]
 #![deny(unsafe_code)]
 #![allow(unknown_lints)] // TODO: `rustc` 1.80.1 clippy issue
-#![forbid(where_clauses_object_safety)]
+#![deny(clippy::unwrap_used, clippy::panic)]
+#![deny(clippy::arithmetic_side_effects)]
+
 extern crate core;
 
 pub use chain::*;

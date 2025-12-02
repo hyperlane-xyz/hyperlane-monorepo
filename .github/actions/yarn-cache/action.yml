@@ -1,0 +1,51 @@
+name: 'Yarn Cache'
+description: 'Cache yarn dependencies for faster installs'
+
+inputs:
+  cache-provider:
+    description: 'Choose cache provider: buildjet or github'
+    required: false
+    default: 'github'
+
+outputs:
+  cache-hit:
+    description: 'Whether there was a cache hit'
+    value: ${{ steps.buildjet-cache.outputs.cache-hit || steps.github-cache.outputs.cache-hit }}
+
+runs:
+  using: 'composite'
+  steps:
+    # Depot transparently redirects GitHub Actions cache to their own for extra speed.
+    # But this is not available for non-depot runners.
+    # So we default to github, and expect the workflow to set cache-provider=buildjet if needed.
+    # https://depot.dev/docs/github-actions/overview#faster-caching
+    - name: Determine Cache Provider
+      id: determine-cache
+      shell: bash
+      run: echo "cache-provider=${{ inputs.cache-provider }}" >> $GITHUB_ENV
+
+    - name: Cache (Buildjet)
+      id: buildjet-cache
+      if: env.cache-provider == 'buildjet'
+      uses: buildjet/cache@v4
+      with:
+        path: |
+          **/node_modules
+          .yarn/cache
+          .yarn/install-state.gz
+        key: ${{ runner.os }}-yarn-4.5.1-cache-${{ hashFiles('./yarn.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-yarn-4.5.1-cache-
+
+    - name: Cache (GitHub)
+      id: github-cache
+      if: env.cache-provider == 'github'
+      uses: actions/cache@v4
+      with:
+        path: |
+          **/node_modules
+          .yarn/cache
+          .yarn/install-state.gz
+        key: ${{ runner.os }}-yarn-4.5.1-cache-${{ hashFiles('./yarn.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-yarn-4.5.1-cache-

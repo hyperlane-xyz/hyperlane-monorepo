@@ -1,21 +1,28 @@
-pub(crate) mod sequence_aware;
-
 use hyperlane_core::{
     Delivery, HyperlaneDomainProtocol, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion,
 };
+
+pub(crate) mod sequence_aware;
 pub(crate) use sequence_aware::ForwardBackwardSequenceAwareSyncCursor;
 
 pub(crate) mod rate_limited;
 pub(crate) use rate_limited::RateLimitedContractSyncCursor;
 
+pub(crate) mod metrics;
+pub(crate) use metrics::CursorMetrics;
+
+/// CursorType
 pub enum CursorType {
+    /// Sequence aware cursor
     SequenceAware,
+    /// Rate limited cursor
     RateLimited,
 }
 
 // H512 * 30k =~ 2MB per origin chain
 const TX_ID_CHANNEL_CAPACITY: Option<usize> = Some(30_000);
 
+/// Indexable cursor
 pub trait Indexable {
     /// Returns the configured cursor type of this type for the given domain, (e.g. `SequenceAware` or `RateLimited`)
     fn indexing_cursor(domain: HyperlaneDomainProtocol) -> CursorType;
@@ -24,6 +31,8 @@ pub trait Indexable {
     fn broadcast_channel_size() -> Option<usize> {
         None
     }
+    /// Returns the name of the type for metrics.
+    fn name() -> &'static str;
 }
 
 impl Indexable for HyperlaneMessage {
@@ -33,12 +42,20 @@ impl Indexable for HyperlaneMessage {
             HyperlaneDomainProtocol::Fuel => todo!(),
             HyperlaneDomainProtocol::Sealevel => CursorType::SequenceAware,
             HyperlaneDomainProtocol::Cosmos => CursorType::SequenceAware,
+            HyperlaneDomainProtocol::Starknet => CursorType::SequenceAware,
+            HyperlaneDomainProtocol::CosmosNative => CursorType::SequenceAware,
+            HyperlaneDomainProtocol::Radix => CursorType::SequenceAware,
+            HyperlaneDomainProtocol::Aleo => CursorType::SequenceAware,
         }
     }
 
     // Only broadcast txids from the message indexing task
     fn broadcast_channel_size() -> Option<usize> {
         TX_ID_CHANNEL_CAPACITY
+    }
+
+    fn name() -> &'static str {
+        "hyperlane_message"
     }
 }
 
@@ -49,7 +66,15 @@ impl Indexable for InterchainGasPayment {
             HyperlaneDomainProtocol::Fuel => todo!(),
             HyperlaneDomainProtocol::Sealevel => CursorType::SequenceAware,
             HyperlaneDomainProtocol::Cosmos => CursorType::RateLimited,
+            HyperlaneDomainProtocol::Starknet => CursorType::RateLimited,
+            HyperlaneDomainProtocol::CosmosNative => CursorType::RateLimited,
+            HyperlaneDomainProtocol::Radix => CursorType::SequenceAware,
+            HyperlaneDomainProtocol::Aleo => CursorType::SequenceAware,
         }
+    }
+
+    fn name() -> &'static str {
+        "interchain_gas_payment"
     }
 }
 
@@ -60,7 +85,15 @@ impl Indexable for MerkleTreeInsertion {
             HyperlaneDomainProtocol::Fuel => todo!(),
             HyperlaneDomainProtocol::Sealevel => CursorType::SequenceAware,
             HyperlaneDomainProtocol::Cosmos => CursorType::SequenceAware,
+            HyperlaneDomainProtocol::Starknet => CursorType::SequenceAware,
+            HyperlaneDomainProtocol::CosmosNative => CursorType::SequenceAware,
+            HyperlaneDomainProtocol::Radix => CursorType::SequenceAware,
+            HyperlaneDomainProtocol::Aleo => CursorType::SequenceAware,
         }
+    }
+
+    fn name() -> &'static str {
+        "merkle_tree_insertion"
     }
 }
 
@@ -71,6 +104,14 @@ impl Indexable for Delivery {
             HyperlaneDomainProtocol::Fuel => todo!(),
             HyperlaneDomainProtocol::Sealevel => CursorType::SequenceAware,
             HyperlaneDomainProtocol::Cosmos => CursorType::RateLimited,
+            HyperlaneDomainProtocol::Starknet => CursorType::RateLimited,
+            HyperlaneDomainProtocol::CosmosNative => CursorType::RateLimited,
+            HyperlaneDomainProtocol::Radix => CursorType::SequenceAware,
+            HyperlaneDomainProtocol::Aleo => CursorType::SequenceAware,
         }
+    }
+
+    fn name() -> &'static str {
+        "delivery"
     }
 }

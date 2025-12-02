@@ -11,6 +11,8 @@ import { Address, HexString, Numberish, assert } from '@hyperlane-xyz/utils';
 import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 
 import {
+  CosmJsNativeProvider,
+  CosmJsNativeTransaction,
   CosmJsProvider,
   CosmJsTransaction,
   CosmJsWasmProvider,
@@ -18,8 +20,12 @@ import {
   EthersV5Provider,
   EthersV5Transaction,
   ProviderType,
+  RadixProvider,
+  RadixTransaction,
   SolanaWeb3Provider,
   SolanaWeb3Transaction,
+  StarknetJsProvider,
+  StarknetJsTransaction,
   TypedProvider,
   TypedTransaction,
   ViemProvider,
@@ -84,7 +90,7 @@ export async function estimateTransactionFeeViem({
     ...transaction.transaction,
     blockNumber: undefined,
     account: sender as `0x${string}`,
-  });
+  } as any); // Cast to silence overly-protective type enforcement from viem here
   const feeData = await provider.provider.estimateFeesPerGas();
   return computeEvmTxFee(
     gasUnits,
@@ -222,6 +228,55 @@ export async function estimateTransactionFeeCosmJsWasm({
   });
 }
 
+export async function estimateTransactionFeeCosmJsNative({
+  transaction,
+  provider,
+  estimatedGasPrice,
+  senderAddress,
+  senderPubKey,
+}: {
+  transaction: CosmJsNativeTransaction;
+  provider: CosmJsNativeProvider;
+  estimatedGasPrice: Numberish;
+  senderAddress: Address;
+  senderPubKey: HexString;
+}): Promise<TransactionFeeEstimate> {
+  const client = await provider.provider;
+
+  return client.estimateTransactionFee({
+    transaction: transaction.transaction,
+    estimatedGasPrice: estimatedGasPrice.toString(),
+    senderAddress,
+    senderPubKey,
+  });
+}
+
+// Starknet does not support gas estimation without starknet account
+// TODO: Figure out a way to inject starknet account
+export async function estimateTransactionFeeStarknet({
+  transaction: _transaction,
+  provider: _provider,
+  sender: _sender,
+}: {
+  transaction: StarknetJsTransaction;
+  provider: StarknetJsProvider;
+  sender: Address;
+}): Promise<TransactionFeeEstimate> {
+  return { gasUnits: 0, gasPrice: 0, fee: 0 };
+}
+
+export async function estimateTransactionFeeRadix({
+  transaction,
+  provider,
+}: {
+  transaction: RadixTransaction;
+  provider: RadixProvider;
+}): Promise<TransactionFeeEstimate> {
+  return provider.provider.estimateTransactionFee({
+    transaction: transaction.transaction,
+  });
+}
+
 export function estimateTransactionFee({
   transaction,
   provider,
@@ -279,6 +334,34 @@ export function estimateTransactionFee({
       estimatedGasPrice,
       sender,
       senderPubKey,
+    });
+  } else if (
+    transaction.type === ProviderType.CosmJsNative &&
+    provider.type === ProviderType.CosmJsNative
+  ) {
+    const { transactionOverrides } = chainMetadata;
+    const estimatedGasPrice = transactionOverrides?.gasPrice as Numberish;
+    assert(estimatedGasPrice, 'gasPrice required for CosmJS gas estimation');
+    assert(senderPubKey, 'senderPubKey required for CosmJS gas estimation');
+    return estimateTransactionFeeCosmJsNative({
+      transaction,
+      provider,
+      estimatedGasPrice,
+      senderAddress: sender,
+      senderPubKey,
+    });
+  } else if (
+    transaction.type === ProviderType.Starknet &&
+    provider.type === ProviderType.Starknet
+  ) {
+    return estimateTransactionFeeStarknet({ transaction, provider, sender });
+  } else if (
+    transaction.type === ProviderType.Radix &&
+    provider.type === ProviderType.Radix
+  ) {
+    return estimateTransactionFeeRadix({
+      transaction,
+      provider,
     });
   } else {
     throw new Error(

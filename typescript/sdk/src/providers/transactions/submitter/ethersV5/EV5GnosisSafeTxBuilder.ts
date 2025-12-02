@@ -1,9 +1,9 @@
+import SafeApiKit from '@safe-global/api-kit';
+import Safe from '@safe-global/protocol-kit';
 import { SafeTransactionData } from '@safe-global/safe-core-sdk-types';
 
 import { assert } from '@hyperlane-xyz/utils';
 
-// prettier-ignore
-// @ts-ignore
 import { getSafe, getSafeService } from '../../../../utils/gnosisSafe.js';
 import { MultiProvider } from '../../../MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../../../ProviderType.js';
@@ -30,8 +30,8 @@ export class EV5GnosisSafeTxBuilder extends EV5GnosisSafeTxSubmitter {
   constructor(
     public readonly multiProvider: MultiProvider,
     public readonly props: EV5GnosisSafeTxBuilderProps,
-    safe: any,
-    safeService: any,
+    safe: Safe.default,
+    safeService: SafeApiKit.default,
   ) {
     super(multiProvider, props, safe, safeService);
   }
@@ -53,23 +53,29 @@ export class EV5GnosisSafeTxBuilder extends EV5GnosisSafeTxSubmitter {
     return new EV5GnosisSafeTxBuilder(multiProvider, props, safe, safeService);
   }
 
+  // No requirement to get the next nonce from the Safe service.
+  // When proposing the JSON file, the Safe UI will automatically update the nonce.
+  // So we just return 0 and save ourselves from the unreliability of Safe APIs.
+  protected async getNextNonce(): Promise<number> {
+    return 0;
+  }
+
   /**
    * Creates a Gnosis Safe transaction builder object using the PopulatedTransactions
    *
    * @param txs - An array of populated transactions
    */
   public async submit(...txs: AnnotatedEV5Transaction[]): Promise<any> {
+    const chainId = this.multiProvider.getChainId(this.props.chain);
     const transactions: SafeTransactionData[] = await Promise.all(
       txs.map(
         async (tx: AnnotatedEV5Transaction) =>
-          (
-            await this.createSafeTransaction(tx)
-          ).data,
+          (await this.createSafeTransaction(tx)).data,
       ),
     );
     return {
       version: this.props.version,
-      chainId: this.multiProvider.getChainId(this.props.chain).toString(),
+      chainId: chainId.toString(),
       meta: {},
       transactions,
     };

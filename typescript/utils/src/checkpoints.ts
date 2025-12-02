@@ -7,7 +7,7 @@ import {
   SignatureLike,
 } from './types.js';
 
-function isValidSignature(signature: any): signature is SignatureLike {
+export function isValidSignature(signature: any): signature is SignatureLike {
   return typeof signature === 'string'
     ? utils.isHexString(signature)
     : utils.isHexString(signature.r) &&

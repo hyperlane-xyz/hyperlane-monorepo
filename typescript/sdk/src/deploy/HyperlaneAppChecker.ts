@@ -1,4 +1,4 @@
-import { utils } from 'ethers';
+import { Contract, utils } from 'ethers';
 
 import {
   Ownable,
@@ -10,6 +10,8 @@ import {
   ProtocolType,
   assert,
   eqAddress,
+  isZeroishAddress,
+  objFilter,
   objMap,
   promiseObjAll,
   rootLogger,
@@ -48,11 +50,7 @@ export abstract class HyperlaneAppChecker<
 
   async check(chainsToCheck?: ChainName[]): Promise<void[]> {
     // Get all EVM chains from config
-    const evmChains = Object.keys(this.configMap).filter(
-      (chain) =>
-        this.multiProvider.getChainMetadata(chain).protocol ===
-        ProtocolType.Ethereum,
-    );
+    const evmChains = this.getEvmChains();
 
     // Mark any EVM chains that are not deployed
     const appChains = this.app.chains();
@@ -82,6 +80,14 @@ export abstract class HyperlaneAppChecker<
     );
   }
 
+  getEvmChains(): ChainName[] {
+    return Object.keys(this.configMap).filter(
+      (chain) =>
+        this.multiProvider.getChainMetadata(chain).protocol ===
+        ProtocolType.Ethereum,
+    );
+  }
+
   addViolation(violation: CheckerViolation): void {
     if (violation.type === ViolationType.BytecodeMismatch) {
       rootLogger.warn({ violation }, `Found bytecode mismatch. Ignoring...`);
@@ -100,7 +106,11 @@ export abstract class HyperlaneAppChecker<
       this.app.getContracts(chain).proxyAdmin?.address;
     const provider = this.multiProvider.getProvider(chain);
 
-    const contracts = this.app.getContracts(chain);
+    const contracts = objFilter(
+      this.app.getContracts(chain),
+      (_name, contract: Contract): contract is Contract =>
+        !isZeroishAddress(contract.address),
+    );
     await promiseObjAll(
       objMap(contracts, async (name, contract) => {
         if (await isProxy(provider, contract.address)) {
@@ -133,7 +143,7 @@ export abstract class HyperlaneAppChecker<
             const actualProxyAdminOwner =
               await actualProxyAdminContract.owner();
             const expectedOwner = this.getOwner(
-              actualProxyAdminOwner,
+              owner,
               'proxyAdmin',
               ownableOverrides,
             );

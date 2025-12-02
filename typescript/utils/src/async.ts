@@ -1,4 +1,9 @@
 import { rootLogger } from './logging.js';
+import { assert } from './validation.js';
+
+interface Recoverable {
+  isRecoverable?: boolean;
+}
 
 /**
  * Return a promise that resolves in ms milliseconds.
@@ -78,29 +83,38 @@ export async function fetchWithTimeout(
 }
 
 /**
- * Retries an async function if it raises an exception,
- *   using exponential backoff.
+ * Retries an async function with exponential backoff.
+ * Always executes at least once, even if `attempts` is 0 or negative.
+ * Stops retrying if `error.isRecoverable` is set to false.
  * @param runner callback to run
- * @param attempts max number of attempts
- * @param baseRetryMs base delay between attempts
+ * @param attempts max number of attempts (defaults to 5, minimum 1)
+ * @param baseRetryMs base delay between attempts in milliseconds (defaults to 50ms)
  * @returns runner return value
  */
 export async function retryAsync<T>(
-  runner: () => T,
+  runner: () => Promise<T> | T,
   attempts = 5,
   baseRetryMs = 50,
 ) {
-  let saveError;
-  for (let i = 0; i < attempts; i++) {
+  // Guard against invalid attempts - always try at least once
+  attempts = attempts > 0 ? attempts : 1;
+
+  let i = 0;
+  for (;;) {
     try {
       const result = await runner();
       return result;
-    } catch (error) {
-      saveError = error;
-      await sleep(baseRetryMs * 2 ** i);
+    } catch (e) {
+      const error = e as Error & Recoverable;
+
+      // Non-recoverable only if the flag is present _and_ set to false
+      if (error.isRecoverable === false || ++i >= attempts) {
+        throw error;
+      }
+
+      await sleep(baseRetryMs * 2 ** (i - 1));
     }
   }
-  throw saveError;
 }
 
 /**
@@ -159,6 +173,7 @@ export async function concurrentMap<A, B>(
   mapFn: (val: A, idx: number) => Promise<B>,
 ): Promise<B[]> {
   let res: B[] = [];
+  assert(concurrency > 0, 'concurrency must be greater than 0');
   for (let i = 0; i < xs.length; i += concurrency) {
     const remaining = xs.length - i;
     const sliceSize = Math.min(remaining, concurrency);

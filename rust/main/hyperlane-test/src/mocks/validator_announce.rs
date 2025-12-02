@@ -59,7 +59,11 @@ impl ValidatorAnnounce for MockValidatorAnnounceContract {
     async fn announce(&self, announcement: SignedType<Announcement>) -> ChainResult<TxOutcome> {
         self._announce(announcement)
     }
-    async fn announce_tokens_needed(&self, announcement: SignedType<Announcement>) -> Option<U256> {
+    async fn announce_tokens_needed(
+        &self,
+        announcement: SignedType<Announcement>,
+        _chain_signer: H256,
+    ) -> Option<U256> {
         self._announce_tokens_needed(announcement)
     }
 }

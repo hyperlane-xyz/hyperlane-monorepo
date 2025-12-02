@@ -4,11 +4,14 @@ import { Address, rootLogger } from '@hyperlane-xyz/utils';
 import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 
 import {
+  CosmJsNativeProvider,
   CosmJsProvider,
   CosmJsWasmProvider,
   EthersV5Provider,
   ProviderType,
+  RadixProvider,
   SolanaWeb3Provider,
+  StarknetJsProvider,
 } from './ProviderType.js';
 import { protocolToDefaultProviderBuilder } from './providerBuilders.js';
 
@@ -25,9 +28,14 @@ export async function isRpcHealthy(
     return isSolanaWeb3ProviderHealthy(provider.provider, metadata);
   else if (
     provider.type === ProviderType.CosmJsWasm ||
-    provider.type === ProviderType.CosmJs
+    provider.type === ProviderType.CosmJs ||
+    provider.type === ProviderType.CosmJsNative
   )
     return isCosmJsProviderHealthy(provider.provider, metadata);
+  else if (provider.type === ProviderType.Starknet)
+    return isStarknetJsProviderHealthy(provider.provider, metadata);
+  else if (provider.type === ProviderType.Radix)
+    return isRadixProviderHealthy(provider.provider, metadata);
   else
     throw new Error(
       `Unsupported provider type ${provider.type}, new health check required`,
@@ -74,7 +82,10 @@ export async function isSolanaWeb3ProviderHealthy(
 }
 
 export async function isCosmJsProviderHealthy(
-  provider: CosmJsProvider['provider'] | CosmJsWasmProvider['provider'],
+  provider:
+    | CosmJsProvider['provider']
+    | CosmJsWasmProvider['provider']
+    | CosmJsNativeProvider['provider'],
   metadata: ChainMetadata,
 ): Promise<boolean> {
   const readyProvider = await provider;
@@ -82,4 +93,33 @@ export async function isCosmJsProviderHealthy(
   if (!blockNumber || blockNumber < 0) return false;
   rootLogger.debug(`Block number is okay for ${metadata.name}`);
   return true;
+}
+
+export async function isStarknetJsProviderHealthy(
+  provider: StarknetJsProvider['provider'],
+  metadata: ChainMetadata,
+): Promise<boolean> {
+  const blockNumber = await provider.getBlockNumber();
+  if (!blockNumber || blockNumber < 0) return false;
+  rootLogger.debug(`Block number is okay for ${metadata.name}`);
+  return true;
+}
+
+export async function isRadixProviderHealthy(
+  provider: RadixProvider['provider'],
+  metadata: ChainMetadata,
+): Promise<boolean> {
+  try {
+    const healthy = await provider.isHealthy();
+    if (healthy) {
+      rootLogger.debug(`Gateway is healthy for ${metadata.name}`);
+    }
+    return healthy;
+  } catch (err) {
+    rootLogger.warn(
+      `Radix gateway health check threw for ${metadata.name}`,
+      err as Error,
+    );
+    return false;
+  }
 }

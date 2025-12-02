@@ -1,14 +1,19 @@
 export {
+  hexToRadixCustomPrefix,
   addressToByteHexString,
   addressToBytes,
   addressToBytes32,
   addressToBytesCosmos,
   addressToBytesEvm,
   addressToBytesSol,
+  addressToBytesStarknet,
+  addressToBytesRadix,
   bytes32ToAddress,
   bytesToAddressCosmos,
   bytesToAddressEvm,
   bytesToAddressSol,
+  bytesToAddressStarknet,
+  bytesToAddressRadix,
   bytesToProtocolAddress,
   capitalizeAddress,
   convertToProtocolAddress,
@@ -17,37 +22,53 @@ export {
   eqAddressCosmos,
   eqAddressEvm,
   eqAddressSol,
+  eqAddressStarknet,
+  eqAddressRadix,
   getAddressProtocolType,
   isAddress,
   isAddressCosmos,
+  isCosmosIbcDenomAddress,
   isAddressEvm,
   isAddressSealevel,
+  isAddressStarknet,
+  isAddressRadix,
   isValidAddress,
   isValidAddressCosmos,
   isValidAddressEvm,
   isValidAddressSealevel,
+  isValidAddressStarknet,
+  isValidAddressRadix,
+  isPrivateKeyEvm,
   isValidTransactionHash,
   isValidTransactionHashCosmos,
   isValidTransactionHashEvm,
   isValidTransactionHashSealevel,
+  isValidTransactionHashStarknet,
+  isValidTransactionHashRadix,
   isZeroishAddress,
   normalizeAddress,
   normalizeAddressCosmos,
   normalizeAddressEvm,
   normalizeAddressSealevel,
+  normalizeAddressStarknet,
+  normalizeAddressRadix,
+  padBytesToLength,
   shortenAddress,
   strip0x,
+  ZERO_ADDRESS_HEX_32,
 } from './addresses.js';
 export {
   addBufferToGasLimit,
   convertDecimals,
+  convertDecimalsToIntegerString,
+  convertToScaledAmount,
   eqAmountApproximate,
   fromWei,
   fromWeiRounded,
   toWei,
   tryParseAmount,
 } from './amount.js';
-export { chunk, exclude, randomElement } from './arrays.js';
+export { chunk, exclude, randomElement, arrayEqual } from './arrays.js';
 export {
   concurrentMap,
   fetchWithTimeout,
@@ -75,8 +96,9 @@ export {
   isS3Checkpoint,
   isS3CheckpointWithId,
 } from './checkpoints.js';
+export { normalizeConfig, sortArraysInConfig } from './config.js';
 export { domainHash } from './domains.js';
-export { safelyAccessEnvVar } from './env.js';
+export { safelyAccessEnvVar, inCIMode, inKubernetes } from './env.js';
 export { canonizeId, evmId } from './ids.js';
 export {
   LogFormat,
@@ -90,6 +112,7 @@ export {
   rootLogger,
   setRootLogger,
 } from './logging.js';
+export type { Logger } from './logging.js';
 export { mean, median, randomInt, stdDev, sum } from './math.js';
 export {
   formatMessage,
@@ -102,13 +125,18 @@ export {
   parseLegacyMultisigIsmMetadata,
 } from './multisig.js';
 export {
+  ObjectDiff,
   ValueOf,
   arrayToObject,
   deepCopy,
   deepEquals,
+  deepFind,
+  diffObjMerge,
+  keepOnlyDiffObjects,
   invertKeysAndValues,
   isObjEmpty,
   isObject,
+  mustGet,
   objFilter,
   objKeys,
   objLength,
@@ -116,12 +144,22 @@ export {
   objMapEntries,
   objMerge,
   objOmit,
+  objOmitKeys,
   pick,
   promiseObjAll,
   stringifyObject,
+  transformObj,
+  TransformObjectTransformer,
+  sortArraysInObject,
+  objDiff,
 } from './objects.js';
 export { Result, failure, success } from './result.js';
-export { difference, setEquality, symmetricDifference } from './sets.js';
+export {
+  difference,
+  intersection,
+  setEquality,
+  symmetricDifference,
+} from './sets.js';
 export {
   errorToString,
   fromHexString,
@@ -129,6 +167,7 @@ export {
   streamToString,
   toHexString,
   toTitleCase,
+  toUpperCamelCase,
   trimToLength,
 } from './strings.js';
 export { isNullish, isNumeric } from './typeof.js';
@@ -143,6 +182,7 @@ export {
   Checkpoint,
   CheckpointWithId,
   Domain,
+  EvmChainId,
   HexString,
   MerkleProof,
   MessageStatus,
@@ -157,9 +197,11 @@ export {
   S3CheckpointWithId,
   SignatureLike,
   TokenCaip19Id,
+  ValidatorMetadata,
   WithAddress,
 } from './types.js';
-export { isHttpsUrl, isUrl } from './url.js';
+export { isHttpsUrl, isRelativeUrl, isUrl } from './url.js';
 export { assert } from './validation.js';
 export { BaseValidator, ValidatorConfig } from './validator.js';
 export { tryParseJsonOrYaml } from './yaml.js';
+export { createServiceLogger } from './logging.js';

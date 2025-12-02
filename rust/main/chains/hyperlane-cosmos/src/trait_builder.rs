@@ -1,17 +1,20 @@
 use std::str::FromStr;
 
+use cometbft_rpc::client::CompatMode;
 use derive_new::new;
 use url::Url;
 
-use hyperlane_core::{config::OperationBatchConfig, ChainCommunicationError, FixedPointNumber};
+use hyperlane_core::{
+    config::OpSubmissionConfig, ChainCommunicationError, FixedPointNumber, NativeToken,
+};
 
 /// Cosmos connection configuration
 #[derive(Debug, Clone)]
 pub struct ConnectionConf {
-    /// The GRPC url to connect to
-    grpc_urls: Vec<Url>,
+    /// The GRPC urls to connect to
+    pub grpc_urls: Vec<Url>,
     /// The RPC url to connect to
-    rpc_url: String,
+    rpc_urls: Vec<Url>,
     /// The chain ID
     chain_id: String,
     /// The human readable address prefix for the chains using bech32.
@@ -27,9 +30,14 @@ pub struct ConnectionConf {
     /// bech32 with the appropriate length.
     contract_address_bytes: usize,
     /// Operation batching configuration
-    pub operation_batch: OperationBatchConfig,
+    pub op_submission_config: OpSubmissionConfig,
     /// Native Token
     native_token: NativeToken,
+    /// Gas Multiplier
+    gas_multiplier: f64,
+    /// RPC Compatibility Mode
+    /// This is useful to support different tendermin/cometbft spec versions
+    pub compat_mode: CompatMode,
 }
 
 /// Untyped cosmos amount
@@ -60,15 +68,6 @@ impl TryFrom<RawCosmosAmount> for CosmosAmount {
     }
 }
 
-/// Chain native token denomination and number of decimal places
-#[derive(Debug, Default, Clone, serde::Serialize, serde::Deserialize)]
-pub struct NativeToken {
-    /// The number of decimal places in token which can be expressed by denomination
-    pub decimals: u32,
-    /// Denomination of the token
-    pub denom: String,
-}
-
 /// An error type when parsing a connection configuration.
 #[derive(thiserror::Error, Debug)]
 pub enum ConnectionConfError {
@@ -95,9 +94,9 @@ impl ConnectionConf {
         self.grpc_urls.clone()
     }
 
-    /// Get the RPC url
-    pub fn get_rpc_url(&self) -> String {
-        self.rpc_url.clone()
+    /// Get the RPC urls
+    pub fn get_rpc_urls(&self) -> Vec<Url> {
+        self.rpc_urls.clone()
     }
 
     /// Get the chain ID
@@ -130,29 +129,42 @@ impl ConnectionConf {
         self.contract_address_bytes
     }
 
+    /// Get the gas multiplier which might be different for each chain
+    pub fn get_gas_multiplier(&self) -> f64 {
+        self.gas_multiplier
+    }
+
     /// Create a new connection configuration
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         grpc_urls: Vec<Url>,
-        rpc_url: String,
+        rpc_urls: Vec<Url>,
         chain_id: String,
         bech32_prefix: String,
         canonical_asset: String,
         minimum_gas_price: RawCosmosAmount,
         contract_address_bytes: usize,
-        operation_batch: OperationBatchConfig,
+        op_submission_config: OpSubmissionConfig,
         native_token: NativeToken,
-    ) -> Self {
-        Self {
+        gas_multiplier: f64,
+        compat_mode: Option<&str>,
+    ) -> Result<Self, String> {
+        let compat_mode = compat_mode
+            .map(|s| CompatMode::from_str(s).map_err(|e| e.to_string()))
+            .transpose()?
+            .unwrap_or_default();
+        Ok(Self {
             grpc_urls,
-            rpc_url,
+            rpc_urls,
             chain_id,
             bech32_prefix,
             canonical_asset,
             gas_price: minimum_gas_price,
             contract_address_bytes,
-            operation_batch,
+            op_submission_config,
             native_token,
-        }
+            gas_multiplier,
+            compat_mode,
+        })
     }
 }

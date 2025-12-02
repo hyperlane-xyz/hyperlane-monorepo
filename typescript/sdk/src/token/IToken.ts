@@ -47,6 +47,11 @@ export const TokenConfigSchema = z.object({
     .array(TokenConnectionConfigSchema)
     .optional()
     .describe('The list of token connections (e.g. warp or IBC)'),
+  coinGeckoId: z
+    .string()
+    .optional()
+    .describe('The CoinGecko id of the token, used for price lookups'),
+  scale: ZUint.lt(256).optional().describe('The scaling factor of the token'),
 });
 
 export type TokenArgs = Omit<
@@ -75,6 +80,7 @@ export interface IToken extends TokenArgs {
 
   isNft(): boolean;
   isNative(): boolean;
+  isHypNative(): boolean;
   isHypToken(): boolean;
   isIbcToken(): boolean;
   isMultiChainToken(): boolean;

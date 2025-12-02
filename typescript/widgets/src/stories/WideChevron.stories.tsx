@@ -1,16 +1,16 @@
-import { ComponentMeta, ComponentStory } from '@storybook/react';
+import { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
 
 import { ColorPalette } from '../color.js';
-import { WideChevron } from '../icons/WideChevron.js';
+import { WideChevronIcon } from '../icons/WideChevron.js';
 
 export default {
   title: 'WideChevron',
-  component: WideChevron,
-} as ComponentMeta<typeof WideChevron>;
+  component: WideChevronIcon,
+} as Meta<typeof WideChevronIcon>;
 
-const Template: ComponentStory<typeof WideChevron> = (args) => (
-  <WideChevron {...args} />
+const Template: StoryFn<typeof WideChevronIcon> = (args) => (
+  <WideChevronIcon {...args} />
 );
 
 export const BlueEastRounded = Template.bind({});

@@ -7,7 +7,6 @@
 pub mod accounts;
 pub mod error;
 pub mod instruction;
-pub mod message;
 pub mod processor;
 
 pub use spl_associated_token_account;

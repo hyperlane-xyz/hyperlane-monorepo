@@ -1,4 +1,3 @@
-/* eslint-disable no-restricted-imports */
 import { expect } from 'chai';
 import { existsSync, readFileSync, readdirSync } from 'fs';
 
@@ -51,7 +50,7 @@ const fixtures: Fixture<MultisigMetadata>[] = files
     return { decoded, encoded: contents.encoded };
   });
 
-// eslint-disable-next-line jest/no-disabled-tests
+// FIXME: migrate to mocha rules: eslint-disable-next-line jest/no-disabled-tests
 describe.skip('MultisigMetadataBuilder', () => {
   fixtures.forEach((fixture, i) => {
     it(`should encode fixture ${i}`, () => {

@@ -10,7 +10,7 @@ use hyperlane_core::{
     Announcement, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneProvider, SignedType, TxOutcome, ValidatorAnnounce, H160, H256, U256,
 };
-use tracing::{instrument, log::trace};
+use tracing::{instrument, trace};
 
 use crate::{
     interfaces::i_validator_announce::{
@@ -25,7 +25,7 @@ where
     M: Middleware,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
@@ -92,7 +92,16 @@ where
             announcement.value.storage_location,
             serialized_signature.into(),
         );
-        fill_tx_gas_params(tx, self.provider.clone(), &self.conn.transaction_overrides).await
+        fill_tx_gas_params(
+            tx,
+            self.provider.clone(),
+            &self.conn.transaction_overrides,
+            &self.domain,
+            true,
+            // pass an empty value as the cache
+            Default::default(),
+        )
+        .await
     }
 }
 
@@ -141,16 +150,18 @@ where
     }
 
     #[instrument(ret, skip(self))]
-    async fn announce_tokens_needed(&self, announcement: SignedType<Announcement>) -> Option<U256> {
-        let validator = announcement.value.validator;
-        let eth_h160: ethers::types::H160 = validator.into();
-
+    async fn announce_tokens_needed(
+        &self,
+        announcement: SignedType<Announcement>,
+        chain_signer: H256,
+    ) -> Option<U256> {
         let Ok(contract_call) = self.announce_contract_call(announcement).await else {
             trace!("Unable to get announce contract call");
             return None;
         };
 
-        let Ok(balance) = self.provider.get_balance(eth_h160, None).await else {
+        let chain_signer_h160 = ethers::types::H160::from(chain_signer);
+        let Ok(balance) = self.provider.get_balance(chain_signer_h160, None).await else {
             trace!("Unable to query balance");
             return None;
         };

@@ -4,6 +4,7 @@ import {
   MultisigIsmConfig,
   buildMultisigIsmConfigs,
   defaultMultisigConfigs,
+  multisigConfigToIsmConfig,
 } from '@hyperlane-xyz/sdk';
 
 import { DeployEnvironment } from '../src/config/environment.js';
@@ -40,8 +41,5 @@ export const multisigIsm = (
       ? rcMultisigIsmConfigs
       : defaultMultisigConfigs;
 
-  return {
-    ...configs[remote],
-    type,
-  };
+  return multisigConfigToIsmConfig(type, configs[remote]);
 };

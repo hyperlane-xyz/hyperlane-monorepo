@@ -4,6 +4,10 @@ import { randomBytes } from 'ethers/lib/utils.js';
 import sinon from 'sinon';
 
 import {
+  CCIPHook,
+  CCIPHook__factory,
+  DefaultHook,
+  DefaultHook__factory,
   IPostDispatchHook,
   IPostDispatchHook__factory,
   MerkleTreeHook,
@@ -19,10 +23,13 @@ import { WithAddress } from '@hyperlane-xyz/utils';
 
 import { TestChainName, test1 } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { randomAddress } from '../test/testUtils.js';
 
 import { EvmHookReader } from './EvmHookReader.js';
 import {
+  CCIPHookConfig,
   HookType,
+  MailboxDefaultHookConfig,
   MerkleTreeHookConfig,
   OnchainHookType,
   OpStackHookConfig,
@@ -35,8 +42,6 @@ describe('EvmHookReader', () => {
   let multiProvider: MultiProvider;
   let sandbox: sinon.SinonSandbox;
 
-  const generateRandomAddress = () => ethers.Wallet.createRandom().address;
-
   beforeEach(() => {
     sandbox = sinon.createSandbox();
     multiProvider = MultiProvider.createTestMultiProvider();
@@ -48,8 +53,8 @@ describe('EvmHookReader', () => {
   });
 
   it('should derive merkle tree config correctly', async () => {
-    const mockAddress = generateRandomAddress();
-    const mockOwner = generateRandomAddress();
+    const mockAddress = randomAddress();
+    const mockOwner = randomAddress();
 
     // Mocking the connect method + returned what we need from contract object
     const mockContract = {
@@ -78,9 +83,9 @@ describe('EvmHookReader', () => {
   });
 
   it('should derive protocol fee hook correctly', async () => {
-    const mockAddress = generateRandomAddress();
-    const mockOwner = generateRandomAddress();
-    const mockBeneficiary = generateRandomAddress();
+    const mockAddress = randomAddress();
+    const mockOwner = randomAddress();
+    const mockBeneficiary = randomAddress();
 
     // Mocking the connect method + returned what we need from contract object
     const mockContract = {
@@ -116,8 +121,8 @@ describe('EvmHookReader', () => {
   });
 
   it('should derive pausable config correctly', async () => {
-    const mockAddress = generateRandomAddress();
-    const mockOwner = generateRandomAddress();
+    const mockAddress = randomAddress();
+    const mockOwner = randomAddress();
     const mockPaused = randomBytes(1)[0] % 2 === 0;
 
     // Mocking the connect method + returned what we need from contract object
@@ -149,11 +154,41 @@ describe('EvmHookReader', () => {
     expect(config).to.deep.equal(hookConfig);
   });
 
-  // eslint-disable-next-line @typescript-eslint/no-empty-function
+  it('should derive mailbox default hook config correctly', async () => {
+    const mockAddress = randomAddress();
+    const mockMailbox = randomAddress();
+
+    // Mocking the connect method + returned what we need from contract object
+    const mockContract = {
+      hookType: sandbox.stub().resolves(OnchainHookType.MAILBOX_DEFAULT_HOOK),
+      mailbox: sandbox.stub().resolves(mockMailbox),
+    };
+    sandbox
+      .stub(DefaultHook__factory, 'connect')
+      .returns(mockContract as unknown as DefaultHook);
+    sandbox
+      .stub(IPostDispatchHook__factory, 'connect')
+      .returns(mockContract as unknown as IPostDispatchHook);
+
+    const expectedConfig: WithAddress<MailboxDefaultHookConfig> = {
+      address: mockAddress,
+      type: HookType.MAILBOX_DEFAULT,
+    };
+
+    // top-level method infers hook type
+    const hookConfig = await evmHookReader.deriveHookConfig(mockAddress);
+    expect(hookConfig).to.deep.equal(expectedConfig);
+
+    // should get same result if we call the specific method for the hook type
+    const config =
+      await evmHookReader.deriveMailboxDefaultHookConfig(mockAddress);
+    expect(config).to.deep.equal(hookConfig);
+  });
+
   it('should derive op stack config correctly', async () => {
-    const mockAddress = generateRandomAddress();
-    const mockOwner = generateRandomAddress();
-    const l1Messenger = generateRandomAddress();
+    const mockAddress = randomAddress();
+    const mockOwner = randomAddress();
+    const l1Messenger = randomAddress();
 
     // Mocking the connect method + returned what we need from contract object
     const mockContract = {
@@ -186,9 +221,39 @@ describe('EvmHookReader', () => {
     expect(config).to.deep.equal(hookConfig);
   });
 
+  it('should derive CCIPHook configuration correctly', async () => {
+    const ccipHookAddress = randomAddress();
+    const destinationDomain = test1.domainId;
+    const ism = randomAddress();
+
+    // Mock the CCIPHook contract
+    const mockContract = {
+      hookType: sandbox.stub().resolves(OnchainHookType.ID_AUTH_ISM),
+      destinationDomain: sandbox.stub().resolves(destinationDomain),
+      ism: sandbox.stub().resolves(ism),
+    };
+
+    sandbox
+      .stub(CCIPHook__factory, 'connect')
+      .returns(mockContract as unknown as CCIPHook);
+    sandbox
+      .stub(IPostDispatchHook__factory, 'connect')
+      .returns(mockContract as unknown as IPostDispatchHook);
+
+    const config = await evmHookReader.deriveCcipConfig(ccipHookAddress);
+
+    const expectedConfig: WithAddress<CCIPHookConfig> = {
+      address: ccipHookAddress,
+      type: HookType.CCIP,
+      destinationChain: TestChainName.test1,
+    };
+
+    expect(config).to.deep.equal(expectedConfig);
+  });
+
   it('should throw if derivation fails', async () => {
-    const mockAddress = generateRandomAddress();
-    const mockOwner = generateRandomAddress();
+    const mockAddress = randomAddress();
+    const mockOwner = randomAddress();
 
     // Mocking the connect method + returned what we need from contract object
     const mockContract = {

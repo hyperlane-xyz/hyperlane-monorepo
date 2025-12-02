@@ -12,10 +12,13 @@ import {
 import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import {
+  CosmJsNativeProvider,
   CosmJsProvider,
   CosmJsWasmProvider,
   EthersV5Provider,
+  RadixProvider,
   SolanaWeb3Provider,
+  StarknetJsProvider,
   TypedProvider,
 } from '../providers/ProviderType.js';
 import { ChainMap, ChainName } from '../types.js';
@@ -68,6 +71,14 @@ export class BaseCosmosAdapter extends BaseAppAdapter {
   }
 }
 
+export class BaseCosmNativeAdapter extends BaseAppAdapter {
+  public readonly protocol: ProtocolType = ProtocolType.CosmosNative;
+
+  public getProvider(): CosmJsNativeProvider['provider'] {
+    return this.multiProvider.getCosmJsNativeProvider(this.chainName);
+  }
+}
+
 export class BaseSealevelAdapter extends BaseAppAdapter {
   public readonly protocol: ProtocolType = ProtocolType.Sealevel;
 
@@ -79,19 +90,49 @@ export class BaseSealevelAdapter extends BaseAppAdapter {
     seeds: Array<string | Buffer>,
     programId: string | PublicKey,
   ): PublicKey {
-    const [pda] = PublicKey.findProgramAddressSync(
+    return this.derivePdaWithBump(seeds, programId)[0];
+  }
+
+  static derivePdaWithBump(
+    seeds: Array<string | Buffer>,
+    programId: string | PublicKey,
+  ): [PublicKey, number] {
+    const [pda, bump] = PublicKey.findProgramAddressSync(
       seeds.map((s) => Buffer.from(s)),
       new PublicKey(programId),
     );
-    return pda;
+    return [pda, bump];
   }
 
-  // An dynamic alias for static method above for convenience
+  // Dynamic aliases for static methods above for convenience
   derivePda(
     seeds: Array<string | Buffer>,
     programId: string | PublicKey,
   ): PublicKey {
     return BaseSealevelAdapter.derivePda(seeds, programId);
+  }
+
+  derivePdaWithBump(
+    seeds: Array<string | Buffer>,
+    programId: string | PublicKey,
+  ): [PublicKey, number] {
+    return BaseSealevelAdapter.derivePdaWithBump(seeds, programId);
+  }
+}
+
+export class BaseStarknetAdapter extends BaseAppAdapter {
+  public readonly protocol: ProtocolType = ProtocolType.Starknet;
+
+  public getProvider(): StarknetJsProvider['provider'] {
+    return this.multiProvider.getStarknetProvider(this.chainName);
+  }
+}
+
+export class BaseRadixAdapter extends BaseAppAdapter {
+  public readonly protocol: ProtocolType = ProtocolType.Radix;
+
+  public getProvider(): RadixProvider['provider'] {
+    return this.multiProvider.getRadixProvider(this.chainName);
   }
 }
 

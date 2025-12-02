@@ -41,6 +41,19 @@ pub enum Instruction {
     Claim,
 }
 
+impl Instruction {
+    /// Deserializes an instruction from a slice.
+    pub fn from_instruction_data(data: &[u8]) -> Result<Self, ProgramError> {
+        Self::try_from_slice(data).map_err(|_| ProgramError::InvalidInstructionData)
+    }
+
+    /// Serializes an instruction into a vector of bytes.
+    pub fn into_instruction_data(self) -> Result<Vec<u8>, ProgramError> {
+        self.try_to_vec()
+            .map_err(|err| ProgramError::BorshIoError(err.to_string()))
+    }
+}
+
 /// Initializes an IGP.
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub struct InitIgp {

@@ -10,7 +10,7 @@ export const keyFunderConfig: KeyFunderConfig<
 > = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-    tag: '463b35b-20241011-161139',
+    tag: '032b3b0-20251105-200907',
   },
   // We're currently using the same deployer key as testnet2.
   // To minimize nonce clobbering we offset the key funder cron
@@ -24,41 +24,48 @@ export const keyFunderConfig: KeyFunderConfig<
     [Contexts.Hyperlane]: [Role.Relayer, Role.Kathy],
     [Contexts.ReleaseCandidate]: [Role.Relayer, Role.Kathy],
   },
+  chainsToSkip: ['hyperliquidevmtestnet', 'megaethtestnet'],
   // desired balance config
   desiredBalancePerChain: {
-    alfajores: '5',
     arbitrumsepolia: '0.1',
-    arcadiatestnet: '0.1',
+    arcadiatestnet2: '0.1',
+    auroratestnet: '0.05',
+    basecamptestnet: '0.05',
     basesepolia: '0.1',
-    berabartio: '0.1',
     bsctestnet: '5',
-    camptestnet: '0.1',
+    carrchaintestnet: '100',
+    celestiatestnet: '0',
+    celosepolia: '0.5',
     citreatestnet: '0.001',
-    connextsepolia: '1',
-    ecotestnet: '0.02',
+    cotitestnet: '1',
     // no funding for solana
     eclipsetestnet: '0',
-    formtestnet: '0.1',
     fuji: '5',
-    holesky: '5',
-    // hyperliquidevmtestnet: '0.1',
-    odysseytestnet: '0.1',
+    giwasepolia: '0.1',
+    hyperliquidevmtestnet: '0.1',
+    incentivtestnet: '1',
+    kyvetestnet: '0',
+    megaethtestnet: '0.01',
+    milkywaytestnet: '0',
+    modetestnet: '0.05',
+    monadtestnet: '0.1',
+    neuratestnet: '0.1',
+    nobletestnet: '0',
     optimismsepolia: '0.1',
-    // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
-    // plumetestnet: '0.2',
+    paradexsepolia: '0',
     polygonamoy: '0.2',
+    radixtestnet: '0',
     scrollsepolia: '1',
     sepolia: '5',
-    // no funding for solana
+    starknetsepolia: '0',
+    // no funding for SVM chains
     solanatestnet: '0',
-    soneiumtestnet: '0.1',
-    sonictestnet: '1',
-    suavetoliman: '0.1',
-    superpositiontestnet: '1',
-    unichaintestnet: '0.1',
+    somniatestnet: '10',
+    // no funding for SVM chains
+    sonicsvmtestnet: '0',
+    subtensortestnet: '0.1',
   },
   desiredKathyBalancePerChain: {
-    alfajores: '1',
     arbitrumsepolia: '0',
     basesepolia: '0',
     bsctestnet: '1',
@@ -67,36 +74,34 @@ export const keyFunderConfig: KeyFunderConfig<
     // no funding for solana
     eclipsetestnet: '0',
     fuji: '1',
-    holesky: '0',
     optimismsepolia: '0',
-    // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
-    // plumetestnet: '0.05',
+    paradexsepolia: '0',
     polygonamoy: '0',
     scrollsepolia: '1',
     sepolia: '1',
+    starknetsepolia: '0',
     // no funding for solana
     solanatestnet: '0',
     superpositiontestnet: '0',
   },
+  desiredRebalancerBalancePerChain: {},
   igpClaimThresholdPerChain: {
-    alfajores: '1',
     arbitrumsepolia: '0.05',
     basesepolia: '0.05',
     bsctestnet: '1',
     connextsepolia: '0.1',
     ecotestnet: '0.01',
+    paradexsepolia: '0', // paradexsepolia doesn't have IGP currently
     // no funding for solana
     eclipsetestnet: '0',
     fuji: '1',
-    holesky: '1',
     optimismsepolia: '0.05',
-    // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
-    // plumetestnet: '0.1',
     polygonamoy: '0.1',
     scrollsepolia: '0.1',
     sepolia: '1',
     // no funding for solana
     solanatestnet: '0',
+    starknetsepolia: '0', // starknetsepolia doesn't have IGP currently
     superpositiontestnet: '0.1',
   },
 };
