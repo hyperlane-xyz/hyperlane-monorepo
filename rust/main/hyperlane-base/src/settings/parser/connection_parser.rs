@@ -321,6 +321,15 @@ pub fn build_kaspa_connection_conf(
         .map(|s| s.trim().to_string())
         .collect();
 
+    let validator_ism_addresses: Vec<String> = chain
+        .chain(err)
+        .get_key("validatorIsmAddresses")
+        .parse_string()
+        .end()?
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .collect();
+
     let validator_pubks: Vec<String> = chain
         .chain(err)
         .get_key("validatorPubsKaspa")
@@ -551,6 +560,7 @@ pub fn build_kaspa_connection_conf(
             wrpc_urls,
             rest_urls,
             validator_hosts,
+            validator_ism_addresses,
             validator_pubks,
             kaspa_escrow_key_source,
             grpc_urls,

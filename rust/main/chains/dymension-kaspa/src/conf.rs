@@ -53,6 +53,7 @@ pub use dym_kas_kms::AwsKeyConfig;
 #[derive(Debug, Clone)]
 pub struct RelayerStuff {
     pub validator_hosts: Vec<String>,
+    pub validator_ism_addresses: Vec<String>,
     pub deposit_timings: RelayerDepositTimings,
     pub tx_fee_multiplier: f64,
     pub max_sweep_inputs: Option<usize>,
@@ -108,6 +109,7 @@ impl ConnectionConf {
         kaspa_urls_wrpc: Vec<String>,
         kaspa_urls_rest: Vec<Url>,
         validator_hosts: Vec<String>,
+        validator_ism_addresses: Vec<String>,
         validator_pub_keys: Vec<String>,
         kaspa_escrow_key_source: Option<KaspaEscrowKeySource>,
         kaspa_urls_grpc: Vec<String>,
@@ -163,6 +165,7 @@ impl ConnectionConf {
                 let deposit_timings = kaspa_time_config.unwrap_or_default();
                 Some(RelayerStuff {
                     validator_hosts,
+                    validator_ism_addresses,
                     deposit_timings,
                     tx_fee_multiplier: kas_tx_fee_multiplier,
                     max_sweep_inputs, // None by default, only enforced if configured

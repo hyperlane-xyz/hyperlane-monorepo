@@ -2,12 +2,13 @@ use tonic::async_trait;
 
 use hyperlane_core::{
     rpc_clients::BlockNumberGetter, ChainCommunicationError, ChainResult, Signature,
-    SignedCheckpointWithMessageId,
+    SignedCheckpointWithMessageId, H160,
 };
 
 use bytes::Bytes;
 use eyre::Result;
 use reqwest::StatusCode;
+use std::str::FromStr;
 use tracing::{debug, error, info};
 
 use crate::ConnectionConf;
@@ -51,12 +52,22 @@ impl ValidatorsClient {
             .clone()
     }
 
-    async fn collect_with_threshold<T, F>(
+    fn ism_addresses(&self) -> Vec<String> {
+        self.conf
+            .relayer_stuff
+            .as_ref()
+            .unwrap()
+            .validator_ism_addresses
+            .clone()
+    }
+
+    async fn collect_with_threshold<T, F, V>(
         hosts: Vec<String>,
         metrics: Option<prometheus::HistogramVec>,
         request_type: &str,
         threshold: usize,
         request_fn: F,
+        validate_fn: Option<V>,
     ) -> ChainResult<Vec<T>>
     where
         T: Send + 'static,
@@ -64,14 +75,8 @@ impl ValidatorsClient {
             + Send
             + Sync
             + 'static,
+        V: Fn(usize, &String, &T) -> bool + Send + Sync + 'static,
     {
-        info!(
-            validators_count = hosts.len(),
-            threshold = threshold,
-            request_type = request_type,
-            "kaspa: collecting validator responses"
-        );
-
         let mut futures: FuturesUnordered<_> = hosts
             .iter()
             .enumerate()
@@ -103,49 +108,48 @@ impl ValidatorsClient {
         while let Some((index, host, result, duration)) = futures.next().await {
             match result {
                 Ok(value) => {
-                    info!(
-                        validator = ?host,
-                        validator_index = index,
-                        duration_ms = duration.as_millis(),
-                        request_type = request_type,
-                        "kaspa: validator response success"
-                    );
-                    successes.push((index, value));
+                    let valid = match &validate_fn {
+                        Some(validator) => validator(index, &host, &value),
+                        None => true,
+                    };
 
-                    if successes.len() >= threshold {
+                    if valid {
                         info!(
-                            collected = successes.len(),
-                            threshold = threshold,
-                            remaining = futures.len(),
+                            validator = ?host,
+                            validator_index = index,
+                            duration_ms = duration.as_millis(),
                             request_type = request_type,
-                            "kaspa: reached threshold, returning early"
+                            "kaspa: validator response success"
                         );
+                        successes.push((index, value));
 
-                        let request_type_owned = request_type.to_string();
-                        tokio::spawn(async move {
-                            while let Some((_, host, result, duration)) = futures.next().await {
-                                let status = if result.is_ok() { "success" } else { "failure" };
-                                debug!(
-                                    validator = ?host,
-                                    duration_ms = duration.as_millis(),
-                                    status = status,
-                                    request_type = %request_type_owned,
-                                    "kaspa: background validator response"
-                                );
-                                if let Err(e) = result {
-                                    error!(
-                                        validator = ?host,
-                                        error = ?e,
-                                        request_type = %request_type_owned,
-                                        "kaspa: background validator failed"
-                                    );
+                        if successes.len() >= threshold {
+                            info!(
+                                collected = successes.len(),
+                                threshold = threshold,
+                                remaining = futures.len(),
+                                request_type = request_type,
+                                "kaspa: reached threshold, returning early"
+                            );
+
+                            let request_type_owned = request_type.to_string();
+                            tokio::spawn(async move {
+                                while let Some((_, host, result, duration)) = futures.next().await {
+                                    let status = if result.is_ok() { "success" } else { "failure" };
+                                    if let Err(e) = result {
+                                        error!(
+                                            validator = ?host,
+                                            error = ?e,
+                                            request_type = %request_type_owned,
+                                            "kaspa: background validator failed"
+                                        );
+                                    }
                                 }
-                            }
-                        });
+                            });
 
-                        // Sort by index to preserve host order
-                        successes.sort_by_key(|(idx, _)| *idx);
-                        return Ok(successes.into_iter().map(|(_, v)| v).collect());
+                            successes.sort_by_key(|(idx, _)| *idx);
+                            return Ok(successes.into_iter().map(|(_, v)| v).collect());
+                        }
                     }
                 }
                 Err(e) => {
@@ -161,7 +165,6 @@ impl ValidatorsClient {
             }
         }
 
-        // All futures completed without reaching threshold
         Err(ChainCommunicationError::from_other_str(&format!(
             "collect {}: threshold={} but got only {} successes from {} validators",
             request_type,
@@ -203,14 +206,74 @@ impl ValidatorsClient {
         let threshold = self.multisig_threshold_hub_ism();
         let client = self.http_client.clone();
         let hosts = self.hosts();
+        let expected_addresses = self.ism_addresses();
         let metrics = self.metrics.clone();
         let fxg = fxg.clone();
 
-        Self::collect_with_threshold(hosts, metrics, "deposit", threshold, move |host| {
-            let client = client.clone();
-            let fxg = fxg.clone();
-            Box::pin(async move { request_validate_new_deposits(&client, host, &fxg).await })
-        })
+        let validator = if expected_addresses.is_empty() {
+            None
+        } else {
+            Some(
+                move |index: usize,
+                      host: &String,
+                      signed_checkpoint: &SignedCheckpointWithMessageId| {
+                    if let Some(expected) = expected_addresses.get(index) {
+                        match H160::from_str(expected) {
+                            Ok(expected_h160) => match signed_checkpoint.recover() {
+                                Ok(recovered_signer) => {
+                                    if recovered_signer != expected_h160 {
+                                        error!(
+                                            validator = ?host,
+                                            validator_index = index,
+                                            expected_signer = ?expected_h160,
+                                            actual_signer = ?recovered_signer,
+                                            "kaspa: signature verification failed - signer mismatch"
+                                        );
+                                        false
+                                    } else {
+                                        true
+                                    }
+                                }
+                                Err(e) => {
+                                    error!(
+                                        validator = ?host,
+                                        validator_index = index,
+                                        error = ?e,
+                                        "kaspa: failed to recover signer from signature"
+                                    );
+                                    false
+                                }
+                            },
+                            Err(e) => {
+                                error!(
+                                    validator = ?host,
+                                    validator_index = index,
+                                    expected_address = ?expected,
+                                    error = ?e,
+                                    "kaspa: failed to parse expected ISM address"
+                                );
+                                false
+                            }
+                        }
+                    } else {
+                        true
+                    }
+                },
+            )
+        };
+
+        Self::collect_with_threshold(
+            hosts,
+            metrics,
+            "deposit",
+            threshold,
+            move |host| {
+                let client = client.clone();
+                let fxg = fxg.clone();
+                Box::pin(async move { request_validate_new_deposits(&client, host, &fxg).await })
+            },
+            validator,
+        )
         .await
     }
 
@@ -224,11 +287,20 @@ impl ValidatorsClient {
         let metrics = self.metrics.clone();
         let fxg = fxg.clone();
 
-        Self::collect_with_threshold(hosts, metrics, "confirmation", threshold, move |host| {
-            let client = client.clone();
-            let fxg = fxg.clone();
-            Box::pin(async move { request_validate_new_confirmation(&client, host, &fxg).await })
-        })
+        Self::collect_with_threshold(
+            hosts,
+            metrics,
+            "confirmation",
+            threshold,
+            move |host| {
+                let client = client.clone();
+                let fxg = fxg.clone();
+                Box::pin(
+                    async move { request_validate_new_confirmation(&client, host, &fxg).await },
+                )
+            },
+            None::<fn(usize, &String, &Signature) -> bool>,
+        )
         .await
     }
 
@@ -238,13 +310,20 @@ impl ValidatorsClient {
         let client = self.http_client.clone();
         let metrics = self.metrics.clone();
 
-        Self::collect_with_threshold(hosts, metrics, "withdrawal", threshold, move |host| {
-            let client = client.clone();
-            let fxg = fxg.clone();
-            Box::pin(
-                async move { request_sign_withdrawal_bundle(&client, host, fxg.as_ref()).await },
-            )
-        })
+        Self::collect_with_threshold(
+            hosts,
+            metrics,
+            "withdrawal",
+            threshold,
+            move |host| {
+                let client = client.clone();
+                let fxg = fxg.clone();
+                Box::pin(async move {
+                    request_sign_withdrawal_bundle(&client, host, fxg.as_ref()).await
+                })
+            },
+            None::<fn(usize, &String, &Bundle) -> bool>,
+        )
         .await
     }
 
