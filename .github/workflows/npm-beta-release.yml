@@ -41,69 +41,48 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
-
-      - name: Get short SHA
-        id: sha
-        run: echo "short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-
-      - name: Get base version
-        id: version
-        run: |
-          BASE_VERSION=$(node -p "require('./typescript/sdk/package.json').version")
-          BETA_VERSION="${BASE_VERSION}-${{ inputs.snapshot_tag }}.${{ steps.sha.outputs.short }}"
-          echo "base=$BASE_VERSION" >> $GITHUB_OUTPUT
-          echo "beta=$BETA_VERSION" >> $GITHUB_OUTPUT
+          registry-url: 'https://registry.npmjs.org'
 
       - name: Check for changesets
-        id: changesets
         run: |
           CHANGESET_COUNT=$(find .changeset -name "*.md" ! -name "README.md" ! -name "config.json" 2>/dev/null | wc -l | tr -d ' ')
-          echo "count=$CHANGESET_COUNT" >> $GITHUB_OUTPUT
           if [ "$CHANGESET_COUNT" -eq 0 ]; then
-            echo "::warning::No pending changesets found. Beta releases require pending changeset files."
-            echo "To create a beta release, first add a changeset with: yarn changeset"
-          else
-            echo "Found $CHANGESET_COUNT changeset(s)"
+            echo "::error::No pending changesets found. Beta releases require pending changeset files."
+            echo ""
+            echo "To create a beta release:"
+            echo "1. Add a changeset: yarn changeset"
+            echo "2. Commit the changeset file"
+            echo "3. Run this workflow again"
+            exit 1
           fi
+          echo "Found $CHANGESET_COUNT changeset(s)"
 
       - name: Install dependencies
-        if: steps.changesets.outputs.count != '0'
         run: yarn install --immutable
 
       - name: Create snapshot versions
-        if: steps.changesets.outputs.count != '0'
-        run: yarn changeset version --snapshot ${{ inputs.snapshot_tag || 'beta' }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: yarn changeset version --snapshot ${{ inputs.snapshot_tag }}
 
-      # Need to install foundry for the build step. `hardhat-foundry` expects foundry to be installed.
-      - name: foundry-install
-        uses: foundry-rs/foundry-toolchain@v1
-      
-      # Install Soldeer dependencies
-      - name: Install Soldeer dependencies
-        run: forge soldeer install
-        working-directory: ./solidity
+      - name: Get snapshot version
+        id: version
+        run: |
+          SNAPSHOT_VERSION=$(node -p "require('./typescript/sdk/package.json').version")
+          echo "snapshot=$SNAPSHOT_VERSION" >> $GITHUB_OUTPUT
 
       - name: Build packages
-        if: steps.changesets.outputs.count != '0'
-        run: yarn build && yarn build:zk
+        run: yarn build
 
       - name: Publish beta packages
-        if: steps.changesets.outputs.count != '0'
-        run: |
-          echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> $HOME/.npmrc
-          yarn changeset publish --tag ${{ inputs.snapshot_tag || 'beta' }}
+        run: yarn changeset publish --tag ${{ inputs.snapshot_tag }} --no-git-tag
         env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
 
       - name: Summary
-        if: steps.changesets.outputs.count != '0'
         run: |
           echo "### Beta Release Published" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Version:** \`${{ steps.version.outputs.beta }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** \`${{ steps.version.outputs.snapshot }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**NPM Tag:** \`${{ inputs.snapshot_tag }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -112,15 +91,3 @@ jobs:
           echo "npm install @hyperlane-xyz/sdk@${{ inputs.snapshot_tag }}" >> $GITHUB_STEP_SUMMARY
           echo "npm install @hyperlane-xyz/cli@${{ inputs.snapshot_tag }}" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-
-      - name: No changesets summary
-        if: steps.changesets.outputs.count == '0'
-        run: |
-          echo "### No Beta Release" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "No pending changesets found. Beta releases require pending changeset files." >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "To create a beta release:" >> $GITHUB_STEP_SUMMARY
-          echo "1. Add a changeset: \`yarn changeset\`" >> $GITHUB_STEP_SUMMARY
-          echo "2. Commit the changeset file" >> $GITHUB_STEP_SUMMARY
-          echo "3. Run this workflow again" >> $GITHUB_STEP_SUMMARY

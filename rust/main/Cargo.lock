@@ -5889,6 +5889,7 @@ dependencies = [
  "futures",
  "hex 0.4.3",
  "hyperlane-core",
+ "hyperlane-metric",
  "hyperlane-operation-verifier",
  "hyperlane-warp-route",
  "indexmap 2.9.0",
