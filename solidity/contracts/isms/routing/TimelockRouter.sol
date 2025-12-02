@@ -28,78 +28,6 @@ import {TypeCasts} from "../../libs/TypeCasts.sol";
  * 1. Hook: On origin chain, sends message IDs to destination routers
  * 2. Router: On destination chain, receives message IDs and stores readyAt time
  * 3. ISM: On destination chain, verifies messages after the timelock window
- *
- * ## Timelock Security Model
- * TimelockRouter implements a pure timelock mechanism - messages cannot be processed
- * until a fixed time window has passed. This provides a window for off-chain watchers
- * to observe messages before they are delivered.
- *
- * ## Creating Optimistic Security via Threshold Aggregation
- * A complete optimistic system uses THRESHOLD-BASED aggregation to provide two
- * independent paths to finality:
- *
- * Structure: 1/2 aggregation of [2/2 aggregation of (pausable + timelock), finality proof]
- *
- * ```solidity
- * // 1. Deploy base components
- * TimelockRouter timelockRouter = new TimelockRouter(mailbox, 1 hours);
- * PausableIsm pausableIsm = new PausableIsm(watcherAddress);
- * MultisigIsm multisigIsm = new MultisigIsm(...); // or ZkProofIsm, any finality ISM
- *
- * // 2. Inner aggregation (2/2): BOTH pausable AND timelock must pass
- * address[] memory innerModules = new address[](2);
- * innerModules[0] = address(pausableIsm);      // Must not be paused
- * innerModules[1] = address(timelockRouter);   // Must pass timelock
- * uint8[] memory innerThresholds = new uint8[](1);
- * innerThresholds[0] = 2;  // Require BOTH (2 out of 2)
- * StaticAggregationIsm innerAgg = new StaticAggregationIsm(innerModules, innerThresholds[0]);
- *
- * // 3. Outer aggregation (1/2): EITHER optimistic path OR finality proof
- * address[] memory outerModules = new address[](2);
- * outerModules[0] = address(innerAgg);         // Fast optimistic path
- * outerModules[1] = address(multisigIsm);      // Slow finality path
- * uint8[] memory outerThresholds = new uint8[](1);
- * outerThresholds[0] = 1;  // Require EITHER (1 out of 2)
- * StaticAggregationIsm optimisticIsm = new StaticAggregationIsm(outerModules, outerThresholds[0]);
- *
- * // 4. Configure WarpRoute
- * warpRoute.setHook(address(timelockRouter));
- * warpRoute.setInterchainSecurityModule(address(optimisticIsm));
- * ```
- *
- * **How Dual-Path Optimistic Security Works:**
- *
- * Path 1 (Fast Optimistic): Inner aggregation passes if BOTH conditions met:
- *   - PausableISM.verify() passes (not paused)
- *   - TimelockRouter.verify() passes (timelock expired)
- *   Result: Message delivered after timelock, unless paused by watcher
- *
- * Path 2 (Slow Finality): Bypass optimistic layer entirely:
- *   - MultisigISM.verify() passes (valid signatures from validators)
- *   Result: Message delivered immediately with cryptographic proof
- *
- * Outer aggregation (1/2 threshold): Message passes if EITHER path succeeds
- *
- * **Benefits:**
- * - Normal case: Fast optimistic path (low cost, 1 hour latency)
- * - Emergency case: Slow finality path bypasses paused optimistic layer
- * - Redundancy: Two independent security mechanisms
- *
- * **Watcher Workflow:**
- * - Watchers monitor preverified messages during timelock window
- * - If fraud detected: watcher calls `pausableIsm.pause()`
- * - Paused messages cannot be processed (PausableISM.verify reverts)
- * - After investigation: watcher calls `pausableIsm.unpause()` or keeps paused
- *
- * ## Hook and ISM Wrapping
- * Through MailboxClient inheritance, TimelockRouter can be configured with:
- * - A wrapped hook: Set via `setHook()` to add additional post-dispatch behavior
- *   (e.g., gas payment with IGP, merkle tree indexing)
- * - A wrapped ISM: Set via `setInterchainSecurityModule()` to add additional verification
- *   (e.g., multisig verification, aggregation with other security modules)
- *
- * This allows TimelockRouter to serve as a composable timelock layer while
- * delegating to other hooks/ISMs for additional functionality.
  */
 contract TimelockRouter is
     Router,
@@ -228,21 +156,5 @@ contract TimelockRouter is
         }
 
         return true;
-    }
-
-    // ============ Owner Functions ============
-
-    /**
-     * @notice Manually preverify a message (emergency use only)
-     * @param messageId The message ID to preverify
-     */
-    function manuallyPreverifyMessage(bytes32 messageId) external onlyOwner {
-        require(
-            readyAt[messageId] == 0,
-            "TimelockRouter: message already preverified"
-        );
-        uint48 messageReadyAt = uint48(block.timestamp) + timelockWindow;
-        readyAt[messageId] = messageReadyAt;
-        emit MessageQueued(messageId, messageReadyAt);
     }
 }
