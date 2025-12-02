@@ -1,3 +1,4 @@
+import { TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
 import {
   ChainAddresses,
   createWarpRouteConfigId,
@@ -159,16 +160,6 @@ export const TEST_CHAIN_METADATA_PATH_BY_PROTOCOL: ProtocolChainMap<
       `${REGISTRY_PATH}/chains/${name}/metadata.yaml`,
   );
 }) as any;
-
-export type TestChainMetadata = ChainMetadata & {
-  rpcPort: number;
-  rpcUrl: string;
-  restPort: number;
-  // The ChainMetadata type does not define this property yet
-  gatewayUrls?: { http: string }[];
-  // Used for radix tests
-  packageAddress?: string;
-};
 
 export const TEST_CHAIN_METADATA_BY_PROTOCOL: ProtocolChainMap<
   typeof TEST_CHAIN_NAMES_BY_PROTOCOL,

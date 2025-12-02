@@ -287,12 +287,19 @@ jobs:
           # Determine final version based on release type
           # workflow_dispatch always creates pre-releases
           if [ "$IS_PRERELEASE" = "true" ]; then
-            # Pre-release: append suffix
+            # For prereleases, calculate the next version (like changesets does for NPM)
+            # This ensures prerelease versions reflect what the next release will be
+            # e.g., if current is 1.7.0, prerelease will be 1.8.0-preview.1 (not 1.7.0-preview.1)
+            OUTPUT=$(./rust/scripts/ci/determine-next-version.sh "$BASE_VERSION")
+            NEXT_VERSION=$(echo "$OUTPUT" | sed -n '1p')
+            echo "Calculated next version: $NEXT_VERSION (from base $BASE_VERSION)"
+
+            # Pre-release: append suffix to the NEXT version
             if [ -n "$PRERELEASE_SUFFIX" ]; then
               SUFFIX="$PRERELEASE_SUFFIX"
             else
               # Auto-generate preview.N
-              LAST_PREVIEW=$(git tag -l "agents-v${BASE_VERSION}-preview.*" | sort -V | tail -1)
+              LAST_PREVIEW=$(git tag -l "agents-v${NEXT_VERSION}-preview.*" | sort -V | tail -1)
               if [ -z "$LAST_PREVIEW" ]; then
                 SUFFIX="preview.1"
               else
@@ -300,7 +307,7 @@ jobs:
                 SUFFIX="preview.$((PREVIEW_NUM + 1))"
               fi
             fi
-            VERSION="${BASE_VERSION}-${SUFFIX}"
+            VERSION="${NEXT_VERSION}-${SUFFIX}"
             TITLE="Agents $VERSION (Pre-release)"
             PRERELEASE_FLAG="--prerelease"
             RELEASE_TYPE="Pre-release"

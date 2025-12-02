@@ -18,9 +18,12 @@ export function decodeIsmMetadata(
 
     case IsmType.MERKLE_ROOT_MULTISIG:
     case IsmType.MESSAGE_ID_MULTISIG:
+    case IsmType.STORAGE_MERKLE_ROOT_MULTISIG:
+    case IsmType.STORAGE_MESSAGE_ID_MULTISIG:
       return MultisigMetadataBuilder.decode(metadata, ism.type);
 
     case IsmType.AGGREGATION:
+    case IsmType.STORAGE_AGGREGATION:
       return AggregationMetadataBuilder.decode(metadata, { ...context, ism });
 
     case IsmType.ROUTING:

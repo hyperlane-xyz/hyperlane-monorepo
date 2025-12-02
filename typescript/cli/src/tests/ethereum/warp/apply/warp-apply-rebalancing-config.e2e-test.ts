@@ -7,7 +7,6 @@ import {
   MockEverclearAdapter,
 } from '@hyperlane-xyz/core';
 import {
-  ChainMetadata,
   EverclearCollateralTokenConfig,
   HypTokenRouterConfigMailboxOptionalSchema,
   TokenType,
@@ -60,8 +59,7 @@ describe('hyperlane warp apply owner update tests', async function () {
     coreConfigPath: DEFAULT_EVM_WARP_CORE_PATH,
   });
 
-  const chain3Metadata: ChainMetadata =
-    TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_3;
+  const chain3Metadata = TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_3;
   const chain3DomainId: number = chain3Metadata.domainId;
 
   let tokenChain2: ERC20Test;
@@ -178,7 +176,7 @@ describe('hyperlane warp apply owner update tests', async function () {
   });
 
   const addAndRemoveBridgeTestCases = () => {
-    const chain3Metadata: ChainMetadata =
+    const chain3Metadata =
       TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_3;
 
     return [
