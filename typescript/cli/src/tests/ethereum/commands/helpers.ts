@@ -1,4 +1,5 @@
 import { ethers } from 'ethers';
+import http from 'http';
 import path from 'path';
 import { $ } from 'zx';
 
@@ -28,6 +29,7 @@ import { Address, assert, inCIMode } from '@hyperlane-xyz/utils';
 import { getContext } from '../../../context/context.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { KeyBoardKeys, TestPromptAction } from '../../commands/helpers.js';
+import { TestChainMetadata } from '../../constants.js';
 import {
   ANVIL_KEY,
   REGISTRY_PATH,
@@ -424,4 +426,70 @@ export async function hyperlaneSubmit({
         --verbosity debug \
         ${strategyPath ? ['--strategy', strategyPath] : []} \
         --yes`;
+}
+
+/**
+ * Creates a mock Safe Transaction Service API server.
+ */
+export async function createMockSafeApi(
+  metadata: TestChainMetadata,
+  safeAddress: Address,
+  safeOwner: Address,
+  nonce: number,
+): Promise<{
+  server: ReturnType<typeof http.createServer>;
+  url: string;
+  close: () => Promise<void>;
+}> {
+  const serviceUrl = metadata.gnosisSafeTransactionServiceUrl;
+  assert(
+    serviceUrl,
+    `Safe service url is required for running mock SAFE service for chain ${metadata.name}`,
+  );
+  const port = new URL(serviceUrl).port;
+
+  const server = http.createServer((req, res) => {
+    const url = req.url || '';
+
+    if (url.includes('/safes/') && !url.includes('/delegates')) {
+      // Mock GET /api/v1/safes/{address}/ - getSafeInfo
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          address: safeAddress,
+          nonce,
+          threshold: 1,
+          owners: [safeOwner],
+          masterCopy: safeAddress,
+          modules: [],
+          version: '1.3.0',
+        }),
+      );
+    } else if (url.includes('/delegates')) {
+      // Mock GET /api/v1/safes/{address}/delegates/
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+
+      res.end(JSON.stringify({ results: [{ delegate: safeOwner }] }));
+    } else if (req.method === 'POST' && url.includes('/transactions')) {
+      // Mock POST /api/v1/transactions/ - proposeTransaction
+      res.writeHead(201, { 'Content-Type': 'application/json' });
+
+      res.end(JSON.stringify({ success: true }));
+    } else if (url.includes('/all-transactions/')) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+
+      res.end(JSON.stringify(nonce.toString()));
+    } else {
+      res.statusCode = 404;
+      res.end();
+    }
+  });
+
+  await new Promise<void>((resolve) => server.listen(port, resolve));
+
+  return {
+    server,
+    url: serviceUrl,
+    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+  };
 }
