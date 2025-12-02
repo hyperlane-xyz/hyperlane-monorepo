@@ -69,31 +69,6 @@ impl Drop for AleoStack {
     }
 }
 
-#[allow(dead_code)]
-pub fn download_aleo_program() -> (PathBuf, PathBuf) {
-    let dir_path = tempdir()
-        .expect("Failed to create temporary directory")
-        .keep();
-    let dir_path = dir_path
-        .to_str()
-        .expect("Failed to convert temp directory path to string");
-
-    log!("Downloading hyperlane-ALEO v{}", HYPERLANE_ALEO_VERSION);
-    let uri = format!(
-        "{HYPERLANE_ALEO_GIT}/releases/download/v{HYPERLANE_ALEO_VERSION}/hyperlane_ALEO.wasm"
-    );
-    download("hyperlane_ALEO.wasm", &uri, dir_path);
-    let uri = format!(
-        "{HYPERLANE_ALEO_GIT}/releases/download/v{HYPERLANE_ALEO_VERSION}/hyperlane_ALEO.rpd"
-    );
-    download("hyperlane_ALEO.rpd", &uri, dir_path);
-
-    let wasm_path = concat_path(dir_path, "hyperlane_ALEO.wasm");
-    let rpd_path = concat_path(dir_path, "hyperlane_ALEO.rpd");
-
-    (wasm_path, rpd_path)
-}
-
 fn dispatch(deployments: &Vec<Deployment>) -> u32 {
     let mut transfers = 0;
     for local in deployments {
@@ -263,7 +238,6 @@ pub fn run_locally() {
         .run()
         .join();
 
-    const LEO: &str = "/Users/jamin/.cargo/bin/leo";
     let leo = env::var(ENV_LEO_CLI);
     let leo = leo
         .as_ref()
@@ -284,7 +258,7 @@ pub fn run_locally() {
                 .into_iter()
                 .filter(|other| *other != local_domain)
                 .collect::<Vec<_>>();
-            let (contracts, handle) = cli.initilaize(local_domain, other_domains);
+            let (contracts, handle) = cli.initialize(local_domain, other_domains);
             Deployment {
                 cli,
                 name: format!("aleotest{}", i),

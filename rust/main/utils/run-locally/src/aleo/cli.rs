@@ -3,8 +3,6 @@ use std::time::Duration;
 
 use aleo_serialize_macro::aleo_serialize;
 
-use radix_common::prelude::*;
-
 use crate::aleo::types::{Contracts, CoreContracts, TokenContract, WarpContracts};
 use crate::aleo::utils::{
     domain_u32, encode_fixed_program_name, get_program_address, to_plaintext_string,
@@ -317,7 +315,7 @@ impl AleoCli {
     }
 
     /// Will spin up a local Aleo node and deploy all necessary contracts.
-    pub fn initilaize(&self, origin_domain: u32, remotes: Vec<u32>) -> (Contracts, AgentHandles) {
+    pub fn initialize(&self, origin_domain: u32, remotes: Vec<u32>) -> (Contracts, AgentHandles) {
         // Start the node first
         let handles = self.start();
 

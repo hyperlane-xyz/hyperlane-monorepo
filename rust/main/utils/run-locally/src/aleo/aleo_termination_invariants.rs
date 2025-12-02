@@ -11,7 +11,7 @@ use crate::logging::log;
 use crate::server::{fetch_relayer_gas_payment_event_count, fetch_relayer_message_processed_count};
 
 /// Use the metrics to check if the relayer queues are empty and the expected
-/// number of messages have been sent for Radix.
+/// number of messages have been sent for Aleo.
 pub fn aleo_termination_invariants_met(
     config: &Config,
     starting_relayer_balance: f64,
@@ -30,8 +30,8 @@ pub fn aleo_termination_invariants_met(
         gas_payment_events_count,
         total_messages_expected: messages_expected,
         total_messages_dispatched: messages_expected,
-        failed_message_count: 0, // Radix doesn't have failed messages in the same way
-        submitter_queue_length_expected: 0, // Radix doesn't have zero merkle insertion messages
+        failed_message_count: 0, // Aleo doesn't have failed messages in the same way
+        submitter_queue_length_expected: 0, // Aleo doesn't have zero merkle insertion messages
         non_matching_igp_message_count: 0,
         double_insertion_message_count: 0,
         skip_tx_id_indexing: true,
@@ -62,6 +62,6 @@ pub fn aleo_termination_invariants_met(
         return Ok(false);
     }
 
-    log!("Radix termination invariants have been met");
+    log!("Aleo termination invariants have been met");
     Ok(true)
 }
