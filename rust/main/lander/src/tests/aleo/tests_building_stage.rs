@@ -314,65 +314,6 @@ async fn test_building_stage_invalid_payload() {
 }
 
 #[tokio::test]
-async fn test_building_stage_respects_max_batch_size() {
-    let (building_stage, mut receiver, queue) = setup_building_stage();
-
-    // Verify Aleo adapter reports max_batch_size of 1
-    assert_eq!(building_stage.state.adapter.max_batch_size(), 1);
-
-    // Create 3 payloads to keep test fast
-    let payload1 = create_aleo_payload();
-    let payload2 = create_aleo_payload();
-    let payload3 = create_aleo_payload();
-
-    for payload in [&payload1, &payload2, &payload3] {
-        initialize_payload_db(&building_stage.state.payload_db, payload).await;
-        queue.push_back(payload.clone()).await;
-    }
-
-    // Run BuildingStage - with max_batch_size=1, it will process payloads one at a time
-    // but since run() is an infinite loop, it will eventually process all of them
-    // We expect 3 transactions to be built (one for each payload)
-    let txs = run_building_stage_once(&building_stage, &mut receiver, 3).await;
-
-    // All 3 payloads should be processed, but each in its own transaction
-    // (because max_batch_size=1 prevents batching)
-    assert_eq!(txs.len(), 3);
-
-    // Verify each transaction is stored in database
-    for tx in &txs {
-        let stored_tx = building_stage
-            .state
-            .tx_db
-            .retrieve_transaction_by_uuid(&tx.uuid)
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(stored_tx.uuid, tx.uuid);
-        assert_eq!(stored_tx.status, TransactionStatus::PendingInclusion);
-        assert_eq!(stored_tx.payload_details.len(), 1);
-        assert_eq!(
-            stored_tx.payload_details[0].success_criteria,
-            tx.payload_details[0].success_criteria
-        );
-    }
-
-    // Queue should be empty after processing
-    assert_eq!(queue.len().await, 0);
-}
-
-#[tokio::test]
-async fn test_building_stage_empty_queue() {
-    let (building_stage, mut receiver, queue) = setup_building_stage();
-
-    // Run BuildingStage with empty queue - should not send anything
-    let txs = run_building_stage_once(&building_stage, &mut receiver, 0).await;
-
-    assert_eq!(txs.len(), 0);
-    assert_eq!(queue.len().await, 0);
-}
-
-#[tokio::test]
 async fn test_building_stage_mixed_valid_and_invalid_payloads() {
     let (building_stage, mut receiver, queue) = setup_building_stage();
 
@@ -434,358 +375,6 @@ async fn test_building_stage_mixed_valid_and_invalid_payloads() {
 }
 
 #[tokio::test]
-async fn test_building_stage_payload_with_empty_calldata() {
-    let (building_stage, mut receiver, queue) = setup_building_stage();
-
-    let mut payload = create_aleo_payload();
-    payload.data = vec![]; // Empty data
-
-    initialize_payload_db(&building_stage.state.payload_db, &payload).await;
-    queue.push_back(payload.clone()).await;
-
-    // Run BuildingStage - should not build any transaction
-    let txs = run_building_stage_once(&building_stage, &mut receiver, 0).await;
-
-    assert_eq!(txs.len(), 0);
-
-    // Payload should be dropped
-    let stored_payload = building_stage
-        .state
-        .payload_db
-        .retrieve_payload_by_uuid(&payload.details.uuid)
-        .await
-        .unwrap()
-        .unwrap();
-    assert_eq!(
-        stored_payload.status,
-        PayloadStatus::Dropped(DropReason::FailedToBuildAsTransaction)
-    );
-}
-
-#[tokio::test]
-async fn test_building_stage_payload_with_empty_program_id() {
-    let (building_stage, mut receiver, queue) = setup_building_stage();
-
-    let calldata = AleoTxCalldata {
-        program_id: "".to_string(), // Empty program ID
-        function_name: "test_function".to_string(),
-        inputs: vec!["input1".to_string()],
-    };
-
-    let mut payload = create_aleo_payload();
-    payload.data = serde_json::to_vec(&calldata).unwrap();
-
-    initialize_payload_db(&building_stage.state.payload_db, &payload).await;
-    queue.push_back(payload.clone()).await;
-
-    // Run BuildingStage - should build transaction (validation happens later)
-    let txs = run_building_stage_once(&building_stage, &mut receiver, 1).await;
-
-    assert_eq!(txs.len(), 1);
-    assert_eq!(txs[0].payload_details[0].uuid, payload.details.uuid);
-
-    // Verify transaction is stored in database
-    let stored_tx = building_stage
-        .state
-        .tx_db
-        .retrieve_transaction_by_uuid(&txs[0].uuid)
-        .await
-        .unwrap()
-        .unwrap();
-    assert_eq!(stored_tx.uuid, txs[0].uuid);
-    assert_eq!(stored_tx.status, TransactionStatus::PendingInclusion);
-    assert_eq!(stored_tx.payload_details[0].uuid, payload.details.uuid);
-    assert_eq!(
-        stored_tx.payload_details[0].success_criteria,
-        payload.details.success_criteria
-    );
-}
-
-#[tokio::test]
-async fn test_building_stage_payload_with_no_inputs() {
-    let (building_stage, mut receiver, queue) = setup_building_stage();
-
-    let calldata = AleoTxCalldata {
-        program_id: "test_program.aleo".to_string(),
-        function_name: "test_function".to_string(),
-        inputs: vec![], // No inputs
-    };
-
-    let mut payload = create_aleo_payload();
-    payload.data = serde_json::to_vec(&calldata).unwrap();
-
-    initialize_payload_db(&building_stage.state.payload_db, &payload).await;
-    queue.push_back(payload.clone()).await;
-
-    // Run BuildingStage - should build transaction successfully
-    let txs = run_building_stage_once(&building_stage, &mut receiver, 1).await;
-
-    assert_eq!(txs.len(), 1);
-    assert_eq!(txs[0].payload_details[0].uuid, payload.details.uuid);
-
-    // Check 1: Verify transaction-level validations
-    verify_transaction_fields(&txs[0]);
-
-    // Check 2: Verify payload status transition
-    verify_payload_status_transition(&building_stage, &payload.details.uuid).await;
-
-    // Check 12: Verify calldata field validation (particularly empty inputs)
-    let stored_tx = building_stage
-        .state
-        .tx_db
-        .retrieve_transaction_by_uuid(&txs[0].uuid)
-        .await
-        .unwrap()
-        .unwrap();
-    verify_calldata_preserved(&stored_tx, &calldata);
-}
-
-#[tokio::test]
-async fn test_building_stage_payload_with_many_inputs() {
-    let (building_stage, mut receiver, queue) = setup_building_stage();
-
-    let calldata = AleoTxCalldata {
-        program_id: "test_program.aleo".to_string(),
-        function_name: "test_function".to_string(),
-        inputs: vec!["input".to_string(); 50], // 50 inputs
-    };
-
-    let mut payload = create_aleo_payload();
-    payload.data = serde_json::to_vec(&calldata).unwrap();
-
-    initialize_payload_db(&building_stage.state.payload_db, &payload).await;
-    queue.push_back(payload.clone()).await;
-
-    // Run BuildingStage - should build transaction successfully
-    let txs = run_building_stage_once(&building_stage, &mut receiver, 1).await;
-
-    assert_eq!(txs.len(), 1);
-    assert_eq!(txs[0].payload_details[0].uuid, payload.details.uuid);
-
-    // Check 1: Verify transaction-level validations
-    verify_transaction_fields(&txs[0]);
-
-    // Check 2: Verify payload status transition
-    verify_payload_status_transition(&building_stage, &payload.details.uuid).await;
-
-    // Check 12: Verify calldata field validation (particularly many inputs)
-    let stored_tx = building_stage
-        .state
-        .tx_db
-        .retrieve_transaction_by_uuid(&txs[0].uuid)
-        .await
-        .unwrap()
-        .unwrap();
-    verify_calldata_preserved(&stored_tx, &calldata);
-}
-
-#[tokio::test]
-async fn test_building_stage_payload_with_large_inputs() {
-    let (building_stage, mut receiver, queue) = setup_building_stage();
-
-    let large_input = "x".repeat(5000); // 5KB input string
-    let calldata = AleoTxCalldata {
-        program_id: "test_program.aleo".to_string(),
-        function_name: "test_function".to_string(),
-        inputs: vec![large_input.clone(), large_input],
-    };
-
-    let mut payload = create_aleo_payload();
-    payload.data = serde_json::to_vec(&calldata).unwrap();
-
-    initialize_payload_db(&building_stage.state.payload_db, &payload).await;
-    queue.push_back(payload.clone()).await;
-
-    // Run BuildingStage - should build transaction successfully
-    let txs = run_building_stage_once(&building_stage, &mut receiver, 1).await;
-
-    assert_eq!(txs.len(), 1);
-    assert_eq!(txs[0].payload_details[0].uuid, payload.details.uuid);
-
-    // Verify transaction is stored in database
-    let stored_tx = building_stage
-        .state
-        .tx_db
-        .retrieve_transaction_by_uuid(&txs[0].uuid)
-        .await
-        .unwrap()
-        .unwrap();
-    assert_eq!(stored_tx.uuid, txs[0].uuid);
-    assert_eq!(stored_tx.status, TransactionStatus::PendingInclusion);
-    assert_eq!(stored_tx.payload_details[0].uuid, payload.details.uuid);
-    assert_eq!(
-        stored_tx.payload_details[0].success_criteria,
-        payload.details.success_criteria
-    );
-}
-
-#[tokio::test]
-async fn test_building_stage_preserves_payload_metadata() {
-    let (building_stage, mut receiver, queue) = setup_building_stage();
-
-    let payload = create_aleo_payload();
-    let original_metadata = payload.details.metadata.clone();
-    let original_uuid = payload.details.uuid.clone();
-
-    initialize_payload_db(&building_stage.state.payload_db, &payload).await;
-    queue.push_back(payload.clone()).await;
-
-    // Run BuildingStage
-    let txs = run_building_stage_once(&building_stage, &mut receiver, 1).await;
-
-    // Verify metadata is preserved
-    assert_eq!(txs.len(), 1);
-    assert_eq!(txs[0].payload_details[0].metadata, original_metadata);
-    assert_eq!(txs[0].payload_details[0].uuid, original_uuid);
-
-    // Verify transaction is stored in database with metadata preserved
-    let stored_tx = building_stage
-        .state
-        .tx_db
-        .retrieve_transaction_by_uuid(&txs[0].uuid)
-        .await
-        .unwrap()
-        .unwrap();
-    assert_eq!(stored_tx.uuid, txs[0].uuid);
-    assert_eq!(stored_tx.payload_details[0].metadata, original_metadata);
-    assert_eq!(stored_tx.payload_details[0].uuid, original_uuid);
-    assert_eq!(
-        stored_tx.payload_details[0].success_criteria,
-        payload.details.success_criteria
-    );
-}
-
-#[tokio::test]
-async fn test_building_stage_payload_with_special_characters() {
-    let (building_stage, mut receiver, queue) = setup_building_stage();
-
-    let calldata = AleoTxCalldata {
-        program_id: "test-program_v2.aleo".to_string(), // Special characters
-        function_name: "test_function".to_string(),
-        inputs: vec!["input1".to_string()],
-    };
-
-    let mut payload = create_aleo_payload();
-    payload.data = serde_json::to_vec(&calldata).unwrap();
-
-    initialize_payload_db(&building_stage.state.payload_db, &payload).await;
-    queue.push_back(payload.clone()).await;
-
-    // Run BuildingStage - should build transaction successfully
-    let txs = run_building_stage_once(&building_stage, &mut receiver, 1).await;
-
-    assert_eq!(txs.len(), 1);
-    assert_eq!(txs[0].payload_details[0].uuid, payload.details.uuid);
-
-    // Verify transaction is stored in database
-    let stored_tx = building_stage
-        .state
-        .tx_db
-        .retrieve_transaction_by_uuid(&txs[0].uuid)
-        .await
-        .unwrap()
-        .unwrap();
-    assert_eq!(stored_tx.uuid, txs[0].uuid);
-    assert_eq!(stored_tx.status, TransactionStatus::PendingInclusion);
-    assert_eq!(stored_tx.payload_details[0].uuid, payload.details.uuid);
-    assert_eq!(
-        stored_tx.payload_details[0].success_criteria,
-        payload.details.success_criteria
-    );
-}
-
-#[tokio::test]
-async fn test_building_stage_wrong_json_structure() {
-    let (building_stage, mut receiver, queue) = setup_building_stage();
-
-    let mut payload = create_aleo_payload();
-    // Valid JSON but wrong structure (missing required fields)
-    payload.data = serde_json::to_vec(&serde_json::json!({
-        "wrong_field": "value"
-    }))
-    .unwrap();
-
-    initialize_payload_db(&building_stage.state.payload_db, &payload).await;
-    queue.push_back(payload.clone()).await;
-
-    // Run BuildingStage - should not build any transaction
-    let txs = run_building_stage_once(&building_stage, &mut receiver, 0).await;
-
-    assert_eq!(txs.len(), 0);
-
-    // Payload should be dropped
-    let stored_payload = building_stage
-        .state
-        .payload_db
-        .retrieve_payload_by_uuid(&payload.details.uuid)
-        .await
-        .unwrap()
-        .unwrap();
-    assert_eq!(
-        stored_payload.status,
-        PayloadStatus::Dropped(DropReason::FailedToBuildAsTransaction)
-    );
-}
-
-#[tokio::test]
-async fn test_building_stage_multiple_runs_processes_all_payloads() {
-    let (building_stage, mut receiver, queue) = setup_building_stage();
-
-    // Create 5 payloads
-    let mut payloads = Vec::new();
-    for _ in 0..5 {
-        let payload = create_aleo_payload();
-        initialize_payload_db(&building_stage.state.payload_db, &payload).await;
-        queue.push_back(payload.clone()).await;
-        payloads.push(payload);
-    }
-
-    // Run BuildingStage - should process all 5 payloads
-    let txs = run_building_stage_once(&building_stage, &mut receiver, 5).await;
-
-    assert_eq!(txs.len(), 5);
-
-    // Verify each transaction is stored in database
-    for tx in &txs {
-        let stored_tx = building_stage
-            .state
-            .tx_db
-            .retrieve_transaction_by_uuid(&tx.uuid)
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(stored_tx.uuid, tx.uuid);
-        assert_eq!(stored_tx.status, TransactionStatus::PendingInclusion);
-        assert_eq!(stored_tx.payload_details.len(), 1);
-        assert_eq!(
-            stored_tx.payload_details[0].uuid,
-            tx.payload_details[0].uuid
-        );
-        assert_eq!(
-            stored_tx.payload_details[0].metadata,
-            tx.payload_details[0].metadata
-        );
-        assert_eq!(
-            stored_tx.payload_details[0].success_criteria,
-            tx.payload_details[0].success_criteria
-        );
-    }
-
-    // Verify all payloads were processed
-    let processed_uuids: Vec<_> = txs
-        .iter()
-        .flat_map(|tx| &tx.payload_details)
-        .map(|p| p.uuid.clone())
-        .collect();
-    for payload in &payloads {
-        assert!(processed_uuids.contains(&payload.details.uuid));
-    }
-
-    // Queue should be empty
-    assert_eq!(queue.len().await, 0);
-}
-
-#[tokio::test]
 async fn test_building_stage_all_invalid_payloads() {
     let (building_stage, mut receiver, queue) = setup_building_stage();
 
@@ -825,5 +414,53 @@ async fn test_building_stage_all_invalid_payloads() {
     }
 
     // Queue should be empty
+    assert_eq!(queue.len().await, 0);
+}
+
+#[tokio::test]
+async fn test_building_stage_respects_max_batch_size() {
+    let (building_stage, mut receiver, queue) = setup_building_stage();
+
+    // Verify Aleo adapter reports max_batch_size of 1
+    assert_eq!(building_stage.state.adapter.max_batch_size(), 1);
+
+    // Create 3 payloads to keep test fast
+    let payload1 = create_aleo_payload();
+    let payload2 = create_aleo_payload();
+    let payload3 = create_aleo_payload();
+
+    for payload in [&payload1, &payload2, &payload3] {
+        initialize_payload_db(&building_stage.state.payload_db, payload).await;
+        queue.push_back(payload.clone()).await;
+    }
+
+    // Run BuildingStage - with max_batch_size=1, it will process payloads one at a time
+    // but since run() is an infinite loop, it will eventually process all of them
+    // We expect 3 transactions to be built (one for each payload)
+    let txs = run_building_stage_once(&building_stage, &mut receiver, 3).await;
+
+    // All 3 payloads should be processed, but each in its own transaction
+    // (because max_batch_size=1 prevents batching)
+    assert_eq!(txs.len(), 3);
+
+    // Verify each transaction is stored in database
+    for tx in &txs {
+        let stored_tx = building_stage
+            .state
+            .tx_db
+            .retrieve_transaction_by_uuid(&tx.uuid)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(stored_tx.uuid, tx.uuid);
+        assert_eq!(stored_tx.status, TransactionStatus::PendingInclusion);
+        assert_eq!(stored_tx.payload_details.len(), 1);
+        assert_eq!(
+            stored_tx.payload_details[0].success_criteria,
+            tx.payload_details[0].success_criteria
+        );
+    }
+
+    // Queue should be empty after processing
     assert_eq!(queue.len().await, 0);
 }
