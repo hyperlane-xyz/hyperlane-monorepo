@@ -307,7 +307,7 @@ where
                                 ?v,
                                 "fallback_request: deprioritizing provider because received null for transaction receipt"
                             );
-                            self.deprioritize_provider(priority.clone()).await;
+                            self.deprioritize_provider(*priority).await;
                             errors.push(ProviderError::CustomError(
                                 "Transaction Receipt is null".into(),
                             ));
