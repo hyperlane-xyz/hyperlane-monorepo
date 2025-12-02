@@ -16,7 +16,11 @@ import { ensure0x } from '@hyperlane-xyz/utils';
 
 import { hyp_synthetic, token_registry } from '../artifacts.js';
 import { AleoSigner } from '../clients/signer.js';
-import { ALEO_NATIVE_DENOM, stringToU128 } from '../utils/helper.js';
+import {
+  ALEO_NATIVE_DENOM,
+  fromAleoAddress,
+  stringToU128,
+} from '../utils/helper.js';
 import { AleoReceipt, AleoTransaction } from '../utils/types.js';
 
 describe('4. aleo sdk warp e2e tests', async function () {
@@ -193,7 +197,10 @@ describe('4. aleo sdk warp e2e tests', async function () {
 
     const denom = Field.fromBytesLe(
       Program.fromString(
-        hyp_synthetic.replaceAll(`hyp_synthetic.aleo`, txResponse.tokenAddress),
+        hyp_synthetic.replaceAll(
+          `hyp_synthetic.aleo`,
+          fromAleoAddress(txResponse.tokenAddress).programId,
+        ),
       )
         .address()
         .toBytesLe(),

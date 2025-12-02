@@ -12,11 +12,13 @@ import {
   bytes32ToU128String,
   fillArray,
   formatAddress,
+  fromAleoAddress,
   getAddressFromProgramId,
   getBalanceKey,
-  getProgramIdFromSalt,
-  getSaltFromAddress,
+  getProgramIdFromSuffix,
+  getProgramSuffix,
   stringToU128,
+  toAleoAddress,
 } from '../utils/helper.js';
 import {
   AleoHookType,
@@ -39,7 +41,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     super(rpcUrls, chainId);
   }
 
-  protected getNewProgramSalt(n: number): string {
+  protected generateSuffix(n: number): string {
     const characters = '0123456789abcdefghijklmnopqrstuvwxyz';
     let result = '';
 
@@ -122,6 +124,8 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   // ### QUERY CORE ###
 
   async getMailbox(req: AltVM.ReqGetMailbox): Promise<AltVM.ResGetMailbox> {
+    const { programId } = fromAleoAddress(req.mailboxAddress);
+
     const {
       mailbox_owner,
       local_domain,
@@ -129,18 +133,21 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       default_hook,
       required_hook,
       nonce,
-    } = await this.queryMappingValue(req.mailboxAddress, 'mailbox', 'true');
+    } = await this.queryMappingValue(programId, 'mailbox', 'true');
 
-    const hookManagerProgramId = getProgramIdFromSalt(
+    const hookManagerProgramId = getProgramIdFromSuffix(
       'hook_manager',
-      getSaltFromAddress(req.mailboxAddress),
+      getProgramSuffix(programId),
     );
 
     return {
       address: req.mailboxAddress,
       owner: mailbox_owner,
       localDomain: local_domain,
-      defaultIsm: formatAddress(default_ism),
+      defaultIsm:
+        default_ism === ALEO_NULL_ADDRESS
+          ? ''
+          : `${this.ismManager}/${default_ism}`,
       defaultHook:
         default_hook === ALEO_NULL_ADDRESS
           ? ''
@@ -157,7 +164,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     const messageKey = bytes32ToU128String(req.messageId);
 
     const result = await this.queryMappingValue(
-      req.mailboxAddress,
+      fromAleoAddress(req.mailboxAddress).programId,
       'deliveries',
       `{id:${messageKey}}`,
     );
@@ -166,11 +173,9 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   }
 
   async getIsmType(req: AltVM.ReqGetIsmType): Promise<AltVM.IsmType> {
-    const result = await this.queryMappingValue(
-      this.ismManager,
-      'isms',
-      req.ismAddress,
-    );
+    const { programId, address } = fromAleoAddress(req.ismAddress);
+
+    const result = await this.queryMappingValue(programId, 'isms', address);
 
     switch (result) {
       case AleoIsmType.TEST_ISM:
@@ -189,10 +194,12 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async getMessageIdMultisigIsm(
     req: AltVM.ReqMessageIdMultisigIsm,
   ): Promise<AltVM.ResMessageIdMultisigIsm> {
+    const { programId, address } = fromAleoAddress(req.ismAddress);
+
     const { validators, threshold } = await this.queryMappingValue(
-      this.ismManager,
+      programId,
       'message_id_multisigs',
-      req.ismAddress,
+      address,
     );
 
     return {
@@ -211,28 +218,28 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   }
 
   async getRoutingIsm(req: AltVM.ReqRoutingIsm): Promise<AltVM.ResRoutingIsm> {
-    const programId = this.ismManager;
+    const { programId, address } = fromAleoAddress(req.ismAddress);
 
     const routes: { domainId: number; ismAddress: string }[] = [];
 
     const ismData = await this.queryMappingValue(
       programId,
       'domain_routing_isms',
-      req.ismAddress,
+      address,
     );
     const owner = ismData.ism_owner;
 
     const routeLengthRes = await this.queryMappingValue(
       programId,
       'route_length',
-      req.ismAddress,
+      address,
     );
 
     for (let i = 0; i < (routeLengthRes || 0); i++) {
       const routeKey = await this.aleoClient.getProgramMappingPlaintext(
         programId,
         'route_iter',
-        `{ism:${req.ismAddress},index:${i}u32}`,
+        `{ism:${address},index:${i}u32}`,
       );
 
       const ismAddress = await this.queryMappingValue(
@@ -247,7 +254,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       if (!ismAddress) continue;
 
       routes.push({
-        ismAddress: ismAddress,
+        ismAddress: `${this.ismManager}/${ismAddress}`,
         domainId: routeKey.toObject().domain,
       });
     }
@@ -260,7 +267,9 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   }
 
   async getNoopIsm(req: AltVM.ReqNoopIsm): Promise<AltVM.ResNoopIsm> {
-    await this.queryMappingValue(this.ismManager, 'isms', req.ismAddress);
+    const { programId, address } = fromAleoAddress(req.ismAddress);
+
+    await this.queryMappingValue(programId, 'isms', address);
 
     return {
       address: req.ismAddress,
@@ -268,13 +277,9 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   }
 
   async getHookType(req: AltVM.ReqGetHookType): Promise<AltVM.HookType> {
-    const [programId, hookAddress] = req.hookAddress.split('/');
+    const { programId, address } = fromAleoAddress(req.hookAddress);
 
-    const result = await this.queryMappingValue(
-      programId,
-      'hooks',
-      hookAddress,
-    );
+    const result = await this.queryMappingValue(programId, 'hooks', address);
 
     switch (result) {
       case AleoHookType.CUSTOM:
@@ -293,7 +298,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async getInterchainGasPaymasterHook(
     req: AltVM.ReqGetInterchainGasPaymasterHook,
   ): Promise<AltVM.ResGetInterchainGasPaymasterHook> {
-    const [programId, hookAddress] = req.hookAddress.split('/');
+    const { programId, address } = fromAleoAddress(req.hookAddress);
 
     const destinationGasConfigs: {
       [domainId: string]: {
@@ -305,24 +310,20 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       };
     } = {};
 
-    const igpData = await this.queryMappingValue(
-      programId,
-      'igps',
-      hookAddress,
-    );
+    const igpData = await this.queryMappingValue(programId, 'igps', address);
     const owner = igpData.hook_owner;
 
     const gasConfigLength = await this.queryMappingValue(
       programId,
       'destination_gas_config_length',
-      hookAddress,
+      address,
     );
 
     for (let i = 0; i < (gasConfigLength || 0); i++) {
       const gasConfigKey = await this.aleoClient.getProgramMappingPlaintext(
         programId,
         'destination_gas_config_iter',
-        `{hook:${hookAddress},index:${i}u32}`,
+        `{hook:${address},index:${i}u32}`,
       );
 
       const destinationGasConfig = await this.queryMappingValue(
@@ -355,9 +356,9 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async getMerkleTreeHook(
     req: AltVM.ReqGetMerkleTreeHook,
   ): Promise<AltVM.ResGetMerkleTreeHook> {
-    const [programId, hookAddress] = req.hookAddress.split('/');
+    const { programId, address } = fromAleoAddress(req.hookAddress);
 
-    await this.queryMappingValue(programId, 'merkle_tree_hooks', hookAddress);
+    await this.queryMappingValue(programId, 'merkle_tree_hooks', address);
 
     return {
       address: req.hookAddress,
@@ -367,9 +368,9 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async getNoopHook(
     req: AltVM.ReqGetMerkleTreeHook,
   ): Promise<AltVM.ResGetMerkleTreeHook> {
-    const [programId, hookAddress] = req.hookAddress.split('/');
+    const { programId, address } = fromAleoAddress(req.hookAddress);
 
-    const hook = await this.queryMappingValue(programId, 'hooks', hookAddress);
+    const hook = await this.queryMappingValue(programId, 'hooks', address);
     assert(hook === 0, `hook of address ${req.hookAddress} is no noop hook`);
 
     return {
@@ -398,6 +399,8 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   }
 
   async getToken(req: AltVM.ReqGetToken): Promise<AltVM.ResGetToken> {
+    const { programId } = fromAleoAddress(req.tokenAddress);
+
     const token = {
       address: req.tokenAddress,
       owner: '',
@@ -411,23 +414,29 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       decimals: 0,
     };
 
-    const imports = await this.aleoClient.getProgramImportNames(
-      req.tokenAddress,
+    const imports = await this.aleoClient.getProgramImportNames(programId);
+    const mailboxProgramId = imports.find((i) => i.includes('mailbox')) || '';
+    assert(
+      mailboxProgramId,
+      `could not find mailbox program id on token ${req.tokenAddress}`,
     );
-    token.mailboxAddress = imports.find((i) => i.includes('mailbox')) || '';
+    token.mailboxAddress = toAleoAddress(mailboxProgramId);
 
     const tokenMetadata = await this.queryMappingValue(
-      req.tokenAddress,
+      programId,
       'app_metadata',
       'true',
     );
 
     token.owner = formatAddress(tokenMetadata.token_owner);
-    token.ismAddress = formatAddress(tokenMetadata.ism || '');
+    token.ismAddress =
+      tokenMetadata.ism === ALEO_NULL_ADDRESS
+        ? ''
+        : `${this.ismManager}/${tokenMetadata.ism}`;
     token.hookAddress =
       tokenMetadata.hook === ALEO_NULL_ADDRESS
         ? ''
-        : `${getProgramIdFromSalt('hook_manager', getSaltFromAddress(token.mailboxAddress))}/${tokenMetadata.hook}`;
+        : `${getProgramIdFromSuffix('hook_manager', getProgramSuffix(mailboxProgramId))}/${tokenMetadata.hook}`;
     token.denom = tokenMetadata.token_id || '';
 
     if (token.denom) {
@@ -456,6 +465,8 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async getRemoteRouters(
     req: AltVM.ReqGetRemoteRouters,
   ): Promise<AltVM.ResGetRemoteRouters> {
+    const { programId } = fromAleoAddress(req.tokenAddress);
+
     const remoteRouters: {
       receiverDomainId: number;
       receiverAddress: string;
@@ -464,20 +475,20 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
 
     try {
       const routerLengthRes = await this.aleoClient.getProgramMappingValue(
-        req.tokenAddress,
+        programId,
         'remote_router_length',
         'true',
       );
 
       for (let i = 0; i < parseInt(routerLengthRes); i++) {
         const routerKey = await this.aleoClient.getProgramMappingPlaintext(
-          req.tokenAddress,
+          programId,
           'remote_router_iter',
           `${i}u32`,
         );
 
         const remoteRouterValue = await this.aleoClient.getProgramMappingValue(
-          req.tokenAddress,
+          programId,
           'remote_routers',
           routerKey,
         );
@@ -515,6 +526,8 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   }
 
   async getBridgedSupply(req: AltVM.ReqGetBridgedSupply): Promise<bigint> {
+    const { programId } = fromAleoAddress(req.tokenAddress);
+
     const metadata = await this.queryMappingValue(
       req.tokenAddress,
       'app_metadata',
@@ -524,7 +537,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     switch (metadata['token_type']) {
       case AleoTokenType.NATIVE: {
         return this.getBalance({
-          address: getAddressFromProgramId(req.tokenAddress),
+          address: getAddressFromProgramId(programId),
           denom: '',
         });
       }
@@ -535,7 +548,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       }
       case AleoTokenType.COLLATERAL: {
         return this.getBalance({
-          address: getAddressFromProgramId(req.tokenAddress),
+          address: getAddressFromProgramId(programId),
           denom: metadata['token_id'],
         });
       }
@@ -562,12 +575,12 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       }
 
       try {
-        const [igpProgramId, igpAddress] = hookAddress.split('/');
+        const { programId, address } = fromAleoAddress(hookAddress);
 
         const config = await this.queryMappingValue(
-          igpProgramId,
+          programId,
           'destination_gas_configs',
-          `{igp:${igpAddress},destination:${destinationDomainId}u32}`,
+          `{igp:${address},destination:${destinationDomainId}u32}`,
         );
 
         if (!config) {
@@ -584,7 +597,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
         total_quote = total_quote.plus(quote);
 
         quotes.push({
-          spender: igpAddress,
+          spender: address,
           quote,
         });
       } catch {
@@ -601,8 +614,10 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async quoteRemoteTransfer(
     req: AltVM.ReqQuoteRemoteTransfer,
   ): Promise<AltVM.ResQuoteRemoteTransfer> {
+    const { programId } = fromAleoAddress(req.tokenAddress);
+
     const remoteRouter = await this.queryMappingValue(
-      req.tokenAddress,
+      programId,
       'remote_routers',
       `${req.destinationDomainId}u32`,
     );
@@ -665,11 +680,11 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     req: AltVM.ReqSetDefaultIsm,
   ): Promise<AleoTransaction> {
     return {
-      programName: req.mailboxAddress,
+      programName: fromAleoAddress(req.mailboxAddress).programId,
       functionName: 'set_default_ism',
       priorityFee: 0,
       privateFee: false,
-      inputs: [req.ismAddress],
+      inputs: [fromAleoAddress(req.ismAddress).address],
     };
   }
 
@@ -677,11 +692,11 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     req: AltVM.ReqSetDefaultHook,
   ): Promise<AleoTransaction> {
     return {
-      programName: req.mailboxAddress,
+      programName: fromAleoAddress(req.mailboxAddress).programId,
       functionName: 'set_default_hook',
       priorityFee: 0,
       privateFee: false,
-      inputs: [req.hookAddress.split('/')[1]],
+      inputs: [fromAleoAddress(req.hookAddress).address],
     };
   }
 
@@ -689,11 +704,11 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     req: AltVM.ReqSetRequiredHook,
   ): Promise<AleoTransaction> {
     return {
-      programName: req.mailboxAddress,
+      programName: fromAleoAddress(req.mailboxAddress).programId,
       functionName: 'set_required_hook',
       priorityFee: 0,
       privateFee: false,
-      inputs: [req.hookAddress.split('/')[1]],
+      inputs: [fromAleoAddress(req.hookAddress).address],
     };
   }
 
@@ -701,7 +716,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     req: AltVM.ReqSetMailboxOwner,
   ): Promise<AleoTransaction> {
     return {
-      programName: req.mailboxAddress,
+      programName: fromAleoAddress(req.mailboxAddress).programId,
       functionName: 'set_owner',
       priorityFee: 0,
       privateFee: false,
@@ -762,15 +777,17 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async getSetRoutingIsmRouteTransaction(
     req: AltVM.ReqSetRoutingIsmRoute,
   ): Promise<AleoTransaction> {
+    const { programId, address } = fromAleoAddress(req.ismAddress);
+
     return {
-      programName: this.ismManager,
+      programName: programId,
       functionName: 'set_domain',
       priorityFee: 0,
       privateFee: false,
       inputs: [
-        req.ismAddress,
+        address,
         `${req.route.domainId}u32`,
-        req.route.ismAddress,
+        fromAleoAddress(req.route.ismAddress).address,
       ],
     };
   }
@@ -778,24 +795,28 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async getRemoveRoutingIsmRouteTransaction(
     req: AltVM.ReqRemoveRoutingIsmRoute,
   ): Promise<AleoTransaction> {
+    const { programId, address } = fromAleoAddress(req.ismAddress);
+
     return {
-      programName: this.ismManager,
+      programName: programId,
       functionName: 'remove_domain',
       priorityFee: 0,
       privateFee: false,
-      inputs: [req.ismAddress, `${req.domainId}u32`],
+      inputs: [address, `${req.domainId}u32`],
     };
   }
 
   async getSetRoutingIsmOwnerTransaction(
     req: AltVM.ReqSetRoutingIsmOwner,
   ): Promise<AleoTransaction> {
+    const { programId, address } = fromAleoAddress(req.ismAddress);
+
     return {
-      programName: this.ismManager,
+      programName: programId,
       functionName: 'transfer_routing_ism_ownership',
       priorityFee: 0,
       privateFee: false,
-      inputs: [req.ismAddress, req.newOwner],
+      inputs: [address, req.newOwner],
     };
   }
 
@@ -814,15 +835,18 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async getCreateMerkleTreeHookTransaction(
     req: AltVM.ReqCreateMerkleTreeHook,
   ): Promise<AleoTransaction> {
-    const salt = getSaltFromAddress(req.mailboxAddress);
+    const { programId } = fromAleoAddress(req.mailboxAddress);
+    const suffix = getProgramSuffix(programId);
 
     return {
-      programName: getProgramIdFromSalt('hook_manager', salt),
+      programName: getProgramIdFromSuffix('hook_manager', suffix),
       functionName: 'init_merkle_tree',
       priorityFee: 0,
       privateFee: false,
       inputs: [
-        getAddressFromProgramId(getProgramIdFromSalt('dispatch_proxy', salt)),
+        getAddressFromProgramId(
+          getProgramIdFromSuffix('dispatch_proxy', suffix),
+        ),
       ],
     };
   }
@@ -830,10 +854,12 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async getCreateInterchainGasPaymasterHookTransaction(
     req: AltVM.ReqCreateInterchainGasPaymasterHook,
   ): Promise<AleoTransaction> {
+    const { programId } = fromAleoAddress(req.mailboxAddress);
+
     return {
-      programName: getProgramIdFromSalt(
+      programName: getProgramIdFromSuffix(
         'hook_manager',
-        getSaltFromAddress(req.mailboxAddress),
+        getProgramSuffix(programId),
       ),
       functionName: 'init_igp',
       priorityFee: 0,
@@ -845,21 +871,21 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async getSetInterchainGasPaymasterHookOwnerTransaction(
     req: AltVM.ReqSetInterchainGasPaymasterHookOwner,
   ): Promise<AleoTransaction> {
-    const [programId, hookAddress] = req.hookAddress.split('/');
+    const { programId, address } = fromAleoAddress(req.hookAddress);
 
     return {
       programName: programId,
       functionName: 'transfer_igp_ownership',
       priorityFee: 0,
       privateFee: false,
-      inputs: [hookAddress, req.newOwner],
+      inputs: [address, req.newOwner],
     };
   }
 
   async getSetDestinationGasConfigTransaction(
     req: AltVM.ReqSetDestinationGasConfig,
   ): Promise<AleoTransaction> {
-    const [programId, hookAddress] = req.hookAddress.split('/');
+    const { programId, address } = fromAleoAddress(req.hookAddress);
 
     return {
       programName: programId,
@@ -867,7 +893,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       priorityFee: 0,
       privateFee: false,
       inputs: [
-        hookAddress,
+        address,
         `${req.destinationGasConfig.remoteDomainId}u32`,
         `{gas_overhead:${req.destinationGasConfig.gasOverhead}u128,exchange_rate:${req.destinationGasConfig.gasOracle.tokenExchangeRate}u128,gas_price:${req.destinationGasConfig.gasOracle.gasPrice}u128}`,
       ],
@@ -877,24 +903,26 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async getRemoveDestinationGasConfigTransaction(
     req: AltVM.ReqRemoveDestinationGasConfig,
   ): Promise<AleoTransaction> {
-    const [programId, hookAddress] = req.hookAddress.split('/');
+    const { programId, address } = fromAleoAddress(req.hookAddress);
 
     return {
       programName: programId,
       functionName: 'remove_destination_gas_config',
       priorityFee: 0,
       privateFee: false,
-      inputs: [hookAddress, `${req.remoteDomainId}u32`],
+      inputs: [address, `${req.remoteDomainId}u32`],
     };
   }
 
   async getCreateNoopHookTransaction(
     req: AltVM.ReqCreateNoopHook,
   ): Promise<AleoTransaction> {
+    const { programId } = fromAleoAddress(req.mailboxAddress);
+
     return {
-      programName: getProgramIdFromSalt(
+      programName: getProgramIdFromSuffix(
         'hook_manager',
-        getSaltFromAddress(req.mailboxAddress),
+        getProgramSuffix(programId),
       ),
       functionName: 'init_noop',
       priorityFee: 0,
@@ -910,15 +938,14 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       mailboxAddress: req.mailboxAddress,
     });
 
+    const { address } = fromAleoAddress(req.mailboxAddress);
+
     return {
       programName: '',
       functionName: 'init',
       priorityFee: 0,
       privateFee: false,
-      inputs: [
-        getAddressFromProgramId(req.mailboxAddress),
-        `${localDomain}u32`,
-      ],
+      inputs: [address, `${localDomain}u32`],
     };
   }
 
@@ -971,7 +998,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     req: AltVM.ReqSetTokenOwner,
   ): Promise<AleoTransaction> {
     return {
-      programName: req.tokenAddress,
+      programName: fromAleoAddress(req.tokenAddress).programId,
       functionName: 'set_owner',
       priorityFee: 0,
       privateFee: false,
@@ -983,11 +1010,11 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     req: AltVM.ReqSetTokenIsm,
   ): Promise<AleoTransaction> {
     return {
-      programName: req.tokenAddress,
+      programName: fromAleoAddress(req.tokenAddress).programId,
       functionName: 'set_custom_ism',
       priorityFee: 0,
       privateFee: false,
-      inputs: [req.ismAddress],
+      inputs: [fromAleoAddress(req.ismAddress).address],
     };
   }
 
@@ -995,11 +1022,11 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     req: AltVM.ReqSetTokenHook,
   ): Promise<AleoTransaction> {
     return {
-      programName: req.tokenAddress,
+      programName: fromAleoAddress(req.tokenAddress).programId,
       functionName: 'set_custom_hook',
       priorityFee: 0,
       privateFee: false,
-      inputs: [req.hookAddress.split('/')[1]],
+      inputs: [fromAleoAddress(req.hookAddress).address],
     };
   }
 
@@ -1015,7 +1042,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     );
 
     return {
-      programName: req.tokenAddress,
+      programName: fromAleoAddress(req.tokenAddress).programId,
       functionName: 'enroll_remote_router',
       priorityFee: 0,
       privateFee: false,
@@ -1031,7 +1058,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     req: AltVM.ReqUnenrollRemoteRouter,
   ): Promise<AleoTransaction> {
     return {
-      programName: req.tokenAddress,
+      programName: fromAleoAddress(req.tokenAddress).programId,
       functionName: 'unroll_remote_router',
       priorityFee: 0,
       privateFee: false,
@@ -1068,8 +1095,10 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       tokenAddress: req.tokenAddress,
     });
 
+    const { programId } = fromAleoAddress(req.tokenAddress);
+
     const tokenMetadataValue = await this.aleoClient.getProgramMappingValue(
-      req.tokenAddress,
+      programId,
       'app_metadata',
       'true',
     );
@@ -1079,7 +1108,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     }
 
     const remoteRouterValue = await this.aleoClient.getProgramMappingValue(
-      req.tokenAddress,
+      programId,
       'remote_routers',
       `${req.destinationDomainId}u32`,
     );
@@ -1110,7 +1139,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     }
 
     const mailbox = await this.getMailbox({
-      mailboxAddress: mailboxAddress,
+      mailboxAddress,
     });
 
     const { total_quote, quotes } = await this.getQuotes(
@@ -1130,8 +1159,8 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     }
 
     const mailboxValue = `{
-      default_hook:${mailbox.defaultHook ? mailbox.defaultHook.split('/')[1] : ALEO_NULL_ADDRESS},
-      required_hook:${mailbox.requiredHook ? mailbox.requiredHook.split('/')[1] : ALEO_NULL_ADDRESS}
+      default_hook:${mailbox.defaultHook ? fromAleoAddress(mailbox.defaultHook).address : ALEO_NULL_ADDRESS},
+      required_hook:${mailbox.requiredHook ? fromAleoAddress(mailbox.requiredHook).address : ALEO_NULL_ADDRESS}
     }`;
 
     if (req.customHookAddress) {
@@ -1147,7 +1176,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       const hookMetadata = `{gas_limit:${gasLimit},extra_data:[${metadataBytes.map((b) => `${b}u8`).join(',')}]}`;
 
       return {
-        programName: req.tokenAddress,
+        programName: programId,
         functionName: 'transfer_remote_with_hook',
         priorityFee: 0,
         privateFee: false,
@@ -1159,14 +1188,14 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
           recipient,
           `${req.amount}u64`,
           arrayToPlaintext(creditAllowance),
-          req.customHookAddress.split('/')[1],
+          fromAleoAddress(req.customHookAddress).address,
           hookMetadata,
         ],
       };
     }
 
     return {
-      programName: req.tokenAddress,
+      programName: programId,
       functionName: 'transfer_remote',
       priorityFee: 0,
       privateFee: false,

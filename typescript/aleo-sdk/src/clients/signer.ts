@@ -3,9 +3,11 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import { AleoProgram } from '../artifacts.js';
 import {
-  getSaltFromAddress,
+  fromAleoAddress,
+  getProgramSuffix,
   loadProgramsInDeployOrder,
   programIdToPlaintext,
+  toAleoAddress,
 } from '../utils/helper.js';
 import { AleoReceipt, AleoTransaction } from '../utils/types.js';
 
@@ -45,10 +47,14 @@ export class AleoSigner
 
   private async deployProgram(
     programName: AleoProgram,
-    coreSalt: string,
-    warpSalt?: string,
+    coreSuffix: string,
+    warpSuffix?: string,
   ): Promise<string[]> {
-    const programs = loadProgramsInDeployOrder(programName, coreSalt, warpSalt);
+    const programs = loadProgramsInDeployOrder(
+      programName,
+      coreSuffix,
+      warpSuffix,
+    );
 
     for (const { id, program } of programs) {
       try {
@@ -128,8 +134,8 @@ export class AleoSigner
   async createMailbox(
     req: Omit<AltVM.ReqCreateMailbox, 'signer'>,
   ): Promise<AltVM.ResCreateMailbox> {
-    const mailboxSalt = this.getNewProgramSalt(12);
-    const programs = await this.deployProgram('dispatch_proxy', mailboxSalt);
+    const mailboxSuffix = this.generateSuffix(12);
+    const programs = await this.deployProgram('dispatch_proxy', mailboxSuffix);
 
     const tx = await this.getCreateMailboxTransaction({
       signer: this.getSignerAddress(),
@@ -151,7 +157,7 @@ export class AleoSigner
     });
 
     return {
-      mailboxAddress,
+      mailboxAddress: toAleoAddress(mailboxAddress),
     };
   }
 
@@ -224,11 +230,13 @@ export class AleoSigner
   async createMessageIdMultisigIsm(
     req: Omit<AltVM.ReqCreateMessageIdMultisigIsm, 'signer'>,
   ): Promise<AltVM.ResCreateMessageIdMultisigIsm> {
-    const mailboxSalt = this.getNewProgramSalt(12);
-    const programs = await this.deployProgram('ism_manager', mailboxSalt);
+    const mailboxSuffix = this.generateSuffix(12);
+    const programs = await this.deployProgram('ism_manager', mailboxSuffix);
+
+    const ismManagerProgramId = programs[programs.length - 1];
 
     let nonce = await this.aleoClient.getProgramMappingValue(
-      programs[programs.length - 1],
+      ismManagerProgramId,
       'nonce',
       'true',
     );
@@ -245,7 +253,7 @@ export class AleoSigner
     await this.sendAndConfirmTransaction(tx);
 
     const ismAddress = await this.aleoClient.getProgramMappingValue(
-      programs[programs.length - 1],
+      ismManagerProgramId,
       'ism_addresses',
       nonce,
     );
@@ -257,18 +265,20 @@ export class AleoSigner
     }
 
     return {
-      ismAddress,
+      ismAddress: `${ismManagerProgramId}/${ismAddress}`,
     };
   }
 
   async createRoutingIsm(
     req: Omit<AltVM.ReqCreateRoutingIsm, 'signer'>,
   ): Promise<AltVM.ResCreateRoutingIsm> {
-    const mailboxSalt = this.getNewProgramSalt(12);
-    const programs = await this.deployProgram('ism_manager', mailboxSalt);
+    const mailboxSuffix = this.generateSuffix(12);
+    const programs = await this.deployProgram('ism_manager', mailboxSuffix);
+
+    const ismManagerProgramId = programs[programs.length - 1];
 
     let nonce = await this.aleoClient.getProgramMappingValue(
-      programs[programs.length - 1],
+      ismManagerProgramId,
       'nonce',
       'true',
     );
@@ -285,7 +295,7 @@ export class AleoSigner
     await this.sendAndConfirmTransaction(tx);
 
     const ismAddress = await this.aleoClient.getProgramMappingValue(
-      programs[programs.length - 1],
+      ismManagerProgramId,
       'ism_addresses',
       nonce,
     );
@@ -299,7 +309,7 @@ export class AleoSigner
     for (const route of req.routes) {
       const routeTx = await this.getSetRoutingIsmRouteTransaction({
         signer: this.getSignerAddress(),
-        ismAddress,
+        ismAddress: `${ismManagerProgramId}/${ismAddress}`,
         route,
       });
 
@@ -307,7 +317,7 @@ export class AleoSigner
     }
 
     return {
-      ismAddress,
+      ismAddress: `${ismManagerProgramId}/${ismAddress}`,
     };
   }
 
@@ -359,11 +369,13 @@ export class AleoSigner
   async createNoopIsm(
     req: Omit<AltVM.ReqCreateNoopIsm, 'signer'>,
   ): Promise<AltVM.ResCreateNoopIsm> {
-    const mailboxSalt = this.getNewProgramSalt(12);
-    const programs = await this.deployProgram('ism_manager', mailboxSalt);
+    const mailboxSuffix = this.generateSuffix(12);
+    const programs = await this.deployProgram('ism_manager', mailboxSuffix);
+
+    const ismManagerProgramId = programs[programs.length - 1];
 
     let nonce = await this.aleoClient.getProgramMappingValue(
-      programs[programs.length - 1],
+      ismManagerProgramId,
       'nonce',
       'true',
     );
@@ -380,7 +392,7 @@ export class AleoSigner
     await this.sendAndConfirmTransaction(tx);
 
     const ismAddress = await this.aleoClient.getProgramMappingValue(
-      programs[programs.length - 1],
+      ismManagerProgramId,
       'ism_addresses',
       nonce,
     );
@@ -392,15 +404,17 @@ export class AleoSigner
     }
 
     return {
-      ismAddress,
+      ismAddress: `${ismManagerProgramId}/${ismAddress}`,
     };
   }
 
   async createMerkleTreeHook(
     req: Omit<AltVM.ReqCreateMerkleTreeHook, 'signer'>,
   ): Promise<AltVM.ResCreateMerkleTreeHook> {
-    const mailboxSalt = getSaltFromAddress(req.mailboxAddress);
-    const programs = await this.deployProgram('hook_manager', mailboxSalt);
+    const mailboxSuffix = getProgramSuffix(
+      fromAleoAddress(req.mailboxAddress).programId,
+    );
+    const programs = await this.deployProgram('hook_manager', mailboxSuffix);
 
     const hookManagerProgramId = programs[programs.length - 1];
 
@@ -441,8 +455,10 @@ export class AleoSigner
   async createInterchainGasPaymasterHook(
     req: Omit<AltVM.ReqCreateInterchainGasPaymasterHook, 'signer'>,
   ): Promise<AltVM.ResCreateInterchainGasPaymasterHook> {
-    const mailboxSalt = getSaltFromAddress(req.mailboxAddress);
-    const programs = await this.deployProgram('hook_manager', mailboxSalt);
+    const mailboxSuffix = getProgramSuffix(
+      fromAleoAddress(req.mailboxAddress).programId,
+    );
+    const programs = await this.deployProgram('hook_manager', mailboxSuffix);
 
     const hookManagerProgramId = programs[programs.length - 1];
 
@@ -528,8 +544,10 @@ export class AleoSigner
   async createNoopHook(
     req: Omit<AltVM.ReqCreateNoopHook, 'signer'>,
   ): Promise<AltVM.ResCreateNoopHook> {
-    const mailboxSalt = getSaltFromAddress(req.mailboxAddress);
-    const programs = await this.deployProgram('hook_manager', mailboxSalt);
+    const mailboxSuffix = getProgramSuffix(
+      fromAleoAddress(req.mailboxAddress).programId,
+    );
+    const programs = await this.deployProgram('hook_manager', mailboxSuffix);
 
     const hookManagerProgramId = programs[programs.length - 1];
 
@@ -570,10 +588,12 @@ export class AleoSigner
   async createValidatorAnnounce(
     req: Omit<AltVM.ReqCreateValidatorAnnounce, 'signer'>,
   ): Promise<AltVM.ResCreateValidatorAnnounce> {
-    const validatorAnnounceSalt = getSaltFromAddress(req.mailboxAddress);
+    const validatorAnnounceSuffix = getProgramSuffix(
+      fromAleoAddress(req.mailboxAddress).programId,
+    );
     const programs = await this.deployProgram(
       'validator_announce',
-      validatorAnnounceSalt,
+      validatorAnnounceSuffix,
     );
 
     const tx = await this.getCreateValidatorAnnounceTransaction({
@@ -587,7 +607,7 @@ export class AleoSigner
     await this.sendAndConfirmTransaction(tx);
 
     return {
-      validatorAnnounceId,
+      validatorAnnounceId: toAleoAddress(validatorAnnounceId),
     };
   }
 
@@ -596,13 +616,15 @@ export class AleoSigner
   async createNativeToken(
     req: Omit<AltVM.ReqCreateNativeToken, 'signer'>,
   ): Promise<AltVM.ResCreateNativeToken> {
-    const tokenSalt = this.getNewProgramSalt(12);
-    const mailboxSalt = getSaltFromAddress(req.mailboxAddress);
+    const tokenSuffix = this.generateSuffix(12);
+    const mailboxSuffix = getProgramSuffix(
+      fromAleoAddress(req.mailboxAddress).programId,
+    );
 
     const programs = await this.deployProgram(
       'hyp_native',
-      mailboxSalt,
-      tokenSalt,
+      mailboxSuffix,
+      tokenSuffix,
     );
 
     const tx = await this.getCreateNativeTokenTransaction({
@@ -618,7 +640,7 @@ export class AleoSigner
     await this.sendAndConfirmTransaction(tx);
 
     return {
-      tokenAddress,
+      tokenAddress: toAleoAddress(tokenAddress),
     };
   }
 
@@ -627,13 +649,15 @@ export class AleoSigner
   ): Promise<AltVM.ResCreateCollateralToken> {
     const { symbol } = await this.getTokenMetadata(req.collateralDenom);
 
-    const tokenSalt = `${symbol}_${this.getNewProgramSalt(6)}`;
-    const mailboxSalt = getSaltFromAddress(req.mailboxAddress);
+    const tokenSuffix = `${symbol}_${this.generateSuffix(6)}`;
+    const mailboxSuffix = getProgramSuffix(
+      fromAleoAddress(req.mailboxAddress).programId,
+    );
 
     const programs = await this.deployProgram(
       'hyp_collateral',
-      mailboxSalt,
-      tokenSalt,
+      mailboxSuffix,
+      tokenSuffix,
     );
 
     const tx = await this.getCreateCollateralTokenTransaction({
@@ -649,20 +673,22 @@ export class AleoSigner
     await this.sendAndConfirmTransaction(tx);
 
     return {
-      tokenAddress,
+      tokenAddress: toAleoAddress(tokenAddress),
     };
   }
 
   async createSyntheticToken(
     req: Omit<AltVM.ReqCreateSyntheticToken, 'signer'>,
   ): Promise<AltVM.ResCreateSyntheticToken> {
-    const tokenSalt = `${req.denom.toLowerCase()}_${this.getNewProgramSalt(6)}`;
-    const mailboxSalt = getSaltFromAddress(req.mailboxAddress);
+    const tokenSuffix = `${req.denom.toLowerCase()}_${this.generateSuffix(6)}`;
+    const mailboxSuffix = getProgramSuffix(
+      fromAleoAddress(req.mailboxAddress).programId,
+    );
 
     const programs = await this.deployProgram(
       'hyp_synthetic',
-      mailboxSalt,
-      tokenSalt,
+      mailboxSuffix,
+      tokenSuffix,
     );
 
     const tx = await this.getCreateSyntheticTokenTransaction({
@@ -678,7 +704,7 @@ export class AleoSigner
     await this.sendAndConfirmTransaction(tx);
 
     return {
-      tokenAddress,
+      tokenAddress: toAleoAddress(tokenAddress),
     };
   }
 
