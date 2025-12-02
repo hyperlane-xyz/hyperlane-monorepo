@@ -1,5 +1,4 @@
 import { fromBech32, normalizeBech32, toBech32 } from '@cosmjs/encoding';
-import { Program } from '@provablehq/sdk/mainnet.js';
 import { PublicKey } from '@solana/web3.js';
 import { bech32m } from 'bech32';
 import { Wallet, utils as ethersUtils } from 'ethers';
@@ -435,13 +434,9 @@ export function addressToBytesAleo(address: Address): Uint8Array {
   let aleoAddress = address;
 
   if (new RegExp('^[A-Za-z0-9_]+\.aleo$').test(address)) {
-    aleoAddress = Program.fromString(
-      Program.getCreditsProgram()
-        .toString()
-        .replaceAll('credits.aleo', address),
-    )
-      .address()
-      .to_string();
+    return Uint8Array.from(address.replace('.aleo', '.'), (c) =>
+      c.charCodeAt(0),
+    );
   }
 
   let byteArray = new Uint8Array(
@@ -578,6 +573,12 @@ export function bytesToAddressRadix(
 }
 
 export function bytesToAddressAleo(bytes: Uint8Array): Address {
+  const address = String.fromCharCode(...bytes.filter((b) => b > 0));
+
+  if (new RegExp('^[A-Za-z0-9_]+\.$').test(address)) {
+    return `${address}aleo`;
+  }
+
   return bech32m.encode('aleo', bech32m.toWords(bytes));
 }
 
