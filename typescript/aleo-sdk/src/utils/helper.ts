@@ -134,7 +134,24 @@ export function getAddressFromProgramId(programId: string): string {
   return Plaintext.fromString(programId).toString();
 }
 
-export function getSaltFromAddress(address: string): string {
+export function toAleoAddress(programId: string): string {
+  return `${programId}/${getAddressFromProgramId(programId)}`;
+}
+
+export function fromAleoAddress(aleoAddress: string): {
+  programId: string;
+  address: string;
+} {
+  // TODO: do utils check
+  const [programId, address] = aleoAddress.split('/');
+
+  return {
+    programId,
+    address,
+  };
+}
+
+export function getSaltFromProgramId(address: string): string {
   return (address.split('_').at(-1) || '').replaceAll('.aleo', '');
 }
 
