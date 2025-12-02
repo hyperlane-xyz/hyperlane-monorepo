@@ -151,12 +151,12 @@ export function fromAleoAddress(aleoAddress: string): {
   };
 }
 
-export function getSaltFromProgramId(address: string): string {
+export function getProgramSuffix(address: string): string {
   return (address.split('_').at(-1) || '').replaceAll('.aleo', '');
 }
 
-export function getProgramIdFromSalt(program: AleoProgram, salt: string) {
-  return skipSuffixes ? `${program}.aleo` : `${program}_${salt}.aleo`;
+export function getProgramIdFromSuffix(program: AleoProgram, suffix: string) {
+  return skipSuffixes ? `${program}.aleo` : `${program}_${suffix}.aleo`;
 }
 
 export function stringToU128(str: string, littleEndian = false): bigint {

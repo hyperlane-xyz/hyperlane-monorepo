@@ -4,7 +4,7 @@ import { assert } from '@hyperlane-xyz/utils';
 import { AleoProgram } from '../artifacts.js';
 import {
   fromAleoAddress,
-  getSaltFromProgramId,
+  getProgramSuffix,
   loadProgramsInDeployOrder,
   programIdToPlaintext,
   toAleoAddress,
@@ -134,8 +134,8 @@ export class AleoSigner
   async createMailbox(
     req: Omit<AltVM.ReqCreateMailbox, 'signer'>,
   ): Promise<AltVM.ResCreateMailbox> {
-    const mailboxSalt = this.getNewProgramSalt(12);
-    const programs = await this.deployProgram('dispatch_proxy', mailboxSalt);
+    const mailboxSuffix = this.generateSuffix(12);
+    const programs = await this.deployProgram('dispatch_proxy', mailboxSuffix);
 
     const tx = await this.getCreateMailboxTransaction({
       signer: this.getSignerAddress(),
@@ -230,8 +230,8 @@ export class AleoSigner
   async createMessageIdMultisigIsm(
     req: Omit<AltVM.ReqCreateMessageIdMultisigIsm, 'signer'>,
   ): Promise<AltVM.ResCreateMessageIdMultisigIsm> {
-    const mailboxSalt = this.getNewProgramSalt(12);
-    const programs = await this.deployProgram('ism_manager', mailboxSalt);
+    const mailboxSuffix = this.generateSuffix(12);
+    const programs = await this.deployProgram('ism_manager', mailboxSuffix);
 
     const ismManagerProgramId = programs[programs.length - 1];
 
@@ -272,8 +272,8 @@ export class AleoSigner
   async createRoutingIsm(
     req: Omit<AltVM.ReqCreateRoutingIsm, 'signer'>,
   ): Promise<AltVM.ResCreateRoutingIsm> {
-    const mailboxSalt = this.getNewProgramSalt(12);
-    const programs = await this.deployProgram('ism_manager', mailboxSalt);
+    const mailboxSuffix = this.generateSuffix(12);
+    const programs = await this.deployProgram('ism_manager', mailboxSuffix);
 
     const ismManagerProgramId = programs[programs.length - 1];
 
@@ -369,8 +369,8 @@ export class AleoSigner
   async createNoopIsm(
     req: Omit<AltVM.ReqCreateNoopIsm, 'signer'>,
   ): Promise<AltVM.ResCreateNoopIsm> {
-    const mailboxSalt = this.getNewProgramSalt(12);
-    const programs = await this.deployProgram('ism_manager', mailboxSalt);
+    const mailboxSuffix = this.generateSuffix(12);
+    const programs = await this.deployProgram('ism_manager', mailboxSuffix);
 
     const ismManagerProgramId = programs[programs.length - 1];
 
@@ -411,10 +411,10 @@ export class AleoSigner
   async createMerkleTreeHook(
     req: Omit<AltVM.ReqCreateMerkleTreeHook, 'signer'>,
   ): Promise<AltVM.ResCreateMerkleTreeHook> {
-    const mailboxSalt = getSaltFromProgramId(
+    const mailboxSuffix = getProgramSuffix(
       fromAleoAddress(req.mailboxAddress).programId,
     );
-    const programs = await this.deployProgram('hook_manager', mailboxSalt);
+    const programs = await this.deployProgram('hook_manager', mailboxSuffix);
 
     const hookManagerProgramId = programs[programs.length - 1];
 
@@ -455,10 +455,10 @@ export class AleoSigner
   async createInterchainGasPaymasterHook(
     req: Omit<AltVM.ReqCreateInterchainGasPaymasterHook, 'signer'>,
   ): Promise<AltVM.ResCreateInterchainGasPaymasterHook> {
-    const mailboxSalt = getSaltFromProgramId(
+    const mailboxSuffix = getProgramSuffix(
       fromAleoAddress(req.mailboxAddress).programId,
     );
-    const programs = await this.deployProgram('hook_manager', mailboxSalt);
+    const programs = await this.deployProgram('hook_manager', mailboxSuffix);
 
     const hookManagerProgramId = programs[programs.length - 1];
 
@@ -544,10 +544,10 @@ export class AleoSigner
   async createNoopHook(
     req: Omit<AltVM.ReqCreateNoopHook, 'signer'>,
   ): Promise<AltVM.ResCreateNoopHook> {
-    const mailboxSalt = getSaltFromProgramId(
+    const mailboxSuffix = getProgramSuffix(
       fromAleoAddress(req.mailboxAddress).programId,
     );
-    const programs = await this.deployProgram('hook_manager', mailboxSalt);
+    const programs = await this.deployProgram('hook_manager', mailboxSuffix);
 
     const hookManagerProgramId = programs[programs.length - 1];
 
@@ -588,12 +588,12 @@ export class AleoSigner
   async createValidatorAnnounce(
     req: Omit<AltVM.ReqCreateValidatorAnnounce, 'signer'>,
   ): Promise<AltVM.ResCreateValidatorAnnounce> {
-    const validatorAnnounceSalt = getSaltFromProgramId(
+    const validatorAnnounceSuffix = getProgramSuffix(
       fromAleoAddress(req.mailboxAddress).programId,
     );
     const programs = await this.deployProgram(
       'validator_announce',
-      validatorAnnounceSalt,
+      validatorAnnounceSuffix,
     );
 
     const tx = await this.getCreateValidatorAnnounceTransaction({
@@ -616,15 +616,15 @@ export class AleoSigner
   async createNativeToken(
     req: Omit<AltVM.ReqCreateNativeToken, 'signer'>,
   ): Promise<AltVM.ResCreateNativeToken> {
-    const tokenSalt = this.getNewProgramSalt(12);
-    const mailboxSalt = getSaltFromProgramId(
+    const tokenSuffix = this.generateSuffix(12);
+    const mailboxSuffix = getProgramSuffix(
       fromAleoAddress(req.mailboxAddress).programId,
     );
 
     const programs = await this.deployProgram(
       'hyp_native',
-      mailboxSalt,
-      tokenSalt,
+      mailboxSuffix,
+      tokenSuffix,
     );
 
     const tx = await this.getCreateNativeTokenTransaction({
@@ -649,15 +649,15 @@ export class AleoSigner
   ): Promise<AltVM.ResCreateCollateralToken> {
     const { symbol } = await this.getTokenMetadata(req.collateralDenom);
 
-    const tokenSalt = `${symbol}_${this.getNewProgramSalt(6)}`;
-    const mailboxSalt = getSaltFromProgramId(
+    const tokenSuffix = `${symbol}_${this.generateSuffix(6)}`;
+    const mailboxSuffix = getProgramSuffix(
       fromAleoAddress(req.mailboxAddress).programId,
     );
 
     const programs = await this.deployProgram(
       'hyp_collateral',
-      mailboxSalt,
-      tokenSalt,
+      mailboxSuffix,
+      tokenSuffix,
     );
 
     const tx = await this.getCreateCollateralTokenTransaction({
@@ -680,15 +680,15 @@ export class AleoSigner
   async createSyntheticToken(
     req: Omit<AltVM.ReqCreateSyntheticToken, 'signer'>,
   ): Promise<AltVM.ResCreateSyntheticToken> {
-    const tokenSalt = `${req.denom.toLowerCase()}_${this.getNewProgramSalt(6)}`;
-    const mailboxSalt = getSaltFromProgramId(
+    const tokenSuffix = `${req.denom.toLowerCase()}_${this.generateSuffix(6)}`;
+    const mailboxSuffix = getProgramSuffix(
       fromAleoAddress(req.mailboxAddress).programId,
     );
 
     const programs = await this.deployProgram(
       'hyp_synthetic',
-      mailboxSalt,
-      tokenSalt,
+      mailboxSuffix,
+      tokenSuffix,
     );
 
     const tx = await this.getCreateSyntheticTokenTransaction({
