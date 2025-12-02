@@ -49,7 +49,7 @@ export async function executeCoreRead({
       break;
     }
     default: {
-      const provider = mustGet(context.altVmProvider, chain);
+      const provider = mustGet(context.altVmProviders, chain);
       const coreReader = new AltVMCoreReader(
         altVmChainLookup(context.multiProvider),
         provider,

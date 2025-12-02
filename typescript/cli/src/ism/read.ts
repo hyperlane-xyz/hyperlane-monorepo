@@ -34,7 +34,7 @@ export async function readIsmConfig({
     config = await ismReader.deriveIsmConfig(address);
     stringConfig = stringifyObject(config, resolveFileFormat(out), 2);
   } else {
-    const provider = mustGet(context.altVmProvider, chain);
+    const provider = mustGet(context.altVmProviders, chain);
     const ismReader = new AltVMIsmReader(
       (chain) => context.multiProvider.tryGetChainName(chain),
       provider,

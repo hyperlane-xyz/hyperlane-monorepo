@@ -41,7 +41,7 @@ export async function readHookConfig({
       break;
     }
     default: {
-      const provider = mustGet(context.altVmProvider, chain);
+      const provider = mustGet(context.altVmProviders, chain);
       const hookReader = new AltVMHookReader(
         (chain) => context.multiProvider.getChainMetadata(chain),
         provider,
