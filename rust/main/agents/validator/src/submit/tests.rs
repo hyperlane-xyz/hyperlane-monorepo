@@ -8,8 +8,8 @@ use tokio::sync::mpsc;
 use hyperlane_base::tests::mock_hyperlane_db::MockHyperlaneDb as MockDb;
 use hyperlane_core::{
     test_utils::dummy_domain, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneProvider, MerkleTreeHook, MerkleTreeInsertion, ReorgEvent, SignedAnnouncement,
-    SignedCheckpointWithMessageId, H160, H256,
+    HyperlaneProvider, MerkleTreeHook, MerkleTreeInsertion, ReorgEvent, ReorgEventResponse,
+    SignedAnnouncement, SignedCheckpointWithMessageId, H160, H256,
 };
 
 use super::*;
@@ -60,7 +60,7 @@ mockall::mock! {
         async fn write_announcement(&self, signed_announcement: &SignedAnnouncement) -> Result<()>;
         fn announcement_location(&self) -> String;
         async fn write_reorg_status(&self, reorg_event: &ReorgEvent) -> Result<()>;
-        async fn reorg_status(&self) -> Result<Option<ReorgEvent>>;
+        async fn reorg_status(&self) -> Result<ReorgEventResponse>;
     }
 }
 
