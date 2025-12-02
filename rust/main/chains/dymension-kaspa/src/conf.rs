@@ -16,6 +16,10 @@ pub struct ConnectionConf {
     pub kaspa_urls_wrpc: Vec<String>, // Direct connection to Kaspa DAG node, e.g. localhost:17210
     pub kaspa_urls_rest: Vec<Url>, // Connection to Kaspa indexer server, e.g. https://api.kaspa.org
 
+    // WRPC connection health settings
+    pub wrpc_reconnect_interval_secs: u64, // Periodic reconnection interval (0 = disabled)
+    pub wrpc_reconnect_on_error: bool,     // Recreate connection on RPC errors
+
     // Used by both agents to build escrow public object
     pub validator_pub_keys: Vec<String>,
 
@@ -128,6 +132,8 @@ impl ConnectionConf {
         kas_tx_fee_multiplier: f64,
         max_sweep_inputs: Option<usize>,
         validator_request_timeout: std::time::Duration,
+        wrpc_reconnect_interval_secs: Option<u64>,
+        wrpc_reconnect_on_error: Option<bool>,
     ) -> Self {
         let v = match kaspa_escrow_key_source {
             Some(kas_escrow_key_source) => {
@@ -179,6 +185,8 @@ impl ConnectionConf {
             wallet_dir,
             kaspa_urls_wrpc,
             kaspa_urls_rest,
+            wrpc_reconnect_interval_secs: wrpc_reconnect_interval_secs.unwrap_or(1800),
+            wrpc_reconnect_on_error: wrpc_reconnect_on_error.unwrap_or(true),
             validator_stuff: v,
             validator_pub_keys,
             multisig_threshold_hub_ism,
