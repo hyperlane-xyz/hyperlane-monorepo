@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use hyperlane_aleo::AleoTxCalldata;
+use hyperlane_aleo::AleoTxData;
 use hyperlane_core::H256;
 
 use crate::adapter::chains::AleoAdapter;
@@ -19,7 +19,7 @@ fn create_test_payload() -> FullPayload {
 }
 
 fn create_test_payload_with_success_criteria(success_criteria: Option<Vec<u8>>) -> FullPayload {
-    let calldata = AleoTxCalldata {
+    let tx_data = AleoTxData {
         program_id: "test_program.aleo".to_string(),
         function_name: "test_function".to_string(),
         inputs: vec!["input1".to_string(), "input2".to_string()],
@@ -33,7 +33,7 @@ fn create_test_payload_with_success_criteria(success_criteria: Option<Vec<u8>>) 
             metadata: format!("test-payload-{}", payload_uuid),
             success_criteria,
         },
-        data: serde_json::to_vec(&calldata).unwrap(),
+        data: serde_json::to_vec(&tx_data).unwrap(),
         to: H256::zero(),
         status: PayloadStatus::ReadyToSubmit,
         value: None,

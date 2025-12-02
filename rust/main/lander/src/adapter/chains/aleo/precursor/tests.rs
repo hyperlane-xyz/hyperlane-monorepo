@@ -1,6 +1,6 @@
 use uuid::Uuid;
 
-use hyperlane_aleo::{AleoTxCalldata, FeeEstimate};
+use hyperlane_aleo::{AleoTxData, FeeEstimate};
 use hyperlane_core::H512;
 
 use crate::{
@@ -26,13 +26,13 @@ fn test_new() {
 
 #[test]
 fn test_from_aleo_tx_calldata() {
-    let calldata = AleoTxCalldata {
+    let tx_data = AleoTxData {
         program_id: "hyperlane.aleo".to_string(),
         function_name: "dispatch".to_string(),
         inputs: vec!["arg1".to_string(), "arg2".to_string(), "arg3".to_string()],
     };
 
-    let precursor = AleoTxPrecursor::from(calldata);
+    let precursor = AleoTxPrecursor::from(tx_data);
 
     assert_eq!(precursor.program_id, "hyperlane.aleo");
     assert_eq!(precursor.function_name, "dispatch");

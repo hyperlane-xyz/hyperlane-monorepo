@@ -1,4 +1,4 @@
-use hyperlane_aleo::AleoTxCalldata;
+use hyperlane_aleo::AleoTxData;
 use hyperlane_core::H256;
 
 use crate::{
@@ -13,7 +13,7 @@ fn create_test_payload() -> FullPayload {
 }
 
 fn create_test_payload_with_success_criteria(success_criteria: Option<Vec<u8>>) -> FullPayload {
-    let calldata = AleoTxCalldata {
+    let tx_data = AleoTxData {
         program_id: "test_program.aleo".to_string(),
         function_name: "test_function".to_string(),
         inputs: vec!["input1".to_string(), "input2".to_string()],
@@ -27,7 +27,7 @@ fn create_test_payload_with_success_criteria(success_criteria: Option<Vec<u8>>) 
             metadata: format!("test-payload-{}", payload_uuid),
             success_criteria,
         },
-        data: serde_json::to_vec(&calldata).unwrap(),
+        data: serde_json::to_vec(&tx_data).unwrap(),
         to: H256::zero(),
         status: PayloadStatus::ReadyToSubmit,
         value: None,
@@ -150,14 +150,14 @@ fn test_build_transaction_with_wrong_json_structure() {
 
 #[test]
 fn test_build_transaction_with_empty_program_id() {
-    let calldata = AleoTxCalldata {
+    let tx_data = AleoTxData {
         program_id: "".to_string(), // Empty program ID
         function_name: "test_function".to_string(),
         inputs: vec!["input1".to_string()],
     };
 
     let mut payload = create_test_payload();
-    payload.data = serde_json::to_vec(&calldata).unwrap();
+    payload.data = serde_json::to_vec(&tx_data).unwrap();
 
     let result = build_transaction_from_payload(&payload);
 
@@ -169,14 +169,14 @@ fn test_build_transaction_with_empty_program_id() {
 
 #[test]
 fn test_build_transaction_with_empty_function_name() {
-    let calldata = AleoTxCalldata {
+    let tx_data = AleoTxData {
         program_id: "test_program.aleo".to_string(),
         function_name: "".to_string(), // Empty function name
         inputs: vec!["input1".to_string()],
     };
 
     let mut payload = create_test_payload();
-    payload.data = serde_json::to_vec(&calldata).unwrap();
+    payload.data = serde_json::to_vec(&tx_data).unwrap();
 
     let result = build_transaction_from_payload(&payload);
 
@@ -186,14 +186,14 @@ fn test_build_transaction_with_empty_function_name() {
 
 #[test]
 fn test_build_transaction_with_no_inputs() {
-    let calldata = AleoTxCalldata {
+    let tx_data = AleoTxData {
         program_id: "test_program.aleo".to_string(),
         function_name: "test_function".to_string(),
         inputs: vec![], // No inputs
     };
 
     let mut payload = create_test_payload();
-    payload.data = serde_json::to_vec(&calldata).unwrap();
+    payload.data = serde_json::to_vec(&tx_data).unwrap();
 
     let result = build_transaction_from_payload(&payload);
 
@@ -205,14 +205,14 @@ fn test_build_transaction_with_no_inputs() {
 
 #[test]
 fn test_build_transaction_with_many_inputs() {
-    let calldata = AleoTxCalldata {
+    let tx_data = AleoTxData {
         program_id: "test_program.aleo".to_string(),
         function_name: "test_function".to_string(),
         inputs: vec!["input".to_string(); 100], // Many inputs
     };
 
     let mut payload = create_test_payload();
-    payload.data = serde_json::to_vec(&calldata).unwrap();
+    payload.data = serde_json::to_vec(&tx_data).unwrap();
 
     let result = build_transaction_from_payload(&payload);
 
@@ -223,14 +223,14 @@ fn test_build_transaction_with_many_inputs() {
 #[test]
 fn test_build_transaction_with_large_input_strings() {
     let large_input = "x".repeat(10000); // 10KB input string
-    let calldata = AleoTxCalldata {
+    let tx_data = AleoTxData {
         program_id: "test_program.aleo".to_string(),
         function_name: "test_function".to_string(),
         inputs: vec![large_input.clone(), large_input],
     };
 
     let mut payload = create_test_payload();
-    payload.data = serde_json::to_vec(&calldata).unwrap();
+    payload.data = serde_json::to_vec(&tx_data).unwrap();
 
     let result = build_transaction_from_payload(&payload);
 
@@ -240,14 +240,14 @@ fn test_build_transaction_with_large_input_strings() {
 
 #[test]
 fn test_build_transaction_with_special_characters_in_program_id() {
-    let calldata = AleoTxCalldata {
+    let tx_data = AleoTxData {
         program_id: "test-program_v2.aleo".to_string(), // Dashes and underscores
         function_name: "test_function".to_string(),
         inputs: vec!["input1".to_string()],
     };
 
     let mut payload = create_test_payload();
-    payload.data = serde_json::to_vec(&calldata).unwrap();
+    payload.data = serde_json::to_vec(&tx_data).unwrap();
 
     let result = build_transaction_from_payload(&payload);
 

@@ -1,14 +1,12 @@
-use std::fmt::Debug;
-
 use serde::{Deserialize, Serialize};
 
-use hyperlane_aleo::{AleoTxCalldata, FeeEstimate};
+use hyperlane_aleo::{AleoTxData, FeeEstimate};
 use hyperlane_core::H512;
 
 use crate::transaction::{Transaction, VmSpecificTxData};
 use crate::LanderError;
 
-#[derive(Clone, Deserialize, Serialize, PartialEq)]
+#[derive(Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct AleoTxPrecursor {
     /// Program ID to call
     pub program_id: String,
@@ -20,7 +18,7 @@ pub struct AleoTxPrecursor {
     pub estimated_fee: Option<FeeEstimate>,
 }
 
-impl Debug for AleoTxPrecursor {
+impl std::fmt::Debug for AleoTxPrecursor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         #[allow(dead_code)]
         #[derive(Debug)]
@@ -60,10 +58,8 @@ impl AleoTxPrecursor {
     }
 }
 
-impl Eq for AleoTxPrecursor {}
-
-impl From<AleoTxCalldata> for AleoTxPrecursor {
-    fn from(value: AleoTxCalldata) -> Self {
+impl From<AleoTxData> for AleoTxPrecursor {
+    fn from(value: AleoTxData) -> Self {
         Self {
             program_id: value.program_id,
             function_name: value.function_name,

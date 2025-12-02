@@ -4,6 +4,7 @@ use std::str::FromStr;
 use async_trait::async_trait;
 use snarkvm::prelude::{Address, FromBytes, Plaintext, ProgramID};
 
+use aleo_serialize::AleoSerialize;
 use hyperlane_core::{
     ChainResult, ContractLocator, Encode, FixedPointNumber, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Mailbox, ReorgPeriod, TxCostEstimate,
@@ -11,6 +12,7 @@ use hyperlane_core::{
 };
 
 use crate::provider::{AleoClient, FallbackHttpClient};
+use crate::types::AleoGetMappingValue;
 use crate::utils::{hash_to_aleo_hash, pad_to_length, to_h256};
 use crate::{
     aleo_args, AleoMailboxStruct, AleoMessage, AleoProvider, AppMetadata, ConnectionConf,
@@ -232,13 +234,13 @@ impl<C: AleoClient> Mailbox for AleoMailbox<C> {
         let recipient = self.get_recipient(message.recipient).await?.to_string();
         let inputs = self.get_process_args(message, metadata).await?;
 
-        let calldata = crate::AleoTxCalldata {
+        let tx_data = crate::AleoTxData {
             program_id: recipient,
             function_name: "process".to_string(),
             inputs,
         };
 
-        let json_str = serde_json::to_string(&calldata)
+        let json_str = serde_json::to_string(&tx_data)
             .map_err(hyperlane_core::ChainCommunicationError::JsonParseError)?;
         Ok(json_str.as_bytes().to_vec())
     }
@@ -246,17 +248,17 @@ impl<C: AleoClient> Mailbox for AleoMailbox<C> {
     /// Get the calldata for a call which allows to check if a particular messages was delivered
     fn delivered_calldata(&self, message_id: H256) -> ChainResult<Option<Vec<u8>>> {
         let id = hash_to_aleo_hash(&message_id)?;
-        let key = DeliveryKey { id };
+        let key: Plaintext<CurrentNetwork> = DeliveryKey { id }
+            .to_plaintext()
+            .map_err(HyperlaneAleoError::from)?;
 
-        // For Aleo, we need to create calldata that can be used to check if a delivery exists
-        // This would typically query the "deliveries" mapping in the mailbox program
-        let calldata = crate::AleoTxCalldata {
+        let get_mapping_value = AleoGetMappingValue {
             program_id: self.program.clone(),
-            function_name: "deliveries".to_string(),
-            inputs: vec![format!("{:?}", key)],
+            mapping_name: "deliveries".to_string(),
+            mapping_key: key.to_string(),
         };
 
-        let json_val = serde_json::to_vec(&calldata)
+        let json_val = serde_json::to_vec(&get_mapping_value)
             .map_err(hyperlane_core::ChainCommunicationError::JsonParseError)?;
         Ok(Some(json_val))
     }

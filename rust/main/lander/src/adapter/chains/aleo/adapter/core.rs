@@ -7,11 +7,12 @@ use hyperlane_base::settings::ChainConf;
 use hyperlane_base::CoreMetrics;
 use hyperlane_core::H512;
 
-use crate::adapter::chains::aleo::adapter::build::build_transaction_from_payload;
 use crate::adapter::{AdaptsChain, GasLimit, TxBuildingResult};
 use crate::payload::PayloadDetails;
 use crate::transaction::Transaction;
 use crate::{DispatcherMetrics, FullPayload, LanderError, TransactionStatus};
+
+use super::build::build_transaction_from_payload;
 
 pub struct AleoAdapter {
     pub estimated_block_time: Duration,
@@ -82,23 +83,8 @@ impl AdaptsChain for AleoAdapter {
         &self.estimated_block_time
     }
 
-    fn max_batch_size(&self) -> u32 {
-        // Aleo doesn't support batching multiple operations in a single transaction
-        1
-    }
-
     fn update_vm_specific_metrics(&self, _tx: &Transaction, _metrics: &DispatcherMetrics) {
         // TODO: Add Aleo-specific metrics if needed
-    }
-
-    async fn nonce_gap_exists(&self) -> bool {
-        // Aleo doesn't use nonces, it uses ZK proofs with random seeds
-        false
-    }
-
-    async fn replace_tx(&self, _tx: &Transaction) -> Result<(), LanderError> {
-        // Aleo transactions cannot be replaced once created due to ZK proof binding
-        Ok(())
     }
 }
 

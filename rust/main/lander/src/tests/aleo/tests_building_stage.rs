@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use hyperlane_aleo::AleoTxCalldata;
+use hyperlane_aleo::AleoTxData;
 use hyperlane_core::H256;
 
 use crate::adapter::chains::AleoAdapter;
@@ -12,7 +12,7 @@ use crate::transaction::Transaction;
 use crate::{DispatcherMetrics, FullPayload, PayloadStatus, PayloadUuid, TransactionStatus};
 
 fn create_aleo_payload() -> FullPayload {
-    let calldata = AleoTxCalldata {
+    let calldata = AleoTxData {
         program_id: "test_program.aleo".to_string(),
         function_name: "test_function".to_string(),
         inputs: vec!["input1".to_string(), "input2".to_string()],
@@ -154,7 +154,7 @@ async fn verify_payload_status_transition(
 }
 
 /// Helper function to verify calldata field validation (Check 12)
-fn verify_calldata_preserved(tx: &Transaction, original_calldata: &AleoTxCalldata) {
+fn verify_calldata_preserved(tx: &Transaction, original_calldata: &AleoTxData) {
     // Extract the Aleo transaction precursor from vm_specific_data
     match &tx.vm_specific_data {
         crate::transaction::VmSpecificTxData::Aleo(precursor) => {
@@ -182,7 +182,7 @@ async fn test_building_stage_single_payload() {
 
     // Create and enqueue a valid Aleo payload
     let payload = create_aleo_payload();
-    let original_calldata: AleoTxCalldata = serde_json::from_slice(&payload.data).unwrap();
+    let original_calldata: AleoTxData = serde_json::from_slice(&payload.data).unwrap();
     initialize_payload_db(&building_stage.state.payload_db, &payload).await;
     queue.push_back(payload.clone()).await;
 
@@ -229,9 +229,9 @@ async fn test_building_stage_multiple_payloads_no_batching() {
     let payload3 = create_aleo_payload();
 
     // Store original calldata for each payload
-    let calldata1: AleoTxCalldata = serde_json::from_slice(&payload1.data).unwrap();
-    let calldata2: AleoTxCalldata = serde_json::from_slice(&payload2.data).unwrap();
-    let calldata3: AleoTxCalldata = serde_json::from_slice(&payload3.data).unwrap();
+    let calldata1: AleoTxData = serde_json::from_slice(&payload1.data).unwrap();
+    let calldata2: AleoTxData = serde_json::from_slice(&payload2.data).unwrap();
+    let calldata3: AleoTxData = serde_json::from_slice(&payload3.data).unwrap();
     let original_calldatas = vec![calldata1, calldata2, calldata3];
 
     // Initialize in DB and enqueue
@@ -319,7 +319,7 @@ async fn test_building_stage_mixed_valid_and_invalid_payloads() {
 
     // Create one valid and two invalid payloads
     let valid_payload = create_aleo_payload();
-    let original_calldata: AleoTxCalldata = serde_json::from_slice(&valid_payload.data).unwrap();
+    let original_calldata: AleoTxData = serde_json::from_slice(&valid_payload.data).unwrap();
     let mut invalid_payload1 = create_aleo_payload();
     invalid_payload1.data = vec![1, 2, 3]; // Invalid JSON
 
