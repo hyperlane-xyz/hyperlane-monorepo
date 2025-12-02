@@ -47,10 +47,14 @@ export class AleoSigner
 
   private async deployProgram(
     programName: AleoProgram,
-    coreSalt: string,
-    warpSalt?: string,
+    coreSuffix: string,
+    warpSuffix?: string,
   ): Promise<string[]> {
-    const programs = loadProgramsInDeployOrder(programName, coreSalt, warpSalt);
+    const programs = loadProgramsInDeployOrder(
+      programName,
+      coreSuffix,
+      warpSuffix,
+    );
 
     for (const { id, program } of programs) {
       try {

@@ -5,15 +5,14 @@ import { strip0x } from '@hyperlane-xyz/utils';
 import { AleoProgram, programRegistry } from '../artifacts.js';
 
 const upgradeAuthority = process.env['ALEO_UPGRADE_AUTHORITY'] || '';
-const originalProgramIds = JSON.parse(
-  process.env['ALEO_USE_ORIGINAL_PROGRAM_IDS'] || 'false',
-);
+const skipSuffixes = JSON.parse(process.env['ALEO_SKIP_SUFFIXES'] || 'false');
 const ismManager = process.env['ALEO_ISM_MANAGER'];
+const customWarpSuffix = process.env['ALEO_WARP_SUFFIX'];
 
 export function loadProgramsInDeployOrder(
   programName: AleoProgram,
-  coreSalt: string,
-  warpSalt?: string,
+  coreSuffix: string,
+  warpSuffix?: string,
 ): { id: string; program: string }[] {
   const visited = new Set<string>();
   let programs: Program[] = [];
@@ -37,18 +36,19 @@ export function loadProgramsInDeployOrder(
 
   visit(programName);
 
-  if (!originalProgramIds) {
+  if (!skipSuffixes) {
     programs = programs.map((p) =>
       Program.fromString(
         p
           .toString()
           .replaceAll(
             /(mailbox|hook_manager|dispatch_proxy|validator_announce).aleo/g,
-            (_, p1) => `${p1}_${coreSalt}.aleo`,
+            (_, p1) => `${p1}_${coreSuffix}.aleo`,
           )
           .replaceAll(
             /(hyp_native|hyp_collateral|hyp_synthetic).aleo/g,
-            (_, p1) => `${p1}_${warpSalt || coreSalt}.aleo`,
+            (_, p1) =>
+              `${p1}_${customWarpSuffix || warpSuffix || coreSuffix}.aleo`,
           ),
       ),
     );
@@ -156,7 +156,7 @@ export function getSaltFromProgramId(address: string): string {
 }
 
 export function getProgramIdFromSalt(program: AleoProgram, salt: string) {
-  return `${program}_${salt}.aleo`;
+  return skipSuffixes ? `${program}.aleo` : `${program}_${salt}.aleo`;
 }
 
 export function stringToU128(str: string, littleEndian = false): bigint {

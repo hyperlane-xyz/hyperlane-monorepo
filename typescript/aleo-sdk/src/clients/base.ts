@@ -29,6 +29,7 @@ export class AleoBase {
 
   protected readonly aleoClient: AnyAleoNetworkClient;
   protected readonly skipProofs: boolean;
+  protected readonly skipSuffixes: boolean;
   protected readonly consensusVersionHeights: string;
   protected readonly ismManager: string;
 
@@ -47,6 +48,9 @@ export class AleoBase {
       : new AleoMainnetNetworkClient(rpcUrls[0]);
 
     this.skipProofs = JSON.parse(process.env['ALEO_SKIP_PROOFS'] || 'false');
+    this.skipSuffixes = JSON.parse(
+      process.env['ALEO_SKIP_SUFFIXES'] || 'false',
+    );
     this.consensusVersionHeights =
       process.env['ALEO_CONSENSUS_VERSION_HEIGHTS'] || '';
 
