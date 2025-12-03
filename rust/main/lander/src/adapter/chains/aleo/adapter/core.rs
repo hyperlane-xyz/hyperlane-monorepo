@@ -36,8 +36,7 @@ impl AdaptsChain for AleoAdapter {
         &self,
         _payload: &FullPayload,
     ) -> Result<Option<GasLimit>, LanderError> {
-        // Aleo doesn't use traditional gas limits, fees are calculated differently
-        Ok(None)
+        todo!()
     }
 
     async fn build_transactions(&self, payloads: &[FullPayload]) -> Vec<TxBuildingResult> {
