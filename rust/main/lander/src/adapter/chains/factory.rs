@@ -14,8 +14,8 @@ use hyperlane_radix::RadixProvider;
 
 use crate::adapter::{
     chains::{
-        cosmos::CosmosAdapter, ethereum::EthereumAdapter, radix::adapter::RadixAdapter,
-        sealevel::SealevelAdapter,
+        aleo::AleoAdapter, cosmos::CosmosAdapter, ethereum::EthereumAdapter,
+        radix::adapter::RadixAdapter, sealevel::SealevelAdapter,
     },
     AdaptsChain,
 };
@@ -58,7 +58,10 @@ impl AdapterFactory {
                 let adapter = RadixAdapter::from_conf(conf, core_metrics, &connection_conf)?;
                 Arc::new(adapter)
             }
-            ChainConnectionConf::Aleo(_) => todo!(),
+            ChainConnectionConf::Aleo(connection_conf) => {
+                let adapter = AleoAdapter::from_conf(conf, core_metrics, &connection_conf)?;
+                Arc::new(adapter)
+            }
         };
         Ok(adapter)
     }

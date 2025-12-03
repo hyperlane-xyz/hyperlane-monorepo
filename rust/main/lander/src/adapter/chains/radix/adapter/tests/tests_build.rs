@@ -2,23 +2,21 @@ use std::sync::Arc;
 
 use ethers::utils::hex;
 use eyre::Result;
-
-use hyperlane_core::{Encode, HyperlaneMessage};
-use hyperlane_radix::{RadixSigner, RadixTxCalldata};
 use radix_common::manifest_args;
 use scrypto::network::NetworkDefinition;
 use scrypto::prelude::{manifest_encode, ManifestArgs};
 
-use crate::adapter::chains::radix::adapter::tests::tests_common::{
-    payload, MockRadixProvider, MAILBOX_ADDRESS, TEST_PRIVATE_KEY,
-};
-use crate::adapter::chains::radix::precursor::RadixTxPrecursor;
+use hyperlane_core::{Encode, HyperlaneMessage};
+use hyperlane_radix::{RadixSigner, RadixTxCalldata};
+
 use crate::adapter::{AdaptsChain, TxBuildingResult};
 use crate::payload::PayloadDetails;
 use crate::transaction::VmSpecificTxData;
 use crate::FullPayload;
 
-use super::tests_common::adapter;
+use super::super::super::precursor::RadixTxPrecursor;
+
+use super::tests_common::{adapter, payload, MockRadixProvider, MAILBOX_ADDRESS, TEST_PRIVATE_KEY};
 
 const MAILBOX_METHOD_NAME_RPOCESS: &str = "process";
 

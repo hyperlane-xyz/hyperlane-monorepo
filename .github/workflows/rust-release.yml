@@ -104,9 +104,18 @@ jobs:
       needs.check-release-status.outputs.has_changes == 'true' &&
       needs.check-release-status.outputs.should_release == 'false'
     steps:
+      # Generate token first so checkout configures git credentials with it
+      # This allows subsequent pushes to trigger workflows
+      - name: Generate GitHub App Token
+        id: generate-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.HYPER_GONK_APP_ID }}
+          private-key: ${{ secrets.HYPER_GONK_PRIVATE_KEY }}
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
+          token: ${{ steps.generate-token.outputs.token }}
       - uses: dtolnay/rust-toolchain@stable
       - name: Determine next version from conventional commits
         id: next_version
@@ -170,12 +179,6 @@ jobs:
           cd ../sealevel
           cargo update --workspace --offline 2>/dev/null || cargo update --workspace
           echo "Updated rust/sealevel/Cargo.lock"
-      - name: Generate GitHub App Token
-        id: generate-token
-        uses: actions/create-github-app-token@v2
-        with:
-          app-id: ${{ secrets.HYPER_GONK_APP_ID }}
-          private-key: ${{ secrets.HYPER_GONK_PRIVATE_KEY }}
       - name: Create or update release PR
         env:
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
