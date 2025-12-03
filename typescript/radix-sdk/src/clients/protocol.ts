@@ -2,6 +2,7 @@ import {
   AltVM,
   ChainMetadataForAltVM,
   ITransactionSubmitter,
+  MinimumRequiredGasByAction,
   ProtocolProvider,
   SignerConfig,
   TransactionSubmitterConfig,
@@ -29,8 +30,11 @@ export class RadixProtocolProvider implements ProtocolProvider {
     assert(chainMetadata.rpcUrls, 'rpc urls undefined');
     const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
 
-    const { privateKey, ...extraParams } = config;
-    return RadixSigner.connectWithSigner(rpcUrls, privateKey, extraParams);
+    const { privateKey } = config;
+
+    return RadixSigner.connectWithSigner(rpcUrls, privateKey, {
+      metadata: chainMetadata,
+    });
   }
 
   createSubmitter<TConfig extends TransactionSubmitterConfig>(
@@ -39,5 +43,14 @@ export class RadixProtocolProvider implements ProtocolProvider {
   ): Promise<ITransactionSubmitter> {
     // @TODO Implement in a follow up PR
     throw Error('Not implemented');
+  }
+
+  getMinGas(): MinimumRequiredGasByAction {
+    return {
+      CORE_DEPLOY_GAS: 0n,
+      WARP_DEPLOY_GAS: 0n,
+      TEST_SEND_GAS: 0n,
+      AVS_GAS: 0n,
+    };
   }
 }

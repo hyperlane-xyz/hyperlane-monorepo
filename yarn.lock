@@ -7842,7 +7842,7 @@ __metadata:
     "@eth-optimism/sdk": "npm:^3.3.3"
     "@google-cloud/pino-logging-gcp-config": "npm:^1.0.6"
     "@hyperlane-xyz/core": "npm:10.0.5"
-    "@hyperlane-xyz/registry": "npm:20.0.0"
+    "@hyperlane-xyz/registry": "npm:23.7.0"
     "@hyperlane-xyz/sdk": "npm:19.11.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
     "@hyperlane-xyz/utils": "npm:19.11.0"
@@ -7891,7 +7891,7 @@ __metadata:
     "@hyperlane-xyz/http-registry-server": "npm:19.11.0"
     "@hyperlane-xyz/provider-sdk": "npm:0.3.0"
     "@hyperlane-xyz/radix-sdk": "npm:19.11.0"
-    "@hyperlane-xyz/registry": "npm:20.0.0"
+    "@hyperlane-xyz/registry": "npm:23.7.0"
     "@hyperlane-xyz/sdk": "npm:19.11.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
     "@hyperlane-xyz/utils": "npm:19.11.0"
@@ -8098,7 +8098,7 @@ __metadata:
     "@ethersproject/abi": "npm:*"
     "@ethersproject/providers": "npm:*"
     "@hyperlane-xyz/core": "npm:10.0.5"
-    "@hyperlane-xyz/registry": "npm:20.0.0"
+    "@hyperlane-xyz/registry": "npm:23.7.0"
     "@hyperlane-xyz/sdk": "npm:19.11.0"
     "@hyperlane-xyz/utils": "npm:19.11.0"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
@@ -8144,7 +8144,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/http-registry-server@workspace:typescript/http-registry-server"
   dependencies:
-    "@hyperlane-xyz/registry": "npm:20.0.0"
+    "@hyperlane-xyz/registry": "npm:23.7.0"
     "@hyperlane-xyz/sdk": "npm:19.11.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
     "@hyperlane-xyz/utils": "npm:19.11.0"
@@ -8193,7 +8193,7 @@ __metadata:
     "@hyperlane-xyz/core": "npm:10.0.5"
     "@hyperlane-xyz/helloworld": "npm:19.11.0"
     "@hyperlane-xyz/http-registry-server": "npm:19.11.0"
-    "@hyperlane-xyz/registry": "npm:20.0.0"
+    "@hyperlane-xyz/registry": "npm:23.7.0"
     "@hyperlane-xyz/sdk": "npm:19.11.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
     "@hyperlane-xyz/utils": "npm:19.11.0"
@@ -8319,14 +8319,14 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/registry@npm:20.0.0":
-  version: 20.0.0
-  resolution: "@hyperlane-xyz/registry@npm:20.0.0"
+"@hyperlane-xyz/registry@npm:23.7.0":
+  version: 23.7.0
+  resolution: "@hyperlane-xyz/registry@npm:23.7.0"
   dependencies:
     jszip: "npm:^3.10.1"
     yaml: "npm:2.4.5"
     zod: "npm:^3.21.2"
-  checksum: 10/0eaa9accf96822d5d8c4df8476d1688a725ff967e3bcbac41c68c82392add1835d8f629a4e70f37b271b51666751e83f79f4557b8bd71b39b6c207a0148395f4
+  checksum: 10/d7dc202ed2b0b62507df30b8d42108c0ed7320cc93db51a697575b0acf4ae5b0a1d178370caf2d82226a4c72015fc79f10b25bbbefa399a0ad16312f78cc9f97
   languageName: node
   linkType: hard
 
@@ -8482,7 +8482,7 @@ __metadata:
     "@hyperlane-xyz/cosmos-sdk": "npm:19.11.0"
     "@hyperlane-xyz/provider-sdk": "npm:0.3.0"
     "@hyperlane-xyz/radix-sdk": "npm:19.11.0"
-    "@hyperlane-xyz/registry": "npm:20.0.0"
+    "@hyperlane-xyz/registry": "npm:23.7.0"
     "@hyperlane-xyz/sdk": "npm:19.11.0"
     "@hyperlane-xyz/tsconfig": "workspace:^"
     "@hyperlane-xyz/utils": "npm:19.11.0"
