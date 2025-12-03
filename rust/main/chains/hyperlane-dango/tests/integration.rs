@@ -1,7 +1,7 @@
 use {
     crate::utils::{
         build_agents, get_free_port, startup_tests, try_for, Agent, CheckpointSyncer,
-        DangoBuilder, DangoSettings, HexKey, Location2, Relayer, SetupChain,
+        DangoBuilder, DangoSettings, HexKey, Location, Relayer, SetupChain,
         Validator, ValidatorSigner,
     },
     dango_types::{constants::dango, gateway::Origin},
@@ -38,7 +38,7 @@ async fn dango_one_way() -> anyhow::Result<()> {
         Agent::new(
             Validator::default()
                 .with_origin_chain_name(chain_name1)
-                .with_checkpoint_syncer(CheckpointSyncer::LocalStorage(Location2::Temp))
+                .with_checkpoint_syncer(CheckpointSyncer::LocalStorage(Location::Temp))
                 .with_validator_signer(ValidatorSigner::Hex(validator_key.key.clone())),
         )
         .with_chain(
@@ -52,7 +52,7 @@ async fn dango_one_way() -> anyhow::Result<()> {
                 }),
         )
         .with_metrics_port(get_free_port())
-        .with_db(Location2::Temp)
+        .with_db(Location::Temp)
         .launch();
     }
 
@@ -77,9 +77,9 @@ async fn dango_one_way() -> anyhow::Result<()> {
                             .with_httpd_urls(ch2.httpd_urls.clone());
                     }),
             )
-            .with_db(Location2::Temp)
+            .with_db(Location::Temp)
             .with_metrics_port(get_free_port())
-            .with_db(Location2::Temp)
+            .with_db(Location::Temp)
             .launch();
     }
 

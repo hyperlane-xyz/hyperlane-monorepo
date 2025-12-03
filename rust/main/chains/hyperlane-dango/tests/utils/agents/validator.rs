@@ -1,8 +1,11 @@
 use {
-    crate::utils::{AgentArgs, Args, Launcher, Location2},
+    crate::utils::{AgentArgs, Args, Launcher, Location},
     grug::btree_map,
     hyperlane_core::H256,
-    std::collections::{BTreeMap, BTreeSet},
+    std::{
+        collections::{BTreeMap, BTreeSet},
+        path::PathBuf,
+    },
 };
 
 #[derive(Default)]
@@ -48,12 +51,34 @@ impl AgentArgs for Validator {
 pub struct S3CheckpointSyncer {
     bucket: String,
     region: String,
-    folder: String,
+    folder: Option<String>,
 }
 
 pub enum CheckpointSyncer {
-    LocalStorage(Location2),
+    LocalStorage(Location),
     S3(S3CheckpointSyncer),
+}
+
+impl CheckpointSyncer {
+    pub fn temp() -> Self {
+        Self::LocalStorage(Location::Temp)
+    }
+
+    pub fn persistent(path: PathBuf) -> Self {
+        Self::LocalStorage(Location::Persistent(path))
+    }
+
+    pub fn s3(
+        bucket: impl Into<String>,
+        region: impl Into<String>,
+        folder: Option<impl Into<String>>,
+    ) -> Self {
+        Self::S3(S3CheckpointSyncer {
+            bucket: bucket.into(),
+            region: region.into(),
+            folder: folder.map(Into::into),
+        })
+    }
 }
 
 impl Args for CheckpointSyncer {
@@ -63,12 +88,17 @@ impl Args for CheckpointSyncer {
                 "checkpointSyncer.type".to_string() => "localStorage".to_string(),
                 "checkpointSyncer.path".to_string() => location2.get_path(),
             },
-            CheckpointSyncer::S3(s3_checkpoint_syncer) => btree_map! {
-                "checkpointSyncer.type".to_string() => "s3".to_string(),
-                "checkpointSyncer.bucket".to_string() => s3_checkpoint_syncer.bucket,
-                "checkpointSyncer.region".to_string() => s3_checkpoint_syncer.region,
-                "checkpointSyncer.folder".to_string() => s3_checkpoint_syncer.folder,
-            },
+            CheckpointSyncer::S3(s3_checkpoint_syncer) => {
+                let mut map = btree_map! {
+                    "checkpointSyncer.type".to_string() => "s3".to_string(),
+                    "checkpointSyncer.bucket".to_string() => s3_checkpoint_syncer.bucket,
+                    "checkpointSyncer.region".to_string() => s3_checkpoint_syncer.region,
+                };
+                if let Some(folder) = s3_checkpoint_syncer.folder {
+                    map.insert("checkpointSyncer.folder".to_string(), folder);
+                }
+                map
+            }
         }
     }
 }

@@ -46,7 +46,7 @@ where
         self
     }
 
-    pub fn with_db(mut self, db: Location2) -> Self {
+    pub fn with_db(mut self, db: Location) -> Self {
         self.db = Some(Db2(db));
         self
     }
@@ -185,16 +185,16 @@ pub fn build_agents() {
 
 // ---- ARGS ----
 
-pub enum Location2 {
+pub enum Location {
     Temp,
     Persistent(PathBuf),
 }
 
-impl Location2 {
+impl Location {
     pub fn get_path(self) -> String {
         match self {
-            Location2::Temp => tempdir(),
-            Location2::Persistent(path) => {
+            Location::Temp => tempdir(),
+            Location::Persistent(path) => {
                 if !path.exists() {
                     fs::create_dir_all(&path).unwrap();
                 }
@@ -204,7 +204,7 @@ impl Location2 {
     }
 }
 
-pub struct Db2(Location2);
+pub struct Db2(Location);
 
 impl Args for Db2 {
     fn args(self) -> BTreeMap<String, String> {

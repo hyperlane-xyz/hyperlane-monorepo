@@ -18,7 +18,7 @@ use {
     tracing::Level,
 };
 
-mod utils;
+pub mod utils;
 
 const PORT: u16 = 8080;
 

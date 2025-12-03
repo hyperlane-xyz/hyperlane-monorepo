@@ -1,7 +1,7 @@
 use {
     crate::utils::{
         dango_helper::ChainHelper, get_free_port, Agent, CheckpointSyncer, DangoBuilder,
-        DangoSettings, HexKey, Location2, Relayer, Validator, ValidatorSigner,
+        DangoSettings, HexKey, Location, Relayer, Validator, ValidatorSigner,
     },
     dango_types::gateway::Origin,
     futures_util::try_join,
@@ -73,9 +73,9 @@ pub async fn startup_tests(
                         .with_httpd_urls(ch2.httpd_urls.clone());
                 }),
         )
-        .with_db(Location2::Temp)
+        .with_db(Location::Temp)
         .with_metrics_port(get_free_port())
-        .with_db(Location2::Temp)
+        .with_db(Location::Temp)
         .launch();
 
     Ok((ch1, ch2))
@@ -94,7 +94,7 @@ fn run_validators(
             Agent::new(
                 Validator::default()
                     .with_origin_chain_name(chain_name)
-                    .with_checkpoint_syncer(CheckpointSyncer::LocalStorage(Location2::Temp))
+                    .with_checkpoint_syncer(CheckpointSyncer::LocalStorage(Location::Temp))
                     .with_validator_signer(ValidatorSigner::Hex(key.key.clone())),
             )
             .with_chain(
@@ -108,7 +108,7 @@ fn run_validators(
                     }),
             )
             .with_metrics_port(get_free_port())
-            .with_db(Location2::Temp)
+            .with_db(Location::Temp)
             .launch();
 
             Ok(key.address())

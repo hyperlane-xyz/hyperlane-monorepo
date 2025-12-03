@@ -5,7 +5,6 @@ use {
     },
     anyhow::anyhow,
     async_trait::async_trait,
-    core::error,
     dango_hyperlane_types::{
         mailbox::QueryTreeRequest, IncrementalMerkleTree as DangoIncrementalMerkleTree,
     },

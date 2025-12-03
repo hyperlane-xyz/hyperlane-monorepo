@@ -1,6 +1,6 @@
 use {
     crate::utils::{
-        build_agents, workspace, Agent, CheckpointSyncer, DangoSettings, EvmSettings, Location2,
+        build_agents, workspace, Agent, CheckpointSyncer, DangoSettings, EvmSettings, Location,
         LogLevel, Relayer, Validator,
     },
     dango_hyperlane_testing::constants::MOCK_HYPERLANE_VALIDATOR_SIGNING_KEYS,
@@ -17,10 +17,16 @@ pub mod utils;
 
 const HTTPD_URL: &str = "http://127.0.0.1:8080";
 
+fn load_env() {
+    if let Err(e) = dotenvy::from_filename(workspace().join("chains/hyperlane-dango/tests/.env")) {
+        println!("Error loading .env file: {}", e);
+    }
+}
+
 #[tokio::test]
 #[ignore]
 async fn run_relayer() -> anyhow::Result<()> {
-    dotenvy::from_filename(workspace().join("chains/hyperlane-dango/tests/.env"))?;
+    load_env();
 
     let sepolia_key = H256::from_str(&dotenvy::var("SEPOLIA_RELAYER_KEY")?)?;
 
@@ -50,7 +56,7 @@ async fn run_relayer() -> anyhow::Result<()> {
                 }),
         )
         .with_metrics_port(9090)
-        .with_db(Location2::Persistent(workspace().join("relayer")))
+        .with_db(Location::Persistent(workspace().join("relayer")))
         .with_log_level(LogLevel::Error)
         .launch();
 
@@ -60,6 +66,8 @@ async fn run_relayer() -> anyhow::Result<()> {
 #[tokio::test]
 #[ignore]
 async fn run_dango_validator() -> anyhow::Result<()> {
+    load_env();
+
     build_agents();
 
     let dango_client = HttpClient::new(HTTPD_URL)?;
@@ -70,9 +78,12 @@ async fn run_dango_validator() -> anyhow::Result<()> {
     Agent::new(
         Validator::default()
             .with_origin_chain_name("dangolocal2")
-            .with_checkpoint_syncer(CheckpointSyncer::LocalStorage(Location2::Persistent(
-                path.clone(),
-            )))
+            .with_checkpoint_syncer(CheckpointSyncer::s3(
+                "hyperlane-test",
+                "eu-north-1",
+                None::<String>,
+            ))
+            // .with_checkpoint_syncer(CheckpointSyncer::LocalStorage(Location::Temp))
             .with_validator_signer(utils::ValidatorSigner::Hex(H256::from(
                 MOCK_HYPERLANE_VALIDATOR_SIGNING_KEYS[0],
             ))),
@@ -84,7 +95,7 @@ async fn run_dango_validator() -> anyhow::Result<()> {
                 key: HexByteArray::from_inner(user6::PRIVATE_KEY),
                 address: addr!("365a389d8571b681d087ee8f7eecf1ff710f59c8"),
             })
-            .with_index(472, Some(20))
+            .with_index(1, Some(20))
             .with_chain_settings(|dango| {
                 dango
                     .with_app_cfg(app_cfg)
@@ -93,7 +104,7 @@ async fn run_dango_validator() -> anyhow::Result<()> {
             }),
     )
     .with_metrics_port(9091)
-    .with_db(Location2::Persistent(path))
+    .with_db(Location::Persistent(path))
     .with_log_level(LogLevel::Info)
     .launch();
 
