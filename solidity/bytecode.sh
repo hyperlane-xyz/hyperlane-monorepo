@@ -1,6 +1,6 @@
 #!/bin/bash
 OUTPUT_PATH=${1:-bytecode}
-EXCLUDE="test|mock|interfaces|libs|upgrade|README|Abstract|Static|LayerZero|PolygonPos|Portal"
+EXCLUDE="test|mock|interfaces|libs|upgrade"
 
 IFS=$'\n'
 CONTRACT_FILES=($(find ./contracts -type f))
