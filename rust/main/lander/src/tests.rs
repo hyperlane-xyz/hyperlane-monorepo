@@ -1,3 +1,4 @@
+mod aleo;
 pub mod evm;
 pub mod radix;
 pub mod svm;
