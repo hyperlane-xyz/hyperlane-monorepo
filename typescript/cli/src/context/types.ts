@@ -48,7 +48,6 @@ export interface CommandContext
   chainMetadata: ChainMap<ChainMetadata>;
   multiProvider: MultiProvider;
   multiProtocolProvider: MultiProtocolProvider;
-  altVmProviders: ChainMap<AltVM.IProvider>;
   supportedProtocols: ProtocolType[];
   skipConfirmation: boolean;
   // just for evm chains backward compatibility

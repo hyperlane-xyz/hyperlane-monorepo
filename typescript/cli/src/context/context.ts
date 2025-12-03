@@ -2,11 +2,6 @@ import { confirm } from '@inquirer/prompts';
 import { ethers } from 'ethers';
 
 import { loadProtocolProviders } from '@hyperlane-xyz/deploy-sdk';
-import {
-  AltVM,
-  getProtocolProvider,
-  hasProtocol,
-} from '@hyperlane-xyz/provider-sdk';
 import { IRegistry } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import {
@@ -64,7 +59,7 @@ export async function signerMiddleware(argv: Record<string, any>) {
   const chains = await resolveChains(argv);
 
   /**
-   * Load and create AltVM Providers
+   * Load Protocol Providers
    */
   const altVmChains = chains.filter(
     (chain) =>
@@ -85,18 +80,6 @@ export async function signerMiddleware(argv: Record<string, any>) {
       { cause: e },
     );
   }
-
-  await Promise.all(
-    altVmChains.map(async (chain) => {
-      const { altVmProviders, multiProvider } = argv.context;
-      const protocol = multiProvider.getProtocol(chain);
-      const metadata = multiProvider.getChainMetadata(chain);
-
-      if (hasProtocol(protocol))
-        altVmProviders[chain] =
-          await getProtocolProvider(protocol).createProvider(metadata);
-    }),
-  );
 
   if (!requiresKey) return argv;
 
@@ -156,9 +139,6 @@ export async function getContext({
   const multiProvider = await getMultiProvider(registry);
   const multiProtocolProvider = await getMultiProtocolProvider(registry);
 
-  // This mapping gets populated as part of signerMiddleware
-  const altVmProviders: ChainMap<AltVM.IProvider> = {};
-
   const supportedProtocols = [
     ProtocolType.Ethereum,
     ProtocolType.CosmosNative,
@@ -171,7 +151,6 @@ export async function getContext({
     chainMetadata: multiProvider.metadata,
     multiProvider,
     multiProtocolProvider,
-    altVmProviders,
     supportedProtocols,
     key: keyMap,
     skipConfirmation: !!skipConfirmation,
