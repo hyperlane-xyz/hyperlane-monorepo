@@ -4,10 +4,12 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 
 import {TimelockRouter} from "../../../contracts/isms/routing/TimelockRouter.sol";
-import {TestMailbox} from "../../../contracts/test/TestMailbox.sol";
+import {TestPostDispatchHook} from "../../../contracts/test/TestPostDispatchHook.sol";
+import {MockMailbox} from "../../../contracts/mock/MockMailbox.sol";
 import {StandardHookMetadata} from "../../../contracts/hooks/libs/StandardHookMetadata.sol";
 import {IPostDispatchHook} from "../../../contracts/interfaces/hooks/IPostDispatchHook.sol";
 import {IInterchainSecurityModule} from "../../../contracts/interfaces/IInterchainSecurityModule.sol";
+import {HypERC20} from "../../../contracts/token/HypERC20.sol";
 import {TypeCasts} from "../../../contracts/libs/TypeCasts.sol";
 import {Message} from "../../../contracts/libs/Message.sol";
 
@@ -17,8 +19,8 @@ contract TimelockRouterTest is Test {
 
     TimelockRouter public originRouter;
     TimelockRouter public destinationRouter;
-    TestMailbox public originMailbox;
-    TestMailbox public destinationMailbox;
+    MockMailbox public originMailbox;
+    MockMailbox public destinationMailbox;
 
     uint32 public constant ORIGIN_DOMAIN = 1;
     uint32 public constant DESTINATION_DOMAIN = 2;
@@ -31,8 +33,9 @@ contract TimelockRouterTest is Test {
 
     function setUp() public {
         // Deploy mailboxes
-        originMailbox = new TestMailbox(ORIGIN_DOMAIN);
-        destinationMailbox = new TestMailbox(DESTINATION_DOMAIN);
+        originMailbox = new MockMailbox(ORIGIN_DOMAIN);
+        destinationMailbox = new MockMailbox(DESTINATION_DOMAIN);
+        originMailbox.addRemoteMailbox(DESTINATION_DOMAIN, destinationMailbox);
 
         // Deploy routers
         originRouter = new TimelockRouter(
@@ -55,7 +58,8 @@ contract TimelockRouterTest is Test {
         );
 
         // Create test message
-        testMessage = originMailbox.buildOutboundMessage(
+        testMessage = originMailbox.buildMessage(
+            address(this),
             DESTINATION_DOMAIN,
             address(0x1234).addressToBytes32(),
             bytes("test body")
@@ -75,7 +79,7 @@ contract TimelockRouterTest is Test {
     function test_hookType() public {
         assertEq(
             originRouter.hookType(),
-            uint8(IPostDispatchHook.HookTypes.ID_AUTH_ISM)
+            uint8(IPostDispatchHook.HookTypes.ROUTING)
         );
     }
 
@@ -90,36 +94,17 @@ contract TimelockRouterTest is Test {
 
         vm.deal(address(this), fee);
 
+        // Post dispatch (sends message to destination)
+        originRouter.postDispatch{value: fee}(metadata, testMessage);
+
         // Expect MessageQueued event when the destination router receives the message
         vm.expectEmit(true, true, true, true, address(destinationRouter));
         emit MessageQueued(
             messageId,
             uint48(block.timestamp) + TIMELOCK_WINDOW
         );
-
-        // Post dispatch (sends message to destination)
-        originRouter.postDispatch{value: fee}(metadata, testMessage);
-
-        // Process the message on destination
-        bytes32 originRouterBytes32 = address(originRouter).addressToBytes32();
-        bytes32 destinationRouterBytes32 = address(destinationRouter)
-            .addressToBytes32();
-
-        // Get the dispatched message
-        bytes memory dispatchedMessage = destinationMailbox
-            .buildOutboundMessage(
-                DESTINATION_DOMAIN,
-                destinationRouterBytes32,
-                abi.encode(messageId)
-            );
-
         // Handle the message on destination router
-        destinationMailbox.testHandle(
-            ORIGIN_DOMAIN,
-            originRouterBytes32,
-            destinationRouterBytes32,
-            abi.encode(messageId)
-        );
+        destinationMailbox.processNextInboundMessage();
 
         // Verify message readyAt is set correctly
         assertEq(
@@ -128,19 +113,12 @@ contract TimelockRouterTest is Test {
         );
     }
 
-    function test_quoteDispatch() public {
+    function test_quoteDispatch(uint256 fee) public {
+        TestPostDispatchHook customHook = new TestPostDispatchHook();
+        customHook.setFee(fee);
+        originRouter.setHook(address(customHook));
         uint256 quote = originRouter.quoteDispatch(metadata, testMessage);
-        assertTrue(quote > 0, "Quote should be non-zero");
-    }
-
-    function test_postDispatch_revertsOnInvalidMetadata() public {
-        bytes memory invalidMetadata = abi.encodePacked(
-            uint16(0xFFFF),
-            uint256(0)
-        );
-
-        vm.expectRevert("TimelockRouter: invalid metadata variant");
-        originRouter.postDispatch(invalidMetadata, testMessage);
+        assertEq(quote, fee);
     }
 
     // ============ Router Tests ============
@@ -156,10 +134,10 @@ contract TimelockRouterTest is Test {
             uint48(block.timestamp) + TIMELOCK_WINDOW
         );
 
-        destinationMailbox.testHandle(
+        vm.prank(address(destinationMailbox));
+        destinationRouter.handle(
             ORIGIN_DOMAIN,
             address(originRouter).addressToBytes32(),
-            address(destinationRouter).addressToBytes32(),
             payload
         );
 
@@ -174,19 +152,18 @@ contract TimelockRouterTest is Test {
         bytes memory payload = abi.encode(messageId);
 
         // First preverification
-        destinationMailbox.testHandle(
+        vm.startPrank(address(destinationMailbox));
+        destinationRouter.handle(
             ORIGIN_DOMAIN,
             address(originRouter).addressToBytes32(),
-            address(destinationRouter).addressToBytes32(),
             payload
         );
 
         // Second preverification should revert
         vm.expectRevert("TimelockRouter: message already preverified");
-        destinationMailbox.testHandle(
+        destinationRouter.handle(
             ORIGIN_DOMAIN,
             address(originRouter).addressToBytes32(),
-            address(destinationRouter).addressToBytes32(),
             payload
         );
     }
@@ -205,10 +182,10 @@ contract TimelockRouterTest is Test {
         bytes memory payload = abi.encode(messageId);
 
         // Preverify the message
-        destinationMailbox.testHandle(
+        vm.prank(address(destinationMailbox));
+        destinationRouter.handle(
             ORIGIN_DOMAIN,
             address(originRouter).addressToBytes32(),
-            address(destinationRouter).addressToBytes32(),
             payload
         );
 
@@ -224,10 +201,10 @@ contract TimelockRouterTest is Test {
         bytes memory payload = abi.encode(messageId);
 
         // Preverify the message
-        destinationMailbox.testHandle(
+        vm.prank(address(destinationMailbox));
+        destinationRouter.handle(
             ORIGIN_DOMAIN,
             address(originRouter).addressToBytes32(),
-            address(destinationRouter).addressToBytes32(),
             payload
         );
 
@@ -253,10 +230,10 @@ contract TimelockRouterTest is Test {
 
         // Preverify the message
         uint48 preverifiedAt = uint48(block.timestamp);
-        destinationMailbox.testHandle(
+        vm.prank(address(destinationMailbox));
+        destinationRouter.handle(
             ORIGIN_DOMAIN,
             address(originRouter).addressToBytes32(),
-            address(destinationRouter).addressToBytes32(),
             payload
         );
 
@@ -269,41 +246,71 @@ contract TimelockRouterTest is Test {
 
     // ============ Integration Tests ============
 
-    function test_fullFlow() public {
-        bytes32 messageId = testMessage.id();
-        uint256 fee = originRouter.quoteDispatch(metadata, testMessage);
-
-        vm.deal(address(this), fee);
-
-        // 1. Post dispatch on origin
-        originRouter.postDispatch{value: fee}(metadata, testMessage);
-
-        // 2. Handle message on destination
-        bytes32 originRouterBytes32 = address(originRouter).addressToBytes32();
-        bytes32 destinationRouterBytes32 = address(destinationRouter)
-            .addressToBytes32();
-
-        destinationMailbox.testHandle(
+    function test_warpRouteFlow(uint256 amount) public {
+        HypERC20 originTokenRouter = new HypERC20(
+            18,
+            1,
+            address(originMailbox)
+        );
+        HypERC20 destinationTokenRouter = new HypERC20(
+            18,
+            1,
+            address(destinationMailbox)
+        );
+        originTokenRouter.enrollRemoteRouter(
+            DESTINATION_DOMAIN,
+            address(destinationTokenRouter).addressToBytes32()
+        );
+        destinationTokenRouter.enrollRemoteRouter(
             ORIGIN_DOMAIN,
-            originRouterBytes32,
-            destinationRouterBytes32,
-            abi.encode(messageId)
+            address(originTokenRouter).addressToBytes32()
+        );
+        originTokenRouter.initialize(
+            amount, // total supply
+            "Hyperlane",
+            "HYPER",
+            address(originRouter), // hook
+            address(originRouter), // ism
+            address(this)
+        );
+        destinationTokenRouter.initialize(
+            0,
+            "Hyperlane",
+            "HYPER",
+            address(destinationRouter), // hook
+            address(destinationRouter), // ism
+            address(this)
         );
 
-        // 3. Verify message is preverified but not ready yet
+        // 1. transfer amount to self
+        originTokenRouter.transferRemote(
+            DESTINATION_DOMAIN,
+            address(this).addressToBytes32(),
+            amount
+        );
+
+        // 2. transfer message reverts while not preverified
+        vm.expectRevert("TimelockRouter: message not preverified");
+        destinationMailbox.processInboundMessage(1);
+
+        // 3. process preverify message
+        destinationMailbox.processInboundMessage(0);
         uint48 readyAt = uint48(block.timestamp) + TIMELOCK_WINDOW;
+
+        // 4. transfer message reverts while timelock not ready
         vm.expectRevert(
             abi.encodeWithSelector(
                 TimelockRouter.MessageNotReadyUntil.selector,
                 readyAt
             )
         );
-        destinationRouter.verify(bytes(""), testMessage);
+        destinationMailbox.processInboundMessage(1);
 
-        // 4. Fast forward past optimistic window
+        // 5. transfer message processes when timelock ready
         vm.warp(block.timestamp + TIMELOCK_WINDOW);
+        destinationMailbox.processInboundMessage(1);
 
-        // 5. Verify message succeeds
-        assertTrue(destinationRouter.verify(bytes(""), testMessage));
+        // 6. assert transfer amount delivered on destination
+        assertEq(destinationTokenRouter.balanceOf(address(this)), amount);
     }
 }
