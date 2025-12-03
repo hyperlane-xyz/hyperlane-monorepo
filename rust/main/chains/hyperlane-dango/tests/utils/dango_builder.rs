@@ -1,6 +1,5 @@
 use {
     crate::utils::{dango_helper::ChainHelper, get_free_port, try_for},
-    dango_genesis::HyperlaneOption,
     dango_mock_httpd::{GenesisOption, Preset, TestOption},
     grug::{BlockCreation, ClientWrapper, QueryClientExt},
     grug_indexer_client::HttpClient,
@@ -15,6 +14,9 @@ pub struct DangoBuilder {
     chain_id: String,
     hyperlane_domain: u32,
     block_creation: BlockCreation,
+    block_time: grug::Duration,
+    port: Option<u16>,
+    genesis_option: Option<GenesisOption>,
 }
 
 impl DangoBuilder {
@@ -23,7 +25,20 @@ impl DangoBuilder {
             chain_id: chain_id.to_string(),
             hyperlane_domain,
             block_creation: BlockCreation::Timed,
+            block_time: TestOption::preset_test().block_time,
+            port: None,
+            genesis_option: None,
         }
+    }
+
+    pub fn with_port(mut self, port: u16) -> Self {
+        self.port = Some(port);
+        self
+    }
+
+    pub fn with_block_time(mut self, block_time: grug::Duration) -> Self {
+        self.block_time = block_time;
+        self
     }
 
     pub fn with_block_creation(mut self, block_creation: BlockCreation) -> Self {
@@ -31,9 +46,14 @@ impl DangoBuilder {
         self
     }
 
+    pub fn with_genesis_option(mut self, genesis_option: GenesisOption) -> Self {
+        self.genesis_option = Some(genesis_option);
+        self
+    }
+
     pub async fn run(self) -> anyhow::Result<ChainHelper> {
         // find a free port
-        let port = get_free_port();
+        let port = self.port.unwrap_or_else(get_free_port);
 
         let test_accounts = Arc::new(Mutex::new(None));
 
@@ -41,6 +61,11 @@ impl DangoBuilder {
 
         let domain = self.hyperlane_domain;
         let chain_id = self.chain_id.clone();
+
+        let mut genesis_option = self
+            .genesis_option
+            .unwrap_or_else(|| GenesisOption::preset_test());
+        genesis_option.hyperlane.local_domain = self.hyperlane_domain;
 
         thread::spawn(move || {
             let rt = tokio::runtime::Runtime::new().unwrap();
@@ -52,15 +77,10 @@ impl DangoBuilder {
                     None,
                     TestOption {
                         chain_id: self.chain_id,
+                        block_time: self.block_time,
                         ..Preset::preset_test()
                     },
-                    GenesisOption {
-                        hyperlane: HyperlaneOption {
-                            local_domain: self.hyperlane_domain,
-                            ..Preset::preset_test()
-                        },
-                        ..Preset::preset_test()
-                    },
+                    genesis_option,
                     None,
                     |accounts, _, _, _, _| {
                         *thread_test_accounts.lock().unwrap() = Some(accounts);

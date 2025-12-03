@@ -40,3 +40,4 @@ tempfile = { workspace = true }
 ethers = { workspace = true }
 reqwest = { workspace = true }
 dotenvy = { workspace = true }
+tracing-subscriber = { workspace = true }

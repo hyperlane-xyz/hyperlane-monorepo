@@ -5,9 +5,9 @@ use {
     },
     anyhow::anyhow,
     async_trait::async_trait,
+    core::error,
     dango_hyperlane_types::{
-        mailbox::QueryTreeRequest,
-        IncrementalMerkleTree as DangoIncrementalMerkleTree,
+        mailbox::QueryTreeRequest, IncrementalMerkleTree as DangoIncrementalMerkleTree,
     },
     grug::{QueryClientExt, QueryResponse},
     hyperlane_core::{
@@ -82,6 +82,11 @@ impl MerkleTreeHook for DangoMerkleTree {
 
     async fn latest_checkpoint_at_block(&self, _height: u64) -> ChainResult<CheckpointAtBlock> {
         // TODO: We don't support querying at a specific block height
+
+        tracing::error!(
+            height = _height,
+            "Querying at a specific block height is not supported in Dango MerkleTreeHook"
+        );
 
         Err(DangoError::QueryingAtSpecificBlockHeightNotSupported.into())
 

@@ -15,17 +15,18 @@ use {
 
 pub mod utils;
 
+const HTTPD_URL: &str = "http://127.0.0.1:8080";
+
 #[tokio::test]
+#[ignore]
 async fn run_relayer() -> anyhow::Result<()> {
     dotenvy::from_filename(workspace().join("chains/hyperlane-dango/tests/.env"))?;
 
     let sepolia_key = H256::from_str(&dotenvy::var("SEPOLIA_RELAYER_KEY")?)?;
 
-    println!("sepolia_key: {}", sepolia_key);
-
     build_agents();
 
-    let dango_client = HttpClient::new("https://api-pr-1414-ovh2.dango.zone")?;
+    let dango_client = HttpClient::new(HTTPD_URL)?;
     let app_cfg: AppConfig = dango_client.query_app_config(None).await?;
 
     Agent::new(Relayer::default().with_allow_local_checkpoint_syncer(true))
@@ -41,11 +42,11 @@ async fn run_relayer() -> anyhow::Result<()> {
                     key: HexByteArray::from_inner(user4::PRIVATE_KEY),
                     address: addr!("5a7213b5a8f12e826e88d67c083be371a442689c"),
                 })
-                .with_index(967610, Some(500))
+                .with_index(1, Some(20))
                 .with_chain_settings(|dango| {
                     dango.with_app_cfg(app_cfg);
                     dango.with_chain_id("pr-1414".to_string());
-                    dango.with_httpd_urls(["https://api-pr-1414-ovh2.dango.zone"]);
+                    dango.with_httpd_urls([HTTPD_URL]);
                 }),
         )
         .with_metrics_port(9090)
@@ -57,10 +58,12 @@ async fn run_relayer() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
+#[ignore]
 async fn run_dango_validator() -> anyhow::Result<()> {
     build_agents();
 
-    let dango_client = HttpClient::new("https://api-pr-1414-ovh2.dango.zone")?;
+    let dango_client = HttpClient::new(HTTPD_URL)?;
+    let chain_id = dango_client.query_status(None).await?.chain_id;
     let app_cfg = dango_client.query_app_config(None).await?;
     let path = workspace().join("val-1");
 
@@ -81,17 +84,17 @@ async fn run_dango_validator() -> anyhow::Result<()> {
                 key: HexByteArray::from_inner(user6::PRIVATE_KEY),
                 address: addr!("365a389d8571b681d087ee8f7eecf1ff710f59c8"),
             })
-            .with_index(967610, Some(20))
+            .with_index(472, Some(20))
             .with_chain_settings(|dango| {
                 dango
                     .with_app_cfg(app_cfg)
-                    .with_chain_id("pr-1414".to_string())
-                    .with_httpd_urls(["https://api-pr-1414-ovh2.dango.zone"]);
+                    .with_chain_id(chain_id)
+                    .with_httpd_urls([HTTPD_URL]);
             }),
     )
     .with_metrics_port(9091)
     .with_db(Location2::Persistent(path))
-    .with_log_level(LogLevel::Warn)
+    .with_log_level(LogLevel::Info)
     .launch();
 
     loop {}
