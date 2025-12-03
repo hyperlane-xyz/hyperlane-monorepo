@@ -712,7 +712,7 @@ export class AleoSigner
     });
 
     const tokenProgramId = programs['hyp_synthetic'];
-    assert(tokenProgramId, `hyp collateral program not deployed`);
+    assert(tokenProgramId, `hyp synthetic program not deployed`);
 
     tx.programName = tokenProgramId;
 
