@@ -161,12 +161,8 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
 
-      - name: foundry-install
-        uses: foundry-rs/foundry-toolchain@v1
-
-      - name: Install Soldeer dependencies
-        run: forge soldeer install
-        working-directory: ./solidity
+      - name: Setup Foundry
+        uses: ./.github/actions/setup-foundry
 
       - name: Set Foundry RPC URLs for fork tests
         env:
@@ -327,8 +323,8 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
 
-      - name: foundry-install
-        uses: foundry-rs/foundry-toolchain@v1
+      - name: Setup Foundry
+        uses: ./.github/actions/setup-foundry
 
       - name: install-hyperlane-cli
         id: install-hyperlane-cli
@@ -367,8 +363,8 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
 
-      - name: foundry-install
-        uses: foundry-rs/foundry-toolchain@v1
+      - name: Setup Foundry
+        uses: ./.github/actions/setup-foundry
 
       - name: install-hyperlane-cli
         id: install-hyperlane-cli
@@ -611,9 +607,9 @@ jobs:
             echo "skip-e2e=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: foundry-install
+      - name: Setup Foundry
         if: steps.check-conditions.outputs.skip-e2e != 'true'
-        uses: foundry-rs/foundry-toolchain@v1
+        uses: ./.github/actions/setup-foundry
 
       - name: setup rust
         if: steps.check-conditions.outputs.skip-e2e != 'true'
@@ -757,8 +753,8 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      - name: foundry-install
-        uses: foundry-rs/foundry-toolchain@v1
+      - name: Setup Foundry
+        uses: ./.github/actions/setup-foundry
 
       - name: yarn-build
         uses: ./.github/actions/yarn-build-with-cache
@@ -822,12 +818,8 @@ jobs:
           yarn install
           yarn build
 
-      - name: foundry-install
-        uses: foundry-rs/foundry-toolchain@v1
-
-      - name: Install Soldeer dependencies
-        run: forge soldeer install
-        working-directory: ./solidity
+      - name: Setup Foundry
+        uses: ./.github/actions/setup-foundry
 
       - name: Run tests with coverage
         run: yarn coverage

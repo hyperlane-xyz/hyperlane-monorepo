@@ -70,13 +70,8 @@ jobs:
           echo "snapshot=$SNAPSHOT_VERSION" >> $GITHUB_OUTPUT
 
       # Need to install foundry for the build step. `hardhat-foundry` expects foundry to be installed.
-      - name: foundry-install
-        uses: foundry-rs/foundry-toolchain@v1
-
-      # Install Soldeer dependencies
-      - name: Install Soldeer dependencies
-        run: forge soldeer install
-        working-directory: ./solidity
+      - name: Setup Foundry
+        uses: ./.github/actions/setup-foundry
 
       - name: Build packages
         run: yarn build
