@@ -24,14 +24,27 @@ const tokenPrices: ChainMap<string> = rawTokenPrices;
 export function getOverheadWithOverrides(local: ChainName, remote: ChainName) {
   let overhead = getOverhead(local, remote);
 
+  if (remote === 'megaeth') {
+    overhead *= 10;
+  }
+
   // Moonbeam/Torus gas usage can be up to 4x higher than vanilla EVM
   if (remote === 'moonbeam' || remote === 'torus') {
     overhead *= 4;
   }
 
+  // Somnia gas usage is higher than the EVM and tends to give high
+  // estimates. We double the overhead to help account for this.
+  if (remote === 'somnia') {
+    overhead *= 2;
+  }
+
   // ZkSync gas usage is different from the EVM and tends to give high
   // estimates. We double the overhead to help account for this.
-  if (getChain(remote).technicalStack === ChainTechnicalStack.ZkSync) {
+  if (
+    getChain(remote).technicalStack === ChainTechnicalStack.ZkSync ||
+    remote === 'adichain'
+  ) {
     overhead *= 2;
 
     // Zero Network gas usage has changed recently and now requires

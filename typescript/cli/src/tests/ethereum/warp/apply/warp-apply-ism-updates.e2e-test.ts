@@ -8,33 +8,47 @@ import {
   WarpRouteDeployConfig,
   normalizeConfig,
 } from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { writeYamlOrJson } from '../../../utils/files.js';
-import { deployOrUseExistingCore } from '../commands/core.js';
-import { deployTestOffchainLookupISM } from '../commands/helpers.js';
+import { writeYamlOrJson } from '../../../../utils/files.js';
+import { HyperlaneE2ECoreTestCommands } from '../../../commands/core.js';
+import { HyperlaneE2EWarpTestCommands } from '../../../commands/warp.js';
 import {
-  hyperlaneWarpApplyRaw,
-  hyperlaneWarpDeploy,
-  readWarpConfig,
-} from '../commands/warp.js';
-import {
-  ANVIL_DEPLOYER_ADDRESS,
-  ANVIL_KEY,
-  CHAIN_NAME_2,
-  CORE_CONFIG_PATH,
+  CORE_CONFIG_PATH_BY_PROTOCOL,
+  CORE_READ_CONFIG_PATH_BY_PROTOCOL,
   DEFAULT_E2E_TEST_TIMEOUT,
-  TEMP_PATH,
-  WARP_CORE_CONFIG_PATH_2,
-  WARP_DEPLOY_2_ID,
-} from '../consts.js';
+  DEFAULT_EVM_WARP_CORE_PATH,
+  DEFAULT_EVM_WARP_DEPLOY_PATH,
+  DEFAULT_EVM_WARP_ID,
+  DEFAULT_EVM_WARP_READ_OUTPUT_PATH,
+  HYP_DEPLOYER_ADDRESS_BY_PROTOCOL,
+  HYP_KEY_BY_PROTOCOL,
+  REGISTRY_PATH,
+  TEST_CHAIN_NAMES_BY_PROTOCOL,
+} from '../../../constants.js';
+import { deployTestOffchainLookupISM } from '../../commands/helpers.js';
 
 const { TokenType } = AltVM;
 
 describe('hyperlane warp apply E2E (ISM updates)', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
 
+  const evmChain2Core = new HyperlaneE2ECoreTestCommands(
+    ProtocolType.Ethereum,
+    TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+    REGISTRY_PATH,
+    CORE_CONFIG_PATH_BY_PROTOCOL.ethereum,
+    CORE_READ_CONFIG_PATH_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+  );
+
+  const evmWarpCommands = new HyperlaneE2EWarpTestCommands(
+    ProtocolType.Ethereum,
+    REGISTRY_PATH,
+    DEFAULT_EVM_WARP_READ_OUTPUT_PATH,
+  );
+
   before(async function () {
-    await deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY);
+    await evmChain2Core.deployOrUseExistingCore(HYP_KEY_BY_PROTOCOL.ethereum);
   });
 
   const testCases: {
@@ -47,7 +61,7 @@ describe('hyperlane warp apply E2E (ISM updates)', async function () {
       // Use the default ism
       targetIsmConfig: {
         type: IsmType.PAUSABLE,
-        owner: ANVIL_DEPLOYER_ADDRESS,
+        owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
         paused: false,
       },
     },
@@ -57,7 +71,7 @@ describe('hyperlane warp apply E2E (ISM updates)', async function () {
       targetIsmConfig: ethers.constants.AddressZero,
       initialIsmConfig: {
         type: IsmType.PAUSABLE,
-        owner: ANVIL_DEPLOYER_ADDRESS,
+        owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
         paused: false,
       },
     },
@@ -65,12 +79,12 @@ describe('hyperlane warp apply E2E (ISM updates)', async function () {
       description: 'should pause the pausable ISM',
       initialIsmConfig: {
         type: IsmType.PAUSABLE,
-        owner: ANVIL_DEPLOYER_ADDRESS,
+        owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
         paused: false,
       },
       targetIsmConfig: {
         type: IsmType.PAUSABLE,
-        owner: ANVIL_DEPLOYER_ADDRESS,
+        owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
         paused: true,
       },
     },
@@ -78,7 +92,7 @@ describe('hyperlane warp apply E2E (ISM updates)', async function () {
       description: 'should update the offchain lookup ism',
       targetIsmConfig: {
         type: IsmType.OFFCHAIN_LOOKUP,
-        owner: ANVIL_DEPLOYER_ADDRESS,
+        owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
         urls: [
           'https://new-server.hyperlane.xyz/api',
           'https://backup-server.hyperlane.xyz/api',
@@ -86,7 +100,7 @@ describe('hyperlane warp apply E2E (ISM updates)', async function () {
       },
       initialIsmConfig: {
         type: IsmType.OFFCHAIN_LOOKUP,
-        owner: ANVIL_DEPLOYER_ADDRESS,
+        owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
         urls: ['https://server.hyperlane.xyz/api'],
       },
     },
@@ -95,7 +109,7 @@ describe('hyperlane warp apply E2E (ISM updates)', async function () {
         'should update the offchain lookup ism if the urls are not in the same order',
       targetIsmConfig: {
         type: IsmType.OFFCHAIN_LOOKUP,
-        owner: ANVIL_DEPLOYER_ADDRESS,
+        owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
         urls: [
           'https://new-server.hyperlane.xyz/api',
           'https://backup-server.hyperlane.xyz/api',
@@ -103,7 +117,7 @@ describe('hyperlane warp apply E2E (ISM updates)', async function () {
       },
       initialIsmConfig: {
         type: IsmType.OFFCHAIN_LOOKUP,
-        owner: ANVIL_DEPLOYER_ADDRESS,
+        owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
         urls: [
           'https://backup-server.hyperlane.xyz/api',
           'https://new-server.hyperlane.xyz/api',
@@ -114,8 +128,6 @@ describe('hyperlane warp apply E2E (ISM updates)', async function () {
 
   for (const { description, targetIsmConfig, initialIsmConfig } of testCases) {
     it(description, async () => {
-      const warpDeployPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
-
       // CLI does not support deploying offchain lookup isms so we do it here
       let ismDeployConfig = initialIsmConfig;
       if (
@@ -123,44 +135,53 @@ describe('hyperlane warp apply E2E (ISM updates)', async function () {
         initialIsmConfig?.type === IsmType.OFFCHAIN_LOOKUP
       ) {
         const testOffchainLookupIsm = await deployTestOffchainLookupISM(
-          ANVIL_KEY,
-          CHAIN_NAME_2,
+          HYP_KEY_BY_PROTOCOL.ethereum,
+          TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
           initialIsmConfig.urls,
+          REGISTRY_PATH,
         );
 
         ismDeployConfig = testOffchainLookupIsm.address;
       }
 
       const warpDeployConfig: WarpRouteDeployConfig = {
-        [CHAIN_NAME_2]: {
+        [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]: {
           type: TokenType.native,
-          owner: ANVIL_DEPLOYER_ADDRESS,
+          owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
           interchainSecurityModule: ismDeployConfig,
         },
       };
 
-      await writeYamlOrJson(warpDeployPath, warpDeployConfig);
-      await hyperlaneWarpDeploy(warpDeployPath, WARP_DEPLOY_2_ID);
+      await writeYamlOrJson(DEFAULT_EVM_WARP_DEPLOY_PATH, warpDeployConfig);
+      await evmWarpCommands.deploy(
+        DEFAULT_EVM_WARP_DEPLOY_PATH,
+        HYP_KEY_BY_PROTOCOL.ethereum,
+        DEFAULT_EVM_WARP_ID,
+      );
 
       // Write the updated config
-      warpDeployConfig[CHAIN_NAME_2].interchainSecurityModule = targetIsmConfig;
-      await writeYamlOrJson(warpDeployPath, warpDeployConfig);
+      warpDeployConfig[
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2
+      ].interchainSecurityModule = targetIsmConfig;
+      await writeYamlOrJson(DEFAULT_EVM_WARP_DEPLOY_PATH, warpDeployConfig);
 
       // Apply the changes
-      await hyperlaneWarpApplyRaw({
-        warpDeployPath: warpDeployPath,
-        warpCorePath: WARP_CORE_CONFIG_PATH_2,
+      await evmWarpCommands.applyRaw({
+        warpRouteId: DEFAULT_EVM_WARP_ID,
+        hypKey: HYP_KEY_BY_PROTOCOL.ethereum,
       });
 
       // Read back the config to verify changes
-      const updatedConfig = await readWarpConfig(
-        CHAIN_NAME_2,
-        WARP_CORE_CONFIG_PATH_2,
-        warpDeployPath,
+      const updatedConfig = await evmWarpCommands.readConfig(
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+        DEFAULT_EVM_WARP_CORE_PATH,
       );
 
       expect(
-        normalizeConfig(updatedConfig[CHAIN_NAME_2].interchainSecurityModule),
+        normalizeConfig(
+          updatedConfig[TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]
+            .interchainSecurityModule,
+        ),
       ).to.deep.equal(normalizeConfig(targetIsmConfig));
     });
   }

@@ -14,7 +14,7 @@ impl Update for Transaction {
         self.tx_hashes.push(hash);
 
         // Data is updated since transaction is re-estimated before submission
-        self.vm_specific_data = VmSpecificTxData::Svm(precursor);
+        self.vm_specific_data = VmSpecificTxData::Svm(Box::new(precursor));
 
         self
     }

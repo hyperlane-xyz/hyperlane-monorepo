@@ -1,5 +1,7 @@
 # @hyperlane-xyz/tsconfig
 
+## 19.11.0
+
 ## 19.10.0
 
 ## 19.9.0

@@ -158,7 +158,8 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
     >,
   ): Promise<string> {
     assert(
-      context.ism.type === IsmType.MESSAGE_ID_MULTISIG,
+      context.ism.type === IsmType.MESSAGE_ID_MULTISIG ||
+        context.ism.type === IsmType.STORAGE_MESSAGE_ID_MULTISIG,
       'Merkle proofs are not yet supported',
     );
 
@@ -331,10 +332,13 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
     metadata: string,
     type:
       | typeof IsmType.MERKLE_ROOT_MULTISIG
-      | typeof IsmType.MESSAGE_ID_MULTISIG,
+      | typeof IsmType.MESSAGE_ID_MULTISIG
+      | typeof IsmType.STORAGE_MERKLE_ROOT_MULTISIG
+      | typeof IsmType.STORAGE_MESSAGE_ID_MULTISIG,
   ): MultisigMetadata {
     const prefix: any =
-      type === IsmType.MERKLE_ROOT_MULTISIG
+      type === IsmType.MERKLE_ROOT_MULTISIG ||
+      type === IsmType.STORAGE_MERKLE_ROOT_MULTISIG
         ? this.decodeProofPrefix(metadata)
         : this.decodeSimplePrefix(metadata);
 

@@ -8,11 +8,11 @@ use crate::tests::test_utils::tmp_dbs;
 use crate::transaction::{DropReason, Transaction, TransactionStatus, TransactionUuid};
 
 use super::super::super::super::super::EthereumAdapterMetrics;
-use super::super::super::super::tests::make_tx;
+use super::super::super::super::tests::dummy_tx;
 use super::super::NonceManagerState;
 
 fn create_tx(uuid: TransactionUuid, status: TransactionStatus) -> Transaction {
-    make_tx(uuid, status, None, None)
+    dummy_tx(uuid, status, None, None)
 }
 
 #[tokio::test]

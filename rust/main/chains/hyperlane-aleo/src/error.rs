@@ -26,6 +26,9 @@ pub enum HyperlaneAleoError {
     /// Unknown Network
     #[error("Unknown Network with ID: {0}")]
     UnknownNetwork(u16),
+    /// TryFromSliceError
+    #[error("{0}")]
+    TryFromSliceError(#[from] std::array::TryFromSliceError),
     /// Other errors
     #[error("{0}")]
     Other(String),

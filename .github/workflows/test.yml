@@ -291,23 +291,28 @@ jobs:
           - core-read
           # Other commands
           - relay
-          # Warp Commands
-          - warp-apply-1
-          - warp-apply-2
+          # Warp Apply Commands
+          - warp-apply-hook-updates
           - warp-apply-ism-updates
+          - warp-apply-ownership-updates
+          - warp-apply-rebalancing-config
+          - warp-apply-simple-updates
           - warp-apply-submitters
+          - warp-extend-basic
+          - warp-extend-config
+          - warp-extend-recovery
+          # deploy
           - warp-bridge-1
           - warp-bridge-2
+          - warp-deploy-1
+          - warp-deploy-2
+          # check
           - warp-check-1
           - warp-check-2
           - warp-check-3
           - warp-check-4
           - warp-check-5
-          - warp-deploy-1
-          - warp-deploy-2
-          - warp-extend-basic
-          - warp-extend-config
-          - warp-extend-recovery
+          # other
           - warp-init
           - warp-read
           - warp-rebalancer
@@ -505,6 +510,37 @@ jobs:
         with:
           job_name: 'Cosmos SDK E2E'
           result: ${{ needs.cosmos-sdk-e2e-run.result }}
+
+  aleo-sdk-e2e-run:
+    runs-on: depot-ubuntu-latest
+    needs: [rust-only]
+    if: needs.rust-only.outputs.only_rust == 'false'
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+
+      - name: yarn-build
+        uses: ./.github/actions/yarn-build-with-cache
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Aleo SDK e2e tests
+        run: yarn --cwd typescript/aleo-sdk test:e2e
+
+  aleo-sdk-e2e:
+    runs-on: ubuntu-latest
+    needs: [aleo-sdk-e2e-run]
+    if: always()
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check aleo-sdk-e2e status
+        uses: ./.github/actions/check-job-status
+        with:
+          job_name: 'Aleo SDK E2E'
+          result: ${{ needs.aleo-sdk-e2e-run.result }}
 
   agent-configs:
     runs-on: depot-ubuntu-latest
@@ -736,7 +772,7 @@ jobs:
       fail-fast: false
       matrix:
         environment: [mainnet3]
-        chain: [ethereum, arbitrum, optimism, inevm]
+        chain: [ethereum, arbitrum, optimism]
         module: [core, igp]
         include:
           - environment: testnet4

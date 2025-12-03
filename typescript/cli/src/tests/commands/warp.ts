@@ -57,11 +57,18 @@ export class HyperlaneE2EWarpTestCommands {
   /**
    * Retrieves the deployed Warp address from the Warp core config.
    */
-  private getDeployedWarpAddress(chain: string, warpCorePath: string) {
+  public getDeployedWarpAddress(chain: string, warpCorePath: string) {
     const warpCoreConfig: WarpCoreConfig = readYamlOrJson(warpCorePath);
     WarpCoreConfigSchema.parse(warpCoreConfig);
-    return warpCoreConfig.tokens.find((t) => t.chainName === chain)!
-      .addressOrDenom;
+
+    const token = warpCoreConfig.tokens.find((t) => t.chainName === chain);
+    if (!token?.addressOrDenom) {
+      throw new Error(
+        `No warp address found for chain ${chain} in ${warpCorePath}`,
+      );
+    }
+
+    return token.addressOrDenom;
   }
 
   public readRaw({

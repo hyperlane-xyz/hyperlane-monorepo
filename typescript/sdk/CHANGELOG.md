@@ -1,5 +1,24 @@
 # @hyperlane-xyz/sdk
 
+## 19.11.0
+
+### Minor Changes
+
+- 156a37d6e: Fixed the `EV5GnosisSafeTxSubmitter` which failed to create the SAFE transactions due to incorrect typing of the SAFE sdk classes not surfacing incorrect function params when calling `Safe.createTransaction`
+
+### Patch Changes
+
+- 4c29cd341: Fix zkSync ICA compatibility and add storage ISM support in metadata builder
+- Updated dependencies [dd6260eea]
+- Updated dependencies [dd6260eea]
+  - @hyperlane-xyz/provider-sdk@0.3.0
+  - @hyperlane-xyz/radix-sdk@19.11.0
+  - @hyperlane-xyz/cosmos-sdk@19.11.0
+  - @hyperlane-xyz/deploy-sdk@0.3.0
+  - @hyperlane-xyz/starknet-core@19.11.0
+  - @hyperlane-xyz/utils@19.11.0
+  - @hyperlane-xyz/core@10.0.5
+
 ## 19.10.0
 
 ### Minor Changes

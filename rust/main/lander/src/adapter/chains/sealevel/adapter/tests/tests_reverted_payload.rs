@@ -47,10 +47,10 @@ fn create_transaction_with_payload_details_and_status(
     Transaction {
         uuid: UniqueIdentifier::new(Uuid::new_v4()),
         tx_hashes: vec![],
-        vm_specific_data: VmSpecificTxData::Svm(SealevelTxPrecursor::new(
+        vm_specific_data: VmSpecificTxData::Svm(Box::new(SealevelTxPrecursor::new(
             instruction(),
             estimate(),
-        )),
+        ))),
         payload_details,
         status,
         submission_attempts: 1,

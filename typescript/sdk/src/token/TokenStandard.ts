@@ -63,6 +63,12 @@ export enum TokenStandard {
   RadixNative = 'RadixNative',
   RadixHypCollateral = 'RadixHypCollateral',
   RadixHypSynthetic = 'RadixHypSynthetic',
+
+  // Aleo
+  AleoNative = 'AleoNative',
+  AleoHypNative = 'AleoHypNative',
+  AleoHypCollateral = 'AleoHypCollateral',
+  AleoHypSynthetic = 'AleoHypSynthetic',
 }
 
 // Allows for omission of protocol field in token args
@@ -122,6 +128,12 @@ export const TOKEN_STANDARD_TO_PROTOCOL: Record<TokenStandard, ProtocolType> = {
   RadixNative: ProtocolType.Radix,
   RadixHypCollateral: ProtocolType.Radix,
   RadixHypSynthetic: ProtocolType.Radix,
+
+  // Aleo
+  AleoNative: ProtocolType.Aleo,
+  AleoHypNative: ProtocolType.Aleo,
+  AleoHypCollateral: ProtocolType.Aleo,
+  AleoHypSynthetic: ProtocolType.Aleo,
 };
 
 export const TOKEN_STANDARD_TO_PROVIDER_TYPE: Record<
@@ -155,6 +167,8 @@ export const TOKEN_COLLATERALIZED_STANDARDS = [
   TokenStandard.CosmNativeHypCollateral,
   TokenStandard.EvmHypXERC20Lockbox,
   TokenStandard.EvmHypVSXERC20Lockbox,
+  TokenStandard.AleoHypNative,
+  TokenStandard.AleoHypCollateral,
 ];
 
 export const XERC20_STANDARDS = [
@@ -203,6 +217,9 @@ export const TOKEN_HYP_STANDARDS = [
   TokenStandard.StarknetHypSynthetic,
   TokenStandard.RadixHypCollateral,
   TokenStandard.RadixHypSynthetic,
+  TokenStandard.AleoHypNative,
+  TokenStandard.AleoHypCollateral,
+  TokenStandard.AleoHypSynthetic,
 ];
 
 export const TOKEN_MULTI_CHAIN_STANDARDS = [
@@ -252,6 +269,21 @@ export const tokenTypeToStandard = (
       ) {
         return RADIX_TOKEN_TYPE_TO_STANDARD[
           tokenType as RadixSupportedTokenTypes
+        ];
+      }
+
+      throw new Error(
+        `token type ${tokenType} not available on protocol ${protocolType}`,
+      );
+    }
+    case ProtocolType.Aleo: {
+      if (
+        ALEO_SUPPORTED_TOKEN_TYPES.includes(
+          tokenType as AleoSupportedTokenTypes,
+        )
+      ) {
+        return ALEO_TOKEN_TYPE_TO_STANDARD[
+          tokenType as AleoSupportedTokenTypes
         ];
       }
 
@@ -369,6 +401,23 @@ export const RADIX_TOKEN_TYPE_TO_STANDARD: Record<
   [TokenType.synthetic]: TokenStandard.RadixHypSynthetic,
 };
 
+export const ALEO_SUPPORTED_TOKEN_TYPES = [
+  TokenType.native,
+  TokenType.collateral,
+  TokenType.synthetic,
+] as const;
+
+type AleoSupportedTokenTypes = (typeof ALEO_SUPPORTED_TOKEN_TYPES)[number];
+
+export const ALEO_TOKEN_TYPE_TO_STANDARD: Record<
+  AleoSupportedTokenTypes,
+  TokenStandard
+> = {
+  [TokenType.native]: TokenStandard.AleoHypNative,
+  [TokenType.collateral]: TokenStandard.AleoHypCollateral,
+  [TokenType.synthetic]: TokenStandard.AleoHypSynthetic,
+};
+
 export const PROTOCOL_TO_NATIVE_STANDARD: Record<ProtocolType, TokenStandard> =
   {
     [ProtocolType.Ethereum]: TokenStandard.EvmNative,
@@ -377,6 +426,7 @@ export const PROTOCOL_TO_NATIVE_STANDARD: Record<ProtocolType, TokenStandard> =
     [ProtocolType.Sealevel]: TokenStandard.SealevelNative,
     [ProtocolType.Starknet]: TokenStandard.StarknetNative,
     [ProtocolType.Radix]: TokenStandard.RadixNative,
+    [ProtocolType.Aleo]: TokenStandard.AleoNative,
   };
 
 export const PROTOCOL_TO_HYP_NATIVE_STANDARD: Record<
@@ -390,4 +440,5 @@ export const PROTOCOL_TO_HYP_NATIVE_STANDARD: Record<
   // collateral and native are the same for cosmosnative and radix
   [ProtocolType.Radix]: TokenStandard.RadixHypCollateral,
   [ProtocolType.CosmosNative]: TokenStandard.CosmNativeHypCollateral,
+  [ProtocolType.Aleo]: TokenStandard.AleoHypNative,
 };

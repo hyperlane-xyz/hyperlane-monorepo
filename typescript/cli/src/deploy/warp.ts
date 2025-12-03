@@ -53,6 +53,7 @@ import {
   objMap,
   promiseObjAll,
   retryAsync,
+  rootLogger,
 } from '@hyperlane-xyz/utils';
 
 import { TypedAnnotatedTransaction } from '../../../sdk/dist/providers/ProviderType.js';
@@ -972,6 +973,7 @@ async function submitWarpApplyTransactions(
         100, // baseRetryMs
       );
     } catch (e) {
+      rootLogger.debug('Error in submitWarpApplyTransactions', e);
       logBlue(`Error in submitWarpApplyTransactions`, e);
       console.dir(transactions);
     }

@@ -7,7 +7,7 @@ use eyre::Result;
 
 use hyperlane_core::{
     CheckpointWithMessageId, HyperlaneSignerExt, MultisigSignedCheckpoint, ReorgEvent,
-    SignedAnnouncement, SignedCheckpointWithMessageId, H160,
+    ReorgEventResponse, SignedAnnouncement, SignedCheckpointWithMessageId, H160,
 };
 use hyperlane_ethereum::Signers;
 
@@ -36,7 +36,7 @@ pub struct MockCheckpointSyncerResponses {
     /// responses for write_reorg_status
     pub write_reorg_status: ResponseList<Result<()>>,
     /// responses for reorg_status
-    pub reorg_status: ResponseList<Result<Option<ReorgEvent>>>,
+    pub reorg_status: ResponseList<Result<ReorgEventResponse>>,
 }
 
 /// MockCheckpointSyncer
@@ -130,7 +130,7 @@ impl CheckpointSyncer for MockCheckpointSyncer {
             .unwrap_or_else(|| panic!("No mock write_reorg_status response set"))
     }
 
-    async fn reorg_status(&self) -> Result<Option<ReorgEvent>> {
+    async fn reorg_status(&self) -> Result<ReorgEventResponse> {
         self.responses
             .reorg_status
             .lock()

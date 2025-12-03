@@ -527,7 +527,7 @@ async fn mock_svm_tx(
     payload.data = data;
     payload_db.store_payload_by_uuid(&payload).await.unwrap();
     let precursor = SealevelTxPrecursor::from_payload(&payload);
-    let tx = TransactionFactory::build(&payload, precursor);
+    let tx = TransactionFactory::build(precursor, &payload);
     tx_db.store_transaction_by_uuid(&tx).await.unwrap();
     tx
 }

@@ -317,7 +317,7 @@ impl BaseMetadataBuilder {
             Ok(checkpoint_syncer) => {
                 return Ok(Some(checkpoint_syncer));
             }
-            Err(CheckpointSyncerBuildError::ReorgEvent(reorg_event)) => {
+            Err(CheckpointSyncerBuildError::ReorgFlag(reorg_event)) => {
                 if self.ignore_reorg_reports {
                     warn!(
                         ?reorg_event,
@@ -330,7 +330,7 @@ impl BaseMetadataBuilder {
                 // If a reorg event has been posted to a checkpoint syncer,
                 // we refuse to build
                 // This will result in a short circuit and return an error for the entire build process of all syncers
-                return Err(CheckpointSyncerBuildError::ReorgEvent(reorg_event));
+                return Err(CheckpointSyncerBuildError::ReorgFlag(reorg_event));
             }
             Err(err) => {
                 debug!(

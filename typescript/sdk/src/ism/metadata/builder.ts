@@ -66,6 +66,8 @@ export class BaseMetadataBuilder implements MetadataBuilder {
 
       case IsmType.MERKLE_ROOT_MULTISIG:
       case IsmType.MESSAGE_ID_MULTISIG:
+      case IsmType.STORAGE_MERKLE_ROOT_MULTISIG:
+      case IsmType.STORAGE_MESSAGE_ID_MULTISIG:
         if (typeof hook === 'string') {
           throw new Error('Hook context must be an object (for multisig ISM)');
         }
@@ -95,6 +97,7 @@ export class BaseMetadataBuilder implements MetadataBuilder {
         );
 
       case IsmType.AGGREGATION:
+      case IsmType.STORAGE_AGGREGATION:
         return this.aggregationMetadataBuilder.build(
           { ...context, ism },
           maxDepth,

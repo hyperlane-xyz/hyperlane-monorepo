@@ -5,6 +5,9 @@
   "forma": {
     "validators": []
   },
+  "adichain": {
+    "validators": ["0x4b11a6310bc06300b529b0397683ca3376407eca"]
+  },
   "ancient8": {
     "validators": ["0xbb5842ae0e05215b53df4787a29144efb7e67551"]
   },
@@ -155,9 +158,6 @@
   "incentiv": {
     "validators": ["0x72669f47b6f119289f1a42641b02a9656cc8fecd"]
   },
-  "inevm": {
-    "validators": ["0xf9e35ee88e4448a3673b4676a4e153e3584a08eb"]
-  },
   "injective": {
     "validators": ["0xbfb8911b72cfb138c7ce517c57d9c691535dc517"]
   },
@@ -202,6 +202,9 @@
   },
   "matchain": {
     "validators": ["0x8a052f7934b0626105f34f980c875ec03aaf82e8"]
+  },
+  "megaeth": {
+    "validators": ["0x051ddac8ecf4bae2532b8b7caa626b5567dab528"]
   },
   "merlin": {
     "validators": ["0xc1d6600cb9326ed2198cc8c4ba8d6668e8671247"]
@@ -337,6 +340,9 @@
   },
   "sophon": {
     "validators": ["0xb84c5d02120ed0b39d0f78bbc0e298d89ebcd10b"]
+  },
+  "stable": {
+    "validators": ["0x21820baebcd972c769e490415cfee43a894f3c18"]
   },
   "story": {
     "validators": ["0x501eda013378c60557d763df98d617b6ba55447a"]

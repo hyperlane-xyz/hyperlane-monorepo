@@ -90,13 +90,6 @@
   "hyperevm": {
     "validators": ["0x95b460edc770f53981c9aa82aa2a297af619cabf"]
   },
-  "inevm": {
-    "validators": [
-      "0x52a0376903294c796c091c785a66c62943d99aa8",
-      "0xc2ea1799664f753bedb9872d617e3ebc60b2e0ab",
-      "0xe83d36fd00d9ef86243d9f7147b29e98d11df0ee"
-    ]
-  },
   "injective": {
     "validators": ["0xca024623ee6fe281639aee91c4390b0c4e053918"]
   },

@@ -1571,7 +1571,6 @@ export const validatorChainConfig = (
         'litchain',
       ),
     },
-
     somnia: {
       interval: 5,
       reorgPeriod: getReorgPeriod('somnia'),
@@ -1590,6 +1589,36 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: ['0x3b00fe3518e739bb978b04d28e1492d8d865d96e'],
         },
         'lazai',
+      ),
+    },
+    megaeth: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('megaeth'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x051ddac8ecf4bae2532b8b7caa626b5567dab528'],
+        },
+        'megaeth',
+      ),
+    },
+    adichain: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('adichain'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x4b11a6310bc06300b529b0397683ca3376407eca'],
+        },
+        'adichain',
+      ),
+    },
+    stable: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('stable'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x21820baebcd972c769e490415cfee43a894f3c18'],
+        },
+        'stable',
       ),
     },
   };
