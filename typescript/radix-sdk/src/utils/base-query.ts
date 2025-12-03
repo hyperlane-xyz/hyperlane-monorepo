@@ -85,6 +85,21 @@ export async function getKeysFromKvStore(
   );
 }
 
+export function getComponentOwnershipInfo(
+  entityAddress: string,
+  entityDetails: RadixComponentDetails,
+): EntityDetails['role_assignments']['owner'] {
+  const ownershipInfo = entityDetails?.role_assignments?.owner as
+    | EntityDetails['role_assignments']['owner']
+    | undefined;
+  assert(
+    ownershipInfo,
+    `Expected ownership info to be defined for radix component at address ${entityAddress}`,
+  );
+
+  return ownershipInfo;
+}
+
 /**
  * Extracts the owner address of a Radix component.
  *
@@ -103,13 +118,7 @@ export async function getComponentOwner(
   entityAddress: string,
   entityDetails: RadixComponentDetails,
 ): Promise<string> {
-  const ownershipInfo = entityDetails?.role_assignments?.owner as
-    | EntityDetails['role_assignments']['owner']
-    | undefined;
-  assert(
-    ownershipInfo,
-    `Expected ownership info to be defined for radix component at address ${entityAddress}`,
-  );
+  const ownershipInfo = getComponentOwnershipInfo(entityAddress, entityDetails);
 
   const ownerResource =
     ownershipInfo.rule.access_rule.proof_rule.requirement.resource;
