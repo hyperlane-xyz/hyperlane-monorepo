@@ -1,11 +1,9 @@
-use tracing::error;
-use uuid::Uuid;
-
 use hyperlane_aleo::AleoTxData;
 
+use crate::adapter::chains::aleo::transaction::TransactionFactory;
 use crate::{
     adapter::{chains::aleo::AleoTxPrecursor, TxBuildingResult},
-    transaction::{Transaction, TransactionStatus, TransactionUuid, VmSpecificTxData},
+    transaction::Transaction,
     FullPayload,
 };
 
@@ -25,20 +23,10 @@ fn deserialize_and_create_transaction(full_payload: &FullPayload) -> Option<Tran
         .map(|operation_payload| create_transaction(operation_payload, full_payload))
 }
 
-/// Creates a transaction from deserialized tx data
+/// Creates a transaction from deserialized tx data using the type-safe generic builder
 fn create_transaction(operation_payload: AleoTxData, full_payload: &FullPayload) -> Transaction {
     let precursor = AleoTxPrecursor::from(operation_payload);
-    Transaction {
-        uuid: TransactionUuid::new(Uuid::new_v4()),
-        tx_hashes: vec![],
-        vm_specific_data: VmSpecificTxData::Aleo(Box::new(precursor)),
-        payload_details: vec![full_payload.details.clone()],
-        status: TransactionStatus::PendingInclusion,
-        submission_attempts: 0,
-        creation_timestamp: chrono::Utc::now(),
-        last_submission_attempt: None,
-        last_status_check: None,
-    }
+    TransactionFactory::build(precursor, full_payload)
 }
 
 #[cfg(test)]

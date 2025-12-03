@@ -3,3 +3,4 @@ pub use precursor::AleoTxPrecursor;
 
 mod adapter;
 mod precursor;
+mod transaction;

@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use hyperlane_core::H512;
 use hyperlane_radix::RadixTxCalldata;
 
+use crate::adapter::chains::AleoTxPrecursor;
 use crate::transaction::{Transaction, VmSpecificTxData};
 use crate::{
     payload::{FullPayload, PayloadDetails},
@@ -96,24 +97,9 @@ impl From<RadixTxCalldata> for RadixTxPrecursor {
     }
 }
 
-pub trait Precursor {
-    fn precursor(&self) -> &RadixTxPrecursor;
-    fn precursor_mut(&mut self) -> &mut RadixTxPrecursor;
-}
-
-#[allow(clippy::panic)]
-impl Precursor for Transaction {
-    fn precursor(&self) -> &RadixTxPrecursor {
-        match &self.vm_specific_data {
-            VmSpecificTxData::Radix(precursor) => precursor,
-            _ => panic!(),
-        }
-    }
-    fn precursor_mut(&mut self) -> &mut RadixTxPrecursor {
-        match &mut self.vm_specific_data {
-            VmSpecificTxData::Radix(precursor) => precursor,
-            _ => panic!(),
-        }
+impl From<RadixTxPrecursor> for VmSpecificTxData {
+    fn from(value: RadixTxPrecursor) -> Self {
+        VmSpecificTxData::Radix(Box::new(value))
     }
 }
 

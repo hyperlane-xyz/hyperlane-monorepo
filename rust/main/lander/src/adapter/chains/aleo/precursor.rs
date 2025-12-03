@@ -69,5 +69,11 @@ impl From<AleoTxData> for AleoTxPrecursor {
     }
 }
 
+impl From<AleoTxPrecursor> for VmSpecificTxData {
+    fn from(value: AleoTxPrecursor) -> Self {
+        VmSpecificTxData::Aleo(Box::new(value))
+    }
+}
+
 #[cfg(test)]
 mod tests;
