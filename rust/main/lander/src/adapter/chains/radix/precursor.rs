@@ -1,5 +1,3 @@
-use std::fmt::Debug;
-
 use core_api_client::models::FeeSummary;
 use ethers::{
     abi::Function,
@@ -11,12 +9,9 @@ use serde::{Deserialize, Serialize};
 use hyperlane_core::H512;
 use hyperlane_radix::RadixTxCalldata;
 
-use crate::adapter::chains::AleoTxPrecursor;
+use crate::payload::{FullPayload, PayloadDetails};
 use crate::transaction::{Transaction, VmSpecificTxData};
-use crate::{
-    payload::{FullPayload, PayloadDetails},
-    LanderError,
-};
+use crate::LanderError;
 
 #[derive(Clone, Deserialize, Serialize, PartialEq)]
 pub struct RadixTxPrecursor {
