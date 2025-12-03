@@ -130,11 +130,15 @@ where
             metadata.to_owned().into(),
             RawHyperlaneMessage::from(message).to_vec().into(),
         );
-        if self.domain.is_zksync_stack() {
-            // We use a random from address to ensure compatibility with zksync,
-            // but intentionally do not set this for other chains which may have assumptions
-            // around the presence of funds in the from address (which defaults to address(0)).
-            // Context here: https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/4585
+        // Set the from address to the signer's address when estimating gas.
+        // On some chains, if no `from` address is specified, the RPC assumes the zero address,
+        // which may not have funds, causing gas estimation to fail even though the relayer
+        // has sufficient funds. See: https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/4585
+        if let Some(signer) = self.contract.client().default_sender() {
+            tx = tx.from(signer);
+        } else if self.domain.is_zksync_stack() {
+            // For zkSync chains without a signer configured, use a random address
+            // due to compression optimizations that zkSync does when an address is low entropy.
             tx = tx.from(RANDOM_ADDRESS);
         }
         let (verifies, gas_estimate) = try_join(tx.call(), tx.estimate_gas()).await?;
