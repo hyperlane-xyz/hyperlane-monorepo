@@ -1,6 +1,5 @@
 use std::ops::Deref;
 
-use aleo_serialize::AleoSerialize;
 use anyhow::Result;
 use async_trait::async_trait;
 use derive_new::new;
@@ -11,10 +10,12 @@ use snarkvm::prelude::{
     Authorization, Network, Plaintext, Program, ProgramID, StatePath, Transaction,
 };
 
-use hyperlane_core::ChainResult;
 use snarkvm_console_account::Field;
 use tokio::runtime::Handle;
 use tokio::task::block_in_place;
+
+use aleo_serialize::AleoSerialize;
+use hyperlane_core::ChainResult;
 
 use crate::{CurrentNetwork, HyperlaneAleoError, ProvingRequest, ProvingResponse};
 

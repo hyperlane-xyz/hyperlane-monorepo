@@ -3,12 +3,14 @@ import { Signer, Wallet, ethers } from 'ethers';
 
 import {
   InterchainAccountRouter__factory,
+  MockSafe__factory,
   TimelockController,
   TimelockController__factory,
 } from '@hyperlane-xyz/core';
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   CallData,
+  ChainSubmissionStrategy,
   ChainSubmissionStrategySchema,
   DerivedCoreConfig,
   SubmissionStrategy,
@@ -38,6 +40,7 @@ import {
   TEST_CHAIN_METADATA_BY_PROTOCOL,
   TEST_CHAIN_NAMES_BY_PROTOCOL,
 } from '../../../constants.js';
+import { createMockSafeApi } from '../../commands/helpers.js';
 import { WarpTestFixture } from '../../fixtures/warp-test-fixture.js';
 
 describe('hyperlane warp apply with submitters', async function () {
@@ -57,11 +60,13 @@ describe('hyperlane warp apply with submitters', async function () {
   let chain2DomainId: Domain;
   let chain3DomainId: Domain;
   let timelockInstance: TimelockController;
+  let safeAddress: Address;
   let chain3IcaAddress: Address;
   const WARP_DEPLOY_CONFIG_PATH: string = DEFAULT_EVM_WARP_DEPLOY_PATH;
   const WARP_CORE_CONFIG_PATH: string = DEFAULT_EVM_WARP_CORE_PATH;
   const WARP_ROUTE_ID: string = DEFAULT_EVM_WARP_ID;
   const FORMATTED_TIMELOCK_SUBMITTER_STRATEGY_PATH = `${TEMP_PATH}/timelock-simple-strategy.yaml`;
+  const SAFE_TX_BUILDER_SUBMITTER_STRATEGY_PATH = `${TEMP_PATH}/gnosis-safe-strategy.yaml`;
 
   const evmChain2Core = new HyperlaneE2ECoreTestCommands(
     ProtocolType.Ethereum,
@@ -181,6 +186,13 @@ describe('hyperlane warp apply with submitters', async function () {
         [initialOwnerAddress, chain3IcaAddress],
         ethers.constants.AddressZero,
       );
+
+    // Deploy a mock SAFE so that the SDK can check that a contract exists
+    // at the provided address successfully
+    const mockSafe = await new MockSafe__factory()
+      .connect(chain3Signer)
+      .deploy([initialOwnerAddress], 1);
+    safeAddress = mockSafe.address;
 
     // Configure ICA connections by enrolling the ICAs with each other
     const [coreConfigChain2, coreConfigChain3]: DerivedCoreConfig[] =
@@ -369,6 +381,125 @@ describe('hyperlane warp apply with submitters', async function () {
           TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
         ].destinationGas![chain2DomainId],
       ).to.equal(expectedChain2Gas);
+    });
+  });
+
+  describe(`${TxSubmitterType.GNOSIS_TX_BUILDER}/${TxSubmitterType.GNOSIS_SAFE}`, () => {
+    let mockSafeApiServer: Awaited<ReturnType<typeof createMockSafeApi>>;
+
+    before(async function () {
+      mockSafeApiServer = await createMockSafeApi(
+        TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+        safeAddress,
+        initialOwnerAddress,
+        5,
+      );
+    });
+
+    after(async function () {
+      await mockSafeApiServer.close();
+    });
+
+    it('should propose the transaction file to the Safe API', async () => {
+      const warpDeployConfig = fixture.getDeployConfig();
+      warpDeployConfig[
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
+      ].owner = safeAddress;
+      await deployAndExportWarpRoute();
+
+      const txBuilderStrategy: ChainSubmissionStrategy = {
+        [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
+          submitter: {
+            type: TxSubmitterType.GNOSIS_SAFE,
+            chain: TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+            safeAddress: safeAddress,
+          },
+        },
+      };
+
+      writeYamlOrJson(
+        SAFE_TX_BUILDER_SUBMITTER_STRATEGY_PATH,
+        txBuilderStrategy,
+      );
+
+      warpDeployConfig[
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
+      ].destinationGas = {
+        [chain2DomainId]: '100000',
+      };
+      writeYamlOrJson(WARP_DEPLOY_CONFIG_PATH, warpDeployConfig);
+
+      const output = await evmWarpCommands.applyRaw({
+        warpRouteId: WARP_ROUTE_ID,
+        strategyUrl: SAFE_TX_BUILDER_SUBMITTER_STRATEGY_PATH,
+        hypKey: HYP_KEY_BY_PROTOCOL.ethereum,
+      });
+
+      expect(output.text()).not.to.include(
+        'Error in submitWarpApplyTransactions Error:',
+      );
+    });
+
+    it('should generate the JSON transaction file to be submitted to the Safe Transaction Builder', async () => {
+      const warpDeployConfig = fixture.getDeployConfig();
+      warpDeployConfig[
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
+      ].owner = safeAddress;
+      await deployAndExportWarpRoute();
+
+      const txBuilderStrategy: ChainSubmissionStrategy = {
+        [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
+          submitter: {
+            type: TxSubmitterType.GNOSIS_TX_BUILDER,
+            chain: TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+            safeAddress: safeAddress,
+            version: '1.0',
+          },
+        },
+      };
+
+      writeYamlOrJson(
+        SAFE_TX_BUILDER_SUBMITTER_STRATEGY_PATH,
+        txBuilderStrategy,
+      );
+
+      warpDeployConfig[
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
+      ].destinationGas = {
+        [chain2DomainId]: '100000',
+      };
+      writeYamlOrJson(WARP_DEPLOY_CONFIG_PATH, warpDeployConfig);
+
+      const result = await evmWarpCommands.applyRaw({
+        warpRouteId: WARP_ROUTE_ID,
+        strategyUrl: SAFE_TX_BUILDER_SUBMITTER_STRATEGY_PATH,
+        hypKey: HYP_KEY_BY_PROTOCOL.ethereum,
+      });
+
+      // Extract the transaction file from the logs
+      const output = result.text();
+      const filePathMatch = output.match(
+        /Transaction receipts.*successfully written to (.*-gnosisSafeTxBuilder-.*\.json)/,
+      );
+      assert(
+        filePathMatch,
+        'Expected transaction receipts file path in output',
+      );
+      const [, filePath] = filePathMatch;
+
+      // Read the exported JSON file
+      const txBuilderJson: {
+        version: string;
+        chainId: string;
+        transactions: { to: string; data: string }[];
+      } = readYamlOrJson(filePath);
+
+      // Verify Safe Transaction Builder JSON format
+      expect(txBuilderJson).to.have.property('version', '1.0');
+      expect(txBuilderJson).to.have.property('chainId');
+      expect(txBuilderJson).to.have.property('transactions');
+      expect(txBuilderJson.transactions).to.be.an('array');
+      expect(txBuilderJson.transactions.length).to.equal(1);
     });
   });
 });

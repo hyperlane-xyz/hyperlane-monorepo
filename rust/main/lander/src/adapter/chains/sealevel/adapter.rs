@@ -340,7 +340,7 @@ impl AdaptsChain for SealevelAdapter {
         let mut transactions = Vec::new();
         for (not_estimated, payload) in payloads_and_precursors.into_iter() {
             // We are not estimating transaction here since we will estimate it just before submission
-            let transaction = TransactionFactory::build(payload, not_estimated);
+            let transaction = TransactionFactory::build(not_estimated, payload);
             transactions.push(TxBuildingResult::new(
                 vec![payload.details.clone()],
                 Some(transaction),
@@ -381,7 +381,7 @@ impl AdaptsChain for SealevelAdapter {
             }
         };
 
-        tx.vm_specific_data = VmSpecificTxData::Svm(estimated);
+        tx.vm_specific_data = VmSpecificTxData::Svm(Box::new(estimated));
         info!(?tx, "estimated transaction");
         Ok(())
     }
