@@ -139,7 +139,7 @@ export async function isAleoProviderHealthy(
     return healthy;
   } catch (err) {
     rootLogger.warn(
-      `Radix gateway health check threw for ${metadata.name}`,
+      `Aleo gateway health check threw for ${metadata.name}`,
       err as Error,
     );
     return false;
