@@ -52,6 +52,7 @@ export enum ProviderType {
   Starknet = 'starknet',
   ZkSync = 'zksync',
   Radix = 'radix',
+  Aleo = 'aleo',
 }
 
 export const PROTOCOL_TO_DEFAULT_PROVIDER_TYPE: Record<
@@ -64,6 +65,7 @@ export const PROTOCOL_TO_DEFAULT_PROVIDER_TYPE: Record<
   [ProtocolType.CosmosNative]: ProviderType.CosmJsNative,
   [ProtocolType.Starknet]: ProviderType.Starknet,
   [ProtocolType.Radix]: ProviderType.Radix,
+  [ProtocolType.Aleo]: ProviderType.Aleo,
 };
 
 export type ProviderMap<Value> = Partial<Record<ProviderType, Value>>;
@@ -104,6 +106,12 @@ type ProtocolTypesMapping = {
     provider: RadixProvider;
     contract: null;
     receipt: RadixTransactionReceipt;
+  };
+  [ProtocolType.Aleo]: {
+    transaction: any;
+    provider: any;
+    contract: any;
+    receipt: any;
   };
 };
 
