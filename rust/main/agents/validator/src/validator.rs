@@ -477,7 +477,7 @@ impl Validator {
             validator: address,
             mailbox_address: self.mailbox.address(),
             mailbox_domain: self.mailbox.domain().id(),
-            storage_location: announcement_location.clone(),
+            storage_location: self.announcement_location()?, // Use formatted location for the signed announcement
         };
         let signed_announcement = self.signer.sign(announcement.clone()).await?;
         self.checkpoint_syncer
@@ -555,12 +555,119 @@ impl Validator {
         reorg_reporter: &Arc<dyn ReorgReporter>,
         checkpoint_syncer_result: &Result<Box<dyn CheckpointSyncer>, CheckpointSyncerBuildError>,
     ) {
-        if let Err(CheckpointSyncerBuildError::ReorgEvent(reorg_event)) =
+        if let Err(CheckpointSyncerBuildError::ReorgFlag(reorg_resp)) =
             checkpoint_syncer_result.as_ref()
         {
-            reorg_reporter
-                .report_with_reorg_period(&reorg_event.reorg_period)
-                .await;
+            match reorg_resp.event.as_ref() {
+                Some(reorg_event) => {
+                    reorg_reporter
+                        .report_with_reorg_period(&reorg_event.reorg_period)
+                        .await;
+                }
+                None => {
+                    tracing::error!(
+                        "Failed to parse reorg event, reporting with default reorg period"
+                    );
+                    reorg_reporter
+                        .report_with_reorg_period(&ReorgPeriod::None)
+                        .await;
+                }
+            }
         }
+    }
+
+    fn announcement_location(&self) -> Result<String> {
+        let location = self.checkpoint_syncer.announcement_location();
+        if self.origin_chain.domain_protocol() == hyperlane_core::HyperlaneDomainProtocol::Aleo {
+            Self::aleo_announcement_location(location)
+        } else {
+            Ok(location)
+        }
+    }
+
+    fn aleo_announcement_location(announcement_location: String) -> Result<String> {
+        // Aleo announcement locations are fixed size C strings of 480 bytes (include nulls)
+        let mut bytes = announcement_location.into_bytes();
+        // Ensure it fits within 479 bytes (leaving room for null terminator)
+        if bytes.len() > 479 {
+            return Err(eyre!(
+                "Aleo announcement location too long: {} bytes (max 479)",
+                bytes.len()
+            ));
+        }
+        // Pad remaining bytes with nulls up to 480 total
+        bytes.resize(480, 0);
+        String::from_utf8(bytes).map_err(|e| {
+            eyre!(
+                "Failed to convert Aleo announcement location to string: {}",
+                e
+            )
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn aleo_announcement_location_exactly_max_minus_null() -> Result<()> {
+        // 479 bytes input should be padded to 480 with a single null
+        let input = "a".repeat(479);
+        let out = Validator::aleo_announcement_location(input.clone())?;
+        let bytes = out.into_bytes();
+        assert_eq!(bytes.len(), 480);
+        assert_eq!(bytes[..479], input.as_bytes()[..]);
+        assert_eq!(bytes[479], 0);
+        Ok(())
+    }
+
+    #[test]
+    fn aleo_announcement_location_short_input_padded_to_480() -> Result<()> {
+        let input = "hello";
+        let out = Validator::aleo_announcement_location(input.to_string())?;
+        let bytes = out.into_bytes();
+        assert_eq!(bytes.len(), 480);
+        assert_eq!(&bytes[..5], input.as_bytes());
+        assert!(bytes[5..].iter().all(|&b| b == 0));
+        Ok(())
+    }
+
+    #[test]
+    fn aleo_announcement_location_empty_string_padded_to_480() -> Result<()> {
+        let input = "";
+        let out = Validator::aleo_announcement_location(input.to_string())?;
+        let bytes = out.into_bytes();
+        assert_eq!(bytes.len(), 480);
+        assert!(bytes.iter().all(|&b| b == 0));
+        Ok(())
+    }
+
+    #[test]
+    fn aleo_announcement_location_rejects_too_long() {
+        // 480 bytes input would exceed allowed (must be <= 479)
+        let input = "b".repeat(480);
+        let err = Validator::aleo_announcement_location(input).unwrap_err();
+        let msg = format!("{}", err);
+        assert!(msg.contains("Aleo announcement location too long"));
+        assert!(msg.contains("max 479"));
+    }
+
+    #[test]
+    fn aleo_announcement_location_preserves_existing_nulls_and_utf8() -> Result<()> {
+        // Input containing interior null bytes and multi-byte UTF-8
+        let mut input_bytes = Vec::new();
+        input_bytes.extend_from_slice("αβγ".as_bytes()); // UTF-8 multi-byte
+        input_bytes.push(0); // interior null
+        input_bytes.extend_from_slice("xyz".as_bytes());
+        let input = String::from_utf8(input_bytes.clone()).unwrap();
+        let out = Validator::aleo_announcement_location(input.clone())?;
+        let out_bytes = out.into_bytes();
+
+        // Leading content preserved
+        assert_eq!(&out_bytes[..input_bytes.len()], &input_bytes[..]);
+        // Padded with zeros to 480
+        assert_eq!(out_bytes.len(), 480);
+        assert!(out_bytes[input_bytes.len()..].iter().all(|&b| b == 0));
+        Ok(())
     }
 }

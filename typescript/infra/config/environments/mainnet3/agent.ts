@@ -68,6 +68,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Validator]: {
     abstract: true,
     // acala: true,
+    adichain: true,
     ancient8: true,
     apechain: true,
     appchain: true,
@@ -119,7 +120,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     hyperevm: true,
     immutablezkevmmainnet: true,
     incentiv: true,
-    inevm: true,
+    inevm: false,
     injective: true,
     ink: true,
     kaia: true,
@@ -135,6 +136,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     mantle: true,
     mantra: true,
     matchain: true,
+    megaeth: true,
     merlin: true,
     metal: true,
     metis: true,
@@ -181,6 +183,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sonicsvm: true,
     soon: true,
     sophon: true,
+    stable: true,
     starknet: true,
     story: true,
     stride: false,
@@ -210,6 +213,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Relayer]: {
     abstract: true,
     // acala: true,
+    adichain: true,
     ancient8: true,
     apechain: true,
     appchain: true,
@@ -261,7 +265,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     hyperevm: true,
     immutablezkevmmainnet: true,
     incentiv: true,
-    inevm: true,
+    inevm: false,
     injective: true,
     ink: true,
     kaia: true,
@@ -277,6 +281,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     mantle: true,
     mantra: true,
     matchain: true,
+    megaeth: true,
     merlin: true,
     metal: true,
     metis: true,
@@ -323,6 +328,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sonicsvm: true,
     soon: true,
     sophon: true,
+    stable: true,
     starknet: true,
     story: true,
     stride: true,
@@ -352,6 +358,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Scraper]: {
     abstract: true,
     // acala: true,
+    adichain: true,
     ancient8: true,
     apechain: true,
     appchain: true,
@@ -403,7 +410,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     hyperevm: true,
     immutablezkevmmainnet: true,
     incentiv: true,
-    inevm: true,
+    inevm: false,
     ink: true,
     injective: true,
     kaia: true,
@@ -419,6 +426,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     mantle: true,
     mantra: true,
     matchain: true,
+    megaeth: true,
     merlin: true,
     metal: true,
     metis: true,
@@ -465,6 +473,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sonicsvm: true,
     soon: true,
     sophon: true,
+    stable: true,
     starknet: true,
     story: true,
     stride: true,
@@ -867,7 +876,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '9770b73-20251125-164332',
+      tag: '424d9f9-20251201-141531',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -887,7 +896,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'd64bb3a-20251124-132420',
+      tag: '424d9f9-20251201-141531',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -898,7 +907,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'd64bb3a-20251124-132420',
+      tag: '424d9f9-20251201-141531',
     },
     resources: scraperResources,
   },
@@ -913,7 +922,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '9770b73-20251125-164332',
+      tag: '424d9f9-20251201-141531',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
@@ -936,7 +945,7 @@ const releaseCandidate: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'd64bb3a-20251124-132420',
+      tag: '424d9f9-20251201-141531',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),

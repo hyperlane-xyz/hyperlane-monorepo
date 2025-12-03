@@ -291,23 +291,28 @@ jobs:
           - core-read
           # Other commands
           - relay
-          # Warp Commands
-          - warp-apply-1
-          - warp-apply-2
+          # Warp Apply Commands
+          - warp-apply-hook-updates
           - warp-apply-ism-updates
+          - warp-apply-ownership-updates
+          - warp-apply-rebalancing-config
+          - warp-apply-simple-updates
           - warp-apply-submitters
+          - warp-extend-basic
+          - warp-extend-config
+          - warp-extend-recovery
+          # deploy
           - warp-bridge-1
           - warp-bridge-2
+          - warp-deploy-1
+          - warp-deploy-2
+          # check
           - warp-check-1
           - warp-check-2
           - warp-check-3
           - warp-check-4
           - warp-check-5
-          - warp-deploy-1
-          - warp-deploy-2
-          - warp-extend-basic
-          - warp-extend-config
-          - warp-extend-recovery
+          # other
           - warp-init
           - warp-read
           - warp-rebalancer
@@ -767,7 +772,7 @@ jobs:
       fail-fast: false
       matrix:
         environment: [mainnet3]
-        chain: [ethereum, arbitrum, optimism, inevm]
+        chain: [ethereum, arbitrum, optimism]
         module: [core, igp]
         include:
           - environment: testnet4
