@@ -58,7 +58,9 @@ export class AleoBase {
       getOrInitConsensusVersionTestHeights(this.consensusVersionHeights);
     }
 
-    this.ismManager = process.env['ALEO_ISM_MANAGER'] || 'ism_manager.aleo';
+    this.ismManager = process.env['ALEO_ISM_MANAGER_SUFFIX']
+      ? `ism_manager_${process.env['ALEO_ISM_MANAGER_SUFFIX']}.aleo`
+      : 'ism_manager.aleo';
   }
 
   protected getProgramManager(privateKey?: string): AnyProgramManager {

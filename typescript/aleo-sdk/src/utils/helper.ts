@@ -6,14 +6,14 @@ import { AleoProgram, programRegistry } from '../artifacts.js';
 
 const upgradeAuthority = process.env['ALEO_UPGRADE_AUTHORITY'] || '';
 const skipSuffixes = JSON.parse(process.env['ALEO_SKIP_SUFFIXES'] || 'false');
-const ismManager = process.env['ALEO_ISM_MANAGER'];
+const customIsmSuffix = process.env['ALEO_ISM_MANAGER_SUFFIX'];
 const customWarpSuffix = process.env['ALEO_WARP_SUFFIX'];
 
 export function loadProgramsInDeployOrder(
   programName: AleoProgram,
   coreSuffix: string,
   warpSuffix?: string,
-): { id: string; program: string }[] {
+): { id: string; name: string; program: string }[] {
   const visited = new Set<string>();
   let programs: Program[] = [];
 
@@ -52,14 +52,19 @@ export function loadProgramsInDeployOrder(
           ),
       ),
     );
-  }
 
-  if (ismManager) {
-    programs = programs.map((p) =>
-      Program.fromString(
-        p.toString().replaceAll('ism_manager.aleo', ismManager),
-      ),
-    );
+    if (customIsmSuffix) {
+      programs = programs.map((p) =>
+        Program.fromString(
+          p
+            .toString()
+            .replaceAll(
+              'ism_manager.aleo',
+              `ism_manager_${customIsmSuffix}.aleo`,
+            ),
+        ),
+      );
+    }
   }
 
   if (upgradeAuthority) {
@@ -103,6 +108,7 @@ export function loadProgramsInDeployOrder(
 
   return programs.map((p) => ({
     id: p.id(),
+    name: Object.keys(programRegistry).find((r) => p.id().startsWith(r)) || '',
     program: p.toString(),
   }));
 }
