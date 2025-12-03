@@ -1,6 +1,6 @@
 import { BHP256, Plaintext, Program, U128 } from '@provablehq/sdk/mainnet.js';
 
-import { isAddressAleo, strip0x } from '@hyperlane-xyz/utils';
+import { isValidAddressAleo, strip0x } from '@hyperlane-xyz/utils';
 
 import { AleoProgram, programRegistry } from '../artifacts.js';
 
@@ -148,7 +148,7 @@ export function fromAleoAddress(aleoAddress: string): {
   programId: string;
   address: string;
 } {
-  if (!isAddressAleo(aleoAddress)) {
+  if (!isValidAddressAleo(aleoAddress)) {
     throw new Error(`address ${aleoAddress} is no valid aleo address`);
   }
 
