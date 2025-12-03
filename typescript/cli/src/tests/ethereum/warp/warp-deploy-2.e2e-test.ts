@@ -47,6 +47,7 @@ import {
   CHAIN_NAME_4,
   CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
+  REGISTRY_PATH,
   WARP_DEPLOY_OUTPUT_PATH,
 } from '../consts.js';
 
@@ -120,6 +121,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       everclearBridgeAdapterMock = await deployEverclearBridgeAdapter(
         ANVIL_KEY,
         CHAIN_NAME_2,
+        REGISTRY_PATH,
       );
     });
 

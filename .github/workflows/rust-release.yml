@@ -104,9 +104,18 @@ jobs:
       needs.check-release-status.outputs.has_changes == 'true' &&
       needs.check-release-status.outputs.should_release == 'false'
     steps:
+      # Generate token first so checkout configures git credentials with it
+      # This allows subsequent pushes to trigger workflows
+      - name: Generate GitHub App Token
+        id: generate-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.HYPER_GONK_APP_ID }}
+          private-key: ${{ secrets.HYPER_GONK_PRIVATE_KEY }}
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
+          token: ${{ steps.generate-token.outputs.token }}
       - uses: dtolnay/rust-toolchain@stable
       - name: Determine next version from conventional commits
         id: next_version
@@ -170,12 +179,6 @@ jobs:
           cd ../sealevel
           cargo update --workspace --offline 2>/dev/null || cargo update --workspace
           echo "Updated rust/sealevel/Cargo.lock"
-      - name: Generate GitHub App Token
-        id: generate-token
-        uses: actions/create-github-app-token@v2
-        with:
-          app-id: ${{ secrets.HYPER_GONK_APP_ID }}
-          private-key: ${{ secrets.HYPER_GONK_PRIVATE_KEY }}
       - name: Create or update release PR
         env:
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
@@ -183,8 +186,10 @@ jobs:
           BUMP_TYPE: ${{ steps.next_version.outputs.bump_type }}
           CHANGELOG: ${{ steps.changelog.outputs.changelog }}
         run: |
+          # Get bot user ID for proper avatar attribution
+          BOT_USER_ID=$(gh api /users/${{ steps.generate-token.outputs.app-slug }}[bot] --jq .id)
           git config user.name "${{ steps.generate-token.outputs.app-slug }}[bot]"
-          git config user.email "${{ secrets.HYPER_GONK_APP_ID }}+${{ steps.generate-token.outputs.app-slug }}[bot]@users.noreply.github.com"
+          git config user.email "${BOT_USER_ID}+${{ steps.generate-token.outputs.app-slug }}[bot]@users.noreply.github.com"
 
           BRANCH_NAME="release-agents-v${NEW_VERSION}"
 
@@ -285,12 +290,19 @@ jobs:
           # Determine final version based on release type
           # workflow_dispatch always creates pre-releases
           if [ "$IS_PRERELEASE" = "true" ]; then
-            # Pre-release: append suffix
+            # For prereleases, calculate the next version (like changesets does for NPM)
+            # This ensures prerelease versions reflect what the next release will be
+            # e.g., if current is 1.7.0, prerelease will be 1.8.0-preview.1 (not 1.7.0-preview.1)
+            OUTPUT=$(./rust/scripts/ci/determine-next-version.sh "$BASE_VERSION")
+            NEXT_VERSION=$(echo "$OUTPUT" | sed -n '1p')
+            echo "Calculated next version: $NEXT_VERSION (from base $BASE_VERSION)"
+
+            # Pre-release: append suffix to the NEXT version
             if [ -n "$PRERELEASE_SUFFIX" ]; then
               SUFFIX="$PRERELEASE_SUFFIX"
             else
               # Auto-generate preview.N
-              LAST_PREVIEW=$(git tag -l "agents-v${BASE_VERSION}-preview.*" | sort -V | tail -1)
+              LAST_PREVIEW=$(git tag -l "agents-v${NEXT_VERSION}-preview.*" | sort -V | tail -1)
               if [ -z "$LAST_PREVIEW" ]; then
                 SUFFIX="preview.1"
               else
@@ -298,7 +310,7 @@ jobs:
                 SUFFIX="preview.$((PREVIEW_NUM + 1))"
               fi
             fi
-            VERSION="${BASE_VERSION}-${SUFFIX}"
+            VERSION="${NEXT_VERSION}-${SUFFIX}"
             TITLE="Agents $VERSION (Pre-release)"
             PRERELEASE_FLAG="--prerelease"
             RELEASE_TYPE="Pre-release"

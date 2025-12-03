@@ -11,6 +11,7 @@ COPY .yarn/plugins ./.yarn/plugins
 COPY .yarn/releases ./.yarn/releases
 COPY .yarn/patches ./.yarn/patches
 
+COPY typescript/aleo-sdk/package.json ./typescript/aleo-sdk/
 COPY typescript/ccip-server/package.json ./typescript/ccip-server/
 COPY typescript/ccip-server/prisma ./typescript/ccip-server/prisma
 COPY typescript/cli/package.json ./typescript/cli/

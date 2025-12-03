@@ -2,8 +2,11 @@ use std::path::PathBuf;
 
 use async_trait::async_trait;
 use eyre::{Context, Result};
-use hyperlane_core::{ReorgEvent, SignedAnnouncement, SignedCheckpointWithMessageId};
+use hyperlane_core::{
+    ReorgEvent, ReorgEventResponse, SignedAnnouncement, SignedCheckpointWithMessageId,
+};
 use prometheus::IntGauge;
+use tracing::error;
 
 use crate::traits::CheckpointSyncer;
 
@@ -130,12 +133,33 @@ impl CheckpointSyncer for LocalStorage {
         Ok(())
     }
 
-    async fn reorg_status(&self) -> Result<Option<ReorgEvent>> {
-        let Ok(data) = tokio::fs::read(self.reorg_flag_path()).await else {
-            return Ok(None);
+    async fn reorg_status(&self) -> Result<ReorgEventResponse> {
+        let data = match tokio::fs::read(self.reorg_flag_path()).await {
+            Ok(s) => s,
+            Err(err) => {
+                error!(?err, "Failed to read file");
+                return Ok(ReorgEventResponse {
+                    exists: false,
+                    event: None,
+                    content: None,
+                });
+            }
         };
-        let reorg = serde_json::from_slice(&data)?;
-        Ok(Some(reorg))
+        match serde_json::from_slice(&data) {
+            Ok(s) => Ok(ReorgEventResponse {
+                exists: true,
+                event: Some(s),
+                content: Some(String::from_utf8_lossy(&data).to_string()),
+            }),
+            Err(err) => {
+                error!(?err, "Failed to parse reorg event");
+                Ok(ReorgEventResponse {
+                    exists: true,
+                    event: None,
+                    content: Some(String::from_utf8_lossy(&data).to_string()),
+                })
+            }
+        }
     }
 
     async fn write_reorg_rpc_responses(&self, log: String) -> Result<()> {
