@@ -265,7 +265,7 @@ pub struct FeeEstimate {
 }
 
 #[aleo_serialize]
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug)]
 pub struct DeliveryKey {
     /// Message ID
     pub id: AleoHash,

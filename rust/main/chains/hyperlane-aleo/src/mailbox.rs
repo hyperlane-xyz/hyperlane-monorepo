@@ -6,9 +6,9 @@ use snarkvm::prelude::{Address, FromBytes, Plaintext, ProgramID};
 
 use aleo_serialize::AleoSerialize;
 use hyperlane_core::{
-    ChainResult, ContractLocator, Encode, FixedPointNumber, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Mailbox, ReorgPeriod, TxCostEstimate,
-    TxOutcome, H256, U256,
+    ChainCommunicationError, ChainResult, ContractLocator, Encode, FixedPointNumber,
+    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
+    Mailbox, ReorgPeriod, TxCostEstimate, TxOutcome, H256, U256,
 };
 
 use crate::provider::{AleoClient, FallbackHttpClient};
@@ -240,9 +240,8 @@ impl<C: AleoClient> Mailbox for AleoMailbox<C> {
             inputs,
         };
 
-        let json_str = serde_json::to_string(&tx_data)
-            .map_err(hyperlane_core::ChainCommunicationError::JsonParseError)?;
-        Ok(json_str.as_bytes().to_vec())
+        let json_val = serde_json::to_vec(&tx_data).map_err(ChainCommunicationError::from)?;
+        Ok(json_val)
     }
 
     /// Get the calldata for a call which allows to check if a particular messages was delivered
@@ -258,8 +257,8 @@ impl<C: AleoClient> Mailbox for AleoMailbox<C> {
             mapping_key: key.to_string(),
         };
 
-        let json_val = serde_json::to_vec(&get_mapping_value)
-            .map_err(hyperlane_core::ChainCommunicationError::JsonParseError)?;
+        let json_val =
+            serde_json::to_vec(&get_mapping_value).map_err(ChainCommunicationError::from)?;
         Ok(Some(json_val))
     }
 }
