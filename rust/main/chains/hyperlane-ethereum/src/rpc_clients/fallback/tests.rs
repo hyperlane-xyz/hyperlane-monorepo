@@ -280,7 +280,10 @@ async fn test_multicast_none_provider_succeeds() {
     let result = ethereum_fallback_provider.multicast_test_call().await;
     let provider_call_count: Vec<_> =
         ProviderMock::get_call_counts(&ethereum_fallback_provider).await;
-    matches!(result, Err(ProviderError::JsonRpcClientError(_)));
+    assert!(
+        matches!(result, Err(ProviderError::JsonRpcClientError(_))),
+        "results do not match"
+    );
     assert_eq!(provider_call_count, vec![4, 4, 4]);
 }
 
@@ -527,8 +530,7 @@ async fn test_fallback_all_providers_return_null_receipt_with_rotate() {
         .await;
 
     // Should fail since all providers returned null
-    assert!(result.is_err());
-    matches!(result.unwrap_err(), ProviderError::JsonRpcClientError(_));
+    assert!(matches!(result, Err(ProviderError::JsonRpcClientError(_))));
 
     let provider_call_count: Vec<_> =
         ProviderMock::get_call_counts(&ethereum_fallback_provider).await;
