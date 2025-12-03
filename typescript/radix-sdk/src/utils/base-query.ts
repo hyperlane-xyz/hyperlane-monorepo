@@ -28,9 +28,8 @@ export async function getRadixComponentDetails(
   entityAddress: string,
   componentName: string,
 ): Promise<RadixComponentDetails> {
-  const details =
+  const { details: componentDetails } =
     await gateway.state.getEntityDetailsVaultAggregated(entityAddress);
-  const componentDetails = details.details;
 
   assert(
     componentDetails?.type === 'Component',

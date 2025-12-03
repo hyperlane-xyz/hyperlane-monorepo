@@ -51,7 +51,11 @@ export async function getTestIsmConfig(
   type: RadixIsmTypes.NOOP_ISM;
   address: string;
 }> {
-  const ismDetails = await getRadixComponentDetails(gateway, ismAddress, 'ISM');
+  const ismDetails = await getRadixComponentDetails(
+    gateway,
+    ismAddress,
+    RadixIsmTypes.NOOP_ISM,
+  );
 
   const ismType = ismDetails.blueprint_name;
   assert(
@@ -85,7 +89,11 @@ export async function getMultisigIsmConfig(
   threshold: number;
   validators: string[];
 }> {
-  const ismDetails = await getRadixComponentDetails(gateway, ismAddress, 'ISM');
+  const ismDetails = await getRadixComponentDetails(
+    gateway,
+    ismAddress,
+    'MultisigISM',
+  );
 
   const ismType = ismDetails.blueprint_name;
   assert(
@@ -124,7 +132,11 @@ export async function getDomainRoutingIsmConfig(
     ismAddress: string;
   }[];
 }> {
-  const ismDetails = await getRadixComponentDetails(gateway, ismAddress, 'ISM');
+  const ismDetails = await getRadixComponentDetails(
+    gateway,
+    ismAddress,
+    RadixIsmTypes.ROUTING_ISM,
+  );
 
   const ismType = ismDetails.blueprint_name;
   assert(

@@ -60,7 +60,7 @@ export async function getIgpHookConfig(
   const hookDetails = await getRadixComponentDetails(
     gateway,
     hookAddress,
-    'hook',
+    RadixHookTypes.IGP,
   );
 
   const hookType = hookDetails.blueprint_name;
@@ -159,7 +159,7 @@ export async function getMerkleTreeHookConfig(
   const hookDetails = await getRadixComponentDetails(
     gateway,
     hookAddress,
-    'hook',
+    RadixHookTypes.MERKLE_TREE,
   );
 
   const hookType = hookDetails.blueprint_name;
