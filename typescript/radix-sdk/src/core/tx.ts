@@ -2,7 +2,7 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import { RadixBase } from '../utils/base.js';
 import { RadixBaseSigner } from '../utils/signer.js';
-import { Account, MultisigIsmReq } from '../utils/types.js';
+import { Account } from '../utils/types.js';
 
 import { RadixCorePopulate } from './populate.js';
 
@@ -67,114 +67,6 @@ export class RadixCoreTx {
     const transactionManifest = await this.populate.createMerkleTreeHook({
       from_address: this.account.address,
       mailbox,
-    });
-
-    const receipt = await this.signer.signAndBroadcast(transactionManifest);
-
-    return this.base.getNewComponent(receipt);
-  }
-
-  public async createMerkleRootMultisigIsm({
-    validators,
-    threshold,
-  }: MultisigIsmReq) {
-    const transactionManifest = await this.populate.createMerkleRootMultisigIsm(
-      {
-        from_address: this.account.address,
-        validators,
-        threshold,
-      },
-    );
-
-    const receipt = await this.signer.signAndBroadcast(transactionManifest);
-
-    return this.base.getNewComponent(receipt);
-  }
-
-  public async createMessageIdMultisigIsm({
-    validators,
-    threshold,
-  }: MultisigIsmReq) {
-    const transactionManifest = await this.populate.createMessageIdMultisigIsm({
-      from_address: this.account.address,
-      validators,
-      threshold,
-    });
-
-    const receipt = await this.signer.signAndBroadcast(transactionManifest);
-
-    return this.base.getNewComponent(receipt);
-  }
-
-  public async createRoutingIsm({
-    routes,
-  }: {
-    routes: { ismAddress: string; domainId: number }[];
-  }) {
-    const transactionManifest = await this.populate.createRoutingIsm({
-      from_address: this.account.address,
-      routes,
-    });
-
-    const receipt = await this.signer.signAndBroadcast(transactionManifest);
-
-    return this.base.getNewComponent(receipt);
-  }
-
-  public async setRoutingIsmRoute({
-    ism,
-    route,
-  }: {
-    ism: string;
-    route: {
-      domainId: number;
-      ismAddress: string;
-    };
-  }) {
-    const transactionManifest = await this.populate.setRoutingIsmRoute({
-      from_address: this.account.address,
-      ism,
-      route,
-    });
-
-    await this.signer.signAndBroadcast(transactionManifest);
-  }
-
-  public async removeRoutingIsmRoute({
-    ism,
-    domain,
-  }: {
-    ism: string;
-    domain: number;
-  }) {
-    const transactionManifest = await this.populate.removeRoutingIsmRoute({
-      from_address: this.account.address,
-      ism,
-      domain,
-    });
-
-    await this.signer.signAndBroadcast(transactionManifest);
-  }
-
-  public async setRoutingIsmOwner({
-    ism,
-    new_owner,
-  }: {
-    ism: string;
-    new_owner: string;
-  }) {
-    const transactionManifest = await this.populate.setRoutingIsmOwner({
-      from_address: this.account.address,
-      ism,
-      new_owner,
-    });
-
-    await this.signer.signAndBroadcast(transactionManifest);
-  }
-
-  public async createNoopIsm() {
-    const transactionManifest = await this.populate.createNoopIsm({
-      from_address: this.account.address,
     });
 
     const receipt = await this.signer.signAndBroadcast(transactionManifest);

@@ -7,6 +7,15 @@ import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert, strip0x } from '@hyperlane-xyz/utils';
 
 import { RadixCoreTx } from '../core/tx.js';
+import {
+  getCreateMerkleRootMultisigIsmTransaction,
+  getCreateMessageIdMultisigIsmTransaction,
+  getCreateNoopIsmTransaction,
+  getCreateRoutingIsmTransaction,
+  getRemoveRoutingIsmDomainIsmTransaction,
+  getSetRoutingIsmDomainIsmTransaction,
+  getSetRoutingIsmOwnerTransaction,
+} from '../ism/ism-tx.js';
 import { RadixBaseSigner } from '../utils/signer.js';
 import {
   Account,
@@ -213,42 +222,78 @@ export class RadixSigner
   async createMerkleRootMultisigIsm(
     req: Omit<AltVM.ReqCreateMerkleRootMultisigIsm, 'signer'>,
   ): Promise<AltVM.ResCreateMerkleRootMultisigIsm> {
-    return {
-      ismAddress: await this.tx.core.createMerkleRootMultisigIsm({
+    const transactionManifest = await getCreateMerkleRootMultisigIsmTransaction(
+      this.base,
+      this.packageAddress,
+      {
+        fromAddress: this.account.address,
         validators: req.validators,
         threshold: req.threshold,
-      }),
+      },
+    );
+
+    const receipt = await this.signer.signAndBroadcast(transactionManifest);
+
+    const ismAddress = await this.base.getNewComponent(receipt);
+    return {
+      ismAddress,
     };
   }
 
   async createMessageIdMultisigIsm(
     req: Omit<AltVM.ReqCreateMessageIdMultisigIsm, 'signer'>,
   ): Promise<AltVM.ResCreateMessageIdMultisigIsm> {
-    return {
-      ismAddress: await this.tx.core.createMessageIdMultisigIsm({
+    const transactionManifest = await getCreateMessageIdMultisigIsmTransaction(
+      this.base,
+      this.packageAddress,
+      {
+        fromAddress: this.account.address,
         validators: req.validators,
         threshold: req.threshold,
-      }),
+      },
+    );
+
+    const receipt = await this.signer.signAndBroadcast(transactionManifest);
+
+    const ismAddress = await this.base.getNewComponent(receipt);
+    return {
+      ismAddress,
     };
   }
 
   async createRoutingIsm(
     req: Omit<AltVM.ReqCreateRoutingIsm, 'signer'>,
   ): Promise<AltVM.ResCreateRoutingIsm> {
-    return {
-      ismAddress: await this.tx.core.createRoutingIsm({
+    const transactionManifest = await getCreateRoutingIsmTransaction(
+      this.base,
+      this.packageAddress,
+      {
+        fromAddress: this.account.address,
         routes: req.routes,
-      }),
+      },
+    );
+
+    const receipt = await this.signer.signAndBroadcast(transactionManifest);
+
+    const ismAddress = await this.base.getNewComponent(receipt);
+    return {
+      ismAddress,
     };
   }
 
   async setRoutingIsmRoute(
     req: Omit<AltVM.ReqSetRoutingIsmRoute, 'signer'>,
   ): Promise<AltVM.ResSetRoutingIsmRoute> {
-    await this.tx.core.setRoutingIsmRoute({
-      ism: req.ismAddress,
-      route: req.route,
-    });
+    const transactionManifest = await getSetRoutingIsmDomainIsmTransaction(
+      this.base,
+      {
+        fromAddress: this.account.address,
+        ismAddress: req.ismAddress,
+        domainIsm: req.route,
+      },
+    );
+
+    await this.signer.signAndBroadcast(transactionManifest);
 
     return {
       route: req.route,
@@ -258,10 +303,16 @@ export class RadixSigner
   async removeRoutingIsmRoute(
     req: Omit<AltVM.ReqRemoveRoutingIsmRoute, 'signer'>,
   ): Promise<AltVM.ResRemoveRoutingIsmRoute> {
-    await this.tx.core.removeRoutingIsmRoute({
-      ism: req.ismAddress,
-      domain: req.domainId,
-    });
+    const transactionManifest = await getRemoveRoutingIsmDomainIsmTransaction(
+      this.base,
+      {
+        fromAddress: this.account.address,
+        ismAddress: req.ismAddress,
+        domainId: req.domainId,
+      },
+    );
+
+    await this.signer.signAndBroadcast(transactionManifest);
 
     return {
       domainId: req.domainId,
@@ -271,11 +322,17 @@ export class RadixSigner
   async setRoutingIsmOwner(
     req: Omit<AltVM.ReqSetRoutingIsmOwner, 'signer'>,
   ): Promise<AltVM.ResSetRoutingIsmOwner> {
-    await this.tx.core.setRoutingIsmOwner({
-      ism: req.ismAddress,
-      new_owner: req.newOwner,
-    });
+    const transactionManifest = await getSetRoutingIsmOwnerTransaction(
+      this.base,
+      this.gateway,
+      {
+        fromAddress: this.account.address,
+        ismAddress: req.ismAddress,
+        newOwner: req.newOwner,
+      },
+    );
 
+    await this.signer.signAndBroadcast(transactionManifest);
     return {
       newOwner: req.newOwner,
     };
@@ -284,8 +341,17 @@ export class RadixSigner
   async createNoopIsm(
     _req: Omit<AltVM.ReqCreateNoopIsm, 'signer'>,
   ): Promise<AltVM.ResCreateNoopIsm> {
+    const transactionManifest = await getCreateNoopIsmTransaction(
+      this.base,
+      this.packageAddress,
+      this.account.address,
+    );
+
+    const receipt = await this.signer.signAndBroadcast(transactionManifest);
+
+    const ismAddress = await this.base.getNewComponent(receipt);
     return {
-      ismAddress: await this.tx.core.createNoopIsm(),
+      ismAddress,
     };
   }
 

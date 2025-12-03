@@ -5,20 +5,11 @@ import {
   array,
   tuple,
   u32,
-  u64,
   u128,
 } from '@radixdlt/radix-engine-toolkit';
 
-import { strip0x } from '@hyperlane-xyz/utils';
-
 import { RadixBase } from '../utils/base.js';
-import {
-  EntityDetails,
-  INSTRUCTIONS,
-  RadixHookTypes,
-  RadixIsmTypes,
-} from '../utils/types.js';
-import { bytes } from '../utils/utils.js';
+import { EntityDetails, INSTRUCTIONS, RadixHookTypes } from '../utils/types.js';
 
 export class RadixCorePopulate {
   protected gateway: GatewayApiClient;
@@ -64,136 +55,6 @@ export class RadixCorePopulate {
       RadixHookTypes.MERKLE_TREE,
       INSTRUCTIONS.INSTANTIATE,
       [address(mailbox)],
-    );
-  }
-
-  public createMerkleRootMultisigIsm({
-    from_address,
-    validators,
-    threshold,
-  }: {
-    from_address: string;
-    validators: string[];
-    threshold: number;
-  }) {
-    return this.base.createCallFunctionManifest(
-      from_address,
-      this.packageAddress,
-      RadixIsmTypes.MERKLE_ROOT_MULTISIG,
-      INSTRUCTIONS.INSTANTIATE,
-      [
-        array(ValueKind.Array, ...validators.map((v) => bytes(strip0x(v)))),
-        u64(threshold),
-      ],
-    );
-  }
-
-  public createMessageIdMultisigIsm({
-    from_address,
-    validators,
-    threshold,
-  }: {
-    from_address: string;
-    validators: string[];
-    threshold: number;
-  }) {
-    return this.base.createCallFunctionManifest(
-      from_address,
-      this.packageAddress,
-      RadixIsmTypes.MESSAGE_ID_MULTISIG,
-      INSTRUCTIONS.INSTANTIATE,
-      [
-        array(ValueKind.Array, ...validators.map((v) => bytes(strip0x(v)))),
-        u64(threshold),
-      ],
-    );
-  }
-
-  public createRoutingIsm({
-    from_address,
-    routes,
-  }: {
-    from_address: string;
-    routes: { ismAddress: string; domainId: number }[];
-  }) {
-    return this.base.createCallFunctionManifest(
-      from_address,
-      this.packageAddress,
-      RadixIsmTypes.ROUTING_ISM,
-      INSTRUCTIONS.INSTANTIATE,
-      [
-        array(
-          ValueKind.Tuple,
-          ...routes.map((r) => tuple(u32(r.domainId), address(r.ismAddress))),
-        ),
-      ],
-    );
-  }
-
-  public async setRoutingIsmRoute({
-    from_address,
-    ism,
-    route,
-  }: {
-    from_address: string;
-    ism: string;
-    route: { domainId: number; ismAddress: string };
-  }) {
-    return this.base.createCallMethodManifestWithOwner(
-      from_address,
-      ism,
-      'set_route',
-      [u32(route.domainId), address(route.ismAddress)],
-    );
-  }
-
-  public async removeRoutingIsmRoute({
-    from_address,
-    ism,
-    domain,
-  }: {
-    from_address: string;
-    ism: string;
-    domain: number;
-  }) {
-    return this.base.createCallMethodManifestWithOwner(
-      from_address,
-      ism,
-      'remove_route',
-      [u32(domain)],
-    );
-  }
-
-  public async setRoutingIsmOwner({
-    from_address,
-    ism,
-    new_owner,
-  }: {
-    from_address: string;
-    ism: string;
-    new_owner: string;
-  }) {
-    const details =
-      await this.gateway.state.getEntityDetailsVaultAggregated(ism);
-
-    const resource = (details.details as EntityDetails).role_assignments.owner
-      .rule.access_rule.proof_rule.requirement.resource;
-
-    return this.base.transfer({
-      from_address,
-      to_address: new_owner,
-      resource_address: resource,
-      amount: '1',
-    });
-  }
-
-  public createNoopIsm({ from_address }: { from_address: string }) {
-    return this.base.createCallFunctionManifest(
-      from_address,
-      this.packageAddress,
-      RadixIsmTypes.NOOP_ISM,
-      INSTRUCTIONS.INSTANTIATE,
-      [],
     );
   }
 
