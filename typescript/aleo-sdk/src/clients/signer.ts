@@ -49,7 +49,7 @@ export class AleoSigner
     programName: AleoProgram,
     coreSuffix: string,
     warpSuffix?: string,
-  ): Promise<string[]> {
+  ): Promise<Partial<Record<AleoProgram, string>>> {
     const programs = loadProgramsInDeployOrder(
       programName,
       coreSuffix,
@@ -90,7 +90,7 @@ export class AleoSigner
       }
     }
 
-    return programs.map((p) => p.id);
+    return programs.reduce((acc, p) => ({ ...acc, [p.name]: p.id }), {});
   }
 
   getSignerAddress(): string {
@@ -142,22 +142,25 @@ export class AleoSigner
       ...req,
     });
 
-    const mailboxAddress = programs[programs.length - 3];
-    const dispatchProxyAddress = programs[programs.length - 1];
+    const mailboxProgramId = programs['mailbox'];
+    assert(mailboxProgramId, `mailbox program not deployed`);
 
-    tx.programName = mailboxAddress;
+    const dispatchProxyProgramId = programs['dispatch_proxy'];
+    assert(dispatchProxyProgramId, `dispatch proxy program not deployed`);
+
+    tx.programName = mailboxProgramId;
 
     await this.sendAndConfirmTransaction(tx);
     await this.sendAndConfirmTransaction({
-      programName: mailboxAddress,
+      programName: mailboxProgramId,
       functionName: 'set_dispatch_proxy',
       priorityFee: 0,
       privateFee: false,
-      inputs: [dispatchProxyAddress],
+      inputs: [dispatchProxyProgramId],
     });
 
     return {
-      mailboxAddress: toAleoAddress(mailboxAddress),
+      mailboxAddress: toAleoAddress(mailboxProgramId),
     };
   }
 
@@ -233,7 +236,8 @@ export class AleoSigner
     const mailboxSuffix = this.generateSuffix(12);
     const programs = await this.deployProgram('ism_manager', mailboxSuffix);
 
-    const ismManagerProgramId = programs[programs.length - 1];
+    const ismManagerProgramId = programs['ism_manager'];
+    assert(ismManagerProgramId, `ism manager program not deployed`);
 
     let nonce = await this.aleoClient.getProgramMappingValue(
       ismManagerProgramId,
@@ -275,7 +279,8 @@ export class AleoSigner
     const mailboxSuffix = this.generateSuffix(12);
     const programs = await this.deployProgram('ism_manager', mailboxSuffix);
 
-    const ismManagerProgramId = programs[programs.length - 1];
+    const ismManagerProgramId = programs['ism_manager'];
+    assert(ismManagerProgramId, `ism manager program not deployed`);
 
     let nonce = await this.aleoClient.getProgramMappingValue(
       ismManagerProgramId,
@@ -372,7 +377,8 @@ export class AleoSigner
     const mailboxSuffix = this.generateSuffix(12);
     const programs = await this.deployProgram('ism_manager', mailboxSuffix);
 
-    const ismManagerProgramId = programs[programs.length - 1];
+    const ismManagerProgramId = programs['ism_manager'];
+    assert(ismManagerProgramId, `ism manager program not deployed`);
 
     let nonce = await this.aleoClient.getProgramMappingValue(
       ismManagerProgramId,
@@ -416,7 +422,8 @@ export class AleoSigner
     );
     const programs = await this.deployProgram('hook_manager', mailboxSuffix);
 
-    const hookManagerProgramId = programs[programs.length - 1];
+    const hookManagerProgramId = programs['hook_manager'];
+    assert(hookManagerProgramId, `hook manager program not deployed`);
 
     let nonce = await this.aleoClient.getProgramMappingValue(
       hookManagerProgramId,
@@ -460,7 +467,8 @@ export class AleoSigner
     );
     const programs = await this.deployProgram('hook_manager', mailboxSuffix);
 
-    const hookManagerProgramId = programs[programs.length - 1];
+    const hookManagerProgramId = programs['hook_manager'];
+    assert(hookManagerProgramId, `hook manager program not deployed`);
 
     let nonce = await this.aleoClient.getProgramMappingValue(
       hookManagerProgramId,
@@ -549,7 +557,8 @@ export class AleoSigner
     );
     const programs = await this.deployProgram('hook_manager', mailboxSuffix);
 
-    const hookManagerProgramId = programs[programs.length - 1];
+    const hookManagerProgramId = programs['hook_manager'];
+    assert(hookManagerProgramId, `hook manager program not deployed`);
 
     let nonce = await this.aleoClient.getProgramMappingValue(
       hookManagerProgramId,
@@ -601,7 +610,9 @@ export class AleoSigner
       ...req,
     });
 
-    const validatorAnnounceId = programs[programs.length - 1];
+    const validatorAnnounceId = programs['validator_announce'];
+    assert(validatorAnnounceId, `validator announce program not deployed`);
+
     tx.programName = validatorAnnounceId;
 
     await this.sendAndConfirmTransaction(tx);
@@ -632,15 +643,17 @@ export class AleoSigner
       ...req,
     });
 
-    const tokenAddress = programs[programs.length - 1];
-    tx.programName = tokenAddress;
+    const tokenProgramId = programs['hyp_native'];
+    assert(tokenProgramId, `hyp native program not deployed`);
 
-    tx.inputs = [programIdToPlaintext(tokenAddress), ...tx.inputs];
+    tx.programName = tokenProgramId;
+
+    tx.inputs = [programIdToPlaintext(tokenProgramId), ...tx.inputs];
 
     await this.sendAndConfirmTransaction(tx);
 
     return {
-      tokenAddress: toAleoAddress(tokenAddress),
+      tokenAddress: toAleoAddress(tokenProgramId),
     };
   }
 
@@ -665,15 +678,17 @@ export class AleoSigner
       ...req,
     });
 
-    const tokenAddress = programs[programs.length - 1];
-    tx.programName = tokenAddress;
+    const tokenProgramId = programs['hyp_collateral'];
+    assert(tokenProgramId, `hyp collateral program not deployed`);
 
-    tx.inputs = [programIdToPlaintext(tokenAddress), ...tx.inputs];
+    tx.programName = tokenProgramId;
+
+    tx.inputs = [programIdToPlaintext(tokenProgramId), ...tx.inputs];
 
     await this.sendAndConfirmTransaction(tx);
 
     return {
-      tokenAddress: toAleoAddress(tokenAddress),
+      tokenAddress: toAleoAddress(tokenProgramId),
     };
   }
 
@@ -696,15 +711,17 @@ export class AleoSigner
       ...req,
     });
 
-    const tokenAddress = programs[programs.length - 1];
-    tx.programName = tokenAddress;
+    const tokenProgramId = programs['hyp_synthetic'];
+    assert(tokenProgramId, `hyp collateral program not deployed`);
 
-    tx.inputs = [programIdToPlaintext(tokenAddress), ...tx.inputs];
+    tx.programName = tokenProgramId;
+
+    tx.inputs = [programIdToPlaintext(tokenProgramId), ...tx.inputs];
 
     await this.sendAndConfirmTransaction(tx);
 
     return {
-      tokenAddress: toAleoAddress(tokenAddress),
+      tokenAddress: toAleoAddress(tokenProgramId),
     };
   }
 
