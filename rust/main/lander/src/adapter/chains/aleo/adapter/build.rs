@@ -1,3 +1,5 @@
+use tracing::error;
+
 use hyperlane_aleo::AleoTxData;
 
 use crate::adapter::chains::aleo::transaction::TransactionFactory;
@@ -19,6 +21,10 @@ pub(super) fn build_transaction_from_payload(full_payload: &FullPayload) -> TxBu
 /// Deserializes payload data and creates a transaction
 fn deserialize_and_create_transaction(full_payload: &FullPayload) -> Option<Transaction> {
     serde_json::from_slice::<AleoTxData>(&full_payload.data)
+        .map_err(|err| {
+            error!(?err, "Failed to deserialize AleoTxData");
+            err
+        })
         .ok()
         .map(|operation_payload| create_transaction(operation_payload, full_payload))
 }
