@@ -74,7 +74,7 @@ jobs:
         uses: ./.github/actions/setup-foundry
 
       - name: Build packages
-        run: yarn build
+        run: yarn build && yarn build:zk
 
       - name: Publish beta packages
         run: yarn changeset publish --tag ${{ inputs.snapshot_tag }} --no-git-tag
