@@ -289,7 +289,7 @@ where
                     provider_index = priority.index,
                     provider_host = provider_host.as_str(),
                     method,
-                    "fallback_request"
+                    "fallback_transaction_receipt"
                 );
 
                 match categorize_client_response(provider_host.as_str(), method, resp) {
@@ -305,7 +305,7 @@ where
                                 provider_host = provider_host.as_str(),
                                 method,
                                 ?v,
-                                "fallback_request: deprioritizing provider because received null for transaction receipt"
+                                "fallback_transaction_receipt: deprioritizing provider because received null for transaction receipt"
                             );
                             self.deprioritize_provider(*priority).await;
                             errors.push(ProviderError::CustomError(
