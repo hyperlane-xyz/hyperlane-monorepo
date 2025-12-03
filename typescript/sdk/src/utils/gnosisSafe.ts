@@ -14,7 +14,10 @@ export function safeApiKeyRequired(txServiceUrl: string): boolean {
   return /safe\.global|5afe\.dev/.test(txServiceUrl);
 }
 
-export function getSafeService(chain: ChainName, multiProvider: MultiProvider) {
+export function getSafeService(
+  chain: ChainName,
+  multiProvider: MultiProvider,
+): SafeApiKit.default {
   const { gnosisSafeTransactionServiceUrl, gnosisSafeApiKey } =
     multiProvider.getChainMetadata(chain);
   let txServiceUrl = gnosisSafeTransactionServiceUrl;
@@ -99,7 +102,7 @@ export async function getSafe(
   multiProvider: MultiProvider,
   safeAddress: Address,
   signer?: SafeProviderConfig['signer'],
-) {
+): Promise<Safe.default> {
   // Get the chain id for the given chain
   const chainId = `${multiProvider.getEvmChainId(chain)}`;
 
@@ -155,7 +158,7 @@ export async function getSafe(
 export async function getSafeDelegates(
   service: SafeApiKit.default,
   safeAddress: Address,
-) {
+): Promise<string[]> {
   const delegateResponse = await service.getSafeDelegates({ safeAddress });
   return delegateResponse.results.map((r) => r.delegate);
 }
@@ -165,7 +168,7 @@ export async function canProposeSafeTransactions(
   chain: ChainName,
   multiProvider: MultiProvider,
   safeAddress: Address,
-) {
+): Promise<boolean> {
   let safeService: SafeApiKit.default;
   try {
     safeService = getSafeService(chain, multiProvider);

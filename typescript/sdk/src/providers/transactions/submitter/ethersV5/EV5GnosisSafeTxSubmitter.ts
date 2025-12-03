@@ -1,14 +1,18 @@
+import SafeApiKit from '@safe-global/api-kit';
+import Safe from '@safe-global/protocol-kit';
 import {
-  OperationType,
+  MetaTransactionData,
   SafeTransaction,
 } from '@safe-global/safe-core-sdk-types';
 import { Logger } from 'pino';
 
 import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
 
-// prettier-ignore
-// @ts-ignore
-import { canProposeSafeTransactions, getSafe, getSafeService } from '../../../../utils/gnosisSafe.js';
+import {
+  canProposeSafeTransactions,
+  getSafe,
+  getSafeService,
+} from '../../../../utils/gnosisSafe.js';
 import { MultiProvider } from '../../../MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../../../ProviderType.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
@@ -27,8 +31,8 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
   constructor(
     public readonly multiProvider: MultiProvider,
     public readonly props: EV5GnosisSafeTxSubmitterProps,
-    private safe: any,
-    private safeService: any,
+    private safe: Safe.default,
+    private safeService: SafeApiKit.default,
   ) {}
 
   static async create(
@@ -67,7 +71,11 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
   }
 
   protected async getNextNonce(): Promise<number> {
-    return await this.safeService.getNextNonce(this.props.safeAddress);
+    const nextNonce = await this.safeService.getNextNonce(
+      this.props.safeAddress,
+    );
+
+    return parseInt(nextNonce);
   }
 
   public async createSafeTransaction(
@@ -77,11 +85,19 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
     const submitterChainId = this.multiProvider.getChainId(this.props.chain);
 
     const safeTransactionData = transactions.map(
-      ({ to, data, value, chainId }) => {
+      ({ to, data, value, chainId }): MetaTransactionData => {
         assert(chainId, 'Invalid AnnotatedEV5Transaction: chainId is required');
         assert(
           chainId === submitterChainId,
           `Invalid AnnotatedEV5Transaction: Cannot submit tx for chain ID ${chainId} to submitter for chain ID ${submitterChainId}.`,
+        );
+        assert(
+          data,
+          `Invalid AnnotatedEV5Transaction: calldata is required for gnosis safe transaction on chain with ID ${submitterChainId}`,
+        );
+        assert(
+          to,
+          `Invalid AnnotatedEV5Transaction: target address is required for gnosis safe transaction on chain with ID ${submitterChainId}`,
         );
         return { to, data, value: value?.toString() ?? '0' };
       },
@@ -89,13 +105,10 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
 
     const isMultiSend = transactions.length > 1;
     const safeTransaction = await this.safe.createTransaction({
-      safeTransactionData,
+      transactions: safeTransactionData,
       onlyCalls: isMultiSend,
       options: {
         nonce: nextNonce,
-        operation: isMultiSend
-          ? OperationType.DelegateCall
-          : OperationType.Call,
       },
     });
 
