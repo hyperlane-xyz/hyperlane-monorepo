@@ -79,7 +79,6 @@ jobs:
         with:
           title: 'chore: release npm packages'
           version: yarn version:prepare
-          title: 'chore: release npm packages'
           setupGitUser: false
         env:
           NPM_CONFIG_PROVENANCE: true
