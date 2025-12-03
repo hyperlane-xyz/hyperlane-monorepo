@@ -77,8 +77,8 @@ jobs:
         id: changesets
         uses: changesets/action@v1
         with:
-          version: yarn version:prepare
           title: 'chore: release npm packages'
+          version: yarn version:prepare
           setupGitUser: false
         env:
           NPM_CONFIG_PROVENANCE: true

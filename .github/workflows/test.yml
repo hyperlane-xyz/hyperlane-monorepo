@@ -511,6 +511,37 @@ jobs:
           job_name: 'Cosmos SDK E2E'
           result: ${{ needs.cosmos-sdk-e2e-run.result }}
 
+  aleo-sdk-e2e-run:
+    runs-on: depot-ubuntu-latest
+    needs: [rust-only]
+    if: needs.rust-only.outputs.only_rust == 'false'
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+
+      - name: yarn-build
+        uses: ./.github/actions/yarn-build-with-cache
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Aleo SDK e2e tests
+        run: yarn --cwd typescript/aleo-sdk test:e2e
+
+  aleo-sdk-e2e:
+    runs-on: ubuntu-latest
+    needs: [aleo-sdk-e2e-run]
+    if: always()
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check aleo-sdk-e2e status
+        uses: ./.github/actions/check-job-status
+        with:
+          job_name: 'Aleo SDK E2E'
+          result: ${{ needs.aleo-sdk-e2e-run.result }}
+
   agent-configs:
     runs-on: depot-ubuntu-latest
     strategy:

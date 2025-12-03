@@ -4,6 +4,7 @@ use solana_sdk::instruction::Instruction as SealevelInstruction;
 
 use hyperlane_sealevel::SealevelTxCostEstimate;
 
+use crate::transaction::VmSpecificTxData;
 use crate::{
     adapter::chains::sealevel::{payload, payload::Instruction},
     payload::FullPayload,
@@ -20,6 +21,12 @@ impl Debug for SealevelTxPrecursor {
         f.debug_struct("SealevelTxPrecursor")
             .field("cost_estimate", &self.estimate)
             .finish()
+    }
+}
+
+impl From<SealevelTxPrecursor> for VmSpecificTxData {
+    fn from(value: SealevelTxPrecursor) -> Self {
+        VmSpecificTxData::Svm(Box::new(value))
     }
 }
 

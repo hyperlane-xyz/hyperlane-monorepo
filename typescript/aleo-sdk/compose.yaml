@@ -1,0 +1,12 @@
+services:
+  devnode:
+    image: gcr.io/abacus-labs-dev/hyperlane-aleo-tools:v1.0.1
+    entrypoint: ['leo', 'devnode', 'start', '--listener-addr', '0.0.0.0:3030']
+    ports:
+      - 3030:3030
+    environment:
+      - NETWORK=testnet
+      - PRIVATE_KEY=APrivateKey1zkp8CZNn3yeCseEtxuVPbDCwSyhGW6yZKUYKfgXmcpoGPWH
+      - ENDPOINT=http://0.0.0.0:3030
+      - CONSENSUS_VERSION_HEIGHTS=0,1,2,3,4,5,6,7,8,9,10,11
+      - CREATE_BLOCK=true

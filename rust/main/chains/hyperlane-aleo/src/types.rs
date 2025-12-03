@@ -253,7 +253,8 @@ pub struct ProvingResponse {
     pub broadcast: Option<bool>,
 }
 
-#[derive(Debug)]
+/// Fee estimate for Aleo transaction
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct FeeEstimate {
     /// Base fee
     pub base_fee: u64,
@@ -266,7 +267,7 @@ pub struct FeeEstimate {
 #[aleo_serialize]
 #[derive(Debug)]
 pub struct DeliveryKey {
-    /// Messaeg Id
+    /// Message ID
     pub id: AleoHash,
 }
 
@@ -286,4 +287,26 @@ pub struct StorageLocationKey {
     pub validator: [u8; 20],
     /// Index
     pub index: u8,
+}
+
+/// Data required to construct Aleo transaction
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct AleoTxData {
+    /// Program ID to call
+    pub program_id: String,
+    /// Function name to call on the program
+    pub function_name: String,
+    /// Input parameters for the function call
+    pub inputs: Vec<String>,
+}
+
+/// Data required to get mapping value by program and mapping key
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct AleoGetMappingValue {
+    /// Program ID to get mapping for
+    pub program_id: String,
+    /// Mapping name
+    pub mapping_name: String,
+    /// Mapping key
+    pub mapping_key: String,
 }

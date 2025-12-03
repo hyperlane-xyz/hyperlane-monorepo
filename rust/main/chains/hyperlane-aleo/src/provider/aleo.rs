@@ -19,17 +19,19 @@ use snarkvm::{
     },
 };
 use snarkvm_console_account::{Address, PrivateKey};
+use tracing::debug;
 
 use hyperlane_core::{
     BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, FixedPointNumber, HyperlaneChain,
     HyperlaneDomain, HyperlaneProvider, TxOutcome, TxnInfo, TxnReceiptInfo, H256, H512, U256,
 };
-use tracing::debug;
+use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 
 use crate::{
     provider::{fallback::FallbackHttpClient, HttpClient, ProvingClient, RpcClient},
     utils::{get_tx_id, to_h256},
-    AleoSigner, ConnectionConf, CurrentNetwork, FeeEstimate, HyperlaneAleoError,
+    AleoProviderForLander, AleoSigner, ConnectionConf, CurrentNetwork, FeeEstimate,
+    HyperlaneAleoError,
 };
 
 /// Aleo Http Client trait alias
@@ -47,22 +49,30 @@ pub struct AleoProvider<C: AleoClient = FallbackHttpClient> {
     priority_fee_multiplier: f64,
 }
 
+impl AleoProviderForLander for AleoProvider {}
+
 impl AleoProvider<FallbackHttpClient> {
     /// Creates a new production AleoProvider
     pub fn new(
         conf: &ConnectionConf,
         domain: HyperlaneDomain,
         signer: Option<AleoSigner>,
+        metrics: PrometheusClientMetrics,
+        chain: Option<hyperlane_metric::prometheus_metric::ChainInfo>,
     ) -> ChainResult<Self> {
         let proving_service = if !conf.proving_service.is_empty() {
-            let client = FallbackHttpClient::new(conf.proving_service.clone())?;
+            let client = FallbackHttpClient::new(
+                conf.proving_service.clone(),
+                metrics.clone(),
+                chain.clone(),
+            )?;
             Some(ProvingClient::new(client))
         } else {
             None
         };
 
         Ok(Self {
-            client: RpcClient::new(FallbackHttpClient::new(conf.rpcs.clone())?),
+            client: RpcClient::new(FallbackHttpClient::new(conf.rpcs.clone(), metrics, chain)?),
             domain,
             network: conf.chain_id,
             proving_service,
