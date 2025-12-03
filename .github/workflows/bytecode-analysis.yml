@@ -6,6 +6,7 @@ on:
       - '*'
     paths:
       - 'solidity/**'
+      - '.github/workflows/bytecode-analysis.yml'
   workflow_dispatch:
     inputs:
       base:
