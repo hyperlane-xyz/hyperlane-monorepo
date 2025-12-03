@@ -6,8 +6,9 @@
 "@hyperlane-xyz/sdk": minor
 ---
 
-- Update `altVmSigners` to be a `ChainMap` instead of `AltVMSignerFactory`, 
-- Update `altVmProviders` to be a `ChainMap` instead of `AltVMSignerFactory`.
+- Update CLI context `altVmSigners` to be a `ChainMap` instead of `AltVMSignerFactory`, 
+- Update CLI context `altVmProviders` to be a `ChainMap` instead of `AltVMSignerFactory`.
 - Update all existing getter methods to use `mustTry`, instead of `assert`.
-- Update SignerFactory calls to use new Provider API.
-- Add `getMinGas` to Cosmos and Radix ProtocolProvider.
+- Delete `AltVMSupportedProtocols` and `AltVMProviderFactory`.
+- Move functions from `AltVMSignerFactory` to top-level functions.
+- Add `getMinGas` to Aleo, Cosmos and Radix ProtocolProvider.
