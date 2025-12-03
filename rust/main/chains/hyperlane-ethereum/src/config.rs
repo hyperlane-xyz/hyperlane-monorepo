@@ -49,6 +49,9 @@ pub struct ConnectionConf {
     pub transaction_overrides: TransactionOverrides,
     /// Operation batching configuration
     pub op_submission_config: OpSubmissionConfig,
+    /// If enabled and eth_getTransactionReceipt returns Ok(Value::null())
+    /// we will rotate the provider.
+    pub rotate_no_transaction_receipt: bool,
 }
 
 impl ConnectionConf {

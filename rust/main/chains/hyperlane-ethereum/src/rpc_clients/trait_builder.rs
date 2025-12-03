@@ -126,7 +126,10 @@ pub trait BuildableWithProvider {
                 let ethereum_fallback_provider = EthereumFallbackProvider::<
                     _,
                     JsonRpcBlockGetter<PrometheusJsonRpcClient<Http>>,
-                >::new(fallback_provider, false);
+                >::new(
+                    fallback_provider,
+                    conn.rotate_no_transaction_receipt,
+                );
                 self.build(ethereum_fallback_provider, conn, locator, signer)
                     .await?
             }

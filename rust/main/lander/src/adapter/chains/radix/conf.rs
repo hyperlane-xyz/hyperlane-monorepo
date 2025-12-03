@@ -99,6 +99,7 @@ mod tests {
                 },
                 transaction_overrides: TransactionOverrides::default(),
                 op_submission_config: OpSubmissionConfig::default(),
+                rotate_no_transaction_receipt: false,
             }),
         );
 
