@@ -1,5 +1,17 @@
 # @hyperlane-xyz/radix-sdk
 
+## 19.11.0
+
+### Minor Changes
+
+- dd6260eea: Added testing utils for running a radix node locally under the `testing` sub-import path
+
+### Patch Changes
+
+- Updated dependencies [dd6260eea]
+  - @hyperlane-xyz/provider-sdk@0.3.0
+  - @hyperlane-xyz/utils@19.11.0
+
 ## 19.10.0
 
 ### Minor Changes
