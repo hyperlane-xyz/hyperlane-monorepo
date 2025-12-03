@@ -23,3 +23,6 @@ core-utils/zksync/artifacts/output
 .zksolc-libraries-cache/
 typechain-types/
 typechain/
+
+# bytecode dumps
+bytecode/
