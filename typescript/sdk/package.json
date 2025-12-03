@@ -9,6 +9,7 @@
     "@cosmjs/cosmwasm-stargate": "^0.32.4",
     "@cosmjs/proto-signing": "^0.32.4",
     "@cosmjs/stargate": "^0.32.4",
+    "@hyperlane-xyz/aleo-sdk": "19.11.0",
     "@hyperlane-xyz/core": "10.0.5",
     "@hyperlane-xyz/cosmos-sdk": "19.11.0",
     "@hyperlane-xyz/deploy-sdk": "0.3.0",

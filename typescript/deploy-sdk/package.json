@@ -21,6 +21,7 @@
     "test": "mocha --config .mocharc.json './src/**/*.test.ts' --exit"
   },
   "dependencies": {
+    "@hyperlane-xyz/aleo-sdk": "19.11.0",
     "@hyperlane-xyz/cosmos-sdk": "19.11.0",
     "@hyperlane-xyz/provider-sdk": "0.3.0",
     "@hyperlane-xyz/radix-sdk": "19.11.0",

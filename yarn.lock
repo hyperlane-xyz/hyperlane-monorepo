@@ -8131,7 +8131,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@hyperlane-xyz/aleo-sdk@workspace:typescript/aleo-sdk":
+"@hyperlane-xyz/aleo-sdk@npm:19.11.0, @hyperlane-xyz/aleo-sdk@workspace:typescript/aleo-sdk":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/aleo-sdk@workspace:typescript/aleo-sdk"
   dependencies:
@@ -8210,6 +8210,7 @@ __metadata:
     "@eslint/js": "npm:^9.31.0"
     "@ethersproject/abi": "npm:*"
     "@ethersproject/providers": "npm:*"
+    "@hyperlane-xyz/aleo-sdk": "npm:19.11.0"
     "@hyperlane-xyz/core": "npm:10.0.5"
     "@hyperlane-xyz/cosmos-sdk": "npm:19.11.0"
     "@hyperlane-xyz/deploy-sdk": "npm:0.3.0"
@@ -8367,6 +8368,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/deploy-sdk@workspace:typescript/deploy-sdk"
   dependencies:
+    "@hyperlane-xyz/aleo-sdk": "npm:19.11.0"
     "@hyperlane-xyz/cosmos-sdk": "npm:19.11.0"
     "@hyperlane-xyz/eslint-config": "workspace:^"
     "@hyperlane-xyz/provider-sdk": "npm:0.3.0"
@@ -8670,6 +8672,7 @@ __metadata:
     "@cosmjs/proto-signing": "npm:^0.32.4"
     "@cosmjs/stargate": "npm:^0.32.4"
     "@ethersproject/providers": "npm:*"
+    "@hyperlane-xyz/aleo-sdk": "npm:19.11.0"
     "@hyperlane-xyz/core": "npm:10.0.5"
     "@hyperlane-xyz/cosmos-sdk": "npm:19.11.0"
     "@hyperlane-xyz/deploy-sdk": "npm:0.3.0"
