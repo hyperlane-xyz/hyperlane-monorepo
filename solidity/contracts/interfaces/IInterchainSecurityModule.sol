@@ -15,8 +15,7 @@ interface IInterchainSecurityModule {
         WEIGHTED_MERKLE_ROOT_MULTISIG,
         WEIGHTED_MESSAGE_ID_MULTISIG,
         OP_L2_TO_L1,
-        POLYMER,
-        TIMELOCK_ROUTING
+        POLYMER
     }
 
     /**
