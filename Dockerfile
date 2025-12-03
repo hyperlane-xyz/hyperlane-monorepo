@@ -1,3 +1,25 @@
+# Stage 1: Extract package.json files while preserving directory structure
+# This eliminates the need to manually add COPY statements for new packages
+FROM node:20-alpine AS package-json-extractor
+
+WORKDIR /source
+COPY . .
+
+# Create directory structure and copy all package.json files
+RUN mkdir -p /package-jsons && \
+    # Copy root files
+    cp package.json yarn.lock .yarnrc.yml /package-jsons/ && \
+    cp -r .yarn /package-jsons/.yarn && \
+    # Find and copy all package.json files, preserving directory structure
+    find typescript solidity solhint-plugin starknet -name "package.json" -type f | while read f; do \
+        mkdir -p "/package-jsons/$(dirname $f)" && \
+        cp "$f" "/package-jsons/$f"; \
+    done && \
+    # Copy special directories needed for install (e.g., prisma schema)
+    mkdir -p /package-jsons/typescript/ccip-server && \
+    cp -r typescript/ccip-server/prisma /package-jsons/typescript/ccip-server/ 2>/dev/null || true
+
+# Stage 2: Main build
 FROM node:20-alpine
 
 WORKDIR /hyperlane-monorepo
@@ -5,32 +27,8 @@ WORKDIR /hyperlane-monorepo
 RUN apk add --update --no-cache git g++ make py3-pip jq bash curl && \
     yarn set version 4.5.1
 
-# Copy package.json and friends
-COPY package.json yarn.lock .yarnrc.yml ./
-COPY .yarn/plugins ./.yarn/plugins
-COPY .yarn/releases ./.yarn/releases
-COPY .yarn/patches ./.yarn/patches
-
-COPY typescript/ccip-server/package.json ./typescript/ccip-server/
-COPY typescript/ccip-server/prisma ./typescript/ccip-server/prisma
-COPY typescript/cli/package.json ./typescript/cli/
-COPY typescript/cosmos-sdk/package.json ./typescript/cosmos-sdk/
-COPY typescript/cosmos-types/package.json ./typescript/cosmos-types/
-COPY typescript/deploy-sdk/package.json ./typescript/deploy-sdk/
-COPY typescript/eslint-config/package.json ./typescript/eslint-config/
-COPY typescript/github-proxy/package.json ./typescript/github-proxy/
-COPY typescript/helloworld/package.json ./typescript/helloworld/
-COPY typescript/http-registry-server/package.json ./typescript/http-registry-server/
-COPY typescript/infra/package.json ./typescript/infra/
-COPY typescript/provider-sdk/package.json ./typescript/provider-sdk/
-COPY typescript/radix-sdk/package.json ./typescript/radix-sdk/
-COPY typescript/sdk/package.json ./typescript/sdk/
-COPY typescript/tsconfig/package.json ./typescript/tsconfig/
-COPY typescript/utils/package.json ./typescript/utils/
-COPY typescript/widgets/package.json ./typescript/widgets/
-COPY solidity/package.json ./solidity/
-COPY solhint-plugin/package.json ./solhint-plugin/
-COPY starknet/package.json ./starknet/
+# Copy package.json files from extractor stage
+COPY --from=package-json-extractor /package-jsons/. .
 
 RUN yarn install && yarn cache clean
 
