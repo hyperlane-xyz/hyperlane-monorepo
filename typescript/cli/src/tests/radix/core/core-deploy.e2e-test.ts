@@ -38,6 +38,7 @@ describe('hyperlane core deploy (Radix E2E tests)', async function () {
     expectedDefaultIsmOwner: Address;
   };
 
+  // see typescript/cli/examples/radix/core-config.yaml
   function assertTestRadixCoreConfig(
     coreConfig: DerivedCoreConfig,
     options: CoreConfigOwnershipAssertion,
@@ -57,6 +58,20 @@ describe('hyperlane core deploy (Radix E2E tests)', async function () {
       options.expectedDefaultHookOwner,
     );
 
+    const gasConfig =
+      deployedDefaultHook.oracleConfig[
+        TEST_CHAIN_NAMES_BY_PROTOCOL.radix.CHAIN_NAME_2
+      ];
+    expect(gasConfig).to.exist;
+    expect(gasConfig.tokenExchangeRate).to.equal('347026904130352406214');
+    expect(gasConfig.gasPrice).to.equal('201383436');
+    const gasOverheadConfig =
+      deployedDefaultHook.overhead[
+        TEST_CHAIN_NAMES_BY_PROTOCOL.radix.CHAIN_NAME_2
+      ];
+    expect(gasOverheadConfig).to.exist;
+    expect(gasOverheadConfig).to.equal(100);
+
     const deployedRequiredHook = coreConfig.requiredHook;
     assert(
       deployedRequiredHook.type === HookType.MERKLE_TREE,
@@ -69,7 +84,38 @@ describe('hyperlane core deploy (Radix E2E tests)', async function () {
       `Expected deployed defaultIsm to be of type ${IsmType.ROUTING}`,
     );
     expect(deployedDefaultIsm.owner).to.equal(options.expectedDefaultIsmOwner);
-    expect(objLength(deployedDefaultIsm.domains)).to.equal(1);
+    expect(objLength(deployedDefaultIsm.domains)).to.equal(2);
+
+    const maybeRoutingIsm =
+      deployedDefaultIsm.domains[
+        TEST_CHAIN_NAMES_BY_PROTOCOL.radix.CHAIN_NAME_1
+      ];
+    assert(
+      typeof maybeRoutingIsm !== 'string' &&
+        maybeRoutingIsm.type === IsmType.ROUTING,
+      `Expected ism for ${TEST_CHAIN_NAMES_BY_PROTOCOL.radix.CHAIN_NAME_1} to be of type ${IsmType.ROUTING}`,
+    );
+
+    const maybeTestIsm =
+      maybeRoutingIsm.domains[TEST_CHAIN_NAMES_BY_PROTOCOL.radix.CHAIN_NAME_2];
+    assert(
+      typeof maybeTestIsm !== 'string' &&
+        maybeTestIsm.type === IsmType.TEST_ISM,
+      `Expected ism for ${TEST_CHAIN_NAMES_BY_PROTOCOL.radix.CHAIN_NAME_2} to be of type ${IsmType.TEST_ISM}`,
+    );
+
+    const maybeMessageIdIsm =
+      deployedDefaultIsm.domains[
+        TEST_CHAIN_NAMES_BY_PROTOCOL.radix.CHAIN_NAME_2
+      ];
+    assert(
+      typeof maybeMessageIdIsm !== 'string' &&
+        maybeMessageIdIsm.type === IsmType.MESSAGE_ID_MULTISIG,
+      `Expected ism for ${TEST_CHAIN_NAMES_BY_PROTOCOL.radix.CHAIN_NAME_2} to be of type ${IsmType.MESSAGE_ID_MULTISIG}`,
+    );
+
+    expect(maybeMessageIdIsm.threshold).to.equal(1);
+    expect(maybeMessageIdIsm.validators.length).to.equal(1);
   }
 
   describe('hyperlane core deploy --yes --key ...', () => {
