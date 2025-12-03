@@ -60,7 +60,7 @@ warpRoute.setHook(address(timelockRouter));
 warpRoute.setInterchainSecurityModule(address(timelockRouter));
 ```
 
-**Complete message flow:**
+**Test flow** (from `test_warpRouteFlow`):
 
 ```mermaid
 %%{ init: {
@@ -74,52 +74,67 @@ warpRoute.setInterchainSecurityModule(address(timelockRouter));
 }}%%
 
 graph TB
-    Alice((Alice))
-    Bob((Bob))
-    style Alice fill:black
-    style Bob fill:black
+    User((User))
+    style User fill:black
 
-    Relayer([Relayer])
-
-    subgraph "Ethereum (Origin)"
-        WarpRoute_E[WarpRoute]
-        style WarpRoute_E fill:green
-        TLRouter_E[TimelockRouter<br/>Hook + Router]
-        style TLRouter_E fill:orange
-        Mailbox_E[(Mailbox)]
+    subgraph "Origin Chain"
+        WarpRoute_O[WarpRoute]
+        style WarpRoute_O fill:green
+        TLRouter_O[TimelockRouter<br/>Hook]
+        style TLRouter_O fill:orange
+        Mailbox_O[(Mailbox)]
     end
 
-    subgraph "Polygon (Destination)"
-        TLRouter_P[TimelockRouter<br/>ISM + Router]
-        style TLRouter_P fill:orange
-        WarpRoute_P[WarpRoute]
-        style WarpRoute_P fill:green
-        Mailbox_P[(Mailbox)]
+    subgraph "Destination Chain"
+        TLRouter_D[TimelockRouter<br/>ISM + Router]
+        style TLRouter_D fill:orange
+        WarpRoute_D[WarpRoute]
+        style WarpRoute_D fill:green
+        Mailbox_D[(Mailbox)]
     end
 
-    %% Phase 1: Dispatch
-    Alice == "1. transferRemote(Polygon, Bob, amount)" ==> WarpRoute_E
-    WarpRoute_E -- "2. dispatch(message)" --> Mailbox_E
-    Mailbox_E -- "3. postDispatch(message)<br/>[Hook Role]" --> TLRouter_E
+    Fail1[❌ Step 2: Try process msg 1<br/>REVERTS: not preverified]
+    style Fail1 fill:red,color:white
 
-    %% Phase 2: Preverification Message
-    TLRouter_E -- "4. dispatch(messageId)" --> Mailbox_E
-    Mailbox_E -. "5. indexing" .-> Relayer
-    Relayer == "6. process(messageId)" ==> Mailbox_P
-    Mailbox_P -- "7. handle(messageId)<br/>[Router Role]" --> TLRouter_P
-    TLRouter_P -- "8. readyAt[messageId] =<br/>now + 1 hour" --> TLRouter_P
+    Fail2[❌ Step 4: Try process msg 1<br/>REVERTS: not ready]
+    style Fail2 fill:red,color:white
 
-    %% Phase 3: Wait
-    TLRouter_P -. "⏰ Timelock Window<br/>(1 hour)" .-> TLRouter_P
+    Success[✓ Step 6: Process msg 1<br/>SUCCESS: tokens delivered]
+    style Success fill:green,color:white
 
-    %% Phase 4: Actual Message
-    Relayer == "9. process(message)" ==> Mailbox_P
-    Mailbox_P -- "10. verify(message)<br/>[ISM Role]" --> TLRouter_P
-    TLRouter_P -- "11. readyAt <= now?<br/>✓ verified" --> Mailbox_P
-    Mailbox_P -- "12. handle(message)" --> WarpRoute_P
-    WarpRoute_P -- "13. mint(Bob, amount)" --> Bob
+    %% Step 1: Transfer
+    User == "Step 1: transferRemote(amount)<br/>→ dispatches 2 messages" ==> WarpRoute_O
+    WarpRoute_O -- "dispatch(transfer msg)" --> Mailbox_O
+    Mailbox_O -- "postDispatch()<br/>[Hook]" --> TLRouter_O
+    TLRouter_O -- "dispatch(preverify msg)" --> Mailbox_O
 
-    TLRouter_E -. "enrolled routers" .- TLRouter_P
+    %% Messages in mailbox
+    Mailbox_O -. "msg 0: preverify<br/>msg 1: transfer" .-> Mailbox_O
+
+    %% Step 2: Try to process transfer before preverification
+    Mailbox_D -. "Step 2" .-> Fail1
+
+    %% Step 3: Process preverification
+    Mailbox_O == "Step 3: process msg 0" ==> Mailbox_D
+    Mailbox_D -- "handle(messageId)<br/>[Router]" --> TLRouter_D
+    TLRouter_D -- "readyAt[id] =<br/>now + 1 hour" --> TLRouter_D
+
+    %% Step 4: Try to process transfer before timelock
+    TLRouter_D -. "Step 4" .-> Fail2
+
+    %% Step 5: Wait
+    TLRouter_D -. "Step 5: warp time<br/>+1 hour ⏰" .-> TLRouter_D
+
+    %% Step 6: Process transfer successfully
+    Mailbox_O == "Step 6: process msg 1" ==> Mailbox_D
+    Mailbox_D -- "verify()<br/>[ISM]" --> TLRouter_D
+    TLRouter_D -- "readyAt <= now?<br/>✓ pass" --> Mailbox_D
+    Mailbox_D -- "handle(transfer)" --> WarpRoute_D
+    WarpRoute_D -- "mint(amount)" --> User
+
+    User -. "Step 6" .-> Success
+
+    TLRouter_O -. "enrolled<br/>routers" .- TLRouter_D
 ```
 
 ## 3. Optimistic Security with Aggregation

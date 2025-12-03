@@ -16,6 +16,7 @@ pragma solidity >=0.8.0;
 // ============ Internal Imports ============
 import {Router} from "../../client/Router.sol";
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
+import {IRoutingHook} from "../../interfaces/hooks/IRoutingHook.sol";
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {StandardHookMetadata} from "../../hooks/libs/StandardHookMetadata.sol";
 import {Message} from "../../libs/Message.sol";
@@ -31,6 +32,7 @@ import {TypeCasts} from "../../libs/TypeCasts.sol";
  */
 contract TimelockRouter is
     Router,
+    IRoutingHook,
     IPostDispatchHook,
     IInterchainSecurityModule
 {
@@ -60,28 +62,29 @@ contract TimelockRouter is
 
     /// @inheritdoc IPostDispatchHook
     function hookType() external pure returns (uint8) {
-        return uint8(IPostDispatchHook.HookTypes.ID_AUTH_ISM);
+        return uint8(IPostDispatchHook.HookTypes.ROUTING);
+    }
+
+    /// @inheritdoc IRoutingHook
+    function hooks(
+        uint32 /*destination*/
+    ) external pure returns (IPostDispatchHook hook) {
+        // always routes to the configured hook
+        return hook;
     }
 
     /// @inheritdoc IPostDispatchHook
     function supportsMetadata(
-        bytes calldata metadata
-    ) public pure returns (bool) {
-        return
-            metadata.length == 0 ||
-            metadata.variant() == StandardHookMetadata.VARIANT;
+        bytes calldata /*metadata*/
+    ) external pure returns (bool) {
+        return true;
     }
 
     /// @inheritdoc IPostDispatchHook
     function postDispatch(
-        bytes calldata metadata,
+        bytes calldata /*metadata*/,
         bytes calldata message
     ) external payable {
-        require(
-            supportsMetadata(metadata),
-            "TimelockRouter: invalid metadata variant"
-        );
-
         // Send message ID to destination router for preverification
         _Router_dispatch(
             message.destination(),
@@ -92,24 +95,13 @@ contract TimelockRouter is
 
     /// @inheritdoc IPostDispatchHook
     function quoteDispatch(
-        bytes calldata metadata,
+        bytes calldata /*metadata*/,
         bytes calldata message
     ) external view returns (uint256) {
-        require(
-            supportsMetadata(metadata),
-            "TimelockRouter: invalid metadata variant"
-        );
-
         uint32 destination = message.destination();
         bytes memory payload = abi.encode(message.id());
 
-        return
-            _Router_quoteDispatch(
-                destination,
-                payload,
-                metadata,
-                address(this)
-            );
+        return _Router_quoteDispatch(destination, payload);
     }
 
     // ============ Router Implementation ============
