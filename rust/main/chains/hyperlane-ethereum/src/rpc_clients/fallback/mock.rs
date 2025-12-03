@@ -128,6 +128,6 @@ impl PrometheusConfigExt for EthereumProviderMock {
     }
 
     fn chain_name(&self) -> &str {
-        todo!()
+        "test_chain"
     }
 }
