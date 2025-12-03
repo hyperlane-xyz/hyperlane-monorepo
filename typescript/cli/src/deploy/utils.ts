@@ -53,7 +53,7 @@ export async function runPreflightChecksForChains({
     const signer =
       metadata.protocol === ProtocolType.Ethereum
         ? multiProvider.getSigner(chain)
-        : altVmSigners[chain];
+        : mustGet(altVmSigners, chain);
 
     if (!signer) {
       throw new Error('signer is invalid');
