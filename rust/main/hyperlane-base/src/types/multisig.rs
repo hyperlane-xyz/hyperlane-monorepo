@@ -65,7 +65,7 @@ impl MultisigCheckpointSyncer {
         for (validator, latest_index) in validator_index_results {
             match latest_index {
                 Ok(Some(index)) => {
-                    info!(?validator, ?index, "Validator returned latest index");
+                    debug!(?validator, ?index, "Validator returned latest index");
                     latest_indices.insert(*validator, Some(index));
                 }
                 Ok(None) => {

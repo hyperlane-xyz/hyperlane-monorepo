@@ -8,7 +8,7 @@ use futures::{stream, StreamExt};
 use hyperlane_ethereum::Signers;
 use maplit::hashmap;
 use tokio::sync::RwLock;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 use hyperlane_base::{
     cache::{LocalCache, MeteredCache, OptionalCache},
@@ -225,7 +225,7 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
             .iter()
             .zip(storage_locations)
             .filter_map(|(validator, validator_storage_locations)| {
-                info!(hyp_message=?message, ?validator, ?validator_storage_locations, "Validator and its storage locations for message");
+                debug!(hyp_message=?message, ?validator, ?validator_storage_locations, "Validator and its storage locations for message");
                 if validator_storage_locations.is_empty() {
                     // If the validator has not announced any storage locations, we skip it
                     // and log a warning.
@@ -291,7 +291,6 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
             hyp_message=?message,
             checkpoint_syncers_count = checkpoint_syncers.len(),
             validators_count = validators.len(),
-            ?checkpoint_syncers,
             "Successfully built checkpoint syncers"
         );
 
