@@ -1,14 +1,12 @@
 import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
-import {
-  PrivateKey,
-  generateRandomNonce,
-} from '@radixdlt/radix-engine-toolkit';
+import { generateRandomNonce } from '@radixdlt/radix-engine-toolkit';
 import { BigNumber } from 'bignumber.js';
-import { utils } from 'ethers';
 
 import { assert } from '@hyperlane-xyz/utils';
 
+import { getKeysFromKvStore } from '../utils/base-query.js';
 import { RadixBase } from '../utils/base.js';
+import { READ_ACCOUNT_HEX_PUBLIC_KEY } from '../utils/constants.js';
 import { EntityDetails, EntityField, Receipt } from '../utils/types.js';
 
 export class RadixWarpQuery {
@@ -137,7 +135,8 @@ export class RadixWarpQuery {
 
     const remoteRouters = [];
 
-    const keys = await this.base.getKeysFromKeyValueStore(
+    const keys = await getKeysFromKvStore(
+      this.gateway,
       enrolledRoutersKeyValueStore,
     );
 
@@ -202,8 +201,6 @@ export class RadixWarpQuery {
     token: string;
     destination_domain: number;
   }): Promise<{ denom: string; amount: bigint }> {
-    const pk = new PrivateKey.Ed25519(new Uint8Array(utils.randomBytes(32)));
-
     const constructionMetadata =
       await this.gateway.transaction.innerClient.transactionConstruction();
 
@@ -223,7 +220,7 @@ CALL_METHOD
           signer_public_keys: [
             {
               key_type: 'EddsaEd25519',
-              key_hex: pk.publicKeyHex(),
+              key_hex: READ_ACCOUNT_HEX_PUBLIC_KEY,
             },
           ],
           flags: {
