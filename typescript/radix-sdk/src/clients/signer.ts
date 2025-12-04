@@ -6,7 +6,6 @@ import {
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert, strip0x } from '@hyperlane-xyz/utils';
 
-import { RadixCoreTx } from '../core/tx.js';
 import {
   getCreateIgpTransaction,
   getCreateMerkleTreeHookTransaction,
@@ -53,7 +52,6 @@ export class RadixSigner
   private account: Account;
 
   private tx: {
-    core: RadixCoreTx;
     warp: RadixWarpTx;
   };
   private signer: RadixBaseSigner;
@@ -69,12 +67,6 @@ export class RadixSigner
       this.account,
     );
     this.tx = {
-      core: new RadixCoreTx(
-        account,
-        this.base,
-        this.signer,
-        this.populate.core,
-      ),
       warp: new RadixWarpTx(
         account,
         this.networkId,

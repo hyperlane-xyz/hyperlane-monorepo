@@ -4,7 +4,6 @@ import { NetworkId } from '@radixdlt/radix-engine-toolkit';
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert } from '@hyperlane-xyz/utils';
 
-import { RadixCorePopulate } from '../core/populate.js';
 import {
   getHookType,
   getIgpHookConfig,
@@ -84,7 +83,6 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
     warp: RadixWarpQuery;
   };
   protected populate: {
-    core: RadixCorePopulate;
     warp: RadixWarpPopulate;
   };
 
@@ -141,7 +139,6 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
     };
 
     this.populate = {
-      core: new RadixCorePopulate(this.gateway, this.base, this.packageAddress),
       warp: new RadixWarpPopulate(
         this.gateway,
         this.base,
