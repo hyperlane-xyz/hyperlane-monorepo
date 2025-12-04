@@ -4,8 +4,15 @@ description: 'Install Foundry and Soldeer dependencies'
 runs:
   using: 'composite'
   steps:
+    - name: Read Foundry version
+      id: foundry-version
+      shell: bash
+      run: echo "version=$(cat .foundryrc)" >> $GITHUB_OUTPUT
+
     - name: Install Foundry
       uses: foundry-rs/foundry-toolchain@v1
+      with:
+        version: ${{ steps.foundry-version.outputs.version }}
 
     - name: Install Soldeer dependencies
       shell: bash
