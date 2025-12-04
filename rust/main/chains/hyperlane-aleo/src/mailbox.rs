@@ -192,12 +192,11 @@ impl<C: AleoClient> Mailbox for AleoMailbox<C> {
         _tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
         let recipient = self.get_recipient(message.recipient).await?.to_string();
+        let args = self.get_process_args(message, metadata).await?;
+
+        // Then submit with the cached fee estimate to avoid redundant calculation
         self.provider
-            .submit_tx(
-                &recipient,
-                "process",
-                self.get_process_args(message, metadata).await?,
-            )
+            .submit_tx_and_wait(&recipient, "process", args)
             .await
     }
 

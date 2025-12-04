@@ -30,8 +30,7 @@ use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use crate::{
     provider::{fallback::FallbackHttpClient, HttpClient, ProvingClient, RpcClient},
     utils::{get_tx_id, to_h256},
-    AleoProviderForLander, AleoSigner, ConnectionConf, CurrentNetwork, FeeEstimate,
-    HyperlaneAleoError,
+    AleoSigner, ConnectionConf, CurrentNetwork, FeeEstimate, HyperlaneAleoError,
 };
 
 /// Aleo Http Client trait alias
@@ -48,8 +47,6 @@ pub struct AleoProvider<C: AleoClient = FallbackHttpClient> {
     signer: Option<AleoSigner>,
     priority_fee_multiplier: f64,
 }
-
-impl AleoProviderForLander for AleoProvider {}
 
 impl AleoProvider<FallbackHttpClient> {
     /// Creates a new production AleoProvider
@@ -268,11 +265,7 @@ impl<C: AleoClient> AleoProvider<C> {
             )
             .await?;
         let priority = self.get_priority_fee(base);
-        Ok(FeeEstimate {
-            base_fee: base,
-            priority_fee: priority,
-            total_fee: base.saturating_add(priority),
-        })
+        Ok(FeeEstimate::new(base, priority))
     }
 
     /// Public estimation entrypoint selecting the network
@@ -303,13 +296,14 @@ impl<C: AleoClient> AleoProvider<C> {
         }
     }
 
-    /// Executes the transactions for the given network
+    /// Executes the transactions for the given network with a pre-computed fee estimate
     async fn execute<N: Network, I, V>(
         &self,
         program_id: &str,
         function_name: &str,
         input: I,
-    ) -> ChainResult<String>
+        fee_estimate: Option<FeeEstimate>,
+    ) -> ChainResult<(H512, FeeEstimate)>
     where
         I: IntoIterator<Item = V>,
         I::IntoIter: ExactSizeIterator,
@@ -320,17 +314,27 @@ impl<C: AleoClient> AleoProvider<C> {
         let (vm, authorization, program_id_parsed, function_name_parsed, private_key, mut rng) =
             self.prepare_authorization_and_vm::<N, I, V>(program_id, function_name, input)
                 .await?;
-        // Reuse cost calculation.
+
         let start = Instant::now();
-        let base_fee = self
-            .calculate_function_costs::<N>(
-                &vm,
-                &authorization,
-                &program_id_parsed,
-                &function_name_parsed,
-            )
-            .await?;
-        let priority_fee = self.get_priority_fee(base_fee);
+        // Use cached fee if available, otherwise calculate it
+        let (base_fee, priority_fee) = if let Some(fee) = fee_estimate {
+            debug!(
+                "Reusing cached fee estimate: base={}, priority={}",
+                fee.base_fee, fee.priority_fee
+            );
+            (fee.base_fee, fee.priority_fee)
+        } else {
+            let base_fee = self
+                .calculate_function_costs::<N>(
+                    &vm,
+                    &authorization,
+                    &program_id_parsed,
+                    &function_name_parsed,
+                )
+                .await?;
+            let priority_fee = self.get_priority_fee(base_fee);
+            (base_fee, priority_fee)
+        };
         // Authorize fee payment.
         let fee = vm
             .authorize_fee_public(
@@ -364,11 +368,72 @@ impl<C: AleoClient> AleoProvider<C> {
             ))
             .into());
         }
-        Ok(output)
+
+        // Return both transaction hash and the fee that was used
+        let tx_hash = to_h256(id).map(|h| h.into())?;
+        let fee_used = FeeEstimate::new(base_fee, priority_fee);
+
+        Ok((tx_hash, fee_used))
     }
 
-    /// Submits a transaction
+    /// Submits a transaction and returns the transaction ID immediately without waiting for confirmation
     pub async fn submit_tx<I>(
+        &self,
+        program_id: &str,
+        function_name: &str,
+        input: I,
+    ) -> ChainResult<H512>
+    where
+        I: IntoIterator<Item = String>,
+        I::IntoIter: ExactSizeIterator,
+    {
+        let (tx_hash, _fee) = self
+            .submit_tx_with_fee(program_id, function_name, input, None)
+            .await?;
+        Ok(tx_hash)
+    }
+
+    /// Submits a transaction with an optional pre-computed fee estimate
+    ///
+    /// # Arguments
+    /// * `fee_estimate` - Optional cached fee. If None, fee will be estimated internally.
+    ///
+    /// # Returns
+    /// * `Ok((transaction_hash, fee_used))` - Transaction hash and the fee that was used (either cached or newly estimated)
+    pub async fn submit_tx_with_fee<I>(
+        &self,
+        program_id: &str,
+        function_name: &str,
+        input: I,
+        fee_estimate: Option<FeeEstimate>,
+    ) -> ChainResult<(H512, FeeEstimate)>
+    where
+        I: IntoIterator<Item = String>,
+        I::IntoIter: ExactSizeIterator,
+    {
+        match self.chain_id() {
+            0 => {
+                // Mainnet
+                self.execute::<MainnetV0, _, _>(program_id, function_name, input, fee_estimate)
+                    .await
+            }
+            1 => {
+                // Testnet
+                self.execute::<TestnetV0, _, _>(program_id, function_name, input, fee_estimate)
+                    .await
+            }
+            2 => {
+                // Canary
+                self.execute::<CanaryV0, _, _>(program_id, function_name, input, fee_estimate)
+                    .await
+            }
+            id => Err(HyperlaneAleoError::UnknownNetwork(id).into()),
+        }
+    }
+
+    /// Submits a transaction and waits for confirmation, returning the transaction outcome
+    /// This method polls for up to 30 seconds waiting for the transaction to be confirmed
+    pub async fn submit_tx_and_wait<I>(
         &self,
         program_id: &str,
         function_name: &str,
@@ -378,24 +443,7 @@ impl<C: AleoClient> AleoProvider<C> {
         I: IntoIterator<Item = String>,
         I::IntoIter: ExactSizeIterator,
     {
-        let hash = match self.chain_id() {
-            0 => {
-                // Mainnet
-                self.execute::<MainnetV0, _, _>(program_id, function_name, input)
-                    .await
-            }
-            1 => {
-                // Testnet
-                self.execute::<TestnetV0, _, _>(program_id, function_name, input)
-                    .await
-            }
-            2 => {
-                // Canary
-                self.execute::<CanaryV0, _, _>(program_id, function_name, input)
-                    .await
-            }
-            id => Err(HyperlaneAleoError::UnknownNetwork(id).into()),
-        }?;
+        let hash = self.submit_tx(program_id, function_name, input).await?;
 
         // Polling delay is the total amount of seconds to wait before we call a timeout
         const TIMEOUT_DELAY: u64 = 30;
@@ -404,7 +452,7 @@ impl<C: AleoClient> AleoProvider<C> {
         let mut attempt: usize = 0;
 
         let confirmed_tx = loop {
-            let result = self.get_transaction_status(&hash).await;
+            let result = self.get_confirmed_transaction(hash).await;
             match result {
                 Ok(confirmed) => {
                     break Ok::<ConfirmedTransaction<CurrentNetwork>, ChainCommunicationError>(

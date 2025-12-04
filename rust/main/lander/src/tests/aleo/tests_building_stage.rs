@@ -2,15 +2,42 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-use hyperlane_aleo::AleoTxData;
-use hyperlane_core::H256;
+use async_trait::async_trait;
+
+use hyperlane_aleo::{AleoProviderForLander, AleoTxData, FeeEstimate};
+use hyperlane_core::{ChainResult, H256, H512};
 
 use crate::adapter::chains::AleoAdapter;
 use crate::dispatcher::{BuildingStage, BuildingStageQueue, DispatcherState};
 use crate::payload::{DropReason, PayloadDetails};
-use crate::tests::test_utils::{initialize_payload_db, tmp_dbs};
 use crate::transaction::Transaction;
 use crate::{DispatcherMetrics, FullPayload, PayloadStatus, PayloadUuid, TransactionStatus};
+
+use super::super::test_utils::{initialize_payload_db, tmp_dbs};
+
+// Mock provider implementation for BuildingStage integration tests
+// Note: We use a manual implementation instead of mockall because the trait has
+// generic methods with complex trait bounds that mockall cannot handle well.
+struct MockAleoProvider;
+
+#[async_trait]
+impl AleoProviderForLander for MockAleoProvider {
+    async fn submit_tx_with_fee<I>(
+        &self,
+        _program_id: &str,
+        _function_name: &str,
+        _input: I,
+        fee_estimate: Option<FeeEstimate>,
+    ) -> ChainResult<(H512, FeeEstimate)>
+    where
+        I: IntoIterator<Item = String> + Send,
+        I::IntoIter: ExactSizeIterator,
+    {
+        // Return fee estimate if provided, otherwise return a default one
+        let fee = fee_estimate.unwrap_or_else(|| FeeEstimate::new(1000, 100));
+        Ok((H512::random(), fee))
+    }
+}
 
 fn create_aleo_payload() -> FullPayload {
     let tx_data = AleoTxData {
@@ -42,8 +69,10 @@ fn setup_building_stage() -> (
     BuildingStageQueue,
 ) {
     let (payload_db, tx_db, _) = tmp_dbs();
+    let mock_provider = MockAleoProvider;
 
     let adapter = AleoAdapter {
+        provider: Arc::new(mock_provider),
         estimated_block_time: Duration::from_secs(10),
     };
 

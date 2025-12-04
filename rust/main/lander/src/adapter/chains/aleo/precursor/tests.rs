@@ -3,11 +3,10 @@ use uuid::Uuid;
 use hyperlane_aleo::{AleoTxData, FeeEstimate};
 use hyperlane_core::H512;
 
-use crate::{
-    payload::PayloadDetails,
-    transaction::{Transaction, TransactionStatus, TransactionUuid, VmSpecificTxData},
-};
+use crate::payload::PayloadDetails;
+use crate::transaction::{Transaction, TransactionStatus, TransactionUuid, VmSpecificTxData};
 
+use super::super::transaction::Precursor;
 use super::AleoTxPrecursor;
 
 #[test]
@@ -91,17 +90,67 @@ fn test_with_estimated_fee() {
 
     assert!(precursor.estimated_fee.is_none());
 
-    precursor.estimated_fee = Some(FeeEstimate {
-        base_fee: 1000,
-        priority_fee: 100,
-        total_fee: 1100,
-    });
+    precursor.estimated_fee = Some(FeeEstimate::new(1000, 100));
 
     assert!(precursor.estimated_fee.is_some());
     let fee = precursor.estimated_fee.as_ref().unwrap();
     assert_eq!(fee.base_fee, 1000);
     assert_eq!(fee.priority_fee, 100);
     assert_eq!(fee.total_fee, 1100);
+}
+
+#[test]
+fn test_precursor_trait_read() {
+    let precursor = AleoTxPrecursor::new(
+        "test.aleo".to_string(),
+        "test_fn".to_string(),
+        vec!["arg".to_string()],
+    );
+
+    let tx = Transaction {
+        uuid: TransactionUuid::new(Uuid::new_v4()),
+        tx_hashes: vec![],
+        vm_specific_data: VmSpecificTxData::Aleo(Box::new(precursor.clone())),
+        payload_details: vec![],
+        status: TransactionStatus::PendingInclusion,
+        submission_attempts: 0,
+        creation_timestamp: chrono::Utc::now(),
+        last_submission_attempt: None,
+        last_status_check: None,
+    };
+
+    let precursor_ref = tx.precursor();
+    assert_eq!(precursor_ref.program_id, "test.aleo");
+    assert_eq!(precursor_ref.function_name, "test_fn");
+    assert_eq!(precursor_ref.inputs, vec!["arg"]);
+}
+
+#[test]
+fn test_precursor_trait_write() {
+    let precursor = AleoTxPrecursor::new("test.aleo".to_string(), "test_fn".to_string(), vec![]);
+
+    let mut tx = Transaction {
+        uuid: TransactionUuid::new(Uuid::new_v4()),
+        tx_hashes: vec![],
+        vm_specific_data: VmSpecificTxData::Aleo(Box::new(precursor)),
+        payload_details: vec![],
+        status: TransactionStatus::PendingInclusion,
+        submission_attempts: 0,
+        creation_timestamp: chrono::Utc::now(),
+        last_submission_attempt: None,
+        last_status_check: None,
+    };
+
+    // Modify through the trait
+    let precursor_mut = tx.precursor_mut();
+    precursor_mut.estimated_fee = Some(FeeEstimate::new(2000, 200));
+
+    // Verify the modifications
+    let precursor_ref = tx.precursor();
+    assert!(precursor_ref.estimated_fee.is_some());
+    let fee = precursor_ref.estimated_fee.as_ref().unwrap();
+    assert_eq!(fee.base_fee, 2000);
+    assert_eq!(fee.priority_fee, 200);
 }
 
 #[test]
@@ -127,11 +176,7 @@ fn test_serde_roundtrip() {
         program_id: "program.aleo".to_string(),
         function_name: "function".to_string(),
         inputs: vec!["input1".to_string(), "input2".to_string()],
-        estimated_fee: Some(FeeEstimate {
-            base_fee: 1000,
-            priority_fee: 100,
-            total_fee: 1100,
-        }),
+        estimated_fee: Some(FeeEstimate::new(1000, 100)),
     };
 
     // Serialize

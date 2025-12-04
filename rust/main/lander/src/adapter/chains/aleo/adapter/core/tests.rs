@@ -1,16 +1,41 @@
+use std::sync::Arc;
 use std::time::Duration;
 
-use hyperlane_aleo::AleoTxData;
-use hyperlane_core::H256;
+use async_trait::async_trait;
+use uuid::Uuid;
 
-use crate::adapter::chains::AleoAdapter;
+use hyperlane_aleo::{AleoProviderForLander, AleoSigner, AleoTxData, FeeEstimate};
+use hyperlane_core::{ChainResult, H256, H512};
+
+use crate::adapter::chains::{AleoAdapter, AleoTxPrecursor};
 use crate::adapter::AdaptsChain;
 use crate::payload::PayloadDetails;
-use crate::{FullPayload, PayloadStatus, PayloadUuid, TransactionStatus};
+use crate::transaction::{Transaction, VmSpecificTxData};
+use crate::{FullPayload, PayloadStatus, PayloadUuid, TransactionStatus, TransactionUuid};
 
-fn create_test_adapter() -> AleoAdapter {
-    AleoAdapter {
-        estimated_block_time: Duration::from_secs(10),
+use super::Precursor;
+
+// Mock provider implementation for testing
+// Note: We use a manual implementation instead of mockall because the trait has
+// generic methods with complex trait bounds that mockall cannot handle well.
+struct MockAleoProvider;
+
+#[async_trait]
+impl AleoProviderForLander for MockAleoProvider {
+    async fn submit_tx_with_fee<I>(
+        &self,
+        _program_id: &str,
+        _function_name: &str,
+        _input: I,
+        fee_estimate: Option<FeeEstimate>,
+    ) -> ChainResult<(H512, FeeEstimate)>
+    where
+        I: IntoIterator<Item = String> + Send,
+        I::IntoIter: ExactSizeIterator,
+    {
+        // Return fee estimate if provided, otherwise return a default one
+        let fee = fee_estimate.unwrap_or_else(|| FeeEstimate::new(1000, 100));
+        Ok((H512::random(), fee))
     }
 }
 
@@ -39,6 +64,124 @@ fn create_test_payload_with_success_criteria(success_criteria: Option<Vec<u8>>) 
         value: None,
         inclusion_soft_deadline: None,
     }
+}
+
+fn create_test_adapter() -> AleoAdapter<MockAleoProvider> {
+    let mock_provider = MockAleoProvider;
+    AleoAdapter {
+        provider: Arc::new(mock_provider),
+        estimated_block_time: Duration::from_secs(10),
+    }
+}
+
+fn create_test_transaction() -> Transaction {
+    let precursor = AleoTxPrecursor {
+        program_id: "test_program.aleo".to_string(),
+        function_name: "test_function".to_string(),
+        inputs: vec!["input1".to_string(), "input2".to_string()],
+        estimated_fee: Some(FeeEstimate::new(1000, 100)),
+    };
+
+    let payload_uuid = PayloadUuid::random();
+
+    Transaction {
+        uuid: TransactionUuid::new(Uuid::new_v4()),
+        tx_hashes: vec![],
+        vm_specific_data: VmSpecificTxData::Aleo(Box::new(precursor)),
+        payload_details: vec![PayloadDetails {
+            uuid: payload_uuid.clone(),
+            metadata: format!("test-payload-{}", payload_uuid),
+            success_criteria: None,
+        }],
+        status: TransactionStatus::PendingInclusion,
+        submission_attempts: 0,
+        creation_timestamp: chrono::Utc::now(),
+        last_submission_attempt: None,
+        last_status_check: None,
+    }
+}
+
+#[tokio::test]
+async fn test_simulate_tx() {
+    let adapter = create_test_adapter();
+    let mut tx = create_test_transaction();
+
+    let result = adapter.simulate_tx(&mut tx).await;
+    assert!(result.is_ok());
+
+    // Aleo doesn't do payload-level simulation, so result should be empty
+    assert_eq!(result.unwrap().len(), 0);
+}
+
+#[tokio::test]
+async fn test_estimate_tx() {
+    let adapter = create_test_adapter();
+    let mut tx = create_test_transaction();
+
+    let result = adapter.estimate_tx(&mut tx).await;
+    assert!(result.is_ok());
+}
+
+#[tokio::test]
+async fn test_max_batch_size() {
+    let adapter = create_test_adapter();
+    assert_eq!(adapter.max_batch_size(), 1); // Aleo doesn't support batching
+}
+
+#[tokio::test]
+async fn test_tx_ready_for_resubmission() {
+    let adapter = create_test_adapter();
+    let tx = create_test_transaction();
+
+    let result = adapter.tx_ready_for_resubmission(&tx).await;
+    assert!(!result); // Aleo transactions cannot be resubmitted
+}
+
+#[tokio::test]
+async fn test_fee_caching() {
+    let adapter = create_test_adapter();
+
+    // Create a transaction without an estimated fee
+    let precursor = AleoTxPrecursor {
+        program_id: "test_program.aleo".to_string(),
+        function_name: "test_function".to_string(),
+        inputs: vec!["input1".to_string(), "input2".to_string()],
+        estimated_fee: None, // No fee cached initially
+    };
+
+    let payload_uuid = PayloadUuid::random();
+    let mut tx = Transaction {
+        uuid: TransactionUuid::new(Uuid::new_v4()),
+        tx_hashes: vec![],
+        vm_specific_data: VmSpecificTxData::Aleo(Box::new(precursor)),
+        payload_details: vec![PayloadDetails {
+            uuid: payload_uuid.clone(),
+            metadata: format!("test-payload-{}", payload_uuid),
+            success_criteria: None,
+        }],
+        status: TransactionStatus::PendingInclusion,
+        submission_attempts: 0,
+        creation_timestamp: chrono::Utc::now(),
+        last_submission_attempt: None,
+        last_status_check: None,
+    };
+
+    // Before submit, there should be no cached fee
+    assert!(tx.precursor().estimated_fee.is_none());
+
+    // Call submit which should estimate and cache the fee on first attempt
+    let result = adapter.submit(&mut tx).await;
+    assert!(result.is_ok());
+
+    // After submit, the fee should be cached (returned by provider)
+    let precursor = tx.precursor();
+    assert!(precursor.estimated_fee.is_some());
+    let cached_fee = precursor.estimated_fee.as_ref().unwrap();
+
+    // Verify the fee was cached as returned by the provider
+    assert_eq!(cached_fee.base_fee, 1000);
+    assert_eq!(cached_fee.priority_fee, 100);
+    assert_eq!(cached_fee.total_fee, 1100);
 }
 
 #[tokio::test]
