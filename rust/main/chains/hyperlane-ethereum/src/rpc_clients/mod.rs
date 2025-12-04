@@ -1,5 +1,5 @@
 use ethers::providers::HttpClientError;
-use tracing::{error, info, trace, warn};
+use tracing::{debug, error, trace, warn};
 
 pub use self::{fallback::*, provider::*, retrying::*, trait_builder::*};
 pub use error::decode_revert_reason;
@@ -55,7 +55,7 @@ fn categorize_client_response<R>(
         }
         Err(SerdeJson { err, text }) => {
             if text.contains("429") {
-                warn!(provider_host, error=%err, text, "Received rate limit request SerdeJson error in http provider");
+                debug!(provider_host, error=%err, text, "Received rate limit request SerdeJson error in http provider");
                 RateLimitErr(SerdeJson { err, text })
             } else {
                 warn!(provider_host, error=%err, text, "SerdeJson error in http provider");
@@ -69,7 +69,7 @@ fn categorize_client_response<R>(
                 || msg.contains("rate limit")
                 || msg.contains("too many requests")
             {
-                info!(provider_host, error=%e, "Received rate limit request JsonRpcError in http provider");
+                debug!(provider_host, error=%e, "Received rate limit request JsonRpcError in http provider");
                 RateLimitErr(JsonRpcError(e))
             } else if METHODS_TO_NOT_RETRY.contains(&method)
                 || (METHOD_TO_NOT_RETRY_WHEN_NOT_SUPPORTED.contains(&method)
