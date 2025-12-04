@@ -37,8 +37,8 @@ jobs:
       - name: yarn-install
         run: yarn install
 
-      - name: foundry-install
-        uses: foundry-rs/foundry-toolchain@v1
+      - name: Setup Foundry
+        uses: ./.github/actions/setup-foundry
 
       # Run the command on PR branch
       - name: Run command on PR branch
