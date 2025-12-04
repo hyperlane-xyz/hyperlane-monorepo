@@ -35,6 +35,13 @@ import {
   getMailboxConfig,
   isMessageDelivered,
 } from '../mailbox/mailbox-query.js';
+import {
+  getCreateMailboxTransaction,
+  getSetMailboxDefaultHookTransaction,
+  getSetMailboxDefaultIsmTransaction,
+  getSetMailboxOwnerTransaction,
+  getSetMailboxRequiredHookTransaction,
+} from '../mailbox/mailbox-tx.js';
 import { RadixBase } from '../utils/base.js';
 import {
   RadixHookTypes,
@@ -359,10 +366,14 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   ): Promise<RadixSDKTransaction> {
     return {
       networkId: this.networkId,
-      manifest: await this.populate.core.createMailbox({
-        from_address: req.signer,
-        domain_id: req.domainId,
-      }),
+      manifest: await getCreateMailboxTransaction(
+        this.base,
+        this.packageAddress,
+        {
+          fromAddress: req.signer,
+          domainId: req.domainId,
+        },
+      ),
     };
   }
 
@@ -371,10 +382,10 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   ): Promise<RadixSDKTransaction> {
     return {
       networkId: this.networkId,
-      manifest: await this.populate.core.setDefaultIsm({
-        from_address: req.signer,
-        mailbox: req.mailboxAddress,
-        ism: req.ismAddress,
+      manifest: await getSetMailboxDefaultIsmTransaction(this.base, {
+        fromAddress: req.signer,
+        mailboxAddress: req.mailboxAddress,
+        ismAddress: req.ismAddress,
       }),
     };
   }
@@ -384,10 +395,10 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   ): Promise<RadixSDKTransaction> {
     return {
       networkId: this.networkId,
-      manifest: await this.populate.core.setDefaultHook({
-        from_address: req.signer,
-        mailbox: req.mailboxAddress,
-        hook: req.hookAddress,
+      manifest: await getSetMailboxDefaultHookTransaction(this.base, {
+        fromAddress: req.signer,
+        mailboxAddress: req.mailboxAddress,
+        hookAddress: req.hookAddress,
       }),
     };
   }
@@ -397,10 +408,10 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   ): Promise<RadixSDKTransaction> {
     return {
       networkId: this.networkId,
-      manifest: await this.populate.core.setRequiredHook({
-        from_address: req.signer,
-        mailbox: req.mailboxAddress,
-        hook: req.hookAddress,
+      manifest: await getSetMailboxRequiredHookTransaction(this.base, {
+        fromAddress: req.signer,
+        mailboxAddress: req.mailboxAddress,
+        hookAddress: req.hookAddress,
       }),
     };
   }
@@ -410,10 +421,10 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   ): Promise<RadixSDKTransaction> {
     return {
       networkId: this.networkId,
-      manifest: await this.populate.core.setMailboxOwner({
-        from_address: req.signer,
-        mailbox: req.mailboxAddress,
-        new_owner: req.newOwner,
+      manifest: await getSetMailboxOwnerTransaction(this.base, this.gateway, {
+        fromAddress: req.signer,
+        mailboxAddress: req.mailboxAddress,
+        newOwner: req.newOwner,
       }),
     };
   }

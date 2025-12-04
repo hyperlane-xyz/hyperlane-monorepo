@@ -22,6 +22,13 @@ import {
   getSetRoutingIsmDomainIsmTransaction,
   getSetRoutingIsmOwnerTransaction,
 } from '../ism/ism-tx.js';
+import {
+  getCreateMailboxTransaction,
+  getSetMailboxDefaultHookTransaction,
+  getSetMailboxDefaultIsmTransaction,
+  getSetMailboxOwnerTransaction,
+  getSetMailboxRequiredHookTransaction,
+} from '../mailbox/mailbox-tx.js';
 import { RadixBaseSigner } from '../utils/signer.js';
 import {
   Account,
@@ -166,21 +173,36 @@ export class RadixSigner
   async createMailbox(
     req: Omit<AltVM.ReqCreateMailbox, 'signer'>,
   ): Promise<AltVM.ResCreateMailbox> {
+    const transactionManifest = await getCreateMailboxTransaction(
+      this.base,
+      this.packageAddress,
+      {
+        fromAddress: this.account.address,
+        domainId: req.domainId,
+      },
+    );
+
+    const receipt = await this.signer.signAndBroadcast(transactionManifest);
+
+    const mailboxAddress = await this.base.getNewComponent(receipt);
     return {
-      mailboxAddress: await this.tx.core.createMailbox({
-        domain_id: req.domainId,
-      }),
+      mailboxAddress,
     };
   }
 
   async setDefaultIsm(
     req: Omit<AltVM.ReqSetDefaultIsm, 'signer'>,
   ): Promise<AltVM.ResSetDefaultIsm> {
-    await this.tx.core.setDefaultIsm({
-      mailbox: req.mailboxAddress,
-      ism: req.ismAddress,
-    });
+    const transactionManifest = await getSetMailboxDefaultIsmTransaction(
+      this.base,
+      {
+        fromAddress: this.account.address,
+        mailboxAddress: req.mailboxAddress,
+        ismAddress: req.ismAddress,
+      },
+    );
 
+    await this.signer.signAndBroadcast(transactionManifest);
     return {
       ismAddress: req.ismAddress,
     };
@@ -189,11 +211,16 @@ export class RadixSigner
   async setDefaultHook(
     req: Omit<AltVM.ReqSetDefaultHook, 'signer'>,
   ): Promise<AltVM.ResSetDefaultHook> {
-    await this.tx.core.setDefaultHook({
-      mailbox: req.mailboxAddress,
-      hook: req.hookAddress,
-    });
+    const transactionManifest = await getSetMailboxDefaultHookTransaction(
+      this.base,
+      {
+        fromAddress: this.account.address,
+        mailboxAddress: req.mailboxAddress,
+        hookAddress: req.hookAddress,
+      },
+    );
 
+    await this.signer.signAndBroadcast(transactionManifest);
     return {
       hookAddress: req.hookAddress,
     };
@@ -202,11 +229,16 @@ export class RadixSigner
   async setRequiredHook(
     req: Omit<AltVM.ReqSetRequiredHook, 'signer'>,
   ): Promise<AltVM.ResSetRequiredHook> {
-    await this.tx.core.setRequiredHook({
-      mailbox: req.mailboxAddress,
-      hook: req.hookAddress,
-    });
+    const transactionManifest = await getSetMailboxRequiredHookTransaction(
+      this.base,
+      {
+        fromAddress: this.account.address,
+        mailboxAddress: req.mailboxAddress,
+        hookAddress: req.hookAddress,
+      },
+    );
 
+    await this.signer.signAndBroadcast(transactionManifest);
     return {
       hookAddress: req.hookAddress,
     };
@@ -215,10 +247,17 @@ export class RadixSigner
   async setMailboxOwner(
     req: Omit<AltVM.ReqSetMailboxOwner, 'signer'>,
   ): Promise<AltVM.ResSetMailboxOwner> {
-    await this.tx.core.setMailboxOwner({
-      mailbox: req.mailboxAddress,
-      new_owner: req.newOwner,
-    });
+    const transactionManifest = await getSetMailboxOwnerTransaction(
+      this.base,
+      this.gateway,
+      {
+        fromAddress: this.account.address,
+        mailboxAddress: req.mailboxAddress,
+        newOwner: req.newOwner,
+      },
+    );
+
+    await this.signer.signAndBroadcast(transactionManifest);
 
     return {
       newOwner: req.newOwner,
