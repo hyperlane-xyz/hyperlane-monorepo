@@ -1,5 +1,9 @@
 import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
-import { address, u32 } from '@radixdlt/radix-engine-toolkit';
+import {
+  TransactionManifest,
+  address,
+  u32,
+} from '@radixdlt/radix-engine-toolkit';
 
 import {
   getComponentOwnershipInfo,
@@ -18,7 +22,7 @@ export async function getCreateMailboxTransaction(
     fromAddress: string;
     domainId: number;
   },
-) {
+): Promise<TransactionManifest> {
   return base.createCallFunctionManifest(
     fromAddress,
     hyperlanePackageDefAddress,
@@ -40,7 +44,7 @@ export async function getSetMailboxOwnerTransaction(
     mailboxAddress: string;
     newOwner: string;
   },
-) {
+): Promise<TransactionManifest> {
   const mailboxDetails = await getRadixComponentDetails(
     gateway,
     mailboxAddress,
@@ -73,7 +77,7 @@ export async function getSetMailboxRequiredHookTransaction(
     mailboxAddress: string;
     hookAddress: string;
   },
-) {
+): Promise<TransactionManifest> {
   return base.createCallMethodManifestWithOwner(
     fromAddress,
     mailboxAddress,
@@ -93,7 +97,7 @@ export async function getSetMailboxDefaultHookTransaction(
     mailboxAddress: string;
     hookAddress: string;
   },
-) {
+): Promise<TransactionManifest> {
   return base.createCallMethodManifestWithOwner(
     fromAddress,
     mailboxAddress,
@@ -113,7 +117,7 @@ export async function getSetMailboxDefaultIsmTransaction(
     mailboxAddress: string;
     ismAddress: string;
   },
-) {
+): Promise<TransactionManifest> {
   return base.createCallMethodManifestWithOwner(
     fromAddress,
     mailboxAddress,

@@ -1,5 +1,6 @@
 import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 import {
+  TransactionManifest,
   ValueKind,
   address,
   array,
@@ -25,7 +26,7 @@ export async function getCreateMerkleTreeHookTransaction(
     fromAddress: string;
     mailboxAddress: string;
   },
-) {
+): Promise<TransactionManifest> {
   return base.createCallFunctionManifest(
     fromAddress,
     hyperlanePackageDefAddress,
@@ -45,7 +46,7 @@ export async function getCreateIgpTransaction(
     fromAddress: string;
     nativeTokenDenom: string;
   },
-) {
+): Promise<TransactionManifest> {
   return base.createCallFunctionManifest(
     fromAddress,
     hyperlanePackageDefAddress,
@@ -67,7 +68,7 @@ export async function getSetIgpOwnerTransaction(
     igpAddress: string;
     newOwner: string;
   },
-) {
+): Promise<TransactionManifest> {
   const hookDetails = await getRadixComponentDetails(
     gateway,
     igpAddress,
@@ -104,7 +105,7 @@ export async function getSetIgpDestinationGasConfigTransaction(
       gasOverhead: string;
     };
   },
-) {
+): Promise<TransactionManifest> {
   return base.createCallMethodManifestWithOwner(
     fromAddress,
     igpAddress,
