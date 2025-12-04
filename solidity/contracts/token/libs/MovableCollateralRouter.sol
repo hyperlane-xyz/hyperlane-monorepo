@@ -106,7 +106,7 @@ abstract contract MovableCollateralRouter is TokenRouter {
         IERC20 token,
         ITokenBridge bridge
     ) external onlyOwner {
-        token.safeApprove(address(bridge), type(uint256).max);
+        token.forceApprove(address(bridge), type(uint256).max);
     }
 
     function addRebalancer(address rebalancer) external onlyOwner {

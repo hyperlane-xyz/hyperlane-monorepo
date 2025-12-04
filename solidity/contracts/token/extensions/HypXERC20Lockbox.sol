@@ -38,8 +38,8 @@ contract HypXERC20Lockbox is TokenRouter {
      * @dev This function is idempotent and need not be access controlled
      */
     function approveLockbox() public {
-        wrappedToken.safeApprove(address(lockbox), MAX_INT);
-        IERC20(xERC20).safeApprove(address(lockbox), MAX_INT);
+        wrappedToken.forceApprove(address(lockbox), MAX_INT);
+        IERC20(xERC20).forceApprove(address(lockbox), MAX_INT);
     }
 
     /**
