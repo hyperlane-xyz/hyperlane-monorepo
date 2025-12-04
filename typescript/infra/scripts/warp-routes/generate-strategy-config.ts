@@ -9,22 +9,28 @@ import {
 
 import { strategyConfigGetterMap } from '../../config/warp.js';
 import { writeYamlAtPath } from '../../src/utils/utils.js';
-import {
-  getArgs,
-  withKnownWarpRouteId,
-  withOutputFile,
-} from '../agent-utils.js';
+import { getArgs, withOutputFile, withWarpRouteId } from '../agent-utils.js';
 
 // Writes the strategy config to disk
 async function main() {
   const logger = configureRootLogger(LogFormat.Pretty, LogLevel.Info);
   const { warpRouteId, outFile } = await withOutputFile(
-    withKnownWarpRouteId(getArgs()),
+    withWarpRouteId(getArgs()),
   ).argv;
   assert(warpRouteId, 'warpRouteId not provided');
 
+  // Check if strategy exists before trying to access it
+  if (!(warpRouteId in strategyConfigGetterMap)) {
+    const availableRoutes = Object.keys(strategyConfigGetterMap).join(', ');
+    throw new Error(
+      `No strategy configuration found for warp route ID: ${warpRouteId}\n` +
+        `Available routes with strategies: ${availableRoutes}\n` +
+        `Note: Only certain warp routes have predefined strategy configurations.`,
+    );
+  }
+
   const strategy = strategyConfigGetterMap[warpRouteId]();
-  assert(strategy, `Strategy not found by warpId ${strategy}`);
+  assert(strategy, `Strategy not found by warpId ${warpRouteId}`);
 
   logger.info(`Strategy Created`, strategy);
 
