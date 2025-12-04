@@ -2,11 +2,6 @@ import { confirm } from '@inquirer/prompts';
 import { ethers } from 'ethers';
 
 import { loadProtocolProviders } from '@hyperlane-xyz/deploy-sdk';
-import {
-  AltVM,
-  getProtocolProvider,
-  hasProtocol,
-} from '@hyperlane-xyz/provider-sdk';
 import { IRegistry } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import {
@@ -24,7 +19,7 @@ import { readChainSubmissionStrategyConfig } from '../config/strategy.js';
 import { detectAndConfirmOrPrompt } from '../utils/input.js';
 import { getSigner } from '../utils/keys.js';
 
-import { createAltVMSigners } from './altvm.js';
+import { createAltVMProviderGetter, createAltVMSignerGetter } from './altvm.js';
 import { resolveChains } from './strategies/chain/chainResolver.js';
 import { MultiProtocolSignerManager } from './strategies/signer/MultiProtocolSignerManager.js';
 import {
@@ -86,17 +81,11 @@ export async function signerMiddleware(argv: Record<string, any>) {
     );
   }
 
-  await Promise.all(
-    altVmChains.map(async (chain) => {
-      const { altVmProviders, multiProvider } = argv.context;
-      const protocol = multiProvider.getProtocol(chain);
-      const metadata = multiProvider.getChainMetadata(chain);
-
-      if (hasProtocol(protocol))
-        altVmProviders[chain] =
-          await getProtocolProvider(protocol).createProvider(metadata);
-    }),
-  );
+  if (altVmChains.length > 0 && !argv.context.getAltVmProvider) {
+    argv.context.getAltVmProvider = createAltVMProviderGetter(
+      argv.context.multiProvider,
+    );
+  }
 
   if (!requiresKey) return argv;
 
@@ -115,15 +104,13 @@ export async function signerMiddleware(argv: Record<string, any>) {
    */
   argv.context.multiProvider = await multiProtocolSigner.getMultiProvider();
 
-  /**
-   * Creates AltVM signers
-   */
-  argv.context.altVmSigners = await createAltVMSigners(
-    argv.context.multiProvider,
-    chains,
-    key,
-    strategyConfig,
-  );
+  if (altVmChains.length > 0) {
+    argv.context.getAltVmSigner = createAltVMSignerGetter(
+      argv.context.multiProvider,
+      key,
+      strategyConfig,
+    );
+  }
 
   return argv;
 }
@@ -156,9 +143,6 @@ export async function getContext({
   const multiProvider = await getMultiProvider(registry);
   const multiProtocolProvider = await getMultiProtocolProvider(registry);
 
-  // This mapping gets populated as part of signerMiddleware
-  const altVmProviders: ChainMap<AltVM.IProvider> = {};
-
   const supportedProtocols = [
     ProtocolType.Ethereum,
     ProtocolType.CosmosNative,
@@ -171,7 +155,6 @@ export async function getContext({
     chainMetadata: multiProvider.metadata,
     multiProvider,
     multiProtocolProvider,
-    altVmProviders,
     supportedProtocols,
     key: keyMap,
     skipConfirmation: !!skipConfirmation,

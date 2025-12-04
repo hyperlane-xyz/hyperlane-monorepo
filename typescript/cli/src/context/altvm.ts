@@ -17,13 +17,14 @@ import {
   AltVMJsonRpcTxSubmitter,
   ChainMap,
   ChainMetadataManager,
+  ChainName,
   MultiProvider,
   ProtocolMap,
   SubmitterFactory,
   SubmitterMetadata,
   TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
-import { assert, mustGet } from '@hyperlane-xyz/utils';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { AltVMFileSubmitter } from '../submitters/AltVMFileSubmitter.js';
 import {
@@ -57,6 +58,60 @@ type AltVMProtocol = ProtocolMap<{
   signer: AltVM.ISignerConnect<AnnotatedTx, TxReceipt>;
   gas?: MinimumRequiredGasByAction;
 }>;
+
+export type AltVMProviderGetter = (
+  chain: ChainName,
+) => Promise<AltVM.IProvider>;
+
+export type AltVMSignerGetter = (
+  chain: ChainName,
+) => Promise<AltVM.ISigner<AnnotatedTx, TxReceipt>>;
+
+export async function mustGetAltVmProvider(
+  getter: AltVMProviderGetter | undefined,
+  chain: ChainName,
+) {
+  assert(
+    getter,
+    `AltVM provider getter is not available for chain ${chain}. Was signerMiddleware run?`,
+  );
+  return getter(chain);
+}
+
+export async function mustGetAltVmSigner(
+  getter: AltVMSignerGetter | undefined,
+  chain: ChainName,
+) {
+  assert(
+    getter,
+    `AltVM signer getter is not available for chain ${chain}. Was signerMiddleware run?`,
+  );
+  return getter(chain);
+}
+
+export function createAltVMProviderGetter(
+  metadataManager: ChainMetadataManager,
+): AltVMProviderGetter {
+  const providers: ChainMap<AltVM.IProvider> = {};
+
+  return async (chain: ChainName) => {
+    if (providers[chain]) {
+      return providers[chain]!;
+    }
+
+    const metadata = metadataManager.getChainMetadata(chain);
+    const protocol = metadata.protocol;
+
+    if (!hasProtocol(protocol)) {
+      throw new Error(`Unsupported AltVM protocol for chain ${chain}`);
+    }
+
+    const provider =
+      await getProtocolProvider(protocol).createProvider(metadata);
+    providers[chain] = provider;
+    return provider;
+  };
+}
 
 async function loadPrivateKey(
   keyByProtocol: SignerKeyProtocolMap,
@@ -95,43 +150,48 @@ async function loadPrivateKey(
   return keyByProtocol[protocol]!;
 }
 
-export async function createAltVMSigners(
+export function createAltVMSignerGetter(
   metadataManager: ChainMetadataManager,
-  chains: string[],
   keyByProtocol: SignerKeyProtocolMap,
   strategyConfig: Partial<ExtendedChainSubmissionStrategy>,
-) {
+): AltVMSignerGetter {
   const signers: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>> = {};
-  for (const chain of chains) {
-    const metadata = metadataManager.getChainMetadata(chain);
 
-    if (!hasProtocol(metadata.protocol)) {
-      continue;
+  return async (chain: ChainName) => {
+    if (signers[chain]) {
+      return signers[chain]!;
+    }
+
+    const metadata = metadataManager.getChainMetadata(chain);
+    const protocol = metadata.protocol;
+
+    if (!hasProtocol(protocol)) {
+      throw new Error(`Unsupported AltVM protocol for chain ${chain}`);
     }
 
     const signerConfig = {
       privateKey: await loadPrivateKey(
         keyByProtocol,
         strategyConfig,
-        metadata.protocol,
+        protocol,
         chain,
       ),
     };
 
-    signers[chain] = await getProtocolProvider(metadata.protocol).createSigner(
+    const signer = await getProtocolProvider(protocol).createSigner(
       metadata,
       signerConfig,
     );
-  }
-
-  return signers;
+    signers[chain] = signer;
+    return signer;
+  };
 }
 
-export function createAltVMSubmitterFactories(
+export async function createAltVMSubmitterFactories(
   metadataManager: ChainMetadataManager,
-  altVmSigners: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>>,
+  getAltVmSigner: AltVMSignerGetter | undefined,
   chain: string,
-): ProtocolMap<Record<string, SubmitterFactory>> {
+): Promise<ProtocolMap<Record<string, SubmitterFactory>>> {
   const protocol = metadataManager.getProtocol(chain);
 
   const factories: ProtocolMap<Record<string, SubmitterFactory>> = {};
@@ -140,7 +200,7 @@ export function createAltVMSubmitterFactories(
     return factories;
   }
 
-  const signer = mustGet(altVmSigners, chain);
+  const signer = await mustGetAltVmSigner(getAltVmSigner, chain);
   factories[protocol] = {
     [TxSubmitterType.JSON_RPC]: (
       _multiProvider: MultiProvider,

@@ -3,22 +3,21 @@ import { BigNumber } from 'ethers';
 import { formatUnits } from 'ethers/lib/utils.js';
 
 import {
-  AltVM,
   GasAction,
   ProtocolType,
   getProtocolProvider,
 } from '@hyperlane-xyz/provider-sdk';
-import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
-import { ChainMap, ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
-import { Address, assert, mustGet } from '@hyperlane-xyz/utils';
+import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
+import { Address, assert } from '@hyperlane-xyz/utils';
 
 import { autoConfirm } from '../config/prompts.js';
 import { ETHEREUM_MINIMUM_GAS } from '../consts.js';
+import { AltVMSignerGetter, mustGetAltVmSigner } from '../context/altvm.js';
 import { logBlue, logGreen, logRed, warnYellow } from '../logger.js';
 
 export async function nativeBalancesAreSufficient(
   multiProvider: MultiProvider,
-  altVmSigners: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>>,
+  getAltVmSigner: AltVMSignerGetter | undefined,
   chains: ChainName[],
   minGas: GasAction,
   skipConfirmation: boolean,
@@ -56,7 +55,7 @@ export async function nativeBalancesAreSufficient(
         break;
       }
       default: {
-        const signer = mustGet(altVmSigners, chain);
+        const signer = await mustGetAltVmSigner(getAltVmSigner, chain);
         address = signer.getSignerAddress();
 
         const { gasPrice, nativeToken, protocol } =
