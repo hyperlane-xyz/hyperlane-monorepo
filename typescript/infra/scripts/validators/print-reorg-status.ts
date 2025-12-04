@@ -128,7 +128,7 @@ async function main() {
             validators[chain][validator] = {
               alias,
               default: alias ? '✅' : '',
-              time: new Date(unixTimestamp).toDateString(),
+              time: new Date(unixTimestamp * 1000).toDateString(),
               ...rest,
             };
           }
