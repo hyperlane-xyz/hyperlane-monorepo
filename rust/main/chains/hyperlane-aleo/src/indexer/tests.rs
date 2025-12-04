@@ -49,6 +49,16 @@ async fn test_delivery_indexer_fetch_logs() {
     mock.register_file("block/12618649", "delivery_block.json")
         .unwrap();
 
+    let range = 12618645..=12618650;
+    for height in range.clone() {
+        mock.register_value(
+            &format!(
+                "program/test_mailbox.aleo/mapping/process_event_index/{}u32",
+                height
+            ),
+            serde_json::Value::Null,
+        );
+    }
     mock.register_value(
         "program/test_mailbox.aleo/mapping/process_event_index/12618649u32",
         "1u32",
@@ -57,7 +67,7 @@ async fn test_delivery_indexer_fetch_logs() {
 
     let indexer = AleoDeliveryIndexer::new(mock, &locator, &connection_conf());
 
-    let result = Indexer::<H256>::fetch_logs_in_range(&indexer, 12618645..=12618650).await;
+    let result = Indexer::<H256>::fetch_logs_in_range(&indexer, range).await;
     assert!(result.is_ok());
     let logs = result.unwrap();
     assert_eq!(logs.len(), 1);
@@ -89,9 +99,19 @@ async fn test_delivery_indexer_fetch_empty() {
     let locator = ContractLocator::new(&DOMAIN, to_h256(program_id.to_address().unwrap()).unwrap());
 
     let mock = mock_provider();
+    let range = 12618645..=12618650;
+    for height in range.clone() {
+        mock.register_value(
+            &format!(
+                "program/test_mailbox.aleo/mapping/process_event_index/{}u32",
+                height
+            ),
+            serde_json::Value::Null,
+        );
+    }
     let indexer = AleoDeliveryIndexer::new(mock, &locator, &connection_conf());
 
-    let result = Indexer::<H256>::fetch_logs_in_range(&indexer, 12618645..=12618650).await;
+    let result = Indexer::<H256>::fetch_logs_in_range(&indexer, range).await;
     assert!(result.is_ok());
     let logs = result.unwrap();
     assert_eq!(logs.len(), 0);
@@ -127,18 +147,26 @@ async fn test_dispatch_indexer_fetch_logs() {
         .unwrap();
 
     mock.register_value(
-        "program/test_mailbox.aleo/mapping/dispatch_event_index/12529863u32",
-        "1u32",
-    );
-    mock.register_value(
         "program/test_mailbox.aleo/mapping/dispatch_events/1u32",
         "{\n  version: 3u8,\n  nonce: 1u32,\n  origin_domain: 1617853565u32,\n  sender: [\n    252u8,\n    80u8,\n    5u8,\n    58u8,\n    116u8,\n    217u8,\n    53u8,\n    34u8,\n    241u8,\n    170u8,\n    247u8,\n    201u8,\n    188u8,\n    11u8,\n    171u8,\n    50u8,\n    243u8,\n    244u8,\n    41u8,\n    110u8,\n    7u8,\n    22u8,\n    8u8,\n    25u8,\n    216u8,\n    103u8,\n    58u8,\n    89u8,\n    25u8,\n    199u8,\n    61u8,\n    12u8\n  ],\n  destination_domain: 11155111u32,\n  recipient: [\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    181u8,\n    169u8,\n    25u8,\n    159u8,\n    187u8,\n    73u8,\n    207u8,\n    247u8,\n    192u8,\n    213u8,\n    67u8,\n    37u8,\n    145u8,\n    36u8,\n    130u8,\n    151u8,\n    151u8,\n    20u8,\n    53u8,\n    244u8\n  ],\n  body: [\n    268787773892274112404478985243277131776u128,\n    101401562821467212002249661463377258879u128,\n    0u128,\n    85413587559041969264383023824439869440u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128,\n    0u128\n  ]\n}",
     );
+    let range = 12529863..=12529863;
+    for height in range.clone() {
+        mock.register_value(
+            &format!(
+                "program/test_mailbox.aleo/mapping/dispatch_event_index/{}u32",
+                height
+            ),
+            serde_json::Value::Null,
+        );
+    }
+    mock.register_value(
+        "program/test_mailbox.aleo/mapping/dispatch_event_index/12529863u32",
+        "1u32",
+    );
 
     let indexer = AleoDispatchIndexer::new(mock, &locator, &connection_conf());
-
-    let result =
-        Indexer::<HyperlaneMessage>::fetch_logs_in_range(&indexer, 12529863..=12529863).await;
+    let result = Indexer::<HyperlaneMessage>::fetch_logs_in_range(&indexer, range).await;
     assert!(result.is_ok());
     let logs = result.unwrap();
     assert_eq!(logs.len(), 1);
@@ -194,18 +222,26 @@ async fn test_igp_indexer_fetch_logs() {
     mock.register_file("block/12529863", "dispatch_block.json")
         .unwrap();
     mock.register_value(
-        "program/test_hook_manager.aleo/mapping/last_event_index/{hook:aleo1479wmm58gcyg28z37dvua77l53dwrmwct80k4ruf906ulp7smupsyg6ak2,block_height:12529863u32}",
-        "1u32",
-    );
-    mock.register_value(
         "program/test_hook_manager.aleo/mapping/gas_payment_events/{hook:aleo1479wmm58gcyg28z37dvua77l53dwrmwct80k4ruf906ulp7smupsyg6ak2,index:1u32}",
         "{\n  id: [\n    256267490544060419649858878342859086153u128,\n    278497652737802013060047005208637375179u128\n  ],\n  destination_domain: 11155111u32,\n  gas_amount: 50000u128,\n  payment: 0u64,\n  index: 1u32\n}",
     );
-
+    let range = 12529863..=12529863;
+    for height in range.clone() {
+        mock.register_value(
+            &format!(
+                "program/test_hook_manager.aleo/mapping/last_event_index/{{hook:aleo1479wmm58gcyg28z37dvua77l53dwrmwct80k4ruf906ulp7smupsyg6ak2,block_height:{}u32}}",
+                height
+            ),
+            serde_json::Value::Null,
+        );
+    }
+    mock.register_value(
+        "program/test_hook_manager.aleo/mapping/last_event_index/{hook:aleo1479wmm58gcyg28z37dvua77l53dwrmwct80k4ruf906ulp7smupsyg6ak2,block_height:12529863u32}",
+        "1u32",
+    );
     let indexer = AleoInterchainGasIndexer::new(mock, &locator, &connection_conf()).unwrap();
 
-    let result =
-        Indexer::<InterchainGasPayment>::fetch_logs_in_range(&indexer, 12529863..=12529863).await;
+    let result = Indexer::<InterchainGasPayment>::fetch_logs_in_range(&indexer, range).await;
     assert!(result.is_ok());
     let logs = result.unwrap();
     assert_eq!(logs.len(), 1);
@@ -272,18 +308,26 @@ async fn test_merkle_tree_indexer_fetch_logs() {
     mock.register_file("block/12529863", "dispatch_block.json")
         .unwrap();
     mock.register_value(
-        "program/test_hook_manager.aleo/mapping/last_event_index/{hook:aleo18n8sg8cz6qc76vzflr8la98u0r4w8r96c9wdxee4wvetsvuz0vxs0r2hk8,block_height:12529863u32}",
-        "1u32",
-    );
-    mock.register_value(
         "program/test_hook_manager.aleo/mapping/inserted_into_tree_events/{hook:aleo18n8sg8cz6qc76vzflr8la98u0r4w8r96c9wdxee4wvetsvuz0vxs0r2hk8,index:1u32}",
         "{\n  id: [\n    256267490544060419649858878342859086153u128,\n    278497652737802013060047005208637375179u128\n  ],\n  index: 1u32\n}"
     );
-
+    let range = 12529863..=12529863;
+    for height in range.clone() {
+        mock.register_value(
+            &format!(
+        "program/test_hook_manager.aleo/mapping/last_event_index/{{hook:aleo18n8sg8cz6qc76vzflr8la98u0r4w8r96c9wdxee4wvetsvuz0vxs0r2hk8,block_height:{}u32}}",
+                height
+            ),
+            serde_json::Value::Null,
+        );
+    }
+    mock.register_value(
+        "program/test_hook_manager.aleo/mapping/last_event_index/{hook:aleo18n8sg8cz6qc76vzflr8la98u0r4w8r96c9wdxee4wvetsvuz0vxs0r2hk8,block_height:12529863u32}",
+        "1u32",
+    );
     let indexer = AleoMerkleTreeHook::new(mock, &locator, &connection_conf()).unwrap();
 
-    let result =
-        Indexer::<MerkleTreeInsertion>::fetch_logs_in_range(&indexer, 12529863..=12529863).await;
+    let result = Indexer::<MerkleTreeInsertion>::fetch_logs_in_range(&indexer, range).await;
     assert!(result.is_ok());
     let logs = result.unwrap();
     assert_eq!(logs.len(), 1);
@@ -374,11 +418,20 @@ async fn test_indexer_reverted_fetch_logs() {
     let mock = mock_provider();
     mock.register_file("block/12640906", "reverted_dispatch.json")
         .unwrap();
+    let range = 12640906..=12640906;
+    for height in range.clone() {
+        mock.register_value(
+            &format!(
+                "program/test_mailbox.aleo/mapping/dispatch_event_index/{}u32",
+                height
+            ),
+            serde_json::Value::Null,
+        );
+    }
 
     let indexer = AleoDispatchIndexer::new(mock, &locator, &connection_conf());
 
-    let result =
-        Indexer::<HyperlaneMessage>::fetch_logs_in_range(&indexer, 12640906..=12640906).await;
+    let result = Indexer::<HyperlaneMessage>::fetch_logs_in_range(&indexer, range).await;
     assert!(result.is_ok());
     let logs = result.unwrap();
     assert_eq!(logs.len(), 0);
