@@ -297,8 +297,14 @@ async fn fetch_offchain_data(
             })?
     };
 
-    let json: OffchainResponse = res.json().await.map_err(|err| {
-        let error_msg = format!("Failed to parse offchain lookup server json response: ({err})");
+    let response_body = res.text().await.map_err(|err| {
+        let error_msg = format!("Failed to read offchain lookup server response: ({err})");
+        MetadataBuildError::FailedToBuild(error_msg)
+    })?;
+    let json: OffchainResponse = serde_json::from_str(&response_body).map_err(|err| {
+        let error_msg = format!(
+            "Failed to parse offchain lookup server json response: ({err}) ({response_body})"
+        );
         MetadataBuildError::FailedToBuild(error_msg)
     })?;
 
