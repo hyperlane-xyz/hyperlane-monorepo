@@ -134,12 +134,12 @@ export async function isAleoProviderHealthy(
   try {
     const healthy = await provider.isHealthy();
     if (healthy) {
-      rootLogger.debug(`Gateway is healthy for ${metadata.name}`);
+      rootLogger.debug(`Rpc is healthy for ${metadata.name}`);
     }
     return healthy;
   } catch (err) {
     rootLogger.warn(
-      `Aleo gateway health check threw for ${metadata.name}`,
+      `Aleo rpc health check threw for ${metadata.name}`,
       err as Error,
     );
     return false;
