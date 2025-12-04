@@ -237,6 +237,16 @@ mod tests {
             "2u8"
         );
 
+        // Unknown validators
+        provider.register_value(
+            "program/test_validator_announce.aleo/mapping/storage_sequences/{bytes:[0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,2u8]}",
+            serde_json::Value::Null
+        );
+        provider.register_value(
+            "program/test_validator_announce.aleo/mapping/storage_sequences/{bytes:[0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,3u8]}",
+            serde_json::Value::Null
+        );
+
         let locator = ContractLocator::new(&DOMAIN, H256::zero());
         AleoValidatorAnnounce::new(provider, &locator, &connection_conf())
     }
@@ -274,7 +284,7 @@ mod tests {
     async fn test_get_announced_storage_locations_unknown_validator() {
         let va = get_mock_validator_announce();
         let result = va
-            .get_announced_storage_locations(&[H256::random(), H256::random()])
+            .get_announced_storage_locations(&[H256::from_low_u64_be(2), H256::from_low_u64_be(3)])
             .await;
         assert!(result.is_ok(), "Get announced storage should not fail");
         let locations = result.unwrap();
