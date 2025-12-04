@@ -1,7 +1,7 @@
 use futures::Future;
 use std::{pin::Pin, time::Duration};
 use tokio::time::sleep;
-use tracing::{instrument, warn};
+use tracing::{debug, instrument};
 
 use crate::{ChainCommunicationError, ChainResult};
 
@@ -23,7 +23,7 @@ pub async fn call_and_retry_n_times<T>(
         match f().await {
             Ok(res) => return Ok(res),
             Err(err) => {
-                warn!(retries=retry_number, error=?err, "Retrying call");
+                debug!(retries=retry_number, error=?err, "Retrying call");
                 sleep(rpc_retry_sleep_duration.unwrap_or(RPC_RETRY_SLEEP_DURATION)).await;
             }
         }
