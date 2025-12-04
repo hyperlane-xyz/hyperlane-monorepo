@@ -4,10 +4,9 @@ on:
   push:
     branches:
       - main
-    paths:
-      - '.github/workflows/solidity-fork-tests.yml'
   pull_request:
     paths:
+      - 'solidity/**'
       - '.github/workflows/solidity-fork-tests.yml'
   schedule:
     # Run daily at 6:00 UTC
