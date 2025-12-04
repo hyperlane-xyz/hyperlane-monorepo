@@ -33,9 +33,6 @@ jobs:
         with:
           submodules: recursive
 
-      - name: foundry-install
-        uses: foundry-rs/foundry-toolchain@v1
-
       - name: Set Foundry RPC URLs for fork tests
         env:
           MAINNET3_ETHEREUM_RPC_URLS: ${{ secrets.MAINNET3_ETHEREUM_RPC_URLS }}
@@ -44,22 +41,12 @@ jobs:
           MAINNET3_ARBITRUM_RPC_URLS: ${{ secrets.MAINNET3_ARBITRUM_RPC_URLS }}
           MAINNET3_BASE_RPC_URLS: ${{ secrets.MAINNET3_BASE_RPC_URLS }}
         run: |
-          # Extract first URL from comma-separated list and update foundry.toml
-          if [ -n "$MAINNET3_ETHEREUM_RPC_URLS" ]; then
-            sed -i "s|mainnet = \".*\"|mainnet = \"${MAINNET3_ETHEREUM_RPC_URLS%%,*}\"|" solidity/foundry.toml
-          fi
-          if [ -n "$MAINNET3_OPTIMISM_RPC_URLS" ]; then
-            sed -i "s|optimism = \".*\"|optimism = \"${MAINNET3_OPTIMISM_RPC_URLS%%,*}\"|" solidity/foundry.toml
-          fi
-          if [ -n "$MAINNET3_POLYGON_RPC_URLS" ]; then
-            sed -i "s|polygon = \".*\"|polygon = \"${MAINNET3_POLYGON_RPC_URLS%%,*}\"|" solidity/foundry.toml
-          fi
-          if [ -n "$MAINNET3_ARBITRUM_RPC_URLS" ]; then
-            sed -i "s|arbitrum = \".*\"|arbitrum = \"${MAINNET3_ARBITRUM_RPC_URLS%%,*}\"|" solidity/foundry.toml
-          fi
-          if [ -n "$MAINNET3_BASE_RPC_URLS" ]; then
-            sed -i "s|base = \".*\"|base = \"${MAINNET3_BASE_RPC_URLS%%,*}\"|" solidity/foundry.toml
-          fi
+          # Extract first URL from comma-separated list and set as env vars
+          echo "RPC_URL_MAINNET=${MAINNET3_ETHEREUM_RPC_URLS%%,*}" >> $GITHUB_ENV
+          echo "RPC_URL_OPTIMISM=${MAINNET3_OPTIMISM_RPC_URLS%%,*}" >> $GITHUB_ENV
+          echo "RPC_URL_POLYGON=${MAINNET3_POLYGON_RPC_URLS%%,*}" >> $GITHUB_ENV
+          echo "RPC_URL_ARBITRUM=${MAINNET3_ARBITRUM_RPC_URLS%%,*}" >> $GITHUB_ENV
+          echo "RPC_URL_BASE=${MAINNET3_BASE_RPC_URLS%%,*}" >> $GITHUB_ENV
 
       - name: yarn-build
         uses: ./.github/actions/yarn-build-with-cache

@@ -84,7 +84,7 @@
     "test:hardhat": "yarn hardhat-esm test",
     "test:forge": "yarn fixtures && forge test -vvv --decode-internal --no-match-contract Everclear",
     "test:ci": "yarn version:changed && yarn test:hardhat && yarn test:forge --no-match-test testFork",
-    "test:fork": "forge test -vvv --match-test testFork && forge test -vvv --match-contract ForkTest",
+    "test:fork": ". ./.env.default && forge test -vvv --match-test testFork && forge test -vvv --match-contract ForkTest",
     "gas": "forge snapshot",
     "gas-ci": "yarn gas --check --tolerance 2 || (echo 'Manually update gas snapshot' && exit 1)",
     "slither": "slither .",
