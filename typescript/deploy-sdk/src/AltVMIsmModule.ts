@@ -141,7 +141,7 @@ export class AltVMIsmModule implements HypModule<IsmModuleType> {
     if (
       typeof normalizedCurrentConfig === 'string' ||
       normalizedCurrentConfig.type !== normalizedTargetConfig.type ||
-      !STATIC_ISM_TYPES.includes(normalizedTargetConfig.type)
+      STATIC_ISM_TYPES.includes(normalizedTargetConfig.type)
     ) {
       this.args.addresses.deployedIsm = await this.deploy({
         config: expectedConfig,

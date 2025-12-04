@@ -48,7 +48,7 @@ import {
   RadixSDKOptions,
   RadixSDKTransaction,
 } from '../utils/types.js';
-import { getCreateValidatorAnnounceTransaction } from '../validator-announce/validator-announce-ts.js';
+import { getCreateValidatorAnnounceTransaction } from '../validator-announce/validator-announce-tx.js';
 import { RadixWarpPopulate } from '../warp/populate.js';
 import { RadixWarpQuery } from '../warp/query.js';
 

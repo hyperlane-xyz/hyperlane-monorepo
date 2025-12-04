@@ -19,7 +19,7 @@ import { RadixBase } from '../utils/base.js';
 import { INSTRUCTIONS, RadixIsmTypes } from '../utils/types.js';
 import { bytes } from '../utils/utils.js';
 
-export function getCreateNoopIsmTransaction(
+export async function getCreateNoopIsmTransaction(
   base: Readonly<RadixBase>,
   hyperlanePackageDefAddress: string,
   fromAddress: string,
@@ -33,7 +33,7 @@ export function getCreateNoopIsmTransaction(
   );
 }
 
-export function getCreateMerkleRootMultisigIsmTransaction(
+export async function getCreateMerkleRootMultisigIsmTransaction(
   base: Readonly<RadixBase>,
   hyperlanePackageDefAddress: string,
   {
@@ -58,7 +58,7 @@ export function getCreateMerkleRootMultisigIsmTransaction(
   );
 }
 
-export function getCreateMessageIdMultisigIsmTransaction(
+export async function getCreateMessageIdMultisigIsmTransaction(
   base: Readonly<RadixBase>,
   hyperlanePackageDefAddress: string,
   {
@@ -83,7 +83,7 @@ export function getCreateMessageIdMultisigIsmTransaction(
   );
 }
 
-export function getCreateRoutingIsmTransaction(
+export async function getCreateRoutingIsmTransaction(
   base: Readonly<RadixBase>,
   hyperlanePackageDefAddress: string,
   {
@@ -150,7 +150,7 @@ export async function getSetRoutingIsmDomainIsmTransaction(
     ismAddress: string;
     domainIsm: { domainId: number; ismAddress: string };
   },
-) {
+): Promise<TransactionManifest> {
   return base.createCallMethodManifestWithOwner(
     fromAddress,
     ismAddress,
@@ -170,7 +170,7 @@ export async function getRemoveRoutingIsmDomainIsmTransaction(
     ismAddress: string;
     domainId: number;
   },
-) {
+): Promise<TransactionManifest> {
   return base.createCallMethodManifestWithOwner(
     fromAddress,
     ismAddress,

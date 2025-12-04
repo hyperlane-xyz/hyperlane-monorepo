@@ -40,7 +40,7 @@ import {
   stringToTransactionManifest,
   transactionManifestToString,
 } from '../utils/utils.js';
-import { getCreateValidatorAnnounceTransaction } from '../validator-announce/validator-announce-ts.js';
+import { getCreateValidatorAnnounceTransaction } from '../validator-announce/validator-announce-tx.js';
 import { RadixWarpTx } from '../warp/tx.js';
 
 import { RadixProvider } from './provider.js';
