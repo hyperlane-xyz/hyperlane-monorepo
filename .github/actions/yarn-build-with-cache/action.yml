@@ -9,6 +9,9 @@ inputs:
 runs:
   using: 'composite'
   steps:
+    - name: Setup Foundry
+      uses: ./.github/actions/setup-foundry
+
     - name: yarn-cache
       id: yarn-cache
       uses: ./.github/actions/yarn-cache

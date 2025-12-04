@@ -52,30 +52,29 @@ export enum RadixIsmTypes {
 
 export type MultisigIsms =
   | RadixIsmTypes.MERKLE_ROOT_MULTISIG
-  | RadixIsmTypes.MESSAGE_ID_MULTISIG
-  | RadixIsmTypes.NOOP_ISM;
-
-export type Isms =
-  | RadixIsmTypes.MERKLE_ROOT_MULTISIG
-  | RadixIsmTypes.MESSAGE_ID_MULTISIG
-  | RadixIsmTypes.ROUTING_ISM
-  | RadixIsmTypes.NOOP_ISM;
+  | RadixIsmTypes.MESSAGE_ID_MULTISIG;
 
 export enum RadixHookTypes {
   IGP = 'InterchainGasPaymaster',
   MERKLE_TREE = 'MerkleTreeHook',
 }
 
-export type Hooks = RadixHookTypes.IGP | RadixHookTypes.MERKLE_TREE;
+export interface RadixElement {
+  kind: string;
+  type_name: string;
+  element_kind: string;
+  hex: string;
+}
 
 export interface EntityField {
   field_name: string;
   type_name: string;
   variant_name?: string;
   value?: any;
-  elements?: any[];
+  elements?: RadixElement[];
   fields?: EntityField[];
   hex?: string;
+  kind: string;
 }
 
 export interface EntityDetails {

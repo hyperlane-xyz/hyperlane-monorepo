@@ -2,6 +2,7 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import { IProvider, ISigner } from './altvm.js';
 import { ChainMetadataForAltVM } from './chain.js';
+import { MinimumRequiredGasByAction } from './mingas.js';
 import { AnnotatedTx, TxReceipt } from './module.js';
 import {
   ITransactionSubmitter,
@@ -52,6 +53,8 @@ export interface ProtocolProvider {
     chainMetadata: ChainMetadataForAltVM,
     config: TConfig,
   ): Promise<ITransactionSubmitter>;
+
+  getMinGas(): MinimumRequiredGasByAction;
 }
 
 /**

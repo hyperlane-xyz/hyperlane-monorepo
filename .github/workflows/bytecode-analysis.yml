@@ -1,4 +1,4 @@
-name: Check Storage Layout Changes
+name: Check Bytecode Changes
 
 on:
   pull_request:
@@ -6,6 +6,7 @@ on:
       - '*'
     paths:
       - 'solidity/**'
+      - '.github/workflows/bytecode-analysis.yml'
   workflow_dispatch:
     inputs:
       base:
@@ -42,7 +43,7 @@ jobs:
 
       # Run the command on PR branch
       - name: Run command on PR branch
-        run: yarn workspace @hyperlane-xyz/core storage HEAD-storage
+        run: yarn workspace @hyperlane-xyz/core bytecode HEAD-bytecode
 
       # Checkout the target branch (base)
       - name: Checkout target branch (base) contracts
@@ -62,17 +63,21 @@ jobs:
 
       # Run the command on the target branch
       - name: Run command on target branch
-        run: yarn workspace @hyperlane-xyz/core storage base-storage
+        run: yarn workspace @hyperlane-xyz/core bytecode base-bytecode
 
       # Compare outputs
-      - name: Compare outputs (fail on removals only)
+      - name: Compare outputs (fail on any changes)
         run: |
-          DIFF_OUTPUT=$(diff --unified solidity/base-storage solidity/HEAD-storage || true)
-          echo "$DIFF_OUTPUT"
-          # Fail only if there are removal lines in diff hunks (lines starting with '-' but not '---')
-          if echo "$DIFF_OUTPUT" | grep -E '^-([^-])' >/dev/null; then
-            echo "Detected storage removals in diff. Failing job."
-            exit 1
-          else
-            echo "No storage removals detected."
+          DIFF_OUTPUT=$(diff --unified --recursive solidity/base-bytecode solidity/HEAD-bytecode || true)
+
+          if [ -z "$DIFF_OUTPUT" ]; then
+            echo "No bytecode changes detected."
+            exit 0
           fi
+
+          echo "Detected bytecode changes:"
+          echo "$DIFF_OUTPUT"
+          echo ""
+          echo "ERROR: Bytecode changes detected. This job fails if there are any bytecode changes."
+          echo "If these changes are expected, please review them carefully."
+          exit 1

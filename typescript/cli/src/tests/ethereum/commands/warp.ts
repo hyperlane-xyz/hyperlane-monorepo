@@ -14,7 +14,7 @@ import {
 import { Address, ProtocolType, randomInt } from '@hyperlane-xyz/utils';
 
 import { readChainSubmissionStrategyConfig } from '../../../config/strategy.js';
-import { AltVMSignerFactory } from '../../../context/altvm.js';
+import { createAltVMSigners } from '../../../context/altvm.js';
 import { getContext } from '../../../context/context.js';
 import { CommandContext } from '../../../context/types.js';
 import { extendWarpRoute as extendWarpRouteWithoutApplyTransactions } from '../../../deploy/warp.js';
@@ -620,7 +620,7 @@ export async function setupIncompleteWarpRouteExtension(
     ? await readChainSubmissionStrategyConfig(context.strategyPath)
     : {};
 
-  const altVmSigner = await AltVMSignerFactory.createSigners(
+  const altVmSigners = await createAltVMSigners(
     context.multiProvider,
     [],
     {},
@@ -635,7 +635,7 @@ export async function setupIncompleteWarpRouteExtension(
         key: {
           [ProtocolType.Ethereum]: ANVIL_KEY,
         },
-        altVmSigner,
+        altVmSigners,
       },
       warpCoreConfig,
       warpDeployConfig,

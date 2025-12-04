@@ -31,8 +31,8 @@ jobs:
       - name: yarn-install
         run: yarn install
 
-      - name: foundry-install
-        uses: foundry-rs/foundry-toolchain@v1
+      - name: Setup Foundry
+        uses: ./.github/actions/setup-foundry
 
       - name: forge-build
         run: cd solidity && forge build --build-info

@@ -1,0 +1,13 @@
+name: 'Setup Foundry'
+description: 'Install Foundry and Soldeer dependencies'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install Foundry
+      uses: foundry-rs/foundry-toolchain@v1
+
+    - name: Install Soldeer dependencies
+      shell: bash
+      run: forge soldeer install
+      working-directory: ./solidity

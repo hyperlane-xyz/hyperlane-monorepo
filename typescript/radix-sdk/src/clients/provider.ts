@@ -5,7 +5,21 @@ import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { RadixCorePopulate } from '../core/populate.js';
-import { RadixCoreQuery } from '../core/query.js';
+import {
+  getHookType,
+  getIgpHookConfig,
+  getMerkleTreeHookConfig,
+} from '../hook/hook-query.js';
+import {
+  getDomainRoutingIsmConfig,
+  getIsmType,
+  getMultisigIsmConfig,
+  getTestIsmConfig,
+} from '../ism/ism-query.js';
+import {
+  getMailboxConfig,
+  isMessageDelivered,
+} from '../mailbox/mailbox-query.js';
 import { RadixBase } from '../utils/base.js';
 import {
   RadixHookTypes,
@@ -44,7 +58,6 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
 
   protected base: RadixBase;
   protected query: {
-    core: RadixCoreQuery;
     warp: RadixWarpQuery;
   };
   protected populate: {
@@ -101,7 +114,6 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
     );
 
     this.query = {
-      core: new RadixCoreQuery(this.networkId, this.gateway, this.base),
       warp: new RadixWarpQuery(this.networkId, this.gateway, this.base),
     };
 
@@ -160,20 +172,15 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   // ### QUERY CORE ###
 
   async getMailbox(req: AltVM.ReqGetMailbox): Promise<AltVM.ResGetMailbox> {
-    return this.query.core.getMailbox({ mailbox: req.mailboxAddress });
+    return getMailboxConfig(this.gateway, req.mailboxAddress);
   }
 
   async isMessageDelivered(req: AltVM.ReqIsMessageDelivered): Promise<boolean> {
-    return this.query.core.isMessageDelivered({
-      mailbox: req.mailboxAddress,
-      message_id: req.messageId,
-    });
+    return isMessageDelivered(this.gateway, req.mailboxAddress, req.messageId);
   }
 
   async getIsmType(req: AltVM.ReqGetIsmType): Promise<AltVM.IsmType> {
-    const ismType = await this.query.core.getIsmType({
-      ism: req.ismAddress,
-    });
+    const ismType = await getIsmType(this.gateway, req.ismAddress);
 
     switch (ismType) {
       case RadixIsmTypes.MERKLE_ROOT_MULTISIG: {
@@ -196,8 +203,7 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   async getMessageIdMultisigIsm(
     req: AltVM.ReqMessageIdMultisigIsm,
   ): Promise<AltVM.ResMessageIdMultisigIsm> {
-    const ism = await this.query.core.getMultisigIsm({ ism: req.ismAddress });
-
+    const ism = await getMultisigIsmConfig(this.gateway, req.ismAddress);
     assert(
       ism.type === RadixIsmTypes.MESSAGE_ID_MULTISIG,
       `ism with address ${req.ismAddress} is no ${RadixIsmTypes.MESSAGE_ID_MULTISIG}`,
@@ -213,8 +219,7 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   async getMerkleRootMultisigIsm(
     req: AltVM.ReqMerkleRootMultisigIsm,
   ): Promise<AltVM.ResMerkleRootMultisigIsm> {
-    const ism = await this.query.core.getMultisigIsm({ ism: req.ismAddress });
-
+    const ism = await getMultisigIsmConfig(this.gateway, req.ismAddress);
     assert(
       ism.type === RadixIsmTypes.MERKLE_ROOT_MULTISIG,
       `ism with address ${req.ismAddress} is no ${RadixIsmTypes.MERKLE_ROOT_MULTISIG}`,
@@ -228,28 +233,25 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   }
 
   async getRoutingIsm(req: AltVM.ReqRoutingIsm): Promise<AltVM.ResRoutingIsm> {
-    return this.query.core.getRoutingIsm({
-      ism: req.ismAddress,
-    });
+    const ism = await getDomainRoutingIsmConfig(this.gateway, req.ismAddress);
+
+    return {
+      address: ism.address,
+      owner: ism.owner,
+      routes: ism.routes,
+    };
   }
 
   async getNoopIsm(req: AltVM.ReqNoopIsm): Promise<AltVM.ResNoopIsm> {
-    const ism = await this.query.core.getMultisigIsm({ ism: req.ismAddress });
-
-    assert(
-      ism.type === RadixIsmTypes.NOOP_ISM,
-      `ism with address ${req.ismAddress} is no ${RadixIsmTypes.NOOP_ISM}`,
-    );
+    const ism = await getTestIsmConfig(this.gateway, req.ismAddress);
 
     return {
-      address: req.ismAddress,
+      address: ism.address,
     };
   }
 
   async getHookType(req: AltVM.ReqGetHookType): Promise<AltVM.HookType> {
-    const hookType = await this.query.core.getHookType({
-      hook: req.hookAddress,
-    });
+    const hookType = await getHookType(this.gateway, req.hookAddress);
 
     switch (hookType) {
       case RadixHookTypes.IGP: {
@@ -266,13 +268,29 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   async getInterchainGasPaymasterHook(
     req: AltVM.ReqGetInterchainGasPaymasterHook,
   ): Promise<AltVM.ResGetInterchainGasPaymasterHook> {
-    return this.query.core.getIgpHook({ hook: req.hookAddress });
+    const { address, destinationGasConfigs, owner } = await getIgpHookConfig(
+      this.gateway,
+      req.hookAddress,
+    );
+
+    return {
+      address,
+      destinationGasConfigs,
+      owner,
+    };
   }
 
   async getMerkleTreeHook(
     req: AltVM.ReqGetMerkleTreeHook,
   ): Promise<AltVM.ResGetMerkleTreeHook> {
-    return this.query.core.getMerkleTreeHook({ hook: req.hookAddress });
+    const { address } = await getMerkleTreeHookConfig(
+      this.gateway,
+      req.hookAddress,
+    );
+
+    return {
+      address,
+    };
   }
 
   async getNoopHook(_req: AltVM.ReqGetNoopHook): Promise<AltVM.ResGetNoopHook> {

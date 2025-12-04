@@ -13,6 +13,7 @@ import {
   ExplorerLicenseType,
   altVmChainLookup,
 } from '@hyperlane-xyz/sdk';
+import { mustGet } from '@hyperlane-xyz/utils';
 
 import { MultiProtocolSignerManager } from '../context/strategies/signer/MultiProtocolSignerManager.js';
 import { WriteCommandContext } from '../context/types.js';
@@ -67,7 +68,8 @@ export async function runCoreDeploy(params: DeployParams) {
   });
 
   let deployedAddresses: ChainAddresses;
-  switch (multiProvider.getProtocol(chain)) {
+  const protocol = multiProvider.getProtocol(chain);
+  switch (protocol) {
     case ProtocolType.Ethereum:
       {
         const signer = multiProvider.getSigner(chain);
@@ -102,8 +104,7 @@ export async function runCoreDeploy(params: DeployParams) {
       }
       break;
     default: {
-      const signer = context.altVmSigner.get(chain);
-
+      const signer = mustGet(context.altVmSigners, chain);
       logBlue('🚀 All systems ready, captain! Beginning deployment...');
 
       const userAddress = signer.getSignerAddress();
@@ -136,7 +137,8 @@ export async function runCoreApply(params: ApplyParams) {
   const { context, chain, deployedCoreAddresses, config } = params;
   const { multiProvider } = context;
 
-  switch (multiProvider.getProtocol(chain)) {
+  const protocol = multiProvider.getProtocol(chain);
+  switch (protocol) {
     case ProtocolType.Ethereum: {
       const evmCoreModule = new EvmCoreModule(multiProvider, {
         chain,
@@ -165,7 +167,7 @@ export async function runCoreApply(params: ApplyParams) {
       break;
     }
     default: {
-      const signer = context.altVmSigner.get(chain);
+      const signer = mustGet(context.altVmSigners, chain);
 
       const { submitter } = await getSubmitterByStrategy({
         chain,

@@ -161,9 +161,6 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
 
-      - name: foundry-install
-        uses: foundry-rs/foundry-toolchain@v1
-
       - name: Set Foundry RPC URLs for fork tests
         env:
           MAINNET3_ARBITRUM_RPC_URLS: ${{ secrets.MAINNET3_ARBITRUM_RPC_URLS }}
@@ -323,9 +320,6 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
 
-      - name: foundry-install
-        uses: foundry-rs/foundry-toolchain@v1
-
       - name: install-hyperlane-cli
         id: install-hyperlane-cli
         uses: ./.github/actions/install-cli
@@ -362,9 +356,6 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
-
-      - name: foundry-install
-        uses: foundry-rs/foundry-toolchain@v1
 
       - name: install-hyperlane-cli
         id: install-hyperlane-cli
@@ -638,10 +629,6 @@ jobs:
             echo "skip-e2e=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: foundry-install
-        if: steps.check-conditions.outputs.skip-e2e != 'true'
-        uses: foundry-rs/foundry-toolchain@v1
-
       - name: setup rust
         if: steps.check-conditions.outputs.skip-e2e != 'true'
         uses: dtolnay/rust-toolchain@stable
@@ -784,9 +771,6 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      - name: foundry-install
-        uses: foundry-rs/foundry-toolchain@v1
-
       - name: yarn-build
         uses: ./.github/actions/yarn-build-with-cache
         with:
@@ -849,8 +833,8 @@ jobs:
           yarn install
           yarn build
 
-      - name: foundry-install
-        uses: foundry-rs/foundry-toolchain@v1
+      - name: Setup Foundry
+        uses: ./.github/actions/setup-foundry
 
       - name: Run tests with coverage
         run: yarn coverage
