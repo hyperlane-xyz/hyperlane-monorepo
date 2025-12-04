@@ -57,12 +57,11 @@ impl<C: AleoClient> AleoMailbox<C> {
         let program_id: [u8; 128] = self
             .provider
             .get_mapping_value(&self.program, "registered_applications", &aleo_address)
-            .await
-            .map_err(|_| {
-                HyperlaneAleoError::Other(format!(
-                    "Expected recipient to be registered, but was not: {aleo_address}",
-                ))
-            })?;
+            .await?
+            .ok_or(HyperlaneAleoError::Other(format!(
+                "Expected recipient to be registered, but was not: {aleo_address}",
+            )))?;
+
         let program_id =
             CStr::from_bytes_until_nul(&program_id).map_err(HyperlaneAleoError::from)?;
         let program_id = program_id.to_str().map_err(HyperlaneAleoError::from)?;
@@ -98,7 +97,8 @@ impl<C: AleoClient> AleoMailbox<C> {
         let app_metadata: Plaintext<CurrentNetwork> = self
             .provider
             .get_mapping_value(&recipient, "app_metadata", &true)
-            .await?;
+            .await?
+            .ok_or(HyperlaneAleoError::AppUninitialized)?;
 
         aleo_args!(
             ism,
@@ -141,7 +141,8 @@ impl<C: AleoClient> Mailbox for AleoMailbox<C> {
         let mailbox: AleoMailboxStruct = self
             .provider
             .get_mapping_value(&self.program, "mailbox", &true)
-            .await?;
+            .await?
+            .ok_or(HyperlaneAleoError::MailboxUninitialized)?;
         Ok(mailbox.nonce)
     }
 
@@ -151,12 +152,12 @@ impl<C: AleoClient> Mailbox for AleoMailbox<C> {
             id: hash_to_aleo_hash(&id)?,
         };
 
-        let delivered: ChainResult<Delivery> = self
+        let delivered: Option<Delivery> = self
             .provider
             .get_mapping_value(&self.program, "deliveries", &key)
-            .await;
+            .await?;
 
-        Ok(delivered.is_ok())
+        Ok(delivered.is_some())
     }
 
     /// Fetch the current default interchain security module value
@@ -164,7 +165,8 @@ impl<C: AleoClient> Mailbox for AleoMailbox<C> {
         let mailbox: AleoMailboxStruct = self
             .provider
             .get_mapping_value(&self.program, "mailbox", &true)
-            .await?;
+            .await?
+            .ok_or(HyperlaneAleoError::MailboxUninitialized)?;
         to_h256(mailbox.default_ism)
     }
 
@@ -172,13 +174,13 @@ impl<C: AleoClient> Mailbox for AleoMailbox<C> {
     async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
         let recipient = self.get_recipient(recipient).await?;
         // Each app stores its ISM in the `app_metadata` mapping
-        let metadata: ChainResult<AppMetadata> = self
+        let metadata: Option<AppMetadata> = self
             .provider
             .get_mapping_value(&recipient.to_string(), "app_metadata", &true)
-            .await;
+            .await?;
         match metadata {
-            Ok(metadata) => to_h256(metadata.ism),
-            Err(_) => self.default_ism().await,
+            Some(metadata) => to_h256(metadata.ism),
+            None => self.default_ism().await,
         }
     }
 
