@@ -26,7 +26,6 @@ import {
   promiseObjAll,
 } from '@hyperlane-xyz/utils';
 
-import { mustGetAltVmProvider } from '../context/altvm.js';
 import { CommandContext } from '../context/types.js';
 import { logGray, logRed, logTable } from '../logger.js';
 import { getWarpCoreConfigOrExit } from '../utils/warp.js';
@@ -132,10 +131,7 @@ async function deriveWarpRouteConfigs(
           ).deriveWarpRouteConfig(address);
         }
         default: {
-          const provider = await mustGetAltVmProvider(
-            context.getAltVmProvider,
-            chain,
-          );
+          const provider = await context.altVmProviders(chain);
           return new AltVMWarpRouteReader(
             altVmChainLookup(multiProvider),
             provider,

@@ -14,7 +14,6 @@ import {
   altVmChainLookup,
 } from '@hyperlane-xyz/sdk';
 
-import { mustGetAltVmSigner } from '../context/altvm.js';
 import { MultiProtocolSignerManager } from '../context/strategies/signer/MultiProtocolSignerManager.js';
 import { WriteCommandContext } from '../context/types.js';
 import { log, logBlue, logGray, logGreen } from '../logger.js';
@@ -104,7 +103,7 @@ export async function runCoreDeploy(params: DeployParams) {
       }
       break;
     default: {
-      const signer = await mustGetAltVmSigner(context.getAltVmSigner, chain);
+      const signer = await context.altVmSigners(chain);
       logBlue('🚀 All systems ready, captain! Beginning deployment...');
 
       const userAddress = signer.getSignerAddress();
@@ -167,7 +166,7 @@ export async function runCoreApply(params: ApplyParams) {
       break;
     }
     default: {
-      const signer = await mustGetAltVmSigner(context.getAltVmSigner, chain);
+      const signer = await context.altVmSigners(chain);
 
       const { submitter } = await getSubmitterByStrategy({
         chain,

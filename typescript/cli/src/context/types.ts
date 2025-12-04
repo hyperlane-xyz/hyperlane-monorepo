@@ -48,7 +48,8 @@ export interface CommandContext
   chainMetadata: ChainMap<ChainMetadata>;
   multiProvider: MultiProvider;
   multiProtocolProvider: MultiProtocolProvider;
-  getAltVmProvider?: AltVMProviderGetter;
+  altVmProviders: AltVMProviderGetter;
+  altVmSigners: AltVMSignerGetter;
   supportedProtocols: ProtocolType[];
   skipConfirmation: boolean;
   // just for evm chains backward compatibility
@@ -58,7 +59,6 @@ export interface CommandContext
 export interface WriteCommandContext extends Omit<CommandContext, 'key'> {
   key: SignerKeyProtocolMap;
   signer: ethers.Signer;
-  getAltVmSigner?: AltVMSignerGetter;
   apiKeys?: ChainMap<string>;
 }
 

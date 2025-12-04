@@ -12,12 +12,12 @@ import { Address, assert } from '@hyperlane-xyz/utils';
 
 import { autoConfirm } from '../config/prompts.js';
 import { ETHEREUM_MINIMUM_GAS } from '../consts.js';
-import { AltVMSignerGetter, mustGetAltVmSigner } from '../context/altvm.js';
+import { AltVMSignerGetter } from '../context/altvm.js';
 import { logBlue, logGreen, logRed, warnYellow } from '../logger.js';
 
 export async function nativeBalancesAreSufficient(
   multiProvider: MultiProvider,
-  getAltVmSigner: AltVMSignerGetter | undefined,
+  altVmSigners: AltVMSignerGetter,
   chains: ChainName[],
   minGas: GasAction,
   skipConfirmation: boolean,
@@ -55,7 +55,7 @@ export async function nativeBalancesAreSufficient(
         break;
       }
       default: {
-        const signer = await mustGetAltVmSigner(getAltVmSigner, chain);
+        const signer = await altVmSigners(chain);
         address = signer.getSignerAddress();
 
         const { gasPrice, nativeToken, protocol } =

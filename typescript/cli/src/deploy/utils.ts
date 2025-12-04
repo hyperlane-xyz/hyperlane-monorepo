@@ -43,7 +43,7 @@ export async function runPreflightChecksForChains({
   chainsToGasCheck?: ChainName[];
 }) {
   log('Running pre-flight checks for chains...');
-  const { multiProvider, skipConfirmation, getAltVmSigner } = context;
+  const { multiProvider, skipConfirmation, altVmSigners } = context;
 
   if (!chains?.length) throw new Error('Empty chain selection');
   for (const chain of chains) {
@@ -53,7 +53,7 @@ export async function runPreflightChecksForChains({
     const signer =
       metadata.protocol === ProtocolType.Ethereum
         ? multiProvider.getSigner(chain)
-        : await mustGetAltVmSigner(getAltVmSigner, chain);
+        : await altVmSigners(chain);
 
     if (!signer) {
       throw new Error('signer is invalid');
@@ -65,7 +65,7 @@ export async function runPreflightChecksForChains({
 
   await nativeBalancesAreSufficient(
     multiProvider,
-    getAltVmSigner,
+    altVmSigners,
     chainsToGasCheck ?? chains,
     minGas,
     skipConfirmation,
@@ -94,7 +94,7 @@ export async function runDeployPlanStep({
       break;
     }
     default: {
-      const signer = await mustGetAltVmSigner(context.getAltVmSigner, chain);
+      const signer = await context.altVmSigners(chain);
       address = signer.getSignerAddress();
     }
   }
@@ -170,7 +170,7 @@ export async function getBalances(
         `nativeToken.denom is required for ${chain} (AltVM)`,
       );
 
-      const signer = await mustGetAltVmSigner(context.getAltVmSigner, chain);
+      const signer = await context.altVmSigners(chain);
       const address = userAddress ?? signer.getSignerAddress();
       balances[chain] = BigNumber.from(
         await signer.getBalance({

@@ -131,14 +131,14 @@ export function getRouterAddressesFromWarpCoreConfig(
  */
 export async function expandWarpDeployConfig(params: {
   multiProvider: MultiProvider;
-  getAltVmProvider?: (chain: ChainName) => Promise<AltVM.IProvider>;
+  altVmProviders: (chain: ChainName) => Promise<AltVM.IProvider>;
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   deployedRoutersAddresses: ChainMap<Address>;
   expandedOnChainWarpConfig?: WarpRouteDeployConfigMailboxRequired;
 }): Promise<WarpRouteDeployConfigMailboxRequired> {
   const {
     multiProvider,
-    getAltVmProvider,
+    altVmProviders,
     warpDeployConfig,
     deployedRoutersAddresses,
     expandedOnChainWarpConfig,
@@ -271,11 +271,7 @@ export async function expandWarpDeployConfig(params: {
             break;
           }
           default: {
-            assert(
-              getAltVmProvider,
-              `AltVM provider getter is required to derive hook config for ${chain}`,
-            );
-            const provider = await getAltVmProvider(chain);
+            const provider = await altVmProviders(chain);
             const reader = new AltVMHookReader(
               (chain) => multiProvider.getChainMetadata(chain),
               provider,
@@ -303,11 +299,7 @@ export async function expandWarpDeployConfig(params: {
             break;
           }
           default: {
-            assert(
-              getAltVmProvider,
-              `AltVM provider getter is required to derive ISM config for ${chain}`,
-            );
-            const provider = await getAltVmProvider(chain);
+            const provider = await altVmProviders(chain);
             const reader = new AltVMIsmReader(
               (chain) => multiProvider.tryGetChainName(chain),
               provider,

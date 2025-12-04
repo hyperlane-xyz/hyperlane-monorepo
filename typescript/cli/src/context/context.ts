@@ -2,6 +2,7 @@ import { confirm } from '@inquirer/prompts';
 import { ethers } from 'ethers';
 
 import { loadProtocolProviders } from '@hyperlane-xyz/deploy-sdk';
+import { getProtocolProvider } from '@hyperlane-xyz/provider-sdk';
 import { IRegistry } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import {
@@ -19,7 +20,11 @@ import { readChainSubmissionStrategyConfig } from '../config/strategy.js';
 import { detectAndConfirmOrPrompt } from '../utils/input.js';
 import { getSigner } from '../utils/keys.js';
 
-import { createAltVMProviderGetter, createAltVMSignerGetter } from './altvm.js';
+import {
+  ProtocolProviderMap,
+  createAltVMProviderGetter,
+  createAltVMSignerGetter,
+} from './altvm.js';
 import { resolveChains } from './strategies/chain/chainResolver.js';
 import { MultiProtocolSignerManager } from './strategies/signer/MultiProtocolSignerManager.js';
 import {
@@ -28,6 +33,13 @@ import {
   SignerKeyProtocolMap,
   SignerKeyProtocolMapSchema,
 } from './types.js';
+
+const createUninitializedGetter =
+  (resource: 'provider' | 'signer') => async (chain: ChainName) => {
+    throw new Error(
+      `AltVM ${resource}s have not been initialised for chain ${chain}.`,
+    );
+  };
 
 export async function contextMiddleware(argv: Record<string, any>) {
   const requiresKey = isSignCommand(argv);
@@ -65,15 +77,12 @@ export async function signerMiddleware(argv: Record<string, any>) {
     (chain) =>
       argv.context.multiProvider.getProtocol(chain) !== ProtocolType.Ethereum,
   );
+  const altVmProtocols = new Set(
+    altVmChains.map((chain) => argv.context.multiProvider.getProtocol(chain)),
+  );
 
   try {
-    await loadProtocolProviders(
-      new Set(
-        altVmChains.map((chain) =>
-          argv.context.multiProvider.getProtocol(chain),
-        ),
-      ),
-    );
+    await loadProtocolProviders(altVmProtocols);
   } catch (e) {
     throw new Error(
       `Failed to load providers in context for ${altVmChains.join(', ')}`,
@@ -81,13 +90,20 @@ export async function signerMiddleware(argv: Record<string, any>) {
     );
   }
 
-  if (altVmChains.length > 0 && !argv.context.getAltVmProvider) {
-    argv.context.getAltVmProvider = createAltVMProviderGetter(
-      argv.context.multiProvider,
-    );
-  }
+  const protocolProviders =
+    altVmProtocols.size > 0
+      ? buildProtocolProviders(altVmProtocols)
+      : undefined;
 
-  if (!requiresKey) return argv;
+  if (!requiresKey) {
+    if (protocolProviders) {
+      argv.context.altVmProviders = createAltVMProviderGetter(
+        argv.context.multiProvider,
+        protocolProviders,
+      );
+    }
+    return argv;
+  }
 
   /**
    * Extracts signer config
@@ -104,11 +120,16 @@ export async function signerMiddleware(argv: Record<string, any>) {
    */
   argv.context.multiProvider = await multiProtocolSigner.getMultiProvider();
 
-  if (altVmChains.length > 0) {
-    argv.context.getAltVmSigner = createAltVMSignerGetter(
+  if (protocolProviders) {
+    argv.context.altVmProviders = createAltVMProviderGetter(
+      argv.context.multiProvider,
+      protocolProviders,
+    );
+    argv.context.altVmSigners = createAltVMSignerGetter(
       argv.context.multiProvider,
       key,
       strategyConfig,
+      protocolProviders,
     );
   }
 
@@ -155,6 +176,8 @@ export async function getContext({
     chainMetadata: multiProvider.metadata,
     multiProvider,
     multiProtocolProvider,
+    altVmProviders: createUninitializedGetter('provider'),
+    altVmSigners: createUninitializedGetter('signer'),
     supportedProtocols,
     key: keyMap,
     skipConfirmation: !!skipConfirmation,
@@ -222,6 +245,17 @@ async function getMultiProvider(registry: IRegistry, signer?: ethers.Signer) {
 async function getMultiProtocolProvider(registry: IRegistry) {
   const chainMetadata = await registry.getMetadata();
   return new MultiProtocolProvider(chainMetadata);
+}
+
+function buildProtocolProviders(
+  protocols: Set<ProtocolType>,
+): ProtocolProviderMap {
+  const providers: ProtocolProviderMap = {};
+  protocols.forEach((protocol) => {
+    if (protocol === ProtocolType.Ethereum) return;
+    providers[protocol] = getProtocolProvider(protocol);
+  });
+  return providers;
 }
 
 /**
