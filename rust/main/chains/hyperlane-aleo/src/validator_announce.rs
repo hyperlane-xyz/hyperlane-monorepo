@@ -7,6 +7,7 @@ use hyperlane_core::{
     HyperlaneProvider, SignedType, TxOutcome, ValidatorAnnounce, H160, H256, U256,
 };
 use snarkvm_console_account::{Address, FromBytes};
+use tracing::debug;
 
 use crate::{
     aleo_args,
@@ -109,14 +110,14 @@ impl<C: AleoClient> ValidatorAnnounce for AleoValidatorAnnounce<C> {
             let validator = AleoEthAddress {
                 bytes: *bytes.as_fixed_bytes(),
             };
-            let last_sequence: ChainResult<u8> = self
+            let last_sequence: Option<u8> = self
                 .provider
                 .get_mapping_value(&self.program, "storage_sequences", &validator)
-                .await;
+                .await?;
 
             let last_sequence = match last_sequence {
-                Ok(value) => value,
-                Err(_) => {
+                Some(value) => value,
+                None => {
                     storage_locations.push(Vec::new());
                     continue;
                 }
@@ -128,15 +129,22 @@ impl<C: AleoClient> ValidatorAnnounce for AleoValidatorAnnounce<C> {
                     validator: validator.bytes,
                     index,
                 };
-                let location: [u8; 480] = self
+                let location: Option<[u8; 480]> = self
                     .provider
                     .get_mapping_value(&self.program, "storage_locations", &key)
                     .await?;
-
-                let location =
-                    CStr::from_bytes_until_nul(&location).map_err(HyperlaneAleoError::from)?;
-                let location = location.to_str().map_err(HyperlaneAleoError::from)?;
-                validator_locations.push(location.to_owned());
+                match location {
+                    None => {
+                        debug!("No storage location found for validator {:?} at index {}, this should never happen!", validator, index);
+                        continue;
+                    }
+                    Some(location) => {
+                        let location = CStr::from_bytes_until_nul(&location)
+                            .map_err(HyperlaneAleoError::from)?;
+                        let location = location.to_str().map_err(HyperlaneAleoError::from)?;
+                        validator_locations.push(location.to_owned());
+                    }
+                };
             }
             storage_locations.push(validator_locations);
         }
@@ -229,6 +237,16 @@ mod tests {
             "2u8"
         );
 
+        // Unknown validators
+        provider.register_value(
+            "program/test_validator_announce.aleo/mapping/storage_sequences/{bytes:[0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,2u8]}",
+            serde_json::Value::Null
+        );
+        provider.register_value(
+            "program/test_validator_announce.aleo/mapping/storage_sequences/{bytes:[0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,0u8,3u8]}",
+            serde_json::Value::Null
+        );
+
         let locator = ContractLocator::new(&DOMAIN, H256::zero());
         AleoValidatorAnnounce::new(provider, &locator, &connection_conf())
     }
@@ -266,7 +284,7 @@ mod tests {
     async fn test_get_announced_storage_locations_unknown_validator() {
         let va = get_mock_validator_announce();
         let result = va
-            .get_announced_storage_locations(&[H256::random(), H256::random()])
+            .get_announced_storage_locations(&[H256::from_low_u64_be(2), H256::from_low_u64_be(3)])
             .await;
         assert!(result.is_ok(), "Get announced storage should not fail");
         let locations = result.unwrap();

@@ -42,7 +42,7 @@ pub(crate) trait AleoIndexer {
     /// Returns the latest event index of that specific block
     /// This index represents the last sequence number of events emitted in that block
     /// Meaning if there were 3 events emitted in that block and sequence was 5 before, the latest event index would be 8
-    async fn get_latest_event_index(&self, height: u32) -> ChainResult<u32> {
+    async fn get_latest_event_index(&self, height: u32) -> ChainResult<Option<u32>> {
         self.get_provider()
             .get_mapping_value(self.get_program(), Self::INDEX_MAPPING, &height)
             .await
@@ -78,9 +78,13 @@ pub(crate) trait AleoIndexer {
         let relevant_blocks = future::join_all(relevant_blocks)
             .await
             .into_iter()
+            .collect::<ChainResult<Vec<_>>>()?
+            .into_iter()
             // We are just interested in blocks that have events
-            // So we filter out blocks where the result is an Err
-            .flatten()
+            // So we filter out blocks where the result is None
+            .filter_map(|(height, latest_event_index)| {
+                latest_event_index.map(|index| (height, index))
+            })
             .collect_vec();
 
         let block_logs_futures = relevant_blocks
@@ -133,8 +137,10 @@ pub(crate) trait AleoIndexer {
         let latest_event_index = self
             .get_latest_event_index(block.metadata().height())
             .await?;
-        self.get_logs_for_block(block, latest_event_index, Some(tx_id))
-            .await
+        match latest_event_index {
+            Some(index) => self.get_logs_for_block(block, index, Some(tx_id)).await,
+            None => Ok(vec![]),
+        }
     }
 
     /// Fetch logs for a specific block
