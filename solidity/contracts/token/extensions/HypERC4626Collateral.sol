@@ -68,7 +68,7 @@ contract HypERC4626Collateral is TokenRouter {
         address _interchainSecurityModule,
         address _owner
     ) public initializer {
-        wrappedToken.safeApprove(address(vault), type(uint256).max);
+        wrappedToken.forceApprove(address(vault), type(uint256).max);
         _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
     }
 
