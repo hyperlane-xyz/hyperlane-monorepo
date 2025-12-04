@@ -926,7 +926,13 @@ impl ChainConf {
                     h_radix::RadixValidatorAnnounce::new(provider, &locator, conf)?;
                 Ok(Box::new(validator_announce) as Box<dyn ValidatorAnnounce>)
             }
-            ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
+            ChainConnectionConf::Aleo(conf) => {
+                let signer = self.aleo_signer().await?;
+                let provider = build_aleo_provider(self, conf, metrics, &locator, signer)?;
+                let validator_announce =
+                    h_aleo::AleoValidatorAnnounce::new(provider, &locator, conf);
+                Ok(Box::new(validator_announce) as Box<dyn ValidatorAnnounce>)
+            }
         }
         .context("Building ValidatorAnnounce")
     }
@@ -1466,11 +1472,19 @@ fn build_starknet_provider(
 }
 
 fn build_aleo_provider(
-    _chain_conf: &ChainConf,
+    chain_conf: &ChainConf,
     connection_conf: &h_aleo::ConnectionConf,
-    _metrics: &CoreMetrics,
+    metrics: &CoreMetrics,
     locator: &ContractLocator,
     signer: Option<h_aleo::AleoSigner>,
 ) -> ChainResult<AleoProvider> {
-    AleoProvider::new(connection_conf, locator.domain.clone(), signer)
+    let middleware_metrics = chain_conf.metrics_conf();
+    let metrics = metrics.client_metrics();
+    AleoProvider::new(
+        connection_conf,
+        locator.domain.clone(),
+        signer,
+        metrics.clone(),
+        middleware_metrics.chain.clone(),
+    )
 }

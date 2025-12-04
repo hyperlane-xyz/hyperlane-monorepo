@@ -3,7 +3,7 @@ import { ChainName, EvmHookReader } from '@hyperlane-xyz/sdk';
 import {
   Address,
   ProtocolType,
-  assert,
+  mustGet,
   stringifyObject,
 } from '@hyperlane-xyz/utils';
 
@@ -25,7 +25,8 @@ export async function readHookConfig({
   address: Address;
   out?: string;
 }): Promise<void> {
-  switch (context.multiProvider.getProtocol(chain)) {
+  const protocol = context.multiProvider.getProtocol(chain);
+  switch (protocol) {
     case ProtocolType.Ethereum: {
       const hookReader = new EvmHookReader(context.multiProvider, chain);
       const config = await hookReader.deriveHookConfig(address);
@@ -40,8 +41,7 @@ export async function readHookConfig({
       break;
     }
     default: {
-      const provider = context.altVmProvider.get(chain);
-      assert(provider, `Cannot find provider for chain ${chain}`);
+      const provider = mustGet(context.altVmProviders, chain);
       const hookReader = new AltVMHookReader(
         (chain) => context.multiProvider.getChainMetadata(chain),
         provider,

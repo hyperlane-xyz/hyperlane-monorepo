@@ -4,13 +4,15 @@ use std::str::FromStr;
 use async_trait::async_trait;
 use snarkvm::prelude::{Address, FromBytes, Plaintext, ProgramID};
 
+use aleo_serialize::AleoSerialize;
 use hyperlane_core::{
-    ChainResult, ContractLocator, Encode, FixedPointNumber, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Mailbox, ReorgPeriod, TxCostEstimate,
-    TxOutcome, H256, U256,
+    ChainCommunicationError, ChainResult, ContractLocator, Encode, FixedPointNumber,
+    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
+    Mailbox, ReorgPeriod, TxCostEstimate, TxOutcome, H256, U256,
 };
 
 use crate::provider::{AleoClient, FallbackHttpClient};
+use crate::types::AleoGetMappingValue;
 use crate::utils::{hash_to_aleo_hash, pad_to_length, to_h256};
 use crate::{
     aleo_args, AleoMailboxStruct, AleoMessage, AleoProvider, AppMetadata, ConnectionConf,
@@ -228,17 +230,38 @@ impl<C: AleoClient> Mailbox for AleoMailbox<C> {
     /// against the provided signed checkpoint
     async fn process_calldata(
         &self,
-        _message: &HyperlaneMessage,
-        _metadata: &[u8],
+        message: &HyperlaneMessage,
+        metadata: &[u8],
     ) -> ChainResult<Vec<u8>> {
-        // Not implemented, only needed for lander
-        unimplemented!()
+        let recipient = self.get_recipient(message.recipient).await?.to_string();
+        let inputs = self.get_process_args(message, metadata).await?;
+
+        let tx_data = crate::AleoTxData {
+            program_id: recipient,
+            function_name: "process".to_string(),
+            inputs,
+        };
+
+        let json_val = serde_json::to_vec(&tx_data).map_err(ChainCommunicationError::from)?;
+        Ok(json_val)
     }
 
     /// Get the calldata for a call which allows to check if a particular messages was delivered
-    fn delivered_calldata(&self, _message_id: H256) -> ChainResult<Option<Vec<u8>>> {
-        // Not implemented, only needed for lander
-        unimplemented!()
+    fn delivered_calldata(&self, message_id: H256) -> ChainResult<Option<Vec<u8>>> {
+        let id = hash_to_aleo_hash(&message_id)?;
+        let key: Plaintext<CurrentNetwork> = DeliveryKey { id }
+            .to_plaintext()
+            .map_err(HyperlaneAleoError::from)?;
+
+        let get_mapping_value = AleoGetMappingValue {
+            program_id: self.program.clone(),
+            mapping_name: "deliveries".to_string(),
+            mapping_key: key.to_string(),
+        };
+
+        let json_val =
+            serde_json::to_vec(&get_mapping_value).map_err(ChainCommunicationError::from)?;
+        Ok(Some(json_val))
     }
 }
 

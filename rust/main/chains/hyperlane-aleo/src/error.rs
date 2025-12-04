@@ -46,6 +46,9 @@ pub enum HyperlaneAleoError {
     /// Unknown Merkle Tree Hook
     #[error("Unknown Merkle Tree Hook: {0}")]
     UnknownMerkleTreeHook(String),
+    /// TryFromSliceError
+    #[error("{0}")]
+    TryFromSliceError(#[from] std::array::TryFromSliceError),
     /// Other errors
     #[error("{0}")]
     Other(String),

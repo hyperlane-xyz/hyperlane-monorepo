@@ -1,4 +1,5 @@
 import { ethers } from 'ethers';
+import http from 'http';
 import path from 'path';
 import { $ } from 'zx';
 
@@ -18,6 +19,7 @@ import {
   XERC20VSTest,
   XERC20VSTest__factory,
 } from '@hyperlane-xyz/core';
+import { TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
 import {
   WarpCoreConfig,
   WarpCoreConfigSchema,
@@ -47,15 +49,17 @@ export function exportWarpConfigsToFilePaths({
   warpRouteId,
   warpConfig,
   warpCoreConfig,
+  registryPath = REGISTRY_PATH,
 }: {
   warpRouteId: string;
   warpConfig: WarpRouteDeployConfig;
   warpCoreConfig: WarpCoreConfig;
+  registryPath?: string;
 }): {
   warpDeployPath: string;
   warpCorePath: string;
 } {
-  const basePath = `${REGISTRY_PATH}/deployments/warp_routes/${warpRouteId}`;
+  const basePath = `${registryPath}/deployments/warp_routes/${warpRouteId}`;
   const updatedWarpConfigPath = `${basePath}-deploy.yaml`;
   const updatedWarpCorePath = `${basePath}-config.yaml`;
   writeYamlOrJson(updatedWarpConfigPath, warpConfig);
@@ -174,9 +178,10 @@ export async function deployToken(
   decimals = 18,
   symbol = 'TOKEN',
   name = 'token',
+  registryPath = REGISTRY_PATH,
 ): Promise<ERC20Test> {
   const { multiProvider } = await getContext({
-    registryUris: [REGISTRY_PATH],
+    registryUris: [registryPath],
     key: privateKey,
   });
 
@@ -299,9 +304,10 @@ export async function deployTestOffchainLookupISM(
   privateKey: string,
   chain: string,
   urls: string[] = [],
+  registryPath: string = REGISTRY_PATH,
 ): Promise<AbstractCcipReadIsm> {
   const { multiProvider } = await getContext({
-    registryUris: [REGISTRY_PATH],
+    registryUris: [registryPath],
     key: privateKey,
   });
 
@@ -321,9 +327,10 @@ export async function deployTestOffchainLookupISM(
 export async function deployEverclearBridgeAdapter(
   privateKey: string,
   chain: string,
+  registryPath: string,
 ): Promise<MockEverclearAdapter> {
   const { multiProvider } = await getContext({
-    registryUris: [REGISTRY_PATH],
+    registryUris: [registryPath],
     key: privateKey,
   });
 
@@ -419,4 +426,75 @@ export async function hyperlaneSubmit({
         --verbosity debug \
         ${strategyPath ? ['--strategy', strategyPath] : []} \
         --yes`;
+}
+
+/**
+ * Creates a mock Safe Transaction Service API server.
+ */
+export async function createMockSafeApi(
+  metadata: TestChainMetadata,
+  safeAddress: Address,
+  safeOwner: Address,
+  nonce: number,
+): Promise<{
+  server: ReturnType<typeof http.createServer>;
+  url: string;
+  close: () => Promise<void>;
+}> {
+  const serviceUrl = metadata.gnosisSafeTransactionServiceUrl;
+  assert(
+    serviceUrl,
+    `Safe service url is required for running mock SAFE service for chain ${metadata.name}`,
+  );
+  const port = new URL(serviceUrl).port;
+
+  const server = http.createServer((req, res) => {
+    const url = req.url || '';
+    console.info('Mock safe API received request', req.method, url);
+
+    if (url.includes('/safes/') && url.includes('multisig-transactions')) {
+      // Mock GET /v2/safes/${address}/multisig-transactions/`
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+
+      res.end(JSON.stringify({ count: 0, results: [] }));
+    } else if (url.includes('/safes/')) {
+      // Mock GET /api/v1/safes/{address}/
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          address: safeAddress,
+          nonce,
+          threshold: 1,
+          owners: [safeOwner],
+          masterCopy: safeAddress,
+          modules: [],
+          version: '1.3.0',
+        }),
+      );
+    } else if (url.includes('/delegates')) {
+      // Mock GET /api/v2/delegates?safe={address}
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+
+      res.end(JSON.stringify({ count: 1, results: [{ delegate: safeOwner }] }));
+    } else if (
+      req.method === 'POST' &&
+      url.includes('/multisig-transactions')
+    ) {
+      // Mock POST /api/v2/safes/{address}/multisig-transactions/
+      res.writeHead(201, { 'Content-Type': 'application/json' });
+
+      res.end(JSON.stringify({ success: true }));
+    } else {
+      res.statusCode = 404;
+      res.end();
+    }
+  });
+
+  await new Promise<void>((resolve) => server.listen(port, resolve));
+
+  return {
+    server,
+    url: serviceUrl,
+    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+  };
 }
