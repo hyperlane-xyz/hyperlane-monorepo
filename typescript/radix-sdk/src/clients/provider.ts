@@ -11,6 +11,12 @@ import {
   getMerkleTreeHookConfig,
 } from '../hook/hook-query.js';
 import {
+  getCreateIgpTransaction,
+  getCreateMerkleTreeHookTransaction,
+  getSetIgpDestinationGasConfigTransaction,
+  getSetIgpOwnerTransaction,
+} from '../hook/hook-tx.js';
+import {
   getDomainRoutingIsmConfig,
   getIsmType,
   getMultisigIsmConfig,
@@ -523,10 +529,14 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   ): Promise<RadixSDKTransaction> {
     return {
       networkId: this.networkId,
-      manifest: await this.populate.core.createMerkleTreeHook({
-        from_address: req.signer,
-        mailbox: req.mailboxAddress,
-      }),
+      manifest: await getCreateMerkleTreeHookTransaction(
+        this.base,
+        this.packageAddress,
+        {
+          fromAddress: req.signer,
+          mailboxAddress: req.mailboxAddress,
+        },
+      ),
     };
   }
 
@@ -537,9 +547,9 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
 
     return {
       networkId: this.networkId,
-      manifest: await this.populate.core.createIgp({
-        from_address: req.signer,
-        denom: req.denom,
+      manifest: await getCreateIgpTransaction(this.base, this.packageAddress, {
+        fromAddress: req.signer,
+        nativeTokenDenom: req.denom,
       }),
     };
   }
@@ -549,10 +559,10 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   ): Promise<RadixSDKTransaction> {
     return {
       networkId: this.networkId,
-      manifest: await this.populate.core.setIgpOwner({
-        from_address: req.signer,
-        igp: req.hookAddress,
-        new_owner: req.newOwner,
+      manifest: await getSetIgpOwnerTransaction(this.base, this.gateway, {
+        fromAddress: req.signer,
+        igpAddress: req.hookAddress,
+        newOwner: req.newOwner,
       }),
     };
   }
@@ -562,9 +572,9 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   ): Promise<RadixSDKTransaction> {
     return {
       networkId: this.networkId,
-      manifest: await this.populate.core.setDestinationGasConfig({
-        from_address: req.signer,
-        igp: req.hookAddress,
+      manifest: await getSetIgpDestinationGasConfigTransaction(this.base, {
+        fromAddress: req.signer,
+        igpAddress: req.hookAddress,
         destinationGasConfig: req.destinationGasConfig,
       }),
     };

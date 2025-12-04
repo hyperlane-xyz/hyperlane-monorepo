@@ -8,6 +8,12 @@ import { assert, strip0x } from '@hyperlane-xyz/utils';
 
 import { RadixCoreTx } from '../core/tx.js';
 import {
+  getCreateIgpTransaction,
+  getCreateMerkleTreeHookTransaction,
+  getSetIgpDestinationGasConfigTransaction,
+  getSetIgpOwnerTransaction,
+} from '../hook/hook-tx.js';
+import {
   getCreateMerkleRootMultisigIsmTransaction,
   getCreateMessageIdMultisigIsmTransaction,
   getCreateNoopIsmTransaction,
@@ -358,10 +364,20 @@ export class RadixSigner
   async createMerkleTreeHook(
     req: Omit<AltVM.ReqCreateMerkleTreeHook, 'signer'>,
   ): Promise<AltVM.ResCreateMerkleTreeHook> {
+    const transactionManifest = await getCreateMerkleTreeHookTransaction(
+      this.base,
+      this.packageAddress,
+      {
+        fromAddress: this.account.address,
+        mailboxAddress: req.mailboxAddress,
+      },
+    );
+
+    const receipt = await this.signer.signAndBroadcast(transactionManifest);
+
+    const hookAddress = await this.base.getNewComponent(receipt);
     return {
-      hookAddress: await this.tx.core.createMerkleTreeHook({
-        mailbox: req.mailboxAddress,
-      }),
+      hookAddress,
     };
   }
 
@@ -370,21 +386,37 @@ export class RadixSigner
   ): Promise<AltVM.ResCreateInterchainGasPaymasterHook> {
     assert(req.denom, `denom required by ${RadixProvider.name}`);
 
+    const transactionManifest = await getCreateIgpTransaction(
+      this.base,
+      this.packageAddress,
+      {
+        fromAddress: this.account.address,
+        nativeTokenDenom: req.denom,
+      },
+    );
+
+    const receipt = await this.signer.signAndBroadcast(transactionManifest);
+
+    const hookAddress = await this.base.getNewComponent(receipt);
     return {
-      hookAddress: await this.tx.core.createIgp({
-        denom: req.denom,
-      }),
+      hookAddress,
     };
   }
 
   async setInterchainGasPaymasterHookOwner(
     req: Omit<AltVM.ReqSetInterchainGasPaymasterHookOwner, 'signer'>,
   ): Promise<AltVM.ResSetInterchainGasPaymasterHookOwner> {
-    await this.tx.core.setIgpOwner({
-      igp: req.hookAddress,
-      new_owner: req.newOwner,
-    });
+    const transactionManifest = await getSetIgpOwnerTransaction(
+      this.base,
+      this.gateway,
+      {
+        fromAddress: this.account.address,
+        igpAddress: req.hookAddress,
+        newOwner: req.newOwner,
+      },
+    );
 
+    await this.signer.signAndBroadcast(transactionManifest);
     return {
       newOwner: req.newOwner,
     };
@@ -393,11 +425,16 @@ export class RadixSigner
   async setDestinationGasConfig(
     req: Omit<AltVM.ReqSetDestinationGasConfig, 'signer'>,
   ): Promise<AltVM.ResSetDestinationGasConfig> {
-    await this.tx.core.setDestinationGasConfig({
-      igp: req.hookAddress,
-      destinationGasConfig: req.destinationGasConfig,
-    });
+    const transactionManifest = await getSetIgpDestinationGasConfigTransaction(
+      this.base,
+      {
+        fromAddress: this.account.address,
+        igpAddress: req.hookAddress,
+        destinationGasConfig: req.destinationGasConfig,
+      },
+    );
 
+    await this.signer.signAndBroadcast(transactionManifest);
     return {
       destinationGasConfig: req.destinationGasConfig,
     };

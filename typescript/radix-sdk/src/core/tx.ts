@@ -63,67 +63,6 @@ export class RadixCoreTx {
     return this.base.getNewComponent(receipt);
   }
 
-  public async createMerkleTreeHook({ mailbox }: { mailbox: string }) {
-    const transactionManifest = await this.populate.createMerkleTreeHook({
-      from_address: this.account.address,
-      mailbox,
-    });
-
-    const receipt = await this.signer.signAndBroadcast(transactionManifest);
-
-    return this.base.getNewComponent(receipt);
-  }
-
-  public async createIgp({ denom }: { denom: string }) {
-    const transactionManifest = await this.populate.createIgp({
-      from_address: this.account.address,
-      denom,
-    });
-
-    const receipt = await this.signer.signAndBroadcast(transactionManifest);
-
-    return this.base.getNewComponent(receipt);
-  }
-
-  public async setIgpOwner({
-    igp,
-    new_owner,
-  }: {
-    igp: string;
-    new_owner: string;
-  }) {
-    const transactionManifest = await this.populate.setIgpOwner({
-      from_address: this.account.address,
-      igp,
-      new_owner,
-    });
-
-    await this.signer.signAndBroadcast(transactionManifest);
-  }
-
-  public async setDestinationGasConfig({
-    igp,
-    destinationGasConfig,
-  }: {
-    igp: string;
-    destinationGasConfig: {
-      remoteDomainId: number;
-      gasOracle: {
-        tokenExchangeRate: string;
-        gasPrice: string;
-      };
-      gasOverhead: string;
-    };
-  }) {
-    const transactionManifest = await this.populate.setDestinationGasConfig({
-      from_address: this.account.address,
-      igp,
-      destinationGasConfig,
-    });
-
-    await this.signer.signAndBroadcast(transactionManifest);
-  }
-
   public async setMailboxOwner({
     mailbox,
     new_owner,
