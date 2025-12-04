@@ -49,6 +49,7 @@ import {
   RadixSDKOptions,
   RadixSDKTransaction,
 } from '../utils/types.js';
+import { getCreateValidatorAnnounceTransaction } from '../validator-announce/validator-announce-ts.js';
 import { RadixWarpPopulate } from '../warp/populate.js';
 import { RadixWarpQuery } from '../warp/query.js';
 
@@ -610,10 +611,14 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   ): Promise<RadixSDKTransaction> {
     return {
       networkId: this.networkId,
-      manifest: await this.populate.core.createValidatorAnnounce({
-        from_address: req.signer,
-        mailbox: req.mailboxAddress,
-      }),
+      manifest: await getCreateValidatorAnnounceTransaction(
+        this.base,
+        this.packageAddress,
+        {
+          fromAddress: req.signer,
+          mailboxAddress: req.mailboxAddress,
+        },
+      ),
     };
   }
 

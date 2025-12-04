@@ -41,6 +41,7 @@ import {
   stringToTransactionManifest,
   transactionManifestToString,
 } from '../utils/utils.js';
+import { getCreateValidatorAnnounceTransaction } from '../validator-announce/validator-announce-ts.js';
 import { RadixWarpTx } from '../warp/tx.js';
 
 import { RadixProvider } from './provider.js';
@@ -496,10 +497,20 @@ export class RadixSigner
   async createValidatorAnnounce(
     req: Omit<AltVM.ReqCreateValidatorAnnounce, 'signer'>,
   ): Promise<AltVM.ResCreateValidatorAnnounce> {
+    const transactionManifest = await getCreateValidatorAnnounceTransaction(
+      this.base,
+      this.packageAddress,
+      {
+        fromAddress: this.account.address,
+        mailboxAddress: req.mailboxAddress,
+      },
+    );
+
+    const receipt = await this.signer.signAndBroadcast(transactionManifest);
+
+    const validatorAnnounceId = await this.base.getNewComponent(receipt);
     return {
-      validatorAnnounceId: await this.tx.core.createValidatorAnnounce({
-        mailbox: req.mailboxAddress,
-      }),
+      validatorAnnounceId,
     };
   }
 

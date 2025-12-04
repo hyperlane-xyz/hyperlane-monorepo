@@ -51,15 +51,4 @@ export class RadixCoreTx {
 
     await this.signer.signAndBroadcast(transactionManifest);
   }
-
-  public async createValidatorAnnounce({ mailbox }: { mailbox: string }) {
-    const transactionManifest = await this.populate.createValidatorAnnounce({
-      from_address: this.account.address,
-      mailbox,
-    });
-
-    const receipt = await this.signer.signAndBroadcast(transactionManifest);
-
-    return this.base.getNewComponent(receipt);
-  }
 }
