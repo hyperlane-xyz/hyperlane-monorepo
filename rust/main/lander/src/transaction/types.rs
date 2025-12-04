@@ -1,7 +1,7 @@
 // TODO: re-enable clippy warnings
 #![allow(dead_code)]
 
-use std::{collections::HashMap, ops::Deref};
+use std::{collections::HashMap, fmt, ops::Deref};
 
 use chrono::{DateTime, Utc};
 
@@ -17,7 +17,7 @@ pub type TransactionUuid = UniqueIdentifier;
 pub type SignerAddress = H256;
 
 /// Full details about a transaction
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
+#[derive(Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub struct Transaction {
     /// unique tx identifier. Used as primary key in the db.
     pub uuid: TransactionUuid,
@@ -38,6 +38,17 @@ pub struct Transaction {
     pub last_submission_attempt: Option<DateTime<Utc>>,
     /// the date and time the transaction status was last checked
     pub last_status_check: Option<DateTime<Utc>>,
+}
+
+impl fmt::Debug for Transaction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Transaction")
+            .field("uuid", &self.uuid)
+            .field("tx_hashes_count", &self.tx_hashes.len())
+            .field("status", &self.status)
+            .field("submission_attempts", &self.submission_attempts)
+            .finish_non_exhaustive()
+    }
 }
 
 #[derive(Default, Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq, Hash)]
