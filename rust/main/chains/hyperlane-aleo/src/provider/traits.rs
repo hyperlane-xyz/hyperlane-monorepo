@@ -163,18 +163,23 @@ impl<Client: HttpClient> RpcClient<Client> {
         program_id: &str,
         mapping_name: &str,
         mapping_key: &K,
-    ) -> ChainResult<T> {
+    ) -> ChainResult<Option<T>> {
         let plaintext_key = mapping_key
             .to_plaintext()
             .map_err(HyperlaneAleoError::from)?;
-        let plain_text: Plaintext<CurrentNetwork> = self
+        let plain_text: Option<Plaintext<CurrentNetwork>> = self
             .request(
                 &format!("program/{program_id}/mapping/{mapping_name}/{plaintext_key}"),
                 None,
             )
             .await?;
-        let result = T::parse_value(plain_text).map_err(HyperlaneAleoError::from)?;
-        Ok(result)
+        match plain_text {
+            None => Ok(None),
+            Some(plain_text) => {
+                let result = T::parse_value(plain_text).map_err(HyperlaneAleoError::from)?;
+                Ok(Some(result))
+            }
+        }
     }
 
     /// Gets a value from a program mapping
