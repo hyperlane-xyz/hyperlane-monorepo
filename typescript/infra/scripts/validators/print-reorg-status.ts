@@ -98,7 +98,7 @@ async function main() {
         const validator = defaultIsmValidators.find((v) =>
           eqAddress(v.address, address),
         );
-        return validator?.alias || '';
+        return validator?.alias ?? '';
       };
 
       // For each validator on this chain
