@@ -404,6 +404,12 @@ impl PendingOperation for PendingMessage {
 
         // We use the estimated gas limit from the prior call to
         // `process_estimate_costs` to avoid a second gas estimation.
+        debug!(
+            message_id = ?self.message.id(),
+            gas_limit = ?state.gas_limit,
+            destination = ?self.message.destination,
+            "Submitting message process transaction"
+        );
         let tx_outcome = self
             .ctx
             .destination_mailbox
@@ -411,11 +417,22 @@ impl PendingOperation for PendingMessage {
             .await;
         match tx_outcome {
             Ok(outcome) => {
+                info!(
+                    message_id = ?self.message.id(),
+                    tx_id = ?outcome.transaction_id,
+                    gas_used = ?outcome.gas_used,
+                    "Process transaction submitted successfully"
+                );
                 self.set_operation_outcome(outcome, state.gas_limit).await;
                 PendingOperationResult::Confirm(ConfirmReason::SubmittedBySelf)
             }
             Err(e) => {
-                error!(error=?e, "Error when processing message");
+                error!(
+                    message_id = ?self.message.id(),
+                    error = ?e,
+                    gas_limit = ?state.gas_limit,
+                    "Process transaction submission failed"
+                );
                 self.clear_metadata();
                 return PendingOperationResult::Reprepare(ReprepareReason::ErrorSubmitting);
             }
@@ -435,13 +452,27 @@ impl PendingOperation for PendingMessage {
             return PendingOperationResult::NotReady;
         }
 
+        debug!(
+            message_id = ?self.message.id(),
+            submission_outcome = ?self.submission_outcome,
+            destination = ?self.message.destination,
+            "Checking message delivery status on destination chain"
+        );
+
         let is_delivered = match self
             .ctx
             .destination_mailbox
             .delivered(self.message.id())
             .await
         {
-            Ok(is_delivered) => is_delivered,
+            Ok(is_delivered) => {
+                debug!(
+                    message_id = ?self.message.id(),
+                    is_delivered = is_delivered,
+                    "Delivery status check result"
+                );
+                is_delivered
+            }
             Err(err) => {
                 return self.on_reconfirm(Some(err), "Error confirming message delivery");
             }
@@ -453,12 +484,20 @@ impl PendingOperation for PendingMessage {
                     .on_reconfirm(Some(err), "Error when recording message process success");
             }
             info!(
-                submission=?self.submission_outcome,
+                message_id = ?self.message.id(),
+                submission = ?self.submission_outcome,
                 "Message successfully processed"
             );
             PendingOperationResult::Success
         } else {
-            warn!(message_id = ?self.message.id(), tx_outcome=?self.submission_outcome, "Transaction attempting to process message either reverted or was reorged");
+            warn!(
+                message_id = ?self.message.id(),
+                tx_outcome = ?self.submission_outcome,
+                has_tx_outcome = self.submission_outcome.is_some(),
+                destination = ?self.message.destination,
+                num_retries = self.num_retries,
+                "Transaction attempting to process message either reverted or was reorged"
+            );
             let span = info_span!(
                 "Error: Transaction attempting to process message either reverted or was reorged",
                 tx_outcome=?self.submission_outcome,
