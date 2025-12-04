@@ -46,7 +46,7 @@ Run the following to install `foundryup`:
 curl -L https://foundry.paradigm.xyz | bash
 ```
 
-Then install the pinned Foundry version from `.foundryrc`:
+Then run `foundryup` with the pinned version to install `forge`, `cast`, `anvil` and `chisel`.
 
 ```bash
 foundryup --install $(cat .foundryrc)
