@@ -3,6 +3,7 @@ import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import { HypReader } from '@hyperlane-xyz/provider-sdk/module';
 import {
   DerivedCollateralWarpConfig,
+  DerivedNativeWarpConfig,
   DerivedSyntheticWarpConfig,
   DerivedWarpConfig,
   DestinationGas,
@@ -88,6 +89,13 @@ export class AltVMWarpRouteReader implements HypReader<TokenRouterModuleType> {
 
     // Return discriminated union based on type
     switch (token.tokenType) {
+      case AltVM.TokenType.native: {
+        const nativeConfig: DerivedNativeWarpConfig = {
+          ...baseConfig,
+          type: TokenType.native,
+        };
+        return nativeConfig;
+      }
       case AltVM.TokenType.collateral: {
         const collateralConfig: DerivedCollateralWarpConfig = {
           ...baseConfig,
@@ -123,6 +131,8 @@ export class AltVMWarpRouteReader implements HypReader<TokenRouterModuleType> {
     });
 
     switch (token.tokenType) {
+      case AltVM.TokenType.native:
+        return TokenType.native;
       case AltVM.TokenType.collateral:
         return TokenType.collateral;
       case AltVM.TokenType.synthetic:
