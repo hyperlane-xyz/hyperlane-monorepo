@@ -69,20 +69,20 @@ hyperlane-cosmos-rs = { package = "hyperlane-cosmos-dymension-rs", git = "https:
 
 # Kaspa
 
-kaspa-consensus-core = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }
-kaspa-txscript = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }
-kaspa-wallet-pskt = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }
-kaspa-wrpc-client = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }
-kaspa-addresses = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }
-kaspa-wallet-core = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }
-kaspa-wallet-keys = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }
-kaspa-rpc-core = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }
-kaspa-core = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }
-kaspa-grpc-client = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }
-kaspa-utils-tower = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }
-kaspa-hashes = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }
-kaspa-bip32 = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }
-kaspa-consensus-client = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }
+kaspa-consensus-core = { workspace = true }
+kaspa-txscript = { workspace = true }
+kaspa-wallet-pskt = { workspace = true }
+kaspa-wrpc-client = { workspace = true }
+kaspa-addresses = { workspace = true }
+kaspa-wallet-core = { workspace = true }
+kaspa-wallet-keys = { workspace = true }
+kaspa-rpc-core = { workspace = true }
+kaspa-core = { workspace = true }
+kaspa-grpc-client = { workspace = true }
+kaspa-utils-tower = { workspace = true }
+kaspa-hashes = { workspace = true }
+kaspa-bip32 = { workspace = true }
+kaspa-consensus-client = { workspace = true }
 
 [build-dependencies]
 anyhow = { workspace = true }

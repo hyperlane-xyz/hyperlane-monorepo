@@ -204,6 +204,21 @@ sbor = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git", branch =
 ] }
 hyperlane-cosmos-rs = { package = "hyperlane-cosmos-dymension-rs", git = "https://github.com/dymensionxyz/hyperlane-cosmos-rs", rev = "4cde36b" }
 
+## Kaspa dependencies
+kaspa-consensus-core = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }
+kaspa-txscript = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }
+kaspa-wallet-pskt = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }
+kaspa-wrpc-client = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }
+kaspa-addresses = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }
+kaspa-wallet-core = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }
+kaspa-wallet-keys = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }
+kaspa-rpc-core = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }
+kaspa-core = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }
+kaspa-grpc-client = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }
+kaspa-utils-tower = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }
+kaspa-hashes = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }
+kaspa-bip32 = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }
+kaspa-consensus-client = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }
 
 ## TODO: remove this
 cosmwasm-schema = "2.2.0"
