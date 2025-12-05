@@ -1,10 +1,10 @@
 # Transaction Broadcast Behavior (`/transaction/broadcast`)
 
-Reference: https://gist.github.com/iamalwaysuncomfortable/d79660cd609be50866fef16b05cbcde2
+Reference: [Aleo Transaction Broadcast Errors](https://gist.github.com/iamalwaysuncomfortable/d79660cd609be50866fef16b05cbcde2)
 
 ## Overview
 
-The transaction broadcast endpoint can be hit with our without the `check_transaction` flag set to `true`.
+The transaction broadcast endpoint can be hit with or without the `check_transaction` flag set to `true`.
 
 The diagram below shows the flow of response codes when broadcasting to `/transaction/broadcast?check_transaction=true`
 
@@ -57,7 +57,8 @@ If you get a `200` response, this means the node has **accepted** the transactio
 After receiving a `200`, you can:
 
 1. **Check the Unconfirmed Transaction**
-   Call the **UnconfirmedTransaction** endpoint to see if the transaction has landed in the mempool, if you want to verify that it has truly landed after the `200` response.
+   Call the **UnconfirmedTransaction** endpoint to see if the transaction has landed in the mempool, if you want to
+   verify that it has truly landed after the `200` response.
 
 2. **Check the Confirmed Transaction**
    Call the **ConfirmedTransaction** endpoint to see if the transaction has been accepted by the chain.
@@ -73,7 +74,8 @@ These responses indicate that the transaction was **not** accepted, or could not
 ### `400 Bad Request`
 
 - **Message:** `"Transaction size exceeds the byte limit"`
-  The transaction exceeded a **128 byte** limit (only possible if the inputs or outputs are too large; you will almost never hit this).
+  The transaction exceeded a **128-KBytes** limit (only possible if the inputs or outputs are too large; you will rarely
+  hit this).
 
   **Action:**
   Ensure the transaction size is within the allowed limits and that inputs/outputs are not excessively large.
@@ -112,12 +114,14 @@ These indicate that either something was wrong in the transaction JSON or some p
   The transaction structure was malformed or too large.
 
   **Action:**
-  Check to ensure you're correctly building the transaction and that the software you built it with is on a recent SDK or SnarkVM dependency.
+  Check to ensure you're correctly building the transaction and that the software you built it with is on a recent SDK
+  or SnarkVM dependency.
 
 ---
 
 - **Message:** `"Transaction '{}' already exists in the ledger"`
-  The transaction you submitted already exists in the ledger. This usually means you already sent this transaction and it has been included.
+  The transaction you submitted already exists in the ledger. This usually means you already sent this transaction and
+  it has been included.
 
   **Action:**
   Confirm the transaction exists and is as expected via the **ConfirmedTransaction** endpoint.
@@ -130,7 +134,8 @@ These indicate that either something was wrong in the transaction JSON or some p
   This generally occurs when you've accidentally used a record input for a record that's already been spent.
 
   **Action:**
-  Confirm the record you're using hasn't already been spent/used, and replace it with a record which hasn't yet been spent.
+  Confirm the record you're using hasn't already been spent/used, and replace it with a record which hasn't yet been
+  spent.
 
 ---
 
