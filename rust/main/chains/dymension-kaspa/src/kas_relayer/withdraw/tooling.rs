@@ -1,5 +1,5 @@
-use corelib::escrow::*;
-use bridge::util::input_sighash_type;
+use dym_kas_core::escrow::*;
+use dym_kas_bridge::util::input_sighash_type;
 use eyre::Result;
 use kaspa_addresses::Address;
 use kaspa_consensus_core::tx::{TransactionOutpoint, UtxoEntry};

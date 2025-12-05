@@ -1,14 +1,14 @@
 use super::messages::PopulatedInput;
 use super::minimum::{is_dust, is_small_value};
 use super::populated_input::PopulatedInputBuilder;
-use crate::withdraw::sweep::utxo_reference_from_populated_input;
-use corelib::escrow::EscrowPublic;
-use corelib::finality;
-use bridge::message::parse_hyperlane_metadata;
-use bridge::util::{get_recipient_script_pubkey, input_sighash_type};
-use corelib::wallet::EasyKaspaWallet;
-use corelib::wallet::SigningResources;
-use bridge::withdraw::WithdrawFXG;
+use crate::kas_relayer::withdraw::sweep::utxo_reference_from_populated_input;
+use dym_kas_core::escrow::EscrowPublic;
+use dym_kas_core::finality;
+use dym_kas_bridge::message::parse_hyperlane_metadata;
+use dym_kas_bridge::util::{get_recipient_script_pubkey, input_sighash_type};
+use dym_kas_core::wallet::EasyKaspaWallet;
+use dym_kas_core::wallet::SigningResources;
+use dym_kas_bridge::withdraw::WithdrawFXG;
 use eyre::eyre;
 use eyre::Result;
 use hyperlane_core::HyperlaneMessage;
@@ -511,7 +511,7 @@ fn finalize_txs(
     txs_sigs: Vec<PSKT<Combiner>>,
     messages: Vec<Vec<HyperlaneMessage>>,
     escrow: &EscrowPublic,
-    relayer_pub_key: secp256k1::PublicKey,
+    relayer_pub_key: kaspa_bip32::secp256k1::PublicKey,
     network_id: NetworkId,
 ) -> Result<Vec<RpcTransaction>> {
     let transactions_result: Result<Vec<RpcTransaction>, _> = txs_sigs
@@ -529,7 +529,7 @@ fn finalize_txs(
 pub fn finalize_pskt(
     c: PSKT<Combiner>,
     escrow: &EscrowPublic,
-    relayer_pub_key: &secp256k1::PublicKey,
+    relayer_pub_key: &kaspa_bip32::secp256k1::PublicKey,
     network_id: NetworkId,
 ) -> Result<RpcTransaction> {
     let finalized_pskt = c
@@ -615,7 +615,7 @@ pub fn finalize_pskt(
 }
 
 pub async fn sign_pay_fee(pskt: PSKT<Signer>, r: &SigningResources) -> Result<PSKT<Signer>> {
-    corelib::pskt::sign_pskt(
+    dym_kas_core::pskt::sign_pskt(
         pskt,
         &r.key_pair,
         Some(r.key_source.clone()),
@@ -628,8 +628,8 @@ mod tests {
     use super::*;
     use bytes::Bytes;
 
-    use bridge::util::is_valid_sighash_type;
-    use bridge::withdraw::WithdrawFXG;
+    use dym_kas_bridge::util::is_valid_sighash_type;
+    use dym_kas_bridge::withdraw::WithdrawFXG;
     use hyperlane_core::H256;
     use kaspa_consensus_core::network::NetworkType::Devnet;
     use kaspa_consensus_core::tx::ScriptPublicKey;

@@ -5,7 +5,6 @@ resolver = "2" # Enables new feature resolver, good practice for new workspaces
 members = [
     "lib/core",
     "lib/bridge",
-    "lib/relayer",
     "lib/validator",
     "lib/api",
     "lib/hardcode",

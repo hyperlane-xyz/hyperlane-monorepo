@@ -1,4 +1,4 @@
-use corelib::consts::RELAYER_SIG_OP_COUNT;
+use dym_kas_core::consts::RELAYER_SIG_OP_COUNT;
 use kaspa_consensus_core::constants::UNACCEPTED_DAA_SCORE;
 use kaspa_consensus_core::tx::ScriptPublicKey;
 use kaspa_consensus_core::tx::{

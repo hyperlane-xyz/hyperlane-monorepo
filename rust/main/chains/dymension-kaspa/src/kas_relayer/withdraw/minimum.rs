@@ -1,4 +1,4 @@
-use hardcode::tx::DUST_AMOUNT;
+use dym_kas_hardcode::tx::DUST_AMOUNT;
 use hyperlane_core::U256;
 use kaspa_consensus_core::tx::TransactionOutput;
 use kaspa_wallet_core::tx::is_transaction_output_dust;

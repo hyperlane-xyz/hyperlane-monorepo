@@ -4082,6 +4082,7 @@ dependencies = [
  "dymension-kaspa-hl-constants",
  "eyre",
  "futures",
+ "hardcode",
  "hex 0.4.3",
  "http 1.2.0",
  "hyper 0.14.30",
@@ -4113,7 +4114,6 @@ dependencies = [
  "pin-project",
  "prometheus",
  "protobuf",
- "relayer 0.2.0",
  "reqwest 0.11.27",
  "ripemd",
  "rustls 0.23.19",
@@ -6782,7 +6782,6 @@ dependencies = [
  "paste",
  "prometheus",
  "rand 0.8.5",
- "relayer 0.2.0",
  "reqwest 0.11.27",
  "rocksdb",
  "rusoto_core",
@@ -11358,47 +11357,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "relayer"
-version = "0.2.0"
-dependencies = [
- "anyhow",
- "base64 0.22.1",
- "bincode",
- "bridge",
- "bytes",
- "core",
- "eyre",
- "hardcode",
- "hex 0.4.3",
- "hyperlane-core",
- "hyperlane-cosmos",
- "hyperlane-cosmos-dymension-rs",
- "hyperlane-warp-route",
- "kaspa-addresses",
- "kaspa-consensus-client",
- "kaspa-consensus-core",
- "kaspa-core",
- "kaspa-grpc-client",
- "kaspa-hashes",
- "kaspa-rpc-core",
- "kaspa-txscript",
- "kaspa-wallet-core",
- "kaspa-wallet-pskt",
- "log",
- "openapi",
- "prometheus",
- "prost 0.13.4",
- "rand 0.8.5",
- "reqwest 0.12.15",
- "reqwest-middleware",
- "secp256k1 0.29.1",
- "serde",
- "tokio",
- "tracing",
- "workflow-core",
-]
-
-[[package]]
 name = "rend"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11809,7 +11767,7 @@ dependencies = [
  "nix 0.26.4",
  "once_cell",
  "regex",
- "relayer 0.1.0",
+ "relayer",
  "reqwest 0.11.27",
  "ripemd",
  "serde",
@@ -16012,7 +15970,6 @@ dependencies = [
  "kaspa-wrpc-client",
  "log",
  "openapi",
- "relayer 0.2.0",
  "secp256k1 0.29.1",
  "serde",
  "serde_json",

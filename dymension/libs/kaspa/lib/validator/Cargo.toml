@@ -27,7 +27,6 @@ tracing-error = { workspace = true }
 tracing-futures = { workspace = true }
 log = { workspace = true }
 axum = { workspace = true }
-relayer = { path = "../relayer" }
 hyperlane-core = { path = "../../../../../rust/main/hyperlane-core" , features = ["agent", "async", "test-utils"] }
 hyperlane-warp-route = { path = "../../../../../rust/main/applications/hyperlane-warp-route" }
 hyperlane-cosmos = { path = "../../../../../rust/main/chains/hyperlane-cosmos" }
