@@ -955,12 +955,16 @@ impl PendingMessage {
     /// Get duration we should wait before re-attempting to deliver a message
     /// given the number of retries.
     /// `pub(crate)` for testing purposes
+    ///
+    /// Note: backoff is capped at 15 minutes to ensure stuck messages are retried promptly.
     pub(crate) fn calculate_msg_backoff(
         num_retries: u32,
         max_retries: u32,
         message_id: Option<H256>,
     ) -> Option<Duration> {
-        Some(Duration::from_secs(match num_retries {
+        const MAX_BACKOFF_SECS: u64 = 15 * 60; // 15 minutes
+
+        let backoff_secs = match num_retries {
             i if i < 1 => return None,
             1 => 5,
             2 => 10,
@@ -1002,7 +1006,9 @@ impl PendingMessage {
                 }
                 chrono::Duration::weeks(10).num_seconds() as u64
             }
-        }))
+        };
+
+        Some(Duration::from_secs(backoff_secs.min(MAX_BACKOFF_SECS)))
     }
 
     async fn clarify_reason(&self, reason: ReprepareReason) -> Option<ReprepareReason> {
