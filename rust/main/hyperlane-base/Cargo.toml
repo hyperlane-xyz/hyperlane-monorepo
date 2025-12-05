@@ -71,6 +71,7 @@ hyperlane-sealevel = { path = "../chains/hyperlane-sealevel" }
 hyperlane-radix = { path = "../chains/hyperlane-radix" }
 
 dym_kas_core = { path = "../../../dymension/libs/kaspa/lib/core" , package="core"}
+dym_kas_bridge = { path = "../../../dymension/libs/kaspa/lib/bridge" , package="bridge"}
 dym_kas_hardcode = { path = "../../../dymension/libs/kaspa/lib/hardcode" , package="hardcode"}
 api-rs = { path = "../../../dymension/libs/kaspa/lib/api", package = "openapi" }
 dym_kas_relayer = { path = "../../../dymension/libs/kaspa/lib/relayer" , package="relayer"}

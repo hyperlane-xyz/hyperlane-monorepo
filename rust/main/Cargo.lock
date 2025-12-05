@@ -6740,6 +6740,7 @@ dependencies = [
  "axum 0.8.4",
  "backtrace",
  "backtrace-oneline",
+ "bridge",
  "bs58 0.5.1",
  "chrono",
  "color-eyre",
