@@ -50,7 +50,7 @@ impl ChainHelper {
 
     pub async fn send_remote(
         &mut self,
-        sender: &str,
+        sender_index: u32,
         coin: Coin,
         destination_domain: u32,
         remote_warp: Addr,
@@ -60,8 +60,8 @@ impl ChainHelper {
             .broadcast_and_find(
                 self.accounts
                     .users_mut()
-                    .find(|user| user.username.to_string() == sender)
-                    .expect(&format!("account not found: {}", sender)),
+                    .find(|user| *user.user_index.inner() == sender_index)
+                    .expect(&format!("account not found: {}", sender_index)),
                 Message::execute(
                     self.cfg.addresses.gateway,
                     &gateway::ExecuteMsg::TransferRemote {
@@ -130,11 +130,11 @@ impl ChainHelper {
             .await
     }
 
-    pub fn get_account(&self, username: &str) -> &TestAccount {
+    pub fn get_account(&self, user_index: u32) -> &TestAccount {
         self.accounts
             .users()
-            .find(|user| user.username.to_string() == username)
-            .expect(&format!("account not found: {}", username))
+            .find(|user| *user.user_index.inner() == user_index)
+            .expect(&format!("user_index not found: {}", user_index))
     }
 }
 
@@ -195,7 +195,6 @@ pub trait IntoSignerConf {
 impl IntoSignerConf for &TestAccount {
     fn as_signer_conf(&self) -> SignerConf {
         SignerConf::Dango {
-            username: self.username.clone(),
             key: HexByteArray::from_inner(self.first_sk().to_bytes().into()),
             address: self.address.into_inner(),
         }

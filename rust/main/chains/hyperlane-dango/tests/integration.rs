@@ -1,8 +1,7 @@
 use {
     crate::utils::{
-        build_agents, get_free_port, startup_tests, try_for, Agent, CheckpointSyncer,
-        DangoBuilder, DangoSettings, HexKey, Location, Relayer, SetupChain,
-        Validator, ValidatorSigner,
+        build_agents, get_free_port, startup_tests, try_for, Agent, CheckpointSyncer, DangoBuilder,
+        DangoSettings, HexKey, Location, Relayer, SetupChain, Validator, ValidatorSigner,
     },
     dango_types::{constants::dango, gateway::Origin},
     grug::{
@@ -107,7 +106,7 @@ async fn dango_one_way() -> anyhow::Result<()> {
     .should_succeed();
 
     ch1.send_remote(
-        "user1",
+        1,
         Coin::new(dango::DENOM.clone(), 100)?,
         ch2.hyperlane_domain,
         ch2.cfg.addresses.warp,
@@ -162,7 +161,7 @@ async fn dango_multiple_chains() -> anyhow::Result<()> {
     let remote_denom = Denom::new_unchecked(["bridge", "foo"]);
 
     ch1.send_remote(
-        "user1",
+        1,
         Coin::new(dango::DENOM.clone(), 100)?,
         ch2.hyperlane_domain,
         ch2.cfg.addresses.warp,
@@ -205,7 +204,7 @@ async fn dango_multiple_chains() -> anyhow::Result<()> {
 
     // Send back
     ch2.send_remote(
-        "user1",
+        1,
         Coin::new(remote_denom, 100)?,
         ch1.hyperlane_domain,
         ch1.cfg.addresses.warp,

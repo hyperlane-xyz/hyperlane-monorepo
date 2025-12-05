@@ -7,11 +7,7 @@ use {
         multisig_hash, Addr32,
     },
     dango_testing::constants::user4,
-    dango_types::{
-        account_factory::Username,
-        config::AppConfig,
-        warp::TokenMessage,
-    },
+    dango_types::{config::AppConfig, warp::TokenMessage},
     ethers::{
         contract::abigen,
         providers::{Http, Provider},
@@ -80,7 +76,6 @@ const VALSET: LazyLock<BTreeSet<H160>> = LazyLock::new(|| {
 // --- DANGO ---
 
 const DANGO_URL: &str = "https://api-pr-1414-ovh2.dango.zone";
-static DANGO_USERNAME: LazyLock<Username> = LazyLock::new(|| user4::USERNAME.clone());
 const DANGO_PRIVATE_KEY: [u8; 32] = user4::PRIVATE_KEY;
 const DANGO_ADDRESS: Addr = addr!("5a7213b5a8f12e826e88d67c083be371a442689c");
 
@@ -202,13 +197,12 @@ async fn manual_relay() -> anyhow::Result<()> {
     let app_config: AppConfig = dango_client.query_app_config(None).await?;
     let chain_id = dango_client.query_status(None).await?.chain_id;
 
-    let mut dango_signer = SingleSigner::new(
-        &DANGO_USERNAME.to_string(),
-        DANGO_ADDRESS,
-        Secp256k1::from_bytes(DANGO_PRIVATE_KEY)?,
-    )?
-    .with_query_nonce(&dango_client)
-    .await?;
+    let mut dango_signer =
+        SingleSigner::new(DANGO_ADDRESS, Secp256k1::from_bytes(DANGO_PRIVATE_KEY)?)
+            .with_query_nonce(&dango_client)
+            .await?
+            .with_query_user_index(&dango_client)
+            .await?;
 
     let result = dango_client
         .execute(

@@ -44,7 +44,6 @@ async fn run_relayer() -> anyhow::Result<()> {
         .with_chain(
             DangoSettings::new("dangolocal2")
                 .with_chain_signer(SignerConf::Dango {
-                    username: user4::USERNAME.clone(),
                     key: HexByteArray::from_inner(user4::PRIVATE_KEY),
                     address: addr!("5a7213b5a8f12e826e88d67c083be371a442689c"),
                 })
@@ -91,7 +90,6 @@ async fn run_dango_validator() -> anyhow::Result<()> {
     .with_chain(
         DangoSettings::new("dangolocal2")
             .with_chain_signer(SignerConf::Dango {
-                username: user6::USERNAME.clone(),
                 key: HexByteArray::from_inner(user6::PRIVATE_KEY),
                 address: addr!("365a389d8571b681d087ee8f7eecf1ff710f59c8"),
             })

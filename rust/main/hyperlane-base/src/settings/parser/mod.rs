@@ -451,14 +451,6 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
                 .parse_value::<grug::HexByteArray<32>>("fail deserialize dango key")
                 .end();
 
-            let username = signer
-                .chain(&mut err)
-                .get_key("username")
-                .parse_value::<dango_types::account_factory::Username>(
-                    "fail deserialize dango username",
-                )
-                .end();
-
             let address = signer
                 .chain(&mut err)
                 .get_key("address")
@@ -466,7 +458,6 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
                 .end();
 
             err.into_result(SignerConf::Dango {
-                username: username.unwrap(),
                 key: key.unwrap(),
                 address: address.unwrap(),
             })

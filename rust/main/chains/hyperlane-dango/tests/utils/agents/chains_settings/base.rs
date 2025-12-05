@@ -1,6 +1,8 @@
 use {
-    crate::utils::{agents::traits::Args, dango_helper::IntoSignerConf}, grug::btree_map,
-    hyperlane_base::settings::SignerConf, std::collections::BTreeMap,
+    crate::utils::{agents::traits::Args, dango_helper::IntoSignerConf},
+    grug::btree_map,
+    hyperlane_base::settings::SignerConf,
+    std::collections::BTreeMap,
 };
 
 #[derive(Debug)]
@@ -68,13 +70,8 @@ impl Args for GeneralSigner {
                 "type".to_string() => "hexKey".to_string(),
                 "key".to_string() => format!("{:?}", key)
             },
-            SignerConf::Dango {
-                username,
-                key,
-                address,
-            } => btree_map! {
+            SignerConf::Dango { key, address } => btree_map! {
                 "type".to_string() => "dangoKey".to_string(),
-                "username".to_string() => username.to_string(),
                 "key".to_string() => key.to_string(),
                 "address".to_string() => address.to_string(),
             },

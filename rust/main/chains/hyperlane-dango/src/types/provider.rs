@@ -121,7 +121,7 @@ impl DangoProvider {
         &self,
         msg: Message,
     ) -> ChainResult<hyperlane_core::TxCostEstimate> {
-        let tx = self.signer()?.read().await.deref().unsigned_transaction(
+        let tx = self.signer()?.r#use(self).await?.read().await.deref().unsigned_transaction(
             NonEmpty::new_unchecked(vec![msg]),
             &self.connection_conf.chain_id,
         )?;
@@ -146,7 +146,7 @@ impl DangoProvider {
 
         let nonce = self
             .query_wasm_smart(
-                signer.read().await.address,
+                signer.r#use(self).await?.read().await.deref().address,
                 spot::QuerySeenNoncesRequest {},
                 None,
             )
@@ -155,7 +155,7 @@ impl DangoProvider {
             .map(|newest_nonce| newest_nonce + 1)
             .unwrap_or(0);
 
-        signer.write().await.nonce = Defined::new(nonce);
+        signer.r#use(self).await?.write().await.nonce = Defined::new(nonce);
 
         let gas = if let Some(gas_limit) = gas_limit {
             GasOption::Predefined { gas_limit }
@@ -168,7 +168,7 @@ impl DangoProvider {
 
         let hash = self
             .send_message(
-                signer.write().await.deref_mut(),
+                signer.r#use(self).await?.write().await.deref_mut(),
                 msg,
                 gas,
                 &self.connection_conf.chain_id,

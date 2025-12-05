@@ -102,11 +102,12 @@ async fn transfer_remote() -> anyhow::Result<()> {
     let chain_id = dango_client.query_status(None).await?.chain_id;
 
     let mut user5 = SingleSigner::new(
-        &user5::USERNAME.clone().to_string(),
         addr!("a20a0e1a71b82d50fc046bc6e3178ad0154fd184"),
         Secp256k1::from_bytes(user5::PRIVATE_KEY)?,
-    )?
+    )
     .with_query_nonce(&dango_client)
+    .await?
+    .with_query_user_index(&dango_client)
     .await?;
 
     let res = dango_client

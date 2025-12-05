@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
-use dango_types::account_factory::Username;
 use ethers::prelude::{AwsSigner, LocalWallet};
 use ethers::utils::hex::ToHex;
 use eyre::{bail, Context, Report};
@@ -64,8 +63,6 @@ pub enum SignerConf {
     Node,
     /// Dango Specific key
     Dango {
-        /// Username
-        username: Username,
         /// Private key in hex
         key: HexByteArray<32>,
         /// Account address
@@ -290,13 +287,11 @@ impl ChainSigner for hyperlane_aleo::AleoSigner {
 impl BuildableWithSignerConf for hyperlane_dango::DangoSigner {
     async fn build(conf: &SignerConf) -> Result<Self, Report> {
         if let SignerConf::Dango {
-            username,
             key,
             address,
         } = conf
         {
             Ok(hyperlane_dango::DangoSigner::new(
-                username.to_string().as_str(),
                 key.into_inner(),
                 *address,
             )?)

@@ -55,7 +55,7 @@ pub async fn startup_tests(
     Agent::new(Relayer::default().with_allow_local_checkpoint_syncer(true))
         .with_chain(
             DangoSettings::new(chain_name1)
-                .with_chain_signer(ch1.get_account(&format!("user{}", chain_1.validators + 2)))
+                .with_chain_signer(ch1.get_account(chain_1.validators + 2))
                 .with_chain_settings(|dango| {
                     dango
                         .with_app_cfg(ch1.cfg.clone())
@@ -65,7 +65,7 @@ pub async fn startup_tests(
         )
         .with_chain(
             DangoSettings::new(chain_name2)
-                .with_chain_signer(ch2.get_account(&format!("user{}", chain_2.validators + 2)))
+                .with_chain_signer(ch2.get_account(chain_2.validators + 2))
                 .with_chain_settings(|dango| {
                     dango
                         .with_app_cfg(ch2.cfg.clone())
@@ -99,7 +99,7 @@ fn run_validators(
             )
             .with_chain(
                 DangoSettings::new(chain_name)
-                    .with_chain_signer(ch.get_account(&format!("user{}", i)))
+                    .with_chain_signer(ch.get_account(i))
                     .with_chain_settings(|dango| {
                         dango
                             .with_app_cfg(ch.cfg.clone())
