@@ -7,6 +7,5 @@ edition = "2021"
 kaspa-addresses = { workspace = true }
 kaspa-consensus-core = { workspace = true }
 api-rs = { path = "../../lib/api", package = "openapi" }
-hyperlane-core = { path = "../../../../../rust/main/hyperlane-core" }
 reqwest-middleware = "0.4"
 reqwest = { workspace = true }
