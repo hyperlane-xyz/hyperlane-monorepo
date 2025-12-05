@@ -3,7 +3,11 @@ import { stringify as yamlStringify } from 'yaml';
 
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import { AltVMWarpModule } from '@hyperlane-xyz/deploy-sdk';
-import { GasAction, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import {
+  GasAction,
+  ProtocolType,
+  getProtocolProvider,
+} from '@hyperlane-xyz/provider-sdk';
 import {
   AddWarpRouteConfigOptions,
   BaseRegistry,
@@ -58,7 +62,6 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { TypedAnnotatedTransaction } from '../../../sdk/dist/providers/ProviderType.js';
-import { createAltVMSubmitterFactories } from '../context/altvm.js';
 import { requestAndSaveApiKeys } from '../context/context.js';
 import { WriteCommandContext } from '../context/types.js';
 import {
@@ -70,8 +73,10 @@ import {
   warnYellow,
 } from '../logger.js';
 import { WarpSendLogs } from '../send/transfer.js';
+import { AltVMFileSubmitter } from '../submitters/AltVMFileSubmitter.js';
 import { EV5FileSubmitter } from '../submitters/EV5FileSubmitter.js';
 import {
+  CustomTxSubmitterType,
   ExtendedChainSubmissionStrategy,
   ExtendedChainSubmissionStrategySchema,
   ExtendedSubmissionStrategy,
@@ -1015,6 +1020,8 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
       : defaultSubmitter;
 
   const strategyToUse = submissionStrategy ?? defaultSubmitter;
+  const protocol = multiProvider.getProtocol(chain);
+
   return {
     submitter: await getSubmitterBuilder<T>({
       submissionStrategy: strategyToUse as SubmissionStrategy, // TODO: fix this
@@ -1026,7 +1033,26 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
             return new EV5FileSubmitter(metadata);
           },
         },
-        ...createAltVMSubmitterFactories(multiProvider, altVmSigners, chain),
+        [protocol]: {
+          jsonRpc: () => {
+            const { type } = strategyToUse.submitter;
+            assert(
+              type === 'jsonRpc',
+              `Invalid metadata type: ${type}, expected ${TxSubmitterType.JSON_RPC}`,
+            );
+            return getProtocolProvider(protocol).createSubmitter(
+              context.chainMetadata[chain],
+              strategyToUse.submitter,
+            );
+          },
+          [CustomTxSubmitterType.FILE]: (
+            _multiProvider: MultiProvider,
+            metadata: any,
+          ) => {
+            const signer = mustGet(altVmSigners, chain);
+            return new AltVMFileSubmitter(signer, metadata);
+          },
+        },
       },
     }),
     config: submissionStrategy,
