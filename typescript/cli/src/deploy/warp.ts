@@ -653,6 +653,13 @@ async function updateExistingWarpRoute(
           mailbox: registryAddresses[chain].mailbox,
         };
 
+        if (configWithMailbox.foreignDeployment) {
+          rootLogger.debug(
+            `Skipping apply for ${chain} because it uses foreignDeployment ${configWithMailbox.foreignDeployment}`,
+          );
+          return;
+        }
+
         switch (protocolType) {
           case ProtocolType.Ethereum: {
             const evmERC20WarpModule = new EvmERC20WarpModule(
