@@ -123,6 +123,11 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   //     confirmations: 3,
   //   },
   // },
+  // flowmainnet: {
+  //   blocks: {
+  //     confirmations: 3,
+  //   },
+  // },
 };
 
 export const getRegistry = async (

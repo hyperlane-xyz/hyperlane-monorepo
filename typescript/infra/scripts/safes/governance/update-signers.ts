@@ -62,7 +62,7 @@ async function main() {
 
     let safeMultiSend: SafeMultiSend;
     try {
-      safeMultiSend = new SafeMultiSend(
+      safeMultiSend = await SafeMultiSend.initialize(
         multiProvider,
         chain as ChainName,
         safeAddress,

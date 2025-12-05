@@ -299,6 +299,11 @@ export class GovernTransactionReader {
       return this.readMultisendTransaction(chain, tx);
     }
 
+    // If it's an ERC20 transaction (check before warp module since HypERC20 tokens are also ERC20)
+    if (this.isErc20Transaction(chain, tx)) {
+      return this.readErc20Transaction(chain, tx);
+    }
+
     // If it's a Warp Module transaction
     if (this.isWarpModuleTransaction(chain, tx)) {
       return this.readWarpModuleTransaction(chain, tx);
@@ -313,11 +318,6 @@ export class GovernTransactionReader {
     const xerc20Type = await this.isXERC20Transaction(chain, tx);
     if (xerc20Type) {
       return this.readXERC20Transaction(chain, tx, xerc20Type);
-    }
-
-    // If it's an ERC20 transaction
-    if (this.isErc20Transaction(chain, tx)) {
-      return this.readErc20Transaction(chain, tx);
     }
 
     // If it's to a Proxy Admin
@@ -345,25 +345,40 @@ export class GovernTransactionReader {
     };
   }
 
+  // ERC20 function selectors
+  private static readonly ERC20_SELECTORS = new Set([
+    '0xa9059cbb', // transfer(address,uint256)
+    '0x095ea7b3', // approve(address,uint256)
+    '0x23b872dd', // transferFrom(address,address,uint256)
+    '0x39509351', // increaseAllowance(address,uint256)
+    '0xa457c2d7', // decreaseAllowance(address,uint256)
+  ]);
+
   private isErc20Transaction(
     chain: ChainName,
     tx: AnnotatedEV5Transaction,
   ): boolean {
-    if (!tx.to) {
+    if (!tx.to || !tx.data) {
       return false;
     }
 
+    // First check if the function selector matches an ERC20 function
+    const selector = tx.data.slice(0, 10).toLowerCase();
+    if (!GovernTransactionReader.ERC20_SELECTORS.has(selector)) {
+      return false;
+    }
+
+    // Then check if the target is a known token OR a warp route (HypERC20 tokens are also ERC20)
     const chainTokens = tokens[chain as keyof typeof tokens];
-    if (!chainTokens) {
-      return false;
-    }
+    const isKnownToken =
+      chainTokens &&
+      Object.values(chainTokens).some((address) => eqAddress(tx.to!, address));
 
-    for (const address of Object.values(chainTokens)) {
-      if (eqAddress(tx.to, address)) {
-        return true;
-      }
-    }
-    return false;
+    const isWarpRoute =
+      this.warpRouteIndex[chain] !== undefined &&
+      this.warpRouteIndex[chain][tx.to.toLowerCase()] !== undefined;
+
+    return isKnownToken || isWarpRoute;
   }
 
   private async readErc20Transaction(
