@@ -77,7 +77,12 @@ class TestableSmartProvider extends HyperlaneSmartProvider {
     errors: any[],
     fallbackMsg: string,
   ): new () => Error {
-    return this.getCombinedProviderError(errors, fallbackMsg);
+    // Convert plain errors to FailedProviderInfo format for testing
+    const failedProviders = errors.map((error, index) => ({
+      providerUrl: `http://test-provider-${index}`,
+      error,
+    }));
+    return this.getCombinedProviderError(failedProviders, fallbackMsg);
   }
 
   public async simplePerform(method: string, reqId: number): Promise<any> {
