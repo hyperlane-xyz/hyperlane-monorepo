@@ -106,11 +106,19 @@ async function main() {
     multiProvider.setSharedSigner(signer);
   }
 
+  // Only fetch explorer API keys (which reside in GCP) when we explicitly need
+  // to talk to public block explorers. Local/e2e deployments should not incur
+  // this dependency so they always skip the lookup.
+  const shouldFetchExplorerApiKeys =
+    !inCIMode() && envConfig.environment !== 'test';
+  const explorerApiKeys = shouldFetchExplorerApiKeys
+    ? await fetchExplorerApiKeys()
+    : {};
+
   // if none provided, instantiate a default verifier with the default core contract build artifact
-  // fetch explorer API keys from GCP
   const contractVerifier = new ContractVerifier(
     multiProvider,
-    inCIMode() ? {} : await fetchExplorerApiKeys(),
+    explorerApiKeys,
     buildArtifactPath
       ? extractBuildArtifact(buildArtifactPath)
       : coreBuildArtifact,
