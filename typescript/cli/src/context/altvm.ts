@@ -8,6 +8,7 @@ import {
   AltVM,
   type MinimumRequiredGasByAction,
   getProtocolProvider,
+  hasProtocol,
 } from '@hyperlane-xyz/provider-sdk';
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
@@ -69,6 +70,22 @@ export type AltVMSignerGetter = (
 export type ProtocolProviderMap = Partial<
   Record<ProtocolType, ReturnType<typeof getProtocolProvider>>
 >;
+
+export function buildProtocolProviders(
+  protocols: Set<ProtocolType>,
+): ProtocolProviderMap {
+  const providers: ProtocolProviderMap = {};
+  protocols.forEach((protocol) => {
+    if (protocol === ProtocolType.Ethereum) return;
+    if (!hasProtocol(protocol)) {
+      throw new Error(
+        `Protocol ${protocol} is not registered as an AltVM protocol`,
+      );
+    }
+    providers[protocol] = getProtocolProvider(protocol);
+  });
+  return providers;
+}
 
 export function createAltVMProviderGetter(
   metadataManager: ChainMetadataManager,

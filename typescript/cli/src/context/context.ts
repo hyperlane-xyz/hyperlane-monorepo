@@ -2,7 +2,6 @@ import { confirm } from '@inquirer/prompts';
 import { ethers } from 'ethers';
 
 import { loadProtocolProviders } from '@hyperlane-xyz/deploy-sdk';
-import { getProtocolProvider, hasProtocol } from '@hyperlane-xyz/provider-sdk';
 import { IRegistry } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import {
@@ -21,7 +20,7 @@ import { detectAndConfirmOrPrompt } from '../utils/input.js';
 import { getSigner } from '../utils/keys.js';
 
 import {
-  ProtocolProviderMap,
+  buildProtocolProviders,
   createAltVMProviderGetter,
   createAltVMSignerGetter,
 } from './altvm.js';
@@ -245,22 +244,6 @@ async function getMultiProvider(registry: IRegistry, signer?: ethers.Signer) {
 async function getMultiProtocolProvider(registry: IRegistry) {
   const chainMetadata = await registry.getMetadata();
   return new MultiProtocolProvider(chainMetadata);
-}
-
-function buildProtocolProviders(
-  protocols: Set<ProtocolType>,
-): ProtocolProviderMap {
-  const providers: ProtocolProviderMap = {};
-  protocols.forEach((protocol) => {
-    if (protocol === ProtocolType.Ethereum) return;
-    if (!hasProtocol(protocol)) {
-      throw new Error(
-        `Protocol ${protocol} is not registered as an AltVM protocol`,
-      );
-    }
-    providers[protocol] = getProtocolProvider(protocol);
-  });
-  return providers;
 }
 
 /**
