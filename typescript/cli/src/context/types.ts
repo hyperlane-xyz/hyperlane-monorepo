@@ -72,26 +72,6 @@ export interface WarpApplyCommandContext extends WriteCommandContext {
   warpCoreConfig: WarpCoreConfig;
 }
 
-export type CommandModuleWithContext<Args> = CommandModule<
-  {},
-  Args & { context: CommandContext }
->;
-
-export type CommandModuleWithWriteContext<Args> = CommandModule<
-  {},
-  Args & { context: WriteCommandContext }
->;
-
-export type CommandModuleWithWarpApplyContext<Args> = CommandModule<
-  {},
-  Args & { context: WarpApplyCommandContext }
->;
-
-export type CommandModuleWithWarpDeployContext<Args> = CommandModule<
-  {},
-  Args & { context: WarpDeployCommandContext }
->;
-
 export interface CliGlobalFlags {
   log?: LogFormat;
   verbosity?: LogLevel;
@@ -110,4 +90,35 @@ export type CliArguments = ArgumentsCamelCase<CliGlobalFlags>;
 export type CliArgumentsWithOptionalContext = ArgumentsCamelCase<CliArgvShape>;
 export type CliArgumentsWithContext = ArgumentsCamelCase<
   CliGlobalFlags & { context: CommandContext }
+>;
+
+export type HyperlaneCommandModule<
+  Args = CliArgvShape,
+  ParentArgs extends CliArgvShape = CliArgvShape,
+> = CommandModule<ParentArgs, Args>;
+
+export type CommandModuleWithContext<
+  Args,
+  ParentArgs extends CliArgvShape = CliArgvShape,
+> = HyperlaneCommandModule<Args & { context: CommandContext }, ParentArgs>;
+
+export type CommandModuleWithWriteContext<
+  Args,
+  ParentArgs extends CliArgvShape = CliArgvShape,
+> = HyperlaneCommandModule<Args & { context: WriteCommandContext }, ParentArgs>;
+
+export type CommandModuleWithWarpApplyContext<
+  Args,
+  ParentArgs extends CliArgvShape = CliArgvShape,
+> = HyperlaneCommandModule<
+  Args & { context: WarpApplyCommandContext },
+  ParentArgs
+>;
+
+export type CommandModuleWithWarpDeployContext<
+  Args,
+  ParentArgs extends CliArgvShape = CliArgvShape,
+> = HyperlaneCommandModule<
+  Args & { context: WarpDeployCommandContext },
+  ParentArgs
 >;

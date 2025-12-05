@@ -1,6 +1,7 @@
-import { CommandModule } from 'yargs';
-
-import { CommandModuleWithContext } from '../context/types.js';
+import {
+  CommandModuleWithContext,
+  HyperlaneCommandModule,
+} from '../context/types.js';
 import { readIsmConfig } from '../ism/read.js';
 import { log, logGray } from '../logger.js';
 
@@ -13,7 +14,7 @@ import {
 /**
  * Parent command
  */
-export const ismCommand: CommandModule = {
+export const ismCommand: HyperlaneCommandModule = {
   command: 'ism',
   describe: 'Operations relating to ISMs',
   builder: (yargs) => yargs.command(read).version(false).demandCommand(),
