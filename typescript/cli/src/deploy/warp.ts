@@ -646,19 +646,19 @@ async function updateExistingWarpRoute(
       await retryAsync(async () => {
         const protocolType = multiProvider.getProtocol(chain);
 
+        if (config.foreignDeployment) {
+          rootLogger.debug(
+            `Skipping apply for ${chain} because it uses foreignDeployment ${config.foreignDeployment}`,
+          );
+          return;
+        }
+
         const deployedTokenRoute = deployedRoutersAddresses[chain];
         assert(deployedTokenRoute, `Missing artifacts for ${chain}.`);
         const configWithMailbox = {
           ...config,
           mailbox: registryAddresses[chain].mailbox,
         };
-
-        if (configWithMailbox.foreignDeployment) {
-          rootLogger.debug(
-            `Skipping apply for ${chain} because it uses foreignDeployment ${configWithMailbox.foreignDeployment}`,
-          );
-          return;
-        }
 
         switch (protocolType) {
           case ProtocolType.Ethereum: {
