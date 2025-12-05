@@ -1,20 +1,11 @@
 import { Logger } from 'pino';
 
-import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { AltVM, ITransactionSubmitter } from '@hyperlane-xyz/provider-sdk';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
-import {
-  AnnotatedTypedTransaction,
-  ProtocolReceipt,
-} from '../../../ProviderType.js';
-import { TxSubmitterInterface } from '../TxSubmitterInterface.js';
-import { TxSubmitterType } from '../TxSubmitterTypes.js';
-
-export class AltVMJsonRpcTxSubmitter<PT extends ProtocolType>
-  implements TxSubmitterInterface<PT>
-{
-  public readonly txSubmitterType: TxSubmitterType = TxSubmitterType.JSON_RPC;
+export class AltVMJsonRpcTxSubmitter implements ITransactionSubmitter {
+  public readonly txSubmitterType = 'jsonRPC';
 
   protected readonly logger: Logger;
 
@@ -27,9 +18,7 @@ export class AltVMJsonRpcTxSubmitter<PT extends ProtocolType>
     });
   }
 
-  public async submit(
-    ...txs: AnnotatedTypedTransaction<PT>[]
-  ): Promise<ProtocolReceipt<PT>[]> {
+  public async submit(...txs: AnnotatedTx[]): Promise<TxReceipt[]> {
     if (txs.length === 0) {
       return [];
     }
@@ -41,10 +30,10 @@ export class AltVMJsonRpcTxSubmitter<PT extends ProtocolType>
         }
       }
       const receipt = await this.signer.sendAndConfirmBatchTransactions(txs);
-      return [receipt as ProtocolReceipt<PT>];
+      return [receipt];
     }
 
-    const receipts: ProtocolReceipt<PT>[] = [];
+    const receipts: TxReceipt[] = [];
 
     for (const tx of txs) {
       if (tx.annotation) {
@@ -52,7 +41,7 @@ export class AltVMJsonRpcTxSubmitter<PT extends ProtocolType>
       }
 
       const receipt = await this.signer.sendAndConfirmTransaction(tx);
-      receipts.push(receipt as ProtocolReceipt<PT>);
+      receipts.push(receipt);
     }
 
     return receipts;
