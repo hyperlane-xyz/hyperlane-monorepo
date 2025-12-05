@@ -1,9 +1,9 @@
 use crate::error::ValidationError;
 use api_rs::models::{TxModel, TxOutput};
 use corelib::api::client::HttpClient;
-use corelib::confirmation::ConfirmationFXG;
+use bridge::confirmation::ConfirmationFXG;
 use corelib::finality::is_safe_against_reorg;
-use corelib::payload::{MessageID, MessageIDs};
+use bridge::payload::{MessageID, MessageIDs};
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
 use kaspa_addresses::Address;
 use kaspa_consensus_core::tx::TransactionOutpoint;

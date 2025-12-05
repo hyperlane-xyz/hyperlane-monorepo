@@ -1,5 +1,5 @@
 use corelib::api::client::{Deposit, HttpClient};
-use corelib::deposit::DepositFXG;
+use bridge::deposit::DepositFXG;
 use corelib::finality::is_safe_against_reorg;
 use eyre::Result;
 use hyperlane_core::U256;
@@ -119,7 +119,7 @@ pub fn build_deposit_fxg(
 #[cfg(test)]
 mod tests {
 
-    use corelib::message::ParsedHL;
+    use bridge::message::ParsedHL;
 
     #[test]
     fn test_parsed_hl_parse() {

@@ -10,10 +10,10 @@ use axum::{
     Router,
 };
 use dym_kas_core::api::client::HttpClient;
-use dym_kas_core::deposit::DepositFXG;
+use crate::kas_bridge::deposit::DepositFXG;
 use dym_kas_core::escrow::EscrowPublic;
 use dym_kas_core::wallet::EasyKaspaWallet;
-use dym_kas_core::{confirmation::ConfirmationFXG, withdraw::WithdrawFXG};
+use crate::kas_bridge::{confirmation::ConfirmationFXG, withdraw::WithdrawFXG};
 use dym_kas_validator::confirmation::validate_confirmed_withdrawals;
 use dym_kas_validator::deposit::{validate_new_deposit, MustMatch as DepositMustMatch};
 use dym_kas_validator::withdraw::{validate_sign_withdrawal_fxg, MustMatch as WithdrawMustMatch};

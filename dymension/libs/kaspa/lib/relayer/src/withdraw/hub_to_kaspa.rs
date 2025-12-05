@@ -4,11 +4,11 @@ use super::populated_input::PopulatedInputBuilder;
 use crate::withdraw::sweep::utxo_reference_from_populated_input;
 use corelib::escrow::EscrowPublic;
 use corelib::finality;
-use corelib::message::parse_hyperlane_metadata;
-use corelib::util::{get_recipient_script_pubkey, input_sighash_type};
+use bridge::message::parse_hyperlane_metadata;
+use bridge::util::{get_recipient_script_pubkey, input_sighash_type};
 use corelib::wallet::EasyKaspaWallet;
 use corelib::wallet::SigningResources;
-use corelib::withdraw::WithdrawFXG;
+use bridge::withdraw::WithdrawFXG;
 use eyre::eyre;
 use eyre::Result;
 use hyperlane_core::HyperlaneMessage;
@@ -628,8 +628,8 @@ mod tests {
     use super::*;
     use bytes::Bytes;
 
-    use corelib::util::is_valid_sighash_type;
-    use corelib::withdraw::WithdrawFXG;
+    use bridge::util::is_valid_sighash_type;
+    use bridge::withdraw::WithdrawFXG;
     use hyperlane_core::H256;
     use kaspa_consensus_core::network::NetworkType::Devnet;
     use kaspa_consensus_core::tx::ScriptPublicKey;

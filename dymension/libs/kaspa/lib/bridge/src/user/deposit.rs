@@ -1,10 +1,10 @@
 #![allow(unused)] // TODO: remove
 
-use crate::api::client::Deposit;
-use crate::balance::*;
+use corelib::api::client::Deposit;
+use corelib::balance::*;
 use crate::deposit::*;
-use crate::escrow::*;
-use crate::wallet::*;
+use corelib::escrow::*;
+use corelib::wallet::*;
 use api_rs::apis::configuration;
 use bytes::Bytes;
 use hardcode::e2e::*;

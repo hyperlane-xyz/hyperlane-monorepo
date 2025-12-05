@@ -5,7 +5,6 @@ edition = "2021"
 
 [dependencies]
 hardcode = { path = "../hardcode" }
-dymension-kaspa-hl-constants = { path = "../../../../../rust/main/chains/dymension-kaspa-hl-constants" }
 hex = { workspace = true }
 kaspa-addresses = { workspace = true }
 kaspa-consensus-core = { workspace = true }
@@ -29,11 +28,6 @@ tokio = { workspace = true }
 url = { workspace = true }
 eyre = { workspace = true }
 bytes = { workspace = true }
-hyperlane-cosmos-rs = { workspace = true }
-hyperlane-cosmos = { path = "../../../../../rust/main/chains/hyperlane-cosmos" }
-hyperlane-warp-route = { path = "../../../../../rust/main/applications/hyperlane-warp-route" }
-hyperlane-core = { path = "../../../../../rust/main/hyperlane-core" }
-bincode = "1.3"
 serde_json = { workspace = true }
 
 serde-value = "0.7.0"
@@ -42,6 +36,3 @@ reqwest-ratelimit = "0.4.1"
 reqwest-retry = "0.7"
 governor = "0.10"
 serde = { version = "^1.0", features = ["derive"] }
-borsh = { version = "1.5.1", features = ["derive", "rc"] }
-postcard = { version = "1.0", features = ["alloc"] }
-prost = { version = "0.13", default-features = false }

@@ -6,7 +6,7 @@ use super::stats::RoundTripStats;
 use crate::x;
 use cometbft_rpc::endpoint::broadcast::tx_commit::Response as HubResponse;
 use corelib::api::client::HttpClient;
-use corelib::user::payload::make_deposit_payload_easy;
+use bridge::user::payload::make_deposit_payload_easy;
 use corelib::wallet::Network;
 use cosmos_sdk_proto::cosmos::bank::v1beta1::MsgSend;
 use cosmos_sdk_proto::cosmos::base::v1beta1::Coin;

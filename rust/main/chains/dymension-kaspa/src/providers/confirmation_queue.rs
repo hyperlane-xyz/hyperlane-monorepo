@@ -1,4 +1,4 @@
-use dym_kas_core::confirmation::ConfirmationFXG;
+use crate::kas_bridge::confirmation::ConfirmationFXG;
 use std::sync::Mutex;
 
 #[derive(Debug)]

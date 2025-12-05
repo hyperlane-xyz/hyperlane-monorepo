@@ -1,4 +1,4 @@
-use corelib::user::deposit::deposit_with_payload;
+use bridge::user::deposit::deposit_with_payload;
 use corelib::wallet::get_wallet;
 use eyre::Result;
 use kaspa_addresses::Address;

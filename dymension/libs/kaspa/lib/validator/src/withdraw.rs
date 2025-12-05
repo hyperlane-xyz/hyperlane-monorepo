@@ -2,10 +2,10 @@
 
 use crate::error::ValidationError;
 use corelib::escrow::*;
-use corelib::payload::MessageIDs;
-use corelib::util;
-use corelib::util::{get_recipient_script_pubkey, is_valid_sighash_type};
-use corelib::withdraw::{filter_pending_withdrawals, WithdrawFXG};
+use bridge::payload::MessageIDs;
+use bridge::util;
+use bridge::util::{get_recipient_script_pubkey, is_valid_sighash_type};
+use bridge::withdraw::{filter_pending_withdrawals, WithdrawFXG};
 use eyre::Result;
 use dymension_kaspa_hl_constants::ALLOWED_HL_MESSAGE_VERSION;
 use hex::ToHex;

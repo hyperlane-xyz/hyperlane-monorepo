@@ -1822,6 +1822,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "bridge"
+version = "0.2.0"
+dependencies = [
+ "bytes",
+ "core",
+ "dymension-kaspa-hl-constants",
+ "eyre",
+ "hardcode",
+ "hex 0.4.3",
+ "hyperlane-core",
+ "hyperlane-cosmos",
+ "hyperlane-cosmos-dymension-rs",
+ "hyperlane-warp-route",
+ "kaspa-addresses",
+ "kaspa-consensus-core",
+ "kaspa-core",
+ "kaspa-grpc-client",
+ "kaspa-hashes",
+ "kaspa-rpc-core",
+ "kaspa-txscript",
+ "kaspa-wallet-core",
+ "kaspa-wallet-pskt",
+ "openapi",
+ "prost 0.13.4",
+ "secp256k1 0.29.1",
+ "serde",
+ "tokio",
+ "tracing",
+ "workflow-core",
+]
+
+[[package]]
 name = "brotli"
 version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2820,19 +2852,12 @@ dependencies = [
 name = "core"
 version = "0.2.0"
 dependencies = [
- "bincode",
- "borsh 1.5.1",
  "bytes",
  "clap 4.5.41",
- "dymension-kaspa-hl-constants",
  "eyre",
  "governor",
  "hardcode",
  "hex 0.4.3",
- "hyperlane-core",
- "hyperlane-cosmos",
- "hyperlane-cosmos-dymension-rs",
- "hyperlane-warp-route",
  "kaspa-addresses",
  "kaspa-consensus-core",
  "kaspa-core",
@@ -2846,8 +2871,6 @@ dependencies = [
  "kaspa-wrpc-client",
  "log",
  "openapi",
- "postcard",
- "prost 0.13.4",
  "reqwest 0.12.15",
  "reqwest-middleware",
  "reqwest-ratelimit",
@@ -4049,6 +4072,7 @@ dependencies = [
  "axum 0.8.4",
  "base64 0.21.7",
  "bech32 0.11.0",
+ "bridge",
  "bytes",
  "core",
  "cosmrs",
@@ -11339,6 +11363,7 @@ dependencies = [
  "anyhow",
  "base64 0.22.1",
  "bincode",
+ "bridge",
  "bytes",
  "core",
  "eyre",
@@ -15963,6 +15988,7 @@ version = "0.2.0"
 dependencies = [
  "anyhow",
  "axum 0.8.4",
+ "bridge",
  "core",
  "dymension-kaspa-hl-constants",
  "ethers 2.0.14",

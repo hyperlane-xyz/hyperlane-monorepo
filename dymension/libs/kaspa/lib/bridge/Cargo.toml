@@ -1,0 +1,32 @@
+[package]
+name = "bridge"
+version = "0.2.0"
+edition = "2021"
+
+[dependencies]
+corelib = { path = "../core", package = "core" }
+hardcode = { path = "../hardcode" }
+dymension-kaspa-hl-constants = { path = "../../../../../rust/main/chains/dymension-kaspa-hl-constants" }
+hex = { workspace = true }
+kaspa-addresses = { workspace = true }
+kaspa-consensus-core = { workspace = true }
+kaspa-hashes = { workspace = true }
+kaspa-wallet-pskt = { workspace = true }
+kaspa-txscript = { workspace = true }
+kaspa-rpc-core = { workspace = true }
+kaspa-wallet-core = { workspace = true }
+kaspa-core = { workspace = true }
+secp256k1 = { workspace = true }
+workflow-core = { workspace = true }
+eyre = { workspace = true }
+bytes = { workspace = true }
+hyperlane-cosmos-rs = { workspace = true }
+hyperlane-cosmos = { path = "../../../../../rust/main/chains/hyperlane-cosmos" }
+hyperlane-warp-route = { path = "../../../../../rust/main/applications/hyperlane-warp-route" }
+hyperlane-core = { path = "../../../../../rust/main/hyperlane-core" }
+prost = { version = "0.13", default-features = false }
+serde = { version = "^1.0", features = ["derive"] }
+tracing = { workspace = true }
+api-rs = { path = "../api", package = "openapi" }
+kaspa-grpc-client = { workspace = true }
+tokio = { workspace = true }

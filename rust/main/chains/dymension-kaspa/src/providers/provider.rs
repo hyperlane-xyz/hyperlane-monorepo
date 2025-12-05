@@ -6,7 +6,7 @@ use crate::withdrawal_utils::{record_withdrawal_batch_metrics, WithdrawalStage};
 use crate::ConnectionConf;
 use crate::RelayerStuff;
 use crate::ValidatorStuff;
-use dym_kas_core::confirmation::ConfirmationFXG;
+use crate::kas_bridge::confirmation::ConfirmationFXG;
 use dym_kas_core::escrow::EscrowPublic;
 use dym_kas_core::wallet::{EasyKaspaWallet, EasyKaspaWalletArgs};
 use dym_kas_relayer::withdraw::hub_to_kaspa::combine_bundles_with_fee;
@@ -35,7 +35,7 @@ use tracing::{error, info};
 use url::Url;
 
 struct ProcessedWithdrawals {
-    fxg: std::sync::Arc<dym_kas_core::withdraw::WithdrawFXG>,
+    fxg: std::sync::Arc<crate::kas_bridge::withdraw::WithdrawFXG>,
     tx_ids: Vec<RpcTransactionId>,
 }
 

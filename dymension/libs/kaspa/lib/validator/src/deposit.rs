@@ -1,8 +1,8 @@
 use crate::error::ValidationError;
 use corelib::api::client::HttpClient;
-use corelib::deposit::DepositFXG;
+use bridge::deposit::DepositFXG;
 use corelib::finality::is_safe_against_reorg;
-use corelib::message::{add_kaspa_metadata_hl_messsage, ParsedHL};
+use bridge::message::{add_kaspa_metadata_hl_messsage, ParsedHL};
 use corelib::wallet::NetworkInfo;
 use eyre::Result;
 use dymension_kaspa_hl_constants::ALLOWED_HL_MESSAGE_VERSION;

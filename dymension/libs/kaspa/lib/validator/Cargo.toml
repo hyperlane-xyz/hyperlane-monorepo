@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 corelib = { path = "../core", package = "core" }
+bridge = { path = "../bridge" }
 api-rs = { path = "../api", package = "openapi" }
 hardcode = { path = "../hardcode", package = "hardcode" }
 dymension-kaspa-hl-constants = { path = "../../../../../rust/main/chains/dymension-kaspa-hl-constants" }

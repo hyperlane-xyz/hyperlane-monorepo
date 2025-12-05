@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 corelib = { path = "../core", package = "core" }
+bridge = { path = "../bridge" }
 hardcode = { path = "../hardcode", package = "hardcode" }
 kaspa-addresses = { workspace = true }
 kaspa-consensus-core = { workspace = true }

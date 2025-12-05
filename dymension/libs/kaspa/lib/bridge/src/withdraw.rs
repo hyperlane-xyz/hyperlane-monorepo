@@ -1,4 +1,4 @@
-use super::payload::MessageID;
+use crate::payload::MessageID;
 use bytes::Bytes;
 use eyre::Error as EyreError;
 use hex::ToHex;

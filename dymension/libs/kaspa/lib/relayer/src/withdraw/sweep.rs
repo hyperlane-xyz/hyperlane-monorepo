@@ -2,7 +2,7 @@ use crate::withdraw::messages::PopulatedInput;
 use crate::withdraw::populated_input::PopulatedInputBuilder;
 use corelib::consts::RELAYER_SIG_OP_COUNT;
 use corelib::escrow::EscrowPublic;
-use corelib::util::input_sighash_type;
+use bridge::util::input_sighash_type;
 use corelib::wallet::EasyKaspaWallet;
 use eyre::{eyre, Result};
 use hardcode::tx::{DUST_AMOUNT, RELAYER_SWEEPING_PRIORITY_FEE};

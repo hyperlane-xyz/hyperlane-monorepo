@@ -21,7 +21,7 @@ impl KaspaWhale {
         amt: u64,
         payload: Vec<u8>,
     ) -> Result<TransactionId> {
-        corelib::user::deposit::deposit_with_payload(
+        bridge::user::deposit::deposit_with_payload(
             &self.wallet.wallet,
             &self.secret,
             address,

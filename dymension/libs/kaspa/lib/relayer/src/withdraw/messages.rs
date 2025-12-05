@@ -5,9 +5,9 @@ use super::hub_to_kaspa::{
 use crate::withdraw::sweep::{create_inputs_from_sweeping_bundle, create_sweeping_bundle};
 use corelib::consts::RELAYER_SIG_OP_COUNT;
 use corelib::escrow::EscrowPublic;
-use corelib::payload::MessageIDs;
+use bridge::payload::MessageIDs;
 use corelib::wallet::EasyKaspaWallet;
-use corelib::withdraw::{filter_pending_withdrawals, WithdrawFXG};
+use bridge::withdraw::{filter_pending_withdrawals, WithdrawFXG};
 use eyre::Result;
 use hardcode::tx::{MAX_MASS_MARGIN, SWEEPING_THRESHOLD};
 use hyperlane_core::HyperlaneMessage;

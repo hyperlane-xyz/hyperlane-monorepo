@@ -70,11 +70,11 @@ mod tests {
         ]);
 
         let message_ids =
-            corelib::payload::MessageIDs::new(vec![corelib::payload::MessageID(test_id)]);
+            bridge::payload::MessageIDs::new(vec![core::payload::MessageID(test_id)]);
 
         // Convert to bytes and back
         let bytes = message_ids.to_bytes();
-        let decoded = corelib::payload::MessageIDs::from_bytes(bytes).unwrap();
+        let decoded = bridge::payload::MessageIDs::from_bytes(bytes).unwrap();
 
         assert_eq!(decoded.0.len(), 1);
         assert_eq!(decoded.0[0].0, test_id);

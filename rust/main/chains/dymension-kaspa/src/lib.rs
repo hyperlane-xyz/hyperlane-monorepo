@@ -22,13 +22,14 @@ mod util;
 mod withdrawal_utils;
 
 // Direct reexports of lib stuff:
+pub use dym_kas_bridge as kas_bridge;
 pub use dym_kas_core;
 pub use dym_kas_relayer;
 pub use dym_kas_validator;
 pub use dymension_kaspa_hl_constants as hl_domains;
 
-// Re-export message module from dym_kas_core as hl_message for semantic clarity
-pub use dym_kas_core::message as hl_message;
+// Re-export message module from kas_bridge as hl_message for semantic clarity
+pub use kas_bridge::message as hl_message;
 
 pub use util::*;
 

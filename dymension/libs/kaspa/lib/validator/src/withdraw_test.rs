@@ -4,9 +4,9 @@
 //     use crate::error::ValidationError;
 //     use crate::withdraw::validate_pskts;
 //     use corelib::escrow::{Escrow, EscrowPublic};
-//     use corelib::payload::{MessageID, MessageIDs};
-//     use corelib::util::get_recipient_script_pubkey_address;
-//     use corelib::withdraw::WithdrawFXG;
+//     use bridge::payload::{MessageID, MessageIDs};
+//     use bridge::util::get_recipient_script_pubkey_address;
+//     use bridge::withdraw::WithdrawFXG;
 //     use eyre::{eyre, Result}; // Use eyre's Result for convenient error handling
 //     use hyperlane_core::{Encode, HyperlaneMessage, H256, U256};
 //     use hyperlane_warp_route::TokenMessage;
