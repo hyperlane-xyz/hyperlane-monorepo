@@ -3,12 +3,17 @@ import Safe from '@safe-global/protocol-kit';
 import { SafeTransaction } from '@safe-global/safe-core-sdk-types';
 import chalk from 'chalk';
 
-import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
+import {
+  ChainName,
+  EV5GnosisSafeTxBuilder,
+  MultiProvider,
+} from '@hyperlane-xyz/sdk';
 import {
   Address,
   CallData,
   addBufferToGasLimit,
   eqAddress,
+  rootLogger,
 } from '@hyperlane-xyz/utils';
 
 import {
@@ -66,6 +71,42 @@ export class SafeMultiSend extends MultiSend {
   }
 
   async sendTransactions(calls: CallData[]) {
+    // Always generate JSON using EV5GnosisSafeTxBuilder as a fallback
+    // This ensures we have the JSON available even if Safe API calls fail
+    let jsonPayload: any = null;
+    try {
+      const txBuilder = await EV5GnosisSafeTxBuilder.create(
+        this.multiProvider,
+        {
+          chain: this.chain,
+          safeAddress: this.safeAddress,
+          version: '1.0',
+        },
+      );
+
+      // Convert CallData to AnnotatedEV5Transaction format
+      const chainId = this.multiProvider.getChainId(this.chain);
+      const annotatedTxs = calls.map((call) => ({
+        to: call.to,
+        data: call.data,
+        value: call.value,
+        chainId,
+      }));
+
+      jsonPayload = await txBuilder.submit(...annotatedTxs);
+      rootLogger.info(
+        chalk.blue(
+          `Generated Safe Transaction Builder JSON for ${this.chain} (${calls.length} transaction(s))`,
+        ),
+      );
+    } catch (error) {
+      rootLogger.warn(
+        chalk.yellow(
+          `Failed to generate Safe Transaction Builder JSON: ${error}. Continuing with API submission attempt...`,
+        ),
+      );
+    }
+
     const { safeSdk, safeService } = await getSafeAndService(
       this.chain,
       this.multiProvider,
@@ -80,9 +121,19 @@ export class SafeMultiSend extends MultiSend {
           `MultiSend contract not deployed on ${this.chain}. Proposing transactions individually.`,
         ),
       );
-      await this.proposeIndividualTransactions(calls, safeSdk, safeService);
+      await this.proposeIndividualTransactions(
+        calls,
+        safeSdk,
+        safeService,
+        jsonPayload,
+      );
     } else {
-      await this.proposeMultiSendTransaction(calls, safeSdk, safeService);
+      await this.proposeMultiSendTransaction(
+        calls,
+        safeSdk,
+        safeService,
+        jsonPayload,
+      );
     }
   }
 
@@ -91,6 +142,7 @@ export class SafeMultiSend extends MultiSend {
     calls: CallData[],
     safeSdk: Safe.default,
     safeService: SafeApiKit.default,
+    jsonPayload: any,
   ) {
     for (const call of calls) {
       const safeTransactionData = createSafeTransactionData(call);
@@ -100,7 +152,21 @@ export class SafeMultiSend extends MultiSend {
         this.safeAddress,
         [safeTransactionData],
       );
-      await this.proposeSafeTransaction(safeSdk, safeService, safeTransaction);
+      try {
+        await this.proposeSafeTransaction(
+          safeSdk,
+          safeService,
+          safeTransaction,
+        );
+      } catch (error) {
+        rootLogger.error(
+          chalk.red(
+            `Failed to propose Safe transaction via API: ${error}. Falling back to manual JSON upload.`,
+          ),
+        );
+        this.displayFallbackJson(jsonPayload, call);
+        throw error;
+      }
     }
   }
 
@@ -109,6 +175,7 @@ export class SafeMultiSend extends MultiSend {
     calls: CallData[],
     safeSdk: Safe.default,
     safeService: SafeApiKit.default,
+    jsonPayload: any,
   ) {
     const safeTransactionData = calls.map((call) =>
       createSafeTransactionData(call),
@@ -120,7 +187,17 @@ export class SafeMultiSend extends MultiSend {
       safeTransactionData,
       true,
     );
-    await this.proposeSafeTransaction(safeSdk, safeService, safeTransaction);
+    try {
+      await this.proposeSafeTransaction(safeSdk, safeService, safeTransaction);
+    } catch (error) {
+      rootLogger.error(
+        chalk.red(
+          `Failed to propose Safe transaction via API: ${error}. Falling back to manual JSON upload.`,
+        ),
+      );
+      this.displayFallbackJson(jsonPayload);
+      throw error;
+    }
   }
 
   // Helper function to propose a safe transaction
@@ -137,6 +214,42 @@ export class SafeMultiSend extends MultiSend {
       safeTransaction,
       this.safeAddress,
       signer,
+    );
+  }
+
+  // Helper function to display JSON for manual upload when API fails
+  private displayFallbackJson(jsonPayload: any, specificCall?: CallData) {
+    if (!jsonPayload) {
+      rootLogger.warn(
+        chalk.yellow(
+          `No JSON payload available for fallback. Safe API call failed and JSON generation was not successful.`,
+        ),
+      );
+      return;
+    }
+
+    rootLogger.info(
+      chalk.bold.yellow(
+        `\n${'='.repeat(80)}\n` +
+          `SAFE API CALL FAILED - MANUAL JSON UPLOAD REQUIRED\n` +
+          `${'='.repeat(80)}\n` +
+          `Chain: ${this.chain}\n` +
+          `Safe Address: ${this.safeAddress}\n` +
+          `\nPlease manually upload the following JSON to the Safe Transaction Builder:\n` +
+          `${'='.repeat(80)}\n`,
+      ),
+    );
+
+    // If we have a specific call that failed, we could filter the JSON
+    // For now, we'll show the full payload
+    console.log(JSON.stringify(jsonPayload, null, 2));
+
+    rootLogger.info(
+      chalk.bold.yellow(
+        `\n${'='.repeat(80)}\n` +
+          `Copy the JSON above and upload it to: https://app.safe.global/transactions/import?safe=${this.chain}:${this.safeAddress}\n` +
+          `${'='.repeat(80)}\n`,
+      ),
     );
   }
 }
