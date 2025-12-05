@@ -32,9 +32,14 @@ import {
   ContextSettings,
   SignerKeyProtocolMap,
   SignerKeyProtocolMapSchema,
+  WriteCommandContext,
 } from './types.js';
 
-export async function contextMiddleware(argv: Record<string, any>) {
+type UntypedArgv = Record<string, any>;
+type ArgvWithContext = UntypedArgv & { context: CommandContext };
+type ArgvWithWriteContext = UntypedArgv & { context: WriteCommandContext };
+
+export async function contextMiddleware(argv: UntypedArgv) {
   const requiresKey = isSignCommand(argv);
 
   const settings: ContextSettings = {
@@ -47,83 +52,17 @@ export async function contextMiddleware(argv: Record<string, any>) {
     authToken: argv.authToken,
   };
 
-  argv.context = await getContext(settings);
+  const context = await getContext(settings);
+  setCommandContext(argv, context);
 }
 
-export async function signerMiddleware(argv: Record<string, any>) {
-  const { key, requiresKey, strategyPath, multiProtocolProvider } =
-    argv.context;
+export async function signerMiddleware(argv: UntypedArgv) {
+  assertHasContext(argv);
 
-  const strategyConfig = strategyPath
-    ? await readChainSubmissionStrategyConfig(strategyPath)
-    : {};
+  if (!argv.context.requiresKey) return argv;
 
-  /**
-   * Resolves chains based on the command type.
-   */
-  const chains = await resolveChains(argv);
-
-  /**
-   * Load and create AltVM Providers
-   */
-  const altVmChains = chains.filter(
-    (chain) =>
-      argv.context.multiProvider.getProtocol(chain) !== ProtocolType.Ethereum,
-  );
-
-  try {
-    await loadProtocolProviders(
-      new Set(
-        altVmChains.map((chain) =>
-          argv.context.multiProvider.getProtocol(chain),
-        ),
-      ),
-    );
-  } catch (e) {
-    throw new Error(
-      `Failed to load providers in context for ${altVmChains.join(', ')}`,
-      { cause: e },
-    );
-  }
-
-  await Promise.all(
-    altVmChains.map(async (chain) => {
-      const { altVmProviders, multiProvider } = argv.context;
-      const protocol = multiProvider.getProtocol(chain);
-      const metadata = multiProvider.getChainMetadata(chain);
-
-      if (hasProtocol(protocol))
-        altVmProviders[chain] =
-          await getProtocolProvider(protocol).createProvider(metadata);
-    }),
-  );
-
-  if (!requiresKey) return argv;
-
-  /**
-   * Extracts signer config
-   */
-  const multiProtocolSigner = await MultiProtocolSignerManager.init(
-    strategyConfig,
-    chains,
-    multiProtocolProvider,
-    { key },
-  );
-
-  /**
-   * @notice Attaches signers to MultiProvider and assigns it to argv.multiProvider
-   */
-  argv.context.multiProvider = await multiProtocolSigner.getMultiProvider();
-
-  /**
-   * Creates AltVM signers
-   */
-  argv.context.altVmSigners = await createAltVMSigners(
-    argv.context.multiProvider,
-    chains,
-    key,
-    strategyConfig,
-  );
+  const writeContext = await getSignerContext(argv.context, argv);
+  setWriteCommandContext(argv, writeContext);
 
   return argv;
 }
@@ -177,6 +116,61 @@ export async function getContext({
     skipConfirmation: !!skipConfirmation,
     signerAddress: ethereumSignerAddress,
     strategyPath,
+  };
+}
+
+export async function getSignerContext(
+  context: CommandContext,
+  argv: UntypedArgv,
+): Promise<WriteCommandContext> {
+  if (!context.key) {
+    throw new Error(
+      'Commands that modify on-chain state require a signing key. Provide one with --key.<protocol> or the HYP_KEY_<PROTOCOL> env var.',
+    );
+  }
+
+  const strategyConfig = context.strategyPath
+    ? await readChainSubmissionStrategyConfig(context.strategyPath)
+    : {};
+
+  const chains = await resolveChains(argv);
+
+  const altVmChains = chains.filter(
+    (chain) =>
+      context.multiProvider.getProtocol(chain) !== ProtocolType.Ethereum,
+  );
+
+  await ensureAltVmProviders(context, altVmChains);
+
+  const multiProtocolSigner = await MultiProtocolSignerManager.init(
+    strategyConfig,
+    chains,
+    context.multiProtocolProvider,
+    { key: context.key },
+  );
+
+  const multiProvider = await multiProtocolSigner.getMultiProvider();
+  const altVmSigners = await createAltVMSigners(
+    multiProvider,
+    chains,
+    context.key,
+    strategyConfig,
+  );
+
+  const defaultEvmChain = chains.find(
+    (chain) =>
+      context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
+  );
+  const signer = defaultEvmChain
+    ? multiProvider.getSigner(defaultEvmChain)
+    : undefined;
+
+  return {
+    ...context,
+    key: context.key,
+    multiProvider,
+    altVmSigners,
+    signer,
   };
 }
 
@@ -239,6 +233,62 @@ async function getMultiProvider(registry: IRegistry, signer?: ethers.Signer) {
 async function getMultiProtocolProvider(registry: IRegistry) {
   const chainMetadata = await registry.getMetadata();
   return new MultiProtocolProvider(chainMetadata);
+}
+
+function setCommandContext(
+  argv: UntypedArgv,
+  context: CommandContext,
+): asserts argv is ArgvWithContext {
+  (argv as ArgvWithContext).context = context;
+}
+
+function setWriteCommandContext(
+  argv: ArgvWithContext,
+  context: WriteCommandContext,
+): asserts argv is ArgvWithWriteContext {
+  (argv as ArgvWithWriteContext).context = context;
+}
+
+function assertHasContext(argv: UntypedArgv): asserts argv is ArgvWithContext {
+  if (!argv.context) {
+    throw new Error(
+      'Command context is missing. Ensure contextMiddleware runs before signerMiddleware.',
+    );
+  }
+}
+
+async function ensureAltVmProviders(
+  context: CommandContext,
+  altVmChains: ChainName[],
+) {
+  if (!altVmChains.length) return;
+
+  try {
+    await loadProtocolProviders(
+      new Set(
+        altVmChains.map((chain) => context.multiProvider.getProtocol(chain)),
+      ),
+    );
+  } catch (error) {
+    throw new Error(
+      `Failed to load providers in context for ${altVmChains.join(', ')}`,
+      {
+        cause: error,
+      },
+    );
+  }
+
+  await Promise.all(
+    altVmChains.map(async (chain) => {
+      const protocol = context.multiProvider.getProtocol(chain);
+      const metadata = context.multiProvider.getChainMetadata(chain);
+
+      if (!hasProtocol(protocol)) return;
+
+      context.altVmProviders[chain] =
+        await getProtocolProvider(protocol).createProvider(metadata);
+    }),
+  );
 }
 
 /**

@@ -57,7 +57,7 @@ export interface CommandContext
 
 export interface WriteCommandContext extends Omit<CommandContext, 'key'> {
   key: SignerKeyProtocolMap;
-  signer: ethers.Signer;
+  signer?: ethers.Signer;
   altVmSigners: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>>;
   apiKeys?: ChainMap<string>;
 }
