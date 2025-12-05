@@ -1,5 +1,6 @@
 import { confirm } from '@inquirer/prompts';
 import { ethers } from 'ethers';
+import type { ArgumentsCamelCase, MiddlewareFunction } from 'yargs';
 
 import { loadProtocolProviders } from '@hyperlane-xyz/deploy-sdk';
 import {
@@ -35,11 +36,14 @@ import {
   WriteCommandContext,
 } from './types.js';
 
-type UntypedArgv = Record<string, any>;
+type UntypedOptions = Record<string, unknown>;
+type UntypedArgv = ArgumentsCamelCase<UntypedOptions>;
 type ArgvWithContext = UntypedArgv & { context: CommandContext };
 type ArgvWithWriteContext = UntypedArgv & { context: WriteCommandContext };
 
-export async function contextMiddleware(argv: UntypedArgv) {
+export const contextMiddleware: MiddlewareFunction<UntypedOptions> = async (
+  argv,
+) => {
   const requiresKey = isSignCommand(argv);
 
   const settings: ContextSettings = {
@@ -54,18 +58,18 @@ export async function contextMiddleware(argv: UntypedArgv) {
 
   const context = await getContext(settings);
   setCommandContext(argv, context);
-}
+};
 
-export async function signerMiddleware(argv: UntypedArgv) {
+export const signerMiddleware: MiddlewareFunction<UntypedOptions> = async (
+  argv,
+) => {
   assertHasContext(argv);
 
-  if (!argv.context.requiresKey) return argv;
+  if (!argv.context.requiresKey) return;
 
   const writeContext = await getSignerContext(argv.context, argv);
   setWriteCommandContext(argv, writeContext);
-
-  return argv;
-}
+};
 
 /**
  * Retrieves context for the user-selected command
