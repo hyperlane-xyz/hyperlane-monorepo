@@ -82,6 +82,7 @@ fn generate_test_chain_conf(
                 max_batch_size: 1,
                 ..Default::default()
             },
+            rotate_no_transaction_receipt: false,
         }),
         metrics_conf: PrometheusMiddlewareConf {
             contracts: HashMap::new(),
