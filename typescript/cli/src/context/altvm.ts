@@ -158,6 +158,24 @@ export function createAltVMSignerGetter(
   protocolProviders: ProtocolProviderMap,
 ): AltVMSignerGetter {
   const signers: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>> = {};
+  const keyPromises: Partial<Record<ProtocolType, Promise<string>>> = {};
+
+  const getOrLoadPrivateKey = (protocol: ProtocolType, chain: string) => {
+    if (keyByProtocol[protocol]) {
+      return Promise.resolve(keyByProtocol[protocol]!);
+    }
+
+    if (!keyPromises[protocol]) {
+      keyPromises[protocol] = loadPrivateKey(
+        keyByProtocol,
+        strategyConfig,
+        protocol,
+        chain,
+      );
+    }
+
+    return keyPromises[protocol]!;
+  };
 
   return async (chain: ChainName) => {
     if (signers[chain]) {
@@ -172,12 +190,7 @@ export function createAltVMSignerGetter(
     }
 
     const signerConfig = {
-      privateKey: await loadPrivateKey(
-        keyByProtocol,
-        strategyConfig,
-        protocol,
-        chain,
-      ),
+      privateKey: await getOrLoadPrivateKey(protocol, chain),
     };
 
     const signer = await providerFactory.createSigner(metadata, signerConfig);
