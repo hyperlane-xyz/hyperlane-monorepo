@@ -1,14 +1,17 @@
 import { ethers } from 'ethers';
-import { CommandModule, Options } from 'yargs';
+import type { Options } from 'yargs';
 
-import { CommandModuleWithWriteContext } from '../context/types.js';
+import {
+  CommandModuleWithWriteContext,
+  HyperlaneCommandModule,
+} from '../context/types.js';
 import { log } from '../logger.js';
 import { sendTestMessage } from '../send/message.js';
 
 /**
  * Parent command
  */
-export const sendCommand: CommandModule = {
+export const sendCommand: HyperlaneCommandModule = {
   command: 'send',
   describe: 'Send a test message',
   builder: (yargs) =>

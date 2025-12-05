@@ -1,8 +1,10 @@
-import { CommandModule } from 'yargs';
-
 import { createAgentConfig } from '../config/agent.js';
 import { createChainConfig } from '../config/chain.js';
-import { CommandContext, CommandModuleWithContext } from '../context/types.js';
+import {
+  CommandContext,
+  CommandModuleWithContext,
+  HyperlaneCommandModule,
+} from '../context/types.js';
 import { errorRed, log, logBlue, logGray, logTable } from '../logger.js';
 
 import {
@@ -14,7 +16,7 @@ import { ChainType, ChainTypes } from './types.js';
 /**
  * Parent command
  */
-export const registryCommand: CommandModule = {
+export const registryCommand: HyperlaneCommandModule = {
   command: 'registry',
   describe: 'Manage Hyperlane chains in a registry',
   builder: (yargs) =>
