@@ -25,7 +25,7 @@
     "test:unit": "mocha --config .mocharc.json './test/**/*.ts' --exit"
   },
   "dependencies": {
-    "@hyperlane-xyz/registry": "20.0.0",
+    "@hyperlane-xyz/registry": "23.7.0",
     "@hyperlane-xyz/sdk": "19.11.0",
     "@hyperlane-xyz/utils": "19.11.0",
     "express": "^5.1.0",

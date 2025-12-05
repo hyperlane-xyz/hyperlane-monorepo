@@ -1,0 +1,36 @@
+[[dependencies]]
+name = "@arbitrum-nitro-contracts"
+version = "1.2.1"
+git = "https://github.com/OffchainLabs/nitro-contracts.git"
+rev = "399790bb6660486fadf958017efc4eec99be3dd2"
+
+[[dependencies]]
+name = "@chainlink-contracts-ccip"
+version = "1.5.0"
+git = "https://github.com/smartcontractkit/ccip.git"
+rev = "b5529a39311a2fd39cafceb62e4bb8f40eeb2e9e"
+
+[[dependencies]]
+name = "@eth-optimism-contracts"
+version = "0.6.0"
+git = "https://github.com/ethereum-optimism/optimism.git"
+rev = "9d1be2dab809f5a80a3927ed84fd9cda49a82c47"
+
+[[dependencies]]
+name = "@openzeppelin-contracts"
+version = "4.9.3"
+git = "https://github.com/OpenZeppelin/openzeppelin-contracts.git"
+rev = "fd81a96f01cc42ef1c9a5399364968d0e07e9e90"
+
+[[dependencies]]
+name = "@openzeppelin-contracts-upgradeable"
+version = "4.9.3"
+git = "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable.git"
+rev = "3d4c0d5741b131c231e558d7a6213392ab3672a5"
+
+[[dependencies]]
+name = "forge-std"
+version = "1.9.2"
+url = "https://soldeer-revisions.s3.amazonaws.com/forge-std/1_9_2_06-08-2024_17:31:25_forge-std-1.9.2.zip"
+checksum = "20fd008c7c69b6c737cc0284469d1c76497107bc3e004d8381f6d8781cb27980"
+integrity = "f49457fb6591f0dfd8b59e02e6eb4508a115ef08a86b0803feb0a3939d82d783"
