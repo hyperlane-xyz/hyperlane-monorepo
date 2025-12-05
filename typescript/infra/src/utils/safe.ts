@@ -55,7 +55,7 @@ const SAFE_API_MIN_DELAY_MS = 1000;
 const SAFE_API_MAX_DELAY_MS = 3000;
 
 /**
- * Retry helper for Safe API calls with random delay between 1-10 seconds.
+ * Retry helper for Safe API calls with random delay between 1-3 seconds.
  * Handles rate limiting (429) errors with jittered backoff.
  */
 export async function retrySafeApi<T>(runner: () => Promise<T>): Promise<T> {
