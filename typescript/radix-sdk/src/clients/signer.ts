@@ -6,7 +6,28 @@ import {
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert, strip0x } from '@hyperlane-xyz/utils';
 
-import { RadixCoreTx } from '../core/tx.js';
+import {
+  getCreateIgpTransaction,
+  getCreateMerkleTreeHookTransaction,
+  getSetIgpDestinationGasConfigTransaction,
+  getSetIgpOwnerTransaction,
+} from '../hook/hook-tx.js';
+import {
+  getCreateMerkleRootMultisigIsmTransaction,
+  getCreateMessageIdMultisigIsmTransaction,
+  getCreateNoopIsmTransaction,
+  getCreateRoutingIsmTransaction,
+  getRemoveRoutingIsmDomainIsmTransaction,
+  getSetRoutingIsmDomainIsmTransaction,
+  getSetRoutingIsmOwnerTransaction,
+} from '../ism/ism-tx.js';
+import {
+  getCreateMailboxTransaction,
+  getSetMailboxDefaultHookTransaction,
+  getSetMailboxDefaultIsmTransaction,
+  getSetMailboxOwnerTransaction,
+  getSetMailboxRequiredHookTransaction,
+} from '../mailbox/mailbox-tx.js';
 import { RadixBaseSigner } from '../utils/signer.js';
 import {
   Account,
@@ -19,6 +40,7 @@ import {
   stringToTransactionManifest,
   transactionManifestToString,
 } from '../utils/utils.js';
+import { getCreateValidatorAnnounceTransaction } from '../validator-announce/validator-announce-tx.js';
 import { RadixWarpTx } from '../warp/tx.js';
 
 import { RadixProvider } from './provider.js';
@@ -30,7 +52,6 @@ export class RadixSigner
   private account: Account;
 
   private tx: {
-    core: RadixCoreTx;
     warp: RadixWarpTx;
   };
   private signer: RadixBaseSigner;
@@ -46,12 +67,6 @@ export class RadixSigner
       this.account,
     );
     this.tx = {
-      core: new RadixCoreTx(
-        account,
-        this.base,
-        this.signer,
-        this.populate.core,
-      ),
       warp: new RadixWarpTx(
         account,
         this.networkId,
@@ -151,21 +166,36 @@ export class RadixSigner
   async createMailbox(
     req: Omit<AltVM.ReqCreateMailbox, 'signer'>,
   ): Promise<AltVM.ResCreateMailbox> {
+    const transactionManifest = await getCreateMailboxTransaction(
+      this.base,
+      this.packageAddress,
+      {
+        fromAddress: this.account.address,
+        domainId: req.domainId,
+      },
+    );
+
+    const receipt = await this.signer.signAndBroadcast(transactionManifest);
+
+    const mailboxAddress = await this.base.getNewComponent(receipt);
     return {
-      mailboxAddress: await this.tx.core.createMailbox({
-        domain_id: req.domainId,
-      }),
+      mailboxAddress,
     };
   }
 
   async setDefaultIsm(
     req: Omit<AltVM.ReqSetDefaultIsm, 'signer'>,
   ): Promise<AltVM.ResSetDefaultIsm> {
-    await this.tx.core.setDefaultIsm({
-      mailbox: req.mailboxAddress,
-      ism: req.ismAddress,
-    });
+    const transactionManifest = await getSetMailboxDefaultIsmTransaction(
+      this.base,
+      {
+        fromAddress: this.account.address,
+        mailboxAddress: req.mailboxAddress,
+        ismAddress: req.ismAddress,
+      },
+    );
 
+    await this.signer.signAndBroadcast(transactionManifest);
     return {
       ismAddress: req.ismAddress,
     };
@@ -174,11 +204,16 @@ export class RadixSigner
   async setDefaultHook(
     req: Omit<AltVM.ReqSetDefaultHook, 'signer'>,
   ): Promise<AltVM.ResSetDefaultHook> {
-    await this.tx.core.setDefaultHook({
-      mailbox: req.mailboxAddress,
-      hook: req.hookAddress,
-    });
+    const transactionManifest = await getSetMailboxDefaultHookTransaction(
+      this.base,
+      {
+        fromAddress: this.account.address,
+        mailboxAddress: req.mailboxAddress,
+        hookAddress: req.hookAddress,
+      },
+    );
 
+    await this.signer.signAndBroadcast(transactionManifest);
     return {
       hookAddress: req.hookAddress,
     };
@@ -187,11 +222,16 @@ export class RadixSigner
   async setRequiredHook(
     req: Omit<AltVM.ReqSetRequiredHook, 'signer'>,
   ): Promise<AltVM.ResSetRequiredHook> {
-    await this.tx.core.setRequiredHook({
-      mailbox: req.mailboxAddress,
-      hook: req.hookAddress,
-    });
+    const transactionManifest = await getSetMailboxRequiredHookTransaction(
+      this.base,
+      {
+        fromAddress: this.account.address,
+        mailboxAddress: req.mailboxAddress,
+        hookAddress: req.hookAddress,
+      },
+    );
 
+    await this.signer.signAndBroadcast(transactionManifest);
     return {
       hookAddress: req.hookAddress,
     };
@@ -200,10 +240,17 @@ export class RadixSigner
   async setMailboxOwner(
     req: Omit<AltVM.ReqSetMailboxOwner, 'signer'>,
   ): Promise<AltVM.ResSetMailboxOwner> {
-    await this.tx.core.setMailboxOwner({
-      mailbox: req.mailboxAddress,
-      new_owner: req.newOwner,
-    });
+    const transactionManifest = await getSetMailboxOwnerTransaction(
+      this.base,
+      this.gateway,
+      {
+        fromAddress: this.account.address,
+        mailboxAddress: req.mailboxAddress,
+        newOwner: req.newOwner,
+      },
+    );
+
+    await this.signer.signAndBroadcast(transactionManifest);
 
     return {
       newOwner: req.newOwner,
@@ -213,42 +260,78 @@ export class RadixSigner
   async createMerkleRootMultisigIsm(
     req: Omit<AltVM.ReqCreateMerkleRootMultisigIsm, 'signer'>,
   ): Promise<AltVM.ResCreateMerkleRootMultisigIsm> {
-    return {
-      ismAddress: await this.tx.core.createMerkleRootMultisigIsm({
+    const transactionManifest = await getCreateMerkleRootMultisigIsmTransaction(
+      this.base,
+      this.packageAddress,
+      {
+        fromAddress: this.account.address,
         validators: req.validators,
         threshold: req.threshold,
-      }),
+      },
+    );
+
+    const receipt = await this.signer.signAndBroadcast(transactionManifest);
+
+    const ismAddress = await this.base.getNewComponent(receipt);
+    return {
+      ismAddress,
     };
   }
 
   async createMessageIdMultisigIsm(
     req: Omit<AltVM.ReqCreateMessageIdMultisigIsm, 'signer'>,
   ): Promise<AltVM.ResCreateMessageIdMultisigIsm> {
-    return {
-      ismAddress: await this.tx.core.createMessageIdMultisigIsm({
+    const transactionManifest = await getCreateMessageIdMultisigIsmTransaction(
+      this.base,
+      this.packageAddress,
+      {
+        fromAddress: this.account.address,
         validators: req.validators,
         threshold: req.threshold,
-      }),
+      },
+    );
+
+    const receipt = await this.signer.signAndBroadcast(transactionManifest);
+
+    const ismAddress = await this.base.getNewComponent(receipt);
+    return {
+      ismAddress,
     };
   }
 
   async createRoutingIsm(
     req: Omit<AltVM.ReqCreateRoutingIsm, 'signer'>,
   ): Promise<AltVM.ResCreateRoutingIsm> {
-    return {
-      ismAddress: await this.tx.core.createRoutingIsm({
+    const transactionManifest = await getCreateRoutingIsmTransaction(
+      this.base,
+      this.packageAddress,
+      {
+        fromAddress: this.account.address,
         routes: req.routes,
-      }),
+      },
+    );
+
+    const receipt = await this.signer.signAndBroadcast(transactionManifest);
+
+    const ismAddress = await this.base.getNewComponent(receipt);
+    return {
+      ismAddress,
     };
   }
 
   async setRoutingIsmRoute(
     req: Omit<AltVM.ReqSetRoutingIsmRoute, 'signer'>,
   ): Promise<AltVM.ResSetRoutingIsmRoute> {
-    await this.tx.core.setRoutingIsmRoute({
-      ism: req.ismAddress,
-      route: req.route,
-    });
+    const transactionManifest = await getSetRoutingIsmDomainIsmTransaction(
+      this.base,
+      {
+        fromAddress: this.account.address,
+        ismAddress: req.ismAddress,
+        domainIsm: req.route,
+      },
+    );
+
+    await this.signer.signAndBroadcast(transactionManifest);
 
     return {
       route: req.route,
@@ -258,10 +341,16 @@ export class RadixSigner
   async removeRoutingIsmRoute(
     req: Omit<AltVM.ReqRemoveRoutingIsmRoute, 'signer'>,
   ): Promise<AltVM.ResRemoveRoutingIsmRoute> {
-    await this.tx.core.removeRoutingIsmRoute({
-      ism: req.ismAddress,
-      domain: req.domainId,
-    });
+    const transactionManifest = await getRemoveRoutingIsmDomainIsmTransaction(
+      this.base,
+      {
+        fromAddress: this.account.address,
+        ismAddress: req.ismAddress,
+        domainId: req.domainId,
+      },
+    );
+
+    await this.signer.signAndBroadcast(transactionManifest);
 
     return {
       domainId: req.domainId,
@@ -271,11 +360,17 @@ export class RadixSigner
   async setRoutingIsmOwner(
     req: Omit<AltVM.ReqSetRoutingIsmOwner, 'signer'>,
   ): Promise<AltVM.ResSetRoutingIsmOwner> {
-    await this.tx.core.setRoutingIsmOwner({
-      ism: req.ismAddress,
-      new_owner: req.newOwner,
-    });
+    const transactionManifest = await getSetRoutingIsmOwnerTransaction(
+      this.base,
+      this.gateway,
+      {
+        fromAddress: this.account.address,
+        ismAddress: req.ismAddress,
+        newOwner: req.newOwner,
+      },
+    );
 
+    await this.signer.signAndBroadcast(transactionManifest);
     return {
       newOwner: req.newOwner,
     };
@@ -284,18 +379,37 @@ export class RadixSigner
   async createNoopIsm(
     _req: Omit<AltVM.ReqCreateNoopIsm, 'signer'>,
   ): Promise<AltVM.ResCreateNoopIsm> {
+    const transactionManifest = await getCreateNoopIsmTransaction(
+      this.base,
+      this.packageAddress,
+      this.account.address,
+    );
+
+    const receipt = await this.signer.signAndBroadcast(transactionManifest);
+
+    const ismAddress = await this.base.getNewComponent(receipt);
     return {
-      ismAddress: await this.tx.core.createNoopIsm(),
+      ismAddress,
     };
   }
 
   async createMerkleTreeHook(
     req: Omit<AltVM.ReqCreateMerkleTreeHook, 'signer'>,
   ): Promise<AltVM.ResCreateMerkleTreeHook> {
+    const transactionManifest = await getCreateMerkleTreeHookTransaction(
+      this.base,
+      this.packageAddress,
+      {
+        fromAddress: this.account.address,
+        mailboxAddress: req.mailboxAddress,
+      },
+    );
+
+    const receipt = await this.signer.signAndBroadcast(transactionManifest);
+
+    const hookAddress = await this.base.getNewComponent(receipt);
     return {
-      hookAddress: await this.tx.core.createMerkleTreeHook({
-        mailbox: req.mailboxAddress,
-      }),
+      hookAddress,
     };
   }
 
@@ -304,21 +418,37 @@ export class RadixSigner
   ): Promise<AltVM.ResCreateInterchainGasPaymasterHook> {
     assert(req.denom, `denom required by ${RadixProvider.name}`);
 
+    const transactionManifest = await getCreateIgpTransaction(
+      this.base,
+      this.packageAddress,
+      {
+        fromAddress: this.account.address,
+        nativeTokenDenom: req.denom,
+      },
+    );
+
+    const receipt = await this.signer.signAndBroadcast(transactionManifest);
+
+    const hookAddress = await this.base.getNewComponent(receipt);
     return {
-      hookAddress: await this.tx.core.createIgp({
-        denom: req.denom,
-      }),
+      hookAddress,
     };
   }
 
   async setInterchainGasPaymasterHookOwner(
     req: Omit<AltVM.ReqSetInterchainGasPaymasterHookOwner, 'signer'>,
   ): Promise<AltVM.ResSetInterchainGasPaymasterHookOwner> {
-    await this.tx.core.setIgpOwner({
-      igp: req.hookAddress,
-      new_owner: req.newOwner,
-    });
+    const transactionManifest = await getSetIgpOwnerTransaction(
+      this.base,
+      this.gateway,
+      {
+        fromAddress: this.account.address,
+        igpAddress: req.hookAddress,
+        newOwner: req.newOwner,
+      },
+    );
 
+    await this.signer.signAndBroadcast(transactionManifest);
     return {
       newOwner: req.newOwner,
     };
@@ -327,11 +457,16 @@ export class RadixSigner
   async setDestinationGasConfig(
     req: Omit<AltVM.ReqSetDestinationGasConfig, 'signer'>,
   ): Promise<AltVM.ResSetDestinationGasConfig> {
-    await this.tx.core.setDestinationGasConfig({
-      igp: req.hookAddress,
-      destinationGasConfig: req.destinationGasConfig,
-    });
+    const transactionManifest = await getSetIgpDestinationGasConfigTransaction(
+      this.base,
+      {
+        fromAddress: this.account.address,
+        igpAddress: req.hookAddress,
+        destinationGasConfig: req.destinationGasConfig,
+      },
+    );
 
+    await this.signer.signAndBroadcast(transactionManifest);
     return {
       destinationGasConfig: req.destinationGasConfig,
     };
@@ -354,10 +489,20 @@ export class RadixSigner
   async createValidatorAnnounce(
     req: Omit<AltVM.ReqCreateValidatorAnnounce, 'signer'>,
   ): Promise<AltVM.ResCreateValidatorAnnounce> {
+    const transactionManifest = await getCreateValidatorAnnounceTransaction(
+      this.base,
+      this.packageAddress,
+      {
+        fromAddress: this.account.address,
+        mailboxAddress: req.mailboxAddress,
+      },
+    );
+
+    const receipt = await this.signer.signAndBroadcast(transactionManifest);
+
+    const validatorAnnounceId = await this.base.getNewComponent(receipt);
     return {
-      validatorAnnounceId: await this.tx.core.createValidatorAnnounce({
-        mailbox: req.mailboxAddress,
-      }),
+      validatorAnnounceId,
     };
   }
 
