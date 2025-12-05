@@ -62,6 +62,12 @@ This document analyzes the effort required to replace the current `MultiSend` in
    - For timelock controller submissions
    - Not currently used in governor
 
+6. **File Submitter** (to be created/adapted)
+   - Writes transactions to a file (JSON/YAML format)
+   - Similar to `ManualMultiSend` but persists to file instead of console
+   - Currently exists in CLI package as `EV5FileSubmitter`
+   - Needs to be created in SDK/infra or adapted from CLI version
+
 ### Submission Strategy System
 
 - Uses `SubmissionStrategy` config per chain
@@ -87,10 +93,11 @@ sendCalls() {
 **Required Changes:**
 - Replace `MultiSend` abstraction with `TxSubmitterInterface`
 - Map `SubmissionType` → `TxSubmitterType`:
-  - `SIGNER` → `JSON_RPC`
-  - `SAFE` → `GNOSIS_SAFE` (per governance type)
-  - `MANUAL` → `GNOSIS_TX_BUILDER`
-- Handle different return types (`void` vs `TransactionReceipt[]`)
+  - `SIGNER` → `JSON_RPC` (`EV5JsonRpcTxSubmitter`)
+  - `SAFE` → `GNOSIS_SAFE` (`EV5GnosisSafeTxSubmitter`) with fallback to `GNOSIS_TX_BUILDER` (`EV5GnosisSafeTxBuilder`)
+  - `MANUAL` → File submitter (writes transactions to file)
+- Handle different return types (`void` vs `TransactionReceipt[]` vs file path)
+- Implement fallback logic: `EV5GnosisSafeTxSubmitter` → `EV5GnosisSafeTxBuilder` on failure
 - Maintain batching logic (submitters handle this differently)
 
 **Complexity:**
@@ -98,7 +105,9 @@ sendCalls() {
   - `EV5GnosisSafeTxSubmitter.submit()` returns `void`
   - `EV5JsonRpcTxSubmitter.submit()` returns `TransactionReceipt[]`
   - `EV5GnosisSafeTxBuilder.submit()` returns JSON payload
+  - File submitter returns `[]` (writes to file)
 - Need to handle these differences in error handling and logging
+- **File submitter**: Currently only exists in CLI package (`EV5FileSubmitter`), may need to create one in SDK/infra or adapt CLI version
 
 #### 2. **Submission Strategy Configuration** (Est: 1-2 days)
 
@@ -125,7 +134,9 @@ sendCalls() {
 - Errors are caught and logged, but process continues
 
 **Required:**
-- Implement fallback chain: `GNOSIS_SAFE` → `GNOSIS_TX_BUILDER` on failure
+- Implement fallback chain: `EV5GnosisSafeTxSubmitter` → `EV5GnosisSafeTxBuilder` on failure
+  - Try `EV5GnosisSafeTxSubmitter.submit()` first
+  - On failure (API error, authorization failure, etc.), fall back to `EV5GnosisSafeTxBuilder.submit()` to generate JSON
 - Handle submitter creation failures gracefully
 - Maintain current error logging and user feedback
 
@@ -133,6 +144,7 @@ sendCalls() {
 - Submitters throw different error types
 - Need consistent error handling across submitter types
 - JSON fallback should work seamlessly
+- Must catch errors from `EV5GnosisSafeTxSubmitter` and retry with `EV5GnosisSafeTxBuilder`
 
 #### 4. **ICA Integration** (Est: 1-2 days)
 
@@ -190,10 +202,24 @@ sendCalls() {
 - Remove imports from `HyperlaneAppGovernor`
 - Clean up any remaining references
 
-#### 9. **Update Type Definitions** (Est: 0.5 days)
+#### 9. **File Submitter Implementation** (Est: 1 day)
+
+**Required:**
+- Create file submitter in SDK/infra (or adapt `EV5FileSubmitter` from CLI)
+- File submitter should write transactions to a file (JSON/YAML format)
+- Similar to `ManualMultiSend` but writes to file instead of console
+- Must implement `TxSubmitterInterface<ProtocolType.Ethereum>`
+
+**Options:**
+- Option A: Create `EV5FileSubmitter` in SDK (reusable across packages)
+- Option B: Create `InfraFileSubmitter` in infra package (infra-specific)
+- Option C: Adapt CLI's `EV5FileSubmitter` for use in infra
+
+#### 10. **Update Type Definitions** (Est: 0.5 days)
 
 - Update `SubmissionType` enum if needed
 - Ensure type compatibility between `AnnotatedCallData` and `AnnotatedEV5Transaction`
+- Add file submitter type to `TxSubmitterType` enum if creating new submitter
 
 ## Key Differences & Considerations
 
@@ -221,7 +247,8 @@ sendCalls() {
 **Submitters:**
 - `EV5JsonRpcTxSubmitter` returns `TransactionReceipt[]`
 - `EV5GnosisSafeTxSubmitter` returns `void`
-- `EV5GnosisSafeTxBuilder` returns JSON payload
+- `EV5GnosisSafeTxBuilder` returns JSON payload (for manual upload)
+- File submitter returns `[]` (writes transactions to file)
 
 **Impact:** Need to handle different return types in `sendCalls()`
 
@@ -259,8 +286,8 @@ sendCalls() {
 
 ### Phase 2: Gradual Migration (Medium Risk)
 1. Migrate `SIGNER` → `EV5JsonRpcTxSubmitter` first (simplest)
-2. Migrate `MANUAL` → `EV5GnosisSafeTxBuilder` (already partially done)
-3. Migrate `SAFE` → `EV5GnosisSafeTxSubmitter` last (most complex)
+2. Migrate `MANUAL` → File submitter (create or adapt `EV5FileSubmitter` from CLI)
+3. Migrate `SAFE` → `EV5GnosisSafeTxSubmitter` with fallback to `EV5GnosisSafeTxBuilder` last (most complex)
 
 ### Phase 3: Complete Migration (Higher Risk)
 1. Remove `MultiSend` classes
@@ -277,9 +304,10 @@ sendCalls() {
 | ICA integration | 1-2 days | Medium |
 | Transaction conversion | 0.5 days | Low |
 | Batching logic | 0.5 days | Low |
+| File submitter implementation | 1 day | Low |
 | Testing | 2-3 days | Low |
 | Cleanup | 0.5 days | Low |
-| **Total** | **9-13 days** | **Medium** |
+| **Total** | **10-14 days** | **Medium** |
 
 ## Benefits of Migration
 
