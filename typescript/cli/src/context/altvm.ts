@@ -8,7 +8,6 @@ import {
   AltVM,
   type MinimumRequiredGasByAction,
   getProtocolProvider,
-  hasProtocol,
 } from '@hyperlane-xyz/provider-sdk';
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
@@ -84,11 +83,6 @@ export function createAltVMProviderGetter(
 
     const metadata = metadataManager.getChainMetadata(chain);
     const protocol = metadata.protocol;
-
-    if (!hasProtocol(protocol)) {
-      throw new Error(`Unsupported AltVM protocol for chain ${chain}`);
-    }
-
     const providerFactory = protocolProviders[protocol];
     if (!providerFactory) {
       throw new Error(
@@ -154,11 +148,6 @@ export function createAltVMSignerGetter(
 
     const metadata = metadataManager.getChainMetadata(chain);
     const protocol = metadata.protocol;
-
-    if (!hasProtocol(protocol)) {
-      throw new Error(`Unsupported AltVM protocol for chain ${chain}`);
-    }
-
     const providerFactory = protocolProviders[protocol];
     if (!providerFactory) {
       throw new Error(`AltVM signer not initialised for protocol ${protocol}`);
