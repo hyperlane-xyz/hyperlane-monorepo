@@ -17,6 +17,7 @@ import type { ChainMap, ChainName, ChainNameOrId } from '../types.js';
 
 import { MultiProvider, MultiProviderOptions } from './MultiProvider.js';
 import {
+  AleoProvider,
   CosmJsNativeProvider,
   CosmJsProvider,
   CosmJsWasmProvider,
@@ -230,6 +231,13 @@ export class MultiProtocolProvider<
     return this.getSpecificProvider<RadixProvider['provider']>(
       chainNameOrId,
       ProviderType.Radix,
+    );
+  }
+
+  getAleoProvider(chainNameOrId: ChainNameOrId): AleoProvider['provider'] {
+    return this.getSpecificProvider<AleoProvider['provider']>(
+      chainNameOrId,
+      ProviderType.Aleo,
     );
   }
 

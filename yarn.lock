@@ -7806,7 +7806,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@hyperlane-xyz/aleo-sdk@workspace:typescript/aleo-sdk":
+"@hyperlane-xyz/aleo-sdk@npm:19.11.0, @hyperlane-xyz/aleo-sdk@workspace:typescript/aleo-sdk":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/aleo-sdk@workspace:typescript/aleo-sdk"
   dependencies:
@@ -7885,6 +7885,7 @@ __metadata:
     "@eslint/js": "npm:^9.31.0"
     "@ethersproject/abi": "npm:*"
     "@ethersproject/providers": "npm:*"
+    "@hyperlane-xyz/aleo-sdk": "npm:19.11.0"
     "@hyperlane-xyz/core": "npm:10.0.5"
     "@hyperlane-xyz/cosmos-sdk": "npm:19.11.0"
     "@hyperlane-xyz/deploy-sdk": "npm:0.3.0"
@@ -8038,6 +8039,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/deploy-sdk@workspace:typescript/deploy-sdk"
   dependencies:
+    "@hyperlane-xyz/aleo-sdk": "npm:19.11.0"
     "@hyperlane-xyz/cosmos-sdk": "npm:19.11.0"
     "@hyperlane-xyz/eslint-config": "workspace:^"
     "@hyperlane-xyz/provider-sdk": "npm:0.3.0"
@@ -8341,6 +8343,7 @@ __metadata:
     "@cosmjs/proto-signing": "npm:^0.32.4"
     "@cosmjs/stargate": "npm:^0.32.4"
     "@ethersproject/providers": "npm:*"
+    "@hyperlane-xyz/aleo-sdk": "npm:19.11.0"
     "@hyperlane-xyz/core": "npm:10.0.5"
     "@hyperlane-xyz/cosmos-sdk": "npm:19.11.0"
     "@hyperlane-xyz/deploy-sdk": "npm:0.3.0"
@@ -8479,6 +8482,7 @@ __metadata:
     "@emotion/styled": "npm:^11.13.0"
     "@eslint/js": "npm:^9.31.0"
     "@headlessui/react": "npm:^2.1.8"
+    "@hyperlane-xyz/aleo-sdk": "npm:19.11.0"
     "@hyperlane-xyz/cosmos-sdk": "npm:19.11.0"
     "@hyperlane-xyz/provider-sdk": "npm:0.3.0"
     "@hyperlane-xyz/radix-sdk": "npm:19.11.0"
@@ -8487,6 +8491,8 @@ __metadata:
     "@hyperlane-xyz/tsconfig": "workspace:^"
     "@hyperlane-xyz/utils": "npm:19.11.0"
     "@interchain-ui/react": "npm:^1.23.28"
+    "@provablehq/aleo-wallet-adaptor-prove-alpha": "npm:^0.3.0-alpha.0"
+    "@provablehq/aleo-wallet-adaptor-react": "npm:^0.3.0-alpha.0"
     "@radixdlt/babylon-gateway-api-sdk": "npm:^1.10.1"
     "@radixdlt/radix-dapp-toolkit": "npm:^2.2.1"
     "@rainbow-me/rainbowkit": "npm:^2.2.0"
@@ -11129,6 +11135,58 @@ __metadata:
   version: 1.1.0
   resolution: "@protobufjs/utf8@npm:1.1.0"
   checksum: 10/131e289c57534c1d73a0e55782d6751dd821db1583cb2f7f7e017c9d6747addaebe79f28120b2e0185395d990aad347fb14ffa73ef4096fa38508d61a0e64602
+  languageName: node
+  linkType: hard
+
+"@provablehq/aleo-types@npm:0.3.0-alpha.0":
+  version: 0.3.0-alpha.0
+  resolution: "@provablehq/aleo-types@npm:0.3.0-alpha.0"
+  checksum: 10/d57b964093426b6968e92d7f129006dfbf17085b2dcaceebdc52dc719b1d119b947d4f0d2e4b01b7a5306122c7d97699fad66423f792eff4a43ae366764c3cf8
+  languageName: node
+  linkType: hard
+
+"@provablehq/aleo-wallet-adaptor-core@npm:0.3.0-alpha.0":
+  version: 0.3.0-alpha.0
+  resolution: "@provablehq/aleo-wallet-adaptor-core@npm:0.3.0-alpha.0"
+  dependencies:
+    "@provablehq/aleo-types": "npm:0.3.0-alpha.0"
+    "@provablehq/aleo-wallet-standard": "npm:0.3.0-alpha.0"
+  checksum: 10/ed60dbfb39289cf3195beb641f6b4b1b198e302be937c4e6ad8beebf225b091407bc1e40ed447e098d9d3ac5970d51dc8e8ae3ad7100bcb50c8dda1f72a4d875
+  languageName: node
+  linkType: hard
+
+"@provablehq/aleo-wallet-adaptor-prove-alpha@npm:^0.3.0-alpha.0":
+  version: 0.3.0-alpha.0
+  resolution: "@provablehq/aleo-wallet-adaptor-prove-alpha@npm:0.3.0-alpha.0"
+  dependencies:
+    "@provablehq/aleo-types": "npm:0.3.0-alpha.0"
+    "@provablehq/aleo-wallet-adaptor-core": "npm:0.3.0-alpha.0"
+    "@provablehq/aleo-wallet-standard": "npm:0.3.0-alpha.0"
+  checksum: 10/5b60d6c3fc44f9c9a9771a093268a6c00e8dd9c1684a4584903b71b25069908f8d918e0f719d5135fbddd576162a5b8dc82c9f6d171de00d78c551a766770037
+  languageName: node
+  linkType: hard
+
+"@provablehq/aleo-wallet-adaptor-react@npm:^0.3.0-alpha.0":
+  version: 0.3.0-alpha.0
+  resolution: "@provablehq/aleo-wallet-adaptor-react@npm:0.3.0-alpha.0"
+  dependencies:
+    "@provablehq/aleo-types": "npm:0.3.0-alpha.0"
+    "@provablehq/aleo-wallet-adaptor-core": "npm:0.3.0-alpha.0"
+    "@provablehq/aleo-wallet-standard": "npm:0.3.0-alpha.0"
+  peerDependencies:
+    react: ^18.0.0
+    react-dom: ^18.0.0
+  checksum: 10/b47694f38cad4e9f5feb471d969df7a5d7bb9074f188319f3a127dde7304ea7ebd989a9a2696d64469d5b5b62d05dc60027eb315f28783cf9f942b4bffe36e45
+  languageName: node
+  linkType: hard
+
+"@provablehq/aleo-wallet-standard@npm:0.3.0-alpha.0":
+  version: 0.3.0-alpha.0
+  resolution: "@provablehq/aleo-wallet-standard@npm:0.3.0-alpha.0"
+  dependencies:
+    "@provablehq/aleo-types": "npm:0.3.0-alpha.0"
+    eventemitter3: "npm:^5.0.1"
+  checksum: 10/51c30848154f99746309f1b070152628b657af64b0e5684f660f0e939d559a766596ed23a7f77462964f767567c2da48c8284eba52f8e0721c0ba4b88024f589
   languageName: node
   linkType: hard
 
@@ -22689,9 +22747,9 @@ __metadata:
   linkType: hard
 
 "core-js@npm:^3.40.0":
-  version: 3.47.0
-  resolution: "core-js@npm:3.47.0"
-  checksum: 10/c02dc6a091c7e6799e3527dc06a428c44bbcff7f8f6ee700ff818b90aa2ebaf1f17b0234146e692811da97cda5a39a6095ecadec9fd1a74b1135103eb0e96cb1
+  version: 3.46.0
+  resolution: "core-js@npm:3.46.0"
+  checksum: 10/82993ca487c6cbbf8bbf00e45eeb9705eb63dc2f9c90d7f35696733efbc3f4b52426e1f8dbef0f0b68ea16caa21e4f44cc5490e08120e1cad4a72b031ed8adaa
   languageName: node
   linkType: hard
 

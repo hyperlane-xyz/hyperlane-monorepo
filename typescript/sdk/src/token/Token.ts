@@ -29,6 +29,12 @@ import {
   XERC20_STANDARDS,
 } from './TokenStandard.js';
 import {
+  AleoHypCollateralAdapter,
+  AleoHypNativeAdapter,
+  AleoHypSyntheticAdapter,
+  AleoNativeTokenAdapter,
+} from './adapters/AleoTokenAdapter.js';
+import {
   CwHypCollateralAdapter,
   CwHypNativeAdapter,
   CwHypSyntheticAdapter,
@@ -171,6 +177,10 @@ export class Token implements IToken {
       });
     } else if (standard === TokenStandard.RadixNative) {
       return new RadixNativeTokenAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+      });
+    } else if (standard === TokenStandard.AleoNative) {
+      return new AleoNativeTokenAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
     } else if (this.isHypToken()) {
@@ -342,6 +352,18 @@ export class Token implements IToken {
       });
     } else if (standard === TokenStandard.RadixHypSynthetic) {
       return new RadixHypSyntheticAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+      });
+    } else if (standard === TokenStandard.AleoHypNative) {
+      return new AleoHypNativeAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+      });
+    } else if (standard === TokenStandard.AleoHypCollateral) {
+      return new AleoHypCollateralAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+      });
+    } else if (standard === TokenStandard.AleoHypSynthetic) {
+      return new AleoHypSyntheticAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
     } else if (standard === TokenStandard.EvmM0PortalLite) {
