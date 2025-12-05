@@ -31,6 +31,7 @@ export class RadixProtocolProvider implements ProtocolProvider {
     const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
 
     const { privateKey } = config;
+    assert(privateKey, 'private key undefined');
 
     return RadixSigner.connectWithSigner(rpcUrls, privateKey, {
       metadata: chainMetadata,

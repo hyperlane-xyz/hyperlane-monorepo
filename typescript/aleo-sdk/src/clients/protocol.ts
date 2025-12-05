@@ -29,6 +29,8 @@ export class AleoProtocolProvider implements ProtocolProvider {
     const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
 
     const { privateKey, ...extraParams } = config;
+    assert(privateKey, 'private key undefined');
+
     return AleoSigner.connectWithSigner(rpcUrls, privateKey, extraParams);
   }
 
