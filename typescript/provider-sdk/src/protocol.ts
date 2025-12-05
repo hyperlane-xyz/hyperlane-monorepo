@@ -131,3 +131,28 @@ export const hasProtocol = protocolRegistry.hasProtocol.bind(protocolRegistry);
  */
 export const listProtocols =
   protocolRegistry.listProtocols.bind(protocolRegistry);
+
+export class Providers {
+  providers = new Map<number, IProvider>(); // @TODO: Add "Chain" type
+  setProvider(chainId: number, provider: IProvider): IProvider {
+    this.providers.set(chainId, provider);
+    return provider;
+  }
+  getProvider(chainId: number): IProvider | undefined {
+    return this.providers.get(chainId);
+  }
+}
+
+export class Signers {
+  signers = new Map<number, ISigner<AnnotatedTx, TxReceipt>>();
+  setSigner(
+    domainId: number,
+    signer: ISigner<AnnotatedTx, TxReceipt>,
+  ): ISigner<AnnotatedTx, TxReceipt> {
+    this.signers.set(domainId, signer);
+    return signer;
+  }
+  getSigner(domainId: number): ISigner<AnnotatedTx, TxReceipt> | undefined {
+    return this.signers.get(domainId);
+  }
+}

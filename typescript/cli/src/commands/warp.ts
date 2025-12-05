@@ -2,6 +2,7 @@ import util from 'util';
 import { stringify as yamlStringify } from 'yaml';
 import { CommandModule } from 'yargs';
 
+import { getProtocolProvider, hasProtocol } from '@hyperlane-xyz/provider-sdk';
 import {
   RawForkedChainConfigByChain,
   RawForkedChainConfigByChainSchema,
@@ -402,9 +403,21 @@ export const check: CommandModuleWithContext<SelectWarpRouteBuilder> = {
       deployedRoutersAddresses,
     });
 
+    // Create altVmProviders dynamically for this call
+    const altVmProviders: any = {};
+    const allChains = Object.keys(warpDeployConfig);
+    for (const chain of allChains) {
+      const protocol = context.multiProvider.getProtocol(chain);
+      if (protocol !== ProtocolType.Ethereum && hasProtocol(protocol)) {
+        const metadata = context.multiProvider.getChainMetadata(chain);
+        altVmProviders[chain] =
+          await getProtocolProvider(protocol).createProvider(metadata);
+      }
+    }
+
     let expandedWarpDeployConfig = await expandWarpDeployConfig({
       multiProvider: context.multiProvider,
-      altVmProviders: context.altVmProviders,
+      altVmProviders,
       warpDeployConfig,
       deployedRoutersAddresses,
       expandedOnChainWarpConfig,

@@ -1,11 +1,12 @@
 import { AltVMCoreReader } from '@hyperlane-xyz/deploy-sdk';
+import { getProtocolProvider } from '@hyperlane-xyz/provider-sdk';
 import {
   ChainName,
   CoreConfig,
   EvmCoreReader,
   altVmChainLookup,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, assert, mustGet } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { errorRed } from '../logger.js';
@@ -49,7 +50,9 @@ export async function executeCoreRead({
       break;
     }
     default: {
-      const provider = mustGet(context.altVmProviders, chain);
+      const metadata = context.multiProvider.getChainMetadata(chain);
+      const provider =
+        await getProtocolProvider(protocolType).createProvider(metadata);
       const coreReader = new AltVMCoreReader(
         altVmChainLookup(context.multiProvider),
         provider,

@@ -9,16 +9,30 @@ import {
 } from '@hyperlane-xyz/provider-sdk';
 import { IProvider } from '@hyperlane-xyz/provider-sdk/altvm';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
+import { Providers, Signers } from '@hyperlane-xyz/provider-sdk/protocol';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { AleoProvider } from './provider.js';
 import { AleoSigner } from './signer.js';
 
 export class AleoProtocolProvider implements ProtocolProvider {
-  createProvider(chainMetadata: ChainMetadataForAltVM): Promise<IProvider> {
+  providers = new Providers();
+  signers = new Signers();
+
+  async createProvider(
+    chainMetadata: ChainMetadataForAltVM,
+  ): Promise<IProvider> {
     assert(chainMetadata.rpcUrls, 'rpc urls undefined');
     const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
-    return AleoProvider.connect(rpcUrls, chainMetadata.chainId);
+    const { domainId } = chainMetadata;
+
+    const existingProvider = this.providers.getProvider(domainId);
+    if (existingProvider) return existingProvider;
+
+    const provider = await AleoProvider.connect(rpcUrls, chainMetadata.chainId);
+    this.providers.setProvider(domainId, provider);
+
+    return provider;
   }
 
   async createSigner(
@@ -29,7 +43,19 @@ export class AleoProtocolProvider implements ProtocolProvider {
     const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
 
     const { privateKey, ...extraParams } = config;
-    return AleoSigner.connectWithSigner(rpcUrls, privateKey, extraParams);
+    const { domainId } = chainMetadata;
+
+    const existingSigner = this.signers.getSigner(domainId);
+    if (existingSigner) return existingSigner;
+
+    const signer = await AleoSigner.connectWithSigner(
+      rpcUrls,
+      privateKey,
+      extraParams,
+    );
+    this.signers.setSigner(domainId, signer);
+
+    return signer;
   }
 
   createSubmitter<TConfig extends TransactionSubmitterConfig>(

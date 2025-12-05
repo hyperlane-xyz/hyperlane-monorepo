@@ -9,16 +9,30 @@ import {
 } from '@hyperlane-xyz/provider-sdk';
 import { IProvider } from '@hyperlane-xyz/provider-sdk/altvm';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
+import { Providers, Signers } from '@hyperlane-xyz/provider-sdk/protocol';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { CosmosNativeProvider } from './provider.js';
 import { CosmosNativeSigner } from './signer.js';
 
 export class CosmosNativeProtocolProvider implements ProtocolProvider {
-  createProvider(chainMetadata: ChainMetadataForAltVM): Promise<IProvider> {
-    assert(chainMetadata.rpcUrls, 'rpc urls undefined');
-    const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
-    return CosmosNativeProvider.connect(rpcUrls, chainMetadata.domainId);
+  providers = new Providers();
+  signers = new Signers();
+
+  async createProvider(
+    chainMetadata: ChainMetadataForAltVM,
+  ): Promise<IProvider> {
+    const { rpcUrls, domainId } = chainMetadata;
+    assert(rpcUrls, 'rpc urls undefined');
+    const rpcHttpUrls = rpcUrls.map((rpc) => rpc.http);
+
+    const existingProvider = this.providers.getProvider(domainId);
+    if (existingProvider) return existingProvider;
+
+    const provider = await CosmosNativeProvider.connect(rpcHttpUrls, domainId);
+    this.providers.setProvider(domainId, provider);
+
+    return provider;
   }
 
   async createSigner(
@@ -29,10 +43,21 @@ export class CosmosNativeProtocolProvider implements ProtocolProvider {
     const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
 
     const { privateKey } = config;
+    const { domainId } = chainMetadata;
 
-    return CosmosNativeSigner.connectWithSigner(rpcUrls, privateKey, {
-      metadata: chainMetadata,
-    });
+    const existingSigner = this.signers.getSigner(domainId);
+    if (existingSigner) return existingSigner;
+
+    const signer = await CosmosNativeSigner.connectWithSigner(
+      rpcUrls,
+      privateKey,
+      {
+        metadata: chainMetadata,
+      },
+    );
+    this.signers.setSigner(domainId, signer);
+
+    return signer;
   }
 
   createSubmitter<TConfig extends TransactionSubmitterConfig>(

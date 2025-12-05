@@ -3,7 +3,12 @@ import { stringify as yamlStringify } from 'yaml';
 
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import { AltVMWarpModule } from '@hyperlane-xyz/deploy-sdk';
-import { GasAction, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import {
+  GasAction,
+  ProtocolType,
+  getProtocolProvider,
+  hasProtocol,
+} from '@hyperlane-xyz/provider-sdk';
 import {
   AddWarpRouteConfigOptions,
   BaseRegistry,
@@ -611,8 +616,7 @@ async function updateExistingWarpRoute(
   warpCoreConfig: WarpCoreConfig,
 ): Promise<ChainMap<TypedAnnotatedTransaction[]>> {
   logBlue('Updating deployed Warp Routes');
-  const { multiProvider, altVmProviders, altVmSigners, registry } =
-    params.context;
+  const { multiProvider, altVmSigners, registry } = params.context;
 
   const registryAddresses =
     (await registry.getAddresses()) as ChainMap<ChainAddresses>;
@@ -629,6 +633,18 @@ async function updateExistingWarpRoute(
   // Get all deployed router addresses
   const deployedRoutersAddresses =
     getRouterAddressesFromWarpCoreConfig(warpCoreConfig);
+
+  // Create altVmProviders dynamically for this call
+  const altVmProviders: any = {};
+  const allChains = Object.keys(warpDeployConfig);
+  for (const chain of allChains) {
+    const protocol = multiProvider.getProtocol(chain);
+    if (protocol !== ProtocolType.Ethereum && hasProtocol(protocol)) {
+      const metadata = multiProvider.getChainMetadata(chain);
+      altVmProviders[chain] =
+        await getProtocolProvider(protocol).createProvider(metadata);
+    }
+  }
 
   const expandedWarpDeployConfig = await expandWarpDeployConfig({
     multiProvider,
