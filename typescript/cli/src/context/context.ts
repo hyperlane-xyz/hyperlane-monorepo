@@ -36,7 +36,7 @@ import {
   WriteCommandContext,
 } from './types.js';
 
-type UntypedOptions = Record<string, unknown>;
+type UntypedOptions = Record<string, any>;
 type UntypedArgv = ArgumentsCamelCase<UntypedOptions>;
 type ArgvWithContext = UntypedArgv & { context: CommandContext };
 type ArgvWithWriteContext = UntypedArgv & { context: WriteCommandContext };
