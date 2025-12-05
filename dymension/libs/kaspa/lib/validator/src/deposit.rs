@@ -5,7 +5,7 @@ use corelib::finality::is_safe_against_reorg;
 use corelib::message::{add_kaspa_metadata_hl_messsage, ParsedHL};
 use corelib::wallet::NetworkInfo;
 use eyre::Result;
-use hardcode::hl::ALLOWED_HL_MESSAGE_VERSION;
+use dymension_kaspa_hl_constants::ALLOWED_HL_MESSAGE_VERSION;
 use hyperlane_core::HyperlaneMessage;
 use hyperlane_core::H256;
 use hyperlane_core::U256;

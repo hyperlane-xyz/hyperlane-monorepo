@@ -137,7 +137,7 @@ mod tests {
             .get_deposits_by_address(
                 Some(1751299515650),
                 address,
-                hardcode::hl::HL_DOMAIN_KASPA_TEST10,
+                dymension_kaspa_hl_constants::HL_DOMAIN_KASPA_TEST10,
             )
             .await;
 

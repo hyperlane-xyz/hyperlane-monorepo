@@ -7,6 +7,7 @@ edition = "2021"
 corelib = { path = "../core", package = "core" }
 api-rs = { path = "../api", package = "openapi" }
 hardcode = { path = "../hardcode", package = "hardcode" }
+dymension-kaspa-hl-constants = { path = "../../../../../rust/main/chains/dymension-kaspa-hl-constants" }
 kaspa-addresses = { workspace = true }
 kaspa-consensus-core = { workspace = true }
 kaspa-core = { workspace = true }

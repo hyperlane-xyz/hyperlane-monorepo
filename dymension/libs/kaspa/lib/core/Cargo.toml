@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 hardcode = { path = "../hardcode" }
+dymension-kaspa-hl-constants = { path = "../../../../../rust/main/chains/dymension-kaspa-hl-constants" }
 hex = { workspace = true }
 kaspa-addresses = { workspace = true }
 kaspa-consensus-core = { workspace = true }

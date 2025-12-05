@@ -7,7 +7,7 @@ use corelib::util;
 use corelib::util::{get_recipient_script_pubkey, is_valid_sighash_type};
 use corelib::withdraw::{filter_pending_withdrawals, WithdrawFXG};
 use eyre::Result;
-use hardcode::hl::ALLOWED_HL_MESSAGE_VERSION;
+use dymension_kaspa_hl_constants::ALLOWED_HL_MESSAGE_VERSION;
 use hex::ToHex;
 use hyperlane_core::{Decode, HyperlaneMessage, H256};
 use hyperlane_cosmos::native::ModuleQueryClient;

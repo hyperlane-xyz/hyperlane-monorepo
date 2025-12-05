@@ -1,3 +1,8 @@
+//! Hyperlane domain ID constants for Kaspa and Dymension networks.
+//!
+//! These constants define the domain IDs used in the Hyperlane protocol
+//! for routing messages between Kaspa and Dymension networks.
+
 pub const ALLOWED_HL_MESSAGE_VERSION: u8 = 3;
 
 pub const HL_DOMAIN_DYM_MAINNET: u32 = 1570310961; // NOTE: was patched to this value just before mainnet release. The old value did not do modulo on derivation.

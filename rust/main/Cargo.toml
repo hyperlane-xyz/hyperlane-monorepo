@@ -8,6 +8,7 @@ members = [
   "applications/hyperlane-warp-route",
   "chains/hyperlane-cosmos",
   "chains/dymension-kaspa",
+  "chains/dymension-kaspa-hl-constants",
   "chains/hyperlane-ethereum",
   "chains/hyperlane-fuel",
   "chains/hyperlane-radix",

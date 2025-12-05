@@ -25,6 +25,7 @@ mod withdrawal_utils;
 pub use dym_kas_core;
 pub use dym_kas_relayer;
 pub use dym_kas_validator;
+pub use dymension_kaspa_hl_constants as hl_domains;
 
 pub use util::*;
 

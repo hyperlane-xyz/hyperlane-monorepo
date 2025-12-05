@@ -1914,6 +1914,7 @@ dependencies = [
  "borsh 1.5.7",
  "bytes",
  "clap",
+ "dymension-kaspa-hl-constants",
  "eyre",
  "governor",
  "hardcode",
@@ -2849,6 +2850,10 @@ dependencies = [
  "tracing",
  "validator",
 ]
+
+[[package]]
+name = "dymension-kaspa-hl-constants"
+version = "0.1.0"
 
 [[package]]
 name = "dyn-clone"
@@ -9981,6 +9986,7 @@ dependencies = [
  "anyhow",
  "axum 0.8.4",
  "core",
+ "dymension-kaspa-hl-constants",
  "ethers",
  "eyre",
  "hardcode",

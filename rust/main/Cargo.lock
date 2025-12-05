@@ -2824,6 +2824,7 @@ dependencies = [
  "borsh 1.5.1",
  "bytes",
  "clap 4.5.41",
+ "dymension-kaspa-hl-constants",
  "eyre",
  "governor",
  "hardcode",
@@ -4054,9 +4055,9 @@ dependencies = [
  "crypto",
  "derive-new",
  "dym-kas-kms",
+ "dymension-kaspa-hl-constants",
  "eyre",
  "futures",
- "hardcode",
  "hex 0.4.3",
  "http 1.2.0",
  "hyper 0.14.30",
@@ -4111,6 +4112,10 @@ dependencies = [
  "validator 0.2.0",
  "vergen",
 ]
+
+[[package]]
+name = "dymension-kaspa-hl-constants"
+version = "0.1.0"
 
 [[package]]
 name = "dyn-clone"
@@ -15960,6 +15965,7 @@ dependencies = [
  "anyhow",
  "axum 0.8.4",
  "core",
+ "dymension-kaspa-hl-constants",
  "ethers 2.0.14",
  "eyre",
  "hardcode",

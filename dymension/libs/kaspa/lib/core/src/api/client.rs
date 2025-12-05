@@ -310,7 +310,7 @@ fn has_valid_hyperlane_payload(tx: &TxModel, domain_kas: u32) -> bool {
 mod tests {
     use super::*;
     use crate::message::ParsedHL;
-    use hardcode::hl::{HL_DOMAIN_KASPA_TEST10, HL_DOMAIN_KASPA_TEST10_LEGACY};
+    use dymension_kaspa_hl_constants::{HL_DOMAIN_KASPA_TEST10, HL_DOMAIN_KASPA_TEST10_LEGACY};
 
     #[tokio::test]
     #[ignore = "dont hit real api"]
