@@ -85,6 +85,15 @@ export async function getKeysFromKvStore(
   );
 }
 
+/**
+ * Extracts ownership information from a Radix component's details.
+ *
+ * @param entityAddress - The on-chain address of the component (used for error messages)
+ * @param entityDetails - The component details containing role assignment information
+ * @returns The ownership information including the access rule and proof requirements
+ *
+ * @throws {Error} If ownership information is not defined in the component details
+ */
 export function getComponentOwnershipInfo(
   entityAddress: string,
   entityDetails: RadixComponentDetails,
