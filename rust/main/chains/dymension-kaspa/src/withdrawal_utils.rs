@@ -1,4 +1,4 @@
-use dym_kas_relayer::KaspaBridgeMetrics;
+use crate::kas_relayer::KaspaBridgeMetrics;
 use hyperlane_core::HyperlaneMessage;
 use std::collections::HashSet;
 

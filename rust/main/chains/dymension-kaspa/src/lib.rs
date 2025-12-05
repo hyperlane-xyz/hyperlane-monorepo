@@ -21,9 +21,10 @@ mod endpoints;
 mod util;
 mod withdrawal_utils;
 
+pub mod kas_relayer;
+
 // Direct reexports of lib stuff:
 pub use dym_kas_core;
-pub use dym_kas_relayer;
 pub use dym_kas_validator;
 pub use dymension_kaspa_hl_constants as hl_domains;
 

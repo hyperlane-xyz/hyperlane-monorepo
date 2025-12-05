@@ -8,5 +8,3 @@ pub use withdraw::messages::on_new_withdrawals;
 
 // Re-export metrics for easier access
 pub use metrics::KaspaBridgeMetrics;
-
-pub use secp256k1::PublicKey;

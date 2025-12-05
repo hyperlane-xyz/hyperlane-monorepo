@@ -5597,7 +5597,6 @@ dependencies = [
  "rand 0.9.1",
  "rand_core 0.6.4",
  "rand_distr",
- "relayer",
  "rustls 0.23.28",
  "secp256k1",
  "serde",
@@ -7658,46 +7657,6 @@ name = "regex-syntax"
 version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b15c43186be67a4fd63bee50d0303afffcef381492ebe2c5d87f324e1b8815c"
-
-[[package]]
-name = "relayer"
-version = "0.2.0"
-dependencies = [
- "anyhow",
- "base64 0.22.1",
- "bincode",
- "bytes",
- "core",
- "eyre",
- "hardcode",
- "hex",
- "hyperlane-core",
- "hyperlane-cosmos",
- "hyperlane-cosmos-dymension-rs",
- "hyperlane-warp-route",
- "kaspa-addresses",
- "kaspa-consensus-client",
- "kaspa-consensus-core",
- "kaspa-core",
- "kaspa-grpc-client",
- "kaspa-hashes",
- "kaspa-rpc-core",
- "kaspa-txscript",
- "kaspa-wallet-core",
- "kaspa-wallet-pskt",
- "log",
- "openapi",
- "prometheus",
- "prost",
- "rand 0.8.5",
- "reqwest 0.12.20",
- "reqwest-middleware",
- "secp256k1",
- "serde",
- "tokio",
- "tracing",
- "workflow-core",
-]
 
 [[package]]
 name = "reqwest"
@@ -10007,7 +9966,6 @@ dependencies = [
  "kaspa-wrpc-client",
  "log",
  "openapi",
- "relayer",
  "secp256k1",
  "serde",
  "serde_json",

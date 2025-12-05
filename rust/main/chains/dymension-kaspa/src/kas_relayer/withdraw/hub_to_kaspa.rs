@@ -1,14 +1,14 @@
 use super::messages::PopulatedInput;
 use super::minimum::{is_dust, is_small_value};
 use super::populated_input::PopulatedInputBuilder;
-use crate::withdraw::sweep::utxo_reference_from_populated_input;
-use corelib::escrow::EscrowPublic;
-use corelib::finality;
-use corelib::message::parse_hyperlane_metadata;
-use corelib::util::{get_recipient_script_pubkey, input_sighash_type};
-use corelib::wallet::EasyKaspaWallet;
-use corelib::wallet::SigningResources;
-use corelib::withdraw::WithdrawFXG;
+use super::sweep::utxo_reference_from_populated_input;
+use dym_kas_core::escrow::EscrowPublic;
+use dym_kas_core::finality;
+use dym_kas_core::message::parse_hyperlane_metadata;
+use dym_kas_core::util::{get_recipient_script_pubkey, input_sighash_type};
+use dym_kas_core::wallet::EasyKaspaWallet;
+use dym_kas_core::wallet::SigningResources;
+use dym_kas_core::withdraw::WithdrawFXG;
 use eyre::eyre;
 use eyre::Result;
 use hyperlane_core::HyperlaneMessage;
@@ -615,7 +615,7 @@ pub fn finalize_pskt(
 }
 
 pub async fn sign_pay_fee(pskt: PSKT<Signer>, r: &SigningResources) -> Result<PSKT<Signer>> {
-    corelib::pskt::sign_pskt(
+    dym_kas_core::pskt::sign_pskt(
         pskt,
         &r.key_pair,
         Some(r.key_source.clone()),
@@ -628,8 +628,8 @@ mod tests {
     use super::*;
     use bytes::Bytes;
 
-    use corelib::util::is_valid_sighash_type;
-    use corelib::withdraw::WithdrawFXG;
+    use dym_kas_core::util::is_valid_sighash_type;
+    use dym_kas_core::withdraw::WithdrawFXG;
     use hyperlane_core::H256;
     use kaspa_consensus_core::network::NetworkType::Devnet;
     use kaspa_consensus_core::tx::ScriptPublicKey;

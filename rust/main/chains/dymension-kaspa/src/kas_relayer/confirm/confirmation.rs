@@ -1,5 +1,5 @@
-use corelib::api::client::HttpClient;
-use corelib::{confirmation::ConfirmationFXG, payload::MessageID};
+use dym_kas_core::api::client::HttpClient;
+use dym_kas_core::{confirmation::ConfirmationFXG, payload::MessageID};
 use eyre::Result;
 use hex;
 use kaspa_consensus_core::tx::TransactionOutpoint;
@@ -131,7 +131,7 @@ pub async fn recursive_trace_transactions(
             .clone()
             .ok_or_else(|| eyre::eyre!("No payload found in transaction"))?;
 
-        let message_ids = corelib::payload::MessageIDs::from_tx_payload(&payload)?;
+        let message_ids = dym_kas_core::payload::MessageIDs::from_tx_payload(&payload)?;
 
         processed_withdrawals.extend(message_ids.0);
         outpoint_sequence.push(out_curr);

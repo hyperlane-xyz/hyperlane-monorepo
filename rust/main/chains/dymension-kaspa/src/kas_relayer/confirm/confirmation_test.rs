@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests {
-    use crate::confirm::recursive_trace_transactions;
-    use corelib::api::base::RateLimitConfig;
-    use corelib::api::client::HttpClient;
+    use crate::kas_relayer::confirm::recursive_trace_transactions;
+    use dym_kas_core::api::base::RateLimitConfig;
+    use dym_kas_core::api::client::HttpClient;
     use hex;
     use kaspa_consensus_core::tx::TransactionOutpoint;
     use kaspa_hashes::Hash;
@@ -70,11 +70,11 @@ mod tests {
         ]);
 
         let message_ids =
-            corelib::payload::MessageIDs::new(vec![corelib::payload::MessageID(test_id)]);
+            dym_kas_core::payload::MessageIDs::new(vec![dym_kas_core::payload::MessageID(test_id)]);
 
         // Convert to bytes and back
         let bytes = message_ids.to_bytes();
-        let decoded = corelib::payload::MessageIDs::from_bytes(bytes).unwrap();
+        let decoded = dym_kas_core::payload::MessageIDs::from_bytes(bytes).unwrap();
 
         assert_eq!(decoded.0.len(), 1);
         assert_eq!(decoded.0[0].0, test_id);
