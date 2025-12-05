@@ -2,7 +2,7 @@ import { confirm } from '@inquirer/prompts';
 import { ethers } from 'ethers';
 
 import { loadProtocolProviders } from '@hyperlane-xyz/deploy-sdk';
-import { getProtocolProvider } from '@hyperlane-xyz/provider-sdk';
+import { getProtocolProvider, hasProtocol } from '@hyperlane-xyz/provider-sdk';
 import { IRegistry } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import {
@@ -253,6 +253,11 @@ function buildProtocolProviders(
   const providers: ProtocolProviderMap = {};
   protocols.forEach((protocol) => {
     if (protocol === ProtocolType.Ethereum) return;
+    if (!hasProtocol(protocol)) {
+      throw new Error(
+        `Protocol ${protocol} is not registered as an AltVM protocol`,
+      );
+    }
     providers[protocol] = getProtocolProvider(protocol);
   });
   return providers;
