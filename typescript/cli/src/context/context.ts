@@ -65,9 +65,11 @@ export const signerMiddleware: MiddlewareFunction<UntypedOptions> = async (
 ) => {
   assertHasContext(argv);
 
+  const chains = await resolveChains(argv);
+
   if (!argv.context.requiresKey) return;
 
-  const writeContext = await getSignerContext(argv.context, argv);
+  const writeContext = await getSignerContext(argv.context, argv, chains);
   setWriteCommandContext(argv, writeContext);
 };
 
@@ -126,6 +128,7 @@ export async function getContext({
 export async function getSignerContext(
   context: CommandContext,
   argv: UntypedArgv,
+  preResolvedChains?: ChainName[],
 ): Promise<WriteCommandContext> {
   if (!context.key) {
     throw new Error(
@@ -137,7 +140,7 @@ export async function getSignerContext(
     ? await readChainSubmissionStrategyConfig(context.strategyPath)
     : {};
 
-  const chains = await resolveChains(argv);
+  const chains = preResolvedChains ?? (await resolveChains(argv));
 
   const altVmChains = chains.filter(
     (chain) =>
