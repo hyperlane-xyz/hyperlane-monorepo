@@ -160,7 +160,7 @@ export async function runWarpRouteDeploy({
   const enrollTxs = await enrollCrossChainRouters(
     {
       multiProvider,
-      getAltVmSigner: altVmSigners,
+      altVmSigners,
       registryAddresses,
       warpDeployConfig,
     },

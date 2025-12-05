@@ -380,12 +380,12 @@ async function createWarpHook({
 export async function enrollCrossChainRouters(
   {
     multiProvider,
-    getAltVmSigner: altVmSigners,
+    altVmSigners,
     registryAddresses,
     warpDeployConfig,
   }: {
     multiProvider: MultiProvider;
-    getAltVmSigner: AltVMSignerLookup;
+    altVmSigners: AltVMSignerLookup;
     registryAddresses: ChainMap<ChainAddresses>;
     warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   },
