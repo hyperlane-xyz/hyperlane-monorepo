@@ -14,7 +14,6 @@ import {
   isAddressEvm,
   isCosmosIbcDenomAddress,
   isObjEmpty,
-  mustGet,
   objFilter,
   objMap,
   promiseObjAll,
@@ -27,7 +26,7 @@ import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { DestinationGas, RemoteRouters } from '../router/types.js';
-import { ChainMap } from '../types.js';
+import { ChainMap, ChainName } from '../types.js';
 import { WarpCoreConfig } from '../warp/types.js';
 
 import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
@@ -132,7 +131,7 @@ export function getRouterAddressesFromWarpCoreConfig(
  */
 export async function expandWarpDeployConfig(params: {
   multiProvider: MultiProvider;
-  altVmProviders: ChainMap<AltVM.IProvider>;
+  altVmProviders: (chain: ChainName) => Promise<AltVM.IProvider>;
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   deployedRoutersAddresses: ChainMap<Address>;
   expandedOnChainWarpConfig?: WarpRouteDeployConfigMailboxRequired;
@@ -272,7 +271,7 @@ export async function expandWarpDeployConfig(params: {
             break;
           }
           default: {
-            const provider = mustGet(altVmProviders, chain);
+            const provider = await altVmProviders(chain);
             const reader = new AltVMHookReader(
               (chain) => multiProvider.getChainMetadata(chain),
               provider,
@@ -300,7 +299,7 @@ export async function expandWarpDeployConfig(params: {
             break;
           }
           default: {
-            const provider = mustGet(altVmProviders, chain);
+            const provider = await altVmProviders(chain);
             const reader = new AltVMIsmReader(
               (chain) => multiProvider.tryGetChainName(chain),
               provider,
