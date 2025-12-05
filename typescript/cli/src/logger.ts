@@ -12,10 +12,15 @@ import {
 
 let logger = rootLogger;
 
-export function configureLogger(logFormat: LogFormat, logLevel: LogLevel) {
+export function configureLogger(logFormat?: LogFormat, logLevel?: LogLevel) {
   logFormat =
-    logFormat || safelyAccessEnvVar('LOG_FORMAT', true) || LogFormat.Pretty;
-  logLevel = logLevel || safelyAccessEnvVar('LOG_LEVEL', true) || LogLevel.Info;
+    logFormat ||
+    (safelyAccessEnvVar('LOG_FORMAT', true) as LogFormat | undefined) ||
+    LogFormat.Pretty;
+  logLevel =
+    logLevel ||
+    (safelyAccessEnvVar('LOG_LEVEL', true) as LogLevel | undefined) ||
+    LogLevel.Info;
   logger = configureRootLogger(logFormat, logLevel).child({ module: 'cli' });
 }
 

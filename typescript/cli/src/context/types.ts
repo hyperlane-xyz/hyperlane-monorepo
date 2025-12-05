@@ -1,5 +1,5 @@
 import type { ethers } from 'ethers';
-import type { CommandModule } from 'yargs';
+import type { ArgumentsCamelCase, CommandModule } from 'yargs';
 import { z } from 'zod';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
@@ -13,7 +13,7 @@ import type {
   WarpCoreConfig,
   WarpRouteDeployConfigMailboxRequired,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { LogFormat, LogLevel, ProtocolType } from '@hyperlane-xyz/utils';
 
 export const SignerKeyProtocolMapSchema = z
   .record(z.nativeEnum(ProtocolType), z.string().nonempty(), {
@@ -49,10 +49,12 @@ export interface CommandContext
   multiProvider: MultiProvider;
   multiProtocolProvider: MultiProtocolProvider;
   altVmProviders: ChainMap<AltVM.IProvider>;
+  altVmSigners?: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>>;
   supportedProtocols: ProtocolType[];
   skipConfirmation: boolean;
   // just for evm chains backward compatibility
   signerAddress?: string;
+  signer?: ethers.Signer;
 }
 
 export interface WriteCommandContext extends Omit<CommandContext, 'key'> {
@@ -88,4 +90,24 @@ export type CommandModuleWithWarpApplyContext<Args> = CommandModule<
 export type CommandModuleWithWarpDeployContext<Args> = CommandModule<
   {},
   Args & { context: WarpDeployCommandContext }
+>;
+
+export interface CliGlobalFlags {
+  log?: LogFormat;
+  verbosity?: LogLevel;
+  registry: string[];
+  overrides?: string;
+  yes?: boolean;
+  key?: string | SignerKeyProtocolMap;
+  disableProxy?: boolean;
+  strategy?: string;
+  authToken?: string;
+}
+
+export type CliArgvShape = CliGlobalFlags & { context?: CommandContext };
+
+export type CliArguments = ArgumentsCamelCase<CliGlobalFlags>;
+export type CliArgumentsWithOptionalContext = ArgumentsCamelCase<CliArgvShape>;
+export type CliArgumentsWithContext = ArgumentsCamelCase<
+  CliGlobalFlags & { context: CommandContext }
 >;
