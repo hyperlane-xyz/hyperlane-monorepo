@@ -54,7 +54,7 @@ describe('hyperlane core apply (Radix E2E tests)', async function () {
   type CoreConfigField = keyof CoreConfig;
 
   describe('hyperlane core apply (mailbox updates)', function () {
-    it(`should update the mailbox owner to a the specified one`, async () => {
+    it(`should update the mailbox owner to the specified one`, async () => {
       const coreConfig: CoreConfig = await readYamlOrJson(
         CORE_CONFIG_PATH_BY_PROTOCOL.radix,
       );
