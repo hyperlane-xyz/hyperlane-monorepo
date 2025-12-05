@@ -1,5 +1,16 @@
 # @hyperlane-xyz/core
 
+## 10.1.0
+
+### Minor Changes
+
+- 77524f734: Use soldeer for solidity dependencies instead of npm
+
+### Patch Changes
+
+- Updated dependencies [af2cd1729]
+  - @hyperlane-xyz/utils@19.12.0
+
 ## 10.0.5
 
 ### Patch Changes

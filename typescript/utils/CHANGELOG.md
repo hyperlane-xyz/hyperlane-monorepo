@@ -1,5 +1,11 @@
 # @hyperlane-xyz/utils
 
+## 19.12.0
+
+### Minor Changes
+
+- af2cd1729: Support reading ReorgEvent object from validator buckets.
+
 ## 19.11.0
 
 ## 19.10.0
