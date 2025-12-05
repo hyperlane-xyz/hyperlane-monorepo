@@ -1,3 +1,4 @@
+import { RebalancerConfig } from '@hyperlane-xyz/rebalancer';
 import {
   ChainName,
   DeployedCoreAddresses,
@@ -9,7 +10,6 @@ import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 import { CommandType } from '../../../commands/signCommands.js';
 import { readCoreDeployConfigs } from '../../../config/core.js';
 import { getWarpRouteDeployConfig } from '../../../config/warp.js';
-import { RebalancerConfig } from '../../../rebalancer/config/RebalancerConfig.js';
 import {
   runMultiChainSelectionStep,
   runSingleChainSelectionStep,
