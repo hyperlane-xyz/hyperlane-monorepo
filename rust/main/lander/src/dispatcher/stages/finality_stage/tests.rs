@@ -188,6 +188,38 @@ async fn test_processing_reorged_txs() {
     }
 }
 
+#[tokio::test]
+async fn test_processing_already_finalized_txs_does_not_call_tx_status() {
+    const TXS_TO_PROCESS: usize = 3;
+
+    let mut mock_adapter = MockAdapter::new();
+    mock_adapter
+        .expect_estimated_block_time()
+        .return_const(Duration::from_millis(10));
+
+    // tx_status should never be called because txs are already finalized
+    mock_adapter.expect_tx_status().times(0);
+
+    mock_adapter
+        .expect_reverted_payloads()
+        .returning(|_| Ok(vec![]));
+
+    let (txs_created, txs_received, tx_db, payload_db, pool, _) =
+        set_up_test_and_run_stage(mock_adapter, TXS_TO_PROCESS, TransactionStatus::Finalized).await;
+
+    // verify transactions were removed from pool
+    assert!(are_no_txs_in_pool(txs_created.clone(), &pool).await);
+
+    // verify transaction status was maintained as finalized
+    assert_tx_status(
+        txs_received.clone(),
+        &tx_db,
+        &payload_db,
+        TransactionStatus::Finalized,
+    )
+    .await;
+}
+
 async fn set_up_test_and_run_stage(
     mock_adapter: MockAdapter,
     txs_to_process: usize,

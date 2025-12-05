@@ -159,12 +159,17 @@ impl FinalityStage {
         state: &DispatcherState,
     ) -> Result<(), LanderError> {
         info!(?tx, "Processing finality stage transaction");
-        let tx_status = call_until_success_or_nonretryable_error(
-            || state.adapter.tx_status(&tx),
-            "Querying transaction status",
-            state,
-        )
-        .await?;
+        let tx_status = match &tx.status {
+            TransactionStatus::Finalized => tx.status.clone(),
+            _ => {
+                call_until_success_or_nonretryable_error(
+                    || state.adapter.tx_status(&tx),
+                    "Querying transaction status",
+                    state,
+                )
+                .await?
+            }
+        };
 
         match tx_status {
             TransactionStatus::Included => {
