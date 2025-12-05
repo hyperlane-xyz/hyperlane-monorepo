@@ -15,7 +15,7 @@ interface BaseSubmitterConfig<T extends keyof TransactionSubmitterConfigs> {
 }
 
 export interface JsonRpcSubmitterConfig extends BaseSubmitterConfig<'jsonRpc'> {
-  privateKey?: string;
+  privateKey: string;
   accountAddress?: string;
 }
 

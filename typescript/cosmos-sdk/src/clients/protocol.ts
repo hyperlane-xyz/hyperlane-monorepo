@@ -30,7 +30,6 @@ export class CosmosNativeProtocolProvider implements ProtocolProvider {
     const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
 
     const { privateKey } = config;
-    assert(privateKey, 'private key undefined');
 
     return CosmosNativeSigner.connectWithSigner(rpcUrls, privateKey, {
       metadata: chainMetadata,

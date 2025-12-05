@@ -1022,6 +1022,7 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
   const strategyToUse = submissionStrategy ?? defaultSubmitter;
   const protocol = multiProvider.getProtocol(chain);
 
+  const signer = mustGet(altVmSigners, chain);
   return {
     submitter: await getSubmitterBuilder<T>({
       submissionStrategy: strategyToUse as SubmissionStrategy, // TODO: fix this
@@ -1040,16 +1041,17 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
               type === 'jsonRpc',
               `Invalid metadata type: ${type}, expected ${TxSubmitterType.JSON_RPC}`,
             );
+
+            assert(strategyToUse.submitter.privateKey, '');
             return getProtocolProvider(protocol).createSubmitter(
               context.chainMetadata[chain],
-              strategyToUse.submitter,
+              { ...strategyToUse.submitter, privateKey: 'TODO' }, // @TODO wait for PR to persist signers
             );
           },
           [CustomTxSubmitterType.FILE]: (
             _multiProvider: MultiProvider,
             metadata: any,
           ) => {
-            const signer = mustGet(altVmSigners, chain);
             return new AltVMFileSubmitter(signer, metadata);
           },
         },
