@@ -1,40 +1,19 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use async_trait::async_trait;
 use uuid::Uuid;
 
-use hyperlane_aleo::{AleoProviderForLander, AleoSigner, AleoTxData};
-use hyperlane_core::{ChainResult, H256, H512};
+use hyperlane_aleo::{AleoSigner, AleoTxData};
+use hyperlane_core::H256;
 
 use crate::adapter::chains::{AleoAdapter, AleoTxPrecursor};
 use crate::adapter::AdaptsChain;
 use crate::payload::PayloadDetails;
+use crate::tests::MockAleoProvider;
 use crate::transaction::{Transaction, VmSpecificTxData};
 use crate::{FullPayload, PayloadStatus, PayloadUuid, TransactionStatus, TransactionUuid};
 
 use super::Precursor;
-
-// Mock provider implementation for testing
-// Note: We use a manual implementation instead of mockall because the trait has
-// generic methods with complex trait bounds that mockall cannot handle well.
-struct MockAleoProvider;
-
-#[async_trait]
-impl AleoProviderForLander for MockAleoProvider {
-    async fn submit_tx<I>(
-        &self,
-        _program_id: &str,
-        _function_name: &str,
-        _input: I,
-    ) -> ChainResult<H512>
-    where
-        I: IntoIterator<Item = String> + Send,
-        I::IntoIter: ExactSizeIterator,
-    {
-        Ok(H512::random())
-    }
-}
 
 fn create_test_payload() -> FullPayload {
     create_test_payload_with_success_criteria(Some(vec![1, 2, 3, 4]))

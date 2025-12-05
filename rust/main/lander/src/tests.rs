@@ -1,3 +1,6 @@
+#[cfg(test)]
+pub use aleo::MockAleoProvider;
+
 mod aleo;
 pub mod evm;
 pub mod radix;
