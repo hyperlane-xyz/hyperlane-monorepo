@@ -14,8 +14,8 @@ pub fn create_signer(conf: &ChainConf) -> Result<AleoSigner, LanderError> {
             LanderError::NonRetryableError(format!("Failed to create Aleo signer: {e}"))
         })
     } else {
-        Err(LanderError::NonRetryableError(format!(
-            "Unsupported signer configuration for Aleo: {signer_conf:?}"
-        )))
+        Err(LanderError::NonRetryableError(
+            "Unsupported signer configuration for Aleo; only HexKey is supported".to_string(),
+        ))
     }
 }
