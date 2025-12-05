@@ -1,14 +1,14 @@
 use super::messages::PopulatedInput;
 use super::minimum::{is_dust, is_small_value};
 use super::populated_input::PopulatedInputBuilder;
+use crate::kas_bridge::message::parse_hyperlane_metadata;
+use crate::kas_bridge::util::{get_recipient_script_pubkey, input_sighash_type};
+use crate::kas_bridge::withdraw::WithdrawFXG;
 use crate::kas_relayer::withdraw::sweep::utxo_reference_from_populated_input;
 use dym_kas_core::escrow::EscrowPublic;
 use dym_kas_core::finality;
-use dym_kas_bridge::message::parse_hyperlane_metadata;
-use dym_kas_bridge::util::{get_recipient_script_pubkey, input_sighash_type};
 use dym_kas_core::wallet::EasyKaspaWallet;
 use dym_kas_core::wallet::SigningResources;
-use dym_kas_bridge::withdraw::WithdrawFXG;
 use eyre::eyre;
 use eyre::Result;
 use hyperlane_core::HyperlaneMessage;
@@ -628,8 +628,8 @@ mod tests {
     use super::*;
     use bytes::Bytes;
 
-    use dym_kas_bridge::util::is_valid_sighash_type;
-    use dym_kas_bridge::withdraw::WithdrawFXG;
+    use crate::kas_bridge::util::is_valid_sighash_type;
+    use crate::kas_bridge::withdraw::WithdrawFXG;
     use hyperlane_core::H256;
     use kaspa_consensus_core::network::NetworkType::Devnet;
     use kaspa_consensus_core::tx::ScriptPublicKey;

@@ -1,8 +1,8 @@
 use hyperlane_core::{Encode, HyperlaneMessage, H256, U256};
 use hyperlane_cosmos::signers::Signer;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::forward::HlMetadata;
+use hyperlane_cosmos_rs::prost::Message as _;
 use hyperlane_warp_route::TokenMessage;
-use prost::Message as _;
 
 /*
 Need to make a hub priv key and address pair

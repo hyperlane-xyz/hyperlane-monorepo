@@ -1,9 +1,9 @@
 use super::consts::*;
+use crate::kas_relayer::withdraw::minimum::is_small_value;
 use crate::withdrawal_utils::{
     calculate_failed_indexes, record_withdrawal_batch_metrics, WithdrawalStage,
 };
 use crate::KaspaProvider;
-use crate::kas_relayer::withdraw::minimum::is_small_value;
 use hyperlane_core::{
     utils::bytes_to_hex, BatchResult, ChainResult, ContractLocator, Decode, FixedPointNumber,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,

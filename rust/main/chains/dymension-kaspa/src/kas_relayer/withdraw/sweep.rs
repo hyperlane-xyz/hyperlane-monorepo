@@ -1,11 +1,11 @@
+use crate::kas_bridge::util::input_sighash_type;
 use crate::kas_relayer::withdraw::messages::PopulatedInput;
 use crate::kas_relayer::withdraw::populated_input::PopulatedInputBuilder;
 use dym_kas_core::consts::RELAYER_SIG_OP_COUNT;
 use dym_kas_core::escrow::EscrowPublic;
-use dym_kas_bridge::util::input_sighash_type;
 use dym_kas_core::wallet::EasyKaspaWallet;
-use eyre::{eyre, Result};
 use dym_kas_hardcode::tx::{DUST_AMOUNT, RELAYER_SWEEPING_PRIORITY_FEE};
+use eyre::{eyre, Result};
 use kaspa_consensus_client::{
     TransactionOutpoint as ClientTransactionOutpoint, UtxoEntry as ClientUtxoEntry,
 };

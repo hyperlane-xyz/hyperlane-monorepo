@@ -2,10 +2,10 @@ use eyre::Result;
 use hyperlane_core::{Decode, Encode, HyperlaneMessage, RawHyperlaneMessage, U256};
 use hyperlane_cosmos_rs::dymensionxyz::dymension::forward::HlMetadata;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::TransactionOutpoint;
+use hyperlane_cosmos_rs::prost::Message;
 use hyperlane_warp_route::TokenMessage;
+pub use kaspa_bip32::secp256k1::Keypair as KaspaSecpKeypair;
 use kaspa_hashes::Hash;
-use prost::Message;
-pub use secp256k1::Keypair as KaspaSecpKeypair;
 use std::io::Cursor;
 
 pub struct ParsedHL {

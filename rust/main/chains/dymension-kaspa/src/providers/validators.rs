@@ -17,7 +17,9 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use crate::endpoints::*;
-use crate::kas_bridge::{confirmation::ConfirmationFXG, deposit::DepositFXG, withdraw::WithdrawFXG};
+use crate::kas_bridge::{
+    confirmation::ConfirmationFXG, deposit::DepositFXG, withdraw::WithdrawFXG,
+};
 use kaspa_wallet_pskt::prelude::Bundle;
 
 #[derive(Clone)]

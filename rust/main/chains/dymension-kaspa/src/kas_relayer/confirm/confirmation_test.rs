@@ -69,12 +69,13 @@ mod tests {
             0xc3, 0x56, 0x78, 0x2e,
         ]);
 
-        let message_ids =
-            dym_kas_bridge::payload::MessageIDs::new(vec![dym_kas_bridge::payload::MessageID(test_id)]);
+        let message_ids = crate::kas_bridge::payload::MessageIDs::new(vec![
+            crate::kas_bridge::payload::MessageID(test_id),
+        ]);
 
         // Convert to bytes and back
         let bytes = message_ids.to_bytes();
-        let decoded = dym_kas_bridge::payload::MessageIDs::from_bytes(bytes).unwrap();
+        let decoded = crate::kas_bridge::payload::MessageIDs::from_bytes(bytes).unwrap();
 
         assert_eq!(decoded.0.len(), 1);
         assert_eq!(decoded.0[0].0, test_id);

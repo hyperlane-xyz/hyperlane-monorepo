@@ -1,10 +1,10 @@
 // We call the signers 'validators'
 
+use crate::kas_bridge::payload::MessageIDs;
+use crate::kas_bridge::util;
+use crate::kas_bridge::util::{get_recipient_script_pubkey, is_valid_sighash_type};
+use crate::kas_bridge::withdraw::{filter_pending_withdrawals, WithdrawFXG};
 use crate::kas_validator::error::ValidationError;
-use dym_kas_bridge::payload::MessageIDs;
-use dym_kas_bridge::util;
-use dym_kas_bridge::util::{get_recipient_script_pubkey, is_valid_sighash_type};
-use dym_kas_bridge::withdraw::{filter_pending_withdrawals, WithdrawFXG};
 use dym_kas_core::escrow::*;
 use dymension_kaspa_hl_constants::ALLOWED_HL_MESSAGE_VERSION;
 use eyre::Result;

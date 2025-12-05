@@ -1798,38 +1798,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bridge"
-version = "0.2.0"
-dependencies = [
- "bytes",
- "core",
- "dymension-kaspa-hl-constants",
- "eyre",
- "hardcode",
- "hex 0.4.3",
- "hyperlane-core",
- "hyperlane-cosmos",
- "hyperlane-cosmos-dymension-rs",
- "hyperlane-warp-route",
- "kaspa-addresses",
- "kaspa-consensus-core",
- "kaspa-core",
- "kaspa-grpc-client",
- "kaspa-hashes",
- "kaspa-rpc-core",
- "kaspa-txscript",
- "kaspa-wallet-core",
- "kaspa-wallet-pskt",
- "openapi",
- "prost 0.13.4",
- "secp256k1 0.29.1",
- "serde",
- "tokio",
- "tracing",
- "workflow-core",
-]
-
-[[package]]
 name = "brotli"
 version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4018,7 +3986,6 @@ dependencies = [
  "axum 0.8.4",
  "base64 0.21.7",
  "bech32 0.11.0",
- "bridge",
  "bytes",
  "core",
  "cosmrs",
@@ -4081,6 +4048,7 @@ dependencies = [
  "tracing-futures",
  "url",
  "vergen",
+ "workflow-core",
 ]
 
 [[package]]
@@ -6385,7 +6353,6 @@ dependencies = [
  "axum 0.8.4",
  "backtrace",
  "backtrace-oneline",
- "bridge",
  "bs58 0.5.1",
  "chrono",
  "color-eyre",

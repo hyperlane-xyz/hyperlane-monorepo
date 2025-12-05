@@ -219,6 +219,7 @@ kaspa-utils-tower = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9f
 kaspa-hashes = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }
 kaspa-bip32 = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }
 kaspa-consensus-client = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }
+workflow-core = { version = "0.18.0" }
 
 ## TODO: remove this
 cosmwasm-schema = "2.2.0"

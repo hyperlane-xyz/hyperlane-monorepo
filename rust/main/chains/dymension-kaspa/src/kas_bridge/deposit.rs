@@ -4,8 +4,8 @@ use hyperlane_core::{Encode, HyperlaneMessage, U256};
 use hyperlane_cosmos_rs::dymensionxyz::hyperlane::kaspa::{
     DepositFxg as ProtoDepositFXG, DepositVersion,
 };
+use hyperlane_cosmos_rs::prost::Message;
 use kaspa_rpc_core::RpcHash;
-use prost::Message;
 use std::str::FromStr;
 
 #[derive(Debug, PartialEq, Clone)]

@@ -6,7 +6,6 @@ edition = "2021"
 [dependencies]
 kaspa-core = { workspace = true }
 corelib = { path = "../lib/core", package = "core" }
-bridge = { path = "../lib/bridge" }
 hardcode = { path = "../lib/hardcode" }
 dymension-kaspa = { path = "../../../../rust/main/chains/dymension-kaspa" }
 secp256k1 = { workspace = true }

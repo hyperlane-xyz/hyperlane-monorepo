@@ -1387,38 +1387,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bridge"
-version = "0.2.0"
-dependencies = [
- "bytes",
- "core",
- "dymension-kaspa-hl-constants",
- "eyre",
- "hardcode",
- "hex",
- "hyperlane-core",
- "hyperlane-cosmos",
- "hyperlane-cosmos-dymension-rs",
- "hyperlane-warp-route",
- "kaspa-addresses",
- "kaspa-consensus-core",
- "kaspa-core",
- "kaspa-grpc-client",
- "kaspa-hashes",
- "kaspa-rpc-core",
- "kaspa-txscript",
- "kaspa-wallet-core",
- "kaspa-wallet-pskt",
- "openapi",
- "prost",
- "secp256k1",
- "serde",
- "tokio",
- "tracing",
- "workflow-core",
-]
-
-[[package]]
 name = "bs58"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2846,7 +2814,6 @@ dependencies = [
  "axum 0.8.4",
  "base64 0.21.7",
  "bech32 0.11.0",
- "bridge",
  "bytes",
  "core",
  "cosmrs 0.21.1",
@@ -2909,6 +2876,7 @@ dependencies = [
  "tracing-futures",
  "url",
  "vergen",
+ "workflow-core",
 ]
 
 [[package]]
@@ -5369,7 +5337,6 @@ dependencies = [
  "aws-sdk-kms",
  "aws-sdk-secretsmanager",
  "aws-smithy-types",
- "bridge",
  "chrono",
  "clap",
  "cometbft",

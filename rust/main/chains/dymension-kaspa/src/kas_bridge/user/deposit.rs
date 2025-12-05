@@ -1,13 +1,13 @@
 #![allow(unused)] // TODO: remove
 
-use corelib::api::client::Deposit;
-use corelib::balance::*;
-use crate::deposit::*;
-use corelib::escrow::*;
-use corelib::wallet::*;
-use api_rs::apis::configuration;
+use crate::kas_bridge::deposit::*;
 use bytes::Bytes;
-use hardcode::e2e::*;
+use dym_kas_api::apis::configuration;
+use dym_kas_core::api::client::Deposit;
+use dym_kas_core::balance::*;
+use dym_kas_core::escrow::*;
+use dym_kas_core::wallet::*;
+use dym_kas_hardcode::e2e::*;
 use hex;
 use hyperlane_core::{Decode, Encode, HyperlaneMessage, H256, U256};
 use hyperlane_warp_route::TokenMessage;
@@ -32,9 +32,9 @@ use std::sync::Arc;
 use kaspa_wallet_core::prelude::*;
 use kaspa_wallet_pskt::prelude::*; // Import the prelude for easy access to traits/structs
 
-use secp256k1::{rand::thread_rng, Keypair};
+use kaspa_bip32::secp256k1::{rand::thread_rng, Keypair};
 
-use api_rs::apis::kaspa_transactions_api::{
+use dym_kas_api::apis::kaspa_transactions_api::{
     get_transaction_transactions_transaction_id_get,
     GetTransactionTransactionsTransactionIdGetParams,
 };

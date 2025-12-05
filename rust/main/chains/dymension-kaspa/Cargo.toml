@@ -53,7 +53,6 @@ anyhow = { workspace = true }
 ethers = { workspace = true }
 dym-kas-core = { path = "../../../../dymension/libs/kaspa/lib/core" , package="core"}
 dym-kas-hardcode = { path = "../../../../dymension/libs/kaspa/lib/hardcode", package="hardcode"}
-dym-kas-bridge = { path = "../../../../dymension/libs/kaspa/lib/bridge" , package="bridge"}
 dym-kas-api = { path = "../../../../dymension/libs/kaspa/lib/api" , package="openapi"}
 dym-kas-kms = { path = "../../../../dymension/libs/kaspa/lib/kms", package="dym-kas-kms"}
 dymension-kaspa-hl-constants = { path = "../dymension-kaspa-hl-constants" }
@@ -85,6 +84,7 @@ kaspa-utils-tower = { workspace = true }
 kaspa-hashes = { workspace = true }
 kaspa-bip32 = { workspace = true }
 kaspa-consensus-client = { workspace = true }
+workflow-core = { workspace = true }
 
 [build-dependencies]
 anyhow = { workspace = true }

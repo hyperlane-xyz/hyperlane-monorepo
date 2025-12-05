@@ -1,9 +1,11 @@
 use crate::contract_sync::cursors::Indexable;
-use dymension_kaspa::hl_message::add_kaspa_metadata_hl_messsage;
-use dym_kas_bridge::{confirmation::ConfirmationFXG, deposit::DepositFXG};
 use dym_kas_core::finality::is_safe_against_reorg;
+use dymension_kaspa::hl_message::add_kaspa_metadata_hl_messsage;
+use dymension_kaspa::kas_bridge::{confirmation::ConfirmationFXG, deposit::DepositFXG};
 use dymension_kaspa::kas_relayer::confirm::expensive_trace_transactions;
-use dymension_kaspa::kas_relayer::deposit::{build_deposit_fxg, check_deposit_finality, KaspaTxError};
+use dymension_kaspa::kas_relayer::deposit::{
+    build_deposit_fxg, check_deposit_finality, KaspaTxError,
+};
 use dymension_kaspa::{Deposit, KaspaProvider};
 use ethers::utils::hex::ToHex;
 use eyre::Result;

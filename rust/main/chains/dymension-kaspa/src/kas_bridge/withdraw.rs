@@ -1,4 +1,4 @@
-use crate::payload::MessageID;
+use crate::kas_bridge::payload::MessageID;
 use bytes::Bytes;
 use eyre::Error as EyreError;
 use hex::ToHex;
@@ -11,9 +11,9 @@ use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{
 use hyperlane_cosmos_rs::dymensionxyz::hyperlane::kaspa::{
     HyperlaneMessages as ProtoHyperlaneMessages, WithdrawFxg as ProtoWithdrawFXG, WithdrawalVersion,
 };
+use hyperlane_cosmos_rs::prost::Message;
 use kaspa_consensus_core::tx::TransactionOutpoint;
 use kaspa_wallet_pskt::prelude::Bundle;
-use prost::Message;
 
 /// WithdrawFXG represents a sequence of PSKT transactions for batch processing and transport as
 /// a single serialized payload. A Bundle contains multiple PSKTs, where each PSKT is associated with
