@@ -24,7 +24,7 @@ import {
   SubmitterMetadata,
   TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { AltVMFileSubmitter } from '../submitters/AltVMFileSubmitter.js';
 import {
@@ -78,9 +78,10 @@ export function buildProtocolProviders(
   protocols.forEach((protocol) => {
     if (protocol === ProtocolType.Ethereum) return;
     if (!hasProtocol(protocol)) {
-      throw new Error(
-        `Protocol ${protocol} is not registered as an AltVM protocol`,
+      rootLogger.debug(
+        `Skipping unregistered AltVM protocol ${protocol} when building providers`,
       );
+      return;
     }
     providers[protocol] = getProtocolProvider(protocol);
   });
