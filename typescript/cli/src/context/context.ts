@@ -46,14 +46,16 @@ export const contextMiddleware: MiddlewareFunction<UntypedOptions> = async (
 ) => {
   const requiresKey = isSignCommand(argv);
 
+  const registryUris = toStringArray(argv.registry);
+
   const settings: ContextSettings = {
-    registryUris: [...argv.registry],
-    key: argv.key,
+    registryUris,
+    key: argv.key as ContextSettings['key'],
     requiresKey,
-    disableProxy: argv.disableProxy,
-    skipConfirmation: argv.yes,
-    strategyPath: argv.strategy,
-    authToken: argv.authToken,
+    disableProxy: argv.disableProxy as boolean | undefined,
+    skipConfirmation: argv.yes as boolean | undefined,
+    strategyPath: argv.strategy as string | undefined,
+    authToken: argv.authToken as string | undefined,
   };
 
   const context = await getContext(settings);
@@ -66,6 +68,12 @@ export const signerMiddleware: MiddlewareFunction<UntypedOptions> = async (
   assertHasContext(argv);
 
   const chains = await resolveChains(argv);
+  const altVmChains = chains.filter(
+    (chain) =>
+      argv.context.multiProvider.getProtocol(chain) !== ProtocolType.Ethereum,
+  );
+
+  await ensureAltVmProviders(argv.context, altVmChains);
 
   if (!argv.context.requiresKey) return;
 
@@ -147,7 +155,9 @@ export async function getSignerContext(
       context.multiProvider.getProtocol(chain) !== ProtocolType.Ethereum,
   );
 
-  await ensureAltVmProviders(context, altVmChains);
+  if (!preResolvedChains) {
+    await ensureAltVmProviders(context, altVmChains);
+  }
 
   const multiProtocolSigner = await MultiProtocolSignerManager.init(
     strategyConfig,
@@ -296,6 +306,12 @@ async function ensureAltVmProviders(
         await getProtocolProvider(protocol).createProvider(metadata);
     }),
   );
+}
+
+function toStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map((item) => String(item));
+  if (typeof value === 'string') return [value];
+  return [];
 }
 
 /**
