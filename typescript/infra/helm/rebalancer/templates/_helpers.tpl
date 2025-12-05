@@ -74,27 +74,22 @@ The rebalancer container
     value: "true"
   - name: LOG_FORMAT
     value: json
+  - name: LOG_LEVEL
+    value: info
   - name: REGISTRY_COMMIT
     value: {{ .Values.hyperlane.registryCommit }}
   - name: HYP_KEY
     value: $(REBALANCER_KEY)
   - name: COINGECKO_API_KEY
     value: $(COINGECKO_API_KEY)
-  args:
-  - "pnpm"
-  - "-C"
-  - "typescript/cli"
-  - "hyperlane"
-  - "warp"
-  - "rebalancer"
-  - "--checkFrequency"
-  - "60000"
-  - "--withMetrics"
-  - "true"
-  - "--configFile"
-  - "{{ .Values.hyperlane.rebalancerConfigFile }}"
-  - "--registry"
-  - "/hyperlane-registry"
+  - name: REBALANCER_CONFIG_FILE
+    value: "{{ .Values.hyperlane.rebalancerConfigFile }}"
+  - name: CHECK_FREQUENCY
+    value: "60000"
+  - name: WITH_METRICS
+    value: "true"
+  - name: MONITOR_ONLY
+    value: "false"
   envFrom:
   - secretRef:
       name: {{ include "hyperlane.fullname" . }}-secret
