@@ -165,30 +165,6 @@ async fn test_submit_transaction_stores_tx_hash() {
 }
 
 #[tokio::test]
-async fn test_submit_transaction_no_duplicate_tx_hash() {
-    let provider = MockProvider::new();
-    let mut tx = create_test_transaction();
-
-    // Submit once
-    submit_transaction(&provider, &mut tx).await.unwrap();
-    assert_eq!(tx.tx_hashes.len(), 1);
-    let first_hash = tx.tx_hashes[0];
-
-    // Manually add the same hash (simulate duplicate)
-    tx.tx_hashes.push(first_hash);
-    assert_eq!(tx.tx_hashes.len(), 2);
-
-    // Submit again - should not add duplicate
-    submit_transaction(&provider, &mut tx).await.unwrap();
-
-    // Verify we have at least 2 hashes (the duplicates we added plus potentially a new one)
-    assert!(tx.tx_hashes.len() >= 2, "Should have at least 2 hashes");
-
-    // Note: The function adds new random hashes each time, so we won't get duplicates
-    // unless we specifically add the same hash twice manually
-}
-
-#[tokio::test]
 async fn test_submit_transaction_provider_failure() {
     let provider = MockProvider::failing();
     let mut tx = create_test_transaction();
