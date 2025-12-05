@@ -77,7 +77,12 @@ class TestableSmartProvider extends HyperlaneSmartProvider {
     errors: any[],
     fallbackMsg: string,
   ): new () => Error {
-    return this.getCombinedProviderError(errors, fallbackMsg);
+    // Convert plain errors to FailedProviderInfo format for testing
+    const failedProviders = errors.map((error, index) => ({
+      providerUrl: `http://test-provider-${index}`,
+      error,
+    }));
+    return this.getCombinedProviderError(failedProviders, fallbackMsg);
   }
 
   public async simplePerform(method: string, reqId: number): Promise<any> {
@@ -148,7 +153,9 @@ describe('SmartProvider', () => {
 
         expect(e).to.be.instanceOf(BlockchainError);
         expect(e.isRecoverable).to.equal(false);
-        expect(e.message).to.equal(message);
+        // Error message now includes additional context (chain info, error code, etc.)
+        expect(e.message).to.include(message);
+        expect(e.message).to.include('chain: test');
         expect(e.cause).to.equal(error);
         expect(e.cause.code).to.equal(code);
       });
@@ -222,7 +229,9 @@ describe('SmartProvider', () => {
 
         expect(e).to.be.instanceOf(BlockchainError);
         expect((e as BlockchainError).isRecoverable).to.equal(false);
-        expect(e.message).to.equal(expectedMessage);
+        // Error message now includes additional context (chain info, error code, etc.)
+        expect(e.message).to.include(expectedMessage);
+        expect(e.message).to.include('chain: test');
         expect(e.cause).to.equal(secondError);
       });
     });
@@ -345,7 +354,10 @@ describe('SmartProvider', () => {
       } catch (e: any) {
         expect(e).to.be.instanceOf(BlockchainError);
         expect(e.isRecoverable).to.equal(false);
-        expect(e.message).to.equal('execution reverted');
+        // Error message now includes additional context (chain info, error code, RPC method, etc.)
+        expect(e.message).to.include('execution reverted');
+        expect(e.message).to.include('chain: test');
+        expect(e.message).to.include('getBlockNumber');
         expect(e.cause).to.equal(blockchainError);
         expect(provider1.called).to.be.true;
         expect(provider1.thrownError).to.equal(blockchainError);
@@ -373,7 +385,10 @@ describe('SmartProvider', () => {
       } catch (e: any) {
         expect(e).to.be.instanceOf(BlockchainError); // Should get blockchain error, not server error
         expect(e.isRecoverable).to.equal(false);
-        expect(e.message).to.equal('insufficient funds');
+        // Error message now includes additional context (chain info, error code, RPC method, etc.)
+        expect(e.message).to.include('insufficient funds');
+        expect(e.message).to.include('chain: test');
+        expect(e.message).to.include('getBlockNumber');
         expect(e.cause).to.equal(blockchainError);
         expect(provider1.called).to.be.true;
         expect(provider1.thrownError).to.equal(serverError);

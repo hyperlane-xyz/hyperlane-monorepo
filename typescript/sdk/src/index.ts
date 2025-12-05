@@ -453,6 +453,15 @@ export {
 } from './providers/SmartProvider/ProviderMethods.js';
 export { HyperlaneSmartProvider } from './providers/SmartProvider/SmartProvider.js';
 export {
+  createEnhancedErrorMessage,
+  extractEthersErrorContext,
+  formatEthersErrorContext,
+  formatRpcCall,
+  formatRpcParams,
+  getFunctionNameFromSelector,
+  getFunctionSelector,
+} from './providers/SmartProvider/RpcCallFormatting.js';
+export {
   ProviderRetryOptions,
   SmartProviderOptions,
 } from './providers/SmartProvider/types.js';
