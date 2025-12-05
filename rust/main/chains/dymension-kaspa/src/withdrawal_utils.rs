@@ -19,7 +19,7 @@ pub fn record_withdrawal_batch_metrics(
                 metrics.record_withdrawal_batch_size(messages.len() as u64);
             }
             for msg in messages {
-                if let Some(amount) = dym_kas_core::message::parse_withdrawal_amount(msg) {
+                if let Some(amount) = crate::hl_message::parse_withdrawal_amount(msg) {
                     let message_id = format!("{:?}", msg.id());
                     metrics.record_withdrawal_initiated(&message_id, amount);
                 }
@@ -27,7 +27,7 @@ pub fn record_withdrawal_batch_metrics(
         }
         WithdrawalStage::Processed => {
             for msg in messages {
-                if let Some(amount) = dym_kas_core::message::parse_withdrawal_amount(msg) {
+                if let Some(amount) = crate::hl_message::parse_withdrawal_amount(msg) {
                     let message_id = format!("{:?}", msg.id());
                     metrics.record_withdrawal_processed(&message_id, amount);
                 }
@@ -35,7 +35,7 @@ pub fn record_withdrawal_batch_metrics(
         }
         WithdrawalStage::Failed => {
             for msg in messages {
-                if let Some(amount) = dym_kas_core::message::parse_withdrawal_amount(msg) {
+                if let Some(amount) = crate::hl_message::parse_withdrawal_amount(msg) {
                     let message_id = format!("{:?}", msg.id());
                     metrics.record_withdrawal_failed(&message_id, amount);
                 }

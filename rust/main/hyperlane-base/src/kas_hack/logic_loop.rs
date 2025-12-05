@@ -1,5 +1,5 @@
 use crate::contract_sync::cursors::Indexable;
-use dym_kas_core::message::add_kaspa_metadata_hl_messsage;
+use dymension_kaspa::hl_message::add_kaspa_metadata_hl_messsage;
 use dym_kas_core::{
     confirmation::ConfirmationFXG, deposit::DepositFXG, finality::is_safe_against_reorg,
 };
@@ -215,7 +215,7 @@ where
         deposit: &Deposit,
         escrow_address: &str,
     ) -> Result<(hyperlane_core::HyperlaneMessage, u64, usize), eyre::Error> {
-        use dym_kas_core::message::ParsedHL;
+        use dymension_kaspa::hl_message::ParsedHL;
 
         let payload = deposit
             .payload

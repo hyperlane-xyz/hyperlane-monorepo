@@ -6168,7 +6168,6 @@ dependencies = [
 name = "hardcode"
 version = "0.2.0"
 dependencies = [
- "hyperlane-core",
  "kaspa-addresses",
  "kaspa-consensus-core",
  "openapi",

@@ -27,6 +27,9 @@ pub use dym_kas_relayer;
 pub use dym_kas_validator;
 pub use dymension_kaspa_hl_constants as hl_domains;
 
+// Re-export message module from dym_kas_core as hl_message for semantic clarity
+pub use dym_kas_core::message as hl_message;
+
 pub use util::*;
 
 mod validator_server;
