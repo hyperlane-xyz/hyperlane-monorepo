@@ -20,6 +20,11 @@ import { HyperlaneEtherscanProvider } from './HyperlaneEtherscanProvider.js';
 import { HyperlaneJsonRpcProvider } from './HyperlaneJsonRpcProvider.js';
 import { IProviderMethods, ProviderMethod } from './ProviderMethods.js';
 import {
+  extractEthersErrorContext,
+  formatEthersErrorContext,
+  formatRpcCall,
+} from './RpcCallFormatting.js';
+import {
   ChainMetadataWithRpcConnectionInfo,
   ProviderPerformResult,
   ProviderStatus,
@@ -300,10 +305,12 @@ export class HyperlaneSmartProvider
       );
       const result = await Promise.race([resultPromise, timeoutPromise]);
 
+      const rpcCall = formatRpcCall(method, params);
       const providerMetadata = {
         providerIndex: pIndex,
         rpcUrl: provider.getBaseUrl(),
-        method: `${method}(${JSON.stringify(params)})`,
+        rpcCall,
+        chain: this.network.name,
         chainId: this.network.chainId,
       };
 
@@ -313,32 +320,46 @@ export class HyperlaneSmartProvider
         case ProviderStatus.Timeout:
           this.logger.debug(
             { ...providerMetadata },
-            `Slow response from provider:`,
+            `Slow response from provider for ${rpcCall}.`,
             isLastProvider ? '' : 'Triggering next provider.',
           );
           providerResultPromises.push(resultPromise);
           pIndex += 1;
           break;
-        case ProviderStatus.Error:
+        case ProviderStatus.Error: {
           providerResultErrors.push(result.error);
+
+          // Extract detailed error context for logging
+          const errorContext = extractEthersErrorContext(result.error);
+          const errorMetadata = {
+            ...providerMetadata,
+            errorCode: errorContext.code,
+            errorReason: errorContext.reason || (result.error as any)?.message,
+            ...(errorContext.method && {
+              contractMethod: errorContext.method,
+            }),
+            ...(errorContext.transaction?.to && {
+              contractAddress: errorContext.transaction.to,
+            }),
+          };
+
           // If this is a blockchain error, stop trying additional providers as it's a permanent failure
           if (RPC_BLOCKCHAIN_ERRORS.includes((result.error as any)?.code)) {
             this.logger.debug(
-              { ...providerMetadata },
-              `${(result.error as any)?.code} detected - stopping provider fallback as this is a permanent failure`,
+              errorMetadata,
+              `Blockchain error ${(result.error as any)?.code} for ${rpcCall} - stopping provider fallback (permanent failure)`,
             );
             break providerLoop;
           }
+
           this.logger.debug(
-            {
-              error: result.error,
-              ...providerMetadata,
-            },
-            `Error from provider.`,
+            errorMetadata,
+            `Provider error for ${rpcCall}.`,
             isLastProvider ? '' : 'Triggering next provider.',
           );
           pIndex += 1;
           break;
+        }
         default:
           throw new Error(
             `Unexpected result from provider: ${JSON.stringify(
@@ -353,9 +374,9 @@ export class HyperlaneSmartProvider
     if (providerResultPromises.length === 0) {
       const CombinedError = this.getCombinedProviderError(
         providerResultErrors,
-        `All providers failed on chain ${
-          this.network.name
-        } for method ${method} and params ${JSON.stringify(params, null, 2)}`,
+        `All providers failed for RPC call`,
+        method,
+        params,
       );
       throw new CombinedError();
     }
@@ -374,16 +395,18 @@ export class HyperlaneSmartProvider
       case ProviderStatus.Timeout: {
         const CombinedError = this.getCombinedProviderError(
           [result, ...providerResultErrors],
-          `All providers timed out on chain ${this.network.name} for method ${method}`,
+          `All providers timed out`,
+          method,
+          params,
         );
         throw new CombinedError();
       }
       case ProviderStatus.Error: {
         const CombinedError = this.getCombinedProviderError(
           [result.error, ...providerResultErrors],
-          `All providers failed on chain ${
-            this.network.name
-          } for method ${method} and params ${JSON.stringify(params, null, 2)}`,
+          `All providers failed for RPC call`,
+          method,
+          params,
         );
         throw new CombinedError();
       }
@@ -407,12 +430,28 @@ export class HyperlaneSmartProvider
         );
       const result = await provider.perform(method, params, reqId);
       return { status: ProviderStatus.Success, value: result };
-    } catch (error) {
-      if (this.options?.debug)
-        this.logger.error(
-          `Error performing ${method} on provider #${pIndex} for reqId ${reqId}`,
-          error,
-        );
+    } catch (error: any) {
+      // Extract detailed error context for debugging
+      const rpcCall = formatRpcCall(method, params);
+      const ethersContext = extractEthersErrorContext(error);
+      const contextStr = formatEthersErrorContext(ethersContext);
+
+      const errorDetails = {
+        reqId,
+        providerIndex: pIndex,
+        rpcUrl: provider.getBaseUrl(),
+        chain: this.network.name,
+        chainId: this.network.chainId,
+        rpcCall,
+        errorCode: ethersContext.code,
+        errorReason: ethersContext.reason || error?.message,
+        ...(contextStr && { ethersContext: contextStr }),
+      };
+
+      if (this.options?.debug) {
+        this.logger.error(errorDetails, `RPC call failed: ${rpcCall}`);
+      }
+
       return { status: ProviderStatus.Error, error };
     }
   }
@@ -454,12 +493,22 @@ export class HyperlaneSmartProvider
   protected getCombinedProviderError(
     errors: any[],
     fallbackMsg: string,
+    method?: string,
+    params?: any,
   ): new () => Error {
     this.logger.debug(fallbackMsg);
+
+    // Format the RPC call for the error message if available
+    const rpcCallInfo = method ? formatRpcCall(method, params || {}) : null;
+    const chainInfo = `chain: ${this.network.name || 'unknown'} (${this.network.chainId})`;
+
     if (errors.length === 0) {
+      const msg = rpcCallInfo
+        ? `${fallbackMsg} | ${rpcCallInfo} | ${chainInfo}`
+        : fallbackMsg;
       return class extends Error {
         constructor() {
-          super(fallbackMsg);
+          super(msg);
         }
       };
     }
@@ -478,27 +527,74 @@ export class HyperlaneSmartProvider
 
     if (rpcBlockchainError) {
       // All blockchain errors are non-retryable and take priority
+      // Extract additional context from the ethers error
+      const ethersContext = extractEthersErrorContext(rpcBlockchainError);
+      const contextStr = formatEthersErrorContext(ethersContext);
+
+      // Build a more descriptive error message
+      const baseReason =
+        rpcBlockchainError.reason ?? rpcBlockchainError.code ?? 'Unknown error';
+      const errorParts = [baseReason];
+
+      if (rpcCallInfo) {
+        errorParts.push(`RPC: ${rpcCallInfo}`);
+      }
+      errorParts.push(chainInfo);
+
+      // Include contract method if available from ethers error (e.g., "transferRemote(uint32,bytes32,uint256)")
+      if (ethersContext.method) {
+        errorParts.push(`contractMethod: ${ethersContext.method}`);
+      }
+
+      // Include target address if available
+      if (ethersContext.transaction?.to) {
+        errorParts.push(`contract: ${ethersContext.transaction.to}`);
+      }
+
+      // Include any additional error context that wasn't already captured
+      if (contextStr && !errorParts.some((p) => p.includes(contextStr))) {
+        errorParts.push(contextStr);
+      }
+
+      const enhancedMessage = errorParts.join(' | ');
+
       return class extends BlockchainError {
         constructor() {
-          super(rpcBlockchainError.reason ?? rpcBlockchainError.code, {
+          super(enhancedMessage, {
             cause: rpcBlockchainError,
           });
         }
       };
     } else if (rpcServerError) {
+      const baseMsg =
+        rpcServerError.error?.message ??
+        getSmartProviderErrorMessage(rpcServerError.code);
+
+      const errorParts = [baseMsg];
+      if (rpcCallInfo) {
+        errorParts.push(`RPC: ${rpcCallInfo}`);
+      }
+      errorParts.push(chainInfo);
+
+      const enhancedMessage = errorParts.join(' | ');
+
       return class extends Error {
         constructor() {
-          super(
-            rpcServerError.error?.message ?? // Server errors sometimes will not have an error.message
-              getSmartProviderErrorMessage(rpcServerError.code),
-            { cause: rpcServerError },
-          );
+          super(enhancedMessage, { cause: rpcServerError });
         }
       };
     } else if (timedOutError) {
+      const errorParts = [fallbackMsg];
+      if (rpcCallInfo) {
+        errorParts.push(`RPC: ${rpcCallInfo}`);
+      }
+      errorParts.push(chainInfo);
+
+      const enhancedMessage = errorParts.join(' | ');
+
       return class extends Error {
         constructor() {
-          super(fallbackMsg, {
+          super(enhancedMessage, {
             cause: timedOutError,
           });
         }
@@ -507,9 +603,26 @@ export class HyperlaneSmartProvider
       this.logger.error(
         'Unhandled error case in combined provider error handler',
       );
+
+      const errorParts = [fallbackMsg];
+      if (rpcCallInfo) {
+        errorParts.push(`RPC: ${rpcCallInfo}`);
+      }
+      errorParts.push(chainInfo);
+
+      // Try to extract any useful info from the first error
+      if (errors[0]) {
+        const firstError = errors[0];
+        if (firstError.message) {
+          errorParts.push(`error: ${firstError.message}`);
+        }
+      }
+
+      const enhancedMessage = errorParts.join(' | ');
+
       return class extends Error {
         constructor() {
-          super(fallbackMsg);
+          super(enhancedMessage);
         }
       };
     }
