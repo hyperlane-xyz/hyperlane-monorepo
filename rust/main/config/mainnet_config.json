@@ -9339,6 +9339,35 @@
       "storageGasOracle": "0x5887BDA66EC9e854b0da6BFFe423511e69d327DC",
       "testRecipient": "0x89Ebf977E83087959aD78e5372F4AF15DcdC8143",
       "validatorAnnounce": "0xBCD18636e5876DFd7AAb5F2B2a5Eb5ca168BA1d8"
+    },
+    "dango": {
+      "displayName": "Dango",
+      "domainId": 88888888,
+      "name": "dango",
+      "protocol": "dango",
+      "blocks": {
+        "confirmations": 0,
+        "estimateBlockTime": 0.4,
+        "reorgPeriod": 0
+      },
+      "index": {
+        "chunk": 20,
+        "from": 1
+      },
+      "rpcUrls": [
+        {
+          "http": "http://localhost:26657"
+        }
+      ],
+      "gas_price": {
+        "denom": "dango",
+        "amount": "0"
+      },
+      "gas_scale": 1.2,
+      "flat_gas_increase": 1000000,
+      "search_sleep_duration": "500ms",
+      "post_broadcast_sleep": "2s",
+      "search_retry_attempts": 10
     }
   }
 }

@@ -20,16 +20,16 @@ pub async fn startup_tests(
     chain_2: SetupChain,
 ) -> anyhow::Result<(ChainHelper, ChainHelper)> {
     let (mut ch1, mut ch2) = try_join!(
-        DangoBuilder::new("dango-88888887", 88888887)
+        DangoBuilder::new("localdango1", 88888867)
             .with_block_creation(grug::BlockCreation::OnBroadcast)
             .run(),
-        DangoBuilder::new("dango-88888888", 88888888)
+        DangoBuilder::new("localdango2", 88888877)
             .with_block_creation(grug::BlockCreation::OnBroadcast)
             .run()
     )?;
 
-    let chain_name1 = "dangolocal1";
-    let chain_name2 = "dangolocal2";
+    let chain_name1 = "localdango1";
+    let chain_name2 = "localdango2";
 
     let validators_1 = run_validators(&chain_1, &ch1, chain_name1)?;
     let validators_2 = run_validators(&chain_2, &ch2, chain_name2)?;

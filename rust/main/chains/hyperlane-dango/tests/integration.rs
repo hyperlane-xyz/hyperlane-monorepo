@@ -19,17 +19,17 @@ pub mod utils;
 async fn dango_one_way() -> anyhow::Result<()> {
     setup_tracing_subscriber(Level::INFO);
     build_agents();
-    let mut ch1 = DangoBuilder::new("dango", 88888887)
+    let mut ch1 = DangoBuilder::new("localdango1", 88888867)
         .with_block_creation(BlockCreation::OnBroadcast)
         .run()
         .await?;
-    let mut ch2 = DangoBuilder::new("dango", 88888888)
+    let mut ch2 = DangoBuilder::new("localdango2", 88888877)
         .with_block_creation(BlockCreation::OnBroadcast)
         .run()
         .await?;
 
-    let chain_name1 = "dangolocal1";
-    let chain_name2 = "dangolocal2";
+    let chain_name1 = "localdango1";
+    let chain_name2 = "localdango2";
 
     let validator_key = HexKey::new_random();
 

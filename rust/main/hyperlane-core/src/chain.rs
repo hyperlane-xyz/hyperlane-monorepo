@@ -257,6 +257,7 @@ pub enum KnownHyperlaneDomain {
     Zksync = 324,
     Zircuit = 48900,
     ZoraMainnet = 7777777,
+    Dango = 88888888,
 
     // -- Test chains --
     //
@@ -299,6 +300,7 @@ pub enum KnownHyperlaneDomain {
     SonicSvmTestnet = 15153042,
     StarknetSepolia = 23448591,
     SubtensorTestnet = 945,
+    DangoTestnet = 88888887,
 
     // -- Local chains --
     //
@@ -315,8 +317,8 @@ pub enum KnownHyperlaneDomain {
     StarknetTest23448594 = 23448594,
     CosmosTestNative1 = 75898670,
     CosmosTestNative2 = 75898671,
-    DangoLocal1 = 88888887,
-    DangoLocal2 = 88888888,
+    LocalDango1 = 88888867,
+    LocalDango2 = 88888877,
 }
 
 #[derive(Clone, Serialize)]
@@ -470,10 +472,11 @@ impl KnownHyperlaneDomain {
             | SonicSvmTestnet
             | StarknetSepolia
             | SubtensorTestnet
-            | KyveAlpha => HyperlaneDomainType::Testnet,
+            | KyveAlpha
+            | DangoTestnet => HyperlaneDomainType::Testnet,
             Test1 | Test2 | Test3 | Test4 | FuelTest1 | SealevelTest1 | SealevelTest2
             | CosmosTest99990 | CosmosTest99991 | CosmosTestNative1 | CosmosTestNative2
-            | StarknetTest23448593 | StarknetTest23448594 => HyperlaneDomainType::LocalTestChain,
+            | StarknetTest23448593 | StarknetTest23448594 | LocalDango1 | LocalDango2 => HyperlaneDomainType::LocalTestChain,
             _ => HyperlaneDomainType::Mainnet,
         }
     }
@@ -521,7 +524,7 @@ impl KnownHyperlaneDomain {
             | ParadexSepolia
             | PragmaDevnet => HyperlaneDomainProtocol::Starknet,
             Radix | RadixTestnet => HyperlaneDomainProtocol::Radix,
-            DangoLocal1 | DangoLocal2 => HyperlaneDomainProtocol::Dango,
+            Dango | DangoTestnet | LocalDango1 | LocalDango2 => HyperlaneDomainProtocol::Dango,
             _ => HyperlaneDomainProtocol::Ethereum
         }
     }

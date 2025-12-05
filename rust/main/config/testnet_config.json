@@ -2400,21 +2400,25 @@
         "from": 5292654
       }
     },
-    "dangolocal1": {
-      "displayName": "dango1",
+    "dangotestnet": {
+      "displayName": "Dango Testnet",
       "domainId": 88888887,
-      "name": "dangolocal1",
+      "name": "dangotestnet",
+      "protocol": "dango",
       "blocks": {
         "confirmations": 0,
-        "estimateBlockTime": 1,
+        "estimateBlockTime": 0.4,
         "reorgPeriod": 0
+      },
+      "index": {
+        "chunk": 20,
+        "from": 1
       },
       "rpcUrls": [
         {
           "http": "http://localhost:26657"
         }
       ],
-      "protocol": "dango",
       "gas_price": {
         "denom": "dango",
         "amount": "0"
@@ -2423,30 +2427,27 @@
       "flat_gas_increase": 1000000,
       "search_sleep_duration": "500ms",
       "post_broadcast_sleep": "2s",
-      "search_retry_attempts": 10,
-      "checkpointSyncer": {
-        "type": "localStorage"
-      },
-      "index": {
-        "chunk": 10,
-        "from": 1
-      }
+      "search_retry_attempts": 10
     },
-    "dangolocal2": {
-      "displayName": "dango2",
-      "domainId": 88888888,
-      "name": "dangolocal2",
+    "localdango1": {
+      "displayName": "Local Dango 1",
+      "domainId": 88888867,
+      "name": "localdango1",
+      "protocol": "dango",
       "blocks": {
         "confirmations": 0,
-        "estimateBlockTime": 5,
+        "estimateBlockTime": 0.4,
         "reorgPeriod": 0
+      },
+      "index": {
+        "chunk": 20,
+        "from": 1
       },
       "rpcUrls": [
         {
           "http": "http://localhost:26657"
         }
       ],
-      "protocol": "dango",
       "gas_price": {
         "denom": "dango",
         "amount": "0"
@@ -2455,11 +2456,36 @@
       "flat_gas_increase": 1000000,
       "search_sleep_duration": "500ms",
       "post_broadcast_sleep": "2s",
-      "search_retry_attempts": 10,
+      "search_retry_attempts": 10
+    },
+    "localdango2": {
+      "displayName": "Local Dango 2",
+      "domainId": 88888877,
+      "name": "localdango2",
+      "protocol": "dango",
+      "blocks": {
+        "confirmations": 0,
+        "estimateBlockTime": 0.4,
+        "reorgPeriod": 0
+      },
       "index": {
-        "chunk": 10,
+        "chunk": 20,
         "from": 1
-      }
+      },
+      "rpcUrls": [
+        {
+          "http": "http://localhost:26657"
+        }
+      ],
+      "gas_price": {
+        "denom": "dango",
+        "amount": "0"
+      },
+      "gas_scale": 1.2,
+      "flat_gas_increase": 1000000,
+      "search_sleep_duration": "500ms",
+      "post_broadcast_sleep": "2s",
+      "search_retry_attempts": 10
     }
   }
 }
