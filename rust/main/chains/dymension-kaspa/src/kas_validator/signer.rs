@@ -1,6 +1,6 @@
 use ethers::signers::{LocalWallet, Signer};
 use ethers::utils::hex;
-use secp256k1::rand::thread_rng;
+use kaspa_bip32::secp256k1::rand::thread_rng;
 
 pub struct EthereumStyleSigner {
     pub address: String,

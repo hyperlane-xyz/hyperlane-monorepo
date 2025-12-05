@@ -1,6 +1,14 @@
 use super::conf::ValidatorStuff;
 use super::endpoints::*;
 use super::providers::KaspaProvider;
+use crate::kas_bridge::deposit::DepositFXG;
+use crate::kas_bridge::{confirmation::ConfirmationFXG, withdraw::WithdrawFXG};
+use crate::kas_validator::confirmation::validate_confirmed_withdrawals;
+use crate::kas_validator::deposit::{validate_new_deposit, MustMatch as DepositMustMatch};
+use crate::kas_validator::withdraw::{
+    validate_sign_withdrawal_fxg, MustMatch as WithdrawMustMatch,
+};
+pub use crate::kas_validator::KaspaSecpKeypair;
 use axum::{
     body::Bytes,
     extract::{DefaultBodyLimit, State},
@@ -10,14 +18,8 @@ use axum::{
     Router,
 };
 use dym_kas_core::api::client::HttpClient;
-use crate::kas_bridge::deposit::DepositFXG;
 use dym_kas_core::escrow::EscrowPublic;
 use dym_kas_core::wallet::EasyKaspaWallet;
-use crate::kas_bridge::{confirmation::ConfirmationFXG, withdraw::WithdrawFXG};
-use dym_kas_validator::confirmation::validate_confirmed_withdrawals;
-use dym_kas_validator::deposit::{validate_new_deposit, MustMatch as DepositMustMatch};
-use dym_kas_validator::withdraw::{validate_sign_withdrawal_fxg, MustMatch as WithdrawMustMatch};
-pub use dym_kas_validator::KaspaSecpKeypair;
 use eyre::Report;
 use hyperlane_core::{
     Checkpoint, CheckpointWithMessageId, HyperlaneSignerExt, Signable,

@@ -1,8 +1,9 @@
 use aws_config::BehaviorVersion;
 use aws_sdk_kms::Client as KmsClient;
 use aws_sdk_secretsmanager::Client as SecretsManagerClient;
-use dym_kas_validator::KaspaSecpKeypair;
 use eyre::{eyre, Result};
+
+pub type KaspaSecpKeypair = secp256k1::Keypair;
 
 #[derive(Debug, Clone)]
 pub struct AwsKeyConfig {

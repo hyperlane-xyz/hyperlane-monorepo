@@ -49,7 +49,8 @@ tracing-futures = { workspace = true }
 url = { workspace = true }
 reqwest = { workspace = true }
 axum = { workspace = true }
-dym-kas-validator = { path = "../../../../dymension/libs/kaspa/lib/validator", package="validator"}
+anyhow = { workspace = true }
+ethers = { workspace = true }
 dym-kas-core = { path = "../../../../dymension/libs/kaspa/lib/core" , package="core"}
 dym-kas-hardcode = { path = "../../../../dymension/libs/kaspa/lib/hardcode", package="hardcode"}
 dym-kas-bridge = { path = "../../../../dymension/libs/kaspa/lib/bridge" , package="bridge"}

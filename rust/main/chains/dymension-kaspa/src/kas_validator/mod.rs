@@ -7,4 +7,4 @@ pub mod withdraw;
 #[cfg(test)]
 mod withdraw_test;
 
-pub use secp256k1::Keypair as KaspaSecpKeypair;
+pub use kaspa_bip32::secp256k1::Keypair as KaspaSecpKeypair;

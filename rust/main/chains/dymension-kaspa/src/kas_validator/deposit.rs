@@ -1,11 +1,11 @@
-use crate::error::ValidationError;
-use corelib::api::client::HttpClient;
-use bridge::deposit::DepositFXG;
-use corelib::finality::is_safe_against_reorg;
-use bridge::message::{add_kaspa_metadata_hl_messsage, ParsedHL};
-use corelib::wallet::NetworkInfo;
-use eyre::Result;
+use crate::kas_validator::error::ValidationError;
+use dym_kas_bridge::deposit::DepositFXG;
+use dym_kas_bridge::message::{add_kaspa_metadata_hl_messsage, ParsedHL};
+use dym_kas_core::api::client::HttpClient;
+use dym_kas_core::finality::is_safe_against_reorg;
+use dym_kas_core::wallet::NetworkInfo;
 use dymension_kaspa_hl_constants::ALLOWED_HL_MESSAGE_VERSION;
+use eyre::Result;
 use hyperlane_core::HyperlaneMessage;
 use hyperlane_core::H256;
 use hyperlane_core::U256;

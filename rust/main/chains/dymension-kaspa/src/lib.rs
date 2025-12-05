@@ -22,11 +22,11 @@ mod util;
 mod withdrawal_utils;
 
 pub mod kas_relayer;
+pub mod kas_validator;
 
 // Direct reexports of lib stuff:
 pub use dym_kas_bridge as kas_bridge;
 pub use dym_kas_core;
-pub use dym_kas_validator;
 pub use dymension_kaspa_hl_constants as hl_domains;
 
 // Re-export message module from kas_bridge as hl_message for semantic clarity

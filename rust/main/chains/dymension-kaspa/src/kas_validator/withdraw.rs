@@ -1,22 +1,22 @@
 // We call the signers 'validators'
 
-use crate::error::ValidationError;
-use corelib::escrow::*;
-use bridge::payload::MessageIDs;
-use bridge::util;
-use bridge::util::{get_recipient_script_pubkey, is_valid_sighash_type};
-use bridge::withdraw::{filter_pending_withdrawals, WithdrawFXG};
-use eyre::Result;
+use crate::kas_validator::error::ValidationError;
+use dym_kas_bridge::payload::MessageIDs;
+use dym_kas_bridge::util;
+use dym_kas_bridge::util::{get_recipient_script_pubkey, is_valid_sighash_type};
+use dym_kas_bridge::withdraw::{filter_pending_withdrawals, WithdrawFXG};
+use dym_kas_core::escrow::*;
 use dymension_kaspa_hl_constants::ALLOWED_HL_MESSAGE_VERSION;
+use eyre::Result;
 use hex::ToHex;
 use hyperlane_core::{Decode, HyperlaneMessage, H256};
 use hyperlane_cosmos::native::ModuleQueryClient;
 use hyperlane_warp_route::TokenMessage;
 use kaspa_addresses::Prefix as KaspaAddrPrefix;
+use kaspa_bip32::secp256k1::Keypair as SecpKeypair;
 use kaspa_consensus_core::tx::{ScriptPublicKey, TransactionOutpoint};
 use kaspa_wallet_pskt::prelude::*;
 use kaspa_wallet_pskt::pskt::{Inner, Input, Signer, PSKT};
-use secp256k1::Keypair as SecpKeypair;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::io::Cursor;
@@ -459,7 +459,8 @@ where
     for pskt in bundle.iter() {
         let pskt = PSKT::<Signer>::from(pskt.clone());
 
-        let signed_pskt = corelib::pskt::sign_pskt(pskt, &keypair, None, input_filter.as_ref())?;
+        let signed_pskt =
+            dym_kas_core::pskt::sign_pskt(pskt, &keypair, None, input_filter.as_ref())?;
 
         signed.push(signed_pskt);
     }
