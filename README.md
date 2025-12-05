@@ -49,7 +49,7 @@ curl -L https://foundry.paradigm.xyz | bash
 Then run `foundryup` with the pinned version to install `forge`, `cast`, `anvil` and `chisel`.
 
 ```bash
-foundryup --install $(cat .foundryrc)
+foundryup --install $(cat solidity/.foundryrc)
 ```
 
 Check out the [Foundry Book](https://getfoundry.sh/introduction/installation/) for more information.

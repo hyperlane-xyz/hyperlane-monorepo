@@ -7,7 +7,7 @@ runs:
     - name: Read Foundry version
       id: foundry-version
       shell: bash
-      run: echo "version=$(cat .foundryrc)" >> $GITHUB_OUTPUT
+      run: echo "version=$(cat solidity/.foundryrc)" >> $GITHUB_OUTPUT
 
     - name: Install Foundry
       uses: foundry-rs/foundry-toolchain@v1

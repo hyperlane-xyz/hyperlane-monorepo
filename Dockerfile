@@ -8,9 +8,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && yarn set version 4.5.1
 
 # Install Foundry for solidity builds (early for layer caching)
-COPY .foundryrc ./
+COPY solidity/.foundryrc ./solidity/
 RUN curl -L https://foundry.paradigm.xyz | bash
-RUN /root/.foundry/bin/foundryup --install $(cat .foundryrc)
+RUN /root/.foundry/bin/foundryup --install $(cat solidity/.foundryrc)
 ENV PATH="/root/.foundry/bin:${PATH}"
 
 # Copy package.json and friends
