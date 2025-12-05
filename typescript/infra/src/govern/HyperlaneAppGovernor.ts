@@ -4,17 +4,24 @@ import prompts from 'prompts';
 
 import { Ownable__factory, ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import {
+  AnnotatedEV5Transaction,
   ChainMap,
   ChainName,
   ChainTechnicalStack,
   CheckerViolation,
+  EV5GnosisSafeTxBuilder,
+  EV5GnosisSafeTxSubmitter,
+  EV5JsonRpcTxSubmitter,
   GetCallRemoteSettings,
   HyperlaneApp,
   HyperlaneAppChecker,
   InterchainAccount,
+  MultiProvider,
   OwnableConfig,
   OwnerViolation,
+  ProtocolType,
   ProxyAdminViolation,
+  TxSubmitterInterface,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
@@ -36,13 +43,6 @@ import {
   Owner,
   determineGovernanceType,
 } from '../governance.js';
-
-import {
-  ManualMultiSend,
-  MultiSend,
-  SafeMultiSend,
-  SignerMultiSend,
-} from './multisend.js';
 
 export enum SubmissionType {
   MANUAL = 0,
@@ -114,6 +114,129 @@ export abstract class HyperlaneAppGovernor<
     }
   }
 
+  /**
+   * Converts AnnotatedCallData to AnnotatedEV5Transaction format
+   */
+  private convertToAnnotatedEV5Transaction(
+    chain: ChainName,
+    call: AnnotatedCallData,
+  ): AnnotatedEV5Transaction {
+    const chainId = this.checker.multiProvider.getChainId(chain);
+    return {
+      to: call.to,
+      data: call.data,
+      value: call.value,
+      chainId,
+    };
+  }
+
+  /**
+   * Creates a JSON RPC submitter for direct transaction submission
+   */
+  private createJsonRpcSubmitter(
+    chain: ChainName,
+  ): TxSubmitterInterface<ProtocolType.Ethereum> {
+    return new EV5JsonRpcTxSubmitter(this.checker.multiProvider, {
+      chain,
+    });
+  }
+
+  /**
+   * Creates a Safe submitter for a given governance type
+   */
+  private async createSafeSubmitter(
+    chain: ChainName,
+    safeAddress: Address,
+  ): Promise<TxSubmitterInterface<ProtocolType.Ethereum>> {
+    return await EV5GnosisSafeTxSubmitter.create(
+      this.checker.multiProvider,
+      {
+        chain,
+        safeAddress,
+      },
+    );
+  }
+
+  /**
+   * Creates a Safe Transaction Builder for JSON fallback
+   */
+  private async createSafeTxBuilder(
+    chain: ChainName,
+    safeAddress: Address,
+  ): Promise<TxSubmitterInterface<ProtocolType.Ethereum>> {
+    return await EV5GnosisSafeTxBuilder.create(
+      this.checker.multiProvider,
+      {
+        chain,
+        safeAddress,
+        version: '1.0',
+      },
+    );
+  }
+
+  /**
+   * Creates a submitter for ICA calls
+   * Note: ICA calls are already encoded and should be submitted to Safe on origin chain
+   * The callRemoteArgs contains the origin chain information
+   */
+  private async createIcaSubmitter(
+    originChain: ChainName,
+    governanceType: GovernanceType,
+  ): Promise<TxSubmitterInterface<ProtocolType.Ethereum> | null> {
+    const safeAddress = getGovernanceSafes(governanceType)[originChain];
+    if (!safeAddress) {
+      return null;
+    }
+
+    // ICA calls are submitted via Safe on the origin chain
+    // The call is already encoded for ICA execution
+    try {
+      return await this.createSafeSubmitter(originChain, safeAddress);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Displays JSON payload for manual upload when Safe API fails
+   */
+  private displayFallbackJson(
+    chain: ChainName,
+    safeAddress: Address,
+    jsonPayload: any,
+  ) {
+    if (!jsonPayload) {
+      rootLogger.warn(
+        chalk.yellow(
+          `No JSON payload available for fallback. Safe API call failed and JSON generation was not successful.`,
+        ),
+      );
+      return;
+    }
+
+    rootLogger.info(
+      chalk.bold.yellow(
+        `\n${'='.repeat(80)}\n` +
+          `SAFE API CALL FAILED - MANUAL JSON UPLOAD REQUIRED\n` +
+          `${'='.repeat(80)}\n` +
+          `Chain: ${chain}\n` +
+          `Safe Address: ${safeAddress}\n` +
+          `\nPlease manually upload the following JSON to the Safe Transaction Builder:\n` +
+          `${'='.repeat(80)}\n`,
+      ),
+    );
+
+    console.log(JSON.stringify(jsonPayload, null, 2));
+
+    rootLogger.info(
+      chalk.bold.yellow(
+        `\n${'='.repeat(80)}\n` +
+          `Copy the JSON above and upload it to: https://app.safe.global/transactions/import?safe=${chain}:${safeAddress}\n` +
+          `${'='.repeat(80)}\n`,
+      ),
+    );
+  }
+
   protected async sendCalls(chain: ChainName, requestConfirmation: boolean) {
     const calls = this.calls[chain] || [];
     rootLogger.info(`\nFound ${calls.length} transactions for ${chain}`);
@@ -175,85 +298,279 @@ export abstract class HyperlaneAppGovernor<
       return !!confirmed;
     };
 
-    const sendCallsForType = async (
+    const sendCallsWithSubmitter = async (
       submissionType: SubmissionType,
-      multiSend: MultiSend,
-      governanceType?: GovernanceType,
+      submitter: TxSubmitterInterface<ProtocolType.Ethereum>,
+      callsForSubmissionType: AnnotatedCallData[],
+      fallbackSubmitter?: TxSubmitterInterface<ProtocolType.Ethereum>,
+      fallbackSafeAddress?: Address,
     ) => {
-      const callsForSubmissionType = [];
-      const filteredCalls = filterCalls(submissionType, governanceType);
+      if (callsForSubmissionType.length === 0) {
+        return;
+      }
 
-      // Add the filtered calls to the calls for submission type
-      callsForSubmissionType.push(...filteredCalls);
-
-      if (callsForSubmissionType.length > 0) {
-        this.printSeparator();
-        const confirmed = await summarizeCalls(
-          submissionType,
-          callsForSubmissionType,
+      this.printSeparator();
+      const confirmed = await summarizeCalls(
+        submissionType,
+        callsForSubmissionType,
+      );
+      if (!confirmed) {
+        rootLogger.info(
+          chalk.italic(
+            `Skipping submission of calls on ${chain} via ${SubmissionType[submissionType]}`,
+          ),
         );
-        if (confirmed) {
+        return;
+      }
+
+      rootLogger.info(
+        chalk.italic(
+          `Submitting calls on ${chain} via ${SubmissionType[submissionType]}`,
+        ),
+      );
+
+      // Convert calls to AnnotatedEV5Transaction format
+      const annotatedTxs = callsForSubmissionType.map((call) =>
+        this.convertToAnnotatedEV5Transaction(chain, call),
+      );
+
+      try {
+        // Process calls in batches up to max size of 120
+        const maxBatchSize = 120;
+        for (let i = 0; i < annotatedTxs.length; i += maxBatchSize) {
+          const batch = annotatedTxs.slice(i, i + maxBatchSize);
+          await submitter.submit(...batch);
+        }
+      } catch (error) {
+        rootLogger.error(
+          chalk.red(`Error submitting calls on ${chain}: ${error}`),
+        );
+
+        // If we have a fallback submitter (Safe -> JSON Builder), try it
+        if (fallbackSubmitter && fallbackSafeAddress) {
           rootLogger.info(
-            chalk.italic(
-              `Submitting calls on ${chain} via ${SubmissionType[submissionType]}`,
+            chalk.yellow(
+              `Attempting fallback to JSON generation for manual upload...`,
             ),
           );
           try {
-            // Process calls in batches up to max size of 100
-            const maxBatchSize = 120;
-            for (
-              let i = 0;
-              i < callsForSubmissionType.length;
-              i += maxBatchSize
-            ) {
-              const batch = callsForSubmissionType.slice(i, i + maxBatchSize);
-              await multiSend.sendTransactions(
-                batch.map((call) => ({
-                  to: call.to,
-                  data: call.data,
-                  value: call.value,
-                })),
-              );
-            }
-          } catch (error) {
+            const jsonPayload = await fallbackSubmitter.submit(...annotatedTxs);
+            this.displayFallbackJson(chain, fallbackSafeAddress, jsonPayload);
+          } catch (fallbackError) {
             rootLogger.error(
-              chalk.red(`Error submitting calls on ${chain}: ${error}`),
+              chalk.red(
+                `Fallback JSON generation also failed: ${fallbackError}`,
+              ),
             );
           }
-        } else {
-          rootLogger.info(
-            chalk.italic(
-              `Skipping submission of calls on ${chain} via ${SubmissionType[submissionType]}`,
-            ),
-          );
         }
+        throw error;
       }
     };
 
-    // Do all SIGNER calls first
-    await sendCallsForType(
-      SubmissionType.SIGNER,
-      new SignerMultiSend(this.checker.multiProvider, chain),
-    );
+    // Do all SIGNER calls first (JSON RPC submitter)
+    const signerCalls = filterCalls(SubmissionType.SIGNER);
+    if (signerCalls.length > 0) {
+      const jsonRpcSubmitter = this.createJsonRpcSubmitter(chain);
+      await sendCallsWithSubmitter(
+        SubmissionType.SIGNER,
+        jsonRpcSubmitter,
+        signerCalls,
+      );
+    }
 
     // Then propose transactions on safes for all governance types
     for (const governanceType of Object.values(GovernanceType)) {
-      const safeOwner = getGovernanceSafes(governanceType)[chain];
-      if (safeOwner) {
-        await retryAsync(
-          () =>
-            sendCallsForType(
+      const safeAddress = getGovernanceSafes(governanceType)[chain];
+      if (!safeAddress) {
+        continue;
+      }
+
+      const safeCalls = filterCalls(SubmissionType.SAFE, governanceType);
+      if (safeCalls.length === 0) {
+        continue;
+      }
+
+      await retryAsync(
+        async () => {
+          try {
+            const safeSubmitter = await this.createSafeSubmitter(
+              chain,
+              safeAddress,
+            );
+            // Create fallback builder for JSON generation
+            const fallbackBuilder = await this.createSafeTxBuilder(
+              chain,
+              safeAddress,
+            );
+            await sendCallsWithSubmitter(
               SubmissionType.SAFE,
-              new SafeMultiSend(this.checker.multiProvider, chain, safeOwner),
-              governanceType,
+              safeSubmitter,
+              safeCalls,
+              fallbackBuilder,
+              safeAddress,
+            );
+          } catch (error) {
+            // If Safe submitter creation fails (e.g., authorization), try fallback
+            rootLogger.warn(
+              chalk.yellow(
+                `Failed to create Safe submitter, attempting JSON fallback: ${error}`,
+              ),
+            );
+            const fallbackBuilder = await this.createSafeTxBuilder(
+              chain,
+              safeAddress,
+            );
+            const annotatedTxs = safeCalls.map((call) =>
+              this.convertToAnnotatedEV5Transaction(chain, call),
+            );
+            const jsonPayload = await fallbackBuilder.submit(...annotatedTxs);
+            this.displayFallbackJson(chain, safeAddress, jsonPayload);
+            throw error;
+          }
+        },
+        10,
+      );
+    }
+
+    // Handle ICA calls - these are already encoded and should be submitted to origin chain
+    const icaCalls = calls.filter((call) => call.callRemoteArgs !== undefined);
+    if (icaCalls.length > 0) {
+      // Group ICA calls by origin chain and governance type
+      const icaCallsByOrigin = new Map<
+        string,
+        { calls: AnnotatedCallData[]; governanceType: GovernanceType }
+      >();
+
+      for (const call of icaCalls) {
+        if (!call.callRemoteArgs || !call.governanceType) {
+          continue;
+        }
+        const origin = call.callRemoteArgs.chain;
+        const key = `${origin}-${call.governanceType}`;
+        if (!icaCallsByOrigin.has(key)) {
+          icaCallsByOrigin.set(key, {
+            calls: [],
+            governanceType: call.governanceType,
+          });
+        }
+        icaCallsByOrigin.get(key)!.calls.push(call);
+      }
+
+      // Submit ICA calls to origin chain via Safe
+      for (const [
+        key,
+        { calls: icaCallGroup, governanceType },
+      ] of icaCallsByOrigin.entries()) {
+        const [originChain] = key.split('-');
+        const originChainName = originChain as ChainName;
+        const safeAddress = getGovernanceSafes(governanceType)[originChainName];
+
+        if (!safeAddress) {
+          rootLogger.warn(
+            chalk.yellow(
+              `No Safe address found for ${originChainName} with governance type ${governanceType}, skipping ICA calls`,
             ),
-          10,
-        );
+          );
+          continue;
+        }
+
+        try {
+          const icaSubmitter = await this.createIcaSubmitter(
+            originChainName,
+            governanceType,
+          );
+
+          if (icaSubmitter) {
+            // Create fallback builder for JSON generation
+            const fallbackBuilder = await this.createSafeTxBuilder(
+              originChainName,
+              safeAddress,
+            );
+            await sendCallsWithSubmitter(
+              SubmissionType.SAFE, // ICA calls are submitted via Safe on origin
+              icaSubmitter,
+              icaCallGroup,
+              fallbackBuilder,
+              safeAddress,
+            );
+          } else {
+            // Fallback to JSON if submitter creation fails
+            rootLogger.warn(
+              chalk.yellow(
+                `Failed to create ICA submitter for ${originChainName}, falling back to JSON generation`,
+              ),
+            );
+            const fallbackBuilder = await this.createSafeTxBuilder(
+              originChainName,
+              safeAddress,
+            );
+            const annotatedTxs = icaCallGroup.map((call) =>
+              this.convertToAnnotatedEV5Transaction(originChainName, call),
+            );
+            const jsonPayload = await fallbackBuilder.submit(...annotatedTxs);
+            this.displayFallbackJson(originChainName, safeAddress, jsonPayload);
+          }
+        } catch (error) {
+          rootLogger.error(
+            chalk.red(
+              `Error submitting ICA calls for ${originChainName}: ${error}`,
+            ),
+          );
+          // Try JSON fallback
+          try {
+            const fallbackBuilder = await this.createSafeTxBuilder(
+              originChainName,
+              safeAddress,
+            );
+            const annotatedTxs = icaCallGroup.map((call) =>
+              this.convertToAnnotatedEV5Transaction(originChainName, call),
+            );
+            const jsonPayload = await fallbackBuilder.submit(...annotatedTxs);
+            this.displayFallbackJson(originChainName, safeAddress, jsonPayload);
+          } catch (fallbackError) {
+            rootLogger.error(
+              chalk.red(
+                `JSON fallback also failed for ${originChainName}: ${fallbackError}`,
+              ),
+            );
+          }
+        }
       }
     }
 
-    // Then finally submit remaining calls manually
-    await sendCallsForType(SubmissionType.MANUAL, new ManualMultiSend(chain));
+    // Then finally submit remaining calls manually (Safe Transaction Builder)
+    const manualCalls = filterCalls(SubmissionType.MANUAL);
+    if (manualCalls.length > 0) {
+      // For manual calls, we need to determine which Safe to use
+      // Try to find a Safe address, otherwise use the first available
+      let manualSafeAddress: Address | undefined;
+      for (const governanceType of Object.values(GovernanceType)) {
+        const safe = getGovernanceSafes(governanceType)[chain];
+        if (safe) {
+          manualSafeAddress = safe;
+          break;
+        }
+      }
+
+      if (manualSafeAddress) {
+        const manualBuilder = await this.createSafeTxBuilder(
+          chain,
+          manualSafeAddress,
+        );
+        const annotatedTxs = manualCalls.map((call) =>
+          this.convertToAnnotatedEV5Transaction(chain, call),
+        );
+        const jsonPayload = await manualBuilder.submit(...annotatedTxs);
+        this.displayFallbackJson(chain, manualSafeAddress, jsonPayload);
+      } else {
+        // No Safe found, just print the calls
+        rootLogger.info(
+          `Please submit the following manually to ${chain}:`,
+        );
+        console.log(JSON.stringify(manualCalls, null, 2));
+      }
+    }
 
     this.printSeparator();
   }
