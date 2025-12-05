@@ -28,6 +28,6 @@ env:
   - name: SERVER_PORT
     value: '3000'
   - name: REGISTRY_URI
-    value: 'https://github.com/hyperlane-xyz/hyperlane-registry/tree/820e3940782c196d78496e82382b838cee109635'
+    value: 'https://github.com/hyperlane-xyz/hyperlane-registry/tree/1783373afe4be89ab85e379b32f24c7c26c73416'
   - name: SERVER_BASE_URL
     value: 'https://offchain-lookup.services.hyperlane.xyz'

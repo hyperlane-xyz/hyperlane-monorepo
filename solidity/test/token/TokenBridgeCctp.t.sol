@@ -1229,7 +1229,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
 
         // deploy proxy code to deployer address, which is configured as recipient on cctp messages
         deployCodeTo(
-            "../node_modules/@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol:TransparentUpgradeableProxy",
+            "dependencies/@openzeppelin-contracts-4.9.3/contracts/proxy/transparent/TransparentUpgradeableProxy.sol:TransparentUpgradeableProxy",
             abi.encode(
                 address(implementation),
                 proxyAdmin,
