@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 
-use hyperlane_aleo::{AleoProviderForLander, FeeEstimate};
+use hyperlane_aleo::AleoProviderForLander;
 use hyperlane_core::{ChainResult, H512};
 
 use crate::adapter::chains::AleoTxPrecursor;
@@ -25,7 +25,6 @@ struct MockCall {
     program_id: String,
     function_name: String,
     inputs: Vec<String>,
-    fee_estimate: Option<FeeEstimate>,
 }
 
 impl MockProvider {
@@ -62,13 +61,12 @@ impl MockProviderWithError {
 
 #[async_trait]
 impl AleoProviderForLander for MockProviderWithError {
-    async fn submit_tx_with_fee<I>(
+    async fn submit_tx<I>(
         &self,
         _program_id: &str,
         _function_name: &str,
         _input: I,
-        _fee_estimate: Option<FeeEstimate>,
-    ) -> ChainResult<(H512, FeeEstimate)>
+    ) -> ChainResult<H512>
     where
         I: IntoIterator<Item = String> + Send,
         I::IntoIter: ExactSizeIterator,
@@ -81,13 +79,12 @@ impl AleoProviderForLander for MockProviderWithError {
 
 #[async_trait]
 impl AleoProviderForLander for MockProvider {
-    async fn submit_tx_with_fee<I>(
+    async fn submit_tx<I>(
         &self,
         program_id: &str,
         function_name: &str,
         input: I,
-        fee_estimate: Option<FeeEstimate>,
-    ) -> ChainResult<(H512, FeeEstimate)>
+    ) -> ChainResult<H512>
     where
         I: IntoIterator<Item = String> + Send,
         I::IntoIter: ExactSizeIterator,
@@ -99,7 +96,6 @@ impl AleoProviderForLander for MockProvider {
             program_id: program_id.to_string(),
             function_name: function_name.to_string(),
             inputs: inputs.clone(),
-            fee_estimate: fee_estimate.clone(),
         });
 
         if self.should_fail {
@@ -108,9 +104,7 @@ impl AleoProviderForLander for MockProvider {
             ));
         }
 
-        // Return fee estimate if provided, otherwise return a default one
-        let fee = fee_estimate.unwrap_or_else(|| FeeEstimate::new(1000, 100));
-        Ok((H512::random(), fee))
+        Ok(H512::random())
     }
 }
 
@@ -119,7 +113,6 @@ fn create_test_transaction() -> Transaction {
         program_id: "test_program.aleo".to_string(),
         function_name: "test_function".to_string(),
         inputs: vec!["input1".to_string(), "input2".to_string()],
-        estimated_fee: None,
     };
 
     let payload_uuid = PayloadUuid::random();
@@ -133,20 +126,11 @@ fn create_test_transaction() -> Transaction {
     Transaction::new(precursor, vec![payload_details])
 }
 
-fn create_test_transaction_with_cached_fee() -> Transaction {
-    let mut tx = create_test_transaction();
-    let precursor = tx.precursor_mut();
-    precursor.estimated_fee = Some(FeeEstimate::new(2000, 200));
-    tx
-}
-
 #[tokio::test]
-async fn test_submit_transaction_without_cached_fee() {
+async fn test_submit_transaction_success() {
     let provider = MockProvider::new();
     let mut tx = create_test_transaction();
 
-    // Verify no cached fee initially
-    assert!(tx.precursor().estimated_fee.is_none());
     assert!(tx.tx_hashes.is_empty());
 
     // Submit transaction
@@ -160,50 +144,9 @@ async fn test_submit_transaction_without_cached_fee() {
     assert_eq!(call.program_id, "test_program.aleo");
     assert_eq!(call.function_name, "test_function");
     assert_eq!(call.inputs, vec!["input1", "input2"]);
-    assert!(call.fee_estimate.is_none()); // No cached fee was provided
-
-    // Verify fee was cached
-    let precursor = tx.precursor();
-    assert!(precursor.estimated_fee.is_some());
-    let cached_fee = precursor.estimated_fee.as_ref().unwrap();
-    assert_eq!(cached_fee.base_fee, 1000);
-    assert_eq!(cached_fee.priority_fee, 100);
-    assert_eq!(cached_fee.total_fee, 1100);
 
     // Verify transaction hash was stored
     assert_eq!(tx.tx_hashes.len(), 1);
-}
-
-#[tokio::test]
-async fn test_submit_transaction_with_cached_fee() {
-    let provider = MockProvider::new();
-    let mut tx = create_test_transaction_with_cached_fee();
-
-    // Verify cached fee exists
-    let precursor = tx.precursor();
-    assert!(precursor.estimated_fee.is_some());
-    let initial_fee = precursor.estimated_fee.clone().unwrap();
-    assert_eq!(initial_fee.base_fee, 2000);
-    assert_eq!(initial_fee.priority_fee, 200);
-
-    // Submit transaction
-    let result = submit_transaction(&provider, &mut tx).await;
-    assert!(result.is_ok());
-
-    // Verify provider was called with cached fee
-    let calls = provider.get_calls();
-    assert_eq!(calls.len(), 1);
-    let call = &calls[0];
-    assert!(call.fee_estimate.is_some());
-    let passed_fee = call.fee_estimate.as_ref().unwrap();
-    assert_eq!(passed_fee.base_fee, 2000);
-    assert_eq!(passed_fee.priority_fee, 200);
-
-    // Verify fee remains cached (provider returns the same fee)
-    let precursor = tx.precursor();
-    let final_fee = precursor.estimated_fee.as_ref().unwrap();
-    assert_eq!(final_fee.base_fee, 2000);
-    assert_eq!(final_fee.priority_fee, 200);
 }
 
 #[tokio::test]
@@ -265,9 +208,6 @@ async fn test_submit_transaction_provider_failure() {
     // Verify error message contains expected text
     let err_str = err.to_string();
     assert!(err_str.contains("Mock provider: intentional failure"));
-
-    // Verify no fee was cached on failure
-    assert!(tx.precursor().estimated_fee.is_none());
 
     // Verify no transaction hash was added on failure
     assert!(tx.tx_hashes.is_empty());
@@ -349,35 +289,7 @@ async fn test_submit_transaction_mutates_only_expected_fields() {
     assert_eq!(tx.precursor().inputs, original_inputs);
 
     // Verify only expected fields were mutated
-    assert!(tx.precursor().estimated_fee.is_some()); // Fee was cached
     assert!(!tx.tx_hashes.is_empty()); // Hash was added
-}
-
-#[tokio::test]
-async fn test_submit_transaction_fee_update_on_resubmission() {
-    let provider = MockProvider::new();
-    let mut tx = create_test_transaction();
-
-    // First submission - no cached fee
-    submit_transaction(&provider, &mut tx).await.unwrap();
-    let first_fee = tx.precursor().estimated_fee.clone().unwrap();
-    assert_eq!(first_fee.base_fee, 1000);
-
-    // Manually update the cached fee (simulating a fee increase)
-    let precursor = tx.precursor_mut();
-    precursor.estimated_fee = Some(FeeEstimate::new(3000, 300));
-
-    // Second submission - with updated cached fee
-    submit_transaction(&provider, &mut tx).await.unwrap();
-
-    // Verify provider received the updated fee
-    let calls = provider.get_calls();
-    assert_eq!(calls.len(), 2);
-    let second_call = &calls[1];
-    assert!(second_call.fee_estimate.is_some());
-    let passed_fee = second_call.fee_estimate.as_ref().unwrap();
-    assert_eq!(passed_fee.base_fee, 3000);
-    assert_eq!(passed_fee.priority_fee, 300);
 }
 
 // Aleo-specific error classification tests

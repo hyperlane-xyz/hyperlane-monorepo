@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 
-use hyperlane_aleo::{AleoProviderForLander, AleoTxData, FeeEstimate};
+use hyperlane_aleo::{AleoProviderForLander, AleoTxData};
 use hyperlane_core::{ChainResult, H256, H512};
 
 use crate::adapter::chains::AleoAdapter;
@@ -22,20 +22,17 @@ struct MockAleoProvider;
 
 #[async_trait]
 impl AleoProviderForLander for MockAleoProvider {
-    async fn submit_tx_with_fee<I>(
+    async fn submit_tx<I>(
         &self,
         _program_id: &str,
         _function_name: &str,
         _input: I,
-        fee_estimate: Option<FeeEstimate>,
-    ) -> ChainResult<(H512, FeeEstimate)>
+    ) -> ChainResult<H512>
     where
         I: IntoIterator<Item = String> + Send,
         I::IntoIter: ExactSizeIterator,
     {
-        // Return fee estimate if provided, otherwise return a default one
-        let fee = fee_estimate.unwrap_or_else(|| FeeEstimate::new(1000, 100));
-        Ok((H512::random(), fee))
+        Ok(H512::random())
     }
 }
 

@@ -4,6 +4,8 @@ use super::super::AleoTxPrecursor;
 
 pub trait Precursor {
     fn precursor(&self) -> &AleoTxPrecursor;
+
+    #[cfg(test)]
     fn precursor_mut(&mut self) -> &mut AleoTxPrecursor;
 }
 
@@ -15,6 +17,8 @@ impl Precursor for Transaction {
             _ => panic!(),
         }
     }
+
+    #[cfg(test)]
     fn precursor_mut(&mut self) -> &mut AleoTxPrecursor {
         match &mut self.vm_specific_data {
             VmSpecificTxData::Aleo(precursor) => precursor,

@@ -58,49 +58,32 @@ fn classify_aleo_error(err: ChainCommunicationError) -> LanderError {
     LanderError::ChainCommunicationError(err)
 }
 
-/// Submits an Aleo transaction with fee estimation and caching
-///
-/// # Fee Estimation Strategy
-/// - **First submission**: Provider estimates fee internally and returns it for caching
-/// - **Resubmission**: Uses cached fee from transaction precursor
+/// Submits an Aleo transaction
 ///
 /// # Arguments
-/// * `provider` - The Aleo provider to use for submission (handles fee estimation internally)
-/// * `tx` - The transaction to submit (will be mutated to cache fee and store tx hash)
+/// * `provider` - The Aleo provider to use for submission
+/// * `tx` - The transaction to submit (will be mutated to store tx hash)
 ///
 /// # Returns
-/// * `Ok(())` - Transaction successfully submitted and fee cached
-/// * `Err(LanderError)` - Submission or fee estimation failed
+/// * `Ok(())` - Transaction successfully submitted
+/// * `Err(LanderError)` - Submission failed
 pub async fn submit_transaction<P: AleoProviderForLander>(
     provider: &P,
     tx: &mut Transaction,
 ) -> Result<(), LanderError> {
     let tx_precursor = tx.precursor();
 
-    // Log whether we're using cached fee or estimating
-    if tx_precursor.estimated_fee.is_some() {
-        info!(?tx, "submitting Aleo transaction with cached fee");
-    } else {
-        info!(
-            ?tx,
-            "submitting Aleo transaction (provider will estimate fee)"
-        );
-    }
+    info!(?tx, "submitting Aleo transaction");
 
-    // Submit transaction - provider will use cached fee if available, otherwise estimate
-    let (tx_hash, fee_used) = provider
-        .submit_tx_with_fee(
+    // Submit transaction
+    let tx_hash = provider
+        .submit_tx(
             &tx_precursor.program_id,
             &tx_precursor.function_name,
             tx_precursor.inputs.clone(),
-            tx_precursor.estimated_fee.clone(),
         )
         .await
         .map_err(classify_aleo_error)?;
-
-    // Cache the fee for future resubmissions
-    let precursor = tx.precursor_mut();
-    precursor.estimated_fee = Some(fee_used);
 
     // Store transaction hash
     if !tx.tx_hashes.contains(&tx_hash) {
