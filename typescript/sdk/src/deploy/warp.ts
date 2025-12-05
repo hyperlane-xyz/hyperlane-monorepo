@@ -146,13 +146,7 @@ export async function executeWarpDeploy(
         break;
       }
       default: {
-        const signersMap = await promiseObjAll(
-          objMap(protocolSpecificConfig, async (chain, _) =>
-            altVmSigners(chain),
-          ),
-        );
-
-        const deployer = new AltVMDeployer(signersMap);
+        const deployer = new AltVMDeployer(altVmSigners);
         deployedContracts = {
           ...deployedContracts,
           ...(await deployer.deploy(
