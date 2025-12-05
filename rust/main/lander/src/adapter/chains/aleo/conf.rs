@@ -1,7 +1,5 @@
-use eyre::Result;
-use hyperlane_aleo::{AleoSigner, ConnectionConf};
+use hyperlane_aleo::AleoSigner;
 use hyperlane_base::settings::{ChainConf, SignerConf};
-use hyperlane_core::ChainResult;
 
 use crate::LanderError;
 
