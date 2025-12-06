@@ -20,6 +20,9 @@
  *   REBALANCER_CONFIG_FILE=/config/rebalancer.yaml HYP_KEY=0x... node dist/service.js
  */
 import { Wallet } from 'ethers';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import { MultiProtocolProvider, MultiProvider } from '@hyperlane-xyz/sdk';
@@ -28,22 +31,21 @@ import { createServiceLogger, rootLogger } from '@hyperlane-xyz/utils';
 import { RebalancerConfig } from './config/RebalancerConfig.js';
 import { RebalancerService } from './core/RebalancerService.js';
 
-// Read version from package.json
-let VERSION = 'unknown';
-try {
-  const { readFileSync } = await import('fs');
-  const { join } = await import('path');
-  const { fileURLToPath } = await import('url');
-  const __dirname = fileURLToPath(new URL('.', import.meta.url));
-  const packageJson = JSON.parse(
-    readFileSync(join(__dirname, '../package.json'), 'utf-8'),
-  );
-  VERSION = packageJson.version;
-} catch (error) {
-  rootLogger.warn({ error }, 'Could not read version from package.json');
+function getVersion(): string {
+  try {
+    const __dirname = fileURLToPath(new URL('.', import.meta.url));
+    const packageJson = JSON.parse(
+      fs.readFileSync(path.join(__dirname, '../package.json'), 'utf-8'),
+    );
+    return packageJson.version;
+  } catch (error) {
+    rootLogger.warn({ error }, 'Could not read version from package.json');
+    return 'unknown';
+  }
 }
 
 async function main(): Promise<void> {
+  const VERSION = getVersion();
   // Validate required environment variables
   const configFile = process.env.REBALANCER_CONFIG_FILE;
   if (!configFile) {
@@ -58,9 +60,17 @@ async function main(): Promise<void> {
   }
 
   // Parse optional environment variables
-  const checkFrequency = process.env.CHECK_FREQUENCY
-    ? parseInt(process.env.CHECK_FREQUENCY, 10)
-    : 60_000;
+  let checkFrequency = 60_000;
+  if (process.env.CHECK_FREQUENCY) {
+    const parsed = parseInt(process.env.CHECK_FREQUENCY, 10);
+    if (isNaN(parsed) || parsed <= 0) {
+      rootLogger.error(
+        'CHECK_FREQUENCY must be a positive number (milliseconds)',
+      );
+      process.exit(1);
+    }
+    checkFrequency = parsed;
+  }
 
   const withMetrics = process.env.WITH_METRICS !== 'false';
   const monitorOnly = process.env.MONITOR_ONLY === 'true';
