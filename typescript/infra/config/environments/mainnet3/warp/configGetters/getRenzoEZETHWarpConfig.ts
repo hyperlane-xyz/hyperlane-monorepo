@@ -1,6 +1,5 @@
 import { parseEther } from 'ethers/lib/utils.js';
 
-import { Mailbox__factory } from '@hyperlane-xyz/core';
 import {
   ChainMap,
   ChainName,
@@ -91,15 +90,13 @@ const chainProtocolFee: Record<ChainName, string> = {
   zircuit: '400000000000000',
 };
 
-export function getRenzoHook(
-  defaultHook: Address,
-  chain: ChainName,
-  owner: Address,
-): HookConfig {
+export function getRenzoHook(chain: ChainName, owner: Address): HookConfig {
   return {
     type: HookType.AGGREGATION,
     hooks: [
-      defaultHook,
+      {
+        type: HookType.MAILBOX_DEFAULT,
+      },
       {
         type: HookType.PROTOCOL_FEE,
         owner: owner,
@@ -531,12 +528,6 @@ export function getRenzoWarpConfigGenerator(params: {
             const addresses = await registry.getChainAddresses(chain);
             assert(addresses, 'No addresses in Registry');
             const { mailbox } = addresses;
-
-            const mailboxContract = Mailbox__factory.connect(
-              mailbox,
-              multiProvider.getProvider(chain),
-            );
-            const defaultHook = await mailboxContract.defaultHook();
             const ret: HypTokenRouterConfig = {
               isNft: false,
               type:
@@ -568,7 +559,7 @@ export function getRenzoWarpConfigGenerator(params: {
                   },
                 ],
               },
-              hook: getRenzoHook(defaultHook, chain, safes[chain]),
+              hook: getRenzoHook(chain, safes[chain]),
             };
 
             if (chainOwnerOverrides?.[chain]) {
