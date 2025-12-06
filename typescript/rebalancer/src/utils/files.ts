@@ -46,7 +46,7 @@ export function resolvePath(filePath: string): string {
   return filePath;
 }
 
-export function isFile(filepath: string) {
+export function isFile(filepath: string): boolean {
   if (!filepath) return false;
   try {
     return fs.existsSync(filepath) && fs.lstatSync(filepath).isFile();
@@ -56,16 +56,26 @@ export function isFile(filepath: string) {
   }
 }
 
-export function readFileAtPath(filepath: string) {
+export function isDirectory(dirpath: string): boolean {
+  if (!dirpath) return false;
+  try {
+    return fs.existsSync(dirpath) && fs.lstatSync(dirpath).isDirectory();
+  } catch {
+    rootLogger.warn(`Error checking for directory: ${dirpath}`);
+    return false;
+  }
+}
+
+export function readFileAtPath(filepath: string): string {
   if (!isFile(filepath)) {
     throw Error(`File doesn't exist at ${filepath}`);
   }
   return fs.readFileSync(filepath, 'utf8');
 }
 
-export function writeFileAtPath(filepath: string, value: string) {
+export function writeFileAtPath(filepath: string, value: string): void {
   const dirname = path.dirname(filepath);
-  if (!isFile(dirname)) {
+  if (!isDirectory(dirname)) {
     fs.mkdirSync(dirname, { recursive: true });
   }
   fs.writeFileSync(filepath, value);
