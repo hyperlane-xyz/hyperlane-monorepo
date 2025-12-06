@@ -77,7 +77,14 @@ export function isCosmosIbcDenomAddress(address: Address): boolean {
 }
 
 export function isAddressStarknet(address: Address) {
-  return STARKNET_ADDRESS_REGEX.test(address);
+  // Starknet addresses may not have leading zeros, so we need to validate
+  // using the starknet library rather than just a regex
+  try {
+    const parsedAddress = validateAndParseAddress(address);
+    return STARKNET_ADDRESS_REGEX.test(parsedAddress);
+  } catch {
+    return false;
+  }
 }
 
 export function isAddressRadix(address: Address) {
