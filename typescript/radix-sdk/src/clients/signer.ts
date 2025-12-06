@@ -94,6 +94,10 @@ export class RadixSigner
     return this.account.address;
   }
 
+  getBaseSigner(): RadixBaseSigner {
+    return this.signer;
+  }
+
   supportsTransactionBatching(): boolean {
     return false;
   }
