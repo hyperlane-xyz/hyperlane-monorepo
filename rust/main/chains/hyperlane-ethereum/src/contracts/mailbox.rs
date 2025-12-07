@@ -200,8 +200,11 @@ where
 {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self).await?;
-        let sequence = self.contract.nonce().block(u64::from(tip)).call().await?;
-        Ok((Some(sequence), tip))
+        let nonce = self.contract.nonce().block(u64::from(tip)).call().await?;
+        // Convert nonce (next message count) to the last indexed sequence (nonce - 1)
+        // If nonce is 0, there are no messages sent yet
+        let sequence = nonce.checked_sub(1);
+        Ok((sequence, tip))
     }
 }
 

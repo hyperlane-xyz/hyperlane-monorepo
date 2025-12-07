@@ -185,8 +185,11 @@ where
     // `SequenceAwareIndexer` and `Indexer`.
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = self.get_finalized_block_number().await?;
-        let sequence = self.contract.count().block(u64::from(tip)).call().await?;
-        Ok((Some(sequence), tip))
+        let count = self.contract.count().block(u64::from(tip)).call().await?;
+        // Convert count to the last indexed sequence (count - 1)
+        // If count is 0, there are no messages indexed yet
+        let sequence = count.checked_sub(1);
+        Ok((sequence, tip))
     }
 }
 
