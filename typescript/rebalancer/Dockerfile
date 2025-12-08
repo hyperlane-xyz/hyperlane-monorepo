@@ -51,33 +51,19 @@ COPY solidity ./solidity
 COPY solhint-plugin ./solhint-plugin
 COPY starknet ./starknet
 
-# Build only the rebalancer and its dependencies
-RUN yarn turbo run build --filter=@hyperlane-xyz/rebalancer...
+# Build and bundle the rebalancer (ncc creates a single-file bundle with all deps)
+RUN yarn turbo run bundle --filter=@hyperlane-xyz/rebalancer
 
-# Production stage
-FROM node:20-slim AS runner
+# Production stage - minimal Alpine image with just the bundled code
+FROM node:20-alpine AS runner
 
-WORKDIR /hyperlane-monorepo
+WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    git jq bash curl ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache git ca-certificates
 
-# Copy built artifacts and node_modules
-COPY --from=builder /hyperlane-monorepo/package.json ./
-COPY --from=builder /hyperlane-monorepo/yarn.lock ./
-COPY --from=builder /hyperlane-monorepo/.yarnrc.yml ./
-COPY --from=builder /hyperlane-monorepo/.yarn ./.yarn
-COPY --from=builder /hyperlane-monorepo/node_modules ./node_modules
-COPY --from=builder /hyperlane-monorepo/typescript/rebalancer ./typescript/rebalancer
-COPY --from=builder /hyperlane-monorepo/typescript/deploy-sdk ./typescript/deploy-sdk
-COPY --from=builder /hyperlane-monorepo/typescript/sdk ./typescript/sdk
-COPY --from=builder /hyperlane-monorepo/typescript/provider-sdk ./typescript/provider-sdk
-COPY --from=builder /hyperlane-monorepo/typescript/utils ./typescript/utils
-COPY --from=builder /hyperlane-monorepo/typescript/cosmos-sdk ./typescript/cosmos-sdk
-COPY --from=builder /hyperlane-monorepo/typescript/cosmos-types ./typescript/cosmos-types
-COPY --from=builder /hyperlane-monorepo/typescript/radix-sdk ./typescript/radix-sdk
-COPY --from=builder /hyperlane-monorepo/typescript/tsconfig ./typescript/tsconfig
+# Copy only the bundled output (includes all dependencies)
+COPY --from=builder /hyperlane-monorepo/typescript/rebalancer/rebalancer-bundle ./rebalancer-bundle
+COPY --from=builder /hyperlane-monorepo/typescript/rebalancer/package.json ./
 
 # Baked-in registry version
 ENV REGISTRY_URI="/hyperlane-registry"
@@ -94,5 +80,5 @@ ENV LOG_LEVEL=info
 # Expose metrics port
 EXPOSE 9090
 
-# Run the rebalancer service
-CMD ["node", "typescript/rebalancer/dist/service.js"]
+# Run the rebalancer service from the bundle
+CMD ["node", "rebalancer-bundle/index.js"]
