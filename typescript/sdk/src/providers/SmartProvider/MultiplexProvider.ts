@@ -196,6 +196,80 @@ export class MultiplexProvider extends BaseProvider {
   }
 
   /**
+   * Extracts contract address and function signature from RPC params.
+   */
+  private _extractCallDetails(
+    method: string,
+    params: any,
+  ): { contractAddress?: string; functionSignature?: string } {
+    try {
+      // For eth_call, params is typically { transaction: { to, data }, blockTag }
+      if (method === 'call' && params?.transaction) {
+        const contractAddress = params.transaction.to;
+        const data = params.transaction.data;
+
+        // Extract function selector (first 4 bytes = 8 hex chars after 0x)
+        const functionSignature =
+          data && typeof data === 'string' && data.startsWith('0x')
+            ? data.slice(0, 10)
+            : undefined;
+
+        return { contractAddress, functionSignature };
+      }
+    } catch (error) {
+      // Ignore extraction errors - metrics collection shouldn't break RPC calls
+    }
+    return {};
+  }
+
+  /**
+   * Extracts error details, including nested error information and reason fields.
+   */
+  private _extractErrorDetails(error: any): {
+    errorType: string;
+    errorMessage: string;
+  } {
+    const errorType = error.code || 'unknown';
+    let errorMessage = error.message || String(error);
+
+    // Collect additional error context
+    const contextParts = [];
+
+    // If there's a reason field, include it (common in ethers errors)
+    if (error.reason && error.reason !== errorMessage) {
+      contextParts.push(`reason: ${error.reason}`);
+    }
+
+    // For timeout errors, include the timeout duration
+    if (error.timeout !== undefined) {
+      contextParts.push(`timeout: ${error.timeout}ms`);
+    }
+
+    // For errors with nested error object, extract additional details
+    if (error.error) {
+      const nestedError = error.error;
+      const nestedCode = nestedError.code;
+      const nestedMessage = nestedError.message;
+
+      // Append nested error details
+      const nestedDetails = [];
+      if (nestedCode !== undefined) nestedDetails.push(`code=${nestedCode}`);
+      if (nestedMessage) nestedDetails.push(`message=${nestedMessage}`);
+
+      if (nestedDetails.length > 0) {
+        contextParts.push(`nested: ${nestedDetails.join(', ')}`);
+      }
+    }
+
+    // Build final error message with all context
+    if (contextParts.length > 0) {
+      errorMessage = `${errorMessage} (${contextParts.join('; ')})`;
+    }
+
+    return { errorType, errorMessage };
+  }
+
+  /**
    * Determines if an error is recoverable and should trigger retry/failover.
    */
   private _isRecoverableError(error: any): boolean {
@@ -300,6 +374,12 @@ export class MultiplexProvider extends BaseProvider {
   ): Promise<{ success: true; value: any } | { success: false; error: any }> {
     let lastError: any = null;
 
+    // Extract call details once for all attempts
+    const { contractAddress, functionSignature } = this._extractCallDetails(
+      method,
+      params,
+    );
+
     // Get starting provider index for round-robin, then increment for next call
     const startIndex = this._nextProviderIndex;
     this._nextProviderIndex =
@@ -332,6 +412,8 @@ export class MultiplexProvider extends BaseProvider {
           this._metricsEmitter.emit('rpc_metric', {
             provider: this._providerUrls[i],
             method,
+            contractAddress,
+            functionSignature,
             durationMs,
             success: true,
             chainId:
@@ -358,15 +440,18 @@ export class MultiplexProvider extends BaseProvider {
           console.error(err);
         }
 
-        // Emit failure metric
+        // Emit failure metric with enhanced error details
         if (this._metricsEmitter) {
+          const { errorType, errorMessage } = this._extractErrorDetails(err);
           this._metricsEmitter.emit('rpc_metric', {
             provider: this._providerUrls[i],
             method,
+            contractAddress,
+            functionSignature,
             durationMs,
             success: false,
-            errorType: err.code || 'unknown',
-            errorMessage: err.message || String(error),
+            errorType,
+            errorMessage,
             chainId:
               typeof this.network === 'object'
                 ? this.network.chainId
