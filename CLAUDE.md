@@ -35,6 +35,8 @@ cd rust/main && cargo test
 
 # CLI e2e tests (useful for testing warp routes, core deployments)
 yarn --cwd typescript/cli test:ethereum:e2e
+yarn --cwd typescript/cli test:cosmosnative:e2e
+yarn --cwd typescript/cli test:radix:e2e
 ```
 
 ### Before Committing
@@ -105,7 +107,9 @@ forge test -vvv --decode-internal       # Detailed Forge output
 # TypeScript
 yarn --cwd typescript/sdk test          # SDK tests
 yarn --cwd typescript/sdk test:unit     # Unit tests only
-yarn --cwd typescript/cli test:ethereum:e2e  # CLI e2e tests
+yarn --cwd typescript/cli test:ethereum:e2e      # CLI e2e tests (EVM)
+yarn --cwd typescript/cli test:cosmosnative:e2e  # CLI e2e tests (Cosmos)
+yarn --cwd typescript/cli test:radix:e2e         # CLI e2e tests (Radix)
 
 # Rust
 cd rust/main && cargo test              # All Rust tests
