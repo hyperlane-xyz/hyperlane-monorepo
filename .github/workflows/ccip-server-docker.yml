@@ -113,8 +113,8 @@ jobs:
         id: check-changes
         if: github.event_name == 'pull_request'
         run: |
-          # Only comment if there are explicit changes to ccip-server package
-          if git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -q '^typescript/ccip-server/'; then
+          # Only comment if there are explicit changes to ccip-server package or this workflow
+          if git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -qE '^typescript/ccip-server/|^\.github/workflows/ccip-server-docker\.yml$'; then
             echo "has_changes=true" >> $GITHUB_OUTPUT
           else
             echo "has_changes=false" >> $GITHUB_OUTPUT
