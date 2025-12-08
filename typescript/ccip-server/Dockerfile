@@ -34,7 +34,11 @@ COPY starknet/package.json ./starknet/
 # Copy prisma schema before yarn install (needed for postinstall prisma generate)
 COPY typescript/ccip-server/prisma ./typescript/ccip-server/prisma
 
-RUN yarn install && yarn cache clean
+# Skip postinstall scripts during install (--mode=skip-build)
+RUN yarn install --mode=skip-build && yarn cache clean
+
+# Run prisma generate after install (needed to generate Prisma client)
+RUN yarn --cwd typescript/ccip-server prisma generate
 
 # Copy source files
 COPY turbo.json ./
