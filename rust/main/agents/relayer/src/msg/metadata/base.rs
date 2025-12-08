@@ -15,7 +15,8 @@ use serde::{Deserialize, Deserializer};
 use tokio::sync::{Mutex, RwLock};
 
 use hyperlane_core::{
-    HyperlaneDomain, HyperlaneMessage, InterchainSecurityModule, Mailbox, ModuleType, H256,
+    HyperlaneDomain, HyperlaneMessage, InterchainSecurityModule, Mailbox, ModuleType,
+    ReorgEventResponse, H256,
 };
 
 use crate::settings::matching_list::MatchingList;
@@ -27,8 +28,8 @@ pub enum MetadataBuildError {
     /// While building metadata, encountered something that should
     /// prohibit all metadata for the message from being built.
     /// Provides the reason for the refusal.
-    #[error("Refused")]
-    Refused(String),
+    #[error("Refused ({0})")]
+    Refused(MetadataBuildRefused),
     /// Unable to fetch metadata, but no error occurred
     #[error("Could not fetch metadata")]
     CouldNotFetch,
@@ -46,6 +47,12 @@ pub enum MetadataBuildError {
     FastPathError(String),
     #[error("Merkle root mismatch ({root}, {canonical_root})")]
     MerkleRootMismatch { root: H256, canonical_root: H256 },
+}
+
+#[derive(Clone, Debug, PartialEq, thiserror::Error)]
+pub enum MetadataBuildRefused {
+    #[error("Reorg detected ({0:?})")]
+    Reorg(ReorgEventResponse),
 }
 
 #[derive(Clone, Debug, new)]
