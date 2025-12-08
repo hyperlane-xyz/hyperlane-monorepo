@@ -64,7 +64,7 @@ export class MultiplexProvider extends BaseProvider {
     this.providers = urls.map((url) => {
       // Use StaticJsonRpcProvider for CLI use case - network doesn't change
       // This avoids repeated detectNetwork() calls that JsonRpcProvider does
-      const provider = new StaticJsonRpcProvider(url, network);
+      const provider = new StaticJsonRpcProvider(url, network || 'any');
       provider.polling = false; // Disable - we'll handle polling at the multiplex level
       return provider;
     });
