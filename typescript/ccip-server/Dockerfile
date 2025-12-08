@@ -31,6 +31,9 @@ COPY solidity/package.json ./solidity/
 COPY solhint-plugin/package.json ./solhint-plugin/
 COPY starknet/package.json ./starknet/
 
+# Copy prisma schema before yarn install (needed for postinstall prisma generate)
+COPY typescript/ccip-server/prisma ./typescript/ccip-server/prisma
+
 RUN yarn install && yarn cache clean
 
 # Copy source files
