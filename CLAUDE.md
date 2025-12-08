@@ -169,12 +169,13 @@ hyperlane warp deploy --help
 
 ### TypeScript SDK (`typescript/sdk/src/`)
 
-| Module          | Purpose                              |
-| --------------- | ------------------------------------ |
-| `MultiProvider` | Multi-chain provider management      |
-| `HyperlaneCore` | Core contract interactions           |
-| `ChainMap<T>`   | Type-safe per-chain configuration    |
-| `WarpCore`      | Warp route deployment and management |
+| Module                  | Purpose                                          |
+| ----------------------- | ------------------------------------------------ |
+| `MultiProvider`         | Multi-chain provider management                  |
+| `HyperlaneCore`         | Core contract interactions                       |
+| `ChainMap<T>`           | Type-safe per-chain configuration                |
+| `WarpCore`              | Warp route deployment and management             |
+| `MultiProtocolProvider` | Unified interface across VMs (EVM, Cosmos, etc.) |
 
 ### Rust Agents (`rust/main/`)
 
@@ -183,6 +184,10 @@ hyperlane warp deploy --help
 | `relayer`   | Indexes messages, delivers to destinations |
 | `validator` | Signs checkpoints for message verification |
 | `scraper`   | Indexes chain data for analytics           |
+
+**Chain Support** (`chains/`): `hyperlane-ethereum` (EVM), `hyperlane-cosmos`, `hyperlane-sealevel` (Solana/SVM), `hyperlane-fuel`
+
+**Core Crates**: `hyperlane-core` (traits, message types), `hyperlane-base` (shared agent utilities)
 
 ## Key Concepts
 
@@ -194,6 +199,16 @@ hyperlane warp deploy --help
 | **Hook**       | Post-dispatch processing (gas payments, merkle tree, etc.)       |
 | **Checkpoint** | Validator-signed commitment to merkle root at index              |
 | **Warp Route** | Token bridge deployment across chains                            |
+
+### Gas Price Escalation
+
+Automatic gas price increases for stuck transactions use the formula:
+
+```
+Max(Min(Max(Escalate(oldGasPrice), newEstimatedGasPrice), gasPriceCapMultiplier × newEstimatedGasPrice), oldGasPrice)
+```
+
+This prevents indefinite escalation while maintaining competitiveness and ensuring RBF compatibility. The `gasPriceCapMultiplier` is configurable per chain in `transactionOverrides` (default: 3).
 
 ## Configuration
 
@@ -238,10 +253,23 @@ hyperlane warp deploy --help
 
 ## Debugging & Operations
 
-For operational incidents (stuck messages, RPC failures, validator issues), see:
+When debugging Hyperlane operational incidents (stuck messages, RPC failures, validator issues, gas problems, warp route imbalances), **always check `docs/ai-agents/operational-debugging.md` first**. It contains:
 
-- `docs/ai-agents/operational-debugging.md` - AI-powered debugging workflows
-- [Operations Runbook](https://www.notion.so/hyperlanexyz/Runbook-AI-Agent-24a6d35200d680229b38e8501164ca66) - Manual procedures
+- **Grafana dashboard analysis** - Key panels for incident triage (Easy Dashboard, Validator Dashboards, Lander Dashboard, RPC Usage & Errors)
+- **Progressive GCP log query strategies** - Efficiently analyze logs with minimal token usage
+- **Error pattern recognition** - Gas estimation failures, validator delays, RPC issues
+- **Hyperlane Explorer integration** - Find stuck messages before querying logs
+- **Specific debugging workflows** - Queue length alerts, CouldNotFetchMetadata errors, RPC provider issues
+
+**[Operations Runbook](https://www.notion.so/hyperlanexyz/Runbook-AI-Agent-24a6d35200d680229b38e8501164ca66)** contains manual procedures for:
+
+- Agent deployment and redeployment
+- RPC URL rotation when providers fail
+- Validator operations and reorg recovery
+- Manual message processing and retry
+- Balance management and key funding
+- Security incident response
+- Lander (transaction submitter) configuration
 
 ## Common Tasks
 
