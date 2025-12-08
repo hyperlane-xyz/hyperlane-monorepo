@@ -126,7 +126,7 @@ jobs:
         with:
           comment_tag: ccip-server-docker-image
           image_name: CCIP Server Docker Image
-          emoji: 🔗
+          emoji: 🔍
           image_tags: ${{ steps.meta.outputs.tags }}
           pr_number: ${{ github.event.pull_request.number }}
           github_token: ${{ steps.generate-token.outputs.token }}
