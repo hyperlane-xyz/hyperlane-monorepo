@@ -39,6 +39,7 @@ export const ezEthChainsToDeploy = [
   'ink',
   'monad',
   'xlayer',
+  'stable',
 ];
 export const MAX_PROTOCOL_FEE = parseEther('100').toString(); // Changing this will redeploy the PROTOCOL_FEE hook
 
@@ -64,6 +65,7 @@ export const renzoTokenPrices: ChainMap<string> = {
   ink: '3900', // ETH
   monad: '1', // MON placeholder price to avoid division by zero
   xlayer: '165', // OKB
+  stable: '1',
 };
 export function getProtocolFee(chain: ChainName) {
   const price = renzoTokenPrices[chain];
@@ -140,6 +142,7 @@ const ezEthAddresses: Record<(typeof ezEthChainsToDeploy)[number], string> = {
   ink: '0x2416092f143378750bb29b79eD961ab195CcEea5',
   monad: '0x2416092f143378750bb29b79eD961ab195CcEea5',
   xlayer: '0x2416092f143378750bb29b79eD961ab195CcEea5',
+  stable: '0x2416092f143378750bb29b79eD961ab195CcEea5',
 };
 
 export const ezEthValidators: ChainMap<MultisigConfig> = {
@@ -343,7 +346,36 @@ export const ezEthValidators: ChainMap<MultisigConfig> = {
       { address: '0xecbe0864d34b215964c1abc21623aa8d0d75c723', alias: 'Renzo' },
     ],
   },
+  stable: {
+    threshold: 1,
+    validators: [
+      { address: '0xA62f727Fc4700Fcb65668a30932eB59f8d625FAC', alias: 'Renzo' },
+    ],
+  },
 };
+
+export const ezEthSafes: Record<(typeof ezEthChainsToDeploy)[number], string> =
+  {
+    arbitrum: '0x0e60fd361fF5b90088e1782e6b21A7D177d462C5',
+    optimism: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
+    base: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
+    blast: '0xda7dBF0DB81882372B598a715F86eD5254A01b0a',
+    bsc: '0x0e60fd361fF5b90088e1782e6b21A7D177d462C5',
+    mode: '0x7791eeA3484Ba4E5860B7a2293840767619c2B58',
+    linea: '0xb7092685571B49786F1248c6205B5ac3A691c65E',
+    ethereum: '0xD1e6626310fD54Eceb5b9a51dA2eC329D6D4B68A',
+    fraxtal: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
+    zircuit: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
+    taiko: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
+    sei: '0x0e60fd361fF5b90088e1782e6b21A7D177d462C5',
+    swell: '0x435E8c9652Da151292F3981bbf663EBEB6668501',
+    unichain: '0x70aF964829DA7F3f51973EE806AEeAB9225F2661',
+    berachain: '0x865BA5789D82F2D4C5595a3968dad729A8C3daE6',
+    worldchain: '0x7Be36310285cA4e809C296526745DA983c8F8e0f',
+    plasma: '0x76Cd13F5Bfb73f501795988Ef5d017606Bb16DBd',
+    ink: '0x42A4E564836AE98C2522368Be2faA6e96Ff7a07f',
+    stable: '0x088Bc91C5e9A278FB9c5f80a226274fF0179E69c',
+  };
 
 // Renzo's custom ICA-like owners
 export const ezEthOwners: Record<(typeof ezEthChainsToDeploy)[number], string> =
@@ -365,30 +397,10 @@ export const ezEthOwners: Record<(typeof ezEthChainsToDeploy)[number], string> =
     berachain: '0xc1036D6bBa2FE24c65823110B348Ee80D3386ACd',
     worldchain: '0x672fb1C0F35DBD2074742765d23d18b80cbAAf22',
     plasma: '0x3eA4D0467C976e9877Adb96869Fdeb0551fd0930',
-    ink: '0x42A4E564836AE98C2522368Be2faA6e96Ff7a07f',
+    ink: '0xf25484650484DE3d554fB0b7125e7696efA4ab99',
     monad: '0xf2a0775ED23887F3C47Bf1f0D01cc580281dA2E4',
     xlayer: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
-  };
-
-export const ezEthSafes: Record<(typeof ezEthChainsToDeploy)[number], string> =
-  {
-    arbitrum: '0x0e60fd361fF5b90088e1782e6b21A7D177d462C5',
-    optimism: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
-    base: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
-    blast: '0xda7dBF0DB81882372B598a715F86eD5254A01b0a',
-    bsc: '0x0e60fd361fF5b90088e1782e6b21A7D177d462C5',
-    mode: '0x7791eeA3484Ba4E5860B7a2293840767619c2B58',
-    linea: '0xb7092685571B49786F1248c6205B5ac3A691c65E',
-    ethereum: '0xD1e6626310fD54Eceb5b9a51dA2eC329D6D4B68A',
-    fraxtal: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
-    zircuit: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
-    taiko: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
-    sei: '0x0e60fd361fF5b90088e1782e6b21A7D177d462C5',
-    swell: '0x435E8c9652Da151292F3981bbf663EBEB6668501',
-    unichain: '0x70aF964829DA7F3f51973EE806AEeAB9225F2661',
-    berachain: '0x865BA5789D82F2D4C5595a3968dad729A8C3daE6',
-    worldchain: '0x7Be36310285cA4e809C296526745DA983c8F8e0f',
-    plasma: '0x76Cd13F5Bfb73f501795988Ef5d017606Bb16DBd',
+    stable: ezEthSafes.stable,
   };
 
 type ChainOwnerOverrides = ChainMap<Partial<{ proxyAdmin: string }>>;
@@ -445,7 +457,7 @@ export const ezEthChainOwnerOverrides: ChainOwnerOverrides = {
     proxyAdmin: ezEthSafes.plasma,
   },
   ink: {
-    proxyAdmin: ezEthOwners.ink,
+    proxyAdmin: ezEthSafes.ink,
   },
   monad: {
     proxyAdmin: ezEthOwners.monad,
