@@ -54,6 +54,7 @@ export class MultiplexProvider extends BaseProvider {
     // If network is known, pass it; otherwise use "any" for dynamic detection
     super(network || 'any');
 
+    this.setLogLevel(Logger.levels.DEBUG);
     this.retryConfig = { ...DEFAULT_RETRY_CONFIG, ...retryConfig };
 
     this.providers = urls.map((url) => {
@@ -305,11 +306,12 @@ export class MultiplexProvider extends BaseProvider {
       } catch (error) {
         const err = error as any;
         console.log(
-          `[DEBUG] MultiplexProvider._performFailover() - Provider ${i + 1} failed (${Date.now() - tStart}ms) for ${method}:`,
-          err.message,
+          `[DEBUG] MultiplexProvider._performFailover() - Provider ${i + 1} failed (${Date.now() - tStart}ms) for ${method}`,
         );
         if (err.code === Logger.errors.CALL_EXCEPTION && err.error) {
           console.error(err.error);
+        } else {
+          console.error(err);
         }
         lastError = error;
 
