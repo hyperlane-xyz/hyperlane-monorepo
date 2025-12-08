@@ -8335,6 +8335,7 @@ __metadata:
     "@types/express": "npm:^5.0.3"
     "@types/mocha": "npm:^10.0.1"
     "@types/node": "npm:^18.14.5"
+    "@vercel/ncc": "npm:^0.38.3"
     bignumber.js: "npm:^9.1.1"
     chai: "npm:^4.5.0"
     eslint: "npm:^9.31.0"

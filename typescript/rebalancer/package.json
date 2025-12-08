@@ -14,14 +14,16 @@
   ],
   "scripts": {
     "build": "tsc",
-    "clean": "rm -rf dist cache",
+    "bundle": "rm -rf ./rebalancer-bundle && ncc build ./dist/service.js -o rebalancer-bundle && node ./scripts/ncc.post-bundle.mjs",
+    "clean": "rm -rf dist cache rebalancer-bundle",
     "dev": "tsc --watch",
     "lint": "eslint -c ./eslint.config.mjs ./src",
     "prettier": "prettier --write ./src",
     "test": "mocha --config .mocharc.json './src/**/*.test.ts' --exit",
     "test:ci": "yarn test",
     "start": "node dist/service.js",
-    "start:dev": "tsx src/service.ts"
+    "start:dev": "tsx src/service.ts",
+    "prepack": "yarn bundle"
   },
   "dependencies": {
     "@google-cloud/pino-logging-gcp-config": "^1.0.6",
@@ -46,6 +48,7 @@
     "@types/express": "^5.0.3",
     "@types/mocha": "^10.0.1",
     "@types/node": "^18.14.5",
+    "@vercel/ncc": "^0.38.3",
     "chai": "^4.5.0",
     "eslint": "^9.31.0",
     "mocha": "^11.5.0",
