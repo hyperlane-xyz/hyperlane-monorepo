@@ -59,19 +59,11 @@ FROM node:20-alpine AS runner
 
 WORKDIR /app
 
-RUN apk add --no-cache git ca-certificates
+RUN apk add --no-cache ca-certificates
 
 # Copy only the bundled output (includes all dependencies)
 COPY --from=builder /hyperlane-monorepo/typescript/rebalancer/rebalancer-bundle ./rebalancer-bundle
 COPY --from=builder /hyperlane-monorepo/typescript/rebalancer/package.json ./
-
-# Baked-in registry version
-ENV REGISTRY_URI="/hyperlane-registry"
-ARG REGISTRY_COMMIT="main"
-RUN git clone https://github.com/hyperlane-xyz/hyperlane-registry.git "$REGISTRY_URI" \
-    && cd "$REGISTRY_URI" \
-    && git fetch origin "$REGISTRY_COMMIT" \
-    && git checkout "$REGISTRY_COMMIT"
 
 # Environment variables
 ENV NODE_ENV=production
