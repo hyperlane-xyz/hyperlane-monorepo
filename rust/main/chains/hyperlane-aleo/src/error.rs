@@ -51,7 +51,7 @@ pub enum HyperlaneAleoError {
     TryFromSliceError(#[from] std::array::TryFromSliceError),
     /// Malicous Program Detected
     #[error("Malicous Program Detected: program_id={program_id}, transition={transition}")]
-    MalicousProgramDetected {
+    MaliciousProgramDetected {
         /// Program ID
         program_id: String,
         /// Transition
