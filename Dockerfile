@@ -1,17 +1,15 @@
-FROM node:20-slim
+FROM node:20-alpine
 
 WORKDIR /hyperlane-monorepo
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    git g++ make python3 python3-pip jq bash curl ca-certificates unzip \
-    && rm -rf /var/lib/apt/lists/* \
-    && yarn set version 4.5.1
+RUN apk add --update --no-cache git g++ make py3-pip jq bash curl && \
+    yarn set version 4.5.1
 
-# Install Foundry for solidity builds (early for layer caching)
-COPY solidity/.foundryrc ./solidity/
-RUN curl -L https://foundry.paradigm.xyz | bash
-RUN /root/.foundry/bin/foundryup --install $(cat solidity/.foundryrc)
-ENV PATH="/root/.foundry/bin:${PATH}"
+# Install Foundry (Alpine binaries) - pinned version for reproducibility
+ARG FOUNDRY_VERSION
+ARG TARGETARCH
+RUN ARCH=$([ "$TARGETARCH" = "arm64" ] && echo "arm64" || echo "amd64") && \
+    curl -L "https://github.com/foundry-rs/foundry/releases/download/${FOUNDRY_VERSION}/foundry_${FOUNDRY_VERSION}_alpine_${ARCH}.tar.gz" | tar -xzC /usr/local/bin forge cast
 
 # Copy package.json and friends
 COPY package.json yarn.lock .yarnrc.yml ./
