@@ -35,6 +35,8 @@ cd rust/main && cargo test
 
 # CLI e2e tests (useful for testing warp routes, core deployments)
 pnpm -C typescript/cli test:ethereum:e2e
+pnpm -C typescript/cli test:cosmosnative:e2e
+pnpm -C typescript/cli test:radix:e2e
 ```
 
 ### Before Committing
@@ -103,9 +105,11 @@ pnpm -C solidity test:forge             # Forge only
 forge test -vvv --decode-internal       # Detailed Forge output
 
 # TypeScript
-pnpm -C typescript/sdk test             # SDK tests
-pnpm -C typescript/sdk test:unit        # Unit tests only
-pnpm -C typescript/cli test:ethereum:e2e  # CLI e2e tests
+pnpm -C typescript/sdk test                       # SDK tests
+pnpm -C typescript/sdk test:unit                  # Unit tests only
+pnpm -C typescript/cli test:ethereum:e2e          # CLI e2e tests (EVM)
+pnpm -C typescript/cli test:cosmosnative:e2e      # CLI e2e tests (Cosmos)
+pnpm -C typescript/cli test:radix:e2e             # CLI e2e tests (Radix)
 
 # Rust
 cd rust/main && cargo test              # All Rust tests
