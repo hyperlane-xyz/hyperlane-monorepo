@@ -377,7 +377,7 @@ export const ezEthSafes: Record<(typeof ezEthChainsToDeploy)[number], string> =
     stable: '0x088Bc91C5e9A278FB9c5f80a226274fF0179E69c',
   };
 
-// Renzo's custom ICA-like owners
+// Unless defined otherwise, most of these are Renzo's custom ICA-like owners
 export const ezEthOwners: Record<(typeof ezEthChainsToDeploy)[number], string> =
   {
     arbitrum: '0xE5219Cf568D366ae4b96Efb04d826E6f2e72DaA0',
