@@ -1,0 +1,55 @@
+name: Solidity Fork Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    paths:
+      - 'solidity/**'
+      - '.github/workflows/solidity-fork-tests.yml'
+  schedule:
+    # Run daily at 6:00 UTC
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: solidity-fork-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+  TURBO_API: https://cache.depot.dev
+  TURBO_TOKEN: ${{ secrets.DEPOT_TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.DEPOT_ORG_ID }}
+
+jobs:
+  fork-tests:
+    runs-on: depot-ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Set Foundry RPC URLs for fork tests
+        env:
+          MAINNET3_ETHEREUM_RPC_URLS: ${{ secrets.MAINNET3_ETHEREUM_RPC_URLS }}
+          MAINNET3_OPTIMISM_RPC_URLS: ${{ secrets.MAINNET3_OPTIMISM_RPC_URLS }}
+          MAINNET3_POLYGON_RPC_URLS: ${{ secrets.MAINNET3_POLYGON_RPC_URLS }}
+          MAINNET3_ARBITRUM_RPC_URLS: ${{ secrets.MAINNET3_ARBITRUM_RPC_URLS }}
+          MAINNET3_BASE_RPC_URLS: ${{ secrets.MAINNET3_BASE_RPC_URLS }}
+        run: |
+          # Extract first URL from comma-separated list and set as env vars
+          echo "RPC_URL_MAINNET=${MAINNET3_ETHEREUM_RPC_URLS%%,*}" >> $GITHUB_ENV
+          echo "RPC_URL_OPTIMISM=${MAINNET3_OPTIMISM_RPC_URLS%%,*}" >> $GITHUB_ENV
+          echo "RPC_URL_POLYGON=${MAINNET3_POLYGON_RPC_URLS%%,*}" >> $GITHUB_ENV
+          echo "RPC_URL_ARBITRUM=${MAINNET3_ARBITRUM_RPC_URLS%%,*}" >> $GITHUB_ENV
+          echo "RPC_URL_BASE=${MAINNET3_BASE_RPC_URLS%%,*}" >> $GITHUB_ENV
+
+      - name: yarn-build
+        uses: ./.github/actions/yarn-build-with-cache
+
+      - name: Run Fork Tests
+        working-directory: ./solidity
+        run: yarn test:fork
