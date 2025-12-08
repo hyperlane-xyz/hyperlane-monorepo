@@ -20,6 +20,7 @@ import {
   logLevelCommandOption,
   maxRetriesCommandOption,
   maxRetryDelayCommandOption,
+  metricsDbPathCommandOption,
   overrideRegistryUriCommandOption,
   registryUrisCommandOption,
   retryBackoffCommandOption,
@@ -62,6 +63,7 @@ try {
     .option('retry-delay', retryDelayCommandOption)
     .option('max-retry-delay', maxRetryDelayCommandOption)
     .option('retry-backoff', retryBackoffCommandOption)
+    .option('metrics-db-path', metricsDbPathCommandOption)
     .global(['log', 'verbosity', 'registry', 'overrides', 'yes'])
     .middleware([
       (argv) => {

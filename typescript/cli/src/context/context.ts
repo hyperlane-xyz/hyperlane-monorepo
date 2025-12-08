@@ -22,6 +22,7 @@ import { Address, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
 import { isSignCommand } from '../commands/signCommands.js';
 import { readChainSubmissionStrategyConfig } from '../config/strategy.js';
+import { getMetricsCollector } from '../metrics/AsyncMetricsCollector.js';
 import { ENV } from '../utils/env.js';
 import { detectAndConfirmOrPrompt } from '../utils/input.js';
 import { getSigner } from '../utils/keys.js';
@@ -67,6 +68,10 @@ export async function contextMiddleware(argv: Record<string, any>) {
       ENV.HYP_USE_MULTIPLEX ??
       false,
     providerRetryOptions,
+    metricsDbPath:
+      argv['metrics-db-path'] ??
+      argv['metricsDbPath'] ??
+      ENV.HYP_METRICS_DB_PATH,
   };
 
   console.log(
@@ -173,6 +178,7 @@ export async function getContext({
   authToken,
   useMultiplex = false,
   providerRetryOptions,
+  metricsDbPath,
 }: ContextSettings): Promise<CommandContext> {
   const registry = getRegistry({
     registryUris,
@@ -189,6 +195,7 @@ export async function getContext({
   const multiProvider = await getMultiProvider(registry, {
     useMultiplex,
     providerRetryOptions,
+    metricsDbPath,
   });
   const multiProtocolProvider = await getMultiProtocolProvider(registry);
 
@@ -269,7 +276,10 @@ async function getSignerKeyMap(
  */
 async function getMultiProvider(
   registry: IRegistry,
-  settings: Pick<ContextSettings, 'useMultiplex' | 'providerRetryOptions'>,
+  settings: Pick<
+    ContextSettings,
+    'useMultiplex' | 'providerRetryOptions' | 'metricsDbPath'
+  >,
   signer?: ethers.Signer,
 ) {
   const chainMetadata = await registry.getMetadata();
@@ -283,14 +293,27 @@ async function getMultiProvider(
       )
     : undefined;
 
+  // Create metrics collector if DB path is provided
+  const metricsCollector = settings.metricsDbPath
+    ? getMetricsCollector(settings.metricsDbPath)
+    : null;
+
+  console.log(
+    '[DEBUG] getMultiProvider - metricsCollector:',
+    metricsCollector ? `enabled (${settings.metricsDbPath})` : 'disabled',
+  );
+
   // Select provider builder based on useMultiplex setting
   const providerBuilder = settings.useMultiplex
-    ? (rpcUrls: any, network: any, retryOverride?: any) =>
-        defaultMultiplexProviderBuilder(
+    ? (rpcUrls: any, network: any, retryOverride?: any) => {
+        const result = defaultMultiplexProviderBuilder(
           rpcUrls,
           network,
           retryOverride || retryOptions,
-        ).provider
+          metricsCollector || undefined,
+        );
+        return result.provider;
+      }
     : undefined; // Use default SmartProvider
 
   console.log(

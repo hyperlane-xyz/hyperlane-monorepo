@@ -21,6 +21,7 @@ const envScheme = z.object({
   HYP_RETRY_DELAY: z.coerce.number().optional(),
   HYP_MAX_RETRY_DELAY: z.coerce.number().optional(),
   HYP_RETRY_BACKOFF: z.coerce.number().optional(),
+  HYP_METRICS_DB_PATH: z.string().optional(),
 });
 
 const parsedEnv = envScheme.safeParse(process.env);

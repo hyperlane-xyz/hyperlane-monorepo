@@ -103,6 +103,13 @@ export const retryBackoffCommandOption: Options = {
   default: 2,
 };
 
+export const metricsDbPathCommandOption: Options = {
+  type: 'string',
+  description:
+    'Path to SQLite database for RPC metrics collection (MultiplexProvider only)',
+  default: undefined,
+};
+
 /* Command-specific options */
 
 export const coreTargetsCommandOption: Options = {

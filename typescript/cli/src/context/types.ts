@@ -46,6 +46,7 @@ export interface ContextSettings extends BaseContext {
     maxRetryDelayMs?: number;
     retryBackoffMultiplier?: number;
   };
+  metricsDbPath?: string;
 }
 
 export interface CommandContext
