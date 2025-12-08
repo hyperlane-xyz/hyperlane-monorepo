@@ -81,9 +81,6 @@ export class MultiplexProvider extends BaseProvider {
 
     // Cache detection to avoid redundant work from multiple concurrent calls
     if (this._networkDetectionPromise) {
-      console.log(
-        `[DEBUG #${callNum}] MultiplexProvider.detectNetwork() - Using cached promise`,
-      );
       return this._networkDetectionPromise;
     }
 
@@ -158,9 +155,6 @@ export class MultiplexProvider extends BaseProvider {
         ]);
 
         if (network.chainId !== expectedNetwork.chainId) {
-          console.log(
-            `[DEBUG] MultiplexProvider._verifyNetworkConsistency() - Provider ${i + 1} mismatch: expected ${expectedNetwork.chainId}, got ${network.chainId}`,
-          );
           logger.warn(
             `Network mismatch: expected chainId ${expectedNetwork.chainId}, got ${network.chainId} from provider`,
           );
@@ -170,10 +164,6 @@ export class MultiplexProvider extends BaseProvider {
           );
         }
       } catch (error) {
-        console.log(
-          `[DEBUG] MultiplexProvider._verifyNetworkConsistency() - Provider ${i + 1} failed:`,
-          (error as Error).message,
-        );
         // Log warning but don't fail - this provider might be temporarily down
         logger.warn(
           `Provider network verification failed: ${(error as Error).message}`,
@@ -304,10 +294,6 @@ export class MultiplexProvider extends BaseProvider {
     this._nextProviderIndex =
       (this._nextProviderIndex + 1) % this.providers.length;
 
-    console.log(
-      `[DEBUG] MultiplexProvider._performFailover() - Starting round-robin at provider ${startIndex + 1}/${this.providers.length} for ${method}`,
-    );
-
     // Try all providers starting from the round-robin position
     for (let offset = 0; offset < this.providers.length; offset++) {
       const i = (startIndex + offset) % this.providers.length;
@@ -316,11 +302,6 @@ export class MultiplexProvider extends BaseProvider {
 
       // Increment in-flight counter for this provider
       this._providerInFlightCounts[i]++;
-      const inFlight = this._providerInFlightCounts[i];
-
-      console.log(
-        `[DEBUG] MultiplexProvider._performFailover() - Trying provider ${i + 1}/${this.providers.length} for ${method} (in-flight: ${inFlight})`,
-      );
 
       try {
         const result = await provider.perform(method, params);
