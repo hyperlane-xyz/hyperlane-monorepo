@@ -9,7 +9,6 @@ on:
       - 'typescript/sdk/**'
       - 'typescript/provider-sdk/**'
       - 'typescript/utils/**'
-      - '.registryrc'
       - '.github/workflows/rebalancer-docker.yml'
   pull_request:
     paths:
@@ -17,7 +16,6 @@ on:
       - 'typescript/sdk/**'
       - 'typescript/provider-sdk/**'
       - 'typescript/utils/**'
-      - '.registryrc'
       - '.github/workflows/rebalancer-docker.yml'
   workflow_dispatch:
     inputs:
@@ -92,12 +90,6 @@ jobs:
           username: _json_key
           password: ${{ secrets.GCLOUD_SERVICE_KEY }}
 
-      - name: Read .registryrc
-        shell: bash
-        run: |
-          REGISTRY_VERSION=$(cat .registryrc)
-          echo "REGISTRY_VERSION=$REGISTRY_VERSION" >> $GITHUB_ENV
-
       - name: Determine platforms
         id: determine-platforms
         run: |
@@ -117,8 +109,6 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            REGISTRY_COMMIT=${{ env.REGISTRY_VERSION }}
           platforms: ${{ steps.determine-platforms.outputs.platforms }}
 
       - name: Check for rebalancer changes
