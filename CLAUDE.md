@@ -43,6 +43,19 @@ yarn --cwd typescript/cli test:ethereum:e2e
 yarn lint          # Must pass
 yarn prettier      # Auto-formats code
 yarn test          # Run relevant tests
+yarn changeset     # Add changeset if modifying published packages
+```
+
+### Changeset Style
+
+Write changeset descriptions in past tense describing what changed, not what will change:
+
+```
+# Good - describes what was done
+The registry code is restructured by moving filesystem components to a dedicated directory. ESLint restrictions added to prevent Node.js imports in browser components.
+
+# Bad - describes what will happen
+Restructures the registry code. Adds ESLint restrictions.
 ```
 
 ## Repository Structure
