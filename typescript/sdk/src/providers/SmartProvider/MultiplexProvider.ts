@@ -1,8 +1,11 @@
 /* eslint-disable no-console */
 import { Logger } from '@ethersproject/logger';
 import { Network, Networkish } from '@ethersproject/networks';
-import { BaseProvider } from '@ethersproject/providers';
-import { JsonRpcProvider } from '@ethersproject/providers';
+import {
+  BaseProvider,
+  JsonRpcProvider,
+  StaticJsonRpcProvider,
+} from '@ethersproject/providers';
 
 const logger = new Logger('multiplex-provider/1.0.0');
 
@@ -58,8 +61,9 @@ export class MultiplexProvider extends BaseProvider {
     this.retryConfig = { ...DEFAULT_RETRY_CONFIG, ...retryConfig };
 
     this.providers = urls.map((url) => {
-      // Create child providers but DON'T start their polling
-      const provider = new JsonRpcProvider(url, network);
+      // Use StaticJsonRpcProvider for CLI use case - network doesn't change
+      // This avoids repeated detectNetwork() calls that JsonRpcProvider does
+      const provider = new StaticJsonRpcProvider(url, network);
       provider.polling = false; // Disable - we'll handle polling at the multiplex level
       return provider;
     });
