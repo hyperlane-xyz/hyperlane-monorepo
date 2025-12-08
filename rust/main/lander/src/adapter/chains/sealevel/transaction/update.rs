@@ -13,11 +13,10 @@ pub trait Update {
 
 impl Update for Transaction {
     fn update_after_submission(&mut self, hash: H512, precursor: SealevelTxPrecursor) -> &mut Self {
-        self.tx_hashes.push(hash);
-
-        // deduplicate any duplicate transaction hashes
-        let unique_hashes: HashSet<_> = self.tx_hashes.iter().cloned().collect();
-        self.tx_hashes = unique_hashes.into_iter().collect();
+        // only push hash if it doesn't exist in tx_hashes
+        if !self.tx_hashes.contains(&hash) {
+            self.tx_hashes.push(hash);
+        }
 
         // Data is updated since transaction is re-estimated before submission
         self.vm_specific_data = VmSpecificTxData::Svm(Box::new(precursor));
