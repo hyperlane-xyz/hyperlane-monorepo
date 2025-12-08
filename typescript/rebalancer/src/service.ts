@@ -14,6 +14,7 @@
  * - WITH_METRICS: Enable Prometheus metrics (default: "true")
  * - MONITOR_ONLY: Run in monitor-only mode without executing transactions (default: "false")
  * - LOG_LEVEL: Logging level (default: "info") - supported by pino
+ * - REGISTRY_URI: Registry URI for chain metadata (default: GitHub registry)
  *
  * Usage:
  *   node dist/service.js
@@ -24,6 +25,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
+import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import { MultiProtocolProvider, MultiProvider } from '@hyperlane-xyz/sdk';
 import { createServiceLogger, rootLogger } from '@hyperlane-xyz/utils';
@@ -98,13 +100,14 @@ async function main(): Promise<void> {
     const rebalancerConfig = RebalancerConfig.load(configFile);
     logger.info('✅ Loaded rebalancer configuration');
 
-    // Initialize registry (uses default registry URIs)
+    // Initialize registry (uses env var or defaults to GitHub registry)
+    const registryUri = process.env.REGISTRY_URI || DEFAULT_GITHUB_REGISTRY;
     const registry = getRegistry({
-      registryUris: [],
-      enableProxy: false,
+      registryUris: [registryUri],
+      enableProxy: true,
       logger: rootLogger,
     });
-    logger.info('✅ Initialized registry');
+    logger.info({ registryUri }, '✅ Initialized registry');
 
     // Get chain metadata from registry
     const chainMetadata = await registry.getMetadata();
