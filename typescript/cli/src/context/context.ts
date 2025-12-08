@@ -16,11 +16,13 @@ import {
   ExplorerFamily,
   MultiProtocolProvider,
   MultiProvider,
+  defaultMultiplexProviderBuilder,
 } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
 import { isSignCommand } from '../commands/signCommands.js';
 import { readChainSubmissionStrategyConfig } from '../config/strategy.js';
+import { ENV } from '../utils/env.js';
 import { detectAndConfirmOrPrompt } from '../utils/input.js';
 import { getSigner } from '../utils/keys.js';
 
@@ -37,6 +39,20 @@ import {
 export async function contextMiddleware(argv: Record<string, any>) {
   const requiresKey = isSignCommand(argv);
 
+  // Precedence: CLI args > Environment variables > undefined
+  const providerRetryOptions = {
+    maxRetries:
+      argv['max-retries'] ?? argv['maxRetries'] ?? ENV.HYP_MAX_RETRIES,
+    baseRetryDelayMs:
+      argv['retry-delay'] ?? argv['retryDelay'] ?? ENV.HYP_RETRY_DELAY,
+    maxRetryDelayMs:
+      argv['max-retry-delay'] ??
+      argv['maxRetryDelay'] ??
+      ENV.HYP_MAX_RETRY_DELAY,
+    retryBackoffMultiplier:
+      argv['retry-backoff'] ?? argv['retryBackoff'] ?? ENV.HYP_RETRY_BACKOFF,
+  };
+
   const settings: ContextSettings = {
     registryUris: [...argv.registry],
     key: argv.key,
@@ -45,7 +61,22 @@ export async function contextMiddleware(argv: Record<string, any>) {
     skipConfirmation: argv.yes,
     strategyPath: argv.strategy,
     authToken: argv.authToken,
+    useMultiplex:
+      argv['use-multiplex'] ??
+      argv['useMultiplex'] ??
+      ENV.HYP_USE_MULTIPLEX ??
+      false,
+    providerRetryOptions,
   };
+
+  console.log(
+    '[DEBUG] contextMiddleware - useMultiplex:',
+    settings.useMultiplex,
+  );
+  console.log(
+    '[DEBUG] contextMiddleware - providerRetryOptions:',
+    settings.providerRetryOptions,
+  );
 
   argv.context = await getContext(settings);
 }
@@ -140,6 +171,8 @@ export async function getContext({
   disableProxy = false,
   strategyPath,
   authToken,
+  useMultiplex = false,
+  providerRetryOptions,
 }: ContextSettings): Promise<CommandContext> {
   const registry = getRegistry({
     registryUris,
@@ -153,7 +186,10 @@ export async function getContext({
     !!skipConfirmation,
   );
 
-  const multiProvider = await getMultiProvider(registry);
+  const multiProvider = await getMultiProvider(registry, {
+    useMultiplex,
+    providerRetryOptions,
+  });
   const multiProtocolProvider = await getMultiProtocolProvider(registry);
 
   // This mapping gets populated as part of signerMiddleware
@@ -226,12 +262,51 @@ async function getSignerKeyMap(
 
 /**
  * Retrieves a new MultiProvider based on all known chain metadata & custom user chains
- * @param customChains Custom chains specified by the user
+ * @param registry The registry to get chain metadata from
+ * @param settings Provider configuration settings
+ * @param signer Optional signer to set on the MultiProvider
  * @returns a new MultiProvider
  */
-async function getMultiProvider(registry: IRegistry, signer?: ethers.Signer) {
+async function getMultiProvider(
+  registry: IRegistry,
+  settings: Pick<ContextSettings, 'useMultiplex' | 'providerRetryOptions'>,
+  signer?: ethers.Signer,
+) {
   const chainMetadata = await registry.getMetadata();
-  const multiProvider = new MultiProvider(chainMetadata);
+
+  // Filter out undefined values from retry options
+  const retryOptions = settings.providerRetryOptions
+    ? Object.fromEntries(
+        Object.entries(settings.providerRetryOptions).filter(
+          ([_, v]) => v !== undefined && v !== null,
+        ),
+      )
+    : undefined;
+
+  // Select provider builder based on useMultiplex setting
+  const providerBuilder = settings.useMultiplex
+    ? (rpcUrls: any, network: any, retryOverride?: any) =>
+        defaultMultiplexProviderBuilder(
+          rpcUrls,
+          network,
+          retryOverride || retryOptions,
+        ).provider
+    : undefined; // Use default SmartProvider
+
+  console.log(
+    '[DEBUG] getMultiProvider - useMultiplex:',
+    settings.useMultiplex,
+  );
+  console.log(
+    '[DEBUG] getMultiProvider - providerBuilder:',
+    providerBuilder ? 'MultiplexProvider' : 'SmartProvider (default)',
+  );
+  console.log('[DEBUG] getMultiProvider - retryOptions:', retryOptions);
+
+  const multiProvider = new MultiProvider(chainMetadata, {
+    providerBuilder,
+  });
+
   if (signer) multiProvider.setSharedSigner(signer);
   return multiProvider;
 }

@@ -18,10 +18,15 @@ import {
   keyCommandOption,
   logFormatCommandOption,
   logLevelCommandOption,
+  maxRetriesCommandOption,
+  maxRetryDelayCommandOption,
   overrideRegistryUriCommandOption,
   registryUrisCommandOption,
+  retryBackoffCommandOption,
+  retryDelayCommandOption,
   skipConfirmationOption,
   strategyCommandOption,
+  useMultiplexCommandOption,
 } from './src/commands/options.js';
 import { registryCommand } from './src/commands/registry.js';
 import { relayerCommand } from './src/commands/relayer.js';
@@ -52,6 +57,11 @@ try {
     .option('disableProxy', disableProxyCommandOption)
     .option('yes', skipConfirmationOption)
     .option('strategy', strategyCommandOption)
+    .option('use-multiplex', useMultiplexCommandOption)
+    .option('max-retries', maxRetriesCommandOption)
+    .option('retry-delay', retryDelayCommandOption)
+    .option('max-retry-delay', maxRetryDelayCommandOption)
+    .option('retry-backoff', retryBackoffCommandOption)
     .global(['log', 'verbosity', 'registry', 'overrides', 'yes'])
     .middleware([
       (argv) => {

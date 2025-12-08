@@ -73,6 +73,36 @@ export const disableProxyCommandOption: Options = {
   default: false,
 };
 
+export const useMultiplexCommandOption: Options = {
+  type: 'boolean',
+  description: 'Use MultiplexProvider instead of SmartProvider for EVM chains',
+  default: false,
+};
+
+export const maxRetriesCommandOption: Options = {
+  type: 'number',
+  description: 'Maximum number of retry attempts for provider requests',
+  default: 3,
+};
+
+export const retryDelayCommandOption: Options = {
+  type: 'number',
+  description: 'Initial retry delay in milliseconds',
+  default: 250,
+};
+
+export const maxRetryDelayCommandOption: Options = {
+  type: 'number',
+  description: 'Maximum retry delay in milliseconds (MultiplexProvider only)',
+  default: 10000,
+};
+
+export const retryBackoffCommandOption: Options = {
+  type: 'number',
+  description: 'Retry backoff multiplier (MultiplexProvider only)',
+  default: 2,
+};
+
 /* Command-specific options */
 
 export const coreTargetsCommandOption: Options = {

@@ -39,6 +39,13 @@ export interface ContextSettings extends BaseContext {
   registryUris: string[];
   disableProxy?: boolean;
   authToken?: string;
+  useMultiplex?: boolean;
+  providerRetryOptions?: {
+    maxRetries?: number;
+    baseRetryDelayMs?: number;
+    maxRetryDelayMs?: number;
+    retryBackoffMultiplier?: number;
+  };
 }
 
 export interface CommandContext
