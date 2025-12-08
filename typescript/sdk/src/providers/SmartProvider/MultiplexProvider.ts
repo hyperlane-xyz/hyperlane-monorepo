@@ -24,18 +24,20 @@ const DEFAULT_RETRY_CONFIG: RetryConfig = {
 };
 
 /**
- * MultiplexProvider with failover and exponential backoff retry logic.
+ * MultiplexProvider with round-robin load balancing, failover, and exponential backoff retry logic.
  *
  * Strategy:
- * 1. Try each provider in sequence (failover)
- * 2. When all providers fail with recoverable errors, retry with exponential backoff
- * 3. Stop immediately on non-recoverable errors
+ * 1. Distribute requests across providers using round-robin
+ * 2. If a provider fails with recoverable error, try next provider in round-robin order
+ * 3. When all providers fail with recoverable errors, retry with exponential backoff
+ * 4. Stop immediately on non-recoverable errors
  */
 export class MultiplexProvider extends BaseProvider {
   readonly providers: JsonRpcProvider[];
   readonly retryConfig: RetryConfig;
   private _detectNetworkCallCount = 0;
   private _providerInFlightCounts: number[] = [];
+  private _nextProviderIndex = 0; // Round-robin counter
 
   constructor(
     urls: string[],
@@ -288,7 +290,7 @@ export class MultiplexProvider extends BaseProvider {
   }
 
   /**
-   * Tries each provider in sequence until one succeeds.
+   * Tries providers in round-robin order until one succeeds.
    * Returns success=true with value, or success=false with the last error.
    */
   private async _performFailover(
@@ -297,7 +299,18 @@ export class MultiplexProvider extends BaseProvider {
   ): Promise<{ success: true; value: any } | { success: false; error: any }> {
     let lastError: any = null;
 
-    for (let i = 0; i < this.providers.length; i++) {
+    // Get starting provider index for round-robin, then increment for next call
+    const startIndex = this._nextProviderIndex;
+    this._nextProviderIndex =
+      (this._nextProviderIndex + 1) % this.providers.length;
+
+    console.log(
+      `[DEBUG] MultiplexProvider._performFailover() - Starting round-robin at provider ${startIndex + 1}/${this.providers.length} for ${method}`,
+    );
+
+    // Try all providers starting from the round-robin position
+    for (let offset = 0; offset < this.providers.length; offset++) {
+      const i = (startIndex + offset) % this.providers.length;
       const provider = this.providers[i];
       const tStart = Date.now();
 
