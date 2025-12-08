@@ -170,8 +170,14 @@ async fn test_svm_inclusion_gas_spike() {
         ExpectedSvmTxState {
             compute_units: 1400000,
             compute_unit_price_micro_lamports: 605,
+            status: TransactionStatus::Mempool,
+            retries: 4,
+        },
+        ExpectedSvmTxState {
+            compute_units: 1400000,
+            compute_unit_price_micro_lamports: 605,
             status: TransactionStatus::Finalized,
-            retries: 3,
+            retries: 4,
         },
     ];
 
