@@ -10,6 +10,6 @@ export default [
     },
   },
   {
-    ignores: ['scripts/**/*'],
+    ignores: ['scripts/**/*', 'tests/**/*'],
   },
 ];

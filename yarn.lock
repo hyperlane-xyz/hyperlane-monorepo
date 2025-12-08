@@ -8411,6 +8411,7 @@ __metadata:
     eslint-import-resolver-typescript: "npm:^4.4.4"
     eslint-plugin-import: "npm:^2.32.0"
     globby: "npm:^14.1.0"
+    mocha: "npm:^10.2.0"
     prettier: "npm:^3.5.3"
     starknet: "npm:^7.4.0"
     tsx: "npm:^4.19.1"
