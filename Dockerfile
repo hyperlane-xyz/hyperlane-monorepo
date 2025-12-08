@@ -8,8 +8,9 @@ RUN apk add --update --no-cache git g++ make py3-pip jq bash curl && \
 # Install Foundry (Alpine binaries) - pinned version for reproducibility
 ARG FOUNDRY_VERSION
 ARG TARGETARCH
-RUN ARCH=$([ "$TARGETARCH" = "arm64" ] && echo "arm64" || echo "amd64") && \
-    curl -L "https://github.com/foundry-rs/foundry/releases/download/${FOUNDRY_VERSION}/foundry_${FOUNDRY_VERSION}_alpine_${ARCH}.tar.gz" | tar -xzC /usr/local/bin forge cast
+RUN set -o pipefail && \
+    ARCH=$([ "$TARGETARCH" = "arm64" ] && echo "arm64" || echo "amd64") && \
+    curl --fail -L "https://github.com/foundry-rs/foundry/releases/download/${FOUNDRY_VERSION}/foundry_${FOUNDRY_VERSION}_alpine_${ARCH}.tar.gz" | tar -xzC /usr/local/bin forge cast
 
 # Copy package.json and friends
 COPY package.json yarn.lock .yarnrc.yml ./
