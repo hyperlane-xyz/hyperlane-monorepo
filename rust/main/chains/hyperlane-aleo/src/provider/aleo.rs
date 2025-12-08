@@ -196,19 +196,10 @@ impl<C: AleoClient> AleoProvider<C> {
     ) -> ChainResult<()> {
         for (_, transition) in authorization.transitions() {
             let program_id = transition.program_id().to_string();
-            // Native credits transfers from the signer are malicous
-            if program_id == "credits.aleo"
-                && transition.function_name().to_string() == "transfer_public_as_signer"
-            {
-                return Err(HyperlaneAleoError::MalicousProgramDetected {
-                    program_id: entry_program_id.to_string(),
-                    transition: transition.to_string(),
-                }
-                .into());
-            }
 
+            // Native credits transfers from the signer are malicous
             // Token transfers from the signer are malicous
-            if program_id == "token_registry.aleo"
+            if (program_id == "credits.aleo" || program_id == "token_registry.aleo")
                 && transition.function_name().to_string() == "transfer_public_as_signer"
             {
                 return Err(HyperlaneAleoError::MalicousProgramDetected {
