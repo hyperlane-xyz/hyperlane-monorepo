@@ -60,6 +60,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
+          fetch-depth: 0
 
       - name: Generate tag data
         id: taggen
@@ -121,7 +122,7 @@ jobs:
           fi
 
       - name: Comment image tags on PR
-        if: github.event_name == 'pull_request' && steps.check-changes.outputs.has_changes == 'true' && always()
+        if: github.event_name == 'pull_request' && steps.check-changes.outputs.has_changes == 'true'
         uses: ./.github/actions/docker-image-comment
         with:
           comment_tag: ccip-server-docker-image
