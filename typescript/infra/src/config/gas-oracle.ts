@@ -24,9 +24,10 @@ import {
   rootLogger,
   toWei,
 } from '@hyperlane-xyz/utils';
+import { readJson } from '@hyperlane-xyz/utils/fs';
 
 import { getChain } from '../../config/registry.js';
-import { mustGetChainNativeToken, readJSONAtPath } from '../utils/utils.js';
+import { mustGetChainNativeToken } from '../utils/utils.js';
 
 // gas oracle configs for each chain, which includes
 // a map for each chain's remote chains
@@ -75,7 +76,7 @@ const GasOracleConfigFileSchema = z.record(
 export function loadAndValidateGasOracleConfig(
   configPath: string,
 ): ChainMap<ChainMap<GasOracleConfigWithOverhead>> {
-  const rawConfig = readJSONAtPath(configPath);
+  const rawConfig = readJson(configPath);
 
   try {
     const validated = GasOracleConfigFileSchema.parse(rawConfig);
