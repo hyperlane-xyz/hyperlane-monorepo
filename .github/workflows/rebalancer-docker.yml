@@ -121,8 +121,19 @@ jobs:
             REGISTRY_COMMIT=${{ env.REGISTRY_VERSION }}
           platforms: ${{ steps.determine-platforms.outputs.platforms }}
 
+      - name: Check for rebalancer changes
+        id: check-changes
+        if: github.event_name == 'pull_request'
+        run: |
+          # Only comment if there are explicit changes to rebalancer package or this workflow
+          if git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -qE '^typescript/rebalancer/|^\.github/workflows/rebalancer-docker\.yml$'; then
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Comment image tags on PR
-        if: github.event_name == 'pull_request' && always()
+        if: github.event_name == 'pull_request' && steps.check-changes.outputs.has_changes == 'true' && always()
         uses: ./.github/actions/docker-image-comment
         with:
           comment_tag: rebalancer-docker-image
