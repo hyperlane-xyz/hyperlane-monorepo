@@ -52,3 +52,26 @@ export interface SmartProviderOptions extends ProviderRetryOptions {
   fallbackStaggerMs?: number;
   debug?: boolean;
 }
+
+/**
+ * RPC metrics event interface for tracking provider performance
+ */
+export interface RPCMetric {
+  provider: string;
+  method: string;
+  contractAddress?: string;
+  functionSignature?: string;
+  durationMs: number;
+  success: boolean;
+  errorType?: string;
+  errorMessage?: string;
+  blockNumber?: number;
+  chainId?: number;
+}
+
+/**
+ * Event emitter interface for RPC metrics
+ */
+export interface RPCMetricsEmitter {
+  emit(event: 'rpc_metric', metric: RPCMetric): boolean;
+}

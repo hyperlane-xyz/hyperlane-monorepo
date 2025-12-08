@@ -27,7 +27,10 @@ import {
 } from './ProviderType.js';
 import { MultiplexProvider } from './SmartProvider/MultiplexProvider.js';
 import { HyperlaneSmartProvider } from './SmartProvider/SmartProvider.js';
-import { ProviderRetryOptions } from './SmartProvider/types.js';
+import {
+  ProviderRetryOptions,
+  RPCMetricsEmitter,
+} from './SmartProvider/types.js';
 
 export type ProviderBuilderFn<P> = (
   rpcUrls: ChainMetadata['rpcUrls'],
@@ -59,6 +62,7 @@ export function defaultMultiplexProviderBuilder(
   rpcUrls: RpcUrl[],
   network: number | string,
   retryOverride?: ProviderRetryOptions,
+  metricsEmitter?: RPCMetricsEmitter,
 ): EthersV5Provider {
   console.log(
     '[DEBUG] defaultMultiplexProviderBuilder called with',
@@ -69,6 +73,10 @@ export function defaultMultiplexProviderBuilder(
   console.log(
     '[DEBUG] defaultMultiplexProviderBuilder - retryOverride:',
     retryOverride,
+  );
+  console.log(
+    '[DEBUG] defaultMultiplexProviderBuilder - metrics:',
+    metricsEmitter ? 'enabled' : 'disabled',
   );
 
   const urls = rpcUrls.map((rpcUrl) => rpcUrl.http);
@@ -85,7 +93,12 @@ export function defaultMultiplexProviderBuilder(
       }
     : undefined;
 
-  const provider = new MultiplexProvider(urls, network, retryConfig);
+  const provider = new MultiplexProvider(
+    urls,
+    network,
+    retryConfig,
+    metricsEmitter,
+  );
   return { type: ProviderType.EthersV5, provider };
 }
 

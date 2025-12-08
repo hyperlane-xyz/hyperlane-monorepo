@@ -455,6 +455,8 @@ export {
 export { HyperlaneSmartProvider } from './providers/SmartProvider/SmartProvider.js';
 export {
   ProviderRetryOptions,
+  RPCMetric,
+  RPCMetricsEmitter,
   SmartProviderOptions,
 } from './providers/SmartProvider/types.js';
 export { CallData, CallDataSchema } from './providers/transactions/types.js';

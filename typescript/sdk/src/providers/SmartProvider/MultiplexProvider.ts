@@ -7,6 +7,8 @@ import {
   StaticJsonRpcProvider,
 } from '@ethersproject/providers';
 
+import type { RPCMetricsEmitter } from './types.js';
+
 const logger = new Logger('multiplex-provider/1.0.0');
 
 interface RetryConfig {
@@ -38,11 +40,14 @@ export class MultiplexProvider extends BaseProvider {
   private _detectNetworkCallCount = 0;
   private _providerInFlightCounts: number[] = [];
   private _nextProviderIndex = 0; // Round-robin counter
+  private _metricsEmitter?: RPCMetricsEmitter; // Optional metrics emitter
+  private _providerUrls: string[]; // Store URLs for metrics
 
   constructor(
     urls: string[],
     network?: Networkish,
     retryConfig?: Partial<RetryConfig>,
+    metricsEmitter?: RPCMetricsEmitter,
   ) {
     if (urls.length === 0) {
       throw new Error('At least one URL must be provided');
@@ -56,12 +61,18 @@ export class MultiplexProvider extends BaseProvider {
       '[DEBUG] MultiplexProvider constructor - RetryConfig:',
       retryConfig,
     );
+    console.log(
+      '[DEBUG] MultiplexProvider constructor - Metrics:',
+      metricsEmitter ? 'enabled' : 'disabled',
+    );
 
     // If network is known, pass it; otherwise use "any" for dynamic detection
     super(network || 'any');
 
     this.setLogLevel(Logger.levels.DEBUG);
     this.retryConfig = { ...DEFAULT_RETRY_CONFIG, ...retryConfig };
+    this._metricsEmitter = metricsEmitter;
+    this._providerUrls = urls;
 
     this.providers = urls.map((url) => {
       // Use StaticJsonRpcProvider for CLI use case - network doesn't change
@@ -309,24 +320,60 @@ export class MultiplexProvider extends BaseProvider {
         // Decrement in-flight counter
         this._providerInFlightCounts[i]--;
 
+        const durationMs = Date.now() - tStart;
+
         console.log(
-          `[DEBUG] MultiplexProvider._performFailover() - Provider ${i + 1} succeeded in ${Date.now() - tStart}ms for ${method} (in-flight: ${this._providerInFlightCounts[i]})`,
+          `[DEBUG] MultiplexProvider._performFailover() - Provider ${i + 1} succeeded in ${durationMs}ms for ${method} (in-flight: ${this._providerInFlightCounts[i]})`,
           params,
         );
+
+        // Emit success metric
+        if (this._metricsEmitter) {
+          this._metricsEmitter.emit('rpc_metric', {
+            provider: this._providerUrls[i],
+            method,
+            durationMs,
+            success: true,
+            chainId:
+              typeof this.network === 'object'
+                ? this.network.chainId
+                : undefined,
+          });
+        }
+
         return { success: true, value: result };
       } catch (error) {
         // Decrement in-flight counter
         this._providerInFlightCounts[i]--;
 
+        const durationMs = Date.now() - tStart;
         const err = error as any;
+
         console.log(
-          `[DEBUG] MultiplexProvider._performFailover() - Provider ${i + 1} failed in ${Date.now() - tStart}ms for ${method} (in-flight: ${this._providerInFlightCounts[i]})`,
+          `[DEBUG] MultiplexProvider._performFailover() - Provider ${i + 1} failed in ${durationMs}ms for ${method} (in-flight: ${this._providerInFlightCounts[i]})`,
         );
         if (err.code === Logger.errors.CALL_EXCEPTION && err.error) {
           console.error(err.error);
         } else {
           console.error(err);
         }
+
+        // Emit failure metric
+        if (this._metricsEmitter) {
+          this._metricsEmitter.emit('rpc_metric', {
+            provider: this._providerUrls[i],
+            method,
+            durationMs,
+            success: false,
+            errorType: err.code || 'unknown',
+            errorMessage: err.message || String(error),
+            chainId:
+              typeof this.network === 'object'
+                ? this.network.chainId
+                : undefined,
+          });
+        }
+
         lastError = error;
 
         // If this is a non-recoverable error, return immediately
