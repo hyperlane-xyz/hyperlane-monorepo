@@ -187,8 +187,8 @@ impl<C: AleoClient> AleoProvider<C> {
     }
 
     /// Internal helper: checks for malicious authorizations
-    /// Because in Aleo the application is the entry point, we have to trust the application to not contain malicous code
-    /// Malicous code can drain the relayer's account out of credits and tokens
+    /// Because in Aleo the application is the entry point, we have to trust the application to not contain malicious code
+    /// Malicious code can drain the relayer's account out of credits and tokens
     fn malicious_authorization_check<N: Network>(
         &self,
         entry_program_id: &str,
@@ -197,8 +197,8 @@ impl<C: AleoClient> AleoProvider<C> {
         for (_, transition) in authorization.transitions() {
             let program_id = transition.program_id().to_string();
 
-            // Native credits transfers from the signer are malicous
-            // Token transfers from the signer are malicous
+            // Native credits transfers from the signer are malicious
+            // Token transfers from the signer are malicious
             if (program_id == "credits.aleo" || program_id == "token_registry.aleo")
                 && transition.function_name().to_string() == "transfer_public_as_signer"
             {
@@ -254,7 +254,7 @@ impl<C: AleoClient> AleoProvider<C> {
             )
             .map_err(HyperlaneAleoError::from)?;
 
-        // Malicous authorization check
+        // Malicious authorization check
         self.malicious_authorization_check(program_id, &authorization)?;
 
         Ok((
