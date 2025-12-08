@@ -271,24 +271,7 @@ When debugging Hyperlane operational incidents (stuck messages, RPC failures, va
 - Security incident response
 - Lander (transaction submitter) configuration
 
-## Common Tasks
-
-### Adding a New Chain
-
-1. Add chain metadata to registry
-2. Update `rust/main/config/` with agent config
-3. Deploy contracts via CLI or infra scripts
-4. Add to SDK chain constants if needed
-
-### Creating a Warp Route
-
-```bash
-hyperlane warp init                    # Generate config
-hyperlane warp deploy --config ...     # Deploy route
-hyperlane warp read --chain ... --address ...  # Verify deployment
-```
-
-### Running Local E2E Tests
+## Running Local E2E Tests
 
 ```bash
 # Full local environment with agents
