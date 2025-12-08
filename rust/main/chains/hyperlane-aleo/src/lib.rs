@@ -31,4 +31,4 @@ pub use signer::AleoSigner;
 pub use types::{AleoGetMappingValue, AleoTxData, FeeEstimate};
 pub use validator_announce::AleoValidatorAnnounce;
 
-pub use snarkvm::{ledger::Transaction as AleoUnconfirmedTransaction, prelude::Plaintext};
+pub use snarkvm::prelude::Plaintext;

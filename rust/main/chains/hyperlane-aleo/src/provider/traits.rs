@@ -9,14 +9,14 @@ use snarkvm::ledger::{Block, ConfirmedTransaction};
 use snarkvm::prelude::{
     Authorization, Network, Plaintext, Program, ProgramID, StatePath, Transaction,
 };
-
 use snarkvm_console_account::Field;
 use tokio::runtime::Handle;
 use tokio::task::block_in_place;
 
 use aleo_serialize::AleoSerialize;
-use hyperlane_core::ChainResult;
+use hyperlane_core::{ChainResult, H512};
 
+use crate::utils::get_tx_id;
 use crate::{CurrentNetwork, HyperlaneAleoError, ProvingRequest, ProvingResponse};
 
 #[async_trait]
@@ -209,12 +209,14 @@ impl<Client: HttpClient> RpcClient<Client> {
             .await
     }
 
-    /// Gets a transaction by ID
-    pub async fn get_transaction_status(
+    /// Gets a confirmed transaction by ID
+    pub async fn get_confirmed_transaction(
         &self,
-        transaction_id: &str,
+        transaction_id: H512,
     ) -> ChainResult<ConfirmedTransaction<CurrentNetwork>> {
-        self.request(&format!("transaction/confirmed/{transaction_id}"), None)
+        let tx_id = get_tx_id::<CurrentNetwork>(transaction_id)?;
+        let tx_id_str = tx_id.to_string();
+        self.request(&format!("transaction/confirmed/{tx_id_str}"), None)
             .await
     }
 
