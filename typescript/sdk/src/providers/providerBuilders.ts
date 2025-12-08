@@ -25,6 +25,7 @@ import {
   ViemProvider,
   ZKSyncProvider,
 } from './ProviderType.js';
+import { MultiplexProvider } from './SmartProvider/MultiplexProvider.js';
 import { HyperlaneSmartProvider } from './SmartProvider/SmartProvider.js';
 import { ProviderRetryOptions } from './SmartProvider/types.js';
 
@@ -51,6 +52,40 @@ export function defaultEthersV5ProviderBuilder(
     undefined,
     retryOverride || DEFAULT_RETRY_OPTIONS,
   );
+  return { type: ProviderType.EthersV5, provider };
+}
+
+export function defaultMultiplexProviderBuilder(
+  rpcUrls: RpcUrl[],
+  network: number | string,
+  retryOverride?: ProviderRetryOptions,
+): EthersV5Provider {
+  console.log(
+    '[DEBUG] defaultMultiplexProviderBuilder called with',
+    rpcUrls.length,
+    'RPC URLs',
+  );
+  console.log('[DEBUG] defaultMultiplexProviderBuilder - network:', network);
+  console.log(
+    '[DEBUG] defaultMultiplexProviderBuilder - retryOverride:',
+    retryOverride,
+  );
+
+  const urls = rpcUrls.map((rpcUrl) => rpcUrl.http);
+
+  const retryConfig = retryOverride
+    ? {
+        maxRetries:
+          retryOverride.maxRetries ?? DEFAULT_RETRY_OPTIONS.maxRetries,
+        initialDelayMs:
+          retryOverride.baseRetryDelayMs ??
+          DEFAULT_RETRY_OPTIONS.baseRetryDelayMs,
+        maxDelayMs: 10000,
+        backoffMultiplier: 2,
+      }
+    : undefined;
+
+  const provider = new MultiplexProvider(urls, network, retryConfig);
   return { type: ProviderType.EthersV5, provider };
 }
 

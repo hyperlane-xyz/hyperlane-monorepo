@@ -388,6 +388,7 @@ export {
 export {
   defaultEthersV5ProviderBuilder,
   defaultFuelProviderBuilder,
+  defaultMultiplexProviderBuilder,
   defaultProviderBuilder,
   defaultProviderBuilderMap,
   defaultSolProviderBuilder,
