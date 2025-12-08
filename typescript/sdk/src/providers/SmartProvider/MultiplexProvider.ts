@@ -35,6 +35,7 @@ export class MultiplexProvider extends BaseProvider {
   readonly providers: JsonRpcProvider[];
   readonly retryConfig: RetryConfig;
   private _detectNetworkCallCount = 0;
+  private _providerInFlightCounts: number[] = [];
 
   constructor(
     urls: string[],
@@ -67,6 +68,9 @@ export class MultiplexProvider extends BaseProvider {
       provider.polling = false; // Disable - we'll handle polling at the multiplex level
       return provider;
     });
+
+    // Initialize in-flight counters for each provider
+    this._providerInFlightCounts = new Array(urls.length).fill(0);
   }
 
   async detectNetwork(): Promise<Network> {
@@ -296,21 +300,33 @@ export class MultiplexProvider extends BaseProvider {
     for (let i = 0; i < this.providers.length; i++) {
       const provider = this.providers[i];
       const tStart = Date.now();
+
+      // Increment in-flight counter for this provider
+      this._providerInFlightCounts[i]++;
+      const inFlight = this._providerInFlightCounts[i];
+
       console.log(
-        `[DEBUG] MultiplexProvider._performFailover() - Trying provider ${i + 1}/${this.providers.length} for ${method}`,
+        `[DEBUG] MultiplexProvider._performFailover() - Trying provider ${i + 1}/${this.providers.length} for ${method} (in-flight: ${inFlight})`,
       );
 
       try {
         const result = await provider.perform(method, params);
+
+        // Decrement in-flight counter
+        this._providerInFlightCounts[i]--;
+
         console.log(
-          `[DEBUG] MultiplexProvider._performFailover() - Provider ${i + 1} succeeded in (${Date.now() - tStart}ms) for ${method}`,
+          `[DEBUG] MultiplexProvider._performFailover() - Provider ${i + 1} succeeded in ${Date.now() - tStart}ms for ${method} (in-flight: ${this._providerInFlightCounts[i]})`,
           params,
         );
         return { success: true, value: result };
       } catch (error) {
+        // Decrement in-flight counter
+        this._providerInFlightCounts[i]--;
+
         const err = error as any;
         console.log(
-          `[DEBUG] MultiplexProvider._performFailover() - Provider ${i + 1} failed (${Date.now() - tStart}ms) for ${method}`,
+          `[DEBUG] MultiplexProvider._performFailover() - Provider ${i + 1} failed in ${Date.now() - tStart}ms for ${method} (in-flight: ${this._providerInFlightCounts[i]})`,
         );
         if (err.code === Logger.errors.CALL_EXCEPTION && err.error) {
           console.error(err.error);
