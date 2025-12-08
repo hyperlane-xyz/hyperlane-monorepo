@@ -32,9 +32,9 @@ spec:
             periodSeconds: 10
           imagePullPolicy: IfNotPresent
           {{- if .Values.image.standalone }}
-          # Standalone image runs the server directly
+          # Standalone image runs the bundled server
           command: ["node"]
-          args: ["dist/server.js"]
+          args: ["ccip-server-bundle/index.js"]
           {{- else }}
           # Monorepo image uses yarn to start the server
           command: ["yarn"]

@@ -3,7 +3,7 @@ FROM node:20-slim AS builder
 WORKDIR /hyperlane-monorepo
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git g++ make python3 python3-pip jq bash curl ca-certificates unzip openssl \
+    git g++ make python3 python3-pip jq bash curl ca-certificates unzip \
     && rm -rf /var/lib/apt/lists/* \
     && yarn set version 4.5.1
 
@@ -50,24 +50,19 @@ COPY solidity ./solidity
 COPY solhint-plugin ./solhint-plugin
 COPY starknet ./starknet
 
-# Build the ccip-server (generates prisma client and compiles TypeScript)
-RUN yarn turbo run build --filter=@hyperlane-xyz/ccip-server
+# Build and bundle the ccip-server (ncc creates a single-file bundle with all deps)
+RUN yarn turbo run bundle --filter=@hyperlane-xyz/ccip-server
 
-# Production stage - minimal image with built code
-FROM node:20-slim AS runner
+# Production stage - minimal Alpine image with just the bundled code
+FROM node:20-alpine AS runner
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates openssl \
-    && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache ca-certificates
 
-# Copy the built application
-COPY --from=builder /hyperlane-monorepo/typescript/ccip-server/dist ./dist
-COPY --from=builder /hyperlane-monorepo/typescript/ccip-server/src/generated ./src/generated
-COPY --from=builder /hyperlane-monorepo/typescript/ccip-server/prisma ./prisma
+# Copy only the bundled output (includes all dependencies)
+COPY --from=builder /hyperlane-monorepo/typescript/ccip-server/ccip-server-bundle ./ccip-server-bundle
 COPY --from=builder /hyperlane-monorepo/typescript/ccip-server/package.json ./
-COPY --from=builder /hyperlane-monorepo/typescript/ccip-server/node_modules ./node_modules
 
 # Environment variables
 ENV NODE_ENV=production
@@ -78,5 +73,5 @@ ENV SERVER_PORT=3000
 EXPOSE 3000
 EXPOSE 9090
 
-# Run the ccip-server
-CMD ["node", "dist/server.js"]
+# Run the ccip-server from the bundle
+CMD ["node", "ccip-server-bundle/index.js"]
