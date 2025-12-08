@@ -113,15 +113,14 @@ list3: *shared
     it('writes YAML with trailing newline', () => {
       writeYaml(testFile, { key: 'value' });
       const content = fs.readFileSync(testFile, 'utf8');
-      // writeToFile adds trailing newline, yamlStringify also adds one
-      expect(content.trimEnd()).to.equal('key: value');
+      expect(content).to.equal('key: value\n');
     });
 
     it('sorts map entries', () => {
       writeYaml(testFile, { z: 1, a: 2, m: 3 });
       const content = fs.readFileSync(testFile, 'utf8');
       // Keys should be sorted alphabetically
-      expect(content.trimEnd()).to.equal('a: 2\nm: 3\nz: 1');
+      expect(content).to.equal('a: 2\nm: 3\nz: 1\n');
     });
 
     it('handles nested objects', () => {

@@ -2,7 +2,7 @@ import path from 'path';
 
 import { objMerge } from '../objects.js';
 
-import { isFile, pathExists, readFileAtPath, writeToFile } from './fs.js';
+import { isFile, pathExists, readFileAtPath, writeToFile } from './utils.js';
 
 /**
  * Reads and parses a JSON file.

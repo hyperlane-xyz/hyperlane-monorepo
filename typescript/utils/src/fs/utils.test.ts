@@ -12,7 +12,7 @@ import {
   resolvePath,
   writeFileAtPath,
   writeToFile,
-} from './fs.js';
+} from './utils.js';
 
 describe('fs utilities', () => {
   const testDir = path.join(os.tmpdir(), 'hyperlane-fs-test');

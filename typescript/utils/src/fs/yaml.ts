@@ -10,7 +10,7 @@ import {
 
 import { objMerge } from '../objects.js';
 
-import { isFile, readFileAtPath, writeToFile } from './fs.js';
+import { isFile, readFileAtPath, writeToFile } from './utils.js';
 
 type YamlParseOptions = ParseOptions &
   DocumentOptions &
@@ -49,7 +49,7 @@ export function tryReadYaml<T>(filepath: string): T | null {
 export function writeYaml(filepath: string, obj: unknown): void {
   writeToFile(
     filepath,
-    yamlStringify(obj, { indent: 2, sortMapEntries: true }),
+    yamlStringify(obj, { indent: 2, sortMapEntries: true }).trimEnd(),
   );
 }
 

@@ -12,7 +12,7 @@ export {
   resolvePath,
   writeFileAtPath,
   writeToFile,
-} from './fs.js';
+} from './utils.js';
 export {
   mergeJson,
   mergeJsonInDir,
