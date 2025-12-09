@@ -541,7 +541,7 @@ async fn test_fallback_all_providers_return_null_receipt_with_rotate() {
 
 #[tracing_test::traced_test]
 #[tokio::test]
-async fn test_fallback_first_provider_null_receipt_rotates_immediately() {
+async fn test_fallback_first_provider_null_receipt_no_rotate() {
     let fallback_provider_builder = FallbackProviderBuilder::default();
     let providers = vec![
         EthereumProviderMock::new(None),
@@ -611,8 +611,8 @@ async fn test_fallback_first_provider_null_receipt_rotates_immediately() {
     let after_priorities = ProviderMock::get_priorities(&ethereum_fallback_provider).await;
     let after_indices: Vec<_> = after_priorities.iter().map(|p| p.index).collect();
 
-    // Provider 0 should be deprioritized, provider 1 should be first
-    assert_eq!(after_indices, vec![1, 2, 0]);
+    // Provider 0 should NOT be deprioritized when returning null
+    assert_eq!(after_indices, vec![0, 1, 2]);
 
     let provider_call_count: Vec<_> =
         ProviderMock::get_call_counts(&ethereum_fallback_provider).await;
@@ -677,9 +677,10 @@ async fn test_fallback_rotation_persists_across_multiple_requests() {
 
     let after_first_priorities = ProviderMock::get_priorities(&ethereum_fallback_provider).await;
     let after_first_indices: Vec<_> = after_first_priorities.iter().map(|p| p.index).collect();
-    assert_eq!(after_first_indices, vec![1, 2, 0]);
+    // Priorities should NOT change when provider returns null
+    assert_eq!(after_first_indices, vec![0, 1, 2]);
 
-    // Second request: should use rotated priorities and succeed immediately with provider 1
+    // Second request: priorities should remain unchanged
     let _tx_receipt2: Option<TransactionReceipt> = ethereum_fallback_provider
         .request(METHOD_GET_TRANSACTION_RECEIPT, H256::zero())
         .await
@@ -687,8 +688,8 @@ async fn test_fallback_rotation_persists_across_multiple_requests() {
 
     let after_second_priorities = ProviderMock::get_priorities(&ethereum_fallback_provider).await;
     let after_second_indices: Vec<_> = after_second_priorities.iter().map(|p| p.index).collect();
-    // Priorities should remain the same since provider 1 succeeded
-    assert_eq!(after_second_indices, vec![1, 2, 0]);
+    // Priorities should remain the same
+    assert_eq!(after_second_indices, vec![0, 1, 2]);
 
     let provider_call_count: Vec<_> =
         ProviderMock::get_call_counts(&ethereum_fallback_provider).await;
@@ -708,7 +709,7 @@ async fn test_fallback_rotation_persists_across_multiple_requests() {
 
 #[tracing_test::traced_test]
 #[tokio::test]
-async fn test_fallback_second_provider_null_receipt_rotates() {
+async fn test_fallback_second_provider_null_receipt_no_rotate() {
     let fallback_provider_builder = FallbackProviderBuilder::default();
     let providers = vec![
         EthereumProviderMock::new(None),
@@ -762,8 +763,8 @@ async fn test_fallback_second_provider_null_receipt_rotates() {
     let after_priorities = ProviderMock::get_priorities(&ethereum_fallback_provider).await;
     let after_indices: Vec<_> = after_priorities.iter().map(|p| p.index).collect();
 
-    // Both provider 0 and 1 should be deprioritized, provider 2 should be first
-    assert_eq!(after_indices, vec![2, 0, 1]);
+    // Providers should NOT be deprioritized when returning null
+    assert_eq!(after_indices, vec![0, 1, 2]);
 
     let provider_call_count: Vec<_> =
         ProviderMock::get_call_counts(&ethereum_fallback_provider).await;
