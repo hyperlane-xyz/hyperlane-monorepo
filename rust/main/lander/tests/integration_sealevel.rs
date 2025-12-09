@@ -475,8 +475,6 @@ async fn test_sealevel_payload_estimation_failure_results_in_dropped() {
 /// Test that payload_status returns an error for non-existent payloads
 #[tokio::test]
 async fn test_sealevel_payload_status_nonexistent_payload() {
-    let _payload = create_sealevel_payload();
-
     // Create Sealevel adapter
     let client = create_sealevel_client();
     let provider = create_sealevel_provider_for_successful_tx();
