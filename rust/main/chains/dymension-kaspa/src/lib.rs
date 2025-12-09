@@ -12,7 +12,6 @@ mod indexers;
 mod ism;
 #[allow(missing_docs)]
 mod mailbox;
-mod prometheus;
 mod providers;
 mod validator_announce;
 
