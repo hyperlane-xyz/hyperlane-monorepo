@@ -29,8 +29,8 @@ mod testing;
 #[cfg(feature = "integration_test")]
 #[doc(hidden)]
 pub use adapter::AdaptsChain;
-#[doc(hidden)]
 #[cfg(feature = "integration_test")]
+#[doc(hidden)]
 pub use dispatcher::{PayloadDb, TransactionDb};
 
 // Re-export integration test factory functions

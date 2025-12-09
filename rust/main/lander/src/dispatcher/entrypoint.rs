@@ -42,7 +42,7 @@ impl DispatcherEntrypoint {
     }
 
     /// Create a DispatcherEntrypoint from a DispatcherState (for testing)
-    #[doc(hidden)]
+    #[cfg(any(test, feature = "integration_test"))]
     pub fn from_inner(inner: DispatcherState) -> Self {
         Self { inner }
     }

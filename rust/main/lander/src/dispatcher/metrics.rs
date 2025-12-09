@@ -342,7 +342,7 @@ impl DispatcherMetrics {
     }
 
     /// Create a dummy instance for testing purposes
-    #[doc(hidden)]
+    #[cfg(any(test, feature = "integration_test"))]
     pub fn dummy_instance() -> Self {
         let registry = Registry::new();
         let instance = Self::new(registry.clone());

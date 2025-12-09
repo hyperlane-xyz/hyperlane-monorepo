@@ -104,7 +104,7 @@ impl FullPayload {
     }
 
     /// Create a random payload for testing purposes
-    #[doc(hidden)]
+    #[cfg(any(test, feature = "integration_test"))]
     pub fn random() -> Self {
         let payload_uuid = PayloadUuid::random();
         let details = PayloadDetails {

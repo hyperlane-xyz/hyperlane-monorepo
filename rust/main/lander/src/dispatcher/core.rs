@@ -68,7 +68,7 @@ impl Dispatcher {
     }
 
     /// Create a Dispatcher from a DispatcherState and domain (for testing)
-    #[doc(hidden)]
+    #[cfg(feature = "integration_test")]
     pub fn from_inner(inner: DispatcherState, domain: String) -> Self {
         Self { inner, domain }
     }
