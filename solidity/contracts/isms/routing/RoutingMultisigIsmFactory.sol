@@ -17,21 +17,31 @@ import {PackageVersioned} from "../../PackageVersioned.sol";
  * 1. Deploying MessageId and MerkleRoot multisig ISMs for each domain
  * 2. Deploying an AggregationIsm (threshold 1) for each domain containing both multisig ISMs
  * 3. Deploying a DomainRoutingIsm that routes messages to the appropriate AggregationIsm
- * 
+ *
  * This creates the same structure as the current core deployments but as a single factory call,
  * making ISM reads and updates much simpler (similar to Solana's approach).
+ *
+ * @dev This factory creates a fresh ISM tree on each deploy(). To update domains, deploy a new
+ * routing ISM rather than modifying an existing one. The underlying DomainRoutingIsm supports
+ * owner-controlled set() for adding domains, but this factory doesn't expose that pattern.
+ *
+ * @dev Gas considerations: Deploying for many domains in one transaction may hit block gas limits.
+ * For large deployments (>10 domains), consider batching or deploying in multiple transactions.
  */
 contract RoutingMultisigIsmFactory is PackageVersioned {
     // ============ Immutables ============
     DomainRoutingIsmFactory public immutable routingIsmFactory;
     StaticAggregationIsmFactory public immutable aggregationIsmFactory;
-    StaticMessageIdMultisigIsmFactory public immutable messageIdMultisigIsmFactory;
-    StaticMerkleRootMultisigIsmFactory public immutable merkleRootMultisigIsmFactory;
+    StaticMessageIdMultisigIsmFactory
+        public immutable messageIdMultisigIsmFactory;
+    StaticMerkleRootMultisigIsmFactory
+        public immutable merkleRootMultisigIsmFactory;
 
     // ============ Events ============
     event RoutingMultisigIsmDeployed(
         DomainRoutingIsm indexed routingIsm,
-        uint32[] domains
+        uint32[] domains,
+        address[] aggregationIsms
     );
 
     // ============ Constructor ============
@@ -51,19 +61,29 @@ contract RoutingMultisigIsmFactory is PackageVersioned {
 
     /**
      * @notice Deploys the complete routing[agg(messageId, merkleRoot)] ISM structure
-     * @dev For contract reuse, consider sorting validator addresses before calling
-     * @param _owner The owner of the routing ISM
+     * @dev IMPORTANT: Validator addresses MUST be sorted in ascending order for each domain.
+     * The underlying multisig ISM factories use CREATE2 with validators as part of the salt,
+     * so different orderings produce different contract addresses. Sorting ensures deterministic
+     * addresses and enables contract reuse across deployments with the same validator set.
+     * @param _owner The owner of the routing ISM (can call set() to add/update domains later)
      * @param _domains Array of origin domains to configure
-     * @param _validators Array of validator arrays (one per domain)
+     * @param _validators Array of validator arrays (one per domain, each MUST be sorted ascending)
      * @param _thresholds Array of thresholds (one per domain)
      * @return routingIsm The deployed DomainRoutingIsm that routes to AggregationIsms
+     * @return aggregationIsmAddresses Array of deployed AggregationIsm addresses (one per domain)
      */
     function deploy(
         address _owner,
         uint32[] calldata _domains,
         address[][] calldata _validators,
         uint8[] calldata _thresholds
-    ) external returns (DomainRoutingIsm routingIsm) {
+    )
+        external
+        returns (
+            DomainRoutingIsm routingIsm,
+            address[] memory aggregationIsmAddresses
+        )
+    {
         require(
             _domains.length == _validators.length &&
                 _domains.length == _thresholds.length,
@@ -71,9 +91,11 @@ contract RoutingMultisigIsmFactory is PackageVersioned {
         );
 
         uint256 _domainCount = _domains.length;
-        IInterchainSecurityModule[] memory _aggregationIsms = new IInterchainSecurityModule[](
-            _domainCount
-        );
+        IInterchainSecurityModule[]
+            memory _aggregationIsms = new IInterchainSecurityModule[](
+                _domainCount
+            );
+        aggregationIsmAddresses = new address[](_domainCount);
 
         // Deploy AggregationIsm for each domain
         for (uint256 i = 0; i < _domainCount; ++i) {
@@ -93,9 +115,9 @@ contract RoutingMultisigIsmFactory is PackageVersioned {
             address[] memory _modules = new address[](2);
             _modules[0] = _messageIdIsm;
             _modules[1] = _merkleRootIsm;
-            _aggregationIsms[i] = IInterchainSecurityModule(
-                aggregationIsmFactory.deploy(_modules, 1)
-            );
+            address _aggregationIsm = aggregationIsmFactory.deploy(_modules, 1);
+            _aggregationIsms[i] = IInterchainSecurityModule(_aggregationIsm);
+            aggregationIsmAddresses[i] = _aggregationIsm;
         }
 
         // Deploy DomainRoutingIsm that routes each domain to its AggregationIsm
@@ -105,15 +127,22 @@ contract RoutingMultisigIsmFactory is PackageVersioned {
             _aggregationIsms
         );
 
-        emit RoutingMultisigIsmDeployed(routingIsm, _domains);
+        emit RoutingMultisigIsmDeployed(
+            routingIsm,
+            _domains,
+            aggregationIsmAddresses
+        );
     }
 
     /**
      * @notice Computes the addresses of the AggregationIsms that would be deployed
      * @dev Note: The DomainRoutingIsm address cannot be computed deterministically
-     * as it uses MinimalProxy.create() which generates non-deterministic addresses
-     * @param _domains Array of origin domains to configure
-     * @param _validators Array of validator arrays (one per domain)
+     * as it uses MinimalProxy.create() which generates non-deterministic addresses.
+     * The _domains parameter is included for API consistency with deploy() and to
+     * validate array lengths match, but domain values don't affect ISM addresses
+     * (only validators and thresholds determine the CREATE2 addresses).
+     * @param _domains Array of origin domains (used for length validation only)
+     * @param _validators Array of validator arrays (one per domain, MUST be sorted ascending)
      * @param _thresholds Array of thresholds (one per domain)
      * @return aggregationIsms Array of AggregationIsm addresses (one per domain)
      */
@@ -149,10 +178,7 @@ contract RoutingMultisigIsmFactory is PackageVersioned {
             address[] memory _modules = new address[](2);
             _modules[0] = _messageIdIsm;
             _modules[1] = _merkleRootIsm;
-            aggregationIsms[i] = aggregationIsmFactory.getAddress(
-                _modules,
-                1
-            );
+            aggregationIsms[i] = aggregationIsmFactory.getAddress(_modules, 1);
         }
     }
 }
