@@ -7,11 +7,26 @@
 EXPECTED_REPO="https://github.com/hyperlane-xyz/hyperlane-monorepo"
 EXPECTED_LICENSE="Apache-2.0"
 ERRORS=0
+ROOT="$(pwd)"
 
 # Get all workspace package.json files using pnpm workspaces
 # Skip the root workspace (current directory)
 # Pipeline: list workspaces as JSON -> extract paths -> filter out root -> convert to relative paths -> append /package.json
-PACKAGE_FILES=$(pnpm list -r --json --depth -1 2>/dev/null | jq -r '.[].path' | grep -v "^$(pwd)$" | sed "s|^$(pwd)/||" | sed 's|$|/package.json|')
+PNPM_OUTPUT=$(pnpm list -r --json --depth -1 2>&1)
+PNPM_EXIT_CODE=$?
+
+if [ $PNPM_EXIT_CODE -ne 0 ]; then
+    echo "ERROR: pnpm list command failed with exit code $PNPM_EXIT_CODE" >&2
+    echo "$PNPM_OUTPUT" >&2
+    exit 1
+fi
+
+PACKAGE_FILES=$(echo "$PNPM_OUTPUT" | jq -r '.[].path' | grep -v "^${ROOT}$" | sed "s|^${ROOT}/||" | sed 's|$|/package.json|')
+
+if [ -z "$PACKAGE_FILES" ]; then
+    echo "ERROR: pnpm produced no workspaces. Check pnpm-workspace.yaml configuration." >&2
+    exit 1
+fi
 
 echo "Checking package.json fields..."
 
