@@ -118,11 +118,12 @@ declare -A SCOPE_TO_WORKSPACE=(
     ["aleo"]="chains/hyperlane-aleo"
 )
 
-# Note: matched_workspaces is reset each iteration; declared here for clarity
-declare -A matched_workspaces
-
 # Get all commits in the range (filter to rust/main directory)
-git log --no-merges --format="%H" $COMMIT_RANGE -- rust/main | while read -r commit_hash; do
+# Note: We use process substitution (< <(...)) instead of a pipe to avoid running
+# the while loop in a subshell, which would break associative array behavior.
+while read -r commit_hash; do
+    # Associative array to track which workspaces this commit belongs to
+    declare -A matched_workspaces=()
     # Get commit message
     commit_msg=$(git log -1 --format="%s" "$commit_hash")
 
@@ -141,8 +142,6 @@ git log --no-merges --format="%H" $COMMIT_RANGE -- rust/main | while read -r com
 
     # Categorize based on workspace membership
     # A commit can belong to multiple workspaces if it touches files in each
-    # Clear the array from any previous iteration (declare -A doesn't reset existing arrays)
-    matched_workspaces=()
 
     if [ -n "$explicit_scope" ]; then
         # If explicit scope in commit message, use only that workspace
@@ -176,7 +175,7 @@ git log --no-merges --format="%H" $COMMIT_RANGE -- rust/main | while read -r com
         # Store commit in workspace category file (just message, PR# already in message)
         echo "$commit_msg" >> "$TEMP_DIR/$workspace_file"
     done
-done
+done < <(git log --no-merges --format="%H" $COMMIT_RANGE -- rust/main)
 
 # Function to generate changelog for a specific workspace
 generate_workspace_changelog() {
