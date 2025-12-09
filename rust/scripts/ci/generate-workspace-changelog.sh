@@ -118,7 +118,7 @@ declare -A SCOPE_TO_WORKSPACE=(
     ["aleo"]="chains/hyperlane-aleo"
 )
 
-# Declare associative array for workspace matching (outside loop to avoid redeclaration)
+# Note: matched_workspaces is reset each iteration; declared here for clarity
 declare -A matched_workspaces
 
 # Get all commits in the range (filter to rust/main directory)
