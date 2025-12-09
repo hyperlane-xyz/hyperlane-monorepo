@@ -65,7 +65,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 # Using debian-slim instead of Alpine because Rust binaries are linked against glibc
 FROM debian:bookworm-slim
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends ca-certificates tini && \
+    apt-get install -y --no-install-recommends ca-certificates tini libcurl4 && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
     mkdir -p /app /usr/share/hyperlane /data && \
