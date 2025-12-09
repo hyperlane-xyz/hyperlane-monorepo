@@ -21,7 +21,7 @@ impl KaspaWhale {
         amt: u64,
         payload: Vec<u8>,
     ) -> Result<TransactionId> {
-        dymension_kaspa::kas_bridge::user::deposit::deposit_with_payload(
+        dymension_kaspa::ops::user::deposit::deposit_with_payload(
             &self.wallet.wallet,
             &self.secret,
             address,

@@ -2,8 +2,8 @@ use super::hub_to_kaspa::{
     build_withdrawal_pskt, extract_current_anchor, fetch_input_utxos, get_normal_bucket_feerate,
     get_outputs_from_msgs,
 };
-use crate::kas_bridge::payload::MessageIDs;
-use crate::kas_bridge::withdraw::{filter_pending_withdrawals, WithdrawFXG};
+use crate::ops::payload::MessageIDs;
+use crate::ops::withdraw::{filter_pending_withdrawals, WithdrawFXG};
 use crate::kas_relayer::withdraw::sweep::{
     create_inputs_from_sweeping_bundle, create_sweeping_bundle,
 };

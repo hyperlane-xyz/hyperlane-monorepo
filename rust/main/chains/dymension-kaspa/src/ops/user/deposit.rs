@@ -1,6 +1,6 @@
 #![allow(unused)] // TODO: remove
 
-use crate::kas_bridge::deposit::*;
+use crate::ops::deposit::*;
 use bytes::Bytes;
 use dym_kas_api::apis::configuration;
 use dym_kas_core::api::client::Deposit;

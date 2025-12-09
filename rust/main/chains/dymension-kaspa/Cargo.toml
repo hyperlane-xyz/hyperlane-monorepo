@@ -55,7 +55,6 @@ dym-kas-core = { path = "../../../../dymension/libs/kaspa/lib/core" , package="c
 dym-kas-hardcode = { path = "../../../../dymension/libs/kaspa/lib/hardcode", package="hardcode"}
 dym-kas-api = { path = "../../../../dymension/libs/kaspa/lib/api" , package="openapi"}
 dym-kas-kms = { path = "../../../../dymension/libs/kaspa/lib/kms", package="dym-kas-kms"}
-dymension-kaspa-hl-constants = { path = "../dymension-kaspa-hl-constants" }
 eyre = { workspace = true }
 bytes = { workspace = true }
 prometheus = { workspace = true }

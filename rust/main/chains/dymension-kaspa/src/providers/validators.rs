@@ -17,7 +17,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use crate::endpoints::*;
-use crate::kas_bridge::{
+use crate::ops::{
     confirmation::ConfirmationFXG, deposit::DepositFXG, withdraw::WithdrawFXG,
 };
 use kaspa_wallet_pskt::prelude::Bundle;
@@ -441,7 +441,7 @@ pub async fn request_sign_withdrawal_bundle(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kas_bridge::deposit::DepositFXG;
+    use crate::ops::deposit::DepositFXG;
     use hyperlane_core::{Checkpoint, CheckpointWithMessageId, SignedType, H256, U256};
 
     #[tokio::test]

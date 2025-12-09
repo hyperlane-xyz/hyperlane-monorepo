@@ -1,13 +1,13 @@
 // We call the signers 'validators'
 
-use crate::kas_bridge::payload::MessageIDs;
-use crate::kas_bridge::util;
-use crate::kas_bridge::util::get_recipient_script_pubkey;
-use crate::kas_bridge::withdraw::{filter_pending_withdrawals, WithdrawFXG};
+use crate::ops::payload::MessageIDs;
+use crate::ops::util;
+use crate::ops::util::get_recipient_script_pubkey;
+use crate::ops::withdraw::{filter_pending_withdrawals, WithdrawFXG};
 use crate::kas_validator::error::ValidationError;
 use dym_kas_core::escrow::*;
 use dym_kas_core::pskt::is_valid_sighash_type;
-use dymension_kaspa_hl_constants::ALLOWED_HL_MESSAGE_VERSION;
+use crate::consts::ALLOWED_HL_MESSAGE_VERSION;
 use eyre::Result;
 use hex::ToHex;
 use hyperlane_core::{Decode, HyperlaneMessage, H256};

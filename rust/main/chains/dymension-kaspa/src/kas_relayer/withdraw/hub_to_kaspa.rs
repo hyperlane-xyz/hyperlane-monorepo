@@ -1,7 +1,7 @@
 use super::minimum::{is_dust, is_small_value};
-use crate::kas_bridge::message::parse_hyperlane_metadata;
-use crate::kas_bridge::util::get_recipient_script_pubkey;
-use crate::kas_bridge::withdraw::WithdrawFXG;
+use crate::ops::message::parse_hyperlane_metadata;
+use crate::ops::util::get_recipient_script_pubkey;
+use crate::ops::withdraw::WithdrawFXG;
 use dym_kas_core::escrow::EscrowPublic;
 use dym_kas_core::finality;
 use dym_kas_core::pskt::{input_sighash_type, PopulatedInput, PopulatedInputBuilder};
@@ -586,7 +586,7 @@ mod tests {
     use super::*;
     use bytes::Bytes;
 
-    use crate::kas_bridge::withdraw::WithdrawFXG;
+    use crate::ops::withdraw::WithdrawFXG;
     use dym_kas_core::pskt::{estimate_mass, is_valid_sighash_type};
     use hyperlane_core::H256;
     use kaspa_consensus_core::network::NetworkType::Devnet;

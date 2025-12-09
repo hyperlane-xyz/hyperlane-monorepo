@@ -1,5 +1,5 @@
-use crate::kas_bridge::confirmation::ConfirmationFXG;
-use crate::kas_bridge::payload::{MessageID, MessageIDs};
+use crate::ops::confirmation::ConfirmationFXG;
+use crate::ops::payload::{MessageID, MessageIDs};
 use crate::kas_validator::error::ValidationError;
 use dym_kas_api::models::{TxModel, TxOutput};
 use dym_kas_core::api::client::HttpClient;

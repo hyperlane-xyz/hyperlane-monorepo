@@ -10,7 +10,7 @@ use cosmos_sdk_proto::cosmos::base::v1beta1::Coin;
 use cosmrs::Any;
 use dym_kas_core::api::client::HttpClient;
 use dym_kas_core::wallet::Network;
-use dymension_kaspa::kas_bridge::user::payload::make_deposit_payload_easy;
+use dymension_kaspa::ops::user::payload::make_deposit_payload_easy;
 use eyre::Result;
 use hex::ToHex;
 use hyperlane_core::H256;

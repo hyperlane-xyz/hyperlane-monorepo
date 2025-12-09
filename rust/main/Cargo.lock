@@ -4025,7 +4025,6 @@ dependencies = [
  "crypto",
  "derive-new",
  "dym-kas-kms",
- "dymension-kaspa-hl-constants",
  "ethers",
  "eyre",
  "futures",
@@ -4083,10 +4082,6 @@ dependencies = [
  "vergen",
  "workflow-core",
 ]
-
-[[package]]
-name = "dymension-kaspa-hl-constants"
-version = "0.1.0"
 
 [[package]]
 name = "dyn-clone"
