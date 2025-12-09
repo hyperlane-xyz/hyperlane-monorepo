@@ -25,7 +25,9 @@ use hyperlane_core::{
 };
 
 use crate::settings::{
-    chains::IndexSettings, parser::connection_parser::build_connection_conf, trace::TracingConfig,
+    chains::IndexSettings,
+    parser::connection_parser::{build_connection_conf, is_protocol_supported},
+    trace::TracingConfig,
     ChainConf, CoreContractAddresses, Settings, SignerConf,
 };
 
@@ -37,6 +39,17 @@ mod connection_parser;
 mod json_value_parser;
 
 const DEFAULT_CHUNK_SIZE: u32 = 1999;
+
+/// Try to extract the protocol from a chain config without fully parsing it.
+/// Returns None if the protocol field is missing or invalid.
+fn try_get_protocol(chain: &ValueParser) -> Option<HyperlaneDomainProtocol> {
+    let mut err = ConfigParsingError::default();
+    chain
+        .chain(&mut err)
+        .get_key("protocol")
+        .parse_from_str::<HyperlaneDomainProtocol>("Invalid Hyperlane domain protocol")
+        .end()
+}
 
 /// The base agent config
 #[derive(Debug, Deserialize)]
@@ -107,6 +120,17 @@ impl FromRawConf<RawAgentConf, Option<&HashSet<&str>>> for Settings {
         let chains: HashMap<HyperlaneDomain, ChainConf> = raw_chains
             .into_iter()
             .filter_map(|(name, chain)| {
+                // Pre-check if the protocol is supported before attempting to parse
+                if let Some(protocol) = try_get_protocol(&chain) {
+                    if !is_protocol_supported(protocol) {
+                        tracing::warn!(
+                            chain = %name,
+                            protocol = %protocol,
+                            "Skipping chain with unsupported protocol (enable with --features {protocol})"
+                        );
+                        return None;
+                    }
+                }
                 parse_chain(chain, &name, default_rpc_consensus_type.as_str())
                     .take_config_err(&mut err)
                     .map(|v| (name, v))

@@ -8,7 +8,7 @@ use hyperlane_core::{
 use snarkvm::prelude::{MainnetV0, Network};
 use snarkvm_console_account::{Address, Itertools};
 
-use crate::utils::aleo_hash_to_h256;
+use crate::utils::{aleo_hash_to_h256, bytes_to_u128_words};
 
 // This actually works for all networks. I've raised this with the Aleo team, but the type annotation here doesn't actually change the underlying type.
 // The Aleo VM types all inherit a generic Network type, but that Type is not relevant for many structs of Aleo and is supposed to be more of an additional information for the internal VM processing.
@@ -26,7 +26,7 @@ const CREDITS_DECIMALS: u32 = 6;
 // Message body is 16 u128 words this results in 256 bytes
 // Each u128 is encoded in little-endian byte order
 // This is a constant defined by the Hyperlane Aleo contracts
-const MESSAGE_BODY_U128_WORDS: usize = 16;
+pub(crate) const MESSAGE_BODY_U128_WORDS: usize = 16;
 // Aleo contracts define a maximum of 6 validators for multisigs
 pub(crate) const MAX_VALIDATORS: usize = 6;
 
@@ -166,6 +166,23 @@ impl From<AleoMessage> for HyperlaneMessage {
     }
 }
 
+impl From<HyperlaneMessage> for AleoMessage {
+    fn from(message: HyperlaneMessage) -> Self {
+        // Convert the variable-length body bytes (<= 256) into 16 little-endian u128 words (zero‑padded).
+        let body = bytes_to_u128_words(&message.body);
+
+        AleoMessage {
+            version: message.version,
+            nonce: message.nonce,
+            origin_domain: message.origin,
+            sender: message.sender.to_fixed_bytes(),
+            destination_domain: message.destination,
+            recipient: message.recipient.to_fixed_bytes(),
+            body,
+        }
+    }
+}
+
 /// Aleo Mailbox struct
 #[aleo_serialize]
 #[derive(Debug)]
@@ -236,7 +253,8 @@ pub struct ProvingResponse {
     pub broadcast: Option<bool>,
 }
 
-#[derive(Debug)]
+/// Fee estimate for Aleo transactions
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct FeeEstimate {
     /// Base fee
     pub base_fee: u64,
@@ -245,3 +263,81 @@ pub struct FeeEstimate {
     /// Total fee
     pub total_fee: u64,
 }
+
+impl FeeEstimate {
+    /// Creates a new FeeEstimate with the total fee calculated automatically
+    ///
+    /// # Arguments
+    /// * `base_fee` - The base transaction fee in microcredits
+    /// * `priority_fee` - The priority fee in microcredits
+    ///
+    /// # Returns
+    /// A new FeeEstimate with total_fee = base_fee + priority_fee
+    ///
+    /// # Example
+    /// ```ignore
+    /// use hyperlane_aleo::types::FeeEstimate;
+    ///
+    /// let fee = FeeEstimate::new(1000, 100);
+    /// assert_eq!(fee.base_fee, 1000);
+    /// assert_eq!(fee.priority_fee, 100);
+    /// assert_eq!(fee.total_fee, 1100);
+    /// ```
+    pub fn new(base_fee: u64, priority_fee: u64) -> Self {
+        Self {
+            base_fee,
+            priority_fee,
+            total_fee: base_fee.saturating_add(priority_fee),
+        }
+    }
+}
+
+#[aleo_serialize]
+#[derive(Debug)]
+pub struct DeliveryKey {
+    /// Message ID
+    pub id: AleoHash,
+}
+
+#[aleo_serialize]
+#[derive(Debug)]
+pub struct AppMetadata<N: Network = CurrentNetwork> {
+    /// Custom ISM used by the application
+    pub ism: Address<N>,
+    /// Custom Hook used by the application
+    pub hook: Address<N>,
+}
+
+#[aleo_serialize]
+#[derive(Debug)]
+pub struct StorageLocationKey {
+    /// Validator
+    pub validator: [u8; 20],
+    /// Index
+    pub index: u8,
+}
+
+/// Data required to construct Aleo transaction
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct AleoTxData {
+    /// Program ID to call
+    pub program_id: String,
+    /// Function name to call on the program
+    pub function_name: String,
+    /// Input parameters for the function call
+    pub inputs: Vec<String>,
+}
+
+/// Data required to get mapping value by program and mapping key
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct AleoGetMappingValue {
+    /// Program ID to get mapping for
+    pub program_id: String,
+    /// Mapping name
+    pub mapping_name: String,
+    /// Mapping key
+    pub mapping_key: String,
+}
+
+#[cfg(test)]
+mod tests;

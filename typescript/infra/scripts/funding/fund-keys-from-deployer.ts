@@ -12,6 +12,7 @@ import {
   defaultMultisigConfigs,
 } from '@hyperlane-xyz/sdk';
 import { Address, objFilter, objMap, rootLogger } from '@hyperlane-xyz/utils';
+import { readJson } from '@hyperlane-xyz/utils/fs';
 
 import { Contexts } from '../../config/contexts.js';
 import { getEnvAddresses } from '../../config/registry.js';
@@ -43,7 +44,6 @@ import {
   assertFundableRole,
   assertRole,
   isEthereumProtocolChain,
-  readJSONAtPath,
 } from '../../src/utils/utils.js';
 import { getAgentConfig, getArgs } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
@@ -344,7 +344,8 @@ class ContextFunder {
   ) {
     logger.info({ filePath }, 'Reading identifiers and addresses from file');
     // A big array of KeyAsAddress, including keys that we may not care about.
-    const allIdsAndAddresses: KeyAsAddress[] = readJSONAtPath(filePath);
+    const allIdsAndAddresses: KeyAsAddress[] =
+      readJson<KeyAsAddress[]>(filePath);
     if (!allIdsAndAddresses.length) {
       throw Error(`Expected at least one key in file ${filePath}`);
     }

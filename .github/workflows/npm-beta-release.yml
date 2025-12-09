@@ -1,0 +1,97 @@
+name: NPM Beta Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      snapshot_tag:
+        description: 'NPM dist-tag for the beta release'
+        required: true
+        default: 'beta'
+        type: choice
+        options:
+          - beta
+          - alpha
+          - rc
+          - preview
+
+concurrency:
+  group: npm-beta-release
+  cancel-in-progress: false
+
+env:
+  LOG_FORMAT: PRETTY
+  TURBO_TELEMETRY_DISABLED: 1
+  TURBO_API: https://cache.depot.dev
+  TURBO_TOKEN: ${{ secrets.DEPOT_TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.DEPOT_ORG_ID }}
+
+jobs:
+  beta-release:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Check for changesets
+        run: |
+          CHANGESET_COUNT=$(find .changeset -name "*.md" ! -name "README.md" ! -name "config.json" 2>/dev/null | wc -l | tr -d ' ')
+          if [ "$CHANGESET_COUNT" -eq 0 ]; then
+            echo "::error::No pending changesets found. Beta releases require pending changeset files."
+            echo ""
+            echo "To create a beta release:"
+            echo "1. Add a changeset: yarn changeset"
+            echo "2. Commit the changeset file"
+            echo "3. Run this workflow again"
+            exit 1
+          fi
+          echo "Found $CHANGESET_COUNT changeset(s)"
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Create snapshot versions
+        run: yarn changeset version --snapshot ${{ inputs.snapshot_tag }}
+
+      - name: Get snapshot version
+        id: version
+        run: |
+          SNAPSHOT_VERSION=$(node -p "require('./typescript/sdk/package.json').version")
+          echo "snapshot=$SNAPSHOT_VERSION" >> $GITHUB_OUTPUT
+
+      # Need to install foundry for the build step. `hardhat-foundry` expects foundry to be installed.
+      - name: Setup Foundry
+        uses: ./.github/actions/setup-foundry
+
+      - name: Build packages
+        run: yarn build && yarn build:zk
+
+      - name: Publish beta packages
+        run: yarn changeset publish --tag ${{ inputs.snapshot_tag }} --no-git-tag
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true
+
+      - name: Summary
+        run: |
+          echo "### Beta Release Published" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** \`${{ steps.version.outputs.snapshot }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**NPM Tag:** \`${{ inputs.snapshot_tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Install with:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "npm install @hyperlane-xyz/sdk@${{ inputs.snapshot_tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "npm install @hyperlane-xyz/cli@${{ inputs.snapshot_tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY

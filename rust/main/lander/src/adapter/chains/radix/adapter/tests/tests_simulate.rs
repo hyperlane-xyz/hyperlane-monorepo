@@ -12,18 +12,16 @@ use uuid::Uuid;
 use hyperlane_core::{Encode, HyperlaneMessage};
 use hyperlane_radix::{RadixSigner, RadixTxCalldata};
 
-use crate::adapter::chains::radix::adapter::tests::tests_common::{
-    payload, MockRadixProvider, MAILBOX_ADDRESS, TEST_PRIVATE_KEY,
-};
-use crate::adapter::chains::radix::adapter::NODE_DEPTH;
-use crate::adapter::chains::radix::precursor::RadixTxPrecursor;
-use crate::adapter::chains::radix::{Precursor, VisibleComponents};
 use crate::adapter::{AdaptsChain, TxBuildingResult};
 use crate::payload::PayloadDetails;
 use crate::transaction::{Transaction, TransactionUuid, VmSpecificTxData};
 use crate::{FullPayload, TransactionStatus};
 
-use super::tests_common::adapter;
+use super::super::super::adapter::NODE_DEPTH;
+use super::super::super::precursor::RadixTxPrecursor;
+use super::super::super::transaction::Precursor;
+use super::super::super::VisibleComponents;
+use super::tests_common::{adapter, payload, MockRadixProvider, MAILBOX_ADDRESS, TEST_PRIVATE_KEY};
 
 const MAILBOX_METHOD_NAME_RPOCESS: &str = "process";
 

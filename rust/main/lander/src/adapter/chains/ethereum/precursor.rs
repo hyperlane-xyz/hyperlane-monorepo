@@ -1,14 +1,13 @@
 use std::fmt::Debug;
 
+use super::gas_price::GasPrice;
+use crate::payload::{FullPayload, PayloadDetails};
+use crate::transaction::VmSpecificTxData;
 use ethers::{
     abi::Function,
     types::{transaction::eip2718::TypedTransaction, H160},
 };
 use ethers_core::types::transaction::eip2718::TypedTransaction::{Eip1559, Eip2930, Legacy};
-
-use crate::payload::{FullPayload, PayloadDetails};
-
-use super::gas_price::GasPrice;
 
 #[derive(Clone, serde::Deserialize, serde::Serialize)]
 pub struct EthereumTxPrecursor {
@@ -45,6 +44,12 @@ impl PartialEq for EthereumTxPrecursor {
 }
 
 impl Eq for EthereumTxPrecursor {}
+
+impl From<EthereumTxPrecursor> for VmSpecificTxData {
+    fn from(value: EthereumTxPrecursor) -> Self {
+        VmSpecificTxData::Evm(Box::new(value))
+    }
+}
 
 impl EthereumTxPrecursor {
     pub fn new(tx: TypedTransaction, function: Function) -> Self {

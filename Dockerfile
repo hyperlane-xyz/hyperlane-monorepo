@@ -5,12 +5,20 @@ WORKDIR /hyperlane-monorepo
 RUN apk add --update --no-cache git g++ make py3-pip jq bash curl && \
     yarn set version 4.5.1
 
+# Install Foundry (Alpine binaries) - pinned version for reproducibility
+ARG FOUNDRY_VERSION
+ARG TARGETARCH
+RUN set -o pipefail && \
+    ARCH=$([ "$TARGETARCH" = "arm64" ] && echo "arm64" || echo "amd64") && \
+    curl --fail -L "https://github.com/foundry-rs/foundry/releases/download/${FOUNDRY_VERSION}/foundry_${FOUNDRY_VERSION}_alpine_${ARCH}.tar.gz" | tar -xzC /usr/local/bin forge cast
+
 # Copy package.json and friends
 COPY package.json yarn.lock .yarnrc.yml ./
 COPY .yarn/plugins ./.yarn/plugins
 COPY .yarn/releases ./.yarn/releases
 COPY .yarn/patches ./.yarn/patches
 
+COPY typescript/aleo-sdk/package.json ./typescript/aleo-sdk/
 COPY typescript/ccip-server/package.json ./typescript/ccip-server/
 COPY typescript/ccip-server/prisma ./typescript/ccip-server/prisma
 COPY typescript/cli/package.json ./typescript/cli/

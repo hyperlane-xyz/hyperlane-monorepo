@@ -5,9 +5,9 @@ import { fileURLToPath } from 'url';
 
 import { HypTokenConfig, TokenStandard } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
+import { readFileAtPath } from '@hyperlane-xyz/utils/fs';
 
 import { getChain, getRegistry } from '../../config/registry.js';
-import { readFileAtPath } from '../../src/utils/utils.js';
 import { getArgs, withWarpRouteId } from '../agent-utils.js';
 
 async function main() {

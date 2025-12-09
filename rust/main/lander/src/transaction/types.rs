@@ -4,11 +4,14 @@
 use std::{collections::HashMap, ops::Deref};
 
 use chrono::{DateTime, Utc};
+use uuid::Uuid;
 
 use hyperlane_core::{identifiers::UniqueIdentifier, H256, H512};
 
+#[cfg(feature = "aleo")]
+use crate::adapter::chains::AleoTxPrecursor;
 use crate::{
-    adapter::{EthereumTxPrecursor, RadixTxPrecursor, SealevelTxPrecursor},
+    adapter::chains::{EthereumTxPrecursor, RadixTxPrecursor, SealevelTxPrecursor},
     payload::PayloadDetails,
     LanderError,
 };
@@ -38,6 +41,49 @@ pub struct Transaction {
     pub last_submission_attempt: Option<DateTime<Utc>>,
     /// the date and time the transaction status was last checked
     pub last_status_check: Option<DateTime<Utc>>,
+}
+
+impl Transaction {
+    /// Type-safe generic builder for creating a transaction with chain-specific precursor data.
+    /// This centralizes the common transaction construction logic across all chain adapters
+    /// while ensuring compile-time type safety - you cannot accidentally create a Transaction
+    /// with the wrong VmSpecificTxData variant for a given chain.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `P` - Any precursor type that implements `Into<VmSpecificTxData>` (AleoTxPrecursor,
+    ///   EthereumTxPrecursor, SealevelTxPrecursor, or RadixTxPrecursor)
+    ///
+    /// # Arguments
+    ///
+    /// * `precursor` - Chain-specific transaction precursor data
+    /// * `payload_details` - One or more payload details (single payload = vec with 1 item, batching = multiple items)
+    ///
+    /// # Returns
+    ///
+    /// A new Transaction with:
+    /// - Fresh UUID
+    /// - Empty tx_hashes
+    /// - PendingInclusion status
+    /// - 0 submission attempts
+    /// - Current timestamp
+    /// - No submission or status check timestamps
+    pub fn new<P: Into<VmSpecificTxData>>(
+        precursor: P,
+        payload_details: Vec<PayloadDetails>,
+    ) -> Self {
+        Self {
+            uuid: TransactionUuid::new(Uuid::new_v4()),
+            tx_hashes: vec![],
+            vm_specific_data: precursor.into(),
+            payload_details,
+            status: TransactionStatus::PendingInclusion,
+            submission_attempts: 0,
+            creation_timestamp: Utc::now(),
+            last_submission_attempt: None,
+            last_status_check: None,
+        }
+    }
 }
 
 #[derive(Default, Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq, Hash)]
@@ -109,10 +155,12 @@ pub enum DropReason {
 // add nested enum entries as we add VMs
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub enum VmSpecificTxData {
+    #[cfg(feature = "aleo")]
+    Aleo(Box<AleoTxPrecursor>),
     CosmWasm,
     Evm(Box<EthereumTxPrecursor>),
     Radix(Box<RadixTxPrecursor>),
-    Svm(SealevelTxPrecursor),
+    Svm(Box<SealevelTxPrecursor>),
 }
 
 #[cfg(test)]

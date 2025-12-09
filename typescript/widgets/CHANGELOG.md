@@ -1,5 +1,19 @@
 # @hyperlane-xyz/widgets
 
+## 19.11.0
+
+### Patch Changes
+
+- Updated dependencies [dd6260eea]
+- Updated dependencies [dd6260eea]
+- Updated dependencies [156a37d6e]
+- Updated dependencies [4c29cd341]
+  - @hyperlane-xyz/provider-sdk@0.3.0
+  - @hyperlane-xyz/radix-sdk@19.11.0
+  - @hyperlane-xyz/sdk@19.11.0
+  - @hyperlane-xyz/cosmos-sdk@19.11.0
+  - @hyperlane-xyz/utils@19.11.0
+
 ## 19.10.0
 
 ### Patch Changes

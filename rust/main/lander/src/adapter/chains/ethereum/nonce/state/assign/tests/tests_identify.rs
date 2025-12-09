@@ -1,16 +1,18 @@
-use ethers_core::types::Address;
 use std::sync::Arc;
 
-use crate::adapter::chains::ethereum::EthereumAdapterMetrics;
-use crate::tests::test_utils::tmp_dbs;
-use crate::transaction::{DropReason, Transaction, TransactionStatus, TransactionUuid};
+use ethers_core::types::Address;
+
 use hyperlane_core::U256;
 
-use super::super::super::super::tests::make_tx;
+use crate::tests::test_utils::tmp_dbs;
+use crate::transaction::{DropReason, Transaction, TransactionStatus, TransactionUuid};
+
+use super::super::super::super::super::EthereumAdapterMetrics;
+use super::super::super::super::tests::dummy_tx;
 use super::super::NonceManagerState;
 
-fn create_tx(uuid: TransactionUuid, status: TransactionStatus) -> Transaction {
-    make_tx(uuid, status, None, None)
+fn create_dummy_tx(uuid: TransactionUuid, status: TransactionStatus) -> Transaction {
+    dummy_tx(uuid, status, None, None)
 }
 
 #[tokio::test]
@@ -73,7 +75,7 @@ async fn test_identify_next_nonce_first_freed_nonce() {
         .set_tracked_tx_uuid(&U256::from(1), &uuid1)
         .await
         .unwrap();
-    let tx1 = create_tx(uuid1, TransactionStatus::PendingInclusion);
+    let tx1 = create_dummy_tx(uuid1, TransactionStatus::PendingInclusion);
     state.tx_db.store_transaction_by_uuid(&tx1).await.unwrap();
 
     // 2: tracked, transaction is Freed
@@ -81,7 +83,7 @@ async fn test_identify_next_nonce_first_freed_nonce() {
         .set_tracked_tx_uuid(&U256::from(2), &uuid2)
         .await
         .unwrap();
-    let tx2 = create_tx(
+    let tx2 = create_dummy_tx(
         uuid2,
         TransactionStatus::Dropped(DropReason::DroppedByChain),
     );
@@ -92,7 +94,7 @@ async fn test_identify_next_nonce_first_freed_nonce() {
         .set_tracked_tx_uuid(&U256::from(3), &uuid3)
         .await
         .unwrap();
-    let tx3 = create_tx(uuid3, TransactionStatus::PendingInclusion);
+    let tx3 = create_dummy_tx(uuid3, TransactionStatus::PendingInclusion);
     state.tx_db.store_transaction_by_uuid(&tx3).await.unwrap();
 
     // Should return 2 (Freed)
@@ -148,7 +150,7 @@ async fn test_identify_next_nonce_all_taken() {
             .set_tracked_tx_uuid(&U256::from(i), &uuid)
             .await
             .unwrap();
-        let tx = create_tx(uuid, TransactionStatus::PendingInclusion);
+        let tx = create_dummy_tx(uuid, TransactionStatus::PendingInclusion);
         state.tx_db.store_transaction_by_uuid(&tx).await.unwrap();
     }
 
@@ -177,7 +179,7 @@ async fn test_identify_next_nonce_gap_in_tracked_nonces() {
         .set_tracked_tx_uuid(&U256::from(0), &uuid0)
         .await
         .unwrap();
-    let tx0 = create_tx(uuid0, TransactionStatus::PendingInclusion);
+    let tx0 = create_dummy_tx(uuid0, TransactionStatus::PendingInclusion);
     state.tx_db.store_transaction_by_uuid(&tx0).await.unwrap();
 
     let uuid2 = TransactionUuid::random();
@@ -185,7 +187,7 @@ async fn test_identify_next_nonce_gap_in_tracked_nonces() {
         .set_tracked_tx_uuid(&U256::from(2), &uuid2)
         .await
         .unwrap();
-    let tx2 = create_tx(uuid2, TransactionStatus::PendingInclusion);
+    let tx2 = create_dummy_tx(uuid2, TransactionStatus::PendingInclusion);
     state.tx_db.store_transaction_by_uuid(&tx2).await.unwrap();
 
     // Should return 1 (first not tracked)
