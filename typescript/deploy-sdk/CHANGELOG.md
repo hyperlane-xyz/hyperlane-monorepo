@@ -1,5 +1,19 @@
 # @hyperlane-xyz/deploy-sdk
 
+## 0.4.0
+
+### Patch Changes
+
+- Updated dependencies [38a1165c8]
+- Updated dependencies [08cf7eca9]
+- Updated dependencies [af2cd1729]
+- Updated dependencies [43b3756d9]
+- Updated dependencies [e37100e2e]
+  - @hyperlane-xyz/provider-sdk@0.4.0
+  - @hyperlane-xyz/cosmos-sdk@19.12.0
+  - @hyperlane-xyz/radix-sdk@19.12.0
+  - @hyperlane-xyz/utils@19.12.0
+
 ## 0.3.0
 
 ### Patch Changes
