@@ -247,8 +247,7 @@ where
     loop {
         if start.elapsed() > timeout {
             return Err(format!(
-                "Timeout waiting for payload status after {:?}",
-                timeout
+                "Timeout waiting for payload status after {timeout:?}"
             ));
         }
 
@@ -258,7 +257,7 @@ where
                     return Ok(status);
                 }
             }
-            Err(e) => return Err(format!("Failed to get payload status: {}", e)),
+            Err(e) => return Err(format!("Failed to get payload status: {e}")),
         }
 
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -290,7 +289,7 @@ async fn test_sealevel_payload_reaches_finalized_status() {
         lander::create_test_dispatcher(adapter, payload_db, tx_db, "sealevel".to_string()).await;
 
     // Spawn dispatcher
-    let _dispatcher_handle = tokio::spawn(async move { dispatcher.spawn().await });
+    let _dispatcher_handle = tokio::spawn(async move { dispatcher.spawn().await.await });
 
     // Send payload
     entrypoint
@@ -301,7 +300,7 @@ async fn test_sealevel_payload_reaches_finalized_status() {
     // Wait for finalized status
     let final_status = wait_until_payload_status(
         &entrypoint,
-        &payload.uuid(),
+        payload.uuid(),
         |status| {
             matches!(
                 status,
@@ -319,8 +318,7 @@ async fn test_sealevel_payload_reaches_finalized_status() {
             final_status,
             PayloadStatus::InTransaction(TransactionStatus::Finalized)
         ),
-        "Expected finalized status, got: {:?}",
-        final_status
+        "Expected finalized status, got: {final_status:?}"
     );
 }
 
@@ -359,7 +357,7 @@ async fn test_sealevel_payload_simulation_failure_results_in_dropped() {
     let (entrypoint, dispatcher) =
         lander::create_test_dispatcher(adapter, payload_db, tx_db, "sealevel".to_string()).await;
 
-    let _dispatcher_handle = tokio::spawn(async move { dispatcher.spawn().await });
+    let _dispatcher_handle = tokio::spawn(async move { dispatcher.spawn().await.await });
 
     // Send payload
     entrypoint
@@ -370,7 +368,7 @@ async fn test_sealevel_payload_simulation_failure_results_in_dropped() {
     // Wait for dropped status
     let final_status = wait_until_payload_status(
         &entrypoint,
-        &payload.uuid(),
+        payload.uuid(),
         |status| {
             matches!(
                 status,
@@ -388,8 +386,7 @@ async fn test_sealevel_payload_simulation_failure_results_in_dropped() {
             final_status,
             PayloadStatus::InTransaction(TransactionStatus::Dropped(_))
         ),
-        "Expected dropped status, got: {:?}",
-        final_status
+        "Expected dropped status, got: {final_status:?}"
     );
 }
 
@@ -442,7 +439,7 @@ async fn test_sealevel_payload_estimation_failure_results_in_dropped() {
     let (entrypoint, dispatcher) =
         lander::create_test_dispatcher(adapter, payload_db, tx_db, "sealevel".to_string()).await;
 
-    let _dispatcher_handle = tokio::spawn(async move { dispatcher.spawn().await });
+    let _dispatcher_handle = tokio::spawn(async move { dispatcher.spawn().await.await });
 
     // Send payload
     entrypoint
@@ -453,7 +450,7 @@ async fn test_sealevel_payload_estimation_failure_results_in_dropped() {
     // Wait for dropped status
     let final_status = wait_until_payload_status(
         &entrypoint,
-        &payload.uuid(),
+        payload.uuid(),
         |status| {
             matches!(
                 status,
@@ -471,8 +468,7 @@ async fn test_sealevel_payload_estimation_failure_results_in_dropped() {
             final_status,
             PayloadStatus::InTransaction(TransactionStatus::Dropped(_))
         ),
-        "Expected dropped status, got: {:?}",
-        final_status
+        "Expected dropped status, got: {final_status:?}"
     );
 }
 

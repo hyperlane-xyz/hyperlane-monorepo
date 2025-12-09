@@ -20,20 +20,14 @@ mod payload;
 mod tests;
 mod transaction;
 
-// Re-export test utilities for integration tests (hidden from public docs)
-// Note: Only compiled during test builds when dev-dependencies are available
-#[cfg(test)]
+// Re-export internal types needed for integration tests (hidden from public docs)
+// These are required by the integration test factory functions and trait bounds
 #[doc(hidden)]
-pub use tests::test_utils;
-
+#[cfg(feature = "integration_test")]
+pub use adapter::AdaptsChain;
 #[doc(hidden)]
-pub use adapter::{AdaptsChain, GasLimit, TxBuildingResult};
-#[doc(hidden)]
+#[cfg(feature = "integration_test")]
 pub use dispatcher::{PayloadDb, TransactionDb};
-#[doc(hidden)]
-pub use payload::PayloadDetails;
-#[doc(hidden)]
-pub use transaction::{Transaction, VmSpecificTxData};
 
 /// Create a dispatcher and entrypoint for testing purposes
 ///

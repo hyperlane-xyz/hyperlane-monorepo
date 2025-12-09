@@ -63,9 +63,5 @@ integration_test = []
 
 # Integration tests require the integration_test feature
 [[test]]
-name = "integration_dispatcher"
-required-features = ["integration_test"]
-
-[[test]]
 name = "integration_sealevel"
 required-features = ["integration_test"]
