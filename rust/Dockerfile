@@ -2,53 +2,68 @@
 # Dockerfile for multi-stage build of Hyperlane's Rust components
 # https://docs.docker.com/build/building/multi-stage/#use-multi-stage-builds
 # https://depot.dev/docs/container-builds/how-to-guides/optimal-dockerfiles/rust-dockerfile
+#
+# Uses cargo-chef for optimal layer caching:
+# https://github.com/LukeMathWalker/cargo-chef
+# This separates dependency compilation from source compilation, so dependencies
+# (including heavy ones like snarkvm) are only rebuilt when Cargo.toml/Cargo.lock change.
 
-# -------- Base Image with Tools --------
-# Base image containing all necessary build tools and dependencies
-FROM rust:1.88.0 AS base
+# -------- Chef Stage --------
+# Base image with cargo-chef installed for dependency caching
+FROM rust:1.88.0 AS chef
 RUN apt-get update && \
     apt-get install -y --no-install-recommends musl-tools clang && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
     rustup target add x86_64-unknown-linux-musl && \
-    cargo install --locked sccache
+    cargo install --locked cargo-chef sccache
 
 # Configure sccache for faster builds
 # https://github.com/mozilla/sccache
 ENV RUSTC_WRAPPER=sccache
 ENV SCCACHE_DIR=/sccache
 
-# -------- Builder Stage --------
-# This stage compiles the Rust binaries
-FROM base AS builder
+WORKDIR /usr/src/rust
 
-# Set up the workspace structure
+# -------- Planner Stage --------
+# Analyzes the project and creates a recipe.json with dependency info
+FROM chef AS planner
+
+# Copy workspace structure for both main and sealevel
+COPY rust/main ./main
+COPY rust/sealevel ./sealevel
+
 WORKDIR /usr/src/rust/main
+RUN cargo chef prepare --recipe-path /recipe.json
+
+# -------- Builder Stage --------
+# Builds dependencies first (cached), then source code
+FROM chef AS builder
+
+# Copy the recipe (dependency specification only)
+COPY --from=planner /recipe.json /recipe.json
+
+# Copy sealevel workspace (needed for path dependencies)
+COPY rust/sealevel ./sealevel
+
+WORKDIR /usr/src/rust/main
+
+# Build dependencies only - this layer is cached until Cargo.toml/Cargo.lock change
+# This is where snarkvm and other heavy deps are compiled
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=$SCCACHE_DIR,sharing=locked \
+    RUSTFLAGS="--cfg tokio_unstable" \
+    cargo chef cook --release --recipe-path /recipe.json
+
+# Now copy the actual source code
+COPY rust/main ./
 
 # Copy git metadata for version information
 # Required by vergen for build-time git information
-COPY .git ../../.git
+COPY .git /usr/src/.git
 
-# Copy all main workspace crates
-# Each directory represents a different component of the Hyperlane system
-COPY rust/main/agents ./agents
-COPY rust/main/applications ./applications
-COPY rust/main/chains ./chains
-COPY rust/main/ethers-prometheus ./ethers-prometheus
-COPY rust/main/hyperlane-base ./hyperlane-base
-COPY rust/main/hyperlane-core ./hyperlane-core
-COPY rust/main/hyperlane-metric ./hyperlane-metric
-COPY rust/main/hyperlane-test ./hyperlane-test
-COPY rust/main/lander ./lander
-COPY rust/main/utils ./utils
-COPY rust/main/Cargo.toml ./
-COPY rust/main/Cargo.lock ./
-
-# Copy sealevel workspace into correct relative location
-COPY rust/sealevel ../sealevel
-
-# Build the release binaries with caching enabled
-# Documentation: https://doc.rust-lang.org/cargo/commands/cargo-build.html
+# Build the release binaries - only recompiles source, not dependencies
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=$SCCACHE_DIR,sharing=locked \
