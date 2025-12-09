@@ -2,8 +2,6 @@ use eyre::Result;
 use kaspa_addresses::Address;
 use kaspa_rpc_core::api::rpc::RpcApi;
 use kaspa_wallet_core::error::Error;
-use kaspa_wallet_core::prelude::*;
-use std::sync::Arc;
 use tracing::info;
 
 pub async fn check_balance<T: RpcApi + ?Sized>(

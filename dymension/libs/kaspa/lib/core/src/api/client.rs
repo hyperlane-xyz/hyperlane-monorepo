@@ -110,7 +110,7 @@ impl HttpClient {
         &self,
         from_unix_time: Option<i64>,
         address: &str,
-        domain_kas: u32,
+        _domain_kas: u32,
     ) -> Result<Vec<Deposit>> {
         /*
         https://api-tn10.kaspa.org/docs#/Kaspa%20addresses/get_full_transactions_for_address_page_addresses__kaspaAddress__full_transactions_page_get
