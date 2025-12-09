@@ -28,8 +28,8 @@
 #### Step 1. Setup escrow
 #### Create hyperlane validators keys and addresses, and kaspa escrow keys and address, seed the escrow
 
-# in libs/kaspa/tooling
-cargo run validator-with-escrow
+# in rust/main
+cargo run -p kaspa-tools -- validator create local
 Validator infos: {
   "validator_ism_addr": "0x172ed756c7c04f6e5370f9fc181f85b7779643eb",
   "validator_ism_priv_key": "a4d1c634e1b8cde0fc53013dfc62e1789535b59d15b0bbf4c8fbd2d4e79bc132",

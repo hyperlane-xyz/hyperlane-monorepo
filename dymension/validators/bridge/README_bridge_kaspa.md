@@ -38,7 +38,7 @@ BOTH methods have the same structure
 
 ### PHASE 1: KEY GENERATION AND SHARING
 
-In `hyperlane-monorepo/dymension/libs/kaspa/tooling` do `cargo run validator create local -o kaspa-bridge-keys.json`.
+In `hyperlane-monorepo/rust/main` do `cargo run -p kaspa-tools -- validator create local -o kaspa-bridge-keys.json`.
 
 It outputs (to file) something like
 
@@ -287,9 +287,9 @@ mkdir -p ~/kaspa/{db,config,logs}
 echo '<kaspa_kms_key_arn>' > ~/kaspa/kaspa-kms-key-arn
 echo '<kaspa_secret_path>' > ~/kaspa/kaspa-secret-path
 
-cd ~/hyperlane-monorepo/dymension/libs/kaspa/tooling
+cd ~/hyperlane-monorepo/rust/main
 
-cargo run validator create aws --path $(cat ~/kaspa/kaspa-secret-path) --kms-key-id $(cat ~/kaspa/kaspa-kms-key-arn)
+cargo run -p kaspa-tools -- validator create aws --path $(cat ~/kaspa/kaspa-secret-path) --kms-key-id $(cat ~/kaspa/kaspa-kms-key-arn)
 
 echo '<kaspa_dym_kms_key_arn>' > ~/kaspa/dym-kms-key-arn
 
