@@ -69,9 +69,8 @@ mod tests {
             0xc3, 0x56, 0x78, 0x2e,
         ]);
 
-        let message_ids = crate::ops::payload::MessageIDs::new(vec![
-            crate::ops::payload::MessageID(test_id),
-        ]);
+        let message_ids =
+            crate::ops::payload::MessageIDs::new(vec![crate::ops::payload::MessageID(test_id)]);
 
         // Convert to bytes and back
         let bytes = message_ids.to_bytes();

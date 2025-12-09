@@ -1,6 +1,8 @@
 use dym_kas_core::consts::RELAYER_SIG_OP_COUNT;
 use dym_kas_core::escrow::EscrowPublic;
-use dym_kas_core::pskt::{estimate_mass, input_sighash_type, PopulatedInput, PopulatedInputBuilder};
+use dym_kas_core::pskt::{
+    estimate_mass, input_sighash_type, PopulatedInput, PopulatedInputBuilder,
+};
 use dym_kas_core::wallet::EasyKaspaWallet;
 use dym_kas_hardcode::tx::{DUST_AMOUNT, RELAYER_SWEEPING_PRIORITY_FEE};
 use eyre::{eyre, Result};
