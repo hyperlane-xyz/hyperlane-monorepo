@@ -127,23 +127,20 @@ jobs:
             const statusEmoji = status === 'success' ? '✅' : '❌';
 
             const images = [
-              { name: 'Validator', image: 'hyperlane-agent-validator', emoji: '✍️' },
-              { name: 'Relayer', image: 'hyperlane-agent-relayer', emoji: '🚀' },
-              { name: 'Scraper', image: 'hyperlane-agent-scraper', emoji: '📊' },
-              { name: 'Agent', image: 'hyperlane-agent', emoji: '🦀' },
+              'hyperlane-agent-validator',
+              'hyperlane-agent-relayer',
+              'hyperlane-agent-scraper',
+              'hyperlane-agent',
             ];
-
-            const imageLines = images.map(({ name, image, emoji }) => {
-              const tags = [
-                `${registry}/${image}:${tag}`,
-                `${registry}/${image}:${tagShaDate}`,
-              ];
-              return `### ${emoji} ${name}\n\`\`\`\n${tags.join('\n')}\n\`\`\``;
-            }).join('\n\n');
 
             const body = `## ${statusEmoji} Agent Docker Images
 
-            ${imageLines}
+            **Images:**
+            ${images.map(img => `- \`${registry}/${img}\``).join('\n')}
+
+            **Tags:**
+            - \`${tag}\`
+            - \`${tagShaDate}\`
             `.replace(/^ +/gm, '');
 
             // Find existing comment
