@@ -4,7 +4,6 @@ import {
   SubmissionStrategy,
   SubmissionStrategySchema,
 } from '@hyperlane-xyz/sdk';
-import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { getTransactions, runSubmit } from '../config/submit.js';
 import { CommandModuleWithWriteContext } from '../context/types.js';
@@ -46,20 +45,18 @@ export const submitCommand: CommandModuleWithWriteContext<{
       'chainId',
     );
 
-    await promiseObjAll(
-      objMap(chainTransactions, async (chainId, transactions) => {
-        const chain = context.multiProvider.getChainName(chainId);
+    for (const [chainId, transactions] of Object.entries(chainTransactions)) {
+      const chain = context.multiProvider.getChainName(chainId);
 
-        await runSubmit({
-          context,
-          chain,
-          transactions,
-          strategyPath,
-          receiptsFilepath,
-        });
-        logBlue(`✅ Submission complete for chain ${chain}`);
-      }),
-    );
+      await runSubmit({
+        context,
+        chain,
+        transactions,
+        strategyPath,
+        receiptsFilepath,
+      });
+      logBlue(`✅ Submission complete for chain ${chain}`);
+    }
 
     process.exit(0);
   },
