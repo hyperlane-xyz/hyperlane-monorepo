@@ -1,5 +1,7 @@
 import { WithAddress } from '@hyperlane-xyz/utils';
 
+import { Artifact, IArtifactManager, RawArtifact } from './artifact.js';
+
 export type IsmModuleType = {
   config: IsmConfig;
   derived: DerivedIsmConfig;
@@ -42,3 +44,63 @@ export type IsmModuleAddresses = {
   deployedIsm: string;
   mailbox: string;
 };
+
+// Artifact API types
+
+export interface DeployedIsmAddresses {
+  address: string;
+}
+
+export interface IsmArtifactConfigs {
+  domainRoutingIsm: RoutingIsmArtifactConfig;
+  merkleRootMultisigIsm: MultisigIsmConfig;
+  messageIdMultisigIsm: MultisigIsmConfig;
+  testIsm: TestIsmConfig;
+}
+
+/**
+ * Should be used for the specific artifact code that
+ * deploys or reads any kind of ISM and its nested configs (Routing, Aggregation, ...)
+ */
+export type IsmArtifactConfig = IsmArtifactConfigs[IsmType];
+
+/**
+ * Should be used to implement an object/closure or class that is in charge of coordinating
+ * deployment of an ISM config which might include nested ISM deployments (Routing, Aggregation, ...)
+ */
+export type IIsmArtifactManager = IArtifactManager<
+  IsmType,
+  IsmArtifactConfigs,
+  DeployedIsmAddresses
+>;
+
+export interface RoutingIsmArtifactConfig {
+  type: 'domainRoutingIsm';
+  owner: string;
+  domains: Record<number, Artifact<IsmArtifactConfig, DeployedIsmAddresses>>;
+}
+
+export type RawRoutingIsmArtifactConfig = RawArtifact<RoutingIsmArtifactConfig>;
+
+export interface RawIsmArtifactConfigs {
+  domainRoutingIsm: RawRoutingIsmArtifactConfig;
+  merkleRootMultisigIsm: MultisigIsmConfig;
+  messageIdMultisigIsm: MultisigIsmConfig;
+  testIsm: TestIsmConfig;
+}
+
+/**
+ * Should be used for the specific artifact code that
+ * deploys or reads a single artifact on chain
+ */
+export type RawIsmArtifactConfig = RawIsmArtifactConfigs[IsmType];
+
+/**
+ * Should be used to implement an object/closure or class that individually deploys
+ * ISMs on chain
+ */
+export type IRawIsmArtifactManager = IArtifactManager<
+  IsmType,
+  RawIsmArtifactConfigs,
+  DeployedIsmAddresses
+>;
