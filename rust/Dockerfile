@@ -2,6 +2,18 @@
 # Dockerfile for multi-stage build of Hyperlane's Rust components
 # https://docs.docker.com/build/building/multi-stage/#use-multi-stage-builds
 # https://depot.dev/docs/container-builds/how-to-guides/optimal-dockerfiles/rust-dockerfile
+#
+# This Dockerfile supports building individual agent images or a combined image:
+#   - hyperlane-validator: validator binary only (~200 MB)
+#   - hyperlane-relayer: relayer binary only (~215 MB)
+#   - hyperlane-scraper: scraper binary only (~140 MB)
+#   - hyperlane-agent: all binaries (~580 MB, backwards compatible)
+#
+# Build targets:
+#   docker build --target validator -t hyperlane-validator .
+#   docker build --target relayer -t hyperlane-relayer .
+#   docker build --target scraper -t hyperlane-scraper .
+#   docker build --target agent -t hyperlane-agent .  # or just: docker build .
 
 # -------- Base Image with Tools --------
 # Base image containing all necessary build tools and dependencies
@@ -60,10 +72,10 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     cp target/release/scraper /release && \
     strip /release/*
 
-# -------- Runtime Image --------
-# Minimal runtime image containing config, binaries, and runtime dependencies
+# -------- Runtime Base --------
+# Common runtime setup shared by all images
 # Using debian-slim instead of Alpine because Rust binaries are linked against glibc
-FROM debian:bookworm-slim
+FROM debian:bookworm-slim AS runtime-base
 RUN apt-get update && \
     apt-get install -y --no-install-recommends ca-certificates tini libcurl4 && \
     apt-get clean && \
@@ -76,10 +88,36 @@ RUN apt-get update && \
 WORKDIR /app
 COPY rust/main/config /app/config
 COPY rust/main/app-contexts /app/app-contexts
-COPY --from=builder /release/* .
 
 # Run as non-root user for security
-# Use tini as init system for proper process management
 USER 1000
+# Use tini as init system for proper process management
 ENTRYPOINT ["tini", "--"]
+
+# -------- Individual Agent Images --------
+# Each target produces a minimal image with only the required binary
+
+# Validator-only image (~200 MB)
+# Used by: ~140 validator pods in production
+FROM runtime-base AS validator
+COPY --from=builder /release/validator .
+CMD ["./validator"]
+
+# Relayer-only image (~215 MB)
+# Used by: ~2 relayer pods in production
+FROM runtime-base AS relayer
+COPY --from=builder /release/relayer .
+CMD ["./relayer"]
+
+# Scraper-only image (~140 MB)
+# Used by: ~1 scraper pod in production
+FROM runtime-base AS scraper
+COPY --from=builder /release/scraper .
+CMD ["./scraper"]
+
+# -------- Combined Agent Image (default) --------
+# All binaries in one image for backwards compatibility
+# This is the default target when no --target is specified
+FROM runtime-base AS agent
+COPY --from=builder /release/* .
 CMD ["./validator"]

@@ -42,6 +42,7 @@ jobs:
     # uses check-env to determine if secrets.GCLOUD_SERVICE_KEY is defined
     needs: [check-env]
     if: needs.check-env.outputs.gcloud-service-key == 'true'
+
     steps:
       - name: Generate GitHub App Token
         id: generate-token
@@ -53,80 +54,118 @@ jobs:
       - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
       - name: Generate tag data
         id: taggen
         run: |
           set -euo pipefail
-          echo "TAG_DATE=$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
-          echo "TAG_SHA=$(echo '${{ github.event.pull_request.head.sha || github.sha }}' | cut -b 1-7)" >> $GITHUB_OUTPUT
-          # For tag events, derive pure semver:
+          TAG_SHA=$(echo '${{ github.event.pull_request.head.sha || github.sha }}' | cut -b 1-7)
+          TAG_DATE=$(date +'%Y%m%d-%H%M%S')
+          echo "TAG_SHA_DATE=${TAG_SHA}-${TAG_DATE}" >> $GITHUB_OUTPUT
+
+          # Determine primary tag based on event type
           if [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "TAG=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            # Derive semver from tag
             NAME="${{ github.ref_name }}"
-            # Strip agents- prefix and any leading v
             NAME="${NAME#agents-}"
             NAME="${NAME#v}"
-            # Basic semver guard (allows prerelease/build metadata)
             if echo "$NAME" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+'; then
               echo "SEMVER=$NAME" >> $GITHUB_OUTPUT
-              # Check if this is a stable release (no prerelease suffix like -beta, -rc, -alpha)
               if echo "$NAME" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-                echo "IS_STABLE=true" >> $GITHUB_OUTPUT
-              else
-                echo "IS_STABLE=false" >> $GITHUB_OUTPUT
+                echo "SEMVER_MINOR=$(echo "$NAME" | sed -E 's/^([0-9]+\.[0-9]+)\.[0-9]+$/\1/')" >> $GITHUB_OUTPUT
               fi
             fi
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "TAG=pr-${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+          else
+            echo "TAG=${{ github.ref_name }}" >> $GITHUB_OUTPUT
           fi
-      - name: Docker meta
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          # list of Docker images to use as base name for tags
-          images: |
-            gcr.io/abacus-labs-dev/hyperlane-agent
-          # generate Docker tags based on the following events/attributes
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=ref,event=tag
-            type=semver,pattern={{version}},value=${{ steps.taggen.outputs.SEMVER }},enable=${{ github.ref_type == 'tag' && steps.taggen.outputs.SEMVER != '' }}
-            type=semver,pattern={{major}}.{{minor}},value=${{ steps.taggen.outputs.SEMVER }},enable=${{ github.ref_type == 'tag' && steps.taggen.outputs.IS_STABLE == 'true' }}
-            type=raw,value=${{ steps.taggen.outputs.TAG_SHA }}-${{ steps.taggen.outputs.TAG_DATE }}
+
+          # Determine platforms
+          if [ "${{ github.event.inputs.include_arm64 }}" == "true" ]; then
+            echo "PLATFORMS=linux/amd64,linux/arm64" >> $GITHUB_OUTPUT
+          else
+            echo "PLATFORMS=linux/amd64" >> $GITHUB_OUTPUT
+          fi
+
       - name: Set up Depot CLI
         uses: depot/setup-action@v1
+
       - name: Login to GCR
         uses: docker/login-action@v3
         with:
           registry: gcr.io
           username: _json_key
           password: ${{ secrets.GCLOUD_SERVICE_KEY }}
-      - name: Determine platforms
-        id: determine-platforms
-        run: |
-          if [ "${{ github.event.inputs.include_arm64 }}" == "true" ]; then
-            echo "platforms=linux/amd64,linux/arm64" >> $GITHUB_OUTPUT
-          else
-            echo "platforms=linux/amd64" >> $GITHUB_OUTPUT
-          fi
-      - name: Build and push
+
+      - name: Build and push all images
         id: build
-        uses: depot/build-push-action@v1
+        uses: depot/bake-action@v1
+        env:
+          TAG: ${{ steps.taggen.outputs.TAG }}
+          TAG_SHA_DATE: ${{ steps.taggen.outputs.TAG_SHA_DATE }}
+          SEMVER: ${{ steps.taggen.outputs.SEMVER }}
+          SEMVER_MINOR: ${{ steps.taggen.outputs.SEMVER_MINOR }}
+          PLATFORMS: ${{ steps.taggen.outputs.PLATFORMS }}
         with:
           project: czmkmn2km1
-          context: .
-          file: ./rust/Dockerfile
+          files: rust/docker-bake.hcl
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          platforms: ${{ steps.determine-platforms.outputs.platforms }}
 
+      # Post PR comments for each image type
       - name: Comment image tags on PR
         if: github.event_name == 'pull_request' && always()
-        uses: ./.github/actions/docker-image-comment
+        uses: actions/github-script@v8
         with:
-          comment_tag: rust-agent-docker-image
-          image_name: Rust Agent Docker Image
-          emoji: 🦀
-          image_tags: ${{ steps.meta.outputs.tags }}
-          pr_number: ${{ github.event.pull_request.number }}
-          github_token: ${{ steps.generate-token.outputs.token }}
-          job_status: ${{ job.status }}
+          github-token: ${{ steps.generate-token.outputs.token }}
+          script: |
+            const tag = '${{ steps.taggen.outputs.TAG }}';
+            const tagShaDate = '${{ steps.taggen.outputs.TAG_SHA_DATE }}';
+            const registry = 'gcr.io/abacus-labs-dev';
+            const status = '${{ job.status }}';
+            const statusEmoji = status === 'success' ? '✅' : '❌';
+
+            const images = [
+              'hyperlane-agent-validator',
+              'hyperlane-agent-relayer',
+              'hyperlane-agent-scraper',
+              'hyperlane-agent',
+            ];
+
+            const body = `## ${statusEmoji} Agent Docker Images
+
+            **Images:**
+            ${images.map(img => `- \`${registry}/${img}\``).join('\n')}
+
+            **Tags:**
+            - \`${tag}\`
+            - \`${tagShaDate}\`
+            `.replace(/^ +/gm, '');
+
+            // Find existing comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: ${{ github.event.pull_request.number }},
+            });
+
+            const marker = '<!-- rust-docker-images -->';
+            const existingComment = comments.find(c => c.body.includes(marker));
+            const fullBody = `${marker}\n${body}`;
+
+            if (existingComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body: fullBody,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: ${{ github.event.pull_request.number }},
+                body: fullBody,
+              });
+            }
