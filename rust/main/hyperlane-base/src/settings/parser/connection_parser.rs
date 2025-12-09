@@ -663,8 +663,8 @@ pub fn build_connection_conf(
         HyperlaneDomainProtocol::Aleo => {
             build_aleo_connection_conf(rpcs, chain, err, operation_batch)
         }
-        #[cfg(not(feature = "aleo"))]
-        HyperlaneDomainProtocol::Aleo => unreachable!("Aleo chains are pre-filtered"),
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unsupported protocol chains are pre-filtered"),
     }
 }
 

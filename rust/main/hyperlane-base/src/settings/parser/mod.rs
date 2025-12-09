@@ -126,7 +126,7 @@ impl FromRawConf<RawAgentConf, Option<&HashSet<&str>>> for Settings {
                         tracing::warn!(
                             chain = %name,
                             protocol = %protocol,
-                            "Skipping chain with unsupported protocol (feature not compiled in)"
+                            "Skipping chain with unsupported protocol (enable with --features {protocol})"
                         );
                         return None;
                     }
