@@ -508,6 +508,7 @@ pub fn build_radix_connection_conf(
     }
 }
 
+#[cfg(feature = "aleo")]
 pub fn build_aleo_connection_conf(
     rpcs: &[Url],
     chain: &ValueParser,
@@ -658,8 +659,17 @@ pub fn build_connection_conf(
         HyperlaneDomainProtocol::Radix => {
             build_radix_connection_conf(rpcs, chain, err, operation_batch)
         }
+        #[cfg(feature = "aleo")]
         HyperlaneDomainProtocol::Aleo => {
             build_aleo_connection_conf(rpcs, chain, err, operation_batch)
+        }
+        #[cfg(not(feature = "aleo"))]
+        HyperlaneDomainProtocol::Aleo => {
+            err.push(
+                chain.cwp.clone(),
+                eyre::eyre!("Aleo support not compiled in. Enable the 'aleo' feature."),
+            );
+            None
         }
     }
 }
