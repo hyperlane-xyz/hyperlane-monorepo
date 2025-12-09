@@ -68,8 +68,22 @@ export async function handlePrompts(
   processPromise: Readonly<ProcessPromise>,
   actions: TestPromptAction[],
 ): Promise<ProcessOutput> {
-  let expectedStep = 0;
+  const completedActions = new Set<number>();
   let buffer = '';
+
+  const tryMatchAction = async (text: string): Promise<boolean> => {
+    for (let i = 0; i < actions.length; i++) {
+      if (completedActions.has(i)) continue;
+
+      const action = actions[i];
+      if (action.check(text)) {
+        await asyncStreamInputWrite(processPromise.stdin, action.input);
+        completedActions.add(i);
+        return true;
+      }
+    }
+    return false;
+  };
 
   for await (const out of processPromise.stdout) {
     buffer += out.toString();
@@ -85,18 +99,11 @@ export async function handlePrompts(
       const line = buffer.slice(0, newlineIndex);
       buffer = buffer.slice(newlineIndex + 1);
 
-      const currentAction = actions[expectedStep];
-      if (currentAction && currentAction.check(line)) {
-        await asyncStreamInputWrite(processPromise.stdin, currentAction.input);
-        expectedStep++;
-      }
+      await tryMatchAction(line);
     }
 
     // Also check the current buffer content (for prompts that don't end with newline)
-    const currentAction = actions[expectedStep];
-    if (currentAction && currentAction.check(buffer)) {
-      await asyncStreamInputWrite(processPromise.stdin, currentAction.input);
-      expectedStep++;
+    if (await tryMatchAction(buffer)) {
       buffer = ''; // Clear buffer after successful match
     }
   }
