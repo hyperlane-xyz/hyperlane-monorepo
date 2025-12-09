@@ -103,7 +103,8 @@ impl FullPayload {
         &self.details.uuid
     }
 
-    #[cfg(test)]
+    /// Create a random payload for testing purposes
+    #[doc(hidden)]
     pub fn random() -> Self {
         let payload_uuid = PayloadUuid::random();
         let details = PayloadDetails {

@@ -341,7 +341,8 @@ impl DispatcherMetrics {
         Ok(out_buf)
     }
 
-    #[cfg(test)]
+    /// Create a dummy instance for testing purposes
+    #[doc(hidden)]
     pub fn dummy_instance() -> Self {
         let registry = Registry::new();
         let instance = Self::new(registry.clone());
