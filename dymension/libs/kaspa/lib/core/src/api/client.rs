@@ -288,14 +288,9 @@ fn is_valid_escrow_transfer(tx: &TxModel, address: &String) -> Result<bool> {
     Ok(false)
 }
 
-// Removed has_valid_hyperlane_payload - moved to kas_bridge module
-// The HL-specific validation was removed to keep this module pure Kaspa
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    // Removed HL-specific deposit tests - they should be in integration tests in kas_bridge
 
     #[tokio::test]
     #[ignore]

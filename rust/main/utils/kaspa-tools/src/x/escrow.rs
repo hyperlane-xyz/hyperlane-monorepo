@@ -1,4 +1,4 @@
-use corelib::escrow::EscrowPublic;
+use dym_kas_core::escrow::EscrowPublic;
 use kaspa_addresses::Prefix;
 use secp256k1::PublicKey;
 use std::str::FromStr;

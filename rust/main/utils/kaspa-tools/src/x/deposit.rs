@@ -1,4 +1,4 @@
-use corelib::wallet::get_wallet;
+use dym_kas_core::wallet::get_wallet;
 use dymension_kaspa::kas_bridge::user::deposit::deposit_with_payload;
 use eyre::Result;
 use kaspa_addresses::Address;

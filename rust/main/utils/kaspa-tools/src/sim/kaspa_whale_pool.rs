@@ -1,4 +1,4 @@
-use corelib::wallet::{EasyKaspaWallet, EasyKaspaWalletArgs, Network};
+use dym_kas_core::wallet::{EasyKaspaWallet, EasyKaspaWalletArgs, Network};
 use eyre::Result;
 use kaspa_addresses::Address;
 use kaspa_consensus_core::tx::TransactionId;

@@ -2860,12 +2860,44 @@ dependencies = [
 ]
 
 [[package]]
+name = "cosmos-sdk-proto"
+version = "0.27.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "95ac39be7373404accccaede7cc1ec942ccef14f0ca18d209967a756bf1dbb1f"
+dependencies = [
+ "prost 0.13.4",
+ "tendermint-proto",
+ "tonic 0.13.1",
+]
+
+[[package]]
 name = "cosmrs"
 version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "210fbe6f98594963b46cc980f126a9ede5db9a3848ca65b71303bebdb01afcd9"
 dependencies = [
- "cosmos-sdk-proto",
+ "cosmos-sdk-proto 0.26.1",
+ "ecdsa 0.16.9",
+ "eyre",
+ "k256 0.13.4",
+ "rand_core 0.6.4",
+ "serde",
+ "serde_json",
+ "signature 2.2.0",
+ "subtle-encoding",
+ "tendermint",
+ "tendermint-rpc",
+ "thiserror 1.0.63",
+ "tokio",
+]
+
+[[package]]
+name = "cosmrs"
+version = "0.22.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "34e74fa7a22930fe0579bef560f2d64b78415d4c47b9dd976c0635136809471d"
+dependencies = [
+ "cosmos-sdk-proto 0.27.0",
  "ecdsa 0.16.9",
  "eyre",
  "k256 0.13.4",
@@ -3989,7 +4021,7 @@ dependencies = [
  "bech32 0.11.0",
  "bytes",
  "core",
- "cosmrs",
+ "cosmrs 0.21.0",
  "crypto",
  "derive-new",
  "dym-kas-kms",
@@ -6476,7 +6508,7 @@ dependencies = [
  "bech32 0.11.0",
  "cometbft",
  "cometbft-rpc",
- "cosmrs",
+ "cosmrs 0.21.0",
  "cosmwasm-std 2.1.3",
  "crypto",
  "derive-new",
@@ -6518,7 +6550,7 @@ name = "hyperlane-cosmos-dymension-rs"
 version = "0.1.4-dymension-v3.2.1"
 source = "git+https://github.com/dymensionxyz/hyperlane-cosmos-rs?rev=4cde36b#4cde36b75d6fd3a0adf3b5a24d4a0eb8c9db59bf"
 dependencies = [
- "cosmrs",
+ "cosmrs 0.21.0",
  "prost 0.13.4",
  "serde",
  "tendermint-proto",
@@ -6872,7 +6904,7 @@ checksum = "9b70f517162e74e2d35875b8b94bf4d1e45f2c69ef3de452dc855944455d33ca"
 dependencies = [
  "base64 0.22.1",
  "bytes",
- "cosmos-sdk-proto",
+ "cosmos-sdk-proto 0.26.1",
  "flex-error",
  "ics23",
  "informalsystems-pbjson",
@@ -7767,6 +7799,55 @@ dependencies = [
  "quote 1.0.37",
  "regex",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "kaspa-tools"
+version = "0.1.0"
+dependencies = [
+ "aws-config",
+ "aws-sdk-kms",
+ "aws-sdk-secretsmanager",
+ "aws-smithy-types",
+ "chrono",
+ "clap 4.5.41",
+ "cometbft",
+ "cometbft-rpc",
+ "core",
+ "cosmos-sdk-proto 0.26.1",
+ "cosmrs 0.22.0",
+ "dymension-kaspa",
+ "eyre",
+ "hardcode",
+ "hex 0.4.3",
+ "hyperlane-core",
+ "hyperlane-cosmos",
+ "hyperlane-cosmos-dymension-rs",
+ "hyperlane-metric",
+ "k256 0.13.4",
+ "kaspa-addresses",
+ "kaspa-consensus-core",
+ "kaspa-core",
+ "kaspa-wallet-core",
+ "kaspa-wallet-keys",
+ "rand 0.8.5",
+ "rand 0.9.1",
+ "rand_core 0.6.4",
+ "rand_distr",
+ "rustls 0.23.19",
+ "secp256k1 0.29.1",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.12",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "tracing-error",
+ "tracing-futures",
+ "tracing-subscriber",
+ "url",
+ "uuid 1.11.0",
+ "workflow-core",
 ]
 
 [[package]]
@@ -10633,6 +10714,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "99d9a13982dcf210057a8a78572b2217b667c3beacbf3a0d8b454f6f82837d38"
 dependencies = [
  "getrandom 0.3.2",
+]
+
+[[package]]
+name = "rand_distr"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a8615d50dcf34fa31f7ab52692afec947c4dd0ab803cc87cb3b0b4570ff7463"
+dependencies = [
+ "num-traits",
+ "rand 0.9.1",
 ]
 
 [[package]]
@@ -14560,9 +14651,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-util"
-version = "0.7.11"
+version = "0.7.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9cf6b47b3771c49ac75ad09a6162f53ad4b8088b76ac60e8ec1455b31a189fe1"
+checksum = "2efa149fe76073d6e8fd97ef4f4eca7b67f599660115591483572e406e165594"
 dependencies = [
  "bytes",
  "futures-core",
@@ -14692,6 +14783,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "tonic"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7e581ba15a835f4d9ea06c55ab1bd4dce26fc53752c69a04aac00703bfb49ba9"
+dependencies = [
+ "async-trait",
+ "base64 0.22.1",
+ "bytes",
+ "h2 0.4.7",
+ "http 1.2.0",
+ "http-body 1.0.1",
+ "http-body-util",
+ "hyper 1.6.0",
+ "hyper-timeout 0.5.2",
+ "hyper-util",
+ "percent-encoding",
+ "pin-project",
+ "prost 0.13.4",
+ "socket2 0.5.7",
+ "tokio",
+ "tokio-stream",
+ "tower 0.5.2",
+ "tower-layer",
+ "tower-service",
+ "tracing",
+]
+
+[[package]]
 name = "tonic-build"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -14733,9 +14852,12 @@ checksum = "d039ad9159c98b70ecfd540b2573b97f7f52c3e8d9f8ad57a24b916a536975f9"
 dependencies = [
  "futures-core",
  "futures-util",
+ "indexmap 2.9.0",
  "pin-project-lite",
+ "slab",
  "sync_wrapper 1.0.2",
  "tokio",
+ "tokio-util",
  "tower-layer",
  "tower-service",
  "tracing",
