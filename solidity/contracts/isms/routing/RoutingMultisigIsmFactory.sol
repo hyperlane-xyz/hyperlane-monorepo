@@ -9,6 +9,18 @@ import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityMod
 import {PackageVersioned} from "../../PackageVersioned.sol";
 
 /**
+ * @notice Configuration for a single domain's multisig ISM
+ * @param domain The origin domain ID
+ * @param validators Array of validator addresses (MUST be sorted ascending)
+ * @param threshold Number of validator signatures required
+ */
+struct DomainConfig {
+    uint32 domain;
+    address[] validators;
+    uint8 threshold;
+}
+
+/**
  * @title RoutingMultisigIsmFactory
  * @notice Factory that deploys the complete routing[agg(messageId, merkleRoot)] ISM structure.
  *
@@ -16,8 +28,8 @@ import {PackageVersioned} from "../../PackageVersioned.sol";
  * 1. Deploying an AggregationIsm (containing MessageId + MerkleRoot multisig ISMs) for each domain
  * 2. Deploying a DomainRoutingIsm that routes messages to the appropriate AggregationIsm
  *
- * For incremental domain additions, use StaticMultisigAggregationIsmFactory directly to deploy
- * new aggregation ISMs, then call routingIsm.set(domain, newAggIsm) on the existing routing ISM.
+ * For incremental domain additions, use deployAndSet() to batch-add domains to an existing
+ * routing ISM, or use StaticMultisigAggregationIsmFactory directly for single domains.
  *
  * @dev Gas considerations: Deploying for many domains in one transaction may hit block gas limits.
  * For large deployments (>10 domains), consider batching or deploying in multiple transactions.
@@ -31,8 +43,7 @@ contract RoutingMultisigIsmFactory is PackageVersioned {
     // ============ Events ============
     event RoutingMultisigIsmDeployed(
         DomainRoutingIsm indexed routingIsm,
-        uint32[] domains,
-        address[] aggregationIsms
+        DomainConfig[] configs
     );
 
     // ============ Constructor ============
@@ -48,50 +59,33 @@ contract RoutingMultisigIsmFactory is PackageVersioned {
 
     /**
      * @notice Deploys the complete routing[agg(messageId, merkleRoot)] ISM structure
-     * @dev IMPORTANT: Validator addresses MUST be sorted in ascending order for each domain.
+     * @dev IMPORTANT: Validator addresses in each config MUST be sorted in ascending order.
      * The underlying multisig ISM factories use CREATE2 with validators as part of the salt,
-     * so different orderings produce different contract addresses. Sorting ensures deterministic
-     * addresses and enables contract reuse across deployments with the same validator set.
+     * so different orderings produce different contract addresses.
      * @param _owner The owner of the routing ISM (can call set() to add/update domains later)
-     * @param _domains Array of origin domains to configure
-     * @param _validators Array of validator arrays (one per domain, each MUST be sorted ascending)
-     * @param _thresholds Array of thresholds (one per domain)
+     * @param _configs Array of domain configurations
      * @return routingIsm The deployed DomainRoutingIsm that routes to AggregationIsms
-     * @return aggregationIsmAddresses Array of deployed AggregationIsm addresses (one per domain)
      */
     function deploy(
         address _owner,
-        uint32[] calldata _domains,
-        address[][] calldata _validators,
-        uint8[] calldata _thresholds
-    )
-        external
-        returns (
-            DomainRoutingIsm routingIsm,
-            address[] memory aggregationIsmAddresses
-        )
-    {
-        require(
-            _domains.length == _validators.length &&
-                _domains.length == _thresholds.length,
-            "length mismatch"
-        );
-
-        uint256 _domainCount = _domains.length;
+        DomainConfig[] calldata _configs
+    ) external returns (DomainRoutingIsm routingIsm) {
+        uint256 _configCount = _configs.length;
+        uint32[] memory _domains = new uint32[](_configCount);
         IInterchainSecurityModule[]
             memory _aggregationIsms = new IInterchainSecurityModule[](
-                _domainCount
+                _configCount
             );
-        aggregationIsmAddresses = new address[](_domainCount);
 
         // Deploy AggregationIsm for each domain
-        for (uint256 i = 0; i < _domainCount; ++i) {
-            address _aggregationIsm = multisigAggregationIsmFactory.deploy(
-                _validators[i],
-                _thresholds[i]
+        for (uint256 i = 0; i < _configCount; ++i) {
+            _domains[i] = _configs[i].domain;
+            _aggregationIsms[i] = IInterchainSecurityModule(
+                multisigAggregationIsmFactory.deploy(
+                    _configs[i].validators,
+                    _configs[i].threshold
+                )
             );
-            _aggregationIsms[i] = IInterchainSecurityModule(_aggregationIsm);
-            aggregationIsmAddresses[i] = _aggregationIsm;
         }
 
         // Deploy DomainRoutingIsm that routes each domain to its AggregationIsm
@@ -101,43 +95,55 @@ contract RoutingMultisigIsmFactory is PackageVersioned {
             _aggregationIsms
         );
 
-        emit RoutingMultisigIsmDeployed(
-            routingIsm,
-            _domains,
-            aggregationIsmAddresses
-        );
+        emit RoutingMultisigIsmDeployed(routingIsm, _configs);
+    }
+
+    /**
+     * @notice Deploys aggregation ISMs and sets them on an existing routing ISM
+     * @dev Caller must be the owner of the routing ISM. This enables atomic batch
+     * updates for adding multiple domains to an existing routing ISM.
+     * @dev IMPORTANT: Validator addresses in each config MUST be sorted in ascending order.
+     * @param _routingIsm The existing routing ISM to update
+     * @param _configs Array of domain configurations
+     */
+    function deployAndSet(
+        DomainRoutingIsm _routingIsm,
+        DomainConfig[] calldata _configs
+    ) external {
+        uint256 _configCount = _configs.length;
+
+        for (uint256 i = 0; i < _configCount; ++i) {
+            _routingIsm.set(
+                _configs[i].domain,
+                IInterchainSecurityModule(
+                    multisigAggregationIsmFactory.deploy(
+                        _configs[i].validators,
+                        _configs[i].threshold
+                    )
+                )
+            );
+        }
     }
 
     /**
      * @notice Computes the addresses of the AggregationIsms that would be deployed
-     * @dev Note: The DomainRoutingIsm address cannot be computed deterministically
+     * @dev The DomainRoutingIsm address cannot be computed deterministically
      * as it uses MinimalProxy.create() which generates non-deterministic addresses.
-     * The _domains parameter is included for API consistency with deploy() and to
-     * validate array lengths match, but domain values don't affect ISM addresses
-     * (only validators and thresholds determine the CREATE2 addresses).
-     * @param _domains Array of origin domains (used for length validation only)
-     * @param _validators Array of validator arrays (one per domain, MUST be sorted ascending)
-     * @param _thresholds Array of thresholds (one per domain)
+     * Domain values don't affect ISM addresses (only validators and thresholds
+     * determine the CREATE2 addresses).
+     * @param _configs Array of domain configurations
      * @return aggregationIsms Array of AggregationIsm addresses (one per domain)
      */
     function getAggregationIsmAddresses(
-        uint32[] calldata _domains,
-        address[][] calldata _validators,
-        uint8[] calldata _thresholds
+        DomainConfig[] calldata _configs
     ) external view returns (address[] memory aggregationIsms) {
-        require(
-            _domains.length == _validators.length &&
-                _domains.length == _thresholds.length,
-            "length mismatch"
-        );
+        uint256 _configCount = _configs.length;
+        aggregationIsms = new address[](_configCount);
 
-        uint256 _domainCount = _domains.length;
-        aggregationIsms = new address[](_domainCount);
-
-        for (uint256 i = 0; i < _domainCount; ++i) {
+        for (uint256 i = 0; i < _configCount; ++i) {
             aggregationIsms[i] = multisigAggregationIsmFactory.getAddress(
-                _validators[i],
-                _thresholds[i]
+                _configs[i].validators,
+                _configs[i].threshold
             );
         }
     }
