@@ -312,6 +312,11 @@ describe('hyperlane warp deploy e2e tests', async function () {
       const steps: TestPromptAction[] = [
         {
           check: (currentOutput) =>
+            currentOutput.includes('Is this deployment plan correct?'),
+          input: KeyBoardKeys.ENTER,
+        },
+        {
+          check: (currentOutput) =>
             currentOutput.includes('Please enter the private key for chain'),
           input: `${HYP_KEY}${KeyBoardKeys.ENTER}`,
         },
