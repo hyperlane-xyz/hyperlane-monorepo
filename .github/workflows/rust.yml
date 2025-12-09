@@ -3,7 +3,7 @@ name: rust
 on:
   # Triggers the workflow on pushes to main branch
   push:
-    branches: [main]
+    branches: [ main ]
   # Triggers on pull requests
   pull_request:
     branches:
@@ -83,7 +83,7 @@ jobs:
       - name: Run sccache-cache
         uses: mozilla-actions/sccache-action@v0.0.9
       - name: Run tests for main workspace
-        run: cargo test --features aleo
+        run: cargo test --all-targets --features aleo,integration_test
         working-directory: ./rust/main
       - name: Run tests for sealevel workspace
         run: cargo test

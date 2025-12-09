@@ -3,6 +3,13 @@
 //! These tests validate the public API contract using only exported types and traits.
 //! They complement the unit tests in src/dispatcher/tests.rs which verify internal behavior.
 
+// Allow common test patterns in integration tests
+#![allow(
+    clippy::uninlined_format_args,
+    clippy::needless_borrow,
+    clippy::async_yields_async
+)]
+
 use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
