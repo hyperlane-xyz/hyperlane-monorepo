@@ -160,12 +160,8 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       writeYamlOrJson(WARP_DEPLOY_CONFIG_PATH_1, warpConfig);
 
+      // Only one key prompt is expected per protocol type since keys are memoized
       const steps: TestPromptAction[] = [
-        {
-          check: (currentOutput) =>
-            currentOutput.includes('Please enter the private key for chain'),
-          input: `${HYP_KEY}${KeyBoardKeys.ENTER}`,
-        },
         {
           check: (currentOutput) =>
             currentOutput.includes('Please enter the private key for chain'),
@@ -221,12 +217,8 @@ describe('hyperlane warp deploy e2e tests', async function () {
       const warpDeployPath = `${REGISTRY_PATH}/deployments/warp_routes/${warpRouteId}-deploy.yaml`;
       writeYamlOrJson(warpDeployPath, warpConfig);
 
+      // Only one key prompt is expected per protocol type since keys are memoized
       const steps: TestPromptAction[] = [
-        {
-          check: (currentOutput) =>
-            currentOutput.includes('Please enter the private key for chain'),
-          input: `${HYP_KEY}${KeyBoardKeys.ENTER}`,
-        },
         {
           check: (currentOutput) =>
             currentOutput.includes('Please enter the private key for chain'),
@@ -316,12 +308,8 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       writeYamlOrJson(WARP_DEPLOY_CONFIG_PATH_1, warpConfig);
 
+      // Only one key prompt is expected per protocol type since keys are memoized
       const steps: TestPromptAction[] = [
-        {
-          check: (currentOutput) =>
-            currentOutput.includes('Please enter the private key for chain'),
-          input: `${HYP_KEY}${KeyBoardKeys.ENTER}`,
-        },
         {
           check: (currentOutput) =>
             currentOutput.includes('Please enter the private key for chain'),
