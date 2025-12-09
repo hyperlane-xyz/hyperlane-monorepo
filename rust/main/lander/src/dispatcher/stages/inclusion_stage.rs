@@ -278,7 +278,7 @@ impl InclusionStage {
         finality_stage_sender: &mpsc::Sender<Transaction>,
         state: &DispatcherState,
         pool: &InclusionStagePool,
-    ) -> Result<()> {
+    ) -> Result<(), LanderError> {
         info!(?tx, "Processing inclusion stage transaction");
 
         // Update the last status check timestamp before querying
@@ -313,7 +313,7 @@ impl InclusionStage {
         finality_stage_sender: &mpsc::Sender<Transaction>,
         state: &DispatcherState,
         pool: &InclusionStagePool,
-    ) -> Result<()> {
+    ) -> Result<(), LanderError> {
         match tx_status {
             TransactionStatus::PendingInclusion | TransactionStatus::Mempool => {
                 info!(tx_uuid = ?tx.uuid, ?tx_status, "Transaction is pending inclusion");
@@ -327,18 +327,21 @@ impl InclusionStage {
             TransactionStatus::Included | TransactionStatus::Finalized => {
                 update_tx_status(state, &mut tx, tx_status.clone()).await?;
                 let tx_uuid = tx.uuid.clone();
-                finality_stage_sender.send(tx).await?;
+                finality_stage_sender.send(tx).await.map_err(|err| {
+                    tracing::error!(?err, "Failed to send tx to finality stage");
+                    LanderError::ChannelSendFailure(Box::new(err))
+                })?;
                 info!(?tx_uuid, ?tx_status, "Transaction included in block");
                 pool.lock().await.remove(&tx_uuid);
                 Ok(())
             }
-            TransactionStatus::Dropped(_) => {
+            TransactionStatus::Dropped(ref reason) => {
                 error!(
                     ?tx,
                     ?tx_status,
                     "Transaction has invalid status for inclusion stage"
                 );
-                Err(eyre!("Transaction has invalid status for inclusion stage"))
+                Err(LanderError::TxDropped(reason.clone()))
             }
         }
     }
@@ -348,7 +351,7 @@ impl InclusionStage {
         mut tx: Transaction,
         state: &DispatcherState,
         pool: &InclusionStagePool,
-    ) -> Result<()> {
+    ) -> Result<(), LanderError> {
         info!(?tx, "Processing pending transaction");
 
         // update tx submission attempts

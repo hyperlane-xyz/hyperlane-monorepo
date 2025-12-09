@@ -1,6 +1,6 @@
 use hyperlane_base::db::DbError;
 
-use crate::transaction::Transaction;
+use crate::{transaction::Transaction, TransactionDropReason};
 
 #[derive(Debug, thiserror::Error)]
 pub enum LanderError {
@@ -12,12 +12,12 @@ pub enum LanderError {
     /// For EVM, it may mean that nonce got clashed on the chain.
     #[error("This transaction has already been broadcast")]
     TxAlreadyExists,
-    #[error("The transaction reverted")]
-    TxReverted,
+    #[error("The transaction was dropped")]
+    TxDropped(TransactionDropReason),
     #[error("The transaction hash was not found: {0}")]
     TxHashNotFound(String),
-    #[error("Transaction won't be resubmitted")]
-    TxWontBeResubmitted,
+    #[error("Transaction reached gas limit, won't be resubmitted")]
+    TxGasCapReached,
     #[error("Failed to send over a channel {0}")]
     ChannelSendFailure(#[from] Box<tokio::sync::mpsc::error::SendError<Transaction>>),
     #[error("Channel closed")]
@@ -48,9 +48,9 @@ impl LanderError {
             NetworkError(_) => "NetworkError".to_string(),
             TxSubmissionError(_) => "TxSubmissionError".to_string(),
             TxAlreadyExists => "TxAlreadyExists".to_string(),
-            TxReverted => "TxReverted".to_string(),
+            TxDropped(_) => "TxDropped".to_string(),
+            TxGasCapReached => "TxGasCapReached".to_string(),
             TxHashNotFound(_) => "TxHashNotFound".to_string(),
-            TxWontBeResubmitted => "TxWontBeResubmitted".to_string(),
             ChannelSendFailure(_) => "ChannelSendFailure".to_string(),
             ChannelClosed => "ChannelClosed".to_string(),
             EyreError(_) => "EyreError".to_string(),
@@ -125,14 +125,14 @@ impl IsRetryable for LanderError {
                 .all(|r| r.contains(SIMULATED_DELIVERY_FAILURE_ERROR)),
             ChannelSendFailure(_)
             | NonRetryableError(_)
-            | TxReverted
+            | TxDropped(_)
             | EstimationFailed
             | ChannelClosed
             | PayloadNotFound
             | TxAlreadyExists
             | DbError(_)
             | TxHashNotFound(_)
-            | TxWontBeResubmitted => false,
+            | TxGasCapReached => false,
         }
     }
 }
