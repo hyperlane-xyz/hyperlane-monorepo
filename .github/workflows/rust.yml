@@ -44,7 +44,7 @@ jobs:
           rustup component add llvm-tools-preview
 
       - name: Generate coverage for lander package
-        run: cargo llvm-cov --package lander --features aleo --json --output-path coverage.json
+        run: cargo llvm-cov --package lander --features aleo,integration_test --json --output-path coverage.json
         working-directory: ./rust/main
 
       - name: Check coverage threshold
