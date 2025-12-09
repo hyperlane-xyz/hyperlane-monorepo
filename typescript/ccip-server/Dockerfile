@@ -34,11 +34,8 @@ COPY starknet/package.json ./starknet/
 # Copy prisma schema before yarn install (needed for postinstall prisma generate)
 COPY typescript/ccip-server/prisma ./typescript/ccip-server/prisma
 
-# Skip postinstall scripts during install (--mode=skip-build)
-RUN yarn install --mode=skip-build && yarn cache clean
-
-# Run prisma generate after install (needed to generate Prisma client)
-RUN yarn --cwd typescript/ccip-server prisma generate
+# Install dependencies (postinstall will run prisma generate)
+RUN yarn install && yarn cache clean
 
 # Copy source files
 COPY turbo.json ./
@@ -54,19 +51,25 @@ COPY solidity ./solidity
 COPY solhint-plugin ./solhint-plugin
 COPY starknet ./starknet
 
-# Build and bundle the ccip-server (ncc creates a single-file bundle with all deps)
-RUN yarn turbo run bundle --filter=@hyperlane-xyz/ccip-server
+# Build the ccip-server
+RUN yarn turbo run build --filter=@hyperlane-xyz/ccip-server
 
-# Production stage - minimal Alpine image with just the bundled code
-FROM node:20-alpine AS runner
+# Production stage - Debian slim for Prisma native binary compatibility
+FROM node:20-slim AS runner
 
 WORKDIR /app
 
-RUN apk add --no-cache ca-certificates
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates openssl \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy only the bundled output (includes all dependencies)
-COPY --from=builder /hyperlane-monorepo/typescript/ccip-server/ccip-server-bundle ./ccip-server-bundle
+# Copy the built application
+COPY --from=builder /hyperlane-monorepo/typescript/ccip-server/dist ./dist
 COPY --from=builder /hyperlane-monorepo/typescript/ccip-server/package.json ./
+COPY --from=builder /hyperlane-monorepo/typescript/ccip-server/src/generated ./src/generated
+
+# Copy node_modules (includes Prisma native binaries)
+COPY --from=builder /hyperlane-monorepo/node_modules ./node_modules
 
 # Environment variables
 ENV NODE_ENV=production
@@ -77,5 +80,5 @@ ENV SERVER_PORT=3000
 EXPOSE 3000
 EXPOSE 9090
 
-# Run the ccip-server from the bundle
-CMD ["node", "ccip-server-bundle/index.js"]
+# Run the ccip-server
+CMD ["node", "dist/server.js"]

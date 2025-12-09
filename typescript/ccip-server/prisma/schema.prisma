@@ -2,15 +2,13 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider   = "prisma-client-js"
-  output     = "../src/generated/prisma"
-  engineType = "client"
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
 }
 
-// With engineType = "client" in Prisma 7, connection is handled via driver adapter in code
-// The DATABASE_URL is passed to the pg Pool in db.ts, not here
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model Commitment {
