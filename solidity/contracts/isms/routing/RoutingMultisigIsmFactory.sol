@@ -4,26 +4,20 @@ pragma solidity >=0.8.0;
 // ============ Internal Imports ============
 import {DomainRoutingIsm} from "./DomainRoutingIsm.sol";
 import {DomainRoutingIsmFactory} from "./DomainRoutingIsmFactory.sol";
-import {StaticAggregationIsmFactory} from "../aggregation/StaticAggregationIsmFactory.sol";
-import {StaticMessageIdMultisigIsmFactory} from "../multisig/StaticMultisigIsm.sol";
-import {StaticMerkleRootMultisigIsmFactory} from "../multisig/StaticMultisigIsm.sol";
+import {StaticMultisigAggregationIsmFactory} from "../aggregation/StaticMultisigAggregationIsmFactory.sol";
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {PackageVersioned} from "../../PackageVersioned.sol";
 
 /**
  * @title RoutingMultisigIsmFactory
- * @notice Factory that deploys the complete routing[agg(messageId, merkleRoot)] ISM structure
- * using existing audited ISM contracts. This factory simplifies deployment by:
- * 1. Deploying MessageId and MerkleRoot multisig ISMs for each domain
- * 2. Deploying an AggregationIsm (threshold 1) for each domain containing both multisig ISMs
- * 3. Deploying a DomainRoutingIsm that routes messages to the appropriate AggregationIsm
+ * @notice Factory that deploys the complete routing[agg(messageId, merkleRoot)] ISM structure.
  *
- * This creates the same structure as the current core deployments but as a single factory call,
- * making ISM reads and updates much simpler (similar to Solana's approach).
+ * This factory orchestrates:
+ * 1. Deploying an AggregationIsm (containing MessageId + MerkleRoot multisig ISMs) for each domain
+ * 2. Deploying a DomainRoutingIsm that routes messages to the appropriate AggregationIsm
  *
- * @dev This factory creates a fresh ISM tree on each deploy(). To update domains, deploy a new
- * routing ISM rather than modifying an existing one. The underlying DomainRoutingIsm supports
- * owner-controlled set() for adding domains, but this factory doesn't expose that pattern.
+ * For incremental domain additions, use StaticMultisigAggregationIsmFactory directly to deploy
+ * new aggregation ISMs, then call routingIsm.set(domain, newAggIsm) on the existing routing ISM.
  *
  * @dev Gas considerations: Deploying for many domains in one transaction may hit block gas limits.
  * For large deployments (>10 domains), consider batching or deploying in multiple transactions.
@@ -31,11 +25,8 @@ import {PackageVersioned} from "../../PackageVersioned.sol";
 contract RoutingMultisigIsmFactory is PackageVersioned {
     // ============ Immutables ============
     DomainRoutingIsmFactory public immutable routingIsmFactory;
-    StaticAggregationIsmFactory public immutable aggregationIsmFactory;
-    StaticMessageIdMultisigIsmFactory
-        public immutable messageIdMultisigIsmFactory;
-    StaticMerkleRootMultisigIsmFactory
-        public immutable merkleRootMultisigIsmFactory;
+    StaticMultisigAggregationIsmFactory
+        public immutable multisigAggregationIsmFactory;
 
     // ============ Events ============
     event RoutingMultisigIsmDeployed(
@@ -47,14 +38,10 @@ contract RoutingMultisigIsmFactory is PackageVersioned {
     // ============ Constructor ============
     constructor(
         DomainRoutingIsmFactory _routingIsmFactory,
-        StaticAggregationIsmFactory _aggregationIsmFactory,
-        StaticMessageIdMultisigIsmFactory _messageIdMultisigIsmFactory,
-        StaticMerkleRootMultisigIsmFactory _merkleRootMultisigIsmFactory
+        StaticMultisigAggregationIsmFactory _multisigAggregationIsmFactory
     ) {
         routingIsmFactory = _routingIsmFactory;
-        aggregationIsmFactory = _aggregationIsmFactory;
-        messageIdMultisigIsmFactory = _messageIdMultisigIsmFactory;
-        merkleRootMultisigIsmFactory = _merkleRootMultisigIsmFactory;
+        multisigAggregationIsmFactory = _multisigAggregationIsmFactory;
     }
 
     // ============ External Functions ============
@@ -99,23 +86,10 @@ contract RoutingMultisigIsmFactory is PackageVersioned {
 
         // Deploy AggregationIsm for each domain
         for (uint256 i = 0; i < _domainCount; ++i) {
-            // Deploy MessageIdMultisigIsm for this domain
-            address _messageIdIsm = messageIdMultisigIsmFactory.deploy(
+            address _aggregationIsm = multisigAggregationIsmFactory.deploy(
                 _validators[i],
                 _thresholds[i]
             );
-
-            // Deploy MerkleRootMultisigIsm for this domain
-            address _merkleRootIsm = merkleRootMultisigIsmFactory.deploy(
-                _validators[i],
-                _thresholds[i]
-            );
-
-            // Deploy AggregationIsm with threshold 1 (either MessageId OR MerkleRoot)
-            address[] memory _modules = new address[](2);
-            _modules[0] = _messageIdIsm;
-            _modules[1] = _merkleRootIsm;
-            address _aggregationIsm = aggregationIsmFactory.deploy(_modules, 1);
             _aggregationIsms[i] = IInterchainSecurityModule(_aggregationIsm);
             aggregationIsmAddresses[i] = _aggregationIsm;
         }
@@ -160,25 +134,11 @@ contract RoutingMultisigIsmFactory is PackageVersioned {
         uint256 _domainCount = _domains.length;
         aggregationIsms = new address[](_domainCount);
 
-        // Compute AggregationIsm addresses for each domain
         for (uint256 i = 0; i < _domainCount; ++i) {
-            // Compute MessageIdMultisigIsm address
-            address _messageIdIsm = messageIdMultisigIsmFactory.getAddress(
+            aggregationIsms[i] = multisigAggregationIsmFactory.getAddress(
                 _validators[i],
                 _thresholds[i]
             );
-
-            // Compute MerkleRootMultisigIsm address
-            address _merkleRootIsm = merkleRootMultisigIsmFactory.getAddress(
-                _validators[i],
-                _thresholds[i]
-            );
-
-            // Compute AggregationIsm address
-            address[] memory _modules = new address[](2);
-            _modules[0] = _messageIdIsm;
-            _modules[1] = _merkleRootIsm;
-            aggregationIsms[i] = aggregationIsmFactory.getAddress(_modules, 1);
         }
     }
 }
