@@ -483,7 +483,7 @@ async fn test_fallback_no_tx_receipt_rotate() {
 
     let after_provider_priorities = ProviderMock::get_priorities(&ethereum_fallback_provider).await;
 
-    let expected: Vec<_> = vec![2, 0, 1];
+    let expected: Vec<_> = vec![0, 1, 2];
     let actual: Vec<_> = after_provider_priorities
         .into_iter()
         .map(|p| p.index)

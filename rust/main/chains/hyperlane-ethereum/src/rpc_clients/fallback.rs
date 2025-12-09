@@ -305,9 +305,8 @@ where
                                 provider_host = provider_host.as_str(),
                                 method,
                                 ?v,
-                                "fallback_transaction_receipt: deprioritizing provider because received null for transaction receipt"
+                                "fallback_transaction_receipt: received null for transaction receipt"
                             );
-                            self.deprioritize_provider(*priority).await;
                             errors.push(ProviderError::CustomError(
                                 "Transaction Receipt is null".into(),
                             ));
