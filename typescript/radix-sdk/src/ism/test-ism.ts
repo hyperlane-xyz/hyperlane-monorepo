@@ -1,0 +1,92 @@
+import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
+
+import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
+import {
+  Artifact,
+  ArtifactDeployed,
+  ArtifactReader,
+  ArtifactState,
+  ArtifactWriter,
+} from '@hyperlane-xyz/provider-sdk/artifact';
+import {
+  DeployedIsmAddresses,
+  TestIsmConfig,
+} from '@hyperlane-xyz/provider-sdk/ism';
+import { TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
+
+import { RadixCorePopulate } from '../core/populate.js';
+import { RadixBase } from '../utils/base.js';
+import { RadixBaseSigner } from '../utils/signer.js';
+import { AnnotatedRadixTransaction } from '../utils/types.js';
+
+import { getTestIsmConfig } from './ism-query.js';
+
+export class RadixTestIsmReader
+  implements ArtifactReader<TestIsmConfig, DeployedIsmAddresses>
+{
+  constructor(private readonly gateway: Readonly<GatewayApiClient>) {}
+
+  async read(
+    address: string,
+  ): Promise<ArtifactDeployed<TestIsmConfig, DeployedIsmAddresses>> {
+    const ismConfig = await getTestIsmConfig(this.gateway, address);
+
+    return {
+      artifactState: ArtifactState.DEPLOYED,
+      config: {
+        type: IsmType.TEST_ISM,
+      },
+      deployed: {
+        address: ismConfig.address,
+      },
+    };
+  }
+}
+
+export class RadixTestIsmWriter
+  extends RadixTestIsmReader
+  implements ArtifactWriter<TestIsmConfig, DeployedIsmAddresses>
+{
+  constructor(
+    gateway: Readonly<GatewayApiClient>,
+    private readonly signer: RadixBaseSigner,
+    private readonly populate: RadixCorePopulate,
+    private readonly base: RadixBase,
+    private readonly accountAddress: string,
+  ) {
+    super(gateway);
+  }
+
+  async create(
+    artifact: Artifact<TestIsmConfig, DeployedIsmAddresses>,
+  ): Promise<
+    [ArtifactDeployed<TestIsmConfig, DeployedIsmAddresses>, TxReceipt[]]
+  > {
+    const transactionManifest = await this.populate.createNoopIsm({
+      from_address: this.accountAddress,
+    });
+
+    const receipt = await this.signer.signAndBroadcast(transactionManifest);
+    const address = await this.base.getNewComponent(receipt);
+
+    const deployedArtifact: ArtifactDeployed<
+      TestIsmConfig,
+      DeployedIsmAddresses
+    > = {
+      artifactState: ArtifactState.DEPLOYED,
+      config: artifact.config,
+      deployed: {
+        address,
+      },
+    };
+
+    return [deployedArtifact, [receipt]];
+  }
+
+  async update(
+    _artifact: ArtifactDeployed<TestIsmConfig, DeployedIsmAddresses>,
+  ): Promise<AnnotatedRadixTransaction[]> {
+    // NoopIsm has no mutable state
+    return [];
+  }
+}

@@ -6,6 +6,7 @@ import {
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert, strip0x } from '@hyperlane-xyz/utils';
 
+import { RadixCorePopulate } from '../core/populate.js';
 import { RadixCoreTx } from '../core/tx.js';
 import { RadixBaseSigner } from '../utils/signer.js';
 import {
@@ -96,6 +97,14 @@ export class RadixSigner
 
   supportsTransactionBatching(): boolean {
     return false;
+  }
+
+  getBaseSigner(): RadixBaseSigner {
+    return this.signer;
+  }
+
+  getCorePopulate(): RadixCorePopulate {
+    return this.populate.core;
   }
 
   async transactionToPrintableJson(

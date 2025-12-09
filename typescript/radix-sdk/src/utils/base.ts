@@ -41,6 +41,10 @@ export class RadixBase {
     this.gasMultiplier = gasMultiplier;
   }
 
+  public getNetworkId(): number {
+    return this.networkId;
+  }
+
   public async getXrdAddress() {
     const knownAddresses = await LTSRadixEngineToolkit.Derive.knownAddresses(
       this.networkId,
