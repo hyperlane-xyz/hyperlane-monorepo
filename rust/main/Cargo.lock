@@ -2774,6 +2774,7 @@ dependencies = [
  "hardcode",
  "hex 0.4.3",
  "kaspa-addresses",
+ "kaspa-consensus-client",
  "kaspa-consensus-core",
  "kaspa-core",
  "kaspa-grpc-client",

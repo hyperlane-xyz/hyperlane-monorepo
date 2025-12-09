@@ -9,7 +9,7 @@ use bytes::Bytes;
 use eyre::Result;
 use reqwest::StatusCode;
 use std::str::FromStr;
-use tracing::{debug, error, info};
+use tracing::{error, info};
 
 use crate::ConnectionConf;
 use futures::stream::{FuturesUnordered, StreamExt};
@@ -136,8 +136,8 @@ impl ValidatorsClient {
 
                             let request_type_owned = request_type.to_string();
                             tokio::spawn(async move {
-                                while let Some((_, host, result, duration)) = futures.next().await {
-                                    let status = if result.is_ok() { "success" } else { "failure" };
+                                while let Some((_, host, result, _duration)) = futures.next().await
+                                {
                                     if let Err(e) = result {
                                         error!(
                                             validator = ?host,

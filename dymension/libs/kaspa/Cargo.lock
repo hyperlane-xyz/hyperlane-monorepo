@@ -1905,6 +1905,7 @@ dependencies = [
  "hardcode",
  "hex",
  "kaspa-addresses",
+ "kaspa-consensus-client",
  "kaspa-consensus-core",
  "kaspa-core",
  "kaspa-grpc-client",

@@ -1,21 +1,13 @@
-use crate::kas_bridge::util::input_sighash_type;
-use crate::kas_relayer::withdraw::messages::PopulatedInput;
-use crate::kas_relayer::withdraw::populated_input::PopulatedInputBuilder;
 use dym_kas_core::consts::RELAYER_SIG_OP_COUNT;
 use dym_kas_core::escrow::EscrowPublic;
+use dym_kas_core::pskt::{estimate_mass, input_sighash_type, PopulatedInput, PopulatedInputBuilder};
 use dym_kas_core::wallet::EasyKaspaWallet;
 use dym_kas_hardcode::tx::{DUST_AMOUNT, RELAYER_SWEEPING_PRIORITY_FEE};
 use eyre::{eyre, Result};
-use kaspa_consensus_client::{
-    TransactionOutpoint as ClientTransactionOutpoint, UtxoEntry as ClientUtxoEntry,
-};
-
-use super::hub_to_kaspa::estimate_mass;
 use kaspa_consensus_core::network::NetworkId;
 use kaspa_consensus_core::tx::TransactionOutput;
 use kaspa_txscript::standard::pay_to_address_script;
 use kaspa_wallet_core::tx::MAXIMUM_STANDARD_TRANSACTION_MASS;
-use kaspa_wallet_core::utxo::UtxoEntryReference;
 use kaspa_wallet_pskt::bundle::Bundle;
 use kaspa_wallet_pskt::prelude::{Creator, OutputBuilder, Signer, PSKT};
 use kaspa_wallet_pskt::pskt::InputBuilder;
@@ -545,17 +537,4 @@ pub fn create_inputs_from_sweeping_bundle(
             .build();
 
     Ok(vec![relayer_input, escrow_input])
-}
-
-pub fn utxo_reference_from_populated_input(
-    (input, entry, _redeem_script): PopulatedInput,
-) -> UtxoEntryReference {
-    UtxoEntryReference::from(ClientUtxoEntry {
-        address: None,
-        outpoint: ClientTransactionOutpoint::from(input.previous_outpoint),
-        amount: entry.amount,
-        script_public_key: entry.script_public_key.clone(),
-        block_daa_score: entry.block_daa_score,
-        is_coinbase: entry.is_coinbase,
-    })
 }
