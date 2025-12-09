@@ -1,18 +1,19 @@
+use std::sync::Arc;
 use std::time::Duration;
 
-use hyperlane_aleo::AleoTxData;
+use uuid::Uuid;
+
+use hyperlane_aleo::{AleoSigner, AleoTxData};
 use hyperlane_core::H256;
 
-use crate::adapter::chains::AleoAdapter;
+use crate::adapter::chains::{AleoAdapter, AleoTxPrecursor};
 use crate::adapter::AdaptsChain;
 use crate::payload::PayloadDetails;
-use crate::{FullPayload, PayloadStatus, PayloadUuid, TransactionStatus};
+use crate::tests::MockAleoProvider;
+use crate::transaction::{Transaction, VmSpecificTxData};
+use crate::{FullPayload, PayloadStatus, PayloadUuid, TransactionStatus, TransactionUuid};
 
-fn create_test_adapter() -> AleoAdapter {
-    AleoAdapter {
-        estimated_block_time: Duration::from_secs(10),
-    }
-}
+use super::Precursor;
 
 fn create_test_payload() -> FullPayload {
     create_test_payload_with_success_criteria(Some(vec![1, 2, 3, 4]))
@@ -39,6 +40,76 @@ fn create_test_payload_with_success_criteria(success_criteria: Option<Vec<u8>>) 
         value: None,
         inclusion_soft_deadline: None,
     }
+}
+
+fn create_test_adapter() -> AleoAdapter<MockAleoProvider> {
+    let mock_provider = MockAleoProvider;
+    AleoAdapter {
+        provider: Arc::new(mock_provider),
+        estimated_block_time: Duration::from_secs(10),
+    }
+}
+
+fn create_test_transaction() -> Transaction {
+    let precursor = AleoTxPrecursor {
+        program_id: "test_program.aleo".to_string(),
+        function_name: "test_function".to_string(),
+        inputs: vec!["input1".to_string(), "input2".to_string()],
+    };
+
+    let payload_uuid = PayloadUuid::random();
+
+    Transaction {
+        uuid: TransactionUuid::new(Uuid::new_v4()),
+        tx_hashes: vec![],
+        vm_specific_data: VmSpecificTxData::Aleo(Box::new(precursor)),
+        payload_details: vec![PayloadDetails {
+            uuid: payload_uuid.clone(),
+            metadata: format!("test-payload-{}", payload_uuid),
+            success_criteria: None,
+        }],
+        status: TransactionStatus::PendingInclusion,
+        submission_attempts: 0,
+        creation_timestamp: chrono::Utc::now(),
+        last_submission_attempt: None,
+        last_status_check: None,
+    }
+}
+
+#[tokio::test]
+async fn test_simulate_tx() {
+    let adapter = create_test_adapter();
+    let mut tx = create_test_transaction();
+
+    let result = adapter.simulate_tx(&mut tx).await;
+    assert!(result.is_ok());
+
+    // Aleo doesn't do payload-level simulation, so result should be empty
+    assert_eq!(result.unwrap().len(), 0);
+}
+
+#[tokio::test]
+async fn test_estimate_tx() {
+    let adapter = create_test_adapter();
+    let mut tx = create_test_transaction();
+
+    let result = adapter.estimate_tx(&mut tx).await;
+    assert!(result.is_ok());
+}
+
+#[tokio::test]
+async fn test_max_batch_size() {
+    let adapter = create_test_adapter();
+    assert_eq!(adapter.max_batch_size(), 1); // Aleo doesn't support batching
+}
+
+#[tokio::test]
+async fn test_tx_ready_for_resubmission() {
+    let adapter = create_test_adapter();
+    let tx = create_test_transaction();
+
+    let result = adapter.tx_ready_for_resubmission(&tx).await;
+    assert!(!result); // Aleo transactions cannot be resubmitted
 }
 
 #[tokio::test]

@@ -1,6 +1,7 @@
 import {
   Announcement,
   BaseValidator,
+  ReorgEvent,
   S3Announcement,
   S3CheckpointWithId,
   ValidatorConfig,
@@ -15,6 +16,7 @@ const checkpointWithMessageIdKey = (checkpointIndex: number) =>
 const LATEST_KEY = 'gcsLatestIndexKey';
 const ANNOUNCEMENT_KEY = 'gcsAnnouncementKey';
 const METADATA_KEY = 'gcsMetadataKey';
+const REORG_KEY = 'gcsReorgFlagKey';
 export const GCP_LOCATION_PREFIX = 'gs://';
 
 /**
@@ -126,5 +128,14 @@ export class GcpValidator extends BaseValidator {
 
   getLatestCheckpointUrl(): string {
     return this.storage.url(LATEST_KEY);
+  }
+
+  async getReorgStatus(): Promise<ReorgEvent | null> {
+    const resp = await this.storage.getObject<ReorgEvent>(REORG_KEY);
+    if (!resp) {
+      return null;
+    }
+
+    return resp.data;
   }
 }

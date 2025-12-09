@@ -16,7 +16,7 @@
     "@hyperlane-xyz/http-registry-server": "19.11.0",
     "@hyperlane-xyz/provider-sdk": "0.3.0",
     "@hyperlane-xyz/radix-sdk": "19.11.0",
-    "@hyperlane-xyz/registry": "20.0.0",
+    "@hyperlane-xyz/registry": "23.7.0",
     "@hyperlane-xyz/sdk": "19.11.0",
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@hyperlane-xyz/utils": "19.11.0",

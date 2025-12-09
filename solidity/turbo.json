@@ -1,7 +1,12 @@
 {
   "extends": ["//"],
   "tasks": {
+    "deps:soldeer": {
+      "inputs": ["foundry.toml", "soldeer.lock"],
+      "outputs": ["dependencies/**"]
+    },
     "build": {
+      "dependsOn": ["deps:soldeer"],
       "outputs": [
         "artifacts/**",
         "cache/**",

@@ -253,7 +253,7 @@ pub struct ProvingResponse {
     pub broadcast: Option<bool>,
 }
 
-/// Fee estimate for Aleo transaction
+/// Fee estimate for Aleo transactions
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct FeeEstimate {
     /// Base fee
@@ -262,6 +262,34 @@ pub struct FeeEstimate {
     pub priority_fee: u64,
     /// Total fee
     pub total_fee: u64,
+}
+
+impl FeeEstimate {
+    /// Creates a new FeeEstimate with the total fee calculated automatically
+    ///
+    /// # Arguments
+    /// * `base_fee` - The base transaction fee in microcredits
+    /// * `priority_fee` - The priority fee in microcredits
+    ///
+    /// # Returns
+    /// A new FeeEstimate with total_fee = base_fee + priority_fee
+    ///
+    /// # Example
+    /// ```ignore
+    /// use hyperlane_aleo::types::FeeEstimate;
+    ///
+    /// let fee = FeeEstimate::new(1000, 100);
+    /// assert_eq!(fee.base_fee, 1000);
+    /// assert_eq!(fee.priority_fee, 100);
+    /// assert_eq!(fee.total_fee, 1100);
+    /// ```
+    pub fn new(base_fee: u64, priority_fee: u64) -> Self {
+        Self {
+            base_fee,
+            priority_fee,
+            total_fee: base_fee.saturating_add(priority_fee),
+        }
+    }
 }
 
 #[aleo_serialize]
@@ -310,3 +338,6 @@ pub struct AleoGetMappingValue {
     /// Mapping key
     pub mapping_key: String,
 }
+
+#[cfg(test)]
+mod tests;
