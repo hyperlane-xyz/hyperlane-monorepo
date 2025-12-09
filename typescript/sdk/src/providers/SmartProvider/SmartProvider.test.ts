@@ -93,11 +93,13 @@ class TestableSmartProvider extends HyperlaneSmartProvider {
 class ProviderError extends Error {
   public readonly reason: string;
   public readonly code: string;
+  public readonly data?: string;
 
-  constructor(message: string, code: string) {
+  constructor(message: string, code: string, data?: string) {
     super(message);
     this.reason = message;
     this.code = code;
+    this.data = data;
   }
 }
 
@@ -121,6 +123,7 @@ describe('SmartProvider', () => {
       {
         code: EthersError.CALL_EXCEPTION,
         message: 'execution reverted',
+        data: '0x08c379a0', // Must have revert data to be permanent error
       },
       {
         code: EthersError.NONCE_EXPIRED,
@@ -136,9 +139,9 @@ describe('SmartProvider', () => {
       },
     ];
 
-    blockchainErrorTestCases.forEach(({ code, message }) => {
+    blockchainErrorTestCases.forEach(({ code, message, data }) => {
       it(`throws BlockchainError with isRecoverable=false for ${code}`, () => {
-        const error = new ProviderError(message, code);
+        const error = new ProviderError(message, code, data);
         const CombinedError = provider.testGetCombinedProviderError(
           [error],
           'Test fallback message',
@@ -193,7 +196,11 @@ describe('SmartProvider', () => {
         name: 'SERVER_ERROR',
         errors: () => [
           new ProviderError('connection refused', EthersError.SERVER_ERROR),
-          new ProviderError('execution reverted', EthersError.CALL_EXCEPTION),
+          new ProviderError(
+            'execution reverted',
+            EthersError.CALL_EXCEPTION,
+            '0x08c379a0', // Must have revert data to be prioritized as blockchain error
+          ),
         ],
         expectedMessage: 'execution reverted',
       },
@@ -225,6 +232,48 @@ describe('SmartProvider', () => {
         expect(e.message).to.equal(expectedMessage);
         expect(e.cause).to.equal(secondError);
       });
+    });
+
+    it('treats CALL_EXCEPTION without revert data as recoverable (not BlockchainError)', () => {
+      // CALL_EXCEPTION without data is likely an RPC issue, not a real revert
+      const error = new ProviderError(
+        'execution reverted',
+        EthersError.CALL_EXCEPTION,
+        // No data property - treated as transient RPC error
+      );
+      const CombinedError = provider.testGetCombinedProviderError(
+        [error],
+        'Test fallback message',
+      );
+
+      const e: any = new CombinedError();
+
+      // Without revert data, this should NOT be a BlockchainError
+      expect(e).to.be.instanceOf(Error);
+      expect(e).to.not.be.instanceOf(BlockchainError);
+      // Falls through to generic error handler (unhandled case)
+      expect(e.message).to.equal('Test fallback message');
+    });
+
+    it('treats CALL_EXCEPTION with empty "0x" data as recoverable (not BlockchainError)', () => {
+      // ethers sets data to "0x" when there's no actual revert data
+      const error = new ProviderError(
+        'execution reverted',
+        EthersError.CALL_EXCEPTION,
+        '0x', // Empty data - treated as transient RPC error
+      );
+      const CombinedError = provider.testGetCombinedProviderError(
+        [error],
+        'Test fallback message',
+      );
+
+      const e: any = new CombinedError();
+
+      // With empty "0x" data, this should NOT be a BlockchainError
+      expect(e).to.be.instanceOf(Error);
+      expect(e).to.not.be.instanceOf(BlockchainError);
+      // Falls through to generic error handler (unhandled case)
+      expect(e.message).to.equal('Test fallback message');
     });
   });
 
@@ -330,10 +379,11 @@ describe('SmartProvider', () => {
       }
     });
 
-    it('blockchain error stops trying additional providers immediately', async () => {
+    it('blockchain error with revert data stops trying additional providers immediately', async () => {
       const blockchainError = new ProviderError(
         'execution reverted',
         EthersError.CALL_EXCEPTION,
+        '0x08c379a0', // Must have revert data to stop fallback
       );
 
       const provider1 = MockProvider.error(blockchainError);
@@ -380,6 +430,48 @@ describe('SmartProvider', () => {
         expect(provider2.called).to.be.true;
         expect(provider2.thrownError).to.equal(blockchainError);
       }
+    });
+
+    it('CALL_EXCEPTION without revert data triggers fallback to next provider', async () => {
+      // CALL_EXCEPTION without data is likely an RPC issue, should retry
+      const callExceptionNoData = new ProviderError(
+        'execution reverted',
+        EthersError.CALL_EXCEPTION,
+        // No data - treated as transient RPC error
+      );
+
+      const provider1 = MockProvider.error(callExceptionNoData);
+      const provider2 = MockProvider.success('success2');
+      const provider = new TestableSmartProvider([provider1, provider2]);
+
+      const result = await provider.simplePerform('getBlockNumber', 1);
+
+      // Should succeed from second provider
+      expect(result).to.deep.equal('success2');
+      expect(provider1.called).to.be.true;
+      expect(provider1.thrownError).to.equal(callExceptionNoData);
+      expect(provider2.called).to.be.true; // Key test - second provider SHOULD be called
+    });
+
+    it('CALL_EXCEPTION with empty "0x" data triggers fallback to next provider', async () => {
+      // ethers sets data to "0x" when there's no actual revert data
+      const callExceptionEmptyData = new ProviderError(
+        'execution reverted',
+        EthersError.CALL_EXCEPTION,
+        '0x', // Empty data - treated as transient RPC error
+      );
+
+      const provider1 = MockProvider.error(callExceptionEmptyData);
+      const provider2 = MockProvider.success('success2');
+      const provider = new TestableSmartProvider([provider1, provider2]);
+
+      const result = await provider.simplePerform('getBlockNumber', 1);
+
+      // Should succeed from second provider
+      expect(result).to.deep.equal('success2');
+      expect(provider1.called).to.be.true;
+      expect(provider1.thrownError).to.equal(callExceptionEmptyData);
+      expect(provider2.called).to.be.true; // Key test - second provider SHOULD be called
     });
   });
 });

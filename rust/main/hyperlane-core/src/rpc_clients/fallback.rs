@@ -185,6 +185,7 @@ where
             info!(
                 provider_index=%priority.index,
                 provider=?self.inner.providers[priority.index],
+                reason="Block height low",
                 "Deprioritizing an inner provider in FallbackProvider",
             );
         } else {
@@ -203,6 +204,7 @@ where
             info!(
                 provider_index=%new_priority.index,
                 provider=?self.inner.providers[new_priority.index],
+                reason="Too many errors",
                 "Deprioritizing an inner provider in FallbackProvider",
             );
         }

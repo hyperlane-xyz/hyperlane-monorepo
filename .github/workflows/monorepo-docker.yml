@@ -13,7 +13,11 @@ on:
       - 'docker-entrypoint.sh'
       - '.dockerignore'
       - '.github/workflows/monorepo-docker.yml'
+      - 'solidity/.foundryrc'
       - 'typescript/ccip-server/**'
+      # Dependency changes that could affect the Docker build
+      - 'yarn.lock'
+      - '**/package.json'
   workflow_dispatch:
     inputs:
       include_arm64:
@@ -96,6 +100,12 @@ jobs:
           REGISTRY_VERSION=$(cat .registryrc)
           echo "REGISTRY_VERSION=$REGISTRY_VERSION" >> $GITHUB_ENV
 
+      - name: Read Foundry version
+        shell: bash
+        run: |
+          FOUNDRY_VERSION=$(cat solidity/.foundryrc)
+          echo "FOUNDRY_VERSION=$FOUNDRY_VERSION" >> $GITHUB_ENV
+
       - name: Determine platforms
         id: determine-platforms
         run: |
@@ -116,6 +126,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
+            FOUNDRY_VERSION=${{ env.FOUNDRY_VERSION }}
             REGISTRY_COMMIT=${{ env.REGISTRY_VERSION }}
           platforms: ${{ steps.determine-platforms.outputs.platforms }}
 
