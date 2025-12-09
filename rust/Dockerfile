@@ -62,8 +62,12 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 
 # -------- Runtime Image --------
 # Minimal runtime image containing config, binaries, and runtime dependencies
-FROM alpine:3.21
-RUN apk add --no-cache ca-certificates tini libgcc libcurl && \
+# Using debian-slim instead of Alpine because Rust binaries are linked against glibc
+FROM debian:bookworm-slim
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ca-certificates tini && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
     mkdir -p /app /usr/share/hyperlane /data && \
     chmod 777 /app && \
     chmod 1000 /usr/share/hyperlane && \
