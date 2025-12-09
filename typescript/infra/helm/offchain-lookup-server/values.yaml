@@ -2,11 +2,16 @@ environment: testnet
 
 # General deployment configuration
 image:
+  # Standalone image (hyperlane-offchain-lookup-server) or monorepo image (hyperlane-monorepo)
+  # When using standalone image, set standalone: true
   repository: gcr.io/abacus-labs-dev/hyperlane-monorepo
   # Modify this tag to deploy a new revision.
   # Images can be found here:
-  # https://console.cloud.google.com/artifacts/docker/abacus-labs-dev/us/gcr.io/hyperlane-monorepo?inv=1&invt=AbxRMg&project=abacus-labs-dev
+  # Standalone: https://console.cloud.google.com/artifacts/docker/abacus-labs-dev/us/gcr.io/hyperlane-offchain-lookup-server
+  # Monorepo: https://console.cloud.google.com/artifacts/docker/abacus-labs-dev/us/gcr.io/hyperlane-monorepo
   tag: 88afca1-20250702-173601
+  # Set to true when using hyperlane-offchain-lookup-server standalone image
+  standalone: false
 
 secrets:
   name: 'offchain-lookup-server'
