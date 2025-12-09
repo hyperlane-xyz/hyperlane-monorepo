@@ -28,30 +28,3 @@ pub async fn check_balance<T: RpcApi + ?Sized>(
 
     Ok(balance)
 }
-
-// TODO: needed?
-pub async fn check_balance_wallet(w: Arc<Wallet>) -> Result<(), Error> {
-    let a = w.account()?;
-    for _ in 0..10 {
-        if a.balance().is_some() {
-            break;
-        }
-        workflow_core::task::sleep(std::time::Duration::from_millis(200)).await;
-    }
-
-    if let Some(b) = a.balance() {
-        let mature_str = sompi_to_kaspa_string(b.mature);
-        let pending_str = sompi_to_kaspa_string(b.pending);
-        let outgoing_str = sompi_to_kaspa_string(b.outgoing);
-        info!(
-            mature_kas = %mature_str,
-            pending_kas = %pending_str,
-            outgoing_kas = %outgoing_str,
-            "kaspa: wallet account balance"
-        );
-    } else {
-        info!("kaspa: wallet account has no balance or is still syncing");
-    }
-
-    Ok(())
-}
