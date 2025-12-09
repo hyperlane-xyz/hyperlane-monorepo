@@ -83,6 +83,7 @@ mod context;
 mod r#core;
 mod helloworld;
 mod igp;
+mod ism;
 mod multisig_ism;
 mod registry;
 mod router;
@@ -93,6 +94,7 @@ mod warp_route;
 
 use crate::helloworld::process_helloworld_cmd;
 use crate::igp::process_igp_cmd;
+use crate::ism::process_ism_cmd;
 use crate::multisig_ism::process_multisig_ism_message_id_cmd;
 use crate::test_ism::process_test_ism_cmd;
 use crate::warp_route::process_warp_route_cmd;
@@ -129,6 +131,7 @@ enum HyperlaneSealevelCmd {
     Core(CoreCmd),
     Mailbox(MailboxCmd),
     Token(TokenCmd),
+    Ism(IsmCmd),
     Igp(IgpCmd),
     ValidatorAnnounce(ValidatorAnnounceCmd),
     MultisigIsmMessageId(MultisigIsmMessageIdCmd),
@@ -339,6 +342,28 @@ struct TokenQuery {
     program_id: Pubkey,
     #[arg(value_enum)]
     token_type: TokenType,
+}
+
+#[derive(Args)]
+pub(crate) struct IsmCmd {
+    #[command(flatten)]
+    query: IsmQuery,
+}
+
+#[derive(Args)]
+pub(crate) struct IsmQuery {
+    #[arg(long, short)]
+    program_id: Pubkey,
+    #[arg(value_enum)]
+    ism_type: IsmType,
+    #[arg(long, value_delimiter = ',')]
+    domains: Option<Vec<u32>>,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+pub enum IsmType {
+    MultisigMessageId,
+    Test,
 }
 
 #[derive(Args)]
@@ -866,6 +891,7 @@ fn main() {
     match cli.cmd {
         HyperlaneSealevelCmd::Mailbox(cmd) => process_mailbox_cmd(ctx, cmd),
         HyperlaneSealevelCmd::Token(cmd) => process_token_cmd(ctx, cmd),
+        HyperlaneSealevelCmd::Ism(cmd) => process_ism_cmd(ctx, cmd),
         HyperlaneSealevelCmd::ValidatorAnnounce(cmd) => process_validator_announce_cmd(ctx, cmd),
         HyperlaneSealevelCmd::MultisigIsmMessageId(cmd) => {
             process_multisig_ism_message_id_cmd(ctx, cmd)
