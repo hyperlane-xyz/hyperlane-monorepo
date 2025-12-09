@@ -42,8 +42,9 @@ pub struct EthereumFallbackProvider<C, B> {
     /// Fallback provider
     pub provider: FallbackProvider<C, B>,
     /// If enabled and eth_getTransactionReceipt returns Ok(Value::null())
-    /// we will rotate the provider.
-    pub rotate_no_transaction_receipt: bool,
+    /// we will try other providers and see if another provider returns something
+    /// non-null
+    pub consider_null_transaction_receipt: bool,
 }
 
 impl<C, B> Deref for EthereumFallbackProvider<C, B> {
@@ -119,7 +120,8 @@ where
     {
         if method == METHOD_SEND_RAW_TRANSACTION {
             self.multicast(method, params).await
-        } else if method == METHOD_GET_TRANSACTION_RECEIPT && self.rotate_no_transaction_receipt {
+        } else if method == METHOD_GET_TRANSACTION_RECEIPT && self.consider_null_transaction_receipt
+        {
             self.fallback_transaction_receipt(method, params).await
         } else {
             self.fallback(method, params).await

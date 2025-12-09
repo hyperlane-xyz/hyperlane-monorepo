@@ -739,7 +739,7 @@ mod test {
             },
             transaction_overrides: Default::default(),
             op_submission_config: Default::default(),
-            rotate_no_transaction_receipt: false,
+            consider_null_transaction_receipt: false,
         };
 
         let mailbox = EthereumMailbox::new(

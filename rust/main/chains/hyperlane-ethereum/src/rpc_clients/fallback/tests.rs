@@ -541,7 +541,7 @@ async fn test_fallback_all_providers_return_null_receipt_with_rotate() {
 
 #[tracing_test::traced_test]
 #[tokio::test]
-async fn test_fallback_first_provider_null_receipt_no_rotate() {
+async fn test_fallback_null_receipt_no_deprioritization_with_rotate_enabled() {
     let fallback_provider_builder = FallbackProviderBuilder::default();
     let providers = vec![
         EthereumProviderMock::new(None),

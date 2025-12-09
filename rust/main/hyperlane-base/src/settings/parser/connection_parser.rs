@@ -118,9 +118,9 @@ pub fn build_ethereum_connection_conf(
         })
         .unwrap_or_default();
 
-    let rotate_no_transaction_receipt = chain
+    let consider_null_transaction_receipt = chain
         .chain(err)
-        .get_opt_key("rotateNoTransactionReceipt")
+        .get_opt_key("considerNullTransactionReceipt")
         .parse_bool()
         .unwrap_or(false);
 
@@ -128,7 +128,7 @@ pub fn build_ethereum_connection_conf(
         rpc_connection: rpc_connection_conf?,
         transaction_overrides,
         op_submission_config: operation_batch,
-        rotate_no_transaction_receipt,
+        consider_null_transaction_receipt,
     }))
 }
 

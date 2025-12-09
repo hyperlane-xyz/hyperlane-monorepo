@@ -128,7 +128,7 @@ pub trait BuildableWithProvider {
                     JsonRpcBlockGetter<PrometheusJsonRpcClient<Http>>,
                 >::new(
                     fallback_provider,
-                    conn.rotate_no_transaction_receipt,
+                    conn.consider_null_transaction_receipt,
                 );
                 self.build(ethereum_fallback_provider, conn, locator, signer)
                     .await?
