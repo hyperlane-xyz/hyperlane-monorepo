@@ -1,5 +1,15 @@
 # @hyperlane-xyz/provider-sdk
 
+## 0.3.0
+
+### Minor Changes
+
+- dd6260eea: Added the gatewayUrls and packageAddress fields to the ChainMetadataForAltVM
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@19.11.0
+
 ## 0.2.0
 
 ### Minor Changes

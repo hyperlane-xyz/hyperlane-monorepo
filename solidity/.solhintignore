@@ -1,3 +1,4 @@
 contracts/mock
 contracts/test
 contracts/interfaces/avs/vendored
+dependencies

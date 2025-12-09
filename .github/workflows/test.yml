@@ -152,15 +152,6 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
 
-      - name: foundry-install
-        uses: foundry-rs/foundry-toolchain@v1
-
-      - name: Set Foundry RPC URLs for fork tests
-        env:
-          MAINNET3_ARBITRUM_RPC_URLS: ${{ secrets.MAINNET3_ARBITRUM_RPC_URLS }}
-        run: |
-          echo "FOUNDRY_RPC_URL_ARBITRUM=${MAINNET3_ARBITRUM_RPC_URLS%%,*}" >> $GITHUB_ENV
-
       - name: pnpm-build
         uses: ./.github/actions/pnpm-build-with-cache
 
@@ -310,9 +301,6 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
 
-      - name: foundry-install
-        uses: foundry-rs/foundry-toolchain@v1
-
       - name: install-hyperlane-cli
         id: install-hyperlane-cli
         uses: ./.github/actions/install-cli
@@ -349,9 +337,6 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
-
-      - name: foundry-install
-        uses: foundry-rs/foundry-toolchain@v1
 
       - name: install-hyperlane-cli
         id: install-hyperlane-cli
@@ -496,6 +481,37 @@ jobs:
           job_name: 'Cosmos SDK E2E'
           result: ${{ needs.cosmos-sdk-e2e-run.result }}
 
+  aleo-sdk-e2e-run:
+    runs-on: depot-ubuntu-latest
+    needs: [rust-only]
+    if: needs.rust-only.outputs.only_rust == 'false'
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+
+      - name: yarn-build
+        uses: ./.github/actions/yarn-build-with-cache
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Aleo SDK e2e tests
+        run: yarn --cwd typescript/aleo-sdk test:e2e
+
+  aleo-sdk-e2e:
+    runs-on: ubuntu-latest
+    needs: [aleo-sdk-e2e-run]
+    if: always()
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check aleo-sdk-e2e status
+        uses: ./.github/actions/check-job-status
+        with:
+          job_name: 'Aleo SDK E2E'
+          result: ${{ needs.aleo-sdk-e2e-run.result }}
+
   agent-configs:
     runs-on: depot-ubuntu-latest
     strategy:
@@ -589,10 +605,6 @@ jobs:
           else
             echo "skip-e2e=false" >> $GITHUB_OUTPUT
           fi
-
-      - name: foundry-install
-        if: steps.check-conditions.outputs.skip-e2e != 'true'
-        uses: foundry-rs/foundry-toolchain@v1
 
       - name: setup rust
         if: steps.check-conditions.outputs.skip-e2e != 'true'
@@ -734,9 +746,6 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      - name: foundry-install
-        uses: foundry-rs/foundry-toolchain@v1
-
       - name: pnpm-build
         uses: ./.github/actions/pnpm-build-with-cache
 
@@ -804,8 +813,8 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm build
 
-      - name: foundry-install
-        uses: foundry-rs/foundry-toolchain@v1
+      - name: Setup Foundry
+        uses: ./.github/actions/setup-foundry
 
       - name: Run tests with coverage
         run: pnpm coverage

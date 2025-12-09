@@ -555,12 +555,24 @@ impl Validator {
         reorg_reporter: &Arc<dyn ReorgReporter>,
         checkpoint_syncer_result: &Result<Box<dyn CheckpointSyncer>, CheckpointSyncerBuildError>,
     ) {
-        if let Err(CheckpointSyncerBuildError::ReorgEvent(reorg_event)) =
+        if let Err(CheckpointSyncerBuildError::ReorgFlag(reorg_resp)) =
             checkpoint_syncer_result.as_ref()
         {
-            reorg_reporter
-                .report_with_reorg_period(&reorg_event.reorg_period)
-                .await;
+            match reorg_resp.event.as_ref() {
+                Some(reorg_event) => {
+                    reorg_reporter
+                        .report_with_reorg_period(&reorg_event.reorg_period)
+                        .await;
+                }
+                None => {
+                    tracing::error!(
+                        "Failed to parse reorg event, reporting with default reorg period"
+                    );
+                    reorg_reporter
+                        .report_with_reorg_period(&ReorgPeriod::None)
+                        .await;
+                }
+            }
         }
     }
 

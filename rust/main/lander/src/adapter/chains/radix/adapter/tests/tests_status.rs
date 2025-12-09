@@ -8,13 +8,14 @@ use hyperlane_core::{ChainResult, H512};
 use hyperlane_radix::RadixSigner;
 use scrypto::network::NetworkDefinition;
 
-use super::tests_common::adapter;
 use crate::adapter::AdaptsChain;
 use crate::transaction::TransactionStatus;
 use crate::{
     adapter::chains::radix::adapter::tests::tests_common::{MockRadixProvider, TEST_PRIVATE_KEY},
     LanderError, TransactionDropReason,
 };
+
+use super::tests_common::adapter;
 
 #[tokio::test]
 async fn get_tx_hash_status_pending() {

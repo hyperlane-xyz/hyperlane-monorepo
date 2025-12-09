@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/ccip-server",
-  "version": "19.10.0",
+  "version": "19.11.0",
   "description": "CCIP server",
   "typings": "dist/index.d.ts",
   "typedocMain": "src/index.ts",
@@ -51,7 +51,7 @@
     "@ethersproject/providers": "*",
     "@google-cloud/pino-logging-gcp-config": "^1.0.6",
     "@hyperlane-xyz/core": "workspace:*",
-    "@hyperlane-xyz/registry": "23.6.0",
+    "@hyperlane-xyz/registry": "23.7.0",
     "@hyperlane-xyz/sdk": "workspace:*",
     "@hyperlane-xyz/utils": "workspace:*",
     "pino": "^8.19.0",

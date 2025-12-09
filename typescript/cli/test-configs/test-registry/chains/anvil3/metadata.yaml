@@ -23,3 +23,4 @@ nativeToken:
   name: Ether
   symbol: ETH
   decimals: 18
+gnosisSafeTransactionServiceUrl: http://127.0.0.1:2496

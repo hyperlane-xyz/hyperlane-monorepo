@@ -14,7 +14,7 @@ use hyperlane_core::{HyperlaneMessage, ModuleType, MultisigIsm, MultisigSignedCh
 use strum::Display;
 use tracing::{debug, info, warn};
 
-use crate::msg::metadata::base::MetadataBuildError;
+use crate::msg::metadata::base::{MetadataBuildError, MetadataBuildRefused};
 use crate::msg::metadata::base_builder::IsmBuildMetricsParams;
 use crate::msg::metadata::message_builder::MessageMetadataBuilder;
 use crate::msg::metadata::{IsmCachePolicy, MessageMetadataBuildParams, Metadata, MetadataBuilder};
@@ -237,9 +237,8 @@ async fn metadata_build<T: MultisigIsmMetadataBuilder>(
         .await
     {
         Ok(syncer) => syncer,
-        Err(CheckpointSyncerBuildError::ReorgEvent(reorg_event)) => {
-            let err =
-                MetadataBuildError::Refused(format!("A reorg event occurred {reorg_event:?}"));
+        Err(CheckpointSyncerBuildError::ReorgFlag(reorg_resp)) => {
+            let err = MetadataBuildError::Refused(MetadataBuildRefused::Reorg(reorg_resp));
             return Err(err);
         }
         Err(e) => {

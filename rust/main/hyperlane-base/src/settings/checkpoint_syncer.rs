@@ -1,15 +1,18 @@
+use std::{env, path::PathBuf};
+
+use aws_config::Region;
+use core::str::FromStr;
+use eyre::{eyre, Context, Report, Result};
+use prometheus::IntGauge;
+use tracing::error;
+use ya_gcp::{AuthFlow, ServiceAccountAuth};
+
+use hyperlane_core::{ChainCommunicationError, ReorgEventResponse};
+
 use crate::{
     CheckpointSyncer, GcsStorageClientBuilder, LocalStorage, S3Storage, GCS_SERVICE_ACCOUNT_KEY,
     GCS_USER_SECRET,
 };
-use aws_config::Region;
-use core::str::FromStr;
-use eyre::{eyre, Context, Report, Result};
-use hyperlane_core::{ChainCommunicationError, ReorgEvent};
-use prometheus::IntGauge;
-use std::{env, path::PathBuf};
-use tracing::error;
-use ya_gcp::{AuthFlow, ServiceAccountAuth};
 
 /// Checkpoint Syncer types
 #[derive(Debug, Clone)]
@@ -47,7 +50,7 @@ pub enum CheckpointSyncerConf {
 pub enum CheckpointSyncerBuildError {
     /// A reorg event has been detected in the checkpoint syncer when building it
     #[error("Fatal: A reorg event has been detected. Please reach out for help, this is a potentially serious error impacting signed messages. Do NOT forcefully resume operation of this validator. Keep it crashlooping or shut down until receive support. {0:?}")]
-    ReorgEvent(ReorgEvent),
+    ReorgFlag(ReorgEventResponse),
     /// Error communicating with the chain
     #[error(transparent)]
     ChainError(#[from] ChainCommunicationError),
@@ -130,8 +133,10 @@ impl CheckpointSyncerConf {
         let syncer: Box<dyn CheckpointSyncer> = self.build(latest_index_gauge).await?;
 
         match syncer.reorg_status().await {
-            Ok(Some(reorg_event)) => {
-                return Err(CheckpointSyncerBuildError::ReorgEvent(reorg_event));
+            Ok(event) => {
+                if event.exists {
+                    return Err(CheckpointSyncerBuildError::ReorgFlag(event));
+                }
             }
             Err(err) => {
                 error!(
@@ -139,7 +144,6 @@ impl CheckpointSyncerConf {
                     "Failed to read reorg status. Assuming no reorg occurred."
                 );
             }
-            _ => {}
         }
         Ok(syncer)
     }
@@ -190,7 +194,9 @@ impl CheckpointSyncerConf {
 
 #[cfg(test)]
 mod test {
-    use hyperlane_core::{ReorgPeriod, H256};
+    use std::{fs::File, io::Write};
+
+    use hyperlane_core::{ReorgEvent, ReorgPeriod, H256};
 
     #[tokio::test]
     async fn test_build_and_validate() {
@@ -217,7 +223,6 @@ mod test {
             unix_timestamp,
             reorg_period,
         };
-
         // create a checkpoint syncer and write a reorg event
         // then `drop` it, to simulate a restart
         {
@@ -232,11 +237,55 @@ mod test {
                 .unwrap();
         }
 
+        let dummy_reorg_response = ReorgEventResponse {
+            exists: true,
+            event: Some(dummy_reorg_event.clone()),
+            content: Some(serde_json::to_string_pretty(&dummy_reorg_event).unwrap()),
+        };
+
         // Initialize a new checkpoint syncer and expect it to panic due to the reorg event.
         let result = checkpoint_syncer_conf.build_and_validate(None).await;
         match result {
-            Err(CheckpointSyncerBuildError::ReorgEvent(e)) => {
-                assert_eq!(e, dummy_reorg_event, "Reported reorg event doesn't match");
+            Err(CheckpointSyncerBuildError::ReorgFlag(e)) => {
+                assert_eq!(
+                    e, dummy_reorg_response,
+                    "Reported reorg response doesn't match"
+                );
+            }
+            _ => panic!("Expected a reorg response error"),
+        }
+    }
+
+    /// When we can't parse reorg_flag.json
+    #[tokio::test]
+    async fn test_build_and_validate_invalid_json() {
+        use super::*;
+
+        // initialize a local checkpoint store
+        let temp_checkpoint_dir = tempfile::tempdir().unwrap();
+        let checkpoint_path = format!("file://{}", temp_checkpoint_dir.path().to_str().unwrap());
+        let checkpoint_syncer_conf = CheckpointSyncerConf::from_str(&checkpoint_path).unwrap();
+
+        {
+            let mut reorg_flag_path = temp_checkpoint_dir.path().to_path_buf();
+            reorg_flag_path.push("reorg_flag.json");
+            let mut file = File::create(reorg_flag_path).unwrap();
+            file.write_all(b"abc").unwrap();
+        }
+
+        let dummy_reorg_response = ReorgEventResponse {
+            exists: true,
+            event: None,
+            content: Some("abc".to_string()),
+        };
+        // Initialize a new checkpoint syncer and expect it to panic due to the reorg event.
+        let result = checkpoint_syncer_conf.build_and_validate(None).await;
+        match result {
+            Err(CheckpointSyncerBuildError::ReorgFlag(e)) => {
+                assert_eq!(
+                    e, dummy_reorg_response,
+                    "Reported reorg event doesn't match"
+                );
             }
             _ => panic!("Expected a reorg event error"),
         }

@@ -19,7 +19,7 @@ use crate::FullPayload;
 use super::super::super::tests::MockEvmProvider;
 use super::super::super::transaction::Precursor;
 use super::super::super::EthereumAdapterMetrics;
-use super::super::tests::make_tx;
+use super::super::tests::dummy_tx;
 use super::super::updater::NonceUpdater;
 use super::super::NonceManagerState;
 use super::NonceManager;
@@ -54,7 +54,7 @@ async fn test_calculate_next_nonce_sets_nonce_when_none_present() {
     };
 
     let uuid = TransactionUuid::random();
-    let tx = make_tx(
+    let tx = dummy_tx(
         uuid.clone(),
         TransactionStatus::PendingInclusion,
         None,
@@ -81,7 +81,7 @@ async fn test_calculate_next_nonce_error_when_from_address_missing() {
 
     let uuid = TransactionUuid::random();
     // Address is not set
-    let tx = make_tx(
+    let tx = dummy_tx(
         uuid.clone(),
         TransactionStatus::PendingInclusion,
         None,
@@ -108,7 +108,7 @@ async fn test_calculate_next_nonce_error_when_from_address_mismatch() {
 
     let uuid = TransactionUuid::random();
     // From address does not match manager address
-    let tx = make_tx(
+    let tx = dummy_tx(
         uuid.clone(),
         TransactionStatus::PendingInclusion,
         None,

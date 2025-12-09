@@ -4,6 +4,9 @@ description: 'Run pnpm build using pnpm cache'
 runs:
   using: 'composite'
   steps:
+    - name: Setup Foundry
+      uses: ./.github/actions/setup-foundry
+
     - name: pnpm-cache
       id: pnpm-cache
       uses: ./.github/actions/pnpm-cache

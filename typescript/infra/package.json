@@ -1,7 +1,7 @@
 {
   "name": "@hyperlane-xyz/infra",
   "description": "Infrastructure utilities for the Hyperlane Network",
-  "version": "19.10.0",
+  "version": "19.11.0",
   "dependencies": {
     "@arbitrum/sdk": "^4.0.0",
     "@aws-sdk/client-iam": "^3.74.0",
@@ -18,7 +18,7 @@
     "@hyperlane-xyz/core": "workspace:*",
     "@hyperlane-xyz/helloworld": "workspace:*",
     "@hyperlane-xyz/http-registry-server": "workspace:*",
-    "@hyperlane-xyz/registry": "23.6.0",
+    "@hyperlane-xyz/registry": "23.7.0",
     "@hyperlane-xyz/sdk": "workspace:*",
     "@hyperlane-xyz/utils": "workspace:*",
     "@inquirer/input": "^1.0.0",

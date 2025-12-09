@@ -40,12 +40,22 @@ jobs:
       pull-requests: write
     runs-on: depot-ubuntu-latest
     steps:
+      # Generate token first so checkout configures git credentials with it
+      # This allows subsequent pushes to trigger workflows
+      - name: Generate GitHub App Token
+        id: generate-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.HYPER_GONK_APP_ID }}
+          private-key: ${{ secrets.HYPER_GONK_PRIVATE_KEY }}
+
       - name: Checkout Repo
         uses: actions/checkout@v5
         with:
           # check out full history
           fetch-depth: 0
           submodules: recursive
+          token: ${{ steps.generate-token.outputs.token }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -57,13 +67,6 @@ jobs:
 
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Generate GitHub App Token
-        id: generate-token
-        uses: actions/create-github-app-token@v2
-        with:
-          app-id: ${{ secrets.HYPER_GONK_APP_ID }}
-          private-key: ${{ secrets.HYPER_GONK_PRIVATE_KEY }}
 
       - name: Get GitHub App User ID
         id: get-user-id
@@ -80,8 +83,8 @@ jobs:
         id: changesets
         uses: changesets/action@v1
         with:
-          version: pnpm version:prepare
           title: 'chore: release npm packages'
+          version: pnpm version:prepare
           setupGitUser: false
         env:
           NPM_CONFIG_PROVENANCE: true
@@ -158,12 +161,22 @@ jobs:
       pull-requests: write
     runs-on: ubuntu-latest
     steps:
+      # Generate token first so checkout configures git credentials with it
+      # This allows subsequent pushes to trigger workflows
+      - name: Generate GitHub App Token
+        id: generate-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.HYPER_GONK_APP_ID }}
+          private-key: ${{ secrets.HYPER_GONK_PRIVATE_KEY }}
+
       - name: Checkout Repo
         uses: actions/checkout@v5
         with:
           # check out full history
           fetch-depth: 0
           submodules: recursive
+          token: ${{ steps.generate-token.outputs.token }}
 
       - name: Setup Node
         uses: actions/setup-node@v6
@@ -176,13 +189,25 @@ jobs:
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Get GitHub App User ID
+        id: get-user-id
+        run: echo "user-id=$(gh api /users/${{ steps.generate-token.outputs.app-slug }}[bot] --jq .id)" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
+
+      - name: Configure Git for Hyper Gonk
+        run: |
+          git config user.name "${{ steps.generate-token.outputs.app-slug }}[bot]"
+          git config user.email "${{ steps.get-user-id.outputs.user-id }}+${{ steps.generate-token.outputs.app-slug }}[bot]@users.noreply.github.com"
+
       - name: Publish Release to NPM
         id: changesets
         uses: changesets/action@v1
         with:
           version: pnpm version:prepare
           publish: pnpm release
+          setupGitUser: false
         env:
           NPM_CONFIG_PROVENANCE: true
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

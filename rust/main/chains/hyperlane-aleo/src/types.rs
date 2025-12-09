@@ -253,7 +253,8 @@ pub struct ProvingResponse {
     pub broadcast: Option<bool>,
 }
 
-#[derive(Debug)]
+/// Fee estimate for Aleo transactions
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct FeeEstimate {
     /// Base fee
     pub base_fee: u64,
@@ -263,10 +264,38 @@ pub struct FeeEstimate {
     pub total_fee: u64,
 }
 
+impl FeeEstimate {
+    /// Creates a new FeeEstimate with the total fee calculated automatically
+    ///
+    /// # Arguments
+    /// * `base_fee` - The base transaction fee in microcredits
+    /// * `priority_fee` - The priority fee in microcredits
+    ///
+    /// # Returns
+    /// A new FeeEstimate with total_fee = base_fee + priority_fee
+    ///
+    /// # Example
+    /// ```ignore
+    /// use hyperlane_aleo::types::FeeEstimate;
+    ///
+    /// let fee = FeeEstimate::new(1000, 100);
+    /// assert_eq!(fee.base_fee, 1000);
+    /// assert_eq!(fee.priority_fee, 100);
+    /// assert_eq!(fee.total_fee, 1100);
+    /// ```
+    pub fn new(base_fee: u64, priority_fee: u64) -> Self {
+        Self {
+            base_fee,
+            priority_fee,
+            total_fee: base_fee.saturating_add(priority_fee),
+        }
+    }
+}
+
 #[aleo_serialize]
 #[derive(Debug)]
 pub struct DeliveryKey {
-    /// Messaeg Id
+    /// Message ID
     pub id: AleoHash,
 }
 
@@ -287,3 +316,28 @@ pub struct StorageLocationKey {
     /// Index
     pub index: u8,
 }
+
+/// Data required to construct Aleo transaction
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct AleoTxData {
+    /// Program ID to call
+    pub program_id: String,
+    /// Function name to call on the program
+    pub function_name: String,
+    /// Input parameters for the function call
+    pub inputs: Vec<String>,
+}
+
+/// Data required to get mapping value by program and mapping key
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct AleoGetMappingValue {
+    /// Program ID to get mapping for
+    pub program_id: String,
+    /// Mapping name
+    pub mapping_name: String,
+    /// Mapping key
+    pub mapping_key: String,
+}
+
+#[cfg(test)]
+mod tests;
