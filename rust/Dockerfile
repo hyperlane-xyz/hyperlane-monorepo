@@ -57,25 +57,22 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     mkdir -p /release && \
     cp target/release/validator /release && \
     cp target/release/relayer /release && \
-    cp target/release/scraper /release
+    cp target/release/scraper /release && \
+    strip /release/*
 
 # -------- Runtime Image --------
 # Minimal runtime image containing config, binaries, and runtime dependencies
-FROM ubuntu:22.04
+FROM alpine:3.21
+RUN apk add --no-cache ca-certificates tini libgcc libcurl && \
+    mkdir -p /app /usr/share/hyperlane /data && \
+    chmod 777 /app && \
+    chmod 1000 /usr/share/hyperlane && \
+    chown -R 1000 /data
+
 WORKDIR /app
 COPY rust/main/config /app/config
 COPY rust/main/app-contexts /app/app-contexts
 COPY --from=builder /release/* .
-
-# Install runtime dependencies
-# remove /var/lib/apt/lists/* to clean up the package lists
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends openssl ca-certificates tini libcurl4 && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/* && \
-    chmod 777 /app && \
-    mkdir -p /usr/share/hyperlane && chmod 1000 /usr/share/hyperlane && \
-    mkdir -p /data && chown -R 1000 /data
 
 # Run as non-root user for security
 # Use tini as init system for proper process management
