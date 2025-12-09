@@ -492,13 +492,13 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
 
-      - name: yarn-build
-        uses: ./.github/actions/yarn-build-with-cache
+      - name: pnpm-build
+        uses: ./.github/actions/pnpm-build-with-cache
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Aleo SDK e2e tests
-        run: yarn --cwd typescript/aleo-sdk test:e2e
+        run: pnpm -C typescript/aleo-sdk test:e2e
 
   aleo-sdk-e2e:
     runs-on: ubuntu-latest
@@ -808,13 +808,13 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
 
+      - name: Setup Foundry
+        uses: ./.github/actions/setup-foundry
+
       - name: Build
         run: |
           pnpm install --frozen-lockfile
           pnpm build
-
-      - name: Setup Foundry
-        uses: ./.github/actions/setup-foundry
 
       - name: Run tests with coverage
         run: pnpm coverage

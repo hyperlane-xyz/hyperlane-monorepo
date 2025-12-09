@@ -16,7 +16,7 @@ on:
       - 'solidity/.foundryrc'
       - 'typescript/ccip-server/**'
       # Dependency changes that could affect the Docker build
-      - 'yarn.lock'
+      - 'pnpm-lock.yaml'
       - '**/package.json'
   workflow_dispatch:
     inputs:

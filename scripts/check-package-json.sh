@@ -8,9 +8,10 @@ EXPECTED_REPO="https://github.com/hyperlane-xyz/hyperlane-monorepo"
 EXPECTED_LICENSE="Apache-2.0"
 ERRORS=0
 
-# Get all workspace package.json files using yarn workspaces
-# Skip the root workspace (location ".")
-PACKAGE_FILES=$(yarn workspaces list --json 2>/dev/null | jq -r 'select(.location != ".") | .location + "/package.json"')
+# Get all workspace package.json files using pnpm workspaces
+# Skip the root workspace (current directory)
+# Pipeline: list workspaces as JSON -> extract paths -> filter out root -> convert to relative paths -> append /package.json
+PACKAGE_FILES=$(pnpm list -r --json --depth -1 2>/dev/null | jq -r '.[].path' | grep -v "^$(pwd)$" | sed "s|^$(pwd)/||" | sed 's|$|/package.json|')
 
 echo "Checking package.json fields..."
 
@@ -80,7 +81,7 @@ if [ $ERRORS -gt 0 ]; then
     echo "  \"repository\": \"$EXPECTED_REPO\""
     echo "  \"license\": \"$EXPECTED_LICENSE\""
     echo ""
-    echo "For Dockerfile issues, add missing COPY statements before 'yarn install'."
+    echo "For Dockerfile issues, add missing COPY statements before 'pnpm install'."
     exit 1
 fi
 
