@@ -42,6 +42,25 @@ jobs:
     # uses check-env to determine if secrets.GCLOUD_SERVICE_KEY is defined
     needs: [check-env]
     if: needs.check-env.outputs.gcloud-service-key == 'true'
+
+    strategy:
+      matrix:
+        include:
+          # Individual agent images (smaller, single binary)
+          - target: validator
+            image: gcr.io/abacus-labs-dev/hyperlane-agent-validator
+            emoji: "✍️"
+          - target: relayer
+            image: gcr.io/abacus-labs-dev/hyperlane-agent-relayer
+            emoji: "🚀"
+          - target: scraper
+            image: gcr.io/abacus-labs-dev/hyperlane-agent-scraper
+            emoji: "📊"
+          # Combined image (backwards compatible, all binaries)
+          - target: agent
+            image: gcr.io/abacus-labs-dev/hyperlane-agent
+            emoji: "🦀"
+
     steps:
       - name: Generate GitHub App Token
         id: generate-token
@@ -82,7 +101,7 @@ jobs:
         with:
           # list of Docker images to use as base name for tags
           images: |
-            gcr.io/abacus-labs-dev/hyperlane-agent
+            ${{ matrix.image }}
           # generate Docker tags based on the following events/attributes
           tags: |
             type=ref,event=branch
@@ -114,6 +133,7 @@ jobs:
           project: czmkmn2km1
           context: .
           file: ./rust/Dockerfile
+          target: ${{ matrix.target }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -123,9 +143,9 @@ jobs:
         if: github.event_name == 'pull_request' && always()
         uses: ./.github/actions/docker-image-comment
         with:
-          comment_tag: rust-agent-docker-image
-          image_name: Rust Agent Docker Image
-          emoji: 🦀
+          comment_tag: rust-${{ matrix.target }}-docker-image
+          image_name: ${{ matrix.target }} image
+          emoji: ${{ matrix.emoji }}
           image_tags: ${{ steps.meta.outputs.tags }}
           pr_number: ${{ github.event.pull_request.number }}
           github_token: ${{ steps.generate-token.outputs.token }}
