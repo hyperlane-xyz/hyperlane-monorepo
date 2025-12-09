@@ -115,7 +115,7 @@ contract DomainRoutingIsm is
      * @notice Removes the specified origin domain's ISM
      * @param _domain The origin domain
      */
-    function _remove(uint32 _domain) internal {
+    function _remove(uint32 _domain) internal virtual {
         require(_modules.remove(_domain), _originNotFoundError(_domain));
     }
 

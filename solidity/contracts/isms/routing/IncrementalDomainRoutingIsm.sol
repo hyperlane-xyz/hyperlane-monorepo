@@ -8,18 +8,16 @@ import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
 /**
  * @title IncrementalDomainRoutingIsm
- * @notice A DomainRoutingIsm variant that prevents overwriting existing domain configurations
- * @dev Reverts when attempting to set a domain that already exists. Use remove() first to update.
+ * @notice A DomainRoutingIsm variant that enforces append-only domain configurations
+ * @dev Reverts when attempting to set a domain that already exists or remove any domain.
  */
 contract IncrementalDomainRoutingIsm is DomainRoutingIsm {
     using EnumerableMapExtended for EnumerableMapExtended.UintToBytes32Map;
     using Strings for uint32;
 
     /**
-     * @notice Sets the ISM to be used for the specified origin domain
+     * @inheritdoc DomainRoutingIsm
      * @dev Reverts if the domain already exists in the routing table
-     * @param _domain The origin domain
-     * @param _module The ISM to use to verify messages
      */
     function _set(uint32 _domain, address _module) internal override {
         require(
@@ -27,5 +25,13 @@ contract IncrementalDomainRoutingIsm is DomainRoutingIsm {
             string.concat("Domain already exists: ", _domain.toString())
         );
         super._set(_domain, _module);
+    }
+
+    /**
+     * @inheritdoc DomainRoutingIsm
+     * @dev Always reverts - IncrementalDomainRoutingIsm does not support removal
+     */
+    function _remove(uint32 /*_domain*/) internal override {
+        revert("IncrementalDomainRoutingIsm: removal not supported");
     }
 }
