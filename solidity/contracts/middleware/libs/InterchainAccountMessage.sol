@@ -74,7 +74,7 @@ library InterchainAccountMessage {
     function encode(
         address _owner,
         bytes32 _ism,
-        CallLib.Call[] calldata _calls,
+        CallLib.Call[] memory _calls,
         bytes32 _userSalt
     ) internal pure returns (bytes memory) {
         return
@@ -92,7 +92,7 @@ library InterchainAccountMessage {
     function encode(
         bytes32 _owner,
         bytes32 _ism,
-        CallLib.Call[] calldata _calls,
+        CallLib.Call[] memory _calls,
         bytes32 _userSalt
     ) internal pure returns (bytes memory) {
         bytes memory prefix = abi.encodePacked(
@@ -162,6 +162,12 @@ library InterchainAccountMessage {
         bytes calldata _message
     ) internal pure returns (CallLib.Call[] memory) {
         return abi.decode(_message[97:], (CallLib.Call[]));
+    }
+
+    function callsRaw(
+        bytes calldata _message
+    ) internal pure returns (bytes memory) {
+        return _message[97:];
     }
 
     function commitment(
