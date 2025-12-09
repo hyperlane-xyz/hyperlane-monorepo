@@ -31,18 +31,19 @@ Share the generated address with Dymension team.
 The validator only supports 'vanilla' cosmos key type, i.e. `/cosmos.crypto.secp256k1.PubKey`. It doesn't support `ethermint.crypto.v1.ethsecp256k1.PubKey`.
 
 ```bash
-dymd keys add dymension-validator --key-type secp256k1
-dymd keys export dymension-validator --unarmored-hex --unsafe
+dymd keys add hyperlane-announcement --key-type secp256k1 --keyring-backend test
+dymd keys export hyperlane-announcement --unarmored-hex --unsafe --keyring-backend test
+
+# save the exported key for later use. It will be necessary in the validator-config.json file
 ```
 
-Fund the `dymension-validator` key with a small amount of DYM tokens (<1 DYM). This address will be used to submit the `MsgAnnounceValidator` message to the Hub.
+Fund the `hyperlane-announcement` key with a small amount of DYM tokens (<1 DYM). This address will be used to submit the `MsgAnnounceValidator` message to the Hub.
 
 ### PHASE 2: CONFIG POPULATION AND RUNNING
 
 #### Config
-
-Set the `.signer.key` in the dymension sub object in the config. Make sure there is a `0x` prefix. It should look like
-
+- Open `validator-config.json`
+- Use the private key of `hyperlane-announcement` we got above, set into the `.chains.dymension.signer.key`, make sure there is a `0x` prefix. It should look like
 ```json
 {
     "chains": {
@@ -55,8 +56,17 @@ Set the `.signer.key` in the dymension sub object in the config. Make sure there
           "accountAddressType": "Bitcoin"
         }
 ```
-
-Remove the `.validator` sub object from the config (its only for AWS) and instead append `--validator.key` to the run cmd as instructed [here](https://docs.hyperlane.xyz/docs/operate/validators/run-validators#checkpoint-signer-configuration)
+- [Configure S3 Bucket](https://docs.hyperlane.xyz/docs/operate/validators/validator-signatures-aws) and set
+```json
+// in the TOP LEVEL object
+    "checkpointSyncer": {
+        "type": "s3",
+        "bucket": "<s3_bucket_name>",
+        "region": "<s3_bucket_region>"
+    }
+```
+- Remove the `.validator` sub object from the config (its only for AWS)
+- Later provide flag `--validator.key` with the Ethereum style private key (not the Hyperlane Announcement) to the run cmd as instructed [here](https://docs.hyperlane.xyz/docs/operate/validators/run-validators#checkpoint-signer-configuration), make sure there is a `0x` prefix.
 
 #### Running
 
@@ -179,7 +189,7 @@ Update all placeholders inside and `${HOME}/dym/config/validator-config.json` fi
     }
 ```
 
-2. Add the s3 compatible bucket for storing signatures
+2. Add the [s3 compatible bucket](https://docs.hyperlane.xyz/docs/operate/validators/validator-signatures-aws) for storing signatures
 
 ```json
 // in the TOP LEVEL object
