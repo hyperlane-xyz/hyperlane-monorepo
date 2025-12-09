@@ -4,9 +4,9 @@ import { stringify as yamlStringify } from 'yaml';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import { AltVMWarpModule } from '@hyperlane-xyz/deploy-sdk';
 import {
+  AltVMJsonRpcTxSubmitter,
   GasAction,
   ProtocolType,
-  getProtocolProvider,
 } from '@hyperlane-xyz/provider-sdk';
 import {
   AddWarpRouteConfigOptions,
@@ -1036,17 +1036,7 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
         },
         [protocol]: {
           jsonRpc: () => {
-            const { type } = strategyToUse.submitter;
-            assert(
-              type === 'jsonRpc',
-              `Invalid metadata type: ${type}, expected ${TxSubmitterType.JSON_RPC}`,
-            );
-
-            assert(strategyToUse.submitter.privateKey, '');
-            return getProtocolProvider(protocol).createSubmitter(
-              context.chainMetadata[chain],
-              { ...strategyToUse.submitter, privateKey: 'TODO' }, // @TODO wait for PR to persist signers
-            );
+            return new AltVMJsonRpcTxSubmitter(signer, { chain });
           },
           [CustomTxSubmitterType.FILE]: (
             _multiProvider: MultiProvider,
