@@ -86,7 +86,7 @@ const chainProtocolFee: Record<ChainName, string> = {
   mode: '400000000000000',
   optimism: '400000000000000',
   sei: '798889224400000000',
-  swell: '400000000000000',
+  swell: '129871800000000',
   taiko: '400000000000000',
   unichain: '400000000000000',
   worldchain: '400000000000000',
@@ -349,6 +349,10 @@ export const ezEthValidators: ChainMap<MultisigConfig> = {
   stable: {
     threshold: 1,
     validators: [
+      {
+        address: '0x1dc20ef3c95458bdaf5df286e14d15c3a1ab51f1',
+        alias: 'Luganodes',
+      },
       { address: '0xA62f727Fc4700Fcb65668a30932eB59f8d625FAC', alias: 'Renzo' },
     ],
   },
