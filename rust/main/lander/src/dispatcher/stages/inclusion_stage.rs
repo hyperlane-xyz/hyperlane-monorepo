@@ -9,6 +9,7 @@ use derive_new::new;
 use eyre::{eyre, Result};
 use futures_util::future::try_join_all;
 use futures_util::try_join;
+use hyperlane_core::HyperlaneDomain;
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::sleep;
 use tracing::{error, info, info_span, instrument, warn, Instrument};
@@ -178,7 +179,13 @@ impl InclusionStage {
                 Self::try_process_tx(tx.clone(), finality_stage_sender, state, pool).await
             {
                 error!(?err, ?tx, "Error processing transaction. Dropping it");
-                Self::drop_tx(state, &mut tx, TxDropReason::FailedSimulation, pool).await?;
+
+                let drop_reason = match &err {
+                    LanderError::TxDropped(reason) => reason.clone(),
+                    _ => TxDropReason::FailedSimulation,
+                };
+                Self::drop_tx(state, &mut tx, drop_reason, pool).await?;
+                Self::update_inclusion_stage_metric(state, &domain, &err);
             }
         }
         Ok(())
@@ -483,5 +490,13 @@ impl InclusionStage {
         update_tx_status(state, tx, new_tx_status.clone()).await?;
         pool.lock().await.remove(&tx.uuid);
         Ok(())
+    }
+
+    fn update_inclusion_stage_metric(state: &DispatcherState, domain: &str, err: &LanderError) {
+        state.metrics.update_inclusion_stage_error_metric(
+            domain,
+            &err.to_metrics_label(),
+            err.is_infra_error(),
+        )
     }
 }

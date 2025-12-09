@@ -48,7 +48,7 @@ impl LanderError {
             NetworkError(_) => "NetworkError".to_string(),
             TxSubmissionError(_) => "TxSubmissionError".to_string(),
             TxAlreadyExists => "TxAlreadyExists".to_string(),
-            TxDropped(_) => "TxDropped".to_string(),
+            TxDropped(reason) => format!("TxDropped-{}", reason.to_metrics_label()),
             TxGasCapReached => "TxGasCapReached".to_string(),
             TxHashNotFound(_) => "TxHashNotFound".to_string(),
             ChannelSendFailure(_) => "ChannelSendFailure".to_string(),
@@ -60,6 +60,22 @@ impl LanderError {
             NonRetryableError(_) => "NonRetryableError".to_string(),
             DbError(_) => "DbError".to_string(),
             ChainCommunicationError(_) => "ChainCommunicationError".to_string(),
+        }
+    }
+
+    pub fn is_infra_error(&self) -> bool {
+        use LanderError::*;
+
+        match self {
+            ChainCommunicationError(_)
+            | ChannelSendFailure(_)
+            | ChannelClosed
+            | NetworkError(_)
+            | TxSubmissionError(_)
+            | DbError(_) => true,
+            NonRetryableError(_) | EstimationFailed | SimulationFailed(_) | PayloadNotFound
+            | TxDropped(_) | TxGasCapReached | TxHashNotFound(_) | TxAlreadyExists
+            | EyreError(_) => false,
         }
     }
 }
