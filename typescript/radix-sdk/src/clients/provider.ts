@@ -132,6 +132,7 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
       this.networkId,
       this.gateway,
       options.gasMultiplier ?? DEFAULT_GAS_MULTIPLIER,
+      this.packageAddress,
     );
 
     this.query = {
