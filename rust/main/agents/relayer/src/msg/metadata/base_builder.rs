@@ -159,7 +159,14 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
     }
 
     async fn highest_known_leaf_index(&self) -> Option<u32> {
-        self.origin_prover_sync.read().await.count().checked_sub(1)
+        let count = self.origin_prover_sync.read().await.count();
+        if count == 0 {
+            debug!(
+                origin_domain = self.origin_domain.name(),
+                "Merkle tree is empty for origin chain. Tree sync may not have started or RPC may be unreachable."
+            );
+        }
+        count.checked_sub(1)
     }
 
     async fn get_merkle_leaf_id_by_message_id(

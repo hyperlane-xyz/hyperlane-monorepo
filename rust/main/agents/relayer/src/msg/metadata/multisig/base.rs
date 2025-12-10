@@ -253,13 +253,30 @@ async fn metadata_build<T: MultisigIsmMetadataBuilder>(
         .await
         .map_err(|err| MetadataBuildError::FailedToBuild(format!("fetch_metadata error: {}", err)))?
         .ok_or_else(|| {
-            let error_msg =
-                "Unable to reach quorum (no validators returned valid checkpoints in range)";
+            let origin_domain = ism_builder.as_ref().base_builder().origin_domain().name();
+            let dest_domain = ism_builder
+                .as_ref()
+                .base_builder()
+                .destination_domain()
+                .name();
+            let error_msg = format!(
+                "Unable to reach quorum (no validators returned valid checkpoints in range). \
+                Origin: {}, Destination: {}. \
+                Common causes: (1) Merkle tree not synced - check origin chain RPC connectivity, \
+                (2) Validators haven't signed checkpoints for this message yet, \
+                (3) Not enough validators ({}/{}) have announced storage locations. \
+                See preceding log messages for details.",
+                origin_domain,
+                dest_domain,
+                threshold,
+                validators.len()
+            );
             info!(
                 hyp_message=?message, ?validators, threshold, ism=%multisig_ism.address(),
+                origin_domain, dest_domain,
                 "Could not fetch metadata: {}", error_msg
             );
-            MetadataBuildError::FailedToBuild(error_msg.to_string())
+            MetadataBuildError::FailedToBuild(error_msg)
         })?;
 
     debug!(hyp_message=?message, ?metadata.checkpoint, "Found checkpoint with quorum");

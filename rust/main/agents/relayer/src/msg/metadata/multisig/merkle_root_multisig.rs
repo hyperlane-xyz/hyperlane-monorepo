@@ -7,7 +7,7 @@ use derive_new::new;
 use eyre::Result;
 use hyperlane_base::MultisigCheckpointSyncer;
 use hyperlane_core::{unwrap_or_none_result, HyperlaneMessage, ModuleType, H256};
-use tracing::info;
+use tracing::{error, info};
 
 use crate::msg::metadata::{MessageMetadataBuilder, MetadataBuildError};
 
@@ -40,11 +40,17 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
         message: &HyperlaneMessage,
         checkpoint_syncer: &MultisigCheckpointSyncer,
     ) -> Result<Option<MultisigMetadata>, MetadataBuildError> {
+        let origin_domain = self.base_builder().origin_domain().name();
+
         let highest_leaf_index = unwrap_or_none_result!(
             self.base_builder().highest_known_leaf_index().await,
-            info!(
+            error!(
                 hyp_message=?message,
-                "Couldn't get highest known leaf index"
+                origin_domain,
+                "MERKLE TREE NOT SYNCED: The local merkle tree for origin chain '{}' is empty or not yet synced. \
+                This typically means the relayer cannot reach the origin chain RPC to sync the merkle tree. \
+                Check the origin chain RPC connection and ensure the MerkleTreeHookSync task is running successfully.",
+                origin_domain
             )
         );
         let leaf_index = unwrap_or_none_result!(
@@ -54,7 +60,12 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
                 .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?,
             info!(
                 hyp_message=?message,
-                "No merkle leaf found for message id, must have not been enqueued in the tree"
+                origin_domain,
+                highest_leaf_index,
+                "No merkle leaf found for message id in local tree. Message may not yet be indexed. \
+                Local tree has synced up to leaf index: {}. Origin chain: {}",
+                highest_leaf_index,
+                origin_domain
             )
         );
         let quorum_checkpoint = unwrap_or_none_result!(
@@ -70,11 +81,18 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
                 .await
                 .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?,
             info!(
+                origin_domain,
                 leaf_index,
                 highest_leaf_index,
                 threshold,
                 validators_count = validators.len(),
-                "No quorum checkpoint found in range"
+                "No quorum checkpoint found in range [{}, {}]. \
+                Validators may not have signed checkpoints covering this message yet, \
+                or not enough validators ({}/{} required) have announced storage locations.",
+                leaf_index,
+                highest_leaf_index,
+                threshold,
+                validators.len()
             )
         );
         let proof = self
