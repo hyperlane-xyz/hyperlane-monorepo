@@ -63,6 +63,7 @@ import {
   getEnvironmentConfig,
   getHyperlaneCore,
 } from '../../scripts/core-utils.js';
+import { legacyEthIcaRouter } from '../config/chain.js';
 import { DeployEnvironment } from '../config/environment.js';
 import { tokens } from '../config/warp.js';
 import {
@@ -124,6 +125,13 @@ const ownableFunctionSelectors = [
   'renounceOwnership()',
   'transferOwnership(address)',
 ].map((func) => ethers.utils.id(func).substring(0, 10));
+
+// Legacy ETH ICA router interface - has different callRemoteWithOverrides signature
+// Legacy: callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)
+// Current: callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[])
+const legacyIcaInterface = new ethers.utils.Interface([
+  'function callRemoteWithOverrides(uint32 _destination, bytes32 _router, bytes32 _ism, tuple(bytes32,uint256,bytes)[] _calls, bytes _hookMetadata) payable returns (bytes32)',
+]);
 
 export class GovernTransactionReader {
   errors: any[] = [];
@@ -299,6 +307,11 @@ export class GovernTransactionReader {
       return this.readMultisendTransaction(chain, tx);
     }
 
+    // If it's an ERC20 transaction (check before warp module since HypERC20 tokens are also ERC20)
+    if (this.isErc20Transaction(chain, tx)) {
+      return this.readErc20Transaction(chain, tx);
+    }
+
     // If it's a Warp Module transaction
     if (this.isWarpModuleTransaction(chain, tx)) {
       return this.readWarpModuleTransaction(chain, tx);
@@ -313,11 +326,6 @@ export class GovernTransactionReader {
     const xerc20Type = await this.isXERC20Transaction(chain, tx);
     if (xerc20Type) {
       return this.readXERC20Transaction(chain, tx, xerc20Type);
-    }
-
-    // If it's an ERC20 transaction
-    if (this.isErc20Transaction(chain, tx)) {
-      return this.readErc20Transaction(chain, tx);
     }
 
     // If it's to a Proxy Admin
@@ -345,25 +353,40 @@ export class GovernTransactionReader {
     };
   }
 
+  // ERC20 function selectors
+  private static readonly ERC20_SELECTORS = new Set([
+    '0xa9059cbb', // transfer(address,uint256)
+    '0x095ea7b3', // approve(address,uint256)
+    '0x23b872dd', // transferFrom(address,address,uint256)
+    '0x39509351', // increaseAllowance(address,uint256)
+    '0xa457c2d7', // decreaseAllowance(address,uint256)
+  ]);
+
   private isErc20Transaction(
     chain: ChainName,
     tx: AnnotatedEV5Transaction,
   ): boolean {
-    if (!tx.to) {
+    if (!tx.to || !tx.data) {
       return false;
     }
 
+    // First check if the function selector matches an ERC20 function
+    const selector = tx.data.slice(0, 10).toLowerCase();
+    if (!GovernTransactionReader.ERC20_SELECTORS.has(selector)) {
+      return false;
+    }
+
+    // Then check if the target is a known token OR a warp route (HypERC20 tokens are also ERC20)
     const chainTokens = tokens[chain as keyof typeof tokens];
-    if (!chainTokens) {
-      return false;
-    }
+    const isKnownToken =
+      chainTokens &&
+      Object.values(chainTokens).some((address) => eqAddress(tx.to!, address));
 
-    for (const address of Object.values(chainTokens)) {
-      if (eqAddress(tx.to, address)) {
-        return true;
-      }
-    }
-    return false;
+    const isWarpRoute =
+      this.warpRouteIndex[chain] !== undefined &&
+      this.warpRouteIndex[chain][tx.to.toLowerCase()] !== undefined;
+
+    return isKnownToken || isWarpRoute;
   }
 
   private async readErc20Transaction(
@@ -903,6 +926,11 @@ export class GovernTransactionReader {
     chain: ChainName,
     tx: AnnotatedEV5Transaction,
   ): Promise<GovernTransaction> {
+    // Route to legacy handler if using legacy ETH ICA router
+    if (this.isLegacyEthIcaRouter(tx)) {
+      return this.readLegacyEthIcaTransaction(chain, tx);
+    }
+
     if (!tx.data) {
       throw new Error('No data in ICA transaction');
     }
@@ -957,6 +985,45 @@ export class GovernTransactionReader {
 
     return {
       to: `ICA Router (${chain} ${this.chainAddresses[chain].interchainAccountRouter})`,
+      value: `${ethers.utils.formatEther(decoded.value)} ${symbol}`,
+      signature: decoded.signature,
+      args: prettyArgs,
+      chain,
+    };
+  }
+
+  /**
+   * Reads a legacy ETH ICA router transaction.
+   * The legacy router uses a different function signature:
+   * callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)
+   * vs the current router's:
+   * callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[])
+   */
+  private async readLegacyEthIcaTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): Promise<GovernTransaction> {
+    if (!tx.data) {
+      throw new Error('No data in legacy ICA transaction');
+    }
+    const { symbol } = await this.multiProvider.getNativeToken(chain);
+    const decoded = legacyIcaInterface.parseTransaction({
+      data: tx.data,
+      value: tx.value,
+    });
+
+    const args = formatFunctionFragmentArgs(
+      decoded.args,
+      decoded.functionFragment,
+    );
+    let prettyArgs = args;
+
+    if (decoded.functionFragment.name === 'callRemoteWithOverrides') {
+      prettyArgs = await this.readIcaRemoteCall(chain, args);
+    }
+
+    return {
+      to: `ICA Router (Legacy) (${chain} ${legacyEthIcaRouter})`,
       value: `${ethers.utils.formatEther(decoded.value)} ${symbol}`,
       signature: decoded.signature,
       args: prettyArgs,
@@ -1395,10 +1462,20 @@ export class GovernTransactionReader {
   }
 
   isIcaTransaction(chain: ChainName, tx: AnnotatedEV5Transaction): boolean {
-    return (
-      tx.to !== undefined &&
-      eqAddress(tx.to, this.chainAddresses[chain].interchainAccountRouter)
+    if (tx.to === undefined) return false;
+
+    const isCurrentRouter = eqAddress(
+      tx.to,
+      this.chainAddresses[chain].interchainAccountRouter,
     );
+    // Check for legacy ETH ICA router (used for legacy ICA chains like arcadia)
+    const isLegacyEthRouter = eqAddress(tx.to, legacyEthIcaRouter);
+
+    return isCurrentRouter || isLegacyEthRouter;
+  }
+
+  isLegacyEthIcaRouter(tx: AnnotatedEV5Transaction): boolean {
+    return tx.to !== undefined && eqAddress(tx.to, legacyEthIcaRouter);
   }
 
   isMailboxTransaction(chain: ChainName, tx: AnnotatedEV5Transaction): boolean {

@@ -10,6 +10,7 @@ import {
   objMap,
   rootLogger,
 } from '@hyperlane-xyz/utils';
+import { readJsonFromDir } from '@hyperlane-xyz/utils/fs';
 
 import { Contexts } from '../../config/contexts.js';
 import { helloworld } from '../../config/environments/helloworld.js';
@@ -26,7 +27,6 @@ import {
   execCmd,
   getInfraPath,
   isEthereumProtocolChain,
-  readJSON,
   writeAndFormatJsonAtPath,
 } from '../utils/utils.js';
 
@@ -641,7 +641,7 @@ export async function persistValidatorAddressesToLocalArtifacts(
 
 export function fetchLocalKeyAddresses(role: Role): LocalRoleAddresses {
   try {
-    const addresses: LocalRoleAddresses = readJSON(
+    const addresses: LocalRoleAddresses = readJsonFromDir(
       CONFIG_DIRECTORY_PATH,
       `${role}.json`,
     );

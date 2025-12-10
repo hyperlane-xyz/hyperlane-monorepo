@@ -152,6 +152,7 @@ jobs:
   # This job publishes the release to NPM.
   publish-release:
     needs: cli-install-cross-platform-release-test
+    if: github.ref == 'refs/heads/main'
     permissions:
       id-token: write
       contents: write
@@ -179,6 +180,9 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
+
+      - name: Setup Foundry
+        uses: ./.github/actions/setup-foundry
 
       - name: Install Dependencies
         run: yarn install --immutable
