@@ -52,8 +52,13 @@ const logger = rootLogger.child({ module: 'IsmUtils' });
 export function calculateDomainRoutingDelta(
   current: DomainRoutingIsmConfig,
   target: DomainRoutingIsmConfig,
-): { domainsToEnroll: ChainName[]; domainsToUnenroll: ChainName[] } {
+): {
+  domainsToEnroll: ChainName[];
+  domainsToUnenroll: ChainName[];
+  domainsToUpdate: ChainName[];
+} {
   const domainsToEnroll = [];
+  const domainsToUpdate = [];
   for (const origin of Object.keys(target.domains)) {
     if (!current.domains[origin]) {
       domainsToEnroll.push(origin);
@@ -62,7 +67,10 @@ export function calculateDomainRoutingDelta(
         current.domains[origin],
         target.domains[origin],
       );
-      if (!subModuleMatches) domainsToEnroll.push(origin);
+      if (!subModuleMatches) {
+        domainsToEnroll.push(origin);
+        domainsToUpdate.push(origin);
+      }
     }
   }
 
@@ -76,9 +84,12 @@ export function calculateDomainRoutingDelta(
     [] as ChainName[],
   );
 
+  domainsToUpdate.push(...domainsToUnenroll);
+
   return {
     domainsToEnroll,
     domainsToUnenroll,
+    domainsToUpdate,
   };
 }
 

@@ -147,7 +147,8 @@ export class EvmIsmModule extends HyperlaneModule<
     if (
       targetConfig.type !== IsmType.PAUSABLE &&
       targetConfig.type !== IsmType.ROUTING &&
-      targetConfig.type !== IsmType.FALLBACK_ROUTING
+      targetConfig.type !== IsmType.FALLBACK_ROUTING &&
+      targetConfig.type !== IsmType.INCREMENTAL_ROUTING
     ) {
       throw new Error(`Unsupported ISM type ${targetConfig.type}`);
     }
@@ -162,8 +163,20 @@ export class EvmIsmModule extends HyperlaneModule<
     let updateTxs: AnnotatedEV5Transaction[] = [];
     if (
       targetConfig.type === IsmType.ROUTING ||
-      targetConfig.type === IsmType.FALLBACK_ROUTING
+      targetConfig.type === IsmType.FALLBACK_ROUTING ||
+      targetConfig.type === IsmType.INCREMENTAL_ROUTING
     ) {
+      if (targetConfig.type === IsmType.INCREMENTAL_ROUTING) {
+        const hasUpdates =
+          calculateDomainRoutingDelta(currentConfig, targetConfig)
+            .domainsToUpdate.length > 0;
+        if (hasUpdates) {
+          const contract = await this.deploy({ config: targetConfig });
+          this.args.addresses.deployedIsm = contract.address;
+          return [];
+        }
+      }
+
       updateTxs = await this.updateRoutingIsm({
         current: currentConfig,
         target: targetConfig,

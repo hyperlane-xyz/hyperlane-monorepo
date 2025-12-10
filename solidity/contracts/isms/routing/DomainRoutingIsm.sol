@@ -3,7 +3,7 @@ pragma solidity >=0.8.0;
 
 // ============ External Imports ============
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
-import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
 // ============ Internal Imports ============
@@ -19,7 +19,7 @@ import {PackageVersioned} from "../../PackageVersioned.sol";
  */
 contract DomainRoutingIsm is
     AbstractRoutingIsm,
-    OwnableUpgradeable,
+    AccessControlUpgradeable,
     PackageVersioned
 {
     using EnumerableMapExtended for EnumerableMapExtended.UintToBytes32Map;
@@ -32,6 +32,10 @@ contract DomainRoutingIsm is
     // ============ Mutable Storage ============
     EnumerableMapExtended.UintToBytes32Map internal _modules;
 
+    // ============ Constants ============
+    bytes32 public constant SET_ROLE = keccak256("SET_ROLE");
+    bytes32 public constant ADD_ROLE = keccak256("ADD_ROLE");
+
     // ============ Structs ============
     struct DomainModule {
         uint32 domain;
@@ -41,31 +45,33 @@ contract DomainRoutingIsm is
     // ============ External Functions ============
 
     /**
-     * @param _owner The owner of the contract.
+     * @param _admin The admin of the contract.
      */
-    function initialize(address _owner) public initializer {
-        __Ownable_init();
-        _transferOwnership(_owner);
+    function initialize(address _admin) public initializer {
+        __AccessControl_init();
+        _grantRole(DEFAULT_ADMIN_ROLE, _admin);
     }
 
     /**
      * @notice Sets the ISMs to be used for the specified origin domains
-     * @param _owner The owner of the contract.
+     * @param _admin The admin of the contract.
      * @param _domains The origin domains
      * @param __modules The ISMs to use to verify messages
      */
     function initialize(
-        address _owner,
+        address _admin,
         uint32[] calldata _domains,
         IInterchainSecurityModule[] calldata __modules
     ) public initializer {
-        __Ownable_init();
+        __AccessControl_init();
         require(_domains.length == __modules.length, "length mismatch");
         uint256 _length = _domains.length;
         for (uint256 i = 0; i < _length; ++i) {
             _set(_domains[i], address(__modules[i]));
         }
-        _transferOwnership(_owner);
+        _grantRole(DEFAULT_ADMIN_ROLE, _admin);
+        _grantRole(SET_ROLE, _admin);
+        _grantRole(ADD_ROLE, _admin);
     }
 
     /**
@@ -76,13 +82,13 @@ contract DomainRoutingIsm is
     function set(
         uint32 _domain,
         IInterchainSecurityModule _module
-    ) external onlyOwner {
+    ) external onlyRole(SET_ROLE) {
         _set(_domain, address(_module));
     }
 
     function setBatch(
         DomainModule[] calldata _domainModules
-    ) external onlyOwner {
+    ) external onlyRole(SET_ROLE) {
         _set(_domainModules);
     }
 
@@ -96,13 +102,13 @@ contract DomainRoutingIsm is
     function add(
         uint32 _domain,
         IInterchainSecurityModule _module
-    ) external onlyOwner {
+    ) external onlyRole(ADD_ROLE) {
         _add(_domain, address(_module));
     }
 
     function addBatch(
         DomainModule[] calldata _domainModules
-    ) external onlyOwner {
+    ) external onlyRole(ADD_ROLE) {
         for (uint256 i = 0; i < _domainModules.length; ++i) {
             _add(_domainModules[i].domain, address(_domainModules[i].module));
         }
@@ -112,13 +118,13 @@ contract DomainRoutingIsm is
      * @notice Removes the specified origin domain
      * @param _domain The origin domain
      */
-    function remove(uint32 _domain) external onlyOwner {
+    function remove(uint32 _domain) external onlyRole(SET_ROLE) {
         _remove(_domain);
     }
 
     function removeBatch(
         DomainModule[] calldata _domainModules
-    ) external onlyOwner {
+    ) external onlyRole(SET_ROLE) {
         for (uint256 i = 0; i < _domainModules.length; ++i) {
             _remove(_domainModules[i].domain);
         }
