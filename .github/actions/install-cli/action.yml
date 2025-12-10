@@ -30,17 +30,13 @@ runs:
       shell: bash
       run: |
         pnpm install --frozen-lockfile
-        pnpm build
+        pnpm run build
 
     - name: Pack the CLI
       shell: bash
       id: pack-cli
-      run: |
-        cd typescript/cli
-        pnpm pack
+      run: pnpm -C typescript/cli pack
 
     - name: Install the packaged CLI
       shell: bash
-      run: |
-        cd typescript/cli
-        npm i -g hyperlane-xyz-cli-*.tgz
+      run: npm i -g typescript/cli/hyperlane-xyz-cli-*.tgz

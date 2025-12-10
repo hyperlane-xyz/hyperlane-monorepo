@@ -47,7 +47,7 @@ jobs:
 
       # Check for mismatched dep versions across the monorepo
       - name: syncpack
-        run: pnpm syncpack list-mismatches
+        run: pnpm exec syncpack list-mismatches
 
       # Check publishable packages have required fields for npm provenance
       - name: check-package-json
@@ -70,7 +70,7 @@ jobs:
         uses: ./.github/actions/pnpm-build-with-cache
 
       - name: lint
-        run: pnpm lint
+        run: pnpm run lint
 
       - name: Get changed PR files
         if: github.event_name == 'pull_request'
@@ -159,7 +159,7 @@ jobs:
         uses: ./.github/actions/checkout-registry
 
       - name: Unit Tests
-        run: pnpm test:ci
+        run: pnpm run test:ci
 
   pnpm-test:
     runs-on: ubuntu-latest
@@ -812,10 +812,10 @@ jobs:
       - name: Build
         run: |
           pnpm install --frozen-lockfile
-          pnpm build
+          pnpm run build
 
       - name: Run tests with coverage
-        run: pnpm coverage
+        run: pnpm run coverage
         env:
           NODE_OPTIONS: --max_old_space_size=4096
 

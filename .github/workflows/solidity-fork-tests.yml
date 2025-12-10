@@ -52,4 +52,4 @@ jobs:
 
       - name: Run Fork Tests
         working-directory: ./solidity
-        run: pnpm test:fork
+        run: pnpm run test:fork

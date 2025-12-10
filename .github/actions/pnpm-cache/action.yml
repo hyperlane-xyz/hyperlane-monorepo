@@ -30,14 +30,14 @@ runs:
     - name: Get pnpm store directory
       id: pnpm-store
       shell: bash
-      run: echo "path=$(pnpm store path)" >> $GITHUB_OUTPUT
+      run: echo "store_path=$(pnpm store path)" >> $GITHUB_OUTPUT
 
     - name: Cache (Buildjet)
       id: buildjet-cache
       if: env.cache-provider == 'buildjet'
       uses: buildjet/cache@v4
       with:
-        path: ${{ steps.pnpm-store.outputs.path }}
+        path: ${{ steps.pnpm-store.outputs.store_path }}
         key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
         restore-keys: |
           ${{ runner.os }}-pnpm-store-
@@ -47,7 +47,7 @@ runs:
       if: env.cache-provider == 'github'
       uses: actions/cache@v4
       with:
-        path: ${{ steps.pnpm-store.outputs.path }}
+        path: ${{ steps.pnpm-store.outputs.store_path }}
         key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
         restore-keys: |
           ${{ runner.os }}-pnpm-store-

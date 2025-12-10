@@ -42,7 +42,7 @@ jobs:
 
       # Run the command on PR branch
       - name: Run command on PR branch
-        run: pnpm --filter @hyperlane-xyz/core bytecode HEAD-bytecode
+        run: pnpm -C solidity run bytecode HEAD-bytecode
 
       # Checkout the target branch (base)
       - name: Checkout target branch (base) contracts
@@ -62,7 +62,7 @@ jobs:
 
       # Run the command on the target branch
       - name: Run command on target branch
-        run: pnpm --filter @hyperlane-xyz/core bytecode base-bytecode
+        run: pnpm -C solidity run bytecode base-bytecode
 
       # Compare outputs
       - name: Compare outputs (fail on any changes)
