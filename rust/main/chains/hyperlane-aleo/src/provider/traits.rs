@@ -215,8 +215,7 @@ impl<Client: HttpClient> RpcClient<Client> {
         transaction_id: H512,
     ) -> ChainResult<ConfirmedTransaction<CurrentNetwork>> {
         let tx_id = get_tx_id::<CurrentNetwork>(transaction_id)?;
-        let tx_id_str = tx_id.to_string();
-        self.request(&format!("transaction/confirmed/{tx_id_str}"), None)
+        self.request(&format!("transaction/confirmed/{tx_id}"), None)
             .await
     }
 
