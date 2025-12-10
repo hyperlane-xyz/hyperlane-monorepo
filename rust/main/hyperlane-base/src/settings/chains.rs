@@ -358,7 +358,14 @@ impl ChainConf {
                     .map_err(Into::into)
             }
             ChainConnectionConf::Sealevel(conf) => {
-                let keypair = self.sealevel_signer().await.context(ctx)?;
+                let keypair = self.sealevel_signer().await.context(ctx)?.ok_or_else(|| {
+                    eyre!(
+                        "Sealevel chain '{}' requires a signer key for mailbox operations. \
+                         Please configure --chains.{}.signer.key or --defaultSigner.key",
+                        self.domain.name(),
+                        self.domain.name()
+                    )
+                })?;
 
                 let provider =
                     Arc::new(build_sealevel_provider(self, &locator, &[], conf, metrics));
@@ -370,7 +377,7 @@ impl ChainConf {
                     tx_submitter,
                     conf,
                     &locator,
-                    keypair.map(h_sealevel::SealevelKeypair::new),
+                    Some(h_sealevel::SealevelKeypair::new(keypair)),
                 )
                 .map(|m| Box::new(m) as Box<dyn Mailbox>)
                 .map_err(Into::into)
@@ -972,13 +979,20 @@ impl ChainConf {
             }
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
-                let keypair = self.sealevel_signer().await.context(ctx)?;
+                let keypair = self.sealevel_signer().await.context(ctx)?.ok_or_else(|| {
+                    eyre!(
+                        "Sealevel chain '{}' requires a signer key for ISM operations. \
+                         Please configure --chains.{}.signer.key or --defaultSigner.key",
+                        self.domain.name(),
+                        self.domain.name()
+                    )
+                })?;
                 let provider =
                     Arc::new(build_sealevel_provider(self, &locator, &[], conf, metrics));
                 let ism = Box::new(h_sealevel::SealevelInterchainSecurityModule::new(
                     provider,
                     locator,
-                    keypair.map(h_sealevel::SealevelKeypair::new),
+                    Some(h_sealevel::SealevelKeypair::new(keypair)),
                 ));
                 Ok(ism as Box<dyn InterchainSecurityModule>)
             }
@@ -1034,13 +1048,20 @@ impl ChainConf {
             }
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
-                let keypair = self.sealevel_signer().await.context(ctx)?;
+                let keypair = self.sealevel_signer().await.context(ctx)?.ok_or_else(|| {
+                    eyre!(
+                        "Sealevel chain '{}' requires a signer key for multisig ISM operations. \
+                         Please configure --chains.{}.signer.key or --defaultSigner.key",
+                        self.domain.name(),
+                        self.domain.name()
+                    )
+                })?;
                 let provider =
                     Arc::new(build_sealevel_provider(self, &locator, &[], conf, metrics));
                 let ism = Box::new(h_sealevel::SealevelMultisigIsm::new(
                     provider,
                     locator,
-                    keypair.map(h_sealevel::SealevelKeypair::new),
+                    Some(h_sealevel::SealevelKeypair::new(keypair)),
                 ));
                 Ok(ism as Box<dyn MultisigIsm>)
             }
