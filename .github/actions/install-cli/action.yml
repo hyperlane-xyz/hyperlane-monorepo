@@ -17,6 +17,10 @@ runs:
       if: inputs.no-cache == 'false'
       uses: ./.github/actions/pnpm-build-with-cache
 
+    - name: Setup Foundry
+      if: inputs.no-cache != 'false'
+      uses: ./.github/actions/setup-foundry
+
     - name: Setup pnpm (no-cache path)
       if: inputs.no-cache != 'false'
       uses: pnpm/action-setup@v4

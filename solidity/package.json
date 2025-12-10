@@ -1,7 +1,7 @@
 {
   "name": "@hyperlane-xyz/core",
   "description": "Core solidity contracts for Hyperlane",
-  "version": "10.0.5",
+  "version": "10.1.0",
   "dependencies": {
     "@hyperlane-xyz/utils": "workspace:*"
   },
