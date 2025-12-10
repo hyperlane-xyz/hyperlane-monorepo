@@ -25,7 +25,7 @@ runs:
     - name: Determine Cache Provider
       id: determine-cache
       shell: bash
-      run: echo "cache-provider=${{ inputs.cache-provider }}" >> $GITHUB_ENV
+      run: echo "cache_provider=${{ inputs.cache-provider }}" >> $GITHUB_ENV
 
     - name: Get pnpm store directory
       id: pnpm-store
@@ -34,7 +34,7 @@ runs:
 
     - name: Cache (Buildjet)
       id: buildjet-cache
-      if: env.cache-provider == 'buildjet'
+      if: env.cache_provider == 'buildjet'
       uses: buildjet/cache@v4
       with:
         path: ${{ steps.pnpm-store.outputs.store_path }}
@@ -44,7 +44,7 @@ runs:
 
     - name: Cache (GitHub)
       id: github-cache
-      if: env.cache-provider == 'github'
+      if: env.cache_provider == 'github'
       uses: actions/cache@v4
       with:
         path: ${{ steps.pnpm-store.outputs.store_path }}
