@@ -2,8 +2,6 @@ import type { ethers } from 'ethers';
 import type { CommandModule } from 'yargs';
 import { z } from 'zod';
 
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import type { IRegistry } from '@hyperlane-xyz/registry';
 import type {
   ChainMap,
@@ -14,6 +12,8 @@ import type {
   WarpRouteDeployConfigMailboxRequired,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
+
+import { AltVMProviderGetter, AltVMSignerGetter } from './altvm.js';
 
 export const SignerKeyProtocolMapSchema = z
   .record(z.nativeEnum(ProtocolType), z.string().nonempty(), {
@@ -48,7 +48,8 @@ export interface CommandContext
   chainMetadata: ChainMap<ChainMetadata>;
   multiProvider: MultiProvider;
   multiProtocolProvider: MultiProtocolProvider;
-  altVmProviders: ChainMap<AltVM.IProvider>;
+  altVmProviders: AltVMProviderGetter;
+  altVmSigners: AltVMSignerGetter;
   supportedProtocols: ProtocolType[];
   skipConfirmation: boolean;
   // just for evm chains backward compatibility
@@ -58,7 +59,6 @@ export interface CommandContext
 export interface WriteCommandContext extends Omit<CommandContext, 'key'> {
   key: SignerKeyProtocolMap;
   signer: ethers.Signer;
-  altVmSigners: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>>;
   apiKeys?: ChainMap<string>;
 }
 

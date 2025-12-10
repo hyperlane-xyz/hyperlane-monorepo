@@ -21,7 +21,6 @@ import {
 import {
   Address,
   ProtocolType,
-  mustGet,
   objFilter,
   objMap,
   promiseObjAll,
@@ -132,7 +131,7 @@ async function deriveWarpRouteConfigs(
           ).deriveWarpRouteConfig(address);
         }
         default: {
-          const provider = mustGet(context.altVmProviders, chain);
+          const provider = await context.altVmProviders(chain);
           return new AltVMWarpRouteReader(
             altVmChainLookup(multiProvider),
             provider,

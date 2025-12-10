@@ -15,7 +15,7 @@ import {
   WarpRouteDeployConfig,
   isIsmCompatible,
 } from '@hyperlane-xyz/sdk';
-import { Address, assert, mustGet } from '@hyperlane-xyz/utils';
+import { Address, assert } from '@hyperlane-xyz/utils';
 
 import { parseIsmConfig } from '../config/ism.js';
 import { CommandContext, WriteCommandContext } from '../context/types.js';
@@ -53,7 +53,7 @@ export async function runPreflightChecksForChains({
     const signer =
       metadata.protocol === ProtocolType.Ethereum
         ? multiProvider.getSigner(chain)
-        : mustGet(altVmSigners, chain);
+        : await altVmSigners(chain);
 
     if (!signer) {
       throw new Error('signer is invalid');
@@ -94,7 +94,7 @@ export async function runDeployPlanStep({
       break;
     }
     default: {
-      const signer = mustGet(context.altVmSigners, chain);
+      const signer = await context.altVmSigners(chain);
       address = signer.getSignerAddress();
     }
   }
@@ -170,7 +170,7 @@ export async function getBalances(
         `nativeToken.denom is required for ${chain} (AltVM)`,
       );
 
-      const signer = mustGet(context.altVmSigners, chain);
+      const signer = await context.altVmSigners(chain);
       const address = userAddress ?? signer.getSignerAddress();
       balances[chain] = BigNumber.from(
         await signer.getBalance({

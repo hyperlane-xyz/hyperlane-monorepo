@@ -3,15 +3,14 @@ import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import { TokenType, WarpConfig } from '@hyperlane-xyz/provider-sdk/warp';
 import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
 
+type AltVMSignerLookup = (
+  chain: string,
+) => Promise<AltVM.ISigner<AnnotatedTx, TxReceipt>>;
+
 export class AltVMDeployer {
   protected logger: ReturnType<typeof rootLogger.child<never>>;
 
-  constructor(
-    protected readonly signersMap: Record<
-      string,
-      AltVM.ISigner<AnnotatedTx, TxReceipt>
-    >,
-  ) {
+  constructor(protected readonly signers: AltVMSignerLookup) {
     this.logger = rootLogger.child({ module: 'AltVMDeployer' });
   }
 
@@ -22,8 +21,8 @@ export class AltVMDeployer {
 
     for (const chain of Object.keys(configMap)) {
       const config = configMap[chain];
-      assert(this.signersMap[chain], `No signer configured for ${chain}`);
       assert(config, `No config configured for ${chain}`);
+      const signer = await this.signers(chain);
 
       this.logger.info(`Deploying ${config.type} token to chain ${chain}`);
 
@@ -57,7 +56,7 @@ export class AltVMDeployer {
       ) {
         this.logger.info(`Set ISM for token`);
 
-        await this.signersMap[chain].setTokenIsm({
+        await signer.setTokenIsm({
           tokenAddress: result[chain],
           ismAddress: config.interchainSecurityModule,
         });
@@ -74,7 +73,8 @@ export class AltVMDeployer {
     originMailbox: Address,
   ): Promise<Address> {
     this.logger.info(`Deploying native token to ${chain}`);
-    const { tokenAddress } = await this.signersMap[chain].createNativeToken({
+    const signer = await this.signers(chain);
+    const { tokenAddress } = await signer.createNativeToken({
       mailboxAddress: originMailbox,
     });
     return tokenAddress;
@@ -86,12 +86,11 @@ export class AltVMDeployer {
     originDenom: string,
   ): Promise<Address> {
     this.logger.info(`Deploying collateral token to ${chain}`);
-    const { tokenAddress } = await this.signersMap[chain].createCollateralToken(
-      {
-        mailboxAddress: originMailbox,
-        collateralDenom: originDenom,
-      },
-    );
+    const signer = await this.signers(chain);
+    const { tokenAddress } = await signer.createCollateralToken({
+      mailboxAddress: originMailbox,
+      collateralDenom: originDenom,
+    });
     return tokenAddress;
   }
 
@@ -103,7 +102,8 @@ export class AltVMDeployer {
     decimals: number | undefined,
   ): Promise<Address> {
     this.logger.info(`Deploying synthetic token to ${chain}`);
-    const { tokenAddress } = await this.signersMap[chain].createSyntheticToken({
+    const signer = await this.signers(chain);
+    const { tokenAddress } = await signer.createSyntheticToken({
       mailboxAddress: originMailbox,
       name: name || '',
       denom: denom || '',

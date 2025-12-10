@@ -490,8 +490,12 @@ export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
     chainLookup: ChainLookup;
     signer: AltVM.ISigner<AnnotatedTx, TxReceipt>;
   }): Promise<AltVMWarpModule> {
-    const deployer = new AltVMDeployer({
-      [params.chain]: params.signer,
+    const deployer = new AltVMDeployer(async (chain) => {
+      assert(
+        chain === params.chain,
+        `Unexpected chain ${chain} requested in AltVMWarpModule.create`,
+      );
+      return params.signer;
     });
 
     const { [params.chain]: deployedTokenRoute } = await deployer.deploy({
