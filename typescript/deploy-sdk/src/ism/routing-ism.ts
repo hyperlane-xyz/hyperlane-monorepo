@@ -80,7 +80,6 @@ export class AltVMRoutingIsmWriter
     provider: IProvider,
     artifactManager: IRawIsmArtifactManager,
     private readonly signer: ISigner<AnnotatedTx, TxReceipt>,
-    private readonly accountAddress: string,
   ) {
     super(provider, artifactManager);
   }
@@ -113,7 +112,6 @@ export class AltVMRoutingIsmWriter
     const rawRoutingIsmWriter = this.artifactManager.createWriter(
       AltVM.IsmType.ROUTING,
       this.signer,
-      this.accountAddress,
     );
 
     const rawRoutingConfig: Artifact<
@@ -172,7 +170,6 @@ export class AltVMRoutingIsmWriter
     const rawRoutingWriter = this.artifactManager.createWriter(
       AltVM.IsmType.ROUTING,
       this.signer,
-      this.accountAddress,
     );
 
     const rawRoutingArtifact: ArtifactDeployed<
@@ -208,11 +205,7 @@ export class AltVMRoutingIsmWriter
       });
     }
 
-    const writer = this.artifactManager.createWriter(
-      config.type,
-      this.signer,
-      this.accountAddress,
-    );
+    const writer = this.artifactManager.createWriter(config.type, this.signer);
 
     return writer.create({
       config,

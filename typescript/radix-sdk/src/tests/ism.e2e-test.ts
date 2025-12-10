@@ -118,11 +118,7 @@ describe('Radix ISMs (e2e)', function () {
     testCases.forEach(({ name, type, config, verifyConfig }) => {
       describe(name, () => {
         it(`should create a ${type}`, async () => {
-          const writer = artifactManager.createWriter(
-            type,
-            radixSigner,
-            TEST_RADIX_DEPLOYER_ADDRESS,
-          );
+          const writer = artifactManager.createWriter(type, radixSigner);
           const [result, receipts] = await writer.create({ config });
 
           expect(result.artifactState).to.equal(ArtifactState.DEPLOYED);
@@ -132,11 +128,7 @@ describe('Radix ISMs (e2e)', function () {
         });
 
         it(`should read a ${type}`, async () => {
-          const writer = artifactManager.createWriter(
-            type,
-            radixSigner,
-            TEST_RADIX_DEPLOYER_ADDRESS,
-          );
+          const writer = artifactManager.createWriter(type, radixSigner);
           const [deployedIsm] = await writer.create({ config });
 
           const reader = artifactManager.createReader(type);
@@ -154,11 +146,7 @@ describe('Radix ISMs (e2e)', function () {
         });
 
         it('should return no transactions when calling update', async () => {
-          const writer = artifactManager.createWriter(
-            type,
-            radixSigner,
-            TEST_RADIX_DEPLOYER_ADDRESS,
-          );
+          const writer = artifactManager.createWriter(type, radixSigner);
 
           const [deployedIsm] = await writer.create({ config });
 
@@ -187,7 +175,6 @@ describe('Radix ISMs (e2e)', function () {
       const testWriter = artifactManager.createWriter(
         AltVM.IsmType.TEST_ISM,
         radixSigner,
-        TEST_RADIX_DEPLOYER_ADDRESS,
       );
 
       const [testIsm] = await testWriter.create({
@@ -198,7 +185,6 @@ describe('Radix ISMs (e2e)', function () {
       const multisigWriter = artifactManager.createWriter(
         AltVM.IsmType.MESSAGE_ID_MULTISIG,
         radixSigner,
-        TEST_RADIX_DEPLOYER_ADDRESS,
       );
 
       const [multisigIsm] = await multisigWriter.create({
@@ -222,7 +208,6 @@ describe('Radix ISMs (e2e)', function () {
       routingIsmWriter = artifactManager.createWriter(
         AltVM.IsmType.ROUTING,
         radixSigner,
-        TEST_RADIX_DEPLOYER_ADDRESS,
       );
     });
 
@@ -290,7 +275,6 @@ describe('Radix ISMs (e2e)', function () {
       const writer = artifactManager.createWriter(
         AltVM.IsmType.ROUTING,
         radixSigner,
-        TEST_RADIX_DEPLOYER_ADDRESS,
       );
       const txs = await writer.update(updatedConfig);
 
@@ -328,7 +312,6 @@ describe('Radix ISMs (e2e)', function () {
       const writer = artifactManager.createWriter(
         AltVM.IsmType.ROUTING,
         radixSigner,
-        TEST_RADIX_DEPLOYER_ADDRESS,
       );
       const txs = await writer.update(updatedConfig);
 
@@ -360,7 +343,6 @@ describe('Radix ISMs (e2e)', function () {
       const writer = artifactManager.createWriter(
         AltVM.IsmType.ROUTING,
         radixSigner,
-        TEST_RADIX_DEPLOYER_ADDRESS,
       );
       const txs = await writer.update(updatedConfig);
 

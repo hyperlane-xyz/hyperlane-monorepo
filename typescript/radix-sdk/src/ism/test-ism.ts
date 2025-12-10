@@ -14,12 +14,12 @@ import {
 } from '@hyperlane-xyz/provider-sdk/ism';
 import { TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 
-import { RadixCorePopulate } from '../core/populate.js';
 import { RadixBase } from '../utils/base.js';
 import { RadixBaseSigner } from '../utils/signer.js';
 import { AnnotatedRadixTransaction } from '../utils/types.js';
 
 import { getTestIsmConfig } from './ism-query.js';
+import { getCreateNoopIsmTx } from './ism-tx.js';
 
 export class RadixTestIsmReader
   implements ArtifactReader<TestIsmConfig, DeployedIsmAddresses>
@@ -50,9 +50,7 @@ export class RadixTestIsmWriter
   constructor(
     gateway: Readonly<GatewayApiClient>,
     private readonly signer: RadixBaseSigner,
-    private readonly populate: RadixCorePopulate,
     private readonly base: RadixBase,
-    private readonly accountAddress: string,
   ) {
     super(gateway);
   }
@@ -62,9 +60,10 @@ export class RadixTestIsmWriter
   ): Promise<
     [ArtifactDeployed<TestIsmConfig, DeployedIsmAddresses>, TxReceipt[]]
   > {
-    const transactionManifest = await this.populate.createNoopIsm({
-      from_address: this.accountAddress,
-    });
+    const transactionManifest = await getCreateNoopIsmTx(
+      this.base,
+      this.signer.getAddress(),
+    );
 
     const receipt = await this.signer.signAndBroadcast(transactionManifest);
     const address = await this.base.getNewComponent(receipt);

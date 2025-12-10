@@ -125,6 +125,5 @@ export interface IArtifactManager<
   createWriter<T extends TypeKey>(
     type: T,
     signer: ISigner<AnnotatedTx, TxReceipt>,
-    accountAddress: string,
   ): ArtifactWriter<ConfigMap[T], D>;
 }

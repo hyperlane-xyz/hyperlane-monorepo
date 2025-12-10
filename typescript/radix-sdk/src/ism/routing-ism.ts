@@ -15,17 +15,22 @@ import {
 import { TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import { eqAddressRadix, isNullish } from '@hyperlane-xyz/utils';
 
-import { RadixCorePopulate } from '../core/populate.js';
 import { RadixBase } from '../utils/base.js';
 import { RadixBaseSigner } from '../utils/signer.js';
 import { AnnotatedRadixTransaction } from '../utils/types.js';
 
 import { getDomainRoutingIsmConfig } from './ism-query.js';
+import {
+  getCreateRoutingIsmTx,
+  getRemoveRoutingIsmDomainIsmTx,
+  getSetRoutingIsmDomainIsmTx,
+  getSetRoutingIsmOwnerTx,
+} from './ism-tx.js';
 
 export class RadixRoutingIsmRawReader
   implements ArtifactReader<RawRoutingIsmArtifactConfig, DeployedIsmAddresses>
 {
-  constructor(private readonly gateway: Readonly<GatewayApiClient>) {}
+  constructor(protected readonly gateway: Readonly<GatewayApiClient>) {}
 
   async read(
     address: string,
@@ -60,9 +65,7 @@ export class RadixRoutingIsmRawWriter
   constructor(
     gateway: Readonly<GatewayApiClient>,
     private readonly signer: RadixBaseSigner,
-    private readonly populate: RadixCorePopulate,
     private readonly base: RadixBase,
-    private readonly accountAddress: string,
   ) {
     super(gateway);
   }
@@ -84,10 +87,11 @@ export class RadixRoutingIsmRawWriter
       }),
     );
 
-    const transactionManifest = await this.populate.createRoutingIsm({
-      from_address: this.accountAddress,
+    const transactionManifest = await getCreateRoutingIsmTx(
+      this.base,
+      this.signer.getAddress(),
       routes,
-    });
+    );
 
     const receipt = await this.signer.signAndBroadcast(transactionManifest);
     const address = await this.base.getNewComponent(receipt);
@@ -126,11 +130,14 @@ export class RadixRoutingIsmRawWriter
         isNullish(currentIsmAddress) ||
         !eqAddressRadix(currentIsmAddress, ismAddress)
       ) {
-        const transactionManifest = await this.populate.setRoutingIsmRoute({
-          from_address: this.accountAddress,
-          ism: deployed.address,
-          route: { domainId: domain, ismAddress },
-        });
+        const transactionManifest = await getSetRoutingIsmDomainIsmTx(
+          this.base,
+          this.signer.getAddress(),
+          {
+            ismAddress: deployed.address,
+            domainIsm: { domainId: domain, ismAddress },
+          },
+        );
 
         transactions.push({
           annotation: `Set route for domain ${domain} to ISM ${ismAddress}`,
@@ -146,11 +153,14 @@ export class RadixRoutingIsmRawWriter
       const desiredIsmAddress = config.domains[domain];
 
       if (isNullish(desiredIsmAddress)) {
-        const transactionManifest = await this.populate.removeRoutingIsmRoute({
-          from_address: this.accountAddress,
-          ism: deployed.address,
-          domain,
-        });
+        const transactionManifest = await getRemoveRoutingIsmDomainIsmTx(
+          this.base,
+          this.signer.getAddress(),
+          {
+            ismAddress: deployed.address,
+            domainId: domain,
+          },
+        );
 
         transactions.push({
           annotation: `Remove route for domain ${domain}`,
@@ -162,11 +172,15 @@ export class RadixRoutingIsmRawWriter
 
     // Owner transfer must be last transaction as the current owner executes all updates
     if (!eqAddressRadix(config.owner, currentConfig.config.owner)) {
-      const transactionManifest = await this.populate.setRoutingIsmOwner({
-        from_address: this.accountAddress,
-        ism: deployed.address,
-        new_owner: config.owner,
-      });
+      const transactionManifest = await getSetRoutingIsmOwnerTx(
+        this.base,
+        this.gateway,
+        this.signer.getAddress(),
+        {
+          ismAddress: deployed.address,
+          newOwner: config.owner,
+        },
+      );
 
       transactions.push({
         annotation: `Transfer ownership to ${config.owner}`,

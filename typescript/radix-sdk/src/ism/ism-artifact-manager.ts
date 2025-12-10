@@ -73,19 +73,15 @@ export class RadixIsmArtifactManager implements IRawIsmArtifactManager {
   createWriter<T extends IsmType>(
     type: T,
     signer: RadixSigner,
-    accountAddress: string,
   ): ArtifactWriter<RawIsmArtifactConfigs[T], DeployedIsmAddresses> {
     const baseSigner = signer.getBaseSigner();
-    const corePopulate = signer.getCorePopulate();
 
     switch (type) {
       case AltVM.IsmType.TEST_ISM:
         return new RadixTestIsmWriter(
           this.gateway,
           baseSigner,
-          corePopulate,
           this.base,
-          accountAddress,
         ) as unknown as ArtifactWriter<
           RawIsmArtifactConfigs[T],
           DeployedIsmAddresses
@@ -94,9 +90,7 @@ export class RadixIsmArtifactManager implements IRawIsmArtifactManager {
         return new RadixMerkleRootMultisigIsmWriter(
           this.gateway,
           baseSigner,
-          corePopulate,
           this.base,
-          accountAddress,
         ) as unknown as ArtifactWriter<
           RawIsmArtifactConfigs[T],
           DeployedIsmAddresses
@@ -105,9 +99,7 @@ export class RadixIsmArtifactManager implements IRawIsmArtifactManager {
         return new RadixMessageIdMultisigIsmWriter(
           this.gateway,
           baseSigner,
-          corePopulate,
           this.base,
-          accountAddress,
         ) as unknown as ArtifactWriter<
           RawIsmArtifactConfigs[T],
           DeployedIsmAddresses
@@ -116,9 +108,7 @@ export class RadixIsmArtifactManager implements IRawIsmArtifactManager {
         return new RadixRoutingIsmRawWriter(
           this.gateway,
           baseSigner,
-          corePopulate,
           this.base,
-          accountAddress,
         ) as unknown as ArtifactWriter<
           RawIsmArtifactConfigs[T],
           DeployedIsmAddresses

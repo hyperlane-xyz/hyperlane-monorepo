@@ -14,12 +14,15 @@ import {
 } from '@hyperlane-xyz/provider-sdk/ism';
 import { TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 
-import { RadixCorePopulate } from '../core/populate.js';
 import { RadixBase } from '../utils/base.js';
 import { RadixBaseSigner } from '../utils/signer.js';
 import { AnnotatedRadixTransaction } from '../utils/types.js';
 
 import { getMultisigIsmConfig } from './ism-query.js';
+import {
+  getCreateMerkleRootMultisigIsmTx,
+  getCreateMessageIdMultisigIsmTx,
+} from './ism-tx.js';
 
 export class RadixMessageIdMultisigIsmReader
   implements ArtifactReader<MultisigIsmConfig, DeployedIsmAddresses>
@@ -52,9 +55,7 @@ export class RadixMessageIdMultisigIsmWriter
   constructor(
     gateway: Readonly<GatewayApiClient>,
     private readonly signer: RadixBaseSigner,
-    private readonly populate: RadixCorePopulate,
     private readonly base: RadixBase,
-    private readonly accountAddress: string,
   ) {
     super(gateway);
   }
@@ -66,11 +67,14 @@ export class RadixMessageIdMultisigIsmWriter
   > {
     const { config } = artifact;
 
-    const transactionManifest = await this.populate.createMessageIdMultisigIsm({
-      from_address: this.accountAddress,
-      validators: config.validators,
-      threshold: config.threshold,
-    });
+    const transactionManifest = await getCreateMessageIdMultisigIsmTx(
+      this.base,
+      this.signer.getAddress(),
+      {
+        validators: config.validators,
+        threshold: config.threshold,
+      },
+    );
 
     const receipt = await this.signer.signAndBroadcast(transactionManifest);
     const address = await this.base.getNewComponent(receipt);
@@ -129,9 +133,7 @@ export class RadixMerkleRootMultisigIsmWriter
   constructor(
     gateway: Readonly<GatewayApiClient>,
     private readonly signer: RadixBaseSigner,
-    private readonly populate: RadixCorePopulate,
     private readonly base: RadixBase,
-    private readonly accountAddress: string,
   ) {
     super(gateway);
   }
@@ -143,9 +145,10 @@ export class RadixMerkleRootMultisigIsmWriter
   > {
     const { config } = artifact;
 
-    const transactionManifest = await this.populate.createMerkleRootMultisigIsm(
+    const transactionManifest = await getCreateMerkleRootMultisigIsmTx(
+      this.base,
+      this.signer.getAddress(),
       {
-        from_address: this.accountAddress,
         validators: config.validators,
         threshold: config.threshold,
       },
