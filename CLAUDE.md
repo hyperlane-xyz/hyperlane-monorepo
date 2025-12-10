@@ -39,7 +39,7 @@ pnpm -C typescript/cli test:cosmosnative:e2e
 pnpm -C typescript/cli test:radix:e2e
 ```
 
-### Before Committing
+### Before Committing (TypeScript/Solidity)
 
 ```bash
 pnpm lint          # Must pass
@@ -47,6 +47,8 @@ pnpm prettier      # Auto-formats code
 pnpm test          # Run relevant tests
 pnpm changeset     # Add changeset if modifying published packages
 ```
+
+For Rust changes, use `cargo clippy` and `cargo fmt` instead.
 
 ### Changeset Style
 
@@ -81,7 +83,7 @@ Restructures the registry code. Adds ESLint restrictions.
 │       ├── agents/        # Relayer, Validator, Scraper
 │       ├── chains/        # Chain-specific implementations
 │       └── config/        # Agent configuration files
-└── starknet/              # Starknet contracts
+└── starknet/              # Starknet utilities and tooling
 ```
 
 ## Development Commands
@@ -189,7 +191,7 @@ hyperlane warp deploy --help
 | `validator` | Signs checkpoints for message verification |
 | `scraper`   | Indexes chain data for analytics           |
 
-**Chain Support** (`chains/`): `hyperlane-ethereum` (EVM), `hyperlane-cosmos`, `hyperlane-sealevel` (Solana/SVM), `hyperlane-fuel`
+**Chain Support** (`chains/`): `hyperlane-ethereum` (EVM), `hyperlane-cosmos`, `hyperlane-sealevel` (Solana/SVM), `hyperlane-fuel`, `hyperlane-aleo`, `hyperlane-radix`, `hyperlane-starknet`
 
 **Core Crates**: `hyperlane-core` (traits, message types), `hyperlane-base` (shared agent utilities)
 
@@ -203,16 +205,6 @@ hyperlane warp deploy --help
 | **Hook**       | Post-dispatch processing (gas payments, merkle tree, etc.)       |
 | **Checkpoint** | Validator-signed commitment to merkle root at index              |
 | **Warp Route** | Token bridge deployment across chains                            |
-
-### Gas Price Escalation
-
-Automatic gas price increases for stuck transactions use the formula:
-
-```
-Max(Min(Max(Escalate(oldGasPrice), newEstimatedGasPrice), gasPriceCapMultiplier × newEstimatedGasPrice), oldGasPrice)
-```
-
-This prevents indefinite escalation while maintaining competitiveness and ensuring RBF compatibility. The `gasPriceCapMultiplier` is configurable per chain in `transactionOverrides` (default: 3).
 
 ## Configuration
 
