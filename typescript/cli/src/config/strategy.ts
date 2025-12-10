@@ -50,7 +50,8 @@ export async function createStrategyConfig({
     const strategyObj = await readYamlOrJson(outPath);
     strategy = ExtendedChainSubmissionStrategySchema.parse(strategyObj);
   } catch {
-    strategy = writeYamlOrJson(outPath, {}, 'yaml');
+    writeYamlOrJson(outPath, {}, 'yaml');
+    strategy = {};
   }
 
   const chain = await runSingleChainSelectionStep(context.chainMetadata);

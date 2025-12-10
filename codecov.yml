@@ -5,6 +5,15 @@ coverage:
         target: auto # strictly increasing coverage
         threshold: 3% # buffer for coverage drop
 
+flag_management:
+  default_rules:
+    carryforward: true
+  individual_flags:
+    - name: solidity
+      paths:
+        - solidity/contracts/**
+      carryforward: true
+
 comment:
   layout: 'header, diff, flags, components' # show component info in the PR comment
 

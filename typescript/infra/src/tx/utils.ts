@@ -2,8 +2,7 @@ import { confirm } from '@inquirer/prompts';
 import chalk from 'chalk';
 
 import { rootLogger, stringifyObject } from '@hyperlane-xyz/utils';
-
-import { writeYamlAtPath } from '../utils/utils.js';
+import { writeYaml } from '@hyperlane-xyz/utils/fs';
 
 import { GovernTransaction } from './govern-transaction-reader.js';
 
@@ -26,7 +25,7 @@ export function processGovernorReaderResult(
 
   const chainResults = Object.fromEntries(result);
   const resultsPath = `${outputFileName}-${Date.now()}.yaml`;
-  writeYamlAtPath(resultsPath, chainResults);
+  writeYaml(resultsPath, chainResults);
   rootLogger.info(`Results written to ${resultsPath}`);
 
   if (errors.length) {

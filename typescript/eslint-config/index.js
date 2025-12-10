@@ -83,6 +83,11 @@ export const restrictedSdkAndUtilsImportRules = [
                 'Imports from @hyperlane-xyz/sdk are not allowed in this package',
             },
             {
+              name: '@hyperlane-xyz/utils/fs',
+              message:
+                'The @hyperlane-xyz/utils/fs submodule requires Node.js and cannot be used in browser packages',
+            },
+            {
               name: '@hyperlane-xyz/utils',
               // These have been duplicated to reduce the changes
               // while work is completed on the multivm packages

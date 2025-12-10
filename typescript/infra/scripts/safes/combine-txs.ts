@@ -6,11 +6,9 @@ import * as path from 'path';
 import yargs from 'yargs';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
+import { readJson } from '@hyperlane-xyz/utils/fs';
 
-import {
-  readJSONAtPath,
-  writeAndFormatJsonAtPath,
-} from '../../src/utils/utils.js';
+import { writeAndFormatJsonAtPath } from '../../src/utils/utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
 type TxFile = {
@@ -33,7 +31,7 @@ function readJSONFiles(directory: string): Record<string, TxFile[]> {
 
       // If the filename contains 'timelock', expect an array and only parse the first object
       if (file.includes('timelock')) {
-        const arr = readJSONAtPath(filePath);
+        const arr = readJson<TxFile[]>(filePath);
         if (!Array.isArray(arr) || arr.length === 0) {
           throw new Error(
             `Expected an array of objects in ${filePath} for TimelockController, but got: ${JSON.stringify(arr)}`,
@@ -41,7 +39,7 @@ function readJSONFiles(directory: string): Record<string, TxFile[]> {
         }
         txs = arr[0];
       } else {
-        txs = readJSONAtPath(filePath);
+        txs = readJson<TxFile>(filePath);
       }
 
       const chainId = txs.chainId;
