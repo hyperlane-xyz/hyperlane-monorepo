@@ -105,15 +105,6 @@ async fn test_max_batch_size() {
 }
 
 #[tokio::test]
-async fn test_tx_ready_for_resubmission() {
-    let adapter = create_test_adapter();
-    let tx = create_test_transaction();
-
-    let result = adapter.tx_ready_for_resubmission(&tx).await;
-    assert!(!result); // Aleo transactions cannot be resubmitted
-}
-
-#[tokio::test]
 async fn test_build_transactions_single_valid_payload() {
     let adapter = create_test_adapter();
     let payload = create_test_payload();

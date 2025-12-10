@@ -90,10 +90,8 @@ impl<P: AleoProviderForLander> AdaptsChain for AleoAdapter<P> {
         status::get_tx_hash_status(&self.provider, hash).await
     }
 
-    async fn tx_ready_for_resubmission(&self, _tx: &Transaction) -> bool {
-        // Aleo transactions with ZK proofs cannot be resubmitted with escalated fees
-        // Once a transaction is created, it must either succeed or fail
-        false
+    async fn tx_ready_for_resubmission(&self, tx: &Transaction) -> bool {
+        self.ready_for_resubmission(tx)
     }
 
     async fn reverted_payloads(
