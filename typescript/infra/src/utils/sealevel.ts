@@ -27,12 +27,13 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { SealevelMultisigIsmInstructionType as SdkMultisigIsmInstructionType } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
+import { readJson } from '@hyperlane-xyz/utils/fs';
 
 import { Contexts } from '../../config/contexts.js';
 import { DeployEnvironment } from '../config/environment.js';
 
 import { getValidatorAlias } from './consts.js';
-import { getMonorepoRoot, readJSONAtPath } from './utils.js';
+import { getMonorepoRoot } from './utils.js';
 
 // ============================================================================
 // Solana Data Structure Sizes
@@ -383,7 +384,7 @@ export function loadCoreProgramIds(
   );
 
   try {
-    return readJSONAtPath(programIdsPath);
+    return readJson(programIdsPath);
   } catch (error) {
     throw new Error(`Failed to load program IDs from ${programIdsPath}.`);
   }

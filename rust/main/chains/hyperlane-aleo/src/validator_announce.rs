@@ -156,7 +156,7 @@ impl<C: AleoClient> ValidatorAnnounce for AleoValidatorAnnounce<C> {
         let args = self.get_announcement_inputs(announcement)?;
         let outcome = self
             .provider
-            .submit_tx(&self.program, "announce", args)
+            .submit_tx_and_wait(&self.program, "announce", args)
             .await?;
 
         Ok(outcome)

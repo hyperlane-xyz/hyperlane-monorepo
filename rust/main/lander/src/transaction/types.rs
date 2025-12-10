@@ -8,10 +8,10 @@ use uuid::Uuid;
 
 use hyperlane_core::{identifiers::UniqueIdentifier, H256, H512};
 
+#[cfg(feature = "aleo")]
+use crate::adapter::chains::AleoTxPrecursor;
 use crate::{
-    adapter::chains::{
-        AleoTxPrecursor, EthereumTxPrecursor, RadixTxPrecursor, SealevelTxPrecursor,
-    },
+    adapter::chains::{EthereumTxPrecursor, RadixTxPrecursor, SealevelTxPrecursor},
     payload::PayloadDetails,
     LanderError,
 };
@@ -155,6 +155,7 @@ pub enum DropReason {
 // add nested enum entries as we add VMs
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub enum VmSpecificTxData {
+    #[cfg(feature = "aleo")]
     Aleo(Box<AleoTxPrecursor>),
     CosmWasm,
     Evm(Box<EthereumTxPrecursor>),
