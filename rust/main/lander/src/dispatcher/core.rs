@@ -67,6 +67,12 @@ impl Dispatcher {
         })
     }
 
+    /// Create a Dispatcher from a DispatcherState and domain (for testing)
+    #[cfg(feature = "integration_test")]
+    pub fn from_inner(inner: DispatcherState, domain: String) -> Self {
+        Self { inner, domain }
+    }
+
     // this is an async "constructor" that returns a JoinHandle, so the clippy warning doesn't apply
     #[allow(clippy::async_yields_async)]
     #[instrument(skip(self), fields(domain = %self.domain))]
