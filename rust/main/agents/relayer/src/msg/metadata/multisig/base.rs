@@ -251,15 +251,10 @@ async fn metadata_build<T: MultisigIsmMetadataBuilder>(
     let metadata = ism_builder
         .fetch_metadata(&validators, threshold, message, &checkpoint_syncer)
         .await
-        .map_err(|err| MetadataBuildError::FailedToBuild(format!("fetch_metadata error: {}", err)))?
+        .map_err(|err| MetadataBuildError::FailedToBuild(format!("fetch_metadata: {}", err)))?
         .ok_or_else(|| {
-            let error_msg =
-                "Unable to reach quorum (no validators returned valid checkpoints in range)";
-            info!(
-                hyp_message=?message, ?validators, threshold, ism=%multisig_ism.address(),
-                "Could not fetch metadata: {}", error_msg
-            );
-            MetadataBuildError::FailedToBuild(error_msg.to_string())
+            // Detailed error already logged by fetch_metadata
+            MetadataBuildError::CouldNotFetch
         })?;
 
     debug!(hyp_message=?message, ?metadata.checkpoint, "Found checkpoint with quorum");
