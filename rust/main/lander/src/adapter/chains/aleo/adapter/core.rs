@@ -113,4 +113,4 @@ impl<P: AleoProviderForLander> AdaptsChain for AleoAdapter<P> {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
