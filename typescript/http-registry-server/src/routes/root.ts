@@ -1,11 +1,11 @@
-import { Request, Response, Router } from 'express';
+import { type IRouter, Request, Response, Router } from 'express';
 
 import { WarpRouteFilterSchema } from '@hyperlane-xyz/registry';
 
 import { validateQueryParams } from '../middleware/validateRequest.js';
 import { RootService } from '../services/rootService.js';
 
-export function createRootRouter(rootService: RootService) {
+export function createRootRouter(rootService: RootService): IRouter {
   const router = Router();
 
   // get metadata

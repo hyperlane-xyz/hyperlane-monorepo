@@ -6,8 +6,7 @@ import {
   type StrategyConfig,
 } from '@hyperlane-xyz/sdk';
 import { isObjEmpty } from '@hyperlane-xyz/utils';
-
-import { readYamlOrJson } from '../../utils/files.js';
+import { readYamlOrJson } from '@hyperlane-xyz/utils/fs';
 
 export class RebalancerConfig {
   constructor(
