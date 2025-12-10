@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use hyperlane_aleo::{AleoTxData, FeeEstimate};
+use hyperlane_aleo::AleoTxData;
 use hyperlane_core::H512;
 
 use crate::transaction::{Transaction, VmSpecificTxData};
@@ -14,8 +14,6 @@ pub struct AleoTxPrecursor {
     pub function_name: String,
     /// Input parameters for the function call
     pub inputs: Vec<String>,
-    /// Estimated fee information
-    pub estimated_fee: Option<FeeEstimate>,
 }
 
 impl std::fmt::Debug for AleoTxPrecursor {
@@ -26,21 +24,18 @@ impl std::fmt::Debug for AleoTxPrecursor {
             program_id: &'a str,
             function_name: &'a str,
             inputs_len: usize,
-            estimated_fee: &'a Option<FeeEstimate>,
         }
 
         let Self {
             program_id,
             function_name,
             inputs,
-            estimated_fee,
         } = self;
         std::fmt::Debug::fmt(
             &AleoTxPrecursorDebug {
                 program_id,
                 function_name,
                 inputs_len: inputs.len(),
-                estimated_fee,
             },
             f,
         )
@@ -53,7 +48,6 @@ impl AleoTxPrecursor {
             program_id,
             function_name,
             inputs,
-            estimated_fee: None,
         }
     }
 }
@@ -64,7 +58,6 @@ impl From<AleoTxData> for AleoTxPrecursor {
             program_id: value.program_id,
             function_name: value.function_name,
             inputs: value.inputs,
-            estimated_fee: None,
         }
     }
 }

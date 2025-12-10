@@ -11,8 +11,7 @@ import {
 } from 'smol-toml';
 
 import { bufferToBase58, setEquality } from '@hyperlane-xyz/utils';
-
-import { readFileAtPath, writeToFile } from '../src/utils/utils.js';
+import { readFileAtPath, writeToFile } from '@hyperlane-xyz/utils/fs';
 
 describe('GitLeaks CLI Integration Tests', function () {
   let tempDir: string;

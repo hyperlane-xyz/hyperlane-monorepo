@@ -1,5 +1,7 @@
 # @hyperlane-xyz/eslint-config
 
+## 19.12.0
+
 ## 19.11.0
 
 ## 19.10.0

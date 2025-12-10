@@ -161,12 +161,6 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
 
-      - name: Set Foundry RPC URLs for fork tests
-        env:
-          MAINNET3_ARBITRUM_RPC_URLS: ${{ secrets.MAINNET3_ARBITRUM_RPC_URLS }}
-        run: |
-          echo "FOUNDRY_RPC_URL_ARBITRUM=${MAINNET3_ARBITRUM_RPC_URLS%%,*}" >> $GITHUB_ENV
-
       - name: yarn-build
         uses: ./.github/actions/yarn-build-with-cache
         with:
@@ -845,6 +839,8 @@ jobs:
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+          flags: solidity
+          fail_ci_if_error: true
 
   coverage:
     runs-on: ubuntu-latest
