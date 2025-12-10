@@ -53,6 +53,7 @@ export enum IsmType {
   CUSTOM = 'custom',
   OP_STACK = 'opStackIsm',
   ROUTING = 'domainRoutingIsm',
+  INCREMENTAL_ROUTING = 'incrementalDomainRoutingIsm',
   FALLBACK_ROUTING = 'defaultFallbackRoutingIsm',
   AMOUNT_ROUTING = 'amountRoutingIsm',
   INTERCHAIN_ACCOUNT_ROUTING = 'interchainAccountRouting',
@@ -78,6 +79,7 @@ export const MUTABLE_ISM_TYPE = [
   IsmType.FALLBACK_ROUTING,
   IsmType.PAUSABLE,
   IsmType.OFFCHAIN_LOOKUP,
+  IsmType.INCREMENTAL_ROUTING,
 ];
 
 /**
@@ -176,6 +178,7 @@ export type NullIsmConfig =
 type BaseRoutingIsmConfig<
   T extends
     | IsmType.ROUTING
+    | IsmType.INCREMENTAL_ROUTING
     | IsmType.FALLBACK_ROUTING
     | IsmType.AMOUNT_ROUTING
     | IsmType.INTERCHAIN_ACCOUNT_ROUTING,
@@ -184,7 +187,7 @@ type BaseRoutingIsmConfig<
 };
 
 export type DomainRoutingIsmConfig = BaseRoutingIsmConfig<
-  IsmType.ROUTING | IsmType.FALLBACK_ROUTING
+  IsmType.ROUTING | IsmType.FALLBACK_ROUTING | IsmType.INCREMENTAL_ROUTING
 > &
   OwnableConfig & { domains: ChainMap<IsmConfig> };
 
