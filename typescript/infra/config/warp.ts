@@ -67,7 +67,10 @@ import { getEthereumVictionUSDTWarpConfig } from './environments/mainnet3/warp/c
 import { getEthereumZircuitRe7LRTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumZircuitRe7LRTWarpConfig.js';
 import { getIncentivUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getIncentivUSDCWarpConfig.js';
 import { getInevmInjectiveINJWarpConfig } from './environments/mainnet3/warp/configGetters/getInevmInjectiveINJWarpConfig.js';
-import { getLitchainLITKEYWarpConfig } from './environments/mainnet3/warp/configGetters/getLitLitchainWarpConfig.js';
+import {
+  getLITKEYGnosisSafeBuilderStrategyConfig,
+  getLitchainLITKEYWarpConfig,
+} from './environments/mainnet3/warp/configGetters/getLitLitchainWarpConfig.js';
 import { getLumiaUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getLumiaUSDCWarpConfig.js';
 import { getMantapacificTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getMantapacificTiaWarpConfig.js';
 import { getMantraUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getMantraUSDCWarpConfig.js';
@@ -212,6 +215,7 @@ export const strategyConfigGetterMap: Record<string, StrategyConfigGetter> = {
   [WarpRouteIds.MainnetCCTPV2Standard]: getCCTPV2StrategyConfig,
   [WarpRouteIds.MatchainUSDC]: getMatchainUSDCStrategyConfig,
   [WarpRouteIds.oXAUT]: getoXAUTGnosisSafeSubmitterStrategyConfig,
+  [WarpRouteIds.LitchainLITKEY]: getLITKEYGnosisSafeBuilderStrategyConfig,
 };
 
 /**
