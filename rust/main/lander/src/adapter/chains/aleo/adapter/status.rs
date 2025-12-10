@@ -19,15 +19,12 @@ pub async fn get_tx_hash_status<P: AleoProviderForLander>(
 ) -> Result<TransactionStatus, LanderError> {
     // First, check if transaction is confirmed on-chain
     if let Ok(confirmed_tx) = provider.get_confirmed_transaction(hash).await {
-        // Transaction is confirmed - check if it was rejected or accepted
-        return if confirmed_tx.is_rejected() {
-            Ok(TransactionStatus::Dropped(
-                TransactionDropReason::DroppedByChain,
-            ))
-        } else {
-            // Transaction is confirmed and accepted
-            Ok(TransactionStatus::Finalized)
-        };
+        // Transaction is confirmed - report as finalized
+        // Once we introduce transaction drop reasons Rejected and Reverted
+        // we shall check if a confirmed Aleo transaction was rejected.
+        // Meanwhile, we shall report transaction as finalized and use payload
+        // success criteria to confirm if they have landed on chain.
+        return Ok(TransactionStatus::Finalized);
     }
 
     // Not confirmed yet, check if it's in the mempool (unconfirmed)

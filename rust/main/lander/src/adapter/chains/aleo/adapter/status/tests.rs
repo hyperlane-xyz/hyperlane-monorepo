@@ -151,11 +151,13 @@ async fn test_status_finalized_accepted() {
 }
 
 #[tokio::test]
-async fn test_status_dropped_rejected() {
+async fn test_status_finalized_rejected() {
     let provider = Arc::new(MockProviderWithFixtures::new());
     let hash = H512::random();
 
     // Load the rejected transaction fixture
+    // Note: Currently, rejected transactions are reported as Finalized
+    // Payload success criteria will be used to determine if payloads were reverted
     provider
         .load_confirmed_fixture(hash, "confirmed_rejected.json")
         .unwrap();
@@ -163,10 +165,7 @@ async fn test_status_dropped_rejected() {
     let result = get_tx_hash_status(&provider, hash).await;
 
     assert!(result.is_ok());
-    assert_eq!(
-        result.unwrap(),
-        TransactionStatus::Dropped(TransactionDropReason::DroppedByChain)
-    );
+    assert_eq!(result.unwrap(), TransactionStatus::Finalized);
 }
 
 #[tokio::test]
