@@ -9,7 +9,6 @@ use derive_new::new;
 use eyre::{eyre, Result};
 use futures_util::future::try_join_all;
 use futures_util::try_join;
-use hyperlane_core::HyperlaneDomain;
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::sleep;
 use tracing::{error, info, info_span, instrument, warn, Instrument};
@@ -185,7 +184,7 @@ impl InclusionStage {
                     _ => TxDropReason::FailedSimulation,
                 };
                 Self::drop_tx(state, &mut tx, drop_reason, pool).await?;
-                Self::update_inclusion_stage_metric(state, &domain, &err);
+                Self::update_inclusion_stage_metric(state, domain, &err);
             }
         }
         Ok(())
