@@ -15,17 +15,17 @@ use itertools::Itertools;
 #[derive(Clone, Debug, Default)]
 pub struct CommandLineArguments {
     /// Optional character sequence that separates each key segment in an
-    /// environment key pattern. Consider a nested configuration such as
-    /// `redis.password`, a separator of `-` would allow an environment key
+    /// command-line argument key pattern. Consider a nested configuration such as
+    /// `redis.password`, a separator of `-` would allow an argument key
     /// of `redis-password` to match.
     separator: Option<String>,
 
     /// Ignore empty env values (treat as unset).
     ignore_empty: bool,
 
-    /// Alternate source for the environment. This can be used when you want to
+    /// Alternate source for the command-line arguments. This can be used when you want to
     /// test your own code using this source, without the need to change the
-    /// actual system environment variables.
+    /// actual system program arguments.
     source: Option<Vec<OsString>>,
 }
 
