@@ -1022,30 +1022,38 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
   const strategyToUse = submissionStrategy ?? defaultSubmitter;
   const protocol = multiProvider.getProtocol(chain);
 
-  const signer = mustGet(altVmSigners, chain);
+  const additionalSubmitterFactories: any = {
+    [ProtocolType.Ethereum]: {
+      file: (_multiProvider: MultiProvider, metadata: any) => {
+        return new EV5FileSubmitter(metadata);
+      },
+    },
+  };
+
+  // Only add non-Ethereum protocol factories if we have an alt VM signer
+  if (protocol !== ProtocolType.Ethereum) {
+    const signer = mustGet(altVmSigners, chain);
+    additionalSubmitterFactories[protocol] = {
+      jsonRpc: () => {
+        return new AltVMJsonRpcTxSubmitter(signer, {
+          chain: chain,
+        });
+      },
+      [CustomTxSubmitterType.FILE]: (
+        _multiProvider: MultiProvider,
+        metadata: any,
+      ) => {
+        return new AltVMFileSubmitter(signer, metadata);
+      },
+    };
+  }
+
   return {
     submitter: await getSubmitterBuilder<T>({
       submissionStrategy: strategyToUse as SubmissionStrategy, // TODO: fix this
       multiProvider,
       coreAddressesByChain: await registry.getAddresses(),
-      additionalSubmitterFactories: {
-        [ProtocolType.Ethereum]: {
-          file: (_multiProvider: MultiProvider, metadata: any) => {
-            return new EV5FileSubmitter(metadata);
-          },
-        },
-        [protocol]: {
-          jsonRpc: () => {
-            return new AltVMJsonRpcTxSubmitter(signer, { chain });
-          },
-          [CustomTxSubmitterType.FILE]: (
-            _multiProvider: MultiProvider,
-            metadata: any,
-          ) => {
-            return new AltVMFileSubmitter(signer, metadata);
-          },
-        },
-      },
+      additionalSubmitterFactories,
     }),
     config: submissionStrategy,
   };
