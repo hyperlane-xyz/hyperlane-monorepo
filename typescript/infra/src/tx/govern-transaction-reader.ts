@@ -63,6 +63,7 @@ import {
   getEnvironmentConfig,
   getHyperlaneCore,
 } from '../../scripts/core-utils.js';
+import { legacyEthIcaRouter } from '../config/chain.js';
 import { DeployEnvironment } from '../config/environment.js';
 import { tokens } from '../config/warp.js';
 import {
@@ -124,6 +125,13 @@ const ownableFunctionSelectors = [
   'renounceOwnership()',
   'transferOwnership(address)',
 ].map((func) => ethers.utils.id(func).substring(0, 10));
+
+// Legacy ETH ICA router interface - has different callRemoteWithOverrides signature
+// Legacy: callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)
+// Current: callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[])
+const legacyIcaInterface = new ethers.utils.Interface([
+  'function callRemoteWithOverrides(uint32 _destination, bytes32 _router, bytes32 _ism, tuple(bytes32,uint256,bytes)[] _calls, bytes _hookMetadata) payable returns (bytes32)',
+]);
 
 export class GovernTransactionReader {
   errors: any[] = [];
@@ -918,6 +926,11 @@ export class GovernTransactionReader {
     chain: ChainName,
     tx: AnnotatedEV5Transaction,
   ): Promise<GovernTransaction> {
+    // Route to legacy handler if using legacy ETH ICA router
+    if (this.isLegacyEthIcaRouter(tx)) {
+      return this.readLegacyEthIcaTransaction(chain, tx);
+    }
+
     if (!tx.data) {
       throw new Error('No data in ICA transaction');
     }
@@ -972,6 +985,45 @@ export class GovernTransactionReader {
 
     return {
       to: `ICA Router (${chain} ${this.chainAddresses[chain].interchainAccountRouter})`,
+      value: `${ethers.utils.formatEther(decoded.value)} ${symbol}`,
+      signature: decoded.signature,
+      args: prettyArgs,
+      chain,
+    };
+  }
+
+  /**
+   * Reads a legacy ETH ICA router transaction.
+   * The legacy router uses a different function signature:
+   * callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)
+   * vs the current router's:
+   * callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[])
+   */
+  private async readLegacyEthIcaTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): Promise<GovernTransaction> {
+    if (!tx.data) {
+      throw new Error('No data in legacy ICA transaction');
+    }
+    const { symbol } = await this.multiProvider.getNativeToken(chain);
+    const decoded = legacyIcaInterface.parseTransaction({
+      data: tx.data,
+      value: tx.value,
+    });
+
+    const args = formatFunctionFragmentArgs(
+      decoded.args,
+      decoded.functionFragment,
+    );
+    let prettyArgs = args;
+
+    if (decoded.functionFragment.name === 'callRemoteWithOverrides') {
+      prettyArgs = await this.readIcaRemoteCall(chain, args);
+    }
+
+    return {
+      to: `ICA Router (Legacy) (${chain} ${legacyEthIcaRouter})`,
       value: `${ethers.utils.formatEther(decoded.value)} ${symbol}`,
       signature: decoded.signature,
       args: prettyArgs,
@@ -1410,10 +1462,20 @@ export class GovernTransactionReader {
   }
 
   isIcaTransaction(chain: ChainName, tx: AnnotatedEV5Transaction): boolean {
-    return (
-      tx.to !== undefined &&
-      eqAddress(tx.to, this.chainAddresses[chain].interchainAccountRouter)
+    if (tx.to === undefined) return false;
+
+    const isCurrentRouter = eqAddress(
+      tx.to,
+      this.chainAddresses[chain].interchainAccountRouter,
     );
+    // Check for legacy ETH ICA router (used for legacy ICA chains like arcadia)
+    const isLegacyEthRouter = eqAddress(tx.to, legacyEthIcaRouter);
+
+    return isCurrentRouter || isLegacyEthRouter;
+  }
+
+  isLegacyEthIcaRouter(tx: AnnotatedEV5Transaction): boolean {
+    return tx.to !== undefined && eqAddress(tx.to, legacyEthIcaRouter);
   }
 
   isMailboxTransaction(chain: ChainName, tx: AnnotatedEV5Transaction): boolean {
