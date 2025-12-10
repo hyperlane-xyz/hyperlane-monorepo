@@ -62,6 +62,7 @@ impl AleoProvider<FallbackHttpClient> {
                 conf.proving_service.clone(),
                 metrics.clone(),
                 chain.clone(),
+                conf.chain_id,
             )?;
             Some(ProvingClient::new(client))
         } else {
@@ -69,7 +70,12 @@ impl AleoProvider<FallbackHttpClient> {
         };
 
         Ok(Self {
-            client: RpcClient::new(FallbackHttpClient::new(conf.rpcs.clone(), metrics, chain)?),
+            client: RpcClient::new(FallbackHttpClient::new(
+                conf.rpcs.clone(),
+                metrics,
+                chain,
+                conf.chain_id,
+            )?),
             domain,
             network: conf.chain_id,
             proving_service,
