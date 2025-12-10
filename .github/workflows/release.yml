@@ -152,6 +152,7 @@ jobs:
   # This job publishes the release to NPM.
   publish-release:
     needs: cli-install-cross-platform-release-test
+    if: github.ref == 'refs/heads/main'
     permissions:
       id-token: write
       contents: write
