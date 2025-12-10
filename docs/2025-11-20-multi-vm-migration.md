@@ -90,8 +90,8 @@ import {
 For monorepo internal packages, dependencies are already in place. For external consumers using AltVM features:
 
 ```bash
-yarn add @hyperlane-xyz/provider-sdk@^0.1.0
-yarn add @hyperlane-xyz/deploy-sdk@^0.1.0
+yarn add @hyperlane-xyz/provider-sdk@^0.3.0
+yarn add @hyperlane-xyz/deploy-sdk@^0.3.0
 ```
 
 ### Step 2: Update Import Statements
