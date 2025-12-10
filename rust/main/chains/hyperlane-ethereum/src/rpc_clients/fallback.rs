@@ -198,8 +198,8 @@ where
 
         let mut errors = vec![];
         // make sure we do at least 4 total retries.
-        while errors.len() <= 3 {
-            if !errors.is_empty() {
+        for attempt in 0..=3 {
+            if attempt > 0 {
                 sleep(Duration::from_millis(100)).await;
             }
             let priorities_snapshot = self.take_priorities_snapshot().await;
