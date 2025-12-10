@@ -644,21 +644,25 @@ where
 
         // If we have a ArbitrumNodeInterface, we need to set the l2_gas_limit.
         let l2_gas_limit = if let Some(arbitrum_node_interface) = &self.arbitrum_node_interface {
-            Some(
-                arbitrum_node_interface
-                    .estimate_retryable_ticket(
-                        H160::zero().into(),
-                        // Give the sender a deposit (100 ETH), otherwise it reverts
-                        WEI_IN_ETHER.mul(100u32),
-                        self.contract.address(),
-                        U256::zero().into(),
-                        H160::zero().into(),
-                        H160::zero().into(),
-                        contract_call.calldata().unwrap_or_default(),
-                    )
-                    .estimate_gas()
-                    .await?,
-            )
+            let estimate_call = arbitrum_node_interface
+                .estimate_retryable_ticket(
+                    H160::zero().into(),
+                    // Give the sender a deposit (100 ETH), otherwise it reverts
+                    WEI_IN_ETHER.mul(100u32),
+                    self.contract.address(),
+                    U256::zero().into(),
+                    H160::zero().into(),
+                    H160::zero().into(),
+                    contract_call.calldata().unwrap_or_default(),
+                );
+            // Set the from address to the signer's address when estimating gas.
+            // See: https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/4585
+            let estimate_call_with_from = if let Some(signer) = self.provider.default_sender() {
+                estimate_call.from(signer)
+            } else {
+                estimate_call
+            };
+            Some(estimate_call_with_from.estimate_gas().await?)
         } else {
             None
         };
