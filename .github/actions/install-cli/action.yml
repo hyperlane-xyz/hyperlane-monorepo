@@ -19,6 +19,10 @@ runs:
       with:
         ref: ${{ inputs.ref }}
 
+    - name: Setup Foundry
+      if: inputs.no-cache != 'false'
+      uses: ./.github/actions/setup-foundry
+
     - name: yarn-install-build-without-cache
       if: inputs.no-cache != 'false'
       shell: bash
