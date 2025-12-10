@@ -53,6 +53,7 @@ export const IsmType = {
   CUSTOM: 'custom',
   OP_STACK: 'opStackIsm',
   ROUTING: 'domainRoutingIsm',
+  INCREMENTAL_ROUTING: 'incrementalDomainRoutingIsm',
   FALLBACK_ROUTING: 'defaultFallbackRoutingIsm',
   AMOUNT_ROUTING: 'amountRoutingIsm',
   INTERCHAIN_ACCOUNT_ROUTING: 'interchainAccountRouting',
@@ -80,6 +81,7 @@ export const MUTABLE_ISM_TYPE: IsmType[] = [
   IsmType.FALLBACK_ROUTING,
   IsmType.PAUSABLE,
   IsmType.OFFCHAIN_LOOKUP,
+  IsmType.INCREMENTAL_ROUTING,
 ];
 
 /**
@@ -113,6 +115,7 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
     case IsmType.FALLBACK_ROUTING:
     case IsmType.AMOUNT_ROUTING:
     case IsmType.INTERCHAIN_ACCOUNT_ROUTING:
+    case IsmType.INCREMENTAL_ROUTING:
       return ModuleType.ROUTING;
     case IsmType.AGGREGATION:
     case IsmType.STORAGE_AGGREGATION:
@@ -180,13 +183,16 @@ type BaseRoutingIsmConfig<
     | typeof IsmType.ROUTING
     | typeof IsmType.FALLBACK_ROUTING
     | typeof IsmType.AMOUNT_ROUTING
-    | typeof IsmType.INTERCHAIN_ACCOUNT_ROUTING,
+    | typeof IsmType.INTERCHAIN_ACCOUNT_ROUTING
+    | typeof IsmType.INCREMENTAL_ROUTING,
 > = {
   type: T;
 };
 
 export type DomainRoutingIsmConfig = BaseRoutingIsmConfig<
-  typeof IsmType.ROUTING | typeof IsmType.FALLBACK_ROUTING
+  | typeof IsmType.ROUTING
+  | typeof IsmType.FALLBACK_ROUTING
+  | typeof IsmType.INCREMENTAL_ROUTING
 > &
   OwnableConfig & { domains: ChainMap<IsmConfig> };
 
@@ -226,6 +232,7 @@ export type DeployedIsmType = {
   [IsmType.ROUTING]: IRoutingIsm;
   [IsmType.FALLBACK_ROUTING]: IRoutingIsm;
   [IsmType.AMOUNT_ROUTING]: IRoutingIsm;
+  [IsmType.INCREMENTAL_ROUTING]: IRoutingIsm;
   [IsmType.AGGREGATION]: IAggregationIsm;
   [IsmType.STORAGE_AGGREGATION]: IAggregationIsm;
   [IsmType.MERKLE_ROOT_MULTISIG]: IMultisigIsm;
