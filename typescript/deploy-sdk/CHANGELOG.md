@@ -1,5 +1,19 @@
 # @hyperlane-xyz/deploy-sdk
 
+## 0.5.0
+
+### Minor Changes
+
+- ae8ef4389: Fixed a bug in `AltVMHookModule` and `AltVMIsmModule` which prevented updates from an artifact type to a different one causing the update to fail
+
+### Patch Changes
+
+- Updated dependencies [ae8ef4389]
+  - @hyperlane-xyz/radix-sdk@19.13.0
+  - @hyperlane-xyz/cosmos-sdk@19.13.0
+  - @hyperlane-xyz/utils@19.13.0
+  - @hyperlane-xyz/provider-sdk@0.5.0
+
 ## 0.4.0
 
 ### Patch Changes

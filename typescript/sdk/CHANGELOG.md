@@ -1,5 +1,20 @@
 # @hyperlane-xyz/sdk
 
+## 19.13.0
+
+### Patch Changes
+
+- 3592f258a: Fix StarknetHypCollateralAdapter to use StarknetTokenAdapter for wrappedTokenAdapter instead of synthetic adapter
+- Updated dependencies [ae8ef4389]
+- Updated dependencies [ae8ef4389]
+  - @hyperlane-xyz/radix-sdk@19.13.0
+  - @hyperlane-xyz/deploy-sdk@0.5.0
+  - @hyperlane-xyz/starknet-core@19.13.0
+  - @hyperlane-xyz/cosmos-sdk@19.13.0
+  - @hyperlane-xyz/utils@19.13.0
+  - @hyperlane-xyz/provider-sdk@0.5.0
+  - @hyperlane-xyz/core@10.1.1
+
 ## 19.12.0
 
 ### Minor Changes

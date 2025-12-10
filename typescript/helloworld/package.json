@@ -1,12 +1,12 @@
 {
   "name": "@hyperlane-xyz/helloworld",
   "description": "A basic skeleton of an Hyperlane app",
-  "version": "19.12.0",
+  "version": "19.13.0",
   "dependencies": {
-    "@hyperlane-xyz/core": "10.1.0",
+    "@hyperlane-xyz/core": "10.1.1",
     "@hyperlane-xyz/registry": "23.7.0",
-    "@hyperlane-xyz/sdk": "19.12.0",
-    "@hyperlane-xyz/utils": "19.12.0",
+    "@hyperlane-xyz/sdk": "19.13.0",
+    "@hyperlane-xyz/utils": "19.13.0",
     "@openzeppelin/contracts": "^4.9.3",
     "@openzeppelin/contracts-upgradeable": "^4.9.3",
     "@solana/web3.js": "^1.98.4",
