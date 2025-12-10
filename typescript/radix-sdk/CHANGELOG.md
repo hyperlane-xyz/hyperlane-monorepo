@@ -1,5 +1,26 @@
 # @hyperlane-xyz/radix-sdk
 
+## 19.12.0
+
+### Minor Changes
+
+- 38a1165c8: - Update CLI context `altVmSigners` to be a `ChainMap` instead of `AltVMSignerFactory`,
+  - Update CLI context `altVmProviders` to be a `ChainMap` instead of `AltVMSignerFactory`.
+  - Update all existing getter methods to use `mustTry`, instead of `assert`.
+  - Delete `AltVMSupportedProtocols` and `AltVMProviderFactory`.
+  - Move functions from `AltVMSignerFactory` to top-level functions.
+  - Add `getMinGas` to Aleo, Cosmos and Radix ProtocolProvider.
+- 43b3756d9: Replaced the `RadixCoreQuery` class with individual functions for reading the on-chain artifacts
+
+### Patch Changes
+
+- Updated dependencies [38a1165c8]
+- Updated dependencies [08cf7eca9]
+- Updated dependencies [af2cd1729]
+- Updated dependencies [e37100e2e]
+  - @hyperlane-xyz/provider-sdk@0.4.0
+  - @hyperlane-xyz/utils@19.12.0
+
 ## 19.11.0
 
 ### Minor Changes

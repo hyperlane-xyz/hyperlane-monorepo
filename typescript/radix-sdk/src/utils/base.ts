@@ -30,15 +30,18 @@ export class RadixBase {
   protected networkId: number;
   protected gateway: GatewayApiClient;
   protected gasMultiplier: number;
+  protected hyperlanePackageDefAddress: string;
 
   constructor(
     networkId: number,
     gateway: GatewayApiClient,
     gasMultiplier: number,
+    hyperlanePackageDefAddress: string,
   ) {
     this.networkId = networkId;
     this.gateway = gateway;
     this.gasMultiplier = gasMultiplier;
+    this.hyperlanePackageDefAddress = hyperlanePackageDefAddress;
   }
 
   public getNetworkId(): number {
@@ -50,6 +53,10 @@ export class RadixBase {
       this.networkId,
     );
     return knownAddresses.resources.xrdResource;
+  }
+
+  public getHyperlanePackageDefAddress(): string {
+    return this.hyperlanePackageDefAddress;
   }
 
   public async isGatewayHealthy(): Promise<boolean> {
