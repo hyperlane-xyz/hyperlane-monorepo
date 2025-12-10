@@ -44,6 +44,7 @@ fn create_test_payload_with_success_criteria(success_criteria: Option<Vec<u8>>) 
 
 fn create_test_adapter() -> AleoAdapter<MockAleoProvider> {
     let mock_provider = MockAleoProvider;
+
     AleoAdapter {
         provider: Arc::new(mock_provider),
         estimated_block_time: Duration::from_secs(10),
