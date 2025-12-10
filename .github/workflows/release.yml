@@ -181,6 +181,9 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+      - name: Setup Foundry
+        uses: ./.github/actions/setup-foundry
+
       - name: Install Dependencies
         run: yarn install --immutable
 
