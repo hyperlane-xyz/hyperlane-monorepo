@@ -46,6 +46,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   typeof testnet4SupportedChainNames
 > = {
   [Role.Validator]: {
+    aleotestnet: false,
     arbitrumsepolia: true,
     arcadiatestnet2: true,
     auroratestnet: true,
@@ -82,6 +83,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     subtensortestnet: false,
   },
   [Role.Relayer]: {
+    aleotestnet: false,
     arbitrumsepolia: true,
     arcadiatestnet2: true,
     auroratestnet: true,
@@ -118,6 +120,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     subtensortestnet: false,
   },
   [Role.Scraper]: {
+    aleotestnet: false,
     arbitrumsepolia: true,
     arcadiatestnet2: true,
     auroratestnet: true,

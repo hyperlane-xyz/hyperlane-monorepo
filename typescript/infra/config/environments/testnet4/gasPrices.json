@@ -1,4 +1,8 @@
 {
+  "aleotestnet": {
+    "amount": "1.0",
+    "decimals": 6
+  },
   "arbitrumsepolia": {
     "amount": "0.1",
     "decimals": 9

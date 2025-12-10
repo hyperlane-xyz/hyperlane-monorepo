@@ -92,5 +92,8 @@
   },
   "solanatestnet": {
     "validators": ["0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5"]
+  },
+  "aleotestnet": {
+    "validators": ["0x7233d80194c69af6b84b0786a7fd2a7294396ca8"]
   }
 }

@@ -2399,6 +2399,53 @@
       "index": {
         "from": 5292654
       }
+    },
+    "aleotestnet": {
+      "blockExplorers": [
+        {
+          "apiUrl": "https://testnet.explorer.provable.com",
+          "family": "other",
+          "name": "Provable Explorer",
+          "url": "https://testnet.explorer.provable.com"
+        }
+      ],
+      "blocks": {
+        "confirmations": 0,
+        "estimateBlockTime": 3,
+        "reorgPeriod": 0
+      },
+      "chainId": 1,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
+      "displayName": "Aleo Testnet",
+      "domainId": 1617853565,
+      "isTestnet": true,
+      "name": "aleotestnet",
+      "nativeToken": {
+        "decimals": 6,
+        "denom": "credits",
+        "name": "Aleo",
+        "symbol": "ALEO"
+      },
+      "protocol": "aleo",
+      "rpcUrls": [
+        {
+          "http": "https://api.explorer.provable.com/v1/testnet"
+        }
+      ],
+      "mailbox": "aleo1jps66qyy3mwhtdyrx4n7u3j5qnh8d7fdc4pwx3t0g9mwcs0xjuxqc3lsxu",
+      "merkleTreeHook": "aleo1k45pt4auhdr27hlep9pg47w82nn7vzt2g8tmcxc4gpas25fdrugsapnyvh",
+      "interchainGasPaymaster": "aleo175xvd3uqmswt9ckt2d4drnxrqu8gzuzz3u3cjlt3cxhru74d2qqsnf5t46",
+      "validatorAnnounce": "aleo1exucqw8zpx05swkl8dt7us3xl9z88fypla7nvwy4vt2rvfvazy8s0phz2l",
+      "mailboxProgram": "test_hyp_mailbox.aleo",
+      "hookManagerProgram": "test_hyp_hook_manager.aleo",
+      "ismManagerProgram": "test_hyp_ism_manager.aleo",
+      "validatorAnnounceProgram": "test_hyp_validator_announce.aleo",
+      "signer": {
+        "key": "0x1a1484a05bee53f5858a3888cdb5a397e433aee4d725e0f6c8a92cba3bb2b011"
+      } 
     }
   }
 }

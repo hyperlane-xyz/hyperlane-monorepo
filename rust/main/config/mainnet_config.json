@@ -911,9 +911,6 @@
       "proxyAdmin": "0x75EE15Ee1B4A75Fa3e2fDF5DF3253c25599cc659",
       "rpcUrls": [
         {
-          "http": "https://eth.llamarpc.com"
-        },
-        {
           "http": "https://ethereum.publicnode.com"
         },
         {
@@ -6125,7 +6122,7 @@
         }
       ],
       "defaultHook": "0x03de4fa3b415b90bd11749f6c0e5fc610a02db2ff903182c446c965975988869",
-      "defaultIsm": "0x0514c07219b64415f9971a4bed3e24ba53137d382204c9dc03e04efbdb9f2e7e",
+      "defaultIsm": "0x06e66fe528f954d3630228d54fb509efe2fd8a646ab0f2265003c20fbf6d5b0a",
       "mailbox": "0x05520a179658bd81e19d4e41abce2bc397bab5af302dadea70d8918c3cbdcea8",
       "merkleTreeHook": "0x03ef761dcfda2295d2f5e7b698df51d380162cbe1cfa5b1f48fba963808f51f1",
       "noopIsm": "0x00f03447966e8d9b740e0b1a36761df5913ef8320057885b45082e15ab6820e5",
@@ -8224,7 +8221,7 @@
         }
       ],
       "technicalStack": "other",
-      "defaultIsm": "0x015328cb0dd4707ffcf985f5549a69d496cb9e82fbfd8fc5b1a84a6cda0db680",
+      "defaultIsm": "0x078b5603002366abe29170dd77ffe850b9c5de72f6f35ffec4aa39bdf552b3a9",
       "domainRoutingIsmFactory": "0x0000000000000000000000000000000000000000000000000000000000000000",
       "interchainAccountRouter": "0x0000000000000000000000000000000000000000000000000000000000000000",
       "interchainGasPaymaster": "0x0000000000000000000000000000000000000000000000000000000000000000",
