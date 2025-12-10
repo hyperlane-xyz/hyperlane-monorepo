@@ -1,0 +1,50 @@
+sepolia:
+  name: Spice
+  symbol: SPICE
+  decimals: 18
+  type: synthetic
+  owner: '0xB282Db526832b160144Fc712fccEBC8ceFd9d19a'
+  mailbox: '0xfFAEF09B3cd11D9b20d1a19bECca54EEC2884766'
+  initialSupply: '5000000000000000000000000000'
+  interchainSecurityModule: '0x611722d8e22c24636781f9c6d36874a4e39c2318'
+  hook: '0x4917a9746A7B6E0A57159cCb7F5a6744247f2d0d'
+arbitrumsepolia:
+  name: Spice
+  symbol: SPICE
+  decimals: 18
+  type: synthetic
+  owner: '0xB282Db526832b160144Fc712fccEBC8ceFd9d19a'
+  mailbox: '0x598facE78a4302f11E3de0bee1894Da0b2Cb71F8'
+  initialSupply: '5000000000000000000000000000'
+  interchainSecurityModule: '0xde5f85a643cbe2fc23a78fc75271889d9c23fac1'
+  hook: '0xAD34A66Bf6dB18E858F6B686557075568c6E031C'
+basesepolia:
+  name: Spice
+  symbol: SPICE
+  decimals: 18
+  type: synthetic
+  owner: '0xB282Db526832b160144Fc712fccEBC8ceFd9d19a'
+  mailbox: '0x6966b0E55883d49BFB24539356a2f8A673E02039'
+  initialSupply: '5000000000000000000000000000'
+  interchainSecurityModule: '0x3b70e8f0a1c64f7f828bb5d8201f5ff3c1ec624b'
+  hook: '0x86fb9F1c124fB20ff130C41a79a432F770f67AFD'
+optimismsepolia:
+  name: Spice
+  symbol: SPICE
+  decimals: 18
+  type: synthetic
+  owner: '0xB282Db526832b160144Fc712fccEBC8ceFd9d19a'
+  mailbox: '0x6966b0E55883d49BFB24539356a2f8A673E02039'
+  initialSupply: '5000000000000000000000000000'
+  interchainSecurityModule: '0xa71d4997bddf4c254244de0e8b1c12dd4f2b819a'
+  hook: '0x86fb9F1c124fB20ff130C41a79a432F770f67AFD'
+bsctestnet:
+  name: Spice
+  symbol: SPICE
+  decimals: 18
+  type: synthetic
+  owner: '0xB282Db526832b160144Fc712fccEBC8ceFd9d19a'
+  mailbox: '0xF9F6F5646F478d5ab4e20B0F910C92F1CCC9Cc6D'
+  initialSupply: '5000000000000000000000000000'
+  interchainSecurityModule: '0xea17883c243355875c52eeb34784bc52caae5ee3'
+  hook: '0xc6cbF39A747f5E28d1bDc8D9dfDAb2960Abd5A8f'
