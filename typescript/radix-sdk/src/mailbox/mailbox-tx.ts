@@ -12,7 +12,7 @@ import {
 import { RadixBase } from '../utils/base.js';
 import { INSTRUCTIONS } from '../utils/types.js';
 
-export async function getCreateMailboxTransaction(
+export async function getCreateMailboxTx(
   base: Readonly<RadixBase>,
   fromAddress: string,
   domainId: number,
@@ -26,7 +26,7 @@ export async function getCreateMailboxTransaction(
   );
 }
 
-export async function getSetMailboxOwnerTransaction(
+export async function getSetMailboxOwnerTx(
   base: Readonly<RadixBase>,
   gateway: Readonly<GatewayApiClient>,
   fromAddress: string,
@@ -59,7 +59,7 @@ export async function getSetMailboxOwnerTransaction(
   });
 }
 
-export async function getSetMailboxRequiredHookTransaction(
+export async function getSetMailboxRequiredHookTx(
   base: Readonly<RadixBase>,
   fromAddress: string,
   {
@@ -78,7 +78,7 @@ export async function getSetMailboxRequiredHookTransaction(
   );
 }
 
-export async function getSetMailboxDefaultHookTransaction(
+export async function getSetMailboxDefaultHookTx(
   base: Readonly<RadixBase>,
   fromAddress: string,
   {
@@ -97,7 +97,7 @@ export async function getSetMailboxDefaultHookTransaction(
   );
 }
 
-export async function getSetMailboxDefaultIsmTransaction(
+export async function getSetMailboxDefaultIsmTx(
   base: Readonly<RadixBase>,
   fromAddress: string,
   {

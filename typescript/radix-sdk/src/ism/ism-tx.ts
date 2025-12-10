@@ -19,7 +19,7 @@ import { RadixBase } from '../utils/base.js';
 import { INSTRUCTIONS, RadixIsmTypes } from '../utils/types.js';
 import { bytes } from '../utils/utils.js';
 
-export async function getCreateNoopIsmTransaction(
+export async function getCreateNoopIsmTx(
   base: Readonly<RadixBase>,
   fromAddress: string,
 ): Promise<TransactionManifest> {
@@ -37,7 +37,7 @@ type CreateMultisigIsmTxConfig = {
   threshold: number;
 };
 
-export async function getCreateMerkleRootMultisigIsmTransaction(
+export async function getCreateMerkleRootMultisigIsmTx(
   base: Readonly<RadixBase>,
   fromAddress: string,
   { validators, threshold }: CreateMultisigIsmTxConfig,
@@ -54,7 +54,7 @@ export async function getCreateMerkleRootMultisigIsmTransaction(
   );
 }
 
-export async function getCreateMessageIdMultisigIsmTransaction(
+export async function getCreateMessageIdMultisigIsmTx(
   base: Readonly<RadixBase>,
   fromAddress: string,
   { validators, threshold }: CreateMultisigIsmTxConfig,
@@ -71,7 +71,7 @@ export async function getCreateMessageIdMultisigIsmTransaction(
   );
 }
 
-export async function getCreateRoutingIsmTransaction(
+export async function getCreateRoutingIsmTx(
   base: Readonly<RadixBase>,
   fromAddress: string,
   routes: { ismAddress: string; domainId: number }[],
@@ -90,7 +90,7 @@ export async function getCreateRoutingIsmTransaction(
   );
 }
 
-export async function getSetRoutingIsmOwnerTransaction(
+export async function getSetRoutingIsmOwnerTx(
   base: Readonly<RadixBase>,
   gateway: Readonly<GatewayApiClient>,
   fromAddress: string,
@@ -120,7 +120,7 @@ export async function getSetRoutingIsmOwnerTransaction(
   });
 }
 
-export async function getSetRoutingIsmDomainIsmTransaction(
+export async function getSetRoutingIsmDomainIsmTx(
   base: Readonly<RadixBase>,
   fromAddress: string,
   {
@@ -139,7 +139,7 @@ export async function getSetRoutingIsmDomainIsmTransaction(
   );
 }
 
-export async function getRemoveRoutingIsmDomainIsmTransaction(
+export async function getRemoveRoutingIsmDomainIsmTx(
   base: Readonly<RadixBase>,
   fromAddress: string,
   {

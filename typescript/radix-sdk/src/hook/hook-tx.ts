@@ -16,7 +16,7 @@ import {
 import { RadixBase } from '../utils/base.js';
 import { INSTRUCTIONS, RadixHookTypes } from '../utils/types.js';
 
-export async function getCreateMerkleTreeHookTransaction(
+export async function getCreateMerkleTreeHookTx(
   base: Readonly<RadixBase>,
   fromAddress: string,
   mailboxAddress: string,
@@ -30,7 +30,7 @@ export async function getCreateMerkleTreeHookTransaction(
   );
 }
 
-export async function getCreateIgpTransaction(
+export async function getCreateIgpTx(
   base: Readonly<RadixBase>,
   fromAddress: string,
   nativeTokenDenom: string,
@@ -44,7 +44,7 @@ export async function getCreateIgpTransaction(
   );
 }
 
-export async function getSetIgpOwnerTransaction(
+export async function getSetIgpOwnerTx(
   base: Readonly<RadixBase>,
   gateway: Readonly<GatewayApiClient>,
   fromAddress: string,
@@ -74,7 +74,7 @@ export async function getSetIgpOwnerTransaction(
   });
 }
 
-export async function getSetIgpDestinationGasConfigTransaction(
+export async function getSetIgpDestinationGasConfigTx(
   base: Readonly<RadixBase>,
   fromAddress: string,
   {
