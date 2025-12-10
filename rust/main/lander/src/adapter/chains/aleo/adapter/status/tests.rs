@@ -132,6 +132,16 @@ impl AleoProviderForLander for MockProviderWithFixtures {
                 )
             })
     }
+
+    async fn mapping_value_exists(
+        &self,
+        _program_id: &str,
+        _mapping_name: &str,
+        _mapping_key: &str,
+    ) -> ChainResult<bool> {
+        // Default: mapping values don't exist (messages not delivered)
+        Ok(false)
+    }
 }
 
 #[tokio::test]

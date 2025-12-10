@@ -95,6 +95,16 @@ impl AleoProviderForLander for MockProviderWithError {
             "Mock provider: get_unconfirmed_transaction not implemented",
         ))
     }
+
+    async fn mapping_value_exists(
+        &self,
+        _program_id: &str,
+        _mapping_name: &str,
+        _mapping_key: &str,
+    ) -> ChainResult<bool> {
+        // Default: mapping values don't exist (messages not delivered)
+        Ok(false)
+    }
 }
 
 #[async_trait]
@@ -143,6 +153,16 @@ impl AleoProviderForLander for MockProvider {
         Err(hyperlane_core::ChainCommunicationError::from_other_str(
             "Mock provider: get_unconfirmed_transaction not implemented",
         ))
+    }
+
+    async fn mapping_value_exists(
+        &self,
+        _program_id: &str,
+        _mapping_name: &str,
+        _mapping_key: &str,
+    ) -> ChainResult<bool> {
+        // Default: mapping values don't exist (messages not delivered)
+        Ok(false)
     }
 }
 

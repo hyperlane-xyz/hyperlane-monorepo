@@ -96,11 +96,9 @@ impl<P: AleoProviderForLander> AdaptsChain for AleoAdapter<P> {
 
     async fn reverted_payloads(
         &self,
-        _tx: &Transaction,
+        tx: &Transaction,
     ) -> Result<Vec<PayloadDetails>, LanderError> {
-        // For Aleo, if a transaction is finalized but rejected, all payloads in it are reverted
-        // This is handled by the transaction status check
-        Ok(Vec::new())
+        self.reverted(tx).await
     }
 
     fn estimated_block_time(&self) -> &Duration {
@@ -113,4 +111,4 @@ impl<P: AleoProviderForLander> AdaptsChain for AleoAdapter<P> {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

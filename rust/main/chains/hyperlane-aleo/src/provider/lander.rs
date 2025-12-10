@@ -43,6 +43,24 @@ pub trait AleoProviderForLander: Send + Sync {
         &self,
         transaction_id: H512,
     ) -> ChainResult<Transaction<CurrentNetwork>>;
+
+    /// Queries a program mapping value by string key
+    ///
+    /// # Arguments
+    /// * `program_id` - The program ID
+    /// * `mapping_name` - The name of the mapping
+    /// * `mapping_key` - The string representation of the mapping key
+    ///
+    /// # Returns
+    /// * `Ok(true)` - The value exists in the mapping
+    /// * `Ok(false)` - The value does not exist
+    /// * `Err(...)` - Query failed
+    async fn mapping_value_exists(
+        &self,
+        program_id: &str,
+        mapping_name: &str,
+        mapping_key: &str,
+    ) -> ChainResult<bool>;
 }
 
 #[async_trait]
@@ -72,5 +90,24 @@ impl<C: AleoClient> AleoProviderForLander for AleoProvider<C> {
         transaction_id: H512,
     ) -> ChainResult<Transaction<CurrentNetwork>> {
         self.get_unconfirmed_transaction(transaction_id).await
+    }
+
+    async fn mapping_value_exists(
+        &self,
+        program_id: &str,
+        mapping_name: &str,
+        mapping_key: &str,
+    ) -> ChainResult<bool> {
+        use snarkvm::prelude::Plaintext;
+
+        // Query the mapping value directly using the string key
+        let plain_text: Option<Plaintext<CurrentNetwork>> = self
+            .request(
+                &format!("program/{program_id}/mapping/{mapping_name}/{mapping_key}"),
+                None,
+            )
+            .await?;
+
+        Ok(plain_text.is_some())
     }
 }

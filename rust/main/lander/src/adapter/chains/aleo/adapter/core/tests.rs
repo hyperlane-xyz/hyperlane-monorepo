@@ -42,7 +42,7 @@ fn create_test_payload_with_success_criteria(success_criteria: Option<Vec<u8>>) 
     }
 }
 
-fn create_test_adapter() -> AleoAdapter<MockAleoProvider> {
+pub(crate) fn create_test_adapter() -> AleoAdapter<MockAleoProvider> {
     let mock_provider = MockAleoProvider;
 
     AleoAdapter {
@@ -51,7 +51,7 @@ fn create_test_adapter() -> AleoAdapter<MockAleoProvider> {
     }
 }
 
-fn create_test_transaction() -> Transaction {
+pub(crate) fn create_test_transaction() -> Transaction {
     let precursor = AleoTxPrecursor {
         program_id: "test_program.aleo".to_string(),
         function_name: "test_function".to_string(),

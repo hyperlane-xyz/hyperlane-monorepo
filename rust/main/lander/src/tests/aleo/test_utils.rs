@@ -44,4 +44,14 @@ impl AleoProviderForLander for MockAleoProvider {
             "Mock provider: get_unconfirmed_transaction not implemented",
         ))
     }
+
+    async fn mapping_value_exists(
+        &self,
+        _program_id: &str,
+        _mapping_name: &str,
+        _mapping_key: &str,
+    ) -> ChainResult<bool> {
+        // Default: mapping values don't exist (messages not delivered)
+        Ok(false)
+    }
 }
