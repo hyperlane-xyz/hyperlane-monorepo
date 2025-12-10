@@ -6,7 +6,7 @@ import {
   IXERC20__factory,
 } from '@hyperlane-xyz/core';
 import { AltVMWarpRouteReader } from '@hyperlane-xyz/deploy-sdk';
-import { hasProtocol } from '@hyperlane-xyz/provider-sdk';
+import { getProtocolProvider, hasProtocol } from '@hyperlane-xyz/provider-sdk';
 import {
   ChainMap,
   ChainName,
@@ -21,7 +21,6 @@ import {
 import {
   Address,
   ProtocolType,
-  mustGet,
   objFilter,
   objMap,
   promiseObjAll,
@@ -132,7 +131,9 @@ async function deriveWarpRouteConfigs(
           ).deriveWarpRouteConfig(address);
         }
         default: {
-          const provider = mustGet(context.altVmProviders, chain);
+          const metadata = multiProvider.getChainMetadata(chain);
+          const provider =
+            await getProtocolProvider(protocol).createProvider(metadata);
           return new AltVMWarpRouteReader(
             altVmChainLookup(multiProvider),
             provider,
