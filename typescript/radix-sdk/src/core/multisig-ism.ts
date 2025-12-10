@@ -1,3 +1,5 @@
+import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
+
 import {
   DerivedIsm,
   IsmArtifact,
@@ -11,21 +13,23 @@ import {
   TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
 
+import { getMultisigIsmConfig } from '../ism/ism-query.js';
+import {
+  getCreateMerkleRootMultisigIsmTx,
+  getCreateMessageIdMultisigIsmTx,
+} from '../ism/ism-tx.js';
 import { RadixBase } from '../utils/base.js';
 import { RadixBaseSigner } from '../utils/signer.js';
-
-import { RadixCorePopulate } from './populate.js';
-import { RadixCoreQuery } from './query.js';
 
 export class MerkleRootMultisigIsmArtifactReader
   implements RawIsmArtifactReader<'merkleRootMultisigIsm'>
 {
-  constructor(private query: RadixCoreQuery) {}
+  constructor(private gateway: GatewayApiClient) {}
 
   async read(
     address: string,
   ): Promise<ArtifactDeployed<MultisigIsmConfig, DerivedIsm>> {
-    const multisigIsm = await this.query.getMultisigIsm({ ism: address });
+    const multisigIsm = await getMultisigIsmConfig(this.gateway, address);
 
     return {
       artifactState: 'deployed',
@@ -46,20 +50,22 @@ export class MerkleRootMultisigIsmArtifactWriter
 {
   constructor(
     private account: string,
-    private populate: RadixCorePopulate,
-    private signer: RadixBaseSigner,
     private base: RadixBase,
+    private signer: RadixBaseSigner,
   ) {}
 
   async create(
     artifact: IsmArtifact<'merkleRootMultisigIsm'>,
   ): Promise<[ArtifactDeployed<MultisigIsmConfig, DerivedIsm>, TxReceipt[]]> {
     const config = artifact.config;
-    const manifest = await this.populate.createMerkleRootMultisigIsm({
-      from_address: this.account,
-      validators: config.validators,
-      threshold: config.threshold,
-    });
+    const manifest = await getCreateMerkleRootMultisigIsmTx(
+      this.base,
+      this.account,
+      {
+        validators: config.validators,
+        threshold: config.threshold,
+      },
+    );
 
     const receipt = await this.signer.signAndBroadcast(manifest);
     const ismAddress = await this.base.getNewComponent(receipt);
@@ -88,12 +94,12 @@ export class MerkleRootMultisigIsmArtifactWriter
 export class MessageIdMultisigIsmArtifactReader
   implements RawIsmArtifactReader<'messageIdMultisigIsm'>
 {
-  constructor(private query: RadixCoreQuery) {}
+  constructor(private gateway: GatewayApiClient) {}
 
   async read(
     address: string,
   ): Promise<ArtifactDeployed<MultisigIsmConfig, DerivedIsm>> {
-    const multisigIsm = await this.query.getMultisigIsm({ ism: address });
+    const multisigIsm = await getMultisigIsmConfig(this.gateway, address);
 
     return {
       artifactState: 'deployed',
@@ -114,20 +120,22 @@ export class MessageIdMultisigIsmArtifactWriter
 {
   constructor(
     private account: string,
-    private populate: RadixCorePopulate,
-    private signer: RadixBaseSigner,
     private base: RadixBase,
+    private signer: RadixBaseSigner,
   ) {}
 
   async create(
     artifact: IsmArtifact<'messageIdMultisigIsm'>,
   ): Promise<[ArtifactDeployed<MultisigIsmConfig, DerivedIsm>, TxReceipt[]]> {
     const config = artifact.config;
-    const manifest = await this.populate.createMessageIdMultisigIsm({
-      from_address: this.account,
-      validators: config.validators,
-      threshold: config.threshold,
-    });
+    const manifest = await getCreateMessageIdMultisigIsmTx(
+      this.base,
+      this.account,
+      {
+        validators: config.validators,
+        threshold: config.threshold,
+      },
+    );
 
     const receipt = await this.signer.signAndBroadcast(manifest);
     const ismAddress = await this.base.getNewComponent(receipt);

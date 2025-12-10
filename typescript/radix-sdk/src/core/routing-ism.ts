@@ -1,3 +1,5 @@
+import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
+
 import {
   DerivedIsm,
   IsmArtifactConfig,
@@ -12,26 +14,32 @@ import {
   TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
 
+import { getDomainRoutingIsmConfig, getIsmType } from '../ism/ism-query.js';
+import {
+  getCreateRoutingIsmTx,
+  getRemoveRoutingIsmDomainIsmTx,
+  getSetRoutingIsmDomainIsmTx,
+  getSetRoutingIsmOwnerTx,
+} from '../ism/ism-tx.js';
 import { RadixBase } from '../utils/base.js';
 import { RadixBaseSigner } from '../utils/signer.js';
+import { RadixIsmTypes } from '../utils/types.js';
 
 import {
   MerkleRootMultisigIsmArtifactReader,
   MessageIdMultisigIsmArtifactReader,
 } from './multisig-ism.js';
-import { RadixCorePopulate } from './populate.js';
-import { RadixCoreQuery } from './query.js';
 import { TestIsmArtifactReader } from './test-ism.js';
 
 export class DomainRoutingIsmArtifactReader
   implements RawIsmArtifactReader<'domainRoutingIsm'>
 {
-  constructor(private query: RadixCoreQuery) {}
+  constructor(private gateway: GatewayApiClient) {}
 
   async read(
     address: string,
   ): Promise<ArtifactDeployed<RawDomainRoutingIsmConfig, DerivedIsm>> {
-    const routingIsm = await this.query.getRoutingIsm({ ism: address });
+    const routingIsm = await getDomainRoutingIsmConfig(this.gateway, address);
 
     // Convert routes array to domains record with full nested artifacts
     const domains: Record<
@@ -59,22 +67,22 @@ export class DomainRoutingIsmArtifactReader
   private async readIsmArtifact(
     address: string,
   ): Promise<ArtifactDeployed<IsmArtifactConfig, DerivedIsm>> {
-    const ismType = await this.query.getIsmType({ ism: address });
+    const ismType = await getIsmType(this.gateway, address);
 
     switch (ismType) {
-      case 'NoopIsm': {
-        const reader = new TestIsmArtifactReader(this.query);
+      case RadixIsmTypes.NOOP_ISM: {
+        const reader = new TestIsmArtifactReader(this.gateway);
         return reader.read(address);
       }
-      case 'MerkleRootMultisigIsm': {
-        const reader = new MerkleRootMultisigIsmArtifactReader(this.query);
+      case RadixIsmTypes.MERKLE_ROOT_MULTISIG: {
+        const reader = new MerkleRootMultisigIsmArtifactReader(this.gateway);
         return reader.read(address);
       }
-      case 'MessageIdMultisigIsm': {
-        const reader = new MessageIdMultisigIsmArtifactReader(this.query);
+      case RadixIsmTypes.MESSAGE_ID_MULTISIG: {
+        const reader = new MessageIdMultisigIsmArtifactReader(this.gateway);
         return reader.read(address);
       }
-      case 'RoutingIsm': {
+      case RadixIsmTypes.ROUTING_ISM: {
         // Recursively read nested routing ISMs
         return this.read(address);
       }
@@ -89,10 +97,9 @@ export class DomainRoutingIsmArtifactWriter
 {
   constructor(
     private account: string,
-    private query: RadixCoreQuery,
-    private populate: RadixCorePopulate,
-    private signer: RadixBaseSigner,
+    private gateway: GatewayApiClient,
     private base: RadixBase,
+    private signer: RadixBaseSigner,
   ) {}
 
   async create(
@@ -114,10 +121,11 @@ export class DomainRoutingIsmArtifactWriter
     );
 
     // Create the routing ISM
-    const createManifest = await this.populate.createRoutingIsm({
-      from_address: this.account,
+    const createManifest = await getCreateRoutingIsmTx(
+      this.base,
+      this.account,
       routes,
-    });
+    );
     const createReceipt = await this.signer.signAndBroadcast(createManifest);
     receipts.push(createReceipt);
 
@@ -125,11 +133,15 @@ export class DomainRoutingIsmArtifactWriter
 
     // Transfer ownership if needed
     if (config.owner !== this.account) {
-      const ownerManifest = await this.populate.setRoutingIsmOwner({
-        from_address: this.account,
-        ism: ismAddress,
-        new_owner: config.owner,
-      });
+      const ownerManifest = await getSetRoutingIsmOwnerTx(
+        this.base,
+        this.gateway,
+        this.account,
+        {
+          ismAddress,
+          newOwner: config.owner,
+        },
+      );
       const ownerReceipt = await this.signer.signAndBroadcast(ownerManifest);
       receipts.push(ownerReceipt);
     }
@@ -153,7 +165,7 @@ export class DomainRoutingIsmArtifactWriter
     const config = artifact.config;
 
     // Read current state
-    const current = await this.query.getRoutingIsm({ ism: address });
+    const current = await getDomainRoutingIsmConfig(this.gateway, address);
     const txs: AnnotatedTx[] = [];
 
     // Build map of current routes
@@ -168,11 +180,14 @@ export class DomainRoutingIsmArtifactWriter
     for (const [domainIdStr] of currentRoutes.entries()) {
       if (!desiredDomains.has(domainIdStr)) {
         const domainId = parseInt(domainIdStr);
-        const manifest = await this.populate.removeRoutingIsmRoute({
-          from_address: current.owner,
-          ism: address,
-          domain: domainId,
-        });
+        const manifest = await getRemoveRoutingIsmDomainIsmTx(
+          this.base,
+          current.owner,
+          {
+            ismAddress: address,
+            domainId,
+          },
+        );
         txs.push({
           annotation: `Remove route for domain ${domainId}`,
           manifest,
@@ -185,18 +200,21 @@ export class DomainRoutingIsmArtifactWriter
       config.domains,
     )) {
       const domainId = parseInt(domainIdStr);
-      const ismAddress = nestedArtifact.deployed.address;
+      const nestedIsmAddress = nestedArtifact.deployed.address;
       const currentIsmAddress = currentRoutes.get(domainIdStr);
 
-      if (currentIsmAddress !== ismAddress) {
-        const manifest = await this.populate.setRoutingIsmRoute({
-          from_address: current.owner,
-          ism: address,
-          route: { domainId, ismAddress },
-        });
+      if (currentIsmAddress !== nestedIsmAddress) {
+        const manifest = await getSetRoutingIsmDomainIsmTx(
+          this.base,
+          current.owner,
+          {
+            ismAddress: address,
+            domainIsm: { domainId, ismAddress: nestedIsmAddress },
+          },
+        );
         const action = currentIsmAddress ? 'Update' : 'Add';
         txs.push({
-          annotation: `${action} route for domain ${domainId} to ${ismAddress}`,
+          annotation: `${action} route for domain ${domainId} to ${nestedIsmAddress}`,
           manifest,
         } as AnnotatedTx);
       }
@@ -204,11 +222,15 @@ export class DomainRoutingIsmArtifactWriter
 
     // Update owner if needed
     if (current.owner !== config.owner) {
-      const manifest = await this.populate.setRoutingIsmOwner({
-        from_address: current.owner,
-        ism: address,
-        new_owner: config.owner,
-      });
+      const manifest = await getSetRoutingIsmOwnerTx(
+        this.base,
+        this.gateway,
+        current.owner,
+        {
+          ismAddress: address,
+          newOwner: config.owner,
+        },
+      );
       txs.push({
         annotation: `Transfer ownership to ${config.owner}`,
         manifest,

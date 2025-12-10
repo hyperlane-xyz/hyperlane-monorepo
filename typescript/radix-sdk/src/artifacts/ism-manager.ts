@@ -1,3 +1,5 @@
+import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
+
 import { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
 import {
   IsmType,
@@ -14,8 +16,6 @@ import {
   MessageIdMultisigIsmArtifactReader,
   MessageIdMultisigIsmArtifactWriter,
 } from '../core/multisig-ism.js';
-import { RadixCorePopulate } from '../core/populate.js';
-import { RadixCoreQuery } from '../core/query.js';
 // Import all artifact implementations
 import {
   DomainRoutingIsmArtifactReader,
@@ -46,17 +46,11 @@ import { RadixBaseSigner } from '../utils/signer.js';
  * const writer = manager.createWriter('merkleRootMultisigIsm', signer, account);
  */
 export class RadixIsmArtifactManager {
-  private query: RadixCoreQuery;
-  private populate: RadixCorePopulate;
+  private gateway: GatewayApiClient;
   private base: RadixBase;
 
-  private constructor(
-    query: RadixCoreQuery,
-    populate: RadixCorePopulate,
-    base: RadixBase,
-  ) {
-    this.query = query;
-    this.populate = populate;
+  private constructor(gateway: GatewayApiClient, base: RadixBase) {
+    this.gateway = gateway;
     this.base = base;
   }
 
@@ -68,8 +62,7 @@ export class RadixIsmArtifactManager {
    */
   static fromProvider(provider: RadixProvider): RadixIsmArtifactManager {
     return new RadixIsmArtifactManager(
-      provider.getQuery().core,
-      provider.getPopulate().core,
+      provider.getGateway(),
       provider.getBase(),
     );
   }
@@ -113,19 +106,19 @@ export class RadixIsmArtifactManager {
     switch (ismType) {
       case 'domainRoutingIsm':
         return new DomainRoutingIsmArtifactReader(
-          this.query,
+          this.gateway,
         ) as unknown as RawIsmArtifactReader<T>;
       case 'merkleRootMultisigIsm':
         return new MerkleRootMultisigIsmArtifactReader(
-          this.query,
+          this.gateway,
         ) as unknown as RawIsmArtifactReader<T>;
       case 'messageIdMultisigIsm':
         return new MessageIdMultisigIsmArtifactReader(
-          this.query,
+          this.gateway,
         ) as unknown as RawIsmArtifactReader<T>;
       case 'testIsm':
         return new TestIsmArtifactReader(
-          this.query,
+          this.gateway,
         ) as unknown as RawIsmArtifactReader<T>;
       default:
         throw new Error(`Unknown ISM type: ${ismType}`);
@@ -160,31 +153,27 @@ export class RadixIsmArtifactManager {
       case 'domainRoutingIsm':
         return new DomainRoutingIsmArtifactWriter(
           account,
-          this.query,
-          this.populate,
-          baseSigner,
+          this.gateway,
           this.base,
+          baseSigner,
         ) as unknown as RawIsmArtifactWriter<T>;
       case 'merkleRootMultisigIsm':
         return new MerkleRootMultisigIsmArtifactWriter(
           account,
-          this.populate,
-          baseSigner,
           this.base,
+          baseSigner,
         ) as unknown as RawIsmArtifactWriter<T>;
       case 'messageIdMultisigIsm':
         return new MessageIdMultisigIsmArtifactWriter(
           account,
-          this.populate,
-          baseSigner,
           this.base,
+          baseSigner,
         ) as unknown as RawIsmArtifactWriter<T>;
       case 'testIsm':
         return new TestIsmArtifactWriter(
           account,
-          this.populate,
-          baseSigner,
           this.base,
+          baseSigner,
         ) as unknown as RawIsmArtifactWriter<T>;
       default:
         throw new Error(`Unknown ISM type: ${ismType}`);

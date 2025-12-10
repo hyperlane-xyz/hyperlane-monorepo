@@ -1,3 +1,5 @@
+import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
+
 import {
   DerivedIsm,
   IsmArtifact,
@@ -11,22 +13,22 @@ import {
   TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
 
+import { getIsmType } from '../ism/ism-query.js';
+import { getCreateNoopIsmTx } from '../ism/ism-tx.js';
 import { RadixBase } from '../utils/base.js';
 import { RadixBaseSigner } from '../utils/signer.js';
-
-import { RadixCorePopulate } from './populate.js';
-import { RadixCoreQuery } from './query.js';
+import { RadixIsmTypes } from '../utils/types.js';
 
 export class TestIsmArtifactReader implements RawIsmArtifactReader<'testIsm'> {
-  constructor(private query: RadixCoreQuery) {}
+  constructor(private gateway: GatewayApiClient) {}
 
   async read(
     address: string,
   ): Promise<ArtifactDeployed<TestIsmConfig, DerivedIsm>> {
     // Verify it's a NoopIsm (TestIsm on Radix)
-    const ismType = await this.query.getIsmType({ ism: address });
+    const ismType = await getIsmType(this.gateway, address);
 
-    if (ismType !== 'NoopIsm') {
+    if (ismType !== RadixIsmTypes.NOOP_ISM) {
       throw new Error(
         `Expected NoopIsm (TestIsm) at address ${address}, but found ${ismType}`,
       );
@@ -47,17 +49,14 @@ export class TestIsmArtifactReader implements RawIsmArtifactReader<'testIsm'> {
 export class TestIsmArtifactWriter implements RawIsmArtifactWriter<'testIsm'> {
   constructor(
     private account: string,
-    private populate: RadixCorePopulate,
-    private signer: RadixBaseSigner,
     private base: RadixBase,
+    private signer: RadixBaseSigner,
   ) {}
 
   async create(
     artifact: IsmArtifact<'testIsm'>,
   ): Promise<[ArtifactDeployed<TestIsmConfig, DerivedIsm>, TxReceipt[]]> {
-    const manifest = await this.populate.createNoopIsm({
-      from_address: this.account,
-    });
+    const manifest = await getCreateNoopIsmTx(this.base, this.account);
 
     const receipt = await this.signer.signAndBroadcast(manifest);
     const ismAddress = await this.base.getNewComponent(receipt);
