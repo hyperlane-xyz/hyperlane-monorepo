@@ -18,18 +18,12 @@ import { INSTRUCTIONS, RadixHookTypes } from '../utils/types.js';
 
 export async function getCreateMerkleTreeHookTransaction(
   base: Readonly<RadixBase>,
-  hyperlanePackageDefAddress: string,
-  {
-    fromAddress,
-    mailboxAddress,
-  }: {
-    fromAddress: string;
-    mailboxAddress: string;
-  },
+  fromAddress: string,
+  mailboxAddress: string,
 ): Promise<TransactionManifest> {
   return base.createCallFunctionManifest(
     fromAddress,
-    hyperlanePackageDefAddress,
+    base.getHyperlanePackageDefAddress(),
     RadixHookTypes.MERKLE_TREE,
     INSTRUCTIONS.INSTANTIATE,
     [address(mailboxAddress)],
@@ -38,18 +32,12 @@ export async function getCreateMerkleTreeHookTransaction(
 
 export async function getCreateIgpTransaction(
   base: Readonly<RadixBase>,
-  hyperlanePackageDefAddress: string,
-  {
-    fromAddress,
-    nativeTokenDenom,
-  }: {
-    fromAddress: string;
-    nativeTokenDenom: string;
-  },
+  fromAddress: string,
+  nativeTokenDenom: string,
 ): Promise<TransactionManifest> {
   return base.createCallFunctionManifest(
     fromAddress,
-    hyperlanePackageDefAddress,
+    base.getHyperlanePackageDefAddress(),
     RadixHookTypes.IGP,
     INSTRUCTIONS.INSTANTIATE,
     [address(nativeTokenDenom)],
@@ -59,12 +47,11 @@ export async function getCreateIgpTransaction(
 export async function getSetIgpOwnerTransaction(
   base: Readonly<RadixBase>,
   gateway: Readonly<GatewayApiClient>,
+  fromAddress: string,
   {
-    fromAddress,
     igpAddress,
     newOwner,
   }: {
-    fromAddress: string;
     igpAddress: string;
     newOwner: string;
   },
@@ -89,12 +76,11 @@ export async function getSetIgpOwnerTransaction(
 
 export async function getSetIgpDestinationGasConfigTransaction(
   base: Readonly<RadixBase>,
+  fromAddress: string,
   {
-    fromAddress,
     igpAddress,
     destinationGasConfig,
   }: {
-    fromAddress: string;
     igpAddress: string;
     destinationGasConfig: {
       remoteDomainId: number;

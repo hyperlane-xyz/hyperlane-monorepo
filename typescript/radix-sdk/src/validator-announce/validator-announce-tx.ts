@@ -5,18 +5,12 @@ import { INSTRUCTIONS } from '../utils/types.js';
 
 export async function getCreateValidatorAnnounceTransaction(
   base: Readonly<RadixBase>,
-  hyperlanePackageDefAddress: string,
-  {
-    fromAddress,
-    mailboxAddress,
-  }: {
-    fromAddress: string;
-    mailboxAddress: string;
-  },
+  fromAddress: string,
+  mailboxAddress: string,
 ): Promise<TransactionManifest> {
   return base.createCallFunctionManifest(
     fromAddress,
-    hyperlanePackageDefAddress,
+    base.getHyperlanePackageDefAddress(),
     'ValidatorAnnounce',
     INSTRUCTIONS.INSTANTIATE,
     [address(mailboxAddress)],

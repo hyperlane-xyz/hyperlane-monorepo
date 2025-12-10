@@ -14,18 +14,12 @@ import { INSTRUCTIONS } from '../utils/types.js';
 
 export async function getCreateMailboxTransaction(
   base: Readonly<RadixBase>,
-  hyperlanePackageDefAddress: string,
-  {
-    fromAddress,
-    domainId,
-  }: {
-    fromAddress: string;
-    domainId: number;
-  },
+  fromAddress: string,
+  domainId: number,
 ): Promise<TransactionManifest> {
   return base.createCallFunctionManifest(
     fromAddress,
-    hyperlanePackageDefAddress,
+    base.getHyperlanePackageDefAddress(),
     'Mailbox',
     INSTRUCTIONS.INSTANTIATE,
     [u32(domainId)],
@@ -35,12 +29,11 @@ export async function getCreateMailboxTransaction(
 export async function getSetMailboxOwnerTransaction(
   base: Readonly<RadixBase>,
   gateway: Readonly<GatewayApiClient>,
+  fromAddress: string,
   {
-    fromAddress,
     mailboxAddress,
     newOwner,
   }: {
-    fromAddress: string;
     mailboxAddress: string;
     newOwner: string;
   },
@@ -68,12 +61,11 @@ export async function getSetMailboxOwnerTransaction(
 
 export async function getSetMailboxRequiredHookTransaction(
   base: Readonly<RadixBase>,
+  fromAddress: string,
   {
-    fromAddress,
     mailboxAddress,
     hookAddress,
   }: {
-    fromAddress: string;
     mailboxAddress: string;
     hookAddress: string;
   },
@@ -88,12 +80,11 @@ export async function getSetMailboxRequiredHookTransaction(
 
 export async function getSetMailboxDefaultHookTransaction(
   base: Readonly<RadixBase>,
+  fromAddress: string,
   {
-    fromAddress,
     mailboxAddress,
     hookAddress,
   }: {
-    fromAddress: string;
     mailboxAddress: string;
     hookAddress: string;
   },
@@ -108,12 +99,11 @@ export async function getSetMailboxDefaultHookTransaction(
 
 export async function getSetMailboxDefaultIsmTransaction(
   base: Readonly<RadixBase>,
+  fromAddress: string,
   {
-    fromAddress,
     mailboxAddress,
     ismAddress,
   }: {
-    fromAddress: string;
     mailboxAddress: string;
     ismAddress: string;
   },

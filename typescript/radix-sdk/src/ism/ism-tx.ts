@@ -21,34 +21,30 @@ import { bytes } from '../utils/utils.js';
 
 export async function getCreateNoopIsmTransaction(
   base: Readonly<RadixBase>,
-  hyperlanePackageDefAddress: string,
   fromAddress: string,
 ): Promise<TransactionManifest> {
   return base.createCallFunctionManifest(
     fromAddress,
-    hyperlanePackageDefAddress,
+    base.getHyperlanePackageDefAddress(),
     RadixIsmTypes.NOOP_ISM,
     INSTRUCTIONS.INSTANTIATE,
     [],
   );
 }
 
+type CreateMultisigIsmTxConfig = {
+  validators: string[];
+  threshold: number;
+};
+
 export async function getCreateMerkleRootMultisigIsmTransaction(
   base: Readonly<RadixBase>,
-  hyperlanePackageDefAddress: string,
-  {
-    fromAddress,
-    validators,
-    threshold,
-  }: {
-    fromAddress: string;
-    validators: string[];
-    threshold: number;
-  },
+  fromAddress: string,
+  { validators, threshold }: CreateMultisigIsmTxConfig,
 ): Promise<TransactionManifest> {
   return base.createCallFunctionManifest(
     fromAddress,
-    hyperlanePackageDefAddress,
+    base.getHyperlanePackageDefAddress(),
     RadixIsmTypes.MERKLE_ROOT_MULTISIG,
     INSTRUCTIONS.INSTANTIATE,
     [
@@ -60,20 +56,12 @@ export async function getCreateMerkleRootMultisigIsmTransaction(
 
 export async function getCreateMessageIdMultisigIsmTransaction(
   base: Readonly<RadixBase>,
-  hyperlanePackageDefAddress: string,
-  {
-    fromAddress,
-    validators,
-    threshold,
-  }: {
-    fromAddress: string;
-    validators: string[];
-    threshold: number;
-  },
+  fromAddress: string,
+  { validators, threshold }: CreateMultisigIsmTxConfig,
 ): Promise<TransactionManifest> {
   return base.createCallFunctionManifest(
     fromAddress,
-    hyperlanePackageDefAddress,
+    base.getHyperlanePackageDefAddress(),
     RadixIsmTypes.MESSAGE_ID_MULTISIG,
     INSTRUCTIONS.INSTANTIATE,
     [
@@ -85,18 +73,12 @@ export async function getCreateMessageIdMultisigIsmTransaction(
 
 export async function getCreateRoutingIsmTransaction(
   base: Readonly<RadixBase>,
-  hyperlanePackageDefAddress: string,
-  {
-    fromAddress,
-    routes,
-  }: {
-    fromAddress: string;
-    routes: { ismAddress: string; domainId: number }[];
-  },
+  fromAddress: string,
+  routes: { ismAddress: string; domainId: number }[],
 ): Promise<TransactionManifest> {
   return base.createCallFunctionManifest(
     fromAddress,
-    hyperlanePackageDefAddress,
+    base.getHyperlanePackageDefAddress(),
     RadixIsmTypes.ROUTING_ISM,
     INSTRUCTIONS.INSTANTIATE,
     [
@@ -111,12 +93,11 @@ export async function getCreateRoutingIsmTransaction(
 export async function getSetRoutingIsmOwnerTransaction(
   base: Readonly<RadixBase>,
   gateway: Readonly<GatewayApiClient>,
+  fromAddress: string,
   {
-    fromAddress,
     ismAddress,
     newOwner,
   }: {
-    fromAddress: string;
     ismAddress: string;
     newOwner: string;
   },
@@ -141,12 +122,11 @@ export async function getSetRoutingIsmOwnerTransaction(
 
 export async function getSetRoutingIsmDomainIsmTransaction(
   base: Readonly<RadixBase>,
+  fromAddress: string,
   {
-    fromAddress,
     ismAddress,
     domainIsm,
   }: {
-    fromAddress: string;
     ismAddress: string;
     domainIsm: { domainId: number; ismAddress: string };
   },
@@ -161,12 +141,11 @@ export async function getSetRoutingIsmDomainIsmTransaction(
 
 export async function getRemoveRoutingIsmDomainIsmTransaction(
   base: Readonly<RadixBase>,
+  fromAddress: string,
   {
-    fromAddress,
     ismAddress,
     domainId,
   }: {
-    fromAddress: string;
     ismAddress: string;
     domainId: number;
   },
