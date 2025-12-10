@@ -18,7 +18,7 @@ pub async fn get_tx_hash_status<P: AleoProviderForLander>(
     hash: H512,
 ) -> Result<TransactionStatus, LanderError> {
     // First, check if transaction is confirmed on-chain
-    if let Ok(confirmed_tx) = provider.get_confirmed_transaction(hash).await {
+    if let Ok(_confirmed_tx) = provider.get_confirmed_transaction(hash).await {
         // Transaction is confirmed - report as finalized
         // Once we introduce transaction drop reasons Rejected and Reverted
         // we shall check if a confirmed Aleo transaction was rejected.
