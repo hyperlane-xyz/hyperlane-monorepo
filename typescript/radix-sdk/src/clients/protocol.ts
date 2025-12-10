@@ -1,6 +1,5 @@
 import {
   AltVM,
-  AltVMJsonRpcTxSubmitter,
   ChainMetadataForAltVM,
   ITransactionSubmitter,
   MinimumRequiredGasByAction,
@@ -38,16 +37,12 @@ export class RadixProtocolProvider implements ProtocolProvider {
     });
   }
 
-  async createSubmitter<TConfig extends TransactionSubmitterConfig>(
-    chainMetadata: ChainMetadataForAltVM,
-    config: TConfig,
+  createSubmitter<TConfig extends TransactionSubmitterConfig>(
+    _chainMetadata: ChainMetadataForAltVM,
+    _config: TConfig,
   ): Promise<ITransactionSubmitter> {
-    if (config.type === 'jsonRpc') {
-      const signer = await this.createSigner(chainMetadata, config);
-      return new AltVMJsonRpcTxSubmitter(signer, config);
-    }
-
-    throw Error(`Cannot find submitter with submitter config ${config.type}`);
+    // @TODO Implement in a follow up PR
+    throw Error('Not implemented');
   }
 
   getMinGas(): MinimumRequiredGasByAction {
