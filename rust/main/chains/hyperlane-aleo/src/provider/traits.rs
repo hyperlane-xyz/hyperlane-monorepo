@@ -225,8 +225,7 @@ impl<Client: HttpClient> RpcClient<Client> {
         transaction_id: H512,
     ) -> ChainResult<Transaction<CurrentNetwork>> {
         let tx_id = crate::utils::get_tx_id::<CurrentNetwork>(transaction_id)?;
-        let tx_id_str = tx_id.to_string();
-        self.request(&format!("transaction/unconfirmed/{tx_id_str}"), None)
+        self.request(&format!("transaction/unconfirmed/{tx_id}"), None)
             .await
     }
 
