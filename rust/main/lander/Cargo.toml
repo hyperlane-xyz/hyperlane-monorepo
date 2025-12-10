@@ -11,7 +11,7 @@ version.workspace = true
 hyperlane-base = { path = "../hyperlane-base", features = ["test-utils"] }
 hyperlane-core = { path = "../hyperlane-core" }
 
-hyperlane-aleo = { path = "../chains/hyperlane-aleo" }
+hyperlane-aleo = { path = "../chains/hyperlane-aleo", optional = true }
 hyperlane-ethereum = { path = "../chains/hyperlane-ethereum" }
 hyperlane-radix = { path = "../chains/hyperlane-radix" }
 hyperlane-sealevel = { path = "../chains/hyperlane-sealevel" }
@@ -53,3 +53,7 @@ tracing-subscriber.workspace = true
 tracing-test.workspace = true
 mockall.workspace = true
 tempfile.workspace = true
+
+[features]
+default = []
+aleo = ["dep:hyperlane-aleo", "hyperlane-base/aleo"]
