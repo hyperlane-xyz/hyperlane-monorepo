@@ -28,7 +28,7 @@
     "@hyperlane-xyz/registry": "23.7.0",
     "@hyperlane-xyz/sdk": "19.13.0",
     "@hyperlane-xyz/utils": "19.13.0",
-    "express": "^5.1.0",
+    "express": "^4.22.0",
     "pino": "^8.19.0",
     "zod": "^3.21.2",
     "zod-validation-error": "^3.3.0"
