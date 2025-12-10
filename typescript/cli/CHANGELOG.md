@@ -1,5 +1,11 @@
 # @hyperlane-xyz/cli
 
+## 19.13.0
+
+### Minor Changes
+
+- ae8ef4389: Fixed bug in `core deploy` which allowed to deploy unverified and possibly invalid configs due to missing validation using zod
+
 ## 19.12.0
 
 ### Minor Changes
