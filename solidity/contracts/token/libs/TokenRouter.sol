@@ -7,6 +7,9 @@ import {GasRouter} from "../../client/GasRouter.sol";
 import {TokenMessage} from "./TokenMessage.sol";
 import {Quote, ITokenBridge, ITokenFee} from "../../interfaces/ITokenBridge.sol";
 import {Quotes} from "./Quotes.sol";
+
+// ============ External Imports ============
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 
 /**
@@ -26,6 +29,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
     using TokenMessage for bytes;
     using StorageSlot for bytes32;
     using Quotes for Quote[];
+    using Address for address payable;
 
     /**
      * @dev Emitted on `transferRemote` when a transfer message is dispatched.
@@ -429,6 +433,12 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         emit ReceivedTransferRemote(_origin, recipient, amount);
 
         // interactions
-        _transferTo(recipient.bytes32ToAddress(), _inboundAmount(amount));
+        address recipientAddress = recipient.bytes32ToAddress();
+        _transferTo(recipientAddress, _inboundAmount(amount));
+
+        // TODO: move to external payable fn
+        if (msg.value > 0) {
+            payable(recipientAddress).sendValue(msg.value);
+        }
     }
 }

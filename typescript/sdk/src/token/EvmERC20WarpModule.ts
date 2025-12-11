@@ -1,5 +1,4 @@
 // import { expect } from 'chai';
-import { compareVersions } from 'compare-versions';
 import { BigNumberish } from 'ethers';
 import { UINT_256_MAX } from 'starknet';
 
@@ -40,6 +39,7 @@ import { ExplorerLicenseType } from '../block-explorer/etherscan.js';
 import { CCIPContractCache } from '../ccip/utils.js';
 import { transferOwnershipTransactions } from '../contracts/contracts.js';
 import { HyperlaneAddresses } from '../contracts/types.js';
+import { shouldUpgrade } from '../contractversion.js';
 import {
   HyperlaneModule,
   HyperlaneModuleParams,
@@ -70,8 +70,6 @@ import {
   HypTokenRouterConfig,
   HypTokenRouterConfigSchema,
   MovableTokenConfig,
-  VERSION_ERROR_MESSAGE,
-  contractVersionMatchesDependency,
   derivedIsmAddress,
   isEverclearTokenBridgeConfig,
   isMovableCollateralTokenConfig,
@@ -1102,40 +1100,9 @@ export class EvmERC20WarpModule extends HyperlaneModule<
   ): Promise<AnnotatedEV5Transaction[]> {
     const updateTransactions: AnnotatedEV5Transaction[] = [];
 
-    // This should be impossible since we try catch the call to `PACKAGE_VERSION`
-    // in `EvmERC20WarpRouteReader.fetchPackageVersion`
-    assert(
-      actualConfig.contractVersion,
-      'Actual contract version is undefined',
-    );
-
-    // Only upgrade if the user specifies a version
-    if (!expectedConfig.contractVersion) {
+    if (!shouldUpgrade(actualConfig, expectedConfig)) {
       return [];
     }
-
-    const comparisonValue = compareVersions(
-      expectedConfig.contractVersion,
-      actualConfig.contractVersion,
-    );
-
-    // Expected version is lower than actual version, no upgrade is possible
-    if (comparisonValue === -1) {
-      throw new Error(
-        `Expected contract version ${expectedConfig.contractVersion} is lower than actual contract version ${actualConfig.contractVersion}`,
-      );
-    }
-    // Versions are the same, no upgrade needed
-    if (comparisonValue === 0) {
-      return [];
-    }
-
-    // You can only upgrade to the contract version (see `PackageVersioned`)
-    // defined by the @hyperlane-xyz/core package
-    assert(
-      contractVersionMatchesDependency(expectedConfig.contractVersion),
-      VERSION_ERROR_MESSAGE,
-    );
 
     this.logger.info(
       `Upgrading Warp Route implementation on ${this.args.chain} from ${actualConfig.contractVersion} to ${expectedConfig.contractVersion}`,

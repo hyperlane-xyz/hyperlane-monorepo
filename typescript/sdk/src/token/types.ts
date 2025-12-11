@@ -1,10 +1,9 @@
-import { compareVersions } from 'compare-versions';
 import { constants } from 'ethers';
 import { z } from 'zod';
 
-import { CONTRACTS_PACKAGE_VERSION } from '@hyperlane-xyz/core';
 import { objMap } from '@hyperlane-xyz/utils';
 
+import { VersionedSchema } from '../contractversion.js';
 import { TokenFeeConfigInput, TokenFeeType } from '../fee/types.js';
 import { HookConfig, HookType } from '../hook/types.js';
 import {
@@ -28,19 +27,12 @@ export const WarpRouteDeployConfigSchemaErrors = {
   NO_SYNTHETIC_ONLY: `Config must include Native or Collateral OR all synthetics must define token metadata`,
 };
 
-export const contractVersionMatchesDependency = (version: string) => {
-  return compareVersions(version, CONTRACTS_PACKAGE_VERSION) === 0;
-};
-
-export const VERSION_ERROR_MESSAGE = `Contract version must match the @hyperlane-xyz/core dependency version (${CONTRACTS_PACKAGE_VERSION})`;
-
-export const TokenMetadataSchema = z.object({
+export const TokenMetadataSchema = VersionedSchema.extend({
   name: z.string(),
   symbol: z.string(),
   decimals: z.number().gt(0).optional(),
   scale: z.number().optional(),
   isNft: z.boolean().optional(),
-  contractVersion: z.string().optional(),
 });
 export type TokenMetadata = z.infer<typeof TokenMetadataSchema>;
 export const isTokenMetadata = isCompliant(TokenMetadataSchema);
