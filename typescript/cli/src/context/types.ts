@@ -56,6 +56,7 @@ export interface CommandContext
   chainMetadata: ChainMap<ChainMetadata>;
   multiProvider: MultiProvider;
   multiProtocolProvider: MultiProtocolProvider;
+  multiProviderOptions?: any; // Store MultiProvider options for later use
   altVmProviders: ChainMap<AltVM.IProvider>;
   supportedProtocols: ProtocolType[];
   skipConfirmation: boolean;

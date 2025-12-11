@@ -87,8 +87,13 @@ export async function contextMiddleware(argv: Record<string, any>) {
 }
 
 export async function signerMiddleware(argv: Record<string, any>) {
-  const { key, requiresKey, strategyPath, multiProtocolProvider } =
-    argv.context;
+  const {
+    key,
+    requiresKey,
+    strategyPath,
+    multiProtocolProvider,
+    multiProviderOptions,
+  } = argv.context;
 
   const strategyConfig = strategyPath
     ? await readChainSubmissionStrategyConfig(strategyPath)
@@ -148,8 +153,10 @@ export async function signerMiddleware(argv: Record<string, any>) {
 
   /**
    * @notice Attaches signers to MultiProvider and assigns it to argv.multiProvider
+   * Pass multiProviderOptions to preserve MultiplexProvider configuration
    */
-  argv.context.multiProvider = await multiProtocolSigner.getMultiProvider();
+  argv.context.multiProvider =
+    await multiProtocolSigner.getMultiProvider(multiProviderOptions);
 
   /**
    * Creates AltVM signers
@@ -192,11 +199,14 @@ export async function getContext({
     !!skipConfirmation,
   );
 
-  const multiProvider = await getMultiProvider(registry, {
-    useMultiplex,
-    providerRetryOptions,
-    metricsDbPath,
-  });
+  const { multiProvider, multiProviderOptions } = await getMultiProvider(
+    registry,
+    {
+      useMultiplex,
+      providerRetryOptions,
+      metricsDbPath,
+    },
+  );
   const multiProtocolProvider = await getMultiProtocolProvider(registry);
 
   // This mapping gets populated as part of signerMiddleware
@@ -214,6 +224,7 @@ export async function getContext({
     chainMetadata: multiProvider.metadata,
     multiProvider,
     multiProtocolProvider,
+    multiProviderOptions,
     altVmProviders,
     supportedProtocols,
     key: keyMap,
@@ -272,7 +283,7 @@ async function getSignerKeyMap(
  * @param registry The registry to get chain metadata from
  * @param settings Provider configuration settings
  * @param signer Optional signer to set on the MultiProvider
- * @returns a new MultiProvider
+ * @returns a new MultiProvider and its options
  */
 async function getMultiProvider(
   registry: IRegistry,
@@ -281,7 +292,7 @@ async function getMultiProvider(
     'useMultiplex' | 'providerRetryOptions' | 'metricsDbPath'
   >,
   signer?: ethers.Signer,
-) {
+): Promise<{ multiProvider: MultiProvider; multiProviderOptions: any }> {
   const chainMetadata = await registry.getMetadata();
 
   // Filter out undefined values from retry options
@@ -326,12 +337,14 @@ async function getMultiProvider(
   );
   console.log('[DEBUG] getMultiProvider - retryOptions:', retryOptions);
 
-  const multiProvider = new MultiProvider(chainMetadata, {
+  const multiProviderOptions = {
     providerBuilder,
-  });
+  };
+
+  const multiProvider = new MultiProvider(chainMetadata, multiProviderOptions);
 
   if (signer) multiProvider.setSharedSigner(signer);
-  return multiProvider;
+  return { multiProvider, multiProviderOptions };
 }
 
 async function getMultiProtocolProvider(registry: IRegistry) {

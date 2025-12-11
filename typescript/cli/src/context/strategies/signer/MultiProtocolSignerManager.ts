@@ -122,9 +122,10 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
 
   /**
    * @dev Configures signers for EVM chains in MultiProvider
+   * @param options Optional MultiProvider options to preserve provider configuration (e.g., MultiplexProvider)
    */
-  async getMultiProvider(): Promise<MultiProvider> {
-    const multiProvider = this.multiProtocolProvider.toMultiProvider();
+  async getMultiProvider(options?: any): Promise<MultiProvider> {
+    const multiProvider = this.multiProtocolProvider.toMultiProvider(options);
 
     const evmChains = this.chains.filter(
       (chain) =>
