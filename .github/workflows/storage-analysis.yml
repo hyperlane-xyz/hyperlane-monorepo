@@ -42,7 +42,7 @@ jobs:
 
       # Run the command on PR branch
       - name: Run command on PR branch
-        run: pnpm --filter @hyperlane-xyz/core storage HEAD-storage
+        run: pnpm -C solidity storage HEAD-storage
 
       # Checkout the target branch (base)
       - name: Checkout target branch (base) contracts
@@ -62,7 +62,7 @@ jobs:
 
       # Run the command on the target branch
       - name: Run command on target branch
-        run: pnpm --filter @hyperlane-xyz/core storage base-storage
+        run: pnpm -C solidity storage base-storage
 
       # Compare outputs
       - name: Compare outputs (fail on removals only)

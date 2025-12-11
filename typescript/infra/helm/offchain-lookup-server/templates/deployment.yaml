@@ -33,7 +33,7 @@ spec:
             periodSeconds: 10
           imagePullPolicy: IfNotPresent
           command: ["pnpm"]
-          args: ["--cwd", "typescript/ccip-server", "run", "start"]
+          args: ["-C", "typescript/ccip-server", "run", "start"]
           ports:
             - name: http
               containerPort: {{ .Values.port }}

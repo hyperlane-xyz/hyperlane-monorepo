@@ -82,8 +82,8 @@ The rebalancer container
     value: $(COINGECKO_API_KEY)
   args:
   - "pnpm"
-  - "workspace"
-  - "@hyperlane-xyz/cli"
+  - "-C"
+  - "typescript/cli"
   - "hyperlane"
   - "warp"
   - "rebalancer"
