@@ -42,6 +42,7 @@
   "workspaces": [
     "solhint-plugin",
     "solidity",
+    "solidity/named-args-converter",
     "typescript/*",
     "starknet"
   ],
