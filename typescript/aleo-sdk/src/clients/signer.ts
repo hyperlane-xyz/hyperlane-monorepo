@@ -51,6 +51,7 @@ export class AleoSigner
     warpSuffix?: string,
   ): Promise<Partial<Record<AleoProgram, string>>> {
     const programs = loadProgramsInDeployOrder(
+      this.prefix,
       programName,
       coreSuffix,
       warpSuffix,

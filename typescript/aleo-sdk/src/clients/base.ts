@@ -17,6 +17,8 @@ import {
 
 import { assert } from '@hyperlane-xyz/utils';
 
+import { MAINNET_PREFIX, TESTNET_PREFIX } from '../utils/helper.js';
+
 export type AnyAleoNetworkClient =
   | AleoMainnetNetworkClient
   | AleoTestnetNetworkClient;
@@ -26,6 +28,8 @@ export type AnyProgramManager = MainnetProgramManager | TestnetProgramManager;
 export class AleoBase {
   protected readonly rpcUrls: string[];
   protected readonly chainId: number;
+
+  protected readonly prefix: string;
 
   protected readonly aleoClient: AnyAleoNetworkClient;
   protected readonly skipProofs: boolean;
@@ -40,12 +44,14 @@ export class AleoBase {
     );
     assert(rpcUrls.length > 0, `got no rpcUrls`);
 
-    this.rpcUrls = rpcUrls;
+    this.rpcUrls = rpcUrls.map((r) =>
+      r.replaceAll('/testnet', '').replaceAll('/mainnet', ''),
+    );
     this.chainId = +chainId;
 
     this.aleoClient = this.chainId
-      ? new AleoTestnetNetworkClient(rpcUrls[0])
-      : new AleoMainnetNetworkClient(rpcUrls[0]);
+      ? new AleoTestnetNetworkClient(this.rpcUrls[0])
+      : new AleoMainnetNetworkClient(this.rpcUrls[0]);
 
     this.skipProofs = JSON.parse(process.env['ALEO_SKIP_PROOFS'] || 'false');
     this.skipSuffixes = JSON.parse(
@@ -58,9 +64,11 @@ export class AleoBase {
       getOrInitConsensusVersionTestHeights(this.consensusVersionHeights);
     }
 
+    this.prefix = this.chainId ? TESTNET_PREFIX : MAINNET_PREFIX;
+
     this.ismManager = process.env['ALEO_ISM_MANAGER_SUFFIX']
-      ? `ism_manager_${process.env['ALEO_ISM_MANAGER_SUFFIX']}.aleo`
-      : 'ism_manager.aleo';
+      ? `${this.prefix}_ism_manager_${process.env['ALEO_ISM_MANAGER_SUFFIX']}.aleo`
+      : `${this.prefix}_ism_manager.aleo`;
   }
 
   protected getProgramManager(privateKey?: string): AnyProgramManager {

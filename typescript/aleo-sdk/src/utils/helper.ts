@@ -9,7 +9,11 @@ const skipSuffixes = JSON.parse(process.env['ALEO_SKIP_SUFFIXES'] || 'false');
 const customIsmSuffix = process.env['ALEO_ISM_MANAGER_SUFFIX'];
 const customWarpSuffix = process.env['ALEO_WARP_SUFFIX'];
 
+export const MAINNET_PREFIX = 'hyp';
+export const TESTNET_PREFIX = 'test_hyp';
+
 export function loadProgramsInDeployOrder(
+  prefix: string,
   programName: AleoProgram,
   coreSuffix: string,
   warpSuffix?: string,
@@ -35,6 +39,16 @@ export function loadProgramsInDeployOrder(
   }
 
   visit(programName);
+
+  programs = programs.map((p) => {
+    let output = p.toString();
+
+    for (const n of Object.keys(programRegistry)) {
+      output = output.replaceAll(`${n}.aleo`, `${prefix}_${n}.aleo`);
+    }
+
+    return Program.fromString(output);
+  });
 
   if (!skipSuffixes) {
     programs = programs.map((p) =>
@@ -108,7 +122,10 @@ export function loadProgramsInDeployOrder(
 
   return programs.map((p) => ({
     id: p.id(),
-    name: Object.keys(programRegistry).find((r) => p.id().startsWith(r)) || '',
+    name:
+      Object.keys(programRegistry).find((r) =>
+        p.id().startsWith(`${prefix}_${r}`),
+      ) || '',
     program: p.toString(),
   }));
 }
@@ -163,6 +180,10 @@ export function fromAleoAddress(aleoAddress: string): {
 export function getProgramSuffix(address: string): string {
   let suffix = address;
 
+  for (const prefix of [`${TESTNET_PREFIX}_`, `${MAINNET_PREFIX}_`]) {
+    suffix = suffix.replaceAll(prefix, '');
+  }
+
   for (const key of Object.keys(programRegistry)) {
     suffix = suffix.replaceAll(key, '');
   }
@@ -173,12 +194,16 @@ export function getProgramSuffix(address: string): string {
   return suffix;
 }
 
-export function getProgramIdFromSuffix(program: AleoProgram, suffix: string) {
+export function getProgramIdFromSuffix(
+  prefix: string,
+  program: AleoProgram,
+  suffix: string,
+) {
   if (skipSuffixes || !suffix) {
-    return `${program}.aleo`;
+    return `${prefix}_${program}.aleo`;
   }
 
-  return `${program}_${suffix}.aleo`;
+  return `${prefix}_${program}_${suffix}.aleo`;
 }
 
 export function stringToU128(str: string, littleEndian = false): bigint {
