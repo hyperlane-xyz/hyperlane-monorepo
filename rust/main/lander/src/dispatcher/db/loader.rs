@@ -143,7 +143,7 @@ impl<T: LoadableFromDb + Debug> DbIterator<T> {
                 }
 
                 // sleep to wait for new items to be added
-                sleep(Duration::from_millis(10)).await;
+                sleep(Duration::from_millis(100)).await;
                 iteration_count = iteration_count.saturating_add(1);
             } else {
                 debug!(?self, "Loaded item");

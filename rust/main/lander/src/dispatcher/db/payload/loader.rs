@@ -36,10 +36,7 @@ impl PayloadDbLoader {
         // If capacity is zero, then that means building stage
         // is already notified. Don't need to notify again.
         if self.building_stage_sender.capacity() > 0 {
-            self.building_stage_sender
-                .send(())
-                .await
-                .expect("Failed to send signal to building_stage_receiver");
+            let _ = self.building_stage_sender.send(()).await;
         }
     }
 }
@@ -75,3 +72,6 @@ impl LoadableFromDb for PayloadDbLoader {
         }
     }
 }
+
+#[cfg(test)]
+mod loader_tests;
