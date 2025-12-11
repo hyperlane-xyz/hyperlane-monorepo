@@ -43,12 +43,15 @@ export function loadProgramsInDeployOrder(
   programs = programs.map((p) => {
     let output = p.toString();
 
-    for (const n of Object.keys(programRegistry)) {
-      if (n === 'credits' || n === 'token_registry') {
+    for (let r of Object.keys(programRegistry)) {
+      if (r === 'credits' || r === 'token_registry') {
         continue;
       }
 
-      output = output.replaceAll(`${n}.aleo`, `${prefix}_${n}.aleo`);
+      output = output.replaceAll(
+        `${r}.aleo`,
+        `${prefix}_${r.replaceAll('hyp_', '')}.aleo`,
+      );
     }
 
     return Program.fromString(output);
@@ -128,7 +131,7 @@ export function loadProgramsInDeployOrder(
     id: p.id(),
     name:
       Object.keys(programRegistry).find((r) =>
-        p.id().startsWith(`${prefix}_${r}`),
+        p.id().startsWith(`${prefix}_${r.replaceAll('hyp_', '')}`),
       ) || '',
     program: p.toString(),
   }));
