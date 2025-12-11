@@ -55,13 +55,9 @@ impl<P: AleoProviderForLander> crate::adapter::chains::aleo::adapter::core::Aleo
                 Ok(reverted)
             }
             TransactionStatus::Dropped(_) => {
-                // For dropped transactions, all payloads with success_criteria are reverted
-                Ok(tx
-                    .payload_details
-                    .iter()
-                    .filter(|p| p.success_criteria.is_some())
-                    .cloned()
-                    .collect())
+                // For dropped transactions, all payloads, independently if they have
+                // success criteria or not, are reverted
+                Ok(tx.payload_details.clone())
             }
             _ => {
                 // Transaction not confirmed yet (Mempool or PendingInclusion)

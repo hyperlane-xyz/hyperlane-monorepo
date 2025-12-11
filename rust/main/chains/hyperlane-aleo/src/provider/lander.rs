@@ -1,7 +1,8 @@
 use async_trait::async_trait;
+use hyperlane_core::{ChainCommunicationError, ChainResult, H512};
+use snarkvm::prelude::StringType;
 use snarkvm::{ledger::ConfirmedTransaction, prelude::Transaction};
-
-use hyperlane_core::{ChainResult, H512};
+use std::str::FromStr;
 
 use crate::{
     provider::{AleoClient, AleoProvider},
@@ -100,12 +101,11 @@ impl<C: AleoClient> AleoProviderForLander for AleoProvider<C> {
     ) -> ChainResult<bool> {
         use snarkvm::prelude::Plaintext;
 
-        // Query the mapping value directly using the string key
+        let key = StringType::from_str(mapping_key)
+            .map_err(|e| ChainCommunicationError::CustomError(e.to_string()))?;
+
         let plain_text: Option<Plaintext<CurrentNetwork>> = self
-            .request(
-                &format!("program/{program_id}/mapping/{mapping_name}/{mapping_key}"),
-                None,
-            )
+            .get_mapping_value(program_id, mapping_name, &key)
             .await?;
 
         Ok(plain_text.is_some())
