@@ -2,4 +2,4 @@
 "@hyperlane-xyz/cli": minor
 ---
 
-Update `hyperlane submit` to use `promiseObjAll` instead of `for` loop to prevent safe API rate limiting. Output transaction unique receipts by generating the file name with chain and timestamp.
+Update `hyperlane submit` to use a sequential `for` loop instead of `promiseObjAll` to prevent API rate limiting, Output transaction receipts as unique JSON files per chain with timestamped filenames.
