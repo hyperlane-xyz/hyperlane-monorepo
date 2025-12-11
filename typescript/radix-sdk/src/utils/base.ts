@@ -1,14 +1,12 @@
 import { CostingParameters, FeeSummary } from '@radixdlt/babylon-core-api-sdk';
 import {
   GatewayApiClient,
-  LedgerStateSelector,
-  ScryptoSborValue,
   TransactionStatusResponse,
 } from '@radixdlt/babylon-gateway-api-sdk';
 import {
   LTSRadixEngineToolkit,
   ManifestBuilder,
-  PrivateKey,
+  ManifestSborStringRepresentation,
   RadixEngineToolkit,
   TransactionManifest,
   Value,
@@ -21,25 +19,29 @@ import {
 } from '@radixdlt/radix-engine-toolkit';
 import { BigNumber } from 'bignumber.js';
 import { Decimal } from 'decimal.js';
-import { utils } from 'ethers';
 
-import { assert, sleep } from '@hyperlane-xyz/utils';
+import { assert } from '@hyperlane-xyz/utils';
 
+import { READ_ACCOUNT_HEX_PUBLIC_KEY } from './constants.js';
 import { EntityDetails, INSTRUCTIONS, RadixSDKReceipt } from './types.js';
+import { stringToTransactionManifest } from './utils.js';
 
 export class RadixBase {
   protected networkId: number;
   protected gateway: GatewayApiClient;
   protected gasMultiplier: number;
+  protected hyperlanePackageDefAddress: string;
 
   constructor(
     networkId: number,
     gateway: GatewayApiClient,
     gasMultiplier: number,
+    hyperlanePackageDefAddress: string,
   ) {
     this.networkId = networkId;
     this.gateway = gateway;
     this.gasMultiplier = gasMultiplier;
+    this.hyperlanePackageDefAddress = hyperlanePackageDefAddress;
   }
 
   public async getXrdAddress() {
@@ -49,9 +51,41 @@ export class RadixBase {
     return knownAddresses.resources.xrdResource;
   }
 
+  public getHyperlanePackageDefAddress(): string {
+    return this.hyperlanePackageDefAddress;
+  }
+
   public async isGatewayHealthy(): Promise<boolean> {
     const status = await this.gateway.status.getCurrent();
     return status.ledger_state.state_version > 0;
+  }
+
+  // Code adapted from:
+  // https://github.com/radixdlt/typescript-radix-engine-toolkit/blob/34f04995ef897d3f2a672a6373eea4b379afc793/src/lts/builders.ts#L122
+  public async createXrdFaucetTransactionManifest(
+    toAccount: string,
+    amount: number = 10000,
+  ): Promise<TransactionManifest> {
+    const knownAddresses = await LTSRadixEngineToolkit.Derive.knownAddresses(
+      this.networkId,
+    );
+    const faucetComponentAddress = knownAddresses.components.faucet;
+    const xrdResourceAddress = knownAddresses.resources.xrdResource;
+
+    return new ManifestBuilder()
+      .callMethod(faucetComponentAddress, 'lock_fee', [decimal('10')])
+      .callMethod(faucetComponentAddress, 'free', [])
+      .takeFromWorktop(
+        xrdResourceAddress,
+        new Decimal(amount),
+        (builder, bucketId) => {
+          return builder.callMethod(toAccount, 'try_deposit_or_abort', [
+            bucket(bucketId),
+            enumeration(0),
+          ]);
+        },
+      )
+      .build();
   }
 
   public async getStateVersion(): Promise<number> {
@@ -64,7 +98,6 @@ export class RadixBase {
   }: {
     transactionManifest: TransactionManifest | string;
   }): Promise<{ gasUnits: bigint; gasPrice: number; fee: bigint }> {
-    const pk = new PrivateKey.Ed25519(new Uint8Array(utils.randomBytes(32)));
     const constructionMetadata =
       await this.gateway.transaction.innerClient.transactionConstruction();
 
@@ -87,7 +120,7 @@ export class RadixBase {
           signer_public_keys: [
             {
               key_type: 'EddsaEd25519',
-              key_hex: pk.publicKeyHex(),
+              key_hex: READ_ACCOUNT_HEX_PUBLIC_KEY,
             },
           ],
           flags: {
@@ -479,37 +512,71 @@ export class RadixBase {
       .build();
   }
 
-  public async getKeysFromKeyValueStore(
-    key_value_store_address: string,
-  ): Promise<ScryptoSborValue[]> {
-    let cursor: string | null = null;
-    let at_ledger_state: LedgerStateSelector | null = null;
-    const keys = [];
-    const request_limit = 50;
+  // TS implementation of the publish_package_advanced method as it is not exposed/implemented in the TS Radix toolkit SDK
+  // see: https://github.com/radixdlt/radixdlt-scrypto/blob/92c7db3e1bf79f99abaa9e1217451548d3feb63d/radix-transactions/src/builder/manifest_builder.rs#L1484-L1507
+  public async createPublishPackageManifest(params: {
+    from_address: string;
+    code: Uint8Array;
+    packageDefinition: Uint8Array;
+  }): Promise<TransactionManifest> {
+    const { from_address, code, packageDefinition } = params;
 
-    for (let i = 0; i < request_limit; i++) {
-      const { items, next_cursor, ledger_state } =
-        await this.gateway.state.innerClient.keyValueStoreKeys({
-          stateKeyValueStoreKeysRequest: {
-            key_value_store_address,
-            at_ledger_state,
-            cursor,
-          },
-        });
+    // This should be the manifest representation of the package definition
+    const decodedManifestPackageDefinition =
+      await RadixEngineToolkit.ManifestSbor.decodeToString(
+        packageDefinition,
+        this.networkId,
+        ManifestSborStringRepresentation.ManifestString,
+      );
 
-      keys.push(...items.map((i) => i.key));
+    // Using the hash method from the radix toolkit package
+    // as it uses the blake32 algorithm
+    // see:
+    // - https://github.com/radixdlt/radixdlt-scrypto/blob/92c7db3e1bf79f99abaa9e1217451548d3feb63d/radix-common/src/crypto/hash.rs#L69-L71
+    const codeHashHex = Buffer.from(
+      LTSRadixEngineToolkit.Utils.hash(code),
+    ).toString('hex');
 
-      if (!next_cursor) {
-        return keys;
-      }
+    // The arguments of the PUBLISH_PACKAGE_ADVANCED function are:
+    // owner rule definition
+    // package definition
+    // blake32 hash of the compiled code
+    // metadata
+    // Address reservation for the published package
+    // see: https://docs.radixdlt.com/docs/manifest-instructions#:~:text=COPY-,PUBLISH_PACKAGE_ADVANCED,-(alias)
+    const manifestString = `
+      CALL_METHOD
+          Address("${from_address}")
+          "lock_fee"
+          Decimal("160");
 
-      cursor = next_cursor;
-      at_ledger_state = { state_version: ledger_state.state_version };
-      await sleep(50);
-    }
+      PUBLISH_PACKAGE_ADVANCED
+          Enum<0u8>()
+          ${decodedManifestPackageDefinition}
+          Blob("${codeHashHex}")
+          Map<String, Tuple>()
+          Enum<0u8>();
 
-    throw new Error(
-      `Failed to fetch keys from key value store ${key_value_store_address}, reached request limit of ${request_limit}`,
+      CALL_METHOD
+          Address("${from_address}")
+          "try_deposit_batch_or_abort"
+          Expression("ENTIRE_WORKTOP")
+          Enum<0u8>();
+      `;
+
+    const manifest = await stringToTransactionManifest(
+      manifestString,
+      this.networkId,
     );
+
+    // Workaround to access the private blobs property as the
+    // TransactionManifestBuilder does not expose a method for
+    // registering a blob as the Rust implementation does
+    // see:
+    // - https://github.com/radixdlt/radixdlt-scrypto/blob/92c7db3e1bf79f99abaa9e1217451548d3feb63d/radix-transactions/src/builder/manifest_builder.rs#L1484-L1507
+    // - https://github.com/radixdlt/radixdlt-scrypto/blob/92c7db3e1bf79f99abaa9e1217451548d3feb63d/radix-transactions/src/builder/manifest_builder.rs#L333-L336
+    manifest['blobs'].push(code);
+
+    return manifest;
   }
 }

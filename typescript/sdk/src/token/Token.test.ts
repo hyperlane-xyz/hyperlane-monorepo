@@ -132,6 +132,8 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
     symbol: 'mUSD',
     name: 'MetaMask USD',
   },
+  [TokenStandard.EvmHypEverclearCollateral]: null,
+  [TokenStandard.EvmHypEverclearEth]: null,
 
   // Sealevel
   [TokenStandard.SealevelSpl]: {
@@ -230,6 +232,7 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
   [TokenStandard.CosmNativeHypSynthetic]: null,
 
   //TODO: check this and manage it.
+  [TokenStandard.StarknetNative]: null,
   [TokenStandard.StarknetHypCollateral]: null,
   [TokenStandard.StarknetHypNative]: null,
   [TokenStandard.StarknetHypSynthetic]: null,
@@ -237,6 +240,11 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
   [TokenStandard.RadixHypCollateral]: null,
   [TokenStandard.RadixNative]: null,
   [TokenStandard.RadixHypSynthetic]: null,
+
+  [TokenStandard.AleoNative]: null,
+  [TokenStandard.AleoHypNative]: null,
+  [TokenStandard.AleoHypCollateral]: null,
+  [TokenStandard.AleoHypSynthetic]: null,
 };
 
 const PROTOCOL_TO_ADDRESS_FOR_BALANCE_CHECK: Partial<
@@ -282,6 +290,11 @@ describe('Token', () => {
       adapter.contract = {
         balanceOf: async () => '100',
       };
+
+      // @ts-ignore
+      adapter.getWrappedTokenAdapter = () => ({
+        getBalance: async () => 100n,
+      });
 
       const balance = await adapter.getBalance(balanceCheckAddress);
       expect(typeof balance).to.eql('bigint');

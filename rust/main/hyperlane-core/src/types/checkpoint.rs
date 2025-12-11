@@ -4,7 +4,7 @@ use derive_more::Deref;
 use serde::{Deserialize, Serialize};
 use sha3::{digest::Update, Digest, Keccak256};
 
-use crate::{utils::domain_hash, Decode, Encode, Signable, Signature, SignedType, H256};
+use crate::{utils::domain_hash, Signable, Signature, SignedType, H256};
 
 /// An Hyperlane checkpoint
 #[derive(Copy, Clone, Eq, PartialEq, Serialize, Deserialize, Debug)]
@@ -95,41 +95,6 @@ impl TryFrom<&mut Vec<SignedCheckpointWithMessageId>> for MultisigSignedCheckpoi
         Ok(MultisigSignedCheckpoint {
             checkpoint,
             signatures,
-        })
-    }
-}
-
-/// Information about the checkpoint
-#[derive(Copy, Clone, Eq, PartialEq, Serialize, Deserialize, Debug, Default)]
-pub struct CheckpointInfo {
-    /// block height of checkpoint
-    pub block_height: u64,
-    /// index of checkpoint
-    pub checkpoint_index: u32,
-}
-
-impl Encode for CheckpointInfo {
-    fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
-    where
-        W: std::io::Write,
-    {
-        let mut written: usize = self.checkpoint_index.write_to(writer)?;
-        written = written.saturating_add(self.block_height.write_to(writer)?);
-        Ok(written)
-    }
-}
-
-impl Decode for CheckpointInfo {
-    fn read_from<R>(reader: &mut R) -> Result<Self, crate::HyperlaneProtocolError>
-    where
-        R: std::io::Read,
-        Self: Sized,
-    {
-        let checkpoint_index = u32::read_from(reader)?;
-        let block_height = u64::read_from(reader)?;
-        Ok(Self {
-            checkpoint_index,
-            block_height,
         })
     }
 }

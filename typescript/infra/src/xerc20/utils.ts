@@ -45,7 +45,7 @@ export const XERC20_BRIDGES_CONFIG_PATH = join(
 
 type BridgeConfigBase = {
   chain: string;
-  type: TokenType.XERC20Lockbox | TokenType.XERC20;
+  type: typeof TokenType.XERC20Lockbox | typeof TokenType.XERC20;
   xERC20Address: Address;
   bridgeAddress: Address;
   decimals: number;
@@ -576,7 +576,11 @@ async function sendTransactions(
       rootLogger.info(
         chalk.gray(`[${chain}][${bridgeAddress}] Sending as Safe transaction`),
       );
-      sender = new SafeMultiSend(multiProvider, chain, actualOwner);
+      sender = await SafeMultiSend.initialize(
+        multiProvider,
+        chain,
+        actualOwner,
+      );
       safeAddress = actualOwner;
     }
   }

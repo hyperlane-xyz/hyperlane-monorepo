@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity >=0.8.0;
 
+// ============ Internal Imports ============
+import {LpCollateralRouter} from "./libs/LpCollateralRouter.sol";
+import {Quote, ITokenBridge} from "../interfaces/ITokenBridge.sol";
+import {NativeCollateral} from "./libs/TokenCollateral.sol";
 import {TokenRouter} from "./libs/TokenRouter.sol";
-import {FungibleTokenRouter} from "./libs/FungibleTokenRouter.sol";
-import {MovableCollateralRouter} from "./libs/MovableCollateralRouter.sol";
-import {ValueTransferBridge} from "./interfaces/ValueTransferBridge.sol";
-import {Quote} from "../interfaces/ITokenBridge.sol";
 
+// ============ External Imports ============
+import {ERC4626Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /**
@@ -14,21 +16,13 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
  * @author Abacus Works
  * @dev Supply on each chain is not constant but the aggregate supply across all chains is.
  */
-contract HypNative is MovableCollateralRouter {
-    string internal constant INSUFFICIENT_NATIVE_AMOUNT =
-        "Native: amount exceeds msg.value";
-
-    /**
-     * @dev Emitted when native tokens are donated to the contract.
-     * @param sender The address of the sender.
-     * @param amount The amount of native tokens donated.
-     */
-    event Donation(address indexed sender, uint256 amount);
+contract HypNative is LpCollateralRouter {
+    using NativeCollateral for address;
 
     constructor(
         uint256 _scale,
         address _mailbox
-    ) FungibleTokenRouter(_scale, _mailbox) {}
+    ) TokenRouter(_scale, _mailbox) {}
 
     /**
      * @notice Initializes the Hyperlane router
@@ -40,97 +34,45 @@ contract HypNative is MovableCollateralRouter {
         address _hook,
         address _interchainSecurityModule,
         address _owner
-    ) public virtual initializer {
+    ) public initializer {
         _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
+        _LpCollateralRouter_initialize();
     }
 
-    function quoteTransferRemote(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount
-    ) external view virtual override returns (Quote[] memory quotes) {
-        quotes = new Quote[](1);
-        quotes[0] = Quote({
-            token: address(0),
-            amount: _quoteGasPayment(_destination, _recipient, _amount) +
-                _amount
-        });
-    }
-
-    function _transferRemote(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount,
-        uint256 _value,
-        bytes memory _hookMetadata,
-        address _hook
-    ) internal virtual override returns (bytes32 messageId) {
-        // include for legible error instead of underflow
-        _transferFromSender(_amount);
-
-        return
-            super._transferRemote(
-                _destination,
-                _recipient,
-                _amount,
-                msg.value - _amount,
-                _hookMetadata,
-                _hook
-            );
-    }
-
-    function balanceOf(
-        address _account
-    ) external view override returns (uint256) {
-        return _account.balance;
+    /**
+     * Replacement for ERC4626Upgradeable.deposit that allows for native token deposits.
+     * @dev msg.value will be used as the amount to deposit.
+     * @param receiver The address to deposit the native token to.
+     * @return shares The number of shares minted.
+     */
+    function deposit(address receiver) public payable returns (uint256 shares) {
+        return ERC4626Upgradeable.deposit(msg.value, receiver);
     }
 
     /**
      * @inheritdoc TokenRouter
      */
-    function _transferFromSender(
-        uint256 _amount
-    ) internal virtual override returns (bytes memory) {
-        require(msg.value >= _amount, "Native: amount exceeds msg.value");
-        return bytes(""); // no metadata
+    function token() public pure override returns (address) {
+        return address(0);
     }
 
     /**
-     * @dev Sends `_amount` of native token to `_recipient` balance.
+     * @inheritdoc TokenRouter
+     */
+    function _transferFromSender(uint256 _amount) internal override {
+        NativeCollateral._transferFromSender(_amount);
+    }
+
+    /**
      * @inheritdoc TokenRouter
      */
     function _transferTo(
         address _recipient,
-        uint256 _amount,
-        bytes calldata // no metadata
-    ) internal virtual override {
-        Address.sendValue(payable(_recipient), _amount);
-    }
-
-    receive() external payable {
-        emit Donation(msg.sender, msg.value);
-    }
-
-    /**
-     * @dev This function uses `msg.value` as payment for the bridge.
-     * User collateral is never used to make bridge payments!
-     * The rebalancer is to pay all fees for the bridge.
-     */
-    function _rebalance(
-        uint32 domain,
-        bytes32 recipient,
-        uint256 amount,
-        ValueTransferBridge bridge
+        uint256 _amount
     ) internal override {
-        uint fee = msg.value + amount;
-        require(
-            address(this).balance >= fee,
-            "Native: rebalance amount exceeds balance"
-        );
-        bridge.transferRemote{value: fee}({
-            destinationDomain: domain,
-            recipient: recipient,
-            amountOut: amount
-        });
+        NativeCollateral._transferTo(_recipient, _amount);
     }
+
+    // allow receiving native tokens for collateral rebalancing
+    receive() external payable {}
 }

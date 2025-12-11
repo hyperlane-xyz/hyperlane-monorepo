@@ -2,6 +2,7 @@ import { confirm } from '@inquirer/prompts';
 import { BigNumber, ethers } from 'ethers';
 import path from 'path';
 
+import { GasAction, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
@@ -14,7 +15,7 @@ import {
   WarpRouteDeployConfig,
   isIsmCompatible,
 } from '@hyperlane-xyz/sdk';
-import { Address, GasAction, ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { Address, assert, mustGet } from '@hyperlane-xyz/utils';
 
 import { parseIsmConfig } from '../config/ism.js';
 import { CommandContext, WriteCommandContext } from '../context/types.js';
@@ -42,7 +43,7 @@ export async function runPreflightChecksForChains({
   chainsToGasCheck?: ChainName[];
 }) {
   log('Running pre-flight checks for chains...');
-  const { multiProvider, skipConfirmation, altVmSigner } = context;
+  const { multiProvider, skipConfirmation, altVmSigners } = context;
 
   if (!chains?.length) throw new Error('Empty chain selection');
   for (const chain of chains) {
@@ -52,7 +53,7 @@ export async function runPreflightChecksForChains({
     const signer =
       metadata.protocol === ProtocolType.Ethereum
         ? multiProvider.getSigner(chain)
-        : altVmSigner.get(chain);
+        : mustGet(altVmSigners, chain);
 
     if (!signer) {
       throw new Error('signer is invalid');
@@ -64,7 +65,7 @@ export async function runPreflightChecksForChains({
 
   await nativeBalancesAreSufficient(
     multiProvider,
-    altVmSigner,
+    altVmSigners,
     chainsToGasCheck ?? chains,
     minGas,
     skipConfirmation,
@@ -82,18 +83,19 @@ export async function runDeployPlanStep({
     chainMetadata: chainMetadataMap,
     multiProvider,
     skipConfirmation,
-    altVmSigner,
   } = context;
 
   let address: Address;
 
-  switch (context.multiProvider.getProtocol(chain)) {
+  const protocol = context.multiProvider.getProtocol(chain);
+  switch (protocol) {
     case ProtocolType.Ethereum: {
       address = await multiProvider.getSigner(chain).getAddress();
       break;
     }
     default: {
-      address = altVmSigner.get(chain).getSignerAddress();
+      const signer = mustGet(context.altVmSigners, chain);
+      address = signer.getSignerAddress();
     }
   }
 
@@ -151,7 +153,7 @@ export async function getBalances(
   chains: ChainName[],
   userAddress?: Address,
 ): Promise<Record<string, BigNumber>> {
-  const { multiProvider, altVmSigner } = context;
+  const { multiProvider } = context;
   const balances: Record<string, BigNumber> = {};
 
   for (const chain of chains) {
@@ -168,7 +170,7 @@ export async function getBalances(
         `nativeToken.denom is required for ${chain} (AltVM)`,
       );
 
-      const signer = altVmSigner.get(chain);
+      const signer = mustGet(context.altVmSigners, chain);
       const address = userAddress ?? signer.getSignerAddress();
       balances[chain] = BigNumber.from(
         await signer.getBalance({

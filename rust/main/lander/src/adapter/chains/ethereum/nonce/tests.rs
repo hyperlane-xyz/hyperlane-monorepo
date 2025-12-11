@@ -7,7 +7,7 @@ use crate::transaction::{Transaction, TransactionUuid, VmSpecificTxData};
 use crate::TransactionStatus;
 
 #[allow(deprecated)]
-pub fn make_tx(
+pub fn dummy_tx(
     uuid: TransactionUuid,
     status: TransactionStatus,
     nonce: Option<U256>,
@@ -33,7 +33,7 @@ pub fn make_tx(
     Transaction {
         uuid,
         tx_hashes: vec![],
-        vm_specific_data: VmSpecificTxData::Evm(precursor),
+        vm_specific_data: VmSpecificTxData::Evm(Box::new(precursor)),
         payload_details: vec![],
         status,
         submission_attempts: 0,

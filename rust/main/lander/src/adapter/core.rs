@@ -21,6 +21,11 @@ use crate::{
 
 pub type GasLimit = U256;
 
+#[derive(Clone, Debug)]
+pub enum AdaptsChainAction {
+    OverwriteUpperNonce { nonce: Option<u64> },
+}
+
 #[derive(new, Debug, Clone, PartialEq)]
 pub struct TxBuildingResult {
     /// payload details for the payloads in this transaction
@@ -98,7 +103,9 @@ pub trait AdaptsChain: Send + Sync {
 
     /// Returns the maximum batch size for this chain. Used to decide how many payloads to batch together, as well as
     /// how many network calls to perform in parallel
-    fn max_batch_size(&self) -> u32;
+    fn max_batch_size(&self) -> u32 {
+        1
+    }
 
     /// Update any metrics related to sent transactions, such as gas price, nonce, etc.
     fn update_vm_specific_metrics(&self, _tx: &Transaction, _metrics: &DispatcherMetrics);
@@ -113,5 +120,29 @@ pub trait AdaptsChain: Send + Sync {
     /// Replaces calldata in this tx with a transfer-to-self, to use its payload(s) for filling a nonce gap
     async fn replace_tx(&self, _tx: &Transaction) -> Result<(), LanderError> {
         todo!()
+    }
+
+    /// Returns the polling interval for checking if transactions need reprocessing.
+    ///
+    /// Returns `None` if the adapter does not support transaction reprocessing,
+    /// or `Some(Duration)` specifying how frequently to poll.
+    fn reprocess_txs_poll_rate(&self) -> Option<Duration> {
+        None
+    }
+
+    /// Get a list of transactions that need to be reprocessed.
+    ///
+    /// Returns an empty vector if no transactions need reprocessing or if the adapter
+    /// does not support reprocessing.
+    ///
+    /// Note: Implementations may update internal state (e.g., finalized nonce boundaries)
+    /// as part of determining which transactions need reprocessing.
+    async fn get_reprocess_txs(&self) -> Result<Vec<Transaction>, LanderError> {
+        Ok(Vec::new())
+    }
+
+    async fn run_command(&self, action: AdaptsChainAction) -> Result<(), LanderError> {
+        tracing::debug!(?action, "Not implemented");
+        Ok(())
     }
 }

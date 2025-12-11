@@ -216,7 +216,7 @@ fn mock_submitter() -> MockSubmitter {
     let mut submitter = MockSubmitter::new();
     submitter
         .expect_send_transaction()
-        .returning(move |_, _| Ok(signature.clone()));
+        .returning(move |_, _| Ok(signature));
     submitter
         .expect_wait_for_transaction_confirmation()
         .returning(|_| Ok(()));
@@ -293,11 +293,11 @@ pub fn instruction() -> SealevelInstruction {
 
 pub fn payload() -> FullPayload {
     let data = serde_json::to_vec(&instruction()).unwrap();
-    let payload = FullPayload {
+
+    FullPayload {
         data,
         ..Default::default()
-    };
-    payload
+    }
 }
 
 pub fn precursor() -> SealevelTxPrecursor {
@@ -305,7 +305,7 @@ pub fn precursor() -> SealevelTxPrecursor {
 }
 
 pub fn transaction() -> Transaction {
-    let mut transaction = TransactionFactory::build(&payload(), precursor());
+    let mut transaction = TransactionFactory::build(precursor(), &payload());
     transaction.update_after_submission(H512::zero(), precursor());
 
     transaction

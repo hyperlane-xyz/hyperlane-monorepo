@@ -37,19 +37,45 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      pull-requests: write
 
     # uses check-env to determine if secrets.GCLOUD_SERVICE_KEY is defined
     needs: [check-env]
     if: needs.check-env.outputs.gcloud-service-key == 'true'
     steps:
+      - name: Generate GitHub App Token
+        id: generate-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.HYPER_GONK_APP_ID }}
+          private-key: ${{ secrets.HYPER_GONK_PRIVATE_KEY }}
+
       - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Generate tag data
         id: taggen
         run: |
+          set -euo pipefail
           echo "TAG_DATE=$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
           echo "TAG_SHA=$(echo '${{ github.event.pull_request.head.sha || github.sha }}' | cut -b 1-7)" >> $GITHUB_OUTPUT
+          # For tag events, derive pure semver:
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            NAME="${{ github.ref_name }}"
+            # Strip agents- prefix and any leading v
+            NAME="${NAME#agents-}"
+            NAME="${NAME#v}"
+            # Basic semver guard (allows prerelease/build metadata)
+            if echo "$NAME" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+'; then
+              echo "SEMVER=$NAME" >> $GITHUB_OUTPUT
+              # Check if this is a stable release (no prerelease suffix like -beta, -rc, -alpha)
+              if echo "$NAME" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+                echo "IS_STABLE=true" >> $GITHUB_OUTPUT
+              else
+                echo "IS_STABLE=false" >> $GITHUB_OUTPUT
+              fi
+            fi
+          fi
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@v5
@@ -61,6 +87,9 @@ jobs:
           tags: |
             type=ref,event=branch
             type=ref,event=pr
+            type=ref,event=tag
+            type=semver,pattern={{version}},value=${{ steps.taggen.outputs.SEMVER }},enable=${{ github.ref_type == 'tag' && steps.taggen.outputs.SEMVER != '' }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.taggen.outputs.SEMVER }},enable=${{ github.ref_type == 'tag' && steps.taggen.outputs.IS_STABLE == 'true' }}
             type=raw,value=${{ steps.taggen.outputs.TAG_SHA }}-${{ steps.taggen.outputs.TAG_DATE }}
       - name: Set up Depot CLI
         uses: depot/setup-action@v1
@@ -79,6 +108,7 @@ jobs:
             echo "platforms=linux/amd64" >> $GITHUB_OUTPUT
           fi
       - name: Build and push
+        id: build
         uses: depot/build-push-action@v1
         with:
           project: czmkmn2km1
@@ -88,3 +118,15 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           platforms: ${{ steps.determine-platforms.outputs.platforms }}
+
+      - name: Comment image tags on PR
+        if: github.event_name == 'pull_request' && always()
+        uses: ./.github/actions/docker-image-comment
+        with:
+          comment_tag: rust-agent-docker-image
+          image_name: Rust Agent Docker Image
+          emoji: 🦀
+          image_tags: ${{ steps.meta.outputs.tags }}
+          pr_number: ${{ github.event.pull_request.number }}
+          github_token: ${{ steps.generate-token.outputs.token }}
+          job_status: ${{ job.status }}

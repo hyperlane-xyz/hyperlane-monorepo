@@ -5,7 +5,7 @@
 
 # -------- Base Image with Tools --------
 # Base image containing all necessary build tools and dependencies
-FROM rust:1.86.0 AS base
+FROM rust:1.88.0 AS base
 RUN apt-get update && \
     apt-get install -y --no-install-recommends musl-tools clang && \
     apt-get clean && \
@@ -49,11 +49,12 @@ COPY rust/sealevel ../sealevel
 
 # Build the release binaries with caching enabled
 # Documentation: https://doc.rust-lang.org/cargo/commands/cargo-build.html
+# Note: --features aleo enables Aleo chain support (adds ~5min build time due to snarkvm)
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=$SCCACHE_DIR,sharing=locked \
     RUSTFLAGS="--cfg tokio_unstable" \
-    cargo build --release --bin validator --bin relayer --bin scraper && \
+    cargo build --release --features aleo --bin validator --bin relayer --bin scraper && \
     mkdir -p /release && \
     cp target/release/validator /release && \
     cp target/release/relayer /release && \
@@ -70,7 +71,7 @@ COPY --from=builder /release/* .
 # Install runtime dependencies
 # remove /var/lib/apt/lists/* to clean up the package lists
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends openssl ca-certificates tini && \
+    apt-get install -y --no-install-recommends openssl ca-certificates tini libcurl4 && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
     chmod 777 /app && \

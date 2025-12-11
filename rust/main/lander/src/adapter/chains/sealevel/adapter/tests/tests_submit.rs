@@ -9,7 +9,7 @@ use super::tests_common::{adapter, payload, precursor};
 async fn test_submit() {
     // given
     let adapter = adapter();
-    let mut transaction = TransactionFactory::build(&payload(), precursor());
+    let mut transaction = TransactionFactory::build(precursor(), &payload());
 
     // when
     let result = adapter.submit(&mut transaction).await;
@@ -22,7 +22,7 @@ async fn test_submit() {
 async fn test_ready_for_resubmission() {
     // given
     let adapter = adapter();
-    let mut transaction = TransactionFactory::build(&payload(), precursor());
+    let mut transaction = TransactionFactory::build(precursor(), &payload());
 
     let expected_resubmission_time = adapter.time_before_resubmission();
 
@@ -34,11 +34,11 @@ async fn test_ready_for_resubmission() {
     // when
     transaction.last_submission_attempt = Some(recent_but_too_soon_for_resubmission);
     let is_ready = adapter.tx_ready_for_resubmission(&transaction).await;
-    assert_eq!(is_ready, false);
+    assert!(!is_ready);
 
     transaction.last_submission_attempt = Some(recent_but_ready_for_resubmission);
     let is_ready = adapter.tx_ready_for_resubmission(&transaction).await;
-    assert_eq!(is_ready, true);
+    assert!(is_ready);
 }
 
 #[tokio::test]

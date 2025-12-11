@@ -415,7 +415,7 @@ fn test_setup(
     mock_adapter
         .expect_build_transactions()
         .times(payloads_to_send)
-        .returning(move |payloads| dummy_built_tx(payloads.to_vec(), successful_build.clone()));
+        .returning(move |payloads| dummy_built_tx(payloads.to_vec(), successful_build));
     mock_adapter.expect_max_batch_size().returning(|| 1);
     dummy_stage_receiver_queue(mock_adapter, building_stage_receiver, payload_db, tx_db)
 }

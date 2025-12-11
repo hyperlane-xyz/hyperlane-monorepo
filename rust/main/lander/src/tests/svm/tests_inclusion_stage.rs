@@ -170,8 +170,14 @@ async fn test_svm_inclusion_gas_spike() {
         ExpectedSvmTxState {
             compute_units: 1400000,
             compute_unit_price_micro_lamports: 605,
+            status: TransactionStatus::Mempool,
+            retries: 4,
+        },
+        ExpectedSvmTxState {
+            compute_units: 1400000,
+            compute_unit_price_micro_lamports: 605,
             status: TransactionStatus::Finalized,
-            retries: 3,
+            retries: 4,
         },
     ];
 
@@ -415,7 +421,7 @@ async fn test_svm_failure_to_estimate_costs_causes_tx_to_be_dropped() {
     // the `select!` macro interferes with the lints, so need to manually `allow`` here
     select! {
         tx_received = run_inclusion_stage(expected_tx_states, dispatcher_state, created_tx.clone()) => {
-            panic!("Inclusion stage should not process the txs successfully, but got: {:?}", tx_received);
+            panic!("Inclusion stage should not process the txs successfully, but got: {tx_received:?}");
         },
         _ = tokio::time::sleep(Duration::from_millis(50)) => {}
     }
@@ -527,7 +533,7 @@ async fn mock_svm_tx(
     payload.data = data;
     payload_db.store_payload_by_uuid(&payload).await.unwrap();
     let precursor = SealevelTxPrecursor::from_payload(&payload);
-    let tx = TransactionFactory::build(&payload, precursor);
+    let tx = TransactionFactory::build(precursor, &payload);
     tx_db.store_transaction_by_uuid(&tx).await.unwrap();
     tx
 }
@@ -611,7 +617,7 @@ fn mock_send_transaction(mock_submitter: &mut MockSubmitter) {
     let signature = Signature::default();
     mock_submitter
         .expect_send_transaction()
-        .returning(move |_, _| Ok(signature.clone()));
+        .returning(move |_, _| Ok(signature));
 }
 
 fn mock_wait_for_transaction_confirmation(mock_submitter: &mut MockSubmitter) {

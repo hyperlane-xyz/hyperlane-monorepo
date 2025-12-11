@@ -133,8 +133,14 @@ pub fn build_cosmos_connection_conf(
     protocol: HyperlaneDomainProtocol,
 ) -> Option<ChainConnectionConf> {
     let mut local_err = ConfigParsingError::default();
-    let grpcs =
-        parse_base_and_override_urls(chain, "grpcUrls", "customGrpcUrls", "http", &mut local_err);
+    let grpcs = parse_base_and_override_urls(
+        chain,
+        "grpcUrls",
+        "customGrpcUrls",
+        "http",
+        &mut local_err,
+        false,
+    );
 
     let chain_id = chain
         .chain(&mut local_err)
@@ -206,7 +212,7 @@ pub fn build_cosmos_connection_conf(
         .end()
     {
         Some(asset) => asset.to_string(),
-        None => format!("u{}", prefix),
+        None => format!("u{prefix}"),
     };
     let config = h_cosmos::ConnectionConf::new(
         grpcs,
@@ -472,6 +478,7 @@ pub fn build_radix_connection_conf(
         "customGatewayUrls",
         "http",
         &mut local_err,
+        false,
     );
 
     let network_name = chain
@@ -496,6 +503,124 @@ pub fn build_radix_connection_conf(
                 rpcs.to_vec(),
                 gateway_urls,
                 network_name?.to_string(),
+            ),
+        ))
+    }
+}
+
+#[cfg(feature = "aleo")]
+pub fn build_aleo_connection_conf(
+    rpcs: &[Url],
+    chain: &ValueParser,
+    err: &mut ConfigParsingError,
+    _operation_batch: OpSubmissionConfig,
+) -> Option<ChainConnectionConf> {
+    let mut local_err = ConfigParsingError::default();
+
+    let mailbox_program = chain
+        .chain(&mut local_err)
+        .get_key("mailboxProgram")
+        .parse_string()
+        .end()
+        .or_else(|| {
+            local_err.push(
+                (&chain.cwp).add("mailbox_program"),
+                eyre!("Missing mailbox_program for chain"),
+            );
+            None
+        });
+
+    let hook_manager_program = chain
+        .chain(&mut local_err)
+        .get_key("hookManagerProgram")
+        .parse_string()
+        .end()
+        .or_else(|| {
+            local_err.push(
+                (&chain.cwp).add("hook_manager_program"),
+                eyre!("Missing hook_manager_program for chain"),
+            );
+            None
+        });
+    let ism_manager_program = chain
+        .chain(&mut local_err)
+        .get_key("ismManagerProgram")
+        .parse_string()
+        .end()
+        .or_else(|| {
+            local_err.push(
+                (&chain.cwp).add("ism_manager_program"),
+                eyre!("Missing ism_manager_program for chain"),
+            );
+            None
+        });
+    let validator_announce_program = chain
+        .chain(&mut local_err)
+        .get_key("validatorAnnounceProgram")
+        .parse_string()
+        .end()
+        .or_else(|| {
+            local_err.push(
+                (&chain.cwp).add("validator_announce_program"),
+                eyre!("Missing validator_announce_program for chain"),
+            );
+            None
+        });
+
+    let chain_id = chain
+        .chain(err)
+        .get_opt_key("chainId")
+        .parse_u16()
+        .end()
+        .or_else(|| {
+            local_err.push(
+                (&chain.cwp).add("chain_id"),
+                eyre!("Missing chain_id for chain"),
+            );
+            None
+        });
+
+    let consensus_heights = chain
+        .chain(err)
+        .get_opt_key("consensusHeights")
+        .into_array_iter()
+        .map(|value| {
+            value
+                .map(|x| x.parse_u32())
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap_or_default()
+        });
+
+    let priority_fee_multiplier = chain
+        .chain(err)
+        .get_opt_key("priorityFeeMultiplier")
+        .parse_f64()
+        .end();
+
+    let proving_service_urls = parse_base_and_override_urls(
+        chain,
+        "provingServiceUrls",
+        "customProvingServiceUrls",
+        "http",
+        &mut local_err,
+        true,
+    );
+
+    if !local_err.is_ok() {
+        err.merge(local_err);
+        None
+    } else {
+        Some(ChainConnectionConf::Aleo(
+            hyperlane_aleo::ConnectionConf::new(
+                rpcs.to_vec(),
+                mailbox_program?.to_string(),
+                hook_manager_program?.to_string(),
+                ism_manager_program?.to_string(),
+                validator_announce_program?.to_string(),
+                chain_id?,
+                consensus_heights,
+                proving_service_urls,
+                priority_fee_multiplier.unwrap_or_default(),
             ),
         ))
     }
@@ -531,9 +656,25 @@ pub fn build_connection_conf(
         HyperlaneDomainProtocol::Starknet => {
             build_starknet_connection_conf(rpcs, chain, err, operation_batch)
         }
-        // TODO: adjust the connection config
         HyperlaneDomainProtocol::Radix => {
             build_radix_connection_conf(rpcs, chain, err, operation_batch)
         }
+        #[cfg(feature = "aleo")]
+        HyperlaneDomainProtocol::Aleo => {
+            build_aleo_connection_conf(rpcs, chain, err, operation_batch)
+        }
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unsupported protocol chains are pre-filtered"),
+    }
+}
+
+/// Check if a protocol is supported in this build.
+/// Returns false for protocols that are feature-gated and not compiled in.
+pub fn is_protocol_supported(protocol: HyperlaneDomainProtocol) -> bool {
+    use HyperlaneDomainProtocol::*;
+    match protocol {
+        Ethereum | Fuel | Sealevel | Cosmos | CosmosNative | Starknet | Radix => true,
+        // Aleo is feature-gated - only supported when the "aleo" feature is enabled
+        Aleo => cfg!(feature = "aleo"),
     }
 }

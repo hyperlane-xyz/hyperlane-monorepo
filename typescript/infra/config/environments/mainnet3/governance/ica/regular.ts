@@ -22,7 +22,7 @@ export const regularIcas: ChainMap<Address> = {
   apechain: '0x0880453D948E4D2a06F40c6Cf4eF33E4e938411f',
   appchain: '0x863226b1F78f40a3Ab63D89910B2CC5e899CC94D',
   arbitrumnova: '0x2A20bb14cA28A189Bb7faE65072E05c1226C0D77',
-  // arcadia: '0x56eDf2dCFA1cBA0Df7D1EE80D02F930d74B12f39',
+  arcadia: '0x56eDf2dCFA1cBA0Df7D1EE80D02F930d74B12f39',
   artela: '0xb53734Ed3832d764462E62316c35B81cCC92197a',
   astar: '0x794D8EA7C8f7f19a1D8F5dEE1207fcae7f41c16b',
   aurora: '0x2fb1f965B35725D3b30f50A0A4BA6865E7368e78',
@@ -36,7 +36,6 @@ export const regularIcas: ChainMap<Address> = {
   boba: '0x247510A4001b78decE23B2d773aa8C2c9f6939C3',
   bsquared: '0xEF600dD98EA1c7681cA75Bd109e4B0c5AA5a58F5',
   celo: '0x39feCE4cA4b41bd2dfA886A6cB08353A42DbB6E3',
-  cheesechain: '0xB6Ce375D1aA9513cFb744dB3c06FfCA4f4bA20A7',
   chilizmainnet: '0xf5A0F82fF0F93699b4C32e49fac35Db2932aEc6f',
   coredao: '0xa2f6D0570F16061c5abE785067dd9502561ec30b',
   coti: '0x41A362f117D4EbE2680F6d4E37ddC5454dc5f07a',
@@ -144,4 +143,12 @@ export const regularIcas: ChainMap<Address> = {
   incentiv: '0x86563B7E9499Cd826bC5e6a1D98436aDb440DDb2',
   monad: '0x9126696d9C3c44dc1273352ce171E359b1802560',
   litchain: '0x6b3353A453689a92aE3138c4d26e4eaD894b39D8',
+
+  // Dec 4, 2025
+  // ----------------------------------------------------------
+  stable: '0x669385086e9Bb39aa29653eaACB0F169066c89C5',
+  somnia: '0xe26f1A5681088b7dCd53c00C9a19143e8bA543Ec',
+  lazai: '0xDFEa2EB38AA77EE41D50794aFaA34463EEabD4BB',
+  megaeth: '0x8D628b83A2F915fab39f7F09e0cF7A3ea8F9bF42',
+  adichain: '0xD0427bD81a0cDA1AdcdFb49DFDB95Ab3e059FFff',
 } as const;

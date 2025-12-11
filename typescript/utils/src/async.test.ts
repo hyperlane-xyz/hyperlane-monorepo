@@ -58,7 +58,7 @@ describe('Async Utilities', () => {
   });
 
   describe('retryAsync', () => {
-    it('should retry async function with exponential backoff', async () => {
+    it('should retry until success', async () => {
       let attempt = 0;
       const runner = async () => {
         attempt++;
@@ -68,6 +68,99 @@ describe('Async Utilities', () => {
 
       const result = await retryAsync(runner, 5, 10);
       expect(result).to.equal('success');
+    });
+
+    it('should retry `attempts` times at most', async () => {
+      let attempt = 0;
+      const runner = async () => {
+        attempt++;
+        throw new Error('fail');
+      };
+
+      try {
+        await retryAsync(runner, 5, 10);
+        throw new Error('Expected error to be thrown');
+      } catch (error: any) {
+        expect(error.message).to.equal('fail');
+        expect(attempt).to.equal(5);
+      }
+    });
+
+    it('should immediately throw error if isRecoverable is false', async () => {
+      let attempts = 0;
+      const runner = async () => {
+        attempts++;
+        const error = new Error('non-recoverable error') as Error & {
+          isRecoverable?: boolean;
+        };
+        error.isRecoverable = false;
+        throw error;
+      };
+
+      try {
+        await retryAsync(runner, 5, 10);
+        throw new Error('Expected error to be thrown');
+      } catch (error: any) {
+        expect(error.message).to.equal('non-recoverable error');
+        expect(error.isRecoverable).to.equal(false);
+        expect(attempts).to.equal(1);
+      }
+    });
+
+    it('should continue retrying if isRecoverable is not set', async () => {
+      let attempt = 0;
+      const runner = async () => {
+        attempt++;
+        if (attempt < 3) throw new Error('recoverable error');
+        return 'success';
+      };
+
+      const result = await retryAsync(runner, 5, 10);
+      expect(result).to.equal('success');
+      expect(attempt).to.equal(3);
+    });
+
+    it('should continue retrying if isRecoverable is true', async () => {
+      let attempt = 0;
+      const runner = async () => {
+        attempt++;
+        if (attempt < 3) {
+          const error = new Error('recoverable error') as Error & {
+            isRecoverable?: boolean;
+          };
+          error.isRecoverable = true;
+          throw error;
+        }
+        return 'success';
+      };
+
+      const result = await retryAsync(runner, 5, 10);
+      expect(result).to.equal('success');
+      expect(attempt).to.equal(3);
+    });
+
+    it('should execute at least once even with 0 attempts', async () => {
+      let attempts = 0;
+      const runner = async () => {
+        attempts++;
+        return 'success';
+      };
+
+      const result = await retryAsync(runner, 0, 10);
+      expect(result).to.equal('success');
+      expect(attempts).to.equal(1);
+    });
+
+    it('should execute at least once even with negative attempts', async () => {
+      let attempts = 0;
+      const runner = async () => {
+        attempts++;
+        return 'success';
+      };
+
+      const result = await retryAsync(runner, -5, 10);
+      expect(result).to.equal('success');
+      expect(attempts).to.equal(1);
     });
   });
 

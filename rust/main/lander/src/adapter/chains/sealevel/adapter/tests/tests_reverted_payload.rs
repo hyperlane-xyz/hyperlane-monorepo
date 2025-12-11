@@ -47,10 +47,10 @@ fn create_transaction_with_payload_details_and_status(
     Transaction {
         uuid: UniqueIdentifier::new(Uuid::new_v4()),
         tx_hashes: vec![],
-        vm_specific_data: VmSpecificTxData::Svm(SealevelTxPrecursor::new(
+        vm_specific_data: VmSpecificTxData::Svm(Box::new(SealevelTxPrecursor::new(
             instruction(),
             estimate(),
-        )),
+        ))),
         payload_details,
         status,
         submission_attempts: 1,
@@ -393,11 +393,10 @@ async fn test_reverted_payloads_non_finalized_transaction_returns_empty() {
         let result = adapter.reverted_payloads(&transaction).await;
 
         // then: should return empty vec regardless of account existence
-        assert!(result.is_ok(), "Failed for status: {:?}", status);
+        assert!(result.is_ok(), "Failed for status: {status:?}");
         assert!(
             result.unwrap().is_empty(),
-            "Non-empty result for status: {:?}",
-            status
+            "Non-empty result for status: {status:?}"
         );
     }
 }

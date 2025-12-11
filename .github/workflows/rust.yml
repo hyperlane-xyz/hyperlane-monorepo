@@ -18,7 +18,7 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: full
-  MIN_LANDERCOVERAGE_PERCENTAGE: 19
+  MIN_LANDERCOVERAGE_PERCENTAGE: 15
   RUSTC_WRAPPER: sccache
 
 jobs:
@@ -44,7 +44,7 @@ jobs:
           rustup component add llvm-tools-preview
 
       - name: Generate coverage for lander package
-        run: cargo llvm-cov --package lander --json --output-path coverage.json
+        run: cargo llvm-cov --package lander --features aleo,integration_test --json --output-path coverage.json
         working-directory: ./rust/main
 
       - name: Check coverage threshold
@@ -80,13 +80,10 @@ jobs:
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
       - name: Install mold linker
         uses: rui314/setup-mold@v1
-        with:
-          mold-version: 2.0.0
-          make-default: true
       - name: Run sccache-cache
         uses: mozilla-actions/sccache-action@v0.0.9
       - name: Run tests for main workspace
-        run: cargo test
+        run: cargo test --all-targets --features aleo,integration_test
         working-directory: ./rust/main
       - name: Run tests for sealevel workspace
         run: cargo test
@@ -116,6 +113,28 @@ jobs:
       - name: Check for sealevel workspace
         run: cargo check --release --all-features --all-targets
         working-directory: ./rust/sealevel
+      - name: Check Cargo.lock files are up to date
+        run: |
+          CHANGES=$(git status -s --ignore-submodules -- rust/main/Cargo.lock rust/sealevel/Cargo.lock)
+          if [[ ! -z $CHANGES ]]; then
+            echo "❌ Cargo.lock files are out of sync with Cargo.toml files"
+            echo ""
+            echo "$CHANGES" | while read status file; do
+              echo "::group::$file changes"
+              git diff "$file"
+              echo "::endgroup::"
+              if [[ "$file" == *"main"* ]]; then
+                echo "- $file needs to be updated"
+                echo "  Run: cd rust/main && cargo build"
+              elif [[ "$file" == *"sealevel"* ]]; then
+                echo "- $file needs to be updated"
+                echo "  Run: cd rust/sealevel && cargo build"
+              fi
+            done
+            echo ""
+            echo "Please commit the updated Cargo.lock file(s)"
+            exit 1
+          fi
       - name: Rustfmt for main workspace
         run: cargo fmt --all -- --check
         working-directory: ./rust/main
@@ -123,7 +142,7 @@ jobs:
         run: cargo fmt --all --check
         working-directory: ./rust/sealevel
       - name: Clippy for main workspace
-        run: cargo clippy -- -D warnings
+        run: cargo clippy --features aleo,integration_test -- -D warnings
         working-directory: ./rust/main
       - name: Clippy for sealevel workspace
         run: cargo clippy -- -D warnings

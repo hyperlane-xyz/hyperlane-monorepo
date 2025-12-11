@@ -29,14 +29,14 @@ import { IsmType, MultisigIsmConfig } from '../types.js';
 import type { MetadataBuilder, MetadataContext } from './types.js';
 
 interface MessageIdMultisigMetadata {
-  type: IsmType.MESSAGE_ID_MULTISIG;
+  type: typeof IsmType.MESSAGE_ID_MULTISIG;
   signatures: SignatureLike[];
   checkpoint: Omit<Checkpoint, 'mailbox_domain'>;
 }
 
 interface MerkleRootMultisigMetadata
   extends Omit<MessageIdMultisigMetadata, 'type'> {
-  type: IsmType.MERKLE_ROOT_MULTISIG;
+  type: typeof IsmType.MERKLE_ROOT_MULTISIG;
   proof: MerkleProof;
 }
 
@@ -158,7 +158,8 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
     >,
   ): Promise<string> {
     assert(
-      context.ism.type === IsmType.MESSAGE_ID_MULTISIG,
+      context.ism.type === IsmType.MESSAGE_ID_MULTISIG ||
+        context.ism.type === IsmType.STORAGE_MESSAGE_ID_MULTISIG,
       'Merkle proofs are not yet supported',
     );
 
@@ -329,10 +330,15 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
 
   static decode(
     metadata: string,
-    type: IsmType.MERKLE_ROOT_MULTISIG | IsmType.MESSAGE_ID_MULTISIG,
+    type:
+      | typeof IsmType.MERKLE_ROOT_MULTISIG
+      | typeof IsmType.MESSAGE_ID_MULTISIG
+      | typeof IsmType.STORAGE_MERKLE_ROOT_MULTISIG
+      | typeof IsmType.STORAGE_MESSAGE_ID_MULTISIG,
   ): MultisigMetadata {
     const prefix: any =
-      type === IsmType.MERKLE_ROOT_MULTISIG
+      type === IsmType.MERKLE_ROOT_MULTISIG ||
+      type === IsmType.STORAGE_MERKLE_ROOT_MULTISIG
         ? this.decodeProofPrefix(metadata)
         : this.decodeSimplePrefix(metadata);
 

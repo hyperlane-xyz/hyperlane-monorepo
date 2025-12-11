@@ -152,9 +152,7 @@ pub fn relayer_termination_invariants_met(
     // are expected to be logged for each message.
     assert!(
         total_tx_id_log_count as u64 >= expected_tx_id_logs,
-        "Didn't find as many tx id logs as expected. Found {} and expected {}",
-        total_tx_id_log_count,
-        expected_tx_id_logs
+        "Didn't find as many tx id logs as expected. Found {total_tx_id_log_count} and expected {expected_tx_id_logs}"
     );
 
     assert!(
@@ -364,6 +362,14 @@ pub fn lander_metrics_invariants_met(
     .iter()
     .sum::<u32>();
 
+    let mismatch_nonce_count = fetch_metric(
+        relayer_port,
+        "hyperlane_lander_mismatched_nonce",
+        filter_hashmap,
+    )?
+    .iter()
+    .sum::<u32>();
+
     // Checking that some transactions were finalized.
     // Since we have batching for Ethereum with Lander, we cannot predict the exact number of
     // finalized transactions.
@@ -431,6 +437,16 @@ pub fn lander_metrics_invariants_met(
         );
         return Ok(false);
     }
+
+    log!(
+        "hyperlane_lander_mismatched_nonce {} count, expected {}",
+        mismatch_nonce_count,
+        0
+    );
+    assert_eq!(
+        mismatch_nonce_count, 0,
+        "Mismatch nonce count should not have incremented"
+    );
 
     Ok(true)
 }

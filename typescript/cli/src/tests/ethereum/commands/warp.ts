@@ -11,13 +11,10 @@ import {
   WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigSchema,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType, randomInt } from '@hyperlane-xyz/utils';
 
 import { readChainSubmissionStrategyConfig } from '../../../config/strategy.js';
-import {
-  AltVMProviderFactory,
-  AltVMSignerFactory,
-} from '../../../context/altvm.js';
+import { createAltVMSigners } from '../../../context/altvm.js';
 import { getContext } from '../../../context/context.js';
 import { CommandContext } from '../../../context/types.js';
 import { extendWarpRoute as extendWarpRouteWithoutApplyTransactions } from '../../../deploy/warp.js';
@@ -315,6 +312,7 @@ type GetWarpTokenConfigByTokenTypeOptions = {
   token: Address;
   vault: Address;
   otherChain: ChainName;
+  everclearBridgeAdapter: Address;
 };
 
 function getWarpTokenConfigForType({
@@ -324,6 +322,7 @@ function getWarpTokenConfigForType({
   token,
   tokenType,
   vault,
+  everclearBridgeAdapter,
 }: GetWarpTokenConfigByTokenTypeOptions): HypTokenRouterConfig {
   let tokenConfig: HypTokenRouterConfig;
   switch (tokenType) {
@@ -381,6 +380,23 @@ function getWarpTokenConfigForType({
         collateralChainName: otherChain,
       };
       break;
+    case TokenType.collateralEverclear:
+      tokenConfig = {
+        type: TokenType.collateralEverclear,
+        mailbox,
+        owner,
+        token,
+        everclearBridgeAddress: everclearBridgeAdapter,
+        outputAssets: {},
+        everclearFeeParams: {
+          [10]: {
+            deadline: Date.now(),
+            fee: randomInt(10000000),
+            signature: '0x42',
+          },
+        },
+      };
+      break;
     default:
       throw new Error(
         `Unsupported token type "${tokenType}" for random config generation`,
@@ -395,14 +411,18 @@ type GetWarpTokenConfigOptions = {
   owner: Address;
   token: Address;
   vault: Address;
+  fiatToken: Address;
+  xerc20: Address;
+  xerc20Lockbox: Address;
   chainName: ChainName;
+  everclearBridgeAdapter: Address;
 };
 
 export function generateWarpConfigs(
   chain1Config: GetWarpTokenConfigOptions,
   chain2Config: GetWarpTokenConfigOptions,
 ): ReadonlyArray<WarpRouteDeployConfig> {
-  const ignoreTokenTypes = new Set([
+  const ignoreTokenTypes: Set<TokenType> = new Set([
     TokenType.XERC20,
     TokenType.XERC20Lockbox,
     TokenType.collateralFiat,
@@ -413,6 +433,9 @@ export function generateWarpConfigs(
     TokenType.collateralCctp,
     TokenType.nativeOpL1,
     TokenType.nativeOpL2,
+    // No adapter has been implemented yet
+    TokenType.ethEverclear,
+    TokenType.collateralEverclear,
   ]);
 
   const allowedWarpTokenTypes = Object.values(TokenType).filter(
@@ -597,9 +620,7 @@ export async function setupIncompleteWarpRouteExtension(
     ? await readChainSubmissionStrategyConfig(context.strategyPath)
     : {};
 
-  context.altVmProvider = new AltVMProviderFactory(context.multiProvider);
-
-  const altVmSigner = await AltVMSignerFactory.createSigners(
+  const altVmSigners = await createAltVMSigners(
     context.multiProvider,
     [],
     {},
@@ -614,7 +635,7 @@ export async function setupIncompleteWarpRouteExtension(
         key: {
           [ProtocolType.Ethereum]: ANVIL_KEY,
         },
-        altVmSigner,
+        altVmSigners,
       },
       warpCoreConfig,
       warpDeployConfig,

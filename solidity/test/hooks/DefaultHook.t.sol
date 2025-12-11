@@ -33,7 +33,7 @@ contract DefaultHookTest is Test {
     function test_hookType() public {
         assertEq(
             hook.hookType(),
-            uint8(IPostDispatchHook.Types.MAILBOX_DEFAULT_HOOK)
+            uint8(IPostDispatchHook.HookTypes.MAILBOX_DEFAULT_HOOK)
         );
     }
 

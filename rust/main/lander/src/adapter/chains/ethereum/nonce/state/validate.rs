@@ -1,6 +1,6 @@
 use hyperlane_core::U256;
 
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 use super::super::super::transaction::Precursor;
 use super::super::error::NonceResult;
@@ -28,52 +28,48 @@ impl NonceManagerState {
         let tx_uuid = tx.uuid.clone();
         let tx_status = tx.status.clone();
 
-        let nonce = match tx.precursor().tx.nonce().map(Into::into) {
-            Some(nonce) => nonce,
-            // if tx has no nonce assigned, check if it has one assigned in the
-            // db.
-            None => match self.get_tx_nonce(&tx_uuid).await? {
-                Some(nonce) => {
-                    if nonce == U256::MAX {
-                        return Ok(NonceAction::AssignNext { old_nonce: None });
-                    } else {
-                        nonce
-                    }
+        let db_nonce = self.get_tx_nonce(&tx_uuid).await?.and_then(|x| {
+            if x == U256::MAX {
+                None
+            } else {
+                Some(x)
+            }
+        });
+        let tx_nonce: Option<U256> = tx.precursor().tx.nonce().map(Into::into);
+
+        debug!(?db_nonce, ?tx_nonce, "Validating nonce");
+
+        let nonce = match (db_nonce, tx_nonce) {
+            // prefer nonce in db over nonce in tx
+            (Some(db_nonce), Some(tx_nonce)) => {
+                if db_nonce != tx_nonce {
+                    warn!(?db_nonce, ?tx_nonce, "tx nonce and db nonce do not match");
+                    self.metrics.increment_mismatch_nonce();
                 }
-                None => {
-                    return Ok(NonceAction::AssignNext { old_nonce: None });
-                }
-            },
+                db_nonce
+            }
+            (Some(db_nonce), _) => {
+                warn!(
+                    ?db_nonce,
+                    "Transaction has nonce assigned in db but not in tx"
+                );
+                self.metrics.increment_mismatch_nonce();
+                db_nonce
+            }
+            (_, Some(tx_nonce)) => {
+                warn!(
+                    ?tx_nonce,
+                    "Transaction has nonce assigned but is not reflected in db"
+                );
+                self.metrics.increment_mismatch_nonce();
+                return Ok(NonceAction::AssignNext { old_nonce: None });
+            }
+            (_, _) => {
+                return Ok(NonceAction::AssignNext { old_nonce: None });
+            }
         };
+
         let nonce_status = NonceStatus::calculate_nonce_status(tx_uuid.clone(), &tx_status);
-
-        // Fetching the tracked transaction uuid
-        let tracked_tx_uuid = self.get_tracked_tx_uuid(&nonce).await?;
-
-        if tracked_tx_uuid == TransactionUuid::default() {
-            // If the nonce, which currently assigned to the transaction, is not tracked,
-            // we should assign the new nonce.
-            warn!(?nonce, "Nonce is not tracked, assigning new nonce");
-            return Ok(NonceAction::AssignNext {
-                old_nonce: Some(nonce),
-            });
-        };
-
-        if tracked_tx_uuid != tx_uuid {
-            // If the tracked nonce is assigned to a different transaction,
-            // we should assign the new nonce. It should never happen
-            // If the tracked transaction was dropped and
-            // the calculated tracked nonce status is Freed, we may re-use the nonce
-            // when we assign it to the new transaction.
-            warn!(
-                ?nonce,
-                ?nonce_status,
-                "Nonce is assigned to a different transaction, assigning new nonce"
-            );
-            return Ok(NonceAction::AssignNext {
-                old_nonce: Some(nonce),
-            });
-        }
 
         let finalized_nonce = self.get_finalized_nonce().await?;
 

@@ -250,6 +250,29 @@ impl ChainSigner for hyperlane_radix::RadixSigner {
     }
 }
 
+#[cfg(feature = "aleo")]
+#[async_trait]
+impl BuildableWithSignerConf for hyperlane_aleo::AleoSigner {
+    async fn build(conf: &SignerConf) -> Result<Self, Report> {
+        if let SignerConf::HexKey { key } = conf {
+            Ok(hyperlane_aleo::AleoSigner::new(key.as_bytes())?)
+        } else {
+            bail!(format!("{conf:?} key is not supported by aleo"));
+        }
+    }
+}
+
+#[cfg(feature = "aleo")]
+impl ChainSigner for hyperlane_aleo::AleoSigner {
+    fn address_string(&self) -> String {
+        self.address().to_owned()
+    }
+
+    fn address_h256(&self) -> H256 {
+        self.address_h256()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use ethers::{signers::LocalWallet, utils::hex};

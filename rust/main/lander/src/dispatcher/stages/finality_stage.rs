@@ -26,7 +26,7 @@ use super::{
     DispatcherState,
 };
 
-use pool::FinalityStagePool;
+pub use pool::FinalityStagePool;
 
 mod pool;
 
@@ -92,7 +92,7 @@ impl FinalityStage {
         loop {
             state
                 .metrics
-                .update_liveness_metric(format!("{}::receive_txs", STAGE_NAME).as_str(), &domain);
+                .update_liveness_metric(format!("{STAGE_NAME}::receive_txs").as_str(), &domain);
             if let Some(tx) = tx_receiver.recv().await {
                 let _ = pool.insert(tx.clone()).await;
                 info!(?tx, "Received transaction");
@@ -114,7 +114,7 @@ impl FinalityStage {
         loop {
             state
                 .metrics
-                .update_liveness_metric(format!("{}::process_txs", STAGE_NAME).as_str(), &domain);
+                .update_liveness_metric(format!("{STAGE_NAME}::process_txs").as_str(), &domain);
             // evaluate the pool every block
             sleep(*estimated_block_time).await;
 
@@ -152,19 +152,24 @@ impl FinalityStage {
             tx_status = ?tx.status,
             payloads = ?tx.payload_details
     ))]
-    async fn try_process_tx(
+    pub async fn try_process_tx(
         mut tx: Transaction,
         pool: FinalityStagePool,
         building_stage_queue: BuildingStageQueue,
         state: &DispatcherState,
     ) -> Result<(), LanderError> {
         info!(?tx, "Processing finality stage transaction");
-        let tx_status = call_until_success_or_nonretryable_error(
-            || state.adapter.tx_status(&tx),
-            "Querying transaction status",
-            state,
-        )
-        .await?;
+        let tx_status = match &tx.status {
+            TransactionStatus::Finalized => tx.status.clone(),
+            _ => {
+                call_until_success_or_nonretryable_error(
+                    || state.adapter.tx_status(&tx),
+                    "Querying transaction status",
+                    state,
+                )
+                .await?
+            }
+        };
 
         match tx_status {
             TransactionStatus::Included => {

@@ -240,11 +240,17 @@ export abstract class HyperlaneAppGovernor<
     for (const governanceType of Object.values(GovernanceType)) {
       const safeOwner = getGovernanceSafes(governanceType)[chain];
       if (safeOwner) {
+        // Create SafeMultiSend outside retry loop to avoid re-initializing on each retry
+        const safeMultiSend = await SafeMultiSend.initialize(
+          this.checker.multiProvider,
+          chain,
+          safeOwner,
+        );
         await retryAsync(
           () =>
             sendCallsForType(
               SubmissionType.SAFE,
-              new SafeMultiSend(this.checker.multiProvider, chain, safeOwner),
+              safeMultiSend,
               governanceType,
             ),
           10,

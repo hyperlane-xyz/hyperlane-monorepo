@@ -72,20 +72,6 @@ export const validatorChainConfig = (
         'avalanche',
       ),
     },
-    cheesechain: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('cheesechain'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0x478fb53c6860ae8fc35235ba0d38d49b13128226'],
-          [Contexts.ReleaseCandidate]: [
-            '0x5f3baa27d61d3ed5fa7606616b8fef443d0a77a4',
-          ],
-          [Contexts.Neutron]: [],
-        },
-        'cheesechain',
-      ),
-    },
     worldchain: {
       interval: 5,
       reorgPeriod: getReorgPeriod('worldchain'),
@@ -1585,14 +1571,54 @@ export const validatorChainConfig = (
         'litchain',
       ),
     },
-    sovachain: {
+    somnia: {
       interval: 5,
-      reorgPeriod: getReorgPeriod('sovachain'),
+      reorgPeriod: getReorgPeriod('somnia'),
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: ['0x5f9a044bbf460fb7236bfae24b5ca9090fff844d'],
+          [Contexts.Hyperlane]: ['0xf484907083d32fdc0848bfb998dfdde835e6f9cb'],
         },
-        'sovachain',
+        'somnia',
+      ),
+    },
+    lazai: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('lazai'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x3b00fe3518e739bb978b04d28e1492d8d865d96e'],
+        },
+        'lazai',
+      ),
+    },
+    megaeth: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('megaeth'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x051ddac8ecf4bae2532b8b7caa626b5567dab528'],
+        },
+        'megaeth',
+      ),
+    },
+    adichain: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('adichain'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x4b11a6310bc06300b529b0397683ca3376407eca'],
+        },
+        'adichain',
+      ),
+    },
+    stable: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('stable'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x21820baebcd972c769e490415cfee43a894f3c18'],
+        },
+        'stable',
       ),
     },
   };

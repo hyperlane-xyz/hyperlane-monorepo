@@ -89,8 +89,7 @@ impl InterchainSecurityModule for CosmosNativeIsm {
             t if t == CosmosRoutingIsm::type_url() => Ok(ModuleType::Routing),
             t if t == NoopIsm::type_url() => Ok(ModuleType::Null),
             other => Err(ChainCommunicationError::from_other_str(&format!(
-                "Unknown ISM type: {}",
-                other
+                "Unknown ISM type: {other}"
             ))),
         }
     }
@@ -120,6 +119,16 @@ impl MultisigIsm for CosmosNativeIsm {
         match ism.type_url.as_str() {
             t if t == MerkleRootMultisigIsm::type_url() => {
                 let ism = MerkleRootMultisigIsm::decode(ism.value.as_slice())
+                    .map_err(HyperlaneCosmosError::from)?;
+                let validators = ism
+                    .validators
+                    .iter()
+                    .map(|v| H160::from_str(v).map(H256::from))
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok((validators, ism.threshold as u8))
+            }
+            t if t == MessageIdMultisigIsm::type_url() => {
+                let ism = MessageIdMultisigIsm::decode(ism.value.as_slice())
                     .map_err(HyperlaneCosmosError::from)?;
                 let validators = ism
                     .validators

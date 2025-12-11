@@ -2,8 +2,11 @@ use std::path::PathBuf;
 
 use async_trait::async_trait;
 use eyre::{Context, Result};
-use hyperlane_core::{ReorgEvent, SignedAnnouncement, SignedCheckpointWithMessageId};
+use hyperlane_core::{
+    ReorgEvent, ReorgEventResponse, SignedAnnouncement, SignedCheckpointWithMessageId,
+};
 use prometheus::IntGauge;
+use tracing::error;
 
 use crate::traits::CheckpointSyncer;
 
@@ -20,17 +23,14 @@ impl LocalStorage {
     pub fn new(path: PathBuf, latest_index: Option<IntGauge>) -> Result<Self> {
         if !path.exists() {
             std::fs::create_dir_all(&path).with_context(|| {
-                format!(
-                    "Failed to create local checkpoint syncer storage directory at {:?}",
-                    path
-                )
+                format!("Failed to create local checkpoint syncer storage directory at {path:?}")
             })?;
         }
         Ok(Self { path, latest_index })
     }
 
     fn checkpoint_file_path(&self, index: u32) -> PathBuf {
-        self.path.join(format!("{}_with_id.json", index))
+        self.path.join(format!("{index}_with_id.json"))
     }
 
     fn latest_index_file_path(&self) -> PathBuf {
@@ -43,6 +43,10 @@ impl LocalStorage {
 
     fn reorg_flag_path(&self) -> PathBuf {
         self.path.join("reorg_flag.json")
+    }
+
+    fn reorg_rpc_responses_path(&self) -> PathBuf {
+        self.path.join("reorg_rpc_responses.json")
     }
 
     fn metadata_file_path(&self) -> PathBuf {
@@ -129,11 +133,40 @@ impl CheckpointSyncer for LocalStorage {
         Ok(())
     }
 
-    async fn reorg_status(&self) -> Result<Option<ReorgEvent>> {
-        let Ok(data) = tokio::fs::read(self.reorg_flag_path()).await else {
-            return Ok(None);
+    async fn reorg_status(&self) -> Result<ReorgEventResponse> {
+        let data = match tokio::fs::read(self.reorg_flag_path()).await {
+            Ok(s) => s,
+            Err(err) => {
+                error!(?err, "Failed to read file");
+                return Ok(ReorgEventResponse {
+                    exists: false,
+                    event: None,
+                    content: None,
+                });
+            }
         };
-        let reorg = serde_json::from_slice(&data)?;
-        Ok(Some(reorg))
+        match serde_json::from_slice(&data) {
+            Ok(s) => Ok(ReorgEventResponse {
+                exists: true,
+                event: Some(s),
+                content: Some(String::from_utf8_lossy(&data).to_string()),
+            }),
+            Err(err) => {
+                error!(?err, "Failed to parse reorg event");
+                Ok(ReorgEventResponse {
+                    exists: true,
+                    event: None,
+                    content: Some(String::from_utf8_lossy(&data).to_string()),
+                })
+            }
+        }
+    }
+
+    async fn write_reorg_rpc_responses(&self, log: String) -> Result<()> {
+        let path = self.reorg_rpc_responses_path();
+        tokio::fs::write(&path, &log)
+            .await
+            .with_context(|| format!("Writing log to {path:?}"))?;
+        Ok(())
     }
 }

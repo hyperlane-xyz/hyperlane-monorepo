@@ -1,4 +1,10 @@
 export {
+  DerivedRoutingFeeConfig,
+  DerivedTokenFeeConfig,
+  EvmTokenFeeReader,
+} from './fee/EvmTokenFeeReader.js';
+
+export {
   isAddressActive,
   isContractAddress,
   assertIsContractAddress,
@@ -27,7 +33,10 @@ export {
   AW_VALIDATOR_ALIAS,
   defaultMultisigConfigs,
 } from './consts/multisigIsm.js';
-export { SEALEVEL_SPL_NOOP_ADDRESS } from './consts/sealevel.js';
+export {
+  SEALEVEL_SPL_NOOP_ADDRESS,
+  SEALEVEL_PRIORITY_FEES,
+} from './consts/sealevel.js';
 export {
   multiProtocolTestChainMetadata,
   test1,
@@ -129,6 +138,7 @@ export { ZKSyncContractVerifier } from './deploy/verify/ZKSyncContractVerifier.j
 export { executeWarpDeploy, enrollCrossChainRouters } from './deploy/warp.js';
 export {
   SealevelIgpAdapter,
+  SealevelIgpProgramAdapter,
   SealevelOverheadIgpAdapter,
 } from './gas/adapters/SealevelIgpAdapter.js';
 export {
@@ -137,6 +147,18 @@ export {
   SealevelInterchainGasPaymasterType,
   SealevelOverheadIgpData,
   SealevelOverheadIgpDataSchema,
+  SealevelIgpInstruction,
+  SealevelIgpDataSchema,
+  SealevelIgpData,
+  SealevelGasOracle,
+  SealevelGasOracleConfig,
+  SealevelGasOracleType,
+  SealevelGasOverheadConfig,
+  SealevelRemoteGasData,
+  SealevelSetDestinationGasOverheadsInstruction,
+  SealevelSetDestinationGasOverheadsInstructionSchema,
+  SealevelSetGasOracleConfigsInstruction,
+  SealevelSetGasOracleConfigsInstructionSchema,
 } from './gas/adapters/serialization.js';
 export { IgpFactories, igpFactories } from './gas/contracts.js';
 export { HyperlaneIgp } from './gas/HyperlaneIgp.js';
@@ -189,9 +211,6 @@ export {
   ProtocolFeeSchema,
 } from './hook/types.js';
 export { isHookCompatible } from './hook/utils.js';
-export { AltVMIsmReader } from './ism/AltVMIsmReader.js';
-export { AltVMWarpModule } from './token/AltVMWarpModule.js';
-export { AltVMWarpRouteReader } from './token/AltVMWarpRouteReader.js';
 export { EvmIsmReader } from './ism/EvmIsmReader.js';
 export { HyperlaneIsmFactory } from './ism/HyperlaneIsmFactory.js';
 export { BaseMetadataBuilder } from './ism/metadata/builder.js';
@@ -201,6 +220,29 @@ export {
   buildMultisigIsmConfigs,
   multisigConfigToIsmConfig,
 } from './ism/multisig.js';
+export {
+  SealevelAccessControlData,
+  SealevelAccessControlDataSchema,
+  SealevelDomainData,
+  SealevelDomainDataSchema,
+  SealevelMultisigIsmInstructionName,
+  SealevelMultisigIsmInstructionType,
+  SealevelMultisigIsmSetValidatorsInstruction,
+  SealevelMultisigIsmSetValidatorsInstructionSchema,
+  SealevelMultisigIsmTransferOwnershipInstruction,
+  SealevelMultisigIsmTransferOwnershipInstructionSchema,
+  SealevelValidatorsAndThreshold,
+  SealevelValidatorsAndThresholdSchema,
+} from './ism/serialization.js';
+export { SealevelMultisigAdapter } from './ism/adapters/SealevelMultisigAdapter.js';
+export {
+  SealevelMailboxInstructionName,
+  SealevelMailboxInstructionType,
+  SealevelMailboxSetDefaultIsmInstruction,
+  SealevelMailboxSetDefaultIsmInstructionSchema,
+  SealevelMailboxTransferOwnershipInstruction,
+  SealevelMailboxTransferOwnershipInstructionSchema,
+} from './mailbox/serialization.js';
 export {
   AggregationIsmConfig,
   AggregationIsmConfigSchema,
@@ -269,6 +311,7 @@ export {
 export {
   ChainMetadataManager,
   ChainMetadataManagerOptions,
+  altVmChainLookup,
 } from './metadata/ChainMetadataManager.js';
 export {
   BlockExplorer,
@@ -294,7 +337,7 @@ export {
   RpcUrl,
   RpcUrlSchema,
 } from './metadata/chainMetadataTypes.js';
-export { ZChainName, ZHash } from './metadata/customZodTypes.js';
+export { ZBigNumberish, ZChainName, ZHash } from './metadata/customZodTypes.js';
 export {
   HyperlaneDeploymentArtifacts,
   HyperlaneDeploymentArtifactsSchema,
@@ -462,7 +505,6 @@ export {
   getSubmitter,
 } from './providers/transactions/submitter/submitterBuilderGetter.js';
 export { HyperlaneCCIPDeployer } from './ccip/HyperlaneCCIPDeployer.js';
-export { AltVMJsonRpcTxSubmitter } from './providers/transactions/submitter/altvm/AltVMJsonRpcTxSubmitter.js';
 export {
   CCIPContractCache,
   getCCIPChains,
@@ -470,8 +512,6 @@ export {
   getCCIPRouterAddress,
   getChainNameFromCCIPSelector,
 } from './ccip/utils.js';
-export { AltVMCoreModule } from './core/AltVMCoreModule.js';
-export { AltVMCoreReader } from './core/AltVMCoreReader.js';
 export { EvmCoreModule } from './core/EvmCoreModule.js';
 export {
   isProxy,
@@ -513,8 +553,6 @@ export {
   NativeTokenPriceConfig,
 } from './gas/utils.js';
 export { GcpValidator } from './gcp/validator.js';
-export { AltVMHookModule } from './hook/AltVMHookModule.js';
-export { AltVMHookReader } from './hook/AltVMHookReader.js';
 export { EvmHookModule } from './hook/EvmHookModule.js';
 export {
   DerivedIcaRouterConfig,
@@ -523,7 +561,6 @@ export {
   IcaRouterConfigSchema,
   IcaRouterConfig as InterchainAccountConfig,
 } from './ica/types.js';
-export { AltVMIsmModule } from './ism/AltVMIsmModule.js';
 export { EvmIsmModule } from './ism/EvmIsmModule.js';
 export { offchainLookupRequestMessageHash } from './ism/metadata/ccipread.js';
 export {
@@ -531,7 +568,10 @@ export {
   chainMetadataToStarknetChain,
   chainMetadataToViemChain,
 } from './metadata/chainMetadataConversion.js';
-export { AnnotatedEV5Transaction } from './providers/ProviderType.js';
+export {
+  AnnotatedEV5Transaction,
+  PROTOCOL_TO_DEFAULT_PROVIDER_TYPE,
+} from './providers/ProviderType.js';
 export {
   RebalancerBaseChainConfigSchema,
   RebalancerConfigSchema,
@@ -604,6 +644,7 @@ export {
 } from './token/adapters/CosmWasmTokenAdapter.js';
 export {
   EvmHypCollateralAdapter,
+  EvmMovableCollateralAdapter,
   EvmHypNativeAdapter,
   EvmHypSyntheticAdapter,
   EvmHypVSXERC20Adapter,
@@ -623,6 +664,8 @@ export {
   ITokenAdapter,
   TransferParams,
   TransferRemoteParams,
+  Quote,
+  QuoteTransferRemoteParams,
 } from './token/adapters/ITokenAdapter.js';
 export {
   SealevelHypCollateralAdapter,
@@ -656,12 +699,11 @@ export {
   HypERC721Factories,
   TokenFactories,
 } from './token/contracts.js';
-export { AltVMDeployer } from './token/altVMDeploy.js';
 export { HypERC20Deployer, HypERC721Deployer } from './token/deploy.js';
 export { EvmERC20WarpModule } from './token/EvmERC20WarpModule.js';
 export { EvmERC20WarpRouteReader } from './token/EvmERC20WarpRouteReader.js';
 export { IToken, TokenArgs, TokenConfigSchema } from './token/IToken.js';
-export { Token } from './token/Token.js';
+export { Token, getCollateralTokenAdapter } from './token/Token.js';
 export { TokenAmount } from './token/TokenAmount.js';
 export {
   getTokenConnectionId,
@@ -717,6 +759,11 @@ export {
   isSyntheticRebaseTokenConfig,
   isSyntheticTokenConfig,
   isTokenMetadata,
+  isEverclearCollateralTokenConfig,
+  isEverclearEthBridgeTokenConfig,
+  isEverclearTokenBridgeConfig,
+  EverclearCollateralTokenConfig,
+  EverclearEthBridgeTokenConfig,
   isXERC20TokenConfig,
   NativeTokenConfig,
   NativeTokenConfigSchema,
@@ -770,7 +817,7 @@ export {
   getSafe,
   getSafeDelegates,
   getSafeService,
-  // @ts-ignore
+  safeApiKeyRequired,
 } from './utils/gnosisSafe.js';
 export { HyperlaneReader } from './utils/HyperlaneReader.js';
 export {
@@ -805,6 +852,7 @@ export {
   WarpCoreConfigSchema,
   WarpTxCategory,
   WarpTypedTransaction,
+  WarpCoreFeeEstimate,
 } from './warp/types.js';
 export { WarpCore, WarpCoreOptions } from './warp/WarpCore.js';
 export { EvmTimelockReader } from './timelock/evm/EvmTimelockReader.js';
@@ -826,3 +874,26 @@ export {
   getSignerForChain,
   MultiProtocolSignerSignerAccountInfo,
 } from './signers/signers.js';
+export {
+  SvmTransactionSigner,
+  KeypairSvmTransactionSigner,
+  SvmMultiProtocolSignerAdapter,
+  SvmSignerConfig,
+  TransactionBuildOptions,
+} from './signers/svm/solana-web3js.js';
+
+export {
+  TokenFeeType,
+  TokenFeeConfig,
+  TokenFeeConfigSchema,
+  TokenFeeConfigInputSchema,
+  TokenFeeConfigInput,
+} from './fee/types.js';
+export { convertToBps } from './fee/utils.js';
+
+export {
+  TurnkeyClientManager,
+  TurnkeyConfig,
+} from './signers/turnkeyClient.js';
+export { TurnkeyEvmSigner } from './signers/evm/turnkey.js';
+export { TurnkeySealevelSigner } from './signers/svm/turnkey.js';

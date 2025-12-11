@@ -10,6 +10,8 @@ version.workspace = true
 [dependencies]
 hyperlane-base = { path = "../hyperlane-base", features = ["test-utils"] }
 hyperlane-core = { path = "../hyperlane-core" }
+
+hyperlane-aleo = { path = "../chains/hyperlane-aleo", optional = true }
 hyperlane-ethereum = { path = "../chains/hyperlane-ethereum" }
 hyperlane-radix = { path = "../chains/hyperlane-radix" }
 hyperlane-sealevel = { path = "../chains/hyperlane-sealevel" }
@@ -51,3 +53,15 @@ tracing-subscriber.workspace = true
 tracing-test.workspace = true
 mockall.workspace = true
 tempfile.workspace = true
+
+[features]
+default = []
+aleo = ["dep:hyperlane-aleo", "hyperlane-base/aleo"]
+# Feature flag for integration tests - enables test-specific factory functions
+# Integration tests should enable this feature, production builds should not
+integration_test = []
+
+# Integration tests require the integration_test feature
+[[test]]
+name = "integration_sealevel"
+required-features = ["integration_test"]

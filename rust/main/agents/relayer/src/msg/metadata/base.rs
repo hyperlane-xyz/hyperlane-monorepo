@@ -15,7 +15,8 @@ use serde::{Deserialize, Deserializer};
 use tokio::sync::{Mutex, RwLock};
 
 use hyperlane_core::{
-    HyperlaneDomain, HyperlaneMessage, InterchainSecurityModule, Mailbox, ModuleType, H256,
+    HyperlaneDomain, HyperlaneMessage, InterchainSecurityModule, Mailbox, ModuleType,
+    ReorgEventResponse, H256,
 };
 
 use crate::settings::matching_list::MatchingList;
@@ -27,8 +28,8 @@ pub enum MetadataBuildError {
     /// While building metadata, encountered something that should
     /// prohibit all metadata for the message from being built.
     /// Provides the reason for the refusal.
-    #[error("Refused")]
-    Refused(String),
+    #[error("Refused ({0})")]
+    Refused(MetadataBuildRefused),
     /// Unable to fetch metadata, but no error occurred
     #[error("Could not fetch metadata")]
     CouldNotFetch,
@@ -46,6 +47,12 @@ pub enum MetadataBuildError {
     FastPathError(String),
     #[error("Merkle root mismatch ({root}, {canonical_root})")]
     MerkleRootMismatch { root: H256, canonical_root: H256 },
+}
+
+#[derive(Clone, Debug, PartialEq, thiserror::Error)]
+pub enum MetadataBuildRefused {
+    #[error("Reorg detected ({0:?})")]
+    Reorg(ReorgEventResponse),
 }
 
 #[derive(Clone, Debug, new)]
@@ -246,9 +253,8 @@ where
     let nums: Vec<u8> = Vec::deserialize(deserializer)?;
     let mut set = HashSet::new();
     for num in nums {
-        let module = ModuleType::from_u8(num).ok_or_else(|| {
-            serde::de::Error::custom(format!("Invalid module type value: {}", num))
-        })?;
+        let module = ModuleType::from_u8(num)
+            .ok_or_else(|| serde::de::Error::custom(format!("Invalid module type value: {num}")))?;
         set.insert(module);
     }
     Ok(set)
@@ -334,11 +340,11 @@ mod tests {
             cache_policy: IsmCachePolicy::IsmSpecific,
         };
 
-        assert_eq!(config.matches_chain("foochain"), true);
-        assert_eq!(config.matches_chain("barchain"), false);
+        assert!(config.matches_chain("foochain"));
+        assert!(!config.matches_chain("barchain"));
 
-        assert_eq!(config.matches_module_type(ModuleType::Aggregation), true);
-        assert_eq!(config.matches_module_type(ModuleType::Routing), false);
+        assert!(config.matches_module_type(ModuleType::Aggregation));
+        assert!(!config.matches_module_type(ModuleType::Routing));
     }
 
     #[test]

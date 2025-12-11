@@ -1,5 +1,85 @@
 # @hyperlane-xyz/cli
 
+## 19.13.0
+
+### Minor Changes
+
+- ae8ef4389: Fixed bug in `core deploy` which allowed to deploy unverified and possibly invalid configs due to missing validation using zod
+
+## 19.12.0
+
+### Minor Changes
+
+- 38a1165c8: - Update CLI context `altVmSigners` to be a `ChainMap` instead of `AltVMSignerFactory`,
+  - Update CLI context `altVmProviders` to be a `ChainMap` instead of `AltVMSignerFactory`.
+  - Update all existing getter methods to use `mustTry`, instead of `assert`.
+  - Delete `AltVMSupportedProtocols` and `AltVMProviderFactory`.
+  - Move functions from `AltVMSignerFactory` to top-level functions.
+  - Add `getMinGas` to Aleo, Cosmos and Radix ProtocolProvider.
+
+### Patch Changes
+
+- 1133c7a3f: Migrate filesystem utilities to use `@hyperlane-xyz/utils/fs` submodule, reducing code duplication.
+
+## 19.11.0
+
+## 19.10.0
+
+### Minor Changes
+
+- b3d7e8373: Remove MultiChainResolver for simplified chainResolver module
+- 66bed7126: migrated AltVm modules to provider-sdk and deploy-sdk
+- f604423b9: - Remove AltVMProviderFactory to new API in deploy-sdk (loadlProtocolProviders) and Registry singleton.
+  - Add `chainId` and `rpcUrls` to `ChainMetadataForAltVM`. Add `CosmosNativeProtocolProvider` and `RadixProtocolProvider` to both cosmos-sdk and radix-sdk, respectively.
+  - Add `forWarpRead`, `forCoreRead`, and `forCoreCheck` to signerMiddleware to enable chain resolving for these CLI functions.
+  - Add `assert` after some `altVmProvider.get` calls in SDK configUtils.
+
+## 19.9.0
+
+## 19.8.0
+
+### Minor Changes
+
+- 78ff6cd47: add new methods for altvm interface
+
+## 19.7.0
+
+### Minor Changes
+
+- a03b02e47: Fix `hyperlane warp send` where an error is thrown if `--chains` or `--origin` and `--destination` are not provided
+
+## 19.6.0
+
+### Minor Changes
+
+- b259966fe: Add the Fee deploy logic into token deployer to allow warp routes to deploy with a token fee. Update Fee schemas to separate between input and output
+- ec406fcbe: Add TokenFee updates to the FeeModule and WarpModule. This enables updating immutable fees (re-deploy), routing sub-fees, and ownership
+- 9185b9c5b: Update EvmTokenFeeModule to support native fee deployment by extracting config processing into a static method that handles native tokens, modularizing deployment logic, and adding automatic BPS calculation from fee parameters.
+
+### Patch Changes
+
+- 18c32ed2b: Decouple movable collateral and hyp collateral token adapters
+
+## 19.6.0-beta.0
+
+### Minor Changes
+
+- b259966fe: Add the Fee deploy logic into token deployer to allow warp routes to deploy with a token fee. Update Fee schemas to separate between input and output
+- ec406fcbe: Add TokenFee updates to the FeeModule and WarpModule. This enables updating immutable fees (re-deploy), routing sub-fees, and ownership
+- 9185b9c5b: Update EvmTokenFeeModule to support native fee deployment by extracting config processing into a static method that handles native tokens, modularizing deployment logic, and adding automatic BPS calculation from fee parameters.
+
+### Patch Changes
+
+- 18c32ed2b: Decouple movable collateral and hyp collateral token adapters
+
+## 19.5.0
+
+## 19.4.0
+
+### Minor Changes
+
+- 4011a4561: Fix bug that prevented the warp route ism to be set to the 0 address and include logic to update a pausable ism as it was missing
+
 ## 19.3.0
 
 ## 19.2.0

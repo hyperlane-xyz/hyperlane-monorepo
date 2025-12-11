@@ -7,7 +7,7 @@ export enum WarpRouteIds {
   ArbitrumBaseEnduranceUSDC = 'USDC/arbitrum-base-endurance',
   ArbitrumEthereumZircuitAMPHRETH = 'AMPHRETH/arbitrum-ethereum-zircuit',
   ArbitrumNeutronEclip = 'ECLIP/arbitrum-neutron',
-  ArbitrumNeutronTIA = 'TIA/arbitrum-celestia-neutron',
+  ArbitrumTIA = 'TIA/arbitrum',
   ArtelaBaseSolanaART = 'ART/artela-base-solanamainnet',
   BscEthereumLumiaPrismPNDR = 'PNDR/bsc-ethereum-lumiaprism',
   BaseSolanamainnetTONY = 'TONY/base-solanamainnet',
@@ -15,6 +15,7 @@ export enum WarpRouteIds {
   ArbitrumAvalancheBaseFlowmainnetFormOptimismSolanamainnetWorldchainTRUMP = 'TRUMP/arbitrum-avalanche-base-flowmainnet-form-optimism-solanamainnet-worldchain',
   EclipseEthereumApxEth = 'APXETH/eclipsemainnet-ethereum',
   EclipseEthereumSolanaUSDC = 'USDC/eclipsemainnet-ethereum-solanamainnet',
+  EclipseUSDCSTAGE = 'USDCSTAGE/eclipsemainnet',
   EclipseEthereumSolanaUSDT = 'USDT/eclipsemainnet-ethereum-solanamainnet',
   EclipseEthereumTETH = 'tETH/eclipsemainnet-ethereum',
   EclipseEthereumWBTC = 'WBTC/eclipsemainnet-ethereum',
@@ -45,7 +46,7 @@ export enum WarpRouteIds {
   EthereumZircuitRe7LRT = 'Re7LRT/ethereum-zircuit',
   InevmInjectiveINJ = 'INJ/inevm-injective',
   ArbitrumAvalancheBaseBscEthereumLumiaprismOptimismPolygonLUMIA = 'LUMIA/arbitrum-avalanche-base-bsc-ethereum-lumiaprism-optimism-polygon',
-  MantapacificNeutronTIA = 'TIA/mantapacific-neutron',
+  MantapacificTIA = 'TIA/mantapacific',
   BaseZeroNetworkCBBTC = 'CBBTC/base-zeronetwork',
   BaseEthereumREZ = 'REZ/base-ethereum-unichain',
   BaseEthereumREZSTAGING = 'REZSTAGING/base-ethereum-unichain',
@@ -121,8 +122,12 @@ export enum WarpRouteIds {
 
   LitchainLITKEY = 'LITKEY/litchain',
 
-  MainnetCCTP = 'USDC/mainnet-cctp',
-  TestnetCCTP = 'USDC/testnet-cctp',
+  ApechainPOG = 'POG/apechain',
+
+  MainnetCCTPV1 = 'USDC/mainnet-cctp',
+  MainnetCCTPV2Fast = 'USDC/mainnet-cctp-v2-fast',
+  MainnetCCTPV2Standard = 'USDC/mainnet-cctp-v2-standard',
+  TestnetCCTPV1 = 'USDC/testnet-cctp',
 
   // HYPER routes
   HYPER = 'HYPER/arbitrum-base-bsc-ethereum-optimism',

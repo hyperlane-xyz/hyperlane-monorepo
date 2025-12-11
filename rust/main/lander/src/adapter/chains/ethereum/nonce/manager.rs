@@ -1,8 +1,9 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use ethers::signers::Signer;
 use ethers_core::types::Address;
-use tracing::info;
+use tracing::{debug, info};
 
 use hyperlane_base::db::HyperlaneRocksDB;
 use hyperlane_base::settings::{ChainConf, SignerConf};
@@ -41,8 +42,13 @@ impl NonceManager {
         let tx_db = db.clone() as Arc<dyn TransactionDb>;
         let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
 
-        let nonce_updater =
-            NonceUpdater::new(address, reorg_period, block_time, provider, state.clone());
+        let nonce_updater = NonceUpdater::new(
+            address,
+            reorg_period,
+            block_time,
+            provider.clone(),
+            state.clone(),
+        );
 
         let manager = Self {
             address,
@@ -80,6 +86,8 @@ impl NonceManager {
             .validate_assigned_nonce(tx)
             .await
             .map_err(|e| eyre::eyre!("Failed to validate assigned nonce: {}", e))?;
+
+        debug!(tx_uuid = tx.uuid.to_string(), ?nonce_action, "nonce action");
 
         match nonce_action {
             NonceAction::Assign { nonce } => Ok(nonce),

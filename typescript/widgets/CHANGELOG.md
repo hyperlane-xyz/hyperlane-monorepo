@@ -1,5 +1,171 @@
 # @hyperlane-xyz/widgets
 
+## 19.13.0
+
+### Patch Changes
+
+- Updated dependencies [ae8ef4389]
+- Updated dependencies [3592f258a]
+  - @hyperlane-xyz/radix-sdk@19.13.0
+  - @hyperlane-xyz/sdk@19.13.0
+  - @hyperlane-xyz/cosmos-sdk@19.13.0
+  - @hyperlane-xyz/utils@19.13.0
+  - @hyperlane-xyz/provider-sdk@0.5.0
+
+## 19.12.0
+
+### Patch Changes
+
+- Updated dependencies [38a1165c8]
+- Updated dependencies [08cf7eca9]
+- Updated dependencies [af2cd1729]
+- Updated dependencies [43b3756d9]
+- Updated dependencies [618615dc4]
+- Updated dependencies [e37100e2e]
+- Updated dependencies [08cf7eca9]
+  - @hyperlane-xyz/provider-sdk@0.4.0
+  - @hyperlane-xyz/cosmos-sdk@19.12.0
+  - @hyperlane-xyz/radix-sdk@19.12.0
+  - @hyperlane-xyz/sdk@19.12.0
+  - @hyperlane-xyz/utils@19.12.0
+
+## 19.11.0
+
+### Patch Changes
+
+- Updated dependencies [dd6260eea]
+- Updated dependencies [dd6260eea]
+- Updated dependencies [156a37d6e]
+- Updated dependencies [4c29cd341]
+  - @hyperlane-xyz/provider-sdk@0.3.0
+  - @hyperlane-xyz/radix-sdk@19.11.0
+  - @hyperlane-xyz/sdk@19.11.0
+  - @hyperlane-xyz/cosmos-sdk@19.11.0
+  - @hyperlane-xyz/utils@19.11.0
+
+## 19.10.0
+
+### Patch Changes
+
+- Updated dependencies [aad2988c9]
+- Updated dependencies [b2a693ac6]
+- Updated dependencies [c2a64e8c5]
+- Updated dependencies [c0583af62]
+- Updated dependencies [9770b732c]
+- Updated dependencies [a97a9939c]
+- Updated dependencies [a0ba5e2fb]
+- Updated dependencies [66bed7126]
+- Updated dependencies [43ecd628c]
+- Updated dependencies [f604423b9]
+  - @hyperlane-xyz/utils@19.10.0
+  - @hyperlane-xyz/sdk@19.10.0
+  - @hyperlane-xyz/cosmos-sdk@19.10.0
+  - @hyperlane-xyz/radix-sdk@19.10.0
+  - @hyperlane-xyz/provider-sdk@0.2.0
+
+## 19.9.0
+
+### Patch Changes
+
+- Updated dependencies [8c027d852]
+- Updated dependencies [8c027d852]
+  - @hyperlane-xyz/utils@19.9.0
+  - @hyperlane-xyz/sdk@19.9.0
+  - @hyperlane-xyz/cosmos-sdk@19.9.0
+
+## 19.8.0
+
+### Patch Changes
+
+- Updated dependencies [500d81246]
+- Updated dependencies [4614a503e]
+- Updated dependencies [2ed21c97d]
+- Updated dependencies [78ff6cd47]
+- Updated dependencies [00b014a3e]
+- Updated dependencies [3f75ad86d]
+  - @hyperlane-xyz/sdk@19.8.0
+  - @hyperlane-xyz/utils@19.8.0
+  - @hyperlane-xyz/cosmos-sdk@19.8.0
+
+## 19.7.0
+
+### Patch Changes
+
+- Updated dependencies [bdfa2047e]
+- Updated dependencies [69ad3473e]
+- Updated dependencies [211e245cb]
+- Updated dependencies [343737271]
+- Updated dependencies [c68722d93]
+- Updated dependencies [5c4cef1d4]
+  - @hyperlane-xyz/sdk@19.7.0
+  - @hyperlane-xyz/cosmos-sdk@19.7.0
+  - @hyperlane-xyz/utils@19.7.0
+
+## 19.6.0
+
+### Patch Changes
+
+- Updated dependencies [e67aca4a1]
+- Updated dependencies [419e16910]
+- Updated dependencies [b259966fe]
+- Updated dependencies [e0c69e255]
+- Updated dependencies [ec406fcbe]
+- Updated dependencies [18c32ed2b]
+- Updated dependencies [b259966fe]
+- Updated dependencies [419e16910]
+- Updated dependencies [9185b9c5b]
+  - @hyperlane-xyz/sdk@19.6.0
+  - @hyperlane-xyz/utils@19.6.0
+  - @hyperlane-xyz/cosmos-sdk@19.6.0
+
+## 19.6.0-beta.0
+
+### Patch Changes
+
+- Updated dependencies [e67aca4a1]
+- Updated dependencies [419e16910]
+- Updated dependencies [b259966fe]
+- Updated dependencies [e0c69e255]
+- Updated dependencies [ec406fcbe]
+- Updated dependencies [18c32ed2b]
+- Updated dependencies [b259966fe]
+- Updated dependencies [419e16910]
+- Updated dependencies [9185b9c5b]
+  - @hyperlane-xyz/sdk@19.6.0-beta.0
+  - @hyperlane-xyz/utils@19.6.0-beta.0
+  - @hyperlane-xyz/cosmos-sdk@19.6.0-beta.0
+
+## 19.5.0
+
+### Patch Changes
+
+- Updated dependencies [312826d10]
+- Updated dependencies [bf2c2caa6]
+- Updated dependencies [312826d10]
+- Updated dependencies [79a51debe]
+  - @hyperlane-xyz/sdk@19.5.0
+  - @hyperlane-xyz/utils@19.5.0
+  - @hyperlane-xyz/cosmos-sdk@19.5.0
+
+## 19.4.0
+
+### Minor Changes
+
+- 79f55e09d: Add Skeleton and FuelPump component
+
+### Patch Changes
+
+- 5a4e22d34: Bump @solana/web3.js dependency explicitly from ^1.95.4 to ^1.98.4.
+- Updated dependencies [4011a4561]
+- Updated dependencies [8fd3bf78c]
+- Updated dependencies [5a4e22d34]
+- Updated dependencies [79f55e09d]
+- Updated dependencies [5a4e22d34]
+- Updated dependencies [517bbaa42]
+  - @hyperlane-xyz/sdk@19.4.0
+  - @hyperlane-xyz/utils@19.4.0
+  - @hyperlane-xyz/cosmos-sdk@19.4.0
+
 ## 19.3.0
 
 ### Patch Changes

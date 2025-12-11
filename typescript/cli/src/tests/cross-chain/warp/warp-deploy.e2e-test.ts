@@ -182,7 +182,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
   const unsupportedChainsTestCases: Record<
     // Radix is excluded because it is still not supported on main
-    Exclude<ProtocolType, ProtocolType.Radix>,
+    Exclude<ProtocolType, ProtocolType.Radix | ProtocolType.Aleo>,
     Address
   > = {
     [ProtocolType.Cosmos]: 'hyp1jq304cthpx0lwhpqzrdjrcza559ukyy3sc4dw5',

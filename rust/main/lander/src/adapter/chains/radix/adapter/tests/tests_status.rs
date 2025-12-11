@@ -8,13 +8,14 @@ use hyperlane_core::{ChainResult, H512};
 use hyperlane_radix::RadixSigner;
 use scrypto::network::NetworkDefinition;
 
-use super::tests_common::adapter;
 use crate::adapter::AdaptsChain;
 use crate::transaction::TransactionStatus;
 use crate::{
     adapter::chains::radix::adapter::tests::tests_common::{MockRadixProvider, TEST_PRIVATE_KEY},
     LanderError, TransactionDropReason,
 };
+
+use super::tests_common::adapter;
 
 #[tokio::test]
 async fn get_tx_hash_status_pending() {
@@ -92,14 +93,14 @@ async fn get_tx_hash_status_unknown() {
     let adapter = adapter(&network, provider_arc.clone(), signer.clone());
 
     let hash = H512::zero();
-    let tx_status = adapter.get_tx_hash_status(hash.clone()).await;
+    let tx_status = adapter.get_tx_hash_status(hash).await;
 
     match tx_status {
         Err(LanderError::TxHashNotFound(tx_hash)) => {
-            assert_eq!(tx_hash, format!("{:x}", hash));
+            assert_eq!(tx_hash, format!("{hash:x}"));
         }
         val => {
-            panic!("Incorrect status {:?}", val);
+            panic!("Incorrect status {val:?}");
         }
     }
 }
@@ -124,7 +125,7 @@ async fn get_tx_hash_status_committed_failure() {
 
     let hash = H512::zero();
     let tx_status = adapter
-        .get_tx_hash_status(hash.clone())
+        .get_tx_hash_status(hash)
         .await
         .expect("Failed to get tx hash status");
 
@@ -154,7 +155,7 @@ async fn get_tx_hash_status_committed_success() {
 
     let hash = H512::zero();
     let tx_status = adapter
-        .get_tx_hash_status(hash.clone())
+        .get_tx_hash_status(hash)
         .await
         .expect("Failed to get tx hash status");
 

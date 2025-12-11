@@ -3,6 +3,17 @@ use serde::{Deserialize, Serialize};
 
 use crate::{ReorgPeriod, H256};
 
+/// A response about a chain reorg, from an agent's perspective
+#[derive(Debug, Clone, PartialEq)]
+pub struct ReorgEventResponse {
+    /// Whether a reorg event exists
+    pub exists: bool,
+    /// Details on the actual reorg if parsable
+    pub event: Option<ReorgEvent>,
+    /// Details on the actual reorg as a string
+    pub content: Option<String>,
+}
+
 /// Details about a detected chain reorg, from an agent's perspective
 #[derive(Debug, Clone, Serialize, Deserialize, new, PartialEq, Default)]
 pub struct ReorgEvent {
@@ -10,10 +21,9 @@ pub struct ReorgEvent {
     pub local_merkle_root: H256,
     /// the onchain merkle root
     pub canonical_merkle_root: H256,
-    /// the latest local checkpoint index
-    pub local_checkpoint_index: u32,
-    /// the latest onchain checkpoint index
-    pub canonical_checkpoint_index: u32,
+    /// the index of the checkpoint when the reorg was detected
+    /// (due to a mismatch between local and canonical merkle roots)
+    pub checkpoint_index: u32,
     /// the timestamp when the reorg was detected, in seconds since the Unix epoch
     pub unix_timestamp: u64,
     /// the reorg period configured for the agent

@@ -24,20 +24,15 @@ jobs:
           submodules: recursive
 
       - name: yarn-cache
-        uses: buildjet/cache@v4
+        uses: ./.github/actions/yarn-cache
         with:
-          path: |
-            **/node_modules
-            .yarn
-          key: ${{ runner.os }}-yarn-4.5.1-cache-${{ hashFiles('./yarn.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-yarn-4.5.1.-cache-
+          cache-provider: buildjet
 
       - name: yarn-install
         run: yarn install
 
-      - name: foundry-install
-        uses: foundry-rs/foundry-toolchain@v1
+      - name: Setup Foundry
+        uses: ./.github/actions/setup-foundry
 
       - name: forge-build
         run: cd solidity && forge build --build-info

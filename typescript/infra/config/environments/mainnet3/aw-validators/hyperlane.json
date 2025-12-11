@@ -5,6 +5,9 @@
   "forma": {
     "validators": []
   },
+  "adichain": {
+    "validators": ["0x4b11a6310bc06300b529b0397683ca3376407eca"]
+  },
   "ancient8": {
     "validators": ["0xbb5842ae0e05215b53df4787a29144efb7e67551"]
   },
@@ -73,9 +76,6 @@
   },
   "celo": {
     "validators": ["0x63478422679303c3e4fc611b771fa4a707ef7f4a"]
-  },
-  "cheesechain": {
-    "validators": ["0x478fb53c6860ae8fc35235ba0d38d49b13128226"]
   },
   "chilizmainnet": {
     "validators": ["0x7403e5d58b48b0f5f715d9c78fbc581f01a625cb"]
@@ -158,9 +158,6 @@
   "incentiv": {
     "validators": ["0x72669f47b6f119289f1a42641b02a9656cc8fecd"]
   },
-  "inevm": {
-    "validators": ["0xf9e35ee88e4448a3673b4676a4e153e3584a08eb"]
-  },
   "injective": {
     "validators": ["0xbfb8911b72cfb138c7ce517c57d9c691535dc517"]
   },
@@ -175,6 +172,9 @@
   },
   "kyve": {
     "validators": ["0x8576ddc0cd96325f85528e53f333357afb8bf044"]
+  },
+  "lazai": {
+    "validators": ["0x3b00fe3518e739bb978b04d28e1492d8d865d96e"]
   },
   "linea": {
     "validators": ["0xf2d5409a59e0f5ae7635aff73685624904a77d94"]
@@ -202,6 +202,9 @@
   },
   "matchain": {
     "validators": ["0x8a052f7934b0626105f34f980c875ec03aaf82e8"]
+  },
+  "megaeth": {
+    "validators": ["0x051ddac8ecf4bae2532b8b7caa626b5567dab528"]
   },
   "merlin": {
     "validators": ["0xc1d6600cb9326ed2198cc8c4ba8d6668e8671247"]
@@ -320,6 +323,9 @@
   "solaxy": {
     "validators": ["0x4fa10dd6d854cd05f57bacf6f46d1a72eb1396e5"]
   },
+  "somnia": {
+    "validators": ["0xf484907083d32fdc0848bfb998dfdde835e6f9cb"]
+  },
   "soneium": {
     "validators": ["0xd4b7af853ed6a2bfc329ecef545df90c959cbee8"]
   },
@@ -334,6 +340,9 @@
   },
   "sophon": {
     "validators": ["0xb84c5d02120ed0b39d0f78bbc0e298d89ebcd10b"]
+  },
+  "stable": {
+    "validators": ["0x21820baebcd972c769e490415cfee43a894f3c18"]
   },
   "story": {
     "validators": ["0x501eda013378c60557d763df98d617b6ba55447a"]
@@ -403,8 +412,5 @@
   },
   "zoramainnet": {
     "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
-  },
-  "sovachain": {
-    "validators": ["0x5f9a044bbf460fb7236bfae24b5ca9090fff844d"]
   }
 }

@@ -1,5 +1,70 @@
 # @hyperlane-xyz/utils
 
+## 19.13.0
+
+## 19.12.0
+
+### Minor Changes
+
+- af2cd1729: Support reading ReorgEvent object from validator buckets.
+- e37100e2e: Add new `@hyperlane-xyz/utils/fs` submodule with filesystem utilities for Node.js. Includes functions for reading/writing JSON and YAML files, path resolution, directory management, and format-agnostic file operations. This submodule is not suitable for browser use.
+
+### Patch Changes
+
+- 08cf7eca9: Parse starknet addresses before validating with regex
+
+## 19.11.0
+
+## 19.10.0
+
+### Minor Changes
+
+- c2a64e8c5: feat: add setTokenHook to altvm interface
+
+### Patch Changes
+
+- aad2988c9: Export Logger type from utils for explicit typing in deploy-sdk
+
+## 19.9.0
+
+### Minor Changes
+
+- 8c027d852: Let retryAsync() to break the retry loop for non-recoverable errors
+
+## 19.8.0
+
+### Minor Changes
+
+- 2ed21c97d: Fix bug in the address detection logic that prevented radix localnet addresses to be recognized as valid radix addresses
+- 78ff6cd47: add new methods for altvm interface
+- 3f75ad86d: Add `inKubernetes` util fn.
+
+## 19.7.0
+
+## 19.6.0
+
+### Minor Changes
+
+- 419e16910: add the objDiff function to determine the field with primitive values that are different or not present when comparing 2 objects of the same type
+
+## 19.6.0-beta.0
+
+### Minor Changes
+
+- 419e16910: add the objDiff function to determine the field with primitive values that are different or not present when comparing 2 objects of the same type
+
+## 19.5.0
+
+### Minor Changes
+
+- 312826d10: Updated the AltVM provider connect interface so that it can optionally accept extra params needed for instantiating the provider
+
+## 19.4.0
+
+### Patch Changes
+
+- 5a4e22d34: Bump @solana/web3.js dependency explicitly from ^1.95.4 to ^1.98.4.
+
 ## 19.3.0
 
 ## 19.2.0

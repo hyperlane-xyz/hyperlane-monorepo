@@ -1,29 +1,30 @@
-use core::panic;
 use std::collections::HashMap;
 use std::sync::{Arc, LazyLock};
 use std::time::{Duration, Instant, SystemTime};
 
 use chrono::{TimeZone, Utc};
 use ethers::types::transaction::eip2718::TypedTransaction;
-use ethers::types::{TransactionReceipt, H160, H256 as EthersH256, U256 as EthersU256};
+use ethers::types::{
+    Address, Bloom, Eip1559TransactionRequest, TransactionReceipt, H160, U256 as EthersU256, U64,
+};
 use ethers::utils::EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE;
+use hyperlane_ethereum::TransactionOverrides;
 use tokio::{select, sync::mpsc};
 use tracing_test::traced_test;
 
-use hyperlane_core::config::OpSubmissionConfig;
-use hyperlane_core::{ChainCommunicationError, HyperlaneDomain, KnownHyperlaneDomain, H256, U256};
-use hyperlane_ethereum::EthereumReorgPeriod;
+use hyperlane_core::{ChainCommunicationError, KnownHyperlaneDomain, H256, H512, U256};
 
 use crate::adapter::chains::ethereum::{
     apply_estimate_buffer_to_ethers,
-    tests::{dummy_evm_tx, ExpectedEvmTxState, ExpectedTxType, MockEvmProvider},
-    EthereumAdapter, EthereumAdapterMetrics, NonceDb, NonceManager, NonceManagerState,
-    NonceUpdater, Precursor,
+    tests::{ExpectedEvmTxState, ExpectedTxType, MockEvmProvider},
+    Precursor,
 };
-use crate::dispatcher::{DispatcherState, InclusionStage, PayloadDb, TransactionDb};
+use crate::dispatcher::{DispatcherState, InclusionStage, TransactionDb};
 use crate::tests::test_utils::tmp_dbs;
 use crate::transaction::Transaction;
-use crate::{DispatcherMetrics, FullPayload, PayloadStatus, TransactionStatus};
+use crate::{DispatcherMetrics, PayloadStatus, TransactionStatus};
+
+use super::test_utils::*;
 
 /// This is block time for unit tests which assume that we are ready to re-submit every time,
 /// so, it is set to 0 nanoseconds so that we can test the inclusion stage without waiting
@@ -52,7 +53,7 @@ async fn test_inclusion_happy_path() {
         },
         ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
-            gas_limit: Some(TEST_GAS_LIMIT.clone()),
+            gas_limit: Some(*TEST_GAS_LIMIT),
             gas_price: Some(EthersU256::from(200000)), // Default fee used by the `ethers` lib estimation logic
             priority_fee: Some(EthersU256::from(
                 EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE,
@@ -63,7 +64,7 @@ async fn test_inclusion_happy_path() {
         },
         ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
-            gas_limit: Some(TEST_GAS_LIMIT.clone()),
+            gas_limit: Some(*TEST_GAS_LIMIT),
             gas_price: Some(EthersU256::from(200000)),
             priority_fee: Some(EthersU256::from(
                 EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE,
@@ -135,7 +136,7 @@ async fn test_inclusion_gas_spike() {
     let elapsed = Instant::now();
     let base_processing_delay = Duration::from_millis(500);
     let inclusion_stage_processing_delay = Duration::from_millis(100);
-    let block_time_clone = block_time.clone();
+    let block_time_clone = block_time;
     mock_evm_provider.expect_send().returning(move |tx, _| {
         send_call_counter += 1;
         // assert the timing of resubmissions to make sure they don't happen more than once per block
@@ -145,7 +146,7 @@ async fn test_inclusion_gas_spike() {
             base_processing_delay,
             inclusion_stage_processing_delay,
             block_time_clone,
-            &tx,
+            tx,
             // First submission, price is 200000 - the default fee used by the `ethers` estimation logic
             // Second submission, price is 10% higher, even though the spike was smaller
             // Third submission, price is 10% higher again, even though the spike was smaller
@@ -167,7 +168,7 @@ async fn test_inclusion_gas_spike() {
         },
         ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
-            gas_limit: Some(TEST_GAS_LIMIT.clone()),
+            gas_limit: Some(*TEST_GAS_LIMIT),
             gas_price: Some(EthersU256::from(200000)),
             priority_fee: Some(EthersU256::from(
                 EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE,
@@ -178,7 +179,7 @@ async fn test_inclusion_gas_spike() {
         },
         ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
-            gas_limit: Some(TEST_GAS_LIMIT.clone()),
+            gas_limit: Some(*TEST_GAS_LIMIT),
             gas_price: Some(EthersU256::from(220000)), // This is the price that gets included
             priority_fee: Some(EthersU256::from(
                 EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE * 11 / 10, // 10% increase
@@ -189,7 +190,7 @@ async fn test_inclusion_gas_spike() {
         },
         ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
-            gas_limit: Some(TEST_GAS_LIMIT.clone()),
+            gas_limit: Some(*TEST_GAS_LIMIT),
             gas_price: Some(EthersU256::from(242000)), // This is the price that gets included
             priority_fee: Some(EthersU256::from(
                 EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE * 121 / 100, // another 10% increase
@@ -200,7 +201,7 @@ async fn test_inclusion_gas_spike() {
         },
         ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
-            gas_limit: Some(TEST_GAS_LIMIT.clone()),
+            gas_limit: Some(*TEST_GAS_LIMIT),
             gas_price: Some(EthersU256::from(242000)),
             priority_fee: Some(EthersU256::from(
                 EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE * 121 / 100,
@@ -245,7 +246,7 @@ async fn test_inclusion_gas_underpriced() {
     let base_processing_delay = Duration::from_millis(500);
     // assume 1 second more than usual because that's the retry delay when an error occurs
     let inclusion_stage_processing_delay = Duration::from_millis(1100);
-    let block_time_clone = block_time.clone();
+    let block_time_clone = block_time;
     mock_evm_provider.expect_send().returning(move |tx, _| {
         send_call_counter += 1;
         // assert the timing of resubmissions to make sure they don't happen more than once per block
@@ -255,7 +256,7 @@ async fn test_inclusion_gas_underpriced() {
             base_processing_delay,
             inclusion_stage_processing_delay,
             block_time_clone,
-            &tx,
+            tx,
             // First submission, price is 200000 - the default fee used by the `ethers` estimation logic
             // Second submission, price is 10% higher, to due to the underpriced error
             vec![200000, 220000],
@@ -282,7 +283,7 @@ async fn test_inclusion_gas_underpriced() {
         },
         ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
-            gas_limit: Some(TEST_GAS_LIMIT.clone()),
+            gas_limit: Some(*TEST_GAS_LIMIT),
             // immediately returning an error causes a submission retry, with a 10% increase in gas price
             gas_price: Some(EthersU256::from(220000)),
             priority_fee: Some(EthersU256::from(
@@ -294,7 +295,7 @@ async fn test_inclusion_gas_underpriced() {
         },
         ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
-            gas_limit: Some(TEST_GAS_LIMIT.clone()),
+            gas_limit: Some(*TEST_GAS_LIMIT),
             gas_price: Some(EthersU256::from(220000)),
             priority_fee: Some(EthersU256::from(
                 EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE * 11 / 10,
@@ -399,7 +400,7 @@ async fn test_tx_which_fails_simulation_after_submission_is_delivered() {
         },
         ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
-            gas_limit: Some(TEST_GAS_LIMIT.clone()),
+            gas_limit: Some(*TEST_GAS_LIMIT),
             gas_price: Some(EthersU256::from(200000)),
             priority_fee: Some(EthersU256::from(
                 EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE,
@@ -410,7 +411,7 @@ async fn test_tx_which_fails_simulation_after_submission_is_delivered() {
         },
         ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
-            gas_limit: Some(TEST_GAS_LIMIT.clone()),
+            gas_limit: Some(*TEST_GAS_LIMIT),
             gas_price: Some(EthersU256::from(220000)),
             priority_fee: Some(EthersU256::from(
                 EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE * 11 / 10,
@@ -421,7 +422,7 @@ async fn test_tx_which_fails_simulation_after_submission_is_delivered() {
         },
         ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
-            gas_limit: Some(TEST_GAS_LIMIT.clone()),
+            gas_limit: Some(*TEST_GAS_LIMIT),
             gas_price: Some(EthersU256::from(242000)),
             priority_fee: Some(EthersU256::from(
                 EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE * 121 / 100,
@@ -432,7 +433,7 @@ async fn test_tx_which_fails_simulation_after_submission_is_delivered() {
         },
         ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
-            gas_limit: Some(TEST_GAS_LIMIT.clone()),
+            gas_limit: Some(*TEST_GAS_LIMIT),
             gas_price: Some(EthersU256::from(242000)), // This is the price that gets included
             priority_fee: Some(EthersU256::from(
                 EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE * 121 / 100,
@@ -504,7 +505,7 @@ async fn test_inclusion_escalate_but_old_hash_finalized() {
         },
         ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
-            gas_limit: Some(TEST_GAS_LIMIT.clone()),
+            gas_limit: Some(*TEST_GAS_LIMIT),
             gas_price: Some(EthersU256::from(200000)),
             priority_fee: Some(EthersU256::from(
                 EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE,
@@ -515,7 +516,7 @@ async fn test_inclusion_escalate_but_old_hash_finalized() {
         },
         ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
-            gas_limit: Some(TEST_GAS_LIMIT.clone()),
+            gas_limit: Some(*TEST_GAS_LIMIT),
             gas_price: Some(EthersU256::from(220000)),
             priority_fee: Some(EthersU256::from(
                 EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE * 11 / 10,
@@ -526,7 +527,7 @@ async fn test_inclusion_escalate_but_old_hash_finalized() {
         },
         ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
-            gas_limit: Some(TEST_GAS_LIMIT.clone()),
+            gas_limit: Some(*TEST_GAS_LIMIT),
             gas_price: Some(EthersU256::from(220000)),
             priority_fee: Some(EthersU256::from(
                 EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE * 11 / 10,
@@ -600,7 +601,7 @@ async fn test_escalate_gas_and_upgrade_legacy_to_eip1559() {
         },
         ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
-            gas_limit: Some(TEST_GAS_LIMIT.clone()),
+            gas_limit: Some(*TEST_GAS_LIMIT),
             gas_price: Some(EthersU256::from(200000)),
             priority_fee: Some(EthersU256::from(
                 EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE,
@@ -611,7 +612,7 @@ async fn test_escalate_gas_and_upgrade_legacy_to_eip1559() {
         },
         ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
-            gas_limit: Some(TEST_GAS_LIMIT.clone()),
+            gas_limit: Some(*TEST_GAS_LIMIT),
             gas_price: Some(EthersU256::from(220000)),
             priority_fee: Some(EthersU256::from(
                 EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE * 11 / 10, // 10% increase
@@ -622,7 +623,7 @@ async fn test_escalate_gas_and_upgrade_legacy_to_eip1559() {
         },
         ExpectedEvmTxState {
             nonce: Some(EthersU256::from(1)),
-            gas_limit: Some(TEST_GAS_LIMIT.clone()),
+            gas_limit: Some(*TEST_GAS_LIMIT),
             gas_price: Some(EthersU256::from(220000)),
             priority_fee: Some(EthersU256::from(
                 EIP1559_FEE_ESTIMATION_DEFAULT_PRIORITY_FEE * 11 / 10, // 10% increase
@@ -966,6 +967,257 @@ async fn test_tx_ready_for_resubmission_minimum_time_between_submissions() {
     );
 }
 
+#[tokio::test]
+#[traced_test]
+async fn test_tx_finalized_but_failed() {
+    let block_time = TEST_BLOCK_TIME;
+
+    let mut mock_evm_provider = MockEvmProvider::new();
+    mock_finalized_block_number(&mut mock_evm_provider);
+    mock_get_block(&mut mock_evm_provider);
+    mock_default_fee_history(&mut mock_evm_provider);
+    mock_get_next_nonce_on_finalized_block(&mut mock_evm_provider);
+
+    mock_evm_provider
+        .expect_estimate_gas_limit()
+        .returning(|_, _| Ok(21000.into()));
+    mock_evm_provider
+        .expect_send()
+        .returning(|_, _| Ok(H256::random()));
+    mock_evm_provider
+        .expect_get_transaction_receipt()
+        .returning(|_| {
+            Ok(Some(TransactionReceipt {
+                transaction_hash: ethers::types::H256::random(),
+                transaction_index: U64::one(),
+                block_hash: Some(ethers::types::H256::random()),
+                block_number: Some(U64::one()),
+                from: Address::random(),
+                to: None,
+                cumulative_gas_used: ethers::types::U256::one(),
+                gas_used: Some(ethers::types::U256::one()),
+                contract_address: Some(Address::random()),
+                logs: Vec::new(),
+                status: Some(U64::zero()),
+                root: Some(ethers::types::H256::random()),
+                logs_bloom: Bloom::default(),
+                transaction_type: Some(U64::one()),
+                effective_gas_price: Some(ethers::types::U256::one()),
+                ..Default::default()
+            }))
+        });
+
+    let signer = H160::random();
+    let dispatcher_state = mock_dispatcher_state_with_provider(
+        mock_evm_provider,
+        signer,
+        block_time,
+        TEST_MINIMUM_TIME_BETWEEN_RESUBMISSIONS,
+    );
+    let (finality_stage_sender, mut finality_stage_receiver) = mpsc::channel(100);
+    let inclusion_stage_pool = Arc::new(tokio::sync::Mutex::new(HashMap::new()));
+
+    let created_txs = mock_evm_txs(
+        1,
+        &dispatcher_state.payload_db,
+        &dispatcher_state.tx_db,
+        TransactionStatus::PendingInclusion,
+        signer,
+        ExpectedTxType::Eip1559,
+    )
+    .await;
+    let created_tx = created_txs[0].clone();
+    let mock_domain = TEST_DOMAIN.into();
+    inclusion_stage_pool
+        .lock()
+        .await
+        .insert(created_tx.uuid.clone(), created_tx.clone());
+
+    // tx should be successfully sent and move to mempool
+    let result = InclusionStage::process_txs_step(
+        &inclusion_stage_pool,
+        &finality_stage_sender,
+        &dispatcher_state,
+        mock_domain,
+    )
+    .await;
+    assert!(result.is_ok());
+
+    let retrieved_tx = dispatcher_state
+        .tx_db
+        .retrieve_transaction_by_uuid(&created_tx.uuid)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(
+        matches!(retrieved_tx.status, TransactionStatus::Mempool),
+        "Transaction should be mempool"
+    );
+
+    let result = InclusionStage::process_txs_step(
+        &inclusion_stage_pool,
+        &finality_stage_sender,
+        &dispatcher_state,
+        mock_domain,
+    )
+    .await;
+    assert!(result.is_ok());
+
+    let retrieved_tx = dispatcher_state
+        .tx_db
+        .retrieve_transaction_by_uuid(&created_tx.uuid)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(
+        matches!(retrieved_tx.status, TransactionStatus::Finalized),
+        "Transaction should be finalized"
+    );
+    // The pool should be empty
+    assert!(inclusion_stage_pool.lock().await.is_empty());
+
+    for detail in &created_tx.payload_details {
+        let payload = dispatcher_state
+            .payload_db
+            .retrieve_payload_by_uuid(&detail.uuid)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(
+            matches!(
+                payload.status,
+                PayloadStatus::InTransaction(TransactionStatus::Finalized)
+            ),
+            "Payload should be finalized"
+        );
+    }
+
+    let maybe_tx = tokio::time::timeout(Duration::from_millis(100), finality_stage_receiver.recv())
+        .await
+        .ok()
+        .flatten();
+    assert!(
+        maybe_tx.is_some(),
+        "Transaction should be sent to finality stage"
+    );
+}
+
+/// Test case where tx is already in mempool, but is assigned a new
+/// nonce. In this case, we still need to make sure tx has new nonce
+/// stored.
+#[tokio::test]
+#[traced_test]
+async fn test_tx_mempool_but_assigned_new_nonce() {
+    let block_time = TEST_BLOCK_TIME;
+
+    let mut mock_evm_provider = MockEvmProvider::new();
+    mock_finalized_block_number(&mut mock_evm_provider);
+    mock_estimate_gas_limit(&mut mock_evm_provider);
+    mock_get_block(&mut mock_evm_provider);
+    mock_get_next_nonce_on_finalized_block(&mut mock_evm_provider);
+
+    mock_evm_provider.expect_fee_history().returning(|_, _, _| {
+        let base_fee = 10;
+        let prio_fee = 10;
+        Ok(mock_fee_history(base_fee, prio_fee))
+    });
+    mock_evm_provider
+        .expect_send()
+        .returning(|_, _| Ok(H256::random()));
+    mock_evm_provider
+        .expect_get_transaction_receipt()
+        .returning(move |_| {
+            Ok(Some(TransactionReceipt {
+                transaction_hash: H256::random().into(),
+                block_number: None,
+                ..Default::default()
+            }))
+        });
+
+    let signer = H160::random();
+    let (payload_db, tx_db, nonce_db) = tmp_dbs();
+    let mut adapter = mock_ethereum_adapter(
+        mock_evm_provider,
+        payload_db.clone(),
+        tx_db.clone(),
+        nonce_db.clone(),
+        signer,
+        block_time,
+        TEST_MINIMUM_TIME_BETWEEN_RESUBMISSIONS,
+    );
+    // Set transactions override so transaction
+    // reaches max gas cap.
+    adapter.transaction_overrides = TransactionOverrides {
+        gas_price_cap: Some(U256::from(1000)),
+        max_priority_fee_per_gas: Some(U256::from(1000)),
+        ..Default::default()
+    };
+    let dispatcher_state = DispatcherState::new(
+        payload_db,
+        tx_db.clone(),
+        Arc::new(adapter),
+        DispatcherMetrics::dummy_instance(),
+        "test".to_string(),
+    );
+    let (finality_stage_sender, _receiver) = mpsc::channel(100);
+    let inclusion_stage_pool = Arc::new(tokio::sync::Mutex::new(HashMap::new()));
+
+    let created_txs = mock_evm_txs(
+        1,
+        &dispatcher_state.payload_db,
+        &dispatcher_state.tx_db,
+        TransactionStatus::Mempool,
+        signer,
+        ExpectedTxType::Eip1559,
+    )
+    .await;
+
+    // set nonce to 100, set gas to something that is already really high
+    // compared to fee history
+    let mut created_tx = created_txs[0].clone();
+    created_tx.tx_hashes.push(H512::random());
+    let precursor = created_tx.precursor_mut();
+    precursor.tx = TypedTransaction::Eip1559(Eip1559TransactionRequest {
+        from: Some(signer),
+        to: Some(ethers::types::NameOrAddress::Address(H160::random())),
+        nonce: Some(EthersU256::from(100)),
+        max_fee_per_gas: Some(EthersU256::from(300_000)),
+        max_priority_fee_per_gas: Some(EthersU256::from(100_000)),
+        ..Default::default()
+    });
+
+    inclusion_stage_pool
+        .lock()
+        .await
+        .insert(created_tx.uuid.clone(), created_tx.clone());
+
+    let mock_domain = TEST_DOMAIN.as_str();
+    InclusionStage::process_txs_step(
+        &inclusion_stage_pool,
+        &finality_stage_sender,
+        &dispatcher_state,
+        mock_domain,
+    )
+    .await
+    .unwrap();
+
+    // check nonce is stored correctly in db
+    let stored_nonce = nonce_db
+        .retrieve_nonce_by_transaction_uuid(&signer, &created_tx.uuid)
+        .await
+        .unwrap();
+    assert_eq!(stored_nonce, Some(U256::from(1)));
+
+    let retrieved_tx = tx_db
+        .retrieve_transaction_by_uuid(&created_tx.uuid)
+        .await
+        .unwrap()
+        .unwrap();
+    let evm_tx = &retrieved_tx.precursor().tx;
+    assert_eq!(evm_tx.nonce(), Some(&EthersU256::from(1)));
+    assert_eq!(retrieved_tx.status, TransactionStatus::Mempool,);
+}
+
 async fn run_and_expect_successful_inclusion(
     initial_tx_type: ExpectedTxType,
     mut expected_tx_states: Vec<ExpectedEvmTxState>,
@@ -1002,7 +1254,8 @@ async fn run_and_expect_successful_inclusion(
     let expected_tx_state = expected_tx_states.remove(0);
     assert_tx_db_state(&expected_tx_state, &dispatcher_state.tx_db, &created_tx).await;
 
-    for expected_tx_state in expected_tx_states.iter() {
+    for (i, expected_tx_state) in expected_tx_states.iter().enumerate() {
+        tracing::debug!(iteration = i, "run_and_expect_successful_inclusion");
         InclusionStage::process_txs_step(
             &inclusion_stage_pool,
             &finality_stage_sender,
@@ -1030,6 +1283,219 @@ async fn run_and_expect_successful_inclusion(
     assert!(
         success,
         "Inclusion stage did not process the txs successfully"
+    );
+}
+
+#[tokio::test]
+#[traced_test]
+async fn test_tx_dropped_when_gas_reaches_3x_cap() {
+    let block_time = TEST_BLOCK_TIME;
+    let signer = H160::random();
+
+    let mut mock_evm_provider = MockEvmProvider::new();
+    mock_finalized_block_number(&mut mock_evm_provider);
+    mock_estimate_gas_limit(&mut mock_evm_provider);
+    mock_get_block(&mut mock_evm_provider);
+    mock_get_next_nonce_on_finalized_block(&mut mock_evm_provider);
+
+    // Mock fee_history to return a gas price that ethers will use (200000 default)
+    // With this setup:
+    // - Estimated gas from ethers: 200000
+    // - Gas cap: 200000 * 3 = 600000
+    // - Old gas price: 600000 (set below)
+    // - Escalated: 600000 * 1.1 = 660000
+    // - Capped: min(660000, 600000) = 600000
+    // - RBF protected: max(600000, 600000) = 600000 (stays the same!)
+    // This triggers TxWontBeResubmitted
+    mock_evm_provider
+        .expect_fee_history()
+        .returning(|_, _, _| Ok(mock_fee_history(200000, 10)));
+
+    // Never return a receipt, so the transaction never gets included
+    mock_evm_provider
+        .expect_get_transaction_receipt()
+        .returning(|_| Ok(None));
+
+    // Mock send for the new transaction (after the first one is dropped)
+    mock_evm_provider
+        .expect_send()
+        .returning(|_, _| Ok(H256::random()));
+
+    let (payload_db, tx_db, nonce_db) = tmp_dbs();
+    let mut adapter = mock_ethereum_adapter(
+        mock_evm_provider,
+        payload_db.clone(),
+        tx_db.clone(),
+        nonce_db.clone(),
+        signer,
+        block_time,
+        TEST_MINIMUM_TIME_BETWEEN_RESUBMISSIONS,
+    );
+
+    // Set transaction overrides with gas price cap multiplier of 3
+    adapter.transaction_overrides = TransactionOverrides {
+        gas_price_cap_multiplier: Some(U256::from(3)),
+        ..Default::default()
+    };
+
+    let dispatcher_state = DispatcherState::new(
+        payload_db,
+        tx_db.clone(),
+        Arc::new(adapter),
+        DispatcherMetrics::dummy_instance(),
+        "test".to_string(),
+    );
+
+    let (finality_stage_sender, mut finality_stage_receiver) = mpsc::channel(100);
+    let inclusion_stage_pool = Arc::new(tokio::sync::Mutex::new(HashMap::new()));
+
+    // Create a transaction that's already been submitted with high gas price
+    let created_txs = mock_evm_txs(
+        1,
+        &dispatcher_state.payload_db,
+        &dispatcher_state.tx_db,
+        TransactionStatus::Mempool,
+        signer,
+        ExpectedTxType::Eip1559,
+    )
+    .await;
+    let mut created_tx = created_txs[0].clone();
+
+    // Simulate that this transaction has already been submitted multiple times
+    // and has escalated to exactly the gas cap (600000 wei)
+    // With estimated gas at 200000 and cap multiplier of 3, the cap is 600000
+    // So when we try to escalate from 600000:
+    // - Escalated: 600000 * 1.1 = 660000
+    // - Cap: 200000 * 3 = 600000
+    // - Capped: min(660000, 600000) = 600000
+    // - RBF protected: max(600000, 600000) = 600000 (stays the same!)
+    // This triggers TxWontBeResubmitted because new gas == old gas
+    created_tx.tx_hashes.push(H512::random());
+    created_tx.submission_attempts = 5; // Simulate multiple submissions
+    let precursor = created_tx.precursor_mut();
+    precursor.tx = TypedTransaction::Eip1559(Eip1559TransactionRequest {
+        from: Some(signer),
+        to: Some(ethers::types::NameOrAddress::Address(H160::random())),
+        nonce: Some(EthersU256::from(1)),
+        max_fee_per_gas: Some(EthersU256::from(600000)),
+        max_priority_fee_per_gas: Some(EthersU256::from(300000)),
+        gas: Some(*TEST_GAS_LIMIT),
+        ..Default::default()
+    });
+
+    let tx_uuid = created_tx.uuid.clone();
+    let mock_domain = TEST_DOMAIN.as_str();
+
+    // Store transaction and nonce in DB
+    tx_db.store_transaction_by_uuid(&created_tx).await.unwrap();
+    nonce_db
+        .store_nonce_by_transaction_uuid(&signer, &tx_uuid, &U256::from(1))
+        .await
+        .unwrap();
+
+    inclusion_stage_pool
+        .lock()
+        .await
+        .insert(tx_uuid.clone(), created_tx.clone());
+
+    // Process the transaction - it should be dropped due to hitting gas cap
+    let result = InclusionStage::process_txs_step(
+        &inclusion_stage_pool,
+        &finality_stage_sender,
+        &dispatcher_state,
+        mock_domain,
+    )
+    .await;
+
+    // The result should be Ok (error is handled internally)
+    assert!(result.is_ok(), "Inclusion stage should handle the error");
+
+    // The pool should be empty (tx was dropped)
+    assert!(
+        inclusion_stage_pool.lock().await.is_empty(),
+        "Transaction should be removed from pool"
+    );
+
+    // The transaction should be marked as Dropped in the DB
+    let retrieved_tx = tx_db
+        .retrieve_transaction_by_uuid(&tx_uuid)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(
+        matches!(retrieved_tx.status, TransactionStatus::Dropped(_)),
+        "Transaction should be dropped, got {:?}",
+        retrieved_tx.status
+    );
+
+    // The payload should be marked as Dropped in the DB
+    for detail in &created_tx.payload_details {
+        let payload = dispatcher_state
+            .payload_db
+            .retrieve_payload_by_uuid(&detail.uuid)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(
+            matches!(
+                payload.status,
+                PayloadStatus::InTransaction(TransactionStatus::Dropped(_))
+            ),
+            "Payload should be dropped"
+        );
+    }
+
+    // No transaction should be sent to the finality stage
+    let maybe_tx = tokio::time::timeout(Duration::from_millis(100), finality_stage_receiver.recv())
+        .await
+        .ok()
+        .flatten();
+    assert!(
+        maybe_tx.is_none(),
+        "No transaction should be sent to finality stage"
+    );
+
+    // CRITICAL TEST: Verify nonce is available for reuse
+    // Create a new transaction with the same signer
+    let new_txs = mock_evm_txs(
+        1,
+        &dispatcher_state.payload_db,
+        &dispatcher_state.tx_db,
+        TransactionStatus::PendingInclusion,
+        signer,
+        ExpectedTxType::Eip1559,
+    )
+    .await;
+    let new_tx = new_txs[0].clone();
+
+    inclusion_stage_pool
+        .lock()
+        .await
+        .insert(new_tx.uuid.clone(), new_tx.clone());
+
+    // Process the new transaction - it should be able to use the freed nonce
+    let result = InclusionStage::process_txs_step(
+        &inclusion_stage_pool,
+        &finality_stage_sender,
+        &dispatcher_state,
+        mock_domain,
+    )
+    .await;
+
+    assert!(
+        result.is_ok(),
+        "New transaction should be processed successfully"
+    );
+
+    // Verify the new transaction got assigned a nonce (nonce 1 should be reused)
+    let stored_nonce = nonce_db
+        .retrieve_nonce_by_transaction_uuid(&signer, &new_tx.uuid)
+        .await
+        .unwrap();
+    assert_eq!(
+        stored_nonce,
+        Some(U256::from(1)),
+        "New transaction should reuse the freed nonce"
     );
 }
 
@@ -1092,212 +1558,8 @@ async fn assert_tx_db_state(
         );
         assert_eq!(
             eip1559_tx.max_fee_per_gas,
-            expected.gas_price.map(|v| v.into()),
+            expected.gas_price.map(|v| v),
             "Max fee per gas mismatch"
         );
     }
-}
-
-fn mocked_evm_provider() -> MockEvmProvider {
-    let mut mock_evm_provider = MockEvmProvider::new();
-    mock_finalized_block_number(&mut mock_evm_provider);
-    mock_estimate_gas_limit(&mut mock_evm_provider);
-    mock_get_block(&mut mock_evm_provider);
-    mock_get_next_nonce_on_finalized_block(&mut mock_evm_provider);
-
-    mock_evm_provider
-        .expect_get_transaction_receipt()
-        .returning(move |_| {
-            Ok(Some(TransactionReceipt {
-                transaction_hash: H256::random().into(),
-                block_number: Some(444.into()),
-                ..Default::default()
-            }))
-        });
-    mock_evm_provider.expect_send().returning(|_, _| {
-        Ok(H256::random()) // Mocked transaction hash
-    });
-    mock_evm_provider
-        .expect_fee_history()
-        .returning(|_, _, _| Ok(mock_fee_history(0, 0)));
-
-    mock_evm_provider
-}
-
-async fn mock_evm_txs(
-    num: usize,
-    payload_db: &Arc<dyn PayloadDb>,
-    tx_db: &Arc<dyn TransactionDb>,
-    status: TransactionStatus,
-    signer: H160,
-    tx_type: ExpectedTxType,
-) -> Vec<Transaction> {
-    let mut txs = Vec::new();
-    for _ in 0..num {
-        let mut payload = FullPayload::random();
-        payload.status = PayloadStatus::InTransaction(status.clone());
-        payload_db.store_payload_by_uuid(&payload).await.unwrap();
-        let tx = dummy_evm_tx(tx_type, vec![payload], status.clone(), signer.clone());
-        tx_db.store_transaction_by_uuid(&tx).await.unwrap();
-        txs.push(tx);
-    }
-    txs
-}
-
-pub fn mock_dispatcher_state_with_provider(
-    provider: MockEvmProvider,
-    signer: H160,
-    block_time: Duration,
-    minimum_time_between_resubmissions: Duration,
-) -> DispatcherState {
-    let (payload_db, tx_db, nonce_db) = tmp_dbs();
-    let adapter = mock_ethereum_adapter(
-        provider,
-        payload_db.clone(),
-        tx_db.clone(),
-        nonce_db,
-        signer,
-        block_time,
-        minimum_time_between_resubmissions,
-    );
-    DispatcherState::new(
-        payload_db,
-        tx_db,
-        Arc::new(adapter),
-        DispatcherMetrics::dummy_instance(),
-        "test".to_string(),
-    )
-}
-
-fn mock_ethereum_adapter(
-    provider: MockEvmProvider,
-    payload_db: Arc<dyn PayloadDb>,
-    tx_db: Arc<dyn TransactionDb>,
-    nonce_db: Arc<dyn NonceDb>,
-    signer: H160,
-    block_time: Duration,
-    minimum_time_between_resubmissions: Duration,
-) -> EthereumAdapter {
-    let domain: HyperlaneDomain = TEST_DOMAIN.into();
-    let provider = Arc::new(provider);
-    let reorg_period = EthereumReorgPeriod::Blocks(1);
-    let metrics = EthereumAdapterMetrics::dummy_instance();
-    let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, signer, metrics));
-
-    let nonce_updater = NonceUpdater::new(
-        signer,
-        reorg_period,
-        block_time,
-        provider.clone(),
-        state.clone(),
-    );
-
-    let nonce_manager = NonceManager {
-        address: signer,
-        state,
-        nonce_updater,
-    };
-
-    let op_submission_config = OpSubmissionConfig::default();
-    let batch_contract_address = op_submission_config
-        .batch_contract_address
-        .unwrap_or_default();
-
-    EthereumAdapter {
-        estimated_block_time: block_time,
-        domain,
-        transaction_overrides: Default::default(),
-        submission_config: op_submission_config,
-        provider,
-        reorg_period,
-        nonce_manager,
-        batch_cache: Default::default(),
-        batch_contract_address,
-        payload_db,
-        signer,
-        minimum_time_between_resubmissions,
-    }
-}
-
-fn mock_fee_history(base_fee: u32, prio_fee: u32) -> ethers::types::FeeHistory {
-    ethers::types::FeeHistory {
-        oldest_block: 0.into(),
-        reward: vec![vec![prio_fee.into()]],
-        base_fee_per_gas: vec![base_fee.into()],
-        gas_used_ratio: vec![0.0],
-    }
-}
-
-fn mock_tx_receipt(block_number: Option<u64>, hash: H256) -> TransactionReceipt {
-    TransactionReceipt {
-        transaction_hash: hash.into(),
-        block_number: block_number.map(|n| n.into()),
-        ..Default::default()
-    }
-}
-
-fn mock_block(block_number: u64, base_fee: u32) -> ethers::types::Block<EthersH256> {
-    ethers::types::Block {
-        number: Some(block_number.into()),
-        base_fee_per_gas: Some(base_fee.into()),
-        gas_limit: 30000000.into(),
-        ..Default::default()
-    }
-}
-
-fn mock_default_fee_history(mock_evm_provider: &mut MockEvmProvider) {
-    mock_evm_provider
-        .expect_fee_history()
-        .returning(move |_, _, _| Ok(mock_fee_history(200000, 10)));
-}
-
-fn mock_finalized_block_number(mock_evm_provider: &mut MockEvmProvider) {
-    mock_evm_provider
-        .expect_get_finalized_block_number()
-        .returning(|_reorg_period| Ok(43)); // Mocked block number
-}
-
-fn mock_estimate_gas_limit(mock_evm_provider: &mut MockEvmProvider) {
-    mock_evm_provider
-        .expect_estimate_gas_limit()
-        .returning(|_, _| Ok(21000.into())); // Mocked gas limit
-}
-
-fn mock_get_block(mock_evm_provider: &mut MockEvmProvider) {
-    mock_evm_provider
-        .expect_get_block()
-        .returning(|_| Ok(Some(mock_block(42, 100)))); // Mocked block retrieval
-}
-
-fn mock_get_next_nonce_on_finalized_block(mock_evm_provider: &mut MockEvmProvider) {
-    mock_evm_provider
-        .expect_get_next_nonce_on_finalized_block()
-        .returning(move |_, _| Ok(U256::one()));
-}
-
-fn assert_gas_prices_and_timings(
-    nth_submission: usize,
-    start_time: Instant,
-    base_processing_delay: Duration,
-    inclusion_stage_processing_delay: Duration,
-    block_time: Duration,
-    tx: &TypedTransaction,
-    gas_price_expectations: Vec<u32>,
-) {
-    let actual_elapsed = start_time.elapsed();
-    let expected_elapsed = base_processing_delay
-        + (inclusion_stage_processing_delay + block_time) * (nth_submission as u32);
-    assert!(
-        actual_elapsed < expected_elapsed,
-        "(submission {}) elapsed {:?} was not < expected {:?}",
-        nth_submission,
-        actual_elapsed,
-        expected_elapsed
-    );
-    assert_eq!(
-        tx.gas_price().unwrap(),
-        gas_price_expectations[nth_submission - 1].into(),
-        "gas price for submission {} doesn't match expected value",
-        nth_submission
-    );
 }

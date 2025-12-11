@@ -10,6 +10,7 @@ use itertools::Itertools;
 use serde::Serialize;
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{error, info, info_span, warn, Instrument};
+use url::Url;
 
 use hyperlane_base::{
     db::{HyperlaneDb, HyperlaneRocksDB, DB},
@@ -21,18 +22,22 @@ use hyperlane_base::{
     SequencedDataContractSync,
 };
 use hyperlane_core::{
-    Announcement, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneSigner,
-    HyperlaneSignerExt, Mailbox, MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, TxOutcome,
-    ValidatorAnnounce, H256, U256,
+    rpc_clients::RPC_RETRY_SLEEP_DURATION, Announcement, ChainResult, HyperlaneChain,
+    HyperlaneContract, HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt, Mailbox,
+    MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, TxOutcome, ValidatorAnnounce, H256, U256,
 };
 use hyperlane_ethereum::{Signers, SingletonSigner, SingletonSignerHandle};
 
-use crate::reorg_reporter::{LatestCheckpointReorgReporter, ReorgReporter};
+use crate::reorg_reporter::{
+    LatestCheckpointReorgReporter, LatestCheckpointReorgReporterWithStorageWriter, ReorgReporter,
+};
 use crate::server::{self as validator_server, merkle_tree_insertions};
 use crate::{
     settings::ValidatorSettings,
     submit::{ValidatorSubmitter, ValidatorSubmitterMetrics},
 };
+
+const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
 
 /// A validator agent
 #[derive(Debug, AsRef)]
@@ -66,8 +71,13 @@ pub struct Validator {
 #[derive(Debug, Serialize)]
 pub struct ValidatorMetadata {
     git_sha: String,
-    rpcs: Vec<H256>,
+    rpcs: Vec<ValidatorMetadataRpcEntry>,
     allows_public_rpcs: bool,
+}
+#[derive(Debug, Serialize)]
+pub struct ValidatorMetadataRpcEntry {
+    url_hash: H256,
+    host_hash: H256,
 }
 
 impl MetadataFromSettings<ValidatorSettings> for ValidatorMetadata {
@@ -77,7 +87,15 @@ impl MetadataFromSettings<ValidatorSettings> for ValidatorMetadata {
         let rpcs = settings
             .rpcs
             .iter()
-            .map(|rpc| H256::from_slice(&keccak256(&rpc.url)))
+            .map(|rpc| ValidatorMetadataRpcEntry {
+                url_hash: H256::from_slice(&keccak256(&rpc.url)),
+                host_hash: H256::from_slice(&keccak256(
+                    Url::parse(&rpc.url)
+                        .ok()
+                        .and_then(|url| url.host_str().map(str::to_string))
+                        .unwrap_or("".to_string()),
+                )),
+            })
             .collect();
         ValidatorMetadata {
             git_sha: git_sha(),
@@ -140,9 +158,20 @@ impl BaseAgent for Validator {
 
         // Be extra sure to panic when checkpoint syncer fails, which indicates
         // a fatal startup error.
-        let checkpoint_syncer = checkpoint_syncer_result
+        let checkpoint_syncer: Arc<dyn CheckpointSyncer> = checkpoint_syncer_result
             .expect("Failed to build checkpoint syncer")
             .into();
+
+        // If checkpoint syncer initialization was successful, use a reorg-reporter which
+        // writes to the storage location in addition to the logs.
+        let reorg_reporter_with_storage_writer =
+            LatestCheckpointReorgReporterWithStorageWriter::from_settings_with_storage_writer(
+                &settings,
+                &metrics,
+                checkpoint_syncer.clone(),
+            )
+            .await?;
+        let reorg_reporter = Arc::new(reorg_reporter_with_storage_writer) as Arc<dyn ReorgReporter>;
 
         let origin_chain_conf = core.settings.chain_setup(&settings.origin_chain)?.clone();
 
@@ -264,30 +293,35 @@ impl BaseAgent for Validator {
         // messages or submitting checkpoints.
         loop {
             match self.merkle_tree_hook.count(&self.reorg_period).await {
+                Err(err) => {
+                    error!(?err, "Error getting merkle tree hook count");
+                    sleep(self.interval).await;
+                }
                 Ok(0) => {
                     info!("Waiting for first message in merkle tree hook");
                     sleep(self.interval).await;
                 }
                 Ok(_) => {
-                    let merkle_tree_hook_sync = match self.run_merkle_tree_hook_sync().await {
-                        Ok(handle) => handle,
-                        Err(err) => {
-                            tracing::error!(?err, "Failed to run merkle tree hook sync");
-                            return;
-                        }
-                    };
-                    tasks.push(merkle_tree_hook_sync);
-                    for checkpoint_sync_task in self.run_checkpoint_submitters().await {
-                        tasks.push(checkpoint_sync_task);
-                    }
                     break;
-                }
-                Err(err) => {
-                    error!(?err, "Error getting merkle tree hook count");
-                    sleep(self.interval).await;
                 }
             }
         }
+
+        let merkle_tree_hook_sync = match self
+            .try_n_times_to_run_merkle_tree_hook_sync(CURSOR_INSTANTIATION_ATTEMPTS)
+            .await
+        {
+            Ok(s) => s,
+            Err(err) => {
+                error!(?err, "Failed to run merkle tree hook sync");
+                return;
+            }
+        };
+        tasks.push(merkle_tree_hook_sync);
+        for checkpoint_sync_task in self.run_checkpoint_submitters().await {
+            tasks.push(checkpoint_sync_task);
+        }
+
         tasks.push(self.runtime_metrics.spawn());
 
         // Note that this only returns an error if one of the tasks panics
@@ -298,6 +332,37 @@ impl BaseAgent for Validator {
 }
 
 impl Validator {
+    /// Try to create merkle tree hook contract sync attempts times before giving up.
+    async fn try_n_times_to_run_merkle_tree_hook_sync(
+        &self,
+        attempts: usize,
+    ) -> eyre::Result<JoinHandle<()>> {
+        for i in 0..attempts {
+            let task = match self.run_merkle_tree_hook_sync().await {
+                Ok(s) => s,
+                Err(err) => {
+                    error!(
+                        ?err,
+                        domain = self.origin_chain.name(),
+                        attempt_count = i,
+                        "Failed to run merkle tree hook sync"
+                    );
+                    sleep(RPC_RETRY_SLEEP_DURATION).await;
+                    continue;
+                }
+            };
+            self.chain_metrics
+                .set_critical_error(self.origin_chain.name(), false);
+            return Ok(task);
+        }
+        self.chain_metrics
+            .set_critical_error(self.origin_chain.name(), true);
+        Err(eyre::eyre!(
+            "Failed to initialize merkle tree hook sync after {} attempts",
+            attempts
+        ))
+    }
+
     async fn run_merkle_tree_hook_sync(&self) -> eyre::Result<JoinHandle<()>> {
         let index_settings = self
             .as_ref()
@@ -412,7 +477,7 @@ impl Validator {
             validator: address,
             mailbox_address: self.mailbox.address(),
             mailbox_domain: self.mailbox.domain().id(),
-            storage_location: announcement_location.clone(),
+            storage_location: self.announcement_location()?, // Use formatted location for the signed announcement
         };
         let signed_announcement = self.signer.sign(announcement.clone()).await?;
         self.checkpoint_syncer
@@ -490,12 +555,119 @@ impl Validator {
         reorg_reporter: &Arc<dyn ReorgReporter>,
         checkpoint_syncer_result: &Result<Box<dyn CheckpointSyncer>, CheckpointSyncerBuildError>,
     ) {
-        if let Err(CheckpointSyncerBuildError::ReorgEvent(reorg_event)) =
+        if let Err(CheckpointSyncerBuildError::ReorgFlag(reorg_resp)) =
             checkpoint_syncer_result.as_ref()
         {
-            reorg_reporter
-                .report_with_reorg_period(&reorg_event.reorg_period)
-                .await;
+            match reorg_resp.event.as_ref() {
+                Some(reorg_event) => {
+                    reorg_reporter
+                        .report_with_reorg_period(&reorg_event.reorg_period)
+                        .await;
+                }
+                None => {
+                    tracing::error!(
+                        "Failed to parse reorg event, reporting with default reorg period"
+                    );
+                    reorg_reporter
+                        .report_with_reorg_period(&ReorgPeriod::None)
+                        .await;
+                }
+            }
         }
+    }
+
+    fn announcement_location(&self) -> Result<String> {
+        let location = self.checkpoint_syncer.announcement_location();
+        if self.origin_chain.domain_protocol() == hyperlane_core::HyperlaneDomainProtocol::Aleo {
+            Self::aleo_announcement_location(location)
+        } else {
+            Ok(location)
+        }
+    }
+
+    fn aleo_announcement_location(announcement_location: String) -> Result<String> {
+        // Aleo announcement locations are fixed size C strings of 480 bytes (include nulls)
+        let mut bytes = announcement_location.into_bytes();
+        // Ensure it fits within 479 bytes (leaving room for null terminator)
+        if bytes.len() > 479 {
+            return Err(eyre!(
+                "Aleo announcement location too long: {} bytes (max 479)",
+                bytes.len()
+            ));
+        }
+        // Pad remaining bytes with nulls up to 480 total
+        bytes.resize(480, 0);
+        String::from_utf8(bytes).map_err(|e| {
+            eyre!(
+                "Failed to convert Aleo announcement location to string: {}",
+                e
+            )
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn aleo_announcement_location_exactly_max_minus_null() -> Result<()> {
+        // 479 bytes input should be padded to 480 with a single null
+        let input = "a".repeat(479);
+        let out = Validator::aleo_announcement_location(input.clone())?;
+        let bytes = out.into_bytes();
+        assert_eq!(bytes.len(), 480);
+        assert_eq!(bytes[..479], input.as_bytes()[..]);
+        assert_eq!(bytes[479], 0);
+        Ok(())
+    }
+
+    #[test]
+    fn aleo_announcement_location_short_input_padded_to_480() -> Result<()> {
+        let input = "hello";
+        let out = Validator::aleo_announcement_location(input.to_string())?;
+        let bytes = out.into_bytes();
+        assert_eq!(bytes.len(), 480);
+        assert_eq!(&bytes[..5], input.as_bytes());
+        assert!(bytes[5..].iter().all(|&b| b == 0));
+        Ok(())
+    }
+
+    #[test]
+    fn aleo_announcement_location_empty_string_padded_to_480() -> Result<()> {
+        let input = "";
+        let out = Validator::aleo_announcement_location(input.to_string())?;
+        let bytes = out.into_bytes();
+        assert_eq!(bytes.len(), 480);
+        assert!(bytes.iter().all(|&b| b == 0));
+        Ok(())
+    }
+
+    #[test]
+    fn aleo_announcement_location_rejects_too_long() {
+        // 480 bytes input would exceed allowed (must be <= 479)
+        let input = "b".repeat(480);
+        let err = Validator::aleo_announcement_location(input).unwrap_err();
+        let msg = format!("{}", err);
+        assert!(msg.contains("Aleo announcement location too long"));
+        assert!(msg.contains("max 479"));
+    }
+
+    #[test]
+    fn aleo_announcement_location_preserves_existing_nulls_and_utf8() -> Result<()> {
+        // Input containing interior null bytes and multi-byte UTF-8
+        let mut input_bytes = Vec::new();
+        input_bytes.extend_from_slice("αβγ".as_bytes()); // UTF-8 multi-byte
+        input_bytes.push(0); // interior null
+        input_bytes.extend_from_slice("xyz".as_bytes());
+        let input = String::from_utf8(input_bytes.clone()).unwrap();
+        let out = Validator::aleo_announcement_location(input.clone())?;
+        let out_bytes = out.into_bytes();
+
+        // Leading content preserved
+        assert_eq!(&out_bytes[..input_bytes.len()], &input_bytes[..]);
+        // Padded with zeros to 480
+        assert_eq!(out_bytes.len(), 480);
+        assert!(out_bytes[input_bytes.len()..].iter().all(|&b| b == 0));
+        Ok(())
     }
 }

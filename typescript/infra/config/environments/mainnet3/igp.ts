@@ -24,14 +24,27 @@ const tokenPrices: ChainMap<string> = rawTokenPrices;
 export function getOverheadWithOverrides(local: ChainName, remote: ChainName) {
   let overhead = getOverhead(local, remote);
 
+  if (remote === 'megaeth') {
+    overhead *= 10;
+  }
+
   // Moonbeam/Torus gas usage can be up to 4x higher than vanilla EVM
   if (remote === 'moonbeam' || remote === 'torus') {
     overhead *= 4;
   }
 
+  // Somnia gas usage is higher than the EVM and tends to give high
+  // estimates. We double the overhead to help account for this.
+  if (remote === 'somnia') {
+    overhead *= 2;
+  }
+
   // ZkSync gas usage is different from the EVM and tends to give high
   // estimates. We double the overhead to help account for this.
-  if (getChain(remote).technicalStack === ChainTechnicalStack.ZkSync) {
+  if (
+    getChain(remote).technicalStack === ChainTechnicalStack.ZkSync ||
+    remote === 'adichain'
+  ) {
     overhead *= 2;
 
     // Zero Network gas usage has changed recently and now requires
@@ -46,7 +59,24 @@ export function getOverheadWithOverrides(local: ChainName, remote: ChainName) {
 
 function getOracleConfigWithOverrides(origin: ChainName) {
   const oracleConfig = storageGasOracleConfig[origin];
-  /* apply overrides in here if needed */
+
+  // WORKAROUND for Sealevel IGP decimal bug (solaxy-specific):
+  // The Rust Sealevel IGP code hardcodes SOL_DECIMALS = 9, but solaxy has 6 decimals.
+  // Rather than trying to calculate the correct workaround values, we hardcode
+  // the values that are already set on-chain and known to work.
+  if (origin === 'solaxy') {
+    oracleConfig.ethereum = {
+      gasPrice: '9',
+      tokenExchangeRate: '15000000000000000000',
+      tokenDecimals: 6,
+    };
+    oracleConfig.solanamainnet = {
+      gasPrice: '1',
+      tokenExchangeRate: '15000000000000000000',
+      tokenDecimals: 6,
+    };
+  }
+
   return oracleConfig;
 }
 

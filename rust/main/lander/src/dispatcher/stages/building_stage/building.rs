@@ -113,7 +113,7 @@ impl BuildingStage {
 
     async fn send_tx_to_inclusion_stage(&self, tx: Transaction) -> eyre::Result<(), LanderError> {
         if let Err(err) = self.inclusion_stage_sender.send(tx.clone()).await {
-            return Err(LanderError::ChannelSendFailure(err));
+            return Err(LanderError::ChannelSendFailure(Box::new(err)));
         }
         info!(?tx, "Transaction sent to Inclusion Stage");
         Ok(())

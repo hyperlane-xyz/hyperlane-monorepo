@@ -1,7 +1,10 @@
 import { BigNumber } from 'ethers';
 import { LevelWithSilent, Logger, LoggerOptions, pino } from 'pino';
 
-import { safelyAccessEnvVar } from './env.js';
+import { inKubernetes, safelyAccessEnvVar } from './env.js';
+
+// Re-export Logger type for other packages to use
+export type { Logger };
 
 // Level and format here should correspond with the agent options as much as possible
 // https://docs.hyperlane.xyz/docs/operate/config-reference#logfmt
@@ -130,6 +133,9 @@ export function ethersBigNumberSerializer(key: string, value: any): any {
   ) {
     return BigNumber.from(value.hex).toString();
   }
+  if (typeof value === 'bigint') {
+    return value.toString();
+  }
   return value;
 }
 
@@ -137,8 +143,7 @@ export async function tryInitializeGcpLogger(options?: {
   service?: string;
   version?: string;
 }): Promise<Logger | null> {
-  const isKubernetes = process.env.KUBERNETES_SERVICE_HOST !== undefined;
-  if (!isKubernetes) return null;
+  if (!inKubernetes()) return null;
 
   try {
     const { createGcpLoggingPinoConfig } = await import(

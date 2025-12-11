@@ -1,5 +1,235 @@
 # @hyperlane-xyz/sdk
 
+## 19.13.0
+
+### Patch Changes
+
+- 3592f258a: Fix StarknetHypCollateralAdapter to use StarknetTokenAdapter for wrappedTokenAdapter instead of synthetic adapter
+- Updated dependencies [ae8ef4389]
+- Updated dependencies [ae8ef4389]
+  - @hyperlane-xyz/radix-sdk@19.13.0
+  - @hyperlane-xyz/deploy-sdk@0.5.0
+  - @hyperlane-xyz/starknet-core@19.13.0
+  - @hyperlane-xyz/cosmos-sdk@19.13.0
+  - @hyperlane-xyz/utils@19.13.0
+  - @hyperlane-xyz/provider-sdk@0.5.0
+  - @hyperlane-xyz/core@10.1.1
+
+## 19.12.0
+
+### Minor Changes
+
+- 38a1165c8: - Update CLI context `altVmSigners` to be a `ChainMap` instead of `AltVMSignerFactory`,
+  - Update CLI context `altVmProviders` to be a `ChainMap` instead of `AltVMSignerFactory`.
+  - Update all existing getter methods to use `mustTry`, instead of `assert`.
+  - Delete `AltVMSupportedProtocols` and `AltVMProviderFactory`.
+  - Move functions from `AltVMSignerFactory` to top-level functions.
+  - Add `getMinGas` to Aleo, Cosmos and Radix ProtocolProvider.
+- af2cd1729: Support reading ReorgEvent object from validator buckets.
+- 08cf7eca9: Check for implementation contract for `contractInstance` and fallback to `balanceOf` if `balance_of` does not exist
+
+### Patch Changes
+
+- 618615dc4: Fix SmartProvider to retry on CALL_EXCEPTION errors without revert data. Previously, CALL_EXCEPTION errors would immediately stop provider fallback even when caused by RPC issues rather than actual on-chain reverts. Now, CALL_EXCEPTION errors without revert data (or with empty "0x" data) are treated as transient RPC errors and will trigger fallback to the next provider.
+- Updated dependencies [38a1165c8]
+- Updated dependencies [08cf7eca9]
+- Updated dependencies [77524f734]
+- Updated dependencies [af2cd1729]
+- Updated dependencies [43b3756d9]
+- Updated dependencies [e37100e2e]
+  - @hyperlane-xyz/provider-sdk@0.4.0
+  - @hyperlane-xyz/cosmos-sdk@19.12.0
+  - @hyperlane-xyz/radix-sdk@19.12.0
+  - @hyperlane-xyz/utils@19.12.0
+  - @hyperlane-xyz/core@10.1.0
+  - @hyperlane-xyz/deploy-sdk@0.4.0
+  - @hyperlane-xyz/starknet-core@19.12.0
+
+## 19.11.0
+
+### Minor Changes
+
+- 156a37d6e: Fixed the `EV5GnosisSafeTxSubmitter` which failed to create the SAFE transactions due to incorrect typing of the SAFE sdk classes not surfacing incorrect function params when calling `Safe.createTransaction`
+
+### Patch Changes
+
+- 4c29cd341: Fix zkSync ICA compatibility and add storage ISM support in metadata builder
+- Updated dependencies [dd6260eea]
+- Updated dependencies [dd6260eea]
+  - @hyperlane-xyz/provider-sdk@0.3.0
+  - @hyperlane-xyz/radix-sdk@19.11.0
+  - @hyperlane-xyz/cosmos-sdk@19.11.0
+  - @hyperlane-xyz/deploy-sdk@0.3.0
+  - @hyperlane-xyz/starknet-core@19.11.0
+  - @hyperlane-xyz/utils@19.11.0
+  - @hyperlane-xyz/core@10.0.5
+
+## 19.10.0
+
+### Minor Changes
+
+- c2a64e8c5: feat: add setTokenHook to altvm interface
+- a97a9939c: Fix core deployment on cosmos chains failing as the ism was not set properly on mailbox creation
+- 66bed7126: migrated AltVm modules to provider-sdk and deploy-sdk
+- f604423b9: - Remove AltVMProviderFactory to new API in deploy-sdk (loadlProtocolProviders) and Registry singleton.
+  - Add `chainId` and `rpcUrls` to `ChainMetadataForAltVM`. Add `CosmosNativeProtocolProvider` and `RadixProtocolProvider` to both cosmos-sdk and radix-sdk, respectively.
+  - Add `forWarpRead`, `forCoreRead`, and `forCoreCheck` to signerMiddleware to enable chain resolving for these CLI functions.
+  - Add `assert` after some `altVmProvider.get` calls in SDK configUtils.
+
+### Patch Changes
+
+- b2a693ac6: corrected gas overhead values for nativeScaled token type
+- c0583af62: Improve CCTP offchain lookup server error handling
+- 9770b732c: Fix handling of malformed getStorageAt responses from RPC providers (e.g., Somnia) that return empty hex strings.
+- 43ecd628c: updated the ISM schema to allow STORAGE_AGGREGATION type that was already supported
+- Updated dependencies [aad2988c9]
+- Updated dependencies [c2a64e8c5]
+- Updated dependencies [6cfde25d8]
+- Updated dependencies [a97a9939c]
+- Updated dependencies [a0ba5e2fb]
+- Updated dependencies [66bed7126]
+- Updated dependencies [29ad1d225]
+- Updated dependencies [f604423b9]
+  - @hyperlane-xyz/utils@19.10.0
+  - @hyperlane-xyz/deploy-sdk@0.2.0
+  - @hyperlane-xyz/cosmos-sdk@19.10.0
+  - @hyperlane-xyz/radix-sdk@19.10.0
+  - @hyperlane-xyz/core@10.0.4
+  - @hyperlane-xyz/provider-sdk@0.2.0
+  - @hyperlane-xyz/starknet-core@19.10.0
+
+## 19.9.0
+
+### Patch Changes
+
+- 8c027d852: Fixed SmartProvider fallback logic to stop retrying on blockchain errors
+- Updated dependencies [8c027d852]
+  - @hyperlane-xyz/utils@19.9.0
+  - @hyperlane-xyz/core@10.0.3
+  - @hyperlane-xyz/cosmos-sdk@19.9.0
+  - @hyperlane-xyz/radix-sdk@19.9.0
+  - @hyperlane-xyz/starknet-core@19.9.0
+
+## 19.8.0
+
+### Minor Changes
+
+- 500d81246: Add turnkey dependencies and create signers for EVM, SVM.
+- 78ff6cd47: add new methods for altvm interface
+
+### Patch Changes
+
+- 4614a503e: Allow both xerc20 and collateral types in xerc20 config validation.
+- 00b014a3e: fix sdk regression that prevented warp tokens pre-fee support to be derived when deriving on chain config
+- Updated dependencies [2ed21c97d]
+- Updated dependencies [78ff6cd47]
+- Updated dependencies [3f75ad86d]
+  - @hyperlane-xyz/utils@19.8.0
+  - @hyperlane-xyz/cosmos-sdk@19.8.0
+  - @hyperlane-xyz/radix-sdk@19.8.0
+  - @hyperlane-xyz/core@10.0.2
+  - @hyperlane-xyz/starknet-core@19.8.0
+
+## 19.7.0
+
+### Minor Changes
+
+- 69ad3473e: Implemented the getMetadata method on native token adapters and fixed the populateTransferTx method for SVM token adapters when the receiver does not have a created associated token account
+- 211e245cb: Create EvmHypBaseCollateralAdapter, now EvmHypCollateralAdapter and EvmHypRebaseCollateralAdapter extends from it
+- c68722d93: Update fetchPackageVersion() to return 0.0.0 when unknown error is thrown. This error is logged out and is no longer rethrown.
+
+### Patch Changes
+
+- bdfa2047e: Fix CCTP v2 deployer constructor argument encoding
+- 343737271: Assert code exists on eth_storageAt requests
+- 5c4cef1d4: Fixed a bug where EvmHypCollateralAdapter:getWrappedTokenAddress() would not return the correct address if the route had the old versions. Add fallback for contract.getPackageVersion()
+  - @hyperlane-xyz/starknet-core@19.7.0
+  - @hyperlane-xyz/cosmos-sdk@19.7.0
+  - @hyperlane-xyz/radix-sdk@19.7.0
+  - @hyperlane-xyz/utils@19.7.0
+  - @hyperlane-xyz/core@10.0.1
+
+## 19.6.0
+
+### Minor Changes
+
+- e67aca4a1: Update type to enforce consistency between fee token addresses and warp route token addresses through schema validation. The main change adds validation logic to ensure tokenFee.token matches config.token for collateral token configurations.
+- 419e16910: Add support for deploying and updating the EverclearEthBridge and EverclearTokenBridge contracts
+- b259966fe: Add the Fee deploy logic into token deployer to allow warp routes to deploy with a token fee. Update Fee schemas to separate between input and output
+- ec406fcbe: Add TokenFee updates to the FeeModule and WarpModule. This enables updating immutable fees (re-deploy), routing sub-fees, and ownership
+- 18c32ed2b: Decouple movable collateral and hyp collateral token adapters
+- b259966fe: Implement EvmTokenFeeModule and Reader for Linear and Routing Fees. Update Fee Schemas to include both input and output configs.
+- 9185b9c5b: Update EvmTokenFeeModule to support native fee deployment by extracting config processing into a static method that handles native tokens, modularizing deployment logic, and adding automatic BPS calculation from fee parameters.
+
+### Patch Changes
+
+- e0c69e255: Implement token fees on FungibleTokenRouter
+
+  Removes `metadata` from return type of internal `TokenRouter._transferFromSender` hook
+
+  To append `metadata` to `TokenMessage`, override the `TokenRouter._beforeDispatch` hook
+
+- Updated dependencies [7a41068f7]
+- Updated dependencies [18c32ed2b]
+- Updated dependencies [205bcae75]
+- Updated dependencies [f8da8cd40]
+- Updated dependencies [5b17b0f37]
+- Updated dependencies [2c6506735]
+- Updated dependencies [1d46a826d]
+- Updated dependencies [799751606]
+- Updated dependencies [826e83741]
+- Updated dependencies [e0c69e255]
+- Updated dependencies [737ea2b35]
+- Updated dependencies [e0c69e255]
+- Updated dependencies [dd16e3df4]
+- Updated dependencies [f930794d7]
+- Updated dependencies [419e16910]
+- Updated dependencies [9a43cdca9]
+  - @hyperlane-xyz/core@10.0.0
+  - @hyperlane-xyz/utils@19.6.0
+  - @hyperlane-xyz/cosmos-sdk@19.6.0
+  - @hyperlane-xyz/radix-sdk@19.6.0
+  - @hyperlane-xyz/starknet-core@19.6.0
+
+## 19.5.0
+
+### Minor Changes
+
+- 312826d10: - Updated DerivedCoreConfig type to properly type the defaultIsm field with the DerivedIsmConfig type
+  - Fixed AltVMIsmModule not transferring ownership to the expected owner in the deploy config after deployment
+- bf2c2caa6: Updated the EvmHypCollateralFiatAdapter to not break if the underlying mintable contract does not define a minterAllowance method
+- 79a51debe: Update all @safe-global dependencies to latest, to support usage of Safe API Keys. Add gnosisSafeApiKey to chain metadata schema.
+
+### Patch Changes
+
+- Updated dependencies [312826d10]
+- Updated dependencies [312826d10]
+  - @hyperlane-xyz/utils@19.5.0
+  - @hyperlane-xyz/radix-sdk@19.5.0
+  - @hyperlane-xyz/core@9.0.17
+  - @hyperlane-xyz/cosmos-sdk@19.5.0
+  - @hyperlane-xyz/starknet-core@19.5.0
+
+## 19.4.0
+
+### Minor Changes
+
+- 4011a4561: Fix bug that prevented the warp route ism to be set to the 0 address and include logic to update a pausable ism as it was missing
+- 8fd3bf78c: Fixed critical schema bug where SealevelIgpData.gas_oracles was incorrectly typed as Map<number, bigint> instead of Map<number, SealevelGasOracle>, preventing proper deserialization of on-chain gas oracle state. Added SealevelRemoteGasData, SealevelGasOracle, and related Borsh schemas to match the Rust implementation. Implemented createSetGasOracleConfigsInstruction() and createSetDestinationGasOverheadsInstruction() methods on the IGP adapters, along with gasOracleMatches() helper with BigInt-safe comparison for detecting configuration drift between expected and actual on-chain values.
+- 79f55e09d: Export WarpCoreFeeEstimate
+- 5a4e22d34: Introduced new SvmTransactionSigner interface, rewrite SvmMultiprotocolSignerAdapter to leverage this interface. Add more robust tx sending and handling to SvmMultiprotocolSignerAdapter. Implement KeypairSvmTransactionSigner to handle the general PK/keypair-based tx signing.
+
+### Patch Changes
+
+- 5a4e22d34: Bump @solana/web3.js dependency explicitly from ^1.95.4 to ^1.98.4.
+- 517bbaa42: Update NON_ZERO_SENDER_ADDRESS to 0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba.
+- Updated dependencies [5a4e22d34]
+  - @hyperlane-xyz/utils@19.4.0
+  - @hyperlane-xyz/core@9.0.16
+  - @hyperlane-xyz/starknet-core@19.4.0
+  - @hyperlane-xyz/cosmos-sdk@19.4.0
+  - @hyperlane-xyz/radix-sdk@19.4.0
+
 ## 19.3.0
 
 ### Minor Changes

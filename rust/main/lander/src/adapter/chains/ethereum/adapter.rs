@@ -11,6 +11,7 @@ use ethers_core::abi::Function;
 use ethers_core::types::Eip1559TransactionRequest;
 use eyre::eyre;
 use futures_util::future;
+use hyperlane_core::ChainResult;
 use tokio::sync::Mutex;
 use tokio::try_join;
 use tracing::{debug, error, info, instrument, warn};
@@ -33,6 +34,10 @@ use hyperlane_ethereum::{
     multicall, EthereumReorgPeriod, EvmProviderForLander, LanderProviderBuilder,
 };
 
+use crate::adapter::chains::ethereum::metrics::{
+    LABEL_BATCHED_TRANSACTION_FAILED, LABEL_BATCHED_TRANSACTION_SUCCESS,
+};
+use crate::AdaptsChainAction;
 use crate::{
     adapter::{core::TxBuildingResult, AdaptsChain, GasLimit},
     dispatcher::{PayloadDb, PostInclusionMetricsSource, TransactionDb},
@@ -66,6 +71,7 @@ pub struct EthereumAdapter {
     pub payload_db: Arc<dyn PayloadDb>,
     pub signer: H160,
     pub minimum_time_between_resubmissions: Duration,
+    pub metrics: EthereumAdapterMetrics,
 }
 
 impl EthereumAdapter {
@@ -97,14 +103,17 @@ impl EthereumAdapter {
             .ok_or_else(|| eyre!("No signer found in provider for domain {}", domain))?;
 
         let metrics = EthereumAdapterMetrics::new(
+            conf.domain.clone(),
+            dispatcher_metrics.get_batched_transactions(),
             dispatcher_metrics.get_finalized_nonce(domain, &signer.to_string()),
             dispatcher_metrics.get_upper_nonce(domain, &signer.to_string()),
+            dispatcher_metrics.get_mismatched_nonce(domain, &signer.to_string()),
         );
 
         let payload_db = db.clone() as Arc<dyn PayloadDb>;
 
         let reorg_period = EthereumReorgPeriod::try_from(&conf.reorg_period)?;
-        let nonce_manager = NonceManager::new(&conf, db, provider.clone(), metrics).await?;
+        let nonce_manager = NonceManager::new(&conf, db, provider.clone(), metrics.clone()).await?;
 
         let adapter = Self {
             estimated_block_time: conf.estimated_block_time,
@@ -119,6 +128,7 @@ impl EthereumAdapter {
             payload_db,
             signer,
             minimum_time_between_resubmissions: DEFAULT_MINIMUM_TIME_BETWEEN_RESUBMISSIONS,
+            metrics,
         };
 
         Ok(adapter)
@@ -164,6 +174,8 @@ impl EthereumAdapter {
         tx: &Transaction,
         gas_price: &GasPrice,
     ) -> Result<(), LanderError> {
+        use TransactionStatus::*;
+
         let precursor = tx.precursor();
         let tx_gas_price = precursor.extract_gas_price();
 
@@ -181,13 +193,23 @@ impl EthereumAdapter {
                 ?tx,
                 "not resubmitting transaction since new gas price is the same as the old one"
             );
-            return Err(LanderError::TxAlreadyExists);
+
+            return match tx.status {
+                PendingInclusion | Dropped(_) => Err(LanderError::TxWontBeResubmitted),
+                Mempool | Included | Finalized => Err(LanderError::TxAlreadyExists),
+            };
         }
 
         Ok(())
     }
 
-    fn update_tx(&self, tx: &mut Transaction, nonce: U256, gas_price: GasPrice) {
+    fn update_tx_nonce(tx: &mut Transaction, nonce: U256) {
+        let precursor = tx.precursor_mut();
+        precursor.tx.set_nonce(nonce);
+        info!(?tx, "updated transaction with nonce");
+    }
+
+    fn update_tx_gas_price(tx: &mut Transaction, gas_price: GasPrice) {
         let precursor = tx.precursor_mut();
 
         if let GasPrice::Eip1559 {
@@ -196,7 +218,6 @@ impl EthereumAdapter {
         } = gas_price
         {
             // Re-create the whole EIP-1559 transaction request in this case
-
             let tx = precursor.tx.clone();
 
             let mut request = Eip1559TransactionRequest::new();
@@ -235,9 +256,7 @@ impl EthereumAdapter {
             }
             GasPrice::Eip1559 { .. } => {}
         }
-        precursor.tx.set_nonce(nonce);
-
-        info!(?tx, "updated transaction with nonce and gas price");
+        info!(?tx, "updated transaction with gas price");
     }
 
     fn filter<I: Clone>(items: &[I], indices: Vec<usize>) -> Vec<I> {
@@ -332,7 +351,7 @@ impl EthereumAdapter {
         &self,
         precursors: Vec<(TypedTransaction, Function)>,
         payload_details: Vec<PayloadDetails>,
-    ) -> Vec<TxBuildingResult> {
+    ) -> ChainResult<Vec<TxBuildingResult>> {
         use super::transaction::TransactionFactory;
 
         let multi_precursor = self
@@ -344,15 +363,7 @@ impl EthereumAdapter {
                 self.signer,
             )
             .await
-            .map(|(tx, f)| EthereumTxPrecursor::new(tx, f));
-
-        let multi_precursor = match multi_precursor {
-            Ok(precursor) => precursor,
-            Err(e) => {
-                error!(error = ?e, "Failed to batch payloads");
-                return vec![];
-            }
-        };
+            .map(|(tx, f)| EthereumTxPrecursor::new(tx, f))?;
 
         let transaction = TransactionFactory::build(multi_precursor, payload_details.clone());
 
@@ -360,8 +371,11 @@ impl EthereumAdapter {
             payloads: payload_details,
             maybe_tx: Some(transaction),
         };
+        Ok(vec![tx_building_result])
+    }
 
-        vec![tx_building_result]
+    pub fn metrics(&self) -> &EthereumAdapterMetrics {
+        &self.metrics
     }
 }
 
@@ -397,7 +411,7 @@ impl AdaptsChain for EthereumAdapter {
         elapsed > *ready_time
     }
 
-    /// Builds a transaction for the given payloads.
+    /// Builds transactions for the given payloads.
     ///
     /// If there is only one payload, it builds a transaction without batching.
     /// If there are multiple payloads, it batches them into a single transaction.
@@ -405,6 +419,8 @@ impl AdaptsChain for EthereumAdapter {
     /// by the order of payloads.
     /// The order should not change since the simulation and estimation of the batched transaction
     /// depend on the order of payloads.
+    /// If batching fails, it will fallback to building multiple transactions with a
+    /// single payload for each of them.
     async fn build_transactions(&self, payloads: &[FullPayload]) -> Vec<TxBuildingResult> {
         use super::transaction::TransactionFactory;
 
@@ -439,12 +455,48 @@ impl AdaptsChain for EthereumAdapter {
             return results;
         }
 
-        // Batched transaction
-        let results = self
-            .build_batched_transaction(precursors, payload_details)
-            .await;
+        match self
+            .build_batched_transaction(precursors.clone(), payload_details.clone())
+            .await
+        {
+            Ok(results) => {
+                self.metrics().increment_batched_transactions(
+                    LABEL_BATCHED_TRANSACTION_SUCCESS,
+                    payloads.len() as u64,
+                );
+                info!(
+                    ?payloads,
+                    ?results,
+                    "built batched transaction for payloads"
+                );
+                // Batched transaction
+                return results;
+            }
+            Err(err) => {
+                self.metrics().increment_batched_transactions(
+                    LABEL_BATCHED_TRANSACTION_FAILED,
+                    payloads.len() as u64,
+                );
+                warn!(
+                    domain = self.domain.name(),
+                    ?err,
+                    "Failed to build batch transaction. Fallback to single tx submission"
+                );
+            }
+        }
 
-        info!(?payloads, ?results, "built transaction for payloads");
+        let results: Vec<_> = payloads
+            .iter()
+            .map(|payload| {
+                let precursor = EthereumTxPrecursor::from_payload(payload, self.signer);
+                self.build_single_transaction(precursor, vec![payload.details.clone()])
+            })
+            .collect();
+        info!(
+            ?payloads,
+            ?results,
+            "built multiple transactions for multiple payloads"
+        );
         results
     }
 
@@ -604,9 +656,13 @@ impl AdaptsChain for EthereumAdapter {
             self.estimate_gas_price(&tx_for_gas_price)
         )?;
 
+        // Update the transaction with nonce before checking if resubmission makes sense
+        // This ensures the nonce is stored even if we decide not to resubmit due to gas price limits
+        Self::update_tx_nonce(tx, nonce);
+
         Self::check_if_resubmission_makes_sense(tx, &gas_price)?;
 
-        self.update_tx(tx, nonce, gas_price);
+        Self::update_tx_gas_price(tx, gas_price);
 
         info!(?tx, "submitting transaction");
 
@@ -616,11 +672,12 @@ impl AdaptsChain for EthereumAdapter {
         let hash = match send_result {
             Ok(hash) => hash,
             Err(e) => {
+                warn!(?e, "submitting transaction error");
                 return if e.to_string().contains(NONCE_TOO_LOW_ERROR) {
                     Err(TxAlreadyExists)
                 } else {
                     Err(e.into())
-                }
+                };
             }
         };
 
@@ -665,6 +722,60 @@ impl AdaptsChain for EthereumAdapter {
         Ok(reverted)
     }
 
+    fn reprocess_txs_poll_rate(&self) -> Option<Duration> {
+        // if the block time is too short, we want to cap it at 5s because we don't want
+        // to query the nonce too much. 5s should be quick enough for a reorg
+        Some((*self.estimated_block_time()).max(Duration::from_secs(5)))
+    }
+
+    async fn get_reprocess_txs(&self) -> Result<Vec<Transaction>, LanderError> {
+        let old_finalized_nonce = self
+            .nonce_manager
+            .state
+            .get_finalized_nonce()
+            .await?
+            .unwrap_or_default();
+        self.nonce_manager.nonce_updater.update_boundaries().await?;
+        let new_finalized_nonce = self
+            .nonce_manager
+            .state
+            .get_finalized_nonce()
+            .await?
+            .unwrap_or_default();
+
+        if new_finalized_nonce >= old_finalized_nonce {
+            return Ok(Vec::new());
+        }
+
+        warn!(
+            ?old_finalized_nonce,
+            ?new_finalized_nonce,
+            "New finalized nonce is lower than old finalized nonce"
+        );
+
+        let mut txs = Vec::new();
+        let mut nonce = new_finalized_nonce.saturating_add(U256::one());
+        while nonce <= old_finalized_nonce {
+            let tx_uuid = self.nonce_manager.state.get_tracked_tx_uuid(&nonce).await?;
+            if tx_uuid == TransactionUuid::default() {
+                debug!(
+                    ?nonce,
+                    "No tracked transaction UUID for nonce in reorg range"
+                );
+            } else if let Some(tx) = self.nonce_manager.state.get_tracked_tx(&tx_uuid).await? {
+                txs.push(tx);
+            } else {
+                debug!(
+                    ?nonce,
+                    ?tx_uuid,
+                    "No transaction found for nonce in reorg range"
+                );
+            }
+            nonce = nonce.saturating_add(U256::one());
+        }
+        Ok(txs)
+    }
+
     fn estimated_block_time(&self) -> &std::time::Duration {
         &self.estimated_block_time
     }
@@ -676,6 +787,18 @@ impl AdaptsChain for EthereumAdapter {
     fn update_vm_specific_metrics(&self, tx: &Transaction, metrics: &DispatcherMetrics) {
         let metrics_source = Self::extract_vm_specific_metrics(tx);
         metrics.set_post_inclusion_metrics(&metrics_source, self.domain.as_ref());
+    }
+
+    async fn run_command(&self, action: AdaptsChainAction) -> Result<(), LanderError> {
+        match action {
+            AdaptsChainAction::OverwriteUpperNonce { nonce } => {
+                self.nonce_manager
+                    .state
+                    .overwrite_upper_nonce(nonce)
+                    .await?;
+            }
+        }
+        Ok(())
     }
 }
 

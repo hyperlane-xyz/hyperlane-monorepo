@@ -1,3 +1,4 @@
+import { TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
 import {
   ChainAddresses,
   createWarpRouteConfigId,
@@ -17,6 +18,10 @@ export const WARP_DEPLOY_DEFAULT_FILE_NAME = `warp-route-deployment`;
 export const WARP_DEPLOY_OUTPUT_PATH = `${TEMP_PATH}/${WARP_DEPLOY_DEFAULT_FILE_NAME}.yaml`;
 export const WARP_READ_OUTPUT_PATH = `${TEMP_PATH}/${WARP_DEPLOY_DEFAULT_FILE_NAME}-read.yaml`;
 
+const EXAMPLES_PATH = './examples';
+export const JSON_RPC_ICA_STRATEGY_CONFIG_PATH = `${EXAMPLES_PATH}/submit/strategy/json-rpc-ica-strategy.yaml`;
+export const JSON_RPC_TIMELOCK_STRATEGY_CONFIG_PATH = `${EXAMPLES_PATH}/submit/strategy/json-rpc-timelock-strategy.yaml`;
+
 export const TEST_CHAIN_NAMES_BY_PROTOCOL = {
   [ProtocolType.Ethereum]: {
     CHAIN_NAME_2: 'anvil2',
@@ -30,6 +35,10 @@ export const TEST_CHAIN_NAMES_BY_PROTOCOL = {
   },
   [ProtocolType.Sealevel]: {
     UNSUPPORTED_CHAIN: 'sealevel1',
+  },
+  [ProtocolType.Radix]: {
+    CHAIN_NAME_1: 'radix1',
+    CHAIN_NAME_2: 'radix2',
   },
 } as const satisfies ProtocolMap<Record<string, string>>;
 
@@ -52,6 +61,7 @@ export const UNSUPPORTED_CHAIN_CORE_ADDRESSES: ChainAddresses = {
 export const CORE_CONFIG_PATH_BY_PROTOCOL = {
   [ProtocolType.Ethereum]: `./examples/core-config.yaml`,
   [ProtocolType.CosmosNative]: './examples/cosmosnative/core-config.yaml',
+  [ProtocolType.Radix]: './examples/radix/core-config.yaml',
 } as const satisfies ProtocolMap<string>;
 
 export const HYP_KEY_BY_PROTOCOL = {
@@ -59,6 +69,8 @@ export const HYP_KEY_BY_PROTOCOL = {
     '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
   [ProtocolType.CosmosNative]:
     '33913dd43a5d5764f7a23da212a8664fc4f5eedc68db35f3eb4a5c4f046b5b51',
+  [ProtocolType.Radix]:
+    '0x8ef41fc20bf963ce18494c0f13e9303f70abc4c1d1ecfdb0a329d7fd468865b8',
 } as const satisfies ProtocolMap<string>;
 
 type ProtocolChainMap<
@@ -69,6 +81,35 @@ type ProtocolChainMap<
     [TChainName in keyof T[TProtocol]]: TValue;
   };
 };
+
+export const HYP_DEPLOYER_ADDRESS_BY_PROTOCOL = {
+  [ProtocolType.Ethereum]: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+  [ProtocolType.CosmosNative]: 'hyp1jq304cthpx0lwhpqzrdjrcza559ukyy3sc4dw5',
+  [ProtocolType.Radix]:
+    'account_loc12ytsy99ajzkwy7ce0444fs8avat7jy3fkj5mk64yz2z3yml6s7y7x3',
+} as const satisfies ProtocolMap<string>;
+
+export const BURN_ADDRESS_BY_PROTOCOL = {
+  [ProtocolType.Ethereum]: '0x0000000000000000000000000000000000000001',
+  // Result of:
+  // bytesToAddressCosmosNative(
+  //   addressToBytes(ZERO_ADDRESS_HEX_32),
+  //   TEST_CHAIN_METADATA_BY_PROTOCOL.cosmosnative.CHAIN_NAME_1.bech32Prefix,
+  // ),
+  [ProtocolType.CosmosNative]: 'hyp1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk98wwq',
+  // Result of:
+  // await LTSRadixEngineToolkit.Derive.virtualAccountAddress(
+  //   new PublicKey.Ed25519(
+  //     Uint8Array.from([
+  //       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  //       0, 0, 0, 0, 0, 0, 0, 0, 0,
+  //     ]),
+  //   ),
+  //   NetworkId.LocalNet,
+  // );
+  [ProtocolType.Radix]:
+    'account_loc1294g56ga4ckdzhksx6vnrns2jj0v47ju87flsyscxdjxu9wrkjp5vt',
+} as const satisfies ProtocolMap<string>;
 
 type CoreDeploymentPath<TChainName extends string> =
   `${typeof TEMP_PATH}/${TChainName}/core-config-read.yaml`;
@@ -120,11 +161,6 @@ export const TEST_CHAIN_METADATA_PATH_BY_PROTOCOL: ProtocolChainMap<
   );
 }) as any;
 
-export type TestChainMetadata = ChainMetadata & {
-  rpcPort: number;
-  restPort: number;
-};
-
 export const TEST_CHAIN_METADATA_BY_PROTOCOL: ProtocolChainMap<
   typeof TEST_CHAIN_NAMES_BY_PROTOCOL,
   TestChainMetadata
@@ -143,11 +179,21 @@ export const TEST_CHAIN_METADATA_BY_PROTOCOL: ProtocolChainMap<
 
     return {
       ...currentChainMetadata,
+      rpcUrl,
       rpcPort,
       restPort,
     };
   });
 }) as any;
+
+export function getArtifactReadPath(
+  tokenSymbol: string,
+  seeds: string[] = [],
+): string {
+  return `${TEMP_PATH}/${
+    seeds.length !== 0 ? getWarpId(tokenSymbol.toUpperCase(), seeds) : ['read']
+  }.yaml`;
+}
 
 export function getWarpCoreConfigPath(
   tokenSymbol: string,
@@ -177,3 +223,17 @@ export function getWarpId(tokenSymbol: string, chains: string[]): string {
 }
 
 export const TEST_TOKEN_SYMBOL = 'TST';
+
+export const DEFAULT_EVM_WARP_ID = getWarpId('ETH', [
+  TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+]);
+export const DEFAULT_EVM_WARP_CORE_PATH = getWarpCoreConfigPath('ETH', [
+  TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+]);
+export const DEFAULT_EVM_WARP_READ_OUTPUT_PATH = getArtifactReadPath('ETH', [
+  TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+  'read',
+]);
+export const DEFAULT_EVM_WARP_DEPLOY_PATH = getWarpDeployConfigPath('ETH', [
+  TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+]);

@@ -112,14 +112,6 @@ const DOMAINS: &[RawDomain] = &[
         is_deprecated: false,
     },
     RawDomain {
-        name: "cheesechain",
-        token: "CHEESE",
-        domain: 383353,
-        chain_id: 383353,
-        is_test_net: false,
-        is_deprecated: false,
-    },
-    RawDomain {
         name: "connextsepolia",
         token: "ETH",
         domain: 6398,

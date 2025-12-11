@@ -6,12 +6,13 @@ import {
   RebalancerConfigSchema,
 } from '@hyperlane-xyz/sdk';
 import { isObjEmpty } from '@hyperlane-xyz/utils';
+import { readYaml } from '@hyperlane-xyz/utils/fs';
 
 import { getWarpCoreConfig } from '../../config/registry.js';
 import { DeployEnvironment } from '../config/environment.js';
 import { WARP_ROUTE_MONITOR_HELM_RELEASE_PREFIX } from '../utils/consts.js';
 import { HelmManager, getHelmReleaseName } from '../utils/helm.js';
-import { getInfraPath, readYaml } from '../utils/utils.js';
+import { getInfraPath } from '../utils/utils.js';
 
 export class RebalancerHelmManager extends HelmManager {
   static helmReleasePrefix: string = 'hyperlane-rebalancer';
@@ -75,7 +76,7 @@ export class RebalancerHelmManager extends HelmManager {
     return {
       image: {
         repository: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-        tag: 'e0f2a19-20251021-202631',
+        tag: '5931d91-20251113-090707',
       },
       withMetrics: this.withMetrics,
       fullnameOverride: this.helmReleaseName,

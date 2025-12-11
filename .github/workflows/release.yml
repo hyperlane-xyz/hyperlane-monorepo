@@ -4,6 +4,20 @@ on:
   push:
     branches:
       - main
+    paths:
+      - '.changeset/**'
+      - '**/package.json'
+      - 'typescript/**'
+      - '!typescript/infra/**'
+      - '!typescript/ccip-server/**'
+      - '!typescript/eslint-config/**'
+      - '!typescript/github-proxy/**'
+      - '!typescript/http-registry-server/**'
+      - '!typescript/tsconfig/**'
+      - 'solidity/**'
+      - 'starknet/**'
+      - 'yarn.lock'
+      - '.github/workflows/release.yml'
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
@@ -26,12 +40,22 @@ jobs:
       pull-requests: write
     runs-on: depot-ubuntu-latest
     steps:
+      # Generate token first so checkout configures git credentials with it
+      # This allows subsequent pushes to trigger workflows
+      - name: Generate GitHub App Token
+        id: generate-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.HYPER_GONK_APP_ID }}
+          private-key: ${{ secrets.HYPER_GONK_PRIVATE_KEY }}
+
       - name: Checkout Repo
         uses: actions/checkout@v5
         with:
           # check out full history
           fetch-depth: 0
           submodules: recursive
+          token: ${{ steps.generate-token.outputs.token }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -41,14 +65,27 @@ jobs:
       - name: Install Dependencies
         run: yarn install --immutable
 
+      - name: Get GitHub App User ID
+        id: get-user-id
+        run: echo "user-id=$(gh api /users/${{ steps.generate-token.outputs.app-slug }}[bot] --jq .id)" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
+
+      - name: Configure Git for Hyper Gonk
+        run: |
+          git config user.name "${{ steps.generate-token.outputs.app-slug }}[bot]"
+          git config user.email "${{ steps.get-user-id.outputs.user-id }}+${{ steps.generate-token.outputs.app-slug }}[bot]@users.noreply.github.com"
+
       - name: Create Release PR
         id: changesets
         uses: changesets/action@v1
         with:
+          title: 'chore: release npm packages'
           version: yarn version:prepare
+          setupGitUser: false
         env:
           NPM_CONFIG_PROVENANCE: true
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   check-latest-published:
@@ -92,7 +129,7 @@ jobs:
     if: needs.check-latest-published.outputs.all_latest == 'false'
     strategy:
       matrix:
-        os: [depot-ubuntu-latest, depot-macos-latest, depot-windows-2022]
+        os: [depot-ubuntu-latest, depot-macos-latest, depot-windows-2022-8]
         node-version: [18, 19, 20, 21, 22, 23]
     runs-on: ${{ matrix.os }}
     steps:
@@ -107,7 +144,7 @@ jobs:
         uses: ./.github/actions/install-cli
         with:
           ref: ${{ github.sha }}
-          cache-provider: github
+          no-cache: true
 
       - name: Test run the CLI
         run: hyperlane --version
@@ -115,26 +152,51 @@ jobs:
   # This job publishes the release to NPM.
   publish-release:
     needs: cli-install-cross-platform-release-test
+    if: github.ref == 'refs/heads/main'
     permissions:
       id-token: write
       contents: write
       pull-requests: write
     runs-on: ubuntu-latest
     steps:
+      # Generate token first so checkout configures git credentials with it
+      # This allows subsequent pushes to trigger workflows
+      - name: Generate GitHub App Token
+        id: generate-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.HYPER_GONK_APP_ID }}
+          private-key: ${{ secrets.HYPER_GONK_PRIVATE_KEY }}
+
       - name: Checkout Repo
         uses: actions/checkout@v5
         with:
           # check out full history
           fetch-depth: 0
           submodules: recursive
+          token: ${{ steps.generate-token.outputs.token }}
 
-      - name: Setup Node.js 18.x
+      - name: Setup Node
         uses: actions/setup-node@v6
         with:
-          node-version: 18.x
+          node-version-file: .nvmrc
+
+      - name: Setup Foundry
+        uses: ./.github/actions/setup-foundry
 
       - name: Install Dependencies
         run: yarn install --immutable
+
+      - name: Get GitHub App User ID
+        id: get-user-id
+        run: echo "user-id=$(gh api /users/${{ steps.generate-token.outputs.app-slug }}[bot] --jq .id)" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
+
+      - name: Configure Git for Hyper Gonk
+        run: |
+          git config user.name "${{ steps.generate-token.outputs.app-slug }}[bot]"
+          git config user.email "${{ steps.get-user-id.outputs.user-id }}+${{ steps.generate-token.outputs.app-slug }}[bot]@users.noreply.github.com"
 
       - name: Publish Release to NPM
         id: changesets
@@ -142,7 +204,8 @@ jobs:
         with:
           version: yarn version:prepare
           publish: yarn release
+          setupGitUser: false
         env:
           NPM_CONFIG_PROVENANCE: true
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

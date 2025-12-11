@@ -8,12 +8,14 @@ export {
   addressToBytesSol,
   addressToBytesStarknet,
   addressToBytesRadix,
+  addressToBytesAleo,
   bytes32ToAddress,
   bytesToAddressCosmos,
   bytesToAddressEvm,
   bytesToAddressSol,
   bytesToAddressStarknet,
   bytesToAddressRadix,
+  bytesToAddressAleo,
   bytesToProtocolAddress,
   capitalizeAddress,
   convertToProtocolAddress,
@@ -24,6 +26,7 @@ export {
   eqAddressSol,
   eqAddressStarknet,
   eqAddressRadix,
+  eqAddressAleo,
   getAddressProtocolType,
   isAddress,
   isAddressCosmos,
@@ -32,12 +35,14 @@ export {
   isAddressSealevel,
   isAddressStarknet,
   isAddressRadix,
+  isAddressAleo,
   isValidAddress,
   isValidAddressCosmos,
   isValidAddressEvm,
   isValidAddressSealevel,
   isValidAddressStarknet,
   isValidAddressRadix,
+  isValidAddressAleo,
   isPrivateKeyEvm,
   isValidTransactionHash,
   isValidTransactionHashCosmos,
@@ -45,6 +50,7 @@ export {
   isValidTransactionHashSealevel,
   isValidTransactionHashStarknet,
   isValidTransactionHashRadix,
+  isValidTransactionHashAleo,
   isZeroishAddress,
   normalizeAddress,
   normalizeAddressCosmos,
@@ -52,6 +58,7 @@ export {
   normalizeAddressSealevel,
   normalizeAddressStarknet,
   normalizeAddressRadix,
+  normalizeAddressAleo,
   padBytesToLength,
   shortenAddress,
   strip0x,
@@ -68,7 +75,7 @@ export {
   toWei,
   tryParseAmount,
 } from './amount.js';
-export { chunk, exclude, randomElement } from './arrays.js';
+export { chunk, exclude, randomElement, arrayEqual } from './arrays.js';
 export {
   concurrentMap,
   fetchWithTimeout,
@@ -96,8 +103,9 @@ export {
   isS3Checkpoint,
   isS3CheckpointWithId,
 } from './checkpoints.js';
+export { normalizeConfig, sortArraysInConfig } from './config.js';
 export { domainHash } from './domains.js';
-export { safelyAccessEnvVar, inCIMode } from './env.js';
+export { safelyAccessEnvVar, inCIMode, inKubernetes } from './env.js';
 export { canonizeId, evmId } from './ids.js';
 export {
   LogFormat,
@@ -111,6 +119,7 @@ export {
   rootLogger,
   setRootLogger,
 } from './logging.js';
+export type { Logger } from './logging.js';
 export { mean, median, randomInt, stdDev, sum } from './math.js';
 export {
   formatMessage,
@@ -149,6 +158,7 @@ export {
   transformObj,
   TransformObjectTransformer,
   sortArraysInObject,
+  objDiff,
 } from './objects.js';
 export { Result, failure, success } from './result.js';
 export {
@@ -189,6 +199,7 @@ export {
   ProtocolSmallestUnit,
   ProtocolType,
   ProtocolTypeValue,
+  ReorgEvent,
   S3Announcement,
   S3Checkpoint,
   S3CheckpointWithId,
@@ -202,5 +213,3 @@ export { assert } from './validation.js';
 export { BaseValidator, ValidatorConfig } from './validator.js';
 export { tryParseJsonOrYaml } from './yaml.js';
 export { createServiceLogger } from './logging.js';
-export { MinimumRequiredGasByAction, GasAction } from './mingas.js';
-export * as AltVM from './altvm.js';

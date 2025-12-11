@@ -19,6 +19,7 @@ import {
   TokenType,
   WarpCoreConfig,
   WarpRouteDeployConfig,
+  randomAddress,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
@@ -432,7 +433,11 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       // Perform a cleanup at the end
       clearTimeout(timeoutId);
       // Kill the process and wait for it to exit to prevent hangs
-      await rebalancer.kill('SIGINT');
+      try {
+        await rebalancer.kill('SIGINT');
+      } catch {
+        // Process may have already exited, which is fine
+      }
     });
   }
 
@@ -498,7 +503,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
       const bridgeContract = await new MockValueTransferBridge__factory(
         chain3Signer,
-      ).deploy();
+      ).deploy(chain3CollateralContract.address);
 
       await chain3CollateralContract.addBridge(
         chain2Metadata.domainId,
@@ -903,6 +908,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
   });
 
   it('should throw if rebalance quotes cannot be obtained', async () => {
+    const noBridge = randomAddress();
+
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
       warpRouteId,
       strategy: {
@@ -921,7 +928,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
               weight: '25',
               tolerance: '0',
             },
-            bridge: ethers.constants.AddressZero,
+            bridge: noBridge,
             bridgeLockTime: 1,
           },
         },
@@ -939,10 +946,12 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     );
 
     // Allow bridge
-    await chain3CollateralContract.addBridge(
+    const tx3 = await chain3CollateralContract.addBridge(
       chain2Metadata.domainId,
-      ethers.constants.AddressZero,
+      noBridge,
     );
+
+    await tx3.wait();
 
     await startRebalancerAndExpectLog('Failed to get quotes for route.');
   });
@@ -961,7 +970,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     // Deploy the bridge
     const bridgeContract = await new MockValueTransferBridge__factory(
       chain3Signer,
-    ).deploy();
+    ).deploy(tokenChain3.address);
 
     // Allow bridge
     await chain3CollateralContract.addBridge(
@@ -1015,7 +1024,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     // Deploy the bridge
     const bridgeContract = await new MockValueTransferBridge__factory(
       chain3Signer,
-    ).deploy();
+    ).deploy(tokenChain3.address);
 
     // Allow bridge
     await chain3CollateralContract.addBridge(
@@ -1065,7 +1074,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     // Deploy the bridge
     const bridgeContract = await new MockValueTransferBridge__factory(
       chain3Signer,
-    ).deploy();
+    ).deploy(tokenChain3.address);
 
     // Allow bridge
     await chain3CollateralContract.addBridge(
@@ -1153,7 +1162,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     // It will also allow us to mock some token movement
     const bridgeContract = await new MockValueTransferBridge__factory(
       originSigner,
-    ).deploy();
+    ).deploy(tokenChain3.address);
 
     // Allow bridge
     // This allow the bridge to be used to send the rebalance transaction
@@ -1251,7 +1260,11 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     expect(destBalance.toString()).to.equal(toWei(15));
 
     // Kill the process to finish the test
-    await rebalancer.kill('SIGINT');
+    try {
+      await rebalancer.kill('SIGINT');
+    } catch {
+      // Process may have already exited, which is fine
+    }
 
     // Running the rebalancer again should not trigger any rebalance given that it is already balanced.
     await startRebalancerAndExpectLog(
@@ -1278,7 +1291,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
     const bridgeContract = await new MockValueTransferBridge__factory(
       originSigner,
-    ).deploy();
+    ).deploy(tokenChain3.address);
 
     // --- Allow bridge ---
 
@@ -1364,7 +1377,11 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     // Check that metrics endpoint is not responding
     await expect(fetch(DEFAULT_METRICS_SERVER)).to.be.rejected;
 
-    await rebalancer.kill('SIGINT');
+    try {
+      await rebalancer.kill('SIGINT');
+    } catch {
+      // Process may have already exited, which is fine
+    }
   });
 
   it('should start the metrics server and expose prometheus metrics', async () => {
@@ -1411,7 +1428,11 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       // Check for specific Hyperlane metrics
       expect(metricsText).to.include('hyperlane_wallet_balance');
     } finally {
-      await rebalancer.kill('SIGINT');
+      try {
+        await rebalancer.kill('SIGINT');
+      } catch {
+        // Process may have already exited, which is fine
+      }
     }
   });
 
@@ -1553,7 +1574,11 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         { timeout: 30000, checkFrequency: 1000 },
       );
     } finally {
-      await relayer.kill('SIGINT');
+      try {
+        await relayer.kill('SIGINT');
+      } catch {
+        // Process may have already exited, which is fine
+      }
     }
   });
 
@@ -1607,7 +1632,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       // It will also allow us to mock some token movement
       const bridgeContract = await new MockValueTransferBridge__factory(
         originSigner,
-      ).deploy();
+      ).deploy(tokenChain3.address);
 
       // Allow bridge
       // This allow the bridge to be used to send the rebalance transaction
@@ -1721,7 +1746,11 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       );
 
       // Kill the process to finish the test
-      await rebalancer.kill('SIGINT');
+      try {
+        await rebalancer.kill('SIGINT');
+      } catch {
+        // Process may have already exited, which is fine
+      }
 
       // Running the rebalancer again should not trigger any rebalance given that it is already balanced.
       await startRebalancerAndExpectLog(
@@ -1884,7 +1913,11 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
           },
         );
       } finally {
-        await relayer.kill('SIGINT');
+        try {
+          await relayer.kill('SIGINT');
+        } catch {
+          // Process may have already exited, which is fine
+        }
       }
     });
   });
