@@ -363,6 +363,7 @@ jobs:
         test:
           # Core Commands
           - core-deploy
+          - core-apply
           # Warp Commands
           - warp-deploy
           - warp-apply-ownership-updates

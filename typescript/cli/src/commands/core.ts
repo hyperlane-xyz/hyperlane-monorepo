@@ -132,7 +132,7 @@ export const deploy: CommandModuleWithWriteContext<{
     await runCoreDeploy({
       context,
       chain,
-      config: readYamlOrJson(configFilePath),
+      config: readCoreDeployConfigs(configFilePath),
       multiProtocolSigner,
     });
 
