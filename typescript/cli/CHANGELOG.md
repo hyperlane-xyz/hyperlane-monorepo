@@ -1,5 +1,26 @@
 # @hyperlane-xyz/cli
 
+## 19.13.0
+
+### Minor Changes
+
+- ae8ef4389: Fixed bug in `core deploy` which allowed to deploy unverified and possibly invalid configs due to missing validation using zod
+
+## 19.12.0
+
+### Minor Changes
+
+- 38a1165c8: - Update CLI context `altVmSigners` to be a `ChainMap` instead of `AltVMSignerFactory`,
+  - Update CLI context `altVmProviders` to be a `ChainMap` instead of `AltVMSignerFactory`.
+  - Update all existing getter methods to use `mustTry`, instead of `assert`.
+  - Delete `AltVMSupportedProtocols` and `AltVMProviderFactory`.
+  - Move functions from `AltVMSignerFactory` to top-level functions.
+  - Add `getMinGas` to Aleo, Cosmos and Radix ProtocolProvider.
+
+### Patch Changes
+
+- 1133c7a3f: Migrate filesystem utilities to use `@hyperlane-xyz/utils/fs` submodule, reducing code duplication.
+
 ## 19.11.0
 
 ## 19.10.0

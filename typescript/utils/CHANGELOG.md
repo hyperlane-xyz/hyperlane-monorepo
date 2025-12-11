@@ -1,5 +1,18 @@
 # @hyperlane-xyz/utils
 
+## 19.13.0
+
+## 19.12.0
+
+### Minor Changes
+
+- af2cd1729: Support reading ReorgEvent object from validator buckets.
+- e37100e2e: Add new `@hyperlane-xyz/utils/fs` submodule with filesystem utilities for Node.js. Includes functions for reading/writing JSON and YAML files, path resolution, directory management, and format-agnostic file operations. This submodule is not suitable for browser use.
+
+### Patch Changes
+
+- 08cf7eca9: Parse starknet addresses before validating with regex
+
 ## 19.11.0
 
 ## 19.10.0
