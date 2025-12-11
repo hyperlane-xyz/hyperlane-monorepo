@@ -24,7 +24,7 @@ use hyperlane_base::db::{HyperlaneDb, HyperlaneRocksDB};
 use hyperlane_base::CoreMetrics;
 use hyperlane_core::{
     ConfirmReason, HyperlaneDomain, HyperlaneDomainProtocol, PendingOperation,
-    PendingOperationResult, PendingOperationStatus, QueueOperation, ReprepareReason, U256,
+    PendingOperationResult, PendingOperationStatus, QueueOperation, ReprepareReason,
 };
 use lander::{
     DispatcherEntrypoint, Entrypoint, FullPayload, LanderError, PayloadStatus, PayloadUuid,

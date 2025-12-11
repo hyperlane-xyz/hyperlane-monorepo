@@ -1,6 +1,8 @@
+use crate::kas_relayer::withdraw::minimum::is_dust_message;
 use crate::kas_relayer::KaspaBridgeMetrics;
-use hyperlane_core::HyperlaneMessage;
+use hyperlane_core::{HyperlaneMessage, U256};
 use std::collections::HashSet;
+use tracing::info;
 
 pub enum WithdrawalStage {
     Initiated,
@@ -47,11 +49,26 @@ pub fn record_withdrawal_batch_metrics(
 pub fn calculate_failed_indexes(
     all_msgs: &[HyperlaneMessage],
     processed_msgs: &[HyperlaneMessage],
+    min_sompi: U256,
 ) -> Vec<usize> {
     let processed_ids: HashSet<_> = processed_msgs.iter().map(|m| m.id()).collect();
     all_msgs
         .iter()
         .enumerate()
-        .filter_map(|(i, msg)| (!processed_ids.contains(&msg.id())).then_some(i))
+        .filter_map(|(i, msg)| {
+            if processed_ids.contains(&msg.id()) {
+                return None;
+            }
+            // Exclude dust messages from failed indexes to prevent retry
+            if is_dust_message(msg, min_sompi) {
+                info!(
+                    message_id = ?msg.id(),
+                    min_sompi = min_sompi.as_u64(),
+                    "kaspa mailbox: not retrying dust message"
+                );
+                return None;
+            }
+            Some(i)
+        })
         .collect()
 }
