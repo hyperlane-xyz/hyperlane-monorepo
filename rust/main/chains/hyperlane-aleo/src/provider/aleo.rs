@@ -216,7 +216,7 @@ impl<C: AleoClient> AleoProvider<C> {
         let function_name_parsed =
             Identifier::<N>::from_str(function_name).map_err(HyperlaneAleoError::from)?;
         let store =
-            ConsensusStore::open(StorageMode::new_test(None)).map_err(HyperlaneAleoError::from)?;
+            ConsensusStore::open(StorageMode::Production).map_err(HyperlaneAleoError::from)?;
         let vm: VM<N, ConsensusMemory<N>> = VM::from(store).map_err(HyperlaneAleoError::from)?;
         let signer = self.get_signer()?;
         let private_key = signer.get_private_key()?;
