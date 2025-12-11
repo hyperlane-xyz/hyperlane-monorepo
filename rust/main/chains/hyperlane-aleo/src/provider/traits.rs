@@ -221,8 +221,17 @@ impl<Client: HttpClient> RpcClient<Client> {
         transaction_id: H512,
     ) -> ChainResult<ConfirmedTransaction<CurrentNetwork>> {
         let tx_id = get_tx_id::<CurrentNetwork>(transaction_id)?;
-        let tx_id_str = tx_id.to_string();
-        self.request(&format!("transaction/confirmed/{tx_id_str}"), None)
+        self.request(&format!("transaction/confirmed/{tx_id}"), None)
+            .await
+    }
+
+    /// Gets an unconfirmed transaction by ID from the mempool
+    pub async fn get_unconfirmed_transaction(
+        &self,
+        transaction_id: H512,
+    ) -> ChainResult<Transaction<CurrentNetwork>> {
+        let tx_id = crate::utils::get_tx_id::<CurrentNetwork>(transaction_id)?;
+        self.request(&format!("transaction/unconfirmed/{tx_id}"), None)
             .await
     }
 

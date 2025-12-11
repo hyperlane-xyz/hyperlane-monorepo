@@ -1,5 +1,16 @@
 # @hyperlane-xyz/infra
 
+## 19.13.0
+
+### Patch Changes
+
+- Updated dependencies [3592f258a]
+  - @hyperlane-xyz/sdk@19.13.0
+  - @hyperlane-xyz/helloworld@19.13.0
+  - @hyperlane-xyz/http-registry-server@19.13.0
+  - @hyperlane-xyz/utils@19.13.0
+  - @hyperlane-xyz/core@10.1.1
+
 ## 19.12.0
 
 ### Patch Changes

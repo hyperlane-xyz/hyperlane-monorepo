@@ -1,5 +1,12 @@
 # @hyperlane-xyz/aleo-sdk
 
+## 19.13.0
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@19.13.0
+- @hyperlane-xyz/provider-sdk@0.5.0
+
 ## 19.12.0
 
 ### Patch Changes
