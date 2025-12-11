@@ -271,55 +271,52 @@ where
 
         let params = serde_json::to_value(params).expect("valid");
 
+        let mut priorities = self.take_priorities_snapshot().await;
         let mut errors: Vec<ProviderError> = vec![];
+
         // make sure we do at least 4 total retries.
-        while errors.len() <= 3 {
+        while errors.len() <= 3 && !priorities.is_empty() {
             if !errors.is_empty() {
-                sleep(Duration::from_millis(100)).await;
+                sleep(Duration::from_millis(200)).await;
             }
-            let priorities_snapshot = self.take_priorities_snapshot().await;
-            for (idx, priority) in priorities_snapshot.iter().enumerate() {
+
+            let mut retry_priorities = Vec::with_capacity(priorities.len());
+            for (idx, priority) in priorities.into_iter().enumerate() {
                 let provider = &self.inner.providers[priority.index];
                 let fut = Self::provider_request(provider, method, &params);
                 let (provider_host, resp) = fut.await;
-                self.handle_stalled_provider(priority, provider).await;
+                self.handle_stalled_provider(&priority, provider).await;
                 if resp.is_err() {
-                    self.handle_failed_provider(priority).await;
+                    self.handle_failed_provider(&priority).await;
                 }
                 tracing::debug!(
                     fallback_count = idx,
                     provider_index = priority.index,
                     provider_host = provider_host.as_str(),
                     method,
+                    ?resp,
                     "fallback_transaction_receipt"
                 );
 
                 match categorize_client_response(provider_host.as_str(), method, resp) {
+                    NonRetryableErr(e) => return Err(e.into()),
+                    RetryableErr(e) | RateLimitErr(e) => {
+                        errors.push(e.into());
+                        // if it is a retryable error, then we want to
+                        // retry this provider
+                        retry_priorities.push(priority);
+                    }
                     IsOk(v) => {
-                        // If we received null for transaction receipt, we also
-                        // want to deprioritize it. But we don't want to
-                        // increase its error count, because technically, they
-                        // did not return an error
+                        // If we received null for transaction receipt
+                        // we don't want to retry this provider
                         if v.is_null() {
-                            tracing::debug!(
-                                fallback_count = idx,
-                                provider_index = priority.index,
-                                provider_host = provider_host.as_str(),
-                                method,
-                                ?v,
-                                "fallback_transaction_receipt: received null for transaction receipt"
-                            );
-                            errors.push(ProviderError::CustomError(
-                                "Transaction Receipt is null".into(),
-                            ));
                             continue;
                         }
                         return Ok(serde_json::from_value(v)?);
                     }
-                    RetryableErr(e) | RateLimitErr(e) => errors.push(e.into()),
-                    NonRetryableErr(e) => return Err(e.into()),
                 }
             }
+            priorities = retry_priorities;
         }
 
         Err(FallbackError::AllProvidersFailed(errors).into())

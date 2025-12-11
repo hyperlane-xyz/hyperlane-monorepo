@@ -22,6 +22,14 @@ where
         self.request::<_, u64>(METHOD_SEND_RAW_TRANSACTION, ())
             .await
     }
+
+    async fn get_tx_receipt_test_call(&self) -> Result<Option<TransactionReceipt>, ProviderError> {
+        self.request::<_, Option<TransactionReceipt>>(
+            METHOD_GET_TRANSACTION_RECEIPT,
+            H256::random(),
+        )
+        .await
+    }
 }
 
 // Explanation of the test expected result:
@@ -367,133 +375,224 @@ async fn test_fallback_one_stalled_provider() {
     assert_eq!(provider_call_count, vec![0, 0, 2]);
 }
 
+// TODO: make `categorize_client_response` generic over `ProviderError` to allow testing
+// two stalled providers (so that the for loop in `request` doesn't stop after the first provider)
+
+// Tests for fallback_transaction_receipt behavior
+
+/// Test that a provider returning null for transaction receipt is called only once
 #[tracing_test::traced_test]
 #[tokio::test]
-async fn test_fallback_no_tx_receipt_no_rotate() {
+async fn test_fallback_tx_receipt_null_called_once() {
     let fallback_provider_builder = FallbackProviderBuilder::default();
     let providers = vec![
-        EthereumProviderMock::new(Some(Duration::from_millis(10))),
+        EthereumProviderMock::new(None),
         EthereumProviderMock::new(None),
         EthereumProviderMock::new(None),
     ];
+
+    // First provider returns null (None in the mock means Ok(null))
+    providers[0]
+        .responses
+        .get_tx_receipt
+        .lock()
+        .unwrap()
+        .push_back(None);
+
+    // Second provider returns a successful receipt
+    let mut receipt = TransactionReceipt::default();
+    receipt.block_number = Some(100.into());
+    providers[1]
+        .responses
+        .get_tx_receipt
+        .lock()
+        .unwrap()
+        .push_back(Some(receipt.clone()));
+
+    let fallback_provider = fallback_provider_builder.add_providers(providers).build();
+    let ethereum_fallback_provider = EthereumFallbackProvider::new(fallback_provider, true);
+
+    let result = ethereum_fallback_provider
+        .get_tx_receipt_test_call()
+        .await
+        .unwrap();
+
+    let provider_call_count: Vec<_> =
+        ProviderMock::get_call_counts(&ethereum_fallback_provider).await;
+
+    // First provider should be called only once (null is not retried)
+    // Second provider should be called once and return the receipt
+    assert_eq!(provider_call_count, vec![1, 1, 0]);
+    assert_eq!(result.unwrap().block_number, Some(100.into()));
+}
+
+/// Test that a provider returning errors gets called multiple times before giving up
+#[tracing_test::traced_test]
+#[tokio::test]
+async fn test_fallback_tx_receipt_error_retried_multiple_times() {
+    let fallback_provider_builder = FallbackProviderBuilder::default();
+    let providers = vec![
+        EthereumProviderMock::new(None),
+        EthereumProviderMock::new(None),
+    ];
+
+    // Both providers return errors (no responses set up, so they return errors)
+    // The mock's dummy_error_return_value() will be used
+    // With 2 providers, each will be called twice (total 4 errors before giving up)
+
+    let fallback_provider = fallback_provider_builder.add_providers(providers).build();
+    let ethereum_fallback_provider = EthereumFallbackProvider::new(fallback_provider, true);
+
+    let result = ethereum_fallback_provider.get_tx_receipt_test_call().await;
+
+    let provider_call_count: Vec<_> =
+        ProviderMock::get_call_counts(&ethereum_fallback_provider).await;
+
+    // Each provider should be called 2 times (across 2 retry rounds, total 4 errors)
+    assert_eq!(provider_call_count, vec![2, 2]);
+    assert!(
+        matches!(result, Err(ProviderError::JsonRpcClientError(_))),
+        "Expected error result"
+    );
+}
+
+/// Test provider successfully returns receipt immediately
+#[tracing_test::traced_test]
+#[tokio::test]
+async fn test_fallback_tx_receipt_immediate_success() {
+    let fallback_provider_builder = FallbackProviderBuilder::default();
+    let providers = vec![
+        EthereumProviderMock::new(None),
+        EthereumProviderMock::new(None),
+    ];
+
+    let mut receipt = TransactionReceipt::default();
+    receipt.block_number = Some(200.into());
+
+    // Provider 0 returns receipt immediately on first call
+    providers[0]
+        .responses
+        .get_tx_receipt
+        .lock()
+        .unwrap()
+        .push_back(Some(receipt.clone()));
+
+    let fallback_provider = fallback_provider_builder.add_providers(providers).build();
+    let ethereum_fallback_provider = EthereumFallbackProvider::new(fallback_provider, true);
+
+    let result = ethereum_fallback_provider
+        .get_tx_receipt_test_call()
+        .await
+        .unwrap();
+
+    let provider_call_count: Vec<_> =
+        ProviderMock::get_call_counts(&ethereum_fallback_provider).await;
+
+    // Provider 0: called once and returns receipt
+    // Provider 1: not called because provider 0 succeeded
+    assert_eq!(provider_call_count, vec![1, 0]);
+    assert_eq!(result.unwrap().block_number, Some(200.into()));
+}
+
+/// Test multiple providers: first null, second succeeds
+#[tracing_test::traced_test]
+#[tokio::test]
+async fn test_fallback_tx_receipt_null_then_success() {
+    let fallback_provider_builder = FallbackProviderBuilder::default();
+    let providers = vec![
+        EthereumProviderMock::new(None),
+        EthereumProviderMock::new(None),
+        EthereumProviderMock::new(None),
+    ];
+
+    // First provider: returns null (not retried)
+    providers[0]
+        .responses
+        .get_tx_receipt
+        .lock()
+        .unwrap()
+        .push_back(None);
+
+    // Second provider: returns success
+    let mut receipt = TransactionReceipt::default();
+    receipt.block_number = Some(300.into());
+    providers[1]
+        .responses
+        .get_tx_receipt
+        .lock()
+        .unwrap()
+        .push_back(Some(receipt.clone()));
+
+    let fallback_provider = fallback_provider_builder.add_providers(providers).build();
+    let ethereum_fallback_provider = EthereumFallbackProvider::new(fallback_provider, true);
+
+    let result = ethereum_fallback_provider
+        .get_tx_receipt_test_call()
+        .await
+        .unwrap();
+
+    let provider_call_count: Vec<_> =
+        ProviderMock::get_call_counts(&ethereum_fallback_provider).await;
+
+    // First provider: called once (null, not retried)
+    // Second provider: called once (success)
+    // Third provider: not called because second provider succeeded
+    assert_eq!(provider_call_count, vec![1, 1, 0]);
+    assert_eq!(result.unwrap().block_number, Some(300.into()));
+}
+
+/// Test mixed: null, error, success
+#[tracing_test::traced_test]
+#[tokio::test]
+async fn test_fallback_tx_receipt_mixed_null_error_success() {
+    let fallback_provider_builder = FallbackProviderBuilder::default();
+    let providers = vec![
+        EthereumProviderMock::new(None),
+        EthereumProviderMock::new(None),
+        EthereumProviderMock::new(None),
+    ];
+
+    // First provider returns null (not retried)
+    providers[0]
+        .responses
+        .get_tx_receipt
+        .lock()
+        .unwrap()
+        .push_back(None);
+
+    // Second provider: no response (returns error on first call)
+    // Third provider returns success
+    let mut receipt = TransactionReceipt::default();
+    receipt.block_number = Some(400.into());
     providers[2]
         .responses
         .get_tx_receipt
         .lock()
         .unwrap()
-        .push_back(Some(TransactionReceipt::default()));
-    let fallback_provider = fallback_provider_builder
-        .add_providers(providers)
-        .with_max_block_time(Duration::from_secs(0))
-        .build();
-    let ethereum_fallback_provider = EthereumFallbackProvider::new(fallback_provider, false);
+        .push_back(Some(receipt.clone()));
 
-    let before_provider_priorities =
-        ProviderMock::get_priorities(&ethereum_fallback_provider).await;
-
-    let tx_receipt: Option<TransactionReceipt> = ethereum_fallback_provider
-        .fallback(METHOD_GET_TRANSACTION_RECEIPT, H256::zero())
-        .await
-        .expect("Failed to get tx receipt");
-    let provider_call_count: Vec<_> =
-        ProviderMock::get_call_counts(&ethereum_fallback_provider).await;
-
-    let after_provider_priorities = ProviderMock::get_priorities(&ethereum_fallback_provider).await;
-
-    assert_eq!(tx_receipt, Some(TransactionReceipt::default()));
-    assert_eq!(provider_call_count, vec![2, 2, 2]);
-
-    let expected: Vec<_> = before_provider_priorities
-        .into_iter()
-        .map(|p| p.index)
-        .collect();
-    let actual: Vec<_> = after_provider_priorities
-        .into_iter()
-        .map(|p| p.index)
-        .collect();
-
-    assert_eq!(expected, actual);
-}
-
-#[tracing_test::traced_test]
-#[tokio::test]
-async fn test_fallback_no_tx_receipt_rotate() {
-    let fallback_provider_builder = FallbackProviderBuilder::default();
-    let providers = vec![
-        EthereumProviderMock::new(None),
-        EthereumProviderMock::new(None),
-        EthereumProviderMock::new(None),
-    ];
-    // Push a bunch of responses so we don't run out
-    for i in 0..2 {
-        for _ in 0..30 {
-            providers[i]
-                .responses
-                .get_block_number
-                .lock()
-                .unwrap()
-                .push_back(Some(3));
-            providers[i]
-                .responses
-                .get_tx_receipt
-                .lock()
-                .unwrap()
-                .push_back(None);
-        }
-    }
-    for _ in 0..30 {
-        providers[2]
-            .responses
-            .get_block_number
-            .lock()
-            .unwrap()
-            .push_back(Some(3));
-        providers[2]
-            .responses
-            .get_tx_receipt
-            .lock()
-            .unwrap()
-            .push_back(Some(TransactionReceipt::default()));
-    }
-    let fallback_provider = fallback_provider_builder
-        .add_providers(providers)
-        .with_max_block_time(Duration::from_secs(10))
-        .build();
+    let fallback_provider = fallback_provider_builder.add_providers(providers).build();
     let ethereum_fallback_provider = EthereumFallbackProvider::new(fallback_provider, true);
 
-    let before_provider_priorities =
-        ProviderMock::get_priorities(&ethereum_fallback_provider).await;
-
-    let expected: Vec<_> = vec![0, 1, 2];
-    let actual: Vec<_> = before_provider_priorities
-        .into_iter()
-        .map(|p| p.index)
-        .collect();
-    assert_eq!(expected, actual);
-
-    let tx_receipt: Option<TransactionReceipt> = ethereum_fallback_provider
-        .request(METHOD_GET_TRANSACTION_RECEIPT, H256::zero())
+    let result = ethereum_fallback_provider
+        .get_tx_receipt_test_call()
         .await
-        .expect("Failed to get tx receipt");
+        .unwrap();
+
     let provider_call_count: Vec<_> =
         ProviderMock::get_call_counts(&ethereum_fallback_provider).await;
 
-    assert_eq!(tx_receipt, Some(TransactionReceipt::default()));
+    // First provider: called once (null, not retried)
+    // Second provider: called once (error)
+    // Third provider: called once (success)
     assert_eq!(provider_call_count, vec![1, 1, 1]);
-
-    let after_provider_priorities = ProviderMock::get_priorities(&ethereum_fallback_provider).await;
-
-    let expected: Vec<_> = vec![0, 1, 2];
-    let actual: Vec<_> = after_provider_priorities
-        .into_iter()
-        .map(|p| p.index)
-        .collect();
-    assert_eq!(expected, actual);
+    assert_eq!(result.unwrap().block_number, Some(400.into()));
 }
 
+/// Test all providers return null (should fail)
 #[tracing_test::traced_test]
 #[tokio::test]
-async fn test_fallback_all_providers_return_null_receipt_with_rotate() {
+async fn test_fallback_tx_receipt_all_null() {
     let fallback_provider_builder = FallbackProviderBuilder::default();
     let providers = vec![
         EthereumProviderMock::new(None),
@@ -501,342 +600,38 @@ async fn test_fallback_all_providers_return_null_receipt_with_rotate() {
         EthereumProviderMock::new(None),
     ];
 
-    // All providers return None for transaction receipt
-    for i in 0..3 {
-        for _ in 0..30 {
-            providers[i]
-                .responses
-                .get_block_number
-                .lock()
-                .unwrap()
-                .push_back(Some(i as u64 + 1));
-            providers[i]
-                .responses
-                .get_tx_receipt
-                .lock()
-                .unwrap()
-                .push_back(None);
-        }
-    }
+    // All providers return null
+    providers[0]
+        .responses
+        .get_tx_receipt
+        .lock()
+        .unwrap()
+        .push_back(None);
+    providers[1]
+        .responses
+        .get_tx_receipt
+        .lock()
+        .unwrap()
+        .push_back(None);
+    providers[2]
+        .responses
+        .get_tx_receipt
+        .lock()
+        .unwrap()
+        .push_back(None);
 
-    let fallback_provider = fallback_provider_builder
-        .add_providers(providers)
-        .with_max_block_time(Duration::from_secs(10))
-        .build();
+    let fallback_provider = fallback_provider_builder.add_providers(providers).build();
     let ethereum_fallback_provider = EthereumFallbackProvider::new(fallback_provider, true);
 
-    let result: Result<Option<TransactionReceipt>, _> = ethereum_fallback_provider
-        .request(METHOD_GET_TRANSACTION_RECEIPT, H256::zero())
-        .await;
-
-    // Should fail since all providers returned null
-    assert!(matches!(result, Err(ProviderError::JsonRpcClientError(_))));
+    let result = ethereum_fallback_provider.get_tx_receipt_test_call().await;
 
     let provider_call_count: Vec<_> =
         ProviderMock::get_call_counts(&ethereum_fallback_provider).await;
 
-    // Each provider should have been tried multiple times due to retries
-    assert!(provider_call_count.iter().all(|&count| count > 0));
-}
-
-#[tracing_test::traced_test]
-#[tokio::test]
-async fn test_fallback_null_receipt_no_deprioritization_with_rotate_enabled() {
-    let fallback_provider_builder = FallbackProviderBuilder::default();
-    let providers = vec![
-        EthereumProviderMock::new(None),
-        EthereumProviderMock::new(None),
-        EthereumProviderMock::new(None),
-    ];
-
-    // First provider returns None, second provider returns a receipt
-    for _ in 0..10 {
-        providers[0]
-            .responses
-            .get_block_number
-            .lock()
-            .unwrap()
-            .push_back(Some(1));
-        providers[0]
-            .responses
-            .get_tx_receipt
-            .lock()
-            .unwrap()
-            .push_back(None);
-
-        providers[1]
-            .responses
-            .get_block_number
-            .lock()
-            .unwrap()
-            .push_back(Some(2));
-        providers[1]
-            .responses
-            .get_tx_receipt
-            .lock()
-            .unwrap()
-            .push_back(Some(TransactionReceipt::default()));
-
-        providers[2]
-            .responses
-            .get_block_number
-            .lock()
-            .unwrap()
-            .push_back(Some(3));
-        providers[2]
-            .responses
-            .get_tx_receipt
-            .lock()
-            .unwrap()
-            .push_back(Some(TransactionReceipt::default()));
-    }
-
-    let fallback_provider = fallback_provider_builder
-        .add_providers(providers)
-        .with_max_block_time(Duration::from_secs(10))
-        .build();
-    let ethereum_fallback_provider = EthereumFallbackProvider::new(fallback_provider, true);
-
-    let before_priorities = ProviderMock::get_priorities(&ethereum_fallback_provider).await;
-    let before_indices: Vec<_> = before_priorities.iter().map(|p| p.index).collect();
-    assert_eq!(before_indices, vec![0, 1, 2]);
-
-    let tx_receipt: Option<TransactionReceipt> = ethereum_fallback_provider
-        .request(METHOD_GET_TRANSACTION_RECEIPT, H256::zero())
-        .await
-        .expect("Failed to get tx receipt");
-
-    assert_eq!(tx_receipt, Some(TransactionReceipt::default()));
-
-    let after_priorities = ProviderMock::get_priorities(&ethereum_fallback_provider).await;
-    let after_indices: Vec<_> = after_priorities.iter().map(|p| p.index).collect();
-
-    // Provider 0 should NOT be deprioritized when returning null
-    assert_eq!(after_indices, vec![0, 1, 2]);
-
-    let provider_call_count: Vec<_> =
-        ProviderMock::get_call_counts(&ethereum_fallback_provider).await;
-    // Provider 0 and 1 should have been called (others may be called by handle_stalled_provider)
-    assert!(provider_call_count[0] >= 1);
-    assert!(provider_call_count[1] >= 1 || provider_call_count[2] >= 1);
-}
-
-#[tracing_test::traced_test]
-#[tokio::test]
-async fn test_fallback_rotation_persists_across_multiple_requests() {
-    let fallback_provider_builder = FallbackProviderBuilder::default();
-    let providers = vec![
-        EthereumProviderMock::new(None),
-        EthereumProviderMock::new(None),
-        EthereumProviderMock::new(None),
-    ];
-
-    // Provider 0 always returns None
-    // Provider 1 and 2 return receipts
-    for _ in 0..30 {
-        providers[0]
-            .responses
-            .get_block_number
-            .lock()
-            .unwrap()
-            .push_back(Some(1));
-        providers[0]
-            .responses
-            .get_tx_receipt
-            .lock()
-            .unwrap()
-            .push_back(None);
-
-        for i in 1..3 {
-            providers[i]
-                .responses
-                .get_block_number
-                .lock()
-                .unwrap()
-                .push_back(Some(i as u64 + 1));
-            providers[i]
-                .responses
-                .get_tx_receipt
-                .lock()
-                .unwrap()
-                .push_back(Some(TransactionReceipt::default()));
-        }
-    }
-
-    let fallback_provider = fallback_provider_builder
-        .add_providers(providers)
-        .with_max_block_time(Duration::from_secs(10))
-        .build();
-    let ethereum_fallback_provider = EthereumFallbackProvider::new(fallback_provider, true);
-
-    // First request: should cause rotation
-    let _tx_receipt1: Option<TransactionReceipt> = ethereum_fallback_provider
-        .request(METHOD_GET_TRANSACTION_RECEIPT, H256::zero())
-        .await
-        .expect("Failed to get tx receipt");
-
-    let after_first_priorities = ProviderMock::get_priorities(&ethereum_fallback_provider).await;
-    let after_first_indices: Vec<_> = after_first_priorities.iter().map(|p| p.index).collect();
-    // Priorities should NOT change when provider returns null
-    assert_eq!(after_first_indices, vec![0, 1, 2]);
-
-    // Second request: priorities should remain unchanged
-    let _tx_receipt2: Option<TransactionReceipt> = ethereum_fallback_provider
-        .request(METHOD_GET_TRANSACTION_RECEIPT, H256::zero())
-        .await
-        .expect("Failed to get tx receipt");
-
-    let after_second_priorities = ProviderMock::get_priorities(&ethereum_fallback_provider).await;
-    let after_second_indices: Vec<_> = after_second_priorities.iter().map(|p| p.index).collect();
-    // Priorities should remain the same
-    assert_eq!(after_second_indices, vec![0, 1, 2]);
-
-    let provider_call_count: Vec<_> =
-        ProviderMock::get_call_counts(&ethereum_fallback_provider).await;
-    // First request: provider 0 tried and returned null, then another provider succeeded
-    // Second request: should use the working provider immediately
-    // Exact call counts can vary due to handle_stalled_provider checks
+    // All providers called once (null is not retried)
+    assert_eq!(provider_call_count, vec![1, 1, 1]);
     assert!(
-        provider_call_count[0] >= 1,
-        "Provider 0 should be called at least once"
-    );
-    // At least one of the other providers should have been called multiple times
-    assert!(
-        provider_call_count.iter().filter(|&&c| c >= 2).count() >= 1,
-        "At least one provider should be called multiple times"
+        matches!(result, Err(ProviderError::JsonRpcClientError(_))),
+        "Expected AllProvidersFailed error"
     );
 }
-
-#[tracing_test::traced_test]
-#[tokio::test]
-async fn test_fallback_second_provider_null_receipt_no_rotate() {
-    let fallback_provider_builder = FallbackProviderBuilder::default();
-    let providers = vec![
-        EthereumProviderMock::new(None),
-        EthereumProviderMock::new(None),
-        EthereumProviderMock::new(None),
-    ];
-
-    // First provider returns None, second also returns None, third succeeds
-    for _ in 0..10 {
-        for i in 0..2 {
-            providers[i]
-                .responses
-                .get_block_number
-                .lock()
-                .unwrap()
-                .push_back(Some(i as u64 + 1));
-            providers[i]
-                .responses
-                .get_tx_receipt
-                .lock()
-                .unwrap()
-                .push_back(None);
-        }
-        providers[2]
-            .responses
-            .get_block_number
-            .lock()
-            .unwrap()
-            .push_back(Some(3));
-        providers[2]
-            .responses
-            .get_tx_receipt
-            .lock()
-            .unwrap()
-            .push_back(Some(TransactionReceipt::default()));
-    }
-
-    let fallback_provider = fallback_provider_builder
-        .add_providers(providers)
-        .with_max_block_time(Duration::from_secs(10))
-        .build();
-    let ethereum_fallback_provider = EthereumFallbackProvider::new(fallback_provider, true);
-
-    let tx_receipt: Option<TransactionReceipt> = ethereum_fallback_provider
-        .request(METHOD_GET_TRANSACTION_RECEIPT, H256::zero())
-        .await
-        .expect("Failed to get tx receipt");
-
-    assert_eq!(tx_receipt, Some(TransactionReceipt::default()));
-
-    let after_priorities = ProviderMock::get_priorities(&ethereum_fallback_provider).await;
-    let after_indices: Vec<_> = after_priorities.iter().map(|p| p.index).collect();
-
-    // Providers should NOT be deprioritized when returning null
-    assert_eq!(after_indices, vec![0, 1, 2]);
-
-    let provider_call_count: Vec<_> =
-        ProviderMock::get_call_counts(&ethereum_fallback_provider).await;
-    // All three providers tried once
-    assert_eq!(provider_call_count, vec![1, 1, 1]);
-}
-
-#[tracing_test::traced_test]
-#[tokio::test]
-async fn test_fallback_rotate_flag_controls_method_routing() {
-    let fallback_provider_builder = FallbackProviderBuilder::default();
-    let providers = vec![
-        EthereumProviderMock::new(None),
-        EthereumProviderMock::new(None),
-    ];
-
-    // Setup providers to return None when using fallback_transaction_receipt
-    for _ in 0..10 {
-        providers[0]
-            .responses
-            .get_block_number
-            .lock()
-            .unwrap()
-            .push_back(Some(1));
-        providers[0]
-            .responses
-            .get_tx_receipt
-            .lock()
-            .unwrap()
-            .push_back(None);
-
-        providers[1]
-            .responses
-            .get_block_number
-            .lock()
-            .unwrap()
-            .push_back(Some(2));
-        providers[1]
-            .responses
-            .get_tx_receipt
-            .lock()
-            .unwrap()
-            .push_back(Some(TransactionReceipt::default()));
-    }
-
-    // Test with rotate_no_transaction_receipt = false
-    let fallback_provider_disabled = fallback_provider_builder
-        .add_providers(providers)
-        .with_max_block_time(Duration::from_secs(10))
-        .build();
-    let ethereum_fallback_provider_disabled =
-        EthereumFallbackProvider::new(fallback_provider_disabled, false);
-
-    let before_priorities_disabled =
-        ProviderMock::get_priorities(&ethereum_fallback_provider_disabled).await;
-
-    let tx_receipt_disabled: Option<TransactionReceipt> = ethereum_fallback_provider_disabled
-        .fallback(METHOD_GET_TRANSACTION_RECEIPT, H256::zero())
-        .await
-        .expect("Failed to get tx receipt");
-
-    // With flag disabled, it should use regular fallback which accepts null as success
-    assert_eq!(tx_receipt_disabled, None);
-
-    let after_priorities_disabled =
-        ProviderMock::get_priorities(&ethereum_fallback_provider_disabled).await;
-    let before_indices: Vec<_> = before_priorities_disabled.iter().map(|p| p.index).collect();
-    let after_indices: Vec<_> = after_priorities_disabled.iter().map(|p| p.index).collect();
-
-    // Priorities should not change with flag disabled
-    assert_eq!(before_indices, after_indices);
-}
-
-// TODO: make `categorize_client_response` generic over `ProviderError` to allow testing
-// two stalled providers (so that the for loop in `request` doesn't stop after the first provider)
