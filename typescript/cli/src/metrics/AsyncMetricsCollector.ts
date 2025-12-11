@@ -10,7 +10,25 @@ class AsyncMetricsCollector extends EventEmitter {
   private flushInterval: NodeJS.Timeout | null = null;
   private readonly batchSize = 100;
   private readonly flushIntervalMs = 5000; // 5 seconds
+  private readonly maxQueueSize = 1000; // Limit queue growth
   private isShuttingDown = false;
+  private lastCheckpointTime = Date.now();
+  private readonly checkpointIntervalMs = 30000; // 30 seconds
+
+  // Store signal handler references for proper cleanup
+  private sigintHandler = () => {
+    this.shutdown();
+    process.exit(0); // Exit cleanly after shutdown
+  };
+
+  private sigtermHandler = () => {
+    this.shutdown();
+    process.exit(0);
+  };
+
+  private beforeExitHandler = () => {
+    this.flush();
+  };
 
   constructor(dbPath: string = './rpc_metrics.db') {
     super();
@@ -39,10 +57,10 @@ class AsyncMetricsCollector extends EventEmitter {
       this.enqueue(metric);
     });
 
-    // Graceful shutdown
-    process.on('SIGINT', () => this.shutdown());
-    process.on('SIGTERM', () => this.shutdown());
-    process.on('beforeExit', () => this.flush());
+    // Graceful shutdown - use process.once() to prevent handler stacking
+    process.once('SIGINT', this.sigintHandler);
+    process.once('SIGTERM', this.sigtermHandler);
+    process.once('beforeExit', this.beforeExitHandler);
   }
 
   private initSchema() {
@@ -67,6 +85,17 @@ class AsyncMetricsCollector extends EventEmitter {
       CREATE INDEX IF NOT EXISTS idx_method ON rpc_metrics(method);
       CREATE INDEX IF NOT EXISTS idx_success ON rpc_metrics(success);
     `);
+
+    // Configure WAL checkpoint behavior to prevent blocking
+    // Disable auto-checkpoint - we'll control it manually
+    this.db.pragma('wal_autocheckpoint = 0');
+
+    // Set busy timeout to prevent immediate failures
+    this.db.pragma('busy_timeout = 5000'); // 5 seconds
+
+    // Optimize for write performance
+    this.db.pragma('synchronous = NORMAL'); // Less paranoid than FULL
+    this.db.pragma('cache_size = -64000'); // 64MB cache
   }
 
   // Non-blocking record method
@@ -75,8 +104,34 @@ class AsyncMetricsCollector extends EventEmitter {
     this.emit('rpc_metric', metric);
   }
 
+  /**
+   * Performs a WAL checkpoint if enough time has passed.
+   * Uses PASSIVE mode to avoid blocking if database is busy.
+   */
+  private checkpointIfNeeded() {
+    const now = Date.now();
+    if (now - this.lastCheckpointTime > this.checkpointIntervalMs) {
+      try {
+        // PASSIVE mode: checkpoint if safe, don't block otherwise
+        this.db.pragma('wal_checkpoint(PASSIVE)');
+        this.lastCheckpointTime = now;
+      } catch (error) {
+        // Log but don't fail - checkpoint is optional optimization
+        console.debug('WAL checkpoint skipped:', error);
+      }
+    }
+  }
+
   private enqueue(metric: RPCMetric) {
     if (this.isShuttingDown) return;
+
+    // Drop metrics if queue is full to prevent unbounded growth
+    if (this.queue.length >= this.maxQueueSize) {
+      console.warn(
+        `Metrics queue full (${this.maxQueueSize} items), dropping metric`,
+      );
+      return;
+    }
 
     this.queue.push({
       ...metric,
@@ -93,6 +148,7 @@ class AsyncMetricsCollector extends EventEmitter {
     if (this.queue.length === 0) return;
 
     const batch = this.queue.splice(0, this.queue.length);
+    const flushStart = Date.now();
 
     try {
       // Use a transaction for batch insert - much faster
@@ -115,7 +171,20 @@ class AsyncMetricsCollector extends EventEmitter {
       });
 
       insert(batch);
+
+      const flushDuration = Date.now() - flushStart;
+
+      // Log slow flushes for debugging
+      if (flushDuration > 100) {
+        console.debug(
+          `Metrics flush took ${flushDuration}ms for ${batch.length} items`,
+        );
+      }
+
       this.emit('flushed', batch.length);
+
+      // Periodic checkpoint after successful flush
+      this.checkpointIfNeeded();
     } catch (error) {
       console.error('Failed to flush metrics:', error);
       // Re-queue on failure (optional - could also just log)
@@ -129,14 +198,30 @@ class AsyncMetricsCollector extends EventEmitter {
     console.log('Shutting down metrics collector...');
     this.isShuttingDown = true;
 
+    // Clear the flush interval
     if (this.flushInterval) {
       clearInterval(this.flushInterval);
       this.flushInterval = null;
     }
 
-    this.flush(); // Final flush
+    // Final flush of remaining metrics
+    this.flush();
+
+    // Final checkpoint before closing (TRUNCATE mode: complete checkpoint)
+    try {
+      this.db.pragma('wal_checkpoint(TRUNCATE)');
+    } catch (error) {
+      console.debug('Final WAL checkpoint failed:', error);
+    }
+
+    // Close database
     this.db.close();
+
+    // Remove event emitter listeners
     this.removeAllListeners();
+
+    // NOTE: Don't call process.exit() here - the signal handlers do that.
+    // This allows shutdown() to be called from other contexts without forcing exit.
   }
 
   // Optional: Get queue size for monitoring
