@@ -64,19 +64,6 @@ jobs:
       - name: Run command on target branch
         run: yarn workspace @hyperlane-xyz/core interface base-interface
 
-      # Compare outputs
-      - name: Compare outputs (fail on any changes)
-        run: |
-          DIFF_OUTPUT=$(diff --unified --recursive solidity/base-interface solidity/HEAD-interface || true)
-
-          if [ -z "$DIFF_OUTPUT" ]; then
-            echo "No interface changes detected."
-            exit 0
-          fi
-
-          echo "Detected interface changes:"
-          echo "$DIFF_OUTPUT"
-          echo ""
-          echo "ERROR: Interface changes detected. This job fails if there are any interface changes."
-          echo "If these changes are expected, please review them carefully."
-          exit 1
+      # Compare outputs (only fail on function removals)
+      - name: Compare outputs (fail on function removals)
+        run: yarn workspace @hyperlane-xyz/core interface test-interface base-interface HEAD-interface
