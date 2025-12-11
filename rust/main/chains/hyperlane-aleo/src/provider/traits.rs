@@ -116,15 +116,21 @@ impl<Client: HttpClient> RpcClient<Client> {
         self.request(&format!("program/{program_id}"), None).await
     }
 
-    /// Gets a program by ID and edition
-    pub async fn get_program_by_edition(
+    pub async fn get_latest_edition<N: Network>(
         &self,
-        program_id: &str,
-        edition: u64,
-        metadata: Option<bool>,
-    ) -> ChainResult<String> {
-        let query = metadata.map(|m| serde_json::json!({ "metadata": m }));
-        self.request(&format!("program/{program_id}/{edition}"), query)
+        program_id: &ProgramID<N>,
+    ) -> ChainResult<u16> {
+        self.request(&format!("program/{program_id}/latestEdition"), None)
+            .await
+    }
+
+    /// Gets a program by ID and [edition]
+    pub async fn get_program_by_edition<N: Network>(
+        &self,
+        program_id: &ProgramID<N>,
+        edition: u16,
+    ) -> ChainResult<Program<N>> {
+        self.request(&format!("program/{program_id}/{edition}"), None)
             .await
     }
 
