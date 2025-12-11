@@ -1,0 +1,35 @@
+{
+  "name": "@hyperlane-xyz/named-args-converter",
+  "version": "1.0.0",
+  "description": "Convert Solidity function calls to use named arguments syntax",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./solhint": "./src/solhint-rule.js"
+  },
+  "bin": {
+    "solidity-named-args": "./src/cli.js"
+  },
+  "scripts": {
+    "start": "node src/cli.js",
+    "test": "node src/test.js"
+  },
+  "dependencies": {
+    "@solidity-parser/parser": "^0.19.0",
+    "glob": "^10.3.10",
+    "yargs": "^17.7.2"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "solidity",
+    "named-arguments",
+    "refactor",
+    "linter",
+    "solhint",
+    "code-transformation"
+  ],
+  "license": "Apache-2.0"
+}
