@@ -2,8 +2,7 @@ use std::sync::OnceLock;
 
 use anyhow::{anyhow, bail, Result};
 use snarkvm::prelude::{
-    Access, Address, Boolean, Identifier, Literal, Network, Plaintext, StringType, U128, U32, U64,
-    U8,
+    Access, Address, Boolean, Identifier, Literal, Network, Plaintext, U128, U32, U64, U8,
 };
 
 /// Generic trait every type participating in parsing must implement.
@@ -68,7 +67,6 @@ macro_rules! impl_aleo_literal {
 
 // Wrapper-only impls.
 impl_aleo_literal!(Address, Address);
-impl_aleo_literal!(StringType, String);
 
 // Wrapper + native primitive impls.
 impl_aleo_literal!(U128, U128, u128);

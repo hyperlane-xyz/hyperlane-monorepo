@@ -1,12 +1,11 @@
 use async_trait::async_trait;
-use hyperlane_core::{ChainCommunicationError, ChainResult, H512};
-use snarkvm::prelude::StringType;
 use snarkvm::{ledger::ConfirmedTransaction, prelude::Transaction};
-use std::str::FromStr;
+
+use hyperlane_core::{ChainResult, H512};
 
 use crate::{
     provider::{AleoClient, AleoProvider},
-    CurrentNetwork,
+    CurrentNetwork, Plaintext,
 };
 
 /// Trait defining the interface that Lander's AleoAdapter needs from an Aleo provider.
@@ -45,12 +44,12 @@ pub trait AleoProviderForLander: Send + Sync {
         transaction_id: H512,
     ) -> ChainResult<Transaction<CurrentNetwork>>;
 
-    /// Queries a program mapping value by string key
+    /// Queries a program mapping value
     ///
     /// # Arguments
     /// * `program_id` - The program ID
     /// * `mapping_name` - The name of the mapping
-    /// * `mapping_key` - The string representation of the mapping key
+    /// * `mapping_key` - The plaintext representation of the mapping key
     ///
     /// # Returns
     /// * `Ok(true)` - The value exists in the mapping
@@ -60,7 +59,7 @@ pub trait AleoProviderForLander: Send + Sync {
         &self,
         program_id: &str,
         mapping_name: &str,
-        mapping_key: &str,
+        mapping_key: &Plaintext<CurrentNetwork>,
     ) -> ChainResult<bool>;
 }
 
@@ -97,15 +96,12 @@ impl<C: AleoClient> AleoProviderForLander for AleoProvider<C> {
         &self,
         program_id: &str,
         mapping_name: &str,
-        mapping_key: &str,
+        mapping_key: &Plaintext<CurrentNetwork>,
     ) -> ChainResult<bool> {
         use snarkvm::prelude::Plaintext;
 
-        let key = StringType::from_str(mapping_key)
-            .map_err(|e| ChainCommunicationError::CustomError(e.to_string()))?;
-
         let plain_text: Option<Plaintext<CurrentNetwork>> = self
-            .get_mapping_value(program_id, mapping_name, &key)
+            .get_mapping_value(program_id, mapping_name, mapping_key)
             .await?;
 
         Ok(plain_text.is_some())
