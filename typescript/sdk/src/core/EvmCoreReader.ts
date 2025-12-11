@@ -59,6 +59,9 @@ export class EvmCoreReader implements CoreReader {
     mailbox: Address;
     interchainAccountRouter?: Address;
   }): Promise<DerivedCoreConfig> {
+    // Capture call site stack for error context
+    const callSiteStack = new Error().stack;
+
     const mailboxInstance = Mailbox__factory.connect(mailbox, this.provider);
     const [defaultIsm, defaultHook, requiredHook, mailboxProxyAdmin] =
       await Promise.all([
@@ -81,14 +84,22 @@ export class EvmCoreReader implements CoreReader {
             : undefined,
           proxyAdmin: this.getProxyAdminConfig(mailboxProxyAdmin),
         },
-        async (_, readerCall) => {
+        async (configKey, readerCall) => {
           try {
             return readerCall;
-          } catch (e) {
+          } catch (e: any) {
+            // Add call site to error stack for debugging
+            if (callSiteStack) {
+              e.stack = e.stack + '\n\nCalled from:\n' + callSiteStack;
+            }
+
+            // Log error with call stack context
             this.logger.error(
-              `EvmCoreReader: readerCall failed for ${mailbox}:`,
+              `EvmCoreReader: ${configKey} read failed for mailbox ${mailbox}:`,
               e,
             );
+
+            // Return undefined to continue with other configs
             return;
           }
         },

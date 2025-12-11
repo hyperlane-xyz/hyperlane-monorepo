@@ -75,16 +75,38 @@ export class EvmRouterReader extends HyperlaneReader {
   }
 
   async fetchRemoteRouters(routerAddress: Address): Promise<RemoteRouters> {
-    const router = Router__factory.connect(routerAddress, this.provider);
-    const domains = await router.domains();
+    // Capture call site stack for error context
+    const callSiteStack = new Error().stack;
 
-    const routers = Object.fromEntries(
-      await Promise.all(
-        domains.map(async (domain) => {
-          return [domain, { address: await router.routers(domain) }];
-        }),
-      ),
-    );
-    return RemoteRoutersSchema.parse(routers);
+    try {
+      const router = Router__factory.connect(routerAddress, this.provider);
+      const domains = await router.domains();
+
+      this.logger.debug(
+        `Fetching routers for ${domains.length} domains on contract ${routerAddress}`,
+      );
+
+      const routers = Object.fromEntries(
+        await Promise.all(
+          domains.map(async (domain) => {
+            try {
+              const address = await router.routers(domain);
+              return [domain.toNumber(), { address }];
+            } catch (error: any) {
+              error.message = `Failed to fetch router for domain ${domain}: ${error.message}`;
+              throw error;
+            }
+          }),
+        ),
+      );
+
+      return RemoteRoutersSchema.parse(routers);
+    } catch (error: any) {
+      // Add call site to error stack for debugging
+      if (callSiteStack) {
+        error.stack = error.stack + '\n\nCalled from:\n' + callSiteStack;
+      }
+      throw error;
+    }
   }
 }
