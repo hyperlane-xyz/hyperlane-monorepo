@@ -117,10 +117,10 @@ export async function runSelfRelay({
   const message: DispatchedMessage =
     HyperlaneCore.getDispatchedMessages(txReceipt)[messageIndex];
 
-  const originChain = multiProvider.getChainName(message.parsed.origin);
-  const hookAddress = await core.getSenderHookAddress(message);
-  const merkleAddress = chainAddresses[originChain].merkleTreeHook;
-  stubMerkleTreeConfig(relayer, originChain, hookAddress, merkleAddress);
+  // const originChain = multiProvider.getChainName(message.parsed.origin);
+  // const hookAddress = await core.getSenderHookAddress(message);
+  // const merkleAddress = chainAddresses[originChain].merkleTreeHook;
+  // stubMerkleTreeConfig(relayer, originChain, hookAddress, merkleAddress);
 
   log('Attempting self-relay of message...');
   await relayer.relayMessage(txReceipt, messageIndex, message);

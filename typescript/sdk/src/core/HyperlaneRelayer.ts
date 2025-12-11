@@ -292,7 +292,8 @@ export class HyperlaneRelayer {
     let value: BigNumberish | undefined;
     const igp = deepFind(
       hook,
-      (hook) => hook.type === HookType.INTERCHAIN_GAS_PAYMASTER,
+      (hook): hook is DerivedHookConfig =>
+        hook.type === HookType.INTERCHAIN_GAS_PAYMASTER,
     );
     if (igp) {
       const matchingEvents = dispatchTx.logs

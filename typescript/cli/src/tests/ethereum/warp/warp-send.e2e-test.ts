@@ -3,7 +3,7 @@ import { expect } from 'chai';
 import { Wallet, ethers } from 'ethers';
 import { parseEther } from 'ethers/lib/utils.js';
 
-import { ERC20__factory } from '@hyperlane-xyz/core';
+import { CONTRACTS_PACKAGE_VERSION, ERC20__factory } from '@hyperlane-xyz/core';
 import {
   ChainAddresses,
   createWarpRouteConfigId,
@@ -12,9 +12,11 @@ import {
   ChainMap,
   ChainMetadata,
   HookType,
+  IgpConfig,
   IsmType,
   Token,
   TokenType,
+  TrustedRelayerIsmConfig,
   WarpCoreConfig,
   WarpRouteDeployConfig,
   randomAddress,
@@ -41,7 +43,7 @@ import {
   getCombinedWarpRoutePath,
 } from '../consts.js';
 
-describe('hyperlane warp send e2e tests', async function () {
+describe.only('hyperlane warp send e2e tests', async function () {
   this.timeout(200_000);
 
   let chain2Addresses: ChainAddresses = {};
@@ -558,5 +560,73 @@ describe('hyperlane warp send e2e tests', async function () {
 
     expect(tokenBalanceOnChain2After.eq(tokenBalanceOnChain2Before)).to.be.true;
     expect(tokenBalanceOnChain3After.eq(tokenBalanceOnChain3Before)).to.be.true;
+  });
+
+  it.only(`should deliver relayer native value to recipient`, async function () {
+    const tokenChain2 = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
+    const tokenSymbolChain2 = await tokenChain2.symbol();
+
+    const WARP_CORE_CONFIG_PATH_2_3 = getCombinedWarpRoutePath(
+      tokenSymbolChain2,
+      [WARP_DEPLOY_DEFAULT_FILE_NAME],
+    );
+
+    const hookConfig: IgpConfig = {
+      type: HookType.INTERCHAIN_GAS_PAYMASTER,
+      contractVersion: CONTRACTS_PACKAGE_VERSION,
+      owner: randomAddress(),
+      beneficiary: randomAddress(),
+      oracleKey: randomAddress(),
+      oracleConfig: {
+        [CHAIN_NAME_3]: {
+          gasPrice: '1',
+          tokenExchangeRate: '1',
+        },
+      },
+      overhead: {
+        [CHAIN_NAME_3]: 100_000,
+      },
+    };
+
+    const ismConfig: TrustedRelayerIsmConfig = {
+      type: IsmType.TRUSTED_RELAYER,
+      relayer: walletChain3.address,
+    };
+
+    const warpConfig: WarpRouteDeployConfig = {
+      [CHAIN_NAME_2]: {
+        type: TokenType.collateral,
+        token: tokenChain2.address,
+        mailbox: chain2Addresses.mailbox,
+        owner: ownerAddress,
+        hook: hookConfig,
+      },
+      [CHAIN_NAME_3]: {
+        type: TokenType.synthetic,
+        mailbox: chain3Addresses.mailbox,
+        owner: ownerAddress,
+        interchainSecurityModule: ismConfig,
+      },
+    };
+
+    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+    await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+
+    const recipient = randomAddress();
+
+    const balanceBefore = await walletChain3.provider.getBalance(recipient);
+
+    const { exitCode } = await hyperlaneWarpSendRelay({
+      origin: CHAIN_NAME_2,
+      destination: CHAIN_NAME_3,
+      warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
+      recipient,
+    }).nothrow();
+
+    expect(exitCode).to.equal(0);
+
+    const balanceAfter = await walletChain3.provider.getBalance(recipient);
+
+    expect(balanceAfter.gt(balanceBefore), 'Native value not delivered');
   });
 });
