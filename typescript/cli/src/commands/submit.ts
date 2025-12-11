@@ -7,8 +7,8 @@ import {
 
 import { getTransactions, runSubmit } from '../config/submit.js';
 import { CommandModuleWithWriteContext } from '../context/types.js';
-import { logBlue, logGray } from '../logger.js';
-import { readYamlOrJson } from '../utils/files.js';
+import { logBlue, logGray, logRed } from '../logger.js';
+import { isFile, readYamlOrJson } from '../utils/files.js';
 
 import {
   outputFileCommandOption,
@@ -29,7 +29,11 @@ export const submitCommand: CommandModuleWithWriteContext<{
   builder: {
     transactions: transactionsCommandOption,
     strategy: strategyCommandOption,
-    receipts: outputFileCommandOption('./generated/transactions/receipts.yaml'),
+    receipts: outputFileCommandOption(
+      './generated/transactions/receipts',
+      false,
+      'Output directory for transaction receipts',
+    ),
   },
   handler: async ({
     context,
@@ -39,6 +43,14 @@ export const submitCommand: CommandModuleWithWriteContext<{
   }) => {
     logGray(`Hyperlane Submit`);
     logGray(`----------------`);
+
+    // Defensive check: if receiptsFilepath exists and is a file, fail with clear error
+    if (isFile(receiptsFilepath)) {
+      logRed(
+        `❌ Error: receipts path '${receiptsFilepath}' exists but is a file. Expected a directory.`,
+      );
+      process.exit(1);
+    }
 
     const chainTransactions = groupBy(
       getTransactions(transactionsPath),
