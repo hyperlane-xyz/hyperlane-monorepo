@@ -7,6 +7,7 @@ import {
   cairo,
   num,
   shortString,
+  uint256,
 } from 'starknet';
 
 import {
@@ -17,6 +18,7 @@ import {
   addressToBytes32,
   assert,
   ensure0x,
+  isNullish,
 } from '@hyperlane-xyz/utils';
 
 import { BaseStarknetAdapter } from '../../app/MultiProtocolApp.js';
@@ -56,6 +58,9 @@ export class StarknetTokenAdapter
     super(chainName, multiProvider, addresses);
   }
 
+  // This function returns the Contract instance for the given token
+  // If the contract is a Proxy: retrieves the implementation contract ABI and returns that Contract
+  // If the contract is not a Proxy: returns the contract with the token address ABI
   async getContractInstance(): Promise<Contract> {
     if (this.tokenContract) {
       return this.tokenContract;
@@ -69,14 +74,30 @@ export class StarknetTokenAdapter
       provider,
     );
 
+    if (contractInstance.get_implementation) {
+      const { implementation } = await contractInstance.get_implementation();
+      const contractClass = await provider.getClassByHash(implementation);
+      const implementationContract = new Contract(
+        contractClass.abi,
+        this.addresses.tokenAddress,
+        provider,
+      );
+      return (this.tokenContract = implementationContract);
+    }
+
     this.tokenContract = contractInstance;
     return contractInstance;
   }
 
   async getBalance(address: Address): Promise<bigint> {
     const contract = await this.getContractInstance();
+    if (contract.balance_of) return contract.balance_of(address);
 
-    return contract.balance_of(address);
+    const response = await contract.balanceOf(address);
+    if (!isNullish(response.balance?.low)) {
+      return uint256.uint256ToBN(response.balance);
+    }
+    return response;
   }
 
   async getMetadata(_isNft?: boolean): Promise<TokenMetadata> {
@@ -167,7 +188,9 @@ class BaseStarknetHypTokenAdapter
   }
 
   async getBalance(address: Address): Promise<bigint> {
-    return this.contract.balance_of(address);
+    if (this.contract.balance_of) return this.contract.balance_of(address);
+
+    return this.contract.balanceOf(address);
   }
 
   async getMetadata(_isNft?: boolean): Promise<TokenMetadata> {
@@ -319,9 +342,9 @@ export class StarknetHypCollateralAdapter extends StarknetHypSyntheticAdapter {
     return this.wrappedTokenAddress!;
   }
 
-  protected async getWrappedTokenAdapter(): Promise<StarknetHypSyntheticAdapter> {
-    return new StarknetHypSyntheticAdapter(this.chainName, this.multiProvider, {
-      warpRouter: await this.getWrappedTokenAddress(),
+  protected async getWrappedTokenAdapter(): Promise<StarknetTokenAdapter> {
+    return new StarknetTokenAdapter(this.chainName, this.multiProvider, {
+      tokenAddress: await this.getWrappedTokenAddress(),
     });
   }
 

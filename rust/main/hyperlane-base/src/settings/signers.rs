@@ -250,6 +250,7 @@ impl ChainSigner for hyperlane_radix::RadixSigner {
     }
 }
 
+#[cfg(feature = "aleo")]
 #[async_trait]
 impl BuildableWithSignerConf for hyperlane_aleo::AleoSigner {
     async fn build(conf: &SignerConf) -> Result<Self, Report> {
@@ -261,6 +262,7 @@ impl BuildableWithSignerConf for hyperlane_aleo::AleoSigner {
     }
 }
 
+#[cfg(feature = "aleo")]
 impl ChainSigner for hyperlane_aleo::AleoSigner {
     fn address_string(&self) -> String {
         self.address().to_owned()

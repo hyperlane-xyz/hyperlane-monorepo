@@ -7917,6 +7917,18 @@
       "address": "0x71DCcD21B912F7d4f636af0C9eA5DC0C10617354",
       "constructorArguments": "",
       "isProxy": true
+    },
+    {
+      "name": "StaticAggregationHookFactory",
+      "address": "0x551BbEc45FD665a8C95ca8731CbC32b7653Bc59B",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "StaticAggregationHook",
+      "address": "0x40fdBAf6d10CC8Dd425bB7DD7dad420a43F87F3E",
+      "constructorArguments": "",
+      "isProxy": true
     }
   ],
   "hyperevm": [

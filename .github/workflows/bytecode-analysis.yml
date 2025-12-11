@@ -2,8 +2,6 @@ name: Check Bytecode Changes
 
 on:
   pull_request:
-    branches:
-      - '*'
     paths:
       - 'solidity/**'
       - '.github/workflows/bytecode-analysis.yml'
@@ -17,7 +15,8 @@ on:
 jobs:
   diff-check:
     runs-on: ubuntu-latest
-
+    # Skip on changeset version PRs, as bytecode is expected to change with package version bumps
+    if: github.head_ref != 'changeset-release/main'
     steps:
       # Checkout the PR branch
       - name: Checkout PR branch

@@ -44,7 +44,7 @@ jobs:
           rustup component add llvm-tools-preview
 
       - name: Generate coverage for lander package
-        run: cargo llvm-cov --package lander --json --output-path coverage.json
+        run: cargo llvm-cov --package lander --features aleo,integration_test --json --output-path coverage.json
         working-directory: ./rust/main
 
       - name: Check coverage threshold
@@ -83,7 +83,7 @@ jobs:
       - name: Run sccache-cache
         uses: mozilla-actions/sccache-action@v0.0.9
       - name: Run tests for main workspace
-        run: cargo test
+        run: cargo test --all-targets --features aleo,integration_test
         working-directory: ./rust/main
       - name: Run tests for sealevel workspace
         run: cargo test
@@ -142,7 +142,7 @@ jobs:
         run: cargo fmt --all --check
         working-directory: ./rust/sealevel
       - name: Clippy for main workspace
-        run: cargo clippy -- -D warnings
+        run: cargo clippy --features aleo,integration_test -- -D warnings
         working-directory: ./rust/main
       - name: Clippy for sealevel workspace
         run: cargo clippy -- -D warnings
