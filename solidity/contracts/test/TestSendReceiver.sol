@@ -24,11 +24,11 @@ contract TestSendReceiver is IMessageRecipient {
         bytes calldata _messageBody
     ) external payable {
         // TODO: handle topping up?
-        _mailbox.dispatch{value: msg.value}(
-            _destinationDomain,
-            address(this).addressToBytes32(),
-            _messageBody
-        );
+        _mailbox.dispatch{value: msg.value}({
+            destinationDomain: _destinationDomain,
+            recipientAddress: address(this).addressToBytes32(),
+            messageBody: _messageBody
+        });
     }
 
     function dispatchToSelf(
@@ -38,13 +38,13 @@ contract TestSendReceiver is IMessageRecipient {
         IPostDispatchHook hook
     ) external payable {
         // TODO: handle topping up?
-        _mailbox.dispatch{value: msg.value}(
-            _destinationDomain,
-            address(this).addressToBytes32(),
-            _messageBody,
-            bytes(""),
-            hook
-        );
+        _mailbox.dispatch{value: msg.value}({
+            destinationDomain: _destinationDomain,
+            recipientAddress: address(this).addressToBytes32(),
+            body: _messageBody,
+            customHookMetadata: bytes(""),
+            customHook: hook
+        });
     }
 
     function handle(

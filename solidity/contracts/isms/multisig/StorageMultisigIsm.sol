@@ -104,11 +104,11 @@ abstract contract StorageMultisigIsmFactory is
     ) external returns (address ism) {
         ism = MinimalProxy.create(implementation());
         emit ModuleDeployed(ism);
-        AbstractStorageMultisigIsm(ism).initialize(
-            msg.sender,
-            _validators,
-            _threshold
-        );
+        AbstractStorageMultisigIsm(ism).initialize({
+            _owner: msg.sender,
+            _validators: _validators,
+            _threshold: _threshold
+        });
     }
 
     function implementation() public view virtual returns (address);

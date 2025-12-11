@@ -60,12 +60,12 @@ abstract contract GasRouter is Router {
         uint32 _destinationDomain
     ) public view virtual returns (uint256) {
         return
-            _Router_quoteDispatch(
-                _destinationDomain,
-                "",
-                _GasRouter_hookMetadata(_destinationDomain),
-                address(hook)
-            );
+            _Router_quoteDispatch({
+                _destinationDomain: _destinationDomain,
+                _messageBody: "",
+                _hookMetadata: _GasRouter_hookMetadata(_destinationDomain),
+                _hook: address(hook)
+            });
     }
 
     function _GasRouter_hookMetadata(

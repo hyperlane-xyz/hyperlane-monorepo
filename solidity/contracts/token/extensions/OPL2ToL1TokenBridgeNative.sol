@@ -45,7 +45,11 @@ contract OpL2NativeTokenBridge is TokenRouter {
 
     function initialize(address _hook, address _owner) public initializer {
         // ISM should not be set (contract does not receive messages currently)
-        _MailboxClient_initialize(_hook, address(0), _owner);
+        _MailboxClient_initialize({
+            _hook: _hook,
+            __interchainSecurityModule: address(0),
+            _owner: _owner
+        });
     }
 
     /**
@@ -69,22 +73,22 @@ contract OpL2NativeTokenBridge is TokenRouter {
         // 2. Prepare the "dispatch" of messages by actually dispatching the Hyperlane messages
 
         // Dispatch proof message (no token amount)
-        bytes32 proveMessageId = _Router_dispatch(
-            _destination,
-            msg.value - _amount,
-            TokenMessage.format(_recipient, 0),
-            _proveHookMetadata(),
-            address(hook)
-        );
+        bytes32 proveMessageId = _Router_dispatch({
+            _destinationDomain: _destination,
+            _value: msg.value - _amount,
+            _messageBody: TokenMessage.format(_recipient, 0),
+            _hookMetadata: _proveHookMetadata(),
+            _hook: address(hook)
+        });
 
         // Dispatch withdrawal message (token + fee)
-        bytes32 withdrawMessageId = _Router_dispatch(
-            _destination,
-            address(this).balance - _amount,
-            TokenMessage.format(_recipient, _amount),
-            _finalizeHookMetadata(),
-            address(hook)
-        );
+        bytes32 withdrawMessageId = _Router_dispatch({
+            _destinationDomain: _destination,
+            _value: address(this).balance - _amount,
+            _messageBody: TokenMessage.format(_recipient, _amount),
+            _hookMetadata: _finalizeHookMetadata(),
+            _hook: address(hook)
+        });
 
         // include for legible error message
         require(
@@ -93,7 +97,11 @@ contract OpL2NativeTokenBridge is TokenRouter {
         );
 
         // 3. Emit event manually
-        emit SentTransferRemote(_destination, _recipient, _amount);
+        emit SentTransferRemote({
+            destination: _destination,
+            recipient: _recipient,
+            amountOrId: _amount
+        });
 
         // used for mapping withdrawal to hyperlane prove and finalize messages
         bytes memory extraData = OPL2ToL1Withdrawal.encodeData(
@@ -102,11 +110,11 @@ contract OpL2NativeTokenBridge is TokenRouter {
         );
 
         // 4. "Dispatch" the message by calling the L2 bridge to transfer native tokens
-        l2Bridge.bridgeETHTo{value: _amount}(
-            _recipient.bytes32ToAddress(),
-            OP_MIN_GAS_LIMIT_ON_L1,
-            extraData
-        );
+        l2Bridge.bridgeETHTo{value: _amount}({
+            _to: _recipient.bytes32ToAddress(),
+            _minGasLimit: OP_MIN_GAS_LIMIT_ON_L1,
+            _extraData: extraData
+        });
 
         if (address(this).balance > 0) {
             payable(msg.sender).sendValue(address(this).balance);
@@ -160,18 +168,18 @@ contract OpL2NativeTokenBridge is TokenRouter {
         uint256 _amount
     ) internal view override returns (uint256) {
         bytes memory message = TokenMessage.format(_recipient, _amount);
-        uint256 proveQuote = _Router_quoteDispatch(
-            _destination,
-            message,
-            _proveHookMetadata(),
-            address(hook)
-        );
-        uint256 finalizeQuote = _Router_quoteDispatch(
-            _destination,
-            message,
-            _finalizeHookMetadata(),
-            address(hook)
-        );
+        uint256 proveQuote = _Router_quoteDispatch({
+            _destinationDomain: _destination,
+            _messageBody: message,
+            _hookMetadata: _proveHookMetadata(),
+            _hook: address(hook)
+        });
+        uint256 finalizeQuote = _Router_quoteDispatch({
+            _destinationDomain: _destination,
+            _messageBody: message,
+            _hookMetadata: _finalizeHookMetadata(),
+            _hook: address(hook)
+        });
         return proveQuote + finalizeQuote;
     }
 
@@ -215,7 +223,11 @@ abstract contract OpL1NativeTokenBridge is
         setUrls(_urls);
         // ISM should not be set (this contract uses itself as ISM)
         // hook should not be set (this contract does not send messages)
-        _MailboxClient_initialize(address(0), address(0), _owner);
+        _MailboxClient_initialize({
+            _hook: address(0),
+            __interchainSecurityModule: address(0),
+            _owner: _owner
+        });
     }
 
     function transferRemote(

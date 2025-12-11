@@ -30,7 +30,11 @@ contract MockCircleTokenMessenger is
         _nonce = nextNonce;
         nextNonce += 1;
         require(address(token) == _burnToken);
-        token.transferFrom(msg.sender, address(this), _amount);
+        token.transferFrom({
+            from: msg.sender,
+            to: address(this),
+            amount: _amount
+        });
         token.burn(_amount);
     }
 

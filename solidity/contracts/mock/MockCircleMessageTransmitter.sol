@@ -81,20 +81,20 @@ contract MockCircleMessageTransmitter is
 
         if (version == 0) {
             // V1: Call handleReceiveMessage
-            success = IMessageHandler(recipient).handleReceiveMessage(
-                sourceDomain,
-                sender,
-                messageBody
-            );
+            success = IMessageHandler(recipient).handleReceiveMessage({
+                sourceDomain: sourceDomain,
+                sender: sender,
+                messageBody: messageBody
+            });
         } else {
             // V2: Call handleReceiveUnfinalizedMessage
             success = IMessageHandlerV2(recipient)
-                .handleReceiveUnfinalizedMessage(
-                    sourceDomain,
-                    sender,
-                    1000, // mock finality threshold
-                    messageBody
-                );
+                .handleReceiveUnfinalizedMessage({
+                    sourceDomain: sourceDomain,
+                    sender: sender,
+                    finalityThresholdExecuted: 1000,
+                    messageBody: messageBody
+                });
         }
     }
 
@@ -143,27 +143,27 @@ contract MockCircleMessageTransmitter is
         // Format a complete CCTP message for the event based on version
         bytes memory cctpMessage;
         if (version == 0) {
-            cctpMessage = CctpMessageV1._formatMessage(
-                version,
-                0, // sourceDomain (mock localDomain returns 0)
-                destinationDomain,
-                0, // nonce
-                address(this).addressToBytes32(),
-                recipient,
-                bytes32(0), // destinationCaller (anyone can relay)
-                messageBody
-            );
+            cctpMessage = CctpMessageV1._formatMessage({
+                _msgVersion: version,
+                _msgSourceDomain: 0,
+                _msgDestinationDomain: destinationDomain,
+                _msgNonce: 0,
+                _msgSender: address(this).addressToBytes32(),
+                _msgRecipient: recipient,
+                _msgDestinationCaller: bytes32(0),
+                _msgRawBody: messageBody
+            });
         } else {
-            cctpMessage = CctpMessageV2._formatMessageForRelay(
-                version,
-                0, // sourceDomain (mock localDomain returns 0)
-                destinationDomain,
-                address(this).addressToBytes32(),
-                recipient,
-                bytes32(0), // destinationCaller (anyone can relay)
-                1000, // mock finality threshold
-                messageBody
-            );
+            cctpMessage = CctpMessageV2._formatMessageForRelay({
+                _version: version,
+                _sourceDomain: 0,
+                _destinationDomain: destinationDomain,
+                _sender: address(this).addressToBytes32(),
+                _recipient: recipient,
+                _destinationCaller: bytes32(0),
+                _minFinalityThreshold: 1000,
+                _messageBody: messageBody
+            });
         }
         emit MessageSent(cctpMessage);
         return 0;
@@ -175,7 +175,12 @@ contract MockCircleMessageTransmitter is
         bytes32,
         bytes calldata message
     ) external returns (uint64) {
-        return sendMessage(0, 0, message);
+        return
+            sendMessage({
+                destinationDomain: 0,
+                recipient: 0,
+                messageBody: message
+            });
     }
 
     function sendMessage(
@@ -186,16 +191,16 @@ contract MockCircleMessageTransmitter is
         bytes calldata messageBody
     ) external {
         // V2 sendMessage: format a complete CCTP V2 message
-        bytes memory cctpMessage = CctpMessageV2._formatMessageForRelay(
-            version,
-            0, // sourceDomain (mock localDomain returns 0)
-            destinationDomain,
-            address(this).addressToBytes32(),
-            recipient,
-            destinationCaller,
-            minFinalityThreshold,
-            messageBody
-        );
+        bytes memory cctpMessage = CctpMessageV2._formatMessageForRelay({
+            _version: version,
+            _sourceDomain: 0,
+            _destinationDomain: destinationDomain,
+            _sender: address(this).addressToBytes32(),
+            _recipient: recipient,
+            _destinationCaller: destinationCaller,
+            _minFinalityThreshold: minFinalityThreshold,
+            _messageBody: messageBody
+        });
         emit MessageSent(cctpMessage);
     }
 }

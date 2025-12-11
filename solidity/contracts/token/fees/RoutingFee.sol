@@ -43,11 +43,11 @@ contract RoutingFee is BaseFee {
         address feeContract = feeContracts[_destination];
         if (feeContract != address(0)) {
             return
-                ITokenFee(feeContract).quoteTransferRemote(
-                    _destination,
-                    _recipient,
-                    _amount
-                );
+                ITokenFee(feeContract).quoteTransferRemote({
+                    _destination: _destination,
+                    _recipient: _recipient,
+                    _amount: _amount
+                });
         }
         quotes = new Quote[](0);
     }

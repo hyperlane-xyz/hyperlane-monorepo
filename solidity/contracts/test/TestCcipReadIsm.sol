@@ -48,6 +48,11 @@ contract TestCcipReadIsm is AbstractCcipReadIsm, IMessageRecipient {
         bytes32 _sender,
         bytes calldata _messageBody
     ) external payable {
-        emit ReceivedMessage(_origin, _sender, msg.value, _messageBody);
+        emit ReceivedMessage({
+            origin: _origin,
+            sender: _sender,
+            value: msg.value,
+            message: _messageBody
+        });
     }
 }

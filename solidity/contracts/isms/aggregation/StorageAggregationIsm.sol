@@ -83,6 +83,10 @@ contract StorageAggregationIsmFactory is
     ) external returns (address ism) {
         ism = MinimalProxy.create(implementation);
         emit ModuleDeployed(ism);
-        StorageAggregationIsm(ism).initialize(msg.sender, _modules, _threshold);
+        StorageAggregationIsm(ism).initialize({
+            _owner: msg.sender,
+            _modules: _modules,
+            _threshold: _threshold
+        });
     }
 }

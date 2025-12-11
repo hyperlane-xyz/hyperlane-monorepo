@@ -19,7 +19,12 @@ contract TestMerkle {
         bytes32[32] calldata _proof,
         uint256 _index
     ) external pure returns (bytes32 _node) {
-        return MerkleLib.branchRoot(_leaf, _proof, _index);
+        return
+            MerkleLib.branchRoot({
+                _item: _leaf,
+                _branch: _proof,
+                _index: _index
+            });
     }
 
     /**

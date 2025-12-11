@@ -168,7 +168,13 @@ library StandardHookMetadata {
     function overrideMsgValue(
         uint256 _msgValue
     ) internal view returns (bytes memory) {
-        return formatMetadata(_msgValue, uint256(0), msg.sender, "");
+        return
+            formatMetadata({
+                _msgValue: _msgValue,
+                _gasLimit: uint256(0),
+                _refundAddress: msg.sender,
+                _customMetadata: ""
+            });
     }
 
     /**
@@ -179,7 +185,13 @@ library StandardHookMetadata {
     function overrideGasLimit(
         uint256 _gasLimit
     ) internal view returns (bytes memory) {
-        return formatMetadata(uint256(0), _gasLimit, msg.sender, "");
+        return
+            formatMetadata({
+                _msgValue: uint256(0),
+                _gasLimit: _gasLimit,
+                _refundAddress: msg.sender,
+                _customMetadata: ""
+            });
     }
 
     /**
@@ -190,7 +202,13 @@ library StandardHookMetadata {
     function overrideRefundAddress(
         address _refundAddress
     ) internal pure returns (bytes memory) {
-        return formatMetadata(uint256(0), uint256(0), _refundAddress, "");
+        return
+            formatMetadata({
+                _msgValue: uint256(0),
+                _gasLimit: uint256(0),
+                _refundAddress: _refundAddress,
+                _customMetadata: ""
+            });
     }
 
     function getRefundAddress(

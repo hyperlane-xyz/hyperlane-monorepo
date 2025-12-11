@@ -106,7 +106,11 @@ contract ProtocolFee is AbstractPostDispatchHook, Ownable {
 
         emit ProtocolFeePaid(message.senderAddress(), protocolFee);
 
-        _refund(metadata, message, msg.value - protocolFee);
+        _refund({
+            metadata: metadata,
+            message: message,
+            amount: msg.value - protocolFee
+        });
     }
 
     /// @inheritdoc AbstractPostDispatchHook

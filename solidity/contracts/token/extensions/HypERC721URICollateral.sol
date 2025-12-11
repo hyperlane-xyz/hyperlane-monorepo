@@ -27,31 +27,31 @@ contract HypERC721URICollateral is HypERC721Collateral {
         bytes32 _recipient,
         uint256 _tokenId
     ) public payable override returns (bytes32 messageId) {
-        (, uint256 remainingNativeValue) = _calculateFeesAndCharge(
-            _destination,
-            _recipient,
-            _tokenId,
-            msg.value
-        );
+        (, uint256 remainingNativeValue) = _calculateFeesAndCharge({
+            _destination: _destination,
+            _recipient: _recipient,
+            _amount: _tokenId,
+            _msgValue: msg.value
+        });
 
         string memory _tokenURI = IERC721MetadataUpgradeable(
             address(wrappedToken)
         ).tokenURI(_tokenId);
 
-        bytes memory _tokenMessage = TokenMessage.format(
-            _recipient,
-            _tokenId,
-            bytes(_tokenURI)
-        );
+        bytes memory _tokenMessage = TokenMessage.format({
+            _recipient: _recipient,
+            _amount: _tokenId,
+            _metadata: bytes(_tokenURI)
+        });
 
         // 3. Emit the SentTransferRemote event and 4. dispatch the message
         return
-            _emitAndDispatch(
-                _destination,
-                _recipient,
-                _tokenId,
-                remainingNativeValue,
-                _tokenMessage
-            );
+            _emitAndDispatch({
+                _destination: _destination,
+                _recipient: _recipient,
+                _amount: _tokenId,
+                _messageDispatchValue: remainingNativeValue,
+                _tokenMessage: _tokenMessage
+            });
     }
 }

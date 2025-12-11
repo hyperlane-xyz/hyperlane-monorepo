@@ -95,7 +95,11 @@ contract AttributeCheckpointFraud is Ownable, PackageVersioned {
             "merkle tree is whitelisted"
         );
 
-        _attribute(signature, checkpoint, FraudType.Whitelist);
+        _attribute({
+            signature: signature,
+            checkpoint: checkpoint,
+            fraudType: FraudType.Whitelist
+        });
     }
 
     function attributePremature(
@@ -107,7 +111,11 @@ contract AttributeCheckpointFraud is Ownable, PackageVersioned {
             "checkpoint must be premature"
         );
 
-        _attribute(signature, checkpoint, FraudType.Premature);
+        _attribute({
+            signature: signature,
+            checkpoint: checkpoint,
+            fraudType: FraudType.Premature
+        });
     }
 
     function attributeMessageId(
@@ -117,15 +125,19 @@ contract AttributeCheckpointFraud is Ownable, PackageVersioned {
         bytes calldata signature
     ) external {
         require(
-            checkpointFraudProofs.isFraudulentMessageId(
-                checkpoint,
-                proof,
-                actualMessageId
-            ),
+            checkpointFraudProofs.isFraudulentMessageId({
+                checkpoint: checkpoint,
+                proof: proof,
+                actualMessageId: actualMessageId
+            }),
             "checkpoint must have fraudulent message ID"
         );
 
-        _attribute(signature, checkpoint, FraudType.MessageId);
+        _attribute({
+            signature: signature,
+            checkpoint: checkpoint,
+            fraudType: FraudType.MessageId
+        });
     }
 
     function attributeRoot(
@@ -138,6 +150,10 @@ contract AttributeCheckpointFraud is Ownable, PackageVersioned {
             "checkpoint must have fraudulent root"
         );
 
-        _attribute(signature, checkpoint, FraudType.Root);
+        _attribute({
+            signature: signature,
+            checkpoint: checkpoint,
+            fraudType: FraudType.Root
+        });
     }
 }

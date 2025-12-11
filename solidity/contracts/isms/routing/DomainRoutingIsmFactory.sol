@@ -31,7 +31,11 @@ abstract contract AbstractDomainRoutingIsmFactory is PackageVersioned {
             MinimalProxy.create(implementation())
         );
         emit ModuleDeployed(_ism);
-        _ism.initialize(_owner, _domains, _modules);
+        _ism.initialize({
+            _owner: _owner,
+            _domains: _domains,
+            __modules: _modules
+        });
         return _ism;
     }
 

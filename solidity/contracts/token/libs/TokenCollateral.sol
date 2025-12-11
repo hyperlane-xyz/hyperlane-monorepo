@@ -67,7 +67,11 @@ library ERC20Collateral {
 library ERC721Collateral {
     function _transferFromSender(IERC721 token, uint256 _tokenId) internal {
         // safeTransferFrom not used here because recipient is this contract
-        token.transferFrom(msg.sender, address(this), _tokenId);
+        token.transferFrom({
+            from: msg.sender,
+            to: address(this),
+            tokenId: _tokenId
+        });
     }
 
     function _transferTo(
@@ -75,6 +79,10 @@ library ERC721Collateral {
         address _recipient,
         uint256 _tokenId
     ) internal {
-        token.safeTransferFrom(address(this), _recipient, _tokenId);
+        token.safeTransferFrom({
+            from: address(this),
+            to: _recipient,
+            tokenId: _tokenId
+        });
     }
 }

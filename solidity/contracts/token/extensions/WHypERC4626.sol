@@ -45,7 +45,11 @@ contract WHypERC4626 is ERC20, PackageVersioned {
         );
         uint256 wrappedAmount = underlying.assetsToShares(_underlyingAmount);
         _mint(msg.sender, wrappedAmount);
-        underlying.transferFrom(msg.sender, address(this), _underlyingAmount);
+        underlying.transferFrom({
+            from: msg.sender,
+            to: address(this),
+            amount: _underlyingAmount
+        });
         return wrappedAmount;
     }
 

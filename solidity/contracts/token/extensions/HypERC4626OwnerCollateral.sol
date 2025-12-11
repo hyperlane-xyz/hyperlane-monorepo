@@ -59,7 +59,11 @@ contract HypERC4626OwnerCollateral is HypERC4626Collateral {
         uint256 _amount
     ) internal override {
         assetDeposited -= _amount;
-        vault.withdraw(_amount, _recipient, address(this));
+        vault.withdraw({
+            assets: _amount,
+            receiver: _recipient,
+            owner: address(this)
+        });
     }
 
     /**
@@ -70,11 +74,11 @@ contract HypERC4626OwnerCollateral is HypERC4626Collateral {
         // the owner cannot withdraw user collateral
         uint256 excessShares = vault.maxRedeem(address(this)) -
             vault.previewWithdraw(assetDeposited);
-        uint256 assetsRedeemed = vault.redeem(
-            excessShares,
-            owner(),
-            address(this)
-        );
+        uint256 assetsRedeemed = vault.redeem({
+            shares: excessShares,
+            receiver: owner(),
+            owner: address(this)
+        });
         emit ExcessSharesSwept(excessShares, assetsRedeemed);
     }
 }

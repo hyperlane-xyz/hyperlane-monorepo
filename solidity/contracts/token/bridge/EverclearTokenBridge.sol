@@ -126,7 +126,11 @@ abstract contract EverclearBridge is TokenRouter {
      * @param _owner The address that will own this contract
      */
     function initialize(address _hook, address _owner) public initializer {
-        _MailboxClient_initialize(_hook, address(0), _owner);
+        _MailboxClient_initialize({
+            _hook: _hook,
+            __interchainSecurityModule: address(0),
+            _owner: _owner
+        });
         wrappedToken.approve(address(everclearAdapter), type(uint256).max);
     }
 
@@ -163,7 +167,11 @@ abstract contract EverclearBridge is TokenRouter {
             deadline: _deadline,
             sig: _sig
         });
-        emit FeeParamsUpdated(_destination, _fee, _deadline);
+        emit FeeParamsUpdated({
+            destination: _destination,
+            fee: _fee,
+            deadline: _deadline
+        });
     }
 
     /**
@@ -228,37 +236,37 @@ abstract contract EverclearBridge is TokenRouter {
         uint256 _amount
     ) public payable override returns (bytes32 messageId) {
         // 1. Calculate the fee amounts, charge the sender and distribute to feeRecipient if necessary
-        (, uint256 remainingNativeValue) = _calculateFeesAndCharge(
-            _destination,
-            _recipient,
-            _amount,
-            msg.value
-        );
+        (, uint256 remainingNativeValue) = _calculateFeesAndCharge({
+            _destination: _destination,
+            _recipient: _recipient,
+            _amount: _amount,
+            _msgValue: msg.value
+        });
 
         // 2. Prepare the token message with the recipient, amount, and any additional metadata in overrides
-        IEverclear.Intent memory intent = _createIntent(
-            _destination,
-            _recipient,
-            _amount
-        );
+        IEverclear.Intent memory intent = _createIntent({
+            _destination: _destination,
+            _recipient: _recipient,
+            _amount: _amount
+        });
 
         uint256 scaledAmount = _outboundAmount(_amount);
 
-        bytes memory _tokenMessage = TokenMessage.format(
-            _recipient,
-            scaledAmount,
-            abi.encode(intent)
-        );
+        bytes memory _tokenMessage = TokenMessage.format({
+            _recipient: _recipient,
+            _amount: scaledAmount,
+            _metadata: abi.encode(intent)
+        });
 
         // 3. Emit the SentTransferRemote event and 4. dispatch the message
         return
-            _emitAndDispatch(
-                _destination,
-                _recipient,
-                scaledAmount,
-                remainingNativeValue,
-                _tokenMessage
-            );
+            _emitAndDispatch({
+                _destination: _destination,
+                _recipient: _recipient,
+                _amount: scaledAmount,
+                _messageDispatchValue: remainingNativeValue,
+                _tokenMessage: _tokenMessage
+            });
     }
 
     /**

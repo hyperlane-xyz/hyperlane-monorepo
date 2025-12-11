@@ -46,7 +46,11 @@ contract ECDSAStakeRegistry is
         uint256 _thresholdWeight,
         Quorum memory _quorum
     ) external initializer {
-        __ECDSAStakeRegistry_init(_serviceManager, _thresholdWeight, _quorum);
+        __ECDSAStakeRegistry_init({
+            _serviceManagerAddr: _serviceManager,
+            _thresholdWeight: _thresholdWeight,
+            _quorum: _quorum
+        });
     }
 
     /// @notice Registers a new operator using a provided signature and signing key
@@ -56,7 +60,11 @@ contract ECDSAStakeRegistry is
         ISignatureUtils.SignatureWithSaltAndExpiry memory _operatorSignature,
         address _signingKey
     ) external {
-        _registerOperatorWithSig(msg.sender, _operatorSignature, _signingKey);
+        _registerOperatorWithSig({
+            _operator: msg.sender,
+            _operatorSignature: _operatorSignature,
+            _signingKey: _signingKey
+        });
     }
 
     /// @notice Deregisters an existing operator
@@ -136,7 +144,12 @@ contract ECDSAStakeRegistry is
             bytes[] memory signatures,
             uint32 referenceBlock
         ) = abi.decode(_signatureData, (address[], bytes[], uint32));
-        _checkSignatures(_dataHash, operators, signatures, referenceBlock);
+        _checkSignatures({
+            _dataHash: _dataHash,
+            _operators: operators,
+            _signatures: signatures,
+            _referenceBlock: referenceBlock
+        });
         return IERC1271Upgradeable.isValidSignature.selector;
     }
 
@@ -397,12 +410,12 @@ contract ECDSAStakeRegistry is
             return;
         }
         _operatorSigningKeyHistory[_operator].push(uint160(_newSigningKey));
-        emit SigningKeyUpdate(
-            _operator,
-            block.number,
-            _newSigningKey,
-            oldSigningKey
-        );
+        emit SigningKeyUpdate({
+            operator: _operator,
+            updateBlock: block.number,
+            newSigningKey: _newSigningKey,
+            oldSigningKey: oldSigningKey
+        });
     }
 
     /// @notice Updates the weight of an operator and returns the previous and current weights.
@@ -427,7 +440,11 @@ contract ECDSAStakeRegistry is
             }
             _operatorWeightHistory[_operator].push(newWeight);
         }
-        emit OperatorWeightUpdated(_operator, oldWeight, newWeight);
+        emit OperatorWeightUpdated({
+            _operator: _operator,
+            oldWeight: oldWeight,
+            newWeight: newWeight
+        });
         return delta;
     }
 
@@ -497,7 +514,11 @@ contract ECDSAStakeRegistry is
             signer = _getOperatorSigningKey(currentOperator, _referenceBlock);
 
             _validateSortedSigners(lastOperator, currentOperator);
-            _validateSignature(signer, _dataHash, _signatures[i]);
+            _validateSignature({
+                _signer: signer,
+                _dataHash: _dataHash,
+                _signature: _signatures[i]
+            });
 
             lastOperator = currentOperator;
             uint256 operatorWeight = _getOperatorWeight(

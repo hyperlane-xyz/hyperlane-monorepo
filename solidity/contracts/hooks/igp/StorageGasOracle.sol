@@ -98,10 +98,10 @@ contract StorageGasOracle is IGasOracle, Ownable, PackageVersioned {
             gasPrice: _config.gasPrice
         });
 
-        emit RemoteGasDataSet(
-            _config.remoteDomain,
-            _config.tokenExchangeRate,
-            _config.gasPrice
-        );
+        emit RemoteGasDataSet({
+            remoteDomain: _config.remoteDomain,
+            tokenExchangeRate: _config.tokenExchangeRate,
+            gasPrice: _config.gasPrice
+        });
     }
 }

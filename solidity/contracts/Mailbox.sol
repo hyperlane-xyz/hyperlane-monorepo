@@ -113,13 +113,13 @@ contract Mailbox is
         bytes calldata _messageBody
     ) external payable override returns (bytes32) {
         return
-            dispatch(
-                _destinationDomain,
-                _recipientAddress,
-                _messageBody,
-                _messageBody[0:0],
-                defaultHook
-            );
+            dispatch({
+                destinationDomain: _destinationDomain,
+                recipientAddress: _recipientAddress,
+                messageBody: _messageBody,
+                metadata: _messageBody[0:0],
+                hook: defaultHook
+            });
     }
 
     /**
@@ -137,13 +137,13 @@ contract Mailbox is
         bytes calldata hookMetadata
     ) external payable override returns (bytes32) {
         return
-            dispatch(
-                destinationDomain,
-                recipientAddress,
-                messageBody,
-                hookMetadata,
-                defaultHook
-            );
+            dispatch({
+                destinationDomain: destinationDomain,
+                recipientAddress: recipientAddress,
+                messageBody: messageBody,
+                metadata: hookMetadata,
+                hook: defaultHook
+            });
     }
 
     /**
@@ -160,13 +160,13 @@ contract Mailbox is
         bytes calldata messageBody
     ) external view returns (uint256 fee) {
         return
-            quoteDispatch(
-                destinationDomain,
-                recipientAddress,
-                messageBody,
-                messageBody[0:0],
-                defaultHook
-            );
+            quoteDispatch({
+                destinationDomain: destinationDomain,
+                recipientAddress: recipientAddress,
+                messageBody: messageBody,
+                metadata: messageBody[0:0],
+                hook: defaultHook
+            });
     }
 
     /**
@@ -184,13 +184,13 @@ contract Mailbox is
         bytes calldata defaultHookMetadata
     ) external view returns (uint256 fee) {
         return
-            quoteDispatch(
-                destinationDomain,
-                recipientAddress,
-                messageBody,
-                defaultHookMetadata,
-                defaultHook
-            );
+            quoteDispatch({
+                destinationDomain: destinationDomain,
+                recipientAddress: recipientAddress,
+                messageBody: messageBody,
+                metadata: defaultHookMetadata,
+                hook: defaultHook
+            });
     }
 
     /**
@@ -226,7 +226,11 @@ contract Mailbox is
             processor: msg.sender,
             blockNumber: uint48(block.number)
         });
-        emit Process(_message.origin(), _message.sender(), recipient);
+        emit Process({
+            origin: _message.origin(),
+            sender: _message.sender(),
+            recipient: recipient
+        });
         emit ProcessId(_id);
 
         /// INTERACTIONS ///
@@ -238,11 +242,11 @@ contract Mailbox is
         );
 
         // Deliver the message to the recipient.
-        IMessageRecipient(recipient).handle{value: msg.value}(
-            _message.origin(),
-            _message.sender(),
-            _message.body()
-        );
+        IMessageRecipient(recipient).handle{value: msg.value}({
+            _origin: _message.origin(),
+            _sender: _message.sender(),
+            _message: _message.body()
+        });
     }
 
     /**
@@ -288,18 +292,23 @@ contract Mailbox is
         /// CHECKS ///
 
         // Format the message into packed bytes.
-        bytes memory message = _buildMessage(
-            destinationDomain,
-            recipientAddress,
-            messageBody
-        );
+        bytes memory message = _buildMessage({
+            destinationDomain: destinationDomain,
+            recipientAddress: recipientAddress,
+            messageBody: messageBody
+        });
         bytes32 id = message.id();
 
         /// EFFECTS ///
 
         latestDispatchedId = id;
         nonce += 1;
-        emit Dispatch(msg.sender, destinationDomain, recipientAddress, message);
+        emit Dispatch({
+            sender: msg.sender,
+            destination: destinationDomain,
+            recipient: recipientAddress,
+            message: message
+        });
         emit DispatchId(id);
 
         /// INTERACTIONS ///
@@ -334,11 +343,11 @@ contract Mailbox is
             hook = defaultHook;
         }
 
-        bytes memory message = _buildMessage(
-            destinationDomain,
-            recipientAddress,
-            messageBody
-        );
+        bytes memory message = _buildMessage({
+            destinationDomain: destinationDomain,
+            recipientAddress: recipientAddress,
+            messageBody: messageBody
+        });
         return
             requiredHook.quoteDispatch(metadata, message) +
             hook.quoteDispatch(metadata, message);
@@ -428,14 +437,14 @@ contract Mailbox is
         bytes calldata messageBody
     ) internal view returns (bytes memory) {
         return
-            Message.formatMessage(
-                VERSION,
-                nonce,
-                localDomain,
-                msg.sender.addressToBytes32(),
-                destinationDomain,
-                recipientAddress,
-                messageBody
-            );
+            Message.formatMessage({
+                _version: VERSION,
+                _nonce: nonce,
+                _originDomain: localDomain,
+                _sender: msg.sender.addressToBytes32(),
+                _destinationDomain: destinationDomain,
+                _recipient: recipientAddress,
+                _messageBody: messageBody
+            });
     }
 }

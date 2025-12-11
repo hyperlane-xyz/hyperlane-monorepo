@@ -46,11 +46,11 @@ contract MockMailbox is Mailbox {
         bytes calldata metadata,
         IPostDispatchHook hook
     ) public payable override returns (bytes32) {
-        bytes memory message = _buildMessage(
-            destinationDomain,
-            recipientAddress,
-            messageBody
-        );
+        bytes memory message = _buildMessage({
+            destinationDomain: destinationDomain,
+            recipientAddress: recipientAddress,
+            messageBody: messageBody
+        });
         bytes32 id = super.dispatch(
             destinationDomain,
             recipientAddress,
@@ -101,12 +101,12 @@ contract MockMailbox is Mailbox {
         bytes calldata messageBody
     ) external view returns (bytes memory) {
         return
-            _buildMessage(
-                sender,
-                destinationDomain,
-                recipientAddress,
-                messageBody
-            );
+            _buildMessage({
+                sender: sender,
+                destinationDomain: destinationDomain,
+                recipientAddress: recipientAddress,
+                messageBody: messageBody
+            });
     }
 
     function _buildMessage(
@@ -116,14 +116,14 @@ contract MockMailbox is Mailbox {
         bytes calldata messageBody
     ) internal view returns (bytes memory) {
         return
-            Message.formatMessage(
-                VERSION,
-                nonce,
-                localDomain,
-                sender.addressToBytes32(),
-                destinationDomain,
-                recipientAddress,
-                messageBody
-            );
+            Message.formatMessage({
+                _version: VERSION,
+                _nonce: nonce,
+                _originDomain: localDomain,
+                _sender: sender.addressToBytes32(),
+                _destinationDomain: destinationDomain,
+                _recipient: recipientAddress,
+                _messageBody: messageBody
+            });
     }
 }

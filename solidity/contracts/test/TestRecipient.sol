@@ -32,13 +32,22 @@ contract TestRecipient is
         bytes32 _sender,
         bytes calldata _data
     ) external payable virtual override {
-        emit ReceivedMessage(_origin, _sender, msg.value, string(_data));
+        emit ReceivedMessage({
+            origin: _origin,
+            sender: _sender,
+            value: msg.value,
+            message: string(_data)
+        });
         lastSender = _sender;
         lastData = _data;
     }
 
     function fooBar(uint256 amount, string calldata message) external {
-        emit ReceivedCall(msg.sender, amount, message);
+        emit ReceivedCall({
+            caller: msg.sender,
+            amount: amount,
+            message: message
+        });
         lastCaller = msg.sender;
         lastCallMessage = message;
     }

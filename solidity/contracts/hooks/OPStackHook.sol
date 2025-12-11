@@ -77,10 +77,10 @@ contract OPStackHook is AbstractMessageIdAuthHook {
             (message.id(), metadata.msgValue(0))
         );
 
-        l1Messenger.sendMessage{value: metadata.msgValue(0)}(
-            TypeCasts.bytes32ToAddress(ism),
-            payload,
-            GAS_LIMIT
-        );
+        l1Messenger.sendMessage{value: metadata.msgValue(0)}({
+            _target: TypeCasts.bytes32ToAddress(ism),
+            _message: payload,
+            _gasLimit: GAS_LIMIT
+        });
     }
 }

@@ -347,7 +347,7 @@ library TypedMemView {
         if (_end == 0) {
             return NULL;
         }
-        newView = unsafeBuildUnchecked(_type, _loc, _len);
+        newView = unsafeBuildUnchecked({_type: _type, _loc: _loc, _len: _len});
     }
 
     /**
@@ -370,7 +370,7 @@ library TypedMemView {
             _loc := add(arr, 0x20) // our view is of the data, not the struct
         }
 
-        return build(newType, _loc, _len);
+        return build({_type: newType, _loc: _loc, _len: _len});
     }
 
     /**
@@ -478,7 +478,7 @@ library TypedMemView {
         }
 
         _loc = _loc + _index;
-        return build(newType, _loc, _len);
+        return build({_type: newType, _loc: _loc, _len: _len});
     }
 
     /**
@@ -493,7 +493,8 @@ library TypedMemView {
         uint256 _len,
         uint40 newType
     ) internal pure returns (bytes29) {
-        return slice(memView, 0, _len, newType);
+        return
+            slice({memView: memView, _index: 0, _len: _len, newType: newType});
     }
 
     /**
@@ -508,7 +509,13 @@ library TypedMemView {
         uint256 _len,
         uint40 newType
     ) internal pure returns (bytes29) {
-        return slice(memView, uint256(len(memView)) - _len, _len, newType);
+        return
+            slice({
+                memView: memView,
+                _index: uint256(len(memView)) - _len,
+                _len: _len,
+                newType: newType
+            });
     }
 
     /**
@@ -562,12 +569,12 @@ library TypedMemView {
         if (_bytes == 0) return bytes32(0);
         if (_index + _bytes > len(memView)) {
             revert(
-                indexErrOverrun(
-                    loc(memView),
-                    len(memView),
-                    _index,
-                    uint256(_bytes)
-                )
+                indexErrOverrun({
+                    _loc: loc(memView),
+                    _len: len(memView),
+                    _index: _index,
+                    _slice: uint256(_bytes)
+                })
             );
         }
         require(
@@ -600,7 +607,10 @@ library TypedMemView {
         uint256 _index,
         uint8 _bytes
     ) internal pure returns (uint256 result) {
-        return uint256(index(memView, _index, _bytes)) >> ((32 - _bytes) * 8);
+        return
+            uint256(
+                index({memView: memView, _index: _index, _bytes: _bytes})
+            ) >> ((32 - _bytes) * 8);
     }
 
     /**
@@ -615,7 +625,12 @@ library TypedMemView {
         uint256 _index,
         uint8 _bytes
     ) internal pure returns (uint256 result) {
-        return reverseUint256(uint256(index(memView, _index, _bytes)));
+        return
+            reverseUint256(
+                uint256(
+                    index({memView: memView, _index: _index, _bytes: _bytes})
+                )
+            );
     }
 
     /**
@@ -629,7 +644,12 @@ library TypedMemView {
         bytes29 memView,
         uint256 _index
     ) internal pure returns (address) {
-        return address(uint160(indexUint(memView, _index, 20)));
+        return
+            address(
+                uint160(
+                    indexUint({memView: memView, _index: _index, _bytes: 20})
+                )
+            );
     }
 
     /**
@@ -796,7 +816,11 @@ library TypedMemView {
             res := staticcall(gas(), 4, _oldLoc, _len, _newLoc, _len)
         }
         require(res, "identity OOG");
-        written = unsafeBuildUnchecked(typeOf(memView), _newLoc, _len);
+        written = unsafeBuildUnchecked({
+            _type: typeOf(memView),
+            _loc: _newLoc,
+            _len: _len
+        });
     }
 
     /**
@@ -856,7 +880,11 @@ library TypedMemView {
                 _offset += len(memView);
             }
         }
-        unsafeView = unsafeBuildUnchecked(0, _location, _offset);
+        unsafeView = unsafeBuildUnchecked({
+            _type: 0,
+            _loc: _location,
+            _len: _offset
+        });
     }
 
     /**

@@ -18,17 +18,17 @@ contract MockArbSys {
         address destination,
         bytes calldata data
     ) external payable returns (uint256) {
-        emit L2ToL1Tx(
-            msg.sender,
-            destination,
-            uint256(keccak256(data)),
-            42,
-            block.number * 10,
-            block.number,
-            block.timestamp,
-            msg.value,
-            data
-        );
+        emit L2ToL1Tx({
+            caller: msg.sender,
+            destination: destination,
+            hash: uint256(keccak256(data)),
+            position: 42,
+            arbBlockNum: block.number * 10,
+            ethBlockNum: block.number,
+            timestamp: block.timestamp,
+            callvalue: msg.value,
+            data: data
+        });
         return 0;
     }
 }

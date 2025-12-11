@@ -12,7 +12,13 @@ contract MockMessageDispatcher is IMessageDispatcher {
         bytes32 messageId = keccak256(abi.encodePacked(toChainId, to, data));
 
         // simulate a successful dispatch
-        emit MessageDispatched(messageId, msg.sender, toChainId, to, data);
+        emit MessageDispatched({
+            messageId: messageId,
+            from: msg.sender,
+            toChainId: toChainId,
+            to: to,
+            data: data
+        });
 
         return messageId;
     }

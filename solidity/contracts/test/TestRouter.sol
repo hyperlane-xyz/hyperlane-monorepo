@@ -12,7 +12,11 @@ contract TestRouter is Router {
         address _hook,
         address _interchainSecurityModule
     ) public initializer {
-        _MailboxClient_initialize(_hook, _interchainSecurityModule, msg.sender);
+        _MailboxClient_initialize({
+            _hook: _hook,
+            __interchainSecurityModule: _interchainSecurityModule,
+            _owner: msg.sender
+        });
     }
 
     function _handle(uint32, bytes32, bytes calldata) internal pure override {}
@@ -31,6 +35,10 @@ contract TestRouter is Router {
     }
 
     function dispatch(uint32 _destination, bytes memory _msg) external payable {
-        _Router_dispatch(_destination, msg.value, _msg);
+        _Router_dispatch({
+            _destinationDomain: _destination,
+            _value: msg.value,
+            _messageBody: _msg
+        });
     }
 }

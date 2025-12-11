@@ -103,13 +103,17 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         quotes = new Quote[](3);
         quotes[0] = Quote({
             token: address(0),
-            amount: _quoteGasPayment(_destination, _recipient, _amount)
+            amount: _quoteGasPayment({
+                _destination: _destination,
+                _recipient: _recipient,
+                _amount: _amount
+            })
         });
-        (, uint256 feeAmount) = _feeRecipientAndAmount(
-            _destination,
-            _recipient,
-            _amount
-        );
+        (, uint256 feeAmount) = _feeRecipientAndAmount({
+            _destination: _destination,
+            _recipient: _recipient,
+            _amount: _amount
+        });
         quotes[1] = Quote({token: token(), amount: _amount + feeAmount});
         quotes[2] = Quote({
             token: token(),
@@ -143,12 +147,12 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         uint256 _amount
     ) public payable virtual returns (bytes32 messageId) {
         // 1. Calculate the fee amounts, charge the sender and distribute to feeRecipient if necessary
-        (, uint256 remainingNativeValue) = _calculateFeesAndCharge(
-            _destination,
-            _recipient,
-            _amount,
-            msg.value
-        );
+        (, uint256 remainingNativeValue) = _calculateFeesAndCharge({
+            _destination: _destination,
+            _recipient: _recipient,
+            _amount: _amount,
+            _msgValue: msg.value
+        });
 
         uint256 scaledAmount = _outboundAmount(_amount);
 
@@ -160,13 +164,13 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
 
         // 3. Emit the SentTransferRemote event and 4. dispatch the message
         return
-            _emitAndDispatch(
-                _destination,
-                _recipient,
-                scaledAmount,
-                remainingNativeValue,
-                _tokenMessage
-            );
+            _emitAndDispatch({
+                _destination: _destination,
+                _recipient: _recipient,
+                _amount: scaledAmount,
+                _messageDispatchValue: remainingNativeValue,
+                _tokenMessage: _tokenMessage
+            });
     }
 
     // ===========================
@@ -178,11 +182,11 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         uint256 _amount,
         uint256 _msgValue
     ) internal returns (uint256 externalFee, uint256 remainingNativeValue) {
-        (address _feeRecipient, uint256 feeAmount) = _feeRecipientAndAmount(
-            _destination,
-            _recipient,
-            _amount
-        );
+        (address _feeRecipient, uint256 feeAmount) = _feeRecipientAndAmount({
+            _destination: _destination,
+            _recipient: _recipient,
+            _amount: _amount
+        });
         externalFee = _externalFeeAmount(_destination, _recipient, _amount);
         uint256 charge = _amount + feeAmount + externalFee;
         _transferFromSender(charge);
@@ -205,16 +209,20 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         bytes memory _tokenMessage
     ) internal returns (bytes32 messageId) {
         // effects
-        emit SentTransferRemote(_destination, _recipient, _amount);
+        emit SentTransferRemote({
+            destination: _destination,
+            recipient: _recipient,
+            amountOrId: _amount
+        });
 
         // interactions
-        messageId = _Router_dispatch(
-            _destination,
-            _messageDispatchValue,
-            _tokenMessage,
-            _GasRouter_hookMetadata(_destination),
-            address(hook)
-        );
+        messageId = _Router_dispatch({
+            _destinationDomain: _destination,
+            _value: _messageDispatchValue,
+            _messageBody: _tokenMessage,
+            _hookMetadata: _GasRouter_hookMetadata(_destination),
+            _hook: address(hook)
+        });
     }
 
     // ===========================
@@ -283,11 +291,11 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
             return (_feeRecipient, 0);
         }
 
-        Quote[] memory quotes = ITokenFee(_feeRecipient).quoteTransferRemote(
-            _destination,
-            _recipient,
-            _amount
-        );
+        Quote[] memory quotes = ITokenFee(_feeRecipient).quoteTransferRemote({
+            _destination: _destination,
+            _recipient: _recipient,
+            _amount: _amount
+        });
         if (quotes.length == 0) {
             return (_feeRecipient, 0);
         }
@@ -315,12 +323,12 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         uint256 _amount
     ) internal view virtual returns (uint256) {
         return
-            _Router_quoteDispatch(
-                _destination,
-                TokenMessage.format(_recipient, _amount),
-                _GasRouter_hookMetadata(_destination),
-                address(hook)
-            );
+            _Router_quoteDispatch({
+                _destinationDomain: _destination,
+                _messageBody: TokenMessage.format(_recipient, _amount),
+                _hookMetadata: _GasRouter_hookMetadata(_destination),
+                _hook: address(hook)
+            });
     }
 
     // ===========================
@@ -426,7 +434,11 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         uint256 amount = _message.amount();
 
         // effects
-        emit ReceivedTransferRemote(_origin, recipient, amount);
+        emit ReceivedTransferRemote({
+            origin: _origin,
+            recipient: recipient,
+            amountOrId: amount
+        });
 
         // interactions
         _transferTo(recipient.bytes32ToAddress(), _inboundAmount(amount));
