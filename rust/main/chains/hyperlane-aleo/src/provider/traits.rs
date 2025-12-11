@@ -120,7 +120,7 @@ impl<Client: HttpClient> RpcClient<Client> {
         &self,
         program_id: &ProgramID<N>,
     ) -> ChainResult<u16> {
-        self.request(&format!("program/{program_id}/latestEdition"), None)
+        self.request(&format!("program/{program_id}/latest_edition"), None)
             .await
     }
 

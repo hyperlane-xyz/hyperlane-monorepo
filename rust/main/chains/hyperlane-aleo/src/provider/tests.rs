@@ -150,19 +150,19 @@ fn get_mock_provider_with_programs() -> AleoProvider<MockHttpClient> {
     provider
         .register_file("program/credits.aleo/0", "programs/credits.aleo")
         .unwrap();
-    provider.register_value("program/credits.aleo/latestEdition", json!(0));
+    provider.register_value("program/credits.aleo/latest_edition", json!(0));
     provider
         .register_file("program/hook_manager.aleo/0", "programs/hook_manager.aleo")
         .unwrap();
-    provider.register_value("program/hook_manager.aleo/latestEdition", json!(0));
+    provider.register_value("program/hook_manager.aleo/latest_edition", json!(0));
     provider
         .register_file("program/ism_manager.aleo/0", "programs/ism_manager.aleo")
         .unwrap();
-    provider.register_value("program/ism_manager.aleo/latestEdition", json!(0));
+    provider.register_value("program/ism_manager.aleo/latest_edition", json!(0));
     provider
         .register_file("program/mailbox.aleo/0", "programs/mailbox.aleo")
         .unwrap();
-    provider.register_value("program/mailbox.aleo/latestEdition", json!(0));
+    provider.register_value("program/mailbox.aleo/latest_edition", json!(0));
     provider.register_value("block/height/latest", json!(12668791));
     provider.register_value("program/unknown.aleo", Value::Null);
     provider
