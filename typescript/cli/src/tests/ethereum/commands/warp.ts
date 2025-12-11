@@ -253,7 +253,7 @@ export function hyperlaneWarpSendRelay({
         --registry ${REGISTRY_PATH} \
         ${origin ? ['--origin', origin] : []} \
         ${destination ? ['--destination', destination] : []} \
-        ${recipient ? ['--recipient', recipient] : []}
+        ${recipient ? ['--recipient', recipient] : []} \
         --warp ${warpCorePath} \
         --key ${ANVIL_KEY} \
         --verbosity debug \
