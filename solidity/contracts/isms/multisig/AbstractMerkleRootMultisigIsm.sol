@@ -39,20 +39,20 @@ abstract contract AbstractMerkleRootMultisigIsm is AbstractMultisig {
             "Invalid merkle index metadata"
         );
         // We verify a merkle proof of (messageId, index) I to compute root J
-        bytes32 _signedRoot = MerkleLib.branchRoot(
-            _message.id(),
-            _metadata.proof(),
-            _metadata.messageIndex()
-        );
+        bytes32 _signedRoot = MerkleLib.branchRoot({
+            _item: _message.id(),
+            _branch: _metadata.proof(),
+            _index: _metadata.messageIndex()
+        });
         // We provide (messageId, index) J in metadata for digest derivation
         return
-            CheckpointLib.digest(
-                _message.origin(),
-                _metadata.originMerkleTreeHook(),
-                _signedRoot,
-                _metadata.signedIndex(),
-                _metadata.signedMessageId()
-            );
+            CheckpointLib.digest({
+                _origin: _message.origin(),
+                _merkleTreeHook: _metadata.originMerkleTreeHook(),
+                _checkpointRoot: _signedRoot,
+                _checkpointIndex: _metadata.signedIndex(),
+                _messageId: _metadata.signedMessageId()
+            });
     }
 
     /**

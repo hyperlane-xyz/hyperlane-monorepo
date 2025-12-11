@@ -69,7 +69,11 @@ contract HypERC4626Collateral is TokenRouter {
         address _owner
     ) public initializer {
         wrappedToken.safeApprove(address(vault), type(uint256).max);
-        _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
+        _MailboxClient_initialize({
+            _hook: _hook,
+            __interchainSecurityModule: _interchainSecurityModule,
+            _owner: _owner
+        });
     }
 
     // ============ TokenRouter overrides ============
@@ -85,11 +89,11 @@ contract HypERC4626Collateral is TokenRouter {
     ) public payable override returns (bytes32 messageId) {
         // 1. Calculate the fee amounts, charge the sender and distribute to feeRecipient if necessary
         // Don't use HypERC4626Collateral's implementation of _transferTo since it does a redemption.
-        (address _feeRecipient, uint256 feeAmount) = _feeRecipientAndAmount(
-            _destination,
-            _recipient,
-            _amount
-        );
+        (address _feeRecipient, uint256 feeAmount) = _feeRecipientAndAmount({
+            _destination: _destination,
+            _recipient: _recipient,
+            _amount: _amount
+        });
         _transferFromSender(_amount + feeAmount);
         if (feeAmount > 0) {
             wrappedToken._transferTo(_feeRecipient, feeAmount);
@@ -107,21 +111,21 @@ contract HypERC4626Collateral is TokenRouter {
         );
 
         uint256 _scaledAmount = _outboundAmount(_shares);
-        bytes memory _tokenMessage = TokenMessage.format(
-            _recipient,
-            _scaledAmount,
-            _tokenMetadata
-        );
+        bytes memory _tokenMessage = TokenMessage.format({
+            _recipient: _recipient,
+            _amount: _scaledAmount,
+            _metadata: _tokenMetadata
+        });
 
         // 3. Emit the SentTransferRemote event and 4. dispatch the message
         return
-            _emitAndDispatch(
-                _destination,
-                _recipient,
-                _scaledAmount,
-                msg.value,
-                _tokenMessage
-            );
+            _emitAndDispatch({
+                _destination: _destination,
+                _recipient: _recipient,
+                _amount: _scaledAmount,
+                _messageDispatchValue: msg.value,
+                _tokenMessage: _tokenMessage
+            });
     }
 
     /**
@@ -142,7 +146,11 @@ contract HypERC4626Collateral is TokenRouter {
         address _recipient,
         uint256 _shares
     ) internal virtual override {
-        vault.redeem(_shares, _recipient, address(this));
+        vault.redeem({
+            shares: _shares,
+            receiver: _recipient,
+            owner: address(this)
+        });
     }
 
     /**
@@ -170,6 +178,10 @@ contract HypERC4626Collateral is TokenRouter {
      */
     function rebase(uint32 _destinationDomain) public payable {
         // force a rebase with an empty transfer to 0x1
-        transferRemote(_destinationDomain, NULL_RECIPIENT, 0);
+        transferRemote({
+            _destination: _destinationDomain,
+            _recipient: NULL_RECIPIENT,
+            _amount: 0
+        });
     }
 }

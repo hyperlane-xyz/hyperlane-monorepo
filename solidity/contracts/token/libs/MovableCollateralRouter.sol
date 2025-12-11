@@ -132,11 +132,11 @@ abstract contract MovableCollateralRouter is TokenRouter {
     ) external payable onlyRebalancer onlyAllowedBridge(domain, bridge) {
         bytes32 recipient = _recipient(domain);
 
-        Quote[] memory quotes = bridge.quoteTransferRemote(
-            domain,
-            recipient,
-            collateralAmount
-        );
+        Quote[] memory quotes = bridge.quoteTransferRemote({
+            _destination: domain,
+            _recipient: recipient,
+            _amount: collateralAmount
+        });
 
         // charge the rebalancer any bridging fees denominated in the collateral
         // token to avoid undercollateralization
@@ -153,12 +153,17 @@ abstract contract MovableCollateralRouter is TokenRouter {
             revert("Rebalance native fee exceeds balance");
         }
 
-        bridge.transferRemote{value: nativeFees}(
-            domain,
-            recipient,
-            collateralAmount
-        );
-        emit CollateralMoved(domain, recipient, collateralAmount, msg.sender);
+        bridge.transferRemote{value: nativeFees}({
+            _destination: domain,
+            _recipient: recipient,
+            _amount: collateralAmount
+        });
+        emit CollateralMoved({
+            domain: domain,
+            recipient: recipient,
+            amount: collateralAmount,
+            rebalancer: msg.sender
+        });
     }
 
     function _recipient(

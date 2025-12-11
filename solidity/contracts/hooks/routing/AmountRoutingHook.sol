@@ -29,7 +29,12 @@ contract AmountRoutingHook is AmountPartition, AbstractPostDispatchHook {
             _metadata,
             _message
         );
-        return _refund(_metadata, _message, msg.value - quote);
+        return
+            _refund({
+                metadata: _metadata,
+                message: _message,
+                amount: msg.value - quote
+            });
     }
 
     function _quoteDispatch(

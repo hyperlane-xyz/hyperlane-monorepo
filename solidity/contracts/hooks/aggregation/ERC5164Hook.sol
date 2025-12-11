@@ -67,10 +67,10 @@ contract ERC5164Hook is AbstractMessageIdAuthHook {
             AbstractMessageIdAuthorizedIsm.preVerifyMessage,
             (message.id(), metadata.msgValue(0))
         );
-        dispatcher.dispatchMessage(
-            destinationDomain,
-            TypeCasts.bytes32ToAddress(ism),
-            payload
-        );
+        dispatcher.dispatchMessage({
+            toChainId: destinationDomain,
+            to: TypeCasts.bytes32ToAddress(ism),
+            data: payload
+        });
     }
 }

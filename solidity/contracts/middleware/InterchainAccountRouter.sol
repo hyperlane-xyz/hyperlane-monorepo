@@ -149,7 +149,11 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         bytes32 _router,
         bytes32 _ism
     ) external onlyOwner {
-        _enrollRemoteRouterAndIsm(_destination, _router, _ism);
+        _enrollRemoteRouterAndIsm({
+            _destination: _destination,
+            _router: _router,
+            _ism: _ism
+        });
     }
 
     /**
@@ -170,7 +174,11 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
             "length mismatch"
         );
         for (uint256 i = 0; i < _destinations.length; i++) {
-            _enrollRemoteRouterAndIsm(_destinations[i], _routers[i], _isms[i]);
+            _enrollRemoteRouterAndIsm({
+                _destination: _destinations[i],
+                _router: _routers[i],
+                _ism: _isms[i]
+            });
         }
     }
 
@@ -189,7 +197,12 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         uint32 _destination,
         CallLib.Call[] calldata _calls
     ) public payable returns (bytes32) {
-        return callRemote(_destination, _calls, bytes(""));
+        return
+            callRemote({
+                _destination: _destination,
+                _calls: _calls,
+                _hookMetadata: bytes("")
+            });
     }
 
     /**
@@ -211,13 +224,13 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         bytes32 _router = routers(_destination);
         bytes32 _ism = isms[_destination];
         return
-            callRemoteWithOverrides(
-                _destination,
-                _router,
-                _ism,
-                _calls,
-                _hookMetadata
-            );
+            callRemoteWithOverrides({
+                _destination: _destination,
+                _router: _router,
+                _ism: _ism,
+                _calls: _calls,
+                _hookMetadata: _hookMetadata
+            });
     }
 
     /**
@@ -248,13 +261,13 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         bytes32 _salt = _message.salt();
         bytes32 _ism = _message.ism();
 
-        OwnableMulticall ica = getDeployedInterchainAccount(
-            _origin,
-            _owner,
-            _sender,
-            _ism.bytes32ToAddress(),
-            _salt
-        );
+        OwnableMulticall ica = getDeployedInterchainAccount({
+            _origin: _origin,
+            _owner: _owner,
+            _router: _sender,
+            _ism: _ism.bytes32ToAddress(),
+            _userSalt: _salt
+        });
 
         if (_messageType == InterchainAccountMessage.MessageType.CALLS) {
             CallLib.Call[] memory calls = _message.calls();
@@ -326,11 +339,11 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         address _owner
     ) external view returns (address) {
         return
-            getRemoteInterchainAccount(
-                _destination,
-                _owner,
-                InterchainAccountMessage.EMPTY_SALT
-            );
+            getRemoteInterchainAccount({
+                _destination: _destination,
+                _owner: _owner,
+                _userSalt: InterchainAccountMessage.EMPTY_SALT
+            });
     }
 
     /**
@@ -350,7 +363,13 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
     ) public view returns (address) {
         address _router = routers(_destination).bytes32ToAddress();
         address _ism = isms[_destination].bytes32ToAddress();
-        return getRemoteInterchainAccount(_owner, _router, _ism, _userSalt);
+        return
+            getRemoteInterchainAccount({
+                _owner: _owner,
+                _router: _router,
+                _ism: _ism,
+                _userSalt: _userSalt
+            });
     }
 
     // ============ Public Functions ============
@@ -370,13 +389,13 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         address _ism
     ) public returns (OwnableMulticall) {
         return
-            getDeployedInterchainAccount(
-                _origin,
-                _owner.addressToBytes32(),
-                _router.addressToBytes32(),
-                _ism,
-                InterchainAccountMessage.EMPTY_SALT
-            );
+            getDeployedInterchainAccount({
+                _origin: _origin,
+                _owner: _owner.addressToBytes32(),
+                _router: _router.addressToBytes32(),
+                _ism: _ism,
+                _userSalt: InterchainAccountMessage.EMPTY_SALT
+            });
     }
 
     /*
@@ -394,13 +413,13 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         address _ism
     ) public returns (OwnableMulticall) {
         return
-            getDeployedInterchainAccount(
-                _origin,
-                _owner,
-                _router,
-                _ism,
-                InterchainAccountMessage.EMPTY_SALT
-            );
+            getDeployedInterchainAccount({
+                _origin: _origin,
+                _owner: _owner,
+                _router: _router,
+                _ism: _ism,
+                _userSalt: InterchainAccountMessage.EMPTY_SALT
+            });
     }
 
     /**
@@ -418,25 +437,25 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         address _ism,
         bytes32 _userSalt
     ) public returns (OwnableMulticall) {
-        bytes32 _deploySalt = _getSalt(
-            _origin,
-            _owner,
-            _router,
-            _ism.addressToBytes32(),
-            _userSalt
-        );
+        bytes32 _deploySalt = _getSalt({
+            _origin: _origin,
+            _owner: _owner,
+            _router: _router,
+            _ism: _ism.addressToBytes32(),
+            _userSalt: _userSalt
+        });
         address payable _account = _getLocalInterchainAccount(_deploySalt);
         if (!Address.isContract(_account)) {
             bytes memory _bytecode = MinimalProxy.bytecode(implementation);
             _account = payable(Create2.deploy(0, _deploySalt, _bytecode));
-            emit InterchainAccountCreated(
-                _account,
-                _origin,
-                _router,
-                _owner,
-                _ism,
-                _userSalt
-            );
+            emit InterchainAccountCreated({
+                account: _account,
+                origin: _origin,
+                router: _router,
+                owner: _owner,
+                ism: _ism,
+                salt: _userSalt
+            });
         }
         return OwnableMulticall(_account);
     }
@@ -457,13 +476,13 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         address _ism
     ) public view returns (OwnableMulticall) {
         return
-            getLocalInterchainAccount(
-                _origin,
-                _owner,
-                _router,
-                _ism,
-                InterchainAccountMessage.EMPTY_SALT
-            );
+            getLocalInterchainAccount({
+                _origin: _origin,
+                _owner: _owner,
+                _router: _router,
+                _ism: _ism,
+                _userSalt: InterchainAccountMessage.EMPTY_SALT
+            });
     }
 
     /**
@@ -486,13 +505,13 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         return
             OwnableMulticall(
                 _getLocalInterchainAccount(
-                    _getSalt(
-                        _origin,
-                        _owner,
-                        _router,
-                        _ism.addressToBytes32(),
-                        _userSalt
-                    )
+                    _getSalt({
+                        _origin: _origin,
+                        _owner: _owner,
+                        _router: _router,
+                        _ism: _ism.addressToBytes32(),
+                        _userSalt: _userSalt
+                    })
                 )
             );
     }
@@ -513,12 +532,12 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         address _ism
     ) public view returns (address) {
         return
-            getRemoteInterchainAccount(
-                _owner,
-                _router,
-                _ism,
-                InterchainAccountMessage.EMPTY_SALT
-            );
+            getRemoteInterchainAccount({
+                _owner: _owner,
+                _router: _router,
+                _ism: _ism,
+                _userSalt: InterchainAccountMessage.EMPTY_SALT
+            });
     }
 
     /**
@@ -548,13 +567,13 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         );
 
         bytes32 _bytecodeHash = _proxyBytecodeHash(_implementation);
-        bytes32 _salt = _getSalt(
-            localDomain,
-            _owner.addressToBytes32(),
-            address(this).addressToBytes32(),
-            _ism.addressToBytes32(),
-            _userSalt
-        );
+        bytes32 _salt = _getSalt({
+            _origin: localDomain,
+            _owner: _owner.addressToBytes32(),
+            _router: address(this).addressToBytes32(),
+            _ism: _ism.addressToBytes32(),
+            _userSalt: _userSalt
+        });
         return Create2.computeAddress(_salt, _bytecodeHash, _router);
     }
 
@@ -575,14 +594,14 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         CallLib.Call[] calldata _calls
     ) public payable returns (bytes32) {
         return
-            callRemoteWithOverrides(
-                _destination,
-                _router,
-                _ism,
-                _calls,
-                bytes(""),
-                InterchainAccountMessage.EMPTY_SALT
-            );
+            callRemoteWithOverrides({
+                _destination: _destination,
+                _router: _router,
+                _ism: _ism,
+                _calls: _calls,
+                _hookMetadata: bytes(""),
+                _userSalt: InterchainAccountMessage.EMPTY_SALT
+            });
     }
 
     /**
@@ -603,14 +622,14 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         bytes32 _userSalt
     ) public payable returns (bytes32) {
         return
-            callRemoteWithOverrides(
-                _destination,
-                _router,
-                _ism,
-                _calls,
-                bytes(""),
-                _userSalt
-            );
+            callRemoteWithOverrides({
+                _destination: _destination,
+                _router: _router,
+                _ism: _ism,
+                _calls: _calls,
+                _hookMetadata: bytes(""),
+                _userSalt: _userSalt
+            });
     }
 
     /**
@@ -632,14 +651,14 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         bytes memory _hookMetadata
     ) public payable returns (bytes32) {
         return
-            callRemoteWithOverrides(
-                _destination,
-                _router,
-                _ism,
-                _calls,
-                _hookMetadata,
-                InterchainAccountMessage.EMPTY_SALT
-            );
+            callRemoteWithOverrides({
+                _destination: _destination,
+                _router: _router,
+                _ism: _ism,
+                _calls: _calls,
+                _hookMetadata: _hookMetadata,
+                _userSalt: InterchainAccountMessage.EMPTY_SALT
+            });
     }
 
     /**
@@ -663,15 +682,15 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         bytes32 _userSalt
     ) public payable returns (bytes32) {
         return
-            callRemoteWithOverrides(
-                _destination,
-                _router,
-                _ism,
-                _calls,
-                _hookMetadata,
-                _userSalt,
-                hook
-            );
+            callRemoteWithOverrides({
+                _destination: _destination,
+                _router: _router,
+                _ism: _ism,
+                _calls: _calls,
+                _hookMetadata: _hookMetadata,
+                _salt: _userSalt,
+                _hook: hook
+            });
     }
 
     /**
@@ -696,13 +715,13 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         bytes32 _salt,
         IPostDispatchHook _hook
     ) public payable returns (bytes32) {
-        emit RemoteCallDispatched(
-            _destination,
-            msg.sender,
-            _router,
-            _ism,
-            _salt
-        );
+        emit RemoteCallDispatched({
+            destination: _destination,
+            owner: msg.sender,
+            router: _router,
+            ism: _ism,
+            salt: _salt
+        });
         bytes memory _body = InterchainAccountMessage.encode(
             msg.sender,
             _ism,
@@ -710,13 +729,13 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
             _salt
         );
         return
-            _dispatchMessageWithHook(
-                _destination,
-                _router,
-                _body,
-                _hookMetadata,
-                _hook
-            );
+            _dispatchMessageWithHook({
+                _destination: _destination,
+                _router: _router,
+                _body: _body,
+                _hookMetadata: _hookMetadata,
+                _hook: _hook
+            });
     }
 
     // refunds from the commit dispatch call used to fund reveal dispatch call
@@ -757,41 +776,41 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
                 _userSalt: _salt
             });
 
-        emit RemoteCallDispatched(
-            _destination,
-            msg.sender,
-            _router,
-            _ism,
-            _salt
-        );
+        emit RemoteCallDispatched({
+            destination: _destination,
+            owner: msg.sender,
+            router: _router,
+            ism: _ism,
+            salt: _salt
+        });
         emit CommitRevealDispatched(_commitment);
 
-        _commitmentMsgId = _dispatchMessageWithValue(
-            _destination,
-            _router,
-            _commitmentMsg,
-            StandardHookMetadata.formatMetadata(
-                0,
-                COMMIT_TX_GAS_USAGE,
-                address(this),
-                bytes("")
-            ),
-            _hook,
-            msg.value
-        );
+        _commitmentMsgId = _dispatchMessageWithValue({
+            _destination: _destination,
+            _router: _router,
+            _body: _commitmentMsg,
+            _hookMetadata: StandardHookMetadata.formatMetadata({
+                _msgValue: 0,
+                _gasLimit: COMMIT_TX_GAS_USAGE,
+                _refundAddress: address(this),
+                _customMetadata: bytes("")
+            }),
+            _hook: _hook,
+            _value: msg.value
+        });
 
         bytes memory _revealMsg = InterchainAccountMessage.encodeReveal({
             _ism: _ccipReadIsm,
             _commitment: _commitment
         });
-        _revealMsgId = _dispatchMessageWithValue(
-            _destination,
-            _router,
-            _revealMsg,
-            _hookMetadata,
-            _hook,
-            address(this).balance
-        );
+        _revealMsgId = _dispatchMessageWithValue({
+            _destination: _destination,
+            _router: _router,
+            _body: _revealMsg,
+            _hookMetadata: _hookMetadata,
+            _hook: _hook,
+            _value: address(this).balance
+        });
     }
 
     function callRemoteCommitReveal(
@@ -804,16 +823,16 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         bytes32 _commitment
     ) public payable returns (bytes32 _commitmentMsgId, bytes32 _revealMsgId) {
         return
-            callRemoteCommitReveal(
-                _destination,
-                _router,
-                _ism,
-                bytes32(0),
-                _hookMetadata,
-                _hook,
-                _salt,
-                _commitment
-            );
+            callRemoteCommitReveal({
+                _destination: _destination,
+                _router: _router,
+                _ism: _ism,
+                _ccipReadIsm: bytes32(0),
+                _hookMetadata: _hookMetadata,
+                _hook: _hook,
+                _salt: _salt,
+                _commitment: _commitment
+            });
     }
 
     function callRemoteCommitReveal(
@@ -824,24 +843,24 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         bytes32 _router = routers(_destination);
         bytes32 _ism = isms[_destination];
 
-        bytes memory hookMetadata = StandardHookMetadata.formatMetadata(
-            0,
-            _gasLimit,
-            msg.sender,
-            bytes("")
-        );
+        bytes memory hookMetadata = StandardHookMetadata.formatMetadata({
+            _msgValue: 0,
+            _gasLimit: _gasLimit,
+            _refundAddress: msg.sender,
+            _customMetadata: bytes("")
+        });
 
         return
-            callRemoteCommitReveal(
-                _destination,
-                _router,
-                _ism,
-                bytes32(0),
-                hookMetadata,
-                hook,
-                InterchainAccountMessage.EMPTY_SALT,
-                _commitment
-            );
+            callRemoteCommitReveal({
+                _destination: _destination,
+                _router: _router,
+                _ism: _ism,
+                _ccipReadIsm: bytes32(0),
+                _hookMetadata: hookMetadata,
+                _hook: hook,
+                _salt: InterchainAccountMessage.EMPTY_SALT,
+                _commitment: _commitment
+            });
     }
 
     // ============ Internal Functions ============
@@ -878,11 +897,11 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         uint32 _destination,
         bytes32 _address
     ) internal override {
-        _enrollRemoteRouterAndIsm(
-            _destination,
-            _address,
-            InterchainAccountMessage.EMPTY_SALT
-        );
+        _enrollRemoteRouterAndIsm({
+            _destination: _destination,
+            _router: _address,
+            _ism: InterchainAccountMessage.EMPTY_SALT
+        });
     }
 
     // ============ Private Functions ============
@@ -930,12 +949,12 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         bytes memory _body
     ) private returns (bytes32) {
         return
-            _dispatchMessageWithMetadata(
-                _destination,
-                _router,
-                _body,
-                bytes("")
-            );
+            _dispatchMessageWithMetadata({
+                _destination: _destination,
+                _router: _router,
+                _body: _body,
+                _hookMetadata: bytes("")
+            });
     }
 
     /**
@@ -952,13 +971,13 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         bytes memory _hookMetadata
     ) private returns (bytes32) {
         return
-            _dispatchMessageWithHook(
-                _destination,
-                _router,
-                _body,
-                _hookMetadata,
-                hook
-            );
+            _dispatchMessageWithHook({
+                _destination: _destination,
+                _router: _router,
+                _body: _body,
+                _hookMetadata: _hookMetadata,
+                _hook: hook
+            });
     }
 
     /**
@@ -977,14 +996,14 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         IPostDispatchHook _hook
     ) private returns (bytes32) {
         return
-            _dispatchMessageWithValue(
-                _destination,
-                _router,
-                _body,
-                _hookMetadata,
-                _hook,
-                msg.value
-            );
+            _dispatchMessageWithValue({
+                _destination: _destination,
+                _router: _router,
+                _body: _body,
+                _hookMetadata: _hookMetadata,
+                _hook: _hook,
+                _value: msg.value
+            });
     }
 
     /**
@@ -1001,13 +1020,13 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
     ) private returns (bytes32) {
         require(_router != bytes32(0), "no router specified for destination");
         return
-            mailbox.dispatch{value: _value}(
-                _destination,
-                _router,
-                _body,
-                _hookMetadata,
-                _hook
-            );
+            mailbox.dispatch{value: _value}({
+                destinationDomain: _destination,
+                recipientAddress: _router,
+                body: _body,
+                customHookMetadata: _hookMetadata,
+                customHook: _hook
+            });
     }
 
     /**
@@ -1054,12 +1073,12 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         uint256 _gasLimit
     ) public view returns (uint256 _gasPayment) {
         return
-            _Router_quoteDispatch(
-                _destination,
-                new bytes(0),
-                StandardHookMetadata.overrideGasLimit(_gasLimit),
-                address(hook)
-            );
+            _Router_quoteDispatch({
+                _destinationDomain: _destination,
+                _messageBody: new bytes(0),
+                _hookMetadata: StandardHookMetadata.overrideGasLimit(_gasLimit),
+                _hook: address(hook)
+            });
     }
 
     /**
@@ -1071,12 +1090,12 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         uint32 _destination
     ) public view returns (uint256 _gasPayment) {
         return
-            _Router_quoteDispatch(
-                _destination,
-                bytes(""),
-                bytes(""),
-                address(hook)
-            );
+            _Router_quoteDispatch({
+                _destinationDomain: _destination,
+                _messageBody: bytes(""),
+                _hookMetadata: bytes(""),
+                _hook: address(hook)
+            });
     }
 
     /**
@@ -1090,11 +1109,13 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         uint256 gasLimit
     ) external view returns (uint256 _gasPayment) {
         return
-            _Router_quoteDispatch(
-                _destination,
-                new bytes(0),
-                StandardHookMetadata.overrideGasLimit(COMMIT_TX_GAS_USAGE),
-                address(hook)
-            ) + quoteGasPayment(_destination, gasLimit);
+            _Router_quoteDispatch({
+                _destinationDomain: _destination,
+                _messageBody: new bytes(0),
+                _hookMetadata: StandardHookMetadata.overrideGasLimit(
+                    COMMIT_TX_GAS_USAGE
+                ),
+                _hook: address(hook)
+            }) + quoteGasPayment(_destination, gasLimit);
     }
 }

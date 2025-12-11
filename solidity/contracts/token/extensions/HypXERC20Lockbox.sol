@@ -54,7 +54,11 @@ contract HypXERC20Lockbox is TokenRouter {
         address _owner
     ) public initializer {
         approveLockbox();
-        _MailboxClient_initialize(_hook, _ism, _owner);
+        _MailboxClient_initialize({
+            _hook: _hook,
+            __interchainSecurityModule: _ism,
+            _owner: _owner
+        });
     }
 
     // ============ TokenRouter overrides ============

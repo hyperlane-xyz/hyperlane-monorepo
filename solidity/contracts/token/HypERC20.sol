@@ -40,7 +40,11 @@ contract HypERC20 is ERC20Upgradeable, TokenRouter {
         // Initialize ERC20 metadata
         __ERC20_init(_name, _symbol);
         _mint(msg.sender, _totalSupply);
-        _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
+        _MailboxClient_initialize({
+            _hook: _hook,
+            __interchainSecurityModule: _interchainSecurityModule,
+            _owner: _owner
+        });
     }
 
     function decimals() public view override returns (uint8) {

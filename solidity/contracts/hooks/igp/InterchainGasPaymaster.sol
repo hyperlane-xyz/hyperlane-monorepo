@@ -130,11 +130,11 @@ contract InterchainGasPaymaster is
     ) external onlyOwner {
         uint256 _len = _configs.length;
         for (uint256 i = 0; i < _len; i++) {
-            _setDestinationGasConfig(
-                _configs[i].remoteDomain,
-                _configs[i].config.gasOracle,
-                _configs[i].config.gasOverhead
-            );
+            _setDestinationGasConfig({
+                _remoteDomain: _configs[i].remoteDomain,
+                _gasOracle: _configs[i].config.gasOracle,
+                _gasOverhead: _configs[i].config.gasOverhead
+            });
         }
     }
 
@@ -178,12 +178,12 @@ contract InterchainGasPaymaster is
             payable(_refundAddress).sendValue(_overpayment);
         }
 
-        emit GasPayment(
-            _messageId,
-            _destinationDomain,
-            _gasLimit,
-            _requiredPayment
-        );
+        emit GasPayment({
+            messageId: _messageId,
+            destinationDomain: _destinationDomain,
+            gasAmount: _gasLimit,
+            payment: _requiredPayment
+        });
     }
 
     /**
@@ -266,15 +266,15 @@ contract InterchainGasPaymaster is
         bytes calldata metadata,
         bytes calldata message
     ) internal override {
-        payForGas(
-            message.id(),
-            message.destination(),
-            destinationGasLimit(
+        payForGas({
+            _messageId: message.id(),
+            _destinationDomain: message.destination(),
+            _gasLimit: destinationGasLimit(
                 message.destination(),
                 metadata.gasLimit(DEFAULT_GAS_USAGE)
             ),
-            metadata.refundAddress(message.senderAddress())
-        );
+            _refundAddress: metadata.refundAddress(message.senderAddress())
+        });
     }
 
     /// @inheritdoc AbstractPostDispatchHook
@@ -316,10 +316,10 @@ contract InterchainGasPaymaster is
             _gasOracle,
             _gasOverhead
         );
-        emit DestinationGasConfigSet(
-            _remoteDomain,
-            address(_gasOracle),
-            _gasOverhead
-        );
+        emit DestinationGasConfigSet({
+            remoteDomain: _remoteDomain,
+            gasOracle: address(_gasOracle),
+            gasOverhead: _gasOverhead
+        });
     }
 }

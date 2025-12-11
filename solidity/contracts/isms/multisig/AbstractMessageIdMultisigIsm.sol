@@ -31,13 +31,13 @@ abstract contract AbstractMessageIdMultisigIsm is AbstractMultisig {
         bytes calldata _message
     ) internal pure override returns (bytes32) {
         return
-            CheckpointLib.digest(
-                _message.origin(),
-                _metadata.originMerkleTreeHook(),
-                _metadata.root(),
-                _metadata.index(),
-                _message.id()
-            );
+            CheckpointLib.digest({
+                _origin: _message.origin(),
+                _merkleTreeHook: _metadata.originMerkleTreeHook(),
+                _checkpointRoot: _metadata.root(),
+                _checkpointIndex: _metadata.index(),
+                _messageId: _message.id()
+            });
     }
 
     /**

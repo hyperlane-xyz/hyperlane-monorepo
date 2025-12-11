@@ -20,11 +20,11 @@ contract TestMailbox is Mailbox {
         bytes32 _recipient,
         bytes calldata _body
     ) external {
-        IMessageRecipient(_recipient.bytes32ToAddress()).handle(
-            _origin,
-            _sender,
-            _body
-        );
+        IMessageRecipient(_recipient.bytes32ToAddress()).handle({
+            _origin: _origin,
+            _sender: _sender,
+            _message: _body
+        });
     }
 
     function buildOutboundMessage(
@@ -32,7 +32,12 @@ contract TestMailbox is Mailbox {
         bytes32 recipientAddress,
         bytes calldata body
     ) external view returns (bytes memory) {
-        return _buildMessage(destinationDomain, recipientAddress, body);
+        return
+            _buildMessage({
+                destinationDomain: destinationDomain,
+                recipientAddress: recipientAddress,
+                messageBody: body
+            });
     }
 
     function buildInboundMessage(
@@ -42,15 +47,15 @@ contract TestMailbox is Mailbox {
         bytes calldata body
     ) external view returns (bytes memory) {
         return
-            Message.formatMessage(
-                VERSION,
-                nonce,
-                originDomain,
-                senderAddress,
-                localDomain,
-                recipientAddress,
-                body
-            );
+            Message.formatMessage({
+                _version: VERSION,
+                _nonce: nonce,
+                _originDomain: originDomain,
+                _sender: senderAddress,
+                _destinationDomain: localDomain,
+                _recipient: recipientAddress,
+                _messageBody: body
+            });
     }
 
     function updateLatestDispatchedId(bytes32 _id) external {

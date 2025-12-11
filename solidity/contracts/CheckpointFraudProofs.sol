@@ -27,7 +27,11 @@ contract CheckpointFraudProofs is PackageVersioned {
         bytes32 messageId,
         bytes32[TREE_DEPTH] calldata proof
     ) public view returns (bool) {
-        bytes32 root = MerkleLib.branchRoot(messageId, proof, index);
+        bytes32 root = MerkleLib.branchRoot({
+            _item: messageId,
+            _branch: proof,
+            _index: index
+        });
         StoredIndex storage storedIndex = storedCheckpoints[merkleTree][root];
         return storedIndex.exists && storedIndex.index >= index;
     }
@@ -38,12 +42,12 @@ contract CheckpointFraudProofs is PackageVersioned {
         bytes32 messageId
     ) {
         require(
-            storedCheckpointContainsMessage(
-                checkpoint.merkleTreeAddress(),
-                checkpoint.index,
-                messageId,
-                proof
-            ),
+            storedCheckpointContainsMessage({
+                merkleTree: checkpoint.merkleTreeAddress(),
+                index: checkpoint.index,
+                messageId: messageId,
+                proof: proof
+            }),
             "message must be member of stored checkpoint"
         );
         _;
@@ -133,11 +137,11 @@ contract CheckpointFraudProofs is PackageVersioned {
         // proof of checkpoint.messageId at checkpoint.index is the list of siblings from the leaf node to some stored root
         // once verifying the proof, we can reconstruct the specific root at checkpoint.index by replacing siblings greater
         // than the index (right subtrees) with zeroes
-        bytes32 root = MerkleLib.reconstructRoot(
-            checkpoint.messageId,
-            proof,
-            checkpoint.index
-        );
+        bytes32 root = MerkleLib.reconstructRoot({
+            _item: checkpoint.messageId,
+            _branch: proof,
+            _index: checkpoint.index
+        });
         return root != checkpoint.root;
     }
 }

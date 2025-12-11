@@ -86,11 +86,11 @@ contract TestQuerySender {
         bytes4 _callbackSelector,
         uint256 /*_gasAmount*/
     ) internal {
-        queryRouter.query(
-            _destinationDomain,
-            _target,
-            _targetData,
-            abi.encodePacked(_callbackSelector)
-        );
+        queryRouter.query({
+            _destination: _destinationDomain,
+            _to: _target,
+            _data: _targetData,
+            _callback: abi.encodePacked(_callbackSelector)
+        });
     }
 }

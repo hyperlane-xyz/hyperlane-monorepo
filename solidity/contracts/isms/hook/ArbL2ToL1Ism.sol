@@ -130,17 +130,17 @@ contract ArbL2ToL1Ism is
             convertedBytes == messageId,
             "ArbL2ToL1Ism: invalid message id"
         );
-        arbOutbox.executeTransaction(
-            proof,
-            index,
-            l2Sender,
-            to,
-            l2Block,
-            l1Block,
-            l2Timestamp,
-            value,
-            data
-        );
+        arbOutbox.executeTransaction({
+            proof: proof,
+            index: index,
+            l2Sender: l2Sender,
+            to: to,
+            l2Block: l2Block,
+            l1Block: l1Block,
+            l2Timestamp: l2Timestamp,
+            value: value,
+            data: data
+        });
     }
 
     /// @inheritdoc AbstractMessageIdAuthorizedIsm

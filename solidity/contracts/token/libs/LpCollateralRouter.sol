@@ -65,7 +65,12 @@ abstract contract LpCollateralRouter is
         // interactions
         _mint(receiver, shares);
 
-        emit Deposit(caller, receiver, assets, shares);
+        emit Deposit({
+            sender: caller,
+            owner: receiver,
+            assets: assets,
+            shares: shares
+        });
     }
 
     // modeled after ERC4626Upgradeable._withdraw
@@ -88,7 +93,13 @@ abstract contract LpCollateralRouter is
         // interactions
         _transferTo(receiver, assets);
 
-        emit Withdraw(caller, receiver, owner, assets, shares);
+        emit Withdraw({
+            sender: caller,
+            receiver: receiver,
+            owner: owner,
+            assets: assets,
+            shares: shares
+        });
     }
 
     // can be used to distribute rewards to LPs pro rata

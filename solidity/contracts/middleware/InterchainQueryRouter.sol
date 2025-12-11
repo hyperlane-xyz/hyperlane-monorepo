@@ -48,11 +48,11 @@ contract InterchainQueryRouter is Router {
         address _interchainSecurityModule,
         address _owner
     ) external initializer {
-        _MailboxClient_initialize(
-            _interchainGasPaymaster,
-            _interchainSecurityModule,
-            _owner
-        );
+        _MailboxClient_initialize({
+            _hook: _interchainGasPaymaster,
+            __interchainSecurityModule: _interchainSecurityModule,
+            _owner: _owner
+        });
     }
 
     /**
@@ -72,16 +72,16 @@ contract InterchainQueryRouter is Router {
     ) public payable returns (bytes32 messageId) {
         emit QueryDispatched(_destination, msg.sender);
 
-        messageId = _Router_dispatch(
-            _destination,
-            msg.value,
-            InterchainQueryMessage.encode(
+        messageId = _Router_dispatch({
+            _destinationDomain: _destination,
+            _value: msg.value,
+            _messageBody: InterchainQueryMessage.encode(
                 msg.sender.addressToBytes32(),
                 _to,
                 _data,
                 _callback
             )
-        );
+        });
     }
 
     /**
@@ -96,11 +96,14 @@ contract InterchainQueryRouter is Router {
         CallLib.StaticCallWithCallback[] calldata calls
     ) public payable returns (bytes32 messageId) {
         emit QueryDispatched(_destination, msg.sender);
-        messageId = _Router_dispatch(
-            _destination,
-            msg.value,
-            InterchainQueryMessage.encode(msg.sender.addressToBytes32(), calls)
-        );
+        messageId = _Router_dispatch({
+            _destinationDomain: _destination,
+            _value: msg.value,
+            _messageBody: InterchainQueryMessage.encode(
+                msg.sender.addressToBytes32(),
+                calls
+            )
+        });
     }
 
     /**
@@ -123,11 +126,11 @@ contract InterchainQueryRouter is Router {
                 callsWithCallback
             );
             emit QueryExecuted(_origin, sender);
-            _Router_dispatch(
-                _origin,
-                msg.value,
-                InterchainQueryMessage.encode(sender, callbacks)
-            );
+            _Router_dispatch({
+                _destinationDomain: _origin,
+                _value: msg.value,
+                _messageBody: InterchainQueryMessage.encode(sender, callbacks)
+            });
         } else if (messageType == InterchainQueryMessage.MessageType.RESPONSE) {
             address senderAddress = sender.bytes32ToAddress();
             bytes[] memory rawCalls = _message.rawCalls();

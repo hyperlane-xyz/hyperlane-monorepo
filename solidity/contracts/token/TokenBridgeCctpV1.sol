@@ -81,11 +81,11 @@ contract TokenBridgeCctpV1 is TokenBridgeCctpBase, IMessageHandler {
         bytes calldata body
     ) external override returns (bool) {
         return
-            _receiveMessageId(
-                sourceDomain,
-                sender,
-                abi.decode(body, (bytes32))
-            );
+            _receiveMessageId({
+                circleSource: sourceDomain,
+                circleSender: sender,
+                messageId: abi.decode(body, (bytes32))
+            });
     }
 
     function _sendMessageIdToIsm(
@@ -93,11 +93,11 @@ contract TokenBridgeCctpV1 is TokenBridgeCctpBase, IMessageHandler {
         bytes32 ism,
         bytes32 messageId
     ) internal override {
-        IMessageTransmitter(messageTransmitter).sendMessage(
-            destinationDomain,
-            ism,
-            abi.encode(messageId)
-        );
+        IMessageTransmitter(messageTransmitter).sendMessage({
+            destinationDomain: destinationDomain,
+            recipient: ism,
+            messageBody: abi.encode(messageId)
+        });
     }
 
     function _bridgeViaCircle(
@@ -108,11 +108,11 @@ contract TokenBridgeCctpV1 is TokenBridgeCctpBase, IMessageHandler {
         uint256 /*_maxFee*/,
         bytes32 /*_ism*/
     ) internal override {
-        ITokenMessengerV1(address(tokenMessenger)).depositForBurn(
-            _amount,
-            circleDomain,
-            _recipient,
-            address(wrappedToken)
-        );
+        ITokenMessengerV1(address(tokenMessenger)).depositForBurn({
+            amount: _amount,
+            destinationDomain: circleDomain,
+            mintRecipient: _recipient,
+            burnToken: address(wrappedToken)
+        });
     }
 }

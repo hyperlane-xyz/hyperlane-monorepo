@@ -85,10 +85,10 @@ contract OPL2ToL1Hook is AbstractMessageIdAuthHook {
         childHook.postDispatch{
             value: childHook.quoteDispatch(metadata, message)
         }(metadata, message);
-        l2Messenger.sendMessage{value: metadata.msgValue(0)}(
-            TypeCasts.bytes32ToAddress(ism),
-            payload,
-            MIN_GAS_LIMIT
-        );
+        l2Messenger.sendMessage{value: metadata.msgValue(0)}({
+            _target: TypeCasts.bytes32ToAddress(ism),
+            _message: payload,
+            _gasLimit: MIN_GAS_LIMIT
+        });
     }
 }

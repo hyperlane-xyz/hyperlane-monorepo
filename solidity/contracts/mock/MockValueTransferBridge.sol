@@ -33,12 +33,12 @@ contract MockValueTransferBridge is ITokenBridge {
         bytes32 _recipient,
         uint256 _amountOut
     ) external payable virtual override returns (bytes32 transferId) {
-        emit SentTransferRemote(
-            uint32(block.chainid),
-            _destinationDomain,
-            _recipient,
-            _amountOut
-        );
+        emit SentTransferRemote({
+            origin: uint32(block.chainid),
+            destination: _destinationDomain,
+            recipient: _recipient,
+            amount: _amountOut
+        });
 
         return keccak256("transferId");
     }

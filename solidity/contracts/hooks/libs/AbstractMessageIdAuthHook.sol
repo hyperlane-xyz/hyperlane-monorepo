@@ -88,7 +88,11 @@ abstract contract AbstractMessageIdAuthHook is
 
         _sendMessageId(metadata, message);
 
-        _refund(metadata, message, address(this).balance);
+        _refund({
+            metadata: metadata,
+            message: message,
+            amount: address(this).balance
+        });
     }
 
     /**

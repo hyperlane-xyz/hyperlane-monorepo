@@ -71,7 +71,7 @@ library InterchainQueryMessage {
     ) internal pure returns (bytes memory) {
         CallLib.StaticCallWithCallback[]
             memory _calls = new CallLib.StaticCallWithCallback[](1);
-        _calls[0] = CallLib.build(_to, _data, _callback);
+        _calls[0] = CallLib.build({to: _to, data: _data, callback: _callback});
         return abi.encode(_sender, MessageType.QUERY, _calls);
     }
 

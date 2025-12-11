@@ -222,12 +222,12 @@ contract HyperlaneServiceManager is ECDSAServiceManagerBase, PackageVersioned {
                 uint248(block.number)
             )
         );
-        emit OperatorQueuedUnenrollmentFromChallenger(
-            msg.sender,
-            challenger,
-            block.number,
-            challenger.challengeDelayBlocks()
-        );
+        emit OperatorQueuedUnenrollmentFromChallenger({
+            operator: msg.sender,
+            challenger: challenger,
+            unenrollmentStartBlock: block.number,
+            challengeDelayBlocks: challenger.challengeDelayBlocks()
+        });
     }
 
     /**
@@ -278,11 +278,11 @@ contract HyperlaneServiceManager is ECDSAServiceManagerBase, PackageVersioned {
         );
 
         enrolledChallengers[operator].remove(address(challenger));
-        emit OperatorUnenrolledFromChallenger(
-            operator,
-            challenger,
-            block.number
-        );
+        emit OperatorUnenrolledFromChallenger({
+            operator: operator,
+            challenger: challenger,
+            unenrollmentEndBlock: block.number
+        });
     }
 
     /// @inheritdoc ECDSAServiceManagerBase

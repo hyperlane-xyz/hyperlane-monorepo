@@ -128,7 +128,11 @@ abstract contract TokenBridgeCctpBase is
         string[] memory __urls
     ) external initializer {
         // ISM should not be set
-        _MailboxClient_initialize(_hook, address(0), _owner);
+        _MailboxClient_initialize({
+            _hook: _hook,
+            __interchainSecurityModule: address(0),
+            _owner: _owner
+        });
 
         // Setup urls for offchain lookup and do token approval
         setUrls(__urls);
@@ -148,35 +152,35 @@ abstract contract TokenBridgeCctpBase is
         (
             uint256 externalFee,
             uint256 remainingNativeValue
-        ) = _calculateFeesAndCharge(
-                _destination,
-                _recipient,
-                _amount,
-                msg.value
-            );
+        ) = _calculateFeesAndCharge({
+                _destination: _destination,
+                _recipient: _recipient,
+                _amount: _amount,
+                _msgValue: msg.value
+            });
 
         // 2. Prepare the token message with the recipient, amount, and any additional metadata in overrides
         bytes32 ism = _mustHaveRemoteRouter(_destination);
         uint32 circleDomain = hyperlaneDomainToCircleDomain(_destination);
         uint256 burnAmount = _amount + externalFee;
-        _bridgeViaCircle(
-            circleDomain,
-            _recipient,
-            burnAmount,
-            externalFee,
-            ism
-        );
+        _bridgeViaCircle({
+            _destination: circleDomain,
+            _recipient: _recipient,
+            _amount: burnAmount,
+            _maxFee: externalFee,
+            _ism: ism
+        });
 
         bytes memory _message = TokenMessage.format(_recipient, burnAmount);
         // 3. Emit the SentTransferRemote event and 4. dispatch the message
         return
-            _emitAndDispatch(
-                _destination,
-                _recipient,
-                _amount, // no scaling needed for CCTP
-                remainingNativeValue,
-                _message
-            );
+            _emitAndDispatch({
+                _destination: _destination,
+                _recipient: _recipient,
+                _amount: _amount,
+                _messageDispatchValue: remainingNativeValue,
+                _tokenMessage: _message
+            });
     }
 
     function interchainSecurityModule()
@@ -350,9 +354,17 @@ abstract contract TokenBridgeCctpBase is
         bytes32 ism = _mustHaveRemoteRouter(destination);
         uint32 circleDestination = hyperlaneDomainToCircleDomain(destination);
 
-        _sendMessageIdToIsm(circleDestination, ism, id);
+        _sendMessageIdToIsm({
+            destinationDomain: circleDestination,
+            ism: ism,
+            messageId: id
+        });
 
-        _refund(metadata, message, address(this).balance);
+        _refund({
+            metadata: metadata,
+            message: message,
+            amount: address(this).balance
+        });
     }
 
     /**

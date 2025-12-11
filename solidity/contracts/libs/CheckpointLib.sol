@@ -55,13 +55,13 @@ library CheckpointLib {
         Checkpoint memory checkpoint
     ) internal pure returns (bytes32) {
         return
-            digest(
-                checkpoint.origin,
-                checkpoint.merkleTree,
-                checkpoint.root,
-                checkpoint.index,
-                checkpoint.messageId
-            );
+            digest({
+                _origin: checkpoint.origin,
+                _merkleTreeHook: checkpoint.merkleTree,
+                _checkpointRoot: checkpoint.root,
+                _checkpointIndex: checkpoint.index,
+                _messageId: checkpoint.messageId
+            });
     }
 
     function merkleTreeAddress(

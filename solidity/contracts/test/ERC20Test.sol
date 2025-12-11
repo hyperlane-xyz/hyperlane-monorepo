@@ -209,11 +209,11 @@ contract XERC20VSTest is ERC20Test, Ownable, IXERC20VS {
             rateLimitPerSecond: rateLimit.rateLimitPerSecond
         });
 
-        emit ConfigurationChanged(
-            rateLimit.bridge,
-            rateLimit.bufferCap,
-            rateLimit.rateLimitPerSecond
-        );
+        emit ConfigurationChanged({
+            bridge: rateLimit.bridge,
+            bufferCap: rateLimit.bufferCap,
+            rateLimitPerSecond: rateLimit.rateLimitPerSecond
+        });
     }
 
     function removeBridge(address _bridge) external override {
@@ -278,14 +278,28 @@ contract XERC20LockboxTest is IXERC20Lockbox {
         uint256 totalSupply,
         uint8 __decimals
     ) {
-        ERC20Test erc20 = new ERC20Test(name, symbol, totalSupply, __decimals);
+        ERC20Test erc20 = new ERC20Test({
+            name: name,
+            symbol: symbol,
+            totalSupply: totalSupply,
+            __decimals: __decimals
+        });
         erc20.transfer(msg.sender, totalSupply);
         ERC20 = erc20;
-        XERC20 = new XERC20Test(name, symbol, 0, __decimals);
+        XERC20 = new XERC20Test({
+            name: name,
+            symbol: symbol,
+            totalSupply: 0,
+            __decimals: __decimals
+        });
     }
 
     function depositTo(address _user, uint256 _amount) public {
-        ERC20.transferFrom(msg.sender, address(this), _amount);
+        ERC20.transferFrom({
+            from: msg.sender,
+            to: address(this),
+            amount: _amount
+        });
         XERC20.mint(_user, _amount);
     }
 
