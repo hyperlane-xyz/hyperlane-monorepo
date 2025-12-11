@@ -559,7 +559,6 @@ jobs:
           job_name: 'Radix SDK E2E'
           result: ${{ needs.radix-sdk-e2e-run.result }}
 
-
   agent-configs:
     runs-on: depot-ubuntu-latest
     strategy:
