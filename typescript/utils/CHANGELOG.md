@@ -1,5 +1,7 @@
 # @hyperlane-xyz/utils
 
+## 19.13.0
+
 ## 19.12.0
 
 ### Minor Changes

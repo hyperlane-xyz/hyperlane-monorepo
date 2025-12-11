@@ -17,12 +17,14 @@ impl<P: AleoProviderForLander> crate::adapter::chains::aleo::adapter::core::Aleo
         };
 
         // For resubmissions, wait approximately one block time
+        let block_time = self.estimated_block_time;
+
         let elapsed = chrono::Utc::now()
             .signed_duration_since(last_submission_time)
             .to_std()
-            .unwrap_or(Duration::ZERO);
+            .unwrap_or(block_time);
 
-        elapsed >= self.estimated_block_time
+        elapsed >= block_time
     }
 }
 
