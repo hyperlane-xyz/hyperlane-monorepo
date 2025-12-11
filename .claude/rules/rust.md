@@ -34,10 +34,15 @@ paths: rust/**/*.rs
   - `cargo test --release --package run-locally --features cosmos -- cosmos::test --nocapture`
   - `cargo test --release --package run-locally --features sealevel -- sealevel::test --nocapture`
 
-## Before Committing
+## Before Committing (CI-compatible commands)
 
-- Run `cargo clippy` for linting
-- Run `cargo fmt` for formatting
+Run these from `rust/main/` to ensure CI will pass:
+
+```bash
+cargo clippy --features aleo,integration_test -- -D warnings
+cargo test --all-targets --features aleo,integration_test
+cargo fmt
+```
 
 ## Security Considerations
 
