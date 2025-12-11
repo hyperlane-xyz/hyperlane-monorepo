@@ -22,7 +22,7 @@ export const regularIcas: ChainMap<Address> = {
   apechain: '0x0880453D948E4D2a06F40c6Cf4eF33E4e938411f',
   appchain: '0x863226b1F78f40a3Ab63D89910B2CC5e899CC94D',
   arbitrumnova: '0x2A20bb14cA28A189Bb7faE65072E05c1226C0D77',
-  // arcadia: '0x56eDf2dCFA1cBA0Df7D1EE80D02F930d74B12f39',
+  arcadia: '0x56eDf2dCFA1cBA0Df7D1EE80D02F930d74B12f39',
   artela: '0xb53734Ed3832d764462E62316c35B81cCC92197a',
   astar: '0x794D8EA7C8f7f19a1D8F5dEE1207fcae7f41c16b',
   aurora: '0x2fb1f965B35725D3b30f50A0A4BA6865E7368e78',
@@ -143,4 +143,12 @@ export const regularIcas: ChainMap<Address> = {
   incentiv: '0x86563B7E9499Cd826bC5e6a1D98436aDb440DDb2',
   monad: '0x9126696d9C3c44dc1273352ce171E359b1802560',
   litchain: '0x6b3353A453689a92aE3138c4d26e4eaD894b39D8',
+
+  // Dec 4, 2025
+  // ----------------------------------------------------------
+  stable: '0x669385086e9Bb39aa29653eaACB0F169066c89C5',
+  somnia: '0xe26f1A5681088b7dCd53c00C9a19143e8bA543Ec',
+  lazai: '0xDFEa2EB38AA77EE41D50794aFaA34463EEabD4BB',
+  megaeth: '0x8D628b83A2F915fab39f7F09e0cF7A3ea8F9bF42',
+  adichain: '0xD0427bD81a0cDA1AdcdFb49DFDB95Ab3e059FFff',
 } as const;
