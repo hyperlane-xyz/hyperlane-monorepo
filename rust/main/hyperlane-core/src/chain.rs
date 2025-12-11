@@ -433,8 +433,8 @@ impl KnownHyperlaneDomain {
         use self::KnownHyperlaneDomain::*;
 
         match self {
-            ArbitrumSepolia
-            | AleoTestnet
+            AleoTestnet
+            | ArbitrumSepolia
             | ArcadiaTestnet2
             | AuroraTestnet
             | BasecampTestnet
