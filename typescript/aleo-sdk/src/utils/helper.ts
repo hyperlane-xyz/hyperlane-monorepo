@@ -44,6 +44,10 @@ export function loadProgramsInDeployOrder(
     let output = p.toString();
 
     for (const n of Object.keys(programRegistry)) {
+      if (n === 'credits' || n === 'token_registry') {
+        continue;
+      }
+
       output = output.replaceAll(`${n}.aleo`, `${prefix}_${n}.aleo`);
     }
 

@@ -135,7 +135,7 @@ export class AleoSigner
   async createMailbox(
     req: Omit<AltVM.ReqCreateMailbox, 'signer'>,
   ): Promise<AltVM.ResCreateMailbox> {
-    const mailboxSuffix = this.generateSuffix(12);
+    const mailboxSuffix = this.generateSuffix(6);
     const programs = await this.deployProgram('dispatch_proxy', mailboxSuffix);
 
     const tx = await this.getCreateMailboxTransaction({
@@ -234,7 +234,7 @@ export class AleoSigner
   async createMessageIdMultisigIsm(
     req: Omit<AltVM.ReqCreateMessageIdMultisigIsm, 'signer'>,
   ): Promise<AltVM.ResCreateMessageIdMultisigIsm> {
-    const mailboxSuffix = this.generateSuffix(12);
+    const mailboxSuffix = this.generateSuffix(6);
     const programs = await this.deployProgram('ism_manager', mailboxSuffix);
 
     const ismManagerProgramId = programs['ism_manager'];
@@ -277,7 +277,7 @@ export class AleoSigner
   async createRoutingIsm(
     req: Omit<AltVM.ReqCreateRoutingIsm, 'signer'>,
   ): Promise<AltVM.ResCreateRoutingIsm> {
-    const mailboxSuffix = this.generateSuffix(12);
+    const mailboxSuffix = this.generateSuffix(6);
     const programs = await this.deployProgram('ism_manager', mailboxSuffix);
 
     const ismManagerProgramId = programs['ism_manager'];
@@ -375,7 +375,7 @@ export class AleoSigner
   async createNoopIsm(
     req: Omit<AltVM.ReqCreateNoopIsm, 'signer'>,
   ): Promise<AltVM.ResCreateNoopIsm> {
-    const mailboxSuffix = this.generateSuffix(12);
+    const mailboxSuffix = this.generateSuffix(6);
     const programs = await this.deployProgram('ism_manager', mailboxSuffix);
 
     const ismManagerProgramId = programs['ism_manager'];
@@ -598,9 +598,7 @@ export class AleoSigner
   async createValidatorAnnounce(
     req: Omit<AltVM.ReqCreateValidatorAnnounce, 'signer'>,
   ): Promise<AltVM.ResCreateValidatorAnnounce> {
-    const validatorAnnounceSuffix = getProgramSuffix(
-      fromAleoAddress(req.mailboxAddress).programId,
-    );
+    const validatorAnnounceSuffix = this.generateSuffix(3);
     const programs = await this.deployProgram(
       'validator_announce',
       validatorAnnounceSuffix,
@@ -628,7 +626,7 @@ export class AleoSigner
   async createNativeToken(
     req: Omit<AltVM.ReqCreateNativeToken, 'signer'>,
   ): Promise<AltVM.ResCreateNativeToken> {
-    const tokenSuffix = this.generateSuffix(12);
+    const tokenSuffix = this.generateSuffix(3);
     const mailboxSuffix = getProgramSuffix(
       fromAleoAddress(req.mailboxAddress).programId,
     );
