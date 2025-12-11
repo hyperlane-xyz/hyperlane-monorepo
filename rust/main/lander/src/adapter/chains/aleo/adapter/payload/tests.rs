@@ -1,3 +1,7 @@
+use std::str::FromStr;
+
+use hyperlane_aleo::{AleoSerialize, CurrentNetwork, DeliveryKey, Plaintext};
+
 use crate::adapter::AdaptsChain;
 use crate::TransactionStatus;
 
@@ -10,11 +14,13 @@ async fn test_reverted_payloads_finalized_transaction_not_delivered() {
     let adapter = create_test_adapter();
     let mut tx = create_test_transaction();
 
+    let delivery_key = DeliveryKey { id: [1u128, 1u128] };
+
     // Add success_criteria with proper AleoGetMappingValue format
     let get_mapping_value = AleoGetMappingValue {
         program_id: "mailbox.aleo".to_string(),
         mapping_name: "deliveries".to_string(),
-        mapping_key: "test_key".to_string(),
+        mapping_key: delivery_key.to_plaintext().unwrap(),
     };
     tx.payload_details[0].success_criteria = Some(serde_json::to_vec(&get_mapping_value).unwrap());
 
@@ -28,7 +34,7 @@ async fn test_reverted_payloads_finalized_transaction_not_delivered() {
 
     // Payload is skipped because "test_key" is not a valid Plaintext format
     // When Plaintext parsing fails, we skip the payload (don't treat as reverted)
-    assert_eq!(reverted.len(), 0);
+    assert_eq!(reverted.len(), 1);
 }
 
 #[tokio::test]
@@ -182,15 +188,20 @@ async fn test_reverted_payloads_finalized_multiple_payloads_all_not_delivered() 
     let mut tx = create_test_transaction();
 
     // Create 3 payloads with proper success_criteria
+
+    // Add success_criteria with proper AleoGetMappingValue format
+    let delivery_key_1 = DeliveryKey { id: [1u128, 2u128] };
     let get_mapping_value_1 = AleoGetMappingValue {
         program_id: "mailbox.aleo".to_string(),
         mapping_name: "deliveries".to_string(),
-        mapping_key: "key1".to_string(),
+        mapping_key: delivery_key_1.to_plaintext().unwrap(),
     };
+
+    let delivery_key_2 = DeliveryKey { id: [1u128, 3u128] };
     let get_mapping_value_2 = AleoGetMappingValue {
         program_id: "mailbox.aleo".to_string(),
         mapping_name: "deliveries".to_string(),
-        mapping_key: "key2".to_string(),
+        mapping_key: delivery_key_2.to_plaintext().unwrap(),
     };
 
     tx.payload_details = vec![
@@ -218,8 +229,5 @@ async fn test_reverted_payloads_finalized_multiple_payloads_all_not_delivered() 
     assert!(result.is_ok());
     let reverted = result.unwrap();
 
-    // Both payloads with success_criteria are skipped because "key1" and "key2" are not valid Plaintext formats
-    // Payload without criteria is also skipped (no success_criteria)
-    // When Plaintext parsing fails, we skip the payload (don't treat as reverted)
-    assert_eq!(reverted.len(), 0);
+    assert_eq!(reverted.len(), 2);
 }

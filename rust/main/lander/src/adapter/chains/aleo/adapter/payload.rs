@@ -37,12 +37,6 @@ impl<P: AleoProviderForLander> crate::adapter::chains::aleo::adapter::core::Aleo
                             ))
                         })?;
 
-                    // Parse the mapping key - if parsing fails, skip this payload
-                    let Ok(key) = Plaintext::from_str(&get_mapping_value.mapping_key) else {
-                        // Cannot parse, skip verification for this payload
-                        continue;
-                    };
-
                     // Query on-chain to check if the delivery record exists
                     // If provider returns error, treat as delivered (not reverted) with unwrap_or(true)
                     let delivered = self
@@ -50,7 +44,7 @@ impl<P: AleoProviderForLander> crate::adapter::chains::aleo::adapter::core::Aleo
                         .mapping_value_exists(
                             &get_mapping_value.program_id,
                             &get_mapping_value.mapping_name,
-                            &key,
+                            &get_mapping_value.mapping_key,
                         )
                         .await
                         .unwrap_or(true);
