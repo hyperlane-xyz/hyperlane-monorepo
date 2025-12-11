@@ -12,7 +12,7 @@ impl<P: AleoProviderForLander> crate::adapter::chains::aleo::adapter::core::Aleo
     /// For Aleo:
     /// - **Finalized** transactions: Query on-chain to verify if the message was actually delivered
     ///   - If delivery record doesn't exist, the payload is reverted
-    /// - **Dropped** transactions: All payloads with success_criteria are reverted
+    /// - **Dropped** transactions: All payloads are reverted
     /// - **Other** statuses (Mempool, PendingInclusion): Cannot determine yet, return empty
     pub(crate) async fn reverted(
         &self,
