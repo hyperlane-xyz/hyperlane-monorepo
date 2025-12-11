@@ -82,10 +82,6 @@ export class EvmRouterReader extends HyperlaneReader {
       const router = Router__factory.connect(routerAddress, this.provider);
       const domains = await router.domains();
 
-      this.logger.debug(
-        `Fetching routers for ${domains.length} domains on contract ${routerAddress}`,
-      );
-
       const routers = Object.fromEntries(
         await Promise.all(
           domains.map(async (domain) => {
