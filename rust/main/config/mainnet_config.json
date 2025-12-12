@@ -3008,7 +3008,7 @@
       "domainRoutingIsmFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
       "fallbackRoutingHook": "0x03E20381530F2D50A0c9Ef153C19E74695c03433",
       "gasCurrencyCoinGeckoId": "okb",
-      "gnosisSafeTransactionServiceUrl": "https://app.safe.global/welcome?chain=xlayer",
+      "gnosisSafeTransactionServiceUrl": "https://api.safe.global/tx-service/okb/",
       "index": {
         "chunk": 999,
         "from": 3387690
@@ -4760,7 +4760,7 @@
         "from": 6777659
       },
       "transactionOverrides": {
-        "gasPrice": 100000000
+        "gasPrice": 16038000000
       }
     },
     "immutablezkevmmainnet": {
@@ -8958,7 +8958,8 @@
       "validatorAnnounce": "0x75719C858e0c73e07128F95B2C466d142490e933",
       "index": {
         "from": 89474
-      }
+      },
+      "gnosisSafeTransactionServiceUrl": "https://api.safe.global/tx-service/plasma/"
     },
     "zerogravity": {
       "blockExplorers": [
@@ -9278,7 +9279,8 @@
       "index": {
         "chunk": 99,
         "from": 25705279
-      }
+      },
+      "gnosisSafeTransactionServiceUrl": "https://api.safe.global/tx-service/monad/"
     },
     "litchain": {
       "blockExplorers": [
@@ -9597,7 +9599,7 @@
         {
           "apiKey": "GP69JEAP2W7YFJT9ZJTEPGQT6Y6KMW44ZN",
           "apiUrl": "https://api.etherscan.io/v2/api?chainid=988",
-          "family": "other",
+          "family": "etherscan",
           "name": "Stable Explorer",
           "url": "https://stablescan.xyz"
         }
@@ -9653,7 +9655,8 @@
       "validatorAnnounce": "0xF6CC9B10c607afB777380bF71F272E4D7037C3A9",
       "index": {
         "from": 4016628
-      }
+      },
+      "gnosisSafeTransactionServiceUrl": "https://api.safe.global/tx-service/stable/"
     }
   }
 }
