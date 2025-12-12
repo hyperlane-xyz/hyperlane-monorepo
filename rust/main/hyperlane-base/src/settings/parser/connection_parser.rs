@@ -122,7 +122,7 @@ pub fn build_ethereum_connection_conf(
         .chain(err)
         .get_opt_key("considerNullTransactionReceipt")
         .parse_bool()
-        .unwrap_or(true);
+        .unwrap_or(false);
 
     Some(ChainConnectionConf::Ethereum(h_eth::ConnectionConf {
         rpc_connection: rpc_connection_conf?,
