@@ -458,28 +458,26 @@ impl BaseAgent for Relayer {
             };
             tasks.push(message_sync);
 
-            let interchain_gas_payment_sync = match self
-                .run_interchain_gas_payment_sync(
+            let interchain_gas_payment_syncs = match self
+                .run_interchain_gas_payment_syncs(
                     origin,
                     BroadcastMpscSender::map_get_receiver(maybe_broadcaster.as_ref()).await,
                     task_monitor.clone(),
                 )
                 .await
             {
-                Ok(task) => task,
+                Ok(sync_tasks) => sync_tasks,
                 Err(err) => {
                     Self::record_critical_error(
                         &origin.domain,
                         &self.chain_metrics,
                         &err,
-                        "Failed to run interchain gas payment sync",
+                        "Failed to run interchain gas payment syncs",
                     );
                     continue;
                 }
             };
-            if let Some(task) = interchain_gas_payment_sync {
-                tasks.push(task);
-            }
+            tasks.extend(interchain_gas_payment_syncs);
 
             let merkle_tree_hook_sync = match self
                 .run_merkle_tree_hook_sync(
@@ -690,18 +688,72 @@ impl Relayer {
         info!(chain = origin.name(), label, "contract sync task exit");
     }
 
+    async fn run_interchain_gas_payment_syncs(
+        &self,
+        origin: &Origin,
+        tx_id_receiver: Option<MpscReceiver<H512>>,
+        task_monitor: TaskMonitor,
+    ) -> eyre::Result<Vec<JoinHandle<()>>> {
+        let contract_syncs = &origin.interchain_gas_payment_syncs;
+        if contract_syncs.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let mut handles = Vec::with_capacity(contract_syncs.len());
+        let mut tx_id_receiver = tx_id_receiver;
+
+        for (i, contract_sync) in contract_syncs.iter().enumerate() {
+            let chain_metrics = self.chain_metrics.clone();
+            let origin_domain = origin.domain.clone();
+            let index_settings = origin.chain_conf.index_settings().clone();
+            let contract_sync = contract_sync.clone();
+
+            let receiver = if i == 0 { tx_id_receiver.take() } else { None };
+
+            let suffix = if i == 0 {
+                String::new()
+            } else {
+                format!("_{}", i)
+            };
+            let name = format!(
+                "{}{}",
+                Self::contract_sync_task_name("gas_payment::", origin_domain.name()),
+                suffix
+            );
+
+            let handle = tokio::task::Builder::new()
+                .name(&name)
+                .spawn(TaskMonitor::instrument(
+                    &task_monitor,
+                    async move {
+                        Self::interchain_gas_payments_sync_task(
+                            &origin_domain,
+                            index_settings,
+                            contract_sync,
+                            chain_metrics,
+                            receiver,
+                        )
+                        .await;
+                    }
+                    .instrument(info_span!("IgpSync", igp_index = i)),
+                ))
+                .expect("spawning tokio task from Builder is infallible");
+            handles.push(handle);
+        }
+        Ok(handles)
+    }
+
     async fn run_interchain_gas_payment_sync(
         &self,
         origin: &Origin,
         tx_id_receiver: Option<MpscReceiver<H512>>,
         task_monitor: TaskMonitor,
     ) -> eyre::Result<Option<JoinHandle<()>>> {
-        let contract_sync = match origin.interchain_gas_payment_sync.as_ref() {
-            Some(s) => s.clone(),
-            None => {
-                return Ok(None);
-            }
-        };
+        let contract_syncs = &origin.interchain_gas_payment_syncs;
+        if contract_syncs.is_empty() {
+            return Ok(None);
+        }
+        let contract_sync = contract_syncs[0].clone();
         let chain_metrics = self.chain_metrics.clone();
 
         let origin_domain = origin.domain.clone();
