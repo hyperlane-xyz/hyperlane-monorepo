@@ -32,8 +32,8 @@ async fn test_reverted_payloads_finalized_transaction_not_delivered() {
     assert!(result.is_ok());
     let reverted = result.unwrap();
 
-    // Payload is skipped because "test_key" is not a valid Plaintext format
-    // When Plaintext parsing fails, we skip the payload (don't treat as reverted)
+    // The mock provider indicates the message wasn't delivered on-chain,
+    // so the payload is reverted
     assert_eq!(reverted.len(), 1);
 }
 
