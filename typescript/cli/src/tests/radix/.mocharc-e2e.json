@@ -1,7 +1,5 @@
 {
   "extensions": ["ts"],
   "file": ["src/tests/radix/e2e-test.setup.ts"],
-  "node-option": [
-    "import=tsx/esm"
-  ]
+  "node-option": ["import=tsx/esm"]
 }
