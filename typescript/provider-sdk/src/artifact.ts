@@ -4,6 +4,7 @@ import { AnnotatedTx, TxReceipt } from './module.js';
 export const ArtifactState = {
   NEW: 'new',
   DEPLOYED: 'deployed',
+  UNDERIVED: 'underived',
 } as const;
 
 export type ArtifactState = (typeof ArtifactState)[keyof typeof ArtifactState];
@@ -26,6 +27,21 @@ export type ArtifactDeployed<C, D> = {
   config: C;
   deployed: D;
 };
+
+/**
+ * Represents an artifact that has been deployed on chain
+ * but is represented only by its address
+ */
+export type ArtifactUnderived = {
+  artifactState: typeof ArtifactState.UNDERIVED;
+  artifactAddress: string;
+};
+
+/**
+ * Union type representing a deployed artifact. Can be either the full artifact config
+ * or its address on chain.
+ */
+export type ArtifactOnChain<C, D> = ArtifactDeployed<C, D> | ArtifactUnderived;
 
 /**
  * Union type representing an artifact in any state.
@@ -95,16 +111,15 @@ export interface ArtifactWriter<C, D> extends ArtifactReader<C, D> {
  * // }
  * ```
  */
-export type RawArtifact<T> =
-  T extends Artifact<any, any>
-    ? string
-    : T extends Record<infer K, Artifact<any, any>>
-      ? Record<K, string>
-      : T extends Array<Artifact<any, any>>
-        ? Array<string>
-        : T extends Record<string, any>
-          ? { [K in keyof T]: RawArtifact<T[K]> }
-          : T;
+export type RawArtifact<C, D> = {
+  [K in keyof C]: C[K] extends Artifact<infer CC>
+    ? ArtifactOnChain<CC, D>
+    : C[K] extends Artifact<infer CC>[]
+      ? ArtifactOnChain<CC, D>[]
+      : C[K] extends { [L: string]: Artifact<infer CC> }
+        ? { [L in keyof C[K]]: ArtifactOnChain<CC, D> }
+        : C[K];
+};
 
 /**
  * Artifact Manager Interface

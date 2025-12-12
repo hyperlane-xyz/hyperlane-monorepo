@@ -1,6 +1,12 @@
 import { WithAddress } from '@hyperlane-xyz/utils';
 
-import { Artifact, IArtifactManager, RawArtifact } from './artifact.js';
+import {
+  Artifact,
+  ArtifactOnChain,
+  ArtifactState,
+  IArtifactManager,
+  RawArtifact,
+} from './artifact.js';
 
 export type IsmModuleType = {
   config: IsmConfig;
@@ -80,7 +86,10 @@ export interface RoutingIsmArtifactConfig {
   domains: Record<number, Artifact<IsmArtifactConfig, DeployedIsmAddresses>>;
 }
 
-export type RawRoutingIsmArtifactConfig = RawArtifact<RoutingIsmArtifactConfig>;
+export type RawRoutingIsmArtifactConfig = RawArtifact<
+  RoutingIsmArtifactConfig,
+  DeployedIsmAddresses
+>;
 
 export interface RawIsmArtifactConfigs {
   domainRoutingIsm: RawRoutingIsmArtifactConfig;
@@ -104,3 +113,11 @@ export type IRawIsmArtifactManager = IArtifactManager<
   RawIsmArtifactConfigs,
   DeployedIsmAddresses
 >;
+
+export function ismOnChainAddress(
+  ism: ArtifactOnChain<IsmArtifactConfig, DeployedIsmAddresses>,
+): string {
+  return ism.artifactState === ArtifactState.DEPLOYED
+    ? ism.deployed.address
+    : ism.artifactAddress;
+}
