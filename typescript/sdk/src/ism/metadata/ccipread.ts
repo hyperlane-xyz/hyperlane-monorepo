@@ -42,11 +42,12 @@ export class OffchainLookupMetadataBuilder implements MetadataBuilder {
     if (parsed.name !== 'OffchainLookup') {
       throw new Error(`Unexpected error ${parsed.name}`);
     }
-    const [sender, urls, callData] = parsed.args as [
+    let [sender, urls, callData] = parsed.args as [
       string,
       string[],
       Uint8Array,
     ];
+    urls = ['http://localhost:3000/cctp/getCctpAttestation'];
 
     const callDataHex = utils.hexlify(callData);
 

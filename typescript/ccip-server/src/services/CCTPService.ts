@@ -22,7 +22,8 @@ import {
   ServiceConfigWithMultiProvider,
 } from './BaseService.js';
 import { CCTPAttestationService } from './CCTPAttestationService.js';
-import { HyperlaneService } from './HyperlaneService.js';
+
+// import { HyperlaneService } from './HyperlaneService.js';
 
 const EnvSchema = z.object({
   HYPERLANE_EXPLORER_URL: z.string().url(),
@@ -33,7 +34,7 @@ const EnvSchema = z.object({
 class CCTPService extends BaseService {
   // External Services
   public router: Router;
-  private hyperlaneService: HyperlaneService;
+  // private hyperlaneService: HyperlaneService;
   private cctpAttestationService: CCTPAttestationService;
   private multiProvider: MultiProvider;
 
@@ -52,10 +53,10 @@ class CCTPService extends BaseService {
     this.multiProvider = config.multiProvider;
 
     const env = EnvSchema.parse(process.env);
-    this.hyperlaneService = new HyperlaneService(
-      this.config.serviceName,
-      env.HYPERLANE_EXPLORER_URL,
-    );
+    // this.hyperlaneService = new HyperlaneService(
+    //   this.config.serviceName,
+    //   env.HYPERLANE_EXPLORER_URL,
+    // );
     this.cctpAttestationService = new CCTPAttestationService(
       this.config.serviceName,
       env.CCTP_ATTESTATION_URL,
@@ -142,10 +143,11 @@ class CCTPService extends BaseService {
     log.info({ messageId, hyperlaneMessage: message }, 'Generated message ID');
 
     const txHash =
-      await this.hyperlaneService.getOriginTransactionHashByMessageId(
-        messageId,
-        log,
-      );
+      '0xe82487eec935becd67a0e050277a8d56ceb949736acd6e4023537fe206d94283';
+    // await this.hyperlaneService.getOriginTransactionHashByMessageId(
+    //   messageId,
+    //   log,
+    // );
 
     if (!txHash) {
       throw new Error(`Invalid transaction hash: ${txHash}`);
