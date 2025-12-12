@@ -149,7 +149,7 @@ impl<C: AleoClient> AleoProvider<C> {
             domain,
             network: chain_id,
             proving_service: None,
-            signer: signer,
+            signer,
             priority_fee_multiplier: 0.0,
             estimate_cache: Default::default(),
             mainnet_vm: get_vm().unwrap(),
@@ -278,7 +278,7 @@ impl<C: AleoClient> AleoProvider<C> {
         let private_key = signer.get_private_key()?;
         let mut rng = ChaCha20Rng::from_entropy();
         // Load program + dependencies.
-        self.load_program(&vm, &program_id_parsed, 0).await?;
+        self.load_program(vm, &program_id_parsed, 0).await?;
 
         debug!(
             "Loaded Program and dependencies in {:.2}s",
@@ -333,7 +333,7 @@ impl<C: AleoClient> AleoProvider<C> {
             .await?;
         let base = self
             .calculate_function_costs::<N>(
-                &vm,
+                vm,
                 &authorization,
                 &program_id_parsed,
                 &function_name_parsed,
@@ -418,7 +418,7 @@ impl<C: AleoClient> AleoProvider<C> {
         // Calculate fees
         let base_fee = self
             .calculate_function_costs::<N>(
-                &vm,
+                vm,
                 &authorization,
                 &program_id_parsed,
                 &function_name_parsed,
