@@ -1,7 +1,9 @@
 use std::{
+    collections::HashMap,
     fmt::Debug,
     ops::Deref,
     str::FromStr,
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -19,6 +21,7 @@ use snarkvm::{
     },
 };
 use snarkvm_console_account::{Address, PrivateKey};
+use tokio::sync::RwLock;
 use tracing::debug;
 
 use hyperlane_core::{
@@ -37,6 +40,13 @@ use crate::{
 pub trait AleoClient: HttpClient + Clone + Debug + Send + Sync + 'static {}
 impl<T> AleoClient for T where T: HttpClient + Clone + Debug + Send + Sync + 'static {}
 
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+struct FeeEstimateCacheKey {
+    program_id: String,
+    function_name: String,
+    network_id: u16,
+}
+
 /// Aleo Rest Client. Generic over an underlying HttpClient to allow injection of a mock for testing.
 #[derive(Debug, Clone)]
 pub struct AleoProvider<C: AleoClient = FallbackHttpClient> {
@@ -46,6 +56,7 @@ pub struct AleoProvider<C: AleoClient = FallbackHttpClient> {
     proving_service: Option<ProvingClient<C>>,
     signer: Option<AleoSigner>,
     priority_fee_multiplier: f64,
+    estimate_cache: Arc<RwLock<HashMap<FeeEstimateCacheKey, FeeEstimate>>>,
 }
 
 impl AleoProvider<FallbackHttpClient> {
@@ -81,6 +92,7 @@ impl AleoProvider<FallbackHttpClient> {
             proving_service,
             signer,
             priority_fee_multiplier: conf.priority_fee_multiplier,
+            estimate_cache: Default::default(),
         })
     }
 }
@@ -101,6 +113,7 @@ impl<C: AleoClient> AleoProvider<C> {
             proving_service: None,
             signer: signer,
             priority_fee_multiplier: 0.0,
+            estimate_cache: Default::default(),
         }
     }
 
@@ -288,7 +301,26 @@ impl<C: AleoClient> AleoProvider<C> {
         I: IntoIterator<Item = String>,
         I::IntoIter: ExactSizeIterator,
     {
-        match self.chain_id() {
+        let key = FeeEstimateCacheKey {
+            program_id: program_id.to_string(),
+            function_name: function_name.to_string(),
+            network_id: self.chain_id(),
+        };
+
+        {
+            let cache = self.estimate_cache.read().await;
+            let result = cache.get(&key);
+
+            if let Some(cached) = result {
+                debug!(
+                    "Using cached fee estimate for {program_id}/{function_name} on network {}",
+                    self.chain_id()
+                );
+                return Ok(cached.clone());
+            }
+        }
+
+        let result = match self.chain_id() {
             0 => {
                 self.estimate::<MainnetV0, _, _>(program_id, function_name, input)
                     .await
@@ -302,7 +334,12 @@ impl<C: AleoClient> AleoProvider<C> {
                     .await
             }
             id => Err(HyperlaneAleoError::UnknownNetwork(id).into()),
-        }
+        }?;
+
+        let mut cache = self.estimate_cache.write().await;
+        cache.insert(key, result.clone());
+
+        Ok(result)
     }
 
     /// Executes the transaction for the given network
