@@ -39,10 +39,12 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-import-resolver-typescript": "^4.4.4",
     "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-yml": "^1.18.0",
     "mocha": "^11.5.0",
     "prettier": "^3.5.3",
     "sinon": "^13.0.2",
-    "typescript": "5.3.3"
+    "typescript": "5.3.3",
+    "yaml-eslint-parser": "^1.3.0"
   },
   "homepage": "https://www.hyperlane.xyz",
   "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
@@ -71,6 +73,10 @@
     "./fs": {
       "types": "./dist/fs/index.d.ts",
       "default": "./dist/fs/index.js"
+    },
+    "./eslint-rules": {
+      "types": "./dist/eslint-rules/index.d.ts",
+      "default": "./dist/eslint-rules/index.js"
     }
   },
   "types": "./dist/index.d.ts",
@@ -78,6 +84,9 @@
     "*": {
       "fs": [
         "./dist/fs/index.d.ts"
+      ],
+      "eslint-rules": [
+        "./dist/eslint-rules/index.d.ts"
       ]
     }
   },

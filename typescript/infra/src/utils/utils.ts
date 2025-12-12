@@ -160,7 +160,7 @@ export async function writeJsonWithAppendMode(
 ) {
   let data = newData;
   if (appendMode && pathExists(filepath)) {
-    const existing = readJson(filepath);
+    const existing = readJson<Record<string, any>>(filepath);
     data = Object.fromEntries(
       Object.keys(newData).map((key) => [key, existing[key] ?? newData[key]]),
     );

@@ -51,7 +51,7 @@ describe('Balance Alert Thresholds', async function () {
       );
 
       // Read proposed thresholds from config file
-      const proposedThresholds = readJson(
+      const proposedThresholds = readJson<ChainMap<number>>(
         `${THRESHOLD_CONFIG_PATH}/${alertConfigMapping[alert].configFileName}`,
       );
 

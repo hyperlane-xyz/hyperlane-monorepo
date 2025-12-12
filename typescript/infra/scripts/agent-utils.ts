@@ -683,7 +683,9 @@ export function getAddresses(
   if (isRegistryModule(environment, module)) {
     addresses = getChainAddresses();
   } else {
-    addresses = readJson(getInfraLandfillPath(environment, module));
+    addresses = readJson<ChainMap<ChainAddresses>>(
+      getInfraLandfillPath(environment, module),
+    );
   }
 
   // Filter by chains if specified, otherwise use environment chains

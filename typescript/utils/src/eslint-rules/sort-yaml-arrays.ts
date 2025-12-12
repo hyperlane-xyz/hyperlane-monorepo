@@ -1,11 +1,7 @@
 import { Rule } from 'eslint';
 import YAML from 'yaml';
 
-import {
-  ArraySortConfig,
-  sortNestedArrays,
-  transformYaml,
-} from '@hyperlane-xyz/utils';
+import { ArraySortConfig, sortNestedArrays, transformYaml } from '../yaml.js';
 
 export default {
   meta: {

@@ -18,26 +18,23 @@ type YamlParseOptions = ParseOptions &
 
 /**
  * Parses YAML content with sensible defaults.
- * Note: No validation is performed - callers are responsible for ensuring type safety.
  * @see stackoverflow.com/questions/63075256/why-does-the-npm-yaml-library-have-a-max-alias-number
  */
-export function yamlParse(content: string, options?: YamlParseOptions) {
-  return parse(content, { maxAliasCount: -1, ...options });
+export function yamlParse<T>(content: string, options?: YamlParseOptions): T {
+  return parse(content, { maxAliasCount: -1, ...options }) as T;
 }
 
 /**
  * Reads and parses a YAML file.
- * Note: No validation is performed - callers are responsible for ensuring type safety.
  */
-export function readYaml(filepath: string) {
-  return yamlParse(readFileAtPath(filepath));
+export function readYaml<T>(filepath: string): T {
+  return yamlParse<T>(readFileAtPath(filepath));
 }
 
 /**
  * Attempts to read and parse a YAML file, returning null if it fails.
- * Note: No validation is performed - callers are responsible for ensuring type safety.
  */
-export function tryReadYaml(filepath: string) {
+export function tryReadYaml<T>(filepath: string): T | null {
   try {
     return readYaml(filepath);
   } catch {
@@ -62,7 +59,7 @@ export function mergeYaml<T extends Record<string, unknown>>(
   obj: T,
 ): void {
   if (isFile(filepath)) {
-    const previous = readYaml(filepath);
+    const previous = readYaml<T>(filepath);
     writeYaml(filepath, objMerge(previous, obj));
   } else {
     writeYaml(filepath, obj);
@@ -71,8 +68,7 @@ export function mergeYaml<T extends Record<string, unknown>>(
 
 /**
  * Reads YAML from a directory with the specified filename.
- * Note: No validation is performed - callers are responsible for ensuring type safety.
  */
-export function readYamlFromDir(directory: string, filename: string) {
-  return readYaml(path.join(directory, filename));
+export function readYamlFromDir<T>(directory: string, filename: string): T {
+  return readYaml<T>(path.join(directory, filename));
 }

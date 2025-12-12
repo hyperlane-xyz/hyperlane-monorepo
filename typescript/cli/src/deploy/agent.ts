@@ -48,7 +48,7 @@ export async function runKurtosisAgentDeploy({
       'agent-config',
     );
   }
-  const agentConfigObject = readJson(agentConfigurationPath);
+  const agentConfigObject = readJson<any>(agentConfigurationPath);
 
   const hyperlanePackageArgs = {
     plan: '{}',

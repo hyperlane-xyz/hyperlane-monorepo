@@ -235,7 +235,7 @@ export async function writeAgentConfig(
   const filepath = getAgentConfigJsonPath(envNameToAgentEnv[environment]);
   console.log(`Writing config to ${filepath}`);
   if (fs.existsSync(filepath)) {
-    const currentAgentConfig: AgentConfig = readJson(filepath);
+    const currentAgentConfig: AgentConfig = readJson<AgentConfig>(filepath);
     // Remove transactionOverrides from each chain in the agent config
     // To ensure all overrides are configured in infra code or the registry, and not in JSON
     for (const chainConfig of Object.values(currentAgentConfig.chains)) {
@@ -272,7 +272,7 @@ export async function writeAgentAppContexts(
   );
   console.log(`Writing config to ${filepath}`);
   if (fs.existsSync(filepath)) {
-    const currentAgentConfigMap = readJson(filepath);
+    const currentAgentConfigMap = readJson<RelayerAppContextConfig>(filepath);
     writeAndFormatJsonAtPath(
       filepath,
       objMerge(currentAgentConfigMap, agentConfigMap),

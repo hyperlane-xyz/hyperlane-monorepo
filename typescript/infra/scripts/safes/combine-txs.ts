@@ -31,7 +31,7 @@ function readJSONFiles(directory: string): Record<string, TxFile[]> {
 
       // If the filename contains 'timelock', expect an array and only parse the first object
       if (file.includes('timelock')) {
-        const arr = readJson(filePath);
+        const arr = readJson<TxFile[]>(filePath);
         if (!Array.isArray(arr) || arr.length === 0) {
           throw new Error(
             `Expected an array of objects in ${filePath} for TimelockController, but got: ${JSON.stringify(arr)}`,
@@ -39,7 +39,7 @@ function readJSONFiles(directory: string): Record<string, TxFile[]> {
         }
         txs = arr[0];
       } else {
-        txs = readJson(filePath);
+        txs = readJson<TxFile>(filePath);
       }
 
       const chainId = txs.chainId;

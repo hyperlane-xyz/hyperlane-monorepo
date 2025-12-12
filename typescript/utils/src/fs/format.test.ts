@@ -84,21 +84,21 @@ describe('Format utilities', () => {
     it('reads JSON file based on extension', () => {
       const jsonFile = path.join(testDir, 'test.json');
       fs.writeFileSync(jsonFile, JSON.stringify({ format: 'json' }));
-      const result = readYamlOrJson(jsonFile);
+      const result = readYamlOrJson<{ format: string }>(jsonFile);
       expect(result).to.deep.equal({ format: 'json' });
     });
 
     it('reads YAML file based on extension', () => {
       const yamlFile = path.join(testDir, 'test.yaml');
       fs.writeFileSync(yamlFile, 'format: yaml\n');
-      const result = readYamlOrJson(yamlFile);
+      const result = readYamlOrJson<{ format: string }>(yamlFile);
       expect(result).to.deep.equal({ format: 'yaml' });
     });
 
     it('reads .yml file', () => {
       const ymlFile = path.join(testDir, 'test.yml');
       fs.writeFileSync(ymlFile, 'format: yml\n');
-      const result = readYamlOrJson(ymlFile);
+      const result = readYamlOrJson<{ format: string }>(ymlFile);
       expect(result).to.deep.equal({ format: 'yml' });
     });
 
@@ -106,7 +106,7 @@ describe('Format utilities', () => {
       // Write YAML content but with .txt extension, read with explicit format
       const txtFile = path.join(testDir, 'test.txt');
       fs.writeFileSync(txtFile, 'key: value\n');
-      const result = readYamlOrJson(txtFile, 'yaml');
+      const result = readYamlOrJson<{ key: string }>(txtFile, 'yaml');
       expect(result).to.deep.equal({ key: 'value' });
     });
 
@@ -128,14 +128,14 @@ describe('Format utilities', () => {
     it('writes YAML file based on extension', () => {
       const yamlFile = path.join(testDir, 'test.yaml');
       writeYamlOrJson(yamlFile, { format: 'yaml' });
-      const result = readYamlOrJson(yamlFile);
+      const result = readYamlOrJson<{ format: string }>(yamlFile);
       expect(result).to.deep.equal({ format: 'yaml' });
     });
 
     it('writes arrays', () => {
       const jsonFile = path.join(testDir, 'array.json');
       writeYamlOrJson(jsonFile, [1, 2, 3]);
-      const result = readYamlOrJson(jsonFile);
+      const result = readYamlOrJson<number[]>(jsonFile);
       expect(result).to.deep.equal([1, 2, 3]);
     });
 
@@ -158,14 +158,14 @@ describe('Format utilities', () => {
     it('creates JSON file if it does not exist', () => {
       const jsonFile = path.join(testDir, 'new.json');
       mergeYamlOrJson(jsonFile, { key: 'value' }, 'json');
-      const result = readYamlOrJson(jsonFile);
+      const result = readYamlOrJson<{ key: string }>(jsonFile);
       expect(result).to.deep.equal({ key: 'value' });
     });
 
     it('creates YAML file if it does not exist (default)', () => {
       const yamlFile = path.join(testDir, 'new.yaml');
       mergeYamlOrJson(yamlFile, { key: 'value' });
-      const result = readYamlOrJson(yamlFile);
+      const result = readYamlOrJson<{ key: string }>(yamlFile);
       expect(result).to.deep.equal({ key: 'value' });
     });
 
@@ -173,7 +173,7 @@ describe('Format utilities', () => {
       const jsonFile = path.join(testDir, 'existing.json');
       writeYamlOrJson(jsonFile, { existing: 'data' });
       mergeYamlOrJson(jsonFile, { new: 'data' }, 'json');
-      const result = readYamlOrJson(jsonFile);
+      const result = readYamlOrJson<Record<string, string>>(jsonFile);
       expect(result).to.deep.equal({ existing: 'data', new: 'data' });
     });
 
@@ -181,7 +181,7 @@ describe('Format utilities', () => {
       const yamlFile = path.join(testDir, 'existing.yaml');
       writeYamlOrJson(yamlFile, { existing: 'data' });
       mergeYamlOrJson(yamlFile, { new: 'data' });
-      const result = readYamlOrJson(yamlFile);
+      const result = readYamlOrJson<Record<string, string>>(yamlFile);
       expect(result).to.deep.equal({ existing: 'data', new: 'data' });
     });
   });

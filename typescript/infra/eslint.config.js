@@ -1,3 +1,3 @@
-import { yamlEslintConfig } from './eslint-rules/index.js';
+import { yamlEslintConfig } from '@hyperlane-xyz/utils/eslint-rules';
 
 export default yamlEslintConfig;

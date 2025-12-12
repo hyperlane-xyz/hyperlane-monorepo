@@ -106,7 +106,7 @@ export function readAllThresholds(): ThresholdsData {
   for (const thresholdType of Object.values(BalanceThresholdType)) {
     const thresholdsFile = `${THRESHOLD_CONFIG_PATH}/${balanceThresholdConfigMapping[thresholdType].configFileName}`;
 
-    const chainMap = readJson(thresholdsFile);
+    const chainMap = readJson<ChainMap<number>>(thresholdsFile);
 
     result[thresholdType] = chainMap;
   }
