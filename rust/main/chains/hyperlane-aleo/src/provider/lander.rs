@@ -98,8 +98,6 @@ impl<C: AleoClient> AleoProviderForLander for AleoProvider<C> {
         mapping_name: &str,
         mapping_key: &Plaintext<CurrentNetwork>,
     ) -> ChainResult<bool> {
-        use snarkvm::prelude::Plaintext;
-
         let plain_text: Option<Plaintext<CurrentNetwork>> = self
             .get_mapping_value(program_id, mapping_name, mapping_key)
             .await?;
