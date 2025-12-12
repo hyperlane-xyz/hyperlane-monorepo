@@ -15,7 +15,6 @@ import {
   RoutingIsmArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
-import { objMap } from '@hyperlane-xyz/utils';
 
 import { altVMIsmTypeToProviderSdkType } from '../utils/conversion.js';
 
@@ -38,11 +37,17 @@ export class AltVMRoutingIsmReader
 
     const domains: Record<
       number,
-      Artifact<IsmArtifactConfig, DeployedIsmAddresses>
+      ArtifactDeployed<IsmArtifactConfig, DeployedIsmAddresses>
     > = {};
 
-    for (const [domainId, ismAddress] of Object.entries(config.domains)) {
-      const nestedIsm = await this.readDomainIsm(ismAddress);
+    for (const [domainId, domainIsmConfig] of Object.entries(config.domains)) {
+      let nestedIsm;
+      if (domainIsmConfig.artifactState === ArtifactState.DEPLOYED) {
+        nestedIsm = domainIsmConfig;
+      } else {
+        nestedIsm = await this.readDomainIsm(domainIsmConfig.artifactAddress);
+      }
+
       domains[parseInt(domainId)] = nestedIsm;
     }
 
@@ -95,16 +100,19 @@ export class AltVMRoutingIsmWriter
     const { config } = artifact;
     const allReceipts: TxReceipt[] = [];
 
-    const deployedDomainIsms: Record<number, string> = {};
+    const deployedDomainIsms: Record<
+      number,
+      ArtifactDeployed<IsmArtifactConfig, DeployedIsmAddresses>
+    > = {};
     for (const [domainId, nestedArtifact] of Object.entries(config.domains)) {
       const domain = parseInt(domainId);
 
       if (nestedArtifact.artifactState === ArtifactState.DEPLOYED) {
-        deployedDomainIsms[domain] = nestedArtifact.deployed.address;
+        deployedDomainIsms[domain] = nestedArtifact;
       } else {
         const [deployedNested, receipts] =
           await this.deployDomainIsm(nestedArtifact);
-        deployedDomainIsms[domain] = deployedNested.deployed.address;
+        deployedDomainIsms[domain] = deployedNested;
         allReceipts.push(...receipts);
       }
     }
@@ -137,11 +145,7 @@ export class AltVMRoutingIsmWriter
       config: {
         type: deployedRoutingIsm.config.type,
         owner: deployedRoutingIsm.config.owner,
-        domains: objMap(deployedDomainIsms, (domainId, address) => ({
-          artifactState: ArtifactState.DEPLOYED,
-          config: config.domains[domainId].config,
-          deployed: { address },
-        })),
+        domains: deployedDomainIsms,
       },
       deployed: deployedRoutingIsm.deployed,
     };
@@ -154,16 +158,43 @@ export class AltVMRoutingIsmWriter
   ): Promise<AnnotatedTx[]> {
     const { config, deployed } = artifact;
 
-    const deployedDomains: Record<number, string> = {};
+    const updateTxs = [];
+
+    const deployedDomains: Record<
+      number,
+      ArtifactDeployed<IsmArtifactConfig, DeployedIsmAddresses>
+    > = {};
 
     for (const [domainId, domainIsmConfig] of Object.entries(config.domains)) {
       const domain = parseInt(domainId);
 
       if (domainIsmConfig.artifactState === ArtifactState.DEPLOYED) {
-        deployedDomains[domain] = domainIsmConfig.deployed.address;
+        const { artifactState, config, deployed } = domainIsmConfig;
+
+        const domainIsmWriter = this.artifactManager.createWriter(
+          domainIsmConfig.config.type,
+          this.signer,
+        );
+
+        let domainIsmUpdateTxs: AnnotatedTx[];
+        if (config.type !== AltVM.IsmType.ROUTING) {
+          domainIsmUpdateTxs = await domainIsmWriter.update({
+            artifactState,
+            config,
+            deployed,
+          });
+        } else {
+          domainIsmUpdateTxs = await this.update({
+            config,
+            artifactState,
+            deployed,
+          });
+        }
+        updateTxs.push(...domainIsmUpdateTxs);
+
+        deployedDomains[domain] = domainIsmConfig;
       } else {
-        const [deployedNested] = await this.deployDomainIsm(domainIsmConfig);
-        deployedDomains[domain] = deployedNested.deployed.address;
+        [deployedDomains[domain]] = await this.deployDomainIsm(domainIsmConfig);
       }
     }
 
