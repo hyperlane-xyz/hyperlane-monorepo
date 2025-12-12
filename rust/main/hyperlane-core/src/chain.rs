@@ -260,6 +260,7 @@ pub enum KnownHyperlaneDomain {
 
     // -- Test chains --
     //
+    AleoTestnet = 1617853565,
     ArbitrumSepolia = 421614,
     ArcadiaTestnet2 = 1098411886,
     AuroraTestnet = 1313161555,
@@ -432,7 +433,8 @@ impl KnownHyperlaneDomain {
         use self::KnownHyperlaneDomain::*;
 
         match self {
-            ArbitrumSepolia
+            AleoTestnet
+            | ArbitrumSepolia
             | ArcadiaTestnet2
             | AuroraTestnet
             | BasecampTestnet
@@ -517,6 +519,7 @@ impl KnownHyperlaneDomain {
             | ParadexSepolia
             | PragmaDevnet => HyperlaneDomainProtocol::Starknet,
             Radix | RadixTestnet => HyperlaneDomainProtocol::Radix,
+            AleoTestnet => HyperlaneDomainProtocol::Aleo,
             _ => HyperlaneDomainProtocol::Ethereum
         }
     }
