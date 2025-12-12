@@ -41,6 +41,7 @@
     "solhint-plugin-prettier": "^0.1.0",
     "solidity-coverage": "^0.8.3",
     "ts-node": "^10.8.0",
+    "tsx": "^4.19.1",
     "typechain": "patch:typechain@npm%3A8.3.2#~/.yarn/patches/typechain-npm-8.3.2-b02e27439e.patch",
     "typescript": "5.8.3"
   },
@@ -67,7 +68,7 @@
     "lint": "yarn lint:sol && yarn lint:ts",
     "lint:sol": "solhint contracts/**/*.sol",
     "lint:ts": "eslint -c ./eslint.config.mjs",
-    "hardhat-esm": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only --no-warnings=ExperimentalWarning' hardhat --config hardhat.config.cts",
+    "hardhat-esm": "NODE_OPTIONS='--import tsx/esm' hardhat --config hardhat.config.cts",
     "prettier": "prettier --write ./contracts ./src",
     "test": "yarn hardhat-esm test ./src/test/**/*.test.ts",
     "test:ci": "yarn test"
