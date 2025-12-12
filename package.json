@@ -30,6 +30,7 @@
   "scripts": {
     "agent-configs": "pnpm -C typescript/infra update-agent-config:mainnet3 && pnpm -C typescript/infra update-agent-config:testnet4",
     "build": "turbo run build",
+    "build:zk": "turbo run build:zk",
     "clean": "turbo run clean",
     "prettier": "turbo run prettier",
     "lint": "turbo run lint",
