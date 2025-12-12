@@ -626,7 +626,7 @@
       "interchainAccountIsm": "0x83a3068B719F764d413625dA77468ED74789ae02",
       "interchainAccountRouter": "0x8e131c8aE5BF1Ed38D05a00892b6001a7d37739d",
       "interchainGasPaymaster": "0x6f2756380FD49228ae25Aa7F2817993cB74Ecc56",
-      "interchainSecurityModule": "0x6B635bd8B869100661aEfc79Dffd0ae0796d06d9",
+      "interchainSecurityModule": "0x81c12361c6f7024E6f67f7284B361Ed59003cFB1",
       "isTestnet": true,
       "mailbox": "0xfFAEF09B3cd11D9b20d1a19bECca54EEC2884766",
       "merkleTreeHook": "0x4917a9746A7B6E0A57159cCb7F5a6744247f2d0d",
@@ -2398,6 +2398,53 @@
       "validatorAnnounce": "0x6cB503d97D1c900316583C8D55997A1f17b1ABd1",
       "index": {
         "from": 5292654
+      }
+    },
+    "aleotestnet": {
+      "blockExplorers": [
+        {
+          "apiUrl": "https://testnet.explorer.provable.com",
+          "family": "other",
+          "name": "Provable Explorer",
+          "url": "https://testnet.explorer.provable.com"
+        }
+      ],
+      "blocks": {
+        "confirmations": 0,
+        "estimateBlockTime": 3,
+        "reorgPeriod": 0
+      },
+      "chainId": 1,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
+      "displayName": "Aleo Testnet",
+      "domainId": 1617853565,
+      "isTestnet": true,
+      "name": "aleotestnet",
+      "nativeToken": {
+        "decimals": 6,
+        "denom": "credits",
+        "name": "Aleo",
+        "symbol": "ALEO"
+      },
+      "protocol": "aleo",
+      "rpcUrls": [
+        {
+          "http": "https://api.explorer.provable.com/v1"
+        }
+      ],
+      "mailbox": "aleo1jps66qyy3mwhtdyrx4n7u3j5qnh8d7fdc4pwx3t0g9mwcs0xjuxqc3lsxu",
+      "merkleTreeHook": "aleo1k45pt4auhdr27hlep9pg47w82nn7vzt2g8tmcxc4gpas25fdrugsapnyvh",
+      "interchainGasPaymaster": "aleo175xvd3uqmswt9ckt2d4drnxrqu8gzuzz3u3cjlt3cxhru74d2qqsnf5t46",
+      "validatorAnnounce": "aleo1exucqw8zpx05swkl8dt7us3xl9z88fypla7nvwy4vt2rvfvazy8s0phz2l",
+      "mailboxProgram": "test_hyp_mailbox.aleo",
+      "hookManagerProgram": "test_hyp_hook_manager.aleo",
+      "ismManagerProgram": "test_hyp_ism_manager.aleo",
+      "validatorAnnounceProgram": "test_hyp_validator_announce.aleo",
+      "signer": {
+        "key": "0x1a1484a05bee53f5858a3888cdb5a397e433aee4d725e0f6c8a92cba3bb2b011"
       }
     }
   }

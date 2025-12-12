@@ -342,9 +342,9 @@ export class StarknetHypCollateralAdapter extends StarknetHypSyntheticAdapter {
     return this.wrappedTokenAddress!;
   }
 
-  protected async getWrappedTokenAdapter(): Promise<StarknetHypSyntheticAdapter> {
-    return new StarknetHypSyntheticAdapter(this.chainName, this.multiProvider, {
-      warpRouter: await this.getWrappedTokenAddress(),
+  protected async getWrappedTokenAdapter(): Promise<StarknetTokenAdapter> {
+    return new StarknetTokenAdapter(this.chainName, this.multiProvider, {
+      tokenAddress: await this.getWrappedTokenAddress(),
     });
   }
 
