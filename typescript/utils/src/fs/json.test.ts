@@ -34,14 +34,14 @@ describe('JSON utilities', () => {
   describe('readJson', () => {
     it('reads and parses JSON file', () => {
       fs.writeFileSync(testFile, JSON.stringify({ key: 'value' }));
-      const result = readJson<{ key: string }>(testFile);
+      const result = readJson(testFile);
       expect(result).to.deep.equal({ key: 'value' });
     });
 
     it('handles nested objects', () => {
       const data = { nested: { deep: { value: 42 } } };
       fs.writeFileSync(testFile, JSON.stringify(data));
-      const result = readJson<typeof data>(testFile);
+      const result = readJson(testFile);
       expect(result).to.deep.equal(data);
     });
 
@@ -58,7 +58,7 @@ describe('JSON utilities', () => {
   describe('tryReadJson', () => {
     it('returns parsed JSON on success', () => {
       fs.writeFileSync(testFile, JSON.stringify({ key: 'value' }));
-      const result = tryReadJson<{ key: string }>(testFile);
+      const result = tryReadJson(testFile);
       expect(result).to.deep.equal({ key: 'value' });
     });
 
@@ -83,7 +83,7 @@ describe('JSON utilities', () => {
 
     it('handles arrays', () => {
       writeJson(testFile, [1, 2, 3]);
-      const result = readJson<number[]>(testFile);
+      const result = readJson(testFile);
       expect(result).to.deep.equal([1, 2, 3]);
     });
 
@@ -97,14 +97,14 @@ describe('JSON utilities', () => {
   describe('mergeJson', () => {
     it('creates file if it does not exist', () => {
       mergeJson(testFile, { key: 'value' });
-      const result = readJson<{ key: string }>(testFile);
+      const result = readJson(testFile);
       expect(result).to.deep.equal({ key: 'value' });
     });
 
     it('merges with existing content', () => {
       writeJson(testFile, { existing: 'data', toOverwrite: 'old' });
       mergeJson(testFile, { new: 'data', toOverwrite: 'new' });
-      const result = readJson<Record<string, string>>(testFile);
+      const result = readJson(testFile);
       expect(result).to.deep.equal({
         existing: 'data',
         new: 'data',
@@ -119,10 +119,7 @@ describe('JSON utilities', () => {
         path.join(testDir, 'config.json'),
         JSON.stringify({ config: true }),
       );
-      const result = readJsonFromDir<{ config: boolean }>(
-        testDir,
-        'config.json',
-      );
+      const result = readJsonFromDir(testDir, 'config.json');
       expect(result).to.deep.equal({ config: true });
     });
   });
@@ -130,9 +127,7 @@ describe('JSON utilities', () => {
   describe('writeJsonToDir', () => {
     it('writes JSON to directory with filename', () => {
       writeJsonToDir(testDir, 'output.json', { output: true });
-      const result = readJson<{ output: boolean }>(
-        path.join(testDir, 'output.json'),
-      );
+      const result = readJson(path.join(testDir, 'output.json'));
       expect(result).to.deep.equal({ output: true });
     });
   });
@@ -141,9 +136,7 @@ describe('JSON utilities', () => {
     it('merges JSON in directory with filename', () => {
       writeJsonToDir(testDir, 'merge.json', { existing: 'data' });
       mergeJsonInDir(testDir, 'merge.json', { new: 'data' });
-      const result = readJson<Record<string, string>>(
-        path.join(testDir, 'merge.json'),
-      );
+      const result = readJson(path.join(testDir, 'merge.json'));
       expect(result).to.deep.equal({ existing: 'data', new: 'data' });
     });
   });
@@ -151,34 +144,34 @@ describe('JSON utilities', () => {
   describe('writeJsonWithAppendMode', () => {
     it('writes new data when file does not exist (appendMode false)', () => {
       writeJsonWithAppendMode(testFile, { a: 1, b: 2 }, false);
-      const result = readJson<Record<string, number>>(testFile);
+      const result = readJson(testFile);
       expect(result).to.deep.equal({ a: 1, b: 2 });
     });
 
     it('writes new data when file does not exist (appendMode true)', () => {
       writeJsonWithAppendMode(testFile, { a: 1, b: 2 }, true);
-      const result = readJson<Record<string, number>>(testFile);
+      const result = readJson(testFile);
       expect(result).to.deep.equal({ a: 1, b: 2 });
     });
 
     it('overwrites when appendMode is false', () => {
       writeJson(testFile, { a: 'old', b: 'old' });
       writeJsonWithAppendMode(testFile, { a: 'new', b: 'new' }, false);
-      const result = readJson<Record<string, string>>(testFile);
+      const result = readJson(testFile);
       expect(result).to.deep.equal({ a: 'new', b: 'new' });
     });
 
     it('preserves existing values when appendMode is true', () => {
       writeJson(testFile, { a: 'existing', b: 'existing' });
       writeJsonWithAppendMode(testFile, { a: 'new', b: 'new', c: 'new' }, true);
-      const result = readJson<Record<string, string>>(testFile);
+      const result = readJson(testFile);
       expect(result).to.deep.equal({ a: 'existing', b: 'existing', c: 'new' });
     });
 
     it('preserves existing keys not present in newData when appendMode is true', () => {
       writeJson(testFile, { a: 'existing', b: 'existing', c: 'existing' });
       writeJsonWithAppendMode(testFile, { a: 'new' }, true);
-      const result = readJson<Record<string, string>>(testFile);
+      const result = readJson(testFile);
       // All existing keys should be preserved, 'a' keeps its existing value
       expect(result).to.deep.equal({
         a: 'existing',

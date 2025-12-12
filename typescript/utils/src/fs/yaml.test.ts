@@ -31,7 +31,7 @@ describe('YAML utilities', () => {
 
   describe('yamlParse', () => {
     it('parses YAML string', () => {
-      const result = yamlParse<{ key: string }>('key: value');
+      const result = yamlParse('key: value');
       expect(result).to.deep.equal({ key: 'value' });
     });
 
@@ -41,7 +41,7 @@ nested:
   deep:
     value: 42
 `;
-      const result = yamlParse<{ nested: { deep: { value: number } } }>(yaml);
+      const result = yamlParse(yaml);
       expect(result).to.deep.equal({ nested: { deep: { value: 42 } } });
     });
 
@@ -52,7 +52,7 @@ items:
   - two
   - three
 `;
-      const result = yamlParse<{ items: string[] }>(yaml);
+      const result = yamlParse(yaml);
       expect(result).to.deep.equal({ items: ['one', 'two', 'three'] });
     });
 
@@ -66,12 +66,7 @@ list1: *shared
 list2: *shared
 list3: *shared
 `;
-      const result = yamlParse<{
-        shared: string[];
-        list1: string[];
-        list2: string[];
-        list3: string[];
-      }>(yaml);
+      const result = yamlParse(yaml);
       expect(result.list1).to.deep.equal(['item1', 'item2']);
       expect(result.list2).to.deep.equal(['item1', 'item2']);
       expect(result.list3).to.deep.equal(['item1', 'item2']);
@@ -81,7 +76,7 @@ list3: *shared
   describe('readYaml', () => {
     it('reads and parses YAML file', () => {
       fs.writeFileSync(testFile, 'key: value\n');
-      const result = readYaml<{ key: string }>(testFile);
+      const result = readYaml(testFile);
       expect(result).to.deep.equal({ key: 'value' });
     });
 
@@ -93,7 +88,7 @@ list3: *shared
   describe('tryReadYaml', () => {
     it('returns parsed YAML on success', () => {
       fs.writeFileSync(testFile, 'key: value\n');
-      const result = tryReadYaml<{ key: string }>(testFile);
+      const result = tryReadYaml(testFile);
       expect(result).to.deep.equal({ key: 'value' });
     });
 
@@ -125,7 +120,7 @@ list3: *shared
 
     it('handles nested objects', () => {
       writeYaml(testFile, { outer: { inner: 'value' } });
-      const result = readYaml<{ outer: { inner: string } }>(testFile);
+      const result = readYaml(testFile);
       expect(result).to.deep.equal({ outer: { inner: 'value' } });
     });
 
@@ -139,14 +134,14 @@ list3: *shared
   describe('mergeYaml', () => {
     it('creates file if it does not exist', () => {
       mergeYaml(testFile, { key: 'value' });
-      const result = readYaml<{ key: string }>(testFile);
+      const result = readYaml(testFile);
       expect(result).to.deep.equal({ key: 'value' });
     });
 
     it('merges with existing content', () => {
       writeYaml(testFile, { existing: 'data', toOverwrite: 'old' });
       mergeYaml(testFile, { new: 'data', toOverwrite: 'new' });
-      const result = readYaml<Record<string, string>>(testFile);
+      const result = readYaml(testFile);
       expect(result).to.deep.equal({
         existing: 'data',
         new: 'data',
@@ -158,10 +153,7 @@ list3: *shared
   describe('readYamlFromDir', () => {
     it('reads YAML from directory with filename', () => {
       fs.writeFileSync(path.join(testDir, 'config.yaml'), 'config: true\n');
-      const result = readYamlFromDir<{ config: boolean }>(
-        testDir,
-        'config.yaml',
-      );
+      const result = readYamlFromDir(testDir, 'config.yaml');
       expect(result).to.deep.equal({ config: true });
     });
   });

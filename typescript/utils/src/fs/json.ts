@@ -6,17 +6,19 @@ import { isFile, pathExists, readFileAtPath, writeToFile } from './utils.js';
 
 /**
  * Reads and parses a JSON file.
+ * Note: No validation is performed - callers are responsible for ensuring type safety.
  */
-export function readJson<T>(filepath: string): T {
-  return JSON.parse(readFileAtPath(filepath)) as T;
+export function readJson(filepath: string) {
+  return JSON.parse(readFileAtPath(filepath));
 }
 
 /**
  * Attempts to read and parse a JSON file, returning null if it fails.
+ * Note: No validation is performed - callers are responsible for ensuring type safety.
  */
-export function tryReadJson<T>(filepath: string): T | null {
+export function tryReadJson(filepath: string) {
   try {
-    return readJson(filepath) as T;
+    return readJson(filepath);
   } catch {
     return null;
   }
@@ -39,7 +41,7 @@ export function mergeJson<T extends Record<string, unknown>>(
   obj: T,
 ): void {
   if (isFile(filepath)) {
-    const previous = readJson<T>(filepath);
+    const previous = readJson(filepath);
     writeJson(filepath, objMerge(previous, obj));
   } else {
     writeJson(filepath, obj);
@@ -48,9 +50,10 @@ export function mergeJson<T extends Record<string, unknown>>(
 
 /**
  * Reads JSON from a directory with the specified filename.
+ * Note: No validation is performed - callers are responsible for ensuring type safety.
  */
-export function readJsonFromDir<T>(directory: string, filename: string): T {
-  return readJson<T>(path.join(directory, filename));
+export function readJsonFromDir(directory: string, filename: string) {
+  return readJson(path.join(directory, filename));
 }
 
 /**
@@ -87,7 +90,7 @@ export function writeJsonWithAppendMode(
 ): void {
   let data = newData;
   if (appendMode && pathExists(filepath)) {
-    const existing = readJson<Record<string, unknown>>(filepath);
+    const existing = readJson(filepath);
     // Merge newData into existing, preserving existing values for keys that already exist
     data = { ...newData, ...existing };
   }
