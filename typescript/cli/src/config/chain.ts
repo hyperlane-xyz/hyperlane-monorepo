@@ -19,7 +19,7 @@ import { detectAndConfirmOrPrompt } from '../utils/input.js';
 
 export function readChainConfigs(filePath: string) {
   log(`Reading file configs in ${filePath}`);
-  const chainMetadata = readYamlOrJson<ChainMetadata>(filePath);
+  const chainMetadata = readYamlOrJson(filePath);
 
   if (
     !chainMetadata ||

@@ -31,8 +31,7 @@ export async function readChainSubmissionStrategyConfig(
   filePath: string,
 ): Promise<ExtendedChainSubmissionStrategy> {
   log(`Reading submission strategy in ${filePath}`);
-  const strategyConfig =
-    readYamlOrJson<ExtendedChainSubmissionStrategy>(filePath);
+  const strategyConfig = readYamlOrJson(filePath);
   const parseResult =
     ExtendedChainSubmissionStrategySchema.parse(strategyConfig);
   return parseResult;

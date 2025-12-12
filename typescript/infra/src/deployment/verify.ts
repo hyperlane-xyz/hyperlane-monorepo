@@ -11,7 +11,7 @@ export function extractBuildArtifact(buildArtifactPath: string): BuildArtifact {
   }
 
   // return as BuildArtifact
-  return readJson<BuildArtifact>(buildArtifactPath);
+  return readJson(buildArtifactPath);
 }
 
 // fetch explorer API keys from GCP

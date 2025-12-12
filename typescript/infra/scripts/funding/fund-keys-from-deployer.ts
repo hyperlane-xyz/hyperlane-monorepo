@@ -344,8 +344,7 @@ class ContextFunder {
   ) {
     logger.info({ filePath }, 'Reading identifiers and addresses from file');
     // A big array of KeyAsAddress, including keys that we may not care about.
-    const allIdsAndAddresses: KeyAsAddress[] =
-      readJson<KeyAsAddress[]>(filePath);
+    const allIdsAndAddresses: KeyAsAddress[] = readJson(filePath);
     if (!allIdsAndAddresses.length) {
       throw Error(`Expected at least one key in file ${filePath}`);
     }

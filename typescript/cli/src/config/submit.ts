@@ -55,5 +55,5 @@ export async function runSubmit({
 export function getTransactions(
   transactionsFilepath: string,
 ): AnnotatedEV5Transaction[] {
-  return readYamlOrJson<AnnotatedEV5Transaction[]>(transactionsFilepath.trim());
+  return readYamlOrJson(transactionsFilepath.trim());
 }
