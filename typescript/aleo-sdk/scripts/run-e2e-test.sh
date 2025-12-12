@@ -22,7 +22,7 @@ echo "Running E2E tests"
 
 export ALEO_SKIP_PROOFS=true
 export ALEO_SKIP_SUFFIXES=false
-export ALEO_UPGRADE_AUTHORITY="aleo1rhgdu77hgyqd3xjj8ucu3jj9r2krwz6mnzyd80gncr5fxcwlh5rsvzp9px"
+export ALEO_UPGRADE_AUTHORITY=""
 export ALEO_CONSENSUS_VERSION_HEIGHTS="0,1,2,3,4,5,6,7,8,9,10,11"
 export ALEO_ISM_MANAGER_SUFFIX=""
 export ALEO_WARP_SUFFIX="usdc"

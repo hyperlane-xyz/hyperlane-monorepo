@@ -100,29 +100,49 @@ export function loadProgramsInDeployOrder(
           ),
         ),
       );
-    } else if (upgradeAuthority.split('/').length === 3) {
-      const [program, mapping, key] = upgradeAuthority.split('/');
-
+    } else if (new RegExp(/^[A-Za-z0-9_]+\.aleo$/).test(upgradeAuthority)) {
       programs = programs.map((p) =>
         Program.fromString(
-          p.toString().includes(`constructor:
-    assert.eq edition 0u16;`)
-            ? `import ${program};\n` +
-                p.toString().replaceAll(
-                  `constructor:
+          `import ${upgradeAuthority};\n` +
+            p.toString().replaceAll(
+              `constructor:
     assert.eq edition 0u16;`,
-                  `constructor:
-    branch.eq edition 0u16 to end;
-    get ${program}/${mapping}[${key}] into r0;
-    assert.eq checksum r0;
-    position end;`,
-                )
-            : p.toString(),
+              `struct ChecksumEdition:
+    checksum as [u8; 32u32];
+    edition as u16;
+
+struct WalletEcdsaSigner:
+    wallet_id as address;
+    ecdsa_signer as [u8; 20u32];
+
+struct WalletSigningOpId:
+    wallet_id as address;
+    signing_op_id as field;
+
+struct AdminOp:
+    op as u8;
+    threshold as u8;
+    aleo_signer as address;
+    ecdsa_signer as [u8; 20u32];
+    
+constructor:
+    gt edition 0u16 into r0;
+    branch.eq r0 false to end_then_0_2;
+    cast checksum edition into r1 as ChecksumEdition;
+    hash.bhp256 r1 into r2 as field;
+    cast ${p.id()} r2 into r3 as WalletSigningOpId;
+    hash.bhp256 r3 into r4 as field;
+    contains ${upgradeAuthority}/completed_signing_ops[r4] into r5;
+    assert.eq r5 true;
+    branch.eq true true to end_otherwise_0_3;
+    position end_then_0_2;
+    position end_otherwise_0_3;`,
+            ),
         ),
       );
     } else {
       throw new Error(
-        `upgrade authority must be an aleo account address or of format "program.aleo/mapping/key"`,
+        `upgrade authority must be an aleo account address or the program id of a multisig program`,
       );
     }
   }
