@@ -150,6 +150,8 @@ pub enum DropReason {
     DroppedByChain,
     /// dropped by the submitter
     FailedSimulation,
+    /// dropped because of some other reason we are not aware of
+    Other(String),
 }
 
 impl DropReason {
@@ -157,6 +159,7 @@ impl DropReason {
         match self {
             Self::DroppedByChain => "DroppedByChain".to_string(),
             Self::FailedSimulation => "FailedSimulation".to_string(),
+            Self::Other(_) => "Other".to_string(),
         }
     }
 }

@@ -181,7 +181,7 @@ impl InclusionStage {
 
                 let drop_reason = match &err {
                     LanderError::TxDropped(reason) => reason.clone(),
-                    _ => TxDropReason::FailedSimulation,
+                    _ => TxDropReason::Other(err.to_string()),
                 };
                 Self::drop_tx(state, &mut tx, drop_reason, pool).await?;
                 Self::update_inclusion_stage_metric(state, domain, &err);
