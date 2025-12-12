@@ -44,7 +44,7 @@ export const owners: ChainMap<OwnableConfig> = {
   radixtestnet: {
     owner: 'n/a - Radix not supported here',
   },
-  aleotesntet: {
+  aleotestnet: {
     owner: 'n/a - Aleo not supported here',
   },
 };
