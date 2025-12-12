@@ -44,6 +44,9 @@ export const owners: ChainMap<OwnableConfig> = {
   radixtestnet: {
     owner: 'n/a - Radix not supported here',
   },
+  aleotesntet: {
+    owner: 'n/a - Aleo not supported here',
+  },
 };
 
 export const ethereumChainOwners: ChainMap<OwnableConfig> = Object.fromEntries(
