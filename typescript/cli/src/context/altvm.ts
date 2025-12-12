@@ -1,62 +1,21 @@
 import { password } from '@inquirer/prompts';
 
 import {
-  CosmosNativeProvider,
-  CosmosNativeSigner,
-} from '@hyperlane-xyz/cosmos-sdk';
-import {
   AltVM,
-  type MinimumRequiredGasByAction,
+  ProtocolType,
   getProtocolProvider,
   hasProtocol,
 } from '@hyperlane-xyz/provider-sdk';
-import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
-import { RadixProvider, RadixSigner } from '@hyperlane-xyz/radix-sdk';
 import {
-  AltVMJsonRpcTxSubmitter,
   ChainMap,
   ChainMetadataManager,
-  MultiProvider,
-  ProtocolMap,
-  SubmitterFactory,
-  SubmitterMetadata,
   TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
-import { assert, mustGet } from '@hyperlane-xyz/utils';
 
-import { AltVMFileSubmitter } from '../submitters/AltVMFileSubmitter.js';
-import {
-  CustomTxSubmitterType,
-  ExtendedChainSubmissionStrategy,
-} from '../submitters/types.js';
+import { ExtendedChainSubmissionStrategy } from '../submitters/types.js';
 
 import { SignerKeyProtocolMap } from './types.js';
-
-// ### ALL Alt VM PROTOCOLS ARE REGISTERED HERE ###
-const ALT_VM_SUPPORTED_PROTOCOLS: AltVMProtocol = {
-  [ProtocolType.CosmosNative]: {
-    provider: CosmosNativeProvider,
-    signer: CosmosNativeSigner,
-    gas: {
-      CORE_DEPLOY_GAS: BigInt(1e6),
-      WARP_DEPLOY_GAS: BigInt(3e6),
-      TEST_SEND_GAS: BigInt(3e5),
-      AVS_GAS: BigInt(3e6),
-    },
-  },
-  [ProtocolType.Radix]: {
-    provider: RadixProvider,
-    signer: RadixSigner,
-  },
-  // [NEW PROTOCOL]: {...}
-};
-
-type AltVMProtocol = ProtocolMap<{
-  provider: AltVM.IProviderConnect;
-  signer: AltVM.ISignerConnect<AnnotatedTx, TxReceipt>;
-  gas?: MinimumRequiredGasByAction;
-}>;
 
 async function loadPrivateKey(
   keyByProtocol: SignerKeyProtocolMap,
@@ -125,41 +84,4 @@ export async function createAltVMSigners(
   }
 
   return signers;
-}
-
-export function createAltVMSubmitterFactories(
-  metadataManager: ChainMetadataManager,
-  altVmSigners: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>>,
-  chain: string,
-): ProtocolMap<Record<string, SubmitterFactory>> {
-  const protocol = metadataManager.getProtocol(chain);
-
-  const factories: ProtocolMap<Record<string, SubmitterFactory>> = {};
-
-  if (!ALT_VM_SUPPORTED_PROTOCOLS[protocol]) {
-    return factories;
-  }
-
-  const signer = mustGet(altVmSigners, chain);
-  factories[protocol] = {
-    [TxSubmitterType.JSON_RPC]: (
-      _multiProvider: MultiProvider,
-      metadata: SubmitterMetadata,
-    ) => {
-      // Used to type narrow metadata
-      assert(
-        metadata.type === TxSubmitterType.JSON_RPC,
-        `Invalid metadata type: ${metadata.type}, expected ${TxSubmitterType.JSON_RPC}`,
-      );
-      return new AltVMJsonRpcTxSubmitter(signer, metadata);
-    },
-    [CustomTxSubmitterType.FILE]: (
-      _multiProvider: MultiProvider,
-      metadata: any,
-    ) => {
-      return new AltVMFileSubmitter(signer, metadata);
-    },
-  };
-
-  return factories;
 }
