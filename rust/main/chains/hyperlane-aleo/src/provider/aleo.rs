@@ -62,6 +62,7 @@ impl AleoProvider<FallbackHttpClient> {
                 conf.proving_service.clone(),
                 metrics.clone(),
                 chain.clone(),
+                conf.chain_id,
             )?;
             Some(ProvingClient::new(client))
         } else {
@@ -69,7 +70,12 @@ impl AleoProvider<FallbackHttpClient> {
         };
 
         Ok(Self {
-            client: RpcClient::new(FallbackHttpClient::new(conf.rpcs.clone(), metrics, chain)?),
+            client: RpcClient::new(FallbackHttpClient::new(
+                conf.rpcs.clone(),
+                metrics,
+                chain,
+                conf.chain_id,
+            )?),
             domain,
             network: conf.chain_id,
             proving_service,
@@ -132,7 +138,10 @@ impl<C: AleoClient> AleoProvider<C> {
         }
 
         debug!("Getting program: {}", program_id);
-        let program = self.get_program(program_id).await?;
+        let latest_edition = self.get_latest_edition(program_id).await?;
+        let program = self
+            .get_program_by_edition(program_id, latest_edition)
+            .await?;
 
         for import in program.imports().keys() {
             let future = Box::pin(self.load_program(vm, import, depth.saturating_add(1)));
@@ -143,7 +152,7 @@ impl<C: AleoClient> AleoProvider<C> {
         let vm_process = vm.process();
         let mut process_guard = vm_process.write();
         process_guard
-            .add_program(&program)
+            .add_program_with_edition(&program, latest_edition)
             .map_err(HyperlaneAleoError::from)?;
 
         Ok(())

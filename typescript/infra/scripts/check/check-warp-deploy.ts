@@ -33,6 +33,9 @@ async function main() {
   const routesToSkip: string[] = [
     WarpRouteIds.ArbitrumBaseBlastBscEthereumGnosisLiskMantleModeOptimismPolygonScrollZeroNetworkZoraMainnet,
     'EDGEN/bsc-edgenchain-ethereum',
+    'INJ/inevm-injective',
+    'USDC/ethereum-inevm',
+    'USDT/ethereum-inevm',
   ];
 
   const registries = [DEFAULT_REGISTRY_URI];

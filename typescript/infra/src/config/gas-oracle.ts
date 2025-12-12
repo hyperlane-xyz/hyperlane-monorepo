@@ -355,6 +355,10 @@ export function getOverhead(local: ChainName, remote: ChainName): number {
     return 10_000_000 + 40_000_000 * defaultMultisigConfigs[local].threshold;
   }
 
+  if (remoteProtocol === ProtocolType.Aleo) {
+    return 400000;
+  }
+
   // Default non-EVM overhead
   return FOREIGN_DEFAULT_OVERHEAD;
 }

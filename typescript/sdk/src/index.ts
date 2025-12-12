@@ -505,7 +505,6 @@ export {
   getSubmitter,
 } from './providers/transactions/submitter/submitterBuilderGetter.js';
 export { HyperlaneCCIPDeployer } from './ccip/HyperlaneCCIPDeployer.js';
-export { AltVMJsonRpcTxSubmitter } from './providers/transactions/submitter/altvm/AltVMJsonRpcTxSubmitter.js';
 export {
   CCIPContractCache,
   getCCIPChains,
