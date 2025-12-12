@@ -103,7 +103,7 @@
     "deploy-ism": "tsx scripts/deploy.ts -e test -m ism",
     "deploy-helloworld": "tsx scripts/deploy.ts -e test -m helloworld",
     "deploy-hook": "tsx scripts/deploy.ts -e test -m hook",
-    "hardhat-esm": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only --no-warnings=ExperimentalWarning' hardhat --config hardhat.config.cts",
+    "hardhat-esm": "NODE_OPTIONS='--import tsx/esm' hardhat --config hardhat.config.cts",
     "kathy": "pnpm tsx ./scripts/send-test-messages.ts",
     "prettier": "prettier --write ./src ./config ./scripts ./test",
     "test:warp": "mocha --config ../sdk/.mocharc.json test/warp-configs.test.ts",

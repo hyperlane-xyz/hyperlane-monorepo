@@ -102,7 +102,7 @@
     "test": "pnpm test:unit && pnpm test:hardhat && pnpm test:foundry",
     "test:ci": "pnpm test",
     "test:unit": "mocha --config .mocharc.json './src/**/*.test.ts' --exit",
-    "test:hardhat": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only --no-warnings=ExperimentalWarning' hardhat --config hardhat.config.cts test $(find ./src -name \"*.hardhat-test.ts\")",
+    "test:hardhat": "NODE_OPTIONS='--import tsx/esm' hardhat --config hardhat.config.cts test $(find ./src -name \"*.hardhat-test.ts\")",
     "test:foundry": "./scripts/foundry-test.sh"
   },
   "peerDependencies": {
