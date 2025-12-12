@@ -27,6 +27,7 @@ export const keyFunderConfig: KeyFunderConfig<
   chainsToSkip: ['hyperliquidevmtestnet', 'megaethtestnet'],
   // desired balance config
   desiredBalancePerChain: {
+    aleotestnet: '0',
     arbitrumsepolia: '0.1',
     arcadiatestnet2: '0.1',
     auroratestnet: '0.05',
