@@ -1483,12 +1483,12 @@ fn build_starknet_provider(
 ) -> ChainResult<StarknetProvider> {
     let middleware_metrics = chain_conf.metrics_conf();
     let metrics = metrics.client_metrics();
-    Ok(StarknetProvider::new(
+    StarknetProvider::new(
         locator.domain.clone(),
         connection_conf,
         metrics.clone(),
         middleware_metrics.chain.clone(),
-    ))
+    )
 }
 
 #[cfg(feature = "aleo")]
