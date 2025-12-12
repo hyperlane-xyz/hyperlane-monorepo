@@ -215,8 +215,8 @@ impl ChainConnectionConf {
 pub struct CoreContractAddresses {
     /// Address of the mailbox contract
     pub mailbox: H256,
-    /// Address of the InterchainGasPaymaster contract
-    pub interchain_gas_paymaster: H256,
+    /// Addresses of the InterchainGasPaymaster contracts
+    pub interchain_gas_paymasters: Vec<H256>,
     /// Address of the ValidatorAnnounce contract
     pub validator_announce: H256,
     /// Address of the MerkleTreeHook contract
@@ -301,16 +301,10 @@ impl ChainConf {
             }
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
-                let provider = build_sealevel_provider(
-                    self,
-                    &locator,
-                    &[
-                        self.addresses.mailbox,
-                        self.addresses.interchain_gas_paymaster,
-                    ],
-                    conf,
-                    metrics,
-                );
+                let mut contract_addresses = vec![self.addresses.mailbox];
+                contract_addresses.extend(&self.addresses.interchain_gas_paymasters);
+                let provider =
+                    build_sealevel_provider(self, &locator, &contract_addresses, conf, metrics);
                 Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
             }
             ChainConnectionConf::Cosmos(conf) => {
@@ -633,7 +627,13 @@ impl ChainConf {
         metrics: &CoreMetrics,
     ) -> Result<Box<dyn InterchainGasPaymaster>> {
         let ctx = "Building IGP";
-        let locator = self.locator(self.addresses.interchain_gas_paymaster);
+        let igp_address = self
+            .addresses
+            .interchain_gas_paymasters
+            .first()
+            .copied()
+            .ok_or_else(|| eyre!("No IGP address configured"))?;
+        let locator = self.locator(igp_address);
 
         match &self.connection {
             ChainConnectionConf::Ethereum(conf) => {
@@ -700,7 +700,106 @@ impl ChainConf {
         advanced_log_meta: bool,
     ) -> Result<Box<dyn SequenceAwareIndexer<InterchainGasPayment>>> {
         let ctx = "Building IGP indexer";
-        let locator = self.locator(self.addresses.interchain_gas_paymaster);
+        let igp_address = self
+            .addresses
+            .interchain_gas_paymasters
+            .first()
+            .copied()
+            .ok_or_else(|| eyre!("No IGP address configured"))?;
+        let locator = self.locator(igp_address);
+
+        match &self.connection {
+            ChainConnectionConf::Ethereum(conf) => {
+                let reorg_period =
+                    EthereumReorgPeriod::try_from(&self.reorg_period).context(ctx)?;
+                self.build_ethereum(
+                    conf,
+                    &locator,
+                    metrics,
+                    h_eth::InterchainGasPaymasterIndexerBuilder {
+                        mailbox_address: self.addresses.mailbox.into(),
+                        reorg_period,
+                    },
+                )
+                .await
+            }
+            ChainConnectionConf::Fuel(_) => todo!(),
+            ChainConnectionConf::Sealevel(conf) => {
+                let provider =
+                    Arc::new(build_sealevel_provider(self, &locator, &[], conf, metrics));
+                let indexer = Box::new(
+                    h_sealevel::SealevelInterchainGasPaymasterIndexer::new(
+                        provider,
+                        locator,
+                        advanced_log_meta,
+                    )
+                    .await?,
+                );
+                Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
+            }
+            ChainConnectionConf::Cosmos(conf) => {
+                let provider = build_cosmos_wasm_provider(self, conf, metrics, &locator, None)?;
+
+                let indexer = Box::new(h_cosmos::cw::CwInterchainGasPaymasterIndexer::new(
+                    provider, &locator,
+                ));
+                Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
+            }
+            ChainConnectionConf::Starknet(_) => {
+                let indexer = Box::new(h_starknet::StarknetInterchainGasPaymasterIndexer {});
+                Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
+            }
+            ChainConnectionConf::CosmosNative(conf) => {
+                let provider = build_cosmos_native_provider(self, conf, metrics, &locator, None)?;
+                let indexer = Box::new(h_cosmos::native::CosmosNativeInterchainGas::new(
+                    provider, conf, locator,
+                )?);
+                Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
+            }
+            ChainConnectionConf::Radix(conf) => {
+                let provider = build_radix_provider(self, conf, metrics, &locator, None)?;
+                let indexer = Box::new(h_radix::indexer::RadixInterchainGasIndexer::new(
+                    provider, &locator, conf,
+                )?);
+                Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
+            }
+            ChainConnectionConf::Kaspa(conf) => {
+                let provider = build_kaspa_provider(self, conf, metrics, &locator, None).await?;
+                let indexer = Box::new(dym_kaspa::KaspaGas::new(provider, conf, locator)?);
+                Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
+            }
+        }
+        .context(ctx)
+    }
+
+    /// Try to convert the chain settings into multiple gas payment indexers
+    pub async fn build_interchain_gas_payment_indexers(
+        &self,
+        metrics: &CoreMetrics,
+        advanced_log_meta: bool,
+    ) -> Result<Vec<Box<dyn SequenceAwareIndexer<InterchainGasPayment>>>> {
+        let mut indexers = Vec::new();
+        for igp_address in &self.addresses.interchain_gas_paymasters {
+            let indexer = self
+                .build_interchain_gas_payment_indexer_for_address(
+                    *igp_address,
+                    metrics,
+                    advanced_log_meta,
+                )
+                .await?;
+            indexers.push(indexer);
+        }
+        Ok(indexers)
+    }
+
+    async fn build_interchain_gas_payment_indexer_for_address(
+        &self,
+        igp_address: H256,
+        metrics: &CoreMetrics,
+        advanced_log_meta: bool,
+    ) -> Result<Box<dyn SequenceAwareIndexer<InterchainGasPayment>>> {
+        let ctx = "Building IGP indexer";
+        let locator = self.locator(igp_address);
 
         match &self.connection {
             ChainConnectionConf::Ethereum(conf) => {
@@ -1290,11 +1389,18 @@ impl ChainConf {
             self.addresses.validator_announce,
             EthereumValidatorAnnounceAbi::fn_map_owned(),
         );
-        register_contract(
-            "igp",
-            self.addresses.interchain_gas_paymaster,
-            EthereumInterchainGasPaymasterAbi::fn_map_owned(),
-        );
+        for (i, igp_address) in self.addresses.interchain_gas_paymasters.iter().enumerate() {
+            let name = if i == 0 {
+                "igp".to_string()
+            } else {
+                format!("igp_{}", i)
+            };
+            register_contract(
+                &name,
+                *igp_address,
+                EthereumInterchainGasPaymasterAbi::fn_map_owned(),
+            );
+        }
         register_contract(
             "merkle_tree_hook",
             self.addresses.merkle_tree_hook,

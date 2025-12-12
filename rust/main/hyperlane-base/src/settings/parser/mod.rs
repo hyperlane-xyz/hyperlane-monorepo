@@ -196,11 +196,41 @@ fn parse_chain(
         .get_key("mailbox")
         .parse_address_hash()
         .end();
-    let interchain_gas_paymaster = chain
+    let interchain_gas_paymaster_single = chain
         .chain(&mut err)
-        .get_key("interchainGasPaymaster")
+        .get_opt_key("interchainGasPaymaster")
         .parse_address_hash()
         .end();
+    let interchain_gas_paymaster_array = chain
+        .chain(&mut err)
+        .get_opt_key("interchainGasPaymasters")
+        .into_array_iter()
+        .map(|arr| {
+            arr.filter_map(|v| v.chain(&mut err).parse_address_hash().end())
+                .collect()
+        });
+
+    let interchain_gas_paymasters = match (
+        interchain_gas_paymaster_single,
+        interchain_gas_paymaster_array,
+    ) {
+        (Some(single), None) => vec![single],
+        (None, Some(array)) => array,
+        (Some(_), Some(_)) => {
+            err.push(
+                (&chain.cwp).add("interchainGasPaymaster"),
+                eyre!("Both interchainGasPaymaster and interchainGasPaymasters are specified"),
+            );
+            vec![]
+        }
+        (None, None) => {
+            err.push(
+                (&chain.cwp).add("interchainGasPaymaster"),
+                eyre!("Either interchainGasPaymaster or interchainGasPaymasters must be specified"),
+            );
+            vec![]
+        }
+    };
     let validator_announce = chain
         .chain(&mut err)
         .get_key("validatorAnnounce")
@@ -257,7 +287,7 @@ fn parse_chain(
         },
     );
 
-    cfg_unwrap_all!(&chain.cwp, err: [connection, mailbox, interchain_gas_paymaster, validator_announce, merkle_tree_hook]);
+    cfg_unwrap_all!(&chain.cwp, err: [connection, mailbox, validator_announce, merkle_tree_hook]);
 
     let submitter = chain
         .chain(&mut err)
@@ -283,7 +313,7 @@ fn parse_chain(
         reorg_period,
         addresses: CoreContractAddresses {
             mailbox,
-            interchain_gas_paymaster,
+            interchain_gas_paymasters,
             validator_announce,
             merkle_tree_hook,
         },
