@@ -1,5 +1,4 @@
 {
-  "adichain": 5,
   "artela": 2200,
   "carrchain": 5000,
   "coti": 1,
@@ -7,8 +6,7 @@
   "electroneum": 10,
   "fluence": 2000,
   "forma": 5,
-  "galactica": 1,
-  "incentiv": 5,
+  "incentiv": 3000,
   "kyve": 5,
   "litchain": 0.05,
   "miraclechain": 0.05,
@@ -17,13 +15,10 @@
   "osmosis": 0,
   "paradex": 0,
   "radix": 0,
-  "reactive": 0.1,
-  "stable": 5,
   "starknet": 200,
   "solaxy": 0.05,
   "sophon": 50,
   "tac": 5,
   "tangle": 6,
-  "vana": 0.001,
-  "zerogravity": 0.005
+  "vana": 0.001
 }
