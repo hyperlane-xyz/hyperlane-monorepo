@@ -9212,7 +9212,6 @@
         "from": 82206
       },
       "transactionOverrides": {
-        "gasPrice": 60000000000,
         "minGasPrice": 1000000000,
         "minFeePerGas": 1000000000,
         "minPriorityFeePerGas": 1000000000
