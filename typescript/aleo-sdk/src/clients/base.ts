@@ -36,6 +36,7 @@ export class AleoBase {
   protected readonly skipSuffixes: boolean;
   protected readonly consensusVersionHeights: string;
   protected readonly ismManager: string;
+  protected readonly warpSuffix: string;
 
   constructor(rpcUrls: string[], chainId: string | number) {
     assert(
@@ -69,6 +70,8 @@ export class AleoBase {
     this.ismManager = process.env['ALEO_ISM_MANAGER_SUFFIX']
       ? `${this.prefix}_ism_manager_${process.env['ALEO_ISM_MANAGER_SUFFIX']}.aleo`
       : `${this.prefix}_ism_manager.aleo`;
+
+    this.warpSuffix = process.env['ALEO_WARP_SUFFIX'] || '';
   }
 
   protected getProgramManager(privateKey?: string): AnyProgramManager {
