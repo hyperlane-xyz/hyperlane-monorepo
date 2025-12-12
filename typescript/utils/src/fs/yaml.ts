@@ -5,10 +5,9 @@ import {
   SchemaOptions,
   ToJSOptions,
   parse,
-  stringify as yamlStringify,
 } from 'yaml';
 
-import { objMerge } from '../objects.js';
+import { objMerge, stringifyObject } from '../objects.js';
 
 import { isFile, readFileAtPath, writeToFile } from './utils.js';
 
@@ -48,12 +47,10 @@ export function tryReadYaml(filepath: string) {
 
 /**
  * Writes an object as YAML to a file with a trailing newline.
+ * Uses stringifyObject to properly handle ethers BigNumber serialization.
  */
 export function writeYaml(filepath: string, obj: unknown): void {
-  writeToFile(
-    filepath,
-    yamlStringify(obj, { indent: 2, sortMapEntries: true }).trimEnd(),
-  );
+  writeToFile(filepath, stringifyObject(obj, 'yaml', 2).trimEnd());
 }
 
 /**
