@@ -1,5 +1,15 @@
 # @hyperlane-xyz/infra
 
+## 19.14.0
+
+### Patch Changes
+
+- @hyperlane-xyz/sdk@19.14.0
+- @hyperlane-xyz/helloworld@19.14.0
+- @hyperlane-xyz/http-registry-server@19.14.0
+- @hyperlane-xyz/utils@19.14.0
+- @hyperlane-xyz/core@10.1.2
+
 ## 19.13.0
 
 ### Patch Changes

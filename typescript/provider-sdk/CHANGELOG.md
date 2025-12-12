@@ -1,5 +1,15 @@
 # @hyperlane-xyz/provider-sdk
 
+## 0.6.0
+
+### Minor Changes
+
+- aeac943f8: Refactor AltVMJsonRpcTxSubmitter to implement ITransactionSubmitter. Remove ALT_VM_SUPPORTED_PROTOCOLS, createAltVMSubmitterFactories in favor of simplified getSubmitterByStrategy
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@19.14.0
+
 ## 0.5.0
 
 ### Patch Changes

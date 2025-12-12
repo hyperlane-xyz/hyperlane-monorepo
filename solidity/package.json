@@ -1,9 +1,9 @@
 {
   "name": "@hyperlane-xyz/core",
   "description": "Core solidity contracts for Hyperlane",
-  "version": "10.1.1",
+  "version": "10.1.2",
   "dependencies": {
-    "@hyperlane-xyz/utils": "19.13.0"
+    "@hyperlane-xyz/utils": "19.14.0"
   },
   "devDependencies": {
     "@ethersproject/abi": "*",
