@@ -13,6 +13,7 @@ import {
   MultisigIsmConfig,
   RawRoutingIsmArtifactConfig,
   TestIsmConfig,
+  ismOnChainAddress,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import { assert, normalizeConfig } from '@hyperlane-xyz/utils';
@@ -200,8 +201,14 @@ describe('Radix ISMs (e2e)', function () {
         type: AltVM.IsmType.ROUTING,
         owner: TEST_RADIX_DEPLOYER_ADDRESS,
         domains: {
-          [DOMAIN_1]: testIsmAddress,
-          [DOMAIN_2]: multisigIsmAddress,
+          [DOMAIN_1]: {
+            artifactState: ArtifactState.UNDERIVED,
+            artifactAddress: testIsmAddress,
+          },
+          [DOMAIN_2]: {
+            artifactState: ArtifactState.UNDERIVED,
+            artifactAddress: multisigIsmAddress,
+          },
         },
       };
 
@@ -220,8 +227,12 @@ describe('Radix ISMs (e2e)', function () {
       expect(readIsm.config.type).to.equal(AltVM.IsmType.ROUTING);
       expect(readIsm.config.owner).to.equal(TEST_RADIX_DEPLOYER_ADDRESS);
       expect(Object.keys(readIsm.config.domains)).to.have.length(2);
-      expect(readIsm.config.domains[DOMAIN_1]).to.equal(testIsmAddress);
-      expect(readIsm.config.domains[DOMAIN_2]).to.equal(multisigIsmAddress);
+      expect(ismOnChainAddress(readIsm.config.domains[DOMAIN_1])).to.equal(
+        testIsmAddress,
+      );
+      expect(ismOnChainAddress(readIsm.config.domains[DOMAIN_2])).to.equal(
+        multisigIsmAddress,
+      );
     });
 
     it('should add a new domain ISM', async () => {
@@ -236,7 +247,10 @@ describe('Radix ISMs (e2e)', function () {
           ...routingIsm.config,
           domains: {
             ...routingIsm.config.domains,
-            [DOMAIN_3]: testIsmAddress,
+            [DOMAIN_3]: {
+              artifactState: ArtifactState.UNDERIVED,
+              artifactAddress: testIsmAddress,
+            },
           },
         },
       };
@@ -252,7 +266,9 @@ describe('Radix ISMs (e2e)', function () {
 
       const reader = artifactManager.createReader(AltVM.IsmType.ROUTING);
       const readIsm = await reader.read(routingIsm.deployed.address);
-      expect(readIsm.config.domains[DOMAIN_3]).to.equal(testIsmAddress);
+      expect(ismOnChainAddress(readIsm.config.domains[DOMAIN_3])).to.equal(
+        testIsmAddress,
+      );
       expect(Object.keys(readIsm.config.domains)).to.have.length(3);
     });
 
@@ -303,7 +319,10 @@ describe('Radix ISMs (e2e)', function () {
         config: {
           ...routingIsm.config,
           domains: {
-            [DOMAIN_1]: multisigIsmAddress,
+            [DOMAIN_1]: {
+              artifactState: ArtifactState.UNDERIVED,
+              artifactAddress: multisigIsmAddress,
+            },
             [DOMAIN_2]: routingIsm.config.domains[DOMAIN_2],
           },
         },
@@ -323,7 +342,9 @@ describe('Radix ISMs (e2e)', function () {
 
       const reader = artifactManager.createReader(AltVM.IsmType.ROUTING);
       const readIsm = await reader.read(routingIsm.deployed.address);
-      expect(readIsm.config.domains[DOMAIN_1]).to.equal(multisigIsmAddress);
+      expect(ismOnChainAddress(readIsm.config.domains[DOMAIN_1])).to.equal(
+        multisigIsmAddress,
+      );
     });
 
     it('should transfer ownership of the ISM', async () => {
