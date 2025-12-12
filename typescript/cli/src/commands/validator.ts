@@ -1,5 +1,3 @@
-import { CommandModule } from 'yargs';
-
 import {
   Address,
   ProtocolType,
@@ -7,7 +5,10 @@ import {
   normalizeAddressEvm,
 } from '@hyperlane-xyz/utils';
 
-import { CommandModuleWithContext } from '../context/types.js';
+import {
+  CommandModuleWithContext,
+  HyperlaneCommandModule,
+} from '../context/types.js';
 import { errorRed, log } from '../logger.js';
 import { getValidatorAddress } from '../validator/address.js';
 import { checkValidatorSetup } from '../validator/preFlightCheck.js';
@@ -24,7 +25,7 @@ import {
 } from './options.js';
 
 // Parent command to help configure and set up Hyperlane validators
-export const validatorCommand: CommandModule = {
+export const validatorCommand: HyperlaneCommandModule = {
   command: 'validator',
   describe: 'Configure and manage Hyperlane validators',
   builder: (yargs) =>

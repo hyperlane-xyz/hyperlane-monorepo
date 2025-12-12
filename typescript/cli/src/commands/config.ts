@@ -1,11 +1,12 @@
-import { CommandModule } from 'yargs';
-
 import { readChainConfigs } from '../config/chain.js';
 import { readIsmConfig } from '../config/ism.js';
 import { readMultisigConfig } from '../config/multisig.js';
 import { readChainSubmissionStrategyConfig } from '../config/strategy.js';
 import { readWarpRouteDeployConfig } from '../config/warp.js';
-import { CommandModuleWithContext } from '../context/types.js';
+import {
+  CommandModuleWithContext,
+  HyperlaneCommandModule,
+} from '../context/types.js';
 import { log, logGreen } from '../logger.js';
 
 import { inputFileCommandOption } from './options.js';
@@ -13,7 +14,7 @@ import { inputFileCommandOption } from './options.js';
 /**
  * Parent command
  */
-export const configCommand: CommandModule = {
+export const configCommand: HyperlaneCommandModule = {
   command: 'config',
   describe: 'Create or validate Hyperlane configs',
   builder: (yargs) =>
@@ -24,7 +25,7 @@ export const configCommand: CommandModule = {
 /**
  * Validate commands
  */
-const validateCommand: CommandModule = {
+const validateCommand: HyperlaneCommandModule = {
   command: 'validate',
   describe: 'Validate a config in a YAML or JSON file',
   builder: (yargs) =>

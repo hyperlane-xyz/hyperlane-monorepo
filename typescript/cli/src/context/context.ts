@@ -28,13 +28,15 @@ import { createAltVMSigners } from './altvm.js';
 import { resolveChains } from './strategies/chain/chainResolver.js';
 import { MultiProtocolSignerManager } from './strategies/signer/MultiProtocolSignerManager.js';
 import {
+  CliArgumentsWithContext,
+  CliArgumentsWithOptionalContext,
   CommandContext,
   ContextSettings,
   SignerKeyProtocolMap,
   SignerKeyProtocolMapSchema,
 } from './types.js';
 
-export async function contextMiddleware(argv: Record<string, any>) {
+export async function contextMiddleware(argv: CliArgumentsWithOptionalContext) {
   const requiresKey = isSignCommand(argv);
 
   const settings: ContextSettings = {
@@ -50,9 +52,16 @@ export async function contextMiddleware(argv: Record<string, any>) {
   argv.context = await getContext(settings);
 }
 
-export async function signerMiddleware(argv: Record<string, any>) {
+export async function signerMiddleware(argv: CliArgumentsWithOptionalContext) {
+  const context = argv.context;
+  if (!context) {
+    throw new Error(
+      'Context middleware must run before signer middleware attaches signers.',
+    );
+  }
+
   const { key, requiresKey, strategyPath, multiProtocolProvider } =
-    argv.context;
+    context as CliArgumentsWithContext['context'];
 
   const strategyConfig = strategyPath
     ? await readChainSubmissionStrategyConfig(strategyPath)
@@ -68,15 +77,13 @@ export async function signerMiddleware(argv: Record<string, any>) {
    */
   const altVmChains = chains.filter(
     (chain) =>
-      argv.context.multiProvider.getProtocol(chain) !== ProtocolType.Ethereum,
+      context.multiProvider.getProtocol(chain) !== ProtocolType.Ethereum,
   );
 
   try {
     await loadProtocolProviders(
       new Set(
-        altVmChains.map((chain) =>
-          argv.context.multiProvider.getProtocol(chain),
-        ),
+        altVmChains.map((chain) => context.multiProvider.getProtocol(chain)),
       ),
     );
   } catch (e) {
@@ -88,7 +95,7 @@ export async function signerMiddleware(argv: Record<string, any>) {
 
   await Promise.all(
     altVmChains.map(async (chain) => {
-      const { altVmProviders, multiProvider } = argv.context;
+      const { altVmProviders, multiProvider } = context;
       const protocol = multiProvider.getProtocol(chain);
       const metadata = multiProvider.getChainMetadata(chain);
 
@@ -103,6 +110,12 @@ export async function signerMiddleware(argv: Record<string, any>) {
   /**
    * Extracts signer config
    */
+  if (!key) {
+    throw new Error(
+      'Command requires a signing key but none was provided or resolved.',
+    );
+  }
+
   const multiProtocolSigner = await MultiProtocolSignerManager.init(
     strategyConfig,
     chains,
@@ -113,13 +126,13 @@ export async function signerMiddleware(argv: Record<string, any>) {
   /**
    * @notice Attaches signers to MultiProvider and assigns it to argv.multiProvider
    */
-  argv.context.multiProvider = await multiProtocolSigner.getMultiProvider();
+  context.multiProvider = await multiProtocolSigner.getMultiProvider();
 
   /**
    * Creates AltVM signers
    */
-  argv.context.altVmSigners = await createAltVMSigners(
-    argv.context.multiProvider,
+  context.altVmSigners = await createAltVMSigners(
+    context.multiProvider,
     chains,
     key,
     strategyConfig,
