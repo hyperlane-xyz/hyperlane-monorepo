@@ -224,6 +224,11 @@ impl<C: AleoClient> AleoProvider<C> {
         I::IntoIter: ExactSizeIterator,
         V: TryInto<Value<N>>,
     {
+        let start = Instant::now();
+        debug!(
+            "Preparing VM and Authorization for: {}/{}",
+            program_id, function_name
+        );
         let program_id_parsed =
             ProgramID::<N>::from_str(program_id).map_err(HyperlaneAleoError::from)?;
         let function_name_parsed =
@@ -236,6 +241,12 @@ impl<C: AleoClient> AleoProvider<C> {
         let mut rng = ChaCha20Rng::from_entropy();
         // Load program + dependencies.
         self.load_program(&vm, &program_id_parsed, 0).await?;
+
+        debug!(
+            "Loaded Program and dependencies in {:.2}s",
+            Instant::now().duration_since(start).as_secs_f32()
+        );
+
         // Create authorization.
         let authorization = vm
             .authorize(
@@ -246,6 +257,10 @@ impl<C: AleoClient> AleoProvider<C> {
                 &mut rng,
             )
             .map_err(HyperlaneAleoError::from)?;
+        debug!(
+            "Prepared VM and Authorization in {:.2}s",
+            Instant::now().duration_since(start).as_secs_f32()
+        );
         Ok((
             vm,
             authorization,
