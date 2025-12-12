@@ -76,12 +76,12 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/* && \
     chmod 777 /app && \
     mkdir -p /usr/share/hyperlane && chmod 1000 /usr/share/hyperlane && \
-    mkdir -p /data && chown -R 1000 /data
+    mkdir -p /data && chown -R 1000 /data && \
+    mkdir -p /home/hyperlane/.aleo/resources && \
+    chown -R 1000:1000 /home/hyperlane
 
 # Create a proper home for the non-root user and Aleo resources
 ENV HOME=/home/hyperlane
-RUN mkdir -p /home/hyperlane/.aleo/resources && \
-    chown -R 1000:1000 /home/hyperlane
 
 # Run as non-root user for security
 # Use tini as init system for proper process management
