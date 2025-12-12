@@ -1,8 +1,6 @@
 {
   "extensions": ["ts"],
   "spec": ["src/**/*.test.*"],
-  "node-option": [
-    "import=tsx/esm"
-  ],
+  "node-option": ["import=tsx/esm"],
   "require": ["src/tests/test-setup.ts"]
 }
