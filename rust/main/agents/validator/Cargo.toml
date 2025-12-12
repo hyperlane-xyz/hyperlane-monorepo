@@ -37,6 +37,7 @@ hyperlane-core = { path = "../../hyperlane-core", features = [
 hyperlane-base = { path = "../../hyperlane-base" }
 hyperlane-ethereum = { path = "../../chains/hyperlane-ethereum" }
 hyperlane-cosmos = { path = "../../chains/hyperlane-cosmos" }
+lander = { path = "../../lander" }
 
 # Dependency version is determined by ethers
 rusoto_core = '*'
@@ -53,6 +54,7 @@ hyperlane-test = { path = "../../hyperlane-test" }
 k256.workspace = true
 hyperlane-core = { path = "../../hyperlane-core", features = ["test-utils"] }
 hyperlane-ethereum = { path = "../../chains/hyperlane-ethereum", features = ["test-utils"] }
+lander = { path = "../../lander", features = ["integration_test"] }
 
 [features]
 default = ["color-eyre", "oneline-errors"]

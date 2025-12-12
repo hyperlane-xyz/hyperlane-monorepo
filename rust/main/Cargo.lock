@@ -14678,6 +14678,7 @@ dependencies = [
  "hyperlane-test",
  "itertools 0.12.1",
  "k256 0.13.4",
+ "lander",
  "mockall",
  "prometheus",
  "reqwest 0.11.27",

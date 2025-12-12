@@ -11,6 +11,7 @@ use hyperlane_base::agent_main;
 
 use crate::validator::Validator;
 
+mod announce_waiter;
 mod reorg_reporter;
 mod server;
 mod settings;

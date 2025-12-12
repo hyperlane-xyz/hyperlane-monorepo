@@ -7,8 +7,8 @@ pub use dispatcher::entrypoint::{DispatcherEntrypoint, Entrypoint};
 pub use dispatcher::{DatabaseOrPath, Dispatcher, DispatcherMetrics, DispatcherSettings};
 pub use error::LanderError;
 pub use payload::{
-    DropReason as PayloadDropReason, FullPayload, PayloadStatus, PayloadUuid,
-    RetryReason as PayloadRetryReason,
+    build_validator_announce_payload, DropReason as PayloadDropReason, FullPayload, PayloadStatus,
+    PayloadUuid, RetryReason as PayloadRetryReason, ValidatorAnnounceTxData,
 };
 pub use transaction::{DropReason as TransactionDropReason, TransactionStatus, TransactionUuid};
 
