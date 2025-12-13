@@ -210,7 +210,9 @@ fn parse_chain(
                 .as_ref()
                 .and_then(|d| match d.domain_protocol() {
                     HyperlaneDomainProtocol::Ethereum => Some(IndexMode::Block),
-                    HyperlaneDomainProtocol::Sealevel => Some(IndexMode::Sequence),
+                    HyperlaneDomainProtocol::Sealevel
+                    | HyperlaneDomainProtocol::Aleo
+                    | HyperlaneDomainProtocol::Radix => Some(IndexMode::Sequence),
                     _ => None,
                 })
                 .unwrap_or_default()

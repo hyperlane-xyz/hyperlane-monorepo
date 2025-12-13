@@ -267,7 +267,7 @@ impl<Client: HttpClient> ProvingClient<Client> {
         };
         let body = serde_json::to_value(request).map_err(HyperlaneAleoError::from)?;
 
-        let response: ProvingResponse = self.0.request_post("/prove", &body).await?;
+        let response: ProvingResponse = self.0.request_post("prove", &body).await?;
 
         Ok(
             serde_json::from_value::<Transaction<N>>(response.transaction)
