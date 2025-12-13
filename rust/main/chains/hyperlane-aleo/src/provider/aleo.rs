@@ -192,6 +192,32 @@ impl<C: AleoClient> AleoProvider<C> {
         Ok(finalize_cost.saturating_add(execution_cost))
     }
 
+    /// Internal helper: checks for malicious authorizations
+    /// Because in Aleo the application is the entry point, we have to trust the application to not contain malicious code
+    /// Malicious code can drain the relayer's account out of credits and tokens
+    fn malicious_authorization_check<N: Network>(
+        &self,
+        entry_program_id: &str,
+        authorization: &Authorization<N>,
+    ) -> ChainResult<()> {
+        for (_, transition) in authorization.transitions() {
+            let program_id = transition.program_id().to_string();
+
+            // Native credits transfers from the signer are malicious
+            // Token transfers from the signer are malicious
+            if (program_id == "credits.aleo" || program_id == "token_registry.aleo")
+                && transition.function_name().to_string() == "transfer_public_as_signer"
+            {
+                return Err(HyperlaneAleoError::MaliciousProgramDetected {
+                    program_id: entry_program_id.to_string(),
+                    transition: transition.to_string(),
+                }
+                .into());
+            }
+        }
+        Ok(())
+    }
+
     /// Internal helper: builds VM, loads program + imports, parses identifiers, and creates authorization.
     async fn prepare_authorization_and_vm<N: Network, I, V>(
         &self,
@@ -233,6 +259,10 @@ impl<C: AleoClient> AleoProvider<C> {
                 &mut rng,
             )
             .map_err(HyperlaneAleoError::from)?;
+
+        // Malicious authorization check
+        self.malicious_authorization_check(program_id, &authorization)?;
+
         Ok((
             vm,
             authorization,
