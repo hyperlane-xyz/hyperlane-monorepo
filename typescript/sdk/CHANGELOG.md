@@ -1,5 +1,18 @@
 # @hyperlane-xyz/sdk
 
+## 19.14.0
+
+### Patch Changes
+
+- Updated dependencies [aeac943f8]
+  - @hyperlane-xyz/provider-sdk@0.6.0
+  - @hyperlane-xyz/cosmos-sdk@19.14.0
+  - @hyperlane-xyz/deploy-sdk@0.6.0
+  - @hyperlane-xyz/radix-sdk@19.14.0
+  - @hyperlane-xyz/starknet-core@19.14.0
+  - @hyperlane-xyz/utils@19.14.0
+  - @hyperlane-xyz/core@10.1.2
+
 ## 19.13.0
 
 ### Patch Changes
