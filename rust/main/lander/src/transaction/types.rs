@@ -150,8 +150,19 @@ pub enum DropReason {
     DroppedByChain,
     /// dropped by the submitter
     FailedSimulation,
+    /// dropped because of some other reason we are not aware of
+    Other(String),
 }
 
+impl DropReason {
+    pub fn to_metrics_label(&self) -> String {
+        match self {
+            Self::DroppedByChain => "DroppedByChain".to_string(),
+            Self::FailedSimulation => "FailedSimulation".to_string(),
+            Self::Other(_) => "Other".to_string(),
+        }
+    }
+}
 // add nested enum entries as we add VMs
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub enum VmSpecificTxData {

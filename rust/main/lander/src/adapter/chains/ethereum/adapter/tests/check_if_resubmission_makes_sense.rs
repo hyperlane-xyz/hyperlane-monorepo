@@ -130,7 +130,7 @@ fn resubmission_with_same_gas_price_is_rejected_for_pending_inclusion() {
     };
 
     let result = EthereumAdapter::check_if_resubmission_makes_sense(&tx, &new_gas_price);
-    assert!(matches!(result, Err(LanderError::TxWontBeResubmitted)));
+    assert!(matches!(result, Err(LanderError::TxGasCapReached)));
 }
 
 #[test]
@@ -234,7 +234,10 @@ fn resubmission_with_same_gas_price_is_rejected_for_dropped() {
     };
 
     let result = EthereumAdapter::check_if_resubmission_makes_sense(&tx, &new_gas_price);
-    assert!(matches!(result, Err(LanderError::TxWontBeResubmitted)));
+    assert!(matches!(
+        result,
+        Err(LanderError::TxDropped(DropReason::DroppedByChain))
+    ));
 }
 
 #[test]
@@ -330,7 +333,7 @@ fn legacy_tx_resubmission_with_same_gas_price_is_rejected_for_pending_inclusion(
     };
 
     let result = EthereumAdapter::check_if_resubmission_makes_sense(&tx, &new_gas_price);
-    assert!(matches!(result, Err(LanderError::TxWontBeResubmitted)));
+    assert!(matches!(result, Err(LanderError::TxGasCapReached)));
 }
 
 #[test]
