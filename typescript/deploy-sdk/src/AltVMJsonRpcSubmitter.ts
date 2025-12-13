@@ -4,7 +4,7 @@ import { AltVM, ITransactionSubmitter } from '@hyperlane-xyz/provider-sdk';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
-export class AltVMJsonRpcTxSubmitter implements ITransactionSubmitter {
+export class AltVMJsonRpcSubmitter implements ITransactionSubmitter {
   public readonly txSubmitterType = 'jsonRPC';
 
   protected readonly logger: Logger;
@@ -14,7 +14,7 @@ export class AltVMJsonRpcTxSubmitter implements ITransactionSubmitter {
     public readonly config: { chain: string },
   ) {
     this.logger = rootLogger.child({
-      module: AltVMJsonRpcTxSubmitter.name,
+      module: AltVMJsonRpcSubmitter.name,
     });
   }
 
