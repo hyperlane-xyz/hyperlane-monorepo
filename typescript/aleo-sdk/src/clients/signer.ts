@@ -45,12 +45,22 @@ export class AleoSigner
     this.programManager = this.getProgramManager(privateKey);
   }
 
+  private async isProgramDeployed(programId: string): Promise<boolean> {
+    try {
+      await this.aleoClient.getProgram(programId);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   private async deployProgram(
     programName: AleoProgram,
     coreSuffix: string,
     warpSuffix?: string,
   ): Promise<Partial<Record<AleoProgram, string>>> {
     const programs = loadProgramsInDeployOrder(
+      this.prefix,
       programName,
       coreSuffix,
       warpSuffix,
@@ -134,7 +144,7 @@ export class AleoSigner
   async createMailbox(
     req: Omit<AltVM.ReqCreateMailbox, 'signer'>,
   ): Promise<AltVM.ResCreateMailbox> {
-    const mailboxSuffix = this.generateSuffix(12);
+    const mailboxSuffix = this.generateSuffix(6);
     const programs = await this.deployProgram('dispatch_proxy', mailboxSuffix);
 
     const tx = await this.getCreateMailboxTransaction({
@@ -233,7 +243,7 @@ export class AleoSigner
   async createMessageIdMultisigIsm(
     req: Omit<AltVM.ReqCreateMessageIdMultisigIsm, 'signer'>,
   ): Promise<AltVM.ResCreateMessageIdMultisigIsm> {
-    const mailboxSuffix = this.generateSuffix(12);
+    const mailboxSuffix = this.generateSuffix(6);
     const programs = await this.deployProgram('ism_manager', mailboxSuffix);
 
     const ismManagerProgramId = programs['ism_manager'];
@@ -276,7 +286,7 @@ export class AleoSigner
   async createRoutingIsm(
     req: Omit<AltVM.ReqCreateRoutingIsm, 'signer'>,
   ): Promise<AltVM.ResCreateRoutingIsm> {
-    const mailboxSuffix = this.generateSuffix(12);
+    const mailboxSuffix = this.generateSuffix(6);
     const programs = await this.deployProgram('ism_manager', mailboxSuffix);
 
     const ismManagerProgramId = programs['ism_manager'];
@@ -374,7 +384,7 @@ export class AleoSigner
   async createNoopIsm(
     req: Omit<AltVM.ReqCreateNoopIsm, 'signer'>,
   ): Promise<AltVM.ResCreateNoopIsm> {
-    const mailboxSuffix = this.generateSuffix(12);
+    const mailboxSuffix = this.generateSuffix(6);
     const programs = await this.deployProgram('ism_manager', mailboxSuffix);
 
     const ismManagerProgramId = programs['ism_manager'];
@@ -597,9 +607,7 @@ export class AleoSigner
   async createValidatorAnnounce(
     req: Omit<AltVM.ReqCreateValidatorAnnounce, 'signer'>,
   ): Promise<AltVM.ResCreateValidatorAnnounce> {
-    const validatorAnnounceSuffix = getProgramSuffix(
-      fromAleoAddress(req.mailboxAddress).programId,
-    );
+    const validatorAnnounceSuffix = this.generateSuffix(3);
     const programs = await this.deployProgram(
       'validator_announce',
       validatorAnnounceSuffix,
@@ -627,7 +635,18 @@ export class AleoSigner
   async createNativeToken(
     req: Omit<AltVM.ReqCreateNativeToken, 'signer'>,
   ): Promise<AltVM.ResCreateNativeToken> {
-    const tokenSuffix = this.generateSuffix(12);
+    if (this.warpSuffix) {
+      const isAlreadyDeployed = await this.isProgramDeployed(
+        `${this.prefix}_native_${this.warpSuffix}.aleo`,
+      );
+      if (isAlreadyDeployed) {
+        throw new Error(
+          `Warp route with suffix ${this.warpSuffix} already deployed, please choose another suffix`,
+        );
+      }
+    }
+
+    const tokenSuffix = this.generateSuffix(6);
     const mailboxSuffix = getProgramSuffix(
       fromAleoAddress(req.mailboxAddress).programId,
     );
@@ -660,9 +679,18 @@ export class AleoSigner
   async createCollateralToken(
     req: Omit<AltVM.ReqCreateCollateralToken, 'signer'>,
   ): Promise<AltVM.ResCreateCollateralToken> {
-    const { symbol } = await this.getTokenMetadata(req.collateralDenom);
+    if (this.warpSuffix) {
+      const isAlreadyDeployed = await this.isProgramDeployed(
+        `${this.prefix}_collateral_${this.warpSuffix}.aleo`,
+      );
+      if (isAlreadyDeployed) {
+        throw new Error(
+          `Warp route with suffix ${this.warpSuffix} already deployed, please choose another suffix`,
+        );
+      }
+    }
 
-    const tokenSuffix = `${symbol}_${this.generateSuffix(6)}`;
+    const tokenSuffix = this.generateSuffix(6);
     const mailboxSuffix = getProgramSuffix(
       fromAleoAddress(req.mailboxAddress).programId,
     );
@@ -695,7 +723,18 @@ export class AleoSigner
   async createSyntheticToken(
     req: Omit<AltVM.ReqCreateSyntheticToken, 'signer'>,
   ): Promise<AltVM.ResCreateSyntheticToken> {
-    const tokenSuffix = `${req.denom.toLowerCase()}_${this.generateSuffix(6)}`;
+    if (this.warpSuffix) {
+      const isAlreadyDeployed = await this.isProgramDeployed(
+        `${this.prefix}_synthetic_${this.warpSuffix}.aleo`,
+      );
+      if (isAlreadyDeployed) {
+        throw new Error(
+          `Warp route with suffix ${this.warpSuffix} already deployed, please choose another suffix`,
+        );
+      }
+    }
+
+    const tokenSuffix = this.generateSuffix(6);
     const mailboxSuffix = getProgramSuffix(
       fromAleoAddress(req.mailboxAddress).programId,
     );
