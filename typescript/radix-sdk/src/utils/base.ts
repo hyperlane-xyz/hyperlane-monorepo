@@ -44,6 +44,10 @@ export class RadixBase {
     this.hyperlanePackageDefAddress = hyperlanePackageDefAddress;
   }
 
+  public getNetworkId(): number {
+    return this.networkId;
+  }
+
   public async getXrdAddress() {
     const knownAddresses = await LTSRadixEngineToolkit.Derive.knownAddresses(
       this.networkId,
