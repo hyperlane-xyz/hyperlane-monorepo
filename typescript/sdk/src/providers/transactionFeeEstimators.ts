@@ -11,6 +11,8 @@ import { Address, HexString, Numberish, assert } from '@hyperlane-xyz/utils';
 import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 
 import {
+  AleoProvider,
+  AleoTransaction,
   CosmJsNativeProvider,
   CosmJsNativeTransaction,
   CosmJsProvider,
@@ -277,6 +279,18 @@ export async function estimateTransactionFeeRadix({
   });
 }
 
+export async function estimateTransactionFeeAleo({
+  transaction,
+  provider,
+}: {
+  transaction: AleoTransaction;
+  provider: AleoProvider;
+}): Promise<TransactionFeeEstimate> {
+  return provider.provider.estimateTransactionFee({
+    transaction: transaction.transaction,
+  });
+}
+
 export function estimateTransactionFee({
   transaction,
   provider,
@@ -360,6 +374,14 @@ export function estimateTransactionFee({
     provider.type === ProviderType.Radix
   ) {
     return estimateTransactionFeeRadix({
+      transaction,
+      provider,
+    });
+  } else if (
+    transaction.type === ProviderType.Aleo &&
+    provider.type === ProviderType.Aleo
+  ) {
+    return estimateTransactionFeeAleo({
       transaction,
       provider,
     });
