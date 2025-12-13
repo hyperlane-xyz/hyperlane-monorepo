@@ -8273,6 +8273,18 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@hyperlane-xyz/named-args-converter@workspace:solidity/named-args-converter":
+  version: 0.0.0-use.local
+  resolution: "@hyperlane-xyz/named-args-converter@workspace:solidity/named-args-converter"
+  dependencies:
+    "@solidity-parser/parser": "npm:^0.19.0"
+    glob: "npm:^10.3.10"
+    yargs: "npm:^17.7.2"
+  bin:
+    solidity-named-args: ./src/cli.js
+  languageName: unknown
+  linkType: soft
+
 "@hyperlane-xyz/provider-sdk@npm:0.5.0, @hyperlane-xyz/provider-sdk@workspace:typescript/provider-sdk":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/provider-sdk@workspace:typescript/provider-sdk"

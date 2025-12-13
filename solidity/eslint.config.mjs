@@ -10,6 +10,7 @@ export default [
       '**/lib/**/*',
       '**/typechain/**/*',
       '**/dependencies/**/*',
+      '**/named-args-converter/**/*',
       '.solcover.js',
       'generate-artifact-exports.mjs',
     ],
