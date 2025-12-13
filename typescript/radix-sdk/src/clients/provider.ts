@@ -713,4 +713,22 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
       }),
     };
   }
+
+  // ### PUBLIC GETTERS FOR ARTIFACT FACTORY ACCESS ###
+
+  getQuery(): { warp: RadixWarpQuery } {
+    return this.query;
+  }
+
+  getPopulate(): { warp: RadixWarpPopulate } {
+    return this.populate;
+  }
+
+  getBase(): RadixBase {
+    return this.base;
+  }
+
+  getGateway(): GatewayApiClient {
+    return this.gateway;
+  }
 }
