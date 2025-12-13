@@ -308,6 +308,83 @@ abstract contract HypTokenTest is Test {
         assertEq(recipientAfter, recipientBefore + TRANSFER_AMT);
     }
 
+    function testHandle_forwardsValueToRecipient() public virtual {
+        uint256 forwardedValue = 1 ether;
+        uint256 bobBalanceBefore = BOB.balance;
+        uint256 bobTokenBalanceBefore = remoteToken.balanceOf(BOB);
+
+        // Alice initiates transfer on local chain
+        uint256 nativeValue = REQUIRED_VALUE;
+        if (address(primaryToken) != address(0)) {
+            deal(address(primaryToken), ALICE, TRANSFER_AMT);
+            vm.prank(ALICE);
+            primaryToken.approve(address(localToken), TRANSFER_AMT);
+        } else {
+            vm.deal(ALICE, TRANSFER_AMT + nativeValue);
+            nativeValue += TRANSFER_AMT;
+        }
+
+        vm.prank(ALICE);
+        localToken.transferRemote{value: nativeValue}(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            TRANSFER_AMT
+        );
+
+        // Process the message on remote chain with forwarded value
+        vm.deal(address(remoteMailbox), forwardedValue);
+        remoteMailbox.processNextInboundMessage{value: forwardedValue}();
+
+        // Verify BOB received both tokens and forwarded native value
+        assertEq(
+            remoteToken.balanceOf(BOB),
+            bobTokenBalanceBefore + TRANSFER_AMT
+        );
+        assertEq(BOB.balance, bobBalanceBefore + forwardedValue);
+    }
+
+    function testFuzz_handle_forwardsArbitraryValue(
+        uint256 forwardedValue
+    ) public virtual {
+        vm.assume(forwardedValue <= 100 ether);
+
+        uint256 bobBalanceBefore = BOB.balance;
+        uint256 bobTokenBalanceBefore = remoteToken.balanceOf(BOB);
+
+        // Alice initiates transfer on local chain
+        uint256 nativeValue = REQUIRED_VALUE;
+        if (address(primaryToken) != address(0)) {
+            deal(address(primaryToken), ALICE, TRANSFER_AMT);
+            vm.prank(ALICE);
+            primaryToken.approve(address(localToken), TRANSFER_AMT);
+        } else {
+            vm.deal(ALICE, TRANSFER_AMT + nativeValue);
+            nativeValue += TRANSFER_AMT;
+        }
+
+        vm.prank(ALICE);
+        localToken.transferRemote{value: nativeValue}(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            TRANSFER_AMT
+        );
+
+        // Process the message on remote chain with arbitrary forwarded value
+        if (forwardedValue > 0) {
+            vm.deal(address(remoteMailbox), forwardedValue);
+            remoteMailbox.processNextInboundMessage{value: forwardedValue}();
+        } else {
+            remoteMailbox.processNextInboundMessage();
+        }
+
+        // Verify BOB received tokens plus forwarded value
+        assertEq(
+            remoteToken.balanceOf(BOB),
+            bobTokenBalanceBefore + TRANSFER_AMT
+        );
+        assertEq(BOB.balance, bobBalanceBefore + forwardedValue);
+    }
+
     function _getBalances(
         address sender,
         address recipient
@@ -868,6 +945,73 @@ contract HypERC20ScaledTest is HypTokenTest {
         emit Transfer(address(0x0), ALICE, TRANSFER_AMT / EFFECTIVE_SCALE);
 
         _handleLocalTransfer(TRANSFER_AMT);
+    }
+
+    function testHandle_forwardsValueToRecipient() public override {
+        uint256 forwardedValue = 1 ether;
+        uint256 bobBalanceBefore = BOB.balance;
+        uint256 bobTokenBalanceBefore = remoteToken.balanceOf(BOB);
+
+        // Alice initiates transfer on local chain
+        uint256 nativeValue = REQUIRED_VALUE;
+        deal(address(primaryToken), ALICE, TRANSFER_AMT);
+        vm.prank(ALICE);
+        primaryToken.approve(address(localToken), TRANSFER_AMT);
+
+        vm.prank(ALICE);
+        localToken.transferRemote{value: nativeValue}(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            TRANSFER_AMT
+        );
+
+        // Process the message on remote chain with forwarded value
+        vm.deal(address(remoteMailbox), forwardedValue);
+        remoteMailbox.processNextInboundMessage{value: forwardedValue}();
+
+        // Verify BOB received both tokens (scaled) and forwarded native value
+        assertEq(
+            remoteToken.balanceOf(BOB),
+            bobTokenBalanceBefore + (TRANSFER_AMT * EFFECTIVE_SCALE)
+        );
+        assertEq(BOB.balance, bobBalanceBefore + forwardedValue);
+    }
+
+    function testFuzz_handle_forwardsArbitraryValue(
+        uint256 forwardedValue
+    ) public override {
+        vm.assume(forwardedValue <= 100 ether);
+
+        uint256 bobBalanceBefore = BOB.balance;
+        uint256 bobTokenBalanceBefore = remoteToken.balanceOf(BOB);
+
+        // Alice initiates transfer on local chain
+        uint256 nativeValue = REQUIRED_VALUE;
+        deal(address(primaryToken), ALICE, TRANSFER_AMT);
+        vm.prank(ALICE);
+        primaryToken.approve(address(localToken), TRANSFER_AMT);
+
+        vm.prank(ALICE);
+        localToken.transferRemote{value: nativeValue}(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            TRANSFER_AMT
+        );
+
+        // Process the message on remote chain with arbitrary forwarded value
+        if (forwardedValue > 0) {
+            vm.deal(address(remoteMailbox), forwardedValue);
+            remoteMailbox.processNextInboundMessage{value: forwardedValue}();
+        } else {
+            remoteMailbox.processNextInboundMessage();
+        }
+
+        // Verify BOB received tokens (scaled) plus forwarded value
+        assertEq(
+            remoteToken.balanceOf(BOB),
+            bobTokenBalanceBefore + (TRANSFER_AMT * EFFECTIVE_SCALE)
+        );
+        assertEq(BOB.balance, bobBalanceBefore + forwardedValue);
     }
 
     function _getBalances(

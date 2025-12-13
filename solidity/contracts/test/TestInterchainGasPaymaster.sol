@@ -13,7 +13,8 @@ contract TestInterchainGasPaymaster is InterchainGasPaymaster {
 
     function quoteGasPayment(
         uint32,
-        uint256 gasAmount
+        uint256 gasAmount,
+        uint256 /* destinationValue */
     ) public pure override returns (uint256) {
         return gasPrice * gasAmount;
     }

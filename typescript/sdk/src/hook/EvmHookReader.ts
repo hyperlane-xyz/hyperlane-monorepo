@@ -380,6 +380,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
 
     const owner = await hook.owner();
     const beneficiary = await hook.beneficiary();
+    const contractVersion = await hook.PACKAGE_VERSION();
 
     const overhead: IgpHookConfig['overhead'] = {};
     const oracleConfig: IgpHookConfig['oracleConfig'] = {};
@@ -441,6 +442,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       oracleKey: oracleKey ?? owner,
       overhead,
       oracleConfig,
+      contractVersion,
     };
 
     this._cache.set(address, config);

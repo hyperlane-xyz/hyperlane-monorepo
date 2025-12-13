@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { Address, WithAddress } from '@hyperlane-xyz/utils';
 
+import { VersionedSchema } from '../contractversion.js';
 import { ProtocolAgnositicGasOracleConfigWithTypicalCostSchema } from '../gas/oracle/types.js';
 import { ZHash } from '../metadata/customZodTypes.js';
 import {
@@ -152,7 +153,7 @@ export const ArbL2ToL1HookSchema = z.object({
   childHook: z.lazy((): z.ZodSchema => HookConfigSchema),
 });
 
-export const IgpSchema = OwnableSchema.extend({
+export const IgpSchema = VersionedSchema.extend(OwnableSchema.shape).extend({
   type: z.literal(HookType.INTERCHAIN_GAS_PAYMASTER),
   beneficiary: z.string(),
   oracleKey: z.string(),
