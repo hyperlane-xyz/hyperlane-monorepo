@@ -1,14 +1,14 @@
 use aleo_serialize_macro::aleo_serialize;
 use serde::{Deserialize, Serialize};
 
+use crate::utils::{aleo_hash_to_h256, bytes_to_u128_words};
+use crate::Plaintext;
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, utils::to_atto, HyperlaneMessage,
     InterchainGasPayment, MerkleTreeInsertion, H256, U256,
 };
 use snarkvm::prelude::{MainnetV0, Network};
 use snarkvm_console_account::{Address, Itertools};
-
-use crate::utils::{aleo_hash_to_h256, bytes_to_u128_words};
 
 /// Type alias for the Aleo network used throughout this codebase.
 ///
@@ -294,6 +294,7 @@ impl FeeEstimate {
     }
 }
 
+/// Delivery key is used to check if message was indeed delivered
 #[aleo_serialize]
 #[derive(Debug)]
 pub struct DeliveryKey {
@@ -338,7 +339,7 @@ pub struct AleoGetMappingValue {
     /// Mapping name
     pub mapping_name: String,
     /// Mapping key
-    pub mapping_key: String,
+    pub mapping_key: Plaintext<CurrentNetwork>,
 }
 
 #[cfg(test)]
