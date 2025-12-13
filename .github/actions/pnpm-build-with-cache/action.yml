@@ -1,0 +1,22 @@
+name: 'PNPM Build with Cache'
+description: 'Run pnpm build using pnpm cache'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Foundry
+      uses: ./.github/actions/setup-foundry
+
+    - name: pnpm-cache
+      id: pnpm-cache
+      uses: ./.github/actions/pnpm-cache
+
+    # Always run install - pnpm needs to create symlinks from the cached store
+    # The cache makes this much faster by restoring the pnpm store
+    - name: Install dependencies
+      shell: bash
+      run: pnpm install --frozen-lockfile
+
+    - name: Build
+      shell: bash
+      run: pnpm run build

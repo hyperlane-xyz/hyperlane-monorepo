@@ -1,4 +1,4 @@
-// Default empty artifact array when `yarn build:zk` hasn't been run
+// Default empty artifact array when `pnpm build:zk` hasn't been run
 // This file will be populated with build artifacts in dist/zksync after running the build:zk command
 export const buildArtifact = {
   solcLongVersion: '',

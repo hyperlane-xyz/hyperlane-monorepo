@@ -32,7 +32,8 @@
     "prettier": "prettier --write ."
   },
   "dependencies": {
-    "@hyperlane-xyz/utils": "19.13.0",
+    "@hyperlane-xyz/utils": "workspace:*",
+    "pino": "^8.19.0",
     "zod": "^3.21.2"
   },
   "devDependencies": {

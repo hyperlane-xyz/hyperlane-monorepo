@@ -7,7 +7,7 @@ A lightweight Express server for CCIP Read/Write commitments, using Zod validati
 ## Prerequisites
 
 - Node.js >=16
-- Yarn or npm
+- pnpm or npm
 - SQLite (for local development)
 - A GCP (or other) SQL database URL for production
 
@@ -17,7 +17,7 @@ A lightweight Express server for CCIP Read/Write commitments, using Zod validati
 
    ```bash
    cd typescript/ccip-server
-   yarn install    # or `npm install`
+   pnpm install    # or `npm install`
    ```
 
 2. **Configure environment variables**  
@@ -57,7 +57,7 @@ A lightweight Express server for CCIP Read/Write commitments, using Zod validati
 - **Development (auto-reload)**
 
   ```bash
-  yarn dev     # runs `tsx watch src/server.ts`
+  pnpm dev     # runs `tsx watch src/server.ts`
   ```
 
 - **Production**
@@ -69,7 +69,7 @@ A lightweight Express server for CCIP Read/Write commitments, using Zod validati
     npx prisma migrate deploy
 
   # Start the compiled server
-  NODE_ENV=production yarn start
+  NODE_ENV=production pnpm start
   ```
 
 ## API Routes

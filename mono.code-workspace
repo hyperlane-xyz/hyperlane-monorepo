@@ -6,42 +6,40 @@
     "prettier.configPath": "../.prettierrc",
     "workbench.editor.labelFormat": "medium",
     "npm.autoDetect": "on",
-    "npm.packageManager": "yarn",
+    "npm.packageManager": "pnpm",
     "npm.enableRunFromFolder": true,
     "npm.scriptExplorerAction": "run",
     "npm.fetchOnlinePackageInfo": true,
     "scm.diffDecorationsGutterPattern": {
-      "added": true
+      "added": true,
     },
     "files.watcherExclude": {
       "**/.git/**": true,
-      "**/node_modules/*/**": true
+      "**/node_modules/*/**": true,
     },
-    "cSpell.words": [
-      "hyperlane"
-    ],
+    "cSpell.words": ["hyperlane"],
     "rust-analyzer.linkedProjects": [
       "./rust/main/Cargo.toml",
       "./rust/sealevel/Cargo.toml",
-  ],
+    ],
   },
   "folders": [
     {
       "name": "ROOT",
-      "path": "./"
+      "path": "./",
     },
     {
-      "path": "./typescript"
+      "path": "./typescript",
     },
     {
-      "path": "./solidity"
+      "path": "./solidity",
     },
     {
-      "path": "./rust/main"
+      "path": "./rust/main",
     },
     {
-      "path": "./rust/sealevel"
-    }
+      "path": "./rust/sealevel",
+    },
   ],
   "extensions": {
     // See https://go.microsoft.com/fwlink/?LinkId=827846 to learn about workspace recommendations.
@@ -74,9 +72,9 @@
       // Yaml language support
       "redhat.vscode-yaml",
       // Rust language support
-      "rust-lang.rust-analyzer"
+      "rust-lang.rust-analyzer",
     ],
     // List of extensions recommended by VS Code that should not be recommended for users of this workspace.
-    "unwantedRecommendations": []
-  }
+    "unwantedRecommendations": [],
+  },
 }

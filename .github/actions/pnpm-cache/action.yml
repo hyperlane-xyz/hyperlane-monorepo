@@ -1,5 +1,5 @@
-name: 'Yarn Cache'
-description: 'Cache yarn dependencies for faster installs'
+name: 'PNPM Cache'
+description: 'Cache pnpm dependencies for faster installs'
 
 inputs:
   cache-provider:
@@ -19,33 +19,35 @@ runs:
     # But this is not available for non-depot runners.
     # So we default to github, and expect the workflow to set cache-provider=buildjet if needed.
     # https://depot.dev/docs/github-actions/overview#faster-caching
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v4
+
     - name: Determine Cache Provider
       id: determine-cache
       shell: bash
-      run: echo "cache-provider=${{ inputs.cache-provider }}" >> $GITHUB_ENV
+      run: echo "cache_provider=${{ inputs.cache-provider }}" >> $GITHUB_ENV
+
+    - name: Get pnpm store directory
+      id: pnpm-store
+      shell: bash
+      run: echo "store_path=$(pnpm store path)" >> $GITHUB_OUTPUT
 
     - name: Cache (Buildjet)
       id: buildjet-cache
-      if: env.cache-provider == 'buildjet'
+      if: env.cache_provider == 'buildjet'
       uses: buildjet/cache@v4
       with:
-        path: |
-          **/node_modules
-          .yarn/cache
-          .yarn/install-state.gz
-        key: ${{ runner.os }}-yarn-4.5.1-cache-${{ hashFiles('./yarn.lock') }}
+        path: ${{ steps.pnpm-store.outputs.store_path }}
+        key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
         restore-keys: |
-          ${{ runner.os }}-yarn-4.5.1-cache-
+          ${{ runner.os }}-pnpm-store-
 
     - name: Cache (GitHub)
       id: github-cache
-      if: env.cache-provider == 'github'
+      if: env.cache_provider == 'github'
       uses: actions/cache@v4
       with:
-        path: |
-          **/node_modules
-          .yarn/cache
-          .yarn/install-state.gz
-        key: ${{ runner.os }}-yarn-4.5.1-cache-${{ hashFiles('./yarn.lock') }}
+        path: ${{ steps.pnpm-store.outputs.store_path }}
+        key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
         restore-keys: |
-          ${{ runner.os }}-yarn-4.5.1-cache-
+          ${{ runner.os }}-pnpm-store-

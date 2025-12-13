@@ -20,7 +20,7 @@ jobs:
     steps:
       # Checkout the PR branch
       - name: Checkout PR branch
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
@@ -29,20 +29,20 @@ jobs:
         with:
           node-version-file: .nvmrc
 
-      - name: yarn-cache
-        uses: ./.github/actions/yarn-cache
+      - name: pnpm-cache
+        uses: ./.github/actions/pnpm-cache
         with:
           cache-provider: buildjet
 
-      - name: yarn-install
-        run: yarn install
+      - name: pnpm-install
+        run: pnpm install --frozen-lockfile
 
       - name: Setup Foundry
         uses: ./.github/actions/setup-foundry
 
       # Run the command on PR branch
       - name: Run command on PR branch
-        run: yarn workspace @hyperlane-xyz/core bytecode HEAD-bytecode
+        run: pnpm -C solidity run bytecode HEAD-bytecode
 
       # Checkout the target branch (base)
       - name: Checkout target branch (base) contracts
@@ -62,7 +62,7 @@ jobs:
 
       # Run the command on the target branch
       - name: Run command on target branch
-        run: yarn workspace @hyperlane-xyz/core bytecode base-bytecode
+        run: pnpm -C solidity run bytecode base-bytecode
 
       # Compare outputs
       - name: Compare outputs (fail on any changes)
