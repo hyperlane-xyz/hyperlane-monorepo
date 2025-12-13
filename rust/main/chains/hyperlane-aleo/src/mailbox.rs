@@ -8,7 +8,7 @@ use aleo_serialize::AleoSerialize;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, Encode, FixedPointNumber,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
-    Mailbox, ReorgPeriod, TxCostEstimate, TxOutcome, H256, U256,
+    Mailbox, Metadata, ReorgPeriod, TxCostEstimate, TxOutcome, H256, U256,
 };
 
 use crate::provider::{AleoClient, FallbackHttpClient};
@@ -80,7 +80,7 @@ impl<C: AleoClient> AleoMailbox<C> {
     async fn get_process_args(
         &self,
         message: &HyperlaneMessage,
-        metadata: &[u8],
+        metadata: &Metadata,
     ) -> ChainResult<Vec<String>> {
         let message_length = message.to_vec().len() as u32;
         let aleo_message: AleoMessage = message.clone().into();
@@ -192,7 +192,7 @@ impl<C: AleoClient> Mailbox for AleoMailbox<C> {
     async fn process(
         &self,
         message: &HyperlaneMessage,
-        metadata: &[u8],
+        metadata: &Metadata,
         _tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
         let recipient = self.get_recipient(message.recipient).await?.to_string();
@@ -210,7 +210,7 @@ impl<C: AleoClient> Mailbox for AleoMailbox<C> {
     async fn process_estimate_costs(
         &self,
         message: &HyperlaneMessage,
-        metadata: &[u8],
+        metadata: &Metadata,
     ) -> ChainResult<TxCostEstimate> {
         let recipient = self.get_recipient(message.recipient).await?.to_string();
         let cost = self
@@ -233,7 +233,7 @@ impl<C: AleoClient> Mailbox for AleoMailbox<C> {
     async fn process_calldata(
         &self,
         message: &HyperlaneMessage,
-        metadata: &[u8],
+        metadata: &Metadata,
     ) -> ChainResult<Vec<u8>> {
         let recipient = self.get_recipient(message.recipient).await?.to_string();
         let inputs = self.get_process_args(message, metadata).await?;

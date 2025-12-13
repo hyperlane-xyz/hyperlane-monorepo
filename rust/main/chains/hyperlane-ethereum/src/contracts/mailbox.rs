@@ -14,16 +14,17 @@ use ethers_contract::builders::ContractCall;
 use ethers_contract::{Multicall, MulticallResult};
 use ethers_core::utils::WEI_IN_ETHER;
 use futures_util::future::join_all;
+use hyperlane_core::Metadata;
 use tokio::join;
 use tokio::sync::Mutex;
 use tracing::instrument;
 
 use hyperlane_core::{
-    rpc_clients::call_and_retry_indefinitely, utils::bytes_to_hex, BatchItem, BatchResult,
-    ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProtocolError,
-    HyperlaneProvider, Indexed, Indexer, LogMeta, Mailbox, QueueOperation, RawHyperlaneMessage,
-    ReorgPeriod, SequenceAwareIndexer, TxCostEstimate, TxOutcome, H160, H256, H512, U256,
+    rpc_clients::call_and_retry_indefinitely, BatchItem, BatchResult, ChainCommunicationError,
+    ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    HyperlaneMessage, HyperlaneProtocolError, HyperlaneProvider, Indexed, Indexer, LogMeta,
+    Mailbox, QueueOperation, RawHyperlaneMessage, ReorgPeriod, SequenceAwareIndexer,
+    TxCostEstimate, TxOutcome, H160, H256, H512, U256,
 };
 
 use crate::error::HyperlaneEthereumError;
@@ -548,11 +549,11 @@ where
             .into())
     }
 
-    #[instrument(skip(self, message, metadata), fields(metadata=%bytes_to_hex(metadata)))]
+    #[instrument(skip(self, message, metadata))]
     async fn process(
         &self,
         message: &HyperlaneMessage,
-        metadata: &[u8],
+        metadata: &Metadata,
         tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
         let contract_call = self
@@ -624,11 +625,11 @@ where
         simulation.try_submit(self.cache.clone()).await
     }
 
-    #[instrument(skip(self), fields(msg=%message, metadata=%bytes_to_hex(metadata)))]
+    #[instrument(skip(self))]
     async fn process_estimate_costs(
         &self,
         message: &HyperlaneMessage,
-        metadata: &[u8],
+        metadata: &Metadata,
     ) -> ChainResult<TxCostEstimate> {
         // this function is used to get an accurate gas estimate for the transaction
         // rather than a gas amount that will guarantee inclusion, so we use `false`
@@ -680,7 +681,7 @@ where
     async fn process_calldata(
         &self,
         message: &HyperlaneMessage,
-        metadata: &[u8],
+        metadata: &Metadata,
     ) -> ChainResult<Vec<u8>> {
         let mut contract_call = self.contract.process(
             metadata.to_vec().into(),
@@ -720,7 +721,7 @@ mod test {
     use ethers_core::types::FeeHistory;
     use hyperlane_core::{
         ContractLocator, HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, Mailbox,
-        TxCostEstimate, H160, H256, U256,
+        Metadata, TxCostEstimate, H160, H256, U256,
     };
 
     use crate::{contracts::EthereumMailbox, ConnectionConf, RpcConnectionConf};
@@ -760,7 +761,7 @@ mod test {
         let (mailbox, mock_provider) = get_test_mailbox(domain.clone());
 
         let message = HyperlaneMessage::default();
-        let metadata: Vec<u8> = vec![];
+        let metadata = Metadata::new(vec![]);
 
         assert!(mailbox.arbitrum_node_interface.is_some());
         // Confirm `H160::from_low_u64_ne(0xC8)` does what's expected
@@ -836,7 +837,7 @@ mod test {
             get_test_mailbox(HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum));
 
         let message = HyperlaneMessage::default();
-        let metadata: Vec<u8> = vec![];
+        let metadata = Metadata::new(vec![]);
 
         // The MockProvider responses we push are processed in LIFO
         // order, so we start with the final RPCs and work toward the first

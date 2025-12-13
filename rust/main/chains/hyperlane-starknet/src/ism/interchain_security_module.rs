@@ -4,7 +4,8 @@
 use async_trait::async_trait;
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, ModuleType, H256, U256,
+    HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, Metadata, ModuleType, H256,
+    U256,
 };
 use starknet::core::types::Felt;
 use tracing::instrument;
@@ -75,8 +76,8 @@ impl InterchainSecurityModule for StarknetInterchainSecurityModule {
     #[instrument(skip(self))]
     async fn dry_run_verify(
         &self,
-        message: &HyperlaneMessage,
-        metadata: &[u8],
+        _message: &HyperlaneMessage,
+        _metadata: &Metadata,
     ) -> ChainResult<Option<U256>> {
         // let message = &message.into();
 
