@@ -28,8 +28,8 @@
   "ink": {
     "type": "collateral",
     "decimals": 6,
-    "foreignDeployment": "0x39d3c2Cf646447ee302178EDBe5a15E13B6F33aC",
-    "token": "0xF1815bd50389c46847f0Bda824eC8da914045D14"
+    "foreignDeployment": "0x2EA98401A0Af88cb44B9666b4C970B7a4f3217B2",
+    "token": "0x2D270e6886d130D724215A266106e6832161EAEd"
   },
   "optimism": {
     "type": "collateral",

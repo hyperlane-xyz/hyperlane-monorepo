@@ -4,11 +4,14 @@ import {
   HypTokenRouterConfig,
   TokenType,
 } from '@hyperlane-xyz/sdk';
+import { objFilter } from '@hyperlane-xyz/utils';
 
 import {
   RouterConfigWithoutOwner,
   tokens,
 } from '../../../../../src/config/warp.js';
+import { getGnosisSafeBuilderStrategyConfigGenerator } from '../../../utils.js';
+import { WarpRouteIds } from '../warpIds.js';
 
 import { getUSDCRebalancingBridgesConfigFor } from './utils.js';
 
@@ -16,7 +19,7 @@ const owners = {
   ethereum: '0x11BEBBf509248735203BAAAe90c1a27EEE70D567',
   superseed: '0x6652010BaCE855DF870D427daA6141c313994929',
   base: '0x11BEBBf509248735203BAAAe90c1a27EEE70D567',
-  ink: '0x11BEBBf509248735203BAAAe90c1a27EEE70D567',
+  ink: '0x3fb137161365f273ebb8262a26569c117b6cbafb',
   optimism: '0x11BEBBf509248735203BAAAe90c1a27EEE70D567',
   arbitrum: '0x11BEBBf509248735203BAAAe90c1a27EEE70D567',
   solanamainnet: 'JAPPhnuChtzCGmskmFdurvAxENWwcAqXCV5Jn5SSiuWE',
@@ -24,11 +27,12 @@ const owners = {
 
 export const CONTRACT_VERSION = '8.0.0';
 
-export const getEthereumSuperseedUSDCWarpConfig = async (
+export const getSuperseedUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const rebalancingConfig = getUSDCRebalancingBridgesConfigFor(
     Object.keys(owners),
+    WarpRouteIds.MainnetCCTPV2Standard,
   );
 
   const ethereum: HypTokenRouterConfig = {
@@ -78,7 +82,8 @@ export const getEthereumSuperseedUSDCWarpConfig = async (
     ...routerConfig.ink,
     owner: owners.ink,
     type: TokenType.collateral,
-    token: tokens.ink.USDCe,
+    token: tokens.ink.USDC,
+    ...rebalancingConfig.ink,
   };
 
   const solanamainnet: HypTokenRouterConfig = {
@@ -104,7 +109,7 @@ export const getEthereumSuperseedUSDCSTAGEWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const { ethereum, superseed, arbitrum, base, optimism, ink, solanamainnet } =
-    await getEthereumSuperseedUSDCWarpConfig(routerConfig);
+    await getSuperseedUSDCWarpConfig(routerConfig);
 
   return {
     ethereum,
@@ -122,3 +127,11 @@ export const getEthereumSuperseedUSDCSTAGEWarpConfig = async (
     } as Extract<HypTokenConfig, { type: typeof TokenType.collateralFiat }>,
   };
 };
+
+export const getSuperseedUSDCStrategyConfig =
+  getGnosisSafeBuilderStrategyConfigGenerator(
+    objFilter(
+      owners,
+      (chain, _v): _v is string => chain !== 'solanamainnet' && chain !== 'ink',
+    ),
+  );
