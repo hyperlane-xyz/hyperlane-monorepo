@@ -19,10 +19,10 @@ The rebalancer monitors collateral balances across warp route deployments and au
 
 ```bash
 # From monorepo root
-yarn install
+pnpm install
 
 # Build the package
-yarn workspace @hyperlane-xyz/rebalancer build
+pnpm --filter @hyperlane-xyz/rebalancer build
 ```
 
 ## Usage
@@ -33,7 +33,7 @@ Execute a one-off rebalance using the CLI:
 
 ```bash
 # Via CLI package
-yarn workspace @hyperlane-xyz/cli hyperlane warp rebalancer \
+pnpm --filter @hyperlane-xyz/cli hyperlane warp rebalancer \
   --config /path/to/rebalancer-config.yaml \
   --manual \
   --origin ethereum \
@@ -52,7 +52,7 @@ export HYP_KEY=your_private_key
 export COINGECKO_API_KEY=your_api_key
 
 # Start the service
-yarn workspace @hyperlane-xyz/rebalancer start
+pnpm --filter @hyperlane-xyz/rebalancer start
 
 # Or with direct node
 node dist/service.js
@@ -148,19 +148,19 @@ typescript/rebalancer/
 ### Running Tests
 
 ```bash
-yarn workspace @hyperlane-xyz/rebalancer test
+pnpm --filter @hyperlane-xyz/rebalancer test
 ```
 
 ### Local Development
 
 ```bash
 # Watch mode
-yarn workspace @hyperlane-xyz/rebalancer dev
+pnpm --filter @hyperlane-xyz/rebalancer dev
 
 # Start with test config
 HYP_KEY=your_test_key \
 REBALANCER_CONFIG_FILE=./test-config.yaml \
-yarn workspace @hyperlane-xyz/rebalancer start:dev
+pnpm --filter @hyperlane-xyz/rebalancer start:dev
 ```
 
 ## Migration from CLI
