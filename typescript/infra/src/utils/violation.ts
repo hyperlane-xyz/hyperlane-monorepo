@@ -16,11 +16,13 @@ interface AnyObject {
   [key: string]: any;
 }
 
-const enum ChangeType {
-  Added = 'Added',
-  Deleted = 'Deleted',
-  Updated = 'Updated',
-}
+const ChangeType = {
+  Added: 'Added',
+  Deleted: 'Deleted',
+  Updated: 'Updated',
+} as const;
+
+type ChangeType = (typeof ChangeType)[keyof typeof ChangeType];
 
 const changeTypeMapping: Record<ChangeType, string> = {
   [ChangeType.Added]: '+ Added to config',

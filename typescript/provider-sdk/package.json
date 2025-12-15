@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/provider-sdk",
-  "version": "0.5.0",
+  "version": "0.7.0",
   "description": "Protocol Provider SDK for the Hyperlane Protocol",
   "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "license": "Apache-2.0",
@@ -39,8 +39,8 @@
   "devDependencies": {
     "@hyperlane-xyz/eslint-config": "workspace:^",
     "@hyperlane-xyz/tsconfig": "workspace:^",
-    "@types/node": "^18.14.5",
+    "@types/node": "^20.17.0",
     "eslint": "^9.31.0",
-    "typescript": "5.3.3"
+    "typescript": "5.8.3"
   }
 }
