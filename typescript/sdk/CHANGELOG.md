@@ -1,5 +1,23 @@
 # @hyperlane-xyz/sdk
 
+## 20.0.0
+
+### Major Changes
+
+- a7dc73d: Allow for the 0 chain id
+
+### Patch Changes
+
+- Updated dependencies [b3ebc08]
+- Updated dependencies [aeac943]
+  - @hyperlane-xyz/utils@20.0.0
+  - @hyperlane-xyz/provider-sdk@0.6.0
+  - @hyperlane-xyz/core@10.1.2
+  - @hyperlane-xyz/cosmos-sdk@20.0.0
+  - @hyperlane-xyz/deploy-sdk@0.6.0
+  - @hyperlane-xyz/radix-sdk@20.0.0
+  - @hyperlane-xyz/starknet-core@20.0.0
+
 ## 19.13.0
 
 ### Patch Changes
