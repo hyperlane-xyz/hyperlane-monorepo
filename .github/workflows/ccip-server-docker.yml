@@ -7,12 +7,14 @@ on:
     paths:
       - 'typescript/ccip-server/**'
       - 'typescript/sdk/**'
+      - 'typescript/provider-sdk/**'
       - 'typescript/utils/**'
       - '.github/workflows/ccip-server-docker.yml'
   pull_request:
     paths:
       - 'typescript/ccip-server/**'
       - 'typescript/sdk/**'
+      - 'typescript/provider-sdk/**'
       - 'typescript/utils/**'
       - '.github/workflows/ccip-server-docker.yml'
   workflow_dispatch:
