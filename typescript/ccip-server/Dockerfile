@@ -3,7 +3,7 @@ FROM node:20-slim AS builder
 WORKDIR /hyperlane-monorepo
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git g++ make python3 python3-pip jq bash curl ca-certificates unzip \
+    git g++ make python3 python3-pip bash curl ca-certificates unzip \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Foundry for solidity builds (soldeer)
