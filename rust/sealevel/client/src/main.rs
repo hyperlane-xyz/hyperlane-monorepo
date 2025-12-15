@@ -324,6 +324,7 @@ enum TokenSubCmd {
     TransferOwnership(TransferOwnership),
     SetInterchainSecurityModule(SetInterchainSecurityModule),
     Igp(Igp),
+    RemoveIgp(RemoveIgp),
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -460,6 +461,15 @@ struct GetIgpArgs {
 enum IgpType {
     Igp,
     OverheadIgp,
+}
+
+#[derive(Args)]
+struct RemoveIgp {
+    #[arg(long, short)]
+    program_id: Pubkey,
+    /// Skip confirmation prompt
+    #[arg(long, short = 'y')]
+    yes: bool,
 }
 
 #[derive(Args)]
@@ -1810,6 +1820,40 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                 parse_token_account_data(get_args.token_type, &mut &token_account.data[..]);
             }
         },
+        TokenSubCmd::RemoveIgp(remove_igp) => {
+            // Confirm with user
+            if !remove_igp.yes && !ctx.require_tx_approval {
+                println!("⚠️  This will remove the IGP configuration from the warp route.");
+                println!("   After this, token transfers will NOT use gas payment.");
+                print!("\n   Continue? [y/N]: ");
+                std::io::Write::flush(&mut std::io::stdout()).unwrap();
+                
+                let mut input = String::new();
+                std::io::stdin().read_line(&mut input).unwrap();
+                
+                if !input.trim().eq_ignore_ascii_case("y") {
+                    println!("   Aborted.");
+                    return;
+                }
+            }
+
+            let instruction = hyperlane_sealevel_token_lib::instruction::set_igp_instruction(
+                remove_igp.program_id,
+                ctx.payer_pubkey,
+                None,  // Remove IGP
+            )
+            .unwrap();
+
+            ctx.new_txn()
+                .add_with_description(
+                    instruction,
+                    "Remove IGP configuration".to_string(),
+                )
+                .send_with_payer();
+            
+            println!("\n✅ IGP removed from warp route");
+            println!("💡 Token transfers will now dispatch without gas payment.");
+        }
     }
 }
 
