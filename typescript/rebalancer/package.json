@@ -43,13 +43,18 @@
     "zod-validation-error": "^3.3.0"
   },
   "devDependencies": {
+    "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@types/chai-as-promised": "^7.1.8",
     "@types/express": "^5.0.3",
     "@types/mocha": "^10.0.1",
     "@types/node": "^18.14.5",
+    "@types/sinon": "^17.0.3",
     "chai": "^4.5.0",
+    "chai-as-promised": "^7.1.2",
     "eslint": "^9.31.0",
     "mocha": "^11.5.0",
     "prettier": "^3.5.3",
+    "sinon": "^18.0.0",
     "tsx": "^4.19.1",
     "typescript": "5.3.3"
   },

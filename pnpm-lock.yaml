@@ -1496,6 +1496,12 @@ importers:
         specifier: ^3.3.0
         version: 3.5.4(zod@3.25.76)
     devDependencies:
+      '@hyperlane-xyz/tsconfig':
+        specifier: workspace:^
+        version: link:../tsconfig
+      '@types/chai-as-promised':
+        specifier: ^7.1.8
+        version: 7.1.8
       '@types/express':
         specifier: ^5.0.3
         version: 5.0.5
@@ -1505,9 +1511,15 @@ importers:
       '@types/node':
         specifier: ^18.14.5
         version: 18.19.130
+      '@types/sinon':
+        specifier: ^17.0.3
+        version: 17.0.4
       chai:
         specifier: ^4.5.0
         version: 4.5.0
+      chai-as-promised:
+        specifier: ^7.1.2
+        version: 7.1.2(chai@4.5.0)
       eslint:
         specifier: ^9.31.0
         version: 9.31.0(jiti@2.6.1)
@@ -1517,6 +1529,9 @@ importers:
       prettier:
         specifier: ^3.5.3
         version: 3.5.3
+      sinon:
+        specifier: ^18.0.0
+        version: 18.0.1
       tsx:
         specifier: ^4.19.1
         version: 4.19.1
@@ -7572,6 +7587,9 @@ packages:
   '@types/caseless@0.12.5':
     resolution: {integrity: sha512-hWtVTC2q7hc7xZ/RLbxapMvDMgUnDvKvMOpKal4DrMyfGBUfB1oKaZlIRr6mJL+If3bAP6sV/QneGzF6tJjZDg==}
 
+  '@types/chai-as-promised@7.1.8':
+    resolution: {integrity: sha512-ThlRVIJhr69FLlh6IctTXFkmhtP3NpMZ2QGq69StYLyKZFp/HOp1VdKZj7RvfNWYYcJ1xlbLGLLWj1UvP5u/Gw==}
+
   '@types/chai-as-promised@8.0.2':
     resolution: {integrity: sha512-meQ1wDr1K5KRCSvG2lX7n7/5wf70BeptTKst0axGvnN6zqaVpRqegoIbugiAPSqOW9K9aL8gDVrm7a2LXOtn2Q==}
 
@@ -9340,6 +9358,11 @@ packages:
   cbor@9.0.2:
     resolution: {integrity: sha512-JPypkxsB10s9QOWwa6zwPzqE1Md3vqpPc+cai4sAecuCsRyAtAl/pMyhPlMbT/xtPnm2dznJZYRLui57qiRhaQ==}
     engines: {node: '>=16'}
+
+  chai-as-promised@7.1.2:
+    resolution: {integrity: sha512-aBDHZxRzYnUYuIAIPBH2s511DjlKPzXNlXSGFC8CwmroWQLfrW0LtE1nK3MAwwNhJPa9raEjNCmRoFpG0Hurdw==}
+    peerDependencies:
+      chai: '>= 2.1.2 < 6'
 
   chai-as-promised@8.0.2:
     resolution: {integrity: sha512-1GadL+sEJVLzDjcawPM4kjfnL+p/9vrxiEUonowKOAzvVg0PixJUdtuDzdkDeQhK3zfOE76GqGkZIQ7/Adcrqw==}
@@ -25325,6 +25348,10 @@ snapshots:
 
   '@types/caseless@0.12.5': {}
 
+  '@types/chai-as-promised@7.1.8':
+    dependencies:
+      '@types/chai': 4.3.20
+
   '@types/chai-as-promised@8.0.2':
     dependencies:
       '@types/chai': 4.3.20
@@ -28224,6 +28251,11 @@ snapshots:
   cbor@9.0.2:
     dependencies:
       nofilter: 3.1.0
+
+  chai-as-promised@7.1.2(chai@4.5.0):
+    dependencies:
+      chai: 4.5.0
+      check-error: 1.0.3
 
   chai-as-promised@8.0.2(chai@4.5.0):
     dependencies:
