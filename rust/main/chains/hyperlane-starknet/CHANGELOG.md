@@ -1,3 +1,7 @@
+## [1.8.0] - 2025-12-15
+
+* feat: allow rpc header for starknet chains (#7605)
+
 ## [1.6.0] - 2025-11-06
 
 * chore: update to latest cainome & starknet versions (#6435)

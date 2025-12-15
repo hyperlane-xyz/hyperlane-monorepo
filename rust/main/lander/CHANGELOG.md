@@ -1,3 +1,19 @@
+## [1.8.0] - 2025-12-15
+
+* feat(rust): feature-gate Aleo chain support to reduce CI build times (#7569)
+* feat: Aleo HyperlaneProvider (#7344)
+* feat: Implement building transactions for Aleo in Lander (#7506)
+* feat: Lander Aleo transaction submission (#7533)
+* feat: Lander for Aleo: Add check of transaction status (#7586)
+* feat: Lander for Aleo: Implement payload reverted method (#7591)
+* feat: Lander for Aleo: check if transaction is ready for resubmission (#7590)
+* feat: Lander integration tests for Sealevel (#7571)
+* feat: add integration test for no tx receipt getting dropped (#7413)
+* feat: add relayer API endpoint to reset upper nonce for a given evm chain (#7372)
+* feat: dedupe sealevel transaction hashes (#7555)
+* feat: remove redundant tx status network call for finalized transactions (#7551)
+* feat: store newly assigned nonce to tx and db (#7317)
+
 ## [1.6.0] - 2025-11-06
 
 * feat(lander): EVM `tx_ready_for_resubmission` impl; update block_time configs (#6680)
