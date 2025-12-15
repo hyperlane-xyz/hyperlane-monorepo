@@ -30,7 +30,7 @@ jobs:
     runs-on: ${{ matrix.OS }}
     steps:
       - name: checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - name: ubuntu setup
         if: ${{ matrix.OS == 'depot-ubuntu-24.04-8' }}
         run: |

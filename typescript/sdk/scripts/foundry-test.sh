@@ -40,6 +40,6 @@ ANVIL_PID=$!
 
 echo "Anvil started with PID: $ANVIL_PID"
 echo "Running mocha tests"
-yarn mocha --config .mocharc.json './src/**/*.foundry-test.ts'
+pnpm mocha --config .mocharc.json './src/**/*.foundry-test.ts'
 
 echo "Done foundry tests"
