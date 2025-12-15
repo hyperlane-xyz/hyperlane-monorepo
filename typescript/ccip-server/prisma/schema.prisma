@@ -6,10 +6,10 @@ generator client {
   output   = "../src/generated/prisma"
 }
 
-// With engineType = "client" in Prisma 7, connection is handled via driver adapter in code
-// The DATABASE_URL is passed to the pg Pool in db.ts, not here
+// DATABASE_URL is required for prisma generate but actual connection is handled in code
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model Commitment {

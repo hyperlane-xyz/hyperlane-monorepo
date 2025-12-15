@@ -39,6 +39,9 @@ COPY starknet/package.json ./starknet/
 # Copy prisma schema before install (needed for postinstall prisma generate)
 COPY typescript/ccip-server/prisma ./typescript/ccip-server/prisma
 
+# Set dummy DATABASE_URL for prisma generate during install (actual URL provided at runtime)
+ENV DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder"
+
 RUN pnpm install --frozen-lockfile
 
 # Run prisma generate after install (needed to generate Prisma client)
