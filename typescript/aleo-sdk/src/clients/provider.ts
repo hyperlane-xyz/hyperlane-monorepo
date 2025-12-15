@@ -69,7 +69,11 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   }
 
   async getBalance(req: AltVM.ReqGetBalance): Promise<bigint> {
-    if (req.denom && req.denom !== ALEO_NATIVE_DENOM) {
+    if (
+      req.denom &&
+      req.denom !== 'credits' &&
+      req.denom !== ALEO_NATIVE_DENOM
+    ) {
       const result = await this.queryMappingValue(
         'token_registry.aleo',
         'authorized_balances',
