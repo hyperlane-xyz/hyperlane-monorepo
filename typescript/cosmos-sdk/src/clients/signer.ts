@@ -15,7 +15,7 @@ import {
 } from '@cosmjs/stargate';
 import { CometClient, connectComet } from '@cosmjs/tendermint-rpc';
 
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { AltVM, ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert, isUrl, strip0x } from '@hyperlane-xyz/utils';
 
 import { COSMOS_MODULE_MESSAGE_REGISTRY as R } from '../registry.js';
@@ -40,24 +40,23 @@ export class CosmosNativeSigner
     privateKey: string | OfflineSigner,
     extraParams?: Record<string, any>,
   ): Promise<AltVM.ISigner<EncodeObject, DeliverTxResponse>> {
-    assert(rpcUrls.length > 0, `got no rpcUrls`);
+    const [rpcUrl, ...extraRpcUrls] = rpcUrls;
+    assert(rpcUrl, `Expected at least one rpcUrl`);
     assert(
       rpcUrls.every((rpc) => isUrl(rpc)),
       `invalid rpc urls: ${rpcUrls.join(', ')}`,
     );
 
-    assert(extraParams, `extra params not defined`);
-    assert(extraParams.metadata, `metadata not defined in extra params`);
-    assert(
-      extraParams.metadata.gasPrice,
-      `gasPrice not defined in metadata extra params`,
-    );
+    const metadata: ChainMetadataForAltVM | undefined =
+      extraParams?.['metadata'];
+    assert(metadata, `metadata not defined in extra params`);
+    assert(metadata.gasPrice, `gasPrice not defined in metadata extra params`);
 
     let wallet: OfflineSigner;
 
     if (typeof privateKey === 'string') {
       assert(
-        extraParams.metadata.bech32Prefix,
+        metadata.bech32Prefix,
         `bech32Prefix not defined in metadata extra params`,
       );
 
@@ -68,11 +67,11 @@ export class CosmosNativeSigner
       if (isPrivateKey) {
         wallet = await DirectSecp256k1Wallet.fromKey(
           new Uint8Array(Buffer.from(strip0x(privateKey), 'hex')),
-          extraParams.metadata.bech32Prefix,
+          metadata.bech32Prefix,
         );
       } else {
         wallet = await DirectSecp256k1HdWallet.fromMnemonic(privateKey, {
-          prefix: extraParams.metadata.bech32Prefix,
+          prefix: metadata.bech32Prefix,
         });
       }
     } else {
@@ -95,14 +94,14 @@ export class CosmosNativeSigner
       );
 
     const signer = await SigningStargateClient.connectWithSigner(
-      rpcUrls[0],
+      rpcUrl,
       wallet,
       {
         aminoTypes: new AminoTypes({
           ...aminoTypes,
         }),
         gasPrice: GasPrice.fromString(
-          `${extraParams.metadata.gasPrice.amount}${extraParams.metadata.gasPrice.denom}`,
+          `${metadata.gasPrice.amount}${metadata.gasPrice.denom}`,
         ),
       },
     );
@@ -112,20 +111,27 @@ export class CosmosNativeSigner
       signer.registry.register(proto.type, proto.converter);
     });
 
-    const cometClient = await connectComet(rpcUrls[0]);
-    const account = await wallet.getAccounts();
+    const cometClient = await connectComet(rpcUrl);
+    const [account] = await wallet.getAccounts();
+    assert(account, 'Expected to retrieve at least one account');
 
-    return new CosmosNativeSigner(cometClient, signer, account[0], rpcUrls, {
-      fee: 2,
-      memo: '',
-    });
+    return new CosmosNativeSigner(
+      cometClient,
+      signer,
+      account,
+      [rpcUrl, ...extraRpcUrls],
+      {
+        fee: 2,
+        memo: '',
+      },
+    );
   }
 
   protected constructor(
     cometClient: CometClient,
     signer: SigningStargateClient,
     account: AccountData,
-    rpcUrls: string[],
+    rpcUrls: [string, ...string[]],
     options: TxOptions,
   ) {
     super(cometClient, rpcUrls);
@@ -153,7 +159,11 @@ export class CosmosNativeSigner
     );
     assertIsDeliverTxSuccess(receipt);
 
-    const msgResponse = receipt.msgResponses[0];
+    const [msgResponse] = receipt.msgResponses;
+    assert(
+      msgResponse,
+      'Expected msg response to be defined after sending the transaction',
+    );
     return this.getProtoConverter(msgResponse.typeUrl).decode(
       msgResponse.value,
     );

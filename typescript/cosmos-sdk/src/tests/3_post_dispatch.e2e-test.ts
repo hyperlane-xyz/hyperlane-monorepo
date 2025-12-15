@@ -4,7 +4,11 @@ import { expect } from 'chai';
 import { step } from 'mocha-steps';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { bytes32ToAddress, isValidAddressEvm } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  bytes32ToAddress,
+  isValidAddressEvm,
+} from '@hyperlane-xyz/utils';
 
 import { createSigner } from './utils.js';
 
@@ -127,6 +131,7 @@ describe('3. cosmos sdk post dispatch e2e tests', async function () {
 
     const gasConfig = igp.destinationGasConfigs[remoteDomainId];
 
+    assert(gasConfig, 'Expected gasConfig to be defined');
     expect(gasConfig.gasOverhead).to.equal(gasOverhead);
     expect(gasConfig.gasOracle?.gasPrice).to.equal(gasPrice);
     expect(gasConfig.gasOracle?.tokenExchangeRate).to.equal(tokenExchangeRate);

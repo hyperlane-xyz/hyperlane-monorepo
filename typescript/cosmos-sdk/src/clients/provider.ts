@@ -65,7 +65,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     PostDispatchExtension;
   private readonly registry: Registry;
   private readonly cometClient: CometClient;
-  private readonly rpcUrls: string[];
+  private readonly rpcUrls: [string, ...string[]];
 
   private static NULL_ADDRESS =
     '0x0000000000000000000000000000000000000000000000000000000000000000';
@@ -74,13 +74,17 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     rpcUrls: string[],
     _chainId: string | number,
   ): Promise<CosmosNativeProvider> {
-    assert(rpcUrls.length > 0, `got no rpcUrls`);
+    const [rpcUrl, ...extraUrls] = rpcUrls;
+    assert(rpcUrl, `${CosmosNativeProvider.name} got no rpcUrls`);
 
-    const client = await connectComet(rpcUrls[0]);
-    return new CosmosNativeProvider(client, rpcUrls);
+    const client = await connectComet(rpcUrl);
+    return new CosmosNativeProvider(client, [rpcUrl, ...extraUrls]);
   }
 
-  protected constructor(cometClient: CometClient, rpcUrls: string[]) {
+  protected constructor(
+    cometClient: CometClient,
+    rpcUrls: [string, ...string[]],
+  ) {
     this.query = QueryClient.withExtensions(
       cometClient,
       setupBankExtension,

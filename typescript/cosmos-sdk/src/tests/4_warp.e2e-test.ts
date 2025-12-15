@@ -6,6 +6,7 @@ import { step } from 'mocha-steps';
 import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   addressToBytes32,
+  assert,
   bytes32ToAddress,
   convertToProtocolAddress,
   isValidAddressEvm,
@@ -134,6 +135,7 @@ describe('4. cosmos sdk warp e2e tests', async function () {
 
     const remoteRouter = remoteRouters.remoteRouters[0];
 
+    assert(remoteRouter, 'Expected remoteRouter to be defined');
     expect(remoteRouter.receiverDomainId).to.equal(domainId);
     expect(remoteRouter.receiverAddress).to.equal(mailboxAddress);
     expect(remoteRouter.gas).to.equal(gas);
@@ -206,6 +208,7 @@ describe('4. cosmos sdk warp e2e tests', async function () {
     expect(remoteRouters.remoteRouters).to.have.lengthOf(1);
 
     const remoteRouter = remoteRouters.remoteRouters[0];
+    assert(remoteRouter, 'Expected remoteRouter to be defined');
 
     const interchainGas = await signer.quoteRemoteTransfer({
       tokenAddress,
