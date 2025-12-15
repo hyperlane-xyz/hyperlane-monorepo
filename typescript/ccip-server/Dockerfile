@@ -3,24 +3,29 @@ FROM node:20-slim AS builder
 WORKDIR /hyperlane-monorepo
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git g++ make python3 python3-pip jq bash curl ca-certificates unzip openssl \
-    && rm -rf /var/lib/apt/lists/* \
-    && yarn set version 4.5.1
+    git g++ make python3 python3-pip jq bash curl ca-certificates unzip \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install Foundry for solidity builds (soldeer)
 RUN curl -L https://foundry.paradigm.xyz | bash
 RUN /root/.foundry/bin/foundryup
 ENV PATH="/root/.foundry/bin:${PATH}"
 
-# Copy package.json and yarn config
-COPY package.json yarn.lock .yarnrc.yml ./
-COPY .yarn/plugins ./.yarn/plugins
-COPY .yarn/releases ./.yarn/releases
-COPY .yarn/patches ./.yarn/patches
+# Copy package.json first for corepack to read packageManager field
+COPY package.json ./
+RUN corepack enable && corepack install
+
+# Copy pnpm config files
+COPY pnpm-lock.yaml pnpm-workspace.yaml ./
+
+# Copy patches directory (required for pnpm install)
+COPY patches ./patches
 
 # Copy only the packages needed for ccip-server
 COPY typescript/ccip-server/package.json ./typescript/ccip-server/
+COPY typescript/deploy-sdk/package.json ./typescript/deploy-sdk/
 COPY typescript/sdk/package.json ./typescript/sdk/
+COPY typescript/provider-sdk/package.json ./typescript/provider-sdk/
 COPY typescript/utils/package.json ./typescript/utils/
 COPY typescript/cosmos-sdk/package.json ./typescript/cosmos-sdk/
 COPY typescript/cosmos-types/package.json ./typescript/cosmos-types/
@@ -31,19 +36,20 @@ COPY solidity/package.json ./solidity/
 COPY solhint-plugin/package.json ./solhint-plugin/
 COPY starknet/package.json ./starknet/
 
-# Copy prisma schema before yarn install (needed for postinstall prisma generate)
+# Copy prisma schema before install (needed for postinstall prisma generate)
 COPY typescript/ccip-server/prisma ./typescript/ccip-server/prisma
 
-# Skip postinstall scripts during install (--mode=skip-build)
-RUN yarn install --mode=skip-build && yarn cache clean
+RUN pnpm install --frozen-lockfile
 
 # Run prisma generate after install (needed to generate Prisma client)
-RUN yarn --cwd typescript/ccip-server prisma generate
+RUN pnpm --filter @hyperlane-xyz/ccip-server prisma generate
 
 # Copy source files
 COPY turbo.json ./
 COPY typescript/ccip-server ./typescript/ccip-server
+COPY typescript/deploy-sdk ./typescript/deploy-sdk
 COPY typescript/sdk ./typescript/sdk
+COPY typescript/provider-sdk ./typescript/provider-sdk
 COPY typescript/utils ./typescript/utils
 COPY typescript/cosmos-sdk ./typescript/cosmos-sdk
 COPY typescript/cosmos-types ./typescript/cosmos-types
@@ -54,24 +60,29 @@ COPY solidity ./solidity
 COPY solhint-plugin ./solhint-plugin
 COPY starknet ./starknet
 
-# Build the ccip-server (generates prisma client and compiles TypeScript)
-RUN yarn turbo run build --filter=@hyperlane-xyz/ccip-server
+# Build the ccip-server
+RUN pnpm turbo run build --filter=@hyperlane-xyz/ccip-server
 
-# Production stage - minimal image with built code
+# Create standalone deployment with resolved dependencies (no symlinks)
+# --legacy flag required for pnpm v10+ without inject-workspace-packages
+RUN pnpm --filter @hyperlane-xyz/ccip-server deploy --legacy --prod /app
+
+# Copy generated Prisma client to dist (TypeScript doesn't copy non-TS files)
+RUN cp -r /app/src/generated /app/dist/generated
+
+# Production stage - Debian slim for Prisma native binary compatibility
 FROM node:20-slim AS runner
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates openssl \
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy the built application
-COPY --from=builder /hyperlane-monorepo/typescript/ccip-server/dist ./dist
-COPY --from=builder /hyperlane-monorepo/typescript/ccip-server/src/generated ./src/generated
+# Copy the deployed standalone package
+COPY --from=builder /app ./
+
+# Copy prisma schema for migrations
 COPY --from=builder /hyperlane-monorepo/typescript/ccip-server/prisma ./prisma
-COPY --from=builder /hyperlane-monorepo/typescript/ccip-server/package.json ./
-COPY --from=builder /hyperlane-monorepo/typescript/ccip-server/node_modules ./node_modules
 
 # Environment variables
 ENV NODE_ENV=production
