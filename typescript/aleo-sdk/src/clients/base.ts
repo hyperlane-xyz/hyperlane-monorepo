@@ -149,7 +149,7 @@ export class AleoBase {
     programId: string,
     mappingName: string,
     key: string,
-  ): Promise<any | undefined> {
+  ): Promise<string> {
     try {
       const result = await retryAsync(
         async () => {
