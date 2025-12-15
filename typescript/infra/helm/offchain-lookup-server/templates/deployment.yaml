@@ -31,15 +31,6 @@ spec:
             initialDelaySeconds: 5
             periodSeconds: 10
           imagePullPolicy: IfNotPresent
-          {{- if .Values.image.standalone }}
-          # Standalone image runs the server directly
-          command: ["node"]
-          args: ["dist/server.js"]
-          {{- else }}
-          # Monorepo image uses pnpm to start the server
-          command: ["pnpm"]
-          args: ["-C", "typescript/ccip-server", "run", "start"]
-          {{- end }}
           ports:
             - name: http
               containerPort: {{ .Values.port }}
