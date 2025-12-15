@@ -1,6 +1,11 @@
 import { BHP256, Plaintext, Program, U128 } from '@provablehq/sdk/mainnet.js';
 
-import { isValidAddressAleo, strip0x } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  isNullish,
+  isValidAddressAleo,
+  strip0x,
+} from '@hyperlane-xyz/utils';
 
 import { AleoProgram, programRegistry } from '../artifacts.js';
 
@@ -153,6 +158,10 @@ export function fromAleoAddress(aleoAddress: string): {
   }
 
   const [programId, address] = aleoAddress.split('/');
+  assert(
+    !isNullish(programId) && !isNullish(address),
+    'Expected the programId and address to be extracted',
+  );
 
   return {
     programId,
@@ -194,11 +203,11 @@ export function stringToU128(str: string, littleEndian = false): bigint {
   let value = 0n;
   if (!littleEndian) {
     for (let i = 0; i < 16; i++) {
-      value = (value << 8n) | BigInt(bytes[i]);
+      value = (value << 8n) | BigInt(bytes[i]!);
     }
   } else {
     for (let i = 15; i >= 0; i--) {
-      value = (value << 8n) | BigInt(bytes[i]);
+      value = (value << 8n) | BigInt(bytes[i]!);
     }
   }
 

@@ -24,7 +24,7 @@ export type AnyAleoNetworkClient =
 export type AnyProgramManager = MainnetProgramManager | TestnetProgramManager;
 
 export class AleoBase {
-  protected readonly rpcUrls: string[];
+  protected readonly rpcUrls: [string, ...string[]];
   protected readonly chainId: number;
 
   protected readonly aleoClient: AnyAleoNetworkClient;
@@ -38,14 +38,16 @@ export class AleoBase {
       +chainId === 0 || +chainId === 1,
       `Unknown chain id ${chainId} for Aleo, only 0 or 1 allowed`,
     );
-    assert(rpcUrls.length > 0, `got no rpcUrls`);
 
-    this.rpcUrls = rpcUrls;
+    const [rpcUrl, ...extraRpcUrls] = rpcUrls;
+    assert(rpcUrl, `got no rpcUrls`);
+
+    this.rpcUrls = [rpcUrl, ...extraRpcUrls];
     this.chainId = +chainId;
 
     this.aleoClient = this.chainId
-      ? new AleoTestnetNetworkClient(rpcUrls[0])
-      : new AleoMainnetNetworkClient(rpcUrls[0]);
+      ? new AleoTestnetNetworkClient(rpcUrl)
+      : new AleoMainnetNetworkClient(rpcUrl);
 
     this.skipProofs = JSON.parse(process.env['ALEO_SKIP_PROOFS'] || 'false');
     this.skipSuffixes = JSON.parse(

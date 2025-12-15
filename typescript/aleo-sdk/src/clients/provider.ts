@@ -1153,10 +1153,9 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       `total quote ${total_quote} is bigger than max fee ${req.maxFee.amount}`,
     );
 
-    for (let i = 0; i < quotes.length; i++) {
-      creditAllowance[i] =
-        `{spender:${quotes[i].spender},amount:${quotes[i].quote}u64}`;
-    }
+    quotes.forEach(({ spender, quote }, idx) => {
+      creditAllowance[idx] = `{spender:${spender},amount:${quote}u64}`;
+    });
 
     const mailboxValue = `{
       default_hook:${mailbox.defaultHook ? fromAleoAddress(mailbox.defaultHook).address : ALEO_NULL_ADDRESS},

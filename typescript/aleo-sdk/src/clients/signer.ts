@@ -1,4 +1,4 @@
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { AltVM, ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { AleoProgram } from '../artifacts.js';
@@ -27,9 +27,9 @@ export class AleoSigner
   ): Promise<AltVM.ISigner<AleoTransaction, AleoReceipt>> {
     assert(extraParams, `extra params not defined`);
 
-    const metadata = extraParams.metadata as Record<string, unknown>;
+    const metadata: ChainMetadataForAltVM | undefined =
+      extraParams?.['metadata'];
     assert(metadata, `metadata not defined in extra params`);
-    assert(metadata.chainId, `chainId not defined in metadata extra params`);
 
     const chainId = parseInt(metadata.chainId.toString());
 
