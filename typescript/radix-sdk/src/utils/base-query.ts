@@ -137,12 +137,13 @@ export async function getComponentOwner(
     ...new Set(items.map((item) => item.holder_address)),
   ];
 
+  const ownerAddress = resourceHolders[0];
   assert(
-    resourceHolders.length === 1,
+    ownerAddress && resourceHolders.length === 1,
     `Expected holders of resource ${ownerResource} to be one, found ${resourceHolders.length} holders instead ${resourceHolders.join(', ')}`,
   );
 
-  return resourceHolders[0];
+  return ownerAddress;
 }
 
 /**

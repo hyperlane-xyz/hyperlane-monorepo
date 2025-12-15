@@ -107,8 +107,8 @@ export async function isMessageDelivered(
     `${(response.receipt as Receipt).error_message}`,
   );
 
-  const output = (response.receipt as Receipt).output;
-  assert(output.length, `found no output for delivered method`);
+  const [output] = (response.receipt as Receipt).output;
+  assert(output, `found no output for delivered method`);
 
-  return (output[0].programmatic_json as { value: boolean }).value;
+  return (output.programmatic_json as { value: boolean }).value;
 }

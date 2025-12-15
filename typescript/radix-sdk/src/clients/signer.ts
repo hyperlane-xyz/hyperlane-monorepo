@@ -3,7 +3,7 @@ import {
   TransactionManifest,
 } from '@radixdlt/radix-engine-toolkit';
 
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { AltVM, ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert, strip0x } from '@hyperlane-xyz/utils';
 
 import {
@@ -84,9 +84,10 @@ export class RadixSigner
   ): Promise<AltVM.ISigner<RadixSDKTransaction, RadixSDKReceipt>> {
     assert(extraParams, `extra params not defined`);
 
-    const metadata = extraParams.metadata as Record<string, unknown>;
+    const metadata: ChainMetadataForAltVM | undefined =
+      extraParams?.['metadata'];
+
     assert(metadata, `metadata not defined in extra params`);
-    assert(metadata.chainId, `chainId not defined in metadata extra params`);
 
     const networkId = parseInt(metadata.chainId.toString());
 
@@ -98,10 +99,8 @@ export class RadixSigner
     return new RadixSigner(account, {
       networkId,
       rpcUrls,
-      gatewayUrls: (metadata?.gatewayUrls as { http: string }[])?.map(
-        ({ http }) => http,
-      ),
-      packageAddress: metadata.packageAddress as string | undefined,
+      gatewayUrls: metadata?.gatewayUrls?.map(({ http }) => http),
+      packageAddress: metadata.packageAddress,
     });
   }
 

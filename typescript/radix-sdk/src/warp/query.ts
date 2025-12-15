@@ -51,8 +51,9 @@ export class RadixWarpQuery {
       ...new Set(items.map((item) => item.holder_address)),
     ];
 
+    const ownerAddress = resourceHolders[0];
     assert(
-      resourceHolders.length === 1,
+      ownerAddress && resourceHolders.length === 1,
       `expected token holders of resource ${ownerResource} to be one, found ${resourceHolders.length} holders instead`,
     );
 
@@ -93,9 +94,9 @@ export class RadixWarpQuery {
       metadata = await this.base.getMetadata({ resource: origin_denom });
     }
 
-    const result = {
+    return {
       address: token,
-      owner: resourceHolders[0],
+      owner: ownerAddress,
       tokenType: token_type as 'Collateral' | 'Synthetic',
       mailboxAddress:
         fields.find((f) => f.field_name === 'mailbox')?.value ?? '',
@@ -104,8 +105,6 @@ export class RadixWarpQuery {
       denom: origin_denom,
       ...metadata,
     };
-
-    return result;
   }
 
   public async getRemoteRouters({ token }: { token: string }): Promise<{
@@ -141,20 +140,21 @@ export class RadixWarpQuery {
     );
 
     for (const key of keys) {
-      const { entries } =
-        await this.gateway.state.innerClient.keyValueStoreData({
-          stateKeyValueStoreDataRequest: {
-            key_value_store_address: enrolledRoutersKeyValueStore,
-            keys: [
-              {
-                key_hex: key.raw_hex,
-              },
-            ],
-          },
-        });
+      const {
+        entries: [entry],
+      } = await this.gateway.state.innerClient.keyValueStoreData({
+        stateKeyValueStoreDataRequest: {
+          key_value_store_address: enrolledRoutersKeyValueStore,
+          keys: [
+            {
+              key_hex: key.raw_hex,
+            },
+          ],
+        },
+      });
 
       const routerFields =
-        (entries[0].value.programmatic_json as EntityField)?.fields ?? [];
+        (entry?.value.programmatic_json as EntityField)?.fields ?? [];
 
       remoteRouters.push({
         receiverDomainId: parseInt(
@@ -236,26 +236,26 @@ CALL_METHOD
       `${(response.receipt as Receipt).error_message}`,
     );
 
-    const output = (response.receipt as Receipt).output;
-    assert(output.length, `found no output for quote_remote_transfer method`);
+    const [output] = (response.receipt as Receipt).output;
+    assert(output, `found no output for quote_remote_transfer method`);
 
-    const programmaticJson = output[0].programmatic_json;
+    const programmaticJson = output.programmatic_json;
     assert(
       'entries' in programmaticJson,
       'programmatic_json is not in the expected format',
     );
 
-    const entries = programmaticJson.entries;
-    assert(entries.length > 0, `quote_remote_transfer returned no resources`);
+    const [entry, ...extraEntries] = programmaticJson.entries;
+    assert(entry, `quote_remote_transfer returned no resources`);
     assert(
-      entries.length < 2,
+      extraEntries.length !== 0,
       `quote_remote_transfer returned multiple resources`,
     );
 
     return {
-      denom: entries[0].key.value,
+      denom: entry.key.value,
       amount: BigInt(
-        new BigNumber(entries[0].value.value)
+        new BigNumber(entry.value.value)
           .times(new BigNumber(10).pow(18))
           .integerValue(BigNumber.ROUND_FLOOR)
           .toFixed(0),

@@ -1,7 +1,7 @@
 import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 import { NetworkId } from '@radixdlt/radix-engine-toolkit';
 
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { AltVM, ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert } from '@hyperlane-xyz/utils';
 
 import {
@@ -93,13 +93,14 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   ): Promise<RadixProvider> {
     const networkId = parseInt(chainId.toString());
 
+    const metadata: ChainMetadataForAltVM | undefined =
+      extraParams?.['metadata'];
+
     return new RadixProvider({
       rpcUrls,
       networkId,
-      gatewayUrls: (
-        extraParams?.metadata?.gatewayUrls as { http: string }[]
-      )?.map(({ http }) => http),
-      packageAddress: extraParams?.metadata?.packageAddress,
+      gatewayUrls: metadata?.gatewayUrls?.map(({ http }) => http),
+      packageAddress: metadata?.packageAddress,
     });
   }
 

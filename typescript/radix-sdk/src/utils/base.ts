@@ -224,14 +224,15 @@ export class RadixBase {
       return BigInt(0);
     }
 
-    if (fungibleResource.vaults.items.length !== 1) {
+    const [balance] = fungibleResource.vaults.items;
+    if (!balance) {
       return BigInt(0);
     }
 
     const { decimals } = await this.getMetadata({ resource });
 
     return BigInt(
-      new BigNumber(fungibleResource.vaults.items[0].amount)
+      new BigNumber(balance.amount)
         .times(new BigNumber(10).exponentiatedBy(decimals))
         .toFixed(0),
     );
