@@ -18,6 +18,10 @@ export interface ChainMetadataForAltVM {
     symbol: string;
     name: string;
   };
+  gasPrice?: {
+    denom: string;
+    amount: string;
+  };
   blocks?: {
     confirmations?: number;
     estimateBlockTime?: number;
