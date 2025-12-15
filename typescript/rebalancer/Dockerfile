@@ -4,19 +4,22 @@ WORKDIR /hyperlane-monorepo
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git g++ make python3 python3-pip jq bash curl ca-certificates unzip \
-    && rm -rf /var/lib/apt/lists/* \
-    && yarn set version 4.5.1
+    && rm -rf /var/lib/apt/lists/*
 
 # Install Foundry for solidity builds (soldeer)
 RUN curl -L https://foundry.paradigm.xyz | bash
 RUN /root/.foundry/bin/foundryup
 ENV PATH="/root/.foundry/bin:${PATH}"
 
-# Copy package.json and yarn config
-COPY package.json yarn.lock .yarnrc.yml ./
-COPY .yarn/plugins ./.yarn/plugins
-COPY .yarn/releases ./.yarn/releases
-COPY .yarn/patches ./.yarn/patches
+# Copy package.json first to extract pnpm version
+COPY package.json ./
+
+# Install pnpm version from packageManager field in package.json
+RUN PNPM_VERSION=$(jq -r '.packageManager' package.json | sed 's/pnpm@//') && \
+    npm install -g pnpm@$PNPM_VERSION
+
+# Copy pnpm config files
+COPY pnpm-lock.yaml pnpm-workspace.yaml ./
 
 # Copy only the packages needed for rebalancer
 COPY typescript/rebalancer/package.json ./typescript/rebalancer/
@@ -33,7 +36,7 @@ COPY solidity/package.json ./solidity/
 COPY solhint-plugin/package.json ./solhint-plugin/
 COPY starknet/package.json ./starknet/
 
-RUN yarn install && yarn cache clean
+RUN pnpm install --frozen-lockfile
 
 # Copy source files
 COPY turbo.json ./
@@ -52,7 +55,7 @@ COPY solhint-plugin ./solhint-plugin
 COPY starknet ./starknet
 
 # Build and bundle the rebalancer (ncc creates a single-file bundle with all deps)
-RUN yarn turbo run bundle --filter=@hyperlane-xyz/rebalancer
+RUN pnpm turbo run bundle --filter=@hyperlane-xyz/rebalancer
 
 # Production stage - minimal Alpine image with just the bundled code
 FROM node:20-alpine AS runner
