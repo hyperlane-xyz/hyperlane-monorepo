@@ -1,5 +1,12 @@
 # @hyperlane-xyz/cli
 
+## 20.0.0
+
+### Minor Changes
+
+- b12fe7e: Update `hyperlane submit` to use a sequential `for` loop instead of `promiseObjAll` to prevent API rate limiting, Output transaction receipts as unique JSON files per chain with timestamped filenames.
+- aeac943: Refactor AltVMJsonRpcTxSubmitter to implement ITransactionSubmitter. Remove ALT_VM_SUPPORTED_PROTOCOLS, createAltVMSubmitterFactories in favor of simplified getSubmitterByStrategy
+
 ## 19.13.0
 
 ### Minor Changes

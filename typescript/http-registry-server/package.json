@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/http-registry-server",
-  "version": "19.13.0",
+  "version": "20.0.0",
   "private": true,
   "description": "An HTTP server for the Hyperlane registry",
   "license": "Apache-2.0",
@@ -39,7 +39,7 @@
     "@types/chai-as-promised": "^8",
     "@types/express": "^5.0.3",
     "@types/mocha": "^10.0.1",
-    "@types/node": "^18.14.5",
+    "@types/node": "^20.17.0",
     "@types/sinon": "^17.0.1",
     "@types/supertest": "^2.0.12",
     "@types/yargs": "^17.0.24",
@@ -52,7 +52,7 @@
     "sinon": "^13.0.2",
     "supertest": "^6.3.3",
     "tsx": "^4.19.1",
-    "typescript": "5.3.3",
+    "typescript": "5.8.3",
     "yargs": "^17.7.2"
   }
 }

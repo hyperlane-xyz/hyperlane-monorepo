@@ -4,8 +4,8 @@ import yargs from 'yargs';
 import { ChainMap } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
-import rawDailyBurn from '../../config/environments/mainnet3/balances/dailyRelayerBurn.json';
-import rawDesiredRelayerBalanceOverrides from '../../config/environments/mainnet3/balances/desiredRelayerBalanceOverrides.json';
+import rawDailyBurn from '../../config/environments/mainnet3/balances/dailyRelayerBurn.json' with { type: 'json' };
+import rawDesiredRelayerBalanceOverrides from '../../config/environments/mainnet3/balances/desiredRelayerBalanceOverrides.json' with { type: 'json' };
 import {
   BalanceThresholdType,
   RELAYER_BALANCE_TARGET_DAYS,

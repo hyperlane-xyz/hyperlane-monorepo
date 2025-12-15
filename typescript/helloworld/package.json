@@ -1,7 +1,7 @@
 {
   "name": "@hyperlane-xyz/helloworld",
   "description": "A basic skeleton of an Hyperlane app",
-  "version": "19.13.0",
+  "version": "20.0.0",
   "dependencies": {
     "@hyperlane-xyz/core": "workspace:*",
     "@hyperlane-xyz/registry": "23.7.0",
@@ -45,7 +45,8 @@
     "solidity-coverage": "^0.8.3",
     "ts-node": "^10.9.2",
     "typechain": "8.3.2",
-    "typescript": "5.3.3"
+    "tsx": "^4.19.1",
+    "typescript": "5.8.3"
   },
   "homepage": "https://www.hyperlane.xyz",
   "keywords": [
@@ -70,7 +71,7 @@
     "lint": "pnpm lint:sol && pnpm lint:ts",
     "lint:sol": "solhint contracts/**/*.sol",
     "lint:ts": "eslint -c ./eslint.config.mjs",
-    "hardhat-esm": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only --no-warnings=ExperimentalWarning' hardhat --config hardhat.config.cts",
+    "hardhat-esm": "NODE_OPTIONS='--import tsx/esm' hardhat --config hardhat.config.cts",
     "prettier": "prettier --write ./contracts ./src",
     "test": "pnpm hardhat-esm test $(find ./src/test -name '*.test.ts')",
     "test:ci": "pnpm test"
