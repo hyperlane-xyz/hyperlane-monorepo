@@ -1,8 +1,4 @@
-import {
-  jsRules,
-  restrictedSdkAndUtilsImportRules,
-  typescriptRules,
-} from '@hyperlane-xyz/eslint-config';
+import { jsRules, typescriptRules } from '@hyperlane-xyz/eslint-config';
 
 export default [
   { ignores: ['dist/**'] },
