@@ -1,13 +1,13 @@
-import { Logger } from 'pino';
-
 import { AltVM, ITransactionSubmitter } from '@hyperlane-xyz/provider-sdk';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
-import { rootLogger } from '@hyperlane-xyz/utils';
+import { Logger, rootLogger } from '@hyperlane-xyz/utils';
 
 export class AltVMJsonRpcSubmitter implements ITransactionSubmitter {
   public readonly txSubmitterType = 'jsonRPC';
 
-  protected readonly logger: Logger;
+  protected readonly logger: Logger = rootLogger.child({
+    module: 'AltVMJsonRpcSubmitter',
+  });
 
   constructor(
     public readonly signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,

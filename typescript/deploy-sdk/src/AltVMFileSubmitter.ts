@@ -1,18 +1,18 @@
-import { Logger } from 'pino';
-
 import {
   AltVM,
   FileSubmitterConfig,
   ITransactionSubmitter,
 } from '@hyperlane-xyz/provider-sdk';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
-import { assert, rootLogger } from '@hyperlane-xyz/utils';
+import { Logger, assert, rootLogger } from '@hyperlane-xyz/utils';
 import { readYamlOrJson, writeYamlOrJson } from '@hyperlane-xyz/utils/fs';
 
 export class AltVMFileSubmitter implements ITransactionSubmitter {
   public readonly txSubmitterType = 'file';
 
-  protected readonly logger: Logger;
+  protected readonly logger: Logger = rootLogger.child({
+    module: 'AltVMFileSubmitter',
+  });
 
   constructor(
     public readonly signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
