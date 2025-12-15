@@ -720,8 +720,8 @@ importers:
         specifier: workspace:^
         version: link:../tsconfig
       '@types/node':
-        specifier: ^18.14.5
-        version: 18.19.130
+        specifier: ^20.17.0
+        version: 20.19.25
       '@typescript-eslint/eslint-plugin':
         specifier: ^8.1.6
         version: 8.37.0(@typescript-eslint/parser@8.37.0(eslint@9.31.0(jiti@2.6.1))(typescript@5.8.3))(eslint@9.31.0(jiti@2.6.1))(typescript@5.8.3)
