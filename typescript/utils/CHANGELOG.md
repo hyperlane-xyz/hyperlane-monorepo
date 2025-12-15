@@ -1,5 +1,11 @@
 # @hyperlane-xyz/utils
 
+## 20.0.0
+
+### Patch Changes
+
+- b3ebc08: Use stringifyObject in writeJson and writeYaml for proper ethers BigNumber serialization. Rename removeEndingSlash to removeTrailingSlash.
+
 ## 19.13.0
 
 ## 19.12.0

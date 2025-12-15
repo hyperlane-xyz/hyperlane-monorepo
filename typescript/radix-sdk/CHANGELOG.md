@@ -1,5 +1,14 @@
 # @hyperlane-xyz/radix-sdk
 
+## 20.0.0
+
+### Patch Changes
+
+- Updated dependencies [b3ebc08]
+- Updated dependencies [aeac943]
+  - @hyperlane-xyz/utils@20.0.0
+  - @hyperlane-xyz/provider-sdk@0.6.0
+
 ## 19.13.0
 
 ### Minor Changes
