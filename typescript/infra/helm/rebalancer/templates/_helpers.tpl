@@ -81,9 +81,9 @@ The rebalancer container
   - name: COINGECKO_API_KEY
     value: $(COINGECKO_API_KEY)
   args:
-  - "yarn"
-  - "workspace"
-  - "@hyperlane-xyz/cli"
+  - "pnpm"
+  - "-C"
+  - "typescript/cli"
   - "hyperlane"
   - "warp"
   - "rebalancer"

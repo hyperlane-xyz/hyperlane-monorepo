@@ -6,20 +6,20 @@ A basic Hyperlane application with a router contract that can dispatch messages.
 
 ```sh
 # Install dependencies
-yarn
+pnpm install
 
 # Build source and generate types
-yarn build
+pnpm build
 ```
 
 ## Test
 
 ```sh
 # Run all unit tests
-yarn test
+pnpm test
 
 # Lint check code
-yarn lint
+pnpm lint
 ```
 
 ## Learn more
