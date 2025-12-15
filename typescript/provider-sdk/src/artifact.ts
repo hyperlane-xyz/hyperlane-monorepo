@@ -32,16 +32,18 @@ export type ArtifactDeployed<C, D> = {
  * Represents an artifact that has been deployed on chain
  * but is represented only by its address
  */
-export type ArtifactUnderived = {
+export type ArtifactUnderived<D> = {
   artifactState: typeof ArtifactState.UNDERIVED;
-  artifactAddress: string;
+  deployed: D;
 };
 
 /**
  * Union type representing a deployed artifact. Can be either the full artifact config
  * or its address on chain.
  */
-export type ArtifactOnChain<C, D> = ArtifactDeployed<C, D> | ArtifactUnderived;
+export type ArtifactOnChain<C, D> =
+  | ArtifactDeployed<C, D>
+  | ArtifactUnderived<D>;
 
 /**
  * Union type representing an artifact in any state.

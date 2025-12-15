@@ -41,10 +41,12 @@ export class RadixRoutingIsmRawReader
   > {
     const ismConfig = await getDomainRoutingIsmConfig(this.gateway, address);
 
-    const domains: Record<number, ArtifactUnderived> = {};
+    const domains: Record<number, ArtifactUnderived<DeployedIsmAddresses>> = {};
     for (const route of ismConfig.routes) {
       domains[route.domainId] = {
-        artifactAddress: route.ismAddress,
+        deployed: {
+          address: route.ismAddress,
+        },
         artifactState: ArtifactState.UNDERIVED,
       };
     }

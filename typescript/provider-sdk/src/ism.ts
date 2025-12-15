@@ -119,5 +119,5 @@ export function ismOnChainAddress(
 ): string {
   return ism.artifactState === ArtifactState.DEPLOYED
     ? ism.deployed.address
-    : ism.artifactAddress;
+    : ism.deployed.address;
 }

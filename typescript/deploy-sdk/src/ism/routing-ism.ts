@@ -45,7 +45,7 @@ export class AltVMRoutingIsmReader
       if (domainIsmConfig.artifactState === ArtifactState.DEPLOYED) {
         nestedIsm = domainIsmConfig;
       } else {
-        nestedIsm = await this.readDomainIsm(domainIsmConfig.artifactAddress);
+        nestedIsm = await this.readDomainIsm(domainIsmConfig.deployed.address);
       }
 
       domains[parseInt(domainId)] = nestedIsm;

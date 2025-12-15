@@ -203,11 +203,11 @@ describe('Radix ISMs (e2e)', function () {
         domains: {
           [DOMAIN_1]: {
             artifactState: ArtifactState.UNDERIVED,
-            artifactAddress: testIsmAddress,
+            deployed: { address: testIsmAddress },
           },
           [DOMAIN_2]: {
             artifactState: ArtifactState.UNDERIVED,
-            artifactAddress: multisigIsmAddress,
+            deployed: { address: multisigIsmAddress },
           },
         },
       };
@@ -249,7 +249,7 @@ describe('Radix ISMs (e2e)', function () {
             ...routingIsm.config.domains,
             [DOMAIN_3]: {
               artifactState: ArtifactState.UNDERIVED,
-              artifactAddress: testIsmAddress,
+              deployed: { address: testIsmAddress },
             },
           },
         },
@@ -321,7 +321,7 @@ describe('Radix ISMs (e2e)', function () {
           domains: {
             [DOMAIN_1]: {
               artifactState: ArtifactState.UNDERIVED,
-              artifactAddress: multisigIsmAddress,
+              deployed: { address: multisigIsmAddress },
             },
             [DOMAIN_2]: routingIsm.config.domains[DOMAIN_2],
           },
