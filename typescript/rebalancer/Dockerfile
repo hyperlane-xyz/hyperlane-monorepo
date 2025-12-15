@@ -3,7 +3,7 @@ FROM node:20-slim AS builder
 WORKDIR /hyperlane-monorepo
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git g++ make python3 python3-pip jq bash curl ca-certificates unzip \
+    git g++ make python3 python3-pip bash curl ca-certificates unzip \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Foundry for solidity builds (soldeer)
@@ -11,12 +11,9 @@ RUN curl -L https://foundry.paradigm.xyz | bash
 RUN /root/.foundry/bin/foundryup
 ENV PATH="/root/.foundry/bin:${PATH}"
 
-# Copy package.json first to extract pnpm version
+# Copy package.json first for corepack to read packageManager field
 COPY package.json ./
-
-# Install pnpm version from packageManager field in package.json
-RUN PNPM_VERSION=$(jq -r '.packageManager' package.json | sed 's/pnpm@//') && \
-    npm install -g pnpm@$PNPM_VERSION
+RUN corepack enable && corepack install
 
 # Copy pnpm config files
 COPY pnpm-lock.yaml pnpm-workspace.yaml ./
