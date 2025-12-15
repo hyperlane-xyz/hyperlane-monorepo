@@ -54,7 +54,9 @@ impl StarknetValidatorAnnounce {
 
         let va_address: Felt = HyH256(locator.address).into();
 
-        let contract = StarknetValidatorAnnounceInternal::new(va_address, account);
+        let contract = StarknetValidatorAnnounceInternal::new(va_address, account).with_block(
+            starknet::core::types::BlockId::Tag(starknet::core::types::BlockTag::Latest),
+        );
 
         Ok(Self {
             contract,
@@ -113,9 +115,6 @@ impl ValidatorAnnounce for StarknetValidatorAnnounce {
         let storage_locations_res = self
             .contract
             .get_announced_storage_locations(&validators_calldata)
-            .block_id(starknet::core::types::BlockId::Tag(
-                starknet::core::types::BlockTag::Latest,
-            ))
             .call()
             .await
             .map_err(Into::<HyperlaneStarknetError>::into)?;

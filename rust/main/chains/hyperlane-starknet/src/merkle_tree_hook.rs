@@ -35,7 +35,10 @@ impl StarknetMerkleTreeHook {
         locator: &ContractLocator<'_>,
     ) -> ChainResult<Self> {
         let hook_address: Felt = HyH256(locator.address).into();
-        let contract = MerkleTreeHookReader::new(hook_address, provider.rpc_client().clone());
+        let contract = MerkleTreeHookReader::new(hook_address, provider.rpc_client().clone())
+            .with_block(starknet::core::types::BlockId::Tag(
+                starknet::core::types::BlockTag::Latest,
+            ));
 
         Ok(Self {
             contract,
