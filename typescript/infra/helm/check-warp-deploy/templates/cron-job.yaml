@@ -18,7 +18,10 @@ spec:
           - name: check-warp-deploy
             image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
             imagePullPolicy: Always
-            command:
+            # Use `args` instead of `command` to preserve the Docker ENTRYPOINT.
+            # The entrypoint script (docker-entrypoint.sh) handles REGISTRY_COMMIT checkout.
+            # Using `command` would bypass the entrypoint and break registry version pinning.
+            args:
             - pnpm
             - exec
             - tsx
