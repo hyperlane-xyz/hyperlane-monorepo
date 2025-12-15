@@ -1,5 +1,5 @@
 # Container Deployment
-# The offchain-lookup typescript server, started with yarn.
+# The offchain-lookup typescript server, started with pnpm.
 # It is used for the ccip-read ISM
 # And can expose multiple endpoints depending on its ENV.
 # The server code can be found in /typescript/ccip-server
@@ -32,8 +32,8 @@ spec:
             initialDelaySeconds: 5
             periodSeconds: 10
           imagePullPolicy: IfNotPresent
-          command: ["yarn"]
-          args: ["--cwd", "typescript/ccip-server", "run", "start"]
+          command: ["pnpm"]
+          args: ["-C", "typescript/ccip-server", "run", "start"]
           ports:
             - name: http
               containerPort: {{ .Values.port }}

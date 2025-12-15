@@ -1,6 +1,6 @@
 import path from 'path';
 
-import { objMerge } from '../objects.js';
+import { objMerge, stringifyObject } from '../objects.js';
 
 import { isFile, pathExists, readFileAtPath, writeToFile } from './utils.js';
 
@@ -24,9 +24,10 @@ export function tryReadJson<T>(filepath: string): T | null {
 
 /**
  * Writes an object as JSON to a file with a trailing newline.
+ * Uses stringifyObject to properly handle ethers BigNumber serialization.
  */
 export function writeJson(filepath: string, obj: unknown): void {
-  writeToFile(filepath, JSON.stringify(obj, null, 2));
+  writeToFile(filepath, stringifyObject(obj, 'json', 2));
 }
 
 /**

@@ -8,8 +8,8 @@ Hyperlane Core contains the contracts and typechain artifacts for the Hyperlane 
 # Install with NPM
 npm install @hyperlane-xyz/core
 
-# Or with Yarn
-yarn add @hyperlane-xyz/core
+# Or with pnpm
+pnpm add @hyperlane-xyz/core
 ```
 
 Note, this package uses [ESM Modules](https://gist.github.com/sindresorhus/a39789f98801d908bbc7ff3ecc99d99c#pure-esm-package)
@@ -17,13 +17,13 @@ Note, this package uses [ESM Modules](https://gist.github.com/sindresorhus/a3978
 ## Build
 
 ```bash
-yarn build
+pnpm build
 ```
 
 ## Test
 
 ```bash
-yarn test
+pnpm test
 ```
 
 ### Fixtures

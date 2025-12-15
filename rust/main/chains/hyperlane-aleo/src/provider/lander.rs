@@ -5,7 +5,7 @@ use hyperlane_core::{ChainResult, H512};
 
 use crate::{
     provider::{AleoClient, AleoProvider},
-    CurrentNetwork,
+    CurrentNetwork, Plaintext,
 };
 
 /// Trait defining the interface that Lander's AleoAdapter needs from an Aleo provider.
@@ -43,6 +43,24 @@ pub trait AleoProviderForLander: Send + Sync {
         &self,
         transaction_id: H512,
     ) -> ChainResult<Transaction<CurrentNetwork>>;
+
+    /// Queries a program mapping value
+    ///
+    /// # Arguments
+    /// * `program_id` - The program ID
+    /// * `mapping_name` - The name of the mapping
+    /// * `mapping_key` - The plaintext representation of the mapping key
+    ///
+    /// # Returns
+    /// * `Ok(true)` - The value exists in the mapping
+    /// * `Ok(false)` - The value does not exist
+    /// * `Err(...)` - Query failed
+    async fn mapping_value_exists(
+        &self,
+        program_id: &str,
+        mapping_name: &str,
+        mapping_key: &Plaintext<CurrentNetwork>,
+    ) -> ChainResult<bool>;
 }
 
 #[async_trait]
@@ -72,5 +90,18 @@ impl<C: AleoClient> AleoProviderForLander for AleoProvider<C> {
         transaction_id: H512,
     ) -> ChainResult<Transaction<CurrentNetwork>> {
         self.get_unconfirmed_transaction(transaction_id).await
+    }
+
+    async fn mapping_value_exists(
+        &self,
+        program_id: &str,
+        mapping_name: &str,
+        mapping_key: &Plaintext<CurrentNetwork>,
+    ) -> ChainResult<bool> {
+        let plain_text: Option<Plaintext<CurrentNetwork>> = self
+            .get_mapping_value(program_id, mapping_name, mapping_key)
+            .await?;
+
+        Ok(plain_text.is_some())
     }
 }
