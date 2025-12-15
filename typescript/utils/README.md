@@ -9,8 +9,8 @@ Typically not used directly but through the [Hyperlane SDK](https://www.npmjs.co
 # Install with NPM
 npm install @hyperlane-xyz/utils
 
-# Or with Yarn
-yarn add @hyperlane-xyz/utils
+# Or with pnpm
+pnpm add @hyperlane-xyz/utils
 ```
 
 Note, this package uses [ESM Modules](https://gist.github.com/sindresorhus/a39789f98801d908bbc7ff3ecc99d99c#pure-esm-package)

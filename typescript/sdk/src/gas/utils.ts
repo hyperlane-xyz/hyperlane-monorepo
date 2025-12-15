@@ -139,7 +139,7 @@ function getTokenExchangeRate({
   remote: ChainName;
   tokenPrices: ChainMap<string>;
   exchangeRateMarginPct: number;
-}): BigNumberJs {
+}): InstanceType<typeof BigNumberJs> {
   // Workaround for chicken-egg dependency problem.
   // We need to provide some default value here to satisfy the config on initial load,
   // whilst knowing that it will get overwritten when a script actually gets run.
@@ -161,7 +161,7 @@ function getTokenExchangeRate({
 
 function getProtocolExchangeRate(
   localProtocolType: ProtocolType,
-  exchangeRate: BigNumberJs,
+  exchangeRate: InstanceType<typeof BigNumberJs>,
 ): BigNumber {
   const multiplierDecimals = getProtocolExchangeRateDecimals(localProtocolType);
   const multiplier = new BigNumberJs(10).pow(multiplierDecimals);
@@ -197,7 +197,7 @@ export function getLocalStorageGasOracleConfig({
     local: ChainName,
     remote: ChainName,
     gasOracleConfig: ProtocolAgnositicGasOracleConfig,
-  ) => BigNumberJs.Value;
+  ) => Parameters<typeof BigNumberJs>[0];
   typicalCostGetter?: (
     local: ChainName,
     remote: ChainName,
@@ -281,7 +281,7 @@ export function getLocalStorageGasOracleConfig({
 }
 
 function adjustForPrecisionLoss(
-  gasPrice: BigNumberJs.Value,
+  gasPrice: Parameters<typeof BigNumberJs>[0],
   exchangeRate: BigNumber,
   remoteDecimals: number,
   remote?: ChainName,

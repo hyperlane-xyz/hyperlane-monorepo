@@ -8,7 +8,7 @@ import {
   isFile,
   pathExists,
   readFileAtPath,
-  removeEndingSlash,
+  removeTrailingSlash,
   resolvePath,
   writeFileAtPath,
   writeToFile,
@@ -32,17 +32,17 @@ describe('fs utilities', () => {
     }
   });
 
-  describe('removeEndingSlash', () => {
+  describe('removeTrailingSlash', () => {
     it('removes trailing slash', () => {
-      expect(removeEndingSlash('/path/to/dir/')).to.equal('/path/to/dir');
+      expect(removeTrailingSlash('/path/to/dir/')).to.equal('/path/to/dir');
     });
 
     it('leaves path without trailing slash unchanged', () => {
-      expect(removeEndingSlash('/path/to/dir')).to.equal('/path/to/dir');
+      expect(removeTrailingSlash('/path/to/dir')).to.equal('/path/to/dir');
     });
 
     it('handles empty string', () => {
-      expect(removeEndingSlash('')).to.equal('');
+      expect(removeTrailingSlash('')).to.equal('');
     });
   });
 

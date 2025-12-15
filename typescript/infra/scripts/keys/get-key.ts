@@ -18,14 +18,14 @@ async function main() {
   // this is being called in a subshell or piped to another command.
   //
   // E.g. this will print the private key:
-  //   $ echo `yarn tsx infra/scripts/keys/get-key.ts -e mainnet3 --role deployer`
+  //   $ echo `pnpm tsx infra/scripts/keys/get-key.ts -e mainnet3 --role deployer`
   // or this too:
-  //   $ echo $(yarn tsx infra/scripts/keys/get-key.ts -e mainnet3 --role deployer)
+  //   $ echo $(pnpm tsx infra/scripts/keys/get-key.ts -e mainnet3 --role deployer)
   // and even this:
-  //   $ yarn tsx infra/scripts/keys/get-key.ts -e mainnet3 --role deployer | cat
+  //   $ pnpm tsx infra/scripts/keys/get-key.ts -e mainnet3 --role deployer | cat
   //
   // But this will not print the private key directly to the shell:
-  //   $ yarn tsx infra/scripts/keys/get-key.ts -e mainnet3 --role deployer
+  //   $ pnpm tsx infra/scripts/keys/get-key.ts -e mainnet3 --role deployer
   if (process.stdout.isTTY) {
     console.log('<omitted in tty, use in subshell>');
   } else {

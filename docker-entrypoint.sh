@@ -27,8 +27,8 @@ fi
 # If INSTALL_GCP_LOGGER_CLI is true, install the package
 if [ "$INSTALL_GCP_LOGGER_CLI" = "true" ]; then
   echo "INSTALL_GCP_LOGGER_CLI is set, installing @google-cloud/pino-logging-gcp-config for CLI..."
-  # We install in the CLI directory context for yarn workspaces
-  yarn workspace @hyperlane-xyz/cli add @google-cloud/pino-logging-gcp-config
+  # We install in the CLI directory context for pnpm workspaces
+  pnpm -C typescript/cli add @google-cloud/pino-logging-gcp-config
   echo "Installation complete."
 fi
 

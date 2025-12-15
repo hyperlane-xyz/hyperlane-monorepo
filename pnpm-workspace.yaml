@@ -1,0 +1,5 @@
+packages:
+  - 'solhint-plugin'
+  - 'solidity'
+  - 'typescript/*'
+  - 'starknet'
