@@ -69,6 +69,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     abstract: true,
     // acala: true,
     adichain: true,
+    aleo: false,
     ancient8: true,
     apechain: true,
     appchain: true,
@@ -213,6 +214,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Relayer]: {
     abstract: true,
     // acala: true,
+    aleo: false,
     adichain: true,
     ancient8: true,
     apechain: true,
@@ -358,6 +360,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Scraper]: {
     abstract: true,
     // acala: true,
+    aleo: false,
     adichain: true,
     ancient8: true,
     apechain: true,

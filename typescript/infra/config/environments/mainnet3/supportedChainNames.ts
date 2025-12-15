@@ -3,6 +3,7 @@
 export const mainnet3SupportedChainNames = [
   'abstract',
   'adichain',
+  'aleo',
   'ancient8',
   'apechain',
   'appchain',

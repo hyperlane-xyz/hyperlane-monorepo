@@ -127,6 +127,7 @@ impl<'de> Deserialize<'de> for ReorgPeriod {
 )]
 pub enum KnownHyperlaneDomain {
     Abstract = 2741,
+    Aleo = 1634493807,
     AppChain = 466,
     Ancient8 = 888888888,
     ApeChain = 33139,
@@ -519,7 +520,7 @@ impl KnownHyperlaneDomain {
             | ParadexSepolia
             | PragmaDevnet => HyperlaneDomainProtocol::Starknet,
             Radix | RadixTestnet => HyperlaneDomainProtocol::Radix,
-            AleoTestnet => HyperlaneDomainProtocol::Aleo,
+            Aleo | AleoTestnet => HyperlaneDomainProtocol::Aleo,
             _ => HyperlaneDomainProtocol::Ethereum
         }
     }
