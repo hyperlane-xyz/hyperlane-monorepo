@@ -5,11 +5,11 @@ import yargs from 'yargs';
 import { ChainMap } from '@hyperlane-xyz/sdk';
 import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
-import rawDailyRelayerBurn from '../../config/environments/mainnet3/balances/dailyRelayerBurn.json';
-import rawDesiredRelayerBalances from '../../config/environments/mainnet3/balances/desiredRelayerBalances.json';
+import rawDailyRelayerBurn from '../../config/environments/mainnet3/balances/dailyRelayerBurn.json' with { type: 'json' };
+import rawDesiredRelayerBalances from '../../config/environments/mainnet3/balances/desiredRelayerBalances.json' with { type: 'json' };
 import { getRegistry } from '../../config/environments/mainnet3/chains.js';
 import { mainnet3SupportedChainNames } from '../../config/environments/mainnet3/supportedChainNames.js';
-import rawTokenPrices from '../../config/environments/mainnet3/tokenPrices.json';
+import rawTokenPrices from '../../config/environments/mainnet3/tokenPrices.json' with { type: 'json' };
 import {
   RELAYER_BALANCE_TARGET_DAYS,
   RELAYER_MIN_DOLLAR_BALANCE_PER_DAY,

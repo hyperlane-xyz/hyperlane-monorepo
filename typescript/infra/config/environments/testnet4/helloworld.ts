@@ -5,8 +5,8 @@ import {
 import { Contexts } from '../../contexts.js';
 
 import { environment } from './chains.js';
-import hyperlaneAddresses from './helloworld/hyperlane/addresses.json';
-import rcAddresses from './helloworld/rc/addresses.json';
+import hyperlaneAddresses from './helloworld/hyperlane/addresses.json' with { type: 'json' };
+import rcAddresses from './helloworld/rc/addresses.json' with { type: 'json' };
 
 export const hyperlaneHelloworld: HelloWorldConfig = {
   addresses: hyperlaneAddresses,
