@@ -6,11 +6,13 @@ import {
   ArtifactDeployed,
   ArtifactReader,
   ArtifactState,
+  ArtifactUnderived,
   ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   DeployedIsmAddresses,
   RawRoutingIsmArtifactConfig,
+  ismOnChainAddress,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import { TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import { eqAddressRadix, isNullish } from '@hyperlane-xyz/utils';
@@ -39,9 +41,14 @@ export class RadixRoutingIsmRawReader
   > {
     const ismConfig = await getDomainRoutingIsmConfig(this.gateway, address);
 
-    const domains: Record<number, string> = {};
+    const domains: Record<number, ArtifactUnderived<DeployedIsmAddresses>> = {};
     for (const route of ismConfig.routes) {
-      domains[route.domainId] = route.ismAddress;
+      domains[route.domainId] = {
+        deployed: {
+          address: route.ismAddress,
+        },
+        artifactState: ArtifactState.UNDERIVED,
+      };
     }
 
     return {
@@ -83,7 +90,7 @@ export class RadixRoutingIsmRawWriter
     const routes = Object.entries(config.domains).map(
       ([domainId, ismAddress]) => ({
         domainId: parseInt(domainId),
-        ismAddress,
+        ismAddress: ismOnChainAddress(ismAddress),
       }),
     );
 
@@ -122,25 +129,29 @@ export class RadixRoutingIsmRawWriter
     const transactions: AnnotatedRadixTransaction[] = [];
 
     // Find domains to add
-    for (const [domainId, ismAddress] of Object.entries(config.domains)) {
+    for (const [domainId, expectedIsm] of Object.entries(config.domains)) {
       const domain = parseInt(domainId);
-      const currentIsmAddress = currentConfig.config.domains[domain];
+      const currentIsmAddress = currentConfig.config.domains[domain]
+        ? ismOnChainAddress(currentConfig.config.domains[domain])
+        : undefined;
+
+      const expectedIsmAddress = ismOnChainAddress(expectedIsm);
 
       if (
         isNullish(currentIsmAddress) ||
-        !eqAddressRadix(currentIsmAddress, ismAddress)
+        !eqAddressRadix(currentIsmAddress, expectedIsmAddress)
       ) {
         const transactionManifest = await getSetRoutingIsmDomainIsmTx(
           this.base,
           this.signer.getAddress(),
           {
             ismAddress: deployed.address,
-            domainIsm: { domainId: domain, ismAddress },
+            domainIsm: { domainId: domain, ismAddress: expectedIsmAddress },
           },
         );
 
         transactions.push({
-          annotation: `Set route for domain ${domain} to ISM ${ismAddress}`,
+          annotation: `Set route for domain ${domain} to ISM ${expectedIsmAddress}`,
           networkId: this.base.getNetworkId(),
           manifest: transactionManifest,
         });

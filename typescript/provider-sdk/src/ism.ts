@@ -1,6 +1,13 @@
 import { WithAddress } from '@hyperlane-xyz/utils';
 
-import { Artifact, IArtifactManager, RawArtifact } from './artifact.js';
+import {
+  Artifact,
+  ArtifactDeployed,
+  ArtifactOnChain,
+  ArtifactState,
+  IArtifactManager,
+  RawArtifact,
+} from './artifact.js';
 
 export type IsmModuleType = {
   config: IsmConfig;
@@ -65,6 +72,14 @@ export interface IsmArtifactConfigs {
 export type IsmArtifactConfig = IsmArtifactConfigs[IsmType];
 
 /**
+ * Describes the configuration of deployed ISM and its nested configs (Routing, Aggregation, ...)
+ */
+export type DeployedIsmArtifact = ArtifactDeployed<
+  IsmArtifactConfig,
+  DeployedIsmAddresses
+>;
+
+/**
  * Should be used to implement an object/closure or class that is in charge of coordinating
  * deployment of an ISM config which might include nested ISM deployments (Routing, Aggregation, ...)
  */
@@ -80,7 +95,10 @@ export interface RoutingIsmArtifactConfig {
   domains: Record<number, Artifact<IsmArtifactConfig, DeployedIsmAddresses>>;
 }
 
-export type RawRoutingIsmArtifactConfig = RawArtifact<RoutingIsmArtifactConfig>;
+export type RawRoutingIsmArtifactConfig = RawArtifact<
+  RoutingIsmArtifactConfig,
+  DeployedIsmAddresses
+>;
 
 export interface RawIsmArtifactConfigs {
   domainRoutingIsm: RawRoutingIsmArtifactConfig;
@@ -104,3 +122,11 @@ export type IRawIsmArtifactManager = IArtifactManager<
   RawIsmArtifactConfigs,
   DeployedIsmAddresses
 >;
+
+export function ismOnChainAddress(
+  ism: ArtifactOnChain<IsmArtifactConfig, DeployedIsmAddresses>,
+): string {
+  return ism.artifactState === ArtifactState.DEPLOYED
+    ? ism.deployed.address
+    : ism.deployed.address;
+}
