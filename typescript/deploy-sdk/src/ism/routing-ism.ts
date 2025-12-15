@@ -15,22 +15,21 @@ import {
   IsmArtifactConfig,
   RawRoutingIsmArtifactConfig,
   RoutingIsmArtifactConfig,
+  altVMIsmTypeToProviderSdkType,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import { Logger, rootLogger } from '@hyperlane-xyz/utils';
-
-import { altVMIsmTypeToProviderSdkType } from '../utils/conversion.js';
 
 type DeployedRoutingIsmArtifact = ArtifactDeployed<
   RoutingIsmArtifactConfig,
   DeployedIsmAddresses
 >;
 
-export class AltVMRoutingIsmReader
+export class RoutingIsmReader
   implements ArtifactReader<RoutingIsmArtifactConfig, DeployedIsmAddresses>
 {
   protected readonly logger: Logger = rootLogger.child({
-    module: AltVMRoutingIsmReader.name,
+    module: RoutingIsmReader.name,
   });
 
   constructor(
@@ -91,8 +90,8 @@ export class AltVMRoutingIsmReader
   }
 }
 
-export class AltVMRoutingIsmWriter
-  extends AltVMRoutingIsmReader
+export class RoutingIsmWriter
+  extends RoutingIsmReader
   implements ArtifactWriter<RoutingIsmArtifactConfig, DeployedIsmAddresses>
 {
   constructor(

@@ -1,5 +1,6 @@
 import { WithAddress } from '@hyperlane-xyz/utils';
 
+import { IsmType as AltVMIsmType } from './altvm.js';
 import {
   Artifact,
   ArtifactDeployed,
@@ -129,4 +130,23 @@ export function ismOnChainAddress(
   return ism.artifactState === ArtifactState.DEPLOYED
     ? ism.deployed.address
     : ism.deployed.address;
+}
+
+export function altVMIsmTypeToProviderSdkType(
+  altVMType: AltVMIsmType,
+): IsmType {
+  switch (altVMType) {
+    case AltVMIsmType.TEST_ISM:
+      return AltVMIsmType.TEST_ISM;
+    case AltVMIsmType.MERKLE_ROOT_MULTISIG:
+      return AltVMIsmType.MERKLE_ROOT_MULTISIG;
+    case AltVMIsmType.MESSAGE_ID_MULTISIG:
+      return AltVMIsmType.MESSAGE_ID_MULTISIG;
+    case AltVMIsmType.ROUTING:
+      return AltVMIsmType.ROUTING;
+    default:
+      throw new Error(
+        `Unsupported ISM type: AltVM ISM type ${altVMType} is not supported by the provider sdk`,
+      );
+  }
 }
