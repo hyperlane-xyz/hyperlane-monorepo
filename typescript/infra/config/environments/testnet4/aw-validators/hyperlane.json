@@ -1,4 +1,7 @@
 {
+  "aleotestnet": {
+    "validators": ["0x7233d80194c69af6b84b0786a7fd2a7294396ca8"]
+  },
   "arbitrumsepolia": {
     "validators": ["0x09fabfbca0b8bf042e2a1161ee5010d147b0f603"]
   },

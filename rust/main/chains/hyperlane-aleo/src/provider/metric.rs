@@ -45,12 +45,13 @@ impl MetricHttpClient {
         url: Url,
         metrics: PrometheusClientMetrics,
         metrics_config: PrometheusConfig,
+        network: u16,
     ) -> ChainResult<Self> {
         // increment provider metric count
         let chain_name = PrometheusConfig::chain_name(&metrics_config.chain);
         metrics.increment_provider_instance(chain_name);
 
-        let base_client = BaseHttpClient::new(url)?;
+        let base_client = BaseHttpClient::new(url, network)?;
         Ok(Self {
             inner: RpcClient::new(base_client),
             metrics,
