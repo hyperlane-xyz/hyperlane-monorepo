@@ -1,5 +1,7 @@
 # @hyperlane-xyz/starknet-core
 
+## 20.0.0
+
 ## 19.13.0
 
 ## 19.12.0
