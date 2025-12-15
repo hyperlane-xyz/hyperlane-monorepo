@@ -15,7 +15,7 @@ import {
   getOrInitConsensusVersionTestHeights,
 } from '@provablehq/sdk/testnet.js';
 
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, retryAsync } from '@hyperlane-xyz/utils';
 
 import { MAINNET_PREFIX, TESTNET_PREFIX } from '../utils/helper.js';
 
@@ -126,10 +126,11 @@ export class AleoBase {
     key: string,
   ): Promise<any | undefined> {
     try {
-      const result = await this.aleoClient.getProgramMappingValue(
-        programId,
-        mappingName,
-        key,
+      const result = await retryAsync(
+        () =>
+          this.aleoClient.getProgramMappingValue(programId, mappingName, key),
+        10,
+        100,
       );
 
       if (result === null) {

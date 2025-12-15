@@ -127,7 +127,11 @@ export class AleoSigner
       ? await this.programManager.buildDevnodeExecutionTransaction(transaction)
       : await this.programManager.buildExecutionTransaction(transaction);
 
-    const txId = await this.programManager.networkClient.submitTransaction(tx);
+    const txId = await retryAsync(
+      () => this.programManager.networkClient.submitTransaction(tx),
+      10,
+      100,
+    );
     const receipt = await this.aleoClient.waitForTransactionConfirmation(txId);
 
     return {
@@ -252,12 +256,15 @@ export class AleoSigner
     const ismManagerProgramId = programs['ism_manager'];
     assert(ismManagerProgramId, `ism manager program not deployed`);
 
-    let nonce = await retryAsync(() =>
-      this.aleoClient.getProgramMappingValue(
-        ismManagerProgramId,
-        'nonce',
-        'true',
-      ),
+    let nonce = await retryAsync(
+      () =>
+        this.aleoClient.getProgramMappingValue(
+          ismManagerProgramId,
+          'nonce',
+          'true',
+        ),
+      10,
+      100,
     );
 
     if (nonce === null) {
@@ -271,12 +278,22 @@ export class AleoSigner
 
     await this.sendAndConfirmTransaction(tx);
 
-    const ismAddress = await retryAsync(() =>
-      this.aleoClient.getProgramMappingValue(
-        ismManagerProgramId,
-        'ism_addresses',
-        nonce,
-      ),
+    const ismAddress = await retryAsync(
+      async () => {
+        const result = await this.aleoClient.getProgramMappingValue(
+          ismManagerProgramId,
+          'ism_addresses',
+          nonce,
+        );
+
+        if (result === null) {
+          throw new Error();
+        }
+
+        return result;
+      },
+      10,
+      100,
     );
 
     if (ismAddress === null) {
@@ -299,10 +316,15 @@ export class AleoSigner
     const ismManagerProgramId = programs['ism_manager'];
     assert(ismManagerProgramId, `ism manager program not deployed`);
 
-    let nonce = await this.aleoClient.getProgramMappingValue(
-      ismManagerProgramId,
-      'nonce',
-      'true',
+    let nonce = await retryAsync(
+      () =>
+        this.aleoClient.getProgramMappingValue(
+          ismManagerProgramId,
+          'nonce',
+          'true',
+        ),
+      10,
+      100,
     );
 
     if (nonce === null) {
@@ -316,10 +338,22 @@ export class AleoSigner
 
     await this.sendAndConfirmTransaction(tx);
 
-    const ismAddress = await this.aleoClient.getProgramMappingValue(
-      ismManagerProgramId,
-      'ism_addresses',
-      nonce,
+    const ismAddress = await retryAsync(
+      async () => {
+        const result = await this.aleoClient.getProgramMappingValue(
+          ismManagerProgramId,
+          'ism_addresses',
+          nonce,
+        );
+
+        if (result === null) {
+          throw new Error();
+        }
+
+        return result;
+      },
+      10,
+      100,
     );
 
     if (ismAddress === null) {
@@ -397,10 +431,15 @@ export class AleoSigner
     const ismManagerProgramId = programs['ism_manager'];
     assert(ismManagerProgramId, `ism manager program not deployed`);
 
-    let nonce = await this.aleoClient.getProgramMappingValue(
-      ismManagerProgramId,
-      'nonce',
-      'true',
+    let nonce = await retryAsync(
+      () =>
+        this.aleoClient.getProgramMappingValue(
+          ismManagerProgramId,
+          'nonce',
+          'true',
+        ),
+      10,
+      100,
     );
 
     if (nonce === null) {
@@ -414,10 +453,22 @@ export class AleoSigner
 
     await this.sendAndConfirmTransaction(tx);
 
-    const ismAddress = await this.aleoClient.getProgramMappingValue(
-      ismManagerProgramId,
-      'ism_addresses',
-      nonce,
+    const ismAddress = await retryAsync(
+      async () => {
+        const result = await this.aleoClient.getProgramMappingValue(
+          ismManagerProgramId,
+          'ism_addresses',
+          nonce,
+        );
+
+        if (result === null) {
+          throw new Error();
+        }
+
+        return result;
+      },
+      10,
+      100,
     );
 
     if (ismAddress === null) {
@@ -442,10 +493,15 @@ export class AleoSigner
     const hookManagerProgramId = programs['hook_manager'];
     assert(hookManagerProgramId, `hook manager program not deployed`);
 
-    let nonce = await this.aleoClient.getProgramMappingValue(
-      hookManagerProgramId,
-      'nonce',
-      'true',
+    let nonce = await retryAsync(
+      () =>
+        this.aleoClient.getProgramMappingValue(
+          hookManagerProgramId,
+          'nonce',
+          'true',
+        ),
+      10,
+      100,
     );
 
     if (nonce === null) {
@@ -459,10 +515,22 @@ export class AleoSigner
 
     await this.sendAndConfirmTransaction(tx);
 
-    const hookAddress = await this.aleoClient.getProgramMappingValue(
-      hookManagerProgramId,
-      'hook_addresses',
-      nonce,
+    const hookAddress = await retryAsync(
+      async () => {
+        const result = await this.aleoClient.getProgramMappingValue(
+          hookManagerProgramId,
+          'hook_addresses',
+          nonce,
+        );
+
+        if (result === null) {
+          throw new Error();
+        }
+
+        return result;
+      },
+      10,
+      100,
     );
 
     if (hookAddress === null) {
@@ -487,10 +555,15 @@ export class AleoSigner
     const hookManagerProgramId = programs['hook_manager'];
     assert(hookManagerProgramId, `hook manager program not deployed`);
 
-    let nonce = await this.aleoClient.getProgramMappingValue(
-      hookManagerProgramId,
-      'nonce',
-      'true',
+    let nonce = await retryAsync(
+      () =>
+        this.aleoClient.getProgramMappingValue(
+          hookManagerProgramId,
+          'nonce',
+          'true',
+        ),
+      10,
+      100,
     );
 
     if (nonce === null) {
@@ -504,10 +577,22 @@ export class AleoSigner
 
     await this.sendAndConfirmTransaction(tx);
 
-    const hookAddress = await this.aleoClient.getProgramMappingValue(
-      hookManagerProgramId,
-      'hook_addresses',
-      nonce,
+    const hookAddress = await retryAsync(
+      async () => {
+        const result = await this.aleoClient.getProgramMappingValue(
+          hookManagerProgramId,
+          'hook_addresses',
+          nonce,
+        );
+
+        if (result === null) {
+          throw new Error();
+        }
+
+        return result;
+      },
+      10,
+      100,
     );
 
     if (hookAddress === null) {
@@ -577,10 +662,15 @@ export class AleoSigner
     const hookManagerProgramId = programs['hook_manager'];
     assert(hookManagerProgramId, `hook manager program not deployed`);
 
-    let nonce = await this.aleoClient.getProgramMappingValue(
-      hookManagerProgramId,
-      'nonce',
-      'true',
+    let nonce = await retryAsync(
+      () =>
+        this.aleoClient.getProgramMappingValue(
+          hookManagerProgramId,
+          'nonce',
+          'true',
+        ),
+      10,
+      100,
     );
 
     if (nonce === null) {
@@ -594,10 +684,22 @@ export class AleoSigner
 
     await this.sendAndConfirmTransaction(tx);
 
-    const hookAddress = await this.aleoClient.getProgramMappingValue(
-      hookManagerProgramId,
-      'hook_addresses',
-      nonce,
+    const hookAddress = await retryAsync(
+      async () => {
+        const result = await this.aleoClient.getProgramMappingValue(
+          hookManagerProgramId,
+          'hook_addresses',
+          nonce,
+        );
+
+        if (result === null) {
+          throw new Error();
+        }
+
+        return result;
+      },
+      10,
+      100,
     );
 
     if (hookAddress === null) {
