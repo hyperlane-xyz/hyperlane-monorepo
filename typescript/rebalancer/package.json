@@ -23,7 +23,7 @@
     "test:ci": "pnpm test",
     "start": "node dist/service.js",
     "start:dev": "tsx src/service.ts",
-    "prepack": "yarn bundle"
+    "prepack": "pnpm bundle"
   },
   "dependencies": {
     "@google-cloud/pino-logging-gcp-config": "catalog:",
