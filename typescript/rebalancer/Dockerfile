@@ -21,6 +21,9 @@ RUN PNPM_VERSION=$(jq -r '.packageManager' package.json | sed 's/pnpm@//') && \
 # Copy pnpm config files
 COPY pnpm-lock.yaml pnpm-workspace.yaml ./
 
+# Copy patches directory (required for pnpm install)
+COPY patches ./patches
+
 # Copy only the packages needed for rebalancer
 COPY typescript/rebalancer/package.json ./typescript/rebalancer/
 COPY typescript/deploy-sdk/package.json ./typescript/deploy-sdk/
