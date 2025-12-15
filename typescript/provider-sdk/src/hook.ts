@@ -1,5 +1,12 @@
 import { WithAddress } from '@hyperlane-xyz/utils';
 
+import {
+  ArtifactDeployed,
+  ArtifactOnChain,
+  ArtifactState,
+  IArtifactManager,
+} from './artifact.js';
+
 export type HookModuleType = {
   config: HookConfig;
   derived: DerivedHookConfig;
@@ -46,3 +53,70 @@ export type HookModuleAddresses = {
   deployedHook: string;
   mailbox: string;
 };
+
+// Artifact API types
+
+export interface DeployedHookAddresses {
+  address: string;
+}
+
+export interface HookArtifactConfigs {
+  interchainGasPaymaster: IgpHookConfig;
+  merkleTreeHook: MerkleTreeHookConfig;
+}
+
+/**
+ * Should be used for the specific artifact code that
+ * deploys or reads any kind of Hook
+ */
+export type HookArtifactConfig = HookArtifactConfigs[HookType];
+
+/**
+ * Describes the configuration of deployed Hook
+ */
+export type DeployedHookArtifact = ArtifactDeployed<
+  HookArtifactConfig,
+  DeployedHookAddresses
+>;
+
+/**
+ * Should be used to implement an object/closure or class that is in charge of coordinating
+ * deployment of a Hook config
+ */
+export type IHookArtifactManager = IArtifactManager<
+  HookType,
+  HookArtifactConfigs,
+  DeployedHookAddresses
+>;
+
+/**
+ * Raw hook artifact configs (no nested artifacts for now, but kept for consistency)
+ */
+export interface RawHookArtifactConfigs {
+  interchainGasPaymaster: IgpHookConfig;
+  merkleTreeHook: MerkleTreeHookConfig;
+}
+
+/**
+ * Should be used for the specific artifact code that
+ * deploys or reads a single hook artifact on chain
+ */
+export type RawHookArtifactConfig = RawHookArtifactConfigs[HookType];
+
+/**
+ * Should be used to implement an object/closure or class that individually deploys
+ * Hooks on chain
+ */
+export type IRawHookArtifactManager = IArtifactManager<
+  HookType,
+  RawHookArtifactConfigs,
+  DeployedHookAddresses
+>;
+
+export function hookOnChainAddress(
+  hook: ArtifactOnChain<HookArtifactConfig, DeployedHookAddresses>,
+): string {
+  return hook.artifactState === ArtifactState.DEPLOYED
+    ? hook.deployed.address
+    : hook.deployed.address;
+}
