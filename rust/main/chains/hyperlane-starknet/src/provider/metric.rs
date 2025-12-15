@@ -3,6 +3,7 @@ use std::time::Instant;
 use async_trait::async_trait;
 use hyperlane_core::{rpc_clients::BlockNumberGetter, ChainCommunicationError, ChainResult};
 use hyperlane_metric::prometheus_metric::{PrometheusClientMetrics, PrometheusConfig};
+use reqwest_utils::parse_custom_rpc_headers;
 use serde::{de::DeserializeOwned, Serialize};
 use starknet::providers::{
     jsonrpc::{
@@ -28,16 +29,32 @@ impl MetricProvider {
         url: Url,
         metrics: PrometheusClientMetrics,
         metrics_config: PrometheusConfig,
-    ) -> Self {
+    ) -> ChainResult<Self> {
         // increment provider metric count
         let chain_name = PrometheusConfig::chain_name(&metrics_config.chain);
         metrics.increment_provider_instance(chain_name);
 
-        Self {
-            client: HttpTransport::new(url),
+        let (headers, url) =
+            parse_custom_rpc_headers(&url).map_err(ChainCommunicationError::from_other)?;
+        let mut client = HttpTransport::new(url);
+        for (name, value) in headers.iter() {
+            let name = name.to_string();
+            let value = value
+                .to_str()
+                .map_err(|_| {
+                    ChainCommunicationError::from_other_str(&format!(
+                        "Invalid header value for header: {name}: {value:?}",
+                    ))
+                })?
+                .to_string();
+            client.add_header(name, value);
+        }
+
+        Ok(Self {
+            client,
             metrics,
             metrics_config,
-        }
+        })
     }
 }
 
