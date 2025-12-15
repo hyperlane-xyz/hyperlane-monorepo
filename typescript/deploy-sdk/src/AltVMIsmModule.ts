@@ -100,13 +100,6 @@ export class AltVMIsmModule implements HypModule<IsmModuleType> {
   public async update(
     expectedConfig: IsmConfig | string,
   ): Promise<AnnotatedTx[]> {
-    // Do not support updating to a custom ISM address
-    if (typeof expectedConfig === 'string') {
-      throw new Error(
-        'Invalid targetConfig: Updating to a custom ISM address is not supported. Please provide a valid ISM configuration.',
-      );
-    }
-
     // Validate ISM configuration is supported by provider-sdk
     validateIsmConfig(expectedConfig, this.chain, 'ISM update');
 
@@ -121,25 +114,35 @@ export class AltVMIsmModule implements HypModule<IsmModuleType> {
 
     // save current config for comparison
     // normalize the config to ensure it's in a consistent format for comparison
-    const actualConfig = normalizeConfig(await this.read());
-    expectedConfig = normalizeConfig(expectedConfig);
-
-    assert(
-      typeof expectedConfig === 'object',
-      'normalized expectedConfig should be an object',
-    );
-
-    // Update the config
-    this.args.config = expectedConfig;
+    const normalizedCurrentConfig = normalizeConfig(await this.read());
+    const normalizedTargetConfig = normalizeConfig(expectedConfig);
 
     // If configs match, no updates needed
-    if (deepEquals(actualConfig, expectedConfig)) {
+    if (deepEquals(normalizedCurrentConfig, normalizedTargetConfig)) {
       return [];
     }
 
-    // if the ISM is a static ISM we can not update it, instead
-    // it needs to be recreated with the expected config
-    if (STATIC_ISM_TYPES.includes(expectedConfig.type)) {
+    // Do not support updating to a custom ISM address
+    if (typeof normalizedTargetConfig === 'string') {
+      throw new Error(
+        'Invalid targetConfig: Updating to a custom ISM address is not supported. Please provide a valid ISM configuration.',
+      );
+    }
+
+    // Update the module config to the target one as we are sure now that an update will be needed
+    this.args.config = normalizedTargetConfig;
+
+    // Conditions for deploying a new ISM:
+    // - If updating from an address/custom config to a proper ISM config.
+    // - If updating a proper ISM config whose types are different.
+    // - If it is not a mutable ISM.
+    // Else, we have to figure out what an update for this ISM entails
+    // Check if we need to deploy a new ISM
+    if (
+      typeof normalizedCurrentConfig === 'string' ||
+      normalizedCurrentConfig.type !== normalizedTargetConfig.type ||
+      STATIC_ISM_TYPES.includes(normalizedTargetConfig.type)
+    ) {
       this.args.addresses.deployedIsm = await this.deploy({
         config: expectedConfig,
       });
@@ -148,16 +151,16 @@ export class AltVMIsmModule implements HypModule<IsmModuleType> {
     }
 
     let updateTxs: AnnotatedTx[] = [];
-    if (expectedConfig.type === 'domainRoutingIsm') {
+    if (normalizedTargetConfig.type === 'domainRoutingIsm') {
       const logger = this.logger.child({
         destination: this.chain,
-        ismType: expectedConfig.type,
+        ismType: normalizedTargetConfig.type,
       });
-      logger.debug(`Updating ${expectedConfig.type} on ${this.chain}`);
+      logger.debug(`Updating ${normalizedTargetConfig.type} on ${this.chain}`);
 
       updateTxs = await this.updateRoutingIsm({
-        actual: actualConfig,
-        expected: expectedConfig,
+        actual: normalizedCurrentConfig,
+        expected: normalizedTargetConfig,
         logger,
       });
     }

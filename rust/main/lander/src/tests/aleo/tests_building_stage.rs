@@ -8,9 +8,11 @@ use hyperlane_core::H256;
 use crate::adapter::chains::AleoAdapter;
 use crate::dispatcher::{BuildingStage, BuildingStageQueue, DispatcherState};
 use crate::payload::{DropReason, PayloadDetails};
-use crate::tests::test_utils::{initialize_payload_db, tmp_dbs};
 use crate::transaction::Transaction;
 use crate::{DispatcherMetrics, FullPayload, PayloadStatus, PayloadUuid, TransactionStatus};
+
+use super::super::test_utils::{initialize_payload_db, tmp_dbs};
+use super::test_utils::MockAleoProvider;
 
 fn create_aleo_payload() -> FullPayload {
     let tx_data = AleoTxData {
@@ -42,8 +44,10 @@ fn setup_building_stage() -> (
     BuildingStageQueue,
 ) {
     let (payload_db, tx_db, _) = tmp_dbs();
+    let mock_provider = MockAleoProvider;
 
     let adapter = AleoAdapter {
+        provider: Arc::new(mock_provider),
         estimated_block_time: Duration::from_secs(10),
     };
 

@@ -127,6 +127,16 @@ impl MultisigIsm for CosmosNativeIsm {
                     .collect::<Result<Vec<_>, _>>()?;
                 Ok((validators, ism.threshold as u8))
             }
+            t if t == MessageIdMultisigIsm::type_url() => {
+                let ism = MessageIdMultisigIsm::decode(ism.value.as_slice())
+                    .map_err(HyperlaneCosmosError::from)?;
+                let validators = ism
+                    .validators
+                    .iter()
+                    .map(|v| H160::from_str(v).map(H256::from))
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok((validators, ism.threshold as u8))
+            }
             _ => Err(ChainCommunicationError::from_other_str(&format!(
                 "ISM {:?} not a multi sig ism",
                 self.address

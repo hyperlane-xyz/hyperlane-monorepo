@@ -24,13 +24,14 @@ impl FallbackHttpClient {
         urls: Vec<Url>,
         metrics: PrometheusClientMetrics,
         chain: Option<hyperlane_metric::prometheus_metric::ChainInfo>,
+        network: u16,
     ) -> ChainResult<Self> {
         let clients = urls
             .into_iter()
             .map(|url| {
                 let metrics_config =
                     PrometheusConfig::from_url(&url, ClientConnectionType::Rpc, chain.clone());
-                MetricHttpClient::new(url, metrics.clone(), metrics_config)
+                MetricHttpClient::new(url, metrics.clone(), metrics_config, network)
             })
             .collect::<ChainResult<Vec<_>>>()?
             .into_iter()

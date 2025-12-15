@@ -15,6 +15,7 @@ import {
   SvmMultiProtocolSignerAdapter,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+import { readJson } from '@hyperlane-xyz/utils/fs';
 
 import { Contexts } from '../../config/contexts.js';
 import { getChain } from '../../config/registry.js';
@@ -33,7 +34,7 @@ import {
 } from '../../src/utils/sealevel.js';
 import { submitProposalToSquads } from '../../src/utils/squads.js';
 import { getTurnkeySealevelDeployerSigner } from '../../src/utils/turnkey.js';
-import { chainIsProtocol, readJSONAtPath } from '../../src/utils/utils.js';
+import { chainIsProtocol } from '../../src/utils/utils.js';
 import { getArgs, withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
@@ -331,7 +332,7 @@ async function processChain(
 
   // Load configuration from file
   const configPath = multisigIsmConfigPath(environment, context, chain);
-  const config: SvmMultisigConfigMap = readJSONAtPath(configPath);
+  const config: SvmMultisigConfigMap = readJson(configPath);
 
   rootLogger.info(
     chalk.gray(

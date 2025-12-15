@@ -1,5 +1,50 @@
 # @hyperlane-xyz/sdk
 
+## 19.13.0
+
+### Patch Changes
+
+- 3592f258a: Fix StarknetHypCollateralAdapter to use StarknetTokenAdapter for wrappedTokenAdapter instead of synthetic adapter
+- Updated dependencies [ae8ef4389]
+- Updated dependencies [ae8ef4389]
+  - @hyperlane-xyz/radix-sdk@19.13.0
+  - @hyperlane-xyz/deploy-sdk@0.5.0
+  - @hyperlane-xyz/starknet-core@19.13.0
+  - @hyperlane-xyz/cosmos-sdk@19.13.0
+  - @hyperlane-xyz/utils@19.13.0
+  - @hyperlane-xyz/provider-sdk@0.5.0
+  - @hyperlane-xyz/core@10.1.1
+
+## 19.12.0
+
+### Minor Changes
+
+- 38a1165c8: - Update CLI context `altVmSigners` to be a `ChainMap` instead of `AltVMSignerFactory`,
+  - Update CLI context `altVmProviders` to be a `ChainMap` instead of `AltVMSignerFactory`.
+  - Update all existing getter methods to use `mustTry`, instead of `assert`.
+  - Delete `AltVMSupportedProtocols` and `AltVMProviderFactory`.
+  - Move functions from `AltVMSignerFactory` to top-level functions.
+  - Add `getMinGas` to Aleo, Cosmos and Radix ProtocolProvider.
+- af2cd1729: Support reading ReorgEvent object from validator buckets.
+- 08cf7eca9: Check for implementation contract for `contractInstance` and fallback to `balanceOf` if `balance_of` does not exist
+
+### Patch Changes
+
+- 618615dc4: Fix SmartProvider to retry on CALL_EXCEPTION errors without revert data. Previously, CALL_EXCEPTION errors would immediately stop provider fallback even when caused by RPC issues rather than actual on-chain reverts. Now, CALL_EXCEPTION errors without revert data (or with empty "0x" data) are treated as transient RPC errors and will trigger fallback to the next provider.
+- Updated dependencies [38a1165c8]
+- Updated dependencies [08cf7eca9]
+- Updated dependencies [77524f734]
+- Updated dependencies [af2cd1729]
+- Updated dependencies [43b3756d9]
+- Updated dependencies [e37100e2e]
+  - @hyperlane-xyz/provider-sdk@0.4.0
+  - @hyperlane-xyz/cosmos-sdk@19.12.0
+  - @hyperlane-xyz/radix-sdk@19.12.0
+  - @hyperlane-xyz/utils@19.12.0
+  - @hyperlane-xyz/core@10.1.0
+  - @hyperlane-xyz/deploy-sdk@0.4.0
+  - @hyperlane-xyz/starknet-core@19.12.0
+
 ## 19.11.0
 
 ### Minor Changes

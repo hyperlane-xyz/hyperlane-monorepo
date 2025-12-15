@@ -1,9 +1,9 @@
 {
   "name": "@hyperlane-xyz/core",
   "description": "Core solidity contracts for Hyperlane",
-  "version": "10.0.5",
+  "version": "10.1.1",
   "dependencies": {
-    "@hyperlane-xyz/utils": "19.11.0"
+    "@hyperlane-xyz/utils": "19.13.0"
   },
   "devDependencies": {
     "@ethersproject/abi": "*",
@@ -68,6 +68,7 @@
   ],
   "license": "Apache-2.0",
   "scripts": {
+    "deps:soldeer": "forge soldeer install --quiet",
     "build": "yarn version:update && yarn hardhat-esm compile && tsc && ./exportBuildArtifact.sh",
     "build:zk": "yarn hardhat-zk compile && tsc && ts-node generate-artifact-exports.mjs && ZKSYNC=true ./exportBuildArtifact.sh",
     "prepublishOnly": "yarn build && yarn build:zk",
@@ -83,6 +84,7 @@
     "test:hardhat": "yarn hardhat-esm test",
     "test:forge": "yarn fixtures && forge test -vvv --decode-internal --no-match-contract Everclear",
     "test:ci": "yarn version:changed && yarn test:hardhat && yarn test:forge --no-match-test testFork",
+    "test:fork": "sh -c '. ./.env.default && forge test --match-test testFork && forge test --match-contract ForkTest'",
     "gas": "forge snapshot",
     "gas-ci": "yarn gas --check --tolerance 2 || (echo 'Manually update gas snapshot' && exit 1)",
     "slither": "slither .",

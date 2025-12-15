@@ -1,7 +1,7 @@
 {
   "name": "@hyperlane-xyz/utils",
   "description": "General utilities and types for the Hyperlane network",
-  "version": "19.11.0",
+  "version": "19.13.0",
   "dependencies": {
     "@cosmjs/encoding": "^0.32.4",
     "@solana/web3.js": "^1.98.4",
@@ -66,10 +66,30 @@
   },
   "type": "module",
   "exports": {
-    ".": "./dist/index.js",
-    "./eslint-rules": "./dist/eslint-rules/index.js"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./fs": {
+      "types": "./dist/fs/index.d.ts",
+      "default": "./dist/fs/index.js"
+    },
+    "./eslint-rules": {
+      "types": "./dist/eslint-rules/index.d.ts",
+      "default": "./dist/eslint-rules/index.js"
+    }
   },
   "types": "./dist/index.d.ts",
+  "typesVersions": {
+    "*": {
+      "fs": [
+        "./dist/fs/index.d.ts"
+      ],
+      "eslint-rules": [
+        "./dist/eslint-rules/index.d.ts"
+      ]
+    }
+  },
   "files": [
     "/dist"
   ],

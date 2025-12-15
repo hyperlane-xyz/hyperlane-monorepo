@@ -30,8 +30,7 @@ use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use crate::{
     provider::{fallback::FallbackHttpClient, HttpClient, ProvingClient, RpcClient},
     utils::{get_tx_id, to_h256},
-    AleoProviderForLander, AleoSigner, ConnectionConf, CurrentNetwork, FeeEstimate,
-    HyperlaneAleoError,
+    AleoSigner, ConnectionConf, CurrentNetwork, FeeEstimate, HyperlaneAleoError,
 };
 
 /// Aleo Http Client trait alias
@@ -49,8 +48,6 @@ pub struct AleoProvider<C: AleoClient = FallbackHttpClient> {
     priority_fee_multiplier: f64,
 }
 
-impl AleoProviderForLander for AleoProvider {}
-
 impl AleoProvider<FallbackHttpClient> {
     /// Creates a new production AleoProvider
     pub fn new(
@@ -65,6 +62,7 @@ impl AleoProvider<FallbackHttpClient> {
                 conf.proving_service.clone(),
                 metrics.clone(),
                 chain.clone(),
+                conf.chain_id,
             )?;
             Some(ProvingClient::new(client))
         } else {
@@ -72,7 +70,12 @@ impl AleoProvider<FallbackHttpClient> {
         };
 
         Ok(Self {
-            client: RpcClient::new(FallbackHttpClient::new(conf.rpcs.clone(), metrics, chain)?),
+            client: RpcClient::new(FallbackHttpClient::new(
+                conf.rpcs.clone(),
+                metrics,
+                chain,
+                conf.chain_id,
+            )?),
             domain,
             network: conf.chain_id,
             proving_service,
@@ -135,7 +138,10 @@ impl<C: AleoClient> AleoProvider<C> {
         }
 
         debug!("Getting program: {}", program_id);
-        let program = self.get_program(program_id).await?;
+        let latest_edition = self.get_latest_edition(program_id).await?;
+        let program = self
+            .get_program_by_edition(program_id, latest_edition)
+            .await?;
 
         for import in program.imports().keys() {
             let future = Box::pin(self.load_program(vm, import, depth.saturating_add(1)));
@@ -146,7 +152,7 @@ impl<C: AleoClient> AleoProvider<C> {
         let vm_process = vm.process();
         let mut process_guard = vm_process.write();
         process_guard
-            .add_program(&program)
+            .add_program_with_edition(&program, latest_edition)
             .map_err(HyperlaneAleoError::from)?;
 
         Ok(())
@@ -268,11 +274,7 @@ impl<C: AleoClient> AleoProvider<C> {
             )
             .await?;
         let priority = self.get_priority_fee(base);
-        Ok(FeeEstimate {
-            base_fee: base,
-            priority_fee: priority,
-            total_fee: base.saturating_add(priority),
-        })
+        Ok(FeeEstimate::new(base, priority))
     }
 
     /// Public estimation entrypoint selecting the network
@@ -303,13 +305,13 @@ impl<C: AleoClient> AleoProvider<C> {
         }
     }
 
-    /// Executes the transactions for the given network
+    /// Executes the transaction for the given network
     async fn execute<N: Network, I, V>(
         &self,
         program_id: &str,
         function_name: &str,
         input: I,
-    ) -> ChainResult<String>
+    ) -> ChainResult<H512>
     where
         I: IntoIterator<Item = V>,
         I::IntoIter: ExactSizeIterator,
@@ -320,8 +322,9 @@ impl<C: AleoClient> AleoProvider<C> {
         let (vm, authorization, program_id_parsed, function_name_parsed, private_key, mut rng) =
             self.prepare_authorization_and_vm::<N, I, V>(program_id, function_name, input)
                 .await?;
-        // Reuse cost calculation.
+
         let start = Instant::now();
+        // Calculate fees
         let base_fee = self
             .calculate_function_costs::<N>(
                 &vm,
@@ -331,6 +334,7 @@ impl<C: AleoClient> AleoProvider<C> {
             )
             .await?;
         let priority_fee = self.get_priority_fee(base_fee);
+
         // Authorize fee payment.
         let fee = vm
             .authorize_fee_public(
@@ -364,21 +368,24 @@ impl<C: AleoClient> AleoProvider<C> {
             ))
             .into());
         }
-        Ok(output)
+
+        // Return transaction hash
+        let tx_hash = to_h256(id).map(|h| h.into())?;
+        Ok(tx_hash)
     }
 
-    /// Submits a transaction
+    /// Submits a transaction and returns the transaction ID immediately without waiting for confirmation
     pub async fn submit_tx<I>(
         &self,
         program_id: &str,
         function_name: &str,
         input: I,
-    ) -> ChainResult<TxOutcome>
+    ) -> ChainResult<H512>
     where
         I: IntoIterator<Item = String>,
         I::IntoIter: ExactSizeIterator,
     {
-        let hash = match self.chain_id() {
+        match self.chain_id() {
             0 => {
                 // Mainnet
                 self.execute::<MainnetV0, _, _>(program_id, function_name, input)
@@ -395,7 +402,22 @@ impl<C: AleoClient> AleoProvider<C> {
                     .await
             }
             id => Err(HyperlaneAleoError::UnknownNetwork(id).into()),
-        }?;
+        }
+    }
+
+    /// Submits a transaction and waits for confirmation, returning the transaction outcome
+    /// This method polls for up to 30 seconds waiting for the transaction to be confirmed
+    pub async fn submit_tx_and_wait<I>(
+        &self,
+        program_id: &str,
+        function_name: &str,
+        input: I,
+    ) -> ChainResult<TxOutcome>
+    where
+        I: IntoIterator<Item = String>,
+        I::IntoIter: ExactSizeIterator,
+    {
+        let hash = self.submit_tx(program_id, function_name, input).await?;
 
         // Polling delay is the total amount of seconds to wait before we call a timeout
         const TIMEOUT_DELAY: u64 = 30;
@@ -404,7 +426,7 @@ impl<C: AleoClient> AleoProvider<C> {
         let mut attempt: usize = 0;
 
         let confirmed_tx = loop {
-            let result = self.get_transaction_status(&hash).await;
+            let result = self.get_confirmed_transaction(hash).await;
             match result {
                 Ok(confirmed) => {
                     break Ok::<ConfirmedTransaction<CurrentNetwork>, ChainCommunicationError>(
@@ -543,7 +565,8 @@ impl<C: AleoClient> HyperlaneProvider for AleoProvider<C> {
         let address = Address::from_str(&address).map_err(HyperlaneAleoError::from)?;
         let balance: u64 = self
             .get_mapping_value("credits.aleo", "account", &address)
-            .await?;
+            .await?
+            .unwrap_or_default();
         Ok(U256::from(balance))
     }
 

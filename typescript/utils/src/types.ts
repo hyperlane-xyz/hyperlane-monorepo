@@ -130,3 +130,17 @@ export type ValidatorMetadata = {
   rpcs?: string[];
   allows_public_rpcs?: boolean;
 };
+
+export type ReorgEvent = {
+  /** the merkle root built from this agent's indexed events */
+  localMerkleRoot: string;
+  /** the onchain merkle root */
+  canonicalMerkleRoot: string;
+  /** the index of the checkpoint when the reorg was detected
+   * (due to a mismatch between local and canonical merkle roots) */
+  checkpointIndex: number;
+  /** the timestamp when the reorg was detected, in seconds since the Unix epoch */
+  unixTimestamp: number;
+  /** the reorg period configured for the agent */
+  reorgPeriod: string;
+};

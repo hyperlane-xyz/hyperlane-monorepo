@@ -488,7 +488,6 @@ export class WarpCore {
         transactions.push(approveTx);
       }
     }
-
     const transferTxReq = await hypAdapter.populateTransferRemoteTx({
       weiAmountOrId: amount.toString(),
       destination: destinationDomainId,

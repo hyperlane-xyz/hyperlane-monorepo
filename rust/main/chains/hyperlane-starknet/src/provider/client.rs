@@ -36,21 +36,21 @@ impl StarknetProvider {
         conf: &ConnectionConf,
         metrics: PrometheusClientMetrics,
         chain: Option<ChainInfo>,
-    ) -> Self {
+    ) -> ChainResult<Self> {
         let provider = JsonRpcClient::new(FallbackHttpTransport::new(
             conf.urls.clone(),
             metrics,
             chain,
-        ));
+        )?);
 
         // Fee token address is used to check balances
         let fee_token_address = Felt::from_bytes_be(conf.native_token_address.as_fixed_bytes());
 
-        Self {
+        Ok(Self {
             domain,
             rpc_client: provider,
             fee_token_address,
-        }
+        })
     }
 
     /// Get the RPC client.
