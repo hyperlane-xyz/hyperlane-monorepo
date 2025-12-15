@@ -41,7 +41,7 @@ import { ExtendedChainSubmissionStrategySchema } from '../submitters/types.js';
 import {
   indentYamlOrJson,
   readYamlOrJson,
-  removeEndingSlash,
+  removeTrailingSlash,
   writeYamlOrJson,
 } from '../utils/files.js';
 import {
@@ -123,7 +123,7 @@ export const apply: CommandModuleWithWarpApplyContext<
       type: 'string',
       description: 'The directory to output transaction receipts.',
       default: './generated/transactions',
-      coerce: (dir) => removeEndingSlash(dir),
+      coerce: (dir) => removeTrailingSlash(dir),
     },
     relay: {
       type: 'boolean',
