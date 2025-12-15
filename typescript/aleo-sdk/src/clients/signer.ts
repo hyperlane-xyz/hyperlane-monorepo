@@ -1,5 +1,5 @@
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, retryAsync } from '@hyperlane-xyz/utils';
 
 import { AleoProgram } from '../artifacts.js';
 import {
@@ -29,7 +29,10 @@ export class AleoSigner
 
     const metadata = extraParams.metadata as Record<string, unknown>;
     assert(metadata, `metadata not defined in extra params`);
-    assert(metadata.chainId, `chainId not defined in metadata extra params`);
+    assert(
+      metadata.chainId !== undefined && metadata.chainId !== null,
+      `chainId not defined in metadata extra params`,
+    );
 
     const chainId = parseInt(metadata.chainId.toString());
 
@@ -249,10 +252,12 @@ export class AleoSigner
     const ismManagerProgramId = programs['ism_manager'];
     assert(ismManagerProgramId, `ism manager program not deployed`);
 
-    let nonce = await this.aleoClient.getProgramMappingValue(
-      ismManagerProgramId,
-      'nonce',
-      'true',
+    let nonce = await retryAsync(() =>
+      this.aleoClient.getProgramMappingValue(
+        ismManagerProgramId,
+        'nonce',
+        'true',
+      ),
     );
 
     if (nonce === null) {
@@ -266,10 +271,12 @@ export class AleoSigner
 
     await this.sendAndConfirmTransaction(tx);
 
-    const ismAddress = await this.aleoClient.getProgramMappingValue(
-      ismManagerProgramId,
-      'ism_addresses',
-      nonce,
+    const ismAddress = await retryAsync(() =>
+      this.aleoClient.getProgramMappingValue(
+        ismManagerProgramId,
+        'ism_addresses',
+        nonce,
+      ),
     );
 
     if (ismAddress === null) {
