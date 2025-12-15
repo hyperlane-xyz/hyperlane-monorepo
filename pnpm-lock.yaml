@@ -504,7 +504,7 @@ importers:
         specifier: ^3.0.1
         version: 3.2.2(@types/node@20.19.25)
       '@inquirer/select':
-        specifier: ^1.0.0
+        specifier: ^1.3.3
         version: 1.3.3
       '@inquirer/type':
         specifier: ^1.0.0
@@ -1154,7 +1154,7 @@ importers:
         specifier: 3.3.2
         version: 3.3.2
       '@inquirer/select':
-        specifier: ^1.0.0
+        specifier: ^1.3.3
         version: 1.3.3
       '@nomiclabs/hardhat-etherscan':
         specifier: ^3.0.3
