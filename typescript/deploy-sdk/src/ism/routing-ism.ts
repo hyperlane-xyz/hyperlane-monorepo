@@ -7,6 +7,7 @@ import {
   ArtifactState,
   ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
+import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
   DeployedIsmAddresses,
   DeployedIsmArtifact,
@@ -16,6 +17,7 @@ import {
   RoutingIsmArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
+import { Logger, rootLogger } from '@hyperlane-xyz/utils';
 
 import { altVMIsmTypeToProviderSdkType } from '../utils/conversion.js';
 
@@ -27,7 +29,12 @@ type DeployedRoutingIsmArtifact = ArtifactDeployed<
 export class AltVMRoutingIsmReader
   implements ArtifactReader<RoutingIsmArtifactConfig, DeployedIsmAddresses>
 {
+  protected readonly logger: Logger = rootLogger.child({
+    module: AltVMRoutingIsmReader.name,
+  });
+
   constructor(
+    protected readonly chainLookup: ChainLookup,
     private readonly provider: IProvider,
     protected readonly artifactManager: IRawIsmArtifactManager,
   ) {}
@@ -42,6 +49,14 @@ export class AltVMRoutingIsmReader
     const domains: Record<number, DeployedIsmArtifact> = {};
 
     for (const [domainId, domainIsmConfig] of Object.entries(config.domains)) {
+      if (!this.chainLookup.getDomainId(domainId)) {
+        this.logger.warn(
+          `Skipping derivation of unknown ${AltVM.IsmType.ROUTING} domain ${domainId}`,
+        );
+
+        continue;
+      }
+
       let nestedIsm;
       if (domainIsmConfig.artifactState === ArtifactState.DEPLOYED) {
         nestedIsm = domainIsmConfig;
@@ -83,9 +98,10 @@ export class AltVMRoutingIsmWriter
   constructor(
     provider: IProvider,
     artifactManager: IRawIsmArtifactManager,
+    chainLookup: ChainLookup,
     private readonly signer: ISigner<AnnotatedTx, TxReceipt>,
   ) {
-    super(provider, artifactManager);
+    super(chainLookup, provider, artifactManager);
   }
 
   async create(
@@ -149,6 +165,14 @@ export class AltVMRoutingIsmWriter
     const deployedDomains: Record<number, DeployedIsmArtifact> = {};
 
     for (const [domainId, domainIsmConfig] of Object.entries(config.domains)) {
+      if (!this.chainLookup.getDomainId(domainId)) {
+        this.logger.warn(
+          `Skipping update of unknown ${AltVM.IsmType.ROUTING} domain ${domainId}`,
+        );
+
+        continue;
+      }
+
       const domain = parseInt(domainId);
 
       if (domainIsmConfig.artifactState === ArtifactState.DEPLOYED) {

@@ -151,7 +151,7 @@ export class RadixRoutingIsmRawWriter
         );
 
         transactions.push({
-          annotation: `Set route for domain ${domain} to ISM ${expectedIsmAddress}`,
+          annotation: `Set ism for domain ${domain} to ISM ${expectedIsmAddress} on ${IsmType.ROUTING}`,
           networkId: this.base.getNetworkId(),
           manifest: transactionManifest,
         });
@@ -174,7 +174,7 @@ export class RadixRoutingIsmRawWriter
         );
 
         transactions.push({
-          annotation: `Remove route for domain ${domain}`,
+          annotation: `Remove ism for domain ${domain} on ${IsmType.ROUTING}`,
           networkId: this.base.getNetworkId(),
           manifest: transactionManifest,
         });
@@ -194,7 +194,7 @@ export class RadixRoutingIsmRawWriter
       );
 
       transactions.push({
-        annotation: `Transfer ownership to ${config.owner}`,
+        annotation: `Transfer ownership of ${IsmType.ROUTING} from ${currentConfig.config.owner} to ${config.owner}`,
         networkId: this.base.getNetworkId(),
         manifest: transactionManifest,
       });
