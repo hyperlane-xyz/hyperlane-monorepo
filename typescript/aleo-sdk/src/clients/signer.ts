@@ -278,22 +278,10 @@ export class AleoSigner
 
     await this.sendAndConfirmTransaction(tx);
 
-    const ismAddress = await retryAsync(
-      async () => {
-        const result = await this.aleoClient.getProgramMappingValue(
-          ismManagerProgramId,
-          'ism_addresses',
-          nonce,
-        );
-
-        if (result === null) {
-          throw new Error();
-        }
-
-        return result;
-      },
-      10,
-      100,
+    const ismAddress = await this.queryMappingString(
+      ismManagerProgramId,
+      'ism_addresses',
+      nonce,
     );
 
     if (ismAddress === null) {
@@ -338,22 +326,10 @@ export class AleoSigner
 
     await this.sendAndConfirmTransaction(tx);
 
-    const ismAddress = await retryAsync(
-      async () => {
-        const result = await this.aleoClient.getProgramMappingValue(
-          ismManagerProgramId,
-          'ism_addresses',
-          nonce,
-        );
-
-        if (result === null) {
-          throw new Error();
-        }
-
-        return result;
-      },
-      10,
-      100,
+    const ismAddress = await this.queryMappingString(
+      ismManagerProgramId,
+      'ism_addresses',
+      nonce,
     );
 
     if (ismAddress === null) {
@@ -453,22 +429,10 @@ export class AleoSigner
 
     await this.sendAndConfirmTransaction(tx);
 
-    const ismAddress = await retryAsync(
-      async () => {
-        const result = await this.aleoClient.getProgramMappingValue(
-          ismManagerProgramId,
-          'ism_addresses',
-          nonce,
-        );
-
-        if (result === null) {
-          throw new Error();
-        }
-
-        return result;
-      },
-      10,
-      100,
+    const ismAddress = await this.queryMappingString(
+      ismManagerProgramId,
+      'ism_addresses',
+      nonce,
     );
 
     if (ismAddress === null) {
@@ -515,22 +479,10 @@ export class AleoSigner
 
     await this.sendAndConfirmTransaction(tx);
 
-    const hookAddress = await retryAsync(
-      async () => {
-        const result = await this.aleoClient.getProgramMappingValue(
-          hookManagerProgramId,
-          'hook_addresses',
-          nonce,
-        );
-
-        if (result === null) {
-          throw new Error();
-        }
-
-        return result;
-      },
-      10,
-      100,
+    const hookAddress = await this.queryMappingString(
+      hookManagerProgramId,
+      'hook_addresses',
+      nonce,
     );
 
     if (hookAddress === null) {
@@ -577,22 +529,10 @@ export class AleoSigner
 
     await this.sendAndConfirmTransaction(tx);
 
-    const hookAddress = await retryAsync(
-      async () => {
-        const result = await this.aleoClient.getProgramMappingValue(
-          hookManagerProgramId,
-          'hook_addresses',
-          nonce,
-        );
-
-        if (result === null) {
-          throw new Error();
-        }
-
-        return result;
-      },
-      10,
-      100,
+    const hookAddress = await this.queryMappingString(
+      hookManagerProgramId,
+      'hook_addresses',
+      nonce,
     );
 
     if (hookAddress === null) {
@@ -684,22 +624,10 @@ export class AleoSigner
 
     await this.sendAndConfirmTransaction(tx);
 
-    const hookAddress = await retryAsync(
-      async () => {
-        const result = await this.aleoClient.getProgramMappingValue(
-          hookManagerProgramId,
-          'hook_addresses',
-          nonce,
-        );
-
-        if (result === null) {
-          throw new Error();
-        }
-
-        return result;
-      },
-      10,
-      100,
+    const hookAddress = await this.queryMappingString(
+      hookManagerProgramId,
+      'hook_addresses',
+      nonce,
     );
 
     if (hookAddress === null) {

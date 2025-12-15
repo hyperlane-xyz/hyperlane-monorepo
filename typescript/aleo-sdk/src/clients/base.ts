@@ -144,4 +144,36 @@ export class AleoBase {
       );
     }
   }
+
+  protected async queryMappingString(
+    programId: string,
+    mappingName: string,
+    key: string,
+  ): Promise<any | undefined> {
+    try {
+      const result = await retryAsync(
+        async () => {
+          const r = await this.aleoClient.getProgramMappingValue(
+            programId,
+            mappingName,
+            key,
+          );
+
+          if (r === null) {
+            throw new Error();
+          }
+
+          return r;
+        },
+        10,
+        100,
+      );
+
+      return result;
+    } catch (err) {
+      throw new Error(
+        `Failed to query mapping value for program ${programId}/${mappingName}/${key}: ${err}`,
+      );
+    }
+  }
 }
