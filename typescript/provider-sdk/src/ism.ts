@@ -2,6 +2,7 @@ import { WithAddress } from '@hyperlane-xyz/utils';
 
 import {
   Artifact,
+  ArtifactDeployed,
   ArtifactOnChain,
   ArtifactState,
   IArtifactManager,
@@ -69,6 +70,14 @@ export interface IsmArtifactConfigs {
  * deploys or reads any kind of ISM and its nested configs (Routing, Aggregation, ...)
  */
 export type IsmArtifactConfig = IsmArtifactConfigs[IsmType];
+
+/**
+ * Describes the configuration of deployed ISM and its nested configs (Routing, Aggregation, ...)
+ */
+export type DeployedIsmArtifact = ArtifactDeployed<
+  IsmArtifactConfig,
+  DeployedIsmAddresses
+>;
 
 /**
  * Should be used to implement an object/closure or class that is in charge of coordinating

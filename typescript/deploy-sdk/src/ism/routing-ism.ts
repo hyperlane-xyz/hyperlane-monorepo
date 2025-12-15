@@ -9,6 +9,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   DeployedIsmAddresses,
+  DeployedIsmArtifact,
   IRawIsmArtifactManager,
   IsmArtifactConfig,
   RawRoutingIsmArtifactConfig,
@@ -18,6 +19,11 @@ import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 
 import { altVMIsmTypeToProviderSdkType } from '../utils/conversion.js';
 
+type DeployedRoutingIsmArtifact = ArtifactDeployed<
+  RoutingIsmArtifactConfig,
+  DeployedIsmAddresses
+>;
+
 export class AltVMRoutingIsmReader
   implements ArtifactReader<RoutingIsmArtifactConfig, DeployedIsmAddresses>
 {
@@ -26,19 +32,14 @@ export class AltVMRoutingIsmReader
     protected readonly artifactManager: IRawIsmArtifactManager,
   ) {}
 
-  async read(
-    address: string,
-  ): Promise<ArtifactDeployed<RoutingIsmArtifactConfig, DeployedIsmAddresses>> {
+  async read(address: string): Promise<DeployedRoutingIsmArtifact> {
     const routingReader = this.artifactManager.createReader(
       AltVM.IsmType.ROUTING,
     );
     const { artifactState, config, deployed } =
       await routingReader.read(address);
 
-    const domains: Record<
-      number,
-      ArtifactDeployed<IsmArtifactConfig, DeployedIsmAddresses>
-    > = {};
+    const domains: Record<number, DeployedIsmArtifact> = {};
 
     for (const [domainId, domainIsmConfig] of Object.entries(config.domains)) {
       let nestedIsm;
@@ -62,9 +63,7 @@ export class AltVMRoutingIsmReader
     };
   }
 
-  private async readDomainIsm(
-    address: string,
-  ): Promise<ArtifactDeployed<IsmArtifactConfig, DeployedIsmAddresses>> {
+  private async readDomainIsm(address: string): Promise<DeployedIsmArtifact> {
     const ismType = await this.provider.getIsmType({ ismAddress: address });
 
     const artifactIsmType = altVMIsmTypeToProviderSdkType(ismType);
@@ -91,19 +90,11 @@ export class AltVMRoutingIsmWriter
 
   async create(
     artifact: Artifact<RoutingIsmArtifactConfig, DeployedIsmAddresses>,
-  ): Promise<
-    [
-      ArtifactDeployed<RoutingIsmArtifactConfig, DeployedIsmAddresses>,
-      TxReceipt[],
-    ]
-  > {
+  ): Promise<[DeployedRoutingIsmArtifact, TxReceipt[]]> {
     const { config } = artifact;
     const allReceipts: TxReceipt[] = [];
 
-    const deployedDomainIsms: Record<
-      number,
-      ArtifactDeployed<IsmArtifactConfig, DeployedIsmAddresses>
-    > = {};
+    const deployedDomainIsms: Record<number, DeployedIsmArtifact> = {};
     for (const [domainId, nestedArtifact] of Object.entries(config.domains)) {
       const domain = parseInt(domainId);
 
@@ -137,10 +128,7 @@ export class AltVMRoutingIsmWriter
       await rawRoutingIsmWriter.create(rawRoutingConfig);
     allReceipts.push(...routingIsmReceipts);
 
-    const deployedRoutingIsmConfig: ArtifactDeployed<
-      RoutingIsmArtifactConfig,
-      DeployedIsmAddresses
-    > = {
+    const deployedRoutingIsmConfig: DeployedRoutingIsmArtifact = {
       artifactState: deployedRoutingIsm.artifactState,
       config: {
         type: deployedRoutingIsm.config.type,
@@ -153,17 +141,12 @@ export class AltVMRoutingIsmWriter
     return [deployedRoutingIsmConfig, allReceipts];
   }
 
-  async update(
-    artifact: ArtifactDeployed<RoutingIsmArtifactConfig, DeployedIsmAddresses>,
-  ): Promise<AnnotatedTx[]> {
+  async update(artifact: DeployedRoutingIsmArtifact): Promise<AnnotatedTx[]> {
     const { config, deployed } = artifact;
 
     const updateTxs = [];
 
-    const deployedDomains: Record<
-      number,
-      ArtifactDeployed<IsmArtifactConfig, DeployedIsmAddresses>
-    > = {};
+    const deployedDomains: Record<number, DeployedIsmArtifact> = {};
 
     for (const [domainId, domainIsmConfig] of Object.entries(config.domains)) {
       const domain = parseInt(domainId);
@@ -177,16 +160,16 @@ export class AltVMRoutingIsmWriter
         );
 
         let domainIsmUpdateTxs: AnnotatedTx[];
-        if (config.type !== AltVM.IsmType.ROUTING) {
-          domainIsmUpdateTxs = await domainIsmWriter.update({
+        if (config.type === AltVM.IsmType.ROUTING) {
+          domainIsmUpdateTxs = await this.update({
             artifactState,
             config,
             deployed,
           });
         } else {
-          domainIsmUpdateTxs = await this.update({
-            config,
+          domainIsmUpdateTxs = await domainIsmWriter.update({
             artifactState,
+            config,
             deployed,
           });
         }
@@ -221,9 +204,7 @@ export class AltVMRoutingIsmWriter
 
   private async deployDomainIsm(
     artifact: Artifact<IsmArtifactConfig, DeployedIsmAddresses>,
-  ): Promise<
-    [ArtifactDeployed<IsmArtifactConfig, DeployedIsmAddresses>, TxReceipt[]]
-  > {
+  ): Promise<[DeployedIsmArtifact, TxReceipt[]]> {
     if (artifact.artifactState === ArtifactState.DEPLOYED) {
       return [artifact, []];
     }
