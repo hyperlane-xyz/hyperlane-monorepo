@@ -13,6 +13,11 @@ inputs:
 runs:
   using: 'composite'
   steps:
+    - name: Configure script shell for Windows
+      if: runner.os == 'Windows'
+      shell: bash
+      run: echo "script-shell=bash" >> .npmrc
+
     - name: pnpm-build-with-cache
       if: inputs.no-cache == 'false'
       uses: ./.github/actions/pnpm-build-with-cache
