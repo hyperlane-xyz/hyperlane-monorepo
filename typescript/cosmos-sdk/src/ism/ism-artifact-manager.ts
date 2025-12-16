@@ -1,0 +1,177 @@
+import { QueryClient } from '@cosmjs/stargate';
+import { connectComet } from '@cosmjs/tendermint-rpc';
+
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import {
+  ArtifactReader,
+  ArtifactWriter,
+} from '@hyperlane-xyz/provider-sdk/artifact';
+import {
+  DeployedIsmAddresses,
+  DeployedIsmArtifact,
+  IRawIsmArtifactManager,
+  IsmType,
+  RawIsmArtifactConfigs,
+  altVMIsmTypeToProviderSdkType,
+} from '@hyperlane-xyz/provider-sdk/ism';
+import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
+
+import { setupInterchainSecurityExtension } from '../hyperlane/interchain_security/query.js';
+
+import { CosmosIsmQueryClient, getIsmType } from './ism-query.js';
+import {
+  CosmosMerkleRootMultisigIsmReader,
+  CosmosMessageIdMultisigIsmReader,
+} from './multisig-ism.js';
+import { CosmosRoutingIsmRawReader } from './routing-ism.js';
+import { CosmosTestIsmReader } from './test-ism.js';
+
+/**
+ * Cosmos ISM Artifact Manager implementing IRawIsmArtifactManager.
+ *
+ * This manager:
+ * - Lazily initializes the query client on first use
+ * - Detects ISM types and delegates to specialized readers
+ * - Provides factory methods for creating readers and writers
+ *
+ * Design: Uses lazy initialization to keep the constructor synchronous while
+ * deferring the async query client creation until actually needed.
+ */
+export class CosmosIsmArtifactManager implements IRawIsmArtifactManager {
+  private queryPromise?: Promise<CosmosIsmQueryClient>;
+
+  constructor(private readonly rpcUrls: string[]) {}
+
+  /**
+   * Lazy initialization - creates query client on first use.
+   * Subsequent calls return the cached promise.
+   */
+  private async getQuery(): Promise<CosmosIsmQueryClient> {
+    if (!this.queryPromise) {
+      this.queryPromise = this.createQuery();
+    }
+    return this.queryPromise;
+  }
+
+  /**
+   * Creates a Cosmos query client with ISM extension.
+   */
+  private async createQuery(): Promise<CosmosIsmQueryClient> {
+    const cometClient = await connectComet(this.rpcUrls[0]);
+    return QueryClient.withExtensions(
+      cometClient,
+      setupInterchainSecurityExtension,
+    );
+  }
+
+  /**
+   * Read an ISM of unknown type from the blockchain.
+   *
+   * @param address - Address of the ISM to read
+   * @returns Deployed ISM artifact with configuration
+   */
+  async readIsm(address: string): Promise<DeployedIsmArtifact> {
+    const query = await this.getQuery();
+
+    // Detect ISM type
+    const altVMType = await getIsmType(query, address);
+
+    // Convert to provider-sdk type
+    const artifactIsmType = altVMIsmTypeToProviderSdkType(altVMType);
+
+    // Create appropriate reader and delegate
+    const reader = await this.createReaderAsync(artifactIsmType);
+    return reader.read(address) as Promise<DeployedIsmArtifact>;
+  }
+
+  /**
+   * Factory method to create type-specific ISM readers (public interface).
+   * Note: This method doesn't have access to query client yet, so it must be async.
+   *
+   * @param type - ISM type to create reader for
+   * @returns Type-specific ISM reader
+   */
+  createReader<T extends IsmType>(
+    type: T,
+  ): ArtifactReader<RawIsmArtifactConfigs[T], DeployedIsmAddresses> {
+    // For synchronous createReader, we return a wrapper that will initialize lazily
+    return {
+      read: async (address: string) => {
+        const query = await this.getQuery();
+        const reader = this.createReaderWithQuery(type, query);
+        return reader.read(address);
+      },
+    } as ArtifactReader<RawIsmArtifactConfigs[T], DeployedIsmAddresses>;
+  }
+
+  /**
+   * Internal async helper to create readers with query client.
+   */
+  private async createReaderAsync<T extends IsmType>(
+    type: T,
+  ): Promise<ArtifactReader<RawIsmArtifactConfigs[T], DeployedIsmAddresses>> {
+    const query = await this.getQuery();
+    return this.createReaderWithQuery(type, query);
+  }
+
+  /**
+   * Internal helper to create type-specific ISM readers with query client.
+   *
+   * @param type - ISM type to create reader for
+   * @param query - Query client to use for reading
+   * @returns Type-specific ISM reader
+   */
+  private createReaderWithQuery<T extends IsmType>(
+    type: T,
+    query: CosmosIsmQueryClient,
+  ): ArtifactReader<RawIsmArtifactConfigs[T], DeployedIsmAddresses> {
+    switch (type) {
+      case AltVM.IsmType.TEST_ISM:
+        return new CosmosTestIsmReader(query) as unknown as ArtifactReader<
+          RawIsmArtifactConfigs[T],
+          DeployedIsmAddresses
+        >;
+      case AltVM.IsmType.MERKLE_ROOT_MULTISIG:
+        return new CosmosMerkleRootMultisigIsmReader(
+          query,
+        ) as unknown as ArtifactReader<
+          RawIsmArtifactConfigs[T],
+          DeployedIsmAddresses
+        >;
+      case AltVM.IsmType.MESSAGE_ID_MULTISIG:
+        return new CosmosMessageIdMultisigIsmReader(
+          query,
+        ) as unknown as ArtifactReader<
+          RawIsmArtifactConfigs[T],
+          DeployedIsmAddresses
+        >;
+      case AltVM.IsmType.ROUTING:
+        return new CosmosRoutingIsmRawReader(
+          query,
+        ) as unknown as ArtifactReader<
+          RawIsmArtifactConfigs[T],
+          DeployedIsmAddresses
+        >;
+      default:
+        throw new Error(`Unsupported ISM type: ${type}`);
+    }
+  }
+
+  /**
+   * Factory method to create type-specific ISM writers.
+   * Currently not implemented - will be added in future work.
+   *
+   * @param type - ISM type to create writer for
+   * @param _signer - Signer to use for writing
+   * @returns Type-specific ISM writer
+   * @throws Error indicating writers are not yet implemented
+   */
+  createWriter<T extends IsmType>(
+    type: T,
+    _signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
+  ): ArtifactWriter<RawIsmArtifactConfigs[T], DeployedIsmAddresses> {
+    throw new Error(
+      `ISM writers not yet implemented for Cosmos (requested type: ${type})`,
+    );
+  }
+}

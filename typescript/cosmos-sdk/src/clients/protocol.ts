@@ -12,6 +12,8 @@ import { IRawIsmArtifactManager } from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import { assert } from '@hyperlane-xyz/utils';
 
+import { CosmosIsmArtifactManager } from '../ism/ism-artifact-manager.js';
+
 import { CosmosNativeProvider } from './provider.js';
 import { CosmosNativeSigner } from './signer.js';
 
@@ -45,12 +47,12 @@ export class CosmosNativeProtocolProvider implements ProtocolProvider {
   }
 
   createIsmArtifactManager(
-    _chainMetadata: ChainMetadataForAltVM,
+    chainMetadata: ChainMetadataForAltVM,
   ): IRawIsmArtifactManager {
-    // @TODO Implement when Cosmos ISM artifact manager is available
-    throw new Error(
-      'ISM artifact manager not yet implemented for CosmosNative protocol',
-    );
+    assert(chainMetadata.rpcUrls, 'rpc urls undefined');
+    const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
+
+    return new CosmosIsmArtifactManager(rpcUrls);
   }
 
   getMinGas(): MinimumRequiredGasByAction {
