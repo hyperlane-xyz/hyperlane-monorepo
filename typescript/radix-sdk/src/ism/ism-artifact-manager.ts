@@ -15,18 +15,13 @@ import {
 import { RadixSigner } from '../clients/signer.js';
 import { RadixBase } from '../utils/base.js';
 
-import { RadixGenericIsmReader } from './generic-ism.js';
+import { RadixGenericIsmReader, createRadixIsmReader } from './generic-ism.js';
 import {
-  RadixMerkleRootMultisigIsmReader,
   RadixMerkleRootMultisigIsmWriter,
-  RadixMessageIdMultisigIsmReader,
   RadixMessageIdMultisigIsmWriter,
 } from './multisig-ism.js';
-import {
-  RadixRoutingIsmRawReader,
-  RadixRoutingIsmRawWriter,
-} from './routing-ism.js';
-import { RadixTestIsmReader, RadixTestIsmWriter } from './test-ism.js';
+import { RadixRoutingIsmRawWriter } from './routing-ism.js';
+import { RadixTestIsmWriter } from './test-ism.js';
 
 export class RadixIsmArtifactManager implements IRawIsmArtifactManager {
   constructor(
@@ -37,46 +32,16 @@ export class RadixIsmArtifactManager implements IRawIsmArtifactManager {
   createReader<T extends IsmType>(
     type: T,
   ): ArtifactReader<RawIsmArtifactConfigs[T], DeployedIsmAddresses> {
-    switch (type) {
-      case AltVM.IsmType.TEST_ISM:
-        return new RadixTestIsmReader(
-          this.gateway,
-        ) as unknown as ArtifactReader<
-          RawIsmArtifactConfigs[T],
-          DeployedIsmAddresses
-        >;
-      case AltVM.IsmType.MERKLE_ROOT_MULTISIG:
-        return new RadixMerkleRootMultisigIsmReader(
-          this.gateway,
-        ) as unknown as ArtifactReader<
-          RawIsmArtifactConfigs[T],
-          DeployedIsmAddresses
-        >;
-      case AltVM.IsmType.MESSAGE_ID_MULTISIG:
-        return new RadixMessageIdMultisigIsmReader(
-          this.gateway,
-        ) as unknown as ArtifactReader<
-          RawIsmArtifactConfigs[T],
-          DeployedIsmAddresses
-        >;
-      case AltVM.IsmType.ROUTING:
-        return new RadixRoutingIsmRawReader(
-          this.gateway,
-        ) as unknown as ArtifactReader<
-          RawIsmArtifactConfigs[T],
-          DeployedIsmAddresses
-        >;
-      case 'genericIsm':
-        return new RadixGenericIsmReader(
-          this.gateway,
-          this,
-        ) as unknown as ArtifactReader<
-          RawIsmArtifactConfigs[T],
-          DeployedIsmAddresses
-        >;
-      default:
-        throw new Error(`Unsupported ISM type: ${type}`);
+    if (type === 'genericIsm') {
+      return new RadixGenericIsmReader(
+        this.gateway,
+      ) as unknown as ArtifactReader<
+        RawIsmArtifactConfigs[T],
+        DeployedIsmAddresses
+      >;
     }
+
+    return createRadixIsmReader(this.gateway, type);
   }
 
   createWriter<T extends IsmType>(
