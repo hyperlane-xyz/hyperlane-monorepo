@@ -1295,7 +1295,13 @@
       ],
       "slip44": 118,
       "validatorAnnounce": "0x1fb225b2fcfbe75e614a1d627de97ff372242eed",
-      "technicalStack": "other"
+      "technicalStack": "other",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      }
     },
     "linea": {
       "aggregationHook": "0x55A457c36Eea28Fa12690B41B1B9aefF6470062A",
@@ -1850,7 +1856,13 @@
       "staticMessageIdWeightedMultisigIsmFactory": "0xb129828B9EDa48192D0B2db35D0E40dCF51B3594",
       "interchainAccountRouter": "0x511C21cF98AB0D07a6fB9Fb65E9e66DD483375B5",
       "timelockController": "0x0000000000000000000000000000000000000000",
-      "technicalStack": "opstack"
+      "technicalStack": "opstack",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      }
     },
     "mode": {
       "aggregationHook": "0x5abdb28134Ec9FE3fc4943F7fb4CbDeF0141f1b4",
@@ -2070,7 +2082,13 @@
       },
       "slip44": 118,
       "validatorAnnounce": "0xf3aa0d652226e21ae35cd9035c492ae41725edc9036edf0d6a48701b153b90a0",
-      "technicalStack": "other"
+      "technicalStack": "other",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      }
     },
     "optimism": {
       "aggregationHook": "0xb959001ec9706d56fC7787e126caC2Ad3a7158a7",
@@ -3008,7 +3026,7 @@
       "domainRoutingIsmFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
       "fallbackRoutingHook": "0x03E20381530F2D50A0c9Ef153C19E74695c03433",
       "gasCurrencyCoinGeckoId": "okb",
-      "gnosisSafeTransactionServiceUrl": "https://app.safe.global/welcome?chain=xlayer",
+      "gnosisSafeTransactionServiceUrl": "https://api.safe.global/tx-service/okb/",
       "index": {
         "chunk": 999,
         "from": 3387690
@@ -4760,7 +4778,7 @@
         "from": 6777659
       },
       "transactionOverrides": {
-        "gasPrice": 100000000
+        "gasPrice": 16038000000
       }
     },
     "immutablezkevmmainnet": {
@@ -5880,7 +5898,14 @@
       "index": {
         "from": 469384
       },
-      "gnosisSafeTransactionServiceUrl": "https://prod.form.keypersafe.xyz/"
+      "gnosisSafeTransactionServiceUrl": "https://prod.form.keypersafe.xyz/",
+      "availability": {
+        "reasons": [
+          "deprecated",
+          "unavailable"
+        ],
+        "status": "disabled"
+      }
     },
     "ink": {
       "blockExplorers": [
@@ -8958,7 +8983,8 @@
       "validatorAnnounce": "0x75719C858e0c73e07128F95B2C466d142490e933",
       "index": {
         "from": 89474
-      }
+      },
+      "gnosisSafeTransactionServiceUrl": "https://api.safe.global/tx-service/plasma/"
     },
     "zerogravity": {
       "blockExplorers": [
@@ -9278,7 +9304,8 @@
       "index": {
         "chunk": 99,
         "from": 25705279
-      }
+      },
+      "gnosisSafeTransactionServiceUrl": "https://api.safe.global/tx-service/monad/"
     },
     "litchain": {
       "blockExplorers": [
@@ -9597,7 +9624,7 @@
         {
           "apiKey": "GP69JEAP2W7YFJT9ZJTEPGQT6Y6KMW44ZN",
           "apiUrl": "https://api.etherscan.io/v2/api?chainid=988",
-          "family": "other",
+          "family": "etherscan",
           "name": "Stable Explorer",
           "url": "https://stablescan.xyz"
         }
@@ -9653,7 +9680,56 @@
       "validatorAnnounce": "0xF6CC9B10c607afB777380bF71F272E4D7037C3A9",
       "index": {
         "from": 4016628
-      }
+      },
+      "gnosisSafeTransactionServiceUrl": "https://api.safe.global/tx-service/stable/"
+    },
+    "aleo": {
+      "blockExplorers": [
+        {
+          "apiUrl": "https://explorer.provable.com",
+          "family": "other",
+          "name": "Provable Explorer",
+          "url": "https://explorer.provable.com"
+        }
+      ],
+      "blocks": {
+        "confirmations": 0,
+        "estimateBlockTime": 3,
+        "reorgPeriod": 0
+      },
+      "chainId": 0,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
+      "displayName": "Aleo",
+      "domainId": 1634493807,
+      "gasCurrencyCoinGeckoId": "aleo",
+      "name": "aleo",
+      "nativeToken": {
+        "decimals": 6,
+        "denom": "credits",
+        "name": "Aleo",
+        "symbol": "ALEO"
+      },
+      "protocol": "aleo",
+      "rpcUrls": [
+        {
+          "http": "https://api.explorer.provable.com/v2"
+        }
+      ],
+      "mailbox": "aleo1u9rclq7at704j7xth037apm056t36qnyam9r3v6sewvqlvnew58qph0gk7",
+      "merkleTreeHook": "aleo1yxevh9qgxehej46j7vueplwjcpfdfml2dje3ey4ukzknx7wzasgqnxgq82",
+      "interchainGasPaymaster": "aleo194tz0jmyq8rd9htvnqppqw4jqerk2p2zd8plzn3sxl06wcgsm5pq9fka74",
+      "validatorAnnounce": "aleo1egcx57dccp3llddqtnuawt63u2xns24v704masl9dne483gymcrq3wpn6q",
+      "mailboxProgram": "hyp_mailbox.aleo",
+      "hookManagerProgram": "hyp_hook_manager.aleo",
+      "ismManagerProgram": "hyp_ism_manager.aleo",
+      "validatorAnnounceProgram": "hyp_validator_announce.aleo",
+      "signer": {
+        "key": "0x476e6d1e316263e22bf74e6cae6fcdf7ecc51cd4c0450e5661c35ccce3a85601"
+      },
+      "technicalStack": "other"
     }
   }
 }

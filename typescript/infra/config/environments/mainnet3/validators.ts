@@ -1621,5 +1621,15 @@ export const validatorChainConfig = (
         'stable',
       ),
     },
+    aleo: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('aleo'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xb9e79db67d02db0f79726c1aa499cc4d26b084fa'],
+        },
+        'aleo',
+      ),
+    },
   };
 };
