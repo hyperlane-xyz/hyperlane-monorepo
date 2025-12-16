@@ -274,6 +274,7 @@ impl PendingOperation for PendingMessage {
             return op_result;
         }
 
+        info!("Estimating process costs");
         // If metadata is already built, check gas estimation works.
         // If gas estimation fails, invalidate cache and rebuild it again.
         let tx_cost_estimate = match self.metadata.as_ref() {
