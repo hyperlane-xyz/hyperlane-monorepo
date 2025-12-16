@@ -48,12 +48,18 @@ catalogs:
     '@eth-optimism/sdk':
       specifier: ^3.3.3
       version: 3.3.3
+    '@google-cloud/pino-logging-gcp-config':
+      specifier: ^1.0.6
+      version: 1.3.0
     '@hyperlane-xyz/registry':
       specifier: 23.7.0
       version: 23.7.0
     '@inquirer/prompts':
       specifier: 3.3.2
       version: 3.3.2
+    '@inquirer/select':
+      specifier: ^1.0.0
+      version: 1.3.3
     '@nomiclabs/hardhat-ethers':
       specifier: ^2.2.3
       version: 2.2.3
@@ -66,6 +72,9 @@ catalogs:
     '@openzeppelin/contracts-upgradeable':
       specifier: ^4.9.3
       version: 4.9.6
+    '@radixdlt/babylon-gateway-api-sdk':
+      specifier: ^1.10.1
+      version: 1.10.1
     '@safe-global/api-kit':
       specifier: 4.0.0
       version: 4.0.0
@@ -135,6 +144,9 @@ catalogs:
     '@typescript-eslint/parser':
       specifier: ^8.1.6
       version: 8.47.0
+    asn1.js:
+      specifier: ^5.4.1
+      version: 5.4.1
     bignumber.js:
       specifier: ^9.1.1
       version: 9.3.1
@@ -186,9 +198,15 @@ catalogs:
     mocha:
       specifier: ^11.5.0
       version: 11.7.5
+    mocha-steps:
+      specifier: ^1.3.0
+      version: 1.3.0
     pino:
       specifier: ^8.19.0
       version: 8.21.0
+    pino-pretty:
+      specifier: ^13.0.0
+      version: 13.1.2
     prettier:
       specifier: ^3.5.3
       version: 3.5.3
@@ -543,7 +561,7 @@ importers:
         specifier: 'catalog:'
         version: 11.7.5
       mocha-steps:
-        specifier: ^1.3.0
+        specifier: 'catalog:'
         version: 1.3.0
       node-fetch:
         specifier: ^3.3.2
@@ -576,7 +594,7 @@ importers:
         specifier: '*'
         version: 5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       '@google-cloud/pino-logging-gcp-config':
-        specifier: ^1.0.6
+        specifier: 'catalog:'
         version: 1.3.0
       '@hyperlane-xyz/core':
         specifier: workspace:*
@@ -658,7 +676,7 @@ importers:
         specifier: ^3.0.3
         version: 3.1.11
       pino-pretty:
-        specifier: ^13.0.0
+        specifier: 'catalog:'
         version: 13.1.2
       prettier:
         specifier: 'catalog:'
@@ -742,7 +760,7 @@ importers:
         specifier: ^3.0.1
         version: 3.2.2(@types/node@20.19.25)
       '@inquirer/select':
-        specifier: ^1.0.0
+        specifier: 'catalog:'
         version: 1.3.3
       '@inquirer/type':
         specifier: ^1.0.0
@@ -778,7 +796,7 @@ importers:
         specifier: ^7.0.0
         version: 7.2.0
       asn1.js:
-        specifier: ^5.4.1
+        specifier: 'catalog:'
         version: 5.4.1
       bignumber.js:
         specifier: 'catalog:'
@@ -932,7 +950,7 @@ importers:
         specifier: 'catalog:'
         version: 11.7.5
       mocha-steps:
-        specifier: ^1.3.0
+        specifier: 'catalog:'
         version: 1.3.0
       prettier:
         specifier: 'catalog:'
@@ -1308,7 +1326,7 @@ importers:
         specifier: 'catalog:'
         version: 11.7.5
       pino-pretty:
-        specifier: ^13.0.0
+        specifier: 'catalog:'
         version: 13.1.2
       prettier:
         specifier: 'catalog:'
@@ -1362,7 +1380,7 @@ importers:
         specifier: '*'
         version: 5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       '@google-cloud/pino-logging-gcp-config':
-        specifier: ^1.0.6
+        specifier: 'catalog:'
         version: 1.3.0
       '@google-cloud/secret-manager':
         specifier: ^5.5.0
@@ -1392,7 +1410,7 @@ importers:
         specifier: 'catalog:'
         version: 3.3.2
       '@inquirer/select':
-        specifier: ^1.0.0
+        specifier: 'catalog:'
         version: 1.3.3
       '@nomiclabs/hardhat-etherscan':
         specifier: ^3.0.3
@@ -1422,7 +1440,7 @@ importers:
         specifier: 'catalog:'
         version: 1.1.13(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)
       asn1.js:
-        specifier: ^5.4.1
+        specifier: 'catalog:'
         version: 5.4.1
       aws-kms-ethers-signer:
         specifier: ^0.1.3
@@ -1493,7 +1511,7 @@ importers:
         version: 2.0.6(@nomiclabs/hardhat-ethers@2.2.3(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(hardhat@2.27.0(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@20.19.25)(typescript@5.8.3))(typescript@5.8.3)(utf-8-validate@5.0.10)))(@types/sinon-chai@3.2.12)(ethereum-waffle@4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(@ethersproject/abi@5.8.0)(@ethersproject/providers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(typescript@5.8.3))(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(hardhat@2.27.0(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@20.19.25)(typescript@5.8.3))(typescript@5.8.3)(utf-8-validate@5.0.10))
       '@sqds/multisig':
         specifier: 2.1.4
-        version: 2.1.4(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)(utf-8-validate@5.0.10)
+        version: 2.1.4(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
       '@types/bs58':
         specifier: ^5.0.0
         version: 5.0.0
@@ -1604,7 +1622,7 @@ importers:
         specifier: ^1.3.0
         version: 1.3.0
       '@radixdlt/babylon-gateway-api-sdk':
-        specifier: ^1.10.1
+        specifier: 'catalog:'
         version: 1.10.1
       '@radixdlt/radix-engine-toolkit':
         specifier: ^1.0.5
@@ -1659,7 +1677,7 @@ importers:
         specifier: 'catalog:'
         version: 11.7.5
       mocha-steps:
-        specifier: ^1.3.0
+        specifier: 'catalog:'
         version: 1.3.0
       prettier:
         specifier: 'catalog:'
@@ -2017,7 +2035,7 @@ importers:
         specifier: ^1.23.28
         version: 1.26.3(@types/react@18.3.27)(babel-plugin-macros@3.1.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@radixdlt/babylon-gateway-api-sdk':
-        specifier: ^1.10.1
+        specifier: 'catalog:'
         version: 1.10.1
       '@radixdlt/radix-dapp-toolkit':
         specifier: ^2.2.1
@@ -24079,7 +24097,7 @@ snapshots:
       - fastestsmallesttextencoderdecoder
       - typescript
 
-  '@solana/spl-token@0.3.11(@solana/web3.js@1.98.4(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10))(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)(utf-8-validate@5.0.10)':
+  '@solana/spl-token@0.3.11(@solana/web3.js@1.98.4(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10))(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)':
     dependencies:
       '@solana/buffer-layout': 4.0.1
       '@solana/buffer-layout-utils': 0.2.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
@@ -24336,12 +24354,12 @@ snapshots:
 
   '@solidity-parser/parser@0.20.2': {}
 
-  '@sqds/multisig@2.1.4(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)(utf-8-validate@5.0.10)':
+  '@sqds/multisig@2.1.4(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)':
     dependencies:
       '@metaplex-foundation/beet': 0.7.1
       '@metaplex-foundation/beet-solana': 0.4.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
       '@metaplex-foundation/cusper': 0.0.2
-      '@solana/spl-token': 0.3.11(@solana/web3.js@1.98.4(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10))(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)(utf-8-validate@5.0.10)
+      '@solana/spl-token': 0.3.11(@solana/web3.js@1.98.4(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10))(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
       '@solana/web3.js': 1.98.4(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
       '@types/bn.js': 5.2.0
       assert: 2.1.0

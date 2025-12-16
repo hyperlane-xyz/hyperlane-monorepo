@@ -19,7 +19,7 @@
     "@starknet-react/chains": "catalog:",
     "@wagmi/core": "^2.12.26",
     "@interchain-ui/react": "^1.23.28",
-    "@radixdlt/babylon-gateway-api-sdk": "^1.10.1",
+    "@radixdlt/babylon-gateway-api-sdk": "catalog:",
     "@radixdlt/radix-dapp-toolkit": "^2.2.1",
     "@rainbow-me/rainbowkit": "^2.2.0",
     "@solana/wallet-adapter-react": "^0.15.32",

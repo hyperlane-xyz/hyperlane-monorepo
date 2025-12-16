@@ -46,7 +46,7 @@
     "eslint-import-resolver-typescript": "catalog:",
     "eslint-plugin-import": "catalog:",
     "mocha": "catalog:",
-    "mocha-steps": "^1.3.0",
+    "mocha-steps": "catalog:",
     "node-fetch": "^3.3.2",
     "prettier": "catalog:",
     "ts-node": "catalog:",

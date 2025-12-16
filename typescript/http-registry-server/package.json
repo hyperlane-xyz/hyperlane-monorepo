@@ -47,7 +47,7 @@
     "chai-as-promised": "catalog:",
     "eslint": "catalog:",
     "mocha": "catalog:",
-    "pino-pretty": "^13.0.0",
+    "pino-pretty": "catalog:",
     "prettier": "catalog:",
     "sinon": "catalog:",
     "supertest": "^6.3.3",
