@@ -40,8 +40,18 @@ export class RoutingIsmReader
     const routingReader = this.artifactManager.createReader(
       AltVM.IsmType.ROUTING,
     );
-    const { artifactState, config, deployed } =
-      await routingReader.read(address);
+    const artifact = await routingReader.read(address);
+
+    return this.readNested(artifact);
+  }
+
+  async readNested(
+    artifact: ArtifactDeployed<
+      RawRoutingIsmArtifactConfig,
+      DeployedIsmAddresses
+    >,
+  ): Promise<DeployedRoutingIsmArtifact> {
+    const { artifactState, config, deployed } = artifact;
 
     const domains: Record<number, DeployedIsmArtifact> = {};
 
@@ -80,7 +90,12 @@ export class RoutingIsmReader
     const artifact = await reader.read(address);
 
     if (artifact.config.type === AltVM.IsmType.ROUTING) {
-      return this.read(address);
+      return this.readNested(
+        artifact as ArtifactDeployed<
+          RawRoutingIsmArtifactConfig,
+          DeployedIsmAddresses
+        >,
+      );
     }
 
     return artifact as DeployedIsmArtifact;
