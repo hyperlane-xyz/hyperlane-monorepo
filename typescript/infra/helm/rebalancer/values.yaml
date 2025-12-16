@@ -4,6 +4,7 @@ image:
 hyperlane:
   runEnv:
   context: hyperlane
+  registryUri: ''
   registryCommit: ''
   rebalancerConfigFile: ''
   withMetrics: true
