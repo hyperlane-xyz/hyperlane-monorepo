@@ -38,11 +38,11 @@ import { getDomainId, getWarpAddresses } from '../../registry.js';
 import { environment, ethereumChainNames } from './chains.js';
 import { blacklistedMessageIds } from './customBlacklist.js';
 import { helloWorld } from './helloworld.js';
-import aaveSenderAddresses from './misc-artifacts/aave-sender-addresses.json';
-import everclearSenderAddresses from './misc-artifacts/everclear-sender-addresses.json';
-import merklyEthAddresses from './misc-artifacts/merkly-eth-addresses.json';
-import merklyNftAddresses from './misc-artifacts/merkly-eth-addresses.json';
-import merklyErc20Addresses from './misc-artifacts/merkly-eth-addresses.json';
+import aaveSenderAddresses from './misc-artifacts/aave-sender-addresses.json' with { type: 'json' };
+import everclearSenderAddresses from './misc-artifacts/everclear-sender-addresses.json' with { type: 'json' };
+import merklyEthAddresses from './misc-artifacts/merkly-eth-addresses.json' with { type: 'json' };
+import merklyNftAddresses from './misc-artifacts/merkly-eth-addresses.json' with { type: 'json' };
+import merklyErc20Addresses from './misc-artifacts/merkly-eth-addresses.json' with { type: 'json' };
 import {
   mainnet3SupportedChainNames,
   supportedChainNames,

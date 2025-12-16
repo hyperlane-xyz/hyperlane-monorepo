@@ -1,7 +1,7 @@
 {
   "name": "@hyperlane-xyz/sdk",
   "description": "The official SDK for the Hyperlane Network",
-  "version": "19.13.0",
+  "version": "20.1.0",
   "dependencies": {
     "@arbitrum/sdk": "^4.0.0",
     "@aws-sdk/client-s3": "^3.577.0",
@@ -51,7 +51,7 @@
     "@nomiclabs/hardhat-waffle": "^2.0.6",
     "@types/chai-as-promised": "^8",
     "@types/mocha": "^10.0.1",
-    "@types/node": "^18.14.5",
+    "@types/node": "^20.17.0",
     "@types/sinon": "^17.0.1",
     "@types/sinon-chai": "^3.2.12",
     "@types/ws": "^8.5.5",
@@ -68,7 +68,7 @@
     "solidity-coverage": "^0.8.3",
     "ts-node": "^10.9.2",
     "tsx": "^4.19.1",
-    "typescript": "5.3.3",
+    "typescript": "5.8.3",
     "yaml": "2.4.5"
   },
   "type": "module",
@@ -102,7 +102,7 @@
     "test": "pnpm test:unit && pnpm test:hardhat && pnpm test:foundry",
     "test:ci": "pnpm test",
     "test:unit": "mocha --config .mocharc.json './src/**/*.test.ts' --exit",
-    "test:hardhat": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only --no-warnings=ExperimentalWarning' hardhat --config hardhat.config.cts test $(find ./src -name \"*.hardhat-test.ts\")",
+    "test:hardhat": "NODE_OPTIONS='--import tsx/esm' hardhat --config hardhat.config.cts test $(find ./src -name \"*.hardhat-test.ts\")",
     "test:foundry": "./scripts/foundry-test.sh"
   },
   "peerDependencies": {

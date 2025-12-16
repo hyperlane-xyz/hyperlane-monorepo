@@ -36,7 +36,7 @@ export const keyFunderConfig: KeyFunderConfig<
 > = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-    tag: '62472e9-20251212-155803',
+    tag: '8da6852-20251215-172511',
   },
   // We're currently using the same deployer/key funder key as mainnet2.
   // To minimize nonce clobbering we offset the key funder cron
