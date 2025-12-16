@@ -1,4 +1,5 @@
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
   CoreConfig,
@@ -10,7 +11,13 @@ import {
   DerivedHookConfig,
   HookConfig,
 } from '@hyperlane-xyz/provider-sdk/hook';
-import { DerivedIsmConfig, IsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
+import {
+  DeployedIsmArtifact,
+  DerivedIsmConfig,
+  IsmArtifactConfig,
+  IsmConfig,
+  STATIC_ISM_TYPES,
+} from '@hyperlane-xyz/provider-sdk/ism';
 import {
   AnnotatedTx,
   HypModule,
@@ -21,7 +28,8 @@ import { Address, Logger, rootLogger } from '@hyperlane-xyz/utils';
 
 import { AltVMCoreReader } from './AltVMCoreReader.js';
 import { AltVMHookModule } from './AltVMHookModule.js';
-import { ismModuleProvider } from './ism-module.js';
+import { createIsmWriter } from './ism/generic-ism-writer.js';
+import { ismConfigToArtifact } from './ism/ism-config-utils.js';
 import { validateIsmConfig } from './utils/validation.js';
 
 export class AltVMCoreModule implements HypModule<CoreModuleType> {
@@ -92,19 +100,17 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
     // Validate ISM configuration before deployment
     validateIsmConfig(config.defaultIsm, chainName, 'core default ISM');
 
-    // 1. Deploy default ISM using module provider
+    // 1. Deploy default ISM using artifact writer
     let defaultIsm: string;
     if (typeof config.defaultIsm === 'string') {
       // Address reference - use existing ISM
       defaultIsm = config.defaultIsm;
     } else {
       // Deploy new ISM
-      const moduleProvider = ismModuleProvider(chainLookup, metadata, '');
-      const ismModule = await moduleProvider.createModule(
-        signer,
-        config.defaultIsm,
-      );
-      defaultIsm = ismModule.serialize().deployedIsm;
+      const writer = createIsmWriter(metadata, chainLookup, signer);
+      const artifact = ismConfigToArtifact(config.defaultIsm, chainLookup);
+      const [deployed] = await writer.create(artifact);
+      defaultIsm = deployed.deployed.address;
     }
 
     // 2. Deploy Mailbox with initial configuration
@@ -328,29 +334,70 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
       };
     }
 
-    const { mailbox } = this.serialize();
     const chainMetadata = this.chainLookup.getChainMetadata(this.args.chain);
-
-    const moduleProvider = ismModuleProvider(
-      this.chainLookup,
+    const writer = createIsmWriter(
       chainMetadata,
-      mailbox,
+      this.chainLookup,
+      this.signer,
     );
-    const ismModule = moduleProvider.connectModule(this.signer, {
-      addresses: {
-        mailbox: mailbox,
-        deployedIsm: actualDefaultIsmConfig.address,
-      },
-      chain: this.chainName,
-      config: actualDefaultIsmConfig.address,
-    });
+
+    // Read actual ISM state
+    const actualArtifact = await writer.read(actualDefaultIsmConfig.address);
+
+    // Convert expected config to artifact format
+    const expectedArtifact = ismConfigToArtifact(
+      expectDefaultIsmConfig,
+      this.chainLookup,
+    );
+
     this.logger.info(
       `Comparing target ISM config with ${this.args.chain} chain`,
     );
-    const ismUpdateTxs = await ismModule.update(expectDefaultIsmConfig);
-    const { deployedIsm } = ismModule.serialize();
 
-    return { deployedIsm, ismUpdateTxs };
+    // Decide: deploy new ISM or update existing one
+    if (
+      this.shouldDeployNewIsm(actualArtifact.config, expectedArtifact.config)
+    ) {
+      // Deploy new ISM
+      const [deployed] = await writer.create(expectedArtifact);
+      return {
+        deployedIsm: deployed.deployed.address,
+        ismUpdateTxs: [],
+      };
+    }
+
+    // Update existing ISM (only routing ISMs support updates)
+    const deployedArtifact: DeployedIsmArtifact = {
+      ...expectedArtifact,
+      artifactState: ArtifactState.DEPLOYED,
+      config: expectedArtifact.config as IsmArtifactConfig,
+      deployed: actualArtifact.deployed,
+    };
+    const ismUpdateTxs = await writer.update(deployedArtifact);
+
+    return {
+      deployedIsm: actualDefaultIsmConfig.address,
+      ismUpdateTxs,
+    };
+  }
+
+  /**
+   * Determines if a new ISM should be deployed instead of updating the existing one.
+   * Deploy new ISM if:
+   * - ISM type changed
+   * - ISM is static/immutable (multisig types)
+   */
+  private shouldDeployNewIsm(
+    actual: IsmArtifactConfig,
+    expected: IsmArtifactConfig,
+  ): boolean {
+    // Type changed - must deploy new
+    if (actual.type !== expected.type) return true;
+
+    // Static ISM types are immutable - must deploy new
+    if (STATIC_ISM_TYPES.includes(expected.type)) return true;
+
+    return false;
   }
 
   /**
