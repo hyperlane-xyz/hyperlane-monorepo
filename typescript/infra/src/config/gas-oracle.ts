@@ -161,7 +161,7 @@ function getLocalStorageGasOracleConfigOverride(
     local: ChainName,
     remote: ChainName,
     gasOracleConfig: ProtocolAgnositicGasOracleConfig,
-  ): BigNumberJs.Value => {
+  ): Parameters<typeof BigNumberJs>[0] => {
     if (!applyMinUsdCost) {
       return gasOracleConfig.gasPrice;
     }

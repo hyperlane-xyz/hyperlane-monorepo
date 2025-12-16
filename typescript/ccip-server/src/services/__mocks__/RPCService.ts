@@ -1,4 +1,4 @@
-import ETH_GET_PROOFS from '../../../../../solidity/test/test-data/getProof-data.json';
+import ETH_GET_PROOFS from '../../../../../solidity/test/test-data/getProof-data.json' with { type: 'json' };
 
 class RPCService {
   getProofs = async (

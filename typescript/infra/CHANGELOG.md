@@ -1,5 +1,28 @@
 # @hyperlane-xyz/infra
 
+## 20.1.0
+
+### Patch Changes
+
+- Updated dependencies [11fa887]
+  - @hyperlane-xyz/sdk@20.1.0
+  - @hyperlane-xyz/utils@20.1.0
+  - @hyperlane-xyz/core@10.1.3
+  - @hyperlane-xyz/helloworld@20.1.0
+  - @hyperlane-xyz/http-registry-server@20.1.0
+
+## 20.0.0
+
+### Patch Changes
+
+- Updated dependencies [b3ebc08]
+- Updated dependencies [a7dc73d]
+  - @hyperlane-xyz/utils@20.0.0
+  - @hyperlane-xyz/sdk@20.0.0
+  - @hyperlane-xyz/core@10.1.2
+  - @hyperlane-xyz/helloworld@20.0.0
+  - @hyperlane-xyz/http-registry-server@20.0.0
+
 ## 19.13.0
 
 ### Patch Changes
