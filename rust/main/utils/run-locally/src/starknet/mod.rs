@@ -28,8 +28,8 @@ mod utils;
 
 const STARKNET_DEVNET_IMAGE: &str = "shardlabs/starknet-devnet-rs";
 const STARKNET_DEVNET_TAG: &str = "0.7.1";
-const STARKNET_CLI_GIT: &str = "https://github.com/xJonathanLEI/starkli";
-const STARKNET_CLI_VERSION: &str = "0.4.1"; // we need 0.3.8 because the latest version breaks the rpc schema
+const STARKNET_CLI_GIT: &str = "https://github.com/hyperlane-xyz/starkli";
+const STARKNET_CLI_VERSION: &str = "0.4.3"; // we need 0.3.8 because the latest version breaks the rpc schema
 const CAIRO_HYPERLANE_GIT: &str = "https://github.com/hyperlane-xyz/hyperlane-starknet";
 const CAIRO_HYPERLANE_VERSION: &str = "0.3.9";
 
@@ -152,7 +152,7 @@ fn launch_starknet_validator(
     debug: bool,
 ) -> AgentHandles {
     let validator_bin = concat_path(format!("../../{AGENT_BIN_PATH}"), "validator");
-    let validator_base = tempdir().expect("Failed to create a temp dir").into_path();
+    let validator_base = tempdir().expect("Failed to create a temp dir").keep();
     let validator_base_db = concat_path(&validator_base, "db");
 
     fs::create_dir_all(&validator_base_db).unwrap();
