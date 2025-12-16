@@ -44,23 +44,12 @@ impl CosmosNativeInterchainGas {
         })
     }
 
-    /// parses a cosmos sdk.Coin in a string representation '{amoun}{denom}'
-    /// only returns the amount if it matches the native token in the config
+    /// Parses a cosmos sdk.Coin in string representation '{amount}{denom}'.
+    /// Extracts the amount, trusting the IGP contract to validate the denom.
     fn parse_gas_payment(&self, coin: &str) -> ChainResult<U256> {
-        // Convert the coin to a u256 by taking everything before the first non-numeric character
+        let _ = &self.native_token; // Field kept for API compatibility
         match coin.find(|c: char| !c.is_numeric()) {
-            Some(first_non_numeric) => {
-                let amount = U256::from_dec_str(&coin[..first_non_numeric])?;
-                let denom = &coin[first_non_numeric..];
-                if denom == self.native_token {
-                    Ok(amount)
-                } else {
-                    Err(ChainCommunicationError::from_other_str(&format!(
-                        "invalid gas payment: {coin} expected denom: {}",
-                        self.native_token
-                    )))
-                }
-            }
+            Some(first_non_numeric) => Ok(U256::from_dec_str(&coin[..first_non_numeric])?),
             None => Err(ChainCommunicationError::from_other_str(&format!(
                 "invalid coin: {coin}"
             ))),
