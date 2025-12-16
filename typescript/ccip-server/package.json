@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/ccip-server",
-  "version": "20.0.0",
+  "version": "20.1.0",
   "description": "CCIP server",
   "typings": "dist/index.d.ts",
   "typedocMain": "src/index.ts",
@@ -29,7 +29,7 @@
     "@jest/globals": "^29.7.0",
     "@types/cors": "^2",
     "@types/express": "^4.17.1",
-    "@types/node": "^18.14.5",
+    "@types/node": "^20.17.0",
     "@types/pino-http": "^5.8.4",
     "@typescript-eslint/eslint-plugin": "^8.1.6",
     "@typescript-eslint/parser": "^8.1.6",
@@ -40,9 +40,8 @@
     "pino-pretty": "^13.0.0",
     "prettier": "^3.5.3",
     "ts-jest": "^29.1.2",
-    "ts-node": "^10.9.2",
     "tsx": "^4.19.1",
-    "typescript": "5.3.3"
+    "typescript": "5.8.3"
   },
   "dependencies": {
     "@eth-optimism/core-utils": "^0.13.2",

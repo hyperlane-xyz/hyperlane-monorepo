@@ -72,7 +72,10 @@ The warp-routes container
     value: json
   - name: REGISTRY_COMMIT
     value: {{ .Values.hyperlane.registryCommit }}
-  command:
+  # Use `args` instead of `command` to preserve the Docker ENTRYPOINT.
+  # The entrypoint script (docker-entrypoint.sh) handles REGISTRY_COMMIT checkout.
+  # Using `command` would bypass the entrypoint and break registry version pinning.
+  args:
   - pnpm
   - exec
   - tsx
