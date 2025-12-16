@@ -23,9 +23,9 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { AltVMHookModule } from './AltVMHookModule.js';
-import { AltVMIsmModule } from './AltVMIsmModule.js';
 import { AltVMDeployer } from './AltVMWarpDeployer.js';
 import { AltVMWarpRouteReader } from './AltVMWarpRouteReader.js';
+import { ismModuleProvider } from './ism-module.js';
 import { validateIsmConfig } from './utils/validation.js';
 
 export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
@@ -411,21 +411,31 @@ export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
       'warp route ISM',
     );
 
-    const ismModule = new AltVMIsmModule(
+    // If ISM is an address reference, use it directly without updates
+    if (typeof expectedConfig.interchainSecurityModule === 'string') {
+      return {
+        deployedIsm: expectedConfig.interchainSecurityModule,
+        updateTransactions: [],
+      };
+    }
+
+    const metadata = this.chainLookup.getChainMetadata(this.args.chain);
+    const moduleProvider = ismModuleProvider(
       this.chainLookup,
-      {
-        chain: this.args.chain,
-        config: expectedConfig.interchainSecurityModule,
-        addresses: {
-          ...this.args.addresses,
-          mailbox: expectedConfig.mailbox,
-          deployedIsm:
-            (actualConfig.interchainSecurityModule as DerivedIsmConfig)
-              ?.address ?? '',
-        },
-      },
-      this.signer,
+      metadata,
+      expectedConfig.mailbox,
     );
+    const ismModule = moduleProvider.connectModule(this.signer, {
+      chain: this.args.chain,
+      config: expectedConfig.interchainSecurityModule,
+      addresses: {
+        ...this.args.addresses,
+        mailbox: expectedConfig.mailbox,
+        deployedIsm:
+          (actualConfig.interchainSecurityModule as DerivedIsmConfig)
+            ?.address ?? '',
+      },
+    });
     this.logger.debug(
       `Comparing target ISM config with ${this.args.chain} chain`,
     );

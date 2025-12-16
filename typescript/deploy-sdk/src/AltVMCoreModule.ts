@@ -21,7 +21,7 @@ import { Address, Logger, rootLogger } from '@hyperlane-xyz/utils';
 
 import { AltVMCoreReader } from './AltVMCoreReader.js';
 import { AltVMHookModule } from './AltVMHookModule.js';
-import { AltVMIsmModule } from './AltVMIsmModule.js';
+import { ismModuleProvider } from './ism-module.js';
 import { validateIsmConfig } from './utils/validation.js';
 
 export class AltVMCoreModule implements HypModule<CoreModuleType> {
@@ -92,18 +92,20 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
     // Validate ISM configuration before deployment
     validateIsmConfig(config.defaultIsm, chainName, 'core default ISM');
 
-    // 1. Deploy default ISM
-    const ismModule = await AltVMIsmModule.create({
-      chain: chainName,
-      config: config.defaultIsm,
-      addresses: {
-        mailbox: '',
-      },
-      chainLookup,
-      signer,
-    });
-
-    const { deployedIsm: defaultIsm } = ismModule.serialize();
+    // 1. Deploy default ISM using module provider
+    let defaultIsm: string;
+    if (typeof config.defaultIsm === 'string') {
+      // Address reference - use existing ISM
+      defaultIsm = config.defaultIsm;
+    } else {
+      // Deploy new ISM
+      const moduleProvider = ismModuleProvider(chainLookup, metadata, '');
+      const ismModule = await moduleProvider.createModule(
+        signer,
+        config.defaultIsm,
+      );
+      defaultIsm = ismModule.serialize().deployedIsm;
+    }
 
     // 2. Deploy Mailbox with initial configuration
     const mailbox = await signer.createMailbox({
@@ -318,20 +320,30 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
     deployedIsm: Address;
     ismUpdateTxs: AnnotatedTx[];
   }> {
-    const { mailbox } = this.serialize();
+    // If expected ISM is an address reference, use it directly
+    if (typeof expectDefaultIsmConfig === 'string') {
+      return {
+        deployedIsm: expectDefaultIsmConfig,
+        ismUpdateTxs: [],
+      };
+    }
 
-    const ismModule = new AltVMIsmModule(
+    const { mailbox } = this.serialize();
+    const chainMetadata = this.chainLookup.getChainMetadata(this.args.chain);
+
+    const moduleProvider = ismModuleProvider(
       this.chainLookup,
-      {
-        addresses: {
-          mailbox: mailbox,
-          deployedIsm: actualDefaultIsmConfig.address,
-        },
-        chain: this.chainName,
-        config: actualDefaultIsmConfig.address,
-      },
-      this.signer,
+      chainMetadata,
+      mailbox,
     );
+    const ismModule = moduleProvider.connectModule(this.signer, {
+      addresses: {
+        mailbox: mailbox,
+        deployedIsm: actualDefaultIsmConfig.address,
+      },
+      chain: this.chainName,
+      config: actualDefaultIsmConfig.address,
+    });
     this.logger.info(
       `Comparing target ISM config with ${this.args.chain} chain`,
     );

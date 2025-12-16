@@ -1,13 +1,19 @@
+import { getProtocolProvider } from '@hyperlane-xyz/provider-sdk';
 import { IProvider, ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
+import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   ChainLookup,
   ChainMetadataForAltVM,
 } from '@hyperlane-xyz/provider-sdk/chain';
 import {
+  DeployedIsmArtifact,
   DerivedIsmConfig,
+  IRawIsmArtifactManager,
+  IsmArtifactConfig,
   IsmConfig,
   IsmModuleAddresses,
   IsmModuleType,
+  STATIC_ISM_TYPES,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import {
   AnnotatedTx,
@@ -18,8 +24,9 @@ import {
   TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
 
-import { AltVMIsmModule } from './AltVMIsmModule.js';
+import { GenericIsmWriter } from './ism/generic-ism-writer.js';
 import { createIsmReader } from './ism/generic-ism.js';
+import { ismConfigToArtifact } from './ism/ism-config-utils.js';
 
 /**
  * Adapter that wraps IsmReader to implement HypReader interface.
@@ -38,28 +45,125 @@ class IsmReaderAdapter implements HypReader<IsmModuleType> {
   }
 }
 
+/**
+ * Adapter that wraps GenericIsmWriter to implement HypModule interface.
+ * This bridges the Artifact API (GenericIsmWriter) with the Config API (HypModule).
+ *
+ * Key responsibilities:
+ * - Convert Config API (IsmConfig) to Artifact API (IsmArtifactConfig)
+ * - Convert Artifact API back to Config API for read operations
+ * - Decide whether to deploy new ISM or update existing one
+ * - Maintain backward compatibility with existing module provider interface
+ */
+class IsmModuleAdapter implements HypModule<IsmModuleType> {
+  constructor(
+    private readonly writer: GenericIsmWriter,
+    private readonly chainLookup: ChainLookup,
+    private readonly args: HypModuleArgs<IsmModuleType>,
+  ) {}
+
+  async read(): Promise<DerivedIsmConfig> {
+    // Use writer's inherited read() method and convert to DerivedIsmConfig
+    return this.writer.deriveIsmConfig(this.args.addresses.deployedIsm);
+  }
+
+  serialize(): IsmModuleAddresses {
+    return this.args.addresses;
+  }
+
+  async update(expectedConfig: IsmConfig): Promise<AnnotatedTx[]> {
+    // Read current state
+    const actualArtifact = await this.writer.read(
+      this.args.addresses.deployedIsm,
+    );
+
+    // Convert expected config to artifact format
+    const expectedArtifact = ismConfigToArtifact(
+      expectedConfig,
+      this.chainLookup,
+    );
+
+    // Decide: deploy new ISM or update existing one
+    if (this.shouldDeployNew(actualArtifact.config, expectedArtifact.config)) {
+      // Deploy new ISM
+      await this.writer.create(expectedArtifact);
+      // TODO: Return txs to update mailbox's defaultIsm if needed
+      // For now, return empty array (caller handles mailbox update)
+      return [];
+    }
+
+    // Update existing ISM (only routing ISMs support updates)
+    const deployedArtifact: DeployedIsmArtifact = {
+      ...expectedArtifact,
+      artifactState: ArtifactState.DEPLOYED,
+      config: expectedArtifact.config as IsmArtifactConfig,
+      deployed: actualArtifact.deployed,
+    };
+    return this.writer.update(deployedArtifact);
+  }
+
+  /**
+   * Determines if a new ISM should be deployed instead of updating the existing one.
+   * Deploy new ISM if:
+   * - ISM type changed
+   * - ISM is static/immutable (multisig types)
+   */
+  private shouldDeployNew(
+    actual: IsmArtifactConfig,
+    expected: IsmArtifactConfig,
+  ): boolean {
+    // Type changed - must deploy new
+    if (actual.type !== expected.type) return true;
+
+    // Static ISM types are immutable - must deploy new
+    if (STATIC_ISM_TYPES.includes(expected.type)) return true;
+
+    return false;
+  }
+}
+
+/**
+ * Module provider that creates GenericIsmWriter and adapts it to HypModule.
+ */
 class IsmModuleProvider implements ModuleProvider<IsmModuleType> {
+  private readonly artifactManager: IRawIsmArtifactManager;
+
   constructor(
     private chainLookup: ChainLookup,
     private chainMetadata: ChainMetadataForAltVM,
     private mailboxAddress: string,
-  ) {}
+  ) {
+    // Create artifact manager once in constructor
+    const protocolProvider = getProtocolProvider(chainMetadata.protocol);
+    this.artifactManager =
+      protocolProvider.createIsmArtifactManager(chainMetadata);
+  }
 
   async createModule(
     signer: ISigner<AnnotatedTx, TxReceipt>,
     config: IsmConfig,
   ): Promise<HypModule<IsmModuleType>> {
+    // Create writer
+    const writer = new GenericIsmWriter(
+      this.artifactManager,
+      this.chainLookup,
+      signer,
+    );
+
+    // Convert config and deploy
+    const artifact = ismConfigToArtifact(config, this.chainLookup);
+    const [deployed] = await writer.create(artifact);
+
+    // Create module with deployed address
     const addresses: IsmModuleAddresses = {
-      deployedIsm: '', // Will be populated by the module
+      deployedIsm: deployed.deployed.address,
       mailbox: this.mailboxAddress,
     };
 
-    return await AltVMIsmModule.create({
-      chainLookup: this.chainLookup,
-      chain: this.chainMetadata.name,
-      signer,
-      config,
+    return new IsmModuleAdapter(writer, this.chainLookup, {
       addresses,
+      chain: this.chainMetadata.name,
+      config,
     });
   }
 
@@ -67,7 +171,14 @@ class IsmModuleProvider implements ModuleProvider<IsmModuleType> {
     signer: ISigner<AnnotatedTx, TxReceipt>,
     args: HypModuleArgs<IsmModuleType>,
   ): HypModule<IsmModuleType> {
-    return new AltVMIsmModule(this.chainLookup, args, signer);
+    // Create writer
+    const writer = new GenericIsmWriter(
+      this.artifactManager,
+      this.chainLookup,
+      signer,
+    );
+
+    return new IsmModuleAdapter(writer, this.chainLookup, args);
   }
 
   connectReader(_provider: IProvider<any>): HypReader<IsmModuleType> {
