@@ -1,7 +1,13 @@
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import { DerivedHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
-import { DerivedIsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
+import {
+  DeployedIsmArtifact,
+  DerivedIsmConfig,
+  IsmArtifactConfig,
+  STATIC_ISM_TYPES,
+} from '@hyperlane-xyz/provider-sdk/ism';
 import {
   AnnotatedTx,
   HypModule,
@@ -25,7 +31,8 @@ import {
 import { AltVMHookModule } from './AltVMHookModule.js';
 import { AltVMDeployer } from './AltVMWarpDeployer.js';
 import { AltVMWarpRouteReader } from './AltVMWarpRouteReader.js';
-import { ismModuleProvider } from './ism-module.js';
+import { createIsmWriter } from './ism/generic-ism-writer.js';
+import { ismConfigToArtifact } from './ism/ism-config-utils.js';
 import { validateIsmConfig } from './utils/validation.js';
 
 export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
@@ -420,31 +427,69 @@ export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
     }
 
     const metadata = this.chainLookup.getChainMetadata(this.args.chain);
-    const moduleProvider = ismModuleProvider(
+    const writer = createIsmWriter(metadata, this.chainLookup, this.signer);
+
+    const actualIsmAddress =
+      (actualConfig.interchainSecurityModule as DerivedIsmConfig)?.address ??
+      '';
+
+    // Read actual ISM state
+    const actualArtifact = await writer.read(actualIsmAddress);
+
+    // Convert expected config to artifact format
+    const expectedArtifact = ismConfigToArtifact(
+      expectedConfig.interchainSecurityModule,
       this.chainLookup,
-      metadata,
-      expectedConfig.mailbox,
     );
-    const ismModule = moduleProvider.connectModule(this.signer, {
-      chain: this.args.chain,
-      config: expectedConfig.interchainSecurityModule,
-      addresses: {
-        ...this.args.addresses,
-        mailbox: expectedConfig.mailbox,
-        deployedIsm:
-          (actualConfig.interchainSecurityModule as DerivedIsmConfig)
-            ?.address ?? '',
-      },
-    });
+
     this.logger.debug(
       `Comparing target ISM config with ${this.args.chain} chain`,
     );
-    const updateTransactions = await ismModule.update(
-      expectedConfig.interchainSecurityModule,
-    );
-    const { deployedIsm } = ismModule.serialize();
 
-    return { deployedIsm, updateTransactions };
+    // Decide: deploy new ISM or update existing one
+    if (
+      this.shouldDeployNewIsm(actualArtifact.config, expectedArtifact.config)
+    ) {
+      // Deploy new ISM
+      const [deployed] = await writer.create(expectedArtifact);
+      return {
+        deployedIsm: deployed.deployed.address,
+        updateTransactions: [],
+      };
+    }
+
+    // Update existing ISM (only routing ISMs support updates)
+    const deployedArtifact: DeployedIsmArtifact = {
+      ...expectedArtifact,
+      artifactState: ArtifactState.DEPLOYED,
+      config: expectedArtifact.config as IsmArtifactConfig,
+      deployed: actualArtifact.deployed,
+    };
+    const updateTransactions = await writer.update(deployedArtifact);
+
+    return {
+      deployedIsm: actualIsmAddress,
+      updateTransactions,
+    };
+  }
+
+  /**
+   * Determines if a new ISM should be deployed instead of updating the existing one.
+   * Deploy new ISM if:
+   * - ISM type changed
+   * - ISM is static/immutable (multisig types)
+   */
+  private shouldDeployNewIsm(
+    actual: IsmArtifactConfig,
+    expected: IsmArtifactConfig,
+  ): boolean {
+    // Type changed - must deploy new
+    if (actual.type !== expected.type) return true;
+
+    // Static ISM types are immutable - must deploy new
+    if (STATIC_ISM_TYPES.includes(expected.type)) return true;
+
+    return false;
   }
 
   /**
