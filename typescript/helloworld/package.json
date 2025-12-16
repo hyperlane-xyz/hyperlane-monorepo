@@ -19,7 +19,7 @@
     "@ethersproject/providers": "*",
     "@nomiclabs/hardhat-ethers": "catalog:",
     "@nomiclabs/hardhat-waffle": "catalog:",
-    "@trivago/prettier-plugin-sort-imports": "^5.2.2",
+    "@trivago/prettier-plugin-sort-imports": "catalog:",
     "@typechain/ethers-v5": "catalog:",
     "@typechain/ethers-v6": "catalog:",
     "@typechain/hardhat": "catalog:",

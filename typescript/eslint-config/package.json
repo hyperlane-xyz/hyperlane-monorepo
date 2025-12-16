@@ -14,7 +14,7 @@
     "eslint-config-prettier": "catalog:",
     "eslint-import-resolver-typescript": "catalog:",
     "eslint-plugin-import": "catalog:",
-    "globals": "^16.3.0",
+    "globals": "catalog:",
     "typescript-eslint": "catalog:"
   }
 }
