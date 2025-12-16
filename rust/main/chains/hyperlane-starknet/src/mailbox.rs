@@ -47,9 +47,8 @@ impl StarknetMailbox {
 
         let mailbox_address: Felt = HyH256(locator.address).into();
 
-        let contract = StarknetMailboxInternal::new(mailbox_address, account).with_block(
-            starknet::core::types::BlockId::Tag(starknet::core::types::BlockTag::Latest),
-        );
+        let contract = StarknetMailboxInternal::new(mailbox_address, account);
+
         Ok(Self {
             contract,
             provider,
@@ -111,6 +110,9 @@ impl Mailbox for StarknetMailbox {
         Ok(self
             .contract
             .delivered(&StarknetU256 { low, high })
+            .block_id(starknet::core::types::BlockId::Tag(
+                starknet::core::types::BlockTag::Latest,
+            ))
             .call()
             .await
             .map_err(Into::<HyperlaneStarknetError>::into)?)
@@ -121,6 +123,9 @@ impl Mailbox for StarknetMailbox {
         let address = self
             .contract
             .get_default_ism()
+            .block_id(starknet::core::types::BlockId::Tag(
+                starknet::core::types::BlockTag::Latest,
+            ))
             .call()
             .await
             .map_err(Into::<HyperlaneStarknetError>::into)?;
@@ -132,6 +137,9 @@ impl Mailbox for StarknetMailbox {
         let address = self
             .contract
             .recipient_ism(&StarknetU256::from_bytes_be(&recipient.to_fixed_bytes()))
+            .block_id(starknet::core::types::BlockId::Tag(
+                starknet::core::types::BlockTag::Latest,
+            ))
             .call()
             .await
             .map_err(Into::<HyperlaneStarknetError>::into)?;
