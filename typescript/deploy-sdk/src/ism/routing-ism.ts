@@ -1,5 +1,5 @@
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { IProvider, ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
+import { ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   Artifact,
   ArtifactDeployed,
@@ -15,7 +15,6 @@ import {
   IsmArtifactConfig,
   RawRoutingIsmArtifactConfig,
   RoutingIsmArtifactConfig,
-  altVMIsmTypeToProviderSdkType,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import { Logger, rootLogger } from '@hyperlane-xyz/utils';
@@ -34,7 +33,6 @@ export class RoutingIsmReader
 
   constructor(
     protected readonly chainLookup: ChainLookup,
-    private readonly provider: IProvider,
     protected readonly artifactManager: IRawIsmArtifactManager,
   ) {}
 
@@ -78,15 +76,14 @@ export class RoutingIsmReader
   }
 
   private async readDomainIsm(address: string): Promise<DeployedIsmArtifact> {
-    const ismType = await this.provider.getIsmType({ ismAddress: address });
+    const reader = this.artifactManager.createReader('genericIsm');
+    const artifact = await reader.read(address);
 
-    const artifactIsmType = altVMIsmTypeToProviderSdkType(ismType);
-    if (artifactIsmType === AltVM.IsmType.ROUTING) {
+    if (artifact.config.type === AltVM.IsmType.ROUTING) {
       return this.read(address);
     }
 
-    const reader = this.artifactManager.createReader(artifactIsmType);
-    return reader.read(address);
+    return artifact as DeployedIsmArtifact;
   }
 }
 
@@ -95,12 +92,11 @@ export class RoutingIsmWriter
   implements ArtifactWriter<RoutingIsmArtifactConfig, DeployedIsmAddresses>
 {
   constructor(
-    provider: IProvider,
     artifactManager: IRawIsmArtifactManager,
     chainLookup: ChainLookup,
     private readonly signer: ISigner<AnnotatedTx, TxReceipt>,
   ) {
-    super(chainLookup, provider, artifactManager);
+    super(chainLookup, artifactManager);
   }
 
   async create(

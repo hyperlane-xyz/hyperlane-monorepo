@@ -15,6 +15,7 @@ import {
 import { RadixSigner } from '../clients/signer.js';
 import { RadixBase } from '../utils/base.js';
 
+import { RadixGenericIsmReader } from './generic-ism.js';
 import {
   RadixMerkleRootMultisigIsmReader,
   RadixMerkleRootMultisigIsmWriter,
@@ -61,6 +62,14 @@ export class RadixIsmArtifactManager implements IRawIsmArtifactManager {
       case AltVM.IsmType.ROUTING:
         return new RadixRoutingIsmRawReader(
           this.gateway,
+        ) as unknown as ArtifactReader<
+          RawIsmArtifactConfigs[T],
+          DeployedIsmAddresses
+        >;
+      case 'genericIsm':
+        return new RadixGenericIsmReader(
+          this.gateway,
+          this,
         ) as unknown as ArtifactReader<
           RawIsmArtifactConfigs[T],
           DeployedIsmAddresses

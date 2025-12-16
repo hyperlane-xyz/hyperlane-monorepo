@@ -21,10 +21,14 @@ export interface IsmConfigs {
   merkleRootMultisigIsm: MultisigIsmConfig;
   messageIdMultisigIsm: MultisigIsmConfig;
   testIsm: TestIsmConfig;
+  genericIsm: IsmConfig;
 }
 
 export type IsmType = keyof IsmConfigs;
-export type IsmConfig = IsmConfigs[IsmType];
+export type IsmConfig =
+  | DomainRoutingIsmConfig
+  | MultisigIsmConfig
+  | TestIsmConfig;
 export type DerivedIsmConfig = WithAddress<IsmConfig>;
 
 export const STATIC_ISM_TYPES: IsmType[] = [
@@ -64,13 +68,17 @@ export interface IsmArtifactConfigs {
   merkleRootMultisigIsm: MultisigIsmConfig;
   messageIdMultisigIsm: MultisigIsmConfig;
   testIsm: TestIsmConfig;
+  genericIsm: IsmArtifactConfig;
 }
 
 /**
  * Should be used for the specific artifact code that
  * deploys or reads any kind of ISM and its nested configs (Routing, Aggregation, ...)
  */
-export type IsmArtifactConfig = IsmArtifactConfigs[IsmType];
+export type IsmArtifactConfig =
+  | RoutingIsmArtifactConfig
+  | MultisigIsmConfig
+  | TestIsmConfig;
 
 /**
  * Describes the configuration of deployed ISM and its nested configs (Routing, Aggregation, ...)
@@ -106,13 +114,17 @@ export interface RawIsmArtifactConfigs {
   merkleRootMultisigIsm: MultisigIsmConfig;
   messageIdMultisigIsm: MultisigIsmConfig;
   testIsm: TestIsmConfig;
+  genericIsm: RawIsmArtifactConfig;
 }
 
 /**
  * Should be used for the specific artifact code that
  * deploys or reads a single artifact on chain
  */
-export type RawIsmArtifactConfig = RawIsmArtifactConfigs[IsmType];
+export type RawIsmArtifactConfig =
+  | RawRoutingIsmArtifactConfig
+  | MultisigIsmConfig
+  | TestIsmConfig;
 
 /**
  * Should be used to implement an object/closure or class that individually deploys
