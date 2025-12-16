@@ -258,7 +258,7 @@ impl<C: AleoClient> Mailbox for AleoMailbox<C> {
         let get_mapping_value = AleoGetMappingValue {
             program_id: self.program.clone(),
             mapping_name: "deliveries".to_string(),
-            mapping_key: key.to_string(),
+            mapping_key: key,
         };
 
         let json_val =

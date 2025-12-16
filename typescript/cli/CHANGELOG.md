@@ -1,5 +1,25 @@
 # @hyperlane-xyz/cli
 
+## 20.1.0
+
+### Minor Changes
+
+- 11fa887: Upgrade TypeScript from 5.3.3 to 5.8.3 and compilation target to ES2023
+
+  - Upgraded TypeScript from 5.3.3 to 5.8.3 across all packages
+  - Updated compilation target from ES2022 to ES2023 (Node 16+ fully supported)
+  - Converted internal const enums to 'as const' pattern for better compatibility
+  - Updated @types/node from ^18.14.5 to ^20.17.0 for TypeScript 5.7+ compatibility
+  - Fixed JSON imports to use required 'with { type: "json" }' attribute (TS 5.7+ requirement)
+  - No breaking changes to public API - all changes are internal or non-breaking
+
+## 20.0.0
+
+### Minor Changes
+
+- b12fe7e: Update `hyperlane submit` to use a sequential `for` loop instead of `promiseObjAll` to prevent API rate limiting, Output transaction receipts as unique JSON files per chain with timestamped filenames.
+- aeac943: Refactor AltVMJsonRpcTxSubmitter to implement ITransactionSubmitter. Remove ALT_VM_SUPPORTED_PROTOCOLS, createAltVMSubmitterFactories in favor of simplified getSubmitterByStrategy
+
 ## 19.13.0
 
 ### Minor Changes

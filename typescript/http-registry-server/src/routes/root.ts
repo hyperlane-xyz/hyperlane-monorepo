@@ -5,7 +5,7 @@ import { WarpRouteFilterSchema } from '@hyperlane-xyz/registry';
 import { validateQueryParams } from '../middleware/validateRequest.js';
 import { RootService } from '../services/rootService.js';
 
-export function createRootRouter(rootService: RootService) {
+export function createRootRouter(rootService: RootService): Router {
   const router = Router();
 
   // get metadata
