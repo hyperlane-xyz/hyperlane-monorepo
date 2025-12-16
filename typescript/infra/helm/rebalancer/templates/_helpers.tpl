@@ -80,10 +80,6 @@ The rebalancer container
   - name: REGISTRY_URI
     value: {{ .Values.hyperlane.registryUri }}
   {{- end }}
-  {{- if .Values.hyperlane.registryCommit }}
-  - name: REGISTRY_COMMIT
-    value: {{ .Values.hyperlane.registryCommit }}
-  {{- end }}
   - name: HYP_KEY
     value: $(REBALANCER_KEY)
   - name: COINGECKO_API_KEY

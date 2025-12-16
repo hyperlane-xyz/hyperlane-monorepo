@@ -14,8 +14,7 @@
  * - WITH_METRICS: Enable Prometheus metrics (default: "true")
  * - MONITOR_ONLY: Run in monitor-only mode without executing transactions (default: "false")
  * - LOG_LEVEL: Logging level (default: "info") - supported by pino
- * - REGISTRY_URI: Registry URI for chain metadata (default: GitHub registry)
- * - REGISTRY_COMMIT: Branch or commit SHA to use for the GitHub registry (default: "main")
+ * - REGISTRY_URI: Registry URI for chain metadata. Can include /tree/{commit} to pin version (default: GitHub registry)
  *
  * Usage:
  *   node dist/service.js
@@ -33,8 +32,6 @@ import { createServiceLogger, rootLogger } from '@hyperlane-xyz/utils';
 
 import { RebalancerConfig } from './config/RebalancerConfig.js';
 import { RebalancerService } from './core/RebalancerService.js';
-
-const DEFAULT_REGISTRY_COMMIT = 'main';
 
 function getVersion(): string {
   try {
@@ -103,28 +100,15 @@ async function main(): Promise<void> {
     const rebalancerConfig = RebalancerConfig.load(configFile);
     logger.info('✅ Loaded rebalancer configuration');
 
-    // Initialize registry (uses env vars or defaults to GitHub registry)
+    // Initialize registry (uses env var or defaults to GitHub registry)
+    // For GitHub registries, REGISTRY_URI can include /tree/{commit} to pin to a specific version
     const registryUri = process.env.REGISTRY_URI || DEFAULT_GITHUB_REGISTRY;
-    const registryCommit =
-      process.env.REGISTRY_COMMIT || DEFAULT_REGISTRY_COMMIT;
-
-    // Note: registryCommit (branch) is only used for GitHub registries.
-    // For filesystem or other HTTP registries, it's silently ignored by getRegistry().
-    const isGithubRegistry = registryUri.includes('github');
-    if (process.env.REGISTRY_COMMIT && !isGithubRegistry) {
-      logger.warn(
-        { registryUri, registryCommit },
-        'REGISTRY_COMMIT is set but REGISTRY_URI is not a GitHub registry - commit will be ignored',
-      );
-    }
-
     const registry = getRegistry({
       registryUris: [registryUri],
       enableProxy: true,
-      branch: registryCommit,
       logger: rootLogger,
     });
-    logger.info({ registryUri, registryCommit }, '✅ Initialized registry');
+    logger.info({ registryUri }, '✅ Initialized registry');
 
     // Get chain metadata from registry
     const chainMetadata = await registry.getMetadata();
