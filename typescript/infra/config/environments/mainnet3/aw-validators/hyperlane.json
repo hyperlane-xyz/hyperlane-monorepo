@@ -122,9 +122,6 @@
   "fluence": {
     "validators": ["0xabc8dd7594783c90a3c0fb760943f78c37ea6d75"]
   },
-  "form": {
-    "validators": ["0x58554b2e76167993b5fc000d0070a2f883cd333a"]
-  },
   "fraxtal": {
     "validators": ["0x4bce180dac6da60d0f3a2bdf036ffe9004f944c1"]
   },
@@ -157,9 +154,6 @@
   },
   "incentiv": {
     "validators": ["0x72669f47b6f119289f1a42641b02a9656cc8fecd"]
-  },
-  "injective": {
-    "validators": ["0xbfb8911b72cfb138c7ce517c57d9c691535dc517"]
   },
   "ink": {
     "validators": ["0xb533b8b104522958b984fb258e0684dec0f1a6a5"]
@@ -218,9 +212,6 @@
   "milkyway": {
     "validators": ["0x9985e0c6df8e25b655b46a317af422f5e7756875"]
   },
-  "mint": {
-    "validators": ["0xfed01ccdd7a65e8a6ad867b7fb03b9eb47777ac9"]
-  },
   "miraclechain": {
     "validators": ["0x8fc655174e99194399822ce2d3a0f71d9fc2de7b"]
   },
@@ -242,9 +233,6 @@
   "morph": {
     "validators": ["0x4884535f393151ec419add872100d352f71af380"]
   },
-  "neutron": {
-    "validators": ["0xa9b8c1f4998f781f958c63cfcd1708d02f004ff0"]
-  },
   "nibiru": {
     "validators": ["0xba9779d84a8efba1c6bc66326d875c3611a24b24"]
   },
@@ -265,9 +253,6 @@
   },
   "orderly": {
     "validators": ["0xec3dc91f9fa2ad35edf5842aa764d5573b778bb6"]
-  },
-  "osmosis": {
-    "validators": ["0xea483af11c19fa41b16c31d1534c2a486a92bcac"]
   },
   "peaq": {
     "validators": ["0x7f7fe70b676f65097e2a1e2683d0fc96ea8fea49"]
