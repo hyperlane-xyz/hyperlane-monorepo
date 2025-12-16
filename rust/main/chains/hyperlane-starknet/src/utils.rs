@@ -8,6 +8,7 @@ use hyperlane_core::{
     ChainCommunicationError, ChainResult, HyperlaneMessage, ModuleType, ReorgPeriod, TxOutcome,
 };
 use starknet::accounts::ExecutionV3;
+use starknet::core::types::ReceiptBlock;
 use starknet::{
     accounts::SingleOwnerAccount,
     core::{
@@ -50,6 +51,10 @@ pub async fn get_transaction_receipt(
                     .get_transaction_receipt(transaction_hash)
                     .await
                     .map_err(HyperlaneStarknetError::from)?;
+
+                if let ReceiptBlock::PreConfirmed { .. } = tx.block {
+                    return Err(HyperlaneStarknetError::PendingBlock.into());
+                }
                 Ok(tx.receipt)
             })
         },
