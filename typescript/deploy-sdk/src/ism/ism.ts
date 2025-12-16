@@ -115,14 +115,7 @@ export class IsmWriter
     }
 
     if (config.type === AltVM.IsmType.ROUTING) {
-      const writer = new RoutingIsmWriter(
-        this.provider,
-        this.artifactManager,
-        this.chainLookup,
-        this.signer,
-      );
-
-      return writer.update({
+      return this.routingIsmWriter.update({
         config,
         artifactState,
         deployed,
