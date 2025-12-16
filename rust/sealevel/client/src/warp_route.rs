@@ -337,7 +337,8 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
             TokenType::Synthetic(_token_metadata) => {
                 let decimals = init.decimals;
 
-                ctx.new_txn()
+                println!("=== DEBUG: Sending init_instruction transaction ===");
+                let tx_result = ctx.new_txn()
                     .add(
                         hyperlane_sealevel_token::instruction::init_instruction(
                             program_id,
@@ -349,8 +350,73 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                     .with_client(client)
                     .send_with_payer();
 
+                match &tx_result {
+                    Some(tx) => {
+                        println!("=== DEBUG: init_instruction transaction sent successfully ===");
+                        if let Some(meta) = &tx.transaction.meta {
+                            if let Some(err) = &meta.err {
+                                println!("=== ERROR: Transaction failed: {:?} ===", err);
+                            } else {
+                                println!("=== DEBUG: Transaction succeeded ===");
+                            }
+                        }
+                    }
+                    None => {
+                        println!("=== WARNING: init_instruction transaction result is None ===");
+                    }
+                }
+
                 let (mint_account, _mint_bump) =
                     Pubkey::find_program_address(hyperlane_token_mint_pda_seeds!(), &program_id);
+
+                // Wait a bit for the account to be created and confirmed
+                println!("=== DEBUG: Waiting 2 seconds for account creation to be confirmed ===");
+                std::thread::sleep(std::time::Duration::from_secs(2));
+
+                // Debug: Check spl-token version
+                println!("=== DEBUG: Checking spl-token version ===");
+                let mut version_cmd = Command::new(spl_token_binary_path.clone());
+                version_cmd.args(["--version"]);
+                let version_output = version_cmd.output().expect("Failed to run spl-token --version");
+                let version_str = String::from_utf8_lossy(&version_output.stdout).trim().to_string();
+                println!("spl-token version output: {}", version_str);
+                if !version_output.stderr.is_empty() {
+                    println!("spl-token version stderr: {}", String::from_utf8_lossy(&version_output.stderr));
+                }
+                println!("spl-token exit status: {:?}", version_output.status);
+                println!("spl-token binary path: {}", spl_token_binary_path);
+                
+                // Check if using the custom fork
+                if !version_str.contains("dan/create-token-for-mint") && !version_str.contains("e101cca") {
+                    println!("=== WARNING: Not using the custom spl-token-cli fork! ===");
+                    println!("Expected fork: dan/create-token-for-mint (rev e101cca)");
+                    println!("Install with: cargo +1.76.0 install spl-token-cli --git https://github.com/hyperlane-xyz/solana-program-library --branch dan/create-token-for-mint --rev e101cca --locked --force");
+                }
+
+                // Debug: Check account state after init_instruction
+                println!("=== DEBUG: Checking mint account state after init_instruction ===");
+                println!("Mint account: {}", mint_account);
+                match client.get_account(&mint_account) {
+                    Ok(account) => {
+                        println!("Account exists: true");
+                        println!("Account owner: {}", account.owner);
+                        println!("Account lamports: {}", account.lamports);
+                        println!("Account data length: {}", account.data.len());
+                        println!("Account executable: {}", account.executable);
+                        println!("Account rent_epoch: {}", account.rent_epoch);
+                        if account.data.len() > 0 {
+                            println!("Account data (first 64 bytes): {:?}", &account.data[..account.data.len().min(64)]);
+                        } else {
+                            println!("Account data: empty");
+                        }
+                    }
+                    Err(e) => {
+                        println!("Account exists: false");
+                        println!("Error fetching account: {:?}", e);
+                        println!("=== ERROR: Account was not created by init_instruction! ===");
+                        println!("This suggests the init_instruction transaction may have failed.");
+                    }
+                }
 
                 let mut cmd = Command::new(spl_token_binary_path.clone());
                 cmd.args([
@@ -392,7 +458,8 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
             TokenType::SyntheticMemo(_token_metadata) => {
                 let decimals = init.decimals;
 
-                ctx.new_txn()
+                println!("=== DEBUG: Sending init_instruction transaction ===");
+                let tx_result = ctx.new_txn()
                     .add(
                         hyperlane_sealevel_token_memo::instruction::init_instruction(
                             program_id,
@@ -404,10 +471,75 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                     .with_client(client)
                     .send_with_payer();
 
+                match &tx_result {
+                    Some(tx) => {
+                        println!("=== DEBUG: init_instruction transaction sent successfully ===");
+                        if let Some(meta) = &tx.transaction.meta {
+                            if let Some(err) = &meta.err {
+                                println!("=== ERROR: Transaction failed: {:?} ===", err);
+                            } else {
+                                println!("=== DEBUG: Transaction succeeded ===");
+                            }
+                        }
+                    }
+                    None => {
+                        println!("=== WARNING: init_instruction transaction result is None ===");
+                    }
+                }
+
                 let (mint_account, _mint_bump) = Pubkey::find_program_address(
                     hyperlane_token_mint_pda_seeds_memo!(),
                     &program_id,
                 );
+
+                // Wait a bit for the account to be created and confirmed
+                println!("=== DEBUG: Waiting 2 seconds for account creation to be confirmed ===");
+                std::thread::sleep(std::time::Duration::from_secs(2));
+
+                // Debug: Check spl-token version
+                println!("=== DEBUG: Checking spl-token version ===");
+                let mut version_cmd = Command::new(spl_token_binary_path.clone());
+                version_cmd.args(["--version"]);
+                let version_output = version_cmd.output().expect("Failed to run spl-token --version");
+                let version_str = String::from_utf8_lossy(&version_output.stdout).trim().to_string();
+                println!("spl-token version output: {}", version_str);
+                if !version_output.stderr.is_empty() {
+                    println!("spl-token version stderr: {}", String::from_utf8_lossy(&version_output.stderr));
+                }
+                println!("spl-token exit status: {:?}", version_output.status);
+                println!("spl-token binary path: {}", spl_token_binary_path);
+                
+                // Check if using the custom fork
+                if !version_str.contains("dan/create-token-for-mint") && !version_str.contains("e101cca") {
+                    println!("=== WARNING: Not using the custom spl-token-cli fork! ===");
+                    println!("Expected fork: dan/create-token-for-mint (rev e101cca)");
+                    println!("Install with: cargo +1.76.0 install spl-token-cli --git https://github.com/hyperlane-xyz/solana-program-library --branch dan/create-token-for-mint --rev e101cca --locked --force");
+                }
+
+                // Debug: Check account state after init_instruction
+                println!("=== DEBUG: Checking mint account state after init_instruction ===");
+                println!("Mint account: {}", mint_account);
+                match client.get_account(&mint_account) {
+                    Ok(account) => {
+                        println!("Account exists: true");
+                        println!("Account owner: {}", account.owner);
+                        println!("Account lamports: {}", account.lamports);
+                        println!("Account data length: {}", account.data.len());
+                        println!("Account executable: {}", account.executable);
+                        println!("Account rent_epoch: {}", account.rent_epoch);
+                        if account.data.len() > 0 {
+                            println!("Account data (first 64 bytes): {:?}", &account.data[..account.data.len().min(64)]);
+                        } else {
+                            println!("Account data: empty");
+                        }
+                    }
+                    Err(e) => {
+                        println!("Account exists: false");
+                        println!("Error fetching account: {:?}", e);
+                        println!("=== ERROR: Account was not created by init_instruction! ===");
+                        println!("This suggests the init_instruction transaction may have failed.");
+                    }
+                }
 
                 let mut cmd = Command::new(spl_token_binary_path.clone());
                 cmd.args([
