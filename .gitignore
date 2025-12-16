@@ -42,5 +42,5 @@ yalc.lock
 **/key.json
 **/deployer-key.json
 
-# .yarn as we us pnpm now
+# .yarn as we use pnpm now
 .yarn
