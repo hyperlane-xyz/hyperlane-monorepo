@@ -1,5 +1,8 @@
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
+import {
+  ChainLookup,
+  ChainMetadataForAltVM,
+} from '@hyperlane-xyz/provider-sdk/chain';
 import {
   CoreModuleType,
   DerivedCoreConfig,
@@ -8,27 +11,25 @@ import { HypReader } from '@hyperlane-xyz/provider-sdk/module';
 import { Address, Logger, rootLogger } from '@hyperlane-xyz/utils';
 
 import { AltVMHookReader } from './AltVMHookReader.js';
-import { AltVMIsmReader } from './AltVMIsmReader.js';
+import { GenericIsmReader, createIsmReader } from './ism/generic-ism.js';
 
 export class AltVMCoreReader implements HypReader<CoreModuleType> {
   protected readonly logger: Logger = rootLogger.child({
     module: 'AltVMCoreReader',
   });
-  protected ismReader: AltVMIsmReader;
+  private readonly ismReader: GenericIsmReader;
   protected hookReader: AltVMHookReader;
 
   constructor(
-    chainLookup: ChainLookup,
+    protected readonly chainMetadata: ChainMetadataForAltVM,
+    protected readonly chainLookup: ChainLookup,
     protected readonly provider: AltVM.IProvider,
   ) {
-    this.ismReader = new AltVMIsmReader(
-      chainLookup.getChainName,
-      this.provider,
-    );
     this.hookReader = new AltVMHookReader(
       chainLookup.getChainMetadata,
       this.provider,
     );
+    this.ismReader = createIsmReader(this.chainMetadata, this.chainLookup);
   }
 
   async read(address: string): Promise<DerivedCoreConfig> {

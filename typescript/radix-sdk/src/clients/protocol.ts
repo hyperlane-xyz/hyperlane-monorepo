@@ -1,3 +1,5 @@
+import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
+
 import {
   AltVM,
   ChainMetadataForAltVM,
@@ -8,8 +10,12 @@ import {
   TransactionSubmitterConfig,
 } from '@hyperlane-xyz/provider-sdk';
 import { IProvider } from '@hyperlane-xyz/provider-sdk/altvm';
+import { IRawIsmArtifactManager } from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import { assert } from '@hyperlane-xyz/utils';
+
+import { RadixIsmArtifactManager } from '../ism/ism-artifact-manager.js';
+import { RadixBase } from '../utils/base.js';
 
 import { RadixProvider } from './provider.js';
 import { RadixSigner } from './signer.js';
@@ -43,6 +49,42 @@ export class RadixProtocolProvider implements ProtocolProvider {
   ): Promise<ITransactionSubmitter> {
     // @TODO Implement in a follow up PR
     throw Error('Not implemented');
+  }
+
+  createIsmArtifactManager(
+    chainMetadata: ChainMetadataForAltVM,
+  ): IRawIsmArtifactManager {
+    assert(chainMetadata.gatewayUrls, 'gateway urls undefined');
+
+    const networkId = parseInt(chainMetadata.chainId.toString());
+    const gatewayUrl = chainMetadata.gatewayUrls[0]?.http;
+
+    assert(gatewayUrl, 'gateway url undefined');
+
+    // Get package address from metadata or throw error
+    const packageAddress = (chainMetadata as any).packageAddress;
+    assert(
+      packageAddress,
+      `Expected package address to be defined for radix network with id ${networkId}`,
+    );
+
+    // Initialize the Gateway API client
+    const gateway = GatewayApiClient.initialize({
+      applicationName: 'hyperlane',
+      basePath: gatewayUrl,
+      networkId,
+    });
+
+    // Create RadixBase instance with default gas multiplier
+    const DEFAULT_GAS_MULTIPLIER = 1.2;
+    const base = new RadixBase(
+      networkId,
+      gateway,
+      DEFAULT_GAS_MULTIPLIER,
+      packageAddress,
+    );
+
+    return new RadixIsmArtifactManager(gateway, base);
   }
 
   getMinGas(): MinimumRequiredGasByAction {

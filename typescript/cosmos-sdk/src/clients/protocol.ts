@@ -8,6 +8,7 @@ import {
   TransactionSubmitterConfig,
 } from '@hyperlane-xyz/provider-sdk';
 import { IProvider } from '@hyperlane-xyz/provider-sdk/altvm';
+import { IRawIsmArtifactManager } from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -41,6 +42,15 @@ export class CosmosNativeProtocolProvider implements ProtocolProvider {
   ): Promise<ITransactionSubmitter> {
     // @TODO Implement in a follow up PR
     throw Error('Not implemented');
+  }
+
+  createIsmArtifactManager(
+    _chainMetadata: ChainMetadataForAltVM,
+  ): IRawIsmArtifactManager {
+    // @TODO Implement when Cosmos ISM artifact manager is available
+    throw new Error(
+      'ISM artifact manager not yet implemented for CosmosNative protocol',
+    );
   }
 
   getMinGas(): MinimumRequiredGasByAction {

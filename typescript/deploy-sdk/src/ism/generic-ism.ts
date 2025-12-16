@@ -1,4 +1,8 @@
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import {
+  AltVM,
+  ChainMetadataForAltVM,
+  getProtocolProvider,
+} from '@hyperlane-xyz/provider-sdk';
 import {
   ArtifactDeployed,
   ArtifactReader,
@@ -7,12 +11,77 @@ import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
   DeployedIsmAddresses,
   DeployedIsmArtifact,
+  DerivedIsmConfig,
   IRawIsmArtifactManager,
   IsmArtifactConfig,
+  IsmConfig,
   RawRoutingIsmArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
 
 import { RoutingIsmReader } from './routing-ism.js';
+
+/**
+ * Factory function to create a GenericIsmReader instance.
+ * This helper centralizes the creation of artifact managers and ISM readers,
+ * making it easier to instantiate readers across the codebase.
+ *
+ * @param chainMetadata Chain metadata for the target chain (protocol type is extracted from metadata.protocol)
+ * @param chainLookup Chain lookup interface for resolving chain names and domain IDs
+ * @returns A GenericIsmReader instance
+ *
+ * @example
+ * ```typescript
+ * const reader = createIsmReader(chainMetadata, chainLookup);
+ * const ismConfig = await reader.read(ismAddress);
+ * ```
+ */
+export function createIsmReader(
+  chainMetadata: ChainMetadataForAltVM,
+  chainLookup: ChainLookup,
+): GenericIsmReader {
+  const protocolProvider = getProtocolProvider(chainMetadata.protocol);
+  const artifactManager: IRawIsmArtifactManager =
+    protocolProvider.createIsmArtifactManager(chainMetadata);
+
+  return new GenericIsmReader(artifactManager, chainLookup);
+}
+
+/**
+ * Converts a DeployedIsmArtifact to DerivedIsmConfig format.
+ * This handles the conversion between the new Artifact API and the old Config API.
+ */
+function artifactToDerivedConfig(
+  artifact: DeployedIsmArtifact,
+): DerivedIsmConfig {
+  const config = artifact.config as any;
+  const address = artifact.deployed.address;
+
+  // For routing ISMs, recursively convert nested artifacts
+  if (config.type === AltVM.IsmType.ROUTING) {
+    const domains: Record<string, IsmConfig | string> = {};
+    for (const [domainId, nestedArtifact] of Object.entries(config.domains)) {
+      if (typeof nestedArtifact === 'string') {
+        domains[domainId] = nestedArtifact;
+      } else {
+        domains[domainId] = artifactToDerivedConfig(
+          nestedArtifact as DeployedIsmArtifact,
+        );
+      }
+    }
+    return {
+      type: 'domainRoutingIsm',
+      owner: config.owner,
+      domains,
+      address,
+    } as DerivedIsmConfig;
+  }
+
+  // For other ISM types, just add the address
+  return {
+    ...config,
+    address,
+  } as DerivedIsmConfig;
+}
 
 /**
  * Generic ISM Reader that can read any ISM type by detecting its type
@@ -52,5 +121,14 @@ export class GenericIsmReader
 
     // For non-routing ISMs, return the raw config as-is
     return rawArtifact;
+  }
+
+  /**
+   * Backward compatibility method that converts DeployedIsmArtifact to DerivedIsmConfig.
+   * This allows GenericIsmReader to be used as a drop-in replacement for the old AltVMIsmReader.
+   */
+  async deriveIsmConfig(address: string): Promise<DerivedIsmConfig> {
+    const artifact = await this.read(address);
+    return artifactToDerivedConfig(artifact);
   }
 }

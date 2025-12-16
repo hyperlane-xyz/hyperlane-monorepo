@@ -1,5 +1,8 @@
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
+import {
+  ChainLookup,
+  ChainMetadataForAltVM,
+} from '@hyperlane-xyz/provider-sdk/chain';
 import {
   DerivedIsmConfig,
   DomainRoutingIsmConfig,
@@ -28,7 +31,7 @@ import {
   sleep,
 } from '@hyperlane-xyz/utils';
 
-import { AltVMIsmReader } from './AltVMIsmReader.js';
+import { GenericIsmReader, createIsmReader } from './ism/generic-ism.js';
 import { validateIsmConfig } from './utils/validation.js';
 
 // Determines the domains to enroll and unenroll to update the current ISM config
@@ -70,7 +73,8 @@ export class AltVMIsmModule implements HypModule<IsmModuleType> {
   protected readonly logger: Logger = rootLogger.child({
     module: 'AltVMIsmModule',
   });
-  protected readonly reader: AltVMIsmReader;
+  private readonly chainMetadata: ChainMetadataForAltVM;
+  private readonly reader: GenericIsmReader;
   protected readonly mailbox: Address;
 
   // Cached chain name
@@ -82,10 +86,9 @@ export class AltVMIsmModule implements HypModule<IsmModuleType> {
     protected readonly signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
   ) {
     this.mailbox = this.args.addresses.mailbox;
-    const metadata = chainLookup.getChainMetadata(this.args.chain);
-    this.chain = metadata.name;
-
-    this.reader = new AltVMIsmReader(chainLookup.getChainName, this.signer);
+    this.chainMetadata = chainLookup.getChainMetadata(this.args.chain);
+    this.chain = this.chainMetadata.name;
+    this.reader = createIsmReader(this.chainMetadata, this.chainLookup);
   }
 
   public async read(): Promise<DerivedIsmConfig> {
