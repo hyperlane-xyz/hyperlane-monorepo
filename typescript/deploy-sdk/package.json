@@ -26,22 +26,22 @@
     "@hyperlane-xyz/provider-sdk": "workspace:*",
     "@hyperlane-xyz/radix-sdk": "workspace:*",
     "@hyperlane-xyz/utils": "workspace:*",
-    "zod": "^3.21.2"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@hyperlane-xyz/eslint-config": "workspace:^",
     "@hyperlane-xyz/tsconfig": "workspace:^",
-    "@types/chai-as-promised": "^8",
-    "@types/mocha": "^10.0.1",
-    "@types/node": "^20.17.0",
-    "@types/sinon": "^17.0.1",
-    "@types/sinon-chai": "^3.2.12",
-    "chai": "^4.5.0",
-    "chai-as-promised": "^8.0.1",
-    "eslint": "^9.31.0",
-    "mocha": "^11.5.0",
-    "sinon": "^13.0.2",
-    "tsx": "^4.19.1",
-    "typescript": "5.8.3"
+    "@types/chai-as-promised": "catalog:",
+    "@types/mocha": "catalog:",
+    "@types/node": "catalog:",
+    "@types/sinon": "catalog:",
+    "@types/sinon-chai": "catalog:",
+    "chai": "catalog:",
+    "chai-as-promised": "catalog:",
+    "eslint": "catalog:",
+    "mocha": "catalog:",
+    "sinon": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
   }
 }
