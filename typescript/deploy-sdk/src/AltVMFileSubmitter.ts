@@ -17,11 +17,7 @@ export class AltVMFileSubmitter implements ITransactionSubmitter {
   constructor(
     public readonly signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
     public readonly props: FileSubmitterConfig,
-  ) {
-    this.logger = rootLogger.child({
-      module: AltVMFileSubmitter.name,
-    });
-  }
+  ) {}
 
   async submit(...txs: AnnotatedTx[]): Promise<TxReceipt[]> {
     const filepath = this.props.filepath.trim();
