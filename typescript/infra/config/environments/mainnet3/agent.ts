@@ -69,6 +69,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     abstract: true,
     // acala: true,
     adichain: true,
+    aleo: true,
     ancient8: true,
     apechain: true,
     appchain: true,
@@ -213,6 +214,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Relayer]: {
     abstract: true,
     // acala: true,
+    aleo: true,
     adichain: true,
     ancient8: true,
     apechain: true,
@@ -358,6 +360,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Scraper]: {
     abstract: true,
     // acala: true,
+    aleo: true,
     adichain: true,
     ancient8: true,
     apechain: true,
@@ -896,7 +899,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '7cb519d-20251203-140154',
+      tag: '8e48387-20251216-085310',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -922,7 +925,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '88c5a38-20251210-133703',
+      tag: '8e48387-20251216-085310',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
@@ -945,7 +948,7 @@ const releaseCandidate: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '424d9f9-20251201-141531',
+      tag: '8e48387-20251216-085310',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
@@ -966,7 +969,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '20c24dc-20251106-222459',
+      tag: '8e48387-20251216-085310',
     },
     blacklist,
     gasPaymentEnforcement,
