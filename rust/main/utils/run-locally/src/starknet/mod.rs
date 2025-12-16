@@ -27,9 +27,9 @@ mod types;
 mod utils;
 
 const STARKNET_DEVNET_IMAGE: &str = "shardlabs/starknet-devnet-rs";
-const STARKNET_DEVNET_TAG: &str = "0.7.1";
-const STARKNET_CLI_GIT: &str = "https://github.com/hyperlane-xyz/starkli";
-const STARKNET_CLI_VERSION: &str = "0.4.3"; // we need 0.3.8 because the latest version breaks the rpc schema
+const STARKNET_DEVNET_TAG: &str = "0.4.2";
+const STARKNET_CLI_GIT: &str = "https://github.com/xJonathanLEI/starkli";
+const STARKNET_CLI_VERSION: &str = "0.4.1"; // we need 0.4.1 because the latest version breaks the rpc schema
 const CAIRO_HYPERLANE_GIT: &str = "https://github.com/hyperlane-xyz/hyperlane-starknet";
 const CAIRO_HYPERLANE_VERSION: &str = "0.3.9";
 
