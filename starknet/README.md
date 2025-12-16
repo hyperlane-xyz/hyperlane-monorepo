@@ -13,8 +13,8 @@ The Hyperlane Starknet Core package provides TypeScript tooling for interacting 
 # Install with NPM
 npm install @hyperlane-xyz/starknet-core
 
-# Or with Yarn
-yarn add @hyperlane-xyz/starknet-core
+# Or with pnpm
+pnpm add @hyperlane-xyz/starknet-core
 ```
 
 ## Requirements
@@ -53,14 +53,14 @@ Contracts are organized into three categories:
 ### Setup
 
 1. Clone the repository
-2. Install dependencies: `yarn install`
+2. Install dependencies: `pnpm install`
 
 ### Build Process
 
 The build process combines multiple steps in a specific order:
 
 ```bash
-yarn build
+pnpm build
 ```
 
 This command runs:
@@ -78,7 +78,7 @@ You can also run the individual build steps separately:
 #### Fetching Contract Artifacts
 
 ```bash
-yarn fetch-contracts
+pnpm fetch-contracts
 ```
 
 This downloads the contract artifacts from the [Hyperlane Starknet repository](https://github.com/hyperlane-xyz/hyperlane_starknet).
@@ -86,7 +86,7 @@ This downloads the contract artifacts from the [Hyperlane Starknet repository](h
 #### Generating TypeScript Artifacts
 
 ```bash
-yarn generate-artifacts
+pnpm generate-artifacts
 ```
 
 This creates JavaScript and TypeScript declaration files in the `dist/artifacts` directory.

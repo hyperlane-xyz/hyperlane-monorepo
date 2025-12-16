@@ -16,11 +16,13 @@ interface AnyObject {
   [key: string]: any;
 }
 
-const enum ChangeType {
-  Added = 'Added',
-  Deleted = 'Deleted',
-  Updated = 'Updated',
-}
+const ChangeType = {
+  Added: 'Added',
+  Deleted: 'Deleted',
+  Updated: 'Updated',
+} as const;
+
+type ChangeType = (typeof ChangeType)[keyof typeof ChangeType];
 
 const changeTypeMapping: Record<ChangeType, string> = {
   [ChangeType.Added]: '+ Added to config',
@@ -147,11 +149,11 @@ function logDiff(expected: AnyObject, actual: AnyObject): void {
   const sortedExpected = sortArraysByType(expected);
   const sortedActual = sortArraysByType(actual);
 
-  const sortedExpectedJson = stringify(sortedExpected, { space: 2 });
-  const sortedActualJson = stringify(sortedActual, { space: 2 });
+  const sortedExpectedJson = stringify(sortedExpected, { space: 2 }) ?? '{}';
+  const sortedActualJson = stringify(sortedActual, { space: 2 }) ?? '{}';
 
-  const parsedSortedExpected = JSON.parse(sortedExpectedJson);
-  const parsedSortedActual = JSON.parse(sortedActualJson);
+  const parsedSortedExpected = JSON.parse(sortedExpectedJson) as AnyObject;
+  const parsedSortedActual = JSON.parse(sortedActualJson) as AnyObject;
 
   const added = addedDiff(parsedSortedActual, parsedSortedExpected);
   const deleted = deletedDiff(parsedSortedActual, parsedSortedExpected);

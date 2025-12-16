@@ -13,10 +13,10 @@ import {
   getOverhead,
 } from '../../../src/config/gas-oracle.js';
 
-import gasPrices from './gasPrices.json';
+import gasPrices from './gasPrices.json' with { type: 'json' };
 import { owners } from './owners.js';
 import { supportedChainNames } from './supportedChainNames.js';
-import rawTokenPrices from './tokenPrices.json';
+import rawTokenPrices from './tokenPrices.json' with { type: 'json' };
 
 const tokenPrices: ChainMap<string> = rawTokenPrices;
 

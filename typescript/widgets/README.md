@@ -8,8 +8,8 @@ Common react components for projects using Hyperlane.
 # Install with npm
 npm install @hyperlane-xyz/widgets
 
-# Or install with yarn
-yarn add @hyperlane-xyz/widgets
+# Or install with pnpm
+pnpm add @hyperlane-xyz/widgets
 ```
 
 ### Peer dependencies
