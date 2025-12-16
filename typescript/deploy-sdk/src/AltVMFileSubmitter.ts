@@ -41,7 +41,7 @@ export class AltVMFileSubmitter implements ITransactionSubmitter {
       );
       allTxs.unshift(...maybeExistingTxs);
     } catch (e) {
-      this.logger.debug(`Invalid transactions read from ${filepath}: ${e}`);
+      this.logger.error(`Invalid transactions read from ${filepath}`, e);
     }
 
     writeYamlOrJson(filepath, allTxs);
