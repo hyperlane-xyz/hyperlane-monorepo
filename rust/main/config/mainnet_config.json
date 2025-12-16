@@ -1295,7 +1295,13 @@
       ],
       "slip44": 118,
       "validatorAnnounce": "0x1fb225b2fcfbe75e614a1d627de97ff372242eed",
-      "technicalStack": "other"
+      "technicalStack": "other",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      }
     },
     "linea": {
       "aggregationHook": "0x55A457c36Eea28Fa12690B41B1B9aefF6470062A",
@@ -1850,7 +1856,13 @@
       "staticMessageIdWeightedMultisigIsmFactory": "0xb129828B9EDa48192D0B2db35D0E40dCF51B3594",
       "interchainAccountRouter": "0x511C21cF98AB0D07a6fB9Fb65E9e66DD483375B5",
       "timelockController": "0x0000000000000000000000000000000000000000",
-      "technicalStack": "opstack"
+      "technicalStack": "opstack",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      }
     },
     "mode": {
       "aggregationHook": "0x5abdb28134Ec9FE3fc4943F7fb4CbDeF0141f1b4",
@@ -2070,7 +2082,13 @@
       },
       "slip44": 118,
       "validatorAnnounce": "0xf3aa0d652226e21ae35cd9035c492ae41725edc9036edf0d6a48701b153b90a0",
-      "technicalStack": "other"
+      "technicalStack": "other",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      }
     },
     "optimism": {
       "aggregationHook": "0xb959001ec9706d56fC7787e126caC2Ad3a7158a7",
@@ -5880,7 +5898,14 @@
       "index": {
         "from": 469384
       },
-      "gnosisSafeTransactionServiceUrl": "https://prod.form.keypersafe.xyz/"
+      "gnosisSafeTransactionServiceUrl": "https://prod.form.keypersafe.xyz/",
+      "availability": {
+        "reasons": [
+          "deprecated",
+          "unavailable"
+        ],
+        "status": "disabled"
+      }
     },
     "ink": {
       "blockExplorers": [
@@ -9703,7 +9728,8 @@
       "validatorAnnounceProgram": "hyp_validator_announce.aleo",
       "signer": {
         "key": "0x476e6d1e316263e22bf74e6cae6fcdf7ecc51cd4c0450e5661c35ccce3a85601"
-      }
+      },
+      "technicalStack": "other"
     }
   }
 }
