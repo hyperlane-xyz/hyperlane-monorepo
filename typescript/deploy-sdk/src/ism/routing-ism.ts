@@ -3,6 +3,7 @@ import { IProvider, ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   Artifact,
   ArtifactDeployed,
+  ArtifactNew,
   ArtifactReader,
   ArtifactState,
   ArtifactWriter,
@@ -104,7 +105,7 @@ export class RoutingIsmWriter
   }
 
   async create(
-    artifact: Artifact<RoutingIsmArtifactConfig, DeployedIsmAddresses>,
+    artifact: ArtifactNew<RoutingIsmArtifactConfig>,
   ): Promise<[DeployedRoutingIsmArtifact, TxReceipt[]]> {
     const { config } = artifact;
     const allReceipts: TxReceipt[] = [];
