@@ -4,6 +4,9 @@ packages:
   - 'typescript/*'
   - 'starknet'
 
+# Require catalog: protocol for all cataloged dependencies
+catalogMode: strict
+
 # Shared dependency versions for consistent versioning across all packages.
 # Use `catalog:` in package.json to reference these versions.
 # See: https://pnpm.io/catalogs
