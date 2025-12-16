@@ -39,15 +39,68 @@ export class RoutingIsmReader
   constructor(
     protected readonly chainLookup: ChainLookup,
     protected readonly artifactManager: IRawIsmArtifactManager,
+    genericIsmReader?: GenericIsmReader,
   ) {
-    this.genericIsmReader = new GenericIsmReader(chainLookup, artifactManager);
+    // If genericIsmReader is provided, use it (called from GenericIsmReader)
+    // Otherwise create a new one (called directly or from RoutingIsmWriter)
+    this.genericIsmReader =
+      genericIsmReader ?? new GenericIsmReader(artifactManager, chainLookup);
   }
 
+  /**
+   * Convenience method for reading routing ISMs directly.
+   * Delegates to GenericIsmReader which handles type detection.
+   */
   async read(address: string): Promise<DeployedRoutingIsmArtifact> {
-    // Delegate to the generic ISM reader which handles all the recursive reading logic
     return this.genericIsmReader.read(
       address,
     ) as Promise<DeployedRoutingIsmArtifact>;
+  }
+
+  /**
+   * Expands a raw routing ISM config by recursively reading the domain ISMs.
+   * Takes a pre-read raw artifact to avoid double reading.
+   */
+  async expandFromRaw(
+    rawArtifact: ArtifactDeployed<
+      RawRoutingIsmArtifactConfig,
+      DeployedIsmAddresses
+    >,
+  ): Promise<DeployedRoutingIsmArtifact> {
+    const { artifactState, config, deployed } = rawArtifact;
+    const domains: Record<number, DeployedIsmArtifact> = {};
+
+    for (const [domainId, domainIsmConfig] of Object.entries(config.domains)) {
+      if (!this.chainLookup.getDomainId(domainId)) {
+        this.logger.warn(
+          `Skipping derivation of unknown ${AltVM.IsmType.ROUTING} domain ${domainId}`,
+        );
+        continue;
+      }
+
+      let nestedIsm: DeployedIsmArtifact;
+      if (domainIsmConfig.artifactState === ArtifactState.DEPLOYED) {
+        // Already a full deployed artifact, use as-is
+        nestedIsm = domainIsmConfig as DeployedIsmArtifact;
+      } else {
+        // ArtifactUnderived - recursively read using generic reader to get full config
+        nestedIsm = await this.genericIsmReader.read(
+          domainIsmConfig.deployed.address,
+        );
+      }
+
+      domains[parseInt(domainId)] = nestedIsm;
+    }
+
+    return {
+      artifactState,
+      config: {
+        type: AltVM.IsmType.ROUTING,
+        owner: config.owner,
+        domains,
+      },
+      deployed,
+    };
   }
 }
 
