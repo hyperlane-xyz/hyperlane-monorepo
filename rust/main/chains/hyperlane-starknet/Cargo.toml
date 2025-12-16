@@ -16,6 +16,7 @@ byteorder.workspace = true
 cainome.workspace = true
 derive-new = { workspace = true }
 starknet.workspace = true
+starknet-types-core.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true

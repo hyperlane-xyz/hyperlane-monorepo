@@ -71,9 +71,6 @@ impl AggregationIsm for StarknetAggregationIsm {
         let (isms, threshold) = self
             .contract
             .modules_and_threshold(&message)
-            .block_id(starknet::core::types::BlockId::Tag(
-                starknet::core::types::BlockTag::Latest,
-            ))
             .call()
             .await
             .map_err(Into::<HyperlaneStarknetError>::into)?;

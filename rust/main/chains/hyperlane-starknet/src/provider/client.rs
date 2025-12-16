@@ -7,7 +7,7 @@ use hyperlane_core::{
 };
 use hyperlane_metric::prometheus_metric::{ChainInfo, PrometheusClientMetrics};
 use starknet::core::types::{
-    BlockId, BlockTag, Felt, FunctionCall, InvokeTransaction, MaybePendingBlockWithTxHashes,
+    BlockId, BlockTag, Felt, FunctionCall, InvokeTransaction, MaybePreConfirmedBlockWithTxHashes,
     Transaction, TransactionReceipt,
 };
 use starknet::macros::selector;
@@ -78,13 +78,13 @@ impl HyperlaneChain for StarknetProvider {
 impl HyperlaneProvider for StarknetProvider {
     #[instrument(err, skip(self))]
     async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
-        let block: MaybePendingBlockWithTxHashes = self
+        let block = self
             .rpc_client()
             .get_block_with_tx_hashes(BlockId::Number(height))
             .await
             .map_err(Into::<HyperlaneStarknetError>::into)?;
         match block {
-            MaybePendingBlockWithTxHashes::Block(b) => Ok(BlockInfo {
+            MaybePreConfirmedBlockWithTxHashes::Block(b) => Ok(BlockInfo {
                 hash: H256::from_slice(b.block_hash.to_bytes_be().as_slice()),
                 timestamp: b.timestamp,
                 number: b.block_number,

@@ -71,9 +71,6 @@ impl MultisigIsm for StarknetMultisigIsm {
         let (validator_addresses, threshold) = self
             .contract
             .validators_and_threshold(message)
-            .block_id(starknet::core::types::BlockId::Tag(
-                starknet::core::types::BlockTag::Latest,
-            ))
             .call()
             .await
             .map_err(Into::<HyperlaneStarknetError>::into)?;
