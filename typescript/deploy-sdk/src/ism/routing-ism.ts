@@ -1,5 +1,5 @@
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { IProvider, ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
+import { ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   Artifact,
   ArtifactDeployed,
@@ -16,10 +16,11 @@ import {
   IsmArtifactConfig,
   RawRoutingIsmArtifactConfig,
   RoutingIsmArtifactConfig,
-  altVMIsmTypeToProviderSdkType,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import { Logger, rootLogger } from '@hyperlane-xyz/utils';
+
+import { GenericIsmReader } from './generic-ism.js';
 
 type DeployedRoutingIsmArtifact = ArtifactDeployed<
   RoutingIsmArtifactConfig,
@@ -33,61 +34,20 @@ export class RoutingIsmReader
     module: RoutingIsmReader.name,
   });
 
+  private readonly genericIsmReader: GenericIsmReader;
+
   constructor(
     protected readonly chainLookup: ChainLookup,
-    private readonly provider: IProvider,
     protected readonly artifactManager: IRawIsmArtifactManager,
-  ) {}
-
-  async read(address: string): Promise<DeployedRoutingIsmArtifact> {
-    const routingReader = this.artifactManager.createReader(
-      AltVM.IsmType.ROUTING,
-    );
-    const { artifactState, config, deployed } =
-      await routingReader.read(address);
-
-    const domains: Record<number, DeployedIsmArtifact> = {};
-
-    for (const [domainId, domainIsmConfig] of Object.entries(config.domains)) {
-      if (!this.chainLookup.getDomainId(domainId)) {
-        this.logger.warn(
-          `Skipping derivation of unknown ${AltVM.IsmType.ROUTING} domain ${domainId}`,
-        );
-
-        continue;
-      }
-
-      let nestedIsm;
-      if (domainIsmConfig.artifactState === ArtifactState.DEPLOYED) {
-        nestedIsm = domainIsmConfig;
-      } else {
-        nestedIsm = await this.readDomainIsm(domainIsmConfig.deployed.address);
-      }
-
-      domains[parseInt(domainId)] = nestedIsm;
-    }
-
-    return {
-      artifactState,
-      config: {
-        type: AltVM.IsmType.ROUTING,
-        owner: config.owner,
-        domains,
-      },
-      deployed,
-    };
+  ) {
+    this.genericIsmReader = new GenericIsmReader(chainLookup, artifactManager);
   }
 
-  private async readDomainIsm(address: string): Promise<DeployedIsmArtifact> {
-    const ismType = await this.provider.getIsmType({ ismAddress: address });
-
-    const artifactIsmType = altVMIsmTypeToProviderSdkType(ismType);
-    if (artifactIsmType === AltVM.IsmType.ROUTING) {
-      return this.read(address);
-    }
-
-    const reader = this.artifactManager.createReader(artifactIsmType);
-    return reader.read(address);
+  async read(address: string): Promise<DeployedRoutingIsmArtifact> {
+    // Delegate to the generic ISM reader which handles all the recursive reading logic
+    return this.genericIsmReader.read(
+      address,
+    ) as Promise<DeployedRoutingIsmArtifact>;
   }
 }
 
@@ -96,12 +56,11 @@ export class RoutingIsmWriter
   implements ArtifactWriter<RoutingIsmArtifactConfig, DeployedIsmAddresses>
 {
   constructor(
-    provider: IProvider,
-    artifactManager: IRawIsmArtifactManager,
     chainLookup: ChainLookup,
+    artifactManager: IRawIsmArtifactManager,
     private readonly signer: ISigner<AnnotatedTx, TxReceipt>,
   ) {
-    super(chainLookup, provider, artifactManager);
+    super(chainLookup, artifactManager);
   }
 
   async create(

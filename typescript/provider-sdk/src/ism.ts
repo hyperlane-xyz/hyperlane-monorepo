@@ -118,11 +118,20 @@ export type RawIsmArtifactConfig = RawIsmArtifactConfigs[IsmType];
  * Should be used to implement an object/closure or class that individually deploys
  * ISMs on chain
  */
-export type IRawIsmArtifactManager = IArtifactManager<
-  IsmType,
-  RawIsmArtifactConfigs,
-  DeployedIsmAddresses
->;
+export interface IRawIsmArtifactManager
+  extends IArtifactManager<
+    IsmType,
+    RawIsmArtifactConfigs,
+    DeployedIsmAddresses
+  > {
+  /**
+   * Read any ISM by detecting its type and delegating to the appropriate reader.
+   * This is the generic entry point for reading ISMs of unknown types.
+   * @param address The on-chain address of the ISM
+   * @returns The artifact configuration and deployment data
+   */
+  readIsm(address: string): Promise<DeployedIsmArtifact>;
+}
 
 export function ismOnChainAddress(
   ism: ArtifactOnChain<IsmArtifactConfig, DeployedIsmAddresses>,
