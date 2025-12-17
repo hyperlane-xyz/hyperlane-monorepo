@@ -1,23 +1,26 @@
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
+import { type AltVM } from '@hyperlane-xyz/provider-sdk';
+import { type ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
-  CoreConfig,
-  CoreModuleType,
-  DeployedCoreAddresses,
-  DerivedCoreConfig,
+  type CoreConfig,
+  type CoreModuleType,
+  type DeployedCoreAddresses,
+  type DerivedCoreConfig,
 } from '@hyperlane-xyz/provider-sdk/core';
 import {
-  DerivedHookConfig,
-  HookConfig,
+  type DerivedHookConfig,
+  type HookConfig,
 } from '@hyperlane-xyz/provider-sdk/hook';
-import { DerivedIsmConfig, IsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
 import {
-  AnnotatedTx,
-  HypModule,
-  HypModuleArgs,
-  TxReceipt,
+  type DerivedIsmConfig,
+  type IsmConfig,
+} from '@hyperlane-xyz/provider-sdk/ism';
+import {
+  type AnnotatedTx,
+  type HypModule,
+  type HypModuleArgs,
+  type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
-import { Address, Logger, rootLogger } from '@hyperlane-xyz/utils';
+import { type Address, type Logger, rootLogger } from '@hyperlane-xyz/utils';
 
 import { AltVMCoreReader } from './AltVMCoreReader.js';
 import { AltVMHookModule } from './AltVMHookModule.js';

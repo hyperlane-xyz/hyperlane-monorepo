@@ -1,14 +1,19 @@
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { ChainNameLookup } from '@hyperlane-xyz/provider-sdk/chain';
+import { type ChainNameLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
-  DerivedIsmConfig,
-  DomainRoutingIsmConfig,
-  IsmConfig,
-  IsmModuleType,
-  MultisigIsmConfig,
+  type DerivedIsmConfig,
+  type DomainRoutingIsmConfig,
+  type IsmConfig,
+  type IsmModuleType,
+  type MultisigIsmConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
-import { HypReader } from '@hyperlane-xyz/provider-sdk/module';
-import { Address, Logger, WithAddress, rootLogger } from '@hyperlane-xyz/utils';
+import { type HypReader } from '@hyperlane-xyz/provider-sdk/module';
+import {
+  type Address,
+  type Logger,
+  type WithAddress,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 export class AltVMIsmReader implements HypReader<IsmModuleType> {
   protected readonly logger: Logger = rootLogger.child({

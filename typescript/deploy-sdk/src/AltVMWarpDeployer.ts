@@ -1,7 +1,10 @@
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
-import { TokenType, WarpConfig } from '@hyperlane-xyz/provider-sdk/warp';
-import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
+import { type AltVM } from '@hyperlane-xyz/provider-sdk';
+import {
+  type AnnotatedTx,
+  type TxReceipt,
+} from '@hyperlane-xyz/provider-sdk/module';
+import { TokenType, type WarpConfig } from '@hyperlane-xyz/provider-sdk/warp';
+import { type Address, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 export class AltVMDeployer {
   protected logger: ReturnType<typeof rootLogger.child<never>>;

@@ -1,17 +1,20 @@
-import { IProvider, ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
-import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
-  HookConfig,
-  HookModuleAddresses,
-  HookModuleType,
+  type IProvider,
+  type ISigner,
+} from '@hyperlane-xyz/provider-sdk/altvm';
+import { type ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
+import {
+  type HookConfig,
+  type HookModuleAddresses,
+  type HookModuleType,
 } from '@hyperlane-xyz/provider-sdk/hook';
 import {
-  AnnotatedTx,
-  HypModule,
-  HypModuleArgs,
-  HypReader,
-  ModuleProvider,
-  TxReceipt,
+  type AnnotatedTx,
+  type HypModule,
+  type HypModuleArgs,
+  type HypReader,
+  type ModuleProvider,
+  type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
 
 import { AltVMHookModule } from './AltVMHookModule.js';

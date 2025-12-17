@@ -1,24 +1,24 @@
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
+import { type AltVM } from '@hyperlane-xyz/provider-sdk';
+import { type ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
-  DerivedIsmConfig,
-  DomainRoutingIsmConfig,
-  IsmConfig,
-  IsmModuleAddresses,
-  IsmModuleType,
-  IsmType,
-  MultisigIsmConfig,
+  type DerivedIsmConfig,
+  type DomainRoutingIsmConfig,
+  type IsmConfig,
+  type IsmModuleAddresses,
+  type IsmModuleType,
+  type IsmType,
+  type MultisigIsmConfig,
   STATIC_ISM_TYPES,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import {
-  AnnotatedTx,
-  HypModule,
-  HypModuleArgs,
-  TxReceipt,
+  type AnnotatedTx,
+  type HypModule,
+  type HypModuleArgs,
+  type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
 import {
-  Address,
-  Logger,
+  type Address,
+  type Logger,
   assert,
   deepEquals,
   eqAddress,

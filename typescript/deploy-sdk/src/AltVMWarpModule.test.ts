@@ -2,13 +2,16 @@ import chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import Sinon from 'sinon';
 
-import { AltVM, MockSigner } from '@hyperlane-xyz/provider-sdk';
-import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
-import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
+import { type AltVM, MockSigner } from '@hyperlane-xyz/provider-sdk';
+import { type ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
-  DerivedWarpConfig,
+  type AnnotatedTx,
+  type TxReceipt,
+} from '@hyperlane-xyz/provider-sdk/module';
+import {
+  type DerivedWarpConfig,
   TokenType,
-  WarpConfig,
+  type WarpConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
 
 import { AltVMWarpModule } from './AltVMWarpModule.js';

@@ -1,23 +1,23 @@
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
+import { type AltVM } from '@hyperlane-xyz/provider-sdk';
+import { type ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
-  DerivedHookConfig,
-  HookConfig,
-  HookModuleAddresses,
-  HookModuleType,
-  HookType,
-  IgpHookConfig,
+  type DerivedHookConfig,
+  type HookConfig,
+  type HookModuleAddresses,
+  type HookModuleType,
+  type HookType,
+  type IgpHookConfig,
   MUTABLE_HOOK_TYPE,
 } from '@hyperlane-xyz/provider-sdk/hook';
 import {
-  AnnotatedTx,
-  HypModule,
-  HypModuleArgs,
-  TxReceipt,
+  type AnnotatedTx,
+  type HypModule,
+  type HypModuleArgs,
+  type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
 import {
-  Address,
-  Logger,
+  type Address,
+  type Logger,
   assert,
   deepEquals,
   isZeroishAddress,

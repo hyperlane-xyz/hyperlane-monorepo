@@ -1,10 +1,13 @@
 import {
-  AltVM,
-  FileSubmitterConfig,
-  ITransactionSubmitter,
+  type AltVM,
+  type FileSubmitterConfig,
+  type ITransactionSubmitter,
 } from '@hyperlane-xyz/provider-sdk';
-import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
-import { Logger, assert, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  type AnnotatedTx,
+  type TxReceipt,
+} from '@hyperlane-xyz/provider-sdk/module';
+import { type Logger, assert, rootLogger } from '@hyperlane-xyz/utils';
 import { readYamlOrJson, writeYamlOrJson } from '@hyperlane-xyz/utils/fs';
 
 export class AltVMFileSubmitter implements ITransactionSubmitter {

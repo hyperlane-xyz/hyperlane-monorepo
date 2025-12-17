@@ -1,16 +1,16 @@
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
-import { HypReader } from '@hyperlane-xyz/provider-sdk/module';
+import { type ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
+import { type HypReader } from '@hyperlane-xyz/provider-sdk/module';
 import {
-  DerivedCollateralWarpConfig,
-  DerivedSyntheticWarpConfig,
-  DerivedWarpConfig,
-  DestinationGas,
-  RemoteRouters,
-  TokenRouterModuleType,
+  type DerivedCollateralWarpConfig,
+  type DerivedSyntheticWarpConfig,
+  type DerivedWarpConfig,
+  type DestinationGas,
+  type RemoteRouters,
+  type TokenRouterModuleType,
   TokenType,
 } from '@hyperlane-xyz/provider-sdk/warp';
-import { Address, ensure0x, rootLogger } from '@hyperlane-xyz/utils';
+import { type Address, ensure0x, rootLogger } from '@hyperlane-xyz/utils';
 
 import { AltVMHookReader } from './AltVMHookReader.js';
 import { AltVMIsmReader } from './AltVMIsmReader.js';

@@ -1,21 +1,21 @@
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
-import { DerivedHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
-import { DerivedIsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
+import { type AltVM } from '@hyperlane-xyz/provider-sdk';
+import { type ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
+import { type DerivedHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
+import { type DerivedIsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
 import {
-  AnnotatedTx,
-  HypModule,
-  HypModuleArgs,
-  TxReceipt,
+  type AnnotatedTx,
+  type HypModule,
+  type HypModuleArgs,
+  type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
 import {
-  DerivedWarpConfig,
-  TokenRouterModuleType,
-  WarpConfig,
-  WarpRouteAddresses,
+  type DerivedWarpConfig,
+  type TokenRouterModuleType,
+  type WarpConfig,
+  type WarpRouteAddresses,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import {
-  Address,
+  type Address,
   addressToBytes32,
   assert,
   isZeroishAddress,

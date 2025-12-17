@@ -1,6 +1,12 @@
-import { AltVM, ITransactionSubmitter } from '@hyperlane-xyz/provider-sdk';
-import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
-import { Logger, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  type AltVM,
+  type ITransactionSubmitter,
+} from '@hyperlane-xyz/provider-sdk';
+import {
+  type AnnotatedTx,
+  type TxReceipt,
+} from '@hyperlane-xyz/provider-sdk/module';
+import { type Logger, rootLogger } from '@hyperlane-xyz/utils';
 
 export class AltVMJsonRpcSubmitter implements ITransactionSubmitter {
   public readonly txSubmitterType = 'jsonRPC';

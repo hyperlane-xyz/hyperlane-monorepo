@@ -1,14 +1,19 @@
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { ChainMetadataLookup } from '@hyperlane-xyz/provider-sdk/chain';
+import { type ChainMetadataLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
-  DerivedHookConfig,
-  HookConfig,
-  HookModuleType,
-  IgpHookConfig,
-  MerkleTreeHookConfig,
+  type DerivedHookConfig,
+  type HookConfig,
+  type HookModuleType,
+  type IgpHookConfig,
+  type MerkleTreeHookConfig,
 } from '@hyperlane-xyz/provider-sdk/hook';
-import { HypReader } from '@hyperlane-xyz/provider-sdk/module';
-import { Address, Logger, WithAddress, rootLogger } from '@hyperlane-xyz/utils';
+import { type HypReader } from '@hyperlane-xyz/provider-sdk/module';
+import {
+  type Address,
+  type Logger,
+  type WithAddress,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 export class AltVMHookReader implements HypReader<HookModuleType> {
   protected readonly logger: Logger = rootLogger.child({
