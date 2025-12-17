@@ -118,10 +118,17 @@ pub fn build_ethereum_connection_conf(
         })
         .unwrap_or_default();
 
+    let consider_null_transaction_receipt = chain
+        .chain(err)
+        .get_opt_key("considerNullTransactionReceipt")
+        .parse_bool()
+        .unwrap_or(false);
+
     Some(ChainConnectionConf::Ethereum(h_eth::ConnectionConf {
         rpc_connection: rpc_connection_conf?,
         transaction_overrides,
         op_submission_config: operation_batch,
+        consider_null_transaction_receipt,
     }))
 }
 

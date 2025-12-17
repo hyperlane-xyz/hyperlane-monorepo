@@ -417,5 +417,16 @@ export const validatorChainConfig = (
         'giwasepolia',
       ),
     },
+
+    aleotestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('aleotestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x7233d80194c69af6b84b0786a7fd2a7294396ca8'],
+        },
+        'aleotestnet',
+      ),
+    },
   };
 };

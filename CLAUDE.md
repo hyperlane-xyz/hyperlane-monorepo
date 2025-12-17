@@ -16,11 +16,11 @@ Hyperlane is an interchain messaging protocol that enables applications to commu
 
 ```bash
 # Build everything using Turbo
-yarn build
+pnpm build
 
 # Build specific workspaces
-yarn --cwd solidity build          # Solidity contracts with Hardhat + Forge
-yarn --cwd typescript/sdk build    # TypeScript SDK
+pnpm -C solidity build          # Solidity contracts with Hardhat + Forge
+pnpm -C typescript/sdk build    # TypeScript SDK
 cd rust/main && cargo build        # Rust agents
 ```
 
@@ -28,16 +28,16 @@ cd rust/main && cargo build        # Rust agents
 
 ```bash
 # Run all tests
-yarn test
+pnpm test
 
 # Solidity tests
-yarn --cwd solidity test           # Both Hardhat and Forge tests
-yarn --cwd solidity test:hardhat   # Hardhat tests only
-yarn --cwd solidity test:forge     # Forge tests only
+pnpm -C solidity test           # Both Hardhat and Forge tests
+pnpm -C solidity test:hardhat   # Hardhat tests only
+pnpm -C solidity test:forge     # Forge tests only
 
 # TypeScript SDK tests
-yarn --cwd typescript/sdk test     # Unit, Hardhat, and Foundry tests
-yarn --cwd typescript/sdk test:unit
+pnpm -C typescript/sdk test     # Unit, Hardhat, and Foundry tests
+pnpm -C typescript/sdk test:unit
 
 # Rust tests
 cd rust/main && cargo test
@@ -49,9 +49,9 @@ cd rust/main && cargo run --release --bin run-locally
 ### Linting & Formatting
 
 ```bash
-yarn lint                          # Lint all workspaces
-yarn prettier                      # Format all workspaces
-yarn --cwd solidity lint           # Solidity-specific linting with solhint
+pnpm lint                          # Lint all workspaces
+pnpm prettier                      # Format all workspaces
+pnpm -C solidity lint           # Solidity-specific linting with solhint
 cd rust/main && cargo clippy       # Rust linting
 ```
 
@@ -59,12 +59,12 @@ cd rust/main && cargo clippy       # Rust linting
 
 ```bash
 # Solidity development
-yarn --cwd solidity hardhat-esm compile    # Compile contracts
-yarn --cwd solidity fixtures               # Generate test fixtures
+pnpm -C solidity hardhat-esm compile    # Compile contracts
+pnpm -C solidity fixtures               # Generate test fixtures
 forge test -vvv --decode-internal          # Detailed Forge testing
 
 # Generate gas snapshots
-yarn --cwd solidity gas
+pnpm -C solidity gas
 
 # Run single Rust test
 cd rust/main && cargo test <test_name>

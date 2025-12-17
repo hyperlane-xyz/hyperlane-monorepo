@@ -2623,4 +2623,22 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
+  aleo: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xb9e79db67d02db0f79726c1aa499cc4d26b084fa',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+  aleotestnet: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x7233d80194c69af6b84b0786a7fd2a7294396ca8',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
 };

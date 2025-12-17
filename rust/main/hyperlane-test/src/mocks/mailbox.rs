@@ -101,7 +101,7 @@ impl Mailbox for MockMailboxContract {
     async fn process(
         &self,
         message: &HyperlaneMessage,
-        metadata: &[u8],
+        metadata: &Metadata,
         tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
         self.process(message, metadata, tx_gas_limit)
@@ -110,7 +110,7 @@ impl Mailbox for MockMailboxContract {
     async fn process_estimate_costs(
         &self,
         message: &HyperlaneMessage,
-        metadata: &[u8],
+        metadata: &Metadata,
     ) -> ChainResult<TxCostEstimate> {
         self.process_estimate_costs(message, metadata)
     }
@@ -118,7 +118,7 @@ impl Mailbox for MockMailboxContract {
     async fn process_calldata(
         &self,
         message: &HyperlaneMessage,
-        metadata: &[u8],
+        metadata: &Metadata,
     ) -> ChainResult<Vec<u8>> {
         Ok(self.process_calldata(message, metadata))
     }

@@ -428,10 +428,10 @@ When Grafana metrics are incomplete or missing validator data for a chain, use t
 
 ```bash
 # From typescript/infra directory
-yarn tsx scripts/validators/print-latest-checkpoints.ts -e mainnet3 --chains [CHAIN_NAME]
+pnpm tsx scripts/validators/print-latest-checkpoints.ts -e mainnet3 --chains [CHAIN_NAME]
 
 # Example for HyperEVM:
-yarn tsx scripts/validators/print-latest-checkpoints.ts -e mainnet3 --chains hyperevm
+pnpm tsx scripts/validators/print-latest-checkpoints.ts -e mainnet3 --chains hyperevm
 ```
 
 **This script shows:**

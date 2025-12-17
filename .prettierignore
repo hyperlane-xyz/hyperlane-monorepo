@@ -11,7 +11,8 @@ Dockerfile
 **/dist/
 
 .changeset/
-.yarn/
+pnpm-lock.yaml
+.pnpm-store/
 rust/
 solidity/artifacts/
 solidity/cache/

@@ -161,7 +161,7 @@ function getLocalStorageGasOracleConfigOverride(
     local: ChainName,
     remote: ChainName,
     gasOracleConfig: ProtocolAgnositicGasOracleConfig,
-  ): BigNumberJs.Value => {
+  ): Parameters<typeof BigNumberJs>[0] => {
     if (!applyMinUsdCost) {
       return gasOracleConfig.gasPrice;
     }
@@ -353,6 +353,10 @@ export function getOverhead(local: ChainName, remote: ChainName): number {
 
   if (remoteProtocol === ProtocolType.Starknet) {
     return 10_000_000 + 40_000_000 * defaultMultisigConfigs[local].threshold;
+  }
+
+  if (remoteProtocol === ProtocolType.Aleo) {
+    return 400000;
   }
 
   // Default non-EVM overhead
