@@ -24,7 +24,7 @@ use crate::{
     cmd_utils::{create_new_directory, deploy_program},
     read_core_program_ids,
     registry::{ChainMetadata, FileSystemRegistry},
-    Context, CoreProgramIds,
+    warp_route, Context, CoreProgramIds,
 };
 
 /// Optional connection client configuration.
@@ -338,6 +338,8 @@ pub(crate) fn deploy_routers<
     println!("Verifying configuration...");
     deployer.verify_config(ctx, &app_configs, &app_configs_to_deploy, &chain_metadatas);
     println!("Configuration successfully verified!");
+
+    warp_route::install_spl_token_cli();
 
     // Now we deploy to chains that don't have a foreign deployment
     for (chain_name, app_config) in app_configs_to_deploy.iter() {
