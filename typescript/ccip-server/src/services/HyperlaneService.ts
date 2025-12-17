@@ -1,11 +1,11 @@
-import { Logger } from 'pino';
+import { type Logger } from 'pino';
 
 import {
   PrometheusMetrics,
   UnhandledErrorReason,
 } from '../utils/prometheus.js';
 
-import { Message, MessageTx } from './explorerTypes.js';
+import { type Message, type MessageTx } from './explorerTypes.js';
 
 // These types are copied from hyperlane-explorer. TODO: export them so this file can use them directly.
 interface ApiResult<R> {

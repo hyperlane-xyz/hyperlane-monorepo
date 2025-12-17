@@ -9,6 +9,13 @@ export default [
     rules: {
       'no-console': ['off'],
       'no-restricted-imports': ['off'],
+      '@typescript-eslint/consistent-type-imports': [
+        'error',
+        {
+          prefer: 'type-imports',
+          fixStyle: 'inline-type-imports',
+        },
+      ],
     },
   },
   {

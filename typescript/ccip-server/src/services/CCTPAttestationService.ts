@@ -1,5 +1,5 @@
-import { BytesLike, ethers } from 'ethers';
-import { Logger } from 'pino';
+import { type BytesLike, ethers } from 'ethers';
+import { type Logger } from 'pino';
 
 import {
   PrometheusMetrics,

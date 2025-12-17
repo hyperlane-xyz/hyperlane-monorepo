@@ -1,15 +1,18 @@
-import { BedrockCrossChainMessageProof } from '@eth-optimism/core-utils';
-import { CoreCrossChainMessage, CrossChainMessenger } from '@eth-optimism/sdk';
-import { BytesLike, ethers, providers } from 'ethers';
+import { type BedrockCrossChainMessageProof } from '@eth-optimism/core-utils';
+import {
+  type CoreCrossChainMessage,
+  CrossChainMessenger,
+} from '@eth-optimism/sdk';
+import { type BytesLike, ethers, providers } from 'ethers';
 import { Router } from 'express';
-import { Logger } from 'pino';
+import { type Logger } from 'pino';
 import { z } from 'zod';
 
 import { OpL2toL1Service__factory } from '@hyperlane-xyz/core';
 
 import { createAbiHandler } from '../utils/abiHandler.js';
 
-import { BaseService, ServiceConfig } from './BaseService.js';
+import { BaseService, type ServiceConfig } from './BaseService.js';
 import { HyperlaneService } from './HyperlaneService.js';
 import { RPCService } from './RPCService.js';
 

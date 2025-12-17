@@ -7,7 +7,7 @@ import { createServiceLogger } from '@hyperlane-xyz/utils';
 import packageJson from '../package.json' with { type: 'json' };
 
 import { getEnabledModules } from './config.js';
-import { ServiceFactory } from './services/BaseService.js';
+import { type ServiceFactory } from './services/BaseService.js';
 import { CCTPService } from './services/CCTPService.js';
 import { CallCommitmentsService } from './services/CallCommitmentsService.js';
 import { HealthService } from './services/HealthService.js';

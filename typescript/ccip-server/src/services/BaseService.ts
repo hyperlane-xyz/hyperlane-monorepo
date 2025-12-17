@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { Logger } from 'pino';
+import { type Logger } from 'pino';
 import { z } from 'zod';
 
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';

@@ -1,6 +1,6 @@
 import type { Log, TransactionReceipt } from '@ethersproject/providers';
-import { Request, Response, Router } from 'express';
-import { Logger } from 'pino';
+import { type Request, type Response, type Router } from 'express';
+import { type Logger } from 'pino';
 import { z } from 'zod';
 
 import {
@@ -9,9 +9,9 @@ import {
   Mailbox__factory,
 } from '@hyperlane-xyz/core';
 import {
-  MultiProvider,
+  type MultiProvider,
   PostCallsSchema,
-  PostCallsType,
+  type PostCallsType,
   commitmentFromIcaCalls,
   encodeIcaCalls,
   normalizeCalls,
@@ -33,7 +33,7 @@ import {
 import {
   BaseService,
   REGISTRY_URI_SCHEMA,
-  ServiceConfigWithBaseUrl,
+  type ServiceConfigWithBaseUrl,
 } from './BaseService.js';
 
 const EnvSchema = z.object({

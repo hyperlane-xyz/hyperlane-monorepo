@@ -1,4 +1,4 @@
-import { BaseService, ServiceConfig } from './BaseService.js';
+import { BaseService, type ServiceConfig } from './BaseService.js';
 
 class HealthService extends BaseService {
   static async create(serviceName: string): Promise<HealthService> {

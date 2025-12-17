@@ -1,13 +1,13 @@
 import { ethers } from 'ethers';
 import { Router } from 'express';
-import { Logger } from 'pino';
+import { type Logger } from 'pino';
 import { z } from 'zod';
 
 import {
   CctpService__factory,
   IMessageTransmitter__factory,
 } from '@hyperlane-xyz/core';
-import { MultiProvider } from '@hyperlane-xyz/sdk';
+import { type MultiProvider } from '@hyperlane-xyz/sdk';
 import { parseMessage } from '@hyperlane-xyz/utils';
 
 import { createAbiHandler } from '../utils/abiHandler.js';
@@ -19,7 +19,7 @@ import {
 import {
   BaseService,
   REGISTRY_URI_SCHEMA,
-  ServiceConfigWithMultiProvider,
+  type ServiceConfigWithMultiProvider,
 } from './BaseService.js';
 import { CCTPAttestationService } from './CCTPAttestationService.js';
 import { HyperlaneService } from './HyperlaneService.js';
