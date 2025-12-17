@@ -1,15 +1,15 @@
-import { BigNumber } from 'ethers';
+import { type BigNumber } from 'ethers';
 
 import { InterchainGasPaymaster__factory } from '@hyperlane-xyz/core';
-import { Address } from '@hyperlane-xyz/utils';
+import { type Address } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../app/HyperlaneApp.js';
 import { appFromAddressesMapHelper } from '../contracts/contracts.js';
-import { HyperlaneAddressesMap } from '../contracts/types.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainName } from '../types.js';
+import { type HyperlaneAddressesMap } from '../contracts/types.js';
+import { type MultiProvider } from '../providers/MultiProvider.js';
+import { type ChainName } from '../types.js';
 
-import { IgpFactories, igpFactories } from './contracts.js';
+import { type IgpFactories, igpFactories } from './contracts.js';
 
 export class HyperlaneIgp extends HyperlaneApp<IgpFactories> {
   static fromAddressesMap(

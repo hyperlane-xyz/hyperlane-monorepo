@@ -1,16 +1,16 @@
-import { TransactionReceipt } from '@ethersproject/providers';
+import { type TransactionReceipt } from '@ethersproject/providers';
 import { ethers } from 'ethers';
 import type { TransactionReceipt as ViemTxReceipt } from 'viem';
 
 import {
-  IMessageRecipient,
+  type IMessageRecipient,
   IMessageRecipient__factory,
   MailboxClient__factory,
   Mailbox__factory,
 } from '@hyperlane-xyz/core';
 import {
-  Address,
-  AddressBytes32,
+  type Address,
+  type AddressBytes32,
   ProtocolType,
   addBufferToGasLimit,
   addressToBytes32,
@@ -28,21 +28,21 @@ import {
 import { HyperlaneApp } from '../app/HyperlaneApp.js';
 import { appFromAddressesMapHelper } from '../contracts/contracts.js';
 import {
-  HyperlaneAddressesMap,
-  HyperlaneContracts,
+  type HyperlaneAddressesMap,
+  type HyperlaneContracts,
 } from '../contracts/types.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
-import { DerivedHookConfig } from '../hook/types.js';
+import { type DerivedHookConfig } from '../hook/types.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
-import { DerivedIsmConfig } from '../ism/types.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
-import { RouterConfig } from '../router/types.js';
-import { ChainMap, ChainName, OwnableConfig } from '../types.js';
+import { type DerivedIsmConfig } from '../ism/types.js';
+import { type MultiProvider } from '../providers/MultiProvider.js';
+import { type RouterConfig } from '../router/types.js';
+import { type ChainMap, type ChainName, type OwnableConfig } from '../types.js';
 import { findMatchingLogEvents } from '../utils/logUtils.js';
 
-import { CoreFactories, coreFactories } from './contracts.js';
-import { DispatchEvent } from './events.js';
-import { DispatchedMessage } from './types.js';
+import { type CoreFactories, coreFactories } from './contracts.js';
+import { type DispatchEvent } from './events.js';
+import { type DispatchedMessage } from './types.js';
 
 // If no metadata is provided, ensure we provide a default of 0x0001.
 // We set to 0x0001 instead of 0x0 to ensure it does not break on zksync.

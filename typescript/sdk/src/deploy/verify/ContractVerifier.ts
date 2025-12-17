@@ -1,8 +1,8 @@
-import { Logger } from 'pino';
+import { type Logger } from 'pino';
 
 import { buildArtifact as zksyncBuildArtifact } from '@hyperlane-xyz/core/buildArtifact-zksync.js';
 import {
-  Address,
+  type Address,
   assert,
   retryAsync,
   rootLogger,
@@ -15,16 +15,16 @@ import {
   verifyContractSourceCodeViaStandardJsonInput,
   verifyProxyContract,
 } from '../../block-explorer/etherscan.js';
-import { MultiProvider } from '../../providers/MultiProvider.js';
+import { type MultiProvider } from '../../providers/MultiProvider.js';
 import { ContractVerificationStatus } from '../../token/types.js';
-import { ChainMap, ChainName } from '../../types.js';
+import { type ChainMap, type ChainName } from '../../types.js';
 
 import { BaseContractVerifier } from './BaseContractVerifier.js';
 import {
-  BuildArtifact,
-  CompilerOptions,
-  ContractVerificationInput,
-  SolidityStandardJsonInput,
+  type BuildArtifact,
+  type CompilerOptions,
+  type ContractVerificationInput,
+  type SolidityStandardJsonInput,
 } from './types.js';
 
 export class ContractVerifier extends BaseContractVerifier {

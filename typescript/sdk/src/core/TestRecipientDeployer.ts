@@ -1,11 +1,14 @@
-import { TestRecipient, TestRecipient__factory } from '@hyperlane-xyz/core';
-import { Address, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  type TestRecipient,
+  TestRecipient__factory,
+} from '@hyperlane-xyz/core';
+import { type Address, rootLogger } from '@hyperlane-xyz/utils';
 
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
-import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
-import { MailboxClientConfig } from '../router/types.js';
-import { ChainName } from '../types.js';
+import { type ContractVerifier } from '../deploy/verify/ContractVerifier.js';
+import { type MultiProvider } from '../providers/MultiProvider.js';
+import { type MailboxClientConfig } from '../router/types.js';
+import { type ChainName } from '../types.js';
 
 export type TestRecipientConfig = Pick<
   MailboxClientConfig,

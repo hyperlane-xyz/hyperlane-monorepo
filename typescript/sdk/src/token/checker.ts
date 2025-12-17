@@ -1,32 +1,32 @@
 import { BigNumber } from 'ethers';
 
 import {
-  ERC20,
+  type ERC20,
   ERC20__factory,
-  HypERC20Collateral,
+  type HypERC20Collateral,
   IERC4626__factory,
   IXERC20Lockbox__factory,
-  Ownable,
+  type Ownable,
   Ownable__factory,
   ProxyAdmin__factory,
-  TokenRouter,
+  type TokenRouter,
 } from '@hyperlane-xyz/core';
 import { eqAddress, objMap } from '@hyperlane-xyz/utils';
 
 import { filterOwnableContracts } from '../contracts/contracts.js';
 import { isProxy, proxyAdmin } from '../deploy/proxy.js';
-import { TokenMismatchViolation } from '../deploy/types.js';
+import { type TokenMismatchViolation } from '../deploy/types.js';
 import { ProxiedRouterChecker } from '../router/ProxiedRouterChecker.js';
-import { ProxiedFactories } from '../router/types.js';
-import { ChainName } from '../types.js';
+import { type ProxiedFactories } from '../router/types.js';
+import { type ChainName } from '../types.js';
 import { verifyScale } from '../utils/decimals.js';
 
-import { HypERC20App } from './app.js';
+import { type HypERC20App } from './app.js';
 import { NON_ZERO_SENDER_ADDRESS, TokenType } from './config.js';
-import { HypERC20Factories } from './contracts.js';
+import { type HypERC20Factories } from './contracts.js';
 import {
-  HypTokenRouterConfig,
-  TokenMetadata,
+  type HypTokenRouterConfig,
+  type TokenMetadata,
   isCctpTokenConfig,
   isCollateralTokenConfig,
   isNativeTokenConfig,

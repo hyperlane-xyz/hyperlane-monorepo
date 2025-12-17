@@ -1,15 +1,15 @@
-import { Logger } from 'pino';
+import { type Logger } from 'pino';
 
 import { isZeroishAddress, rootLogger, sleep } from '@hyperlane-xyz/utils';
 
 import { ExplorerFamily } from '../../metadata/chainMetadataTypes.js';
-import { MultiProvider } from '../../providers/MultiProvider.js';
-import { ChainName } from '../../types.js';
+import { type MultiProvider } from '../../providers/MultiProvider.js';
+import { type ChainName } from '../../types.js';
 
 import {
-  BuildArtifact,
-  ContractVerificationInput,
-  SolidityStandardJsonInput,
+  type BuildArtifact,
+  type ContractVerificationInput,
+  type SolidityStandardJsonInput,
 } from './types.js';
 import { FamilyVerificationDelay } from './utils.js';
 

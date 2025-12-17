@@ -1,7 +1,7 @@
 import { PublicKey } from '@solana/web3.js';
 
 import {
-  Address,
+  type Address,
   ProtocolType,
   objMap,
   promiseObjAll,
@@ -9,19 +9,19 @@ import {
   symmetricDifference,
 } from '@hyperlane-xyz/utils';
 
-import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
-import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
+import { type ChainMetadata } from '../metadata/chainMetadataTypes.js';
+import { type MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import {
-  CosmJsNativeProvider,
-  CosmJsProvider,
-  CosmJsWasmProvider,
-  EthersV5Provider,
-  RadixProvider,
-  SolanaWeb3Provider,
-  StarknetJsProvider,
-  TypedProvider,
+  type CosmJsNativeProvider,
+  type CosmJsProvider,
+  type CosmJsWasmProvider,
+  type EthersV5Provider,
+  type RadixProvider,
+  type SolanaWeb3Provider,
+  type StarknetJsProvider,
+  type TypedProvider,
 } from '../providers/ProviderType.js';
-import { ChainMap, ChainName } from '../types.js';
+import { type ChainMap, type ChainName } from '../types.js';
 import { MultiGeneric } from '../utils/MultiGeneric.js';
 
 /**

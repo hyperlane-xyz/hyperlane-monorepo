@@ -1,4 +1,4 @@
-import { WithAddress, pick } from '@hyperlane-xyz/utils';
+import { type WithAddress, pick } from '@hyperlane-xyz/utils';
 
 import { multisigIsmVerifyCosts } from '../consts/multisigIsmVerifyCosts.js';
 

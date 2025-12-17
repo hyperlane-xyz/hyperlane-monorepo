@@ -1,20 +1,23 @@
-import { MsgSendEncodeObject, MsgTransferEncodeObject } from '@cosmjs/stargate';
+import {
+  type MsgSendEncodeObject,
+  type MsgTransferEncodeObject,
+} from '@cosmjs/stargate';
 
-import { Address, Domain, assert } from '@hyperlane-xyz/utils';
+import { type Address, type Domain, assert } from '@hyperlane-xyz/utils';
 
 import { BaseCosmosAdapter } from '../../app/MultiProtocolApp.js';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
-import { ChainName } from '../../types.js';
-import { TokenMetadata } from '../types.js';
+import { type MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { type ChainName } from '../../types.js';
+import { type TokenMetadata } from '../types.js';
 
 import { CwHypCollateralAdapter } from './CosmWasmTokenAdapter.js';
 import {
-  IHypTokenAdapter,
-  ITokenAdapter,
-  InterchainGasQuote,
-  QuoteTransferRemoteParams,
-  TransferParams,
-  TransferRemoteParams,
+  type IHypTokenAdapter,
+  type ITokenAdapter,
+  type InterchainGasQuote,
+  type QuoteTransferRemoteParams,
+  type TransferParams,
+  type TransferRemoteParams,
 } from './ITokenAdapter.js';
 
 const COSMOS_IBC_TRANSFER_TIMEOUT = 600_000; // 10 minutes

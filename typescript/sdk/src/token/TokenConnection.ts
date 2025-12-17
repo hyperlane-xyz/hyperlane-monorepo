@@ -1,9 +1,9 @@
 import { z } from 'zod';
 
-import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { type Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { ZChainName } from '../metadata/customZodTypes.js';
-import { ChainName } from '../types.js';
+import { type ChainName } from '../types.js';
 
 import type { IToken } from './IToken.js';
 

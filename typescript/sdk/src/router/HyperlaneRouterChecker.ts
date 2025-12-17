@@ -1,31 +1,31 @@
 import { ethers } from 'ethers';
 
-import { Router } from '@hyperlane-xyz/core';
+import { type Router } from '@hyperlane-xyz/core';
 import {
-  AddressBytes32,
+  type AddressBytes32,
   addressToBytes32,
   eqAddress,
   isZeroishAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { HyperlaneFactories } from '../contracts/types.js';
+import { type HyperlaneFactories } from '../contracts/types.js';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
-import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
-import { DerivedIsmConfig } from '../ism/types.js';
+import { type HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
+import { type DerivedIsmConfig } from '../ism/types.js';
 import { moduleMatchesConfig } from '../ism/utils.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainMap, ChainName } from '../types.js';
+import { type MultiProvider } from '../providers/MultiProvider.js';
+import { type ChainMap, type ChainName } from '../types.js';
 
-import { RouterApp } from './RouterApps.js';
+import { type RouterApp } from './RouterApps.js';
 import {
-  ClientViolation,
+  type ClientViolation,
   ClientViolationType,
-  MissingEnrolledRouterViolation,
-  MissingRouterViolation,
-  RouterConfig,
-  RouterViolation,
+  type MissingEnrolledRouterViolation,
+  type MissingRouterViolation,
+  type RouterConfig,
+  type RouterViolation,
   RouterViolationType,
 } from './types.js';
 

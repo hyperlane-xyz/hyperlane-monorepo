@@ -1,4 +1,4 @@
-import { Numberish, fromWei } from '@hyperlane-xyz/utils';
+import { type Numberish, fromWei } from '@hyperlane-xyz/utils';
 
 import type { IToken } from './IToken.js';
 

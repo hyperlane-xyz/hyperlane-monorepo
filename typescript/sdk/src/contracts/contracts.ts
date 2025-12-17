@@ -1,11 +1,11 @@
 import { constants } from 'ethers';
 
-import { Ownable, Ownable__factory } from '@hyperlane-xyz/core';
+import { type Ownable, Ownable__factory } from '@hyperlane-xyz/core';
 import {
-  Address,
-  EvmChainId,
+  type Address,
+  type EvmChainId,
   ProtocolType,
-  ValueOf,
+  type ValueOf,
   addressToByteHexString,
   assert,
   eqAddress,
@@ -16,23 +16,23 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { EthersLikeProvider } from '../deploy/proxy.js';
-import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import { type EthersLikeProvider } from '../deploy/proxy.js';
+import { type ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
+import { type MultiProvider } from '../providers/MultiProvider.js';
+import { type AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import {
-  ChainMap,
-  ChainNameOrId,
-  Connection,
-  OwnableConfig,
+  type ChainMap,
+  type ChainNameOrId,
+  type Connection,
+  type OwnableConfig,
 } from '../types.js';
 
 import {
-  HyperlaneAddresses,
-  HyperlaneAddressesMap,
-  HyperlaneContracts,
-  HyperlaneContractsMap,
-  HyperlaneFactories,
+  type HyperlaneAddresses,
+  type HyperlaneAddressesMap,
+  type HyperlaneContracts,
+  type HyperlaneContractsMap,
+  type HyperlaneFactories,
 } from './types.js';
 
 export function serializeContractsMap<F extends HyperlaneFactories>(

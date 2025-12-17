@@ -1,17 +1,17 @@
 import {
-  WithAddress,
+  type WithAddress,
   assert,
   deepFind,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { HyperlaneCore } from '../../core/HyperlaneCore.js';
+import { type HyperlaneCore } from '../../core/HyperlaneCore.js';
 import {
-  ArbL2ToL1HookConfig,
+  type ArbL2ToL1HookConfig,
   HookType,
-  MerkleTreeHookConfig,
+  type MerkleTreeHookConfig,
 } from '../../hook/types.js';
-import { MultiProvider } from '../../providers/MultiProvider.js';
+import { type MultiProvider } from '../../providers/MultiProvider.js';
 import { IsmType } from '../types.js';
 
 import { AggregationMetadataBuilder } from './aggregation.js';

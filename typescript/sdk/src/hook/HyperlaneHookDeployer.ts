@@ -1,17 +1,17 @@
 import {
-  AmountRoutingHook,
-  CCIPHook,
+  type AmountRoutingHook,
+  type CCIPHook,
   CCIPHook__factory,
-  DomainRoutingHook,
-  FallbackDomainRoutingHook,
+  type DomainRoutingHook,
+  type FallbackDomainRoutingHook,
   IL1CrossDomainMessenger__factory,
-  OPStackHook,
-  OPStackIsm,
-  ProtocolFee,
+  type OPStackHook,
+  type OPStackIsm,
+  type ProtocolFee,
   StaticAggregationHook__factory,
 } from '@hyperlane-xyz/core';
 import {
-  Address,
+  type Address,
   ZERO_ADDRESS_HEX_32,
   addBufferToGasLimit,
   addressToBytes32,
@@ -19,29 +19,33 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts } from '../contracts/types.js';
-import { CoreAddresses } from '../core/contracts.js';
+import { type HyperlaneContracts } from '../contracts/types.js';
+import { type CoreAddresses } from '../core/contracts.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
-import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
+import { type ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { HyperlaneIgpDeployer } from '../gas/HyperlaneIgpDeployer.js';
-import { IgpFactories } from '../gas/contracts.js';
-import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
-import { IsmType, OpStackIsmConfig } from '../ism/types.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainMap, ChainName } from '../types.js';
+import { type IgpFactories } from '../gas/contracts.js';
+import { type HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
+import { IsmType, type OpStackIsmConfig } from '../ism/types.js';
+import { type MultiProvider } from '../providers/MultiProvider.js';
+import { type ChainMap, type ChainName } from '../types.js';
 
-import { DeployedHook, HookFactories, hookFactories } from './contracts.js';
 import {
-  AggregationHookConfig,
-  AmountRoutingHookConfig,
-  CCIPHookConfig,
-  DomainRoutingHookConfig,
-  FallbackRoutingHookConfig,
-  HookConfig,
+  type DeployedHook,
+  type HookFactories,
+  hookFactories,
+} from './contracts.js';
+import {
+  type AggregationHookConfig,
+  type AmountRoutingHookConfig,
+  type CCIPHookConfig,
+  type DomainRoutingHookConfig,
+  type FallbackRoutingHookConfig,
+  type HookConfig,
   HookType,
-  IgpHookConfig,
-  OpStackHookConfig,
-  ProtocolFeeHookConfig,
+  type IgpHookConfig,
+  type OpStackHookConfig,
+  type ProtocolFeeHookConfig,
 } from './types.js';
 
 export class HyperlaneHookDeployer extends HyperlaneDeployer<

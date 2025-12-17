@@ -1,14 +1,14 @@
 import { expect } from 'chai';
 
-import { Address, assert } from '@hyperlane-xyz/utils';
+import { type Address, assert } from '@hyperlane-xyz/utils';
 
-import { ChainName } from '../../../../types.js';
+import { type ChainName } from '../../../../types.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
 
 import {
-  ChainSubmissionStrategy,
+  type ChainSubmissionStrategy,
   ChainSubmissionStrategySchema,
-  SubmissionStrategy,
+  type SubmissionStrategy,
   SubmissionStrategySchema,
 } from './types.js';
 

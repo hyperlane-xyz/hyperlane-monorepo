@@ -1,13 +1,13 @@
 import {
-  Mailbox,
+  type Mailbox,
   Mailbox__factory,
   Ownable__factory,
 } from '@hyperlane-xyz/core';
 import {
-  Address,
-  Domain,
-  EvmChainId,
-  ProtocolType,
+  type Address,
+  type Domain,
+  type EvmChainId,
+  type ProtocolType,
   eqAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -18,46 +18,50 @@ import {
   transferOwnershipTransactions,
 } from '../contracts/contracts.js';
 import {
-  HyperlaneAddresses,
-  HyperlaneContractsMap,
+  type HyperlaneAddresses,
+  type HyperlaneContractsMap,
 } from '../contracts/types.js';
 import {
-  CoreConfig,
-  CoreConfigHookFieldKey,
+  type CoreConfig,
+  type CoreConfigHookFieldKey,
   CoreConfigSchema,
-  DeployedCoreAddresses,
-  DerivedCoreConfig,
+  type DeployedCoreAddresses,
+  type DerivedCoreConfig,
 } from '../core/types.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import {
-  ProxyFactoryFactories,
+  type ProxyFactoryFactories,
   proxyFactoryFactories,
 } from '../deploy/contracts.js';
 import { proxyAdminUpdateTxs } from '../deploy/proxy.js';
 import { createDefaultProxyFactoryFactories } from '../deploy/proxyFactoryUtils.js';
-import { ProxyFactoryFactoriesAddresses } from '../deploy/types.js';
-import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
-import { HookFactories } from '../hook/contracts.js';
-import { DerivedHookConfig, HookConfig } from '../hook/types.js';
+import { type ProxyFactoryFactoriesAddresses } from '../deploy/types.js';
+import { type ContractVerifier } from '../deploy/verify/ContractVerifier.js';
+import { type HookFactories } from '../hook/contracts.js';
+import { type DerivedHookConfig, type HookConfig } from '../hook/types.js';
 import { getEvmHookUpdateTransactions } from '../hook/updates.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
-import { DerivedIsmConfig, IsmConfig, IsmType } from '../ism/types.js';
+import {
+  type DerivedIsmConfig,
+  type IsmConfig,
+  IsmType,
+} from '../ism/types.js';
 import { isStaticDeploymentSupported } from '../ism/utils.js';
-import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
-import { ChainName, ChainNameOrId } from '../types.js';
+import { type ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
+import { type MultiProvider } from '../providers/MultiProvider.js';
+import { type AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import { type ChainName, type ChainNameOrId } from '../types.js';
 import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
 
 import {
   HyperlaneModule,
-  HyperlaneModuleParams,
+  type HyperlaneModuleParams,
 } from './AbstractHyperlaneModule.js';
 import { EvmCoreReader } from './EvmCoreReader.js';
 import { EvmIcaModule } from './EvmIcaModule.js';
 import { HyperlaneCoreDeployer } from './HyperlaneCoreDeployer.js';
-import { CoreFactories } from './contracts.js';
+import { type CoreFactories } from './contracts.js';
 
 export class EvmCoreModule extends HyperlaneModule<
   ProtocolType.Ethereum,

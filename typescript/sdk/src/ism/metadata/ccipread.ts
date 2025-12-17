@@ -1,10 +1,10 @@
 import { utils } from 'ethers';
 
 import { AbstractCcipReadIsm__factory } from '@hyperlane-xyz/core';
-import { WithAddress, ensure0x } from '@hyperlane-xyz/utils';
+import { type WithAddress, ensure0x } from '@hyperlane-xyz/utils';
 
-import { HyperlaneCore } from '../../core/HyperlaneCore.js';
-import { IsmType, OffchainLookupIsmConfig } from '../types.js';
+import { type HyperlaneCore } from '../../core/HyperlaneCore.js';
+import { IsmType, type OffchainLookupIsmConfig } from '../types.js';
 
 import type { MetadataBuilder, MetadataContext } from './types.js';
 

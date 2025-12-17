@@ -2,10 +2,10 @@ import { providers } from 'ethers';
 
 import { objFilter, rootLogger, sleep } from '@hyperlane-xyz/utils';
 
-import { BlockExplorer } from '../../metadata/chainMetadataTypes.js';
+import { type BlockExplorer } from '../../metadata/chainMetadataTypes.js';
 
 import {
-  IProviderMethods,
+  type IProviderMethods,
   ProviderMethod,
   excludeProviderMethods,
 } from './ProviderMethods.js';

@@ -1,13 +1,13 @@
 import {
-  AccountMeta,
+  type AccountMeta,
   PublicKey,
   TransactionInstruction,
 } from '@solana/web3.js';
 import { serialize } from 'borsh';
 
 import {
-  Address,
-  HexString,
+  type Address,
+  type HexString,
   ensure0x,
   pollAsync,
   strip0x,
@@ -21,15 +21,15 @@ import {
   SealevelMailboxTransferOwnershipInstruction,
   SealevelMailboxTransferOwnershipInstructionSchema,
 } from '../../mailbox/serialization.js';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { type MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import {
   ProviderType,
-  TypedTransactionReceipt,
+  type TypedTransactionReceipt,
 } from '../../providers/ProviderType.js';
-import { ChainName } from '../../types.js';
+import { type ChainName } from '../../types.js';
 import { SealevelInstructionWrapper } from '../../utils/sealevelSerialization.js';
 
-import { ICoreAdapter } from './types.js';
+import { type ICoreAdapter } from './types.js';
 
 // https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/programs/mailbox/src/processor.rs
 const MESSAGE_DISPATCH_LOG_REGEX = /Dispatched message to (.*), ID (.*)/;

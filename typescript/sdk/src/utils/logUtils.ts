@@ -1,5 +1,5 @@
-import { ethers } from 'ethers';
-import { Log } from 'viem';
+import { type ethers } from 'ethers';
+import { type Log } from 'viem';
 
 export function findMatchingLogEvents(
   logs: (ethers.providers.Log | Log<bigint, number, false>)[],

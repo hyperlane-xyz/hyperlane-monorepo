@@ -12,7 +12,7 @@ import {
   ProtocolFee__factory,
   StaticAggregationHook__factory,
 } from '@hyperlane-xyz/core';
-import { ValueOf } from '@hyperlane-xyz/utils';
+import { type ValueOf } from '@hyperlane-xyz/utils';
 
 import { HookType } from './types.js';
 

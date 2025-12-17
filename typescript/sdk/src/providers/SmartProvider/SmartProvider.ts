@@ -1,5 +1,5 @@
 import { BigNumber, errors as EthersError, providers, utils } from 'ethers';
-import { Logger, pino } from 'pino';
+import { type Logger, type pino } from 'pino';
 
 import {
   raceWithContext,
@@ -10,21 +10,21 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import {
-  BlockExplorer,
-  ChainMetadata,
+  type BlockExplorer,
+  type ChainMetadata,
   ExplorerFamily,
-  RpcUrl,
+  type RpcUrl,
 } from '../../metadata/chainMetadataTypes.js';
 
 import { HyperlaneEtherscanProvider } from './HyperlaneEtherscanProvider.js';
 import { HyperlaneJsonRpcProvider } from './HyperlaneJsonRpcProvider.js';
-import { IProviderMethods, ProviderMethod } from './ProviderMethods.js';
+import { type IProviderMethods, ProviderMethod } from './ProviderMethods.js';
 import {
-  ChainMetadataWithRpcConnectionInfo,
-  ProviderPerformResult,
+  type ChainMetadataWithRpcConnectionInfo,
+  type ProviderPerformResult,
   ProviderStatus,
-  ProviderTimeoutResult,
-  SmartProviderOptions,
+  type ProviderTimeoutResult,
+  type SmartProviderOptions,
 } from './types.js';
 
 export function getSmartProviderErrorMessage(errorMsg: string): string {

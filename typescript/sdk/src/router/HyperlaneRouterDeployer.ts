@@ -1,6 +1,6 @@
-import { Ownable, Router } from '@hyperlane-xyz/core';
+import { type Ownable, type Router } from '@hyperlane-xyz/core';
 import {
-  Address,
+  type Address,
   addBufferToGasLimit,
   addressToBytes32,
   objFilter,
@@ -10,13 +10,13 @@ import {
 
 import { filterOwnableContracts } from '../contracts/contracts.js';
 import {
-  HyperlaneContracts,
-  HyperlaneContractsMap,
-  HyperlaneFactories,
+  type HyperlaneContracts,
+  type HyperlaneContractsMap,
+  type HyperlaneFactories,
 } from '../contracts/types.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
-import { RouterConfig } from '../router/types.js';
-import { ChainMap } from '../types.js';
+import { type RouterConfig } from '../router/types.js';
+import { type ChainMap } from '../types.js';
 
 export abstract class HyperlaneRouterDeployer<
   Config extends RouterConfig,

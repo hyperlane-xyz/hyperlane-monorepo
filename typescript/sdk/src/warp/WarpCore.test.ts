@@ -19,8 +19,8 @@ import { ProviderType } from '../providers/ProviderType.js';
 import { Token } from '../token/Token.js';
 import { TokenAmount } from '../token/TokenAmount.js';
 import { TokenStandard } from '../token/TokenStandard.js';
-import { InterchainGasQuote } from '../token/adapters/ITokenAdapter.js';
-import { ChainName } from '../types.js';
+import { type InterchainGasQuote } from '../token/adapters/ITokenAdapter.js';
+import { type ChainName } from '../types.js';
 
 import { WarpCore } from './WarpCore.js';
 import { WarpTxCategory } from './types.js';

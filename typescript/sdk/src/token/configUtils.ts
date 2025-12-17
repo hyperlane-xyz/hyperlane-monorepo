@@ -1,12 +1,12 @@
 import { zeroAddress } from 'viem';
 
 import { AltVMHookReader, AltVMIsmReader } from '@hyperlane-xyz/deploy-sdk';
-import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
-import { HookConfig } from '@hyperlane-xyz/provider-sdk/hook';
-import { IsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
+import { type AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { type HookConfig } from '@hyperlane-xyz/provider-sdk/hook';
+import { type IsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
 import {
-  Address,
-  TransformObjectTransformer,
+  type Address,
+  type TransformObjectTransformer,
   addressToBytes32,
   assert,
   deepCopy,
@@ -25,23 +25,23 @@ import {
 import { isProxy } from '../deploy/proxy.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
-import { DestinationGas, RemoteRouters } from '../router/types.js';
-import { ChainMap } from '../types.js';
-import { WarpCoreConfig } from '../warp/types.js';
+import { type MultiProvider } from '../providers/MultiProvider.js';
+import { type DestinationGas, type RemoteRouters } from '../router/types.js';
+import { type ChainMap } from '../types.js';
+import { type WarpCoreConfig } from '../warp/types.js';
 
 import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
-import { TokenMetadataMap } from './TokenMetadataMap.js';
+import { type TokenMetadataMap } from './TokenMetadataMap.js';
 import { gasOverhead } from './config.js';
 import { HypERC20Deployer } from './deploy.js';
 import {
   ContractVerificationStatus,
-  DerivedWarpRouteDeployConfig,
-  HypTokenRouterConfig,
-  HypTokenRouterVirtualConfig,
+  type DerivedWarpRouteDeployConfig,
+  type HypTokenRouterConfig,
+  type HypTokenRouterVirtualConfig,
   OwnerStatus,
-  WarpRouteDeployConfig,
-  WarpRouteDeployConfigMailboxRequired,
+  type WarpRouteDeployConfig,
+  type WarpRouteDeployConfigMailboxRequired,
   isMovableCollateralTokenConfig,
 } from './types.js';
 

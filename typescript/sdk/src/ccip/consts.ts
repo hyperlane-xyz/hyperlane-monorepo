@@ -1,4 +1,4 @@
-import { ChainMap } from '../types.js';
+import { type ChainMap } from '../types.js';
 
 export type CCIPAddresses = {
   armProxy: {

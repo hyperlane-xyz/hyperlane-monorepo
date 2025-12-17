@@ -4,7 +4,7 @@ import { rootLogger } from '@hyperlane-xyz/utils';
 
 import {
   TurnkeyClientManager,
-  TurnkeyConfig,
+  type TurnkeyConfig,
   logTurnkeyError,
   validateTurnkeyActivityCompleted,
 } from '../turnkeyClient.js';

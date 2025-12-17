@@ -8,7 +8,7 @@ import { randomAddress } from '../test/testUtils.js';
 
 import { TokenType } from './config.js';
 import {
-  WarpRouteDeployConfig,
+  type WarpRouteDeployConfig,
   WarpRouteDeployConfigSchema,
   WarpRouteDeployConfigSchemaErrors,
   isCollateralTokenConfig,

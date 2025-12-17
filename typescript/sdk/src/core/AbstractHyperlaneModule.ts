@@ -1,9 +1,9 @@
-import { Logger } from 'pino';
+import { type Logger } from 'pino';
 
-import { Annotated, ProtocolType } from '@hyperlane-xyz/utils';
+import { type Annotated, type ProtocolType } from '@hyperlane-xyz/utils';
 
-import { ProtocolTypedTransaction } from '../providers/ProviderType.js';
-import { ChainNameOrId } from '../types.js';
+import { type ProtocolTypedTransaction } from '../providers/ProviderType.js';
+import { type ChainNameOrId } from '../types.js';
 
 export type HyperlaneModuleParams<
   TConfig,

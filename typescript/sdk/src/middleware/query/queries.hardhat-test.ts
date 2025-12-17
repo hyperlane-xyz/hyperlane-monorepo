@@ -1,28 +1,28 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
+import { type SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import hre from 'hardhat';
 
 import {
-  InterchainQueryRouter,
-  TestQuery,
+  type InterchainQueryRouter,
+  type TestQuery,
   TestQuery__factory,
 } from '@hyperlane-xyz/core';
 import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import { TestChainName, test1, test2 } from '../../consts/testChains.js';
-import { HyperlaneContractsMap } from '../../contracts/types.js';
-import { TestCoreApp } from '../../core/TestCoreApp.js';
+import { type HyperlaneContractsMap } from '../../contracts/types.js';
+import { type TestCoreApp } from '../../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../../deploy/HyperlaneProxyFactoryDeployer.js';
 import { HyperlaneIsmFactory } from '../../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
-import { RouterConfig } from '../../router/types.js';
-import { ChainMap } from '../../types.js';
+import { type RouterConfig } from '../../router/types.js';
+import { type ChainMap } from '../../types.js';
 
 import { InterchainQuery } from './InterchainQuery.js';
 import { InterchainQueryChecker } from './InterchainQueryChecker.js';
 import { InterchainQueryDeployer } from './InterchainQueryDeployer.js';
-import { InterchainQueryFactories } from './contracts.js';
+import { type InterchainQueryFactories } from './contracts.js';
 
 // FIXME: migrate to mocha rules: eslint-disable-next-line jest/no-disabled-tests
 describe.skip('InterchainQueryRouter', async () => {

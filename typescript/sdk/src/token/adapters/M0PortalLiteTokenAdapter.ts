@@ -1,26 +1,26 @@
 import {
   Contract,
-  PopulatedTransaction,
+  type PopulatedTransaction,
   constants as ethersConstants,
 } from 'ethers';
 
 import { ERC20__factory } from '@hyperlane-xyz/core';
 import {
-  Address,
-  Domain,
+  type Address,
+  type Domain,
   addressToBytes32,
   strip0x,
 } from '@hyperlane-xyz/utils';
 
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
-import { ChainName } from '../../types.js';
+import { type MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { type ChainName } from '../../types.js';
 
 import { EvmTokenAdapter } from './EvmTokenAdapter.js';
 import {
-  IHypTokenAdapter,
-  InterchainGasQuote,
-  QuoteTransferRemoteParams,
-  TransferRemoteParams,
+  type IHypTokenAdapter,
+  type InterchainGasQuote,
+  type QuoteTransferRemoteParams,
+  type TransferRemoteParams,
 } from './ITokenAdapter.js';
 
 /**

@@ -3,7 +3,7 @@ import { SystemProgram } from '@solana/web3.js';
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 
-import { Address, ProtocolType } from '@hyperlane-xyz/utils';
+import { type Address, ProtocolType } from '@hyperlane-xyz/utils';
 
 import {
   TestChainName,
@@ -14,7 +14,7 @@ import {
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { stubMultiProtocolProvider } from '../test/multiProviderStubs.js';
 
-import { TokenArgs } from './IToken.js';
+import { type TokenArgs } from './IToken.js';
 import { Token } from './Token.js';
 import { TokenStandard } from './TokenStandard.js';
 

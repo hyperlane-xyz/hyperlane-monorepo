@@ -1,32 +1,32 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
+import { type SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import '@nomiclabs/hardhat-waffle';
 import { assert, expect } from 'chai';
 import hre from 'hardhat';
 import sinon from 'sinon';
 
-import { Address, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
+import { type Address, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { TestChainName, testChains } from '../consts/testChains.js';
-import { HyperlaneContractsMap } from '../contracts/types.js';
+import { type HyperlaneContractsMap } from '../contracts/types.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
-import { DerivedHookConfig } from '../hook/types.js';
+import { type DerivedHookConfig } from '../hook/types.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import {
-  AggregationIsmConfig,
-  DerivedIsmConfig,
+  type AggregationIsmConfig,
+  type DerivedIsmConfig,
   IsmType,
 } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { testCoreConfig } from '../test/testUtils.js';
-import { ChainMap } from '../types.js';
+import { type ChainMap } from '../types.js';
 
 import { EvmCoreReader } from './EvmCoreReader.js';
 import { EvmIcaModule } from './EvmIcaModule.js';
 import { HyperlaneCore } from './HyperlaneCore.js';
 import { HyperlaneCoreChecker } from './HyperlaneCoreChecker.js';
 import { HyperlaneCoreDeployer } from './HyperlaneCoreDeployer.js';
-import { CoreFactories } from './contracts.js';
-import { CoreConfig } from './types.js';
+import { type CoreFactories } from './contracts.js';
+import { type CoreConfig } from './types.js';
 
 describe('core', async () => {
   let multiProvider: MultiProvider;

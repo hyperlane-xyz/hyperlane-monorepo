@@ -2,14 +2,14 @@ import { expect } from 'chai';
 import { utils } from 'ethers';
 import hre from 'hardhat';
 
-import { InterchainGasPaymaster } from '@hyperlane-xyz/core';
+import { type InterchainGasPaymaster } from '@hyperlane-xyz/core';
 
 import { TestChainName } from '../../consts/testChains.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { testIgpConfig } from '../../test/testUtils.js';
-import { ChainMap } from '../../types.js';
+import { type ChainMap } from '../../types.js';
 import { HyperlaneIgpDeployer } from '../HyperlaneIgpDeployer.js';
-import { IgpConfig } from '../types.js';
+import { type IgpConfig } from '../types.js';
 
 import { oracleConfigToOracleData } from './types.js';
 

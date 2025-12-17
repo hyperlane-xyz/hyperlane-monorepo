@@ -1,19 +1,19 @@
 import { z } from 'zod';
 
 import {
-  AbstractCcipReadIsm,
-  ArbL2ToL1Ism,
-  CCIPIsm,
-  IAggregationIsm,
-  IInterchainSecurityModule,
-  IMultisigIsm,
-  IRoutingIsm,
-  IStaticWeightedMultisigIsm,
-  InterchainAccountRouter,
-  OPStackIsm,
-  PausableIsm,
-  TestIsm,
-  TrustedRelayerIsm,
+  type AbstractCcipReadIsm,
+  type ArbL2ToL1Ism,
+  type CCIPIsm,
+  type IAggregationIsm,
+  type IInterchainSecurityModule,
+  type IMultisigIsm,
+  type IRoutingIsm,
+  type IStaticWeightedMultisigIsm,
+  type InterchainAccountRouter,
+  type OPStackIsm,
+  type PausableIsm,
+  type TestIsm,
+  type TrustedRelayerIsm,
 } from '@hyperlane-xyz/core';
 import type {
   Address,
@@ -24,8 +24,8 @@ import type {
 
 import { ZHash } from '../metadata/customZodTypes.js';
 import {
-  ChainMap,
-  OwnableConfig,
+  type ChainMap,
+  type OwnableConfig,
   OwnableSchema,
   PausableSchema,
 } from '../types.js';

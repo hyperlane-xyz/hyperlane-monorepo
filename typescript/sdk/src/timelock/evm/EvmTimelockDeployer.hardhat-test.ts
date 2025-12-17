@@ -1,4 +1,4 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
+import { type SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import hre from 'hardhat';
@@ -9,7 +9,7 @@ import { assert } from '@hyperlane-xyz/utils';
 import { TestChainName } from '../../consts/testChains.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { randomAddress } from '../../test/testUtils.js';
-import { TimelockConfig } from '../types.js';
+import { type TimelockConfig } from '../types.js';
 
 import { EvmTimelockDeployer } from './EvmTimelockDeployer.js';
 import {

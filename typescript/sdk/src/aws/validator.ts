@@ -1,15 +1,15 @@
 import {
-  Announcement,
+  type Announcement,
   BaseValidator,
-  ReorgEvent,
-  S3Announcement,
-  S3CheckpointWithId,
-  ValidatorConfig,
-  ValidatorMetadata,
+  type ReorgEvent,
+  type S3Announcement,
+  type S3CheckpointWithId,
+  type ValidatorConfig,
+  type ValidatorMetadata,
   isS3CheckpointWithId,
 } from '@hyperlane-xyz/utils';
 
-import { S3Config, S3Wrapper } from './s3.js';
+import { type S3Config, S3Wrapper } from './s3.js';
 
 const checkpointWithMessageIdKey = (checkpointIndex: number) =>
   `checkpoint_${checkpointIndex}_with_id.json`;

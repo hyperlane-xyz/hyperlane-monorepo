@@ -1,4 +1,4 @@
-import { ChainMap, ChainName } from '../types.js';
+import { type ChainMap, type ChainName } from '../types.js';
 
 // Generalized map container for chain name to some value
 export class MultiGeneric<Value> {

@@ -2,11 +2,11 @@
  * The types defined here are the source of truth for chain metadata.
  * ANY CHANGES HERE NEED TO BE REFLECTED IN HYPERLANE-BASE CONFIG PARSING.
  */
-import { SafeParseReturnType, z } from 'zod';
+import { type SafeParseReturnType, z } from 'zod';
 
 import { ProtocolType, objMerge } from '@hyperlane-xyz/utils';
 
-import { ChainMap } from '../types.js';
+import { type ChainMap } from '../types.js';
 
 import { ZChainName, ZNzUint, ZUint } from './customZodTypes.js';
 

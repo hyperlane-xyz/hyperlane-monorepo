@@ -4,22 +4,22 @@ import { randomBytes } from 'ethers/lib/utils.js';
 import sinon from 'sinon';
 
 import {
-  CCIPHook,
+  type CCIPHook,
   CCIPHook__factory,
-  DefaultHook,
+  type DefaultHook,
   DefaultHook__factory,
-  IPostDispatchHook,
+  type IPostDispatchHook,
   IPostDispatchHook__factory,
-  MerkleTreeHook,
+  type MerkleTreeHook,
   MerkleTreeHook__factory,
-  OPStackHook,
+  type OPStackHook,
   OPStackHook__factory,
-  PausableHook,
+  type PausableHook,
   PausableHook__factory,
-  ProtocolFee,
+  type ProtocolFee,
   ProtocolFee__factory,
 } from '@hyperlane-xyz/core';
-import { WithAddress } from '@hyperlane-xyz/utils';
+import { type WithAddress } from '@hyperlane-xyz/utils';
 
 import { TestChainName, test1 } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -27,14 +27,14 @@ import { randomAddress } from '../test/testUtils.js';
 
 import { EvmHookReader } from './EvmHookReader.js';
 import {
-  CCIPHookConfig,
+  type CCIPHookConfig,
   HookType,
-  MailboxDefaultHookConfig,
-  MerkleTreeHookConfig,
+  type MailboxDefaultHookConfig,
+  type MerkleTreeHookConfig,
   OnchainHookType,
-  OpStackHookConfig,
-  PausableHookConfig,
-  ProtocolFeeHookConfig,
+  type OpStackHookConfig,
+  type PausableHookConfig,
+  type ProtocolFeeHookConfig,
 } from './types.js';
 
 describe('EvmHookReader', () => {

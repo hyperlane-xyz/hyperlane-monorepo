@@ -2,23 +2,23 @@ import {
   ArbitrumProvider,
   ChildToParentMessageReader,
   ChildToParentMessageStatus,
-  ChildToParentTransactionEvent,
-  EventArgs,
+  type ChildToParentTransactionEvent,
+  type EventArgs,
 } from '@arbitrum/sdk';
-import { L2ToL1TxEvent } from '@arbitrum/sdk/dist/lib/abi/ArbSys.js';
-import { BigNumber, BytesLike, providers, utils } from 'ethers';
+import { type L2ToL1TxEvent } from '@arbitrum/sdk/dist/lib/abi/ArbSys.js';
+import { BigNumber, type BytesLike, providers, utils } from 'ethers';
 
 import {
   AbstractMessageIdAuthorizedIsm__factory,
   ArbSys__factory,
   IOutbox__factory,
 } from '@hyperlane-xyz/core';
-import { WithAddress, assert, rootLogger } from '@hyperlane-xyz/utils';
+import { type WithAddress, assert, rootLogger } from '@hyperlane-xyz/utils';
 
-import { HyperlaneCore } from '../../core/HyperlaneCore.js';
-import { ArbL2ToL1HookConfig } from '../../hook/types.js';
+import { type HyperlaneCore } from '../../core/HyperlaneCore.js';
+import { type ArbL2ToL1HookConfig } from '../../hook/types.js';
 import { findMatchingLogEvents } from '../../utils/logUtils.js';
-import { ArbL2ToL1IsmConfig, IsmType } from '../types.js';
+import { type ArbL2ToL1IsmConfig, IsmType } from '../types.js';
 
 import type { MetadataBuilder, MetadataContext } from './types.js';
 

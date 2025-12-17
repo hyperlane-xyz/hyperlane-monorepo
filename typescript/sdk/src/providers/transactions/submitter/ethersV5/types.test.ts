@@ -1,13 +1,13 @@
 import { expect } from 'chai';
 
-import { Address } from '@hyperlane-xyz/utils';
+import { type Address } from '@hyperlane-xyz/utils';
 
-import { ChainName } from '../../../../types.js';
+import { type ChainName } from '../../../../types.js';
 
 import {
-  EV5GnosisSafeTxSubmitterProps,
+  type EV5GnosisSafeTxSubmitterProps,
   EV5GnosisSafeTxSubmitterPropsSchema,
-  EV5ImpersonatedAccountTxSubmitterProps,
+  type EV5ImpersonatedAccountTxSubmitterProps,
   EV5ImpersonatedAccountTxSubmitterPropsSchema,
 } from './types.js';
 

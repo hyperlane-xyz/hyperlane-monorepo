@@ -6,7 +6,7 @@ import type {
   Ownable,
   TimelockController,
 } from '@hyperlane-xyz/core';
-import { Address } from '@hyperlane-xyz/utils';
+import { type Address } from '@hyperlane-xyz/utils';
 
 import type { ChainName } from '../types.js';
 

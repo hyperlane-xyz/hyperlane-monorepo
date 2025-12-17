@@ -1,12 +1,12 @@
 import {
-  AccountMeta,
+  type AccountMeta,
   PublicKey,
   SystemProgram,
   TransactionInstruction,
 } from '@solana/web3.js';
 import { serialize } from 'borsh';
 
-import { Address, Domain } from '@hyperlane-xyz/utils';
+import { type Address, type Domain } from '@hyperlane-xyz/utils';
 
 import { BaseSealevelAdapter } from '../../app/MultiProtocolApp.js';
 import {
@@ -16,8 +16,8 @@ import {
   SealevelMultisigIsmTransferOwnershipInstruction,
   SealevelMultisigIsmTransferOwnershipInstructionSchema,
 } from '../../ism/serialization.js';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
-import { ChainName } from '../../types.js';
+import { type MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { type ChainName } from '../../types.js';
 import { SealevelInstructionWrapper } from '../../utils/sealevelSerialization.js';
 
 export class SealevelMultisigAdapter extends BaseSealevelAdapter {

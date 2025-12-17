@@ -1,13 +1,13 @@
 import {
-  Address,
-  HexString,
+  type Address,
+  type HexString,
   isNullish,
   pick,
   strip0x,
 } from '@hyperlane-xyz/utils';
 
-import { SolidityStandardJsonInput } from '../deploy/verify/types.js';
-import { GetEventLogsResponse } from '../rpc/evm/types.js';
+import { type SolidityStandardJsonInput } from '../deploy/verify/types.js';
+import { type GetEventLogsResponse } from '../rpc/evm/types.js';
 
 export enum EtherscanLikeExplorerApiModule {
   LOGS = 'logs',

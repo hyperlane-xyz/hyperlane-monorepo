@@ -1,6 +1,6 @@
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { ChainMetadata, ExplorerFamily } from './chainMetadataTypes.js';
+import { type ChainMetadata, ExplorerFamily } from './chainMetadataTypes.js';
 
 /**
  * Converts Etherscan-like API URLs to the new V2 format

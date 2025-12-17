@@ -7,13 +7,13 @@ import { z } from 'zod';
 import { ModuleType } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainMap, ChainName } from '../types.js';
+import { type MultiProvider } from '../providers/MultiProvider.js';
+import { type ChainMap, type ChainName } from '../types.js';
 
 import { ChainMetadataSchemaObject } from './chainMetadataTypes.js';
 import { ZHash, ZNzUint, ZUWei, ZUint } from './customZodTypes.js';
 import {
-  HyperlaneDeploymentArtifacts,
+  type HyperlaneDeploymentArtifacts,
   HyperlaneDeploymentArtifactsSchema,
 } from './deploymentArtifacts.js';
 import { MatchingListSchema } from './matchingList.js';

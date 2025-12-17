@@ -5,9 +5,9 @@ import {
   ArbL2ToL1Hook__factory,
   CCIPHook__factory,
   DefaultHook__factory,
-  DomainRoutingHook,
+  type DomainRoutingHook,
   DomainRoutingHook__factory,
-  FallbackDomainRoutingHook,
+  type FallbackDomainRoutingHook,
   FallbackDomainRoutingHook__factory,
   IPostDispatchHook__factory,
   InterchainGasPaymaster__factory,
@@ -19,8 +19,8 @@ import {
   StorageGasOracle__factory,
 } from '@hyperlane-xyz/core';
 import {
-  Address,
-  WithAddress,
+  type Address,
+  type WithAddress,
   assert,
   concurrentMap,
   eqAddress,
@@ -31,29 +31,29 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
-import { DispatchedMessage } from '../core/types.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainNameOrId } from '../types.js';
+import { type DispatchedMessage } from '../core/types.js';
+import { type MultiProvider } from '../providers/MultiProvider.js';
+import { type ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
 import {
-  AggregationHookConfig,
-  AmountRoutingHookConfig,
-  ArbL2ToL1HookConfig,
-  CCIPHookConfig,
-  DerivedHookConfig,
-  DomainRoutingHookConfig,
-  FallbackRoutingHookConfig,
-  HookConfig,
+  type AggregationHookConfig,
+  type AmountRoutingHookConfig,
+  type ArbL2ToL1HookConfig,
+  type CCIPHookConfig,
+  type DerivedHookConfig,
+  type DomainRoutingHookConfig,
+  type FallbackRoutingHookConfig,
+  type HookConfig,
   HookType,
-  IgpHookConfig,
-  MailboxDefaultHookConfig,
-  MerkleTreeHookConfig,
+  type IgpHookConfig,
+  type MailboxDefaultHookConfig,
+  type MerkleTreeHookConfig,
   OnchainHookType,
-  OpStackHookConfig,
-  PausableHookConfig,
-  ProtocolFeeHookConfig,
-  RoutingHookConfig,
+  type OpStackHookConfig,
+  type PausableHookConfig,
+  type ProtocolFeeHookConfig,
+  type RoutingHookConfig,
 } from './types.js';
 
 export interface HookReader {

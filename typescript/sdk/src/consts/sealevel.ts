@@ -1,4 +1,4 @@
-import { ChainName } from '../types.js';
+import { type ChainName } from '../types.js';
 
 export const SEALEVEL_SPL_NOOP_ADDRESS =
   'noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV';

@@ -1,19 +1,19 @@
-import { Contract, PopulatedTransaction, ethers } from 'ethers';
-import { Logger } from 'pino';
+import { type Contract, type PopulatedTransaction, ethers } from 'ethers';
+import { type Logger } from 'pino';
 
 import {
-  ITransparentUpgradeableProxy,
-  MailboxClient,
-  Ownable,
-  ProxyAdmin,
+  type ITransparentUpgradeableProxy,
+  type MailboxClient,
+  type Ownable,
+  type ProxyAdmin,
   ProxyAdmin__factory,
-  TimelockController,
+  type TimelockController,
   TimelockController__factory,
   TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
-  Address,
+  type Address,
   ProtocolType,
   addBufferToGasLimit,
   eqAddress,
@@ -24,27 +24,27 @@ import {
 
 import { ExplorerLicenseType } from '../block-explorer/etherscan.js';
 import {
-  HyperlaneAddressesMap,
-  HyperlaneContracts,
-  HyperlaneContractsMap,
-  HyperlaneFactories,
+  type HyperlaneAddressesMap,
+  type HyperlaneContracts,
+  type HyperlaneContractsMap,
+  type HyperlaneFactories,
 } from '../contracts/types.js';
-import { HookConfig } from '../hook/types.js';
+import { type HookConfig } from '../hook/types.js';
 import type { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
-import { IsmConfig } from '../ism/types.js';
+import { type IsmConfig } from '../ism/types.js';
 import { moduleMatchesConfig } from '../ism/utils.js';
 import {
   ChainTechnicalStack,
   ExplorerFamily,
 } from '../metadata/chainMetadataTypes.js';
 import { InterchainAccount } from '../middleware/account/InterchainAccount.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
-import { MailboxClientConfig } from '../router/types.js';
-import { ChainMap, ChainName, OwnableConfig } from '../types.js';
+import { type MultiProvider } from '../providers/MultiProvider.js';
+import { type MailboxClientConfig } from '../router/types.js';
+import { type ChainMap, type ChainName, type OwnableConfig } from '../types.js';
 import { getZKSyncArtifactByContractName } from '../utils/zksync.js';
 
 import {
-  UpgradeConfig,
+  type UpgradeConfig,
   isInitialized,
   isProxy,
   proxyAdmin,
@@ -53,7 +53,7 @@ import {
 } from './proxy.js';
 import { ContractVerifier } from './verify/ContractVerifier.js';
 import { ZKSyncContractVerifier } from './verify/ZKSyncContractVerifier.js';
-import { ContractVerificationInput } from './verify/types.js';
+import { type ContractVerificationInput } from './verify/types.js';
 import {
   buildVerificationInput,
   getContractVerificationInput,

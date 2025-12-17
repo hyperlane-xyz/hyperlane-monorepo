@@ -1,10 +1,10 @@
 import '@nomiclabs/hardhat-ethers';
 import '@nomiclabs/hardhat-waffle';
 import { expect } from 'chai';
-import { ContractReceipt } from 'ethers';
+import { type ContractReceipt } from 'ethers';
 import hre from 'hardhat';
 
-import { TestMailbox, TestRecipient__factory } from '@hyperlane-xyz/core';
+import { type TestMailbox, TestRecipient__factory } from '@hyperlane-xyz/core';
 import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
@@ -12,7 +12,7 @@ import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDe
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 
-import { TestCoreApp } from './TestCoreApp.js';
+import { type TestCoreApp } from './TestCoreApp.js';
 import { TestCoreDeployer } from './TestCoreDeployer.js';
 
 const localChain = TestChainName.test1;

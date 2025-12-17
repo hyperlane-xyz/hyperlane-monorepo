@@ -2,7 +2,7 @@ import { BigNumber } from 'ethers';
 import {
   CairoOption,
   CairoOptionVariant,
-  Call,
+  type Call,
   Contract,
   cairo,
   num,
@@ -11,9 +11,9 @@ import {
 } from 'starknet';
 
 import {
-  Address,
-  Domain,
-  Numberish,
+  type Address,
+  type Domain,
+  type Numberish,
   ProtocolType,
   addressToBytes32,
   assert,
@@ -22,23 +22,23 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { BaseStarknetAdapter } from '../../app/MultiProtocolApp.js';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
-import { ChainName } from '../../types.js';
+import { type MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { type ChainName } from '../../types.js';
 import {
   getStarknetEtherContract,
   getStarknetHypERC20CollateralContract,
   getStarknetHypERC20Contract,
 } from '../../utils/starknet.js';
 import { PROTOCOL_TO_DEFAULT_NATIVE_TOKEN } from '../nativeTokenMetadata.js';
-import { TokenMetadata } from '../types.js';
+import { type TokenMetadata } from '../types.js';
 
 import {
-  IHypTokenAdapter,
-  ITokenAdapter,
-  InterchainGasQuote,
-  QuoteTransferRemoteParams,
-  TransferParams,
-  TransferRemoteParams,
+  type IHypTokenAdapter,
+  type ITokenAdapter,
+  type InterchainGasQuote,
+  type QuoteTransferRemoteParams,
+  type TransferParams,
+  type TransferRemoteParams,
 } from './ITokenAdapter.js';
 
 const stringFromDecimalNumber = (num: bigint | number) =>

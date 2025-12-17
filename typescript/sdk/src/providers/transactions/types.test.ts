@@ -1,8 +1,8 @@
 import { expect } from 'chai';
 
-import { Address } from '@hyperlane-xyz/utils';
+import { type Address } from '@hyperlane-xyz/utils';
 
-import { CallData, CallDataSchema } from './types.js';
+import { type CallData, CallDataSchema } from './types.js';
 
 describe('transactions schemas', () => {
   const ADDRESS_MOCK: Address = '0x1234567890123456789012345678901234567890';

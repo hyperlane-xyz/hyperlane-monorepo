@@ -1,20 +1,20 @@
-import { ethers } from 'ethers';
-import { Logger } from 'pino';
-import { Log, getAbiItem, parseEventLogs, toEventSelector } from 'viem';
+import { type ethers } from 'ethers';
+import { type Logger } from 'pino';
+import { type Log, getAbiItem, parseEventLogs, toEventSelector } from 'viem';
 
 import { IXERC20Lockbox__factory } from '@hyperlane-xyz/core';
-import { Address, rootLogger } from '@hyperlane-xyz/utils';
+import { type Address, rootLogger } from '@hyperlane-xyz/utils';
 
 import {
   getContractDeploymentTransaction,
   getLogsFromEtherscanLikeExplorerAPI,
 } from '../block-explorer/etherscan.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
-import { GetEventLogsResponse } from '../rpc/evm/types.js';
+import { type MultiProvider } from '../providers/MultiProvider.js';
+import { type GetEventLogsResponse } from '../rpc/evm/types.js';
 import { viemLogFromGetEventLogsResponse } from '../rpc/evm/utils.js';
-import { ChainNameOrId } from '../types.js';
+import { type ChainNameOrId } from '../types.js';
 
-import { XERC20TokenExtraBridgesLimits, XERC20Type } from './types.js';
+import { type XERC20TokenExtraBridgesLimits, XERC20Type } from './types.js';
 
 const minimalXERC20VSABI = [
   {

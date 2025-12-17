@@ -4,12 +4,12 @@ import type { TokenRouter } from '@hyperlane-xyz/core';
 
 import { TestChainName, testChainMetadata } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainMap } from '../types.js';
+import { type ChainMap } from '../types.js';
 
-import { HypERC20App } from './app.js';
+import { type HypERC20App } from './app.js';
 import { HypERC20Checker } from './checker.js';
 import { TokenType } from './config.js';
-import { HypTokenRouterConfig } from './types.js';
+import { type HypTokenRouterConfig } from './types.js';
 
 describe('HypERC20Checker.checkDecimalConsistency', () => {
   function buildChecker(configMap: ChainMap<HypTokenRouterConfig>) {

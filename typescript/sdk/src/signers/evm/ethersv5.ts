@@ -1,14 +1,14 @@
 import { Wallet, ethers } from 'ethers';
 import { Wallet as ZkSyncWallet } from 'zksync-ethers';
 
-import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { type Address, type ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { ChainTechnicalStack } from '../../index.js';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
-import { MultiProvider } from '../../providers/MultiProvider.js';
-import { EthersV5Transaction } from '../../providers/ProviderType.js';
-import { ChainName } from '../../types.js';
-import { IMultiProtocolSigner } from '../types.js';
+import { type MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { type MultiProvider } from '../../providers/MultiProvider.js';
+import { type EthersV5Transaction } from '../../providers/ProviderType.js';
+import { type ChainName } from '../../types.js';
+import { type IMultiProtocolSigner } from '../types.js';
 
 export class EvmMultiProtocolSignerAdapter
   implements IMultiProtocolSigner<ProtocolType.Ethereum>

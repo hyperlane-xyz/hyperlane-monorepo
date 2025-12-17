@@ -1,12 +1,12 @@
-import { PublicKey } from '@solana/web3.js';
+import { type PublicKey } from '@solana/web3.js';
 
-import { Address, Domain } from '@hyperlane-xyz/utils';
+import { type Address, type Domain } from '@hyperlane-xyz/utils';
 
 import { BaseSealevelAdapter } from '../../app/MultiProtocolApp.js';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
-import { ChainName } from '../../types.js';
+import { type MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { type ChainName } from '../../types.js';
 
-import { IGasRouterAdapter, IRouterAdapter } from './types.js';
+import { type IGasRouterAdapter, type IRouterAdapter } from './types.js';
 
 export class SealevelRouterAdapter
   extends BaseSealevelAdapter

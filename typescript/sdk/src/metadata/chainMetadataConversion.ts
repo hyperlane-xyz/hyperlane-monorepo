@@ -1,12 +1,12 @@
 import type { AssetList, Chain as CosmosChain } from '@chain-registry/types';
-import { Chain as StarknetChain } from '@starknet-react/chains';
-import { Chain, defineChain } from 'viem';
+import { type Chain as StarknetChain } from '@starknet-react/chains';
+import { type Chain, defineChain } from 'viem';
 
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { test1 } from '../consts/testChains.js';
 import {
-  ChainMetadata,
+  type ChainMetadata,
   getChainIdNumber,
 } from '../metadata/chainMetadataTypes.js';
 import { PROTOCOL_TO_DEFAULT_NATIVE_TOKEN } from '../token/nativeTokenMetadata.js';

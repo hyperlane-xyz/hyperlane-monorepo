@@ -1,32 +1,32 @@
 import { BigNumber, constants } from 'ethers';
 import {
-  ContractEventName,
+  type ContractEventName,
   getAbiItem,
   parseEventLogs,
   toEventSelector,
 } from 'viem';
 
 import {
-  TimelockController,
+  type TimelockController,
   TimelockController__factory,
 } from '@hyperlane-xyz/core';
 import {
-  Address,
+  type Address,
   arrayToObject,
   objFilter,
   objMap,
   promiseObjAll,
 } from '@hyperlane-xyz/utils';
 
-import { MultiProvider } from '../../providers/MultiProvider.js';
+import { type MultiProvider } from '../../providers/MultiProvider.js';
 import {
   EvmEventLogsReader,
-  EvmEventLogsReaderConfig,
+  type EvmEventLogsReaderConfig,
 } from '../../rpc/evm/EvmEventLogsReader.js';
-import { GetEventLogsResponse } from '../../rpc/evm/types.js';
+import { type GetEventLogsResponse } from '../../rpc/evm/types.js';
 import { viemLogFromGetEventLogsResponse } from '../../rpc/evm/utils.js';
-import { ChainNameOrId } from '../../types.js';
-import { ExecutableTimelockTx, TimelockTx } from '../types.js';
+import { type ChainNameOrId } from '../../types.js';
+import { type ExecutableTimelockTx, type TimelockTx } from '../types.js';
 
 import {
   CANCELLER_ROLE,

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { Address } from '@hyperlane-xyz/utils';
+import { type Address } from '@hyperlane-xyz/utils';
 
 import {
   ZBigNumberish,
@@ -8,7 +8,7 @@ import {
   ZChainName,
   ZHash,
 } from '../../../../metadata/customZodTypes.js';
-import { ChainName } from '../../../../types.js';
+import { type ChainName } from '../../../../types.js';
 import { isCompliant } from '../../../../utils/schemas.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
 

@@ -1,5 +1,5 @@
 import {
-  BlockExplorer,
+  type BlockExplorer,
   ExplorerFamily,
 } from '../metadata/chainMetadataTypes.js';
 

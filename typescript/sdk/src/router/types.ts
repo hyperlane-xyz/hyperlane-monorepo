@@ -1,23 +1,31 @@
 import { z } from 'zod';
 
 import {
-  MailboxClient,
+  type MailboxClient,
   ProxyAdmin__factory,
-  Router,
+  type Router,
   TimelockController__factory,
 } from '@hyperlane-xyz/core';
-import { Address, AddressBytes32, isNumeric } from '@hyperlane-xyz/utils';
+import {
+  type Address,
+  type AddressBytes32,
+  isNumeric,
+} from '@hyperlane-xyz/utils';
 
-import { HyperlaneFactories } from '../contracts/types.js';
-import { UpgradeConfig } from '../deploy/proxy.js';
-import { CheckerViolation } from '../deploy/types.js';
-import { DerivedTokenFeeConfig } from '../fee/EvmTokenFeeReader.js';
+import { type HyperlaneFactories } from '../contracts/types.js';
+import { type UpgradeConfig } from '../deploy/proxy.js';
+import { type CheckerViolation } from '../deploy/types.js';
+import { type DerivedTokenFeeConfig } from '../fee/EvmTokenFeeReader.js';
 import { TokenFeeConfigInputSchema } from '../fee/types.js';
-import { DerivedHookConfig, HookConfigSchema } from '../hook/types.js';
-import { DerivedIsmConfig, IsmConfigSchema } from '../ism/types.js';
+import { type DerivedHookConfig, HookConfigSchema } from '../hook/types.js';
+import { type DerivedIsmConfig, IsmConfigSchema } from '../ism/types.js';
 import { ZHash } from '../metadata/customZodTypes.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainMap, DeployedOwnableSchema, OwnableSchema } from '../types.js';
+import { type MultiProvider } from '../providers/MultiProvider.js';
+import {
+  type ChainMap,
+  DeployedOwnableSchema,
+  OwnableSchema,
+} from '../types.js';
 
 export type RouterAddress = {
   router: Address;

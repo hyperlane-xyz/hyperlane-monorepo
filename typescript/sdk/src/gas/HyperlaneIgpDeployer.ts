@@ -1,9 +1,9 @@
 import { ethers } from 'ethers';
 
 import {
-  InterchainGasPaymaster,
-  ProxyAdmin,
-  StorageGasOracle,
+  type InterchainGasPaymaster,
+  type ProxyAdmin,
+  type StorageGasOracle,
 } from '@hyperlane-xyz/core';
 import {
   addBufferToGasLimit,
@@ -12,18 +12,18 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { TOKEN_EXCHANGE_RATE_SCALE_ETHEREUM } from '../consts/igp.js';
-import { HyperlaneContracts } from '../contracts/types.js';
+import { type HyperlaneContracts } from '../contracts/types.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
-import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainName } from '../types.js';
+import { type ContractVerifier } from '../deploy/verify/ContractVerifier.js';
+import { type MultiProvider } from '../providers/MultiProvider.js';
+import { type ChainName } from '../types.js';
 
-import { IgpFactories, igpFactories } from './contracts.js';
+import { type IgpFactories, igpFactories } from './contracts.js';
 import {
   oracleConfigToOracleData,
   serializeDifference,
 } from './oracle/types.js';
-import { IgpConfig } from './types.js';
+import { type IgpConfig } from './types.js';
 
 export class HyperlaneIgpDeployer extends HyperlaneDeployer<
   IgpConfig,

@@ -1,6 +1,6 @@
-import { EvmChainId, assert } from '@hyperlane-xyz/utils';
+import { type EvmChainId, assert } from '@hyperlane-xyz/utils';
 
-import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import { type AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 
 /**
  * Retrieves the chain ID from the first transaction and verifies all transactions

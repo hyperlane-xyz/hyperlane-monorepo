@@ -3,24 +3,24 @@ import sinon from 'sinon';
 
 import {
   AbstractRoutingIsm__factory,
-  CCIPIsm,
+  type CCIPIsm,
   CCIPIsm__factory,
-  IInterchainSecurityModule,
+  type IInterchainSecurityModule,
   IInterchainSecurityModule__factory,
-  IMultisigIsm,
+  type IMultisigIsm,
   IMultisigIsm__factory,
-  InterchainAccountRouter,
+  type InterchainAccountRouter,
   InterchainAccountRouter__factory,
-  OPStackIsm,
+  type OPStackIsm,
   OPStackIsm__factory,
-  PausableIsm,
+  type PausableIsm,
   PausableIsm__factory,
-  TestIsm,
+  type TestIsm,
   TestIsm__factory,
-  TrustedRelayerIsm,
+  type TrustedRelayerIsm,
   TrustedRelayerIsm__factory,
 } from '@hyperlane-xyz/core';
-import { WithAddress } from '@hyperlane-xyz/utils';
+import { type WithAddress } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -28,12 +28,12 @@ import { randomAddress } from '../test/testUtils.js';
 
 import { EvmIsmReader } from './EvmIsmReader.js';
 import {
-  InterchainAccountRouterIsm,
+  type InterchainAccountRouterIsm,
   IsmType,
   ModuleType,
-  MultisigIsmConfig,
-  PausableIsmConfig,
-  TestIsmConfig,
+  type MultisigIsmConfig,
+  type PausableIsmConfig,
+  type TestIsmConfig,
 } from './types.js';
 
 describe('EvmIsmReader', () => {

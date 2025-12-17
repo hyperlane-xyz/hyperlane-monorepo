@@ -1,13 +1,13 @@
 import {
-  Address,
+  type Address,
   assert,
   objKeys,
   rootLogger,
   sleep,
 } from '@hyperlane-xyz/utils';
 
-import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
-import { ChainMap, ChainName } from '../types.js';
+import { type ChainMetadata } from '../metadata/chainMetadataTypes.js';
+import { type ChainMap, type ChainName } from '../types.js';
 
 const COINGECKO_PRICE_API = 'https://api.coingecko.com/api/v3/simple/price';
 

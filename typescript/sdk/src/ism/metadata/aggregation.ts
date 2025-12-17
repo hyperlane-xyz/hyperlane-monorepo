@@ -1,5 +1,5 @@
 import {
-  WithAddress,
+  type WithAddress,
   assert,
   fromHexString,
   rootLogger,
@@ -7,14 +7,18 @@ import {
   toHexString,
 } from '@hyperlane-xyz/utils';
 
-import { AggregationIsmConfig, DerivedIsmConfig, IsmType } from '../types.js';
+import {
+  type AggregationIsmConfig,
+  type DerivedIsmConfig,
+  IsmType,
+} from '../types.js';
 
 import type { BaseMetadataBuilder } from './builder.js';
 import { decodeIsmMetadata } from './decode.js';
 import {
-  MetadataBuilder,
-  MetadataContext,
-  StructuredMetadata,
+  type MetadataBuilder,
+  type MetadataContext,
+  type StructuredMetadata,
 } from './types.js';
 
 // null indicates that metadata is NOT INCLUDED for this submodule

@@ -1,10 +1,10 @@
 import { assert, objMap } from '@hyperlane-xyz/utils';
 
 import {
-  TokenMetadata,
-  WarpRouteDeployConfigMailboxRequired,
+  type TokenMetadata,
+  type WarpRouteDeployConfigMailboxRequired,
 } from '../token/types.js';
-import { ChainMap } from '../types.js';
+import { type ChainMap } from '../types.js';
 
 export function verifyScale(
   configMap: Map<string, TokenMetadata> | WarpRouteDeployConfigMailboxRequired,

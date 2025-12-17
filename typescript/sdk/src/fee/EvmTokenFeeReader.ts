@@ -6,17 +6,17 @@ import {
   LinearFee__factory,
   RoutingFee__factory,
 } from '@hyperlane-xyz/core';
-import { Address, WithAddress, assert } from '@hyperlane-xyz/utils';
+import { type Address, type WithAddress, assert } from '@hyperlane-xyz/utils';
 
-import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainName, ChainNameOrId } from '../types.js';
+import { type MultiProvider } from '../providers/MultiProvider.js';
+import { type ChainName, type ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
 import {
-  FeeParameters,
+  type FeeParameters,
   OnchainTokenFeeType,
-  RoutingFeeConfig,
-  TokenFeeConfig,
+  type RoutingFeeConfig,
+  type TokenFeeConfig,
   TokenFeeType,
   onChainTypeToTokenFeeTypeMap,
 } from './types.js';

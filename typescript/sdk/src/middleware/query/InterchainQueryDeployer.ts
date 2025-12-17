@@ -1,15 +1,15 @@
 import { ethers } from 'ethers';
 
-import { Router } from '@hyperlane-xyz/core';
+import { type Router } from '@hyperlane-xyz/core';
 
-import { HyperlaneContracts } from '../../contracts/types.js';
-import { ContractVerifier } from '../../deploy/verify/ContractVerifier.js';
-import { MultiProvider } from '../../providers/MultiProvider.js';
+import { type HyperlaneContracts } from '../../contracts/types.js';
+import { type ContractVerifier } from '../../deploy/verify/ContractVerifier.js';
+import { type MultiProvider } from '../../providers/MultiProvider.js';
 import { ProxiedRouterDeployer } from '../../router/ProxiedRouterDeployer.js';
-import { RouterConfig } from '../../router/types.js';
+import { type RouterConfig } from '../../router/types.js';
 
 import {
-  InterchainQueryFactories,
+  type InterchainQueryFactories,
   interchainQueryFactories,
 } from './contracts.js';
 

@@ -1,20 +1,25 @@
 import {
   ComputeBudgetProgram,
-  Connection,
+  type Connection,
   Keypair,
-  PublicKey,
+  type PublicKey,
   Transaction,
-  TransactionConfirmationStatus,
-  TransactionInstruction,
+  type TransactionConfirmationStatus,
+  type TransactionInstruction,
 } from '@solana/web3.js';
 
-import { Address, ProtocolType, rootLogger, sleep } from '@hyperlane-xyz/utils';
+import {
+  type Address,
+  type ProtocolType,
+  rootLogger,
+  sleep,
+} from '@hyperlane-xyz/utils';
 
 import { SEALEVEL_PRIORITY_FEES } from '../../consts/sealevel.js';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
-import { SolanaWeb3Transaction } from '../../providers/ProviderType.js';
-import { ChainName } from '../../types.js';
-import { IMultiProtocolSigner } from '../types.js';
+import { type MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { type SolanaWeb3Transaction } from '../../providers/ProviderType.js';
+import { type ChainName } from '../../types.js';
+import { type IMultiProtocolSigner } from '../types.js';
 
 /**
  * Interface for SVM transaction signers

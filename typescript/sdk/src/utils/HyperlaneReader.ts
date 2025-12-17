@@ -1,9 +1,9 @@
-import { providers } from 'ethers';
-import { LevelWithSilentOrString } from 'pino';
+import { type providers } from 'ethers';
+import { type LevelWithSilentOrString } from 'pino';
 
-import { MultiProvider } from '../providers/MultiProvider.js';
-import { HyperlaneSmartProvider } from '../providers/SmartProvider/SmartProvider.js';
-import { ChainNameOrId } from '../types.js';
+import { type MultiProvider } from '../providers/MultiProvider.js';
+import { type HyperlaneSmartProvider } from '../providers/SmartProvider/SmartProvider.js';
+import { type ChainNameOrId } from '../types.js';
 
 export class HyperlaneReader {
   provider: providers.Provider;

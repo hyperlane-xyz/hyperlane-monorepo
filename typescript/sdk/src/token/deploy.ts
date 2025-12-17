@@ -4,7 +4,7 @@ import {
   ERC20__factory,
   ERC721Enumerable__factory,
   EverclearTokenBridge__factory,
-  GasRouter,
+  type GasRouter,
   IERC4626__factory,
   IMessageTransmitter__factory,
   IXERC20Lockbox__factory,
@@ -12,10 +12,10 @@ import {
   OpL1V1NativeTokenBridge__factory,
   OpL2NativeTokenBridge__factory,
   TokenBridgeCctpBase__factory,
-  TokenRouter,
+  type TokenRouter,
 } from '@hyperlane-xyz/core';
 import {
-  Address,
+  type Address,
   ProtocolType,
   addressToBytes32,
   assert,
@@ -27,24 +27,24 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import {
-  HyperlaneContracts,
-  HyperlaneContractsMap,
+  type HyperlaneContracts,
+  type HyperlaneContractsMap,
 } from '../contracts/types.js';
-import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
+import { type ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { EvmTokenFeeModule } from '../fee/EvmTokenFeeModule.js';
-import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
+import { type HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
+import { type MultiProvider } from '../providers/MultiProvider.js';
 import { GasRouterDeployer } from '../router/GasRouterDeployer.js';
 import { resolveRouterMapConfig } from '../router/types.js';
-import { ChainMap, ChainName } from '../types.js';
+import { type ChainMap, type ChainName } from '../types.js';
 
 import { TokenMetadataMap } from './TokenMetadataMap.js';
 import { TokenType, gasOverhead } from './config.js';
 import {
-  HypERC20Factories,
-  HypERC20contracts,
-  HypERC721Factories,
-  TokenFactories,
+  type HypERC20Factories,
+  type HypERC20contracts,
+  type HypERC721Factories,
+  type TokenFactories,
   getCctpFactory,
   hypERC20contracts,
   hypERC20factories,
@@ -52,12 +52,12 @@ import {
   hypERC721factories,
 } from './contracts.js';
 import {
-  CctpTokenConfig,
-  HypTokenConfig,
-  HypTokenRouterConfig,
+  type CctpTokenConfig,
+  type HypTokenConfig,
+  type HypTokenRouterConfig,
   TokenMetadataSchema,
-  WarpRouteDeployConfig,
-  WarpRouteDeployConfigMailboxRequired,
+  type WarpRouteDeployConfig,
+  type WarpRouteDeployConfigMailboxRequired,
   isCctpTokenConfig,
   isCollateralTokenConfig,
   isEverclearCollateralTokenConfig,

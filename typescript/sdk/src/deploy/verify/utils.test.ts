@@ -2,9 +2,9 @@ import { expect } from 'chai';
 
 import { TestChainName } from '../../consts/testChains.js';
 import { randomAddress } from '../../test/testUtils.js';
-import { ChainMap, ChainName } from '../../types.js';
+import { type ChainMap, type ChainName } from '../../types.js';
 
-import { ContractVerificationInput } from './types.js';
+import { type ContractVerificationInput } from './types.js';
 import { shouldAddVerificationInput } from './utils.js';
 
 describe('shouldAddVerificationInput', () => {

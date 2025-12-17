@@ -1,7 +1,10 @@
 import { expect } from 'chai';
 import { errors as EthersError, providers } from 'ethers';
 
-import { AllProviderMethods, IProviderMethods } from './ProviderMethods.js';
+import {
+  AllProviderMethods,
+  type IProviderMethods,
+} from './ProviderMethods.js';
 import { BlockchainError, HyperlaneSmartProvider } from './SmartProvider.js';
 import { ProviderStatus } from './types.js';
 

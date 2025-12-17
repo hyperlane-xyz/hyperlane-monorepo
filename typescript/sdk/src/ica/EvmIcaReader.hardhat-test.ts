@@ -1,11 +1,11 @@
 import { expect } from 'chai';
 import hre from 'hardhat';
 
-import { Address } from '@hyperlane-xyz/utils';
+import { type Address } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
 import { EvmCoreModule } from '../core/EvmCoreModule.js';
-import { CoreConfig } from '../core/types.js';
+import { type CoreConfig } from '../core/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { testCoreConfig } from '../test/testUtils.js';
 

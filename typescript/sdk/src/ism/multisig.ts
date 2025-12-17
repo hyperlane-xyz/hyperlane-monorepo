@@ -1,12 +1,12 @@
 import { objFilter, objMap } from '@hyperlane-xyz/utils';
 
-import { ChainMap, ChainName } from '../types.js';
+import { type ChainMap, type ChainName } from '../types.js';
 
 import {
-  AggregationIsmConfig,
+  type AggregationIsmConfig,
   IsmType,
-  MultisigConfig,
-  MultisigIsmConfig,
+  type MultisigConfig,
+  type MultisigIsmConfig,
 } from './types.js';
 
 // Convert a MultisigConfig to a MultisigIsmConfig with the specified ISM type

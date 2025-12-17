@@ -1,5 +1,5 @@
-import { MultisigConfig, ValidatorConfig } from '../ism/types.js';
-import { ChainMap } from '../types.js';
+import { type MultisigConfig, type ValidatorConfig } from '../ism/types.js';
+import { type ChainMap } from '../types.js';
 
 export const AW_VALIDATOR_ALIAS = 'Abacus Works';
 

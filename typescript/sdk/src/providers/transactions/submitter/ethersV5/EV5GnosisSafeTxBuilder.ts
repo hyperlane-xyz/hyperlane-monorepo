@@ -1,16 +1,16 @@
-import SafeApiKit from '@safe-global/api-kit';
-import Safe from '@safe-global/protocol-kit';
-import { SafeTransactionData } from '@safe-global/safe-core-sdk-types';
+import type SafeApiKit from '@safe-global/api-kit';
+import type Safe from '@safe-global/protocol-kit';
+import { type SafeTransactionData } from '@safe-global/safe-core-sdk-types';
 
 import { assert } from '@hyperlane-xyz/utils';
 
 import { getSafe, getSafeService } from '../../../../utils/gnosisSafe.js';
-import { MultiProvider } from '../../../MultiProvider.js';
-import { AnnotatedEV5Transaction } from '../../../ProviderType.js';
+import { type MultiProvider } from '../../../MultiProvider.js';
+import { type AnnotatedEV5Transaction } from '../../../ProviderType.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
 
 import { EV5GnosisSafeTxSubmitter } from './EV5GnosisSafeTxSubmitter.js';
-import { EV5GnosisSafeTxBuilderProps } from './types.js';
+import { type EV5GnosisSafeTxBuilderProps } from './types.js';
 
 // TODO: Use this return type in submit()
 export interface GnosisTransactionBuilderPayload {

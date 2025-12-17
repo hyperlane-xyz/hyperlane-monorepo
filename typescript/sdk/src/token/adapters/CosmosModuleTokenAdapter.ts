@@ -1,9 +1,9 @@
-import { MsgSendEncodeObject } from '@cosmjs/stargate';
+import { type MsgSendEncodeObject } from '@cosmjs/stargate';
 
-import { MsgRemoteTransferEncodeObject } from '@hyperlane-xyz/cosmos-sdk';
+import { type MsgRemoteTransferEncodeObject } from '@hyperlane-xyz/cosmos-sdk';
 import {
-  Address,
-  Domain,
+  type Address,
+  type Domain,
   ProtocolType,
   addressToBytes32,
   assert,
@@ -12,18 +12,18 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { BaseCosmNativeAdapter } from '../../app/MultiProtocolApp.js';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
-import { ChainName } from '../../types.js';
+import { type MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { type ChainName } from '../../types.js';
 import { PROTOCOL_TO_DEFAULT_NATIVE_TOKEN } from '../nativeTokenMetadata.js';
-import { TokenMetadata } from '../types.js';
+import { type TokenMetadata } from '../types.js';
 
 import {
-  IHypTokenAdapter,
-  ITokenAdapter,
-  InterchainGasQuote,
-  QuoteTransferRemoteParams,
-  TransferParams,
-  TransferRemoteParams,
+  type IHypTokenAdapter,
+  type ITokenAdapter,
+  type InterchainGasQuote,
+  type QuoteTransferRemoteParams,
+  type TransferParams,
+  type TransferRemoteParams,
 } from './ITokenAdapter.js';
 
 class CosmosModuleTokenAdapter

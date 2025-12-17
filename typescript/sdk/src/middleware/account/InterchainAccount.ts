@@ -1,13 +1,13 @@
-import { BigNumber, PopulatedTransaction, utils } from 'ethers';
+import { BigNumber, type PopulatedTransaction, utils } from 'ethers';
 import { z } from 'zod';
 
 import {
-  InterchainAccountRouter,
+  type InterchainAccountRouter,
   InterchainAccountRouter__factory,
 } from '@hyperlane-xyz/core';
 import {
-  Address,
-  CallData,
+  type Address,
+  type CallData,
   addBufferToGasLimit,
   addressToBytes32,
   arrayToObject,
@@ -21,19 +21,19 @@ import {
 
 import { appFromAddressesMapHelper } from '../../contracts/contracts.js';
 import {
-  HyperlaneAddressesMap,
-  HyperlaneContracts,
-  HyperlaneContractsMap,
+  type HyperlaneAddressesMap,
+  type HyperlaneContracts,
+  type HyperlaneContractsMap,
 } from '../../contracts/types.js';
-import { MultiProvider } from '../../providers/MultiProvider.js';
+import { type MultiProvider } from '../../providers/MultiProvider.js';
 import { RouterApp } from '../../router/RouterApps.js';
-import { ChainMap, ChainName } from '../../types.js';
+import { type ChainMap, type ChainName } from '../../types.js';
 
 import {
-  InterchainAccountFactories,
+  type InterchainAccountFactories,
   interchainAccountFactories,
 } from './contracts.js';
-import { AccountConfig, GetCallRemoteSettings } from './types.js';
+import { type AccountConfig, type GetCallRemoteSettings } from './types.js';
 
 export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
   knownAccounts: Record<Address, AccountConfig | undefined>;

@@ -1,12 +1,12 @@
 import { expect } from 'chai';
 import { existsSync, readFileSync, readdirSync } from 'fs';
 
-import { SignatureLike } from '@hyperlane-xyz/utils';
+import { type SignatureLike } from '@hyperlane-xyz/utils';
 
 import { IsmType, ModuleType } from '../types.js';
 
-import { MultisigMetadata, MultisigMetadataBuilder } from './multisig.js';
-import { Fixture } from './types.test.js';
+import { type MultisigMetadata, MultisigMetadataBuilder } from './multisig.js';
+import { type Fixture } from './types.test.js';
 
 const path = '../../solidity/fixtures/multisig';
 const files = existsSync(path) ? readdirSync(path) : [];

@@ -1,7 +1,7 @@
 /* eslint-disable no-console */
 import {
-  CosmWasmClient,
-  ExecuteInstruction,
+  type CosmWasmClient,
+  type ExecuteInstruction,
   SigningCosmWasmClient,
 } from '@cosmjs/cosmwasm-stargate';
 import { Secp256k1, keccak256 } from '@cosmjs/crypto';
@@ -9,14 +9,14 @@ import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
 import { GasPrice, SigningStargateClient } from '@cosmjs/stargate';
 import { Tendermint37Client } from '@cosmjs/tendermint-rpc';
 
-import { Address } from '@hyperlane-xyz/utils';
+import { type Address } from '@hyperlane-xyz/utils';
 
 import { TestChainName, testCosmosChain } from '../../consts/testChains.js';
 import { CosmWasmCoreAdapter } from '../../core/adapters/CosmWasmCoreAdapter.js';
 import {
-  MailboxResponse,
-  QueryMsg as MerkleQuery,
-  OwnerResponse,
+  type MailboxResponse,
+  type QueryMsg as MerkleQuery,
+  type OwnerResponse,
 } from '../../cw-types/HookMerkle.types.js';
 import { CosmWasmMultisigAdapter } from '../../ism/adapters/CosmWasmMultisigAdapter.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';

@@ -2,8 +2,8 @@ import { constants } from 'ethers';
 
 import { RoutingFee__factory } from '@hyperlane-xyz/core';
 import {
-  Address,
-  ProtocolType,
+  type Address,
+  type ProtocolType,
   assert,
   deepEquals,
   eqAddress,
@@ -16,29 +16,29 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { transferOwnershipTransactions } from '../contracts/contracts.js';
-import { HyperlaneContractsMap } from '../contracts/types.js';
+import { type HyperlaneContractsMap } from '../contracts/types.js';
 import {
   HyperlaneModule,
-  HyperlaneModuleParams,
+  type HyperlaneModuleParams,
 } from '../core/AbstractHyperlaneModule.js';
-import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
-import { ChainNameOrId } from '../types.js';
+import { type ContractVerifier } from '../deploy/verify/ContractVerifier.js';
+import { type MultiProvider } from '../providers/MultiProvider.js';
+import { type AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import { type ChainNameOrId } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmTokenFeeDeployer } from './EvmTokenFeeDeployer.js';
 import {
-  DerivedRoutingFeeConfig,
-  DerivedTokenFeeConfig,
+  type DerivedRoutingFeeConfig,
+  type DerivedTokenFeeConfig,
   EvmTokenFeeReader,
-  TokenFeeReaderParams,
+  type TokenFeeReaderParams,
 } from './EvmTokenFeeReader.js';
-import { EvmTokenFeeFactories } from './contracts.js';
+import { type EvmTokenFeeFactories } from './contracts.js';
 import {
   ImmutableTokenFeeType,
-  TokenFeeConfig,
-  TokenFeeConfigInput,
+  type TokenFeeConfig,
+  type TokenFeeConfigInput,
   TokenFeeConfigSchema,
   TokenFeeType,
 } from './types.js';

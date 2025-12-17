@@ -5,13 +5,13 @@ import {
   serializeContracts,
 } from '../contracts/contracts.js';
 import {
-  HyperlaneAddresses,
-  HyperlaneContracts,
-  HyperlaneContractsMap,
-  HyperlaneFactories,
+  type HyperlaneAddresses,
+  type HyperlaneContracts,
+  type HyperlaneContractsMap,
+  type HyperlaneFactories,
 } from '../contracts/types.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainName } from '../types.js';
+import { type MultiProvider } from '../providers/MultiProvider.js';
+import { type ChainName } from '../types.js';
 import { MultiGeneric } from '../utils/MultiGeneric.js';
 
 export class HyperlaneApp<

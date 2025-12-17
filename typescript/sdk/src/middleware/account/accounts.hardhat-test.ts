@@ -1,30 +1,30 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
+import { type SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import { constants } from 'ethers';
 import hre from 'hardhat';
 
 import {
-  InterchainAccountRouter,
+  type InterchainAccountRouter,
   TestRecipient__factory,
 } from '@hyperlane-xyz/core';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../../consts/testChains.js';
-import { HyperlaneContractsMap } from '../../contracts/types.js';
-import { TestCoreApp } from '../../core/TestCoreApp.js';
+import { type HyperlaneContractsMap } from '../../contracts/types.js';
+import { type TestCoreApp } from '../../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../../deploy/HyperlaneProxyFactoryDeployer.js';
-import { IcaRouterConfig } from '../../ica/types.js';
+import { type IcaRouterConfig } from '../../ica/types.js';
 import { HyperlaneIsmFactory } from '../../ism/HyperlaneIsmFactory.js';
 import { IsmType } from '../../ism/types.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
-import { ChainMap } from '../../types.js';
+import { type ChainMap } from '../../types.js';
 
 import { InterchainAccount } from './InterchainAccount.js';
 import { InterchainAccountChecker } from './InterchainAccountChecker.js';
 import { InterchainAccountDeployer } from './InterchainAccountDeployer.js';
-import { InterchainAccountFactories } from './contracts.js';
-import { AccountConfig } from './types.js';
+import { type InterchainAccountFactories } from './contracts.js';
+import { type AccountConfig } from './types.js';
 
 describe('InterchainAccounts', async () => {
   const localChain = TestChainName.test1;

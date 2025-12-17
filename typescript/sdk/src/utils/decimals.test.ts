@@ -3,8 +3,8 @@ import { assert, expect } from 'chai';
 import { randomAddress } from '../test/testUtils.js';
 import { TokenType } from '../token/config.js';
 import {
-  TokenMetadata,
-  WarpRouteDeployConfigMailboxRequired,
+  type TokenMetadata,
+  type WarpRouteDeployConfigMailboxRequired,
 } from '../token/types.js';
 
 import { verifyScale } from './decimals.js';

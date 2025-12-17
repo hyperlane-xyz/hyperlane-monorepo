@@ -1,5 +1,5 @@
-import { TransactionReceipt } from '@ethersproject/providers';
-import { Logger } from 'pino';
+import { type TransactionReceipt } from '@ethersproject/providers';
+import { type Logger } from 'pino';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
 
@@ -7,12 +7,12 @@ import {
   impersonateAccount,
   stopImpersonatingAccount,
 } from '../../../../utils/fork.js';
-import { MultiProvider } from '../../../MultiProvider.js';
-import { AnnotatedEV5Transaction } from '../../../ProviderType.js';
+import { type MultiProvider } from '../../../MultiProvider.js';
+import { type AnnotatedEV5Transaction } from '../../../ProviderType.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
 
 import { EV5JsonRpcTxSubmitter } from './EV5JsonRpcTxSubmitter.js';
-import { EV5ImpersonatedAccountTxSubmitterProps } from './types.js';
+import { type EV5ImpersonatedAccountTxSubmitterProps } from './types.js';
 
 export class EV5ImpersonatedAccountTxSubmitter extends EV5JsonRpcTxSubmitter {
   public readonly txSubmitterType: TxSubmitterType =

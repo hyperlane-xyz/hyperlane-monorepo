@@ -5,10 +5,10 @@ import { existsSync, readFileSync, readdirSync } from 'fs';
 import { IsmType } from '../types.js';
 
 import {
-  AggregationMetadata,
+  type AggregationMetadata,
   AggregationMetadataBuilder,
 } from './aggregation.js';
-import { Fixture } from './types.test.js';
+import { type Fixture } from './types.test.js';
 
 const path = '../../solidity/fixtures/aggregation';
 const files = existsSync(path) ? readdirSync(path) : [];

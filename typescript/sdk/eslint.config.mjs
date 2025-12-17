@@ -14,6 +14,13 @@ export default [
     name: 'sdk-ts-rules',
     files: ['**/*.ts'],
     rules: {
+      '@typescript-eslint/consistent-type-imports': [
+        'error',
+        {
+          prefer: 'type-imports',
+          fixStyle: 'inline-type-imports',
+        },
+      ],
       '@typescript-eslint/await-thenable': 'off', // FIXME: Recommended rule, fix the violations
       '@typescript-eslint/ban-ts-comment': 'off', // TODO replace with @ts-expect-error, ultimately remove ignore comments
       // TODO: We used to have this enabled, fix the violations

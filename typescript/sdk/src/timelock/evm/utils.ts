@@ -1,7 +1,7 @@
 import { TimelockController__factory } from '@hyperlane-xyz/core';
-import { HexString } from '@hyperlane-xyz/utils';
+import { type HexString } from '@hyperlane-xyz/utils';
 
-import { TimelockTx } from '../types.js';
+import { type TimelockTx } from '../types.js';
 
 export function getTimelockExecutableTransactionFromBatch(
   transactionData: TimelockTx,

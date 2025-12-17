@@ -1,15 +1,15 @@
-import { GasRouter } from '@hyperlane-xyz/core';
-import { Address } from '@hyperlane-xyz/utils';
+import { type GasRouter } from '@hyperlane-xyz/core';
+import { type Address } from '@hyperlane-xyz/utils';
 
 import {
-  HyperlaneContracts,
-  HyperlaneContractsMap,
-  HyperlaneFactories,
+  type HyperlaneContracts,
+  type HyperlaneContractsMap,
+  type HyperlaneFactories,
 } from '../contracts/types.js';
-import { ChainMap } from '../types.js';
+import { type ChainMap } from '../types.js';
 
 import { ProxiedRouterDeployer } from './ProxiedRouterDeployer.js';
-import { GasRouterConfig } from './types.js';
+import { type GasRouterConfig } from './types.js';
 
 const DEFAULT_GAS_OVERHEAD = 100_000;
 

@@ -6,30 +6,35 @@ import { Registry } from '@cosmjs/proto-signing';
 import { StargateClient, defaultRegistryTypes } from '@cosmjs/stargate';
 import { MsgExecuteContract } from 'cosmjs-types/cosmwasm/wasm/v1/tx.js';
 
-import { Address, HexString, Numberish, assert } from '@hyperlane-xyz/utils';
+import {
+  type Address,
+  type HexString,
+  type Numberish,
+  assert,
+} from '@hyperlane-xyz/utils';
 
-import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
+import { type ChainMetadata } from '../metadata/chainMetadataTypes.js';
 
 import {
-  CosmJsNativeProvider,
-  CosmJsNativeTransaction,
-  CosmJsProvider,
-  CosmJsTransaction,
-  CosmJsWasmProvider,
-  CosmJsWasmTransaction,
-  EthersV5Provider,
-  EthersV5Transaction,
+  type CosmJsNativeProvider,
+  type CosmJsNativeTransaction,
+  type CosmJsProvider,
+  type CosmJsTransaction,
+  type CosmJsWasmProvider,
+  type CosmJsWasmTransaction,
+  type EthersV5Provider,
+  type EthersV5Transaction,
   ProviderType,
-  RadixProvider,
-  RadixTransaction,
-  SolanaWeb3Provider,
-  SolanaWeb3Transaction,
-  StarknetJsProvider,
-  StarknetJsTransaction,
-  TypedProvider,
-  TypedTransaction,
-  ViemProvider,
-  ViemTransaction,
+  type RadixProvider,
+  type RadixTransaction,
+  type SolanaWeb3Provider,
+  type SolanaWeb3Transaction,
+  type StarknetJsProvider,
+  type StarknetJsTransaction,
+  type TypedProvider,
+  type TypedTransaction,
+  type ViemProvider,
+  type ViemTransaction,
 } from './ProviderType.js';
 
 export interface TransactionFeeEstimate {

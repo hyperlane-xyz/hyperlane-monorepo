@@ -1,15 +1,18 @@
 import assert from 'assert';
 import { expect } from 'chai';
-import { Signer } from 'ethers';
+import { type Signer } from 'ethers';
 import hre from 'hardhat';
 
-import { Address, eqAddress } from '@hyperlane-xyz/utils';
+import { type Address, eqAddress } from '@hyperlane-xyz/utils';
 
 import { TestChainName, testChains } from '../consts/testChains.js';
-import { HyperlaneAddresses, HyperlaneContracts } from '../contracts/types.js';
+import {
+  type HyperlaneAddresses,
+  type HyperlaneContracts,
+} from '../contracts/types.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
-import { ProxyFactoryFactories } from '../deploy/contracts.js';
+import { type ProxyFactoryFactories } from '../deploy/contracts.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import {
   randomAddress,
@@ -21,13 +24,13 @@ import { normalizeConfig } from '../utils/ism.js';
 import { EvmIsmModule } from './EvmIsmModule.js';
 import { HyperlaneIsmFactory } from './HyperlaneIsmFactory.js';
 import {
-  AggregationIsmConfig,
-  DomainRoutingIsmConfig,
-  IsmConfig,
+  type AggregationIsmConfig,
+  type DomainRoutingIsmConfig,
+  type IsmConfig,
   IsmType,
-  MultisigIsmConfig,
-  RoutingIsmConfig,
-  TrustedRelayerIsmConfig,
+  type MultisigIsmConfig,
+  type RoutingIsmConfig,
+  type TrustedRelayerIsmConfig,
 } from './types.js';
 
 describe('EvmIsmModule', async () => {

@@ -1,22 +1,25 @@
 /* eslint-disable @typescript-eslint/no-unsafe-declaration-merging */
-import { MsgTransferEncodeObject } from '@cosmjs/stargate';
+import { type MsgTransferEncodeObject } from '@cosmjs/stargate';
 
 import {
-  Address,
-  Numberish,
+  type Address,
+  type Numberish,
   ProtocolType,
   assert,
   eqAddress,
 } from '@hyperlane-xyz/utils';
 
-import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
-import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
-import { ChainName } from '../types.js';
+import { type ChainMetadata } from '../metadata/chainMetadataTypes.js';
+import { type MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
+import { type ChainName } from '../types.js';
 import { isStarknetFeeToken } from '../utils/starknet.js';
 
 import type { IToken, TokenArgs } from './IToken.js';
 import { TokenAmount } from './TokenAmount.js';
-import { TokenConnection, TokenConnectionType } from './TokenConnection.js';
+import {
+  type TokenConnection,
+  TokenConnectionType,
+} from './TokenConnection.js';
 import {
   PROTOCOL_TO_HYP_NATIVE_STANDARD,
   PROTOCOL_TO_NATIVE_STANDARD,

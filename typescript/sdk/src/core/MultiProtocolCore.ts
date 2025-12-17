@@ -1,9 +1,12 @@
-import { HexString, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+import { type HexString, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
-import { AdapterClassType, MultiProtocolApp } from '../app/MultiProtocolApp.js';
-import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
-import { TypedTransactionReceipt } from '../providers/ProviderType.js';
-import { ChainMap, ChainName } from '../types.js';
+import {
+  type AdapterClassType,
+  MultiProtocolApp,
+} from '../app/MultiProtocolApp.js';
+import { type MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
+import { type TypedTransactionReceipt } from '../providers/ProviderType.js';
+import { type ChainMap, type ChainName } from '../types.js';
 
 import { CosmNativeCoreAdapter } from './adapters/CosmNativeCoreAdapter.js';
 import { CosmWasmCoreAdapter } from './adapters/CosmWasmCoreAdapter.js';
@@ -11,8 +14,8 @@ import { EvmCoreAdapter } from './adapters/EvmCoreAdapter.js';
 import { RadixCoreAdapter } from './adapters/RadixCoreAdapter.js';
 import { SealevelCoreAdapter } from './adapters/SealevelCoreAdapter.js';
 import { StarknetCoreAdapter } from './adapters/StarknetCoreAdapter.js';
-import { ICoreAdapter } from './adapters/types.js';
-import { CoreAddresses } from './contracts.js';
+import { type ICoreAdapter } from './adapters/types.js';
+import { type CoreAddresses } from './contracts.js';
 
 export class MultiProtocolCore extends MultiProtocolApp<
   ICoreAdapter,

@@ -1,12 +1,12 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
+import { type SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 import hre from 'hardhat';
 
-import { Mailbox, Mailbox__factory } from '@hyperlane-xyz/core';
+import { type Mailbox, Mailbox__factory } from '@hyperlane-xyz/core';
 
 import { TestChainName } from '../consts/testChains.js';
-import { IcaRouterConfig } from '../ica/types.js';
+import { type IcaRouterConfig } from '../ica/types.js';
 import { IsmType } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 

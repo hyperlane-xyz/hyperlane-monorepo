@@ -1,12 +1,17 @@
 import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
 import { GasPrice, SigningStargateClient } from '@cosmjs/stargate';
 
-import { Address, ProtocolType, assert, strip0x } from '@hyperlane-xyz/utils';
+import {
+  type Address,
+  type ProtocolType,
+  assert,
+  strip0x,
+} from '@hyperlane-xyz/utils';
 
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
-import { CosmJsNativeTransaction } from '../../providers/ProviderType.js';
-import { ChainName } from '../../types.js';
-import { IMultiProtocolSigner } from '../types.js';
+import { type MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { type CosmJsNativeTransaction } from '../../providers/ProviderType.js';
+import { type ChainName } from '../../types.js';
+import { type IMultiProtocolSigner } from '../types.js';
 
 export class CosmosNativeMultiProtocolSignerAdapter
   implements IMultiProtocolSigner<ProtocolType.CosmosNative>

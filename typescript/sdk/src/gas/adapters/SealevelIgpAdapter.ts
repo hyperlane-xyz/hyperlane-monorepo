@@ -1,5 +1,5 @@
 import {
-  AccountMeta,
+  type AccountMeta,
   ComputeBudgetProgram,
   Message,
   PublicKey,
@@ -10,12 +10,12 @@ import {
 } from '@solana/web3.js';
 import { deserializeUnchecked, serialize } from 'borsh';
 
-import { Address, Domain, assert } from '@hyperlane-xyz/utils';
+import { type Address, type Domain, assert } from '@hyperlane-xyz/utils';
 
 import { BaseSealevelAdapter } from '../../app/MultiProtocolApp.js';
 import { SEALEVEL_PRIORITY_FEES } from '../../consts/sealevel.js';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
-import { ChainName } from '../../types.js';
+import { type MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { type ChainName } from '../../types.js';
 import {
   SealevelAccountDataWrapper,
   SealevelInstructionWrapper,
@@ -26,16 +26,16 @@ import {
   SealevelGasOracleConfig,
   SealevelGasOracleType,
   SealevelGasOverheadConfig,
-  SealevelIgpData,
+  type SealevelIgpData,
   SealevelIgpDataSchema,
   SealevelIgpInstruction,
   SealevelIgpQuoteGasPaymentInstruction,
   SealevelIgpQuoteGasPaymentResponse,
   SealevelIgpQuoteGasPaymentResponseSchema,
   SealevelIgpQuoteGasPaymentSchema,
-  SealevelOverheadIgpData,
+  type SealevelOverheadIgpData,
   SealevelOverheadIgpDataSchema,
-  SealevelRemoteGasData,
+  type SealevelRemoteGasData,
   SealevelSetDestinationGasOverheadsInstruction,
   SealevelSetDestinationGasOverheadsInstructionSchema,
   SealevelSetGasOracleConfigsInstruction,

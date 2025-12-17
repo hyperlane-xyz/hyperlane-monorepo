@@ -1,21 +1,21 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
+import { type SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 import hre from 'hardhat';
 
 import {
-  ERC20Test,
+  type ERC20Test,
   ERC20Test__factory,
-  ProxyAdmin,
+  type ProxyAdmin,
   ProxyAdmin__factory,
   TransparentUpgradeableProxy__factory,
-  XERC20Test,
+  type XERC20Test,
   XERC20Test__factory,
 } from '@hyperlane-xyz/core';
-import { Address, objMap } from '@hyperlane-xyz/utils';
+import { type Address, objMap } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
-import { TestCoreApp } from '../core/TestCoreApp.js';
+import { type TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import { ViolationType } from '../deploy/types.js';
@@ -28,8 +28,8 @@ import { HypERC20Checker } from './checker.js';
 import { TokenType } from './config.js';
 import { HypERC20Deployer } from './deploy.js';
 import {
-  SyntheticTokenConfig,
-  WarpRouteDeployConfigMailboxRequired,
+  type SyntheticTokenConfig,
+  type WarpRouteDeployConfigMailboxRequired,
 } from './types.js';
 
 const chain = TestChainName.test1;

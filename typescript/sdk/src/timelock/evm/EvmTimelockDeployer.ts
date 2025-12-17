@@ -1,5 +1,5 @@
 import { ethers } from 'ethers';
-import { Logger } from 'pino';
+import { type Logger } from 'pino';
 
 import {
   addBufferToGasLimit,
@@ -9,13 +9,16 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { HyperlaneDeployer } from '../../deploy/HyperlaneDeployer.js';
-import { ContractVerifier } from '../../deploy/verify/ContractVerifier.js';
-import { HyperlaneContracts } from '../../index.js';
-import { MultiProvider } from '../../providers/MultiProvider.js';
-import { TimelockConfig } from '../types.js';
+import { type ContractVerifier } from '../../deploy/verify/ContractVerifier.js';
+import { type HyperlaneContracts } from '../../index.js';
+import { type MultiProvider } from '../../providers/MultiProvider.js';
+import { type TimelockConfig } from '../types.js';
 
 import { CANCELLER_ROLE } from './constants.js';
-import { EvmTimelockFactories, evmTimelockFactories } from './contracts.js';
+import {
+  type EvmTimelockFactories,
+  evmTimelockFactories,
+} from './contracts.js';
 
 export class EvmTimelockDeployer extends HyperlaneDeployer<
   TimelockConfig,

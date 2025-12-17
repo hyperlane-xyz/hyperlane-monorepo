@@ -1,10 +1,10 @@
-import { ethers, providers } from 'ethers';
-import { Logger } from 'pino';
+import { type ethers, type providers } from 'ethers';
+import { type Logger } from 'pino';
 import { z } from 'zod';
 
 import {
-  Address,
-  ParsedMessage,
+  type Address,
+  type ParsedMessage,
   assert,
   bytes32ToAddress,
   messageId,
@@ -16,15 +16,15 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { EvmHookReader } from '../hook/EvmHookReader.js';
-import { DerivedHookConfig, HookConfigSchema } from '../hook/types.js';
+import { type DerivedHookConfig, HookConfigSchema } from '../hook/types.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { BaseMetadataBuilder } from '../ism/metadata/builder.js';
-import { DerivedIsmConfig, IsmConfigSchema } from '../ism/types.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainMap, ChainName } from '../types.js';
+import { type DerivedIsmConfig, IsmConfigSchema } from '../ism/types.js';
+import { type MultiProvider } from '../providers/MultiProvider.js';
+import { type ChainMap, type ChainName } from '../types.js';
 
 import { HyperlaneCore } from './HyperlaneCore.js';
-import { DispatchedMessage } from './types.js';
+import { type DispatchedMessage } from './types.js';
 
 const WithAddressSchema = z.object({
   address: z.string(),

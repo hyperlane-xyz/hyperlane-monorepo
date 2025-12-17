@@ -1,19 +1,19 @@
 import { constants } from 'ethers';
 
 import { MailboxClient__factory, Router__factory } from '@hyperlane-xyz/core';
-import { Address, eqAddress, rootLogger } from '@hyperlane-xyz/utils';
+import { type Address, eqAddress, rootLogger } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainNameOrId } from '../types.js';
+import { type MultiProvider } from '../providers/MultiProvider.js';
+import { type ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
 import {
-  DerivedMailboxClientConfig,
-  DerivedRouterConfig,
-  RemoteRouters,
+  type DerivedMailboxClientConfig,
+  type DerivedRouterConfig,
+  type RemoteRouters,
   RemoteRoutersSchema,
 } from './types.js';
 

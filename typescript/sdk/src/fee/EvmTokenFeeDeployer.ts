@@ -1,18 +1,21 @@
-import { BaseFee, RoutingFee } from '@hyperlane-xyz/core';
+import { type BaseFee, type RoutingFee } from '@hyperlane-xyz/core';
 
 import {
-  DeployerOptions,
+  type DeployerOptions,
   HyperlaneDeployer,
 } from '../deploy/HyperlaneDeployer.js';
-import { HyperlaneContracts, MultiProvider } from '../index.js';
-import { ChainName } from '../types.js';
+import { type HyperlaneContracts, type MultiProvider } from '../index.js';
+import { type ChainName } from '../types.js';
 
 import { EvmTokenFeeReader } from './EvmTokenFeeReader.js';
-import { EvmTokenFeeFactories, evmTokenFeeFactories } from './contracts.js';
 import {
-  OnchainTokenFeeType,
-  TokenFeeConfig,
-  TokenFeeConfigInput,
+  type EvmTokenFeeFactories,
+  evmTokenFeeFactories,
+} from './contracts.js';
+import {
+  type OnchainTokenFeeType,
+  type TokenFeeConfig,
+  type TokenFeeConfigInput,
   TokenFeeConfigSchema,
   TokenFeeType,
   onChainTypeToTokenFeeTypeMap,

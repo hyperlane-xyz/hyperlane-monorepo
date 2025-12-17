@@ -6,7 +6,7 @@ import { TestChainName } from '../consts/testChains.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 
 import {
-  BaseAppAdapter,
+  type BaseAppAdapter,
   BaseCosmWasmAdapter,
   BaseEvmAdapter,
   BaseSealevelAdapter,

@@ -1,8 +1,8 @@
-import { providers } from 'ethers';
+import { type providers } from 'ethers';
 
 import { Mailbox__factory, ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import {
-  Address,
+  type Address,
   objMap,
   promiseObjAll,
   rootLogger,
@@ -13,10 +13,10 @@ import { proxyAdmin } from '../deploy/proxy.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { EvmIcaRouterReader } from '../ica/EvmIcaReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainNameOrId, DeployedOwnableConfig } from '../types.js';
+import { type MultiProvider } from '../providers/MultiProvider.js';
+import { type ChainNameOrId, type DeployedOwnableConfig } from '../types.js';
 
-import { CoreConfig, DerivedCoreConfig } from './types.js';
+import { type CoreConfig, type DerivedCoreConfig } from './types.js';
 
 interface CoreReader {
   deriveCoreConfig(contracts: {

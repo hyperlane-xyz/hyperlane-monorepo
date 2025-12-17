@@ -5,10 +5,10 @@ import type { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import type { Address, Domain } from '@hyperlane-xyz/utils';
 
 import { ZHash } from './metadata/customZodTypes.js';
-import { MultiProvider } from './providers/MultiProvider.js';
+import { type MultiProvider } from './providers/MultiProvider.js';
 import {
-  ProtocolReceipt,
-  ProtocolTransaction,
+  type ProtocolReceipt,
+  type ProtocolTransaction,
 } from './providers/ProviderType.js';
 
 // An alias for string to clarify type is a chain name

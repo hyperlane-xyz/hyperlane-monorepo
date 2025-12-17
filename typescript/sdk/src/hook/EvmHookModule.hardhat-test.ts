@@ -1,10 +1,10 @@
 import { expect } from 'chai';
-import { Signer } from 'ethers';
+import { type Signer } from 'ethers';
 import hre from 'hardhat';
 
 import {
-  Address,
-  WithAddress,
+  type Address,
+  type WithAddress,
   assert,
   deepCopy,
   deepEquals,
@@ -12,11 +12,14 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { TestChainName, testChains } from '../consts/testChains.js';
-import { HyperlaneAddresses, HyperlaneContracts } from '../contracts/types.js';
+import {
+  type HyperlaneAddresses,
+  type HyperlaneContracts,
+} from '../contracts/types.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
-import { CoreAddresses } from '../core/contracts.js';
+import { type CoreAddresses } from '../core/contracts.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
-import { ProxyFactoryFactories } from '../deploy/contracts.js';
+import { type ProxyFactoryFactories } from '../deploy/contracts.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import {
@@ -30,17 +33,17 @@ import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmHookModule } from './EvmHookModule.js';
 import {
-  AggregationHookConfig,
-  AmountRoutingHookConfig,
-  DerivedHookConfig,
-  DomainRoutingHookConfig,
-  FallbackRoutingHookConfig,
-  HookConfig,
+  type AggregationHookConfig,
+  type AmountRoutingHookConfig,
+  type DerivedHookConfig,
+  type DomainRoutingHookConfig,
+  type FallbackRoutingHookConfig,
+  type HookConfig,
   HookType,
-  IgpHookConfig,
+  type IgpHookConfig,
   MUTABLE_HOOK_TYPE,
-  PausableHookConfig,
-  ProtocolFeeHookConfig,
+  type PausableHookConfig,
+  type ProtocolFeeHookConfig,
 } from './types.js';
 
 const hookTypes = Object.values(HookType);

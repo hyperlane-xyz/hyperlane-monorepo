@@ -1,4 +1,4 @@
-import { Address, HexString } from '@hyperlane-xyz/utils';
+import { type Address, type HexString } from '@hyperlane-xyz/utils';
 
 export type GetEventLogsResponse = {
   address: Address;

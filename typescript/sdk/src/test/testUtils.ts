@@ -3,27 +3,27 @@ import { Keypair } from '@solana/web3.js';
 import { BigNumber, ethers } from 'ethers';
 import { bytesToHex } from 'viem';
 
-import { Address, exclude, objMap } from '@hyperlane-xyz/utils';
+import { type Address, exclude, objMap } from '@hyperlane-xyz/utils';
 
 import { testChains } from '../consts/testChains.js';
-import { HyperlaneContractsMap } from '../contracts/types.js';
-import { CoreFactories } from '../core/contracts.js';
-import { CoreConfig } from '../core/types.js';
-import { IgpFactories } from '../gas/contracts.js';
-import { IgpConfig } from '../gas/types.js';
-import { HookConfig, HookType } from '../hook/types.js';
+import { type HyperlaneContractsMap } from '../contracts/types.js';
+import { type CoreFactories } from '../core/contracts.js';
+import { type CoreConfig } from '../core/types.js';
+import { type IgpFactories } from '../gas/contracts.js';
+import { type IgpConfig } from '../gas/types.js';
+import { type HookConfig, HookType } from '../hook/types.js';
 import {
-  AggregationIsmConfig,
-  IsmConfig,
+  type AggregationIsmConfig,
+  type IsmConfig,
   IsmType,
   ModuleType,
-  MultisigIsmConfig,
-  RoutingIsmConfig,
-  TrustedRelayerIsmConfig,
+  type MultisigIsmConfig,
+  type RoutingIsmConfig,
+  type TrustedRelayerIsmConfig,
   ismTypeToModuleType,
 } from '../ism/types.js';
-import { RouterConfig } from '../router/types.js';
-import { ChainMap, ChainName } from '../types.js';
+import { type RouterConfig } from '../router/types.js';
+import { type ChainMap, type ChainName } from '../types.js';
 
 export function randomInt(max: number, min = 0): number {
   return Math.floor(Math.random() * (max - min)) + min;

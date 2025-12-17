@@ -1,20 +1,20 @@
-import { Logger } from 'pino';
+import { type Logger } from 'pino';
 
-import { TokenRouter } from '@hyperlane-xyz/core';
-import { Address, objKeys } from '@hyperlane-xyz/utils';
+import { type TokenRouter } from '@hyperlane-xyz/core';
+import { type Address, objKeys } from '@hyperlane-xyz/utils';
 
 import { appFromAddressesMapHelper } from '../contracts/contracts.js';
 import {
-  HyperlaneAddressesMap,
-  HyperlaneContracts,
-  HyperlaneContractsMap,
+  type HyperlaneAddressesMap,
+  type HyperlaneContracts,
+  type HyperlaneContractsMap,
 } from '../contracts/types.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
+import { type MultiProvider } from '../providers/MultiProvider.js';
 import { GasRouterApp } from '../router/RouterApps.js';
-import { ProxiedFactories, proxiedFactories } from '../router/types.js';
-import { ChainMap } from '../types.js';
+import { type ProxiedFactories, proxiedFactories } from '../router/types.js';
+import { type ChainMap } from '../types.js';
 
-import { HypERC20Factories, hypERC20factories } from './contracts.js';
+import { type HypERC20Factories, hypERC20factories } from './contracts.js';
 
 export class HypERC20App extends GasRouterApp<
   HypERC20Factories & ProxiedFactories,

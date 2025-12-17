@@ -1,4 +1,4 @@
-import { SafeParseReturnType, z } from 'zod';
+import { type SafeParseReturnType, type z } from 'zod';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
 

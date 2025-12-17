@@ -6,13 +6,16 @@ import {
   AltVMIsmModule,
   AltVMWarpModule,
 } from '@hyperlane-xyz/deploy-sdk';
-import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
-import { HookConfig as ProviderHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
-import { IsmConfig as ProviderIsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
-import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
-import { WarpConfig as ProviderWarpConfig } from '@hyperlane-xyz/provider-sdk/warp';
+import { type AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { type HookConfig as ProviderHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
+import { type IsmConfig as ProviderIsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
 import {
-  Address,
+  type AnnotatedTx,
+  type TxReceipt,
+} from '@hyperlane-xyz/provider-sdk/module';
+import { type WarpConfig as ProviderWarpConfig } from '@hyperlane-xyz/provider-sdk/warp';
+import {
+  type Address,
   addressToBytes32,
   assert,
   isObjEmpty,
@@ -27,26 +30,29 @@ import {
 import { ExplorerLicenseType } from '../block-explorer/etherscan.js';
 import { CCIPContractCache } from '../ccip/utils.js';
 import {
-  HyperlaneContracts,
-  HyperlaneContractsMap,
+  type HyperlaneContracts,
+  type HyperlaneContractsMap,
 } from '../contracts/types.js';
 import { EvmHookModule } from '../hook/EvmHookModule.js';
-import { HookConfig } from '../hook/types.js';
+import { type HookConfig } from '../hook/types.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
-import { IsmConfig } from '../ism/types.js';
+import { type IsmConfig } from '../ism/types.js';
 import { altVmChainLookup } from '../metadata/ChainMetadataManager.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
-import { TypedAnnotatedTransaction } from '../providers/ProviderType.js';
-import { DestinationGas, RemoteRouters } from '../router/types.js';
+import { type MultiProvider } from '../providers/MultiProvider.js';
+import { type TypedAnnotatedTransaction } from '../providers/ProviderType.js';
+import { type DestinationGas, type RemoteRouters } from '../router/types.js';
 import { EvmERC20WarpModule } from '../token/EvmERC20WarpModule.js';
 import { gasOverhead } from '../token/config.js';
-import { HypERC20Factories, hypERC20factories } from '../token/contracts.js';
+import {
+  type HypERC20Factories,
+  hypERC20factories,
+} from '../token/contracts.js';
 import { HypERC20Deployer, HypERC721Deployer } from '../token/deploy.js';
 import {
-  HypTokenRouterConfig,
-  WarpRouteDeployConfigMailboxRequired,
+  type HypTokenRouterConfig,
+  type WarpRouteDeployConfigMailboxRequired,
 } from '../token/types.js';
-import { ChainMap } from '../types.js';
+import { type ChainMap } from '../types.js';
 import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
 
 import { HyperlaneProxyFactoryDeployer } from './HyperlaneProxyFactoryDeployer.js';

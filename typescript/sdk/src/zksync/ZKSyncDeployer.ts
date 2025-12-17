@@ -1,12 +1,12 @@
-import { BigNumber, BytesLike, Overrides, utils } from 'ethers';
+import { type BigNumber, type BytesLike, type Overrides, utils } from 'ethers';
 import {
-  Contract,
+  type Contract,
   ContractFactory,
-  Wallet,
-  types as zksyncTypes,
+  type Wallet,
+  type types as zksyncTypes,
 } from 'zksync-ethers';
 
-import { ZKSyncArtifact } from '@hyperlane-xyz/core';
+import { type ZKSyncArtifact } from '@hyperlane-xyz/core';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { defaultZKProviderBuilder } from '../providers/providerBuilders.js';

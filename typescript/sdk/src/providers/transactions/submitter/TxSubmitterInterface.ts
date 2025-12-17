@@ -1,12 +1,12 @@
-import { Annotated, ProtocolType } from '@hyperlane-xyz/utils';
+import { type Annotated, type ProtocolType } from '@hyperlane-xyz/utils';
 
 import {
-  ProtocolTypedProvider,
-  ProtocolTypedReceipt,
-  ProtocolTypedTransaction,
+  type ProtocolTypedProvider,
+  type ProtocolTypedReceipt,
+  type ProtocolTypedTransaction,
 } from '../../ProviderType.js';
 
-import { TxSubmitterType } from './TxSubmitterTypes.js';
+import { type TxSubmitterType } from './TxSubmitterTypes.js';
 
 export interface TxSubmitterInterface<
   TProtocol extends ProtocolType,

@@ -1,7 +1,7 @@
-import { HexString, ProtocolType } from '@hyperlane-xyz/utils';
+import { type HexString, ProtocolType } from '@hyperlane-xyz/utils';
 
-import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
-import { ChainName } from '../types.js';
+import { type MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
+import { type ChainName } from '../types.js';
 
 import { CosmosNativeMultiProtocolSignerAdapter } from './cosmos/cosmjs.js';
 import { EvmMultiProtocolSignerAdapter } from './evm/ethersv5.js';
@@ -11,7 +11,7 @@ import {
   KeypairSvmTransactionSigner,
   SvmMultiProtocolSignerAdapter,
 } from './svm/solana-web3js.js';
-import { IMultiProtocolSigner } from './types.js';
+import { type IMultiProtocolSigner } from './types.js';
 
 export type MultiProtocolSignerSignerAccountInfo =
   | {

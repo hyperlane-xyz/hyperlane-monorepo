@@ -1,19 +1,19 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
+import { type SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import hre from 'hardhat';
 import sinon from 'sinon';
 
 import {
-  MerkleTreeHook,
+  type MerkleTreeHook,
   MerkleTreeHook__factory,
-  TestRecipient,
+  type TestRecipient,
 } from '@hyperlane-xyz/core';
 import {
-  Address,
+  type Address,
   BaseValidator,
-  Checkpoint,
-  CheckpointWithId,
-  Domain,
-  S3CheckpointWithId,
+  type Checkpoint,
+  type CheckpointWithId,
+  type Domain,
+  type S3CheckpointWithId,
   addressToBytes32,
   eqAddress,
   objMap,
@@ -22,25 +22,25 @@ import {
 
 import { testChains } from '../../consts/testChains.js';
 import {
-  HyperlaneAddresses,
-  HyperlaneContracts,
+  type HyperlaneAddresses,
+  type HyperlaneContracts,
 } from '../../contracts/types.js';
-import { HyperlaneCore } from '../../core/HyperlaneCore.js';
+import { type HyperlaneCore } from '../../core/HyperlaneCore.js';
 import { TestCoreDeployer } from '../../core/TestCoreDeployer.js';
 import { TestRecipientDeployer } from '../../core/TestRecipientDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../../deploy/HyperlaneProxyFactoryDeployer.js';
-import { ProxyFactoryFactories } from '../../deploy/contracts.js';
+import { type ProxyFactoryFactories } from '../../deploy/contracts.js';
 import { EvmHookModule } from '../../hook/EvmHookModule.js';
-import { HookType, MerkleTreeHookConfig } from '../../hook/types.js';
+import { HookType, type MerkleTreeHookConfig } from '../../hook/types.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
-import { ChainName } from '../../types.js';
+import { type ChainName } from '../../types.js';
 import { EvmIsmReader } from '../EvmIsmReader.js';
 import { randomIsmConfig } from '../HyperlaneIsmFactory.hardhat-test.js';
 import { HyperlaneIsmFactory } from '../HyperlaneIsmFactory.js';
 
 import { BaseMetadataBuilder } from './builder.js';
 import { decodeIsmMetadata } from './decode.js';
-import { MetadataContext } from './types.js';
+import { type MetadataContext } from './types.js';
 
 const MAX_ISM_DEPTH = 5;
 const MAX_NUM_VALIDATORS = 10;

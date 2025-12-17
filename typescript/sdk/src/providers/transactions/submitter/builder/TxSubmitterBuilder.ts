@@ -1,13 +1,17 @@
-import { Logger } from 'pino';
-
-import { Annotated, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+import { type Logger } from 'pino';
 
 import {
-  ProtocolTypedReceipt,
-  ProtocolTypedTransaction,
+  type Annotated,
+  type ProtocolType,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
+
+import {
+  type ProtocolTypedReceipt,
+  type ProtocolTypedTransaction,
 } from '../../../ProviderType.js';
-import { TxSubmitterInterface } from '../TxSubmitterInterface.js';
-import { TxSubmitterType } from '../TxSubmitterTypes.js';
+import { type TxSubmitterInterface } from '../TxSubmitterInterface.js';
+import { type TxSubmitterType } from '../TxSubmitterTypes.js';
 
 /**
  * Builds a TxSubmitterBuilder for batch transaction submission.

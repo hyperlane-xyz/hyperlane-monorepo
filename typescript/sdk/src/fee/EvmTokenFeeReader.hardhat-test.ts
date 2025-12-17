@@ -1,9 +1,9 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
+import { type SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import { constants } from 'ethers';
 import hre from 'hardhat';
 
-import { ERC20Test, ERC20Test__factory } from '@hyperlane-xyz/core';
+import { type ERC20Test, ERC20Test__factory } from '@hyperlane-xyz/core';
 
 import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -12,7 +12,11 @@ import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmTokenFeeDeployer } from './EvmTokenFeeDeployer.js';
 import { EvmTokenFeeReader } from './EvmTokenFeeReader.js';
-import { TokenFeeConfig, TokenFeeConfigSchema, TokenFeeType } from './types.js';
+import {
+  type TokenFeeConfig,
+  TokenFeeConfigSchema,
+  TokenFeeType,
+} from './types.js';
 import { convertToBps } from './utils.js';
 
 export const MAX_FEE =

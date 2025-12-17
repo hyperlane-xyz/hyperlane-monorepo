@@ -1,9 +1,9 @@
 import type { BigNumber } from 'ethers';
-import { Logger } from 'pino';
+import { type Logger } from 'pino';
 
-import { GasRouter, Router } from '@hyperlane-xyz/core';
+import { type GasRouter, type Router } from '@hyperlane-xyz/core';
 import {
-  Address,
+  type Address,
   ProtocolType,
   objMap,
   promiseObjAll,
@@ -11,12 +11,12 @@ import {
 
 import { HyperlaneApp } from '../app/HyperlaneApp.js';
 import {
-  HyperlaneContracts,
-  HyperlaneContractsMap,
-  HyperlaneFactories,
+  type HyperlaneContracts,
+  type HyperlaneContractsMap,
+  type HyperlaneFactories,
 } from '../contracts/types.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainMap, ChainName } from '../types.js';
+import { type MultiProvider } from '../providers/MultiProvider.js';
+import { type ChainMap, type ChainName } from '../types.js';
 
 export abstract class RouterApp<
   Factories extends HyperlaneFactories,

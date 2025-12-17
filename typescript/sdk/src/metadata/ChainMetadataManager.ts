@@ -1,7 +1,7 @@
-import { Logger } from 'pino';
+import { type Logger } from 'pino';
 
 import {
-  EvmChainId,
+  type EvmChainId,
   ProtocolType,
   assert,
   exclude,
@@ -10,7 +10,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { isEvmBlockExplorerAndNotEtherscan } from '../block-explorer/utils.js';
-import { ChainMap, ChainName, ChainNameOrId } from '../types.js';
+import { type ChainMap, type ChainName, type ChainNameOrId } from '../types.js';
 
 import {
   getExplorerAddressUrl,
@@ -20,7 +20,7 @@ import {
   getExplorerTxUrl,
 } from './blockExplorer.js';
 import {
-  ChainMetadata,
+  type ChainMetadata,
   ChainMetadataSchema,
   ExplorerFamily,
   getDomainId,

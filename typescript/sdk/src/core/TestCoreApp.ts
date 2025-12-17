@@ -1,10 +1,10 @@
-import { ethers } from 'ethers';
+import { type ethers } from 'ethers';
 
-import { TestMailbox, TestMailbox__factory } from '@hyperlane-xyz/core';
+import { type TestMailbox, TestMailbox__factory } from '@hyperlane-xyz/core';
 import { messageId } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts } from '../contracts/types.js';
-import { ChainName } from '../types.js';
+import { type HyperlaneContracts } from '../contracts/types.js';
+import { type ChainName } from '../types.js';
 
 import { HyperlaneCore } from './HyperlaneCore.js';
 import { coreFactories } from './contracts.js';

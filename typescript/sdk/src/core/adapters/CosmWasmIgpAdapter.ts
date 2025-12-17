@@ -1,21 +1,21 @@
-import { ExecuteInstruction } from '@cosmjs/cosmwasm-stargate';
+import { type ExecuteInstruction } from '@cosmjs/cosmwasm-stargate';
 
-import { Address } from '@hyperlane-xyz/utils';
+import { type Address } from '@hyperlane-xyz/utils';
 
 import { BaseCosmWasmAdapter } from '../../app/MultiProtocolApp.js';
 import {
-  BeneficiaryResponse,
-  DefaultGasResponse,
-  DomainsResponse,
-  GetExchangeRateAndGasPriceResponse,
-  OwnerResponse,
-  QueryMsg,
-  QuoteGasPaymentResponse,
-  RouteResponseForAddr,
-  RoutesResponseForAddr,
+  type BeneficiaryResponse,
+  type DefaultGasResponse,
+  type DomainsResponse,
+  type GetExchangeRateAndGasPriceResponse,
+  type OwnerResponse,
+  type QueryMsg,
+  type QuoteGasPaymentResponse,
+  type RouteResponseForAddr,
+  type RoutesResponseForAddr,
 } from '../../cw-types/Igp.types.js';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
-import { ChainMap, ChainName } from '../../types.js';
+import { type MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { type ChainMap, type ChainName } from '../../types.js';
 
 // TODO: import more
 type IgpResponse =

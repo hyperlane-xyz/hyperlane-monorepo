@@ -1,12 +1,12 @@
-import { BigNumber } from 'ethers';
-import { z } from 'zod';
+import { type BigNumber } from 'ethers';
+import { type z } from 'zod';
 
-import { InterchainGasPaymaster } from '@hyperlane-xyz/core';
+import { type InterchainGasPaymaster } from '@hyperlane-xyz/core';
 import type { Address } from '@hyperlane-xyz/utils';
 
 import type { CheckerViolation } from '../deploy/types.js';
-import { IgpSchema } from '../hook/types.js';
-import { ChainMap } from '../types.js';
+import { type IgpSchema } from '../hook/types.js';
+import { type ChainMap } from '../types.js';
 
 export type IgpConfig = z.infer<typeof IgpSchema>;
 

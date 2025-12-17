@@ -2,7 +2,7 @@ import { BigNumber, ethers } from 'ethers';
 
 import {
   AbstractCcipReadIsm__factory,
-  AbstractRoutingIsm,
+  type AbstractRoutingIsm,
   AbstractRoutingIsm__factory,
   AmountRoutingIsm__factory,
   ArbL2ToL1Ism__factory,
@@ -19,8 +19,8 @@ import {
   TrustedRelayerIsm__factory,
 } from '@hyperlane-xyz/core';
 import {
-  Address,
-  WithAddress,
+  type Address,
+  type WithAddress,
   assert,
   concurrentMap,
   getLogLevel,
@@ -31,24 +31,24 @@ import {
 
 import { getChainNameFromCCIPSelector } from '../ccip/utils.js';
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
-import { DispatchedMessage } from '../core/types.js';
+import { type DispatchedMessage } from '../core/types.js';
 import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainMap, ChainNameOrId } from '../types.js';
+import { type MultiProvider } from '../providers/MultiProvider.js';
+import { type ChainMap, type ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
 import {
-  AggregationIsmConfig,
-  ArbL2ToL1IsmConfig,
-  DerivedIsmConfig,
-  DomainRoutingIsmConfig,
-  IsmConfig,
+  type AggregationIsmConfig,
+  type ArbL2ToL1IsmConfig,
+  type DerivedIsmConfig,
+  type DomainRoutingIsmConfig,
+  type IsmConfig,
   IsmType,
   ModuleType,
-  MultisigIsmConfig,
-  NullIsmConfig,
-  OffchainLookupIsmConfig,
-  RoutingIsmConfig,
+  type MultisigIsmConfig,
+  type NullIsmConfig,
+  type OffchainLookupIsmConfig,
+  type RoutingIsmConfig,
 } from './types.js';
 
 export interface IsmReader {

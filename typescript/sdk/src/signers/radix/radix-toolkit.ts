@@ -1,14 +1,14 @@
-import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { type AltVM, type ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
-  RadixSDKReceipt,
-  RadixSDKTransaction,
+  type RadixSDKReceipt,
+  type RadixSDKTransaction,
   RadixSigner,
 } from '@hyperlane-xyz/radix-sdk';
 
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
-import { RadixTransaction } from '../../providers/ProviderType.js';
-import { ChainName } from '../../types.js';
-import { IMultiProtocolSigner } from '../types.js';
+import { type MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { type RadixTransaction } from '../../providers/ProviderType.js';
+import { type ChainName } from '../../types.js';
+import { type IMultiProtocolSigner } from '../types.js';
 
 export class RadixMultiProtocolSignerAdapter
   implements IMultiProtocolSigner<ProtocolType.Radix>

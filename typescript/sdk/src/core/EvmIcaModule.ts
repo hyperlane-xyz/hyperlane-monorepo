@@ -2,9 +2,9 @@ import { ethers } from 'ethers';
 
 import { InterchainAccountRouter__factory } from '@hyperlane-xyz/core';
 import {
-  Domain,
-  EvmChainId,
-  ProtocolType,
+  type Domain,
+  type EvmChainId,
+  type ProtocolType,
   addressToBytes32,
   bytes32ToAddress,
   difference,
@@ -12,20 +12,20 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { serializeContracts } from '../contracts/contracts.js';
-import { HyperlaneAddresses } from '../contracts/types.js';
-import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
+import { type HyperlaneAddresses } from '../contracts/types.js';
+import { type ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { EvmIcaRouterReader } from '../ica/EvmIcaReader.js';
-import { DerivedIcaRouterConfig } from '../ica/types.js';
-import { InterchainAccountConfig } from '../index.js';
+import { type DerivedIcaRouterConfig } from '../ica/types.js';
+import { type InterchainAccountConfig } from '../index.js';
 import { InterchainAccountDeployer } from '../middleware/account/InterchainAccountDeployer.js';
-import { InterchainAccountFactories } from '../middleware/account/contracts.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
-import { ChainNameOrId } from '../types.js';
+import { type InterchainAccountFactories } from '../middleware/account/contracts.js';
+import { type MultiProvider } from '../providers/MultiProvider.js';
+import { type AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import { type ChainNameOrId } from '../types.js';
 
 import {
   HyperlaneModule,
-  HyperlaneModuleParams,
+  type HyperlaneModuleParams,
 } from './AbstractHyperlaneModule.js';
 
 export class EvmIcaModule extends HyperlaneModule<

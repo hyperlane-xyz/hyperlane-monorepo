@@ -4,7 +4,7 @@ import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import {
   ChainDisabledReason,
-  ChainMetadata,
+  type ChainMetadata,
   ChainStatus,
   EthJsonRpcBlockParameterTag,
   isValidChainMetadata,

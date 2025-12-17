@@ -5,14 +5,14 @@ import { eqAddress } from '@hyperlane-xyz/utils';
 import { BytecodeHash } from '../consts/bytecode.js';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker.js';
 import { proxyImplementation } from '../deploy/proxy.js';
-import { ChainName } from '../types.js';
+import { type ChainName } from '../types.js';
 
-import { HyperlaneIgp } from './HyperlaneIgp.js';
+import { type HyperlaneIgp } from './HyperlaneIgp.js';
 import {
-  IgpBeneficiaryViolation,
-  IgpConfig,
-  IgpGasOraclesViolation,
-  IgpOverheadViolation,
+  type IgpBeneficiaryViolation,
+  type IgpConfig,
+  type IgpGasOraclesViolation,
+  type IgpOverheadViolation,
   IgpViolationType,
 } from './types.js';
 

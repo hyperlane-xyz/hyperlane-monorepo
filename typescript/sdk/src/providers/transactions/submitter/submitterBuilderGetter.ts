@@ -1,19 +1,19 @@
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
-import { ChainMap, ProtocolMap } from '../../../types.js';
-import { MultiProvider } from '../../MultiProvider.js';
+import { type ChainMap, type ProtocolMap } from '../../../types.js';
+import { type MultiProvider } from '../../MultiProvider.js';
 
 import { EvmIcaTxSubmitter } from './IcaTxSubmitter.js';
-import { TxSubmitterInterface } from './TxSubmitterInterface.js';
+import { type TxSubmitterInterface } from './TxSubmitterInterface.js';
 import { TxSubmitterType } from './TxSubmitterTypes.js';
 import { TxSubmitterBuilder } from './builder/TxSubmitterBuilder.js';
-import { SubmissionStrategy } from './builder/types.js';
+import { type SubmissionStrategy } from './builder/types.js';
 import { EV5GnosisSafeTxBuilder } from './ethersV5/EV5GnosisSafeTxBuilder.js';
 import { EV5GnosisSafeTxSubmitter } from './ethersV5/EV5GnosisSafeTxSubmitter.js';
 import { EV5ImpersonatedAccountTxSubmitter } from './ethersV5/EV5ImpersonatedAccountTxSubmitter.js';
 import { EV5JsonRpcTxSubmitter } from './ethersV5/EV5JsonRpcTxSubmitter.js';
 import { EV5TimelockSubmitter } from './ethersV5/EV5TimelockSubmitter.js';
-import { SubmitterMetadata } from './types.js';
+import { type SubmitterMetadata } from './types.js';
 
 export type SubmitterBuilderSettings = {
   submissionStrategy: SubmissionStrategy;

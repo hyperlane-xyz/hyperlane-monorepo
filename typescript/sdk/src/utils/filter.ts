@@ -1,4 +1,4 @@
-import { ChainMap } from '../types.js';
+import { type ChainMap } from '../types.js';
 
 export function filterByChains<T>(
   owners: ChainMap<T>,

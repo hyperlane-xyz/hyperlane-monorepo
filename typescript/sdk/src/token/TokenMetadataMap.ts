@@ -2,7 +2,7 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import { verifyScale } from '../utils/decimals.js';
 
-import { TokenMetadata } from './types.js';
+import { type TokenMetadata } from './types.js';
 
 export class TokenMetadataMap {
   private readonly tokenMetadataMap: Map<string, TokenMetadata>;

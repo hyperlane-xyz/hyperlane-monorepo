@@ -1,37 +1,37 @@
-import { ethers } from 'ethers';
-import { Logger } from 'pino';
+import { type ethers } from 'ethers';
+import { type Logger } from 'pino';
 
 import {
   AmountRoutingIsm__factory,
   ArbL2ToL1Ism__factory,
-  CCIPIsm,
+  type CCIPIsm,
   CCIPIsm__factory,
-  DefaultFallbackRoutingIsm,
+  type DefaultFallbackRoutingIsm,
   DefaultFallbackRoutingIsm__factory,
-  DomainRoutingIsm,
+  type DomainRoutingIsm,
   DomainRoutingIsm__factory,
-  IAggregationIsm,
+  type IAggregationIsm,
   IAggregationIsm__factory,
   IInterchainSecurityModule__factory,
-  IMultisigIsm,
+  type IMultisigIsm,
   IMultisigIsm__factory,
-  IRoutingIsm,
-  IStaticWeightedMultisigIsm,
+  type IRoutingIsm,
+  type IStaticWeightedMultisigIsm,
   OPStackIsm__factory,
   PausableIsm__factory,
-  StaticAddressSetFactory,
-  StaticThresholdAddressSetFactory,
-  StaticWeightedValidatorSetFactory,
+  type StaticAddressSetFactory,
+  type StaticThresholdAddressSetFactory,
+  type StaticWeightedValidatorSetFactory,
   StorageAggregationIsm__factory,
   StorageMerkleRootMultisigIsm__factory,
   StorageMessageIdMultisigIsm__factory,
   TestIsm__factory,
   TrustedRelayerIsm__factory,
-  ZKSyncArtifact,
+  type ZKSyncArtifact,
 } from '@hyperlane-xyz/core';
 import {
-  Address,
-  Domain,
+  type Address,
+  type Domain,
   addBufferToGasLimit,
   assert,
   eqAddress,
@@ -43,33 +43,33 @@ import { HyperlaneApp } from '../app/HyperlaneApp.js';
 import { CCIPContractCache } from '../ccip/utils.js';
 import { appFromAddressesMapHelper } from '../contracts/contracts.js';
 import {
-  HyperlaneAddressesMap,
-  HyperlaneContractsMap,
+  type HyperlaneAddressesMap,
+  type HyperlaneContractsMap,
 } from '../contracts/types.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
 import {
-  ProxyFactoryFactories,
+  type ProxyFactoryFactories,
   proxyFactoryFactories,
 } from '../deploy/contracts.js';
-import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
+import { type ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainMap, ChainName } from '../types.js';
+import { type MultiProvider } from '../providers/MultiProvider.js';
+import { type ChainMap, type ChainName } from '../types.js';
 import { getZKSyncArtifactByContractName } from '../utils/zksync.js';
 
 import {
-  AggregationIsmConfig,
-  AmountRoutingIsmConfig,
-  CCIPIsmConfig,
-  DeployedIsm,
-  DeployedIsmType,
-  DomainRoutingIsmConfig,
-  IsmConfig,
+  type AggregationIsmConfig,
+  type AmountRoutingIsmConfig,
+  type CCIPIsmConfig,
+  type DeployedIsm,
+  type DeployedIsmType,
+  type DomainRoutingIsmConfig,
+  type IsmConfig,
   IsmType,
-  MultisigIsmConfig,
-  RoutingIsmConfig,
-  RoutingIsmDelta,
-  WeightedMultisigIsmConfig,
+  type MultisigIsmConfig,
+  type RoutingIsmConfig,
+  type RoutingIsmDelta,
+  type WeightedMultisigIsmConfig,
 } from './types.js';
 import { isIsmCompatible, routingModuleDelta } from './utils.js';
 

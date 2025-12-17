@@ -1,22 +1,22 @@
 import {
-  TimelockController,
+  type TimelockController,
   TimelockController__factory,
 } from '@hyperlane-xyz/core';
-import { ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { type ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { EMPTY_BYTES_32 } from '../../../../timelock/evm/constants.js';
-import { ChainMap } from '../../../../types.js';
-import { MultiProvider } from '../../../MultiProvider.js';
+import { type ChainMap } from '../../../../types.js';
+import { type MultiProvider } from '../../../MultiProvider.js';
 import {
-  AnnotatedEV5Transaction,
-  ProtocolTypedReceipt,
+  type AnnotatedEV5Transaction,
+  type ProtocolTypedReceipt,
 } from '../../../ProviderType.js';
-import { CallData } from '../../types.js';
-import { TxSubmitterInterface } from '../TxSubmitterInterface.js';
+import { type CallData } from '../../types.js';
+import { type TxSubmitterInterface } from '../TxSubmitterInterface.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
 import { getSubmitter } from '../submitterBuilderGetter.js';
 
-import { EvmTimelockControllerSubmitterProps } from './types.js';
+import { type EvmTimelockControllerSubmitterProps } from './types.js';
 
 type EvmTimelockControllerSubmitterConstructorConfig = Required<
   Pick<

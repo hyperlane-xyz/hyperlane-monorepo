@@ -1,8 +1,8 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
+import { type SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import hre from 'hardhat';
 
-import { ERC20Test, ERC20Test__factory } from '@hyperlane-xyz/core';
+import { type ERC20Test, ERC20Test__factory } from '@hyperlane-xyz/core';
 import { addressToBytes32, randomInt } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
@@ -11,9 +11,9 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { EvmTokenFeeDeployer } from './EvmTokenFeeDeployer.js';
 import { BPS, HALF_AMOUNT, MAX_FEE } from './EvmTokenFeeReader.hardhat-test.js';
 import {
-  LinearFeeConfig,
-  ProgressiveFeeConfig,
-  RegressiveFeeConfig,
+  type LinearFeeConfig,
+  type ProgressiveFeeConfig,
+  type RegressiveFeeConfig,
   RoutingFeeConfigSchema,
   TokenFeeConfigSchema,
   TokenFeeType,

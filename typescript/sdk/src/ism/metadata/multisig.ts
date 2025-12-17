@@ -2,12 +2,12 @@ import { joinSignature, splitSignature } from 'ethers/lib/utils.js';
 
 import { MerkleTreeHook__factory } from '@hyperlane-xyz/core';
 import {
-  Address,
-  Checkpoint,
-  MerkleProof,
-  S3CheckpointWithId,
-  SignatureLike,
-  WithAddress,
+  type Address,
+  type Checkpoint,
+  type MerkleProof,
+  type S3CheckpointWithId,
+  type SignatureLike,
+  type WithAddress,
   assert,
   bytes32ToAddress,
   chunk,
@@ -21,10 +21,10 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { S3Validator } from '../../aws/validator.js';
-import { HyperlaneCore } from '../../core/HyperlaneCore.js';
-import { MerkleTreeHookConfig } from '../../hook/types.js';
-import { ChainName } from '../../types.js';
-import { IsmType, MultisigIsmConfig } from '../types.js';
+import { type HyperlaneCore } from '../../core/HyperlaneCore.js';
+import { type MerkleTreeHookConfig } from '../../hook/types.js';
+import { type ChainName } from '../../types.js';
+import { IsmType, type MultisigIsmConfig } from '../types.js';
 
 import type { MetadataBuilder, MetadataContext } from './types.js';
 

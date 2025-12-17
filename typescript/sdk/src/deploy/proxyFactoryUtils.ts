@@ -3,7 +3,7 @@ import { ethers } from 'ethers';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { proxyFactoryFactories } from './contracts.js';
-import { ProxyFactoryFactoriesAddresses } from './types.js';
+import { type ProxyFactoryFactoriesAddresses } from './types.js';
 
 /**
  * Creates a default ProxyFactoryFactoriesAddresses object with all values set to ethers.constants.AddressZero.

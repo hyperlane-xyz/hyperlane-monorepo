@@ -1,17 +1,17 @@
 import { ethers } from 'ethers';
 
-import { Router } from '@hyperlane-xyz/core';
+import { type Router } from '@hyperlane-xyz/core';
 import { assert } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts } from '../../contracts/types.js';
-import { ContractVerifier } from '../../deploy/verify/ContractVerifier.js';
-import { IcaRouterConfig as InterchainAccountConfig } from '../../ica/types.js';
-import { MultiProvider } from '../../providers/MultiProvider.js';
+import { type HyperlaneContracts } from '../../contracts/types.js';
+import { type ContractVerifier } from '../../deploy/verify/ContractVerifier.js';
+import { type IcaRouterConfig as InterchainAccountConfig } from '../../ica/types.js';
+import { type MultiProvider } from '../../providers/MultiProvider.js';
 import { HyperlaneRouterDeployer } from '../../router/HyperlaneRouterDeployer.js';
-import { ChainName } from '../../types.js';
+import { type ChainName } from '../../types.js';
 
 import {
-  InterchainAccountFactories,
+  type InterchainAccountFactories,
   interchainAccountFactories,
 } from './contracts.js';
 

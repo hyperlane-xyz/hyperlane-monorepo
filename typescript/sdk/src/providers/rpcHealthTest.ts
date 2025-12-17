@@ -1,17 +1,17 @@
 import { Mailbox__factory } from '@hyperlane-xyz/core';
-import { Address, rootLogger } from '@hyperlane-xyz/utils';
+import { type Address, rootLogger } from '@hyperlane-xyz/utils';
 
-import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
+import { type ChainMetadata } from '../metadata/chainMetadataTypes.js';
 
 import {
-  CosmJsNativeProvider,
-  CosmJsProvider,
-  CosmJsWasmProvider,
-  EthersV5Provider,
+  type CosmJsNativeProvider,
+  type CosmJsProvider,
+  type CosmJsWasmProvider,
+  type EthersV5Provider,
   ProviderType,
-  RadixProvider,
-  SolanaWeb3Provider,
-  StarknetJsProvider,
+  type RadixProvider,
+  type SolanaWeb3Provider,
+  type StarknetJsProvider,
 } from './ProviderType.js';
 import { protocolToDefaultProviderBuilder } from './providerBuilders.js';
 

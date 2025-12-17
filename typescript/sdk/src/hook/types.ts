@@ -1,12 +1,12 @@
 import { z } from 'zod';
 
-import { Address, WithAddress } from '@hyperlane-xyz/utils';
+import { type Address, type WithAddress } from '@hyperlane-xyz/utils';
 
 import { ProtocolAgnositicGasOracleConfigWithTypicalCostSchema } from '../gas/oracle/types.js';
 import { ZHash } from '../metadata/customZodTypes.js';
 import {
-  ChainMap,
-  OwnableConfig,
+  type ChainMap,
+  type OwnableConfig,
   OwnableSchema,
   PausableSchema,
 } from '../types.js';

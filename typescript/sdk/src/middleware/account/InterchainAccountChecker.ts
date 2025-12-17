@@ -1,8 +1,8 @@
-import { InterchainAccountConfig } from '../../index.js';
+import { type InterchainAccountConfig } from '../../index.js';
 import { HyperlaneRouterChecker } from '../../router/HyperlaneRouterChecker.js';
 
-import { InterchainAccount } from './InterchainAccount.js';
-import { InterchainAccountFactories } from './contracts.js';
+import { type InterchainAccount } from './InterchainAccount.js';
+import { type InterchainAccountFactories } from './contracts.js';
 
 export class InterchainAccountChecker extends HyperlaneRouterChecker<
   InterchainAccountFactories,

@@ -1,6 +1,6 @@
 // import { expect } from 'chai';
 import { compareVersions } from 'compare-versions';
-import { BigNumberish } from 'ethers';
+import { type BigNumberish } from 'ethers';
 import { UINT_256_MAX } from 'starknet';
 
 import {
@@ -14,10 +14,10 @@ import {
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
-  Address,
-  Domain,
-  EvmChainId,
-  ProtocolType,
+  type Address,
+  type Domain,
+  type EvmChainId,
+  type ProtocolType,
   ZERO_ADDRESS_HEX_32,
   addressToBytes32,
   assert,
@@ -37,14 +37,14 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { ExplorerLicenseType } from '../block-explorer/etherscan.js';
-import { CCIPContractCache } from '../ccip/utils.js';
+import { type CCIPContractCache } from '../ccip/utils.js';
 import { transferOwnershipTransactions } from '../contracts/contracts.js';
-import { HyperlaneAddresses } from '../contracts/types.js';
+import { type HyperlaneAddresses } from '../contracts/types.js';
 import {
   HyperlaneModule,
-  HyperlaneModuleParams,
+  type HyperlaneModuleParams,
 } from '../core/AbstractHyperlaneModule.js';
-import { ProxyFactoryFactories } from '../deploy/contracts.js';
+import { type ProxyFactoryFactories } from '../deploy/contracts.js';
 import {
   isInitialized,
   proxyAdmin,
@@ -52,24 +52,24 @@ import {
 } from '../deploy/proxy.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { EvmTokenFeeModule } from '../fee/EvmTokenFeeModule.js';
-import { TokenFeeReaderParams } from '../fee/EvmTokenFeeReader.js';
+import { type TokenFeeReaderParams } from '../fee/EvmTokenFeeReader.js';
 import { getEvmHookUpdateTransactions } from '../hook/updates.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
-import { RemoteRouters, resolveRouterMapConfig } from '../router/types.js';
-import { ChainName, ChainNameOrId } from '../types.js';
+import { type MultiProvider } from '../providers/MultiProvider.js';
+import { type AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import { type RemoteRouters, resolveRouterMapConfig } from '../router/types.js';
+import { type ChainName, type ChainNameOrId } from '../types.js';
 import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
 
 import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
 import { hypERC20contracts } from './contracts.js';
 import { HypERC20Deployer } from './deploy.js';
 import {
-  DerivedTokenRouterConfig,
-  EverclearCollateralTokenConfig,
-  HypTokenRouterConfig,
+  type DerivedTokenRouterConfig,
+  type EverclearCollateralTokenConfig,
+  type HypTokenRouterConfig,
   HypTokenRouterConfigSchema,
-  MovableTokenConfig,
+  type MovableTokenConfig,
   VERSION_ERROR_MESSAGE,
   contractVersionMatchesDependency,
   derivedIsmAddress,

@@ -1,4 +1,4 @@
-import { Provider } from '@ethersproject/providers';
+import { type Provider } from '@ethersproject/providers';
 import { BigNumber as BigNumberJs } from 'bignumber.js';
 import { BigNumber, ethers } from 'ethers';
 
@@ -10,16 +10,16 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { getProtocolExchangeRateDecimals } from '../consts/igp.js';
-import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
-import { AgentCosmosGasPrice } from '../metadata/agentConfig.js';
-import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
-import { ChainMap, ChainName } from '../types.js';
+import { type ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
+import { type AgentCosmosGasPrice } from '../metadata/agentConfig.js';
+import { type MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
+import { type ChainMap, type ChainName } from '../types.js';
 import { getCosmosRegistryChain } from '../utils/cosmos.js';
 
 import {
-  IgpCostData,
-  ProtocolAgnositicGasOracleConfig,
-  ProtocolAgnositicGasOracleConfigWithTypicalCost,
+  type IgpCostData,
+  type ProtocolAgnositicGasOracleConfig,
+  type ProtocolAgnositicGasOracleConfigWithTypicalCost,
 } from './oracle/types.js';
 
 export interface GasPriceConfig {

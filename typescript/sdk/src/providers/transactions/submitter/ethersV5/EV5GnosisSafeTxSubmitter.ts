@@ -1,24 +1,24 @@
-import SafeApiKit from '@safe-global/api-kit';
-import Safe from '@safe-global/protocol-kit';
+import type SafeApiKit from '@safe-global/api-kit';
+import type Safe from '@safe-global/protocol-kit';
 import {
-  MetaTransactionData,
-  SafeTransaction,
+  type MetaTransactionData,
+  type SafeTransaction,
 } from '@safe-global/safe-core-sdk-types';
-import { Logger } from 'pino';
+import { type Logger } from 'pino';
 
-import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
+import { type Address, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import {
   canProposeSafeTransactions,
   getSafe,
   getSafeService,
 } from '../../../../utils/gnosisSafe.js';
-import { MultiProvider } from '../../../MultiProvider.js';
-import { AnnotatedEV5Transaction } from '../../../ProviderType.js';
+import { type MultiProvider } from '../../../MultiProvider.js';
+import { type AnnotatedEV5Transaction } from '../../../ProviderType.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
 
-import { EV5TxSubmitterInterface } from './EV5TxSubmitterInterface.js';
-import { EV5GnosisSafeTxSubmitterProps } from './types.js';
+import { type EV5TxSubmitterInterface } from './EV5TxSubmitterInterface.js';
+import { type EV5GnosisSafeTxSubmitterProps } from './types.js';
 
 export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
   public readonly txSubmitterType: TxSubmitterType =

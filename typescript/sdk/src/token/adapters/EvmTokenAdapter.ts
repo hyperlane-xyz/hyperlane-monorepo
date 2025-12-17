@@ -1,41 +1,41 @@
 import {
   BigNumber,
-  PopulatedTransaction,
+  type PopulatedTransaction,
   constants as ethersConstants,
 } from 'ethers';
 
 import {
-  ERC20,
+  type ERC20,
   ERC20__factory,
   ERC4626__factory,
   GasRouter__factory,
-  HypERC20,
-  HypERC20Collateral,
+  type HypERC20,
+  type HypERC20Collateral,
   HypERC20Collateral__factory,
   HypERC20__factory,
-  HypERC4626,
-  HypERC4626Collateral,
+  type HypERC4626,
+  type HypERC4626Collateral,
   HypERC4626Collateral__factory,
   HypERC4626__factory,
-  HypXERC20,
-  HypXERC20Lockbox,
+  type HypXERC20,
+  type HypXERC20Lockbox,
   HypXERC20Lockbox__factory,
   HypXERC20__factory,
   IFiatToken__factory,
   ITokenBridge__factory,
-  IXERC20,
-  IXERC20VS,
+  type IXERC20,
+  type IXERC20VS,
   IXERC20VS__factory,
   IXERC20__factory,
-  MovableCollateralRouter,
+  type MovableCollateralRouter,
   MovableCollateralRouter__factory,
-  TokenRouter,
+  type TokenRouter,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import {
-  Address,
-  Domain,
-  Numberish,
+  type Address,
+  type Domain,
+  type Numberish,
   ZERO_ADDRESS_HEX_32,
   addressToByteHexString,
   addressToBytes32,
@@ -49,27 +49,27 @@ import {
 
 import { BaseEvmAdapter } from '../../app/MultiProtocolApp.js';
 import { UIN256_MAX_VALUE } from '../../consts/numbers.js';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
-import { ChainName } from '../../types.js';
+import { type MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { type ChainName } from '../../types.js';
 import { isValidContractVersion } from '../../utils/contract.js';
-import { TokenMetadata } from '../types.js';
+import { type TokenMetadata } from '../types.js';
 
 import {
-  IHypCollateralFiatAdapter,
-  IHypTokenAdapter,
-  IHypVSXERC20Adapter,
-  IHypXERC20Adapter,
-  IMovableCollateralRouterAdapter,
-  ITokenAdapter,
-  IXERC20Adapter,
-  IXERC20VSAdapter,
-  InterchainGasQuote,
-  Quote,
-  QuoteTransferRemoteParams,
-  RateLimitMidPoint,
-  TransferParams,
-  TransferRemoteParams,
-  xERC20Limits,
+  type IHypCollateralFiatAdapter,
+  type IHypTokenAdapter,
+  type IHypVSXERC20Adapter,
+  type IHypXERC20Adapter,
+  type IMovableCollateralRouterAdapter,
+  type ITokenAdapter,
+  type IXERC20Adapter,
+  type IXERC20VSAdapter,
+  type InterchainGasQuote,
+  type Quote,
+  type QuoteTransferRemoteParams,
+  type RateLimitMidPoint,
+  type TransferParams,
+  type TransferRemoteParams,
+  type xERC20Limits,
 } from './ITokenAdapter.js';
 
 // An estimate of the gas amount for a typical EVM token router transferRemote transaction

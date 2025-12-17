@@ -1,15 +1,15 @@
-import { Hex, Log } from 'viem';
+import { type Hex, type Log } from 'viem';
 
-import { Address } from '@hyperlane-xyz/utils';
+import { type Address } from '@hyperlane-xyz/utils';
 
 import {
   assertIsContractAddress,
   isContractAddress,
 } from '../../contracts/contracts.js';
-import { MultiProvider } from '../../providers/MultiProvider.js';
-import { ChainNameOrId } from '../../types.js';
+import { type MultiProvider } from '../../providers/MultiProvider.js';
+import { type ChainNameOrId } from '../../types.js';
 
-import { GetEventLogsResponse } from './types.js';
+import { type GetEventLogsResponse } from './types.js';
 
 // calling getCode until the creation block is found
 export async function getContractCreationBlockFromRpc(

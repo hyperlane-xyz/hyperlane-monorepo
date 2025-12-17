@@ -1,15 +1,15 @@
-import { TransactionReceipt } from '@ethersproject/providers';
-import { ContractReceipt } from 'ethers';
-import { Logger } from 'pino';
+import { type TransactionReceipt } from '@ethersproject/providers';
+import { type ContractReceipt } from 'ethers';
+import { type Logger } from 'pino';
 
 import { assert, rootLogger } from '@hyperlane-xyz/utils';
 
-import { MultiProvider } from '../../../MultiProvider.js';
-import { AnnotatedEV5Transaction } from '../../../ProviderType.js';
+import { type MultiProvider } from '../../../MultiProvider.js';
+import { type AnnotatedEV5Transaction } from '../../../ProviderType.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
 
-import { EV5TxSubmitterInterface } from './EV5TxSubmitterInterface.js';
-import { EV5JsonRpcTxSubmitterProps } from './types.js';
+import { type EV5TxSubmitterInterface } from './EV5TxSubmitterInterface.js';
+import { type EV5JsonRpcTxSubmitterProps } from './types.js';
 
 export class EV5JsonRpcTxSubmitter implements EV5TxSubmitterInterface {
   public readonly txSubmitterType: TxSubmitterType = TxSubmitterType.JSON_RPC;

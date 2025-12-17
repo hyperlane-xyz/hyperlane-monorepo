@@ -1,9 +1,12 @@
 import { BigNumber } from 'bignumber.js';
 
-import { RadixProvider, RadixSDKTransaction } from '@hyperlane-xyz/radix-sdk';
 import {
-  Address,
-  Domain,
+  type RadixProvider,
+  type RadixSDKTransaction,
+} from '@hyperlane-xyz/radix-sdk';
+import {
+  type Address,
+  type Domain,
   addressToBytes32,
   assert,
   fromWei,
@@ -11,17 +14,17 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { BaseRadixAdapter } from '../../app/MultiProtocolApp.js';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
-import { ChainName } from '../../types.js';
-import { TokenMetadata } from '../types.js';
+import { type MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { type ChainName } from '../../types.js';
+import { type TokenMetadata } from '../types.js';
 
 import {
-  IHypTokenAdapter,
-  ITokenAdapter,
-  InterchainGasQuote,
-  QuoteTransferRemoteParams,
-  TransferParams,
-  TransferRemoteParams,
+  type IHypTokenAdapter,
+  type ITokenAdapter,
+  type InterchainGasQuote,
+  type QuoteTransferRemoteParams,
+  type TransferParams,
+  type TransferRemoteParams,
 } from './ITokenAdapter.js';
 
 export class RadixTokenAdapter

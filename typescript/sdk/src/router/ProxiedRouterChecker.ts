@@ -1,9 +1,9 @@
-import { AddressesMap } from '../contracts/types.js';
-import { ChainName } from '../types.js';
+import { type AddressesMap } from '../contracts/types.js';
+import { type ChainName } from '../types.js';
 
 import { HyperlaneRouterChecker } from './HyperlaneRouterChecker.js';
-import { RouterApp } from './RouterApps.js';
-import { ProxiedFactories, ProxiedRouterConfig } from './types.js';
+import { type RouterApp } from './RouterApps.js';
+import { type ProxiedFactories, type ProxiedRouterConfig } from './types.js';
 
 export abstract class ProxiedRouterChecker<
   Factories extends ProxiedFactories,

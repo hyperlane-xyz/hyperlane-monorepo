@@ -1,5 +1,5 @@
 import { ethers } from 'ethers';
-import { Logger } from 'pino';
+import { type Logger } from 'pino';
 
 import {
   AbstractCcipReadIsm__factory,
@@ -7,10 +7,10 @@ import {
   PausableIsm__factory,
 } from '@hyperlane-xyz/core';
 import {
-  Address,
-  Domain,
-  EvmChainId,
-  ProtocolType,
+  type Address,
+  type Domain,
+  type EvmChainId,
+  type ProtocolType,
   arrayEqual,
   assert,
   deepEquals,
@@ -19,32 +19,32 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { CCIPContractCache } from '../ccip/utils.js';
+import { type CCIPContractCache } from '../ccip/utils.js';
 import { transferOwnershipTransactions } from '../contracts/contracts.js';
-import { HyperlaneAddresses } from '../contracts/types.js';
+import { type HyperlaneAddresses } from '../contracts/types.js';
 import {
   HyperlaneModule,
-  HyperlaneModuleParams,
+  type HyperlaneModuleParams,
 } from '../core/AbstractHyperlaneModule.js';
-import { ProxyFactoryFactories } from '../deploy/contracts.js';
-import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
-import { ChainName, ChainNameOrId } from '../types.js';
+import { type ProxyFactoryFactories } from '../deploy/contracts.js';
+import { type ContractVerifier } from '../deploy/verify/ContractVerifier.js';
+import { type MultiProvider } from '../providers/MultiProvider.js';
+import { type AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import { type ChainName, type ChainNameOrId } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmIsmReader } from './EvmIsmReader.js';
 import { HyperlaneIsmFactory } from './HyperlaneIsmFactory.js';
 import {
-  DeployedIsm,
-  DerivedIsmConfig,
-  DomainRoutingIsmConfig,
-  IsmConfig,
+  type DeployedIsm,
+  type DerivedIsmConfig,
+  type DomainRoutingIsmConfig,
+  type IsmConfig,
   IsmConfigSchema,
   IsmType,
   MUTABLE_ISM_TYPE,
-  OffchainLookupIsmConfig,
-  PausableIsmConfig,
+  type OffchainLookupIsmConfig,
+  type PausableIsmConfig,
 } from './types.js';
 import { calculateDomainRoutingDelta } from './utils.js';
 

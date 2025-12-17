@@ -1,7 +1,7 @@
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { type ProtocolType } from '@hyperlane-xyz/utils';
 
-import { MultiProvider } from '../../../MultiProvider.js';
-import { TxSubmitterInterface } from '../TxSubmitterInterface.js';
+import { type MultiProvider } from '../../../MultiProvider.js';
+import { type TxSubmitterInterface } from '../TxSubmitterInterface.js';
 
 export interface EV5TxSubmitterInterface
   extends TxSubmitterInterface<ProtocolType.Ethereum> {

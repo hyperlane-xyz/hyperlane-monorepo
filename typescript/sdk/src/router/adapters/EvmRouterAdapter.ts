@@ -1,16 +1,20 @@
 import {
-  GasRouter,
+  type GasRouter,
   GasRouter__factory,
-  Router,
+  type Router,
   Router__factory,
 } from '@hyperlane-xyz/core';
-import { Address, Domain, bytes32ToAddress } from '@hyperlane-xyz/utils';
+import {
+  type Address,
+  type Domain,
+  bytes32ToAddress,
+} from '@hyperlane-xyz/utils';
 
 import { BaseEvmAdapter } from '../../app/MultiProtocolApp.js';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
-import { ChainName } from '../../types.js';
+import { type MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { type ChainName } from '../../types.js';
 
-import { IGasRouterAdapter, IRouterAdapter } from './types.js';
+import { type IGasRouterAdapter, type IRouterAdapter } from './types.js';
 
 export class EvmRouterAdapter extends BaseEvmAdapter implements IRouterAdapter {
   constructor(

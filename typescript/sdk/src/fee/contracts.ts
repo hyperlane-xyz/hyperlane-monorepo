@@ -1,4 +1,4 @@
-import { ContractFactory } from 'ethers';
+import { type ContractFactory } from 'ethers';
 
 import {
   LinearFee__factory,

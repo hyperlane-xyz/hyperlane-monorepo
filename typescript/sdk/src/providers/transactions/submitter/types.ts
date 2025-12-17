@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { type z } from 'zod';
 
 import { EvmSubmitterMetadataSchema } from './ethersV5/types.js';
 

@@ -1,20 +1,20 @@
-import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { type Address, type ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import {
-  InterchainAccount,
+  type InterchainAccount,
   buildInterchainAccountApp,
 } from '../../../middleware/account/InterchainAccount.js';
-import { ChainMap } from '../../../types.js';
-import { MultiProvider } from '../../MultiProvider.js';
+import { type ChainMap } from '../../../types.js';
+import { type MultiProvider } from '../../MultiProvider.js';
 import {
-  AnnotatedEV5Transaction,
-  ProtocolTypedReceipt,
+  type AnnotatedEV5Transaction,
+  type ProtocolTypedReceipt,
 } from '../../ProviderType.js';
-import { CallData } from '../types.js';
+import { type CallData } from '../types.js';
 
-import { TxSubmitterInterface } from './TxSubmitterInterface.js';
+import { type TxSubmitterInterface } from './TxSubmitterInterface.js';
 import { TxSubmitterType } from './TxSubmitterTypes.js';
-import { EvmIcaTxSubmitterProps } from './ethersV5/types.js';
+import { type EvmIcaTxSubmitterProps } from './ethersV5/types.js';
 import { getSubmitter } from './submitterBuilderGetter.js';
 
 type EvmIcaTxSubmitterConstructorConfig = Omit<

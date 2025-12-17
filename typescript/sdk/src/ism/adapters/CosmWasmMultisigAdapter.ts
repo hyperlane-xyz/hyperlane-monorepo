@@ -1,7 +1,7 @@
-import { ExecuteInstruction } from '@cosmjs/cosmwasm-stargate';
+import { type ExecuteInstruction } from '@cosmjs/cosmwasm-stargate';
 
 import {
-  Address,
+  type Address,
   difference,
   objMap,
   promiseObjAll,
@@ -9,13 +9,16 @@ import {
 
 import { BaseCosmWasmAdapter } from '../../app/MultiProtocolApp.js';
 import {
-  EnrolledValidatorsResponse,
-  ExecuteMsg as MultisigExecute,
-  QueryMsg as MultisigQuery,
+  type EnrolledValidatorsResponse,
+  type ExecuteMsg as MultisigExecute,
+  type QueryMsg as MultisigQuery,
 } from '../../cw-types/IsmMultisig.types.js';
-import { MultisigConfig, MultisigIsmConfig } from '../../ism/types.js';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
-import { ChainMap, ChainName } from '../../types.js';
+import {
+  type MultisigConfig,
+  type MultisigIsmConfig,
+} from '../../ism/types.js';
+import { type MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { type ChainMap, type ChainName } from '../../types.js';
 
 type MultisigResponse = EnrolledValidatorsResponse;
 

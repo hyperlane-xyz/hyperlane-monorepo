@@ -1,19 +1,19 @@
 import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { attachContracts } from '../contracts/contracts.js';
-import { HyperlaneContracts } from '../contracts/types.js';
+import { type HyperlaneContracts } from '../contracts/types.js';
 import { isStaticDeploymentSupported } from '../ism/utils.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainName } from '../types.js';
+import { type MultiProvider } from '../providers/MultiProvider.js';
+import { type ChainName } from '../types.js';
 
 import { HyperlaneDeployer } from './HyperlaneDeployer.js';
 import {
-  ProxyFactoryFactories,
+  type ProxyFactoryFactories,
   proxyFactoryFactories,
   proxyFactoryImplementations,
 } from './contracts.js';
 import { createDefaultProxyFactoryFactories } from './proxyFactoryUtils.js';
-import { ContractVerifier } from './verify/ContractVerifier.js';
+import { type ContractVerifier } from './verify/ContractVerifier.js';
 
 export class HyperlaneProxyFactoryDeployer extends HyperlaneDeployer<
   {},

@@ -1,12 +1,12 @@
-import { Contract, utils } from 'ethers';
+import { type Contract, utils } from 'ethers';
 
 import {
-  Ownable,
+  type Ownable,
   ProxyAdmin__factory,
   TimelockController__factory,
 } from '@hyperlane-xyz/core';
 import {
-  Address,
+  type Address,
   ProtocolType,
   assert,
   eqAddress,
@@ -17,20 +17,20 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { HyperlaneApp } from '../app/HyperlaneApp.js';
+import { type HyperlaneApp } from '../app/HyperlaneApp.js';
 import { BytecodeHash } from '../consts/bytecode.js';
 import { filterOwnableContracts } from '../contracts/contracts.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainMap, ChainName } from '../types.js';
+import { type MultiProvider } from '../providers/MultiProvider.js';
+import { type ChainMap, type ChainName } from '../types.js';
 
-import { UpgradeConfig, isProxy, proxyAdmin } from './proxy.js';
+import { type UpgradeConfig, isProxy, proxyAdmin } from './proxy.js';
 import {
-  AccessControlViolation,
-  BytecodeMismatchViolation,
-  CheckerViolation,
-  OwnerViolation,
-  ProxyAdminViolation,
-  TimelockControllerViolation,
+  type AccessControlViolation,
+  type BytecodeMismatchViolation,
+  type CheckerViolation,
+  type OwnerViolation,
+  type ProxyAdminViolation,
+  type TimelockControllerViolation,
   ViolationType,
 } from './types.js';
 

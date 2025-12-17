@@ -1,5 +1,5 @@
-import { JsonRpcProvider } from '@ethersproject/providers';
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
+import { type JsonRpcProvider } from '@ethersproject/providers';
+import { type SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import { ethers } from 'ethers';
@@ -14,11 +14,11 @@ import {
   baseTestChain,
   test1,
 } from '../../consts/testChains.js';
-import { ChainMetadata } from '../../metadata/chainMetadataTypes.js';
+import { type ChainMetadata } from '../../metadata/chainMetadataTypes.js';
 import { ZBytes32String } from '../../metadata/customZodTypes.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { randomAddress } from '../../test/testUtils.js';
-import { TimelockConfig, TimelockTx } from '../types.js';
+import { type TimelockConfig, type TimelockTx } from '../types.js';
 
 import { EvmTimelockDeployer } from './EvmTimelockDeployer.js';
 import { EvmTimelockReader } from './EvmTimelockReader.js';

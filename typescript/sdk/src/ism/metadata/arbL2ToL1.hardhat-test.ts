@@ -1,47 +1,47 @@
 import { ChildToParentMessageStatus } from '@arbitrum/sdk';
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
+import { type SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import { BigNumber } from 'ethers';
 import hre from 'hardhat';
 import sinon from 'sinon';
 
 import {
-  ArbL2ToL1Hook,
+  type ArbL2ToL1Hook,
   ArbL2ToL1Hook__factory,
-  ArbL2ToL1Ism,
+  type ArbL2ToL1Ism,
   ArbL2ToL1Ism__factory,
-  MockArbBridge,
+  type MockArbBridge,
   MockArbBridge__factory,
   MockArbSys__factory,
-  TestRecipient,
+  type TestRecipient,
 } from '@hyperlane-xyz/core';
 import {
-  Address,
-  WithAddress,
+  type Address,
+  type WithAddress,
   bytes32ToAddress,
   objMap,
 } from '@hyperlane-xyz/utils';
 
 import { testChains } from '../../consts/testChains.js';
 import {
-  HyperlaneAddresses,
-  HyperlaneContracts,
+  type HyperlaneAddresses,
+  type HyperlaneContracts,
 } from '../../contracts/types.js';
-import { HyperlaneCore } from '../../core/HyperlaneCore.js';
+import { type HyperlaneCore } from '../../core/HyperlaneCore.js';
 import { TestCoreDeployer } from '../../core/TestCoreDeployer.js';
 import { TestRecipientDeployer } from '../../core/TestRecipientDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../../deploy/HyperlaneProxyFactoryDeployer.js';
-import { ProxyFactoryFactories } from '../../deploy/contracts.js';
+import { type ProxyFactoryFactories } from '../../deploy/contracts.js';
 import { EvmHookModule } from '../../hook/EvmHookModule.js';
-import { ArbL2ToL1HookConfig, HookType } from '../../hook/types.js';
+import { type ArbL2ToL1HookConfig, HookType } from '../../hook/types.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
-import { ChainMap, ChainName } from '../../types.js';
+import { type ChainMap, type ChainName } from '../../types.js';
 import { EvmIsmReader } from '../EvmIsmReader.js';
 import { HyperlaneIsmFactory } from '../HyperlaneIsmFactory.js';
-import { ArbL2ToL1IsmConfig } from '../types.js';
+import { type ArbL2ToL1IsmConfig } from '../types.js';
 
 import { ArbL2ToL1MetadataBuilder } from './arbL2ToL1.js';
-import { MetadataContext } from './types.js';
+import { type MetadataContext } from './types.js';
 
 describe('ArbL2ToL1MetadataBuilder', () => {
   const origin: ChainName = 'test4';

@@ -16,7 +16,7 @@ import {
   TrustedRelayerIsm__factory,
 } from '@hyperlane-xyz/core';
 import {
-  Address,
+  type Address,
   deepEquals,
   eqAddress,
   formatMessage,
@@ -26,21 +26,21 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { getChainNameFromCCIPSelector } from '../ccip/utils.js';
-import { HyperlaneContracts } from '../contracts/types.js';
-import { ProxyFactoryFactories } from '../deploy/contracts.js';
+import { type HyperlaneContracts } from '../contracts/types.js';
+import { type ProxyFactoryFactories } from '../deploy/contracts.js';
 import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainName } from '../types.js';
+import { type MultiProvider } from '../providers/MultiProvider.js';
+import { type ChainName } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
 import {
-  DomainRoutingIsmConfig,
-  InterchainAccountRouterIsm,
-  IsmConfig,
+  type DomainRoutingIsmConfig,
+  type InterchainAccountRouterIsm,
+  type IsmConfig,
   IsmType,
   ModuleType,
-  RoutingIsmConfig,
-  RoutingIsmDelta,
+  type RoutingIsmConfig,
+  type RoutingIsmDelta,
   STATIC_ISM_TYPES,
   ismTypeToModuleType,
 } from './types.js';

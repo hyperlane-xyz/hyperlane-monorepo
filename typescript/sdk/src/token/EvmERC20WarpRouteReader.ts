@@ -2,7 +2,7 @@ import { compareVersions } from 'compare-versions';
 import { BigNumber, Contract, constants } from 'ethers';
 
 import {
-  EverclearTokenBridge,
+  type EverclearTokenBridge,
   EverclearTokenBridge__factory,
   HypERC20Collateral__factory,
   HypERC20__factory,
@@ -28,7 +28,7 @@ import {
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
-  Address,
+  type Address,
   arrayToObject,
   assert,
   eqAddress,
@@ -47,32 +47,36 @@ import { isAddressActive } from '../contracts/contracts.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { VerifyContractTypes } from '../deploy/verify/types.js';
 import { EvmTokenFeeReader } from '../fee/EvmTokenFeeReader.js';
-import { TokenFeeConfig } from '../fee/types.js';
+import { type TokenFeeConfig } from '../fee/types.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
+import { type MultiProvider } from '../providers/MultiProvider.js';
 import { EvmRouterReader } from '../router/EvmRouterReader.js';
-import { DestinationGas } from '../router/types.js';
-import { ChainName, ChainNameOrId, DeployedOwnableConfig } from '../types.js';
+import { type DestinationGas } from '../router/types.js';
+import {
+  type ChainName,
+  type ChainNameOrId,
+  type DeployedOwnableConfig,
+} from '../types.js';
 
 import { isProxy, proxyAdmin, proxyImplementation } from './../deploy/proxy.js';
 import { NON_ZERO_SENDER_ADDRESS, TokenType } from './config.js';
 import {
-  CctpTokenConfig,
-  CollateralTokenConfig,
+  type CctpTokenConfig,
+  type CollateralTokenConfig,
   ContractVerificationStatus,
-  DerivedTokenRouterConfig,
-  EverclearCollateralTokenConfig,
-  EverclearEthBridgeTokenConfig,
-  HypTokenConfig,
+  type DerivedTokenRouterConfig,
+  type EverclearCollateralTokenConfig,
+  type EverclearEthBridgeTokenConfig,
+  type HypTokenConfig,
   HypTokenConfigSchema,
-  HypTokenRouterVirtualConfig,
-  MovableTokenConfig,
-  OpL1TokenConfig,
-  OpL2TokenConfig,
+  type HypTokenRouterVirtualConfig,
+  type MovableTokenConfig,
+  type OpL1TokenConfig,
+  type OpL2TokenConfig,
   OwnerStatus,
-  TokenMetadata,
-  XERC20TokenMetadata,
+  type TokenMetadata,
+  type XERC20TokenMetadata,
   XERC20Type,
   isMovableCollateralTokenConfig,
 } from './types.js';

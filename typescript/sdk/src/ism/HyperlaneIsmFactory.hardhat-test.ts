@@ -2,28 +2,31 @@
 import { expect } from 'chai';
 import hre from 'hardhat';
 
-import { DomainRoutingIsm, TrustedRelayerIsm } from '@hyperlane-xyz/core';
-import { Address, randomElement, randomInt } from '@hyperlane-xyz/utils';
+import {
+  type DomainRoutingIsm,
+  type TrustedRelayerIsm,
+} from '@hyperlane-xyz/core';
+import { type Address, randomElement, randomInt } from '@hyperlane-xyz/utils';
 
 import { TestChainName, testChains } from '../consts/testChains.js';
-import { HyperlaneContractsMap } from '../contracts/types.js';
+import { type HyperlaneContractsMap } from '../contracts/types.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
-import { ProxyFactoryFactories } from '../deploy/contracts.js';
+import { type ProxyFactoryFactories } from '../deploy/contracts.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { randomAddress } from '../test/testUtils.js';
 
 import { HyperlaneIsmFactory } from './HyperlaneIsmFactory.js';
 import {
-  AggregationIsmConfig,
-  DomainRoutingIsmConfig,
-  IsmConfig,
+  type AggregationIsmConfig,
+  type DomainRoutingIsmConfig,
+  type IsmConfig,
   IsmType,
   ModuleType,
-  MultisigIsmConfig,
-  RoutingIsmConfig,
-  TrustedRelayerIsmConfig,
-  WeightedMultisigIsmConfig,
+  type MultisigIsmConfig,
+  type RoutingIsmConfig,
+  type TrustedRelayerIsmConfig,
+  type WeightedMultisigIsmConfig,
 } from './types.js';
 import { moduleMatchesConfig } from './utils.js';
 

@@ -1,4 +1,4 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
+import { type SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import { constants } from 'ethers';
 import hre from 'hardhat';
@@ -13,15 +13,15 @@ import {
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
-import { HookConfig, HookType } from '../hook/types.js';
-import { IsmConfig, IsmType } from '../ism/types.js';
+import { type HookConfig, HookType } from '../hook/types.js';
+import { type IsmConfig, IsmType } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import { type AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { randomAddress, testCoreConfig } from '../test/testUtils.js';
 import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmCoreModule } from './EvmCoreModule.js';
-import { CoreConfig, CoreConfigHookFieldKey } from './types.js';
+import { type CoreConfig, type CoreConfigHookFieldKey } from './types.js';
 
 describe('EvmCoreModule', async () => {
   const CHAIN = TestChainName.test4;

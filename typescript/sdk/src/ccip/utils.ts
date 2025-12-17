@@ -1,10 +1,10 @@
 import { ethers } from 'ethers';
 
-import { CCIPHook, CCIPIsm } from '@hyperlane-xyz/core';
+import { type CCIPHook, type CCIPIsm } from '@hyperlane-xyz/core';
 
-import { HyperlaneAddressesMap } from '../contracts/types.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainName } from '../types.js';
+import { type HyperlaneAddressesMap } from '../contracts/types.js';
+import { type MultiProvider } from '../providers/MultiProvider.js';
+import { type ChainName } from '../types.js';
 
 import { CCIP_NETWORKS, CCIP_ROUTER_CLIENT_ABI } from './consts.js';
 

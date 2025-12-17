@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { CallData, HexString } from '@hyperlane-xyz/utils';
+import { type CallData, type HexString } from '@hyperlane-xyz/utils';
 
 import { ZChainName, ZHash, ZNzUint } from '../metadata/customZodTypes.js';
 

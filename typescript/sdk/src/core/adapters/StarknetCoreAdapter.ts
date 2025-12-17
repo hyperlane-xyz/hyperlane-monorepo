@@ -1,26 +1,26 @@
 import {
   CallData,
-  InvokeTransactionReceiptResponse,
-  ParsedEvents,
+  type InvokeTransactionReceiptResponse,
+  type ParsedEvents,
   events as eventsUtils,
 } from 'starknet';
 
 import { getCompiledContract } from '@hyperlane-xyz/starknet-core';
-import { Address, HexString, pollAsync } from '@hyperlane-xyz/utils';
+import { type Address, type HexString, pollAsync } from '@hyperlane-xyz/utils';
 
 import { BaseStarknetAdapter } from '../../app/MultiProtocolApp.js';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { type MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import {
   ProviderType,
-  StarknetJsTransactionReceipt,
+  type StarknetJsTransactionReceipt,
 } from '../../providers/ProviderType.js';
-import { ChainName } from '../../types.js';
+import { type ChainName } from '../../types.js';
 import {
   getStarknetMailboxContract,
   parseStarknetDispatchEvents,
 } from '../../utils/starknet.js';
 
-import { ICoreAdapter } from './types.js';
+import { type ICoreAdapter } from './types.js';
 
 export class StarknetCoreAdapter
   extends BaseStarknetAdapter

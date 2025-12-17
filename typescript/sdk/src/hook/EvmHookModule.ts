@@ -2,36 +2,36 @@ import { getArbitrumNetwork } from '@arbitrum/sdk';
 import { BigNumber, ethers } from 'ethers';
 
 import {
-  AmountRoutingHook,
-  ArbL2ToL1Hook,
+  type AmountRoutingHook,
+  type ArbL2ToL1Hook,
   ArbL2ToL1Ism__factory,
-  CCIPHook,
+  type CCIPHook,
   CCIPHook__factory,
-  DomainRoutingHook,
+  type DomainRoutingHook,
   DomainRoutingHook__factory,
-  FallbackDomainRoutingHook,
+  type FallbackDomainRoutingHook,
   IL1CrossDomainMessenger__factory,
   IPostDispatchHook__factory,
-  InterchainGasPaymaster,
+  type InterchainGasPaymaster,
   InterchainGasPaymaster__factory,
-  OPStackHook,
+  type OPStackHook,
   OPStackIsm__factory,
   Ownable__factory,
-  PausableHook,
+  type PausableHook,
   PausableHook__factory,
-  ProtocolFee,
+  type ProtocolFee,
   ProtocolFee__factory,
-  StaticAggregationHook,
+  type StaticAggregationHook,
   StaticAggregationHookFactory__factory,
   StaticAggregationHook__factory,
-  StorageGasOracle,
+  type StorageGasOracle,
   StorageGasOracle__factory,
 } from '@hyperlane-xyz/core';
 import {
-  Address,
-  Domain,
-  EvmChainId,
-  ProtocolType,
+  type Address,
+  type Domain,
+  type EvmChainId,
+  type ProtocolType,
   ZERO_ADDRESS_HEX_32,
   addressToBytes32,
   assert,
@@ -41,45 +41,53 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { CCIPContractCache } from '../ccip/utils.js';
+import { type CCIPContractCache } from '../ccip/utils.js';
 import { TOKEN_EXCHANGE_RATE_SCALE_ETHEREUM } from '../consts/igp.js';
-import { HyperlaneAddresses } from '../contracts/types.js';
+import { type HyperlaneAddresses } from '../contracts/types.js';
 import {
   HyperlaneModule,
-  HyperlaneModuleParams,
+  type HyperlaneModuleParams,
 } from '../core/AbstractHyperlaneModule.js';
-import { CoreAddresses } from '../core/contracts.js';
+import { type CoreAddresses } from '../core/contracts.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
-import { ProxyFactoryFactories } from '../deploy/contracts.js';
-import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
-import { IgpConfig } from '../gas/types.js';
+import { type ProxyFactoryFactories } from '../deploy/contracts.js';
+import { type ContractVerifier } from '../deploy/verify/ContractVerifier.js';
+import { type IgpConfig } from '../gas/types.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
-import { ArbL2ToL1IsmConfig, IsmType, OpStackIsmConfig } from '../ism/types.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
-import { ChainName, ChainNameOrId } from '../types.js';
+import {
+  type ArbL2ToL1IsmConfig,
+  IsmType,
+  type OpStackIsmConfig,
+} from '../ism/types.js';
+import { type MultiProvider } from '../providers/MultiProvider.js';
+import { type AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import { type ChainName, type ChainNameOrId } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmHookReader } from './EvmHookReader.js';
-import { DeployedHook, HookFactories, hookFactories } from './contracts.js';
 import {
-  AggregationHookConfig,
-  AmountRoutingHookConfig,
-  ArbL2ToL1HookConfig,
-  CCIPHookConfig,
-  DerivedHookConfig,
-  DomainRoutingHookConfig,
-  FallbackRoutingHookConfig,
-  HookConfig,
+  type DeployedHook,
+  type HookFactories,
+  hookFactories,
+} from './contracts.js';
+import {
+  type AggregationHookConfig,
+  type AmountRoutingHookConfig,
+  type ArbL2ToL1HookConfig,
+  type CCIPHookConfig,
+  type DerivedHookConfig,
+  type DomainRoutingHookConfig,
+  type FallbackRoutingHookConfig,
+  type HookConfig,
   HookConfigSchema,
   HookType,
   HookTypeToContractNameMap,
-  IgpHookConfig,
+  type IgpHookConfig,
   MUTABLE_HOOK_TYPE,
-  OpStackHookConfig,
-  PausableHookConfig,
-  ProtocolFeeHookConfig,
+  type OpStackHookConfig,
+  type PausableHookConfig,
+  type ProtocolFeeHookConfig,
 } from './types.js';
 
 type HookModuleAddresses = {

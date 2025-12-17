@@ -1,27 +1,27 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
+import { type SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import hre from 'hardhat';
 import sinon from 'sinon';
 import { zeroAddress } from 'viem';
 
 import {
-  ERC20Test,
+  type ERC20Test,
   ERC20Test__factory,
-  ERC4626,
+  type ERC4626,
   ERC4626Test__factory,
-  FiatTokenTest,
+  type FiatTokenTest,
   FiatTokenTest__factory,
   HypERC20__factory,
   ISafe__factory,
-  Mailbox,
+  type Mailbox,
   Mailbox__factory,
-  MockCircleMessageTransmitter,
+  type MockCircleMessageTransmitter,
   MockCircleMessageTransmitter__factory,
-  MockCircleTokenMessenger,
+  type MockCircleTokenMessenger,
   MockCircleTokenMessenger__factory,
-  MockEverclearAdapter,
+  type MockEverclearAdapter,
   MockEverclearAdapter__factory,
-  MockWETH,
+  type MockWETH,
   MockWETH__factory,
   PackageVersioned__factory,
   ProxyAdmin__factory,
@@ -33,11 +33,11 @@ import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArt
 import {
   ContractVerifier,
   ExplorerLicenseType,
-  HyperlaneContractsMap,
-  RouterConfig,
+  type HyperlaneContractsMap,
+  type RouterConfig,
   TestChainName,
   TokenFeeType,
-  WarpRouteDeployConfigMailboxRequired,
+  type WarpRouteDeployConfigMailboxRequired,
   normalizeConfig,
   proxyAdmin,
   proxyImplementation,
@@ -45,10 +45,10 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { addressToBytes32, assert, randomInt } from '@hyperlane-xyz/utils';
 
-import { TestCoreApp } from '../core/TestCoreApp.js';
+import { type TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
-import { ProxyFactoryFactories } from '../deploy/contracts.js';
+import { type ProxyFactoryFactories } from '../deploy/contracts.js';
 import { VerifyContractTypes } from '../deploy/verify/types.js';
 import {
   BPS,
@@ -57,18 +57,18 @@ import {
 } from '../fee/EvmTokenFeeReader.hardhat-test.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainMap } from '../types.js';
+import { type ChainMap } from '../types.js';
 
 import {
   EvmERC20WarpRouteReader,
   TOKEN_FEE_CONTRACT_VERSION,
 } from './EvmERC20WarpRouteReader.js';
-import { EverclearTokenBridgeTokenType, TokenType } from './config.js';
+import { type EverclearTokenBridgeTokenType, TokenType } from './config.js';
 import { HypERC20Deployer } from './deploy.js';
 import {
-  CctpTokenConfig,
+  type CctpTokenConfig,
   ContractVerificationStatus,
-  HypTokenRouterConfig,
+  type HypTokenRouterConfig,
   OwnerStatus,
   derivedIsmAddress,
 } from './types.js';

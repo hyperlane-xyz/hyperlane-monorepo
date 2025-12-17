@@ -1,21 +1,21 @@
 import { utils } from 'ethers';
 import {
-  AccountInterface,
+  type AccountInterface,
   Contract,
-  ParsedEvent,
-  ParsedEvents,
-  ParsedStruct,
-  ProviderInterface,
+  type ParsedEvent,
+  type ParsedEvents,
+  type ParsedStruct,
+  type ProviderInterface,
 } from 'starknet';
 
 import {
   ContractType,
   getCompiledContract,
 } from '@hyperlane-xyz/starknet-core';
-import { Address, eqAddressStarknet } from '@hyperlane-xyz/utils';
+import { type Address, eqAddressStarknet } from '@hyperlane-xyz/utils';
 
-import { DispatchedMessage } from '../core/types.js';
-import { ChainMap, ChainName } from '../types.js';
+import { type DispatchedMessage } from '../core/types.js';
+import { type ChainMap, type ChainName } from '../types.js';
 
 export enum StarknetContractName {
   MAILBOX = 'mailbox',

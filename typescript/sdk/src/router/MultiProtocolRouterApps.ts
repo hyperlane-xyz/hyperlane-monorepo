@@ -1,7 +1,10 @@
-import { Address, Domain, ProtocolType } from '@hyperlane-xyz/utils';
+import { type Address, type Domain, ProtocolType } from '@hyperlane-xyz/utils';
 
-import { AdapterClassType, MultiProtocolApp } from '../app/MultiProtocolApp.js';
-import { ChainMap, ChainName } from '../types.js';
+import {
+  type AdapterClassType,
+  MultiProtocolApp,
+} from '../app/MultiProtocolApp.js';
+import { type ChainMap, type ChainName } from '../types.js';
 
 import {
   EvmGasRouterAdapter,
@@ -11,8 +14,11 @@ import {
   SealevelGasRouterAdapter,
   SealevelRouterAdapter,
 } from './adapters/SealevelRouterAdapter.js';
-import { IGasRouterAdapter, IRouterAdapter } from './adapters/types.js';
-import { RouterAddress } from './types.js';
+import {
+  type IGasRouterAdapter,
+  type IRouterAdapter,
+} from './adapters/types.js';
+import { type RouterAddress } from './types.js';
 
 export class MultiProtocolRouterApp<
   IAdapterApi extends IRouterAdapter = IRouterAdapter,

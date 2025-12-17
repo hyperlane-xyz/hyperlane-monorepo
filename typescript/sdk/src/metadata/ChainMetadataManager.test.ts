@@ -2,10 +2,10 @@ import { expect } from 'chai';
 
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { ChainNameOrId } from '../types.js';
+import { type ChainNameOrId } from '../types.js';
 
 import { ChainMetadataManager } from './ChainMetadataManager.js';
-import { ChainMetadata } from './chainMetadataTypes.js';
+import { type ChainMetadata } from './chainMetadataTypes.js';
 
 describe(ChainMetadataManager.name, () => {
   let manager: ChainMetadataManager;

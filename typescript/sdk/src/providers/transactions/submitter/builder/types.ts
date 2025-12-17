@@ -3,10 +3,10 @@ import { z } from 'zod';
 import { assert, eqAddress, objMap } from '@hyperlane-xyz/utils';
 
 import { ZChainName } from '../../../../metadata/customZodTypes.js';
-import { ChainMap, ChainName } from '../../../../types.js';
+import { type ChainMap, type ChainName } from '../../../../types.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
-import { EvmIcaTxSubmitterProps } from '../ethersV5/types.js';
-import { SubmitterMetadata, SubmitterMetadataSchema } from '../types.js';
+import { type EvmIcaTxSubmitterProps } from '../ethersV5/types.js';
+import { type SubmitterMetadata, SubmitterMetadataSchema } from '../types.js';
 
 export const SubmissionStrategySchema = z
   .object({

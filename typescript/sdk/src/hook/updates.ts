@@ -1,17 +1,17 @@
-import { Logger } from 'pino';
+import { type Logger } from 'pino';
 
-import { Address, deepCopy, eqAddress } from '@hyperlane-xyz/utils';
+import { type Address, deepCopy, eqAddress } from '@hyperlane-xyz/utils';
 
-import { CCIPContractCache } from '../ccip/utils.js';
-import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
-import { HypTokenRouterConfig } from '../token/types.js';
-import { ChainName } from '../types.js';
-import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
+import { type CCIPContractCache } from '../ccip/utils.js';
+import { type ContractVerifier } from '../deploy/verify/ContractVerifier.js';
+import { type MultiProvider } from '../providers/MultiProvider.js';
+import { type AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import { type HypTokenRouterConfig } from '../token/types.js';
+import { type ChainName } from '../types.js';
+import { type extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
 
 import { EvmHookModule } from './EvmHookModule.js';
-import { DerivedHookConfig } from './types.js';
+import { type DerivedHookConfig } from './types.js';
 
 type ReadOnlyDerivedHookConfig = Readonly<DerivedHookConfig>;
 type ReadOnlyHookConfig = Readonly<NonNullable<HypTokenRouterConfig['hook']>>;

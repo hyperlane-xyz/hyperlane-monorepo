@@ -1,23 +1,26 @@
 import { constants } from 'ethers';
 
 import {
-  ProxyAdmin,
+  type ProxyAdmin,
   ProxyAdmin__factory,
-  Router,
-  TimelockController,
+  type Router,
+  type TimelockController,
   TimelockController__factory,
 } from '@hyperlane-xyz/core';
 import { eqAddress } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts, HyperlaneFactories } from '../contracts/types.js';
-import { DeployerOptions } from '../deploy/HyperlaneDeployer.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainName } from '../types.js';
+import {
+  type HyperlaneContracts,
+  type HyperlaneFactories,
+} from '../contracts/types.js';
+import { type DeployerOptions } from '../deploy/HyperlaneDeployer.js';
+import { type MultiProvider } from '../providers/MultiProvider.js';
+import { type ChainName } from '../types.js';
 
 import { HyperlaneRouterDeployer } from './HyperlaneRouterDeployer.js';
 import {
-  ProxiedFactories,
-  ProxiedRouterConfig,
+  type ProxiedFactories,
+  type ProxiedRouterConfig,
   proxiedFactories,
 } from './types.js';
 

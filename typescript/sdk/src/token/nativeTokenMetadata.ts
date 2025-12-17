@@ -1,6 +1,6 @@
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { NativeToken } from '../metadata/chainMetadataTypes.js';
+import { type NativeToken } from '../metadata/chainMetadataTypes.js';
 
 export const PROTOCOL_TO_DEFAULT_NATIVE_TOKEN: Record<
   ProtocolType,

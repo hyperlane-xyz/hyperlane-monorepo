@@ -1,31 +1,35 @@
 import {
-  IPostDispatchHook,
+  type IPostDispatchHook,
   IPostDispatchHook__factory,
-  Mailbox,
-  TestRecipient,
-  ValidatorAnnounce,
+  type Mailbox,
+  type TestRecipient,
+  type ValidatorAnnounce,
 } from '@hyperlane-xyz/core';
 import {
-  Address,
+  type Address,
   addBufferToGasLimit,
   isZeroishAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts } from '../contracts/types.js';
+import { type HyperlaneContracts } from '../contracts/types.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
-import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
+import { type ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { HyperlaneHookDeployer } from '../hook/HyperlaneHookDeployer.js';
-import { HookConfig } from '../hook/types.js';
-import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
-import { IsmConfig } from '../ism/types.js';
+import { type HookConfig } from '../hook/types.js';
+import { type HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
+import { type IsmConfig } from '../ism/types.js';
 import { moduleMatchesConfig } from '../ism/utils.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainMap, ChainName } from '../types.js';
+import { type MultiProvider } from '../providers/MultiProvider.js';
+import { type ChainMap, type ChainName } from '../types.js';
 
 import { TestRecipientDeployer } from './TestRecipientDeployer.js';
-import { CoreAddresses, CoreFactories, coreFactories } from './contracts.js';
-import { CoreConfig } from './types.js';
+import {
+  type CoreAddresses,
+  type CoreFactories,
+  coreFactories,
+} from './contracts.js';
+import { type CoreConfig } from './types.js';
 
 export class HyperlaneCoreDeployer extends HyperlaneDeployer<
   CoreConfig,

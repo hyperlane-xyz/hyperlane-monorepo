@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { Contract, Signer, ethers } from 'ethers';
+import { type Contract, type Signer, ethers } from 'ethers';
 import hre from 'hardhat';
 
 import { ERC20Test__factory } from '@hyperlane-xyz/core';

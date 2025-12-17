@@ -6,21 +6,21 @@ import { assert, eqAddress, rootLogger } from '@hyperlane-xyz/utils';
 import { BytecodeHash } from '../consts/bytecode.js';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker.js';
 import { proxyImplementation } from '../deploy/proxy.js';
-import { OwnerViolation, ViolationType } from '../deploy/types.js';
+import { type OwnerViolation, ViolationType } from '../deploy/types.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
-import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
-import { DerivedIsmConfig } from '../ism/types.js';
+import { type HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
+import { type DerivedIsmConfig } from '../ism/types.js';
 import { collectValidators, moduleMatchesConfig } from '../ism/utils.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainMap, ChainName } from '../types.js';
+import { type MultiProvider } from '../providers/MultiProvider.js';
+import { type ChainMap, type ChainName } from '../types.js';
 
-import { HyperlaneCore } from './HyperlaneCore.js';
+import { type HyperlaneCore } from './HyperlaneCore.js';
 import {
-  CoreConfig,
+  type CoreConfig,
   CoreViolationType,
-  MailboxViolation,
+  type MailboxViolation,
   MailboxViolationType,
-  ValidatorAnnounceViolation,
+  type ValidatorAnnounceViolation,
 } from './types.js';
 
 export class HyperlaneCoreChecker extends HyperlaneAppChecker<

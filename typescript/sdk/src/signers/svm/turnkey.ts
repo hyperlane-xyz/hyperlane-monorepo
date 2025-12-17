@@ -1,15 +1,15 @@
-import { PublicKey, Transaction } from '@solana/web3.js';
+import { PublicKey, type Transaction } from '@solana/web3.js';
 import { TurnkeySigner as TurnkeySolanaSigner } from '@turnkey/solana';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
 
 import {
   TurnkeyClientManager,
-  TurnkeyConfig,
+  type TurnkeyConfig,
   logTurnkeyError,
 } from '../turnkeyClient.js';
 
-import { SvmTransactionSigner } from './solana-web3js.js';
+import { type SvmTransactionSigner } from './solana-web3js.js';
 
 const logger = rootLogger.child({ module: 'sdk:turnkey-sealevel' });
 

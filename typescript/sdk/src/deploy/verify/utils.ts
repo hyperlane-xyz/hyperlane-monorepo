@@ -1,20 +1,20 @@
-import { ethers, utils } from 'ethers';
-import { Hex, decodeFunctionData, parseAbi } from 'viem';
+import { type ethers, utils } from 'ethers';
+import { type Hex, decodeFunctionData, parseAbi } from 'viem';
 
 import {
   ProxyAdmin__factory,
   TransparentUpgradeableProxy__factory,
-  ZKSyncArtifact,
+  type ZKSyncArtifact,
 } from '@hyperlane-xyz/core';
-import { Address, assert, eqAddress } from '@hyperlane-xyz/utils';
+import { type Address, assert, eqAddress } from '@hyperlane-xyz/utils';
 
 import { tryGetContractDeploymentTransaction } from '../../block-explorer/etherscan.js';
 import { ExplorerFamily } from '../../metadata/chainMetadataTypes.js';
-import { MultiProvider } from '../../providers/MultiProvider.js';
-import { ChainMap, ChainName } from '../../types.js';
+import { type MultiProvider } from '../../providers/MultiProvider.js';
+import { type ChainMap, type ChainName } from '../../types.js';
 import { proxyAdmin, proxyImplementation } from '../proxy.js';
 
-import { ContractVerificationInput } from './types.js';
+import { type ContractVerificationInput } from './types.js';
 
 export function formatFunctionArguments(
   fragment: utils.Fragment,

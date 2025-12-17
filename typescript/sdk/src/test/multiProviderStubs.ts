@@ -1,7 +1,7 @@
 import { TOKEN_2022_PROGRAM_ID } from '@solana/spl-token';
 import sinon from 'sinon';
 
-import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
+import { type MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 
 /**
  * Takes a MultiProtocolProvider instance and stubs it's get*Provider methods to

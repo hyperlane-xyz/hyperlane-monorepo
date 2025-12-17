@@ -1,7 +1,7 @@
 import { CosmWasmClient } from '@cosmjs/cosmwasm-stargate';
 import { StargateClient } from '@cosmjs/stargate';
 import { Connection } from '@solana/web3.js';
-import { providers } from 'ethers';
+import { type providers } from 'ethers';
 import { RpcProvider as StarknetRpcProvider } from 'starknet';
 import { createPublicClient, http } from 'viem';
 import { Provider as ZKProvider } from 'zksync-ethers';
@@ -10,23 +10,26 @@ import { CosmosNativeProvider } from '@hyperlane-xyz/cosmos-sdk';
 import { RadixProvider as RadixSDKProvider } from '@hyperlane-xyz/radix-sdk';
 import { ProtocolType, assert, isNumeric } from '@hyperlane-xyz/utils';
 
-import { ChainMetadata, RpcUrl } from '../metadata/chainMetadataTypes.js';
+import {
+  type ChainMetadata,
+  type RpcUrl,
+} from '../metadata/chainMetadataTypes.js';
 
 import {
-  CosmJsNativeProvider,
-  CosmJsProvider,
-  CosmJsWasmProvider,
-  EthersV5Provider,
+  type CosmJsNativeProvider,
+  type CosmJsProvider,
+  type CosmJsWasmProvider,
+  type EthersV5Provider,
   ProviderType,
-  RadixProvider,
-  SolanaWeb3Provider,
-  StarknetJsProvider,
-  TypedProvider,
-  ViemProvider,
-  ZKSyncProvider,
+  type RadixProvider,
+  type SolanaWeb3Provider,
+  type StarknetJsProvider,
+  type TypedProvider,
+  type ViemProvider,
+  type ZKSyncProvider,
 } from './ProviderType.js';
 import { HyperlaneSmartProvider } from './SmartProvider/SmartProvider.js';
-import { ProviderRetryOptions } from './SmartProvider/types.js';
+import { type ProviderRetryOptions } from './SmartProvider/types.js';
 
 export type ProviderBuilderFn<P> = (
   rpcUrls: ChainMetadata['rpcUrls'],

@@ -1,9 +1,9 @@
 import { InterchainAccountRouter__factory } from '@hyperlane-xyz/core';
-import { Address } from '@hyperlane-xyz/utils';
+import { type Address } from '@hyperlane-xyz/utils';
 
 import { EvmRouterReader } from '../router/EvmRouterReader.js';
 
-import { DerivedIcaRouterConfig } from './types.js';
+import { type DerivedIcaRouterConfig } from './types.js';
 
 export class EvmIcaRouterReader extends EvmRouterReader {
   public async deriveConfig(address: Address): Promise<DerivedIcaRouterConfig> {

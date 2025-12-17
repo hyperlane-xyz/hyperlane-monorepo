@@ -1,6 +1,6 @@
 import {
-  Address,
-  HexString,
+  type Address,
+  type HexString,
   assert,
   ensure0x,
   messageId,
@@ -8,14 +8,14 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { BaseCosmosAdapter } from '../../app/MultiProtocolApp.js';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { type MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import {
   ProviderType,
-  TypedTransactionReceipt,
+  type TypedTransactionReceipt,
 } from '../../providers/ProviderType.js';
-import { ChainName } from '../../types.js';
+import { type ChainName } from '../../types.js';
 
-import { ICoreAdapter } from './types.js';
+import { type ICoreAdapter } from './types.js';
 
 const MESSAGE_DISPATCH_EVENT_TYPE = 'hyperlane.core.v1.Dispatch';
 const MESSAGE_ATTRIBUTE_KEY = 'message';

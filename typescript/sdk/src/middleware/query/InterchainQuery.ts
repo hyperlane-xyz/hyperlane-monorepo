@@ -1,15 +1,15 @@
-import { InterchainQueryRouter } from '@hyperlane-xyz/core';
+import { type InterchainQueryRouter } from '@hyperlane-xyz/core';
 
 import { appFromAddressesMapHelper } from '../../contracts/contracts.js';
 import {
-  HyperlaneAddressesMap,
-  HyperlaneContracts,
+  type HyperlaneAddressesMap,
+  type HyperlaneContracts,
 } from '../../contracts/types.js';
-import { MultiProvider } from '../../providers/MultiProvider.js';
+import { type MultiProvider } from '../../providers/MultiProvider.js';
 import { RouterApp } from '../../router/RouterApps.js';
 
 import {
-  InterchainQueryFactories,
+  type InterchainQueryFactories,
   interchainQueryFactories,
 } from './contracts.js';
 

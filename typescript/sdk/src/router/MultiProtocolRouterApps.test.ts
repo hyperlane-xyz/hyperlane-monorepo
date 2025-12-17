@@ -6,7 +6,7 @@ import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 
 import { MultiProtocolRouterApp } from './MultiProtocolRouterApps.js';
 import { EvmRouterAdapter } from './adapters/EvmRouterAdapter.js';
-import { RouterAddress } from './types.js';
+import { type RouterAddress } from './types.js';
 
 describe('MultiProtocolRouterApp', () => {
   describe('constructs', () => {

@@ -1,23 +1,23 @@
 import {
-  BigNumber,
-  Contract,
-  ContractFactory,
-  ContractReceipt,
-  ContractTransaction,
-  PopulatedTransaction,
-  Signer,
+  type BigNumber,
+  type Contract,
+  type ContractFactory,
+  type ContractReceipt,
+  type ContractTransaction,
+  type PopulatedTransaction,
+  type Signer,
   providers,
 } from 'ethers';
-import { Logger } from 'pino';
+import { type Logger } from 'pino';
 import {
-  ContractFactory as ZKSyncContractFactory,
+  type ContractFactory as ZKSyncContractFactory,
   Provider as ZKSyncProvider,
-  Wallet as ZKSyncWallet,
+  type Wallet as ZKSyncWallet,
 } from 'zksync-ethers';
 
-import { ZKSyncArtifact } from '@hyperlane-xyz/core';
+import { type ZKSyncArtifact } from '@hyperlane-xyz/core';
 import {
-  Address,
+  type Address,
   addBufferToGasLimit,
   pick,
   rootLogger,
@@ -26,15 +26,15 @@ import {
 import { testChainMetadata, testChains } from '../consts/testChains.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import {
-  ChainMetadata,
+  type ChainMetadata,
   ChainTechnicalStack,
 } from '../metadata/chainMetadataTypes.js';
-import { ChainMap, ChainName, ChainNameOrId } from '../types.js';
+import { type ChainMap, type ChainName, type ChainNameOrId } from '../types.js';
 import { ZKSyncDeployer } from '../zksync/ZKSyncDeployer.js';
 
-import { AnnotatedEV5Transaction } from './ProviderType.js';
+import { type AnnotatedEV5Transaction } from './ProviderType.js';
 import {
-  ProviderBuilderFn,
+  type ProviderBuilderFn,
   defaultProviderBuilder,
   defaultZKProviderBuilder,
 } from './providerBuilders.js';

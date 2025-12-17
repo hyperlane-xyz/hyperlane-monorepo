@@ -1,6 +1,6 @@
 import { PublicKey } from '@solana/web3.js';
 
-import { Domain } from '@hyperlane-xyz/utils';
+import { type Domain } from '@hyperlane-xyz/utils';
 
 import {
   SealevelInterchainGasPaymasterConfig,

@@ -1,12 +1,12 @@
 import { ethers } from 'ethers';
 import { Account as StarknetAccount } from 'starknet';
 
-import { ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { type ProtocolType, assert } from '@hyperlane-xyz/utils';
 
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
-import { StarknetJsTransaction } from '../../providers/ProviderType.js';
-import { ChainName } from '../../types.js';
-import { IMultiProtocolSigner } from '../types.js';
+import { type MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { type StarknetJsTransaction } from '../../providers/ProviderType.js';
+import { type ChainName } from '../../types.js';
+import { type IMultiProtocolSigner } from '../types.js';
 
 export class StarknetMultiProtocolSignerAdapter
   implements IMultiProtocolSigner<ProtocolType.Starknet>

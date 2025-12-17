@@ -1,6 +1,10 @@
-import { Address, Domain, Numberish } from '@hyperlane-xyz/utils';
+import {
+  type Address,
+  type Domain,
+  type Numberish,
+} from '@hyperlane-xyz/utils';
 
-import { TokenMetadata } from '../types.js';
+import { type TokenMetadata } from '../types.js';
 
 export interface TransferParams {
   weiAmountOrId: Numberish;

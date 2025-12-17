@@ -5,20 +5,20 @@ import { z } from 'zod';
 import { CONTRACTS_PACKAGE_VERSION } from '@hyperlane-xyz/core';
 import { objMap } from '@hyperlane-xyz/utils';
 
-import { TokenFeeConfigInput, TokenFeeType } from '../fee/types.js';
-import { HookConfig, HookType } from '../hook/types.js';
+import { type TokenFeeConfigInput, TokenFeeType } from '../fee/types.js';
+import { type HookConfig, HookType } from '../hook/types.js';
 import {
-  IsmConfig,
+  type IsmConfig,
   IsmType,
   OffchainLookupIsmConfigSchema,
 } from '../ism/types.js';
 import { ZHash } from '../metadata/customZodTypes.js';
 import {
-  DerivedRouterConfig,
+  type DerivedRouterConfig,
   GasRouterConfigSchema,
   RemoteRouterDomainOrChainNameSchema,
 } from '../router/types.js';
-import { ChainMap, ChainName } from '../types.js';
+import { type ChainMap, type ChainName } from '../types.js';
 import { isCompliant } from '../utils/schemas.js';
 
 import { TokenType } from './config.js';

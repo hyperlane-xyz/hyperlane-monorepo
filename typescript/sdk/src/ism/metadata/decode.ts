@@ -5,7 +5,7 @@ import { ArbL2ToL1MetadataBuilder } from './arbL2ToL1.js';
 import { MultisigMetadataBuilder } from './multisig.js';
 import { NullMetadataBuilder } from './null.js';
 import { DynamicRoutingMetadataBuilder } from './routing.js';
-import { MetadataContext, StructuredMetadata } from './types.js';
+import { type MetadataContext, type StructuredMetadata } from './types.js';
 
 export function decodeIsmMetadata(
   metadata: string,

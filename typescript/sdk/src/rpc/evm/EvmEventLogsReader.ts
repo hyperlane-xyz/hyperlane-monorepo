@@ -1,7 +1,7 @@
-import { Logger } from 'pino';
+import { type Logger } from 'pino';
 import { z } from 'zod';
 
-import { Address, rootLogger } from '@hyperlane-xyz/utils';
+import { type Address, rootLogger } from '@hyperlane-xyz/utils';
 
 import {
   getContractDeploymentTransaction,
@@ -9,13 +9,13 @@ import {
 } from '../../block-explorer/etherscan.js';
 import { assertIsContractAddress } from '../../contracts/contracts.js';
 import {
-  ChainMetadataManager,
-  ChainNameOrId,
-  MultiProvider,
+  type ChainMetadataManager,
+  type ChainNameOrId,
+  type MultiProvider,
 } from '../../index.js';
 import { ZBytes32String, ZHash, ZUint } from '../../metadata/customZodTypes.js';
 
-import { GetEventLogsResponse } from './types.js';
+import { type GetEventLogsResponse } from './types.js';
 import { getContractCreationBlockFromRpc, getLogsFromRpc } from './utils.js';
 
 export type EvmEventLogsReaderConfig = {

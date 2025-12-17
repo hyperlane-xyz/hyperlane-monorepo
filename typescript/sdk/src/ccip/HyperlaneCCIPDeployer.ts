@@ -7,14 +7,14 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import {
-  HyperlaneAddressesMap,
-  HyperlaneContracts,
+  type HyperlaneAddressesMap,
+  type HyperlaneContracts,
 } from '../contracts/types.js';
-import { CoreAddresses } from '../core/contracts.js';
+import { type CoreAddresses } from '../core/contracts.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
-import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainMap, ChainName } from '../types.js';
+import { type ContractVerifier } from '../deploy/verify/ContractVerifier.js';
+import { type MultiProvider } from '../providers/MultiProvider.js';
+import { type ChainMap, type ChainName } from '../types.js';
 
 import {
   CCIPContractCache,

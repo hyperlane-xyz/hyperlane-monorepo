@@ -1,4 +1,4 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
+import { type SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import { ethers } from 'ethers';
@@ -8,30 +8,30 @@ import { UINT_256_MAX } from 'starknet';
 
 import {
   CONTRACTS_PACKAGE_VERSION,
-  ERC20Test,
+  type ERC20Test,
   ERC20Test__factory,
-  ERC4626Test,
+  type ERC4626Test,
   ERC4626Test__factory,
-  GasRouter,
+  type GasRouter,
   HypERC20__factory,
   HypERC4626Collateral__factory,
   HypNative__factory,
-  Mailbox,
+  type Mailbox,
   MailboxClient__factory,
   Mailbox__factory,
-  MockEverclearAdapter,
+  type MockEverclearAdapter,
   MockEverclearAdapter__factory,
   MovableCollateralRouter__factory,
 } from '@hyperlane-xyz/core';
 import {
   EvmIsmModule,
-  HookConfig,
+  type HookConfig,
   HookType,
-  HyperlaneAddresses,
-  HyperlaneContractsMap,
-  IsmConfig,
+  type HyperlaneAddresses,
+  type HyperlaneContractsMap,
+  type IsmConfig,
   IsmType,
-  RouterConfig,
+  type RouterConfig,
   TestChainName,
   TokenFeeType,
   proxyAdmin,
@@ -39,7 +39,7 @@ import {
   serializeContracts,
 } from '@hyperlane-xyz/sdk';
 import {
-  Address,
+  type Address,
   addressToBytes32,
   assert,
   deepCopy,
@@ -49,28 +49,28 @@ import {
   randomInt,
 } from '@hyperlane-xyz/utils';
 
-import { TestCoreApp } from '../core/TestCoreApp.js';
+import { type TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
-import { ProxyFactoryFactories } from '../deploy/contracts.js';
+import { type ProxyFactoryFactories } from '../deploy/contracts.js';
 import { BPS } from '../fee/EvmTokenFeeReader.hardhat-test.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
-import { RemoteRouters } from '../router/types.js';
+import { type AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import { type RemoteRouters } from '../router/types.js';
 import { randomAddress } from '../test/testUtils.js';
-import { ChainMap } from '../types.js';
+import { type ChainMap } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmERC20WarpModule } from './EvmERC20WarpModule.js';
 import {
-  EverclearTokenBridgeTokenType,
-  MovableTokenType,
+  type EverclearTokenBridgeTokenType,
+  type MovableTokenType,
   TokenType,
   isMovableCollateralTokenType,
 } from './config.js';
 import {
-  HypTokenRouterConfig,
+  type HypTokenRouterConfig,
   HypTokenRouterConfigSchema,
   derivedHookAddress,
   isEverclearTokenBridgeConfig,

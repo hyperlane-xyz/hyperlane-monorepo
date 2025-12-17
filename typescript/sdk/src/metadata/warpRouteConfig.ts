@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { TokenType } from '../token/config.js';
-import { ChainMap } from '../types.js';
+import { type ChainMap } from '../types.js';
 
 const TokenConfigSchema = z.object({
   protocolType: z.nativeEnum(ProtocolType),

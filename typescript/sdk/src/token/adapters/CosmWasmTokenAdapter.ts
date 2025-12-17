@@ -1,9 +1,9 @@
-import { ExecuteInstruction } from '@cosmjs/cosmwasm-stargate';
-import { Coin } from '@cosmjs/stargate';
+import { type ExecuteInstruction } from '@cosmjs/cosmwasm-stargate';
+import { type Coin } from '@cosmjs/stargate';
 
 import {
-  Address,
-  Domain,
+  type Address,
+  type Domain,
   addressToBytes32,
   assert,
   strip0x,
@@ -11,34 +11,34 @@ import {
 
 import { BaseCosmWasmAdapter } from '../../app/MultiProtocolApp.js';
 import {
-  BalanceResponse,
-  ExecuteMsg as Cw20Execute,
-  QueryMsg as Cw20Query,
-  TokenInfoResponse,
+  type BalanceResponse,
+  type ExecuteMsg as Cw20Execute,
+  type QueryMsg as Cw20Query,
+  type TokenInfoResponse,
 } from '../../cw-types/Cw20Base.types.js';
-import { QuoteDispatchResponse } from '../../cw-types/Mailbox.types.js';
+import { type QuoteDispatchResponse } from '../../cw-types/Mailbox.types.js';
 import {
-  DomainsResponse,
-  InterchainSecurityModuleResponse,
-  OwnerResponse,
-  RouteResponseForHexBinary,
-  RoutesResponseForHexBinary,
-  TokenType,
-  TokenTypeResponse,
-  ExecuteMsg as WarpCw20Execute,
-  QueryMsg as WarpCw20Query,
+  type DomainsResponse,
+  type InterchainSecurityModuleResponse,
+  type OwnerResponse,
+  type RouteResponseForHexBinary,
+  type RoutesResponseForHexBinary,
+  type TokenType,
+  type TokenTypeResponse,
+  type ExecuteMsg as WarpCw20Execute,
+  type QueryMsg as WarpCw20Query,
 } from '../../cw-types/WarpCw20.types.js';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
-import { ChainName } from '../../types.js';
-import { TokenMetadata } from '../types.js';
+import { type MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { type ChainName } from '../../types.js';
+import { type TokenMetadata } from '../types.js';
 
 import {
-  IHypTokenAdapter,
-  ITokenAdapter,
-  InterchainGasQuote,
-  QuoteTransferRemoteParams,
-  TransferParams,
-  TransferRemoteParams,
+  type IHypTokenAdapter,
+  type ITokenAdapter,
+  type InterchainGasQuote,
+  type QuoteTransferRemoteParams,
+  type TransferParams,
+  type TransferRemoteParams,
 } from './ITokenAdapter.js';
 
 // Interacts with IBC denom tokens in CosmWasm
