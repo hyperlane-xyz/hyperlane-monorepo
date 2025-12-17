@@ -172,8 +172,8 @@ do
         continue
     fi
 
-    # Extract all contract names from the file
-    contracts=$(grep -o '^contract [A-Za-z0-9_][A-Za-z0-9_]*' "$file" | sed 's/^contract //')
+    # Extract all contract names from the file (including abstract contracts)
+    contracts=$(grep -oE '^(abstract )?contract [A-Za-z0-9_]+' "$file" | sed 's/^abstract //' | sed 's/^contract //')
 
     if [ -z "$contracts" ]; then
         continue
