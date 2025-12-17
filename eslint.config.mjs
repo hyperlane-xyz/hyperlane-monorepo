@@ -76,6 +76,13 @@ export default [
       'no-ex-assign': ['error'],
       'no-constant-condition': ['off'],
       'no-return-await': ['error'],
+      '@typescript-eslint/consistent-type-imports': [
+        'error',
+        {
+          prefer: 'type-imports',
+          fixStyle: 'inline-type-imports',
+        },
+      ],
 
       'no-restricted-imports': [
         'error',
