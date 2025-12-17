@@ -43,7 +43,7 @@ Convert addresses to names: `grep -i "[address]" typescript/sdk/src/consts/multi
 
 ## Gas Price Escalation
 
-```
+```text
 Max(Min(Max(Escalate(oldGasPrice), newEstimatedGasPrice), gasPriceCapMultiplier × newEstimatedGasPrice), oldGasPrice)
 ```
 
