@@ -6,7 +6,7 @@ image:
   # Modify this tag to deploy a new revision.
   # Images can be found here:
   # https://console.cloud.google.com/artifacts/docker/abacus-labs-dev/us/gcr.io/hyperlane-monorepo?inv=1&invt=AbxRMg&project=abacus-labs-dev
-  tag: 31d0189-20251110-105856
+  tag: 8da6852-20251215-172511
 
 # In Google Cloud Secret Manager, all secrets need to have a certain prefix in order to be accessible by
 # the Cluster Secret Store. For testnet this prefix is "hyperlane-testnet4"
@@ -28,6 +28,6 @@ env:
   - name: SERVER_PORT
     value: '3000'
   - name: REGISTRY_URI
-    value: 'https://github.com/hyperlane-xyz/hyperlane-registry/tree/820e3940782c196d78496e82382b838cee109635'
+    value: 'https://github.com/hyperlane-xyz/hyperlane-registry/tree/1783373afe4be89ab85e379b32f24c7c26c73416'
   - name: SERVER_BASE_URL
     value: 'https://offchain-lookup.services.hyperlane.xyz'

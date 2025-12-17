@@ -4,6 +4,7 @@ import yargs from 'yargs';
 
 import { ChainMap } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
+import { readJson } from '@hyperlane-xyz/utils/fs';
 
 import {
   BalanceThresholdType,
@@ -30,7 +31,6 @@ import {
   fetchPrometheusInstantExpression,
   portForwardPrometheusServer,
 } from '../../src/infrastructure/monitoring/prometheus.js';
-import { readJSONAtPath } from '../../src/utils/utils.js';
 import { withDryRun } from '../agent-utils.js';
 
 interface AlertUpdateInfo {
@@ -86,7 +86,7 @@ async function main() {
 
       // read the proposed thresholds from the config file
       let proposedThresholds: ChainMap<number> = {};
-      proposedThresholds = readJSONAtPath(
+      proposedThresholds = readJson(
         `${THRESHOLD_CONFIG_PATH}/${alertConfigMapping[alert].configFileName}`,
       );
 
@@ -172,7 +172,7 @@ async function validateBalanceThresholdConfigs() {
   const balanceThresholdTypes = Object.values(BalanceThresholdType);
   const balanceThresholdConfigs = balanceThresholdTypes.reduce(
     (acc, balanceThresholdType) => {
-      const thresholds = readJSONAtPath(
+      const thresholds = readJson(
         `${THRESHOLD_CONFIG_PATH}/${balanceThresholdConfigMapping[balanceThresholdType].configFileName}`,
       ) as ChainMap<string>;
 

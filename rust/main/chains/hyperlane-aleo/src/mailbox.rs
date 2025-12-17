@@ -4,13 +4,15 @@ use std::str::FromStr;
 use async_trait::async_trait;
 use snarkvm::prelude::{Address, FromBytes, Plaintext, ProgramID};
 
+use aleo_serialize::AleoSerialize;
 use hyperlane_core::{
-    ChainResult, ContractLocator, Encode, FixedPointNumber, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Mailbox, ReorgPeriod, TxCostEstimate,
-    TxOutcome, H256, U256,
+    ChainCommunicationError, ChainResult, ContractLocator, Encode, FixedPointNumber,
+    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
+    Mailbox, ReorgPeriod, TxCostEstimate, TxOutcome, H256, U256,
 };
 
 use crate::provider::{AleoClient, FallbackHttpClient};
+use crate::types::AleoGetMappingValue;
 use crate::utils::{hash_to_aleo_hash, pad_to_length, to_h256};
 use crate::{
     aleo_args, AleoMailboxStruct, AleoMessage, AleoProvider, AppMetadata, ConnectionConf,
@@ -55,12 +57,11 @@ impl<C: AleoClient> AleoMailbox<C> {
         let program_id: [u8; 128] = self
             .provider
             .get_mapping_value(&self.program, "registered_applications", &aleo_address)
-            .await
-            .map_err(|_| {
-                HyperlaneAleoError::Other(format!(
-                    "Expected recipient to be registered, but was not: {aleo_address}",
-                ))
-            })?;
+            .await?
+            .ok_or(HyperlaneAleoError::Other(format!(
+                "Expected recipient to be registered, but was not: {aleo_address}",
+            )))?;
+
         let program_id =
             CStr::from_bytes_until_nul(&program_id).map_err(HyperlaneAleoError::from)?;
         let program_id = program_id.to_str().map_err(HyperlaneAleoError::from)?;
@@ -96,7 +97,8 @@ impl<C: AleoClient> AleoMailbox<C> {
         let app_metadata: Plaintext<CurrentNetwork> = self
             .provider
             .get_mapping_value(&recipient, "app_metadata", &true)
-            .await?;
+            .await?
+            .ok_or(HyperlaneAleoError::AppUninitialized)?;
 
         aleo_args!(
             ism,
@@ -139,7 +141,8 @@ impl<C: AleoClient> Mailbox for AleoMailbox<C> {
         let mailbox: AleoMailboxStruct = self
             .provider
             .get_mapping_value(&self.program, "mailbox", &true)
-            .await?;
+            .await?
+            .ok_or(HyperlaneAleoError::MailboxUninitialized)?;
         Ok(mailbox.nonce)
     }
 
@@ -149,12 +152,12 @@ impl<C: AleoClient> Mailbox for AleoMailbox<C> {
             id: hash_to_aleo_hash(&id)?,
         };
 
-        let delivered: ChainResult<Delivery> = self
+        let delivered: Option<Delivery> = self
             .provider
             .get_mapping_value(&self.program, "deliveries", &key)
-            .await;
+            .await?;
 
-        Ok(delivered.is_ok())
+        Ok(delivered.is_some())
     }
 
     /// Fetch the current default interchain security module value
@@ -162,7 +165,8 @@ impl<C: AleoClient> Mailbox for AleoMailbox<C> {
         let mailbox: AleoMailboxStruct = self
             .provider
             .get_mapping_value(&self.program, "mailbox", &true)
-            .await?;
+            .await?
+            .ok_or(HyperlaneAleoError::MailboxUninitialized)?;
         to_h256(mailbox.default_ism)
     }
 
@@ -170,21 +174,18 @@ impl<C: AleoClient> Mailbox for AleoMailbox<C> {
     async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
         let recipient = self.get_recipient(recipient).await?;
         // Each app stores its ISM in the `app_metadata` mapping
-        let metadata: ChainResult<AppMetadata> = self
+        let metadata: Option<AppMetadata> = self
             .provider
             .get_mapping_value(&recipient.to_string(), "app_metadata", &true)
-            .await;
-        match metadata {
-            Ok(metadata) => {
-                let address = to_h256(metadata.ism)?;
-                if address.is_zero() {
-                    self.default_ism().await
-                } else {
-                    Ok(address)
-                }
+            .await?;
+        if let Some(metadata) = metadata {
+            let address = to_h256(metadata.ism)?;
+            // Only return if the address is non-zero
+            if !address.is_zero() {
+                return Ok(address);
             }
-            Err(_) => self.default_ism().await,
         }
+        self.default_ism().await
     }
 
     /// Process a message with a proof against the provided signed checkpoint
@@ -195,12 +196,10 @@ impl<C: AleoClient> Mailbox for AleoMailbox<C> {
         _tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
         let recipient = self.get_recipient(message.recipient).await?.to_string();
+        let args = self.get_process_args(message, metadata).await?;
+
         self.provider
-            .submit_tx(
-                &recipient,
-                "process",
-                self.get_process_args(message, metadata).await?,
-            )
+            .submit_tx_and_wait(&recipient, "process", args)
             .await
     }
 
@@ -233,17 +232,38 @@ impl<C: AleoClient> Mailbox for AleoMailbox<C> {
     /// against the provided signed checkpoint
     async fn process_calldata(
         &self,
-        _message: &HyperlaneMessage,
-        _metadata: &[u8],
+        message: &HyperlaneMessage,
+        metadata: &[u8],
     ) -> ChainResult<Vec<u8>> {
-        // Not implemented, only needed for lander
-        unimplemented!()
+        let recipient = self.get_recipient(message.recipient).await?.to_string();
+        let inputs = self.get_process_args(message, metadata).await?;
+
+        let tx_data = crate::AleoTxData {
+            program_id: recipient,
+            function_name: "process".to_string(),
+            inputs,
+        };
+
+        let json_val = serde_json::to_vec(&tx_data).map_err(ChainCommunicationError::from)?;
+        Ok(json_val)
     }
 
     /// Get the calldata for a call which allows to check if a particular messages was delivered
-    fn delivered_calldata(&self, _message_id: H256) -> ChainResult<Option<Vec<u8>>> {
-        // Not implemented, only needed for lander
-        unimplemented!()
+    fn delivered_calldata(&self, message_id: H256) -> ChainResult<Option<Vec<u8>>> {
+        let id = hash_to_aleo_hash(&message_id)?;
+        let key: Plaintext<CurrentNetwork> = DeliveryKey { id }
+            .to_plaintext()
+            .map_err(HyperlaneAleoError::from)?;
+
+        let get_mapping_value = AleoGetMappingValue {
+            program_id: self.program.clone(),
+            mapping_name: "deliveries".to_string(),
+            mapping_key: key,
+        };
+
+        let json_val =
+            serde_json::to_vec(&get_mapping_value).map_err(ChainCommunicationError::from)?;
+        Ok(Some(json_val))
     }
 }
 

@@ -4,6 +4,7 @@
   "commit": true,
   "fixed": [
     [
+      "@hyperlane-xyz/aleo-sdk",
       "@hyperlane-xyz/starknet-core",
       "@hyperlane-xyz/ccip-server",
       "@hyperlane-xyz/cli",
@@ -30,5 +31,9 @@
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "ignore": []
+  "ignore": [],
+  "snapshot": {
+    "useCalculatedVersion": true,
+    "prereleaseTemplate": "{tag}.{commit}"
+  }
 }

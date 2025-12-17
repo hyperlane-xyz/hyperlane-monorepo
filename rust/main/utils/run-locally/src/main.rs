@@ -308,7 +308,7 @@ fn main() -> ExitCode {
     // Send a message that's guaranteed to fail
     // "failMessageBody" hex value is 0x6661696c4d657373616765426f6479
     let fail_message_body = format!("0x{}", hex::encode("failMessageBody"));
-    let kathy_failed_tx = Program::new("yarn")
+    let kathy_failed_tx = Program::new("pnpm")
         .working_dir(&ts_infra_path)
         .cmd("kathy")
         .arg("messages", FAILED_MESSAGE_COUNT.to_string())
@@ -317,14 +317,14 @@ fn main() -> ExitCode {
     kathy_failed_tx.clone().run().join();
 
     // Send half the kathy messages before starting the rest of the agents
-    let kathy_env_single_insertion = Program::new("yarn")
+    let kathy_env_single_insertion = Program::new("pnpm")
         .working_dir(&ts_infra_path)
         .cmd("kathy")
         .arg("messages", (config.kathy_messages / 4).to_string())
         .arg("timeout", "1000");
     kathy_env_single_insertion.clone().run().join();
 
-    let kathy_env_zero_insertion = Program::new("yarn")
+    let kathy_env_zero_insertion = Program::new("pnpm")
         .working_dir(&ts_infra_path)
         .cmd("kathy")
         .arg(
@@ -337,7 +337,7 @@ fn main() -> ExitCode {
         .arg("default-hook", "interchainGasPaymaster");
     kathy_env_zero_insertion.clone().run().join();
 
-    let kathy_env_double_insertion = Program::new("yarn")
+    let kathy_env_double_insertion = Program::new("pnpm")
         .working_dir(&ts_infra_path)
         .cmd("kathy")
         .arg("messages", (config.kathy_messages / 4).to_string())
@@ -414,7 +414,7 @@ fn main() -> ExitCode {
     set_validator_reorg_flag(&checkpoints_dirs, 1);
 
     // Send a single message from validator 1's origin chain to test the relayer's reorg handling.
-    Program::new("yarn")
+    Program::new("pnpm")
         .working_dir(ts_infra_path)
         .cmd("kathy")
         .arg("messages", "1")

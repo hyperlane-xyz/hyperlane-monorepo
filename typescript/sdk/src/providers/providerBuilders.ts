@@ -193,6 +193,7 @@ export const defaultProviderBuilderMap: ProviderBuilderMap = {
   [ProviderType.Starknet]: defaultStarknetJsProviderBuilder,
   [ProviderType.ZkSync]: defaultZKSyncProviderBuilder,
   [ProviderType.Radix]: defaultRadixProviderBuilder,
+  [ProtocolType.Aleo]: defaultEthersV5ProviderBuilder, // TODO: replace with Aleo provider once implemented
 };
 
 export const protocolToDefaultProviderBuilder: Record<
@@ -205,4 +206,5 @@ export const protocolToDefaultProviderBuilder: Record<
   [ProtocolType.CosmosNative]: defaultCosmJsNativeProviderBuilder,
   [ProtocolType.Starknet]: defaultStarknetJsProviderBuilder,
   [ProtocolType.Radix]: defaultRadixProviderBuilder,
+  [ProtocolType.Aleo]: defaultEthersV5ProviderBuilder, // TODO: replace with Aleo provider once implemented
 };

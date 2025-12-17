@@ -24,7 +24,7 @@ import { readChainSubmissionStrategyConfig } from '../config/strategy.js';
 import { detectAndConfirmOrPrompt } from '../utils/input.js';
 import { getSigner } from '../utils/keys.js';
 
-import { AltVMSignerFactory } from './altvm.js';
+import { createAltVMSigners } from './altvm.js';
 import { resolveChains } from './strategies/chain/chainResolver.js';
 import { MultiProtocolSignerManager } from './strategies/signer/MultiProtocolSignerManager.js';
 import {
@@ -88,15 +88,13 @@ export async function signerMiddleware(argv: Record<string, any>) {
 
   await Promise.all(
     altVmChains.map(async (chain) => {
-      const { altVmProvider, multiProvider } = argv.context;
+      const { altVmProviders, multiProvider } = argv.context;
       const protocol = multiProvider.getProtocol(chain);
       const metadata = multiProvider.getChainMetadata(chain);
 
       if (hasProtocol(protocol))
-        altVmProvider.set(
-          chain,
-          await getProtocolProvider(protocol).createProvider(metadata),
-        );
+        altVmProviders[chain] =
+          await getProtocolProvider(protocol).createProvider(metadata);
     }),
   );
 
@@ -120,7 +118,7 @@ export async function signerMiddleware(argv: Record<string, any>) {
   /**
    * Creates AltVM signers
    */
-  argv.context.altVmSigner = await AltVMSignerFactory.createSigners(
+  argv.context.altVmSigners = await createAltVMSigners(
     argv.context.multiProvider,
     chains,
     key,
@@ -159,7 +157,7 @@ export async function getContext({
   const multiProtocolProvider = await getMultiProtocolProvider(registry);
 
   // This mapping gets populated as part of signerMiddleware
-  const altVmProvider = new Map<string, AltVM.IProvider>();
+  const altVmProviders: ChainMap<AltVM.IProvider> = {};
 
   const supportedProtocols = [
     ProtocolType.Ethereum,
@@ -173,7 +171,7 @@ export async function getContext({
     chainMetadata: multiProvider.metadata,
     multiProvider,
     multiProtocolProvider,
-    altVmProvider,
+    altVmProviders,
     supportedProtocols,
     key: keyMap,
     skipConfirmation: !!skipConfirmation,

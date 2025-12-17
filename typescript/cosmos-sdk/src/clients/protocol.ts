@@ -2,6 +2,7 @@ import {
   AltVM,
   ChainMetadataForAltVM,
   ITransactionSubmitter,
+  MinimumRequiredGasByAction,
   ProtocolProvider,
   SignerConfig,
   TransactionSubmitterConfig,
@@ -27,18 +28,27 @@ export class CosmosNativeProtocolProvider implements ProtocolProvider {
     assert(chainMetadata.rpcUrls, 'rpc urls undefined');
     const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
 
-    const { privateKey, ...extraParams } = config;
-    return CosmosNativeSigner.connectWithSigner(
-      rpcUrls,
-      privateKey,
-      extraParams,
-    );
+    const { privateKey } = config;
+
+    return CosmosNativeSigner.connectWithSigner(rpcUrls, privateKey, {
+      metadata: chainMetadata,
+    });
   }
 
   createSubmitter<TConfig extends TransactionSubmitterConfig>(
     _chainMetadata: ChainMetadataForAltVM,
     _config: TConfig,
   ): Promise<ITransactionSubmitter> {
+    // @TODO Implement in a follow up PR
     throw Error('Not implemented');
+  }
+
+  getMinGas(): MinimumRequiredGasByAction {
+    return {
+      CORE_DEPLOY_GAS: BigInt(1e6),
+      WARP_DEPLOY_GAS: BigInt(3e6),
+      TEST_SEND_GAS: BigInt(3e5),
+      AVS_GAS: BigInt(3e6),
+    };
   }
 }

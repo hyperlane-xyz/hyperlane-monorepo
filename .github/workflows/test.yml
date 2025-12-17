@@ -27,10 +27,10 @@ env:
   TURBO_TEAM: ${{ secrets.DEPOT_ORG_ID }}
 
 jobs:
-  yarn-install:
+  pnpm-install:
     runs-on: depot-ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
@@ -39,22 +39,15 @@ jobs:
         with:
           node-version-file: .nvmrc
 
-      - name: yarn-cache
-        uses: ./.github/actions/yarn-cache
+      - name: pnpm-cache
+        uses: ./.github/actions/pnpm-cache
 
-      - name: yarn-install
-        run: |
-          yarn install
-          CHANGES=$(git status -s --ignore-submodules)
-          if [[ ! -z $CHANGES ]]; then
-            echo "Changes found: $CHANGES"
-            git diff
-            exit 1
-          fi
+      - name: pnpm-install
+        run: pnpm install --frozen-lockfile
 
       # Check for mismatched dep versions across the monorepo
       - name: syncpack
-        run: yarn syncpack list-mismatches
+        run: pnpm exec syncpack list-mismatches
 
       # Check publishable packages have required fields for npm provenance
       - name: check-package-json
@@ -64,7 +57,7 @@ jobs:
     runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -73,13 +66,11 @@ jobs:
           node-version-file: .nvmrc
 
       # Build required before linting or the intra-monorepo package cycle checking won't work
-      - name: yarn-build
-        uses: ./.github/actions/yarn-build-with-cache
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: pnpm-build
+        uses: ./.github/actions/pnpm-build-with-cache
 
       - name: lint
-        run: yarn lint
+        run: pnpm run lint
 
       - name: Get changed PR files
         if: github.event_name == 'pull_request'
@@ -93,12 +84,12 @@ jobs:
         if: github.event_name == 'pull_request'
         run: >-
           cat changed_files.txt |
-          xargs -r yarn exec prettier --check --ignore-unknown --no-error-on-unmatched-pattern
+          xargs -r pnpm exec prettier --check --ignore-unknown --no-error-on-unmatched-pattern
 
       - name: Run prettier (all files)
         if: github.event_name != 'pull_request'
         run: >-
-          yarn exec prettier --check --ignore-unknown --no-error-on-unmatched-pattern .
+          pnpm exec prettier --check --ignore-unknown --no-error-on-unmatched-pattern .
         continue-on-error: true
 
       - name: Clean up
@@ -113,7 +104,7 @@ jobs:
       current_sha: ${{ steps.determine-sha.outputs.current_sha }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -127,7 +118,7 @@ jobs:
       only_rust: ${{ steps.override-main.outputs.only_rust || steps.check-rust.outputs.only_changes }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
@@ -150,48 +141,37 @@ jobs:
           echo "only_rust=false" >> $GITHUB_OUTPUT
           echo "Push event to main detected. Setting only_rust to false."
 
-  yarn-test-run:
+  pnpm-test-run:
     runs-on: depot-ubuntu-latest
     needs: [rust-only]
     timeout-minutes: 10
     if: needs.rust-only.outputs.only_rust == 'false'
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
 
-      - name: foundry-install
-        uses: foundry-rs/foundry-toolchain@v1
-
-      - name: Set Foundry RPC URLs for fork tests
-        env:
-          MAINNET3_ARBITRUM_RPC_URLS: ${{ secrets.MAINNET3_ARBITRUM_RPC_URLS }}
-        run: |
-          echo "FOUNDRY_RPC_URL_ARBITRUM=${MAINNET3_ARBITRUM_RPC_URLS%%,*}" >> $GITHUB_ENV
-
-      - name: yarn-build
-        uses: ./.github/actions/yarn-build-with-cache
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: pnpm-build
+        uses: ./.github/actions/pnpm-build-with-cache
 
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
 
       - name: Unit Tests
-        run: yarn test:ci
+        run: pnpm run test:ci
 
-  yarn-test:
+  pnpm-test:
     runs-on: ubuntu-latest
-    needs: [yarn-test-run]
+    needs: [pnpm-test-run]
     if: always()
     steps:
-      - uses: actions/checkout@v5
-      - name: Check yarn-test status
+      - uses: actions/checkout@v6
+      - name: Check pnpm-test status
         uses: ./.github/actions/check-job-status
         with:
-          job_name: 'Yarn Test'
-          result: ${{ needs.yarn-test-run.result }}
+          job_name: 'PNPM Test'
+          result: ${{ needs.pnpm-test-run.result }}
 
   infra-test:
     runs-on: depot-ubuntu-latest
@@ -201,7 +181,7 @@ jobs:
       BALANCE_CHANGES: false
       WARP_CONFIG_CHANGES: false
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
@@ -224,32 +204,30 @@ jobs:
             echo "WARP_CONFIG_CHANGES=true" >> $GITHUB_ENV
           fi
 
-      - name: yarn-build
-        uses: ./.github/actions/yarn-build-with-cache
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: pnpm-build
+        uses: ./.github/actions/pnpm-build-with-cache
 
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
 
       - name: GitLeaks Tests
         if: steps.gitleaks-install.outcome != 'skipped'
-        run: yarn --cwd typescript/infra test:gitleaks
+        run: pnpm -C typescript/infra test:gitleaks
 
       - name: Balance Tests
         if: env.BALANCE_CHANGES == 'true'
-        run: yarn --cwd typescript/infra test:balance
+        run: pnpm -C typescript/infra test:balance
 
       - name: Warp Config Tests
         if: env.WARP_CONFIG_CHANGES == 'true'
-        run: yarn --cwd typescript/infra test:warp
+        run: pnpm -C typescript/infra test:warp
 
   cli-install-test-run:
     runs-on: depot-ubuntu-24.04
     needs: [rust-only]
     if: needs.rust-only.outputs.only_rust == 'false'
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -267,7 +245,7 @@ jobs:
     needs: [cli-install-test-run]
     if: always()
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Check cli-install-test status
         uses: ./.github/actions/check-job-status
         with:
@@ -291,35 +269,37 @@ jobs:
           - core-read
           # Other commands
           - relay
-          # Warp Commands
-          - warp-apply-1
-          - warp-apply-2
+          # Warp Apply Commands
+          - warp-apply-hook-updates
           - warp-apply-ism-updates
+          - warp-apply-ownership-updates
+          - warp-apply-rebalancing-config
+          - warp-apply-simple-updates
           - warp-apply-submitters
+          - warp-extend-basic
+          - warp-extend-config
+          - warp-extend-recovery
+          # deploy
           - warp-bridge-1
           - warp-bridge-2
+          - warp-deploy-1
+          - warp-deploy-2
+          # check
           - warp-check-1
           - warp-check-2
           - warp-check-3
           - warp-check-4
           - warp-check-5
-          - warp-deploy-1
-          - warp-deploy-2
-          - warp-extend-basic
-          - warp-extend-config
-          - warp-extend-recovery
+          # other
           - warp-init
           - warp-read
           - warp-rebalancer
           - warp-send
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
-
-      - name: foundry-install
-        uses: foundry-rs/foundry-toolchain@v1
 
       - name: install-hyperlane-cli
         id: install-hyperlane-cli
@@ -331,7 +311,7 @@ jobs:
         uses: ./.github/actions/checkout-registry
 
       - name: CLI ethereum e2e tests (${{ matrix.test }})
-        run: yarn --cwd typescript/cli test:ethereum:e2e
+        run: pnpm -C typescript/cli test:ethereum:e2e
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
 
@@ -353,13 +333,10 @@ jobs:
           - warp-deploy
           - warp-read
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
-
-      - name: foundry-install
-        uses: foundry-rs/foundry-toolchain@v1
 
       - name: install-hyperlane-cli
         id: install-hyperlane-cli
@@ -371,7 +348,7 @@ jobs:
         uses: ./.github/actions/checkout-registry
 
       - name: CLI cosmosnative e2e tests (${{ matrix.test }})
-        run: yarn --cwd typescript/cli test:cosmosnative:e2e
+        run: pnpm -C typescript/cli test:cosmosnative:e2e
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
 
@@ -386,12 +363,13 @@ jobs:
         test:
           # Core Commands
           - core-deploy
+          - core-apply
           # Warp Commands
           - warp-deploy
           - warp-apply-ownership-updates
           - warp-apply-route-extension
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
@@ -406,7 +384,7 @@ jobs:
         uses: ./.github/actions/checkout-registry
 
       - name: CLI radix e2e tests (${{ matrix.test }})
-        run: yarn --cwd typescript/cli test:radix:e2e
+        run: pnpm -C typescript/cli test:radix:e2e
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
 
@@ -423,7 +401,7 @@ jobs:
           - warp-apply
           - warp-deploy
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
@@ -438,7 +416,7 @@ jobs:
         uses: ./.github/actions/checkout-registry
 
       - name: CLI cross chain e2e tests (${{ matrix.test }})
-        run: yarn --cwd typescript/cli test:cross-chain:e2e
+        run: pnpm -C typescript/cli test:cross-chain:e2e
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
 
@@ -453,7 +431,7 @@ jobs:
       ]
     if: always()
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Check CLI EVM E2E status
         uses: ./.github/actions/check-job-status
         with:
@@ -481,30 +459,57 @@ jobs:
     if: needs.rust-only.outputs.only_rust == 'false'
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
 
-      - name: yarn-build
-        uses: ./.github/actions/yarn-build-with-cache
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: pnpm-build
+        uses: ./.github/actions/pnpm-build-with-cache
 
       - name: Cosmos SDK e2e tests
-        run: yarn --cwd typescript/cosmos-sdk test:e2e
+        run: pnpm -C typescript/cosmos-sdk test:e2e
 
   cosmos-sdk-e2e:
     runs-on: ubuntu-latest
     needs: [cosmos-sdk-e2e-run]
     if: always()
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Check cosmos-sdk-e2e status
         uses: ./.github/actions/check-job-status
         with:
           job_name: 'Cosmos SDK E2E'
           result: ${{ needs.cosmos-sdk-e2e-run.result }}
+
+  aleo-sdk-e2e-run:
+    runs-on: depot-ubuntu-latest
+    needs: [rust-only]
+    if: needs.rust-only.outputs.only_rust == 'false'
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+
+      - name: pnpm-build
+        uses: ./.github/actions/pnpm-build-with-cache
+
+      - name: Aleo SDK e2e tests
+        run: pnpm -C typescript/aleo-sdk test:e2e
+
+  aleo-sdk-e2e:
+    runs-on: ubuntu-latest
+    needs: [aleo-sdk-e2e-run]
+    if: always()
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check aleo-sdk-e2e status
+        uses: ./.github/actions/check-job-status
+        with:
+          job_name: 'Aleo SDK E2E'
+          result: ${{ needs.aleo-sdk-e2e-run.result }}
 
   agent-configs:
     runs-on: depot-ubuntu-latest
@@ -513,14 +518,12 @@ jobs:
       matrix:
         environment: [mainnet3, testnet4]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      - name: yarn-build
-        uses: ./.github/actions/yarn-build-with-cache
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: pnpm-build
+        uses: ./.github/actions/pnpm-build-with-cache
 
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
@@ -528,7 +531,7 @@ jobs:
       - name: Generate ${{ matrix.environment }} agent config
         run: |
           cd typescript/infra
-          yarn tsx ./scripts/agents/update-agent-config.ts -e ${{ matrix.environment }}
+          pnpm tsx ./scripts/agents/update-agent-config.ts -e ${{ matrix.environment }}
           CHANGES=$(git status -s . :/rust/main/config)
           if [[ ! -z $CHANGES ]]; then
             echo "Changes found in agent config: $CHANGES"
@@ -543,7 +546,7 @@ jobs:
       matrix:
         e2e-type: [cosmwasm, cosmosnative, evm, sealevel, starknet, radix]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
@@ -602,10 +605,6 @@ jobs:
             echo "skip-e2e=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: foundry-install
-        if: steps.check-conditions.outputs.skip-e2e != 'true'
-        uses: foundry-rs/foundry-toolchain@v1
-
       - name: setup rust
         if: steps.check-conditions.outputs.skip-e2e != 'true'
         uses: dtolnay/rust-toolchain@stable
@@ -635,11 +634,9 @@ jobs:
         if: steps.check-conditions.outputs.skip-e2e != 'true'
         uses: rui314/setup-mold@v1
 
-      - name: yarn-build
+      - name: pnpm-build
         if: steps.check-conditions.outputs.skip-e2e != 'true'
-        uses: ./.github/actions/yarn-build-with-cache
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+        uses: ./.github/actions/pnpm-build-with-cache
 
       - name: Install system dependencies
         if: steps.check-conditions.outputs.skip-e2e != 'true'
@@ -736,7 +733,7 @@ jobs:
       fail-fast: false
       matrix:
         environment: [mainnet3]
-        chain: [ethereum, arbitrum, optimism, inevm]
+        chain: [ethereum, arbitrum, optimism]
         module: [core, igp]
         include:
           - environment: testnet4
@@ -744,17 +741,12 @@ jobs:
             module: core
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      - name: foundry-install
-        uses: foundry-rs/foundry-toolchain@v1
-
-      - name: yarn-build
-        uses: ./.github/actions/yarn-build-with-cache
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: pnpm-build
+        uses: ./.github/actions/pnpm-build-with-cache
 
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
@@ -774,7 +766,7 @@ jobs:
     needs: env-test-matrix
     if: always()
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Check env-test matrix status
         uses: ./.github/actions/check-job-status
         with:
@@ -787,7 +779,7 @@ jobs:
     outputs:
       has_solidity_changes: ${{ steps.check-solidity.outputs.has_changes }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -804,20 +796,27 @@ jobs:
     needs: [check-solidity-changes]
     if: needs.check-solidity-changes.outputs.has_solidity_changes == 'true'
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Foundry
+        uses: ./.github/actions/setup-foundry
+
       - name: Build
         run: |
-          yarn install
-          yarn build
-
-      - name: foundry-install
-        uses: foundry-rs/foundry-toolchain@v1
+          pnpm install --frozen-lockfile
+          pnpm run build
 
       - name: Run tests with coverage
-        run: yarn coverage
+        run: pnpm run coverage
         env:
           NODE_OPTIONS: --max_old_space_size=4096
 
@@ -825,6 +824,8 @@ jobs:
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+          flags: solidity
+          fail_ci_if_error: true
 
   coverage:
     runs-on: ubuntu-latest

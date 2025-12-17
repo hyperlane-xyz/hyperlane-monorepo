@@ -1,6 +1,5 @@
 use std::ops::Deref;
 
-use aleo_serialize::AleoSerialize;
 use anyhow::Result;
 use async_trait::async_trait;
 use derive_new::new;
@@ -10,12 +9,14 @@ use snarkvm::ledger::{Block, ConfirmedTransaction};
 use snarkvm::prelude::{
     Authorization, Network, Plaintext, Program, ProgramID, StatePath, Transaction,
 };
-
-use hyperlane_core::ChainResult;
 use snarkvm_console_account::Field;
 use tokio::runtime::Handle;
 use tokio::task::block_in_place;
 
+use aleo_serialize::AleoSerialize;
+use hyperlane_core::{ChainResult, H512};
+
+use crate::utils::get_tx_id;
 use crate::{CurrentNetwork, HyperlaneAleoError, ProvingRequest, ProvingResponse};
 
 #[async_trait]
@@ -115,15 +116,21 @@ impl<Client: HttpClient> RpcClient<Client> {
         self.request(&format!("program/{program_id}"), None).await
     }
 
-    /// Gets a program by ID and edition
-    pub async fn get_program_by_edition(
+    pub async fn get_latest_edition<N: Network>(
         &self,
-        program_id: &str,
-        edition: u64,
-        metadata: Option<bool>,
-    ) -> ChainResult<String> {
-        let query = metadata.map(|m| serde_json::json!({ "metadata": m }));
-        self.request(&format!("program/{program_id}/{edition}"), query)
+        program_id: &ProgramID<N>,
+    ) -> ChainResult<u16> {
+        self.request(&format!("program/{program_id}/latest_edition"), None)
+            .await
+    }
+
+    /// Gets a program by ID and [edition]
+    pub async fn get_program_by_edition<N: Network>(
+        &self,
+        program_id: &ProgramID<N>,
+        edition: u16,
+    ) -> ChainResult<Program<N>> {
+        self.request(&format!("program/{program_id}/{edition}"), None)
             .await
     }
 
@@ -162,18 +169,23 @@ impl<Client: HttpClient> RpcClient<Client> {
         program_id: &str,
         mapping_name: &str,
         mapping_key: &K,
-    ) -> ChainResult<T> {
+    ) -> ChainResult<Option<T>> {
         let plaintext_key = mapping_key
             .to_plaintext()
             .map_err(HyperlaneAleoError::from)?;
-        let plain_text: Plaintext<CurrentNetwork> = self
+        let plain_text: Option<Plaintext<CurrentNetwork>> = self
             .request(
                 &format!("program/{program_id}/mapping/{mapping_name}/{plaintext_key}"),
                 None,
             )
             .await?;
-        let result = T::parse_value(plain_text).map_err(HyperlaneAleoError::from)?;
-        Ok(result)
+        match plain_text {
+            None => Ok(None),
+            Some(plain_text) => {
+                let result = T::parse_value(plain_text).map_err(HyperlaneAleoError::from)?;
+                Ok(Some(result))
+            }
+        }
     }
 
     /// Gets a value from a program mapping
@@ -203,12 +215,23 @@ impl<Client: HttpClient> RpcClient<Client> {
             .await
     }
 
-    /// Gets a transaction by ID
-    pub async fn get_transaction_status(
+    /// Gets a confirmed transaction by ID
+    pub async fn get_confirmed_transaction(
         &self,
-        transaction_id: &str,
+        transaction_id: H512,
     ) -> ChainResult<ConfirmedTransaction<CurrentNetwork>> {
-        self.request(&format!("transaction/confirmed/{transaction_id}"), None)
+        let tx_id = get_tx_id::<CurrentNetwork>(transaction_id)?;
+        self.request(&format!("transaction/confirmed/{tx_id}"), None)
+            .await
+    }
+
+    /// Gets an unconfirmed transaction by ID from the mempool
+    pub async fn get_unconfirmed_transaction(
+        &self,
+        transaction_id: H512,
+    ) -> ChainResult<Transaction<CurrentNetwork>> {
+        let tx_id = crate::utils::get_tx_id::<CurrentNetwork>(transaction_id)?;
+        self.request(&format!("transaction/unconfirmed/{tx_id}"), None)
             .await
     }
 
@@ -244,7 +267,7 @@ impl<Client: HttpClient> ProvingClient<Client> {
         };
         let body = serde_json::to_value(request).map_err(HyperlaneAleoError::from)?;
 
-        let response: ProvingResponse = self.0.request_post("/prove", &body).await?;
+        let response: ProvingResponse = self.0.request_post("prove", &body).await?;
 
         Ok(
             serde_json::from_value::<Transaction<N>>(response.transaction)

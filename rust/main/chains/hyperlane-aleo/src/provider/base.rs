@@ -22,7 +22,7 @@ pub struct BaseHttpClient {
 }
 
 impl BaseHttpClient {
-    pub fn new(base_url: Url) -> ChainResult<Self> {
+    pub fn new(base_url: Url, network: u16) -> ChainResult<Self> {
         let (headers, url) =
             parse_custom_rpc_headers(&base_url).map_err(ChainCommunicationError::from_other)?;
         let client = ReqestClient::builder()
@@ -31,9 +31,14 @@ impl BaseHttpClient {
             .default_headers(headers)
             .build()
             .map_err(HyperlaneAleoError::from)?;
+        let suffix = match network {
+            0 => "mainnet",
+            1 => "testnet",
+            id => return Err(HyperlaneAleoError::UnknownNetwork(id).into()),
+        };
         Ok(Self {
             client,
-            base_url: url.to_string().trim_end_matches("/").into(),
+            base_url: url.to_string().trim_end_matches("/").to_string() + "/" + suffix,
         })
     }
 

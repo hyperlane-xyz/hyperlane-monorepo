@@ -3,6 +3,14 @@
     "amount": "0.04525",
     "decimals": 9
   },
+  "adichain": {
+    "amount": "1104.0",
+    "decimals": 9
+  },
+  "aleo": {
+    "amount": "0.00001",
+    "decimals": 1
+  },
   "ancient8": {
     "amount": "0.001000252",
     "decimals": 9
@@ -124,7 +132,7 @@
     "decimals": 1
   },
   "electroneum": {
-    "amount": "57.349384849",
+    "amount": "10.000000007",
     "decimals": 9
   },
   "endurance": {
@@ -144,11 +152,11 @@
     "decimals": 9
   },
   "flare": {
-    "amount": "189.541449419",
+    "amount": "25.000000001",
     "decimals": 9
   },
   "flowmainnet": {
-    "amount": "0.1",
+    "amount": "10.038",
     "decimals": 9
   },
   "fluence": {
@@ -208,7 +216,7 @@
     "decimals": 9
   },
   "incentiv": {
-    "amount": "1",
+    "amount": "40001.0",
     "decimals": 9
   },
   "ink": {
@@ -252,7 +260,7 @@
     "decimals": 9
   },
   "lumiaprism": {
-    "amount": "10.4",
+    "amount": "1.0",
     "decimals": 9
   },
   "mantapacific": {
@@ -269,6 +277,10 @@
   },
   "matchain": {
     "amount": "0.001",
+    "decimals": 9
+  },
+  "megaeth": {
+    "amount": "0.002",
     "decimals": 9
   },
   "merlin": {
@@ -296,7 +308,7 @@
     "decimals": 9
   },
   "mitosis": {
-    "amount": "82.5",
+    "amount": "20.624797455",
     "decimals": 9
   },
   "mode": {
@@ -388,7 +400,7 @@
     "decimals": 9
   },
   "pulsechain": {
-    "amount": "1692988.645737178",
+    "amount": "226653.443912088",
     "decimals": 9
   },
   "radix": {
@@ -416,11 +428,11 @@
     "decimals": 9
   },
   "sei": {
-    "amount": "6.605347133",
+    "amount": "11.0",
     "decimals": 9
   },
   "shibarium": {
-    "amount": "1593.58",
+    "amount": "100.716488369",
     "decimals": 9
   },
   "solanamainnet": {
@@ -452,7 +464,11 @@
     "decimals": 1
   },
   "sophon": {
-    "amount": "8316.314493515",
+    "amount": "9916.508388529",
+    "decimals": 9
+  },
+  "stable": {
+    "amount": "1.125",
     "decimals": 9
   },
   "starknet": {
@@ -512,7 +528,7 @@
     "decimals": 9
   },
   "viction": {
-    "amount": "0.25",
+    "amount": "2.5",
     "decimals": 9
   },
   "worldchain": {

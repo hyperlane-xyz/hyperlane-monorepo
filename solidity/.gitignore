@@ -7,6 +7,7 @@ coverage/
 coverage.json
 storage/
 *.env
+!.env.default
 *lcov.info
 # Foundry
 out
@@ -16,6 +17,8 @@ flattened/
 buildArtifact.json
 fixtures/
 broadcast/
+# Soldeer
+dependencies/
 # ZKSync
 artifacts-zk
 cache-zk
@@ -23,3 +26,6 @@ core-utils/zksync/artifacts/output
 .zksolc-libraries-cache/
 typechain-types/
 typechain/
+
+# bytecode dumps
+bytecode/

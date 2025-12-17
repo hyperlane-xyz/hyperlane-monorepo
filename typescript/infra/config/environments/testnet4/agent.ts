@@ -46,6 +46,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   typeof testnet4SupportedChainNames
 > = {
   [Role.Validator]: {
+    aleotestnet: true,
     arbitrumsepolia: true,
     arcadiatestnet2: true,
     auroratestnet: true,
@@ -61,10 +62,10 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     fuji: true,
     giwasepolia: true,
     hyperliquidevmtestnet: true,
-    incentivtestnet: true,
+    incentivtestnet: false,
     kyvetestnet: false,
     megaethtestnet: false,
-    milkywaytestnet: true,
+    milkywaytestnet: false,
     modetestnet: true,
     monadtestnet: true,
     neuratestnet: true,
@@ -82,6 +83,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     subtensortestnet: false,
   },
   [Role.Relayer]: {
+    aleotestnet: true,
     arbitrumsepolia: true,
     arcadiatestnet2: true,
     auroratestnet: true,
@@ -97,10 +99,10 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     fuji: true,
     giwasepolia: true,
     hyperliquidevmtestnet: true,
-    incentivtestnet: true,
+    incentivtestnet: false,
     kyvetestnet: false,
     megaethtestnet: false,
-    milkywaytestnet: true,
+    milkywaytestnet: false,
     modetestnet: true,
     monadtestnet: true,
     neuratestnet: true,
@@ -118,6 +120,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     subtensortestnet: false,
   },
   [Role.Scraper]: {
+    aleotestnet: true,
     arbitrumsepolia: true,
     arcadiatestnet2: true,
     auroratestnet: true,
@@ -133,10 +136,10 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     fuji: true,
     giwasepolia: true,
     hyperliquidevmtestnet: true,
-    incentivtestnet: true,
+    incentivtestnet: false,
     kyvetestnet: false,
     megaethtestnet: false,
-    milkywaytestnet: true,
+    milkywaytestnet: false,
     modetestnet: true,
     monadtestnet: true,
     neuratestnet: true,
@@ -356,7 +359,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'aad2988-20251125-151714',
+      tag: '26d9ace-20251216-085234',
     },
     blacklist: [...releaseCandidateHelloworldMatchingList, ...relayBlacklist],
     gasPaymentEnforcement,
@@ -377,7 +380,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '97c93e2-20251124-141939',
+      tag: 'b876079-20251210-171259',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
     resources: validatorResources,
@@ -386,7 +389,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '97c93e2-20251124-141939',
+      tag: '26d9ace-20251216-085234',
     },
     resources: scraperResources,
   },
@@ -401,7 +404,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'aad2988-20251125-151714',
+      tag: 'fb1c63e-20251211-132905',
     },
     blacklist: relayBlacklist,
     gasPaymentEnforcement,

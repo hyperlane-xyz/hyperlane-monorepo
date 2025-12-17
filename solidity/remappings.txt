@@ -1,6 +1,7 @@
-@arbitrum=../node_modules/@arbitrum
-@eth-optimism=../node_modules/@eth-optimism
-@openzeppelin=../node_modules/@openzeppelin
-@chainlink=../node_modules/@chainlink
-ds-test/=lib/forge-std/lib/ds-test/src/
-forge-std/=lib/forge-std/src/
+@openzeppelin/contracts/=dependencies/@openzeppelin-contracts-4.9.3/contracts/
+@openzeppelin/contracts-upgradeable/=dependencies/@openzeppelin-contracts-upgradeable-4.9.3/contracts/
+@arbitrum/nitro-contracts/src/=dependencies/@arbitrum-nitro-contracts-1.2.1/src/
+@chainlink/contracts-ccip/src/v0.8/=dependencies/@chainlink-contracts-ccip-1.5.0/contracts/src/v0.8/
+@eth-optimism/contracts/=dependencies/@eth-optimism-contracts-0.6.0/packages/contracts/contracts/
+forge-std/=dependencies/forge-std-1.9.2/src/
+ds-test/=dependencies/forge-std-1.9.2/lib/ds-test/src/

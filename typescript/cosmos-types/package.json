@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/cosmos-types",
-  "version": "19.10.0",
+  "version": "20.1.0",
   "description": "Hyperlane TypeScript SDK types for the Cosmos Hyperlane SDK module",
   "type": "module",
   "exports": {
@@ -32,6 +32,7 @@
   "devDependencies": {
     "@eslint/js": "^9.31.0",
     "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@types/node": "^20.17.0",
     "@typescript-eslint/eslint-plugin": "^8.1.6",
     "@typescript-eslint/parser": "^8.1.6",
     "eslint": "^9.31.0",
@@ -39,7 +40,7 @@
     "eslint-import-resolver-typescript": "^4.4.4",
     "eslint-plugin-import": "^2.32.0",
     "prettier": "^3.5.3",
-    "typescript": "5.3.3",
+    "typescript": "5.8.3",
     "typescript-eslint": "^8.37.0"
   },
   "dependencies": {

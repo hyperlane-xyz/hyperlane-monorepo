@@ -2,20 +2,17 @@
 import asn1 from 'asn1.js';
 import { exec } from 'child_process';
 import { ethers } from 'ethers';
-// eslint-disable-next-line
-import fs from 'fs';
-import path, { dirname, join } from 'path';
+import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
-import { parse as yamlParse } from 'yaml';
 
 import { ChainMap, ChainName, NativeToken } from '@hyperlane-xyz/sdk';
 import {
   Address,
   ProtocolType,
   objFilter,
-  objMerge,
   stringifyObject,
 } from '@hyperlane-xyz/utils';
+import { pathExists, readJson, writeToFile } from '@hyperlane-xyz/utils/fs';
 
 import { Contexts } from '../../config/contexts.js';
 import { testChainNames } from '../../config/environments/test/chains.js';
@@ -138,31 +135,10 @@ export function warn(text: string, padded = false) {
   }
 }
 
-export function writeMergedJSONAtPath(filepath: string, obj: any) {
-  if (fs.existsSync(filepath)) {
-    const previous = readJSONAtPath(filepath);
-    writeJsonAtPath(filepath, objMerge(previous, obj));
-  } else {
-    writeJsonAtPath(filepath, obj);
-  }
-}
-
-export function writeMergedJSON(directory: string, filename: string, obj: any) {
-  writeMergedJSONAtPath(path.join(directory, filename), obj);
-}
-
-function ensureDirectoryExists(filepath: string) {
-  const dir = path.dirname(filepath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-}
-
-export function writeToFile(filepath: string, content: string) {
-  ensureDirectoryExists(filepath);
-  fs.writeFileSync(filepath, content + '\n');
-}
-
+/**
+ * Writes a JSON file using stringifyObject for consistent formatting.
+ * Use this for infra-specific JSON output that needs consistent formatting.
+ */
 export function writeJsonAtPath(filepath: string, obj: any) {
   const content = stringifyObject(obj, 'json', 2);
   writeToFile(filepath, content);
@@ -183,8 +159,8 @@ export async function writeJsonWithAppendMode(
   appendMode: boolean,
 ) {
   let data = newData;
-  if (appendMode && fs.existsSync(filepath)) {
-    const existing = readJSONAtPath(filepath);
+  if (appendMode && pathExists(filepath)) {
+    const existing = readJson<Record<string, any>>(filepath);
     data = Object.fromEntries(
       Object.keys(newData).map((key) => [key, existing[key] ?? newData[key]]),
     );
@@ -218,34 +194,6 @@ export async function formatFileWithPrettier(filepath: string): Promise<void> {
       error instanceof Error ? error.message : error,
     );
   }
-}
-
-export function writeYamlAtPath(filepath: string, obj: any) {
-  const content = stringifyObject(obj, 'yaml', 2);
-  writeToFile(filepath, content);
-}
-
-export function writeJSON(directory: string, filename: string, obj: any) {
-  writeJsonAtPath(path.join(directory, filename), obj);
-}
-
-export function readFileAtPath(filepath: string) {
-  if (!fs.existsSync(filepath)) {
-    throw Error(`file doesn't exist at ${filepath}`);
-  }
-  return fs.readFileSync(filepath, 'utf8');
-}
-
-export function readJSONAtPath(filepath: string) {
-  return JSON.parse(readFileAtPath(filepath));
-}
-
-export function readJSON(directory: string, filename: string) {
-  return readJSONAtPath(path.join(directory, filename));
-}
-
-export function readYaml<T>(filepath: string): T {
-  return yamlParse(readFileAtPath(filepath)) as T;
 }
 
 export function assertRole(roleStr: string) {

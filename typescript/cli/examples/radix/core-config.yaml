@@ -1,16 +1,27 @@
 defaultHook:
   beneficiary: account_loc12ytsy99ajzkwy7ce0444fs8avat7jy3fkj5mk64yz2z3yml6s7y7x3
-  oracleConfig: {}
+  oracleConfig:
+    radix2:
+      tokenExchangeRate: '347026904130352406214'
+      gasPrice: '201383436'
   oracleKey: account_loc12ytsy99ajzkwy7ce0444fs8avat7jy3fkj5mk64yz2z3yml6s7y7x3
-  overhead: {}
+  overhead:
+    radix2: 100
   owner: account_loc12ytsy99ajzkwy7ce0444fs8avat7jy3fkj5mk64yz2z3yml6s7y7x3
   type: interchainGasPaymaster
 defaultIsm:
   domains:
     radix1:
-      domains: {}
+      domains:
+        radix2:
+          type: testIsm
       owner: account_loc12ytsy99ajzkwy7ce0444fs8avat7jy3fkj5mk64yz2z3yml6s7y7x3
       type: domainRoutingIsm
+
+    radix2:
+      validators: ['0x10E0271ec47d55511a047516f2a7301801d55eaB']
+      threshold: 1
+      type: messageIdMultisigIsm
   owner: account_loc12ytsy99ajzkwy7ce0444fs8avat7jy3fkj5mk64yz2z3yml6s7y7x3
   type: domainRoutingIsm
 owner: account_loc12ytsy99ajzkwy7ce0444fs8avat7jy3fkj5mk64yz2z3yml6s7y7x3

@@ -17,7 +17,7 @@ This server is part of the Hyperlane monorepo. Ensure you have installed the roo
 
 ```bash
 # From the monorepo root
-yarn install
+pnpm install
 ```
 
 ## Configuration
@@ -40,19 +40,19 @@ The server is configured using environment variables. You can place these in a `
   To run the server in development mode with hot-reloading and human-readable logs:
   ```bash
   # From typescript/http-registry-server
-  yarn dev -- --registry path/to/registry
+  pnpm dev -- --registry path/to/registry
   ```
   In a separate terminal:
   ```bash
   # From typescript/http-registry-server
-  yarn start:dev -- --registry path/to/registry
+  pnpm start:dev -- --registry path/to/registry
   ```
 
 ### Other Scripts
 
-- `yarn test`: Run unit tests.
-- `yarn lint`: Lint the codebase.
-- `yarn clean`: Remove the compiled output directory.
+- `pnpm test`: Run unit tests.
+- `pnpm lint`: Lint the codebase.
+- `pnpm clean`: Remove the compiled output directory.
 
 ## API Endpoints
 

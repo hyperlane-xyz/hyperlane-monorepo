@@ -19,6 +19,7 @@ const COSMOS_NATIVE_ADDRESS_REGEX = /^(0x)?[0-9a-fA-F]{64}$/;
 const STARKNET_ADDRESS_REGEX = /^(0x)?[0-9a-fA-F]{64}$/;
 const RADIX_ADDRESS_REGEX =
   /^(account|component)_(rdx|loc|sim|tdx_[\d]_)[a-z0-9]{55}$/;
+const ALEO_ADDRESS_REGEX = /^[A-Za-z0-9_]+\.aleo\/aleo1[a-z0-9]{58}$/;
 
 const HEX_BYTES32_REGEX = /^0x[a-fA-F0-9]{64}$/;
 
@@ -37,6 +38,7 @@ const SEALEVEL_TX_HASH_REGEX = /^[a-zA-Z1-9]{88}$/;
 const COSMOS_TX_HASH_REGEX = /^(0x)?[A-Fa-f0-9]{64}$/;
 const STARKNET_TX_HASH_REGEX = /^(0x)?[0-9a-fA-F]{64}$/;
 const RADIX_TX_HASH_REGEX = /^txid_(rdx|sim|tdx_[\d]_)[a-z0-9]{59}$/;
+const ALEO_TX_HASH_REGEX = /^at1[a-z0-9]{58}$/;
 
 const EVM_ZEROISH_ADDRESS_REGEX = /^(0x)?0*$/;
 const SEALEVEL_ZEROISH_ADDRESS_REGEX = /^1+$/;
@@ -44,6 +46,8 @@ const COSMOS_ZEROISH_ADDRESS_REGEX = /^[a-z]{1,10}?1[0]+$/;
 const COSMOS_NATIVE_ZEROISH_ADDRESS_REGEX = /^(0x)?0*$/;
 const STARKNET_ZEROISH_ADDRESS_REGEX = /^(0x)?0*$/;
 const RADIX_ZEROISH_ADDRESS_REGEX = /^0*$/;
+const ALEO_ZEROISH_ADDRESS_REGEX =
+  /^[A-Za-z0-9_]+\.aleo\/aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc$/;
 
 export const ZERO_ADDRESS_HEX_32 =
   '0x0000000000000000000000000000000000000000000000000000000000000000';
@@ -73,11 +77,22 @@ export function isCosmosIbcDenomAddress(address: Address): boolean {
 }
 
 export function isAddressStarknet(address: Address) {
-  return STARKNET_ADDRESS_REGEX.test(address);
+  // Starknet addresses may not have leading zeros, so we need to validate
+  // using the starknet library rather than just a regex
+  try {
+    const parsedAddress = validateAndParseAddress(address);
+    return STARKNET_ADDRESS_REGEX.test(parsedAddress);
+  } catch {
+    return false;
+  }
 }
 
 export function isAddressRadix(address: Address) {
   return RADIX_ADDRESS_REGEX.test(address);
+}
+
+export function isAddressAleo(address: Address) {
+  return ALEO_ADDRESS_REGEX.test(address);
 }
 
 export function getAddressProtocolType(address: Address) {
@@ -94,6 +109,8 @@ export function getAddressProtocolType(address: Address) {
     return ProtocolType.Starknet;
   } else if (isAddressRadix(address)) {
     return ProtocolType.Radix;
+  } else if (isAddressAleo(address)) {
+    return ProtocolType.Aleo;
   } else {
     return undefined;
   }
@@ -168,6 +185,15 @@ export function isValidAddressRadix(address: Address) {
   }
 }
 
+export function isValidAddressAleo(address: Address) {
+  try {
+    const isValid = address && ALEO_ADDRESS_REGEX.test(address);
+    return !!isValid;
+  } catch {
+    return false;
+  }
+}
+
 export function isValidAddress(address: Address, protocol?: ProtocolType) {
   return routeAddressUtil(
     {
@@ -177,6 +203,7 @@ export function isValidAddress(address: Address, protocol?: ProtocolType) {
       [ProtocolType.CosmosNative]: isValidAddressCosmos,
       [ProtocolType.Starknet]: isValidAddressStarknet,
       [ProtocolType.Radix]: isValidAddressRadix,
+      [ProtocolType.Aleo]: isValidAddressAleo,
     },
     address,
     false,
@@ -224,6 +251,10 @@ export function normalizeAddressRadix(address: Address) {
   return address;
 }
 
+export function normalizeAddressAleo(address: Address) {
+  return address;
+}
+
 export function normalizeAddress(address: Address, protocol?: ProtocolType) {
   return routeAddressUtil(
     {
@@ -233,6 +264,7 @@ export function normalizeAddress(address: Address, protocol?: ProtocolType) {
       [ProtocolType.CosmosNative]: normalizeAddressCosmos,
       [ProtocolType.Starknet]: normalizeAddressStarknet,
       [ProtocolType.Radix]: normalizeAddressRadix,
+      [ProtocolType.Aleo]: normalizeAddressAleo,
     },
     address,
     address,
@@ -260,6 +292,10 @@ export function eqAddressRadix(a1: Address, a2: Address) {
   return normalizeAddressRadix(a1) === normalizeAddressRadix(a2);
 }
 
+export function eqAddressAleo(a1: Address, a2: Address) {
+  return normalizeAddressAleo(a1) === normalizeAddressAleo(a2);
+}
+
 export function eqAddress(a1: Address, a2: Address) {
   const p1 = getAddressProtocolType(a1);
   const p2 = getAddressProtocolType(a2);
@@ -272,6 +308,7 @@ export function eqAddress(a1: Address, a2: Address) {
       [ProtocolType.CosmosNative]: (_a1) => eqAddressCosmos(_a1, a2),
       [ProtocolType.Starknet]: (_a1) => eqAddressStarknet(_a1, a2),
       [ProtocolType.Radix]: (_a1) => eqAddressRadix(_a1, a2),
+      [ProtocolType.Aleo]: (_a1) => eqAddressAleo(_a1, a2),
     },
     a1,
     false,
@@ -299,6 +336,10 @@ export function isValidTransactionHashRadix(input: string) {
   return RADIX_TX_HASH_REGEX.test(input);
 }
 
+export function isValidTransactionHashAleo(input: string) {
+  return ALEO_TX_HASH_REGEX.test(input);
+}
+
 export function isValidTransactionHash(input: string, protocol: ProtocolType) {
   if (protocol === ProtocolType.Ethereum) {
     return isValidTransactionHashEvm(input);
@@ -312,6 +353,8 @@ export function isValidTransactionHash(input: string, protocol: ProtocolType) {
     return isValidTransactionHashStarknet(input);
   } else if (protocol === ProtocolType.Radix) {
     return isValidTransactionHashRadix(input);
+  } else if (protocol === ProtocolType.Aleo) {
+    return isValidTransactionHashAleo(input);
   } else {
     return false;
   }
@@ -324,7 +367,8 @@ export function isZeroishAddress(address: Address) {
     COSMOS_ZEROISH_ADDRESS_REGEX.test(address) ||
     COSMOS_NATIVE_ZEROISH_ADDRESS_REGEX.test(address) ||
     STARKNET_ZEROISH_ADDRESS_REGEX.test(address) ||
-    RADIX_ZEROISH_ADDRESS_REGEX.test(address)
+    RADIX_ZEROISH_ADDRESS_REGEX.test(address) ||
+    ALEO_ZEROISH_ADDRESS_REGEX.test(address)
   );
 }
 
@@ -393,6 +437,11 @@ export function addressToBytesRadix(address: Address): Uint8Array {
   return byteArray;
 }
 
+export function addressToBytesAleo(address: Address): Uint8Array {
+  const [_, aleoAddress] = address.split('/');
+  return new Uint8Array(bech32m.fromWords(bech32m.decode(aleoAddress).words));
+}
+
 export function addressToBytes(
   address: Address,
   protocol?: ProtocolType,
@@ -405,6 +454,7 @@ export function addressToBytes(
       [ProtocolType.CosmosNative]: addressToBytesCosmosNative,
       [ProtocolType.Starknet]: addressToBytesStarknet,
       [ProtocolType.Radix]: addressToBytesRadix,
+      [ProtocolType.Aleo]: addressToBytesAleo,
     },
     address,
     new Uint8Array(),
@@ -518,6 +568,10 @@ export function bytesToAddressRadix(
   return bech32m.encode(prefix, bech32m.toWords(bytes));
 }
 
+export function bytesToAddressAleo(bytes: Uint8Array): Address {
+  return `program.aleo/${bech32m.encode('aleo', bech32m.toWords(bytes))}`;
+}
+
 export function bytesToProtocolAddress(
   bytes: Uint8Array,
   toProtocol: ProtocolType,
@@ -539,6 +593,8 @@ export function bytesToProtocolAddress(
     return bytesToAddressStarknet(bytes);
   } else if (toProtocol === ProtocolType.Radix) {
     return bytesToAddressRadix(bytes, prefix!);
+  } else if (toProtocol === ProtocolType.Aleo) {
+    return bytesToAddressAleo(bytes);
   } else {
     throw new Error(`Unsupported protocol for address ${toProtocol}`);
   }

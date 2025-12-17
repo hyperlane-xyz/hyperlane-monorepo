@@ -38,11 +38,11 @@ import { getDomainId, getWarpAddresses } from '../../registry.js';
 import { environment, ethereumChainNames } from './chains.js';
 import { blacklistedMessageIds } from './customBlacklist.js';
 import { helloWorld } from './helloworld.js';
-import aaveSenderAddresses from './misc-artifacts/aave-sender-addresses.json';
-import everclearSenderAddresses from './misc-artifacts/everclear-sender-addresses.json';
-import merklyEthAddresses from './misc-artifacts/merkly-eth-addresses.json';
-import merklyNftAddresses from './misc-artifacts/merkly-eth-addresses.json';
-import merklyErc20Addresses from './misc-artifacts/merkly-eth-addresses.json';
+import aaveSenderAddresses from './misc-artifacts/aave-sender-addresses.json' with { type: 'json' };
+import everclearSenderAddresses from './misc-artifacts/everclear-sender-addresses.json' with { type: 'json' };
+import merklyEthAddresses from './misc-artifacts/merkly-eth-addresses.json' with { type: 'json' };
+import merklyNftAddresses from './misc-artifacts/merkly-eth-addresses.json' with { type: 'json' };
+import merklyErc20Addresses from './misc-artifacts/merkly-eth-addresses.json' with { type: 'json' };
 import {
   mainnet3SupportedChainNames,
   supportedChainNames,
@@ -68,6 +68,8 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Validator]: {
     abstract: true,
     // acala: true,
+    adichain: true,
+    aleo: true,
     ancient8: true,
     apechain: true,
     appchain: true,
@@ -106,7 +108,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     flare: true,
     flowmainnet: true,
     fluence: true,
-    form: true,
+    form: false,
     forma: false, // relayer + scraper only
     fraxtal: true,
     fusemainnet: true,
@@ -120,7 +122,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     immutablezkevmmainnet: true,
     incentiv: true,
     inevm: false,
-    injective: true,
+    injective: false,
     ink: true,
     kaia: true,
     katana: true,
@@ -135,11 +137,12 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     mantle: true,
     mantra: true,
     matchain: true,
+    megaeth: true,
     merlin: true,
     metal: true,
     metis: true,
     milkyway: true,
-    mint: true,
+    mint: false,
     miraclechain: true,
     mitosis: true,
     mode: true,
@@ -147,7 +150,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     monad: true,
     moonbeam: true,
     morph: true,
-    neutron: true,
+    neutron: false,
     nibiru: true,
     noble: true,
     oortmainnet: true,
@@ -155,7 +158,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     opbnb: true,
     optimism: true,
     orderly: true,
-    osmosis: true,
+    osmosis: false,
     paradex: true,
     peaq: true,
     plasma: true,
@@ -181,6 +184,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sonicsvm: true,
     soon: true,
     sophon: true,
+    stable: true,
     starknet: true,
     story: true,
     stride: false,
@@ -210,6 +214,8 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Relayer]: {
     abstract: true,
     // acala: true,
+    aleo: true,
+    adichain: true,
     ancient8: true,
     apechain: true,
     appchain: true,
@@ -248,7 +254,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     flare: true,
     flowmainnet: true,
     fluence: true,
-    form: true,
+    form: false,
     forma: true,
     fraxtal: true,
     fusemainnet: true,
@@ -262,7 +268,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     immutablezkevmmainnet: true,
     incentiv: true,
     inevm: false,
-    injective: true,
+    injective: false,
     ink: true,
     kaia: true,
     katana: true,
@@ -277,11 +283,12 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     mantle: true,
     mantra: true,
     matchain: true,
+    megaeth: true,
     merlin: true,
     metal: true,
     metis: true,
     milkyway: true,
-    mint: true,
+    mint: false,
     miraclechain: true,
     mitosis: true,
     mode: true,
@@ -289,7 +296,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     monad: true,
     moonbeam: true,
     morph: true,
-    neutron: true,
+    neutron: false,
     nibiru: true,
     noble: true,
     oortmainnet: true,
@@ -297,7 +304,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     opbnb: true,
     optimism: true,
     orderly: true,
-    osmosis: true,
+    osmosis: false,
     paradex: true,
     peaq: true,
     plasma: true,
@@ -323,6 +330,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sonicsvm: true,
     soon: true,
     sophon: true,
+    stable: true,
     starknet: true,
     story: true,
     stride: true,
@@ -352,6 +360,8 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Scraper]: {
     abstract: true,
     // acala: true,
+    aleo: true,
+    adichain: true,
     ancient8: true,
     apechain: true,
     appchain: true,
@@ -390,7 +400,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     flare: true,
     flowmainnet: true,
     fluence: true,
-    form: true,
+    form: false,
     forma: true,
     fraxtal: true,
     fusemainnet: true,
@@ -405,7 +415,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     incentiv: true,
     inevm: false,
     ink: true,
-    injective: true,
+    injective: false,
     kaia: true,
     katana: true,
     kyve: true,
@@ -419,11 +429,12 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     mantle: true,
     mantra: true,
     matchain: true,
+    megaeth: true,
     merlin: true,
     metal: true,
     metis: true,
     milkyway: true,
-    mint: true,
+    mint: false,
     miraclechain: true,
     mitosis: true,
     mode: true,
@@ -431,7 +442,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     monad: true,
     moonbeam: true,
     morph: true,
-    neutron: true,
+    neutron: false,
     nibiru: true,
     noble: true,
     oortmainnet: true,
@@ -439,7 +450,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     opbnb: true,
     optimism: true,
     orderly: true,
-    osmosis: true,
+    osmosis: false,
     paradex: true,
     peaq: true,
     plasma: true,
@@ -465,6 +476,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sonicsvm: true,
     soon: true,
     sophon: true,
+    stable: true,
     starknet: true,
     story: true,
     stride: true,
@@ -867,7 +879,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'beb09bc-20251126-181231',
+      tag: '26d9ace-20251216-085234',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -887,7 +899,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'd64bb3a-20251124-132420',
+      tag: '8e48387-20251216-085310',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -898,7 +910,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'd64bb3a-20251124-132420',
+      tag: '26d9ace-20251216-085234',
     },
     resources: scraperResources,
   },
@@ -913,7 +925,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'beb09bc-20251126-181231',
+      tag: '8e48387-20251216-085310',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
@@ -936,7 +948,7 @@ const releaseCandidate: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'd64bb3a-20251124-132420',
+      tag: '8e48387-20251216-085310',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
@@ -957,7 +969,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '20c24dc-20251106-222459',
+      tag: '8e48387-20251216-085310',
     },
     blacklist,
     gasPaymentEnforcement,

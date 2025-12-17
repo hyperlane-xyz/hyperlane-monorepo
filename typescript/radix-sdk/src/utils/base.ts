@@ -1,15 +1,12 @@
 import { CostingParameters, FeeSummary } from '@radixdlt/babylon-core-api-sdk';
 import {
   GatewayApiClient,
-  LedgerStateSelector,
-  ScryptoSborValue,
   TransactionStatusResponse,
 } from '@radixdlt/babylon-gateway-api-sdk';
 import {
   LTSRadixEngineToolkit,
   ManifestBuilder,
   ManifestSborStringRepresentation,
-  PrivateKey,
   RadixEngineToolkit,
   TransactionManifest,
   Value,
@@ -22,10 +19,10 @@ import {
 } from '@radixdlt/radix-engine-toolkit';
 import { BigNumber } from 'bignumber.js';
 import { Decimal } from 'decimal.js';
-import { utils } from 'ethers';
 
-import { assert, sleep } from '@hyperlane-xyz/utils';
+import { assert } from '@hyperlane-xyz/utils';
 
+import { READ_ACCOUNT_HEX_PUBLIC_KEY } from './constants.js';
 import { EntityDetails, INSTRUCTIONS, RadixSDKReceipt } from './types.js';
 import { stringToTransactionManifest } from './utils.js';
 
@@ -33,15 +30,18 @@ export class RadixBase {
   protected networkId: number;
   protected gateway: GatewayApiClient;
   protected gasMultiplier: number;
+  protected hyperlanePackageDefAddress: string;
 
   constructor(
     networkId: number,
     gateway: GatewayApiClient,
     gasMultiplier: number,
+    hyperlanePackageDefAddress: string,
   ) {
     this.networkId = networkId;
     this.gateway = gateway;
     this.gasMultiplier = gasMultiplier;
+    this.hyperlanePackageDefAddress = hyperlanePackageDefAddress;
   }
 
   public async getXrdAddress() {
@@ -49,6 +49,10 @@ export class RadixBase {
       this.networkId,
     );
     return knownAddresses.resources.xrdResource;
+  }
+
+  public getHyperlanePackageDefAddress(): string {
+    return this.hyperlanePackageDefAddress;
   }
 
   public async isGatewayHealthy(): Promise<boolean> {
@@ -94,7 +98,6 @@ export class RadixBase {
   }: {
     transactionManifest: TransactionManifest | string;
   }): Promise<{ gasUnits: bigint; gasPrice: number; fee: bigint }> {
-    const pk = new PrivateKey.Ed25519(new Uint8Array(utils.randomBytes(32)));
     const constructionMetadata =
       await this.gateway.transaction.innerClient.transactionConstruction();
 
@@ -117,7 +120,7 @@ export class RadixBase {
           signer_public_keys: [
             {
               key_type: 'EddsaEd25519',
-              key_hex: pk.publicKeyHex(),
+              key_hex: READ_ACCOUNT_HEX_PUBLIC_KEY,
             },
           ],
           flags: {
@@ -507,40 +510,6 @@ export class RadixBase {
           ]),
       )
       .build();
-  }
-
-  public async getKeysFromKeyValueStore(
-    key_value_store_address: string,
-  ): Promise<ScryptoSborValue[]> {
-    let cursor: string | null = null;
-    let at_ledger_state: LedgerStateSelector | null = null;
-    const keys = [];
-    const request_limit = 50;
-
-    for (let i = 0; i < request_limit; i++) {
-      const { items, next_cursor, ledger_state } =
-        await this.gateway.state.innerClient.keyValueStoreKeys({
-          stateKeyValueStoreKeysRequest: {
-            key_value_store_address,
-            at_ledger_state,
-            cursor,
-          },
-        });
-
-      keys.push(...items.map((i) => i.key));
-
-      if (!next_cursor) {
-        return keys;
-      }
-
-      cursor = next_cursor;
-      at_ledger_state = { state_version: ledger_state.state_version };
-      await sleep(50);
-    }
-
-    throw new Error(
-      `Failed to fetch keys from key value store ${key_value_store_address}, reached request limit of ${request_limit}`,
-    );
   }
 
   // TS implementation of the publish_package_advanced method as it is not exposed/implemented in the TS Radix toolkit SDK
