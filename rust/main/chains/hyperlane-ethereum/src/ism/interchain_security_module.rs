@@ -12,8 +12,8 @@ use tracing::{instrument, warn};
 use futures_util::future::try_join;
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, ModuleType, RawHyperlaneMessage,
-    H256, U256,
+    HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, Metadata, ModuleType,
+    RawHyperlaneMessage, H256, U256,
 };
 use num_traits::cast::FromPrimitive;
 
@@ -124,7 +124,7 @@ where
     async fn dry_run_verify(
         &self,
         message: &HyperlaneMessage,
-        metadata: &[u8],
+        metadata: &Metadata,
     ) -> ChainResult<Option<U256>> {
         let mut tx = self.contract.verify(
             metadata.to_owned().into(),
