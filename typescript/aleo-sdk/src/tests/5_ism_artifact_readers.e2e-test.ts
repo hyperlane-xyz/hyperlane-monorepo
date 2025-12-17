@@ -3,12 +3,12 @@ import { step } from 'mocha-steps';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
-import { RawRoutingIsmArtifactConfig } from '@hyperlane-xyz/provider-sdk/ism';
+import { type RawRoutingIsmArtifactConfig } from '@hyperlane-xyz/provider-sdk/ism';
 import { normalizeConfig } from '@hyperlane-xyz/utils';
 
 import { AleoSigner } from '../clients/signer.js';
 import { AleoIsmArtifactManager } from '../ism/ism-artifact-manager.js';
-import { AleoReceipt, AleoTransaction } from '../utils/types.js';
+import { type AleoReceipt, type AleoTransaction } from '../utils/types.js';
 
 describe('5. aleo sdk ISM artifact readers e2e tests', async function () {
   this.timeout(100_000);

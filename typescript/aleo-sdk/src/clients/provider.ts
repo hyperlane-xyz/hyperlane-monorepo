@@ -30,7 +30,7 @@ import {
   AleoHookType,
   AleoIsmType,
   AleoTokenType,
-  AleoTransaction,
+  type AleoTransaction,
 } from '../utils/types.js';
 
 import { AleoBase } from './base.js';

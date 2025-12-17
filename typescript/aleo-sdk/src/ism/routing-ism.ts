@@ -1,16 +1,16 @@
 import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
-  ArtifactDeployed,
-  ArtifactReader,
+  type ArtifactDeployed,
+  type ArtifactReader,
   ArtifactState,
-  ArtifactUnderived,
+  type ArtifactUnderived,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
-  DeployedIsmAddress,
-  RawRoutingIsmArtifactConfig,
+  type DeployedIsmAddress,
+  type RawRoutingIsmArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
 
-import { AnyAleoNetworkClient } from '../clients/base.js';
+import { type AnyAleoNetworkClient } from '../clients/base.js';
 
 import { getRoutingIsmConfig } from './ism-query.js';
 

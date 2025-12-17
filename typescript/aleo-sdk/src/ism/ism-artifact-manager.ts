@@ -1,19 +1,22 @@
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
-  ArtifactReader,
-  ArtifactWriter,
+  type ArtifactReader,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
-  DeployedIsmAddress,
-  DeployedRawIsmArtifact,
-  IRawIsmArtifactManager,
-  IsmType,
-  RawIsmArtifactConfigs,
+  type DeployedIsmAddress,
+  type DeployedRawIsmArtifact,
+  type IRawIsmArtifactManager,
+  type IsmType,
+  type RawIsmArtifactConfigs,
   altVMIsmTypeToProviderSdkType,
 } from '@hyperlane-xyz/provider-sdk/ism';
-import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
+import {
+  type AnnotatedTx,
+  type TxReceipt,
+} from '@hyperlane-xyz/provider-sdk/module';
 
-import { AnyAleoNetworkClient } from '../clients/base.js';
+import { type AnyAleoNetworkClient } from '../clients/base.js';
 import { AleoIsmType } from '../utils/types.js';
 
 import { getIsmType } from './ism-query.js';

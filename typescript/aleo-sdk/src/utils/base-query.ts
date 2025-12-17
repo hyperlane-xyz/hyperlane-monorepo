@@ -2,7 +2,7 @@ import { Plaintext } from '@provablehq/sdk';
 
 import { assert, isNullish } from '@hyperlane-xyz/utils';
 
-import { AnyAleoNetworkClient } from '../clients/base.js';
+import { type AnyAleoNetworkClient } from '../clients/base.js';
 
 /**
  * Helper function to query a mapping value from an Aleo program.
