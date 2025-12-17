@@ -1,13 +1,13 @@
 import {
-  GatewayApiClient,
-  LedgerStateSelector,
-  ScryptoSborValue,
-  StateEntityDetailsResponseItemDetails,
+  type GatewayApiClient,
+  type LedgerStateSelector,
+  type ScryptoSborValue,
+  type StateEntityDetailsResponseItemDetails,
 } from '@radixdlt/babylon-gateway-api-sdk';
 
 import { assert, isNullish, sleep } from '@hyperlane-xyz/utils';
 
-import { EntityDetails, RadixElement } from './types.js';
+import { type EntityDetails, type RadixElement } from './types.js';
 
 type RadixComponentDetails = Extract<
   StateEntityDetailsResponseItemDetails,

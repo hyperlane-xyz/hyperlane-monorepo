@@ -1,4 +1,4 @@
-import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
+import { type GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -9,7 +9,7 @@ import {
   getKeysFromKvStore,
   getRadixComponentDetails,
 } from '../utils/base-query.js';
-import { EntityField, RadixHookTypes } from '../utils/types.js';
+import { type EntityField, RadixHookTypes } from '../utils/types.js';
 
 function isHookType(maybeHookType: string): maybeHookType is RadixHookTypes {
   switch (maybeHookType) {

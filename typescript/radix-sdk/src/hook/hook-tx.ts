@@ -1,6 +1,6 @@
-import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
+import { type GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 import {
-  TransactionManifest,
+  type TransactionManifest,
   ValueKind,
   address,
   array,
@@ -13,7 +13,7 @@ import {
   getComponentOwnershipInfo,
   getRadixComponentDetails,
 } from '../utils/base-query.js';
-import { RadixBase } from '../utils/base.js';
+import { type RadixBase } from '../utils/base.js';
 import { INSTRUCTIONS, RadixHookTypes } from '../utils/types.js';
 
 export async function getCreateMerkleTreeHookTx(

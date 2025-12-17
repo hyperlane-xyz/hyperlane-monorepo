@@ -1,9 +1,9 @@
-import { RadixBase } from '../utils/base.js';
-import { RadixBaseSigner } from '../utils/signer.js';
-import { Account } from '../utils/types.js';
+import { type RadixBase } from '../utils/base.js';
+import { type RadixBaseSigner } from '../utils/signer.js';
+import { type Account } from '../utils/types.js';
 import { stringToTransactionManifest } from '../utils/utils.js';
 
-import { RadixWarpPopulate } from './populate.js';
+import { type RadixWarpPopulate } from './populate.js';
 
 export class RadixWarpTx {
   private account: Account;

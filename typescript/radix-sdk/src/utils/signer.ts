@@ -1,17 +1,17 @@
-import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
+import { type GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 import {
-  NotarizedTransaction,
+  type NotarizedTransaction,
   RadixEngineToolkit,
-  Signature,
-  SignatureWithPublicKey,
+  type Signature,
+  type SignatureWithPublicKey,
   TransactionBuilder,
-  TransactionHeader,
-  TransactionManifest,
+  type TransactionHeader,
+  type TransactionManifest,
   generateRandomNonce,
 } from '@radixdlt/radix-engine-toolkit';
 
-import { RadixBase } from './base.js';
-import { Account, RadixSDKReceipt } from './types.js';
+import { type RadixBase } from './base.js';
+import { type Account, type RadixSDKReceipt } from './types.js';
 
 export class RadixBaseSigner {
   protected networkId: number;

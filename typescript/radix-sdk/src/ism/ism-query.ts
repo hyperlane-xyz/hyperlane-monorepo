@@ -1,4 +1,4 @@
-import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
+import { type GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 
 import { assert, ensure0x } from '@hyperlane-xyz/utils';
 
@@ -11,9 +11,9 @@ import {
   getRadixComponentDetails,
 } from '../utils/base-query.js';
 import {
-  EntityField,
-  MultisigIsms,
-  RadixElement,
+  type EntityField,
+  type MultisigIsms,
+  type RadixElement,
   RadixIsmTypes,
 } from '../utils/types.js';
 

@@ -1,4 +1,4 @@
-import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
+import { type GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 import { generateRandomNonce } from '@radixdlt/radix-engine-toolkit';
 
 import { assert, strip0x } from '@hyperlane-xyz/utils';
@@ -10,7 +10,7 @@ import {
   getRadixComponentDetails,
 } from '../utils/base-query.js';
 import { READ_ACCOUNT_HEX_PUBLIC_KEY } from '../utils/constants.js';
-import { Receipt } from '../utils/types.js';
+import { type Receipt } from '../utils/types.js';
 
 export async function getMailboxConfig(
   gateway: Readonly<GatewayApiClient>,

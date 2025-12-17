@@ -4,11 +4,11 @@ import { DockerComposeEnvironment, Wait } from 'testcontainers';
 /* eslint-disable import/no-nodejs-modules */
 import { fileURLToPath } from 'url';
 
-import { TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
+import { type TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
 import { assert, rootLogger, sleep } from '@hyperlane-xyz/utils';
 
 import {
-  RadixContractArtifacts,
+  type RadixContractArtifacts,
   deployHyperlaneRadixPackage,
 } from './setup.js';
 

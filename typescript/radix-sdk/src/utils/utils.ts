@@ -4,14 +4,14 @@ import {
   LTSRadixEngineToolkit,
   PrivateKey,
   RadixEngineToolkit,
-  TransactionManifest,
-  Value,
+  type TransactionManifest,
+  type Value,
   ValueKind,
   array,
   u8,
 } from '@radixdlt/radix-engine-toolkit';
 
-import { Account } from './types.js';
+import { type Account } from './types.js';
 
 export const bytes = (hex: string): Value => {
   return array(

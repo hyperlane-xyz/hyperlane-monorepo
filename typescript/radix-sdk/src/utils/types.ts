@@ -1,8 +1,8 @@
-import { TransactionCommittedDetailsResponse } from '@radixdlt/babylon-gateway-api-sdk';
+import { type TransactionCommittedDetailsResponse } from '@radixdlt/babylon-gateway-api-sdk';
 import {
-  PrivateKey,
-  PublicKey,
-  TransactionManifest,
+  type PrivateKey,
+  type PublicKey,
+  type TransactionManifest,
 } from '@radixdlt/radix-engine-toolkit';
 
 export interface RadixSDKTransaction {

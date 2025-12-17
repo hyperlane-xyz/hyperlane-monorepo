@@ -45,8 +45,8 @@ import { RadixBase } from '../utils/base.js';
 import {
   RadixHookTypes,
   RadixIsmTypes,
-  RadixSDKOptions,
-  RadixSDKTransaction,
+  type RadixSDKOptions,
+  type RadixSDKTransaction,
 } from '../utils/types.js';
 import { getCreateValidatorAnnounceTx } from '../validator-announce/validator-announce-tx.js';
 import { RadixWarpPopulate } from '../warp/populate.js';

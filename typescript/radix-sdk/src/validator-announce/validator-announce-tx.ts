@@ -1,6 +1,9 @@
-import { TransactionManifest, address } from '@radixdlt/radix-engine-toolkit';
+import {
+  type TransactionManifest,
+  address,
+} from '@radixdlt/radix-engine-toolkit';
 
-import { RadixBase } from '../utils/base.js';
+import { type RadixBase } from '../utils/base.js';
 import { INSTRUCTIONS } from '../utils/types.js';
 
 export async function getCreateValidatorAnnounceTx(

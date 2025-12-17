@@ -1,9 +1,9 @@
 import {
   EntityType,
-  TransactionManifest,
+  type TransactionManifest,
 } from '@radixdlt/radix-engine-toolkit';
 
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { type AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert, strip0x } from '@hyperlane-xyz/utils';
 
 import {
@@ -30,10 +30,10 @@ import {
 } from '../mailbox/mailbox-tx.js';
 import { RadixBaseSigner } from '../utils/signer.js';
 import {
-  Account,
-  RadixSDKOptions,
-  RadixSDKReceipt,
-  RadixSDKTransaction,
+  type Account,
+  type RadixSDKOptions,
+  type RadixSDKReceipt,
+  type RadixSDKTransaction,
 } from '../utils/types.js';
 import {
   generateNewEd25519VirtualAccount,

@@ -1,4 +1,4 @@
-import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
+import { type GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 import {
   address,
   decimal,
@@ -11,11 +11,11 @@ import { BigNumber } from 'bignumber.js';
 
 import { assert, strip0x } from '@hyperlane-xyz/utils';
 
-import { RadixBase } from '../utils/base.js';
-import { EntityDetails, INSTRUCTIONS } from '../utils/types.js';
+import { type RadixBase } from '../utils/base.js';
+import { type EntityDetails, INSTRUCTIONS } from '../utils/types.js';
 import { bytes } from '../utils/utils.js';
 
-import { RadixWarpQuery } from './query.js';
+import { type RadixWarpQuery } from './query.js';
 
 export class RadixWarpPopulate {
   protected gateway: GatewayApiClient;
