@@ -41,6 +41,10 @@ export interface TestChainMetadata extends ChainMetadataForAltVM {
   rpcUrl: string;
   restPort: number;
   gnosisSafeTransactionServiceUrl?: string;
+  gasPrice?: {
+    amount: string;
+    denom: string;
+  };
 }
 
 /**

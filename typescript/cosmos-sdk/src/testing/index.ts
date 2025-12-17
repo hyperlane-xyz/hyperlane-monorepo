@@ -11,3 +11,5 @@ export {
 
 // Node management
 export { runCosmosNode } from './node.js';
+
+export { createSignerWithPrivateKey } from './utils.js';
