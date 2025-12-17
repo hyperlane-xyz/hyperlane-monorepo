@@ -1,4 +1,4 @@
-import { Request, Response, Router } from 'express';
+import { type Request, type Response, Router } from 'express';
 import { z } from 'zod';
 
 import { WarpRouteFilterSchema } from '@hyperlane-xyz/registry';
@@ -8,7 +8,7 @@ import {
   validateQueryParams,
   validateRequestParam,
 } from '../middleware/validateRequest.js';
-import { WarpService } from '../services/warpService.js';
+import { type WarpService } from '../services/warpService.js';
 
 export function createWarpRouter(warpService: WarpService): Router {
   const router = Router();

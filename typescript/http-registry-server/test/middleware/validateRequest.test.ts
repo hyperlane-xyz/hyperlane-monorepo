@@ -1,6 +1,6 @@
 import { use as chaiUse, expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
-import { Request, Response } from 'express';
+import { type Request, type Response } from 'express';
 import sinon from 'sinon';
 import { z } from 'zod';
 

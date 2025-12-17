@@ -1,7 +1,7 @@
 import { hideBin } from 'yargs/helpers';
 import yargs from 'yargs/yargs';
 
-import { IRegistry } from '@hyperlane-xyz/registry';
+import { type IRegistry } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import { rootLogger } from '@hyperlane-xyz/utils';
 

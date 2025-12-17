@@ -1,7 +1,7 @@
-import express, { Express, Request, Response } from 'express';
+import express, { type Express, type Request, type Response } from 'express';
 import type { Logger } from 'pino';
 
-import { IRegistry } from '@hyperlane-xyz/registry';
+import { type IRegistry } from '@hyperlane-xyz/registry';
 import { createServiceLogger } from '@hyperlane-xyz/utils';
 
 import packageJson from './package.json' with { type: 'json' };

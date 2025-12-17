@@ -1,4 +1,4 @@
-import { Request, Response, Router } from 'express';
+import { type Request, type Response, Router } from 'express';
 
 import { UpdateChainSchema } from '@hyperlane-xyz/registry';
 import { ZChainName } from '@hyperlane-xyz/sdk';
@@ -8,7 +8,7 @@ import {
   validateBody,
   validateRequestParam,
 } from '../middleware/validateRequest.js';
-import { ChainService } from '../services/chainService.js';
+import { type ChainService } from '../services/chainService.js';
 
 export function createChainRouter(chainService: ChainService): Router {
   const router = Router();

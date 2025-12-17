@@ -1,9 +1,9 @@
-import { Request, Response, Router } from 'express';
+import { type Request, type Response, Router } from 'express';
 
 import { WarpRouteFilterSchema } from '@hyperlane-xyz/registry';
 
 import { validateQueryParams } from '../middleware/validateRequest.js';
-import { RootService } from '../services/rootService.js';
+import { type RootService } from '../services/rootService.js';
 
 export function createRootRouter(rootService: RootService): Router {
   const router = Router();

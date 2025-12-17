@@ -1,5 +1,5 @@
-import { NextFunction, Request, Response } from 'express';
-import { z } from 'zod';
+import { type NextFunction, type Request, type Response } from 'express';
+import { type z } from 'zod';
 import { fromZodError } from 'zod-validation-error';
 
 import { AppConstants } from '../constants/index.js';

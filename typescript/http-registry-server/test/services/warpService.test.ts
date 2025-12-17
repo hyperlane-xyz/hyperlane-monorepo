@@ -2,7 +2,7 @@ import { use as chaiUse, expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import sinon from 'sinon';
 
-import { PartialRegistry, WarpRouteId } from '@hyperlane-xyz/registry';
+import { PartialRegistry, type WarpRouteId } from '@hyperlane-xyz/registry';
 
 import { NotFoundError } from '../../src/errors/ApiError.js';
 import { RegistryService } from '../../src/services/registryService.js';

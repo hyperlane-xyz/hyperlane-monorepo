@@ -1,6 +1,6 @@
 import { use as chaiUse, expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
-import { Request } from 'express';
+import { type Request } from 'express';
 import sinon from 'sinon';
 
 import { AppConstants } from '../../src/constants/AppConstants.js';

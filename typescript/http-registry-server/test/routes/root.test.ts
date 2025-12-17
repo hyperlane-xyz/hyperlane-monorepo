@@ -1,11 +1,11 @@
 import { use as chaiUse, expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
-import express, { Express } from 'express';
+import express, { type Express } from 'express';
 import { pino } from 'pino';
 import sinon from 'sinon';
 import request from 'supertest';
 
-import { WarpRouteFilterParams } from '@hyperlane-xyz/registry';
+import { type WarpRouteFilterParams } from '@hyperlane-xyz/registry';
 
 import { AppConstants } from '../../src/constants/AppConstants.js';
 import { createErrorHandler } from '../../src/middleware/errorHandler.js';

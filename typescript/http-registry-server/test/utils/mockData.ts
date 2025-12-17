@@ -1,14 +1,14 @@
 import {
-  ChainAddresses,
-  RegistryContent,
-  WarpRouteConfigMap,
+  type ChainAddresses,
+  type RegistryContent,
+  type WarpRouteConfigMap,
 } from '@hyperlane-xyz/registry';
 import {
-  ChainMetadata,
+  type ChainMetadata,
   TokenStandard,
   TokenType,
-  WarpCoreConfig,
-  WarpRouteDeployConfig,
+  type WarpCoreConfig,
+  type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 

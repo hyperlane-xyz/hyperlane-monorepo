@@ -1,14 +1,17 @@
 import {
-  IRegistry,
-  WarpRouteFilterParams,
-  WarpRouteId,
+  type IRegistry,
+  type WarpRouteFilterParams,
+  type WarpRouteId,
 } from '@hyperlane-xyz/registry';
-import { WarpCoreConfig, WarpRouteDeployConfig } from '@hyperlane-xyz/sdk';
+import {
+  type WarpCoreConfig,
+  type WarpRouteDeployConfig,
+} from '@hyperlane-xyz/sdk';
 
 import { NotFoundError } from '../errors/ApiError.js';
 
 import { AbstractService } from './abstractService.js';
-import { RegistryService } from './registryService.js';
+import { type RegistryService } from './registryService.js';
 
 export class WarpService extends AbstractService {
   constructor(registryService: RegistryService) {

@@ -3,7 +3,7 @@ import chaiAsPromised from 'chai-as-promised';
 import { type Logger, pino } from 'pino';
 import sinon from 'sinon';
 
-import { IRegistry, PartialRegistry } from '@hyperlane-xyz/registry';
+import { type IRegistry, PartialRegistry } from '@hyperlane-xyz/registry';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { RegistryService } from '../../src/services/registryService.js';

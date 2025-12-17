@@ -1,7 +1,7 @@
-import { WarpRouteFilterParams } from '@hyperlane-xyz/registry';
+import { type WarpRouteFilterParams } from '@hyperlane-xyz/registry';
 
 import { AbstractService } from './abstractService.js';
-import { RegistryService } from './registryService.js';
+import { type RegistryService } from './registryService.js';
 
 export class RootService extends AbstractService {
   constructor(registryService: RegistryService) {

@@ -1,6 +1,6 @@
 import type { Logger } from 'pino';
 
-import { IRegistry } from '@hyperlane-xyz/registry';
+import { type IRegistry } from '@hyperlane-xyz/registry';
 
 export class RegistryService {
   private registry: IRegistry | null = null;

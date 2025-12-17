@@ -1,4 +1,4 @@
-import { NextFunction, Request, Response } from 'express';
+import { type NextFunction, type Request, type Response } from 'express';
 import type { Logger } from 'pino';
 
 import { AppConstants } from '../constants/AppConstants.js';
