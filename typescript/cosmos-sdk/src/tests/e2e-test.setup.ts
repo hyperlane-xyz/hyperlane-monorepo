@@ -13,9 +13,6 @@ before(async function () {
 });
 
 after(async function () {
-  // Might take a while shutting down the compose environment
-  this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
-
   if (cosmosNodeInstance) {
     await cosmosNodeInstance.stop();
   }
