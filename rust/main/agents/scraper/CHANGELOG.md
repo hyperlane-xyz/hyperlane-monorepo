@@ -1,3 +1,7 @@
+## [1.8.0] - 2025-12-15
+
+* feat(rust): feature-gate Aleo chain support to reduce CI build times (#7569)
+
 ## [1.6.0] - 2025-11-06
 
 * chore: deprecate cheesechain (#7307)

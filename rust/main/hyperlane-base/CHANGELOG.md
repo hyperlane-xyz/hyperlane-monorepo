@@ -1,3 +1,20 @@
+## [1.8.0] - 2025-12-15
+
+* feat(rust): feature-gate Aleo chain support to reduce CI build times (#7569)
+* feat: Aleo HyperlaneProvider (#7344)
+* feat: add relayer API endpoint to reset upper nonce for a given evm chain (#7372)
+* feat: aleo application verifier (#7400)
+* feat: aleo indexer (#7369)
+* feat: aleo ism (#7392)
+* feat: aleo mailbox (#7444)
+* feat: aleo metric provider (#7469)
+* feat: aleo signer (#7408)
+* feat: aleo tx submission (#7414)
+* feat: aleo validator announce (#7445)
+* feat: allow rpc header for starknet chains (#7605)
+* feat: crash loop even in the event `reorg_flag.json` is unparsable (#7464)
+* refactor: Remove duplication and move tests into separate files (#7357)
+
 ## [1.6.0] - 2025-11-06
 
 * chore: use lander for radix (#7144)

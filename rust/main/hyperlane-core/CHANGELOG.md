@@ -1,3 +1,9 @@
+## [1.8.0] - 2025-12-15
+
+* chore: aleo testnet deployment (#7589)
+* feat: crash loop even in the event `reorg_flag.json` is unparsable (#7464)
+* feat: dedupe sealevel transaction hashes (#7555)
+
 ## [1.6.0] - 2025-11-06
 
 * chore: deprecate chains from infra (#6850)
