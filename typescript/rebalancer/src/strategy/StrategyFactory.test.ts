@@ -4,13 +4,13 @@ import { pino } from 'pino';
 
 import {
   type ChainMap,
-  MinAmountStrategyConfig,
+  type MinAmountStrategyConfig,
   RebalancerMinAmountType,
   RebalancerStrategyOptions,
-  StrategyConfig,
+  type StrategyConfig,
   Token,
   TokenStandard,
-  WeightedStrategyConfig,
+  type WeightedStrategyConfig,
 } from '@hyperlane-xyz/sdk';
 
 import { MinAmountStrategy } from './MinAmountStrategy.js';

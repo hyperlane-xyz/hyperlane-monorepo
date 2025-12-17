@@ -2,20 +2,20 @@ import { stringify as yamlStringify } from 'yaml';
 
 import { GasAction } from '@hyperlane-xyz/provider-sdk';
 import {
-  ChainName,
-  DispatchedMessage,
+  type ChainName,
+  type DispatchedMessage,
   HyperlaneCore,
   MultiProtocolProvider,
   ProviderType,
-  Token,
+  type Token,
   TokenAmount,
   WarpCore,
-  WarpCoreConfig,
+  type WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
 import { parseWarpRouteMessage, timeout } from '@hyperlane-xyz/utils';
 
 import { EXPLORER_URL } from '../consts.js';
-import { WriteCommandContext } from '../context/types.js';
+import { type WriteCommandContext } from '../context/types.js';
 import { runPreflightChecksForChains } from '../deploy/utils.js';
 import { log, logBlue, logGreen, logRed } from '../logger.js';
 import { indentYamlOrJson } from '../utils/files.js';

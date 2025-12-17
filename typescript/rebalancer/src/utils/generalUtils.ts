@@ -1,4 +1,4 @@
-import { Logger } from 'pino';
+import { type Logger } from 'pino';
 
 export async function tryFn(
   fn: () => Promise<void>,
