@@ -5,7 +5,7 @@ use {
     },
     anyhow::anyhow,
     async_trait::async_trait,
-    dango_types::{account::spot, auth::Metadata},
+    dango_types::{account, auth::Metadata},
     futures_util::future::try_join_all,
     grug::{
         Addr, Binary, Block, BlockClient, BlockOutcome, BroadcastClient, BroadcastClientExt,
@@ -15,11 +15,9 @@ use {
     },
     grug_indexer_client::HttpClient,
     hyperlane_core::{
-        rpc_clients::{BlockNumberGetter, FallbackProvider},
-        BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, HyperlaneChain,
-        HyperlaneDomain, HyperlaneProvider, ReorgPeriod, TxnInfo, H256, H512, U256,
+        BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, H256, H512, HyperlaneChain, HyperlaneDomain, HyperlaneProvider, ReorgPeriod, TxnInfo, U256, rpc_clients::{BlockNumberGetter, FallbackProvider}
     },
-    serde::{de::DeserializeOwned, Serialize},
+    serde::{Serialize, de::DeserializeOwned},
     std::{
         ops::{Deref, DerefMut, RangeInclusive},
         str::FromStr,
@@ -121,10 +119,17 @@ impl DangoProvider {
         &self,
         msg: Message,
     ) -> ChainResult<hyperlane_core::TxCostEstimate> {
-        let tx = self.signer()?.r#use(self).await?.read().await.deref().unsigned_transaction(
-            NonEmpty::new_unchecked(vec![msg]),
-            &self.connection_conf.chain_id,
-        )?;
+        let tx = self
+            .signer()?
+            .r#use(self)
+            .await?
+            .read()
+            .await
+            .deref()
+            .unsigned_transaction(
+                NonEmpty::new_unchecked(vec![msg]),
+                &self.connection_conf.chain_id,
+            )?;
         let outcome = self.simulate(tx).await?;
 
         Ok(hyperlane_core::TxCostEstimate {
@@ -147,7 +152,7 @@ impl DangoProvider {
         let nonce = self
             .query_wasm_smart(
                 signer.r#use(self).await?.read().await.deref().address,
-                spot::QuerySeenNoncesRequest {},
+                account::single::QuerySeenNoncesRequest {},
                 None,
             )
             .await?
