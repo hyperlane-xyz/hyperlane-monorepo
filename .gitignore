@@ -41,3 +41,6 @@ yalc.lock
 **/warp-route-deployer-key.json
 **/key.json
 **/deployer-key.json
+
+# .yarn as we use pnpm now
+.yarn

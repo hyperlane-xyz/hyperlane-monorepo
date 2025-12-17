@@ -1,14 +1,14 @@
-use aleo_serialize_macro::aleo_serialize;
 use serde::{Deserialize, Serialize};
+use snarkvm::prelude::{MainnetV0, Network, Plaintext};
+use snarkvm_console_account::{Address, Itertools};
 
-use crate::utils::{aleo_hash_to_h256, bytes_to_u128_words};
-use crate::Plaintext;
+use aleo_serialize_macro::aleo_serialize;
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, utils::to_atto, HyperlaneMessage,
     InterchainGasPayment, MerkleTreeInsertion, H256, U256,
 };
-use snarkvm::prelude::{MainnetV0, Network};
-use snarkvm_console_account::{Address, Itertools};
+
+use crate::utils::{aleo_hash_to_h256, bytes_to_u128_words};
 
 /// Type alias for the Aleo network used throughout this codebase.
 ///

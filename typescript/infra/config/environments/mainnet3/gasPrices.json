@@ -7,6 +7,10 @@
     "amount": "1104.0",
     "decimals": 9
   },
+  "aleo": {
+    "amount": "0.00001",
+    "decimals": 1
+  },
   "ancient8": {
     "amount": "0.001000252",
     "decimals": 9
