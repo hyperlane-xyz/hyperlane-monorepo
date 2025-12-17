@@ -3,6 +3,7 @@ import * as chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import { Wallet } from 'ethers';
 
+import { runCosmosNode } from '@hyperlane-xyz/cosmos-sdk/testing';
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
@@ -35,7 +36,7 @@ import {
   getWarpDeployConfigPath,
   getWarpId,
 } from '../../constants.js';
-import { runCosmosNode, runEvmNode } from '../../nodes.js';
+import { runEvmNode } from '../../nodes.js';
 import { assertWarpRouteConfig } from '../../utils.js';
 
 chai.use(chaiAsPromised);
