@@ -106,4 +106,7 @@ export const chainOwners: ChainMap<OwnableConfig> = {
   radix: {
     owner: 'account_rdx1280taxhhnuek02y59yapsg4kjtux954qkyufpwmy4dlfcxdrjzr7fj',
   },
+  aleo: {
+    owner: 'TODO: configure aleo owner',
+  },
 };

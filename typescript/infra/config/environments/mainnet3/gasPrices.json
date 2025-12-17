@@ -7,6 +7,10 @@
     "amount": "1104.0",
     "decimals": 9
   },
+  "aleo": {
+    "amount": "0.00001",
+    "decimals": 1
+  },
   "ancient8": {
     "amount": "0.001000252",
     "decimals": 9
@@ -128,7 +132,7 @@
     "decimals": 1
   },
   "electroneum": {
-    "amount": "57.349384849",
+    "amount": "10.000000007",
     "decimals": 9
   },
   "endurance": {
@@ -152,7 +156,7 @@
     "decimals": 9
   },
   "flowmainnet": {
-    "amount": "0.1",
+    "amount": "10.038",
     "decimals": 9
   },
   "fluence": {
@@ -212,7 +216,7 @@
     "decimals": 9
   },
   "incentiv": {
-    "amount": "137.199999988",
+    "amount": "40001.0",
     "decimals": 9
   },
   "ink": {
@@ -428,7 +432,7 @@
     "decimals": 9
   },
   "shibarium": {
-    "amount": "1593.58",
+    "amount": "100.716488369",
     "decimals": 9
   },
   "solanamainnet": {
@@ -460,7 +464,7 @@
     "decimals": 1
   },
   "sophon": {
-    "amount": "8316.314493515",
+    "amount": "9916.508388529",
     "decimals": 9
   },
   "stable": {
@@ -524,7 +528,7 @@
     "decimals": 9
   },
   "viction": {
-    "amount": "0.25",
+    "amount": "2.5",
     "decimals": 9
   },
   "worldchain": {

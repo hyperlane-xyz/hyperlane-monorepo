@@ -1,7 +1,9 @@
 use std::{
+    collections::HashMap,
     fmt::Debug,
     ops::Deref,
     str::FromStr,
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -19,6 +21,7 @@ use snarkvm::{
     },
 };
 use snarkvm_console_account::{Address, PrivateKey};
+use tokio::sync::RwLock;
 use tracing::debug;
 
 use hyperlane_core::{
@@ -30,16 +33,22 @@ use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use crate::{
     provider::{fallback::FallbackHttpClient, HttpClient, ProvingClient, RpcClient},
     utils::{get_tx_id, to_h256},
-    AleoProviderForLander, AleoSigner, ConnectionConf, CurrentNetwork, FeeEstimate,
-    HyperlaneAleoError,
+    AleoSigner, ConnectionConf, CurrentNetwork, FeeEstimate, HyperlaneAleoError,
 };
 
 /// Aleo Http Client trait alias
 pub trait AleoClient: HttpClient + Clone + Debug + Send + Sync + 'static {}
 impl<T> AleoClient for T where T: HttpClient + Clone + Debug + Send + Sync + 'static {}
 
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+struct FeeEstimateCacheKey {
+    program_id: String,
+    function_name: String,
+    network_id: u16,
+}
+
 /// Aleo Rest Client. Generic over an underlying HttpClient to allow injection of a mock for testing.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct AleoProvider<C: AleoClient = FallbackHttpClient> {
     client: RpcClient<C>,
     domain: HyperlaneDomain,
@@ -47,9 +56,37 @@ pub struct AleoProvider<C: AleoClient = FallbackHttpClient> {
     proving_service: Option<ProvingClient<C>>,
     signer: Option<AleoSigner>,
     priority_fee_multiplier: f64,
+    estimate_cache: Arc<RwLock<HashMap<FeeEstimateCacheKey, FeeEstimate>>>,
+    mainnet_vm: Arc<VM<MainnetV0, ConsensusMemory<MainnetV0>>>,
+    testnet_vm: Arc<VM<TestnetV0, ConsensusMemory<TestnetV0>>>,
+    canary_vm: Arc<VM<CanaryV0, ConsensusMemory<CanaryV0>>>,
 }
 
-impl AleoProviderForLander for AleoProvider {}
+impl<C: AleoClient> std::fmt::Debug for AleoProvider<C> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AleoProvider")
+            .field("domain", &self.domain)
+            .field("network", &self.network)
+            .field(
+                "proving_service",
+                if self.proving_service.is_some() {
+                    &"Some(ProvingClient)"
+                } else {
+                    &"None"
+                },
+            )
+            .field(
+                "signer",
+                if self.signer.is_some() {
+                    &"Some(AleoSigner)"
+                } else {
+                    &"None"
+                },
+            )
+            .field("priority_fee_multiplier", &self.priority_fee_multiplier)
+            .finish()
+    }
+}
 
 impl AleoProvider<FallbackHttpClient> {
     /// Creates a new production AleoProvider
@@ -65,6 +102,7 @@ impl AleoProvider<FallbackHttpClient> {
                 conf.proving_service.clone(),
                 metrics.clone(),
                 chain.clone(),
+                conf.chain_id,
             )?;
             Some(ProvingClient::new(client))
         } else {
@@ -72,14 +110,29 @@ impl AleoProvider<FallbackHttpClient> {
         };
 
         Ok(Self {
-            client: RpcClient::new(FallbackHttpClient::new(conf.rpcs.clone(), metrics, chain)?),
+            client: RpcClient::new(FallbackHttpClient::new(
+                conf.rpcs.clone(),
+                metrics,
+                chain,
+                conf.chain_id,
+            )?),
             domain,
             network: conf.chain_id,
             proving_service,
             signer,
             priority_fee_multiplier: conf.priority_fee_multiplier,
+            estimate_cache: Default::default(),
+            mainnet_vm: get_vm()?,
+            testnet_vm: get_vm()?,
+            canary_vm: get_vm()?,
         })
     }
+}
+
+fn get_vm<N: Network>() -> ChainResult<Arc<VM<N, ConsensusMemory<N>>>> {
+    let store = ConsensusStore::open(StorageMode::Production).map_err(HyperlaneAleoError::from)?;
+    let vm: VM<N, ConsensusMemory<N>> = VM::from(store).map_err(HyperlaneAleoError::from)?;
+    Ok(Arc::new(vm))
 }
 
 impl<C: AleoClient> AleoProvider<C> {
@@ -96,8 +149,12 @@ impl<C: AleoClient> AleoProvider<C> {
             domain,
             network: chain_id,
             proving_service: None,
-            signer: signer,
+            signer,
             priority_fee_multiplier: 0.0,
+            estimate_cache: Default::default(),
+            mainnet_vm: get_vm().unwrap(),
+            testnet_vm: get_vm().unwrap(),
+            canary_vm: get_vm().unwrap(),
         }
     }
 
@@ -135,7 +192,10 @@ impl<C: AleoClient> AleoProvider<C> {
         }
 
         debug!("Getting program: {}", program_id);
-        let program = self.get_program(program_id).await?;
+        let latest_edition = self.get_latest_edition(program_id).await?;
+        let program = self
+            .get_program_by_edition(program_id, latest_edition)
+            .await?;
 
         for import in program.imports().keys() {
             let future = Box::pin(self.load_program(vm, import, depth.saturating_add(1)));
@@ -146,7 +206,7 @@ impl<C: AleoClient> AleoProvider<C> {
         let vm_process = vm.process();
         let mut process_guard = vm_process.write();
         process_guard
-            .add_program(&program)
+            .add_program_with_edition(&program, latest_edition)
             .map_err(HyperlaneAleoError::from)?;
 
         Ok(())
@@ -213,13 +273,13 @@ impl<C: AleoClient> AleoProvider<C> {
     }
 
     /// Internal helper: builds VM, loads program + imports, parses identifiers, and creates authorization.
-    async fn prepare_authorization_and_vm<N: Network, I, V>(
+    async fn prepare_authorization<N: Network, I, V>(
         &self,
         program_id: &str,
         function_name: &str,
         input: I,
+        vm: &VM<N, ConsensusMemory<N>>,
     ) -> ChainResult<(
-        VM<N, ConsensusMemory<N>>,
         Authorization<N>,
         ProgramID<N>,
         Identifier<N>,
@@ -231,18 +291,26 @@ impl<C: AleoClient> AleoProvider<C> {
         I::IntoIter: ExactSizeIterator,
         V: TryInto<Value<N>>,
     {
+        let start = Instant::now();
+        debug!(
+            "Preparing Authorization for: {}/{}",
+            program_id, function_name
+        );
         let program_id_parsed =
             ProgramID::<N>::from_str(program_id).map_err(HyperlaneAleoError::from)?;
         let function_name_parsed =
             Identifier::<N>::from_str(function_name).map_err(HyperlaneAleoError::from)?;
-        let store =
-            ConsensusStore::open(StorageMode::Production).map_err(HyperlaneAleoError::from)?;
-        let vm: VM<N, ConsensusMemory<N>> = VM::from(store).map_err(HyperlaneAleoError::from)?;
         let signer = self.get_signer()?;
         let private_key = signer.get_private_key()?;
         let mut rng = ChaCha20Rng::from_entropy();
         // Load program + dependencies.
-        self.load_program(&vm, &program_id_parsed, 0).await?;
+        self.load_program(vm, &program_id_parsed, 0).await?;
+
+        debug!(
+            "Loaded Program and dependencies in {:.2}s",
+            Instant::now().duration_since(start).as_secs_f32()
+        );
+
         // Create authorization.
         let authorization = vm
             .authorize(
@@ -257,8 +325,11 @@ impl<C: AleoClient> AleoProvider<C> {
         // Malicious authorization check
         self.malicious_authorization_check(program_id, &authorization)?;
 
+        debug!(
+            "Prepared Authorization in {:.2}s",
+            Instant::now().duration_since(start).as_secs_f32()
+        );
         Ok((
-            vm,
             authorization,
             program_id_parsed,
             function_name_parsed,
@@ -280,29 +351,26 @@ impl<C: AleoClient> AleoProvider<C> {
         program_id: &str,
         function_name: &str,
         input: I,
+        vm: &VM<N, ConsensusMemory<N>>,
     ) -> ChainResult<FeeEstimate>
     where
         I: IntoIterator<Item = V>,
         I::IntoIter: ExactSizeIterator,
         V: TryInto<Value<N>>,
     {
-        let (vm, authorization, program_id_parsed, function_name_parsed, _pk, _rng) = self
-            .prepare_authorization_and_vm::<N, I, V>(program_id, function_name, input)
+        let (authorization, program_id_parsed, function_name_parsed, _, _) = self
+            .prepare_authorization::<N, I, V>(program_id, function_name, input, vm)
             .await?;
         let base = self
             .calculate_function_costs::<N>(
-                &vm,
+                vm,
                 &authorization,
                 &program_id_parsed,
                 &function_name_parsed,
             )
             .await?;
         let priority = self.get_priority_fee(base);
-        Ok(FeeEstimate {
-            base_fee: base,
-            priority_fee: priority,
-            total_fee: base.saturating_add(priority),
-        })
+        Ok(FeeEstimate::new(base, priority))
     }
 
     /// Public estimation entrypoint selecting the network
@@ -316,30 +384,55 @@ impl<C: AleoClient> AleoProvider<C> {
         I: IntoIterator<Item = String>,
         I::IntoIter: ExactSizeIterator,
     {
-        match self.chain_id() {
+        let key = FeeEstimateCacheKey {
+            program_id: program_id.to_string(),
+            function_name: function_name.to_string(),
+            network_id: self.chain_id(),
+        };
+
+        {
+            let cache = self.estimate_cache.read().await;
+            let result = cache.get(&key);
+
+            if let Some(cached) = result {
+                debug!(
+                    "Using cached fee estimate for {program_id}/{function_name} on network {}",
+                    self.chain_id()
+                );
+                return Ok(cached.clone());
+            }
+        }
+
+        let result = match self.chain_id() {
             0 => {
-                self.estimate::<MainnetV0, _, _>(program_id, function_name, input)
+                self.estimate::<MainnetV0, _, _>(program_id, function_name, input, &self.mainnet_vm)
                     .await
             }
             1 => {
-                self.estimate::<TestnetV0, _, _>(program_id, function_name, input)
+                self.estimate::<TestnetV0, _, _>(program_id, function_name, input, &self.testnet_vm)
                     .await
             }
             2 => {
-                self.estimate::<CanaryV0, _, _>(program_id, function_name, input)
+                self.estimate::<CanaryV0, _, _>(program_id, function_name, input, &self.canary_vm)
                     .await
             }
             id => Err(HyperlaneAleoError::UnknownNetwork(id).into()),
-        }
+        }?;
+
+        let mut cache = self.estimate_cache.write().await;
+        cache.insert(key, result.clone());
+
+        Ok(result)
     }
 
-    /// Executes the transactions for the given network
+    /// Executes the transaction for the given network
     async fn execute<N: Network, I, V>(
         &self,
         program_id: &str,
         function_name: &str,
         input: I,
-    ) -> ChainResult<String>
+        vm: &VM<N, ConsensusMemory<N>>,
+    ) -> ChainResult<H512>
     where
         I: IntoIterator<Item = V>,
         I::IntoIter: ExactSizeIterator,
@@ -347,20 +440,22 @@ impl<C: AleoClient> AleoProvider<C> {
     {
         debug!("Creating ZK-Proof for: {}/{}", program_id, function_name);
         // Prepare VM + Authorization for execution.
-        let (vm, authorization, program_id_parsed, function_name_parsed, private_key, mut rng) =
-            self.prepare_authorization_and_vm::<N, I, V>(program_id, function_name, input)
-                .await?;
-        // Reuse cost calculation.
+        let (authorization, program_id_parsed, function_name_parsed, private_key, mut rng) = self
+            .prepare_authorization::<N, I, V>(program_id, function_name, input, vm)
+            .await?;
+
         let start = Instant::now();
+        // Calculate fees
         let base_fee = self
             .calculate_function_costs::<N>(
-                &vm,
+                vm,
                 &authorization,
                 &program_id_parsed,
                 &function_name_parsed,
             )
             .await?;
         let priority_fee = self.get_priority_fee(base_fee);
+
         // Authorize fee payment.
         let fee = vm
             .authorize_fee_public(
@@ -373,7 +468,6 @@ impl<C: AleoClient> AleoProvider<C> {
                 &mut rng,
             )
             .map_err(HyperlaneAleoError::from)?;
-        let time = Instant::now().duration_since(start);
 
         // Either use the proving service or generate the proof locally
         let transaction = match self.proving_service {
@@ -383,6 +477,7 @@ impl<C: AleoClient> AleoProvider<C> {
                 .map_err(HyperlaneAleoError::from)?),
         }?;
 
+        let time = Instant::now().duration_since(start);
         debug!("ZK Proof generation took: {:.2}s", time.as_secs_f32());
 
         let id = transaction.id();
@@ -394,11 +489,46 @@ impl<C: AleoClient> AleoProvider<C> {
             ))
             .into());
         }
-        Ok(output)
+
+        // Return transaction hash
+        let tx_hash = to_h256(id).map(|h| h.into())?;
+        Ok(tx_hash)
     }
 
-    /// Submits a transaction
+    /// Submits a transaction and returns the transaction ID immediately without waiting for confirmation
     pub async fn submit_tx<I>(
+        &self,
+        program_id: &str,
+        function_name: &str,
+        input: I,
+    ) -> ChainResult<H512>
+    where
+        I: IntoIterator<Item = String>,
+        I::IntoIter: ExactSizeIterator,
+    {
+        match self.chain_id() {
+            0 => {
+                // Mainnet
+                self.execute::<MainnetV0, _, _>(program_id, function_name, input, &self.mainnet_vm)
+                    .await
+            }
+            1 => {
+                // Testnet
+                self.execute::<TestnetV0, _, _>(program_id, function_name, input, &self.testnet_vm)
+                    .await
+            }
+            2 => {
+                // Canary
+                self.execute::<CanaryV0, _, _>(program_id, function_name, input, &self.canary_vm)
+                    .await
+            }
+            id => Err(HyperlaneAleoError::UnknownNetwork(id).into()),
+        }
+    }
+
+    /// Submits a transaction and waits for confirmation, returning the transaction outcome
+    /// This method polls for up to 30 seconds waiting for the transaction to be confirmed
+    pub async fn submit_tx_and_wait<I>(
         &self,
         program_id: &str,
         function_name: &str,
@@ -408,24 +538,7 @@ impl<C: AleoClient> AleoProvider<C> {
         I: IntoIterator<Item = String>,
         I::IntoIter: ExactSizeIterator,
     {
-        let hash = match self.chain_id() {
-            0 => {
-                // Mainnet
-                self.execute::<MainnetV0, _, _>(program_id, function_name, input)
-                    .await
-            }
-            1 => {
-                // Testnet
-                self.execute::<TestnetV0, _, _>(program_id, function_name, input)
-                    .await
-            }
-            2 => {
-                // Canary
-                self.execute::<CanaryV0, _, _>(program_id, function_name, input)
-                    .await
-            }
-            id => Err(HyperlaneAleoError::UnknownNetwork(id).into()),
-        }?;
+        let hash = self.submit_tx(program_id, function_name, input).await?;
 
         // Polling delay is the total amount of seconds to wait before we call a timeout
         const TIMEOUT_DELAY: u64 = 30;
@@ -434,7 +547,7 @@ impl<C: AleoClient> AleoProvider<C> {
         let mut attempt: usize = 0;
 
         let confirmed_tx = loop {
-            let result = self.get_transaction_status(&hash).await;
+            let result = self.get_confirmed_transaction(hash).await;
             match result {
                 Ok(confirmed) => {
                     break Ok::<ConfirmedTransaction<CurrentNetwork>, ChainCommunicationError>(

@@ -5,7 +5,7 @@ import { inCIMode, sleep } from '@hyperlane-xyz/utils';
 // Verifies if the IS_CI var is set and generates the correct prefix for running the command
 // in the current env
 export function localTestRunCmdPrefix() {
-  return inCIMode() ? [] : ['yarn', 'workspace', '@hyperlane-xyz/cli', 'run'];
+  return inCIMode() ? [] : ['pnpm', '--filter', '@hyperlane-xyz/cli', 'run'];
 }
 
 export enum KeyBoardKeys {

@@ -8,11 +8,11 @@ import {
   WarpRouteDeployConfigSchema,
 } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
+import { writeYaml } from '@hyperlane-xyz/utils/fs';
 
 import { awSafes } from '../../../config/environments/mainnet3/governance/safe/aw.js';
 import { getWarpConfig } from '../../../config/warp.js';
 import { Owner, determineGovernanceType } from '../../../src/governance.js';
-import { writeYamlAtPath } from '../../../src/utils/utils.js';
 import { getEnvironmentConfig } from '../../core-utils.js';
 
 const warpRouteId = 'oUSDT/production';
@@ -109,7 +109,7 @@ async function main() {
   rootLogger.info('Generated strategy:');
   rootLogger.info(yamlStringify(chainSubmissionStrategy, null, 2));
   rootLogger.info(`Wrote strategy to ${strategyFilePath}`);
-  writeYamlAtPath(strategyFilePath, chainSubmissionStrategy);
+  writeYaml(strategyFilePath, chainSubmissionStrategy);
 }
 
 main().catch((err) => rootLogger.error('Error:', err));

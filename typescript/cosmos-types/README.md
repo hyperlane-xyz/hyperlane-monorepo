@@ -9,8 +9,8 @@ It can be used inside an SDK for type support and for encoding and decoding the 
 # Install with NPM
 npm install @hyperlane-xyz/cosmos-types
 
-# Or with Yarn
-yarn add @hyperlane-xyz/cosmos-types
+# Or with pnpm
+pnpm add @hyperlane-xyz/cosmos-types
 ```
 
 ## Setup
@@ -19,7 +19,7 @@ Before contributing make sure docker is installed and running which is needed fo
 
 ## Contribute
 
-First you need to install the dependencies by running `yarn install`.
+First you need to install the dependencies by running `pnpm install`.
 
 ### Generating TS Types
 
@@ -34,4 +34,4 @@ After this command has finished the newly generated types can be found under `sr
 
 ### Building the project
 
-You can build the project with `yarn build`, the build output can be found under `dist`.
+You can build the project with `pnpm build`, the build output can be found under `dist`.

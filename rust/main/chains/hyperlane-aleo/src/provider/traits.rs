@@ -9,14 +9,14 @@ use snarkvm::ledger::{Block, ConfirmedTransaction};
 use snarkvm::prelude::{
     Authorization, Network, Plaintext, Program, ProgramID, StatePath, Transaction,
 };
-
 use snarkvm_console_account::Field;
 use tokio::runtime::Handle;
 use tokio::task::block_in_place;
 
 use aleo_serialize::AleoSerialize;
-use hyperlane_core::ChainResult;
+use hyperlane_core::{ChainResult, H512};
 
+use crate::utils::get_tx_id;
 use crate::{CurrentNetwork, HyperlaneAleoError, ProvingRequest, ProvingResponse};
 
 #[async_trait]
@@ -116,15 +116,21 @@ impl<Client: HttpClient> RpcClient<Client> {
         self.request(&format!("program/{program_id}"), None).await
     }
 
-    /// Gets a program by ID and edition
-    pub async fn get_program_by_edition(
+    pub async fn get_latest_edition<N: Network>(
         &self,
-        program_id: &str,
-        edition: u64,
-        metadata: Option<bool>,
-    ) -> ChainResult<String> {
-        let query = metadata.map(|m| serde_json::json!({ "metadata": m }));
-        self.request(&format!("program/{program_id}/{edition}"), query)
+        program_id: &ProgramID<N>,
+    ) -> ChainResult<u16> {
+        self.request(&format!("program/{program_id}/latest_edition"), None)
+            .await
+    }
+
+    /// Gets a program by ID and [edition]
+    pub async fn get_program_by_edition<N: Network>(
+        &self,
+        program_id: &ProgramID<N>,
+        edition: u16,
+    ) -> ChainResult<Program<N>> {
+        self.request(&format!("program/{program_id}/{edition}"), None)
             .await
     }
 
@@ -209,12 +215,23 @@ impl<Client: HttpClient> RpcClient<Client> {
             .await
     }
 
-    /// Gets a transaction by ID
-    pub async fn get_transaction_status(
+    /// Gets a confirmed transaction by ID
+    pub async fn get_confirmed_transaction(
         &self,
-        transaction_id: &str,
+        transaction_id: H512,
     ) -> ChainResult<ConfirmedTransaction<CurrentNetwork>> {
-        self.request(&format!("transaction/confirmed/{transaction_id}"), None)
+        let tx_id = get_tx_id::<CurrentNetwork>(transaction_id)?;
+        self.request(&format!("transaction/confirmed/{tx_id}"), None)
+            .await
+    }
+
+    /// Gets an unconfirmed transaction by ID from the mempool
+    pub async fn get_unconfirmed_transaction(
+        &self,
+        transaction_id: H512,
+    ) -> ChainResult<Transaction<CurrentNetwork>> {
+        let tx_id = crate::utils::get_tx_id::<CurrentNetwork>(transaction_id)?;
+        self.request(&format!("transaction/unconfirmed/{tx_id}"), None)
             .await
     }
 
@@ -250,7 +267,7 @@ impl<Client: HttpClient> ProvingClient<Client> {
         };
         let body = serde_json::to_value(request).map_err(HyperlaneAleoError::from)?;
 
-        let response: ProvingResponse = self.0.request_post("/prove", &body).await?;
+        let response: ProvingResponse = self.0.request_post("prove", &body).await?;
 
         Ok(
             serde_json::from_value::<Transaction<N>>(response.transaction)

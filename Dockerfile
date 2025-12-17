@@ -1,22 +1,23 @@
-FROM node:20-slim
+FROM node:20-alpine
 
 WORKDIR /hyperlane-monorepo
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    git g++ make python3 python3-pip jq bash curl ca-certificates unzip \
-    && rm -rf /var/lib/apt/lists/* \
-    && yarn set version 4.5.1
+RUN apk add --update --no-cache git g++ make py3-pip jq bash curl
 
-# Install Foundry for solidity builds (early for layer caching)
-RUN curl -L https://foundry.paradigm.xyz | bash
-RUN /root/.foundry/bin/foundryup
-ENV PATH="/root/.foundry/bin:${PATH}"
+# Install Foundry (Alpine binaries) - pinned version for reproducibility
+ARG FOUNDRY_VERSION
+ARG TARGETARCH
+RUN set -o pipefail && \
+    ARCH=$([ "$TARGETARCH" = "arm64" ] && echo "arm64" || echo "amd64") && \
+    curl --fail -L "https://github.com/foundry-rs/foundry/releases/download/${FOUNDRY_VERSION}/foundry_${FOUNDRY_VERSION}_alpine_${ARCH}.tar.gz" | tar -xzC /usr/local/bin forge cast
 
-# Copy package.json and friends
-COPY package.json yarn.lock .yarnrc.yml ./
-COPY .yarn/plugins ./.yarn/plugins
-COPY .yarn/releases ./.yarn/releases
-COPY .yarn/patches ./.yarn/patches
+# Copy package.json first for corepack to read packageManager field
+COPY package.json ./
+RUN corepack enable && corepack install
+
+# Copy remaining config files
+COPY pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY patches ./patches
 
 COPY typescript/aleo-sdk/package.json ./typescript/aleo-sdk/
 COPY typescript/ccip-server/package.json ./typescript/ccip-server/
@@ -40,7 +41,7 @@ COPY solidity/package.json ./solidity/
 COPY solhint-plugin/package.json ./solhint-plugin/
 COPY starknet/package.json ./starknet/
 
-RUN yarn install && yarn cache clean
+RUN pnpm install --frozen-lockfile && pnpm store prune
 
 # Copy everything else
 COPY turbo.json ./
@@ -49,7 +50,7 @@ COPY solidity ./solidity
 COPY solhint-plugin ./solhint-plugin
 COPY starknet ./starknet
 
-RUN yarn build
+RUN pnpm build
 
 # Baked-in registry version
 # keep for back-compat until we update all usage of the monorepo image (e.g. key-funder)
