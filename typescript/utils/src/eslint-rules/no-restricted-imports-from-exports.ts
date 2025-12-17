@@ -1,4 +1,4 @@
-import { Rule } from 'eslint';
+import { type Rule } from 'eslint';
 // eslint-disable-next-line no-restricted-imports
 import fs from 'fs';
 // eslint-disable-next-line no-restricted-imports

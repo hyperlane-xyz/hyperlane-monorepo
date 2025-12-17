@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { Rule } from 'eslint';
+import { type Rule } from 'eslint';
 
 import rule from './sort-yaml-arrays.js';
 

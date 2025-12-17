@@ -1,9 +1,9 @@
 import path from 'path';
 import {
-  DocumentOptions,
-  ParseOptions,
-  SchemaOptions,
-  ToJSOptions,
+  type DocumentOptions,
+  type ParseOptions,
+  type SchemaOptions,
+  type ToJSOptions,
   parse,
 } from 'yaml';
 

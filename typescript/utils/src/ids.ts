@@ -1,4 +1,4 @@
-import { BytesLike, utils } from 'ethers';
+import { type BytesLike, utils } from 'ethers';
 
 /**
  * Converts a 20-byte (or other length) ID to a 32-byte ID.

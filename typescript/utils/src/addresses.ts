@@ -10,7 +10,7 @@ import {
 } from 'starknet';
 
 import { isNullish } from './typeof.js';
-import { Address, HexString, ProtocolType } from './types.js';
+import { type Address, type HexString, ProtocolType } from './types.js';
 import { assert } from './validation.js';
 
 const EVM_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;

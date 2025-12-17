@@ -1,13 +1,13 @@
 import {
   Document,
-  Node as YamlNode,
+  type Node as YamlNode,
   parseDocument,
   parse as yamlParse,
 } from 'yaml';
 
 import { sortArrayByKey } from './arrays.js';
 import { rootLogger } from './logging.js';
-import { Result, failure, success } from './result.js';
+import { type Result, failure, success } from './result.js';
 
 export function tryParseJsonOrYaml<T = any>(input: string): Result<T> {
   try {

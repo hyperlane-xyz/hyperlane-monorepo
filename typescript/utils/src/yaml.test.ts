@@ -2,7 +2,7 @@
 import { expect } from 'chai';
 
 import {
-  ArraySortConfig,
+  type ArraySortConfig,
   sortNestedArrays,
   transformYaml,
   tryParseJsonOrYaml,

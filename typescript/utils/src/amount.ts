@@ -1,6 +1,6 @@
 import { formatUnits, parseUnits } from '@ethersproject/units';
 import { BigNumber } from 'bignumber.js';
-import { ethers } from 'ethers';
+import { type ethers } from 'ethers';
 
 const DEFAULT_DISPLAY_DECIMALS = 4;
 const DEFAULT_TOKEN_DECIMALS = 18;

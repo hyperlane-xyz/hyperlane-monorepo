@@ -1,10 +1,10 @@
 import { utils } from 'ethers';
 
 import {
-  Checkpoint,
-  S3Checkpoint,
-  S3CheckpointWithId,
-  SignatureLike,
+  type Checkpoint,
+  type S3Checkpoint,
+  type S3CheckpointWithId,
+  type SignatureLike,
 } from './types.js';
 
 export function isValidSignature(signature: any): signature is SignatureLike {

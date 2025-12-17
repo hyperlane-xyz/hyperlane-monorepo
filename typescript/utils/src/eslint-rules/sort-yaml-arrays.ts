@@ -1,7 +1,11 @@
-import { Rule } from 'eslint';
+import { type Rule } from 'eslint';
 import YAML from 'yaml';
 
-import { ArraySortConfig, sortNestedArrays, transformYaml } from '../yaml.js';
+import {
+  type ArraySortConfig,
+  sortNestedArrays,
+  transformYaml,
+} from '../yaml.js';
 
 export default {
   meta: {

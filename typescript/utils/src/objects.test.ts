@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 
 import {
-  TransformObjectTransformer,
+  type TransformObjectTransformer,
   arrayToObject,
   deepCopy,
   deepEquals,

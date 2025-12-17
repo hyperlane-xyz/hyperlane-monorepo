@@ -1,4 +1,4 @@
-import { WithAddress } from './types.js';
+import { type WithAddress } from './types.js';
 
 /**
  * Utilities for normalizing and comparing configuration objects.

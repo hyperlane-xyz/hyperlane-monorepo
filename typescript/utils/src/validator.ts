@@ -4,13 +4,13 @@ import { eqAddress } from './addresses.js';
 import { domainHash } from './domains.js';
 import { fromHexString, toHexString } from './strings.js';
 import {
-  Address,
-  Checkpoint,
-  CheckpointWithId,
-  HexString,
-  ReorgEvent,
-  S3CheckpointWithId,
-  SignatureLike,
+  type Address,
+  type Checkpoint,
+  type CheckpointWithId,
+  type HexString,
+  type ReorgEvent,
+  type S3CheckpointWithId,
+  type SignatureLike,
 } from './types.js';
 
 export interface ValidatorConfig {

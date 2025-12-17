@@ -1,5 +1,10 @@
 import { BigNumber } from 'ethers';
-import { LevelWithSilent, Logger, LoggerOptions, pino } from 'pino';
+import {
+  type LevelWithSilent,
+  type Logger,
+  type LoggerOptions,
+  pino,
+} from 'pino';
 
 import { inKubernetes, safelyAccessEnvVar } from './env.js';
 

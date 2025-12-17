@@ -1,13 +1,13 @@
-import { BigNumber, ethers, utils } from 'ethers';
+import { type BigNumber, ethers, utils } from 'ethers';
 
 import { addressToBytes32 } from './addresses.js';
 import { fromHexString, toHexString } from './strings.js';
 import {
-  Address,
-  Domain,
-  HexString,
-  ParsedMessage,
-  ParsedWarpRouteMessage,
+  type Address,
+  type Domain,
+  type HexString,
+  type ParsedMessage,
+  type ParsedWarpRouteMessage,
 } from './types.js';
 
 /**
