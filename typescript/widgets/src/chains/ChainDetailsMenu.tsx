@@ -1,15 +1,15 @@
 import { clsx } from 'clsx';
-import React, { PropsWithChildren, useEffect, useMemo, useState } from 'react';
+import React, { type PropsWithChildren, useEffect, useMemo, useState } from 'react';
 import { stringify as yamlStringify } from 'yaml';
 
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import {
-  ChainMetadata,
+  type ChainMetadata,
   isValidChainMetadata,
   mergeChainMetadata,
 } from '@hyperlane-xyz/sdk';
 import {
-  Result,
+  type Result,
   failure,
   isNullish,
   isUrl,

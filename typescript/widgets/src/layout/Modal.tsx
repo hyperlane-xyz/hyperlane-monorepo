@@ -5,7 +5,7 @@ import {
   DialogTitle,
 } from '@headlessui/react';
 import { clsx } from 'clsx';
-import React, { ComponentProps, PropsWithChildren, useState } from 'react';
+import React, { type ComponentProps, type PropsWithChildren, useState } from 'react';
 
 import { IconButton } from '../components/IconButton.js';
 import { XCircleIcon } from '../icons/XCircle.js';

@@ -1,4 +1,4 @@
-import { FC, SVGProps } from 'react';
+import { type FC, type SVGProps } from 'react';
 
 import { ProtocolType } from '@hyperlane-xyz/utils';
 

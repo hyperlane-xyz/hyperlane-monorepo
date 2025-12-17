@@ -1,5 +1,5 @@
-import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
-import { RadixDappToolkit } from '@radixdlt/radix-dapp-toolkit';
+import { type GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
+import { type RadixDappToolkit } from '@radixdlt/radix-dapp-toolkit';
 import { createContext } from 'react';
 
 export const GatewayApiContext = createContext<GatewayApiClient | null>(null);

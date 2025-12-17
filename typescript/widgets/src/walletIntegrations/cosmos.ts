@@ -6,27 +6,27 @@ import { useCallback, useMemo } from 'react';
 import { CosmosNativeSigner } from '@hyperlane-xyz/cosmos-sdk';
 import { cosmoshub } from '@hyperlane-xyz/registry';
 import {
-  ChainMetadata,
-  ChainName,
-  IToken,
-  MultiProtocolProvider,
+  type ChainMetadata,
+  type ChainName,
+  type IToken,
+  type MultiProtocolProvider,
   ProviderType,
-  TypedTransactionReceipt,
-  WarpTypedTransaction,
+  type TypedTransactionReceipt,
+  type WarpTypedTransaction,
   chainMetadataToCosmosChain,
 } from '@hyperlane-xyz/sdk';
-import { HexString, ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { type HexString, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { widgetLogger } from '../logger.js';
 
 import {
-  AccountInfo,
-  ActiveChainInfo,
-  ChainAddress,
-  ChainTransactionFns,
-  SwitchNetworkFns,
-  WalletDetails,
-  WatchAssetFns,
+  type AccountInfo,
+  type ActiveChainInfo,
+  type ChainAddress,
+  type ChainTransactionFns,
+  type SwitchNetworkFns,
+  type WalletDetails,
+  type WatchAssetFns,
 } from './types.js';
 import { getChainsForProtocol } from './utils.js';
 

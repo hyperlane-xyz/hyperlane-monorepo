@@ -1,6 +1,6 @@
 import React, {
-  ButtonHTMLAttributes,
-  PropsWithChildren,
+  type ButtonHTMLAttributes,
+  type PropsWithChildren,
   useState,
 } from 'react';
 

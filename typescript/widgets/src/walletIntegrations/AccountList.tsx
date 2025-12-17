@@ -1,8 +1,8 @@
 import { clsx } from 'clsx';
-import React, { ButtonHTMLAttributes } from 'react';
+import React, { type ButtonHTMLAttributes } from 'react';
 
-import { ChainName, MultiProtocolProvider } from '@hyperlane-xyz/sdk';
-import { ProtocolType, objKeys } from '@hyperlane-xyz/utils';
+import { type ChainName, type MultiProtocolProvider } from '@hyperlane-xyz/sdk';
+import { type ProtocolType, objKeys } from '@hyperlane-xyz/utils';
 
 import { Button } from '../components/Button.js';
 import { IconButton } from '../components/IconButton.js';
@@ -19,7 +19,7 @@ import {
   useWalletDetails,
 } from '../walletIntegrations/multiProtocol.js';
 
-import { AccountInfo, WalletDetails } from './types.js';
+import { type AccountInfo, type WalletDetails } from './types.js';
 
 const logger = widgetLogger.child({ module: 'walletIntegrations/AccountList' });
 

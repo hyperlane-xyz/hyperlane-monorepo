@@ -1,4 +1,4 @@
-import { Chain } from '@starknet-react/chains';
+import { type Chain } from '@starknet-react/chains';
 import {
   useAccount,
   useConnect,
@@ -8,16 +8,19 @@ import {
   useSwitchChain,
 } from '@starknet-react/core';
 import { useCallback, useMemo } from 'react';
-import { Call } from 'starknet';
-import { StarknetkitConnector, useStarknetkitConnectModal } from 'starknetkit';
+import { type Call } from 'starknet';
+import {
+  type StarknetkitConnector,
+  useStarknetkitConnectModal,
+} from 'starknetkit';
 
 import {
-  ChainName,
-  IToken,
-  MultiProtocolProvider,
+  type ChainName,
+  type IToken,
+  type MultiProtocolProvider,
   ProviderType,
-  TypedTransactionReceipt,
-  WarpTypedTransaction,
+  type TypedTransactionReceipt,
+  type WarpTypedTransaction,
   chainMetadataToStarknetChain,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert, sleep } from '@hyperlane-xyz/utils';
@@ -25,12 +28,12 @@ import { ProtocolType, assert, sleep } from '@hyperlane-xyz/utils';
 import { widgetLogger } from '../logger.js';
 
 import {
-  AccountInfo,
-  ActiveChainInfo,
-  ChainTransactionFns,
-  SwitchNetworkFns,
-  WalletDetails,
-  WatchAssetFns,
+  type AccountInfo,
+  type ActiveChainInfo,
+  type ChainTransactionFns,
+  type SwitchNetworkFns,
+  type WalletDetails,
+  type WatchAssetFns,
 } from './types.js';
 import { getChainsForProtocol } from './utils.js';
 

@@ -7,18 +7,18 @@ import {
   watchAsset,
 } from '@wagmi/core';
 import { useCallback, useMemo } from 'react';
-import { Chain as ViemChain } from 'viem';
+import { type Chain as ViemChain } from 'viem';
 import { useAccount, useConfig, useDisconnect } from 'wagmi';
 
 import {
-  ChainName,
-  EvmHypXERC20LockboxAdapter,
-  IToken,
+  type ChainName,
+  type EvmHypXERC20LockboxAdapter,
+  type IToken,
   LOCKBOX_STANDARDS,
-  MultiProtocolProvider,
+  type MultiProtocolProvider,
   ProviderType,
-  TypedTransactionReceipt,
-  WarpTypedTransaction,
+  type TypedTransactionReceipt,
+  type WarpTypedTransaction,
   chainMetadataToViemChain,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert, sleep } from '@hyperlane-xyz/utils';
@@ -26,12 +26,12 @@ import { ProtocolType, assert, sleep } from '@hyperlane-xyz/utils';
 import { widgetLogger } from '../logger.js';
 
 import {
-  AccountInfo,
-  ActiveChainInfo,
-  ChainTransactionFns,
-  SwitchNetworkFns,
-  WalletDetails,
-  WatchAssetFns,
+  type AccountInfo,
+  type ActiveChainInfo,
+  type ChainTransactionFns,
+  type SwitchNetworkFns,
+  type WalletDetails,
+  type WatchAssetFns,
 } from './types.js';
 import { ethers5TxToWagmiTx, getChainsForProtocol } from './utils.js';
 

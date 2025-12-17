@@ -7,7 +7,7 @@ import { LockIcon } from '../icons/Lock.js';
 import { ShieldIcon } from '../icons/Shield.js';
 import { WideChevronIcon } from '../icons/WideChevron.js';
 
-import { MessageStatus, MessageStage as Stage, StageTimings } from './types.js';
+import { MessageStatus, MessageStage as Stage, type StageTimings } from './types.js';
 
 interface Props {
   status: MessageStatus;

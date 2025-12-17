@@ -1,6 +1,6 @@
 import { clsx } from 'clsx';
-import React, { AnchorHTMLAttributes } from 'react';
-import { PlacesType, Tooltip as ReactTooltip } from 'react-tooltip';
+import React, { type AnchorHTMLAttributes } from 'react';
+import { type PlacesType, Tooltip as ReactTooltip } from 'react-tooltip';
 
 import { Circle } from '../icons/Circle.js';
 import { QuestionMarkIcon } from '../icons/QuestionMark.js';

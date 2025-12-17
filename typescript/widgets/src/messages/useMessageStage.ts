@@ -10,9 +10,9 @@ import { useInterval } from '../utils/timeout.js';
 
 import {
   MessageStatus,
-  PartialMessage,
+  type PartialMessage,
   MessageStage as Stage,
-  StageTimings,
+  type StageTimings,
 } from './types.js';
 
 const logger = widgetLogger.child({ module: 'useMessageStage' });

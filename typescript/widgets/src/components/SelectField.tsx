@@ -1,4 +1,4 @@
-import React, { ChangeEvent } from 'react';
+import React, { type ChangeEvent } from 'react';
 
 export type SelectOption = {
   display: string;

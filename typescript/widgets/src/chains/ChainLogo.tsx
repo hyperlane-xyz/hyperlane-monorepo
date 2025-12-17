@@ -1,4 +1,4 @@
-import React, { ReactElement, useEffect, useState } from 'react';
+import React, { type ReactElement, useEffect, useState } from 'react';
 
 import type { IRegistry } from '@hyperlane-xyz/registry';
 

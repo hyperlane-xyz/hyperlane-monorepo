@@ -1,7 +1,7 @@
 import React, { memo } from 'react';
 
 import { ColorPalette } from '../color.js';
-import { DefaultIconProps } from '../icons/types.js';
+import { type DefaultIconProps } from '../icons/types.js';
 
 function _HyperlaneLogo({ color, ...rest }: DefaultIconProps) {
   return (

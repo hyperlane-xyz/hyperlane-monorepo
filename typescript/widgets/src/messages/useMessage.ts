@@ -5,7 +5,7 @@ import { widgetLogger } from '../logger.js';
 import { executeExplorerQuery } from '../utils/explorers.js';
 import { useInterval } from '../utils/timeout.js';
 
-import { ApiMessage, MessageStatus } from './types.js';
+import { type ApiMessage, MessageStatus } from './types.js';
 
 const logger = widgetLogger.child({ module: 'useMessage' });
 

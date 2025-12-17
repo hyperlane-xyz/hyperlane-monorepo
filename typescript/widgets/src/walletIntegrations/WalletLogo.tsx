@@ -4,7 +4,7 @@ import { WalletIcon } from '../icons/Wallet.js';
 import { BinanceLogo } from '../logos/Binance.js';
 import { WalletConnectLogo } from '../logos/WalletConnect.js';
 
-import { WalletDetails } from './types.js';
+import { type WalletDetails } from './types.js';
 
 export function WalletLogo({
   walletDetails,

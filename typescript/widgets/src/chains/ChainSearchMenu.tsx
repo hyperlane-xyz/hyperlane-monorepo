@@ -1,9 +1,9 @@
 import React, { useCallback, useMemo, useState } from 'react';
 
 import {
-  ChainMap,
-  ChainMetadata,
-  ChainName,
+  type ChainMap,
+  type ChainMetadata,
+  type ChainName,
   ChainStatus,
   mergeChainMetadataMap,
 } from '@hyperlane-xyz/sdk';
@@ -12,7 +12,7 @@ import { ProtocolType, objMap } from '@hyperlane-xyz/utils';
 import {
   SearchMenu,
   SortOrderOption,
-  SortState,
+  type SortState,
 } from '../components/SearchMenu.js';
 import { SegmentedControl } from '../components/SegmentedControl.js';
 

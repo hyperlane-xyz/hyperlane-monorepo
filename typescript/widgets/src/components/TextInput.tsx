@@ -1,4 +1,4 @@
-import React, { ChangeEvent, InputHTMLAttributes, forwardRef } from 'react';
+import React, { type ChangeEvent, type InputHTMLAttributes, forwardRef } from 'react';
 
 export type InputProps = Omit<
   InputHTMLAttributes<HTMLInputElement>,

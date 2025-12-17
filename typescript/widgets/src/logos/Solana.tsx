@@ -1,4 +1,4 @@
-import React, { SVGProps, memo } from 'react';
+import React, { type SVGProps, memo } from 'react';
 
 function _SolanaLogo(props: SVGProps<SVGSVGElement>) {
   return (

@@ -1,4 +1,4 @@
-import React, { PropsWithChildren, useEffect, useState } from 'react';
+import React, { type PropsWithChildren, useEffect, useState } from 'react';
 
 export function Fade(props: PropsWithChildren<{ show: boolean }>) {
   const { show, children } = props;

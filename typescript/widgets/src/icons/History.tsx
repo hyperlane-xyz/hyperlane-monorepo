@@ -2,7 +2,7 @@ import React, { memo } from 'react';
 
 import { ColorPalette } from '../color.js';
 
-import { DefaultIconProps } from './types.js';
+import { type DefaultIconProps } from './types.js';
 
 function _HistoryIcon({ color, ...rest }: DefaultIconProps) {
   return (

@@ -4,24 +4,24 @@ import { Connection } from '@solana/web3.js';
 import { useCallback, useMemo } from 'react';
 
 import {
-  ChainName,
-  IToken,
-  MultiProtocolProvider,
+  type ChainName,
+  type IToken,
+  type MultiProtocolProvider,
   ProviderType,
-  TypedTransactionReceipt,
-  WarpTypedTransaction,
+  type TypedTransactionReceipt,
+  type WarpTypedTransaction,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { widgetLogger } from '../logger.js';
 
 import {
-  AccountInfo,
-  ActiveChainInfo,
-  ChainTransactionFns,
-  SwitchNetworkFns,
-  WalletDetails,
-  WatchAssetFns,
+  type AccountInfo,
+  type ActiveChainInfo,
+  type ChainTransactionFns,
+  type SwitchNetworkFns,
+  type WalletDetails,
+  type WatchAssetFns,
 } from './types.js';
 import { findChainByRpcUrl } from './utils.js';
 

@@ -3,13 +3,13 @@ import React, { useState } from 'react';
 
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import {
-  ChainMap,
-  ChainMetadata,
+  type ChainMap,
+  type ChainMetadata,
   ChainMetadataSchema,
   MultiProtocolProvider,
 } from '@hyperlane-xyz/sdk';
 import {
-  Result,
+  type Result,
   failure,
   success,
   tryParseJsonOrYaml,

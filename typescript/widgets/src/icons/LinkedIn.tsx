@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 
-import { DefaultIconProps } from './types.js';
+import { type DefaultIconProps } from './types.js';
 
 function _Linkedin({ color, ...rest }: DefaultIconProps) {
   return (

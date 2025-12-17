@@ -4,7 +4,7 @@ import {
   Popover as _Popover,
 } from '@headlessui/react';
 import { clsx } from 'clsx';
-import React, { ComponentProps, ReactNode } from 'react';
+import React, { type ComponentProps, type ReactNode } from 'react';
 
 export type PopoverProps = {
   button: ReactNode;

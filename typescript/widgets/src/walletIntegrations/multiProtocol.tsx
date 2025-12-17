@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
 
 import { cosmoshub } from '@hyperlane-xyz/registry';
-import { ChainName, MultiProtocolProvider } from '@hyperlane-xyz/sdk';
-import { Address, HexString, ProtocolType } from '@hyperlane-xyz/utils';
+import { type ChainName, type MultiProtocolProvider } from '@hyperlane-xyz/sdk';
+import { type Address, type HexString, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { widgetLogger } from '../logger.js';
 
@@ -52,11 +52,11 @@ import {
   useStarknetWatchAsset,
 } from './starknet.js';
 import {
-  AccountInfo,
-  ActiveChainInfo,
-  ChainTransactionFns,
-  WalletDetails,
-  WatchAssetFns,
+  type AccountInfo,
+  type ActiveChainInfo,
+  type ChainTransactionFns,
+  type WalletDetails,
+  type WatchAssetFns,
 } from './types.js';
 
 const logger = widgetLogger.child({

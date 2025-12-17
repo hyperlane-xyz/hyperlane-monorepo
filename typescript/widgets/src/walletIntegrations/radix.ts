@@ -4,14 +4,14 @@ import {
 } from '@radixdlt/radix-dapp-toolkit';
 import { useCallback, useMemo } from 'react';
 
-import { RadixSDKTransaction } from '@hyperlane-xyz/radix-sdk';
+import { type RadixSDKTransaction } from '@hyperlane-xyz/radix-sdk';
 import {
-  ChainName,
-  IToken,
-  MultiProtocolProvider,
-  ProviderType,
-  TypedTransactionReceipt,
-  WarpTypedTransaction,
+  type ChainName,
+  type IToken,
+  type MultiProtocolProvider,
+  type ProviderType,
+  type TypedTransactionReceipt,
+  type WarpTypedTransaction,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert, retryAsync } from '@hyperlane-xyz/utils';
 
@@ -20,12 +20,12 @@ import { usePopup } from './radix/RadixProviders.js';
 import { useGatewayApi } from './radix/hooks/useGatewayApi.js';
 import { useRdt } from './radix/hooks/useRdt.js';
 import {
-  AccountInfo,
-  ActiveChainInfo,
-  ChainTransactionFns,
-  SwitchNetworkFns,
-  WalletDetails,
-  WatchAssetFns,
+  type AccountInfo,
+  type ActiveChainInfo,
+  type ChainTransactionFns,
+  type SwitchNetworkFns,
+  type WalletDetails,
+  type WatchAssetFns,
 } from './types.js';
 
 export function useRadixAccount(

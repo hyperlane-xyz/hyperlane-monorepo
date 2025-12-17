@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import {
-  ChainMetadata,
+  type ChainMetadata,
   isBlockExplorerHealthy,
   isRpcHealthy,
 } from '@hyperlane-xyz/sdk';

@@ -1,5 +1,5 @@
 import { clsx } from 'clsx';
-import React, { ButtonHTMLAttributes, PropsWithChildren } from 'react';
+import React, { type ButtonHTMLAttributes, type PropsWithChildren } from 'react';
 
 type Props = PropsWithChildren<ButtonHTMLAttributes<HTMLButtonElement>> & {
   width?: number;

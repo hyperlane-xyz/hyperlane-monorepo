@@ -1,4 +1,4 @@
-import React, { Component, PropsWithChildren, ReactNode } from 'react';
+import React, { Component, type PropsWithChildren, type ReactNode } from 'react';
 
 import { errorToString } from '@hyperlane-xyz/utils';
 

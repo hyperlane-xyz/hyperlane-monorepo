@@ -1,11 +1,14 @@
-import { SendTransactionParameters } from '@wagmi/core';
+import { type SendTransactionParameters } from '@wagmi/core';
 import {
-  PopulatedTransaction as Ethers5Transaction,
+  type PopulatedTransaction as Ethers5Transaction,
   BigNumber as EthersBN,
 } from 'ethers';
 
-import { ChainMetadata, MultiProtocolProvider } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import {
+  type ChainMetadata,
+  type MultiProtocolProvider,
+} from '@hyperlane-xyz/sdk';
+import { type ProtocolType } from '@hyperlane-xyz/utils';
 
 export function ethers5TxToWagmiTx(
   tx: Ethers5Transaction,

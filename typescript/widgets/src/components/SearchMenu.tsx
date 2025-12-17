@@ -1,6 +1,6 @@
 import { clsx } from 'clsx';
 import React, {
-  ComponentType,
+  type ComponentType,
   forwardRef,
   useCallback,
   useEffect,
@@ -21,7 +21,7 @@ import { DropdownMenu } from '../layout/DropdownMenu.js';
 import { Popover } from '../layout/Popover.js';
 
 import { IconButton } from './IconButton.js';
-import { InputProps, TextInput } from './TextInput.js';
+import { type InputProps, TextInput } from './TextInput.js';
 
 export interface SearchMenuProps<
   ListItemData extends { disabled?: boolean },
