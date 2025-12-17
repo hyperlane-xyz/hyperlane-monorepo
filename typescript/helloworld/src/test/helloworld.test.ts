@@ -1,20 +1,20 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
+import { type SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import hre from 'hardhat';
 
 import {
-  ChainMap,
+  type ChainMap,
   HyperlaneIsmFactory,
   HyperlaneProxyFactoryDeployer,
   MultiProvider,
   TestChainName,
-  TestCoreApp,
+  type TestCoreApp,
   TestCoreDeployer,
 } from '@hyperlane-xyz/sdk';
 
-import { HelloWorldConfig } from '../deploy/config.js';
+import { type HelloWorldConfig } from '../deploy/config.js';
 import { HelloWorldDeployer } from '../deploy/deploy.js';
-import { HelloWorld } from '../types/index.js';
+import { type HelloWorld } from '../types/index.js';
 
 describe('HelloWorld', async () => {
   const localChain = TestChainName.test1;

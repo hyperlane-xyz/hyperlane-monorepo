@@ -1,17 +1,17 @@
 import {
-  ChainMap,
-  ChainName,
+  type ChainMap,
+  type ChainName,
   MultiProtocolRouterApp,
-  RouterAddress,
-  TypedTransaction,
+  type RouterAddress,
+  type TypedTransaction,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType } from '@hyperlane-xyz/utils';
+import { type Address, ProtocolType } from '@hyperlane-xyz/utils';
 
-import { StatCounts } from '../app/types.js';
+import { type StatCounts } from '../app/types.js';
 
 import { EvmHelloWorldAdapter } from './evmAdapter.js';
 import { SealevelHelloWorldAdapter } from './sealevelAdapter.js';
-import { IHelloWorldAdapter } from './types.js';
+import { type IHelloWorldAdapter } from './types.js';
 
 export class HelloMultiProtocolApp extends MultiProtocolRouterApp<
   IHelloWorldAdapter,

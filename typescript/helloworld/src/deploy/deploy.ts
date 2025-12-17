@@ -1,18 +1,21 @@
 import { ethers } from 'ethers';
 
 import {
-  ChainName,
-  ContractVerifier,
-  HyperlaneContracts,
-  HyperlaneIsmFactory,
+  type ChainName,
+  type ContractVerifier,
+  type HyperlaneContracts,
+  type HyperlaneIsmFactory,
   HyperlaneRouterDeployer,
-  MultiProvider,
+  type MultiProvider,
 } from '@hyperlane-xyz/sdk';
 
-import { HelloWorldFactories, helloWorldFactories } from '../app/contracts.js';
-import { HelloWorld } from '../types/index.js';
+import {
+  type HelloWorldFactories,
+  helloWorldFactories,
+} from '../app/contracts.js';
+import { type HelloWorld } from '../types/index.js';
 
-import { HelloWorldConfig } from './config.js';
+import { type HelloWorldConfig } from './config.js';
 
 export class HelloWorldDeployer extends HyperlaneRouterDeployer<
   HelloWorldConfig,

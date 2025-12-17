@@ -1,5 +1,5 @@
 import { chainMetadata } from '@hyperlane-xyz/registry';
-import { RouterConfig } from '@hyperlane-xyz/sdk';
+import { type RouterConfig } from '@hyperlane-xyz/sdk';
 
 export type HelloWorldConfig = RouterConfig;
 

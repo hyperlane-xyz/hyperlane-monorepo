@@ -1,20 +1,24 @@
-import { BigNumber, ethers } from 'ethers';
+import { type BigNumber, type ethers } from 'ethers';
 
 import {
-  ChainMap,
-  ChainName,
-  HyperlaneContracts,
-  HyperlaneContractsMap,
-  HyperlaneCore,
-  MultiProvider,
+  type ChainMap,
+  type ChainName,
+  type HyperlaneContracts,
+  type HyperlaneContractsMap,
+  type HyperlaneCore,
+  type MultiProvider,
   RouterApp,
 } from '@hyperlane-xyz/sdk';
-import { Address, addBufferToGasLimit, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  type Address,
+  addBufferToGasLimit,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
-import { HelloWorld } from '../types/index.js';
+import { type HelloWorld } from '../types/index.js';
 
-import { HelloWorldFactories } from './contracts.js';
-import { StatCounts } from './types.js';
+import { type HelloWorldFactories } from './contracts.js';
+import { type StatCounts } from './types.js';
 
 export class HelloWorldApp extends RouterApp<HelloWorldFactories> {
   constructor(

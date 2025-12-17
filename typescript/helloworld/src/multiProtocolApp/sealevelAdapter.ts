@@ -1,5 +1,5 @@
 import {
-  AccountMeta,
+  type AccountMeta,
   Keypair,
   PublicKey,
   SystemProgram,
@@ -9,8 +9,8 @@ import {
 import { deserializeUnchecked, serialize } from 'borsh';
 
 import {
-  ChainName,
-  MultiProtocolProvider,
+  type ChainName,
+  type MultiProtocolProvider,
   ProviderType,
   SEALEVEL_SPL_NOOP_ADDRESS,
   SealevelAccountDataWrapper,
@@ -19,12 +19,12 @@ import {
   SealevelInterchainGasPaymasterConfig,
   SealevelInterchainGasPaymasterConfigSchema,
   SealevelRouterAdapter,
-  SolanaWeb3Transaction,
+  type SolanaWeb3Transaction,
   getSealevelAccountDataSchema,
 } from '@hyperlane-xyz/sdk';
-import { Address, Domain } from '@hyperlane-xyz/utils';
+import { type Address, type Domain } from '@hyperlane-xyz/utils';
 
-import { IHelloWorldAdapter } from './types.js';
+import { type IHelloWorldAdapter } from './types.js';
 
 export class SealevelHelloWorldAdapter
   extends SealevelRouterAdapter

@@ -1,17 +1,17 @@
 import { BigNumber, ethers } from 'ethers';
 
 import {
-  ChainName,
-  EthersV5Transaction,
+  type ChainName,
+  type EthersV5Transaction,
   EvmRouterAdapter,
-  MultiProtocolProvider,
+  type MultiProtocolProvider,
   ProviderType,
 } from '@hyperlane-xyz/sdk';
-import { Address, addBufferToGasLimit } from '@hyperlane-xyz/utils';
+import { type Address, addBufferToGasLimit } from '@hyperlane-xyz/utils';
 
-import { HelloWorld, HelloWorld__factory } from '../types/index.js';
+import { type HelloWorld, HelloWorld__factory } from '../types/index.js';
 
-import { IHelloWorldAdapter } from './types.js';
+import { type IHelloWorldAdapter } from './types.js';
 
 export class EvmHelloWorldAdapter
   extends EvmRouterAdapter

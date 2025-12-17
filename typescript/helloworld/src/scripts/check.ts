@@ -1,6 +1,6 @@
 import { chainAddresses } from '@hyperlane-xyz/registry';
 import {
-  ChainMap,
+  type ChainMap,
   HyperlaneCore,
   MultiProvider,
   attachContractsMap,

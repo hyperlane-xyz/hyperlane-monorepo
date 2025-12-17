@@ -2,19 +2,19 @@ import '@nomiclabs/hardhat-waffle';
 import hre from 'hardhat';
 
 import {
-  ChainMap,
-  HyperlaneContractsMap,
+  type ChainMap,
+  type HyperlaneContractsMap,
   HyperlaneIsmFactory,
   HyperlaneProxyFactoryDeployer,
   MultiProvider,
-  TestCoreApp,
+  type TestCoreApp,
   TestCoreDeployer,
 } from '@hyperlane-xyz/sdk';
 
 import { HelloWorldApp } from '../app/app.js';
-import { HelloWorldFactories } from '../app/contracts.js';
+import { type HelloWorldFactories } from '../app/contracts.js';
 import { HelloWorldChecker } from '../deploy/check.js';
-import { HelloWorldConfig } from '../deploy/config.js';
+import { type HelloWorldConfig } from '../deploy/config.js';
 import { HelloWorldDeployer } from '../deploy/deploy.js';
 
 describe('deploy', async () => {
