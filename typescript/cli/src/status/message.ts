@@ -1,9 +1,13 @@
 import type { TransactionReceipt } from '@ethersproject/providers';
 import { input } from '@inquirer/prompts';
 
-import { ChainName, HyperlaneCore, HyperlaneRelayer } from '@hyperlane-xyz/sdk';
+import {
+  type ChainName,
+  HyperlaneCore,
+  HyperlaneRelayer,
+} from '@hyperlane-xyz/sdk';
 
-import { WriteCommandContext } from '../context/types.js';
+import { type WriteCommandContext } from '../context/types.js';
 import { log, logBlue, logGreen, logRed } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import { stubMerkleTreeConfig } from '../utils/relay.js';

@@ -1,10 +1,10 @@
-import { Logger } from 'pino';
+import { type Logger } from 'pino';
 
 import { type ChainMap, type Token, WarpCore } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import type { WriteCommandContext } from '../../context/types.js';
-import { RebalancerConfig } from '../config/RebalancerConfig.js';
+import { type RebalancerConfig } from '../config/RebalancerConfig.js';
 import { Rebalancer } from '../core/Rebalancer.js';
 import { WithSemaphore } from '../core/WithSemaphore.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';

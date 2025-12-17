@@ -2,9 +2,9 @@ import { expect } from 'chai';
 import { pino } from 'pino';
 import sinon from 'sinon';
 
-import { ChainName, Token, TokenStandard } from '@hyperlane-xyz/sdk';
+import { type ChainName, type Token, TokenStandard } from '@hyperlane-xyz/sdk';
 
-import { MonitorEvent } from '../interfaces/IMonitor.js';
+import { type MonitorEvent } from '../interfaces/IMonitor.js';
 
 import { getRawBalances } from './balanceUtils.js';
 

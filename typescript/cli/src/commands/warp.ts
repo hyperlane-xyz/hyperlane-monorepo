@@ -1,9 +1,9 @@
 import util from 'util';
 import { stringify as yamlStringify } from 'yaml';
-import { CommandModule } from 'yargs';
+import { type CommandModule } from 'yargs';
 
 import {
-  RawForkedChainConfigByChain,
+  type RawForkedChainConfigByChain,
   RawForkedChainConfigByChainSchema,
   expandVirtualWarpDeployConfig,
   expandWarpDeployConfig,
@@ -20,10 +20,10 @@ import {
 import { runWarpRouteCheck } from '../check/warp.js';
 import { createWarpRouteDeployConfig } from '../config/warp.js';
 import {
-  CommandModuleWithContext,
-  CommandModuleWithWarpApplyContext,
-  CommandModuleWithWarpDeployContext,
-  CommandModuleWithWriteContext,
+  type CommandModuleWithContext,
+  type CommandModuleWithWarpApplyContext,
+  type CommandModuleWithWarpDeployContext,
+  type CommandModuleWithWriteContext,
 } from '../context/types.js';
 import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
 import { runForkCommand } from '../fork/fork.js';
@@ -62,7 +62,7 @@ import {
   warpDeploymentConfigCommandOption,
   warpRouteIdCommandOption,
 } from './options.js';
-import { MessageOptionsArgTypes, messageSendOptions } from './send.js';
+import { type MessageOptionsArgTypes, messageSendOptions } from './send.js';
 
 /**
  * Parent command

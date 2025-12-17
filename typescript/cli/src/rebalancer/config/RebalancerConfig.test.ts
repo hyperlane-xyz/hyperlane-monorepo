@@ -3,7 +3,7 @@ import { ethers } from 'ethers';
 import { rmSync } from 'fs';
 
 import {
-  RebalancerConfigFileInput,
+  type RebalancerConfigFileInput,
   RebalancerMinAmountType,
   RebalancerStrategyOptions,
 } from '@hyperlane-xyz/sdk';

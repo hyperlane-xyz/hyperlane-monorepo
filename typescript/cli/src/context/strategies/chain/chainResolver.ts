@@ -1,6 +1,6 @@
 import {
-  ChainName,
-  DeployedCoreAddresses,
+  type ChainName,
+  type DeployedCoreAddresses,
   DeployedCoreAddressesSchema,
   EvmCoreModule,
 } from '@hyperlane-xyz/sdk';

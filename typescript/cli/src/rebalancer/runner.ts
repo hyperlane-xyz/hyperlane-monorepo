@@ -1,6 +1,6 @@
-import { Logger } from 'pino';
+import { type Logger } from 'pino';
 
-import { Token } from '@hyperlane-xyz/sdk';
+import { type Token } from '@hyperlane-xyz/sdk';
 import { assert, createServiceLogger, toWei } from '@hyperlane-xyz/utils';
 
 import type { WriteCommandContext } from '../context/types.js';
@@ -10,15 +10,15 @@ import { VERSION } from '../version.js';
 import { RebalancerConfig } from './config/RebalancerConfig.js';
 import { RebalancerContextFactory } from './factories/RebalancerContextFactory.js';
 import {
-  MonitorEvent,
+  type MonitorEvent,
   MonitorEventType,
   MonitorPollingError,
   MonitorStartError,
 } from './interfaces/IMonitor.js';
 import type { IRebalancer } from './interfaces/IRebalancer.js';
 import type { IStrategy } from './interfaces/IStrategy.js';
-import { Metrics } from './metrics/Metrics.js';
-import { Monitor } from './monitor/Monitor.js';
+import { type Metrics } from './metrics/Metrics.js';
+import { type Monitor } from './monitor/Monitor.js';
 import { getRawBalances } from './utils/balanceUtils.js';
 
 interface SharedRebalanceArgs {

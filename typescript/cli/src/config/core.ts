@@ -1,14 +1,14 @@
 import { stringify as yamlStringify } from 'yaml';
 
 import {
-  CoreConfig,
+  type CoreConfig,
   CoreConfigSchema,
-  HookConfig,
-  IsmConfig,
-  OwnableConfig,
+  type HookConfig,
+  type IsmConfig,
+  type OwnableConfig,
 } from '@hyperlane-xyz/sdk';
 
-import { CommandContext } from '../context/types.js';
+import { type CommandContext } from '../context/types.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
 import {
   indentYamlOrJson,

@@ -1,5 +1,5 @@
 import { BigNumber } from 'bignumber.js';
-import { Logger } from 'pino';
+import { type Logger } from 'pino';
 
 import {
   type ChainMap,
@@ -10,7 +10,7 @@ import {
 import { fromWei, toWei } from '@hyperlane-xyz/utils';
 
 import type { RawBalances } from '../interfaces/IStrategy.js';
-import { Metrics } from '../metrics/Metrics.js';
+import { type Metrics } from '../metrics/Metrics.js';
 
 import { BaseStrategy, type Delta } from './BaseStrategy.js';
 
