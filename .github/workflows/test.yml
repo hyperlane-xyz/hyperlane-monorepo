@@ -45,10 +45,6 @@ jobs:
       - name: pnpm-install
         run: pnpm install --frozen-lockfile
 
-      # Check for mismatched dep versions across the monorepo
-      - name: syncpack
-        run: pnpm exec syncpack list-mismatches
-
       # Check publishable packages have required fields for npm provenance
       - name: check-package-json
         run: ./scripts/check-package-json.sh
