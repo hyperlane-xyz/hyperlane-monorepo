@@ -1,4 +1,4 @@
-import { IProvider, ISigner } from './altvm.js';
+import { type IProvider, type ISigner } from './altvm.js';
 
 type AddrMap = Record<string, unknown>;
 export type AnnotatedTx = { annotation?: string; [key: string]: any };

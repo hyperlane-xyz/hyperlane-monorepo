@@ -1,4 +1,4 @@
-import * as AltVM from '../altvm.js';
+import type * as AltVM from '../altvm.js';
 
 import { MockProvider } from './AltVMMockProvider.js';
 

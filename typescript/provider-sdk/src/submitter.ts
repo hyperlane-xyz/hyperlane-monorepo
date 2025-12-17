@@ -1,4 +1,4 @@
-import { AnnotatedTx, TxReceipt } from './module.js';
+import { type AnnotatedTx, type TxReceipt } from './module.js';
 
 export interface TransactionSubmitterConfigs {
   jsonRpc: JsonRpcSubmitterConfig;

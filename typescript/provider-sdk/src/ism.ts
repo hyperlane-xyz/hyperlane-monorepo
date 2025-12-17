@@ -1,4 +1,4 @@
-import { WithAddress } from '@hyperlane-xyz/utils';
+import { type WithAddress } from '@hyperlane-xyz/utils';
 
 export type IsmModuleType = {
   config: IsmConfig;

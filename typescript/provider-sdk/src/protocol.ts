@@ -1,13 +1,13 @@
 import { assert } from '@hyperlane-xyz/utils';
 
-import { IProvider, ISigner } from './altvm.js';
-import { ChainMetadataForAltVM } from './chain.js';
-import { MinimumRequiredGasByAction } from './mingas.js';
-import { AnnotatedTx, TxReceipt } from './module.js';
+import { type IProvider, type ISigner } from './altvm.js';
+import { type ChainMetadataForAltVM } from './chain.js';
+import { type MinimumRequiredGasByAction } from './mingas.js';
+import { type AnnotatedTx, type TxReceipt } from './module.js';
 import {
-  ITransactionSubmitter,
-  JsonRpcSubmitterConfig,
-  TransactionSubmitterConfig,
+  type ITransactionSubmitter,
+  type JsonRpcSubmitterConfig,
+  type TransactionSubmitterConfig,
 } from './submitter.js';
 
 export enum ProtocolType {

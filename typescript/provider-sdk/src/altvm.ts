@@ -1,4 +1,4 @@
-import { MinimumRequiredGasByAction } from './mingas.js';
+import { type MinimumRequiredGasByAction } from './mingas.js';
 import type { ProtocolType } from './protocol.js';
 
 // ### QUERY BASE ###

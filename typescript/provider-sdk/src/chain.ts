@@ -1,4 +1,4 @@
-import { ChainId, Domain } from '@hyperlane-xyz/utils';
+import { type ChainId, type Domain } from '@hyperlane-xyz/utils';
 
 type ChainNameOrId = string | number;
 
