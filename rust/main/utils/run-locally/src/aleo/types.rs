@@ -107,7 +107,7 @@ impl AgentConfig {
             protocol: "aleo".to_owned(),
             chain_id: CHAIN_ID,
             rpc_urls: vec![AgentUrl {
-                http: format!("{}/testnet", node.cli.endpoint),
+                http: format!("{}", node.cli.endpoint),
             }],
             mailbox_program: "mailbox.aleo".to_owned(),
             ism_manager_program: "ism_manager.aleo".to_owned(),

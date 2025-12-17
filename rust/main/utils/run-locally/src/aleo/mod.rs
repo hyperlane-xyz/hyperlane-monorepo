@@ -229,7 +229,7 @@ pub fn run_locally() {
         .cmd("build")
         .working_dir("../../")
         .flag("release")
-        .arg("features", "test-utils")
+        .arg("features", "test-utils,aleo")
         .arg("bin", "relayer")
         .arg("bin", "validator")
         .arg("bin", "scraper")
