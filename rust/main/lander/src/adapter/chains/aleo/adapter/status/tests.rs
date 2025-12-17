@@ -6,6 +6,7 @@ use async_trait::async_trait;
 
 use hyperlane_aleo::{
     AleoConfirmedTransaction, AleoProviderForLander, AleoUnconfirmedTransaction, CurrentNetwork,
+    Plaintext,
 };
 use hyperlane_core::{ChainResult, H512};
 
@@ -131,6 +132,16 @@ impl AleoProviderForLander for MockProviderWithFixtures {
                     "Transaction not found in mempool",
                 )
             })
+    }
+
+    async fn mapping_value_exists(
+        &self,
+        _program_id: &str,
+        _mapping_name: &str,
+        _mapping_key: &Plaintext<CurrentNetwork>,
+    ) -> ChainResult<bool> {
+        // Default: mapping values don't exist (messages not delivered)
+        Ok(false)
     }
 }
 

@@ -6,7 +6,7 @@ use std::{ops::Deref, time::Duration};
 /// This file is mostly copied from starknet::providers::jsonrpc::HttpTransport
 /// https://github.com/xJonathanLEI/starknet-rs/blob/master/starknet-providers/src/jsonrpc/transports/http.rs
 use async_trait::async_trait;
-use hyperlane_core::{rpc_clients::FallbackProvider, ChainCommunicationError};
+use hyperlane_core::{rpc_clients::FallbackProvider, ChainCommunicationError, ChainResult};
 use hyperlane_metric::prometheus_metric::{
     ChainInfo, ClientConnectionType, PrometheusClientMetrics, PrometheusConfig,
 };
@@ -56,16 +56,19 @@ impl FallbackHttpTransport {
         urls: impl IntoIterator<Item = Url>,
         metrics: PrometheusClientMetrics,
         chain: Option<ChainInfo>,
-    ) -> Self {
-        let providers = urls.into_iter().map(|url| {
-            let metrics_config =
-                PrometheusConfig::from_url(&url, ClientConnectionType::Rpc, chain.clone());
+    ) -> ChainResult<Self> {
+        let providers = urls
+            .into_iter()
+            .map(|url| {
+                let metrics_config =
+                    PrometheusConfig::from_url(&url, ClientConnectionType::Rpc, chain.clone());
 
-            MetricProvider::new(url, metrics.clone(), metrics_config.clone())
-        });
-        Self {
+                MetricProvider::new(url, metrics.clone(), metrics_config.clone())
+            })
+            .collect::<ChainResult<Vec<_>>>()?;
+        Ok(Self {
             fallback: FallbackProvider::new(providers),
-        }
+        })
     }
 }
 

@@ -3,12 +3,12 @@ use derive_more::Deref;
 use derive_new::new;
 use hyperlane_base::cache::FunctionCallCache;
 
-use hyperlane_core::{HyperlaneMessage, ModuleType, H256};
+use hyperlane_core::{HyperlaneMessage, Metadata, ModuleType, H256};
 use tracing::instrument;
 
 use super::{
-    base::MessageMetadataBuildParams, IsmCachePolicy, MessageMetadataBuilder, Metadata,
-    MetadataBuildError, MetadataBuilder,
+    base::MessageMetadataBuildParams, IsmCachePolicy, MessageMetadataBuilder, MetadataBuildError,
+    MetadataBuilder,
 };
 
 #[derive(Clone, Debug, new, Deref)]

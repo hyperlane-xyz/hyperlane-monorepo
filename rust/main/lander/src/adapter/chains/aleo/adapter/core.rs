@@ -90,19 +90,15 @@ impl<P: AleoProviderForLander> AdaptsChain for AleoAdapter<P> {
         status::get_tx_hash_status(&self.provider, hash).await
     }
 
-    async fn tx_ready_for_resubmission(&self, _tx: &Transaction) -> bool {
-        // Aleo transactions with ZK proofs cannot be resubmitted with escalated fees
-        // Once a transaction is created, it must either succeed or fail
-        false
+    async fn tx_ready_for_resubmission(&self, tx: &Transaction) -> bool {
+        self.ready_for_resubmission(tx)
     }
 
     async fn reverted_payloads(
         &self,
-        _tx: &Transaction,
+        tx: &Transaction,
     ) -> Result<Vec<PayloadDetails>, LanderError> {
-        // For Aleo, if a transaction is finalized but rejected, all payloads in it are reverted
-        // This is handled by the transaction status check
-        Ok(Vec::new())
+        self.reverted(tx).await
     }
 
     fn estimated_block_time(&self) -> &Duration {
@@ -115,4 +111,4 @@ impl<P: AleoProviderForLander> AdaptsChain for AleoAdapter<P> {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
