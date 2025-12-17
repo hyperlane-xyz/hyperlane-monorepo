@@ -36,6 +36,11 @@ async function main() {
     'INJ/inevm-injective',
     'USDC/ethereum-inevm',
     'USDT/ethereum-inevm',
+    'WBTC/ethereum-form',
+    'WSTETH/ethereum-form',
+    'USDT/ethereum-form',
+    'USDC/ethereum-form',
+    'TRUMP/arbitrum-avalanche-base-flowmainnet-form-optimism-solanamainnet-worldchain',
   ];
 
   const registries = [DEFAULT_REGISTRY_URI];
