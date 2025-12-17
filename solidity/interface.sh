@@ -16,11 +16,11 @@ if [ "$1" = "test-interface" ]; then
         exit 1
     fi
 
-    REMOVED_FUNCTIONS=""
-    ADDED_FUNCTIONS=""
+    REMOVED_ITEMS=""
+    ADDED_ITEMS=""
     HAS_REMOVALS=false
 
-    # Check each contract in base for removed functions
+    # Check each contract in base for removed ABI entries
     for base_file in "$BASE_DIR"/*.json; do
         [ -f "$base_file" ] || continue
         contract_name=$(basename "$base_file" -abi.json)
@@ -29,31 +29,93 @@ if [ "$1" = "test-interface" ]; then
         if [ ! -f "$head_file" ]; then
             echo "WARNING: Contract $contract_name was removed entirely"
             HAS_REMOVALS=true
-            REMOVED_FUNCTIONS="$REMOVED_FUNCTIONS\n  Contract removed: $contract_name"
+            REMOVED_ITEMS="$REMOVED_ITEMS\n  Contract removed: $contract_name"
             continue
         fi
 
-        # Extract function signatures from base and head
-        # Format: functionName(input1,input2,...)->(output1,output2,...)
-        base_funcs=$(jq -r '.[] | select(.type == "function") | .name + "(" + ([.inputs[].type] | join(",")) + ")->(" + ([.outputs[].type] | join(",")) + ")"' "$base_file" 2>/dev/null | sort)
-        head_funcs=$(jq -r '.[] | select(.type == "function") | .name + "(" + ([.inputs[].type] | join(",")) + ")->(" + ([.outputs[].type] | join(",")) + ")"' "$head_file" 2>/dev/null | sort)
+        # Extract function signatures: functionName(inputs)->(outputs)
+        base_funcs=$(jq -r '.[] | select(.type == "function") | "function " + .name + "(" + ([.inputs[].type] | join(",")) + ")->(" + ([.outputs[].type] | join(",")) + ")"' "$base_file" 2>/dev/null | sort)
+        head_funcs=$(jq -r '.[] | select(.type == "function") | "function " + .name + "(" + ([.inputs[].type] | join(",")) + ")->(" + ([.outputs[].type] | join(",")) + ")"' "$head_file" 2>/dev/null | sort)
 
-        # Find functions in base that are not in head (removals)
-        while IFS= read -r func; do
-            [ -z "$func" ] && continue
-            if ! echo "$head_funcs" | grep -qxF "$func"; then
+        # Extract event signatures: eventName(type1,type2,...)
+        base_events=$(jq -r '.[] | select(.type == "event") | "event " + .name + "(" + ([.inputs[].type] | join(",")) + ")"' "$base_file" 2>/dev/null | sort)
+        head_events=$(jq -r '.[] | select(.type == "event") | "event " + .name + "(" + ([.inputs[].type] | join(",")) + ")"' "$head_file" 2>/dev/null | sort)
+
+        # Extract error signatures: errorName(type1,type2,...)
+        base_errors=$(jq -r '.[] | select(.type == "error") | "error " + .name + "(" + ([.inputs[].type] | join(",")) + ")"' "$base_file" 2>/dev/null | sort)
+        head_errors=$(jq -r '.[] | select(.type == "error") | "error " + .name + "(" + ([.inputs[].type] | join(",")) + ")"' "$head_file" 2>/dev/null | sort)
+
+        # Extract constructor signature
+        base_constructor=$(jq -r '.[] | select(.type == "constructor") | "constructor(" + ([.inputs[].type] | join(",")) + ")"' "$base_file" 2>/dev/null)
+        head_constructor=$(jq -r '.[] | select(.type == "constructor") | "constructor(" + ([.inputs[].type] | join(",")) + ")"' "$head_file" 2>/dev/null)
+
+        # Extract fallback/receive
+        base_fallback=$(jq -r '.[] | select(.type == "fallback" or .type == "receive") | .type' "$base_file" 2>/dev/null | sort)
+        head_fallback=$(jq -r '.[] | select(.type == "fallback" or .type == "receive") | .type' "$head_file" 2>/dev/null | sort)
+
+        # Check for removed functions
+        while IFS= read -r item; do
+            [ -z "$item" ] && continue
+            if ! echo "$head_funcs" | grep -qxF "$item"; then
                 HAS_REMOVALS=true
-                REMOVED_FUNCTIONS="$REMOVED_FUNCTIONS\n  $contract_name: $func"
+                REMOVED_ITEMS="$REMOVED_ITEMS\n  $contract_name: $item"
             fi
         done <<< "$base_funcs"
 
-        # Find functions in head that are not in base (additions) - just for info
-        while IFS= read -r func; do
-            [ -z "$func" ] && continue
-            if ! echo "$base_funcs" | grep -qxF "$func"; then
-                ADDED_FUNCTIONS="$ADDED_FUNCTIONS\n  $contract_name: $func"
+        # Check for removed events
+        while IFS= read -r item; do
+            [ -z "$item" ] && continue
+            if ! echo "$head_events" | grep -qxF "$item"; then
+                HAS_REMOVALS=true
+                REMOVED_ITEMS="$REMOVED_ITEMS\n  $contract_name: $item"
+            fi
+        done <<< "$base_events"
+
+        # Check for removed errors
+        while IFS= read -r item; do
+            [ -z "$item" ] && continue
+            if ! echo "$head_errors" | grep -qxF "$item"; then
+                HAS_REMOVALS=true
+                REMOVED_ITEMS="$REMOVED_ITEMS\n  $contract_name: $item"
+            fi
+        done <<< "$base_errors"
+
+        # Check for constructor changes
+        if [ -n "$base_constructor" ] && [ "$base_constructor" != "$head_constructor" ]; then
+            HAS_REMOVALS=true
+            REMOVED_ITEMS="$REMOVED_ITEMS\n  $contract_name: $base_constructor -> ${head_constructor:-removed}"
+        fi
+
+        # Check for removed fallback/receive
+        while IFS= read -r item; do
+            [ -z "$item" ] && continue
+            if ! echo "$head_fallback" | grep -qxF "$item"; then
+                HAS_REMOVALS=true
+                REMOVED_ITEMS="$REMOVED_ITEMS\n  $contract_name: $item"
+            fi
+        done <<< "$base_fallback"
+
+        # Track additions (non-breaking, for info)
+        while IFS= read -r item; do
+            [ -z "$item" ] && continue
+            if ! echo "$base_funcs" | grep -qxF "$item"; then
+                ADDED_ITEMS="$ADDED_ITEMS\n  $contract_name: $item"
             fi
         done <<< "$head_funcs"
+
+        while IFS= read -r item; do
+            [ -z "$item" ] && continue
+            if ! echo "$base_events" | grep -qxF "$item"; then
+                ADDED_ITEMS="$ADDED_ITEMS\n  $contract_name: $item"
+            fi
+        done <<< "$head_events"
+
+        while IFS= read -r item; do
+            [ -z "$item" ] && continue
+            if ! echo "$base_errors" | grep -qxF "$item"; then
+                ADDED_ITEMS="$ADDED_ITEMS\n  $contract_name: $item"
+            fi
+        done <<< "$head_errors"
     done
 
     # Check for new contracts (additions)
@@ -68,24 +130,24 @@ if [ "$1" = "test-interface" ]; then
     done
 
     # Report results
-    if [ -n "$ADDED_FUNCTIONS" ]; then
+    if [ -n "$ADDED_ITEMS" ]; then
         echo ""
-        echo "Functions added (non-breaking):"
-        echo -e "$ADDED_FUNCTIONS"
+        echo "ABI entries added (non-breaking):"
+        echo -e "$ADDED_ITEMS"
     fi
 
     if [ "$HAS_REMOVALS" = true ]; then
         echo ""
-        echo "ERROR: Functions removed (breaking change):"
-        echo -e "$REMOVED_FUNCTIONS"
+        echo "ERROR: ABI entries removed or changed (breaking change):"
+        echo -e "$REMOVED_ITEMS"
         echo ""
-        echo "This PR removes functions from contract interfaces, which is a breaking change."
+        echo "This PR removes or modifies entries in contract ABIs, which is a breaking change."
         echo "If this is intentional, please review carefully."
         exit 1
     fi
 
     echo ""
-    echo "No breaking interface changes detected (no function removals)."
+    echo "No breaking interface changes detected."
     exit 0
 fi
 
