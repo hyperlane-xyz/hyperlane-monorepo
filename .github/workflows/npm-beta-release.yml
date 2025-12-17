@@ -32,7 +32,7 @@ jobs:
       id-token: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
           submodules: recursive
@@ -50,18 +50,21 @@ jobs:
             echo "::error::No pending changesets found. Beta releases require pending changeset files."
             echo ""
             echo "To create a beta release:"
-            echo "1. Add a changeset: yarn changeset"
+            echo "1. Add a changeset: pnpm exec changeset"
             echo "2. Commit the changeset file"
             echo "3. Run this workflow again"
             exit 1
           fi
           echo "Found $CHANGESET_COUNT changeset(s)"
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Install dependencies
-        run: yarn install --immutable
+        run: pnpm install --frozen-lockfile
 
       - name: Create snapshot versions
-        run: yarn changeset version --snapshot ${{ inputs.snapshot_tag }}
+        run: pnpm exec changeset version --snapshot ${{ inputs.snapshot_tag }}
 
       - name: Get snapshot version
         id: version
@@ -74,10 +77,10 @@ jobs:
         uses: ./.github/actions/setup-foundry
 
       - name: Build packages
-        run: yarn build && yarn build:zk
+        run: pnpm run build && pnpm run build:zk
 
       - name: Publish beta packages
-        run: yarn changeset publish --tag ${{ inputs.snapshot_tag }} --no-git-tag
+        run: pnpm exec changeset publish --tag ${{ inputs.snapshot_tag }} --no-git-tag
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: true

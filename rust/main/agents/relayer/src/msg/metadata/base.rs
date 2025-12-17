@@ -15,7 +15,7 @@ use serde::{Deserialize, Deserializer};
 use tokio::sync::{Mutex, RwLock};
 
 use hyperlane_core::{
-    HyperlaneDomain, HyperlaneMessage, InterchainSecurityModule, Mailbox, ModuleType,
+    HyperlaneDomain, HyperlaneMessage, InterchainSecurityModule, Mailbox, Metadata, ModuleType,
     ReorgEventResponse, H256,
 };
 
@@ -53,15 +53,6 @@ pub enum MetadataBuildError {
 pub enum MetadataBuildRefused {
     #[error("Reorg detected ({0:?})")]
     Reorg(ReorgEventResponse),
-}
-
-#[derive(Clone, Debug, new)]
-pub struct Metadata(Vec<u8>);
-
-impl Metadata {
-    pub fn to_vec(&self) -> Vec<u8> {
-        self.0.clone()
-    }
 }
 
 #[async_trait::async_trait]

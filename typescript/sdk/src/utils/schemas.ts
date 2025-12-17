@@ -2,7 +2,7 @@ import { SafeParseReturnType, z } from 'zod';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
 
-export function isCompliant<S extends Zod.Schema>(schema: S) {
+export function isCompliant<S extends z.ZodTypeAny>(schema: S) {
   return (config: unknown): config is z.infer<S> =>
     schema.safeParse(config).success;
 }

@@ -494,6 +494,7 @@ mod test {
                         max_batch_size: 1,
                         ..Default::default()
                     },
+                    consider_null_transaction_receipt: false,
                 }),
                 metrics_conf: PrometheusMiddlewareConf {
                     contracts: HashMap::new(),

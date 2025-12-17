@@ -5,8 +5,8 @@ use snarkvm::prelude::{Address, FromBytes};
 
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, ModuleType,
-    MultisigIsm, RoutingIsm, H160, H256, U256,
+    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, Metadata,
+    ModuleType, MultisigIsm, RoutingIsm, H160, H256, U256,
 };
 
 use crate::utils::to_h256;
@@ -87,7 +87,7 @@ impl InterchainSecurityModule for AleoIsm {
     async fn dry_run_verify(
         &self,
         _message: &HyperlaneMessage,
-        _metadata: &[u8],
+        _metadata: &Metadata,
     ) -> ChainResult<Option<U256>> {
         // Aleo currently doesn't support aggregation ISMs
         // Only in the case of an aggregation ISM is this method used

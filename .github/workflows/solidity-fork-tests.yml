@@ -28,7 +28,7 @@ jobs:
     runs-on: depot-ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
 
@@ -47,9 +47,9 @@ jobs:
           echo "RPC_URL_ARBITRUM=${MAINNET3_ARBITRUM_RPC_URLS%%,*}" >> $GITHUB_ENV
           echo "RPC_URL_BASE=${MAINNET3_BASE_RPC_URLS%%,*}" >> $GITHUB_ENV
 
-      - name: yarn-build
-        uses: ./.github/actions/yarn-build-with-cache
+      - name: pnpm-build
+        uses: ./.github/actions/pnpm-build-with-cache
 
       - name: Run Fork Tests
         working-directory: ./solidity
-        run: yarn test:fork
+        run: pnpm run test:fork
