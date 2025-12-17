@@ -353,6 +353,7 @@ mod tests {
                     bypass_batch_simulation: false,
                     ..Default::default()
                 },
+                consider_null_transaction_receipt: false,
             }),
             metrics_conf: Default::default(),
             index: Default::default(),
