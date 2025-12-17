@@ -19,5 +19,6 @@ module.exports = {
     target: 'ethers-v5',
     alwaysGenerateOverloads: true,
     node16Modules: true,
+    tsNocheck: true,
   },
 };

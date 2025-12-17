@@ -2,7 +2,7 @@
 import { ChainMap } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
-// yarn tsx ./scripts/keys/get-owner-ica.ts -e mainnet3 --ownerChain ethereum --destinationChains <chain1> <chain2> ...
+// pnpm tsx ./scripts/keys/get-owner-ica.ts -e mainnet3 --ownerChain ethereum --destinationChains <chain1> <chain2> ...
 export const awIcasLegacy: ChainMap<Address> = {
   viction: '0x23ed65DE22ac29Ec1C16E75EddB0cE3A187357b4',
   inevm: '0xFDF9EDcb2243D51f5f317b9CEcA8edD2bEEE036e',

@@ -45,20 +45,23 @@ const logger = rootLogger.child({
  */
 const MAX_FUNDING_AMOUNT_IN_USD = 1000;
 
-const enum TokenFundingType {
-  native = 'native',
-  non_native = 'non_native',
-}
+const TokenFundingType = {
+  native: 'native',
+  non_native: 'non_native',
+} as const;
+
+type TokenFundingType =
+  (typeof TokenFundingType)[keyof typeof TokenFundingType];
 
 type TokenToFundInfo =
   | {
-      type: TokenFundingType.native;
+      type: typeof TokenFundingType.native;
       amount: number;
       recipientAddress: Address;
       tokenDecimals?: number;
     }
   | {
-      type: TokenFundingType.non_native;
+      type: typeof TokenFundingType.non_native;
       tokenAddress: Address;
       amount: number;
       recipientAddress: Address;
