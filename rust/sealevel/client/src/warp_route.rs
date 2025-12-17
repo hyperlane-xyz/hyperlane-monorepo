@@ -1,20 +1,19 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::H256;
+use sha2::{Digest, Sha256};
 use hyperlane_sealevel_token_collateral::plugin::CollateralPlugin;
 use hyperlane_sealevel_token_native::plugin::NativePlugin;
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::HashMap,
-    fmt::Debug,
-    process::{Command, Stdio},
-};
+use std::{collections::HashMap, fmt::Debug};
 
 use solana_client::{
     client_error::{reqwest, ClientError},
     rpc_client::RpcClient,
 };
 
-use solana_sdk::{instruction::Instruction, program_error::ProgramError, pubkey::Pubkey};
+use solana_sdk::{
+    instruction::Instruction, program_error::ProgramError, pubkey::Pubkey, system_instruction,
+};
 
 use hyperlane_sealevel_connection_client::{
     gas_router::GasRouterConfig, router::RemoteRouterConfig,
@@ -47,6 +46,85 @@ use crate::{
 };
 
 const MAX_LOCAL_DECIMALS: u8 = 9;
+
+/// Helper struct for token metadata initialization
+#[derive(BorshSerialize)]
+struct TokenMetadataInitialize {
+    name: String,
+    symbol: String,
+    uri: String,
+}
+
+/// Helper struct for metadata pointer initialization
+#[derive(BorshSerialize)]
+struct MetadataPointerInitialize {
+    authority: Option<Pubkey>,
+    metadata_address: Option<Pubkey>,
+}
+
+/// Creates a metadata pointer initialization instruction manually
+/// This is needed because the version of spl-token-2022 doesn't have this extension exposed
+fn create_metadata_pointer_initialize_instruction(
+    token_program_id: &Pubkey,
+    mint: &Pubkey,
+    authority: Option<Pubkey>,
+    metadata_address: Option<Pubkey>,
+) -> Instruction {
+    // MetadataPointerExtension instruction discriminator
+    // From spl-token-2022: TokenInstruction::MetadataPointerExtension
+    let token_instruction_discriminator: u8 = 39; // MetadataPointerExtension
+    let metadata_pointer_instruction_discriminator: u8 = 0; // Initialize
+    
+    let init_data = MetadataPointerInitialize {
+        authority,
+        metadata_address,
+    };
+    
+    let mut data = vec![token_instruction_discriminator, metadata_pointer_instruction_discriminator];
+    data.extend_from_slice(&borsh::to_vec(&init_data).unwrap());
+
+    Instruction {
+        program_id: *token_program_id,
+        accounts: vec![solana_sdk::instruction::AccountMeta::new(*mint, false)],
+        data,
+    }
+}
+
+/// Creates a token metadata initialization instruction manually
+/// This is needed because spl-token-metadata-interface has version conflicts
+fn create_token_metadata_initialize_instruction(
+    program_id: &Pubkey,
+    metadata: &Pubkey,
+    update_authority: &Pubkey,
+    mint: &Pubkey,
+    mint_authority: &Pubkey,
+    name: String,
+    symbol: String,
+    uri: String,
+) -> Instruction {
+    // Calculate the discriminator using the same method as spl_discriminator
+    // discriminator_hash_input("spl_token_metadata_interface:initialize_account")
+    let mut hasher = Sha256::new();
+    hasher.update(b"spl_token_metadata_interface:initialize_account");
+    let hash = hasher.finalize();
+    let discriminator = &hash[..8];
+
+    // Serialize the instruction data
+    let init_data = TokenMetadataInitialize { name, symbol, uri };
+    let mut data = discriminator.to_vec();
+    data.extend_from_slice(&borsh::to_vec(&init_data).unwrap());
+
+    Instruction {
+        program_id: *program_id,
+        accounts: vec![
+            solana_sdk::instruction::AccountMeta::new(*metadata, false),
+            solana_sdk::instruction::AccountMeta::new_readonly(*update_authority, false),
+            solana_sdk::instruction::AccountMeta::new_readonly(*mint, false),
+            solana_sdk::instruction::AccountMeta::new_readonly(*mint_authority, true),
+        ],
+        data,
+    }
+}
 
 pub(crate) fn assert_decimals_max(decimals: u8) {
     assert!(
@@ -314,9 +392,6 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
             remote_decimals: app_config.decimal_metadata.remote_decimals(),
         };
 
-        let home_path = std::env::var("HOME").unwrap();
-        let spl_token_binary_path = format!("{home_path}/.cargo/bin/spl-token");
-
         match &app_config.token_type {
             TokenType::Native => ctx.new_txn().add(
                 hyperlane_sealevel_token_native::instruction::init_instruction(
@@ -337,8 +412,19 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
             TokenType::Synthetic(_token_metadata) => {
                 let decimals = init.decimals;
 
-                println!("=== DEBUG: Sending init_instruction transaction ===");
-                let tx_result = ctx.new_txn()
+                let (mint_account, _mint_bump) =
+                    Pubkey::find_program_address(hyperlane_token_mint_pda_seeds!(), &program_id);
+
+                println!(
+                    "Initializing Synthetic token atomically: program_id: {}, mint: {}",
+                    program_id, mint_account
+                );
+
+                // Create a single atomic transaction with all three operations:
+                // 1. init_instruction (creates mint account + token PDA + dispatch authority)
+                // 2. metadata pointer initialization (must happen before mint initialization)
+                // 3. initialize_mint2 (initializes the mint)
+                ctx.new_txn()
                     .add(
                         hyperlane_sealevel_token::instruction::init_instruction(
                             program_id,
@@ -347,119 +433,41 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                         )
                         .unwrap(),
                     )
-                    .with_client(client)
-                    .send_with_payer();
-
-                match &tx_result {
-                    Some(tx) => {
-                        println!("=== DEBUG: init_instruction transaction sent successfully ===");
-                        if let Some(meta) = &tx.transaction.meta {
-                            if let Some(err) = &meta.err {
-                                println!("=== ERROR: Transaction failed: {:?} ===", err);
-                            } else {
-                                println!("=== DEBUG: Transaction succeeded ===");
-                            }
-                        }
-                    }
-                    None => {
-                        println!("=== WARNING: init_instruction transaction result is None ===");
-                    }
-                }
-
-                let (mint_account, _mint_bump) =
-                    Pubkey::find_program_address(hyperlane_token_mint_pda_seeds!(), &program_id);
-
-                // Wait a bit for the account to be created and confirmed
-                println!("=== DEBUG: Waiting 2 seconds for account creation to be confirmed ===");
-                std::thread::sleep(std::time::Duration::from_secs(2));
-
-                // Debug: Check spl-token version
-                println!("=== DEBUG: Checking spl-token version ===");
-                let mut version_cmd = Command::new(spl_token_binary_path.clone());
-                version_cmd.args(["--version"]);
-                let version_output = version_cmd.output().expect("Failed to run spl-token --version");
-                let version_str = String::from_utf8_lossy(&version_output.stdout).trim().to_string();
-                println!("spl-token version output: {}", version_str);
-                if !version_output.stderr.is_empty() {
-                    println!("spl-token version stderr: {}", String::from_utf8_lossy(&version_output.stderr));
-                }
-                println!("spl-token exit status: {:?}", version_output.status);
-                println!("spl-token binary path: {}", spl_token_binary_path);
-                
-                // Check if using the custom fork
-                if !version_str.contains("dan/create-token-for-mint") && !version_str.contains("e101cca") {
-                    println!("=== WARNING: Not using the custom spl-token-cli fork! ===");
-                    println!("Expected fork: dan/create-token-for-mint (rev e101cca)");
-                    println!("Install with: cargo +1.76.0 install spl-token-cli --git https://github.com/hyperlane-xyz/solana-program-library --branch dan/create-token-for-mint --rev e101cca --locked --force");
-                }
-
-                // Debug: Check account state after init_instruction
-                println!("=== DEBUG: Checking mint account state after init_instruction ===");
-                println!("Mint account: {}", mint_account);
-                match client.get_account(&mint_account) {
-                    Ok(account) => {
-                        println!("Account exists: true");
-                        println!("Account owner: {}", account.owner);
-                        println!("Account lamports: {}", account.lamports);
-                        println!("Account data length: {}", account.data.len());
-                        println!("Account executable: {}", account.executable);
-                        println!("Account rent_epoch: {}", account.rent_epoch);
-                        if account.data.len() > 0 {
-                            println!("Account data (first 64 bytes): {:?}", &account.data[..account.data.len().min(64)]);
-                        } else {
-                            println!("Account data: empty");
-                        }
-                    }
-                    Err(e) => {
-                        println!("Account exists: false");
-                        println!("Error fetching account: {:?}", e);
-                        println!("=== ERROR: Account was not created by init_instruction! ===");
-                        println!("This suggests the init_instruction transaction may have failed.");
-                    }
-                }
-
-                let mut cmd = Command::new(spl_token_binary_path.clone());
-                cmd.args([
-                    "create-token",
-                    mint_account.to_string().as_str(),
-                    "--enable-metadata",
-                    "-p",
-                    spl_token_2022::id().to_string().as_str(),
-                    "--url",
-                    client.url().as_str(),
-                    "--with-compute-unit-limit",
-                    "500000",
-                    "--mint-authority",
-                    &ctx.payer_pubkey.to_string(),
-                    "--fee-payer",
-                    ctx.payer_keypair_path(),
-                ]);
-
-                println!("running command: {:?}", cmd);
-                let status = cmd
-                    .stdout(Stdio::inherit())
-                    .stderr(Stdio::inherit())
-                    .status()
-                    .expect("Failed to run command");
-
-                println!("initialized metadata pointer. Status: {status}");
-
-                ctx.new_txn().add(
-                    spl_token_2022::instruction::initialize_mint2(
+                    .add(create_metadata_pointer_initialize_instruction(
                         &spl_token_2022::id(),
                         &mint_account,
-                        &ctx.payer_pubkey,
-                        None,
-                        decimals,
+                        Some(ctx.payer_pubkey),
+                        Some(mint_account),
+                    ))
+                    .add(
+                        spl_token_2022::instruction::initialize_mint2(
+                            &spl_token_2022::id(),
+                            &mint_account,
+                            &ctx.payer_pubkey,
+                            None,
+                            decimals,
+                        )
+                        .unwrap(),
                     )
-                    .unwrap(),
-                )
             }
             TokenType::SyntheticMemo(_token_metadata) => {
                 let decimals = init.decimals;
 
-                println!("=== DEBUG: Sending init_instruction transaction ===");
-                let tx_result = ctx.new_txn()
+                let (mint_account, _mint_bump) = Pubkey::find_program_address(
+                    hyperlane_token_mint_pda_seeds_memo!(),
+                    &program_id,
+                );
+
+                println!(
+                    "Initializing SyntheticMemo token atomically: program_id: {}, mint: {}",
+                    program_id, mint_account
+                );
+
+                // Create a single atomic transaction with all three operations:
+                // 1. init_instruction (creates mint account + token PDA + dispatch authority)
+                // 2. metadata pointer initialization (must happen before mint initialization)
+                // 3. initialize_mint2 (initializes the mint)
+                ctx.new_txn()
                     .add(
                         hyperlane_sealevel_token_memo::instruction::init_instruction(
                             program_id,
@@ -468,115 +476,22 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                         )
                         .unwrap(),
                     )
-                    .with_client(client)
-                    .send_with_payer();
-
-                match &tx_result {
-                    Some(tx) => {
-                        println!("=== DEBUG: init_instruction transaction sent successfully ===");
-                        if let Some(meta) = &tx.transaction.meta {
-                            if let Some(err) = &meta.err {
-                                println!("=== ERROR: Transaction failed: {:?} ===", err);
-                            } else {
-                                println!("=== DEBUG: Transaction succeeded ===");
-                            }
-                        }
-                    }
-                    None => {
-                        println!("=== WARNING: init_instruction transaction result is None ===");
-                    }
-                }
-
-                let (mint_account, _mint_bump) = Pubkey::find_program_address(
-                    hyperlane_token_mint_pda_seeds_memo!(),
-                    &program_id,
-                );
-
-                // Wait a bit for the account to be created and confirmed
-                println!("=== DEBUG: Waiting 2 seconds for account creation to be confirmed ===");
-                std::thread::sleep(std::time::Duration::from_secs(2));
-
-                // Debug: Check spl-token version
-                println!("=== DEBUG: Checking spl-token version ===");
-                let mut version_cmd = Command::new(spl_token_binary_path.clone());
-                version_cmd.args(["--version"]);
-                let version_output = version_cmd.output().expect("Failed to run spl-token --version");
-                let version_str = String::from_utf8_lossy(&version_output.stdout).trim().to_string();
-                println!("spl-token version output: {}", version_str);
-                if !version_output.stderr.is_empty() {
-                    println!("spl-token version stderr: {}", String::from_utf8_lossy(&version_output.stderr));
-                }
-                println!("spl-token exit status: {:?}", version_output.status);
-                println!("spl-token binary path: {}", spl_token_binary_path);
-                
-                // Check if using the custom fork
-                if !version_str.contains("dan/create-token-for-mint") && !version_str.contains("e101cca") {
-                    println!("=== WARNING: Not using the custom spl-token-cli fork! ===");
-                    println!("Expected fork: dan/create-token-for-mint (rev e101cca)");
-                    println!("Install with: cargo +1.76.0 install spl-token-cli --git https://github.com/hyperlane-xyz/solana-program-library --branch dan/create-token-for-mint --rev e101cca --locked --force");
-                }
-
-                // Debug: Check account state after init_instruction
-                println!("=== DEBUG: Checking mint account state after init_instruction ===");
-                println!("Mint account: {}", mint_account);
-                match client.get_account(&mint_account) {
-                    Ok(account) => {
-                        println!("Account exists: true");
-                        println!("Account owner: {}", account.owner);
-                        println!("Account lamports: {}", account.lamports);
-                        println!("Account data length: {}", account.data.len());
-                        println!("Account executable: {}", account.executable);
-                        println!("Account rent_epoch: {}", account.rent_epoch);
-                        if account.data.len() > 0 {
-                            println!("Account data (first 64 bytes): {:?}", &account.data[..account.data.len().min(64)]);
-                        } else {
-                            println!("Account data: empty");
-                        }
-                    }
-                    Err(e) => {
-                        println!("Account exists: false");
-                        println!("Error fetching account: {:?}", e);
-                        println!("=== ERROR: Account was not created by init_instruction! ===");
-                        println!("This suggests the init_instruction transaction may have failed.");
-                    }
-                }
-
-                let mut cmd = Command::new(spl_token_binary_path.clone());
-                cmd.args([
-                    "create-token",
-                    mint_account.to_string().as_str(),
-                    "--enable-metadata",
-                    "-p",
-                    spl_token_2022::id().to_string().as_str(),
-                    "--url",
-                    client.url().as_str(),
-                    "--with-compute-unit-limit",
-                    "500000",
-                    "--mint-authority",
-                    &ctx.payer_pubkey.to_string(),
-                    "--fee-payer",
-                    ctx.payer_keypair_path(),
-                ]);
-
-                println!("running command: {:?}", cmd);
-                let status = cmd
-                    .stdout(Stdio::inherit())
-                    .stderr(Stdio::inherit())
-                    .status()
-                    .expect("Failed to run command");
-
-                println!("initialized metadata pointer. Status: {status}");
-
-                ctx.new_txn().add(
-                    spl_token_2022::instruction::initialize_mint2(
+                    .add(create_metadata_pointer_initialize_instruction(
                         &spl_token_2022::id(),
                         &mint_account,
-                        &ctx.payer_pubkey,
-                        None,
-                        decimals,
+                        Some(ctx.payer_pubkey),
+                        Some(mint_account),
+                    ))
+                    .add(
+                        spl_token_2022::instruction::initialize_mint2(
+                            &spl_token_2022::id(),
+                            &mint_account,
+                            &ctx.payer_pubkey,
+                            None,
+                            decimals,
+                        )
+                        .unwrap(),
                     )
-                    .unwrap(),
-                )
             }
             TokenType::Collateral(collateral_info) => {
                 let collateral_mint = collateral_info.mint.parse().expect("Invalid mint address");
@@ -637,66 +552,87 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                 _ => unreachable!(),
             };
 
-            let mut cmd = Command::new(spl_token_binary_path.clone());
-            cmd.args([
-                "initialize-metadata",
-                mint_account.to_string().as_str(),
-                token_metadata.name.as_str(),
-                token_metadata.symbol.as_str(),
-                token_metadata.uri.as_deref().unwrap_or(""),
-                "-p",
-                spl_token_2022::id().to_string().as_str(),
-                "--url",
-                client.url().as_str(),
-                "--with-compute-unit-limit",
-                "500000",
-                "--mint-authority",
-                ctx.payer_keypair_path(),
-                "--fee-payer",
-                ctx.payer_keypair_path(),
-                "--update-authority",
-                &ctx.payer_pubkey.to_string(),
-            ]);
-            println!("running command: {:?}", cmd);
-            let status = cmd
-                .stdout(Stdio::inherit())
-                .stderr(Stdio::inherit())
-                .status()
-                .expect("Failed to run command");
-            println!("initialized metadata. Status: {status}");
+            println!(
+                "Initializing metadata for mint: {} with name: {}, symbol: {}, uri: {}",
+                mint_account,
+                token_metadata.name,
+                token_metadata.symbol,
+                token_metadata.uri.as_deref().unwrap_or("")
+            );
 
-            // Move the mint authority to the mint account.
-            // The deployer key will still hold the metadata pointer and metadata authorities.
-            let authorities_to_transfer = &["mint"];
+            // Calculate additional rent needed for metadata
+            let mint_account_data = client.get_account(&mint_account).unwrap();
+            let current_lamports = mint_account_data.lamports;
+            
+            // Estimate the new size needed for metadata
+            // The metadata extension is variable-length, so we need to calculate the space
+            let metadata_name = token_metadata.name.clone();
+            let metadata_symbol = token_metadata.symbol.clone();
+            let metadata_uri = token_metadata.uri.as_deref().unwrap_or("").to_string();
+            
+            // Rough estimate: base metadata overhead + string lengths
+            // TokenMetadata struct overhead + name + symbol + uri
+            let estimated_additional_space = 
+                128 + // Base overhead for TokenMetadata TLV entry
+                metadata_name.len() + 
+                metadata_symbol.len() + 
+                metadata_uri.len();
+            
+            let rent = client.get_minimum_balance_for_rent_exemption(
+                mint_account_data.data.len() + estimated_additional_space
+            ).unwrap();
+            
+            let additional_lamports = rent.saturating_sub(current_lamports);
 
-            for authority in authorities_to_transfer {
-                println!("Transferring authority: {authority} to the mint account {mint_account}");
-
-                let mut cmd = Command::new(spl_token_binary_path.clone());
-                cmd.args([
-                    "authorize",
-                    mint_account.to_string().as_str(),
-                    authority,
-                    mint_account.to_string().as_str(),
-                    "-p",
-                    spl_token_2022::id().to_string().as_str(),
-                    "--url",
-                    client.url().as_str(),
-                    "--with-compute-unit-limit",
-                    "500000",
-                    "--fee-payer",
-                    ctx.payer_keypair_path(),
-                    "--authority",
-                    ctx.payer_keypair_path(),
-                ]);
-                println!("Running command: {:?}", cmd);
-                let status = cmd
-                    .stdout(Stdio::inherit())
-                    .stderr(Stdio::inherit())
-                    .status()
-                    .expect("Failed to run command");
-                println!("Set the {authority} authority to the mint account. Status: {status}");
+            // Build transaction with metadata initialization and authority transfer
+            let mut txn = ctx.new_txn();
+            
+            // Transfer additional lamports if needed for rent
+            if additional_lamports > 0 {
+                println!(
+                    "Transferring {} lamports to mint account for metadata rent",
+                    additional_lamports
+                );
+                txn = txn.add(system_instruction::transfer(
+                    &ctx.payer_pubkey,
+                    &mint_account,
+                    additional_lamports,
+                ));
             }
+
+            // Initialize metadata
+            txn = txn.add(create_token_metadata_initialize_instruction(
+                &spl_token_2022::id(),
+                &mint_account,
+                &ctx.payer_pubkey, // update authority
+                &mint_account,     // mint
+                &ctx.payer_pubkey, // mint authority
+                metadata_name,
+                metadata_symbol,
+                metadata_uri,
+            ));
+
+            // Transfer mint authority to the mint account itself
+            // The deployer key will still hold the metadata pointer and metadata authorities
+            println!(
+                "Transferring mint authority to the mint account: {}",
+                mint_account
+            );
+            txn = txn.add(
+                spl_token_2022::instruction::set_authority(
+                    &spl_token_2022::id(),
+                    &mint_account,
+                    Some(&mint_account),
+                    spl_token_2022::instruction::AuthorityType::MintTokens,
+                    &ctx.payer_pubkey,
+                    &[],
+                )
+                .unwrap(),
+            );
+
+            txn.with_client(client).send_with_payer();
+
+            println!("Successfully initialized metadata and transferred mint authority");
         }
 
         try_fund_ata_payer(ctx, client);
@@ -1011,30 +947,3 @@ pub fn parse_token_account_data(token_type: FlatTokenType, data: &mut &[u8]) {
     }
 }
 
-pub fn install_spl_token_cli() {
-    println!("Installing cargo 1.76.0 (required by spl-token-cli)");
-    Command::new("rustup")
-        .args(["toolchain", "install", "1.76.0"])
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
-        .status()
-        .expect("Failed to run command");
-    println!("Installing the spl token cli");
-    Command::new("cargo")
-        .args([
-            "+1.76.0",
-            "install",
-            "spl-token-cli",
-            "--git",
-            "https://github.com/hyperlane-xyz/solana-program-library",
-            "--branch",
-            "dan/create-token-for-mint",
-            "--rev",
-            "e101cca",
-            "--locked",
-        ])
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
-        .status()
-        .expect("Failed to run command");
-}
