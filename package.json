@@ -53,11 +53,11 @@
       "underscore": "^1.13",
       "undici": "^5.11",
       "@babel/parser": "^7.22.7",
-      "@typechain/ethers-v5": "11.1.2",
-      "node-fetch": "^3.3.2"
+      "@typechain/ethers-v5": "11.1.2"
     },
     "patchedDependencies": {
-      "typechain@8.3.2": "patches/typechain@8.3.2.patch"
+      "typechain@8.3.2": "patches/typechain@8.3.2.patch",
+      "node-fetch@2.7.0": "patches/node-fetch@2.7.0.patch"
     }
   }
 }
