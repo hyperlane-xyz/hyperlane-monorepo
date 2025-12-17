@@ -1,7 +1,6 @@
 use std::fmt::Debug;
 
 use super::gas_price::GasPrice;
-use crate::adapter::chains::AleoTxPrecursor;
 use crate::payload::{FullPayload, PayloadDetails};
 use crate::transaction::VmSpecificTxData;
 use ethers::{

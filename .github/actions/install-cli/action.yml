@@ -13,28 +13,35 @@ inputs:
 runs:
   using: 'composite'
   steps:
-    - name: yarn-build-with-cache
-      if: inputs.no-cache == 'false'
-      uses: ./.github/actions/yarn-build-with-cache
-      with:
-        ref: ${{ inputs.ref }}
+    - name: Configure script shell for Windows
+      if: runner.os == 'Windows'
+      shell: bash
+      run: echo "script-shell=bash" >> .npmrc
 
-    - name: yarn-install-build-without-cache
+    - name: pnpm-build-with-cache
+      if: inputs.no-cache == 'false'
+      uses: ./.github/actions/pnpm-build-with-cache
+
+    - name: Setup Foundry
+      if: inputs.no-cache != 'false'
+      uses: ./.github/actions/setup-foundry
+
+    - name: Setup pnpm (no-cache path)
+      if: inputs.no-cache != 'false'
+      uses: pnpm/action-setup@v4
+
+    - name: pnpm-install-build-without-cache
       if: inputs.no-cache != 'false'
       shell: bash
       run: |
-        yarn install
-        yarn build
+        pnpm install --frozen-lockfile
+        pnpm run build
 
     - name: Pack the CLI
       shell: bash
       id: pack-cli
-      run: |
-        cd typescript/cli
-        yarn pack
+      run: pnpm -C typescript/cli pack
 
     - name: Install the packaged CLI
       shell: bash
-      run: |
-        cd typescript/cli
-        npm i -g package.tgz
+      run: npm i -g typescript/cli/hyperlane-xyz-cli-*.tgz

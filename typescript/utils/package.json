@@ -1,9 +1,11 @@
 {
   "name": "@hyperlane-xyz/utils",
   "description": "General utilities and types for the Hyperlane network",
-  "version": "19.11.0",
+  "version": "20.1.0",
   "dependencies": {
     "@cosmjs/encoding": "^0.32.4",
+    "@ethersproject/bytes": "*",
+    "@ethersproject/units": "*",
     "@solana/web3.js": "^1.98.4",
     "bech32": "^2.0.0",
     "bignumber.js": "^9.1.1",
@@ -43,7 +45,7 @@
     "mocha": "^11.5.0",
     "prettier": "^3.5.3",
     "sinon": "^13.0.2",
-    "typescript": "5.3.3",
+    "typescript": "5.8.3",
     "yaml-eslint-parser": "^1.3.0"
   },
   "homepage": "https://www.hyperlane.xyz",
@@ -62,7 +64,7 @@
     "lint": "eslint -c ./eslint.config.mjs",
     "prettier": "prettier --write ./src",
     "test": "mocha --config .mocharc.json './src/**/*.test.ts'",
-    "test:ci": "yarn test"
+    "test:ci": "pnpm test"
   },
   "type": "module",
   "exports": {

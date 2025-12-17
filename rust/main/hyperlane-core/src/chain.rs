@@ -127,6 +127,7 @@ impl<'de> Deserialize<'de> for ReorgPeriod {
 )]
 pub enum KnownHyperlaneDomain {
     Abstract = 2741,
+    Aleo = 1634493807,
     AppChain = 466,
     Ancient8 = 888888888,
     ApeChain = 33139,
@@ -260,6 +261,7 @@ pub enum KnownHyperlaneDomain {
 
     // -- Test chains --
     //
+    AleoTestnet = 1617853565,
     ArbitrumSepolia = 421614,
     ArcadiaTestnet2 = 1098411886,
     AuroraTestnet = 1313161555,
@@ -432,7 +434,8 @@ impl KnownHyperlaneDomain {
         use self::KnownHyperlaneDomain::*;
 
         match self {
-            ArbitrumSepolia
+            AleoTestnet
+            | ArbitrumSepolia
             | ArcadiaTestnet2
             | AuroraTestnet
             | BasecampTestnet
@@ -517,6 +520,7 @@ impl KnownHyperlaneDomain {
             | ParadexSepolia
             | PragmaDevnet => HyperlaneDomainProtocol::Starknet,
             Radix | RadixTestnet => HyperlaneDomainProtocol::Radix,
+            Aleo | AleoTestnet => HyperlaneDomainProtocol::Aleo,
             _ => HyperlaneDomainProtocol::Ethereum
         }
     }

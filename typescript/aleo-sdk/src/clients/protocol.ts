@@ -27,8 +27,8 @@ export class AleoProtocolProvider implements ProtocolProvider {
   ): Promise<AltVM.ISigner<AnnotatedTx, TxReceipt>> {
     assert(chainMetadata.rpcUrls, 'rpc urls undefined');
     const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
-
     const { privateKey, ...extraParams } = config;
+
     return AleoSigner.connectWithSigner(rpcUrls, privateKey, extraParams);
   }
 

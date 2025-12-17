@@ -39,7 +39,7 @@ jobs:
       current_version: ${{ steps.check_version.outputs.current_version }}
       latest_version: ${{ steps.check_version.outputs.latest_version }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - name: Check if there are changes since last release
@@ -112,7 +112,7 @@ jobs:
         with:
           app-id: ${{ secrets.HYPER_GONK_APP_ID }}
           private-key: ${{ secrets.HYPER_GONK_PRIVATE_KEY }}
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
           token: ${{ steps.generate-token.outputs.token }}
@@ -268,7 +268,7 @@ jobs:
         github.event_name == 'push' &&
         needs.check-release-status.outputs.should_release == 'true')
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - name: Determine version and create release

@@ -1,21 +1,23 @@
-use aleo_serialize_macro::aleo_serialize;
 use serde::{Deserialize, Serialize};
+use snarkvm::prelude::{MainnetV0, Network, Plaintext};
+use snarkvm_console_account::{Address, Itertools};
 
+use aleo_serialize_macro::aleo_serialize;
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, utils::to_atto, HyperlaneMessage,
     InterchainGasPayment, MerkleTreeInsertion, H256, U256,
 };
-use snarkvm::prelude::{MainnetV0, Network};
-use snarkvm_console_account::{Address, Itertools};
 
 use crate::utils::{aleo_hash_to_h256, bytes_to_u128_words};
 
-// This actually works for all networks. I've raised this with the Aleo team, but the type annotation here doesn't actually change the underlying type.
-// The Aleo VM types all inherit a generic Network type, but that Type is not relevant for many structs of Aleo and is supposed to be more of an additional information for the internal VM processing.
-// They need this, because they generate ZK Proofs differently for different networks but the actual data of these types are the same across all Networks.
-// We pass CurrentNetwork into a lot of types, because we don't have to generate ZK Proofs in almost every situation - except when submitting a TX. There is one exception to this and that is when parsing/handling with Blocks.
-// The Block type verifies its validity on creation and that changes based on the Network type, that's why we have to pass the correct Type when dealing with blocks.
-pub(crate) type CurrentNetwork = MainnetV0;
+/// Type alias for the Aleo network used throughout this codebase.
+///
+/// This actually works for all networks. I've raised this with the Aleo team, but the type annotation here doesn't actually change the underlying type.
+/// The Aleo VM types all inherit a generic Network type, but that Type is not relevant for many structs of Aleo and is supposed to be more of an additional information for the internal VM processing.
+/// They need this, because they generate ZK Proofs differently for different networks but the actual data of these types are the same across all Networks.
+/// We pass CurrentNetwork into a lot of types, because we don't have to generate ZK Proofs in almost every situation - except when submitting a TX. There is one exception to this and that is when parsing/handling with Blocks.
+/// The Block type verifies its validity on creation and that changes based on the Network type, that's why we have to pass the correct Type when dealing with blocks.
+pub type CurrentNetwork = MainnetV0;
 
 /// Aleo Hash Type, for performance reasons the aleo contracts use [u128;2] to represent 32 byte hashes
 /// Each u128 is encoded in little-endian byte order
@@ -292,6 +294,7 @@ impl FeeEstimate {
     }
 }
 
+/// Delivery key is used to check if message was indeed delivered
 #[aleo_serialize]
 #[derive(Debug)]
 pub struct DeliveryKey {
@@ -336,7 +339,7 @@ pub struct AleoGetMappingValue {
     /// Mapping name
     pub mapping_name: String,
     /// Mapping key
-    pub mapping_key: String,
+    pub mapping_key: Plaintext<CurrentNetwork>,
 }
 
 #[cfg(test)]

@@ -178,10 +178,14 @@ impl<C: AleoClient> Mailbox for AleoMailbox<C> {
             .provider
             .get_mapping_value(&recipient.to_string(), "app_metadata", &true)
             .await?;
-        match metadata {
-            Some(metadata) => to_h256(metadata.ism),
-            None => self.default_ism().await,
+        if let Some(metadata) = metadata {
+            let address = to_h256(metadata.ism)?;
+            // Only return if the address is non-zero
+            if !address.is_zero() {
+                return Ok(address);
+            }
         }
+        self.default_ism().await
     }
 
     /// Process a message with a proof against the provided signed checkpoint
@@ -254,7 +258,7 @@ impl<C: AleoClient> Mailbox for AleoMailbox<C> {
         let get_mapping_value = AleoGetMappingValue {
             program_id: self.program.clone(),
             mapping_name: "deliveries".to_string(),
-            mapping_key: key.to_string(),
+            mapping_key: key,
         };
 
         let json_val =

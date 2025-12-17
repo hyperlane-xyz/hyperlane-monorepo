@@ -1,5 +1,37 @@
 # @hyperlane-xyz/utils
 
+## 20.1.0
+
+### Minor Changes
+
+- 11fa887: Upgrade TypeScript from 5.3.3 to 5.8.3 and compilation target to ES2023
+
+  - Upgraded TypeScript from 5.3.3 to 5.8.3 across all packages
+  - Updated compilation target from ES2022 to ES2023 (Node 16+ fully supported)
+  - Converted internal const enums to 'as const' pattern for better compatibility
+  - Updated @types/node from ^18.14.5 to ^20.17.0 for TypeScript 5.7+ compatibility
+  - Fixed JSON imports to use required 'with { type: "json" }' attribute (TS 5.7+ requirement)
+  - No breaking changes to public API - all changes are internal or non-breaking
+
+## 20.0.0
+
+### Patch Changes
+
+- b3ebc08: Use stringifyObject in writeJson and writeYaml for proper ethers BigNumber serialization. Rename removeEndingSlash to removeTrailingSlash.
+
+## 19.13.0
+
+## 19.12.0
+
+### Minor Changes
+
+- af2cd1729: Support reading ReorgEvent object from validator buckets.
+- e37100e2e: Add new `@hyperlane-xyz/utils/fs` submodule with filesystem utilities for Node.js. Includes functions for reading/writing JSON and YAML files, path resolution, directory management, and format-agnostic file operations. This submodule is not suitable for browser use.
+
+### Patch Changes
+
+- 08cf7eca9: Parse starknet addresses before validating with regex
+
 ## 19.11.0
 
 ## 19.10.0
