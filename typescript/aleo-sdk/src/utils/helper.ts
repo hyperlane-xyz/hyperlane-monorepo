@@ -2,7 +2,7 @@ import { BHP256, Plaintext, Program, U128 } from '@provablehq/sdk/mainnet.js';
 
 import { isValidAddressAleo, strip0x } from '@hyperlane-xyz/utils';
 
-import { AleoProgram, programRegistry } from '../artifacts.js';
+import { type AleoProgram, programRegistry } from '../artifacts.js';
 
 const upgradeAuthority = process.env['ALEO_UPGRADE_AUTHORITY'] || '';
 const skipSuffixes = JSON.parse(process.env['ALEO_SKIP_SUFFIXES'] || 'false');

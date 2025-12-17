@@ -1,7 +1,7 @@
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { type AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert } from '@hyperlane-xyz/utils';
 
-import { AleoProgram } from '../artifacts.js';
+import { type AleoProgram } from '../artifacts.js';
 import {
   fromAleoAddress,
   getProgramSuffix,
@@ -9,9 +9,9 @@ import {
   programIdToPlaintext,
   toAleoAddress,
 } from '../utils/helper.js';
-import { AleoReceipt, AleoTransaction } from '../utils/types.js';
+import { type AleoReceipt, type AleoTransaction } from '../utils/types.js';
 
-import { AnyProgramManager } from './base.js';
+import { type AnyProgramManager } from './base.js';
 import { AleoProvider } from './provider.js';
 
 export class AleoSigner
