@@ -52,7 +52,7 @@
     "@types/mocha": "catalog:",
     "@types/node": "catalog:",
     "@types/sinon": "catalog:",
-    "@vercel/ncc": "^0.38.3",
+    "@vercel/ncc": "catalog:",
     "chai": "catalog:",
     "chai-as-promised": "catalog:",
     "eslint": "catalog:",
