@@ -2,4 +2,4 @@
 '@hyperlane-xyz/cli': patch
 ---
 
-Fix isSignCommand to return boolean for non-sign commands and add status command as conditional sign command
+`hyperlane status` no longer requires private keys when checking message status. Keys are now only required when using `--relay` flag, and only for the destination chain protocol you're relaying to.
