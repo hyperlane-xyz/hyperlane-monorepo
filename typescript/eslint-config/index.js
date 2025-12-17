@@ -42,6 +42,13 @@ export const typescriptRules = ts.config({
     },
   },
   rules: {
+    '@typescript-eslint/consistent-type-imports': [
+      'error',
+      {
+        prefer: 'type-imports',
+        fixStyle: 'inline-type-imports',
+      },
+    ],
     '@typescript-eslint/require-await': 'off', // Recommended rule, but we have many violations
     '@typescript-eslint/no-explicit-any': 'off',
     '@typescript-eslint/no-misused-promises': 'off', // Recommended rule, but we have many violations
