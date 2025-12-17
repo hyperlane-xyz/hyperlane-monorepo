@@ -1,6 +1,6 @@
-use hyperlane_core::SubmitterType;
 use maplit::hashmap;
 
+use crate::aleo::SUBMITTER_TYPE;
 use crate::config::Config;
 use crate::fetch_metric;
 use crate::invariants::{
@@ -35,7 +35,7 @@ pub fn aleo_termination_invariants_met(
         non_matching_igp_message_count: 0,
         double_insertion_message_count: 0,
         skip_tx_id_indexing: true,
-        submitter_type: SubmitterType::Classic,
+        submitter_type: SUBMITTER_TYPE,
     };
 
     if !relayer_termination_invariants_met(relayer_params)? {

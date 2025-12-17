@@ -104,7 +104,7 @@ impl AleoProviderForLander for MockProviderWithFixtures {
         Ok(H512::random())
     }
 
-    async fn get_confirmed_transaction(
+    async fn request_confirmed_transaction(
         &self,
         transaction_id: H512,
     ) -> ChainResult<AleoConfirmedTransaction<CurrentNetwork>> {
@@ -118,7 +118,7 @@ impl AleoProviderForLander for MockProviderWithFixtures {
             })
     }
 
-    async fn get_unconfirmed_transaction(
+    async fn request_unconfirmed_transaction(
         &self,
         transaction_id: H512,
     ) -> ChainResult<AleoUnconfirmedTransaction<CurrentNetwork>> {
