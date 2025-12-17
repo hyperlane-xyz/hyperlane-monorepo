@@ -135,4 +135,5 @@ export enum WarpRouteIds {
 
   // Carrchain routes
   CarrChainUSDC = 'USDC/carrchain',
+  CarrChainUSDT = 'USDT/carrchain',
 }
