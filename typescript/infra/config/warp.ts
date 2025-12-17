@@ -48,6 +48,7 @@ import {
   getCCTPV2StrategyConfig,
 } from './environments/mainnet3/warp/configGetters/getCCTPConfig.js';
 import { getCarrChainCARRWarpConfig } from './environments/mainnet3/warp/configGetters/getCarrchainCARRWarpConfig.js';
+import { getCarchainnUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getCarrchainUSDCWarpConfig.js';
 import { getEclipseEthereumESWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumESWarpConfig.js';
 import { getEclipseEthereumSolanaUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumSolanaUSDTWarpConfig.js';
 import { getEclipseEthereumWBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumWBTCWarpConfig.js';
@@ -189,6 +190,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.MantraUSDC]: getMantraUSDCWarpConfig,
   [WarpRouteIds.IncentivUSDC]: getIncentivUSDCWarpConfig,
   [WarpRouteIds.LitchainLITKEY]: getLitchainLITKEYWarpConfig,
+  [WarpRouteIds.CarrChainUSDC]: getCarchainnUSDCWarpConfig,
 };
 
 type StrategyConfigGetter = () => ChainSubmissionStrategy;
