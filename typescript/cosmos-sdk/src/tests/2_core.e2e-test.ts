@@ -1,9 +1,9 @@
-import { EncodeObject } from '@cosmjs/proto-signing';
-import { DeliverTxResponse } from '@cosmjs/stargate';
+import { type EncodeObject } from '@cosmjs/proto-signing';
+import { type DeliverTxResponse } from '@cosmjs/stargate';
 import { expect } from 'chai';
 import { step } from 'mocha-steps';
 
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { type AltVM } from '@hyperlane-xyz/provider-sdk';
 import { bytes32ToAddress, isValidAddressEvm } from '@hyperlane-xyz/utils';
 
 import { createSigner } from './utils.js';
@@ -34,7 +34,7 @@ describe('2. cosmos sdk core e2e tests', async function () {
     expect(isValidAddressEvm(bytes32ToAddress(txResponse.mailboxAddress))).to.be
       .true;
 
-    let mailbox = await signer.getMailbox({
+    const mailbox = await signer.getMailbox({
       mailboxAddress: txResponse.mailboxAddress,
     });
 
