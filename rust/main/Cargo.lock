@@ -6388,6 +6388,7 @@ dependencies = [
  "hyperlane-metric",
  "hyperlane-operation-verifier",
  "hyperlane-warp-route",
+ "reqwest-utils",
  "serde",
  "serde_json",
  "starknet 0.15.1",

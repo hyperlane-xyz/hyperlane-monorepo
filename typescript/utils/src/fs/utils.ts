@@ -5,7 +5,7 @@ import path from 'path';
 /**
  * Removes trailing slash from a directory path.
  */
-export function removeEndingSlash(dirPath: string): string {
+export function removeTrailingSlash(dirPath: string): string {
   if (dirPath.endsWith('/')) {
     return dirPath.slice(0, -1);
   }
