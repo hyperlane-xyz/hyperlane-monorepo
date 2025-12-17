@@ -7,13 +7,6 @@ export default [
   {
     name: 'deploy-sdk-overrides',
     rules: {
-      '@typescript-eslint/consistent-type-imports': [
-        'error',
-        {
-          prefer: 'type-imports',
-          fixStyle: 'inline-type-imports',
-        },
-      ],
       'no-restricted-imports': [
         'error',
         {
