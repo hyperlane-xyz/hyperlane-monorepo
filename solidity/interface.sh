@@ -34,9 +34,9 @@ if [ "$1" = "test-interface" ]; then
         fi
 
         # Extract function signatures from base and head
-        # Format: functionName(type1,type2,...)
-        base_funcs=$(jq -r '.[] | select(.type == "function") | .name + "(" + ([.inputs[].type] | join(",")) + ")"' "$base_file" 2>/dev/null | sort)
-        head_funcs=$(jq -r '.[] | select(.type == "function") | .name + "(" + ([.inputs[].type] | join(",")) + ")"' "$head_file" 2>/dev/null | sort)
+        # Format: functionName(input1,input2,...)->(output1,output2,...)
+        base_funcs=$(jq -r '.[] | select(.type == "function") | .name + "(" + ([.inputs[].type] | join(",")) + ")->(" + ([.outputs[].type] | join(",")) + ")"' "$base_file" 2>/dev/null | sort)
+        head_funcs=$(jq -r '.[] | select(.type == "function") | .name + "(" + ([.inputs[].type] | join(",")) + ")->(" + ([.outputs[].type] | join(",")) + ")"' "$head_file" 2>/dev/null | sort)
 
         # Find functions in base that are not in head (removals)
         while IFS= read -r func; do
