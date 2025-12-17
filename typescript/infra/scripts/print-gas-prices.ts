@@ -140,6 +140,7 @@ async function getGasPrice(
         return currentGasPrice || createDefaultGasPrice(chain, 1);
       }
     }
+    case ProtocolType.Aleo:
     case ProtocolType.Radix:
     case ProtocolType.Sealevel:
     case ProtocolType.Starknet:
