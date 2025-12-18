@@ -43,7 +43,7 @@ export function loadProgramsInDeployOrder(
   programs = programs.map((p) => {
     let output = p.toString();
 
-    for (let r of Object.keys(programRegistry)) {
+    for (const r of Object.keys(programRegistry)) {
       if (r === 'credits' || r === 'token_registry') {
         continue;
       }
