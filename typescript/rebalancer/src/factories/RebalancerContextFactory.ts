@@ -1,9 +1,15 @@
 import { Logger } from 'pino';
 
-import { type ChainMap, type Token, WarpCore } from '@hyperlane-xyz/sdk';
+import { IRegistry } from '@hyperlane-xyz/registry';
+import {
+  type ChainMap,
+  MultiProtocolProvider,
+  MultiProvider,
+  type Token,
+  WarpCore,
+} from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
-import type { WriteCommandContext } from '../../context/types.js';
 import { RebalancerConfig } from '../config/RebalancerConfig.js';
 import { Rebalancer } from '../core/Rebalancer.js';
 import { WithSemaphore } from '../core/WithSemaphore.js';
@@ -18,26 +24,33 @@ import { isCollateralizedTokenEligibleForRebalancing } from '../utils/index.js';
 export class RebalancerContextFactory {
   /**
    * @param config - The rebalancer config
-   * @param metadata - A `ChainMap` of chain names and `ChainMetadata` objects, sourced from the `IRegistry`.
    * @param warpCore - An instance of `WarpCore` configured for the specified `warpRouteId`.
    * @param tokensByChainName - A map of chain->token to ease the lookup of token by chain
-   * @param context - CLI context
+   * @param multiProvider - MultiProvider instance
+   * @param registry - IRegistry instance
+   * @param logger - Logger instance
    */
   private constructor(
     private readonly config: RebalancerConfig,
     private readonly warpCore: WarpCore,
     private readonly tokensByChainName: ChainMap<Token>,
-    private readonly context: WriteCommandContext,
+    private readonly multiProvider: MultiProvider,
+    private readonly registry: IRegistry,
     private readonly logger: Logger,
   ) {}
 
   /**
    * @param config - The rebalancer config
-   * @param context - CLI context
+   * @param multiProvider - MultiProvider instance
+   * @param multiProtocolProvider - MultiProtocolProvider instance (optional, created from multiProvider if not provided)
+   * @param registry - IRegistry instance
+   * @param logger - Logger instance
    */
   public static async create(
     config: RebalancerConfig,
-    context: WriteCommandContext,
+    multiProvider: MultiProvider,
+    multiProtocolProvider: MultiProtocolProvider | undefined,
+    registry: IRegistry,
     logger: Logger,
   ): Promise<RebalancerContextFactory> {
     logger.debug(
@@ -46,14 +59,17 @@ export class RebalancerContextFactory {
       },
       'Creating RebalancerContextFactory',
     );
-    const { registry } = context;
     const addresses = await registry.getAddresses();
 
     // The Sealevel warp adapters require the Mailbox address, so we
     // get mailboxes for all chains and merge them with the chain metadata.
     const mailboxes = objMap(addresses, (_, { mailbox }) => ({ mailbox }));
-    const provider =
-      context.multiProtocolProvider.extendChainMetadata(mailboxes);
+
+    // Create MultiProtocolProvider (convert from MultiProvider if not provided)
+    const mpp =
+      multiProtocolProvider ??
+      MultiProtocolProvider.fromMultiProvider(multiProvider);
+    const provider = mpp.extendChainMetadata(mailboxes);
 
     const warpCoreConfig = await registry.getWarpRoute(config.warpRouteId);
     if (!warpCoreConfig) {
@@ -76,7 +92,8 @@ export class RebalancerContextFactory {
       config,
       warpCore,
       tokensByChainName,
-      context,
+      multiProvider,
+      registry,
       logger,
     );
   }
@@ -95,11 +112,11 @@ export class RebalancerContextFactory {
       'Creating Metrics',
     );
     const tokenPriceGetter = PriceGetter.create(
-      this.context.chainMetadata,
+      this.multiProvider.metadata,
       this.logger,
       coingeckoApiKey,
     );
-    const warpDeployConfig = await this.context.registry.getWarpDeployConfig(
+    const warpDeployConfig = await this.registry.getWarpDeployConfig(
       this.config.warpRouteId,
     );
 
@@ -153,18 +170,14 @@ export class RebalancerContextFactory {
         override: v.override,
       })),
       this.warpCore,
-      this.context.chainMetadata,
+      this.multiProvider.metadata,
       this.tokensByChainName,
-      this.context.multiProvider,
+      this.multiProvider,
       this.logger,
       metrics,
     );
 
-    const rebalancerAddress = this.context.signerAddress;
-    if (!rebalancerAddress) {
-      throw new Error('rebalancer address is required');
-    }
-
+    // Wrap with semaphore for concurrency control
     const withSemaphore = new WithSemaphore(
       this.config,
       rebalancer,
