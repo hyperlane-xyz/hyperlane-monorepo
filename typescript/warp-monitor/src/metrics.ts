@@ -1,16 +1,24 @@
+import http from 'http';
 import { Gauge, Registry } from 'prom-client';
 
-import { ChainName, Token, TokenStandard, WarpCore } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import type {
+  ChainName,
+  Token,
+  TokenStandard,
+  WarpCore,
+} from '@hyperlane-xyz/sdk';
+import type { Address } from '@hyperlane-xyz/utils';
 
-import { getWalletBalanceGauge } from '../../../src/utils/metrics.js';
-
-import { NativeWalletBalance, WarpRouteBalance, XERC20Limit } from './types.js';
-import { logger } from './utils.js';
+import type {
+  NativeWalletBalance,
+  WarpRouteBalance,
+  XERC20Limit,
+} from './types.js';
+import { getLogger } from './utils.js';
 
 export const metricsRegister = new Registry();
 
-type supportedTokenStandards = TokenStandard | 'EvmManagedLockbox' | 'xERC20';
+type SupportedTokenStandards = TokenStandard | 'EvmManagedLockbox' | 'xERC20';
 
 interface BaseWarpRouteMetrics {
   chain_name: ChainName;
@@ -21,7 +29,7 @@ interface BaseWarpRouteMetrics {
 
 interface WarpRouteMetrics extends BaseWarpRouteMetrics {
   wallet_address: string;
-  token_standard: supportedTokenStandards;
+  token_standard: SupportedTokenStandards;
   related_chain_names: string;
 }
 
@@ -53,7 +61,7 @@ const warpRouteCollateralValue = new Gauge({
 
 interface WarpRouteValueAtRiskMetrics extends BaseWarpRouteMetrics {
   collateral_chain_name: ChainName;
-  collateral_token_standard: supportedTokenStandards;
+  collateral_token_standard: SupportedTokenStandards;
 }
 
 type WarpRouteValueAtRiskMetricLabels = keyof WarpRouteValueAtRiskMetrics;
@@ -74,7 +82,28 @@ const warpRouteValueAtRisk = new Gauge({
   labelNames: warpRouteValueAtRiskLabels,
 });
 
-const walletBalanceGauge = getWalletBalanceGauge(metricsRegister);
+function createWalletBalanceGauge(
+  register: Registry,
+  additionalLabels: string[] = [],
+): Gauge {
+  return new Gauge({
+    // Mirror the rust/main/ethers-prometheus `wallet_balance` gauge metric.
+    name: 'hyperlane_wallet_balance',
+    help: 'Current balance of a wallet for a token',
+    registers: [register],
+    labelNames: [
+      'chain',
+      'wallet_address',
+      'wallet_name',
+      'token_address',
+      'token_symbol',
+      'token_name',
+      ...additionalLabels,
+    ],
+  });
+}
+
+const walletBalanceGauge = createWalletBalanceGauge(metricsRegister);
 
 const xERC20LimitsGauge = new Gauge({
   name: 'hyperlane_xerc20_limits',
@@ -95,11 +124,14 @@ export function updateTokenBalanceMetrics(
   token: Token,
   balanceInfo: WarpRouteBalance,
   warpRouteId: string,
-) {
+): void {
+  const logger = getLogger();
   const allChains = warpCore.getTokenChains().sort();
   const relatedChains = allChains.filter(
     (chainName) => chainName !== token.chainName,
   );
+
+  const { TokenStandard } = require('@hyperlane-xyz/sdk');
 
   const metrics: WarpRouteMetrics = {
     chain_name: token.chainName,
@@ -161,8 +193,7 @@ export function updateTokenBalanceMetrics(
     }
   }
 }
-// TODO: This does not need to be a separate function, we can redefine updateTokenBalanceMetrics to be generic
-// TODO: Consider adding some identifier for the managedLockbox contract, could be adding collateralName label for lockboxes, this would help different manages lockboxes that has a different collateral token
+
 export function updateManagedLockboxBalanceMetrics(
   warpCore: WarpCore,
   chainName: ChainName,
@@ -171,7 +202,8 @@ export function updateManagedLockboxBalanceMetrics(
   lockBoxAddress: string,
   balanceInfo: WarpRouteBalance,
   warpRouteId: string,
-) {
+): void {
+  const logger = getLogger();
   const metrics: WarpRouteMetrics = {
     chain_name: chainName,
     token_address: tokenAddress,
@@ -207,7 +239,10 @@ export function updateManagedLockboxBalanceMetrics(
   }
 }
 
-export function updateNativeWalletBalanceMetrics(balance: NativeWalletBalance) {
+export function updateNativeWalletBalanceMetrics(
+  balance: NativeWalletBalance,
+): void {
+  const logger = getLogger();
   walletBalanceGauge
     .labels({
       chain: balance.chain,
@@ -228,7 +263,8 @@ export function updateXERC20LimitsMetrics(
   bridgeAddress: Address,
   bridgeLabel: string,
   xERC20Address: Address,
-) {
+): void {
+  const logger = getLogger();
   const labels = {
     chain_name: token.chainName,
     token_name: token.name,
@@ -253,4 +289,33 @@ export function updateXERC20LimitsMetrics(
     },
     'xERC20 limits updated for bridge on token',
   );
+}
+
+/**
+ * Start a simple HTTP server to host metrics. This just takes the registry and dumps the text
+ * string to people who request `GET /metrics`.
+ *
+ * PROMETHEUS_PORT env var is used to determine what port to host on, defaults to 9090.
+ */
+export function startMetricsServer(register: Registry): http.Server {
+  const logger = getLogger();
+  return http
+    .createServer((req, res) => {
+      if (req.url !== '/metrics') {
+        res.writeHead(404, 'Invalid url').end();
+        return;
+      }
+      if (req.method !== 'GET') {
+        res.writeHead(405, 'Invalid method').end();
+        return;
+      }
+
+      register
+        .metrics()
+        .then((metricsStr) => {
+          res.writeHead(200, { ContentType: 'text/plain' }).end(metricsStr);
+        })
+        .catch((err) => logger.error(err));
+    })
+    .listen(parseInt(process.env['PROMETHEUS_PORT'] || '9090'));
 }

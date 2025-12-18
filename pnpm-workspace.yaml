@@ -94,6 +94,7 @@ catalog:
   typescript: 5.8.3
   tsx: ^4.19.1
   ts-node: ^10.9.2
+  '@vercel/ncc': ^0.38.3
 
   # Linting
   eslint: ^9.31.0

@@ -1,0 +1,63 @@
+{
+  "name": "@hyperlane-xyz/warp-monitor",
+  "version": "0.0.0",
+  "description": "Hyperlane Warp Route Balance Monitor Service",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "hyperlane-warp-monitor": "./dist/service.js"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "bundle": "rm -rf ./warp-monitor-bundle && ncc build ./dist/service.js -o warp-monitor-bundle && node ./scripts/ncc.post-bundle.mjs",
+    "clean": "rm -rf dist cache warp-monitor-bundle",
+    "dev": "tsc --watch",
+    "lint": "eslint -c ./eslint.config.mjs ./src",
+    "prettier": "prettier --write ./src",
+    "test": "mocha --config .mocharc.json './src/**/*.test.ts' --exit",
+    "test:ci": "pnpm test",
+    "start": "node dist/service.js",
+    "start:dev": "tsx src/service.ts",
+    "prepack": "pnpm bundle"
+  },
+  "dependencies": {
+    "@google-cloud/pino-logging-gcp-config": "catalog:",
+    "@hyperlane-xyz/core": "workspace:*",
+    "@hyperlane-xyz/registry": "catalog:",
+    "@hyperlane-xyz/sdk": "workspace:*",
+    "@hyperlane-xyz/utils": "workspace:*",
+    "ethers": "catalog:",
+    "pino": "catalog:",
+    "prom-client": "catalog:"
+  },
+  "devDependencies": {
+    "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@types/mocha": "catalog:",
+    "@types/node": "catalog:",
+    "@vercel/ncc": "catalog:",
+    "eslint": "catalog:",
+    "mocha": "catalog:",
+    "prettier": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
+  "keywords": [
+    "hyperlane",
+    "warp-monitor",
+    "warp-route",
+    "balance",
+    "blockchain",
+    "interchain"
+  ],
+  "author": "Abacus Works, Inc.",
+  "license": "Apache-2.0"
+}
