@@ -31,6 +31,7 @@ async function prepend() {
     }
   } catch (err) {
     console.error('Error processing output file:', err);
+    process.exit(1);
   }
 }
 
