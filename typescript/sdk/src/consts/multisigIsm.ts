@@ -2224,18 +2224,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  svmbnb: {
-    threshold: 2,
-    validators: [
-      {
-        address: '0xabcd4dac2d06ae30c011d25b0c2c193873116a14',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-      DEFAULT_MERKLY_VALIDATOR,
-      DEFAULT_MITOSIS_VALIDATOR,
-    ],
-  },
-
   swell: {
     threshold: 4,
     validators: [

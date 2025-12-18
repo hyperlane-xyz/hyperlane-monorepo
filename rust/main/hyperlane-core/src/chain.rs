@@ -232,7 +232,6 @@ pub enum KnownHyperlaneDomain {
     SubTensor = 964,
     SuperpositionMainnet = 1000055244,
     Superseed = 5330,
-    SvmBnb = 574456,
     Swell = 1923,
     Tac = 239,
     Taiko = 167000,
@@ -494,7 +493,6 @@ impl KnownHyperlaneDomain {
             | SonicSvm
             | SonicSvmTestnet
             | Soon
-            | SvmBnb
             // Local chains
             | SealevelTest1
             | SealevelTest2 => HyperlaneDomainProtocol::Sealevel,

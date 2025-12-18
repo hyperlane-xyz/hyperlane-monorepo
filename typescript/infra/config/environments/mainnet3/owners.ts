@@ -80,9 +80,6 @@ export const chainOwners: ChainMap<OwnableConfig> = {
   starknet: {
     owner: '0x06aE465e0c05735820a75500c40CB4dAbBe46eBF1F1665f9ba3f9a7Dcc78a6D1',
   },
-  svmbnb: {
-    owner: '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf',
-  },
   solaxy: {
     owner: '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf',
   },
