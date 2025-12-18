@@ -444,6 +444,7 @@ pub async fn run_locally() {
 #[cfg(test)]
 mod test {
     #[test]
+    #[ignore] // E2E test requiring Radix infrastructure
     fn test_run() {
         use crate::radix::run_locally;
 

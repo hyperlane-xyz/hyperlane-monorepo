@@ -616,6 +616,7 @@ fn termination_invariants_met(
 #[cfg(feature = "starknet")]
 mod test {
     #[test]
+    #[ignore] // E2E test requiring Starknet infrastructure
     fn test_run() {
         super::run_locally()
     }

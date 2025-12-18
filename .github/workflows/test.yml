@@ -656,20 +656,20 @@ jobs:
 
       - name: agent tests (CosmWasm)
         if: ${{ matrix.e2e-type == 'cosmwasm' && steps.check-conditions.outputs.skip-e2e != 'true' }}
-        run: cargo test --release --package run-locally --bin run-locally --features cosmos -- cosmos::test --nocapture
+        run: cargo test --release --package run-locally --bin run-locally --features cosmos -- cosmos::test --nocapture --include-ignored
         working-directory: ./rust/main
         env:
           RUST_BACKTRACE: 'full'
 
       - name: agent tests (CosmosNative)
-        run: cargo test --release --package run-locally --bin run-locally --features cosmosnative -- cosmosnative::test --nocapture
+        run: cargo test --release --package run-locally --bin run-locally --features cosmosnative -- cosmosnative::test --nocapture --include-ignored
         if: ${{ matrix.e2e-type == 'cosmosnative' && steps.check-rust-changes.outputs.rust_changes == 'true' }}
         working-directory: ./rust/main
         env:
           RUST_BACKTRACE: 'full'
 
       - name: agent tests (Radix)
-        run: cargo test --release --package run-locally --bin run-locally --features radix -- radix::test --nocapture
+        run: cargo test --release --package run-locally --bin run-locally --features radix -- radix::test --nocapture --include-ignored
         if: ${{ matrix.e2e-type == 'radix' && steps.check-rust-changes.outputs.rust_changes == 'true' }}
         working-directory: ./rust/main
         env:
@@ -689,7 +689,7 @@ jobs:
 
       - name: agent tests (Sealevel)
         if: ${{ matrix.e2e-type == 'sealevel' && steps.check-conditions.outputs.skip-e2e != 'true' }}
-        run: cargo test --release --package run-locally --bin run-locally --features sealevel -- sealevel::test --nocapture
+        run: cargo test --release --package run-locally --bin run-locally --features sealevel -- sealevel::test --nocapture --include-ignored
         working-directory: ./rust/main
         env:
           E2E_CI_MODE: 'true'
@@ -697,7 +697,7 @@ jobs:
           RUST_BACKTRACE: 'full'
 
       - name: agent tests (Starknet)
-        run: cargo test --release --package run-locally --bin run-locally --features starknet -- starknet::test --nocapture
+        run: cargo test --release --package run-locally --bin run-locally --features starknet -- starknet::test --nocapture --include-ignored
         if: ${{ matrix.e2e-type == 'starknet' && steps.check-rust-changes.outputs.rust_changes == 'true' }}
         working-directory: ./rust/main
         env:

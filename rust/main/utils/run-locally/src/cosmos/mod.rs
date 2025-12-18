@@ -636,6 +636,7 @@ fn dispatch(osmosisd: &Path, linker: &str, nodes: &[CosmosNetwork]) -> u32 {
 mod test {
 
     #[test]
+    #[ignore] // E2E test requiring Cosmos infrastructure
     fn test_run() {
         use crate::cosmos::run_locally;
 

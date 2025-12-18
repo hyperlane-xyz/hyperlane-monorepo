@@ -482,6 +482,7 @@ fn termination_invariants_met(
 #[cfg(test)]
 mod test {
     #[test]
+    #[ignore] // E2E test requiring CosmosNative infrastructure
     fn test_run() {
         use crate::cosmosnative::run_locally;
 

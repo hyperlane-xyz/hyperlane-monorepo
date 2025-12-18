@@ -332,6 +332,7 @@ fn run_locally() {
 mod test {
 
     #[test]
+    #[ignore] // E2E test requiring Solana infrastructure
     fn test_run() {
         use crate::sealevel::run_locally;
 

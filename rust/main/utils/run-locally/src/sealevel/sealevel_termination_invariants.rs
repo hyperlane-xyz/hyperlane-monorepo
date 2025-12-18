@@ -95,6 +95,7 @@ mod tests {
     use maplit::hashmap;
 
     #[test]
+    #[ignore] // Requires running metrics server
     fn submitter_metrics_are_correct() {
         let relayer_metrics_port = 9092;
         let filter_hashmap = hashmap! {
