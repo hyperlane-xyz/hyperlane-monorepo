@@ -1,6 +1,7 @@
 use std::str::FromStr;
 
 use async_trait::async_trait;
+use hyperlane_core::Metadata;
 use tracing::instrument;
 
 use hyperlane_core::{
@@ -146,7 +147,7 @@ impl Mailbox for CwMailbox {
     async fn process(
         &self,
         message: &HyperlaneMessage,
-        metadata: &[u8],
+        metadata: &Metadata,
         tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
         let process_message = ProcessMessageRequest {
@@ -175,7 +176,7 @@ impl Mailbox for CwMailbox {
     async fn process_estimate_costs(
         &self,
         message: &HyperlaneMessage,
-        metadata: &[u8],
+        metadata: &Metadata,
     ) -> ChainResult<TxCostEstimate> {
         let process_message = ProcessMessageRequest {
             process: ProcessMessageRequestInner {
@@ -198,7 +199,7 @@ impl Mailbox for CwMailbox {
     async fn process_calldata(
         &self,
         _message: &HyperlaneMessage,
-        _metadata: &[u8],
+        metadata: &Metadata,
     ) -> ChainResult<Vec<u8>> {
         todo!() // not required
     }

@@ -138,7 +138,8 @@ where
         Self::builder().add_providers(providers).build()
     }
 
-    async fn deprioritize_provider(&self, priority: PrioritizedProviderInner) {
+    /// Deprioritize a provider
+    pub async fn deprioritize_provider(&self, priority: PrioritizedProviderInner) {
         // De-prioritize the current provider by moving it to the end of the queue
         let mut priorities = self.inner.priorities.write().await;
         priorities.retain(|&p| p.index != priority.index);
@@ -178,6 +179,7 @@ where
             .unwrap_or(priority.last_block_height.0);
         if current_block_height <= priority.last_block_height.0 {
             let new_priority = priority.reset_failed_count();
+
             // The `max_block_time` elapsed but the block number returned by the provider has not increased
             self.deprioritize_provider(new_priority).await;
             info!(
@@ -387,6 +389,13 @@ pub mod test {
                     provider.requests().len()
                 })
                 .collect()
+        }
+
+        /// Get list of priorities
+        pub async fn get_priorities<T: Deref<Target = ProviderMock>, B>(
+            fallback_provider: &FallbackProvider<T, B>,
+        ) -> Vec<PrioritizedProviderInner> {
+            fallback_provider.inner.priorities.read().await.clone()
         }
     }
 
