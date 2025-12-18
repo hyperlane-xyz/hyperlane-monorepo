@@ -16,9 +16,9 @@ interface RouteConfig<T> {
 type RouteChains = keyof RouteConfig<any>;
 
 const owners: RouteConfig<string> = {
-  bsc: '0x3Fb137161365f273Ebb8262a26569C117b6CBAfb',
-  ethereum: '0x3Fb137161365f273Ebb8262a26569C117b6CBAfb',
-  carrchain: '0x3Fb137161365f273Ebb8262a26569C117b6CBAfb',
+  bsc: '0x483AB386966D4B1691c4222029852E42e0B23B84',
+  ethereum: '0x483AB386966D4B1691c4222029852E42e0B23B84',
+  carrchain: '0x4BC8d6F19dB53dCA59FAE12Ed3F1201b1C8020dc', // ICA on ethereum
 };
 
 const decimals: RouteConfig<number> = {
