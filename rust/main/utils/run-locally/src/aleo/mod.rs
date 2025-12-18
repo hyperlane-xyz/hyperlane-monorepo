@@ -18,7 +18,7 @@ pub const HEX_KEY: &str = "0x5e5b34fbf0e6e22375fde0d2af0dcd789bd607a9423ece32bc2
 
 pub const CONSENSUS_HEIGHTS: &str = "0,1,2,3,4,5,6,7,8,9,10,11";
 pub const NETWORK: &str = "testnet";
-pub const SUBMITTER_TYPE: SubmitterType = SubmitterType::Classic;
+pub const SUBMITTER_TYPE: SubmitterType = SubmitterType::Lander;
 const AGENT_BIN_PATH: &str = "target/release";
 
 const HYPERLANE_ALEO_GIT: &str = "git@github.com:hyperlane-xyz/hyperlane-aleo.git";
@@ -27,7 +27,6 @@ const HYPERLANE_ALEO_VERSION: &str = "main";
 use crate::aleo::aleo_termination_invariants::aleo_termination_invariants_met;
 use crate::aleo::cli::AleoCli;
 use crate::aleo::types::{AgentConfig, AgentConfigOut, Deployment};
-use crate::utils::download;
 use crate::AGENT_LOGGING_DIR;
 use crate::{
     log,
