@@ -3,7 +3,6 @@ use super::kaspa_whale_pool::KaspaWhale;
 use super::key_cosmos::EasyHubKey;
 use super::key_kaspa::get_kaspa_keypair;
 use super::stats::RoundTripStats;
-use crate::x;
 use cometbft_rpc::endpoint::broadcast::tx_commit::Response as HubResponse;
 use cosmos_sdk_proto::cosmos::bank::v1beta1::MsgSend;
 use cosmos_sdk_proto::cosmos::base::v1beta1::Coin;
@@ -444,7 +443,9 @@ impl<'a> RoundTrip<'a> {
             async move {
                 let rpc = res_hub.rpc();
                 let amount = withdrawal_amount.to_string();
-                let recipient = x::addr::hl_recipient(&kaspa_addr.to_string());
+                let recipient = dymension_kaspa::ops::addr::kaspa_address_to_hex_recipient(
+                    &kaspa_addr.to_string(),
+                );
                 let sender = rpc.get_signer()?.address_string.clone();
 
                 let req = MsgRemoteTransfer {

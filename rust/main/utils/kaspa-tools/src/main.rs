@@ -12,7 +12,8 @@ async fn run(cli: Cli) {
         .expect("Failed to install rustls crypto provider");
     match cli.command {
         Commands::Recipient(args) => {
-            let converted = x::addr::hl_recipient(&args.address);
+            let converted =
+                dymension_kaspa::ops::addr::kaspa_address_to_hex_recipient(&args.address);
             println!("{converted}",);
         }
         Commands::Deposit(args) => {

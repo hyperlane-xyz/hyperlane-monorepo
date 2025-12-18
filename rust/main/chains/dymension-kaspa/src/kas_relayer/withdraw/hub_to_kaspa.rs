@@ -1,6 +1,6 @@
 use super::minimum::{is_dust, is_small_value};
+use crate::ops::addr::h256_to_script_pubkey;
 use crate::ops::message::parse_hyperlane_metadata;
-use crate::ops::util::get_recipient_script_pubkey;
 use crate::ops::withdraw::WithdrawFXG;
 use dym_kas_core::escrow::EscrowPublic;
 use dym_kas_core::finality;
@@ -302,7 +302,7 @@ pub fn get_outputs_from_msgs(
             }
         };
 
-        let recipient = get_recipient_script_pubkey(tm.recipient(), prefix);
+        let recipient = h256_to_script_pubkey(tm.recipient(), prefix);
 
         let o = TransactionOutput::new(tm.amount().as_u64(), recipient);
 
