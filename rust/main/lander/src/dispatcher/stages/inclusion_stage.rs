@@ -66,15 +66,15 @@ impl InclusionStage {
         let futures = vec![
             tokio::spawn(
                 Self::receive_reprocess_txs(domain.clone(), pool.clone(), state.clone())
-                    .instrument(info_span!("receive_reprocess_txs")),
+                    .instrument(info_span!("receive_reprocess_txs_task")),
             ),
             tokio::spawn(
                 Self::receive_txs(tx_receiver, pool.clone(), state.clone(), domain.clone())
-                    .instrument(info_span!("receive_txs")),
+                    .instrument(info_span!("receive_txs_task")),
             ),
             tokio::spawn(
                 Self::process_txs(pool, finality_stage_sender, state, domain)
-                    .instrument(info_span!("process_txs")),
+                    .instrument(info_span!("process_txs_task")),
             ),
         ];
         if let Err(err) = try_join_all(futures).await {
@@ -85,7 +85,7 @@ impl InclusionStage {
         }
     }
 
-    #[instrument(skip_all, fields(domain))]
+    #[instrument(skip_all, fields(?domain))]
     pub async fn receive_txs(
         mut building_stage_receiver: mpsc::Receiver<Transaction>,
         pool: InclusionStagePool,
@@ -114,7 +114,7 @@ impl InclusionStage {
         }
     }
 
-    #[instrument(skip_all, fields(domain))]
+    #[instrument(skip_all, fields(?domain))]
     async fn process_txs(
         pool: InclusionStagePool,
         finality_stage_sender: mpsc::Sender<Transaction>,
@@ -190,7 +190,7 @@ impl InclusionStage {
         Ok(())
     }
 
-    #[instrument(skip_all, fields(domain))]
+    #[instrument(skip_all, fields(?domain))]
     pub async fn receive_reprocess_txs(
         domain: String,
         pool: InclusionStagePool,
