@@ -265,6 +265,7 @@ jobs:
           - core-read
           # Other commands
           - relay
+          - status
           # Warp Apply Commands
           - warp-apply-hook-updates
           - warp-apply-ism-updates
