@@ -47,7 +47,6 @@ export const keyFunderConfig: KeyFunderConfig<
     incentivtestnet: '1',
     kyvetestnet: '0',
     megaethtestnet: '0.01',
-    milkywaytestnet: '0',
     modetestnet: '0.05',
     monadtestnet: '0.1',
     neuratestnet: '0.1',
