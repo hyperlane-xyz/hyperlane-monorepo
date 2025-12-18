@@ -371,7 +371,7 @@ mod tests {
                 .as_slice(),
         );
         let chain_signer = hyperlane_cosmos::Signer::new(
-            key.to_vec(),
+            key.as_bytes().to_vec(),
             "neutron".to_string(),
             &AccountAddressType::Bitcoin,
         )
