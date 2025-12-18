@@ -58,7 +58,7 @@
     "cors": "^2.8.5",
     "dotenv-flow": "^4.1.0",
     "ethers": "catalog:",
-    "express": "^4.17.1",
+    "express": "^4.22.0",
     "pino-http": "^8.6.1",
     "prisma": "^6.8.2",
     "prom-client": "catalog:",
