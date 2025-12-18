@@ -3,6 +3,7 @@ use super::kaspa_whale_pool::KaspaWhale;
 use super::key_cosmos::EasyHubKey;
 use super::key_kaspa::get_kaspa_keypair;
 use super::stats::RoundTripStats;
+use super::util::now_millis;
 use cometbft_rpc::endpoint::broadcast::tx_commit::Response as HubResponse;
 use cosmos_sdk_proto::cosmos::bank::v1beta1::MsgSend;
 use cosmos_sdk_proto::cosmos::base::v1beta1::Coin;
@@ -31,13 +32,6 @@ use tracing::warn;
 const MAX_RETRIES: usize = 3;
 const RETRY_DELAY_MS: u64 = 2000;
 const HUB_FUND_AMOUNT: u64 = 50_000_000_000_000_000; // 0.05 dym to pay gas
-
-fn now_millis() -> u128 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_millis()
-}
 
 fn is_retryable(error: &eyre::Error) -> bool {
     let err_str = error.to_string().to_lowercase();

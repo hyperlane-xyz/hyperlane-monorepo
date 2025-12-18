@@ -10,7 +10,7 @@ use tracing::info;
 pub struct KaspaWhale {
     pub wallet: EasyKaspaWallet,
     pub secret: Secret,
-    last_used: Mutex<Instant>,
+    pub last_used: Mutex<Instant>,
     pub id: usize,
 }
 

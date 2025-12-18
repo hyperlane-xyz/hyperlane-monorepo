@@ -3,6 +3,7 @@ mod kaspa_whale_pool;
 mod key_cosmos;
 mod key_kaspa;
 mod round_trip;
+pub mod roundtrip;
 mod sim;
 mod stats;
 mod util;
