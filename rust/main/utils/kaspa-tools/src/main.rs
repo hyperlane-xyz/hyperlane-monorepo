@@ -57,6 +57,12 @@ async fn run(cli: Cli) {
             let sim = TrafficSim::new(sim).await.unwrap();
             sim.run().await.unwrap();
         }
+        Commands::DecodePayload(args) => {
+            if let Err(e) = x::decode_payload::decode_payload(&args.payload) {
+                eprintln!("decode payload: {e}");
+                std::process::exit(1);
+            }
+        }
     }
 }
 
