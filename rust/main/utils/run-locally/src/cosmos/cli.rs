@@ -110,7 +110,7 @@ impl OsmosisCLI {
         self.cli()
             .cmd("gentx")
             .cmd("validator")
-            .cmd(format!("{}uosmo", GENESIS_FUND))
+            .cmd(format!("{GENESIS_FUND}uosmo"))
             .arg("chain-id", chain_id)
             .run()
             .join();
@@ -120,7 +120,7 @@ impl OsmosisCLI {
 
     pub fn start(&self, addr_base: String, port_base: u32) -> (AgentHandles, OsmosisEndpoint) {
         if !addr_base.starts_with("tcp://") {
-            panic!("invalid addr_base: {}", addr_base);
+            panic!("invalid addr_base: {addr_base}");
         }
 
         let mut next_port = port_base;
@@ -180,7 +180,7 @@ impl OsmosisCLI {
             let cmd = endpoint.add_rpc(cmd);
 
             let raw_output = cmd.run_with_output().join();
-            println!("wasm store code res: {:?}", raw_output);
+            println!("wasm store code res: {raw_output:?}");
 
             let wasm_store_tx_resp: TxResponse =
                 serde_json::from_str(raw_output.first().unwrap()).unwrap();
@@ -281,7 +281,7 @@ impl OsmosisCLI {
 
         let run_result = cmd.run_with_output().join();
 
-        println!("wasm execute res: {:?}", run_result);
+        println!("wasm execute res: {run_result:?}");
 
         let output: Result<TxResponse, serde_json::Error> =
             serde_json::from_str(run_result.first().unwrap());
@@ -310,7 +310,7 @@ impl OsmosisCLI {
         let output = cmd.run_with_output().join();
         let output = output.first().unwrap();
 
-        println!("output: {:?}", output);
+        println!("output: {output:?}");
         // let output: CliWasmQueryResponse<U> = serde_json::from_str(output).unwrap();
 
         // output.data

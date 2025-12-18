@@ -84,7 +84,7 @@ impl Drop for RadixStack {
 pub fn download_radix_contracts() -> (PathBuf, PathBuf) {
     let dir_path = tempdir()
         .expect("Failed to create temporary directory")
-        .into_path();
+        .keep();
     let dir_path = dir_path
         .to_str()
         .expect("Failed to convert temp directory path to string");
@@ -142,11 +142,11 @@ fn launch_radix_validator(agent_config: AgentConfig, agent_config_path: PathBuf)
     let validator_bin = concat_path(format!("../../{AGENT_BIN_PATH}"), "validator");
     let validator_base = tempdir()
         .expect("Failed to create temporary directory for validator")
-        .into_path();
+        .keep();
     let validator_base_db = concat_path(&validator_base, "db");
 
     fs::create_dir_all(&validator_base_db).expect("Failed to create validator database directory");
-    println!("Validator DB: {:?}", validator_base_db);
+    println!("Validator DB: {validator_base_db:?}");
 
     let checkpoint_path = concat_path(&validator_base, "checkpoint");
     let signature_path = concat_path(&validator_base, "signature");
@@ -234,7 +234,7 @@ fn launch_radix_relayer(agent_config_path: String, relay_chains: Vec<String>) ->
 fn launch_radix_scraper(agent_config_path: String, chains: Vec<String>) -> AgentHandles {
     let bin = concat_path(format!("../../{AGENT_BIN_PATH}"), "scraper");
 
-    let scraper = Program::default()
+    Program::default()
         .bin(bin)
         .working_dir("../../")
         .env("CONFIG_FILES", agent_config_path)
@@ -245,9 +245,7 @@ fn launch_radix_scraper(agent_config_path: String, chains: Vec<String>) -> Agent
             "postgresql://postgres:47221c18c610@localhost:5432/postgres",
         )
         .hyp_env("METRICSPORT", SCRAPER_METRICS_PORT)
-        .spawn("SCR", None);
-
-    scraper
+        .spawn("SCR", None)
 }
 
 #[allow(dead_code)]

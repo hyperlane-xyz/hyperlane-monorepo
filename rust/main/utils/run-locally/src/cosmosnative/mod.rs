@@ -80,7 +80,7 @@ fn dispatch(node1: &Deployment, node2: &Deployment) -> u32 {
 #[apply(as_task)]
 fn launch_cosmos_validator(agent_config: AgentConfig, agent_config_path: PathBuf) -> AgentHandles {
     let validator_bin = concat_path(format!("../../{AGENT_BIN_PATH}"), "validator");
-    let validator_base = tempdir().expect("Failed to create a temp dir").into_path();
+    let validator_base = tempdir().expect("Failed to create a temp dir").keep();
     let validator_base_db = concat_path(&validator_base, "db");
 
     fs::create_dir_all(&validator_base_db).unwrap();
@@ -191,7 +191,7 @@ fn make_target() -> String {
 fn install_sim_app() -> PathBuf {
     let target = make_target();
 
-    let dir_path = tempdir().unwrap().into_path();
+    let dir_path = tempdir().unwrap().keep();
     let dir_path = dir_path.to_str().unwrap();
 
     let release_name = format!("{BINARY_NAME}_{target}");

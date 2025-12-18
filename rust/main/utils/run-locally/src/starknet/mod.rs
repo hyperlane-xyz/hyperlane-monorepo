@@ -152,11 +152,11 @@ fn launch_starknet_validator(
     debug: bool,
 ) -> AgentHandles {
     let validator_bin = concat_path(format!("../../{AGENT_BIN_PATH}"), "validator");
-    let validator_base = tempdir().expect("Failed to create a temp dir").into_path();
+    let validator_base = tempdir().expect("Failed to create a temp dir").keep();
     let validator_base_db = concat_path(&validator_base, "db");
 
     fs::create_dir_all(&validator_base_db).unwrap();
-    println!("Validator DB: {:?}", validator_base_db);
+    println!("Validator DB: {validator_base_db:?}");
 
     let checkpoint_path = concat_path(&validator_base, "checkpoint");
     let signature_path = concat_path(&validator_base, "signature");
@@ -471,7 +471,7 @@ fn run_locally() {
             let (strk_msg_len, strk_msg) = to_strk_message_bytes(msg_body);
             let strk_msg_str = strk_msg
                 .iter()
-                .map(|v| format!("0x{:x}", v))
+                .map(|v| format!("0x{v:x}"))
                 .collect::<Vec<String>>();
 
             let fee_amount = 0u32;
@@ -615,10 +615,8 @@ fn termination_invariants_met(
 
 #[cfg(feature = "starknet")]
 mod test {
-    use super::*;
-
     #[test]
     fn test_run() {
-        run_locally()
+        super::run_locally()
     }
 }

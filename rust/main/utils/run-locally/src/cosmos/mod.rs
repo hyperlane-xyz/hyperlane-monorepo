@@ -80,7 +80,7 @@ fn make_target() -> String {
         "amd64"
     };
 
-    format!("{}-{}", os, arch)
+    format!("{os}-{arch}")
 }
 
 #[cw_serde]
@@ -100,7 +100,7 @@ pub struct MockDispatchInner {
 pub fn install_codes(dir: Option<PathBuf>, local: bool) -> BTreeMap<String, PathBuf> {
     let dir_path = match dir {
         Some(path) => path,
-        None => tempdir().unwrap().into_path(),
+        None => tempdir().unwrap().keep(),
     };
 
     if !local {
@@ -227,7 +227,7 @@ impl Drop for CosmosHyperlaneStack {
 fn launch_cosmos_node(config: CosmosConfig) -> CosmosResp {
     let home_path = match config.home_path {
         Some(v) => v,
-        None => tempdir().unwrap().into_path(),
+        None => tempdir().unwrap().keep(),
     };
     let cli = OsmosisCLI::new(config.cli_path, home_path.to_str().unwrap());
 
@@ -251,11 +251,11 @@ fn launch_cosmos_validator(
     debug: bool,
 ) -> AgentHandles {
     let validator_bin = concat_path(format!("../../{AGENT_BIN_PATH}"), "validator");
-    let validator_base = tempdir().expect("Failed to create a temp dir").into_path();
+    let validator_base = tempdir().expect("Failed to create a temp dir").keep();
     let validator_base_db = concat_path(&validator_base, "db");
 
     fs::create_dir_all(&validator_base_db).unwrap();
-    println!("Validator DB: {:?}", validator_base_db);
+    println!("Validator DB: {validator_base_db:?}");
 
     let checkpoint_path = concat_path(&validator_base, "checkpoint");
     let signature_path = concat_path(&validator_base, "signature");
