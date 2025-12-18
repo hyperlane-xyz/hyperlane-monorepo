@@ -22,9 +22,9 @@ describe('CosmWasmCoreAdapter', () => {
       testCosmosChain.name,
       MultiProtocolProvider.createTestMultiProtocolProvider({
         ...multiProtocolTestChainMetadata,
-        inevm: {
+        legacyChain: {
           ...test1,
-          name: 'inevm',
+          name: 'legacyChain',
           chainId: 2525,
           domainId: 2525,
         },
@@ -43,6 +43,6 @@ describe('CosmWasmCoreAdapter', () => {
     expect(messages[0].messageId).to.equal(
       '0xafc6cabcf735ac7b13fb4f1a045c4d675ecf8363cac76a21612411e644041af2',
     );
-    expect(messages[0].destination).to.equal('inevm');
+    expect(messages[0].destination).to.equal('legacyChain');
   });
 });

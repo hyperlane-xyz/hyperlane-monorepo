@@ -794,18 +794,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  form: {
-    threshold: 2,
-    validators: [
-      {
-        address: '0x58554b2e76167993b5fc000d0070a2f883cd333a',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-      DEFAULT_MERKLY_VALIDATOR,
-      DEFAULT_MITOSIS_VALIDATOR,
-    ],
-  },
-
   forma: {
     threshold: 5,
     validators: [
@@ -1029,42 +1017,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       {
         address: '0x3133eeb96fd96f9f99291088613edf7401149e6f',
         alias: AW_VALIDATOR_ALIAS,
-      },
-    ],
-  },
-
-  inevm: {
-    threshold: 2,
-    validators: [
-      {
-        address: '0xf9e35ee88e4448a3673b4676a4e153e3584a08eb',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-      {
-        address: '0x0d4e7e64f3a032db30b75fe7acae4d2c877883bc',
-        alias: 'Decentrio',
-      },
-      {
-        address: '0x9ab11f38a609940153850df611c9a2175dcffe0f',
-        alias: 'Imperator',
-      },
-    ],
-  },
-
-  injective: {
-    threshold: 2,
-    validators: [
-      {
-        address: '0xbfb8911b72cfb138c7ce517c57d9c691535dc517',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-      {
-        address: '0xd6f6dee54443632490eddc82680d8917544bcb5a',
-        alias: 'Decentrio',
-      },
-      {
-        address: '0x9e551b6694bbd295d7d6e6a2540c7d41ce70a3b9',
-        alias: 'Imperator',
       },
     ],
   },
@@ -1425,28 +1377,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  milkywaytestnet: {
-    threshold: 1,
-    validators: [
-      {
-        address: '0x65c7581e14efdf4d9c5320882170f022835bd742',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-    ],
-  },
-
-  mint: {
-    threshold: 2,
-    validators: [
-      {
-        address: '0xfed01ccdd7a65e8a6ad867b7fb03b9eb47777ac9',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-      DEFAULT_MERKLY_VALIDATOR,
-      { address: '0x0230505530b80186f8cdccfaf9993eb97aebe98a', alias: 'Mint' },
-    ],
-  },
-
   mitosis: {
     threshold: 3,
     validators: [
@@ -1567,30 +1497,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  neutron: {
-    threshold: 4,
-    validators: [
-      {
-        address: '0xa9b8c1f4998f781f958c63cfcd1708d02f004ff0',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-      {
-        address: '0xb65438a014fb05fbadcfe35bc6e25d372b6ba460',
-        alias: 'Cosmostation',
-      },
-      { address: '0x42fa752defe92459370a052b6387a87f7de9b80c', alias: 'P2P' },
-      {
-        address: '0xc79503a3e3011535a9c60f6d21f76f59823a38bd',
-        alias: 'Neutron',
-      },
-      { address: '0x47aa126e05933b95c5eb90b26e6b668d84f4b25a', alias: 'DSRV' },
-      {
-        address: '0x54b2cca5091b098a1a993dec03c4d1ee9af65999',
-        alias: 'Cosmos Spaces',
-      },
-    ],
-  },
-
   nibiru: {
     threshold: 2,
     validators: [
@@ -1707,16 +1613,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
-    ],
-  },
-
-  osmosis: {
-    threshold: 1,
-    validators: [
-      {
-        address: '0xea483af11c19fa41b16c31d1534c2a486a92bcac',
-        alias: AW_VALIDATOR_ALIAS,
-      },
     ],
   },
 
