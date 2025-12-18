@@ -1,11 +1,11 @@
 import http from 'http';
 import { Gauge, Registry } from 'prom-client';
 
-import type {
-  ChainName,
-  Token,
+import {
+  type ChainName,
+  type Token,
   TokenStandard,
-  WarpCore,
+  type WarpCore,
 } from '@hyperlane-xyz/sdk';
 import type { Address } from '@hyperlane-xyz/utils';
 
@@ -130,8 +130,6 @@ export function updateTokenBalanceMetrics(
   const relatedChains = allChains.filter(
     (chainName) => chainName !== token.chainName,
   );
-
-  const { TokenStandard } = require('@hyperlane-xyz/sdk');
 
   const metrics: WarpRouteMetrics = {
     chain_name: token.chainName,

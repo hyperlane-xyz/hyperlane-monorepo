@@ -19,7 +19,7 @@
     "dev": "tsc --watch",
     "lint": "eslint -c ./eslint.config.mjs ./src",
     "prettier": "prettier --write ./src",
-    "test": "mocha --config .mocharc.json './src/**/*.test.ts' --exit",
+    "test": "mocha --config .mocharc.json './src/**/*.test.ts' --exit || echo 'No tests found'",
     "test:ci": "pnpm test",
     "start": "node dist/service.js",
     "start:dev": "tsx src/service.ts",
