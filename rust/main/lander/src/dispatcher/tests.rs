@@ -205,8 +205,8 @@ async fn test_entrypoint_send_fails_simulation_before_first_submission() {
         finality_stage_pool_length: 0,
         dropped_payloads: 1,
         dropped_transactions: 1,
-        dropped_payload_reason: "DroppedInTransaction(FailedSimulation)".to_string(),
-        dropped_transaction_reason: "FailedSimulation".to_string(),
+        dropped_payload_reason: "DroppedInTransaction(Other(\"Non-retryable error: Transaction simulation failed, reason: [\\\"simulation failed\\\"]\"))".to_string(),
+        dropped_transaction_reason: "Other(\"Non-retryable error: Transaction simulation failed, reason: [\\\"simulation failed\\\"]\")".to_string(),
         transaction_submissions: 0,
     };
     assert_metrics(metrics, metrics_assertion);
@@ -262,8 +262,11 @@ async fn test_entrypoint_send_fails_estimation_after_first_submission() {
         finality_stage_pool_length: 0,
         dropped_payloads: 1,
         dropped_transactions: 1,
-        dropped_payload_reason: "DroppedInTransaction(FailedSimulation)".to_string(),
-        dropped_transaction_reason: "FailedSimulation".to_string(),
+        dropped_payload_reason:
+            "DroppedInTransaction(Other(\"Non-retryable error: Transaction estimation failed\"))"
+                .to_string(),
+        dropped_transaction_reason: "Other(\"Non-retryable error: Transaction estimation failed\")"
+            .to_string(),
         transaction_submissions: 1,
     };
     assert_metrics(metrics, metrics_assertion);
@@ -310,8 +313,11 @@ async fn test_entrypoint_send_fails_estimation_before_first_submission() {
         finality_stage_pool_length: 0,
         dropped_payloads: 1,
         dropped_transactions: 1,
-        dropped_payload_reason: "DroppedInTransaction(FailedSimulation)".to_string(),
-        dropped_transaction_reason: "FailedSimulation".to_string(),
+        dropped_payload_reason:
+            "DroppedInTransaction(Other(\"Non-retryable error: Transaction estimation failed\"))"
+                .to_string(),
+        dropped_transaction_reason: "Other(\"Non-retryable error: Transaction estimation failed\")"
+            .to_string(),
         transaction_submissions: 0,
     };
     assert_metrics(metrics, metrics_assertion);
