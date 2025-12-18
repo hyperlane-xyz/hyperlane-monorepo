@@ -52,8 +52,6 @@ export const legacyEthIcaRouter = '0x5E532F7B610618eE73C2B462978e94CB1F7995Ce';
 export const chainsToSkip: ChainName[] = [
   // svmbnb support is deprecated
   'svmbnb',
-  // shutdown
-  'inevm',
 
   // not AW owned
   'forma',
