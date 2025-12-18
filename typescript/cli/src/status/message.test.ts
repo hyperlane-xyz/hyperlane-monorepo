@@ -22,7 +22,7 @@ describe('filterRelayableMessages', () => {
         body: '0x',
         destinationChain,
       },
-    } as DispatchedMessage;
+    } as unknown as DispatchedMessage;
   }
 
   function createMockMultiProvider(signersForChains: string[]): MultiProvider {

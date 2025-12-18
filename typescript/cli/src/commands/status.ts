@@ -1,8 +1,4 @@
-import {
-  CommandContext,
-  CommandModuleWithContext,
-  WriteCommandContext,
-} from '../context/types.js';
+import { CommandModuleWithContext } from '../context/types.js';
 import { checkMessageStatus } from '../status/message.js';
 
 import { MessageOptionsArgTypes, messageOptions } from './send.js';
@@ -24,10 +20,8 @@ export const statusCommand: CommandModuleWithContext<
     },
   },
   handler: async ({ context, origin, id, relay, dispatchTx }) => {
-    // When --relay is passed, signers are initialized and context is a WriteCommandContext
-    // Otherwise it's just a CommandContext (read-only operations)
     await checkMessageStatus({
-      context: context as CommandContext | WriteCommandContext,
+      context,
       dispatchTx,
       messageId: id,
       origin,
