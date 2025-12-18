@@ -229,7 +229,7 @@ fn run_locally() {
     Program::new("cargo")
         .cmd("build")
         .working_dir("../../")
-        .arg("features", "test-utils")
+        .arg("features", "test-utils cosmos")
         .arg("bin", "relayer")
         .arg("bin", "validator")
         .arg("bin", "scraper")

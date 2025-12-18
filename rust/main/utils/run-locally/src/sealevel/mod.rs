@@ -188,7 +188,7 @@ fn run_locally() {
     let build_main = Program::new("cargo")
         .cmd("build")
         .working_dir(&workspace_path)
-        .arg("features", "test-utils")
+        .arg("features", "test-utils sealevel")
         .arg("bin", "relayer")
         .arg("bin", "validator")
         .arg("bin", "scraper")
