@@ -6,7 +6,12 @@ import { readFile, writeFile } from 'fs/promises';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const outputFile = path.join(__dirname, '..', 'warp-monitor-bundle', 'index.js');
+const outputFile = path.join(
+  __dirname,
+  '..',
+  'warp-monitor-bundle',
+  'index.js',
+);
 
 const shebang = '#!/usr/bin/env node';
 const dirnameDef = `import { fileURLToPath } from 'url';
