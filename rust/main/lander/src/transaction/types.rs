@@ -10,11 +10,12 @@ use hyperlane_core::{identifiers::UniqueIdentifier, H256, H512};
 
 #[cfg(feature = "aleo")]
 use crate::adapter::chains::AleoTxPrecursor;
-use crate::{
-    adapter::chains::{EthereumTxPrecursor, RadixTxPrecursor, SealevelTxPrecursor},
-    payload::PayloadDetails,
-    LanderError,
-};
+use crate::adapter::chains::EthereumTxPrecursor;
+#[cfg(feature = "radix")]
+use crate::adapter::chains::RadixTxPrecursor;
+#[cfg(feature = "sealevel")]
+use crate::adapter::chains::SealevelTxPrecursor;
+use crate::{payload::PayloadDetails, LanderError};
 
 pub type TransactionUuid = UniqueIdentifier;
 pub type SignerAddress = H256;
@@ -157,9 +158,12 @@ pub enum DropReason {
 pub enum VmSpecificTxData {
     #[cfg(feature = "aleo")]
     Aleo(Box<AleoTxPrecursor>),
+    #[cfg(feature = "cosmos")]
     CosmWasm,
     Evm(Box<EthereumTxPrecursor>),
+    #[cfg(feature = "radix")]
     Radix(Box<RadixTxPrecursor>),
+    #[cfg(feature = "sealevel")]
     Svm(Box<SealevelTxPrecursor>),
 }
 

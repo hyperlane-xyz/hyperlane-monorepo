@@ -1,6 +1,7 @@
 use std::ops::Add;
 
 use eyre::eyre;
+#[cfg(feature = "sealevel")]
 use hyperlane_sealevel::{
     HeliusPriorityFeeLevel, HeliusPriorityFeeOracleConfig, PriorityFeeOracleConfig,
 };
@@ -9,14 +10,21 @@ use url::Url;
 use h_eth::TransactionOverrides;
 
 use hyperlane_core::config::{ConfigErrResultExt, OpSubmissionConfig};
-use hyperlane_core::{config::ConfigParsingError, HyperlaneDomainProtocol, NativeToken};
+#[cfg(any(feature = "cosmos", feature = "sealevel"))]
+use hyperlane_core::NativeToken;
+use hyperlane_core::{config::ConfigParsingError, HyperlaneDomainProtocol};
 
+#[cfg(feature = "starknet")]
 use hyperlane_starknet as h_starknet;
 
 use crate::settings::envs::*;
 use crate::settings::ChainConnectionConf;
 
-use super::{parse_base_and_override_urls, parse_cosmos_gas_price, ValueParser};
+#[cfg(any(feature = "aleo", feature = "cosmos", feature = "radix"))]
+use super::parse_base_and_override_urls;
+#[cfg(feature = "cosmos")]
+use super::parse_cosmos_gas_price;
+use super::ValueParser;
 
 #[allow(clippy::question_mark)] // TODO: `rustc` 1.80.1 clippy issue
 pub fn build_ethereum_connection_conf(
@@ -132,6 +140,7 @@ pub fn build_ethereum_connection_conf(
     }))
 }
 
+#[cfg(feature = "cosmos")]
 pub fn build_cosmos_connection_conf(
     rpcs: &[Url],
     chain: &ValueParser,
@@ -250,6 +259,7 @@ pub fn build_cosmos_connection_conf(
     }
 }
 
+#[cfg(feature = "starknet")]
 fn build_starknet_connection_conf(
     urls: &[Url],
     chain: &ValueParser,
@@ -278,6 +288,7 @@ fn build_starknet_connection_conf(
     }))
 }
 
+#[cfg(feature = "sealevel")]
 fn build_sealevel_connection_conf(
     urls: &[Url],
     chain: &ValueParser,
@@ -306,6 +317,7 @@ fn build_sealevel_connection_conf(
     }))
 }
 
+#[cfg(any(feature = "cosmos", feature = "sealevel"))]
 fn parse_native_token(
     chain: &ValueParser,
     err: &mut ConfigParsingError,
@@ -331,6 +343,7 @@ fn parse_native_token(
     }
 }
 
+#[cfg(feature = "sealevel")]
 fn parse_sealevel_priority_fee_oracle_config(
     chain: &ValueParser,
     err: &mut ConfigParsingError,
@@ -392,6 +405,7 @@ fn parse_sealevel_priority_fee_oracle_config(
     priority_fee_oracle
 }
 
+#[cfg(feature = "sealevel")]
 fn parse_helius_priority_fee_level(
     value_parser: &ValueParser,
     err: &mut ConfigParsingError,
@@ -425,10 +439,11 @@ fn parse_helius_priority_fee_level(
     }
 }
 
+#[cfg(feature = "sealevel")]
 fn parse_transaction_submitter_config(
     chain: &ValueParser,
     err: &mut ConfigParsingError,
-) -> Option<h_sealevel::config::TransactionSubmitterConfig> {
+) -> Option<hyperlane_sealevel::config::TransactionSubmitterConfig> {
     let submitter_type = chain
         .chain(err)
         .get_opt_key("transactionSubmitter")
@@ -446,7 +461,7 @@ fn parse_transaction_submitter_config(
                     .parse_string()
                     .map(|str| str.split(",").map(|s| s.to_owned()).collect())
                     .unwrap_or_default();
-                Some(h_sealevel::config::TransactionSubmitterConfig::Rpc { urls })
+                Some(hyperlane_sealevel::config::TransactionSubmitterConfig::Rpc { urls })
             }
             "jito" => {
                 let urls: Vec<String> = chain
@@ -456,7 +471,7 @@ fn parse_transaction_submitter_config(
                     .parse_string()
                     .map(|str| str.split(",").map(|s| s.to_owned()).collect())
                     .unwrap_or_default();
-                Some(h_sealevel::config::TransactionSubmitterConfig::Jito { urls })
+                Some(hyperlane_sealevel::config::TransactionSubmitterConfig::Jito { urls })
             }
             _ => {
                 err.push(
@@ -468,10 +483,11 @@ fn parse_transaction_submitter_config(
         }
     } else {
         // If not specified at all, use default
-        Some(h_sealevel::config::TransactionSubmitterConfig::default())
+        Some(hyperlane_sealevel::config::TransactionSubmitterConfig::default())
     }
 }
 
+#[cfg(feature = "radix")]
 pub fn build_radix_connection_conf(
     rpcs: &[Url],
     chain: &ValueParser,
@@ -649,20 +665,24 @@ pub fn build_connection_conf(
             default_rpc_consensus_type,
             operation_batch,
         ),
-        HyperlaneDomainProtocol::Fuel => rpcs
-            .iter()
-            .next()
-            .map(|url| ChainConnectionConf::Fuel(h_fuel::ConnectionConf { url: url.clone() })),
+        #[cfg(feature = "fuel")]
+        HyperlaneDomainProtocol::Fuel => rpcs.iter().next().map(|url| {
+            ChainConnectionConf::Fuel(hyperlane_fuel::ConnectionConf { url: url.clone() })
+        }),
+        #[cfg(feature = "sealevel")]
         HyperlaneDomainProtocol::Sealevel => {
             let urls = rpcs.to_vec();
             build_sealevel_connection_conf(&urls, chain, err, operation_batch)
         }
+        #[cfg(feature = "cosmos")]
         HyperlaneDomainProtocol::Cosmos | HyperlaneDomainProtocol::CosmosNative => {
             build_cosmos_connection_conf(rpcs, chain, err, operation_batch, domain_protocol)
         }
+        #[cfg(feature = "starknet")]
         HyperlaneDomainProtocol::Starknet => {
             build_starknet_connection_conf(rpcs, chain, err, operation_batch)
         }
+        #[cfg(feature = "radix")]
         HyperlaneDomainProtocol::Radix => {
             build_radix_connection_conf(rpcs, chain, err, operation_batch)
         }
@@ -680,8 +700,14 @@ pub fn build_connection_conf(
 pub fn is_protocol_supported(protocol: HyperlaneDomainProtocol) -> bool {
     use HyperlaneDomainProtocol::*;
     match protocol {
-        Ethereum | Fuel | Sealevel | Cosmos | CosmosNative | Starknet | Radix => true,
-        // Aleo is feature-gated - only supported when the "aleo" feature is enabled
+        // Ethereum is always supported
+        Ethereum => true,
+        // All other protocols are feature-gated
+        Fuel => cfg!(feature = "fuel"),
+        Sealevel => cfg!(feature = "sealevel"),
+        Cosmos | CosmosNative => cfg!(feature = "cosmos"),
+        Starknet => cfg!(feature = "starknet"),
+        Radix => cfg!(feature = "radix"),
         Aleo => cfg!(feature = "aleo"),
     }
 }

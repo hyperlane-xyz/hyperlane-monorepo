@@ -18,7 +18,8 @@ use serde::Deserialize;
 use serde_json::Value;
 use url::Url;
 
-use h_cosmos::RawCosmosAmount;
+#[cfg(feature = "cosmos")]
+use super::envs::h_cosmos::RawCosmosAmount;
 use hyperlane_core::{
     cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol,
     HyperlaneDomainTechnicalStack, IndexMode, ReorgPeriod, SubmitterType,
@@ -528,7 +529,8 @@ pub fn recase_json_value(mut val: Value, case: Case) -> Value {
 }
 
 /// Expects AgentSigner.
-fn parse_cosmos_gas_price(gas_price: ValueParser) -> ConfigResult<RawCosmosAmount> {
+#[cfg(feature = "cosmos")]
+pub(super) fn parse_cosmos_gas_price(gas_price: ValueParser) -> ConfigResult<RawCosmosAmount> {
     let mut err = ConfigParsingError::default();
 
     let amount = gas_price

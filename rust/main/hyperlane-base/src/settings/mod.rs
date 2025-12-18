@@ -69,9 +69,12 @@ pub use signers::*;
 pub use trace::*;
 
 mod envs {
+    #[cfg(feature = "cosmos")]
     pub use hyperlane_cosmos as h_cosmos;
     pub use hyperlane_ethereum as h_eth;
+    #[cfg(feature = "fuel")]
     pub use hyperlane_fuel as h_fuel;
+    #[cfg(feature = "sealevel")]
     pub use hyperlane_sealevel as h_sealevel;
 }
 

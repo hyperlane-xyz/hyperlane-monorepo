@@ -127,6 +127,7 @@ impl ChainSigner for hyperlane_ethereum::Signers {
     }
 }
 
+#[cfg(feature = "fuel")]
 #[async_trait]
 impl BuildableWithSignerConf for fuels::prelude::WalletUnlocked {
     async fn build(conf: &SignerConf) -> Result<Self, Report> {
@@ -142,6 +143,7 @@ impl BuildableWithSignerConf for fuels::prelude::WalletUnlocked {
     }
 }
 
+#[cfg(feature = "fuel")]
 impl ChainSigner for fuels::prelude::WalletUnlocked {
     fn address_string(&self) -> String {
         self.address().to_string()
@@ -151,6 +153,7 @@ impl ChainSigner for fuels::prelude::WalletUnlocked {
     }
 }
 
+#[cfg(feature = "sealevel")]
 #[async_trait]
 impl BuildableWithSignerConf for hyperlane_sealevel::Keypair {
     async fn build(conf: &SignerConf) -> Result<Self, Report> {
@@ -162,6 +165,7 @@ impl BuildableWithSignerConf for hyperlane_sealevel::Keypair {
     }
 }
 
+#[cfg(feature = "sealevel")]
 impl ChainSigner for hyperlane_sealevel::Keypair {
     fn address_string(&self) -> String {
         solana_sdk::signer::Signer::pubkey(self).to_string()
@@ -171,6 +175,7 @@ impl ChainSigner for hyperlane_sealevel::Keypair {
     }
 }
 
+#[cfg(feature = "cosmos")]
 #[async_trait]
 impl BuildableWithSignerConf for hyperlane_cosmos::Signer {
     async fn build(conf: &SignerConf) -> Result<Self, Report> {
@@ -191,6 +196,7 @@ impl BuildableWithSignerConf for hyperlane_cosmos::Signer {
     }
 }
 
+#[cfg(feature = "cosmos")]
 impl ChainSigner for hyperlane_cosmos::Signer {
     fn address_string(&self) -> String {
         self.address_string.clone()
@@ -200,6 +206,7 @@ impl ChainSigner for hyperlane_cosmos::Signer {
     }
 }
 
+#[cfg(feature = "starknet")]
 #[async_trait]
 impl BuildableWithSignerConf for hyperlane_starknet::Signer {
     async fn build(conf: &SignerConf) -> Result<Self, Report> {
@@ -216,6 +223,7 @@ impl BuildableWithSignerConf for hyperlane_starknet::Signer {
     }
 }
 
+#[cfg(feature = "starknet")]
 impl ChainSigner for hyperlane_starknet::Signer {
     fn address_string(&self) -> String {
         self.address.to_hex_string()
@@ -226,6 +234,7 @@ impl ChainSigner for hyperlane_starknet::Signer {
     }
 }
 
+#[cfg(feature = "radix")]
 #[async_trait]
 impl BuildableWithSignerConf for hyperlane_radix::RadixSigner {
     async fn build(conf: &SignerConf) -> Result<Self, Report> {
@@ -240,6 +249,7 @@ impl BuildableWithSignerConf for hyperlane_radix::RadixSigner {
     }
 }
 
+#[cfg(feature = "radix")]
 impl ChainSigner for hyperlane_radix::RadixSigner {
     fn address_string(&self) -> String {
         self.encoded_address.clone()
@@ -276,7 +286,7 @@ impl ChainSigner for hyperlane_aleo::AleoSigner {
 #[cfg(test)]
 mod tests {
     use ethers::{signers::LocalWallet, utils::hex};
-    use hyperlane_core::{AccountAddressType, Encode, H256};
+    use hyperlane_core::H256;
 
     use crate::settings::ChainSigner;
 
@@ -300,6 +310,7 @@ mod tests {
         assert_eq!(chain_signer.address_h256(), address_h256);
     }
 
+    #[cfg(feature = "sealevel")]
     #[test]
     fn address_h256_sealevel() {
         const PRIVATE_KEY: &str =
@@ -321,6 +332,7 @@ mod tests {
         assert_eq!(chain_signer.address_h256(), address_h256);
     }
 
+    #[cfg(feature = "fuel")]
     #[test]
     fn address_h256_fuel() {
         const PRIVATE_KEY: &str =
@@ -344,8 +356,11 @@ mod tests {
         assert_eq!(chain_signer.address_h256(), address_h256);
     }
 
+    #[cfg(feature = "cosmos")]
     #[test]
     fn address_h256_cosmos() {
+        use hyperlane_core::AccountAddressType;
+
         const PRIVATE_KEY: &str =
             "5486418967eabc770b0fcb995f7ef6d9a72f7fc195531ef76c5109f44f51af26";
         const ADDRESS: &str = "000000000000000000000000b5a79b48c87e7a37bdb625096140ee7054816942";
