@@ -18,6 +18,9 @@ overrides:
   node-fetch: ^3.3.2
 
 patchedDependencies:
+  '@provablehq/sdk@0.9.14':
+    hash: c53a252e5d7b2f4acbe743daa3febb6f448ac3b131eaad95952c9e3995999277
+    path: patches/@provablehq__sdk@0.9.14.patch
   typechain@8.3.2:
     hash: fbb49bf3d1f71d8430767373c9ae33cd36e1aedd8ae9584d00dc90775f804950
     path: patches/typechain@8.3.2.patch
@@ -245,8 +248,8 @@ importers:
         specifier: workspace:*
         version: link:../utils
       '@provablehq/sdk':
-        specifier: ^0.9.13
-        version: 0.9.13
+        specifier: 0.9.14
+        version: 0.9.14(patch_hash=c53a252e5d7b2f4acbe743daa3febb6f448ac3b131eaad95952c9e3995999277)
       bignumber.js:
         specifier: ^9.1.1
         version: 9.3.1
@@ -5081,11 +5084,11 @@ packages:
   '@provablehq/aleo-wallet-standard@0.3.0-alpha.0':
     resolution: {integrity: sha512-uy2njMqep1UJi0RHdonqja0lodEcFMHTCSIfieeDkry7XLhfPawcftQzwAuMNvSMARH5FLo3B+U+BiXkkwfgIQ==}
 
-  '@provablehq/sdk@0.9.13':
-    resolution: {integrity: sha512-WHx6jhnvNKkeMARySlo3nJ4q8Kj4UekE0mPgZ01IaX0Z//OByu/3IYAz3h8AZjU03LAwB4ZNVXibYohye2xN3w==}
+  '@provablehq/sdk@0.9.14':
+    resolution: {integrity: sha512-8xVL7tMTnu4bc1D8axXOy1tvjVIBjYXkjXCBw2yr26UjvNVX4snXMVPcVeJ+srtUOcwk+6WUcz1VT7HTx1tAGQ==}
 
-  '@provablehq/wasm@0.9.13':
-    resolution: {integrity: sha512-bphuKMgsvZcWcX/z5/uBtcST0yCw5LbUhBjS+T3bPCptpFbXo0voU0xZUJ/hqDi8ufKEsOXxZqA+GwfFr1uSjA==}
+  '@provablehq/wasm@0.9.14':
+    resolution: {integrity: sha512-Pkfo65bNJkW/UYoF+2+ZMF94N5YVOuh0jM1ZHMdk5kI78kQWoeYlZcGp/kadLsMgz9BcwSB/ZwvLYgDGozjGVA==}
 
   '@puzzlehq/sdk-core@1.0.4':
     resolution: {integrity: sha512-tL/RzseDfSRaVLCqMg9UIbgVK0+jDEq5QgBwvvboBixEiL1qseYkEN5udX4nsJF3J5YrNm984MKQIt08JZra7A==}
@@ -21174,9 +21177,9 @@ snapshots:
       '@provablehq/aleo-types': 0.3.0-alpha.0
       eventemitter3: 5.0.1
 
-  '@provablehq/sdk@0.9.13':
+  '@provablehq/sdk@0.9.14(patch_hash=c53a252e5d7b2f4acbe743daa3febb6f448ac3b131eaad95952c9e3995999277)':
     dependencies:
-      '@provablehq/wasm': 0.9.13
+      '@provablehq/wasm': 0.9.14
       '@scure/base': 2.0.0
       comlink: 4.4.2
       core-js: 3.47.0
@@ -21184,7 +21187,7 @@ snapshots:
       sync-request: 6.1.0
       xmlhttprequest-ssl: 3.1.0
 
-  '@provablehq/wasm@0.9.13': {}
+  '@provablehq/wasm@0.9.14': {}
 
   '@puzzlehq/sdk-core@1.0.4(buffer@6.0.3)(bufferutil@4.0.9)(utf-8-validate@5.0.10)':
     dependencies:
