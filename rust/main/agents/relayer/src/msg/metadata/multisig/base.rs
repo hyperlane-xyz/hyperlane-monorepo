@@ -10,14 +10,16 @@ use hyperlane_base::cache::FunctionCallCache;
 use hyperlane_base::settings::CheckpointSyncerBuildError;
 use hyperlane_base::MultisigCheckpointSyncer;
 use hyperlane_core::accumulator::merkle::Proof;
-use hyperlane_core::{HyperlaneMessage, ModuleType, MultisigIsm, MultisigSignedCheckpoint, H256};
+use hyperlane_core::{
+    HyperlaneMessage, Metadata, ModuleType, MultisigIsm, MultisigSignedCheckpoint, H256,
+};
 use strum::Display;
 use tracing::{debug, info, warn};
 
-use crate::msg::metadata::base::MetadataBuildError;
+use crate::msg::metadata::base::{MetadataBuildError, MetadataBuildRefused};
 use crate::msg::metadata::base_builder::IsmBuildMetricsParams;
 use crate::msg::metadata::message_builder::MessageMetadataBuilder;
-use crate::msg::metadata::{IsmCachePolicy, MessageMetadataBuildParams, Metadata, MetadataBuilder};
+use crate::msg::metadata::{IsmCachePolicy, MessageMetadataBuildParams, MetadataBuilder};
 
 #[derive(new, AsRef, Deref, Debug, PartialEq)]
 pub struct MultisigMetadata {
@@ -238,7 +240,7 @@ async fn metadata_build<T: MultisigIsmMetadataBuilder>(
     {
         Ok(syncer) => syncer,
         Err(CheckpointSyncerBuildError::ReorgFlag(reorg_resp)) => {
-            let err = MetadataBuildError::Refused(format!("A reorg event occurred {reorg_resp:?}"));
+            let err = MetadataBuildError::Refused(MetadataBuildRefused::Reorg(reorg_resp));
             return Err(err);
         }
         Err(e) => {

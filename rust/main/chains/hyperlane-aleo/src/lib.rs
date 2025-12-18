@@ -19,6 +19,7 @@ mod validator_announce;
 
 pub(crate) use types::*;
 
+pub use aleo_serialize::AleoSerialize;
 pub use config::*;
 pub use error::*;
 pub use indexer::{
@@ -28,7 +29,10 @@ pub use ism::AleoIsm;
 pub use mailbox::AleoMailbox;
 pub use provider::{AleoProvider, AleoProviderForLander};
 pub use signer::AleoSigner;
-pub use types::{AleoGetMappingValue, AleoTxData, FeeEstimate};
+pub use types::{AleoGetMappingValue, AleoTxData, CurrentNetwork, DeliveryKey, FeeEstimate};
 pub use validator_announce::AleoValidatorAnnounce;
 
-pub use snarkvm::{ledger::Transaction as AleoUnconfirmedTransaction, prelude::Plaintext};
+pub use snarkvm::ledger::{
+    ConfirmedTransaction as AleoConfirmedTransaction, Transaction as AleoUnconfirmedTransaction,
+};
+pub use snarkvm::prelude::Plaintext;

@@ -58,28 +58,39 @@ export class AltVMHookModule implements HypModule<HookModuleType> {
   public async update(
     targetConfig: HookConfig | Address,
   ): Promise<AnnotatedTx[]> {
+    // Nothing to do if its the default hook
     if (typeof targetConfig === 'string' && isZeroishAddress(targetConfig)) {
       return Promise.resolve([]);
     }
-
-    // Do not support updating to a custom Hook address
-    if (typeof targetConfig === 'string') {
-      throw new Error(
-        'Invalid targetConfig: Updating to a custom Hook address is not supported. Please provide a valid Hook configuration.',
-      );
-    }
-
-    this.args.config = targetConfig;
 
     // We need to normalize the current and target configs to compare.
     const normalizedCurrentConfig = normalizeConfig(await this.read());
     const normalizedTargetConfig = normalizeConfig(targetConfig);
 
+    // If configs match, no updates needed
     if (deepEquals(normalizedCurrentConfig, normalizedTargetConfig)) {
       return [];
     }
 
-    if (!MUTABLE_HOOK_TYPE.includes(normalizedTargetConfig.type)) {
+    // Do not support updating to a custom Hook address
+    if (typeof normalizedTargetConfig === 'string') {
+      throw new Error(
+        'Invalid targetConfig: Updating to a custom Hook address is not supported. Please provide a valid Hook configuration.',
+      );
+    }
+
+    // Update the module config to the target one as we are sure now that an update will be needed
+    this.args.config = normalizedTargetConfig;
+
+    // Conditions for deploying a new hook:
+    // - If updating from an address/custom config to a proper hook config.
+    // - If updating a proper hook config whose types are different.
+    // - If it is not a mutable Hook.
+    if (
+      typeof normalizedCurrentConfig === 'string' ||
+      normalizedTargetConfig.type !== normalizedCurrentConfig.type ||
+      !MUTABLE_HOOK_TYPE.includes(normalizedTargetConfig.type)
+    ) {
       this.args.addresses.deployedHook = await this.deploy({
         config: normalizedTargetConfig,
       });

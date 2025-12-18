@@ -21,9 +21,9 @@ typescript/infra/config/environments/test/create2/*json
 typescript/infra/config/environments/test/testrecipient/*json
 solidity/artifacts
 
-.yarn/install-state.gz
-.yarn/cache
-yarn-error.log
+# pnpm
+.pnpm-store/
+pnpm-debug.log*
 
 .turbo
 
@@ -41,3 +41,6 @@ yalc.lock
 **/warp-route-deployer-key.json
 **/key.json
 **/deployer-key.json
+
+# .yarn as we use pnpm now
+.yarn

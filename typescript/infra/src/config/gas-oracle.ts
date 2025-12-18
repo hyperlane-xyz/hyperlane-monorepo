@@ -24,9 +24,10 @@ import {
   rootLogger,
   toWei,
 } from '@hyperlane-xyz/utils';
+import { readJson } from '@hyperlane-xyz/utils/fs';
 
 import { getChain } from '../../config/registry.js';
-import { mustGetChainNativeToken, readJSONAtPath } from '../utils/utils.js';
+import { mustGetChainNativeToken } from '../utils/utils.js';
 
 // gas oracle configs for each chain, which includes
 // a map for each chain's remote chains
@@ -75,7 +76,7 @@ const GasOracleConfigFileSchema = z.record(
 export function loadAndValidateGasOracleConfig(
   configPath: string,
 ): ChainMap<ChainMap<GasOracleConfigWithOverhead>> {
-  const rawConfig = readJSONAtPath(configPath);
+  const rawConfig = readJson(configPath);
 
   try {
     const validated = GasOracleConfigFileSchema.parse(rawConfig);
@@ -160,7 +161,7 @@ function getLocalStorageGasOracleConfigOverride(
     local: ChainName,
     remote: ChainName,
     gasOracleConfig: ProtocolAgnositicGasOracleConfig,
-  ): BigNumberJs.Value => {
+  ): Parameters<typeof BigNumberJs>[0] => {
     if (!applyMinUsdCost) {
       return gasOracleConfig.gasPrice;
     }
@@ -352,6 +353,10 @@ export function getOverhead(local: ChainName, remote: ChainName): number {
 
   if (remoteProtocol === ProtocolType.Starknet) {
     return 10_000_000 + 40_000_000 * defaultMultisigConfigs[local].threshold;
+  }
+
+  if (remoteProtocol === ProtocolType.Aleo) {
+    return 400000;
   }
 
   // Default non-EVM overhead

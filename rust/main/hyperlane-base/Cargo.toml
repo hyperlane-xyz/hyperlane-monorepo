@@ -59,7 +59,7 @@ hyperlane-metric = { path = "../hyperlane-metric" }
 hyperlane-operation-verifier = { path = "../applications/hyperlane-operation-verifier" }
 hyperlane-test = { path = "../hyperlane-test" }
 
-hyperlane-aleo = { path = "../chains/hyperlane-aleo" }
+hyperlane-aleo = { path = "../chains/hyperlane-aleo", optional = true }
 hyperlane-ethereum = { path = "../chains/hyperlane-ethereum" }
 hyperlane-fuel = { path = "../chains/hyperlane-fuel" }
 hyperlane-cosmos = { path = "../chains/hyperlane-cosmos" }
@@ -88,3 +88,4 @@ default = ["oneline-errors", "color-eyre"]
 oneline-eyre = ["backtrace-oneline", "backtrace"]
 oneline-errors = ["oneline-eyre"]
 test-utils = ["dep:tempfile"]
+aleo = ["dep:hyperlane-aleo"]

@@ -3,7 +3,11 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**", "cache/**", "types/**", "src/generated/**"]
+      "outputs": ["dist/**", "cache/**", "src/generated/**"]
+    },
+    "build:zk": {
+      "dependsOn": ["build"],
+      "outputs": ["dist/**", "artifacts-zk/**", "cache-zk/**"]
     },
     "test:ci": {
       "dependsOn": ["build", "^test:ci"]
