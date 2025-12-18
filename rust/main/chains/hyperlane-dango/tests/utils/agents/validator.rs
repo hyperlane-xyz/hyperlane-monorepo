@@ -115,6 +115,16 @@ impl Args for OriginChainName {
 
 pub enum ValidatorSigner {
     Hex(H256),
+    KMS { alias: String, region: String },
+}
+
+impl ValidatorSigner {
+    pub fn kms(alias: impl Into<String>, region: impl Into<String>) -> Self {
+        Self::KMS {
+            alias: alias.into(),
+            region: region.into(),
+        }
+    }
 }
 
 impl Args for ValidatorSigner {
@@ -123,6 +133,11 @@ impl Args for ValidatorSigner {
             ValidatorSigner::Hex(key) => btree_map! {
                 "validator.type".to_string() => "hexKey".to_string(),
                 "validator.key".to_string() => format!("{:?}", key),
+            },
+            ValidatorSigner::KMS { alias, region } => btree_map! {
+                "validator.type".to_string() => "aws".to_string(),
+                "validator.id".to_string() => alias,
+                "validator.region".to_string() => region,
             },
         }
     }

@@ -1,12 +1,12 @@
 use {
     crate::utils::{
         build_agents, workspace, Agent, CheckpointSyncer, DangoSettings, EvmSettings, Location,
-        LogLevel, Relayer, Validator,
+        LogLevel, Relayer, SingleSignerExt, Validator, ValidatorSigner,
     },
-    dango_hyperlane_testing::constants::MOCK_HYPERLANE_VALIDATOR_SIGNING_KEYS,
+    dango_client::{Secp256k1, Secret, SingleSigner},
     dango_testing::constants::{user4, user6},
     dango_types::config::AppConfig,
-    grug::{addr, HexByteArray, QueryClientExt},
+    grug::{HexByteArray, QueryClientExt},
     grug_indexer_client::HttpClient,
     hyperlane_base::settings::SignerConf,
     hyperlane_core::H256,
@@ -35,6 +35,14 @@ async fn run_relayer() -> anyhow::Result<()> {
     let dango_client = HttpClient::new(HTTPD_URL)?;
     let app_cfg: AppConfig = dango_client.query_app_config(None).await?;
 
+    let dango_chain_signer_address = SingleSigner::new_first_account(
+        &dango_client,
+        Secp256k1::from_bytes(user4::PRIVATE_KEY)?,
+        Some(&app_cfg),
+    )
+    .await?
+    .address;
+
     Agent::new(Relayer::default().with_allow_local_checkpoint_syncer(true))
         .with_chain(
             EvmSettings::new("sepolia")
@@ -45,7 +53,7 @@ async fn run_relayer() -> anyhow::Result<()> {
             DangoSettings::new("dangolocal2")
                 .with_chain_signer(SignerConf::Dango {
                     key: HexByteArray::from_inner(user4::PRIVATE_KEY),
-                    address: addr!("5a7213b5a8f12e826e88d67c083be371a442689c"),
+                    address: dango_chain_signer_address,
                 })
                 .with_index(1, Some(20))
                 .with_chain_settings(|dango| {
@@ -67,31 +75,41 @@ async fn run_relayer() -> anyhow::Result<()> {
 async fn run_dango_validator() -> anyhow::Result<()> {
     load_env();
 
+    let validator_chain = "localdango1";
+
     build_agents();
 
     let dango_client = HttpClient::new(HTTPD_URL)?;
     let chain_id = dango_client.query_status(None).await?.chain_id;
-    let app_cfg = dango_client.query_app_config(None).await?;
+    let app_cfg: AppConfig = dango_client.query_app_config(None).await?;
     let path = workspace().join("val-1");
+
+    let dango_chain_signer_address = SingleSigner::new_first_account(
+        &dango_client,
+        Secp256k1::from_bytes(user6::PRIVATE_KEY)?,
+        Some(&app_cfg),
+    )
+    .await?
+    .address;
 
     Agent::new(
         Validator::default()
-            .with_origin_chain_name("dangolocal2")
+            .with_origin_chain_name(validator_chain)
             .with_checkpoint_syncer(CheckpointSyncer::s3(
-                "hyperlane-test",
+                "hyperlane-testnet-val1",
                 "eu-north-1",
                 None::<String>,
             ))
-            // .with_checkpoint_syncer(CheckpointSyncer::LocalStorage(Location::Temp))
-            .with_validator_signer(utils::ValidatorSigner::Hex(H256::from(
-                MOCK_HYPERLANE_VALIDATOR_SIGNING_KEYS[0],
-            ))),
+            .with_validator_signer(ValidatorSigner::kms(
+                "alias/hyperlane-testnet-val1-singer-key",
+                "eu-north-1",
+            )),
     )
     .with_chain(
-        DangoSettings::new("dangolocal2")
+        DangoSettings::new(validator_chain)
             .with_chain_signer(SignerConf::Dango {
                 key: HexByteArray::from_inner(user6::PRIVATE_KEY),
-                address: addr!("365a389d8571b681d087ee8f7eecf1ff710f59c8"),
+                address: dango_chain_signer_address,
             })
             .with_index(1, Some(20))
             .with_chain_settings(|dango| {

@@ -30,13 +30,13 @@ use {
 type AddrEncoded<const N: usize> = EncodedBytes<[u8; N], AddrEncoder>;
 
 #[derive(Debug, Serialize, Deserialize)]
-struct CheckpointResponse {
-    merkle_tree_hook_address: AddrEncoded<32>,
-    mailbox_domain: u32,
-    root: AddrEncoded<32>,
-    index: u32,
-    message_id: AddrEncoded<32>,
-    serialized_signature: AddrEncoded<65>,
+pub struct CheckpointResponse {
+    pub merkle_tree_hook_address: AddrEncoded<32>,
+    pub mailbox_domain: u32,
+    pub root: AddrEncoded<32>,
+    pub index: u32,
+    pub message_id: AddrEncoded<32>,
+    pub serialized_signature: AddrEncoded<65>,
 }
 
 abigen!(
@@ -237,7 +237,7 @@ async fn get_validator_locations<I: IntoIterator<Item = H160>>(
         .collect::<Result<Vec<String>, anyhow::Error>>()
 }
 
-async fn get_checkpoint_from_s3(s3: &str, index_msg: &str) -> anyhow::Result<CheckpointResponse> {
+pub async fn get_checkpoint_from_s3(s3: &str, index_msg: &str) -> anyhow::Result<CheckpointResponse> {
     let without_scheme = s3
         .strip_prefix("s3://")
         .ok_or(anyhow::anyhow!("Invalid S3 URL"))?;
