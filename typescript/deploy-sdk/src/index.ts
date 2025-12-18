@@ -1,6 +1,6 @@
 // AltVMFileSubmitter removed from public exports as it uses Node.js fs module
 // and should not be bundled for browser use. CLI can import directly:
-// import { AltVMFileSubmitter } from '@hyperlane-xyz/deploy-sdk/AltVMFileSubmitter.js';
+// import { AltVMFileSubmitter } from '@hyperlane-xyz/deploy-sdk/AltVMFileSubmitter';
 
 export { AltVMJsonRpcSubmitter } from './AltVMJsonRpcSubmitter.js';
 export { AltVMCoreModule } from './AltVMCoreModule.js';
