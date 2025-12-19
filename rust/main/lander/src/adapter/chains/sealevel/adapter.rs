@@ -1,4 +1,9 @@
-use std::{collections::HashMap, ops::Sub, sync::Arc, time::Duration};
+use std::{
+    collections::HashMap,
+    ops::{Div, Sub},
+    sync::Arc,
+    time::Duration,
+};
 
 use async_trait::async_trait;
 use chrono::Utc;
@@ -340,8 +345,9 @@ impl AdaptsChain for SealevelAdapter {
                 .map_err(|e: hyperlane_core::ChainCommunicationError| {
                     LanderError::ChainCommunicationError(e)
                 })?;
+
         // Divide by 1,000,000 to convert micro-lamports to lamports
-        let gas_price = gas_price / 1_000_000u64;
+        let gas_price = gas_price.div(1_000_000u64);
 
         Ok(Some(TxCostEstimate {
             gas_limit,

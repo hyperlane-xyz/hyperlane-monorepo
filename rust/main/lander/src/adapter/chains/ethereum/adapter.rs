@@ -419,7 +419,7 @@ impl AdaptsChain for EthereumAdapter {
         // Convert GasPrice to FixedPointNumber
         let gas_price = estimated_gas_price
             .to_fixed_point_number()
-            .map_err(|e| LanderError::ChainCommunicationError(e.into()))?;
+            .map_err(|err| LanderError::ChainCommunicationError(err))?;
 
         // Estimate L2 gas for Arbitrum chains
         let l2_gas_limit = if !self.domain.is_arbitrum_nitro() {
@@ -438,7 +438,7 @@ impl AdaptsChain for EthereumAdapter {
             self.provider
                 .arbitrum_estimate_l2_gas(to_address, calldata.0.to_vec())
                 .await
-                .map_err(|e| LanderError::ChainCommunicationError(e.into()))?
+                .map_err(|err| LanderError::ChainCommunicationError(err))?
         };
 
         Ok(Some(hyperlane_core::TxCostEstimate {
