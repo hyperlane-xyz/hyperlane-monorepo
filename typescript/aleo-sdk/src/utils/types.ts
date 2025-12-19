@@ -18,8 +18,10 @@ export enum AleoHookType {
   PAUSABLE = 7,
 }
 
+// This must be kept in sync with the enum at
+// https://github.com/hyperlane-xyz/hyperlane-aleo/blob/50b9d0ba107939bf3d8f634d302fbd7db922165a/ism_manager/src/main.leo#L71-L74
 export enum AleoIsmType {
-  TEST_ISM = 0,
+  TEST_ISM = 6,
   ROUTING = 1,
   MERKLE_ROOT_MULTISIG = 4,
   MESSAGE_ID_MULTISIG = 5,

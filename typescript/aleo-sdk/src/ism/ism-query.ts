@@ -24,20 +24,18 @@ function isAleoIsmType(maybeIsmType: number): maybeIsmType is AleoIsmType {
  * Query the ISM type for a given ISM address.
  *
  * @param aleoClient - The Aleo network client
- * @param ismManager - The ISM manager program ID (e.g., "ism_manager.aleo")
  * @param ismAddress - The full ISM address (e.g., "ism_manager.aleo/aleo1...")
  * @returns The ISM type
  */
 export async function getIsmType(
   aleoClient: AnyAleoNetworkClient,
-  ismManager: string,
   ismAddress: string,
 ): Promise<AleoIsmType> {
-  const { address } = fromAleoAddress(ismAddress);
+  const { address, programId } = fromAleoAddress(ismAddress);
 
   const result = await queryMappingValue(
     aleoClient,
-    ismManager,
+    programId,
     'isms',
     address,
     (raw) => {
@@ -56,4 +54,31 @@ export async function getIsmType(
   );
 
   return result;
+}
+
+/**
+ * Query the configuration for a Test ISM (Noop ISM).
+ *
+ * @param aleoClient - The Aleo network client
+ * @param ismAddress - The full ISM address (e.g., "ism_manager.aleo/aleo1...")
+ * @returns The Test ISM configuration
+ */
+export async function getTestIsmConfig(
+  aleoClient: AnyAleoNetworkClient,
+  ismAddress: string,
+): Promise<{
+  type: AleoIsmType.TEST_ISM;
+  address: string;
+}> {
+  const ismType = await getIsmType(aleoClient, ismAddress);
+
+  assert(
+    ismType === AleoIsmType.TEST_ISM,
+    `Expected ism at address ${ismAddress} to be of type TEST_ISM but got ${ismType}`,
+  );
+
+  return {
+    type: AleoIsmType.TEST_ISM,
+    address: ismAddress,
+  };
 }
