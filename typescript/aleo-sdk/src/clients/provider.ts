@@ -7,6 +7,7 @@ import { assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
 import {
   getIsmType,
   getMessageIdMultisigIsmConfig,
+  getRoutingIsmConfig,
   getTestIsmConfig,
 } from '../ism/ism-query.js';
 import {
@@ -214,51 +215,15 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   }
 
   async getRoutingIsm(req: AltVM.ReqRoutingIsm): Promise<AltVM.ResRoutingIsm> {
-    const { programId, address } = fromAleoAddress(req.ismAddress);
-
-    const routes: { domainId: number; ismAddress: string }[] = [];
-
-    const ismData = await this.queryMappingValue(
-      programId,
-      'domain_routing_isms',
-      address,
+    const { owner, routes } = await getRoutingIsmConfig(
+      this.aleoClient,
+      req.ismAddress,
     );
-    const owner = ismData.ism_owner;
-
-    const routeLengthRes = await this.queryMappingValue(
-      programId,
-      'route_length',
-      address,
-    );
-
-    for (let i = 0; i < (routeLengthRes || 0); i++) {
-      const routeKey = await this.aleoClient.getProgramMappingPlaintext(
-        programId,
-        'route_iter',
-        `{ism:${address},index:${i}u32}`,
-      );
-
-      const ismAddress = await this.queryMappingValue(
-        programId,
-        'routes',
-        routeKey.toString(),
-      );
-
-      // This is necessary because `route_iter` maintains keys for all route entries,
-      // including those from domains that have already been removed. When a domain is
-      // deleted from the Routing ISM, its key remains in the map and `routes` simply returns null.
-      if (!ismAddress) continue;
-
-      routes.push({
-        ismAddress: `${this.ismManager}/${ismAddress}`,
-        domainId: routeKey.toObject().domain,
-      });
-    }
 
     return {
       address: req.ismAddress,
-      owner: owner,
-      routes: routes,
+      owner,
+      routes,
     };
   }
 

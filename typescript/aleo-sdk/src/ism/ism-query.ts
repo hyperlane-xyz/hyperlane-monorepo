@@ -1,7 +1,10 @@
 import { assert, ensure0x, isZeroishAddress } from '@hyperlane-xyz/utils';
 
 import { AnyAleoNetworkClient } from '../clients/base.js';
-import { queryMappingValue } from '../utils/base-query.js';
+import {
+  queryMappingValue,
+  tryQueryMappingValue,
+} from '../utils/base-query.js';
 import { fromAleoAddress } from '../utils/helper.js';
 import { AleoIsmType } from '../utils/types.js';
 
@@ -160,5 +163,116 @@ export async function getMessageIdMultisigIsmConfig(
     type: ismType,
     validators,
     threshold,
+  };
+}
+
+function formatRoutingIsmData(raw: unknown): { owner: string } {
+  assert(
+    typeof raw === 'object' && raw !== null,
+    `Expected routing ISM data to be an object but got ${typeof raw}`,
+  );
+
+  const { ism_owner } = raw as any;
+
+  assert(
+    typeof ism_owner === 'string',
+    'Expected ism_owner to be a string in routing ISM data',
+  );
+
+  return { owner: ism_owner };
+}
+
+function formatRouteLength(raw: unknown): number {
+  assert(
+    typeof raw === 'number',
+    `Expected route length to be a number but got ${typeof raw}`,
+  );
+  return raw;
+}
+
+function formatRouteIsmAddress(raw: unknown): string {
+  assert(
+    typeof raw === 'string',
+    `Expected route ISM address to be a string but got ${typeof raw}`,
+  );
+  return raw;
+}
+
+/**
+ * Query the configuration for a Routing ISM.
+ *
+ * @param aleoClient - The Aleo network client
+ * @param ismAddress - The full ISM address (e.g., "ism_manager.aleo/aleo1...")
+ * @returns The Routing ISM configuration
+ */
+export async function getRoutingIsmConfig(
+  aleoClient: AnyAleoNetworkClient,
+  ismAddress: string,
+): Promise<{
+  type: AleoIsmType.ROUTING;
+  address: string;
+  owner: string;
+  routes: {
+    domainId: number;
+    ismAddress: string;
+  }[];
+}> {
+  const { address, programId } = fromAleoAddress(ismAddress);
+  const ismType = await getIsmType(aleoClient, ismAddress);
+
+  assert(
+    ismType === AleoIsmType.ROUTING,
+    `Expected ism at address ${ismAddress} to be of type ROUTING but got ${ismType}`,
+  );
+
+  const routes: { domainId: number; ismAddress: string }[] = [];
+
+  const ismData = await queryMappingValue(
+    aleoClient,
+    programId,
+    'domain_routing_isms',
+    address,
+    formatRoutingIsmData,
+  );
+
+  const routeLengthRes = await queryMappingValue(
+    aleoClient,
+    programId,
+    'route_length',
+    address,
+    formatRouteLength,
+  );
+
+  for (let i = 0; i < (routeLengthRes || 0); i++) {
+    const routeKey = await aleoClient.getProgramMappingPlaintext(
+      programId,
+      'route_iter',
+      `{ism:${address},index:${i}u32}`,
+    );
+
+    const routeIsmAddress = await tryQueryMappingValue(
+      aleoClient,
+      programId,
+      'routes',
+      routeKey.toString(),
+      formatRouteIsmAddress,
+    );
+
+    // This is necessary because `route_iter` maintains keys for all route entries,
+    // including those from domains that have already been removed. When a domain is
+    // deleted from the Routing ISM, its key remains in the map and `routes` simply returns null.
+    if (!routeIsmAddress) continue;
+
+    routes.push({
+      ismAddress: `${programId}/${routeIsmAddress}`,
+      domainId: routeKey.toObject().domain,
+    });
+  }
+
+  return {
+    type: AleoIsmType.ROUTING,
+    address: ismAddress,
+    owner: ismData.owner,
+    routes: routes,
   };
 }
