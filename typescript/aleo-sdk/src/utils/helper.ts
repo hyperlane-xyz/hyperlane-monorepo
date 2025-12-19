@@ -12,6 +12,12 @@ const customWarpSuffix = process.env['ALEO_WARP_SUFFIX'];
 export const MAINNET_PREFIX = 'hyp';
 export const TESTNET_PREFIX = 'test_hyp';
 
+export const RETRY_ATTEMPTS = 10;
+export const RETRY_DELAY_MS = 100;
+
+export const SUFFIX_LENGTH_LONG = 6;
+export const SUFFIX_LENGTH_SHORT = 3;
+
 export function loadProgramsInDeployOrder(
   prefix: string,
   programName: AleoProgram,

@@ -17,7 +17,12 @@ import {
 
 import { assert, retryAsync } from '@hyperlane-xyz/utils';
 
-import { MAINNET_PREFIX, TESTNET_PREFIX } from '../utils/helper.js';
+import {
+  MAINNET_PREFIX,
+  RETRY_ATTEMPTS,
+  RETRY_DELAY_MS,
+  TESTNET_PREFIX,
+} from '../utils/helper.js';
 
 export type AnyAleoNetworkClient =
   | AleoMainnetNetworkClient
@@ -129,8 +134,8 @@ export class AleoBase {
       const result = await retryAsync(
         () =>
           this.aleoClient.getProgramMappingValue(programId, mappingName, key),
-        10,
-        100,
+        RETRY_ATTEMPTS,
+        RETRY_DELAY_MS,
       );
 
       if (result === null) {
@@ -165,8 +170,8 @@ export class AleoBase {
 
           return r;
         },
-        10,
-        100,
+        RETRY_ATTEMPTS,
+        RETRY_DELAY_MS,
       );
 
       return result;
