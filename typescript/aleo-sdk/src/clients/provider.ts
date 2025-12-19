@@ -4,7 +4,11 @@ import { BigNumber } from 'bignumber.js';
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
 
-import { getIsmType, getTestIsmConfig } from '../ism/ism-query.js';
+import {
+  getIsmType,
+  getMessageIdMultisigIsmConfig,
+  getTestIsmConfig,
+} from '../ism/ism-query.js';
 import {
   ALEO_NATIVE_DENOM,
   ALEO_NULL_ADDRESS,
@@ -193,20 +197,13 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async getMessageIdMultisigIsm(
     req: AltVM.ReqMessageIdMultisigIsm,
   ): Promise<AltVM.ResMessageIdMultisigIsm> {
-    const { programId, address } = fromAleoAddress(req.ismAddress);
-
-    const { validators, threshold } = await this.queryMappingValue(
-      programId,
-      'message_id_multisigs',
-      address,
-    );
+    const { address, threshold, validators } =
+      await getMessageIdMultisigIsmConfig(this.aleoClient, req.ismAddress);
 
     return {
-      address: req.ismAddress,
-      validators: validators
-        .map((v: any) => ensure0x(Buffer.from(v.bytes).toString('hex')))
-        .filter((v: any) => v !== '0x0000000000000000000000000000000000000000'),
-      threshold: threshold,
+      address,
+      validators,
+      threshold,
     };
   }
 
