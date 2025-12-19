@@ -96,7 +96,7 @@ class IsmModuleAdapter implements HypModule<IsmModuleType> {
     const deployedArtifact: DeployedIsmArtifact = {
       ...expectedArtifact,
       artifactState: ArtifactState.DEPLOYED,
-      config: expectedArtifact.config as IsmArtifactConfig,
+      config: expectedArtifact.config,
       deployed: actualArtifact.deployed,
     };
     return this.writer.update(deployedArtifact);

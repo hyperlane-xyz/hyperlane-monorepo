@@ -462,7 +462,7 @@ export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
     const deployedArtifact: DeployedIsmArtifact = {
       ...expectedArtifact,
       artifactState: ArtifactState.DEPLOYED,
-      config: expectedArtifact.config as IsmArtifactConfig,
+      config: expectedArtifact.config,
       deployed: actualArtifact.deployed,
     };
     const updateTransactions = await writer.update(deployedArtifact);

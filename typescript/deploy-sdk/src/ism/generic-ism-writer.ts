@@ -18,7 +18,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 
-import { GenericIsmReader } from './generic-ism.js';
+import { IsmReader } from './generic-ism.js';
 import { RoutingIsmWriter } from './routing-ism.js';
 
 /**
@@ -54,14 +54,14 @@ export function createIsmWriter(
  * It delegates to protocol-specific artifact writers for individual ISM types.
  *
  * Key features:
- * - Extends GenericIsmReader to inherit read() functionality
+ * - Extends IsmReader to inherit read() functionality
  * - Works with pure Artifact API (IsmArtifactConfig)
  * - Delegates to typed writers from artifact manager for specific ISM types
  * - Uses RoutingIsmWriter for composite routing ISM operations
  * - Protocol-agnostic through artifact manager abstraction
  */
 export class GenericIsmWriter
-  extends GenericIsmReader
+  extends IsmReader
   implements ArtifactWriter<IsmArtifactConfig, DeployedIsmAddresses>
 {
   constructor(
