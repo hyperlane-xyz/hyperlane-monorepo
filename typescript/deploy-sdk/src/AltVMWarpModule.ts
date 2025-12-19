@@ -5,8 +5,6 @@ import { DerivedHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
 import {
   DeployedIsmArtifact,
   DerivedIsmConfig,
-  IsmArtifactConfig,
-  STATIC_ISM_TYPES,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import {
   AnnotatedTx,
@@ -32,7 +30,10 @@ import { AltVMHookModule } from './AltVMHookModule.js';
 import { AltVMDeployer } from './AltVMWarpDeployer.js';
 import { AltVMWarpRouteReader } from './AltVMWarpRouteReader.js';
 import { createIsmWriter } from './ism/generic-ism-writer.js';
-import { ismConfigToArtifact } from './ism/ism-config-utils.js';
+import {
+  ismConfigToArtifact,
+  shouldDeployNewIsm,
+} from './ism/ism-config-utils.js';
 import { validateIsmConfig } from './utils/validation.js';
 
 export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
@@ -447,9 +448,7 @@ export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
     );
 
     // Decide: deploy new ISM or update existing one
-    if (
-      this.shouldDeployNewIsm(actualArtifact.config, expectedArtifact.config)
-    ) {
+    if (shouldDeployNewIsm(actualArtifact.config, expectedArtifact.config)) {
       // Deploy new ISM
       const [deployed] = await writer.create(expectedArtifact);
       return {
@@ -471,25 +470,6 @@ export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
       deployedIsm: actualIsmAddress,
       updateTransactions,
     };
-  }
-
-  /**
-   * Determines if a new ISM should be deployed instead of updating the existing one.
-   * Deploy new ISM if:
-   * - ISM type changed
-   * - ISM is static/immutable (multisig types)
-   */
-  private shouldDeployNewIsm(
-    actual: IsmArtifactConfig,
-    expected: IsmArtifactConfig,
-  ): boolean {
-    // Type changed - must deploy new
-    if (actual.type !== expected.type) return true;
-
-    // Static ISM types are immutable - must deploy new
-    if (STATIC_ISM_TYPES.includes(expected.type)) return true;
-
-    return false;
   }
 
   /**

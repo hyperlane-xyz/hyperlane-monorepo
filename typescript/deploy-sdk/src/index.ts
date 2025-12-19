@@ -15,7 +15,10 @@ export { hookModuleProvider } from './hook-module.js';
 export { ismModuleProvider } from './ism-module.js';
 export { createIsmReader } from './ism/generic-ism.js';
 export { GenericIsmWriter, createIsmWriter } from './ism/generic-ism-writer.js';
-export { ismConfigToArtifact } from './ism/ism-config-utils.js';
+export {
+  ismConfigToArtifact,
+  shouldDeployNewIsm,
+} from './ism/ism-config-utils.js';
 export { warpModuleProvider } from './warp-module.js';
 export {
   validateIsmConfig,

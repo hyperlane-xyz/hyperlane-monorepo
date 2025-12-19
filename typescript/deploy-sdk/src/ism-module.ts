@@ -9,11 +9,9 @@ import {
   DeployedIsmArtifact,
   DerivedIsmConfig,
   IRawIsmArtifactManager,
-  IsmArtifactConfig,
   IsmConfig,
   IsmModuleAddresses,
   IsmModuleType,
-  STATIC_ISM_TYPES,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import {
   AnnotatedTx,
@@ -26,7 +24,10 @@ import {
 
 import { GenericIsmWriter } from './ism/generic-ism-writer.js';
 import { createIsmReader } from './ism/generic-ism.js';
-import { ismConfigToArtifact } from './ism/ism-config-utils.js';
+import {
+  ismConfigToArtifact,
+  shouldDeployNewIsm,
+} from './ism/ism-config-utils.js';
 
 /**
  * Adapter that wraps IsmReader to implement HypReader interface.
@@ -84,7 +85,7 @@ class IsmModuleAdapter implements HypModule<IsmModuleType> {
     );
 
     // Decide: deploy new ISM or update existing one
-    if (this.shouldDeployNew(actualArtifact.config, expectedArtifact.config)) {
+    if (shouldDeployNewIsm(actualArtifact.config, expectedArtifact.config)) {
       // Deploy new ISM
       await this.writer.create(expectedArtifact);
       // TODO: Return txs to update mailbox's defaultIsm if needed
@@ -100,25 +101,6 @@ class IsmModuleAdapter implements HypModule<IsmModuleType> {
       deployed: actualArtifact.deployed,
     };
     return this.writer.update(deployedArtifact);
-  }
-
-  /**
-   * Determines if a new ISM should be deployed instead of updating the existing one.
-   * Deploy new ISM if:
-   * - ISM type changed
-   * - ISM is static/immutable (multisig types)
-   */
-  private shouldDeployNew(
-    actual: IsmArtifactConfig,
-    expected: IsmArtifactConfig,
-  ): boolean {
-    // Type changed - must deploy new
-    if (actual.type !== expected.type) return true;
-
-    // Static ISM types are immutable - must deploy new
-    if (STATIC_ISM_TYPES.includes(expected.type)) return true;
-
-    return false;
   }
 }
 
