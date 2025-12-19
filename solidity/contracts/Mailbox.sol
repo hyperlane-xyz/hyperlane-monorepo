@@ -248,9 +248,16 @@ contract Mailbox is
     /**
      * @notice Returns the account that processed the message.
      * @param _id The message ID to check.
+     * @param _checkDelivery Whether to verify the message was delivered.
      * @return The account that processed the message.
      */
-    function processor(bytes32 _id) external view returns (address) {
+    function processor(
+        bytes32 _id,
+        bool _checkDelivery
+    ) external view returns (address) {
+        if (_checkDelivery) {
+            require(delivered(_id), "Mailbox: message not delivered");
+        }
         return deliveries[_id].processor;
     }
 

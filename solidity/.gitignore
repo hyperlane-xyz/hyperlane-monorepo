@@ -29,3 +29,5 @@ typechain/
 
 # bytecode dumps
 bytecode/
+# interface dumps
+interface/
