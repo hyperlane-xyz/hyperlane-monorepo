@@ -65,7 +65,7 @@ export function ismConfigToArtifact(
         // We don't know the actual config, so we'll need to read it if needed
         domains[domainId] = {
           artifactState: ArtifactState.DEPLOYED,
-          config: { type: 'testIsm' } as any, // Placeholder config
+          config: { type: 'testIsm' },
           deployed: { address: nestedConfig },
         };
       } else {
@@ -85,5 +85,5 @@ export function ismConfigToArtifact(
 
   // Other ISM types (multisig, testIsm) have identical config structure
   // between Config API and Artifact API - just wrap in artifact object
-  return { config: config as IsmArtifactConfig };
+  return { artifactState: ArtifactState.NEW, config };
 }
