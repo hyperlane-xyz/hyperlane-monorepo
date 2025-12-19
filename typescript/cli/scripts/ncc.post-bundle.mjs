@@ -6,40 +6,54 @@ import { readFile, writeFile } from 'fs/promises';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const outputFile = path.join(__dirname, '..', 'cli-bundle', 'index.js');
+const OUTPUT_FILE = path.join(__dirname, '..', 'cli-bundle', 'index.js');
+const SHEBANG = '#!/usr/bin/env node';
 
-const shebang = '#! /usr/bin/env node';
-const dirnameDef = `import { fileURLToPath, pathToFileURL } from 'url';
+const DIRNAME_SHIM = `
+import { fileURLToPath, pathToFileURL } from 'url';
 import path from 'path';
+
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);`;
+const __dirname = path.dirname(__filename);
+`.trim();
 
-async function prepend() {
+/**
+ * Apply Node.js compatibility patches to the bundled CLI output.
+ */
+async function patchCliExecutable() {
   try {
-    const content = await readFile(outputFile, 'utf8');
+    let content = await readFile(OUTPUT_FILE, 'utf8');
 
-    if (!content.includes(dirnameDef)) {
-      // Remove existing shebang if present
-      const executable = content.startsWith(shebang)
-        ? content.slice(shebang.length)
-        : content;
-      // Patch WASM loading to use file:// URL for Node.js compatibility
-      let patchedExecutable = executable.replace(
-        /await __wbg_init\(\{ module_or_path: (module\$\d+) \}\)/g,
-        'await __wbg_init({ module_or_path: pathToFileURL($1).href })',
-      );
-      // Patch spawnWorker to convert filepath to file:// URL for Worker compatibility
-      patchedExecutable = patchedExecutable.replace(
-        'const worker = new Worker(url,',
-        'const worker = new Worker(pathToFileURL(url),',
-      );
-      const newContent = `${shebang}\n${dirnameDef}\n${patchedExecutable}`;
-      await writeFile(outputFile, newContent, 'utf8');
-      console.log('Patched cli executable with __dirname and file:// URL fix');
+    // Skip if already patched
+    if (content.includes(DIRNAME_SHIM)) {
+      return;
     }
-  } catch (err) {
-    console.error('Error processing output file:', err);
+
+    // Remove any existing shebang *and* leading whitespace
+    content = content.replace(/^#!.*\n/, '');
+
+    // Patch WASM init to use file:// URLs
+    content = content.replace(
+      /await __wbg_init\(\{ module_or_path: (module\$\d+) \}\)/g,
+      'await __wbg_init({ module_or_path: pathToFileURL($1).href })',
+    );
+
+    // Patch Worker creation to accept file:// URLs
+    content = content.replace(
+      'const worker = new Worker(url,',
+      'const worker = new Worker(pathToFileURL(url),',
+    );
+
+    const patched = [SHEBANG, DIRNAME_SHIM, '', content].join('\n');
+
+    await writeFile(OUTPUT_FILE, patched, 'utf8');
+
+    console.log(
+      '✔ CLI executable patched for Node.js + file:// compatibility',
+    );
+  } catch (error) {
+    console.error('✖ Failed to patch CLI executable:', error);
   }
 }
 
-await prepend();
+await patchCliExecutable();
