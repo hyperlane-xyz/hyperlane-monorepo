@@ -73,13 +73,19 @@ export class RoutingIsmWriter
       if (isArtifactDeployed(nestedArtifact)) {
         deployedDomainIsms[domain] = nestedArtifact;
       } else if (isArtifactUnderived(nestedArtifact)) {
-        // Already deployed on-chain, pass through as-is
+        // UNDERIVED means predeployed ISM - just pass through without reading
         deployedDomainIsms[domain] = nestedArtifact;
       } else if (isArtifactNew(nestedArtifact)) {
         const [deployedNested, receipts] =
           await this.deployDomainIsm(nestedArtifact);
         deployedDomainIsms[domain] = deployedNested;
         allReceipts.push(...receipts);
+      } else {
+        // This should never happen - all artifact states are handled above
+        const _exhaustiveCheck: never = nestedArtifact;
+        this.logger.error(
+          `Unexpected artifact state ${(_exhaustiveCheck as any).artifactState} for domain ${domainId}`,
+        );
       }
     }
 
@@ -163,11 +169,18 @@ export class RoutingIsmWriter
 
         deployedDomains[domain] = domainIsmConfig;
       } else if (isArtifactUnderived(domainIsmConfig)) {
-        // Already deployed on-chain but config unknown, pass through as-is
-        // (no update possible without config)
+        // UNDERIVED means predeployed ISM - just pass through without reading
         deployedDomains[domain] = domainIsmConfig;
+        // Note: We don't generate update transactions for UNDERIVED artifacts
+        // since they represent existing ISMs that we're just referencing
       } else if (isArtifactNew(domainIsmConfig)) {
         [deployedDomains[domain]] = await this.deployDomainIsm(domainIsmConfig);
+      } else {
+        // This should never happen - all artifact states are handled above
+        const _exhaustiveCheck: never = domainIsmConfig;
+        this.logger.error(
+          `Unexpected artifact state ${(_exhaustiveCheck as any).artifactState} for domain ${domainId}`,
+        );
       }
     }
 
