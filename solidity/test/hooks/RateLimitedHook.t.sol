@@ -55,6 +55,7 @@ contract RateLimitedHookTest is Test {
         warpRouteLocal = new HypERC20Collateral(
             address(token),
             SCALE,
+            SCALE,
             address(localMailbox)
         );
 
@@ -70,7 +71,12 @@ contract RateLimitedHookTest is Test {
             address(this)
         );
 
-        warpRouteRemote = new HypERC20(DECIMALS, SCALE, address(remoteMailbox));
+        warpRouteRemote = new HypERC20(
+            DECIMALS,
+            SCALE,
+            SCALE,
+            address(remoteMailbox)
+        );
 
         warpRouteLocal.enrollRemoteRouter(
             DESTINATION,

@@ -90,6 +90,7 @@ contract EverclearTokenBridgeTest is Test {
         EverclearTokenBridge implementation = new EverclearTokenBridge(
             address(token),
             1,
+            1,
             address(mailbox),
             everclearAdapter
         );
@@ -129,6 +130,7 @@ contract EverclearTokenBridgeTest is Test {
     function testConstructor() public {
         EverclearTokenBridge newBridge = new EverclearTokenBridge(
             address(token),
+            1,
             1,
             address(mailbox),
             everclearAdapter
@@ -527,10 +529,19 @@ contract EverclearTokenBridgeTest is Test {
 contract MockEverclearTokenBridge is EverclearTokenBridge {
     constructor(
         address _weth,
-        uint256 _scale,
+        uint256 _scaleNumerator,
+        uint256 _scaleDenominator,
         address _mailbox,
         IEverclearAdapter _everclearAdapter
-    ) EverclearTokenBridge(_weth, _scale, _mailbox, _everclearAdapter) {}
+    )
+        EverclearTokenBridge(
+            _weth,
+            _scaleNumerator,
+            _scaleDenominator,
+            _mailbox,
+            _everclearAdapter
+        )
+    {}
 
     bytes public lastIntent;
 
@@ -599,6 +610,7 @@ contract BaseEverclearTokenBridgeForkTest is Test {
     function _deployBridge() internal virtual returns (address) {
         MockEverclearTokenBridge implementation = new MockEverclearTokenBridge(
             address(weth),
+            1,
             1,
             address(0x979Ca5202784112f4738403dBec5D0F3B9daabB9), // Mailbox
             everclearAdapter

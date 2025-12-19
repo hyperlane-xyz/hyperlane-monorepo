@@ -105,6 +105,7 @@ abstract contract HypTokenTest is Test {
         HypERC20 implementation = new HypERC20(
             DECIMALS,
             SCALE,
+            SCALE,
             address(remoteMailbox)
         );
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
@@ -337,6 +338,7 @@ contract HypERC20Test is HypTokenTest {
         HypERC20 implementation = new HypERC20(
             DECIMALS,
             SCALE,
+            SCALE,
             address(localMailbox)
         );
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
@@ -446,6 +448,7 @@ contract HypERC20CollateralTest is HypTokenTest {
         localToken = new HypERC20Collateral(
             address(primaryToken),
             SCALE,
+            SCALE,
             address(localMailbox)
         );
         erc20Collateral = HypERC20Collateral(address(localToken));
@@ -469,7 +472,7 @@ contract HypERC20CollateralTest is HypTokenTest {
 
     function test_constructor_revert_ifInvalidToken() public {
         vm.expectRevert("HypERC20Collateral: invalid token");
-        new HypERC20Collateral(address(0), SCALE, address(localMailbox));
+        new HypERC20Collateral(address(0), SCALE, SCALE, address(localMailbox));
     }
 
     function testInitialize_revert_ifAlreadyInitialized() public {}
@@ -522,6 +525,7 @@ contract HypXERC20Test is HypTokenTest {
 
         localToken = new HypXERC20(
             address(primaryToken),
+            SCALE,
             SCALE,
             address(localMailbox)
         );
@@ -584,6 +588,7 @@ contract HypXERC20LockboxTest is HypTokenTest {
 
         localToken = new HypXERC20Lockbox(
             address(lockbox),
+            SCALE,
             SCALE,
             address(localMailbox)
         );
@@ -661,6 +666,7 @@ contract HypFiatTokenTest is HypTokenTest {
         localToken = new HypFiatToken(
             address(primaryToken),
             SCALE,
+            SCALE,
             address(localMailbox)
         );
         fiatToken = HypFiatToken(address(localToken));
@@ -718,7 +724,7 @@ contract HypNativeTest is HypTokenTest {
     function setUp() public override {
         super.setUp();
 
-        localToken = new HypNative(SCALE, address(localMailbox));
+        localToken = new HypNative(SCALE, SCALE, address(localMailbox));
         nativeToken = HypNative(payable(address(localToken)));
         primaryToken = ERC20Test(address(0));
 
@@ -806,6 +812,7 @@ contract HypERC20ScaledTest is HypTokenTest {
         HypERC20 implementation = new HypERC20(
             DECIMALS,
             EFFECTIVE_SCALE,
+            SCALE,
             address(localMailbox)
         );
 
