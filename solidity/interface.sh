@@ -20,6 +20,59 @@ if [ "$1" = "test-interface" ]; then
     ADDED_ITEMS=""
     HAS_REMOVALS=false
 
+    # Helper: find items in base that are missing from head
+    # Usage: find_removed "$base_items" "$head_items" "$contract_name"
+    find_removed() {
+        local base_items="$1"
+        local head_items="$2"
+        local contract_name="$3"
+        while IFS= read -r item; do
+            [ -z "$item" ] && continue
+            if ! echo "$head_items" | grep -qxF "$item"; then
+                HAS_REMOVALS=true
+                REMOVED_ITEMS="$REMOVED_ITEMS\n  $contract_name: $item"
+            fi
+        done <<< "$base_items"
+    }
+
+    # Helper: find items in head that are missing from base (additions)
+    # Usage: find_added "$base_items" "$head_items" "$contract_name"
+    find_added() {
+        local base_items="$1"
+        local head_items="$2"
+        local contract_name="$3"
+        while IFS= read -r item; do
+            [ -z "$item" ] && continue
+            if ! echo "$base_items" | grep -qxF "$item"; then
+                ADDED_ITEMS="$ADDED_ITEMS\n  $contract_name: $item"
+            fi
+        done <<< "$head_items"
+    }
+
+    # Helper: extract ABI signatures from a file
+    # Usage: extract_signatures "$file" "$type"
+    extract_signatures() {
+        local file="$1"
+        local type="$2"
+        case "$type" in
+            function)
+                jq -r '.[] | select(.type == "function") | "function " + .name + "(" + ([.inputs[].type] | join(",")) + ")->(" + ([.outputs[].type] | join(",")) + ")"' "$file" 2>/dev/null | sort
+                ;;
+            event)
+                jq -r '.[] | select(.type == "event") | "event " + .name + "(" + ([.inputs[].type] | join(",")) + ")"' "$file" 2>/dev/null | sort
+                ;;
+            error)
+                jq -r '.[] | select(.type == "error") | "error " + .name + "(" + ([.inputs[].type] | join(",")) + ")"' "$file" 2>/dev/null | sort
+                ;;
+            constructor)
+                jq -r '.[] | select(.type == "constructor") | "constructor(" + ([.inputs[].type] | join(",")) + ")"' "$file" 2>/dev/null
+                ;;
+            fallback)
+                jq -r '.[] | select(.type == "fallback" or .type == "receive") | .type' "$file" 2>/dev/null | sort
+                ;;
+        esac
+    }
+
     # Check each contract in base for removed ABI entries
     for base_file in "$BASE_DIR"/*.json; do
         [ -f "$base_file" ] || continue
@@ -33,89 +86,21 @@ if [ "$1" = "test-interface" ]; then
             continue
         fi
 
-        # Extract function signatures: functionName(inputs)->(outputs)
-        base_funcs=$(jq -r '.[] | select(.type == "function") | "function " + .name + "(" + ([.inputs[].type] | join(",")) + ")->(" + ([.outputs[].type] | join(",")) + ")"' "$base_file" 2>/dev/null | sort)
-        head_funcs=$(jq -r '.[] | select(.type == "function") | "function " + .name + "(" + ([.inputs[].type] | join(",")) + ")->(" + ([.outputs[].type] | join(",")) + ")"' "$head_file" 2>/dev/null | sort)
+        # Check for removals and additions across all ABI types
+        for abi_type in function event error fallback; do
+            base_items=$(extract_signatures "$base_file" "$abi_type")
+            head_items=$(extract_signatures "$head_file" "$abi_type")
+            find_removed "$base_items" "$head_items" "$contract_name"
+            find_added "$base_items" "$head_items" "$contract_name"
+        done
 
-        # Extract event signatures: eventName(type1,type2,...)
-        base_events=$(jq -r '.[] | select(.type == "event") | "event " + .name + "(" + ([.inputs[].type] | join(",")) + ")"' "$base_file" 2>/dev/null | sort)
-        head_events=$(jq -r '.[] | select(.type == "event") | "event " + .name + "(" + ([.inputs[].type] | join(",")) + ")"' "$head_file" 2>/dev/null | sort)
-
-        # Extract error signatures: errorName(type1,type2,...)
-        base_errors=$(jq -r '.[] | select(.type == "error") | "error " + .name + "(" + ([.inputs[].type] | join(",")) + ")"' "$base_file" 2>/dev/null | sort)
-        head_errors=$(jq -r '.[] | select(.type == "error") | "error " + .name + "(" + ([.inputs[].type] | join(",")) + ")"' "$head_file" 2>/dev/null | sort)
-
-        # Extract constructor signature
-        base_constructor=$(jq -r '.[] | select(.type == "constructor") | "constructor(" + ([.inputs[].type] | join(",")) + ")"' "$base_file" 2>/dev/null)
-        head_constructor=$(jq -r '.[] | select(.type == "constructor") | "constructor(" + ([.inputs[].type] | join(",")) + ")"' "$head_file" 2>/dev/null)
-
-        # Extract fallback/receive
-        base_fallback=$(jq -r '.[] | select(.type == "fallback" or .type == "receive") | .type' "$base_file" 2>/dev/null | sort)
-        head_fallback=$(jq -r '.[] | select(.type == "fallback" or .type == "receive") | .type' "$head_file" 2>/dev/null | sort)
-
-        # Check for removed functions
-        while IFS= read -r item; do
-            [ -z "$item" ] && continue
-            if ! echo "$head_funcs" | grep -qxF "$item"; then
-                HAS_REMOVALS=true
-                REMOVED_ITEMS="$REMOVED_ITEMS\n  $contract_name: $item"
-            fi
-        done <<< "$base_funcs"
-
-        # Check for removed events
-        while IFS= read -r item; do
-            [ -z "$item" ] && continue
-            if ! echo "$head_events" | grep -qxF "$item"; then
-                HAS_REMOVALS=true
-                REMOVED_ITEMS="$REMOVED_ITEMS\n  $contract_name: $item"
-            fi
-        done <<< "$base_events"
-
-        # Check for removed errors
-        while IFS= read -r item; do
-            [ -z "$item" ] && continue
-            if ! echo "$head_errors" | grep -qxF "$item"; then
-                HAS_REMOVALS=true
-                REMOVED_ITEMS="$REMOVED_ITEMS\n  $contract_name: $item"
-            fi
-        done <<< "$base_errors"
-
-        # Check for constructor changes
+        # Check for constructor changes (special case - not just removal)
+        base_constructor=$(extract_signatures "$base_file" "constructor")
+        head_constructor=$(extract_signatures "$head_file" "constructor")
         if [ -n "$base_constructor" ] && [ "$base_constructor" != "$head_constructor" ]; then
             HAS_REMOVALS=true
             REMOVED_ITEMS="$REMOVED_ITEMS\n  $contract_name: $base_constructor -> ${head_constructor:-removed}"
         fi
-
-        # Check for removed fallback/receive
-        while IFS= read -r item; do
-            [ -z "$item" ] && continue
-            if ! echo "$head_fallback" | grep -qxF "$item"; then
-                HAS_REMOVALS=true
-                REMOVED_ITEMS="$REMOVED_ITEMS\n  $contract_name: $item"
-            fi
-        done <<< "$base_fallback"
-
-        # Track additions (non-breaking, for info)
-        while IFS= read -r item; do
-            [ -z "$item" ] && continue
-            if ! echo "$base_funcs" | grep -qxF "$item"; then
-                ADDED_ITEMS="$ADDED_ITEMS\n  $contract_name: $item"
-            fi
-        done <<< "$head_funcs"
-
-        while IFS= read -r item; do
-            [ -z "$item" ] && continue
-            if ! echo "$base_events" | grep -qxF "$item"; then
-                ADDED_ITEMS="$ADDED_ITEMS\n  $contract_name: $item"
-            fi
-        done <<< "$head_events"
-
-        while IFS= read -r item; do
-            [ -z "$item" ] && continue
-            if ! echo "$base_errors" | grep -qxF "$item"; then
-                ADDED_ITEMS="$ADDED_ITEMS\n  $contract_name: $item"
-            fi
-        done <<< "$head_errors"
     done
 
     # Check for new contracts (additions)
