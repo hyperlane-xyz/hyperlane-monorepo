@@ -84,12 +84,12 @@ contract InterfaceTestContract {`,
 
 // Helper to build a contract from parts
 interface ContractConfig {
-  events?: string[];
-  errors?: string[];
-  constructor?: string;
-  functions?: string[];
-  receive?: boolean;
-  fallback?: boolean;
+  events: string[];
+  errors: string[];
+  constructor: string;
+  functions: string[];
+  receive: boolean;
+  fallback: boolean;
 }
 
 function buildContract(config: ContractConfig): string {
@@ -253,21 +253,11 @@ const CONTRACT_VARIANTS: Record<
   additions_only: {
     contract: buildContract({
       ...BASE_CONFIG,
-      events: [
-        CONTRACT_PARTS.events.transfer,
-        CONTRACT_PARTS.events.approval,
-        CONTRACT_PARTS.events.newEvent, // ADDED
-      ],
-      errors: [
-        CONTRACT_PARTS.errors.insufficientBalance,
-        CONTRACT_PARTS.errors.unauthorized,
-        CONTRACT_PARTS.errors.newError, // ADDED
-      ],
+      events: [...BASE_CONFIG.events, CONTRACT_PARTS.events.newEvent],
+      errors: [...BASE_CONFIG.errors, CONTRACT_PARTS.errors.newError],
       functions: [
-        CONTRACT_PARTS.functions.transfer,
-        CONTRACT_PARTS.functions.approve,
-        CONTRACT_PARTS.functions.balanceOf,
-        CONTRACT_PARTS.functions.totalSupply, // ADDED
+        ...BASE_CONFIG.functions,
+        CONTRACT_PARTS.functions.totalSupply,
       ],
     }),
     shouldFail: false,
