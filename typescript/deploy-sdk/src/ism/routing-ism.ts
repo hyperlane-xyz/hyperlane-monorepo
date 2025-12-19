@@ -4,10 +4,12 @@ import {
   Artifact,
   ArtifactDeployed,
   ArtifactNew,
+  ArtifactOnChain,
   ArtifactState,
   ArtifactWriter,
   isArtifactDeployed,
   isArtifactNew,
+  isArtifactUnderived,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
@@ -55,11 +57,17 @@ export class RoutingIsmWriter
     const { config } = artifact;
     const allReceipts: TxReceipt[] = [];
 
-    const deployedDomainIsms: Record<number, DeployedIsmArtifact> = {};
+    const deployedDomainIsms: Record<
+      number,
+      ArtifactOnChain<IsmArtifactConfig, DeployedIsmAddresses>
+    > = {};
     for (const [domainId, nestedArtifact] of Object.entries(config.domains)) {
       const domain = parseInt(domainId);
 
       if (isArtifactDeployed(nestedArtifact)) {
+        deployedDomainIsms[domain] = nestedArtifact;
+      } else if (isArtifactUnderived(nestedArtifact)) {
+        // UNDERIVED means predeployed ISM - just pass through without reading
         deployedDomainIsms[domain] = nestedArtifact;
       } else if (isArtifactNew(nestedArtifact)) {
         const [deployedNested, receipts] =
@@ -67,8 +75,10 @@ export class RoutingIsmWriter
         deployedDomainIsms[domain] = deployedNested;
         allReceipts.push(...receipts);
       } else {
+        // This should never happen - all artifact states are handled above
+        const _exhaustiveCheck: never = nestedArtifact;
         this.logger.error(
-          `Unexpected artifact state ${nestedArtifact.artifactState} for domain ${domainId}`,
+          `Unexpected artifact state ${(_exhaustiveCheck as any).artifactState} for domain ${domainId}`,
         );
       }
     }
@@ -111,7 +121,10 @@ export class RoutingIsmWriter
 
     const updateTxs = [];
 
-    const deployedDomains: Record<number, DeployedIsmArtifact> = {};
+    const deployedDomains: Record<
+      number,
+      ArtifactOnChain<IsmArtifactConfig, DeployedIsmAddresses>
+    > = {};
 
     for (const [domainId, domainIsmConfig] of Object.entries(config.domains)) {
       if (!this.chainLookup.getDomainId(domainId)) {
@@ -149,11 +162,18 @@ export class RoutingIsmWriter
         updateTxs.push(...domainIsmUpdateTxs);
 
         deployedDomains[domain] = domainIsmConfig;
+      } else if (isArtifactUnderived(domainIsmConfig)) {
+        // UNDERIVED means predeployed ISM - just pass through without reading
+        deployedDomains[domain] = domainIsmConfig;
+        // Note: We don't generate update transactions for UNDERIVED artifacts
+        // since they represent existing ISMs that we're just referencing
       } else if (isArtifactNew(domainIsmConfig)) {
         [deployedDomains[domain]] = await this.deployDomainIsm(domainIsmConfig);
       } else {
+        // This should never happen - all artifact states are handled above
+        const _exhaustiveCheck: never = domainIsmConfig;
         this.logger.error(
-          `Unexpected artifact state ${domainIsmConfig.artifactState} for domain ${domainId}`,
+          `Unexpected artifact state ${(_exhaustiveCheck as any).artifactState} for domain ${domainId}`,
         );
       }
     }

@@ -60,12 +60,12 @@ export function ismConfigToArtifact(
       }
 
       if (typeof nestedConfig === 'string') {
-        // Address reference - create a placeholder deployed artifact
-        // The writer will treat this as already deployed and skip deployment
-        // We don't know the actual config, so we'll need to read it if needed
+        // Address reference - create an UNDERIVED artifact
+        // This represents a predeployed ISM with unspecified type
+        // The routing ISM writer will pass it through without reading
+        // Only readers will fetch its config from chain if needed
         domains[domainId] = {
-          artifactState: ArtifactState.DEPLOYED,
-          config: { type: 'testIsm' },
+          artifactState: ArtifactState.UNDERIVED,
           deployed: { address: nestedConfig },
         };
       } else {
