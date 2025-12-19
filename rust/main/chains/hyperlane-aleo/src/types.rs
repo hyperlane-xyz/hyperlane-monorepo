@@ -106,7 +106,7 @@ impl From<GasPaymentEvent> for InterchainGasPayment {
         InterchainGasPayment {
             message_id,
             destination: val.destination_domain,
-            payment: to_atto(U256::from(val.payment), CREDITS_DECIMALS).unwrap_or_default(),
+            payment: U256::from(val.payment),
             gas_amount: U256::from(val.gas_amount),
         }
     }
