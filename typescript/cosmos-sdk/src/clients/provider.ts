@@ -11,7 +11,7 @@ import {
 } from '@cosmjs/stargate';
 import { CometClient, connectComet } from '@cosmjs/tendermint-rpc';
 
-import { isTypes, warpTypes } from '@hyperlane-xyz/cosmos-types';
+import { warpTypes } from '@hyperlane-xyz/cosmos-types';
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert, strip0x } from '@hyperlane-xyz/utils';
 
@@ -30,7 +30,6 @@ import {
   MsgUpdateRoutingIsmOwnerEncodeObject,
 } from '../hyperlane/interchain_security/messages.js';
 import {
-  IsmTypes as CosmosNativeIsmTypes,
   InterchainSecurityExtension,
   setupInterchainSecurityExtension,
 } from '../hyperlane/interchain_security/query.js';
@@ -54,6 +53,12 @@ import {
   MsgUnrollRemoteRouterEncodeObject,
 } from '../hyperlane/warp/messages.js';
 import { WarpExtension, setupWarpExtension } from '../hyperlane/warp/query.js';
+import {
+  getIsmType,
+  getMultisigIsmConfig,
+  getNoopIsmConfig,
+  getRoutingIsmConfig,
+} from '../ism/ism-query.js';
 import { COSMOS_MODULE_MESSAGE_REGISTRY as R } from '../registry.js';
 
 export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
@@ -207,84 +212,27 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
   }
 
   async getIsmType(req: AltVM.ReqGetIsmType): Promise<AltVM.IsmType> {
-    const { ism } = await this.query.interchainSecurity.Ism({
-      id: req.ismAddress,
-    });
-    assert(ism, `found no ism for id ${req.ismAddress}`);
-
-    switch (ism.type_url) {
-      case CosmosNativeIsmTypes.MerkleRootMultisigISM:
-        return AltVM.IsmType.MERKLE_ROOT_MULTISIG;
-      case CosmosNativeIsmTypes.MessageIdMultisigISM:
-        return AltVM.IsmType.MESSAGE_ID_MULTISIG;
-      case CosmosNativeIsmTypes.RoutingISM:
-        return AltVM.IsmType.ROUTING;
-      case CosmosNativeIsmTypes.NoopISM:
-        return AltVM.IsmType.TEST_ISM;
-      default:
-        throw new Error(`Unknown ISM ModuleType: ${ism.type_url}`);
-    }
+    return getIsmType(this.query, req.ismAddress);
   }
 
   async getMessageIdMultisigIsm(
     req: AltVM.ReqMessageIdMultisigIsm,
   ): Promise<AltVM.ResMessageIdMultisigIsm> {
-    const { ism } =
-      await this.query.interchainSecurity.DecodedIsm<isTypes.MessageIdMultisigISM>(
-        {
-          id: req.ismAddress,
-        },
-      );
-
-    return {
-      address: ism.id,
-      validators: ism.validators,
-      threshold: ism.threshold,
-    };
+    return getMultisigIsmConfig(this.query, req.ismAddress);
   }
 
   async getMerkleRootMultisigIsm(
     req: AltVM.ReqMerkleRootMultisigIsm,
   ): Promise<AltVM.ResMerkleRootMultisigIsm> {
-    const { ism } =
-      await this.query.interchainSecurity.DecodedIsm<isTypes.MerkleRootMultisigISM>(
-        {
-          id: req.ismAddress,
-        },
-      );
-
-    return {
-      address: ism.id,
-      validators: ism.validators,
-      threshold: ism.threshold,
-    };
+    return getMultisigIsmConfig(this.query, req.ismAddress);
   }
 
   async getRoutingIsm(req: AltVM.ReqRoutingIsm): Promise<AltVM.ResRoutingIsm> {
-    const { ism } =
-      await this.query.interchainSecurity.DecodedIsm<isTypes.RoutingISM>({
-        id: req.ismAddress,
-      });
-
-    return {
-      address: ism.id,
-      owner: ism.owner,
-      routes: ism.routes.map((r) => ({
-        domainId: r.domain,
-        ismAddress: r.ism,
-      })),
-    };
+    return getRoutingIsmConfig(this.query, req.ismAddress);
   }
 
   async getNoopIsm(req: AltVM.ReqNoopIsm): Promise<AltVM.ResNoopIsm> {
-    const { ism } =
-      await this.query.interchainSecurity.DecodedIsm<isTypes.NoopISM>({
-        id: req.ismAddress,
-      });
-
-    return {
-      address: ism.id,
-    };
+    return getNoopIsmConfig(this.query, req.ismAddress);
   }
 
   async getHookType(req: AltVM.ReqGetHookType): Promise<AltVM.HookType> {
