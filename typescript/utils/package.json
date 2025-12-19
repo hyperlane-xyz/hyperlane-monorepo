@@ -1,7 +1,7 @@
 {
   "name": "@hyperlane-xyz/utils",
   "description": "General utilities and types for the Hyperlane network",
-  "version": "21.1.0",
+  "version": "20.2.0-beta.0",
   "dependencies": {
     "@cosmjs/encoding": "catalog:",
     "@ethersproject/bytes": "*",

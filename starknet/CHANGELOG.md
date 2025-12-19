@@ -1,8 +1,6 @@
 # @hyperlane-xyz/starknet-core
 
-## 21.1.0
-
-## 21.0.0
+## 20.2.0-beta.0
 
 ## 20.1.0
 

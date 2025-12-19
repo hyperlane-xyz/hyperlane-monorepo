@@ -1,42 +1,18 @@
 # @hyperlane-xyz/deploy-sdk
 
-## 1.1.0
-
-### Patch Changes
-
-- Updated dependencies [db857b5]
-- Updated dependencies [57a2053]
-- Updated dependencies [57a2053]
-- Updated dependencies [9c48ac8]
-  - @hyperlane-xyz/cosmos-sdk@21.1.0
-  - @hyperlane-xyz/provider-sdk@1.1.0
-  - @hyperlane-xyz/aleo-sdk@21.1.0
-  - @hyperlane-xyz/radix-sdk@21.1.0
-  - @hyperlane-xyz/utils@21.1.0
-
-## 1.0.0
-
-### Major Changes
-
-- 68310db: feat: aleo cli support
+## 0.8.0-beta.0
 
 ### Minor Changes
 
 - 239e1a1: Migrate AltVm JsonSubmittor and FileSubmittor to deploy-sdk (from provider-sdk and cli, respectively)
-- ed10fc1: Introduced the Artifact API for ISM operations on AltVMs. The new API provides a unified interface for reading and writing ISM configurations across different blockchain protocols. Radix ISM readers and writers fully implemented; Cosmos ISM readers implemented. The generic `IsmReader` in deploy-sdk replaces the legacy `AltVMIsmReader` and supports recursive expansion of routing ISM configurations.
 
 ### Patch Changes
 
-- Updated dependencies [8006faf]
-- Updated dependencies [68310db]
 - Updated dependencies [239e1a1]
-- Updated dependencies [ed10fc1]
-- Updated dependencies [0bce4e7]
-  - @hyperlane-xyz/aleo-sdk@21.0.0
-  - @hyperlane-xyz/provider-sdk@1.0.0
-  - @hyperlane-xyz/radix-sdk@21.0.0
-  - @hyperlane-xyz/cosmos-sdk@21.0.0
-  - @hyperlane-xyz/utils@21.0.0
+  - @hyperlane-xyz/provider-sdk@0.8.0-beta.0
+  - @hyperlane-xyz/cosmos-sdk@20.2.0-beta.0
+  - @hyperlane-xyz/radix-sdk@20.2.0-beta.0
+  - @hyperlane-xyz/utils@20.2.0-beta.0
 
 ## 0.7.0
 

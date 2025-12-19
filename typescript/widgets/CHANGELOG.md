@@ -1,35 +1,15 @@
 # @hyperlane-xyz/widgets
 
-## 21.1.0
+## 20.2.0-beta.0
 
 ### Patch Changes
 
-- Updated dependencies [db857b5]
-- Updated dependencies [57a2053]
-- Updated dependencies [57a2053]
-  - @hyperlane-xyz/cosmos-sdk@21.1.0
-  - @hyperlane-xyz/provider-sdk@1.1.0
-  - @hyperlane-xyz/sdk@21.1.0
-  - @hyperlane-xyz/radix-sdk@21.1.0
-  - @hyperlane-xyz/utils@21.1.0
-
-## 21.0.0
-
-### Patch Changes
-
-- c3ab8b6: Updated 'Chain Id' and 'Domain Id' labels to use uppercase 'ID' in the chain details metadata modal for consistency.
-- Updated dependencies [c08fa32]
-- Updated dependencies [68310db]
-- Updated dependencies [b6b206d]
 - Updated dependencies [239e1a1]
-- Updated dependencies [bc8b22f]
-- Updated dependencies [ed10fc1]
-- Updated dependencies [0bce4e7]
-  - @hyperlane-xyz/sdk@21.0.0
-  - @hyperlane-xyz/provider-sdk@1.0.0
-  - @hyperlane-xyz/radix-sdk@21.0.0
-  - @hyperlane-xyz/cosmos-sdk@21.0.0
-  - @hyperlane-xyz/utils@21.0.0
+  - @hyperlane-xyz/provider-sdk@0.8.0-beta.0
+  - @hyperlane-xyz/cosmos-sdk@20.2.0-beta.0
+  - @hyperlane-xyz/radix-sdk@20.2.0-beta.0
+  - @hyperlane-xyz/sdk@20.2.0-beta.0
+  - @hyperlane-xyz/utils@20.2.0-beta.0
 
 ## 20.1.0
 

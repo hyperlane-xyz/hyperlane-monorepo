@@ -1,7 +1,7 @@
 {
   "name": "@hyperlane-xyz/github-proxy",
   "description": "Github proxy that adds the API key to requests",
-  "version": "21.1.0",
+  "version": "20.2.0-beta.0",
   "private": true,
   "scripts": {
     "deploy": "wrangler deploy",

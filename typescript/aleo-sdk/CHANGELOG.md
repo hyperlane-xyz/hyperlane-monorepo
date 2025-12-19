@@ -1,35 +1,12 @@
 # @hyperlane-xyz/aleo-sdk
 
-## 21.1.0
-
-### Minor Changes
-
-- 9c48ac8: Fixed aleo sdk e2e tests failing locally by marking type imports with the `type` keyword to preserve type imports when reading js files directly for local test runs
+## 20.2.0-beta.0
 
 ### Patch Changes
 
-- Updated dependencies [57a2053]
-  - @hyperlane-xyz/provider-sdk@1.1.0
-  - @hyperlane-xyz/utils@21.1.0
-
-## 21.0.0
-
-### Major Changes
-
-- 68310db: feat: aleo cli support
-
-### Minor Changes
-
-- 8006faf: Implemented the new artifact API for reading Aleo ISMs. Added `AleoIsmArtifactManager` with readers for Test ISM, Message ID Multisig ISM, and Routing ISM. Fixed TEST_ISM type constant to match on-chain contract.
-
-### Patch Changes
-
-- ed10fc1: Introduced the Artifact API for ISM operations on AltVMs. The new API provides a unified interface for reading and writing ISM configurations across different blockchain protocols. Radix ISM readers and writers fully implemented; Cosmos ISM readers implemented. The generic `IsmReader` in deploy-sdk replaces the legacy `AltVMIsmReader` and supports recursive expansion of routing ISM configurations.
 - Updated dependencies [239e1a1]
-- Updated dependencies [ed10fc1]
-- Updated dependencies [0bce4e7]
-  - @hyperlane-xyz/provider-sdk@1.0.0
-  - @hyperlane-xyz/utils@21.0.0
+  - @hyperlane-xyz/provider-sdk@0.8.0-beta.0
+  - @hyperlane-xyz/utils@20.2.0-beta.0
 
 ## 20.1.0
 

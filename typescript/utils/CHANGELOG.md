@@ -1,12 +1,6 @@
 # @hyperlane-xyz/utils
 
-## 21.1.0
-
-## 21.0.0
-
-### Patch Changes
-
-- 0bce4e7: Fixed an issue with starknet addresses validation
+## 20.2.0-beta.0
 
 ## 20.1.0
 

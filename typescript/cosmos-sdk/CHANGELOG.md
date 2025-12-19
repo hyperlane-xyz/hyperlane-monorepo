@@ -1,33 +1,13 @@
 # @hyperlane-xyz/cosmos-sdk
 
-## 21.1.0
-
-### Minor Changes
-
-- db857b5: Fixed cosmos sdk e2e tests failing locally by marking type imports with the `type` keyword to preserve type imports when reading js files directly for local test runs
-- 57a2053: Added `/testing` sub import path to expose testing utils for cosmos environments
-
-### Patch Changes
-
-- Updated dependencies [57a2053]
-  - @hyperlane-xyz/provider-sdk@1.1.0
-  - @hyperlane-xyz/cosmos-types@21.1.0
-  - @hyperlane-xyz/utils@21.1.0
-
-## 21.0.0
-
-### Minor Changes
-
-- ed10fc1: Introduced the Artifact API for ISM operations on AltVMs. The new API provides a unified interface for reading and writing ISM configurations across different blockchain protocols. Radix ISM readers and writers fully implemented; Cosmos ISM readers implemented. The generic `IsmReader` in deploy-sdk replaces the legacy `AltVMIsmReader` and supports recursive expansion of routing ISM configurations.
+## 20.2.0-beta.0
 
 ### Patch Changes
 
 - Updated dependencies [239e1a1]
-- Updated dependencies [ed10fc1]
-- Updated dependencies [0bce4e7]
-  - @hyperlane-xyz/provider-sdk@1.0.0
-  - @hyperlane-xyz/utils@21.0.0
-  - @hyperlane-xyz/cosmos-types@21.0.0
+  - @hyperlane-xyz/provider-sdk@0.8.0-beta.0
+  - @hyperlane-xyz/cosmos-types@20.2.0-beta.0
+  - @hyperlane-xyz/utils@20.2.0-beta.0
 
 ## 20.1.0
 
