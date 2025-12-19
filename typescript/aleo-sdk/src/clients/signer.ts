@@ -1,8 +1,12 @@
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { assert, retryAsync } from '@hyperlane-xyz/utils';
+import { assert, isNullish, retryAsync } from '@hyperlane-xyz/utils';
 
 import { AleoProgram } from '../artifacts.js';
 import {
+  RETRY_ATTEMPTS,
+  RETRY_DELAY_MS,
+  SUFFIX_LENGTH_LONG,
+  SUFFIX_LENGTH_SHORT,
   fromAleoAddress,
   getProgramSuffix,
   loadProgramsInDeployOrder,
@@ -30,11 +34,11 @@ export class AleoSigner
     const metadata = extraParams.metadata as Record<string, unknown>;
     assert(metadata, `metadata not defined in extra params`);
     assert(
-      metadata.chainId !== undefined && metadata.chainId !== null,
+      !isNullish(metadata.chainId),
       `chainId not defined in metadata extra params`,
     );
 
-    const chainId = parseInt(metadata.chainId.toString());
+    const chainId = parseInt(metadata.chainId!.toString());
 
     return new AleoSigner(rpcUrls, chainId, privateKey);
   }
@@ -129,8 +133,8 @@ export class AleoSigner
 
     const txId = await retryAsync(
       () => this.programManager.networkClient.submitTransaction(tx),
-      10,
-      100,
+      RETRY_ATTEMPTS,
+      RETRY_DELAY_MS,
     );
     const receipt = await this.aleoClient.waitForTransactionConfirmation(txId);
 
@@ -151,7 +155,7 @@ export class AleoSigner
   async createMailbox(
     req: Omit<AltVM.ReqCreateMailbox, 'signer'>,
   ): Promise<AltVM.ResCreateMailbox> {
-    const mailboxSuffix = this.generateSuffix(6);
+    const mailboxSuffix = this.generateSuffix(SUFFIX_LENGTH_LONG);
     const programs = await this.deployProgram('dispatch_proxy', mailboxSuffix);
 
     const tx = await this.getCreateMailboxTransaction({
@@ -250,7 +254,7 @@ export class AleoSigner
   async createMessageIdMultisigIsm(
     req: Omit<AltVM.ReqCreateMessageIdMultisigIsm, 'signer'>,
   ): Promise<AltVM.ResCreateMessageIdMultisigIsm> {
-    const mailboxSuffix = this.generateSuffix(6);
+    const mailboxSuffix = this.generateSuffix(SUFFIX_LENGTH_LONG);
     const programs = await this.deployProgram('ism_manager', mailboxSuffix);
 
     const ismManagerProgramId = programs['ism_manager'];
@@ -263,8 +267,8 @@ export class AleoSigner
           'nonce',
           'true',
         ),
-      10,
-      100,
+      RETRY_ATTEMPTS,
+      RETRY_DELAY_MS,
     );
 
     if (nonce === null) {
@@ -298,7 +302,7 @@ export class AleoSigner
   async createRoutingIsm(
     req: Omit<AltVM.ReqCreateRoutingIsm, 'signer'>,
   ): Promise<AltVM.ResCreateRoutingIsm> {
-    const mailboxSuffix = this.generateSuffix(6);
+    const mailboxSuffix = this.generateSuffix(SUFFIX_LENGTH_LONG);
     const programs = await this.deployProgram('ism_manager', mailboxSuffix);
 
     const ismManagerProgramId = programs['ism_manager'];
@@ -311,8 +315,8 @@ export class AleoSigner
           'nonce',
           'true',
         ),
-      10,
-      100,
+      RETRY_ATTEMPTS,
+      RETRY_DELAY_MS,
     );
 
     if (nonce === null) {
@@ -401,7 +405,7 @@ export class AleoSigner
   async createNoopIsm(
     req: Omit<AltVM.ReqCreateNoopIsm, 'signer'>,
   ): Promise<AltVM.ResCreateNoopIsm> {
-    const mailboxSuffix = this.generateSuffix(6);
+    const mailboxSuffix = this.generateSuffix(SUFFIX_LENGTH_LONG);
     const programs = await this.deployProgram('ism_manager', mailboxSuffix);
 
     const ismManagerProgramId = programs['ism_manager'];
@@ -414,8 +418,8 @@ export class AleoSigner
           'nonce',
           'true',
         ),
-      10,
-      100,
+      RETRY_ATTEMPTS,
+      RETRY_DELAY_MS,
     );
 
     if (nonce === null) {
@@ -464,8 +468,8 @@ export class AleoSigner
           'nonce',
           'true',
         ),
-      10,
-      100,
+      RETRY_ATTEMPTS,
+      RETRY_DELAY_MS,
     );
 
     if (nonce === null) {
@@ -514,8 +518,8 @@ export class AleoSigner
           'nonce',
           'true',
         ),
-      10,
-      100,
+      RETRY_ATTEMPTS,
+      RETRY_DELAY_MS,
     );
 
     if (nonce === null) {
@@ -609,8 +613,8 @@ export class AleoSigner
           'nonce',
           'true',
         ),
-      10,
-      100,
+      RETRY_ATTEMPTS,
+      RETRY_DELAY_MS,
     );
 
     if (nonce === null) {
@@ -644,7 +648,7 @@ export class AleoSigner
   async createValidatorAnnounce(
     req: Omit<AltVM.ReqCreateValidatorAnnounce, 'signer'>,
   ): Promise<AltVM.ResCreateValidatorAnnounce> {
-    const validatorAnnounceSuffix = this.generateSuffix(3);
+    const validatorAnnounceSuffix = this.generateSuffix(SUFFIX_LENGTH_SHORT);
     const programs = await this.deployProgram(
       'validator_announce',
       validatorAnnounceSuffix,
@@ -683,7 +687,7 @@ export class AleoSigner
       }
     }
 
-    const tokenSuffix = this.generateSuffix(6);
+    const tokenSuffix = this.generateSuffix(SUFFIX_LENGTH_LONG);
     const mailboxSuffix = getProgramSuffix(
       fromAleoAddress(req.mailboxAddress).programId,
     );
@@ -727,7 +731,7 @@ export class AleoSigner
       }
     }
 
-    const tokenSuffix = this.generateSuffix(6);
+    const tokenSuffix = this.generateSuffix(SUFFIX_LENGTH_LONG);
     const mailboxSuffix = getProgramSuffix(
       fromAleoAddress(req.mailboxAddress).programId,
     );
@@ -771,7 +775,7 @@ export class AleoSigner
       }
     }
 
-    const tokenSuffix = this.generateSuffix(6);
+    const tokenSuffix = this.generateSuffix(SUFFIX_LENGTH_LONG);
     const mailboxSuffix = getProgramSuffix(
       fromAleoAddress(req.mailboxAddress).programId,
     );

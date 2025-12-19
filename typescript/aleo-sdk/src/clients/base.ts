@@ -17,7 +17,12 @@ import {
 
 import { assert, retryAsync } from '@hyperlane-xyz/utils';
 
-import { MAINNET_PREFIX, TESTNET_PREFIX } from '../utils/helper.js';
+import {
+  MAINNET_PREFIX,
+  RETRY_ATTEMPTS,
+  RETRY_DELAY_MS,
+  TESTNET_PREFIX,
+} from '../utils/helper.js';
 
 export type AnyAleoNetworkClient =
   | AleoMainnetNetworkClient
@@ -45,6 +50,8 @@ export class AleoBase {
     );
     assert(rpcUrls.length > 0, `got no rpcUrls`);
 
+    // because the aleo provable sdk appends /testnet or /mainnet to the base
+    // rpc automatically we need to remove it here
     this.rpcUrls = rpcUrls.map((r) =>
       r.replaceAll('/testnet', '').replaceAll('/mainnet', ''),
     );
@@ -129,8 +136,8 @@ export class AleoBase {
       const result = await retryAsync(
         () =>
           this.aleoClient.getProgramMappingValue(programId, mappingName, key),
-        10,
-        100,
+        RETRY_ATTEMPTS,
+        RETRY_DELAY_MS,
       );
 
       if (result === null) {
@@ -160,13 +167,13 @@ export class AleoBase {
           );
 
           if (r === null) {
-            throw new Error();
+            throw new Error(`mapping value is null`);
           }
 
           return r;
         },
-        10,
-        100,
+        RETRY_ATTEMPTS,
+        RETRY_DELAY_MS,
       );
 
       return result;
