@@ -7,7 +7,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   DeployedIsmAddresses,
-  DeployedIsmArtifact,
+  DeployedRawIsmArtifact,
   IRawIsmArtifactManager,
   IsmType,
   RawIsmArtifactConfigs,
@@ -37,7 +37,7 @@ export class RadixIsmArtifactManager implements IRawIsmArtifactManager {
     private readonly base: RadixBase,
   ) {}
 
-  async readIsm(address: string): Promise<DeployedIsmArtifact> {
+  async readIsm(address: string): Promise<DeployedRawIsmArtifact> {
     const radixIsmType = await getIsmType(this.gateway, address);
 
     // Map RadixIsmTypes to AltVM.IsmType
@@ -61,7 +61,7 @@ export class RadixIsmArtifactManager implements IRawIsmArtifactManager {
 
     const artifactIsmType = altVMIsmTypeToProviderSdkType(altVMType);
     const reader = this.createReader(artifactIsmType);
-    return reader.read(address) as Promise<DeployedIsmArtifact>;
+    return reader.read(address);
   }
 
   createReader<T extends IsmType>(

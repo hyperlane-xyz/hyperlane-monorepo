@@ -119,7 +119,7 @@ export class GenericIsmReader
       );
     }
 
-    // For non-routing ISMs, return the raw config as-is
+    // For non-routing ISMs, the raw and expanded configs are identical
     return rawArtifact;
   }
 

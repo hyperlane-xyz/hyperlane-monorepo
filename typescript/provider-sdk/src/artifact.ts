@@ -49,7 +49,10 @@ export type ArtifactOnChain<C, D> =
  * Union type representing an artifact in any state.
  * Useful for APIs that can accept either new or deployed artifacts.
  */
-export type Artifact<C, D = unknown> = ArtifactNew<C> | ArtifactDeployed<C, D>;
+export type Artifact<C, D = unknown> =
+  | ArtifactNew<C>
+  | ArtifactDeployed<C, D>
+  | ArtifactUnderived<D>;
 
 /**
  * Interface for reading artifact state from the blockchain.

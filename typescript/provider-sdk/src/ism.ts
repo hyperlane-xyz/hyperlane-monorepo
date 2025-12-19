@@ -115,6 +115,14 @@ export interface RawIsmArtifactConfigs {
 export type RawIsmArtifactConfig = RawIsmArtifactConfigs[IsmType];
 
 /**
+ * Describes the configuration of deployed ISM without nested config expansion (Routing, Aggregation, ...)
+ */
+export type DeployedRawIsmArtifact = ArtifactDeployed<
+  RawIsmArtifactConfig,
+  DeployedIsmAddresses
+>;
+
+/**
  * Should be used to implement an object/closure or class that individually deploys
  * ISMs on chain
  */
@@ -130,7 +138,7 @@ export interface IRawIsmArtifactManager
    * @param address The on-chain address of the ISM
    * @returns The artifact configuration and deployment data
    */
-  readIsm(address: string): Promise<DeployedIsmArtifact>;
+  readIsm(address: string): Promise<DeployedRawIsmArtifact>;
 }
 
 export function ismOnChainAddress(

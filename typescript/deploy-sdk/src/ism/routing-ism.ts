@@ -128,6 +128,10 @@ export class RoutingIsmWriter
 
       if (nestedArtifact.artifactState === ArtifactState.DEPLOYED) {
         deployedDomainIsms[domain] = nestedArtifact;
+      } else if (nestedArtifact.artifactState === ArtifactState.UNDERIVED) {
+        this.logger.error(
+          `Unexpected artifact state ${nestedArtifact.artifactState} for domain ${domainId}`,
+        );
       } else {
         const [deployedNested, receipts] =
           await this.deployDomainIsm(nestedArtifact);
@@ -212,6 +216,10 @@ export class RoutingIsmWriter
         updateTxs.push(...domainIsmUpdateTxs);
 
         deployedDomains[domain] = domainIsmConfig;
+      } else if (domainIsmConfig.artifactState === ArtifactState.UNDERIVED) {
+        this.logger.error(
+          `Unexpected artifact state ${domainIsmConfig.artifactState} for domain ${domainId}`,
+        );
       } else {
         [deployedDomains[domain]] = await this.deployDomainIsm(domainIsmConfig);
       }
@@ -239,12 +247,8 @@ export class RoutingIsmWriter
   }
 
   private async deployDomainIsm(
-    artifact: Artifact<IsmArtifactConfig, DeployedIsmAddresses>,
+    artifact: ArtifactNew<IsmArtifactConfig>,
   ): Promise<[DeployedIsmArtifact, TxReceipt[]]> {
-    if (artifact.artifactState === ArtifactState.DEPLOYED) {
-      return [artifact, []];
-    }
-
     const { config, artifactState } = artifact;
     if (config.type === AltVM.IsmType.ROUTING) {
       return this.create({
