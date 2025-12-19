@@ -1,7 +1,7 @@
 import { Network } from '@provablehq/aleo-types';
 import { GalileoWalletAdapter } from '@provablehq/aleo-wallet-adaptor-prove-alpha';
 import { WalletDecryptPermission } from '@provablehq/aleo-wallet-standard';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { AleoTransaction } from '@hyperlane-xyz/aleo-sdk';
 import {
@@ -28,31 +28,41 @@ const adapter = new GalileoWalletAdapter();
 export function useAleoAccount(
   _multiProvider: MultiProtocolProvider,
 ): AccountInfo {
-  console.log('hit use Account', {
-    protocol: ProtocolType.Aleo,
-    addresses: adapter.account
-      ? [
-          {
-            address: adapter.account.address ?? '',
-            chainName: 'Aleo',
-          },
-        ]
-      : [],
-    publicKey: undefined, // we don't need the public key for aleo
-    isReady: !!adapter.account,
-  });
+  const [account, setAccount] = useState(adapter.account);
+
+  useEffect(() => {
+    const handleAccountChange = () => {
+      setAccount(adapter.account);
+    };
+
+    adapter.on('connect', () => {
+      setAccount(adapter.account);
+    });
+
+    adapter.on('disconnect', () => {
+      setAccount(adapter.account);
+    });
+
+    handleAccountChange();
+
+    return () => {
+      adapter.off('connect', handleAccountChange);
+      adapter.off('disconnect', handleAccountChange);
+    };
+  }, []);
+
   return {
     protocol: ProtocolType.Aleo,
-    addresses: adapter.account
+    addresses: account
       ? [
           {
-            address: adapter.account.address ?? '',
+            address: account.address ?? '',
             chainName: 'Aleo',
           },
         ]
       : [],
     publicKey: undefined, // we don't need the public key for aleo
-    isReady: !!adapter.account,
+    isReady: !!account,
   };
 }
 
