@@ -1,3 +1,6 @@
+import { AleoNetworkClient as AleoMainnetNetworkClient } from '@provablehq/sdk/mainnet.js';
+import { AleoNetworkClient as AleoTestnetNetworkClient } from '@provablehq/sdk/testnet.js';
+
 import {
   AltVM,
   ChainMetadataForAltVM,
@@ -11,6 +14,9 @@ import { IProvider } from '@hyperlane-xyz/provider-sdk/altvm';
 import { IRawIsmArtifactManager } from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import { assert } from '@hyperlane-xyz/utils';
+
+import { AleoIsmArtifactManager } from '../ism/ism-artifact-manager.js';
+import { AleoNetworkId } from '../utils/types.js';
 
 import { AleoProvider } from './provider.js';
 import { AleoSigner } from './signer.js';
@@ -45,12 +51,23 @@ export class AleoProtocolProvider implements ProtocolProvider {
   }
 
   createIsmArtifactManager(
-    _chainMetadata: ChainMetadataForAltVM,
+    chainMetadata: ChainMetadataForAltVM,
   ): IRawIsmArtifactManager {
-    // @TODO Implement when Aleo ISM artifact manager is available
-    throw new Error(
-      'ISM artifact manager not yet implemented for Aleo protocol',
+    const chainId = parseInt(chainMetadata.chainId.toString());
+    assert(
+      chainId === AleoNetworkId.MAINNET || chainId === AleoNetworkId.TESTNET,
+      `Unknown chain id ${chainId} for Aleo, only ${AleoNetworkId.MAINNET} or ${AleoNetworkId.TESTNET} allowed`,
     );
+
+    const [rpcUrl] = chainMetadata.rpcUrls?.map(({ http }) => http) ?? [];
+    assert(rpcUrl, `got no rpcUrls`);
+
+    const aleoClient =
+      chainId === AleoNetworkId.MAINNET
+        ? new AleoTestnetNetworkClient(rpcUrl)
+        : new AleoMainnetNetworkClient(rpcUrl);
+
+    return new AleoIsmArtifactManager(aleoClient);
   }
 
   getMinGas(): MinimumRequiredGasByAction {

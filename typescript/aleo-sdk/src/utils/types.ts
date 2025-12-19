@@ -26,3 +26,10 @@ export enum AleoIsmType {
   MERKLE_ROOT_MULTISIG = 4,
   MESSAGE_ID_MULTISIG = 5,
 }
+
+export const AleoNetworkId = {
+  MAINNET: 0,
+  TESTNET: 1,
+} as const;
+
+export type AleoNetworkId = (typeof AleoNetworkId)[keyof typeof AleoNetworkId];
