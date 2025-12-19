@@ -1,5 +1,7 @@
 # @hyperlane-xyz/starknet-core
 
+## 20.2.0-beta.0
+
 ## 20.1.0
 
 ### Patch Changes

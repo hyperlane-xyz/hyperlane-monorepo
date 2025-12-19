@@ -1,5 +1,7 @@
 # @hyperlane-xyz/tsconfig
 
+## 20.2.0-beta.0
+
 ## 20.1.0
 
 ## 20.0.0
