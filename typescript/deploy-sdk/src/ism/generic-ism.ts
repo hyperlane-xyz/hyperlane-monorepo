@@ -4,18 +4,17 @@ import {
   getProtocolProvider,
 } from '@hyperlane-xyz/provider-sdk';
 import {
-  ArtifactDeployed,
   ArtifactReader,
+  ArtifactState,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
   DeployedIsmAddresses,
   DeployedIsmArtifact,
   DerivedIsmConfig,
+  DomainRoutingIsmConfig,
   IRawIsmArtifactManager,
   IsmArtifactConfig,
-  IsmConfig,
-  RawRoutingIsmArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
 
 import { RoutingIsmReader } from './routing-ism.js';
@@ -53,34 +52,33 @@ export function createIsmReader(
 function artifactToDerivedConfig(
   artifact: DeployedIsmArtifact,
 ): DerivedIsmConfig {
-  const config = artifact.config as any;
+  const config = artifact.config;
   const address = artifact.deployed.address;
 
   // For routing ISMs, recursively convert nested artifacts
   if (config.type === AltVM.IsmType.ROUTING) {
-    const domains: Record<string, IsmConfig | string> = {};
+    const domains: DomainRoutingIsmConfig['domains'] = {};
     for (const [domainId, nestedArtifact] of Object.entries(config.domains)) {
-      if (typeof nestedArtifact === 'string') {
-        domains[domainId] = nestedArtifact;
-      } else {
-        domains[domainId] = artifactToDerivedConfig(
-          nestedArtifact as DeployedIsmArtifact,
-        );
+      if (nestedArtifact.artifactState === ArtifactState.UNDERIVED) {
+        domains[domainId] = nestedArtifact.deployed.address;
+      } else if (nestedArtifact.artifactState === ArtifactState.DEPLOYED) {
+        domains[domainId] = artifactToDerivedConfig(nestedArtifact);
       }
+      // Note: ArtifactState.NEW should never occur in expanded routing configs
     }
     return {
       type: 'domainRoutingIsm',
       owner: config.owner,
       domains,
       address,
-    } as DerivedIsmConfig;
+    } satisfies Extract<DerivedIsmConfig, DomainRoutingIsmConfig>;
   }
 
   // For other ISM types, just add the address
   return {
     ...config,
     address,
-  } as DerivedIsmConfig;
+  };
 }
 
 /**
@@ -107,20 +105,24 @@ export class GenericIsmReader
 
   async read(address: string): Promise<DeployedIsmArtifact> {
     // Read once via readIsm() - detects type
-    const rawArtifact = await this.artifactManager.readIsm(address);
+    const { artifactState, config, deployed } =
+      await this.artifactManager.readIsm(address);
 
     // For routing ISMs, delegate expansion (no re-reading)
-    if (rawArtifact.config.type === AltVM.IsmType.ROUTING) {
-      return this.routingIsmReader.expandFromRaw(
-        rawArtifact as ArtifactDeployed<
-          RawRoutingIsmArtifactConfig,
-          DeployedIsmAddresses
-        >,
-      );
+    if (config.type === AltVM.IsmType.ROUTING) {
+      return this.routingIsmReader.expandFromRaw({
+        artifactState,
+        config,
+        deployed,
+      });
     }
 
     // For non-routing ISMs, the raw and expanded configs are identical
-    return rawArtifact;
+    return {
+      artifactState,
+      config,
+      deployed,
+    };
   }
 
   /**

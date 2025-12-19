@@ -34,22 +34,22 @@ export class RoutingIsmReader
     module: RoutingIsmReader.name,
   });
 
-  private readonly genericIsmReader: GenericIsmReader;
-
   constructor(
     protected readonly chainLookup: ChainLookup,
     protected readonly artifactManager: IRawIsmArtifactManager,
-    genericIsmReader?: GenericIsmReader,
-  ) {
     // If genericIsmReader is provided, use it (called from GenericIsmReader)
     // Otherwise create a new one (called directly or from RoutingIsmWriter)
-    this.genericIsmReader =
-      genericIsmReader ?? new GenericIsmReader(artifactManager, chainLookup);
-  }
+    private readonly genericIsmReader = new GenericIsmReader(
+      artifactManager,
+      chainLookup,
+    ),
+  ) {}
 
   /**
    * Convenience method for reading routing ISMs directly.
    * Delegates to GenericIsmReader which handles type detection.
+   * FIXME: This should not be used as it doesn't guarantee the correct type.
+   * FIXME: Maybe this bit of code should not implement ArtifactReader?
    */
   async read(address: string): Promise<DeployedRoutingIsmArtifact> {
     return this.genericIsmReader.read(
@@ -81,7 +81,7 @@ export class RoutingIsmReader
       let nestedIsm: DeployedIsmArtifact;
       if (domainIsmConfig.artifactState === ArtifactState.DEPLOYED) {
         // Already a full deployed artifact, use as-is
-        nestedIsm = domainIsmConfig as DeployedIsmArtifact;
+        nestedIsm = domainIsmConfig;
       } else {
         // ArtifactUnderived - recursively read using generic reader to get full config
         nestedIsm = await this.genericIsmReader.read(
