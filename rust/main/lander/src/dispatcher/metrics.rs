@@ -30,6 +30,9 @@ pub struct DispatcherMetrics {
     pub inclusion_stage_pool_length: IntGaugeVec,
     pub finality_stage_pool_length: IntGaugeVec,
 
+    // tracks inclusion stage errors
+    pub inclusion_stage_error: IntCounterVec,
+
     pub batched_transactions: IntCounterVec,
     pub dropped_payloads: IntCounterVec,
     pub dropped_transactions: IntCounterVec,
@@ -94,6 +97,13 @@ impl DispatcherMetrics {
             &["destination",],
             registry.clone()
         )?;
+
+        let inclusion_stage_error = register_int_counter_vec_with_registry!(
+            opts!(namespaced("inclusion_stage_error"), "The number of errors",),
+            &["destination", "error_type", "infra_error"],
+            registry.clone()
+        )?;
+
         let dropped_payloads = register_int_counter_vec_with_registry!(
             opts!(
                 namespaced("dropped_payloads"),
@@ -217,6 +227,7 @@ impl DispatcherMetrics {
             upper_nonce,
             mismatched_nonce,
             gas_limit,
+            inclusion_stage_error,
         })
     }
 
@@ -293,6 +304,17 @@ impl DispatcherMetrics {
         self.gas_limit
             .with_label_values(&[domain])
             .set(gas_limit as i64);
+    }
+
+    pub fn update_inclusion_stage_error_metric(
+        &self,
+        domain: &str,
+        error_type: &str,
+        is_infra_error: bool,
+    ) {
+        self.inclusion_stage_error
+            .with_label_values(&[domain, error_type, is_infra_error.to_string().as_str()])
+            .inc();
     }
 
     pub fn get_finalized_nonce(&self, destination: &str, signer: &str) -> IntGauge {

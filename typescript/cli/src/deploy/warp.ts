@@ -2,12 +2,12 @@ import { confirm } from '@inquirer/prompts';
 import { stringify as yamlStringify } from 'yaml';
 
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
-import { AltVMWarpModule } from '@hyperlane-xyz/deploy-sdk';
 import {
-  AltVMJsonRpcTxSubmitter,
-  GasAction,
-  ProtocolType,
-} from '@hyperlane-xyz/provider-sdk';
+  AltVMJsonRpcSubmitter,
+  AltVMWarpModule,
+} from '@hyperlane-xyz/deploy-sdk';
+import { AltVMFileSubmitter } from '@hyperlane-xyz/deploy-sdk/AltVMFileSubmitter';
+import { GasAction, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   AddWarpRouteConfigOptions,
   BaseRegistry,
@@ -73,7 +73,6 @@ import {
   warnYellow,
 } from '../logger.js';
 import { WarpSendLogs } from '../send/transfer.js';
-import { AltVMFileSubmitter } from '../submitters/AltVMFileSubmitter.js';
 import { EV5FileSubmitter } from '../submitters/EV5FileSubmitter.js';
 import {
   CustomTxSubmitterType,
@@ -1035,7 +1034,7 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
     const signer = mustGet(altVmSigners, chain);
     additionalSubmitterFactories[protocol] = {
       jsonRpc: () => {
-        return new AltVMJsonRpcTxSubmitter(signer, {
+        return new AltVMJsonRpcSubmitter(signer, {
           chain: chain,
         });
       },

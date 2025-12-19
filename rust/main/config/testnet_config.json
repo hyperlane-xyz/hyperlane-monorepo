@@ -1796,62 +1796,6 @@
       "interchainAccountRouter": "0xcD19Ff7306E04EA6b8f4B5Ab1c5A198c186aaB42",
       "timelockController": "0x0000000000000000000000000000000000000000"
     },
-    "milkywaytestnet": {
-      "bech32Prefix": "milk",
-      "blocks": {
-        "confirmations": 1,
-        "estimateBlockTime": 6,
-        "reorgPeriod": 1
-      },
-      "canonicalAsset": "umilk",
-      "chainId": "ceers-2112",
-      "contractAddressBytes": 32,
-      "deployer": {
-        "name": "Abacus Works",
-        "url": "https://www.hyperlane.xyz"
-      },
-      "displayName": "Milkyway Testnet",
-      "domainId": 1162171030,
-      "gasPrice": {
-        "denom": "umilk",
-        "amount": "0.0"
-      },
-      "grpcUrls": [
-        {
-          "http": "https://grpc.testnet.milkyway.zone/"
-        }
-      ],
-      "index": {
-        "chunk": 10,
-        "from": 2449750
-      },
-      "isTestnet": true,
-      "name": "milkywaytestnet",
-      "nativeToken": {
-        "decimals": 6,
-        "denom": "umilk",
-        "name": "MILK",
-        "symbol": "MILK"
-      },
-      "protocol": "cosmosnative",
-      "restUrls": [
-        {
-          "http": "https://lcd.testnet.milkyway.zone/"
-        }
-      ],
-      "rpcUrls": [
-        {
-          "http": "https://rpc.testnet.milkyway.zone/"
-        }
-      ],
-      "slip44": 118,
-      "technicalStack": "other",
-      "interchainGasPaymaster": "0x726f757465725f706f73745f6469737061746368000000040000000000000000",
-      "interchainSecurityModule": "0x726f757465725f69736d00000000000000000000000000040000000000000000",
-      "mailbox": "0x68797065726c616e650000000000000000000000000000000000000000000000",
-      "merkleTreeHook": "0x726f757465725f706f73745f6469737061746368000000030000000000000001",
-      "validatorAnnounce": "0x68797065726c616e650000000000000000000000000000000000000000000000"
-    },
     "basecamptestnet": {
       "blockExplorers": [
         {
