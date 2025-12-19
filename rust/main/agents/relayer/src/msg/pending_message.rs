@@ -1,5 +1,10 @@
 #![allow(clippy::clone_on_ref_ptr)] // TODO: `rustc` 1.80.1 clippy issue
 
+mod message_context;
+mod prepare;
+
+pub use message_context::*;
+
 use std::{
     fmt::{Debug, Formatter},
     sync::Arc,
@@ -11,29 +16,25 @@ use derive_new::new;
 use eyre::Result;
 use prometheus::IntGauge;
 use serde::{de::DeserializeOwned, Serialize};
-use tokio::sync::RwLock;
 use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument, Level};
 
-use hyperlane_base::{
-    cache::{FunctionCallCache, LocalCache, MeteredCache, OptionalCache},
-    db::HyperlaneDb,
-};
+use hyperlane_base::{cache::FunctionCallCache, db::HyperlaneDb};
 use hyperlane_core::{
     gas_used_by_operation, BatchItem, ChainCommunicationError, ChainResult, ConfirmReason,
     FixedPointNumber, HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox,
     MessageSubmissionData, Metadata, PendingOperation, PendingOperationResult,
     PendingOperationStatus, ReprepareReason, TryBatchAs, TxCostEstimate, TxOutcome, H256, U256,
 };
-use hyperlane_operation_verifier::ApplicationOperationVerifier;
+use lander::FullPayload;
 
 use crate::{
-    metrics::message_submission::{MessageSubmissionMetrics, MetadataBuildMetric},
+    metrics::message_submission::MetadataBuildMetric,
     msg::metadata::{MessageMetadataBuildParams, MetadataBuildError},
 };
 
 use super::{
-    gas_payment::{GasPaymentEnforcer, GasPolicyStatus},
-    metadata::{BuildsBaseMetadata, MessageMetadataBuilder, MetadataBuilder},
+    gas_payment::GasPolicyStatus,
+    metadata::{MessageMetadataBuilder, MetadataBuilder},
 };
 
 /// a default of 66 is picked, so messages are retried for 2 weeks (period confirmed by @nambrot) before being skipped.
@@ -58,29 +59,6 @@ pub const ISM_MAX_COUNT: u32 = 100;
 enum GasPaymentRequirementOutcome {
     MeetsRequirement(U256),
     RequirementNotMet(PendingOperationResult),
-}
-
-/// The message context contains the links needed to submit a message. Each
-/// instance is for a unique origin -> destination pairing.
-pub struct MessageContext {
-    /// Mailbox on the destination chain.
-    pub destination_mailbox: Arc<dyn Mailbox>,
-    /// Origin chain database to verify gas payments.
-    pub origin_db: Arc<dyn HyperlaneDb>,
-    /// Cache to store commonly used data calls.
-    pub cache: OptionalCache<MeteredCache<LocalCache>>,
-    /// Used to construct the ISM metadata needed to verify a message from the
-    /// origin.
-    pub metadata_builder: Arc<dyn BuildsBaseMetadata>,
-    /// Used to determine if messages from the origin have made sufficient gas
-    /// payments.
-    pub origin_gas_payment_enforcer: Arc<RwLock<GasPaymentEnforcer>>,
-    /// Hard limit on transaction gas when submitting a transaction to the
-    /// destination.
-    pub transaction_gas_limit: Option<U256>,
-    pub metrics: MessageSubmissionMetrics,
-    /// Application operation verifier
-    pub application_operation_verifier: Arc<dyn ApplicationOperationVerifier>,
 }
 
 /// A message that is pending processing and submission.
@@ -115,6 +93,9 @@ pub struct PendingMessage {
     #[new(default)]
     #[serde(skip_serializing)]
     metric: Option<Arc<IntGauge>>,
+    #[new(default)]
+    #[serde(skip_serializing)]
+    cached_payload: Option<FullPayload>,
 }
 
 impl Debug for PendingMessage {
@@ -225,149 +206,7 @@ impl PendingOperation for PendingMessage {
 
     #[instrument(skip(self), fields(id=?self.id()), level = "debug")]
     async fn prepare(&mut self) -> PendingOperationResult {
-        if !self.is_ready() {
-            trace!("Message is not ready to be submitted yet");
-            return PendingOperationResult::NotReady;
-        }
-
-        // If the message has already been processed, e.g. due to another relayer having
-        // already processed, then mark it as already-processed, and move on to
-        // the next tick.
-        let is_already_delivered = match self
-            .ctx
-            .destination_mailbox
-            .delivered(self.message.id())
-            .await
-        {
-            Ok(is_delivered) => is_delivered,
-            Err(err) => {
-                return self.on_reprepare(Some(err), ReprepareReason::ErrorCheckingDeliveryStatus);
-            }
-        };
-        if is_already_delivered {
-            debug!("Message has already been delivered, marking as submitted.");
-            self.submitted = true;
-            self.set_next_attempt_after(CONFIRM_DELAY);
-            return PendingOperationResult::Confirm(ConfirmReason::AlreadySubmitted);
-        }
-
-        // We cannot deliver to an address that is not a contract so check and drop if it isn't.
-        let is_contract = match self.is_recipient_contract().await {
-            Ok(is_contract) => is_contract,
-            Err(reprepare_reason) => return reprepare_reason,
-        };
-        if !is_contract {
-            info!(
-                recipient=?self.message.recipient,
-                "Dropping message because recipient is not a contract"
-            );
-            return PendingOperationResult::Drop;
-        }
-
-        // Perform a preflight check to see if we can short circuit the gas
-        // payment requirement check early without performing expensive
-        // operations like metadata building or gas estimation.
-        if let GasPaymentRequirementOutcome::RequirementNotMet(op_result) =
-            self.meets_gas_payment_requirement_preflight_check().await
-        {
-            info!("Message does not meet the gas payment requirement preflight check");
-            return op_result;
-        }
-
-        // If metadata is already built, check gas estimation works.
-        // If gas estimation fails, invalidate cache and rebuild it again.
-        let tx_cost_estimate = match self.metadata.as_ref() {
-            Some(metadata) => {
-                match self
-                    .ctx
-                    .destination_mailbox
-                    .process_estimate_costs(&self.message, metadata)
-                    .await
-                {
-                    Ok(s) => {
-                        tracing::debug!(USE_CACHE_METADATA_LOG);
-                        Some(s)
-                    }
-                    Err(_) => {
-                        self.clear_metadata();
-                        None
-                    }
-                }
-            }
-            None => None,
-        };
-
-        let metadata = match self.metadata.as_ref() {
-            Some(metadata) => {
-                tracing::debug!(USE_CACHE_METADATA_LOG);
-                metadata.clone()
-            }
-            _ => match self.build_metadata().await {
-                Ok(metadata) => {
-                    self.metadata = Some(metadata.clone());
-                    metadata
-                }
-                Err(err) => {
-                    return err;
-                }
-            },
-        };
-
-        // Estimate transaction costs for the process call. If there are issues, it's
-        // likely that gas estimation has failed because the message is
-        // reverting. This is defined behavior, so we just log the error and
-        // move onto the next tick.
-        let tx_cost_estimate = match tx_cost_estimate {
-            // reuse old gas cost estimate if it succeeded
-            Some(cost) => cost,
-            None => match self
-                .ctx
-                .destination_mailbox
-                .process_estimate_costs(&self.message, &metadata)
-                .await
-            {
-                Ok(cost) => cost,
-                Err(err) => {
-                    let reason = self
-                        .clarify_reason(ReprepareReason::ErrorEstimatingGas)
-                        .await
-                        .unwrap_or(ReprepareReason::ErrorEstimatingGas);
-                    self.clear_metadata();
-                    return self.on_reprepare(Some(err), reason);
-                }
-            },
-        };
-
-        // Get the gas_limit if the gas payment requirement has been met,
-        // otherwise return a PendingOperationResult and move on.
-        let gas_limit = match self.meets_gas_payment_requirement(&tx_cost_estimate).await {
-            GasPaymentRequirementOutcome::MeetsRequirement(gas_limit) => gas_limit,
-            GasPaymentRequirementOutcome::RequirementNotMet(op_result) => {
-                info!("Message does not meet the gas payment requirement after gas estimation");
-                return op_result;
-            }
-        };
-
-        // Go ahead and attempt processing of message to destination chain.
-        debug!(
-            ?gas_limit,
-            ?tx_cost_estimate,
-            "Gas payment requirement met, ready to process message"
-        );
-
-        if let Some(max_limit) = self.ctx.transaction_gas_limit {
-            if gas_limit > max_limit {
-                // TODO: consider dropping instead of repreparing in this case
-                self.clear_metadata();
-                return self.on_reprepare::<String>(None, ReprepareReason::ExceedsMaxGasLimit);
-            }
-        }
-
-        self.submission_data = Some(Box::new(MessageSubmissionData {
-            metadata,
-            gas_limit,
-        }));
-        PendingOperationResult::Success
+        prepare::handler(self).await
     }
 
     #[instrument(skip(self), fields(id=?self.id(), domain=%self.destination_domain()))]
@@ -384,13 +223,16 @@ impl PendingOperation for PendingMessage {
 
         // To avoid spending gas on a tx that will revert, dry-run just before submitting.
         if let Some(metadata) = self.metadata.as_ref() {
-            if self
-                .ctx
-                .destination_mailbox
-                .process_estimate_costs(&self.message, metadata)
-                .await
-                .is_err()
-            {
+            let is_valid = prepare::estimate_gas_costs(
+                &self.ctx,
+                &self.message,
+                &self.cached_payload,
+                &metadata,
+            )
+            .await
+            .is_ok();
+
+            if !is_valid {
                 let reason = self
                     .clarify_reason(ReprepareReason::ErrorEstimatingGas)
                     .await
@@ -1069,6 +911,8 @@ impl PendingMessage {
     fn clear_metadata(&mut self) {
         tracing::debug!(id=?self.message.id(), INVALIDATE_CACHE_METADATA_LOG);
         self.metadata = None;
+        // Also clear cached payload when clearing metadata
+        self.cached_payload = None;
     }
 }
 

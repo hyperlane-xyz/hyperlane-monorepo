@@ -322,12 +322,32 @@ impl AdaptsChain for SealevelAdapter {
     async fn estimate_gas_limit(
         &self,
         payload: &FullPayload,
-    ) -> Result<Option<GasLimit>, LanderError> {
+    ) -> Result<Option<hyperlane_core::TxCostEstimate>, LanderError> {
+        use hyperlane_core::{FixedPointNumber, TxCostEstimate, U256};
+
         info!(?payload, "estimating payload");
         let not_estimated = SealevelTxPrecursor::from_payload(payload);
         let estimated = self.estimate(&not_estimated).await?;
         info!(?payload, ?estimated, "estimated payload");
-        Ok(Some(estimated.estimate.compute_units.into()))
+
+        let gas_limit: U256 = estimated.estimate.compute_units.into();
+        // Convert micro-lamports per compute unit to lamports per compute unit
+        // compute_unit_price_micro_lamports is in micro-lamports (10^-6), so we divide by 1,000,000
+        let gas_price_u256 = U256::from(estimated.estimate.compute_unit_price_micro_lamports);
+        let gas_price: FixedPointNumber =
+            gas_price_u256
+                .try_into()
+                .map_err(|e: hyperlane_core::ChainCommunicationError| {
+                    LanderError::ChainCommunicationError(e)
+                })?;
+        // Divide by 1,000,000 to convert micro-lamports to lamports
+        let gas_price = gas_price / 1_000_000u64;
+
+        Ok(Some(TxCostEstimate {
+            gas_limit,
+            gas_price,
+            l2_gas_limit: None,
+        }))
     }
 
     async fn build_transactions(&self, payloads: &[FullPayload]) -> Vec<TxBuildingResult> {

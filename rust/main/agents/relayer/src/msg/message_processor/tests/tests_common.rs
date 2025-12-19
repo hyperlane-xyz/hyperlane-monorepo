@@ -13,7 +13,7 @@ use tokio::sync::broadcast;
 pub use hyperlane_base::tests::mock_hyperlane_db::MockHyperlaneDb;
 use hyperlane_core::{
     ChainResult, HyperlaneDomain, HyperlaneMessage, PendingOperation, PendingOperationResult,
-    PendingOperationStatus, ReprepareReason, TryBatchAs, TxOutcome, H256, U256,
+    PendingOperationStatus, ReprepareReason, TryBatchAs, TxCostEstimate, TxOutcome, H256, U256,
 };
 use lander::{Entrypoint, FullPayload, LanderError, PayloadStatus, PayloadUuid};
 
@@ -156,7 +156,7 @@ mock! {
         async fn estimate_gas_limit(
             &self,
             payload: &FullPayload,
-        ) -> Result<Option<U256>, LanderError>;
+        ) -> Result<Option<TxCostEstimate>, LanderError>;
     }
 }
 

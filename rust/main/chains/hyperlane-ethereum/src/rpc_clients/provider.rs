@@ -12,6 +12,7 @@ use ethers_contract::{builders::ContractCall, Multicall, MulticallResult};
 use ethers_core::abi::{Address, Function};
 use ethers_core::types::transaction::eip2718::TypedTransaction;
 use ethers_core::types::{BlockId, BlockNumber, FeeHistory, U256 as EthersU256};
+use ethers_core::utils::WEI_IN_ETHER;
 use tokio::sync::Mutex;
 use tokio::time::sleep;
 use tracing::instrument;
@@ -23,6 +24,7 @@ use hyperlane_core::{
 };
 
 use crate::contracts::multicall::BatchCache;
+use crate::interfaces::arbitrum_node_interface::ArbitrumNodeInterface;
 use crate::{
     get_finalized_block_number, multicall, BuildableWithProvider, ConnectionConf,
     EthereumReorgPeriod,
@@ -143,6 +145,14 @@ pub trait EvmProviderForLander: Send + Sync {
         &self,
         tx: &TypedTransaction,
     ) -> ChainResult<ZksyncEstimateFeeResponse>;
+
+    /// Estimate the L2 gas for an Arbitrum transaction
+    /// Returns None for non-Arbitrum chains
+    async fn arbitrum_estimate_l2_gas(
+        &self,
+        to: Address,
+        calldata: Vec<u8>,
+    ) -> ChainResult<Option<U256>>;
 
     /// Get default sender
     fn get_signer(&self) -> Option<H160>;
@@ -297,6 +307,38 @@ where
             .request("zks_estimateFee", [tx.clone()])
             .await
             .map_err(ChainCommunicationError::from_other)
+    }
+
+    async fn arbitrum_estimate_l2_gas(
+        &self,
+        to: Address,
+        calldata: Vec<u8>,
+    ) -> ChainResult<Option<U256>> {
+        // Only estimate for Arbitrum Nitro chains
+        if !self.domain.is_arbitrum_nitro() {
+            return Ok(None);
+        }
+
+        // Create ArbitrumNodeInterface at address 0xC8
+        let arbitrum_node_interface =
+            ArbitrumNodeInterface::new(H160::from_low_u64_be(0xC8), self.provider.clone());
+
+        // Call estimate_retryable_ticket and get gas estimate
+        let l2_gas = arbitrum_node_interface
+            .estimate_retryable_ticket(
+                H160::zero(),
+                WEI_IN_ETHER.saturating_mul(100u32.into()),
+                to,
+                EthersU256::zero(),
+                H160::zero(),
+                H160::zero(),
+                calldata.into(),
+            )
+            .estimate_gas()
+            .await
+            .map_err(ChainCommunicationError::from_other)?;
+
+        Ok(Some(l2_gas.into()))
     }
 
     fn get_signer(&self) -> Option<H160> {

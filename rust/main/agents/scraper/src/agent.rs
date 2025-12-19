@@ -446,6 +446,7 @@ mod test {
                 domain: HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
                 signer: None,
                 submitter: Default::default(),
+                gas_estimator: Default::default(),
                 estimated_block_time: Duration::from_secs_f64(1.1),
                 reorg_period: ReorgPeriod::None,
                 addresses: CoreContractAddresses {

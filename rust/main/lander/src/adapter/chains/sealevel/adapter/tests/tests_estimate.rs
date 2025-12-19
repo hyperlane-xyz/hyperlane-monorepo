@@ -11,12 +11,14 @@ async fn test_estimate_gas_limit() {
     let adapter = adapter();
     let payload = payload();
 
-    let expected = U256::from(GAS_LIMIT);
+    let expected_gas_limit = U256::from(GAS_LIMIT);
 
     // when
     let result = adapter.estimate_gas_limit(&payload).await;
 
     // then
     assert!(result.is_ok());
-    assert_eq!(expected, result.unwrap().unwrap());
+    let estimate = result.unwrap().unwrap();
+    assert_eq!(expected_gas_limit, estimate.gas_limit);
+    assert_eq!(None, estimate.l2_gas_limit);
 }

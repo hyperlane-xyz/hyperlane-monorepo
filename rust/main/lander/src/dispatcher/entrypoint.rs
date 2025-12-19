@@ -7,6 +7,8 @@ use async_trait::async_trait;
 use eyre::{eyre, Result};
 use tracing::info;
 
+use hyperlane_core::TxCostEstimate;
+
 use crate::{
     adapter::GasLimit,
     error::LanderError,
@@ -23,7 +25,7 @@ pub trait Entrypoint {
     async fn estimate_gas_limit(
         &self,
         payload: &FullPayload,
-    ) -> Result<Option<GasLimit>, LanderError>;
+    ) -> Result<Option<TxCostEstimate>, LanderError>;
 }
 
 #[derive(Clone)]
@@ -73,7 +75,7 @@ impl Entrypoint for DispatcherEntrypoint {
     async fn estimate_gas_limit(
         &self,
         payload: &FullPayload,
-    ) -> Result<Option<GasLimit>, LanderError> {
+    ) -> Result<Option<TxCostEstimate>, LanderError> {
         self.inner.adapter.estimate_gas_limit(payload).await
     }
 }
@@ -96,7 +98,7 @@ pub mod tests {
     use async_trait::async_trait;
     use eyre::Result;
     use hyperlane_base::db::{DbResult, HyperlaneRocksDB, DB};
-    use hyperlane_core::KnownHyperlaneDomain;
+    use hyperlane_core::{KnownHyperlaneDomain, TxCostEstimate};
 
     type PayloadMap = Arc<Mutex<HashMap<PayloadUuid, FullPayload>>>;
 
@@ -282,11 +284,16 @@ pub mod tests {
         let db = Arc::new(MockDb::new());
         let payload_db = db.clone() as Arc<dyn PayloadDb>;
         let tx_db = db as Arc<dyn TransactionDb>;
-        let mock_gas_limit = GasLimit::from(8750526);
+        let expected_gas_limit = 8750526u64.into();
+        let mock_tx_cost_estimate = TxCostEstimate {
+            gas_limit: expected_gas_limit,
+            gas_price: Default::default(),
+            l2_gas_limit: None,
+        };
         let mut mock_adapter = MockAdapter::new();
         mock_adapter
             .expect_estimate_gas_limit()
-            .returning(move |_| Ok(Some(mock_gas_limit)));
+            .returning(move |_| Ok(Some(mock_tx_cost_estimate.clone())));
         let adapter = Arc::new(mock_adapter) as Arc<dyn AdaptsChain>;
         let entrypoint_state = DispatcherState::new(
             payload_db,
@@ -298,12 +305,13 @@ pub mod tests {
         let entrypoint = Box::new(DispatcherEntrypoint::from_inner(entrypoint_state));
 
         let payload = FullPayload::default();
-        let gas_limit = entrypoint
+        let estimate = entrypoint
             .estimate_gas_limit(&payload)
             .await
             .unwrap()
             .unwrap();
 
-        assert_eq!(gas_limit, mock_gas_limit);
+        assert_eq!(estimate.gas_limit, expected_gas_limit);
+        assert_eq!(estimate.l2_gas_limit, None);
     }
 }

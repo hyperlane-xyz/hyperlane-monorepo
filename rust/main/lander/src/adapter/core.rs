@@ -10,7 +10,7 @@ use tokio::sync::mpsc::error::SendError;
 use tracing::{info, instrument};
 use uuid::Uuid;
 
-use hyperlane_core::{H256, H512, U256};
+use hyperlane_core::{TxCostEstimate, H256, H512, U256};
 
 use crate::{
     error::LanderError,
@@ -39,11 +39,12 @@ pub struct TxBuildingResult {
 /// The `AdaptsChain` trait is implemented by adapters for different VMs, stacks and chains, allowing the `PayloadDispatcher` to interact with them in a generic way.
 #[async_trait]
 pub trait AdaptsChain: Send + Sync {
-    /// Simulates Payload and returns its gas limit. Called in the Building Stage (PayloadDispatcher)
+    /// Simulates Payload and returns its gas cost estimate (gas limit, gas price, L2 gas limit).
+    /// Called in the Building Stage (PayloadDispatcher) and by MessageProcessor for gas payment validation.
     async fn estimate_gas_limit(
         &self,
         payload: &FullPayload,
-    ) -> Result<Option<GasLimit>, LanderError>;
+    ) -> Result<Option<TxCostEstimate>, LanderError>;
 
     /// Performs batching if available. Internally estimates gas limit for batch as well. Called in the Building Stage (PayloadDispatcher)
     async fn build_transactions(&self, payloads: &[FullPayload]) -> Vec<TxBuildingResult>;

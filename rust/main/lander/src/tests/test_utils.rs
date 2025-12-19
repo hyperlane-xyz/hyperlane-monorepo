@@ -6,10 +6,10 @@ use tokio::sync::Mutex;
 
 use hyperlane_base::db::{HyperlaneRocksDB, DB};
 use hyperlane_core::identifiers::UniqueIdentifier;
-use hyperlane_core::KnownHyperlaneDomain;
+use hyperlane_core::{KnownHyperlaneDomain, TxCostEstimate};
 
 use crate::adapter::chains::ethereum::NonceDb;
-use crate::adapter::{AdaptsChain, GasLimit, TxBuildingResult};
+use crate::adapter::{AdaptsChain, TxBuildingResult};
 use crate::dispatcher::{DispatcherMetrics, PayloadDb, TransactionDb};
 use crate::error::LanderError;
 use crate::payload::{FullPayload, PayloadDetails, PayloadStatus};
@@ -21,7 +21,7 @@ mockall::mock! {
 
     #[async_trait]
     impl AdaptsChain for Adapter {
-        async fn estimate_gas_limit(&self, payload: &FullPayload) -> Result<Option<GasLimit>, LanderError>;
+        async fn estimate_gas_limit(&self, payload: &FullPayload) -> Result<Option<TxCostEstimate>, LanderError>;
         async fn build_transactions(&self, payloads: &[FullPayload]) -> Vec<TxBuildingResult>;
         async fn simulate_tx(&self, tx: &mut Transaction) -> Result<Vec<PayloadDetails>, LanderError>;
         async fn estimate_tx(&self, tx: &mut Transaction) -> Result<(), LanderError>;
