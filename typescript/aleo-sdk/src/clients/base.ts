@@ -50,6 +50,8 @@ export class AleoBase {
     );
     assert(rpcUrls.length > 0, `got no rpcUrls`);
 
+    // because the aleo provable sdk appends /testnet or /mainnet to the base
+    // rpc automatically we need to remove it here
     this.rpcUrls = rpcUrls.map((r) =>
       r.replaceAll('/testnet', '').replaceAll('/mainnet', ''),
     );
@@ -165,7 +167,7 @@ export class AleoBase {
           );
 
           if (r === null) {
-            throw new Error();
+            throw new Error(`mapping value is null`);
           }
 
           return r;

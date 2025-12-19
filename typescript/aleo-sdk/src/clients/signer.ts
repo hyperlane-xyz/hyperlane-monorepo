@@ -1,5 +1,5 @@
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { assert, retryAsync } from '@hyperlane-xyz/utils';
+import { assert, isNullish, retryAsync } from '@hyperlane-xyz/utils';
 
 import { AleoProgram } from '../artifacts.js';
 import {
@@ -34,11 +34,11 @@ export class AleoSigner
     const metadata = extraParams.metadata as Record<string, unknown>;
     assert(metadata, `metadata not defined in extra params`);
     assert(
-      metadata.chainId !== undefined && metadata.chainId !== null,
+      !isNullish(metadata.chainId),
       `chainId not defined in metadata extra params`,
     );
 
-    const chainId = parseInt(metadata.chainId.toString());
+    const chainId = parseInt(metadata.chainId!.toString());
 
     return new AleoSigner(rpcUrls, chainId, privateKey);
   }
