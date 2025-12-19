@@ -57,7 +57,7 @@ async function main() {
     }[]
   > = {};
 
-  const chainsToSkip = ['osmosis'];
+  const chainsToSkip: string[] = [];
 
   const results: ChainResult[] = await Promise.all(
     allChainsToCheck

@@ -166,7 +166,6 @@ pub enum KnownHyperlaneDomain {
     Flare = 14,
     FlowMainnet = 1000000747,
     Fluence = 9999999,
-    Form = 478,
     Forma = 984122,
     Fraxtal = 252,
     Fuji = 43113,
@@ -181,9 +180,7 @@ pub enum KnownHyperlaneDomain {
     Hemi = 43111,
     HyperEvm = 999,
     ImmutableZkEvmMainnet = 1000013371,
-    InEvm = 2525,
     Ink = 57073,
-    Injective = 6909546,
     Kaia = 8217,
     Katana = 747474,
     Kyve = 1264145989,
@@ -198,12 +195,10 @@ pub enum KnownHyperlaneDomain {
     Metis = 1088,
     MiracleChain = 92278,
     Milkyway = 1835625579,
-    Mint = 185,
     Mode = 34443,
     Molten = 360,
     Moonbeam = 1284,
     Morph = 2818,
-    Neutron = 1853125230,
     Nibiru = 6900,
     Noble = 1313817164,
     Ontology = 58,
@@ -211,7 +206,6 @@ pub enum KnownHyperlaneDomain {
     OpBnb = 204,
     Optimism = 10,
     Orderly = 291,
-    Osmosis = 875,
     Paradex = 514051890,
     Peaq = 3338,
     Plume = 98866,
@@ -238,7 +232,6 @@ pub enum KnownHyperlaneDomain {
     SubTensor = 964,
     SuperpositionMainnet = 1000055244,
     Superseed = 5330,
-    SvmBnb = 574456,
     Swell = 1923,
     Tac = 239,
     Taiko = 167000,
@@ -279,7 +272,6 @@ pub enum KnownHyperlaneDomain {
     KyveTestnet = 1262571342,
     Matchain = 698,
     MegaEthTestnet = 6342,
-    MilkywayTestnet = 1162171030,
     ModeTestnet = 919,
     MonadTestnet = 10143,
     MoonbaseAlpha = 1287,
@@ -450,7 +442,6 @@ impl KnownHyperlaneDomain {
             | HyperLiquidEvmTestnet
             | KyveTestnet
             | MegaEthTestnet
-            | MilkywayTestnet
             | ModeTestnet
             | MonadTestnet
             | MoonbaseAlpha
@@ -480,10 +471,7 @@ impl KnownHyperlaneDomain {
     pub const fn domain_protocol(self) -> HyperlaneDomainProtocol {
         use KnownHyperlaneDomain::*;
         match self {
-            Injective
-            | Neutron
-            | Osmosis
-            | Stride
+            Stride
             // Local chains
             | CosmosTest99990
             | CosmosTest99991 => HyperlaneDomainProtocol::Cosmos,
@@ -494,7 +482,6 @@ impl KnownHyperlaneDomain {
             | KyveAlpha
             | KyveTestnet
             | Milkyway
-            | MilkywayTestnet
             | Noble
             | NobleTestnet
              => HyperlaneDomainProtocol::CosmosNative,
@@ -506,7 +493,6 @@ impl KnownHyperlaneDomain {
             | SonicSvm
             | SonicSvmTestnet
             | Soon
-            | SvmBnb
             // Local chains
             | SealevelTest1
             | SealevelTest2 => HyperlaneDomainProtocol::Sealevel,
@@ -529,13 +515,14 @@ impl KnownHyperlaneDomain {
         use KnownHyperlaneDomain::*;
         match self {
             ApeChain | AppChain | Arbitrum | ArbitrumNova | ArbitrumSepolia | CarrchainTestnet
-            | Corn | Everclear | Fluence | DegenChain | Galactica | Gravity | InEvm
-            | MiracleChain | Molten | Plume | PlumeTestnet | Rarichain | SuperpositionMainnet
-            | Xai => HyperlaneDomainTechnicalStack::ArbitrumNitro,
-            Ancient8 | Base | Blast | Bob | Boba | B3 | Celo | Cyber | Form | Fraxtal | Guru
-            | Ink | Lisk | MantaPacific | Mantle | Matchain | Metal | Metis | Mint | Mode
-            | ModeTestnet | OpBnb | Optimism | Orderly | PolynomialFi | Redstone | Soneium
-            | Superseed | Swell | Unichain | Worldchain | Zircuit | ZoraMainnet => {
+            | Corn | Everclear | Fluence | DegenChain | Galactica | Gravity | MiracleChain
+            | Molten | Plume | PlumeTestnet | Rarichain | SuperpositionMainnet | Xai => {
+                HyperlaneDomainTechnicalStack::ArbitrumNitro
+            }
+            Ancient8 | Base | Blast | Bob | Boba | B3 | Celo | Cyber | Fraxtal | Guru | Ink
+            | Lisk | MantaPacific | Mantle | Matchain | Metal | Metis | Mode | ModeTestnet
+            | OpBnb | Optimism | Orderly | PolynomialFi | Redstone | Soneium | Superseed
+            | Swell | Unichain | Worldchain | Zircuit | ZoraMainnet => {
                 HyperlaneDomainTechnicalStack::OpStack
             }
             DogeChain | LumiaPrism | Katana | Merlin | PolygonZkEvm | Prom | Xlayer => {
@@ -720,10 +707,6 @@ impl HyperlaneDomain {
             self.domain_technical_stack(),
             HyperlaneDomainTechnicalStack::ArbitrumNitro
         )
-    }
-
-    pub const fn is_injective(&self) -> bool {
-        matches!(self, Self::Known(KnownHyperlaneDomain::Injective))
     }
 
     pub const fn is_zksync_stack(&self) -> bool {

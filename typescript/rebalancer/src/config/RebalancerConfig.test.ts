@@ -1,17 +1,19 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 import { rmSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
 
 import {
   RebalancerConfigFileInput,
   RebalancerMinAmountType,
   RebalancerStrategyOptions,
 } from '@hyperlane-xyz/sdk';
-
-import { REBALANCER_CONFIG_PATH } from '../../tests/ethereum/consts.js';
-import { writeYamlOrJson } from '../../utils/files.js';
+import { writeYamlOrJson } from '@hyperlane-xyz/utils/fs';
 
 import { RebalancerConfig } from './RebalancerConfig.js';
+
+const TEST_CONFIG_PATH = join(tmpdir(), 'rebalancer-config-test.yaml');
 
 describe('RebalancerConfig', () => {
   let data: RebalancerConfigFileInput;
@@ -42,23 +44,23 @@ describe('RebalancerConfig', () => {
       },
     };
 
-    writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
+    writeYamlOrJson(TEST_CONFIG_PATH, data);
   });
 
   afterEach(() => {
-    rmSync(REBALANCER_CONFIG_PATH, { force: true });
+    rmSync(TEST_CONFIG_PATH, { force: true });
   });
 
   it('should throw when the config file does not exist', () => {
-    rmSync(REBALANCER_CONFIG_PATH, { force: true });
+    rmSync(TEST_CONFIG_PATH, { force: true });
 
-    expect(() => RebalancerConfig.load(REBALANCER_CONFIG_PATH)).to.throw(
-      `File doesn't exist at ${REBALANCER_CONFIG_PATH}`,
+    expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).to.throw(
+      `File doesn't exist at ${TEST_CONFIG_PATH}`,
     );
   });
 
   it('should load config from file', () => {
-    expect(RebalancerConfig.load(REBALANCER_CONFIG_PATH)).to.deep.equal({
+    expect(RebalancerConfig.load(TEST_CONFIG_PATH)).to.deep.equal({
       warpRouteId: 'warpRouteId',
       strategyConfig: {
         rebalanceStrategy: RebalancerStrategyOptions.Weighted,
@@ -87,9 +89,9 @@ describe('RebalancerConfig', () => {
   it('should throw if chains are not configured', () => {
     data.strategy.chains = {};
 
-    writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
+    writeYamlOrJson(TEST_CONFIG_PATH, data);
 
-    expect(() => RebalancerConfig.load(REBALANCER_CONFIG_PATH)).to.throw(
+    expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).to.throw(
       'No chains configured',
     );
   });
@@ -98,9 +100,9 @@ describe('RebalancerConfig', () => {
     // @ts-ignore
     delete data.warpRouteId;
 
-    writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
+    writeYamlOrJson(TEST_CONFIG_PATH, data);
 
-    expect(() => RebalancerConfig.load(REBALANCER_CONFIG_PATH)).to.throw(
+    expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).to.throw(
       'Validation error: Required at "warpRouteId"',
     );
   });
@@ -133,11 +135,10 @@ describe('RebalancerConfig', () => {
       },
     };
 
-    writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
+    writeYamlOrJson(TEST_CONFIG_PATH, data);
 
     expect(
-      RebalancerConfig.load(REBALANCER_CONFIG_PATH).strategyConfig.chains
-        .chain1,
+      RebalancerConfig.load(TEST_CONFIG_PATH).strategyConfig.chains.chain1,
     ).to.deep.equal({
       ...data.strategy.chains.chain1,
       bridgeLockTime: 1_000,
@@ -172,11 +173,10 @@ describe('RebalancerConfig', () => {
       },
     };
 
-    writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
+    writeYamlOrJson(TEST_CONFIG_PATH, data);
 
     expect(
-      RebalancerConfig.load(REBALANCER_CONFIG_PATH).strategyConfig.chains
-        .chain1,
+      RebalancerConfig.load(TEST_CONFIG_PATH).strategyConfig.chains.chain1,
     ).to.deep.equal({
       ...data.strategy.chains.chain1,
       bridgeLockTime: 1_000,
@@ -226,9 +226,9 @@ describe('RebalancerConfig', () => {
         },
       };
 
-      writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
+      writeYamlOrJson(TEST_CONFIG_PATH, data);
 
-      const config = RebalancerConfig.load(REBALANCER_CONFIG_PATH);
+      const config = RebalancerConfig.load(TEST_CONFIG_PATH);
       expect(config.strategyConfig.chains.chain1).to.have.property('override');
 
       const override = config.strategyConfig.chains.chain1.override;
@@ -278,9 +278,9 @@ describe('RebalancerConfig', () => {
         },
       };
 
-      writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
+      writeYamlOrJson(TEST_CONFIG_PATH, data);
 
-      expect(() => RebalancerConfig.load(REBALANCER_CONFIG_PATH)).to.throw(
+      expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).to.throw(
         "Chain 'chain1' has an override for 'chain3', but 'chain3' is not defined in the config",
       );
     });
@@ -318,9 +318,9 @@ describe('RebalancerConfig', () => {
         },
       };
 
-      writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
+      writeYamlOrJson(TEST_CONFIG_PATH, data);
 
-      expect(() => RebalancerConfig.load(REBALANCER_CONFIG_PATH)).to.throw(
+      expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).to.throw(
         "Chain 'chain1' has an override for 'chain1', but 'chain1' is self-referencing",
       );
     });
@@ -364,9 +364,9 @@ describe('RebalancerConfig', () => {
         },
       };
 
-      writeYamlOrJson(REBALANCER_CONFIG_PATH, data);
+      writeYamlOrJson(TEST_CONFIG_PATH, data);
 
-      const config = RebalancerConfig.load(REBALANCER_CONFIG_PATH);
+      const config = RebalancerConfig.load(TEST_CONFIG_PATH);
 
       const chain1Overrides = config.strategyConfig.chains.chain1.override;
       expect(chain1Overrides).to.not.be.undefined;

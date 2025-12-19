@@ -1,6 +1,6 @@
 import { Token } from '@hyperlane-xyz/sdk';
 
-import { WrappedError } from '../../utils/errors.js';
+import { WrappedError } from '../utils/errors.js';
 
 export class MonitorStartError extends WrappedError {
   name = 'MonitorStartError';

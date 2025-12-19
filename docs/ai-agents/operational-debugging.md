@@ -868,19 +868,19 @@ The [Hyperlane Registry](https://github.com/hyperlane-xyz/hyperlane-registry/) p
 
 ### Registry Usage for Debugging
 
-**Local Registry Path**: `/Users/nambrot/devstuff/hyperlane-registry`
+**Registry Source**: Clone from https://github.com/hyperlane-xyz/hyperlane-registry/ or use `@hyperlane-xyz/registry` package.
 
 **Quick Chain Lookups:**
 
 ```bash
-# Get contract addresses for any chain
-cat /Users/nambrot/devstuff/hyperlane-registry/chains/ethereum/addresses.yaml
+# Get contract addresses for any chain (from local registry clone)
+cat <registry-path>/chains/ethereum/addresses.yaml
 
 # Check RPC endpoints and block explorer URLs
-cat /Users/nambrot/devstuff/hyperlane-registry/chains/ethereum/metadata.yaml
+cat <registry-path>/chains/ethereum/metadata.yaml
 
 # Find chains by name pattern
-ls /Users/nambrot/devstuff/hyperlane-registry/chains/ | grep -i arbitrum
+ls <registry-path>/chains/ | grep -i arbitrum
 ```
 
 **Chain Information Available:**
@@ -903,7 +903,7 @@ ls /Users/nambrot/devstuff/hyperlane-registry/chains/ | grep -i arbitrum
 import { FileSystemRegistry } from '@hyperlane-xyz/registry';
 
 const registry = new FileSystemRegistry({
-  uri: '/Users/nambrot/devstuff/hyperlane-registry',
+  uri: '<registry-path>',
 });
 const chainData = await registry.getChainMetadata('ethereum');
 const addresses = await registry.getChainAddresses('ethereum');
@@ -913,29 +913,29 @@ const addresses = await registry.getChainAddresses('ethereum');
 
 ```bash
 # Find chain by ID
-jq '.[] | select(.chainId == 42161)' /Users/nambrot/devstuff/hyperlane-registry/chains.json
+jq '.[] | select(.chainId == 42161)' <registry-path>/chains.json
 
 # Get all mainnet chains
-jq '.[] | select(.environment == "mainnet")' /Users/nambrot/devstuff/hyperlane-registry/chains.json
+jq '.[] | select(.environment == "mainnet")' <registry-path>/chains.json
 
 # Find warp routes for specific token
-jq '.[] | select(.token | contains("USDC"))' /Users/nambrot/devstuff/hyperlane-registry/warp_routes.json
+jq '.[] | select(.token | contains("USDC"))' <registry-path>/warp_routes.json
 ```
 
 ## Validator Address to Name Mapping
 
 When debugging validator issues, use the multisig ISM configuration to convert validator addresses to human-readable names.
 
-**Location**: `/Users/nambrot/devstuff/hyperlane-monorepo/typescript/sdk/src/consts/multisigIsm.ts`
+**Location**: `typescript/sdk/src/consts/multisigIsm.ts`
 
 **Validator Name Lookup:**
 
 ```bash
 # Find validator name by address (case-insensitive search)
-grep -i -A 1 -B 1 "0x03c842db86a6a3e524d4a6615390c1ea8e2b9541" /Users/nambrot/devstuff/hyperlane-monorepo/typescript/sdk/src/consts/multisigIsm.ts
+grep -i -A 1 -B 1 "0x03c842db86a6a3e524d4a6615390c1ea8e2b9541" typescript/sdk/src/consts/multisigIsm.ts
 
 # Get all validators for a specific chain
-grep -A 20 "ethereum:" /Users/nambrot/devstuff/hyperlane-monorepo/typescript/sdk/src/consts/multisigIsm.ts
+grep -A 20 "ethereum:" typescript/sdk/src/consts/multisigIsm.ts
 ```
 
 **Common Validator Names:**
@@ -960,7 +960,7 @@ When investigating validator inconsistencies:
 ```bash
 # During validator debugging - convert address to name
 echo "Validator 0x36f2bd8200ede5f969d63a0a28e654392c51a193 is behind"
-grep -i "0x36f2bd8200ede5f969d63a0a28e654392c51a193" /path/to/multisigIsm.ts
+grep -i "0x36f2bd8200ede5f969d63a0a28e654392c51a193" typescript/sdk/src/consts/multisigIsm.ts
 # Output: "alias: 'Imperator'" - so you know Imperator validator is behind
 ```
 
