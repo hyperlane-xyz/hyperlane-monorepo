@@ -14,7 +14,7 @@ export { coreModuleProvider } from './core-module.js';
 export { hookModuleProvider } from './hook-module.js';
 export { ismModuleProvider } from './ism-module.js';
 export { createIsmReader } from './ism/generic-ism.js';
-export { GenericIsmWriter, createIsmWriter } from './ism/generic-ism-writer.js';
+export { IsmWriter, createIsmWriter } from './ism/generic-ism-writer.js';
 export {
   ismConfigToArtifact,
   shouldDeployNewIsm,
