@@ -21,14 +21,14 @@ import { IsmReader } from './generic-ism.js';
 import { RoutingIsmWriter } from './routing-ism.js';
 
 /**
- * Factory function to create a GenericIsmWriter instance.
+ * Factory function to create an IsmWriter instance.
  * This helper centralizes the creation of artifact managers and ISM writers,
  * making it easier to instantiate writers across the codebase.
  *
  * @param chainMetadata Chain metadata for the target chain (protocol type is extracted from metadata.protocol)
  * @param chainLookup Chain lookup interface for resolving chain names and domain IDs
  * @param signer Signer interface for signing transactions
- * @returns A GenericIsmWriter instance
+ * @returns An IsmWriter instance
  *
  * @example
  * ```typescript
@@ -40,16 +40,16 @@ export function createIsmWriter(
   chainMetadata: ChainMetadataForAltVM,
   chainLookup: ChainLookup,
   signer: ISigner<AnnotatedTx, TxReceipt>,
-): GenericIsmWriter {
+): IsmWriter {
   const protocolProvider = getProtocolProvider(chainMetadata.protocol);
   const artifactManager: IRawIsmArtifactManager =
     protocolProvider.createIsmArtifactManager(chainMetadata);
 
-  return new GenericIsmWriter(artifactManager, chainLookup, signer);
+  return new IsmWriter(artifactManager, chainLookup, signer);
 }
 
 /**
- * GenericIsmWriter handles creation and updates of ISMs using the Artifact API.
+ * IsmWriter handles creation and updates of ISMs using the Artifact API.
  * It delegates to protocol-specific artifact writers for individual ISM types.
  *
  * Key features:
@@ -59,7 +59,7 @@ export function createIsmWriter(
  * - Uses RoutingIsmWriter for composite routing ISM operations
  * - Protocol-agnostic through artifact manager abstraction
  */
-export class GenericIsmWriter
+export class IsmWriter
   extends IsmReader
   implements ArtifactWriter<IsmArtifactConfig, DeployedIsmAddresses>
 {

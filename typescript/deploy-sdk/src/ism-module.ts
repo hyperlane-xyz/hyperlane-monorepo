@@ -22,7 +22,7 @@ import {
   TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
 
-import { GenericIsmWriter } from './ism/generic-ism-writer.js';
+import { IsmWriter } from './ism/generic-ism-writer.js';
 import { createIsmReader } from './ism/generic-ism.js';
 import {
   ismConfigToArtifact,
@@ -47,8 +47,8 @@ class IsmReaderAdapter implements HypReader<IsmModuleType> {
 }
 
 /**
- * Adapter that wraps GenericIsmWriter to implement HypModule interface.
- * This bridges the Artifact API (GenericIsmWriter) with the Config API (HypModule).
+ * Adapter that wraps IsmWriter to implement HypModule interface.
+ * This bridges the Artifact API (IsmWriter) with the Config API (HypModule).
  *
  * Key responsibilities:
  * - Convert Config API (IsmConfig) to Artifact API (IsmArtifactConfig)
@@ -58,7 +58,7 @@ class IsmReaderAdapter implements HypReader<IsmModuleType> {
  */
 class IsmModuleAdapter implements HypModule<IsmModuleType> {
   constructor(
-    private readonly writer: GenericIsmWriter,
+    private readonly writer: IsmWriter,
     private readonly chainLookup: ChainLookup,
     private readonly args: HypModuleArgs<IsmModuleType>,
   ) {}
@@ -105,7 +105,7 @@ class IsmModuleAdapter implements HypModule<IsmModuleType> {
 }
 
 /**
- * Module provider that creates GenericIsmWriter and adapts it to HypModule.
+ * Module provider that creates IsmWriter and adapts it to HypModule.
  */
 class IsmModuleProvider implements ModuleProvider<IsmModuleType> {
   private readonly artifactManager: IRawIsmArtifactManager;
@@ -126,7 +126,7 @@ class IsmModuleProvider implements ModuleProvider<IsmModuleType> {
     config: IsmConfig,
   ): Promise<HypModule<IsmModuleType>> {
     // Create writer
-    const writer = new GenericIsmWriter(
+    const writer = new IsmWriter(
       this.artifactManager,
       this.chainLookup,
       signer,
@@ -154,7 +154,7 @@ class IsmModuleProvider implements ModuleProvider<IsmModuleType> {
     args: HypModuleArgs<IsmModuleType>,
   ): HypModule<IsmModuleType> {
     // Create writer
-    const writer = new GenericIsmWriter(
+    const writer = new IsmWriter(
       this.artifactManager,
       this.chainLookup,
       signer,
