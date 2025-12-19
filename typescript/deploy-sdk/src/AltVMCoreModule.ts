@@ -370,7 +370,7 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
     const deployedArtifact: DeployedIsmArtifact = {
       ...expectedArtifact,
       artifactState: ArtifactState.DEPLOYED,
-      config: expectedArtifact.config as IsmArtifactConfig,
+      config: expectedArtifact.config,
       deployed: actualArtifact.deployed,
     };
     const ismUpdateTxs = await writer.update(deployedArtifact);
