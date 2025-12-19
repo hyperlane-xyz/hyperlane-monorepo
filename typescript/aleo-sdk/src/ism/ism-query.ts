@@ -1,4 +1,4 @@
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, ensure0x, isZeroishAddress } from '@hyperlane-xyz/utils';
 
 import { AnyAleoNetworkClient } from '../clients/base.js';
 import { queryMappingValue } from '../utils/base-query.js';
@@ -80,5 +80,85 @@ export async function getTestIsmConfig(
   return {
     type: AleoIsmType.TEST_ISM,
     address: ismAddress,
+  };
+}
+
+function formatIsmMultisigInfo(raw: unknown): {
+  validators: string[];
+  threshold: number;
+} {
+  assert(
+    typeof raw === 'object' && raw !== null,
+    `Expected multisig config to be an object but got ${typeof raw}`,
+  );
+
+  const { validators, threshold } = raw as any;
+
+  assert(
+    Array.isArray(validators),
+    'Expected validators array in multisig config',
+  );
+
+  assert(
+    typeof threshold === 'number',
+    'Expected threshold number in multisig config',
+  );
+
+  return {
+    // The multisig ISM on Aleo can have a max
+    // of 6 validators. If there are less than 6,
+    // the remaining items in the array will be 0
+    // addresses
+    validators: validators
+      .map((v) => {
+        assert(
+          Array.isArray(v.bytes),
+          'Expected validator bytes to be an array',
+        );
+        return ensure0x(Buffer.from(v.bytes).toString('hex'));
+      })
+      // Remove any unset validator from the result array
+      .filter((validatorAddress) => !isZeroishAddress(validatorAddress)),
+    threshold,
+  };
+}
+
+/**
+ * Query the configuration for a Multisig ISM (Message ID or Merkle Root).
+ *
+ * @param aleoClient - The Aleo network client
+ * @param ismAddress - The full ISM address (e.g., "ism_manager.aleo/aleo1...")
+ * @returns The Multisig ISM configuration
+ */
+export async function getMessageIdMultisigIsmConfig(
+  aleoClient: AnyAleoNetworkClient,
+  ismAddress: string,
+): Promise<{
+  address: string;
+  type: AleoIsmType.MESSAGE_ID_MULTISIG;
+  threshold: number;
+  validators: string[];
+}> {
+  const { address, programId } = fromAleoAddress(ismAddress);
+  const ismType = await getIsmType(aleoClient, ismAddress);
+
+  assert(
+    ismType === AleoIsmType.MESSAGE_ID_MULTISIG,
+    `Expected ism at address ${ismAddress} to be a multisig ISM but got ${ismType}`,
+  );
+
+  const { threshold, validators } = await queryMappingValue(
+    aleoClient,
+    programId,
+    'message_id_multisigs',
+    address,
+    formatIsmMultisigInfo,
+  );
+
+  return {
+    address: ismAddress,
+    type: ismType,
+    validators,
+    threshold,
   };
 }
