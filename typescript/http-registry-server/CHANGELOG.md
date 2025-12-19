@@ -1,12 +1,5 @@
 # @hyperlane-xyz/http-registry-server
 
-## 20.2.0-beta.0
-
-### Patch Changes
-
-- @hyperlane-xyz/sdk@20.2.0-beta.0
-- @hyperlane-xyz/utils@20.2.0-beta.0
-
 ## 20.1.0
 
 ### Patch Changes

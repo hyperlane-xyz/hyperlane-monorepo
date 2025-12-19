@@ -1,15 +1,5 @@
 # @hyperlane-xyz/provider-sdk
 
-## 0.8.0-beta.0
-
-### Minor Changes
-
-- 239e1a1: Migrate AltVm JsonSubmittor and FileSubmittor to deploy-sdk (from provider-sdk and cli, respectively)
-
-### Patch Changes
-
-- @hyperlane-xyz/utils@20.2.0-beta.0
-
 ## 0.7.0
 
 ### Minor Changes

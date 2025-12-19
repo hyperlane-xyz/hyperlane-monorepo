@@ -1,14 +1,5 @@
 # @hyperlane-xyz/ccip-server
 
-## 20.2.0-beta.0
-
-### Patch Changes
-
-- Updated dependencies [e62d604]
-  - @hyperlane-xyz/core@11.0.0-beta.0
-  - @hyperlane-xyz/sdk@20.2.0-beta.0
-  - @hyperlane-xyz/utils@20.2.0-beta.0
-
 ## 20.1.0
 
 ### Patch Changes
