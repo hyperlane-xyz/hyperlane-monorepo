@@ -1,9 +1,9 @@
 use async_trait::async_trait;
 use derive_new::new;
 
-use hyperlane_core::{HyperlaneMessage, H256};
+use hyperlane_core::{HyperlaneMessage, Metadata, H256};
 
-use super::{MessageMetadataBuildParams, Metadata, MetadataBuildError, MetadataBuilder};
+use super::{MessageMetadataBuildParams, MetadataBuildError, MetadataBuilder};
 
 #[derive(Clone, Debug, new)]
 pub struct NullMetadataBuilder {}

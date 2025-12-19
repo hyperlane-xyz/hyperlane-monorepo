@@ -52,6 +52,14 @@ pub enum HyperlaneAleoError {
     /// Missing Auth Header
     #[error("Missing Auth Header")]
     MissingAuthHeader,
+    /// Malicious Program Detected
+    #[error("Malicious Program Detected: program_id={program_id}, transition={transition}")]
+    MaliciousProgramDetected {
+        /// Program ID
+        program_id: String,
+        /// Transition
+        transition: String,
+    },
     /// Other errors
     #[error("{0}")]
     Other(String),

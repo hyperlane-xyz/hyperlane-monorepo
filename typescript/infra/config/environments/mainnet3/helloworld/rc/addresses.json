@@ -40,8 +40,5 @@
   },
   "viction": {
     "router": "0x83c2DB237e93Ce52565AB110124f78fdf159E3f4"
-  },
-  "inevm": {
-    "router": "0x0BD07E3934D1C4cc8Db0eA2a5cDAc8C8d8eb9824"
   }
 }

@@ -15,7 +15,7 @@ use sha3::{digest::Update, Digest, Keccak256};
 use tracing::{info, instrument, warn};
 
 use hyperlane_core::{
-    utils::bytes_to_hex, CcipReadIsm, HyperlaneMessage, HyperlaneSignerExt, ModuleType,
+    utils::bytes_to_hex, CcipReadIsm, HyperlaneMessage, HyperlaneSignerExt, Metadata, ModuleType,
     RawHyperlaneMessage, Signable, H160, H256,
 };
 use hyperlane_ethereum::{OffchainLookup, Signers};
@@ -25,7 +25,7 @@ use crate::msg::metadata::base_builder::IsmBuildMetricsParams;
 use super::{
     base::{MessageMetadataBuildParams, MetadataBuildError},
     message_builder::MessageMetadataBuilder,
-    Metadata, MetadataBuilder,
+    MetadataBuilder,
 };
 
 mod cache_types;
