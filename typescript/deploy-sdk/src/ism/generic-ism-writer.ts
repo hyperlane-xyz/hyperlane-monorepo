@@ -14,7 +14,6 @@ import {
   DeployedIsmArtifact,
   IRawIsmArtifactManager,
   IsmArtifactConfig,
-  RoutingIsmArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 
@@ -83,7 +82,7 @@ export class GenericIsmWriter
   async create(
     artifact: ArtifactNew<IsmArtifactConfig>,
   ): Promise<[DeployedIsmArtifact, TxReceipt[]]> {
-    const { config } = artifact;
+    const { artifactState, config } = artifact;
 
     // Routing ISMs are composite - use RoutingIsmWriter for nested deployments
     if (config.type === AltVM.IsmType.ROUTING) {
@@ -92,14 +91,12 @@ export class GenericIsmWriter
         this.artifactManager,
         this.signer,
       );
-      return routingWriter.create(
-        artifact as ArtifactNew<RoutingIsmArtifactConfig>,
-      );
+      return routingWriter.create({ artifactState, config });
     }
 
     // For other ISM types, request typed writer from artifact manager
     const writer = this.artifactManager.createWriter(config.type, this.signer);
-    return writer.create(artifact as any);
+    return writer.create({ artifactState, config });
   }
 
   /**
@@ -111,7 +108,7 @@ export class GenericIsmWriter
    * @returns Array of transactions needed to perform the update
    */
   async update(artifact: DeployedIsmArtifact): Promise<AnnotatedTx[]> {
-    const { config } = artifact;
+    const { artifactState, config, deployed } = artifact;
 
     // Only routing ISMs are mutable - support domain updates and owner changes
     if (config.type === AltVM.IsmType.ROUTING) {
@@ -120,7 +117,7 @@ export class GenericIsmWriter
         this.artifactManager,
         this.signer,
       );
-      return routingWriter.update(artifact as any);
+      return routingWriter.update({ artifactState, config, deployed });
     }
 
     // Multisig and test ISMs are immutable - no updates possible
