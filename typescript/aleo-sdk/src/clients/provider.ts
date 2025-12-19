@@ -69,6 +69,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   }
 
   async getBalance(req: AltVM.ReqGetBalance): Promise<bigint> {
+    console.log('getBalance', req);
     if (
       req.denom &&
       req.denom !== 'credits' &&
@@ -88,6 +89,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     }
 
     const balance = await this.aleoClient.getPublicBalance(req.address);
+    console.log('balance', balance);
     return BigInt(balance);
   }
 

@@ -1,5 +1,3 @@
-export { AltVMFileSubmitter } from './AltVMFileSubmitter.js';
-
 export { AltVMJsonRpcSubmitter } from './AltVMJsonRpcSubmitter.js';
 export { AltVMCoreModule } from './AltVMCoreModule.js';
 export { AltVMCoreReader } from './AltVMCoreReader.js';

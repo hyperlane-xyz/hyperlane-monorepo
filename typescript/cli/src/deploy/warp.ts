@@ -3,7 +3,6 @@ import { stringify as yamlStringify } from 'yaml';
 
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
-  AltVMFileSubmitter,
   AltVMJsonRpcSubmitter,
   AltVMWarpModule,
 } from '@hyperlane-xyz/deploy-sdk';
@@ -75,7 +74,6 @@ import {
 import { WarpSendLogs } from '../send/transfer.js';
 import { EV5FileSubmitter } from '../submitters/EV5FileSubmitter.js';
 import {
-  CustomTxSubmitterType,
   ExtendedChainSubmissionStrategy,
   ExtendedChainSubmissionStrategySchema,
   ExtendedSubmissionStrategy,
@@ -1037,12 +1035,6 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
         return new AltVMJsonRpcSubmitter(signer, {
           chain: chain,
         });
-      },
-      [CustomTxSubmitterType.FILE]: (
-        _multiProvider: MultiProvider,
-        metadata: any,
-      ) => {
-        return new AltVMFileSubmitter(signer, metadata);
       },
     };
   }
