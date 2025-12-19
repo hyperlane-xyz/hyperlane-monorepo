@@ -55,6 +55,33 @@ export type Artifact<C, D = unknown> =
   | ArtifactUnderived<D>;
 
 /**
+ * Type guard to check if an artifact is in the NEW state.
+ */
+export function isArtifactNew<C, D>(
+  artifact: Artifact<C, D>,
+): artifact is ArtifactNew<C> {
+  return artifact.artifactState === ArtifactState.NEW;
+}
+
+/**
+ * Type guard to check if an artifact is in the DEPLOYED state.
+ */
+export function isArtifactDeployed<C, D>(
+  artifact: Artifact<C, D>,
+): artifact is ArtifactDeployed<C, D> {
+  return artifact.artifactState === ArtifactState.DEPLOYED;
+}
+
+/**
+ * Type guard to check if an artifact is in the UNDERIVED state.
+ */
+export function isArtifactUnderived<C, D>(
+  artifact: Artifact<C, D>,
+): artifact is ArtifactUnderived<D> {
+  return artifact.artifactState === ArtifactState.UNDERIVED;
+}
+
+/**
  * Interface for reading artifact state from the blockchain.
  */
 export interface ArtifactReader<C, D> {
