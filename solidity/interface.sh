@@ -87,20 +87,12 @@ if [ "$1" = "test-interface" ]; then
         fi
 
         # Check for removals and additions across all ABI types
-        for abi_type in function event error fallback; do
+        for abi_type in function event error constructor fallback; do
             base_items=$(extract_signatures "$base_file" "$abi_type")
             head_items=$(extract_signatures "$head_file" "$abi_type")
             find_removed "$base_items" "$head_items" "$contract_name"
             find_added "$base_items" "$head_items" "$contract_name"
         done
-
-        # Check for constructor changes (special case - not just removal)
-        base_constructor=$(extract_signatures "$base_file" "constructor")
-        head_constructor=$(extract_signatures "$head_file" "constructor")
-        if [ -n "$base_constructor" ] && [ "$base_constructor" != "$head_constructor" ]; then
-            HAS_REMOVALS=true
-            REMOVED_ITEMS="$REMOVED_ITEMS\n  $contract_name: $base_constructor -> ${head_constructor:-removed}"
-        fi
     done
 
     # Check for new contracts (additions)
