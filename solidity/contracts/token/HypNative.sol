@@ -20,9 +20,10 @@ contract HypNative is LpCollateralRouter {
     using NativeCollateral for address;
 
     constructor(
-        uint256 _scale,
+        uint256 _scaleNumerator,
+        uint256 _scaleDenominator,
         address _mailbox
-    ) TokenRouter(_scale, _mailbox) {}
+    ) TokenRouter(_scaleNumerator, _scaleDenominator, _mailbox) {}
 
     /**
      * @notice Initializes the Hyperlane router

@@ -58,7 +58,8 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         uint256 amountOrId
     );
 
-    uint256 public immutable scale;
+    uint256 public immutable scaleNumerator;
+    uint256 public immutable scaleDenominator;
 
     // cannot use compiler assigned slot without
     // breaking backwards compatibility of storage layout
@@ -69,8 +70,14 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
     event FeeRecipientSet(address feeRecipient);
     event FeeHookSet(address feeHook);
 
-    constructor(uint256 _scale, address _mailbox) GasRouter(_mailbox) {
-        scale = _scale;
+    constructor(
+        uint256 _scaleNumerator,
+        uint256 _scaleDenominator,
+        address _mailbox
+    ) GasRouter(_mailbox) {
+        require(_scaleDenominator > 0, "TokenRouter: denominator cannot be 0");
+        scaleNumerator = _scaleNumerator;
+        scaleDenominator = _scaleDenominator;
     }
 
     // ===========================
@@ -549,25 +556,33 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
     }
 
     /**
-     * @dev Scales local amount to message amount (up by scale factor).
+     * @dev Scales local amount to message amount by the scale fraction.
+     * Applies: messageAmount = (localAmount * scaleNumerator) / scaleDenominator
+     * - If scaleNumerator > scaleDenominator: scales up (e.g., 2/1)
+     * - If scaleNumerator < scaleDenominator: scales down (e.g., 1/2)
+     * - If scaleNumerator == scaleDenominator: no scaling (e.g., 1/1)
      * Known overrides:
      * - HypERC4626: Scales by exchange rate
      */
     function _outboundAmount(
         uint256 _localAmount
     ) internal view virtual returns (uint256 _messageAmount) {
-        _messageAmount = _localAmount * scale;
+        _messageAmount = (_localAmount * scaleNumerator) / scaleDenominator;
     }
 
     /**
-     * @dev Scales message amount to local amount (down by scale factor).
+     * @dev Scales message amount to local amount by the inverse scale fraction.
+     * Applies: localAmount = (messageAmount * scaleDenominator) / scaleNumerator
+     * - If scaleNumerator > scaleDenominator: scales down (e.g., 1/2 for 2/1 outbound)
+     * - If scaleNumerator < scaleDenominator: scales up (e.g., 2/1 for 1/2 outbound)
+     * - If scaleNumerator == scaleDenominator: no scaling (e.g., 1/1)
      * Known overrides:
      * - HypERC4626: Scales by exchange rate
      */
     function _inboundAmount(
         uint256 _messageAmount
     ) internal view virtual returns (uint256 _localAmount) {
-        _localAmount = _messageAmount / scale;
+        _localAmount = (_messageAmount * scaleDenominator) / scaleNumerator;
     }
 
     /**
