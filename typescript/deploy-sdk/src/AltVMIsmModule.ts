@@ -31,7 +31,7 @@ import {
   sleep,
 } from '@hyperlane-xyz/utils';
 
-import { GenericIsmReader, createIsmReader } from './ism/generic-ism.js';
+import { IsmReader, createIsmReader } from './ism/generic-ism.js';
 import { validateIsmConfig } from './utils/validation.js';
 
 // Determines the domains to enroll and unenroll to update the current ISM config
@@ -74,7 +74,7 @@ export class AltVMIsmModule implements HypModule<IsmModuleType> {
     module: 'AltVMIsmModule',
   });
   private readonly chainMetadata: ChainMetadataForAltVM;
-  private readonly reader: GenericIsmReader;
+  private readonly reader: IsmReader;
   protected readonly mailbox: Address;
 
   // Cached chain name

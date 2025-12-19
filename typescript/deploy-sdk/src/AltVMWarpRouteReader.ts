@@ -16,12 +16,12 @@ import {
 import { Address, ensure0x, rootLogger } from '@hyperlane-xyz/utils';
 
 import { AltVMHookReader } from './AltVMHookReader.js';
-import { GenericIsmReader, createIsmReader } from './ism/generic-ism.js';
+import { IsmReader, createIsmReader } from './ism/generic-ism.js';
 
 export class AltVMWarpRouteReader implements HypReader<TokenRouterModuleType> {
   protected readonly logger: ReturnType<typeof rootLogger.child>;
   hookReader: AltVMHookReader;
-  private readonly ismReader: GenericIsmReader;
+  private readonly ismReader: IsmReader;
 
   constructor(
     protected readonly chainMetadata: ChainMetadataForAltVM,

@@ -21,7 +21,7 @@ import {
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import { Logger, rootLogger } from '@hyperlane-xyz/utils';
 
-import { GenericIsmReader } from './generic-ism.js';
+import { IsmReader } from './generic-ism.js';
 
 type DeployedRoutingIsmArtifact = ArtifactDeployed<
   RoutingIsmArtifactConfig,
@@ -35,20 +35,18 @@ export class RoutingIsmWriter
     module: RoutingIsmWriter.name,
   });
 
-  private readonly genericIsmReader: GenericIsmReader;
+  private readonly ismReader: IsmReader;
 
   constructor(
     protected readonly chainLookup: ChainLookup,
     protected readonly artifactManager: IRawIsmArtifactManager,
     private readonly signer: ISigner<AnnotatedTx, TxReceipt>,
   ) {
-    this.genericIsmReader = new GenericIsmReader(artifactManager, chainLookup);
+    this.ismReader = new IsmReader(artifactManager, chainLookup);
   }
 
   async read(address: string): Promise<DeployedRoutingIsmArtifact> {
-    return this.genericIsmReader.read(
-      address,
-    ) as Promise<DeployedRoutingIsmArtifact>;
+    return this.ismReader.read(address) as Promise<DeployedRoutingIsmArtifact>;
   }
 
   async create(

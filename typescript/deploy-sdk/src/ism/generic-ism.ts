@@ -23,13 +23,13 @@ import {
 import { Logger, rootLogger } from '@hyperlane-xyz/utils';
 
 /**
- * Factory function to create a GenericIsmReader instance.
+ * Factory function to create an IsmReader instance.
  * This helper centralizes the creation of artifact managers and ISM readers,
  * making it easier to instantiate readers across the codebase.
  *
  * @param chainMetadata Chain metadata for the target chain (protocol type is extracted from metadata.protocol)
  * @param chainLookup Chain lookup interface for resolving chain names and domain IDs
- * @returns A GenericIsmReader instance
+ * @returns An IsmReader instance
  *
  * @example
  * ```typescript
@@ -40,12 +40,12 @@ import { Logger, rootLogger } from '@hyperlane-xyz/utils';
 export function createIsmReader(
   chainMetadata: ChainMetadataForAltVM,
   chainLookup: ChainLookup,
-): GenericIsmReader {
+): IsmReader {
   const protocolProvider = getProtocolProvider(chainMetadata.protocol);
   const artifactManager: IRawIsmArtifactManager =
     protocolProvider.createIsmArtifactManager(chainMetadata);
 
-  return new GenericIsmReader(artifactManager, chainLookup);
+  return new IsmReader(artifactManager, chainLookup);
 }
 
 /**
@@ -88,11 +88,11 @@ function artifactToDerivedConfig(
  * Generic ISM Reader that can read any ISM type by detecting its type
  * and recursively expanding nested ISMs (e.g., for routing ISMs).
  */
-export class GenericIsmReader
+export class IsmReader
   implements ArtifactReader<IsmArtifactConfig, DeployedIsmAddresses>
 {
   protected readonly logger: Logger = rootLogger.child({
-    module: GenericIsmReader.name,
+    module: IsmReader.name,
   });
 
   constructor(
@@ -164,7 +164,7 @@ export class GenericIsmReader
 
   /**
    * Backward compatibility method that converts DeployedIsmArtifact to DerivedIsmConfig.
-   * This allows GenericIsmReader to be used as a drop-in replacement for the old AltVMIsmReader.
+   * This allows IsmReader to be used as a drop-in replacement for the old AltVMIsmReader.
    */
   async deriveIsmConfig(address: string): Promise<DerivedIsmConfig> {
     const artifact = await this.read(address);
