@@ -39,6 +39,7 @@ impl BaseHttpClient {
         let suffix = match network {
             0 => "mainnet",
             1 => "testnet",
+            2 => "canary",
             id => return Err(HyperlaneAleoError::UnknownNetwork(id).into()),
         };
         Ok(Self {
@@ -130,6 +131,7 @@ impl JWTBaseHttpClient {
         let suffix = match network {
             0 => "mainnet",
             1 => "testnet",
+            2 => "canary",
             id => return Err(HyperlaneAleoError::UnknownNetwork(id).into()),
         };
         Ok(Self {
@@ -163,7 +165,9 @@ impl JWTBaseHttpClient {
             .get(AUTHORIZATION)
             .ok_or(HyperlaneAleoError::MissingAuthHeader)?
             .clone();
-        let expires = Instant::now() + Duration::from_secs(60 * 15); // Tokens last 15 minutes
+        let expires = Instant::now()
+            .checked_add(Duration::from_secs(60 * 15))
+            .unwrap_or(Instant::now()); // Tokens last 15 minutes
         let mut auth_token = self.auth_token.write().await;
         *auth_token = Some((result.clone(), expires));
         Ok(result.clone())
