@@ -63,12 +63,19 @@ export class GenericIsmWriter
   extends IsmReader
   implements ArtifactWriter<IsmArtifactConfig, DeployedIsmAddresses>
 {
+  private readonly routingWriter: RoutingIsmWriter;
+
   constructor(
     protected readonly artifactManager: IRawIsmArtifactManager,
     protected readonly chainLookup: ChainLookup,
     protected readonly signer: ISigner<AnnotatedTx, TxReceipt>,
   ) {
     super(artifactManager, chainLookup);
+    this.routingWriter = new RoutingIsmWriter(
+      chainLookup,
+      artifactManager,
+      signer,
+    );
   }
 
   /**
@@ -86,12 +93,7 @@ export class GenericIsmWriter
 
     // Routing ISMs are composite - use RoutingIsmWriter for nested deployments
     if (config.type === AltVM.IsmType.ROUTING) {
-      const routingWriter = new RoutingIsmWriter(
-        this.chainLookup,
-        this.artifactManager,
-        this.signer,
-      );
-      return routingWriter.create({ artifactState, config });
+      return this.routingWriter.create({ artifactState, config });
     }
 
     // For other ISM types, request typed writer from artifact manager
@@ -112,12 +114,7 @@ export class GenericIsmWriter
 
     // Only routing ISMs are mutable - support domain updates and owner changes
     if (config.type === AltVM.IsmType.ROUTING) {
-      const routingWriter = new RoutingIsmWriter(
-        this.chainLookup,
-        this.artifactManager,
-        this.signer,
-      );
-      return routingWriter.update({ artifactState, config, deployed });
+      return this.routingWriter.update({ artifactState, config, deployed });
     }
 
     // Multisig and test ISMs are immutable - no updates possible
