@@ -18,29 +18,38 @@ import { join } from 'path';
 
 const SOLIDITY_DIR = join(import.meta.dirname, '..');
 
-// Base contract with all ABI elements
-const BASE_CONTRACT = `// SPDX-License-Identifier: MIT
+// Contract template parts
+const CONTRACT_PARTS = {
+  header: `// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-contract InterfaceTestContract {
-    // Events
-    event Transfer(address indexed from, address indexed to, uint256 amount);
-    event Approval(address indexed owner, address indexed spender, uint256 amount);
+contract InterfaceTestContract {`,
 
-    // Errors
-    error InsufficientBalance(uint256 available, uint256 required);
-    error Unauthorized(address caller);
+  events: {
+    transfer: `event Transfer(address indexed from, address indexed to, uint256 amount);`,
+    approval: `event Approval(address indexed owner, address indexed spender, uint256 amount);`,
+    newEvent: `event NewEvent(uint256 value);`,
+  },
 
-    // State
-    mapping(address => uint256) public balances;
+  errors: {
+    insufficientBalance: `error InsufficientBalance(uint256 available, uint256 required);`,
+    unauthorized: `error Unauthorized(address caller);`,
+    newError: `error NewError(string message);`,
+  },
 
-    // Constructor
-    constructor(uint256 initialSupply) {
+  state: `mapping(address => uint256) public balances;`,
+
+  constructors: {
+    default: `constructor(uint256 initialSupply) {
         balances[msg.sender] = initialSupply;
-    }
+    }`,
+    modified: `constructor(uint256 initialSupply, address recipient) {
+        balances[recipient] = initialSupply;
+    }`,
+  },
 
-    // Functions
-    function transfer(address to, uint256 amount) external returns (bool) {
+  functions: {
+    transfer: `function transfer(address to, uint256 amount) external returns (bool) {
         if (balances[msg.sender] < amount) {
             revert InsufficientBalance(balances[msg.sender], amount);
         }
@@ -48,28 +57,105 @@ contract InterfaceTestContract {
         balances[to] += amount;
         emit Transfer(msg.sender, to, amount);
         return true;
-    }
-
-    function approve(address spender, uint256 amount) external returns (bool) {
+    }`,
+    approve: `function approve(address spender, uint256 amount) external returns (bool) {
         emit Approval(msg.sender, spender, amount);
         return true;
-    }
-
-    function balanceOf(address account) external view returns (uint256) {
+    }`,
+    approveNoEmit: `function approve(address spender, uint256 amount) external returns (bool) {
+        return true;
+    }`,
+    balanceOf: `function balanceOf(address account) external view returns (uint256) {
         return balances[account];
-    }
+    }`,
+    balanceOfUint128: `function balanceOf(address account) external view returns (uint128) {
+        return uint128(balances[account]);
+    }`,
+    totalSupply: `function totalSupply() external pure returns (uint256) {
+        return 1000000;
+    }`,
+  },
 
-    // Receive function
-    receive() external payable {
-        balances[msg.sender] += msg.value;
-    }
+  receive: `receive() external payable { balances[msg.sender] += msg.value; }`,
+  fallback: `fallback() external payable { balances[msg.sender] += msg.value; }`,
 
-    // Fallback function
-    fallback() external payable {
-        balances[msg.sender] += msg.value;
-    }
+  footer: `}`,
+};
+
+// Helper to build a contract from parts
+interface ContractConfig {
+  events?: string[];
+  errors?: string[];
+  constructor?: string;
+  functions?: string[];
+  receive?: boolean;
+  fallback?: boolean;
 }
-`;
+
+function buildContract(config: ContractConfig): string {
+  const parts: string[] = [CONTRACT_PARTS.header];
+
+  // Events
+  if (config.events) {
+    parts.push('    // Events');
+    parts.push(...config.events.map((e) => `    ${e}`));
+  }
+
+  // Errors
+  if (config.errors) {
+    parts.push('    // Errors');
+    parts.push(...config.errors.map((e) => `    ${e}`));
+  }
+
+  // State
+  parts.push('    // State');
+  parts.push(`    ${CONTRACT_PARTS.state}`);
+
+  // Constructor
+  if (config.constructor) {
+    parts.push('    // Constructor');
+    parts.push(`    ${config.constructor}`);
+  }
+
+  // Functions
+  if (config.functions) {
+    parts.push('    // Functions');
+    parts.push(...config.functions.map((f) => `    ${f}`));
+  }
+
+  // Receive
+  if (config.receive) {
+    parts.push(`    ${CONTRACT_PARTS.receive}`);
+  }
+
+  // Fallback
+  if (config.fallback) {
+    parts.push(`    ${CONTRACT_PARTS.fallback}`);
+  }
+
+  parts.push(CONTRACT_PARTS.footer);
+
+  return parts.join('\n');
+}
+
+// Base contract configuration
+const BASE_CONFIG: ContractConfig = {
+  events: [CONTRACT_PARTS.events.transfer, CONTRACT_PARTS.events.approval],
+  errors: [
+    CONTRACT_PARTS.errors.insufficientBalance,
+    CONTRACT_PARTS.errors.unauthorized,
+  ],
+  constructor: CONTRACT_PARTS.constructors.default,
+  functions: [
+    CONTRACT_PARTS.functions.transfer,
+    CONTRACT_PARTS.functions.approve,
+    CONTRACT_PARTS.functions.balanceOf,
+  ],
+  receive: true,
+  fallback: true,
+};
+
+const BASE_CONTRACT = buildContract(BASE_CONFIG);
 
 // Contract variants for testing different breaking changes
 const CONTRACT_VARIANTS: Record<
@@ -77,293 +163,83 @@ const CONTRACT_VARIANTS: Record<
   { contract: string; shouldFail: boolean; expectedMatch: string }
 > = {
   function_removed: {
-    contract: `// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
-
-contract InterfaceTestContract {
-    event Transfer(address indexed from, address indexed to, uint256 amount);
-    event Approval(address indexed owner, address indexed spender, uint256 amount);
-    error InsufficientBalance(uint256 available, uint256 required);
-    error Unauthorized(address caller);
-    mapping(address => uint256) public balances;
-
-    constructor(uint256 initialSupply) {
-        balances[msg.sender] = initialSupply;
-    }
-
-    function transfer(address to, uint256 amount) external returns (bool) {
-        if (balances[msg.sender] < amount) {
-            revert InsufficientBalance(balances[msg.sender], amount);
-        }
-        balances[msg.sender] -= amount;
-        balances[to] += amount;
-        emit Transfer(msg.sender, to, amount);
-        return true;
-    }
-
-    // approve function REMOVED
-
-    function balanceOf(address account) external view returns (uint256) {
-        return balances[account];
-    }
-
-    receive() external payable { balances[msg.sender] += msg.value; }
-    fallback() external payable { balances[msg.sender] += msg.value; }
-}
-`,
+    contract: buildContract({
+      ...BASE_CONFIG,
+      functions: [
+        CONTRACT_PARTS.functions.transfer,
+        // approve REMOVED
+        CONTRACT_PARTS.functions.balanceOf,
+      ],
+    }),
     shouldFail: true,
     expectedMatch: 'approve',
   },
 
   return_type_changed: {
-    contract: `// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
-
-contract InterfaceTestContract {
-    event Transfer(address indexed from, address indexed to, uint256 amount);
-    event Approval(address indexed owner, address indexed spender, uint256 amount);
-    error InsufficientBalance(uint256 available, uint256 required);
-    error Unauthorized(address caller);
-    mapping(address => uint256) public balances;
-
-    constructor(uint256 initialSupply) {
-        balances[msg.sender] = initialSupply;
-    }
-
-    function transfer(address to, uint256 amount) external returns (bool) {
-        if (balances[msg.sender] < amount) {
-            revert InsufficientBalance(balances[msg.sender], amount);
-        }
-        balances[msg.sender] -= amount;
-        balances[to] += amount;
-        emit Transfer(msg.sender, to, amount);
-        return true;
-    }
-
-    function approve(address spender, uint256 amount) external returns (bool) {
-        emit Approval(msg.sender, spender, amount);
-        return true;
-    }
-
-    // Return type CHANGED from uint256 to uint128
-    function balanceOf(address account) external view returns (uint128) {
-        return uint128(balances[account]);
-    }
-
-    receive() external payable { balances[msg.sender] += msg.value; }
-    fallback() external payable { balances[msg.sender] += msg.value; }
-}
-`,
+    contract: buildContract({
+      ...BASE_CONFIG,
+      functions: [
+        CONTRACT_PARTS.functions.transfer,
+        CONTRACT_PARTS.functions.approve,
+        CONTRACT_PARTS.functions.balanceOfUint128, // Return type changed
+      ],
+    }),
     shouldFail: true,
     expectedMatch: 'balanceOf',
   },
 
   event_removed: {
-    contract: `// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
-
-contract InterfaceTestContract {
-    event Transfer(address indexed from, address indexed to, uint256 amount);
-    // Approval event REMOVED
-    error InsufficientBalance(uint256 available, uint256 required);
-    error Unauthorized(address caller);
-    mapping(address => uint256) public balances;
-
-    constructor(uint256 initialSupply) {
-        balances[msg.sender] = initialSupply;
-    }
-
-    function transfer(address to, uint256 amount) external returns (bool) {
-        if (balances[msg.sender] < amount) {
-            revert InsufficientBalance(balances[msg.sender], amount);
-        }
-        balances[msg.sender] -= amount;
-        balances[to] += amount;
-        emit Transfer(msg.sender, to, amount);
-        return true;
-    }
-
-    function approve(address spender, uint256 amount) external returns (bool) {
-        return true;
-    }
-
-    function balanceOf(address account) external view returns (uint256) {
-        return balances[account];
-    }
-
-    receive() external payable { balances[msg.sender] += msg.value; }
-    fallback() external payable { balances[msg.sender] += msg.value; }
-}
-`,
+    contract: buildContract({
+      ...BASE_CONFIG,
+      events: [
+        CONTRACT_PARTS.events.transfer,
+        // Approval event REMOVED
+      ],
+      functions: [
+        CONTRACT_PARTS.functions.transfer,
+        CONTRACT_PARTS.functions.approveNoEmit, // Can't emit removed event
+        CONTRACT_PARTS.functions.balanceOf,
+      ],
+    }),
     shouldFail: true,
     expectedMatch: 'Approval',
   },
 
   error_removed: {
-    contract: `// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
-
-contract InterfaceTestContract {
-    event Transfer(address indexed from, address indexed to, uint256 amount);
-    event Approval(address indexed owner, address indexed spender, uint256 amount);
-    error InsufficientBalance(uint256 available, uint256 required);
-    // Unauthorized error REMOVED
-    mapping(address => uint256) public balances;
-
-    constructor(uint256 initialSupply) {
-        balances[msg.sender] = initialSupply;
-    }
-
-    function transfer(address to, uint256 amount) external returns (bool) {
-        if (balances[msg.sender] < amount) {
-            revert InsufficientBalance(balances[msg.sender], amount);
-        }
-        balances[msg.sender] -= amount;
-        balances[to] += amount;
-        emit Transfer(msg.sender, to, amount);
-        return true;
-    }
-
-    function approve(address spender, uint256 amount) external returns (bool) {
-        emit Approval(msg.sender, spender, amount);
-        return true;
-    }
-
-    function balanceOf(address account) external view returns (uint256) {
-        return balances[account];
-    }
-
-    receive() external payable { balances[msg.sender] += msg.value; }
-    fallback() external payable { balances[msg.sender] += msg.value; }
-}
-`,
+    contract: buildContract({
+      ...BASE_CONFIG,
+      errors: [
+        CONTRACT_PARTS.errors.insufficientBalance,
+        // Unauthorized error REMOVED
+      ],
+    }),
     shouldFail: true,
     expectedMatch: 'Unauthorized',
   },
 
   constructor_changed: {
-    contract: `// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
-
-contract InterfaceTestContract {
-    event Transfer(address indexed from, address indexed to, uint256 amount);
-    event Approval(address indexed owner, address indexed spender, uint256 amount);
-    error InsufficientBalance(uint256 available, uint256 required);
-    error Unauthorized(address caller);
-    mapping(address => uint256) public balances;
-
-    // Constructor CHANGED - added parameter
-    constructor(uint256 initialSupply, address recipient) {
-        balances[recipient] = initialSupply;
-    }
-
-    function transfer(address to, uint256 amount) external returns (bool) {
-        if (balances[msg.sender] < amount) {
-            revert InsufficientBalance(balances[msg.sender], amount);
-        }
-        balances[msg.sender] -= amount;
-        balances[to] += amount;
-        emit Transfer(msg.sender, to, amount);
-        return true;
-    }
-
-    function approve(address spender, uint256 amount) external returns (bool) {
-        emit Approval(msg.sender, spender, amount);
-        return true;
-    }
-
-    function balanceOf(address account) external view returns (uint256) {
-        return balances[account];
-    }
-
-    receive() external payable { balances[msg.sender] += msg.value; }
-    fallback() external payable { balances[msg.sender] += msg.value; }
-}
-`,
+    contract: buildContract({
+      ...BASE_CONFIG,
+      constructor: CONTRACT_PARTS.constructors.modified,
+    }),
     shouldFail: true,
     expectedMatch: 'constructor',
   },
 
   receive_removed: {
-    contract: `// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
-
-contract InterfaceTestContract {
-    event Transfer(address indexed from, address indexed to, uint256 amount);
-    event Approval(address indexed owner, address indexed spender, uint256 amount);
-    error InsufficientBalance(uint256 available, uint256 required);
-    error Unauthorized(address caller);
-    mapping(address => uint256) public balances;
-
-    constructor(uint256 initialSupply) {
-        balances[msg.sender] = initialSupply;
-    }
-
-    function transfer(address to, uint256 amount) external returns (bool) {
-        if (balances[msg.sender] < amount) {
-            revert InsufficientBalance(balances[msg.sender], amount);
-        }
-        balances[msg.sender] -= amount;
-        balances[to] += amount;
-        emit Transfer(msg.sender, to, amount);
-        return true;
-    }
-
-    function approve(address spender, uint256 amount) external returns (bool) {
-        emit Approval(msg.sender, spender, amount);
-        return true;
-    }
-
-    function balanceOf(address account) external view returns (uint256) {
-        return balances[account];
-    }
-
-    // receive REMOVED
-    fallback() external payable { balances[msg.sender] += msg.value; }
-}
-`,
+    contract: buildContract({
+      ...BASE_CONFIG,
+      receive: false,
+    }),
     shouldFail: true,
     expectedMatch: 'receive',
   },
 
   fallback_removed: {
-    contract: `// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
-
-contract InterfaceTestContract {
-    event Transfer(address indexed from, address indexed to, uint256 amount);
-    event Approval(address indexed owner, address indexed spender, uint256 amount);
-    error InsufficientBalance(uint256 available, uint256 required);
-    error Unauthorized(address caller);
-    mapping(address => uint256) public balances;
-
-    constructor(uint256 initialSupply) {
-        balances[msg.sender] = initialSupply;
-    }
-
-    function transfer(address to, uint256 amount) external returns (bool) {
-        if (balances[msg.sender] < amount) {
-            revert InsufficientBalance(balances[msg.sender], amount);
-        }
-        balances[msg.sender] -= amount;
-        balances[to] += amount;
-        emit Transfer(msg.sender, to, amount);
-        return true;
-    }
-
-    function approve(address spender, uint256 amount) external returns (bool) {
-        emit Approval(msg.sender, spender, amount);
-        return true;
-    }
-
-    function balanceOf(address account) external view returns (uint256) {
-        return balances[account];
-    }
-
-    receive() external payable { balances[msg.sender] += msg.value; }
-    // fallback REMOVED
-}
-`,
+    contract: buildContract({
+      ...BASE_CONFIG,
+      fallback: false,
+    }),
     shouldFail: true,
     expectedMatch: 'fallback',
   },
@@ -375,50 +251,25 @@ contract InterfaceTestContract {
   },
 
   additions_only: {
-    contract: `// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
-
-contract InterfaceTestContract {
-    event Transfer(address indexed from, address indexed to, uint256 amount);
-    event Approval(address indexed owner, address indexed spender, uint256 amount);
-    event NewEvent(uint256 value); // ADDED
-    error InsufficientBalance(uint256 available, uint256 required);
-    error Unauthorized(address caller);
-    error NewError(string message); // ADDED
-    mapping(address => uint256) public balances;
-
-    constructor(uint256 initialSupply) {
-        balances[msg.sender] = initialSupply;
-    }
-
-    function transfer(address to, uint256 amount) external returns (bool) {
-        if (balances[msg.sender] < amount) {
-            revert InsufficientBalance(balances[msg.sender], amount);
-        }
-        balances[msg.sender] -= amount;
-        balances[to] += amount;
-        emit Transfer(msg.sender, to, amount);
-        return true;
-    }
-
-    function approve(address spender, uint256 amount) external returns (bool) {
-        emit Approval(msg.sender, spender, amount);
-        return true;
-    }
-
-    function balanceOf(address account) external view returns (uint256) {
-        return balances[account];
-    }
-
-    // New function ADDED
-    function totalSupply() external pure returns (uint256) {
-        return 1000000;
-    }
-
-    receive() external payable { balances[msg.sender] += msg.value; }
-    fallback() external payable { balances[msg.sender] += msg.value; }
-}
-`,
+    contract: buildContract({
+      ...BASE_CONFIG,
+      events: [
+        CONTRACT_PARTS.events.transfer,
+        CONTRACT_PARTS.events.approval,
+        CONTRACT_PARTS.events.newEvent, // ADDED
+      ],
+      errors: [
+        CONTRACT_PARTS.errors.insufficientBalance,
+        CONTRACT_PARTS.errors.unauthorized,
+        CONTRACT_PARTS.errors.newError, // ADDED
+      ],
+      functions: [
+        CONTRACT_PARTS.functions.transfer,
+        CONTRACT_PARTS.functions.approve,
+        CONTRACT_PARTS.functions.balanceOf,
+        CONTRACT_PARTS.functions.totalSupply, // ADDED
+      ],
+    }),
     shouldFail: false,
     expectedMatch: 'No breaking interface changes',
   },
