@@ -1,19 +1,20 @@
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
+
 use async_trait::async_trait;
 use reqwest::header::{HeaderValue, AUTHORIZATION};
 use reqwest::Client as ReqestClient;
 use reqwest_utils::parse_custom_rpc_headers;
 use serde::de::DeserializeOwned;
-
-use hyperlane_core::{ChainCommunicationError, ChainResult};
 use tokio::sync::RwLock;
 use url::Url;
 
+use hyperlane_core::{ChainCommunicationError, ChainResult};
+
 use crate::provider::{HttpClient, HttpClientBuilder};
 use crate::HyperlaneAleoError;
-use std::{
-    sync::Arc,
-    time::{Duration, Instant},
-};
 
 // Default timeouts
 pub const DEFAULT_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);

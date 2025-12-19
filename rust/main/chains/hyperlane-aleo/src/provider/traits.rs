@@ -12,10 +12,10 @@ use snarkvm::prelude::{
 use snarkvm_console_account::Field;
 use tokio::runtime::Handle;
 use tokio::task::block_in_place;
+use url::Url;
 
 use aleo_serialize::AleoSerialize;
 use hyperlane_core::{ChainResult, H512};
-use url::Url;
 
 use crate::utils::get_tx_id;
 use crate::{CurrentNetwork, HyperlaneAleoError, ProvingRequest, ProvingResponse};
