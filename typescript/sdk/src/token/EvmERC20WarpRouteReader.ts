@@ -82,6 +82,7 @@ import { getExtraLockBoxConfigs } from './xerc20.js';
 
 const REBALANCING_CONTRACT_VERSION = '8.0.0';
 export const TOKEN_FEE_CONTRACT_VERSION = '10.0.0';
+const SCALE_FRACTION_VERSION = '11.0.0';
 
 export class EvmERC20WarpRouteReader extends EvmRouterReader {
   protected readonly logger = rootLogger.child({
@@ -692,9 +693,10 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
     );
 
     const collateralTokenAddress = await hypXERC20TokenInstance.wrappedToken();
-    const [erc20TokenMetadata, xERC20Metadata] = await Promise.all([
+    const [erc20TokenMetadata, xERC20Metadata, scale] = await Promise.all([
       this.fetchERC20Metadata(collateralTokenAddress),
       this.fetchXERC20Config(collateralTokenAddress, hypTokenAddress),
+      this.fetchScale(hypTokenAddress),
     ]);
 
     return {
@@ -702,6 +704,7 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
       type: TokenType.XERC20,
       token: collateralTokenAddress,
       xERC20: xERC20Metadata.xERC20,
+      scale,
     };
   }
 
@@ -713,17 +716,20 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
 
     const xerc20TokenAddress =
       await hypXERC20TokenLockboxTokenInstance.xERC20();
-    const [erc20TokenMetadata, xERC20Metadata, lockbox] = await Promise.all([
-      this.fetchERC20Metadata(xerc20TokenAddress),
-      this.fetchXERC20Config(xerc20TokenAddress, hypTokenAddress),
-      hypXERC20TokenLockboxTokenInstance.lockbox(),
-    ]);
+    const [erc20TokenMetadata, xERC20Metadata, lockbox, scale] =
+      await Promise.all([
+        this.fetchERC20Metadata(xerc20TokenAddress),
+        this.fetchXERC20Config(xerc20TokenAddress, hypTokenAddress),
+        hypXERC20TokenLockboxTokenInstance.lockbox(),
+        this.fetchScale(hypTokenAddress),
+      ]);
 
     return {
       ...erc20TokenMetadata,
       type: TokenType.XERC20Lockbox,
       token: lockbox,
       xERC20: xERC20Metadata.xERC20,
+      scale,
     };
   }
 
@@ -792,14 +798,16 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
 
     const collateralTokenAddress =
       await hypCollateralTokenInstance.wrappedToken();
-    const erc20TokenMetadata = await this.fetchERC20Metadata(
-      collateralTokenAddress,
-    );
+    const [erc20TokenMetadata, scale] = await Promise.all([
+      this.fetchERC20Metadata(collateralTokenAddress),
+      this.fetchScale(hypToken),
+    ]);
 
     return {
       ...erc20TokenMetadata,
       type: TokenType.collateral,
       token: collateralTokenAddress,
+      scale,
     };
   }
 
@@ -850,16 +858,20 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
   private async deriveHypSyntheticTokenConfig(
     hypTokenAddress: Address,
   ): Promise<HypTokenConfig> {
-    const erc20TokenMetadata = await this.fetchERC20Metadata(hypTokenAddress);
+    const [erc20TokenMetadata, scale] = await Promise.all([
+      this.fetchERC20Metadata(hypTokenAddress),
+      this.fetchScale(hypTokenAddress),
+    ]);
 
     return {
       ...erc20TokenMetadata,
       type: TokenType.synthetic,
+      scale,
     };
   }
 
   private async deriveHypNativeTokenConfig(
-    _address: Address,
+    tokenRouterAddress: Address,
   ): Promise<HypTokenConfig> {
     const chainMetadata = this.multiProvider.getChainMetadata(this.chain);
     if (!chainMetadata.nativeToken) {
@@ -869,12 +881,15 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
     }
 
     const { name, symbol, decimals } = chainMetadata.nativeToken;
+    const scale = await this.fetchScale(tokenRouterAddress);
+
     return {
       type: TokenType.native,
       name,
       symbol,
       decimals,
       isNft: false,
+      scale,
     };
   }
 
@@ -927,9 +942,10 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
       this.provider,
     );
 
-    const [erc20TokenMetadata, collateralDomainId] = await Promise.all([
+    const [erc20TokenMetadata, collateralDomainId, scale] = await Promise.all([
       this.fetchERC20Metadata(hypTokenAddress),
       hypERC4626.collateralDomain(),
+      this.fetchScale(hypTokenAddress),
     ]);
 
     const collateralChainName =
@@ -939,6 +955,7 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
       ...erc20TokenMetadata,
       type: TokenType.syntheticRebase,
       collateralChainName,
+      scale,
     };
   }
 
@@ -1039,9 +1056,11 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
     const [
       erc20TokenMetadata,
       { everclearBridgeAddress, everclearFeeParams, outputAssets },
+      scale,
     ] = await Promise.all([
       this.fetchERC20Metadata(collateralTokenAddress),
       this.deriveEverclearBaseBridgeConfig(everclearTokenbridgeInstance),
+      this.fetchScale(hypTokenAddress),
     ]);
 
     return {
@@ -1051,6 +1070,7 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
       everclearBridgeAddress,
       everclearFeeParams,
       outputAssets,
+      scale,
     };
   }
 
@@ -1063,6 +1083,58 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
     ]);
 
     return { name, symbol, decimals, isNft: false };
+  }
+
+  /**
+   * Fetches the scale configuration from a TokenRouter contract.
+   * Handles version compatibility based on contract version - reads scaleNumerator/scaleDenominator
+   * for contracts >= 11.0.0, otherwise reads legacy scale value.
+   *
+   * @param tokenRouterAddress - The address of the TokenRouter contract.
+   * @returns The scale as either a number (for old contracts or when denominator is 1) or an object with numerator/denominator.
+   */
+  async fetchScale(
+    tokenRouterAddress: Address,
+  ): Promise<number | { numerator: number; denominator: number } | undefined> {
+    const packageVersion = await this.fetchPackageVersion(tokenRouterAddress);
+    const hasScaleFractionInterface =
+      compareVersions(packageVersion, SCALE_FRACTION_VERSION) >= 0;
+
+    const tokenRouter = TokenRouter__factory.connect(
+      tokenRouterAddress,
+      this.provider,
+    );
+
+    if (hasScaleFractionInterface) {
+      // Read new format (scaleNumerator and scaleDenominator)
+      const [numerator, denominator] = await Promise.all([
+        tokenRouter.scaleNumerator(),
+        tokenRouter.scaleDenominator(),
+      ]);
+
+      // If denominator is 1, return as a simple number for backward compatibility
+      if (denominator.eq(1)) {
+        return numerator.toNumber();
+      }
+
+      return {
+        numerator: numerator.toNumber(),
+        denominator: denominator.toNumber(),
+      };
+    } else {
+      // Read old format (single scale value) using low-level call
+      // Create a custom contract instance with the old scale() method ABI
+      const legacyScaleABI = [
+        'function scale() external view returns (uint256)',
+      ];
+      const legacyContract = new Contract(
+        tokenRouterAddress,
+        legacyScaleABI,
+        this.provider,
+      );
+      const scale = await legacyContract.scale();
+      return scale.toNumber();
+    }
   }
 
   async fetchPackageVersion(address: Address) {
