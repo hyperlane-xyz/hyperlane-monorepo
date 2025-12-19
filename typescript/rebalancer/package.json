@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/rebalancer",
-  "version": "0.1.0-beta.0",
+  "version": "0.0.0",
   "description": "Hyperlane Warp Route Collateral Rebalancer Service",
   "type": "module",
   "main": "./dist/index.js",

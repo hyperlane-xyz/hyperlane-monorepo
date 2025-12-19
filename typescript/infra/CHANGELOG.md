@@ -1,17 +1,5 @@
 # @hyperlane-xyz/infra
 
-## 20.2.0-beta.0
-
-### Patch Changes
-
-- b3027cf: Patched node-fetch@2.7.0 to avoid 429 errors with Safe API, reverting from premature upgrade to node-fetch@3
-- Updated dependencies [e62d604]
-  - @hyperlane-xyz/core@11.0.0-beta.0
-  - @hyperlane-xyz/sdk@20.2.0-beta.0
-  - @hyperlane-xyz/helloworld@20.2.0-beta.0
-  - @hyperlane-xyz/http-registry-server@20.2.0-beta.0
-  - @hyperlane-xyz/utils@20.2.0-beta.0
-
 ## 20.1.0
 
 ### Patch Changes
