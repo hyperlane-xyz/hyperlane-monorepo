@@ -2,8 +2,8 @@ import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 
 import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
-  Artifact,
   ArtifactDeployed,
+  ArtifactNew,
   ArtifactReader,
   ArtifactState,
   ArtifactWriter,
@@ -56,7 +56,7 @@ export class RadixTestIsmWriter
   }
 
   async create(
-    artifact: Artifact<TestIsmConfig, DeployedIsmAddresses>,
+    artifact: ArtifactNew<TestIsmConfig>,
   ): Promise<
     [ArtifactDeployed<TestIsmConfig, DeployedIsmAddresses>, TxReceipt[]]
   > {

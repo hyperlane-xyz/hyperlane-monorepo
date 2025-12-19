@@ -2,8 +2,8 @@ import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 
 import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
-  Artifact,
   ArtifactDeployed,
+  ArtifactNew,
   ArtifactReader,
   ArtifactState,
   ArtifactUnderived,
@@ -78,7 +78,7 @@ export class RadixRoutingIsmRawWriter
   }
 
   async create(
-    artifact: Artifact<RawRoutingIsmArtifactConfig, DeployedIsmAddresses>,
+    artifact: ArtifactNew<RawRoutingIsmArtifactConfig>,
   ): Promise<
     [
       ArtifactDeployed<RawRoutingIsmArtifactConfig, DeployedIsmAddresses>,

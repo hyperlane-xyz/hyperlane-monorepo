@@ -1,12 +1,13 @@
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { IProvider, ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
+import { ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   Artifact,
   ArtifactDeployed,
   ArtifactNew,
-  ArtifactReader,
   ArtifactState,
   ArtifactWriter,
+  isArtifactDeployed,
+  isArtifactNew,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
@@ -16,92 +17,36 @@ import {
   IsmArtifactConfig,
   RawRoutingIsmArtifactConfig,
   RoutingIsmArtifactConfig,
-  altVMIsmTypeToProviderSdkType,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import { Logger, rootLogger } from '@hyperlane-xyz/utils';
+
+import { IsmReader } from './generic-ism.js';
 
 type DeployedRoutingIsmArtifact = ArtifactDeployed<
   RoutingIsmArtifactConfig,
   DeployedIsmAddresses
 >;
 
-export class RoutingIsmReader
-  implements ArtifactReader<RoutingIsmArtifactConfig, DeployedIsmAddresses>
+export class RoutingIsmWriter
+  implements ArtifactWriter<RoutingIsmArtifactConfig, DeployedIsmAddresses>
 {
   protected readonly logger: Logger = rootLogger.child({
-    module: RoutingIsmReader.name,
+    module: RoutingIsmWriter.name,
   });
+
+  private readonly ismReader: IsmReader;
 
   constructor(
     protected readonly chainLookup: ChainLookup,
-    private readonly provider: IProvider,
     protected readonly artifactManager: IRawIsmArtifactManager,
-  ) {}
-
-  async read(address: string): Promise<DeployedRoutingIsmArtifact> {
-    const routingReader = this.artifactManager.createReader(
-      AltVM.IsmType.ROUTING,
-    );
-    const { artifactState, config, deployed } =
-      await routingReader.read(address);
-
-    const domains: Record<number, DeployedIsmArtifact> = {};
-
-    for (const [domainId, domainIsmConfig] of Object.entries(config.domains)) {
-      if (!this.chainLookup.getDomainId(domainId)) {
-        this.logger.warn(
-          `Skipping derivation of unknown ${AltVM.IsmType.ROUTING} domain ${domainId}`,
-        );
-
-        continue;
-      }
-
-      let nestedIsm;
-      if (domainIsmConfig.artifactState === ArtifactState.DEPLOYED) {
-        nestedIsm = domainIsmConfig;
-      } else {
-        nestedIsm = await this.readDomainIsm(domainIsmConfig.deployed.address);
-      }
-
-      domains[parseInt(domainId)] = nestedIsm;
-    }
-
-    return {
-      artifactState,
-      config: {
-        type: AltVM.IsmType.ROUTING,
-        owner: config.owner,
-        domains,
-      },
-      deployed,
-    };
-  }
-
-  private async readDomainIsm(address: string): Promise<DeployedIsmArtifact> {
-    const ismType = await this.provider.getIsmType({ ismAddress: address });
-
-    const artifactIsmType = altVMIsmTypeToProviderSdkType(ismType);
-    if (artifactIsmType === AltVM.IsmType.ROUTING) {
-      return this.read(address);
-    }
-
-    const reader = this.artifactManager.createReader(artifactIsmType);
-    return reader.read(address);
-  }
-}
-
-export class RoutingIsmWriter
-  extends RoutingIsmReader
-  implements ArtifactWriter<RoutingIsmArtifactConfig, DeployedIsmAddresses>
-{
-  constructor(
-    provider: IProvider,
-    artifactManager: IRawIsmArtifactManager,
-    chainLookup: ChainLookup,
     private readonly signer: ISigner<AnnotatedTx, TxReceipt>,
   ) {
-    super(chainLookup, provider, artifactManager);
+    this.ismReader = new IsmReader(artifactManager, chainLookup);
+  }
+
+  async read(address: string): Promise<DeployedRoutingIsmArtifact> {
+    return this.ismReader.read(address) as Promise<DeployedRoutingIsmArtifact>;
   }
 
   async create(
@@ -114,13 +59,17 @@ export class RoutingIsmWriter
     for (const [domainId, nestedArtifact] of Object.entries(config.domains)) {
       const domain = parseInt(domainId);
 
-      if (nestedArtifact.artifactState === ArtifactState.DEPLOYED) {
+      if (isArtifactDeployed(nestedArtifact)) {
         deployedDomainIsms[domain] = nestedArtifact;
-      } else {
+      } else if (isArtifactNew(nestedArtifact)) {
         const [deployedNested, receipts] =
           await this.deployDomainIsm(nestedArtifact);
         deployedDomainIsms[domain] = deployedNested;
         allReceipts.push(...receipts);
+      } else {
+        this.logger.error(
+          `Unexpected artifact state ${nestedArtifact.artifactState} for domain ${domainId}`,
+        );
       }
     }
 
@@ -175,7 +124,7 @@ export class RoutingIsmWriter
 
       const domain = parseInt(domainId);
 
-      if (domainIsmConfig.artifactState === ArtifactState.DEPLOYED) {
+      if (isArtifactDeployed(domainIsmConfig)) {
         const { artifactState, config, deployed } = domainIsmConfig;
 
         const domainIsmWriter = this.artifactManager.createWriter(
@@ -200,8 +149,12 @@ export class RoutingIsmWriter
         updateTxs.push(...domainIsmUpdateTxs);
 
         deployedDomains[domain] = domainIsmConfig;
-      } else {
+      } else if (isArtifactNew(domainIsmConfig)) {
         [deployedDomains[domain]] = await this.deployDomainIsm(domainIsmConfig);
+      } else {
+        this.logger.error(
+          `Unexpected artifact state ${domainIsmConfig.artifactState} for domain ${domainId}`,
+        );
       }
     }
 
@@ -227,12 +180,8 @@ export class RoutingIsmWriter
   }
 
   private async deployDomainIsm(
-    artifact: Artifact<IsmArtifactConfig, DeployedIsmAddresses>,
+    artifact: ArtifactNew<IsmArtifactConfig>,
   ): Promise<[DeployedIsmArtifact, TxReceipt[]]> {
-    if (artifact.artifactState === ArtifactState.DEPLOYED) {
-      return [artifact, []];
-    }
-
     const { config, artifactState } = artifact;
     if (config.type === AltVM.IsmType.ROUTING) {
       return this.create({

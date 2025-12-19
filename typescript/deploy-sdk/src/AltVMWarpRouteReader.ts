@@ -1,5 +1,8 @@
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
+import {
+  ChainLookup,
+  ChainMetadataForAltVM,
+} from '@hyperlane-xyz/provider-sdk/chain';
 import { HypReader } from '@hyperlane-xyz/provider-sdk/module';
 import {
   DerivedCollateralWarpConfig,
@@ -13,26 +16,28 @@ import {
 import { Address, ensure0x, rootLogger } from '@hyperlane-xyz/utils';
 
 import { AltVMHookReader } from './AltVMHookReader.js';
-import { AltVMIsmReader } from './AltVMIsmReader.js';
+import { IsmReader, createIsmReader } from './ism/generic-ism.js';
 
 export class AltVMWarpRouteReader implements HypReader<TokenRouterModuleType> {
   protected readonly logger: ReturnType<typeof rootLogger.child>;
   hookReader: AltVMHookReader;
-  ismReader: AltVMIsmReader;
+  private readonly ismReader: IsmReader;
 
   constructor(
-    chainLookup: ChainLookup,
+    protected readonly chainMetadata: ChainMetadataForAltVM,
+    protected readonly chainLookup: ChainLookup,
     protected readonly provider: AltVM.IProvider,
   ) {
     this.hookReader = new AltVMHookReader(
       chainLookup.getChainMetadata,
       provider,
     );
-    this.ismReader = new AltVMIsmReader(chainLookup.getChainName, provider);
 
     this.logger = rootLogger.child({
       module: AltVMWarpRouteReader.name,
     });
+
+    this.ismReader = createIsmReader(this.chainMetadata, this.chainLookup);
   }
 
   /**
