@@ -947,6 +947,12 @@ describe('ERC20WarpRouterReader', async () => {
       .stub(PackageVersioned__factory, 'connect')
       .returns(mockPackageVersioned as any);
 
+    // Also stub fetchScale to avoid version mismatch when reading scale
+    // For old contracts (< 11.0.0-beta.0), scale would default to 1
+    const fetchScaleStub = sinon
+      .stub(evmERC20WarpRouteReader, 'fetchScale')
+      .resolves(1);
+
     // Derive config and check if each value matches
     const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
       warpRoute[chain].collateral.address,
@@ -957,6 +963,7 @@ describe('ERC20WarpRouterReader', async () => {
     expect(derivedConfig.tokenFee).to.be.undefined;
 
     fetchPackageVersionStub.restore();
+    fetchScaleStub.restore();
   });
 
   describe('Backward compatibility for token type detection', () => {
@@ -1075,6 +1082,12 @@ describe('ERC20WarpRouterReader', async () => {
           .stub(PackageVersioned__factory, 'connect')
           .returns(mockPackageVersioned as any);
 
+        // Also stub fetchScale to avoid version mismatch when reading scale
+        // For old contracts (< 11.0.0-beta.0), scale would default to 1
+        const fetchScaleStub = sinon
+          .stub(evmERC20WarpRouteReader, 'fetchScale')
+          .resolves(1);
+
         const derivedConfig =
           await evmERC20WarpRouteReader.deriveWarpRouteConfig(warpAddress);
 
@@ -1090,6 +1103,7 @@ describe('ERC20WarpRouterReader', async () => {
         }
 
         fetchPackageVersionStub.restore();
+        fetchScaleStub.restore();
       });
     }
 
