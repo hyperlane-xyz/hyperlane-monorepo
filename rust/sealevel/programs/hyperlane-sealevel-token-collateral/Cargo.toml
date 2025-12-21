@@ -1,4 +1,4 @@
-
+cargo-features = ["workspace-inheritance"]
 
 [package]
 name = "hyperlane-sealevel-token-collateral"
