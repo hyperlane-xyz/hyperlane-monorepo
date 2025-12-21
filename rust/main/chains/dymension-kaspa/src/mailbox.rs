@@ -119,7 +119,7 @@ impl Mailbox for KaspaMailbox {
             .map(|op| op.try_batch().map(|item| item.data))
             .collect::<ChainResult<Vec<HyperlaneMessage>>>()?;
 
-        // TODO: there's not need for this, withdrawals are already tracked by the relaye using vanilla hyperlane tech
+        // TODO: there's not need for this, withdrawals are already tracked by the relayer using vanilla hyperlane tech
         // this is just a double storage and moreover, its not at the earliest time that the relayer actually observes the mailbox
         // on the hub..
         record_withdrawal_batch_metrics(self.provider.metrics(), &msgs, WithdrawalStage::Initiated);
@@ -154,7 +154,11 @@ impl Mailbox for KaspaMailbox {
 
         info!("kaspa mailbox: processed withdrawals TXs");
 
-        let failed_idxs = calculate_failed_indexes(&msgs, &processed_messages);
+        let failed_idxs = calculate_failed_indexes(
+            &msgs,
+            &processed_messages,
+            self.provider.get_min_deposit_sompi(),
+        );
 
         if !failed_idxs.is_empty() {
             error!(

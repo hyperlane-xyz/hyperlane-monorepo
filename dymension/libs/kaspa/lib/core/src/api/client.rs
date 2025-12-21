@@ -110,7 +110,7 @@ impl HttpClient {
         &self,
         from_unix_time: Option<i64>,
         address: &str,
-        domain_kas: u32,
+        _domain_kas: u32,
     ) -> Result<Vec<Deposit>> {
         /*
         https://api-tn10.kaspa.org/docs#/Kaspa%20addresses/get_full_transactions_for_address_page_addresses__kaspaAddress__full_transactions_page_get
@@ -288,14 +288,9 @@ fn is_valid_escrow_transfer(tx: &TxModel, address: &String) -> Result<bool> {
     Ok(false)
 }
 
-// Removed has_valid_hyperlane_payload - moved to kas_bridge module
-// The HL-specific validation was removed to keep this module pure Kaspa
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    // Removed HL-specific deposit tests - they should be in integration tests in kas_bridge
 
     #[tokio::test]
     #[ignore]

@@ -2,25 +2,23 @@ use super::hub_to_kaspa::{
     build_withdrawal_pskt, extract_current_anchor, fetch_input_utxos, get_normal_bucket_feerate,
     get_outputs_from_msgs,
 };
-use crate::kas_bridge::payload::MessageIDs;
-use crate::kas_bridge::withdraw::{filter_pending_withdrawals, WithdrawFXG};
 use crate::kas_relayer::withdraw::sweep::{
     create_inputs_from_sweeping_bundle, create_sweeping_bundle,
 };
+use crate::ops::payload::MessageIDs;
+use crate::ops::withdraw::{filter_pending_withdrawals, WithdrawFXG};
 use dym_kas_core::consts::RELAYER_SIG_OP_COUNT;
 use dym_kas_core::escrow::EscrowPublic;
+use dym_kas_core::pskt::{estimate_mass, PopulatedInput};
 use dym_kas_core::wallet::EasyKaspaWallet;
 use dym_kas_hardcode::tx::{MAX_MASS_MARGIN, SWEEPING_THRESHOLD};
 use eyre::Result;
 use hyperlane_core::HyperlaneMessage;
 use hyperlane_core::U256;
 use hyperlane_cosmos::{native::ModuleQueryClient, CosmosProvider};
-use kaspa_consensus_core::tx::{TransactionInput, TransactionOutpoint, UtxoEntry};
+use kaspa_consensus_core::tx::TransactionOutpoint;
 use kaspa_wallet_pskt::bundle::Bundle;
 use tracing::{error, info};
-
-// (input, entry, optional_redeem_script)
-pub(crate) type PopulatedInput = (TransactionInput, UtxoEntry, Option<Vec<u8>>);
 
 /// Adjusts outputs and messages to fit within available funds from swept inputs
 /// Returns (adjusted_outputs, adjusted_messages)
@@ -82,7 +80,7 @@ fn adjust_outputs_for_mass_limit(
     let max_allowed_mass =
         (kaspa_wallet_core::tx::MAXIMUM_STANDARD_TRANSACTION_MASS as f64 * MAX_MASS_MARGIN) as u64;
     loop {
-        let tx_mass = super::hub_to_kaspa::estimate_mass(
+        let tx_mass = estimate_mass(
             inputs.clone(),
             outputs.clone(),
             MessageIDs::from(&messages).to_bytes(),

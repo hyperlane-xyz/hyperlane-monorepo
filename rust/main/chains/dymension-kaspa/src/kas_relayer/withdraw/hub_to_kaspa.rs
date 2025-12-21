@@ -1,12 +1,10 @@
-use super::messages::PopulatedInput;
 use super::minimum::{is_dust, is_small_value};
-use super::populated_input::PopulatedInputBuilder;
-use crate::kas_bridge::message::parse_hyperlane_metadata;
-use crate::kas_bridge::util::{get_recipient_script_pubkey, input_sighash_type};
-use crate::kas_bridge::withdraw::WithdrawFXG;
-use crate::kas_relayer::withdraw::sweep::utxo_reference_from_populated_input;
+use crate::ops::addr::h256_to_script_pubkey;
+use crate::ops::message::parse_hyperlane_metadata;
+use crate::ops::withdraw::WithdrawFXG;
 use dym_kas_core::escrow::EscrowPublic;
 use dym_kas_core::finality;
+use dym_kas_core::pskt::{input_sighash_type, PopulatedInput, PopulatedInputBuilder};
 use dym_kas_core::wallet::EasyKaspaWallet;
 use dym_kas_core::wallet::SigningResources;
 use eyre::eyre;
@@ -15,16 +13,13 @@ use hyperlane_core::HyperlaneMessage;
 use hyperlane_core::U256;
 use kaspa_addresses::Prefix;
 use kaspa_consensus_core::config::params::Params;
-use kaspa_consensus_core::constants::TX_VERSION;
 use kaspa_consensus_core::network::NetworkId;
-use kaspa_consensus_core::subnets::SUBNETWORK_ID_NATIVE;
 use kaspa_consensus_core::tx::UtxoEntry;
-use kaspa_consensus_core::tx::{Transaction, TransactionOutpoint, TransactionOutput};
+use kaspa_consensus_core::tx::{TransactionOutpoint, TransactionOutput};
 use kaspa_rpc_core::{RpcTransaction, RpcUtxosByAddressesEntry};
 use kaspa_txscript::standard::pay_to_address_script;
 use kaspa_txscript::{opcodes::codes::OpData65, script_builder::ScriptBuilder};
 use kaspa_wallet_core::prelude::DynRpcApi;
-use kaspa_wallet_core::tx::MassCalculator;
 use kaspa_wallet_pskt::prelude::Bundle;
 use kaspa_wallet_pskt::prelude::*;
 use kaspa_wallet_pskt::prelude::{Signer, PSKT};
@@ -307,7 +302,7 @@ pub fn get_outputs_from_msgs(
             }
         };
 
-        let recipient = get_recipient_script_pubkey(tm.recipient(), prefix);
+        let recipient = h256_to_script_pubkey(tm.recipient(), prefix);
 
         let o = TransactionOutput::new(tm.amount().as_u64(), recipient);
 
@@ -368,43 +363,6 @@ pub(crate) fn extract_current_anchor(
     let anchor_input = escrow_inputs.swap_remove(anchor_index);
 
     Ok((anchor_input, escrow_inputs))
-}
-
-pub fn estimate_mass(
-    populated_inputs: Vec<PopulatedInput>,
-    outputs: Vec<TransactionOutput>,
-    payload: Vec<u8>,
-    network_id: NetworkId,
-    min_signatures: u16,
-) -> Result<u64> {
-    let (inputs, utxo_references): (Vec<_>, Vec<_>) = populated_inputs
-        .into_iter()
-        .map(|populated| {
-            let input = populated.0.clone();
-            let utxo_ref = utxo_reference_from_populated_input(populated);
-            (input, utxo_ref)
-        })
-        .unzip();
-
-    let tx = Transaction::new(
-        TX_VERSION,
-        inputs,
-        outputs,
-        0, // no tx lock time
-        SUBNETWORK_ID_NATIVE,
-        0,
-        payload,
-    );
-
-    let p = Params::from(network_id);
-    let m = MassCalculator::new(&p);
-
-    m.calc_overall_mass_for_unsigned_consensus_transaction(
-        &tx,
-        utxo_references.as_slice(),
-        min_signatures,
-    )
-    .map_err(|e| eyre::eyre!(e))
 }
 
 pub async fn combine_bundles_with_fee(
@@ -628,8 +586,8 @@ mod tests {
     use super::*;
     use bytes::Bytes;
 
-    use crate::kas_bridge::util::is_valid_sighash_type;
-    use crate::kas_bridge::withdraw::WithdrawFXG;
+    use crate::ops::withdraw::WithdrawFXG;
+    use dym_kas_core::pskt::{estimate_mass, is_valid_sighash_type};
     use hyperlane_core::H256;
     use kaspa_consensus_core::network::NetworkType::Devnet;
     use kaspa_consensus_core::tx::ScriptPublicKey;

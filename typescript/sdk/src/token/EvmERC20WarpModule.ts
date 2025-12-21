@@ -731,6 +731,17 @@ export class EvmERC20WarpModule extends HyperlaneModule<
   }> {
     assert(expectedConfig.interchainSecurityModule, 'Ism derived incorrectly');
 
+    // If ISM is specified as an address, use it directly without deployment
+    if (typeof expectedConfig.interchainSecurityModule === 'string') {
+      this.logger.info(
+        `Using existing ISM at ${expectedConfig.interchainSecurityModule}`,
+      );
+      return {
+        deployedIsm: expectedConfig.interchainSecurityModule,
+        updateTransactions: [],
+      };
+    }
+
     const ismModule = new EvmIsmModule(
       this.multiProvider,
       {

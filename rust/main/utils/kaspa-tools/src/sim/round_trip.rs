@@ -3,14 +3,14 @@ use super::kaspa_whale_pool::KaspaWhale;
 use super::key_cosmos::EasyHubKey;
 use super::key_kaspa::get_kaspa_keypair;
 use super::stats::RoundTripStats;
-use crate::x;
+use super::util::now_millis;
 use cometbft_rpc::endpoint::broadcast::tx_commit::Response as HubResponse;
-use corelib::api::client::HttpClient;
-use dymension_kaspa::kas_bridge::user::payload::make_deposit_payload_easy;
-use corelib::wallet::Network;
 use cosmos_sdk_proto::cosmos::bank::v1beta1::MsgSend;
 use cosmos_sdk_proto::cosmos::base::v1beta1::Coin;
 use cosmrs::Any;
+use dym_kas_core::api::client::HttpClient;
+use dym_kas_core::wallet::Network;
+use dymension_kaspa::ops::user::payload::make_deposit_payload_easy;
 use eyre::Result;
 use hex::ToHex;
 use hyperlane_core::H256;
@@ -32,13 +32,6 @@ use tracing::warn;
 const MAX_RETRIES: usize = 3;
 const RETRY_DELAY_MS: u64 = 2000;
 const HUB_FUND_AMOUNT: u64 = 50_000_000_000_000_000; // 0.05 dym to pay gas
-
-fn now_millis() -> u128 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_millis()
-}
 
 fn is_retryable(error: &eyre::Error) -> bool {
     let err_str = error.to_string().to_lowercase();
@@ -444,7 +437,9 @@ impl<'a> RoundTrip<'a> {
             async move {
                 let rpc = res_hub.rpc();
                 let amount = withdrawal_amount.to_string();
-                let recipient = x::addr::hl_recipient(&kaspa_addr.to_string());
+                let recipient = dymension_kaspa::ops::addr::kaspa_address_to_hex_recipient(
+                    &kaspa_addr.to_string(),
+                );
                 let sender = rpc.get_signer()?.address_string.clone();
 
                 let req = MsgRemoteTransfer {

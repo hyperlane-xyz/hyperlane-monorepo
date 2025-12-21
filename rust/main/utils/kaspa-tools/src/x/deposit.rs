@@ -1,5 +1,5 @@
-use dymension_kaspa::kas_bridge::user::deposit::deposit_with_payload;
-use corelib::wallet::get_wallet;
+use dym_kas_core::wallet::get_wallet;
+use dymension_kaspa::ops::user::deposit::deposit_with_payload;
 use eyre::Result;
 use kaspa_addresses::Address;
 use kaspa_consensus_core::network::NetworkId;

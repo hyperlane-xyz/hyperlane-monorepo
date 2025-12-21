@@ -31,7 +31,7 @@ pub struct Origin {
     pub gas_payment_enforcer: Arc<RwLock<GasPaymentEnforcer>>,
     pub prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
     pub message_sync: MessageSync,
-    pub interchain_gas_payment_sync: Option<InterchainGasPaymentSync>,
+    pub interchain_gas_payment_syncs: Vec<InterchainGasPaymentSync>,
     pub merkle_tree_hook_sync: MerkleTreeHookSync,
 }
 
@@ -137,22 +137,19 @@ impl Factory for OriginFactory {
             res
         };
 
-        let interchain_gas_payment_sync = if self.igp_indexing_enabled {
-            let igp_sync = {
-                let start_entity_init = Instant::now();
-                let res = self
-                    .init_igp_sync(&domain, chain_conf, hyperlane_db.clone())
-                    .await?;
-                self.measure(
-                    &domain,
-                    "interchain_gas_payment_sync",
-                    start_entity_init.elapsed(),
-                );
-                res
-            };
-            Some(igp_sync)
+        let interchain_gas_payment_syncs = if self.igp_indexing_enabled {
+            let start_entity_init = Instant::now();
+            let res = self
+                .init_igp_syncs(&domain, chain_conf, hyperlane_db.clone())
+                .await?;
+            self.measure(
+                &domain,
+                "interchain_gas_payment_syncs",
+                start_entity_init.elapsed(),
+            );
+            res
         } else {
-            None
+            Vec::new()
         };
 
         let merkle_tree_hook_sync = {
@@ -176,7 +173,7 @@ impl Factory for OriginFactory {
             gas_payment_enforcer: Arc::new(RwLock::new(gas_payment_enforcer)),
             prover_sync: Arc::new(RwLock::new(prover_sync)),
             message_sync,
-            interchain_gas_payment_sync,
+            interchain_gas_payment_syncs,
             merkle_tree_hook_sync,
         };
         Ok(origin)
@@ -249,6 +246,29 @@ impl OriginFactory {
             .map(|r| r as Arc<dyn ContractSyncer<_>>)
             .map_err(|err| FactoryError::MessageSync(domain.to_string(), err.to_string())),
         }
+    }
+
+    async fn init_igp_syncs(
+        &self,
+        domain: &HyperlaneDomain,
+        chain_conf: &ChainConf,
+        db: Arc<HyperlaneRocksDB>,
+    ) -> Result<Vec<InterchainGasPaymentSync>, FactoryError> {
+        let igp_addresses = &chain_conf.addresses.interchain_gas_paymasters;
+        if igp_addresses.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let mut syncs = Vec::with_capacity(igp_addresses.len());
+        for igp_address in igp_addresses {
+            let mut modified_conf = chain_conf.clone();
+            modified_conf.addresses.interchain_gas_paymasters = vec![*igp_address];
+            let sync = self
+                .init_igp_sync(domain, &modified_conf, db.clone())
+                .await?;
+            syncs.push(sync);
+        }
+        Ok(syncs)
     }
 
     async fn init_igp_sync(

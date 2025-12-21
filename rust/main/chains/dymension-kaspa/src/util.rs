@@ -1,12 +1,12 @@
 use hyperlane_core::{HyperlaneDomain, HyperlaneDomainProtocol};
 
-use dym_kas_core::wallet::Network;
-use dymension_kaspa_hl_constants::{
+use crate::consts::{
     HL_DOMAIN_DYM_LOCAL, HL_DOMAIN_DYM_MAINNET, HL_DOMAIN_DYM_PLAYGROUND_202507,
     HL_DOMAIN_DYM_PLAYGROUND_202507_LEGACY, HL_DOMAIN_DYM_PLAYGROUND_202509,
     HL_DOMAIN_DYM_TESTNET_BLUMBUS, HL_DOMAIN_KASPA_MAINNET, HL_DOMAIN_KASPA_TEST10,
     HL_DOMAIN_KASPA_TEST10_LEGACY,
 };
+use dym_kas_core::wallet::Network;
 
 /// is it a kaspa domain?
 pub fn is_kas(d: &HyperlaneDomain) -> bool {

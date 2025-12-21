@@ -1,12 +1,12 @@
 // We call the signers 'validators'
 
-use crate::kas_bridge::payload::MessageIDs;
-use crate::kas_bridge::util;
-use crate::kas_bridge::util::{get_recipient_script_pubkey, is_valid_sighash_type};
-use crate::kas_bridge::withdraw::{filter_pending_withdrawals, WithdrawFXG};
+use crate::consts::ALLOWED_HL_MESSAGE_VERSION;
 use crate::kas_validator::error::ValidationError;
+use crate::ops::addr::h256_to_script_pubkey;
+use crate::ops::payload::MessageIDs;
+use crate::ops::withdraw::{filter_pending_withdrawals, WithdrawFXG};
 use dym_kas_core::escrow::*;
-use dymension_kaspa_hl_constants::ALLOWED_HL_MESSAGE_VERSION;
+use dym_kas_core::pskt::is_valid_sighash_type;
 use eyre::Result;
 use hex::ToHex;
 use hyperlane_core::{Decode, HyperlaneMessage, H256};
@@ -18,7 +18,7 @@ use kaspa_consensus_core::tx::{ScriptPublicKey, TransactionOutpoint};
 use kaspa_wallet_pskt::prelude::*;
 use kaspa_wallet_pskt::pskt::{Inner, Input, Signer, PSKT};
 use std::collections::hash_map::Entry;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::Cursor;
 use tracing::{debug, info};
 
@@ -193,7 +193,8 @@ async fn validate_messages(
         num_msgs
     );
     let msg_ids: Vec<H256> = messages.iter().map(|m| m.id()).collect();
-    if let Some(duplicate) = util::find_duplicate(&msg_ids) {
+    let mut seen = HashSet::new();
+    if let Some(duplicate) = msg_ids.iter().find(|id| !seen.insert(*id)) {
         let message_id = duplicate.encode_hex();
         return Err(ValidationError::DoubleSpending { message_id });
     }
@@ -379,7 +380,7 @@ fn validate_pskt_application_semantics(
             }
         })?;
 
-        let recipient = get_recipient_script_pubkey(tm.recipient(), address_prefix);
+        let recipient = h256_to_script_pubkey(tm.recipient(), address_prefix);
 
         // There are no withdrawals where escrow is set
         // as recepient. It would drastically complicate the confirmation flow.

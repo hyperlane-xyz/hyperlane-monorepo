@@ -6,9 +6,9 @@ use super::round_trip::TaskResources;
 use super::stats::write_metadata;
 use super::stats::StatsWriter;
 use chrono::{DateTime, Utc};
-use corelib::api::base::RateLimitConfig;
-use corelib::api::client::HttpClient;
-use corelib::wallet::Network;
+use dym_kas_core::api::base::RateLimitConfig;
+use dym_kas_core::api::client::HttpClient;
+use dym_kas_core::wallet::Network;
 use eyre::Result;
 use rand_distr::{Distribution, Exp};
 use std::time::SystemTime;
@@ -62,12 +62,9 @@ impl TryFrom<SimulateTrafficCli> for SimulateTrafficArgs {
     type Error = eyre::Error;
 
     fn try_from(cli: SimulateTrafficCli) -> Result<Self, Self::Error> {
-        let addr = kaspa_addresses::Address::try_from(cli.escrow_address.clone())?;
-        let kaspa_network = match cli.kaspa_network.to_lowercase().as_str() {
-            "testnet" => Network::KaspaTest10,
-            "mainnet" => Network::KaspaMainnet,
-            _ => return Err(eyre::eyre!("invalid kaspa network: {}", cli.kaspa_network)),
-        };
+        let escrow_address = cli.bridge.parse_escrow_address()?;
+        let kaspa_network = cli.bridge.parse_kaspa_network()?;
+
         Ok(SimulateTrafficArgs {
             params: Params {
                 time_limit: std::time::Duration::from_secs(cli.time_limit),
@@ -75,26 +72,26 @@ impl TryFrom<SimulateTrafficCli> for SimulateTrafficArgs {
                 max_wait_for_cancel: std::time::Duration::from_secs(cli.cancel_wait),
             },
             task_args: TaskArgs {
-                domain_kas: cli.domain_kas,
-                token_kas_placeholder: cli.token_kas_placeholder,
-                domain_hub: cli.domain_hub,
-                token_hub: cli.token_hub,
-                escrow_address: addr,
-                deposit_amount: cli.deposit_amount,
-                withdrawal_fee_pct: cli.withdrawal_fee_pct,
+                domain_kas: cli.bridge.domain_kas,
+                token_kas_placeholder: cli.bridge.token_kas_placeholder,
+                domain_hub: cli.bridge.domain_hub,
+                token_hub: cli.bridge.token_hub,
+                escrow_address,
+                deposit_amount: cli.bridge.deposit_amount,
+                withdrawal_fee_pct: cli.bridge.withdrawal_fee_pct,
             },
             kaspa_whale_secrets: cli.kaspa_whale_secrets,
             hub_whale_priv_keys: cli.hub_whale_priv_keys,
             kaspa_whale_wallet_dir_prefix: cli.kaspa_whale_wallet_dir_prefix,
-            kaspa_wrpc_url: cli.kaspa_wrpc_url,
+            kaspa_wrpc_url: cli.bridge.kaspa_wrpc_url,
             output_dir: cli.output_dir,
-            hub_rpc_url: cli.hub_rpc_url,
-            hub_grpc_url: cli.hub_grpc_url,
-            hub_chain_id: cli.hub_chain_id,
-            hub_prefix: cli.hub_prefix,
-            hub_denom: cli.hub_denom,
-            hub_decimals: cli.hub_decimals,
-            kaspa_rest_url: cli.kaspa_rest_url,
+            hub_rpc_url: cli.bridge.hub_rpc_url,
+            hub_grpc_url: cli.bridge.hub_grpc_url,
+            hub_chain_id: cli.bridge.hub_chain_id,
+            hub_prefix: cli.bridge.hub_prefix,
+            hub_denom: cli.bridge.hub_denom,
+            hub_decimals: cli.bridge.hub_decimals,
+            kaspa_rest_url: cli.bridge.kaspa_rest_url,
             kaspa_network,
         })
     }

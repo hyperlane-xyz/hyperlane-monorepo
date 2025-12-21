@@ -9,7 +9,7 @@ use bytes::Bytes;
 use eyre::Result;
 use reqwest::StatusCode;
 use std::str::FromStr;
-use tracing::{debug, error, info};
+use tracing::{error, info};
 
 use crate::ConnectionConf;
 use futures::stream::{FuturesUnordered, StreamExt};
@@ -17,9 +17,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use crate::endpoints::*;
-use crate::kas_bridge::{
-    confirmation::ConfirmationFXG, deposit::DepositFXG, withdraw::WithdrawFXG,
-};
+use crate::ops::{confirmation::ConfirmationFXG, deposit::DepositFXG, withdraw::WithdrawFXG};
 use kaspa_wallet_pskt::prelude::Bundle;
 
 #[derive(Clone)]
@@ -136,8 +134,8 @@ impl ValidatorsClient {
 
                             let request_type_owned = request_type.to_string();
                             tokio::spawn(async move {
-                                while let Some((_, host, result, duration)) = futures.next().await {
-                                    let status = if result.is_ok() { "success" } else { "failure" };
+                                while let Some((_, host, result, _duration)) = futures.next().await
+                                {
                                     if let Err(e) = result {
                                         error!(
                                             validator = ?host,
@@ -441,7 +439,7 @@ pub async fn request_sign_withdrawal_bundle(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kas_bridge::deposit::DepositFXG;
+    use crate::ops::deposit::DepositFXG;
     use hyperlane_core::{Checkpoint, CheckpointWithMessageId, SignedType, H256, U256};
 
     #[tokio::test]

@@ -8,7 +8,6 @@ members = [
   "applications/hyperlane-warp-route",
   "chains/hyperlane-cosmos",
   "chains/dymension-kaspa",
-  "chains/dymension-kaspa-hl-constants",
   "chains/hyperlane-ethereum",
   "chains/hyperlane-fuel",
   "chains/hyperlane-radix",
@@ -24,6 +23,7 @@ members = [
   "utils/backtrace-oneline",
   "utils/crypto",
   "utils/hex",
+  "utils/kaspa-tools",
   "utils/run-locally",
 ]
 resolver = "2"
@@ -144,6 +144,7 @@ sea-orm-migration = { version = "1.1.10", features = [
   "sqlx-postgres",
   "runtime-tokio-native-tls",
 ] }
+secp256k1 = { version = "0.29.0", features = ["global-context", "rand-std", "serde"] }
 semver = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_bytes = "0.11"

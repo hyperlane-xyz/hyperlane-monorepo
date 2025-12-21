@@ -1,6 +1,8 @@
 use super::deposit::DepositArgs;
 use clap::{Args, Parser, Subcommand};
+use dym_kas_core::wallet::Network;
 use hyperlane_core::H256;
+use kaspa_addresses::Address;
 use kaspa_consensus_core::network::NetworkId;
 use std::str::FromStr;
 
@@ -33,9 +35,14 @@ pub enum Commands {
     Deposit(DepositCli),
     /// Create a relayer
     Relayer,
-    /// Simulate traffic
+    /// Stress test traffic simulation with multiple concurrent operations
     #[clap(name = "sim")]
-    SimulateTraffic(SimulateTrafficCli),
+    Sim(SimulateTrafficCli),
+    /// Single roundtrip test: deposit from kaspa to hub, then withdraw back
+    Roundtrip(RoundtripCli),
+    /// Decode a Kaspa withdrawal tx payload to extract Hyperlane message IDs
+    #[clap(name = "decode-payload")]
+    DecodePayload(DecodePayloadCli),
 }
 
 #[derive(Subcommand, Debug)]
@@ -129,73 +136,12 @@ pub struct SimulateTrafficCli {
     #[arg(long, required = true)]
     pub ops_per_minute: u64,
 
-    /// Kaspa HL domain
-    #[arg(long, required = true)]
-    pub domain_kas: u32,
-
-    /// Kaspa HL token placeholder contract addr (e.g. 0x0000000000000000000000000000000000000000000000000000000000000000)
-    #[arg(long, required = true)]
-    pub token_kas_placeholder: H256,
-
-    /// Hub HL domain
-    #[arg(long, required = true)]
-    pub domain_hub: u32,
-
-    /// The HL Warp token ID for kaspa on the Hub
-    #[arg(long, required = true)]
-    pub token_hub: H256,
-
-    /// Kaspa escrow address
-    #[arg(long, required = true)]
-    pub escrow_address: String,
-
-    /// Kaspa wRPC URL
-    #[arg(long, required = true)]
-    pub kaspa_wrpc_url: String,
-
-    /// Hub RPC URL
-    #[arg(long, required = true)]
-    pub hub_rpc_url: String,
-
-    /// Hub gRPC URL
-    #[arg(long, required = true)]
-    pub hub_grpc_url: String,
-
-    /// Hub chain ID
-    #[arg(long, required = true)]
-    pub hub_chain_id: String,
-
-    /// Hub address prefix
-    #[arg(long, required = true)]
-    pub hub_prefix: String,
-
-    /// Hub native denom
-    #[arg(long, required = true)]
-    pub hub_denom: String,
-
-    /// Hub native token decimals
-    #[arg(long, required = true)]
-    pub hub_decimals: u32,
-
-    /// Kaspa REST API URL
-    #[arg(long, required = true)]
-    pub kaspa_rest_url: String,
-
     /// The number of seconds to wait for the simulation to cancel
     #[arg(long, required = true)]
     pub cancel_wait: u64,
 
-    /// Deposit amount in sompi (e.g. 4100000000 for 41 KAS)
-    #[arg(long, required = true)]
-    pub deposit_amount: u64,
-
-    /// Withdrawal fee percentage as decimal in [0,1] (e.g. 0.01 for 1%)
-    #[arg(long, required = true)]
-    pub withdrawal_fee_pct: f64,
-
-    /// Kaspa network (testnet or mainnet)
-    #[arg(long, required = true)]
-    pub kaspa_network: String,
+    #[command(flatten)]
+    pub bridge: CommonBridgeArgs,
 }
 
 #[derive(Args, Debug, Clone)]
@@ -249,4 +195,119 @@ impl DepositCli {
             wallet_dir: self.wallet.wallet_dir.clone(),
         }
     }
+}
+
+/// Shared bridge configuration used by both stress test and roundtrip commands
+#[derive(Args, Debug, Clone)]
+pub struct CommonBridgeArgs {
+    /// Kaspa HL domain
+    #[arg(long, required = true)]
+    pub domain_kas: u32,
+
+    /// Kaspa HL token placeholder contract addr
+    #[arg(long, required = true)]
+    pub token_kas_placeholder: H256,
+
+    /// Hub HL domain
+    #[arg(long, required = true)]
+    pub domain_hub: u32,
+
+    /// The HL Warp token ID for kaspa on the Hub
+    #[arg(long, required = true)]
+    pub token_hub: H256,
+
+    /// Kaspa escrow address
+    #[arg(long, required = true)]
+    pub escrow_address: String,
+
+    /// Kaspa wRPC URL
+    #[arg(long, required = true)]
+    pub kaspa_wrpc_url: String,
+
+    /// Hub RPC URL
+    #[arg(long, required = true)]
+    pub hub_rpc_url: String,
+
+    /// Hub gRPC URL
+    #[arg(long, required = true)]
+    pub hub_grpc_url: String,
+
+    /// Hub chain ID
+    #[arg(long, required = true)]
+    pub hub_chain_id: String,
+
+    /// Hub address prefix
+    #[arg(long, required = true)]
+    pub hub_prefix: String,
+
+    /// Hub native denom
+    #[arg(long, required = true)]
+    pub hub_denom: String,
+
+    /// Hub native token decimals
+    #[arg(long, required = true)]
+    pub hub_decimals: u32,
+
+    /// Kaspa REST API URL
+    #[arg(long, required = true)]
+    pub kaspa_rest_url: String,
+
+    /// Deposit amount in sompi (e.g. 4100000000 for 41 KAS)
+    #[arg(long, required = true)]
+    pub deposit_amount: u64,
+
+    /// Withdrawal fee percentage as decimal in [0,1] (e.g. 0.01 for 1%)
+    #[arg(long, required = true)]
+    pub withdrawal_fee_pct: f64,
+
+    /// Kaspa network (testnet or mainnet)
+    #[arg(long, required = true)]
+    pub kaspa_network: String,
+}
+
+impl CommonBridgeArgs {
+    pub fn parse_kaspa_network(&self) -> eyre::Result<Network> {
+        match self.kaspa_network.to_lowercase().as_str() {
+            "testnet" => Ok(Network::KaspaTest10),
+            "mainnet" => Ok(Network::KaspaMainnet),
+            _ => Err(eyre::eyre!("invalid kaspa network: {}", self.kaspa_network)),
+        }
+    }
+
+    pub fn parse_escrow_address(&self) -> eyre::Result<Address> {
+        Address::try_from(self.escrow_address.clone())
+            .map_err(|e| eyre::eyre!("invalid escrow address: {}", e))
+    }
+}
+
+#[derive(Args, Debug)]
+/// Single roundtrip test: deposit from kaspa wallet to hub wallet, then withdraw back
+/// Uses the same kaspa wallet for deposit source and withdrawal destination
+pub struct RoundtripCli {
+    /// Kaspa wallet secret (password for the wallet keychain)
+    #[arg(long, required = true)]
+    pub kaspa_wallet_secret: String,
+
+    /// Kaspa wallet directory
+    #[arg(long)]
+    pub kaspa_wallet_dir: Option<String>,
+
+    /// Hub wallet private key in hex (for receiving deposit and sending withdrawal)
+    #[arg(long, required = true)]
+    pub hub_priv_key: String,
+
+    /// Timeout in seconds for waiting for deposit/withdrawal confirmation
+    #[arg(long, required = true)]
+    pub timeout: u64,
+
+    #[command(flatten)]
+    pub bridge: CommonBridgeArgs,
+}
+
+#[derive(Args, Debug)]
+pub struct DecodePayloadCli {
+    /// The payload to decode (hex string, with or without 0x prefix).
+    /// This is the payload field from a Kaspa withdrawal transaction.
+    #[arg(required = true, index = 1)]
+    pub payload: String,
 }

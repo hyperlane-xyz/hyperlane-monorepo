@@ -1,4 +1,4 @@
-use corelib::wallet::{EasyKaspaWallet, EasyKaspaWalletArgs, Network};
+use dym_kas_core::wallet::{EasyKaspaWallet, EasyKaspaWalletArgs, Network};
 use eyre::Result;
 use kaspa_addresses::Address;
 use kaspa_consensus_core::tx::TransactionId;
@@ -10,7 +10,7 @@ use tracing::info;
 pub struct KaspaWhale {
     pub wallet: EasyKaspaWallet,
     pub secret: Secret,
-    last_used: Mutex<Instant>,
+    pub last_used: Mutex<Instant>,
     pub id: usize,
 }
 
@@ -21,7 +21,7 @@ impl KaspaWhale {
         amt: u64,
         payload: Vec<u8>,
     ) -> Result<TransactionId> {
-        dymension_kaspa::kas_bridge::user::deposit::deposit_with_payload(
+        dymension_kaspa::ops::user::deposit::deposit_with_payload(
             &self.wallet.wallet,
             &self.secret,
             address,

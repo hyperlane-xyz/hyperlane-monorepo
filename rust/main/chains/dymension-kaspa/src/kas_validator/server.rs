@@ -1,14 +1,12 @@
-use super::conf::ValidatorStuff;
-use super::endpoints::*;
-use super::providers::KaspaProvider;
-use crate::kas_bridge::deposit::DepositFXG;
-use crate::kas_bridge::{confirmation::ConfirmationFXG, withdraw::WithdrawFXG};
-use crate::kas_validator::confirmation::validate_confirmed_withdrawals;
-use crate::kas_validator::deposit::{validate_new_deposit, MustMatch as DepositMustMatch};
-use crate::kas_validator::withdraw::{
-    validate_sign_withdrawal_fxg, MustMatch as WithdrawMustMatch,
-};
-pub use crate::kas_validator::KaspaSecpKeypair;
+use super::confirmation::validate_confirmed_withdrawals;
+use super::deposit::{validate_new_deposit, MustMatch as DepositMustMatch};
+use super::withdraw::{validate_sign_withdrawal_fxg, MustMatch as WithdrawMustMatch};
+pub use super::KaspaSecpKeypair;
+use crate::conf::ValidatorStuff;
+use crate::endpoints::*;
+use crate::ops::deposit::DepositFXG;
+use crate::ops::{confirmation::ConfirmationFXG, withdraw::WithdrawFXG};
+use crate::providers::KaspaProvider;
 use axum::{
     body::Bytes,
     extract::{DefaultBodyLimit, State},

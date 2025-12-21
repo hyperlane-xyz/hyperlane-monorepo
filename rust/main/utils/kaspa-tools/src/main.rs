@@ -1,9 +1,15 @@
 use clap::Parser;
-use x::args::{Cli, Commands, ValidatorAction, ValidatorBackend};
+use x::args::{Cli, Commands, SimulateTrafficCli, ValidatorAction, ValidatorBackend};
 
 mod sim;
 use sim::{SimulateTrafficArgs, TrafficSim};
 mod x;
+
+async fn run_sim(args: SimulateTrafficCli) -> eyre::Result<()> {
+    let sim = SimulateTrafficArgs::try_from(args)?;
+    let sim = TrafficSim::new(sim).await?;
+    sim.run().await
+}
 
 async fn run(cli: Cli) {
     tracing_subscriber::fmt::init();
@@ -12,7 +18,8 @@ async fn run(cli: Cli) {
         .expect("Failed to install rustls crypto provider");
     match cli.command {
         Commands::Recipient(args) => {
-            let converted = x::addr::hl_recipient(&args.address);
+            let converted =
+                dymension_kaspa::ops::addr::kaspa_address_to_hex_recipient(&args.address);
             println!("{converted}",);
         }
         Commands::Deposit(args) => {
@@ -51,10 +58,23 @@ async fn run(cli: Cli) {
             println!("Relayer address: {}", signer.address);
             println!("Relayer private key: {}", signer.private_key);
         }
-        Commands::SimulateTraffic(args) => {
-            let sim = SimulateTrafficArgs::try_from(args).unwrap();
-            let sim = TrafficSim::new(sim).await.unwrap();
-            sim.run().await.unwrap();
+        Commands::Sim(args) => {
+            if let Err(e) = run_sim(args).await {
+                eprintln!("error: {e}");
+                std::process::exit(1);
+            }
+        }
+        Commands::Roundtrip(args) => {
+            if let Err(e) = sim::roundtrip::do_roundtrip(args).await {
+                eprintln!("error: {e}");
+                std::process::exit(1);
+            }
+        }
+        Commands::DecodePayload(args) => {
+            if let Err(e) = x::decode_payload::decode_payload(&args.payload) {
+                eprintln!("decode payload: {e}");
+                std::process::exit(1);
+            }
         }
     }
 }

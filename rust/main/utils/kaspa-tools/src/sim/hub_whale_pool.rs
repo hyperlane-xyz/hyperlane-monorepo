@@ -1,26 +1,17 @@
 use super::key_cosmos::EasyHubKey;
+use super::util::create_cosmos_provider;
 use eyre::Result;
-use hyperlane_core::config::OpSubmissionConfig;
-use hyperlane_core::ContractLocator;
-use hyperlane_core::HyperlaneDomain;
-use hyperlane_core::KnownHyperlaneDomain;
-use hyperlane_core::NativeToken;
-use hyperlane_core::H256;
-use hyperlane_cosmos::ConnectionConf as CosmosConnectionConf;
-use hyperlane_cosmos::RawCosmosAmount;
 use hyperlane_cosmos::{native::ModuleQueryClient, CosmosProvider};
-use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use tokio::sync::Mutex as AsyncMutex;
 use tracing::{debug, info};
-use url::Url;
 
 pub struct HubWhale {
     pub provider: CosmosProvider<ModuleQueryClient>,
-    last_used: Mutex<Instant>,
+    pub last_used: Mutex<Instant>,
     pub id: usize,
-    tx_lock: AsyncMutex<()>,
+    pub tx_lock: AsyncMutex<()>,
 }
 
 impl HubWhale {
@@ -62,7 +53,7 @@ impl HubWhalePool {
 
         for (id, priv_key_hex) in priv_keys.into_iter().enumerate() {
             let key = EasyHubKey::from_hex(&priv_key_hex);
-            let provider = Self::create_cosmos_provider(
+            let provider = create_cosmos_provider(
                 &key, &rpc_url, &grpc_url, &chain_id, &prefix, &denom, decimals,
             )
             .await?;
@@ -88,46 +79,6 @@ impl HubWhalePool {
         info!("All {} Hub whales initialized", whales.len());
 
         Ok(Self { whales })
-    }
-
-    async fn create_cosmos_provider(
-        key: &EasyHubKey,
-        rpc_url: &str,
-        grpc_url: &str,
-        chain_id: &str,
-        prefix: &str,
-        denom: &str,
-        decimals: u32,
-    ) -> Result<CosmosProvider<ModuleQueryClient>> {
-        let conf = CosmosConnectionConf::new(
-            vec![Url::parse(grpc_url).map_err(|e| eyre::eyre!("invalid gRPC URL: {}", e))?],
-            vec![Url::parse(rpc_url).map_err(|e| eyre::eyre!("invalid RPC URL: {}", e))?],
-            chain_id.to_string(),
-            prefix.to_string(),
-            denom.to_string(),
-            RawCosmosAmount {
-                amount: "100000000000.0".to_string(),
-                denom: denom.to_string(),
-            },
-            32,
-            OpSubmissionConfig::default(),
-            NativeToken {
-                decimals,
-                denom: denom.to_string(),
-            },
-            1.0,
-            None,
-        )
-        .map_err(|e| eyre::eyre!(e))?;
-
-        let d = HyperlaneDomain::Known(KnownHyperlaneDomain::Osmosis);
-        let locator = ContractLocator::new(&d, H256::zero());
-        let signer = Some(key.signer());
-        let metrics = PrometheusClientMetrics::default();
-        let chain = None;
-
-        CosmosProvider::<ModuleQueryClient>::new(&conf, &locator, signer, metrics, chain)
-            .map_err(eyre::Report::from)
     }
 
     pub fn select_whale(&self) -> Arc<HubWhale> {

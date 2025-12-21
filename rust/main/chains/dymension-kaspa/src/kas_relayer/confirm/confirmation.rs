@@ -1,4 +1,4 @@
-use crate::kas_bridge::{confirmation::ConfirmationFXG, payload::MessageID};
+use crate::ops::{confirmation::ConfirmationFXG, payload::MessageID};
 use dym_kas_core::api::client::HttpClient;
 use eyre::Result;
 use hex;
@@ -131,7 +131,7 @@ pub async fn recursive_trace_transactions(
             .clone()
             .ok_or_else(|| eyre::eyre!("No payload found in transaction"))?;
 
-        let message_ids = crate::kas_bridge::payload::MessageIDs::from_tx_payload(&payload)?;
+        let message_ids = crate::ops::payload::MessageIDs::from_tx_payload(&payload)?;
 
         processed_withdrawals.extend(message_ids.0);
         outpoint_sequence.push(out_curr);

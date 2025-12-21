@@ -19,10 +19,6 @@ hex = { workspace = true }
 http = { workspace = true }
 hyper = { workspace = true }
 hyper-tls = { workspace = true }
-itertools = { workspace = true }
-once_cell = { workspace = true }
-protobuf = { workspace = true }
-ripemd = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
@@ -43,7 +39,6 @@ tonic = { workspace = true, features = [
 rustls = { workspace = true }
 tower.workspace = true
 tower-http = { workspace = true, features = ["limit"] }
-pin-project.workspace = true
 tracing = { workspace = true }
 tracing-futures = { workspace = true }
 url = { workspace = true }
@@ -55,13 +50,12 @@ dym-kas-core = { path = "../../../../dymension/libs/kaspa/lib/core" , package="c
 dym-kas-hardcode = { path = "../../../../dymension/libs/kaspa/lib/hardcode", package="hardcode"}
 dym-kas-api = { path = "../../../../dymension/libs/kaspa/lib/api" , package="openapi"}
 dym-kas-kms = { path = "../../../../dymension/libs/kaspa/lib/kms", package="dym-kas-kms"}
-dymension-kaspa-hl-constants = { path = "../dymension-kaspa-hl-constants" }
 eyre = { workspace = true }
 bytes = { workspace = true }
 prometheus = { workspace = true }
 
 hyperlane-metric = { path = "../../hyperlane-metric" }
-hyperlane-core = { path = "../../hyperlane-core", features = ["async"] }
+hyperlane-core = { path = "../../hyperlane-core", features = ["async", "ethers"] }
 hyperlane-cosmwasm-interface = { workspace = true }
 hyperlane-operation-verifier = { path = "../../applications/hyperlane-operation-verifier" }
 hyperlane-warp-route = { path = "../../applications/hyperlane-warp-route" }

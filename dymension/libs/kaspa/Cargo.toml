@@ -7,7 +7,6 @@ members = [
     "lib/api",
     "lib/hardcode",
     "lib/kms",
-    "tooling",
 ]
 
 [workspace.dependencies]
@@ -54,15 +53,3 @@ hex = "0.4.3"
 axum = "0.8.4"
 url = "2.3"
 eyre = "=0.6.8"
-
-# HYPERLANE
-hyperlane-cosmos-rs = { package = "hyperlane-cosmos-dymension-rs", git = "https://github.com/dymensionxyz/hyperlane-cosmos-rs", rev = "4cde36b" }
-
-
-[workspace.dependencies.cometbft]
-git = "https://github.com/hyperlane-xyz/cometbft-rs"
-tag = "2025-08-07"
-
-[workspace.dependencies.cometbft-rpc]
-git = "https://github.com/hyperlane-xyz/cometbft-rs"
-tag = "2025-08-07"
