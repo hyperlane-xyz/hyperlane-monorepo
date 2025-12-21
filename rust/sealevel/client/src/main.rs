@@ -356,8 +356,10 @@ pub(crate) struct IsmQuery {
     program_id: Pubkey,
     #[arg(value_enum)]
     ism_type: IsmType,
-    #[arg(long, value_delimiter = ',')]
+    #[arg(long, value_delimiter = ',', conflicts_with = "token")]
     domains: Option<Vec<u32>>,
+    #[arg(long, conflicts_with = "domains")]
+    token: Option<Pubkey>,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]

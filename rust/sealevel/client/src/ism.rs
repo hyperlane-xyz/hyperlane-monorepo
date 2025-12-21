@@ -11,19 +11,101 @@ use hyperlane_sealevel_multisig_ism_message_id::{
     access_control_pda_seeds, accounts::{AccessControlAccount, DomainDataAccount},
     domain_data_pda_seeds,
 };
+use hyperlane_sealevel_token::plugin::SyntheticPlugin;
+use hyperlane_sealevel_token_collateral::plugin::CollateralPlugin;
+use hyperlane_sealevel_token_native::plugin::NativePlugin;
+use hyperlane_sealevel_token_lib::{
+    accounts::HyperlaneTokenAccount,
+    hyperlane_token_pda_seeds,
+};
 
 /// Processes ISM commands
 pub(crate) fn process_ism_cmd(mut ctx: Context, cmd: IsmCmd) {
     let query = cmd.query;
     
+    // If token is provided, extract domains from token
+    let domains = if let Some(token_program_id) = query.token {
+        println!("🔍 Fetching domains from token: {}", token_program_id);
+        match get_domains_from_token(&mut ctx, token_program_id, query.program_id) {
+            Ok(domains) => {
+                if domains.is_empty() {
+                    println!("⚠️  Warning: Token has no remote routers configured");
+                    None
+                } else {
+                    println!("✅ Found {} remote domain(s) from token: {:?}", domains.len(), domains);
+                    Some(domains)
+                }
+            }
+            Err(e) => {
+                println!("❌ Error fetching token data: {}", e);
+                return;
+            }
+        }
+    } else {
+        query.domains
+    };
+    
     match query.ism_type {
         IsmType::MultisigMessageId => {
-            query_multisig_ism_message_id(&mut ctx, query.program_id, query.domains);
+            query_multisig_ism_message_id(&mut ctx, query.program_id, domains);
         }
         IsmType::Test => {
             query_test_ism(&mut ctx, query.program_id);
         }
     }
+}
+
+/// Fetches token account and extracts remote domains, verifying ISM matches if configured
+fn get_domains_from_token(
+    ctx: &mut Context,
+    token_program_id: Pubkey,
+    expected_ism_program_id: Pubkey,
+) -> Result<Vec<u32>, String> {
+    // Get token PDA account
+    let (token_pda_key, _token_bump) =
+        Pubkey::find_program_address(hyperlane_token_pda_seeds!(), &token_program_id);
+
+    let accounts = ctx
+        .client
+        .get_multiple_accounts_with_commitment(&[token_pda_key], ctx.commitment)
+        .map_err(|e| format!("Failed to fetch token account: {}", e))?
+        .value;
+
+    let account = accounts[0]
+        .as_ref()
+        .ok_or_else(|| "Token account not found".to_string())?;
+
+    // Try to deserialize with different plugin types and extract ISM + remote_routers
+    let (ism, remote_routers): (Option<Pubkey>, std::collections::HashMap<u32, hyperlane_core::H256>) = {
+        // Try SyntheticPlugin first
+        if let Ok(token_account) = HyperlaneTokenAccount::<SyntheticPlugin>::fetch(&mut &account.data[..]) {
+            let token = token_account.into_inner();
+            (token.interchain_security_module, token.remote_routers)
+        } else if let Ok(token_account) = HyperlaneTokenAccount::<NativePlugin>::fetch(&mut &account.data[..]) {
+            let token = token_account.into_inner();
+            (token.interchain_security_module, token.remote_routers)
+        } else if let Ok(token_account) = HyperlaneTokenAccount::<CollateralPlugin>::fetch(&mut &account.data[..]) {
+            let token = token_account.into_inner();
+            (token.interchain_security_module, token.remote_routers)
+        } else {
+            return Err("Failed to deserialize token account with any plugin type (tried Synthetic, Native, Collateral)".to_string());
+        }
+    };
+
+    // Verify ISM matches if configured (skip validation if None - uses mailbox default)
+    if let Some(token_ism) = ism {
+        if token_ism != expected_ism_program_id {
+            return Err(format!(
+                "Token ISM ({}) does not match expected ISM ({})",
+                token_ism, expected_ism_program_id
+            ));
+        }
+    }
+
+    // Extract domains from remote_routers
+    let mut domains: Vec<u32> = remote_routers.keys().copied().collect();
+    domains.sort();
+    Ok(domains)
 }
 
 /// Queries a Multisig ISM Message ID program
@@ -100,6 +182,8 @@ fn query_multisig_ism_message_id(
     } else {
         println!("\nℹ️  Tip: Use --domains to query specific domain configurations");
         println!("   Example: --domains 1,2,3");
+        println!("   Or use --token to automatically query domains from a token's remote routers");
+        println!("   Example: --token <token_program_id>");
     }
 
     println!("\n=================================");
