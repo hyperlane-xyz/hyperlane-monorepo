@@ -3,10 +3,10 @@ import { stringify as yamlStringify } from 'yaml';
 
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
-  AltVMFileSubmitter,
   AltVMJsonRpcSubmitter,
   AltVMWarpModule,
 } from '@hyperlane-xyz/deploy-sdk';
+import { AltVMFileSubmitter } from '@hyperlane-xyz/deploy-sdk/AltVMFileSubmitter';
 import { GasAction, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   AddWarpRouteConfigOptions,
