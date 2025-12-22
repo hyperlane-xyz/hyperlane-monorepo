@@ -100,6 +100,12 @@ jobs:
             echo "platforms=linux/amd64" >> $GITHUB_OUTPUT
           fi
 
+      - name: Get Foundry version
+        id: foundry-version
+        run: |
+          FOUNDRY_VERSION=$(cat solidity/.foundryrc)
+          echo "FOUNDRY_VERSION=$FOUNDRY_VERSION" >> $GITHUB_OUTPUT
+
       - name: Build and push
         id: build
         uses: depot/build-push-action@v1
@@ -111,6 +117,8 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           platforms: ${{ steps.determine-platforms.outputs.platforms }}
+          build-args: |
+            FOUNDRY_VERSION=${{ steps.foundry-version.outputs.FOUNDRY_VERSION }}
 
       - name: Check for warp-monitor changes
         id: check-changes
