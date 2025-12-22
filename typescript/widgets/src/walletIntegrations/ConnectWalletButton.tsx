@@ -1,5 +1,5 @@
 import { clsx } from 'clsx';
-import React, { ButtonHTMLAttributes, useEffect } from 'react';
+import React, { ButtonHTMLAttributes } from 'react';
 
 import { ChainName, MultiProtocolProvider } from '@hyperlane-xyz/sdk';
 import { ProtocolType, shortenAddress } from '@hyperlane-xyz/utils';
@@ -37,10 +37,6 @@ export function ConnectWalletButton({
 
   const { readyAccounts } = useAccounts(multiProvider);
   const walletDetails = useWalletDetails();
-
-  useEffect(() => {
-    console.log('readyAccounts:', readyAccounts);
-  }, [readyAccounts]);
 
   const numReady = readyAccounts.length;
   const firstAccount = readyAccounts[0];

@@ -116,8 +116,6 @@ export function useAccounts(
     throw new Error('Wallet address is blacklisted');
   }
 
-  console.log('useAccounts', readyAddresses);
-
   return useMemo(
     () => ({
       accounts: {
