@@ -9113,7 +9113,7 @@
       "protocol": "ethereum",
       "rpcUrls": [
         {
-          "http": "https://mainnet.megaeth.com/rpc"
+          "http": "https://rpc.megaeth.com"
         }
       ],
       "technicalStack": "opstack",
