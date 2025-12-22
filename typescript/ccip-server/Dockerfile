@@ -71,12 +71,8 @@ RUN pnpm turbo run build --filter=@hyperlane-xyz/ccip-server
 RUN pnpm --filter @hyperlane-xyz/ccip-server deploy --legacy --prod /app
 
 # Copy generated Prisma client to dist (TypeScript doesn't copy non-TS files)
+# Note: Prisma outputs to src/generated/prisma/ (custom path), not node_modules/.prisma
 RUN cp -r /app/src/generated /app/dist/generated
-
-# Copy the generated Prisma client (pnpm deploy may not include .prisma)
-RUN cp -r /hyperlane-monorepo/typescript/ccip-server/node_modules/.prisma /app/node_modules/.prisma 2>/dev/null || \
-    cp -r /hyperlane-monorepo/node_modules/.prisma /app/node_modules/.prisma || \
-    (echo "Error: Could not find .prisma directory - Prisma client will not work" && exit 1)
 
 # Production stage - Debian slim for Prisma native binary compatibility
 FROM node:20-slim AS runner
