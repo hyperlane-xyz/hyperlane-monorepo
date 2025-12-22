@@ -484,6 +484,89 @@ async fn assert_tx_status(
 }
 
 #[tokio::test]
+async fn test_drop_reason_other_stored_in_db() {
+    // Test that when a non-specific error occurs, the transaction is dropped with
+    // DropReason::Other containing the error message, and this is properly stored in the DB
+    const TXS_TO_PROCESS: usize = 1;
+
+    let mut mock_adapter = MockAdapter::new();
+    mock_adapter
+        .expect_reprocess_txs_poll_rate()
+        .returning(|| None);
+    mock_adapter
+        .expect_estimated_block_time()
+        .return_const(Duration::from_millis(400));
+    mock_adapter
+        .expect_tx_status()
+        .returning(|_| Ok(TransactionStatus::PendingInclusion));
+    mock_adapter
+        .expect_tx_ready_for_resubmission()
+        .returning(|_| true);
+    mock_adapter.expect_simulate_tx().returning(|_| Ok(vec![]));
+    mock_adapter.expect_estimate_tx().returning(|_| Ok(()));
+
+    // Return a generic error that should be caught and converted to Other variant
+    mock_adapter.expect_submit().returning(|_| {
+        Err(LanderError::NetworkError(
+            "Custom network failure".to_string(),
+        ))
+    });
+
+    let (txs_created, txs_received, tx_db, payload_db, pool) =
+        set_up_test_and_run_stage(mock_adapter, TXS_TO_PROCESS).await;
+
+    // Transaction should be dropped from the pool
+    assert_eq!(txs_received.len(), 0);
+    assert!(are_no_txs_in_pool(txs_created.clone(), &pool).await);
+
+    // Verify the transaction was dropped with the Other variant containing the error message
+    for tx in txs_created {
+        let tx_from_db = tx_db
+            .retrieve_transaction_by_uuid(&tx.uuid)
+            .await
+            .unwrap()
+            .unwrap();
+
+        match tx_from_db.status {
+            TransactionStatus::Dropped(TxDropReason::Other(ref msg)) => {
+                assert!(
+                    msg.contains("Custom network failure"),
+                    "Expected error message to contain 'Custom network failure', but got: {}",
+                    msg
+                );
+            }
+            _ => panic!(
+                "Expected TransactionStatus::Dropped(TxDropReason::Other(_)), but got: {:?}",
+                tx_from_db.status
+            ),
+        }
+
+        // Verify payloads are also marked as dropped
+        for detail in tx.payload_details.iter() {
+            let payload = payload_db
+                .retrieve_payload_by_uuid(&detail.uuid)
+                .await
+                .unwrap()
+                .unwrap();
+
+            match payload.status {
+                PayloadStatus::InTransaction(TransactionStatus::Dropped(TxDropReason::Other(ref msg))) => {
+                    assert!(
+                        msg.contains("Custom network failure"),
+                        "Expected payload error message to contain 'Custom network failure', but got: {}",
+                        msg
+                    );
+                }
+                _ => panic!(
+                    "Expected PayloadStatus::InTransaction(TransactionStatus::Dropped(TxDropReason::Other(_))), but got: {:?}",
+                    payload.status
+                ),
+            }
+        }
+    }
+}
+
+#[tokio::test]
 async fn test_reasonable_receipt_query_frequency() {
     // This test enforces reasonable eth_getTransactionReceipt query frequency
     // It will FAIL with the current 10ms polling implementation

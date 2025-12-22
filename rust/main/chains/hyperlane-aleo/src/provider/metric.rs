@@ -1,4 +1,4 @@
-use std::time::Instant;
+use std::{ops::Deref, time::Instant};
 
 use async_trait::async_trait;
 use snarkvm_console_account::DeserializeOwned;
@@ -7,17 +7,25 @@ use url::Url;
 use hyperlane_core::ChainResult;
 use hyperlane_metric::prometheus_metric::{PrometheusClientMetrics, PrometheusConfig};
 
-use crate::provider::{BaseHttpClient, HttpClient, RpcClient};
+use crate::provider::{AleoClient, BaseHttpClient, HttpClient, HttpClientBuilder, RpcClient};
 
 /// Fallback Http Client that tries multiple RpcClients in order
 #[derive(Debug)]
-pub struct MetricHttpClient {
-    inner: RpcClient<BaseHttpClient>,
+pub struct MetricHttpClient<C: AleoClient = BaseHttpClient> {
+    inner: RpcClient<C>,
     metrics: PrometheusClientMetrics,
     metrics_config: PrometheusConfig,
 }
 
-impl Drop for MetricHttpClient {
+impl<C: AleoClient> Deref for MetricHttpClient<C> {
+    type Target = RpcClient<C>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl<C: AleoClient> Drop for MetricHttpClient<C> {
     fn drop(&mut self) {
         // decrement provider metric count
         let chain_name = PrometheusConfig::chain_name(&self.metrics_config.chain);
@@ -25,7 +33,7 @@ impl Drop for MetricHttpClient {
     }
 }
 
-impl Clone for MetricHttpClient {
+impl<C: AleoClient> Clone for MetricHttpClient<C> {
     fn clone(&self) -> Self {
         // increment provider metric count
         let chain_name = PrometheusConfig::chain_name(&self.metrics_config.chain);
@@ -39,9 +47,9 @@ impl Clone for MetricHttpClient {
     }
 }
 
-impl MetricHttpClient {
-    /// Creates a new FallbackHttpClient from a list of base urls
-    pub fn new(
+impl<C: AleoClient> MetricHttpClient<C> {
+    /// Creates a new MetricHttpClient
+    pub fn new<Builder: HttpClientBuilder<Client = C>>(
         url: Url,
         metrics: PrometheusClientMetrics,
         metrics_config: PrometheusConfig,
@@ -51,7 +59,7 @@ impl MetricHttpClient {
         let chain_name = PrometheusConfig::chain_name(&metrics_config.chain);
         metrics.increment_provider_instance(chain_name);
 
-        let base_client = BaseHttpClient::new(url, network)?;
+        let base_client = Builder::build(url, network)?;
         Ok(Self {
             inner: RpcClient::new(base_client),
             metrics,
@@ -61,7 +69,7 @@ impl MetricHttpClient {
 }
 
 #[async_trait]
-impl HttpClient for MetricHttpClient {
+impl<C: AleoClient> HttpClient for MetricHttpClient<C> {
     /// Makes a GET request to the API
     async fn request<T: DeserializeOwned + Send>(
         &self,

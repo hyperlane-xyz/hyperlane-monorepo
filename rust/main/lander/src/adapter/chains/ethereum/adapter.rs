@@ -194,8 +194,9 @@ impl EthereumAdapter {
                 "not resubmitting transaction since new gas price is the same as the old one"
             );
 
-            return match tx.status {
-                PendingInclusion | Dropped(_) => Err(LanderError::TxWontBeResubmitted),
+            return match &tx.status {
+                PendingInclusion => Err(LanderError::TxGasCapReached),
+                Dropped(reason) => Err(LanderError::TxDropped(reason.clone())),
                 Mempool | Included | Finalized => Err(LanderError::TxAlreadyExists),
             };
         }
