@@ -261,20 +261,9 @@ impl SealevelAdapter {
             .get_transaction_with_commitment(signature, CommitmentConfig::finalized())
             .await;
 
-        if let Ok(tx) = tx_resp {
-            if let Some(meta) = tx.transaction.meta {
-                // It is possible for a failed transaction to be finalized.
-                // In this case, we need to re-submit.
-                if meta.err.is_some() {
-                    warn!(?signature, ?tx_hash, "Transaction finalized, but failed");
-                    return Ok(TransactionStatus::Dropped(
-                        TransactionDropReason::DroppedByChain,
-                    ));
-                } else {
-                    info!(?tx_hash, "transaction finalized");
-                    return Ok(TransactionStatus::Finalized);
-                }
-            }
+        if tx_resp.is_ok() {
+            info!("transaction finalized");
+            return Ok(TransactionStatus::Finalized);
         }
 
         let tx_resp = self
@@ -283,20 +272,9 @@ impl SealevelAdapter {
             .await;
 
         // the "confirmed" commitment is equivalent to being "included" in a block on evm
-        if let Ok(tx) = tx_resp {
-            if let Some(meta) = tx.transaction.meta {
-                // It is possible for a failed transaction to be confirmed.
-                // In this case, we need to re-submit.
-                if meta.err.is_some() {
-                    warn!(?signature, ?tx_hash, "Transaction included, but failed");
-                    return Ok(TransactionStatus::Dropped(
-                        TransactionDropReason::DroppedByChain,
-                    ));
-                } else {
-                    info!(?tx_hash, "transaction included");
-                    return Ok(TransactionStatus::Included);
-                }
-            }
+        if tx_resp.is_ok() {
+            info!(?tx_hash, "transaction included");
+            return Ok(TransactionStatus::Included);
         }
 
         match self
