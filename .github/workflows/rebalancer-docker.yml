@@ -4,18 +4,9 @@ on:
     branches: [main]
     tags:
       - '**'
-    paths:
-      - 'typescript/rebalancer/**'
-      - 'typescript/sdk/**'
-      - 'typescript/provider-sdk/**'
-      - 'typescript/utils/**'
-      - '.github/workflows/rebalancer-docker.yml'
   pull_request:
     paths:
       - 'typescript/rebalancer/**'
-      - 'typescript/sdk/**'
-      - 'typescript/provider-sdk/**'
-      - 'typescript/utils/**'
       - '.github/workflows/rebalancer-docker.yml'
   workflow_dispatch:
     inputs:
@@ -120,19 +111,8 @@ jobs:
           build-args: |
             FOUNDRY_VERSION=${{ steps.foundry-version.outputs.FOUNDRY_VERSION }}
 
-      - name: Check for rebalancer changes
-        id: check-changes
-        if: github.event_name == 'pull_request'
-        run: |
-          # Only comment if there are explicit changes to rebalancer package or this workflow
-          if git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -qE '^typescript/rebalancer/|^\.github/workflows/rebalancer-docker\.yml$'; then
-            echo "has_changes=true" >> $GITHUB_OUTPUT
-          else
-            echo "has_changes=false" >> $GITHUB_OUTPUT
-          fi
-
       - name: Comment image tags on PR
-        if: github.event_name == 'pull_request' && steps.check-changes.outputs.has_changes == 'true'
+        if: github.event_name == 'pull_request'
         uses: ./.github/actions/docker-image-comment
         with:
           comment_tag: rebalancer-docker-image
