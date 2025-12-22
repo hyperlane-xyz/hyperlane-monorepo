@@ -327,7 +327,7 @@ impl AdaptsChain for SealevelAdapter {
     async fn estimate_gas_limit(
         &self,
         payload: &FullPayload,
-    ) -> Result<Option<hyperlane_core::TxCostEstimate>, LanderError> {
+    ) -> Result<hyperlane_core::TxCostEstimate, LanderError> {
         use hyperlane_core::{FixedPointNumber, TxCostEstimate, U256};
 
         info!(?payload, "estimating payload");
@@ -349,11 +349,11 @@ impl AdaptsChain for SealevelAdapter {
         // Divide by 1,000,000 to convert micro-lamports to lamports
         let gas_price = gas_price.div(1_000_000u64);
 
-        Ok(Some(TxCostEstimate {
+        Ok(TxCostEstimate {
             gas_limit,
             gas_price,
             l2_gas_limit: None,
-        }))
+        })
     }
 
     async fn build_transactions(&self, payloads: &[FullPayload]) -> Vec<TxBuildingResult> {

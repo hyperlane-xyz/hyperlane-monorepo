@@ -385,7 +385,7 @@ impl AdaptsChain for EthereumAdapter {
     async fn estimate_gas_limit(
         &self,
         payload: &FullPayload,
-    ) -> Result<Option<hyperlane_core::TxCostEstimate>, LanderError> {
+    ) -> Result<hyperlane_core::TxCostEstimate, LanderError> {
         // Decode payload to transaction precursor
         let mut precursor = EthereumTxPrecursor::from_payload(payload, self.signer);
 
@@ -441,11 +441,11 @@ impl AdaptsChain for EthereumAdapter {
                 .map_err(|err| LanderError::ChainCommunicationError(err))?
         };
 
-        Ok(Some(hyperlane_core::TxCostEstimate {
+        Ok(hyperlane_core::TxCostEstimate {
             gas_limit,
             gas_price,
             l2_gas_limit,
-        }))
+        })
     }
 
     async fn tx_ready_for_resubmission(&self, tx: &Transaction) -> bool {

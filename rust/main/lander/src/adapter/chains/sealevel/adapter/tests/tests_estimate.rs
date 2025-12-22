@@ -18,7 +18,7 @@ async fn test_estimate_gas_limit() {
 
     // then
     assert!(result.is_ok());
-    let estimate = result.unwrap().unwrap();
+    let estimate = result.unwrap();
     assert_eq!(expected_gas_limit, estimate.gas_limit);
     assert_eq!(None, estimate.l2_gas_limit);
 }

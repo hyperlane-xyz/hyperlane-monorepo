@@ -311,7 +311,7 @@ impl AdaptsChain for RadixAdapter {
     async fn estimate_gas_limit(
         &self,
         _payload: &FullPayload,
-    ) -> Result<Option<hyperlane_core::TxCostEstimate>, LanderError> {
+    ) -> Result<hyperlane_core::TxCostEstimate, LanderError> {
         todo!()
     }
 

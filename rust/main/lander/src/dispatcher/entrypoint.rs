@@ -25,7 +25,7 @@ pub trait Entrypoint {
     async fn estimate_gas_limit(
         &self,
         payload: &FullPayload,
-    ) -> Result<Option<TxCostEstimate>, LanderError>;
+    ) -> Result<TxCostEstimate, LanderError>;
 }
 
 #[derive(Clone)]
@@ -75,7 +75,7 @@ impl Entrypoint for DispatcherEntrypoint {
     async fn estimate_gas_limit(
         &self,
         payload: &FullPayload,
-    ) -> Result<Option<TxCostEstimate>, LanderError> {
+    ) -> Result<TxCostEstimate, LanderError> {
         self.inner.adapter.estimate_gas_limit(payload).await
     }
 }
@@ -293,7 +293,7 @@ pub mod tests {
         let mut mock_adapter = MockAdapter::new();
         mock_adapter
             .expect_estimate_gas_limit()
-            .returning(move |_| Ok(Some(mock_tx_cost_estimate.clone())));
+            .returning(move |_| Ok(mock_tx_cost_estimate.clone()));
         let adapter = Arc::new(mock_adapter) as Arc<dyn AdaptsChain>;
         let entrypoint_state = DispatcherState::new(
             payload_db,
@@ -305,11 +305,7 @@ pub mod tests {
         let entrypoint = Box::new(DispatcherEntrypoint::from_inner(entrypoint_state));
 
         let payload = FullPayload::default();
-        let estimate = entrypoint
-            .estimate_gas_limit(&payload)
-            .await
-            .unwrap()
-            .unwrap();
+        let estimate = entrypoint.estimate_gas_limit(&payload).await.unwrap();
 
         assert_eq!(estimate.gas_limit, expected_gas_limit);
         assert_eq!(estimate.l2_gas_limit, None);

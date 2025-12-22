@@ -156,7 +156,7 @@ mock! {
         async fn estimate_gas_limit(
             &self,
             payload: &FullPayload,
-        ) -> Result<Option<TxCostEstimate>, LanderError>;
+        ) -> Result<TxCostEstimate, LanderError>;
     }
 }
 

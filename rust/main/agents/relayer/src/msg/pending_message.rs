@@ -25,7 +25,6 @@ use hyperlane_core::{
     MessageSubmissionData, Metadata, PendingOperation, PendingOperationResult,
     PendingOperationStatus, ReprepareReason, TryBatchAs, TxCostEstimate, TxOutcome, H256, U256,
 };
-use lander::FullPayload;
 
 use crate::{
     metrics::message_submission::MetadataBuildMetric,
@@ -93,9 +92,6 @@ pub struct PendingMessage {
     #[new(default)]
     #[serde(skip_serializing)]
     metric: Option<Arc<IntGauge>>,
-    #[new(default)]
-    #[serde(skip_serializing)]
-    cached_payload: Option<FullPayload>,
 }
 
 impl Debug for PendingMessage {
@@ -223,14 +219,9 @@ impl PendingOperation for PendingMessage {
 
         // To avoid spending gas on a tx that will revert, dry-run just before submitting.
         if let Some(metadata) = self.metadata.as_ref() {
-            let is_valid = prepare::estimate_gas_costs(
-                &self.ctx,
-                &self.message,
-                &self.cached_payload,
-                &metadata,
-            )
-            .await
-            .is_ok();
+            let is_valid = prepare::estimate_gas_costs(&self.ctx, &self.message, &metadata)
+                .await
+                .is_ok();
 
             if !is_valid {
                 let reason = self
@@ -911,8 +902,6 @@ impl PendingMessage {
     fn clear_metadata(&mut self) {
         tracing::debug!(id=?self.message.id(), INVALIDATE_CACHE_METADATA_LOG);
         self.metadata = None;
-        // Also clear cached payload when clearing metadata
-        self.cached_payload = None;
     }
 }
 

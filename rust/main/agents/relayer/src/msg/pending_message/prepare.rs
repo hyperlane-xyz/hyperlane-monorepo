@@ -73,18 +73,10 @@ pub async fn handler(pending_message: &mut PendingMessage) -> PendingOperationRe
     let tx_cost_estimate = match pending_message.metadata.as_ref() {
         None => None,
         Some(metadata) => {
-            match estimate_gas_costs(
-                &pending_message.ctx,
-                &pending_message.message,
-                &pending_message.cached_payload,
-                &metadata,
-            )
-            .await
+            match estimate_gas_costs(&pending_message.ctx, &pending_message.message, &metadata)
+                .await
             {
-                Ok(Some((gas_estimate, full_payload))) => {
-                    pending_message.cached_payload = full_payload;
-                    Some(gas_estimate)
-                }
+                Ok(gas_estimate) => Some(gas_estimate),
                 _ => {
                     pending_message.clear_metadata();
                     None
@@ -117,26 +109,10 @@ pub async fn handler(pending_message: &mut PendingMessage) -> PendingOperationRe
         // reuse old gas cost estimate if it succeeded
         Some(cost) => cost,
         None => {
-            match estimate_gas_costs(
-                &pending_message.ctx,
-                &pending_message.message,
-                &pending_message.cached_payload,
-                &metadata,
-            )
-            .await
+            match estimate_gas_costs(&pending_message.ctx, &pending_message.message, &metadata)
+                .await
             {
-                Ok(Some((gas_estimate, full_payload))) => {
-                    pending_message.cached_payload = full_payload;
-                    gas_estimate
-                }
-                Ok(None) => {
-                    let reason = pending_message
-                        .clarify_reason(ReprepareReason::ErrorEstimatingGas)
-                        .await
-                        .unwrap_or(ReprepareReason::ErrorEstimatingGas);
-                    pending_message.clear_metadata();
-                    return pending_message.on_reprepare::<ChainCommunicationError>(None, reason);
-                }
+                Ok(gas_estimate) => gas_estimate,
                 Err(err) => {
                     let reason = pending_message
                         .clarify_reason(ReprepareReason::ErrorEstimatingGas)
@@ -189,27 +165,23 @@ pub async fn handler(pending_message: &mut PendingMessage) -> PendingOperationRe
 pub async fn estimate_gas_costs(
     message_context: &MessageContext,
     message: &HyperlaneMessage,
-    cached_payload: &Option<FullPayload>,
     metadata: &Metadata,
-) -> ChainResult<Option<(TxCostEstimate, Option<FullPayload>)>> {
+) -> ChainResult<TxCostEstimate> {
     match &message_context.payload_dispatcher_entrypoint {
         None => {
             let gas_estimate = message_context
                 .destination_mailbox
                 .process_estimate_costs(message, metadata)
                 .await?;
-            Ok(Some((gas_estimate, None)))
+            Ok(gas_estimate)
         }
         Some(entrypoint) => {
-            let payload = match cached_payload.as_ref() {
-                Some(s) => s.clone(),
-                None => create_payload(message_context, message, metadata).await?,
-            };
+            let payload = create_payload(message_context, message, metadata).await?;
             let gas_estimate = entrypoint
                 .estimate_gas_limit(&payload)
                 .await
                 .map_err(|e| ChainCommunicationError::from_other(e))?;
-            Ok(gas_estimate.map(|ge| (ge, Some(payload))))
+            Ok(gas_estimate)
         }
     }
 }
