@@ -173,6 +173,7 @@ pub async fn estimate_gas_costs(
                 .destination_mailbox
                 .process_estimate_costs(message, metadata)
                 .await?;
+            tracing::debug!(?gas_estimate, "Estimating gas with Classical");
             Ok(gas_estimate)
         }
         Some(entrypoint) => {
@@ -181,6 +182,8 @@ pub async fn estimate_gas_costs(
                 .estimate_gas_limit(&payload)
                 .await
                 .map_err(|e| ChainCommunicationError::from_other(e))?;
+            tracing::debug!(?gas_estimate, "Estimated gass with Lander");
+
             Ok(gas_estimate)
         }
     }
