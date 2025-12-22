@@ -41,6 +41,9 @@ async function main() {
     'USDT/ethereum-form',
     'USDC/ethereum-form',
     'TRUMP/arbitrum-avalanche-base-flowmainnet-form-optimism-solanamainnet-worldchain',
+    'AIXBT/base-form',
+    'FORM/ethereum-form',
+    'GAME/base-form',
   ];
 
   const registries = [DEFAULT_REGISTRY_URI];
