@@ -182,7 +182,7 @@ pub async fn estimate_gas_costs(
                 .estimate_gas_limit(&payload)
                 .await
                 .map_err(|e| ChainCommunicationError::from_other(e))?;
-            tracing::debug!(?gas_estimate, "Estimated gass with Lander");
+            tracing::debug!(?gas_estimate, "Estimated gas with Lander");
 
             Ok(gas_estimate)
         }
