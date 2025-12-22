@@ -6,7 +6,8 @@
   "typedocMain": "src/index.ts",
   "private": true,
   "files": [
-    "src"
+    "src",
+    "dist"
   ],
   "engines": {
     "node": ">=16"
