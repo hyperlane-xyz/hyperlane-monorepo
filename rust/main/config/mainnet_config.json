@@ -7448,7 +7448,7 @@
       "gasCurrencyCoinGeckoId": "kyve-network",
       "gasPrice": {
         "denom": "ukyve",
-        "amount": "63"
+        "amount": "3"
       },
       "grpcUrls": [
         {
