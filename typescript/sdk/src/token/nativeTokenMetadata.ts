@@ -43,7 +43,7 @@ export const PROTOCOL_TO_DEFAULT_NATIVE_TOKEN: Record<
   },
   [ProtocolType.Aleo]: {
     decimals: 6,
-    denom: '0field',
+    denom: 'credits',
     name: 'Aleo',
     symbol: 'ALEO',
   },
