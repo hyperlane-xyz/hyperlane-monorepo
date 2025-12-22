@@ -311,9 +311,14 @@ export function startMetricsServer(register: Registry): http.Server {
       register
         .metrics()
         .then((metricsStr) => {
-          res.writeHead(200, { ContentType: 'text/plain' }).end(metricsStr);
+          res.writeHead(200, { 'Content-Type': 'text/plain' }).end(metricsStr);
         })
-        .catch((err) => logger.error(err));
+        .catch((err) => {
+          logger.error(err, 'Failed to collect metrics');
+          res
+            .writeHead(500, { 'Content-Type': 'text/plain' })
+            .end('Internal Server Error');
+        });
     })
     .listen(parseInt(process.env['PROMETHEUS_PORT'] || '9090'));
 }
