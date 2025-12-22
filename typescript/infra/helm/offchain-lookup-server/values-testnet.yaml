@@ -6,7 +6,7 @@ image:
   # Modify this tag to deploy a new revision.
   # Images can be found here:
   # https://console.cloud.google.com/artifacts/docker/abacus-labs-dev/us/gcr.io/hyperlane-offchain-lookup-server
-  tag: 57f9d1c-20251215-182854
+  tag: 8a41886-20251222-170941
 
 # In Google Cloud Secret Manager, all secrets need to have a certain prefix in order to be accessible by
 # the Cluster Secret Store. For testnet this prefix is "hyperlane-testnet4"
