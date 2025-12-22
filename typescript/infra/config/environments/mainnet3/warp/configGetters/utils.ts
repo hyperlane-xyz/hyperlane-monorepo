@@ -20,18 +20,16 @@ type RebalancingConfig = Required<
   Pick<MovableTokenConfig, 'allowedRebalancingBridges' | 'allowedRebalancers'>
 >;
 
+type CCTPWarpRouteId =
+  | WarpRouteIds.MainnetCCTPV1
+  | WarpRouteIds.MainnetCCTPV2Standard
+  | WarpRouteIds.MainnetCCTPV2Fast;
+
 export function getUSDCRebalancingBridgesConfigFor(
   deploymentChains: readonly ChainName[],
-  warpRouteId: WarpRouteIds,
+  warpRouteId: CCTPWarpRouteId,
 ): ChainMap<RebalancingConfig> {
   const registry = getRegistry();
-
-  assert(
-    [WarpRouteIds.MainnetCCTPV1, WarpRouteIds.MainnetCCTPV2Standard].includes(
-      warpRouteId,
-    ),
-    'Unsupported warp route id for CCTP bridges',
-  );
 
   const mainnetCCTP = registry.getWarpRoute(warpRouteId);
 
