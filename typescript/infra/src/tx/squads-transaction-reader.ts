@@ -767,9 +767,9 @@ export class SquadsTransactionReader {
         }
 
         // Parse the lookup table data to extract addresses
-        // Lookup table format: 8 bytes authority + 8 bytes deactivation slot + addresses
+        // Lookup table format: Authority (32) + deactivation slot (8) + last extended slot (8) + last extended slot start index (1) + padding (7) = 56 bytes
         const data = lookupTableAccount.data;
-        const LOOKUP_TABLE_META_SIZE = 56; // Authority (32) + deactivation slot (8) + last extended slot (8) + last extended slot start index (1) + padding (7)
+        const LOOKUP_TABLE_META_SIZE = 56;
         const addresses: PublicKey[] = [];
 
         for (
