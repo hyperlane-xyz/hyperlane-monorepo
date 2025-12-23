@@ -17,3 +17,15 @@ async fn _test_get_block() {
     // then
     assert!(result.is_ok());
 }
+
+#[tokio::test]
+async fn test_get_block_alchemy() {
+    let client =
+        SealevelRpcClient::new("https://solana-mainnet.g.alchemy.com/v2/<redacted>".to_string());
+
+    let slot = 388662392;
+    let result = client.get_block(slot).await;
+
+    println!("get_block result for slot {}: {:?}", slot, result);
+    assert!(result.is_ok(), "get_block failed: {:?}", result.err());
+}
