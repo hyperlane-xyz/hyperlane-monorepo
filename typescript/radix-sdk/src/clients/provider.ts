@@ -4,12 +4,17 @@ import { NetworkId } from '@radixdlt/radix-engine-toolkit';
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert } from '@hyperlane-xyz/utils';
 
-import { RadixCorePopulate } from '../core/populate.js';
 import {
   getHookType,
   getIgpHookConfig,
   getMerkleTreeHookConfig,
 } from '../hook/hook-query.js';
+import {
+  getCreateIgpTx,
+  getCreateMerkleTreeHookTx,
+  getSetIgpDestinationGasConfigTx,
+  getSetIgpOwnerTx,
+} from '../hook/hook-tx.js';
 import {
   getDomainRoutingIsmConfig,
   getIsmType,
@@ -17,9 +22,25 @@ import {
   getTestIsmConfig,
 } from '../ism/ism-query.js';
 import {
+  getCreateMerkleRootMultisigIsmTx,
+  getCreateMessageIdMultisigIsmTx,
+  getCreateNoopIsmTx,
+  getCreateRoutingIsmTx,
+  getRemoveRoutingIsmDomainIsmTx,
+  getSetRoutingIsmDomainIsmTx,
+  getSetRoutingIsmOwnerTx,
+} from '../ism/ism-tx.js';
+import {
   getMailboxConfig,
   isMessageDelivered,
 } from '../mailbox/mailbox-query.js';
+import {
+  getCreateMailboxTx,
+  getSetMailboxDefaultHookTx,
+  getSetMailboxDefaultIsmTx,
+  getSetMailboxOwnerTx,
+  getSetMailboxRequiredHookTx,
+} from '../mailbox/mailbox-tx.js';
 import { RadixBase } from '../utils/base.js';
 import {
   RadixHookTypes,
@@ -27,6 +48,7 @@ import {
   RadixSDKOptions,
   RadixSDKTransaction,
 } from '../utils/types.js';
+import { getCreateValidatorAnnounceTx } from '../validator-announce/validator-announce-tx.js';
 import { RadixWarpPopulate } from '../warp/populate.js';
 import { RadixWarpQuery } from '../warp/query.js';
 
@@ -61,7 +83,6 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
     warp: RadixWarpQuery;
   };
   protected populate: {
-    core: RadixCorePopulate;
     warp: RadixWarpPopulate;
   };
 
@@ -111,6 +132,7 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
       this.networkId,
       this.gateway,
       options.gasMultiplier ?? DEFAULT_GAS_MULTIPLIER,
+      this.packageAddress,
     );
 
     this.query = {
@@ -118,7 +140,6 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
     };
 
     this.populate = {
-      core: new RadixCorePopulate(this.gateway, this.base, this.packageAddress),
       warp: new RadixWarpPopulate(
         this.gateway,
         this.base,
@@ -344,10 +365,7 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   ): Promise<RadixSDKTransaction> {
     return {
       networkId: this.networkId,
-      manifest: await this.populate.core.createMailbox({
-        from_address: req.signer,
-        domain_id: req.domainId,
-      }),
+      manifest: await getCreateMailboxTx(this.base, req.signer, req.domainId),
     };
   }
 
@@ -356,10 +374,9 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   ): Promise<RadixSDKTransaction> {
     return {
       networkId: this.networkId,
-      manifest: await this.populate.core.setDefaultIsm({
-        from_address: req.signer,
-        mailbox: req.mailboxAddress,
-        ism: req.ismAddress,
+      manifest: await getSetMailboxDefaultIsmTx(this.base, req.signer, {
+        mailboxAddress: req.mailboxAddress,
+        ismAddress: req.ismAddress,
       }),
     };
   }
@@ -369,10 +386,9 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   ): Promise<RadixSDKTransaction> {
     return {
       networkId: this.networkId,
-      manifest: await this.populate.core.setDefaultHook({
-        from_address: req.signer,
-        mailbox: req.mailboxAddress,
-        hook: req.hookAddress,
+      manifest: await getSetMailboxDefaultHookTx(this.base, req.signer, {
+        mailboxAddress: req.mailboxAddress,
+        hookAddress: req.hookAddress,
       }),
     };
   }
@@ -382,10 +398,9 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   ): Promise<RadixSDKTransaction> {
     return {
       networkId: this.networkId,
-      manifest: await this.populate.core.setRequiredHook({
-        from_address: req.signer,
-        mailbox: req.mailboxAddress,
-        hook: req.hookAddress,
+      manifest: await getSetMailboxRequiredHookTx(this.base, req.signer, {
+        mailboxAddress: req.mailboxAddress,
+        hookAddress: req.hookAddress,
       }),
     };
   }
@@ -395,11 +410,15 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   ): Promise<RadixSDKTransaction> {
     return {
       networkId: this.networkId,
-      manifest: await this.populate.core.setMailboxOwner({
-        from_address: req.signer,
-        mailbox: req.mailboxAddress,
-        new_owner: req.newOwner,
-      }),
+      manifest: await getSetMailboxOwnerTx(
+        this.base,
+        this.gateway,
+        req.signer,
+        {
+          mailboxAddress: req.mailboxAddress,
+          newOwner: req.newOwner,
+        },
+      ),
     };
   }
 
@@ -408,8 +427,7 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   ): Promise<RadixSDKTransaction> {
     return {
       networkId: this.networkId,
-      manifest: await this.populate.core.createMerkleRootMultisigIsm({
-        from_address: req.signer,
+      manifest: await getCreateMerkleRootMultisigIsmTx(this.base, req.signer, {
         validators: req.validators,
         threshold: req.threshold,
       }),
@@ -421,8 +439,7 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   ): Promise<RadixSDKTransaction> {
     return {
       networkId: this.networkId,
-      manifest: await this.populate.core.createMessageIdMultisigIsm({
-        from_address: req.signer,
+      manifest: await getCreateMessageIdMultisigIsmTx(this.base, req.signer, {
         validators: req.validators,
         threshold: req.threshold,
       }),
@@ -434,10 +451,7 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   ): Promise<RadixSDKTransaction> {
     return {
       networkId: this.networkId,
-      manifest: await this.populate.core.createRoutingIsm({
-        from_address: req.signer,
-        routes: req.routes,
-      }),
+      manifest: await getCreateRoutingIsmTx(this.base, req.signer, req.routes),
     };
   }
 
@@ -446,10 +460,9 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   ): Promise<RadixSDKTransaction> {
     return {
       networkId: this.networkId,
-      manifest: await this.populate.core.setRoutingIsmRoute({
-        from_address: req.signer,
-        ism: req.ismAddress,
-        route: req.route,
+      manifest: await getSetRoutingIsmDomainIsmTx(this.base, req.signer, {
+        ismAddress: req.ismAddress,
+        domainIsm: req.route,
       }),
     };
   }
@@ -459,10 +472,9 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   ): Promise<RadixSDKTransaction> {
     return {
       networkId: this.networkId,
-      manifest: await this.populate.core.removeRoutingIsmRoute({
-        from_address: req.signer,
-        ism: req.ismAddress,
-        domain: req.domainId,
+      manifest: await getRemoveRoutingIsmDomainIsmTx(this.base, req.signer, {
+        ismAddress: req.ismAddress,
+        domainId: req.domainId,
       }),
     };
   }
@@ -472,11 +484,15 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   ): Promise<RadixSDKTransaction> {
     return {
       networkId: this.networkId,
-      manifest: await this.populate.core.setRoutingIsmOwner({
-        from_address: req.signer,
-        ism: req.ismAddress,
-        new_owner: req.newOwner,
-      }),
+      manifest: await getSetRoutingIsmOwnerTx(
+        this.base,
+        this.gateway,
+        req.signer,
+        {
+          ismAddress: req.ismAddress,
+          newOwner: req.newOwner,
+        },
+      ),
     };
   }
 
@@ -485,9 +501,7 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   ): Promise<RadixSDKTransaction> {
     return {
       networkId: this.networkId,
-      manifest: await this.populate.core.createNoopIsm({
-        from_address: req.signer,
-      }),
+      manifest: await getCreateNoopIsmTx(this.base, req.signer),
     };
   }
 
@@ -496,10 +510,11 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   ): Promise<RadixSDKTransaction> {
     return {
       networkId: this.networkId,
-      manifest: await this.populate.core.createMerkleTreeHook({
-        from_address: req.signer,
-        mailbox: req.mailboxAddress,
-      }),
+      manifest: await getCreateMerkleTreeHookTx(
+        this.base,
+        req.signer,
+        req.mailboxAddress,
+      ),
     };
   }
 
@@ -510,10 +525,7 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
 
     return {
       networkId: this.networkId,
-      manifest: await this.populate.core.createIgp({
-        from_address: req.signer,
-        denom: req.denom,
-      }),
+      manifest: await getCreateIgpTx(this.base, req.signer, req.denom),
     };
   }
 
@@ -522,10 +534,9 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   ): Promise<RadixSDKTransaction> {
     return {
       networkId: this.networkId,
-      manifest: await this.populate.core.setIgpOwner({
-        from_address: req.signer,
-        igp: req.hookAddress,
-        new_owner: req.newOwner,
+      manifest: await getSetIgpOwnerTx(this.base, this.gateway, req.signer, {
+        igpAddress: req.hookAddress,
+        newOwner: req.newOwner,
       }),
     };
   }
@@ -535,9 +546,8 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   ): Promise<RadixSDKTransaction> {
     return {
       networkId: this.networkId,
-      manifest: await this.populate.core.setDestinationGasConfig({
-        from_address: req.signer,
-        igp: req.hookAddress,
+      manifest: await getSetIgpDestinationGasConfigTx(this.base, req.signer, {
+        igpAddress: req.hookAddress,
         destinationGasConfig: req.destinationGasConfig,
       }),
     };
@@ -562,10 +572,11 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   ): Promise<RadixSDKTransaction> {
     return {
       networkId: this.networkId,
-      manifest: await this.populate.core.createValidatorAnnounce({
-        from_address: req.signer,
-        mailbox: req.mailboxAddress,
-      }),
+      manifest: await getCreateValidatorAnnounceTx(
+        this.base,
+        req.signer,
+        req.mailboxAddress,
+      ),
     };
   }
 

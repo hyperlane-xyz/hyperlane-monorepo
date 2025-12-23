@@ -43,7 +43,6 @@
 
 //     match error {
 //         TxAlreadyExists | TxSubmissionError(_) => Confirm(SubmittedBySelf),
-//         TxReverted => Reprepare(ReprepareReason::RevertedOrReorged),
 //         NetworkError(_)
 //         | ChannelSendFailure(_)
 //         | ChannelClosed

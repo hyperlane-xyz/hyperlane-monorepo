@@ -16,6 +16,7 @@ import {
   createSafeTransactionData,
   getSafeAndService,
   proposeSafeTransaction,
+  retrySafeApi,
 } from '../utils/safe.js';
 
 export abstract class MultiSend {
@@ -57,70 +58,83 @@ export class ManualMultiSend extends MultiSend {
 }
 
 export class SafeMultiSend extends MultiSend {
-  constructor(
+  private constructor(
     public readonly multiProvider: MultiProvider,
     public readonly chain: ChainName,
     public readonly safeAddress: Address,
+    private readonly safeSdk: Safe.default,
+    private readonly safeService: SafeApiKit.default,
   ) {
     super();
   }
 
-  async sendTransactions(calls: CallData[]) {
-    const { safeSdk, safeService } = await getSafeAndService(
-      this.chain,
-      this.multiProvider,
-      this.safeAddress,
+  public static async initialize(
+    multiProvider: MultiProvider,
+    chain: ChainName,
+    safeAddress: Address,
+  ) {
+    const { safeSdk, safeService } = await retrySafeApi(() =>
+      getSafeAndService(chain, multiProvider, safeAddress),
     );
+    return new SafeMultiSend(
+      multiProvider,
+      chain,
+      safeAddress,
+      safeSdk,
+      safeService,
+    );
+  }
 
+  async sendTransactions(calls: CallData[]) {
     // If the multiSend address is the same as the safe address, we need to
     // propose the transactions individually. See: gnosisSafe.js in the SDK.
-    if (eqAddress(safeSdk.getMultiSendAddress(), this.safeAddress)) {
+    if (eqAddress(this.safeSdk.getMultiSendAddress(), this.safeAddress)) {
       console.info(
         chalk.gray(
           `MultiSend contract not deployed on ${this.chain}. Proposing transactions individually.`,
         ),
       );
-      await this.proposeIndividualTransactions(calls, safeSdk, safeService);
+      await this.proposeIndividualTransactions(calls);
     } else {
-      await this.proposeMultiSendTransaction(calls, safeSdk, safeService);
+      await this.proposeMultiSendTransaction(calls);
     }
   }
 
   // Helper function to propose individual transactions
-  private async proposeIndividualTransactions(
-    calls: CallData[],
-    safeSdk: Safe.default,
-    safeService: SafeApiKit.default,
-  ) {
+  private async proposeIndividualTransactions(calls: CallData[]) {
     for (const call of calls) {
       const safeTransactionData = createSafeTransactionData(call);
       const safeTransaction = await createSafeTransaction(
-        safeSdk,
-        safeService,
+        this.safeSdk,
+        this.safeService,
         this.safeAddress,
         [safeTransactionData],
       );
-      await this.proposeSafeTransaction(safeSdk, safeService, safeTransaction);
+      await this.proposeSafeTransaction(
+        this.safeSdk,
+        this.safeService,
+        safeTransaction,
+      );
     }
   }
 
   // Helper function to propose a multi-send transaction
-  private async proposeMultiSendTransaction(
-    calls: CallData[],
-    safeSdk: Safe.default,
-    safeService: SafeApiKit.default,
-  ) {
+  private async proposeMultiSendTransaction(calls: CallData[]) {
     const safeTransactionData = calls.map((call) =>
       createSafeTransactionData(call),
     );
     const safeTransaction = await createSafeTransaction(
-      safeSdk,
-      safeService,
+      this.safeSdk,
+      this.safeService,
       this.safeAddress,
       safeTransactionData,
       true,
     );
-    await this.proposeSafeTransaction(safeSdk, safeService, safeTransaction);
+    await this.proposeSafeTransaction(
+      this.safeSdk,
+      this.safeService,
+      safeTransaction,
+    );
   }
 
   // Helper function to propose a safe transaction

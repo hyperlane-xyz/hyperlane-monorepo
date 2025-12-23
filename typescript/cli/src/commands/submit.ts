@@ -4,12 +4,11 @@ import {
   SubmissionStrategy,
   SubmissionStrategySchema,
 } from '@hyperlane-xyz/sdk';
-import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { getTransactions, runSubmit } from '../config/submit.js';
 import { CommandModuleWithWriteContext } from '../context/types.js';
-import { logBlue, logGray } from '../logger.js';
-import { readYamlOrJson } from '../utils/files.js';
+import { logBlue, logGray, logRed } from '../logger.js';
+import { isFile, readYamlOrJson } from '../utils/files.js';
 
 import {
   outputFileCommandOption,
@@ -30,7 +29,11 @@ export const submitCommand: CommandModuleWithWriteContext<{
   builder: {
     transactions: transactionsCommandOption,
     strategy: strategyCommandOption,
-    receipts: outputFileCommandOption('./generated/transactions/receipts.yaml'),
+    receipts: outputFileCommandOption(
+      './generated/transactions/receipts',
+      false,
+      'Output directory for transaction receipts',
+    ),
   },
   handler: async ({
     context,
@@ -41,25 +44,31 @@ export const submitCommand: CommandModuleWithWriteContext<{
     logGray(`Hyperlane Submit`);
     logGray(`----------------`);
 
+    // Defensive check: if receiptsFilepath exists and is a file, fail with clear error
+    if (isFile(receiptsFilepath)) {
+      logRed(
+        `❌ Error: receipts path '${receiptsFilepath}' exists but is a file. Expected a directory.`,
+      );
+      process.exit(1);
+    }
+
     const chainTransactions = groupBy(
       getTransactions(transactionsPath),
       'chainId',
     );
 
-    await promiseObjAll(
-      objMap(chainTransactions, async (chainId, transactions) => {
-        const chain = context.multiProvider.getChainName(chainId);
+    for (const [chainId, transactions] of Object.entries(chainTransactions)) {
+      const chain = context.multiProvider.getChainName(chainId);
 
-        await runSubmit({
-          context,
-          chain,
-          transactions,
-          strategyPath,
-          receiptsFilepath,
-        });
-        logBlue(`✅ Submission complete for chain ${chain}`);
-      }),
-    );
+      await runSubmit({
+        context,
+        chain,
+        transactions,
+        strategyPath,
+        receiptsFilepath,
+      });
+      logBlue(`✅ Submission complete for chain ${chain}`);
+    }
 
     process.exit(0);
   },

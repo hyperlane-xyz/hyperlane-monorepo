@@ -1,6 +1,9 @@
 use async_trait::async_trait;
 
-use hyperlane_aleo::AleoProviderForLander;
+use hyperlane_aleo::{
+    AleoConfirmedTransaction, AleoProviderForLander, AleoUnconfirmedTransaction, CurrentNetwork,
+    Plaintext,
+};
 use hyperlane_core::{ChainResult, H512};
 
 /// Mock Aleo provider for testing
@@ -23,5 +26,33 @@ impl AleoProviderForLander for MockAleoProvider {
         I::IntoIter: ExactSizeIterator,
     {
         Ok(H512::random())
+    }
+
+    async fn get_confirmed_transaction(
+        &self,
+        _transaction_id: H512,
+    ) -> ChainResult<AleoConfirmedTransaction<CurrentNetwork>> {
+        Err(hyperlane_core::ChainCommunicationError::from_other_str(
+            "Mock provider: get_confirmed_transaction not implemented",
+        ))
+    }
+
+    async fn get_unconfirmed_transaction(
+        &self,
+        _transaction_id: H512,
+    ) -> ChainResult<AleoUnconfirmedTransaction<CurrentNetwork>> {
+        Err(hyperlane_core::ChainCommunicationError::from_other_str(
+            "Mock provider: get_unconfirmed_transaction not implemented",
+        ))
+    }
+
+    async fn mapping_value_exists(
+        &self,
+        _program_id: &str,
+        _mapping_name: &str,
+        _mapping_key: &Plaintext<CurrentNetwork>,
+    ) -> ChainResult<bool> {
+        // Default: mapping values don't exist (messages not delivered)
+        Ok(false)
     }
 }

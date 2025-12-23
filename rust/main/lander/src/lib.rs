@@ -16,6 +16,24 @@ mod adapter;
 mod dispatcher;
 mod error;
 mod payload;
+mod transaction;
+
 #[cfg(test)]
 mod tests;
-mod transaction;
+
+#[cfg(feature = "integration_test")]
+mod testing;
+
+// Re-export internal types needed for integration tests (hidden from public docs)
+// These are required by the integration test factory functions and trait bounds
+#[cfg(feature = "integration_test")]
+#[doc(hidden)]
+pub use adapter::AdaptsChain;
+#[cfg(feature = "integration_test")]
+#[doc(hidden)]
+pub use dispatcher::{PayloadDb, TransactionDb};
+
+// Re-export integration test factory functions
+#[cfg(feature = "integration_test")]
+#[doc(hidden)]
+pub use testing::{create_test_dispatcher, create_test_sealevel_adapter};

@@ -118,11 +118,7 @@ function getChainConnections(
       // For Starknet / Paradex
       ['solanamainnet', 'starknet'],
       ['solanamainnet', 'paradex'],
-      // for svmBNB routes solana<>bsc<>svmbnb<>soon
       ['solanamainnet', 'bsc'],
-      ['svmbnb', 'solanamainnet'],
-      ['svmbnb', 'bsc'],
-      ['svmbnb', 'soon'],
       ['soon', 'solanamainnet'],
       ['soon', 'bsc'],
       // for eclipse routes

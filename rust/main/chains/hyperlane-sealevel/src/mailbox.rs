@@ -32,7 +32,7 @@ use tracing::{debug, instrument, warn};
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, Encode as _, FixedPointNumber,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
-    Mailbox, MerkleTreeHook, ReorgPeriod, TxCostEstimate, TxOutcome, H256, U256,
+    Mailbox, MerkleTreeHook, Metadata, ReorgPeriod, TxCostEstimate, TxOutcome, H256, U256,
 };
 
 use crate::priority_fee::PriorityFeeOracle;
@@ -478,7 +478,7 @@ impl Mailbox for SealevelMailbox {
     async fn process(
         &self,
         message: &HyperlaneMessage,
-        metadata: &[u8],
+        metadata: &Metadata,
         _tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
         // "processed" level commitment does not guarantee finality.
@@ -539,7 +539,7 @@ impl Mailbox for SealevelMailbox {
     async fn process_estimate_costs(
         &self,
         message: &HyperlaneMessage,
-        metadata: &[u8],
+        metadata: &Metadata,
     ) -> ChainResult<TxCostEstimate> {
         // Getting a process instruction in Sealevel is a pretty expensive operation
         // that involves some view calls. Consider reusing the instruction with subsequent
@@ -573,7 +573,7 @@ impl Mailbox for SealevelMailbox {
     async fn process_calldata(
         &self,
         message: &HyperlaneMessage,
-        metadata: &[u8],
+        metadata: &Metadata,
     ) -> ChainResult<Vec<u8>> {
         let process_instruction = self.get_process_instruction(message, metadata).await?;
         serde_json::to_vec(&process_instruction).map_err(Into::into)

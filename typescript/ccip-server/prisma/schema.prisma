@@ -6,6 +6,7 @@ generator client {
   output   = "../src/generated/prisma"
 }
 
+// DATABASE_URL is required for prisma generate but actual connection is handled in code
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")

@@ -1,0 +1,441 @@
+{
+  "status": "accepted",
+  "type": "execute",
+  "index": 0,
+  "transaction": {
+    "type": "execute",
+    "id": "at104ezf4567ds67kvl0p3s8cd4a0cvrj9rstyzssgrthrtpwpgvqys0m3ssw",
+    "execution": {
+      "transitions": [
+        {
+          "id": "au12x8yfjn4y063s5mgqh0njms0rpejkk7t55e7jml60ppayytf65yq7hk74k",
+          "program": "test_mailbox.aleo",
+          "function": "dispatch",
+          "inputs": [
+            {
+              "type": "public",
+              "id": "6703627146889129970035183781936157098601851627349275085095062078564135023165field",
+              "value": "11155111u32"
+            },
+            {
+              "type": "public",
+              "id": "4488987849562363874684165162587472566629022640354171597372158487057975005120field",
+              "value": "[\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  181u8,\n  169u8,\n  25u8,\n  159u8,\n  187u8,\n  73u8,\n  207u8,\n  247u8,\n  192u8,\n  213u8,\n  67u8,\n  37u8,\n  145u8,\n  36u8,\n  130u8,\n  151u8,\n  151u8,\n  20u8,\n  53u8,\n  244u8\n]"
+            },
+            {
+              "type": "public",
+              "id": "6276904243616964848592353226679236816579174147115506391542279999899414491299field",
+              "value": "[\n  268787773892274112404478985243277131776u128,\n  101401562821467212002249661463377258879u128,\n  0u128,\n  85413587559041969264383023824439869440u128,\n  0u128,\n  0u128,\n  0u128,\n  0u128,\n  0u128,\n  0u128,\n  0u128,\n  0u128,\n  0u128,\n  0u128,\n  0u128,\n  0u128\n]"
+            },
+            {
+              "type": "public",
+              "id": "2321818082697487038169103493392505709886729397568748581531642447233299156661field",
+              "value": "aleo1l3gq2wn5my6j9ud27lymczatxtelg2twqutqsxwcvua9jxw885xq6yeutc"
+            }
+          ],
+          "outputs": [
+            {
+              "type": "future",
+              "id": "5864205326729865749751348165391098241232563414895757361784468312223707944636field",
+              "value": "{\n  program_id: test_mailbox.aleo,\n  function_name: dispatch,\n  arguments: [\n    11155111u32,\n    [\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  181u8,\n  169u8,\n  25u8,\n  159u8,\n  187u8,\n  73u8,\n  207u8,\n  247u8,\n  192u8,\n  213u8,\n  67u8,\n  37u8,\n  145u8,\n  36u8,\n  130u8,\n  151u8,\n  151u8,\n  20u8,\n  53u8,\n  244u8\n],\n    [\n  268787773892274112404478985243277131776u128,\n  101401562821467212002249661463377258879u128,\n  0u128,\n  85413587559041969264383023824439869440u128,\n  0u128,\n  0u128,\n  0u128,\n  0u128,\n  0u128,\n  0u128,\n  0u128,\n  0u128,\n  0u128,\n  0u128,\n  0u128,\n  0u128\n],\n    aleo1l3gq2wn5my6j9ud27lymczatxtelg2twqutqsxwcvua9jxw885xq6yeutc,\n    aleo1uad80l2e00nxgrtp62xkfp9g89mchc79v88euapzlq9xpq7zjygqpcaksm\n  ]\n}"
+            }
+          ],
+          "tpk": "7582291994176923196252073985606839507556112135561860824936524584195235046293group",
+          "tcm": "6280925749375437678032492399282795544507658076277503028943520603514598874696field",
+          "scm": "5632342855603556266463003102030410980503155827946128382326950936567681789618field"
+        },
+        {
+          "id": "au1ggvzpnzgw5tkr9rvff80ctlyvlwkpx9p55rv6y2799gxh5zndv9scnfwnm",
+          "program": "credits.aleo",
+          "function": "transfer_public_as_signer",
+          "inputs": [
+            {
+              "type": "public",
+              "id": "7181948685812281324096441812885082643159066871292439418149446146952844841631field",
+              "value": "aleo1zgxwklpwr2ma3jm4zpgpvc3cqw6ml3wnta2m2yvea5zvp0qhscpqe8j7hc"
+            },
+            {
+              "type": "public",
+              "id": "6743246587674434990485482080576895684329706852018600891688127415770179509662field",
+              "value": "0u64"
+            }
+          ],
+          "outputs": [
+            {
+              "type": "future",
+              "id": "4675348432722394496319589268350076259571711866178983676353446186304417226493field",
+              "value": "{\n  program_id: credits.aleo,\n  function_name: transfer_public_as_signer,\n  arguments: [\n    aleo1yr3k99my65ec7a97a9n8tqqmr7ef687x3vthv68ezats30hcgvgs2f8ac5,\n    aleo1zgxwklpwr2ma3jm4zpgpvc3cqw6ml3wnta2m2yvea5zvp0qhscpqe8j7hc,\n    0u64\n  ]\n}"
+            }
+          ],
+          "tpk": "4759326014090681610127980032942308870750198494967952298874765830873675684705group",
+          "tcm": "3613942769892476396895221281748008657292870201619461855947122929849254371743field",
+          "scm": "5632342855603556266463003102030410980503155827946128382326950936567681789618field"
+        },
+        {
+          "id": "au1pzus6mdw85dwu6uwfv2e48d77ry9j7vy9j0frha82h7glgae8szs4qjjyw",
+          "program": "test_hook_manager.aleo",
+          "function": "post_dispatch",
+          "inputs": [
+            {
+              "type": "public",
+              "id": "2116848467772764619646294591216515394617400330434594135859127583708985758148field",
+              "value": "aleo1479wmm58gcyg28z37dvua77l53dwrmwct80k4ruf906ulp7smupsyg6ak2"
+            },
+            {
+              "type": "public",
+              "id": "987104046227169403896610097311197288910647881094620098274333086169568165106field",
+              "value": "{\n  gas_limit: 0u128,\n  extra_data: [\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8\n  ]\n}"
+            },
+            {
+              "type": "public",
+              "id": "8049991597941718933038320396062747871414408465819900106546147876312740463944field",
+              "value": "[\n  {\n    spender: aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc,\n    amount: 0u64\n  },\n  {\n    spender: aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc,\n    amount: 0u64\n  },\n  {\n    spender: aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc,\n    amount: 0u64\n  },\n  {\n    spender: aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc,\n    amount: 0u64\n  }\n]"
+            }
+          ],
+          "outputs": [
+            {
+              "type": "future",
+              "id": "4079486659894654259782046815472932801499303750427113722112293919213108227102field",
+              "value": "{\n  program_id: test_hook_manager.aleo,\n  function_name: post_dispatch,\n  arguments: [\n    aleo1479wmm58gcyg28z37dvua77l53dwrmwct80k4ruf906ulp7smupsyg6ak2,\n    {\n  gas_limit: 0u128,\n  extra_data: [\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8\n  ]\n},\n    aleo1uad80l2e00nxgrtp62xkfp9g89mchc79v88euapzlq9xpq7zjygqpcaksm,\n    0u64,\n    {\n      program_id: credits.aleo,\n      function_name: transfer_public_as_signer,\n      arguments: [\n        aleo1yr3k99my65ec7a97a9n8tqqmr7ef687x3vthv68ezats30hcgvgs2f8ac5,\n        aleo1zgxwklpwr2ma3jm4zpgpvc3cqw6ml3wnta2m2yvea5zvp0qhscpqe8j7hc,\n        0u64\n      ]\n    }\n  \n  ]\n}"
+            }
+          ],
+          "tpk": "5214631938699688722141453278237001059729031936842806674488061495440430155805group",
+          "tcm": "7437014906902738528426861649212548517183945310239742520232489434625166594241field",
+          "scm": "5632342855603556266463003102030410980503155827946128382326950936567681789618field"
+        },
+        {
+          "id": "au1we8th95kpcw0dcxu3eyfjma3acmcvvwrxt64zhz9ehs4v3wttq8q5l3ap5",
+          "program": "credits.aleo",
+          "function": "transfer_public_as_signer",
+          "inputs": [
+            {
+              "type": "public",
+              "id": "259659744145180934351008356332117394748542989926406737230766588326949406261field",
+              "value": "aleo1zgxwklpwr2ma3jm4zpgpvc3cqw6ml3wnta2m2yvea5zvp0qhscpqe8j7hc"
+            },
+            {
+              "type": "public",
+              "id": "6234614883481706296520868912630315899187491248842211732767932900791727779334field",
+              "value": "0u64"
+            }
+          ],
+          "outputs": [
+            {
+              "type": "future",
+              "id": "4476520627238293857895954098809359019249091581957336036490146187470024523507field",
+              "value": "{\n  program_id: credits.aleo,\n  function_name: transfer_public_as_signer,\n  arguments: [\n    aleo1yr3k99my65ec7a97a9n8tqqmr7ef687x3vthv68ezats30hcgvgs2f8ac5,\n    aleo1zgxwklpwr2ma3jm4zpgpvc3cqw6ml3wnta2m2yvea5zvp0qhscpqe8j7hc,\n    0u64\n  ]\n}"
+            }
+          ],
+          "tpk": "1468069406550384286107421916257785277035362947039447208898949357323821953504group",
+          "tcm": "6474386478885280998419085527508541144780638563188017623249390668390369350156field",
+          "scm": "5632342855603556266463003102030410980503155827946128382326950936567681789618field"
+        },
+        {
+          "id": "au1hq9vnpfvqlwwu3ur6pjx5vmdz5c6cewjuky807tkp9hqf2w4w5ys5sx0xg",
+          "program": "test_hook_manager.aleo",
+          "function": "post_dispatch",
+          "inputs": [
+            {
+              "type": "public",
+              "id": "3230234536672074515611533980957790886373008053414592008858287770176845180017field",
+              "value": "aleo18n8sg8cz6qc76vzflr8la98u0r4w8r96c9wdxee4wvetsvuz0vxs0r2hk8"
+            },
+            {
+              "type": "public",
+              "id": "3694384382647351493407848636968768917583035530461697076936516703246238533474field",
+              "value": "{\n  gas_limit: 0u128,\n  extra_data: [\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8\n  ]\n}"
+            },
+            {
+              "type": "public",
+              "id": "1108701964641295460955898289297814226332206102457042758758292853990357773586field",
+              "value": "[\n  {\n    spender: aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc,\n    amount: 0u64\n  },\n  {\n    spender: aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc,\n    amount: 0u64\n  },\n  {\n    spender: aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc,\n    amount: 0u64\n  },\n  {\n    spender: aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc,\n    amount: 0u64\n  }\n]"
+            }
+          ],
+          "outputs": [
+            {
+              "type": "future",
+              "id": "1393547139169780412798140017230577857484863250752255191012896816721436854114field",
+              "value": "{\n  program_id: test_hook_manager.aleo,\n  function_name: post_dispatch,\n  arguments: [\n    aleo18n8sg8cz6qc76vzflr8la98u0r4w8r96c9wdxee4wvetsvuz0vxs0r2hk8,\n    {\n  gas_limit: 0u128,\n  extra_data: [\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8\n  ]\n},\n    aleo1uad80l2e00nxgrtp62xkfp9g89mchc79v88euapzlq9xpq7zjygqpcaksm,\n    0u64,\n    {\n      program_id: credits.aleo,\n      function_name: transfer_public_as_signer,\n      arguments: [\n        aleo1yr3k99my65ec7a97a9n8tqqmr7ef687x3vthv68ezats30hcgvgs2f8ac5,\n        aleo1zgxwklpwr2ma3jm4zpgpvc3cqw6ml3wnta2m2yvea5zvp0qhscpqe8j7hc,\n        0u64\n      ]\n    }\n  \n  ]\n}"
+            }
+          ],
+          "tpk": "1391330300965794663778314569673650268749155257889934561032151595702521947931group",
+          "tcm": "5568510813357275273780379490601507507398163825817518713661101172263222515192field",
+          "scm": "5632342855603556266463003102030410980503155827946128382326950936567681789618field"
+        },
+        {
+          "id": "au1jfe6yxlwzcjrdnq5tckje2emcv0mwy3epg0s9azr6cuagqafevps97p405",
+          "program": "test_dispatch_proxy.aleo",
+          "function": "dispatch",
+          "inputs": [
+            {
+              "type": "public",
+              "id": "1327683959881820362225856173706285871368552853863248256497284613307310162152field",
+              "value": "{\n  default_ism: aleo14jhcyx6f9x94gnwhsn2ufkyj60xl8mtuuxy80e7w6zygenn0pv9qk50u8z,\n  default_hook: aleo1479wmm58gcyg28z37dvua77l53dwrmwct80k4ruf906ulp7smupsyg6ak2,\n  required_hook: aleo18n8sg8cz6qc76vzflr8la98u0r4w8r96c9wdxee4wvetsvuz0vxs0r2hk8\n}"
+            },
+            {
+              "type": "public",
+              "id": "984831686243914913565575272475931428348493619657589599143245802690197446844field",
+              "value": "11155111u32"
+            },
+            {
+              "type": "public",
+              "id": "8176085813420633843912291451973669501974188836812423676120947283326496667725field",
+              "value": "[\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  181u8,\n  169u8,\n  25u8,\n  159u8,\n  187u8,\n  73u8,\n  207u8,\n  247u8,\n  192u8,\n  213u8,\n  67u8,\n  37u8,\n  145u8,\n  36u8,\n  130u8,\n  151u8,\n  151u8,\n  20u8,\n  53u8,\n  244u8\n]"
+            },
+            {
+              "type": "public",
+              "id": "4009030344400168617243368556134448523472626381684382138594321673872736646405field",
+              "value": "[\n  268787773892274112404478985243277131776u128,\n  101401562821467212002249661463377258879u128,\n  0u128,\n  85413587559041969264383023824439869440u128,\n  0u128,\n  0u128,\n  0u128,\n  0u128,\n  0u128,\n  0u128,\n  0u128,\n  0u128,\n  0u128,\n  0u128,\n  0u128,\n  0u128\n]"
+            },
+            {
+              "type": "public",
+              "id": "859579935556258629659547719960939924689427873074452865429745177229502673580field",
+              "value": "aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc"
+            },
+            {
+              "type": "public",
+              "id": "5132675248754854073437812455434677120011820495639962840303257442710652057864field",
+              "value": "{\n  gas_limit: 0u128,\n  extra_data: [\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8\n  ]\n}"
+            },
+            {
+              "type": "public",
+              "id": "424163408806248560835053768656079665854902152064925059414867533112333805351field",
+              "value": "[\n  {\n    spender: aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc,\n    amount: 0u64\n  },\n  {\n    spender: aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc,\n    amount: 0u64\n  },\n  {\n    spender: aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc,\n    amount: 0u64\n  },\n  {\n    spender: aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc,\n    amount: 0u64\n  }\n]"
+            }
+          ],
+          "outputs": [
+            {
+              "type": "future",
+              "id": "5191618372473808947192091098713765104502969463738737256072171359309575541020field",
+              "value": "{\n  program_id: test_dispatch_proxy.aleo,\n  function_name: dispatch,\n  arguments: [\n    {\n  default_ism: aleo14jhcyx6f9x94gnwhsn2ufkyj60xl8mtuuxy80e7w6zygenn0pv9qk50u8z,\n  default_hook: aleo1479wmm58gcyg28z37dvua77l53dwrmwct80k4ruf906ulp7smupsyg6ak2,\n  required_hook: aleo18n8sg8cz6qc76vzflr8la98u0r4w8r96c9wdxee4wvetsvuz0vxs0r2hk8\n},\n    {\n      program_id: test_mailbox.aleo,\n      function_name: dispatch,\n      arguments: [\n        11155111u32,\n        [\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  181u8,\n  169u8,\n  25u8,\n  159u8,\n  187u8,\n  73u8,\n  207u8,\n  247u8,\n  192u8,\n  213u8,\n  67u8,\n  37u8,\n  145u8,\n  36u8,\n  130u8,\n  151u8,\n  151u8,\n  20u8,\n  53u8,\n  244u8\n],\n        [\n  268787773892274112404478985243277131776u128,\n  101401562821467212002249661463377258879u128,\n  0u128,\n  85413587559041969264383023824439869440u128,\n  0u128,\n  0u128,\n  0u128,\n  0u128,\n  0u128,\n  0u128,\n  0u128,\n  0u128,\n  0u128,\n  0u128,\n  0u128,\n  0u128\n],\n        aleo1l3gq2wn5my6j9ud27lymczatxtelg2twqutqsxwcvua9jxw885xq6yeutc,\n        aleo1uad80l2e00nxgrtp62xkfp9g89mchc79v88euapzlq9xpq7zjygqpcaksm\n      ]\n    },\n    {\n      program_id: test_hook_manager.aleo,\n      function_name: post_dispatch,\n      arguments: [\n        aleo1479wmm58gcyg28z37dvua77l53dwrmwct80k4ruf906ulp7smupsyg6ak2,\n        {\n  gas_limit: 0u128,\n  extra_data: [\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8\n  ]\n},\n        aleo1uad80l2e00nxgrtp62xkfp9g89mchc79v88euapzlq9xpq7zjygqpcaksm,\n        0u64,\n        {\n          program_id: credits.aleo,\n          function_name: transfer_public_as_signer,\n          arguments: [\n            aleo1yr3k99my65ec7a97a9n8tqqmr7ef687x3vthv68ezats30hcgvgs2f8ac5,\n            aleo1zgxwklpwr2ma3jm4zpgpvc3cqw6ml3wnta2m2yvea5zvp0qhscpqe8j7hc,\n            0u64\n          ]\n        }\n      \n      ]\n    },\n    {\n      program_id: test_hook_manager.aleo,\n      function_name: post_dispatch,\n      arguments: [\n        aleo18n8sg8cz6qc76vzflr8la98u0r4w8r96c9wdxee4wvetsvuz0vxs0r2hk8,\n        {\n  gas_limit: 0u128,\n  extra_data: [\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8\n  ]\n},\n        aleo1uad80l2e00nxgrtp62xkfp9g89mchc79v88euapzlq9xpq7zjygqpcaksm,\n        0u64,\n        {\n          program_id: credits.aleo,\n          function_name: transfer_public_as_signer,\n          arguments: [\n            aleo1yr3k99my65ec7a97a9n8tqqmr7ef687x3vthv68ezats30hcgvgs2f8ac5,\n            aleo1zgxwklpwr2ma3jm4zpgpvc3cqw6ml3wnta2m2yvea5zvp0qhscpqe8j7hc,\n            0u64\n          ]\n        }\n      \n      ]\n    }\n  \n  ]\n}"
+            }
+          ],
+          "tpk": "8137285645797650777507243471625873412229495162222534051746002396939833682226group",
+          "tcm": "812928662763658017591538488448529413161050149901483811730614963084940655951field",
+          "scm": "5632342855603556266463003102030410980503155827946128382326950936567681789618field"
+        },
+        {
+          "id": "au1w7g76nqecqct0rtapl2m0n2fn558llc246at5h5gdr4lk8j69u8svzwwem",
+          "program": "credits.aleo",
+          "function": "transfer_public_as_signer",
+          "inputs": [
+            {
+              "type": "public",
+              "id": "1943805352667026696678508493136595918087447217039258309525668786245322955365field",
+              "value": "aleo1l3gq2wn5my6j9ud27lymczatxtelg2twqutqsxwcvua9jxw885xq6yeutc"
+            },
+            {
+              "type": "public",
+              "id": "8058752477059328348627709268477193952175016476214502348967009221404552449131field",
+              "value": "1000000u64"
+            }
+          ],
+          "outputs": [
+            {
+              "type": "future",
+              "id": "7944644315711544999916166488375345204478421241965802573992581686275376326898field",
+              "value": "{\n  program_id: credits.aleo,\n  function_name: transfer_public_as_signer,\n  arguments: [\n    aleo1yr3k99my65ec7a97a9n8tqqmr7ef687x3vthv68ezats30hcgvgs2f8ac5,\n    aleo1l3gq2wn5my6j9ud27lymczatxtelg2twqutqsxwcvua9jxw885xq6yeutc,\n    1000000u64\n  ]\n}"
+            }
+          ],
+          "tpk": "4080520758245933467321986487997091059073987251027506316493267527361330967157group",
+          "tcm": "3352980102740106053946760450498737918855891548222603947963786630424235037226field",
+          "scm": "5632342855603556266463003102030410980503155827946128382326950936567681789618field"
+        },
+        {
+          "id": "au1tp9rrdlds98qerylc2me2qpnmnvf47wcrg4jsxw90g7dfgwlaspqu062nt",
+          "program": "test_hyp_native.aleo",
+          "function": "transfer_remote",
+          "inputs": [
+            {
+              "type": "public",
+              "id": "2705758482964834720062189679388740201862204258101601654368988216892883485283field",
+              "value": "{\n  token_type: 0u8,\n  token_owner: aleo1yr3k99my65ec7a97a9n8tqqmr7ef687x3vthv68ezats30hcgvgs2f8ac5,\n  ism: aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc,\n  hook: aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc,\n  scale: 0u8\n}"
+            },
+            {
+              "type": "public",
+              "id": "4162376619429570621339430467869844065716758516059182747899580497669024496806field",
+              "value": "{\n  default_ism: aleo14jhcyx6f9x94gnwhsn2ufkyj60xl8mtuuxy80e7w6zygenn0pv9qk50u8z,\n  default_hook: aleo1479wmm58gcyg28z37dvua77l53dwrmwct80k4ruf906ulp7smupsyg6ak2,\n  required_hook: aleo18n8sg8cz6qc76vzflr8la98u0r4w8r96c9wdxee4wvetsvuz0vxs0r2hk8\n}"
+            },
+            {
+              "type": "public",
+              "id": "7157008250879232221660596958147648087209571405926821216167596649114030595495field",
+              "value": "{\n  domain: 11155111u32,\n  recipient: [\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    181u8,\n    169u8,\n    25u8,\n    159u8,\n    187u8,\n    73u8,\n    207u8,\n    247u8,\n    192u8,\n    213u8,\n    67u8,\n    37u8,\n    145u8,\n    36u8,\n    130u8,\n    151u8,\n    151u8,\n    20u8,\n    53u8,\n    244u8\n  ],\n  gas: 0u128\n}"
+            },
+            {
+              "type": "public",
+              "id": "1358488466522935076454067345127768931006253759358389763223009735774202664591field",
+              "value": "11155111u32"
+            },
+            {
+              "type": "public",
+              "id": "1426985233507984405378051353070138111366340501024627327153646988480116785224field",
+              "value": "[\n  268787773892274112404478985243277131776u128,\n  101401562821467212002249661463377258879u128\n]"
+            },
+            {
+              "type": "public",
+              "id": "2299306185653095292231870984782346953074683294552052813104849704502398966980field",
+              "value": "1000000u64"
+            },
+            {
+              "type": "public",
+              "id": "7678506973672280388967927336724740262163237716843638139791325443158551051720field",
+              "value": "[\n  {\n    spender: aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc,\n    amount: 0u64\n  },\n  {\n    spender: aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc,\n    amount: 0u64\n  },\n  {\n    spender: aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc,\n    amount: 0u64\n  },\n  {\n    spender: aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc,\n    amount: 0u64\n  }\n]"
+            }
+          ],
+          "outputs": [
+            {
+              "type": "future",
+              "id": "1206686776497454727914591216031623403919914556368975338000876084377162217486field",
+              "value": "{\n  program_id: test_hyp_native.aleo,\n  function_name: transfer_remote,\n  arguments: [\n    {\n      program_id: test_dispatch_proxy.aleo,\n      function_name: dispatch,\n      arguments: [\n        {\n  default_ism: aleo14jhcyx6f9x94gnwhsn2ufkyj60xl8mtuuxy80e7w6zygenn0pv9qk50u8z,\n  default_hook: aleo1479wmm58gcyg28z37dvua77l53dwrmwct80k4ruf906ulp7smupsyg6ak2,\n  required_hook: aleo18n8sg8cz6qc76vzflr8la98u0r4w8r96c9wdxee4wvetsvuz0vxs0r2hk8\n},\n        {\n          program_id: test_mailbox.aleo,\n          function_name: dispatch,\n          arguments: [\n            11155111u32,\n            [\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  0u8,\n  181u8,\n  169u8,\n  25u8,\n  159u8,\n  187u8,\n  73u8,\n  207u8,\n  247u8,\n  192u8,\n  213u8,\n  67u8,\n  37u8,\n  145u8,\n  36u8,\n  130u8,\n  151u8,\n  151u8,\n  20u8,\n  53u8,\n  244u8\n],\n            [\n  268787773892274112404478985243277131776u128,\n  101401562821467212002249661463377258879u128,\n  0u128,\n  85413587559041969264383023824439869440u128,\n  0u128,\n  0u128,\n  0u128,\n  0u128,\n  0u128,\n  0u128,\n  0u128,\n  0u128,\n  0u128,\n  0u128,\n  0u128,\n  0u128\n],\n            aleo1l3gq2wn5my6j9ud27lymczatxtelg2twqutqsxwcvua9jxw885xq6yeutc,\n            aleo1uad80l2e00nxgrtp62xkfp9g89mchc79v88euapzlq9xpq7zjygqpcaksm\n          ]\n        },\n        {\n          program_id: test_hook_manager.aleo,\n          function_name: post_dispatch,\n          arguments: [\n            aleo1479wmm58gcyg28z37dvua77l53dwrmwct80k4ruf906ulp7smupsyg6ak2,\n            {\n  gas_limit: 0u128,\n  extra_data: [\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8\n  ]\n},\n            aleo1uad80l2e00nxgrtp62xkfp9g89mchc79v88euapzlq9xpq7zjygqpcaksm,\n            0u64,\n            {\n              program_id: credits.aleo,\n              function_name: transfer_public_as_signer,\n              arguments: [\n                aleo1yr3k99my65ec7a97a9n8tqqmr7ef687x3vthv68ezats30hcgvgs2f8ac5,\n                aleo1zgxwklpwr2ma3jm4zpgpvc3cqw6ml3wnta2m2yvea5zvp0qhscpqe8j7hc,\n                0u64\n              ]\n            }\n          \n          ]\n        },\n        {\n          program_id: test_hook_manager.aleo,\n          function_name: post_dispatch,\n          arguments: [\n            aleo18n8sg8cz6qc76vzflr8la98u0r4w8r96c9wdxee4wvetsvuz0vxs0r2hk8,\n            {\n  gas_limit: 0u128,\n  extra_data: [\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8\n  ]\n},\n            aleo1uad80l2e00nxgrtp62xkfp9g89mchc79v88euapzlq9xpq7zjygqpcaksm,\n            0u64,\n            {\n              program_id: credits.aleo,\n              function_name: transfer_public_as_signer,\n              arguments: [\n                aleo1yr3k99my65ec7a97a9n8tqqmr7ef687x3vthv68ezats30hcgvgs2f8ac5,\n                aleo1zgxwklpwr2ma3jm4zpgpvc3cqw6ml3wnta2m2yvea5zvp0qhscpqe8j7hc,\n                0u64\n              ]\n            }\n          \n          ]\n        }\n      \n      ]\n    },\n    {\n      program_id: credits.aleo,\n      function_name: transfer_public_as_signer,\n      arguments: [\n        aleo1yr3k99my65ec7a97a9n8tqqmr7ef687x3vthv68ezats30hcgvgs2f8ac5,\n        aleo1l3gq2wn5my6j9ud27lymczatxtelg2twqutqsxwcvua9jxw885xq6yeutc,\n        1000000u64\n      ]\n    },\n    {\n  token_type: 0u8,\n  token_owner: aleo1yr3k99my65ec7a97a9n8tqqmr7ef687x3vthv68ezats30hcgvgs2f8ac5,\n  ism: aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc,\n  hook: aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc,\n  scale: 0u8\n},\n    {\n  domain: 11155111u32,\n  recipient: [\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    0u8,\n    181u8,\n    169u8,\n    25u8,\n    159u8,\n    187u8,\n    73u8,\n    207u8,\n    247u8,\n    192u8,\n    213u8,\n    67u8,\n    37u8,\n    145u8,\n    36u8,\n    130u8,\n    151u8,\n    151u8,\n    20u8,\n    53u8,\n    244u8\n  ],\n  gas: 0u128\n},\n    11155111u32\n  ]\n}"
+            }
+          ],
+          "tpk": "7895391609560754461490548206542990557953429787675821928227407104600340202644group",
+          "tcm": "1122389399229752302472533256920138959534597696741722021074222522948688890844field",
+          "scm": "5632342855603556266463003102030410980503155827946128382326950936567681789618field"
+        }
+      ],
+      "global_state_root": "sr18u2jdakhkv5hwzqag4dp4lqz0dcngqvctadptwncgc5z4pqgeg9sux9wan",
+      "proof": "proof1qyzsqqqqqqqqqqqzqqqqqqqqqqqqxqqqqqqqqqqqqyqqqqqqqqqqqqgqqqqqqqqqqqqsqqqqqqqqqqpfvchdmwt0df665w7w27snwnvvtg0fewxwwp7kszfualsxqdyr5zcxqgtmnx0cm8mthrp9yqkrh7qpamr3yshqaw0xujdmkrzesmsdgfhyurvnxhkcpd2pkqems322urx9wrwrkf7z7dh2ndnjthlhcdyp3ttdse0uc5tc3d8rzexuds68q0hkk3z0gv8u0xfkafqnw92x3fdu4sxmw7fxvqeauyppfx0zg43qz9v2r8yhrej9r4ze0h07d2xf2ge30wqetxpv4p09ql92w7xecvt96qyl2l23kyqsglm9r8lzdnc6sxrda8hfs9xrqgc087jp8gagksx8fkpza2z9p0kjkge2xkzvx07djdppqdpknx2vwuyaaze05548rqyuewvlmsnklz3gx8xdh34javndpfrpkfycxjhlr3nvec236gm2luz5ul60m6xljp52kghgxhzj3jqlvy9wgerm4hkepkfvc8d4xdmr6qnz9mc36vmfc5n3lxwdv050x502nccuuvaxqmnf46e3n8689fvpdzq9v9vc0dqec5v9tgzyp6n8pwrtrurwdmfztu0jja96pv870dg9zmxv8p99ledkta7sg3a37nrqqqdxwzh9pq2np2jalsv24z8u7hwhynmcscs0eavx4vk3u59av78x6rw6ujc6hv7cvyqrecn5jjue6sq9kr393jdlvadjayckt9l0959uld52n4sn9jqqdfvts4mp63sfel0quz5623kshzv2nt59xxgh7wqqwrf42wxpjd68c6pwk7jqf983sus9rdanh58mfpsn85wq7j08ky8uhu98xdra9y8plwd0f9l3njmqqn0tgxf9rega7aztltlwwq8wtaz6jdaj7cflluzwagcgytzm3hfqjy96gqpdje238sppgd366a5wspesjl0mxaqx3vdzh9ce6sty4jdd588vdughevnlt3yg2edk5qrhjlqgatv5df3fulmueapyvkv6hq0yj9zahxxsfnt7ygfluulgfdayxhn677nhvhdtrkklzfp4a6q4nzlrl77fy8se0l5m9c5jyz3cn7q0nxskc7txdyvyr7jv74zd838mm8q6qq306rmzvc93262tcl9uffxecmhycqjcv4tdvtznwrvcrgcqhpmyvkw2g0k8hlvvnezsvvf0d2hwrgrf4nq6frpms8gmawdehsc27w0wlfmadadpjzd3geu3m85cqmw8m5wq7276rzqx0jzmaw4rfcg7hqzzq4jefau4cfjlz38xelnr84d3gzherwjgf4rr7hgl6pk4qq283g3dxpg9tlsha5np6w26j20ut4l3apcny6u9q3w9g9ux82y66gch3wetggenheegad7qtk0u9q8eleqsdcseqclzt6x2elmhwugp2u3qyc6rz0jxmsnnyqwhh0qxuy5e5mw5hteve9xph95q6x5rsyqfkt6a4rgq7chq8x36deersctfhnxwqlngmvs93q5z0xxfewzunksnlgpsnn4n693auhahlm7tskuq0wrg2h3e6jmg4p7mmp7526wp3t893qjftlcpxd3s4xw3978kv669u83qvsl3c5ngmqgxdpg2r9gsp8cjsj6d9cven9srv9m49f7qtzrzu6y5yav5tx6sskztvygexfryyfg3r9uwsyypdkncgyhzvzsss8vmhpqd38dxlqckh82jqc236kqe2n8jwvg9ngwudmtnfx2pg9ysfh0lk42v5tu4szg72mtz6p6dxqpdzhn22xq7seaztyfy8zw00tjqkkvgymkukua2lfhvxg2qkq2lvftjlz7uleyn6smngzahzzk0s6qf70w2dv7fvz0xtv8xgc37gv4pjxq8ul34dv0pyhshrq3cepgq6t52c6ltpxphyzrccrve0lgmrrqp8qe4eg50s4z62rl5uqvte5tc7kvw0zus5rlwnvkfs53mu024xnnul8qmdm5na0ycdgqdvu8ekvwqz2hyvaw9gya3297s6y0qh9hk24l5nsec674yc8yf7vhj6c9lggt3sgmfv5jtjcemn7regd2f6yuss8w483fjdpwcaz88dcngfyt2e3h79esgzr4xuga39p4pm2yy0m0dfhw6pfvrr2h7esve6l0rsws4fqzml5jeeexvs5zy3v4lafjzgazglnczas5vxksaata30hc032fgqrswt5ycfxw20mtdcx3zuzjqvt3r3zgtr636cd7s42vdvfgxhlvqu2fl3phkpra95kk4x29zp5weu7r9gfan22zgsp49f20l5tq7pgqd504h4wfpt6s2ge04ydmve72d39xqfa87krm8tscdl3aucp0gzczvuq02zg2map7fwtwuk2zgpnv2c8fg87v5cu8aksfp0megh79kqrasvu7dvaattp7vv8raumjxvq62fy5200ckkeyns9q374f53mkdp8779uz5sn5dck2jsk095qwctjtdmaq4lv8pmt26at4l3hyn6cwsre7p7tc26w8pd93aw0e9ldh3texj0zv922nkfj5m5vx8szx7fcq8j38u78qslxaqtu0cr7y79xygz5hktde63vcr7740u364akjqvvyy5uxcsvnd5tyqhqnn56jxjw68kharegwm76sku6s6ea72n6epqzy7p9frpt2wppmla4y07k4t0hjdldsjx9tuxz502843xwjeffaczyhpqa542v9pmgs8u6u0gqz9fsp0mf8hsv3hmsq443dfhrs8d85sf2ecx4kghy9wsefm8475haepnmf5qc8qw4xwltfnr3fws8ykqvcga2d2679nkde4pgww4ugypgearv5nj7w6leh37sha7tne6v5jxvy9e2kmhcgmdkh6l9tda6lya8n4l7mp3hs6lxej0x4v8zhwd8hmwry5cqxnvk7zdkctces4tst6ne73e7gytghuxg6eatxd0ny0t9dhpu3tfjvfyrln7j8kpuwae6uduxucq0ekrxcyselymjatmaw403nqzx0gpafmdx8qkrgv8vpsen48hemlkwptg73a5vkme3e48l9yaygptxx4z4686mx40tysv5y95gxdvatgczthpn3j3dw5n5t76ef38yzphn2z39f7ds5s6v07nf02kwjmfa3x9jt86730ln5g54v78d5wwp276tf8gs6r9del0ysj4eeangf22pk9nrcg8ec4qsxpnd632kurzt6l046dkgrwk98ztjxsxm5lrh3utedtajlzzkx6d5xt8xt5wnysmtv7wtu7555zevmgwrky9q7nams7eqvjnpkrgfu66jjs5j44dag0m845wgphpzs3v8dgl99c2ku03czs7nywg8m33z8wusxvxfv8jyrut3h9v2sfu9v8mt9cjevnhwtt80zk9rjtgez4k3pgkzy7lsx9gp9dklhg2d35ev2wve05t30eu5vuqy8nj8xvgjjy2nwk47twspenzzu2sd4dqx3t06scgtsz9qq9kcp0gswz340n8fqfvzmsyzec558qtqepp8qj6vhqjlcdtqsrvk3asks4hy0qm5pu9w9t64yfdt4wz0s2mglx8tawdaa727hwq72et2zl2jn62ajfzdxeg7pa0mxccwuve5ppjyme9ws6f2umnyjqpyvfcryzwv49m2v6kyfjpe0sdgswz0yjvqe6xd3sylrp4prv5p7d4c0y8l7s293557mxq98vsryrmvptxkf8qdga7zv4wyv2hg877jp9xax8nfwhwv97rnxr7us92cv3ej4z9lpsk8eu3w6praftza7y4x3g63j9h8m6gr93wnv0pdnhdhsw67lyztswv5yfxxrfsknwek0sjgdjney4g9sfrr002243lxstecsydd7nx5zjmmvxlupfwx6w9g2d548jncwl9dprch56awmxwqx7u9cva7qccr7lqlxpztjpy4e5t09y4496r3y2n2jrdp534thev20um759r82gqz4swmyegtx6049hp5zg68rwe9u66s956vejjacv5qx84c0uvsx3ray2eqr2guk7pt3rcklaznmj3qded4z5pga6ju5xcgvd4zxzkdgdzj22rhdq4mld8de0vcd0v7ck4pzx0c46ehvuh0zn2p0xgvmcdsy2hdk86zqj7hv5vaalzhhee8d9nx5j98xch0edy75mz5mut2r62pwu2v5fq0wut4sxpe4z24y40d0mxxm57pz4h4gvm2phzqwcv6vkp9vtfqfpgdlk5t6cgf6gtsd24htqr4rj6w3cfyua2xupk750f0rsu3kyr6l57yetp93d7em2slrzze7v5u3w5d23ga24q80e2jw9sus96ql7xjtr9j9vv7gk7vunpr7gl8ksttsg27aftwavpze24sjk9qpgr3a6nxx59gt7r6f7avmd8esu3ulu405h89tjfkclrf0y5crwwq0e6nap0wfz26kv8rx74j0yrznl7jsa9csadhpptj29lvfex7ftpzmsr95njktu7ehh49yragwf6qpf0cqaeet47vn7fspmke999e8qq03mrec9f37lftnk5kd9j3gmhsxa2ut6f9sc0rv0h5uw4kmqxls80lf9vl00xs4tysu7gjmewl53732s034zgm29gmmjyztw3lap0yrlh55vpt43xvlk04ajcsz2pp6dnndtz79ywqyutltzlwp4vca45qjw3ds2ac8h64wa60rfspx5nhy9rz9m8g2e68em7kvzk2gxthd3qfap4vcx0x23n8wa30y4xe6qw4hd2q53hek6tqm8f2kp00qxwwcq9ufvvnf22a9gv6dghynvx895qap2qq3w2zjx3t20rzyukcpnj4svw9tnwjh8ml688j0lqeyz98r9sesfcknx0aue2ze9z99vrdqp0szxeegahrtf44q5vuweu3xz3ntun86k2dq8a204ayx4egkqdgjfuysrqqqqqqqqqqqdrvlsn4lgdyqzndl5ep4gef5tv58a2670k76qmmyntgak3yggw5qk7ccejkqtsmk6glfa7thkjuspqryg3jhklvytg2pv6t53l30wmeszexkq93ted0lwhqz6dz6q8awwx9dd9y3f04g5msm2z65aqzhrxqqpxen9yaj9z4qpu67r3sf26xhwhn2degs0hp6xxp3au05v7sh94c92ja94tvxm77ufn7rv54cp64sy6asluzsqwkv0avk6ma0xhc2lavftcgpky5g3seu4zagg0rdwq9gpqq7u72yf"
+    },
+    "fee": {
+      "transition": {
+        "id": "au1u4c2l9ssdk743hyh2kul0nmvdz2f3pzvgghu24csnkff4kwe5cgqx7v4mf",
+        "program": "credits.aleo",
+        "function": "fee_public",
+        "inputs": [
+          {
+            "type": "public",
+            "id": "2527757886434149196639235423365449991026045507388750812073879980723806906100field",
+            "value": "393338u64"
+          },
+          {
+            "type": "public",
+            "id": "2462803804362118387907572325211336402466043280204874323629727557712885525659field",
+            "value": "0u64"
+          },
+          {
+            "type": "public",
+            "id": "4166000463611102026017200466045144645999155548126489906220563524333658208833field",
+            "value": "74130103640912445711208782473881851070124376479431831542828771136354305421field"
+          }
+        ],
+        "outputs": [
+          {
+            "type": "future",
+            "id": "7136292767431935795699989590972262180906982836517297921116394516591648408165field",
+            "value": "{\n  program_id: credits.aleo,\n  function_name: fee_public,\n  arguments: [\n    aleo1yr3k99my65ec7a97a9n8tqqmr7ef687x3vthv68ezats30hcgvgs2f8ac5,\n    393338u64\n  ]\n}"
+          }
+        ],
+        "tpk": "4808318365161018880269305524603994993188332754888337658653858556190357195764group",
+        "tcm": "20291187414431565962100793935391737617697651817246245148643078122929990481field",
+        "scm": "1144509850713223476209863942669426529607926989436484776719707924384043430777field"
+      },
+      "global_state_root": "sr1v6tc3a83s09ys6vfjz57l5haqje35d2h28m0sh4tn5c36uu6fsqqq359px",
+      "proof": "proof1qyqsqqqqqqqqqqqpqqqqqqqqqqqtvdk4xw0usv0pn3uzs2gfd5yu4vm8f79e49fmfanqn0n7h0f2ag25zp34ju8dc0lr3czps2sq6tqpq827pyfr7vd605htxnkmzkr7hf659rwt4evzzcny2uch7pfqvlqu724hdyvysnucwgh7wj06lyxh9q2y7txd2v4glt4d0v3cp4npj8acszu9ws23t2hgp4qew6qulkmn9gp5uzhkfy5c3cw8las9ehynvjqzz6wsye27vkggzmqukhm58fychuys4dkurhh8jaglsvqdc43sc9zh3g4hew2phc0uhfmm58sdqxqqly5wvrey4t57pu50dy5hc3caaq6k55jyd9zpkdqf34cr4etywltumrwsth6aysqsvzm70znyj4ncremgw9vufj4klnh5f2jgdfg5lkl8ctgedmx0q8eljqzslzdpr8utq2fn94p37k25cnrlddfdvjd8qqxgzlwdk6yj8ga0kvewllena937wy6z69c4am9mxpvmhc0xcxd24mezs45vl2qzhph3s7wmq33uhqxewunutrpzya0dhmdfje92t7fn660lydmtjkhae784lvz3xkny7nk6w6dwdqxtpuvcgdrtk2cackqddx6kmqhpfst6ful5k565xw3w9ttzce0h2u43eggllr8q35l6zd47ppg9zqxlgzy4p6628mce4gvqcylmp6hkfsze5a2x9a9hm8vmpzxxrc9h0yhp9tmckqhpp3ku5cpmptzx3k9s79nd4ddgj4cg7u3xspuu4rhfyplw2gymaytpftqkcz9ycgte78yftkjeudl73v7jand0vdk0h002wumv2wzz5lpsqt0gp48sl3erhvtlrydvuvz9ekr29p7ve9l03whn63tuswakf6f5pc8pqe3yk9scrysfc62ghfgq6d9gr7fjhh6gwck0e7prlz7ass9wapsgypy5ed6ctmj4m76mep20vx4erz9ndh9pcrulj4cte595mq3xrg8h9mqs5p0psugl27z4nema30y37np4gc3krg06engy8864pvdtyzxt5h5hwv22gk8w950xnxkdrmawvqpx8rgyptrfax539n9xm6kwqmzh724u2ye067gsxn98m8vp8t40eny2vr9cvuqz6y80mvetdnpsq8n8lm35njjxux8k967uxskj24s84yrs29a5hg4dscsm9vexfpctqvqqqqqqqqqqq23240sgns7e8g5y6agtn9ewl94u635k5r3wyckt7rah2zc00u8f5k6zrdsag3vgrlkz694hvqq0qqq80fjufwt5ynq50y5nwux3r9w6f7ggn08n4ku88l5v2nm2wxyrllt7hs04madv25svw70pezgy5mupq8zg9mw3ugkthtzxzddcx7s00lguh9wcdll9qznvwgm5wu6xrmkprq6q25py3lqsrqu6fy2fvlfmaav2u5hwa96nqu0yrxl6u2cf0fagwmyh6vuhj94r6ytpdu7ae45wqyqqz9q2my"
+    }
+  },
+  "finalize": [
+    {
+      "type": "update_key_value",
+      "mapping_id": "1507951594111595203274053122788874732080926456438774962421884385107339784128field",
+      "key_id": "1012977131980480251998873554583247828078976332142250631438488167065864779206field",
+      "value_id": "7333956316178709623750101357700834740818391336988369214737114665395577585081field"
+    },
+    {
+      "type": "update_key_value",
+      "mapping_id": "4176104408539351136692222960773954338539173437777817689083884656445380490008field",
+      "key_id": "7293609888250675541066355460345905177265853575327239844339966439038531483649field",
+      "value_id": "5716137092344346716784474180321372804930673180900819952551019681072558746851field"
+    },
+    {
+      "type": "update_key_value",
+      "mapping_id": "551068561271981883612539031710068273307604684452237991944907035913865815051field",
+      "key_id": "2105038111642541447809470224685369289343651453693216591368142813750441282184field",
+      "value_id": "8301026177405205419964619895434888883607298224184275473267890443838977376244field"
+    },
+    {
+      "type": "update_key_value",
+      "mapping_id": "1705856177155097822369723769972655221068480890475142595962166643676691658979field",
+      "key_id": "6612370409962890291356755096478977936543465111124103487764575485751244891540field",
+      "value_id": "6049784450487080759481254782683483216546464071616349768765495964431323147309field"
+    },
+    {
+      "type": "update_key_value",
+      "mapping_id": "2855157744830843716005407030207142101853521493742120919939436395872133863104field",
+      "key_id": "4194206328775212466136307101331729754958487425219393888236195485675015468165field",
+      "value_id": "2873359391965817482205290632168823600118781306074642557981172075938479808602field"
+    },
+    {
+      "type": "update_key_value",
+      "mapping_id": "2855157744830843716005407030207142101853521493742120919939436395872133863104field",
+      "key_id": "7974116001576195162570537740581073361128783294282423640675216960562397709925field",
+      "value_id": "6647381063895847744693462782633441823984511776729927051943848631615787412005field"
+    },
+    {
+      "type": "update_key_value",
+      "mapping_id": "2152391902264455887839434910188184265985380659180163333101030788885020188297field",
+      "key_id": "4654853406038605250967599634687336610536847541278917437208137348332169256712field",
+      "value_id": "5856767399292728774704097251644284562216516921997512768226900315495671076628field"
+    },
+    {
+      "type": "update_key_value",
+      "mapping_id": "7750674072692803529805479656548159774054584843966668220685908133303577593150field",
+      "key_id": "7510032871742292228042584008429585526999743804425185417957568984813063971245field",
+      "value_id": "5193971797803190681357296400513352837640398878783774865338508647491966409352field"
+    },
+    {
+      "type": "update_key_value",
+      "mapping_id": "4776309703995631758725770331908281154591473712861445797646103409602898780800field",
+      "key_id": "6764036366509287221956355874293880154981509359290149096423285058054717065406field",
+      "value_id": "3539196965535678756801370177173283318267747629799269809780644406369818929883field"
+    },
+    {
+      "type": "update_key_value",
+      "mapping_id": "2855157744830843716005407030207142101853521493742120919939436395872133863104field",
+      "key_id": "4194206328775212466136307101331729754958487425219393888236195485675015468165field",
+      "value_id": "2873359391965817482205290632168823600118781306074642557981172075938479808602field"
+    },
+    {
+      "type": "update_key_value",
+      "mapping_id": "2855157744830843716005407030207142101853521493742120919939436395872133863104field",
+      "key_id": "7974116001576195162570537740581073361128783294282423640675216960562397709925field",
+      "value_id": "6647381063895847744693462782633441823984511776729927051943848631615787412005field"
+    },
+    {
+      "type": "update_key_value",
+      "mapping_id": "8312893679987265548214251290977626331971189603742959023046205615298458072059field",
+      "key_id": "2372228396543204349424644583055692124062405964399772185099912204078013390655field",
+      "value_id": "559129124438150788401303107179419723889251699697653405965938646090619751218field"
+    },
+    {
+      "type": "update_key_value",
+      "mapping_id": "2397915635788229027055630944966179691385027648914781354550345379061002087044field",
+      "key_id": "3486540135850718546630940500244672285248550881922547154663201845387195028947field",
+      "value_id": "4018467689864180386691027528838330145057421518102060111227804015178221478471field"
+    },
+    {
+      "type": "update_key_value",
+      "mapping_id": "7750674072692803529805479656548159774054584843966668220685908133303577593150field",
+      "key_id": "7168623530334003579847626146680906216590961410158588184486321914658207224538field",
+      "value_id": "4370568614831631254698945827000214448857925995139107219798981861070164794659field"
+    },
+    {
+      "type": "update_key_value",
+      "mapping_id": "2855157744830843716005407030207142101853521493742120919939436395872133863104field",
+      "key_id": "4194206328775212466136307101331729754958487425219393888236195485675015468165field",
+      "value_id": "6892149996359040372795137892188593927428277392544818050501420443134033205568field"
+    },
+    {
+      "type": "update_key_value",
+      "mapping_id": "2855157744830843716005407030207142101853521493742120919939436395872133863104field",
+      "key_id": "3076905101135431685212890153492369221853750166486421946966948473826084336692field",
+      "value_id": "1129387667811748225573723673942600572977018916702676591796497839953709587991field"
+    },
+    {
+      "type": "update_key_value",
+      "mapping_id": "2855157744830843716005407030207142101853521493742120919939436395872133863104field",
+      "key_id": "4194206328775212466136307101331729754958487425219393888236195485675015468165field",
+      "value_id": "352861983011765638340147374190804047166328042290947026793770831666564889999field"
+    }
+  ]
+}

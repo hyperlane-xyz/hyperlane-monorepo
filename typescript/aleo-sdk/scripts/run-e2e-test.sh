@@ -27,6 +27,6 @@ export ALEO_CONSENSUS_VERSION_HEIGHTS="0,1,2,3,4,5,6,7,8,9,10,11"
 export ALEO_ISM_MANAGER_SUFFIX="custom"
 export ALEO_WARP_SUFFIX="usdc"
 
-yarn mocha --config .mocharc-e2e.json
+pnpm mocha --config .mocharc-e2e.json
 
 echo "Completed E2E tests"

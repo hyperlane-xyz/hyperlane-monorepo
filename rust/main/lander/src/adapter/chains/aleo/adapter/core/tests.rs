@@ -42,15 +42,16 @@ fn create_test_payload_with_success_criteria(success_criteria: Option<Vec<u8>>) 
     }
 }
 
-fn create_test_adapter() -> AleoAdapter<MockAleoProvider> {
+pub(crate) fn create_test_adapter() -> AleoAdapter<MockAleoProvider> {
     let mock_provider = MockAleoProvider;
+
     AleoAdapter {
         provider: Arc::new(mock_provider),
         estimated_block_time: Duration::from_secs(10),
     }
 }
 
-fn create_test_transaction() -> Transaction {
+pub(crate) fn create_test_transaction() -> Transaction {
     let precursor = AleoTxPrecursor {
         program_id: "test_program.aleo".to_string(),
         function_name: "test_function".to_string(),
@@ -101,15 +102,6 @@ async fn test_estimate_tx() {
 async fn test_max_batch_size() {
     let adapter = create_test_adapter();
     assert_eq!(adapter.max_batch_size(), 1); // Aleo doesn't support batching
-}
-
-#[tokio::test]
-async fn test_tx_ready_for_resubmission() {
-    let adapter = create_test_adapter();
-    let tx = create_test_transaction();
-
-    let result = adapter.tx_ready_for_resubmission(&tx).await;
-    assert!(!result); // Aleo transactions cannot be resubmitted
 }
 
 #[tokio::test]

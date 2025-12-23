@@ -39,6 +39,7 @@ export const ezEthChainsToDeploy = [
   'ink',
   'monad',
   'xlayer',
+  'stable',
 ];
 export const MAX_PROTOCOL_FEE = parseEther('100').toString(); // Changing this will redeploy the PROTOCOL_FEE hook
 
@@ -64,6 +65,7 @@ export const renzoTokenPrices: ChainMap<string> = {
   ink: '3900', // ETH
   monad: '1', // MON placeholder price to avoid division by zero
   xlayer: '165', // OKB
+  stable: '1',
 };
 export function getProtocolFee(chain: ChainName) {
   const price = renzoTokenPrices[chain];
@@ -84,7 +86,7 @@ const chainProtocolFee: Record<ChainName, string> = {
   mode: '400000000000000',
   optimism: '400000000000000',
   sei: '798889224400000000',
-  swell: '400000000000000',
+  swell: '129871800000000',
   taiko: '400000000000000',
   unichain: '400000000000000',
   worldchain: '400000000000000',
@@ -140,6 +142,7 @@ const ezEthAddresses: Record<(typeof ezEthChainsToDeploy)[number], string> = {
   ink: '0x2416092f143378750bb29b79eD961ab195CcEea5',
   monad: '0x2416092f143378750bb29b79eD961ab195CcEea5',
   xlayer: '0x2416092f143378750bb29b79eD961ab195CcEea5',
+  stable: '0x2416092f143378750bb29b79eD961ab195CcEea5',
 };
 
 export const ezEthValidators: ChainMap<MultisigConfig> = {
@@ -343,32 +346,17 @@ export const ezEthValidators: ChainMap<MultisigConfig> = {
       { address: '0xecbe0864d34b215964c1abc21623aa8d0d75c723', alias: 'Renzo' },
     ],
   },
+  stable: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x1dc20ef3c95458bdaf5df286e14d15c3a1ab51f1',
+        alias: 'Luganodes',
+      },
+      { address: '0xA62f727Fc4700Fcb65668a30932eB59f8d625FAC', alias: 'Renzo' },
+    ],
+  },
 };
-
-// Renzo's custom ICA-like owners
-export const ezEthOwners: Record<(typeof ezEthChainsToDeploy)[number], string> =
-  {
-    arbitrum: '0xE5219Cf568D366ae4b96Efb04d826E6f2e72DaA0',
-    optimism: '0x365DC37679F21B3Ef629158CA962f05Bac7f0236',
-    base: '0xa87C18C9865e47f507e0C739d16C336aD764Fd95',
-    blast: '0xa3A3488613A3e8C578e6AD466a5000Fb1c0897FB',
-    bsc: '0x1bD739c88Cb90f88264488B914b6A1398840D426',
-    mode: '0x0683c3cc018Fb76874FdCC8620d15c4E467e34CA',
-    linea: '0xBAACd5f849024dcC80520BAA952f11aDFc59F9D0',
-    ethereum: '0xD1e6626310fD54Eceb5b9a51dA2eC329D6D4B68A',
-    fraxtal: '0x365DC37679F21B3Ef629158CA962f05Bac7f0236',
-    zircuit: '0xc1036D6bBa2FE24c65823110B348Ee80D3386ACd',
-    taiko: '0xE5219Cf568D366ae4b96Efb04d826E6f2e72DaA0',
-    sei: '0x5247eCbF210f289C244813e89212bC3aEd75aAC1',
-    swell: '0x672fb1C0F35DBD2074742765d23d18b80cbAAf22',
-    unichain: '0xfC67503Ab4DF366C19858A13c3f8a68781c64DD5',
-    berachain: '0xc1036D6bBa2FE24c65823110B348Ee80D3386ACd',
-    worldchain: '0x672fb1C0F35DBD2074742765d23d18b80cbAAf22',
-    plasma: '0x3eA4D0467C976e9877Adb96869Fdeb0551fd0930',
-    ink: '0x42A4E564836AE98C2522368Be2faA6e96Ff7a07f',
-    monad: '0xf2a0775ED23887F3C47Bf1f0D01cc580281dA2E4',
-    xlayer: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
-  };
 
 export const ezEthSafes: Record<(typeof ezEthChainsToDeploy)[number], string> =
   {
@@ -389,6 +377,34 @@ export const ezEthSafes: Record<(typeof ezEthChainsToDeploy)[number], string> =
     berachain: '0x865BA5789D82F2D4C5595a3968dad729A8C3daE6',
     worldchain: '0x7Be36310285cA4e809C296526745DA983c8F8e0f',
     plasma: '0x76Cd13F5Bfb73f501795988Ef5d017606Bb16DBd',
+    ink: '0x42A4E564836AE98C2522368Be2faA6e96Ff7a07f',
+    stable: '0x088Bc91C5e9A278FB9c5f80a226274fF0179E69c',
+  };
+
+// Unless defined otherwise, most of these are Renzo's custom ICA-like owners
+export const ezEthOwners: Record<(typeof ezEthChainsToDeploy)[number], string> =
+  {
+    arbitrum: '0xE5219Cf568D366ae4b96Efb04d826E6f2e72DaA0',
+    optimism: '0x365DC37679F21B3Ef629158CA962f05Bac7f0236',
+    base: '0xa87C18C9865e47f507e0C739d16C336aD764Fd95',
+    blast: '0xa3A3488613A3e8C578e6AD466a5000Fb1c0897FB',
+    bsc: '0x1bD739c88Cb90f88264488B914b6A1398840D426',
+    mode: '0x0683c3cc018Fb76874FdCC8620d15c4E467e34CA',
+    linea: '0xBAACd5f849024dcC80520BAA952f11aDFc59F9D0',
+    ethereum: '0xD1e6626310fD54Eceb5b9a51dA2eC329D6D4B68A',
+    fraxtal: '0x365DC37679F21B3Ef629158CA962f05Bac7f0236',
+    zircuit: '0xc1036D6bBa2FE24c65823110B348Ee80D3386ACd',
+    taiko: '0xE5219Cf568D366ae4b96Efb04d826E6f2e72DaA0',
+    sei: '0x5247eCbF210f289C244813e89212bC3aEd75aAC1',
+    swell: '0x672fb1C0F35DBD2074742765d23d18b80cbAAf22',
+    unichain: '0xfC67503Ab4DF366C19858A13c3f8a68781c64DD5',
+    berachain: '0xc1036D6bBa2FE24c65823110B348Ee80D3386ACd',
+    worldchain: '0x672fb1C0F35DBD2074742765d23d18b80cbAAf22',
+    plasma: '0x3eA4D0467C976e9877Adb96869Fdeb0551fd0930',
+    ink: '0xf25484650484DE3d554fB0b7125e7696efA4ab99',
+    monad: '0xf2a0775ED23887F3C47Bf1f0D01cc580281dA2E4',
+    xlayer: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
+    stable: ezEthSafes.stable,
   };
 
 type ChainOwnerOverrides = ChainMap<Partial<{ proxyAdmin: string }>>;
@@ -445,7 +461,7 @@ export const ezEthChainOwnerOverrides: ChainOwnerOverrides = {
     proxyAdmin: ezEthSafes.plasma,
   },
   ink: {
-    proxyAdmin: ezEthOwners.ink,
+    proxyAdmin: ezEthSafes.ink,
   },
   monad: {
     proxyAdmin: ezEthOwners.monad,

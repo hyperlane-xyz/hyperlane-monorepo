@@ -288,14 +288,6 @@ const DOMAINS: &[RawDomain] = &[
         is_deprecated: false,
     },
     RawDomain {
-        name: "osmosis",
-        token: "OSMO",
-        domain: 875,
-        chain_id: 875,
-        is_test_net: false,
-        is_deprecated: false,
-    },
-    RawDomain {
         name: "polygon",
         token: "MATIC",
         domain: 137,

@@ -38,7 +38,10 @@ export async function runSubmit({
         '🧾 Transaction receipts:\n\n',
         indentYamlOrJson(yamlStringify(transactionReceipts, null, 2), 4),
       );
-      writeYamlOrJson(receiptsFilepath, transactionReceipts, 'yaml');
+      const receiptPath = `${receiptsFilepath}/${chain}-${
+        submitter.txSubmitterType
+      }-${Date.now()}-receipts.json`;
+      writeYamlOrJson(receiptPath, transactionReceipts, 'json');
     }
   } catch (error) {
     logRed(

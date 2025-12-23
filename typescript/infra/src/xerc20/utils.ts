@@ -576,7 +576,11 @@ async function sendTransactions(
       rootLogger.info(
         chalk.gray(`[${chain}][${bridgeAddress}] Sending as Safe transaction`),
       );
-      sender = new SafeMultiSend(multiProvider, chain, actualOwner);
+      sender = await SafeMultiSend.initialize(
+        multiProvider,
+        chain,
+        actualOwner,
+      );
       safeAddress = actualOwner;
     }
   }

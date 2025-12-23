@@ -287,7 +287,7 @@ async fn test_multiple_op_queues_message_id() {
     let mut op_queue_2 = initialize_queue(&broadcaster);
 
     // Add some operations to the queue with increasing `next_attempt_after` values
-    let destination_domain: HyperlaneDomain = KnownHyperlaneDomain::Injective.into();
+    let destination_domain: HyperlaneDomain = KnownHyperlaneDomain::Base.into();
     let messages_to_send = 5;
     let mut ops = generate_test_messages(destination_domain, messages_to_send);
     let op_ids: Vec<_> = ops.iter().map(|op| op.id()).collect();
@@ -359,7 +359,7 @@ async fn test_destination_domain() {
     let mut op_queue = initialize_queue(&broadcaster);
 
     // Add some operations to the queue with increasing `next_attempt_after` values
-    let destination_domain_1: HyperlaneDomain = KnownHyperlaneDomain::Injective.into();
+    let destination_domain_1: HyperlaneDomain = KnownHyperlaneDomain::Base.into();
     let destination_domain_2: HyperlaneDomain = KnownHyperlaneDomain::Ethereum.into();
     let ops = vec![
         Box::new(MockPendingOperation::new(1, destination_domain_1.clone())) as QueueOperation,
@@ -417,7 +417,7 @@ async fn test_process_retry_requests_by_id() {
     let mut op_queue_1 = initialize_queue(&broadcaster);
 
     // Add some operations to the queue with increasing `next_attempt_after` values
-    let destination_domain: HyperlaneDomain = KnownHyperlaneDomain::Injective.into();
+    let destination_domain: HyperlaneDomain = KnownHyperlaneDomain::Base.into();
     let messages_to_send = 5;
     let ops = generate_test_messages(destination_domain, messages_to_send);
     let op_ids: Vec<_> = ops.iter().map(|op| op.id()).collect();
@@ -479,7 +479,7 @@ async fn test_process_retry_requests_all_wildcards() {
     let mut op_queue_1 = initialize_queue(&broadcaster);
 
     // Add some operations to the queue with increasing `next_attempt_after` values
-    let destination_domain: HyperlaneDomain = KnownHyperlaneDomain::Injective.into();
+    let destination_domain: HyperlaneDomain = KnownHyperlaneDomain::Base.into();
     let messages_to_send = 5;
     let ops = generate_test_messages(destination_domain, messages_to_send);
 
@@ -522,7 +522,7 @@ async fn test_process_retry_requests_multiple_fields() {
     let mut op_queue_1 = initialize_queue(&broadcaster);
 
     // Add some operations to the queue with increasing `next_attempt_after` values
-    let destination_domain: HyperlaneDomain = KnownHyperlaneDomain::Injective.into();
+    let destination_domain: HyperlaneDomain = KnownHyperlaneDomain::Base.into();
     let messages_to_send = 5;
     let ops = generate_test_messages(destination_domain, messages_to_send);
 
@@ -579,7 +579,7 @@ async fn test_process_retry_requests_multiple_list_elements() {
     let mut op_queue_1 = initialize_queue(&broadcaster);
 
     // Add some operations to the queue with increasing `next_attempt_after` values
-    let destination_domain: HyperlaneDomain = KnownHyperlaneDomain::Injective.into();
+    let destination_domain: HyperlaneDomain = KnownHyperlaneDomain::Base.into();
     let messages_to_send = 5;
     let ops = generate_test_messages(destination_domain, messages_to_send);
 
@@ -646,7 +646,7 @@ async fn test_process_retry_requests_multiple_retries() {
     let mut op_queue_1 = initialize_queue(&broadcaster);
 
     // Add some operations to the queue with increasing `next_attempt_after` values
-    let destination_domain: HyperlaneDomain = KnownHyperlaneDomain::Injective.into();
+    let destination_domain: HyperlaneDomain = KnownHyperlaneDomain::Base.into();
     let messages_to_send = 5;
     let ops = generate_test_messages(destination_domain, messages_to_send);
 

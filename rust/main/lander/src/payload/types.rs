@@ -103,12 +103,13 @@ impl FullPayload {
         &self.details.uuid
     }
 
-    #[cfg(test)]
+    /// Create a random payload for testing purposes
+    #[cfg(any(test, feature = "integration_test"))]
     pub fn random() -> Self {
         let payload_uuid = PayloadUuid::random();
         let details = PayloadDetails {
             uuid: payload_uuid.clone(),
-            metadata: format!("payload-{}", payload_uuid),
+            metadata: format!("payload-{payload_uuid}"),
             success_criteria: None,
         };
         FullPayload {

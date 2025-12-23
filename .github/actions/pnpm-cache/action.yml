@@ -1,0 +1,53 @@
+name: 'PNPM Cache'
+description: 'Cache pnpm dependencies for faster installs'
+
+inputs:
+  cache-provider:
+    description: 'Choose cache provider: buildjet or github'
+    required: false
+    default: 'github'
+
+outputs:
+  cache-hit:
+    description: 'Whether there was a cache hit'
+    value: ${{ steps.buildjet-cache.outputs.cache-hit || steps.github-cache.outputs.cache-hit }}
+
+runs:
+  using: 'composite'
+  steps:
+    # Depot transparently redirects GitHub Actions cache to their own for extra speed.
+    # But this is not available for non-depot runners.
+    # So we default to github, and expect the workflow to set cache-provider=buildjet if needed.
+    # https://depot.dev/docs/github-actions/overview#faster-caching
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v4
+
+    - name: Determine Cache Provider
+      id: determine-cache
+      shell: bash
+      run: echo "cache_provider=${{ inputs.cache-provider }}" >> $GITHUB_ENV
+
+    - name: Get pnpm store directory
+      id: pnpm-store
+      shell: bash
+      run: echo "store_path=$(pnpm store path)" >> $GITHUB_OUTPUT
+
+    - name: Cache (Buildjet)
+      id: buildjet-cache
+      if: env.cache_provider == 'buildjet'
+      uses: buildjet/cache@v4
+      with:
+        path: ${{ steps.pnpm-store.outputs.store_path }}
+        key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+        restore-keys: |
+          ${{ runner.os }}-pnpm-store-
+
+    - name: Cache (GitHub)
+      id: github-cache
+      if: env.cache_provider == 'github'
+      uses: actions/cache@v4
+      with:
+        path: ${{ steps.pnpm-store.outputs.store_path }}
+        key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+        restore-keys: |
+          ${{ runner.os }}-pnpm-store-

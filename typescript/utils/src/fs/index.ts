@@ -8,7 +8,7 @@ export {
   isFile,
   pathExists,
   readFileAtPath,
-  removeEndingSlash,
+  removeTrailingSlash,
   resolvePath,
   writeFileAtPath,
   writeToFile,

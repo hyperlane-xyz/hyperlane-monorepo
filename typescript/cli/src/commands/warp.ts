@@ -2,6 +2,7 @@ import util from 'util';
 import { stringify as yamlStringify } from 'yaml';
 import { CommandModule } from 'yargs';
 
+import { RebalancerConfig, RebalancerService } from '@hyperlane-xyz/rebalancer';
 import {
   RawForkedChainConfigByChain,
   RawForkedChainConfigByChainSchema,
@@ -15,6 +16,7 @@ import {
   difference,
   intersection,
   objFilter,
+  rootLogger,
 } from '@hyperlane-xyz/utils';
 
 import { runWarpRouteCheck } from '../check/warp.js';
@@ -35,13 +37,12 @@ import {
   logGreen,
 } from '../logger.js';
 import { getWarpRouteConfigsByCore, runWarpRouteRead } from '../read/warp.js';
-import { RebalancerRunner } from '../rebalancer/runner.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { ExtendedChainSubmissionStrategySchema } from '../submitters/types.js';
 import {
   indentYamlOrJson,
   readYamlOrJson,
-  removeEndingSlash,
+  removeTrailingSlash,
   writeYamlOrJson,
 } from '../utils/files.js';
 import {
@@ -123,7 +124,7 @@ export const apply: CommandModuleWithWarpApplyContext<
       type: 'string',
       description: 'The directory to output transaction receipts.',
       default: './generated/transactions',
-      coerce: (dir) => removeEndingSlash(dir),
+      coerce: (dir) => removeTrailingSlash(dir),
     },
     relay: {
       type: 'boolean',
@@ -490,18 +491,63 @@ export const rebalancer: CommandModuleWithWriteContext<{
     },
   },
   handler: async (args) => {
-    let runner: RebalancerRunner;
-    try {
-      const { context, ...rest } = args;
-      runner = await RebalancerRunner.create(rest, context);
-    } catch (e: any) {
-      // exit on startup errors
-      errorRed(`Rebalancer startup error: ${util.format(e)}`);
-      process.exit(1);
-    }
+    const {
+      context,
+      config: configPath,
+      checkFrequency,
+      withMetrics,
+      monitorOnly,
+      manual,
+      origin,
+      destination,
+      amount,
+    } = args;
+
+    logCommandHeader('Hyperlane Warp Route Rebalancer');
 
     try {
-      await runner.run();
+      // Load rebalancer configuration
+      const rebalancerConfig = RebalancerConfig.load(configPath);
+
+      // Determine execution mode
+      const mode = manual ? 'manual' : 'daemon';
+
+      // Create rebalancer service
+      const service = new RebalancerService(
+        context.multiProvider,
+        context.multiProtocolProvider,
+        context.registry,
+        rebalancerConfig,
+        {
+          mode,
+          checkFrequency,
+          withMetrics,
+          monitorOnly,
+          coingeckoApiKey: process.env.COINGECKO_API_KEY,
+          logger: rootLogger.child({ module: 'rebalancer' }),
+        },
+      );
+
+      // Execute based on mode
+      if (manual) {
+        if (!origin || !destination || !amount) {
+          errorRed(
+            'Origin, destination, and amount are required for manual rebalance',
+          );
+          process.exit(1);
+        }
+
+        await service.executeManual({
+          origin,
+          destination,
+          amount,
+        });
+
+        logGreen('✅ Manual rebalance completed successfully');
+      } else {
+        // Start daemon mode
+        await service.start();
+      }
     } catch (e: any) {
       errorRed(`Rebalancer error: ${util.format(e)}`);
       process.exit(1);

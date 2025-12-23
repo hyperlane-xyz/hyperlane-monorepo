@@ -37,11 +37,6 @@ export const squadsConfigs: ChainMap<SquadConfig> = {
     multisigPda: 'XgeE3uXEy5bKPbgYv3D9pWovhu3PWrxt3RR5bdp9RkW',
     vault: '4chV16Dea6CW6xyQcHj9RPwBZitfxYgpafkSoZgzy4G8',
   },
-  // svmbnb: {
-  //   programId: 'Hz8Zg8JYFshThnKHXSZV9XJFbyYUUKBb5NJUrxDvF8PB',
-  //   multisigPda: '9eQpT28rq83sc2wtsGK7TYirXJ4sL1QmQENSMz2TbHEv',
-  //   vault: '3JiYeSX1rN2nsh78Xqypg87vQd2Y5Y9h5w9ns6Hjii5B',
-  // },
 };
 
 export function getSquadsKeys(chainName: ChainName): SquadsKeys {

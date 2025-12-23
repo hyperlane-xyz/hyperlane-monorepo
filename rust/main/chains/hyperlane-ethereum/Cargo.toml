@@ -43,6 +43,9 @@ reqwest-utils = { path = "../../utils/reqwest-utils" }
 abigen = { path = "../../utils/abigen", features = ["ethers"] }
 hyperlane-core = { path = "../../hyperlane-core", features = ["test-utils"] }
 
+[dev-dependencies]
+tracing-test.workspace = true
+
 [features]
 default = []
 test-utils = []

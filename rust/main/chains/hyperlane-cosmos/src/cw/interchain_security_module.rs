@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, ModuleType, RawHyperlaneMessage,
-    H256, U256,
+    HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, Metadata, ModuleType,
+    RawHyperlaneMessage, H256, U256,
 };
 
 use super::payloads::{
@@ -81,7 +81,7 @@ impl InterchainSecurityModule for CwInterchainSecurityModule {
     async fn dry_run_verify(
         &self,
         message: &HyperlaneMessage,
-        metadata: &[u8],
+        metadata: &Metadata,
     ) -> ChainResult<Option<U256>> {
         let payload = VerifyRequest {
             verify: VerifyRequestInner {

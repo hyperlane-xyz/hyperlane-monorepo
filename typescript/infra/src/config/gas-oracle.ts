@@ -161,7 +161,7 @@ function getLocalStorageGasOracleConfigOverride(
     local: ChainName,
     remote: ChainName,
     gasOracleConfig: ProtocolAgnositicGasOracleConfig,
-  ): BigNumberJs.Value => {
+  ): Parameters<typeof BigNumberJs>[0] => {
     if (!applyMinUsdCost) {
       return gasOracleConfig.gasPrice;
     }
@@ -287,8 +287,6 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
     // Scroll is more expensive than the rest due to higher L1 fees
     scroll: 1.5,
     taiko: 0.5,
-    // Nexus adjustment
-    neutron: 0.5,
     // For Solana, special min cost
     solanamainnet: 1.2,
   };
@@ -353,6 +351,10 @@ export function getOverhead(local: ChainName, remote: ChainName): number {
 
   if (remoteProtocol === ProtocolType.Starknet) {
     return 10_000_000 + 40_000_000 * defaultMultisigConfigs[local].threshold;
+  }
+
+  if (remoteProtocol === ProtocolType.Aleo) {
+    return 400000;
   }
 
   // Default non-EVM overhead

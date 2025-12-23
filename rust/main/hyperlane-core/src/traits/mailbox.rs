@@ -5,7 +5,7 @@ use derive_new::new;
 
 use crate::{
     traits::TxOutcome, utils::domain_hash, ChainCommunicationError, ChainResult, HyperlaneContract,
-    HyperlaneMessage, QueueOperation, ReorgPeriod, TxCostEstimate, H256, U256,
+    HyperlaneMessage, Metadata, QueueOperation, ReorgPeriod, TxCostEstimate, H256, U256,
 };
 
 /// Interface for the Mailbox chain contract. Allows abstraction over different
@@ -36,7 +36,7 @@ pub trait Mailbox: HyperlaneContract + Send + Sync + Debug {
     async fn process(
         &self,
         message: &HyperlaneMessage,
-        metadata: &[u8],
+        metadata: &Metadata,
         tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome>;
 
@@ -61,7 +61,7 @@ pub trait Mailbox: HyperlaneContract + Send + Sync + Debug {
     async fn process_estimate_costs(
         &self,
         message: &HyperlaneMessage,
-        metadata: &[u8],
+        metadata: &Metadata,
     ) -> ChainResult<TxCostEstimate>;
 
     /// Get the calldata for a transaction to process a message with a proof
@@ -69,7 +69,7 @@ pub trait Mailbox: HyperlaneContract + Send + Sync + Debug {
     async fn process_calldata(
         &self,
         message: &HyperlaneMessage,
-        metadata: &[u8],
+        metadata: &Metadata,
     ) -> ChainResult<Vec<u8>>;
 
     /// Get the calldata for a call which allows to check if a particular messages was delivered
