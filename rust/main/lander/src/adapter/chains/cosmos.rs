@@ -5,7 +5,7 @@ use uuid::Uuid;
 use hyperlane_base::settings::{ChainConf, RawChainConf};
 
 use crate::{
-    adapter::{core::TxBuildingResult, AdaptsChain, GasLimit},
+    adapter::{core::TxBuildingResult, AdaptsChain},
     error::LanderError,
     payload::{FullPayload, PayloadDetails},
     transaction::{Transaction, TransactionStatus},
