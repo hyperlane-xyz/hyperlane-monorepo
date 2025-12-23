@@ -51,7 +51,7 @@ contract TimelockRouter is
 
     // ============ Storage ============
     /// @dev Mapping of message ID => timestamp when message is ready for verification
-    mapping(bytes32 => uint48) public readyAt;
+    mapping(bytes32 messageId => uint48 timestamp) public readyAt;
 
     // ============ Constructor ============
     constructor(address _mailbox, uint48 _timelockWindow) Router(_mailbox) {
