@@ -1,18 +1,23 @@
 import { expect } from 'chai';
+import { BigNumber } from 'ethers';
 import sinon from 'sinon';
 
 import {
   AbstractRoutingIsm__factory,
   CCIPIsm,
   CCIPIsm__factory,
+  DefaultFallbackRoutingIsm__factory,
+  DomainRoutingIsm__factory,
   IInterchainSecurityModule,
   IInterchainSecurityModule__factory,
   IMultisigIsm,
   IMultisigIsm__factory,
+  IncrementalDomainRoutingIsm__factory,
   InterchainAccountRouter,
   InterchainAccountRouter__factory,
   OPStackIsm,
   OPStackIsm__factory,
+  Ownable__factory,
   PausableIsm,
   PausableIsm__factory,
   TestIsm,
@@ -200,6 +205,61 @@ describe('EvmIsmReader', () => {
     // should get same result if we call the specific method for the ism type
     const config = await evmIsmReader.deriveRoutingConfig(mockAddress);
     expect(config).to.deep.equal(ismConfig);
+  });
+
+  it('should derive incremental routing ISM config correctly', async () => {
+    const mockAddress = randomAddress();
+    const mockOwner = randomAddress();
+    const mockDomain = 1;
+    const mockModule = randomAddress();
+
+    // Mock the routing ISM contract
+    const mockRoutingContract = {
+      moduleType: sandbox.stub().resolves(ModuleType.ROUTING),
+      owner: sandbox.stub().resolves(mockOwner),
+      domains: sandbox.stub().resolves([mockDomain]),
+      module: sandbox.stub().resolves(mockModule),
+    };
+
+    // Mock fallback routing to fail mailbox() call
+    const mockFallbackContract = {
+      mailbox: sandbox.stub().rejects(new Error('No mailbox')),
+      domains: sandbox.stub().resolves([BigNumber.from(mockDomain)]),
+      module: sandbox.stub().resolves(mockModule),
+    };
+
+    const mockProvider = evmIsmReader['provider'];
+    sandbox
+      .stub(mockProvider, 'getCode')
+      .resolves(IncrementalDomainRoutingIsm__factory.bytecode);
+
+    sandbox
+      .stub(AbstractRoutingIsm__factory, 'connect')
+      .returns(mockRoutingContract as any);
+    sandbox
+      .stub(Ownable__factory, 'connect')
+      .returns({ owner: sandbox.stub().resolves(mockOwner) } as any);
+    sandbox
+      .stub(DefaultFallbackRoutingIsm__factory, 'connect')
+      .returns(mockFallbackContract as any);
+    sandbox
+      .stub(DomainRoutingIsm__factory, 'connect')
+      .returns(mockRoutingContract as any);
+    sandbox.stub(InterchainAccountRouter__factory, 'connect').returns({
+      CCIP_READ_ISM: sandbox.stub().rejects(new Error('Not ICA')),
+    } as any);
+    sandbox
+      .stub(IInterchainSecurityModule__factory, 'connect')
+      .returns(mockRoutingContract as any);
+
+    // Mock deriveIsmConfig for the nested module
+    sandbox.stub(evmIsmReader, 'deriveIsmConfig' as any).resolves({
+      type: IsmType.TEST_ISM,
+      address: mockModule,
+    });
+
+    const config = await evmIsmReader.deriveRoutingConfig(mockAddress);
+    expect(config.type).to.equal(IsmType.INCREMENTAL_ROUTING);
   });
 
   /*

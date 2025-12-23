@@ -304,6 +304,19 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       );
     }
 
+    // Check if it's an incremental routing ISM by looking for the unique error message in bytecode
+    if (ismType === IsmType.ROUTING) {
+      const code = await this.provider.getCode(address);
+      // only search for prefix because solc partitions long strings
+      const errorMessageHex = Buffer.from(
+        'IncrementalDomainRoutingIsm',
+      ).toString('hex');
+      this.logger.debug({ code, errorMessageHex });
+      if (code.includes(errorMessageHex)) {
+        ismType = IsmType.INCREMENTAL_ROUTING;
+      }
+    }
+
     return {
       owner,
       address,
