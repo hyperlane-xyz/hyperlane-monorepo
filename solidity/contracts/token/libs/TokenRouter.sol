@@ -8,6 +8,7 @@ import {TokenMessage} from "./TokenMessage.sol";
 import {Quote, ITokenBridge, ITokenFee} from "../../interfaces/ITokenBridge.sol";
 import {Quotes} from "./Quotes.sol";
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
  * @title Hyperlane Token Router that extends Router with abstract token (ERC20/ERC721) remote transfer functionality.
@@ -26,6 +27,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
     using TokenMessage for bytes;
     using StorageSlot for bytes32;
     using Quotes for Quote[];
+    using Math for uint256;
 
     /**
      * @dev Emitted on `transferRemote` when a transfer message is dispatched.
@@ -401,7 +403,11 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
     function _outboundAmount(
         uint256 _localAmount
     ) internal view virtual returns (uint256 _messageAmount) {
-        _messageAmount = (_localAmount * scaleNumerator) / scaleDenominator;
+        _messageAmount = _localAmount.mulDiv(
+            scaleNumerator,
+            scaleDenominator,
+            Math.Rounding.Down
+        );
     }
 
     /**
@@ -416,7 +422,11 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
     function _inboundAmount(
         uint256 _messageAmount
     ) internal view virtual returns (uint256 _localAmount) {
-        _localAmount = (_messageAmount * scaleDenominator) / scaleNumerator;
+        _localAmount = _messageAmount.mulDiv(
+            scaleDenominator,
+            scaleNumerator,
+            Math.Rounding.Down
+        );
     }
 
     /**
