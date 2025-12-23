@@ -76,6 +76,100 @@ export function getUSDCRebalancingBridgesConfigFor(
   );
 }
 
+export function getCCTPV2RebalancingBridgesConfigFor(
+  deploymentChains: readonly ChainName[],
+): ChainMap<RebalancingConfig> {
+  const registry = getRegistry();
+
+  // Fetch both V2Standard and V2Fast routes
+  const mainnetCCTPV2Standard = registry.getWarpRoute(
+    WarpRouteIds.MainnetCCTPV2Standard,
+  );
+  const mainnetCCTPV2Fast = registry.getWarpRoute(
+    WarpRouteIds.MainnetCCTPV2Fast,
+  );
+
+  assert(mainnetCCTPV2Standard, 'MainnetCCTPV2Standard warp route not found');
+  assert(mainnetCCTPV2Fast, 'MainnetCCTPV2Fast warp route not found');
+
+  // Get all chains that are supported by at least one of the CCTP routes
+  const v2StandardChains = new Set(
+    mainnetCCTPV2Standard.tokens.map(({ chainName }) => chainName),
+  );
+  const v2FastChains = new Set(
+    mainnetCCTPV2Fast.tokens.map(({ chainName }) => chainName),
+  );
+
+  // Chains supported by both routes
+  const cctpBridgeChains = new Set(
+    [...v2StandardChains].filter((chain) => v2FastChains.has(chain)),
+  );
+
+  const rebalanceableChains = deploymentChains.filter((chain) =>
+    cctpBridgeChains.has(chain),
+  );
+
+  // Build bridge mappings for both V2Standard and V2Fast
+  const v2StandardBridgesByChain = Object.fromEntries(
+    mainnetCCTPV2Standard.tokens.map(
+      ({ chainName, addressOrDenom }): [string, string] => {
+        assert(
+          addressOrDenom,
+          `Expected V2Standard cctp bridge address to be defined on chain ${chainName}`,
+        );
+        return [chainName, addressOrDenom];
+      },
+    ),
+  );
+
+  const v2FastBridgesByChain = Object.fromEntries(
+    mainnetCCTPV2Fast.tokens.map(
+      ({ chainName, addressOrDenom }): [string, string] => {
+        assert(
+          addressOrDenom,
+          `Expected V2Fast cctp bridge address to be defined on chain ${chainName}`,
+        );
+        return [chainName, addressOrDenom];
+      },
+    ),
+  );
+
+  return objMap(
+    arrayToObject(rebalanceableChains),
+    (currentChain): RebalancingConfig => {
+      const v2StandardBridge = v2StandardBridgesByChain[currentChain];
+      const v2FastBridge = v2FastBridgesByChain[currentChain];
+
+      assert(
+        v2StandardBridge,
+        `No V2Standard cctp bridge found for chain ${currentChain}`,
+      );
+      assert(
+        v2FastBridge,
+        `No V2Fast cctp bridge found for chain ${currentChain}`,
+      );
+
+      const allowedRebalancingBridges = Object.fromEntries(
+        rebalanceableChains
+          .filter((remoteChain) => remoteChain !== currentChain)
+          .map((remoteChain) => {
+            // Use bridges on the current chain (not remote chain)
+            // Both V2Standard and V2Fast bridges on the current chain can send to any remote chain
+            return [
+              remoteChain,
+              [{ bridge: v2StandardBridge }, { bridge: v2FastBridge }],
+            ];
+          }),
+      );
+
+      return {
+        allowedRebalancers: [REBALANCER],
+        allowedRebalancingBridges,
+      };
+    },
+  );
+}
+
 export const getRebalancingUSDCConfigForChain = (
   currentChain: keyof typeof usdcTokenAddresses,
   routerConfigByChain: ChainMap<RouterConfigWithoutOwner>,
