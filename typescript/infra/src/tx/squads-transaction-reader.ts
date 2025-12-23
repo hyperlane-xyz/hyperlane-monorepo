@@ -26,9 +26,10 @@ import {
   SealevelMultisigIsmSetValidatorsInstructionSchema,
   SealevelMultisigIsmTransferOwnershipInstruction,
   SealevelMultisigIsmTransferOwnershipInstructionSchema,
+  WarpCoreConfig,
   defaultMultisigConfigs,
 } from '@hyperlane-xyz/sdk';
-import { rootLogger } from '@hyperlane-xyz/utils';
+import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { DeployEnvironment } from '../config/environment.js';
@@ -113,6 +114,15 @@ function formatValidatorsWithAliases(
 }
 
 /**
+ * Warp route metadata for display
+ */
+interface WarpRouteMetadata {
+  symbol: string;
+  name: string;
+  routeName: string;
+}
+
+/**
  * SquadsTransactionReader - Main class for parsing Squads proposals
  *
  * Similar to GovernTransactionReader but for SVM/Squads multisigs
@@ -121,10 +131,66 @@ export class SquadsTransactionReader {
   errors: any[] = [];
   private multisigConfigs: Map<ChainName, SvmMultisigConfigMap> = new Map();
 
+  /**
+   * Index of known warp route program IDs by chain
+   * Maps chain -> lowercase program ID -> metadata
+   */
+  readonly warpRouteIndex: Map<ChainName, Map<string, WarpRouteMetadata>> =
+    new Map();
+
   constructor(
     readonly environment: DeployEnvironment,
     readonly mpp: MultiProtocolProvider,
   ) {}
+
+  /**
+   * Initialize the reader with warp routes from the registry
+   * Call this before parsing transactions
+   */
+  async init(warpRoutes: Record<string, WarpCoreConfig>): Promise<void> {
+    for (const [routeName, warpRoute] of Object.entries(warpRoutes)) {
+      for (const token of Object.values(warpRoute.tokens)) {
+        // Only index Sealevel chains
+        const chainProtocol = this.mpp.tryGetProtocol(token.chainName);
+        if (chainProtocol !== ProtocolType.Sealevel) {
+          continue;
+        }
+
+        const address = token.addressOrDenom?.toLowerCase();
+        if (!address) {
+          continue;
+        }
+
+        if (!this.warpRouteIndex.has(token.chainName)) {
+          this.warpRouteIndex.set(token.chainName, new Map());
+        }
+
+        this.warpRouteIndex.get(token.chainName)!.set(address, {
+          symbol: token.symbol ?? 'Unknown',
+          name: token.name ?? 'Unknown',
+          routeName,
+        });
+      }
+    }
+
+    rootLogger.debug(
+      `Indexed ${Array.from(this.warpRouteIndex.values()).reduce((sum, map) => sum + map.size, 0)} Sealevel warp routes`,
+    );
+  }
+
+  /**
+   * Check if a program ID is a known warp route
+   */
+  private isWarpRouteProgram(
+    chain: ChainName,
+    programId: PublicKey,
+  ): WarpRouteMetadata | undefined {
+    const chainIndex = this.warpRouteIndex.get(chain);
+    if (!chainIndex) {
+      return undefined;
+    }
+    return chainIndex.get(programId.toBase58().toLowerCase());
+  }
 
   /**
    * Check if instruction is for Mailbox program
@@ -425,12 +491,83 @@ export class SquadsTransactionReader {
   }
 
   /**
-   * Parse instructions from a VaultTransaction
+   * Resolve address lookup table accounts to get all account keys
+   * Appends lookup table addresses to the static account keys
    */
-  private parseVaultInstructions(
+  private async resolveAddressLookupTables(
     chain: ChainName,
     vaultTransaction: accounts.VaultTransaction,
-  ): { instructions: ParsedInstruction[]; warnings: string[] } {
+  ): Promise<PublicKey[]> {
+    const { svmProvider } = await getSquadAndProvider(chain, this.mpp);
+    const accountKeys = [...vaultTransaction.message.accountKeys];
+    const lookups = vaultTransaction.message.addressTableLookups;
+
+    if (!lookups || lookups.length === 0) {
+      return accountKeys;
+    }
+
+    for (const lookup of lookups) {
+      try {
+        // Fetch the address lookup table account
+        const lookupTableAccount = await svmProvider.getAccountInfo(
+          lookup.accountKey,
+        );
+        if (!lookupTableAccount) {
+          rootLogger.warn(
+            chalk.yellow(
+              `Address lookup table ${lookup.accountKey.toBase58()} not found`,
+            ),
+          );
+          continue;
+        }
+
+        // Parse the lookup table data to extract addresses
+        // Lookup table format: 8 bytes authority + 8 bytes deactivation slot + addresses
+        const data = lookupTableAccount.data;
+        const LOOKUP_TABLE_META_SIZE = 56; // Authority (32) + deactivation slot (8) + last extended slot (8) + last extended slot start index (1) + padding (7)
+        const addresses: PublicKey[] = [];
+
+        for (
+          let i = LOOKUP_TABLE_META_SIZE;
+          i < data.length;
+          i += 32 // Each address is 32 bytes
+        ) {
+          const addressBytes = data.slice(i, i + 32);
+          if (addressBytes.length === 32) {
+            addresses.push(new PublicKey(addressBytes));
+          }
+        }
+
+        // Add writable addresses first, then readonly (matching Solana's order)
+        for (const idx of lookup.writableIndexes) {
+          if (idx < addresses.length) {
+            accountKeys.push(addresses[idx]);
+          }
+        }
+        for (const idx of lookup.readonlyIndexes) {
+          if (idx < addresses.length) {
+            accountKeys.push(addresses[idx]);
+          }
+        }
+      } catch (error) {
+        rootLogger.warn(
+          chalk.yellow(
+            `Failed to resolve address lookup table ${lookup.accountKey.toBase58()}: ${error}`,
+          ),
+        );
+      }
+    }
+
+    return accountKeys;
+  }
+
+  /**
+   * Parse instructions from a VaultTransaction
+   */
+  private async parseVaultInstructions(
+    chain: ChainName,
+    vaultTransaction: accounts.VaultTransaction,
+  ): Promise<{ instructions: ParsedInstruction[]; warnings: string[] }> {
     const coreProgramIds = loadCoreProgramIds(this.environment, chain);
     const corePrograms = {
       mailbox: new PublicKey(coreProgramIds.mailbox),
@@ -443,7 +580,12 @@ export class SquadsTransactionReader {
 
     const parsedInstructions: ParsedInstruction[] = [];
     const warnings: string[] = [];
-    const accountKeys = vaultTransaction.message.accountKeys;
+
+    // Resolve address lookup tables to get complete account keys
+    const accountKeys = await this.resolveAddressLookupTables(
+      chain,
+      vaultTransaction,
+    );
     const computeBudgetProgramId = ComputeBudgetProgram.programId;
 
     // Parse all instructions, skipping compute budget setup instructions
@@ -546,6 +688,26 @@ export class SquadsTransactionReader {
             data: {},
             accounts,
             warnings: [],
+          });
+          continue;
+        }
+
+        // Check if it's a known warp route program
+        const warpRouteMetadata = this.isWarpRouteProgram(chain, programId);
+        if (warpRouteMetadata) {
+          programName = ProgramName.WARP_ROUTE;
+          parsedInstructions.push({
+            programId,
+            programName,
+            instructionType: 'WarpRouteInstruction',
+            data: {
+              routeName: warpRouteMetadata.routeName,
+              symbol: warpRouteMetadata.symbol,
+              rawData: instructionData.toString('hex'),
+            },
+            accounts,
+            warnings: [],
+            insight: `${warpRouteMetadata.symbol} warp route instruction (${warpRouteMetadata.routeName})`,
           });
           continue;
         }
@@ -668,7 +830,7 @@ export class SquadsTransactionReader {
     }
 
     const { instructions: parsedInstructions, warnings } =
-      this.parseVaultInstructions(chain, vaultTransaction);
+      await this.parseVaultInstructions(chain, vaultTransaction);
 
     if (warnings.length > 0) {
       this.errors.push({ chain, transactionIndex, warnings });
