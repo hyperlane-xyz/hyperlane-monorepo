@@ -104,16 +104,18 @@ abstract contract EverclearBridge is TokenRouter {
     /**
      * @notice Constructor to initialize the Everclear token bridge
      * @param _erc20 The address of the ERC20 token to be bridged
-     * @param _scale The scaling factor for token amounts (typically 1 for 18-decimal tokens)
+     * @param _scaleNumerator The numerator of the scaling fraction for token amounts
+     * @param _scaleDenominator The denominator of the scaling fraction for token amounts
      * @param _mailbox The address of the Hyperlane mailbox contract
      * @param _everclearAdapter The address of the Everclear adapter contract
      */
     constructor(
         IEverclearAdapter _everclearAdapter,
         IERC20 _erc20,
-        uint256 _scale,
+        uint256 _scaleNumerator,
+        uint256 _scaleDenominator,
         address _mailbox
-    ) TokenRouter(_scale, _mailbox) {
+    ) TokenRouter(_scaleNumerator, _scaleDenominator, _mailbox) {
         wrappedToken = _erc20;
         everclearAdapter = _everclearAdapter;
         everclearSpoke = _everclearAdapter.spoke();
@@ -365,10 +367,19 @@ contract EverclearTokenBridge is EverclearBridge {
      */
     constructor(
         address _erc20,
-        uint256 _scale,
+        uint256 _scaleNumerator,
+        uint256 _scaleDenominator,
         address _mailbox,
         IEverclearAdapter _everclearAdapter
-    ) EverclearBridge(_everclearAdapter, IERC20(_erc20), _scale, _mailbox) {}
+    )
+        EverclearBridge(
+            _everclearAdapter,
+            IERC20(_erc20),
+            _scaleNumerator,
+            _scaleDenominator,
+            _mailbox
+        )
+    {}
 
     /**
      * @inheritdoc EverclearBridge
@@ -450,7 +461,15 @@ contract EverclearEthBridge is EverclearBridge {
         IWETH _weth,
         address _mailbox,
         IEverclearAdapter _everclearAdapter
-    ) EverclearBridge(_everclearAdapter, IERC20(_weth), SCALE, _mailbox) {}
+    )
+        EverclearBridge(
+            _everclearAdapter,
+            IERC20(_weth),
+            SCALE,
+            SCALE,
+            _mailbox
+        )
+    {}
 
     /**
      * @inheritdoc EverclearBridge
