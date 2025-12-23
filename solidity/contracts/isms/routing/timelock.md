@@ -223,19 +223,3 @@ graph TB
 2. **Validate**: Check if message is valid (verify proofs, check state consistency)
 3. **Pause if fraud detected**: Call `pausableIsm.pause()` to halt message processing
 4. **Investigate & resolve**: Fix issues, then call `pausableIsm.unpause()`
-
-**Security comparison:**
-
-| Security Model                             | Time Delay | Fraud Prevention    | Cryptographic Proof | Redundancy      | Security Level |
-| ------------------------------------------ | ---------- | ------------------- | ------------------- | --------------- | -------------- |
-| TimelockRouter only                        | ✓          | ✗                   | ✗                   | ✗ Single path   | Low            |
-| 2-of-2 Agg (Pausable + Timelock)           | ✓          | ✓ Watcher pause     | ✗                   | ✗ Single path   | Medium         |
-| ZkProofISM only                            | ✗          | N/A                 | ✓                   | ✗ Single path   | Medium         |
-| **1-of-2 Dual-Path (Optimistic OR Proof)** | **✓**      | **✓ Watcher pause** | **✓**               | **✓ Two paths** | **Maximum**    |
-
-**Key insights:**
-
-- **TimelockRouter** = Time delay building block
-- **PausableISM** = Fraud prevention building block
-- **ZkProofISM/RollupISM** = Cryptographic verification building block
-- **Complete optimistic system** = 1-of-2 aggregation providing dual-path redundancy
