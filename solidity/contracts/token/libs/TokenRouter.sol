@@ -76,7 +76,10 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         uint256 _scaleDenominator,
         address _mailbox
     ) GasRouter(_mailbox) {
-        require(_scaleDenominator > 0, "TokenRouter: denominator cannot be 0");
+        require(
+            _scaleNumerator > 0 && _scaleDenominator > 0,
+            "TokenRouter: scale cannot be 0"
+        );
         scaleNumerator = _scaleNumerator;
         scaleDenominator = _scaleDenominator;
     }
