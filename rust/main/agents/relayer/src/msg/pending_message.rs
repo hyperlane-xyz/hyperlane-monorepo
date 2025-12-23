@@ -219,7 +219,7 @@ impl PendingOperation for PendingMessage {
 
         // To avoid spending gas on a tx that will revert, dry-run just before submitting.
         if let Some(metadata) = self.metadata.as_ref() {
-            let is_valid = prepare::estimate_gas_costs(&self.ctx, &self.message, &metadata)
+            let is_valid = prepare::estimate_gas_costs(&self.ctx, &self.message, metadata)
                 .await
                 .is_ok();
 

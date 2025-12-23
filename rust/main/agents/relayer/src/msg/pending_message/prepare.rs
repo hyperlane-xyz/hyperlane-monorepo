@@ -73,8 +73,7 @@ pub async fn handler(pending_message: &mut PendingMessage) -> PendingOperationRe
     let tx_cost_estimate = match pending_message.metadata.as_ref() {
         None => None,
         Some(metadata) => {
-            match estimate_gas_costs(&pending_message.ctx, &pending_message.message, &metadata)
-                .await
+            match estimate_gas_costs(&pending_message.ctx, &pending_message.message, metadata).await
             {
                 Ok(gas_estimate) => Some(gas_estimate),
                 _ => {
@@ -181,7 +180,7 @@ pub async fn estimate_gas_costs(
             let gas_estimate = entrypoint
                 .estimate_gas_limit(&payload)
                 .await
-                .map_err(|e| ChainCommunicationError::from_other(e))?;
+                .map_err(ChainCommunicationError::from_other)?;
             tracing::debug!(?gas_estimate, "Estimated gas with Lander");
 
             Ok(gas_estimate)
@@ -210,9 +209,9 @@ pub async fn create_payload(
     // Create FullPayload with a random UUID and the message ID as identifier
     Ok(FullPayload::new(
         PayloadUuid::random(),
-        format!("{:?}", message_id),
+        format!("{message_id:?}"),
         operation_payload,
         success_criteria,
-        message_context.destination_mailbox.address().into(),
+        message_context.destination_mailbox.address(),
     ))
 }
