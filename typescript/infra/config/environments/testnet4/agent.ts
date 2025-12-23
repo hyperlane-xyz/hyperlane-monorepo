@@ -65,7 +65,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     incentivtestnet: false,
     kyvetestnet: false,
     megaethtestnet: false,
-    milkywaytestnet: false,
     modetestnet: true,
     monadtestnet: true,
     neuratestnet: true,
@@ -102,7 +101,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     incentivtestnet: false,
     kyvetestnet: false,
     megaethtestnet: false,
-    milkywaytestnet: false,
     modetestnet: true,
     monadtestnet: true,
     neuratestnet: true,
@@ -139,7 +137,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     incentivtestnet: false,
     kyvetestnet: false,
     megaethtestnet: false,
-    milkywaytestnet: false,
     modetestnet: true,
     monadtestnet: true,
     neuratestnet: true,
@@ -199,16 +196,6 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
     type: GasPaymentEnforcementPolicyType.Minimum,
     payment: '1',
     matchingList: [
-      // Temporary workaround for testing milkywaytestnet->bsctestnet.
-      {
-        originDomain: getDomainId('milkywaytestnet'),
-        destinationDomain: getDomainId('bsctestnet'),
-      },
-      // Temporary workaround for testing bsctestnet->milkywaytestnet.
-      {
-        originDomain: getDomainId('bsctestnet'),
-        destinationDomain: getDomainId('milkywaytestnet'),
-      },
       // Workaround for gas price fluctuations
       // Works in tandem with increased igp overhead
       {
@@ -389,7 +376,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'cd94774-20251217-100437',
+      tag: 'f50feaa-20251219-084739',
     },
     resources: scraperResources,
   },

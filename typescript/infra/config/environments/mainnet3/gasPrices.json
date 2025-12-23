@@ -163,10 +163,6 @@
     "amount": "0.1",
     "decimals": 9
   },
-  "form": {
-    "amount": "0.001000252",
-    "decimals": 9
-  },
   "forma": {
     "amount": "19.0",
     "decimals": 9
@@ -211,10 +207,6 @@
     "amount": "11.000000049",
     "decimals": 9
   },
-  "inevm": {
-    "amount": "0.1",
-    "decimals": 9
-  },
   "incentiv": {
     "amount": "40001.0",
     "decimals": 9
@@ -222,10 +214,6 @@
   "ink": {
     "amount": "0.001010189",
     "decimals": 9
-  },
-  "injective": {
-    "amount": "160000000",
-    "decimals": 1
   },
   "kaia": {
     "amount": "27.5",
@@ -299,10 +287,6 @@
     "amount": "0.03",
     "decimals": 1
   },
-  "mint": {
-    "amount": "0.001000252",
-    "decimals": 9
-  },
   "miraclechain": {
     "amount": "0.01",
     "decimals": 9
@@ -331,10 +315,6 @@
     "amount": "0.1375",
     "decimals": 9
   },
-  "neutron": {
-    "amount": "0.0053",
-    "decimals": 1
-  },
   "nibiru": {
     "amount": "1000.0",
     "decimals": 9
@@ -362,10 +342,6 @@
   "orderly": {
     "amount": "0.00100025",
     "decimals": 9
-  },
-  "osmosis": {
-    "amount": "0.025",
-    "decimals": 1
   },
   "paradex": {
     "amount": "5000",
@@ -494,10 +470,6 @@
   "superpositionmainnet": {
     "amount": "0.2",
     "decimals": 9
-  },
-  "svmbnb": {
-    "amount": "0.0000001",
-    "decimals": 1
   },
   "swell": {
     "amount": "0.001000251",

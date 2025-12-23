@@ -75,10 +75,6 @@
     "amount": "0.001",
     "decimals": 9
   },
-  "milkywaytestnet": {
-    "amount": "0.001",
-    "decimals": 1
-  },
   "modetestnet": {
     "amount": "0.001000252",
     "decimals": 9

@@ -49,6 +49,9 @@ pub enum HyperlaneAleoError {
     /// TryFromSliceError
     #[error("{0}")]
     TryFromSliceError(#[from] std::array::TryFromSliceError),
+    /// Missing Auth Header
+    #[error("Missing Auth Header")]
+    MissingAuthHeader,
     /// Malicious Program Detected
     #[error("Malicious Program Detected: program_id={program_id}, transition={transition}")]
     MaliciousProgramDetected {
