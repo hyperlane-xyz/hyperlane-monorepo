@@ -836,7 +836,16 @@ export class GovernTransactionReader {
       tokenRouterInterface.functions['addBridge(uint32,address)'].name
     ) {
       const [domain, bridgeAddress] = decoded.args;
-      insight = `Set bridge for origin domain ${domain}to ${bridgeAddress}`;
+      insight = `Set bridge for origin domain ${domain} to ${bridgeAddress}`;
+    }
+
+    if (
+      decoded.functionFragment.name ===
+      tokenRouterInterface.functions['removeBridge(uint32,address)'].name
+    ) {
+      const [domain, bridgeAddress] = decoded.args;
+      const chainName = this.multiProvider.tryGetChainName(domain);
+      insight = `Remove bridge ${bridgeAddress} from domain ${domain}${chainName ? ` (${chainName})` : ''}`;
     }
 
     if (
