@@ -165,7 +165,7 @@ constructor:
 
 export const ALEO_NULL_ADDRESS =
   'aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc';
-export const ALEO_NATIVE_DENOM = '0field';
+export const ALEO_NATIVE_DENOM = 'credits';
 
 export function formatAddress(address: string): string {
   return address === ALEO_NULL_ADDRESS ? '' : address;

@@ -69,15 +69,17 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   }
 
   async getBalance(req: AltVM.ReqGetBalance): Promise<bigint> {
-    if (
-      req.denom &&
-      req.denom !== 'credits' &&
-      req.denom !== ALEO_NATIVE_DENOM
-    ) {
+    let aleoAddress = req.address;
+
+    if (aleoAddress.includes('/')) {
+      aleoAddress = req.address.split('/')[1];
+    }
+
+    if (req.denom && req.denom !== 'credits' && req.denom !== '0field') {
       const result = await this.queryMappingValue(
         'token_registry.aleo',
         'authorized_balances',
-        getBalanceKey(req.address, req.denom),
+        getBalanceKey(aleoAddress, req.denom),
       );
 
       if (!result) {
@@ -87,7 +89,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       return result['balance'];
     }
 
-    const balance = await this.aleoClient.getPublicBalance(req.address);
+    const balance = await this.aleoClient.getPublicBalance(aleoAddress);
     return BigInt(balance);
   }
 
