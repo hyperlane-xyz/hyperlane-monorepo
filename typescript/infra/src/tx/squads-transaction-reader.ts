@@ -64,6 +64,45 @@ import {
 
 import { GovernTransaction } from './govern-transaction-reader.js';
 
+// ============================================================================
+// Warp Route Instruction Types
+// ============================================================================
+
+/**
+ * Sealevel Hyperlane Token (Warp Route) instruction discriminator values
+ * Matches rust/sealevel/libraries/hyperlane-sealevel-token/src/instruction.rs
+ */
+export enum SealevelWarpRouteInstructionType {
+  Init = 0,
+  TransferRemote = 1,
+  EnrollRemoteRouter = 2,
+  EnrollRemoteRouters = 3,
+  SetDestinationGasConfigs = 4,
+  SetInterchainSecurityModule = 5,
+  SetInterchainGasPaymaster = 6,
+  TransferOwnership = 7,
+}
+
+/**
+ * Human-readable names for Warp Route instructions
+ */
+export const SealevelWarpRouteInstructionName: Record<
+  SealevelWarpRouteInstructionType,
+  string
+> = {
+  [SealevelWarpRouteInstructionType.Init]: 'Init',
+  [SealevelWarpRouteInstructionType.TransferRemote]: 'TransferRemote',
+  [SealevelWarpRouteInstructionType.EnrollRemoteRouter]: 'EnrollRemoteRouter',
+  [SealevelWarpRouteInstructionType.EnrollRemoteRouters]: 'EnrollRemoteRouters',
+  [SealevelWarpRouteInstructionType.SetDestinationGasConfigs]:
+    'SetDestinationGasConfigs',
+  [SealevelWarpRouteInstructionType.SetInterchainSecurityModule]:
+    'SetInterchainSecurityModule',
+  [SealevelWarpRouteInstructionType.SetInterchainGasPaymaster]:
+    'SetInterchainGasPaymaster',
+  [SealevelWarpRouteInstructionType.TransferOwnership]: 'TransferOwnership',
+};
+
 /**
  * Parsed instruction result with human-readable information
  */
@@ -190,6 +229,246 @@ export class SquadsTransactionReader {
       return undefined;
     }
     return chainIndex.get(programId.toBase58().toLowerCase());
+  }
+
+  /**
+   * Parse a warp route instruction
+   * Instructions have 8-byte program discriminator + 1-byte enum discriminator + data
+   */
+  private readWarpRouteInstruction(
+    chain: ChainName,
+    instructionData: Buffer,
+    metadata: WarpRouteMetadata,
+  ): Partial<ParsedInstruction> {
+    const minLength = HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE + 1; // 8 bytes + 1 byte enum
+    if (instructionData.length < minLength) {
+      return {
+        instructionType: 'WarpRouteInstruction',
+        data: {
+          routeName: metadata.routeName,
+          symbol: metadata.symbol,
+          error: 'Instruction data too short',
+        },
+        insight: `${metadata.symbol} warp route instruction (data too short)`,
+        warnings: [],
+      };
+    }
+
+    // Skip 8-byte program discriminator, read enum discriminator
+    const discriminator = instructionData[HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE];
+    const dataBuffer = instructionData.subarray(
+      HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE + 1,
+    );
+
+    try {
+      switch (discriminator) {
+        case SealevelWarpRouteInstructionType.EnrollRemoteRouter: {
+          // RemoteRouterConfig: domain (u32) + router (Option<H256>)
+          if (dataBuffer.length < 4) {
+            throw new Error('EnrollRemoteRouter data too short');
+          }
+          const domain = dataBuffer.readUInt32LE(0);
+          const chainName = this.mpp.tryGetChainName(domain);
+          let router: string | null = null;
+          if (dataBuffer.length >= 5 && dataBuffer[4] === 1) {
+            // Option::Some
+            router = `0x${dataBuffer.subarray(5, 37).toString('hex')}`;
+          }
+          const chainInfo = chainName
+            ? `${chainName} (${domain})`
+            : `${domain}`;
+          return {
+            instructionType:
+              SealevelWarpRouteInstructionName[
+                SealevelWarpRouteInstructionType.EnrollRemoteRouter
+              ],
+            data: { domain, chainName, router },
+            insight: router
+              ? `Enroll remote router for ${chainInfo}: ${router}`
+              : `Unenroll remote router for ${chainInfo}`,
+            warnings: [],
+          };
+        }
+
+        case SealevelWarpRouteInstructionType.EnrollRemoteRouters: {
+          // Vec<RemoteRouterConfig>: length (u32) + configs
+          if (dataBuffer.length < 4) {
+            throw new Error('EnrollRemoteRouters data too short');
+          }
+          const count = dataBuffer.readUInt32LE(0);
+          const routers: Array<{
+            domain: number;
+            chainName?: string;
+            router: string | null;
+          }> = [];
+          let offset = 4;
+          for (let i = 0; i < count && offset < dataBuffer.length; i++) {
+            const domain = dataBuffer.readUInt32LE(offset);
+            offset += 4;
+            const hasRouter = dataBuffer[offset] === 1;
+            offset += 1;
+            let router: string | null = null;
+            if (hasRouter && offset + 32 <= dataBuffer.length) {
+              router = `0x${dataBuffer.subarray(offset, offset + 32).toString('hex')}`;
+              offset += 32;
+            }
+            routers.push({
+              domain,
+              chainName: this.mpp.tryGetChainName(domain) ?? undefined,
+              router,
+            });
+          }
+          const routerSummary = routers
+            .map((r) => r.chainName ?? `domain ${r.domain}`)
+            .join(', ');
+          return {
+            instructionType:
+              SealevelWarpRouteInstructionName[
+                SealevelWarpRouteInstructionType.EnrollRemoteRouters
+              ],
+            data: { count, routers },
+            insight: `Enroll ${count} remote router(s): ${routerSummary}`,
+            warnings: [],
+          };
+        }
+
+        case SealevelWarpRouteInstructionType.SetDestinationGasConfigs: {
+          // Vec<GasRouterConfig>: length (u32) + configs
+          if (dataBuffer.length < 4) {
+            throw new Error('SetDestinationGasConfigs data too short');
+          }
+          const count = dataBuffer.readUInt32LE(0);
+          const configs: Array<{
+            domain: number;
+            chainName?: string;
+            gas: bigint | null;
+          }> = [];
+          let offset = 4;
+          for (let i = 0; i < count && offset < dataBuffer.length; i++) {
+            const domain = dataBuffer.readUInt32LE(offset);
+            offset += 4;
+            const hasGas = dataBuffer[offset] === 1;
+            offset += 1;
+            let gas: bigint | null = null;
+            if (hasGas && offset + 8 <= dataBuffer.length) {
+              gas = dataBuffer.readBigUInt64LE(offset);
+              offset += 8;
+            }
+            configs.push({
+              domain,
+              chainName: this.mpp.tryGetChainName(domain) ?? undefined,
+              gas,
+            });
+          }
+          const configSummary = configs
+            .map(
+              (c) =>
+                `${c.chainName ?? `domain ${c.domain}`}: ${c.gas?.toString() ?? 'unset'}`,
+            )
+            .join(', ');
+          return {
+            instructionType:
+              SealevelWarpRouteInstructionName[
+                SealevelWarpRouteInstructionType.SetDestinationGasConfigs
+              ],
+            data: { count, configs },
+            insight: `Set destination gas for ${count} chain(s): ${configSummary}`,
+            warnings: [],
+          };
+        }
+
+        case SealevelWarpRouteInstructionType.SetInterchainSecurityModule: {
+          // Option<Pubkey>
+          let ism: string | null = null;
+          if (dataBuffer.length >= 1 && dataBuffer[0] === 1) {
+            ism = new PublicKey(dataBuffer.subarray(1, 33)).toBase58();
+          }
+          return {
+            instructionType:
+              SealevelWarpRouteInstructionName[
+                SealevelWarpRouteInstructionType.SetInterchainSecurityModule
+              ],
+            data: { ism },
+            insight: ism ? `Set ISM to ${ism}` : 'Clear ISM (use default)',
+            warnings: [],
+          };
+        }
+
+        case SealevelWarpRouteInstructionType.SetInterchainGasPaymaster: {
+          // Option<(Pubkey, InterchainGasPaymasterType)>
+          let igp: { program: string; type: string } | null = null;
+          if (dataBuffer.length >= 1 && dataBuffer[0] === 1) {
+            const program = new PublicKey(
+              dataBuffer.subarray(1, 33),
+            ).toBase58();
+            const igpTypeDiscriminator = dataBuffer[33];
+            const igpType = igpTypeDiscriminator === 0 ? 'OverheadIgp' : 'Igp';
+            igp = { program, type: igpType };
+          }
+          return {
+            instructionType:
+              SealevelWarpRouteInstructionName[
+                SealevelWarpRouteInstructionType.SetInterchainGasPaymaster
+              ],
+            data: { igp },
+            insight: igp
+              ? `Set IGP to ${igp.program} (${igp.type})`
+              : 'Clear IGP',
+            warnings: [],
+          };
+        }
+
+        case SealevelWarpRouteInstructionType.TransferOwnership: {
+          // Option<Pubkey>
+          let newOwner: string | null = null;
+          if (dataBuffer.length >= 1 && dataBuffer[0] === 1) {
+            newOwner = new PublicKey(dataBuffer.subarray(1, 33)).toBase58();
+          }
+          return {
+            instructionType:
+              SealevelWarpRouteInstructionName[
+                SealevelWarpRouteInstructionType.TransferOwnership
+              ],
+            data: { newOwner },
+            insight: newOwner
+              ? `Transfer ownership to ${newOwner}`
+              : 'Renounce ownership',
+            warnings: newOwner
+              ? [WarningMessage.OWNERSHIP_TRANSFER]
+              : [WarningMessage.OWNERSHIP_RENUNCIATION],
+          };
+        }
+
+        case SealevelWarpRouteInstructionType.Init:
+        case SealevelWarpRouteInstructionType.TransferRemote:
+        default:
+          return {
+            instructionType:
+              SealevelWarpRouteInstructionName[
+                discriminator as SealevelWarpRouteInstructionType
+              ] ?? `Unknown (${discriminator})`,
+            data: {
+              routeName: metadata.routeName,
+              symbol: metadata.symbol,
+              rawData: instructionData.toString('hex'),
+            },
+            insight: `${metadata.symbol} ${SealevelWarpRouteInstructionName[discriminator as SealevelWarpRouteInstructionType] ?? 'unknown'} instruction (${metadata.routeName})`,
+            warnings: [],
+          };
+      }
+    } catch (error) {
+      return {
+        instructionType: 'WarpRouteInstruction',
+        data: {
+          routeName: metadata.routeName,
+          symbol: metadata.symbol,
+          error: `Failed to parse: ${error}`,
+          rawData: instructionData.toString('hex'),
+        },
+        insight: `${metadata.symbol} warp route instruction (parse error)`,
+        warnings: [`Failed to parse warp route instruction: ${error}`],
+      };
+    }
   }
 
   /**
@@ -696,19 +975,25 @@ export class SquadsTransactionReader {
         const warpRouteMetadata = this.isWarpRouteProgram(chain, programId);
         if (warpRouteMetadata) {
           programName = ProgramName.WARP_ROUTE;
+          const parsed = this.readWarpRouteInstruction(
+            chain,
+            instructionData,
+            warpRouteMetadata,
+          );
           parsedInstructions.push({
             programId,
             programName,
-            instructionType: 'WarpRouteInstruction',
+            instructionType: parsed.instructionType || 'WarpRouteInstruction',
             data: {
               routeName: warpRouteMetadata.routeName,
               symbol: warpRouteMetadata.symbol,
-              rawData: instructionData.toString('hex'),
+              ...parsed.data,
             },
             accounts,
-            warnings: [],
-            insight: `${warpRouteMetadata.symbol} warp route instruction (${warpRouteMetadata.routeName})`,
+            warnings: parsed.warnings || [],
+            insight: parsed.insight,
           });
+          warnings.push(...(parsed.warnings || []));
           continue;
         }
 
@@ -1199,6 +1484,72 @@ export class SquadsTransactionReader {
       case SquadsInstructionName[SquadsInstructionType.CHANGE_THRESHOLD]: {
         tx.args = {
           newThreshold: inst.data.newThreshold,
+        };
+        break;
+      }
+
+      // Warp Route instructions
+      case SealevelWarpRouteInstructionName[
+        SealevelWarpRouteInstructionType.EnrollRemoteRouter
+      ]: {
+        const chainName = inst.data.chainName || `domain ${inst.data.domain}`;
+        tx.args = {
+          [chainName]: inst.data.router || 'unenrolled',
+        };
+        break;
+      }
+
+      case SealevelWarpRouteInstructionName[
+        SealevelWarpRouteInstructionType.EnrollRemoteRouters
+      ]: {
+        // Build a map of chainName -> router address
+        const routers: Record<string, string> = {};
+        if (inst.data.routers && Array.isArray(inst.data.routers)) {
+          for (const r of inst.data.routers) {
+            const key = r.chainName || `domain ${r.domain}`;
+            routers[key] = r.router || 'unenrolled';
+          }
+        }
+        tx.args = routers;
+        break;
+      }
+
+      case SealevelWarpRouteInstructionName[
+        SealevelWarpRouteInstructionType.SetDestinationGasConfigs
+      ]: {
+        // Build a map of chainName -> gas value
+        const gasConfigs: Record<string, string> = {};
+        if (inst.data.configs && Array.isArray(inst.data.configs)) {
+          for (const c of inst.data.configs) {
+            const key = c.chainName || `domain ${c.domain}`;
+            gasConfigs[key] = c.gas?.toString() ?? 'unset';
+          }
+        }
+        tx.args = gasConfigs;
+        break;
+      }
+
+      case SealevelWarpRouteInstructionName[
+        SealevelWarpRouteInstructionType.SetInterchainSecurityModule
+      ]: {
+        tx.args = {
+          ism: inst.data.ism || null,
+        };
+        break;
+      }
+
+      case SealevelWarpRouteInstructionName[
+        SealevelWarpRouteInstructionType.SetInterchainGasPaymaster
+      ]: {
+        tx.args = inst.data.igp || { igp: null };
+        break;
+      }
+
+      case SealevelWarpRouteInstructionName[
+        SealevelWarpRouteInstructionType.TransferOwnership
+      ]: {
+        tx.args = {
+          newOwner: inst.data.newOwner || null,
         };
         break;
       }
