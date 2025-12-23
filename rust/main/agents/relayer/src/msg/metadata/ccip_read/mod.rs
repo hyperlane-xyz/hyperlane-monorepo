@@ -15,7 +15,7 @@ use sha3::{digest::Update, Digest, Keccak256};
 use tracing::{info, instrument, warn};
 
 use hyperlane_core::{
-    utils::bytes_to_hex, CcipReadIsm, HyperlaneMessage, HyperlaneSignerExt, ModuleType,
+    utils::bytes_to_hex, CcipReadIsm, HyperlaneMessage, HyperlaneSignerExt, Metadata, ModuleType,
     RawHyperlaneMessage, Signable, H160, H256,
 };
 use hyperlane_ethereum::{OffchainLookup, Signers};
@@ -25,7 +25,7 @@ use crate::msg::metadata::base_builder::IsmBuildMetricsParams;
 use super::{
     base::{MessageMetadataBuildParams, MetadataBuildError},
     message_builder::MessageMetadataBuilder,
-    Metadata, MetadataBuilder,
+    MetadataBuilder,
 };
 
 mod cache_types;
@@ -297,8 +297,14 @@ async fn fetch_offchain_data(
             })?
     };
 
-    let json: OffchainResponse = res.json().await.map_err(|err| {
-        let error_msg = format!("Failed to parse offchain lookup server json response: ({err})");
+    let response_body = res.text().await.map_err(|err| {
+        let error_msg = format!("Failed to read offchain lookup server response: ({err})");
+        MetadataBuildError::FailedToBuild(error_msg)
+    })?;
+    let json: OffchainResponse = serde_json::from_str(&response_body).map_err(|err| {
+        let error_msg = format!(
+            "Failed to parse offchain lookup server json response: ({err}) ({response_body})"
+        );
         MetadataBuildError::FailedToBuild(error_msg)
     })?;
 

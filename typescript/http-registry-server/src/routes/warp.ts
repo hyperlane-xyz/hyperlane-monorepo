@@ -10,7 +10,7 @@ import {
 } from '../middleware/validateRequest.js';
 import { WarpService } from '../services/warpService.js';
 
-export function createWarpRouter(warpService: WarpService) {
+export function createWarpRouter(warpService: WarpService): Router {
   const router = Router();
 
   // get warp deploy config

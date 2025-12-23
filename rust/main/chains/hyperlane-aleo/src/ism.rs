@@ -5,8 +5,8 @@ use snarkvm::prelude::{Address, FromBytes};
 
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, ModuleType,
-    MultisigIsm, RoutingIsm, H160, H256, U256,
+    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, Metadata,
+    ModuleType, MultisigIsm, RoutingIsm, H160, H256, U256,
 };
 
 use crate::utils::to_h256;
@@ -71,7 +71,10 @@ impl InterchainSecurityModule for AleoIsm {
         let module_type: u8 = self
             .provider
             .get_mapping_value(&self.program, "isms", &self.aleo_address)
-            .await?;
+            .await?
+            .ok_or(HyperlaneAleoError::UnknownIsm(
+                self.aleo_address.to_string(),
+            ))?;
         ModuleType::from_u8(module_type).ok_or_else(|| {
             ChainCommunicationError::from_other_str(&format!(
                 "Failed to convert to ModuleType: {module_type}"
@@ -84,7 +87,7 @@ impl InterchainSecurityModule for AleoIsm {
     async fn dry_run_verify(
         &self,
         _message: &HyperlaneMessage,
-        _metadata: &[u8],
+        _metadata: &Metadata,
     ) -> ChainResult<Option<U256>> {
         // Aleo currently doesn't support aggregation ISMs
         // Only in the case of an aggregation ISM is this method used
@@ -103,7 +106,10 @@ impl MultisigIsm for AleoIsm {
         let multisig_ism: AleoMessagesIdMultisig = self
             .provider
             .get_mapping_value(&self.program, "message_id_multisigs", &self.aleo_address)
-            .await?;
+            .await?
+            .ok_or(HyperlaneAleoError::UnknownIsm(
+                self.aleo_address.to_string(),
+            ))?;
         Ok(multisig_ism.validators_and_threshold())
     }
 }
@@ -119,7 +125,11 @@ impl RoutingIsm for AleoIsm {
         let routed_ism: Address<CurrentNetwork> = self
             .provider
             .get_mapping_value(&self.program, "routes", &key)
-            .await?;
+            .await?
+            .ok_or(HyperlaneAleoError::RoutingIsmMissingRoute {
+                routing_ism: self.aleo_address.to_string(),
+                origin: message.origin,
+            })?;
         Ok(to_h256(routed_ism)?)
     }
 }

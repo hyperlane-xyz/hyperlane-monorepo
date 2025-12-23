@@ -41,4 +41,10 @@ export const PROTOCOL_TO_DEFAULT_NATIVE_TOKEN: Record<
     name: 'Radix',
     symbol: 'XRD',
   },
+  [ProtocolType.Aleo]: {
+    decimals: 6,
+    denom: '0field',
+    name: 'Aleo',
+    symbol: 'ALEO',
+  },
 };

@@ -10,27 +10,30 @@ use hyperlane_metric::prometheus_metric::{
 use snarkvm_console_account::{DeserializeOwned, Itertools};
 use url::Url;
 
-use crate::provider::{metric::MetricHttpClient, HttpClient, RpcClient};
+use crate::provider::{
+    metric::MetricHttpClient, AleoClient, BaseHttpClient, HttpClient, HttpClientBuilder, RpcClient,
+};
 
 /// Fallback Http Client that tries multiple RpcClients in order
 #[derive(Clone, Debug)]
-pub struct FallbackHttpClient {
-    fallback: FallbackProvider<RpcClient<MetricHttpClient>, RpcClient<MetricHttpClient>>,
+pub struct FallbackHttpClient<C: AleoClient = BaseHttpClient> {
+    fallback: FallbackProvider<RpcClient<MetricHttpClient<C>>, RpcClient<MetricHttpClient<C>>>,
 }
 
-impl FallbackHttpClient {
+impl<C: AleoClient> FallbackHttpClient<C> {
     /// Creates a new FallbackHttpClient from a list of base urls
-    pub fn new(
+    pub fn new<Builder: HttpClientBuilder<Client = C>>(
         urls: Vec<Url>,
         metrics: PrometheusClientMetrics,
         chain: Option<hyperlane_metric::prometheus_metric::ChainInfo>,
+        network: u16,
     ) -> ChainResult<Self> {
         let clients = urls
             .into_iter()
             .map(|url| {
                 let metrics_config =
                     PrometheusConfig::from_url(&url, ClientConnectionType::Rpc, chain.clone());
-                MetricHttpClient::new(url, metrics.clone(), metrics_config)
+                MetricHttpClient::new::<Builder>(url, metrics.clone(), metrics_config, network)
             })
             .collect::<ChainResult<Vec<_>>>()?
             .into_iter()
@@ -50,7 +53,7 @@ impl<C: HttpClient + std::fmt::Debug + Send + Sync> BlockNumberGetter for RpcCli
 }
 
 #[async_trait]
-impl HttpClient for FallbackHttpClient {
+impl<C: AleoClient> HttpClient for FallbackHttpClient<C> {
     /// Makes a GET request to the API
     async fn request<T: DeserializeOwned + Send>(
         &self,

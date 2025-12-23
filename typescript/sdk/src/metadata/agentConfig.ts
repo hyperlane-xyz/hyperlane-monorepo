@@ -543,6 +543,42 @@ export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
 export type ValidatorConfig = z.infer<typeof ValidatorAgentConfigSchema>;
 
 export type AgentConfig = z.infer<typeof AgentConfigSchema>;
+type AleoPrograms = {
+  mailboxProgram: string;
+  validatorAnnounceProgram: string;
+  hookManagerProgram: string;
+  ismManagerProgram: string;
+};
+
+function formatAleoAddress(
+  addresses: HyperlaneDeploymentArtifacts,
+): HyperlaneDeploymentArtifacts & AleoPrograms {
+  const [mailboxProgram, mailbox] = addresses.mailbox.split('/');
+  const interchainSecurityModule = addresses.interchainSecurityModule
+    ?.split('/')
+    .at(1);
+  const [hookManagerProgram, merkleTreeHook] =
+    addresses.merkleTreeHook.split('/');
+  const interchainGasPaymaster =
+    addresses.interchainGasPaymaster.split('/').at(1) ||
+    '0x0000000000000000000000000000000000000000';
+  const [validatorAnnounceProgram, validatorAnnounce] =
+    addresses.validatorAnnounce.split('/');
+
+  const ismManagerProgram = mailboxProgram.replaceAll('mailbox', 'ism_manager');
+  return {
+    mailbox,
+    interchainSecurityModule,
+    merkleTreeHook,
+    interchainGasPaymaster,
+    validatorAnnounce,
+
+    mailboxProgram,
+    hookManagerProgram,
+    ismManagerProgram,
+    validatorAnnounceProgram,
+  };
+}
 
 // Note this works well for EVM chains only, and likely needs some love
 // before being useful for non-EVM chains.
@@ -573,9 +609,14 @@ export function buildAgentConfig(
       delete metadata.transactionOverrides;
     }
 
+    const coreAddresses =
+      metadata?.protocol == ProtocolType.Aleo
+        ? formatAleoAddress(addresses[chain])
+        : addresses[chain];
+
     const chainConfig: AgentChainMetadata = {
       ...metadata,
-      ...addresses[chain],
+      ...coreAddresses,
       ...(additionalConfig ? additionalConfig[chain] : {}),
       ...(startBlocks[chain] !== undefined && {
         index: {

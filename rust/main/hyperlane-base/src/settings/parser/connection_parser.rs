@@ -118,10 +118,17 @@ pub fn build_ethereum_connection_conf(
         })
         .unwrap_or_default();
 
+    let consider_null_transaction_receipt = chain
+        .chain(err)
+        .get_opt_key("considerNullTransactionReceipt")
+        .parse_bool()
+        .unwrap_or(false);
+
     Some(ChainConnectionConf::Ethereum(h_eth::ConnectionConf {
         rpc_connection: rpc_connection_conf?,
         transaction_overrides,
         op_submission_config: operation_batch,
+        consider_null_transaction_receipt,
     }))
 }
 
@@ -508,6 +515,7 @@ pub fn build_radix_connection_conf(
     }
 }
 
+#[cfg(feature = "aleo")]
 pub fn build_aleo_connection_conf(
     rpcs: &[Url],
     chain: &ValueParser,
@@ -658,8 +666,22 @@ pub fn build_connection_conf(
         HyperlaneDomainProtocol::Radix => {
             build_radix_connection_conf(rpcs, chain, err, operation_batch)
         }
+        #[cfg(feature = "aleo")]
         HyperlaneDomainProtocol::Aleo => {
             build_aleo_connection_conf(rpcs, chain, err, operation_batch)
         }
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unsupported protocol chains are pre-filtered"),
+    }
+}
+
+/// Check if a protocol is supported in this build.
+/// Returns false for protocols that are feature-gated and not compiled in.
+pub fn is_protocol_supported(protocol: HyperlaneDomainProtocol) -> bool {
+    use HyperlaneDomainProtocol::*;
+    match protocol {
+        Ethereum | Fuel | Sealevel | Cosmos | CosmosNative | Starknet | Radix => true,
+        // Aleo is feature-gated - only supported when the "aleo" feature is enabled
+        Aleo => cfg!(feature = "aleo"),
     }
 }

@@ -21,8 +21,8 @@ use hyperlane_base::{
 use hyperlane_core::{
     gas_used_by_operation, BatchItem, ChainCommunicationError, ChainResult, ConfirmReason,
     FixedPointNumber, HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox,
-    MessageSubmissionData, PendingOperation, PendingOperationResult, PendingOperationStatus,
-    ReprepareReason, TryBatchAs, TxCostEstimate, TxOutcome, H256, U256,
+    MessageSubmissionData, Metadata, PendingOperation, PendingOperationResult,
+    PendingOperationStatus, ReprepareReason, TryBatchAs, TxCostEstimate, TxOutcome, H256, U256,
 };
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
 
@@ -33,7 +33,7 @@ use crate::{
 
 use super::{
     gas_payment::{GasPaymentEnforcer, GasPolicyStatus},
-    metadata::{BuildsBaseMetadata, MessageMetadataBuilder, Metadata, MetadataBuilder},
+    metadata::{BuildsBaseMetadata, MessageMetadataBuilder, MetadataBuilder},
 };
 
 /// a default of 66 is picked, so messages are retried for 2 weeks (period confirmed by @nambrot) before being skipped.
@@ -111,7 +111,7 @@ pub struct PendingMessage {
     submission_outcome: Option<TxOutcome>,
     #[new(default)]
     #[serde(skip_serializing)]
-    metadata: Option<Vec<u8>>,
+    metadata: Option<Metadata>,
     #[new(default)]
     #[serde(skip_serializing)]
     metric: Option<Arc<IntGauge>>,
@@ -297,16 +297,15 @@ impl PendingOperation for PendingMessage {
             None => None,
         };
 
-        let metadata_bytes = match self.metadata.as_ref() {
+        let metadata = match self.metadata.as_ref() {
             Some(metadata) => {
                 tracing::debug!(USE_CACHE_METADATA_LOG);
                 metadata.clone()
             }
             _ => match self.build_metadata().await {
                 Ok(metadata) => {
-                    let metadata_bytes = metadata.to_vec();
-                    self.metadata = Some(metadata_bytes.clone());
-                    metadata_bytes
+                    self.metadata = Some(metadata.clone());
+                    metadata
                 }
                 Err(err) => {
                     return err;
@@ -324,7 +323,7 @@ impl PendingOperation for PendingMessage {
             None => match self
                 .ctx
                 .destination_mailbox
-                .process_estimate_costs(&self.message, &metadata_bytes)
+                .process_estimate_costs(&self.message, &metadata)
                 .await
             {
                 Ok(cost) => cost,
@@ -365,7 +364,7 @@ impl PendingOperation for PendingMessage {
         }
 
         self.submission_data = Some(Box::new(MessageSubmissionData {
-            metadata: metadata_bytes,
+            metadata,
             gas_limit,
         }));
         PendingOperationResult::Success

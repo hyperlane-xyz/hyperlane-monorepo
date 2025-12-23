@@ -26,9 +26,40 @@ pub enum HyperlaneAleoError {
     /// Unknown Network
     #[error("Unknown Network with ID: {0}")]
     UnknownNetwork(u16),
+    /// Unknown ISM
+    #[error("Unknown ISM: {0}")]
+    UnknownIsm(String),
+    /// Missing Route
+    #[error("Missing Route: {routing_ism} from origin {origin}")]
+    RoutingIsmMissingRoute {
+        /// The route key
+        routing_ism: String,
+        /// Origin domain
+        origin: u32,
+    },
+    /// Mailbox uninitialized
+    #[error("Mailbox uninitialized")]
+    MailboxUninitialized,
+    /// App uninitialized
+    #[error("App uninitialized")]
+    AppUninitialized,
+    /// Unknown Merkle Tree Hook
+    #[error("Unknown Merkle Tree Hook: {0}")]
+    UnknownMerkleTreeHook(String),
     /// TryFromSliceError
     #[error("{0}")]
     TryFromSliceError(#[from] std::array::TryFromSliceError),
+    /// Missing Auth Header
+    #[error("Missing Auth Header")]
+    MissingAuthHeader,
+    /// Malicious Program Detected
+    #[error("Malicious Program Detected: program_id={program_id}, transition={transition}")]
+    MaliciousProgramDetected {
+        /// Program ID
+        program_id: String,
+        /// Transition
+        transition: String,
+    },
     /// Other errors
     #[error("{0}")]
     Other(String),

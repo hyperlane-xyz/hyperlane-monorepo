@@ -296,16 +296,16 @@ mod test {
     }
 
     fn provider(address: &str) -> CwQueryClient {
-        let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Neutron);
+        let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::CosmosTest99990);
         let address = CosmosAddress::from_str(address).unwrap();
         let locator = ContractLocator::new(&domain, address.digest());
         let conf = ConnectionConf::new(
-            vec![Url::parse("http://grpc-kralum.neutron-1.neutron.org:80").unwrap()],
-            vec![Url::parse("https://rpc-kralum.neutron-1.neutron.org").unwrap()],
-            "neutron-1".to_owned(),
-            "neutron".to_owned(),
-            "untrn".to_owned(),
-            RawCosmosAmount::new("untrn".to_owned(), "0".to_owned()),
+            vec![Url::parse("http://localhost:9090").unwrap()],
+            vec![Url::parse("http://localhost:26657").unwrap()],
+            "cosmostest-1".to_owned(),
+            "cosmos".to_owned(),
+            "utest".to_owned(),
+            RawCosmosAmount::new("utest".to_owned(), "0".to_owned()),
             32,
             OpSubmissionConfig {
                 batch_contract_address: None,
@@ -314,7 +314,7 @@ mod test {
             },
             NativeToken {
                 decimals: 6,
-                denom: "untrn".to_owned(),
+                denom: "utest".to_owned(),
             },
             1.4f64,
             None,

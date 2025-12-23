@@ -8,6 +8,7 @@ export enum ProtocolType {
   CosmosNative = 'cosmosnative',
   Starknet = 'starknet',
   Radix = 'radix',
+  Aleo = 'aleo',
 }
 // A type that also allows for literal values of the enum
 export type ProtocolTypeValue = `${ProtocolType}`;
@@ -19,6 +20,7 @@ export const ProtocolSmallestUnit = {
   [ProtocolType.CosmosNative]: 'uATOM',
   [ProtocolType.Starknet]: 'fri',
   [ProtocolType.Radix]: 'attos',
+  [ProtocolType.Aleo]: 'microcredits',
 };
 
 /********* BASIC TYPES *********/
@@ -127,4 +129,18 @@ export type ValidatorMetadata = {
   git_sha: string;
   rpcs?: string[];
   allows_public_rpcs?: boolean;
+};
+
+export type ReorgEvent = {
+  /** the merkle root built from this agent's indexed events */
+  localMerkleRoot: string;
+  /** the onchain merkle root */
+  canonicalMerkleRoot: string;
+  /** the index of the checkpoint when the reorg was detected
+   * (due to a mismatch between local and canonical merkle roots) */
+  checkpointIndex: number;
+  /** the timestamp when the reorg was detected, in seconds since the Unix epoch */
+  unixTimestamp: number;
+  /** the reorg period configured for the agent */
+  reorgPeriod: string;
 };

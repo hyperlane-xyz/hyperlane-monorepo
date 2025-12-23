@@ -2,10 +2,9 @@
 src = 'contracts'
 script = 'script'
 out = 'out'
-libs = ['node_modules', 'lib']
+libs = ["dependencies", "lib"]
 test = 'test'
 cache_path = 'forge-cache'
-allow_paths = ["../node_modules"]
 solc_version = '0.8.22'
 evm_version= 'paris'
 optimizer_runs = 999_999
@@ -20,11 +19,11 @@ ignored_warnings_from = ['lib', 'test', 'contracts/test']
 verbosity = 4
 
 [rpc_endpoints]
-mainnet = "https://eth.merkle.io"
-optimism = "https://mainnet.optimism.io	"
-polygon = "https://rpc-mainnet.matic.quiknode.pro"
-arbitrum = "https://arbitrum.drpc.org"
-base = "https://mainnet.base.org"
+mainnet = "${RPC_URL_MAINNET}"
+optimism = "${RPC_URL_OPTIMISM}"
+polygon = "${RPC_URL_POLYGON}"
+arbitrum = "${RPC_URL_ARBITRUM}"
+base = "${RPC_URL_BASE}"
 
 [fuzz]
 runs = 50
@@ -32,3 +31,14 @@ dictionary_weight = 80
 
 [lint]
 lint_on_build = false
+
+[dependencies]
+forge-std = "1.9.2"
+"@openzeppelin-contracts" = { version = "4.9.3", git = "https://github.com/OpenZeppelin/openzeppelin-contracts.git", tag = "v4.9.3" }
+"@openzeppelin-contracts-upgradeable" = { version = "4.9.3", git = "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable.git", tag = "v4.9.3" }
+"@arbitrum-nitro-contracts" = { version = "1.2.1", git = "https://github.com/OffchainLabs/nitro-contracts.git", tag = "v1.2.1" }
+"@chainlink-contracts-ccip" = { version = "1.5.0", git = "https://github.com/smartcontractkit/ccip.git", tag = "contracts-ccip/v1.5.0" }
+"@eth-optimism-contracts" = { version = "0.6.0", git = "https://github.com/ethereum-optimism/optimism.git", tag = "@eth-optimism/contracts@0.6.0" }
+
+[soldeer]
+remappings_generate = false  # We'll manage remappings manually to preserve import paths

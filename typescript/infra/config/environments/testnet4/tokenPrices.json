@@ -1,4 +1,5 @@
 {
+  "aleotestnet": "10",
   "arbitrumsepolia": "10",
   "arcadiatestnet2": "10",
   "auroratestnet": "10",
@@ -17,7 +18,6 @@
   "incentivtestnet": "10",
   "kyvetestnet": "10",
   "megaethtestnet": "10",
-  "milkywaytestnet": "10",
   "modetestnet": "10",
   "monadtestnet": "10",
   "neuratestnet": "10",

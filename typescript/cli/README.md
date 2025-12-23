@@ -28,8 +28,8 @@ npm uninstall -g @hyperlane-xyz/cli
 ```bash
 # Run via NPM's npx command
 npx @hyperlane-xyz/cli
-# Or via Yarn's dlx command
-yarn dlx @hyperlane-xyz/cli
+# Or via pnpm's dlx command
+pnpm dlx @hyperlane-xyz/cli
 ```
 
 **Option 3: Run from source:**
@@ -37,9 +37,9 @@ yarn dlx @hyperlane-xyz/cli
 ```bash
 git clone https://github.com/hyperlane-xyz/hyperlane-monorepo.git
 cd hyperlane-monorepo
-yarn install && yarn build
+pnpm install && pnpm build
 cd typescript/cli
-yarn hyperlane
+pnpm hyperlane
 ```
 
 ## Common commands

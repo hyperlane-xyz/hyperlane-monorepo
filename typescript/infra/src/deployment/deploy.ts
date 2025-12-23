@@ -15,6 +15,7 @@ import {
   objMerge,
   runWithTimeout,
 } from '@hyperlane-xyz/utils';
+import { readJson } from '@hyperlane-xyz/utils/fs';
 
 import {
   Modules,
@@ -22,7 +23,7 @@ import {
   writeAddresses,
 } from '../../scripts/agent-utils.js';
 import { DeployEnvironment } from '../config/environment.js';
-import { readJSONAtPath, writeAndFormatJsonAtPath } from '../utils/utils.js';
+import { writeAndFormatJsonAtPath } from '../utils/utils.js';
 
 enum DeployStatus {
   EMPTY = '🫥',
@@ -249,7 +250,7 @@ async function postDeploy<Config extends object>(
 
     let savedVerification = {};
     try {
-      savedVerification = readJSONAtPath(cache.verification);
+      savedVerification = readJson(cache.verification);
     } catch (e) {
       console.error(
         chalk.red('Failed to load cached verification inputs. Error: ', e),

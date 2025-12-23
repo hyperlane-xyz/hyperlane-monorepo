@@ -2,6 +2,7 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import { IProvider, ISigner } from './altvm.js';
 import { ChainMetadataForAltVM } from './chain.js';
+import { MinimumRequiredGasByAction } from './mingas.js';
 import { AnnotatedTx, TxReceipt } from './module.js';
 import {
   ITransactionSubmitter,
@@ -16,6 +17,7 @@ export enum ProtocolType {
   CosmosNative = 'cosmosnative',
   Starknet = 'starknet',
   Radix = 'radix',
+  Aleo = 'aleo',
 }
 
 // A type that also allows for literal values of the enum
@@ -28,6 +30,7 @@ export const ProtocolSmallestUnit = {
   [ProtocolType.CosmosNative]: 'uATOM',
   [ProtocolType.Starknet]: 'fri',
   [ProtocolType.Radix]: 'attos',
+  [ProtocolType.Aleo]: 'microcredits',
 };
 
 export type SignerConfig = Pick<
@@ -50,6 +53,8 @@ export interface ProtocolProvider {
     chainMetadata: ChainMetadataForAltVM,
     config: TConfig,
   ): Promise<ITransactionSubmitter>;
+
+  getMinGas(): MinimumRequiredGasByAction;
 }
 
 /**

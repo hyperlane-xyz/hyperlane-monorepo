@@ -12,6 +12,8 @@ use hyperlane_base::{
 };
 use hyperlane_radix::RadixProvider;
 
+#[cfg(feature = "aleo")]
+use crate::adapter::chains::aleo::AleoAdapter;
 use crate::adapter::{
     chains::{
         cosmos::CosmosAdapter, ethereum::EthereumAdapter, radix::adapter::RadixAdapter,
@@ -58,7 +60,11 @@ impl AdapterFactory {
                 let adapter = RadixAdapter::from_conf(conf, core_metrics, &connection_conf)?;
                 Arc::new(adapter)
             }
-            ChainConnectionConf::Aleo(_) => todo!(),
+            #[cfg(feature = "aleo")]
+            ChainConnectionConf::Aleo(connection_conf) => {
+                let adapter = AleoAdapter::from_conf(conf, core_metrics, &connection_conf)?;
+                Arc::new(adapter)
+            }
         };
         Ok(adapter)
     }

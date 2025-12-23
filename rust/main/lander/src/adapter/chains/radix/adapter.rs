@@ -24,7 +24,6 @@ use scrypto::{
     },
     types::{ComponentAddress, Epoch},
 };
-use uuid::Uuid;
 
 use hyperlane_base::{settings::ChainConf, CoreMetrics};
 use hyperlane_core::{
@@ -32,13 +31,14 @@ use hyperlane_core::{
 };
 use hyperlane_radix::{RadixProvider, RadixProviderForLander, RadixSigner, RadixTxCalldata};
 
+use crate::adapter::chains::radix::transaction::{Precursor, TransactionFactory};
 use crate::{
     adapter::{
-        chains::radix::{conf::create_signer, Precursor, VisibleComponents},
+        chains::radix::{conf::create_signer, VisibleComponents},
         AdaptsChain, GasLimit, RadixTxPrecursor, TxBuildingResult,
     },
     payload::PayloadDetails,
-    transaction::{Transaction, TransactionUuid, VmSpecificTxData},
+    transaction::Transaction,
     DispatcherMetrics, FullPayload, LanderError, TransactionDropReason, TransactionStatus,
 };
 
@@ -332,17 +332,7 @@ impl AdaptsChain for RadixAdapter {
                 };
 
             let precursor = RadixTxPrecursor::from(operation_payload);
-            let tx = Transaction {
-                uuid: TransactionUuid::new(Uuid::new_v4()),
-                tx_hashes: vec![],
-                vm_specific_data: VmSpecificTxData::Radix(Box::new(precursor)),
-                payload_details: vec![full_payload.details.clone()],
-                status: TransactionStatus::PendingInclusion,
-                submission_attempts: 0,
-                creation_timestamp: chrono::Utc::now(),
-                last_submission_attempt: None,
-                last_status_check: None,
-            };
+            let tx = TransactionFactory::build(precursor, full_payload);
 
             build_txs.push(TxBuildingResult {
                 payloads: vec![full_payload.details.clone()],

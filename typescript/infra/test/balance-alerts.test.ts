@@ -1,6 +1,8 @@
 import { expect } from 'chai';
 
+import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 import { retryAsync } from '@hyperlane-xyz/utils';
+import { readJson } from '@hyperlane-xyz/utils/fs';
 
 import { THRESHOLD_CONFIG_PATH } from '../src/config/funding/balances.js';
 import {
@@ -12,7 +14,6 @@ import {
   fetchGrafanaAlert,
   fetchGrafanaServiceAccountToken,
 } from '../src/infrastructure/monitoring/grafana.js';
-import { readJSONAtPath } from '../src/utils/utils.js';
 
 const DEFAULT_TIMEOUT = 30_000;
 
@@ -50,7 +51,7 @@ describe('Balance Alert Thresholds', async function () {
       );
 
       // Read proposed thresholds from config file
-      const proposedThresholds = readJSONAtPath(
+      const proposedThresholds = readJson<ChainMap<number>>(
         `${THRESHOLD_CONFIG_PATH}/${alertConfigMapping[alert].configFileName}`,
       );
 

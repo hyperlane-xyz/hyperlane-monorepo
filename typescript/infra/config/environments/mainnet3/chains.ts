@@ -41,6 +41,18 @@ export const agentSpecificChainMetadataOverrides: ChainMap<
 };
 
 export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
+  kyve: {
+    gasPrice: {
+      amount: '63.0',
+      denom: 'ukyve',
+    },
+  },
+  noble: {
+    gasPrice: {
+      amount: '0.1',
+      denom: 'uusdn',
+    },
+  },
   bsc: {
     transactionOverrides: {
       gasPrice: 1 * 10 ** 8, // 0.1 gwei
@@ -119,6 +131,11 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   //   },
   // },
   // cyber: {
+  //   blocks: {
+  //     confirmations: 3,
+  //   },
+  // },
+  // flowmainnet: {
   //   blocks: {
   //     confirmations: 3,
   //   },

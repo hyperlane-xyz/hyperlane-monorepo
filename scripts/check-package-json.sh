@@ -1,14 +1,34 @@
 #!/bin/bash
 
-# This script validates that all publishable packages have the required fields
-# for npm's sigstore provenance verification and consistent metadata.
+# This script validates:
+# 1. All publishable packages have required fields for npm sigstore provenance
+# 2. Dockerfile has COPY statements for all workspace package.json files
 
 EXPECTED_REPO="https://github.com/hyperlane-xyz/hyperlane-monorepo"
 EXPECTED_LICENSE="Apache-2.0"
 ERRORS=0
+ROOT="$(pwd)"
 
-# Find all package.json files in workspaces (typescript/*, solidity, starknet, solhint-plugin)
-PACKAGE_FILES=$(find typescript solidity starknet solhint-plugin -maxdepth 2 -name "package.json" -type f 2>/dev/null)
+# Get all workspace package.json files using pnpm workspaces
+# Skip the root workspace (current directory)
+# Pipeline: list workspaces as JSON -> extract paths -> filter out root -> convert to relative paths -> append /package.json
+PNPM_OUTPUT=$(pnpm list -r --json --depth -1 2>&1)
+PNPM_EXIT_CODE=$?
+
+if [ $PNPM_EXIT_CODE -ne 0 ]; then
+    echo "ERROR: pnpm list command failed with exit code $PNPM_EXIT_CODE" >&2
+    echo "$PNPM_OUTPUT" >&2
+    exit 1
+fi
+
+PACKAGE_FILES=$(echo "$PNPM_OUTPUT" | jq -r '.[].path' | grep -v "^${ROOT}$" | sed "s|^${ROOT}/||" | sed 's|$|/package.json|')
+
+if [ -z "$PACKAGE_FILES" ]; then
+    echo "ERROR: pnpm produced no workspaces. Check pnpm-workspace.yaml configuration." >&2
+    exit 1
+fi
+
+echo "Checking package.json fields..."
 
 for pkg in $PACKAGE_FILES; do
     # Skip if package is private (not published to npm)
@@ -57,14 +77,28 @@ for pkg in $PACKAGE_FILES; do
     fi
 done
 
+echo "Checking Dockerfile COPY statements..."
+
+for pkg in $PACKAGE_FILES; do
+    # Check if Dockerfile has a COPY statement for this package.json
+    if ! grep -q "COPY $pkg" Dockerfile; then
+        echo "ERROR: Dockerfile is missing COPY statement for $pkg"
+        echo "       Add: COPY $pkg ./$pkg"
+        ERRORS=$((ERRORS + 1))
+    fi
+done
+
 if [ $ERRORS -gt 0 ]; then
     echo ""
-    echo "Found $ERRORS error(s) in package.json fields."
-    echo "All publishable @hyperlane-xyz packages must have:"
+    echo "Found $ERRORS error(s)."
+    echo ""
+    echo "For package.json issues, all publishable @hyperlane-xyz packages must have:"
     echo "  \"repository\": \"$EXPECTED_REPO\""
     echo "  \"license\": \"$EXPECTED_LICENSE\""
+    echo ""
+    echo "For Dockerfile issues, add missing COPY statements before 'pnpm install'."
     exit 1
 fi
 
-echo "All publishable packages have correct repository and license fields."
+echo "All checks passed."
 exit 0

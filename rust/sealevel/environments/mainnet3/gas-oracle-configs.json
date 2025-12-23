@@ -423,32 +423,6 @@
       "overhead": 600000
     }
   },
-  "svmbnb": {
-    "bsc": {
-      "oracleConfig": {
-        "tokenExchangeRate": "15000000000000000000",
-        "gasPrice": "678287626",
-        "tokenDecimals": 18
-      },
-      "overhead": 159736
-    },
-    "solanamainnet": {
-      "oracleConfig": {
-        "tokenExchangeRate": "211178566855874",
-        "gasPrice": "93276",
-        "tokenDecimals": 9
-      },
-      "overhead": 600000
-    },
-    "soon": {
-      "oracleConfig": {
-        "tokenExchangeRate": "4885642951645256",
-        "gasPrice": "1680",
-        "tokenDecimals": 9
-      },
-      "overhead": 600000
-    }
-  },
   "solaxy": {
     "ethereum": {
       "oracleConfig": {

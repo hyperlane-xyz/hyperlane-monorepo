@@ -105,8 +105,9 @@ describe('no-restricted-imports-from-exports rule', () => {
           raw: `'${importPath}'`,
         },
         specifiers: [],
+        attributes: [],
         parent: {} as Rule.Node,
-      });
+      } as Parameters<typeof ruleInstance.ImportDeclaration>[0]);
     }
 
     if (expectedError || !shouldPass) {

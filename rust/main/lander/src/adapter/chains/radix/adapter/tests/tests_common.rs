@@ -10,9 +10,9 @@ use scrypto::network::NetworkDefinition;
 use hyperlane_core::{ChainResult, H512, U256};
 use hyperlane_radix::{RadixProviderForLander, RadixSigner, RadixTxCalldata};
 
-use crate::{
-    adapter::chains::radix::adapter::RadixAdapter, transaction::VmSpecificTxData, FullPayload,
-};
+use crate::{transaction::VmSpecificTxData, FullPayload};
+
+use super::super::super::adapter::RadixAdapter;
 
 // random private key used for testing
 pub const TEST_PRIVATE_KEY: &str =

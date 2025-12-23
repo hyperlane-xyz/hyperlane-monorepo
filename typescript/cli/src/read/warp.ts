@@ -21,7 +21,7 @@ import {
 import {
   Address,
   ProtocolType,
-  assert,
+  mustGet,
   objFilter,
   objMap,
   promiseObjAll,
@@ -123,7 +123,8 @@ async function deriveWarpRouteConfigs(
   // Derive and return warp route config
   return promiseObjAll(
     objMap(addresses, async (chain, address) => {
-      switch (context.multiProvider.getProtocol(chain)) {
+      const protocol = context.multiProvider.getProtocol(chain);
+      switch (protocol) {
         case ProtocolType.Ethereum: {
           return new EvmERC20WarpRouteReader(
             multiProvider,
@@ -131,8 +132,7 @@ async function deriveWarpRouteConfigs(
           ).deriveWarpRouteConfig(address);
         }
         default: {
-          const provider = context.altVmProvider.get(chain);
-          assert(provider, `Cannot find provider for ${chain}`);
+          const provider = mustGet(context.altVmProviders, chain);
           return new AltVMWarpRouteReader(
             altVmChainLookup(multiProvider),
             provider,

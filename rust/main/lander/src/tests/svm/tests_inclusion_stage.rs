@@ -170,8 +170,14 @@ async fn test_svm_inclusion_gas_spike() {
         ExpectedSvmTxState {
             compute_units: 1400000,
             compute_unit_price_micro_lamports: 605,
+            status: TransactionStatus::Mempool,
+            retries: 4,
+        },
+        ExpectedSvmTxState {
+            compute_units: 1400000,
+            compute_unit_price_micro_lamports: 605,
             status: TransactionStatus::Finalized,
-            retries: 3,
+            retries: 4,
         },
     ];
 
@@ -399,7 +405,10 @@ async fn test_svm_failure_to_estimate_costs_causes_tx_to_be_dropped() {
         ExpectedSvmTxState {
             compute_units: 1400000,
             compute_unit_price_micro_lamports: 0,
-            status: TransactionStatus::Dropped(TransactionDropReason::FailedSimulation),
+            status: TransactionStatus::Dropped(TransactionDropReason::Other(
+                "Non-retryable error: Chain communication error Transaction estimation failed"
+                    .to_string(),
+            )),
             retries: 0,
         },
     ];
@@ -527,7 +536,7 @@ async fn mock_svm_tx(
     payload.data = data;
     payload_db.store_payload_by_uuid(&payload).await.unwrap();
     let precursor = SealevelTxPrecursor::from_payload(&payload);
-    let tx = TransactionFactory::build(&payload, precursor);
+    let tx = TransactionFactory::build(precursor, &payload);
     tx_db.store_transaction_by_uuid(&tx).await.unwrap();
     tx
 }

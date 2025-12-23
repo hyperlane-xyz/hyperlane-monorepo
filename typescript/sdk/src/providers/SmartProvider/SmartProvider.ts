@@ -319,15 +319,32 @@ export class HyperlaneSmartProvider
           providerResultPromises.push(resultPromise);
           pIndex += 1;
           break;
-        case ProviderStatus.Error:
+        case ProviderStatus.Error: {
           providerResultErrors.push(result.error);
           // If this is a blockchain error, stop trying additional providers as it's a permanent failure
-          if (RPC_BLOCKCHAIN_ERRORS.includes((result.error as any)?.code)) {
+          // Exception: CALL_EXCEPTION without revert data is likely an RPC issue, not a real revert
+          // Note: ethers sets data to "0x" when there's no actual revert data
+          const errorCode = (result.error as any)?.code;
+          const revertData = (result.error as any)?.data;
+          const hasRevertData = !!revertData && revertData !== '0x';
+          const isCallExceptionWithoutData =
+            errorCode === EthersError.CALL_EXCEPTION && !hasRevertData;
+          const isPermanentBlockchainError =
+            RPC_BLOCKCHAIN_ERRORS.includes(errorCode) &&
+            !isCallExceptionWithoutData;
+
+          if (isPermanentBlockchainError) {
             this.logger.debug(
               { ...providerMetadata },
-              `${(result.error as any)?.code} detected - stopping provider fallback as this is a permanent failure`,
+              `${errorCode} detected - stopping provider fallback as this is a permanent failure`,
             );
             break providerLoop;
+          }
+          if (isCallExceptionWithoutData) {
+            this.logger.debug(
+              { ...providerMetadata },
+              `${errorCode} without revert data detected - treating as transient RPC error, will retry`,
+            );
           }
           this.logger.debug(
             {
@@ -339,6 +356,7 @@ export class HyperlaneSmartProvider
           );
           pIndex += 1;
           break;
+        }
         default:
           throw new Error(
             `Unexpected result from provider: ${JSON.stringify(
@@ -464,8 +482,15 @@ export class HyperlaneSmartProvider
       };
     }
 
-    const rpcBlockchainError = errors.find((e) =>
-      RPC_BLOCKCHAIN_ERRORS.includes(e.code),
+    // Find blockchain errors, but exclude CALL_EXCEPTION without revert data (likely RPC issues)
+    // Note: ethers sets data to "0x" when there's no actual revert data
+    const rpcBlockchainError = errors.find(
+      (e) =>
+        RPC_BLOCKCHAIN_ERRORS.includes(e.code) &&
+        !(
+          e.code === EthersError.CALL_EXCEPTION &&
+          (!e.data || e.data === '0x')
+        ),
     );
 
     const rpcServerError = errors.find((e) =>

@@ -1,5 +1,6 @@
 import { ChainMap } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
+import { readJson } from '@hyperlane-xyz/utils/fs';
 
 import {
   BalanceThresholdType,
@@ -7,7 +8,6 @@ import {
   ThresholdsData,
   balanceThresholdConfigMapping,
 } from '../config/funding/balances.js';
-import { readJSONAtPath } from '../utils/utils.js';
 
 export function validateThresholds(thresholdsData: ThresholdsData): void {
   const errors: string[] = [];
@@ -106,7 +106,7 @@ export function readAllThresholds(): ThresholdsData {
   for (const thresholdType of Object.values(BalanceThresholdType)) {
     const thresholdsFile = `${THRESHOLD_CONFIG_PATH}/${balanceThresholdConfigMapping[thresholdType].configFileName}`;
 
-    const chainMap = readJSONAtPath(thresholdsFile) as ChainMap<number>;
+    const chainMap = readJson<ChainMap<number>>(thresholdsFile);
 
     result[thresholdType] = chainMap;
   }

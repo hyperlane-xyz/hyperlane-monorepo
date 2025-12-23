@@ -90,9 +90,6 @@
   "hyperevm": {
     "validators": ["0x95b460edc770f53981c9aa82aa2a297af619cabf"]
   },
-  "injective": {
-    "validators": ["0xca024623ee6fe281639aee91c4390b0c4e053918"]
-  },
   "linea": {
     "validators": ["0xad4886b6f5f5088c7ae53b69d1ff5cfc2a17bec4"]
   },
@@ -115,9 +112,6 @@
   "metis": {
     "validators": ["0xa01a62b1a6663e888399788ff15e784b5d223661"]
   },
-  "mint": {
-    "validators": ["0xbd8808980b59459cea0435d1d0c72a05e7660ff3"]
-  },
   "mode": {
     "validators": ["0x2f04ed30b1c27ef8e9e6acd360728d9bd5c3a9e2"]
   },
@@ -129,13 +123,6 @@
       "0x75e3cd4e909089ae6c9f3a42b1468b33eec84161",
       "0xc28418d0858a82a46a11e07db75f8bf4eed43881",
       "0xcaa9c6e6efa35e4a8b47565f3ce98845fa638bf3"
-    ]
-  },
-  "neutron": {
-    "validators": [
-      "0x307a8fe091b8273c7ce3d277b161b4a2167279b1",
-      "0xb825c1bd020cb068f477b320f591b32e26814b5b",
-      "0x0a5b31090d4c3c207b9ea6708f938e328f895fce"
     ]
   },
   "oortmainnet": {

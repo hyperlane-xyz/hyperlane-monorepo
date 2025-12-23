@@ -8,7 +8,7 @@ use tonic::async_trait;
 
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Mailbox, RawHyperlaneMessage,
+    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Mailbox, Metadata, RawHyperlaneMessage,
     ReorgPeriod, TxCostEstimate, TxOutcome, H256, U256,
 };
 
@@ -135,7 +135,7 @@ impl Mailbox for CosmosNativeMailbox {
     async fn process(
         &self,
         message: &HyperlaneMessage,
-        metadata: &[u8],
+        metadata: &Metadata,
         tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
         let any_encoded = self.encode_hyperlane_message(message, metadata)?;
@@ -157,7 +157,7 @@ impl Mailbox for CosmosNativeMailbox {
     async fn process_estimate_costs(
         &self,
         message: &HyperlaneMessage,
-        metadata: &[u8],
+        metadata: &Metadata,
     ) -> ChainResult<TxCostEstimate> {
         let any_encoded = self.encode_hyperlane_message(message, metadata)?;
         let gas_limit = self.provider.rpc().estimate_gas(vec![any_encoded]).await?;
@@ -174,7 +174,7 @@ impl Mailbox for CosmosNativeMailbox {
     async fn process_calldata(
         &self,
         _message: &HyperlaneMessage,
-        _metadata: &[u8],
+        metadata: &Metadata,
     ) -> ChainResult<Vec<u8>> {
         todo!() // we dont need this for now
     }

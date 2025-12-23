@@ -347,18 +347,47 @@ export async function deployEverclearBridgeAdapter(
 // Verifies if the IS_CI var is set and generates the correct prefix for running the command
 // in the current env
 export function localTestRunCmdPrefix() {
-  return inCIMode() ? [] : ['yarn', 'workspace', '@hyperlane-xyz/cli', 'run'];
+  return inCIMode() ? [] : ['pnpm', '--filter', '@hyperlane-xyz/cli', 'run'];
 }
 
 export async function hyperlaneSendMessage(
   origin: string,
   destination: string,
+  { quick = false }: { quick?: boolean } = {},
 ) {
   return $`${localTestRunCmdPrefix()} hyperlane send message \
         --registry ${REGISTRY_PATH} \
         --origin ${origin} \
         --destination ${destination} \
         --key ${ANVIL_KEY} \
+        --verbosity debug \
+        ${quick ? ['--quick'] : []} \
+        --yes`;
+}
+
+export function hyperlaneStatus({
+  origin,
+  messageId,
+  dispatchTx,
+  relay,
+  key,
+  quick,
+}: {
+  origin: string;
+  messageId?: string;
+  dispatchTx?: string;
+  relay?: boolean;
+  key?: string;
+  quick?: boolean;
+}) {
+  return $`${localTestRunCmdPrefix()} hyperlane status \
+        --registry ${REGISTRY_PATH} \
+        --origin ${origin} \
+        ${messageId ? ['--id', messageId] : []} \
+        ${dispatchTx ? ['--dispatchTx', dispatchTx] : []} \
+        ${relay ? ['--relay'] : []} \
+        ${key ? ['--key', key] : []} \
+        ${quick ? ['--quick'] : []} \
         --verbosity debug \
         --yes`;
 }

@@ -6,11 +6,12 @@ use byteorder::{BigEndian, ByteOrder};
 use async_trait::async_trait;
 use cainome::cairo_serde::U256 as StarknetU256;
 use hyperlane_core::{
-    utils::bytes_to_hex, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Mailbox, TxCostEstimate, TxOutcome, H256,
-    U256,
+    BatchItem, BatchResult, FixedPointNumber, Metadata, QueueOperation, ReorgPeriod,
 };
-use hyperlane_core::{BatchItem, BatchResult, FixedPointNumber, QueueOperation, ReorgPeriod};
+use hyperlane_core::{
+    ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    HyperlaneMessage, HyperlaneProvider, Mailbox, TxCostEstimate, TxOutcome, H256, U256,
+};
 use starknet::accounts::{Account, ExecutionV3, SingleOwnerAccount};
 use starknet::core::types::Felt;
 
@@ -137,22 +138,22 @@ impl Mailbox for StarknetMailbox {
         Ok(HyH256::from(address.0).0)
     }
 
-    #[instrument(skip(self), fields(metadata=%bytes_to_hex(metadata)))]
+    #[instrument(skip(self))]
     async fn process(
         &self,
         message: &HyperlaneMessage,
-        metadata: &[u8],
+        metadata: &Metadata,
         _tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
         let contract_call = self.process_contract_call(message, metadata).await?;
         send_and_confirm(self.provider.rpc_client(), contract_call).await
     }
 
-    #[instrument(skip(self), fields(msg=%message, metadata=%bytes_to_hex(metadata)))]
+    #[instrument(skip(self))]
     async fn process_estimate_costs(
         &self,
         message: &HyperlaneMessage,
-        metadata: &[u8],
+        metadata: &Metadata,
     ) -> ChainResult<TxCostEstimate> {
         let contract_call = self.process_contract_call(message, metadata).await?;
 
@@ -172,7 +173,7 @@ impl Mailbox for StarknetMailbox {
     async fn process_calldata(
         &self,
         _message: &HyperlaneMessage,
-        _metadata: &[u8],
+        _metadata: &Metadata,
     ) -> ChainResult<Vec<u8>> {
         // This function is only relevant for the new submitter
         // TODO: Revisit with new submitter changes
@@ -200,10 +201,10 @@ impl Mailbox for StarknetMailbox {
         let calls: Vec<_> = messages
             .iter()
             .map(|item| {
-                let metadata = item.submission_data.metadata.as_slice();
+                let metadata = &item.submission_data.metadata;
                 let message = &item.data;
                 self.contract
-                    .process_getcall(&metadata.into(), &message.into())
+                    .process_getcall(&metadata.as_ref().into(), &message.into())
             })
             .collect();
 

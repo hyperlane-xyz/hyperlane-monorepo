@@ -112,6 +112,7 @@ export function useAccounts(
         [ProtocolType.CosmosNative]: cosmAccountInfo,
         [ProtocolType.Starknet]: starknetAccountInfo,
         [ProtocolType.Radix]: radixAccountInfo,
+        [ProtocolType.Aleo]: evmAccountInfo, // TODO: implement this once we have a Aleo wallet connection
       },
       readyAccounts,
     }),
@@ -224,6 +225,7 @@ export function useWalletDetails(): Record<ProtocolType, WalletDetails> {
       [ProtocolType.CosmosNative]: cosmosWallet,
       [ProtocolType.Starknet]: starknetWallet,
       [ProtocolType.Radix]: radixWallet,
+      [ProtocolType.Aleo]: evmWallet, // TODO: implement this once we have a Aleo wallet connection
     }),
     [evmWallet, solWallet, cosmosWallet, starknetWallet, radixWallet],
   );
@@ -244,6 +246,7 @@ export function useConnectFns(): Record<ProtocolType, () => void> {
       [ProtocolType.CosmosNative]: onConnectCosmos,
       [ProtocolType.Starknet]: onConnectStarknet,
       [ProtocolType.Radix]: onConnectRadix,
+      [ProtocolType.Aleo]: () => {}, // TODO: implement this once we have a Aleo wallet connection
     }),
     [
       onConnectEthereum,
@@ -299,6 +302,7 @@ export function useDisconnectFns(): Record<ProtocolType, () => Promise<void>> {
         ProtocolType.Radix,
         disconnectRadix,
       ),
+      [ProtocolType.Aleo]: onClickDisconnect(ProtocolType.Aleo, () => {}), // TODO: implement once we have Aleo wallet connection
     }),
     [
       disconnectEvm,
@@ -337,6 +341,7 @@ export function useActiveChains(multiProvider: MultiProtocolProvider): {
         [ProtocolType.CosmosNative]: cosmChain,
         [ProtocolType.Starknet]: starknetChain,
         [ProtocolType.Radix]: radixChain,
+        [ProtocolType.Aleo]: evmChain, // TODO: replace this once we have a Aleo implementation
       },
       readyChains,
     }),
@@ -405,6 +410,12 @@ export function useTransactionFns(
         sendMultiTransaction: onSendMultiRadixTx,
         switchNetwork: onSwitchRadixNetwork,
       },
+      [ProtocolType.Aleo]: {
+        // TODO: implement once we have Aleo wallet connection
+        sendTransaction: (): any => {},
+        sendMultiTransaction: (): any => {},
+        switchNetwork: (): any => {},
+      },
     }),
     [
       onSendEvmTx,
@@ -449,6 +460,9 @@ export function useWatchAsset(
       },
       [ProtocolType.Radix]: {
         addAsset: radixAddAsset,
+      },
+      [ProtocolType.Aleo]: {
+        addAsset: (): any => {}, // TODO: implement once we have Aleo wallet connection
       },
     }),
     [

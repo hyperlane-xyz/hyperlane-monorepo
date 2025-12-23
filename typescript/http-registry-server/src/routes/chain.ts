@@ -10,7 +10,7 @@ import {
 } from '../middleware/validateRequest.js';
 import { ChainService } from '../services/chainService.js';
 
-export function createChainRouter(chainService: ChainService) {
+export function createChainRouter(chainService: ChainService): Router {
   const router = Router();
 
   router.get(

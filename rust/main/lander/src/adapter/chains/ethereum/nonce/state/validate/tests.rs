@@ -11,7 +11,7 @@ use crate::tests::test_utils::tmp_dbs;
 use crate::transaction::{DropReason, TransactionStatus, TransactionUuid};
 use crate::TransactionDropReason;
 
-use super::super::super::super::nonce::tests::make_tx;
+use super::super::super::super::nonce::tests::dummy_tx;
 use super::super::super::super::EthereumAdapterMetrics;
 use super::NonceAction;
 use super::NonceManagerState;
@@ -24,7 +24,7 @@ async fn test_validate_assigned_nonce_none_nonce() {
     let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
 
     let uuid = TransactionUuid::random();
-    let tx = make_tx(
+    let tx = dummy_tx(
         uuid,
         TransactionStatus::PendingInclusion,
         None,
@@ -44,7 +44,7 @@ async fn test_validate_assigned_nonce_not_tracked() {
 
     let uuid = TransactionUuid::random();
     let nonce_val = U256::from(1);
-    let tx = make_tx(
+    let tx = dummy_tx(
         uuid,
         TransactionStatus::PendingInclusion,
         Some(nonce_val),
@@ -69,7 +69,7 @@ async fn test_validate_assigned_nonce_tracked_different_tx_uuid() {
     // Set tracked_tx_uuid to uuid2
     state.set_tracked_tx_uuid(&nonce_val, &uuid2).await.unwrap();
 
-    let tx = make_tx(
+    let tx = dummy_tx(
         uuid1,
         TransactionStatus::PendingInclusion,
         Some(nonce_val),
@@ -93,7 +93,7 @@ async fn test_validate_assigned_nonce_freed_status() {
     state.set_tracked_tx_uuid(&nonce_val, &uuid).await.unwrap();
 
     // The transaction is Dropped, so nonce status is Freed
-    let tx = make_tx(
+    let tx = dummy_tx(
         uuid,
         TransactionStatus::Dropped(DropReason::DroppedByChain),
         Some(nonce_val),
@@ -124,7 +124,7 @@ async fn test_validate_assigned_nonce_taken_status_below_finalized() {
     // Set finalized nonce above nonce_val
     state.set_finalized_nonce(&(nonce_val + 1)).await.unwrap();
 
-    let tx = make_tx(
+    let tx = dummy_tx(
         uuid,
         TransactionStatus::PendingInclusion,
         Some(nonce_val),
@@ -155,7 +155,7 @@ async fn test_validate_assigned_nonce_taken_status_equal_finalized() {
     // Set finalized nonce equal to nonce_val
     state.set_finalized_nonce(&nonce_val).await.unwrap();
 
-    let tx = make_tx(
+    let tx = dummy_tx(
         uuid,
         TransactionStatus::PendingInclusion,
         Some(nonce_val),
@@ -186,7 +186,7 @@ async fn test_validate_assigned_nonce_taken_status_above_finalized() {
     // Set finalized nonce below nonce_val
     state.set_finalized_nonce(&(nonce_val - 1)).await.unwrap();
 
-    let tx = make_tx(
+    let tx = dummy_tx(
         uuid,
         TransactionStatus::PendingInclusion,
         Some(nonce_val),
@@ -209,7 +209,7 @@ async fn test_validate_assigned_nonce_committed_status() {
     // Set tracked_tx_uuid to uuid
     state.set_tracked_tx_uuid(&nonce_val, &uuid).await.unwrap();
 
-    let tx = make_tx(
+    let tx = dummy_tx(
         uuid,
         TransactionStatus::Finalized,
         Some(nonce_val),
@@ -228,7 +228,7 @@ async fn test_validate_assigned_nonce_with_db() {
     let uuid = TransactionUuid::random();
     let nonce = U256::from(7);
 
-    let tx = make_tx(
+    let tx = dummy_tx(
         uuid,
         TransactionStatus::PendingInclusion,
         None,
@@ -241,7 +241,7 @@ async fn test_validate_assigned_nonce_with_db() {
 
     let action = state.validate_assigned_nonce(&tx).await.unwrap();
 
-    assert_eq!(action, NonceAction::Assign { nonce: nonce });
+    assert_eq!(action, NonceAction::Assign { nonce });
     assert_eq!(state.metrics.get_mismatched_nonce().get(), 1);
 }
 
@@ -414,7 +414,7 @@ async fn test_validate_assigned_nonce_db_nonce_max() {
 
     let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
 
-    let tx = make_tx(
+    let tx = dummy_tx(
         uuid,
         TransactionStatus::PendingInclusion,
         None,
@@ -443,7 +443,7 @@ async fn test_validate_assigned_nonce_db_nonce_max_tx_nonce_some() {
 
     let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
 
-    let tx = make_tx(
+    let tx = dummy_tx(
         uuid,
         TransactionStatus::PendingInclusion,
         Some(U256::from(100)),
@@ -471,7 +471,7 @@ async fn test_validate_assigned_nonce_taken_status_no_finalized() {
 
     // Do NOT set finalized_nonce (it will be None)
 
-    let tx = make_tx(
+    let tx = dummy_tx(
         uuid,
         TransactionStatus::PendingInclusion,
         Some(nonce_val),
@@ -497,7 +497,7 @@ async fn test_validate_assigned_nonce_freed_status_failed_simulation() {
     state.set_tracked_tx_uuid(&nonce_val, &uuid).await.unwrap();
 
     // The transaction is Dropped with FailedSimulation, so nonce status is Freed
-    let tx = make_tx(
+    let tx = dummy_tx(
         uuid,
         TransactionStatus::Dropped(DropReason::FailedSimulation),
         Some(nonce_val),
@@ -529,7 +529,7 @@ async fn test_validate_assigned_nonce_mempool_status() {
     // Set finalized nonce below nonce_val
     state.set_finalized_nonce(&(nonce_val - 1)).await.unwrap();
 
-    let tx = make_tx(
+    let tx = dummy_tx(
         uuid,
         TransactionStatus::Mempool,
         Some(nonce_val),
@@ -557,7 +557,7 @@ async fn test_validate_assigned_nonce_included_status() {
     // Set finalized nonce below nonce_val
     state.set_finalized_nonce(&(nonce_val - 1)).await.unwrap();
 
-    let tx = make_tx(
+    let tx = dummy_tx(
         uuid,
         TransactionStatus::Included,
         Some(nonce_val),
@@ -585,7 +585,7 @@ async fn test_validate_assigned_nonce_committed_below_finalized() {
     // Set finalized nonce above nonce_val
     state.set_finalized_nonce(&(nonce_val + 1)).await.unwrap();
 
-    let tx = make_tx(
+    let tx = dummy_tx(
         uuid,
         TransactionStatus::Finalized,
         Some(nonce_val),
@@ -612,7 +612,7 @@ async fn test_validate_assigned_nonce_zero_nonce() {
 
     // No finalized nonce set
 
-    let tx = make_tx(
+    let tx = dummy_tx(
         uuid,
         TransactionStatus::PendingInclusion,
         Some(nonce_val),

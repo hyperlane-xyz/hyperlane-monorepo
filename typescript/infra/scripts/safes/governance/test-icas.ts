@@ -82,7 +82,7 @@ async function main() {
     );
   }
 
-  const safeMultiSend = new SafeMultiSend(
+  const safeMultiSend = await SafeMultiSend.initialize(
     multiProvider,
     originChain,
     accountConfig.owner,

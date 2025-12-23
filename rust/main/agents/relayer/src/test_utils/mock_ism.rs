@@ -5,7 +5,7 @@ use std::{
 
 use hyperlane_core::{
     ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
-    InterchainSecurityModule, ModuleType, H256, U256,
+    InterchainSecurityModule, Metadata, ModuleType, H256, U256,
 };
 
 type ResponseList<T> = Arc<Mutex<VecDeque<T>>>;
@@ -54,7 +54,7 @@ impl InterchainSecurityModule for MockInterchainSecurityModule {
     async fn dry_run_verify(
         &self,
         _message: &HyperlaneMessage,
-        _metadata: &[u8],
+        _metadata: &Metadata,
     ) -> ChainResult<Option<U256>> {
         self.responses
             .dry_run_verify

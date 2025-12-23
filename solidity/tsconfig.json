@@ -9,6 +9,7 @@
     "hardhat.config.cts",
     "./dist",
     "zk-hardhat.config.cts",
-    "rootHardhatConfig.cts"
+    "rootHardhatConfig.cts",
+    "./dependencies"
   ]
 }

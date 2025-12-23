@@ -104,40 +104,78 @@ should_include_workspace() {
     return 1
 }
 
+# Map from conventional commit scope to workspace path
+declare -A SCOPE_TO_WORKSPACE=(
+    ["relayer"]="agents/relayer"
+    ["validator"]="agents/validator"
+    ["scraper"]="agents/scraper"
+    ["lander"]="lander"
+    ["cosmos"]="chains/hyperlane-cosmos"
+    ["ethereum"]="chains/hyperlane-ethereum"
+    ["sealevel"]="chains/hyperlane-sealevel"
+    ["fuel"]="chains/hyperlane-fuel"
+    ["starknet"]="chains/hyperlane-starknet"
+    ["aleo"]="chains/hyperlane-aleo"
+)
+
 # Get all commits in the range (filter to rust/main directory)
-git log --no-merges --format="%H" $COMMIT_RANGE -- rust/main | while read -r commit_hash; do
+# Note: We use process substitution (< <(...)) instead of a pipe to avoid running
+# the while loop in a subshell, which would break associative array behavior.
+while read -r commit_hash; do
+    # Associative array to track which workspaces this commit belongs to
+    declare -A matched_workspaces=()
     # Get commit message
     commit_msg=$(git log -1 --format="%s" "$commit_hash")
+
+    # Check if commit message has an explicit scope like feat(relayer): or fix(validator):
+    # This takes priority over file-based detection
+    explicit_scope=""
+    if [[ "$commit_msg" =~ ^[a-z]+\(([a-z]+)\): ]]; then
+        scope="${BASH_REMATCH[1]}"
+        if [ -n "${SCOPE_TO_WORKSPACE[$scope]:-}" ]; then
+            explicit_scope="${SCOPE_TO_WORKSPACE[$scope]}"
+        fi
+    fi
 
     # Get files changed in this commit (within rust/main)
     files=$(git diff-tree --no-commit-id --name-only -r "$commit_hash" -- rust/main)
 
     # Categorize based on workspace membership
-    workspace=""
-    for file in $files; do
-        # Strip rust/main/ prefix if present
-        file=$(echo "$file" | sed 's|^rust/main/||')
+    # A commit can belong to multiple workspaces if it touches files in each
 
-        # Check which workspace this file belongs to
-        for member in $WORKSPACE_MEMBERS; do
-            if [[ "$file" =~ ^"$member"(/|$) ]]; then
-                workspace="$member"
-                break 2  # Break both loops
-            fi
+    if [ -n "$explicit_scope" ]; then
+        # If explicit scope in commit message, use only that workspace
+        matched_workspaces["$explicit_scope"]=1
+    else
+        # Otherwise, detect workspaces from changed files
+        for file in $files; do
+            # Strip rust/main/ prefix if present
+            file=$(echo "$file" | sed 's|^rust/main/||')
+
+            # Check which workspace this file belongs to
+            for member in $WORKSPACE_MEMBERS; do
+                if [[ "$file" =~ ^"$member"(/|$) ]]; then
+                    matched_workspaces["$member"]=1
+                    break  # Break inner loop only - file matched, check next file
+                fi
+            done
         done
-    done
-
-    # Default to "other" if no workspace found
-    if [ -z "$workspace" ]; then
-        workspace="other"
     fi
 
-    # Sanitize workspace name for file system (replace / with __)
-    workspace_file=$(echo "$workspace" | tr '/' '_')
+    # If no workspaces matched, categorize as "other"
+    if [ ${#matched_workspaces[@]} -eq 0 ]; then
+        matched_workspaces["other"]=1
+    fi
 
-    # Store commit in workspace category file (just message, PR# already in message)
-    echo "$commit_msg" >> "$TEMP_DIR/$workspace_file"
-done
+    # Store commit in ALL matched workspace category files
+    for workspace in "${!matched_workspaces[@]}"; do
+        # Sanitize workspace name for file system (replace / with __)
+        workspace_file=$(echo "$workspace" | tr '/' '_')
+
+        # Store commit in workspace category file (just message, PR# already in message)
+        echo "$commit_msg" >> "$TEMP_DIR/$workspace_file"
+    done
+done < <(git log --no-merges --format="%H" $COMMIT_RANGE -- rust/main)
 
 # Function to generate changelog for a specific workspace
 generate_workspace_changelog() {

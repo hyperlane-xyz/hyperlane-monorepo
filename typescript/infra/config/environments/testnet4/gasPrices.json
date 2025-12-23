@@ -1,4 +1,8 @@
 {
+  "aleotestnet": {
+    "amount": "0.00001",
+    "decimals": 1
+  },
   "arbitrumsepolia": {
     "amount": "0.1",
     "decimals": 9
@@ -70,10 +74,6 @@
   "megaethtestnet": {
     "amount": "0.001",
     "decimals": 9
-  },
-  "milkywaytestnet": {
-    "amount": "0.001",
-    "decimals": 1
   },
   "modetestnet": {
     "amount": "0.001000252",

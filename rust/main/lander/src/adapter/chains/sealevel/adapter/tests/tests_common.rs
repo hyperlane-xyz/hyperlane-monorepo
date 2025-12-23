@@ -305,7 +305,7 @@ pub fn precursor() -> SealevelTxPrecursor {
 }
 
 pub fn transaction() -> Transaction {
-    let mut transaction = TransactionFactory::build(&payload(), precursor());
+    let mut transaction = TransactionFactory::build(precursor(), &payload());
     transaction.update_after_submission(H512::zero(), precursor());
 
     transaction

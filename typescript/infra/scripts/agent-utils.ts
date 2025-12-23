@@ -23,6 +23,7 @@ import {
   promiseObjAll,
   rootLogger,
 } from '@hyperlane-xyz/utils';
+import { mergeJson, readJson } from '@hyperlane-xyz/utils/fs';
 
 import { Contexts } from '../config/contexts.js';
 import { agents } from '../config/environments/agents.js';
@@ -54,8 +55,6 @@ import {
   assertRole,
   filterRemoteDomainMetadata,
   getInfraPath,
-  readJSONAtPath,
-  writeMergedJSONAtPath,
 } from '../src/utils/utils.js';
 
 const logger = rootLogger.child({ module: 'infra:scripts:agent-utils' });
@@ -680,11 +679,13 @@ export function getAddresses(
   module: Modules,
   chains?: ChainName[],
 ) {
-  let addresses;
+  let addresses: ChainMap<ChainAddresses>;
   if (isRegistryModule(environment, module)) {
     addresses = getChainAddresses();
   } else {
-    addresses = readJSONAtPath(getInfraLandfillPath(environment, module));
+    addresses = readJson<ChainMap<ChainAddresses>>(
+      getInfraLandfillPath(environment, module),
+    );
   }
 
   // Filter by chains if specified, otherwise use environment chains
@@ -719,10 +720,7 @@ export function writeAddresses(
       getRegistry().updateChain({ chainName, addresses });
     }
   } else {
-    writeMergedJSONAtPath(
-      getInfraLandfillPath(environment, module),
-      addressesMap,
-    );
+    mergeJson(getInfraLandfillPath(environment, module), addressesMap);
   }
 }
 

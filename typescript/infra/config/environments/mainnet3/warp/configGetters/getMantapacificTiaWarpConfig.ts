@@ -13,11 +13,13 @@ export const getMantapacificTiaWarpConfig = async (
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const neutronRouter =
     '0xc5fc6899019cb4a7649981d89eb7b1a0929d0a85b2d41802f3315129ad4b581a';
+  const neutronOwner =
+    'neutron1fqf5mprg3f5hytvzp3t7spmsum6rjrw80mq8zgkc0h6rxga0dtzqws3uu7';
 
   // @ts-ignore - foreignDeployment configs don't conform to the HypTokenRouterConfig
   const neutron: HypTokenRouterConfig = {
     foreignDeployment: neutronRouter,
-    owner: abacusWorksEnvOwnerConfig.neutron.owner,
+    owner: neutronOwner,
     type: TokenType.native,
     decimals: 6,
     gas: 0,

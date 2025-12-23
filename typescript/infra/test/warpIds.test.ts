@@ -6,7 +6,9 @@ import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { WarpRouteIds } from '../config/environments/mainnet3/warp/warpIds.js';
 
-describe('Warp IDs', () => {
+describe('Warp IDs', function () {
+  this.timeout(60_000); // 60s timeout for fetching all warp IDs from registry
+
   it('Has all warp IDs in the registry', async () => {
     const registry = getRegistry({
       registryUris: [DEFAULT_GITHUB_REGISTRY],
