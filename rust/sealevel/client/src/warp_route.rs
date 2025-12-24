@@ -48,6 +48,55 @@ use crate::{
 
 const MAX_LOCAL_DECIMALS: u8 = 9;
 
+/// Creates a metadata pointer initialization instruction manually
+/// This is needed because spl-token-2022 v0.5.0 doesn't have the metadata_pointer extension
+/// (it was added in later versions, but the workspace is locked to Solana 1.14.13 which is incompatible with newer versions)
+fn create_metadata_pointer_initialize_instruction(
+    token_program_id: &Pubkey,
+    mint: &Pubkey,
+    authority: Option<Pubkey>,
+    metadata_address: Option<Pubkey>,
+) -> Instruction {
+    // MetadataPointerExtension instruction discriminator
+    // From spl-token-2022 v4.x: TokenInstruction::MetadataPointerExtension
+    let token_instruction_discriminator: u8 = 39; // MetadataPointerExtension
+    let metadata_pointer_instruction_discriminator: u8 = 0; // Initialize
+    
+    // Format: [token_instruction(1), metadata_pointer_instruction(1), InitializeInstructionData(64)]
+    // InitializeInstructionData = authority(32 bytes) + metadata_address(32 bytes)
+    // OptionalNonZeroPubkey is just a Pubkey (32 bytes) - None is represented as Pubkey::default() (all zeros)
+    let mut data = vec![token_instruction_discriminator, metadata_pointer_instruction_discriminator];
+    
+    // Serialize authority as OptionalNonZeroPubkey (32 bytes - Pubkey::default() if None)
+    let authority_bytes = authority.unwrap_or_default();
+    data.extend_from_slice(authority_bytes.as_ref());
+    
+    // Serialize metadata_address as OptionalNonZeroPubkey (32 bytes - Pubkey::default() if None)
+    let metadata_address_bytes = metadata_address.unwrap_or_default();
+    data.extend_from_slice(metadata_address_bytes.as_ref());
+
+    println!(
+        "  - Metadata pointer instruction data_len={} bytes (manual implementation for Solana 1.14.13 compatibility)",
+        data.len()
+    );
+    println!(
+        "  - Authority: {} (is_some={})",
+        authority_bytes,
+        authority.is_some()
+    );
+    println!(
+        "  - Metadata address: {} (is_some={})",
+        metadata_address_bytes,
+        metadata_address.is_some()
+    );
+
+    Instruction {
+        program_id: *token_program_id,
+        accounts: vec![solana_sdk::instruction::AccountMeta::new(*mint, false)],
+        data,
+    }
+}
+
 pub(crate) fn assert_decimals_max(decimals: u8) {
     assert!(
         decimals <= MAX_LOCAL_DECIMALS,
@@ -265,13 +314,80 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
 
         let (token_pda, _token_bump) =
             Pubkey::find_program_address(hyperlane_token_pda_seeds!(), &program_id);
+        
+        // Check if token PDA exists and is initialized
         if account_exists(client, &token_pda).unwrap() {
-            println!("Warp route token already exists, skipping init");
-
-            // Fund the ATA payer up to the specified amount.
-            try_fund_ata_payer(ctx, client);
-
-            return;
+            println!("Token PDA exists at: {}", token_pda);
+            
+            // For Synthetic/SyntheticMemo, also check if mint is initialized
+            if matches!(
+                app_config.token_type,
+                TokenType::Synthetic(_) | TokenType::SyntheticMemo(_)
+            ) {
+                let mint_account = match &app_config.token_type {
+                    TokenType::Synthetic(_) => {
+                        let (mint, _) = Pubkey::find_program_address(
+                            hyperlane_token_mint_pda_seeds!(),
+                            &program_id,
+                        );
+                        mint
+                    }
+                    TokenType::SyntheticMemo(_) => {
+                        let (mint, _) = Pubkey::find_program_address(
+                            hyperlane_token_mint_pda_seeds_memo!(),
+                            &program_id,
+                        );
+                        mint
+                    }
+                    _ => unreachable!(),
+                };
+                
+                // Check if mint account exists and has the right owner
+                match client.get_account(&mint_account) {
+                    Ok(account) => {
+                        if account.owner == spl_token_2022::id() && account.data.len() > 0 {
+                            println!(
+                                "Mint account fully initialized: {}\n\
+                                 Owner: {}\n\
+                                 Data length: {}\n\
+                                 Skipping initialization.",
+                                mint_account, account.owner, account.data.len()
+                            );
+                            try_fund_ata_payer(ctx, client);
+                            return;
+                        } else {
+                            println!(
+                                "⚠️  WARNING: Mint account exists but is not properly initialized!\n\
+                                 Mint: {}\n\
+                                 Owner: {} (expected: {})\n\
+                                 Data length: {}\n\
+                                 This suggests a previous deployment failed.\n\
+                                 You may need to clean up and redeploy with a new program ID.",
+                                mint_account,
+                                account.owner,
+                                spl_token_2022::id(),
+                                account.data.len()
+                            );
+                            // Continue with initialization attempt
+                        }
+                    }
+                    Err(_) => {
+                        println!(
+                            "⚠️  WARNING: Token PDA exists but mint account not found!\n\
+                             This suggests a previous deployment failed.\n\
+                             Mint account should be: {}\n\
+                             Attempting to continue with initialization...",
+                            mint_account
+                        );
+                        // Continue with initialization attempt
+                    }
+                }
+            } else {
+                // For Native/Collateral tokens, just checking token PDA is enough
+                println!("Warp route token already exists, skipping init");
+                try_fund_ata_payer(ctx, client);
+                return;
+            }
         }
 
         let domain_id = chain_metadata.domain_id;
@@ -337,114 +453,116 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
             TokenType::Synthetic(_token_metadata) => {
                 let decimals = init.decimals;
 
-                ctx.new_txn()
-                    .add(
-                        hyperlane_sealevel_token::instruction::init_instruction(
-                            program_id,
-                            ctx.payer_pubkey,
-                            init,
-                        )
-                        .unwrap(),
-                    )
-                    .with_client(client)
-                    .send_with_payer();
-
                 let (mint_account, _mint_bump) =
                     Pubkey::find_program_address(hyperlane_token_mint_pda_seeds!(), &program_id);
 
-                let mut cmd = Command::new(spl_token_binary_path.clone());
-                cmd.args([
-                    "create-token",
-                    mint_account.to_string().as_str(),
-                    "--enable-metadata",
-                    "-p",
-                    spl_token_2022::id().to_string().as_str(),
-                    "--url",
-                    client.url().as_str(),
-                    "--with-compute-unit-limit",
-                    "500000",
-                    "--mint-authority",
-                    &ctx.payer_pubkey.to_string(),
-                    "--fee-payer",
-                    ctx.payer_keypair_path(),
-                ]);
+                println!(
+                    "=== Initializing Synthetic token atomically ===\n\
+                     Program ID: {}\n\
+                     Mint Account: {}\n\
+                     Decimals: {}\n\
+                     Payer: {}",
+                    program_id, mint_account, decimals, ctx.payer_pubkey
+                );
 
-                println!("running command: {:?}", cmd);
-                let status = cmd
-                    .stdout(Stdio::inherit())
-                    .stderr(Stdio::inherit())
-                    .status()
-                    .expect("Failed to run command");
-
-                println!("initialized metadata pointer. Status: {status}");
-
-                ctx.new_txn().add(
-                    spl_token_2022::instruction::initialize_mint2(
-                        &spl_token_2022::id(),
-                        &mint_account,
-                        &ctx.payer_pubkey,
-                        None,
-                        decimals,
-                    )
-                    .unwrap(),
+                // Create a single atomic transaction with all three operations:
+                // 1. init_instruction (creates mint account + token PDA + dispatch authority)
+                println!("Step 1: Creating init_instruction");
+                let init_ix = hyperlane_sealevel_token::instruction::init_instruction(
+                    program_id,
+                    ctx.payer_pubkey,
+                    init,
                 )
+                .unwrap();
+                println!("  - Accounts: {}", init_ix.accounts.len());
+                
+                // 2. metadata pointer initialization (must happen before mint initialization)
+                println!("Step 2: Creating metadata_pointer initialize instruction");
+                let metadata_pointer_ix = create_metadata_pointer_initialize_instruction(
+                    &spl_token_2022::id(),
+                    &mint_account,
+                    Some(ctx.payer_pubkey),
+                    Some(mint_account),
+                );
+                println!(
+                    "  - Metadata pointer: authority={}, metadata_address={}",
+                    ctx.payer_pubkey, mint_account
+                );
+                
+                // 3. initialize_mint2 (initializes the mint)
+                println!("Step 3: Creating initialize_mint2 instruction");
+                let init_mint_ix = spl_token_2022::instruction::initialize_mint2(
+                    &spl_token_2022::id(),
+                    &mint_account,
+                    &ctx.payer_pubkey,
+                    None,
+                    decimals,
+                )
+                .unwrap();
+                println!("  - Mint authority: {}", ctx.payer_pubkey);
+
+                ctx.new_txn()
+                    .add(init_ix)
+                    .add(metadata_pointer_ix)
+                    .add(init_mint_ix)
             }
             TokenType::SyntheticMemo(_token_metadata) => {
                 let decimals = init.decimals;
-
-                ctx.new_txn()
-                    .add(
-                        hyperlane_sealevel_token_memo::instruction::init_instruction(
-                            program_id,
-                            ctx.payer_pubkey,
-                            init,
-                        )
-                        .unwrap(),
-                    )
-                    .with_client(client)
-                    .send_with_payer();
 
                 let (mint_account, _mint_bump) = Pubkey::find_program_address(
                     hyperlane_token_mint_pda_seeds_memo!(),
                     &program_id,
                 );
 
-                let mut cmd = Command::new(spl_token_binary_path.clone());
-                cmd.args([
-                    "create-token",
-                    mint_account.to_string().as_str(),
-                    "--enable-metadata",
-                    "-p",
-                    spl_token_2022::id().to_string().as_str(),
-                    "--url",
-                    client.url().as_str(),
-                    "--with-compute-unit-limit",
-                    "500000",
-                    "--mint-authority",
-                    &ctx.payer_pubkey.to_string(),
-                    "--fee-payer",
-                    ctx.payer_keypair_path(),
-                ]);
+                println!(
+                    "=== Initializing SyntheticMemo token atomically ===\n\
+                     Program ID: {}\n\
+                     Mint Account: {}\n\
+                     Decimals: {}\n\
+                     Payer: {}",
+                    program_id, mint_account, decimals, ctx.payer_pubkey
+                );
 
-                println!("running command: {:?}", cmd);
-                let status = cmd
-                    .stdout(Stdio::inherit())
-                    .stderr(Stdio::inherit())
-                    .status()
-                    .expect("Failed to run command");
-
-                println!("initialized metadata pointer. Status: {status}");
-
-                ctx.new_txn().add(
-                    spl_token_2022::instruction::initialize_mint2(
-                        &spl_token_2022::id(),
-                        &mint_account,
-                        &ctx.payer_pubkey,
-                        None,
-                        decimals,
-                    )
-                    .unwrap(),
+                // Create a single atomic transaction with all three operations:
+                // 1. init_instruction (creates mint account + token PDA + dispatch authority)
+                println!("Step 1: Creating init_instruction");
+                let init_ix = hyperlane_sealevel_token_memo::instruction::init_instruction(
+                    program_id,
+                    ctx.payer_pubkey,
+                    init,
                 )
+                .unwrap();
+                println!("  - Accounts: {}", init_ix.accounts.len());
+                
+                // 2. metadata pointer initialization (must happen before mint initialization)
+                println!("Step 2: Creating metadata_pointer initialize instruction");
+                let metadata_pointer_ix = create_metadata_pointer_initialize_instruction(
+                    &spl_token_2022::id(),
+                    &mint_account,
+                    Some(ctx.payer_pubkey),
+                    Some(mint_account),
+                );
+                println!(
+                    "  - Metadata pointer: authority={}, metadata_address={}",
+                    ctx.payer_pubkey, mint_account
+                );
+                
+                // 3. initialize_mint2 (initializes the mint)
+                println!("Step 3: Creating initialize_mint2 instruction");
+                let init_mint_ix = spl_token_2022::instruction::initialize_mint2(
+                    &spl_token_2022::id(),
+                    &mint_account,
+                    &ctx.payer_pubkey,
+                    None,
+                    decimals,
+                )
+                .unwrap();
+                println!("  - Mint authority: {}", ctx.payer_pubkey);
+
+                ctx.new_txn()
+                    .add(init_ix)
+                    .add(metadata_pointer_ix)
+                    .add(init_mint_ix)
             }
             TokenType::Collateral(collateral_info) => {
                 let collateral_mint = collateral_info.mint.parse().expect("Invalid mint address");
@@ -505,6 +623,14 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                 _ => unreachable!(),
             };
 
+            println!(
+                "Initializing metadata for mint: {} with name: {}, symbol: {}, uri: {}",
+                mint_account,
+                token_metadata.name,
+                token_metadata.symbol,
+                token_metadata.uri.as_deref().unwrap_or("")
+            );
+            
             let mut cmd = Command::new(spl_token_binary_path.clone());
             cmd.args([
                 "initialize-metadata",
