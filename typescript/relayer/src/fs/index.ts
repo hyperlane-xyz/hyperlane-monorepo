@@ -18,4 +18,4 @@ export {
   relayerMessagesSkipped,
   relayerMessagesAlreadyDelivered,
   startMetricsServer,
-} from '../metrics/index.js';
+} from './metrics/index.js';

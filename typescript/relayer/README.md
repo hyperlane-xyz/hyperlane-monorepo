@@ -128,19 +128,20 @@ The relayer exposes metrics at `http://localhost:9090/metrics` (configurable via
 ```
 typescript/relayer/
 ├── src/
+│   ├── index.ts                  # Browser-safe exports
 │   ├── core/
 │   │   └── HyperlaneRelayer.ts   # Core relaying logic (browser-safe)
 │   ├── metadata/                  # ISM metadata builders (browser-safe)
 │   ├── config/
 │   │   └── schema.ts             # Config schema (browser-safe)
-│   ├── metrics/                   # Prometheus metrics (browser-safe)
-│   │   ├── relayerMetrics.ts     # Metric definitions
-│   │   └── metricsServer.ts      # HTTP server for /metrics
-│   ├── fs/                        # Node.js specific
-│   │   ├── RelayerService.ts     # Service with file cache + signals
-│   │   ├── RelayerConfig.ts      # Config file loading
-│   │   └── service.ts            # Daemon entry point
-│   └── index.ts                  # Browser-safe exports
+│   └── fs/                        # Node.js specific
+│       ├── index.ts              # Node.js exports
+│       ├── RelayerService.ts     # Service with file cache + signals
+│       ├── RelayerConfig.ts      # Config file loading
+│       ├── service.ts            # Daemon entry point
+│       └── metrics/              # Prometheus metrics
+│           ├── relayerMetrics.ts # Metric definitions
+│           └── metricsServer.ts  # HTTP server for /metrics
 ```
 
 ## License

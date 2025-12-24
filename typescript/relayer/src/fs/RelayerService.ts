@@ -11,13 +11,13 @@ import {
   RelayerCache,
   RelayerCacheSchema,
 } from '../core/HyperlaneRelayer.js';
+
+import { RelayerConfig } from './RelayerConfig.js';
 import {
   RelayerMetrics,
   relayerMetricsRegistry,
   startMetricsServer,
-} from '../metrics/index.js';
-
-import { RelayerConfig } from './RelayerConfig.js';
+} from './metrics/index.js';
 
 export interface RelayerServiceConfig {
   mode: 'manual' | 'daemon';

@@ -21,15 +21,15 @@ export default [
     // Browser-safe code should not use Node.js built-in modules
     name: 'relayer-browser-safe',
     files: ['src/**/*.ts'],
-    ignores: ['src/fs/**', 'src/metrics/metricsServer.ts', '**/*.test.ts', '**/*.hardhat-test.ts'],
+    ignores: ['src/fs/**', '**/*.test.ts', '**/*.hardhat-test.ts'],
     rules: {
       'import/no-nodejs-modules': 'error',
     },
   },
   {
-    // Node.js specific code can use Node.js modules
+    // Node.js specific code (fs/) can use Node.js modules
     name: 'relayer-nodejs-rules',
-    files: ['src/fs/**/*.ts', 'src/metrics/metricsServer.ts'],
+    files: ['src/fs/**/*.ts'],
     rules: {
       'import/no-nodejs-modules': 'off',
     },
