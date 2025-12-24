@@ -1,6 +1,7 @@
-import { CommandModule } from 'yargs';
-
-import { CommandModuleWithContext } from '../context/types.js';
+import {
+  CommandModuleWithContext,
+  HyperlaneCommandModule,
+} from '../context/types.js';
 import { runKurtosisAgentDeploy } from '../deploy/agent.js';
 import { log, logGray } from '../logger.js';
 
@@ -13,7 +14,7 @@ import {
 /**
  * Parent command
  */
-export const deployCommand: CommandModule = {
+export const deployCommand: HyperlaneCommandModule = {
   command: 'deploy',
   describe: 'Permissionlessly deploy a Hyperlane contracts or extensions',
   builder: (yargs) =>
