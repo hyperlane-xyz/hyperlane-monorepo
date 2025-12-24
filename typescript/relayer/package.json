@@ -3,10 +3,27 @@
   "version": "0.0.0",
   "description": "Hyperlane Message Relayer Service",
   "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./fs": {
+      "types": "./dist/fs/index.d.ts",
+      "default": "./dist/fs/index.js"
+    }
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "typesVersions": {
+    "*": {
+      "fs": [
+        "./dist/fs/index.d.ts"
+      ]
+    }
+  },
   "bin": {
-    "hyperlane-relayer": "./dist/service.js"
+    "hyperlane-relayer": "./dist/fs/service.js"
   },
   "files": [
     "dist",

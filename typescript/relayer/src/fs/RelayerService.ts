@@ -5,13 +5,13 @@ import { IRegistry } from '@hyperlane-xyz/registry';
 import { ChainMap, HyperlaneCore, MultiProvider } from '@hyperlane-xyz/sdk';
 import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
-import { RelayerConfig } from '../config/RelayerConfig.js';
-
 import {
   HyperlaneRelayer,
   RelayerCache,
   RelayerCacheSchema,
-} from './HyperlaneRelayer.js';
+} from '../core/HyperlaneRelayer.js';
+
+import { RelayerConfig } from './RelayerConfig.js';
 
 export interface RelayerServiceConfig {
   mode: 'manual' | 'daemon';

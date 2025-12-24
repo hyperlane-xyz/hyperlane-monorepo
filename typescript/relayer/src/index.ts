@@ -5,11 +5,9 @@ export {
 } from './core/HyperlaneRelayer.js';
 export type { RelayerCache } from './core/HyperlaneRelayer.js';
 
-export { RelayerService } from './core/RelayerService.js';
-export type { RelayerServiceConfig } from './core/RelayerService.js';
-
-export { RelayerConfig, RelayerConfigSchema } from './config/RelayerConfig.js';
-export type { RelayerConfigInput } from './config/RelayerConfig.js';
+// Config schema (browser-safe, no fs)
+export { RelayerConfigSchema } from './config/schema.js';
+export type { RelayerConfigInput } from './config/schema.js';
 
 // Metadata builders (moved from SDK)
 export {

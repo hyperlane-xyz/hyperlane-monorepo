@@ -8,14 +8,14 @@ import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import { MultiProvider } from '@hyperlane-xyz/sdk';
 import { createServiceLogger, rootLogger } from '@hyperlane-xyz/utils';
 
-import { RelayerConfig } from './config/RelayerConfig.js';
-import { RelayerService } from './core/RelayerService.js';
+import { RelayerConfig } from './RelayerConfig.js';
+import { RelayerService } from './RelayerService.js';
 
 function getVersion(): string {
   try {
     const __dirname = fileURLToPath(new URL('.', import.meta.url));
     const packageJson = JSON.parse(
-      fs.readFileSync(path.join(__dirname, '../package.json'), 'utf-8'),
+      fs.readFileSync(path.join(__dirname, '../../package.json'), 'utf-8'),
     );
     return packageJson.version;
   } catch (error) {

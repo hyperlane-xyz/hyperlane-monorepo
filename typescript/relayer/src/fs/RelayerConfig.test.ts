@@ -3,7 +3,9 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 
-import { RelayerConfig, RelayerConfigSchema } from './RelayerConfig.js';
+import { RelayerConfigSchema } from '../config/schema.js';
+
+import { RelayerConfig } from './RelayerConfig.js';
 
 describe('RelayerConfig', () => {
   describe('RelayerConfigSchema', () => {
