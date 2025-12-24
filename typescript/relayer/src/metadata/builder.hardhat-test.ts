@@ -1,4 +1,5 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
+import '@nomiclabs/hardhat-waffle';
 import hre from 'hardhat';
 import sinon from 'sinon';
 
@@ -22,7 +23,7 @@ import {
   ProxyFactoryFactories,
   TestCoreDeployer,
   TestRecipientDeployer,
-  randomIsmConfig,
+  randomDeployableIsmConfig,
   testChains,
 } from '@hyperlane-xyz/sdk';
 import {
@@ -154,7 +155,11 @@ describe('BaseMetadataBuilder', () => {
       const addresses = validators
         .map((s) => s.address)
         .slice(0, MAX_NUM_VALIDATORS);
-      const config = randomIsmConfig(MAX_ISM_DEPTH, addresses, relayer.address);
+      const config = randomDeployableIsmConfig(
+        MAX_ISM_DEPTH,
+        addresses,
+        relayer.address,
+      );
       const deployedIsm = await ismFactory.deploy({
         destination,
         config,

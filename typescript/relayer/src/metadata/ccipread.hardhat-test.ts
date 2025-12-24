@@ -1,3 +1,4 @@
+import '@nomiclabs/hardhat-waffle';
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 import hre from 'hardhat';
@@ -13,11 +14,11 @@ import {
   OffchainLookupIsmConfig,
   TestCoreDeployer,
   TestRecipientDeployer,
+  offchainLookupRequestMessageHash,
 } from '@hyperlane-xyz/sdk';
 import { WithAddress } from '@hyperlane-xyz/utils';
 
 import { BaseMetadataBuilder } from './builder.js';
-import { offchainLookupRequestMessageHash } from './ccipread.js';
 import { MetadataContext } from './types.js';
 
 const OFFCHAIN_LOOKUP_SERVER_URL = 'http://example.com/namespace';

@@ -468,6 +468,7 @@ export {
   randomStarknetAddress,
   randomHookConfig,
   randomIsmConfig,
+  randomDeployableIsmConfig,
 } from './test/testUtils.js';
 
 export { TxSubmitterInterface } from './providers/transactions/submitter/TxSubmitterInterface.js';
