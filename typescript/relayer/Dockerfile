@@ -28,11 +28,17 @@ COPY patches ./patches
 # Copy only the packages needed for relayer
 COPY typescript/relayer/package.json ./typescript/relayer/
 COPY typescript/sdk/package.json ./typescript/sdk/
+COPY typescript/deploy-sdk/package.json ./typescript/deploy-sdk/
+COPY typescript/provider-sdk/package.json ./typescript/provider-sdk/
 COPY typescript/utils/package.json ./typescript/utils/
+COPY typescript/cosmos-sdk/package.json ./typescript/cosmos-sdk/
+COPY typescript/cosmos-types/package.json ./typescript/cosmos-types/
+COPY typescript/radix-sdk/package.json ./typescript/radix-sdk/
 COPY typescript/tsconfig/package.json ./typescript/tsconfig/
 COPY typescript/eslint-config/package.json ./typescript/eslint-config/
 COPY solidity/package.json ./solidity/
 COPY solhint-plugin/package.json ./solhint-plugin/
+COPY starknet/package.json ./starknet/
 
 RUN pnpm install --frozen-lockfile
 
@@ -40,11 +46,17 @@ RUN pnpm install --frozen-lockfile
 COPY turbo.json ./
 COPY typescript/relayer ./typescript/relayer
 COPY typescript/sdk ./typescript/sdk
+COPY typescript/deploy-sdk ./typescript/deploy-sdk
+COPY typescript/provider-sdk ./typescript/provider-sdk
 COPY typescript/utils ./typescript/utils
+COPY typescript/cosmos-sdk ./typescript/cosmos-sdk
+COPY typescript/cosmos-types ./typescript/cosmos-types
+COPY typescript/radix-sdk ./typescript/radix-sdk
 COPY typescript/tsconfig ./typescript/tsconfig
 COPY typescript/eslint-config ./typescript/eslint-config
 COPY solidity ./solidity
 COPY solhint-plugin ./solhint-plugin
+COPY starknet ./starknet
 
 # Build and bundle the relayer (ncc creates a single-file bundle with all deps)
 RUN pnpm turbo run bundle --filter=@hyperlane-xyz/relayer
