@@ -85,10 +85,7 @@ export { EvmCoreReader } from './core/EvmCoreReader.js';
 export { HyperlaneCore } from './core/HyperlaneCore.js';
 export { HyperlaneCoreChecker } from './core/HyperlaneCoreChecker.js';
 export { HyperlaneCoreDeployer } from './core/HyperlaneCoreDeployer.js';
-export {
-  HyperlaneRelayer,
-  RelayerCacheSchema,
-} from './core/HyperlaneRelayer.js';
+
 export { MultiProtocolCore } from './core/MultiProtocolCore.js';
 export { TestCoreApp } from './core/TestCoreApp.js';
 export { TestCoreDeployer } from './core/TestCoreDeployer.js';

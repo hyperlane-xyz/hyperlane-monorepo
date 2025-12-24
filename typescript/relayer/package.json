@@ -1,0 +1,61 @@
+{
+  "name": "@hyperlane-xyz/relayer",
+  "version": "0.0.0",
+  "description": "Hyperlane Message Relayer Service",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "hyperlane-relayer": "./dist/service.js"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist cache",
+    "dev": "tsc --watch",
+    "lint": "eslint -c ./eslint.config.mjs ./src",
+    "prettier": "prettier --write ./src",
+    "test": "mocha --config .mocharc.json './src/**/*.test.ts' --exit",
+    "test:ci": "pnpm test",
+    "start": "node dist/service.js",
+    "start:dev": "tsx src/service.ts"
+  },
+  "dependencies": {
+    "@google-cloud/pino-logging-gcp-config": "catalog:",
+    "@hyperlane-xyz/registry": "catalog:",
+    "@hyperlane-xyz/sdk": "workspace:*",
+    "@hyperlane-xyz/utils": "workspace:*",
+    "ethers": "catalog:",
+    "pino": "catalog:",
+    "pino-pretty": "catalog:",
+    "yaml": "catalog:",
+    "zod": "catalog:",
+    "zod-validation-error": "catalog:"
+  },
+  "devDependencies": {
+    "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@types/mocha": "catalog:",
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "mocha": "catalog:",
+    "prettier": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
+  "keywords": [
+    "hyperlane",
+    "relayer",
+    "message",
+    "interchain",
+    "blockchain"
+  ],
+  "author": "Abacus Works, Inc.",
+  "license": "Apache-2.0"
+}

@@ -1,11 +1,11 @@
 import { TransactionReceipt } from '@ethersproject/providers';
 
 import { IRegistry } from '@hyperlane-xyz/registry';
+import { HyperlaneRelayer } from '@hyperlane-xyz/relayer';
 import {
   DispatchedMessage,
   HookType,
   HyperlaneCore,
-  HyperlaneRelayer,
   MultiProvider,
   TxSubmitterBuilder,
   TxSubmitterType,
