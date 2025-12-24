@@ -13,11 +13,8 @@ import {
 } from '../core/HyperlaneRelayer.js';
 
 import { RelayerConfig } from './RelayerConfig.js';
-import {
-  RelayerMetrics,
-  relayerMetricsRegistry,
-  startMetricsServer,
-} from './metrics/index.js';
+import { startMetricsServer } from './metricsServer.js';
+import { RelayerMetrics, relayerMetricsRegistry } from './relayerMetrics.js';
 
 export interface RelayerServiceConfig {
   mode: 'manual' | 'daemon';

@@ -139,9 +139,8 @@ typescript/relayer/
 │       ├── RelayerService.ts     # Service with file cache + signals
 │       ├── RelayerConfig.ts      # Config file loading
 │       ├── service.ts            # Daemon entry point
-│       └── metrics/              # Prometheus metrics
-│           ├── relayerMetrics.ts # Metric definitions
-│           └── metricsServer.ts  # HTTP server for /metrics
+│       ├── relayerMetrics.ts     # Prometheus metric definitions
+│       └── metricsServer.ts      # HTTP server for /metrics
 ```
 
 ## License

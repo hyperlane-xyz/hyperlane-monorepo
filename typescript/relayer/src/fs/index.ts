@@ -7,7 +7,7 @@ export { RelayerConfig } from './RelayerConfig.js';
 export { RelayerService } from './RelayerService.js';
 export type { RelayerServiceConfig } from './RelayerService.js';
 
-// Metrics (Node.js only - uses http server)
+// Metrics
 export {
   RelayerMetrics,
   relayerMetricsRegistry,
@@ -17,5 +17,5 @@ export {
   relayerRelayDuration,
   relayerMessagesSkipped,
   relayerMessagesAlreadyDelivered,
-  startMetricsServer,
-} from './metrics/index.js';
+} from './relayerMetrics.js';
+export { startMetricsServer } from './metricsServer.js';
