@@ -28,9 +28,9 @@ async function main(): Promise<void> {
   const VERSION = getVersion();
 
   const configFile = process.env.RELAYER_CONFIG_FILE;
-  const privateKey = process.env.HYP_KEY;
   const chainsEnv = process.env.RELAYER_CHAINS;
   const cacheFile = process.env.RELAYER_CACHE_FILE;
+  const privateKey = process.env.HYP_KEY;
 
   if (!privateKey) {
     rootLogger.error('HYP_KEY environment variable is required');
@@ -42,12 +42,15 @@ async function main(): Promise<void> {
     version: VERSION,
   });
 
+  const signer = new Wallet(privateKey);
+
   logger.info(
     {
       version: VERSION,
       configFile,
       chainsEnv,
       cacheFile,
+      signerAddress: signer.address,
     },
     'Starting Hyperlane Relayer Service',
   );
@@ -72,9 +75,7 @@ async function main(): Promise<void> {
     );
 
     const multiProvider = new MultiProvider(chainMetadata);
-    const signer = new Wallet(privateKey);
     multiProvider.setSharedSigner(signer);
-    logger.info('Initialized MultiProvider with signer');
 
     const chains = chainsEnv?.split(',').map((c) => c.trim());
     const whitelist = chains
