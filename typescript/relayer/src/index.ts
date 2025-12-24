@@ -10,3 +10,15 @@ export type { RelayerServiceConfig } from './core/RelayerService.js';
 
 export { RelayerConfig, RelayerConfigSchema } from './config/RelayerConfig.js';
 export type { RelayerConfigInput } from './config/RelayerConfig.js';
+
+export {
+  RelayerMetrics,
+  relayerMetricsRegistry,
+  relayerMessagesTotal,
+  relayerRetriesTotal,
+  relayerBacklogSize,
+  relayerRelayDuration,
+  relayerMessagesSkipped,
+  relayerMessagesAlreadyDelivered,
+  startMetricsServer,
+} from './metrics/index.js';

@@ -42,12 +42,17 @@ async function main(): Promise<void> {
     version: VERSION,
   });
 
+  const enableMetrics = process.env.PROMETHEUS_ENABLED !== 'false';
+  const prometheusPort = process.env.PROMETHEUS_PORT || '9090';
+
   logger.info(
     {
       version: VERSION,
       configFile,
       chainsEnv,
       cacheFile,
+      enableMetrics,
+      prometheusPort: enableMetrics ? prometheusPort : undefined,
     },
     'Starting Hyperlane Relayer Service',
   );
@@ -88,6 +93,7 @@ async function main(): Promise<void> {
         mode: 'daemon',
         cacheFile,
         logger,
+        enableMetrics,
       },
       relayerConfig,
     );

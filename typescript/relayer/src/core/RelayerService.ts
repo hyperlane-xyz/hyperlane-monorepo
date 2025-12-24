@@ -1,4 +1,5 @@
 import fs from 'fs';
+import http from 'http';
 import { Logger } from 'pino';
 
 import { IRegistry } from '@hyperlane-xyz/registry';
@@ -6,6 +7,11 @@ import { ChainMap, HyperlaneCore, MultiProvider } from '@hyperlane-xyz/sdk';
 import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
 import { RelayerConfig } from '../config/RelayerConfig.js';
+import {
+  RelayerMetrics,
+  relayerMetricsRegistry,
+  startMetricsServer,
+} from '../metrics/index.js';
 
 import {
   HyperlaneRelayer,
@@ -18,11 +24,15 @@ export interface RelayerServiceConfig {
   cacheFile?: string;
   retryTimeout?: number;
   logger?: Logger;
+  /** Enable Prometheus metrics server (default: false) */
+  enableMetrics?: boolean;
 }
 
 export class RelayerService {
   private relayer?: HyperlaneRelayer;
+  private metricsServer?: http.Server;
   private readonly logger: Logger;
+  readonly metrics: RelayerMetrics;
 
   constructor(
     private readonly multiProvider: MultiProvider,
@@ -32,6 +42,7 @@ export class RelayerService {
   ) {
     this.logger =
       config.logger ?? rootLogger.child({ module: 'RelayerService' });
+    this.metrics = new RelayerMetrics();
   }
 
   private async initialize(
@@ -107,6 +118,10 @@ export class RelayerService {
   async start(whitelist?: ChainMap<Address[]>): Promise<void> {
     const relayer = await this.initialize(whitelist);
 
+    if (this.config.enableMetrics) {
+      this.metricsServer = startMetricsServer(relayerMetricsRegistry);
+    }
+
     this.logger.info('Starting relayer...');
     relayer.start();
 
@@ -119,6 +134,11 @@ export class RelayerService {
 
     this.logger.info('Stopping relayer...');
     this.relayer.stop();
+
+    if (this.metricsServer) {
+      this.metricsServer.close();
+      this.logger.info('Metrics server stopped');
+    }
 
     const cacheFile = this.config.cacheFile ?? this.relayerConfig?.cacheFile;
     if (cacheFile) {

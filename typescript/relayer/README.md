@@ -54,13 +54,15 @@ await service.start();
 
 ### Environment Variables
 
-| Variable              | Description                              | Required |
-| --------------------- | ---------------------------------------- | -------- |
-| `HYP_KEY`             | Private key for signing transactions     | Yes      |
-| `RELAYER_CONFIG_FILE` | Path to YAML config file                 | No       |
-| `RELAYER_CHAINS`      | Comma-separated chain list               | No       |
-| `RELAYER_CACHE_FILE`  | Path to cache file for persistence       | No       |
-| `LOG_LEVEL`           | Logging level (debug, info, warn, error) | No       |
+| Variable              | Description                              | Required | Default |
+| --------------------- | ---------------------------------------- | -------- | ------- |
+| `HYP_KEY`             | Private key for signing transactions     | Yes      | -       |
+| `RELAYER_CONFIG_FILE` | Path to YAML config file                 | No       | -       |
+| `RELAYER_CHAINS`      | Comma-separated chain list               | No       | -       |
+| `RELAYER_CACHE_FILE`  | Path to cache file for persistence       | No       | -       |
+| `LOG_LEVEL`           | Logging level (debug, info, warn, error) | No       | info    |
+| `PROMETHEUS_ENABLED`  | Enable Prometheus metrics server         | No       | true    |
+| `PROMETHEUS_PORT`     | Port for metrics endpoint                | No       | 9090    |
 
 ### YAML Configuration
 
@@ -78,6 +80,19 @@ retryTimeout: 1000
 cacheFile: ./relayer-cache.json
 ```
 
+## Prometheus Metrics
+
+The relayer exposes metrics at `http://localhost:9090/metrics` (configurable via `PROMETHEUS_PORT`).
+
+| Metric                                               | Type      | Description                                                          |
+| ---------------------------------------------------- | --------- | -------------------------------------------------------------------- |
+| `hyperlane_relayer_messages_total`                   | Counter   | Messages processed (labels: origin_chain, destination_chain, status) |
+| `hyperlane_relayer_retries_total`                    | Counter   | Retry attempts                                                       |
+| `hyperlane_relayer_backlog_size`                     | Gauge     | Current message backlog                                              |
+| `hyperlane_relayer_relay_duration_seconds`           | Histogram | Time to relay messages                                               |
+| `hyperlane_relayer_messages_skipped_total`           | Counter   | Messages filtered by whitelist                                       |
+| `hyperlane_relayer_messages_already_delivered_total` | Counter   | Messages already delivered                                           |
+
 ## Architecture
 
 ```
@@ -88,6 +103,9 @@ typescript/relayer/
 │   │   └── RelayerService.ts     # Service orchestrator
 │   ├── config/
 │   │   └── RelayerConfig.ts      # Config loading/validation
+│   ├── metrics/
+│   │   ├── relayerMetrics.ts     # Prometheus metric definitions
+│   │   └── metricsServer.ts      # HTTP server for /metrics
 │   ├── service.ts                # Daemon entry point
 │   └── index.ts                  # Public API
 ```

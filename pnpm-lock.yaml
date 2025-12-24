@@ -1835,6 +1835,9 @@ importers:
       pino-pretty:
         specifier: 'catalog:'
         version: 13.1.2
+      prom-client:
+        specifier: 'catalog:'
+        version: 14.2.0
       yaml:
         specifier: 'catalog:'
         version: 2.4.5
