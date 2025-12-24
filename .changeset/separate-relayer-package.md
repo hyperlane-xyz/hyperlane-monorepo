@@ -13,5 +13,7 @@ Extracted relayer into dedicated `@hyperlane-xyz/relayer` package
 - CLI and infra now import from new package
 - **Breaking**: The following exports were removed from `@hyperlane-xyz/sdk` and are now available from `@hyperlane-xyz/relayer`:
   - `HyperlaneRelayer`, `RelayerCacheSchema`, `messageMatchesWhitelist`
-  - `BaseMetadataBuilder`, `decodeIsmMetadata`, `offchainLookupRequestMessageHash`
+  - `BaseMetadataBuilder`, `decodeIsmMetadata`
   - All metadata builder classes (`AggregationMetadataBuilder`, `MultisigMetadataBuilder`, etc.)
+- `offchainLookupRequestMessageHash` remains exported from SDK for ccip-server compatibility
+- Added `randomDeployableIsmConfig` test utility to SDK for generating deployable ISM configs with custom validators
