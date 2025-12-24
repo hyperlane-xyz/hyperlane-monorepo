@@ -114,6 +114,10 @@ export {
 } from './deploy/HyperlaneDeployer.js';
 export { HyperlaneProxyFactoryDeployer } from './deploy/HyperlaneProxyFactoryDeployer.js';
 export {
+  ProxyFactoryFactories,
+  proxyFactoryFactories,
+} from './deploy/contracts.js';
+export {
   CheckerViolation,
   OwnerViolation,
   ProxyAdminViolation,
@@ -185,6 +189,7 @@ export {
   AggregationHookConfigSchema,
   ArbL2ToL1HookConfig,
   ArbL2ToL1HookSchema,
+  DerivedHookConfig,
   DomainRoutingHookConfig,
   DomainRoutingHookConfigSchema,
   FallbackRoutingHookConfig,
@@ -210,8 +215,6 @@ export {
 export { isHookCompatible } from './hook/utils.js';
 export { EvmIsmReader } from './ism/EvmIsmReader.js';
 export { HyperlaneIsmFactory } from './ism/HyperlaneIsmFactory.js';
-export { BaseMetadataBuilder } from './ism/metadata/builder.js';
-export { decodeIsmMetadata } from './ism/metadata/decode.js';
 export {
   buildAggregationIsmConfigs,
   buildMultisigIsmConfigs,
@@ -249,6 +252,7 @@ export {
   DeployedIsmType,
   DerivedIsmConfig,
   DomainRoutingIsmConfig,
+  isDynamicallyRoutedIsmType,
   IsmConfig,
   IsmConfigSchema,
   IsmType,
@@ -257,6 +261,8 @@ export {
   MultisigConfigSchema,
   MultisigIsmConfig,
   MultisigIsmConfigSchema,
+  NullIsmConfig,
+  OffchainLookupIsmConfig,
   OpStackIsmConfig,
   OpStackIsmConfigSchema,
   PausableIsmConfig,
@@ -559,7 +565,6 @@ export {
   IcaRouterConfig as InterchainAccountConfig,
 } from './ica/types.js';
 export { EvmIsmModule } from './ism/EvmIsmModule.js';
-export { offchainLookupRequestMessageHash } from './ism/metadata/ccipread.js';
 export {
   chainMetadataToCosmosChain,
   chainMetadataToStarknetChain,
@@ -842,6 +847,7 @@ export {
   getValidatorFromStorageLocation,
   isValidValidatorStorageLocation,
 } from './utils/validator.js';
+export { findMatchingLogEvents } from './utils/logUtils.js';
 export {
   FeeConstantConfig,
   RouteBlacklist,

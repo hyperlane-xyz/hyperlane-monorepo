@@ -3,7 +3,6 @@ import { Logger } from 'pino';
 import { z } from 'zod';
 
 import {
-  BaseMetadataBuilder,
   ChainMap,
   ChainName,
   DispatchedMessage,
@@ -27,6 +26,8 @@ import {
   promiseObjAll,
   sleep,
 } from '@hyperlane-xyz/utils';
+
+import { BaseMetadataBuilder } from '../metadata/builder.js';
 
 type DerivedHookConfig = WithAddress<Exclude<HookConfig, Address>>;
 type DerivedIsmConfig = WithAddress<Exclude<IsmConfig, Address>>;
