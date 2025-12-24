@@ -280,6 +280,7 @@ export {
   isStaticDeploymentSupported,
   isStaticIsm,
   moduleCanCertainlyVerify,
+  offchainLookupRequestMessageHash,
 } from './ism/utils.js';
 export {
   AgentChainMetadata,

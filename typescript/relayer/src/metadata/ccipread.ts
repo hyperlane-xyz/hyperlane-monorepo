@@ -5,6 +5,7 @@ import {
   HyperlaneCore,
   IsmType,
   OffchainLookupIsmConfig,
+  offchainLookupRequestMessageHash,
 } from '@hyperlane-xyz/sdk';
 import { WithAddress, ensure0x } from '@hyperlane-xyz/utils';
 
@@ -104,15 +105,4 @@ export class OffchainLookupMetadataBuilder implements MetadataBuilder {
 
     throw new Error('Could not fetch CCIP-read metadata');
   }
-}
-
-export function offchainLookupRequestMessageHash(
-  sender: string,
-  callData: string,
-  urlTemplate: string,
-): string {
-  return utils.solidityKeccak256(
-    ['string', 'address', 'bytes', 'string'],
-    ['HYPERLANE_OFFCHAINLOOKUP', sender, callData, urlTemplate],
-  );
 }
