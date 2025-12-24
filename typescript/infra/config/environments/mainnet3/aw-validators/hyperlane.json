@@ -397,5 +397,8 @@
   },
   "zoramainnet": {
     "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
+  },
+  "citrea": {
+    "validators": ["0xe175e8db1d04fb525879ce9f088a215d3e3fe3f0"]
   }
 }
