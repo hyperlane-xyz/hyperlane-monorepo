@@ -6,9 +6,7 @@ export default [
   {
     name: 'relayer-rules',
     rules: {
-      // Disable restricted imports for Node.js built-ins since relayer is a Node.js-only service
       'no-restricted-imports': 'off',
-      'import/no-nodejs-modules': 'off',
     },
   },
   {
@@ -17,6 +15,23 @@ export default [
     rules: {
       '@typescript-eslint/no-base-to-string': 'off', // FIXME: Recommended rule, fix the violations
       '@typescript-eslint/restrict-template-expressions': 'off', // FIXME: Recommended rule, fix the violations
+    },
+  },
+  {
+    // Browser-safe code should not use Node.js built-in modules
+    name: 'relayer-browser-safe',
+    files: ['src/**/*.ts'],
+    ignores: ['src/fs/**', 'src/metrics/metricsServer.ts', '**/*.test.ts', '**/*.hardhat-test.ts'],
+    rules: {
+      'import/no-nodejs-modules': 'error',
+    },
+  },
+  {
+    // Node.js specific code can use Node.js modules
+    name: 'relayer-nodejs-rules',
+    files: ['src/fs/**/*.ts', 'src/metrics/metricsServer.ts'],
+    rules: {
+      'import/no-nodejs-modules': 'off',
     },
   },
   {

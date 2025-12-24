@@ -43,6 +43,7 @@ async function main(): Promise<void> {
   });
 
   const signer = new Wallet(privateKey);
+  const enableMetrics = process.env.PROMETHEUS_ENABLED !== 'false';
 
   logger.info(
     {
@@ -51,6 +52,7 @@ async function main(): Promise<void> {
       chainsEnv,
       cacheFile,
       signerAddress: signer.address,
+      enableMetrics,
     },
     'Starting Hyperlane Relayer Service',
   );
@@ -89,6 +91,7 @@ async function main(): Promise<void> {
         mode: 'daemon',
         cacheFile,
         logger,
+        enableMetrics,
       },
       relayerConfig,
     );

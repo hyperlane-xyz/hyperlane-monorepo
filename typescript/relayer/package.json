@@ -52,6 +52,7 @@
     "ethers": "catalog:",
     "pino": "catalog:",
     "pino-pretty": "catalog:",
+    "prom-client": "catalog:",
     "yaml": "catalog:",
     "zod": "catalog:",
     "zod-validation-error": "catalog:"
