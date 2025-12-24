@@ -1,4 +1,4 @@
-name: Build and Push Relayer Image to GCR
+name: Build and Push Typescript Relayer Image to GCR
 on:
   push:
     branches: [main]
@@ -7,7 +7,7 @@ on:
   pull_request:
     paths:
       - 'typescript/relayer/**'
-      - '.github/workflows/relayer-docker.yml'
+      - '.github/workflows/ts-relayer-docker.yml'
   workflow_dispatch:
     inputs:
       include_arm64:
@@ -16,7 +16,7 @@ on:
         default: 'false'
 
 concurrency:
-  group: build-push-relayer-${{ github.ref }}
+  group: build-push-ts-relayer-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -28,7 +28,7 @@ jobs:
       - id: gcloud-service-key
         env:
           GCLOUD_SERVICE_KEY: ${{ secrets.GCLOUD_SERVICE_KEY }}
-        if: "${{ env.GCLOUD_SERVICE_KEY != '' }}"
+        if: ${{ env.GCLOUD_SERVICE_KEY != '' }}
         run: echo "defined=true" >> $GITHUB_OUTPUT
 
   build-and-push-to-gcr:
@@ -66,7 +66,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            gcr.io/abacus-labs-dev/hyperlane-relayer
+            gcr.io/abacus-labs-dev/hyperlane-ts-relayer
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -107,8 +107,8 @@ jobs:
         if: github.event_name == 'pull_request'
         uses: ./.github/actions/docker-image-comment
         with:
-          comment_tag: relayer-docker-image
-          image_name: Relayer Docker Image
+          comment_tag: ts-relayer-docker-image
+          image_name: Typescript Relayer Docker Image
           emoji: "🚀"
           image_tags: ${{ steps.meta.outputs.tags }}
           pr_number: ${{ github.event.pull_request.number }}
