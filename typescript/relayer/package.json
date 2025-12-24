@@ -31,7 +31,8 @@
   ],
   "scripts": {
     "build": "tsc",
-    "clean": "rm -rf dist cache",
+    "bundle": "rm -rf ./relayer-bundle && ncc build ./dist/fs/service.js -o relayer-bundle && node ./scripts/ncc.post-bundle.mjs",
+    "clean": "rm -rf dist cache relayer-bundle",
     "dev": "tsc --watch",
     "lint": "eslint -c ./eslint.config.mjs ./src",
     "prettier": "prettier --write ./src",
@@ -39,8 +40,8 @@
     "test:ci": "pnpm test",
     "test:unit": "mocha --config .mocharc.json './src/**/*.test.ts' --exit",
     "test:hardhat": "NODE_OPTIONS='--import tsx/esm' hardhat --config hardhat.config.cts test $(find ./src -name \"*.hardhat-test.ts\")",
-    "start": "node dist/service.js",
-    "start:dev": "tsx src/service.ts"
+    "start": "node dist/fs/service.js",
+    "start:dev": "tsx src/fs/service.ts"
   },
   "dependencies": {
     "@arbitrum/sdk": "catalog:",
@@ -60,6 +61,7 @@
   "devDependencies": {
     "@ethersproject/providers": "*",
     "@hyperlane-xyz/eslint-config": "workspace:^",
+    "@vercel/ncc": "catalog:",
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@nomiclabs/hardhat-ethers": "catalog:",
     "@nomiclabs/hardhat-waffle": "catalog:",
