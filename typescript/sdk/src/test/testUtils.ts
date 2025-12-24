@@ -287,7 +287,7 @@ export const randomMultisigIsmConfig = (
     .map(() => (addresses ? randomElement(addresses) : randomAddress()))
     .sort();
   return {
-    type: IsmType.MESSAGE_ID_MULTISIG,
+    type: IsmType.MERKLE_ROOT_MULTISIG,
     validators,
     threshold: m,
   };
@@ -426,7 +426,20 @@ export const randomDeployableIsmConfig = (
 
   if (moduleType === ModuleType.MESSAGE_ID_MULTISIG) {
     const n = randomInt(validatorAddresses?.length ?? 5, 1);
-    return randomMultisigIsmConfig(randomInt(n, 1), n, validatorAddresses);
+    const m = randomInt(n, 1);
+    const emptyArray = new Array<number>(n).fill(0);
+    const validators = emptyArray
+      .map(() =>
+        validatorAddresses
+          ? randomElement(validatorAddresses)
+          : randomAddress(),
+      )
+      .sort();
+    return {
+      type: IsmType.MESSAGE_ID_MULTISIG,
+      validators,
+      threshold: m,
+    };
   } else if (moduleType === ModuleType.WEIGHTED_MESSAGE_ID_MULTISIG) {
     const n = randomInt(validatorAddresses?.length ?? 5, 1);
     return randomWeightedMultisigIsmConfig(n, validatorAddresses);
