@@ -8,18 +8,34 @@ use hyperlane_core::{
     HyperlaneSequenceAwareIndexerStoreReader, Indexed, LogMeta, H512,
 };
 
-use crate::db::StorableMessage;
+use crate::db::{StorableMessage, StorableRawMessageDispatch};
 use crate::store::storage::{HyperlaneDbStore, TxnWithId};
 
 #[async_trait]
 impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneDbStore {
     /// Store dispatched messages from the origin mailbox into the database.
-    /// We store only messages from blocks and transaction which we could successfully insert
-    /// into database.
+    /// We store raw messages first (no RPC dependencies), then full messages.
+    /// Raw messages enable CCTP to query transaction hashes even during RPC failures.
     async fn store_logs(&self, messages: &[(Indexed<HyperlaneMessage>, LogMeta)]) -> Result<u32> {
         if messages.is_empty() {
             return Ok(0);
         }
+
+        // STEP 1: Store a raw message dispatches FIRST (zero RPC dependencies)
+        // This ensures CCTP can query transaction hashes even if RPC providers fail
+        let raw_messages = messages
+            .iter()
+            .map(|(message, meta)| StorableRawMessageDispatch {
+                msg: message.inner(),
+                meta,
+            });
+        let _raw_stored = self
+            .db
+            .store_raw_message_dispatches(&self.mailbox_address, raw_messages)
+            .await?;
+
+        // STEP 2: Store full messages (requires RPC calls for block/transaction data)
+        // If RPC fails here, raw messages are already stored and CCTP can still function
         let txns: HashMap<H512, TxnWithId> = self
             .ensure_blocks_and_txns(messages.iter().map(|r| &r.1))
             .await?
