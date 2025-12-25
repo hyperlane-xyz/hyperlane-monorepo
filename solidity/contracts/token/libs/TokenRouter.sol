@@ -142,9 +142,6 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         bytes32 _recipient,
         uint256 _amount
     ) public payable virtual returns (bytes32 messageId) {
-        // Prevent zero-amount transfers to avoid spam
-        require(_amount > 0, "TokenRouter: amount must be greater than 0");
-        
         // 1. Calculate the fee amounts, charge the sender and distribute to feeRecipient if necessary
         (, uint256 remainingNativeValue) = _calculateFeesAndCharge(
             _destination,
@@ -193,10 +190,6 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
             // transfer atomically so we don't need to keep track of collateral
             // and fee balances separately
             _transferFee(_feeRecipient, feeAmount);
-        }
-        // For native token transfers, ensure sufficient ETH was sent
-        if (token() == address(0)) {
-            require(_msgValue >= charge, "TokenRouter: insufficient ETH sent");
         }
         remainingNativeValue = token() != address(0)
             ? _msgValue
