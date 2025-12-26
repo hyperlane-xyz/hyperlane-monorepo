@@ -562,6 +562,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  citrea: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xe175e8db1d04fb525879ce9f088a215d3e3fe3f0',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   citreatestnet: {
     threshold: 1,
     validators: [

@@ -94,6 +94,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     celestia: true,
     celo: true,
     chilizmainnet: true,
+    citrea: true,
     coredao: true,
     coti: true,
     cyber: true,
@@ -233,6 +234,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     celestia: true,
     celo: true,
     chilizmainnet: true,
+    citrea: true,
     coredao: true,
     coti: true,
     cyber: true,
@@ -372,6 +374,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     celestia: true,
     celo: true,
     chilizmainnet: true,
+    citrea: true,
     coredao: true,
     coti: true,
     cyber: true,
@@ -858,7 +861,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '07dd6f6-20251222-083501',
+      tag: 'fa93b6c-20251224-132143',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -878,7 +881,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'cd94774-20251217-100437',
+      tag: 'fa93b6c-20251224-132143',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -889,7 +892,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'f50feaa-20251219-084739',
+      tag: 'fa93b6c-20251224-132143',
     },
     resources: scraperResources,
   },
@@ -904,7 +907,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '07dd6f6-20251222-083501',
+      tag: 'fa93b6c-20251224-132143',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
