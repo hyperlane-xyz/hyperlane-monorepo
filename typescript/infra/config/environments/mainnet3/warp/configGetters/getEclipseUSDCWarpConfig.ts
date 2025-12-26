@@ -1,4 +1,9 @@
-import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  HypTokenRouterConfig,
+  TokenFeeType,
+  TokenType,
+} from '@hyperlane-xyz/sdk';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { awSafes } from '../../governance/safe/aw.js';
@@ -12,18 +17,12 @@ import {
 } from './utils.js';
 
 /**
- * Stage 3: Extend to Optimism, Polygon, Unichain, use MainnetCCTPV2Standard and MainnetCCTPV2Fast bridges
+ * Stage 4: Upgrade to contract version 10.1.3 for Ethereum, redeploy Arbitrum and base routers, add linear warp fee
  *
  * This config produces:
- * - Ethereum: Add rebalancing configuration (enroll arbitrum/base, set destination gas, add rebalancer role, add CCTP bridges)
- * - Arbitrum: add CCTP bridges
- * - Base: add CCTP bridges
- * - Optimism, Polygon, Unichain: Deploy routers with rebalancing
- * - Eclipse/Solana: Unchanged
- *
- * Transactions generated:
- * - AW Safe (ethereum): Configuration transactions only
- * - Deployer key (arbitrum/base/optimism/polygon/unichain): Configuration transactions only
+ * - Upgrades Ethereum contract version to 10.1.3
+ * - Redeploys Arbitrum and base routers
+ * - Adds linear warp fee
  */
 const awProxyAdminAddresses: ChainMap<string> = {
   arbitrum: '0x80Cebd56A65e46c474a1A101e89E76C4c51D179c',
@@ -84,6 +83,8 @@ const PROGRAM_IDS = {
   solanamainnet: '3EpVCPUgyjq2MfGeCttyey6bs5zya5wjYZ2BE6yDg6bm',
 };
 
+const CONTRACT_VERSION = '10.1.3';
+
 export const getEclipseUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
@@ -102,6 +103,9 @@ export const getEclipseUSDCWarpConfig = async (
       rebalancingConfigByChain,
     );
 
+    const usdcTokenAddress = usdcTokenAddresses[currentChain];
+    const owner = ownersByChain[currentChain];
+
     configs.push([
       currentChain,
       {
@@ -110,6 +114,13 @@ export const getEclipseUSDCWarpConfig = async (
           owner:
             awProxyAdminOwners[currentChain] ?? chainOwners[currentChain].owner,
           address: awProxyAdminAddresses[currentChain],
+        },
+        contractVersion: CONTRACT_VERSION,
+        tokenFee: {
+          type: TokenFeeType.LinearFee,
+          token: usdcTokenAddress,
+          owner: owner,
+          bps: 5n,
         },
       },
     ]);
