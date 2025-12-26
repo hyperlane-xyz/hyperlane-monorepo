@@ -916,6 +916,58 @@ export class GovernTransactionReader {
       insight = `Unenroll remote routers for ${insights.join(', ')}`;
     }
 
+    if (
+      decoded.functionFragment.name ===
+      tokenRouterInterface.functions['setFeeRecipient(address)'].name
+    ) {
+      const [recipient] = decoded.args;
+      insight = `Set fee recipient to ${recipient}`;
+    }
+
+    if (
+      decoded.functionFragment.name ===
+      tokenRouterInterface.functions['removeRebalancer(address)'].name
+    ) {
+      const [rebalancer] = decoded.args;
+      insight = `Remove rebalancer ${rebalancer}`;
+    }
+
+    if (
+      decoded.functionFragment.name ===
+      tokenRouterInterface.functions['setRecipient(uint32,bytes32)'].name
+    ) {
+      const [domain, recipient] = decoded.args;
+      const chainName = this.multiProvider.tryGetChainName(domain);
+      insight = `Set rebalance recipient for domain ${domain}${chainName ? ` (${chainName})` : ''} to ${recipient}`;
+    }
+
+    if (
+      decoded.functionFragment.name ===
+      tokenRouterInterface.functions['removeRecipient(uint32)'].name
+    ) {
+      const [domain] = decoded.args;
+      const chainName = this.multiProvider.tryGetChainName(domain);
+      insight = `Remove rebalance recipient for domain ${domain}${chainName ? ` (${chainName})` : ''}`;
+    }
+
+    if (
+      decoded.functionFragment.name ===
+      tokenRouterInterface.functions['approveTokenForBridge(address,address)']
+        .name
+    ) {
+      const [token, bridge] = decoded.args;
+      insight = `Approve token ${token} for bridge ${bridge}`;
+    }
+
+    if (
+      decoded.functionFragment.name ===
+      tokenRouterInterface.functions['enrollRemoteRouter(uint32,bytes32)'].name
+    ) {
+      const [domain, router] = decoded.args;
+      const chainName = this.multiProvider.tryGetChainName(domain);
+      insight = `Enroll remote router for domain ${domain}${chainName ? ` (${chainName})` : ''} to ${router}`;
+    }
+
     let ownableTx = {};
     if (!insight) {
       ownableTx = await this.readOwnableTransaction(chain, tx);
