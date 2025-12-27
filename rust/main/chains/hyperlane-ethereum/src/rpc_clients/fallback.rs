@@ -232,6 +232,7 @@ where
                     provider_index = priority.index,
                     provider_host = provider_host.as_str(),
                     method,
+                    ?params,
                     "fallback_request"
                 );
 
