@@ -299,10 +299,28 @@ fn parse_chain(
             _ => Default::default(),
         },
     };
+
+    let gas_estimator = chain
+        .chain(&mut err)
+        .get_opt_key("gasEstimator")
+        .parse_from_str::<SubmitterType>("Invalid GasEstimator type")
+        .end();
+    // for EVM chains, default to `SubmitterType::Lander` if not specified
+    let gas_estimator = match gas_estimator {
+        Some(gas_estimator_type) => gas_estimator_type,
+        None => match connection.protocol() {
+            HyperlaneDomainProtocol::Ethereum
+            | HyperlaneDomainProtocol::Radix
+            | HyperlaneDomainProtocol::Sealevel => SubmitterType::Classic,
+            _ => Default::default(),
+        },
+    };
+
     err.into_result(ChainConf {
         domain,
         signer,
         submitter,
+        gas_estimator,
         estimated_block_time,
         reorg_period,
         addresses: CoreContractAddresses {
