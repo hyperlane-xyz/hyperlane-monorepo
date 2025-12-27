@@ -1,7 +1,5 @@
+import { IsmType, MultiProvider, NullIsmConfig } from '@hyperlane-xyz/sdk';
 import { WithAddress, assert, eqAddress } from '@hyperlane-xyz/utils';
-
-import { MultiProvider } from '../../providers/MultiProvider.js';
-import { IsmType, NullIsmConfig } from '../types.js';
 
 import type { MetadataBuilder, MetadataContext } from './types.js';
 

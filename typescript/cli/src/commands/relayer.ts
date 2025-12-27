@@ -1,9 +1,5 @@
-import {
-  ChainMap,
-  HyperlaneCore,
-  HyperlaneRelayer,
-  RelayerCacheSchema,
-} from '@hyperlane-xyz/sdk';
+import { HyperlaneRelayer, RelayerCacheSchema } from '@hyperlane-xyz/relayer';
+import { ChainMap, HyperlaneCore } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
 import { CommandModuleWithContext } from '../context/types.js';
