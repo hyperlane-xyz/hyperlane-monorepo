@@ -1,6 +1,7 @@
 import path from 'path';
 import { fromZodError } from 'zod-validation-error';
 
+import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import {
   type RebalancerConfigFileInput,
   RebalancerConfigSchema,
@@ -73,6 +74,9 @@ export class RebalancerHelmManager extends HelmManager {
   }
 
   async helmValues() {
+    // Build registry URI with commit embedded in /tree/{commit} format
+    const registryUri = `${DEFAULT_GITHUB_REGISTRY}/tree/${this.registryCommit}`;
+
     return {
       image: {
         repository: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
@@ -82,7 +86,7 @@ export class RebalancerHelmManager extends HelmManager {
       fullnameOverride: this.helmReleaseName,
       hyperlane: {
         runEnv: this.environment,
-        registryCommit: this.registryCommit,
+        registryUri,
         rebalancerConfigFile: this.rebalancerConfigFile,
         withMetrics: this.withMetrics,
       },

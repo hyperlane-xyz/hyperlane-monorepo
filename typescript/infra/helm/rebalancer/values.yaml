@@ -1,10 +1,10 @@
 image:
-  repository: gcr.io/abacus-labs-dev/hyperlane-monorepo
+  repository: gcr.io/abacus-labs-dev/hyperlane-rebalancer
   tag:
 hyperlane:
   runEnv:
   context: hyperlane
-  registryCommit: ''
+  registryUri: ''
   rebalancerConfigFile: ''
   withMetrics: true
 nameOverride: ''

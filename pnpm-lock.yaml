@@ -147,6 +147,9 @@ catalogs:
     '@typescript-eslint/parser':
       specifier: ^8.1.6
       version: 8.47.0
+    '@vercel/ncc':
+      specifier: ^0.38.3
+      version: 0.38.4
     asn1.js:
       specifier: ^5.4.1
       version: 5.4.1
@@ -798,7 +801,7 @@ importers:
         specifier: 'catalog:'
         version: 8.47.0(eslint@9.31.0(jiti@2.6.1))(typescript@5.8.3)
       '@vercel/ncc':
-        specifier: ^0.38.3
+        specifier: 'catalog:'
         version: 0.38.4
       ansi-escapes:
         specifier: ^7.0.0
@@ -1781,6 +1784,9 @@ importers:
       '@types/sinon':
         specifier: 'catalog:'
         version: 17.0.4
+      '@vercel/ncc':
+        specifier: 'catalog:'
+        version: 0.38.4
       chai:
         specifier: 'catalog:'
         version: 4.5.0
