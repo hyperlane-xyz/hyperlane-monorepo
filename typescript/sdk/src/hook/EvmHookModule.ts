@@ -21,6 +21,7 @@ import {
   PausableHook__factory,
   ProtocolFee,
   ProtocolFee__factory,
+  ProxyAdmin__factory,
   StaticAggregationHook,
   StaticAggregationHookFactory__factory,
   StaticAggregationHook__factory,
@@ -44,6 +45,7 @@ import {
 import { CCIPContractCache } from '../ccip/utils.js';
 import { TOKEN_EXCHANGE_RATE_SCALE_ETHEREUM } from '../consts/igp.js';
 import { HyperlaneAddresses } from '../contracts/types.js';
+import { shouldUpgrade } from '../contractversion.js';
 import {
   HyperlaneModule,
   HyperlaneModuleParams,
@@ -51,6 +53,7 @@ import {
 import { CoreAddresses } from '../core/contracts.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
+import { proxyAdmin } from '../deploy/proxy.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { IgpConfig } from '../gas/types.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
@@ -390,6 +393,28 @@ export class EvmHookModule extends HyperlaneModule<
   }): Promise<AnnotatedEV5Transaction[]> {
     const updateTxs: AnnotatedEV5Transaction[] = [];
     const igpInterface = InterchainGasPaymaster__factory.createInterface();
+
+    if (shouldUpgrade(currentConfig, targetConfig)) {
+      const implementation = await this.deployer.deployContract(
+        this.chain,
+        'interchainGasPaymaster',
+        [],
+      );
+
+      const provider = this.multiProvider.getProvider(this.chain);
+      const proxyAddress = this.args.addresses.deployedHook;
+      const proxyAdminAddress = await proxyAdmin(provider, proxyAddress);
+
+      updateTxs.push({
+        annotation: `Upgrading IGP implementation on ${this.args.chain} from ${currentConfig.contractVersion} to ${targetConfig.contractVersion}`,
+        chainId: this.chainId,
+        to: proxyAdminAddress,
+        data: ProxyAdmin__factory.createInterface().encodeFunctionData(
+          'upgrade',
+          [proxyAddress, implementation.address],
+        ),
+      });
+    }
 
     // Update beneficiary if changed
     if (!eqAddress(currentConfig.beneficiary, targetConfig.beneficiary)) {

@@ -50,6 +50,7 @@ contract InterchainGasPaymasterTest is Test {
         address gasOracle,
         uint96 gasOverhead
     );
+    event ValueRequested(bytes32 indexed messageId, uint256 value);
 
     function setUp() public {
         blockNumber = block.number;
@@ -388,6 +389,127 @@ contract InterchainGasPaymasterTest is Test {
         uint256 _igpBalanceAfter = address(igp).balance;
 
         assertEq(_igpBalanceAfter - _igpBalanceBefore, _quote);
+    }
+
+    // ============ payForGas with value ============
+
+    function testPayForGas_emitsValueRequested() public {
+        setRemoteGasData(
+            testDestinationDomain,
+            1 * TEST_EXCHANGE_RATE,
+            1 // 1 wei gas price
+        );
+
+        uint256 _value = 100 gwei; // Value to be delivered to recipient
+        uint256 _quote = igp.quoteGasPayment(
+            testDestinationDomain,
+            testGasLimit,
+            _value
+        );
+
+        // Expect both GasPayment and ValueRequested events
+        vm.expectEmit(true, true, false, true);
+        emit GasPayment(
+            testMessageId,
+            testDestinationDomain,
+            testGasLimit,
+            _quote
+        );
+        vm.expectEmit(true, false, false, true);
+        emit ValueRequested(testMessageId, _value);
+
+        igp.payForGas{value: _quote}(
+            testMessageId,
+            testDestinationDomain,
+            testGasLimit,
+            testRefundAddress,
+            _value
+        );
+    }
+
+    function testPayForGas_emitsValueRequestedWithZero() public {
+        setRemoteGasData(
+            testDestinationDomain,
+            1 * TEST_EXCHANGE_RATE,
+            1 // 1 wei gas price
+        );
+
+        uint256 _value = 0;
+        uint256 _quote = igp.quoteGasPayment(
+            testDestinationDomain,
+            testGasLimit,
+            _value
+        );
+
+        vm.expectEmit(true, true, false, true);
+        emit GasPayment(
+            testMessageId,
+            testDestinationDomain,
+            testGasLimit,
+            _quote
+        );
+        vm.expectEmit(true, false, false, true);
+        emit ValueRequested(testMessageId, 0);
+
+        igp.payForGas{value: _quote}(
+            testMessageId,
+            testDestinationDomain,
+            testGasLimit,
+            testRefundAddress,
+            _value
+        );
+    }
+
+    function testFuzz_payForGas_emitsValueRequested(uint256 _value) public {
+        // Limit value to reasonable amounts (up to 100 ETH equivalent)
+        vm.assume(_value <= 100 ether);
+
+        setRemoteGasData(
+            testDestinationDomain,
+            1 * TEST_EXCHANGE_RATE,
+            1 // 1 wei gas price
+        );
+
+        uint256 _quote = igp.quoteGasPayment(
+            testDestinationDomain,
+            testGasLimit,
+            _value
+        );
+        vm.deal(address(this), _quote);
+
+        vm.expectEmit(true, false, false, true);
+        emit ValueRequested(testMessageId, _value);
+
+        igp.payForGas{value: _quote}(
+            testMessageId,
+            testDestinationDomain,
+            testGasLimit,
+            testRefundAddress,
+            _value
+        );
+    }
+
+    function testPayForGas_quotesIncludeValue() public {
+        setRemoteGasData(
+            testDestinationDomain,
+            1 * TEST_EXCHANGE_RATE,
+            1 // 1 wei gas price
+        );
+
+        uint256 _value = 50 gwei;
+        uint256 _quoteWithValue = igp.quoteGasPayment(
+            testDestinationDomain,
+            testGasLimit,
+            _value
+        );
+        uint256 _quoteWithoutValue = igp.quoteGasPayment(
+            testDestinationDomain,
+            testGasLimit,
+            0
+        );
+
+        // Quote with value should be higher by the value amount
+        assertEq(_quoteWithValue, _quoteWithoutValue + _value);
     }
 
     // ============ quoteDispatch ============
