@@ -13,6 +13,14 @@ import fs from 'fs';
 import {
   ChainName,
   MultiProtocolProvider,
+  SealevelEnrollRemoteRouterInstruction,
+  SealevelEnrollRemoteRouterInstructionSchema,
+  SealevelEnrollRemoteRoutersInstruction,
+  SealevelEnrollRemoteRoutersInstructionSchema,
+  SealevelHypTokenInstruction,
+  SealevelHypTokenInstructionName,
+  SealevelHypTokenTransferOwnershipInstruction,
+  SealevelHypTokenTransferOwnershipInstructionSchema,
   SealevelInstructionWrapper,
   SealevelMailboxInstructionName,
   SealevelMailboxInstructionType,
@@ -26,9 +34,16 @@ import {
   SealevelMultisigIsmSetValidatorsInstructionSchema,
   SealevelMultisigIsmTransferOwnershipInstruction,
   SealevelMultisigIsmTransferOwnershipInstructionSchema,
+  SealevelSetDestinationGasConfigsInstruction,
+  SealevelSetDestinationGasConfigsInstructionSchema,
+  SealevelSetInterchainGasPaymasterInstruction,
+  SealevelSetInterchainGasPaymasterInstructionSchema,
+  SealevelSetInterchainSecurityModuleInstruction,
+  SealevelSetInterchainSecurityModuleInstructionSchema,
+  WarpCoreConfig,
   defaultMultisigConfigs,
 } from '@hyperlane-xyz/sdk';
-import { rootLogger } from '@hyperlane-xyz/utils';
+import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { DeployEnvironment } from '../config/environment.js';
@@ -113,6 +128,15 @@ function formatValidatorsWithAliases(
 }
 
 /**
+ * Warp route metadata for display
+ */
+interface WarpRouteMetadata {
+  symbol: string;
+  name: string;
+  routeName: string;
+}
+
+/**
  * SquadsTransactionReader - Main class for parsing Squads proposals
  *
  * Similar to GovernTransactionReader but for SVM/Squads multisigs
@@ -121,10 +145,297 @@ export class SquadsTransactionReader {
   errors: any[] = [];
   private multisigConfigs: Map<ChainName, SvmMultisigConfigMap> = new Map();
 
+  /**
+   * Index of known warp route program IDs by chain
+   * Maps chain -> lowercase program ID -> metadata
+   */
+  readonly warpRouteIndex: Map<ChainName, Map<string, WarpRouteMetadata>> =
+    new Map();
+
   constructor(
     readonly environment: DeployEnvironment,
     readonly mpp: MultiProtocolProvider,
   ) {}
+
+  /**
+   * Initialize the reader with warp routes from the registry
+   * Call this before parsing transactions
+   */
+  async init(warpRoutes: Record<string, WarpCoreConfig>): Promise<void> {
+    for (const [routeName, warpRoute] of Object.entries(warpRoutes)) {
+      for (const token of Object.values(warpRoute.tokens)) {
+        // Only index Sealevel chains
+        const chainProtocol = this.mpp.tryGetProtocol(token.chainName);
+        if (chainProtocol !== ProtocolType.Sealevel) {
+          continue;
+        }
+
+        const address = token.addressOrDenom?.toLowerCase();
+        if (!address) {
+          continue;
+        }
+
+        if (!this.warpRouteIndex.has(token.chainName)) {
+          this.warpRouteIndex.set(token.chainName, new Map());
+        }
+
+        this.warpRouteIndex.get(token.chainName)!.set(address, {
+          symbol: token.symbol ?? 'Unknown',
+          name: token.name ?? 'Unknown',
+          routeName,
+        });
+      }
+    }
+
+    rootLogger.debug(
+      `Indexed ${Array.from(this.warpRouteIndex.values()).reduce((sum, map) => sum + map.size, 0)} Sealevel warp routes`,
+    );
+  }
+
+  /**
+   * Check if a program ID is a known warp route
+   */
+  private isWarpRouteProgram(
+    chain: ChainName,
+    programId: PublicKey,
+  ): WarpRouteMetadata | undefined {
+    const chainIndex = this.warpRouteIndex.get(chain);
+    if (!chainIndex) {
+      return undefined;
+    }
+    return chainIndex.get(programId.toBase58().toLowerCase());
+  }
+
+  /**
+   * Parse a warp route instruction using Borsh schemas
+   * Instructions have 8-byte program discriminator + 1-byte enum discriminator + data
+   */
+  private readWarpRouteInstruction(
+    chain: ChainName,
+    instructionData: Buffer,
+    metadata: WarpRouteMetadata,
+  ): Partial<ParsedInstruction> {
+    const minLength = HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE + 1; // 8 bytes + 1 byte enum
+    if (instructionData.length < minLength) {
+      return {
+        instructionType: 'WarpRouteInstruction',
+        data: {
+          routeName: metadata.routeName,
+          symbol: metadata.symbol,
+          error: 'Instruction data too short',
+        },
+        insight: `${metadata.symbol} warp route instruction (data too short)`,
+        warnings: [],
+      };
+    }
+
+    // Skip 8-byte program discriminator, read enum discriminator
+    const discriminator = instructionData[HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE];
+
+    // Prepare buffer for Borsh deserialization (skip program discriminator)
+    const borshData = instructionData.subarray(
+      HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE,
+    );
+
+    try {
+      switch (discriminator) {
+        case SealevelHypTokenInstruction.EnrollRemoteRouter: {
+          const wrapper = deserializeUnchecked(
+            SealevelEnrollRemoteRouterInstructionSchema,
+            SealevelInstructionWrapper,
+            borshData,
+          );
+          const instruction =
+            wrapper.data as SealevelEnrollRemoteRouterInstruction;
+          const config = instruction.config;
+          const domain = config.domain;
+          const chainName = this.mpp.tryGetChainName(domain);
+          const router = config.routerAddress;
+          const chainInfo = chainName
+            ? `${chainName} (${domain})`
+            : `${domain}`;
+
+          return {
+            instructionType:
+              SealevelHypTokenInstructionName[
+                SealevelHypTokenInstruction.EnrollRemoteRouter
+              ],
+            data: { domain, chainName, router },
+            insight: router
+              ? `Enroll remote router for ${chainInfo}: ${router}`
+              : `Unenroll remote router for ${chainInfo}`,
+            warnings: [],
+          };
+        }
+
+        case SealevelHypTokenInstruction.EnrollRemoteRouters: {
+          const wrapper = deserializeUnchecked(
+            SealevelEnrollRemoteRoutersInstructionSchema,
+            SealevelInstructionWrapper,
+            borshData,
+          );
+          const instruction =
+            wrapper.data as SealevelEnrollRemoteRoutersInstruction;
+          const routers = instruction.configs.map((config) => ({
+            domain: config.domain,
+            chainName: this.mpp.tryGetChainName(config.domain) ?? undefined,
+            router: config.routerAddress,
+          }));
+          const count = routers.length;
+          const routerSummary = routers
+            .map((r) => r.chainName ?? `domain ${r.domain}`)
+            .join(', ');
+
+          return {
+            instructionType:
+              SealevelHypTokenInstructionName[
+                SealevelHypTokenInstruction.EnrollRemoteRouters
+              ],
+            data: { count, routers },
+            insight: `Enroll ${count} remote router(s): ${routerSummary}`,
+            warnings: [],
+          };
+        }
+
+        case SealevelHypTokenInstruction.SetDestinationGasConfigs: {
+          const wrapper = deserializeUnchecked(
+            SealevelSetDestinationGasConfigsInstructionSchema,
+            SealevelInstructionWrapper,
+            borshData,
+          );
+          const instruction =
+            wrapper.data as SealevelSetDestinationGasConfigsInstruction;
+          const configs = instruction.configs.map((config) => ({
+            domain: config.domain,
+            chainName: this.mpp.tryGetChainName(config.domain) ?? undefined,
+            gas: config.gas,
+          }));
+          const count = configs.length;
+          const configSummary = configs
+            .map(
+              (c) =>
+                `${c.chainName ?? `domain ${c.domain}`}: ${c.gas?.toString() ?? 'unset'}`,
+            )
+            .join(', ');
+
+          return {
+            instructionType:
+              SealevelHypTokenInstructionName[
+                SealevelHypTokenInstruction.SetDestinationGasConfigs
+              ],
+            data: { count, configs },
+            insight: `Set destination gas for ${count} chain(s): ${configSummary}`,
+            warnings: [],
+          };
+        }
+
+        case SealevelHypTokenInstruction.SetInterchainSecurityModule: {
+          const wrapper = deserializeUnchecked(
+            SealevelSetInterchainSecurityModuleInstructionSchema,
+            SealevelInstructionWrapper,
+            borshData,
+          );
+          const instruction =
+            wrapper.data as SealevelSetInterchainSecurityModuleInstruction;
+          const ism = instruction.ismPubkey?.toBase58() ?? null;
+
+          return {
+            instructionType:
+              SealevelHypTokenInstructionName[
+                SealevelHypTokenInstruction.SetInterchainSecurityModule
+              ],
+            data: { ism },
+            insight: ism ? `Set ISM to ${ism}` : 'Clear ISM (use default)',
+            warnings: [],
+          };
+        }
+
+        case SealevelHypTokenInstruction.SetInterchainGasPaymaster: {
+          const wrapper = deserializeUnchecked(
+            SealevelSetInterchainGasPaymasterInstructionSchema,
+            SealevelInstructionWrapper,
+            borshData,
+          );
+          const instruction =
+            wrapper.data as SealevelSetInterchainGasPaymasterInstruction;
+          const igpConfig = instruction.igpConfig;
+          const igp = igpConfig
+            ? {
+                program: igpConfig.programIdPubkey?.toBase58() ?? '',
+                type: igpConfig.igpTypeName,
+                account: igpConfig.igpAccountPubkey?.toBase58() ?? '',
+              }
+            : null;
+
+          return {
+            instructionType:
+              SealevelHypTokenInstructionName[
+                SealevelHypTokenInstruction.SetInterchainGasPaymaster
+              ],
+            data: { igp },
+            insight: igp
+              ? `Set IGP to ${igp.program} (${igp.type})`
+              : 'Clear IGP',
+            warnings: [],
+          };
+        }
+
+        case SealevelHypTokenInstruction.TransferOwnership: {
+          const wrapper = deserializeUnchecked(
+            SealevelHypTokenTransferOwnershipInstructionSchema,
+            SealevelInstructionWrapper,
+            borshData,
+          );
+          const instruction =
+            wrapper.data as SealevelHypTokenTransferOwnershipInstruction;
+          const newOwner = instruction.newOwnerPubkey?.toBase58() ?? null;
+
+          return {
+            instructionType:
+              SealevelHypTokenInstructionName[
+                SealevelHypTokenInstruction.TransferOwnership
+              ],
+            data: { newOwner },
+            insight: newOwner
+              ? `Transfer ownership to ${newOwner}`
+              : 'Renounce ownership',
+            warnings: newOwner
+              ? [WarningMessage.OWNERSHIP_TRANSFER]
+              : [WarningMessage.OWNERSHIP_RENUNCIATION],
+          };
+        }
+
+        case SealevelHypTokenInstruction.Init:
+        case SealevelHypTokenInstruction.TransferRemote:
+        default:
+          return {
+            instructionType:
+              SealevelHypTokenInstructionName[
+                discriminator as SealevelHypTokenInstruction
+              ] ?? `Unknown (${discriminator})`,
+            data: {
+              routeName: metadata.routeName,
+              symbol: metadata.symbol,
+              rawData: instructionData.toString('hex'),
+            },
+            insight: `${metadata.symbol} ${SealevelHypTokenInstructionName[discriminator as SealevelHypTokenInstruction] ?? 'unknown'} instruction (${metadata.routeName})`,
+            warnings: [],
+          };
+      }
+    } catch (error) {
+      return {
+        instructionType: 'WarpRouteInstruction',
+        data: {
+          routeName: metadata.routeName,
+          symbol: metadata.symbol,
+          error: `Failed to deserialize: ${error}`,
+          rawData: instructionData.toString('hex'),
+        },
+        insight: `${metadata.symbol} warp route instruction (parse error)`,
+        warnings: [`Borsh deserialization failed: ${error}`],
+      };
+    }
+  }
 
   /**
    * Check if instruction is for Mailbox program
@@ -425,12 +736,83 @@ export class SquadsTransactionReader {
   }
 
   /**
-   * Parse instructions from a VaultTransaction
+   * Resolve address lookup table accounts to get all account keys
+   * Appends lookup table addresses to the static account keys
    */
-  private parseVaultInstructions(
+  private async resolveAddressLookupTables(
     chain: ChainName,
     vaultTransaction: accounts.VaultTransaction,
-  ): { instructions: ParsedInstruction[]; warnings: string[] } {
+  ): Promise<PublicKey[]> {
+    const { svmProvider } = await getSquadAndProvider(chain, this.mpp);
+    const accountKeys = [...vaultTransaction.message.accountKeys];
+    const lookups = vaultTransaction.message.addressTableLookups;
+
+    if (!lookups || lookups.length === 0) {
+      return accountKeys;
+    }
+
+    for (const lookup of lookups) {
+      try {
+        // Fetch the address lookup table account
+        const lookupTableAccount = await svmProvider.getAccountInfo(
+          lookup.accountKey,
+        );
+        if (!lookupTableAccount) {
+          rootLogger.warn(
+            chalk.yellow(
+              `Address lookup table ${lookup.accountKey.toBase58()} not found`,
+            ),
+          );
+          continue;
+        }
+
+        // Parse the lookup table data to extract addresses
+        // Lookup table format: Authority (32) + deactivation slot (8) + last extended slot (8) + last extended slot start index (1) + padding (7) = 56 bytes
+        const data = lookupTableAccount.data;
+        const LOOKUP_TABLE_META_SIZE = 56;
+        const addresses: PublicKey[] = [];
+
+        for (
+          let i = LOOKUP_TABLE_META_SIZE;
+          i < data.length;
+          i += 32 // Each address is 32 bytes
+        ) {
+          const addressBytes = data.slice(i, i + 32);
+          if (addressBytes.length === 32) {
+            addresses.push(new PublicKey(addressBytes));
+          }
+        }
+
+        // Add writable addresses first, then readonly (matching Solana's order)
+        for (const idx of lookup.writableIndexes) {
+          if (idx < addresses.length) {
+            accountKeys.push(addresses[idx]);
+          }
+        }
+        for (const idx of lookup.readonlyIndexes) {
+          if (idx < addresses.length) {
+            accountKeys.push(addresses[idx]);
+          }
+        }
+      } catch (error) {
+        rootLogger.warn(
+          chalk.yellow(
+            `Failed to resolve address lookup table ${lookup.accountKey.toBase58()}: ${error}`,
+          ),
+        );
+      }
+    }
+
+    return accountKeys;
+  }
+
+  /**
+   * Parse instructions from a VaultTransaction
+   */
+  private async parseVaultInstructions(
+    chain: ChainName,
+    vaultTransaction: accounts.VaultTransaction,
+  ): Promise<{ instructions: ParsedInstruction[]; warnings: string[] }> {
     const coreProgramIds = loadCoreProgramIds(this.environment, chain);
     const corePrograms = {
       mailbox: new PublicKey(coreProgramIds.mailbox),
@@ -443,7 +825,12 @@ export class SquadsTransactionReader {
 
     const parsedInstructions: ParsedInstruction[] = [];
     const warnings: string[] = [];
-    const accountKeys = vaultTransaction.message.accountKeys;
+
+    // Resolve address lookup tables to get complete account keys
+    const accountKeys = await this.resolveAddressLookupTables(
+      chain,
+      vaultTransaction,
+    );
     const computeBudgetProgramId = ComputeBudgetProgram.programId;
 
     // Parse all instructions, skipping compute budget setup instructions
@@ -547,6 +934,32 @@ export class SquadsTransactionReader {
             accounts,
             warnings: [],
           });
+          continue;
+        }
+
+        // Check if it's a known warp route program
+        const warpRouteMetadata = this.isWarpRouteProgram(chain, programId);
+        if (warpRouteMetadata) {
+          programName = ProgramName.WARP_ROUTE;
+          const parsed = this.readWarpRouteInstruction(
+            chain,
+            instructionData,
+            warpRouteMetadata,
+          );
+          parsedInstructions.push({
+            programId,
+            programName,
+            instructionType: parsed.instructionType || 'WarpRouteInstruction',
+            data: {
+              routeName: warpRouteMetadata.routeName,
+              symbol: warpRouteMetadata.symbol,
+              ...parsed.data,
+            },
+            accounts,
+            warnings: parsed.warnings || [],
+            insight: parsed.insight,
+          });
+          warnings.push(...(parsed.warnings || []));
           continue;
         }
 
@@ -668,7 +1081,7 @@ export class SquadsTransactionReader {
     }
 
     const { instructions: parsedInstructions, warnings } =
-      this.parseVaultInstructions(chain, vaultTransaction);
+      await this.parseVaultInstructions(chain, vaultTransaction);
 
     if (warnings.length > 0) {
       this.errors.push({ chain, transactionIndex, warnings });
@@ -1037,6 +1450,72 @@ export class SquadsTransactionReader {
       case SquadsInstructionName[SquadsInstructionType.CHANGE_THRESHOLD]: {
         tx.args = {
           newThreshold: inst.data.newThreshold,
+        };
+        break;
+      }
+
+      // Warp Route instructions
+      case SealevelHypTokenInstructionName[
+        SealevelHypTokenInstruction.EnrollRemoteRouter
+      ]: {
+        const chainName = inst.data.chainName || `domain ${inst.data.domain}`;
+        tx.args = {
+          [chainName]: inst.data.router || 'unenrolled',
+        };
+        break;
+      }
+
+      case SealevelHypTokenInstructionName[
+        SealevelHypTokenInstruction.EnrollRemoteRouters
+      ]: {
+        // Build a map of chainName -> router address
+        const routers: Record<string, string> = {};
+        if (inst.data.routers && Array.isArray(inst.data.routers)) {
+          for (const r of inst.data.routers) {
+            const key = r.chainName || `domain ${r.domain}`;
+            routers[key] = r.router || 'unenrolled';
+          }
+        }
+        tx.args = routers;
+        break;
+      }
+
+      case SealevelHypTokenInstructionName[
+        SealevelHypTokenInstruction.SetDestinationGasConfigs
+      ]: {
+        // Build a map of chainName -> gas value
+        const gasConfigs: Record<string, string> = {};
+        if (inst.data.configs && Array.isArray(inst.data.configs)) {
+          for (const c of inst.data.configs) {
+            const key = c.chainName || `domain ${c.domain}`;
+            gasConfigs[key] = c.gas?.toString() ?? 'unset';
+          }
+        }
+        tx.args = gasConfigs;
+        break;
+      }
+
+      case SealevelHypTokenInstructionName[
+        SealevelHypTokenInstruction.SetInterchainSecurityModule
+      ]: {
+        tx.args = {
+          ism: inst.data.ism || null,
+        };
+        break;
+      }
+
+      case SealevelHypTokenInstructionName[
+        SealevelHypTokenInstruction.SetInterchainGasPaymaster
+      ]: {
+        tx.args = inst.data.igp || { igp: null };
+        break;
+      }
+
+      case SealevelHypTokenInstructionName[
+        SealevelHypTokenInstruction.TransferOwnership
+      ]: {
+        tx.args = {
+          newOwner: inst.data.newOwner || null,
         };
         break;
       }

@@ -148,6 +148,7 @@ export const COMPUTE_BUDGET_PROGRAM_ID = new PublicKey(
 export enum ProgramName {
   MAILBOX = 'Mailbox',
   MULTISIG_ISM = 'MultisigIsmMessageId',
+  WARP_ROUTE = 'WarpRoute',
   SQUADS_V4 = 'SquadsV4',
   SYSTEM_PROGRAM = 'System Program',
   COMPUTE_BUDGET = 'Compute Budget Program',
