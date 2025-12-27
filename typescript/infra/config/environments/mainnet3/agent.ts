@@ -247,7 +247,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     everclear: true,
     fantom: true,
     flare: true,
-    flowmainnet: true,
+    flowmainnet: false,
     fluence: true,
     forma: true,
     fraxtal: true,
