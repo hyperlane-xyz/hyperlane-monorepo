@@ -1,0 +1,34 @@
+{
+  "solanamainnet": {
+    "hex": "0x21419dfbe06b0ab41171d012ac511e058f2d036333e003f0c2e6003ac8dea12c",
+    "base58": "3EpVCPUgyjq2MfGeCttyey6bs5zya5wjYZ2BE6yDg6bm"
+  },
+  "ethereum": {
+    "hex": "0x000000000000000000000000e1de9910fe71cc216490ac7fcf019e13a34481d7",
+    "base58": "11111111111149We9K5tM8ijcyNy9zDMG9RyDBCJ"
+  },
+  "arbitrum": {
+    "hex": "0x000000000000000000000000626b0a3fea51603350a07b0bed09c871f2047344",
+    "base58": "1111111111112NXUu4AVMVxWLbFK1pUFjqGyT5k7"
+  },
+  "base": {
+    "hex": "0x0000000000000000000000007701375eb04688b6de9f5ad6bac4484b5ae7d89f",
+    "base58": "1111111111112fAJFRDVZbQMmcJUMusUA6fnzExW"
+  },
+  "optimism": {
+    "hex": "0x00000000000000000000000002bfd67829317d666dc7dfa030f18eacc12c2cfb",
+    "base58": "1111111111113DrS4wzJNc9Dz28aHXWfyZ5yiFC"
+  },
+  "unichain": {
+    "hex": "0x000000000000000000000000a7e4dc4078bac6e97eec52a4f7642ff51cbb17c1",
+    "base58": "1111111111113LfYq5LBr9evqvLDj4ZDxFMtwGC8"
+  },
+  "eclipsemainnet": {
+    "hex": "0xcd8f7348bdee9233f64432ab826c3526692e6cb17d6a5a5ddacfe3cbd0d77a9e",
+    "base58": "EqRSt9aUDMKYKhzd1DGMderr3KNp29VZH3x5P7LFTC8m"
+  },
+  "polygon": {
+    "hex": "0x000000000000000000000000cb9f833f4d6d9bb9767cdb25c487da54d67731d6",
+    "base58": "1111111111113qY34QWExhkFy2rXodzkYS81qR4h"
+  }
+}
