@@ -4,7 +4,7 @@
   "version": "20.1.0",
   "dependencies": {
     "@hyperlane-xyz/core": "workspace:*",
-    "@hyperlane-xyz/registry": "catalog:",
+    "@hyperlane-xyz/registry": "23.10.0",
     "@hyperlane-xyz/sdk": "workspace:*",
     "@hyperlane-xyz/utils": "workspace:*",
     "@openzeppelin/contracts": "catalog:",
