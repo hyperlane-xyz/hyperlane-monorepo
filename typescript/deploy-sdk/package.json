@@ -23,6 +23,7 @@
     "test": "mocha --config .mocharc.json './src/**/*.test.ts' --exit"
   },
   "dependencies": {
+    "@hyperlane-xyz/aleo-sdk": "workspace:*",
     "@hyperlane-xyz/cosmos-sdk": "workspace:*",
     "@hyperlane-xyz/provider-sdk": "workspace:*",
     "@hyperlane-xyz/radix-sdk": "workspace:*",

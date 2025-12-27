@@ -15,6 +15,7 @@
     "@cosmjs/stargate": "catalog:",
     "@cosmjs/tendermint-rpc": "catalog:",
     "@hyperlane-xyz/core": "workspace:*",
+    "@hyperlane-xyz/aleo-sdk": "workspace:*",
     "@hyperlane-xyz/cosmos-sdk": "workspace:*",
     "@hyperlane-xyz/deploy-sdk": "workspace:*",
     "@hyperlane-xyz/provider-sdk": "workspace:*",

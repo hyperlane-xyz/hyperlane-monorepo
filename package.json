@@ -57,7 +57,8 @@
     },
     "patchedDependencies": {
       "typechain@8.3.2": "patches/typechain@8.3.2.patch",
-      "node-fetch@2.7.0": "patches/node-fetch@2.7.0.patch"
+      "node-fetch@2.7.0": "patches/node-fetch@2.7.0.patch",
+      "@provablehq/sdk@0.9.14": "patches/@provablehq__sdk@0.9.14.patch"
     }
   }
 }

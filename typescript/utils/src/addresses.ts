@@ -19,7 +19,8 @@ const COSMOS_NATIVE_ADDRESS_REGEX = /^(0x)?[0-9a-fA-F]{64}$/;
 const STARKNET_ADDRESS_REGEX = /^(0x)?[0-9a-fA-F]{64}$/;
 const RADIX_ADDRESS_REGEX =
   /^(account|component)_(rdx|loc|sim|tdx_[\d]_)[a-z0-9]{55}$/;
-const ALEO_ADDRESS_REGEX = /^[A-Za-z0-9_]+\.aleo\/aleo1[a-z0-9]{58}$/;
+const ALEO_ADDRESS_REGEX =
+  /^([A-Za-z0-9_]+\.aleo\/aleo1[a-z0-9]{58}|aleo1[a-z0-9]{58})$/;
 
 const HEX_BYTES32_REGEX = /^0x[a-fA-F0-9]{64}$/;
 
@@ -99,6 +100,8 @@ export function getAddressProtocolType(address: Address) {
   if (!address) return undefined;
   if (isAddressEvm(address)) {
     return ProtocolType.Ethereum;
+  } else if (isAddressAleo(address)) {
+    return ProtocolType.Aleo;
   } else if (isAddressCosmos(address)) {
     return ProtocolType.Cosmos;
   } else if (isAddressCosmosNative(address)) {
@@ -109,8 +112,6 @@ export function getAddressProtocolType(address: Address) {
     return ProtocolType.Starknet;
   } else if (isAddressRadix(address)) {
     return ProtocolType.Radix;
-  } else if (isAddressAleo(address)) {
-    return ProtocolType.Aleo;
   } else {
     return undefined;
   }
@@ -438,7 +439,11 @@ export function addressToBytesRadix(address: Address): Uint8Array {
 }
 
 export function addressToBytesAleo(address: Address): Uint8Array {
-  const [_, aleoAddress] = address.split('/');
+  let aleoAddress = address;
+
+  if (address.includes('/')) {
+    aleoAddress = address.split('/')[1];
+  }
   return new Uint8Array(bech32m.fromWords(bech32m.decode(aleoAddress).words));
 }
 
