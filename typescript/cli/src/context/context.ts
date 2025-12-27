@@ -1,23 +1,23 @@
 import { confirm } from '@inquirer/prompts';
-import { ethers } from 'ethers';
+import { type ethers } from 'ethers';
 
 import { loadProtocolProviders } from '@hyperlane-xyz/deploy-sdk';
 import {
-  AltVM,
+  type AltVM,
   getProtocolProvider,
   hasProtocol,
 } from '@hyperlane-xyz/provider-sdk';
-import { IRegistry } from '@hyperlane-xyz/registry';
+import { type IRegistry } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import {
-  ChainMap,
-  ChainMetadata,
-  ChainName,
+  type ChainMap,
+  type ChainMetadata,
+  type ChainName,
   ExplorerFamily,
   MultiProtocolProvider,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+import { type Address, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
 import { isSignCommand } from '../commands/signCommands.js';
 import { readChainSubmissionStrategyConfig } from '../config/strategy.js';
@@ -28,9 +28,9 @@ import { createAltVMSigners } from './altvm.js';
 import { resolveChains } from './strategies/chain/chainResolver.js';
 import { MultiProtocolSignerManager } from './strategies/signer/MultiProtocolSignerManager.js';
 import {
-  CommandContext,
-  ContextSettings,
-  SignerKeyProtocolMap,
+  type CommandContext,
+  type ContextSettings,
+  type SignerKeyProtocolMap,
   SignerKeyProtocolMapSchema,
 } from './types.js';
 

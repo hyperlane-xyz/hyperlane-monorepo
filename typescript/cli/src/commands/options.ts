@@ -1,5 +1,5 @@
 import os from 'os';
-import { Options } from 'yargs';
+import { type Options } from 'yargs';
 
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { LogFormat, LogLevel } from '@hyperlane-xyz/utils';

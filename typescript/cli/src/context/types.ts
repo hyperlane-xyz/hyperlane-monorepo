@@ -2,8 +2,11 @@ import type { ethers } from 'ethers';
 import type { CommandModule } from 'yargs';
 import { z } from 'zod';
 
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
+import { type AltVM } from '@hyperlane-xyz/provider-sdk';
+import {
+  type AnnotatedTx,
+  type TxReceipt,
+} from '@hyperlane-xyz/provider-sdk/module';
 import type { IRegistry } from '@hyperlane-xyz/registry';
 import type {
   ChainMap,

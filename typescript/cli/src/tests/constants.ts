@@ -1,9 +1,9 @@
-import { TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
+import { type TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
 import {
-  ChainAddresses,
+  type ChainAddresses,
   createWarpRouteConfigId,
 } from '@hyperlane-xyz/registry';
-import { ChainMetadata, ProtocolMap } from '@hyperlane-xyz/sdk';
+import { type ChainMetadata, type ProtocolMap } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert, objMap } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson } from '../utils/files.js';

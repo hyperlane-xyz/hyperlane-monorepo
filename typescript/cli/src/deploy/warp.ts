@@ -9,33 +9,33 @@ import {
 import { AltVMFileSubmitter } from '@hyperlane-xyz/deploy-sdk/AltVMFileSubmitter';
 import { GasAction, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
-  AddWarpRouteConfigOptions,
+  type AddWarpRouteConfigOptions,
   BaseRegistry,
-  ChainAddresses,
+  type ChainAddresses,
 } from '@hyperlane-xyz/registry';
 import {
-  AggregationIsmConfig,
+  type AggregationIsmConfig,
   CCIPContractCache,
-  ChainMap,
-  ChainName,
+  type ChainMap,
+  type ChainName,
   ContractVerifier,
   EvmERC20WarpModule,
   ExplorerLicenseType,
   HypERC20Deployer,
   IsmType,
-  MultiProvider,
-  MultisigIsmConfig,
-  OpStackIsmConfig,
-  PausableIsmConfig,
-  RoutingIsmConfig,
-  SubmissionStrategy,
-  TokenMetadataMap,
-  TrustedRelayerIsmConfig,
-  TxSubmitterBuilder,
+  type MultiProvider,
+  type MultisigIsmConfig,
+  type OpStackIsmConfig,
+  type PausableIsmConfig,
+  type RoutingIsmConfig,
+  type SubmissionStrategy,
+  type TokenMetadataMap,
+  type TrustedRelayerIsmConfig,
+  type TxSubmitterBuilder,
   TxSubmitterType,
-  WarpCoreConfig,
+  type WarpCoreConfig,
   WarpCoreConfigSchema,
-  WarpRouteDeployConfigMailboxRequired,
+  type WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigSchema,
   altVmChainLookup,
   enrollCrossChainRouters,
@@ -51,7 +51,7 @@ import {
   tokenTypeToStandard,
 } from '@hyperlane-xyz/sdk';
 import {
-  Address,
+  type Address,
   assert,
   mustGet,
   objFilter,
@@ -61,9 +61,9 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { TypedAnnotatedTransaction } from '../../../sdk/dist/providers/ProviderType.js';
+import { type TypedAnnotatedTransaction } from '../../../sdk/dist/providers/ProviderType.js';
 import { requestAndSaveApiKeys } from '../context/context.js';
-import { WriteCommandContext } from '../context/types.js';
+import { type WriteCommandContext } from '../context/types.js';
 import {
   log,
   logBlue,
@@ -76,9 +76,9 @@ import { WarpSendLogs } from '../send/transfer.js';
 import { EV5FileSubmitter } from '../submitters/EV5FileSubmitter.js';
 import {
   CustomTxSubmitterType,
-  ExtendedChainSubmissionStrategy,
+  type ExtendedChainSubmissionStrategy,
   ExtendedChainSubmissionStrategySchema,
-  ExtendedSubmissionStrategy,
+  type ExtendedSubmissionStrategy,
 } from '../submitters/types.js';
 import {
   indentYamlOrJson,

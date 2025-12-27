@@ -1,11 +1,11 @@
 import { stringify as yamlStringify } from 'yaml';
-import { CommandModule } from 'yargs';
+import { type CommandModule } from 'yargs';
 
 import {
   createStrategyConfig,
   readChainSubmissionStrategyConfig,
 } from '../config/strategy.js';
-import { CommandModuleWithWriteContext } from '../context/types.js';
+import { type CommandModuleWithWriteContext } from '../context/types.js';
 import { log, logCommandHeader } from '../logger.js';
 import { indentYamlOrJson } from '../utils/files.js';
 import { maskSensitiveData } from '../utils/output.js';

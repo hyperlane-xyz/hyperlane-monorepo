@@ -5,28 +5,28 @@ import { Wallet } from 'ethers';
 import fs from 'fs';
 import path from 'path';
 
-import { ERC20Test, ERC4626Test } from '@hyperlane-xyz/core';
+import { type ERC20Test, type ERC4626Test } from '@hyperlane-xyz/core';
 import {
-  ChainAddresses,
+  type ChainAddresses,
   createWarpRouteConfigId,
 } from '@hyperlane-xyz/registry';
 import {
-  ChainMetadata,
-  ChainName,
-  HookConfig,
+  type ChainMetadata,
+  type ChainName,
+  type HookConfig,
   HookType,
-  IsmConfig,
+  type IsmConfig,
   IsmType,
   TokenType,
-  WarpRouteDeployConfig,
+  type WarpRouteDeployConfig,
   normalizeConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import { type Address } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import {
   KeyBoardKeys,
-  TestPromptAction,
+  type TestPromptAction,
   handlePrompts,
 } from '../../commands/helpers.js';
 import { deployOrUseExistingCore } from '../commands/core.js';

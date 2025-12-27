@@ -2,11 +2,11 @@ import { expect } from 'chai';
 import { Wallet } from 'ethers';
 
 import {
-  ChainName,
+  type ChainName,
   TokenType,
-  WarpRouteDeployConfig,
+  type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import { type Address } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson } from '../../../utils/files.js';
 import {
@@ -14,7 +14,7 @@ import {
   KeyBoardKeys,
   SELECT_MAINNET_CHAIN_TYPE_STEP,
   SELECT_NATIVE_TOKEN_TYPE,
-  TestPromptAction,
+  type TestPromptAction,
   handlePrompts,
 } from '../../commands/helpers.js';
 import {

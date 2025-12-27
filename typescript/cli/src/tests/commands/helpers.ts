@@ -1,4 +1,4 @@
-import { ProcessOutput, ProcessPromise } from 'zx';
+import { type ProcessOutput, type ProcessPromise } from 'zx';
 
 import { inCIMode, sleep } from '@hyperlane-xyz/utils';
 

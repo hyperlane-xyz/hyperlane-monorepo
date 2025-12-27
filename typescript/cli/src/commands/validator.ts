@@ -1,13 +1,13 @@
-import { CommandModule } from 'yargs';
+import { type CommandModule } from 'yargs';
 
 import {
-  Address,
+  type Address,
   ProtocolType,
   isValidAddressEvm,
   normalizeAddressEvm,
 } from '@hyperlane-xyz/utils';
 
-import { CommandModuleWithContext } from '../context/types.js';
+import { type CommandModuleWithContext } from '../context/types.js';
 import { errorRed, log } from '../logger.js';
 import { getValidatorAddress } from '../validator/address.js';
 import { checkValidatorSetup } from '../validator/preFlightCheck.js';

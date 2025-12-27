@@ -1,5 +1,5 @@
-import { ChainName } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import { type ChainName } from '@hyperlane-xyz/sdk';
+import { type Address } from '@hyperlane-xyz/utils';
 
 export interface XERC20Limit {
   mint: number;
