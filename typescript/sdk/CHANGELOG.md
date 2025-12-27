@@ -1,5 +1,18 @@
 # @hyperlane-xyz/sdk
 
+## 20.2.0
+
+### Patch Changes
+
+- Updated dependencies [239e1a1]
+  - @hyperlane-xyz/provider-sdk@0.8.0
+  - @hyperlane-xyz/deploy-sdk@0.8.0
+  - @hyperlane-xyz/cosmos-sdk@20.2.0
+  - @hyperlane-xyz/radix-sdk@20.2.0
+  - @hyperlane-xyz/starknet-core@20.2.0
+  - @hyperlane-xyz/utils@20.2.0
+  - @hyperlane-xyz/core@10.1.4
+
 ## 20.1.0
 
 ### Minor Changes
