@@ -28,7 +28,7 @@
     "@hyperlane-xyz/registry": "catalog:",
     "@hyperlane-xyz/sdk": "workspace:*",
     "@hyperlane-xyz/utils": "workspace:*",
-    "express": "^5.1.0",
+    "express": "^4.22.0",
     "pino": "catalog:",
     "zod": "catalog:",
     "zod-validation-error": "catalog:"
