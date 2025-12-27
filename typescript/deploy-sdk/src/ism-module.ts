@@ -1,6 +1,10 @@
 import { IProvider, ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
-import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
+  ChainLookup,
+  ChainMetadataForAltVM,
+} from '@hyperlane-xyz/provider-sdk/chain';
+import {
+  DerivedIsmConfig,
   IsmConfig,
   IsmModuleAddresses,
   IsmModuleType,
@@ -15,12 +19,29 @@ import {
 } from '@hyperlane-xyz/provider-sdk/module';
 
 import { AltVMIsmModule } from './AltVMIsmModule.js';
-import { AltVMIsmReader } from './AltVMIsmReader.js';
+import { createIsmReader } from './ism/generic-ism.js';
+
+/**
+ * Adapter that wraps IsmReader to implement HypReader interface.
+ * This bridges the Artifact API (used by IsmReader) with the Config API
+ * (expected by HypReader).
+ */
+class IsmReaderAdapter implements HypReader<IsmModuleType> {
+  private readonly reader;
+
+  constructor(chainMetadata: ChainMetadataForAltVM, chainLookup: ChainLookup) {
+    this.reader = createIsmReader(chainMetadata, chainLookup);
+  }
+
+  async read(address: string): Promise<DerivedIsmConfig> {
+    return this.reader.deriveIsmConfig(address);
+  }
+}
 
 class IsmModuleProvider implements ModuleProvider<IsmModuleType> {
   constructor(
     private chainLookup: ChainLookup,
-    private chainName: string,
+    private chainMetadata: ChainMetadataForAltVM,
     private mailboxAddress: string,
   ) {}
 
@@ -35,7 +56,7 @@ class IsmModuleProvider implements ModuleProvider<IsmModuleType> {
 
     return await AltVMIsmModule.create({
       chainLookup: this.chainLookup,
-      chain: this.chainName,
+      chain: this.chainMetadata.name,
       signer,
       config,
       addresses,
@@ -49,15 +70,15 @@ class IsmModuleProvider implements ModuleProvider<IsmModuleType> {
     return new AltVMIsmModule(this.chainLookup, args, signer);
   }
 
-  connectReader(provider: IProvider<any>): HypReader<IsmModuleType> {
-    return new AltVMIsmReader(this.chainLookup.getChainName, provider);
+  connectReader(_provider: IProvider<any>): HypReader<IsmModuleType> {
+    return new IsmReaderAdapter(this.chainMetadata, this.chainLookup);
   }
 }
 
 export function ismModuleProvider(
   chainLookup: ChainLookup,
-  chainName: string,
+  chainMetadata: ChainMetadataForAltVM,
   mailboxAddress: string,
 ): ModuleProvider<IsmModuleType> {
-  return new IsmModuleProvider(chainLookup, chainName, mailboxAddress);
+  return new IsmModuleProvider(chainLookup, chainMetadata, mailboxAddress);
 }

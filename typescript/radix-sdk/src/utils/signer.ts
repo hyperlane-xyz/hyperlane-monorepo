@@ -31,6 +31,10 @@ export class RadixBaseSigner {
     this.account = account;
   }
 
+  public getAddress(): string {
+    return this.account.address;
+  }
+
   public async signAndBroadcast(
     manifest: TransactionManifest,
   ): Promise<RadixSDKReceipt> {
