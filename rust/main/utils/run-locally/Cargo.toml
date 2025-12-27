@@ -10,38 +10,38 @@ version.workspace = true
 [dependencies]
 hyperlane-base = { path = "../../hyperlane-base" }
 hyperlane-core = { path = "../../hyperlane-core", features = ["float"] }
-hyperlane-cosmos = { path = "../../chains/hyperlane-cosmos" }
-hyperlane-radix = { path = "../../chains/hyperlane-radix" }
-hyperlane-starknet = { path = "../../chains/hyperlane-starknet" }
-core-api-client = { workspace = true }
-cosmwasm-schema.workspace = true
+hyperlane-cosmos = { path = "../../chains/hyperlane-cosmos", optional = true }
+hyperlane-radix = { path = "../../chains/hyperlane-radix", optional = true }
+hyperlane-starknet = { path = "../../chains/hyperlane-starknet", optional = true }
+core-api-client = { workspace = true, optional = true }
+cosmwasm-schema = { workspace = true, optional = true }
 ctrlc.workspace = true
 ethers-contract.workspace = true
 ethers-core.workspace = true
 ethers.workspace = true
 eyre.workspace = true
-gateway-api-client = { workspace = true }
+gateway-api-client = { workspace = true, optional = true }
 hex.workspace = true
-hyperlane-cosmwasm-interface.workspace = true
+hyperlane-cosmwasm-interface = { workspace = true, optional = true }
 jobserver.workspace = true
 k256.workspace = true
 macro_rules_attribute.workspace = true
 maplit.workspace = true
 nix = { workspace = true, features = ["signal"], default-features = false }
 once_cell.workspace = true
-radix-common = { workspace = true }
-radix-engine-interface = { workspace = true }
-radix-transactions = { workspace = true }
+radix-common = { workspace = true, optional = true }
+radix-engine-interface = { workspace = true, optional = true }
+radix-transactions = { workspace = true, optional = true }
 regex.workspace = true
 relayer = { path = "../../agents/relayer" }
 reqwest.workspace = true
-ripemd.workspace = true
-sbor = { workspace = true, features = ["serde"] }
-scrypto = { workspace = true }
+ripemd = { workspace = true, optional = true }
+sbor = { workspace = true, features = ["serde"], optional = true }
+scrypto = { workspace = true, optional = true }
 serde.workspace = true
 serde_json.workspace = true
-sha2.workspace = true
-starknet.workspace = true
+sha2 = { workspace = true, optional = true }
+starknet = { workspace = true, optional = true }
 tempfile.workspace = true
 tokio.workspace = true
 toml_edit.workspace = true
@@ -54,8 +54,50 @@ anyhow = { workspace = true }
 vergen = { version = "8.3.2", features = ["build", "git", "gitcl"] }
 
 [features]
-cosmos = []
-starknet = []
-cosmosnative = []
-sealevel = []
-radix = []
+cosmos = [
+    "relayer/cosmos",
+    "hyperlane-base/cosmos",
+    "dep:hyperlane-cosmos",
+    "dep:cosmwasm-schema",
+    "dep:hyperlane-cosmwasm-interface",
+    "dep:ripemd",
+    "dep:sha2",
+]
+cosmosnative = [
+    "relayer/cosmos",
+    "hyperlane-base/cosmos",
+    "dep:hyperlane-cosmos",
+    "dep:cosmwasm-schema",
+    "dep:hyperlane-cosmwasm-interface",
+    "dep:ripemd",
+    "dep:sha2",
+]
+starknet = [
+    "relayer/starknet",
+    "hyperlane-base/starknet",
+    "dep:hyperlane-starknet",
+    "dep:starknet",
+]
+sealevel = [
+    "relayer/sealevel",
+    "hyperlane-base/sealevel",
+]
+fuel = [
+    "relayer/fuel",
+    "hyperlane-base/fuel",
+]
+radix = [
+    "relayer/radix",
+    "hyperlane-base/radix",
+    "dep:hyperlane-radix",
+    "dep:core-api-client",
+    "dep:gateway-api-client",
+    "dep:radix-common",
+    "dep:radix-engine-interface",
+    "dep:radix-transactions",
+    "dep:sbor",
+    "dep:scrypto",
+]
+test-utils = [
+    "relayer/test-utils",
+]
