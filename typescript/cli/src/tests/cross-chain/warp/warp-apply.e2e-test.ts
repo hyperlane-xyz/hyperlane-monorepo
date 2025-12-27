@@ -1,8 +1,11 @@
-import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
 import * as chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import { Wallet } from 'ethers';
 
+import {
+  createSignerWithPrivateKey,
+  runCosmosNode,
+} from '@hyperlane-xyz/cosmos-sdk/testing';
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
@@ -33,7 +36,7 @@ import {
   getWarpDeployConfigPath,
   getWarpId,
 } from '../../constants.js';
-import { runCosmosNode, runEvmNode } from '../../nodes.js';
+import { runEvmNode } from '../../nodes.js';
 import {
   assertWarpRouteConfig,
   getUnsupportedChainWarpCoreTokenConfig,
@@ -90,12 +93,11 @@ describe('hyperlane warp apply e2e tests', async function () {
     );
     await runEvmNode(TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2);
 
-    const cosmosWallet = await DirectSecp256k1Wallet.fromKey(
-      Buffer.from(HYP_KEY_BY_PROTOCOL.cosmosnative, 'hex'),
-      TEST_CHAIN_METADATA_BY_PROTOCOL.cosmosnative.CHAIN_NAME_1.bech32Prefix,
+    const cosmosWallet = await createSignerWithPrivateKey(
+      HYP_KEY_BY_PROTOCOL.cosmosnative,
+      TEST_CHAIN_METADATA_BY_PROTOCOL.cosmosnative.CHAIN_NAME_1,
     );
-    [{ address: cosmosNativeDeployerAddress }] =
-      await cosmosWallet.getAccounts();
+    cosmosNativeDeployerAddress = cosmosWallet.getSignerAddress();
 
     evmDeployerAddress = new Wallet(HYP_KEY_BY_PROTOCOL.ethereum).address;
 

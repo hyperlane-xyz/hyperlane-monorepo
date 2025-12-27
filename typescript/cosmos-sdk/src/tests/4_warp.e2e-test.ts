@@ -11,7 +11,7 @@ import {
   isValidAddressEvm,
 } from '@hyperlane-xyz/utils';
 
-import { createSigner } from './utils.js';
+import { createSigner } from '../testing/utils.js';
 
 describe('4. cosmos sdk warp e2e tests', async function () {
   this.timeout(100_000);
