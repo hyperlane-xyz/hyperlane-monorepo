@@ -1,6 +1,5 @@
 import util from 'util';
 import { stringify as yamlStringify } from 'yaml';
-import { CommandModule } from 'yargs';
 
 import { RebalancerConfig, RebalancerService } from '@hyperlane-xyz/rebalancer';
 import {
@@ -26,6 +25,7 @@ import {
   CommandModuleWithWarpApplyContext,
   CommandModuleWithWarpDeployContext,
   CommandModuleWithWriteContext,
+  HyperlaneCommandModule,
 } from '../context/types.js';
 import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
 import { runForkCommand } from '../fork/fork.js';
@@ -68,7 +68,7 @@ import { MessageOptionsArgTypes, messageSendOptions } from './send.js';
 /**
  * Parent command
  */
-export const warpCommand: CommandModule = {
+export const warpCommand: HyperlaneCommandModule = {
   command: 'warp',
   describe: 'Manage Hyperlane warp routes',
   builder: (yargs) =>

@@ -1,11 +1,13 @@
 import { stringify as yamlStringify } from 'yaml';
-import { CommandModule } from 'yargs';
 
 import {
   createStrategyConfig,
   readChainSubmissionStrategyConfig,
 } from '../config/strategy.js';
-import { CommandModuleWithWriteContext } from '../context/types.js';
+import {
+  CommandModuleWithWriteContext,
+  HyperlaneCommandModule,
+} from '../context/types.js';
 import { log, logCommandHeader } from '../logger.js';
 import { indentYamlOrJson } from '../utils/files.js';
 import { maskSensitiveData } from '../utils/output.js';
@@ -19,7 +21,7 @@ import {
 /**
  * Parent command
  */
-export const strategyCommand: CommandModule = {
+export const strategyCommand: HyperlaneCommandModule = {
   command: 'strategy',
   describe: 'Manage Hyperlane deployment strategies',
   builder: (yargs) =>
