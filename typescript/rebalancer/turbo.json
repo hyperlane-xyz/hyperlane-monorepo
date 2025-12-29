@@ -3,7 +3,7 @@
   "tasks": {
     "bundle": {
       "dependsOn": ["build"],
-      "outputs": ["rebalancer-bundle/**"]
+      "outputs": ["bundle/**"]
     }
   }
 }

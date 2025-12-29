@@ -21,9 +21,6 @@
  *   REBALANCER_CONFIG_FILE=/config/rebalancer.yaml HYP_KEY=0x... node dist/service.js
  */
 import { Wallet } from 'ethers';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
 
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
@@ -33,21 +30,8 @@ import { createServiceLogger, rootLogger } from '@hyperlane-xyz/utils';
 import { RebalancerConfig } from './config/RebalancerConfig.js';
 import { RebalancerService } from './core/RebalancerService.js';
 
-function getVersion(): string {
-  try {
-    const __dirname = fileURLToPath(new URL('.', import.meta.url));
-    const packageJson = JSON.parse(
-      fs.readFileSync(path.join(__dirname, '../package.json'), 'utf-8'),
-    );
-    return packageJson.version;
-  } catch (error) {
-    rootLogger.warn({ error }, 'Could not read version from package.json');
-    return 'unknown';
-  }
-}
-
 async function main(): Promise<void> {
-  const VERSION = getVersion();
+  const VERSION = process.env.SERVICE_VERSION || 'dev';
   // Validate required environment variables
   const configFile = process.env.REBALANCER_CONFIG_FILE;
   if (!configFile) {

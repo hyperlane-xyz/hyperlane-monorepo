@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Install Foundry (Linux binaries) - pinned version for reproducibility
 ARG FOUNDRY_VERSION
+ARG SERVICE_VERSION=dev
 ARG TARGETARCH
 SHELL ["/bin/bash", "-c"]
 RUN set -o pipefail && \
@@ -69,15 +70,17 @@ WORKDIR /app
 RUN apk add --no-cache ca-certificates
 
 # Copy only the bundled output (includes all dependencies)
-COPY --from=builder /hyperlane-monorepo/typescript/rebalancer/rebalancer-bundle ./rebalancer-bundle
+COPY --from=builder /hyperlane-monorepo/typescript/rebalancer/bundle ./bundle
 COPY --from=builder /hyperlane-monorepo/typescript/rebalancer/package.json ./
 
 # Environment variables
+ARG SERVICE_VERSION=dev
 ENV NODE_ENV=production
 ENV LOG_LEVEL=info
+ENV SERVICE_VERSION=${SERVICE_VERSION}
 
 # Expose metrics port
 EXPOSE 9090
 
 # Run the rebalancer service from the bundle
-CMD ["node", "rebalancer-bundle/index.js"]
+CMD ["node", "bundle/index.js"]

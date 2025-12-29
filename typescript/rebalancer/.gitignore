@@ -1,4 +1,4 @@
 .env
 dist
 cache
-rebalancer-bundle
+bundle
