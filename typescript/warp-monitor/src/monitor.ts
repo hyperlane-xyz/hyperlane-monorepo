@@ -217,6 +217,7 @@ export class WarpMonitor {
           { token: token.symbol, chain: token.chainName },
           'Failed to read warp deploy config, skipping extra lockboxes',
         );
+        await Promise.all(promises);
         return;
       }
 
@@ -235,6 +236,7 @@ export class WarpMonitor {
           },
           'Invalid deploy config type for xERC20 token',
         );
+        await Promise.all(promises);
         return;
       }
 
