@@ -1,6 +1,7 @@
 {
   "name": "@hyperlane-xyz/warp-monitor",
   "version": "0.0.0",
+  "private": true,
   "description": "Hyperlane Warp Route Balance Monitor Service",
   "type": "module",
   "main": "./dist/index.js",
@@ -14,16 +15,15 @@
   ],
   "scripts": {
     "build": "tsc",
-    "bundle": "rm -rf ./warp-monitor-bundle && ncc build ./dist/service.js -o warp-monitor-bundle && node ./scripts/ncc.post-bundle.mjs",
-    "clean": "rm -rf dist cache warp-monitor-bundle",
+    "bundle": "rm -rf ./bundle && ncc build ./dist/service.js -o bundle && node ./scripts/ncc.post-bundle.mjs",
+    "clean": "rm -rf dist cache bundle",
     "dev": "tsc --watch",
     "lint": "eslint -c ./eslint.config.mjs ./src",
     "prettier": "prettier --write ./src",
     "test": "mocha --config .mocharc.json './src/**/*.test.ts' --exit",
     "test:ci": "pnpm test",
     "start": "node dist/service.js",
-    "start:dev": "tsx src/service.ts",
-    "prepack": "pnpm bundle"
+    "start:dev": "tsx src/service.ts"
   },
   "dependencies": {
     "@google-cloud/pino-logging-gcp-config": "catalog:",

@@ -1,4 +1,4 @@
 .env
 dist
 cache
-warp-monitor-bundle
+bundle

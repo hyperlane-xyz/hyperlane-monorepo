@@ -17,10 +17,6 @@
  *   node dist/service.js
  *   WARP_ROUTE_ID=ETH/ethereum-base COINGECKO_API_KEY=... node dist/service.js
  */
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import { rootLogger } from '@hyperlane-xyz/utils';
@@ -28,21 +24,8 @@ import { rootLogger } from '@hyperlane-xyz/utils';
 import { WarpMonitor } from './monitor.js';
 import { initializeLogger } from './utils.js';
 
-function getVersion(): string {
-  try {
-    const __dirname = fileURLToPath(new URL('.', import.meta.url));
-    const packageJson = JSON.parse(
-      fs.readFileSync(path.join(__dirname, '../package.json'), 'utf-8'),
-    );
-    return packageJson.version;
-  } catch {
-    rootLogger.warn('Could not read version from package.json');
-    return 'unknown';
-  }
-}
-
 async function main(): Promise<void> {
-  const VERSION = getVersion();
+  const VERSION = process.env.SERVICE_VERSION || 'dev';
 
   // Validate required environment variables
   const warpRouteId = process.env.WARP_ROUTE_ID;
