@@ -28,6 +28,7 @@ export const mainnet3SupportedChainNames = [
   'celestia',
   'celo',
   'chilizmainnet',
+  'citrea',
   'coredao',
   'coti',
   'cyber',

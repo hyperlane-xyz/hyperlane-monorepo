@@ -7448,7 +7448,7 @@
       "gasCurrencyCoinGeckoId": "kyve-network",
       "gasPrice": {
         "denom": "ukyve",
-        "amount": "3"
+        "amount": "63.0"
       },
       "grpcUrls": [
         {
@@ -9113,7 +9113,7 @@
       "protocol": "ethereum",
       "rpcUrls": [
         {
-          "http": "https://rpc.megaeth.com"
+          "http": "https://mainnet.megaeth.com/rpc"
         }
       ],
       "technicalStack": "opstack",
@@ -9255,6 +9255,69 @@
         "key": "0x476e6d1e316263e22bf74e6cae6fcdf7ecc51cd4c0450e5661c35ccce3a85601"
       },
       "technicalStack": "other"
+    },
+    "citrea": {
+      "blockExplorers": [
+        {
+          "apiUrl": "https://explorer.mainnet.citrea.xyz/api",
+          "family": "blockscout",
+          "name": "Citrea Explorer",
+          "url": "https://explorer.mainnet.citrea.xyz"
+        }
+      ],
+      "blocks": {
+        "confirmations": 1,
+        "estimateBlockTime": 2,
+        "reorgPeriod": 5
+      },
+      "chainId": 4114,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
+      "displayName": "Citrea",
+      "domainId": 4114,
+      "gasCurrencyCoinGeckoId": "bitcoin",
+      "name": "citrea",
+      "nativeToken": {
+        "decimals": 18,
+        "name": "CBTC",
+        "symbol": "CBTC"
+      },
+      "protocol": "ethereum",
+      "rpcUrls": [
+        {
+          "http": "https://rpc.mainnet.citrea.xyz"
+        }
+      ],
+      "technicalStack": "other",
+      "aggregationHook": "0x631aC71B41b1f8B8F011270f48bf97b92206CcDc",
+      "domainRoutingIsm": "0xBD70Ea9D599a0FC8158B026797177773C3445730",
+      "domainRoutingIsmFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
+      "fallbackRoutingHook": "0xf50e2f7ff2D367fac0B90Be2564A096168801b2d",
+      "interchainAccountRouter": "0x33AA12b4e8E79cA551Ca9D1F2eC7d2cE02129dd4",
+      "interchainGasPaymaster": "0xe93f2f409ad8B5000431D234472973fe848dcBEC",
+      "interchainSecurityModule": "0x6E8b209bbF2050B5B46C6b14763D7BdF4A6b95C1",
+      "mailbox": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E",
+      "merkleTreeHook": "0x40Ca4155c0334F7e0F6d7F80536B59EF8831c9fb",
+      "pausableHook": "0xe6fC77B08b457A29747682aB1dBfb32AF4A1A999",
+      "pausableIsm": "0xA697222b77cDe62A8C47E627d5A1c49A87018236",
+      "protocolFee": "0xDd08008d2760873E9D4085442B8aED87B93c06Dd",
+      "proxyAdmin": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
+      "staticAggregationHookFactory": "0xEb9FcFDC9EfDC17c1EC5E1dc085B98485da213D6",
+      "staticAggregationIsm": "0x6E8b209bbF2050B5B46C6b14763D7BdF4A6b95C1",
+      "staticAggregationIsmFactory": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
+      "staticMerkleRootMultisigIsmFactory": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
+      "staticMerkleRootWeightedMultisigIsmFactory": "0x0761b0827849abbf7b0cC09CE14e1C93D87f5004",
+      "staticMessageIdMultisigIsmFactory": "0x8b83fefd896fAa52057798f6426E9f0B080FCCcE",
+      "staticMessageIdWeightedMultisigIsmFactory": "0x4Ed7d626f1E96cD1C0401607Bf70D95243E3dEd1",
+      "storageGasOracle": "0x466b330C2e360c0214A9Da2428415298f720883E",
+      "testRecipient": "0x00B11f894119065f5AE137279D1A1a208965f0cd",
+      "validatorAnnounce": "0x1D9c7400E3392e1854CFeBD7C409EB22824d9023",
+      "index": {
+        "chunk": 999,
+        "from": 1238556
+      }
     }
   }
 }
