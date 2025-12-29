@@ -27,6 +27,7 @@
     "prom-client": "catalog:"
   },
   "devDependencies": {
+    "@hyperlane-xyz/eslint-config": "workspace:^",
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@types/chai": "catalog:",
     "@types/mocha": "catalog:",
