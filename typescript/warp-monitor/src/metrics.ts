@@ -246,6 +246,7 @@ export function updateNativeWalletBalanceMetrics(
       chain: balance.chain,
       wallet_address: balance.walletAddress,
       wallet_name: balance.walletName,
+      token_address: 'native',
       token_symbol: 'Native',
       token_name: 'Native',
     })

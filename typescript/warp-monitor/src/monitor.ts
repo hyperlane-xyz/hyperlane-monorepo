@@ -528,7 +528,7 @@ export class WarpMonitor {
   ): Promise<WarpRouteBalance | undefined> {
     const logger = getLogger();
     if (!warpToken.isXerc20()) {
-      return;
+      return undefined;
     }
 
     const lockboxInstance = await this.getManagedLockBox(
@@ -560,7 +560,7 @@ export class WarpMonitor {
         },
         'Failed to get balance for contract at lockbox address',
       );
-      return;
+      return undefined;
     }
 
     const tokenPrice = await this.tryGetTokenPrice(warpToken, tokenPriceGetter);
