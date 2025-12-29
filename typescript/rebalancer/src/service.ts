@@ -130,13 +130,18 @@ async function main(): Promise<void> {
     // Start the service
     await service.start();
   } catch (error) {
-    logger.error({ error }, 'Failed to start rebalancer service');
+    const err = error as Error;
+    logger.error(
+      { error: err.message, stack: err.stack },
+      'Failed to start rebalancer service',
+    );
     process.exit(1);
   }
 }
 
 // Run the service
 main().catch((error) => {
-  rootLogger.error({ error }, 'Fatal error');
+  const err = error as Error;
+  rootLogger.error({ error: err.message, stack: err.stack }, 'Fatal error');
   process.exit(1);
 });
