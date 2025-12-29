@@ -71,7 +71,9 @@ RUN apk add --no-cache ca-certificates
 
 # Copy only the bundled output (includes all dependencies)
 COPY --from=builder /hyperlane-monorepo/typescript/warp-monitor/bundle ./bundle
-COPY --from=builder /hyperlane-monorepo/typescript/warp-monitor/package.json ./
+
+# Install external dependencies that ncc doesn't bundle (dynamic imports)
+RUN npm install @google-cloud/pino-logging-gcp-config
 
 # Environment variables
 ARG SERVICE_VERSION=dev
