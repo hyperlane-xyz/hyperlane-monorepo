@@ -79,12 +79,12 @@ done
 
 echo "Checking Dockerfile COPY statements..."
 
-EXCLUDED_PACKAGES="
-typescript/warp-monitor/package.json
-"
+# Packages with their own Dockerfiles (not included in main Dockerfile)
+EXCLUDED_PACKAGES="typescript/warp-monitor/package.json"
 
 for pkg in $PACKAGE_FILES; do
-    if echo "$EXCLUDED_PACKAGES" | grep -Fxq "$pkg"; then
+    # Skip packages that have their own Dockerfiles
+    if echo "$EXCLUDED_PACKAGES" | grep -q "$pkg"; then
         continue
     fi
 
