@@ -4,15 +4,6 @@
   "private": true,
   "description": "Hyperlane Warp Route Balance Monitor Service",
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "bin": {
-    "hyperlane-warp-monitor": "./dist/service.js"
-  },
-  "files": [
-    "dist",
-    "src"
-  ],
   "scripts": {
     "build": "tsc",
     "bundle": "rm -rf ./bundle && ncc build ./dist/service.js -o bundle && node ./scripts/ncc.post-bundle.mjs",

@@ -1,14 +1,3 @@
-import MonorepoDefaults from '../../eslint.config.mjs';
+import { jsRules, typescriptRules } from '@hyperlane-xyz/eslint-config';
 
-export default [
-  ...MonorepoDefaults,
-  {
-    files: ['./src/**/*.ts'],
-  },
-  {
-    rules: {
-      // Disable restricted imports for Node.js built-ins since warp-monitor is a Node.js-only service
-      'no-restricted-imports': ['off'],
-    },
-  },
-];
+export default [...jsRules, ...typescriptRules];
