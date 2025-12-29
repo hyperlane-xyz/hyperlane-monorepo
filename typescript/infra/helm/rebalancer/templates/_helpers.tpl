@@ -70,8 +70,6 @@ The rebalancer container
   image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
   imagePullPolicy: IfNotPresent
   env:
-  - name: INSTALL_GCP_LOGGER_CLI
-    value: "true"
   - name: LOG_FORMAT
     value: json
   - name: LOG_LEVEL
@@ -85,7 +83,7 @@ The rebalancer container
   - name: COINGECKO_API_KEY
     value: $(COINGECKO_API_KEY)
   - name: REBALANCER_CONFIG_FILE
-    value: "{{ .Values.hyperlane.rebalancerConfigFile }}"
+    value: "/config/rebalancer-config.yaml"
   - name: CHECK_FREQUENCY
     value: "60000"
   - name: WITH_METRICS
@@ -95,4 +93,8 @@ The rebalancer container
   envFrom:
   - secretRef:
       name: {{ include "hyperlane.fullname" . }}-secret
+  volumeMounts:
+  - name: config
+    mountPath: /config
+    readOnly: true
 {{- end }}

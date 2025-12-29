@@ -1,3 +1,4 @@
+import fs from 'fs';
 import path from 'path';
 import { fromZodError } from 'zod-validation-error';
 
@@ -22,6 +23,8 @@ export class RebalancerHelmManager extends HelmManager {
     getInfraPath(),
     './helm/rebalancer',
   );
+
+  private rebalancerConfigContent: string = '';
 
   constructor(
     readonly warpRouteId: string,
@@ -67,6 +70,12 @@ export class RebalancerHelmManager extends HelmManager {
     if (isObjEmpty(chains)) {
       throw new Error('No chains configured');
     }
+
+    // Store the config file content for helm values
+    this.rebalancerConfigContent = fs.readFileSync(
+      rebalancerConfigFile,
+      'utf8',
+    );
   }
 
   get namespace() {
@@ -80,14 +89,14 @@ export class RebalancerHelmManager extends HelmManager {
     return {
       image: {
         repository: 'gcr.io/abacus-labs-dev/hyperlane-rebalancer',
-        tag: 'a5fbb1d-20251229-190049',
+        tag: 'be84fc0-20251229-194426',
       },
       withMetrics: this.withMetrics,
       fullnameOverride: this.helmReleaseName,
       hyperlane: {
         runEnv: this.environment,
         registryUri,
-        rebalancerConfigFile: this.rebalancerConfigFile,
+        rebalancerConfig: this.rebalancerConfigContent,
         withMetrics: this.withMetrics,
       },
     };
