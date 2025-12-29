@@ -2140,6 +2140,9 @@ importers:
         specifier: 'catalog:'
         version: 14.2.0
     devDependencies:
+      '@hyperlane-xyz/eslint-config':
+        specifier: workspace:^
+        version: link:../eslint-config
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
         version: link:../tsconfig
