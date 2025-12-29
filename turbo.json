@@ -26,6 +26,10 @@
     "coverage": {
       "dependsOn": ["build"],
       "outputs": ["coverage/**", "fixtures/**"]
+    },
+    "bundle": {
+      "dependsOn": ["^build"],
+      "outputs": ["*-bundle/**"]
     }
   }
 }

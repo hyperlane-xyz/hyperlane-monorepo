@@ -42,6 +42,9 @@ COPY solidity/package.json ./solidity/
 COPY solhint-plugin/package.json ./solhint-plugin/
 COPY starknet/package.json ./starknet/
 
+# Set dummy DATABASE_URL for ccip-server prisma generate during install
+ENV DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder"
+
 RUN pnpm install --frozen-lockfile && pnpm store prune
 
 # Copy everything else
