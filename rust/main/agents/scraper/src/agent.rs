@@ -215,7 +215,12 @@ impl Scraper {
             scraper_db,
             domain.clone(),
             chain_setup.addresses.mailbox,
-            chain_setup.addresses.interchain_gas_paymaster,
+            chain_setup
+                .addresses
+                .interchain_gas_paymasters
+                .first()
+                .cloned()
+                .unwrap_or_default(),
             provider,
             &chain_setup.index.clone(),
         )
@@ -426,13 +431,13 @@ mod test {
                         .unwrap()
                         .as_slice(),
                     ),
-                    interchain_gas_paymaster: H256::from_slice(
+                    interchain_gas_paymasters: vec![H256::from_slice(
                         hex::decode(
                             "000000000000000000000000c756cFc1b7d0d4646589EDf10eD54b201237F5e8",
                         )
                         .unwrap()
                         .as_slice(),
-                    ),
+                    )],
                     validator_announce: H256::from_slice(
                         hex::decode(
                             "0000000000000000000000001b33611fCc073aB0737011d5512EF673Bff74962",
