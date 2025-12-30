@@ -4,6 +4,9 @@ import {
   DeployedCoreAddresses,
   DeployedCoreAddressesSchema,
   EvmCoreModule,
+  RebalancerStrategyOptions,
+  type SingleStrategyConfig,
+  type StrategyConfig,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
@@ -129,15 +132,36 @@ async function resolveWarpApplyChains(
   return argv.context.chains;
 }
 
+/**
+ * Extract chain names from a strategy config, handling both single and composite strategies.
+ */
+function getChainsFromStrategyConfig(strategyConfig: StrategyConfig): string[] {
+  if (
+    strategyConfig.rebalanceStrategy === RebalancerStrategyOptions.Composite
+  ) {
+    // Composite strategy: collect chains from all sub-strategies
+    const chains = new Set<string>();
+    for (const subStrategy of strategyConfig.strategies as SingleStrategyConfig[]) {
+      for (const chain of Object.keys(subStrategy.chains)) {
+        chains.add(chain);
+      }
+    }
+    return Array.from(chains);
+  }
+
+  // Single strategy: chains are directly on the config
+  return Object.keys(strategyConfig.chains);
+}
+
 async function resolveWarpRebalancerChains(
   argv: Record<string, any>,
 ): Promise<ChainName[]> {
   // Load rebalancer config to get the configured chains
   const rebalancerConfig = RebalancerConfig.load(argv.config);
 
-  // Extract chain names from the rebalancer config's strategy.chains
+  // Extract chain names from the rebalancer config's strategy
   // This ensures we only create signers for chains we can actually rebalance
-  const chains = Object.keys(rebalancerConfig.strategyConfig.chains);
+  const chains = getChainsFromStrategyConfig(rebalancerConfig.strategyConfig);
 
   assert(chains.length !== 0, 'No chains configured in rebalancer config');
 
