@@ -1,3 +1,4 @@
+use hyperlane_core::HyperlaneMessage;
 use kaspa_consensus_core::tx::TransactionOutpoint;
 
 #[derive(Debug, thiserror::Error)]
@@ -150,4 +151,49 @@ pub enum ValidationError {
 
     #[error("Finality check error: tx_id={tx_id} reason={reason}")]
     FinalityCheckError { tx_id: String, reason: String },
+}
+
+/// Validate that a HyperlaneMessage matches expected static fields.
+/// Checks version, origin, sender, destination, and recipient.
+/// Nonce and body are not checked as they vary per message.
+pub fn validate_hl_message_fields(
+    expected: &HyperlaneMessage,
+    actual: &HyperlaneMessage,
+) -> Result<(), ValidationError> {
+    if expected.version != actual.version {
+        return Err(ValidationError::HLMessageFieldMismatch {
+            field: "version".to_string(),
+            expected: expected.version.to_string(),
+            actual: actual.version.to_string(),
+        });
+    }
+    if expected.origin != actual.origin {
+        return Err(ValidationError::HLMessageFieldMismatch {
+            field: "origin".to_string(),
+            expected: expected.origin.to_string(),
+            actual: actual.origin.to_string(),
+        });
+    }
+    if expected.sender != actual.sender {
+        return Err(ValidationError::HLMessageFieldMismatch {
+            field: "sender".to_string(),
+            expected: format!("{:?}", expected.sender),
+            actual: format!("{:?}", actual.sender),
+        });
+    }
+    if expected.destination != actual.destination {
+        return Err(ValidationError::HLMessageFieldMismatch {
+            field: "destination".to_string(),
+            expected: expected.destination.to_string(),
+            actual: actual.destination.to_string(),
+        });
+    }
+    if expected.recipient != actual.recipient {
+        return Err(ValidationError::HLMessageFieldMismatch {
+            field: "recipient".to_string(),
+            expected: format!("{:?}", expected.recipient),
+            actual: format!("{:?}", actual.recipient),
+        });
+    }
+    Ok(())
 }

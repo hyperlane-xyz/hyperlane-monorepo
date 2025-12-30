@@ -1,5 +1,5 @@
 use crate::consts::ALLOWED_HL_MESSAGE_VERSION;
-use crate::kas_validator::error::ValidationError;
+use crate::kas_validator::error::{validate_hl_message_fields, ValidationError};
 use crate::ops::deposit::DepositFXG;
 use crate::ops::message::{add_kaspa_metadata_hl_messsage, ParsedHL};
 use dym_kas_core::api::client::HttpClient;
@@ -20,7 +20,6 @@ use kaspa_txscript::extract_script_pub_key_address;
 #[derive(Clone, Default)]
 pub struct MustMatch {
     partial_message: HyperlaneMessage,
-    enable_validation: bool,
 }
 
 impl MustMatch {
@@ -40,55 +39,11 @@ impl MustMatch {
                 recipient: hub_token_id,
                 body: vec![],
             },
-            enable_validation: true,
         }
-    }
-
-    // TODO: a dirty hack to make demo work without writing loads of code
-    pub fn set_validation(&mut self, enable_validation: bool) {
-        self.enable_validation = enable_validation;
     }
 
     fn is_match(&self, other: &HyperlaneMessage) -> Result<(), ValidationError> {
-        if !self.enable_validation {
-            return Ok(());
-        }
-        if self.partial_message.version != other.version {
-            return Err(ValidationError::HLMessageFieldMismatch {
-                field: "version".to_string(),
-                expected: self.partial_message.version.to_string(),
-                actual: other.version.to_string(),
-            });
-        }
-        if self.partial_message.origin != other.origin {
-            return Err(ValidationError::HLMessageFieldMismatch {
-                field: "origin".to_string(),
-                expected: self.partial_message.origin.to_string(),
-                actual: other.origin.to_string(),
-            });
-        }
-        if self.partial_message.sender != other.sender {
-            return Err(ValidationError::HLMessageFieldMismatch {
-                field: "sender".to_string(),
-                expected: format!("{:?}", self.partial_message.sender),
-                actual: format!("{:?}", other.sender),
-            });
-        }
-        if self.partial_message.destination != other.destination {
-            return Err(ValidationError::HLMessageFieldMismatch {
-                field: "destination".to_string(),
-                expected: format!("!= {}", self.partial_message.destination),
-                actual: other.destination.to_string(),
-            });
-        }
-        if self.partial_message.recipient != other.recipient {
-            return Err(ValidationError::HLMessageFieldMismatch {
-                field: "recipient".to_string(),
-                expected: format!("{:?}", self.partial_message.recipient),
-                actual: format!("{:?}", other.recipient),
-            });
-        }
-        Ok(())
+        validate_hl_message_fields(&self.partial_message, other)
     }
 }
 

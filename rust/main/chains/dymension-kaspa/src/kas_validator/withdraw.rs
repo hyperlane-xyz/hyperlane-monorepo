@@ -1,7 +1,7 @@
 // We call the signers 'validators'
 
 use crate::consts::ALLOWED_HL_MESSAGE_VERSION;
-use crate::kas_validator::error::ValidationError;
+use crate::kas_validator::error::{validate_hl_message_fields, ValidationError};
 use crate::ops::addr::h256_to_script_pubkey;
 use crate::ops::payload::MessageIDs;
 use crate::ops::withdraw::{filter_pending_withdrawals, WithdrawFXG};
@@ -57,42 +57,7 @@ impl MustMatch {
     }
 
     fn is_match(&self, other: &HyperlaneMessage) -> Result<()> {
-        if self.partial_message.version != other.version {
-            return Err(eyre::eyre!(
-                "version is incorrect, expected: {}, got: {}",
-                self.partial_message.version,
-                other.version
-            ));
-        }
-        if self.partial_message.origin != other.origin {
-            return Err(eyre::eyre!(
-                "origin is incorrect, expected: {}, got: {}",
-                self.partial_message.origin,
-                other.origin
-            ));
-        }
-        if self.partial_message.sender != other.sender {
-            return Err(eyre::eyre!(
-                "sender is incorrect, expected: {}, got: {}",
-                self.partial_message.sender,
-                other.sender
-            ));
-        }
-        if self.partial_message.destination != other.destination {
-            return Err(eyre::eyre!(
-                "destination is incorrect, expected: {}, got: {}",
-                self.partial_message.destination,
-                other.destination
-            ));
-        }
-        if self.partial_message.recipient != other.recipient {
-            return Err(eyre::eyre!(
-                "recipient is incorrect, expected: {}, got: {}",
-                self.partial_message.recipient,
-                other.recipient
-            ));
-        }
-        Ok(())
+        validate_hl_message_fields(&self.partial_message, other).map_err(|e| eyre::eyre!("{}", e))
     }
 }
 
