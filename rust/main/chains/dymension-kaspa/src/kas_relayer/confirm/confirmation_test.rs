@@ -3,9 +3,8 @@ mod tests {
     use super::recursive_trace_transactions;
     use dym_kas_core::api::base::RateLimitConfig;
     use dym_kas_core::api::client::HttpClient;
-    use hex;
+    use dym_kas_core::hash::hex_to_kaspa_hash;
     use kaspa_consensus_core::tx::TransactionOutpoint;
-    use kaspa_hashes::Hash;
 
     #[tokio::test]
     #[ignore = "dont hit real api"]
@@ -24,22 +23,18 @@ mod tests {
 
         // Define the anchor UTXO
         let anchor_utxo = TransactionOutpoint {
-            transaction_id: Hash::from_bytes(
-                hex::decode("3e43fee61f7082a0fbbb9be7509219203e533e3f9cc8dd0aaa21ae4b81c5e9d5")
-                    .unwrap()
-                    .try_into()
-                    .unwrap(),
-            ),
+            transaction_id: hex_to_kaspa_hash(
+                "3e43fee61f7082a0fbbb9be7509219203e533e3f9cc8dd0aaa21ae4b81c5e9d5",
+            )
+            .unwrap(),
             index: 0,
         };
 
         let new_utxo = TransactionOutpoint {
-            transaction_id: Hash::from_bytes(
-                hex::decode("49601485182fa057b000d18993db7756fc5a58823c47b64495d5532add38d2ea")
-                    .unwrap()
-                    .try_into()
-                    .unwrap(),
-            ),
+            transaction_id: hex_to_kaspa_hash(
+                "49601485182fa057b000d18993db7756fc5a58823c47b64495d5532add38d2ea",
+            )
+            .unwrap(),
             index: 0,
         };
 

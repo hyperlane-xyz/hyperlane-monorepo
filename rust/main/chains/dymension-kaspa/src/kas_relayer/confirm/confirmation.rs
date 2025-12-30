@@ -1,7 +1,7 @@
 use crate::ops::{confirmation::ConfirmationFXG, payload::MessageID};
 use dym_kas_core::api::client::HttpClient;
+use dym_kas_core::hash::hex_to_kaspa_hash;
 use eyre::Result;
-use hex;
 use kaspa_consensus_core::tx::TransactionOutpoint;
 use kaspa_wallet_core::error::Error;
 use tracing::info;
@@ -102,11 +102,7 @@ pub async fn recursive_trace_transactions(
 
         // TODO: have ::From method to get utxo from TxInput
         let out_input = TransactionOutpoint {
-            transaction_id: kaspa_hashes::Hash::from_bytes(
-                hex::decode(&input.previous_outpoint_hash)?
-                    .try_into()
-                    .map_err(|_| eyre::eyre!("Invalid hex in previous_outpoint_hash"))?,
-            ),
+            transaction_id: hex_to_kaspa_hash(&input.previous_outpoint_hash)?,
             index: input.previous_outpoint_index.parse()?,
         };
 

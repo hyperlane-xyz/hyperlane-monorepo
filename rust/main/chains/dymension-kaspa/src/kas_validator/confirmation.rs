@@ -4,6 +4,7 @@ use crate::ops::payload::{MessageID, MessageIDs};
 use dym_kas_api::models::{TxModel, TxOutput};
 use dym_kas_core::api::client::HttpClient;
 use dym_kas_core::finality::is_safe_against_reorg;
+use dym_kas_core::hash::hex_to_kaspa_hash;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::TransactionOutpoint as ProtoTransactionOutpoint;
 use kaspa_addresses::Address;
@@ -150,18 +151,12 @@ fn outpoint_in_inputs(
         .ok_or(ValidationError::MissingTransactionInputs)?;
 
     for input in inputs {
-        // Properly decode the hex values like in the relayer
         let input_utxo = TransactionOutpoint {
-            transaction_id: kaspa_hashes::Hash::from_bytes(
-                hex::decode(&input.previous_outpoint_hash)
-                    .map_err(|e| ValidationError::InvalidOutpointData {
-                        reason: format!("Invalid hex in previous_outpoint_hash: {}", e),
-                    })?
-                    .try_into()
-                    .map_err(|_| ValidationError::InvalidOutpointData {
-                        reason: "Invalid hex length in previous_outpoint_hash".to_string(),
-                    })?,
-            ),
+            transaction_id: hex_to_kaspa_hash(&input.previous_outpoint_hash).map_err(|e| {
+                ValidationError::InvalidOutpointData {
+                    reason: e.to_string(),
+                }
+            })?,
             index: input.previous_outpoint_index.parse().map_err(|e| {
                 ValidationError::InvalidOutpointData {
                     reason: format!("Failed to parse previous_outpoint_index: {}", e),

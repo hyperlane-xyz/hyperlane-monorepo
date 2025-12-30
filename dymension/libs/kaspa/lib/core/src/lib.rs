@@ -4,6 +4,7 @@ pub mod consts;
 pub mod env;
 pub mod escrow;
 pub mod finality;
+pub mod hash;
 pub mod pskt;
 pub mod wallet;
 
