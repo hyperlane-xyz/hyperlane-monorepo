@@ -1,6 +1,8 @@
+import fs from 'fs';
 import path from 'path';
 import { fromZodError } from 'zod-validation-error';
 
+import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import {
   type RebalancerConfigFileInput,
   RebalancerConfigSchema,
@@ -21,6 +23,8 @@ export class RebalancerHelmManager extends HelmManager {
     getInfraPath(),
     './helm/rebalancer',
   );
+
+  private rebalancerConfigContent: string = '';
 
   constructor(
     readonly warpRouteId: string,
@@ -66,6 +70,12 @@ export class RebalancerHelmManager extends HelmManager {
     if (isObjEmpty(chains)) {
       throw new Error('No chains configured');
     }
+
+    // Store the config file content for helm values
+    this.rebalancerConfigContent = fs.readFileSync(
+      rebalancerConfigFile,
+      'utf8',
+    );
   }
 
   get namespace() {
@@ -73,17 +83,20 @@ export class RebalancerHelmManager extends HelmManager {
   }
 
   async helmValues() {
+    // Build registry URI with commit embedded in /tree/{commit} format
+    const registryUri = `${DEFAULT_GITHUB_REGISTRY}/tree/${this.registryCommit}`;
+
     return {
       image: {
-        repository: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-        tag: '8da6852-20251215-172511',
+        repository: 'gcr.io/abacus-labs-dev/hyperlane-rebalancer',
+        tag: 'be84fc0-20251229-194426',
       },
       withMetrics: this.withMetrics,
       fullnameOverride: this.helmReleaseName,
       hyperlane: {
         runEnv: this.environment,
-        registryCommit: this.registryCommit,
-        rebalancerConfigFile: this.rebalancerConfigFile,
+        registryUri,
+        rebalancerConfig: this.rebalancerConfigContent,
         withMetrics: this.withMetrics,
       },
     };
