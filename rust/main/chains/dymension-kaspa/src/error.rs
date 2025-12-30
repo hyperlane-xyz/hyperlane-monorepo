@@ -45,8 +45,6 @@ pub enum HyperlaneKaspaError {
     ParsingFailed(String),
     #[error("Parsing attempt failed. (Errors: {0:?})")]
     ParsingAttemptsFailed(Vec<HyperlaneKaspaError>),
-    #[error("{0}")]
-    Foo(String),
 }
 
 impl From<HyperlaneKaspaError> for ChainCommunicationError {
