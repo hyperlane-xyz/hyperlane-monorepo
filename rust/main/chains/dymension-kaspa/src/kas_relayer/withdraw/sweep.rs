@@ -11,9 +11,42 @@ use kaspa_consensus_core::tx::TransactionOutput;
 use kaspa_txscript::standard::pay_to_address_script;
 use kaspa_wallet_core::tx::MAXIMUM_STANDARD_TRANSACTION_MASS;
 use kaspa_wallet_pskt::bundle::Bundle;
+use kaspa_wallet_pskt::output::Output as PsktOutput;
 use kaspa_wallet_pskt::prelude::{Creator, OutputBuilder, Signer, PSKT};
 use kaspa_wallet_pskt::pskt::InputBuilder;
 use tracing::info;
+
+/// Output pair from a PSKT with exactly two outputs: escrow and relayer.
+struct OutputPair<'a> {
+    relayer_idx: u32,
+    relayer_output: &'a PsktOutput,
+    escrow_idx: u32,
+    escrow_output: &'a PsktOutput,
+}
+
+/// Extract escrow and relayer outputs from a PSKT that must have exactly two outputs.
+fn extract_output_pair<'a>(
+    outputs: &'a [PsktOutput],
+    escrow: &EscrowPublic,
+) -> Result<OutputPair<'a>> {
+    match outputs {
+        [o0, o1] if o0.script_public_key == escrow.p2sh => Ok(OutputPair {
+            relayer_idx: 1,
+            relayer_output: o1,
+            escrow_idx: 0,
+            escrow_output: o0,
+        }),
+        [o0, o1] if o1.script_public_key == escrow.p2sh => Ok(OutputPair {
+            relayer_idx: 0,
+            relayer_output: o0,
+            escrow_idx: 1,
+            escrow_output: o1,
+        }),
+        _ => Err(eyre!(
+            "PSKT must have exactly two outputs: escrow and relayer"
+        )),
+    }
+}
 
 /// Helper function to create test outputs for mass estimation
 fn create_test_outputs(
@@ -249,34 +282,23 @@ fn prepare_next_iteration_inputs(
     let sweep_tx = PSKT::<Signer>::from(pskt_signer.clone());
     let tx_id = sweep_tx.calculate_id();
 
-    // Find both escrow and relayer outputs
-    // TODO: DRY out snippet with similar thing in create_inputs_from_sweeping_bundle
-    let (relayer_idx, relayer_output, escrow_idx, escrow_output) = match sweep_tx.outputs.as_slice()
-    {
-        [o0, o1] if o0.script_public_key == escrow.p2sh => (1u32, o1, 0u32, o0),
-        [o0, o1] if o1.script_public_key == escrow.p2sh => (0u32, o0, 1u32, o1),
-        _ => {
-            return Err(eyre!(
-                "PSKT must have exactly two outputs: escrow and relayer"
-            ))
-        }
-    };
+    let pair = extract_output_pair(sweep_tx.outputs.as_slice(), escrow)?;
 
     // Create relayer input from previous PSKT's relayer output
     let relayer_input = PopulatedInputBuilder::new(
         tx_id,
-        relayer_idx,
-        relayer_output.amount,
-        relayer_output.script_public_key.clone(),
+        pair.relayer_idx,
+        pair.relayer_output.amount,
+        pair.relayer_output.script_public_key.clone(),
     )
     .build();
 
     // Create escrow input from previous PSKT's escrow output
     let escrow_input = PopulatedInputBuilder::new(
         tx_id,
-        escrow_idx,
-        escrow_output.amount,
-        escrow_output.script_public_key.clone(),
+        pair.escrow_idx,
+        pair.escrow_output.amount,
+        pair.escrow_output.script_public_key.clone(),
     )
     .sig_op_count(escrow.n() as u8)
     .redeem_script(Some(escrow.redeem_script.clone()))
@@ -287,10 +309,10 @@ fn prepare_next_iteration_inputs(
     escrow_inputs.insert(0, escrow_input);
 
     info!(
-        escrow_idx = escrow_idx,
-        escrow_amount = escrow_output.amount,
-        relayer_idx = relayer_idx,
-        relayer_amount = relayer_output.amount,
+        escrow_idx = pair.escrow_idx,
+        escrow_amount = pair.escrow_output.amount,
+        relayer_idx = pair.relayer_idx,
+        relayer_amount = pair.relayer_output.amount,
         "kaspa relayer sweeping: chained escrow and relayer outputs for next batch"
     );
 
@@ -513,30 +535,25 @@ pub fn create_inputs_from_sweeping_bundle(
     let sweep_tx = PSKT::<Signer>::from(last_pskt);
     let tx_id = sweep_tx.calculate_id();
 
-    // Expect exactly two outputs: {escrow, relayer} in some order.
-    let (relayer_idx, relayer_output, escrow_idx, escrow_output) = match sweep_tx.outputs.as_slice() {
-        [o0, o1] if o0.script_public_key == escrow.p2sh => (1u32, o1, 0u32, o0),
-        [o0, o1] if o1.script_public_key == escrow.p2sh => (0u32, o0, 1u32, o1),
-        _ => {
-            return Err(eyre!(
-                "Resulting sweeping TX must have exactly two outputs: swept escrow UTXO and relayer change"
-            ))
-        }
-    };
+    let pair = extract_output_pair(sweep_tx.outputs.as_slice(), escrow)?;
 
     let relayer_input = PopulatedInputBuilder::new(
         tx_id,
-        relayer_idx,
-        relayer_output.amount,
-        relayer_output.script_public_key.clone(),
+        pair.relayer_idx,
+        pair.relayer_output.amount,
+        pair.relayer_output.script_public_key.clone(),
     )
     .build();
 
-    let escrow_input =
-        PopulatedInputBuilder::new(tx_id, escrow_idx, escrow_output.amount, escrow.p2sh.clone())
-            .sig_op_count(escrow.n() as u8)
-            .redeem_script(Some(escrow.redeem_script.clone()))
-            .build();
+    let escrow_input = PopulatedInputBuilder::new(
+        tx_id,
+        pair.escrow_idx,
+        pair.escrow_output.amount,
+        escrow.p2sh.clone(),
+    )
+    .sig_op_count(escrow.n() as u8)
+    .redeem_script(Some(escrow.redeem_script.clone()))
+    .build();
 
     Ok(vec![relayer_input, escrow_input])
 }
