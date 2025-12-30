@@ -1784,6 +1784,9 @@ importers:
       '@types/sinon':
         specifier: 'catalog:'
         version: 17.0.4
+      '@vercel/ncc':
+        specifier: 'catalog:'
+        version: 0.38.4
       chai:
         specifier: 'catalog:'
         version: 4.5.0
