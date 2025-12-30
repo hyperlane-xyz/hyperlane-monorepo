@@ -31,13 +31,21 @@ export function buildTestConfig(
     {} as Record<string, any>,
   );
 
+  // Extract chains from override if it's not a composite strategy
+  const overrideChains =
+    overrides.strategyConfig &&
+    'chains' in overrides.strategyConfig &&
+    overrides.strategyConfig.chains
+      ? overrides.strategyConfig.chains
+      : {};
+
   return {
     warpRouteId: 'test-route',
     strategyConfig: {
       rebalanceStrategy: RebalancerStrategyOptions.Weighted,
       chains: {
         ...baseChains,
-        ...(overrides.strategyConfig?.chains ?? {}),
+        ...overrideChains,
       },
       ...overrides.strategyConfig,
     },

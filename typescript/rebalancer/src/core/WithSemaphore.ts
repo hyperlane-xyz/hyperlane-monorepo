@@ -1,5 +1,10 @@
 import type { Logger } from 'pino';
 
+import {
+  RebalancerStrategyOptions,
+  type SingleStrategyConfig,
+} from '@hyperlane-xyz/sdk';
+
 import { RebalancerConfig } from '../config/RebalancerConfig.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type { RebalancingRoute } from '../interfaces/IStrategy.js';
@@ -75,7 +80,7 @@ export class WithSemaphore implements IRebalancer {
 
   private getHighestLockTime(routes: RebalancingRoute[]) {
     return routes.reduce((highest, route) => {
-      const origin = this.config.strategyConfig.chains[route.origin];
+      const origin = this.getChainConfig(route.origin);
 
       if (!origin) {
         this.logger.error({ route }, 'Chain not found in config. Skipping.');
@@ -88,5 +93,27 @@ export class WithSemaphore implements IRebalancer {
 
       return Math.max(highest, bridgeLockTime, overrideLockTime);
     }, 0);
+  }
+
+  /**
+   * Get chain config from strategy, handling composite strategies
+   */
+  private getChainConfig(chainName: string) {
+    const strategyConfig = this.config.strategyConfig;
+
+    if (
+      strategyConfig.rebalanceStrategy === RebalancerStrategyOptions.Composite
+    ) {
+      // Search through all sub-strategies for the chain
+      for (const subStrategy of (strategyConfig as any)
+        .strategies as SingleStrategyConfig[]) {
+        if (subStrategy.chains[chainName]) {
+          return subStrategy.chains[chainName];
+        }
+      }
+      return undefined;
+    }
+
+    return strategyConfig.chains[chainName];
   }
 }

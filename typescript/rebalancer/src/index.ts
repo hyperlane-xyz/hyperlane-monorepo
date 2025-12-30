@@ -26,7 +26,18 @@ export { RebalancerConfig } from './config/RebalancerConfig.js';
 export { BaseStrategy } from './strategy/BaseStrategy.js';
 export { WeightedStrategy } from './strategy/WeightedStrategy.js';
 export { MinAmountStrategy } from './strategy/MinAmountStrategy.js';
+export { CollateralDeficitStrategy } from './strategy/CollateralDeficitStrategy.js';
+export type { CollateralDeficitStrategyConfig } from './strategy/CollateralDeficitStrategy.js';
+export { CompositeStrategy } from './strategy/CompositeStrategy.js';
 export { StrategyFactory } from './strategy/StrategyFactory.js';
+
+// Tracker
+export {
+  MessageTracker,
+  type MessageTrackerConfig,
+  type InflightMessage,
+  type InflightContext,
+} from './tracker/index.js';
 
 // Monitor
 export { Monitor } from './monitor/Monitor.js';

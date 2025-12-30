@@ -17,9 +17,10 @@ import {
   MonitorStartError,
 } from '../interfaces/IMonitor.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
-import type { IStrategy } from '../interfaces/IStrategy.js';
+import type { IStrategy, InflightContext } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
 import { Monitor } from '../monitor/Monitor.js';
+import { MessageTracker } from '../tracker/MessageTracker.js';
 import { getRawBalances } from '../utils/balanceUtils.js';
 
 export interface RebalancerServiceConfig {
@@ -100,6 +101,7 @@ export class RebalancerService {
   private strategy?: IStrategy;
   private rebalancer?: IRebalancer;
   private metrics?: Metrics;
+  private messageTracker?: MessageTracker;
   private mode: 'manual' | 'daemon';
 
   constructor(
@@ -157,6 +159,14 @@ export class RebalancerService {
       this.logger.warn(
         'Running in monitorOnly mode: no transactions will be executed.',
       );
+    }
+
+    // Create MessageTracker if explorer URL is configured
+    if (this.rebalancerConfig.explorerUrl) {
+      this.messageTracker = this.contextFactory.createMessageTracker(
+        this.rebalancerConfig.explorerUrl,
+      );
+      this.logger.info('MessageTracker enabled for inflight context');
     }
 
     this.logger.info('✅ RebalancerService initialized successfully');
@@ -287,12 +297,28 @@ export class RebalancerService {
     }
 
     const rawBalances = getRawBalances(
-      Object.keys(this.rebalancerConfig.strategyConfig.chains),
+      this.getConfiguredChains(),
       event,
       this.logger,
     );
 
-    const rebalancingRoutes = this.strategy!.getRebalancingRoutes(rawBalances);
+    // Fetch inflight context if MessageTracker is available
+    let inflightContext: InflightContext | undefined;
+    if (this.messageTracker) {
+      try {
+        inflightContext = await this.messageTracker.getInflightContext();
+      } catch (error) {
+        this.logger.warn(
+          { error },
+          'Failed to fetch inflight context, proceeding without it',
+        );
+      }
+    }
+
+    const rebalancingRoutes = this.strategy!.getRebalancingRoutes(
+      rawBalances,
+      inflightContext,
+    );
 
     this.rebalancer
       ?.rebalance(rebalancingRoutes)
@@ -304,6 +330,26 @@ export class RebalancerService {
         this.metrics?.recordRebalancerFailure();
         this.logger.error({ error }, 'Error while rebalancing');
       });
+  }
+
+  /**
+   * Get all configured chain names from the strategy config
+   */
+  private getConfiguredChains(): string[] {
+    const config = this.rebalancerConfig.strategyConfig;
+
+    if (config.rebalanceStrategy === 'composite') {
+      // For composite strategies, collect unique chains from all sub-strategies
+      const chains = new Set<string>();
+      for (const subStrategy of (config as any).strategies) {
+        for (const chain of Object.keys(subStrategy.chains)) {
+          chains.add(chain);
+        }
+      }
+      return Array.from(chains);
+    }
+
+    return Object.keys(config.chains);
   }
 
   /**

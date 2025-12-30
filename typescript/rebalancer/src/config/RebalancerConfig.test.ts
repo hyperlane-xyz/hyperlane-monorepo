@@ -83,11 +83,12 @@ describe('RebalancerConfig', () => {
           },
         },
       },
+      explorerUrl: undefined,
     });
   });
 
   it('should throw if chains are not configured', () => {
-    data.strategy.chains = {};
+    (data.strategy as any).chains = {};
 
     writeYamlOrJson(TEST_CONFIG_PATH, data);
 
@@ -137,10 +138,11 @@ describe('RebalancerConfig', () => {
 
     writeYamlOrJson(TEST_CONFIG_PATH, data);
 
-    expect(
-      RebalancerConfig.load(TEST_CONFIG_PATH).strategyConfig.chains.chain1,
-    ).to.deep.equal({
-      ...data.strategy.chains.chain1,
+    const loadedConfig = RebalancerConfig.load(TEST_CONFIG_PATH);
+    const loadedChains = (loadedConfig.strategyConfig as any).chains;
+    const inputChains = (data.strategy as any).chains;
+    expect(loadedChains.chain1).to.deep.equal({
+      ...inputChains.chain1,
       bridgeLockTime: 1_000,
     });
   });
@@ -175,10 +177,11 @@ describe('RebalancerConfig', () => {
 
     writeYamlOrJson(TEST_CONFIG_PATH, data);
 
-    expect(
-      RebalancerConfig.load(TEST_CONFIG_PATH).strategyConfig.chains.chain1,
-    ).to.deep.equal({
-      ...data.strategy.chains.chain1,
+    const loadedConfig2 = RebalancerConfig.load(TEST_CONFIG_PATH);
+    const loadedChains2 = (loadedConfig2.strategyConfig as any).chains;
+    const inputChains2 = (data.strategy as any).chains;
+    expect(loadedChains2.chain1).to.deep.equal({
+      ...inputChains2.chain1,
       bridgeLockTime: 1_000,
     });
   });
@@ -229,9 +232,10 @@ describe('RebalancerConfig', () => {
       writeYamlOrJson(TEST_CONFIG_PATH, data);
 
       const config = RebalancerConfig.load(TEST_CONFIG_PATH);
-      expect(config.strategyConfig.chains.chain1).to.have.property('override');
+      const chains = (config.strategyConfig as any).chains;
+      expect(chains.chain1).to.have.property('override');
 
-      const override = config.strategyConfig.chains.chain1.override;
+      const override = chains.chain1.override;
       expect(override).to.not.be.undefined;
       expect(override).to.have.property('chain2');
 
@@ -326,7 +330,8 @@ describe('RebalancerConfig', () => {
     });
 
     it('should allow multiple chain overrides', () => {
-      data.strategy.chains.chain1 = {
+      const inputChains = (data.strategy as any).chains;
+      inputChains.chain1 = {
         bridge: ethers.constants.AddressZero,
         bridgeMinAcceptedAmount: 3000,
         bridgeLockTime: 1,
@@ -344,7 +349,7 @@ describe('RebalancerConfig', () => {
         },
       };
 
-      data.strategy.chains.chain2 = {
+      inputChains.chain2 = {
         bridge: ethers.constants.AddressZero,
         bridgeMinAcceptedAmount: 5000,
         bridgeLockTime: 1,
@@ -354,7 +359,7 @@ describe('RebalancerConfig', () => {
         },
       };
 
-      data.strategy.chains.chain3 = {
+      inputChains.chain3 = {
         bridge: ethers.constants.AddressZero,
         bridgeMinAcceptedAmount: 6000,
         bridgeLockTime: 1,
@@ -367,8 +372,8 @@ describe('RebalancerConfig', () => {
       writeYamlOrJson(TEST_CONFIG_PATH, data);
 
       const config = RebalancerConfig.load(TEST_CONFIG_PATH);
-
-      const chain1Overrides = config.strategyConfig.chains.chain1.override;
+      const configChains = (config.strategyConfig as any).chains;
+      const chain1Overrides = configChains.chain1.override;
       expect(chain1Overrides).to.not.be.undefined;
       expect(chain1Overrides).to.have.property('chain2');
       expect(chain1Overrides).to.have.property('chain3');

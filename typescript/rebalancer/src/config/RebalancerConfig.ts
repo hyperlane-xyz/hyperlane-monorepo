@@ -3,6 +3,7 @@ import { fromZodError } from 'zod-validation-error';
 import {
   type RebalancerConfigFileInput,
   RebalancerConfigSchema,
+  RebalancerStrategyOptions,
   type StrategyConfig,
 } from '@hyperlane-xyz/sdk';
 import { isObjEmpty } from '@hyperlane-xyz/utils';
@@ -12,6 +13,7 @@ export class RebalancerConfig {
   constructor(
     public readonly warpRouteId: string,
     public readonly strategyConfig: StrategyConfig,
+    public readonly explorerUrl?: string,
   ) {}
 
   /**
@@ -27,12 +29,19 @@ export class RebalancerConfig {
       throw new Error(fromZodError(validationResult.error).message);
     }
 
-    const { warpRouteId, strategy } = validationResult.data;
+    const { warpRouteId, strategy, explorerUrl } = validationResult.data;
 
-    if (isObjEmpty(strategy.chains)) {
+    // For composite strategies, check each sub-strategy
+    if (strategy.rebalanceStrategy === RebalancerStrategyOptions.Composite) {
+      for (const subStrategy of strategy.strategies) {
+        if (isObjEmpty(subStrategy.chains)) {
+          throw new Error('No chains configured in sub-strategy');
+        }
+      }
+    } else if (isObjEmpty(strategy.chains)) {
       throw new Error('No chains configured');
     }
 
-    return new RebalancerConfig(warpRouteId, strategy);
+    return new RebalancerConfig(warpRouteId, strategy, explorerUrl);
   }
 }

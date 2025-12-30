@@ -5,6 +5,7 @@ import {
   type ChainMap,
   MultiProtocolProvider,
   MultiProvider,
+  RebalancerStrategyOptions,
   type Token,
   WarpCore,
 } from '@hyperlane-xyz/sdk';
@@ -19,6 +20,7 @@ import { Metrics } from '../metrics/Metrics.js';
 import { PriceGetter } from '../metrics/PriceGetter.js';
 import { Monitor } from '../monitor/Monitor.js';
 import { StrategyFactory } from '../strategy/StrategyFactory.js';
+import { MessageTracker, type MessageTrackerConfig } from '../tracker/index.js';
 import { isCollateralizedTokenEligibleForRebalancing } from '../utils/index.js';
 
 export class RebalancerContextFactory {
@@ -28,6 +30,7 @@ export class RebalancerContextFactory {
    * @param tokensByChainName - A map of chain->token to ease the lookup of token by chain
    * @param multiProvider - MultiProvider instance
    * @param registry - IRegistry instance
+   * @param mailboxAddresses - Mailbox addresses by chain
    * @param logger - Logger instance
    */
   private constructor(
@@ -36,6 +39,7 @@ export class RebalancerContextFactory {
     private readonly tokensByChainName: ChainMap<Token>,
     private readonly multiProvider: MultiProvider,
     private readonly registry: IRegistry,
+    private readonly mailboxAddresses: ChainMap<string>,
     private readonly logger: Logger,
   ) {}
 
@@ -64,6 +68,10 @@ export class RebalancerContextFactory {
     // The Sealevel warp adapters require the Mailbox address, so we
     // get mailboxes for all chains and merge them with the chain metadata.
     const mailboxes = objMap(addresses, (_, { mailbox }) => ({ mailbox }));
+    const mailboxAddresses: ChainMap<string> = objMap(
+      addresses,
+      (_, { mailbox }) => mailbox,
+    );
 
     // Create MultiProtocolProvider (convert from MultiProvider if not provided)
     const mpp =
@@ -94,6 +102,7 @@ export class RebalancerContextFactory {
       tokensByChainName,
       multiProvider,
       registry,
+      mailboxAddresses,
       logger,
     );
   }
@@ -162,13 +171,12 @@ export class RebalancerContextFactory {
       { warpRouteId: this.config.warpRouteId },
       'Creating Rebalancer',
     );
+
+    // Build bridge config from strategy, handling composite strategies
+    const bridgeConfig = this.buildBridgeConfig();
+
     const rebalancer = new Rebalancer(
-      objMap(this.config.strategyConfig.chains, (_, v) => ({
-        bridge: v.bridge,
-        bridgeMinAcceptedAmount: v.bridgeMinAcceptedAmount ?? 0,
-        bridgeIsWarp: v.bridgeIsWarp ?? false,
-        override: v.override,
-      })),
+      bridgeConfig,
       this.warpCore,
       this.multiProvider.metadata,
       this.tokensByChainName,
@@ -190,7 +198,7 @@ export class RebalancerContextFactory {
   private async getInitialTotalCollateral(): Promise<bigint> {
     let initialTotalCollateral = 0n;
 
-    const chainNames = new Set(Object.keys(this.config.strategyConfig.chains));
+    const chainNames = this.getConfiguredChains();
 
     await Promise.all(
       this.warpCore.tokens.map(async (token) => {
@@ -206,5 +214,155 @@ export class RebalancerContextFactory {
     );
 
     return initialTotalCollateral;
+  }
+
+  /**
+   * Create a MessageTracker for tracking inflight messages
+   * @param explorerUrl - The Explorer GraphQL API URL
+   */
+  public createMessageTracker(explorerUrl: string): MessageTracker {
+    this.logger.debug(
+      { warpRouteId: this.config.warpRouteId, explorerUrl },
+      'Creating MessageTracker',
+    );
+
+    const config = this.buildMessageTrackerConfig(explorerUrl);
+    return new MessageTracker(config, this.multiProvider, this.logger);
+  }
+
+  /**
+   * Build MessageTracker configuration from rebalancer config
+   */
+  private buildMessageTrackerConfig(explorerUrl: string): MessageTrackerConfig {
+    const routerAddresses: ChainMap<string> = {};
+    const bridgeAddresses: ChainMap<string> = {};
+    const domainIds: ChainMap<number> = {};
+
+    // Get router addresses from warp core tokens
+    for (const token of this.warpCore.tokens) {
+      if (token.addressOrDenom) {
+        routerAddresses[token.chainName] = token.addressOrDenom;
+      }
+
+      // Get domain ID from chain metadata
+      const chainMetadata = this.multiProvider.getChainMetadata(
+        token.chainName,
+      );
+      if (chainMetadata?.domainId) {
+        domainIds[token.chainName] = chainMetadata.domainId;
+      }
+    }
+
+    // Get bridge addresses from strategy config
+    const strategyConfig = this.config.strategyConfig;
+
+    if (
+      strategyConfig.rebalanceStrategy === RebalancerStrategyOptions.Composite
+    ) {
+      // For composite strategies, collect bridges from all sub-strategies
+      for (const subStrategy of (strategyConfig as any).strategies) {
+        for (const [chainName, chainConfig] of Object.entries(
+          subStrategy.chains,
+        )) {
+          if ((chainConfig as any).bridge) {
+            bridgeAddresses[chainName] = (chainConfig as any).bridge;
+          }
+        }
+      }
+    } else {
+      // For single strategies
+      for (const [chainName, chainConfig] of Object.entries(
+        strategyConfig.chains,
+      )) {
+        if ((chainConfig as any).bridge) {
+          bridgeAddresses[chainName] = (chainConfig as any).bridge;
+        }
+      }
+    }
+
+    // Get rebalancer address (signer address)
+    const signerAddress =
+      this.multiProvider
+        .getSigner(Object.keys(routerAddresses)[0])
+        ?.getAddress?.() ?? '';
+
+    return {
+      explorerUrl,
+      routerAddresses,
+      bridgeAddresses,
+      domainIds,
+      mailboxAddresses: this.mailboxAddresses,
+      rebalancerAddress: signerAddress instanceof Promise ? '' : signerAddress,
+    };
+  }
+
+  /**
+   * Build bridge config from strategy, handling composite strategies
+   */
+  private buildBridgeConfig(): ChainMap<{
+    bridge: string;
+    bridgeMinAcceptedAmount: string | number;
+    bridgeIsWarp: boolean;
+    override?: Record<string, any>;
+  }> {
+    const strategyConfig = this.config.strategyConfig;
+    const result: ChainMap<{
+      bridge: string;
+      bridgeMinAcceptedAmount: string | number;
+      bridgeIsWarp: boolean;
+      override?: Record<string, any>;
+    }> = {};
+
+    if (
+      strategyConfig.rebalanceStrategy === RebalancerStrategyOptions.Composite
+    ) {
+      // Collect bridge configs from all sub-strategies
+      for (const subStrategy of (strategyConfig as any).strategies) {
+        for (const [chainName, chainConfig] of Object.entries(
+          subStrategy.chains,
+        )) {
+          const config = chainConfig as any;
+          // Use first encountered config for each chain
+          if (!result[chainName]) {
+            result[chainName] = {
+              bridge: config.bridge,
+              bridgeMinAcceptedAmount: config.bridgeMinAcceptedAmount ?? 0,
+              bridgeIsWarp: config.bridgeIsWarp ?? false,
+              override: config.override,
+            };
+          }
+        }
+      }
+      return result;
+    }
+
+    // Single strategy
+    return objMap(strategyConfig.chains, (_, v) => ({
+      bridge: v.bridge,
+      bridgeMinAcceptedAmount: v.bridgeMinAcceptedAmount ?? 0,
+      bridgeIsWarp: v.bridgeIsWarp ?? false,
+      override: v.override,
+    }));
+  }
+
+  /**
+   * Get set of configured chain names, handling both single and composite strategies
+   */
+  private getConfiguredChains(): Set<string> {
+    const strategyConfig = this.config.strategyConfig;
+
+    if (
+      strategyConfig.rebalanceStrategy === RebalancerStrategyOptions.Composite
+    ) {
+      const chains = new Set<string>();
+      for (const subStrategy of (strategyConfig as any).strategies) {
+        for (const chain of Object.keys(subStrategy.chains)) {
+          chains.add(chain);
+        }
+      }
+      return chains;
+    }
+
+    return new Set(Object.keys(strategyConfig.chains));
   }
 }

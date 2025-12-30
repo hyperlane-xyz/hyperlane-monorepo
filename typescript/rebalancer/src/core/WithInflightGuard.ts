@@ -1,6 +1,10 @@
 import type { Logger } from 'pino';
 
-import { ChainMetadataManager } from '@hyperlane-xyz/sdk';
+import {
+  ChainMetadataManager,
+  RebalancerStrategyOptions,
+  type SingleStrategyConfig,
+} from '@hyperlane-xyz/sdk';
 
 import { RebalancerConfig } from '../config/RebalancerConfig.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
@@ -30,10 +34,7 @@ export class WithInflightGuard implements IRebalancer {
       return this.rebalancer.rebalance(routes);
     }
 
-    const chains = Object.keys(this.config.strategyConfig.chains);
-    const bridges = chains.map(
-      (chain) => this.config.strategyConfig.chains[chain].bridge,
-    );
+    const { chains, bridges } = this.getChainsAndBridges();
     const domains = chains.map((chain) => this.chainManager.getDomainId(chain));
 
     let hasInflightRebalances = false;
@@ -63,5 +64,35 @@ export class WithInflightGuard implements IRebalancer {
     }
 
     return this.rebalancer.rebalance(routes);
+  }
+
+  /**
+   * Get chains and bridges from strategy config, handling composite strategies
+   */
+  private getChainsAndBridges(): { chains: string[]; bridges: string[] } {
+    const strategyConfig = this.config.strategyConfig;
+
+    if (
+      strategyConfig.rebalanceStrategy === RebalancerStrategyOptions.Composite
+    ) {
+      const chains = new Set<string>();
+      const bridges = new Set<string>();
+
+      for (const subStrategy of (strategyConfig as any)
+        .strategies as SingleStrategyConfig[]) {
+        for (const [chain, config] of Object.entries(subStrategy.chains)) {
+          chains.add(chain);
+          bridges.add(config.bridge);
+        }
+      }
+
+      return { chains: Array.from(chains), bridges: Array.from(bridges) };
+    }
+
+    const chains = Object.keys(strategyConfig.chains);
+    const bridgesArr = chains.map(
+      (chain) => strategyConfig.chains[chain].bridge,
+    );
+    return { chains, bridges: bridgesArr };
   }
 }
