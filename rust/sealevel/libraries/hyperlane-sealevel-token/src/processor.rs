@@ -612,7 +612,7 @@ where
         // See `SimulationReturnData` for details.
         let bytes = SimulationReturnData::new(accounts)
             .try_to_vec()
-            .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+            .map_err(|_err| ProgramError::BorshIoError)?;
         set_return_data(&bytes[..]);
 
         Ok(())
@@ -783,7 +783,7 @@ where
         // See `SimulationReturnData` for details.
         let bytes = SimulationReturnData::new(account_metas)
             .try_to_vec()
-            .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+            .map_err(|_err| ProgramError::BorshIoError)?;
         set_return_data(&bytes[..]);
 
         Ok(())

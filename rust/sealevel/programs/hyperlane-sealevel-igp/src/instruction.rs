@@ -49,8 +49,7 @@ impl Instruction {
 
     /// Serializes an instruction into a vector of bytes.
     pub fn into_instruction_data(self) -> Result<Vec<u8>, ProgramError> {
-        self.try_to_vec()
-            .map_err(|err| ProgramError::BorshIoError(err.to_string()))
+        self.try_to_vec().map_err(|_err| ProgramError::BorshIoError)
     }
 }
 

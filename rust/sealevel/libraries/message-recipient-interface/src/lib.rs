@@ -99,7 +99,7 @@ impl MessageRecipientInstruction {
                 buf.extend_from_slice(
                     &instruction
                         .try_to_vec()
-                        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?[..],
+                        .map_err(|_err| ProgramError::BorshIoError)?[..],
                 );
             }
             MessageRecipientInstruction::HandleAccountMetas(instruction) => {
@@ -107,7 +107,7 @@ impl MessageRecipientInstruction {
                 buf.extend_from_slice(
                     &instruction
                         .try_to_vec()
-                        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?[..],
+                        .map_err(|_err| ProgramError::BorshIoError)?[..],
                 );
             }
         }
@@ -127,12 +127,12 @@ impl MessageRecipientInstruction {
             }
             HANDLE_DISCRIMINATOR_SLICE => {
                 let instruction = HandleInstruction::try_from_slice(rest)
-                    .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+                    .map_err(|_err| ProgramError::BorshIoError)?;
                 Ok(Self::Handle(instruction))
             }
             HANDLE_ACCOUNT_METAS_DISCRIMINATOR_SLICE => {
                 let instruction = HandleInstruction::try_from_slice(rest)
-                    .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+                    .map_err(|_err| ProgramError::BorshIoError)?;
                 Ok(Self::HandleAccountMetas(instruction))
             }
             _ => Err(ProgramError::InvalidInstructionData),

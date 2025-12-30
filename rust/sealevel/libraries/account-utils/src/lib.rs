@@ -118,10 +118,10 @@ where
                     Err(err) => match err.kind() {
                         std::io::ErrorKind::WriteZero => {
                             if !allow_realloc {
-                                return Err(ProgramError::BorshIoError(err.to_string()));
+                                return Err(ProgramError::BorshIoError);
                             }
                         }
-                        _ => return Err(ProgramError::BorshIoError(err.to_string())),
+                        _ => return Err(ProgramError::BorshIoError),
                     },
                 };
 
