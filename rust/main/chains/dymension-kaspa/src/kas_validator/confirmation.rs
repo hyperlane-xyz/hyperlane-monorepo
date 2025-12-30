@@ -5,13 +5,28 @@ use dym_kas_api::models::{TxModel, TxOutput};
 use dym_kas_core::api::client::HttpClient;
 use dym_kas_core::finality::is_safe_against_reorg;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
+use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::TransactionOutpoint as ProtoTransactionOutpoint;
 use kaspa_addresses::Address;
 use kaspa_consensus_core::tx::TransactionOutpoint;
 use kaspa_hashes::Hash as KaspaHash;
 use std::collections::HashSet;
 use tracing::info;
 
-// FIXME: add address validation
+fn proto_to_outpoint(
+    proto: Option<&ProtoTransactionOutpoint>,
+) -> Result<TransactionOutpoint, ValidationError> {
+    let o = proto.ok_or(ValidationError::OutpointMissing {
+        description: "outpoint in progress indication".to_string(),
+    })?;
+    Ok(TransactionOutpoint {
+        transaction_id: KaspaHash::from_bytes(o.transaction_id.as_slice().try_into().map_err(
+            |e| ValidationError::InvalidOutpointData {
+                reason: format!("invalid transaction ID: {}", e),
+            },
+        )?),
+        index: o.index,
+    })
+}
 
 /// Validator is given a progress indication to sign, and a cache of outpoints,
 /// that should start from the current hub anchor and end with the new one.
@@ -26,37 +41,8 @@ pub async fn validate_confirmed_withdrawals(
 
     let untrusted_progress = &fxg.progress_indication;
 
-    let proposed_hub_anchor_old = {
-        let o = untrusted_progress.old_outpoint.as_ref().ok_or_else(|| {
-            ValidationError::OutpointMissing {
-                description: "old outpoint in progress indication".to_string(),
-            }
-        })?;
-        TransactionOutpoint {
-            transaction_id: KaspaHash::from_bytes(o.transaction_id.as_slice().try_into().map_err(
-                |e| ValidationError::InvalidOutpointData {
-                    reason: format!("Invalid anchor outpoint transaction ID: {}", e),
-                },
-            )?),
-            index: o.index,
-        }
-    };
-
-    let proposed_hub_anchor_new = {
-        let o = untrusted_progress.new_outpoint.as_ref().ok_or_else(|| {
-            ValidationError::OutpointMissing {
-                description: "new outpoint in progress indication".to_string(),
-            }
-        })?;
-        TransactionOutpoint {
-            transaction_id: KaspaHash::from_bytes(o.transaction_id.as_slice().try_into().map_err(
-                |e| ValidationError::InvalidOutpointData {
-                    reason: format!("Invalid new outpoint transaction ID: {}", e),
-                },
-            )?),
-            index: o.index,
-        }
-    };
+    let proposed_hub_anchor_old = proto_to_outpoint(untrusted_progress.old_outpoint.as_ref())?;
+    let proposed_hub_anchor_new = proto_to_outpoint(untrusted_progress.new_outpoint.as_ref())?;
 
     // Validate the progress indication is correct according to the cache
     let outpoint_sequence = &fxg.outpoints;
