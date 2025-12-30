@@ -1,9 +1,8 @@
 import { expect } from 'chai';
 import { existsSync, readFileSync, readdirSync } from 'fs';
 
+import { IsmType, ModuleType } from '@hyperlane-xyz/sdk';
 import { SignatureLike } from '@hyperlane-xyz/utils';
-
-import { IsmType, ModuleType } from '../types.js';
 
 import { MultisigMetadata, MultisigMetadataBuilder } from './multisig.js';
 import { Fixture } from './types.test.js';

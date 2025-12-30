@@ -2,17 +2,16 @@ import {
   DefaultFallbackRoutingIsm__factory,
   IRoutingIsm__factory,
 } from '@hyperlane-xyz/core';
-import { WithAddress, assert } from '@hyperlane-xyz/utils';
-
-import { ChainName } from '../../types.js';
-import { EvmIsmReader } from '../EvmIsmReader.js';
 import {
+  ChainName,
   DerivedIsmConfig,
   DomainRoutingIsmConfig,
+  EvmIsmReader,
   IsmType,
   RoutingIsmConfig,
   isDynamicallyRoutedIsmType,
-} from '../types.js';
+} from '@hyperlane-xyz/sdk';
+import { WithAddress, assert } from '@hyperlane-xyz/utils';
 
 import type { BaseMetadataBuilder } from './builder.js';
 import { decodeIsmMetadata } from './decode.js';

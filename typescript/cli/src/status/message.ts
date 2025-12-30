@@ -1,11 +1,11 @@
 import type { TransactionReceipt } from '@ethersproject/providers';
 import { input } from '@inquirer/prompts';
 
+import { HyperlaneRelayer } from '@hyperlane-xyz/relayer';
 import {
   ChainName,
   DispatchedMessage,
   HyperlaneCore,
-  HyperlaneRelayer,
 } from '@hyperlane-xyz/sdk';
 
 import { CommandContext, WriteCommandContext } from '../context/types.js';
