@@ -1,5 +1,5 @@
-use crate::kas_relayer::withdraw::minimum::is_dust_message;
-use crate::kas_relayer::KaspaBridgeMetrics;
+use crate::relayer::withdraw::minimum::is_dust_message;
+use crate::relayer::KaspaBridgeMetrics;
 use hyperlane_core::{HyperlaneMessage, U256};
 use std::collections::HashSet;
 use tracing::info;

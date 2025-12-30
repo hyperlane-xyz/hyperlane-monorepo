@@ -20,9 +20,9 @@ mod endpoints;
 mod util;
 mod withdrawal_utils;
 
-pub mod kas_relayer;
-pub mod kas_validator;
 pub mod ops;
+pub mod relayer;
+pub mod validator;
 
 // Direct reexports of lib stuff:
 pub use consts as hl_domains;
@@ -34,6 +34,7 @@ pub use ops::message as hl_message;
 pub use util::*;
 
 pub use {
-    self::conf::*, self::error::*, self::indexers::*, self::ism::*, self::kas_validator::server::*,
-    self::mailbox::*, self::providers::*, self::validator_announce::*, self::withdrawal_utils::*,
+    self::conf::*, self::error::*, self::indexers::*, self::ism::*, self::mailbox::*,
+    self::providers::*, self::validator::server::*, self::validator_announce::*,
+    self::withdrawal_utils::*,
 };

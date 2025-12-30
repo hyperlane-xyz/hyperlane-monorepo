@@ -1,4 +1,4 @@
-use dymension_kaspa::kas_relayer::deposit::KaspaTxError;
+use dymension_kaspa::relayer::deposit::KaspaTxError;
 use hyperlane_core::ChainCommunicationError;
 use thiserror::Error;
 

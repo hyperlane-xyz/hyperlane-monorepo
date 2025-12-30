@@ -1,10 +1,10 @@
 // We call the signers 'validators'
 
 use crate::consts::ALLOWED_HL_MESSAGE_VERSION;
-use crate::kas_validator::error::{validate_hl_message_fields, ValidationError};
 use crate::ops::addr::h256_to_script_pubkey;
 use crate::ops::payload::MessageIDs;
 use crate::ops::withdraw::{filter_pending_withdrawals, WithdrawFXG};
+use crate::validator::error::{validate_hl_message_fields, ValidationError};
 use dym_kas_core::escrow::*;
 use dym_kas_core::pskt::is_valid_sighash_type;
 use eyre::Result;
