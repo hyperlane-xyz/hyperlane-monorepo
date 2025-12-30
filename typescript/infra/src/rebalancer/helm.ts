@@ -6,6 +6,9 @@ import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import {
   type RebalancerConfigFileInput,
   RebalancerConfigSchema,
+  RebalancerStrategyOptions,
+  type SingleStrategyConfig,
+  type StrategyConfig,
 } from '@hyperlane-xyz/sdk';
 import { isObjEmpty } from '@hyperlane-xyz/utils';
 import { readYaml } from '@hyperlane-xyz/utils/fs';
@@ -15,6 +18,27 @@ import { DeployEnvironment } from '../config/environment.js';
 import { WARP_ROUTE_MONITOR_HELM_RELEASE_PREFIX } from '../utils/consts.js';
 import { HelmManager, getHelmReleaseName } from '../utils/helm.js';
 import { getInfraPath } from '../utils/utils.js';
+
+/**
+ * Extract chain names from a strategy config, handling both single and composite strategies.
+ */
+function getChainsFromStrategyConfig(
+  strategyConfig: StrategyConfig,
+): Record<string, unknown> {
+  if (
+    strategyConfig.rebalanceStrategy === RebalancerStrategyOptions.Composite
+  ) {
+    // Composite strategy: collect chains from all sub-strategies
+    const chains: Record<string, unknown> = {};
+    for (const subStrategy of strategyConfig.strategies as SingleStrategyConfig[]) {
+      Object.assign(chains, subStrategy.chains);
+    }
+    return chains;
+  }
+
+  // Single strategy: chains are directly on the config
+  return strategyConfig.chains;
+}
 
 export class RebalancerHelmManager extends HelmManager {
   static helmReleasePrefix: string = 'hyperlane-rebalancer';
@@ -66,7 +90,7 @@ export class RebalancerHelmManager extends HelmManager {
       throw new Error(fromZodError(validationResult.error).message);
     }
 
-    const { chains } = validationResult.data.strategy;
+    const chains = getChainsFromStrategyConfig(validationResult.data.strategy);
     if (isObjEmpty(chains)) {
       throw new Error('No chains configured');
     }
