@@ -1,7 +1,7 @@
 use crate::consts::ALLOWED_HL_MESSAGE_VERSION;
-use crate::kas_validator::error::{validate_hl_message_fields, ValidationError};
 use crate::ops::deposit::DepositFXG;
 use crate::ops::message::{add_kaspa_metadata_hl_messsage, ParsedHL};
+use crate::validator::error::{validate_hl_message_fields, ValidationError};
 use dym_kas_core::api::client::HttpClient;
 use dym_kas_core::finality::is_safe_against_reorg;
 use dym_kas_core::wallet::NetworkInfo;

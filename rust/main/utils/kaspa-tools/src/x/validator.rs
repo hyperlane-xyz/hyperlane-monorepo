@@ -1,5 +1,5 @@
 use dym_kas_core::escrow::generate_escrow_priv_key;
-use dymension_kaspa::kas_validator::signer::get_ethereum_style_signer;
+use dymension_kaspa::validator::signer::get_ethereum_style_signer;
 use secp256k1::PublicKey;
 use serde::Serialize;
 use std::fs;

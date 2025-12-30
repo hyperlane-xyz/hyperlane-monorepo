@@ -1,5 +1,5 @@
 use super::consts::*;
-use crate::kas_relayer::withdraw::minimum::is_small_value;
+use crate::relayer::withdraw::minimum::is_small_value;
 use crate::withdrawal_utils::{
     calculate_failed_indexes, record_withdrawal_batch_metrics, WithdrawalStage,
 };

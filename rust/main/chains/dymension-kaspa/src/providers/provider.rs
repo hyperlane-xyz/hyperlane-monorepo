@@ -1,10 +1,10 @@
 use super::confirmation_queue::PendingConfirmation;
 use super::validators::ValidatorsClient;
 use super::RestProvider;
-use crate::kas_relayer::withdraw::hub_to_kaspa::combine_bundles_with_fee;
-use crate::kas_relayer::withdraw::messages::on_new_withdrawals;
-use crate::kas_relayer::KaspaBridgeMetrics;
 use crate::ops::confirmation::ConfirmationFXG;
+use crate::relayer::withdraw::hub_to_kaspa::combine_bundles_with_fee;
+use crate::relayer::withdraw::messages::on_new_withdrawals;
+use crate::relayer::KaspaBridgeMetrics;
 use crate::util::domain_to_kas_network;
 use crate::withdrawal_utils::{record_withdrawal_batch_metrics, WithdrawalStage};
 use crate::ConnectionConf;
