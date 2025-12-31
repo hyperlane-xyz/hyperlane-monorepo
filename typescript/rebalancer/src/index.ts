@@ -44,6 +44,8 @@ export type {
 export { BaseStrategy } from './strategy/BaseStrategy.js';
 export { WeightedStrategy } from './strategy/WeightedStrategy.js';
 export { MinAmountStrategy } from './strategy/MinAmountStrategy.js';
+export { CollateralDeficitStrategy } from './strategy/CollateralDeficitStrategy.js';
+export type { CollateralDeficitStrategyConfig } from './strategy/CollateralDeficitStrategy.js';
 export { StrategyFactory } from './strategy/StrategyFactory.js';
 
 // Tracker
