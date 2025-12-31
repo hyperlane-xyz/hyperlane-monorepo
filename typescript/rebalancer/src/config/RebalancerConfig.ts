@@ -1,13 +1,12 @@
 import { fromZodError } from 'zod-validation-error';
 
-import { isObjEmpty } from '@hyperlane-xyz/utils';
 import { readYamlOrJson } from '@hyperlane-xyz/utils/fs';
 
 import {
-  getStrategyChainNames,
   type RebalancerConfigFileInput,
   RebalancerConfigSchema,
   type StrategyConfig,
+  getStrategyChainNames,
 } from './types.js';
 
 export class RebalancerConfig {

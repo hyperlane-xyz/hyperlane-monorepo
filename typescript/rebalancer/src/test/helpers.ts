@@ -1,7 +1,10 @@
 import { ethers } from 'ethers';
 
 import type { RebalancerConfig } from '../config/RebalancerConfig.js';
-import { RebalancerStrategyOptions, type WeightedStrategy } from '../config/types.js';
+import {
+  RebalancerStrategyOptions,
+  type WeightedStrategy,
+} from '../config/types.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type { RebalancingRoute } from '../interfaces/IStrategy.js';
 

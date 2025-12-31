@@ -7,12 +7,14 @@ import {
   MultiProvider,
   type Token,
   WarpCore,
-  getStrategyChainConfig,
-  getStrategyChainNames,
 } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { RebalancerConfig } from '../config/RebalancerConfig.js';
+import {
+  getStrategyChainConfig,
+  getStrategyChainNames,
+} from '../config/types.js';
 import { DEFAULT_EXPLORER_URL } from '../consts.js';
 import { Rebalancer } from '../core/Rebalancer.js';
 import { WithSemaphore } from '../core/WithSemaphore.js';
