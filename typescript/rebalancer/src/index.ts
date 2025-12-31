@@ -36,7 +36,24 @@ export {
   MessageTracker,
   type MessageTrackerConfig,
   type InflightMessage,
+  RebalanceTracker,
+  type Rebalance,
+  type RebalanceStatus,
+  type Execution,
+  type ExecutionType,
+  type ExecutionStatus,
+  type CreateRebalanceInput,
+  type CreateExecutionInput,
+  type RebalanceContext,
 } from './tracker/index.js';
+
+// Executor
+export { RebalanceExecutor } from './executor/RebalanceExecutor.js';
+export type {
+  InventoryConfig,
+  IInventoryProvider,
+  IInventoryBridge,
+} from './executor/RebalanceExecutor.js';
 
 // Monitor
 export { Monitor } from './monitor/Monitor.js';
