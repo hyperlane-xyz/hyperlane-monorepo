@@ -175,14 +175,18 @@ export class RebalanceExecutor {
       rebalance.origin,
     );
 
-    // Check if we have enough inventory after keeping minimum
-    const availableInventory = currentInventory - originConfig.minInventory;
+    // Calculate available inventory (clamped to 0 if below minimum)
+    const rawAvailable = currentInventory - originConfig.minInventory;
+    const availableInventory = rawAvailable > 0n ? rawAvailable : 0n;
+
     if (availableInventory >= rebalance.amount) {
       return [];
     }
 
     // Need to source inventory from other chains
-    const shortfall = rebalance.amount - availableInventory;
+    // Shortfall includes both the rebalance amount minus available,
+    // plus any deficit below minimum (when rawAvailable was negative)
+    const shortfall = rebalance.amount - rawAvailable;
     const movements: Array<{ fromChain: ChainName; amount: bigint }> = [];
 
     // Find chains with excess inventory
