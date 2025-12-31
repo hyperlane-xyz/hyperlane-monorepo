@@ -7,6 +7,8 @@ import {
   MultiProvider,
   type Token,
   WarpCore,
+  getStrategyChainConfig,
+  getStrategyChainNames,
 } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
@@ -167,13 +169,38 @@ export class RebalancerContextFactory {
       { warpRouteId: this.config.warpRouteId },
       'Creating Rebalancer',
     );
+
+    // Build chain config from strategy (supports both single and composite strategies)
+    const chainNames = getStrategyChainNames(this.config.strategyConfig);
+    const chainsConfig: ChainMap<{
+      bridge: string;
+      bridgeMinAcceptedAmount: string | number;
+      bridgeIsWarp: boolean;
+      override?: Record<
+        string,
+        {
+          bridge?: string;
+          bridgeLockTime?: number;
+          bridgeMinAcceptedAmount?: string | number;
+          bridgeIsWarp?: boolean;
+        }
+      >;
+    }> = {};
+
+    for (const chainName of chainNames) {
+      const cfg = getStrategyChainConfig(this.config.strategyConfig, chainName);
+      if (cfg) {
+        chainsConfig[chainName] = {
+          bridge: cfg.bridge,
+          bridgeMinAcceptedAmount: cfg.bridgeMinAcceptedAmount ?? 0,
+          bridgeIsWarp: cfg.bridgeIsWarp ?? false,
+          override: cfg.override,
+        };
+      }
+    }
+
     const rebalancer = new Rebalancer(
-      objMap(this.config.strategyConfig.chains, (_, v) => ({
-        bridge: v.bridge,
-        bridgeMinAcceptedAmount: v.bridgeMinAcceptedAmount ?? 0,
-        bridgeIsWarp: v.bridgeIsWarp ?? false,
-        override: v.override,
-      })),
+      chainsConfig,
       this.warpCore,
       this.multiProvider.metadata,
       this.tokensByChainName,
@@ -221,7 +248,9 @@ export class RebalancerContextFactory {
   private async getInitialTotalCollateral(): Promise<bigint> {
     let initialTotalCollateral = 0n;
 
-    const chainNames = new Set(Object.keys(this.config.strategyConfig.chains));
+    const chainNames = new Set(
+      getStrategyChainNames(this.config.strategyConfig),
+    );
 
     await Promise.all(
       this.warpCore.tokens.map(async (token) => {

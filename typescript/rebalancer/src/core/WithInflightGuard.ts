@@ -1,6 +1,10 @@
 import type { Logger } from 'pino';
 
-import { ChainMetadataManager } from '@hyperlane-xyz/sdk';
+import {
+  ChainMetadataManager,
+  getStrategyChainConfig,
+  getStrategyChainNames,
+} from '@hyperlane-xyz/sdk';
 
 import { RebalancerConfig } from '../config/RebalancerConfig.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
@@ -30,10 +34,13 @@ export class WithInflightGuard implements IRebalancer {
       return this.rebalancer.rebalance(routes);
     }
 
-    const chains = Object.keys(this.config.strategyConfig.chains);
-    const bridges = chains.map(
-      (chain) => this.config.strategyConfig.chains[chain].bridge,
-    );
+    const chains = getStrategyChainNames(this.config.strategyConfig);
+    const bridges = chains
+      .map(
+        (chain) =>
+          getStrategyChainConfig(this.config.strategyConfig, chain)?.bridge,
+      )
+      .filter((b): b is string => b !== undefined);
     const domains = chains.map((chain) => this.chainManager.getDomainId(chain));
 
     let hasInflightRebalances = false;
