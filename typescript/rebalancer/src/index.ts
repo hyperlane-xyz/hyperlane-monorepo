@@ -22,6 +22,7 @@ export { WithSemaphore } from './core/WithSemaphore.js';
 // Configuration
 export { RebalancerConfig } from './config/RebalancerConfig.js';
 export {
+  getStrategyChainNames,
   RebalancerBaseChainConfigSchema,
   RebalancerConfigSchema,
   RebalancerMinAmountConfigSchema,

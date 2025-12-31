@@ -1,12 +1,12 @@
 import type { Logger } from 'pino';
 
-import {
-  ChainMetadataManager,
-  getStrategyChainConfig,
-  getStrategyChainNames,
-} from '@hyperlane-xyz/sdk';
+import { ChainMetadataManager } from '@hyperlane-xyz/sdk';
 
 import { RebalancerConfig } from '../config/RebalancerConfig.js';
+import {
+  getStrategyChainConfig,
+  getStrategyChainNames,
+} from '../config/types.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type { RebalancingRoute } from '../interfaces/IStrategy.js';
 import { ExplorerClient } from '../utils/ExplorerClient.js';

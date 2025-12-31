@@ -8,9 +8,9 @@ import { writeYamlOrJson } from '@hyperlane-xyz/utils/fs';
 
 import { RebalancerConfig } from './RebalancerConfig.js';
 import {
-  getStrategyChainConfig,
   RebalancerMinAmountType,
   RebalancerStrategyOptions,
+  getStrategyChainConfig,
 } from './types.js';
 
 // Type for test config input (weighted strategy)
