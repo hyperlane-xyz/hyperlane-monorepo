@@ -9,7 +9,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { fromWei, toWei } from '@hyperlane-xyz/utils';
 
-import type { RawBalances } from '../interfaces/IStrategy.js';
+import type { RawBalances, RebalancingRoute } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
 
 import { BaseStrategy, type Delta } from './BaseStrategy.js';
@@ -68,8 +68,13 @@ export class MinAmountStrategy extends BaseStrategy {
    * Gets balances categorized by surplus and deficit based on minimum amounts and targets
    * - For absolute values: Uses exact token amounts
    * - For relative values: Uses percentages of total balance across all chains
+   * @param rawBalances Adjusted balances after collateral reservation
+   * @param _pendingRebalances Pending rebalances (unused in this strategy)
    */
-  protected getCategorizedBalances(rawBalances: RawBalances): {
+  protected getCategorizedBalances(
+    rawBalances: RawBalances,
+    _pendingRebalances: RebalancingRoute[],
+  ): {
     surpluses: Delta[];
     deficits: Delta[];
   } {

@@ -2,7 +2,7 @@ import { Logger } from 'pino';
 
 import type { WeightedStrategyConfig } from '@hyperlane-xyz/sdk';
 
-import type { RawBalances } from '../interfaces/IStrategy.js';
+import type { RawBalances, RebalancingRoute } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
 
 import { BaseStrategy, type Delta } from './BaseStrategy.js';
@@ -55,8 +55,13 @@ export class WeightedStrategy extends BaseStrategy {
 
   /**
    * Gets balances categorized by surplus and deficit based on weights
+   * @param rawBalances Adjusted balances after collateral reservation
+   * @param _pendingRebalances Pending rebalances (unused in this strategy)
    */
-  protected getCategorizedBalances(rawBalances: RawBalances): {
+  protected getCategorizedBalances(
+    rawBalances: RawBalances,
+    _pendingRebalances: RebalancingRoute[],
+  ): {
     surpluses: Delta[];
     deficits: Delta[];
   } {
