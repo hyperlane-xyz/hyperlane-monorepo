@@ -5,11 +5,11 @@ import {
   type MultiProtocolProvider,
   type MultiProvider,
   Token,
-  getStrategyChainNames,
 } from '@hyperlane-xyz/sdk';
 import { assert, toWei } from '@hyperlane-xyz/utils';
 
 import { RebalancerConfig } from '../config/RebalancerConfig.js';
+import { getStrategyChainNames } from '../config/types.js';
 import { RebalancerContextFactory } from '../factories/RebalancerContextFactory.js';
 import {
   MonitorEvent,

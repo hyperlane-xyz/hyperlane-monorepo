@@ -1,8 +1,7 @@
 import type { Logger } from 'pino';
 
-import { getStrategyChainConfig } from '@hyperlane-xyz/sdk';
-
 import { RebalancerConfig } from '../config/RebalancerConfig.js';
+import { getStrategyChainConfig } from '../config/types.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type { RebalancingRoute } from '../interfaces/IStrategy.js';
 
