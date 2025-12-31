@@ -1,11 +1,20 @@
 import { Logger } from 'pino';
 
 import { ChainMap, Token } from '@hyperlane-xyz/sdk';
+import { toWei } from '@hyperlane-xyz/utils';
 
-import { RebalancerStrategyOptions, StrategyConfig } from '../config/types.js';
+import {
+  type CollateralDeficitStrategy as CollateralDeficitParsedConfig,
+  RebalancerStrategyOptions,
+  StrategyConfig,
+} from '../config/types.js';
 import { type IStrategy } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
 
+import {
+  CollateralDeficitStrategy,
+  type CollateralDeficitStrategyConfig,
+} from './CollateralDeficitStrategy.js';
 import { MinAmountStrategy } from './MinAmountStrategy.js';
 import { WeightedStrategy } from './WeightedStrategy.js';
 
@@ -36,9 +45,44 @@ export class StrategyFactory {
           logger,
           metrics,
         );
+      case RebalancerStrategyOptions.CollateralDeficit:
+        return StrategyFactory.createCollateralDeficitStrategy(
+          strategyConfig as CollateralDeficitParsedConfig,
+          tokensByChainName,
+          logger,
+          metrics,
+        );
       default: {
         throw new Error('Unsupported strategy type');
       }
     }
+  }
+
+  /**
+   * Create a CollateralDeficitStrategy from config.
+   * Converts buffer from token units to wei.
+   */
+  private static createCollateralDeficitStrategy(
+    config: CollateralDeficitParsedConfig,
+    tokensByChainName: ChainMap<Token>,
+    logger: Logger,
+    metrics?: Metrics,
+  ): CollateralDeficitStrategy {
+    const chainConfig: CollateralDeficitStrategyConfig = {};
+
+    for (const [chainName, chainCfg] of Object.entries(config.chains)) {
+      const token = tokensByChainName[chainName];
+      const decimals = token?.decimals ?? 18;
+
+      chainConfig[chainName] = {
+        bridge: chainCfg.collateralDeficit.bridge,
+        // Convert buffer from token units to wei
+        buffer: BigInt(
+          toWei(chainCfg.collateralDeficit.buffer.toString(), decimals),
+        ),
+      };
+    }
+
+    return new CollateralDeficitStrategy(chainConfig, logger, metrics);
   }
 }
