@@ -192,17 +192,49 @@ export class RebalancerContextFactory {
   public createMessageTracker(
     explorerUrl: string = DEFAULT_EXPLORER_URL,
   ): MessageTracker {
+    // Get router addresses from warp tokens
+    const routerAddresses: ChainMap<string> = {};
+    for (const token of this.warpCore.tokens) {
+      if (token.addressOrDenom) {
+        routerAddresses[token.chainName] = token.addressOrDenom;
+      }
+    }
+
+    // Get bridge addresses from strategy config
+    const bridgeAddresses: ChainMap<string> = {};
+    for (const [chain, chainConfig] of Object.entries(
+      this.config.strategyConfig.chains,
+    )) {
+      if (chainConfig.bridge) {
+        bridgeAddresses[chain] = chainConfig.bridge;
+      }
+    }
+
+    // Get domain IDs from multiProvider metadata
+    const domainIds: ChainMap<number> = {};
+    for (const chain of Object.keys(this.config.strategyConfig.chains)) {
+      const metadata = this.multiProvider.getChainMetadata(chain);
+      if (metadata?.domainId !== undefined) {
+        domainIds[chain] = metadata.domainId;
+      }
+    }
+
     this.logger.debug(
       {
-        warpRouteId: this.config.warpRouteId,
         explorerUrl,
+        routerCount: Object.keys(routerAddresses).length,
+        bridgeCount: Object.keys(bridgeAddresses).length,
+        domainCount: Object.keys(domainIds).length,
       },
       'Creating MessageTracker',
     );
+
     return new MessageTracker(
       {
-        warpRouteId: this.config.warpRouteId,
         explorerUrl,
+        routerAddresses,
+        bridgeAddresses,
+        domainIds,
       },
       this.logger,
     );
