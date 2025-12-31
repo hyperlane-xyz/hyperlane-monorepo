@@ -35,8 +35,8 @@ export interface ActionTrackerConfig {
 export class ActionTracker implements IActionTracker {
   constructor(
     private readonly transferStore: ITransferStore,
-    private readonly intentStore: IRebalanceIntentStore,
-    private readonly actionStore: IRebalanceActionStore,
+    private readonly rebalanceIntentStore: IRebalanceIntentStore,
+    private readonly rebalanceActionStore: IRebalanceActionStore,
     private readonly explorerClient: ExplorerClient,
     private readonly core: HyperlaneCore,
     private readonly config: ActionTrackerConfig,
@@ -137,10 +137,13 @@ export class ActionTracker implements IActionTracker {
     this.logger.debug('Syncing rebalance intents');
 
     // Check in_progress intents for completion
-    const inProgressIntents = await this.intentStore.getByStatus('in_progress');
+    const inProgressIntents =
+      await this.rebalanceIntentStore.getByStatus('in_progress');
     for (const intent of inProgressIntents) {
       if (intent.fulfilledAmount >= intent.amount) {
-        await this.intentStore.update(intent.id, { status: 'complete' });
+        await this.rebalanceIntentStore.update(intent.id, {
+          status: 'complete',
+        });
         this.logger.debug({ id: intent.id }, 'RebalanceIntent completed');
       }
     }
@@ -151,7 +154,8 @@ export class ActionTracker implements IActionTracker {
   async syncRebalanceActions(): Promise<void> {
     this.logger.debug('Syncing rebalance actions');
 
-    const inProgressActions = await this.actionStore.getByStatus('in_progress');
+    const inProgressActions =
+      await this.rebalanceActionStore.getByStatus('in_progress');
     for (const action of inProgressActions) {
       const delivered = await this.isMessageDelivered(
         action.messageId,
@@ -180,15 +184,17 @@ export class ActionTracker implements IActionTracker {
   // === RebalanceIntent Queries ===
 
   async getActiveRebalanceIntents(): Promise<RebalanceIntent[]> {
-    const notStarted = await this.intentStore.getByStatus('not_started');
-    const inProgress = await this.intentStore.getByStatus('in_progress');
+    const notStarted =
+      await this.rebalanceIntentStore.getByStatus('not_started');
+    const inProgress =
+      await this.rebalanceIntentStore.getByStatus('in_progress');
     return [...notStarted, ...inProgress];
   }
 
   async getRebalanceIntentsByDestination(
     destination: string,
   ): Promise<RebalanceIntent[]> {
-    return this.intentStore.getByDestination(destination);
+    return this.rebalanceIntentStore.getByDestination(destination);
   }
 
   // === RebalanceIntent Management ===
@@ -209,7 +215,7 @@ export class ActionTracker implements IActionTracker {
       updatedAt: Date.now(),
     };
 
-    await this.intentStore.save(intent);
+    await this.rebalanceIntentStore.save(intent);
     this.logger.debug(
       { id: intent.id, origin: intent.origin, destination: intent.destination },
       'Created RebalanceIntent',
@@ -219,12 +225,12 @@ export class ActionTracker implements IActionTracker {
   }
 
   async completeRebalanceIntent(id: string): Promise<void> {
-    await this.intentStore.update(id, { status: 'complete' });
+    await this.rebalanceIntentStore.update(id, { status: 'complete' });
     this.logger.debug({ id }, 'Completed RebalanceIntent');
   }
 
   async cancelRebalanceIntent(id: string): Promise<void> {
-    await this.intentStore.update(id, { status: 'cancelled' });
+    await this.rebalanceIntentStore.update(id, { status: 'cancelled' });
     this.logger.debug({ id }, 'Cancelled RebalanceIntent');
   }
 
@@ -246,12 +252,14 @@ export class ActionTracker implements IActionTracker {
       updatedAt: Date.now(),
     };
 
-    await this.actionStore.save(action);
+    await this.rebalanceActionStore.save(action);
 
     // Transition parent intent from not_started to in_progress
-    const intent = await this.intentStore.get(params.intentId);
+    const intent = await this.rebalanceIntentStore.get(params.intentId);
     if (intent && intent.status === 'not_started') {
-      await this.intentStore.update(intent.id, { status: 'in_progress' });
+      await this.rebalanceIntentStore.update(intent.id, {
+        status: 'in_progress',
+      });
       this.logger.debug(
         { intentId: intent.id },
         'Transitioned RebalanceIntent to in_progress',
@@ -267,24 +275,26 @@ export class ActionTracker implements IActionTracker {
   }
 
   async completeRebalanceAction(id: string): Promise<void> {
-    const action = await this.actionStore.get(id);
+    const action = await this.rebalanceActionStore.get(id);
     if (!action) {
       throw new Error(`RebalanceAction ${id} not found`);
     }
 
-    await this.actionStore.update(id, { status: 'complete' });
+    await this.rebalanceActionStore.update(id, { status: 'complete' });
 
     // Update parent intent's fulfilledAmount
-    const intent = await this.intentStore.get(action.intentId);
+    const intent = await this.rebalanceIntentStore.get(action.intentId);
     if (intent) {
       const newFulfilledAmount = intent.fulfilledAmount + action.amount;
-      await this.intentStore.update(intent.id, {
+      await this.rebalanceIntentStore.update(intent.id, {
         fulfilledAmount: newFulfilledAmount,
       });
 
       // Check if intent is now complete
       if (newFulfilledAmount >= intent.amount) {
-        await this.intentStore.update(intent.id, { status: 'complete' });
+        await this.rebalanceIntentStore.update(intent.id, {
+          status: 'complete',
+        });
         this.logger.debug(
           { intentId: intent.id },
           'RebalanceIntent fully fulfilled',
@@ -296,7 +306,7 @@ export class ActionTracker implements IActionTracker {
   }
 
   async failRebalanceAction(id: string): Promise<void> {
-    await this.actionStore.update(id, { status: 'failed' });
+    await this.rebalanceActionStore.update(id, { status: 'failed' });
     this.logger.debug({ id }, 'Failed RebalanceAction');
   }
 
@@ -326,7 +336,7 @@ export class ActionTracker implements IActionTracker {
 
   private async recoverAction(msg: ExplorerMessage): Promise<void> {
     // Check if action already exists
-    const existing = await this.actionStore.get(msg.msg_id);
+    const existing = await this.rebalanceActionStore.get(msg.msg_id);
     if (existing) {
       this.logger.debug({ id: msg.msg_id }, 'Action already exists, skipping');
       return;
@@ -346,7 +356,7 @@ export class ActionTracker implements IActionTracker {
       updatedAt: Date.now(),
     };
 
-    await this.intentStore.save(intent);
+    await this.rebalanceIntentStore.save(intent);
     this.logger.debug({ id: intent.id }, 'Created synthetic RebalanceIntent');
 
     // Create action
@@ -363,7 +373,7 @@ export class ActionTracker implements IActionTracker {
       updatedAt: Date.now(),
     };
 
-    await this.actionStore.save(action);
+    await this.rebalanceActionStore.save(action);
     this.logger.debug(
       { id: action.id, intentId: action.intentId },
       'Recovered RebalanceAction',
