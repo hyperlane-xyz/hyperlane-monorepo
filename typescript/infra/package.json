@@ -18,6 +18,7 @@
     "@hyperlane-xyz/core": "workspace:*",
     "@hyperlane-xyz/helloworld": "workspace:*",
     "@hyperlane-xyz/http-registry-server": "workspace:*",
+    "@hyperlane-xyz/rebalancer": "workspace:*",
     "@hyperlane-xyz/registry": "catalog:",
     "@hyperlane-xyz/sdk": "workspace:*",
     "@hyperlane-xyz/utils": "workspace:*",

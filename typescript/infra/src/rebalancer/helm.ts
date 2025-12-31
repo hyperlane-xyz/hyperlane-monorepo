@@ -2,11 +2,11 @@ import fs from 'fs';
 import path from 'path';
 import { fromZodError } from 'zod-validation-error';
 
-import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import {
   type RebalancerConfigFileInput,
   RebalancerConfigSchema,
-} from '@hyperlane-xyz/sdk';
+} from '@hyperlane-xyz/rebalancer';
+import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { isObjEmpty } from '@hyperlane-xyz/utils';
 import { readYaml } from '@hyperlane-xyz/utils/fs';
 

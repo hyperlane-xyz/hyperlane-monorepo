@@ -1405,6 +1405,9 @@ importers:
       '@hyperlane-xyz/http-registry-server':
         specifier: workspace:*
         version: link:../http-registry-server
+      '@hyperlane-xyz/rebalancer':
+        specifier: workspace:*
+        version: link:../rebalancer
       '@hyperlane-xyz/registry':
         specifier: 'catalog:'
         version: 23.7.0
