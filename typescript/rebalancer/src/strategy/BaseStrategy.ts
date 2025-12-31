@@ -4,6 +4,7 @@ import type { ChainName } from '@hyperlane-xyz/sdk';
 
 import type {
   IStrategy,
+  InflightContext,
   RawBalances,
   RebalancingRoute,
 } from '../interfaces/IStrategy.js';
@@ -31,12 +32,21 @@ export abstract class BaseStrategy implements IStrategy {
 
   /**
    * Main method to get rebalancing routes
+   * @param rawBalances Current on-chain balances
+   * @param _inflightContext Optional context about inflight messages (reserved for future use)
    */
-  getRebalancingRoutes(rawBalances: RawBalances): RebalancingRoute[] {
+  getRebalancingRoutes(
+    rawBalances: RawBalances,
+    _inflightContext?: InflightContext,
+  ): RebalancingRoute[] {
     this.logger.info(
       {
         context: this.constructor.name,
         rawBalances,
+        hasPendingTransfers:
+          (_inflightContext?.pendingTransfers.length ?? 0) > 0,
+        hasPendingRebalances:
+          (_inflightContext?.pendingRebalances.length ?? 0) > 0,
       },
       'Input rawBalances',
     );
