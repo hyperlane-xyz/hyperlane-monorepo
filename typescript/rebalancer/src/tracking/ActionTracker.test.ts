@@ -3,12 +3,7 @@ import chaiAsPromised from 'chai-as-promised';
 import { pino } from 'pino';
 import Sinon from 'sinon';
 
-import type { HyperlaneCore } from '@hyperlane-xyz/sdk';
-
-import type {
-  ExplorerClient,
-  ExplorerMessage,
-} from '../utils/ExplorerClient.js';
+import type { ExplorerMessage } from '../utils/ExplorerClient.js';
 
 import { ActionTracker, type ActionTrackerConfig } from './ActionTracker.js';
 import { InMemoryStore } from './store/InMemoryStore.js';
@@ -20,11 +15,11 @@ const testLogger = pino({ level: 'silent' });
 
 describe('ActionTracker', () => {
   let transferStore: InMemoryStore<Transfer, 'in_progress' | 'complete'>;
-  let intentStore: InMemoryStore<
+  let rebalanceIntentStore: InMemoryStore<
     RebalanceIntent,
     'not_started' | 'in_progress' | 'complete' | 'cancelled'
   >;
-  let actionStore: InMemoryStore<
+  let rebalanceActionStore: InMemoryStore<
     RebalanceAction,
     'in_progress' | 'complete' | 'failed'
   >;
@@ -36,8 +31,8 @@ describe('ActionTracker', () => {
 
   beforeEach(() => {
     transferStore = new InMemoryStore();
-    intentStore = new InMemoryStore();
-    actionStore = new InMemoryStore();
+    rebalanceIntentStore = new InMemoryStore();
+    rebalanceActionStore = new InMemoryStore();
 
     // Create stub for ExplorerClient methods
     const explorerGetInflightUserTransfers = Sinon.stub();
@@ -68,8 +63,8 @@ describe('ActionTracker', () => {
 
     tracker = new ActionTracker(
       transferStore,
-      intentStore,
-      actionStore,
+      rebalanceIntentStore,
+      rebalanceActionStore,
       explorerClient as any,
       core as any,
       config,
@@ -104,13 +99,13 @@ describe('ActionTracker', () => {
       expect(explorerClient.getInflightRebalanceActions.calledOnce).to.be.true;
 
       // Verify synthetic intent and action were created
-      const intents = await intentStore.getAll();
+      const intents = await rebalanceIntentStore.getAll();
       expect(intents).to.have.lengthOf(1);
       // Note: Intent starts as in_progress and may become complete if fulfilledAmount matches amount
       // Since we don't have amount from Explorer, both are 0n and intent becomes complete
       expect(intents[0].status).to.equal('complete');
 
-      const actions = await actionStore.getAll();
+      const actions = await rebalanceActionStore.getAll();
       expect(actions).to.have.lengthOf(1);
       expect(actions[0].id).to.equal('0xmsg1');
       expect(actions[0].status).to.equal('in_progress');
@@ -132,7 +127,7 @@ describe('ActionTracker', () => {
       ];
 
       // Pre-create action
-      await actionStore.save({
+      await rebalanceActionStore.save({
         id: '0xmsg1',
         status: 'in_progress',
         intentId: 'existing-intent',
@@ -150,11 +145,11 @@ describe('ActionTracker', () => {
       await tracker.initialize();
 
       // Verify no additional action was created
-      const actions = await actionStore.getAll();
+      const actions = await rebalanceActionStore.getAll();
       expect(actions).to.have.lengthOf(1);
 
       // Verify no intent was created either
-      const intents = await intentStore.getAll();
+      const intents = await rebalanceIntentStore.getAll();
       expect(intents).to.have.lengthOf(0);
     });
   });
@@ -259,11 +254,11 @@ describe('ActionTracker', () => {
         updatedAt: Date.now(),
       };
 
-      await intentStore.save(intent);
+      await rebalanceIntentStore.save(intent);
 
       await tracker.syncRebalanceIntents();
 
-      const updated = await intentStore.get('intent-1');
+      const updated = await rebalanceIntentStore.get('intent-1');
       expect(updated?.status).to.equal('complete');
     });
 
@@ -279,11 +274,11 @@ describe('ActionTracker', () => {
         updatedAt: Date.now(),
       };
 
-      await intentStore.save(intent);
+      await rebalanceIntentStore.save(intent);
 
       await tracker.syncRebalanceIntents();
 
-      const updated = await intentStore.get('intent-1');
+      const updated = await rebalanceIntentStore.get('intent-1');
       expect(updated?.status).to.equal('in_progress');
     });
   });
@@ -313,19 +308,19 @@ describe('ActionTracker', () => {
         updatedAt: Date.now(),
       };
 
-      await intentStore.save(intent);
-      await actionStore.save(action);
+      await rebalanceIntentStore.save(intent);
+      await rebalanceActionStore.save(action);
 
       mailboxStub.delivered.resolves(true);
 
       await tracker.syncRebalanceActions();
 
       // Action should be complete
-      const updatedAction = await actionStore.get('action-1');
+      const updatedAction = await rebalanceActionStore.get('action-1');
       expect(updatedAction?.status).to.equal('complete');
 
       // Intent should be updated and complete
-      const updatedIntent = await intentStore.get('intent-1');
+      const updatedIntent = await rebalanceIntentStore.get('intent-1');
       expect(updatedIntent?.fulfilledAmount).to.equal(100n);
       expect(updatedIntent?.status).to.equal('complete');
     });
@@ -343,13 +338,13 @@ describe('ActionTracker', () => {
         updatedAt: Date.now(),
       };
 
-      await actionStore.save(action);
+      await rebalanceActionStore.save(action);
 
       mailboxStub.delivered.resolves(false);
 
       await tracker.syncRebalanceActions();
 
-      const updatedAction = await actionStore.get('action-1');
+      const updatedAction = await rebalanceActionStore.get('action-1');
       expect(updatedAction?.status).to.equal('in_progress');
     });
   });
@@ -390,7 +385,7 @@ describe('ActionTracker', () => {
 
   describe('getActiveRebalanceIntents', () => {
     it('should return both not_started and in_progress intents', async () => {
-      await intentStore.save({
+      await rebalanceIntentStore.save({
         id: 'intent-1',
         status: 'not_started',
         origin: 'chain1',
@@ -401,7 +396,7 @@ describe('ActionTracker', () => {
         updatedAt: Date.now(),
       });
 
-      await intentStore.save({
+      await rebalanceIntentStore.save({
         id: 'intent-2',
         status: 'in_progress',
         origin: 'chain2',
@@ -412,7 +407,7 @@ describe('ActionTracker', () => {
         updatedAt: Date.now(),
       });
 
-      await intentStore.save({
+      await rebalanceIntentStore.save({
         id: 'intent-3',
         status: 'complete',
         origin: 'chain3',
@@ -450,7 +445,7 @@ describe('ActionTracker', () => {
       expect(result.priority).to.equal(1);
       expect(result.strategyType).to.equal('MinAmountStrategy');
 
-      const stored = await intentStore.get(result.id);
+      const stored = await rebalanceIntentStore.get(result.id);
       expect(stored).to.deep.equal(result);
     });
   });
@@ -468,7 +463,7 @@ describe('ActionTracker', () => {
         updatedAt: Date.now(),
       };
 
-      await intentStore.save(intent);
+      await rebalanceIntentStore.save(intent);
 
       const result = await tracker.createRebalanceAction({
         intentId: 'intent-1',
@@ -483,7 +478,7 @@ describe('ActionTracker', () => {
       expect(result.intentId).to.equal('intent-1');
       expect(result.messageId).to.equal('0xmsg1');
 
-      const updatedIntent = await intentStore.get('intent-1');
+      const updatedIntent = await rebalanceIntentStore.get('intent-1');
       expect(updatedIntent?.status).to.equal('in_progress');
     });
 
@@ -499,7 +494,7 @@ describe('ActionTracker', () => {
         updatedAt: Date.now(),
       };
 
-      await intentStore.save(intent);
+      await rebalanceIntentStore.save(intent);
 
       await tracker.createRebalanceAction({
         intentId: 'intent-1',
@@ -510,7 +505,7 @@ describe('ActionTracker', () => {
         txHash: '0xtx2',
       });
 
-      const updatedIntent = await intentStore.get('intent-1');
+      const updatedIntent = await rebalanceIntentStore.get('intent-1');
       expect(updatedIntent?.status).to.equal('in_progress');
       expect(updatedIntent?.fulfilledAmount).to.equal(50n); // Should not change
     });
@@ -541,15 +536,15 @@ describe('ActionTracker', () => {
         updatedAt: Date.now(),
       };
 
-      await intentStore.save(intent);
-      await actionStore.save(action);
+      await rebalanceIntentStore.save(intent);
+      await rebalanceActionStore.save(action);
 
       await tracker.completeRebalanceAction('action-1');
 
-      const updatedAction = await actionStore.get('action-1');
+      const updatedAction = await rebalanceActionStore.get('action-1');
       expect(updatedAction?.status).to.equal('complete');
 
-      const updatedIntent = await intentStore.get('intent-1');
+      const updatedIntent = await rebalanceIntentStore.get('intent-1');
       expect(updatedIntent?.fulfilledAmount).to.equal(100n);
       expect(updatedIntent?.status).to.equal('complete');
     });
@@ -574,11 +569,11 @@ describe('ActionTracker', () => {
         updatedAt: Date.now(),
       };
 
-      await intentStore.save(intent);
+      await rebalanceIntentStore.save(intent);
 
       await tracker.cancelRebalanceIntent('intent-1');
 
-      const updated = await intentStore.get('intent-1');
+      const updated = await rebalanceIntentStore.get('intent-1');
       expect(updated?.status).to.equal('cancelled');
     });
   });
@@ -597,11 +592,11 @@ describe('ActionTracker', () => {
         updatedAt: Date.now(),
       };
 
-      await actionStore.save(action);
+      await rebalanceActionStore.save(action);
 
       await tracker.failRebalanceAction('action-1');
 
-      const updated = await actionStore.get('action-1');
+      const updated = await rebalanceActionStore.get('action-1');
       expect(updated?.status).to.equal('failed');
     });
   });
