@@ -28,6 +28,13 @@ export { WeightedStrategy } from './strategy/WeightedStrategy.js';
 export { MinAmountStrategy } from './strategy/MinAmountStrategy.js';
 export { StrategyFactory } from './strategy/StrategyFactory.js';
 
+// Tracker
+export {
+  MessageTracker,
+  type MessageTrackerConfig,
+  type InflightMessage,
+} from './tracker/index.js';
+
 // Monitor
 export { Monitor } from './monitor/Monitor.js';
 
@@ -44,6 +51,7 @@ export type {
   IStrategy,
   RebalancingRoute,
   RawBalances,
+  InflightContext,
 } from './interfaces/IStrategy.js';
 export type { IMonitor } from './interfaces/IMonitor.js';
 export {

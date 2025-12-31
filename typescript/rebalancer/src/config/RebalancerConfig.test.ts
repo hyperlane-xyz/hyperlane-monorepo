@@ -60,27 +60,27 @@ describe('RebalancerConfig', () => {
   });
 
   it('should load config from file', () => {
-    expect(RebalancerConfig.load(TEST_CONFIG_PATH)).to.deep.equal({
-      warpRouteId: 'warpRouteId',
-      strategyConfig: {
-        rebalanceStrategy: RebalancerStrategyOptions.Weighted,
-        chains: {
-          chain1: {
-            weighted: {
-              weight: 100n,
-              tolerance: 0n,
-            },
-            bridge: ethers.constants.AddressZero,
-            bridgeLockTime: 1_000,
+    const config = RebalancerConfig.load(TEST_CONFIG_PATH);
+    expect(config.warpRouteId).to.equal('warpRouteId');
+    expect(config.explorerUrl).to.be.undefined;
+    expect(config.strategyConfig).to.deep.equal({
+      rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+      chains: {
+        chain1: {
+          weighted: {
+            weight: 100n,
+            tolerance: 0n,
           },
-          chain2: {
-            weighted: {
-              weight: 100n,
-              tolerance: 0n,
-            },
-            bridge: ethers.constants.AddressZero,
-            bridgeLockTime: 1_000,
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1_000,
+        },
+        chain2: {
+          weighted: {
+            weight: 100n,
+            tolerance: 0n,
           },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1_000,
         },
       },
     });

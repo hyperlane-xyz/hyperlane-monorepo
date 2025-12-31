@@ -12,6 +12,8 @@ export class RebalancerConfig {
   constructor(
     public readonly warpRouteId: string,
     public readonly strategyConfig: StrategyConfig,
+    /** Optional explorer URL for message tracking (defaults to Hyperlane Explorer) */
+    public readonly explorerUrl?: string,
   ) {}
 
   /**
