@@ -9,6 +9,7 @@ import {
 import { assert, toWei } from '@hyperlane-xyz/utils';
 
 import { RebalancerConfig } from '../config/RebalancerConfig.js';
+import { DEFAULT_EXPLORER_URL } from '../consts.js';
 import { RebalancerContextFactory } from '../factories/RebalancerContextFactory.js';
 import {
   MonitorEvent,
@@ -161,13 +162,11 @@ export class RebalancerService {
       );
     }
 
-    // Create MessageTracker if explorer URL is configured
-    if (this.rebalancerConfig.explorerUrl) {
-      this.messageTracker = this.contextFactory.createMessageTracker(
-        this.rebalancerConfig.explorerUrl,
-      );
-      this.logger.info('MessageTracker enabled for inflight context');
-    }
+    // Create MessageTracker for inflight context (uses default explorer URL if not configured)
+    const explorerUrl =
+      this.rebalancerConfig.explorerUrl ?? DEFAULT_EXPLORER_URL;
+    this.messageTracker = this.contextFactory.createMessageTracker(explorerUrl);
+    this.logger.info({ explorerUrl }, 'MessageTracker enabled');
 
     this.logger.info('✅ RebalancerService initialized successfully');
   }

@@ -33,6 +33,7 @@
     "@hyperlane-xyz/utils": "workspace:*",
     "@inquirer/prompts": "catalog:",
     "@inquirer/select": "catalog:",
+    "uuid": "^13.0.0",
     "bignumber.js": "catalog:",
     "ethers": "catalog:",
     "express": "^5.1.0",
