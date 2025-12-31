@@ -11,6 +11,7 @@ import {
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { RebalancerConfig } from '../config/RebalancerConfig.js';
+import { DEFAULT_EXPLORER_URL } from '../consts.js';
 import { Rebalancer } from '../core/Rebalancer.js';
 import { WithSemaphore } from '../core/WithSemaphore.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
@@ -19,6 +20,7 @@ import { Metrics } from '../metrics/Metrics.js';
 import { PriceGetter } from '../metrics/PriceGetter.js';
 import { Monitor } from '../monitor/Monitor.js';
 import { StrategyFactory } from '../strategy/StrategyFactory.js';
+import { MessageTracker } from '../tracker/MessageTracker.js';
 import { isCollateralizedTokenEligibleForRebalancing } from '../utils/index.js';
 
 export class RebalancerContextFactory {
@@ -185,6 +187,25 @@ export class RebalancerContextFactory {
     );
 
     return withSemaphore;
+  }
+
+  public createMessageTracker(
+    explorerUrl: string = DEFAULT_EXPLORER_URL,
+  ): MessageTracker {
+    this.logger.debug(
+      {
+        warpRouteId: this.config.warpRouteId,
+        explorerUrl,
+      },
+      'Creating MessageTracker',
+    );
+    return new MessageTracker(
+      {
+        warpRouteId: this.config.warpRouteId,
+        explorerUrl,
+      },
+      this.logger,
+    );
   }
 
   private async getInitialTotalCollateral(): Promise<bigint> {
