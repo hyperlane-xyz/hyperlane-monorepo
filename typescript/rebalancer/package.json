@@ -39,6 +39,7 @@
     "pino": "catalog:",
     "pino-pretty": "catalog:",
     "prom-client": "catalog:",
+    "uuid": "^13.0.0",
     "yaml": "catalog:",
     "zod": "catalog:",
     "zod-validation-error": "catalog:"
