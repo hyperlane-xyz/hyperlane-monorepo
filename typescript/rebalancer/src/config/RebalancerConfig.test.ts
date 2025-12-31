@@ -8,15 +8,68 @@ import { writeYamlOrJson } from '@hyperlane-xyz/utils/fs';
 
 import { RebalancerConfig } from './RebalancerConfig.js';
 import {
-  RebalancerConfigFileInput,
+  getStrategyChainConfig,
   RebalancerMinAmountType,
   RebalancerStrategyOptions,
 } from './types.js';
 
+// Type for test config input (weighted strategy)
+type WeightedConfigInput = {
+  warpRouteId: string;
+  strategy: {
+    rebalanceStrategy: typeof RebalancerStrategyOptions.Weighted;
+    chains: Record<
+      string,
+      {
+        weighted: { weight: number; tolerance: number };
+        bridge: string;
+        bridgeLockTime: number;
+        bridgeMinAcceptedAmount?: number;
+        override?: Record<
+          string,
+          {
+            bridge?: string;
+            bridgeLockTime?: number;
+            bridgeMinAcceptedAmount?: number;
+          }
+        >;
+      }
+    >;
+  };
+};
+
+// Type for test config input (minAmount strategy)
+type MinAmountConfigInput = {
+  warpRouteId: string;
+  strategy: {
+    rebalanceStrategy: typeof RebalancerStrategyOptions.MinAmount;
+    chains: Record<
+      string,
+      {
+        minAmount: {
+          min: string | number;
+          target: number;
+          type: RebalancerMinAmountType;
+        };
+        bridge: string;
+        bridgeLockTime: number;
+        override?: Record<
+          string,
+          {
+            bridge?: string;
+            bridgeLockTime?: number;
+            bridgeMinAcceptedAmount?: number;
+          }
+        >;
+      }
+    >;
+  };
+};
+
 const TEST_CONFIG_PATH = join(tmpdir(), 'rebalancer-config-test.yaml');
 
 describe('RebalancerConfig', () => {
-  let data: RebalancerConfigFileInput;
+  let data: WeightedConfigInput;
 
   beforeEach(() => {
     data = {
@@ -87,9 +140,12 @@ describe('RebalancerConfig', () => {
   });
 
   it('should throw if chains are not configured', () => {
-    data.strategy.chains = {};
+    const emptyData: WeightedConfigInput = {
+      ...data,
+      strategy: { ...data.strategy, chains: {} },
+    };
 
-    writeYamlOrJson(TEST_CONFIG_PATH, data);
+    writeYamlOrJson(TEST_CONFIG_PATH, emptyData);
 
     expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).to.throw(
       'No chains configured',
@@ -108,7 +164,7 @@ describe('RebalancerConfig', () => {
   });
 
   it('should load relative params without modifications', () => {
-    data = {
+    const minAmountData: MinAmountConfigInput = {
       warpRouteId: 'warpRouteId',
       strategy: {
         rebalanceStrategy: RebalancerStrategyOptions.MinAmount,
@@ -135,18 +191,21 @@ describe('RebalancerConfig', () => {
       },
     };
 
-    writeYamlOrJson(TEST_CONFIG_PATH, data);
+    writeYamlOrJson(TEST_CONFIG_PATH, minAmountData);
 
-    expect(
-      RebalancerConfig.load(TEST_CONFIG_PATH).strategyConfig.chains.chain1,
-    ).to.deep.equal({
-      ...data.strategy.chains.chain1,
+    const config = RebalancerConfig.load(TEST_CONFIG_PATH);
+    const chain1Config = getStrategyChainConfig(
+      config.strategyConfig,
+      'chain1',
+    );
+    expect(chain1Config).to.deep.equal({
+      ...minAmountData.strategy.chains.chain1,
       bridgeLockTime: 1_000,
     });
   });
 
   it('should load absolute params without modifications', () => {
-    data = {
+    const minAmountData: MinAmountConfigInput = {
       warpRouteId: 'warpRouteId',
       strategy: {
         rebalanceStrategy: RebalancerStrategyOptions.MinAmount,
@@ -173,19 +232,22 @@ describe('RebalancerConfig', () => {
       },
     };
 
-    writeYamlOrJson(TEST_CONFIG_PATH, data);
+    writeYamlOrJson(TEST_CONFIG_PATH, minAmountData);
 
-    expect(
-      RebalancerConfig.load(TEST_CONFIG_PATH).strategyConfig.chains.chain1,
-    ).to.deep.equal({
-      ...data.strategy.chains.chain1,
+    const config = RebalancerConfig.load(TEST_CONFIG_PATH);
+    const chain1Config = getStrategyChainConfig(
+      config.strategyConfig,
+      'chain1',
+    );
+    expect(chain1Config).to.deep.equal({
+      ...minAmountData.strategy.chains.chain1,
       bridgeLockTime: 1_000,
     });
   });
 
   describe('override functionality', () => {
     it('should parse a config with overrides', () => {
-      data = {
+      const minAmountData: MinAmountConfigInput = {
         warpRouteId: 'warpRouteId',
         strategy: {
           rebalanceStrategy: RebalancerStrategyOptions.MinAmount,
@@ -226,12 +288,16 @@ describe('RebalancerConfig', () => {
         },
       };
 
-      writeYamlOrJson(TEST_CONFIG_PATH, data);
+      writeYamlOrJson(TEST_CONFIG_PATH, minAmountData);
 
       const config = RebalancerConfig.load(TEST_CONFIG_PATH);
-      expect(config.strategyConfig.chains.chain1).to.have.property('override');
+      const chain1Config = getStrategyChainConfig(
+        config.strategyConfig,
+        'chain1',
+      );
+      expect(chain1Config).to.have.property('override');
 
-      const override = config.strategyConfig.chains.chain1.override;
+      const override = chain1Config!.override;
       expect(override).to.not.be.undefined;
       expect(override).to.have.property('chain2');
 
@@ -243,7 +309,7 @@ describe('RebalancerConfig', () => {
     });
 
     it('should throw when an override references a non-existent chain', () => {
-      data = {
+      const minAmountData: MinAmountConfigInput = {
         warpRouteId: 'warpRouteId',
         strategy: {
           rebalanceStrategy: RebalancerStrategyOptions.MinAmount,
@@ -278,7 +344,7 @@ describe('RebalancerConfig', () => {
         },
       };
 
-      writeYamlOrJson(TEST_CONFIG_PATH, data);
+      writeYamlOrJson(TEST_CONFIG_PATH, minAmountData);
 
       expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).to.throw(
         "Chain 'chain1' has an override for 'chain3', but 'chain3' is not defined in the config",
@@ -286,7 +352,7 @@ describe('RebalancerConfig', () => {
     });
 
     it('should throw when an override references itself', () => {
-      data = {
+      const minAmountData: MinAmountConfigInput = {
         warpRouteId: 'warpRouteId',
         strategy: {
           rebalanceStrategy: RebalancerStrategyOptions.MinAmount,
@@ -318,7 +384,7 @@ describe('RebalancerConfig', () => {
         },
       };
 
-      writeYamlOrJson(TEST_CONFIG_PATH, data);
+      writeYamlOrJson(TEST_CONFIG_PATH, minAmountData);
 
       expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).to.throw(
         "Chain 'chain1' has an override for 'chain1', but 'chain1' is self-referencing",
@@ -326,49 +392,59 @@ describe('RebalancerConfig', () => {
     });
 
     it('should allow multiple chain overrides', () => {
-      data.strategy.chains.chain1 = {
-        bridge: ethers.constants.AddressZero,
-        bridgeMinAcceptedAmount: 3000,
-        bridgeLockTime: 1,
-        weighted: {
-          weight: 100,
-          tolerance: 0,
-        },
-        override: {
-          chain2: {
-            bridgeMinAcceptedAmount: 4000,
+      const overrideData: WeightedConfigInput = {
+        warpRouteId: 'warpRouteId',
+        strategy: {
+          rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+          chains: {
+            chain1: {
+              bridge: ethers.constants.AddressZero,
+              bridgeMinAcceptedAmount: 3000,
+              bridgeLockTime: 1,
+              weighted: {
+                weight: 100,
+                tolerance: 0,
+              },
+              override: {
+                chain2: {
+                  bridgeMinAcceptedAmount: 4000,
+                },
+                chain3: {
+                  bridge: '0x1234567890123456789012345678901234567890',
+                },
+              },
+            },
+            chain2: {
+              bridge: ethers.constants.AddressZero,
+              bridgeMinAcceptedAmount: 5000,
+              bridgeLockTime: 1,
+              weighted: {
+                weight: 100,
+                tolerance: 0,
+              },
+            },
+            chain3: {
+              bridge: ethers.constants.AddressZero,
+              bridgeMinAcceptedAmount: 6000,
+              bridgeLockTime: 1,
+              weighted: {
+                weight: 100,
+                tolerance: 0,
+              },
+            },
           },
-          chain3: {
-            bridge: '0x1234567890123456789012345678901234567890',
-          },
         },
       };
 
-      data.strategy.chains.chain2 = {
-        bridge: ethers.constants.AddressZero,
-        bridgeMinAcceptedAmount: 5000,
-        bridgeLockTime: 1,
-        weighted: {
-          weight: 100,
-          tolerance: 0,
-        },
-      };
-
-      data.strategy.chains.chain3 = {
-        bridge: ethers.constants.AddressZero,
-        bridgeMinAcceptedAmount: 6000,
-        bridgeLockTime: 1,
-        weighted: {
-          weight: 100,
-          tolerance: 0,
-        },
-      };
-
-      writeYamlOrJson(TEST_CONFIG_PATH, data);
+      writeYamlOrJson(TEST_CONFIG_PATH, overrideData);
 
       const config = RebalancerConfig.load(TEST_CONFIG_PATH);
 
-      const chain1Overrides = config.strategyConfig.chains.chain1.override;
+      const chain1Config = getStrategyChainConfig(
+        config.strategyConfig,
+        'chain1',
+      );
+      const chain1Overrides = chain1Config!.override;
       expect(chain1Overrides).to.not.be.undefined;
       expect(chain1Overrides).to.have.property('chain2');
       expect(chain1Overrides).to.have.property('chain3');

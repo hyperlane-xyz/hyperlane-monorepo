@@ -5,7 +5,9 @@ import { toWei } from '@hyperlane-xyz/utils';
 
 import {
   type CollateralDeficitStrategy as CollateralDeficitParsedConfig,
+  type CompositeStrategy as CompositeParsedConfig,
   RebalancerStrategyOptions,
+  type SingleStrategyConfig,
   StrategyConfig,
 } from '../config/types.js';
 import { type IStrategy } from '../interfaces/IStrategy.js';
@@ -15,6 +17,7 @@ import {
   CollateralDeficitStrategy,
   type CollateralDeficitStrategyConfig,
 } from './CollateralDeficitStrategy.js';
+import { CompositeStrategy } from './CompositeStrategy.js';
 import { MinAmountStrategy } from './MinAmountStrategy.js';
 import { WeightedStrategy } from './WeightedStrategy.js';
 
@@ -47,12 +50,16 @@ export class StrategyFactory {
         );
       case RebalancerStrategyOptions.CollateralDeficit:
         return StrategyFactory.createCollateralDeficitStrategy(
-<<<<<<< HEAD
           strategyConfig as CollateralDeficitParsedConfig,
-=======
-          strategyConfig as SDKCollateralDeficitStrategy,
->>>>>>> de54798b6 (feat(sdk): add CollateralDeficit strategy types and factory integration)
           tokensByChainName,
+          logger,
+          metrics,
+        );
+      case RebalancerStrategyOptions.Composite:
+        return StrategyFactory.createCompositeStrategy(
+          strategyConfig as CompositeParsedConfig,
+          tokensByChainName,
+          initialTotalCollateral,
           logger,
           metrics,
         );
@@ -63,19 +70,11 @@ export class StrategyFactory {
   }
 
   /**
-<<<<<<< HEAD
    * Create a CollateralDeficitStrategy from config.
    * Converts buffer from token units to wei.
    */
   private static createCollateralDeficitStrategy(
     config: CollateralDeficitParsedConfig,
-=======
-   * Create a CollateralDeficitStrategy from SDK config.
-   * Converts buffer from token units to wei.
-   */
-  private static createCollateralDeficitStrategy(
-    config: SDKCollateralDeficitStrategy,
->>>>>>> de54798b6 (feat(sdk): add CollateralDeficit strategy types and factory integration)
     tokensByChainName: ChainMap<Token>,
     logger: Logger,
     metrics?: Metrics,
@@ -96,5 +95,30 @@ export class StrategyFactory {
     }
 
     return new CollateralDeficitStrategy(chainConfig, logger, metrics);
+  }
+
+  /**
+   * Create a CompositeStrategy from config.
+   * Recursively creates sub-strategies.
+   */
+  private static createCompositeStrategy(
+    config: CompositeParsedConfig,
+    tokensByChainName: ChainMap<Token>,
+    initialTotalCollateral: bigint,
+    logger: Logger,
+    metrics?: Metrics,
+  ): CompositeStrategy {
+    const subStrategies = config.strategies.map(
+      (subConfig: SingleStrategyConfig) =>
+        StrategyFactory.createStrategy(
+          subConfig,
+          tokensByChainName,
+          initialTotalCollateral,
+          logger,
+          metrics,
+        ),
+    );
+
+    return new CompositeStrategy(subStrategies, logger);
   }
 }

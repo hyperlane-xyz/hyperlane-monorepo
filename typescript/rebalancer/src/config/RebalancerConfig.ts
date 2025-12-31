@@ -4,6 +4,7 @@ import { isObjEmpty } from '@hyperlane-xyz/utils';
 import { readYamlOrJson } from '@hyperlane-xyz/utils/fs';
 
 import {
+  getStrategyChainNames,
   type RebalancerConfigFileInput,
   RebalancerConfigSchema,
   type StrategyConfig,
@@ -32,7 +33,7 @@ export class RebalancerConfig {
 
     const { warpRouteId, strategy } = validationResult.data;
 
-    if (isObjEmpty(strategy.chains)) {
+    if (getStrategyChainNames(strategy).length === 0) {
       throw new Error('No chains configured');
     }
 
