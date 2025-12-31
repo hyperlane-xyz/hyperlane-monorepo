@@ -31,13 +31,34 @@ export type { CollateralDeficitStrategyConfig } from './strategy/CollateralDefic
 export { CompositeStrategy } from './strategy/CompositeStrategy.js';
 export { StrategyFactory } from './strategy/StrategyFactory.js';
 
-// Tracker
+// Tracker (legacy)
 export {
   MessageTracker,
   type MessageTrackerConfig,
   type InflightMessage,
   type InflightContext,
 } from './tracker/index.js';
+
+// Tracker (new architecture)
+export {
+  RebalanceTracker,
+  type Rebalance,
+  type RebalanceStatus,
+  type Execution,
+  type ExecutionType,
+  type ExecutionStatus,
+  type CreateRebalanceInput,
+  type CreateExecutionInput,
+  type RebalanceContext,
+} from './tracker/index.js';
+
+// Executor
+export {
+  RebalanceExecutor,
+  type IInventoryBridge,
+  type IInventoryProvider,
+  type InventoryConfig,
+} from './executor/index.js';
 
 // Monitor
 export { Monitor } from './monitor/Monitor.js';
