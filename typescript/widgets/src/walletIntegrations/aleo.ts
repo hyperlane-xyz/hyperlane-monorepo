@@ -1,5 +1,5 @@
 import { Network } from '@provablehq/aleo-types';
-import { GalileoWalletAdapter } from '@provablehq/aleo-wallet-adaptor-prove-alpha';
+import { ShieldWalletAdapter } from '@provablehq/aleo-wallet-adaptor-shield';
 import { WalletDecryptPermission } from '@provablehq/aleo-wallet-standard';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -23,7 +23,7 @@ import {
   WatchAssetFns,
 } from './types.js';
 
-const adapter = new GalileoWalletAdapter();
+const adapter = new ShieldWalletAdapter();
 
 export function useAleoAccount(
   _multiProvider: MultiProtocolProvider,
