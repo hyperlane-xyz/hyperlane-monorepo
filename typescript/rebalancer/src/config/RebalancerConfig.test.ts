@@ -66,6 +66,59 @@ type MinAmountConfigInput = {
   };
 };
 
+// Type for test config input (weighted strategy)
+type WeightedConfigInput = {
+  warpRouteId: string;
+  strategy: {
+    rebalanceStrategy: typeof RebalancerStrategyOptions.Weighted;
+    chains: Record<
+      string,
+      {
+        weighted: { weight: number; tolerance: number };
+        bridge: string;
+        bridgeLockTime: number;
+        bridgeMinAcceptedAmount?: number;
+        override?: Record<
+          string,
+          {
+            bridge?: string;
+            bridgeLockTime?: number;
+            bridgeMinAcceptedAmount?: number;
+          }
+        >;
+      }
+    >;
+  };
+};
+
+// Type for test config input (minAmount strategy)
+type MinAmountConfigInput = {
+  warpRouteId: string;
+  strategy: {
+    rebalanceStrategy: typeof RebalancerStrategyOptions.MinAmount;
+    chains: Record<
+      string,
+      {
+        minAmount: {
+          min: string | number;
+          target: number;
+          type: RebalancerMinAmountType;
+        };
+        bridge: string;
+        bridgeLockTime: number;
+        override?: Record<
+          string,
+          {
+            bridge?: string;
+            bridgeLockTime?: number;
+            bridgeMinAcceptedAmount?: number;
+          }
+        >;
+      }
+    >;
+  };
+};
+
 const TEST_CONFIG_PATH = join(tmpdir(), 'rebalancer-config-test.yaml');
 
 describe('RebalancerConfig', () => {

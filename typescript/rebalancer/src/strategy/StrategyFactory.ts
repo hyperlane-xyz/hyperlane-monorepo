@@ -17,10 +17,7 @@ import {
   CollateralDeficitStrategy,
   type CollateralDeficitStrategyConfig,
 } from './CollateralDeficitStrategy.js';
-<<<<<<< HEAD
 import { CompositeStrategy } from './CompositeStrategy.js';
-=======
->>>>>>> de54798b6 (feat(sdk): add CollateralDeficit strategy types and factory integration)
 import { MinAmountStrategy } from './MinAmountStrategy.js';
 import { WeightedStrategy } from './WeightedStrategy.js';
 
@@ -53,16 +50,11 @@ export class StrategyFactory {
         );
       case RebalancerStrategyOptions.CollateralDeficit:
         return StrategyFactory.createCollateralDeficitStrategy(
-<<<<<<< HEAD
           strategyConfig as CollateralDeficitParsedConfig,
-=======
-          strategyConfig as SDKCollateralDeficitStrategy,
->>>>>>> de54798b6 (feat(sdk): add CollateralDeficit strategy types and factory integration)
           tokensByChainName,
           logger,
           metrics,
         );
-<<<<<<< HEAD
       case RebalancerStrategyOptions.Composite:
         return StrategyFactory.createCompositeStrategy(
           strategyConfig as CompositeParsedConfig,
@@ -71,8 +63,6 @@ export class StrategyFactory {
           logger,
           metrics,
         );
-=======
->>>>>>> de54798b6 (feat(sdk): add CollateralDeficit strategy types and factory integration)
       default: {
         throw new Error('Unsupported strategy type');
       }
@@ -80,19 +70,11 @@ export class StrategyFactory {
   }
 
   /**
-<<<<<<< HEAD
    * Create a CollateralDeficitStrategy from config.
    * Converts buffer from token units to wei.
    */
   private static createCollateralDeficitStrategy(
     config: CollateralDeficitParsedConfig,
-=======
-   * Create a CollateralDeficitStrategy from SDK config.
-   * Converts buffer from token units to wei.
-   */
-  private static createCollateralDeficitStrategy(
-    config: SDKCollateralDeficitStrategy,
->>>>>>> de54798b6 (feat(sdk): add CollateralDeficit strategy types and factory integration)
     tokensByChainName: ChainMap<Token>,
     logger: Logger,
     metrics?: Metrics,
@@ -114,7 +96,6 @@ export class StrategyFactory {
 
     return new CollateralDeficitStrategy(chainConfig, logger, metrics);
   }
-<<<<<<< HEAD
 
   /**
    * Create a CompositeStrategy from config.
@@ -140,6 +121,4 @@ export class StrategyFactory {
 
     return new CompositeStrategy(subStrategies, logger);
   }
-=======
->>>>>>> de54798b6 (feat(sdk): add CollateralDeficit strategy types and factory integration)
 }
