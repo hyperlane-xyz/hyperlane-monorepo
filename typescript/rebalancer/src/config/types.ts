@@ -3,6 +3,7 @@ import { z } from 'zod';
 export enum RebalancerStrategyOptions {
   Weighted = 'weighted',
   MinAmount = 'minAmount',
+  CollateralDeficit = 'collateralDeficit',
 }
 
 // Weighted strategy config schema
@@ -26,6 +27,15 @@ export const RebalancerMinAmountConfigSchema = z.object({
   min: z.string().or(z.number()),
   target: z.string().or(z.number()),
   type: z.nativeEnum(RebalancerMinAmountType),
+});
+
+// CollateralDeficit strategy config schema
+export const RebalancerCollateralDeficitConfigSchema = z.object({
+  bridge: z.string().regex(/0x[a-fA-F0-9]{40}/),
+  buffer: z
+    .string()
+    .or(z.number())
+    .describe('Buffer amount to add to deficit for headroom (in token units)'),
 });
 
 // Base chain config with common properties
@@ -59,6 +69,13 @@ const MinAmountChainConfigSchema = RebalancerBaseChainConfigSchema.extend({
   minAmount: RebalancerMinAmountConfigSchema,
 });
 
+// CollateralDeficit extends base config but uses its own bridge in collateralDeficit.bridge
+// The base bridge/bridgeLockTime are for the "normal" rebalancing path when used in CompositeStrategy
+const CollateralDeficitChainConfigSchema =
+  RebalancerBaseChainConfigSchema.extend({
+    collateralDeficit: RebalancerCollateralDeficitConfigSchema,
+  });
+
 const WeightedStrategySchema = z.object({
   rebalanceStrategy: z.literal(RebalancerStrategyOptions.Weighted),
   chains: z.record(z.string(), WeightedChainConfigSchema),
@@ -69,15 +86,26 @@ const MinAmountStrategySchema = z.object({
   chains: z.record(z.string(), MinAmountChainConfigSchema),
 });
 
+const CollateralDeficitStrategySchema = z.object({
+  rebalanceStrategy: z.literal(RebalancerStrategyOptions.CollateralDeficit),
+  chains: z.record(z.string(), CollateralDeficitChainConfigSchema),
+});
+
 export type WeightedStrategy = z.infer<typeof WeightedStrategySchema>;
 export type MinAmountStrategy = z.infer<typeof MinAmountStrategySchema>;
+export type CollateralDeficitStrategy = z.infer<
+  typeof CollateralDeficitStrategySchema
+>;
 
 export type WeightedStrategyConfig = WeightedStrategy['chains'];
 export type MinAmountStrategyConfig = MinAmountStrategy['chains'];
+export type CollateralDeficitStrategyConfig =
+  CollateralDeficitStrategy['chains'];
 
 export const StrategyConfigSchema = z.discriminatedUnion('rebalanceStrategy', [
   WeightedStrategySchema,
   MinAmountStrategySchema,
+  CollateralDeficitStrategySchema,
 ]);
 
 export const RebalancerConfigSchema = z
@@ -148,6 +176,9 @@ export type RebalancerWeightedChainConfig = z.infer<
 >;
 export type RebalancerMinAmountChainConfig = z.infer<
   typeof RebalancerMinAmountConfigSchema
+>;
+export type RebalancerCollateralDeficitChainConfig = z.infer<
+  typeof RebalancerCollateralDeficitConfigSchema
 >;
 
 export type StrategyConfig = z.infer<typeof StrategyConfigSchema>;
