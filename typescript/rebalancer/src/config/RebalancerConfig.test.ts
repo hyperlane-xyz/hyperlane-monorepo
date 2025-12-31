@@ -245,6 +245,76 @@ describe('RebalancerConfig', () => {
     });
   });
 
+  describe('explorerUrl and rebalancerAddress', () => {
+    it('should load config with explorerUrl and rebalancerAddress', () => {
+      const configWithExplorer = {
+        ...data,
+        explorerUrl: 'https://explorer.hyperlane.xyz',
+        rebalancerAddress: '0x1234567890123456789012345678901234567890',
+      };
+
+      writeYamlOrJson(TEST_CONFIG_PATH, configWithExplorer);
+
+      const config = RebalancerConfig.load(TEST_CONFIG_PATH);
+      expect(config.explorerUrl).to.equal('https://explorer.hyperlane.xyz');
+      expect(config.rebalancerAddress).to.equal(
+        '0x1234567890123456789012345678901234567890',
+      );
+    });
+
+    it('should throw when explorerUrl is set but rebalancerAddress is missing', () => {
+      const configWithExplorerOnly = {
+        ...data,
+        explorerUrl: 'https://explorer.hyperlane.xyz',
+      };
+
+      writeYamlOrJson(TEST_CONFIG_PATH, configWithExplorerOnly);
+
+      expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).to.throw(
+        'rebalancerAddress is required when explorerUrl is set',
+      );
+    });
+
+    it('should allow rebalancerAddress without explorerUrl', () => {
+      const configWithAddressOnly = {
+        ...data,
+        rebalancerAddress: '0x1234567890123456789012345678901234567890',
+      };
+
+      writeYamlOrJson(TEST_CONFIG_PATH, configWithAddressOnly);
+
+      const config = RebalancerConfig.load(TEST_CONFIG_PATH);
+      expect(config.explorerUrl).to.be.undefined;
+      expect(config.rebalancerAddress).to.equal(
+        '0x1234567890123456789012345678901234567890',
+      );
+    });
+
+    it('should throw when rebalancerAddress is not a valid address', () => {
+      const configWithInvalidAddress = {
+        ...data,
+        explorerUrl: 'https://explorer.hyperlane.xyz',
+        rebalancerAddress: 'not-an-address',
+      };
+
+      writeYamlOrJson(TEST_CONFIG_PATH, configWithInvalidAddress);
+
+      expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).to.throw();
+    });
+
+    it('should throw when explorerUrl is not a valid URL', () => {
+      const configWithInvalidUrl = {
+        ...data,
+        explorerUrl: 'not-a-url',
+        rebalancerAddress: '0x1234567890123456789012345678901234567890',
+      };
+
+      writeYamlOrJson(TEST_CONFIG_PATH, configWithInvalidUrl);
+
+      expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).to.throw();
+    });
+  });
+
   describe('override functionality', () => {
     it('should parse a config with overrides', () => {
       const minAmountData: MinAmountConfigInput = {

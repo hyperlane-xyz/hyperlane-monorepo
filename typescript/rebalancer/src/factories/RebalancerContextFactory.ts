@@ -250,14 +250,12 @@ export class RebalancerContextFactory {
       'Creating ActionTracker',
     );
 
-    // Get chain names and build domain mapping
+    // Get chain names and build domain list
     const chainNames = getStrategyChainNames(this.config.strategyConfig);
-    const domainToChain: ChainMap<number> = {};
     const domains: number[] = [];
 
     for (const chainName of chainNames) {
       const domainId = this.multiProvider.getDomainId(chainName);
-      domainToChain[chainName] = domainId;
       domains.push(domainId);
     }
 
@@ -265,6 +263,15 @@ export class RebalancerContextFactory {
     const routers = this.warpCore.tokens
       .filter((t) => chainNames.includes(t.chainName))
       .map((t) => t.addressOrDenom);
+
+    // Get bridge addresses from strategy config
+    const bridges: string[] = [];
+    for (const chainName of chainNames) {
+      const cfg = getStrategyChainConfig(this.config.strategyConfig, chainName);
+      if (cfg?.bridge) {
+        bridges.push(cfg.bridge);
+      }
+    }
 
     // Create stores
     const transferStore = new InMemoryStore<Transfer, TransferStatus>();
@@ -292,9 +299,9 @@ export class RebalancerContextFactory {
       core,
       {
         routers,
+        bridges,
         rebalancerAddress: this.config.rebalancerAddress,
         domains,
-        domainToChain,
       },
       this.logger,
     );
