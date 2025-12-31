@@ -46,12 +46,28 @@ export { WeightedStrategy } from './strategy/WeightedStrategy.js';
 export { MinAmountStrategy } from './strategy/MinAmountStrategy.js';
 export { StrategyFactory } from './strategy/StrategyFactory.js';
 
-// Tracker
+// Tracking (ActionTracker interfaces and implementations)
 export {
-  MessageTracker,
-  type MessageTrackerConfig,
-  type InflightMessage,
-} from './tracker/index.js';
+  ActionTrackerStub,
+  InflightContextAdapter,
+  type CreateRebalanceActionParams,
+  type CreateRebalanceIntentParams,
+  type CrossChainAction,
+  type IActionTracker,
+  type Identifiable,
+  type IRebalanceActionStore,
+  type IRebalanceIntentStore,
+  type IStore,
+  type ITransferStore,
+  type RebalanceAction,
+  type RebalanceActionStatus,
+  type RebalanceIntent,
+  type RebalanceIntentStatus,
+  type Timestamped,
+  type TrackedActionBase,
+  type Transfer,
+  type TransferStatus,
+} from './tracking/index.js';
 
 // Monitor
 export { Monitor } from './monitor/Monitor.js';

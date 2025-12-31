@@ -11,7 +11,6 @@ import {
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { RebalancerConfig } from '../config/RebalancerConfig.js';
-import { DEFAULT_EXPLORER_URL } from '../consts.js';
 import { Rebalancer } from '../core/Rebalancer.js';
 import { WithSemaphore } from '../core/WithSemaphore.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
@@ -20,7 +19,11 @@ import { Metrics } from '../metrics/Metrics.js';
 import { PriceGetter } from '../metrics/PriceGetter.js';
 import { Monitor } from '../monitor/Monitor.js';
 import { StrategyFactory } from '../strategy/StrategyFactory.js';
-import { MessageTracker } from '../tracker/MessageTracker.js';
+import {
+  ActionTrackerStub,
+  type IActionTracker,
+  InflightContextAdapter,
+} from '../tracking/index.js';
 import { isCollateralizedTokenEligibleForRebalancing } from '../utils/index.js';
 
 export class RebalancerContextFactory {
@@ -189,23 +192,30 @@ export class RebalancerContextFactory {
     return withSemaphore;
   }
 
-  public createMessageTracker(
-    explorerUrl: string = DEFAULT_EXPLORER_URL,
-  ): MessageTracker {
+  /**
+   * Create an ActionTracker instance.
+   * Currently returns a stub that provides no-op behavior.
+   * The real implementation will be added in a follow-up PR.
+   */
+  public createActionTracker(): IActionTracker {
     this.logger.debug(
-      {
-        warpRouteId: this.config.warpRouteId,
-        explorerUrl,
-      },
-      'Creating MessageTracker',
+      { warpRouteId: this.config.warpRouteId },
+      'Creating ActionTracker (stub)',
     );
-    return new MessageTracker(
-      {
-        warpRouteId: this.config.warpRouteId,
-        explorerUrl,
-      },
-      this.logger,
+    return new ActionTrackerStub(this.logger);
+  }
+
+  /**
+   * Create an InflightContextAdapter that bridges ActionTracker to InflightContext.
+   */
+  public createInflightContextAdapter(
+    actionTracker: IActionTracker,
+  ): InflightContextAdapter {
+    this.logger.debug(
+      { warpRouteId: this.config.warpRouteId },
+      'Creating InflightContextAdapter',
     );
+    return new InflightContextAdapter(actionTracker);
   }
 
   private async getInitialTotalCollateral(): Promise<bigint> {
