@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';
 
 import type { RebalancerConfig } from '../config/RebalancerConfig.js';
-import { RebalancerStrategyOptions } from '../config/types.js';
+import { RebalancerStrategyOptions, type WeightedStrategy } from '../config/types.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type { RebalancingRoute } from '../interfaces/IStrategy.js';
 
@@ -17,7 +17,7 @@ export function buildTestConfig(
 ): RebalancerConfig {
   const baseChains = chains.reduce(
     (acc, chain) => {
-      (acc as any)[chain] = {
+      acc[chain] = {
         bridgeLockTime: 60 * 1000,
         bridge: ethers.constants.AddressZero,
         weighted: {
@@ -27,8 +27,13 @@ export function buildTestConfig(
       };
       return acc;
     },
-    {} as Record<string, any>,
+    {} as WeightedStrategy['chains'],
   );
+
+  // Cast override strategyConfig to WeightedStrategy for type safety
+  const overrideStrategy = overrides.strategyConfig as
+    | WeightedStrategy
+    | undefined;
 
   return {
     warpRouteId: 'test-route',
@@ -36,10 +41,10 @@ export function buildTestConfig(
       rebalanceStrategy: RebalancerStrategyOptions.Weighted,
       chains: {
         ...baseChains,
-        ...(overrides.strategyConfig?.chains ?? {}),
+        ...(overrideStrategy?.chains ?? {}),
       },
-      ...overrides.strategyConfig,
+      ...overrideStrategy,
     },
     ...overrides,
-  } as any as RebalancerConfig;
+  } as RebalancerConfig;
 }

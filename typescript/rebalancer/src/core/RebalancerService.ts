@@ -5,6 +5,7 @@ import {
   type MultiProtocolProvider,
   type MultiProvider,
   Token,
+  getStrategyChainNames,
 } from '@hyperlane-xyz/sdk';
 import { assert, toWei } from '@hyperlane-xyz/utils';
 
@@ -302,7 +303,7 @@ export class RebalancerService {
     }
 
     const rawBalances = getRawBalances(
-      Object.keys(this.rebalancerConfig.strategyConfig.chains),
+      getStrategyChainNames(this.rebalancerConfig.strategyConfig),
       event,
       this.logger,
     );
