@@ -1,0 +1,608 @@
+import chai, { expect } from 'chai';
+import chaiAsPromised from 'chai-as-promised';
+import { pino } from 'pino';
+import Sinon from 'sinon';
+
+import type { HyperlaneCore } from '@hyperlane-xyz/sdk';
+
+import type {
+  ExplorerClient,
+  ExplorerMessage,
+} from '../utils/ExplorerClient.js';
+
+import { ActionTracker, type ActionTrackerConfig } from './ActionTracker.js';
+import { InMemoryStore } from './store/InMemoryStore.js';
+import type { RebalanceAction, RebalanceIntent, Transfer } from './types.js';
+
+chai.use(chaiAsPromised);
+
+const testLogger = pino({ level: 'silent' });
+
+describe('ActionTracker', () => {
+  let transferStore: InMemoryStore<Transfer, 'in_progress' | 'complete'>;
+  let intentStore: InMemoryStore<
+    RebalanceIntent,
+    'not_started' | 'in_progress' | 'complete' | 'cancelled'
+  >;
+  let actionStore: InMemoryStore<
+    RebalanceAction,
+    'in_progress' | 'complete' | 'failed'
+  >;
+  let explorerClient: any;
+  let core: any;
+  let config: ActionTrackerConfig;
+  let tracker: ActionTracker;
+  let mailboxStub: any;
+
+  beforeEach(() => {
+    transferStore = new InMemoryStore();
+    intentStore = new InMemoryStore();
+    actionStore = new InMemoryStore();
+
+    // Create stub for ExplorerClient methods
+    const explorerGetInflightUserTransfers = Sinon.stub();
+    const explorerGetInflightRebalanceActions = Sinon.stub();
+
+    explorerClient = {
+      getInflightUserTransfers: explorerGetInflightUserTransfers,
+      getInflightRebalanceActions: explorerGetInflightRebalanceActions,
+    } as any;
+
+    // Create stub for mailbox
+    mailboxStub = {
+      delivered: Sinon.stub().resolves(false),
+    };
+
+    // Create stub for HyperlaneCore
+    const coreGetContracts = Sinon.stub().returns({ mailbox: mailboxStub });
+
+    core = {
+      getContracts: coreGetContracts,
+    } as any;
+
+    config = {
+      routers: ['0xrouter1', '0xrouter2'],
+      rebalancerAddress: '0xrebalancer',
+      domains: [1, 2, 3],
+    };
+
+    tracker = new ActionTracker(
+      transferStore,
+      intentStore,
+      actionStore,
+      explorerClient as any,
+      core as any,
+      config,
+      testLogger,
+    );
+  });
+
+  describe('initialize', () => {
+    it('should query for inflight rebalance messages and create synthetic entities', async () => {
+      const inflightMessages: ExplorerMessage[] = [
+        {
+          msg_id: '0xmsg1',
+          origin_domain_id: 1,
+          destination_domain_id: 2,
+          sender: '0xrouter1',
+          recipient: '0xrouter2',
+          origin_tx_hash: '0xtx1',
+          origin_tx_sender: '0xrebalancer',
+          is_delivered: false,
+        },
+      ];
+
+      explorerClient.getInflightRebalanceActions.resolves(inflightMessages);
+      explorerClient.getInflightUserTransfers.resolves([]);
+
+      // Ensure mailbox returns false so action stays in_progress
+      mailboxStub.delivered.resolves(false);
+
+      await tracker.initialize();
+
+      // Verify ExplorerClient was called
+      expect(explorerClient.getInflightRebalanceActions.calledOnce).to.be.true;
+
+      // Verify synthetic intent and action were created
+      const intents = await intentStore.getAll();
+      expect(intents).to.have.lengthOf(1);
+      // Note: Intent starts as in_progress and may become complete if fulfilledAmount matches amount
+      // Since we don't have amount from Explorer, both are 0n and intent becomes complete
+      expect(intents[0].status).to.equal('complete');
+
+      const actions = await actionStore.getAll();
+      expect(actions).to.have.lengthOf(1);
+      expect(actions[0].id).to.equal('0xmsg1');
+      expect(actions[0].status).to.equal('in_progress');
+      expect(actions[0].messageId).to.equal('0xmsg1');
+    });
+
+    it('should skip creating action if it already exists', async () => {
+      const inflightMessages: ExplorerMessage[] = [
+        {
+          msg_id: '0xmsg1',
+          origin_domain_id: 1,
+          destination_domain_id: 2,
+          sender: '0xrouter1',
+          recipient: '0xrouter2',
+          origin_tx_hash: '0xtx1',
+          origin_tx_sender: '0xrebalancer',
+          is_delivered: false,
+        },
+      ];
+
+      // Pre-create action
+      await actionStore.save({
+        id: '0xmsg1',
+        status: 'in_progress',
+        intentId: 'existing-intent',
+        messageId: '0xmsg1',
+        origin: '1',
+        destination: '2',
+        amount: 100n,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      explorerClient.getInflightRebalanceActions.resolves(inflightMessages);
+      explorerClient.getInflightUserTransfers.resolves([]);
+
+      await tracker.initialize();
+
+      // Verify no additional action was created
+      const actions = await actionStore.getAll();
+      expect(actions).to.have.lengthOf(1);
+
+      // Verify no intent was created either
+      const intents = await intentStore.getAll();
+      expect(intents).to.have.lengthOf(0);
+    });
+  });
+
+  describe('syncTransfers', () => {
+    it('should create new transfers from Explorer messages', async () => {
+      const inflightMessages: ExplorerMessage[] = [
+        {
+          msg_id: '0xmsg1',
+          origin_domain_id: 1,
+          destination_domain_id: 2,
+          sender: '0xuser1',
+          recipient: '0xuser2',
+          origin_tx_hash: '0xtx1',
+          origin_tx_sender: '0xuser1',
+          is_delivered: false,
+        },
+      ];
+
+      explorerClient.getInflightUserTransfers.resolves(inflightMessages);
+
+      await tracker.syncTransfers();
+
+      const transfers = await transferStore.getAll();
+      expect(transfers).to.have.lengthOf(1);
+      expect(transfers[0].id).to.equal('0xmsg1');
+      expect(transfers[0].status).to.equal('in_progress');
+      expect(transfers[0].sender).to.equal('0xuser1');
+    });
+
+    it('should not duplicate transfers that already exist', async () => {
+      // Pre-create transfer
+      await transferStore.save({
+        id: '0xmsg1',
+        status: 'in_progress',
+        messageId: '0xmsg1',
+        origin: '1',
+        destination: '2',
+        amount: 100n,
+        sender: '0xuser1',
+        recipient: '0xuser2',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      const inflightMessages: ExplorerMessage[] = [
+        {
+          msg_id: '0xmsg1',
+          origin_domain_id: 1,
+          destination_domain_id: 2,
+          sender: '0xuser1',
+          recipient: '0xuser2',
+          origin_tx_hash: '0xtx1',
+          origin_tx_sender: '0xuser1',
+          is_delivered: false,
+        },
+      ];
+
+      explorerClient.getInflightUserTransfers.resolves(inflightMessages);
+
+      await tracker.syncTransfers();
+
+      const transfers = await transferStore.getAll();
+      expect(transfers).to.have.lengthOf(1);
+    });
+
+    it('should mark transfers as complete when delivered', async () => {
+      // Pre-create transfer
+      await transferStore.save({
+        id: '0xmsg1',
+        status: 'in_progress',
+        messageId: '0xmsg1',
+        origin: 'chain1',
+        destination: 'chain2',
+        amount: 100n,
+        sender: '0xuser1',
+        recipient: '0xuser2',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      explorerClient.getInflightUserTransfers.resolves([]);
+      mailboxStub.delivered.resolves(true);
+
+      await tracker.syncTransfers();
+
+      const transfer = await transferStore.get('0xmsg1');
+      expect(transfer?.status).to.equal('complete');
+    });
+  });
+
+  describe('syncRebalanceIntents', () => {
+    it('should mark intents as complete when fully fulfilled', async () => {
+      const intent: RebalanceIntent = {
+        id: 'intent-1',
+        status: 'in_progress',
+        origin: 'chain1',
+        destination: 'chain2',
+        amount: 100n,
+        fulfilledAmount: 100n,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      await intentStore.save(intent);
+
+      await tracker.syncRebalanceIntents();
+
+      const updated = await intentStore.get('intent-1');
+      expect(updated?.status).to.equal('complete');
+    });
+
+    it('should not mark intents as complete if not fully fulfilled', async () => {
+      const intent: RebalanceIntent = {
+        id: 'intent-1',
+        status: 'in_progress',
+        origin: 'chain1',
+        destination: 'chain2',
+        amount: 100n,
+        fulfilledAmount: 50n,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      await intentStore.save(intent);
+
+      await tracker.syncRebalanceIntents();
+
+      const updated = await intentStore.get('intent-1');
+      expect(updated?.status).to.equal('in_progress');
+    });
+  });
+
+  describe('syncRebalanceActions', () => {
+    it('should mark actions as complete when delivered and update parent intent', async () => {
+      const intent: RebalanceIntent = {
+        id: 'intent-1',
+        status: 'in_progress',
+        origin: 'chain1',
+        destination: 'chain2',
+        amount: 100n,
+        fulfilledAmount: 0n,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      const action: RebalanceAction = {
+        id: 'action-1',
+        status: 'in_progress',
+        intentId: 'intent-1',
+        messageId: '0xmsg1',
+        origin: 'chain1',
+        destination: 'chain2',
+        amount: 100n,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      await intentStore.save(intent);
+      await actionStore.save(action);
+
+      mailboxStub.delivered.resolves(true);
+
+      await tracker.syncRebalanceActions();
+
+      // Action should be complete
+      const updatedAction = await actionStore.get('action-1');
+      expect(updatedAction?.status).to.equal('complete');
+
+      // Intent should be updated and complete
+      const updatedIntent = await intentStore.get('intent-1');
+      expect(updatedIntent?.fulfilledAmount).to.equal(100n);
+      expect(updatedIntent?.status).to.equal('complete');
+    });
+
+    it('should not mark actions as complete if not delivered', async () => {
+      const action: RebalanceAction = {
+        id: 'action-1',
+        status: 'in_progress',
+        intentId: 'intent-1',
+        messageId: '0xmsg1',
+        origin: 'chain1',
+        destination: 'chain2',
+        amount: 100n,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      await actionStore.save(action);
+
+      mailboxStub.delivered.resolves(false);
+
+      await tracker.syncRebalanceActions();
+
+      const updatedAction = await actionStore.get('action-1');
+      expect(updatedAction?.status).to.equal('in_progress');
+    });
+  });
+
+  describe('getInProgressTransfers', () => {
+    it('should return only in_progress transfers', async () => {
+      await transferStore.save({
+        id: 'transfer-1',
+        status: 'in_progress',
+        messageId: '0xmsg1',
+        origin: 'chain1',
+        destination: 'chain2',
+        amount: 100n,
+        sender: '0xsender1',
+        recipient: '0xrecipient1',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      await transferStore.save({
+        id: 'transfer-2',
+        status: 'complete',
+        messageId: '0xmsg2',
+        origin: 'chain2',
+        destination: 'chain3',
+        amount: 200n,
+        sender: '0xsender2',
+        recipient: '0xrecipient2',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      const result = await tracker.getInProgressTransfers();
+      expect(result).to.have.lengthOf(1);
+      expect(result[0].id).to.equal('transfer-1');
+    });
+  });
+
+  describe('getActiveRebalanceIntents', () => {
+    it('should return both not_started and in_progress intents', async () => {
+      await intentStore.save({
+        id: 'intent-1',
+        status: 'not_started',
+        origin: 'chain1',
+        destination: 'chain2',
+        amount: 100n,
+        fulfilledAmount: 0n,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      await intentStore.save({
+        id: 'intent-2',
+        status: 'in_progress',
+        origin: 'chain2',
+        destination: 'chain3',
+        amount: 200n,
+        fulfilledAmount: 50n,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      await intentStore.save({
+        id: 'intent-3',
+        status: 'complete',
+        origin: 'chain3',
+        destination: 'chain1',
+        amount: 300n,
+        fulfilledAmount: 300n,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      const result = await tracker.getActiveRebalanceIntents();
+      expect(result).to.have.lengthOf(2);
+      expect(result.map((i) => i.id)).to.include.members([
+        'intent-1',
+        'intent-2',
+      ]);
+    });
+  });
+
+  describe('createRebalanceIntent', () => {
+    it('should create a new intent with status not_started', async () => {
+      const result = await tracker.createRebalanceIntent({
+        origin: 'chain1',
+        destination: 'chain2',
+        amount: 100n,
+        priority: 1,
+        strategyType: 'MinAmountStrategy',
+      });
+
+      expect(result.status).to.equal('not_started');
+      expect(result.origin).to.equal('chain1');
+      expect(result.destination).to.equal('chain2');
+      expect(result.amount).to.equal(100n);
+      expect(result.fulfilledAmount).to.equal(0n);
+      expect(result.priority).to.equal(1);
+      expect(result.strategyType).to.equal('MinAmountStrategy');
+
+      const stored = await intentStore.get(result.id);
+      expect(stored).to.deep.equal(result);
+    });
+  });
+
+  describe('createRebalanceAction', () => {
+    it('should create action and transition intent from not_started to in_progress', async () => {
+      const intent: RebalanceIntent = {
+        id: 'intent-1',
+        status: 'not_started',
+        origin: 'chain1',
+        destination: 'chain2',
+        amount: 100n,
+        fulfilledAmount: 0n,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      await intentStore.save(intent);
+
+      const result = await tracker.createRebalanceAction({
+        intentId: 'intent-1',
+        origin: 'chain1',
+        destination: 'chain2',
+        amount: 100n,
+        messageId: '0xmsg1',
+        txHash: '0xtx1',
+      });
+
+      expect(result.status).to.equal('in_progress');
+      expect(result.intentId).to.equal('intent-1');
+      expect(result.messageId).to.equal('0xmsg1');
+
+      const updatedIntent = await intentStore.get('intent-1');
+      expect(updatedIntent?.status).to.equal('in_progress');
+    });
+
+    it('should not transition intent if already in_progress', async () => {
+      const intent: RebalanceIntent = {
+        id: 'intent-1',
+        status: 'in_progress',
+        origin: 'chain1',
+        destination: 'chain2',
+        amount: 100n,
+        fulfilledAmount: 50n,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      await intentStore.save(intent);
+
+      await tracker.createRebalanceAction({
+        intentId: 'intent-1',
+        origin: 'chain1',
+        destination: 'chain2',
+        amount: 50n,
+        messageId: '0xmsg2',
+        txHash: '0xtx2',
+      });
+
+      const updatedIntent = await intentStore.get('intent-1');
+      expect(updatedIntent?.status).to.equal('in_progress');
+      expect(updatedIntent?.fulfilledAmount).to.equal(50n); // Should not change
+    });
+  });
+
+  describe('completeRebalanceAction', () => {
+    it('should mark action as complete and update parent intent fulfilledAmount', async () => {
+      const intent: RebalanceIntent = {
+        id: 'intent-1',
+        status: 'in_progress',
+        origin: 'chain1',
+        destination: 'chain2',
+        amount: 100n,
+        fulfilledAmount: 0n,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      const action: RebalanceAction = {
+        id: 'action-1',
+        status: 'in_progress',
+        intentId: 'intent-1',
+        messageId: '0xmsg1',
+        origin: 'chain1',
+        destination: 'chain2',
+        amount: 100n,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      await intentStore.save(intent);
+      await actionStore.save(action);
+
+      await tracker.completeRebalanceAction('action-1');
+
+      const updatedAction = await actionStore.get('action-1');
+      expect(updatedAction?.status).to.equal('complete');
+
+      const updatedIntent = await intentStore.get('intent-1');
+      expect(updatedIntent?.fulfilledAmount).to.equal(100n);
+      expect(updatedIntent?.status).to.equal('complete');
+    });
+
+    it('should throw error when action not found', async () => {
+      await expect(
+        tracker.completeRebalanceAction('non-existent'),
+      ).to.be.rejectedWith('RebalanceAction non-existent not found');
+    });
+  });
+
+  describe('cancelRebalanceIntent', () => {
+    it('should mark intent as cancelled', async () => {
+      const intent: RebalanceIntent = {
+        id: 'intent-1',
+        status: 'not_started',
+        origin: 'chain1',
+        destination: 'chain2',
+        amount: 100n,
+        fulfilledAmount: 0n,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      await intentStore.save(intent);
+
+      await tracker.cancelRebalanceIntent('intent-1');
+
+      const updated = await intentStore.get('intent-1');
+      expect(updated?.status).to.equal('cancelled');
+    });
+  });
+
+  describe('failRebalanceAction', () => {
+    it('should mark action as failed', async () => {
+      const action: RebalanceAction = {
+        id: 'action-1',
+        status: 'in_progress',
+        intentId: 'intent-1',
+        messageId: '0xmsg1',
+        origin: 'chain1',
+        destination: 'chain2',
+        amount: 100n,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      await actionStore.save(action);
+
+      await tracker.failRebalanceAction('action-1');
+
+      const updated = await actionStore.get('action-1');
+      expect(updated?.status).to.equal('failed');
+    });
+  });
+});
