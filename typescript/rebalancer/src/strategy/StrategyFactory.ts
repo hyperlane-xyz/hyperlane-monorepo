@@ -47,7 +47,11 @@ export class StrategyFactory {
         );
       case RebalancerStrategyOptions.CollateralDeficit:
         return StrategyFactory.createCollateralDeficitStrategy(
+<<<<<<< HEAD
           strategyConfig as CollateralDeficitParsedConfig,
+=======
+          strategyConfig as SDKCollateralDeficitStrategy,
+>>>>>>> de54798b6 (feat(sdk): add CollateralDeficit strategy types and factory integration)
           tokensByChainName,
           logger,
           metrics,
@@ -59,11 +63,19 @@ export class StrategyFactory {
   }
 
   /**
+<<<<<<< HEAD
    * Create a CollateralDeficitStrategy from config.
    * Converts buffer from token units to wei.
    */
   private static createCollateralDeficitStrategy(
     config: CollateralDeficitParsedConfig,
+=======
+   * Create a CollateralDeficitStrategy from SDK config.
+   * Converts buffer from token units to wei.
+   */
+  private static createCollateralDeficitStrategy(
+    config: SDKCollateralDeficitStrategy,
+>>>>>>> de54798b6 (feat(sdk): add CollateralDeficit strategy types and factory integration)
     tokensByChainName: ChainMap<Token>,
     logger: Logger,
     metrics?: Metrics,
