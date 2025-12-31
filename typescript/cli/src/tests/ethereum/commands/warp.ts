@@ -1,22 +1,22 @@
 import { Wallet } from 'ethers';
-import { $, ProcessPromise } from 'zx';
+import { $, type ProcessPromise } from 'zx';
 
-import { ChainAddresses } from '@hyperlane-xyz/registry';
+import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import {
-  ChainName,
-  HypTokenRouterConfig,
+  type ChainName,
+  type HypTokenRouterConfig,
   TokenType,
-  WarpCoreConfig,
-  WarpRouteDeployConfig,
-  WarpRouteDeployConfigMailboxRequired,
+  type WarpCoreConfig,
+  type WarpRouteDeployConfig,
+  type WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigSchema,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, randomInt } from '@hyperlane-xyz/utils';
+import { type Address, ProtocolType, randomInt } from '@hyperlane-xyz/utils';
 
 import { readChainSubmissionStrategyConfig } from '../../../config/strategy.js';
 import { createAltVMSigners } from '../../../context/altvm.js';
 import { getContext } from '../../../context/context.js';
-import { CommandContext } from '../../../context/types.js';
+import { type CommandContext } from '../../../context/types.js';
 import { extendWarpRoute as extendWarpRouteWithoutApplyTransactions } from '../../../deploy/warp.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import {

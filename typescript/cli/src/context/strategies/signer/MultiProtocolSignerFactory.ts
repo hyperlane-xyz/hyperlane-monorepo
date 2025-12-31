@@ -1,13 +1,16 @@
-import { Signer, Wallet } from 'ethers';
+import { type Signer, Wallet } from 'ethers';
 import { Wallet as ZKSyncWallet } from 'zksync-ethers';
 
-import { ChainTechnicalStack, MultiProtocolProvider } from '@hyperlane-xyz/sdk';
+import {
+  ChainTechnicalStack,
+  type MultiProtocolProvider,
+} from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import {
   BaseMultiProtocolSigner,
-  IMultiProtocolSigner,
-  SignerConfig,
+  type IMultiProtocolSigner,
+  type SignerConfig,
 } from './BaseMultiProtocolSigner.js';
 
 export class MultiProtocolSignerFactory {

@@ -1,25 +1,25 @@
-import { ContractFactory } from 'ethers';
+import { type ContractFactory } from 'ethers';
 
 import { buildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
-  ChainMap,
+  type ChainMap,
   EvmERC20WarpRouteReader,
   ExplorerLicenseType,
-  MultiProvider,
+  type MultiProvider,
   PostDeploymentContractVerifier,
-  TokenType,
-  VerificationInput,
-  WarpCoreConfig,
+  type TokenType,
+  type VerificationInput,
+  type WarpCoreConfig,
   hypERC20contracts,
   hypERC20factories,
   isProxy,
   proxyImplementation,
   verificationUtils,
 } from '@hyperlane-xyz/sdk';
-import { Address, assert, objFilter } from '@hyperlane-xyz/utils';
+import { type Address, assert, objFilter } from '@hyperlane-xyz/utils';
 
 import { requestAndSaveApiKeys } from '../context/context.js';
-import { CommandContext } from '../context/types.js';
+import { type CommandContext } from '../context/types.js';
 import { logBlue, logGray, logGreen } from '../logger.js';
 
 // Zircuit does not have an external API: https://docs.zircuit.com/dev-tools/block-explorer

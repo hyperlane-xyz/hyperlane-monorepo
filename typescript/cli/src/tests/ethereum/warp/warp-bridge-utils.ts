@@ -3,24 +3,24 @@ import { Wallet } from 'ethers';
 import { parseUnits } from 'ethers/lib/utils.js';
 
 import {
-  ERC20Test,
+  type ERC20Test,
   ERC20Test__factory,
-  ERC4626Test,
-  FiatTokenTest,
-  MockEverclearAdapter,
-  XERC20LockboxTest,
-  XERC20VSTest,
+  type ERC4626Test,
+  type FiatTokenTest,
+  type MockEverclearAdapter,
+  type XERC20LockboxTest,
+  type XERC20VSTest,
 } from '@hyperlane-xyz/core';
-import { ChainAddresses } from '@hyperlane-xyz/registry';
+import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import {
-  ChainMap,
-  ChainMetadata,
-  Token,
+  type ChainMap,
+  type ChainMetadata,
+  type Token,
   TokenType,
-  WarpCoreConfig,
-  WarpRouteDeployConfig,
+  type WarpCoreConfig,
+  type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import { type Address } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { deployOrUseExistingCore } from '../commands/core.js';

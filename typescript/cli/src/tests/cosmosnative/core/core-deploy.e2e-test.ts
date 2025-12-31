@@ -2,17 +2,17 @@ import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
 import { expect } from 'chai';
 
 import { CosmosNativeSigner } from '@hyperlane-xyz/cosmos-sdk';
-import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { type AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
-  ChainMetadata,
-  CoreConfig,
+  type ChainMetadata,
+  type CoreConfig,
   HookType,
-  IgpConfig,
-  ProtocolReceipt,
-  ProtocolTransaction,
+  type IgpConfig,
+  type ProtocolReceipt,
+  type ProtocolTransaction,
   randomCosmosAddress,
 } from '@hyperlane-xyz/sdk';
-import { Address, assert } from '@hyperlane-xyz/utils';
+import { type Address, assert } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
@@ -20,7 +20,7 @@ import {
   KeyBoardKeys,
   SELECT_MAINNET_CHAIN_TYPE_STEP,
   SETUP_CHAIN_SIGNER_MANUALLY_STEP,
-  TestPromptAction,
+  type TestPromptAction,
   handlePrompts,
 } from '../../commands/helpers.js';
 import {

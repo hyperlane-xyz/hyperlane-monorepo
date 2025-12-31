@@ -1,9 +1,12 @@
 import { stringify as yamlStringify } from 'yaml';
 
-import { AnnotatedEV5Transaction, ChainName } from '@hyperlane-xyz/sdk';
-import { ProtocolType, errorToString } from '@hyperlane-xyz/utils';
+import {
+  type AnnotatedEV5Transaction,
+  type ChainName,
+} from '@hyperlane-xyz/sdk';
+import { type ProtocolType, errorToString } from '@hyperlane-xyz/utils';
 
-import { WriteCommandContext } from '../context/types.js';
+import { type WriteCommandContext } from '../context/types.js';
 import { getSubmitterByStrategy } from '../deploy/warp.js';
 import { logGray, logRed } from '../logger.js';
 import {

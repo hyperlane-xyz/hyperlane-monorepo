@@ -3,19 +3,19 @@ import * as chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import { fs } from 'zx';
 
-import { ChainAddresses } from '@hyperlane-xyz/registry';
+import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import {
-  ChainName,
+  type ChainName,
   TokenType,
-  WarpRouteDeployConfig,
+  type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType } from '@hyperlane-xyz/utils';
+import { type Address, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import {
   KeyBoardKeys,
-  TestPromptAction,
+  type TestPromptAction,
   handlePrompts,
 } from '../../commands/helpers.js';
 import { HyperlaneE2EWarpTestCommands } from '../../commands/warp.js';

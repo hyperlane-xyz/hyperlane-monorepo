@@ -1,9 +1,9 @@
 import { expect } from 'chai';
-import { PopulatedTransaction as EV5Transaction, ethers } from 'ethers';
+import { type PopulatedTransaction as EV5Transaction, ethers } from 'ethers';
 
-import { XERC20VSTest, XERC20VSTest__factory } from '@hyperlane-xyz/core';
+import { type XERC20VSTest, XERC20VSTest__factory } from '@hyperlane-xyz/core';
 import { TxSubmitterType, randomAddress } from '@hyperlane-xyz/sdk';
-import { Address, randomInt } from '@hyperlane-xyz/utils';
+import { type Address, randomInt } from '@hyperlane-xyz/utils';
 
 import { CustomTxSubmitterType } from '../../../submitters/types.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';

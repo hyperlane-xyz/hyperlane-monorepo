@@ -1,11 +1,11 @@
-import { PopulatedTransaction } from 'ethers';
-import { Logger } from 'pino';
+import { type PopulatedTransaction } from 'ethers';
+import { type Logger } from 'pino';
 
 import {
   type ChainMap,
   type ChainMetadata,
   EvmMovableCollateralAdapter,
-  InterchainGasQuote,
+  type InterchainGasQuote,
   type MultiProvider,
   type Token,
   type WarpCore,
@@ -17,7 +17,7 @@ import type {
   PreparedTransaction,
 } from '../interfaces/IRebalancer.js';
 import type { RebalancingRoute } from '../interfaces/IStrategy.js';
-import { Metrics } from '../metrics/Metrics.js';
+import { type Metrics } from '../metrics/Metrics.js';
 import {
   type BridgeConfigWithOverride,
   getBridgeConfig,

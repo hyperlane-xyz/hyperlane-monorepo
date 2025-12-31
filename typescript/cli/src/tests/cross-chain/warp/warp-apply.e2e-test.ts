@@ -3,16 +3,20 @@ import * as chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import { Wallet } from 'ethers';
 
-import { ChainAddresses } from '@hyperlane-xyz/registry';
+import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import {
-  ChainMap,
-  DerivedWarpRouteDeployConfig,
+  type ChainMap,
+  type DerivedWarpRouteDeployConfig,
   TokenType,
-  WarpCoreConfig,
-  WarpRouteDeployConfig,
+  type WarpCoreConfig,
+  type WarpRouteDeployConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, addressToBytes32 } from '@hyperlane-xyz/utils';
+import {
+  type Address,
+  ProtocolType,
+  addressToBytes32,
+} from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';

@@ -5,7 +5,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 
 import {
-  RebalancerConfigFileInput,
+  type RebalancerConfigFileInput,
   RebalancerMinAmountType,
   RebalancerStrategyOptions,
 } from '@hyperlane-xyz/sdk';

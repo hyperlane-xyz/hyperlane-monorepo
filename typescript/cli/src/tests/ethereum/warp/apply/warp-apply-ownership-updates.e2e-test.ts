@@ -1,7 +1,11 @@
 import { expect } from 'chai';
 
 import { TokenType, randomAddress } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, normalizeAddress } from '@hyperlane-xyz/utils';
+import {
+  type Address,
+  ProtocolType,
+  normalizeAddress,
+} from '@hyperlane-xyz/utils';
 
 import { writeYamlOrJson } from '../../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../../commands/core.js';
