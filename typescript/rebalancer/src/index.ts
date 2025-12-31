@@ -66,6 +66,14 @@ export {
   type RebalanceContext,
 } from './tracker/index.js';
 
+// Executor
+export { RebalanceExecutor } from './executor/RebalanceExecutor.js';
+export type {
+  InventoryConfig,
+  IInventoryProvider,
+  IInventoryBridge,
+} from './executor/RebalanceExecutor.js';
+
 // Monitor
 export { Monitor } from './monitor/Monitor.js';
 
