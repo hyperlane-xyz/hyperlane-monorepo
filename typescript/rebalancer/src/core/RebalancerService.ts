@@ -167,7 +167,7 @@ export class RebalancerService {
     }
 
     // Create ActionTracker for tracking inflight messages and rebalances
-    this.actionTracker = this.contextFactory.createActionTracker();
+    this.actionTracker = await this.contextFactory.createActionTracker();
     await this.actionTracker.initialize();
     this.logger.info('ActionTracker initialized');
 

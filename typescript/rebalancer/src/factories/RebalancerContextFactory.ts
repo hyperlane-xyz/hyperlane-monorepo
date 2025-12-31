@@ -3,6 +3,7 @@ import { Logger } from 'pino';
 import { IRegistry } from '@hyperlane-xyz/registry';
 import {
   type ChainMap,
+  HyperlaneCore,
   MultiProtocolProvider,
   MultiProvider,
   type Token,
@@ -24,10 +25,19 @@ import { PriceGetter } from '../metrics/PriceGetter.js';
 import { Monitor } from '../monitor/Monitor.js';
 import { StrategyFactory } from '../strategy/StrategyFactory.js';
 import {
+  ActionTracker,
   ActionTrackerStub,
   type IActionTracker,
+  InMemoryStore,
   InflightContextAdapter,
+  type RebalanceAction,
+  type RebalanceActionStatus,
+  type RebalanceIntent,
+  type RebalanceIntentStatus,
+  type Transfer,
+  type TransferStatus,
 } from '../tracking/index.js';
+import { ExplorerClient } from '../utils/ExplorerClient.js';
 import { isCollateralizedTokenEligibleForRebalancing } from '../utils/index.js';
 
 export class RebalancerContextFactory {
@@ -223,15 +233,71 @@ export class RebalancerContextFactory {
 
   /**
    * Create an ActionTracker instance.
-   * Currently returns a stub that provides no-op behavior.
-   * The real implementation will be added in a follow-up PR.
+   * Returns a real ActionTracker when explorerUrl is configured, otherwise returns a stub.
    */
-  public createActionTracker(): IActionTracker {
+  public async createActionTracker(): Promise<IActionTracker> {
+    // If explorerUrl and rebalancerAddress are not configured, return stub
+    if (!this.config.explorerUrl || !this.config.rebalancerAddress) {
+      this.logger.debug(
+        { warpRouteId: this.config.warpRouteId },
+        'Creating ActionTracker (stub) - no explorerUrl configured',
+      );
+      return new ActionTrackerStub(this.logger);
+    }
+
     this.logger.debug(
       { warpRouteId: this.config.warpRouteId },
-      'Creating ActionTracker (stub)',
+      'Creating ActionTracker',
     );
-    return new ActionTrackerStub(this.logger);
+
+    // Get chain names and build domain mapping
+    const chainNames = getStrategyChainNames(this.config.strategyConfig);
+    const domainToChain: ChainMap<number> = {};
+    const domains: number[] = [];
+
+    for (const chainName of chainNames) {
+      const domainId = this.multiProvider.getDomainId(chainName);
+      domainToChain[chainName] = domainId;
+      domains.push(domainId);
+    }
+
+    // Get router addresses from warp core tokens
+    const routers = this.warpCore.tokens
+      .filter((t) => chainNames.includes(t.chainName))
+      .map((t) => t.addressOrDenom);
+
+    // Create stores
+    const transferStore = new InMemoryStore<Transfer, TransferStatus>();
+    const intentStore = new InMemoryStore<
+      RebalanceIntent,
+      RebalanceIntentStatus
+    >();
+    const actionStore = new InMemoryStore<
+      RebalanceAction,
+      RebalanceActionStatus
+    >();
+
+    // Create ExplorerClient
+    const explorerClient = new ExplorerClient(this.config.explorerUrl);
+
+    // Create HyperlaneCore for message delivery checks
+    const addresses = await this.registry.getAddresses();
+    const core = HyperlaneCore.fromAddressesMap(addresses, this.multiProvider);
+
+    return new ActionTracker(
+      transferStore,
+      intentStore,
+      actionStore,
+      explorerClient,
+      core,
+      {
+        routers,
+        rebalancerAddress: this.config.rebalancerAddress,
+        domains,
+        domainToChain,
+      },
+      this.logger,
+    );
   }
 
   /**
