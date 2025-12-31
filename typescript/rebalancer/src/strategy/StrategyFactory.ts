@@ -1,12 +1,8 @@
 import { Logger } from 'pino';
 
-import {
-  ChainMap,
-  RebalancerStrategyOptions,
-  StrategyConfig,
-  Token,
-} from '@hyperlane-xyz/sdk';
+import { ChainMap, Token } from '@hyperlane-xyz/sdk';
 
+import { RebalancerStrategyOptions, StrategyConfig } from '../config/types.js';
 import { type IStrategy } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
 
