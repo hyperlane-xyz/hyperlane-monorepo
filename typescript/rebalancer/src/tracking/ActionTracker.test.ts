@@ -34,9 +34,9 @@ describe('ActionTracker', () => {
     rebalanceIntentStore = new InMemoryStore();
     rebalanceActionStore = new InMemoryStore();
 
-    // Create stub for ExplorerClient methods
-    const explorerGetInflightUserTransfers = Sinon.stub();
-    const explorerGetInflightRebalanceActions = Sinon.stub();
+    // Create stub for ExplorerClient methods with default return values
+    const explorerGetInflightUserTransfers = Sinon.stub().resolves([]);
+    const explorerGetInflightRebalanceActions = Sinon.stub().resolves([]);
 
     explorerClient = {
       getInflightUserTransfers: explorerGetInflightUserTransfers,
@@ -50,13 +50,20 @@ describe('ActionTracker', () => {
 
     // Create stub for HyperlaneCore
     const coreGetContracts = Sinon.stub().returns({ mailbox: mailboxStub });
+    const multiProviderGetChainName = Sinon.stub().callsFake(
+      (domain: number) => `chain${domain}`,
+    );
 
     core = {
       getContracts: coreGetContracts,
+      multiProvider: {
+        getChainName: multiProviderGetChainName,
+      },
     } as any;
 
     config = {
       routers: ['0xrouter1', '0xrouter2'],
+      bridges: ['0xbridge1', '0xbridge2'],
       rebalancerAddress: '0xrebalancer',
       domains: [1, 2, 3],
     };
@@ -84,6 +91,8 @@ describe('ActionTracker', () => {
           origin_tx_hash: '0xtx1',
           origin_tx_sender: '0xrebalancer',
           is_delivered: false,
+          message_body:
+            '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000064',
         },
       ];
 
@@ -95,15 +104,16 @@ describe('ActionTracker', () => {
 
       await tracker.initialize();
 
-      // Verify ExplorerClient was called
-      expect(explorerClient.getInflightRebalanceActions.calledOnce).to.be.true;
+      // Verify ExplorerClient was called twice:
+      // 1. During startup recovery in initialize()
+      // 2. During syncRebalanceActions() called from initialize()
+      expect(explorerClient.getInflightRebalanceActions.callCount).to.equal(2);
 
       // Verify synthetic intent and action were created
       const intents = await rebalanceIntentStore.getAll();
       expect(intents).to.have.lengthOf(1);
-      // Note: Intent starts as in_progress and may become complete if fulfilledAmount matches amount
-      // Since we don't have amount from Explorer, both are 0n and intent becomes complete
-      expect(intents[0].status).to.equal('complete');
+      expect(intents[0].status).to.equal('in_progress');
+      expect(intents[0].amount).to.equal(100n);
 
       const actions = await rebalanceActionStore.getAll();
       expect(actions).to.have.lengthOf(1);
@@ -123,6 +133,8 @@ describe('ActionTracker', () => {
           origin_tx_hash: '0xtx1',
           origin_tx_sender: '0xrebalancer',
           is_delivered: false,
+          message_body:
+            '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000064',
         },
       ];
 
@@ -132,8 +144,8 @@ describe('ActionTracker', () => {
         status: 'in_progress',
         intentId: 'existing-intent',
         messageId: '0xmsg1',
-        origin: '1',
-        destination: '2',
+        origin: 1,
+        destination: 2,
         amount: 100n,
         createdAt: Date.now(),
         updatedAt: Date.now(),
@@ -166,6 +178,8 @@ describe('ActionTracker', () => {
           origin_tx_hash: '0xtx1',
           origin_tx_sender: '0xuser1',
           is_delivered: false,
+          message_body:
+            '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000064',
         },
       ];
 
@@ -178,6 +192,7 @@ describe('ActionTracker', () => {
       expect(transfers[0].id).to.equal('0xmsg1');
       expect(transfers[0].status).to.equal('in_progress');
       expect(transfers[0].sender).to.equal('0xuser1');
+      expect(transfers[0].amount).to.equal(100n);
     });
 
     it('should not duplicate transfers that already exist', async () => {
@@ -186,8 +201,8 @@ describe('ActionTracker', () => {
         id: '0xmsg1',
         status: 'in_progress',
         messageId: '0xmsg1',
-        origin: '1',
-        destination: '2',
+        origin: 1,
+        destination: 2,
         amount: 100n,
         sender: '0xuser1',
         recipient: '0xuser2',
@@ -205,6 +220,8 @@ describe('ActionTracker', () => {
           origin_tx_hash: '0xtx1',
           origin_tx_sender: '0xuser1',
           is_delivered: false,
+          message_body:
+            '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000064',
         },
       ];
 
@@ -222,8 +239,8 @@ describe('ActionTracker', () => {
         id: '0xmsg1',
         status: 'in_progress',
         messageId: '0xmsg1',
-        origin: 'chain1',
-        destination: 'chain2',
+        origin: 1,
+        destination: 2,
         amount: 100n,
         sender: '0xuser1',
         recipient: '0xuser2',
@@ -246,8 +263,8 @@ describe('ActionTracker', () => {
       const intent: RebalanceIntent = {
         id: 'intent-1',
         status: 'in_progress',
-        origin: 'chain1',
-        destination: 'chain2',
+        origin: 1,
+        destination: 2,
         amount: 100n,
         fulfilledAmount: 100n,
         createdAt: Date.now(),
@@ -266,8 +283,8 @@ describe('ActionTracker', () => {
       const intent: RebalanceIntent = {
         id: 'intent-1',
         status: 'in_progress',
-        origin: 'chain1',
-        destination: 'chain2',
+        origin: 1,
+        destination: 2,
         amount: 100n,
         fulfilledAmount: 50n,
         createdAt: Date.now(),
@@ -288,8 +305,8 @@ describe('ActionTracker', () => {
       const intent: RebalanceIntent = {
         id: 'intent-1',
         status: 'in_progress',
-        origin: 'chain1',
-        destination: 'chain2',
+        origin: 1,
+        destination: 2,
         amount: 100n,
         fulfilledAmount: 0n,
         createdAt: Date.now(),
@@ -301,8 +318,8 @@ describe('ActionTracker', () => {
         status: 'in_progress',
         intentId: 'intent-1',
         messageId: '0xmsg1',
-        origin: 'chain1',
-        destination: 'chain2',
+        origin: 1,
+        destination: 2,
         amount: 100n,
         createdAt: Date.now(),
         updatedAt: Date.now(),
@@ -331,8 +348,8 @@ describe('ActionTracker', () => {
         status: 'in_progress',
         intentId: 'intent-1',
         messageId: '0xmsg1',
-        origin: 'chain1',
-        destination: 'chain2',
+        origin: 1,
+        destination: 2,
         amount: 100n,
         createdAt: Date.now(),
         updatedAt: Date.now(),
@@ -355,8 +372,8 @@ describe('ActionTracker', () => {
         id: 'transfer-1',
         status: 'in_progress',
         messageId: '0xmsg1',
-        origin: 'chain1',
-        destination: 'chain2',
+        origin: 1,
+        destination: 2,
         amount: 100n,
         sender: '0xsender1',
         recipient: '0xrecipient1',
@@ -368,8 +385,8 @@ describe('ActionTracker', () => {
         id: 'transfer-2',
         status: 'complete',
         messageId: '0xmsg2',
-        origin: 'chain2',
-        destination: 'chain3',
+        origin: 2,
+        destination: 3,
         amount: 200n,
         sender: '0xsender2',
         recipient: '0xrecipient2',
@@ -388,8 +405,8 @@ describe('ActionTracker', () => {
       await rebalanceIntentStore.save({
         id: 'intent-1',
         status: 'not_started',
-        origin: 'chain1',
-        destination: 'chain2',
+        origin: 1,
+        destination: 2,
         amount: 100n,
         fulfilledAmount: 0n,
         createdAt: Date.now(),
@@ -399,8 +416,8 @@ describe('ActionTracker', () => {
       await rebalanceIntentStore.save({
         id: 'intent-2',
         status: 'in_progress',
-        origin: 'chain2',
-        destination: 'chain3',
+        origin: 2,
+        destination: 3,
         amount: 200n,
         fulfilledAmount: 50n,
         createdAt: Date.now(),
@@ -410,8 +427,8 @@ describe('ActionTracker', () => {
       await rebalanceIntentStore.save({
         id: 'intent-3',
         status: 'complete',
-        origin: 'chain3',
-        destination: 'chain1',
+        origin: 3,
+        destination: 1,
         amount: 300n,
         fulfilledAmount: 300n,
         createdAt: Date.now(),
@@ -430,16 +447,16 @@ describe('ActionTracker', () => {
   describe('createRebalanceIntent', () => {
     it('should create a new intent with status not_started', async () => {
       const result = await tracker.createRebalanceIntent({
-        origin: 'chain1',
-        destination: 'chain2',
+        origin: 1,
+        destination: 2,
         amount: 100n,
         priority: 1,
         strategyType: 'MinAmountStrategy',
       });
 
       expect(result.status).to.equal('not_started');
-      expect(result.origin).to.equal('chain1');
-      expect(result.destination).to.equal('chain2');
+      expect(result.origin).to.equal(1);
+      expect(result.destination).to.equal(2);
       expect(result.amount).to.equal(100n);
       expect(result.fulfilledAmount).to.equal(0n);
       expect(result.priority).to.equal(1);
@@ -455,8 +472,8 @@ describe('ActionTracker', () => {
       const intent: RebalanceIntent = {
         id: 'intent-1',
         status: 'not_started',
-        origin: 'chain1',
-        destination: 'chain2',
+        origin: 1,
+        destination: 2,
         amount: 100n,
         fulfilledAmount: 0n,
         createdAt: Date.now(),
@@ -467,8 +484,8 @@ describe('ActionTracker', () => {
 
       const result = await tracker.createRebalanceAction({
         intentId: 'intent-1',
-        origin: 'chain1',
-        destination: 'chain2',
+        origin: 1,
+        destination: 2,
         amount: 100n,
         messageId: '0xmsg1',
         txHash: '0xtx1',
@@ -486,8 +503,8 @@ describe('ActionTracker', () => {
       const intent: RebalanceIntent = {
         id: 'intent-1',
         status: 'in_progress',
-        origin: 'chain1',
-        destination: 'chain2',
+        origin: 1,
+        destination: 2,
         amount: 100n,
         fulfilledAmount: 50n,
         createdAt: Date.now(),
@@ -498,8 +515,8 @@ describe('ActionTracker', () => {
 
       await tracker.createRebalanceAction({
         intentId: 'intent-1',
-        origin: 'chain1',
-        destination: 'chain2',
+        origin: 1,
+        destination: 2,
         amount: 50n,
         messageId: '0xmsg2',
         txHash: '0xtx2',
@@ -516,8 +533,8 @@ describe('ActionTracker', () => {
       const intent: RebalanceIntent = {
         id: 'intent-1',
         status: 'in_progress',
-        origin: 'chain1',
-        destination: 'chain2',
+        origin: 1,
+        destination: 2,
         amount: 100n,
         fulfilledAmount: 0n,
         createdAt: Date.now(),
@@ -529,8 +546,8 @@ describe('ActionTracker', () => {
         status: 'in_progress',
         intentId: 'intent-1',
         messageId: '0xmsg1',
-        origin: 'chain1',
-        destination: 'chain2',
+        origin: 1,
+        destination: 2,
         amount: 100n,
         createdAt: Date.now(),
         updatedAt: Date.now(),
@@ -561,8 +578,8 @@ describe('ActionTracker', () => {
       const intent: RebalanceIntent = {
         id: 'intent-1',
         status: 'not_started',
-        origin: 'chain1',
-        destination: 'chain2',
+        origin: 1,
+        destination: 2,
         amount: 100n,
         fulfilledAmount: 0n,
         createdAt: Date.now(),
@@ -585,8 +602,8 @@ describe('ActionTracker', () => {
         status: 'in_progress',
         intentId: 'intent-1',
         messageId: '0xmsg1',
-        origin: 'chain1',
-        destination: 'chain2',
+        origin: 1,
+        destination: 2,
         amount: 100n,
         createdAt: Date.now(),
         updatedAt: Date.now(),

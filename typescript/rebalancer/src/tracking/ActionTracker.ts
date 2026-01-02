@@ -2,7 +2,8 @@ import type { Logger } from 'pino';
 import { v4 as uuidv4 } from 'uuid';
 
 import type { HyperlaneCore } from '@hyperlane-xyz/sdk';
-import type { Address } from '@hyperlane-xyz/utils';
+import type { Address, Domain } from '@hyperlane-xyz/utils';
+import { parseWarpRouteMessage } from '@hyperlane-xyz/utils';
 
 import type {
   ExplorerClient,
@@ -24,7 +25,8 @@ import type {
 } from './types.js';
 
 export interface ActionTrackerConfig {
-  routers: Address[];
+  routers: Address[]; // Warp route router addresses for user transfer queries
+  bridges: Address[]; // Bridge contract addresses for rebalance action queries
   rebalancerAddress: Address;
   domains: number[];
 }
@@ -52,7 +54,7 @@ export class ActionTracker implements IActionTracker {
     const inflightMessages =
       await this.explorerClient.getInflightRebalanceActions(
         {
-          routers: this.config.routers,
+          bridges: this.config.bridges,
           domains: this.config.domains,
           rebalancerAddress: this.config.rebalancerAddress,
         },
@@ -92,32 +94,67 @@ export class ActionTracker implements IActionTracker {
       this.logger,
     );
 
+    this.logger.debug(
+      { count: inflightMessages.length },
+      'Received inflight user transfers from Explorer',
+    );
+
     // Process each message from Explorer
     for (const msg of inflightMessages) {
       const transfer = await this.transferStore.get(msg.msg_id);
 
       if (!transfer) {
         // New transfer, create it
-        const newTransfer: Transfer = {
-          id: msg.msg_id,
-          status: 'in_progress',
-          messageId: msg.msg_id,
-          origin: this.domainToChain(msg.origin_domain_id),
-          destination: this.domainToChain(msg.destination_domain_id),
-          sender: msg.sender,
-          recipient: msg.recipient,
-          amount: 0n, // We don't have amount from Explorer
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-        };
-        await this.transferStore.save(newTransfer);
-        this.logger.debug({ id: newTransfer.id }, 'Created new transfer');
+        this.logger.debug(
+          {
+            msgId: msg.msg_id,
+            origin: msg.origin_domain_id,
+            destination: msg.destination_domain_id,
+            sender: msg.sender,
+            recipient: msg.recipient,
+            messageBodyLength: msg.message_body?.length,
+            messageBodyPreview: msg.message_body?.substring(0, 66),
+          },
+          'Processing new transfer message',
+        );
+
+        try {
+          const { amount } = parseWarpRouteMessage(msg.message_body);
+          const newTransfer: Transfer = {
+            id: msg.msg_id,
+            status: 'in_progress',
+            messageId: msg.msg_id,
+            origin: msg.origin_domain_id,
+            destination: msg.destination_domain_id,
+            sender: msg.sender,
+            recipient: msg.recipient,
+            amount,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          };
+          await this.transferStore.save(newTransfer);
+          this.logger.debug(
+            { id: newTransfer.id, amount: amount.toString() },
+            'Created new transfer',
+          );
+        } catch (error) {
+          this.logger.warn(
+            {
+              msgId: msg.msg_id,
+              messageBody: msg.message_body,
+              messageBodyLength: msg.message_body?.length,
+              origin: msg.origin_domain_id,
+              destination: msg.destination_domain_id,
+              error: error instanceof Error ? error.message : String(error),
+            },
+            'Failed to parse message body, skipping transfer',
+          );
+        }
       }
     }
 
     // Check existing transfers for delivery
-    const existingTransfers =
-      await this.transferStore.getByStatus('in_progress');
+    const existingTransfers = await this.getInProgressTransfers();
     for (const transfer of existingTransfers) {
       const delivered = await this.isMessageDelivered(
         transfer.messageId,
@@ -154,6 +191,41 @@ export class ActionTracker implements IActionTracker {
   async syncRebalanceActions(): Promise<void> {
     this.logger.debug('Syncing rebalance actions');
 
+    // 1. Query Explorer for ALL inflight rebalance actions (including manual ones)
+    const inflightMessages =
+      await this.explorerClient.getInflightRebalanceActions(
+        {
+          bridges: this.config.bridges,
+          domains: this.config.domains,
+          rebalancerAddress: this.config.rebalancerAddress,
+        },
+        this.logger,
+      );
+
+    this.logger.debug(
+      { count: inflightMessages.length },
+      'Found inflight rebalance actions from Explorer',
+    );
+
+    // 2. For each message from Explorer, check if it exists in our store
+    for (const msg of inflightMessages) {
+      const existingAction = await this.rebalanceActionStore.get(msg.msg_id);
+
+      if (!existingAction) {
+        // New action (manual rebalance or restart gap) - recover it
+        this.logger.info(
+          {
+            msgId: msg.msg_id,
+            origin: msg.origin_domain_id,
+            destination: msg.destination_domain_id,
+          },
+          'Discovered new rebalance action, recovering...',
+        );
+        await this.recoverAction(msg);
+      }
+    }
+
+    // 3. Check delivery status for all in-progress actions in our store
     const inProgressActions =
       await this.rebalanceActionStore.getByStatus('in_progress');
     for (const action of inProgressActions) {
@@ -177,7 +249,7 @@ export class ActionTracker implements IActionTracker {
     return this.transferStore.getByStatus('in_progress');
   }
 
-  async getTransfersByDestination(destination: string): Promise<Transfer[]> {
+  async getTransfersByDestination(destination: Domain): Promise<Transfer[]> {
     return this.transferStore.getByDestination(destination);
   }
 
@@ -192,7 +264,7 @@ export class ActionTracker implements IActionTracker {
   }
 
   async getRebalanceIntentsByDestination(
-    destination: string,
+    destination: Domain,
   ): Promise<RebalanceIntent[]> {
     return this.rebalanceIntentStore.getByDestination(destination);
   }
@@ -286,20 +358,20 @@ export class ActionTracker implements IActionTracker {
     const intent = await this.rebalanceIntentStore.get(action.intentId);
     if (intent) {
       const newFulfilledAmount = intent.fulfilledAmount + action.amount;
-      await this.rebalanceIntentStore.update(intent.id, {
+      const updates: Partial<RebalanceIntent> = {
         fulfilledAmount: newFulfilledAmount,
-      });
+      };
 
       // Check if intent is now complete
       if (newFulfilledAmount >= intent.amount) {
-        await this.rebalanceIntentStore.update(intent.id, {
-          status: 'complete',
-        });
+        updates.status = 'complete';
         this.logger.debug(
           { intentId: intent.id },
           'RebalanceIntent fully fulfilled',
         );
       }
+
+      await this.rebalanceIntentStore.update(intent.id, updates);
     }
 
     this.logger.debug({ id }, 'Completed RebalanceAction');
@@ -314,10 +386,11 @@ export class ActionTracker implements IActionTracker {
 
   private async isMessageDelivered(
     messageId: string,
-    destination: string,
+    destination: Domain,
   ): Promise<boolean> {
     try {
-      const mailbox = this.core.getContracts(destination).mailbox;
+      const chainName = this.core.multiProvider.getChainName(destination);
+      const mailbox = this.core.getContracts(chainName).mailbox;
       return await mailbox.delivered(messageId);
     } catch (error) {
       this.logger.warn(
@@ -328,12 +401,6 @@ export class ActionTracker implements IActionTracker {
     }
   }
 
-  private domainToChain(domainId: number): string {
-    // TODO: Implement proper domain-to-chain mapping
-    // For now, return domain ID as string
-    return domainId.toString();
-  }
-
   private async recoverAction(msg: ExplorerMessage): Promise<void> {
     // Check if action already exists
     const existing = await this.rebalanceActionStore.get(msg.msg_id);
@@ -342,41 +409,74 @@ export class ActionTracker implements IActionTracker {
       return;
     }
 
-    // Create synthetic intent
-    const intent: RebalanceIntent = {
-      id: uuidv4(),
-      status: 'in_progress',
-      origin: this.domainToChain(msg.origin_domain_id),
-      destination: this.domainToChain(msg.destination_domain_id),
-      amount: 0n, // We don't have amount from Explorer
-      fulfilledAmount: 0n,
-      priority: undefined,
-      strategyType: undefined,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    };
-
-    await this.rebalanceIntentStore.save(intent);
-    this.logger.debug({ id: intent.id }, 'Created synthetic RebalanceIntent');
-
-    // Create action
-    const action: RebalanceAction = {
-      id: msg.msg_id,
-      status: 'in_progress',
-      intentId: intent.id,
-      messageId: msg.msg_id,
-      txHash: msg.origin_tx_hash,
-      origin: this.domainToChain(msg.origin_domain_id),
-      destination: this.domainToChain(msg.destination_domain_id),
-      amount: 0n, // We don't have amount from Explorer
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    };
-
-    await this.rebalanceActionStore.save(action);
     this.logger.debug(
-      { id: action.id, intentId: action.intentId },
-      'Recovered RebalanceAction',
+      {
+        msgId: msg.msg_id,
+        origin: msg.origin_domain_id,
+        destination: msg.destination_domain_id,
+        sender: msg.sender,
+        recipient: msg.recipient,
+        txHash: msg.origin_tx_hash,
+        messageBodyLength: msg.message_body?.length,
+        messageBodyPreview: msg.message_body?.substring(0, 66),
+      },
+      'Recovering rebalance action',
     );
+
+    try {
+      // Create synthetic intent
+      const { amount } = parseWarpRouteMessage(msg.message_body);
+      const intent: RebalanceIntent = {
+        id: uuidv4(),
+        status: 'in_progress',
+        origin: msg.origin_domain_id,
+        destination: msg.destination_domain_id,
+        amount,
+        fulfilledAmount: 0n,
+        priority: undefined,
+        strategyType: undefined,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      await this.rebalanceIntentStore.save(intent);
+      this.logger.debug(
+        { id: intent.id, amount: amount.toString() },
+        'Created synthetic RebalanceIntent',
+      );
+
+      // Create action
+      const action: RebalanceAction = {
+        id: msg.msg_id,
+        status: 'in_progress',
+        intentId: intent.id,
+        messageId: msg.msg_id,
+        txHash: msg.origin_tx_hash,
+        origin: msg.origin_domain_id,
+        destination: msg.destination_domain_id,
+        amount,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      await this.rebalanceActionStore.save(action);
+      this.logger.debug(
+        { id: action.id, intentId: action.intentId, amount: amount.toString() },
+        'Recovered RebalanceAction',
+      );
+    } catch (error) {
+      this.logger.warn(
+        {
+          msgId: msg.msg_id,
+          messageBody: msg.message_body,
+          messageBodyLength: msg.message_body?.length,
+          origin: msg.origin_domain_id,
+          destination: msg.destination_domain_id,
+          txHash: msg.origin_tx_hash,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        'Failed to parse message body during recovery, skipping action',
+      );
+    }
   }
 }
