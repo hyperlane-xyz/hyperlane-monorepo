@@ -17,8 +17,8 @@ describe('InMemoryStore', () => {
         id: 'transfer-1',
         status: 'in_progress',
         messageId: 'msg-1',
-        origin: 'chain1',
-        destination: 'chain2',
+        origin: 1,
+        destination: 2,
         amount: 100n,
         sender: '0xsender',
         recipient: '0xrecipient',
@@ -37,8 +37,8 @@ describe('InMemoryStore', () => {
         id: 'transfer-1',
         status: 'in_progress',
         messageId: 'msg-1',
-        origin: 'chain1',
-        destination: 'chain2',
+        origin: 1,
+        destination: 2,
         amount: 100n,
         sender: '0xsender',
         recipient: '0xrecipient',
@@ -71,8 +71,8 @@ describe('InMemoryStore', () => {
         id: 'transfer-1',
         status: 'in_progress',
         messageId: 'msg-1',
-        origin: 'chain1',
-        destination: 'chain2',
+        origin: 1,
+        destination: 2,
         amount: 100n,
         sender: '0xsender',
         recipient: '0xrecipient',
@@ -98,8 +98,8 @@ describe('InMemoryStore', () => {
         id: 'transfer-1',
         status: 'in_progress',
         messageId: 'msg-1',
-        origin: 'chain1',
-        destination: 'chain2',
+        origin: 1,
+        destination: 2,
         amount: 100n,
         sender: '0xsender1',
         recipient: '0xrecipient1',
@@ -111,8 +111,8 @@ describe('InMemoryStore', () => {
         id: 'transfer-2',
         status: 'complete',
         messageId: 'msg-2',
-        origin: 'chain2',
-        destination: 'chain3',
+        origin: 2,
+        destination: 3,
         amount: 200n,
         sender: '0xsender2',
         recipient: '0xrecipient2',
@@ -142,8 +142,8 @@ describe('InMemoryStore', () => {
         id: 'transfer-1',
         status: 'in_progress',
         messageId: 'msg-1',
-        origin: 'chain1',
-        destination: 'chain2',
+        origin: 1,
+        destination: 2,
         amount: 100n,
         sender: '0xsender',
         recipient: '0xrecipient',
@@ -164,8 +164,8 @@ describe('InMemoryStore', () => {
         id: 'transfer-1',
         status: 'in_progress',
         messageId: 'msg-1',
-        origin: 'chain1',
-        destination: 'chain2',
+        origin: 1,
+        destination: 2,
         amount: 100n,
         sender: '0xsender',
         recipient: '0xrecipient',
@@ -178,8 +178,8 @@ describe('InMemoryStore', () => {
 
       const updated = await store.get('transfer-1');
       expect(updated?.messageId).to.equal('msg-1');
-      expect(updated?.origin).to.equal('chain1');
-      expect(updated?.destination).to.equal('chain2');
+      expect(updated?.origin).to.equal(1);
+      expect(updated?.destination).to.equal(2);
       expect(updated?.amount).to.equal(100n);
     });
   });
@@ -190,8 +190,8 @@ describe('InMemoryStore', () => {
         id: 'transfer-1',
         status: 'in_progress',
         messageId: 'msg-1',
-        origin: 'chain1',
-        destination: 'chain2',
+        origin: 1,
+        destination: 2,
         amount: 100n,
         sender: '0xsender',
         recipient: '0xrecipient',
@@ -222,8 +222,8 @@ describe('InMemoryStore', () => {
         id: 'transfer-1',
         status: 'in_progress',
         messageId: 'msg-1',
-        origin: 'chain1',
-        destination: 'chain2',
+        origin: 1,
+        destination: 2,
         amount: 100n,
         sender: '0xsender1',
         recipient: '0xrecipient1',
@@ -235,8 +235,8 @@ describe('InMemoryStore', () => {
         id: 'transfer-2',
         status: 'complete',
         messageId: 'msg-2',
-        origin: 'chain2',
-        destination: 'chain3',
+        origin: 2,
+        destination: 3,
         amount: 200n,
         sender: '0xsender2',
         recipient: '0xrecipient2',
@@ -248,8 +248,8 @@ describe('InMemoryStore', () => {
         id: 'transfer-3',
         status: 'in_progress',
         messageId: 'msg-3',
-        origin: 'chain3',
-        destination: 'chain1',
+        origin: 3,
+        destination: 1,
         amount: 300n,
         sender: '0xsender3',
         recipient: '0xrecipient3',
@@ -274,7 +274,7 @@ describe('InMemoryStore', () => {
 
   describe('getByDestination', () => {
     it('should return empty array when no entities match destination', async () => {
-      const result = await store.getByDestination('nonexistent-chain');
+      const result = await store.getByDestination(999);
       expect(result).to.be.an('array').that.is.empty;
     });
 
@@ -283,8 +283,8 @@ describe('InMemoryStore', () => {
         id: 'transfer-1',
         status: 'in_progress',
         messageId: 'msg-1',
-        origin: 'chain1',
-        destination: 'chain2',
+        origin: 1,
+        destination: 2,
         amount: 100n,
         sender: '0xsender1',
         recipient: '0xrecipient1',
@@ -296,8 +296,8 @@ describe('InMemoryStore', () => {
         id: 'transfer-2',
         status: 'complete',
         messageId: 'msg-2',
-        origin: 'chain2',
-        destination: 'chain3',
+        origin: 2,
+        destination: 3,
         amount: 200n,
         sender: '0xsender2',
         recipient: '0xrecipient2',
@@ -309,8 +309,8 @@ describe('InMemoryStore', () => {
         id: 'transfer-3',
         status: 'in_progress',
         messageId: 'msg-3',
-        origin: 'chain3',
-        destination: 'chain2',
+        origin: 3,
+        destination: 2,
         amount: 300n,
         sender: '0xsender3',
         recipient: '0xrecipient3',
@@ -322,14 +322,14 @@ describe('InMemoryStore', () => {
       await store.save(transfer2);
       await store.save(transfer3);
 
-      const toChain2 = await store.getByDestination('chain2');
-      expect(toChain2).to.have.lengthOf(2);
-      expect(toChain2).to.deep.include(transfer1);
-      expect(toChain2).to.deep.include(transfer3);
+      const toDomain2 = await store.getByDestination(2);
+      expect(toDomain2).to.have.lengthOf(2);
+      expect(toDomain2).to.deep.include(transfer1);
+      expect(toDomain2).to.deep.include(transfer3);
 
-      const toChain3 = await store.getByDestination('chain3');
-      expect(toChain3).to.have.lengthOf(1);
-      expect(toChain3).to.deep.include(transfer2);
+      const toDomain3 = await store.getByDestination(3);
+      expect(toDomain3).to.have.lengthOf(1);
+      expect(toDomain3).to.deep.include(transfer2);
     });
   });
 });

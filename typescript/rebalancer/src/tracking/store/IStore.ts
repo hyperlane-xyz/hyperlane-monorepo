@@ -1,4 +1,4 @@
-import type { ChainName } from '@hyperlane-xyz/sdk';
+import type { Domain } from '@hyperlane-xyz/utils';
 
 import type { TrackedActionBase } from '../types.js';
 
@@ -42,7 +42,7 @@ export interface IStore<T extends TrackedActionBase, Status extends string> {
   getByStatus(status: Status): Promise<T[]>;
 
   /**
-   * Query entities by destination chain.
+   * Query entities by destination domain.
    */
-  getByDestination(destination: ChainName): Promise<T[]>;
+  getByDestination(destination: Domain): Promise<T[]>;
 }
