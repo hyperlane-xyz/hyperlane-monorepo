@@ -515,7 +515,9 @@ impl KaspaProvider {
         Ok(())
     }
 
-    pub fn escrow(&self) -> EscrowPublic {
+    /// Returns the old/original escrow (from validator_pub_keys).
+    /// This is always the escrow before any rotation.
+    pub fn old_escrow(&self) -> EscrowPublic {
         EscrowPublic::from_strs(
             self.conf.validator_pub_keys.clone(),
             self.easy_wallet.net.address_prefix,
@@ -523,8 +525,46 @@ impl KaspaProvider {
         )
     }
 
+    /// Returns the new escrow if rotation is configured, None otherwise.
+    pub fn new_escrow(&self) -> Option<EscrowPublic> {
+        self.conf.escrow_rotation.as_ref().map(|r| {
+            EscrowPublic::from_strs(
+                r.new_escrow.pub_keys.clone(),
+                self.easy_wallet.net.address_prefix,
+                r.new_escrow.threshold as u8,
+            )
+        })
+    }
+
+    /// Returns the current active escrow based on rotation timestamp.
+    /// Before switch_timestamp: returns old escrow
+    /// After switch_timestamp: returns new escrow
+    pub fn current_escrow(&self) -> EscrowPublic {
+        if self.conf.is_rotation_active() {
+            self.new_escrow()
+                .expect("rotation active but no new_escrow configured")
+        } else {
+            self.old_escrow()
+        }
+    }
+
+    /// Alias for old_escrow() for backwards compatibility.
+    pub fn escrow(&self) -> EscrowPublic {
+        self.old_escrow()
+    }
+
     pub fn escrow_address(&self) -> Address {
-        self.escrow().addr
+        self.current_escrow().addr
+    }
+
+    /// Returns true if rotation is active (switch_timestamp has passed).
+    pub fn is_rotation_active(&self) -> bool {
+        self.conf.is_rotation_active()
+    }
+
+    /// Returns the escrow rotation config if one is configured.
+    pub fn rotation_config(&self) -> Option<&crate::conf::EscrowRotationConfig> {
+        self.conf.rotation()
     }
 
     pub fn metrics(&self) -> &KaspaBridgeMetrics {

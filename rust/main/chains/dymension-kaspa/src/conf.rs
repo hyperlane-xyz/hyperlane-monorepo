@@ -8,6 +8,27 @@ use hyperlane_core::{
     config::OpSubmissionConfig, ChainCommunicationError, FixedPointNumber, H256, U256,
 };
 
+/// Escrow configuration for Kaspa multisig.
+/// Groups public keys and threshold needed to derive escrow address.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EscrowConfig {
+    pub pub_keys: Vec<String>,
+    pub threshold: usize,
+}
+
+/// Configuration for rotating to a new escrow address.
+/// Used during key rotation to switch from old escrow to new escrow at a specific timestamp.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EscrowRotationConfig {
+    pub new_escrow: EscrowConfig,
+    /// Unix timestamp (seconds) when validators should switch to the new escrow.
+    /// Before this time, `current_escrow()` returns old escrow.
+    /// After this time, `current_escrow()` returns new escrow.
+    pub switch_timestamp: u64,
+}
+
 /// Unified validator configuration object.
 /// Each entry contains all info for one validator, keeping host/ism_address/escrow_pub together.
 ///
@@ -44,6 +65,10 @@ pub struct ConnectionConf {
 
     pub multisig_threshold_hub_ism: usize, // Could be queried from Dymension destination object instead
     pub multisig_threshold_kaspa: usize,
+
+    /// Optional escrow rotation config for key rotation.
+    /// When set, validators switch to new_escrow at switch_timestamp.
+    pub escrow_rotation: Option<EscrowRotationConfig>,
 
     pub hub_grpc_urls: Vec<Url>,
     pub op_submission_config: OpSubmissionConfig,
@@ -150,6 +175,7 @@ impl ConnectionConf {
         kas_tx_fee_multiplier: f64,
         max_sweep_inputs: Option<usize>,
         validator_request_timeout: std::time::Duration,
+        escrow_rotation: Option<EscrowRotationConfig>,
     ) -> Self {
         // Extract escrow pub keys for ConnectionConf (used by both validator and relayer)
         let validator_pub_keys: Vec<String> = kaspa_validators
@@ -215,7 +241,35 @@ impl ConnectionConf {
             relayer_stuff: r,
             op_submission_config,
             min_deposit_sompi,
+            escrow_rotation,
         }
+    }
+
+    /// Returns the current escrow configuration (pub_keys and threshold).
+    pub fn escrow_config(&self) -> EscrowConfig {
+        EscrowConfig {
+            pub_keys: self.validator_pub_keys.clone(),
+            threshold: self.multisig_threshold_kaspa,
+        }
+    }
+
+    /// Returns the escrow rotation config if one is configured.
+    pub fn rotation(&self) -> Option<&EscrowRotationConfig> {
+        self.escrow_rotation.as_ref()
+    }
+
+    /// Returns true if switch_timestamp has passed.
+    pub fn is_rotation_active(&self) -> bool {
+        self.escrow_rotation
+            .as_ref()
+            .map(|r| {
+                let now = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .expect("system time before UNIX epoch")
+                    .as_secs();
+                now >= r.switch_timestamp
+            })
+            .unwrap_or(false)
     }
 }
 

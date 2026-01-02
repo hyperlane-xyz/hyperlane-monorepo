@@ -376,6 +376,35 @@ impl ValidatorsClient {
             .collect())
     }
 
+    pub async fn get_migration_sigs(&self, bundle: Arc<Bundle>) -> ChainResult<Vec<Bundle>> {
+        let threshold = self.multisig_threshold_escrow();
+        let hosts = self.hosts();
+        let client = self.http_client.clone();
+        let metrics = self.metrics.clone();
+
+        let indexed_bundles = Self::collect_with_threshold(
+            hosts,
+            metrics,
+            "migration",
+            threshold,
+            move |host| {
+                let client = client.clone();
+                let bundle = bundle.clone();
+                Box::pin(
+                    async move { request_sign_migration(&client, host, bundle.as_ref()).await },
+                )
+            },
+            None::<fn(usize, &String, &Bundle) -> bool>,
+        )
+        .await?;
+
+        // Extract bundles (order doesn't matter for Kaspa Schnorr multisig)
+        Ok(indexed_bundles
+            .into_iter()
+            .map(|(_, bundle)| bundle)
+            .collect())
+    }
+
     pub fn multisig_threshold_hub_ism(&self) -> usize {
         self.conf.multisig_threshold_hub_ism
     }
@@ -479,6 +508,36 @@ pub async fn request_sign_withdrawal_bundle(
         let err_msg = res.text().await.unwrap_or_else(|_| status.to_string());
         Err(eyre::eyre!(
             "sign withdrawal bundle: {} - {}",
+            status,
+            err_msg
+        ))
+    }
+}
+
+pub async fn request_sign_migration(
+    client: &reqwest::Client,
+    host: String,
+    bundle: &Bundle,
+) -> Result<Bundle> {
+    info!(
+        validator = %host,
+        "dymension: requesting migration sigs from validator"
+    );
+    let bz = serde_json::to_vec(bundle).map_err(|e| eyre::eyre!("serialize bundle: {}", e))?;
+    let res = client
+        .post(format!("{}{}", host, ROUTE_SIGN_MIGRATION))
+        .body(bz)
+        .send()
+        .await?;
+
+    let status = res.status();
+    if status == StatusCode::OK {
+        let bundle = res.json::<Bundle>().await?;
+        Ok(bundle)
+    } else {
+        let err_msg = res.text().await.unwrap_or_else(|_| status.to_string());
+        Err(eyre::eyre!(
+            "sign migration bundle: {} - {}",
             status,
             err_msg
         ))

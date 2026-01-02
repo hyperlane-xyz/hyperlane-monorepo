@@ -1,5 +1,6 @@
 use super::confirmation::validate_confirmed_withdrawals;
 use super::deposit::{validate_new_deposit, MustMatch as DepositMustMatch};
+use super::migration::validate_sign_migration;
 use super::withdraw::{validate_sign_withdrawal_fxg, MustMatch as WithdrawMustMatch};
 pub use super::KaspaSecpKeypair;
 use crate::conf::ValidatorStuff;
@@ -162,6 +163,11 @@ pub fn router<
                 .layer(RequestBodyLimitLayer::new(WITHDRAWAL_BODY_LIMIT)),
         )
         .route(
+            ROUTE_SIGN_MIGRATION,
+            post(respond_sign_migration::<S, H>)
+                .layer(RequestBodyLimitLayer::new(WITHDRAWAL_BODY_LIMIT)),
+        )
+        .route(
             "/kaspa-ping",
             post(respond_kaspa_ping::<S, H>).layer(RequestBodyLimitLayer::new(DEFAULT_BODY_LIMIT)),
         )
@@ -233,8 +239,24 @@ impl<
         self.kas_provider.as_ref().unwrap().kas_key_source().clone()
     }
 
+    /// Returns the current active escrow (based on rotation timestamp).
     fn must_escrow(&self) -> EscrowPublic {
-        self.kas_provider.as_ref().unwrap().escrow()
+        self.kas_provider.as_ref().unwrap().current_escrow()
+    }
+
+    /// Returns the old/original escrow (always, regardless of rotation).
+    fn must_old_escrow(&self) -> EscrowPublic {
+        self.kas_provider.as_ref().unwrap().old_escrow()
+    }
+
+    /// Returns the new escrow if rotation is configured.
+    fn must_new_escrow(&self) -> Option<EscrowPublic> {
+        self.kas_provider.as_ref().unwrap().new_escrow()
+    }
+
+    /// Returns true if rotation is active (switch_timestamp has passed).
+    fn is_rotation_active(&self) -> bool {
+        self.kas_provider.as_ref().unwrap().is_rotation_active()
     }
 
     fn must_wallet(&self) -> &EasyKaspaWallet {
@@ -388,6 +410,60 @@ async fn respond_sign_pskts<
     })?;
 
     Ok(Json(bundle))
+}
+
+async fn respond_sign_migration<
+    S: HyperlaneSigner + HyperlaneSignerExt + Send + Sync + 'static,
+    H: HyperlaneSigner + HyperlaneSignerExt + Clone + Send + Sync + 'static,
+>(
+    State(res): State<Arc<ValidatorServerResources<S, H>>>,
+    body: Bytes,
+) -> HandlerResult<Json<Bundle>> {
+    info!("validator: signing migration");
+
+    // Parse the bundle from request body
+    let bundle: Bundle = serde_json::from_slice(&body)
+        .map_err(|e| AppError(eyre::eyre!("parse migration bundle: {}", e)))?;
+
+    // Rotation must be configured
+    let new_escrow = res.must_new_escrow().ok_or_else(|| {
+        AppError(eyre::eyre!(
+            "Migration not allowed: escrow_rotation not configured"
+        ))
+    })?;
+
+    let old_escrow = res.must_old_escrow();
+    let is_rotation_active = res.is_rotation_active();
+    let kas_key_source = res.kas_key_source().clone();
+
+    let signed_bundle = validate_sign_migration(
+        bundle,
+        res.must_hub_rpc().query(),
+        old_escrow,
+        new_escrow,
+        is_rotation_active,
+        || async move {
+            match &kas_key_source {
+                crate::conf::KaspaEscrowKeySource::Direct(json_str) => {
+                    serde_json::from_str(json_str)
+                        .map_err(|e| eyre::eyre!("parse Kaspa keypair from JSON: {}", e))
+                }
+                crate::conf::KaspaEscrowKeySource::Aws(aws_config) => {
+                    dym_kas_kms::load_kaspa_keypair_from_aws(aws_config)
+                        .await
+                        .map_err(|e| eyre::eyre!("load Kaspa keypair from AWS: {}", e))
+                }
+            }
+        },
+    )
+    .await
+    .map_err(|e| {
+        eprintln!("Migration validation and signing failed: {:?}", e);
+        AppError(e)
+    })?;
+
+    info!("validator: migration signed successfully");
+    Ok(Json(signed_bundle))
 }
 
 #[derive(Clone)]

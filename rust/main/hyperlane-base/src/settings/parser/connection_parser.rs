@@ -530,6 +530,9 @@ pub fn build_kaspa_connection_conf(
         .end()
         .unwrap_or(std::time::Duration::from_secs(15));
 
+    // Parse optional escrow rotation config
+    let escrow_rotation = parse_escrow_rotation(chain, err);
+
     Some(ChainConnectionConf::Kaspa(
         dymension_kaspa::ConnectionConf::new(
             wallet_secret.to_owned(),
@@ -554,8 +557,62 @@ pub fn build_kaspa_connection_conf(
             kaspa_tx_fee_multiplier,
             max_sweep_inputs,
             validator_request_timeout,
+            escrow_rotation,
         ),
     ))
+}
+
+/// Parse optional escrow rotation configuration.
+/// Expected format:
+/// ```json
+/// {
+///   "escrowRotation": {
+///     "newEscrow": {
+///       "pubKeys": ["key1", "key2", ...],
+///       "threshold": 2
+///     },
+///     "switchTimestamp": 1234567890
+///   }
+/// }
+/// ```
+fn parse_escrow_rotation(
+    chain: &ValueParser,
+    err: &mut ConfigParsingError,
+) -> Option<dymension_kaspa::EscrowRotationConfig> {
+    let rotation_opt = chain.chain(err).get_opt_key("escrowRotation").end();
+
+    match rotation_opt {
+        Some(value_parser) => {
+            let new_escrow_parser = value_parser.chain(err).get_key("newEscrow").end()?;
+
+            let pub_keys: Vec<String> = new_escrow_parser
+                .chain(err)
+                .get_key("pubKeys")
+                .parse_value("failed to parse pubKeys array")
+                .end()?;
+
+            let threshold = new_escrow_parser
+                .chain(err)
+                .get_key("threshold")
+                .parse_u64()
+                .end()? as usize;
+
+            let switch_timestamp = value_parser
+                .chain(err)
+                .get_key("switchTimestamp")
+                .parse_u64()
+                .end()?;
+
+            Some(dymension_kaspa::EscrowRotationConfig {
+                new_escrow: dymension_kaspa::EscrowConfig {
+                    pub_keys,
+                    threshold,
+                },
+                switch_timestamp,
+            })
+        }
+        None => None,
+    }
 }
 
 fn build_sealevel_connection_conf(

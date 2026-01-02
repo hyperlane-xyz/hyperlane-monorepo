@@ -1,6 +1,7 @@
 pub mod confirmation;
 pub mod deposit;
 pub mod error;
+pub mod migration;
 pub mod server;
 pub mod signer;
 pub mod withdraw;
