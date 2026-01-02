@@ -9318,6 +9318,84 @@
         "chunk": 999,
         "from": 1238556
       }
+    },
+    "neutron": {
+      "bech32Prefix": "neutron",
+      "blockExplorers": [
+        {
+          "apiUrl": "https://apis.mintscan.io/v1/neutron",
+          "family": "other",
+          "name": "Mintscan",
+          "url": "https://www.mintscan.io/neutron"
+        }
+      ],
+      "blocks": {
+        "confirmations": 1,
+        "estimateBlockTime": 3,
+        "reorgPeriod": 1
+      },
+      "canonicalAsset": "untrn",
+      "chainId": "neutron-1",
+      "contractAddressBytes": 32,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
+      "displayName": "Neutron",
+      "domainId": 1853125230,
+      "gasCurrencyCoinGeckoId": "neutron-3",
+      "gasPrice": {
+        "amount": "0.0053",
+        "denom": "untrn"
+      },
+      "grpcUrls": [
+        {
+          "http": "http://grpc-kralum.neutron-1.neutron.org:80"
+        }
+      ],
+      "index": {
+        "chunk": 5,
+        "from": 4000000
+      },
+      "interchainGasPaymaster": "0x738a4454e066c3bcb48cb0f03dca1c69b3c3d5ffa4f4470096083f0680a169ac",
+      "isTestnet": false,
+      "mailbox": "0x848426d50eb2104d5c6381ec63757930b1c14659c40db8b8081e516e7c5238fc",
+      "merkleTreeHook": "0xcd30a0001cc1f436c41ef764a712ebabc5a144140e3fd03eafe64a9a24e4e27c",
+      "name": "neutron",
+      "nativeToken": {
+        "decimals": 6,
+        "denom": "untrn",
+        "name": "Neutron",
+        "symbol": "NTRN"
+      },
+      "protocol": "cosmos",
+      "restUrls": [
+        {
+          "http": "https://rest-lb.neutron.org"
+        }
+      ],
+      "rpcUrls": [
+        {
+          "http": "https://rpc-arch.mainnet.neutron.tm.p2p.org"
+        },
+        {
+          "http": "https://rpc-kralum.neutron-1.neutron.org"
+        }
+      ],
+      "signer": {
+        "key": "0x5486418967eabc770b0fcb995f7ef6d9a72f7fc195531ef76c5109f44f51af26",
+        "prefix": "neutron",
+        "type": "cosmosKey"
+      },
+      "slip44": 118,
+      "validatorAnnounce": "0xf3aa0d652226e21ae35cd9035c492ae41725edc9036edf0d6a48701b153b90a0",
+      "technicalStack": "other",
+      "availability": {
+        "reasons": [
+          "deprecated"
+        ],
+        "status": "disabled"
+      }
     }
   }
 }

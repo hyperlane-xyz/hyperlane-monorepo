@@ -96,6 +96,7 @@ export const keyFunderConfig: KeyFunderConfig<
     zoramainnet: '0',
     // ignore non-evm chains
     eclipsemainnet: '0',
+    neutron: '0',
     solanamainnet: '0',
     soon: '0',
     sonicsvm: '0',
@@ -145,6 +146,7 @@ export const keyFunderConfig: KeyFunderConfig<
     zoramainnet: '0.1',
     // ignore non-evm chains
     eclipsemainnet: '0',
+    neutron: '0',
     solanamainnet: '0',
     soon: '0',
     sonicsvm: '0',
