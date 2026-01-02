@@ -13,7 +13,7 @@
   "litchain": 0.05,
   "miraclechain": 0.05,
   "neutron": 0,
-  "nibiru": 10,
+  "nibiru": 20,
   "ontology": 10,
   "paradex": 0,
   "radix": 0,
@@ -22,5 +22,5 @@
   "sophon": 50,
   "tac": 5,
   "tangle": 6,
-  "vana": 0.001
+  "vana": 20
 }
