@@ -15,7 +15,7 @@ export type UserTransferQueryParams = {
 };
 
 export type RebalanceActionQueryParams = {
-  routers: string[]; // Warp route router addresses
+  bridges: string[]; // Bridge contract addresses
   domains: number[]; // Domain IDs
   rebalancerAddress: string; // Only include rebalancer's txs
   limit?: number;
@@ -30,6 +30,7 @@ export type ExplorerMessage = {
   origin_tx_hash: string;
   origin_tx_sender: string;
   is_delivered: boolean;
+  message_body: string;
 };
 
 export class ExplorerClient {
@@ -37,6 +38,28 @@ export class ExplorerClient {
 
   private toBytea(addr: string): string {
     return addr.replace(/^0x/i, '\\x').toLowerCase();
+  }
+
+  /**
+   * Normalize all hex fields in Explorer response from PostgreSQL bytea format (\\x) to standard hex (0x)
+   */
+  private normalizeExplorerMessage(msg: any): ExplorerMessage {
+    const normalizeHex = (hex: string): string => {
+      if (!hex) return hex;
+      return hex.startsWith('\\x') ? '0x' + hex.slice(2) : hex;
+    };
+
+    return {
+      msg_id: normalizeHex(msg.msg_id),
+      origin_domain_id: msg.origin_domain_id,
+      destination_domain_id: msg.destination_domain_id,
+      sender: normalizeHex(msg.sender),
+      recipient: normalizeHex(msg.recipient),
+      origin_tx_hash: normalizeHex(msg.origin_tx_hash),
+      origin_tx_sender: normalizeHex(msg.origin_tx_sender),
+      is_delivered: msg.is_delivered,
+      message_body: normalizeHex(msg.message_body),
+    };
   }
 
   async hasUndeliveredRebalance(
@@ -87,6 +110,7 @@ export class ExplorerClient {
           origin_tx_hash
           origin_tx_sender
           is_delivered
+          message_body
         }
       }`;
 
@@ -174,6 +198,7 @@ export class ExplorerClient {
           origin_tx_hash
           origin_tx_sender
           is_delivered
+          message_body
         }
       }`;
 
@@ -204,22 +229,23 @@ export class ExplorerClient {
     }
 
     const json = await res.json();
-    return json?.data?.message_view ?? [];
+    const messages = json?.data?.message_view ?? [];
+    return messages.map((msg: any) => this.normalizeExplorerMessage(msg));
   }
 
   /**
    * Query inflight rebalance actions from the Explorer.
-   * Returns messages where sender/recipient are routers and tx sender is the rebalancer.
+   * Returns messages where sender/recipient are bridges and tx sender is the rebalancer.
    */
   async getInflightRebalanceActions(
     params: RebalanceActionQueryParams,
     logger: Logger,
   ): Promise<ExplorerMessage[]> {
-    const { routers, domains, rebalancerAddress, limit = 100 } = params;
+    const { bridges, domains, rebalancerAddress, limit = 100 } = params;
 
     const variables = {
-      senders: routers.map((a) => this.toBytea(a)),
-      recipients: routers.map((a) => this.toBytea(a)),
+      senders: bridges.map((a) => this.toBytea(a)),
+      recipients: bridges.map((a) => this.toBytea(a)),
       originDomains: domains,
       destDomains: domains,
       txSender: this.toBytea(rebalancerAddress),
@@ -259,6 +285,7 @@ export class ExplorerClient {
           origin_tx_hash
           origin_tx_sender
           is_delivered
+          message_body
         }
       }`;
 
@@ -289,6 +316,7 @@ export class ExplorerClient {
     }
 
     const json = await res.json();
-    return json?.data?.message_view ?? [];
+    const messages = json?.data?.message_view ?? [];
+    return messages.map((msg: any) => this.normalizeExplorerMessage(msg));
   }
 }
