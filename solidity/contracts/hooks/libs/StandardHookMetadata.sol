@@ -20,7 +20,8 @@ pragma solidity >=0.8.0;
  * [2:34] msg.value
  * [34:66] Gas limit for message (IGP)
  * [66:86] Refund address for message (IGP)
- * [86:] Custom metadata
+ * [86:106] Fee token for message (IGP)
+ * [106:] Custom metadata
  */
 
 library StandardHookMetadata {
@@ -29,13 +30,15 @@ library StandardHookMetadata {
         uint256 msgValue;
         uint256 gasLimit;
         address refundAddress;
+        address feeToken;
     }
 
     uint8 private constant VARIANT_OFFSET = 0;
     uint8 private constant MSG_VALUE_OFFSET = 2;
     uint8 private constant GAS_LIMIT_OFFSET = 34;
     uint8 private constant REFUND_ADDRESS_OFFSET = 66;
-    uint256 private constant MIN_METADATA_LENGTH = 86;
+    uint8 private constant FEE_TOKEN_OFFSET = 86;
+    uint256 private constant MIN_METADATA_LENGTH = 106;
 
     uint16 public constant VARIANT = 1;
 
@@ -108,6 +111,21 @@ library StandardHookMetadata {
     }
 
     /**
+     * @notice Returns the specified fee token for the message.
+     * @param _metadata ABI encoded standard hook metadata.
+     * @param _default Default fallback fee token address.
+     * @return Fee token for the message as address.
+     */
+    function feeToken(
+        bytes calldata _metadata,
+        address _default
+    ) internal pure returns (address) {
+        if (_metadata.length < FEE_TOKEN_OFFSET + 20) return _default;
+        return
+            address(bytes20(_metadata[FEE_TOKEN_OFFSET:FEE_TOKEN_OFFSET + 20]));
+    }
+
+    /**
      * @notice Returns any custom metadata.
      * @param _metadata ABI encoded standard hook metadata.
      * @return Custom metadata.
@@ -131,10 +149,32 @@ library StandardHookMetadata {
         uint256 _gasLimit,
         address _refundAddress
     ) internal pure returns (bytes memory) {
-        return abi.encodePacked(VARIANT, _msgValue, _gasLimit, _refundAddress);
+        return format(_msgValue, _gasLimit, _refundAddress, address(0));
     }
 
     /**
+     * @notice Formats the specified gas limit and refund address into standard hook metadata.
+     * @param _msgValue msg.value for the message.
+     * @param _gasLimit Gas limit for the message.
+     * @param _refundAddress Refund address for the message.
+     * @param _feeToken Fee token for the message.
+     * @return ABI encoded standard hook metadata.
+     */
+    function format(
+        uint256 _msgValue,
+        uint256 _gasLimit,
+        address _refundAddress,
+        address _feeToken
+    ) internal pure returns (bytes memory) {
+        return
+            abi.encodePacked(
+                VARIANT,
+                _msgValue,
+                _gasLimit,
+                _refundAddress,
+                _feeToken
+            );
+    }
 
     /**
      * @notice Formats the specified gas limit and refund address into standard hook metadata.
@@ -151,11 +191,38 @@ library StandardHookMetadata {
         bytes memory _customMetadata
     ) internal pure returns (bytes memory) {
         return
+            formatMetadata(
+                _msgValue,
+                _gasLimit,
+                _refundAddress,
+                address(0),
+                _customMetadata
+            );
+    }
+
+    /**
+     * @notice Formats the specified gas limit and refund address into standard hook metadata.
+     * @param _msgValue msg.value for the message.
+     * @param _gasLimit Gas limit for the message.
+     * @param _refundAddress Refund address for the message.
+     * @param _feeToken Fee token for the message.
+     * @param _customMetadata Additional metadata to include in the standard hook metadata.
+     * @return ABI encoded standard hook metadata.
+     */
+    function formatMetadata(
+        uint256 _msgValue,
+        uint256 _gasLimit,
+        address _refundAddress,
+        address _feeToken,
+        bytes memory _customMetadata
+    ) internal pure returns (bytes memory) {
+        return
             abi.encodePacked(
                 VARIANT,
                 _msgValue,
                 _gasLimit,
                 _refundAddress,
+                _feeToken,
                 _customMetadata
             );
     }
@@ -168,7 +235,8 @@ library StandardHookMetadata {
     function overrideMsgValue(
         uint256 _msgValue
     ) internal view returns (bytes memory) {
-        return formatMetadata(_msgValue, uint256(0), msg.sender, "");
+        return
+            formatMetadata(_msgValue, uint256(0), msg.sender, address(0), "");
     }
 
     /**
@@ -179,7 +247,8 @@ library StandardHookMetadata {
     function overrideGasLimit(
         uint256 _gasLimit
     ) internal view returns (bytes memory) {
-        return formatMetadata(uint256(0), _gasLimit, msg.sender, "");
+        return
+            formatMetadata(uint256(0), _gasLimit, msg.sender, address(0), "");
     }
 
     /**
@@ -190,7 +259,14 @@ library StandardHookMetadata {
     function overrideRefundAddress(
         address _refundAddress
     ) internal pure returns (bytes memory) {
-        return formatMetadata(uint256(0), uint256(0), _refundAddress, "");
+        return
+            formatMetadata(
+                uint256(0),
+                uint256(0),
+                _refundAddress,
+                address(0),
+                ""
+            );
     }
 
     function getRefundAddress(
@@ -202,6 +278,20 @@ library StandardHookMetadata {
         assembly {
             let data_start_ptr := add(_metadata, 32) // Skip length prefix of _metadata
             let mload_ptr := add(data_start_ptr, sub(REFUND_ADDRESS_OFFSET, 12))
+            result := mload(mload_ptr) // Loads 32 bytes; address takes lower 20 bytes.
+        }
+        return result;
+    }
+
+    function getFeeToken(
+        bytes memory _metadata,
+        address _default
+    ) internal pure returns (address) {
+        if (_metadata.length < FEE_TOKEN_OFFSET + 20) return _default;
+        address result;
+        assembly {
+            let data_start_ptr := add(_metadata, 32) // Skip length prefix of _metadata
+            let mload_ptr := add(data_start_ptr, sub(FEE_TOKEN_OFFSET, 12))
             result := mload(mload_ptr) // Loads 32 bytes; address takes lower 20 bytes.
         }
         return result;

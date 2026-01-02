@@ -139,11 +139,13 @@ abstract contract TokenBridgeCctpBase is
      * @inheritdoc TokenRouter
      * @dev Overrides to bridge the tokens via Circle.
      */
-    function transferRemote(
+    function _transferRemote(
         uint32 _destination,
         bytes32 _recipient,
-        uint256 _amount
-    ) public payable override returns (bytes32 messageId) {
+        uint256 _amount,
+        address _hook,
+        bytes memory _hookMetadata
+    ) internal override returns (bytes32 messageId) {
         // 1. Calculate the fee amounts, charge the sender and distribute to feeRecipient if necessary
         (
             uint256 externalFee,
@@ -152,7 +154,8 @@ abstract contract TokenBridgeCctpBase is
                 _destination,
                 _recipient,
                 _amount,
-                msg.value
+                msg.value,
+                _hookMetadata
             );
 
         // 2. Prepare the token message with the recipient, amount, and any additional metadata in overrides
@@ -175,7 +178,9 @@ abstract contract TokenBridgeCctpBase is
                 _recipient,
                 _amount, // no scaling needed for CCTP
                 remainingNativeValue,
-                _message
+                _message,
+                _hook,
+                _hookMetadata
             );
     }
 

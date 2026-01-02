@@ -54,12 +54,15 @@ contract OpL2NativeTokenBridge is TokenRouter {
      * - Prove message with amount 0 to prove the withdrawal
      * - Finalize message with the actual amount to finalize the withdrawal
      * transferRemote typically has the dispatch of the message as the 4th and final step. However, in this case we want the Hyperlane messageId to be passed via the rollup bridge.
+     * @dev Ignores _hook and _hookMetadata parameters as this implementation uses custom metadata for each message.
      */
-    function transferRemote(
+    function _transferRemote(
         uint32 _destination,
         bytes32 _recipient,
-        uint256 _amount
-    ) public payable override returns (bytes32) {
+        uint256 _amount,
+        address, // _hook - ignored, uses custom metadata
+        bytes memory // _hookMetadata - ignored, uses custom metadata
+    ) internal override returns (bytes32) {
         // 1. No external fee calculation necessary
         require(
             _amount > 0,
@@ -153,12 +156,14 @@ contract OpL2NativeTokenBridge is TokenRouter {
     /**
      * @inheritdoc TokenRouter
      * @dev Overrides to quote for two messages: prove and finalize.
+     * @dev Ignores the provided _hookMetadata and uses custom metadata for each message.
      */
     function _quoteGasPayment(
         uint32 _destination,
         bytes32 _recipient,
-        uint256 _amount
-    ) internal view override returns (uint256) {
+        uint256 _amount,
+        bytes memory // _hookMetadata - ignored
+    ) internal view override returns (Quote memory) {
         bytes memory message = TokenMessage.format(_recipient, _amount);
         uint256 proveQuote = _Router_quoteDispatch(
             _destination,
@@ -172,7 +177,7 @@ contract OpL2NativeTokenBridge is TokenRouter {
             _finalizeHookMetadata(),
             address(hook)
         );
-        return proveQuote + finalizeQuote;
+        return Quote({token: address(0), amount: proveQuote + finalizeQuote});
     }
 
     /**
@@ -218,11 +223,13 @@ abstract contract OpL1NativeTokenBridge is
         _MailboxClient_initialize(address(0), address(0), _owner);
     }
 
-    function transferRemote(
+    function _transferRemote(
         uint32,
         bytes32,
-        uint256
-    ) public payable override returns (bytes32) {
+        uint256,
+        address,
+        bytes memory
+    ) internal override returns (bytes32) {
         revert("OP L1 token bridge should not send messages");
     }
 
