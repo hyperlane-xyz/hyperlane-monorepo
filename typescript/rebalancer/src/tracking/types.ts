@@ -1,5 +1,4 @@
-import type { ChainName } from '@hyperlane-xyz/sdk';
-import type { Address } from '@hyperlane-xyz/utils';
+import type { Address, Domain } from '@hyperlane-xyz/utils';
 
 import type { IStore } from './store/IStore.js';
 
@@ -10,8 +9,8 @@ export interface Identifiable {
 }
 
 export interface CrossChainAction {
-  origin: ChainName;
-  destination: ChainName;
+  origin: Domain;
+  destination: Domain;
   amount: bigint;
 }
 
