@@ -22,16 +22,19 @@ contract HypERC721URICollateral is HypERC721Collateral {
      * @inheritdoc TokenRouter
      * @dev Overrides to fetch the URI and pass it to the token message.
      */
-    function transferRemote(
+    function _transferRemote(
         uint32 _destination,
         bytes32 _recipient,
-        uint256 _tokenId
-    ) public payable override returns (bytes32 messageId) {
+        uint256 _tokenId,
+        address _hook,
+        bytes memory _hookMetadata
+    ) internal override returns (bytes32 messageId) {
         (, uint256 remainingNativeValue) = _calculateFeesAndCharge(
             _destination,
             _recipient,
             _tokenId,
-            msg.value
+            msg.value,
+            _hookMetadata
         );
 
         string memory _tokenURI = IERC721MetadataUpgradeable(
@@ -51,7 +54,9 @@ contract HypERC721URICollateral is HypERC721Collateral {
                 _recipient,
                 _tokenId,
                 remainingNativeValue,
-                _tokenMessage
+                _tokenMessage,
+                _hook,
+                _hookMetadata
             );
     }
 }

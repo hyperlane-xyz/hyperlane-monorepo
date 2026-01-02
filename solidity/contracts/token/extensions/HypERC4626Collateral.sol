@@ -78,11 +78,13 @@ contract HypERC4626Collateral is TokenRouter {
      * @inheritdoc TokenRouter
      * @dev Overrides to deposit tokens into the vault and add exchange rate metadata.
      */
-    function transferRemote(
+    function _transferRemote(
         uint32 _destination,
         bytes32 _recipient,
-        uint256 _amount
-    ) public payable override returns (bytes32 messageId) {
+        uint256 _amount,
+        address _hook,
+        bytes memory _hookMetadata
+    ) internal override returns (bytes32 messageId) {
         // 1. Calculate the fee amounts, charge the sender and distribute to feeRecipient if necessary
         // Don't use HypERC4626Collateral's implementation of _transferTo since it does a redemption.
         (address _feeRecipient, uint256 feeAmount) = _feeRecipientAndAmount(
@@ -120,7 +122,9 @@ contract HypERC4626Collateral is TokenRouter {
                 _recipient,
                 _scaledAmount,
                 msg.value,
-                _tokenMessage
+                _tokenMessage,
+                _hook,
+                _hookMetadata
             );
     }
 

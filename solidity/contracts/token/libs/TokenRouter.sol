@@ -7,6 +7,7 @@ import {GasRouter} from "../../client/GasRouter.sol";
 import {TokenMessage} from "./TokenMessage.sol";
 import {Quote, ITokenBridge, ITokenFee} from "../../interfaces/ITokenBridge.sol";
 import {Quotes} from "./Quotes.sol";
+import {StandardHookMetadata} from "../../hooks/libs/StandardHookMetadata.sol";
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 
 /**
@@ -101,10 +102,42 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         uint256 _amount
     ) external view override returns (Quote[] memory quotes) {
         quotes = new Quote[](3);
-        quotes[0] = Quote({
-            token: address(0),
-            amount: _quoteGasPayment(_destination, _recipient, _amount)
+        quotes[0] = _quoteGasPayment(_destination, _recipient, _amount);
+        (, uint256 feeAmount) = _feeRecipientAndAmount(
+            _destination,
+            _recipient,
+            _amount
+        );
+        quotes[1] = Quote({token: token(), amount: _amount + feeAmount});
+        quotes[2] = Quote({
+            token: token(),
+            amount: _externalFeeAmount(_destination, _recipient, _amount)
         });
+    }
+
+    /**
+     * @notice Quotes the fees for a token transfer with custom hook metadata.
+     * @param _destination The identifier of the destination chain.
+     * @param _recipient The address of the recipient on the destination chain.
+     * @param _amount The amount or identifier of tokens to be sent to the remote recipient
+     * @param _hookMetadata The hook metadata to use for quoting gas payment.
+     * @return quotes An array of Quote structs representing the fees in different tokens.
+     * @dev This overload allows callers to quote with custom hook metadata that matches what they'll
+     * pass to the transferRemote overload that accepts hook metadata.
+     */
+    function quoteTransferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount,
+        bytes memory _hookMetadata
+    ) public view returns (Quote[] memory quotes) {
+        quotes = new Quote[](3);
+        quotes[0] = _quoteGasPayment(
+            _destination,
+            _recipient,
+            _amount,
+            _hookMetadata
+        );
         (, uint256 feeAmount) = _feeRecipientAndAmount(
             _destination,
             _recipient,
@@ -119,7 +152,83 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
 
     /**
      * @notice Transfers `_amount` token to `_recipient` on the `_destination` domain.
-     * @dev Delegates transfer logic to `_transferFromSender` implementation.
+     * @dev Delegates to internal `_transferRemote` with default hook and metadata.
+     * @param _destination The identifier of the destination chain.
+     * @param _recipient The address of the recipient on the destination chain.
+     * @param _amount The amount or identifier of tokens to be sent to the remote recipient.
+     * @return messageId The identifier of the dispatched message.
+     */
+    function transferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) public payable virtual returns (bytes32 messageId) {
+        return
+            _transferRemote(
+                _destination,
+                _recipient,
+                _amount,
+                address(hook),
+                _TokenRouter_hookMetadata(_destination)
+            );
+    }
+
+    /**
+     * @notice Transfers `_amount` token to `_recipient` on the `_destination` domain with custom hook metadata.
+     * @dev Uses the hook configured in storage with custom metadata.
+     * @param _destination The identifier of the destination chain.
+     * @param _recipient The address of the recipient on the destination chain.
+     * @param _amount The amount or identifier of tokens to be sent to the remote recipient.
+     * @param _hookMetadata The hook metadata to use for this transfer.
+     * @return messageId The identifier of the dispatched message.
+     */
+    function transferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount,
+        bytes calldata _hookMetadata
+    ) public payable virtual returns (bytes32 messageId) {
+        return
+            _transferRemote(
+                _destination,
+                _recipient,
+                _amount,
+                address(hook),
+                _hookMetadata
+            );
+    }
+
+    /**
+     * @notice Transfers `_amount` token to `_recipient` on the `_destination` domain with custom hook and metadata.
+     * @dev Enforces that the provided hook matches the hook configured in storage for security.
+     * @param _destination The identifier of the destination chain.
+     * @param _recipient The address of the recipient on the destination chain.
+     * @param _amount The amount or identifier of tokens to be sent to the remote recipient.
+     * @param _hook The hook to use for this transfer. Must match the hook configured in storage.
+     * @param _hookMetadata The hook metadata to use for this transfer.
+     * @return messageId The identifier of the dispatched message.
+     */
+    function transferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount,
+        address _hook,
+        bytes calldata _hookMetadata
+    ) public payable virtual returns (bytes32 messageId) {
+        require(_hook == address(hook), "TokenRouter: hook mismatch");
+        return
+            _transferRemote(
+                _destination,
+                _recipient,
+                _amount,
+                _hook,
+                _hookMetadata
+            );
+    }
+
+    /**
+     * @notice Internal function that performs the token transfer.
+     * @dev Override this function (not the public transferRemote) for custom transfer logic.
      * Emits `SentTransferRemote` event on the origin chain.
      * Override with custom behavior for storing or forwarding tokens.
      * Known overrides:
@@ -135,19 +244,24 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
      * @param _destination The identifier of the destination chain.
      * @param _recipient The address of the recipient on the destination chain.
      * @param _amount The amount or identifier of tokens to be sent to the remote recipient.
+     * @param _hook The hook to use for this transfer.
+     * @param _hookMetadata The hook metadata to use for this transfer.
      * @return messageId The identifier of the dispatched message.
      */
-    function transferRemote(
+    function _transferRemote(
         uint32 _destination,
         bytes32 _recipient,
-        uint256 _amount
-    ) public payable virtual returns (bytes32 messageId) {
+        uint256 _amount,
+        address _hook,
+        bytes memory _hookMetadata
+    ) internal virtual returns (bytes32 messageId) {
         // 1. Calculate the fee amounts, charge the sender and distribute to feeRecipient if necessary
         (, uint256 remainingNativeValue) = _calculateFeesAndCharge(
             _destination,
             _recipient,
             _amount,
-            msg.value
+            msg.value,
+            _hookMetadata
         );
 
         uint256 scaledAmount = _outboundAmount(_amount);
@@ -158,15 +272,17 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
             scaledAmount
         );
 
-        // 3. Emit the SentTransferRemote event and 4. dispatch the message
-        return
-            _emitAndDispatch(
-                _destination,
-                _recipient,
-                scaledAmount,
-                remainingNativeValue,
-                _tokenMessage
-            );
+        // 3. Emit the SentTransferRemote event
+        emit SentTransferRemote(_destination, _recipient, scaledAmount);
+
+        // 4. Dispatch the message
+        messageId = _Router_dispatch(
+            _destination,
+            remainingNativeValue,
+            _tokenMessage,
+            _hookMetadata,
+            _hook
+        );
     }
 
     // ===========================
@@ -176,7 +292,8 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount,
-        uint256 _msgValue
+        uint256 _msgValue,
+        bytes memory _hookMetadata
     ) internal returns (uint256 externalFee, uint256 remainingNativeValue) {
         (address _feeRecipient, uint256 feeAmount) = _feeRecipientAndAmount(
             _destination,
@@ -184,25 +301,61 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
             _amount
         );
         externalFee = _externalFeeAmount(_destination, _recipient, _amount);
-        uint256 charge = _amount + feeAmount + externalFee;
+
+        // Calculate hook fee and add to charge if fee token matches the token being transferred
+        Quote memory hookFeeQuote = _quoteGasPayment(
+            _destination,
+            _recipient,
+            _amount,
+            _hookMetadata
+        );
+        uint256 hookFee = 0;
+        address _token = token();
+        if (hookFeeQuote.token == _token && _token != address(0)) {
+            hookFee = hookFeeQuote.amount;
+        }
+
+        uint256 charge = _amount + feeAmount + externalFee + hookFee;
         _transferFromSender(charge);
         if (feeAmount > 0) {
             // transfer atomically so we don't need to keep track of collateral
             // and fee balances separately
             _transferFee(_feeRecipient, feeAmount);
         }
-        remainingNativeValue = token() != address(0)
+        remainingNativeValue = _token != address(0)
             ? _msgValue
             : _msgValue - charge;
     }
 
-    // Emits the SentTransferRemote event and dispatches the message.
+    // Emits the SentTransferRemote event and dispatches the message with default hook and metadata.
     function _emitAndDispatch(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount,
         uint256 _messageDispatchValue,
         bytes memory _tokenMessage
+    ) internal returns (bytes32 messageId) {
+        return
+            _emitAndDispatch(
+                _destination,
+                _recipient,
+                _amount,
+                _messageDispatchValue,
+                _tokenMessage,
+                address(hook),
+                _TokenRouter_hookMetadata(_destination)
+            );
+    }
+
+    // Emits the SentTransferRemote event and dispatches the message with custom hook and metadata.
+    function _emitAndDispatch(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount,
+        uint256 _messageDispatchValue,
+        bytes memory _tokenMessage,
+        address _hook,
+        bytes memory _hookMetadata
     ) internal returns (bytes32 messageId) {
         // effects
         emit SentTransferRemote(_destination, _recipient, _amount);
@@ -212,8 +365,8 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
             _destination,
             _messageDispatchValue,
             _tokenMessage,
-            _GasRouter_hookMetadata(_destination),
-            address(hook)
+            _hookMetadata,
+            _hook
         );
     }
 
@@ -300,27 +453,75 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
     }
 
     /**
+     * @notice Returns the hook metadata for token transfers with feeToken set to token().
+     * @param _destination The destination domain.
+     * @return Hook metadata with gas limit from GasRouter config and feeToken set to token().
+     */
+    function _TokenRouter_hookMetadata(
+        uint32 _destination
+    ) internal view returns (bytes memory) {
+        return
+            StandardHookMetadata.format({
+                _msgValue: 0,
+                _gasLimit: destinationGas[_destination],
+                _refundAddress: msg.sender,
+                _feeToken: token()
+            });
+    }
+
+    /**
      * @notice Returns the gas payment required to dispatch a message to the given domain's router.
      * @param _destination The identifier of the destination chain.
      * @param _recipient The address of the recipient on the destination chain.
      * @param _amount The amount or identifier of tokens to be sent to the remote recipient
-     * @return payment How much native value to send in transferRemote call.
-     * @dev This function is intended to be overridden by derived contracts that trigger multiple messages.
+     * @return quote Quote struct with token and amount for gas payment.
+     * @dev Delegates to the 4-parameter version with default hook metadata.
+     */
+    function _quoteGasPayment(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount
+    ) internal view virtual returns (Quote memory) {
+        return
+            _quoteGasPayment(
+                _destination,
+                _recipient,
+                _amount,
+                _TokenRouter_hookMetadata(_destination)
+            );
+    }
+
+    /**
+     * @notice Returns the gas payment required to dispatch a message with custom hook metadata.
+     * @param _destination The identifier of the destination chain.
+     * @param _recipient The address of the recipient on the destination chain.
+     * @param _amount The amount or identifier of tokens to be sent to the remote recipient
+     * @param _hookMetadata The hook metadata to use for quoting gas payment.
+     * @return quote Quote struct with token and amount for gas payment.
+     * @dev This is the base implementation that should be overridden by derived contracts.
+     * The default implementation extracts the feeToken from the hook metadata, defaulting to address(0) if not specified.
      * Known overrides:
      * - OPL2ToL1TokenBridgeNative: Quote for two messages (prove and finalize).
      */
     function _quoteGasPayment(
         uint32 _destination,
         bytes32 _recipient,
-        uint256 _amount
-    ) internal view virtual returns (uint256) {
+        uint256 _amount,
+        bytes memory _hookMetadata
+    ) internal view virtual returns (Quote memory) {
         return
-            _Router_quoteDispatch(
-                _destination,
-                TokenMessage.format(_recipient, _amount),
-                _GasRouter_hookMetadata(_destination),
-                address(hook)
-            );
+            Quote({
+                token: StandardHookMetadata.getFeeToken(
+                    _hookMetadata,
+                    address(0)
+                ),
+                amount: _Router_quoteDispatch(
+                    _destination,
+                    TokenMessage.format(_recipient, _amount),
+                    _hookMetadata,
+                    address(hook)
+                )
+            });
     }
 
     // ===========================
