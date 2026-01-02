@@ -111,7 +111,7 @@ pub trait DiscriminatorEncode: DiscriminatorData + borsh::BorshSerialize {
         buf.extend_from_slice(
             &self
                 .try_to_vec()
-                .map_err(|_err| ProgramError::BorshIoError)?[..],
+                .map_err(|_err| ProgramError::BorshIoError)?,
         );
         Ok(buf)
     }
