@@ -80,9 +80,10 @@
       "walletSecret": "123456qwe",
       "kaspaUrlsWrpc": "api-kaspa.mzonder.com:17210",
       "kaspaUrlsRest": "https://kaspa-testnet-rest.mzonder.com",
-      "validatorHosts": "http://localhost:9090",
+      "kaspaValidators": [
+        {"host": "http://localhost:9090", "ismAddress": "", "escrowPub": "02f1d9c3a546a7d25f59fe4f7ca03393477a83c32c9bd777fc4d72a3c5ea6831eb"}
+      ],
       "kaspaMinDepositSompi": 4000000000,
-      "validatorPubsKaspa": "02f1d9c3a546a7d25f59fe4f7ca03393477a83c32c9bd777fc4d72a3c5ea6831eb",
       "escrowAddress": "kaspatest:prc0upr64nthepvynew04vk6pzxjm6tekxnkgnynse42sdl0svtez2gffk6nv",
       "kaspaEscrowPrivateKey": "\"47e2af5bc1b9ccf11555e3817d528b28c76a2d9096c94c8f13a6add121b61568\"",
       "kaspaMultisigThresholdHubIsm": 1,

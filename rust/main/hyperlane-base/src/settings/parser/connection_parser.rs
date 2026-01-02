@@ -312,32 +312,9 @@ pub fn build_kaspa_connection_conf(
             .collect()
     };
 
-    let validator_hosts: Vec<String> = chain
-        .chain(err)
-        .get_key("validatorHosts")
-        .parse_string()
-        .end()?
-        .split(',')
-        .map(|s| s.trim().to_string())
-        .collect();
-
-    let validator_ism_addresses: Vec<String> = chain
-        .chain(err)
-        .get_key("validatorIsmAddresses")
-        .parse_string()
-        .end()?
-        .split(',')
-        .map(|s| s.trim().to_string())
-        .collect();
-
-    let validator_pubks: Vec<String> = chain
-        .chain(err)
-        .get_key("validatorPubsKaspa")
-        .parse_string()
-        .end()?
-        .split(',')
-        .map(|s| s.trim().to_string())
-        .collect();
+    // Parse kaspaValidators as an array of objects with {host, ismAddress, escrowPub}
+    let kaspa_validators: Vec<dymension_kaspa::KaspaValidatorInfo> =
+        parse_kaspa_validators(chain, err)?;
 
     let kaspa_escrow_key_source =
         if let Some(key_config) = chain.chain(err).get_opt_key("kaspaKey").end() {
@@ -502,8 +479,8 @@ pub fn build_kaspa_connection_conf(
         .end()
         .map(|v| v as usize);
 
-    // Parse KaspaTimeConfig if provided
-    let kaspa_time_config = if validator_hosts.len() > 0 {
+    // Parse KaspaTimeConfig if provided (only for relayer configs with validators)
+    let kaspa_time_config = if !kaspa_validators.is_empty() {
         Some(dymension_kaspa::RelayerDepositTimings {
             poll_interval: chain
                 .chain(err)
@@ -559,9 +536,7 @@ pub fn build_kaspa_connection_conf(
             wallet_dir,
             wrpc_urls,
             rest_urls,
-            validator_hosts,
-            validator_ism_addresses,
-            validator_pubks,
+            kaspa_validators,
             kaspa_escrow_key_source,
             grpc_urls,
             threshold_ism as usize,
@@ -875,6 +850,26 @@ pub fn build_radix_connection_conf(
                 gateway_header,
             ),
         ))
+    }
+}
+
+/// Parse kaspaValidators as an array of objects with {host, ismAddress, escrowPub}.
+/// Returns empty vec if the field is missing (valid for validator configs).
+fn parse_kaspa_validators(
+    chain: &ValueParser,
+    err: &mut ConfigParsingError,
+) -> Option<Vec<dymension_kaspa::KaspaValidatorInfo>> {
+    let validators_opt = chain.chain(err).get_opt_key("kaspaValidators").end();
+
+    match validators_opt {
+        Some(value_parser) => {
+            let validators: Vec<dymension_kaspa::KaspaValidatorInfo> = value_parser
+                .chain(err)
+                .parse_value("failed to parse kaspaValidators array")
+                .end()?;
+            Some(validators)
+        }
+        None => Some(Vec::new()),
     }
 }
 

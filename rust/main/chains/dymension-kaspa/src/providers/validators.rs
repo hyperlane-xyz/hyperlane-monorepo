@@ -9,7 +9,7 @@ use bytes::Bytes;
 use eyre::Result;
 use reqwest::StatusCode;
 use std::str::FromStr;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 use crate::ConnectionConf;
 use futures::stream::{FuturesUnordered, StreamExt};
@@ -43,24 +43,16 @@ impl BlockNumberGetter for ValidatorsClient {
 }
 
 impl ValidatorsClient {
+    fn validators(&self) -> &[crate::KaspaValidatorInfo] {
+        &self.conf.relayer_stuff.as_ref().unwrap().validators
+    }
+
     fn hosts(&self) -> Vec<String> {
-        self.conf
-            .relayer_stuff
-            .as_ref()
-            .unwrap()
-            .validator_hosts
-            .clone()
+        self.validators().iter().map(|v| v.host.clone()).collect()
     }
 
-    fn ism_addresses(&self) -> Vec<String> {
-        self.conf
-            .relayer_stuff
-            .as_ref()
-            .unwrap()
-            .validator_ism_addresses
-            .clone()
-    }
-
+    /// Collects responses from validators until threshold is met.
+    /// Returns (validator_index, response) pairs sorted by validator index.
     async fn collect_with_threshold<T, F, V>(
         hosts: Vec<String>,
         metrics: Option<prometheus::HistogramVec>,
@@ -68,7 +60,7 @@ impl ValidatorsClient {
         threshold: usize,
         request_fn: F,
         validate_fn: Option<V>,
-    ) -> ChainResult<Vec<T>>
+    ) -> ChainResult<Vec<(usize, T)>>
     where
         T: Send + 'static,
         F: Fn(String) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<T>> + Send>>
@@ -148,7 +140,7 @@ impl ValidatorsClient {
                             });
 
                             successes.sort_by_key(|(idx, _)| *idx);
-                            return Ok(successes.into_iter().map(|(_, v)| v).collect());
+                            return Ok(successes);
                         }
                     }
                 }
@@ -206,11 +198,18 @@ impl ValidatorsClient {
         let threshold = self.multisig_threshold_hub_ism();
         let client = self.http_client.clone();
         let hosts = self.hosts();
-        let expected_addresses = self.ism_addresses();
+        // Extract ISM addresses from validators for signature verification
+        let expected_addresses: Vec<String> = self
+            .validators()
+            .iter()
+            .map(|v| v.ism_address.clone())
+            .collect();
         let metrics = self.metrics.clone();
         let fxg = fxg.clone();
 
-        let validator = if expected_addresses.is_empty() {
+        // Only validate signatures if ISM addresses are configured (non-empty)
+        let has_ism_addresses = expected_addresses.iter().any(|a| !a.is_empty());
+        let validator = if !has_ism_addresses {
             None
         } else {
             Some(
@@ -218,6 +217,9 @@ impl ValidatorsClient {
                       host: &String,
                       signed_checkpoint: &SignedCheckpointWithMessageId| {
                     if let Some(expected) = expected_addresses.get(index) {
+                        if expected.is_empty() {
+                            return true;
+                        }
                         match H160::from_str(expected) {
                             Ok(expected_h160) => match signed_checkpoint.recover() {
                                 Ok(recovered_signer) => {
@@ -239,7 +241,7 @@ impl ValidatorsClient {
                                         validator = ?host,
                                         validator_index = index,
                                         error = ?e,
-                                        "kaspa: failed to recover signer from signature"
+                                        "kaspa: signature recovery failed"
                                     );
                                     false
                                 }
@@ -250,7 +252,7 @@ impl ValidatorsClient {
                                     validator_index = index,
                                     expected_address = ?expected,
                                     error = ?e,
-                                    "kaspa: failed to parse expected ISM address"
+                                    "kaspa: invalid ISM address format"
                                 );
                                 false
                             }
@@ -262,7 +264,7 @@ impl ValidatorsClient {
             )
         };
 
-        Self::collect_with_threshold(
+        let indexed_sigs = Self::collect_with_threshold(
             hosts,
             metrics,
             "deposit",
@@ -274,7 +276,18 @@ impl ValidatorsClient {
             },
             validator,
         )
-        .await
+        .await?;
+
+        // Extract signatures and sort by recovered signer address (lexicographic order required by Hub ISM)
+        // Recovery should not fail here since validation already verified each signature
+        let mut sigs: Vec<_> = indexed_sigs.into_iter().map(|(_, sig)| sig).collect();
+        sigs.sort_by_cached_key(|sig| {
+            sig.recover()
+                .expect("signature recovery should succeed after validation")
+                .to_fixed_bytes()
+        });
+
+        Ok(sigs)
     }
 
     pub async fn get_confirmation_sigs(
@@ -287,7 +300,25 @@ impl ValidatorsClient {
         let metrics = self.metrics.clone();
         let fxg = fxg.clone();
 
-        Self::collect_with_threshold(
+        // Get ISM addresses for sorting
+        let ism_addresses: Vec<H160> = self
+            .validators()
+            .iter()
+            .enumerate()
+            .map(|(idx, v)| {
+                H160::from_str(&v.ism_address).unwrap_or_else(|e| {
+                    warn!(
+                        validator_index = idx,
+                        ism_address = %v.ism_address,
+                        error = ?e,
+                        "kaspa: failed to parse ISM address, using default for sorting"
+                    );
+                    H160::default()
+                })
+            })
+            .collect();
+
+        let indexed_sigs = Self::collect_with_threshold(
             hosts,
             metrics,
             "confirmation",
@@ -301,7 +332,19 @@ impl ValidatorsClient {
             },
             None::<fn(usize, &String, &Signature) -> bool>,
         )
-        .await
+        .await?;
+
+        // Pair signatures with ISM addresses and sort by ISM address (lexicographic order required by Hub ISM)
+        let mut sigs_with_addr: Vec<_> = indexed_sigs
+            .into_iter()
+            .map(|(idx, sig)| {
+                let addr = ism_addresses.get(idx).copied().unwrap_or_default();
+                (addr, sig)
+            })
+            .collect();
+        sigs_with_addr.sort_by_key(|(addr, _)| addr.to_fixed_bytes());
+
+        Ok(sigs_with_addr.into_iter().map(|(_, sig)| sig).collect())
     }
 
     pub async fn get_withdraw_sigs(&self, fxg: Arc<WithdrawFXG>) -> ChainResult<Vec<Bundle>> {
@@ -310,7 +353,7 @@ impl ValidatorsClient {
         let client = self.http_client.clone();
         let metrics = self.metrics.clone();
 
-        Self::collect_with_threshold(
+        let indexed_bundles = Self::collect_with_threshold(
             hosts,
             metrics,
             "withdrawal",
@@ -324,7 +367,13 @@ impl ValidatorsClient {
             },
             None::<fn(usize, &String, &Bundle) -> bool>,
         )
-        .await
+        .await?;
+
+        // Extract bundles (order doesn't matter for Kaspa Schnorr multisig)
+        Ok(indexed_bundles
+            .into_iter()
+            .map(|(_, bundle)| bundle)
+            .collect())
     }
 
     pub fn multisig_threshold_hub_ism(&self) -> usize {

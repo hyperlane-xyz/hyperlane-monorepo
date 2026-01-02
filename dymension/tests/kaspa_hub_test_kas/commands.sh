@@ -42,9 +42,9 @@ VALIDATOR_ISM_PRIV_KEY="a4d1c634e1b8cde0fc53013dfc62e1789535b59d15b0bbf4c8fbd2d4
 VALIDATOR_ESCROW_SECRET="\"afa4bcc6e5828eb28d70138ea784a32e0212d3560dfcdfac85bfa1dbabb11ac9\""
 VALIDATOR_ESCROW_PUB_KEY="027b75fcbedee53f82ebc43c19a69697100afad2df27202f107c994c740e9df5b8"
 ESCROW_ADDR="kaspatest:prmapgdl0nsdqjsmd45fjykxuq3242g4npryzkqe3aeqq9yhrp20k20ymjrlk"
-# THES VALUES MUST CORRESPOND WITH agent-config.json (in this directory, REQUIRES EDITING)  Do NOT unescape json quotes
+# THESE VALUES MUST CORRESPOND WITH agent-config.json (in this directory, REQUIRES EDITING)  Do NOT unescape json quotes
 # Update:
-# kaspatest10.validatorPubsKaspa = VALIDATOR_ESCROW_PUB_KEY
+# kaspatest10.kaspaValidators[0].escrowPub = VALIDATOR_ESCROW_PUB_KEY
 # kaspatest10.escrowAddress = ESCROW_ADDR
 # kaspatest10.kaspaEscrowPrivateKey = VALIDATOR_ESCROW_SECRET
 
