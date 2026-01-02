@@ -1,10 +1,10 @@
-import type { ChainName } from '@hyperlane-xyz/sdk';
+import type { Domain } from '@hyperlane-xyz/utils';
 
 import type { RebalanceAction, RebalanceIntent, Transfer } from './types.js';
 
 export interface CreateRebalanceIntentParams {
-  origin: ChainName;
-  destination: ChainName;
+  origin: Domain;
+  destination: Domain;
   amount: bigint;
   priority?: number;
   strategyType?: string;
@@ -12,8 +12,8 @@ export interface CreateRebalanceIntentParams {
 
 export interface CreateRebalanceActionParams {
   intentId: string;
-  origin: ChainName;
-  destination: ChainName;
+  origin: Domain;
+  destination: Domain;
   amount: bigint;
   messageId: string;
   txHash?: string;
@@ -59,9 +59,9 @@ export interface IActionTracker {
   getInProgressTransfers(): Promise<Transfer[]>;
 
   /**
-   * Get all transfers destined for a specific chain.
+   * Get all transfers destined for a specific domain.
    */
-  getTransfersByDestination(destination: ChainName): Promise<Transfer[]>;
+  getTransfersByDestination(destination: Domain): Promise<Transfer[]>;
 
   // === RebalanceIntent Queries ===
 
@@ -71,10 +71,10 @@ export interface IActionTracker {
   getActiveRebalanceIntents(): Promise<RebalanceIntent[]>;
 
   /**
-   * Get all rebalance intents destined for a specific chain.
+   * Get all rebalance intents destined for a specific domain.
    */
   getRebalanceIntentsByDestination(
-    destination: ChainName,
+    destination: Domain,
   ): Promise<RebalanceIntent[]>;
 
   // === RebalanceIntent Management ===

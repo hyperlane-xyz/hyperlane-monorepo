@@ -1,4 +1,4 @@
-import type { ChainName } from '@hyperlane-xyz/sdk';
+import type { Domain } from '@hyperlane-xyz/utils';
 
 import type { TrackedActionBase } from '../types.js';
 
@@ -50,7 +50,7 @@ export class InMemoryStore<T extends TrackedActionBase, Status extends string>
     );
   }
 
-  async getByDestination(destination: ChainName): Promise<T[]> {
+  async getByDestination(destination: Domain): Promise<T[]> {
     return Array.from(this.data.values()).filter(
       (entity) => entity.destination === destination,
     );
