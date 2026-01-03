@@ -5,7 +5,9 @@ import { toWei } from '@hyperlane-xyz/utils';
 
 import {
   type CollateralDeficitStrategy as CollateralDeficitParsedConfig,
+  type CompositeStrategy as CompositeParsedConfig,
   RebalancerStrategyOptions,
+  type SingleStrategyConfig,
   StrategyConfig,
 } from '../config/types.js';
 import { type IStrategy } from '../interfaces/IStrategy.js';
@@ -15,6 +17,7 @@ import {
   CollateralDeficitStrategy,
   type CollateralDeficitStrategyConfig,
 } from './CollateralDeficitStrategy.js';
+import { CompositeStrategy } from './CompositeStrategy.js';
 import { MinAmountStrategy } from './MinAmountStrategy.js';
 import { WeightedStrategy } from './WeightedStrategy.js';
 
@@ -52,6 +55,14 @@ export class StrategyFactory {
           logger,
           metrics,
         );
+      case RebalancerStrategyOptions.Composite:
+        return StrategyFactory.createCompositeStrategy(
+          strategyConfig as CompositeParsedConfig,
+          tokensByChainName,
+          initialTotalCollateral,
+          logger,
+          metrics,
+        );
       default: {
         throw new Error('Unsupported strategy type');
       }
@@ -84,5 +95,30 @@ export class StrategyFactory {
     }
 
     return new CollateralDeficitStrategy(chainConfig, logger, metrics);
+  }
+
+  /**
+   * Create a CompositeStrategy from config.
+   * Recursively creates sub-strategies.
+   */
+  private static createCompositeStrategy(
+    config: CompositeParsedConfig,
+    tokensByChainName: ChainMap<Token>,
+    initialTotalCollateral: bigint,
+    logger: Logger,
+    metrics?: Metrics,
+  ): CompositeStrategy {
+    const subStrategies = config.strategies.map(
+      (subConfig: SingleStrategyConfig) =>
+        StrategyFactory.createStrategy(
+          subConfig,
+          tokensByChainName,
+          initialTotalCollateral,
+          logger,
+          metrics,
+        ),
+    );
+
+    return new CompositeStrategy(subStrategies, logger);
   }
 }

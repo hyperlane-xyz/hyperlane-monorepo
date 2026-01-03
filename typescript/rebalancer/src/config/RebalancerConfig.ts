@@ -1,12 +1,12 @@
 import { fromZodError } from 'zod-validation-error';
 
-import { isObjEmpty } from '@hyperlane-xyz/utils';
 import { readYamlOrJson } from '@hyperlane-xyz/utils/fs';
 
 import {
   type RebalancerConfigFileInput,
   RebalancerConfigSchema,
   type StrategyConfig,
+  getStrategyChainNames,
 } from './types.js';
 
 export class RebalancerConfig {
@@ -32,7 +32,7 @@ export class RebalancerConfig {
 
     const { warpRouteId, strategy } = validationResult.data;
 
-    if (isObjEmpty(strategy.chains)) {
+    if (getStrategyChainNames(strategy).length === 0) {
       throw new Error('No chains configured');
     }
 

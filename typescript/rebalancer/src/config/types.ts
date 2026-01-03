@@ -4,6 +4,7 @@ export enum RebalancerStrategyOptions {
   Weighted = 'weighted',
   MinAmount = 'minAmount',
   CollateralDeficit = 'collateralDeficit',
+  Composite = 'composite',
 }
 
 // Weighted strategy config schema
@@ -102,11 +103,94 @@ export type MinAmountStrategyConfig = MinAmountStrategy['chains'];
 export type CollateralDeficitStrategyConfig =
   CollateralDeficitStrategy['chains'];
 
+// SingleStrategyConfig is a discriminated union of non-composite strategies
+export const SingleStrategyConfigSchema = z.discriminatedUnion(
+  'rebalanceStrategy',
+  [
+    WeightedStrategySchema,
+    MinAmountStrategySchema,
+    CollateralDeficitStrategySchema,
+  ],
+);
+
+export type SingleStrategyConfig = z.infer<typeof SingleStrategyConfigSchema>;
+
+// CompositeStrategy chains multiple strategies together
+const CompositeStrategySchema = z.object({
+  rebalanceStrategy: z.literal(RebalancerStrategyOptions.Composite),
+  strategies: z.array(SingleStrategyConfigSchema).min(1),
+});
+
+export type CompositeStrategy = z.infer<typeof CompositeStrategySchema>;
+
 export const StrategyConfigSchema = z.discriminatedUnion('rebalanceStrategy', [
   WeightedStrategySchema,
   MinAmountStrategySchema,
   CollateralDeficitStrategySchema,
+  CompositeStrategySchema,
 ]);
+
+/**
+ * Validate a single (non-composite) strategy's chains and overrides.
+ */
+function validateSingleStrategy(
+  strategy: SingleStrategyConfig,
+  ctx: z.RefinementCtx,
+  pathPrefix: string[] = ['strategy'],
+): void {
+  const chainNames = new Set(Object.keys(strategy.chains));
+
+  // Check each chain's overrides
+  for (const [chainName, chainConfig] of Object.entries(strategy.chains)) {
+    if (chainConfig.override) {
+      for (const overrideChainName of Object.keys(chainConfig.override)) {
+        // Each override key must reference a valid chain
+        if (!chainNames.has(overrideChainName)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Chain '${chainName}' has an override for '${overrideChainName}', but '${overrideChainName}' is not defined in the config`,
+            path: [
+              ...pathPrefix,
+              'chains',
+              chainName,
+              'override',
+              overrideChainName,
+            ],
+          });
+        }
+
+        // Override shouldn't be self-referencing
+        if (chainName === overrideChainName) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Chain '${chainName}' has an override for '${chainName}', but '${chainName}' is self-referencing`,
+            path: [
+              ...pathPrefix,
+              'chains',
+              chainName,
+              'override',
+              overrideChainName,
+            ],
+          });
+        }
+      }
+    }
+  }
+
+  // Validate MinAmount-specific constraints
+  if (strategy.rebalanceStrategy === RebalancerStrategyOptions.MinAmount) {
+    const minAmountChainsTypes = Object.values(strategy.chains).map(
+      (c) => c.minAmount.type,
+    );
+    if (new Set(minAmountChainsTypes).size > 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `All chains must use the same minAmount type.`,
+        path: [...pathPrefix, 'chains'],
+      });
+    }
+  }
+}
 
 export const RebalancerConfigSchema = z
   .object({
@@ -114,59 +198,20 @@ export const RebalancerConfigSchema = z
     strategy: StrategyConfigSchema,
   })
   .superRefine((config, ctx) => {
-    const chainNames = new Set(Object.keys(config.strategy.chains));
-    // Check each chain's overrides
-    for (const [chainName, chainConfig] of Object.entries(
-      config.strategy.chains,
-    )) {
-      if (chainConfig.override) {
-        for (const overrideChainName of Object.keys(chainConfig.override)) {
-          // Each override key must reference a valid chain
-          if (!chainNames.has(overrideChainName)) {
-            ctx.addIssue({
-              code: z.ZodIssueCode.custom,
-              message: `Chain '${chainName}' has an override for '${overrideChainName}', but '${overrideChainName}' is not defined in the config`,
-              path: [
-                'strategy',
-                'chains',
-                chainName,
-                'override',
-                overrideChainName,
-              ],
-            });
-          }
-
-          // Override shouldn't be self-referencing
-          if (chainName === overrideChainName) {
-            ctx.addIssue({
-              code: z.ZodIssueCode.custom,
-              message: `Chain '${chainName}' has an override for '${chainName}', but '${chainName}' is self-referencing`,
-              path: [
-                'strategy',
-                'chains',
-                chainName,
-                'override',
-                overrideChainName,
-              ],
-            });
-          }
-        }
-      }
-    }
-
     if (
-      config.strategy.rebalanceStrategy === RebalancerStrategyOptions.MinAmount
+      config.strategy.rebalanceStrategy === RebalancerStrategyOptions.Composite
     ) {
-      const minAmountChainsTypes = Object.values(config.strategy.chains).map(
-        (c) => c.minAmount.type,
-      );
-      if (new Set(minAmountChainsTypes).size > 1) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `All chains must use the same minAmount type.`,
-          path: ['strategy', 'chains'],
-        });
+      // Validate each sub-strategy in the composite
+      for (let i = 0; i < config.strategy.strategies.length; i++) {
+        validateSingleStrategy(config.strategy.strategies[i], ctx, [
+          'strategy',
+          'strategies',
+          String(i),
+        ]);
       }
+    } else {
+      // Validate the single strategy directly
+      validateSingleStrategy(config.strategy, ctx);
     }
   });
 
@@ -185,3 +230,37 @@ export type StrategyConfig = z.infer<typeof StrategyConfigSchema>;
 
 export type RebalancerConfig = z.infer<typeof RebalancerConfigSchema>;
 export type RebalancerConfigFileInput = z.input<typeof RebalancerConfigSchema>;
+
+/**
+ * Get all chain names from a strategy config.
+ * For composite strategies, collects chains from all sub-strategies.
+ */
+export function getStrategyChainNames(strategy: StrategyConfig): string[] {
+  if (strategy.rebalanceStrategy === RebalancerStrategyOptions.Composite) {
+    const chainSet = new Set<string>();
+    for (const subStrategy of strategy.strategies) {
+      Object.keys(subStrategy.chains).forEach((chain) => chainSet.add(chain));
+    }
+    return Array.from(chainSet);
+  }
+  return Object.keys(strategy.chains);
+}
+
+/**
+ * Get chain config from a strategy, supporting both single and composite strategies.
+ * For composite strategies, returns the first matching chain config found.
+ */
+export function getStrategyChainConfig(
+  strategy: StrategyConfig,
+  chainName: string,
+): SingleStrategyConfig['chains'][string] | undefined {
+  if (strategy.rebalanceStrategy === RebalancerStrategyOptions.Composite) {
+    for (const subStrategy of strategy.strategies) {
+      if (chainName in subStrategy.chains) {
+        return subStrategy.chains[chainName];
+      }
+    }
+    return undefined;
+  }
+  return strategy.chains[chainName];
+}
