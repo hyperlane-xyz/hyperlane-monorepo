@@ -28,6 +28,7 @@ use hyperlane_core::{
 };
 use hyperlane_ethereum::{Signers, SingletonSigner, SingletonSignerHandle};
 
+use crate::announce_waiter::AnnounceWaiter;
 use crate::reorg_reporter::{
     LatestCheckpointReorgReporter, LatestCheckpointReorgReporterWithStorageWriter, ReorgReporter,
 };
@@ -35,6 +36,10 @@ use crate::server::{self as validator_server, merkle_tree_insertions};
 use crate::{
     settings::ValidatorSettings,
     submit::{ValidatorSubmitter, ValidatorSubmitterMetrics},
+};
+
+use lander::{
+    DatabaseOrPath, Dispatcher, DispatcherEntrypoint, DispatcherMetrics, DispatcherSettings,
 };
 
 const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
@@ -65,6 +70,12 @@ pub struct Validator {
     agent_metadata: ValidatorMetadata,
     max_sign_concurrency: usize,
     reorg_reporter: Arc<dyn ReorgReporter>,
+    // Lander dispatcher for transaction submission (optional, for validator announce via lander)
+    dispatcher: Option<Arc<Dispatcher>>,
+    // Lander entrypoint for submitting announcements (optional)
+    dispatcher_entrypoint: Option<Arc<DispatcherEntrypoint>>,
+    // Waiter for blocking announcement submission
+    announce_waiter: Option<Arc<AnnounceWaiter>>,
 }
 
 /// Metadata for `validator`
@@ -185,6 +196,23 @@ impl BaseAgent for Validator {
             .build_validator_announce(&settings.origin_chain, &metrics)
             .await?;
 
+        // Initialize lander dispatcher for validator announce (optional for now)
+        // TODO: Make this configurable via settings
+        let lander_components = Self::try_init_lander(
+            &origin_chain_conf,
+            &settings.origin_chain,
+            &msg_db,
+            &metrics,
+            &validator_announce,
+        )
+        .await
+        .ok();
+
+        let (dispatcher, dispatcher_entrypoint, announce_waiter) = match lander_components {
+            Some((d, e, w)) => (Some(d), Some(e), Some(w)),
+            None => (None, None, None),
+        };
+
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&metrics));
 
         let merkle_tree_hook_sync = settings
@@ -220,6 +248,9 @@ impl BaseAgent for Validator {
             agent_metadata,
             max_sign_concurrency: settings.max_sign_concurrency,
             reorg_reporter,
+            dispatcher,
+            dispatcher_entrypoint,
+            announce_waiter,
         })
     }
 
@@ -260,6 +291,20 @@ impl BaseAgent for Validator {
                 }
                 .instrument(info_span!("SingletonSigner")),
             ));
+        }
+
+        // Spawn lander dispatcher if available
+        if let Some(dispatcher) = self.dispatcher.as_ref() {
+            info!("Spawning lander dispatcher for validator announce");
+            match dispatcher.spawn().await {
+                Ok(dispatcher_tasks) => {
+                    tasks.extend(dispatcher_tasks);
+                    info!("Lander dispatcher spawned successfully");
+                }
+                Err(e) => {
+                    error!(error = ?e, "Failed to spawn lander dispatcher");
+                }
+            }
         }
 
         let metrics_updater = match ChainSpecificMetricsUpdater::new(
@@ -603,6 +648,60 @@ impl Validator {
                 e
             )
         })
+    }
+
+    /// Try to initialize lander dispatcher and waiter for validator announce.
+    /// Returns None if initialization fails or if lander is not available for the chain.
+    async fn try_init_lander(
+        origin_chain_conf: &ChainConf,
+        origin_chain: &HyperlaneDomain,
+        db: &HyperlaneRocksDB,
+        metrics: &Arc<CoreMetrics>,
+        validator_announce: &Arc<dyn ValidatorAnnounce>,
+    ) -> Result<(
+        Arc<Dispatcher>,
+        Arc<DispatcherEntrypoint>,
+        Arc<AnnounceWaiter>,
+    )> {
+        // Create dispatcher settings
+        let dispatcher_settings = DispatcherSettings {
+            chain_conf: origin_chain_conf.clone(),
+            raw_chain_conf: Default::default(),
+            domain: origin_chain.clone(),
+            db: DatabaseOrPath::Database(db.clone().into()),
+            metrics: metrics.clone(),
+        };
+
+        // Create dispatcher metrics
+        let dispatcher_metrics = DispatcherMetrics::new(metrics, origin_chain.name());
+
+        // Create entrypoint
+        let entrypoint = DispatcherEntrypoint::try_from_settings(
+            dispatcher_settings.clone(),
+            dispatcher_metrics.clone(),
+        )
+        .await?;
+        let entrypoint = Arc::new(entrypoint);
+
+        // Create dispatcher
+        let dispatcher = Dispatcher::try_from_settings(
+            dispatcher_settings,
+            origin_chain.name().to_string(),
+            dispatcher_metrics,
+        )
+        .await?;
+        let dispatcher = Arc::new(dispatcher);
+
+        // Create announce waiter
+        let announce_waiter = AnnounceWaiter::new(
+            entrypoint.clone(),
+            validator_announce.address(),
+            None, // Use default poll interval (2s)
+            None, // Use default timeout (5 minutes)
+        );
+        let announce_waiter = Arc::new(announce_waiter);
+
+        Ok((dispatcher, entrypoint, announce_waiter))
     }
 }
 
