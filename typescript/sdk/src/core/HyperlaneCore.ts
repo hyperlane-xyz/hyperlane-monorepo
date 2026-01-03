@@ -1,5 +1,5 @@
 import { TransactionReceipt } from '@ethersproject/providers';
-import { ethers } from 'ethers';
+import { BigNumberish, ethers } from 'ethers';
 import type { TransactionReceipt as ViemTxReceipt } from 'viem';
 
 import {
@@ -278,6 +278,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   deliver(
     message: DispatchedMessage,
     ismMetadata: string,
+    value?: BigNumberish,
   ): Promise<ethers.ContractReceipt> {
     const destinationChain = this.getDestination(message);
     const txOverrides =
@@ -287,7 +288,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
       this.getContracts(destinationChain).mailbox.process(
         ismMetadata,
         message.message,
-        { ...txOverrides },
+        { ...txOverrides, value },
       ),
     );
   }

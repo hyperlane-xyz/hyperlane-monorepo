@@ -1,12 +1,15 @@
-import { ethers, providers } from 'ethers';
+import { BigNumberish, ethers, providers } from 'ethers';
 import { Logger } from 'pino';
 import { z } from 'zod';
 
+import { InterchainGasPaymaster__factory } from '@hyperlane-xyz/core';
 import {
   Address,
   ParsedMessage,
   assert,
   bytes32ToAddress,
+  deepFind,
+  eqAddressEvm,
   messageId,
   objMap,
   objMerge,
@@ -16,7 +19,11 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { EvmHookReader } from '../hook/EvmHookReader.js';
-import { DerivedHookConfig, HookConfigSchema } from '../hook/types.js';
+import {
+  DerivedHookConfig,
+  HookConfigSchema,
+  HookType,
+} from '../hook/types.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { BaseMetadataBuilder } from '../ism/metadata/builder.js';
 import { DerivedIsmConfig, IsmConfigSchema } from '../ism/types.js';
@@ -282,8 +289,26 @@ export class HyperlaneRelayer {
       dispatchTx,
     });
 
+    let value: BigNumberish | undefined;
+    const igp = deepFind(
+      hook,
+      (hook): hook is DerivedHookConfig =>
+        hook.type === HookType.INTERCHAIN_GAS_PAYMASTER,
+    );
+    if (igp) {
+      const matchingEvents = dispatchTx.logs
+        .filter((log) => eqAddressEvm(log.address, igp.address))
+        .map((log) =>
+          InterchainGasPaymaster__factory.createInterface().parseLog(log),
+        )
+        .filter((event) => event.args.messageId);
+      const [gasPayment, valueRequested] = matchingEvents;
+      this.logger.debug({ gasPayment, valueRequested }, `Parsed IGP request`);
+      value = valueRequested.args.value;
+    }
+
     this.logger.info(`Relaying message ${message.id}`);
-    return this.core.deliver(message, metadata);
+    return this.core.deliver(message, metadata, value);
   }
 
   hydrate(cache: RelayerCache): void {

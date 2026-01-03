@@ -237,6 +237,7 @@ export function hyperlaneWarpSendRelay({
   value = 2,
   chains,
   roundTrip,
+  recipient,
 }: {
   origin?: string;
   destination?: string;
@@ -245,12 +246,14 @@ export function hyperlaneWarpSendRelay({
   value?: number | string;
   chains?: string;
   roundTrip?: boolean;
+  recipient?: string;
 }): ProcessPromise {
   return $`${localTestRunCmdPrefix()} hyperlane warp send \
         ${relay ? '--relay' : []} \
         --registry ${REGISTRY_PATH} \
         ${origin ? ['--origin', origin] : []} \
         ${destination ? ['--destination', destination] : []} \
+        ${recipient ? ['--recipient', recipient] : []} \
         --warp ${warpCorePath} \
         --key ${ANVIL_KEY} \
         --verbosity debug \

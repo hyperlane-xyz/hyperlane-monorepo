@@ -20,6 +20,13 @@ interface IInterchainGasPaymaster {
         uint256 gasAmount,
         uint256 payment
     );
+    /**
+     * @notice Emitted when value is requested for message recipient.
+     * @dev GasPayment emission implies this value was already paid for.
+     * @param messageId The ID of the message to pay for.
+     * @param value The amount of native tokens to deliver.
+     */
+    event ValueRequested(bytes32 indexed messageId, uint256 value);
 
     function payForGas(
         bytes32 _messageId,

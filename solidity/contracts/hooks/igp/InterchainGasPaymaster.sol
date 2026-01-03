@@ -147,6 +147,14 @@ contract InterchainGasPaymaster is
     }
 
     // ============ Public Functions ============
+    function payForGas(
+        bytes32 _messageId,
+        uint32 _destinationDomain,
+        uint256 _gasLimit,
+        address _refundAddress
+    ) public payable override {
+        payForGas(_messageId, _destinationDomain, _gasLimit, _refundAddress, 0);
+    }
 
     /**
      * @notice Deposits msg.value as a payment for the relaying of a message
@@ -162,11 +170,13 @@ contract InterchainGasPaymaster is
         bytes32 _messageId,
         uint32 _destinationDomain,
         uint256 _gasLimit,
-        address _refundAddress
-    ) public payable override {
+        address _refundAddress,
+        uint256 _value
+    ) public payable {
         uint256 _requiredPayment = quoteGasPayment(
             _destinationDomain,
-            _gasLimit
+            _gasLimit,
+            _value
         );
         require(
             msg.value >= _requiredPayment,
@@ -184,19 +194,21 @@ contract InterchainGasPaymaster is
             _gasLimit,
             _requiredPayment
         );
+        emit ValueRequested(_messageId, _value);
     }
 
     /**
      * @notice Quotes the amount of native tokens to pay for interchain gas.
      * @param _destinationDomain The domain of the message's destination chain.
      * @param _gasLimit The amount of destination gas to pay for.
+     * @param _destinationValue The value sent to the message recipient.
      * @return The amount of native tokens required to pay for interchain gas.
      */
-    // solhint-disable-next-line hyperlane/no-virtual-override
     function quoteGasPayment(
         uint32 _destinationDomain,
-        uint256 _gasLimit
-    ) public view virtual override returns (uint256) {
+        uint256 _gasLimit,
+        uint256 _destinationValue
+    ) public view virtual returns (uint256) {
         // Get the gas data for the destination domain.
         (
             uint128 _tokenExchangeRate,
@@ -206,10 +218,21 @@ contract InterchainGasPaymaster is
         // The total cost quoted in destination chain's native token.
         uint256 _destinationGasCost = _gasLimit * uint256(_gasPrice);
 
+        // add requested value to be sent on destination
+        // TODO: consider limits here
+        _destinationGasCost += _destinationValue;
+
         // Convert to the local native token.
         return
             (_destinationGasCost * _tokenExchangeRate) /
             TOKEN_EXCHANGE_RATE_SCALE;
+    }
+
+    function quoteGasPayment(
+        uint32 _destinationDomain,
+        uint256 _gasLimit
+    ) public view virtual override returns (uint256) {
+        return quoteGasPayment(_destinationDomain, _gasLimit, 0);
     }
 
     /**
@@ -273,7 +296,8 @@ contract InterchainGasPaymaster is
                 message.destination(),
                 metadata.gasLimit(DEFAULT_GAS_USAGE)
             ),
-            metadata.refundAddress(message.senderAddress())
+            metadata.refundAddress(message.senderAddress()),
+            metadata.msgValue(0)
         );
     }
 
@@ -288,7 +312,8 @@ contract InterchainGasPaymaster is
                 destinationGasLimit(
                     message.destination(),
                     metadata.gasLimit(DEFAULT_GAS_USAGE)
-                )
+                ),
+                metadata.msgValue(0)
             );
     }
 
