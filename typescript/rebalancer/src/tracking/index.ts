@@ -1,30 +1,34 @@
-// === Types ===
+// Export all store components
+export { IStore, InMemoryStore } from './store/index.js';
+
+// Export types
 export type {
-  CrossChainAction,
+  // Base interfaces
   Identifiable,
-  IRebalanceActionStore,
-  IRebalanceIntentStore,
-  ITransferStore,
-  RebalanceAction,
-  RebalanceActionStatus,
-  RebalanceIntent,
-  RebalanceIntentStatus,
+  CrossChainAction,
   Timestamped,
   TrackedActionBase,
-  Transfer,
+  // Status types
   TransferStatus,
+  RebalanceIntentStatus,
+  RebalanceActionStatus,
+  // Entity types
+  Transfer,
+  RebalanceIntent,
+  RebalanceAction,
+  // Store type aliases
+  ITransferStore,
+  IRebalanceIntentStore,
+  IRebalanceActionStore,
 } from './types.js';
 
-// === Store Interface ===
-export type { IStore } from './store/index.js';
-
-// === ActionTracker Interface ===
-export type {
-  CreateRebalanceActionParams,
-  CreateRebalanceIntentParams,
-  IActionTracker,
-} from './IActionTracker.js';
-
-// === Implementations ===
+// Export ActionTracker components
+export { ActionTracker, type ActionTrackerConfig } from './ActionTracker.js';
 export { ActionTrackerStub } from './ActionTrackerStub.js';
 export { InflightContextAdapter } from './InflightContextAdapter.js';
+
+export type {
+  IActionTracker,
+  CreateRebalanceIntentParams,
+  CreateRebalanceActionParams,
+} from './IActionTracker.js';
