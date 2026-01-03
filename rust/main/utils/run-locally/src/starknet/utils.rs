@@ -45,7 +45,7 @@ pub(crate) fn make_target() -> String {
         "amd64"
     };
 
-    format!("{}_{}", os, arch)
+    format!("{os}_{arch}")
 }
 
 pub(crate) fn make_target_starkli() -> String {
@@ -63,7 +63,7 @@ pub(crate) fn make_target_starkli() -> String {
         "x86_64"
     };
 
-    format!("{}-{}", arch, os)
+    format!("{arch}-{os}")
 }
 
 #[apply(as_task)]
@@ -77,7 +77,7 @@ pub(crate) fn declare_all(
             continue;
         }
 
-        println!("Declaring class: {}", class);
+        println!("Declaring class: {class}");
         let declare_result = cli.declare(path);
         let class_hash = declare_result.class_hash;
         match class.as_str() {
@@ -93,7 +93,7 @@ pub(crate) fn declare_all(
             "contracts_messageid_multisig_ism" => declared_classes.hpl_ism_multisig = class_hash,
             "contracts_validator_announce" => declared_classes.hpl_validator_announce = class_hash,
             "contracts_domain_routing_ism" => declared_classes.hpl_ism_routing = class_hash,
-            _ => println!("Unknown class: {}", class),
+            _ => println!("Unknown class: {class}"),
         }
     }
 
@@ -144,10 +144,7 @@ pub(crate) fn deploy_all(
     println!("Deploying routing ism");
     let default_ism = cli.deploy(declarations.hpl_ism_routing, vec![deployer.clone()]);
 
-    println!(
-        "Initializing routing ism with for origin domains: {:?}",
-        remotes
-    );
+    println!("Initializing routing ism with for origin domains: {remotes:?}");
     cli.invoke(
         default_ism.clone(),
         "initialize",
@@ -245,7 +242,7 @@ pub(crate) fn to_strk_message_bytes(bytes: &[u8]) -> (u32, Vec<u128>) {
     // Create a new byte vector with the necessary padding
     let mut padded_bytes = Vec::with_capacity(total_len);
     padded_bytes.extend_from_slice(bytes);
-    padded_bytes.extend(std::iter::repeat(0).take(padding));
+    padded_bytes.extend(std::iter::repeat_n(0, padding));
 
     let mut result = Vec::with_capacity(total_len / 16);
     for chunk in padded_bytes.chunks_exact(16) {

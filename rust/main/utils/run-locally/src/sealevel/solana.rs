@@ -407,12 +407,8 @@ pub fn initiate_solana_hyperlane_transfer(
         .run_with_output()
         .join();
 
-    let message_id = get_message_id_from_logs(output.clone()).unwrap_or_else(|| {
-        panic!(
-            "failed to get message id from logs for transfer: {:?}",
-            output
-        )
-    });
+    let message_id = get_message_id_from_logs(output.clone())
+        .unwrap_or_else(|| panic!("failed to get message id from logs for transfer: {output:?}"));
 
     log!("found message id: {}", message_id);
     sealevel_client(&solana_cli_tools_path, &solana_config_path)
@@ -453,8 +449,7 @@ pub fn initiate_solana_non_matching_igp_paying_transfer(
     let non_matching_igp_message_id =
         get_message_id_from_logs(output.clone()).unwrap_or_else(|| {
             panic!(
-                "failed to get message id from logs non-matching igp paying transfer: {:?}",
-                output
+                "failed to get message id from logs non-matching igp paying transfer: {output:?}"
             )
         });
 
@@ -485,7 +480,7 @@ fn get_message_id_from_logs(logs: Vec<String>) -> Option<String> {
         if let Some(captures) = message_id_regex.captures(&log) {
             if let Some(id_match) = captures.get(1) {
                 let id = id_match.as_str();
-                return Some(format!("0x{}", id));
+                return Some(format!("0x{id}"));
             }
         }
     }
@@ -521,7 +516,7 @@ fn sealevel_client(solana_cli_tools_path: &Path, solana_config_path: &Path) -> P
 
     Program::new(concat_path(
         &sealevel_path,
-        format!("{}/hyperlane-sealevel-client", SOLANA_AGENT_BIN_PATH),
+        format!("{SOLANA_AGENT_BIN_PATH}/hyperlane-sealevel-client"),
     ))
     .working_dir(sealevel_path.clone())
     .env("PATH", updated_path(solana_cli_tools_path))

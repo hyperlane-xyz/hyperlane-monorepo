@@ -12,9 +12,10 @@ hyperlane-base = { path = "../hyperlane-base", features = ["test-utils"] }
 hyperlane-core = { path = "../hyperlane-core" }
 
 hyperlane-aleo = { path = "../chains/hyperlane-aleo", optional = true }
+hyperlane-cosmos = { path = "../chains/hyperlane-cosmos", optional = true }
 hyperlane-ethereum = { path = "../chains/hyperlane-ethereum" }
-hyperlane-radix = { path = "../chains/hyperlane-radix" }
-hyperlane-sealevel = { path = "../chains/hyperlane-sealevel" }
+hyperlane-radix = { path = "../chains/hyperlane-radix", optional = true }
+hyperlane-sealevel = { path = "../chains/hyperlane-sealevel", optional = true }
 
 async-trait.workspace = true
 chrono.workspace = true
@@ -28,9 +29,9 @@ prometheus.workspace = true
 regex.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-solana-client.workspace = true
-solana-sdk.workspace = true
-solana-transaction-status.workspace = true
+solana-client = { workspace = true, optional = true }
+solana-sdk = { workspace = true, optional = true }
+solana-transaction-status = { workspace = true, optional = true }
 thiserror.workspace = true
 tokio = { workspace = true, features = ["rt", "macros", "parking_lot"] }
 tokio-metrics.workspace = true
@@ -38,15 +39,15 @@ tracing.workspace = true
 url = { workspace = true }
 uuid = { workspace = true, features = ["v4", "serde"] }
 
-# Radix dependencies
+# Radix dependencies (optional, for radix feature)
 ethers-prometheus = { path = "../ethers-prometheus", features = ["serde"] }
-core-api-client = { workspace = true }
-gateway-api-client = { workspace = true }
-radix-common = { workspace = true }
-radix-transactions = { workspace = true }
-rand = { workspace = true }
-sbor = { workspace = true, features = ["serde"] }
-scrypto = { workspace = true, features = ["serde"] }
+core-api-client = { workspace = true, optional = true }
+gateway-api-client = { workspace = true, optional = true }
+radix-common = { workspace = true, optional = true }
+radix-transactions = { workspace = true, optional = true }
+rand = { workspace = true, optional = true }
+sbor = { workspace = true, features = ["serde"], optional = true }
+scrypto = { workspace = true, features = ["serde"], optional = true }
 
 [dev-dependencies]
 tracing-subscriber.workspace = true
@@ -57,11 +58,34 @@ tempfile.workspace = true
 [features]
 default = []
 aleo = ["dep:hyperlane-aleo", "hyperlane-base/aleo"]
+cosmos = ["dep:hyperlane-cosmos", "hyperlane-base/cosmos"]
+# Fuel - not yet implemented in lander, placeholder for feature gate
+fuel = ["hyperlane-base/fuel"]
+radix = [
+    "dep:hyperlane-radix",
+    "hyperlane-base/radix",
+    "dep:core-api-client",
+    "dep:gateway-api-client",
+    "dep:radix-common",
+    "dep:radix-transactions",
+    "dep:rand",
+    "dep:sbor",
+    "dep:scrypto",
+]
+sealevel = [
+    "dep:hyperlane-sealevel",
+    "hyperlane-base/sealevel",
+    "dep:solana-client",
+    "dep:solana-sdk",
+    "dep:solana-transaction-status",
+]
+# Starknet - not yet implemented in lander, placeholder for feature gate
+starknet = ["hyperlane-base/starknet"]
 # Feature flag for integration tests - enables test-specific factory functions
 # Integration tests should enable this feature, production builds should not
 integration_test = []
 
-# Integration tests require the integration_test feature
+# Integration tests require the integration_test feature and sealevel support
 [[test]]
 name = "integration_sealevel"
-required-features = ["integration_test"]
+required-features = ["integration_test", "sealevel"]
