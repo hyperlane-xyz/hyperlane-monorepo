@@ -5,7 +5,7 @@ strategy:
   chains:
     arbitrum:
       weighted:
-        weight: 25
+        weight: 34
         tolerance: 10
       bridgeLockTime: 1800 # 30 mins in seconds
       bridgeMinAcceptedAmount: 10000
@@ -21,7 +21,7 @@ strategy:
 
     ethereum:
       weighted:
-        weight: 50
+        weight: 41
         tolerance: 10
       bridgeLockTime: 1800 # 30 mins in seconds
       bridgeMinAcceptedAmount: 10000
