@@ -26,16 +26,16 @@ import {
   ZKSyncProvider,
 } from './ProviderType.js';
 import { HyperlaneSmartProvider } from './SmartProvider/SmartProvider.js';
-import { SmartProviderOptions } from './SmartProvider/types.js';
+import { ProviderRetryOptions } from './SmartProvider/types.js';
 
 export type ProviderBuilderFn<P> = (
   rpcUrls: ChainMetadata['rpcUrls'],
   network: number | string,
-  options?: SmartProviderOptions,
+  retryOverride?: ProviderRetryOptions,
 ) => P;
 export type TypedProviderBuilderFn = ProviderBuilderFn<TypedProvider>;
 
-const DEFAULT_PROVIDER_OPTIONS: SmartProviderOptions = {
+const DEFAULT_RETRY_OPTIONS: ProviderRetryOptions = {
   maxRetries: 3,
   baseRetryDelayMs: 250,
 };
@@ -43,12 +43,14 @@ const DEFAULT_PROVIDER_OPTIONS: SmartProviderOptions = {
 export function defaultEthersV5ProviderBuilder(
   rpcUrls: RpcUrl[],
   network: number | string,
-  options?: SmartProviderOptions,
+  retryOverride?: ProviderRetryOptions,
 ): EthersV5Provider {
-  const provider = new HyperlaneSmartProvider(network, rpcUrls, undefined, {
-    ...DEFAULT_PROVIDER_OPTIONS,
-    ...options,
-  });
+  const provider = new HyperlaneSmartProvider(
+    network,
+    rpcUrls,
+    undefined,
+    retryOverride || DEFAULT_RETRY_OPTIONS,
+  );
   return { type: ProviderType.EthersV5, provider };
 }
 
@@ -165,9 +167,8 @@ export function defaultRadixProviderBuilder(
 export function defaultProviderBuilder(
   rpcUrls: RpcUrl[],
   _network: number | string,
-  options?: SmartProviderOptions,
 ): providers.Provider {
-  return defaultEthersV5ProviderBuilder(rpcUrls, _network, options).provider;
+  return defaultEthersV5ProviderBuilder(rpcUrls, _network).provider;
 }
 
 export function defaultZKProviderBuilder(
