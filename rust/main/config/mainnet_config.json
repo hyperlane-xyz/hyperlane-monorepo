@@ -9511,9 +9511,6 @@
       "validatorAnnounce": "0xA697222b77cDe62A8C47E627d5A1c49A87018236",
       "index": {
         "from": 3716
-      },
-      "transactionOverrides": {
-        "gasLimit": 16700000
       }
     }
   }
