@@ -34,8 +34,13 @@ async function main() {
   const config = getEnvironmentConfig(environment);
   const mpp = await config.getMultiProtocolProvider();
 
+  // Load warp routes from registry
+  const registry = await config.getRegistry();
+  const warpRoutes = await registry.getWarpRoutes();
+
   // Initialize the transaction reader
   const reader = new SquadsTransactionReader(environment, mpp);
+  await reader.init(warpRoutes);
 
   // Get the pending proposals for the relevant chains
   const chainsToCheck =
