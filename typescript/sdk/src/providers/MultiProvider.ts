@@ -359,6 +359,11 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     } else {
       const contractFactory = factory.connect(signer);
       const deployTx = contractFactory.getDeployTransaction(...params);
+      // If gasLimit override is set, use it for estimation to avoid RPC rejection
+      // on chains with low block gas limits
+      if (overrides.gasLimit) {
+        deployTx.gasLimit = overrides.gasLimit;
+      }
       estimatedGas = await signer.estimateGas(deployTx);
       contract = await contractFactory.deploy(...params, {
         gasLimit: addBufferToGasLimit(estimatedGas),
