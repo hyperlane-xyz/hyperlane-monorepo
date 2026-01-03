@@ -13,8 +13,10 @@ export class RebalancerConfig {
   constructor(
     public readonly warpRouteId: string,
     public readonly strategyConfig: StrategyConfig,
-    /** Optional explorer URL for message tracking (defaults to Hyperlane Explorer) */
+    /** Optional explorer URL for message tracking (enables ActionTracker) */
     public readonly explorerUrl?: string,
+    /** Optional rebalancer wallet address (required when explorerUrl is set) */
+    public readonly rebalancerAddress?: string,
   ) {}
 
   /**
@@ -30,12 +32,18 @@ export class RebalancerConfig {
       throw new Error(fromZodError(validationResult.error).message);
     }
 
-    const { warpRouteId, strategy } = validationResult.data;
+    const { warpRouteId, strategy, explorerUrl, rebalancerAddress } =
+      validationResult.data;
 
     if (getStrategyChainNames(strategy).length === 0) {
       throw new Error('No chains configured');
     }
 
-    return new RebalancerConfig(warpRouteId, strategy);
+    return new RebalancerConfig(
+      warpRouteId,
+      strategy,
+      explorerUrl,
+      rebalancerAddress,
+    );
   }
 }

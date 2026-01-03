@@ -196,8 +196,24 @@ export const RebalancerConfigSchema = z
   .object({
     warpRouteId: z.string(),
     strategy: StrategyConfigSchema,
+    /** Optional: Explorer URL for inflight message tracking (enables ActionTracker) */
+    explorerUrl: z.string().url().optional(),
+    /** Optional: Rebalancer wallet address (required when explorerUrl is set) */
+    rebalancerAddress: z
+      .string()
+      .regex(/^0x[a-fA-F0-9]{40}$/)
+      .optional(),
   })
   .superRefine((config, ctx) => {
+    // Validate explorerUrl requires rebalancerAddress
+    if (config.explorerUrl && !config.rebalancerAddress) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `rebalancerAddress is required when explorerUrl is set`,
+        path: ['rebalancerAddress'],
+      });
+    }
+
     if (
       config.strategy.rebalanceStrategy === RebalancerStrategyOptions.Composite
     ) {
