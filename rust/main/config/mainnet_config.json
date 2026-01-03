@@ -9516,7 +9516,9 @@
       },
       "batchContractAddress": "0xBa9E76d893f88B42d90b954921118C269D203a2C",
       "transactionOverrides": {
-        "minGasPrice": 1100000
+        "minGasPrice": 1100000,
+        "minFeePerGas": 1100000,
+        "minPriorityFeePerGas": 1100000
       }
     }
   }

@@ -41,6 +41,8 @@ export const agentSpecificChainMetadataOverrides: ChainMap<
   krown: {
     transactionOverrides: {
       minGasPrice: 11 * 10 ** 5,
+      minFeePerGas: 11 * 10 ** 5,
+      minPriorityFeePerGas: 11 * 10 ** 5,
     },
   },
 };
