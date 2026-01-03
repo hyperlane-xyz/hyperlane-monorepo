@@ -213,11 +213,12 @@ export class HyperlaneSmartProvider
     if (!supportedProviders.length)
       throw new Error(`No providers available for method ${method}`);
 
-    // For call operations, inject callGasLimit if configured and not already set
-    // Some chains (like krown) require gas limit even for eth_call
+    // For call and estimateGas operations, inject callGasLimit if configured and not already set
+    // Some chains (like krown) require gas limit even for eth_call and eth_estimateGas
     let modifiedParams = params;
     if (
-      method === ProviderMethod.Call &&
+      (method === ProviderMethod.Call ||
+        method === ProviderMethod.EstimateGas) &&
       this.options?.callGasLimit &&
       params.transaction &&
       !params.transaction.gasLimit
