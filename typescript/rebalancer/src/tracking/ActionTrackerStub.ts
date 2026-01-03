@@ -1,6 +1,6 @@
 import type { Logger } from 'pino';
 
-import type { ChainName } from '@hyperlane-xyz/sdk';
+import type { Domain } from '@hyperlane-xyz/utils';
 
 import type {
   CreateRebalanceActionParams,
@@ -48,9 +48,7 @@ export class ActionTrackerStub implements IActionTracker {
     return [];
   }
 
-  async getTransfersByDestination(
-    _destination: ChainName,
-  ): Promise<Transfer[]> {
+  async getTransfersByDestination(_destination: Domain): Promise<Transfer[]> {
     return [];
   }
 
@@ -61,7 +59,7 @@ export class ActionTrackerStub implements IActionTracker {
   }
 
   async getRebalanceIntentsByDestination(
-    _destination: ChainName,
+    _destination: Domain,
   ): Promise<RebalanceIntent[]> {
     return [];
   }

@@ -215,7 +215,7 @@ export class RebalancerContextFactory {
       { warpRouteId: this.config.warpRouteId },
       'Creating InflightContextAdapter',
     );
-    return new InflightContextAdapter(actionTracker);
+    return new InflightContextAdapter(actionTracker, this.multiProvider);
   }
 
   private async getInitialTotalCollateral(): Promise<bigint> {
