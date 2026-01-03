@@ -76,6 +76,8 @@ pub struct ChainConf {
     pub signer: Option<SignerConf>,
     /// Submitter type for this chain
     pub submitter: SubmitterType,
+    /// Gas estimator type for this chain
+    pub gas_estimator: SubmitterType,
     /// The estimated block time, i.e. the average time the next block is added to the chain
     pub estimated_block_time: Duration,
     /// The reorg period of the chain, i.e. the number of blocks until finality
