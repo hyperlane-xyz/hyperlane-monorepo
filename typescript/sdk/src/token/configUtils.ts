@@ -1,9 +1,8 @@
 import { zeroAddress } from 'viem';
 
-import { AltVMHookReader, AltVMIsmReader } from '@hyperlane-xyz/deploy-sdk';
+import { AltVMHookReader, createIsmReader } from '@hyperlane-xyz/deploy-sdk';
 import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { HookConfig } from '@hyperlane-xyz/provider-sdk/hook';
-import { IsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
 import {
   Address,
   TransformObjectTransformer,
@@ -300,15 +299,25 @@ export async function expandWarpDeployConfig(params: {
             break;
           }
           default: {
-            const provider = mustGet(altVmProviders, chain);
-            const reader = new AltVMIsmReader(
-              (chain) => multiProvider.tryGetChainName(chain),
-              provider,
-            );
-            chainConfig.interchainSecurityModule = await reader.deriveIsmConfig(
-              // FIXME: not all ISM types are supported yet
-              chainConfig.interchainSecurityModule as IsmConfig | Address,
-            );
+            // For now, only handle address strings (not config objects)
+            if (typeof chainConfig.interchainSecurityModule === 'string') {
+              const metadata = multiProvider.getChainMetadata(chain);
+              const chainLookup = {
+                getChainMetadata: (chain: string | number) =>
+                  multiProvider.getChainMetadata(chain),
+                getChainName: (domainId: string | number) =>
+                  multiProvider.tryGetChainName(domainId),
+                getDomainId: (chainName: string | number) =>
+                  multiProvider.getDomainId(chainName),
+                getKnownChainNames: () => multiProvider.getKnownChainNames(),
+              };
+              const reader = createIsmReader(metadata, chainLookup);
+              chainConfig.interchainSecurityModule =
+                await reader.deriveIsmConfig(
+                  chainConfig.interchainSecurityModule,
+                );
+            }
+            // TODO: Handle IsmConfig objects (nested config expansion)
           }
         }
       }

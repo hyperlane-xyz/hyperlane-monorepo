@@ -54,7 +54,7 @@ import { RadixWarpQuery } from '../warp/query.js';
 
 const DEFAULT_GAS_MULTIPLIER = 1.2;
 
-const NETWORKS = {
+export const NETWORKS = {
   [NetworkId.Stokenet]: {
     applicationName: 'hyperlane',
     packageAddress:
