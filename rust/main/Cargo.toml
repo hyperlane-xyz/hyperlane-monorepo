@@ -203,18 +203,20 @@ sbor = { git = "https://github.com/hyperlane-xyz/radixdlt-scrypto.git", branch =
   "serde",
 ] }
 hyperlane-cosmos-rs = "0.1.4"
+indexmap = "2.0"
 
 
 ## TODO: remove this
 cosmwasm-schema = "2.2.0"
 
-snarkvm = { version = "4.3.0", features = [
+snarkvm = { version = "4.4.0", features = [
   "async",
+  "dev_skip_checks",
   "test_targets",
   "test_consensus_heights",
 ] }
-snarkvm-algorithms = { version = "4.3.0" }
-snarkvm-console-account = { version = "4.3.0" }
+snarkvm-algorithms = { version = "4.4.0" }
+snarkvm-console-account = { version = "4.4.0" }
 aleo-std = { version = "1.0.3" }
 aleo-std-storage = { version = "1.0.3" }
 
