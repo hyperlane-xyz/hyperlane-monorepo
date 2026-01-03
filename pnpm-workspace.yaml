@@ -33,6 +33,7 @@ catalog:
   borsh: ^0.7.0
   dotenv: ^10.0.0
   asn1.js: ^5.4.1
+  uuid: ^13.0.0
 
   # Starknet
   starknet: ^7.4.0
