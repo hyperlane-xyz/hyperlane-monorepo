@@ -1551,5 +1551,17 @@ export const validatorChainConfig = (
         'citrea',
       ),
     },
+    neutron: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('neutron'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xa9b8c1f4998f781f958c63cfcd1708d02f004ff0'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'neutron',
+      ),
+    },
   };
 };
