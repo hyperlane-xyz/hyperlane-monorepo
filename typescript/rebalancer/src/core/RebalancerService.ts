@@ -17,9 +17,13 @@ import {
   MonitorStartError,
 } from '../interfaces/IMonitor.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
-import type { IStrategy } from '../interfaces/IStrategy.js';
+import type { IStrategy, InflightContext } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
 import { Monitor } from '../monitor/Monitor.js';
+import type {
+  IActionTracker,
+  InflightContextAdapter,
+} from '../tracking/index.js';
 import { getRawBalances } from '../utils/balanceUtils.js';
 
 export interface RebalancerServiceConfig {
@@ -100,6 +104,8 @@ export class RebalancerService {
   private strategy?: IStrategy;
   private rebalancer?: IRebalancer;
   private metrics?: Metrics;
+  private actionTracker?: IActionTracker;
+  private inflightContextAdapter?: InflightContextAdapter;
   private mode: 'manual' | 'daemon';
 
   constructor(
@@ -158,6 +164,15 @@ export class RebalancerService {
         'Running in monitorOnly mode: no transactions will be executed.',
       );
     }
+
+    // Create ActionTracker for tracking inflight messages and rebalances
+    this.actionTracker = this.contextFactory.createActionTracker();
+    await this.actionTracker.initialize();
+    this.logger.info('ActionTracker initialized');
+
+    // Create adapter to convert ActionTracker data to InflightContext for strategies
+    this.inflightContextAdapter =
+      this.contextFactory.createInflightContextAdapter(this.actionTracker);
 
     this.logger.info('✅ RebalancerService initialized successfully');
   }
@@ -292,7 +307,24 @@ export class RebalancerService {
       this.logger,
     );
 
-    const rebalancingRoutes = this.strategy!.getRebalancingRoutes(rawBalances);
+    // Fetch inflight context from ActionTracker via adapter
+    let inflightContext: InflightContext | undefined;
+    if (this.inflightContextAdapter) {
+      try {
+        inflightContext =
+          await this.inflightContextAdapter.getInflightContext();
+      } catch (error) {
+        this.logger.warn(
+          { error },
+          'Failed to fetch inflight context, proceeding without it',
+        );
+      }
+    }
+
+    const rebalancingRoutes = this.strategy!.getRebalancingRoutes(
+      rawBalances,
+      inflightContext,
+    );
 
     this.rebalancer
       ?.rebalance(rebalancingRoutes)

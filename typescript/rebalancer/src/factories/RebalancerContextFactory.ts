@@ -19,6 +19,11 @@ import { Metrics } from '../metrics/Metrics.js';
 import { PriceGetter } from '../metrics/PriceGetter.js';
 import { Monitor } from '../monitor/Monitor.js';
 import { StrategyFactory } from '../strategy/StrategyFactory.js';
+import {
+  ActionTrackerStub,
+  type IActionTracker,
+  InflightContextAdapter,
+} from '../tracking/index.js';
 import { isCollateralizedTokenEligibleForRebalancing } from '../utils/index.js';
 
 export class RebalancerContextFactory {
@@ -185,6 +190,32 @@ export class RebalancerContextFactory {
     );
 
     return withSemaphore;
+  }
+
+  /**
+   * Create an ActionTracker instance.
+   * Currently returns a stub that provides no-op behavior.
+   * The real implementation will be added in a follow-up PR.
+   */
+  public createActionTracker(): IActionTracker {
+    this.logger.debug(
+      { warpRouteId: this.config.warpRouteId },
+      'Creating ActionTracker (stub)',
+    );
+    return new ActionTrackerStub(this.logger);
+  }
+
+  /**
+   * Create an InflightContextAdapter that bridges ActionTracker to InflightContext.
+   */
+  public createInflightContextAdapter(
+    actionTracker: IActionTracker,
+  ): InflightContextAdapter {
+    this.logger.debug(
+      { warpRouteId: this.config.warpRouteId },
+      'Creating InflightContextAdapter',
+    );
+    return new InflightContextAdapter(actionTracker, this.multiProvider);
   }
 
   private async getInitialTotalCollateral(): Promise<bigint> {
