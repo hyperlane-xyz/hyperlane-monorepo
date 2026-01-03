@@ -239,6 +239,9 @@
   "morph": {
     "validators": ["0x4884535f393151ec419add872100d352f71af380"]
   },
+  "neutron": {
+    "validators": ["0xa9b8c1f4998f781f958c63cfcd1708d02f004ff0"]
+  },
   "nibiru": {
     "validators": ["0xba9779d84a8efba1c6bc66326d875c3611a24b24"]
   },
@@ -400,5 +403,11 @@
   },
   "zoramainnet": {
     "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
+  },
+  "eni": {
+    "validators": ["0xaedc7f95c57baa668eb94341589837b5430a484c"]
+  },
+  "krown": {
+    "validators": ["0x4f78f3fca0660716c4b276893d73f6f4c95fe618"]
   }
 }
