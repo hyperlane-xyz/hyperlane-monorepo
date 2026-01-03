@@ -26,6 +26,7 @@ use crate::client_builder::SealevelRpcClientBuilder;
 pub trait SubmitSealevelRpc: Send + Sync {
     /// Requests block from node
     async fn get_block(&self, slot: u64) -> ChainResult<UiConfirmedBlock> {
+        tracing::debug!(slot, "SubmitSealevelRpc::get_block");
         self.get_block_with_commitment(slot, CommitmentConfig::finalized())
             .await
     }
