@@ -9,9 +9,11 @@ import {Message} from "../../contracts/libs/Message.sol";
 import {MessageUtils} from "../isms/IsmTestUtils.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {InterchainGasPaymaster} from "../../contracts/hooks/igp/InterchainGasPaymaster.sol";
+import {IInterchainGasPaymaster} from "../../contracts/interfaces/IInterchainGasPaymaster.sol";
 import {StorageGasOracle} from "../../contracts/hooks/igp/StorageGasOracle.sol";
 import {IGasOracle} from "../../contracts/interfaces/IGasOracle.sol";
 import {IPostDispatchHook} from "../../contracts/interfaces/hooks/IPostDispatchHook.sol";
+import {ERC20Test} from "../../contracts/test/ERC20Test.sol";
 
 contract InterchainGasPaymasterTest is Test {
     using StandardHookMetadata for bytes;
@@ -20,6 +22,8 @@ contract InterchainGasPaymasterTest is Test {
 
     InterchainGasPaymaster igp;
     StorageGasOracle testOracle;
+    StorageGasOracle tokenOracle;
+    ERC20Test feeToken;
 
     address constant beneficiary = address(0x444444);
 
@@ -44,8 +48,21 @@ contract InterchainGasPaymasterTest is Test {
         uint256 gasLimit,
         uint256 payment
     );
+    event TokenGasPayment(
+        bytes32 indexed messageId,
+        uint32 indexed destinationDomain,
+        address indexed feeToken,
+        uint256 gasAmount,
+        uint256 payment
+    );
     event BeneficiarySet(address beneficiary);
     event DestinationGasConfigSet(
+        uint32 remoteDomain,
+        address gasOracle,
+        uint96 gasOverhead
+    );
+    event TokenDestinationGasConfigSet(
+        address indexed feeToken,
         uint32 remoteDomain,
         address gasOracle,
         uint96 gasOverhead
@@ -59,6 +76,16 @@ contract InterchainGasPaymasterTest is Test {
         setTestDestinationGasConfig(
             testDestinationDomain,
             testOracle,
+            testGasOverhead
+        );
+
+        // Set up token payment infrastructure
+        feeToken = new ERC20Test("FeeToken", "FEE", 1_000_000e18, 18);
+        tokenOracle = new StorageGasOracle();
+        setTokenDestinationGasConfig(
+            address(feeToken),
+            testDestinationDomain,
+            tokenOracle,
             testGasOverhead
         );
 
@@ -566,6 +593,267 @@ contract InterchainGasPaymasterTest is Test {
         assertEq(address(igp).balance, 0);
     }
 
+    // ============ Token Payment Tests ============
+
+    function testSetTokenDestinationGasConfigs() public {
+        address newFeeToken = address(0xBEEF);
+        uint32 newDomain = 99999;
+        uint96 newOverhead = 50000;
+        StorageGasOracle newOracle = new StorageGasOracle();
+
+        InterchainGasPaymaster.TokenGasParam[]
+            memory params = new InterchainGasPaymaster.TokenGasParam[](1);
+        params[0] = InterchainGasPaymaster.TokenGasParam(
+            newFeeToken,
+            newDomain,
+            InterchainGasPaymaster.DomainGasConfig(newOracle, newOverhead)
+        );
+
+        vm.expectEmit(true, false, false, true, address(igp));
+        emit TokenDestinationGasConfigSet(
+            newFeeToken,
+            newDomain,
+            address(newOracle),
+            newOverhead
+        );
+
+        igp.setTokenDestinationGasConfigs(params);
+
+        (IGasOracle actualOracle, uint96 actualOverhead) = igp
+            .tokenDestinationGasConfigs(newFeeToken, newDomain);
+        assertEq(address(actualOracle), address(newOracle));
+        assertEq(actualOverhead, newOverhead);
+    }
+
+    function testSetTokenDestinationGasConfigs_reverts_notOwner() public {
+        InterchainGasPaymaster.TokenGasParam[]
+            memory params = new InterchainGasPaymaster.TokenGasParam[](1);
+        params[0] = InterchainGasPaymaster.TokenGasParam(
+            address(feeToken),
+            testDestinationDomain,
+            InterchainGasPaymaster.DomainGasConfig(tokenOracle, testGasOverhead)
+        );
+
+        vm.expectRevert("Ownable: caller is not the owner");
+        vm.prank(ALICE);
+        igp.setTokenDestinationGasConfigs(params);
+    }
+
+    function testQuoteGasPaymentWithToken() public {
+        setTokenRemoteGasData(
+            testDestinationDomain,
+            1 * TEST_EXCHANGE_RATE, // 1:1 exchange rate
+            TEST_GAS_PRICE // 150 wei gas price
+        );
+
+        // quoteGasPaymentWithToken does NOT add overhead - caller is responsible
+        // gasLimit (300000) * 150 = 45000000
+        uint256 expectedQuote = 45000000;
+        uint256 actualQuote = igp.quoteGasPaymentWithToken(
+            address(feeToken),
+            testDestinationDomain,
+            testGasLimit
+        );
+        assertEq(actualQuote, expectedQuote);
+    }
+
+    function testQuoteGasPaymentWithToken_differentExchangeRate() public {
+        // Remote token is 2x more valuable
+        setTokenRemoteGasData(
+            testDestinationDomain,
+            2 * TEST_EXCHANGE_RATE,
+            TEST_GAS_PRICE
+        );
+
+        // quoteGasPaymentWithToken does NOT add overhead - caller is responsible
+        // gasLimit (300000) * 150 * 2 = 90000000
+        uint256 expectedQuote = 90000000;
+        uint256 actualQuote = igp.quoteGasPaymentWithToken(
+            address(feeToken),
+            testDestinationDomain,
+            testGasLimit
+        );
+        assertEq(actualQuote, expectedQuote);
+    }
+
+    function testQuoteGasPaymentWithToken_reverts_unsupportedToken() public {
+        address unsupportedToken = address(0xDEAD);
+
+        vm.expectRevert("IGP: unsupported token-domain");
+        igp.quoteGasPaymentWithToken(
+            unsupportedToken,
+            testDestinationDomain,
+            testGasLimit
+        );
+    }
+
+    function testQuoteGasPaymentWithToken_reverts_unsupportedDomain() public {
+        uint32 unsupportedDomain = 99999;
+
+        vm.expectRevert("IGP: unsupported token-domain");
+        igp.quoteGasPaymentWithToken(
+            address(feeToken),
+            unsupportedDomain,
+            testGasLimit
+        );
+    }
+
+    function testPostDispatch_withTokenFee() public {
+        setTokenRemoteGasData(
+            testDestinationDomain,
+            1 * TEST_EXCHANGE_RATE,
+            1 // 1 wei gas price
+        );
+
+        // Get total gas including overhead
+        uint256 totalGas = igp.tokenDestinationGasLimit(
+            address(feeToken),
+            testDestinationDomain,
+            testGasLimit
+        );
+        uint256 quote = igp.quoteGasPaymentWithToken(
+            address(feeToken),
+            testDestinationDomain,
+            totalGas
+        );
+
+        // Approve IGP to spend fee tokens
+        feeToken.approve(address(igp), quote);
+
+        uint256 igpTokenBalanceBefore = feeToken.balanceOf(address(igp));
+        uint256 senderTokenBalanceBefore = feeToken.balanceOf(address(this));
+
+        bytes memory metadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            testGasLimit,
+            testRefundAddress,
+            address(feeToken),
+            ""
+        );
+
+        bytes32 messageId = keccak256(testEncodedMessage);
+        vm.expectEmit(true, true, true, true);
+        emit TokenGasPayment(
+            messageId,
+            testDestinationDomain,
+            address(feeToken),
+            totalGas,
+            quote
+        );
+
+        igp.postDispatch{value: 0}(metadata, testEncodedMessage);
+
+        uint256 igpTokenBalanceAfter = feeToken.balanceOf(address(igp));
+        uint256 senderTokenBalanceAfter = feeToken.balanceOf(address(this));
+
+        assertEq(igpTokenBalanceAfter - igpTokenBalanceBefore, quote);
+        assertEq(senderTokenBalanceBefore - senderTokenBalanceAfter, quote);
+    }
+
+    function testPostDispatch_withTokenFee_reverts_insufficientAllowance()
+        public
+    {
+        setTokenRemoteGasData(testDestinationDomain, 1 * TEST_EXCHANGE_RATE, 1);
+
+        // Don't approve IGP
+        bytes memory metadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            testGasLimit,
+            testRefundAddress,
+            address(feeToken),
+            ""
+        );
+
+        vm.expectRevert("ERC20: insufficient allowance");
+        igp.postDispatch{value: 0}(metadata, testEncodedMessage);
+    }
+
+    function testQuoteDispatch_withTokenFee() public {
+        setTokenRemoteGasData(
+            testDestinationDomain,
+            1 * TEST_EXCHANGE_RATE,
+            TEST_GAS_PRICE
+        );
+
+        bytes memory metadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            testGasLimit,
+            testRefundAddress,
+            address(feeToken),
+            ""
+        );
+
+        // gasLimit (300000) + gasOverhead (123000) = 423000
+        // 423000 * 150 = 63450000
+        uint256 expectedQuote = 63450000;
+        assertEq(
+            igp.quoteDispatch(metadata, testEncodedMessage),
+            expectedQuote
+        );
+    }
+
+    function testClaimToken() public {
+        setTokenRemoteGasData(testDestinationDomain, 1 * TEST_EXCHANGE_RATE, 1);
+
+        // Get total gas including overhead
+        uint256 totalGas = igp.tokenDestinationGasLimit(
+            address(feeToken),
+            testDestinationDomain,
+            testGasLimit
+        );
+        uint256 quote = igp.quoteGasPaymentWithToken(
+            address(feeToken),
+            testDestinationDomain,
+            totalGas
+        );
+
+        // Approve and pay
+        feeToken.approve(address(igp), quote);
+        bytes memory metadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            testGasLimit,
+            testRefundAddress,
+            address(feeToken),
+            ""
+        );
+        igp.postDispatch{value: 0}(metadata, testEncodedMessage);
+
+        uint256 beneficiaryBalanceBefore = feeToken.balanceOf(beneficiary);
+        uint256 igpBalanceBefore = feeToken.balanceOf(address(igp));
+
+        igp.claimToken(address(feeToken));
+
+        uint256 beneficiaryBalanceAfter = feeToken.balanceOf(beneficiary);
+        uint256 igpBalanceAfter = feeToken.balanceOf(address(igp));
+
+        assertEq(beneficiaryBalanceAfter - beneficiaryBalanceBefore, quote);
+        assertEq(igpBalanceBefore - igpBalanceAfter, quote);
+        assertEq(igpBalanceAfter, 0);
+    }
+
+    function testSupportsMetadata_variant1() public view {
+        bytes memory metadata = StandardHookMetadata.overrideGasLimit(
+            testGasLimit
+        );
+        assertTrue(igp.supportsMetadata(metadata));
+    }
+
+    function testSupportsMetadata_variant2() public view {
+        bytes memory metadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            testGasLimit,
+            testRefundAddress,
+            address(feeToken),
+            ""
+        );
+        assertTrue(igp.supportsMetadata(metadata));
+    }
+
+    function testSupportsMetadata_emptyMetadata() public view {
+        bytes memory metadata = "";
+        assertTrue(igp.supportsMetadata(metadata));
+    }
+
     // ============ Helper functions ============
 
     function setTestDestinationGasConfig(
@@ -608,6 +896,37 @@ contract InterchainGasPaymasterTest is Test {
                 TypeCasts.addressToBytes32(address(0x1)),
                 testMessage
             );
+    }
+
+    function setTokenDestinationGasConfig(
+        address _feeToken,
+        uint32 _remoteDomain,
+        IGasOracle _gasOracle,
+        uint96 _gasOverhead
+    ) internal {
+        InterchainGasPaymaster.TokenGasParam[]
+            memory params = new InterchainGasPaymaster.TokenGasParam[](1);
+
+        params[0] = InterchainGasPaymaster.TokenGasParam(
+            _feeToken,
+            _remoteDomain,
+            InterchainGasPaymaster.DomainGasConfig(_gasOracle, _gasOverhead)
+        );
+        igp.setTokenDestinationGasConfigs(params);
+    }
+
+    function setTokenRemoteGasData(
+        uint32 _remoteDomain,
+        uint128 _tokenExchangeRate,
+        uint128 _gasPrice
+    ) internal {
+        tokenOracle.setRemoteGasData(
+            StorageGasOracle.RemoteGasDataConfig({
+                remoteDomain: _remoteDomain,
+                tokenExchangeRate: _tokenExchangeRate,
+                gasPrice: _gasPrice
+            })
+        );
     }
 
     receive() external payable {}
