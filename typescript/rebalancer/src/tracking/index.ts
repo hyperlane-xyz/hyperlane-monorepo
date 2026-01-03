@@ -26,5 +26,9 @@ export type {
 } from './IActionTracker.js';
 
 // === Implementations ===
+export { ActionTracker, type ActionTrackerConfig } from './ActionTracker.js';
 export { ActionTrackerStub } from './ActionTrackerStub.js';
 export { InflightContextAdapter } from './InflightContextAdapter.js';
+
+// === Store Implementations ===
+export { InMemoryStore } from './store/index.js';

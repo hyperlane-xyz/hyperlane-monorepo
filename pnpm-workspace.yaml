@@ -33,6 +33,7 @@ catalog:
   borsh: ^0.7.0
   dotenv: ^10.0.0
   asn1.js: ^5.4.1
+  uuid: ^13.0.0
 
   # Starknet
   starknet: ^7.4.0
@@ -130,6 +131,7 @@ catalog:
   '@types/lodash-es': ^4.17.12
   '@types/yargs': ^17.0.24
   '@types/ws': ^8.5.5
+  '@types/uuid': ^10.0.0
 
   # Hardhat
   hardhat: ^2.22.2
