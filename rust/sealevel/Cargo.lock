@@ -2401,7 +2401,7 @@ dependencies = [
 
 [[package]]
 name = "hyperlane-application"
-version = "1.7.0"
+version = "2.0.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -2410,7 +2410,7 @@ dependencies = [
 
 [[package]]
 name = "hyperlane-core"
-version = "1.7.0"
+version = "2.0.0"
 dependencies = [
  "async-rwlock",
  "async-trait",
@@ -2829,7 +2829,7 @@ dependencies = [
 
 [[package]]
 name = "hyperlane-warp-route"
-version = "1.7.0"
+version = "2.0.0"
 dependencies = [
  "hyperlane-core",
 ]
