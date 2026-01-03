@@ -9486,9 +9486,6 @@
         }
       ],
       "technicalStack": "other",
-      "transactionOverrides": {
-        "gasLimit": 16700000
-      },
       "aggregationHook": "0x535D091B1F99206a3Af004A470F6A31E01e55967",
       "domainRoutingIsm": "0x2b0225778a567D11F612D8955b6D01a722490A58",
       "domainRoutingIsmFactory": "0x7f50C5776722630a0024fAE05fDe8b47571D7B39",
@@ -9514,6 +9511,9 @@
       "validatorAnnounce": "0xA697222b77cDe62A8C47E627d5A1c49A87018236",
       "index": {
         "from": 3716
+      },
+      "transactionOverrides": {
+        "gasLimit": 16700000
       }
     }
   }
