@@ -51,4 +51,6 @@ export interface SmartProviderOptions extends ProviderRetryOptions {
   // The time to wait before attempting the next provider
   fallbackStaggerMs?: number;
   debug?: boolean;
+  // Gas limit to use for eth_call operations (some chains require this)
+  callGasLimit?: number;
 }

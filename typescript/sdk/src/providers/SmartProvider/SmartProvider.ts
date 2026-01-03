@@ -213,11 +213,35 @@ export class HyperlaneSmartProvider
     if (!supportedProviders.length)
       throw new Error(`No providers available for method ${method}`);
 
+    // For call operations, inject callGasLimit if configured and not already set
+    // Some chains (like krown) require gas limit even for eth_call
+    let modifiedParams = params;
+    if (
+      method === ProviderMethod.Call &&
+      this.options?.callGasLimit &&
+      params.transaction &&
+      !params.transaction.gasLimit
+    ) {
+      modifiedParams = {
+        ...params,
+        transaction: {
+          ...params.transaction,
+          gasLimit: BigNumber.from(this.options.callGasLimit),
+        },
+      };
+    }
+
     this.requestCount += 1;
     const reqId = this.requestCount;
 
     return retryAsync(
-      () => this.performWithFallback(method, params, supportedProviders, reqId),
+      () =>
+        this.performWithFallback(
+          method,
+          modifiedParams,
+          supportedProviders,
+          reqId,
+        ),
       this.options?.maxRetries || DEFAULT_MAX_RETRIES,
       this.options?.baseRetryDelayMs || DEFAULT_BASE_RETRY_DELAY_MS,
     );

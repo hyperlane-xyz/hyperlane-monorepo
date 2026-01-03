@@ -101,7 +101,8 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
   tryGetProvider(chainNameOrId: ChainNameOrId): Provider | null {
     const metadata = this.tryGetChainMetadata(chainNameOrId);
     if (!metadata) return null;
-    const { name, chainId, rpcUrls, technicalStack } = metadata;
+    const { name, chainId, rpcUrls, technicalStack, transactionOverrides } =
+      metadata;
 
     if (this.providers[name]) return this.providers[name];
 
@@ -118,7 +119,14 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
       if (technicalStack === ChainTechnicalStack.ZkSync) {
         this.providers[name] = defaultZKProviderBuilder(rpcUrls, chainId);
       } else {
-        this.providers[name] = this.providerBuilder(rpcUrls, chainId);
+        // Pass callGasLimit from transactionOverrides if set
+        // Some chains require gas limit even for eth_call operations
+        const callGasLimit = transactionOverrides?.gasLimit
+          ? Number(transactionOverrides.gasLimit)
+          : undefined;
+        this.providers[name] = this.providerBuilder(rpcUrls, chainId, {
+          callGasLimit,
+        });
       }
     } else {
       return null;
