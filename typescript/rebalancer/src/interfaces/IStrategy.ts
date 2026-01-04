@@ -10,6 +10,7 @@ export type RebalancingRoute = {
 
 export type InflightContext = {
   pendingRebalances: RebalancingRoute[];
+  pendingTransfers: RebalancingRoute[];
 };
 
 export interface IStrategy {
