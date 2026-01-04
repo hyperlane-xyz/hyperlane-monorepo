@@ -577,7 +577,6 @@ async fn test_from_settings_and_run_bad_signer() {
         generate_test_chain_conf(
             HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
             Some(SignerConf::HexKey { key: H256::zero() }),
-            // these urls are not expected to be live
             "http://localhost:8545",
         ),
     )];
@@ -592,14 +591,16 @@ async fn test_from_settings_and_run_bad_signer() {
         metrics_port,
     );
 
-    let agent = build_relayer(settings)
-        .await
-        .expect("Failed to build relayer");
-
-    let failed_chain_count = 1;
+    let result = build_relayer(settings).await;
     assert!(
-        test_relayer_started_successfully(agent, metrics_port, failed_chain_count)
-            .await
-            .is_ok()
+        result.is_err(),
+        "Expected relayer build to fail when all chains have bad signers"
+    );
+    let err = result.unwrap_err();
+    assert!(
+        err.to_string()
+            .contains("Failed to initialize minimum required chains"),
+        "Expected error about minimum required chains, got: {}",
+        err
     );
 }

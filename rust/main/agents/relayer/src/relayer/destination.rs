@@ -53,6 +53,7 @@ pub trait Factory {
     ) -> Result<Destination, FactoryError>;
 }
 
+#[derive(Clone)]
 pub struct DestinationFactory {
     db: DB,
     core_metrics: Arc<CoreMetrics>,
