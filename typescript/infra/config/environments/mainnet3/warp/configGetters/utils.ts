@@ -1,5 +1,6 @@
 import assert from 'assert';
 
+import { WarpRouteId } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
   ChainName,
@@ -22,9 +23,10 @@ type RebalancingConfig = Required<
 
 export function getUSDCRebalancingBridgesConfigFor(
   deploymentChains: readonly ChainName[],
+  rebalanceBridgeId: WarpRouteId = WarpRouteIds.MainnetCCTPV1,
 ): ChainMap<RebalancingConfig> {
   const registry = getRegistry();
-  const mainnetCCTP = registry.getWarpRoute(WarpRouteIds.MainnetCCTPV1);
+  const mainnetCCTP = registry.getWarpRoute(rebalanceBridgeId);
 
   assert(mainnetCCTP, 'MainnetCCTP warp route not found');
 
