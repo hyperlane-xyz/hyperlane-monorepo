@@ -49,6 +49,7 @@ export abstract class BaseStrategy implements IStrategy {
     const pendingRebalances = inflightContext?.pendingRebalances ?? [];
     const pendingTransfers = inflightContext?.pendingTransfers ?? [];
 
+
     this.logger.info(
       {
         strategy: this.name,
@@ -276,6 +277,7 @@ export abstract class BaseStrategy implements IStrategy {
     if (pendingTransfers.length === 0) {
       return rawBalances;
     }
+
 
     const reserved = { ...rawBalances };
 
