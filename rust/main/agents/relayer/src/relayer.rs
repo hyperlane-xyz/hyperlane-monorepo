@@ -377,6 +377,10 @@ impl BaseAgent for Relayer {
         }
 
         start_entity_init = Instant::now();
+        // NOTE: The router is built once at startup using a snapshot of currently-ready chains.
+        // Chains that initialize in the background after startup won't have HTTP endpoints
+        // (retry, status, dispatcher commands) until a restart. This is an acceptable tradeoff
+        // for faster startup - the relayer will still process messages for these chains.
         let relayer_router = self.build_router(prep_queues, sender.clone()).await;
         let server = self
             .core
