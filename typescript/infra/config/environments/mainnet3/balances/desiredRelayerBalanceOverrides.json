@@ -1,5 +1,5 @@
 {
-  "arcadia": 0.05,
+  "arcadia": 0.2,
   "artela": 2200,
   "aleo": 0,
   "carrchain": 5000,
@@ -22,7 +22,6 @@
   "starknet": 200,
   "solaxy": 0.05,
   "sophon": 50,
-  "tac": 5,
   "tangle": 6,
   "vana": 20
 }
