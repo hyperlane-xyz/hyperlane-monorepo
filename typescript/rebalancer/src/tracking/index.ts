@@ -30,3 +30,6 @@ export type {
   CreateRebalanceIntentParams,
   CreateRebalanceActionParams,
 } from './IActionTracker.js';
+
+// Export InflightContextAdapter
+export { InflightContextAdapter } from './InflightContextAdapter.js';
