@@ -15,7 +15,7 @@ use eyre::Result;
 use futures_util::future::{select_all, try_join_all};
 use tokio::{
     sync::{
-        broadcast::{self, Sender as BroadcastSender},
+        broadcast::Sender as BroadcastSender,
         mpsc::{self, Receiver as MpscReceiver, UnboundedSender},
         Mutex, RwLock,
     },
@@ -71,13 +71,6 @@ const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
 const ADVANCED_LOG_META: bool = false;
 
 const INITIAL_CHAIN_READINESS_TIMEOUT: Duration = Duration::from_secs(300);
-const NEW_CHAIN_CHANNEL_CAPACITY: usize = 64;
-
-#[derive(Debug, Clone)]
-pub enum NewChainEvent {
-    OriginReady(HyperlaneDomain),
-    DestinationReady(HyperlaneDomain),
-}
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone)]
 struct ContextKey {
@@ -85,6 +78,15 @@ struct ContextKey {
     destination: HyperlaneDomain,
 }
 
+/// Dynamic chain maps that can be updated at runtime as chains become ready.
+///
+/// # Lock Ordering
+/// When acquiring multiple locks, always acquire in this order to prevent deadlocks:
+/// 1. `origins`
+/// 2. `destinations`
+/// 3. `msg_ctxs`
+/// 4. `send_channels`
+/// 5. `prep_queues`
 type DynamicOrigins = Arc<RwLock<HashMap<HyperlaneDomain, Origin>>>;
 type DynamicDestinations = Arc<RwLock<HashMap<HyperlaneDomain, Destination>>>;
 type DynamicMessageContexts = Arc<RwLock<HashMap<ContextKey, Arc<MessageContext>>>>;
@@ -114,7 +116,6 @@ pub struct Relayer {
     origins: DynamicOrigins,
     destinations: DynamicDestinations,
 
-    new_chain_tx: broadcast::Sender<NewChainEvent>,
     pending_chain_init: Mutex<Option<PendingChainInit>>,
 }
 
@@ -243,8 +244,8 @@ impl BaseAgent for Relayer {
 
         start_entity_init = Instant::now();
         let msg_ctxs = Self::build_message_contexts(
-            &initial_origins,
-            &initial_destinations,
+            initial_origins.iter(),
+            initial_destinations.iter(),
             &skip_transaction_gas_limit_for,
             transaction_gas_limit,
             settings.allow_local_checkpoint_syncers,
@@ -257,8 +258,6 @@ impl BaseAgent for Relayer {
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized message contexts", "Relayer startup duration measurement");
 
         debug!(elapsed = ?start.elapsed(), event = "fully initialized", "Relayer startup duration measurement");
-
-        let (new_chain_tx, _) = broadcast::channel(NEW_CHAIN_CHANNEL_CAPACITY);
 
         let pending_chain_init = Mutex::new(
             if pending_origin_futures.is_empty() && pending_dest_futures.is_empty() {
@@ -292,7 +291,6 @@ impl BaseAgent for Relayer {
             tokio_console_server: Some(tokio_console_server),
             origins: Arc::new(RwLock::new(initial_origins)),
             destinations: Arc::new(RwLock::new(initial_destinations)),
-            new_chain_tx,
             pending_chain_init,
         })
     }
@@ -1117,10 +1115,13 @@ impl Relayer {
         Some(result)
     }
 
+    /// Build message contexts for all origin-destination pairs.
+    ///
+    /// This function accepts iterators to work with both owned and borrowed collections.
     #[allow(clippy::too_many_arguments)]
-    fn build_message_contexts(
-        origins: &HashMap<HyperlaneDomain, Origin>,
-        destinations: &HashMap<HyperlaneDomain, Destination>,
+    fn build_message_contexts<'a, O, D>(
+        origins: O,
+        destinations: D,
         skip_transaction_gas_limit_for: &HashSet<u32>,
         transaction_gas_limit: Option<U256>,
         allow_local_checkpoint_syncers: bool,
@@ -1129,10 +1130,14 @@ impl Relayer {
         metric_app_contexts: &[(MatchingList, String)],
         ism_cache_configs: &[IsmCacheConfig],
         core_metrics: &Arc<CoreMetrics>,
-    ) -> HashMap<ContextKey, Arc<MessageContext>> {
+    ) -> HashMap<ContextKey, Arc<MessageContext>>
+    where
+        O: IntoIterator<Item = (&'a HyperlaneDomain, &'a Origin)> + Clone,
+        D: IntoIterator<Item = (&'a HyperlaneDomain, &'a Destination)> + Clone,
+    {
         let mut msg_ctxs = HashMap::new();
 
-        for (destination_domain, destination) in destinations.iter() {
+        for (destination_domain, destination) in destinations.clone() {
             let application_operation_verifier = destination.application_operation_verifier.clone();
             let destination_chain_setup = destination.chain_conf.clone();
             let destination_mailbox = destination.mailbox.clone();
@@ -1147,7 +1152,7 @@ impl Relayer {
 
             let default_ism_getter = DefaultIsmCache::new(destination_mailbox.clone());
 
-            for (origin_domain, origin) in origins.iter() {
+            for (origin_domain, origin) in origins.clone() {
                 let db = &origin.database;
 
                 let origin_chain_setup = origin.chain_conf.clone();
@@ -1203,91 +1208,6 @@ impl Relayer {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn build_message_contexts_from_refs(
-        origins: &HashMap<HyperlaneDomain, &Origin>,
-        destinations: &HashMap<HyperlaneDomain, &Destination>,
-        skip_transaction_gas_limit_for: &HashSet<u32>,
-        transaction_gas_limit: Option<U256>,
-        allow_local_checkpoint_syncers: bool,
-        metrics: &Arc<CoreMetrics>,
-        cache: &OptionalCache<MeteredCache<LocalCache>>,
-        metric_app_contexts: &[(MatchingList, String)],
-        ism_cache_configs: &[IsmCacheConfig],
-        core_metrics: &Arc<CoreMetrics>,
-    ) -> HashMap<ContextKey, Arc<MessageContext>> {
-        let mut msg_ctxs = HashMap::new();
-
-        for (destination_domain, destination) in destinations.iter() {
-            let application_operation_verifier = destination.application_operation_verifier.clone();
-            let destination_chain_setup = destination.chain_conf.clone();
-            let destination_mailbox = destination.mailbox.clone();
-            let ccip_signer = destination.ccip_signer.clone();
-
-            let transaction_gas_limit: Option<U256> =
-                if skip_transaction_gas_limit_for.contains(&destination_domain.id()) {
-                    None
-                } else {
-                    transaction_gas_limit
-                };
-
-            let default_ism_getter = DefaultIsmCache::new(destination_mailbox.clone());
-
-            for (origin_domain, origin) in origins.iter() {
-                let db = &origin.database;
-
-                let origin_chain_setup = origin.chain_conf.clone();
-                let prover_sync = origin.prover_sync.clone();
-                let origin_gas_payment_enforcer = origin.gas_payment_enforcer.clone();
-                let validator_announce = origin.validator_announce.clone();
-
-                let metadata_builder = BaseMetadataBuilder::new(
-                    origin_domain.clone(),
-                    destination_chain_setup.clone(),
-                    prover_sync,
-                    validator_announce.clone(),
-                    allow_local_checkpoint_syncers,
-                    metrics.clone(),
-                    cache.clone(),
-                    db.clone(),
-                    IsmAwareAppContextClassifier::new(
-                        default_ism_getter.clone(),
-                        metric_app_contexts.to_vec(),
-                    ),
-                    IsmCachePolicyClassifier::new(
-                        default_ism_getter.clone(),
-                        ism_cache_configs.to_vec(),
-                    ),
-                    ccip_signer.clone(),
-                    origin_chain_setup.ignore_reorg_reports,
-                );
-
-                msg_ctxs.insert(
-                    ContextKey {
-                        origin: (*origin_domain).clone(),
-                        destination: (*destination_domain).clone(),
-                    },
-                    Arc::new(MessageContext {
-                        destination_mailbox: destination_mailbox.clone(),
-                        origin_db: Arc::new(db.clone()),
-                        cache: cache.clone(),
-                        metadata_builder: Arc::new(metadata_builder),
-                        origin_gas_payment_enforcer,
-                        transaction_gas_limit,
-                        metrics: MessageSubmissionMetrics::new(
-                            core_metrics,
-                            origin_domain,
-                            destination_domain,
-                        ),
-                        application_operation_verifier: application_operation_verifier.clone(),
-                    }),
-                );
-            }
-        }
-
-        msg_ctxs
-    }
-
-    #[allow(clippy::too_many_arguments)]
     async fn spawn_destination_tasks(
         &self,
         dest_domain: &HyperlaneDomain,
@@ -1301,6 +1221,15 @@ impl Relayer {
         let mut tasks = vec![];
         let dest_conf = &destination.chain_conf;
 
+        // Match original behavior: skip destination when origin DB is missing
+        let db = match origins.get(dest_domain) {
+            Some(origin) => origin.database.clone(),
+            None => {
+                error!(domain=?dest_domain.name(), "DB missing for destination, skipping destination tasks");
+                return tasks;
+            }
+        };
+
         let (send_channel, receive_channel) = mpsc::unbounded_channel::<QueueOperation>();
         send_channels
             .write()
@@ -1308,14 +1237,6 @@ impl Relayer {
             .insert(dest_domain.id(), send_channel);
 
         let dispatcher_entrypoint = destination.dispatcher_entrypoint.clone();
-
-        let db = match origins.get(dest_domain) {
-            Some(origin) => origin.database.clone(),
-            None => {
-                warn!(domain=?dest_domain.name(), "DB missing for destination, using destination's own DB");
-                destination.database.clone()
-            }
-        };
 
         let max_batch_size = self
             .core
@@ -1503,7 +1424,6 @@ impl Relayer {
         let core_metrics = self.core_metrics.clone();
         let agent_metrics = self.agent_metrics.clone();
         let chain_settings = self.core.settings.chains.clone();
-        let new_chain_tx = self.new_chain_tx.clone();
 
         let skip_transaction_gas_limit_for = self.skip_transaction_gas_limit_for.clone();
         let transaction_gas_limit = self.transaction_gas_limit;
@@ -1539,11 +1459,9 @@ impl Relayer {
                                         let destinations_read = destinations.read().await;
 
                                         if let Some(origin_ref) = origins_read.get(&domain) {
-                                            let origin_map = HashMap::from([(domain.clone(), origin_ref)]);
-                                            let dest_map: HashMap<_, _> = destinations_read.iter().map(|(k, v)| (k.clone(), v)).collect();
-                                            let new_contexts = Self::build_message_contexts_from_refs(
-                                                &origin_map,
-                                                &dest_map,
+                                            let new_contexts = Self::build_message_contexts(
+                                                std::iter::once((&domain, origin_ref)),
+                                                destinations_read.iter(),
                                                 &skip_transaction_gas_limit_for,
                                                 transaction_gas_limit,
                                                 allow_local_checkpoint_syncers,
@@ -1580,8 +1498,6 @@ impl Relayer {
                                                 });
                                             }
                                         }
-
-                                        let _ = new_chain_tx.send(NewChainEvent::OriginReady(domain));
                                     }
                                     Err(err) => {
                                         Self::record_critical_error(
@@ -1623,11 +1539,9 @@ impl Relayer {
                                         let destinations_read = destinations.read().await;
 
                                         if let Some(dest_ref) = destinations_read.get(&domain) {
-                                            let origin_map: HashMap<_, _> = origins_read.iter().map(|(k, v)| (k.clone(), v)).collect();
-                                            let dest_map = HashMap::from([(domain.clone(), dest_ref)]);
-                                            let new_contexts = Self::build_message_contexts_from_refs(
-                                                &origin_map,
-                                                &dest_map,
+                                            let new_contexts = Self::build_message_contexts(
+                                                origins_read.iter(),
+                                                std::iter::once((&domain, dest_ref)),
                                                 &skip_transaction_gas_limit_for,
                                                 transaction_gas_limit,
                                                 allow_local_checkpoint_syncers,
@@ -1646,8 +1560,6 @@ impl Relayer {
                                                 let _ = task.await;
                                             });
                                         }
-
-                                        let _ = new_chain_tx.send(NewChainEvent::DestinationReady(domain));
                                     }
                                     Err(err) => {
                                         Self::record_critical_error(
@@ -1831,6 +1743,15 @@ impl Relayer {
         let mut tasks = vec![];
         let dest_conf = &destination.chain_conf;
 
+        // Match original behavior: skip destination when origin DB is missing
+        let db = match origins.get(dest_domain) {
+            Some(origin) => origin.database.clone(),
+            None => {
+                error!(domain=?dest_domain.name(), "DB missing for destination, skipping destination tasks");
+                return tasks;
+            }
+        };
+
         let (send_channel, receive_channel) = mpsc::unbounded_channel::<QueueOperation>();
         send_channels
             .write()
@@ -1838,14 +1759,6 @@ impl Relayer {
             .insert(dest_domain.id(), send_channel);
 
         let dispatcher_entrypoint = destination.dispatcher_entrypoint.clone();
-
-        let db = match origins.get(dest_domain) {
-            Some(origin) => origin.database.clone(),
-            None => {
-                warn!(domain=?dest_domain.name(), "DB missing for destination, using destination's own DB");
-                destination.database.clone()
-            }
-        };
 
         let max_batch_size = chain_settings
             .get(dest_domain)
