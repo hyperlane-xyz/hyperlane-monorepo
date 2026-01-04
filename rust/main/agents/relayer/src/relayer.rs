@@ -70,7 +70,10 @@ const CURSOR_BUILDING_ERROR: &str = "Error building cursor for origin";
 const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
 const ADVANCED_LOG_META: bool = false;
 
-const INITIAL_CHAIN_READINESS_TIMEOUT: Duration = Duration::from_secs(300);
+/// Maximum number of retry attempts for chain initialization during startup
+const CHAIN_INIT_MAX_RETRIES: u32 = 10;
+/// Base delay between chain initialization retries (with exponential backoff)
+const CHAIN_INIT_RETRY_BASE_DELAY: Duration = Duration::from_secs(5);
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone)]
 struct ContextKey {
@@ -215,6 +218,7 @@ impl BaseAgent for Relayer {
                 core_metrics.clone(),
                 &chain_metrics,
                 dispatcher_metrics,
+                settings.initial_chain_readiness_timeout,
             )
             .await?;
 
@@ -916,41 +920,43 @@ impl Relayer {
         core_metrics: Arc<CoreMetrics>,
         chain_metrics: &ChainMetrics,
         dispatcher_metrics: DispatcherMetrics,
+        initial_chain_readiness_timeout: Duration,
     ) -> Result<(
         HashMap<HyperlaneDomain, Origin>,
         Vec<OriginInitFuture>,
         HashMap<HyperlaneDomain, Destination>,
         Vec<DestinationInitFuture>,
     )> {
-        use destination::{DestinationFactory, Factory as DestinationFactoryTrait};
-        use origin::{Factory as OriginFactoryTrait, OriginFactory};
+        use destination::DestinationFactory;
+        use origin::OriginFactory;
 
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&core_metrics));
-        let origin_factory = OriginFactory::new(
+        let origin_factory = Arc::new(OriginFactory::new(
             db.clone(),
             core_metrics.clone(),
             contract_sync_metrics,
             ADVANCED_LOG_META,
             settings.tx_id_indexing_enabled,
             settings.igp_indexing_enabled,
-        );
-        let dest_factory = DestinationFactory::new(db, core_metrics.clone());
+        ));
+        let dest_factory = Arc::new(DestinationFactory::new(db, core_metrics.clone()));
+
+        // Track retry counts per domain
+        let mut origin_retry_counts: HashMap<HyperlaneDomain, u32> = HashMap::new();
+        let mut dest_retry_counts: HashMap<HyperlaneDomain, u32> = HashMap::new();
 
         let gas_payment_enforcement = settings.gas_payment_enforcement.clone();
         let mut origin_futures: Vec<OriginInitFuture> = settings
             .chains
             .iter()
             .map(|(domain, chain)| {
-                let domain = domain.clone();
-                let chain = chain.clone();
-                let factory = origin_factory.clone();
-                let gas_payment_enforcement = gas_payment_enforcement.clone();
-                Box::pin(async move {
-                    let result = factory
-                        .create(domain.clone(), &chain, gas_payment_enforcement)
-                        .await;
-                    (domain, result)
-                }) as OriginInitFuture
+                Self::create_origin_init_future(
+                    domain.clone(),
+                    chain.clone(),
+                    origin_factory.clone(),
+                    gas_payment_enforcement.clone(),
+                    0,
+                )
             })
             .collect();
 
@@ -958,16 +964,13 @@ impl Relayer {
             .chains
             .iter()
             .map(|(domain, chain)| {
-                let domain = domain.clone();
-                let chain = chain.clone();
-                let factory = dest_factory.clone();
-                let dispatcher_metrics = dispatcher_metrics.clone();
-                Box::pin(async move {
-                    let result = factory
-                        .create(domain.clone(), chain, dispatcher_metrics)
-                        .await;
-                    (domain, result)
-                }) as DestinationInitFuture
+                Self::create_destination_init_future(
+                    domain.clone(),
+                    chain.clone(),
+                    dest_factory.clone(),
+                    dispatcher_metrics.clone(),
+                    0,
+                )
             })
             .collect();
 
@@ -977,7 +980,7 @@ impl Relayer {
         let start = Instant::now();
         // Use checked_add to avoid arithmetic side effects lint
         let timeout_at = start
-            .checked_add(INITIAL_CHAIN_READINESS_TIMEOUT)
+            .checked_add(initial_chain_readiness_timeout)
             .unwrap_or(start);
 
         while (!origin_futures.is_empty() || !dest_futures.is_empty())
@@ -999,12 +1002,38 @@ impl Relayer {
                                 ready_origins.insert(domain, origin);
                             }
                             Err(err) => {
-                                Self::record_critical_error(
-                                    &domain,
-                                    chain_metrics,
-                                    &err,
-                                    "Critical error when building chain as origin",
-                                );
+                                let retry_count = origin_retry_counts.entry(domain.clone()).or_insert(0);
+                                *retry_count = retry_count.saturating_add(1);
+
+                                if *retry_count < CHAIN_INIT_MAX_RETRIES {
+                                    let delay = Self::calculate_retry_delay(*retry_count);
+                                    warn!(
+                                        domain = %domain.name(),
+                                        retry_count = *retry_count,
+                                        max_retries = CHAIN_INIT_MAX_RETRIES,
+                                        delay_secs = delay.as_secs(),
+                                        error = %err,
+                                        "Origin chain initialization failed, scheduling retry"
+                                    );
+
+                                    if let Some(chain_conf) = settings.chains.get(&domain) {
+                                        let retry_future = Self::create_origin_init_future(
+                                            domain,
+                                            chain_conf.clone(),
+                                            origin_factory.clone(),
+                                            gas_payment_enforcement.clone(),
+                                            delay.as_secs(),
+                                        );
+                                        origin_futures.push(retry_future);
+                                    }
+                                } else {
+                                    Self::record_critical_error(
+                                        &domain,
+                                        chain_metrics,
+                                        &err,
+                                        "Critical error when building chain as origin (max retries exceeded)",
+                                    );
+                                }
                             }
                         }
                     }
@@ -1018,12 +1047,38 @@ impl Relayer {
                                 ready_destinations.insert(domain, destination);
                             }
                             Err(err) => {
-                                Self::record_critical_error(
-                                    &domain,
-                                    chain_metrics,
-                                    &err,
-                                    "Critical error when building chain as destination",
-                                );
+                                let retry_count = dest_retry_counts.entry(domain.clone()).or_insert(0);
+                                *retry_count = retry_count.saturating_add(1);
+
+                                if *retry_count < CHAIN_INIT_MAX_RETRIES {
+                                    let delay = Self::calculate_retry_delay(*retry_count);
+                                    warn!(
+                                        domain = %domain.name(),
+                                        retry_count = *retry_count,
+                                        max_retries = CHAIN_INIT_MAX_RETRIES,
+                                        delay_secs = delay.as_secs(),
+                                        error = %err,
+                                        "Destination chain initialization failed, scheduling retry"
+                                    );
+
+                                    if let Some(chain_conf) = settings.chains.get(&domain) {
+                                        let retry_future = Self::create_destination_init_future(
+                                            domain,
+                                            chain_conf.clone(),
+                                            dest_factory.clone(),
+                                            dispatcher_metrics.clone(),
+                                            delay.as_secs(),
+                                        );
+                                        dest_futures.push(retry_future);
+                                    }
+                                } else {
+                                    Self::record_critical_error(
+                                        &domain,
+                                        chain_metrics,
+                                        &err,
+                                        "Critical error when building chain as destination (max retries exceeded)",
+                                    );
+                                }
                             }
                         }
                     }
@@ -1117,6 +1172,59 @@ impl Relayer {
         let (result, _index, remaining) = select_all(futures.drain(..)).await;
         *futures = remaining;
         Some(result)
+    }
+
+    /// Calculate exponential backoff delay for retry attempts.
+    fn calculate_retry_delay(retry_count: u32) -> Duration {
+        // Exponential backoff with a cap: 5s, 10s, 20s, 40s, ...
+        let multiplier = 2u64.saturating_pow(retry_count.saturating_sub(1));
+        let delay_secs = CHAIN_INIT_RETRY_BASE_DELAY
+            .as_secs()
+            .saturating_mul(multiplier);
+        // Cap at 60 seconds
+        Duration::from_secs(delay_secs.min(60))
+    }
+
+    /// Create an origin initialization future with optional delay for retries.
+    fn create_origin_init_future(
+        domain: HyperlaneDomain,
+        chain_conf: hyperlane_base::settings::ChainConf,
+        factory: Arc<origin::OriginFactory>,
+        gas_payment_enforcement: Vec<crate::settings::GasPaymentEnforcementConf>,
+        delay_secs: u64,
+    ) -> OriginInitFuture {
+        use origin::Factory as OriginFactoryTrait;
+
+        Box::pin(async move {
+            if delay_secs > 0 {
+                tokio::time::sleep(Duration::from_secs(delay_secs)).await;
+            }
+            let result = factory
+                .create(domain.clone(), &chain_conf, gas_payment_enforcement)
+                .await;
+            (domain, result)
+        })
+    }
+
+    /// Create a destination initialization future with optional delay for retries.
+    fn create_destination_init_future(
+        domain: HyperlaneDomain,
+        chain_conf: hyperlane_base::settings::ChainConf,
+        factory: Arc<destination::DestinationFactory>,
+        dispatcher_metrics: DispatcherMetrics,
+        delay_secs: u64,
+    ) -> DestinationInitFuture {
+        use destination::Factory as DestinationFactoryTrait;
+
+        Box::pin(async move {
+            if delay_secs > 0 {
+                tokio::time::sleep(Duration::from_secs(delay_secs)).await;
+            }
+            let result = factory
+                .create(domain.clone(), chain_conf, dispatcher_metrics)
+                .await;
+            (domain, result)
+        })
     }
 
     /// Build message contexts for all origin-destination pairs.

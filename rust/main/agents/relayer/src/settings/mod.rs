@@ -4,7 +4,7 @@
 //! and validations it defines are not applied here, we should mirror them.
 //! ANY CHANGES HERE NEED TO BE REFLECTED IN THE TYPESCRIPT SDK.
 
-use std::{collections::HashSet, ops::Add, path::PathBuf};
+use std::{collections::HashSet, ops::Add, path::PathBuf, time::Duration};
 
 use convert_case::Case;
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
@@ -28,6 +28,9 @@ use crate::{
 };
 
 pub mod matching_list;
+
+/// Default timeout for initial chain readiness (5 minutes)
+pub const DEFAULT_INITIAL_CHAIN_READINESS_TIMEOUT_SECS: u64 = 300;
 
 /// Settings for `Relayer`
 #[derive(Debug, AsRef, AsMut, Deref, DerefMut)]
@@ -74,6 +77,10 @@ pub struct RelayerSettings {
     pub tx_id_indexing_enabled: bool,
     /// Whether to enable IGP indexing.
     pub igp_indexing_enabled: bool,
+    /// Timeout for initial chain readiness during startup.
+    /// The relayer will wait up to this duration for at least 1 origin and 1 destination
+    /// to become ready before failing startup.
+    pub initial_chain_readiness_timeout: Duration,
 }
 
 /// Config for gas payment enforcement
@@ -369,6 +376,14 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             .parse_bool()
             .unwrap_or(true);
 
+        let initial_chain_readiness_timeout_secs = p
+            .chain(&mut err)
+            .get_opt_key("initialChainReadinessTimeoutSecs")
+            .parse_u64()
+            .unwrap_or(DEFAULT_INITIAL_CHAIN_READINESS_TIMEOUT_SECS);
+        let initial_chain_readiness_timeout =
+            Duration::from_secs(initial_chain_readiness_timeout_secs);
+
         err.into_result(RelayerSettings {
             base,
             db,
@@ -387,6 +402,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             max_retries: max_message_retries,
             tx_id_indexing_enabled,
             igp_indexing_enabled,
+            initial_chain_readiness_timeout,
         })
     }
 }

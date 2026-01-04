@@ -3,6 +3,8 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::settings::DEFAULT_INITIAL_CHAIN_READINESS_TIMEOUT_SECS;
+
 use ethers::utils::hex;
 use ethers_prometheus::middleware::PrometheusMiddlewareConf;
 use eyre::eyre;
@@ -138,6 +140,9 @@ fn generate_test_relayer_settings(
         max_retries: 1,
         tx_id_indexing_enabled: true,
         igp_indexing_enabled: true,
+        initial_chain_readiness_timeout: Duration::from_secs(
+            DEFAULT_INITIAL_CHAIN_READINESS_TIMEOUT_SECS,
+        ),
     }
 }
 
