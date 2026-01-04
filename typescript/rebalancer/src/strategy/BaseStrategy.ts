@@ -1,6 +1,7 @@
 import { type Logger } from 'pino';
 
-import type { ChainName } from '@hyperlane-xyz/sdk';
+import type { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
+import type { Address } from '@hyperlane-xyz/utils';
 
 import type {
   IStrategy,
@@ -19,8 +20,14 @@ export abstract class BaseStrategy implements IStrategy {
   protected readonly chains: ChainName[];
   protected readonly metrics?: Metrics;
   protected readonly logger: Logger;
+  protected readonly bridges?: ChainMap<Address[]>;
 
-  constructor(chains: ChainName[], logger: Logger, metrics?: Metrics) {
+  constructor(
+    chains: ChainName[],
+    logger: Logger,
+    metrics?: Metrics,
+    bridges?: ChainMap<Address[]>,
+  ) {
     // Rebalancing makes sense only with more than one chain.
     if (chains.length < 2) {
       throw new Error('At least two chains must be configured');
@@ -28,6 +35,7 @@ export abstract class BaseStrategy implements IStrategy {
     this.chains = chains;
     this.logger = logger;
     this.metrics = metrics;
+    this.bridges = bridges;
   }
 
   /**

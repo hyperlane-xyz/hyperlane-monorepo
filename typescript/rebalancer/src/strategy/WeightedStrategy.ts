@@ -1,5 +1,8 @@
 import { type Logger } from 'pino';
 
+import type { ChainMap } from '@hyperlane-xyz/sdk';
+import type { Address } from '@hyperlane-xyz/utils';
+
 import type { WeightedStrategyConfig } from '../config/types.js';
 import type { RawBalances, RebalancingRoute } from '../interfaces/IStrategy.js';
 import { type Metrics } from '../metrics/Metrics.js';
@@ -19,10 +22,11 @@ export class WeightedStrategy extends BaseStrategy {
     config: WeightedStrategyConfig,
     logger: Logger,
     metrics?: Metrics,
+    bridges?: ChainMap<Address[]>,
   ) {
     const chains = Object.keys(config);
     const log = logger.child({ class: WeightedStrategy.name });
-    super(chains, log, metrics);
+    super(chains, log, metrics, bridges);
     this.logger = log;
 
     let totalWeight = 0n;
