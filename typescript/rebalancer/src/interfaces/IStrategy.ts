@@ -1,4 +1,5 @@
 import { type ChainMap, type ChainName } from '@hyperlane-xyz/sdk';
+import type { Address } from '@hyperlane-xyz/utils';
 
 export type RawBalances = ChainMap<bigint>;
 
@@ -6,6 +7,7 @@ export type RebalancingRoute = {
   origin: ChainName;
   destination: ChainName;
   amount: bigint;
+  bridge?: Address;
 };
 
 export type InflightContext = {

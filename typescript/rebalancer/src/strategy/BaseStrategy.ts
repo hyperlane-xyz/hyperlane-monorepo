@@ -4,6 +4,7 @@ import type { ChainName } from '@hyperlane-xyz/sdk';
 
 import type {
   IStrategy,
+  InflightContext,
   RawBalances,
   RebalancingRoute,
 } from '../interfaces/IStrategy.js';
@@ -32,7 +33,10 @@ export abstract class BaseStrategy implements IStrategy {
   /**
    * Main method to get rebalancing routes
    */
-  getRebalancingRoutes(rawBalances: RawBalances): RebalancingRoute[] {
+  getRebalancingRoutes(
+    rawBalances: RawBalances,
+    inflightContext?: InflightContext,
+  ): RebalancingRoute[] {
     this.logger.info(
       {
         context: this.constructor.name,
@@ -48,8 +52,25 @@ export abstract class BaseStrategy implements IStrategy {
     );
     this.validateRawBalances(rawBalances);
 
+    const pendingRebalances = inflightContext?.pendingRebalances ?? [];
+    const pendingTransfers = inflightContext?.pendingTransfers ?? [];
+
+    // Store original balances for filtering step
+    const actualBalances = rawBalances;
+
+    // Step 1: Reserve collateral for pending user transfers
+    // This prevents draining collateral needed for incoming user transfers
+    const effectiveBalances = this.reserveCollateral(
+      rawBalances,
+      pendingTransfers,
+    );
+
     // Get balances categorized by surplus and deficit
-    const { surpluses, deficits } = this.getCategorizedBalances(rawBalances);
+    // Pass pending rebalances so strategy can account for them
+    const { surpluses, deficits } = this.getCategorizedBalances(
+      effectiveBalances,
+      pendingRebalances,
+    );
 
     this.logger.debug(
       {
@@ -173,14 +194,34 @@ export abstract class BaseStrategy implements IStrategy {
       },
       'Found rebalancing routes',
     );
-    return routes;
+
+    // Filter routes based on actual balance sufficiency
+    const filteredRoutes = this.filterRebalances(routes, actualBalances);
+
+    this.logger.debug(
+      {
+        context: this.constructor.name,
+        filteredRoutesCount: filteredRoutes.length,
+        droppedCount: routes.length - filteredRoutes.length,
+      },
+      'Filtered rebalancing routes',
+    );
+
+    return filteredRoutes;
   }
 
   /**
    * Abstract method to get balances categorized by surplus and deficit
    * Each specific strategy should implement its own logic
+   *
+   * @param balances - Effective balances (after collateral reservation)
+   * @param pendingRebalances - In-flight rebalances for strategy consideration
+   * @returns Categorized surpluses and deficits as Delta arrays
    */
-  protected abstract getCategorizedBalances(rawBalances: RawBalances): {
+  protected abstract getCategorizedBalances(
+    balances: RawBalances,
+    pendingRebalances?: RebalancingRoute[],
+  ): {
     surpluses: Delta[];
     deficits: Delta[];
   };
@@ -206,5 +247,120 @@ export abstract class BaseStrategy implements IStrategy {
         throw new Error(`Raw balance for chain ${chain} is negative`);
       }
     }
+  }
+
+  /**
+   * Reserve collateral for pending user transfers.
+   * Subtracts pending transfer amounts from destination balances.
+   * This ensures we don't drain collateral needed for incoming transfers.
+   *
+   * @param rawBalances - Current on-chain balances
+   * @param pendingTransfers - Transfers that will need collateral on destination
+   * @returns Balances with reserved amounts subtracted
+   */
+  protected reserveCollateral(
+    rawBalances: RawBalances,
+    pendingTransfers: RebalancingRoute[],
+  ): RawBalances {
+    const reserved = { ...rawBalances };
+
+    for (const transfer of pendingTransfers) {
+      const destBalance = reserved[transfer.destination] ?? 0n;
+      // Reserve the transfer amount from destination
+      reserved[transfer.destination] =
+        destBalance > transfer.amount ? destBalance - transfer.amount : 0n;
+
+      this.logger.debug(
+        {
+          context: this.constructor.name,
+          destination: transfer.destination,
+          amount: transfer.amount.toString(),
+          newBalance: reserved[transfer.destination].toString(),
+        },
+        'Reserved collateral for pending transfer',
+      );
+    }
+
+    return reserved;
+  }
+
+  /**
+   * Simulate pending rebalances by applying their effects to balances.
+   * Subtracts from origin, adds to destination.
+   *
+   * NOTE: This method is optional. Concrete strategies decide whether to invoke it.
+   * Per design: "simulatePendingRebalances is likely not the path we want to take"
+   * but we keep it available for strategies that need it.
+   *
+   * @param rawBalances - Current balances (may already have collateral reserved)
+   * @param pendingRebalances - In-flight rebalance operations
+   * @returns Simulated future balances after rebalances complete
+   */
+  protected simulatePendingRebalances(
+    rawBalances: RawBalances,
+    pendingRebalances: RebalancingRoute[],
+  ): RawBalances {
+    const simulated = { ...rawBalances };
+
+    for (const rebalance of pendingRebalances) {
+      // Subtract from origin
+      const originBalance = simulated[rebalance.origin] ?? 0n;
+      simulated[rebalance.origin] =
+        originBalance > rebalance.amount
+          ? originBalance - rebalance.amount
+          : 0n;
+
+      // Add to destination
+      simulated[rebalance.destination] =
+        (simulated[rebalance.destination] ?? 0n) + rebalance.amount;
+
+      this.logger.debug(
+        {
+          context: this.constructor.name,
+          origin: rebalance.origin,
+          destination: rebalance.destination,
+          amount: rebalance.amount.toString(),
+        },
+        'Simulated pending rebalance',
+      );
+    }
+
+    return simulated;
+  }
+
+  /**
+   * Filter rebalances based on actual balance sufficiency.
+   * Removes routes where the origin router doesn't have enough balance.
+   *
+   * Concrete strategies can override this method to implement different
+   * filtering logic (e.g., all-or-nothing for weighted strategy).
+   *
+   * @param routes - Proposed rebalancing routes
+   * @param actualBalances - Actual on-chain balances
+   * @returns Filtered routes that can actually be executed
+   */
+  protected filterRebalances(
+    routes: RebalancingRoute[],
+    actualBalances: RawBalances,
+  ): RebalancingRoute[] {
+    return routes.filter((route) => {
+      const balance = actualBalances[route.origin] ?? 0n;
+      const hasSufficientBalance = balance >= route.amount;
+
+      if (!hasSufficientBalance) {
+        this.logger.warn(
+          {
+            context: this.constructor.name,
+            origin: route.origin,
+            destination: route.destination,
+            required: route.amount.toString(),
+            available: balance.toString(),
+          },
+          'Dropping route due to insufficient balance',
+        );
+      }
+
+      return hasSufficientBalance;
+    });
   }
 }
