@@ -121,7 +121,15 @@ export abstract class HyperlaneDeployer<
     input: ContractVerificationInput,
     logger = this.logger,
   ): Promise<void> {
-    const explorerFamily = this.multiProvider.tryGetExplorerApi(chain)?.family;
+    const explorerApi = this.multiProvider.tryGetExplorerApi(chain);
+    if (!explorerApi) {
+      logger.warn(
+        `No explorer API set, skipping contract verification for ${chain}`,
+      );
+      return;
+    }
+
+    const explorerFamily = explorerApi.family;
     const verifier =
       explorerFamily === ExplorerFamily.ZkSync
         ? this.zkSyncContractVerifier

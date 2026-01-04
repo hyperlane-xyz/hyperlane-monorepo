@@ -143,6 +143,10 @@
     "amount": "1.500000007",
     "decimals": 9
   },
+  "eni": {
+    "amount": "108.9",
+    "decimals": 9
+  },
   "ethereum": {
     "amount": "2.5",
     "decimals": 9
@@ -225,6 +229,10 @@
   },
   "katana": {
     "amount": "0.001000251",
+    "decimals": 9
+  },
+  "krown": {
+    "amount": "0.001000007",
     "decimals": 9
   },
   "kyve": {
