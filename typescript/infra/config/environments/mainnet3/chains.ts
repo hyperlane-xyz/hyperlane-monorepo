@@ -101,6 +101,7 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   // chilizmainnet: {
   //   transactionOverrides: {
   //     maxFeePerGas: 100000 * 10 ** 9, // 100,000 gwei
+  //     maxPriorityFeePerGas: 100000 * 10 ** 9, // 100,000 gwei
   //   },
   // },
   // xlayer: {

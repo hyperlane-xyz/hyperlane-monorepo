@@ -709,12 +709,13 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   eni: {
-    threshold: 1,
+    threshold: 2,
     validators: [
       {
         address: '0xaedc7f95c57baa668eb94341589837b5430a484c',
         alias: AW_VALIDATOR_ALIAS,
       },
+      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 
@@ -1091,12 +1092,13 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   krown: {
-    threshold: 1,
+    threshold: 2,
     validators: [
       {
         address: '0x4f78f3fca0660716c4b276893d73f6f4c95fe618',
         alias: AW_VALIDATOR_ALIAS,
       },
+      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 
