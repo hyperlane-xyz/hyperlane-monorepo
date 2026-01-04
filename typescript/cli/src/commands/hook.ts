@@ -1,6 +1,7 @@
-import { CommandModule } from 'yargs';
-
-import { CommandModuleWithContext } from '../context/types.js';
+import {
+  CommandModuleWithContext,
+  HyperlaneCommandModule,
+} from '../context/types.js';
 import { readHookConfig } from '../hook/read.js';
 import { log, logGray } from '../logger.js';
 
@@ -13,7 +14,7 @@ import {
 /**
  * Parent command
  */
-export const hookCommand: CommandModule = {
+export const hookCommand: HyperlaneCommandModule = {
   command: 'hook',
   describe: 'Operations relating to Hooks',
   builder: (yargs) => yargs.command(read).version(false).demandCommand(),

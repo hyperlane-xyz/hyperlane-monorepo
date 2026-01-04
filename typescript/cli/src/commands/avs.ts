@@ -1,4 +1,4 @@
-import { CommandModule, Options } from 'yargs';
+import type { Options } from 'yargs';
 
 import { ChainName } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType } from '@hyperlane-xyz/utils';
@@ -8,7 +8,10 @@ import {
   deregisterOperator,
   registerOperatorWithSignature,
 } from '../avs/stakeRegistry.js';
-import { CommandModuleWithWriteContext } from '../context/types.js';
+import {
+  CommandModuleWithWriteContext,
+  HyperlaneCommandModule,
+} from '../context/types.js';
 import { errorRed, log } from '../logger.js';
 
 import {
@@ -20,7 +23,7 @@ import {
 /**
  * Parent command
  */
-export const avsCommand: CommandModule = {
+export const avsCommand: HyperlaneCommandModule = {
   command: 'avs',
   describe: 'Interact with the Hyperlane AVS',
   builder: (yargs) =>

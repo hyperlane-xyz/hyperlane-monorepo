@@ -1,5 +1,4 @@
 import { stringify as yamlStringify } from 'yaml';
-import { CommandModule } from 'yargs';
 
 import {
   CoreConfig,
@@ -17,6 +16,7 @@ import { MultiProtocolSignerManager } from '../context/strategies/signer/MultiPr
 import {
   CommandModuleWithContext,
   CommandModuleWithWriteContext,
+  HyperlaneCommandModule,
 } from '../context/types.js';
 import { runCoreApply, runCoreDeploy } from '../deploy/core.js';
 import { log, logCommandHeader, logGreen } from '../logger.js';
@@ -39,7 +39,7 @@ import {
 /**
  * Parent command
  */
-export const coreCommand: CommandModule = {
+export const coreCommand: HyperlaneCommandModule = {
   command: 'core',
   describe: 'Manage core Hyperlane contracts & configs',
   builder: (yargs) =>
