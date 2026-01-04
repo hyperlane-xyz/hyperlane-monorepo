@@ -8,7 +8,7 @@ import {
   type MinAmountStrategyConfig,
   RebalancerMinAmountType,
 } from '../config/types.js';
-import type { RawBalances } from '../interfaces/IStrategy.js';
+import type { RawBalances, RebalancingRoute } from '../interfaces/IStrategy.js';
 import { type Metrics } from '../metrics/Metrics.js';
 
 import { BaseStrategy, type Delta } from './BaseStrategy.js';
@@ -68,7 +68,10 @@ export class MinAmountStrategy extends BaseStrategy {
    * - For absolute values: Uses exact token amounts
    * - For relative values: Uses percentages of total balance across all chains
    */
-  protected getCategorizedBalances(rawBalances: RawBalances): {
+  protected getCategorizedBalances(
+    rawBalances: RawBalances,
+    _pendingRebalances?: RebalancingRoute[],
+  ): {
     surpluses: Delta[];
     deficits: Delta[];
   } {
