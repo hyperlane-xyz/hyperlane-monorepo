@@ -2,6 +2,7 @@ import { BigNumber } from 'bignumber.js';
 import { type Logger } from 'pino';
 
 import { type ChainMap, type Token } from '@hyperlane-xyz/sdk';
+import type { Address } from '@hyperlane-xyz/utils';
 import { fromWei, toWei } from '@hyperlane-xyz/utils';
 
 import {
@@ -27,10 +28,11 @@ export class MinAmountStrategy extends BaseStrategy {
     initialTotalCollateral: bigint,
     logger: Logger,
     metrics?: Metrics,
+    bridges?: ChainMap<Address[]>,
   ) {
     const chains = Object.keys(config);
     const log = logger.child({ class: MinAmountStrategy.name });
-    super(chains, log, metrics);
+    super(chains, log, metrics, bridges);
     this.logger = log;
 
     const minAmountType = config[chains[0]].minAmount.type;
