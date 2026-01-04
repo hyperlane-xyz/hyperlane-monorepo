@@ -16,10 +16,11 @@ export class InflightContextAdapter {
 
   /**
    * Get inflight context for strategy decision-making.
-   * Only includes active rebalance intents.
+   * Includes active rebalance intents and in-progress user transfers.
    */
   async getInflightContext(): Promise<InflightContext> {
     const intents = await this.actionTracker.getActiveRebalanceIntents();
+    const transfers = await this.actionTracker.getInProgressTransfers();
 
     const pendingRebalances = intents.map((intent) => ({
       origin: this.multiProvider.getChainName(intent.origin),
@@ -29,6 +30,12 @@ export class InflightContextAdapter {
       amount: intent.amount,
     }));
 
-    return { pendingRebalances };
+    const pendingTransfers = transfers.map((transfer) => ({
+      origin: this.multiProvider.getChainName(transfer.origin),
+      destination: this.multiProvider.getChainName(transfer.destination),
+      amount: transfer.amount,
+    }));
+
+    return { pendingRebalances, pendingTransfers };
   }
 }
