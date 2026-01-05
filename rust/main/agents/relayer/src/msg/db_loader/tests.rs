@@ -1,4 +1,4 @@
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use prometheus::IntCounterVec;
 use tokio::{
@@ -94,7 +94,7 @@ fn dummy_message_loader(
     // Create msg_ctxs map with ContextKey, wrapped in Arc<RwLock<...>>
     let context_key = ContextKey {
         origin: origin_domain.clone(),
-        destination: destination_domain.clone(),
+        destination_id: destination_domain.id(),
     };
     let msg_ctxs = Arc::new(RwLock::new(HashMap::from([(context_key, message_context)])));
 
@@ -110,6 +110,7 @@ fn dummy_message_loader(
             msg_ctxs,
             vec![],
             DEFAULT_MAX_MESSAGE_RETRIES,
+            Duration::from_secs(300),
         ),
         receive_channel,
     )

@@ -32,6 +32,9 @@ pub mod matching_list;
 /// Default timeout for initial chain readiness (5 minutes)
 pub const DEFAULT_INITIAL_CHAIN_READINESS_TIMEOUT_SECS: u64 = 300;
 
+/// Default timeout for waiting for a destination to become ready when processing messages (5 minutes)
+pub const DEFAULT_DESTINATION_WAIT_TIMEOUT_SECS: u64 = 300;
+
 /// Settings for `Relayer`
 #[derive(Debug, AsRef, AsMut, Deref, DerefMut)]
 pub struct RelayerSettings {
@@ -81,6 +84,9 @@ pub struct RelayerSettings {
     /// The relayer will wait up to this duration for at least 1 origin and 1 destination
     /// to become ready before failing startup.
     pub initial_chain_readiness_timeout: Duration,
+    /// Timeout for waiting for a destination to become ready when processing messages.
+    /// During incremental startup, messages may arrive before their destination chain is ready.
+    pub destination_wait_timeout: Duration,
 }
 
 /// Config for gas payment enforcement
@@ -384,6 +390,13 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
         let initial_chain_readiness_timeout =
             Duration::from_secs(initial_chain_readiness_timeout_secs);
 
+        let destination_wait_timeout_secs = p
+            .chain(&mut err)
+            .get_opt_key("destinationWaitTimeoutSecs")
+            .parse_u64()
+            .unwrap_or(DEFAULT_DESTINATION_WAIT_TIMEOUT_SECS);
+        let destination_wait_timeout = Duration::from_secs(destination_wait_timeout_secs);
+
         err.into_result(RelayerSettings {
             base,
             db,
@@ -403,6 +416,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             tx_id_indexing_enabled,
             igp_indexing_enabled,
             initial_chain_readiness_timeout,
+            destination_wait_timeout,
         })
     }
 }

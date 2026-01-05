@@ -3,7 +3,9 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::settings::DEFAULT_INITIAL_CHAIN_READINESS_TIMEOUT_SECS;
+use crate::settings::{
+    DEFAULT_DESTINATION_WAIT_TIMEOUT_SECS, DEFAULT_INITIAL_CHAIN_READINESS_TIMEOUT_SECS,
+};
 
 use ethers::utils::hex;
 use ethers_prometheus::middleware::PrometheusMiddlewareConf;
@@ -143,6 +145,7 @@ fn generate_test_relayer_settings(
         initial_chain_readiness_timeout: Duration::from_secs(
             DEFAULT_INITIAL_CHAIN_READINESS_TIMEOUT_SECS,
         ),
+        destination_wait_timeout: Duration::from_secs(DEFAULT_DESTINATION_WAIT_TIMEOUT_SECS),
     }
 }
 

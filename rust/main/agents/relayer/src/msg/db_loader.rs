@@ -23,7 +23,9 @@ use tracing::{debug, instrument, trace};
 
 use super::{blacklist::AddressBlacklist, metadata::AppContextClassifier, pending_message::*};
 use crate::{
-    db_loader::DbLoaderExt, relayer::DynamicMessageContexts, settings::matching_list::MatchingList,
+    db_loader::DbLoaderExt,
+    relayer::{ContextKey, DynamicMessageContexts},
+    settings::matching_list::MatchingList,
 };
 
 /// Finds unprocessed messages from an origin and submits then through a channel
@@ -50,6 +52,7 @@ pub struct MessageDbLoader {
     metric_app_contexts: Vec<(MatchingList, String)>,
     nonce_iterator: ForwardBackwardIterator,
     max_retries: u32,
+    destination_wait_timeout: Duration,
 }
 
 #[derive(Debug)]
@@ -301,9 +304,9 @@ impl DbLoaderExt for MessageDbLoader {
             // may not be ready when messages are first indexed). We hold onto the message and
             // wait rather than skipping, because the iterator has already advanced past this
             // message and we can't go back to it.
-            const MAX_DESTINATION_WAIT_SECS: u64 = 300; // 5 minutes max wait
             const DESTINATION_CHECK_INTERVAL_MS: u64 = 500;
-            let max_attempts = (MAX_DESTINATION_WAIT_SECS * 1000) / DESTINATION_CHECK_INTERVAL_MS;
+            let max_attempts =
+                (self.destination_wait_timeout.as_millis() as u64) / DESTINATION_CHECK_INTERVAL_MS;
 
             let mut attempts: u64 = 0;
             loop {
@@ -316,7 +319,7 @@ impl DbLoaderExt for MessageDbLoader {
                 }
 
                 drop(send_channels_read);
-                attempts = attempts.wrapping_add(1);
+                attempts = attempts.saturating_add(1);
 
                 if attempts >= max_attempts {
                     debug!(
@@ -343,24 +346,19 @@ impl DbLoaderExt for MessageDbLoader {
             // This allows new destinations to be seen during incremental startup.
             // Wait for the context to become available too.
             let mut attempts: u64 = 0;
+            let context_key = ContextKey {
+                origin: self.origin_domain.clone(),
+                destination_id: destination,
+            };
             let destination_msg_ctx = loop {
                 let msg_ctxs_read = self.msg_ctxs.read().await;
 
-                // Find the message context for this (origin, destination) pair by iterating
-                // through the map. We match on origin_domain and destination ID.
-                let ctx = msg_ctxs_read
-                    .iter()
-                    .find(|(key, _)| {
-                        key.origin == self.origin_domain && key.destination.id() == destination
-                    })
-                    .map(|(_, ctx)| ctx.clone());
-
-                if let Some(ctx) = ctx {
-                    break ctx;
+                if let Some(ctx) = msg_ctxs_read.get(&context_key) {
+                    break ctx.clone();
                 }
 
                 drop(msg_ctxs_read);
-                attempts = attempts.wrapping_add(1);
+                attempts = attempts.saturating_add(1);
 
                 if attempts >= max_attempts {
                     debug!(
@@ -416,6 +414,7 @@ impl MessageDbLoader {
         msg_ctxs: DynamicMessageContexts,
         metric_app_contexts: Vec<(MatchingList, String)>,
         max_retries: u32,
+        destination_wait_timeout: Duration,
     ) -> Self {
         Self {
             message_whitelist,
@@ -428,6 +427,7 @@ impl MessageDbLoader {
             metric_app_contexts,
             nonce_iterator: ForwardBackwardIterator::new(Arc::new(db) as Arc<dyn HyperlaneDb>),
             max_retries,
+            destination_wait_timeout,
         }
     }
 

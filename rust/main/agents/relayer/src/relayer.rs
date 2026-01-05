@@ -81,7 +81,8 @@ const CHAIN_INIT_RETRY_BASE_DELAY: Duration = Duration::from_secs(5);
 #[derive(Debug, Hash, PartialEq, Eq, Clone)]
 pub(crate) struct ContextKey {
     pub origin: HyperlaneDomain,
-    pub destination: HyperlaneDomain,
+    /// Destination chain ID for O(1) lookup by (origin, destination_id)
+    pub destination_id: u32,
 }
 
 /// Dynamic chain maps that can be updated at runtime as chains become ready.
@@ -113,6 +114,7 @@ pub struct Relayer {
     metric_app_contexts: Vec<(MatchingList, String)>,
     ism_cache_configs: Vec<IsmCacheConfig>,
     max_retries: u32,
+    destination_wait_timeout: Duration,
     core_metrics: Arc<CoreMetrics>,
     agent_metrics: AgentMetrics,
     chain_metrics: ChainMetrics,
@@ -291,6 +293,7 @@ impl BaseAgent for Relayer {
             metric_app_contexts: settings.metric_app_contexts,
             ism_cache_configs: settings.ism_cache_configs,
             max_retries: settings.max_retries,
+            destination_wait_timeout: settings.destination_wait_timeout,
             core_metrics,
             agent_metrics,
             chain_metrics,
@@ -383,6 +386,7 @@ impl BaseAgent for Relayer {
                         &self.address_blacklist,
                         &self.metric_app_contexts,
                         self.max_retries,
+                        self.destination_wait_timeout,
                     )
                     .await;
                     tasks.extend(origin_tasks);
@@ -482,7 +486,7 @@ impl Relayer {
 
         let msg_ctxs_for_server = msg_ctxs
             .iter()
-            .map(|(key, value)| ((key.origin.id(), key.destination.id()), value.clone()))
+            .map(|(key, value)| ((key.origin.id(), key.destination_id), value.clone()))
             .collect();
         let prover_syncs: HashMap<_, _> = origins
             .iter()
@@ -734,7 +738,7 @@ impl Relayer {
         for destination in destinations.keys() {
             let key = ContextKey {
                 origin: origin.domain.clone(),
-                destination: destination.clone(),
+                destination_id: destination.id(),
             };
             if msg_ctxs.get(&key).is_none() {
                 let err_msg = format!(
@@ -767,6 +771,7 @@ impl Relayer {
             msg_ctxs_dynamic,
             self.metric_app_contexts.clone(),
             self.max_retries,
+            self.destination_wait_timeout,
         );
 
         let span = info_span!("MessageDbLoader", origin=%message_db_loader.domain());
@@ -1306,7 +1311,7 @@ impl Relayer {
                 msg_ctxs.insert(
                     ContextKey {
                         origin: origin_domain.clone(),
-                        destination: destination_domain.clone(),
+                        destination_id: destination_domain.id(),
                     },
                     Arc::new(MessageContext {
                         destination_mailbox: destination_mailbox.clone(),
@@ -1556,6 +1561,7 @@ impl Relayer {
         let message_blacklist = self.message_blacklist.clone();
         let address_blacklist = self.address_blacklist.clone();
         let max_retries = self.max_retries;
+        let destination_wait_timeout = self.destination_wait_timeout;
         let _cache = self._cache.clone();
 
         tokio::spawn(
@@ -1613,13 +1619,10 @@ impl Relayer {
                                             &address_blacklist,
                                             &metric_app_contexts,
                                             max_retries,
+                                            destination_wait_timeout,
                                         ).await;
 
-                                        for task in origin_tasks {
-                                            tokio::spawn(async move {
-                                                let _ = task.await;
-                                            });
-                                        }
+                                        drop(origin_tasks);
 
                                         // Check if this origin is also in destinations but its destination
                                         // tasks were skipped earlier (because the origin wasn't ready yet).
@@ -1645,11 +1648,7 @@ impl Relayer {
                                                     &agent_metrics,
                                                 ).await;
 
-                                                for task in dest_tasks {
-                                                    tokio::spawn(async move {
-                                                        let _ = task.await;
-                                                    });
-                                                }
+                                                drop(dest_tasks);
                                             }
                                         }
                                     }
@@ -1708,11 +1707,7 @@ impl Relayer {
                                         msg_ctxs.write().await.extend(new_contexts);
                                     }
 
-                                    for task in dest_tasks {
-                                        tokio::spawn(async move {
-                                            let _ = task.await;
-                                        });
-                                    }
+                                    drop(dest_tasks);
                                 }
                                 Err(err) => {
                                     Self::record_critical_error(
@@ -1748,6 +1743,7 @@ impl Relayer {
         address_blacklist: &Arc<AddressBlacklist>,
         metric_app_contexts: &[(MatchingList, String)],
         max_retries: u32,
+        destination_wait_timeout: Duration,
     ) -> Vec<JoinHandle<()>> {
         let mut tasks = vec![];
 
@@ -1852,6 +1848,7 @@ impl Relayer {
             msg_ctxs,
             metric_app_contexts.to_vec(),
             max_retries,
+            destination_wait_timeout,
         );
 
         let span = info_span!("MessageDbLoader", origin=%message_db_loader.domain());
