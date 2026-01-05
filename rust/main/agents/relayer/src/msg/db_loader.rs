@@ -6,6 +6,8 @@ use std::{
     time::Duration,
 };
 
+use tokio::sync::RwLock;
+
 use async_trait::async_trait;
 use derive_new::new;
 use ethers::utils::hex;
@@ -20,7 +22,9 @@ use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, instrument, trace};
 
 use super::{blacklist::AddressBlacklist, metadata::AppContextClassifier, pending_message::*};
-use crate::{db_loader::DbLoaderExt, settings::matching_list::MatchingList};
+use crate::{
+    db_loader::DbLoaderExt, relayer::DynamicMessageContexts, settings::matching_list::MatchingList,
+};
 
 /// Finds unprocessed messages from an origin and submits then through a channel
 /// for to the appropriate destination.
@@ -34,10 +38,15 @@ pub struct MessageDbLoader {
     address_blacklist: Arc<AddressBlacklist>,
     metrics: MessageDbLoaderMetrics,
     /// channel for each destination chain to send operations (i.e. message
-    /// submissions) to
-    send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
-    /// Needed context to send a message for each destination chain
-    destination_ctxs: HashMap<u32, Arc<MessageContext>>,
+    /// submissions) to. Wrapped in Arc<RwLock<...>> to allow dynamic updates
+    /// when new destinations become ready during incremental startup.
+    send_channels: Arc<RwLock<HashMap<u32, UnboundedSender<QueueOperation>>>>,
+    /// The origin domain this db_loader is processing messages from.
+    origin_domain: HyperlaneDomain,
+    /// Message contexts for all (origin, destination) pairs. Used to look up
+    /// the context for messages dynamically, allowing new destinations to be
+    /// added during incremental startup.
+    msg_ctxs: DynamicMessageContexts,
     metric_app_contexts: Vec<(MatchingList, String)>,
     nonce_iterator: ForwardBackwardIterator,
     max_retries: u32,
@@ -288,22 +297,41 @@ impl DbLoaderExt for MessageDbLoader {
                 return Ok(());
             }
 
+            // Read from RwLock to get current send_channels (may be updated during incremental startup)
+            let send_channels_read = self.send_channels.read().await;
+
             // Skip if the message is intended for a destination we do not service
-            if !self.send_channels.contains_key(&destination) {
+            if !send_channels_read.contains_key(&destination) {
                 debug!(?msg, "Message destined for unknown domain, skipping");
                 return Ok(());
             }
 
-            // Skip if message is intended for a destination we don't have message context for
-            let destination_msg_ctx = if let Some(ctx) = self.destination_ctxs.get(&destination) {
-                ctx
-            } else {
-                debug!(
-                    ?msg,
-                    "Message destined for unknown message context, skipping",
-                );
-                return Ok(());
+            // Read from msg_ctxs to get the message context dynamically.
+            // This allows new destinations to be seen during incremental startup.
+            let msg_ctxs_read = self.msg_ctxs.read().await;
+
+            // Find the message context for this (origin, destination) pair by iterating
+            // through the map. We match on origin_domain and destination ID.
+            let destination_msg_ctx = msg_ctxs_read
+                .iter()
+                .find(|(key, _)| {
+                    key.origin == self.origin_domain && key.destination.id() == destination
+                })
+                .map(|(_, ctx)| ctx.clone());
+
+            let destination_msg_ctx = match destination_msg_ctx {
+                Some(ctx) => ctx,
+                None => {
+                    debug!(
+                        ?msg,
+                        "Message destined for unknown message context, skipping",
+                    );
+                    return Ok(());
+                }
             };
+
+            // Drop the read lock before the async operation
+            drop(msg_ctxs_read);
 
             debug!(%msg, "Sending message to submitter");
 
@@ -314,12 +342,12 @@ impl DbLoaderExt for MessageDbLoader {
             // Finally, build the submit arg and dispatch it to the submitter.
             let pending_msg = PendingMessage::maybe_from_persisted_retries(
                 msg,
-                destination_msg_ctx.clone(),
+                destination_msg_ctx,
                 app_context,
                 self.max_retries,
             );
             if let Some(pending_msg) = pending_msg {
-                self.send_channels[&destination].send(Box::new(pending_msg) as QueueOperation)?;
+                send_channels_read[&destination].send(Box::new(pending_msg) as QueueOperation)?;
             }
         } else {
             tokio::time::sleep(Duration::from_secs(1)).await;
@@ -336,8 +364,9 @@ impl MessageDbLoader {
         message_blacklist: Arc<MatchingList>,
         address_blacklist: Arc<AddressBlacklist>,
         metrics: MessageDbLoaderMetrics,
-        send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
-        destination_ctxs: HashMap<u32, Arc<MessageContext>>,
+        send_channels: Arc<RwLock<HashMap<u32, UnboundedSender<QueueOperation>>>>,
+        origin_domain: HyperlaneDomain,
+        msg_ctxs: DynamicMessageContexts,
         metric_app_contexts: Vec<(MatchingList, String)>,
         max_retries: u32,
     ) -> Self {
@@ -347,7 +376,8 @@ impl MessageDbLoader {
             address_blacklist,
             metrics,
             send_channels,
-            destination_ctxs,
+            origin_domain,
+            msg_ctxs,
             metric_app_contexts,
             nonce_iterator: ForwardBackwardIterator::new(Arc::new(db) as Arc<dyn HyperlaneDb>),
             max_retries,

@@ -79,9 +79,9 @@ const CHAIN_INIT_MAX_RETRIES: u32 = 10;
 const CHAIN_INIT_RETRY_BASE_DELAY: Duration = Duration::from_secs(5);
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone)]
-struct ContextKey {
-    origin: HyperlaneDomain,
-    destination: HyperlaneDomain,
+pub(crate) struct ContextKey {
+    pub origin: HyperlaneDomain,
+    pub destination: HyperlaneDomain,
 }
 
 /// Dynamic chain maps that can be updated at runtime as chains become ready.
@@ -95,7 +95,7 @@ struct ContextKey {
 /// 5. `prep_queues`
 type DynamicOrigins = Arc<RwLock<HashMap<HyperlaneDomain, Origin>>>;
 type DynamicDestinations = Arc<RwLock<HashMap<HyperlaneDomain, Destination>>>;
-type DynamicMessageContexts = Arc<RwLock<HashMap<ContextKey, Arc<MessageContext>>>>;
+pub(crate) type DynamicMessageContexts = Arc<RwLock<HashMap<ContextKey, Arc<MessageContext>>>>;
 
 #[derive(AsRef)]
 pub struct Relayer {
@@ -698,32 +698,32 @@ impl Relayer {
     ) -> eyre::Result<JoinHandle<()>> {
         let metrics =
             MessageDbLoaderMetrics::new(&self.core.metrics, &origin.domain, destinations.keys());
-        let destination_ctxs: HashMap<_, _> = destinations
-            .keys()
-            .filter_map(|destination| {
-                let key = ContextKey {
-                    origin: origin.domain.clone(),
-                    destination: destination.clone(),
-                };
-                let context = msg_ctxs.get(&key).map(|c| (destination.id(), c.clone()));
 
-                if context.is_none() {
-                    let err_msg = format!(
-                        "No message context found for origin {} and destination {}",
-                        origin.domain.name(),
-                        destination.name()
-                    );
-                    Self::record_critical_error(
-                        &origin.domain,
-                        &self.chain_metrics,
-                        &ChainCommunicationError::CustomError(err_msg.clone()),
-                        &err_msg,
-                    );
-                }
+        // For non-incremental startup, we still need to check for missing contexts
+        for destination in destinations.keys() {
+            let key = ContextKey {
+                origin: origin.domain.clone(),
+                destination: destination.clone(),
+            };
+            if msg_ctxs.get(&key).is_none() {
+                let err_msg = format!(
+                    "No message context found for origin {} and destination {}",
+                    origin.domain.name(),
+                    destination.name()
+                );
+                Self::record_critical_error(
+                    &origin.domain,
+                    &self.chain_metrics,
+                    &ChainCommunicationError::CustomError(err_msg.clone()),
+                    &err_msg,
+                );
+            }
+        }
 
-                context
-            })
-            .collect();
+        // Wrap in Arc<RwLock<...>> for MessageDbLoader (required for dynamic updates
+        // during incremental startup, but also used for non-incremental startup for consistency)
+        let send_channels_dynamic = Arc::new(RwLock::new(send_channels.clone()));
+        let msg_ctxs_dynamic = Arc::new(RwLock::new(msg_ctxs.clone()));
 
         let message_db_loader = MessageDbLoader::new(
             origin.database.clone(),
@@ -731,8 +731,9 @@ impl Relayer {
             self.message_blacklist.clone(),
             self.address_blacklist.clone(),
             metrics,
-            send_channels.clone(),
-            destination_ctxs,
+            send_channels_dynamic,
+            origin.domain.clone(),
+            msg_ctxs_dynamic,
             self.metric_app_contexts.clone(),
             self.max_retries,
         );
@@ -1567,23 +1568,21 @@ impl Relayer {
 
                                         msg_ctxs.write().await.extend(new_contexts);
 
-                                        let send_channels_read = send_channels.read().await;
                                         let origin_tasks = Self::spawn_origin_tasks_static(
                                             &domain,
                                             origin_ref,
-                                            &send_channels_read,
+                                            send_channels.clone(),
                                             task_monitor.clone(),
                                             &chain_metrics,
                                             &core_metrics,
                                             &destinations,
-                                            &msg_ctxs,
+                                            msg_ctxs.clone(),
                                             &message_whitelist,
                                             &message_blacklist,
                                             &address_blacklist,
                                             &metric_app_contexts,
                                             max_retries,
                                         ).await;
-                                        drop(send_channels_read);
 
                                         for task in origin_tasks {
                                             tokio::spawn(async move {
@@ -1675,12 +1674,12 @@ impl Relayer {
     async fn spawn_origin_tasks_static(
         origin_domain: &HyperlaneDomain,
         origin: &Origin,
-        send_channels: &HashMap<u32, UnboundedSender<QueueOperation>>,
+        send_channels: Arc<RwLock<HashMap<u32, UnboundedSender<QueueOperation>>>>,
         task_monitor: TaskMonitor,
         chain_metrics: &ChainMetrics,
         core_metrics: &Arc<CoreMetrics>,
         destinations: &DynamicDestinations,
-        msg_ctxs: &DynamicMessageContexts,
+        msg_ctxs: DynamicMessageContexts,
         message_whitelist: &Arc<MatchingList>,
         message_blacklist: &Arc<MatchingList>,
         address_blacklist: &Arc<AddressBlacklist>,
@@ -1772,22 +1771,12 @@ impl Relayer {
         tasks.push(merkle_task);
 
         let destinations_read = destinations.read().await;
-        let msg_ctxs_read = msg_ctxs.read().await;
 
         let metrics =
             MessageDbLoaderMetrics::new(core_metrics, &origin.domain, destinations_read.keys());
-        let destination_ctxs: HashMap<_, _> = destinations_read
-            .keys()
-            .filter_map(|destination| {
-                let key = ContextKey {
-                    origin: origin.domain.clone(),
-                    destination: destination.clone(),
-                };
-                msg_ctxs_read
-                    .get(&key)
-                    .map(|c| (destination.id(), c.clone()))
-            })
-            .collect();
+
+        // Drop the read lock before passing to MessageDbLoader
+        drop(destinations_read);
 
         let message_db_loader = MessageDbLoader::new(
             origin.database.clone(),
@@ -1795,8 +1784,9 @@ impl Relayer {
             message_blacklist.clone(),
             address_blacklist.clone(),
             metrics,
-            send_channels.clone(),
-            destination_ctxs,
+            send_channels,
+            origin_domain.clone(),
+            msg_ctxs,
             metric_app_contexts.to_vec(),
             max_retries,
         );

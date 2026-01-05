@@ -20,10 +20,12 @@ use hyperlane_operation_verifier::{
 
 use crate::{
     db_loader::DbLoader,
+    relayer::ContextKey,
     test_utils::dummy_data::{dummy_message_context, dummy_metadata_builder},
 };
 
 use super::*;
+use tokio::sync::RwLock;
 
 pub struct DummyApplicationOperationVerifier {}
 
@@ -82,6 +84,20 @@ fn dummy_message_loader(
     ));
 
     let (send_channel, receive_channel) = mpsc::unbounded_channel::<QueueOperation>();
+
+    // Create dynamic send_channels map wrapped in Arc<RwLock<...>>
+    let send_channels = Arc::new(RwLock::new(HashMap::from([(
+        destination_domain.id(),
+        send_channel,
+    )])));
+
+    // Create msg_ctxs map with ContextKey, wrapped in Arc<RwLock<...>>
+    let context_key = ContextKey {
+        origin: origin_domain.clone(),
+        destination: destination_domain.clone(),
+    };
+    let msg_ctxs = Arc::new(RwLock::new(HashMap::from([(context_key, message_context)])));
+
     (
         MessageDbLoader::new(
             db.clone(),
@@ -89,8 +105,9 @@ fn dummy_message_loader(
             Default::default(),
             Default::default(),
             dummy_message_loader_metrics(origin_domain.id()),
-            HashMap::from([(destination_domain.id(), send_channel)]),
-            HashMap::from([(destination_domain.id(), message_context)]),
+            send_channels,
+            origin_domain.clone(),
+            msg_ctxs,
             vec![],
             DEFAULT_MAX_MESSAGE_RETRIES,
         ),
