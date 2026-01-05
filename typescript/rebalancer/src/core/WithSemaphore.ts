@@ -82,7 +82,7 @@ export class WithSemaphore implements IRebalancer {
         throw new Error(`Chain ${route.origin} not found in config`);
       }
 
-      const bridgeLockTime = origin.bridgeLockTime;
+      const bridgeLockTime = origin.bridgeLockTime ?? 0;
       const overrideLockTime =
         origin.override?.[route.destination]?.bridgeLockTime ?? 0;
 
