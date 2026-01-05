@@ -305,7 +305,7 @@ impl DbLoaderExt for MessageDbLoader {
             const DESTINATION_CHECK_INTERVAL_MS: u64 = 500;
             let max_attempts = (MAX_DESTINATION_WAIT_SECS * 1000) / DESTINATION_CHECK_INTERVAL_MS;
 
-            let mut attempts = 0;
+            let mut attempts: u64 = 0;
             loop {
                 // Read from RwLock to get current send_channels (may be updated during incremental startup)
                 let send_channels_read = self.send_channels.read().await;
@@ -316,7 +316,7 @@ impl DbLoaderExt for MessageDbLoader {
                 }
 
                 drop(send_channels_read);
-                attempts += 1;
+                attempts = attempts.wrapping_add(1);
 
                 if attempts >= max_attempts {
                     debug!(
@@ -342,7 +342,7 @@ impl DbLoaderExt for MessageDbLoader {
             // Read from msg_ctxs to get the message context dynamically.
             // This allows new destinations to be seen during incremental startup.
             // Wait for the context to become available too.
-            let mut attempts = 0;
+            let mut attempts: u64 = 0;
             let destination_msg_ctx = loop {
                 let msg_ctxs_read = self.msg_ctxs.read().await;
 
@@ -360,7 +360,7 @@ impl DbLoaderExt for MessageDbLoader {
                 }
 
                 drop(msg_ctxs_read);
-                attempts += 1;
+                attempts = attempts.wrapping_add(1);
 
                 if attempts >= max_attempts {
                     debug!(

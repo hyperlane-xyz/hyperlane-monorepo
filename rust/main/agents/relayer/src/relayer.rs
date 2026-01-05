@@ -1589,6 +1589,38 @@ impl Relayer {
                                                 let _ = task.await;
                                             });
                                         }
+
+                                        // Check if this origin is also in destinations but its destination
+                                        // tasks were skipped earlier (because the origin wasn't ready yet).
+                                        // If so, spawn the destination tasks now.
+                                        if let Some(dest_ref) = destinations_read.get(&domain) {
+                                            let send_channels_read = send_channels.read().await;
+                                            let needs_destination_tasks = !send_channels_read.contains_key(&domain.id());
+                                            drop(send_channels_read);
+
+                                            if needs_destination_tasks {
+                                                info!(domain = %domain.name(), "Background: Spawning previously-skipped destination tasks for origin");
+                                                let dest_tasks = Self::spawn_destination_tasks_static(
+                                                    &domain,
+                                                    dest_ref,
+                                                    &origins_read,
+                                                    &sender,
+                                                    send_channels.clone(),
+                                                    prep_queues.clone(),
+                                                    task_monitor.clone(),
+                                                    &chain_metrics,
+                                                    &chain_settings,
+                                                    &core_metrics,
+                                                    &agent_metrics,
+                                                ).await;
+
+                                                for task in dest_tasks {
+                                                    tokio::spawn(async move {
+                                                        let _ = task.await;
+                                                    });
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                                 Err(err) => {
