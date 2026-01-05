@@ -68,11 +68,13 @@ describe('WithSemaphore', () => {
 
   it('should throw if a chain is missing', async () => {
     const config = buildTestConfig({
-      strategyConfig: {
-        rebalanceStrategy: RebalancerStrategyOptions.Weighted,
-        chains: {},
-      },
-    });
+      strategyConfig: [
+        {
+          rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+          chains: {},
+        },
+      ],
+    } as any);
 
     const routes = [
       {
