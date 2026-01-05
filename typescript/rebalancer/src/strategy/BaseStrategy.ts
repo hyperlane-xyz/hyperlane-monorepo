@@ -275,8 +275,8 @@ export abstract class BaseStrategy implements IStrategy {
     for (const transfer of pendingTransfers) {
       const destBalance = reserved[transfer.destination] ?? 0n;
       // Reserve the transfer amount from destination
-      reserved[transfer.destination] =
-        destBalance > transfer.amount ? destBalance - transfer.amount : 0n;
+      // Allow negative values to indicate collateral deficits
+      reserved[transfer.destination] = destBalance - transfer.amount;
 
       this.logger.debug(
         {
