@@ -355,24 +355,55 @@ impl BaseAgent for Relayer {
         debug!(elapsed = ?start_entity_init.elapsed(), event = "started processors", "Relayer startup duration measurement");
 
         start_entity_init = Instant::now();
+
+        // Check if incremental startup is enabled BEFORE spawning origin tasks,
+        // so we can pass dynamic references if needed
+        let pending_init = self.pending_chain_init.lock().await.take();
+        let has_pending_init = pending_init.is_some();
+
         {
             let origins = self.origins.read().await;
-            let send_channels_read = send_channels.read().await;
             for (origin_domain, origin) in origins.iter() {
-                let origin_tasks = self
-                    .spawn_origin_tasks(
+                // When incremental startup is enabled, use spawn_origin_tasks_static
+                // which accepts Arc<RwLock<...>> for send_channels and msg_ctxs.
+                // This allows initial origins to see destinations that are added
+                // during background initialization.
+                if has_pending_init {
+                    let origin_tasks = Self::spawn_origin_tasks_static(
                         origin_domain,
                         origin,
-                        &send_channels_read,
+                        send_channels.clone(),
                         task_monitor.clone(),
+                        &self.chain_metrics,
+                        &self.core_metrics,
+                        &self.destinations,
+                        self.msg_ctxs.clone(),
+                        &self.message_whitelist,
+                        &self.message_blacklist,
+                        &self.address_blacklist,
+                        &self.metric_app_contexts,
+                        self.max_retries,
                     )
                     .await;
-                tasks.extend(origin_tasks);
+                    tasks.extend(origin_tasks);
+                } else {
+                    // Non-incremental startup: use snapshot-based method
+                    let send_channels_read = send_channels.read().await;
+                    let origin_tasks = self
+                        .spawn_origin_tasks(
+                            origin_domain,
+                            origin,
+                            &send_channels_read,
+                            task_monitor.clone(),
+                        )
+                        .await;
+                    tasks.extend(origin_tasks);
+                }
             }
         }
         debug!(elapsed = ?start_entity_init.elapsed(), event = "started message, IGP, merkle tree hook syncs, and message and merkle tree db loader", "Relayer startup duration measurement");
 
-        if let Some(pending_init) = self.pending_chain_init.lock().await.take() {
+        if let Some(pending_init) = pending_init {
             let background_task = self.spawn_background_chain_init(
                 pending_init,
                 sender.clone(),
