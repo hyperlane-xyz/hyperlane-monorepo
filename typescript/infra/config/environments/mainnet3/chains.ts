@@ -41,6 +41,18 @@ export const agentSpecificChainMetadataOverrides: ChainMap<
 };
 
 export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
+  kyve: {
+    gasPrice: {
+      amount: '63.0',
+      denom: 'ukyve',
+    },
+  },
+  noble: {
+    gasPrice: {
+      amount: '0.1',
+      denom: 'uusdn',
+    },
+  },
   bsc: {
     transactionOverrides: {
       gasPrice: 1 * 10 ** 8, // 0.1 gwei
@@ -84,41 +96,12 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   //     maxFeePerGas: 100000 * 10 ** 9, // 100,000 gwei
   //   },
   // },
-  // taiko: {
-  //   transactionOverrides: {
-  //     gasPrice: 25 * 10 ** 7, // 0.25 gwei
-  //   },
-  // },
-  // linea: {
-  //   transactionOverrides: {
-  //     gasPrice: 5 * 10 ** 8, // 0.5 gwei
-  //   },
-  // },
-  // zircuit: {
+  // xlayer: {
   //   blocks: {
   //     confirmations: 5,
   //   },
   // },
-  // degenchain: {
-  //   transactionOverrides: {
-  //     maxFeePerGas: 100 * 10 ** 9, // 100 gwei
-  //     maxPriorityFeePerGas: 10 * 10 ** 9, // 10 gwei
-  //   },
-  // },
-  // polygon: {
-  //   transactionOverrides: {
-  //     // A very high max fee per gas is used as Polygon is susceptible
-  //     // to large swings in gas prices.
-  //     maxFeePerGas: 800 * 10 ** 9, // 800 gwei
-  //     maxPriorityFeePerGas: 50 * 10 ** 9, // 50 gwei
-  //   },
-  // },
-  // matchain: {
-  //   blocks: {
-  //     confirmations: 5,
-  //   },
-  // },
-  // cyber: {
+  // soneium: {
   //   blocks: {
   //     confirmations: 3,
   //   },

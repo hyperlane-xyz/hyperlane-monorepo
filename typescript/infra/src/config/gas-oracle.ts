@@ -287,8 +287,6 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
     // Scroll is more expensive than the rest due to higher L1 fees
     scroll: 1.5,
     taiko: 0.5,
-    // Nexus adjustment
-    neutron: 0.5,
     // For Solana, special min cost
     solanamainnet: 1.2,
   };

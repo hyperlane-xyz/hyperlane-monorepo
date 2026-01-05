@@ -164,18 +164,6 @@ export const validatorChainConfig = (
         'optimism',
       ),
     },
-    osmosis: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('osmosis'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0xea483af11c19fa41b16c31d1534c2a486a92bcac'],
-          [Contexts.ReleaseCandidate]: [],
-          [Contexts.Neutron]: [],
-        },
-        'osmosis',
-      ),
-    },
     moonbeam: {
       interval: 5,
       reorgPeriod: getReorgPeriod('moonbeam'),
@@ -234,36 +222,6 @@ export const validatorChainConfig = (
           [Contexts.Neutron]: [],
         },
         'bob',
-      ),
-    },
-    injective: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('injective'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0xbfb8911b72cfb138c7ce517c57d9c691535dc517'],
-          [Contexts.ReleaseCandidate]: [
-            '0xca024623ee6fe281639aee91c4390b0c4e053918',
-          ],
-          [Contexts.Neutron]: [],
-        },
-        'injective',
-      ),
-    },
-    inevm: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('inevm'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0xf9e35ee88e4448a3673b4676a4e153e3584a08eb'],
-          [Contexts.ReleaseCandidate]: [
-            '0x52a0376903294c796c091c785a66c62943d99aa8',
-            '0xc2ea1799664f753bedb9872d617e3ebc60b2e0ab',
-            '0xe83d36fd00d9ef86243d9f7147b29e98d11df0ee',
-          ],
-          [Contexts.Neutron]: [],
-        },
-        'inevm',
       ),
     },
     fraxtal: {
@@ -396,22 +354,6 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: ['0x0ede747b84071ac24b60c08f8d59ad55d23f8a5c'],
         },
         'paradex',
-      ),
-    },
-    neutron: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('neutron'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0xa9b8c1f4998f781f958c63cfcd1708d02f004ff0'],
-          [Contexts.ReleaseCandidate]: [
-            '0x307a8fe091b8273c7ce3d277b161b4a2167279b1',
-            '0xb825c1bd020cb068f477b320f591b32e26814b5b',
-            '0x0a5b31090d4c3c207b9ea6708f938e328f895fce',
-          ],
-          [Contexts.Neutron]: [],
-        },
-        'neutron',
       ),
     },
     mantapacific: {
@@ -620,18 +562,6 @@ export const validatorChainConfig = (
           [Contexts.Neutron]: [],
         },
         'metis',
-      ),
-    },
-    mint: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('mint'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0xfed01ccdd7a65e8a6ad867b7fb03b9eb47777ac9'],
-          [Contexts.ReleaseCandidate]: [''],
-          [Contexts.Neutron]: [],
-        },
-        'mint',
       ),
     },
     tangle: {
@@ -1046,16 +976,6 @@ export const validatorChainConfig = (
         'aurora',
       ),
     },
-    form: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('form'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0x58554b2e76167993b5fc000d0070a2f883cd333a'],
-        },
-        'form',
-      ),
-    },
     ink: {
       interval: 5,
       reorgPeriod: getReorgPeriod('ink'),
@@ -1351,16 +1271,6 @@ export const validatorChainConfig = (
         'peaq',
       ),
     },
-    svmbnb: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('svmbnb'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0xabcd4dac2d06ae30c011d25b0c2c193873116a14'],
-        },
-        'svmbnb',
-      ),
-    },
     miraclechain: {
       interval: 5,
       reorgPeriod: getReorgPeriod('miraclechain'),
@@ -1629,6 +1539,28 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: ['0xb9e79db67d02db0f79726c1aa499cc4d26b084fa'],
         },
         'aleo',
+      ),
+    },
+    citrea: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('citrea'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xe175e8db1d04fb525879ce9f088a215d3e3fe3f0'],
+        },
+        'citrea',
+      ),
+    },
+    neutron: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('neutron'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xa9b8c1f4998f781f958c63cfcd1708d02f004ff0'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'neutron',
       ),
     },
   };

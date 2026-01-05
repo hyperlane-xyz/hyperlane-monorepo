@@ -27,8 +27,12 @@ import {
 import { readJson } from '@hyperlane-xyz/utils/fs';
 
 import { Contexts } from '../../config/contexts.js';
-import { agentSpecificChainMetadataOverrides } from '../../config/environments/mainnet3/chains.js';
+import {
+  agentSpecificChainMetadataOverrides,
+  chainMetadataOverrides as mainnet3ChainMetadataOverrides,
+} from '../../config/environments/mainnet3/chains.js';
 import mainnet3GasPrices from '../../config/environments/mainnet3/gasPrices.json' with { type: 'json' };
+import { chainMetadataOverrides as testnet4ChainMetadataOverrides } from '../../config/environments/testnet4/chains.js';
 import testnet4GasPrices from '../../config/environments/testnet4/gasPrices.json' with { type: 'json' };
 import {
   RelayerAppContextConfig,
@@ -77,6 +81,10 @@ export async function writeAgentConfig(
   const environmentChains = envAgentConfig.environmentChainNames;
   const registry =
     environment !== 'test' ? await envConfig.getRegistry() : undefined;
+  const chainMetadataOverrides =
+    environment === 'mainnet3'
+      ? mainnet3ChainMetadataOverrides
+      : testnet4ChainMetadataOverrides;
 
   // Build additional config for:
   // - cosmos/cosmos native chains that require special gas price handling
@@ -91,20 +99,28 @@ export async function writeAgentConfig(
           chainIsProtocol(chain, ProtocolType.Cosmos) ||
           chainIsProtocol(chain, ProtocolType.CosmosNative)
         ) {
-          try {
-            const gasPrice = await getCosmosChainGasPrice(chain, multiProvider);
-            config.gasPrice = gasPrice;
-          } catch (error) {
-            rootLogger.error(`Error getting gas price for ${chain}:`, error);
-            const { denom } = await multiProvider.getNativeToken(chain);
-            assert(denom, `No nativeToken.denom found for chain ${chain}`);
-            const amount =
-              environment === 'mainnet3'
-                ? mainnet3GasPrices[chain as keyof typeof mainnet3GasPrices]
-                    .amount
-                : testnet4GasPrices[chain as keyof typeof testnet4GasPrices]
-                    .amount;
-            config.gasPrice = { denom, amount };
+          // Use agent-specific gasPrice override if defined, otherwise fetch from Cosmos registry
+          if (chainMetadataOverrides[chain]?.gasPrice) {
+            config.gasPrice = chainMetadataOverrides[chain].gasPrice;
+          } else {
+            try {
+              const gasPrice = await getCosmosChainGasPrice(
+                chain,
+                multiProvider,
+              );
+              config.gasPrice = gasPrice;
+            } catch (error) {
+              rootLogger.error(`Error getting gas price for ${chain}:`, error);
+              const { denom } = await multiProvider.getNativeToken(chain);
+              assert(denom, `No nativeToken.denom found for chain ${chain}`);
+              const amount =
+                environment === 'mainnet3'
+                  ? mainnet3GasPrices[chain as keyof typeof mainnet3GasPrices]
+                      .amount
+                  : testnet4GasPrices[chain as keyof typeof testnet4GasPrices]
+                      .amount;
+              config.gasPrice = { denom, amount };
+            }
           }
         }
 

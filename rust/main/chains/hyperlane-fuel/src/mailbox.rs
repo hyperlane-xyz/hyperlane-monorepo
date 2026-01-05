@@ -10,8 +10,8 @@ use fuels::{
 use hyperlane_core::{
     utils::bytes_to_hex, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
-    Indexed, Indexer, LogMeta, Mailbox, RawHyperlaneMessage, ReorgPeriod, SequenceAwareIndexer,
-    TxCostEstimate, TxOutcome, H256, H512, U256,
+    Indexed, Indexer, LogMeta, Mailbox, Metadata, RawHyperlaneMessage, ReorgPeriod,
+    SequenceAwareIndexer, TxCostEstimate, TxOutcome, H256, H512, U256,
 };
 use std::{
     collections::HashMap,
@@ -128,7 +128,7 @@ impl Mailbox for FuelMailbox {
     async fn process(
         &self,
         message: &HyperlaneMessage,
-        metadata: &[u8],
+        metadata: &Metadata,
         tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
         // The max gas limit per transaction is 30000000 so it should always be safe to convert to u64
@@ -189,7 +189,7 @@ impl Mailbox for FuelMailbox {
     async fn process_estimate_costs(
         &self,
         message: &HyperlaneMessage,
-        metadata: &[u8],
+        metadata: &Metadata,
     ) -> ChainResult<TxCostEstimate> {
         let call_res = self
             .contract
@@ -215,7 +215,7 @@ impl Mailbox for FuelMailbox {
     async fn process_calldata(
         &self,
         _message: &HyperlaneMessage,
-        _metadata: &[u8],
+        metadata: &Metadata,
     ) -> ChainResult<Vec<u8>> {
         // Seems like this is not needed for Fuel, as it's only used in mocks
         todo!()

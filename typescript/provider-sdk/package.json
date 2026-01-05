@@ -33,14 +33,14 @@
   },
   "dependencies": {
     "@hyperlane-xyz/utils": "workspace:*",
-    "pino": "^8.19.0",
-    "zod": "^3.21.2"
+    "pino": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@hyperlane-xyz/eslint-config": "workspace:^",
     "@hyperlane-xyz/tsconfig": "workspace:^",
-    "@types/node": "^20.17.0",
-    "eslint": "^9.31.0",
-    "typescript": "5.8.3"
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "typescript": "catalog:"
   }
 }

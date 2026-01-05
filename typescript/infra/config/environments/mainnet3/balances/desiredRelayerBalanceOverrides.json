@@ -1,7 +1,9 @@
 {
+  "arcadia": 0.05,
   "artela": 2200,
   "aleo": 0,
   "carrchain": 5000,
+  "citrea": 0.00005,
   "coti": 1,
   "eclipsemainnet": 0.5,
   "electroneum": 10,
@@ -11,9 +13,9 @@
   "kyve": 5,
   "litchain": 0.05,
   "miraclechain": 0.05,
-  "nibiru": 10,
+  "neutron": 0,
+  "nibiru": 20,
   "ontology": 10,
-  "osmosis": 0,
   "paradex": 0,
   "radix": 0,
   "starknet": 200,
@@ -21,5 +23,5 @@
   "sophon": 50,
   "tac": 5,
   "tangle": 6,
-  "vana": 0.001
+  "vana": 20
 }

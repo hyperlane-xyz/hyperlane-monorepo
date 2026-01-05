@@ -65,7 +65,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     incentivtestnet: false,
     kyvetestnet: false,
     megaethtestnet: false,
-    milkywaytestnet: false,
     modetestnet: true,
     monadtestnet: true,
     neuratestnet: true,
@@ -102,7 +101,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     incentivtestnet: false,
     kyvetestnet: false,
     megaethtestnet: false,
-    milkywaytestnet: false,
     modetestnet: true,
     monadtestnet: true,
     neuratestnet: true,
@@ -139,7 +137,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     incentivtestnet: false,
     kyvetestnet: false,
     megaethtestnet: false,
-    milkywaytestnet: false,
     modetestnet: true,
     monadtestnet: true,
     neuratestnet: true,
@@ -199,16 +196,6 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
     type: GasPaymentEnforcementPolicyType.Minimum,
     payment: '1',
     matchingList: [
-      // Temporary workaround for testing milkywaytestnet->bsctestnet.
-      {
-        originDomain: getDomainId('milkywaytestnet'),
-        destinationDomain: getDomainId('bsctestnet'),
-      },
-      // Temporary workaround for testing bsctestnet->milkywaytestnet.
-      {
-        originDomain: getDomainId('bsctestnet'),
-        destinationDomain: getDomainId('milkywaytestnet'),
-      },
       // Workaround for gas price fluctuations
       // Works in tandem with increased igp overhead
       {
@@ -359,7 +346,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '26d9ace-20251216-085234',
+      tag: 'cd94774-20251217-100437',
     },
     blacklist: [...releaseCandidateHelloworldMatchingList, ...relayBlacklist],
     gasPaymentEnforcement,
@@ -380,7 +367,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'b876079-20251210-171259',
+      tag: 'cd94774-20251217-100437',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
     resources: validatorResources,
@@ -389,7 +376,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '26d9ace-20251216-085234',
+      tag: 'f50feaa-20251219-084739',
     },
     resources: scraperResources,
   },
@@ -404,7 +391,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'fb1c63e-20251211-132905',
+      tag: 'cd94774-20251217-100437',
     },
     blacklist: relayBlacklist,
     gasPaymentEnforcement,
@@ -425,7 +412,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '20c24dc-20251106-222459',
+      tag: 'cd94774-20251217-100437',
     },
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
     resources: validatorResources,
@@ -452,7 +439,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '20c24dc-20251106-222459',
+      tag: 'cd94774-20251217-100437',
     },
     blacklist: relayBlacklist,
     gasPaymentEnforcement,
@@ -473,7 +460,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '20c24dc-20251106-222459',
+      tag: 'cd94774-20251217-100437',
     },
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
     resources: validatorResources,

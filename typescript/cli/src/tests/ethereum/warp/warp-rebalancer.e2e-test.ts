@@ -10,12 +10,14 @@ import {
   HypERC20Collateral__factory,
   MockValueTransferBridge__factory,
 } from '@hyperlane-xyz/core';
-import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
 import {
-  ChainMetadata,
   RebalancerConfigFileInput,
   RebalancerMinAmountType,
   RebalancerStrategyOptions,
+} from '@hyperlane-xyz/rebalancer';
+import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
+import {
+  ChainMetadata,
   TokenType,
   WarpCoreConfig,
   WarpRouteDeployConfig,

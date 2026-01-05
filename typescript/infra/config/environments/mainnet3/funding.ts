@@ -36,7 +36,7 @@ export const keyFunderConfig: KeyFunderConfig<
 > = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-    tag: '8da6852-20251215-172511',
+    tag: '642fd5a-20251224-125413',
   },
   // We're currently using the same deployer/key funder key as mainnet2.
   // To minimize nonce clobbering we offset the key funder cron
@@ -50,7 +50,7 @@ export const keyFunderConfig: KeyFunderConfig<
     [Contexts.Hyperlane]: [Role.Relayer, Role.Kathy, Role.Rebalancer],
     [Contexts.ReleaseCandidate]: [Role.Relayer, Role.Kathy],
   },
-  chainsToSkip: ['inevm', 'form', 'mint'],
+  chainsToSkip: [],
   // desired balance config, must be set for each chain
   desiredBalancePerChain: desiredRelayerBalancePerChain,
   // if not set, keyfunder defaults to 0
@@ -70,7 +70,6 @@ export const keyFunderConfig: KeyFunderConfig<
     fraxtal: '0',
     fusemainnet: '0',
     gnosis: '100',
-    inevm: '0.05',
     linea: '0',
     lisk: '0',
     lukso: '0',
@@ -78,7 +77,6 @@ export const keyFunderConfig: KeyFunderConfig<
     mantle: '0',
     merlin: '0',
     metis: '0',
-    mint: '0',
     mode: '0',
     moonbeam: '250',
     optimism: '0.1',
@@ -97,10 +95,8 @@ export const keyFunderConfig: KeyFunderConfig<
     zircuit: '0',
     zoramainnet: '0',
     // ignore non-evm chains
-    injective: '0',
-    neutron: '0',
-    osmosis: '0',
     eclipsemainnet: '0',
+    neutron: '0',
     solanamainnet: '0',
     soon: '0',
     sonicsvm: '0',
@@ -124,7 +120,6 @@ export const keyFunderConfig: KeyFunderConfig<
     fraxtal: '0.1',
     fusemainnet: '10',
     gnosis: '5',
-    inevm: '3',
     linea: '0.1',
     lisk: '0.025',
     lukso: '10',
@@ -132,7 +127,6 @@ export const keyFunderConfig: KeyFunderConfig<
     mantle: '10',
     merlin: '0.001',
     metis: '1',
-    mint: '0.025',
     mode: '0.1',
     moonbeam: '5',
     optimism: '0.1',
@@ -151,10 +145,8 @@ export const keyFunderConfig: KeyFunderConfig<
     zircuit: '0.01',
     zoramainnet: '0.1',
     // ignore non-evm chains
-    injective: '0',
-    neutron: '0',
-    osmosis: '0',
     eclipsemainnet: '0',
+    neutron: '0',
     solanamainnet: '0',
     soon: '0',
     sonicsvm: '0',
