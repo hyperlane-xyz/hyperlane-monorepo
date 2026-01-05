@@ -98,64 +98,74 @@ export const StrategyConfigSchema = z.discriminatedUnion('rebalanceStrategy', [
   CollateralDeficitStrategySchema,
 ]);
 
+// Strategy config is always an array (single strategy = array with 1 element)
+export const RebalancerStrategySchema = z.array(StrategyConfigSchema).min(1);
+
 export const RebalancerConfigSchema = z
   .object({
     warpRouteId: z.string(),
-    strategy: StrategyConfigSchema,
+    strategy: RebalancerStrategySchema,
   })
   .superRefine((config, ctx) => {
-    const chainNames = new Set(Object.keys(config.strategy.chains));
-    // Check each chain's overrides
-    for (const [chainName, chainConfig] of Object.entries(
-      config.strategy.chains,
-    )) {
-      if (chainConfig.override) {
-        for (const overrideChainName of Object.keys(chainConfig.override)) {
-          // Each override key must reference a valid chain
-          if (!chainNames.has(overrideChainName)) {
-            ctx.addIssue({
-              code: z.ZodIssueCode.custom,
-              message: `Chain '${chainName}' has an override for '${overrideChainName}', but '${overrideChainName}' is not defined in the config`,
-              path: [
-                'strategy',
-                'chains',
-                chainName,
-                'override',
-                overrideChainName,
-              ],
-            });
-          }
+    // Validate each strategy in the array
+    for (
+      let strategyIndex = 0;
+      strategyIndex < config.strategy.length;
+      strategyIndex++
+    ) {
+      const strategy = config.strategy[strategyIndex];
+      const chainNames = new Set(Object.keys(strategy.chains));
 
-          // Override shouldn't be self-referencing
-          if (chainName === overrideChainName) {
-            ctx.addIssue({
-              code: z.ZodIssueCode.custom,
-              message: `Chain '${chainName}' has an override for '${chainName}', but '${chainName}' is self-referencing`,
-              path: [
-                'strategy',
-                'chains',
-                chainName,
-                'override',
-                overrideChainName,
-              ],
-            });
+      // Check each chain's overrides
+      for (const [chainName, chainConfig] of Object.entries(strategy.chains)) {
+        if ('override' in chainConfig && chainConfig.override) {
+          for (const overrideChainName of Object.keys(chainConfig.override)) {
+            // Each override key must reference a valid chain
+            if (!chainNames.has(overrideChainName)) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: `Chain '${chainName}' has an override for '${overrideChainName}', but '${overrideChainName}' is not defined in the config`,
+                path: [
+                  'strategy',
+                  strategyIndex,
+                  'chains',
+                  chainName,
+                  'override',
+                  overrideChainName,
+                ],
+              });
+            }
+
+            // Override shouldn't be self-referencing
+            if (chainName === overrideChainName) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: `Chain '${chainName}' has an override for '${chainName}', but '${chainName}' is self-referencing`,
+                path: [
+                  'strategy',
+                  strategyIndex,
+                  'chains',
+                  chainName,
+                  'override',
+                  overrideChainName,
+                ],
+              });
+            }
           }
         }
       }
-    }
 
-    if (
-      config.strategy.rebalanceStrategy === RebalancerStrategyOptions.MinAmount
-    ) {
-      const minAmountChainsTypes = Object.values(config.strategy.chains).map(
-        (c) => c.minAmount.type,
-      );
-      if (new Set(minAmountChainsTypes).size > 1) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `All chains must use the same minAmount type.`,
-          path: ['strategy', 'chains'],
-        });
+      if (strategy.rebalanceStrategy === RebalancerStrategyOptions.MinAmount) {
+        const minAmountChainsTypes = Object.values(strategy.chains).map(
+          (c) => c.minAmount.type,
+        );
+        if (new Set(minAmountChainsTypes).size > 1) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `All chains must use the same minAmount type.`,
+            path: ['strategy', strategyIndex, 'chains'],
+          });
+        }
       }
     }
   });
@@ -175,3 +185,30 @@ export type StrategyConfig = z.infer<typeof StrategyConfigSchema>;
 
 export type RebalancerConfig = z.infer<typeof RebalancerConfigSchema>;
 export type RebalancerConfigFileInput = z.input<typeof RebalancerConfigSchema>;
+
+/**
+ * Get all unique chain names from strategy config array.
+ */
+export function getStrategyChainNames(strategies: StrategyConfig[]): string[] {
+  const chainSet = new Set<string>();
+  for (const strategy of strategies) {
+    Object.keys(strategy.chains).forEach((chain) => chainSet.add(chain));
+  }
+  return Array.from(chainSet);
+}
+
+/**
+ * Get chain config from the first strategy that has it.
+ * Returns undefined if no strategy has the chain.
+ */
+export function getStrategyChainConfig(
+  strategies: StrategyConfig[],
+  chainName: string,
+): StrategyConfig['chains'][string] | undefined {
+  for (const strategy of strategies) {
+    if (chainName in strategy.chains) {
+      return strategy.chains[chainName];
+    }
+  }
+  return undefined;
+}
