@@ -9,6 +9,7 @@ import {
 import { assert, toWei } from '@hyperlane-xyz/utils';
 
 import { RebalancerConfig } from '../config/RebalancerConfig.js';
+import { getStrategyChainNames } from '../config/types.js';
 import { RebalancerContextFactory } from '../factories/RebalancerContextFactory.js';
 import {
   MonitorEvent,
@@ -287,7 +288,7 @@ export class RebalancerService {
     }
 
     const rawBalances = getRawBalances(
-      Object.keys(this.rebalancerConfig.strategyConfig.chains),
+      getStrategyChainNames(this.rebalancerConfig.strategyConfig),
       event,
       this.logger,
     );
