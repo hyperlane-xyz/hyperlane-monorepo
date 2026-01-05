@@ -22,7 +22,10 @@ contract IncrementalDomainRoutingIsm is DomainRoutingIsm {
     function _set(uint32 _domain, address _module) internal override {
         require(
             !_modules.contains(_domain),
-            string.concat("Domain already exists: ", _domain.toString())
+            string.concat(
+                "IncrementalDomainRoutingIsm: Domain already exists: ",
+                _domain.toString()
+            )
         );
         super._set(_domain, _module);
     }
