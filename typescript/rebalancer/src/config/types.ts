@@ -37,6 +37,7 @@ const RebalancerBridgeConfigSchema = z.object({
     .number()
     .positive()
     .transform((val) => val * 1_000)
+    .optional()
     .describe('Expected time in seconds for bridge to process a transfer'),
   bridgeIsWarp: z
     .boolean()
@@ -60,10 +61,10 @@ const MinAmountChainConfigSchema = RebalancerBaseChainConfigSchema.extend({
   minAmount: RebalancerMinAmountConfigSchema,
 });
 
-const CollateralDeficitChainConfigSchema = z.object({
-  bridge: z.string().regex(/0x[a-fA-F0-9]{40}/),
-  buffer: z.string().or(z.number()),
-});
+const CollateralDeficitChainConfigSchema =
+  RebalancerBaseChainConfigSchema.extend({
+    buffer: z.string().or(z.number()),
+  });
 
 const WeightedStrategySchema = z.object({
   rebalanceStrategy: z.literal(RebalancerStrategyOptions.Weighted),
