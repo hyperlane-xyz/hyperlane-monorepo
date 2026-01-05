@@ -1,14 +1,13 @@
 import { BigNumber } from 'bignumber.js';
 import { Logger } from 'pino';
 
-import {
-  type ChainMap,
-  type MinAmountStrategyConfig,
-  RebalancerMinAmountType,
-  type Token,
-} from '@hyperlane-xyz/sdk';
+import { type ChainMap, type Token } from '@hyperlane-xyz/sdk';
 import { fromWei, toWei } from '@hyperlane-xyz/utils';
 
+import {
+  type MinAmountStrategyConfig,
+  RebalancerMinAmountType,
+} from '../config/types.js';
 import type { RawBalances } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
 

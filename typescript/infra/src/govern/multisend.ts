@@ -104,12 +104,9 @@ export class SafeMultiSend extends MultiSend {
   private async proposeIndividualTransactions(calls: CallData[]) {
     for (const call of calls) {
       const safeTransactionData = createSafeTransactionData(call);
-      const safeTransaction = await createSafeTransaction(
-        this.safeSdk,
-        this.safeService,
-        this.safeAddress,
-        [safeTransactionData],
-      );
+      const safeTransaction = await createSafeTransaction(this.safeSdk, [
+        safeTransactionData,
+      ]);
       await this.proposeSafeTransaction(
         this.safeSdk,
         this.safeService,
@@ -125,8 +122,6 @@ export class SafeMultiSend extends MultiSend {
     );
     const safeTransaction = await createSafeTransaction(
       this.safeSdk,
-      this.safeService,
-      this.safeAddress,
       safeTransactionData,
       true,
     );

@@ -70,22 +70,18 @@ The warp-routes container
   env:
   - name: LOG_FORMAT
     value: json
-  - name: REGISTRY_COMMIT
-    value: {{ .Values.hyperlane.registryCommit }}
-  # Use `args` instead of `command` to preserve the Docker ENTRYPOINT.
-  # The entrypoint script (docker-entrypoint.sh) handles REGISTRY_COMMIT checkout.
-  # Using `command` would bypass the entrypoint and break registry version pinning.
-  args:
-  - pnpm
-  - exec
-  - tsx
-  - ./typescript/infra/scripts/warp-routes/monitor/monitor-warp-route-balances.ts
-  - -v
-  - "30000"
-  - --warpRouteId
-  - {{ .Values.warpRouteId }}
-  - -e
-  - {{ .Values.environment}}
+  - name: LOG_LEVEL
+    value: info
+  {{- if .Values.hyperlane.registryUri }}
+  - name: REGISTRY_URI
+    value: {{ .Values.hyperlane.registryUri }}
+  {{- end }}
+  - name: WARP_ROUTE_ID
+    value: {{ .Values.warpRouteId }}
+  - name: CHECK_FREQUENCY
+    value: "30000"
+  - name: COINGECKO_API_KEY
+    value: $(COINGECKO_API_KEY)
   envFrom:
   - secretRef:
       name: {{ include "hyperlane.fullname" . }}-secret

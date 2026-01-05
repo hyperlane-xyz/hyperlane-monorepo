@@ -107,6 +107,10 @@
     "amount": "2501.0",
     "decimals": 9
   },
+  "citrea": {
+    "amount": "0.0010001",
+    "decimals": 9
+  },
   "coredao": {
     "amount": "60.0",
     "decimals": 9
@@ -208,7 +212,7 @@
     "decimals": 9
   },
   "incentiv": {
-    "amount": "40001.0",
+    "amount": "13100.0",
     "decimals": 9
   },
   "ink": {
@@ -314,6 +318,10 @@
   "morph": {
     "amount": "0.1375",
     "decimals": 9
+  },
+  "neutron": {
+    "amount": "0.0053",
+    "decimals": 1
   },
   "nibiru": {
     "amount": "1000.0",

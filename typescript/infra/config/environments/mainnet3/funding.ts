@@ -36,7 +36,7 @@ export const keyFunderConfig: KeyFunderConfig<
 > = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-    tag: '8da6852-20251215-172511',
+    tag: '642fd5a-20251224-125413',
   },
   // We're currently using the same deployer/key funder key as mainnet2.
   // To minimize nonce clobbering we offset the key funder cron
@@ -96,6 +96,7 @@ export const keyFunderConfig: KeyFunderConfig<
     zoramainnet: '0',
     // ignore non-evm chains
     eclipsemainnet: '0',
+    neutron: '0',
     solanamainnet: '0',
     soon: '0',
     sonicsvm: '0',
@@ -145,6 +146,7 @@ export const keyFunderConfig: KeyFunderConfig<
     zoramainnet: '0.1',
     // ignore non-evm chains
     eclipsemainnet: '0',
+    neutron: '0',
     solanamainnet: '0',
     soon: '0',
     sonicsvm: '0',

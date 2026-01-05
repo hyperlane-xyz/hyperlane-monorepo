@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Install Foundry (Linux binaries) - pinned version for reproducibility
 ARG FOUNDRY_VERSION
+ARG SERVICE_VERSION=dev
 ARG TARGETARCH
 SHELL ["/bin/bash", "-c"]
 RUN set -o pipefail && \
@@ -93,9 +94,11 @@ COPY --from=builder /app ./
 COPY --from=builder /hyperlane-monorepo/typescript/ccip-server/prisma ./prisma
 
 # Environment variables
+ARG SERVICE_VERSION=dev
 ENV NODE_ENV=production
 ENV LOG_LEVEL=info
 ENV SERVER_PORT=3000
+ENV SERVICE_VERSION=${SERVICE_VERSION}
 
 # Expose ports
 EXPOSE 3000

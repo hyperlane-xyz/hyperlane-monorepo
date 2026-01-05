@@ -148,4 +148,8 @@ export const regularIcas: ChainMap<Address> = {
   lazai: '0xDFEa2EB38AA77EE41D50794aFaA34463EEabD4BB',
   megaeth: '0x8D628b83A2F915fab39f7F09e0cF7A3ea8F9bF42',
   adichain: '0xD0427bD81a0cDA1AdcdFb49DFDB95Ab3e059FFff',
+
+  // Jan 2, 2026
+  // ----------------------------------------------------------
+  citrea: '0x4fC003a348D6b244B01170D08CF69373c11FBf01',
 } as const;
