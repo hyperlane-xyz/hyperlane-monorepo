@@ -297,41 +297,88 @@ impl DbLoaderExt for MessageDbLoader {
                 return Ok(());
             }
 
-            // Read from RwLock to get current send_channels (may be updated during incremental startup)
-            let send_channels_read = self.send_channels.read().await;
+            // Wait for the destination to become ready (during incremental startup, destinations
+            // may not be ready when messages are first indexed). We hold onto the message and
+            // wait rather than skipping, because the iterator has already advanced past this
+            // message and we can't go back to it.
+            const MAX_DESTINATION_WAIT_SECS: u64 = 300; // 5 minutes max wait
+            const DESTINATION_CHECK_INTERVAL_MS: u64 = 500;
+            let max_attempts = (MAX_DESTINATION_WAIT_SECS * 1000) / DESTINATION_CHECK_INTERVAL_MS;
 
-            // Skip if the message is intended for a destination we do not service
-            if !send_channels_read.contains_key(&destination) {
-                debug!(?msg, "Message destined for unknown domain, skipping");
-                return Ok(());
-            }
+            let mut attempts = 0;
+            loop {
+                // Read from RwLock to get current send_channels (may be updated during incremental startup)
+                let send_channels_read = self.send_channels.read().await;
 
-            // Read from msg_ctxs to get the message context dynamically.
-            // This allows new destinations to be seen during incremental startup.
-            let msg_ctxs_read = self.msg_ctxs.read().await;
+                if send_channels_read.contains_key(&destination) {
+                    // Destination is ready, continue processing
+                    break;
+                }
 
-            // Find the message context for this (origin, destination) pair by iterating
-            // through the map. We match on origin_domain and destination ID.
-            let destination_msg_ctx = msg_ctxs_read
-                .iter()
-                .find(|(key, _)| {
-                    key.origin == self.origin_domain && key.destination.id() == destination
-                })
-                .map(|(_, ctx)| ctx.clone());
+                drop(send_channels_read);
+                attempts += 1;
 
-            let destination_msg_ctx = match destination_msg_ctx {
-                Some(ctx) => ctx,
-                None => {
+                if attempts >= max_attempts {
                     debug!(
                         ?msg,
-                        "Message destined for unknown message context, skipping",
+                        "Message destined for unknown domain after max wait, skipping"
                     );
                     return Ok(());
                 }
-            };
 
-            // Drop the read lock before the async operation
-            drop(msg_ctxs_read);
+                if attempts == 1 {
+                    debug!(
+                        ?msg,
+                        "Message destined for unknown domain, waiting for destination to become ready"
+                    );
+                }
+
+                tokio::time::sleep(Duration::from_millis(DESTINATION_CHECK_INTERVAL_MS)).await;
+            }
+
+            // Re-acquire the lock after waiting
+            let send_channels_read = self.send_channels.read().await;
+
+            // Read from msg_ctxs to get the message context dynamically.
+            // This allows new destinations to be seen during incremental startup.
+            // Wait for the context to become available too.
+            let mut attempts = 0;
+            let destination_msg_ctx = loop {
+                let msg_ctxs_read = self.msg_ctxs.read().await;
+
+                // Find the message context for this (origin, destination) pair by iterating
+                // through the map. We match on origin_domain and destination ID.
+                let ctx = msg_ctxs_read
+                    .iter()
+                    .find(|(key, _)| {
+                        key.origin == self.origin_domain && key.destination.id() == destination
+                    })
+                    .map(|(_, ctx)| ctx.clone());
+
+                if let Some(ctx) = ctx {
+                    break ctx;
+                }
+
+                drop(msg_ctxs_read);
+                attempts += 1;
+
+                if attempts >= max_attempts {
+                    debug!(
+                        ?msg,
+                        "Message destined for unknown message context after max wait, skipping",
+                    );
+                    return Ok(());
+                }
+
+                if attempts == 1 {
+                    debug!(
+                        ?msg,
+                        "Message context not ready, waiting for destination to be fully initialized"
+                    );
+                }
+
+                tokio::time::sleep(Duration::from_millis(DESTINATION_CHECK_INTERVAL_MS)).await;
+            };
 
             debug!(%msg, "Sending message to submitter");
 
