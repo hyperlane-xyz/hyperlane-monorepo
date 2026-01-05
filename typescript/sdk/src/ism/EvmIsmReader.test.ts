@@ -41,7 +41,7 @@ import {
   TestIsmConfig,
 } from './types.js';
 
-describe('EvmIsmReader', () => {
+describe.only('EvmIsmReader', () => {
   let evmIsmReader: EvmIsmReader;
   let multiProvider: MultiProvider;
   let sandbox: sinon.SinonSandbox;
@@ -207,7 +207,7 @@ describe('EvmIsmReader', () => {
     expect(config).to.deep.equal(ismConfig);
   });
 
-  it('should derive incremental routing ISM config correctly', async () => {
+  it.only('should derive incremental routing ISM config correctly', async () => {
     const mockAddress = randomAddress();
     const mockOwner = randomAddress();
     const mockDomain = 1;

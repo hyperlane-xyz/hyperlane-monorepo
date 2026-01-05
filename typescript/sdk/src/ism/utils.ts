@@ -320,6 +320,7 @@ export async function moduleMatchesConfig(
       break;
     }
     case IsmType.FALLBACK_ROUTING:
+    case IsmType.INCREMENTAL_ROUTING:
     case IsmType.ROUTING: {
       // A RoutingIsm matches if:
       //   1. The set of domains in the config equals those on-chain

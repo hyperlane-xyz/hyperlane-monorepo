@@ -346,11 +346,11 @@ export const RoutingIsmConfigSchema: z.ZodSchema<RoutingIsmConfig> = z.lazy(
         threshold: z.number(),
       }),
       OwnableSchema.extend({
-        type: z.literal(IsmType.ROUTING),
-        domains: z.record(IsmConfigSchema),
-      }),
-      OwnableSchema.extend({
-        type: z.literal(IsmType.FALLBACK_ROUTING),
+        type: z.enum([
+          IsmType.ROUTING,
+          IsmType.FALLBACK_ROUTING,
+          IsmType.INCREMENTAL_ROUTING,
+        ]),
         domains: z.record(IsmConfigSchema),
       }),
       InterchainAccountRouterIsmSchema,
