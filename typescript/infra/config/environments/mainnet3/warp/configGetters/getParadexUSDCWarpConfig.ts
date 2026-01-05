@@ -114,9 +114,6 @@ export const getParadexUSDCWarpConfig = async (
               owner,
               allowedRebalancers,
               allowedRebalancingBridges,
-              ...(['arbitrum', 'base', 'ethereum'].includes(currentChain)
-                ? { contractVersion: '8.1.1' }
-                : {}),
             },
           ];
         }
