@@ -711,11 +711,12 @@ jobs:
     needs: e2e-matrix
     if: always()
     steps:
+      - uses: actions/checkout@v6
       - name: Check e2e matrix status
-        if: ${{ needs.e2e-matrix.result != 'success' }}
-        run: |
-          echo "E2E tests failed"
-          exit 1
+        uses: ./.github/actions/check-job-status
+        with:
+          job_name: 'E2E'
+          result: ${{ needs.e2e-matrix.result }}
 
   env-test-matrix:
     runs-on: depot-ubuntu-latest
