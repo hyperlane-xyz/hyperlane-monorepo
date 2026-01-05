@@ -212,7 +212,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     abstract: true,
     // acala: true,
     aleo: true,
-    adichain: false, // RPC issues cause significant startup delays
+    adichain: true,
     ancient8: true,
     apechain: true,
     appchain: true,
@@ -355,7 +355,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     abstract: true,
     // acala: true,
     aleo: true,
-    adichain: false, // RPC issues cause significant startup delays
+    adichain: true,
     ancient8: true,
     apechain: true,
     appchain: true,
