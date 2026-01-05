@@ -14,27 +14,11 @@ interface IInterchainGasPaymaster {
      * @param messageId The ID of the message to pay for.
      * @param destinationDomain The domain of the destination chain.
      * @param gasAmount The amount of destination gas paid for.
-     * @param payment The amount of native tokens paid.
+     * @param payment The amount of tokens paid.
      */
     event GasPayment(
         bytes32 indexed messageId,
         uint32 indexed destinationDomain,
-        uint256 gasAmount,
-        uint256 payment
-    );
-
-    /**
-     * @notice Emitted when a payment is made using ERC20 tokens for gas costs.
-     * @param messageId The ID of the message to pay for.
-     * @param destinationDomain The domain of the destination chain.
-     * @param feeToken The ERC20 token used for payment.
-     * @param gasAmount The amount of destination gas paid for.
-     * @param payment The amount of tokens paid.
-     */
-    event TokenGasPayment(
-        bytes32 indexed messageId,
-        uint32 indexed destinationDomain,
-        address indexed feeToken,
         uint256 gasAmount,
         uint256 payment
     );

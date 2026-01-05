@@ -48,13 +48,6 @@ contract InterchainGasPaymasterTest is Test {
         uint256 gasLimit,
         uint256 payment
     );
-    event TokenGasPayment(
-        bytes32 indexed messageId,
-        uint32 indexed destinationDomain,
-        address indexed feeToken,
-        uint256 gasAmount,
-        uint256 payment
-    );
     event BeneficiarySet(address beneficiary);
     event DestinationGasConfigSet(
         uint32 remoteDomain,
@@ -731,14 +724,8 @@ contract InterchainGasPaymasterTest is Test {
         );
 
         bytes32 messageId = keccak256(testEncodedMessage);
-        vm.expectEmit(true, true, true, true);
-        emit TokenGasPayment(
-            messageId,
-            testDestinationDomain,
-            address(feeToken),
-            totalGas,
-            quote
-        );
+        vm.expectEmit(true, true, false, true);
+        emit GasPayment(messageId, testDestinationDomain, totalGas, quote);
 
         igp.postDispatch{value: 0}(metadata, testEncodedMessage);
 

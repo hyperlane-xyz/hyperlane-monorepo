@@ -406,10 +406,9 @@ contract InterchainGasPaymaster is
                 value: _payment
             });
 
-            emit TokenGasPayment(
+            emit GasPayment(
                 message.id(),
                 _destinationDomain,
-                _feeToken,
                 _totalGasLimit,
                 _payment
             );
