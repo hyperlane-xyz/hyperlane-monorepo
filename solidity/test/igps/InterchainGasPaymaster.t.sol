@@ -727,8 +727,7 @@ contract InterchainGasPaymasterTest is Test {
             0,
             testGasLimit,
             testRefundAddress,
-            address(feeToken),
-            ""
+            address(feeToken)
         );
 
         bytes32 messageId = keccak256(testEncodedMessage);
@@ -760,8 +759,7 @@ contract InterchainGasPaymasterTest is Test {
             0,
             testGasLimit,
             testRefundAddress,
-            address(feeToken),
-            ""
+            address(feeToken)
         );
 
         vm.expectRevert("ERC20: insufficient allowance");
@@ -779,8 +777,7 @@ contract InterchainGasPaymasterTest is Test {
             0,
             testGasLimit,
             testRefundAddress,
-            address(feeToken),
-            ""
+            address(feeToken)
         );
 
         // gasLimit (300000) + gasOverhead (123000) = 423000
@@ -813,8 +810,7 @@ contract InterchainGasPaymasterTest is Test {
             0,
             testGasLimit,
             testRefundAddress,
-            address(feeToken),
-            ""
+            address(feeToken)
         );
         igp.postDispatch{value: 0}(metadata, testEncodedMessage);
 
@@ -843,8 +839,7 @@ contract InterchainGasPaymasterTest is Test {
             0,
             testGasLimit,
             testRefundAddress,
-            address(feeToken),
-            ""
+            address(feeToken)
         );
         assertTrue(igp.supportsMetadata(metadata));
     }
