@@ -12,7 +12,10 @@ use async_trait::async_trait;
 use axum::Router;
 use derive_more::AsRef;
 use eyre::Result;
-use futures_util::future::{select_all, try_join_all};
+use futures_util::{
+    future::try_join_all,
+    stream::{FuturesUnordered, StreamExt},
+};
 use tokio::{
     sync::{
         broadcast::Sender as BroadcastSender,
@@ -946,7 +949,7 @@ impl Relayer {
         let mut dest_retry_counts: HashMap<HyperlaneDomain, u32> = HashMap::new();
 
         let gas_payment_enforcement = settings.gas_payment_enforcement.clone();
-        let mut origin_futures: Vec<OriginInitFuture> = settings
+        let mut origin_futures: FuturesUnordered<OriginInitFuture> = settings
             .chains
             .iter()
             .map(|(domain, chain)| {
@@ -960,7 +963,7 @@ impl Relayer {
             })
             .collect();
 
-        let mut dest_futures: Vec<DestinationInitFuture> = settings
+        let mut dest_futures: FuturesUnordered<DestinationInitFuture> = settings
             .chains
             .iter()
             .map(|(domain, chain)| {
@@ -994,91 +997,87 @@ impl Relayer {
             tokio::select! {
                 biased;
 
-                result = Self::poll_next_origin(&mut origin_futures), if !origin_futures.is_empty() => {
-                    if let Some((domain, outcome)) = result {
-                        match outcome {
-                            Ok(origin) => {
-                                info!(domain = %domain.name(), "Origin chain ready");
-                                ready_origins.insert(domain, origin);
-                            }
-                            Err(err) => {
-                                let retry_count = origin_retry_counts.entry(domain.clone()).or_insert(0);
-                                *retry_count = retry_count.saturating_add(1);
+                Some((domain, outcome)) = origin_futures.next(), if !origin_futures.is_empty() => {
+                    match outcome {
+                        Ok(origin) => {
+                            info!(domain = %domain.name(), "Origin chain ready");
+                            ready_origins.insert(domain, origin);
+                        }
+                        Err(err) => {
+                            let retry_count = origin_retry_counts.entry(domain.clone()).or_insert(0);
+                            *retry_count = retry_count.saturating_add(1);
 
-                                if *retry_count < CHAIN_INIT_MAX_RETRIES {
-                                    let delay = Self::calculate_retry_delay(*retry_count);
-                                    warn!(
-                                        domain = %domain.name(),
-                                        retry_count = *retry_count,
-                                        max_retries = CHAIN_INIT_MAX_RETRIES,
-                                        delay_secs = delay.as_secs(),
-                                        error = %err,
-                                        "Origin chain initialization failed, scheduling retry"
-                                    );
+                            if *retry_count < CHAIN_INIT_MAX_RETRIES {
+                                let delay = Self::calculate_retry_delay(*retry_count);
+                                warn!(
+                                    domain = %domain.name(),
+                                    retry_count = *retry_count,
+                                    max_retries = CHAIN_INIT_MAX_RETRIES,
+                                    delay_secs = delay.as_secs(),
+                                    error = %err,
+                                    "Origin chain initialization failed, scheduling retry"
+                                );
 
-                                    if let Some(chain_conf) = settings.chains.get(&domain) {
-                                        let retry_future = Self::create_origin_init_future(
-                                            domain,
-                                            chain_conf.clone(),
-                                            origin_factory.clone(),
-                                            gas_payment_enforcement.clone(),
-                                            delay.as_secs(),
-                                        );
-                                        origin_futures.push(retry_future);
-                                    }
-                                } else {
-                                    Self::record_critical_error(
-                                        &domain,
-                                        chain_metrics,
-                                        &err,
-                                        "Critical error when building chain as origin (max retries exceeded)",
+                                if let Some(chain_conf) = settings.chains.get(&domain) {
+                                    let retry_future = Self::create_origin_init_future(
+                                        domain,
+                                        chain_conf.clone(),
+                                        origin_factory.clone(),
+                                        gas_payment_enforcement.clone(),
+                                        delay.as_secs(),
                                     );
+                                    origin_futures.push(retry_future);
                                 }
+                            } else {
+                                Self::record_critical_error(
+                                    &domain,
+                                    chain_metrics,
+                                    &err,
+                                    "Critical error when building chain as origin (max retries exceeded)",
+                                );
                             }
                         }
                     }
                 }
 
-                result = Self::poll_next_destination(&mut dest_futures), if !dest_futures.is_empty() => {
-                    if let Some((domain, outcome)) = result {
-                        match outcome {
-                            Ok(destination) => {
-                                info!(domain = %domain.name(), "Destination chain ready");
-                                ready_destinations.insert(domain, destination);
-                            }
-                            Err(err) => {
-                                let retry_count = dest_retry_counts.entry(domain.clone()).or_insert(0);
-                                *retry_count = retry_count.saturating_add(1);
+                Some((domain, outcome)) = dest_futures.next(), if !dest_futures.is_empty() => {
+                    match outcome {
+                        Ok(destination) => {
+                            info!(domain = %domain.name(), "Destination chain ready");
+                            ready_destinations.insert(domain, destination);
+                        }
+                        Err(err) => {
+                            let retry_count = dest_retry_counts.entry(domain.clone()).or_insert(0);
+                            *retry_count = retry_count.saturating_add(1);
 
-                                if *retry_count < CHAIN_INIT_MAX_RETRIES {
-                                    let delay = Self::calculate_retry_delay(*retry_count);
-                                    warn!(
-                                        domain = %domain.name(),
-                                        retry_count = *retry_count,
-                                        max_retries = CHAIN_INIT_MAX_RETRIES,
-                                        delay_secs = delay.as_secs(),
-                                        error = %err,
-                                        "Destination chain initialization failed, scheduling retry"
-                                    );
+                            if *retry_count < CHAIN_INIT_MAX_RETRIES {
+                                let delay = Self::calculate_retry_delay(*retry_count);
+                                warn!(
+                                    domain = %domain.name(),
+                                    retry_count = *retry_count,
+                                    max_retries = CHAIN_INIT_MAX_RETRIES,
+                                    delay_secs = delay.as_secs(),
+                                    error = %err,
+                                    "Destination chain initialization failed, scheduling retry"
+                                );
 
-                                    if let Some(chain_conf) = settings.chains.get(&domain) {
-                                        let retry_future = Self::create_destination_init_future(
-                                            domain,
-                                            chain_conf.clone(),
-                                            dest_factory.clone(),
-                                            dispatcher_metrics.clone(),
-                                            delay.as_secs(),
-                                        );
-                                        dest_futures.push(retry_future);
-                                    }
-                                } else {
-                                    Self::record_critical_error(
-                                        &domain,
-                                        chain_metrics,
-                                        &err,
-                                        "Critical error when building chain as destination (max retries exceeded)",
+                                if let Some(chain_conf) = settings.chains.get(&domain) {
+                                    let retry_future = Self::create_destination_init_future(
+                                        domain,
+                                        chain_conf.clone(),
+                                        dest_factory.clone(),
+                                        dispatcher_metrics.clone(),
+                                        delay.as_secs(),
                                     );
+                                    dest_futures.push(retry_future);
                                 }
+                            } else {
+                                Self::record_critical_error(
+                                    &domain,
+                                    chain_metrics,
+                                    &err,
+                                    "Critical error when building chain as destination (max retries exceeded)",
+                                );
                             }
                         }
                     }
@@ -1141,37 +1140,16 @@ impl Relayer {
                 );
             });
 
+        // Convert FuturesUnordered to Vec for the pending futures
+        let pending_origin_futures: Vec<OriginInitFuture> = origin_futures.into_iter().collect();
+        let pending_dest_futures: Vec<DestinationInitFuture> = dest_futures.into_iter().collect();
+
         Ok((
             ready_origins,
-            origin_futures,
+            pending_origin_futures,
             ready_destinations,
-            dest_futures,
+            pending_dest_futures,
         ))
-    }
-
-    async fn poll_next_origin(
-        futures: &mut Vec<OriginInitFuture>,
-    ) -> Option<(HyperlaneDomain, Result<Origin, origin::FactoryError>)> {
-        if futures.is_empty() {
-            return None;
-        }
-        let (result, _index, remaining) = select_all(futures.drain(..)).await;
-        *futures = remaining;
-        Some(result)
-    }
-
-    async fn poll_next_destination(
-        futures: &mut Vec<DestinationInitFuture>,
-    ) -> Option<(
-        HyperlaneDomain,
-        Result<Destination, destination::FactoryError>,
-    )> {
-        if futures.is_empty() {
-            return None;
-        }
-        let (result, _index, remaining) = select_all(futures.drain(..)).await;
-        *futures = remaining;
-        Some(result)
     }
 
     /// Calculate exponential backoff delay for retry attempts.
@@ -1551,136 +1529,136 @@ impl Relayer {
         tokio::spawn(
             async move {
                 let PendingChainInit {
-                    mut origin_futures,
-                    mut destination_futures,
+                    origin_futures,
+                    destination_futures,
                 } = pending_init;
+
+                // Convert to FuturesUnordered to avoid futures being lost when select! switches branches
+                let mut origin_futures: FuturesUnordered<OriginInitFuture> = origin_futures.into_iter().collect();
+                let mut destination_futures: FuturesUnordered<DestinationInitFuture> = destination_futures.into_iter().collect();
 
                 while !origin_futures.is_empty() || !destination_futures.is_empty() {
                     tokio::select! {
                         biased;
 
-                        result = Self::poll_next_origin(&mut origin_futures), if !origin_futures.is_empty() => {
-                            if let Some((domain, outcome)) = result {
-                                match outcome {
-                                    Ok(origin) => {
-                                        info!(domain = %domain.name(), "Background: Origin chain ready");
+                        Some((domain, outcome)) = origin_futures.next(), if !origin_futures.is_empty() => {
+                            match outcome {
+                                Ok(origin) => {
+                                    info!(domain = %domain.name(), "Background: Origin chain ready");
 
-                                        origins.write().await.insert(domain.clone(), origin);
+                                    origins.write().await.insert(domain.clone(), origin);
 
-                                        let origins_read = origins.read().await;
-                                        let destinations_read = destinations.read().await;
+                                    let origins_read = origins.read().await;
+                                    let destinations_read = destinations.read().await;
 
-                                        if let Some(origin_ref) = origins_read.get(&domain) {
-                                            let new_contexts = Self::build_message_contexts(
-                                                std::iter::once((&domain, origin_ref)),
-                                                destinations_read.iter(),
-                                                &skip_transaction_gas_limit_for,
-                                                transaction_gas_limit,
-                                                allow_local_checkpoint_syncers,
-                                                &core_metrics,
-                                                &_cache,
-                                                &metric_app_contexts,
-                                                &ism_cache_configs,
-                                                &core_metrics,
-                                            );
-
-                                            msg_ctxs.write().await.extend(new_contexts);
-
-                                            let send_channels_read = send_channels.read().await;
-                                            let origin_tasks = Self::spawn_origin_tasks_static(
-                                                &domain,
-                                                origin_ref,
-                                                &send_channels_read,
-                                                task_monitor.clone(),
-                                                &chain_metrics,
-                                                &core_metrics,
-                                                &destinations,
-                                                &msg_ctxs,
-                                                &message_whitelist,
-                                                &message_blacklist,
-                                                &address_blacklist,
-                                                &metric_app_contexts,
-                                                max_retries,
-                                            ).await;
-                                            drop(send_channels_read);
-
-                                            for task in origin_tasks {
-                                                tokio::spawn(async move {
-                                                    let _ = task.await;
-                                                });
-                                            }
-                                        }
-                                    }
-                                    Err(err) => {
-                                        Self::record_critical_error(
-                                            &domain,
-                                            &chain_metrics,
-                                            &err,
-                                            "Background: Critical error when building chain as origin",
+                                    if let Some(origin_ref) = origins_read.get(&domain) {
+                                        let new_contexts = Self::build_message_contexts(
+                                            std::iter::once((&domain, origin_ref)),
+                                            destinations_read.iter(),
+                                            &skip_transaction_gas_limit_for,
+                                            transaction_gas_limit,
+                                            allow_local_checkpoint_syncers,
+                                            &core_metrics,
+                                            &_cache,
+                                            &metric_app_contexts,
+                                            &ism_cache_configs,
+                                            &core_metrics,
                                         );
-                                    }
-                                }
-                            }
-                        }
 
-                        result = Self::poll_next_destination(&mut destination_futures), if !destination_futures.is_empty() => {
-                            if let Some((domain, outcome)) = result {
-                                match outcome {
-                                    Ok(destination) => {
-                                        info!(domain = %domain.name(), "Background: Destination chain ready");
+                                        msg_ctxs.write().await.extend(new_contexts);
 
-                                        let origins_read = origins.read().await;
-                                        let dest_tasks = Self::spawn_destination_tasks_static(
+                                        let send_channels_read = send_channels.read().await;
+                                        let origin_tasks = Self::spawn_origin_tasks_static(
                                             &domain,
-                                            &destination,
-                                            &origins_read,
-                                            &sender,
-                                            send_channels.clone(),
-                                            prep_queues.clone(),
+                                            origin_ref,
+                                            &send_channels_read,
                                             task_monitor.clone(),
                                             &chain_metrics,
-                                            &chain_settings,
                                             &core_metrics,
-                                            &agent_metrics,
+                                            &destinations,
+                                            &msg_ctxs,
+                                            &message_whitelist,
+                                            &message_blacklist,
+                                            &address_blacklist,
+                                            &metric_app_contexts,
+                                            max_retries,
                                         ).await;
-                                        drop(origins_read);
+                                        drop(send_channels_read);
 
-                                        destinations.write().await.insert(domain.clone(), destination);
-
-                                        let origins_read = origins.read().await;
-                                        let destinations_read = destinations.read().await;
-
-                                        if let Some(dest_ref) = destinations_read.get(&domain) {
-                                            let new_contexts = Self::build_message_contexts(
-                                                origins_read.iter(),
-                                                std::iter::once((&domain, dest_ref)),
-                                                &skip_transaction_gas_limit_for,
-                                                transaction_gas_limit,
-                                                allow_local_checkpoint_syncers,
-                                                &core_metrics,
-                                                &_cache,
-                                                &metric_app_contexts,
-                                                &ism_cache_configs,
-                                                &core_metrics,
-                                            );
-
-                                            msg_ctxs.write().await.extend(new_contexts);
-                                        }
-
-                                        for task in dest_tasks {
+                                        for task in origin_tasks {
                                             tokio::spawn(async move {
                                                 let _ = task.await;
                                             });
                                         }
                                     }
-                                    Err(err) => {
-                                        Self::record_critical_error(
-                                            &domain,
-                                            &chain_metrics,
-                                            &err,
-                                            "Background: Critical error when building chain as destination",
+                                }
+                                Err(err) => {
+                                    Self::record_critical_error(
+                                        &domain,
+                                        &chain_metrics,
+                                        &err,
+                                        "Background: Critical error when building chain as origin",
+                                    );
+                                }
+                            }
+                        }
+
+                        Some((domain, outcome)) = destination_futures.next(), if !destination_futures.is_empty() => {
+                            match outcome {
+                                Ok(destination) => {
+                                    info!(domain = %domain.name(), "Background: Destination chain ready");
+
+                                    let origins_read = origins.read().await;
+                                    let dest_tasks = Self::spawn_destination_tasks_static(
+                                        &domain,
+                                        &destination,
+                                        &origins_read,
+                                        &sender,
+                                        send_channels.clone(),
+                                        prep_queues.clone(),
+                                        task_monitor.clone(),
+                                        &chain_metrics,
+                                        &chain_settings,
+                                        &core_metrics,
+                                        &agent_metrics,
+                                    ).await;
+                                    drop(origins_read);
+
+                                    destinations.write().await.insert(domain.clone(), destination);
+
+                                    let origins_read = origins.read().await;
+                                    let destinations_read = destinations.read().await;
+
+                                    if let Some(dest_ref) = destinations_read.get(&domain) {
+                                        let new_contexts = Self::build_message_contexts(
+                                            origins_read.iter(),
+                                            std::iter::once((&domain, dest_ref)),
+                                            &skip_transaction_gas_limit_for,
+                                            transaction_gas_limit,
+                                            allow_local_checkpoint_syncers,
+                                            &core_metrics,
+                                            &_cache,
+                                            &metric_app_contexts,
+                                            &ism_cache_configs,
+                                            &core_metrics,
                                         );
+
+                                        msg_ctxs.write().await.extend(new_contexts);
                                     }
+
+                                    for task in dest_tasks {
+                                        tokio::spawn(async move {
+                                            let _ = task.await;
+                                        });
+                                    }
+                                }
+                                Err(err) => {
+                                    Self::record_critical_error(
+                                        &domain,
+                                        &chain_metrics,
+                                        &err,
+                                        "Background: Critical error when building chain as destination",
+                                    );
                                 }
                             }
                         }
