@@ -310,7 +310,7 @@ contract InterchainGasPaymasterTest is Test {
     function testQuoteGasPaymentRevertsIfNoGasOracleSet() public {
         uint32 _unknownDomain = 22222;
 
-        vm.expectRevert("Configured IGP doesn't support domain 22222");
+        vm.expectRevert("IGP: no gas oracle for domain 22222");
         igp.quoteGasPayment(_unknownDomain, testGasLimit);
     }
 
@@ -679,7 +679,7 @@ contract InterchainGasPaymasterTest is Test {
     function testQuoteGasPaymentWithToken_reverts_unsupportedToken() public {
         address unsupportedToken = address(0xDEAD);
 
-        vm.expectRevert("IGP: unsupported token-domain");
+        vm.expectRevert("IGP: no gas oracle for domain 11111");
         igp.quoteGasPaymentWithToken(
             unsupportedToken,
             testDestinationDomain,
@@ -690,7 +690,7 @@ contract InterchainGasPaymasterTest is Test {
     function testQuoteGasPaymentWithToken_reverts_unsupportedDomain() public {
         uint32 unsupportedDomain = 99999;
 
-        vm.expectRevert("IGP: unsupported token-domain");
+        vm.expectRevert("IGP: no gas oracle for domain 99999");
         igp.quoteGasPaymentWithToken(
             address(feeToken),
             unsupportedDomain,

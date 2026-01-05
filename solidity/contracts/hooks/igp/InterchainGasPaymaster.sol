@@ -240,19 +240,12 @@ contract InterchainGasPaymaster is
         uint32 _destinationDomain,
         uint256 _gasLimit
     ) public view virtual override returns (uint256) {
-        // Get the gas data for the destination domain.
-        (
-            uint128 _tokenExchangeRate,
-            uint128 _gasPrice
-        ) = getExchangeRateAndGasPrice(_destinationDomain);
-
-        // The total cost quoted in destination chain's native token.
-        uint256 _destinationGasCost = _gasLimit * uint256(_gasPrice);
-
-        // Convert to the local native token.
         return
-            (_destinationGasCost * _tokenExchangeRate) /
-            TOKEN_EXCHANGE_RATE_SCALE;
+            _quoteGasPaymentForConfig(
+                destinationGasConfigs[_destinationDomain],
+                _destinationDomain,
+                _gasLimit
+            );
     }
 
     /**
@@ -267,23 +260,37 @@ contract InterchainGasPaymaster is
         uint32 _destinationDomain,
         uint256 _gasLimit
     ) public view returns (uint256) {
-        DomainGasConfig memory _config = tokenDestinationGasConfigs[_feeToken][
-            _destinationDomain
-        ];
+        return
+            _quoteGasPaymentForConfig(
+                tokenDestinationGasConfigs[_feeToken][_destinationDomain],
+                _destinationDomain,
+                _gasLimit
+            );
+    }
 
+    /**
+     * @notice Calculates gas payment from a DomainGasConfig.
+     * @param _config The gas config containing oracle and overhead.
+     * @param _destinationDomain The destination domain.
+     * @param _gasLimit The amount of destination gas to pay for.
+     * @return The amount of tokens required.
+     */
+    function _quoteGasPaymentForConfig(
+        DomainGasConfig memory _config,
+        uint32 _destinationDomain,
+        uint256 _gasLimit
+    ) private view returns (uint256) {
         require(
             address(_config.gasOracle) != address(0),
-            "IGP: unsupported token-domain"
+            string.concat(
+                "IGP: no gas oracle for domain ",
+                Strings.toString(_destinationDomain)
+            )
         );
-
         (uint128 _tokenExchangeRate, uint128 _gasPrice) = _config
             .gasOracle
             .getExchangeRateAndGasPrice(_destinationDomain);
-
-        // The total cost quoted in destination chain's native token.
         uint256 _destinationGasCost = _gasLimit * uint256(_gasPrice);
-
-        // Convert to the fee token.
         return
             (_destinationGasCost * _tokenExchangeRate) /
             TOKEN_EXCHANGE_RATE_SCALE;
