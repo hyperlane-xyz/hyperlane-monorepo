@@ -6,6 +6,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
+import { getGnosisSafeBuilderStrategyConfigGenerator } from '../../../utils.js';
 
 export const getMantapacificTiaWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
@@ -47,9 +48,6 @@ export const getMantapacificTiaWarpConfig = async (
       celestia: {
         address:
           '0x726f757465725f61707000000000000000000000000000010000000000000007',
-      },
-      neutron: {
-        address: neutronRouter,
       },
     },
   };
