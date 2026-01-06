@@ -10,7 +10,7 @@ import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { isObjEmpty } from '@hyperlane-xyz/utils';
 import { readYaml } from '@hyperlane-xyz/utils/fs';
 
-import { DockerImageRepos, getDockerTagsForEnv } from '../../config/docker.js';
+import { DockerImageRepos, mainnetDockerTags } from '../../config/docker.js';
 import { getWarpCoreConfig } from '../../config/registry.js';
 import { DeployEnvironment } from '../config/environment.js';
 import { WARP_ROUTE_MONITOR_HELM_RELEASE_PREFIX } from '../utils/consts.js';
@@ -89,7 +89,7 @@ export class RebalancerHelmManager extends HelmManager {
     return {
       image: {
         repository: DockerImageRepos.REBALANCER,
-        tag: getDockerTagsForEnv(this.environment).rebalancer,
+        tag: mainnetDockerTags.rebalancer,
       },
       withMetrics: this.withMetrics,
       fullnameOverride: this.helmReleaseName,

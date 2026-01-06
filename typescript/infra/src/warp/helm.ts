@@ -12,7 +12,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { difference, rootLogger } from '@hyperlane-xyz/utils';
 
-import { DockerImageRepos, getDockerTagsForEnv } from '../../config/docker.js';
+import { DockerImageRepos, mainnetDockerTags } from '../../config/docker.js';
 import {
   DEFAULT_REGISTRY_URI,
   getRegistry,
@@ -103,7 +103,7 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
     return {
       image: {
         repository: DockerImageRepos.WARP_MONITOR,
-        tag: getDockerTagsForEnv(this.runEnv).warpMonitor,
+        tag: mainnetDockerTags.warpMonitor,
       },
       warpRouteId: this.warpRouteId,
       fullnameOverride: this.helmReleaseName,

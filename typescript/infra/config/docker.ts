@@ -1,5 +1,3 @@
-import { DeployEnvironment } from '../src/config/environment.js';
-
 export const DockerImageRepos = {
   AGENT: 'gcr.io/abacus-labs-dev/hyperlane-agent',
   MONOREPO: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
@@ -15,15 +13,18 @@ interface AgentDockerTags {
   scraper: string;
 }
 
-interface ServiceDockerTags extends AgentDockerTags {
+interface BaseDockerTags extends AgentDockerTags {
   keyFunder: string;
   kathy: string;
-  checkWarpDeploy?: string; // Optional - not all envs have this
+}
+
+interface MainnetDockerTags extends BaseDockerTags {
+  checkWarpDeploy: string;
   warpMonitor: string;
   rebalancer: string;
 }
 
-export const mainnetDockerTags: ServiceDockerTags = {
+export const mainnetDockerTags: MainnetDockerTags = {
   relayer: '28f67ad-20260103-234517',
   relayerRC: '28f67ad-20260103-234517',
   validator: '28f67ad-20260103-234517',
@@ -36,7 +37,7 @@ export const mainnetDockerTags: ServiceDockerTags = {
   rebalancer: 'be84fc0-20251229-194426',
 };
 
-export const testnetDockerTags: ServiceDockerTags = {
+export const testnetDockerTags: BaseDockerTags = {
   relayer: 'cd94774-20251217-100437',
   relayerRC: 'cd94774-20251217-100437',
   validator: 'cd94774-20251217-100437',
@@ -44,22 +45,4 @@ export const testnetDockerTags: ServiceDockerTags = {
   scraper: 'f50feaa-20251219-084739',
   keyFunder: '8da6852-20251215-172511',
   kathy: '8da6852-20251215-172511',
-  // checkWarpDeploy not used on testnet
-  warpMonitor: 'eda7b03-20251230-135200',
-  rebalancer: 'be84fc0-20251229-194426',
 };
-
-/**
- * Get Docker tags for a given deployment environment.
- * @throws Error if environment is not supported (e.g., 'test')
- */
-export function getDockerTagsForEnv(env: DeployEnvironment): ServiceDockerTags {
-  switch (env) {
-    case 'mainnet3':
-      return mainnetDockerTags;
-    case 'testnet4':
-      return testnetDockerTags;
-    default:
-      throw new Error(`No docker tags configured for environment: ${env}`);
-  }
-}
