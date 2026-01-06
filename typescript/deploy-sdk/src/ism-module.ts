@@ -70,7 +70,7 @@ class IsmModuleProvider implements ModuleProvider<IsmModuleType> {
     return new AltVMIsmModule(this.chainLookup, args, signer);
   }
 
-  connectReader(provider: IProvider<any>): HypReader<IsmModuleType> {
+  connectReader(_provider: IProvider<any>): HypReader<IsmModuleType> {
     return new IsmReaderAdapter(this.chainMetadata, this.chainLookup);
   }
 }
