@@ -1,8 +1,9 @@
 use {
     crate::{
-        hyperlane_contract, ConnectionConf, DangoConvertor, DangoProvider, DangoResult,
+        hyperlane_contract, ConnectionConf, DangoConvertor, DangoError, DangoProvider, DangoResult,
         DangoSigner, TryDangoConvertor,
     },
+    anyhow::anyhow,
     async_trait::async_trait,
     dango_hyperlane_types::va::{
         ExecuteMsg, QueryAnnounceFeePerByteRequest, QueryAnnouncedStorageLocationsRequest,
@@ -74,9 +75,9 @@ impl ValidatorAnnounce for DangoValidatorAnnounce {
     /// Returns the announced storage locations for the provided validators.
     async fn get_announced_storage_locations(
         &self,
-        validators: &[H256],
+        val_input: &[H256],
     ) -> ChainResult<Vec<Vec<String>>> {
-        let validators = validators
+        let validators = val_input
             .iter()
             .map(|v| v.try_convert())
             .collect::<DangoResult<BTreeSet<_>>>()?;
@@ -90,7 +91,20 @@ impl ValidatorAnnounce for DangoValidatorAnnounce {
             )
             .await?;
 
-        Ok(response.into_values().map(Inner::into_inner).collect())
+        let mut buff = vec![];
+
+        for validator in val_input {
+            if let Some(locations) = response.get(&validator.try_convert()?) {
+                buff.push(locations.clone().into_inner());
+            } else {
+                return Err(DangoError::Anyhow(anyhow!(
+                    "location not found for validator {}",
+                    validator
+                )))?;
+            }
+        }
+
+        Ok(buff)
     }
 
     /// Announce a storage location for a validator
