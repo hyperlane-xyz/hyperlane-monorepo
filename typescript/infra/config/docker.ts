@@ -1,9 +1,5 @@
 import { DeployEnvironment } from '../src/config/environment.js';
 
-/**
- * Centralized Docker image configuration for all infra services.
- */
-
 export const DockerImageRepos = {
   AGENT: 'gcr.io/abacus-labs-dev/hyperlane-agent',
   MONOREPO: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
