@@ -1,4 +1,5 @@
 import chalk from 'chalk';
+import yargs from 'yargs';
 
 import {
   LogFormat,
@@ -8,15 +9,8 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { HelmManager, getHelmReleaseName } from '../../src/utils/helm.js';
-import {
-  WarpRouteMonitorHelmManager,
-  getDeployedWarpMonitorWarpRouteIds,
-} from '../../src/warp-monitor/helm.js';
-import {
-  assertCorrectKubeContext,
-  getArgs,
-  withWarpRouteId,
-} from '../agent-utils.js';
+import { WarpRouteMonitorHelmManager } from '../../src/warp-monitor/helm.js';
+import { assertCorrectKubeContext } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
 const orange = chalk.hex('#FFA500');
@@ -24,35 +18,23 @@ const GRAFANA_LINK =
   'https://abacusworks.grafana.net/d/ddz6ma94rnzswc/warp-routes?orgId=1&var-warp_route_id=';
 const LOG_AMOUNT = 5;
 
+const environment = 'mainnet3';
+
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
-  const { environment, warpRouteId } = await withWarpRouteId(getArgs()).argv;
+  const { warpRouteId } = await yargs(process.argv.slice(2))
+    .option('warpRouteId', {
+      type: 'string',
+      description: 'Warp route ID (e.g. USDC/ethereum-base)',
+      demandOption: true,
+      alias: 'w',
+    })
+    .parse();
 
   const config = getEnvironmentConfig(environment);
   await assertCorrectKubeContext(config);
 
-  let warpRouteIds: string[];
-  if (warpRouteId) {
-    warpRouteIds = [warpRouteId];
-  } else {
-    rootLogger.info(
-      chalk.gray.italic(
-        'No warp route ID specified, showing status for all deployed monitors...',
-      ),
-    );
-    const deployedMonitors = await getDeployedWarpMonitorWarpRouteIds(
-      environment,
-      WarpRouteMonitorHelmManager.helmReleasePrefix,
-    );
-    warpRouteIds = deployedMonitors.map((m) => m.warpRouteId);
-    rootLogger.info(
-      chalk.gray(`Found ${warpRouteIds.length} deployed warp monitors\n`),
-    );
-  }
-
-  for (const routeId of warpRouteIds) {
-    await showWarpMonitorStatus(routeId, environment);
-  }
+  await showWarpMonitorStatus(warpRouteId, environment);
 }
 
 async function showWarpMonitorStatus(warpRouteId: string, environment: string) {
