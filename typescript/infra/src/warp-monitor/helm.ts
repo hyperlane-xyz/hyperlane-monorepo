@@ -297,11 +297,15 @@ export async function getDeployedWarpMonitorWarpRouteIds(
         break;
       }
 
-      // Legacy monorepo image: --warpRouteId arg
-      const args: string[] = container.args || [];
-      const warpRouteIdArgIndex = args.indexOf('--warpRouteId');
-      if (warpRouteIdArgIndex !== -1 && args[warpRouteIdArgIndex + 1]) {
-        warpRouteId = args[warpRouteIdArgIndex + 1];
+      // Legacy monorepo image: --warpRouteId in command or args
+      // Some pods use container.command, others use container.args
+      const allArgs: string[] = [
+        ...(container.command || []),
+        ...(container.args || []),
+      ];
+      const warpRouteIdArgIndex = allArgs.indexOf('--warpRouteId');
+      if (warpRouteIdArgIndex !== -1 && allArgs[warpRouteIdArgIndex + 1]) {
+        warpRouteId = allArgs[warpRouteIdArgIndex + 1];
         break;
       }
     }

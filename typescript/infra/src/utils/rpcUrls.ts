@@ -18,10 +18,7 @@ import {
   secretRpcEndpointsExist,
   setSecretRpcEndpoints,
 } from '../agents/index.js';
-import { CheckWarpDeployHelmManager } from '../check-warp-deploy/helm.js';
 import { DeployEnvironment } from '../config/environment.js';
-import { KeyFunderHelmManager } from '../funding/key-funder.js';
-import { KathyHelmManager } from '../helloworld/kathy.js';
 import { WarpRouteMonitorHelmManager } from '../warp-monitor/helm.js';
 
 import { disableGCPSecretVersion } from './gcloud.js';
@@ -274,9 +271,7 @@ async function updateSecretAndDisablePrevious(
 
 /**
  * Interactively refreshes dependent k8s resources for the given chain in the given environment.
- * Allows for helm releases to be selected for refreshing. Refreshing involves first deleting
- * secrets, expecting them to be recreated by external-secrets, and then deleting pods to restart
- * them with the new secrets.
+ * Prompts for core infrastructure and warp monitors separately, then executes all refreshes together.
  * @param environment The environment to refresh resources in
  * @param chain The chain to refresh resources for
  */
@@ -292,87 +287,134 @@ async function refreshDependentK8sResourcesInteractive(
     return;
   }
 
+  // Collect selections from both prompts
+  const coreManagers = await selectCoreInfrastructure(environment, chain);
+  const warpManagers = await selectWarpMonitors(environment, chain);
+
+  // Execute all refreshes together
+  const allManagers = [...coreManagers, ...warpManagers];
+  if (allManagers.length > 0) {
+    await refreshK8sResources(allManagers, K8sResourceType.SECRET, environment);
+    await refreshK8sResources(allManagers, K8sResourceType.POD, environment);
+  }
+}
+
+async function selectCoreInfrastructure(
+  environment: DeployEnvironment,
+  chain: string,
+): Promise<HelmManager<any>[]> {
   const envConfig = getEnvironmentConfig(environment);
-  const contextHelmManagers: [string, HelmManager<any>][] = [];
-  const pushContextHelmManager = (
-    context: string,
-    manager: HelmManager<any>,
-  ) => {
-    contextHelmManagers.push([context, manager]);
-  };
+  const coreHelmManagers: [string, HelmManager<any>][] = [];
+
   for (const [context, agentConfig] of Object.entries(envConfig.agents)) {
-    if (agentConfig.relayer) {
-      pushContextHelmManager(context, new RelayerHelmManager(agentConfig));
-    }
+    // Relayer: Hyperlane + RC only
     if (
+      agentConfig.relayer &&
+      (context === Contexts.Hyperlane || context === Contexts.ReleaseCandidate)
+    ) {
+      coreHelmManagers.push([context, new RelayerHelmManager(agentConfig)]);
+    }
+
+    // Validator: Hyperlane only, for the affected chain
+    if (
+      context === Contexts.Hyperlane &&
       agentConfig.validators &&
       agentConfig.contextChainNames.validator?.includes(chain)
     ) {
-      pushContextHelmManager(
+      coreHelmManagers.push([
         context,
         new ValidatorHelmManager(agentConfig, chain),
-      );
-    }
-    if (agentConfig.scraper) {
-      pushContextHelmManager(context, new ScraperHelmManager(agentConfig));
+      ]);
     }
 
-    if (context == Contexts.Hyperlane) {
-      // Key funder
-      pushContextHelmManager(
-        context,
-        KeyFunderHelmManager.forEnvironment(environment),
-      );
-
-      // Kathy - only expected to be running as a long-running service in the
-      // Hyperlane context
-      if (envConfig.helloWorld?.hyperlane?.addresses[chain]) {
-        pushContextHelmManager(
-          context,
-          KathyHelmManager.forEnvironment(environment, context),
-        );
-      }
+    // Scraper: Hyperlane only
+    if (context === Contexts.Hyperlane && agentConfig.scraper) {
+      coreHelmManagers.push([context, new ScraperHelmManager(agentConfig)]);
     }
   }
 
-  // Warp route monitors that include the affected chain
-  const warpMonitorManagers =
-    await WarpRouteMonitorHelmManager.getManagersForChain(environment, chain);
-  for (const manager of warpMonitorManagers) {
-    pushContextHelmManager(Contexts.Hyperlane, manager);
-  }
-
-  // Check warp deploy cron job
-  const checkWarpDeployManager =
-    CheckWarpDeployHelmManager.forEnvironment(environment);
-  if (checkWarpDeployManager) {
-    pushContextHelmManager(Contexts.Hyperlane, checkWarpDeployManager);
+  if (coreHelmManagers.length === 0) {
+    console.log('No core infrastructure to refresh');
+    return [];
   }
 
   const selection = await checkbox({
     message:
-      'Select deployments to refresh (update secrets & restart any pods)',
-    choices: contextHelmManagers.map(([context, helmManager], i) => ({
+      'Select core infrastructure to refresh (update secrets & restart pods)',
+    choices: coreHelmManagers.map(([context, helmManager], i) => ({
       name: `${helmManager.helmReleaseName} (context: ${context})`,
       value: i,
-      // By default, all deployments are selected
       checked: true,
     })),
   });
-  const selectedHelmManagers = contextHelmManagers
-    .map(([_, m]) => m)
-    .filter((_, m) => selection.includes(m));
 
-  await refreshK8sResources(
-    selectedHelmManagers,
-    K8sResourceType.SECRET,
-    environment,
+  return coreHelmManagers
+    .map(([_, m]) => m)
+    .filter((_, i) => selection.includes(i));
+}
+
+enum WarpMonitorRefreshChoice {
+  ALL = 'all',
+  SELECT = 'select',
+  SKIP = 'skip',
+}
+
+async function selectWarpMonitors(
+  environment: DeployEnvironment,
+  chain: string,
+): Promise<WarpRouteMonitorHelmManager[]> {
+  const warpMonitorManagers =
+    await WarpRouteMonitorHelmManager.getManagersForChain(environment, chain);
+
+  if (warpMonitorManagers.length === 0) {
+    console.log(`No warp route monitors found for ${chain}`);
+    return [];
+  }
+
+  console.log(
+    `Found ${warpMonitorManagers.length} warp route monitors that include ${chain}:`,
   );
-  await refreshK8sResources(
-    selectedHelmManagers,
-    K8sResourceType.POD,
-    environment,
-  );
+  for (const manager of warpMonitorManagers) {
+    console.log(`  - ${manager.helmReleaseName} (${manager.warpRouteId})`);
+  }
+
+  const choice = await select({
+    message: `Refresh warp route monitors?`,
+    choices: [
+      {
+        name: `Yes, refresh all ${warpMonitorManagers.length} monitors`,
+        value: WarpMonitorRefreshChoice.ALL,
+      },
+      {
+        name: 'Yes, let me select which ones',
+        value: WarpMonitorRefreshChoice.SELECT,
+      },
+      {
+        name: 'No, skip warp monitors',
+        value: WarpMonitorRefreshChoice.SKIP,
+      },
+    ],
+  });
+
+  if (choice === WarpMonitorRefreshChoice.SKIP) {
+    console.log('Skipping warp monitor refresh');
+    return [];
+  }
+
+  if (choice === WarpMonitorRefreshChoice.ALL) {
+    return warpMonitorManagers;
+  }
+
+  const selection = await checkbox({
+    message: 'Select warp monitors to refresh',
+    choices: warpMonitorManagers.map((manager, i) => ({
+      name: manager.helmReleaseName,
+      value: i,
+      checked: true,
+    })),
+  });
+
+  return warpMonitorManagers.filter((_, i) => selection.includes(i));
 }
 
 /**
