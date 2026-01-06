@@ -10,7 +10,10 @@ import {
 
 import { HelmManager, getHelmReleaseName } from '../../src/utils/helm.js';
 import { WarpRouteMonitorHelmManager } from '../../src/warp-monitor/helm.js';
-import { assertCorrectKubeContext } from '../agent-utils.js';
+import {
+  assertCorrectKubeContext,
+  withWarpRouteIdRequired,
+} from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
 const orange = chalk.hex('#FFA500');
@@ -22,14 +25,9 @@ const environment = 'mainnet3';
 
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
-  const { warpRouteId } = await yargs(process.argv.slice(2))
-    .option('warpRouteId', {
-      type: 'string',
-      description: 'Warp route ID (e.g. USDC/ethereum-base)',
-      demandOption: true,
-      alias: 'w',
-    })
-    .parse();
+  const { warpRouteId } = await withWarpRouteIdRequired(
+    yargs(process.argv.slice(2)),
+  ).demandOption('warpRouteId').argv;
 
   const config = getEnvironmentConfig(environment);
   await assertCorrectKubeContext(config);
