@@ -307,17 +307,15 @@ async function selectCoreInfrastructure(
   const coreHelmManagers: [string, HelmManager<any>][] = [];
 
   for (const [context, agentConfig] of Object.entries(envConfig.agents)) {
-    // Relayer: Hyperlane + RC only
-    if (
-      agentConfig.relayer &&
-      (context === Contexts.Hyperlane || context === Contexts.ReleaseCandidate)
-    ) {
+    if (context === Contexts.Neutron) {
+      continue;
+    }
+
+    if (agentConfig.relayer) {
       coreHelmManagers.push([context, new RelayerHelmManager(agentConfig)]);
     }
 
-    // Validator: Hyperlane only, for the affected chain
     if (
-      context === Contexts.Hyperlane &&
       agentConfig.validators &&
       agentConfig.contextChainNames.validator?.includes(chain)
     ) {
@@ -327,8 +325,7 @@ async function selectCoreInfrastructure(
       ]);
     }
 
-    // Scraper: Hyperlane only
-    if (context === Contexts.Hyperlane && agentConfig.scraper) {
+    if (agentConfig.scraper) {
       coreHelmManagers.push([context, new ScraperHelmManager(agentConfig)]);
     }
   }
