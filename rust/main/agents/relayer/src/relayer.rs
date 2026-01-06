@@ -947,35 +947,48 @@ impl Relayer {
         let origin_futures: Vec<_> = settings
             .chains
             .iter()
-            .map(|(domain, chain)| async {
-                (
-                    domain.clone(),
+            .map(|(domain, chain)| {
+                tokio::time::timeout(chain.origin_init_timeout_millis.clone(), async {
                     factory
                         .create(
                             domain.clone(),
                             chain,
                             settings.gas_payment_enforcement.clone(),
                         )
-                        .await,
-                )
+                        .await
+                })
             })
             .collect();
         let results = futures::future::join_all(origin_futures).await;
-        let origins = results
-            .into_iter()
-            .filter_map(|(domain, result)| match result {
-                Ok(origin) => Some((domain, origin)),
+        let origins = settings
+            .chains
+            .keys()
+            .zip(results.into_iter())
+            .filter_map(|(domain, dest_res)| match dest_res {
+                Ok(res) => match res {
+                    Ok(destination) => Some((domain.clone(), destination)),
+                    Err(err) => {
+                        Self::record_critical_error(
+                            domain,
+                            chain_metrics,
+                            &err,
+                            "Critical error when building chain as origin",
+                        );
+                        None
+                    }
+                },
                 Err(err) => {
                     Self::record_critical_error(
-                        &domain,
+                        domain,
                         chain_metrics,
                         &err,
-                        "Critical error when building chain as origin",
+                        "Timeout occurred when building chain as origin",
                     );
                     None
                 }
             })
             .collect::<HashMap<_, _>>();
+
         settings
             .origin_chains
             .iter()
@@ -1007,26 +1020,39 @@ impl Relayer {
         let destination_futures: Vec<_> = settings
             .chains
             .iter()
-            .map(|(domain, chain)| async {
-                (
-                    domain.clone(),
+            .map(|(domain, chain)| {
+                tokio::time::timeout(chain.destination_init_timeout_millis.clone(), async {
                     factory
                         .create(domain.clone(), chain.clone(), dispatcher_metrics.clone())
-                        .await,
-                )
+                        .await
+                })
             })
             .collect();
         let results = futures::future::join_all(destination_futures).await;
-        let destinations = results
-            .into_iter()
-            .filter_map(|(domain, result)| match result {
-                Ok(destination) => Some((domain, destination)),
+
+        let destinations = settings
+            .chains
+            .keys()
+            .zip(results.into_iter())
+            .filter_map(|(domain, dest_res)| match dest_res {
+                Ok(res) => match res {
+                    Ok(destination) => Some((domain.clone(), destination)),
+                    Err(err) => {
+                        Self::record_critical_error(
+                            domain,
+                            chain_metrics,
+                            &err,
+                            "Critical error when building chain as destination",
+                        );
+                        None
+                    }
+                },
                 Err(err) => {
                     Self::record_critical_error(
-                        &domain,
+                        domain,
                         chain_metrics,
                         &err,
-                        "Critical error when building chain as destination",
+                        "Timeout occurred when building chain as destination",
                     );
                     None
                 }

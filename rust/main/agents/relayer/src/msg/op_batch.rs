@@ -358,6 +358,8 @@ mod tests {
             metrics_conf: Default::default(),
             index: Default::default(),
             ignore_reorg_reports: false,
+            origin_init_timeout_millis: Duration::from_millis(30_000),
+            destination_init_timeout_millis: Duration::from_millis(30_000),
         };
 
         // https://explorer.hyperlane.xyz/message/0x29160a18c6e27c2f14ebe021207ac3f90664507b9c5aacffd802b2afcc15788a

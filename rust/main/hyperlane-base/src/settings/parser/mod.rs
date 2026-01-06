@@ -39,6 +39,9 @@ mod connection_parser;
 mod json_value_parser;
 
 const DEFAULT_CHUNK_SIZE: u32 = 1999;
+// 30s
+const DEFAULT_ORIGIN_TIMEOUT: u64 = 30_000;
+const DEFAULT_DESTINATION_TIMEOUT: u64 = 30_000;
 
 /// Try to extract the protocol from a chain config without fully parsing it.
 /// Returns None if the protocol field is missing or invalid.
@@ -267,6 +270,18 @@ fn parse_chain(
         .parse_bool()
         .unwrap_or(false);
 
+    let origin_init_timeout_millis = chain
+        .chain(&mut err)
+        .get_opt_key("originInitTimeoutMillis")
+        .parse_u64()
+        .unwrap_or(DEFAULT_ORIGIN_TIMEOUT);
+
+    let destination_init_timeout_millis = chain
+        .chain(&mut err)
+        .get_opt_key("destinationInitTimeoutMillis")
+        .parse_u64()
+        .unwrap_or(DEFAULT_DESTINATION_TIMEOUT);
+
     cfg_unwrap_all!(&chain.cwp, err: [domain]);
     let connection = build_connection_conf(
         domain.domain_protocol(),
@@ -319,6 +334,8 @@ fn parse_chain(
             mode,
         },
         ignore_reorg_reports,
+        origin_init_timeout_millis: Duration::from_millis(origin_init_timeout_millis),
+        destination_init_timeout_millis: Duration::from_millis(destination_init_timeout_millis),
     })
 }
 
