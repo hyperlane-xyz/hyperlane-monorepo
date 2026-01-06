@@ -1,14 +1,14 @@
-use aleo_serialize_macro::aleo_serialize;
 use serde::{Deserialize, Serialize};
+use snarkvm::prelude::{MainnetV0, Network, Plaintext};
+use snarkvm_console_account::{Address, Itertools};
+
+use aleo_serialize_macro::aleo_serialize;
+use hyperlane_core::{
+    accumulator::incremental::IncrementalMerkle, HyperlaneMessage, InterchainGasPayment,
+    MerkleTreeInsertion, H256, U256,
+};
 
 use crate::utils::{aleo_hash_to_h256, bytes_to_u128_words};
-use crate::Plaintext;
-use hyperlane_core::{
-    accumulator::incremental::IncrementalMerkle, utils::to_atto, HyperlaneMessage,
-    InterchainGasPayment, MerkleTreeInsertion, H256, U256,
-};
-use snarkvm::prelude::{MainnetV0, Network};
-use snarkvm_console_account::{Address, Itertools};
 
 /// Type alias for the Aleo network used throughout this codebase.
 ///
@@ -23,8 +23,6 @@ pub type CurrentNetwork = MainnetV0;
 /// Each u128 is encoded in little-endian byte order
 pub(crate) type AleoHash = [u128; 2];
 
-// The aleo credits have 6 decimals
-const CREDITS_DECIMALS: u32 = 6;
 // Message body is 16 u128 words this results in 256 bytes
 // Each u128 is encoded in little-endian byte order
 // This is a constant defined by the Hyperlane Aleo contracts
@@ -106,7 +104,7 @@ impl From<GasPaymentEvent> for InterchainGasPayment {
         InterchainGasPayment {
             message_id,
             destination: val.destination_domain,
-            payment: to_atto(U256::from(val.payment), CREDITS_DECIMALS).unwrap_or_default(),
+            payment: U256::from(val.payment),
             gas_amount: U256::from(val.gas_amount),
         }
     }

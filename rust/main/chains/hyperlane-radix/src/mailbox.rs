@@ -13,7 +13,7 @@ use scrypto::{
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, Encode, FixedPointNumber,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
-    Mailbox, ReorgPeriod, TxCostEstimate, TxOutcome, H256, U256,
+    Mailbox, Metadata, ReorgPeriod, TxCostEstimate, TxOutcome, H256, U256,
 };
 
 use crate::{
@@ -222,7 +222,7 @@ impl Mailbox for RadixMailbox {
     async fn process(
         &self,
         message: &HyperlaneMessage,
-        metadata: &[u8],
+        metadata: &Metadata,
         _tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
         let message = message.to_vec();
@@ -247,7 +247,7 @@ impl Mailbox for RadixMailbox {
     async fn process_estimate_costs(
         &self,
         message: &HyperlaneMessage,
-        metadata: &[u8],
+        metadata: &Metadata,
     ) -> ChainResult<TxCostEstimate> {
         let message = message.to_vec();
         let metadata = metadata.to_vec();
@@ -275,7 +275,7 @@ impl Mailbox for RadixMailbox {
     async fn process_calldata(
         &self,
         message: &HyperlaneMessage,
-        metadata: &[u8],
+        metadata: &Metadata,
     ) -> ChainResult<Vec<u8>> {
         Self::build_process_calldata(&self.encoded_address, message, metadata).await
     }

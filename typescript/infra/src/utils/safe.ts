@@ -264,6 +264,7 @@ export async function deleteAllPendingSafeTxs(
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
+      'User-Agent': 'node-fetch',
       Authorization: `Bearer ${safeApiKey}`,
     },
   });
@@ -304,6 +305,7 @@ export async function getSafeTx(
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
+          'User-Agent': 'node-fetch',
           Authorization: `Bearer ${safeApiKey}`,
         },
       });
@@ -342,6 +344,7 @@ export async function deleteSafeTx(
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
+      'User-Agent': 'node-fetch',
       Authorization: `Bearer ${safeApiKey}`,
     },
   });
@@ -416,6 +419,7 @@ export async function deleteSafeTx(
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
+        'User-Agent': 'node-fetch',
         Authorization: `Bearer ${safeApiKey}`,
       },
       body: JSON.stringify({ safeTxHash: safeTxHash, signature: signature }),

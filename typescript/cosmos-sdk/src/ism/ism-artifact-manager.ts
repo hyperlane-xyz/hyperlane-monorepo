@@ -8,11 +8,10 @@ import {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   DeployedIsmAddresses,
-  DeployedIsmArtifact,
+  DeployedRawIsmArtifact,
   IRawIsmArtifactManager,
   IsmType,
   RawIsmArtifactConfigs,
-  altVMIsmTypeToProviderSdkType,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 
@@ -70,18 +69,34 @@ export class CosmosIsmArtifactManager implements IRawIsmArtifactManager {
    * @param address - Address of the ISM to read
    * @returns Deployed ISM artifact with configuration
    */
-  async readIsm(address: string): Promise<DeployedIsmArtifact> {
+  async readIsm(address: string): Promise<DeployedRawIsmArtifact> {
     const query = await this.getQuery();
 
     // Detect ISM type
     const altVMType = await getIsmType(query, address);
 
-    // Convert to provider-sdk type
-    const artifactIsmType = altVMIsmTypeToProviderSdkType(altVMType);
-
-    // Create appropriate reader and delegate
-    const reader = await this.createReaderAsync(artifactIsmType);
-    return reader.read(address) as Promise<DeployedIsmArtifact>;
+    // Convert to provider-sdk type and read with appropriate reader
+    // Each case returns the correct type to satisfy the union
+    switch (altVMType) {
+      case AltVM.IsmType.TEST_ISM: {
+        const reader = new CosmosTestIsmReader(query);
+        return reader.read(address);
+      }
+      case AltVM.IsmType.MERKLE_ROOT_MULTISIG: {
+        const reader = new CosmosMerkleRootMultisigIsmReader(query);
+        return reader.read(address);
+      }
+      case AltVM.IsmType.MESSAGE_ID_MULTISIG: {
+        const reader = new CosmosMessageIdMultisigIsmReader(query);
+        return reader.read(address);
+      }
+      case AltVM.IsmType.ROUTING: {
+        const reader = new CosmosRoutingIsmRawReader(query);
+        return reader.read(address);
+      }
+      default:
+        throw new Error(`Unsupported ISM type: ${altVMType}`);
+    }
   }
 
   /**
@@ -102,16 +117,6 @@ export class CosmosIsmArtifactManager implements IRawIsmArtifactManager {
         return reader.read(address);
       },
     } as ArtifactReader<RawIsmArtifactConfigs[T], DeployedIsmAddresses>;
-  }
-
-  /**
-   * Internal async helper to create readers with query client.
-   */
-  private async createReaderAsync<T extends IsmType>(
-    type: T,
-  ): Promise<ArtifactReader<RawIsmArtifactConfigs[T], DeployedIsmAddresses>> {
-    const query = await this.getQuery();
-    return this.createReaderWithQuery(type, query);
   }
 
   /**

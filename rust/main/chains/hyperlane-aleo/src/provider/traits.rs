@@ -12,12 +12,23 @@ use snarkvm::prelude::{
 use snarkvm_console_account::Field;
 use tokio::runtime::Handle;
 use tokio::task::block_in_place;
+use url::Url;
 
 use aleo_serialize::AleoSerialize;
 use hyperlane_core::{ChainResult, H512};
 
 use crate::utils::get_tx_id;
 use crate::{CurrentNetwork, HyperlaneAleoError, ProvingRequest, ProvingResponse};
+
+/// Aleo Http Client trait alias
+pub trait AleoClient: HttpClient + Clone + std::fmt::Debug + Send + Sync + 'static {}
+impl<T> AleoClient for T where T: HttpClient + Clone + std::fmt::Debug + Send + Sync + 'static {}
+
+pub trait HttpClientBuilder {
+    type Client: HttpClient;
+
+    fn build(url: Url, network: u16) -> ChainResult<Self::Client>;
+}
 
 #[async_trait]
 /// HttpClient trait defines the base layer that Aleo provider will use

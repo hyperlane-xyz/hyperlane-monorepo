@@ -55,20 +55,9 @@ export const chainOwners: ChainMap<OwnableConfig> = {
     // Squads multisig
     owner: 'E4TncCw3WMqQZbkACVcomX3HqcSzLfNyhTnqKN1DimGr',
   },
-  injective: {
-    // Native multisig
-    owner: 'inj1ac6qpt57vhtfzdecd2an052elwgenwtxcn9chl',
-  },
-  neutron: {
-    // Da0Da0 multisig
-    owner: 'neutron1fqf5mprg3f5hytvzp3t7spmsum6rjrw80mq8zgkc0h6rxga0dtzqws3uu7',
-  },
   // We intentionally cause issues if these were to be used, but satisfy the types
   // and ensure there's an entry for each supported chain.
   stride: {
-    owner: 'n/a - nothing owned here',
-  },
-  osmosis: {
     owner: 'n/a - nothing owned here',
   },
   milkyway: {
@@ -91,9 +80,6 @@ export const chainOwners: ChainMap<OwnableConfig> = {
   starknet: {
     owner: '0x06aE465e0c05735820a75500c40CB4dAbBe46eBF1F1665f9ba3f9a7Dcc78a6D1',
   },
-  svmbnb: {
-    owner: '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf',
-  },
   solaxy: {
     owner: '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf',
   },
@@ -105,5 +91,8 @@ export const chainOwners: ChainMap<OwnableConfig> = {
   },
   radix: {
     owner: 'account_rdx1280taxhhnuek02y59yapsg4kjtux954qkyufpwmy4dlfcxdrjzr7fj',
+  },
+  aleo: {
+    owner: 'TODO: configure aleo owner',
   },
 };

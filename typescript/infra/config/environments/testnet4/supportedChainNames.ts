@@ -19,7 +19,6 @@ export const testnet4SupportedChainNames = [
   'incentivtestnet',
   'kyvetestnet',
   'megaethtestnet',
-  'milkywaytestnet',
   'modetestnet',
   'monadtestnet',
   'neuratestnet',

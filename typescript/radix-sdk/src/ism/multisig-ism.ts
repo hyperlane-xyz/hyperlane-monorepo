@@ -2,8 +2,8 @@ import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 
 import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
-  Artifact,
   ArtifactDeployed,
+  ArtifactNew,
   ArtifactReader,
   ArtifactState,
   ArtifactWriter,
@@ -61,7 +61,7 @@ export class RadixMessageIdMultisigIsmWriter
   }
 
   async create(
-    artifact: Artifact<MultisigIsmConfig, DeployedIsmAddresses>,
+    artifact: ArtifactNew<MultisigIsmConfig>,
   ): Promise<
     [ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddresses>, TxReceipt[]]
   > {
@@ -139,7 +139,7 @@ export class RadixMerkleRootMultisigIsmWriter
   }
 
   async create(
-    artifact: Artifact<MultisigIsmConfig, DeployedIsmAddresses>,
+    artifact: ArtifactNew<MultisigIsmConfig>,
   ): Promise<
     [ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddresses>, TxReceipt[]]
   > {

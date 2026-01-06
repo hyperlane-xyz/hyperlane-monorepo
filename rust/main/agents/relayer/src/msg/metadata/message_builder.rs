@@ -5,7 +5,7 @@ use std::{fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
 use eyre::Result;
-use hyperlane_core::{HyperlaneMessage, InterchainSecurityModule, ModuleType, H256};
+use hyperlane_core::{HyperlaneMessage, InterchainSecurityModule, Metadata, ModuleType, H256};
 use tracing::instrument;
 use {
     hyperlane_base::cache::{FunctionCallCache, NoParams},
@@ -24,7 +24,7 @@ use super::{
     multisig::{MerkleRootMultisigMetadataBuilder, MessageIdMultisigMetadataBuilder},
     null_metadata::NullMetadataBuilder,
     routing::RoutingIsmMetadataBuilder,
-    Metadata, MetadataBuilder,
+    MetadataBuilder,
 };
 
 /// Builds metadata for a message.

@@ -310,16 +310,6 @@ export const validatorChainConfig = (
         'auroratestnet',
       ),
     },
-    milkywaytestnet: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('milkywaytestnet'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0x65c7581e14efdf4d9c5320882170f022835bd742'],
-        },
-        'milkywaytestnet',
-      ),
-    },
 
     nobletestnet: {
       interval: 5,

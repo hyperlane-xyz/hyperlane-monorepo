@@ -7,11 +7,10 @@ import {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   DeployedIsmAddresses,
-  DeployedIsmArtifact,
+  DeployedRawIsmArtifact,
   IRawIsmArtifactManager,
   IsmType,
   RawIsmArtifactConfigs,
-  altVMIsmTypeToProviderSdkType,
 } from '@hyperlane-xyz/provider-sdk/ism';
 
 import { RadixSigner } from '../clients/signer.js';
@@ -31,37 +30,35 @@ import {
 } from './routing-ism.js';
 import { RadixTestIsmReader, RadixTestIsmWriter } from './test-ism.js';
 
+/**
+ * Maps Radix-specific ISM blueprint names to provider-sdk ISM types.
+ */
+function radixIsmTypeToProviderSdkType(radixType: RadixIsmTypes): IsmType {
+  switch (radixType) {
+    case RadixIsmTypes.MERKLE_ROOT_MULTISIG:
+      return AltVM.IsmType.MERKLE_ROOT_MULTISIG;
+    case RadixIsmTypes.MESSAGE_ID_MULTISIG:
+      return AltVM.IsmType.MESSAGE_ID_MULTISIG;
+    case RadixIsmTypes.ROUTING_ISM:
+      return AltVM.IsmType.ROUTING;
+    case RadixIsmTypes.NOOP_ISM:
+      return AltVM.IsmType.TEST_ISM;
+    default:
+      throw new Error(`Unknown Radix ISM type: ${radixType}`);
+  }
+}
+
 export class RadixIsmArtifactManager implements IRawIsmArtifactManager {
   constructor(
     private readonly gateway: GatewayApiClient,
     private readonly base: RadixBase,
   ) {}
 
-  async readIsm(address: string): Promise<DeployedIsmArtifact> {
+  async readIsm(address: string): Promise<DeployedRawIsmArtifact> {
     const radixIsmType = await getIsmType(this.gateway, address);
-
-    // Map RadixIsmTypes to AltVM.IsmType
-    let altVMType: AltVM.IsmType;
-    switch (radixIsmType) {
-      case RadixIsmTypes.MERKLE_ROOT_MULTISIG:
-        altVMType = AltVM.IsmType.MERKLE_ROOT_MULTISIG;
-        break;
-      case RadixIsmTypes.MESSAGE_ID_MULTISIG:
-        altVMType = AltVM.IsmType.MESSAGE_ID_MULTISIG;
-        break;
-      case RadixIsmTypes.ROUTING_ISM:
-        altVMType = AltVM.IsmType.ROUTING;
-        break;
-      case RadixIsmTypes.NOOP_ISM:
-        altVMType = AltVM.IsmType.TEST_ISM;
-        break;
-      default:
-        throw new Error(`Unknown ISM ModuleType: ${radixIsmType}`);
-    }
-
-    const artifactIsmType = altVMIsmTypeToProviderSdkType(altVMType);
-    const reader = this.createReader(artifactIsmType);
-    return reader.read(address) as Promise<DeployedIsmArtifact>;
+    const ismType = radixIsmTypeToProviderSdkType(radixIsmType);
+    const reader = this.createReader(ismType);
+    return reader.read(address);
   }
 
   createReader<T extends IsmType>(

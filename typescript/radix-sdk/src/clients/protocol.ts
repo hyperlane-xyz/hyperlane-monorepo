@@ -17,7 +17,7 @@ import { assert } from '@hyperlane-xyz/utils';
 import { RadixIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 import { RadixBase } from '../utils/base.js';
 
-import { RadixProvider } from './provider.js';
+import { NETWORKS, RadixProvider } from './provider.js';
 import { RadixSigner } from './signer.js';
 
 export class RadixProtocolProvider implements ProtocolProvider {
@@ -61,8 +61,19 @@ export class RadixProtocolProvider implements ProtocolProvider {
 
     assert(gatewayUrl, 'gateway url undefined');
 
-    // Get package address from metadata or throw error
-    const packageAddress = (chainMetadata as any).packageAddress;
+    // Get package address from metadata first
+    let packageAddress = (chainMetadata as any).packageAddress;
+
+    // If not in metadata, try to get from NETWORKS config as fallback
+    if (!packageAddress) {
+      const networkBaseConfig = NETWORKS[networkId];
+      assert(
+        networkBaseConfig,
+        `Network with id ${networkId} not supported and no packageAddress provided in chain metadata. Supported network ids: ${Object.keys(NETWORKS).join(', ')}`,
+      );
+      packageAddress = networkBaseConfig.packageAddress;
+    }
+
     assert(
       packageAddress,
       `Expected package address to be defined for radix network with id ${networkId}`,

@@ -55,12 +55,6 @@
   "hyperliquidevmtestnet": {
     "validators": ["0xea673a92a23ca319b9d85cc16b248645cd5158da"]
   },
-  "incentivtestnet": {
-    "validators": ["0x3133eeb96fd96f9f99291088613edf7401149e6f"]
-  },
-  "milkywaytestnet": {
-    "validators": ["0x65c7581e14efdf4d9c5320882170f022835bd742"]
-  },
   "modetestnet": {
     "validators": ["0x9a9de3e406ab3e4ff12aa03ca9b868b48dc40402"]
   },

@@ -6,28 +6,30 @@ import {
 import {
   ArtifactDeployed,
   ArtifactReader,
+  isArtifactDeployed,
+  isArtifactUnderived,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
   DeployedIsmAddresses,
   DeployedIsmArtifact,
   DerivedIsmConfig,
+  DomainRoutingIsmConfig,
   IRawIsmArtifactManager,
   IsmArtifactConfig,
-  IsmConfig,
   RawRoutingIsmArtifactConfig,
+  RoutingIsmArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
-
-import { RoutingIsmReader } from './routing-ism.js';
+import { Logger, rootLogger } from '@hyperlane-xyz/utils';
 
 /**
- * Factory function to create a GenericIsmReader instance.
+ * Factory function to create an IsmReader instance.
  * This helper centralizes the creation of artifact managers and ISM readers,
  * making it easier to instantiate readers across the codebase.
  *
  * @param chainMetadata Chain metadata for the target chain (protocol type is extracted from metadata.protocol)
  * @param chainLookup Chain lookup interface for resolving chain names and domain IDs
- * @returns A GenericIsmReader instance
+ * @returns An IsmReader instance
  *
  * @example
  * ```typescript
@@ -38,12 +40,12 @@ import { RoutingIsmReader } from './routing-ism.js';
 export function createIsmReader(
   chainMetadata: ChainMetadataForAltVM,
   chainLookup: ChainLookup,
-): GenericIsmReader {
+): IsmReader {
   const protocolProvider = getProtocolProvider(chainMetadata.protocol);
   const artifactManager: IRawIsmArtifactManager =
     protocolProvider.createIsmArtifactManager(chainMetadata);
 
-  return new GenericIsmReader(artifactManager, chainLookup);
+  return new IsmReader(artifactManager, chainLookup);
 }
 
 /**
@@ -52,83 +54,131 @@ export function createIsmReader(
  */
 function artifactToDerivedConfig(
   artifact: DeployedIsmArtifact,
+  chainLookup: ChainLookup,
 ): DerivedIsmConfig {
-  const config = artifact.config as any;
+  const config = artifact.config;
   const address = artifact.deployed.address;
 
   // For routing ISMs, recursively convert nested artifacts
   if (config.type === AltVM.IsmType.ROUTING) {
-    const domains: Record<string, IsmConfig | string> = {};
+    const domains: DomainRoutingIsmConfig['domains'] = {};
     for (const [domainId, nestedArtifact] of Object.entries(config.domains)) {
-      if (typeof nestedArtifact === 'string') {
-        domains[domainId] = nestedArtifact;
-      } else {
-        domains[domainId] = artifactToDerivedConfig(
-          nestedArtifact as DeployedIsmArtifact,
+      // Convert numeric domain ID to chain name for the config output
+      const chainName = chainLookup.getChainName(parseInt(domainId));
+      if (!chainName) {
+        // Skip unknown domains (already warned during expand)
+        continue;
+      }
+
+      if (isArtifactUnderived(nestedArtifact)) {
+        domains[chainName] = nestedArtifact.deployed.address;
+      } else if (isArtifactDeployed(nestedArtifact)) {
+        domains[chainName] = artifactToDerivedConfig(
+          nestedArtifact,
+          chainLookup,
         );
       }
+      // Note: ArtifactState.NEW should never occur in expanded routing configs
     }
     return {
       type: 'domainRoutingIsm',
       owner: config.owner,
       domains,
       address,
-    } as DerivedIsmConfig;
+    } satisfies Extract<DerivedIsmConfig, DomainRoutingIsmConfig>;
   }
 
   // For other ISM types, just add the address
   return {
     ...config,
     address,
-  } as DerivedIsmConfig;
+  };
 }
 
 /**
  * Generic ISM Reader that can read any ISM type by detecting its type
- * and delegating to the appropriate reader. For routing ISMs, delegates
- * to RoutingIsmReader to handle recursive expansion of nested ISMs.
+ * and recursively expanding nested ISMs (e.g., for routing ISMs).
  */
-export class GenericIsmReader
+export class IsmReader
   implements ArtifactReader<IsmArtifactConfig, DeployedIsmAddresses>
 {
-  private readonly routingIsmReader: RoutingIsmReader;
+  protected readonly logger: Logger = rootLogger.child({
+    module: IsmReader.name,
+  });
 
   constructor(
     protected readonly artifactManager: IRawIsmArtifactManager,
     protected readonly chainLookup: ChainLookup,
-  ) {
-    // GenericIsmReader creates and owns RoutingIsmReader
-    this.routingIsmReader = new RoutingIsmReader(
-      chainLookup,
-      artifactManager,
-      this, // Pass self for recursion
-    );
-  }
+  ) {}
 
   async read(address: string): Promise<DeployedIsmArtifact> {
     // Read once via readIsm() - detects type
-    const rawArtifact = await this.artifactManager.readIsm(address);
+    const { artifactState, config, deployed } =
+      await this.artifactManager.readIsm(address);
 
-    // For routing ISMs, delegate expansion (no re-reading)
-    if (rawArtifact.config.type === AltVM.IsmType.ROUTING) {
-      return this.routingIsmReader.expandFromRaw(
-        rawArtifact as ArtifactDeployed<
-          RawRoutingIsmArtifactConfig,
-          DeployedIsmAddresses
-        >,
-      );
+    // For routing ISMs, expand nested domain ISMs recursively
+    if (config.type === AltVM.IsmType.ROUTING) {
+      return this.expandRoutingIsm({ artifactState, config, deployed });
     }
 
-    // For non-routing ISMs, return the raw config as-is
-    return rawArtifact;
+    // For non-routing ISMs, the raw and expanded configs are identical
+    return {
+      artifactState,
+      config,
+      deployed,
+    };
+  }
+
+  /**
+   * Expands a raw routing ISM config by recursively reading the domain ISMs.
+   * Takes a pre-read raw artifact to avoid double reading.
+   */
+  private async expandRoutingIsm(
+    rawArtifact: ArtifactDeployed<
+      RawRoutingIsmArtifactConfig,
+      DeployedIsmAddresses
+    >,
+  ): Promise<ArtifactDeployed<RoutingIsmArtifactConfig, DeployedIsmAddresses>> {
+    const { artifactState, config, deployed } = rawArtifact;
+    const domains: Record<number, DeployedIsmArtifact> = {};
+
+    for (const [domainId, domainIsmConfig] of Object.entries(config.domains)) {
+      if (!this.chainLookup.getChainName(parseInt(domainId))) {
+        this.logger.warn(
+          `Skipping derivation of unknown ${AltVM.IsmType.ROUTING} domain ${domainId}`,
+        );
+        continue;
+      }
+
+      let nestedIsm: DeployedIsmArtifact;
+      if (isArtifactDeployed(domainIsmConfig)) {
+        // Already a full deployed artifact, use as-is
+        nestedIsm = domainIsmConfig;
+      } else {
+        // ArtifactUnderived - recursively read using self to get full config
+        nestedIsm = await this.read(domainIsmConfig.deployed.address);
+      }
+
+      domains[parseInt(domainId)] = nestedIsm;
+    }
+
+    return {
+      artifactState,
+      config: {
+        type: AltVM.IsmType.ROUTING,
+        owner: config.owner,
+        domains,
+      },
+      deployed,
+    };
   }
 
   /**
    * Backward compatibility method that converts DeployedIsmArtifact to DerivedIsmConfig.
-   * This allows GenericIsmReader to be used as a drop-in replacement for the old AltVMIsmReader.
+   * This allows IsmReader to be used as a drop-in replacement for the old AltVMIsmReader.
    */
   async deriveIsmConfig(address: string): Promise<DerivedIsmConfig> {
     const artifact = await this.read(address);
-    return artifactToDerivedConfig(artifact);
+    return artifactToDerivedConfig(artifact, this.chainLookup);
   }
 }

@@ -45,10 +45,6 @@ jobs:
       - name: pnpm-install
         run: pnpm install --frozen-lockfile
 
-      # Check for mismatched dep versions across the monorepo
-      - name: syncpack
-        run: pnpm exec syncpack list-mismatches
-
       # Check publishable packages have required fields for npm provenance
       - name: check-package-json
         run: ./scripts/check-package-json.sh
@@ -269,6 +265,7 @@ jobs:
           - core-read
           # Other commands
           - relay
+          - status
           # Warp Apply Commands
           - warp-apply-hook-updates
           - warp-apply-ism-updates

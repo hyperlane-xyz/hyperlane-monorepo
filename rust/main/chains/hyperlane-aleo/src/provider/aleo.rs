@@ -31,14 +31,13 @@ use hyperlane_core::{
 use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 
 use crate::{
-    provider::{fallback::FallbackHttpClient, HttpClient, ProvingClient, RpcClient},
+    provider::{
+        fallback::FallbackHttpClient, AleoClient, BaseHttpClient, JWTBaseHttpClient, ProvingClient,
+        RpcClient,
+    },
     utils::{get_tx_id, to_h256},
     AleoSigner, ConnectionConf, CurrentNetwork, FeeEstimate, HyperlaneAleoError,
 };
-
-/// Aleo Http Client trait alias
-pub trait AleoClient: HttpClient + Clone + Debug + Send + Sync + 'static {}
-impl<T> AleoClient for T where T: HttpClient + Clone + Debug + Send + Sync + 'static {}
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 struct FeeEstimateCacheKey {
@@ -53,7 +52,7 @@ pub struct AleoProvider<C: AleoClient = FallbackHttpClient> {
     client: RpcClient<C>,
     domain: HyperlaneDomain,
     network: u16,
-    proving_service: Option<ProvingClient<C>>,
+    proving_service: Option<ProvingClient<FallbackHttpClient<JWTBaseHttpClient>>>,
     signer: Option<AleoSigner>,
     priority_fee_multiplier: f64,
     estimate_cache: Arc<RwLock<HashMap<FeeEstimateCacheKey, FeeEstimate>>>,
@@ -98,7 +97,7 @@ impl AleoProvider<FallbackHttpClient> {
         chain: Option<hyperlane_metric::prometheus_metric::ChainInfo>,
     ) -> ChainResult<Self> {
         let proving_service = if !conf.proving_service.is_empty() {
-            let client = FallbackHttpClient::new(
+            let client = FallbackHttpClient::new::<JWTBaseHttpClient>(
                 conf.proving_service.clone(),
                 metrics.clone(),
                 chain.clone(),
@@ -110,7 +109,7 @@ impl AleoProvider<FallbackHttpClient> {
         };
 
         Ok(Self {
-            client: RpcClient::new(FallbackHttpClient::new(
+            client: RpcClient::new(FallbackHttpClient::new::<BaseHttpClient>(
                 conf.rpcs.clone(),
                 metrics,
                 chain,
@@ -246,6 +245,32 @@ impl<C: AleoClient> AleoProvider<C> {
         Ok(finalize_cost.saturating_add(execution_cost))
     }
 
+    /// Internal helper: checks for malicious authorizations
+    /// Because in Aleo the application is the entry point, we have to trust the application to not contain malicious code
+    /// Malicious code can drain the relayer's account out of credits and tokens
+    fn malicious_authorization_check<N: Network>(
+        &self,
+        entry_program_id: &str,
+        authorization: &Authorization<N>,
+    ) -> ChainResult<()> {
+        for (_, transition) in authorization.transitions() {
+            let program_id = transition.program_id().to_string();
+
+            // Native credits transfers from the signer are malicious
+            // Token transfers from the signer are malicious
+            if (program_id == "credits.aleo" || program_id == "token_registry.aleo")
+                && transition.function_name().to_string() == "transfer_public_as_signer"
+            {
+                return Err(HyperlaneAleoError::MaliciousProgramDetected {
+                    program_id: entry_program_id.to_string(),
+                    transition: transition.to_string(),
+                }
+                .into());
+            }
+        }
+        Ok(())
+    }
+
     /// Internal helper: builds VM, loads program + imports, parses identifiers, and creates authorization.
     async fn prepare_authorization<N: Network, I, V>(
         &self,
@@ -295,6 +320,10 @@ impl<C: AleoClient> AleoProvider<C> {
                 &mut rng,
             )
             .map_err(HyperlaneAleoError::from)?;
+
+        // Malicious authorization check
+        self.malicious_authorization_check(program_id, &authorization)?;
+
         debug!(
             "Prepared Authorization in {:.2}s",
             Instant::now().duration_since(start).as_secs_f32()

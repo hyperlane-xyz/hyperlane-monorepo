@@ -22,8 +22,8 @@ import { AltVMIsmModule } from './AltVMIsmModule.js';
 import { createIsmReader } from './ism/generic-ism.js';
 
 /**
- * Adapter that wraps GenericIsmReader to implement HypReader interface.
- * This bridges the Artifact API (used by GenericIsmReader) with the Config API
+ * Adapter that wraps IsmReader to implement HypReader interface.
+ * This bridges the Artifact API (used by IsmReader) with the Config API
  * (expected by HypReader).
  */
 class IsmReaderAdapter implements HypReader<IsmModuleType> {
