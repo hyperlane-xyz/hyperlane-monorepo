@@ -54,6 +54,7 @@ export function createIsmReader(
  */
 function artifactToDerivedConfig(
   artifact: DeployedIsmArtifact,
+  chainLookup: ChainLookup,
 ): DerivedIsmConfig {
   const config = artifact.config;
   const address = artifact.deployed.address;
@@ -62,10 +63,20 @@ function artifactToDerivedConfig(
   if (config.type === AltVM.IsmType.ROUTING) {
     const domains: DomainRoutingIsmConfig['domains'] = {};
     for (const [domainId, nestedArtifact] of Object.entries(config.domains)) {
+      // Convert numeric domain ID to chain name for the config output
+      const chainName = chainLookup.getChainName(parseInt(domainId));
+      if (!chainName) {
+        // Skip unknown domains (already warned during expand)
+        continue;
+      }
+
       if (isArtifactUnderived(nestedArtifact)) {
-        domains[domainId] = nestedArtifact.deployed.address;
+        domains[chainName] = nestedArtifact.deployed.address;
       } else if (isArtifactDeployed(nestedArtifact)) {
-        domains[domainId] = artifactToDerivedConfig(nestedArtifact);
+        domains[chainName] = artifactToDerivedConfig(
+          nestedArtifact,
+          chainLookup,
+        );
       }
       // Note: ArtifactState.NEW should never occur in expanded routing configs
     }
@@ -168,6 +179,6 @@ export class IsmReader
    */
   async deriveIsmConfig(address: string): Promise<DerivedIsmConfig> {
     const artifact = await this.read(address);
-    return artifactToDerivedConfig(artifact);
+    return artifactToDerivedConfig(artifact, this.chainLookup);
   }
 }
