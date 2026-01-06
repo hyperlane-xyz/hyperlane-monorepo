@@ -24,11 +24,11 @@ interface ServiceDockerTags extends AgentDockerTags {
 }
 
 export const mainnetDockerTags: ServiceDockerTags = {
-  relayer: 'fa93b6c-20251224-132143',
-  relayerRC: 'fa93b6c-20251224-132143',
-  validator: 'fa93b6c-20251224-132143',
-  validatorRC: 'cd94774-20251217-100437',
-  scraper: 'fa93b6c-20251224-132143',
+  relayer: '28f67ad-20260103-234517',
+  relayerRC: '28f67ad-20260103-234517',
+  validator: '28f67ad-20260103-234517',
+  validatorRC: '28f67ad-20260103-234517',
+  scraper: '28f67ad-20260103-234517',
   keyFunder: 'ff24bc3-20260104-175430',
   kathy: '8da6852-20251215-172511',
   checkWarpDeploy: '8da6852-20251215-172511',
