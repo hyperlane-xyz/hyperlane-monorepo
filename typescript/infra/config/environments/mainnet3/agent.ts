@@ -103,11 +103,12 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     eclipsemainnet: true,
     electroneum: true,
     endurance: true,
+    eni: true,
     ethereum: true,
     everclear: true,
     fantom: true,
     flare: true,
-    flowmainnet: true,
+    flowmainnet: false, // chain in recovery mode
     fluence: true,
     forma: false, // relayer + scraper only
     fraxtal: true,
@@ -124,6 +125,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     ink: true,
     kaia: true,
     katana: true,
+    krown: true,
     kyve: true,
     lazai: true,
     linea: true,
@@ -244,6 +246,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     eclipsemainnet: true,
     electroneum: true,
     endurance: true,
+    eni: true,
     ethereum: true,
     everclear: true,
     fantom: true,
@@ -265,6 +268,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     ink: true,
     kaia: true,
     katana: true,
+    krown: true,
     kyve: true,
     lazai: true,
     linea: true,
@@ -385,11 +389,12 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     eclipsemainnet: true,
     electroneum: true,
     endurance: true,
+    eni: true,
     ethereum: true,
     everclear: true,
     fantom: true,
     flare: true,
-    flowmainnet: true,
+    flowmainnet: false, // chain in recovery mode
     fluence: true,
     forma: true,
     fraxtal: true,
@@ -406,6 +411,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     ink: true,
     kaia: true,
     katana: true,
+    krown: true,
     kyve: true,
     lazai: true,
     linea: true,
@@ -864,7 +870,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'fa93b6c-20251224-132143',
+      tag: '28f67ad-20260103-234517',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -884,7 +890,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'fa93b6c-20251224-132143',
+      tag: '28f67ad-20260103-234517',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -895,7 +901,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'fa93b6c-20251224-132143',
+      tag: '28f67ad-20260103-234517',
     },
     resources: scraperResources,
   },
@@ -910,7 +916,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'fa93b6c-20251224-132143',
+      tag: '28f67ad-20260103-234517',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
@@ -933,7 +939,7 @@ const releaseCandidate: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'cd94774-20251217-100437',
+      tag: '28f67ad-20260103-234517',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),

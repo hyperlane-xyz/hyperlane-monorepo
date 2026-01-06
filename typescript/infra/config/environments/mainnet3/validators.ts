@@ -1563,5 +1563,25 @@ export const validatorChainConfig = (
         'neutron',
       ),
     },
+    eni: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('eni'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xaedc7f95c57baa668eb94341589837b5430a484c'],
+        },
+        'eni',
+      ),
+    },
+    krown: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('krown'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x4f78f3fca0660716c4b276893d73f6f4c95fe618'],
+        },
+        'krown',
+      ),
+    },
   };
 };
