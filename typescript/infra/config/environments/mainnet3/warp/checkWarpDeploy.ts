@@ -1,10 +1,11 @@
 import { CheckWarpDeployConfig } from '../../../../src/config/funding.js';
+import { DockerImageRepos, mainnetDockerTags } from '../../../docker.js';
 import { environment } from '../chains.js';
 
 export const checkWarpDeployConfig: CheckWarpDeployConfig = {
   docker: {
-    repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-    tag: '8da6852-20251215-172511',
+    repo: DockerImageRepos.MONOREPO,
+    tag: mainnetDockerTags.checkWarpDeploy!,
   },
   namespace: environment,
   cronSchedule: '0 15 * * *', // set to 3pm utc every day
