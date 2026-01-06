@@ -47,6 +47,11 @@ export const agentSpecificChainMetadataOverrides: ChainMap<
   },
 };
 
+// Chains without CoinGecko listings - these won't be overwritten by print-token-prices.ts
+export const tokenPriceOverrides: ChainMap<string> = {
+  incentiv: '0.002',
+};
+
 export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   kyve: {
     gasPrice: {
