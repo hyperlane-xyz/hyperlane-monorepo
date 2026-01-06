@@ -1,6 +1,7 @@
 import { confirm } from '@inquirer/prompts';
 import path from 'path';
 
+import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
   IToken,
@@ -55,6 +56,11 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
     super();
   }
 
+  private get registryUri(): string {
+    // Build registry URI with commit embedded in /tree/{commit} format
+    return `${DEFAULT_GITHUB_REGISTRY}/tree/${this.registryCommit}`;
+  }
+
   async runPreflightChecks(multiProtocolProvider: MultiProtocolProvider) {
     const rebalancerReleaseName = getHelmReleaseName(
       this.warpRouteId,
@@ -95,15 +101,14 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
   async helmValues() {
     return {
       image: {
-        repository: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-        tag: '8da6852-20251215-172511',
+        repository: 'gcr.io/abacus-labs-dev/hyperlane-warp-monitor',
+        tag: 'eda7b03-20251230-135200',
       },
       warpRouteId: this.warpRouteId,
       fullnameOverride: this.helmReleaseName,
-      environment: this.runEnv,
       hyperlane: {
         chains: this.environmentChainNames,
-        registryCommit: this.registryCommit,
+        registryUri: this.registryUri,
       },
     };
   }

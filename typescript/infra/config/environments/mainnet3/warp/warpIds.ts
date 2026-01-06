@@ -120,4 +120,9 @@ export enum WarpRouteIds {
   // HYPER routes
   HYPER = 'HYPER/arbitrum-base-bsc-ethereum-optimism',
   stHYPER = 'stHYPER/bsc-ethereum',
+
+  // Carrchain routes
+  CarrChainUSDC = 'USDC/carrchain',
+  CarrChainUSDT = 'USDT/carrchain',
+  CarrChainWBTC = 'WBTC/carrchain',
 }

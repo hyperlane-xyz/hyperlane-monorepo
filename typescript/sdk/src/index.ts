@@ -573,26 +573,6 @@ export {
   PROTOCOL_TO_DEFAULT_PROVIDER_TYPE,
 } from './providers/ProviderType.js';
 export {
-  RebalancerBaseChainConfigSchema,
-  RebalancerConfigSchema,
-  RebalancerMinAmountConfigSchema,
-  RebalancerMinAmountType,
-  RebalancerStrategyOptions,
-  RebalancerWeightedChainConfigSchema,
-  StrategyConfigSchema,
-} from './rebalancer/types.js';
-export type {
-  MinAmountStrategy,
-  MinAmountStrategyConfig,
-  RebalancerConfig,
-  RebalancerConfigFileInput,
-  RebalancerMinAmountChainConfig,
-  RebalancerWeightedChainConfig,
-  StrategyConfig,
-  WeightedStrategy,
-  WeightedStrategyConfig,
-} from './rebalancer/types.js';
-export {
   EvmGasRouterAdapter,
   EvmRouterAdapter,
 } from './router/adapters/EvmRouterAdapter.js';

@@ -1,12 +1,11 @@
 import { type Logger } from 'pino';
 
+import { type ChainMap, type Token } from '@hyperlane-xyz/sdk';
+
 import {
-  type ChainMap,
   RebalancerStrategyOptions,
   type StrategyConfig,
-  type Token,
-} from '@hyperlane-xyz/sdk';
-
+} from '../config/types.js';
 import { type IStrategy } from '../interfaces/IStrategy.js';
 import { type Metrics } from '../metrics/Metrics.js';
 

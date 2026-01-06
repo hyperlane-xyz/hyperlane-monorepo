@@ -1,7 +1,6 @@
 import { type Logger } from 'pino';
 
-import type { WeightedStrategyConfig } from '@hyperlane-xyz/sdk';
-
+import type { WeightedStrategyConfig } from '../config/types.js';
 import type { RawBalances } from '../interfaces/IStrategy.js';
 import { type Metrics } from '../metrics/Metrics.js';
 

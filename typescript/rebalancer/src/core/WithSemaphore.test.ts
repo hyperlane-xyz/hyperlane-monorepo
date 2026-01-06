@@ -3,8 +3,7 @@ import chaiAsPromised from 'chai-as-promised';
 import { pino } from 'pino';
 import Sinon from 'sinon';
 
-import { RebalancerStrategyOptions } from '@hyperlane-xyz/sdk';
-
+import { RebalancerStrategyOptions } from '../config/types.js';
 import { type RebalancingRoute } from '../interfaces/IStrategy.js';
 import { MockRebalancer, buildTestConfig } from '../test/helpers.js';
 

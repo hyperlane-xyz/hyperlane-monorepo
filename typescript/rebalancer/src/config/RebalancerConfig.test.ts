@@ -4,14 +4,14 @@ import { rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
+import { writeYamlOrJson } from '@hyperlane-xyz/utils/fs';
+
+import { RebalancerConfig } from './RebalancerConfig.js';
 import {
   type RebalancerConfigFileInput,
   RebalancerMinAmountType,
   RebalancerStrategyOptions,
-} from '@hyperlane-xyz/sdk';
-import { writeYamlOrJson } from '@hyperlane-xyz/utils/fs';
-
-import { RebalancerConfig } from './RebalancerConfig.js';
+} from './types.js';
 
 const TEST_CONFIG_PATH = join(tmpdir(), 'rebalancer-config-test.yaml');
 
