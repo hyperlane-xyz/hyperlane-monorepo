@@ -1,17 +1,25 @@
 import { DeployEnvironment } from '../src/config/environment.js';
 
 /**
- * Centralized Docker image configuration for non-agent services.
- * Agent Docker images are configured separately in environment-specific agent.ts files.
+ * Centralized Docker image configuration for all infra services.
  */
 
 export const DockerImageRepos = {
+  AGENT: 'gcr.io/abacus-labs-dev/hyperlane-agent',
   MONOREPO: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
   WARP_MONITOR: 'gcr.io/abacus-labs-dev/hyperlane-warp-monitor',
   REBALANCER: 'gcr.io/abacus-labs-dev/hyperlane-rebalancer',
 } as const;
 
-interface ServiceDockerTags {
+interface AgentDockerTags {
+  relayer: string;
+  relayerRC: string;
+  validator: string;
+  validatorRC: string;
+  scraper: string;
+}
+
+interface ServiceDockerTags extends AgentDockerTags {
   keyFunder: string;
   kathy: string;
   checkWarpDeploy?: string; // Optional - not all envs have this
@@ -20,6 +28,11 @@ interface ServiceDockerTags {
 }
 
 export const mainnetDockerTags: ServiceDockerTags = {
+  relayer: 'fa93b6c-20251224-132143',
+  relayerRC: 'fa93b6c-20251224-132143',
+  validator: 'fa93b6c-20251224-132143',
+  validatorRC: 'cd94774-20251217-100437',
+  scraper: 'fa93b6c-20251224-132143',
   keyFunder: 'ff24bc3-20260104-175430',
   kathy: '8da6852-20251215-172511',
   checkWarpDeploy: '8da6852-20251215-172511',
@@ -28,6 +41,11 @@ export const mainnetDockerTags: ServiceDockerTags = {
 };
 
 export const testnetDockerTags: ServiceDockerTags = {
+  relayer: 'cd94774-20251217-100437',
+  relayerRC: 'cd94774-20251217-100437',
+  validator: 'cd94774-20251217-100437',
+  validatorRC: 'cd94774-20251217-100437',
+  scraper: 'f50feaa-20251219-084739',
   keyFunder: '8da6852-20251215-172511',
   kathy: '8da6852-20251215-172511',
   // checkWarpDeploy not used on testnet
