@@ -44,11 +44,9 @@ import { blacklistedMessageIds } from './customBlacklist.js';
 import { helloWorld } from './helloworld.js';
 import aaveSenderAddresses from './misc-artifacts/aave-sender-addresses.json' with { type: 'json' };
 import everclearSenderAddresses from './misc-artifacts/everclear-sender-addresses.json' with { type: 'json' };
-import {
-  default as merklyErc20Addresses,
-  default as merklyEthAddresses,
-  default as merklyNftAddresses,
-} from './misc-artifacts/merkly-eth-addresses.json' with { type: 'json' };
+import merklyErc20Addresses from './misc-artifacts/merkly-erc20-addresses.json' with { type: 'json' };
+import merklyEthAddresses from './misc-artifacts/merkly-eth-addresses.json' with { type: 'json' };
+import merklyNftAddresses from './misc-artifacts/merkly-nft-addresses.json' with { type: 'json' };
 import {
   mainnet3SupportedChainNames,
   supportedChainNames,
