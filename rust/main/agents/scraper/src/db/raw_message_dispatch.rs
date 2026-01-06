@@ -104,7 +104,10 @@ impl ScraperDb {
 
 #[cfg(test)]
 mod tests {
+    use migration::MigratorTrait;
     use sea_orm::{Database, DatabaseBackend, DbErr, MockDatabase, RuntimeErr};
+    use testcontainers::runners::AsyncRunner;
+    use testcontainers_modules::postgres::Postgres;
     use time::macros::{date, time};
     use time::PrimitiveDateTime;
 
@@ -374,18 +377,29 @@ mod tests {
         assert!(result.is_err());
     }
 
-    // ==================== Integration Test (requires real Postgres) ====================
+    // ==================== Integration Test (uses testcontainers) ====================
 
-    /// Integration test with real PostgreSQL - requires running database
-    /// Run with: cargo test --package scraper test_raw_message_dispatch_real_postgres -- --ignored
-    #[ignore]
+    /// Integration test with real PostgreSQL using testcontainers.
+    /// This test verifies:
+    /// 1. Messages are stored successfully
+    /// 2. Messages can be retrieved by ID
+    /// 3. Duplicate messages (same msg_id) are handled with ON CONFLICT UPDATE
     #[tokio::test]
-    async fn test_raw_message_dispatch_real_postgres() {
-        const POSTGRES_URL: &str = "postgresql://postgres:password@localhost:5432/scraper_test";
-        const MESSAGE_COUNT: usize = 1000;
+    async fn test_raw_message_dispatch_real_postgres() -> eyre::Result<()> {
+        const MESSAGE_COUNT: usize = 100;
 
-        let db = Database::connect(POSTGRES_URL).await.unwrap();
-        let scraper_db = ScraperDb::with_connection(db);
+        // Start a Postgres container
+        let postgres_container = Postgres::default().start().await.unwrap();
+
+        // Get connection details from the container
+        let host_port = postgres_container.get_host_port_ipv4(5432).await.unwrap();
+        let postgres_url = format!("postgresql://postgres:postgres@127.0.0.1:{host_port}/postgres");
+
+        // Connect to database and run migrations
+        let db = Database::connect(&postgres_url).await?;
+        migration::Migrator::up(&db, None).await?;
+
+        let scraper_db = ScraperDb::with_connection(Database::connect(&postgres_url).await?);
 
         // Create test messages
         let messages: Vec<HyperlaneMessage> = (0..MESSAGE_COUNT)
@@ -401,14 +415,18 @@ mod tests {
             .map(|(msg, meta)| StorableRawMessageDispatch { msg, meta })
             .collect();
 
-        // Store messages
+        // Test 1: Store messages
         let store_result = scraper_db
             .store_raw_message_dispatches(&H256::from_low_u64_be(999), storables.into_iter())
             .await;
-        assert!(store_result.is_ok());
+        assert!(
+            store_result.is_ok(),
+            "Store failed: {:?}",
+            store_result.err()
+        );
         assert_eq!(store_result.unwrap(), MESSAGE_COUNT as u64);
 
-        // Retrieve and verify
+        // Test 2: Retrieve and verify first message
         let msg_id = messages[0].id();
         let retrieve_result = scraper_db
             .retrieve_raw_message_dispatch_by_id(&msg_id)
@@ -419,8 +437,17 @@ mod tests {
         assert_eq!(model.nonce, 0);
         assert_eq!(model.origin_domain, 1);
         assert_eq!(model.destination_domain, 2);
+        assert_eq!(model.origin_block_height, 1000);
 
-        // Test duplicate handling (same message ID should update, not fail)
+        // Test 3: Retrieve last message
+        let last_msg_id = messages[MESSAGE_COUNT - 1].id();
+        let last_result = scraper_db
+            .retrieve_raw_message_dispatch_by_id(&last_msg_id)
+            .await?
+            .expect("Last message should exist");
+        assert_eq!(last_result.nonce, (MESSAGE_COUNT - 1) as i32);
+
+        // Test 4: Duplicate handling (same message ID should update, not fail)
         let storables_dup: Vec<StorableRawMessageDispatch> = messages
             .iter()
             .take(10)
@@ -431,7 +458,22 @@ mod tests {
         let dup_result = scraper_db
             .store_raw_message_dispatches(&H256::from_low_u64_be(999), storables_dup.into_iter())
             .await;
-        assert!(dup_result.is_ok()); // Should not fail on duplicates
+        assert!(
+            dup_result.is_ok(),
+            "Duplicate handling failed: {:?}",
+            dup_result.err()
+        );
+
+        // Test 5: Non-existent message returns None
+        let nonexistent = scraper_db
+            .retrieve_raw_message_dispatch_by_id(&H256::from_low_u64_be(0xDEAD))
+            .await?;
+        assert!(nonexistent.is_none());
+
+        // Clean up
+        migration::Migrator::down(&db, None).await?;
+
+        Ok(())
     }
 
     // ==================== CCTP-specific Scenario Tests ====================
