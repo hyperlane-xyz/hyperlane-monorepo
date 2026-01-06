@@ -440,6 +440,20 @@ export function icaMatchingList(
 
     const matcher = icaMatchers[source];
 
+    // Validate that REVEAL messages don't specify owner or salt
+    if (matcher.messageType === IcaMessageType.REVEAL) {
+      if (matcher.owner !== undefined) {
+        throw new Error(
+          `Chain ${source}: REVEAL messages do not have an owner field. Remove 'owner' from IcaBodyMatchOptions.`,
+        );
+      }
+      if (matcher.salt !== undefined) {
+        throw new Error(
+          `Chain ${source}: REVEAL messages do not have a salt field. Remove 'salt' from IcaBodyMatchOptions.`,
+        );
+      }
+    }
+
     // Build regex pattern based on message type and which fields are provided
     let bodyRegex = '^';
 

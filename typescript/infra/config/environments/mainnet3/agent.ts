@@ -24,6 +24,7 @@ import {
   getAgentChainNamesFromConfig,
 } from '../../../src/config/agent/agent.js';
 import {
+  IcaMessageType,
   MetricAppContext,
   chainMapMatchingList,
   consistentSenderRecipientMatchingList,
@@ -599,8 +600,17 @@ const velodromeUniversalRouters: ChainMap<Address> = {
   unichain: velodromeUniversalRouterOwner,
 };
 
-const superswapIcaV2MatchingList = icaMatchingList(
-  objMap(velodromeUniversalRouters, (_, owner) => ({ owner })),
+const superswapIcaV2CommitmentMatchingList = icaMatchingList(
+  objMap(velodromeUniversalRouters, (_, owner) => ({
+    messageType: IcaMessageType.COMMITMENT,
+    owner,
+  })),
+);
+
+const icaV2RevealMatchingList = icaMatchingList(
+  objMap(velodromeUniversalRouters, () => ({
+    messageType: IcaMessageType.REVEAL,
+  })),
 );
 
 const gasPaymentEnforcement: GasPaymentEnforcement[] = [
@@ -644,7 +654,9 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       // Being more generous with some Velo message module messages, which occasionally underpay
       ...veloMessageModuleMatchingList,
       // Superswap ICA matches on ICA owner address in message body
-      ...superswapIcaV2MatchingList,
+      ...superswapIcaV2CommitmentMatchingList,
+      // ICA reveal messages (does not filter on ICA owner)
+      ...icaV2RevealMatchingList,
     ],
   },
   {
@@ -777,7 +789,11 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
     },
     {
       name: 'superswap_ica_v2',
-      matchingList: superswapIcaV2MatchingList,
+      matchingList: [
+        ...superswapIcaV2CommitmentMatchingList,
+        // WARN: does not only reflect superswaps messages
+        ...icaV2RevealMatchingList,
+      ],
     },
     {
       name: 'm0',
