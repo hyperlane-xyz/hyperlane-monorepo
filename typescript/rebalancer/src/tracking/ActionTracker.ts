@@ -306,6 +306,11 @@ export class ActionTracker implements IActionTracker {
     this.logger.debug({ id }, 'Cancelled RebalanceIntent');
   }
 
+  async failRebalanceIntent(id: string): Promise<void> {
+    await this.rebalanceIntentStore.update(id, { status: 'failed' });
+    this.logger.debug({ id }, 'Failed RebalanceIntent');
+  }
+
   // === RebalanceAction Management ===
 
   async createRebalanceAction(

@@ -94,8 +94,15 @@ export interface IActionTracker {
 
   /**
    * Cancel a rebalance intent.
+   * Used for deliberate stops (e.g., stale fulfillment).
    */
   cancelRebalanceIntent(id: string): Promise<void>;
+
+  /**
+   * Mark a rebalance intent as failed.
+   * Used when tx execution was attempted but failed.
+   */
+  failRebalanceIntent(id: string): Promise<void>;
 
   // === RebalanceAction Management ===
 
