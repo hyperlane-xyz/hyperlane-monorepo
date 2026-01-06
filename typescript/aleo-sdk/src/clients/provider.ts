@@ -105,7 +105,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     );
 
     if (!result) {
-      0n;
+      return 0n;
     }
 
     return result['max_supply'];
