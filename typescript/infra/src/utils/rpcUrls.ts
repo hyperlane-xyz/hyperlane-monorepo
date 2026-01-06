@@ -18,9 +18,11 @@ import {
   secretRpcEndpointsExist,
   setSecretRpcEndpoints,
 } from '../agents/index.js';
+import { CheckWarpDeployHelmManager } from '../check-warp-deploy/helm.js';
 import { DeployEnvironment } from '../config/environment.js';
 import { KeyFunderHelmManager } from '../funding/key-funder.js';
 import { KathyHelmManager } from '../helloworld/kathy.js';
+import { WarpRouteMonitorHelmManager } from '../warp-monitor/helm.js';
 
 import { disableGCPSecretVersion } from './gcloud.js';
 import { HelmManager } from './helm.js';
@@ -331,6 +333,20 @@ async function refreshDependentK8sResourcesInteractive(
         );
       }
     }
+  }
+
+  // Warp route monitors that include the affected chain
+  const warpMonitorManagers =
+    await WarpRouteMonitorHelmManager.getManagersForChain(environment, chain);
+  for (const manager of warpMonitorManagers) {
+    pushContextHelmManager(Contexts.Hyperlane, manager);
+  }
+
+  // Check warp deploy cron job
+  const checkWarpDeployManager =
+    CheckWarpDeployHelmManager.forEnvironment(environment);
+  if (checkWarpDeployManager) {
+    pushContextHelmManager(Contexts.Hyperlane, checkWarpDeployManager);
   }
 
   const selection = await checkbox({
