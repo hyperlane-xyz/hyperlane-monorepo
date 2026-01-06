@@ -31,7 +31,8 @@ export type RebalanceIntentStatus =
   | 'not_started'
   | 'in_progress'
   | 'complete'
-  | 'cancelled';
+  | 'cancelled'
+  | 'failed';
 export type RebalanceActionStatus = 'in_progress' | 'complete' | 'failed';
 
 // === Entity Types ===
