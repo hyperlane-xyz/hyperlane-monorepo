@@ -639,10 +639,10 @@ contract InterchainGasPaymasterTest is Test {
             TEST_GAS_PRICE // 150 wei gas price
         );
 
-        // quoteGasPaymentWithToken does NOT add overhead - caller is responsible
+        // quoteGasPayment does NOT add overhead - caller is responsible
         // gasLimit (300000) * 150 = 45000000
         uint256 expectedQuote = 45000000;
-        uint256 actualQuote = igp.quoteGasPaymentWithToken(
+        uint256 actualQuote = igp.quoteGasPayment(
             address(feeToken),
             testDestinationDomain,
             testGasLimit
@@ -658,10 +658,10 @@ contract InterchainGasPaymasterTest is Test {
             TEST_GAS_PRICE
         );
 
-        // quoteGasPaymentWithToken does NOT add overhead - caller is responsible
+        // quoteGasPayment does NOT add overhead - caller is responsible
         // gasLimit (300000) * 150 * 2 = 90000000
         uint256 expectedQuote = 90000000;
-        uint256 actualQuote = igp.quoteGasPaymentWithToken(
+        uint256 actualQuote = igp.quoteGasPayment(
             address(feeToken),
             testDestinationDomain,
             testGasLimit
@@ -673,7 +673,7 @@ contract InterchainGasPaymasterTest is Test {
         address unsupportedToken = address(0xDEAD);
 
         vm.expectRevert("IGP: no gas oracle for domain 11111");
-        igp.quoteGasPaymentWithToken(
+        igp.quoteGasPayment(
             unsupportedToken,
             testDestinationDomain,
             testGasLimit
@@ -684,11 +684,7 @@ contract InterchainGasPaymasterTest is Test {
         uint32 unsupportedDomain = 99999;
 
         vm.expectRevert("IGP: no gas oracle for domain 99999");
-        igp.quoteGasPaymentWithToken(
-            address(feeToken),
-            unsupportedDomain,
-            testGasLimit
-        );
+        igp.quoteGasPayment(address(feeToken), unsupportedDomain, testGasLimit);
     }
 
     function testPostDispatch_withTokenFee() public {
@@ -704,7 +700,7 @@ contract InterchainGasPaymasterTest is Test {
             testDestinationDomain,
             testGasLimit
         );
-        uint256 quote = igp.quoteGasPaymentWithToken(
+        uint256 quote = igp.quoteGasPayment(
             address(feeToken),
             testDestinationDomain,
             totalGas
@@ -785,7 +781,7 @@ contract InterchainGasPaymasterTest is Test {
             testDestinationDomain,
             testGasLimit
         );
-        uint256 quote = igp.quoteGasPaymentWithToken(
+        uint256 quote = igp.quoteGasPayment(
             address(feeToken),
             testDestinationDomain,
             totalGas

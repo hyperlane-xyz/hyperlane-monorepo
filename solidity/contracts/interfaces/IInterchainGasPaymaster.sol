@@ -56,7 +56,7 @@ interface IInterchainGasPaymaster {
      * @param _gasAmount The amount of destination gas to pay for.
      * @return The amount of tokens required.
      */
-    function quoteGasPaymentWithToken(
+    function quoteGasPayment(
         address _feeToken,
         uint32 _destinationDomain,
         uint256 _gasAmount

@@ -255,7 +255,7 @@ contract InterchainGasPaymaster is
      * @param _gasLimit The amount of destination gas to pay for.
      * @return The amount of tokens required.
      */
-    function quoteGasPaymentWithToken(
+    function quoteGasPayment(
         address _feeToken,
         uint32 _destinationDomain,
         uint256 _gasLimit
@@ -393,7 +393,7 @@ contract InterchainGasPaymaster is
                 _destinationDomain,
                 metadata.gasLimit(DEFAULT_GAS_USAGE)
             );
-            uint256 _payment = quoteGasPaymentWithToken(
+            uint256 _payment = quoteGasPayment(
                 _feeToken,
                 _destinationDomain,
                 _totalGasLimit
@@ -432,7 +432,7 @@ contract InterchainGasPaymaster is
                 );
         }
         return
-            quoteGasPaymentWithToken(
+            quoteGasPayment(
                 _feeToken,
                 _destinationDomain,
                 tokenDestinationGasLimit(
