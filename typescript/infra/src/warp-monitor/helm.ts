@@ -59,6 +59,10 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
   }
 
   private get registryUri(): string {
+    // If no commit specified, use the default registry URL without /tree/ suffix
+    if (!this.registryCommit) {
+      return DEFAULT_GITHUB_REGISTRY;
+    }
     // Build registry URI with commit embedded in /tree/{commit} format
     return `${DEFAULT_GITHUB_REGISTRY}/tree/${this.registryCommit}`;
   }
