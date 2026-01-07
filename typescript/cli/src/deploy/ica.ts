@@ -86,26 +86,26 @@ export async function runIcaDeploy(params: IcaDeployParams): Promise<void> {
             ica: expectedAccount,
             status: 'exists',
           };
-        } else {
-          // Deploy the ICA
-          logBlue(`Deploying ICA on ${destination}...`);
-          const deployedAccount = await ica.deployAccount(
-            destination,
-            ownerConfig,
-          );
-
-          assert(
-            eqAddress(deployedAccount, expectedAccount),
-            `Deployed ICA address ${deployedAccount} does not match expected address ${expectedAccount}`,
-          );
-
-          logGreen(`ICA deployed on ${destination}: ${deployedAccount}`);
-          return {
-            chain: destination,
-            ica: deployedAccount,
-            status: 'deployed',
-          };
         }
+
+        // Deploy the ICA
+        logBlue(`Deploying ICA on ${destination}...`);
+        const deployedAccount = await ica.deployAccount(
+          destination,
+          ownerConfig,
+        );
+
+        assert(
+          eqAddress(deployedAccount, expectedAccount),
+          `Deployed ICA address ${deployedAccount} does not match expected address ${expectedAccount}`,
+        );
+
+        logGreen(`ICA deployed on ${destination}: ${deployedAccount}`);
+        return {
+          chain: destination,
+          ica: deployedAccount,
+          status: 'deployed',
+        };
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : String(error);
