@@ -12,7 +12,7 @@ import {
   TypedTransactionReceipt,
   WarpTypedTransaction,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert, sleep } from '@hyperlane-xyz/utils';
 
 import {
   AccountInfo,
@@ -176,26 +176,54 @@ export function useAleoTransactionFns(
         throw new Error(`Failed to execute Aleo transaction`);
       }
 
+      let transactionStatus = '';
+      let transactionHash = '';
+
+      while (!transactionHash) {
+        try {
+          const statusResponse = await adapter.transactionStatus(
+            transactionResult.transactionId,
+          );
+          transactionStatus = statusResponse.status;
+
+          if (statusResponse.status.toLowerCase() !== 'pending') {
+            if (statusResponse.transactionId) {
+              transactionHash = statusResponse.transactionId;
+              break;
+            }
+
+            throw new Error(
+              `got no transaction id from ${transactionResult.transactionId}`,
+            );
+          }
+
+          await sleep(1000);
+        } catch (err) {
+          throw new Error(
+            `failed to get transaction status from ${transactionResult.transactionId}`,
+          );
+        }
+      }
+
       const confirm = async (): Promise<TypedTransactionReceipt> => {
         assert(
-          transactionResult.transactionId,
-          `Aleo tx failed: ${transactionResult}`,
+          transactionStatus.toLowerCase() !== 'accepted',
+          `Aleo tx failed: ${transactionStatus}`,
         );
 
-        // TODO: populate receipt
         return {
           type: tx.type as ProviderType.Aleo,
           receipt: {
-            status: '',
+            status: transactionStatus,
             type: '',
             index: 0n,
             transaction: {} as any,
             finalize: [],
-            transactionHash: transactionResult.transactionId || '',
+            transactionHash,
           },
         };
       };
-      return { hash: transactionResult.transactionId || '', confirm };
+      return { hash: transactionHash, confirm };
     },
     [switchNetwork],
   );
