@@ -948,7 +948,7 @@ impl Relayer {
             .chains
             .iter()
             .map(|(domain, chain)| {
-                tracing::debug!(timeout=?chain.origin_init_timeout_millis, "Building origin with timeout");
+                tracing::debug!(?domain, timeout=?chain.origin_init_timeout_millis, "Building origin with timeout");
                 tokio::time::timeout(chain.origin_init_timeout_millis.clone(), async {
                     factory
                         .create(
@@ -1022,7 +1022,7 @@ impl Relayer {
             .chains
             .iter()
             .map(|(domain, chain)| {
-                tracing::debug!(timeout=?chain.destination_init_timeout_millis, "Building destination with timeout");
+                tracing::debug!(?domain, timeout=?chain.destination_init_timeout_millis, "Building destination with timeout");
                 tokio::time::timeout(chain.destination_init_timeout_millis.clone(), async {
                     factory
                         .create(domain.clone(), chain.clone(), dispatcher_metrics.clone())
