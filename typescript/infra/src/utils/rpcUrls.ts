@@ -316,10 +316,9 @@ async function refreshDependentK8sResourcesInteractive(
     }
 
     if (context == Contexts.Hyperlane) {
-      // Key funder
       pushContextHelmManager(
         context,
-        KeyFunderHelmManager.forEnvironment(environment),
+        KeyFunderHelmManager.forEnvironment(environment, 'main'),
       );
 
       // Kathy - only expected to be running as a long-running service in the
