@@ -967,7 +967,7 @@ impl Relayer {
             .zip(results.into_iter())
             .filter_map(|(domain, dest_res)| match dest_res {
                 Ok(res) => match res {
-                    Ok(destination) => Some((domain.clone(), destination)),
+                    Ok(origin) => Some((origin.domain.clone(), origin)),
                     Err(err) => {
                         Self::record_critical_error(
                             domain,
@@ -1038,7 +1038,7 @@ impl Relayer {
             .zip(results.into_iter())
             .filter_map(|(domain, dest_res)| match dest_res {
                 Ok(res) => match res {
-                    Ok(destination) => Some((domain.clone(), destination)),
+                    Ok(destination) => Some((destination.domain.clone(), destination)),
                     Err(err) => {
                         Self::record_critical_error(
                             domain,
