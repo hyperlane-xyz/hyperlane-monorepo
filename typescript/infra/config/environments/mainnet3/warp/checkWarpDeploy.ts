@@ -5,7 +5,7 @@ import { environment } from '../chains.js';
 export const checkWarpDeployConfig: CheckWarpDeployConfig = {
   docker: {
     repo: DockerImageRepos.MONOREPO,
-    tag: mainnetDockerTags.checkWarpDeploy!,
+    tag: mainnetDockerTags.checkWarpDeploy,
   },
   namespace: environment,
   cronSchedule: '0 15 * * *', // set to 3pm utc every day
