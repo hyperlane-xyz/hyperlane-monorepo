@@ -132,19 +132,4 @@ export async function runIcaDeploy(params: IcaDeployParams): Promise<void> {
       ...(error ? { error } : {}),
     })),
   );
-
-  // Summary
-  const deployed = results.filter((r) => r.status === 'deployed').length;
-  const existing = results.filter((r) => r.status === 'exists').length;
-  const errors = results.filter((r) => r.status === 'error').length;
-
-  if (deployed > 0) {
-    logGreen(`Successfully deployed ${deployed} ICA(s)`);
-  }
-  if (existing > 0) {
-    warnYellow(`${existing} ICA(s) already existed`);
-  }
-  if (errors > 0) {
-    logRed(`${errors} ICA deployment(s) failed`);
-  }
 }
