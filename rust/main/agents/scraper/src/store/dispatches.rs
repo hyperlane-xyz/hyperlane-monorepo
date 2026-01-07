@@ -11,6 +11,9 @@ use hyperlane_core::{
 use crate::db::{StorableMessage, StorableRawMessageDispatch};
 use crate::store::storage::{HyperlaneDbStore, TxnWithId};
 
+/// Label for raw message dispatch metrics
+const RAW_MESSAGE_DISPATCH_LABEL: &str = "raw_message_dispatch";
+
 #[async_trait]
 impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneDbStore {
     /// Store dispatched messages from the origin mailbox into the database.
@@ -29,10 +32,17 @@ impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneDbStore {
                 msg: message.inner(),
                 meta,
             });
-        let _raw_stored = self
+        let raw_stored = self
             .db
             .store_raw_message_dispatches(&self.mailbox_address, raw_messages)
             .await?;
+
+        // Track raw message dispatches in metrics for E2E verification
+        if let Some(metric) = self.stored_events_metric() {
+            metric
+                .with_label_values(&[RAW_MESSAGE_DISPATCH_LABEL, self.domain.name()])
+                .inc_by(raw_stored);
+        }
 
         // STEP 2: Store full messages (requires RPC calls for block/transaction data)
         // If RPC fails here, raw messages are already stored and CCTP can still function
