@@ -19,7 +19,7 @@ interface IcaDeployParams {
 
 interface IcaDeployResult {
   chain: string;
-  ica: Address;
+  ica?: Address;
   status: 'deployed' | 'exists' | 'error';
   error?: string;
 }
@@ -112,7 +112,6 @@ export async function runIcaDeploy(params: IcaDeployParams): Promise<void> {
         error instanceof Error ? error.message : String(error);
       results.push({
         chain: destination,
-        ica: 'N/A',
         status: 'error',
         error: errorMessage,
       });
@@ -125,7 +124,7 @@ export async function runIcaDeploy(params: IcaDeployParams): Promise<void> {
   logTable(
     results.map(({ chain, ica, status, error }) => ({
       chain,
-      ica,
+      ica: ica ?? 'N/A',
       status,
       ...(error ? { error } : {}),
     })),
