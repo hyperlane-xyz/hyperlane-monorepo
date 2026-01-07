@@ -12,7 +12,7 @@ import {
   TypedTransactionReceipt,
   WarpTypedTransaction,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert, sleep } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert, retryAsync, sleep } from '@hyperlane-xyz/utils';
 
 import {
   AccountInfo,
@@ -181,8 +181,8 @@ export function useAleoTransactionFns(
 
       while (!transactionHash) {
         try {
-          const statusResponse = await adapter.transactionStatus(
-            transactionResult.transactionId,
+          const statusResponse = await retryAsync(() =>
+            adapter.transactionStatus(transactionResult.transactionId),
           );
           transactionStatus = statusResponse.status;
 
