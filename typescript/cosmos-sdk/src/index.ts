@@ -9,7 +9,8 @@ export { CosmosIsmArtifactManager } from './ism/ism-artifact-manager.js';
 export {
   getIsmType,
   getNoopIsmConfig,
-  getMultisigIsmConfig,
+  getMessageIdMultisigIsmConfig,
+  getMerkleRootMultisigIsmConfig,
   getRoutingIsmConfig,
   type CosmosIsmQueryClient,
 } from './ism/ism-query.js';

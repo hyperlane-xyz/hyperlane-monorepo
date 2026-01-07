@@ -9,7 +9,11 @@ import {
   MultisigIsmConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
 
-import { CosmosIsmQueryClient, getMultisigIsmConfig } from './ism-query.js';
+import {
+  CosmosIsmQueryClient,
+  getMerkleRootMultisigIsmConfig,
+  getMessageIdMultisigIsmConfig,
+} from './ism-query.js';
 
 /**
  * Reader for Cosmos Message ID Multisig ISM.
@@ -23,7 +27,7 @@ export class CosmosMessageIdMultisigIsmReader
   async read(
     address: string,
   ): Promise<ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddresses>> {
-    const ismConfig = await getMultisigIsmConfig(this.query, address);
+    const ismConfig = await getMessageIdMultisigIsmConfig(this.query, address);
 
     return {
       artifactState: ArtifactState.DEPLOYED,
@@ -51,7 +55,7 @@ export class CosmosMerkleRootMultisigIsmReader
   async read(
     address: string,
   ): Promise<ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddresses>> {
-    const ismConfig = await getMultisigIsmConfig(this.query, address);
+    const ismConfig = await getMerkleRootMultisigIsmConfig(this.query, address);
 
     return {
       artifactState: ArtifactState.DEPLOYED,

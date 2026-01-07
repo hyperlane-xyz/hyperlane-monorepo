@@ -82,15 +82,14 @@ export async function getNoopIsmConfig(
 }
 
 /**
- * Query multisig ISM configuration.
- * Works for both MESSAGE_ID and MERKLE_ROOT multisig types as they share the same structure.
+ * Query Message ID Multisig ISM configuration.
  *
  * @param query - Query client with InterchainSecurityExtension
- * @param ismAddress - Address of the multisig ISM to query
- * @returns Multisig ISM configuration with address, validators, and threshold
- * @throws Error if multisig ISM not found
+ * @param ismAddress - Address of the Message ID Multisig ISM to query
+ * @returns Message ID Multisig ISM configuration with address, validators, and threshold
+ * @throws Error if Message ID Multisig ISM not found
  */
-export async function getMultisigIsmConfig(
+export async function getMessageIdMultisigIsmConfig(
   query: CosmosIsmQueryClient,
   ismAddress: string,
 ): Promise<{
@@ -99,44 +98,55 @@ export async function getMultisigIsmConfig(
   threshold: number;
 }> {
   try {
-    // Try as MessageIdMultisigISM first
-    try {
-      const { ism } =
-        await query.interchainSecurity.DecodedIsm<isTypes.MessageIdMultisigISM>(
-          {
-            id: ismAddress,
-          },
-        );
+    const { ism } =
+      await query.interchainSecurity.DecodedIsm<isTypes.MessageIdMultisigISM>({
+        id: ismAddress,
+      });
+    assert(ism, `No Message ID Multisig ISM found at address ${ismAddress}`);
 
-      if (ism) {
-        return {
-          address: ism.id,
-          validators: ism.validators,
-          threshold: ism.threshold,
-        };
-      }
-    } catch {
-      // If MessageIdMultisigISM fails, try MerkleRootMultisigISM
-      const { ism } =
-        await query.interchainSecurity.DecodedIsm<isTypes.MerkleRootMultisigISM>(
-          {
-            id: ismAddress,
-          },
-        );
-
-      if (ism) {
-        return {
-          address: ism.id,
-          validators: ism.validators,
-          threshold: ism.threshold,
-        };
-      }
-    }
-
-    throw new Error(`No multisig ISM found at address ${ismAddress}`);
+    return {
+      address: ism.id,
+      validators: ism.validators,
+      threshold: ism.threshold,
+    };
   } catch (error) {
     throw new Error(
-      `Failed to query multisig ISM config at ${ismAddress}: ${(error as Error).message}`,
+      `Failed to query Message ID Multisig ISM config at ${ismAddress}: ${(error as Error).message}`,
+    );
+  }
+}
+
+/**
+ * Query Merkle Root Multisig ISM configuration.
+ *
+ * @param query - Query client with InterchainSecurityExtension
+ * @param ismAddress - Address of the Merkle Root Multisig ISM to query
+ * @returns Merkle Root Multisig ISM configuration with address, validators, and threshold
+ * @throws Error if Merkle Root Multisig ISM not found
+ */
+export async function getMerkleRootMultisigIsmConfig(
+  query: CosmosIsmQueryClient,
+  ismAddress: string,
+): Promise<{
+  address: string;
+  validators: string[];
+  threshold: number;
+}> {
+  try {
+    const { ism } =
+      await query.interchainSecurity.DecodedIsm<isTypes.MerkleRootMultisigISM>({
+        id: ismAddress,
+      });
+    assert(ism, `No Merkle Root Multisig ISM found at address ${ismAddress}`);
+
+    return {
+      address: ism.id,
+      validators: ism.validators,
+      threshold: ism.threshold,
+    };
+  } catch (error) {
+    throw new Error(
+      `Failed to query Merkle Root Multisig ISM config at ${ismAddress}: ${(error as Error).message}`,
     );
   }
 }

@@ -55,7 +55,8 @@ import {
 import { WarpExtension, setupWarpExtension } from '../hyperlane/warp/query.js';
 import {
   getIsmType,
-  getMultisigIsmConfig,
+  getMerkleRootMultisigIsmConfig,
+  getMessageIdMultisigIsmConfig,
   getNoopIsmConfig,
   getRoutingIsmConfig,
 } from '../ism/ism-query.js';
@@ -218,13 +219,13 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
   async getMessageIdMultisigIsm(
     req: AltVM.ReqMessageIdMultisigIsm,
   ): Promise<AltVM.ResMessageIdMultisigIsm> {
-    return getMultisigIsmConfig(this.query, req.ismAddress);
+    return getMessageIdMultisigIsmConfig(this.query, req.ismAddress);
   }
 
   async getMerkleRootMultisigIsm(
     req: AltVM.ReqMerkleRootMultisigIsm,
   ): Promise<AltVM.ResMerkleRootMultisigIsm> {
-    return getMultisigIsmConfig(this.query, req.ismAddress);
+    return getMerkleRootMultisigIsmConfig(this.query, req.ismAddress);
   }
 
   async getRoutingIsm(req: AltVM.ReqRoutingIsm): Promise<AltVM.ResRoutingIsm> {
