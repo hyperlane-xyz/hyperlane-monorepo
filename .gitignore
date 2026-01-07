@@ -45,3 +45,6 @@ yalc.lock
 # .yarn as we use pnpm now
 .yarn
 .sisyphus/
+
+# opencode
+.opencode/
