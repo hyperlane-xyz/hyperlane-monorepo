@@ -1,6 +1,7 @@
 export const DockerImageRepos = {
   AGENT: 'gcr.io/abacus-labs-dev/hyperlane-agent',
   MONOREPO: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
+  KEYFUNDER: 'gcr.io/abacus-labs-dev/hyperlane-keyfunder',
   WARP_MONITOR: 'gcr.io/abacus-labs-dev/hyperlane-warp-monitor',
   REBALANCER: 'gcr.io/abacus-labs-dev/hyperlane-rebalancer',
 } as const;

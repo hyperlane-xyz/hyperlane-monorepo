@@ -10,7 +10,7 @@ export const keyFunderConfig: KeyFunderConfig<
   typeof testnet4SupportedChainNames
 > = {
   docker: {
-    repo: DockerImageRepos.MONOREPO,
+    repo: DockerImageRepos.KEYFUNDER,
     tag: testnetDockerTags.keyFunder,
   },
   // We're currently using the same deployer key as testnet2.
