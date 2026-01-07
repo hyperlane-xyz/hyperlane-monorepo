@@ -30,8 +30,9 @@ export const deploy: CommandModuleWithWriteContext<{
   builder: {
     origin: {
       ...chainCommandOption,
-      description: 'The origin chain where the owner address lives',
-      demandOption: true,
+      description:
+        'The origin chain where the owner address lives. Ethereum is used by default',
+      default: 'ethereum',
     },
     destinations: {
       type: 'string',
