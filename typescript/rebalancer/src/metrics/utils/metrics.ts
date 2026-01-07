@@ -1,5 +1,5 @@
 import http from 'http';
-import { Registry } from 'prom-client';
+import { type Registry } from 'prom-client';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
 

@@ -8,18 +8,18 @@ import {
 import { AltVMWarpRouteReader } from '@hyperlane-xyz/deploy-sdk';
 import { hasProtocol } from '@hyperlane-xyz/provider-sdk';
 import {
-  ChainMap,
-  ChainName,
-  DerivedWarpRouteDeployConfig,
+  type ChainMap,
+  type ChainName,
+  type DerivedWarpRouteDeployConfig,
   EvmERC20WarpRouteReader,
-  HypTokenRouterConfig,
-  MultiProvider,
+  type HypTokenRouterConfig,
+  type MultiProvider,
   TokenStandard,
-  WarpCoreConfig,
+  type WarpCoreConfig,
   altVmChainLookup,
 } from '@hyperlane-xyz/sdk';
 import {
-  Address,
+  type Address,
   ProtocolType,
   mustGet,
   objFilter,
@@ -27,7 +27,7 @@ import {
   promiseObjAll,
 } from '@hyperlane-xyz/utils';
 
-import { CommandContext } from '../context/types.js';
+import { type CommandContext } from '../context/types.js';
 import { logGray, logRed, logTable } from '../logger.js';
 import { getWarpCoreConfigOrExit } from '../utils/warp.js';
 

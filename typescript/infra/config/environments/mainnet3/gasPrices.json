@@ -107,6 +107,10 @@
     "amount": "2501.0",
     "decimals": 9
   },
+  "citrea": {
+    "amount": "0.0010001",
+    "decimals": 9
+  },
   "coredao": {
     "amount": "60.0",
     "decimals": 9
@@ -137,6 +141,10 @@
   },
   "endurance": {
     "amount": "1.500000007",
+    "decimals": 9
+  },
+  "eni": {
+    "amount": "108.9",
     "decimals": 9
   },
   "ethereum": {
@@ -208,7 +216,7 @@
     "decimals": 9
   },
   "incentiv": {
-    "amount": "40001.0",
+    "amount": "13100.0",
     "decimals": 9
   },
   "ink": {
@@ -221,6 +229,10 @@
   },
   "katana": {
     "amount": "0.001000251",
+    "decimals": 9
+  },
+  "krown": {
+    "amount": "0.001000007",
     "decimals": 9
   },
   "kyve": {
@@ -314,6 +326,10 @@
   "morph": {
     "amount": "0.1375",
     "decimals": 9
+  },
+  "neutron": {
+    "amount": "0.0053",
+    "decimals": 1
   },
   "nibiru": {
     "amount": "1000.0",

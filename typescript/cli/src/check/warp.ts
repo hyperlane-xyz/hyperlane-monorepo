@@ -1,16 +1,16 @@
 import { stringify as yamlStringify } from 'yaml';
 
 import {
-  DerivedWarpRouteDeployConfig,
-  HypTokenRouterVirtualConfig,
-  WarpRouteDeployConfigMailboxRequired,
+  type DerivedWarpRouteDeployConfig,
+  type HypTokenRouterVirtualConfig,
+  type WarpRouteDeployConfigMailboxRequired,
   derivedHookAddress,
   derivedIsmAddress,
   transformConfigToCheck,
   verifyScale,
 } from '@hyperlane-xyz/sdk';
 import {
-  ObjectDiff,
+  type ObjectDiff,
   diffObjMerge,
   keepOnlyDiffObjects,
 } from '@hyperlane-xyz/utils';

@@ -1,15 +1,15 @@
 import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
 import { expect } from 'chai';
 
-import { ChainAddresses } from '@hyperlane-xyz/registry';
-import { TokenType, WarpRouteDeployConfig } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType } from '@hyperlane-xyz/utils';
+import { type ChainAddresses } from '@hyperlane-xyz/registry';
+import { TokenType, type WarpRouteDeployConfig } from '@hyperlane-xyz/sdk';
+import { type Address, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import {
   KeyBoardKeys,
-  TestPromptAction,
+  type TestPromptAction,
   handlePrompts,
 } from '../../commands/helpers.js';
 import { HyperlaneE2EWarpTestCommands } from '../../commands/warp.js';

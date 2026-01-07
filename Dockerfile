@@ -37,10 +37,14 @@ COPY typescript/rebalancer/package.json ./typescript/rebalancer/
 COPY typescript/sdk/package.json ./typescript/sdk/
 COPY typescript/tsconfig/package.json ./typescript/tsconfig/
 COPY typescript/utils/package.json ./typescript/utils/
+COPY typescript/warp-monitor/package.json ./typescript/warp-monitor/
 COPY typescript/widgets/package.json ./typescript/widgets/
 COPY solidity/package.json ./solidity/
 COPY solhint-plugin/package.json ./solhint-plugin/
 COPY starknet/package.json ./starknet/
+
+# Set dummy DATABASE_URL for ccip-server prisma generate during install
+ENV DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder"
 
 RUN pnpm install --frozen-lockfile && pnpm store prune
 

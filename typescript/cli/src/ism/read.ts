@@ -1,13 +1,17 @@
 import { createIsmReader } from '@hyperlane-xyz/deploy-sdk';
 import {
-  ChainName,
-  DerivedIsmConfig,
+  type ChainName,
+  type DerivedIsmConfig,
   EvmIsmReader,
   altVmChainLookup,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, stringifyObject } from '@hyperlane-xyz/utils';
+import {
+  type Address,
+  ProtocolType,
+  stringifyObject,
+} from '@hyperlane-xyz/utils';
 
-import { CommandContext } from '../context/types.js';
+import { type CommandContext } from '../context/types.js';
 import { log, logBlue } from '../logger.js';
 import { resolveFileFormat, writeFileAtPath } from '../utils/files.js';
 

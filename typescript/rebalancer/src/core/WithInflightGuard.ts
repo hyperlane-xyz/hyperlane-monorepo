@@ -1,11 +1,11 @@
 import type { Logger } from 'pino';
 
-import { ChainMetadataManager } from '@hyperlane-xyz/sdk';
+import { type ChainMetadataManager } from '@hyperlane-xyz/sdk';
 
-import { RebalancerConfig } from '../config/RebalancerConfig.js';
+import { type RebalancerConfig } from '../config/RebalancerConfig.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type { RebalancingRoute } from '../interfaces/IStrategy.js';
-import { ExplorerClient } from '../utils/ExplorerClient.js';
+import { type ExplorerClient } from '../utils/ExplorerClient.js';
 
 /**
  * Prevents rebalancing if there are inflight rebalances for the warp route.

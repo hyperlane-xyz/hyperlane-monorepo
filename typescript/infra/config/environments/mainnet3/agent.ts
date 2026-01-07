@@ -4,6 +4,7 @@ import {
   AgentSealevelPriorityFeeOracleType,
   AgentSealevelTransactionSubmitter,
   AgentSealevelTransactionSubmitterType,
+  ChainMap,
   ChainName,
   GasPaymentEnforcement,
   GasPaymentEnforcementPolicyType,
@@ -14,6 +15,7 @@ import {
   ModuleType,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
+import { Address, objMap } from '@hyperlane-xyz/utils';
 
 import {
   AgentChainConfig,
@@ -22,9 +24,11 @@ import {
   getAgentChainNamesFromConfig,
 } from '../../../src/config/agent/agent.js';
 import {
+  IcaMessageType,
   MetricAppContext,
   chainMapMatchingList,
   consistentSenderRecipientMatchingList,
+  icaMatchingList,
   matchingList,
   routerMatchingList,
   senderMatchingList,
@@ -32,7 +36,7 @@ import {
 } from '../../../src/config/agent/relayer.js';
 import { BaseScraperConfig } from '../../../src/config/agent/scraper.js';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
-import { Contexts, mustBeValidContext } from '../../contexts.js';
+import { Contexts } from '../../contexts.js';
 import { getDomainId, getWarpAddresses } from '../../registry.js';
 
 import { environment, ethereumChainNames } from './chains.js';
@@ -40,9 +44,9 @@ import { blacklistedMessageIds } from './customBlacklist.js';
 import { helloWorld } from './helloworld.js';
 import aaveSenderAddresses from './misc-artifacts/aave-sender-addresses.json' with { type: 'json' };
 import everclearSenderAddresses from './misc-artifacts/everclear-sender-addresses.json' with { type: 'json' };
+import merklyErc20Addresses from './misc-artifacts/merkly-erc20-addresses.json' with { type: 'json' };
 import merklyEthAddresses from './misc-artifacts/merkly-eth-addresses.json' with { type: 'json' };
-import merklyNftAddresses from './misc-artifacts/merkly-eth-addresses.json' with { type: 'json' };
-import merklyErc20Addresses from './misc-artifacts/merkly-eth-addresses.json' with { type: 'json' };
+import merklyNftAddresses from './misc-artifacts/merkly-nft-addresses.json' with { type: 'json' };
 import {
   mainnet3SupportedChainNames,
   supportedChainNames,
@@ -94,6 +98,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     celestia: true,
     celo: true,
     chilizmainnet: true,
+    citrea: true,
     coredao: true,
     coti: true,
     cyber: true,
@@ -102,11 +107,12 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     eclipsemainnet: true,
     electroneum: true,
     endurance: true,
+    eni: true,
     ethereum: true,
     everclear: true,
     fantom: true,
     flare: true,
-    flowmainnet: true,
+    flowmainnet: false, // chain in recovery mode
     fluence: true,
     forma: false, // relayer + scraper only
     fraxtal: true,
@@ -123,6 +129,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     ink: true,
     kaia: true,
     katana: true,
+    krown: true,
     kyve: true,
     lazai: true,
     linea: true,
@@ -146,6 +153,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     monad: true,
     moonbeam: true,
     morph: true,
+    neutron: true,
     nibiru: true,
     noble: true,
     oortmainnet: true,
@@ -233,6 +241,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     celestia: true,
     celo: true,
     chilizmainnet: true,
+    citrea: true,
     coredao: true,
     coti: true,
     cyber: true,
@@ -241,11 +250,12 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     eclipsemainnet: true,
     electroneum: true,
     endurance: true,
+    eni: true,
     ethereum: true,
     everclear: true,
     fantom: true,
     flare: true,
-    flowmainnet: true,
+    flowmainnet: false,
     fluence: true,
     forma: true,
     fraxtal: true,
@@ -262,6 +272,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     ink: true,
     kaia: true,
     katana: true,
+    krown: true,
     kyve: true,
     lazai: true,
     linea: true,
@@ -285,6 +296,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     monad: true,
     moonbeam: true,
     morph: true,
+    neutron: true,
     nibiru: true,
     noble: true,
     oortmainnet: true,
@@ -372,6 +384,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     celestia: true,
     celo: true,
     chilizmainnet: true,
+    citrea: true,
     coredao: true,
     coti: true,
     cyber: true,
@@ -380,11 +393,12 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     eclipsemainnet: true,
     electroneum: true,
     endurance: true,
+    eni: true,
     ethereum: true,
     everclear: true,
     fantom: true,
     flare: true,
-    flowmainnet: true,
+    flowmainnet: false, // chain in recovery mode
     fluence: true,
     forma: true,
     fraxtal: true,
@@ -401,6 +415,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     ink: true,
     kaia: true,
     katana: true,
+    krown: true,
     kyve: true,
     lazai: true,
     linea: true,
@@ -424,6 +439,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     monad: true,
     moonbeam: true,
     morph: true,
+    neutron: true,
     nibiru: true,
     noble: true,
     oortmainnet: true,
@@ -562,22 +578,38 @@ const veloMessageModuleMatchingList = consistentSenderRecipientMatchingList(
   '0x2BbA7515F7cF114B45186274981888D8C2fBA15E',
 );
 
-// ICA v2 deploys that superswaps make use of
-const superswapIcaV2MatchingList = senderMatchingList({
-  base: { sender: '0x44647Cd983E80558793780f9a0c7C2aa9F384D07' },
-  bob: { sender: '0xA6f0A37DFDe9C2c8F46F010989C47d9edB3a9FA8' },
-  celo: { sender: '0x1eA7aC243c398671194B7e2C51d76d1a1D312953' },
-  fraxtal: { sender: '0xD59a200cCEc5b3b1bF544dD7439De452D718f594' },
-  ink: { sender: '0x55Ba00F1Bac2a47e0A73584d7c900087642F9aE3' },
-  lisk: { sender: '0xE59592a179c4f436d5d2e4caA6e2750beA4E3166' },
-  metal: { sender: '0x0b2d429acccAA411b867d57703F88Ed208eC35E4' },
-  mode: { sender: '0x860ec58b115930EcbC53EDb8585C1B16AFFF3c50' },
-  optimism: { sender: '0x3E343D07D024E657ECF1f8Ae8bb7a12f08652E75' },
-  soneium: { sender: '0xc08C1451979e9958458dA3387E92c9Feb1571f9C' },
-  superseed: { sender: '0x3CA0e8AEfC14F962B13B40c6c4b9CEE3e4927Ae3' },
-  swell: { sender: '0x95Fb6Ca1BBF441386b119ad097edcAca3b1C35B7' },
-  unichain: { sender: '0x43320f6B410322Bf5ca326a0DeAaa6a2FC5A021B' },
-});
+// Velodrome Universal Router addresses (also used by Superswap)
+// Source: https://github.com/velodrome-finance/universal-router/tree/main/deployment-addresses
+const velodromeUniversalRouterOwner =
+  '0x01D40099fCD87C018969B0e8D4aB1633Fb34763C';
+
+const velodromeUniversalRouters: ChainMap<Address> = {
+  base: velodromeUniversalRouterOwner,
+  celo: velodromeUniversalRouterOwner,
+  fraxtal: velodromeUniversalRouterOwner,
+  ink: velodromeUniversalRouterOwner,
+  lisk: velodromeUniversalRouterOwner,
+  metal: velodromeUniversalRouterOwner,
+  mode: velodromeUniversalRouterOwner,
+  optimism: velodromeUniversalRouterOwner,
+  soneium: velodromeUniversalRouterOwner,
+  superseed: velodromeUniversalRouterOwner,
+  swell: velodromeUniversalRouterOwner,
+  unichain: velodromeUniversalRouterOwner,
+};
+
+const superswapIcaV2CommitmentMatchingList = icaMatchingList(
+  objMap(velodromeUniversalRouters, (_, owner) => ({
+    messageType: IcaMessageType.COMMITMENT,
+    owner,
+  })),
+);
+
+const icaV2RevealMatchingList = icaMatchingList(
+  objMap(velodromeUniversalRouters, () => ({
+    messageType: IcaMessageType.REVEAL,
+  })),
+);
 
 const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   {
@@ -619,9 +651,10 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       { originDomain: getDomainId('milkyway') },
       // Being more generous with some Velo message module messages, which occasionally underpay
       ...veloMessageModuleMatchingList,
-      // ICA v2 deploys that superswaps make use of, once we have body regex MatchingList support this
-      // can be made more specific
-      ...superswapIcaV2MatchingList,
+      // Superswap ICA matches on ICA owner address in message body
+      ...superswapIcaV2CommitmentMatchingList,
+      // ICA reveal messages (does not filter on ICA owner)
+      ...icaV2RevealMatchingList,
     ],
   },
   {
@@ -754,7 +787,11 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
     },
     {
       name: 'superswap_ica_v2',
-      matchingList: superswapIcaV2MatchingList,
+      matchingList: [
+        ...superswapIcaV2CommitmentMatchingList,
+        // WARN: does not only reflect superswaps messages
+        ...icaV2RevealMatchingList,
+      ],
     },
     {
       name: 'm0',
@@ -858,7 +895,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'cd94774-20251217-100437',
+      tag: '28f67ad-20260103-234517',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -878,7 +915,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'cd94774-20251217-100437',
+      tag: '28f67ad-20260103-234517',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -889,7 +926,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'f50feaa-20251219-084739',
+      tag: '28f67ad-20260103-234517',
     },
     resources: scraperResources,
   },
@@ -904,7 +941,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'cd94774-20251217-100437',
+      tag: '28f67ad-20260103-234517',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
@@ -927,7 +964,7 @@ const releaseCandidate: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'cd94774-20251217-100437',
+      tag: '28f67ad-20260103-234517',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),

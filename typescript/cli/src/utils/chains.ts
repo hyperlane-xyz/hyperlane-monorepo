@@ -3,13 +3,13 @@ import search from '@inquirer/search';
 import select from '@inquirer/select';
 import chalk from 'chalk';
 
-import { ChainMap, ChainMetadata } from '@hyperlane-xyz/sdk';
+import { type ChainMap, type ChainMetadata } from '@hyperlane-xyz/sdk';
 import { toTitleCase } from '@hyperlane-xyz/utils';
 
 import { log } from '../logger.js';
 
 import { calculatePageSize } from './cli-options.js';
-import { SearchableCheckboxChoice, searchableCheckBox } from './input.js';
+import { type SearchableCheckboxChoice, searchableCheckBox } from './input.js';
 
 // A special value marker to indicate user selected
 // a new chain in the list

@@ -136,8 +136,6 @@ async function main() {
         });
         const safeTransaction = await createSafeTransaction(
           safeSdk,
-          safeService,
-          safes[tx.chain],
           [safeTransactionData],
           undefined,
           tx.nonce,

@@ -103,6 +103,8 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          # Full history needed to compute merge-base for PRs
+          fetch-depth: 0
 
       - name: Determine BASE_SHA
         id: determine-sha
@@ -193,10 +195,10 @@ jobs:
 
       - name: Check for balance/config changes
         run: |
-          if git diff ${{ needs.set-base-sha.outputs.base_sha }}..${{ needs.set-base-sha.outputs.current_sha }} --name-only | grep -qE '^typescript/infra/config/environments/mainnet3/balances|^.registryrc$'; then
+          if git diff ${{ needs.set-base-sha.outputs.base_sha }}...${{ needs.set-base-sha.outputs.current_sha }} --name-only | grep -qE '^typescript/infra/config/environments/mainnet3/balances|^.registryrc$'; then
             echo "BALANCE_CHANGES=true" >> $GITHUB_ENV
           fi
-          if git diff ${{ needs.set-base-sha.outputs.base_sha }}..${{ needs.set-base-sha.outputs.current_sha }} --name-only | grep -qE '^typescript/infra/|^.registryrc$'; then
+          if git diff ${{ needs.set-base-sha.outputs.base_sha }}...${{ needs.set-base-sha.outputs.current_sha }} --name-only | grep -qE '^typescript/infra/|^.registryrc$'; then
             echo "WARP_CONFIG_CHANGES=true" >> $GITHUB_ENV
           fi
 
@@ -740,11 +742,12 @@ jobs:
     needs: e2e-matrix
     if: always()
     steps:
+      - uses: actions/checkout@v6
       - name: Check e2e matrix status
-        if: ${{ needs.e2e-matrix.result != 'success' }}
-        run: |
-          echo "E2E tests failed"
-          exit 1
+        uses: ./.github/actions/check-job-status
+        with:
+          job_name: 'E2E'
+          result: ${{ needs.e2e-matrix.result }}
 
   env-test-matrix:
     runs-on: depot-ubuntu-latest
