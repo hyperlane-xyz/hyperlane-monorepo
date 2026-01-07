@@ -8,7 +8,11 @@ import {
   type ChainMetadata,
   InterchainAccount,
 } from '@hyperlane-xyz/sdk';
-import { type Address, addressToBytes32 } from '@hyperlane-xyz/utils';
+import {
+  type Address,
+  addressToBytes32,
+  eqAddress,
+} from '@hyperlane-xyz/utils';
 
 import { getContext } from '../../../context/context.js';
 import { readYamlOrJson } from '../../../utils/files.js';
@@ -115,6 +119,55 @@ describe('hyperlane ica deploy e2e tests', async function () {
       // Should show either 'deployed' or 'exists' status
       expect(stdout.includes('deployed') || stdout.includes('exists')).to.be
         .true;
+    });
+
+    it('should deploy ICA with address matching expected address', async function () {
+      // Get context and create InterchainAccount instance to compute expected address
+      const { multiProvider } = await getContext({
+        registryUris: [REGISTRY_PATH],
+        key: ANVIL_KEY,
+      });
+
+      const addressesMap: Record<string, Record<string, string>> = {
+        [CHAIN_NAME_2]: chain2Addresses as Record<string, string>,
+        [CHAIN_NAME_3]: chain3Addresses as Record<string, string>,
+      };
+
+      const ica = InterchainAccount.fromAddressesMap(
+        addressesMap,
+        multiProvider,
+      );
+      const ownerConfig: AccountConfig = {
+        origin: CHAIN_NAME_2,
+        owner: ownerAddress,
+      };
+
+      // Get expected ICA address before deployment
+      const expectedIcaAddress = await ica.getAccount(
+        CHAIN_NAME_3,
+        ownerConfig,
+      );
+
+      // Deploy ICA via CLI
+      const { exitCode, stdout } = await hyperlaneIcaDeploy(
+        CHAIN_NAME_2,
+        [CHAIN_NAME_3],
+        ownerAddress,
+      );
+
+      expect(exitCode).to.equal(0);
+
+      // Extract ICA address from stdout - look for it after "ICA" status messages
+      // Pattern matches "ICA already exists on <chain>: <address>" or "ICA deployed on <chain>: <address>"
+      const icaAddressMatch = stdout.match(
+        /ICA (?:already exists|deployed) on \w+: (0x[a-fA-F0-9]{40})/,
+      );
+      expect(icaAddressMatch).to.not.be.null;
+
+      const deployedIcaAddress = icaAddressMatch![1];
+
+      // Verify deployed address matches expected address
+      expect(eqAddress(deployedIcaAddress, expectedIcaAddress)).to.be.true;
     });
 
     it('should show exists status when ICA already deployed', async function () {
