@@ -5,10 +5,10 @@ import {
   type ChainName,
   InterchainAccount,
 } from '@hyperlane-xyz/sdk';
-import { type Address, eqAddress } from '@hyperlane-xyz/utils';
+import { type Address, assert, eqAddress } from '@hyperlane-xyz/utils';
 
 import { type WriteCommandContext } from '../context/types.js';
-import { logBlue, logGreen, logRed, logTable, warnYellow } from '../logger.js';
+import { logBlue, logGreen, logRed, logTable } from '../logger.js';
 
 interface IcaDeployParams {
   context: WriteCommandContext;
@@ -95,12 +95,10 @@ export async function runIcaDeploy(params: IcaDeployParams): Promise<void> {
           ownerConfig,
         );
 
-        // Verify deployed address matches expected address
-        if (!eqAddress(deployedAccount, expectedAccount)) {
-          throw new Error(
-            `Deployed ICA address ${deployedAccount} does not match expected address ${expectedAccount}`,
-          );
-        }
+        assert(
+          eqAddress(deployedAccount, expectedAccount),
+          `Deployed ICA address ${deployedAccount} does not match expected address ${expectedAccount}`,
+        );
 
         results.push({
           chain: destination,
