@@ -1,6 +1,13 @@
 import type { SignatureLike } from '@ethersproject/bytes';
 import type { BigNumber, ethers } from 'ethers';
 
+export enum OperatorChain {
+  Ethereum = 'ethereum',
+  Holesky = 'holesky',
+}
+// A type that also allows for literal values of the enum
+export type OperatorChainValue = `${OperatorChain}`;
+
 export enum ProtocolType {
   Ethereum = 'ethereum',
   Sealevel = 'sealevel',
