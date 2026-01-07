@@ -18,15 +18,22 @@ The service reads configuration from a YAML file specified by `KEYFUNDER_CONFIG_
 
 ```yaml
 version: '1'
+
+# Roles define WHO gets funded (address defined once, reused across chains)
+roles:
+  hyperlane-relayer:
+    address: '0x74cae0ecc47b02ed9b9d32e000fd70b9417970c5'
+  hyperlane-kathy:
+    address: '0x5fb02f40f56d15f0442a39d11a23f73747095b20'
+  hyperlane-rebalancer:
+    address: '0xdef456...'
+
+# Chains define HOW MUCH each role gets (balances reference role names)
 chains:
   ethereum:
-    keys:
-      - address: '0x74cae0ecc47b02ed9b9d32e000fd70b9417970c5'
-        role: 'hyperlane-relayer'
-        desiredBalance: '0.5'
-      - address: '0x5fb02f40f56d15f0442a39d11a23f73747095b20'
-        role: 'hyperlane-kathy'
-        desiredBalance: '0.4'
+    balances:
+      hyperlane-relayer: '0.5'
+      hyperlane-kathy: '0.4'
     igp:
       address: '0x6cA0B6D43F8e45C82e57eC5a5F2Bce4bF2b6F1f7'
       claimThreshold: '0.2'
@@ -37,10 +44,12 @@ chains:
       targetMultiplier: 1.5
       triggerMultiplier: 2.0
   arbitrum:
-    keys:
-      - address: '0x74cae0ecc47b02ed9b9d32e000fd70b9417970c5'
-        role: 'hyperlane-relayer'
-        desiredBalance: '0.1'
+    balances:
+      hyperlane-relayer: '0.1'
+    igp:
+      address: '0x...'
+      claimThreshold: '0.1'
+
 funder:
   privateKeyEnvVar: 'FUNDER_PRIVATE_KEY'
 metrics:
@@ -56,11 +65,11 @@ chainsToSkip: []
 | Field                                    | Description                                      |
 | ---------------------------------------- | ------------------------------------------------ |
 | `version`                                | Config version, must be "1"                      |
+| `roles`                                  | Role definitions (address per role)              |
+| `roles.<role>.address`                   | Ethereum address for this role                   |
 | `chains`                                 | Per-chain configuration                          |
-| `chains.<chain>.keys`                    | Array of keys to fund                            |
-| `chains.<chain>.keys[].address`          | Ethereum address of the key                      |
-| `chains.<chain>.keys[].role`             | Optional role identifier for metrics             |
-| `chains.<chain>.keys[].desiredBalance`   | Target balance in native token (e.g., "0.5" ETH) |
+| `chains.<chain>.balances`                | Map of role name to desired balance              |
+| `chains.<chain>.balances.<role>`         | Target balance in native token (e.g., "0.5" ETH) |
 | `chains.<chain>.igp`                     | IGP claim configuration                          |
 | `chains.<chain>.igp.address`             | IGP contract address                             |
 | `chains.<chain>.igp.claimThreshold`      | Minimum IGP balance before claiming              |

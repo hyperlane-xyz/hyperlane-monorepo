@@ -81,17 +81,23 @@ export class KeyFunderHelmManager extends HelmManager {
 
   private generateKeyfunderYaml(): string {
     const environment = this.agentConfig.runEnv;
+    const roles: Record<string, RoleYamlConfig> = {};
     const chains: Record<string, ChainYamlConfig> = {};
     const envAddresses = getEnvAddresses(environment);
+
+    const roleAddressMap = this.buildRoleAddressMap(environment);
+    for (const [roleName, address] of Object.entries(roleAddressMap)) {
+      roles[roleName] = { address };
+    }
 
     for (const chain of this.getEthereumChains()) {
       if (this.config.chainsToSkip?.includes(chain)) continue;
 
       const chainConfig: ChainYamlConfig = {};
 
-      const keys = this.getKeysForChain(chain, environment);
-      if (keys.length > 0) {
-        chainConfig.keys = keys;
+      const balances = this.getBalancesForChain(chain, roleAddressMap);
+      if (Object.keys(balances).length > 0) {
+        chainConfig.balances = balances;
       }
 
       const igpAddress = envAddresses[chain]?.interchainGasPaymaster;
@@ -124,6 +130,7 @@ export class KeyFunderHelmManager extends HelmManager {
 
     const config = {
       version: '1' as const,
+      roles,
       chains,
       funder: {
         privateKeyEnvVar: 'FUNDER_PRIVATE_KEY',
@@ -141,11 +148,10 @@ export class KeyFunderHelmManager extends HelmManager {
     return YAML.stringify(config);
   }
 
-  private getKeysForChain(
-    chain: string,
+  private buildRoleAddressMap(
     environment: DeployEnvironment,
-  ): KeyYamlConfig[] {
-    const keys: KeyYamlConfig[] = [];
+  ): Record<string, string> {
+    const roleAddressMap: Record<string, string> = {};
     const contextsAndRoles = this.config.contextsAndRolesToFund;
 
     for (const [contextStr, roles] of Object.entries(contextsAndRoles)) {
@@ -154,20 +160,39 @@ export class KeyFunderHelmManager extends HelmManager {
 
       for (const role of roles) {
         const address = this.getAddressForRole(environment, context, role);
-        if (!address) continue;
-
-        const desiredBalance = this.getDesiredBalanceForRole(chain, role);
-        if (!desiredBalance || desiredBalance === '0') continue;
-
-        keys.push({
-          address,
-          role: `${context}-${role}`,
-          desiredBalance,
-        });
+        if (address) {
+          const roleName = `${context}-${role}`;
+          roleAddressMap[roleName] = address;
+        }
       }
     }
 
-    return keys;
+    return roleAddressMap;
+  }
+
+  private getBalancesForChain(
+    chain: string,
+    roleAddressMap: Record<string, string>,
+  ): Record<string, string> {
+    const balances: Record<string, string> = {};
+    const contextsAndRoles = this.config.contextsAndRolesToFund;
+
+    for (const [contextStr, roles] of Object.entries(contextsAndRoles)) {
+      const context = contextStr as Contexts;
+      if (!roles) continue;
+
+      for (const role of roles) {
+        const roleName = `${context}-${role}`;
+        if (!roleAddressMap[roleName]) continue;
+
+        const desiredBalance = this.getDesiredBalanceForRole(chain, role);
+        if (desiredBalance && desiredBalance !== '0') {
+          balances[roleName] = desiredBalance;
+        }
+      }
+    }
+
+    return balances;
   }
 
   private getAddressForRole(
@@ -220,14 +245,12 @@ export class KeyFunderHelmManager extends HelmManager {
   }
 }
 
-interface KeyYamlConfig {
+interface RoleYamlConfig {
   address: string;
-  role: string;
-  desiredBalance: string;
 }
 
 interface ChainYamlConfig {
-  keys?: KeyYamlConfig[];
+  balances?: Record<string, string>;
   igp?: {
     address: string;
     claimThreshold: string;

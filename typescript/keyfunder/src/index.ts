@@ -1,7 +1,7 @@
 export { KeyFunderConfigLoader } from './config/KeyFunderConfig.js';
 export {
   KeyFunderConfigSchema,
-  KeyConfigSchema,
+  RoleConfigSchema,
   IgpConfigSchema,
   SweepConfigSchema,
   ChainConfigSchema,
@@ -11,12 +11,13 @@ export {
 export type {
   KeyFunderConfig,
   KeyFunderConfigInput,
-  KeyConfig,
+  RoleConfig,
   IgpConfig,
   SweepConfig,
   ChainConfig,
   FunderConfig,
   MetricsConfig,
+  ResolvedKeyConfig,
 } from './config/types.js';
 
 export { KeyFunder, type KeyFunderOptions } from './core/KeyFunder.js';

@@ -5,8 +5,8 @@ import { HyperlaneIgp, MultiProvider } from '@hyperlane-xyz/sdk';
 
 import type {
   ChainConfig,
-  KeyConfig,
   KeyFunderConfig,
+  ResolvedKeyConfig,
 } from '../config/types.js';
 import type { KeyFunderMetrics } from '../metrics/Metrics.js';
 
@@ -83,8 +83,9 @@ export class KeyFunder {
         await this.claimFromIgp(chain, chainConfig);
       }
 
-      if (chainConfig.keys?.length) {
-        await this.fundKeys(chain, chainConfig.keys);
+      const resolvedKeys = this.resolveKeysForChain(chain, chainConfig);
+      if (resolvedKeys.length > 0) {
+        await this.fundKeys(chain, resolvedKeys);
       }
 
       if (chainConfig.sweep?.enabled) {
@@ -102,6 +103,37 @@ export class KeyFunder {
       logger.error({ error }, 'Chain funding failed');
       throw error;
     }
+  }
+
+  private resolveKeysForChain(
+    chain: string,
+    chainConfig: ChainConfig,
+  ): ResolvedKeyConfig[] {
+    if (!chainConfig.balances) {
+      return [];
+    }
+
+    const resolvedKeys: ResolvedKeyConfig[] = [];
+    for (const [roleName, desiredBalance] of Object.entries(
+      chainConfig.balances,
+    )) {
+      const roleConfig = this.config.roles[roleName];
+      if (!roleConfig) {
+        this.options.logger.warn(
+          { chain, role: roleName },
+          'Role not found in config, skipping',
+        );
+        continue;
+      }
+
+      resolvedKeys.push({
+        address: roleConfig.address,
+        role: roleName,
+        desiredBalance,
+      });
+    }
+
+    return resolvedKeys;
   }
 
   private async claimFromIgp(
@@ -143,13 +175,16 @@ export class KeyFunder {
     }
   }
 
-  private async fundKeys(chain: string, keys: KeyConfig[]): Promise<void> {
+  private async fundKeys(
+    chain: string,
+    keys: ResolvedKeyConfig[],
+  ): Promise<void> {
     for (const key of keys) {
       await this.fundKey(chain, key);
     }
   }
 
-  private async fundKey(chain: string, key: KeyConfig): Promise<void> {
+  private async fundKey(chain: string, key: ResolvedKeyConfig): Promise<void> {
     const logger = this.options.logger.child({
       chain,
       address: key.address,
@@ -170,7 +205,7 @@ export class KeyFunder {
     this.options.metrics?.recordWalletBalance(
       chain,
       key.address,
-      key.role ?? 'unknown',
+      key.role,
       parseFloat(ethers.utils.formatEther(currentBalance)),
     );
 
@@ -206,7 +241,7 @@ export class KeyFunder {
     this.options.metrics?.recordFundingAmount(
       chain,
       key.address,
-      key.role ?? 'unknown',
+      key.role,
       parseFloat(ethers.utils.formatEther(fundingAmount)),
     );
 

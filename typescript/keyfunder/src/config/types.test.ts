@@ -2,57 +2,33 @@ import { expect } from 'chai';
 
 import {
   ChainConfigSchema,
-  KeyConfigSchema,
   KeyFunderConfigSchema,
+  RoleConfigSchema,
   SweepConfigSchema,
 } from './types.js';
 
 describe('KeyFunderConfig Schemas', () => {
-  describe('KeyConfigSchema', () => {
-    it('should validate a valid key config', () => {
+  describe('RoleConfigSchema', () => {
+    it('should validate a valid role config', () => {
       const config = {
         address: '0x74cae0ecc47b02ed9b9d32e000fd70b9417970c5',
-        role: 'hyperlane-relayer',
-        desiredBalance: '0.5',
       };
-      const result = KeyConfigSchema.safeParse(config);
+      const result = RoleConfigSchema.safeParse(config);
       expect(result.success).to.be.true;
     });
 
     it('should reject invalid address', () => {
       const config = {
         address: 'invalid-address',
-        desiredBalance: '0.5',
       };
-      const result = KeyConfigSchema.safeParse(config);
+      const result = RoleConfigSchema.safeParse(config);
       expect(result.success).to.be.false;
     });
 
-    it('should reject invalid balance', () => {
-      const config = {
-        address: '0x74cae0ecc47b02ed9b9d32e000fd70b9417970c5',
-        desiredBalance: 'not-a-number',
-      };
-      const result = KeyConfigSchema.safeParse(config);
+    it('should reject missing address', () => {
+      const config = {};
+      const result = RoleConfigSchema.safeParse(config);
       expect(result.success).to.be.false;
-    });
-
-    it('should reject negative balance', () => {
-      const config = {
-        address: '0x74cae0ecc47b02ed9b9d32e000fd70b9417970c5',
-        desiredBalance: '-1',
-      };
-      const result = KeyConfigSchema.safeParse(config);
-      expect(result.success).to.be.false;
-    });
-
-    it('should allow optional role', () => {
-      const config = {
-        address: '0x74cae0ecc47b02ed9b9d32e000fd70b9417970c5',
-        desiredBalance: '0.5',
-      };
-      const result = KeyConfigSchema.safeParse(config);
-      expect(result.success).to.be.true;
     });
   });
 
@@ -75,7 +51,7 @@ describe('KeyFunderConfig Schemas', () => {
         address: '0x478be6076f31E9666123B9721D0B6631baD944AF',
         threshold: '0.5',
         targetMultiplier: 1.5,
-        triggerMultiplier: 1.52, // Less than 1.5 + 0.05
+        triggerMultiplier: 1.52,
       };
       const result = SweepConfigSchema.safeParse(config);
       expect(result.success).to.be.false;
@@ -98,7 +74,7 @@ describe('KeyFunderConfig Schemas', () => {
       const config = {
         enabled: false,
         targetMultiplier: 1.5,
-        triggerMultiplier: 1.5, // Would fail if enabled
+        triggerMultiplier: 1.5,
       };
       const result = SweepConfigSchema.safeParse(config);
       expect(result.success).to.be.true;
@@ -106,14 +82,11 @@ describe('KeyFunderConfig Schemas', () => {
   });
 
   describe('ChainConfigSchema', () => {
-    it('should validate chain config with keys only', () => {
+    it('should validate chain config with balances only', () => {
       const config = {
-        keys: [
-          {
-            address: '0x74cae0ecc47b02ed9b9d32e000fd70b9417970c5',
-            desiredBalance: '0.5',
-          },
-        ],
+        balances: {
+          'hyperlane-relayer': '0.5',
+        },
       };
       const result = ChainConfigSchema.safeParse(config);
       expect(result.success).to.be.true;
@@ -132,13 +105,10 @@ describe('KeyFunderConfig Schemas', () => {
 
     it('should validate complete chain config', () => {
       const config = {
-        keys: [
-          {
-            address: '0x74cae0ecc47b02ed9b9d32e000fd70b9417970c5',
-            role: 'relayer',
-            desiredBalance: '0.5',
-          },
-        ],
+        balances: {
+          'hyperlane-relayer': '0.5',
+          'hyperlane-kathy': '0.3',
+        },
         igp: {
           address: '0x6cA0B6D43F8e45C82e57eC5a5F2Bce4bF2b6F1f7',
           claimThreshold: '0.2',
@@ -151,12 +121,33 @@ describe('KeyFunderConfig Schemas', () => {
       const result = ChainConfigSchema.safeParse(config);
       expect(result.success).to.be.true;
     });
+
+    it('should reject invalid balance value', () => {
+      const config = {
+        balances: {
+          'hyperlane-relayer': 'not-a-number',
+        },
+      };
+      const result = ChainConfigSchema.safeParse(config);
+      expect(result.success).to.be.false;
+    });
+
+    it('should reject negative balance', () => {
+      const config = {
+        balances: {
+          'hyperlane-relayer': '-1',
+        },
+      };
+      const result = ChainConfigSchema.safeParse(config);
+      expect(result.success).to.be.false;
+    });
   });
 
   describe('KeyFunderConfigSchema', () => {
     it('should validate minimal config', () => {
       const config = {
         version: '1',
+        roles: {},
         chains: {},
       };
       const result = KeyFunderConfigSchema.safeParse(config);
@@ -166,6 +157,16 @@ describe('KeyFunderConfig Schemas', () => {
     it('should reject invalid version', () => {
       const config = {
         version: '2',
+        roles: {},
+        chains: {},
+      };
+      const result = KeyFunderConfigSchema.safeParse(config);
+      expect(result.success).to.be.false;
+    });
+
+    it('should reject missing roles', () => {
+      const config = {
+        version: '1',
         chains: {},
       };
       const result = KeyFunderConfigSchema.safeParse(config);
@@ -175,15 +176,20 @@ describe('KeyFunderConfig Schemas', () => {
     it('should validate complete config', () => {
       const config = {
         version: '1',
+        roles: {
+          'hyperlane-relayer': {
+            address: '0x74cae0ecc47b02ed9b9d32e000fd70b9417970c5',
+          },
+          'hyperlane-kathy': {
+            address: '0x5fb02f40f56d15f0442a39d11a23f73747095b20',
+          },
+        },
         chains: {
           ethereum: {
-            keys: [
-              {
-                address: '0x74cae0ecc47b02ed9b9d32e000fd70b9417970c5',
-                role: 'hyperlane-relayer',
-                desiredBalance: '0.5',
-              },
-            ],
+            balances: {
+              'hyperlane-relayer': '0.5',
+              'hyperlane-kathy': '0.4',
+            },
             igp: {
               address: '0x6cA0B6D43F8e45C82e57eC5a5F2Bce4bF2b6F1f7',
               claimThreshold: '0.2',
@@ -192,6 +198,11 @@ describe('KeyFunderConfig Schemas', () => {
               enabled: true,
               address: '0x478be6076f31E9666123B9721D0B6631baD944AF',
               threshold: '0.3',
+            },
+          },
+          arbitrum: {
+            balances: {
+              'hyperlane-relayer': '0.1',
             },
           },
         },
@@ -211,9 +222,60 @@ describe('KeyFunderConfig Schemas', () => {
       expect(result.success).to.be.true;
     });
 
+    it('should reject undefined role reference in chain balances', () => {
+      const config = {
+        version: '1',
+        roles: {
+          'hyperlane-relayer': {
+            address: '0x74cae0ecc47b02ed9b9d32e000fd70b9417970c5',
+          },
+        },
+        chains: {
+          ethereum: {
+            balances: {
+              'hyperlane-relayer': '0.5',
+              'undefined-role': '0.3',
+            },
+          },
+        },
+      };
+      const result = KeyFunderConfigSchema.safeParse(config);
+      expect(result.success).to.be.false;
+    });
+
+    it('should allow chain balances that reference defined roles', () => {
+      const config = {
+        version: '1',
+        roles: {
+          'hyperlane-relayer': {
+            address: '0x74cae0ecc47b02ed9b9d32e000fd70b9417970c5',
+          },
+          'hyperlane-kathy': {
+            address: '0x5fb02f40f56d15f0442a39d11a23f73747095b20',
+          },
+        },
+        chains: {
+          ethereum: {
+            balances: {
+              'hyperlane-relayer': '0.5',
+            },
+          },
+          arbitrum: {
+            balances: {
+              'hyperlane-relayer': '0.1',
+              'hyperlane-kathy': '0.05',
+            },
+          },
+        },
+      };
+      const result = KeyFunderConfigSchema.safeParse(config);
+      expect(result.success).to.be.true;
+    });
+
     it('should apply default funder privateKeyEnvVar', () => {
       const config = {
         version: '1',
+        roles: {},
         chains: {},
         funder: {},
       };

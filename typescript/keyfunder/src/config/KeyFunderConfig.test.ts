@@ -21,12 +21,13 @@ describe('KeyFunderConfigLoader', () => {
     it('should load valid config from file', () => {
       const configYaml = `
 version: "1"
+roles:
+  hyperlane-relayer:
+    address: "0x74cae0ecc47b02ed9b9d32e000fd70b9417970c5"
 chains:
   ethereum:
-    keys:
-      - address: "0x74cae0ecc47b02ed9b9d32e000fd70b9417970c5"
-        role: "hyperlane-relayer"
-        desiredBalance: "0.5"
+    balances:
+      hyperlane-relayer: "0.5"
 `;
       fsExistsStub.returns(true);
       fsReadFileStub.returns(configYaml);
@@ -34,10 +35,12 @@ chains:
       const loader = KeyFunderConfigLoader.load('/path/to/config.yaml');
 
       expect(loader.config.version).to.equal('1');
-      expect(loader.config.chains.ethereum.keys).to.have.lengthOf(1);
-      expect(loader.config.chains.ethereum.keys![0].address).to.equal(
+      expect(loader.config.roles['hyperlane-relayer'].address).to.equal(
         '0x74cae0ecc47b02ed9b9d32e000fd70b9417970c5',
       );
+      expect(loader.config.chains.ethereum.balances).to.deep.equal({
+        'hyperlane-relayer': '0.5',
+      });
     });
 
     it('should throw if file does not exist', () => {
@@ -51,6 +54,7 @@ chains:
     it('should throw on invalid config', () => {
       const invalidYaml = `
 version: "2"
+roles: {}
 chains: {}
 `;
       fsExistsStub.returns(true);
@@ -66,33 +70,36 @@ chains: {}
     it('should create loader from valid object', () => {
       const config = {
         version: '1' as const,
+        roles: {
+          'hyperlane-relayer': {
+            address: '0x74cae0ecc47b02ed9b9d32e000fd70b9417970c5',
+          },
+        },
         chains: {
           ethereum: {
-            keys: [
-              {
-                address: '0x74cae0ecc47b02ed9b9d32e000fd70b9417970c5',
-                desiredBalance: '0.5',
-              },
-            ],
+            balances: {
+              'hyperlane-relayer': '0.5',
+            },
           },
         },
       };
 
       const loader = KeyFunderConfigLoader.fromObject(config);
-      expect(loader.config.chains.ethereum.keys).to.have.lengthOf(1);
+      expect(loader.config.chains.ethereum.balances).to.deep.equal({
+        'hyperlane-relayer': '0.5',
+      });
     });
 
     it('should throw on invalid object', () => {
       const config = {
         version: '2',
+        roles: {},
         chains: {},
       };
 
-      expect(() =>
-        KeyFunderConfigLoader.fromObject(
-          config as unknown as { version: '1'; chains: Record<string, object> },
-        ),
-      ).to.throw('Invalid keyfunder config');
+      expect(() => KeyFunderConfigLoader.fromObject(config as never)).to.throw(
+        'Invalid keyfunder config',
+      );
     });
   });
 
@@ -100,10 +107,11 @@ chains: {}
     it('should return all chain names', () => {
       const config = {
         version: '1' as const,
+        roles: {},
         chains: {
-          ethereum: { keys: [] },
-          arbitrum: { keys: [] },
-          polygon: { keys: [] },
+          ethereum: {},
+          arbitrum: {},
+          polygon: {},
         },
       };
 
@@ -118,10 +126,11 @@ chains: {}
     it('should exclude skipped chains', () => {
       const config = {
         version: '1' as const,
+        roles: {},
         chains: {
-          ethereum: { keys: [] },
-          arbitrum: { keys: [] },
-          polygon: { keys: [] },
+          ethereum: {},
+          arbitrum: {},
+          polygon: {},
         },
         chainsToSkip: ['polygon'],
       };
@@ -136,9 +145,10 @@ chains: {}
     it('should return all chains when none skipped', () => {
       const config = {
         version: '1' as const,
+        roles: {},
         chains: {
-          ethereum: { keys: [] },
-          arbitrum: { keys: [] },
+          ethereum: {},
+          arbitrum: {},
         },
       };
 
@@ -153,6 +163,7 @@ chains: {}
     it('should return configured env var name', () => {
       const config = {
         version: '1' as const,
+        roles: {},
         chains: {},
         funder: {
           privateKeyEnvVar: 'CUSTOM_PRIVATE_KEY',
@@ -166,6 +177,7 @@ chains: {}
     it('should return default when not configured', () => {
       const config = {
         version: '1' as const,
+        roles: {},
         chains: {},
       };
 
