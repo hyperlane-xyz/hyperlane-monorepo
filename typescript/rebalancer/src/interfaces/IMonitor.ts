@@ -1,4 +1,4 @@
-import { Token } from '@hyperlane-xyz/sdk';
+import { type Token } from '@hyperlane-xyz/sdk';
 
 import { WrappedError } from '../utils/errors.js';
 
