@@ -18,10 +18,10 @@ interface IcaDeployParams {
 }
 
 interface IcaDeployResult {
-  Chain: string;
-  ICA: Address;
-  Status: 'deployed' | 'exists' | 'error';
-  Error?: string;
+  chain: string;
+  ica: Address;
+  status: 'deployed' | 'exists' | 'error';
+  error?: string;
 }
 
 /**
@@ -82,9 +82,9 @@ export async function runIcaDeploy(params: IcaDeployParams): Promise<void> {
 
       if (exists) {
         results.push({
-          Chain: destination,
-          ICA: expectedAccount,
-          Status: 'exists',
+          chain: destination,
+          ica: expectedAccount,
+          status: 'exists',
         });
         logBlue(`ICA already exists on ${destination}: ${expectedAccount}`);
       } else {
@@ -103,9 +103,9 @@ export async function runIcaDeploy(params: IcaDeployParams): Promise<void> {
         }
 
         results.push({
-          Chain: destination,
-          ICA: deployedAccount,
-          Status: 'deployed',
+          chain: destination,
+          ica: deployedAccount,
+          status: 'deployed',
         });
         logGreen(`ICA deployed on ${destination}: ${deployedAccount}`);
       }
@@ -113,10 +113,10 @@ export async function runIcaDeploy(params: IcaDeployParams): Promise<void> {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       results.push({
-        Chain: destination,
-        ICA: 'N/A',
-        Status: 'error',
-        Error: errorMessage,
+        chain: destination,
+        ica: 'N/A',
+        status: 'error',
+        error: errorMessage,
       });
       logRed(`Failed to deploy ICA on ${destination}: ${errorMessage}`);
     }
@@ -125,18 +125,18 @@ export async function runIcaDeploy(params: IcaDeployParams): Promise<void> {
   // Display results table
   logBlue('\nICA Deployment Results:');
   logTable(
-    results.map(({ Chain, ICA, Status, Error }) => ({
-      Chain,
-      ICA,
-      Status,
-      ...(Error ? { Error } : {}),
+    results.map(({ chain, ica, status, error }) => ({
+      chain,
+      ica,
+      status,
+      ...(error ? { error } : {}),
     })),
   );
 
   // Summary
-  const deployed = results.filter((r) => r.Status === 'deployed').length;
-  const existing = results.filter((r) => r.Status === 'exists').length;
-  const errors = results.filter((r) => r.Status === 'error').length;
+  const deployed = results.filter((r) => r.status === 'deployed').length;
+  const existing = results.filter((r) => r.status === 'exists').length;
+  const errors = results.filter((r) => r.status === 'error').length;
 
   if (deployed > 0) {
     logGreen(`Successfully deployed ${deployed} ICA(s)`);
