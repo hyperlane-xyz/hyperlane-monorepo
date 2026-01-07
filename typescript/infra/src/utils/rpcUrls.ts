@@ -316,10 +316,11 @@ async function refreshDependentK8sResourcesInteractive(
     }
 
     if (context == Contexts.Hyperlane) {
-      // Key funder
       pushContextHelmManager(
         context,
-        KeyFunderHelmManager.forEnvironment(environment),
+        // Note: 'main' is passed to satisfy the method signature, but the keyfunder
+        // uses its own REGISTRY_URI env var at runtime (set via Helm values)
+        KeyFunderHelmManager.forEnvironment(environment, 'main'),
       );
 
       // Kathy - only expected to be running as a long-running service in the

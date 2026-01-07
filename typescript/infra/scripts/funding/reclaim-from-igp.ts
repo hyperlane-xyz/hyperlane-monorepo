@@ -114,7 +114,7 @@ async function main() {
         const formattedBalance = formatEther(balance);
 
         // Get the threshold for this chain from config, default to 0.1 ETH if not set
-        // Fallback to 1/5th of desired balance if no threshold configured, matching fund-keys-from-deployer.ts logic
+        // Fallback to 1/5th of desired balance if no threshold configured
         let threshold: bigint;
         const thresholdStr = igpClaimThresholds[chain];
         if (thresholdStr) {
