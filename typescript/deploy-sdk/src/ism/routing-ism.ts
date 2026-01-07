@@ -114,7 +114,7 @@ export class RoutingIsmWriter
     const deployedDomains: Record<number, DeployedIsmArtifact> = {};
 
     for (const [domainId, domainIsmConfig] of Object.entries(config.domains)) {
-      if (!this.chainLookup.getDomainId(domainId)) {
+      if (!this.chainLookup.getChainName(parseInt(domainId))) {
         this.logger.warn(
           `Skipping update of unknown ${AltVM.IsmType.ROUTING} domain ${domainId}`,
         );
