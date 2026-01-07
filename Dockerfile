@@ -31,6 +31,7 @@ COPY typescript/github-proxy/package.json ./typescript/github-proxy/
 COPY typescript/helloworld/package.json ./typescript/helloworld/
 COPY typescript/http-registry-server/package.json ./typescript/http-registry-server/
 COPY typescript/infra/package.json ./typescript/infra/
+COPY typescript/keyfunder/package.json ./typescript/keyfunder/
 COPY typescript/provider-sdk/package.json ./typescript/provider-sdk/
 COPY typescript/radix-sdk/package.json ./typescript/radix-sdk/
 COPY typescript/rebalancer/package.json ./typescript/rebalancer/
