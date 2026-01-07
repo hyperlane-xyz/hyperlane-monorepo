@@ -67,57 +67,57 @@ export async function runIcaDeploy(params: IcaDeployParams): Promise<void> {
     owner,
   };
 
-  const results: IcaDeployResult[] = [];
+  // Deploy ICAs on each destination chain in parallel
+  const results = await Promise.all(
+    destinations.map(async (destination): Promise<IcaDeployResult> => {
+      try {
+        // First, get the expected ICA address
+        const expectedAccount = await ica.getAccount(destination, ownerConfig);
 
-  // Deploy ICAs on each destination chain
-  for (const destination of destinations) {
-    try {
-      // First, get the expected ICA address
-      const expectedAccount = await ica.getAccount(destination, ownerConfig);
+        // Check if ICA already exists by checking if there's code at the address
+        const provider = multiProvider.getProvider(destination);
+        const code = await provider.getCode(expectedAccount);
+        const exists = code !== '0x';
 
-      // Check if ICA already exists by checking if there's code at the address
-      const provider = multiProvider.getProvider(destination);
-      const code = await provider.getCode(expectedAccount);
-      const exists = code !== '0x';
+        if (exists) {
+          logBlue(`ICA already exists on ${destination}: ${expectedAccount}`);
+          return {
+            chain: destination,
+            ica: expectedAccount,
+            status: 'exists',
+          };
+        } else {
+          // Deploy the ICA
+          logBlue(`Deploying ICA on ${destination}...`);
+          const deployedAccount = await ica.deployAccount(
+            destination,
+            ownerConfig,
+          );
 
-      if (exists) {
-        results.push({
+          assert(
+            eqAddress(deployedAccount, expectedAccount),
+            `Deployed ICA address ${deployedAccount} does not match expected address ${expectedAccount}`,
+          );
+
+          logGreen(`ICA deployed on ${destination}: ${deployedAccount}`);
+          return {
+            chain: destination,
+            ica: deployedAccount,
+            status: 'deployed',
+          };
+        }
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        logRed(`Failed to deploy ICA on ${destination}: ${errorMessage}`);
+        return {
           chain: destination,
-          ica: expectedAccount,
-          status: 'exists',
-        });
-        logBlue(`ICA already exists on ${destination}: ${expectedAccount}`);
-      } else {
-        // Deploy the ICA
-        logBlue(`Deploying ICA on ${destination}...`);
-        const deployedAccount = await ica.deployAccount(
-          destination,
-          ownerConfig,
-        );
-
-        assert(
-          eqAddress(deployedAccount, expectedAccount),
-          `Deployed ICA address ${deployedAccount} does not match expected address ${expectedAccount}`,
-        );
-
-        results.push({
-          chain: destination,
-          ica: deployedAccount,
-          status: 'deployed',
-        });
-        logGreen(`ICA deployed on ${destination}: ${deployedAccount}`);
+          status: 'error',
+          error: errorMessage,
+        };
       }
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      results.push({
-        chain: destination,
-        status: 'error',
-        error: errorMessage,
-      });
-      logRed(`Failed to deploy ICA on ${destination}: ${errorMessage}`);
-    }
-  }
+    }),
+  );
 
   // Display results table
   logBlue('\nICA Deployment Results:');
