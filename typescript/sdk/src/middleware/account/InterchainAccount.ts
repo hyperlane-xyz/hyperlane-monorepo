@@ -13,10 +13,12 @@ import {
   arrayToObject,
   bytes32ToAddress,
   eqAddress,
+  fromHexString,
   isZeroishAddress,
   objFilter,
   objMap,
   promiseObjAll,
+  toHexString,
 } from '@hyperlane-xyz/utils';
 
 import { appFromAddressesMapHelper } from '../../contracts/contracts.js';
@@ -339,6 +341,21 @@ export function commitmentFromIcaCalls(
   return utils.keccak256(encodeIcaCalls(calls, salt));
 }
 
+/**
+ * Format of REVEAL message:
+ * [   0:  1] MessageType.REVEAL (uint8)
+ * [   1: 33] ICA ISM (bytes32)
+ * [  33: 65] Commitment (bytes32)
+ */
+export function commitmentFromRevealMessage(message: string): string {
+  const messageBuffer = fromHexString(message);
+
+  // Extract commitment from bytes 33-65 (32 bytes)
+  const commitment = messageBuffer.subarray(33, 65);
+
+  return toHexString(commitment);
+}
+
 export const PostCallsSchema = z.object({
   calls: z
     .array(
@@ -351,8 +368,11 @@ export const PostCallsSchema = z.object({
     .min(1),
   relayers: z.array(z.string()),
   salt: z.string(),
-  commitmentDispatchTx: z.string(),
+  commitmentDispatchTx: z.string().optional(),
+  ismOverride: z.string().optional(),
   originDomain: z.number(),
+  destinationDomain: z.number(),
+  owner: z.string(),
 });
 
 export type PostCallsType = z.infer<typeof PostCallsSchema>;
