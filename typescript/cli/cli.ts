@@ -11,6 +11,7 @@ import { coreCommand } from './src/commands/core.js';
 import { deployCommand } from './src/commands/deploy.js';
 import { forkCommand } from './src/commands/fork.js';
 import { hookCommand } from './src/commands/hook.js';
+import { icaCommand } from './src/commands/ica.js';
 import { ismCommand } from './src/commands/ism.js';
 import {
   disableProxyCommandOption,
@@ -65,6 +66,7 @@ try {
     .command(coreCommand)
     .command(deployCommand)
     .command(hookCommand)
+    .command(icaCommand)
     .command(ismCommand)
     .command(registryCommand)
     .command(relayerCommand)

@@ -48,4 +48,5 @@ export enum CommandType {
   CORE_DEPLOY = 'core:deploy',
   CORE_READ = 'core:read',
   CORE_CHECK = 'core:check',
+  ICA_DEPLOY = 'ica:deploy',
 }
