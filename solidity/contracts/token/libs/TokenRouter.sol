@@ -7,6 +7,10 @@ import {GasRouter} from "../../client/GasRouter.sol";
 import {TokenMessage} from "./TokenMessage.sol";
 import {Quote, ITokenBridge, ITokenFee} from "../../interfaces/ITokenBridge.sol";
 import {Quotes} from "./Quotes.sol";
+import {StandardHookMetadata} from "../../hooks/libs/StandardHookMetadata.sol";
+
+// ============ External Imports ============
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 
 /**
@@ -118,6 +122,49 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
     }
 
     /**
+     * @notice Quote transfer with custom hook metadata for ERC20 IGP payments.
+     * @param _destination The identifier of the destination chain.
+     * @param _recipient The address of the recipient on the destination chain.
+     * @param _amount The amount of tokens to transfer.
+     * @param _hookMetadata Custom hook metadata (use StandardHookMetadata.formatWithFeeToken for ERC20 IGP).
+     * @return quotes Array of Quote structs representing fees.
+     */
+    function quoteTransferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount,
+        bytes calldata _hookMetadata
+    ) external view returns (Quote[] memory quotes) {
+        quotes = new Quote[](3);
+
+        // Extract fee token from metadata (address(0) for native, ERC20 for tokens)
+        address feeToken = StandardHookMetadata.feeToken(
+            _hookMetadata,
+            address(0)
+        );
+
+        quotes[0] = Quote({
+            token: feeToken,
+            amount: _quoteGasPayment(
+                _destination,
+                _recipient,
+                _amount,
+                _hookMetadata
+            )
+        });
+        (, uint256 feeAmount) = _feeRecipientAndAmount(
+            _destination,
+            _recipient,
+            _amount
+        );
+        quotes[1] = Quote({token: token(), amount: _amount + feeAmount});
+        quotes[2] = Quote({
+            token: token(),
+            amount: _externalFeeAmount(_destination, _recipient, _amount)
+        });
+    }
+
+    /**
      * @notice Transfers `_amount` token to `_recipient` on the `_destination` domain.
      * @dev Delegates transfer logic to `_transferFromSender` implementation.
      * Emits `SentTransferRemote` event on the origin chain.
@@ -142,12 +189,67 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         bytes32 _recipient,
         uint256 _amount
     ) public payable virtual returns (bytes32 messageId) {
+        return
+            _transferRemote(
+                _destination,
+                _recipient,
+                _amount,
+                _GasRouter_hookMetadata(_destination)
+            );
+    }
+
+    /**
+     * @notice Transfers tokens with custom hook metadata for ERC20 IGP payments.
+     * @param _destination The identifier of the destination chain.
+     * @param _recipient The address of the recipient on the destination chain.
+     * @param _amount The amount of tokens to transfer.
+     * @param _hookMetadata Custom hook metadata (use StandardHookMetadata.formatWithFeeToken for ERC20 IGP).
+     * @return messageId The identifier of the dispatched message.
+     */
+    function transferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount,
+        bytes calldata _hookMetadata
+    ) public payable virtual returns (bytes32 messageId) {
+        return
+            _transferRemote(_destination, _recipient, _amount, _hookMetadata);
+    }
+
+    /**
+     * @notice Internal transfer implementation used by both transferRemote overloads.
+     * @dev Delegates transfer logic to `_transferFromSender` implementation.
+     * Emits `SentTransferRemote` event on the origin chain.
+     * Override with custom behavior for storing or forwarding tokens.
+     * Known overrides:
+     * - OPL2ToL1TokenBridgeNative: adds hook metadata for message dispatch.
+     * - EverclearTokenBridge: creates Everclear intent for cross-chain token transfer.
+     * - TokenBridgeCctpBase: adds CCTP-specific metadata for message dispatch.
+     * - HypERC4626Collateral: deposits into vault and handles shares.
+     * When overriding, mirror the general flow of this function for consistency:
+     * 1. Calculate fees and charge the sender.
+     * 2. Prepare the token message with recipient, amount, and any additional metadata.
+     * 3. Emit `SentTransferRemote` event.
+     * 4. Dispatch the message.
+     * @param _destination The identifier of the destination chain.
+     * @param _recipient The address of the recipient on the destination chain.
+     * @param _amount The amount or identifier of tokens to be sent to the remote recipient.
+     * @param _hookMetadata Custom hook metadata for the dispatch.
+     * @return messageId The identifier of the dispatched message.
+     */
+    function _transferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount,
+        bytes memory _hookMetadata
+    ) internal virtual returns (bytes32 messageId) {
         // 1. Calculate the fee amounts, charge the sender and distribute to feeRecipient if necessary
         (, uint256 remainingNativeValue) = _calculateFeesAndCharge(
             _destination,
             _recipient,
             _amount,
-            msg.value
+            msg.value,
+            _hookMetadata
         );
 
         uint256 scaledAmount = _outboundAmount(_amount);
@@ -159,14 +261,15 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         );
 
         // 3. Emit the SentTransferRemote event and 4. dispatch the message
-        return
-            _emitAndDispatch(
-                _destination,
-                _recipient,
-                scaledAmount,
-                remainingNativeValue,
-                _tokenMessage
-            );
+        emit SentTransferRemote(_destination, _recipient, scaledAmount);
+
+        messageId = _Router_dispatch(
+            _destination,
+            remainingNativeValue,
+            _tokenMessage,
+            _hookMetadata,
+            address(hook)
+        );
     }
 
     // ===========================
@@ -178,19 +281,56 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         uint256 _amount,
         uint256 _msgValue
     ) internal returns (uint256 externalFee, uint256 remainingNativeValue) {
+        return
+            _calculateFeesAndCharge(
+                _destination,
+                _recipient,
+                _amount,
+                _msgValue,
+                _GasRouter_hookMetadata(_destination)
+            );
+    }
+
+    function _calculateFeesAndCharge(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount,
+        uint256 _msgValue,
+        bytes memory _hookMetadata
+    ) internal returns (uint256 externalFee, uint256 remainingNativeValue) {
         (address _feeRecipient, uint256 feeAmount) = _feeRecipientAndAmount(
             _destination,
             _recipient,
             _amount
         );
         externalFee = _externalFeeAmount(_destination, _recipient, _amount);
-        uint256 charge = _amount + feeAmount + externalFee;
+
+        // Only add IGP fee to charge for ERC20 IGP payments (variant 2)
+        // For native IGP (variant 1), the fee comes from msg.value
+        uint256 igpFee = 0;
+        if (
+            StandardHookMetadata.variantMem(_hookMetadata) ==
+            StandardHookMetadata.VARIANT_TOKEN
+        ) {
+            igpFee = _quoteGasPayment(
+                _destination,
+                _recipient,
+                _amount,
+                _hookMetadata
+            );
+        }
+
+        uint256 charge = _amount + feeAmount + externalFee + igpFee;
         _transferFromSender(charge);
         if (feeAmount > 0) {
             // transfer atomically so we don't need to keep track of collateral
             // and fee balances separately
             _transferFee(_feeRecipient, feeAmount);
         }
+
+        // Calculate remaining native value
+        // - ERC20 collateral: full msg.value goes to dispatch for IGP payment
+        // - Native collateral: msg.value - charge goes to dispatch for IGP payment
         remainingNativeValue = token() != address(0)
             ? _msgValue
             : _msgValue - charge;
@@ -319,6 +459,29 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
                 _destination,
                 TokenMessage.format(_recipient, _amount),
                 _GasRouter_hookMetadata(_destination),
+                address(hook)
+            );
+    }
+
+    /**
+     * @notice Returns the gas payment required with custom hook metadata.
+     * @param _destination The identifier of the destination chain.
+     * @param _recipient The address of the recipient on the destination chain.
+     * @param _amount The amount or identifier of tokens to be sent to the remote recipient.
+     * @param _hookMetadata Custom hook metadata for gas quoting.
+     * @return payment The gas payment amount in the fee token specified in metadata.
+     */
+    function _quoteGasPayment(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount,
+        bytes memory _hookMetadata
+    ) internal view virtual returns (uint256) {
+        return
+            _Router_quoteDispatch(
+                _destination,
+                TokenMessage.format(_recipient, _amount),
+                _hookMetadata,
                 address(hook)
             );
     }

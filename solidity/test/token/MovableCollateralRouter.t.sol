@@ -57,6 +57,21 @@ contract MockITokenBridge is ITokenBridge {
         return recipient;
     }
 
+    function transferRemote(
+        uint32 destinationDomain,
+        bytes32 recipient,
+        uint256 amountOut,
+        bytes calldata /*_hookMetadata*/
+    ) external payable override returns (bytes32 transferId) {
+        require(msg.value >= nativeFee);
+        token.transferFrom(
+            msg.sender,
+            address(this),
+            amountOut + collateralFee
+        );
+        return recipient;
+    }
+
     function setCollateralFee(uint256 _fee) public {
         collateralFee = _fee;
     }
@@ -69,6 +84,18 @@ contract MockITokenBridge is ITokenBridge {
         uint32 destinationDomain,
         bytes32 recipient,
         uint256 amountOut
+    ) public view override returns (Quote[] memory) {
+        Quote[] memory quotes = new Quote[](2);
+        quotes[0] = Quote(address(0), nativeFee);
+        quotes[1] = Quote(address(token), amountOut + collateralFee);
+        return quotes;
+    }
+
+    function quoteTransferRemote(
+        uint32 destinationDomain,
+        bytes32 recipient,
+        uint256 amountOut,
+        bytes calldata /*_hookMetadata*/
     ) public view override returns (Quote[] memory) {
         Quote[] memory quotes = new Quote[](2);
         quotes[0] = Quote(address(0), nativeFee);
@@ -128,9 +155,11 @@ contract MovableCollateralRouterTest is Test {
         vm.expectCall(
             address(vtb),
             nativeFee,
-            abi.encodeCall(
-                ITokenBridge.transferRemote,
-                (destinationDomain, remote.addressToBytes32(), collateralAmount)
+            abi.encodeWithSelector(
+                bytes4(keccak256("transferRemote(uint32,bytes32,uint256)")),
+                destinationDomain,
+                remote.addressToBytes32(),
+                collateralAmount
             )
         );
         router.rebalance{value: nativeFee}(

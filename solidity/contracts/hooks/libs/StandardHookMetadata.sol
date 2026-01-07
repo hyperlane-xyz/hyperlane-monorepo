@@ -50,11 +50,25 @@ library StandardHookMetadata {
     /**
      * @notice Returns the variant of the metadata.
      * @param _metadata ABI encoded standard hook metadata.
-     * @return variant of the metadata as uint8.
+     * @return variant of the metadata as uint16.
      */
     function variant(bytes calldata _metadata) internal pure returns (uint16) {
         if (_metadata.length < VARIANT_OFFSET + 2) return 0;
         return uint16(bytes2(_metadata[VARIANT_OFFSET:VARIANT_OFFSET + 2]));
+    }
+
+    /**
+     * @notice Returns the variant of the metadata (memory version).
+     * @param _metadata ABI encoded standard hook metadata.
+     * @return _variant variant of the metadata as uint16.
+     */
+    function variantMem(
+        bytes memory _metadata
+    ) internal pure returns (uint16 _variant) {
+        if (_metadata.length < VARIANT_OFFSET + 2) return 0;
+        assembly {
+            _variant := mload(add(_metadata, add(32, VARIANT_OFFSET)))
+        }
     }
 
     /**

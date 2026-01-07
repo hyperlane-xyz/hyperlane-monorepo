@@ -22,6 +22,21 @@ interface ITokenFee {
         bytes32 _recipient,
         uint256 _amount
     ) external view returns (Quote[] memory quotes);
+
+    /**
+     * @notice Provide the value transfer quote with custom hook metadata.
+     * @param _destination The destination domain of the message
+     * @param _recipient The message recipient address on `destination`
+     * @param _amount The amount to send to the recipient
+     * @param _hookMetadata Custom hook metadata for gas quoting
+     * @return quotes Indicate how much of each token to approve and/or send.
+     */
+    function quoteTransferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount,
+        bytes calldata _hookMetadata
+    ) external view returns (Quote[] memory quotes);
 }
 
 interface ITokenBridge is ITokenFee {
@@ -36,5 +51,20 @@ interface ITokenBridge is ITokenFee {
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
+    ) external payable returns (bytes32);
+
+    /**
+     * @notice Transfer value to another domain with custom hook metadata.
+     * @param _destination The destination domain of the message
+     * @param _recipient The message recipient address on `destination`
+     * @param _amount The amount to send to the recipient
+     * @param _hookMetadata Custom hook metadata (use StandardHookMetadata.formatWithFeeToken for ERC20 IGP)
+     * @return messageId The identifier of the dispatched message.
+     */
+    function transferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount,
+        bytes calldata _hookMetadata
     ) external payable returns (bytes32);
 }
