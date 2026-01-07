@@ -29,7 +29,7 @@
     },
     "bundle": {
       "dependsOn": ["^build"],
-      "outputs": ["*-bundle/**", "bundle/**"]
+      "outputs": ["*-bundle/**"]
     }
   }
 }
