@@ -28,6 +28,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
     using TypeCasts for bytes32;
     using TypeCasts for address;
     using TokenMessage for bytes;
+    using StandardHookMetadata for bytes;
     using StorageSlot for bytes32;
     using Quotes for Quote[];
 
@@ -138,10 +139,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         quotes = new Quote[](3);
 
         // Extract fee token from metadata (address(0) for native, ERC20 for tokens)
-        address feeToken = StandardHookMetadata.feeToken(
-            _hookMetadata,
-            address(0)
-        );
+        address feeToken = _hookMetadata.feeToken(address(0));
 
         quotes[0] = Quote({
             token: feeToken,
@@ -308,10 +306,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         // Only add IGP fee to charge for ERC20 IGP payments (variant 2)
         // For native IGP (variant 1), the fee comes from msg.value
         uint256 igpFee = 0;
-        if (
-            StandardHookMetadata.variantMem(_hookMetadata) ==
-            StandardHookMetadata.VARIANT_TOKEN
-        ) {
+        if (_hookMetadata.variantMem() == StandardHookMetadata.VARIANT_TOKEN) {
             igpFee = _quoteGasPayment(
                 _destination,
                 _recipient,
