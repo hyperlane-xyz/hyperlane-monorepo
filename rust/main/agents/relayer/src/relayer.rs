@@ -10,6 +10,7 @@ use async_trait::async_trait;
 use axum::Router;
 use derive_more::AsRef;
 use eyre::Result;
+use futures::{stream::FuturesUnordered, StreamExt};
 use futures_util::future::try_join_all;
 use tokio::{
     sync::{
@@ -944,51 +945,53 @@ impl Relayer {
             settings.igp_indexing_enabled,
         );
 
-        let origin_futures: Vec<_> = settings
+        let mut origin_futures: FuturesUnordered<_> = settings
             .chains
             .iter()
             .map(|(domain, chain)| {
                 tracing::debug!(?domain, timeout=?chain.origin_init_timeout_millis, "Building origin with timeout");
-                tokio::time::timeout(chain.origin_init_timeout_millis, async {
-                    factory
+                let domain_clone = domain.clone();
+                async {
+                    let res = tokio::time::timeout(chain.origin_init_timeout_millis, async {
+                        factory
                         .create(
-                            domain.clone(),
+                            domain_clone.clone(),
                             chain,
                             settings.gas_payment_enforcement.clone(),
                         )
                         .await
-                })
+                    }).await;
+                    (domain_clone, res)
+                }
             })
             .collect();
-        let results = futures::future::join_all(origin_futures).await;
-        let origins = settings
-            .chains
-            .keys()
-            .zip(results.into_iter())
-            .filter_map(|(domain, dest_res)| match dest_res {
+
+        let mut origins = HashMap::new();
+        while let Some((domain, origin_res)) = origin_futures.next().await {
+            match origin_res {
                 Ok(res) => match res {
-                    Ok(origin) => Some((origin.domain.clone(), origin)),
+                    Ok(origin) => {
+                        origins.insert(origin.domain.clone(), origin);
+                    }
                     Err(err) => {
                         Self::record_critical_error(
-                            domain,
+                            &domain,
                             chain_metrics,
                             &err,
                             "Critical error when building chain as origin",
                         );
-                        None
                     }
                 },
                 Err(err) => {
                     Self::record_critical_error(
-                        domain,
+                        &domain,
                         chain_metrics,
                         &err,
                         "Timeout occurred when building chain as origin",
                     );
-                    None
                 }
-            })
-            .collect::<HashMap<_, _>>();
+            }
+        }
 
         settings
             .origin_chains
@@ -1018,48 +1021,49 @@ impl Relayer {
 
         let factory = DestinationFactory::new(db, core_metrics);
 
-        let destination_futures: Vec<_> = settings
+        let mut destination_futures: FuturesUnordered<_> = settings
             .chains
             .iter()
             .map(|(domain, chain)| {
                 tracing::debug!(?domain, timeout=?chain.destination_init_timeout_millis, "Building destination with timeout");
-                tokio::time::timeout(chain.destination_init_timeout_millis, async {
-                    factory
-                        .create(domain.clone(), chain.clone(), dispatcher_metrics.clone())
-                        .await
-                })
+                let domain_clone = domain.clone();
+                async {
+                    let res = tokio::time::timeout(chain.destination_init_timeout_millis, async {
+                        factory
+                            .create(domain_clone.clone(), chain.clone(), dispatcher_metrics.clone())
+                            .await
+                    }).await;
+                    (domain_clone, res)
+                }
             })
             .collect();
-        let results = futures::future::join_all(destination_futures).await;
 
-        let destinations = settings
-            .chains
-            .keys()
-            .zip(results.into_iter())
-            .filter_map(|(domain, dest_res)| match dest_res {
+        let mut destinations = HashMap::new();
+        while let Some((domain, dest_res)) = destination_futures.next().await {
+            match dest_res {
                 Ok(res) => match res {
-                    Ok(destination) => Some((destination.domain.clone(), destination)),
+                    Ok(destination) => {
+                        destinations.insert(destination.domain.clone(), destination);
+                    }
                     Err(err) => {
                         Self::record_critical_error(
-                            domain,
+                            &domain,
                             chain_metrics,
                             &err,
                             "Critical error when building chain as destination",
                         );
-                        None
                     }
                 },
                 Err(err) => {
                     Self::record_critical_error(
-                        domain,
+                        &domain,
                         chain_metrics,
                         &err,
                         "Timeout occurred when building chain as destination",
                     );
-                    None
                 }
-            })
-            .collect::<HashMap<_, _>>();
+            }
+        }
 
         settings
             .destination_chains
