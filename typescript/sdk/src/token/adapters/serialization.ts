@@ -49,7 +49,9 @@ export class SealevelHyperlaneTokenData {
   constructor(public readonly fields: any) {
     Object.assign(this, fields);
     this.mailbox_pubkey = new PublicKey(this.mailbox);
-    this.mailbox_pubkey = new PublicKey(this.mailbox_process_authority);
+    this.mailbox_process_authority_pubkey = new PublicKey(
+      this.mailbox_process_authority,
+    );
     this.owner_pub_key = this.owner ? new PublicKey(this.owner) : undefined;
     this.interchain_security_module_pubkey = this.interchain_security_module
       ? new PublicKey(this.interchain_security_module)
