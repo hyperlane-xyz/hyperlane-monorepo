@@ -1,14 +1,14 @@
 import { password } from '@inquirer/prompts';
-import { BigNumberish, Wallet, utils } from 'ethers';
+import { type BigNumberish, Wallet, utils } from 'ethers';
 
 import {
   ECDSAStakeRegistry__factory,
   TestAVSDirectory__factory,
 } from '@hyperlane-xyz/core';
-import { ChainName } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import { type ChainName } from '@hyperlane-xyz/sdk';
+import { type Address } from '@hyperlane-xyz/utils';
 
-import { WriteCommandContext } from '../context/types.js';
+import { type WriteCommandContext } from '../context/types.js';
 import { log, logBlue } from '../logger.js';
 import { readFileAtPath, resolvePath } from '../utils/files.js';
 

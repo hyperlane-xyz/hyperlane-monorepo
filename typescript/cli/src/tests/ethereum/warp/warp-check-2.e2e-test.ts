@@ -1,21 +1,24 @@
 import { expect } from 'chai';
-import { Signer, Wallet, ethers } from 'ethers';
+import { type Signer, Wallet, ethers } from 'ethers';
 import { zeroAddress } from 'viem';
 
-import { ERC20Test, HypERC20Collateral__factory } from '@hyperlane-xyz/core';
 import {
-  ChainAddresses,
+  type ERC20Test,
+  HypERC20Collateral__factory,
+} from '@hyperlane-xyz/core';
+import {
+  type ChainAddresses,
   createWarpRouteConfigId,
 } from '@hyperlane-xyz/registry';
 import {
-  ChainMetadata,
+  type ChainMetadata,
   TokenStandard,
   TokenType,
-  WarpCoreConfig,
-  WarpRouteDeployConfig,
+  type WarpCoreConfig,
+  type WarpRouteDeployConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
-import { Address, assert } from '@hyperlane-xyz/utils';
+import { type Address, assert } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { deployOrUseExistingCore } from '../commands/core.js';

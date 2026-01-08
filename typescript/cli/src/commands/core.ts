@@ -1,9 +1,9 @@
 import { stringify as yamlStringify } from 'yaml';
-import { CommandModule } from 'yargs';
+import { type CommandModule } from 'yargs';
 
 import {
-  CoreConfig,
-  DeployedCoreAddresses,
+  type CoreConfig,
+  type DeployedCoreAddresses,
   DeployedCoreAddressesSchema,
   normalizeConfig,
 } from '@hyperlane-xyz/sdk';
@@ -13,10 +13,10 @@ import {
   createCoreDeployConfig,
   readCoreDeployConfigs,
 } from '../config/core.js';
-import { MultiProtocolSignerManager } from '../context/strategies/signer/MultiProtocolSignerManager.js';
+import { type MultiProtocolSignerManager } from '../context/strategies/signer/MultiProtocolSignerManager.js';
 import {
-  CommandModuleWithContext,
-  CommandModuleWithWriteContext,
+  type CommandModuleWithContext,
+  type CommandModuleWithWriteContext,
 } from '../context/types.js';
 import { runCoreApply, runCoreDeploy } from '../deploy/core.js';
 import { log, logCommandHeader, logGreen } from '../logger.js';

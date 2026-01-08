@@ -1,28 +1,28 @@
-import { Contract, PopulatedTransaction } from 'ethers';
-import { Logger } from 'pino';
+import { Contract, type PopulatedTransaction } from 'ethers';
+import { type Logger } from 'pino';
 
 import { IXERC20VS__factory } from '@hyperlane-xyz/core';
 import {
-  EvmHypXERC20Adapter,
-  EvmHypXERC20LockboxAdapter,
+  type EvmHypXERC20Adapter,
+  type EvmHypXERC20LockboxAdapter,
   EvmTokenAdapter,
-  IHypXERC20Adapter,
-  SealevelHypTokenAdapter,
+  type IHypXERC20Adapter,
+  type SealevelHypTokenAdapter,
   Token,
-  TokenAmount,
+  type TokenAmount,
   TokenStandard,
   TokenType,
-  WarpCore,
-  WarpRouteDeployConfig,
+  type WarpCore,
+  type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType } from '@hyperlane-xyz/utils';
+import { type Address, ProtocolType } from '@hyperlane-xyz/utils';
 
-import { IMetrics } from '../interfaces/IMetrics.js';
-import { MonitorEvent } from '../interfaces/IMonitor.js';
-import { RebalancingRoute } from '../interfaces/IStrategy.js';
+import { type IMetrics } from '../interfaces/IMetrics.js';
+import { type MonitorEvent } from '../interfaces/IMonitor.js';
+import { type RebalancingRoute } from '../interfaces/IStrategy.js';
 import { formatBigInt, tryFn } from '../utils/index.js';
 
-import { PriceGetter } from './PriceGetter.js';
+import { type PriceGetter } from './PriceGetter.js';
 import {
   metricsRegister,
   rebalancerExecutionAmount,
@@ -34,10 +34,10 @@ import {
   updateXERC20LimitsMetrics,
 } from './scripts/metrics.js';
 import {
-  NativeWalletBalance,
-  WarpRouteBalance,
-  XERC20Info,
-  XERC20Limit,
+  type NativeWalletBalance,
+  type WarpRouteBalance,
+  type XERC20Info,
+  type XERC20Limit,
 } from './types.js';
 import { startMetricsServer } from './utils/metrics.js';
 

@@ -1,10 +1,10 @@
 import { expect } from 'chai';
 
 import {
-  CoreConfig,
-  HookConfig,
+  type CoreConfig,
+  type HookConfig,
   HookType,
-  IsmConfig,
+  type IsmConfig,
   IsmType,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
