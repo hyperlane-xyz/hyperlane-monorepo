@@ -18,7 +18,7 @@ describe('commitmentFromRevealMessage', () => {
 
   describe('Invalid inputs - should throw', () => {
     it('should throw when message is too short (< 65 bytes)', () => {
-      const shortMessage = REVEAL_MESSAGE.slice(0, 64);
+      const shortMessage = REVEAL_MESSAGE.slice(0, 2 + 64 * 2);
       expect(() => commitmentFromRevealMessage(shortMessage)).to.throw(
         'Invalid reveal message: expected at least 65 bytes, got 64 bytes',
       );
