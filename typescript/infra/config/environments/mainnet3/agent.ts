@@ -112,7 +112,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     everclear: true,
     fantom: true,
     flare: true,
-    flowmainnet: false, // chain in recovery mode
+    flowmainnet: true,
     fluence: true,
     forma: false, // relayer + scraper only
     fraxtal: true,
@@ -255,7 +255,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     everclear: true,
     fantom: true,
     flare: true,
-    flowmainnet: false,
+    flowmainnet: true,
     fluence: true,
     forma: true,
     fraxtal: true,
@@ -398,7 +398,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     everclear: true,
     fantom: true,
     flare: true,
-    flowmainnet: false, // chain in recovery mode
+    flowmainnet: true,
     fluence: true,
     forma: true,
     fraxtal: true,
