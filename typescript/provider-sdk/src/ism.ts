@@ -5,7 +5,6 @@ import {
   Artifact,
   ArtifactDeployed,
   ArtifactOnChain,
-  ArtifactState,
   IArtifactManager,
   RawArtifact,
 } from './artifact.js';
@@ -144,9 +143,7 @@ export interface IRawIsmArtifactManager
 export function ismOnChainAddress(
   ism: ArtifactOnChain<IsmArtifactConfig, DeployedIsmAddresses>,
 ): string {
-  return ism.artifactState === ArtifactState.DEPLOYED
-    ? ism.deployed.address
-    : ism.deployed.address;
+  return ism.deployed.address;
 }
 
 export function altVMIsmTypeToProviderSdkType(
