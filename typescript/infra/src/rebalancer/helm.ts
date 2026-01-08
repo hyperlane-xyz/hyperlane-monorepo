@@ -10,6 +10,7 @@ import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { isObjEmpty } from '@hyperlane-xyz/utils';
 import { readYaml } from '@hyperlane-xyz/utils/fs';
 
+import { DockerImageRepos, mainnetDockerTags } from '../../config/docker.js';
 import { getWarpCoreConfig } from '../../config/registry.js';
 import { DeployEnvironment } from '../config/environment.js';
 import { WARP_ROUTE_MONITOR_HELM_RELEASE_PREFIX } from '../utils/consts.js';
@@ -83,13 +84,12 @@ export class RebalancerHelmManager extends HelmManager {
   }
 
   async helmValues() {
-    // Build registry URI with commit embedded in /tree/{commit} format
     const registryUri = `${DEFAULT_GITHUB_REGISTRY}/tree/${this.registryCommit}`;
 
     return {
       image: {
-        repository: 'gcr.io/abacus-labs-dev/hyperlane-rebalancer',
-        tag: 'be84fc0-20251229-194426',
+        repository: DockerImageRepos.REBALANCER,
+        tag: mainnetDockerTags.rebalancer,
       },
       withMetrics: this.withMetrics,
       fullnameOverride: this.helmReleaseName,
