@@ -16,18 +16,11 @@ pragma solidity >=0.8.0;
 /**
  * Format of metadata:
  *
- * Variant 1 (native gas payment):
  * [0:2]   variant (uint16) = 1
  * [2:34]  msg.value (uint256)
  * [34:66] Gas limit for message (uint256)
  * [66:86] Refund address (address)
- *
- * Variant 2 (ERC20 token gas payment):
- * [0:2]   variant (uint16) = 2
- * [2:34]  msg.value (uint256)
- * [34:66] Gas limit for message (uint256)
- * [66:86] Refund address (address)
- * [86:106] Fee token address (address)
+ * [86:106] Fee token address (address) - OPTIONAL, read if length >= 106
  */
 
 library StandardHookMetadata {
@@ -45,12 +38,11 @@ library StandardHookMetadata {
     uint8 private constant FEE_TOKEN_OFFSET = 86;
 
     uint16 public constant VARIANT = 1;
-    uint16 public constant VARIANT_TOKEN = 2;
 
     /**
      * @notice Returns the variant of the metadata.
      * @param _metadata ABI encoded standard hook metadata.
-     * @return variant of the metadata as uint8.
+     * @return variant of the metadata as uint16.
      */
     function variant(bytes calldata _metadata) internal pure returns (uint16) {
         if (_metadata.length < VARIANT_OFFSET + 2) return 0;
@@ -119,14 +111,13 @@ library StandardHookMetadata {
      * @notice Returns the fee token address for token-based gas payments.
      * @param _metadata ABI encoded standard hook metadata.
      * @param _default Default fallback fee token (typically address(0) for native).
-     * @return Fee token address, or _default if not specified or variant 1.
+     * @return Fee token address at [86:106], or _default if metadata too short.
      */
     function feeToken(
         bytes calldata _metadata,
         address _default
     ) internal pure returns (address) {
         if (_metadata.length < FEE_TOKEN_OFFSET + 20) return _default;
-        if (variant(_metadata) != VARIANT_TOKEN) return _default;
         return
             address(bytes20(_metadata[FEE_TOKEN_OFFSET:FEE_TOKEN_OFFSET + 20]));
     }
@@ -145,8 +136,6 @@ library StandardHookMetadata {
     ) internal pure returns (bytes memory) {
         return abi.encodePacked(VARIANT, _msgValue, _gasLimit, _refundAddress);
     }
-
-    /**
 
     /**
      * @notice Formats the specified gas limit and refund address into standard hook metadata.
@@ -206,12 +195,12 @@ library StandardHookMetadata {
     }
 
     /**
-     * @notice Formats variant 2 metadata with fee token for token-based gas payments.
+     * @notice Formats metadata with fee token for token-based gas payments.
      * @param _msgValue msg.value for the message.
      * @param _gasLimit Gas limit for the message.
-     * @param _refundAddress Refund address for the message (unused for token payments, reserved for future use).
+     * @param _refundAddress Refund address for the message.
      * @param _feeToken Fee token address for gas payment.
-     * @return ABI encoded variant 2 hook metadata.
+     * @return ABI encoded hook metadata with fee token at [86:106].
      */
     function formatWithFeeToken(
         uint256 _msgValue,
@@ -221,25 +210,12 @@ library StandardHookMetadata {
     ) internal pure returns (bytes memory) {
         return
             abi.encodePacked(
-                VARIANT_TOKEN,
+                VARIANT,
                 _msgValue,
                 _gasLimit,
                 _refundAddress,
                 _feeToken
             );
-    }
-
-    /**
-     * @notice Formats variant 2 metadata with gas limit and fee token.
-     * @param _gasLimit Gas limit for the message.
-     * @param _feeToken Fee token address for gas payment.
-     * @return ABI encoded variant 2 hook metadata.
-     */
-    function overrideGasLimitAndFeeToken(
-        uint256 _gasLimit,
-        address _feeToken
-    ) internal view returns (bytes memory) {
-        return formatWithFeeToken(uint256(0), _gasLimit, msg.sender, _feeToken);
     }
 
     function getRefundAddress(
