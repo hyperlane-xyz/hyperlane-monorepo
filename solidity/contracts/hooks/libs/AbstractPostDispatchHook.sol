@@ -41,8 +41,7 @@ abstract contract AbstractPostDispatchHook is
     ) public pure virtual returns (bool) {
         return
             metadata.length == 0 ||
-            metadata.variant() == StandardHookMetadata.VARIANT ||
-            metadata.variant() == StandardHookMetadata.VARIANT_TOKEN;
+            metadata.variant() == StandardHookMetadata.VARIANT;
     }
 
     function _refund(

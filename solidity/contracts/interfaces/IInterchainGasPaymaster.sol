@@ -35,6 +35,16 @@ interface IInterchainGasPaymaster {
         address gasOracle
     );
 
+    /**
+     * @notice Emitted when the gas overhead for a remote domain is set.
+     * @param remoteDomain The remote domain.
+     * @param gasOverhead The destination gas overhead.
+     */
+    event DestinationGasOverheadSet(
+        uint32 indexed remoteDomain,
+        uint256 gasOverhead
+    );
+
     function payForGas(
         bytes32 _messageId,
         uint32 _destinationDomain,

@@ -59,6 +59,10 @@ contract InterchainGasPaymasterTest is Test {
         uint32 remoteDomain,
         address gasOracle
     );
+    event DestinationGasOverheadSet(
+        uint32 indexed remoteDomain,
+        uint256 gasOverhead
+    );
 
     function setUp() public {
         blockNumber = block.number;
@@ -831,14 +835,20 @@ contract InterchainGasPaymasterTest is Test {
         IGasOracle _gasOracle,
         uint96 _gasOverhead
     ) internal {
-        InterchainGasPaymaster.GasParam[]
-            memory params = new InterchainGasPaymaster.GasParam[](1);
-
-        params[0] = InterchainGasPaymaster.GasParam(
+        // Set native gas oracle via tokenGasOracles with address(0)
+        InterchainGasPaymaster.TokenGasOracleConfig[]
+            memory oracleParams = new InterchainGasPaymaster.TokenGasOracleConfig[](
+                1
+            );
+        oracleParams[0] = InterchainGasPaymaster.TokenGasOracleConfig(
+            address(0), // NATIVE_TOKEN
             _remoteDomain,
-            InterchainGasPaymaster.DomainGasConfig(_gasOracle, _gasOverhead)
+            _gasOracle
         );
-        igp.setDestinationGasConfigs(params);
+        igp.setTokenGasOracles(oracleParams);
+
+        // Set gas overhead via destinationGasOverhead
+        igp.setDestinationGasOverhead(_remoteDomain, _gasOverhead);
     }
 
     function setRemoteGasData(
