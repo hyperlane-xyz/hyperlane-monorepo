@@ -10,9 +10,10 @@ import { awSafes } from '../../governance/safe/aw.js';
 import { chainOwners } from '../../owners.js';
 import { usdcTokenAddresses } from '../cctp.js';
 import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
+import { WarpRouteIds } from '../warpIds.js';
 
 import {
-  getCCTPV2RebalancingBridgesConfigFor,
+  getRebalancingBridgesConfigFor,
   getRebalancingUSDCConfigForChain,
 } from './utils.js';
 
@@ -88,8 +89,9 @@ const CONTRACT_VERSION = '10.1.3';
 export const getEclipseUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const rebalancingConfigByChain = getCCTPV2RebalancingBridgesConfigFor(
+  const rebalancingConfigByChain = getRebalancingBridgesConfigFor(
     rebalanceableCollateralChains,
+    [WarpRouteIds.MainnetCCTPV2Standard, WarpRouteIds.MainnetCCTPV2Fast],
   );
 
   const configs: Array<[DeploymentChain, HypTokenRouterConfig]> = [];
