@@ -54,11 +54,10 @@ contract InterchainGasPaymasterTest is Test {
         address gasOracle,
         uint96 gasOverhead
     );
-    event TokenDestinationGasConfigSet(
+    event TokenGasOracleSet(
         address indexed feeToken,
         uint32 remoteDomain,
-        address gasOracle,
-        uint96 gasOverhead
+        address gasOracle
     );
 
     function setUp() public {
@@ -75,11 +74,10 @@ contract InterchainGasPaymasterTest is Test {
         // Set up token payment infrastructure
         feeToken = new ERC20Test("FeeToken", "FEE", 1_000_000e18, 18);
         tokenOracle = new StorageGasOracle();
-        setTokenDestinationGasConfig(
+        setTokenGasOracle(
             address(feeToken),
             testDestinationDomain,
-            tokenOracle,
-            testGasOverhead
+            tokenOracle
         );
 
         testEncodedMessage = _encodeTestMessage();
@@ -588,48 +586,44 @@ contract InterchainGasPaymasterTest is Test {
 
     // ============ Token Payment Tests ============
 
-    function testSetTokenDestinationGasConfigs() public {
+    function testSetTokenGasOracles() public {
         address newFeeToken = address(0xBEEF);
         uint32 newDomain = 99999;
-        uint96 newOverhead = 50000;
         StorageGasOracle newOracle = new StorageGasOracle();
 
-        InterchainGasPaymaster.TokenGasParam[]
-            memory params = new InterchainGasPaymaster.TokenGasParam[](1);
-        params[0] = InterchainGasPaymaster.TokenGasParam(
+        InterchainGasPaymaster.TokenGasOracleConfig[]
+            memory params = new InterchainGasPaymaster.TokenGasOracleConfig[](
+                1
+            );
+        params[0] = InterchainGasPaymaster.TokenGasOracleConfig(
             newFeeToken,
             newDomain,
-            InterchainGasPaymaster.DomainGasConfig(newOracle, newOverhead)
+            newOracle
         );
 
         vm.expectEmit(true, false, false, true, address(igp));
-        emit TokenDestinationGasConfigSet(
-            newFeeToken,
-            newDomain,
-            address(newOracle),
-            newOverhead
-        );
+        emit TokenGasOracleSet(newFeeToken, newDomain, address(newOracle));
 
-        igp.setTokenDestinationGasConfigs(params);
+        igp.setTokenGasOracles(params);
 
-        (IGasOracle actualOracle, uint96 actualOverhead) = igp
-            .tokenDestinationGasConfigs(newFeeToken, newDomain);
+        IGasOracle actualOracle = igp.tokenGasOracles(newFeeToken, newDomain);
         assertEq(address(actualOracle), address(newOracle));
-        assertEq(actualOverhead, newOverhead);
     }
 
-    function testSetTokenDestinationGasConfigs_reverts_notOwner() public {
-        InterchainGasPaymaster.TokenGasParam[]
-            memory params = new InterchainGasPaymaster.TokenGasParam[](1);
-        params[0] = InterchainGasPaymaster.TokenGasParam(
+    function testSetTokenGasOracles_reverts_notOwner() public {
+        InterchainGasPaymaster.TokenGasOracleConfig[]
+            memory params = new InterchainGasPaymaster.TokenGasOracleConfig[](
+                1
+            );
+        params[0] = InterchainGasPaymaster.TokenGasOracleConfig(
             address(feeToken),
             testDestinationDomain,
-            InterchainGasPaymaster.DomainGasConfig(tokenOracle, testGasOverhead)
+            tokenOracle
         );
 
         vm.expectRevert("Ownable: caller is not the owner");
         vm.prank(ALICE);
-        igp.setTokenDestinationGasConfigs(params);
+        igp.setTokenGasOracles(params);
     }
 
     function testQuoteGasPaymentWithToken() public {
@@ -694,9 +688,8 @@ contract InterchainGasPaymasterTest is Test {
             1 // 1 wei gas price
         );
 
-        // Get total gas including overhead
-        uint256 totalGas = igp.tokenDestinationGasLimit(
-            address(feeToken),
+        // Get total gas including overhead (token payments use native overhead)
+        uint256 totalGas = igp.destinationGasLimit(
             testDestinationDomain,
             testGasLimit
         );
@@ -775,9 +768,8 @@ contract InterchainGasPaymasterTest is Test {
     function testClaimToken() public {
         setTokenRemoteGasData(testDestinationDomain, 1 * TEST_EXCHANGE_RATE, 1);
 
-        // Get total gas including overhead
-        uint256 totalGas = igp.tokenDestinationGasLimit(
-            address(feeToken),
+        // Get total gas including overhead (token payments use native overhead)
+        uint256 totalGas = igp.destinationGasLimit(
             testDestinationDomain,
             testGasLimit
         );
@@ -876,21 +868,22 @@ contract InterchainGasPaymasterTest is Test {
             );
     }
 
-    function setTokenDestinationGasConfig(
+    function setTokenGasOracle(
         address _feeToken,
         uint32 _remoteDomain,
-        IGasOracle _gasOracle,
-        uint96 _gasOverhead
+        IGasOracle _gasOracle
     ) internal {
-        InterchainGasPaymaster.TokenGasParam[]
-            memory params = new InterchainGasPaymaster.TokenGasParam[](1);
+        InterchainGasPaymaster.TokenGasOracleConfig[]
+            memory params = new InterchainGasPaymaster.TokenGasOracleConfig[](
+                1
+            );
 
-        params[0] = InterchainGasPaymaster.TokenGasParam(
+        params[0] = InterchainGasPaymaster.TokenGasOracleConfig(
             _feeToken,
             _remoteDomain,
-            InterchainGasPaymaster.DomainGasConfig(_gasOracle, _gasOverhead)
+            _gasOracle
         );
-        igp.setTokenDestinationGasConfigs(params);
+        igp.setTokenGasOracles(params);
     }
 
     function setTokenRemoteGasData(

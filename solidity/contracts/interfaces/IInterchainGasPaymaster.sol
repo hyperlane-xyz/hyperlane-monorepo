@@ -24,17 +24,15 @@ interface IInterchainGasPaymaster {
     );
 
     /**
-     * @notice Emitted when token destination gas config is set.
+     * @notice Emitted when a token gas oracle is set.
      * @param feeToken The fee token address.
      * @param remoteDomain The remote domain.
      * @param gasOracle The gas oracle address.
-     * @param gasOverhead The gas overhead.
      */
-    event TokenDestinationGasConfigSet(
+    event TokenGasOracleSet(
         address indexed feeToken,
         uint32 remoteDomain,
-        address gasOracle,
-        uint96 gasOverhead
+        address gasOracle
     );
 
     function payForGas(
