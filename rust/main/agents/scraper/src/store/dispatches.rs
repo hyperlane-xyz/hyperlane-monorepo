@@ -34,7 +34,7 @@ impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneDbStore {
             });
         let raw_stored = self
             .db
-            .store_raw_message_dispatches(&self.mailbox_address, raw_messages)
+            .store_raw_message_dispatches(self.domain.id(), &self.mailbox_address, raw_messages)
             .await?;
 
         // Track raw message dispatches in metrics for E2E verification

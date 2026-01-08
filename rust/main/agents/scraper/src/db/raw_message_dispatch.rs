@@ -2,7 +2,7 @@
 
 use eyre::Result;
 use itertools::Itertools;
-use sea_orm::{prelude::*, ActiveValue::*, Insert, TransactionTrait};
+use sea_orm::{prelude::*, ActiveValue::*, Insert, QuerySelect, TransactionTrait};
 use tracing::{debug, instrument, trace};
 
 use hyperlane_core::{
@@ -32,6 +32,44 @@ impl ScraperDb {
     /// have for Postgres. So 65000 / 20 = 3250
     const STORE_RAW_MESSAGE_DISPATCH_CHUNK_SIZE: usize = 3250;
 
+    /// Get the latest raw message dispatch ID for a specific domain and mailbox.
+    async fn latest_raw_dispatch_id(
+        &self,
+        origin_domain: u32,
+        origin_mailbox: Vec<u8>,
+    ) -> Result<i64> {
+        let result = raw_message_dispatch::Entity::find()
+            .select_only()
+            .column_as(raw_message_dispatch::Column::Id.max(), "max_id")
+            .filter(raw_message_dispatch::Column::OriginDomain.eq(origin_domain))
+            .filter(raw_message_dispatch::Column::OriginMailbox.eq(origin_mailbox))
+            .into_tuple::<Option<i64>>()
+            .one(&self.0)
+            .await?;
+
+        Ok(result
+            // Top level Option indicates some kind of error
+            .ok_or_else(|| eyre::eyre!("Error getting latest raw dispatch id"))?
+            // Inner Option indicates whether there was any data in the filter -
+            // just default to 0 if there was no data
+            .unwrap_or(0))
+    }
+
+    /// Count raw message dispatches with ID greater than the given ID for a specific domain and mailbox.
+    async fn raw_dispatch_count_since_id(
+        &self,
+        origin_domain: u32,
+        origin_mailbox: Vec<u8>,
+        prev_id: i64,
+    ) -> Result<u64> {
+        Ok(raw_message_dispatch::Entity::find()
+            .filter(raw_message_dispatch::Column::OriginDomain.eq(origin_domain))
+            .filter(raw_message_dispatch::Column::OriginMailbox.eq(origin_mailbox))
+            .filter(raw_message_dispatch::Column::Id.gt(prev_id))
+            .count(&self.0)
+            .await?)
+    }
+
     /// Store raw message dispatches into the database.
     /// This method stores raw message dispatch data that comes directly from event logs,
     /// requiring zero RPC calls. This enables CCTP to query transaction hashes even when
@@ -39,10 +77,15 @@ impl ScraperDb {
     #[instrument(skip_all)]
     pub async fn store_raw_message_dispatches(
         &self,
+        origin_domain: u32,
         origin_mailbox: &H256,
         messages: impl Iterator<Item = StorableRawMessageDispatch<'_>>,
     ) -> Result<u64> {
         let origin_mailbox = address_to_bytes(origin_mailbox);
+
+        let latest_id_before = self
+            .latest_raw_dispatch_id(origin_domain, origin_mailbox.clone())
+            .await?;
 
         let models: Vec<raw_message_dispatch::ActiveModel> = messages
             .map(|storable| raw_message_dispatch::ActiveModel {
@@ -67,9 +110,6 @@ impl ScraperDb {
             debug!("Wrote zero new raw message dispatches to database");
             return Ok(0);
         }
-
-        // Count how many new records we're inserting
-        let count_before_insert = models.len() as u64;
 
         // Ensure all chunks are inserted or none at all
         self.0
@@ -100,11 +140,15 @@ impl ScraperDb {
             })
             .await?;
 
+        let new_dispatch_count = self
+            .raw_dispatch_count_since_id(origin_domain, origin_mailbox, latest_id_before)
+            .await?;
+
         debug!(
-            messages = count_before_insert,
-            "Wrote raw message dispatches to database"
+            messages = new_dispatch_count,
+            "Wrote new raw message dispatches to database"
         );
-        Ok(count_before_insert)
+        Ok(new_dispatch_count)
     }
 
     /// Get the raw message dispatch by message ID.
@@ -214,7 +258,7 @@ mod tests {
 
         let messages: Vec<StorableRawMessageDispatch> = vec![];
         let result = scraper_db
-            .store_raw_message_dispatches(&H256::zero(), messages.into_iter())
+            .store_raw_message_dispatches(1, &H256::zero(), messages.into_iter())
             .await;
 
         assert!(result.is_ok());
@@ -256,7 +300,7 @@ mod tests {
         }];
 
         let result = scraper_db
-            .store_raw_message_dispatches(&H256::from_low_u64_be(999), messages.into_iter())
+            .store_raw_message_dispatches(1, &H256::from_low_u64_be(999), messages.into_iter())
             .await;
 
         assert!(result.is_ok(), "Expected Ok, got Err: {:?}", result.err());
@@ -292,7 +336,7 @@ mod tests {
             .collect();
 
         let result = scraper_db
-            .store_raw_message_dispatches(&H256::from_low_u64_be(999), storables.into_iter())
+            .store_raw_message_dispatches(1, &H256::from_low_u64_be(999), storables.into_iter())
             .await;
 
         assert!(result.is_ok(), "Expected Ok, got Err: {:?}", result.err());
@@ -317,7 +361,7 @@ mod tests {
         }];
 
         let result = scraper_db
-            .store_raw_message_dispatches(&H256::from_low_u64_be(999), messages.into_iter())
+            .store_raw_message_dispatches(1, &H256::from_low_u64_be(999), messages.into_iter())
             .await;
 
         assert!(result.is_err());
@@ -436,7 +480,7 @@ mod tests {
 
         // Test 1: Store messages
         let store_result = scraper_db
-            .store_raw_message_dispatches(&H256::from_low_u64_be(999), storables.into_iter())
+            .store_raw_message_dispatches(1, &H256::from_low_u64_be(999), storables.into_iter())
             .await;
         assert!(
             store_result.is_ok(),
@@ -475,7 +519,7 @@ mod tests {
             .collect();
 
         let dup_result = scraper_db
-            .store_raw_message_dispatches(&H256::from_low_u64_be(999), storables_dup.into_iter())
+            .store_raw_message_dispatches(1, &H256::from_low_u64_be(999), storables_dup.into_iter())
             .await;
         assert!(
             dup_result.is_ok(),
