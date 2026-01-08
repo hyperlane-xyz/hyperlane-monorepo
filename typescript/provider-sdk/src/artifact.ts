@@ -56,11 +56,15 @@ export type Artifact<C, D = unknown> =
 
 /**
  * Type guard to check if an artifact is in the NEW state.
+ * Returns true when artifactState is undefined (the default) or explicitly NEW.
  */
 export function isArtifactNew<C, D>(
   artifact: Artifact<C, D>,
 ): artifact is ArtifactNew<C> {
-  return artifact.artifactState === ArtifactState.NEW;
+  return (
+    artifact.artifactState === undefined ||
+    artifact.artifactState === ArtifactState.NEW
+  );
 }
 
 /**
