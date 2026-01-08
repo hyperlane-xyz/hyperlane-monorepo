@@ -3,6 +3,8 @@ import { TronWeb } from 'tronweb';
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert, strip0x } from '@hyperlane-xyz/utils';
 
+import MailboxAbi from '../../abi/Mailbox.json' with { type: 'json' };
+
 type MockTransaction = any;
 
 export class TronProvider implements AltVM.IProvider {
@@ -26,8 +28,6 @@ export class TronProvider implements AltVM.IProvider {
   constructor(rpcUrls: string[], chainId: string | number, privateKey: string) {
     this.rpcUrls = rpcUrls;
     this.chainId = +chainId;
-
-    console.log('privateKey', privateKey);
 
     this.tronweb = new TronWeb({
       fullHost: this.rpcUrls[0],
@@ -68,89 +68,10 @@ export class TronProvider implements AltVM.IProvider {
 
   // ### QUERY CORE ###
 
+  // TODO: TRON
+  // use multicall
   async getMailbox(req: AltVM.ReqGetMailbox): Promise<AltVM.ResGetMailbox> {
-    const abi = [
-      {
-        inputs: [],
-        name: 'owner',
-        outputs: [
-          {
-            internalType: 'address',
-            name: '',
-            type: 'address',
-          },
-        ],
-        stateMutability: 'view',
-        type: 'function',
-      },
-      {
-        inputs: [],
-        name: 'localDomain',
-        outputs: [
-          {
-            internalType: 'uint32',
-            name: '',
-            type: 'uint32',
-          },
-        ],
-        stateMutability: 'view',
-        type: 'function',
-      },
-      {
-        inputs: [],
-        name: 'defaultIsm',
-        outputs: [
-          {
-            internalType: 'contract IInterchainSecurityModule',
-            name: '',
-            type: 'address',
-          },
-        ],
-        stateMutability: 'view',
-        type: 'function',
-      },
-      {
-        inputs: [],
-        name: 'defaultHook',
-        outputs: [
-          {
-            internalType: 'contract IPostDispatchHook',
-            name: '',
-            type: 'address',
-          },
-        ],
-        stateMutability: 'view',
-        type: 'function',
-      },
-      {
-        inputs: [],
-        name: 'requiredHook',
-        outputs: [
-          {
-            internalType: 'contract IPostDispatchHook',
-            name: '',
-            type: 'address',
-          },
-        ],
-        stateMutability: 'view',
-        type: 'function',
-      },
-      {
-        inputs: [],
-        name: 'nonce',
-        outputs: [
-          {
-            internalType: 'uint32',
-            name: '',
-            type: 'uint32',
-          },
-        ],
-        stateMutability: 'view',
-        type: 'function',
-      },
-    ];
-
-    const mailbox = this.tronweb.contract(abi, req.mailboxAddress);
+    const mailbox = this.tronweb.contract(MailboxAbi.abi, req.mailboxAddress);
 
     return {
       address: req.mailboxAddress,
@@ -238,15 +159,37 @@ export class TronProvider implements AltVM.IProvider {
   // ### GET CORE TXS ###
 
   async getCreateMailboxTransaction(
-    _req: AltVM.ReqCreateMailbox,
+    req: AltVM.ReqCreateMailbox,
   ): Promise<MockTransaction> {
-    throw new Error(`not implemented`);
+    return {
+      abi: MailboxAbi.abi,
+      bytecode: MailboxAbi.bytecode,
+      feeLimit: 100000000,
+      parameters: [req.domainId],
+    };
   }
 
   async getSetDefaultIsmTransaction(
-    _req: AltVM.ReqSetDefaultIsm,
+    req: AltVM.ReqSetDefaultIsm,
   ): Promise<MockTransaction> {
-    throw new Error(`not implemented`);
+    const functionSelector = 'setDefaultIsm(address)';
+    const options = {
+      feeLimit: 100_000_000, // 100 TRX
+      callValue: 0,
+    };
+
+    return this.tronweb.transactionBuilder.triggerSmartContract(
+      req.mailboxAddress,
+      functionSelector,
+      options,
+      [
+        {
+          type: 'address',
+          value: req.ismAddress,
+        },
+      ],
+      this.tronweb.address.toHex(req.signer),
+    );
   }
 
   async getSetDefaultHookTransaction(
