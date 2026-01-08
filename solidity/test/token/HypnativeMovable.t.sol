@@ -38,15 +38,6 @@ contract MockITokenBridgeEth is ITokenBridge {
         return keccak256("fake message");
     }
 
-    function transferRemote(
-        uint32 destinationDomain,
-        bytes32 recipient,
-        uint256 amountOut,
-        bytes calldata /*_hookMetadata*/
-    ) external payable override returns (bytes32 transferId) {
-        return keccak256("fake message");
-    }
-
     function quoteTransferRemote(
         uint32 destinationDomain,
         bytes32 recipient,
@@ -57,22 +48,6 @@ contract MockITokenBridgeEth is ITokenBridge {
             quotes[0] = Quote({token: quoteToken, amount: quoteAmount});
         } else if (quoteLength > 1) {
             // Return multiple quotes for testing
-            quotes[0] = Quote({token: quoteToken, amount: quoteAmount});
-            quotes[1] = Quote({token: address(0), amount: 100});
-        }
-        return quotes;
-    }
-
-    function quoteTransferRemote(
-        uint32 destinationDomain,
-        bytes32 recipient,
-        uint256 amountOut,
-        bytes calldata /*_hookMetadata*/
-    ) external view override returns (Quote[] memory) {
-        Quote[] memory quotes = new Quote[](quoteLength);
-        if (quoteLength == 1) {
-            quotes[0] = Quote({token: quoteToken, amount: quoteAmount});
-        } else if (quoteLength > 1) {
             quotes[0] = Quote({token: quoteToken, amount: quoteAmount});
             quotes[1] = Quote({token: address(0), amount: 100});
         }

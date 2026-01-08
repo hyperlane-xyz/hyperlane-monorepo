@@ -28,38 +28,10 @@ contract MockValueTransferBridge is ITokenBridge {
         return quotes;
     }
 
-    function quoteTransferRemote(
-        uint32, //_destinationDomain,
-        bytes32, //_recipient,
-        uint256, //_amountOut,
-        bytes calldata //_hookMetadata
-    ) public view virtual override returns (Quote[] memory) {
-        Quote[] memory quotes = new Quote[](1);
-        quotes[0] = Quote(collateral, 1);
-
-        return quotes;
-    }
-
     function transferRemote(
         uint32 _destinationDomain,
         bytes32 _recipient,
         uint256 _amountOut
-    ) external payable virtual override returns (bytes32 transferId) {
-        emit SentTransferRemote(
-            uint32(block.chainid),
-            _destinationDomain,
-            _recipient,
-            _amountOut
-        );
-
-        return keccak256("transferId");
-    }
-
-    function transferRemote(
-        uint32 _destinationDomain,
-        bytes32 _recipient,
-        uint256 _amountOut,
-        bytes calldata //_hookMetadata
     ) external payable virtual override returns (bytes32 transferId) {
         emit SentTransferRemote(
             uint32(block.chainid),
