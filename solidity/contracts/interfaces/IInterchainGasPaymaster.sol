@@ -52,6 +52,20 @@ interface IInterchainGasPaymaster {
         address _refundAddress
     ) external payable;
 
+    /**
+     * @notice Pays for gas using an ERC20 token.
+     * @param _feeToken The token to pay gas fees in.
+     * @param _messageId The ID of the message to pay for.
+     * @param _destinationDomain The domain of the destination chain.
+     * @param _gasAmount The amount of destination gas to pay for.
+     */
+    function payForGas(
+        address _feeToken,
+        bytes32 _messageId,
+        uint32 _destinationDomain,
+        uint256 _gasAmount
+    ) external;
+
     function quoteGasPayment(
         uint32 _destinationDomain,
         uint256 _gasAmount

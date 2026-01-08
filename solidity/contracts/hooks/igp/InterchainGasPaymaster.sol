@@ -232,25 +232,43 @@ contract InterchainGasPaymaster is
         uint256 _gasLimit,
         address _refundAddress
     ) public payable override {
-        uint256 _requiredPayment = quoteGasPayment(
-            _destinationDomain,
-            _gasLimit
-        );
-        require(
-            msg.value >= _requiredPayment,
-            "IGP: insufficient interchain gas payment"
-        );
-        uint256 _overpayment = msg.value - _requiredPayment;
-        if (_overpayment > 0) {
-            require(_refundAddress != address(0), "no refund address");
-            payable(_refundAddress).sendValue(_overpayment);
-        }
-
-        emit GasPayment(
+        uint256 _payment = quoteGasPayment(_destinationDomain, _gasLimit);
+        _payForGas(
+            NATIVE_TOKEN,
             _messageId,
             _destinationDomain,
             _gasLimit,
-            _requiredPayment
+            _refundAddress,
+            _payment
+        );
+    }
+
+    /**
+     * @notice Pays for gas using an ERC20 token.
+     * @dev Requires prior approval of the fee token. The exact quoted amount is transferred.
+     * @param _feeToken The token to pay gas fees in.
+     * @param _messageId The ID of the message to pay for.
+     * @param _destinationDomain The domain of the message's destination chain.
+     * @param _gasLimit The amount of destination gas to pay for.
+     */
+    function payForGas(
+        address _feeToken,
+        bytes32 _messageId,
+        uint32 _destinationDomain,
+        uint256 _gasLimit
+    ) external {
+        uint256 _payment = quoteGasPayment(
+            _feeToken,
+            _destinationDomain,
+            _gasLimit
+        );
+        _payForGas(
+            _feeToken,
+            _messageId,
+            _destinationDomain,
+            _gasLimit,
+            msg.sender,
+            _payment
         );
     }
 
@@ -363,6 +381,46 @@ contract InterchainGasPaymaster is
 
     // ============ Internal Functions ============
 
+    /**
+     * @notice Internal helper to handle gas payments for both native and ERC20 tokens.
+     * @dev For native: checks msg.value >= payment and refunds overpayment to _payer.
+     *      For tokens: transfers exact payment amount from _payer.
+     * @param _feeToken The token to pay with, or NATIVE_TOKEN (address(0)) for native.
+     * @param _messageId The ID of the message to pay for.
+     * @param _destinationDomain The domain of the message's destination chain.
+     * @param _gasLimit The amount of destination gas to pay for.
+     * @param _payer For native: refund address. For tokens: address to transfer from.
+     * @param _payment The payment amount (from quoteGasPayment).
+     */
+    function _payForGas(
+        address _feeToken,
+        bytes32 _messageId,
+        uint32 _destinationDomain,
+        uint256 _gasLimit,
+        address _payer,
+        uint256 _payment
+    ) internal {
+        if (_feeToken == address(0)) {
+            // Native payment: check msg.value and refund overpayment
+            require(
+                msg.value >= _payment,
+                "IGP: insufficient interchain gas payment"
+            );
+            uint256 _overpayment = msg.value - _payment;
+            if (_overpayment > 0) {
+                require(_payer != address(0), "no refund address");
+                payable(_payer).sendValue(_overpayment);
+            }
+        } else {
+            // Token payment: transfer exact amount from payer
+            // Note: Fee-on-transfer tokens will result in less received than quoted.
+            // ERC-777 tokens could trigger reentrancy but no state is modified after transfer.
+            IERC20(_feeToken).safeTransferFrom(_payer, address(this), _payment);
+        }
+
+        emit GasPayment(_messageId, _destinationDomain, _gasLimit, _payment);
+    }
+
     /// @inheritdoc AbstractPostDispatchHook
     function _postDispatch(
         bytes calldata metadata,
@@ -375,39 +433,23 @@ contract InterchainGasPaymaster is
             metadata.gasLimit(DEFAULT_GAS_USAGE)
         );
 
-        if (_feeToken == address(0)) {
-            // Native payment - existing logic
-            payForGas(
-                message.id(),
-                _destinationDomain,
-                _gasLimit,
-                metadata.refundAddress(message.senderAddress())
-            );
-        } else {
-            // Token payment - charge the message sender
-            // Note: Fee-on-transfer tokens will result in less received than quoted.
-            // ERC-777 tokens could trigger reentrancy but no state is modified after transfer.
-            // Token payments use same overhead as native via destinationGasLimit
-            uint256 _payment = quoteGasPayment(
-                _feeToken,
-                _destinationDomain,
-                _gasLimit
-            );
+        // Use appropriate quote function to support overrides (e.g., TestInterchainGasPaymaster)
+        uint256 _payment = _feeToken == address(0)
+            ? quoteGasPayment(_destinationDomain, _gasLimit)
+            : quoteGasPayment(_feeToken, _destinationDomain, _gasLimit);
 
-            // Pull tokens from message sender (requires prior approval)
-            IERC20(_feeToken).safeTransferFrom({
-                from: message.senderAddress(),
-                to: address(this),
-                value: _payment
-            });
+        address _payer = _feeToken == address(0)
+            ? metadata.refundAddress(message.senderAddress())
+            : message.senderAddress();
 
-            emit GasPayment(
-                message.id(),
-                _destinationDomain,
-                _gasLimit,
-                _payment
-            );
-        }
+        _payForGas(
+            _feeToken,
+            message.id(),
+            _destinationDomain,
+            _gasLimit,
+            _payer,
+            _payment
+        );
     }
 
     /// @inheritdoc AbstractPostDispatchHook
