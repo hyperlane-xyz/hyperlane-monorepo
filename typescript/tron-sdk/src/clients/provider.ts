@@ -72,6 +72,32 @@ export class TronProvider implements AltVM.IProvider {
     const abi = [
       {
         inputs: [],
+        name: 'owner',
+        outputs: [
+          {
+            internalType: 'address',
+            name: '',
+            type: 'address',
+          },
+        ],
+        stateMutability: 'view',
+        type: 'function',
+      },
+      {
+        inputs: [],
+        name: 'localDomain',
+        outputs: [
+          {
+            internalType: 'uint32',
+            name: '',
+            type: 'uint32',
+          },
+        ],
+        stateMutability: 'view',
+        type: 'function',
+      },
+      {
+        inputs: [],
         name: 'defaultIsm',
         outputs: [
           {
@@ -109,20 +135,31 @@ export class TronProvider implements AltVM.IProvider {
         stateMutability: 'view',
         type: 'function',
       },
+      {
+        inputs: [],
+        name: 'nonce',
+        outputs: [
+          {
+            internalType: 'uint32',
+            name: '',
+            type: 'uint32',
+          },
+        ],
+        stateMutability: 'view',
+        type: 'function',
+      },
     ];
 
     const mailbox = this.tronweb.contract(abi, req.mailboxAddress);
-    const result = await mailbox.defaultIsm().call();
-    console.log(result);
 
     return {
       address: req.mailboxAddress,
-      owner: '',
-      localDomain: 0,
-      defaultIsm: '',
-      defaultHook: '',
-      requiredHook: '',
-      nonce: 0,
+      owner: await mailbox.owner().call(),
+      localDomain: Number(await mailbox.localDomain().call()),
+      defaultIsm: await mailbox.defaultIsm().call(),
+      defaultHook: await mailbox.defaultHook().call(),
+      requiredHook: await mailbox.requiredHook().call(),
+      nonce: Number(await mailbox.nonce().call()),
     };
   }
 

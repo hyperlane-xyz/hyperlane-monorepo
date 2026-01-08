@@ -11,9 +11,10 @@ const main = async () => {
   });
   console.log('balance', balance);
 
-  await provider.getMailbox({
+  const mailbox = await provider.getMailbox({
     mailboxAddress: 'TMyup1LDrbXmc8V6qrW4CwX1DuN1CRjtZX',
   });
+  console.log('mailbox', mailbox);
 };
 
 main();
