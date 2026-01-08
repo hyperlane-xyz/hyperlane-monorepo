@@ -413,8 +413,6 @@ contract InterchainGasPaymaster is
             }
         } else {
             // Token payment: transfer exact amount from payer
-            // Note: Fee-on-transfer tokens will result in less received than quoted.
-            // ERC-777 tokens could trigger reentrancy but no state is modified after transfer.
             IERC20(_feeToken).safeTransferFrom(_payer, address(this), _payment);
         }
 
