@@ -516,7 +516,7 @@ jobs:
     if: needs.rust-only.outputs.only_rust == 'false'
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
@@ -532,7 +532,7 @@ jobs:
     needs: [radix-sdk-e2e-run]
     if: always()
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Check radix-sdk-e2e status
         uses: ./.github/actions/check-job-status
         with:
