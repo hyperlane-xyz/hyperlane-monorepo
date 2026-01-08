@@ -83,10 +83,6 @@ impl ScraperDb {
     ) -> Result<u64> {
         let origin_mailbox = address_to_bytes(origin_mailbox);
 
-        let latest_id_before = self
-            .latest_raw_dispatch_id(origin_domain, origin_mailbox.clone())
-            .await?;
-
         let models: Vec<raw_message_dispatch::ActiveModel> = messages
             .map(|storable| raw_message_dispatch::ActiveModel {
                 id: NotSet,
@@ -110,6 +106,10 @@ impl ScraperDb {
             debug!("Wrote zero new raw message dispatches to database");
             return Ok(0);
         }
+
+        let latest_id_before = self
+            .latest_raw_dispatch_id(origin_domain, origin_mailbox.clone())
+            .await?;
 
         // Ensure all chunks are inserted or none at all
         self.0
@@ -168,7 +168,9 @@ impl ScraperDb {
 #[cfg(test)]
 mod tests {
     use migration::MigratorTrait;
-    use sea_orm::{Database, DatabaseBackend, DbErr, MockDatabase, RuntimeErr};
+    use std::collections::BTreeMap;
+
+    use sea_orm::{Database, DatabaseBackend, DbErr, MockDatabase, RuntimeErr, Value};
     use testcontainers::runners::AsyncRunner;
     use testcontainers_modules::postgres::Postgres;
     use time::macros::{date, time};
@@ -286,9 +288,20 @@ mod tests {
     #[tokio::test]
     async fn test_store_raw_message_dispatches_single_message() {
         // SeaORM's Insert with on_conflict uses RETURNING clause on Postgres.
-        // We need to provide mock results that indicate successful insertion.
+        // We need to provide mock results for:
+        // 1. latest_raw_dispatch_id query (SELECT MAX(id)) - returns model with id=0
+        // 2. INSERT query - returns the inserted model
+        // 3. raw_dispatch_count_since_id query (SELECT COUNT) - returns count=1
         let mock_db = MockDatabase::new(DatabaseBackend::Postgres)
-            .append_query_results([[create_mock_model(1, 1)]])
+            .append_query_results([[create_mock_model(0, 0)]]) // latest_raw_dispatch_id
+            .append_query_results([[create_mock_model(1, 1)]]) // INSERT
+            .append_query_results([[{
+                let count_result: BTreeMap<&str, Value> =
+                    [("num_items", Into::<Value>::into(1i64))]
+                        .into_iter()
+                        .collect();
+                count_result
+            }]]) // raw_dispatch_count_since_id
             .into_connection();
         let scraper_db = ScraperDb::with_connection(mock_db);
 
@@ -312,13 +325,22 @@ mod tests {
         const MESSAGE_COUNT: usize = 100;
 
         // SeaORM's Insert with on_conflict uses RETURNING clause on Postgres.
-        // Provide mock results for each inserted record.
+        // Provide mock results for:
+        // 1. latest_raw_dispatch_id query
+        // 2. INSERT query - all inserted records
+        // 3. raw_dispatch_count_since_id query
         let mock_results: Vec<raw_message_dispatch::Model> = (0..MESSAGE_COUNT)
             .map(|i| create_mock_model(i as i64 + 1, i as i32))
             .collect();
+        let count_result: BTreeMap<&str, Value> =
+            [("num_items", Into::<Value>::into(MESSAGE_COUNT as i64))]
+                .into_iter()
+                .collect();
 
         let mock_db = MockDatabase::new(DatabaseBackend::Postgres)
-            .append_query_results([mock_results])
+            .append_query_results([[create_mock_model(0, 0)]]) // latest_raw_dispatch_id
+            .append_query_results([mock_results]) // INSERT
+            .append_query_results([[count_result]]) // raw_dispatch_count_since_id
             .into_connection();
         let scraper_db = ScraperDb::with_connection(mock_db);
 
