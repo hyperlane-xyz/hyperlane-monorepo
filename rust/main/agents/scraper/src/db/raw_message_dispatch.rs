@@ -2,7 +2,7 @@
 
 use eyre::Result;
 use itertools::Itertools;
-use sea_orm::{prelude::*, ActiveValue::*, Insert};
+use sea_orm::{prelude::*, ActiveValue::*, Insert, TransactionTrait};
 use tracing::{debug, instrument, trace};
 
 use hyperlane_core::{
@@ -24,6 +24,14 @@ pub struct StorableRawMessageDispatch<'a> {
 }
 
 impl ScraperDb {
+    /// Used for store_raw_message_dispatches().
+    /// raw_message_dispatch::ActiveModel has 12 fields, on conflict has 1 column,
+    /// update has 7 columns. So there should be about a maximum of 20 sql
+    /// parameters per ActiveModel.
+    /// u16::MAX (65_535u16) is the maximum amount of parameters we can
+    /// have for Postgres. So 65000 / 20 = 3250
+    const STORE_RAW_MESSAGE_DISPATCH_CHUNK_SIZE: usize = 3250;
+
     /// Store raw message dispatches into the database.
     /// This method stores raw message dispatch data that comes directly from event logs,
     /// requiring zero RPC calls. This enables CCTP to query transaction hashes even when
@@ -63,22 +71,33 @@ impl ScraperDb {
         // Count how many new records we're inserting
         let count_before_insert = models.len() as u64;
 
-        // Insert with ON CONFLICT to handle duplicates (msg_id is unique)
-        Insert::many(models)
-            .on_conflict(
-                OnConflict::column(raw_message_dispatch::Column::MsgId)
-                    .update_columns([
-                        raw_message_dispatch::Column::TimeCreated,
-                        raw_message_dispatch::Column::OriginTxHash,
-                        raw_message_dispatch::Column::OriginBlockHash,
-                        raw_message_dispatch::Column::OriginBlockHeight,
-                        raw_message_dispatch::Column::DestinationDomain,
-                        raw_message_dispatch::Column::Sender,
-                        raw_message_dispatch::Column::Recipient,
-                    ])
-                    .to_owned(),
-            )
-            .exec(&self.0)
+        // Ensure all chunks are inserted or none at all
+        self.0
+            .transaction::<_, (), DbErr>(|txn| {
+                Box::pin(async move {
+                    // Insert raw message dispatches in chunks, to not run into
+                    // "Too many arguments" error
+                    for chunk in models.chunks(Self::STORE_RAW_MESSAGE_DISPATCH_CHUNK_SIZE) {
+                        Insert::many(chunk.to_vec())
+                            .on_conflict(
+                                OnConflict::column(raw_message_dispatch::Column::MsgId)
+                                    .update_columns([
+                                        raw_message_dispatch::Column::TimeCreated,
+                                        raw_message_dispatch::Column::OriginTxHash,
+                                        raw_message_dispatch::Column::OriginBlockHash,
+                                        raw_message_dispatch::Column::OriginBlockHeight,
+                                        raw_message_dispatch::Column::DestinationDomain,
+                                        raw_message_dispatch::Column::Sender,
+                                        raw_message_dispatch::Column::Recipient,
+                                    ])
+                                    .to_owned(),
+                            )
+                            .exec(txn)
+                            .await?;
+                    }
+                    Ok(())
+                })
+            })
             .await?;
 
         debug!(
