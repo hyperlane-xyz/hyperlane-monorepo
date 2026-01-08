@@ -18,12 +18,19 @@ import {
 } from './utils.js';
 
 /**
- * Stage 4: Upgrade to contract version 10.1.3 for Ethereum, redeploy Arbitrum and base routers, add linear warp fee
+ * Eclipse USDC Warp Route
  *
- * This config produces:
- * - Upgrades Ethereum contract version to 10.1.3
- * - Redeploys Arbitrum and base routers
- * - Adds linear warp fee
+ * A multi-chain USDC warp route connecting Eclipse with major EVM chains and Solana.
+ *
+ * Chains:
+ * - EVM (collateral): Ethereum, Arbitrum, Base, Optimism, Polygon, Unichain
+ * - SVM (synthetic): Eclipse
+ * - SVM (collateral): Solana
+ *
+ * Features:
+ * - CCTP V2 rebalancing bridges (Standard + Fast) on all EVM chains
+ * - 5 bps linear fee on EVM transfers
+ * - Contract version 10.1.3
  */
 const awProxyAdminAddresses: ChainMap<string> = {
   arbitrum: '0x80Cebd56A65e46c474a1A101e89E76C4c51D179c',
@@ -58,7 +65,7 @@ const deploymentChains = [
 
 type DeploymentChain = (typeof deploymentChains)[number];
 
-// All EVM chains get rebalancing in Stage 2
+// EVM chains with CCTP rebalancing support
 const rebalanceableCollateralChains = [
   'arbitrum',
   'base',
@@ -96,7 +103,7 @@ export const getEclipseUSDCWarpConfig = async (
 
   const configs: Array<[DeploymentChain, HypTokenRouterConfig]> = [];
 
-  // All EVM chains get rebalancing in Stage 2
+  // Configure EVM collateral chains with rebalancing and linear fees
   for (const currentChain of rebalanceableCollateralChains) {
     const baseConfig = getRebalancingUSDCConfigForChain(
       currentChain,
