@@ -98,12 +98,7 @@ contract TokenRouterIgpTest is Test {
 
         // Deploy gas oracle for token payments
         gasOracle = new StorageGasOracle();
-        _setTokenGasConfig(
-            address(feeToken),
-            DESTINATION,
-            gasOracle,
-            GAS_OVERHEAD
-        );
+        _setTokenGasConfig(address(feeToken), DESTINATION, gasOracle);
         _setRemoteGasData(DESTINATION, TOKEN_EXCHANGE_RATE, GAS_PRICE);
 
         // Deploy collateral router
@@ -275,23 +270,14 @@ contract TokenRouterIgpTest is Test {
 
     function test_transferRemote_withERC20Igp_sameToken() public {
         // Use collateralToken as both collateral AND fee token
-        _setTokenGasConfig(
-            address(collateralToken),
-            DESTINATION,
-            gasOracle,
-            GAS_OVERHEAD
-        );
+        _setTokenGasConfig(address(collateralToken), DESTINATION, gasOracle);
 
         collateralRouter.setFeeToken(address(collateralToken));
         collateralRouter.setIgp(address(igp));
         collateralRouter.setHook(address(igp));
 
-        // Calculate expected IGP fee
-        uint256 totalGas = igp.tokenDestinationGasLimit(
-            address(collateralToken),
-            DESTINATION,
-            GAS_LIMIT
-        );
+        // Calculate expected IGP fee (token payments use same overhead as native)
+        uint256 totalGas = igp.destinationGasLimit(DESTINATION, GAS_LIMIT);
         uint256 igpFee = igp.quoteGasPayment(
             address(collateralToken),
             DESTINATION,
@@ -338,12 +324,8 @@ contract TokenRouterIgpTest is Test {
         collateralRouter.setIgp(address(igp));
         collateralRouter.setHook(address(igp));
 
-        // Calculate expected IGP fee
-        uint256 totalGas = igp.tokenDestinationGasLimit(
-            address(feeToken),
-            DESTINATION,
-            GAS_LIMIT
-        );
+        // Calculate expected IGP fee (token payments use same overhead as native)
+        uint256 totalGas = igp.destinationGasLimit(DESTINATION, GAS_LIMIT);
         uint256 igpFee = igp.quoteGasPayment(
             address(feeToken),
             DESTINATION,
@@ -398,11 +380,7 @@ contract TokenRouterIgpTest is Test {
         syntheticRouter.setHook(address(igp));
 
         // Calculate expected IGP fee
-        uint256 totalGas = igp.tokenDestinationGasLimit(
-            address(feeToken),
-            DESTINATION,
-            GAS_LIMIT
-        );
+        uint256 totalGas = igp.destinationGasLimit(DESTINATION, GAS_LIMIT);
         uint256 igpFee = igp.quoteGasPayment(
             address(feeToken),
             DESTINATION,
@@ -457,19 +435,10 @@ contract TokenRouterIgpTest is Test {
         syntheticRouter.setHook(address(igp));
 
         // Set up IGP config for synthetic token
-        _setTokenGasConfig(
-            address(syntheticRouter),
-            DESTINATION,
-            gasOracle,
-            GAS_OVERHEAD
-        );
+        _setTokenGasConfig(address(syntheticRouter), DESTINATION, gasOracle);
 
-        // Calculate expected IGP fee
-        uint256 totalGas = igp.tokenDestinationGasLimit(
-            address(syntheticRouter),
-            DESTINATION,
-            GAS_LIMIT
-        );
+        // Calculate expected IGP fee (token payments use same overhead as native)
+        uint256 totalGas = igp.destinationGasLimit(DESTINATION, GAS_LIMIT);
         uint256 igpFee = igp.quoteGasPayment(
             address(syntheticRouter),
             DESTINATION,
@@ -585,20 +554,18 @@ contract TokenRouterIgpTest is Test {
     function _setTokenGasConfig(
         address _token,
         uint32 _domain,
-        StorageGasOracle _oracle,
-        uint96 _overhead
+        StorageGasOracle _oracle
     ) internal {
-        InterchainGasPaymaster.TokenGasParam[]
-            memory params = new InterchainGasPaymaster.TokenGasParam[](1);
-        params[0] = InterchainGasPaymaster.TokenGasParam(
+        InterchainGasPaymaster.TokenGasOracleConfig[]
+            memory params = new InterchainGasPaymaster.TokenGasOracleConfig[](
+                1
+            );
+        params[0] = InterchainGasPaymaster.TokenGasOracleConfig(
             _token,
             _domain,
-            InterchainGasPaymaster.DomainGasConfig(
-                IGasOracle(address(_oracle)),
-                _overhead
-            )
+            IGasOracle(address(_oracle))
         );
-        igp.setTokenDestinationGasConfigs(params);
+        igp.setTokenGasOracles(params);
     }
 
     function _setRemoteGasData(
