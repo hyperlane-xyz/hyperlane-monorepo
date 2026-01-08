@@ -289,6 +289,8 @@ jobs:
           - warp-check-3
           - warp-check-4
           - warp-check-5
+          # ICA
+          - ica-deploy
           # other
           - warp-init
           - warp-read
