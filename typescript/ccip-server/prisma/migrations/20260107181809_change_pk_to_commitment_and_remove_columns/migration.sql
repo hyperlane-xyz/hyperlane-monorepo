@@ -6,7 +6,7 @@ ALTER TABLE "Commitment" DROP CONSTRAINT "Commitment_pkey";
 -- Drop columns we don't need
 ALTER TABLE "Commitment" DROP COLUMN "commitmentDispatchTx";
 
--- Remove duplicate commitments (keep the most recent one based on revealMessageId)
+-- Remove duplicate commitments (keep arbitrary reveal message ID that will be dropped)
 DELETE FROM "Commitment" a USING "Commitment" b
 WHERE a."commitment" = b."commitment"
 AND a."revealMessageId" < b."revealMessageId";

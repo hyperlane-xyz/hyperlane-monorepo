@@ -350,6 +350,13 @@ export function commitmentFromIcaCalls(
 export function commitmentFromRevealMessage(message: string): string {
   const messageBuffer = fromHexString(message);
 
+  // Validate minimum length (65 bytes: 1 byte type + 32 bytes ISM + 32 bytes commitment)
+  if (messageBuffer.length < 65) {
+    throw new Error(
+      `Invalid reveal message: expected at least 65 bytes, got ${messageBuffer.length} bytes`,
+    );
+  }
+
   // Extract commitment from bytes 33-65 (32 bytes)
   const commitment = messageBuffer.subarray(33, 65);
 

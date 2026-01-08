@@ -94,11 +94,24 @@ export class CallCommitmentsService extends BaseService {
 
     logger.info(data, 'Processing commitment creation');
 
-    // Derive ICA address from owner and domains
-    const originChain = this.multiProvider.getChainName(data.originDomain);
-    const destinationChain = this.multiProvider.getChainName(
-      data.destinationDomain,
-    );
+    let originChain: string;
+    let destinationChain: string;
+    try {
+      originChain = this.multiProvider.getChainName(data.originDomain);
+      destinationChain = this.multiProvider.getChainName(
+        data.destinationDomain,
+      );
+    } catch (error: any) {
+      logger.warn(
+        {
+          originDomain: data.originDomain,
+          destinationDomain: data.destinationDomain,
+          error: error.message,
+        },
+        'Unknown domain',
+      );
+      return res.status(400).json({ error: 'Unknown domain provided' });
+    }
 
     // Create AccountConfig
     const accountConfig: AccountConfig = {
@@ -108,9 +121,30 @@ export class CallCommitmentsService extends BaseService {
       // consider handling more overrides here
     };
 
-    logger.debug(data, 'Deriving ICA on destination');
+    logger.debug(
+      { originChain, destinationChain, owner: data.owner },
+      'Deriving ICA on destination',
+    );
 
-    const ica = await this.icaApp.getAccount(destinationChain, accountConfig);
+    let ica: string;
+    try {
+      ica = await this.icaApp.getAccount(destinationChain, accountConfig);
+    } catch (error: any) {
+      logger.error(
+        {
+          originDomain: data.originDomain,
+          destinationDomain: data.destinationDomain,
+          owner: data.owner,
+          ismOverride: data.ismOverride,
+          error: error.message,
+          stack: error.stack,
+        },
+        'Failed to derive ICA address: chain name lookup or ICA derivation failed',
+      );
+      return res.status(400).json({
+        error: `Failed to derive ICA address: ${error.message}`,
+      });
+    }
 
     // Attempt to insert the commitment. Using upsert for idempotency.
     try {
