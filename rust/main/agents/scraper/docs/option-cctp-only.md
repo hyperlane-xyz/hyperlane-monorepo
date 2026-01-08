@@ -79,8 +79,6 @@ When Scraper receives a Dispatch event, the event log already contains:
 - ✅ `transaction_id` (H512) - The transaction hash CCTP needs!
 - ✅ `block_hash` (H256)
 - ✅ `block_number` (u64)
-- ✅ `log_index`, `transaction_index`
-- ✅ `address` (Mailbox contract)
 
 **From HyperlaneMessage (decoded event data):**
 - ✅ All message fields (version, nonce, origin, sender, destination, recipient, body)
@@ -114,35 +112,31 @@ User's USDC transfer completes ✅
 CREATE TABLE raw_message_dispatch (
     id BIGSERIAL PRIMARY KEY,
 
+    -- Metadata
+    time_created TIMESTAMP NOT NULL DEFAULT NOW(),
+
     -- Message identification
     msg_id BYTEA NOT NULL UNIQUE,
 
     -- What CCTP needs (from LogMeta - no RPC required!)
     origin_tx_hash BYTEA NOT NULL,
     origin_block_hash BYTEA NOT NULL,
-    origin_block_height BIGINT NOT NULL,
+    origin_block_height BIGINT UNSIGNED NOT NULL,
 
     -- Message fields (for debugging)
-    nonce BIGINT NOT NULL,
-    origin_domain INT NOT NULL,
-    destination_domain INT NOT NULL,
+    nonce INT UNSIGNED NOT NULL,
+    origin_domain INT UNSIGNED NOT NULL,
+    destination_domain INT UNSIGNED NOT NULL,
     sender BYTEA NOT NULL,
     recipient BYTEA NOT NULL,
-    origin_mailbox BYTEA NOT NULL,
-
-    -- Event coordinates
-    transaction_index BIGINT NOT NULL,
-    log_index NUMERIC(78, 0) NOT NULL,
-
-    -- Metadata
-    time_created TIMESTAMP DEFAULT NOW(),
-
-    -- Indexes
-    INDEX idx_raw_msg_id (msg_id),
-    INDEX idx_raw_origin_domain (origin_domain),
-    INDEX idx_raw_dest_domain (destination_domain),
-    INDEX idx_raw_tx_hash (origin_tx_hash)
+    origin_mailbox BYTEA NOT NULL
 );
+
+-- Indexes
+CREATE INDEX raw_message_dispatch_msg_id_idx ON raw_message_dispatch USING HASH (msg_id);
+CREATE INDEX raw_message_dispatch_origin_domain_idx ON raw_message_dispatch USING BTREE (origin_domain);
+CREATE INDEX raw_message_dispatch_destination_domain_idx ON raw_message_dispatch USING BTREE (destination_domain);
+CREATE INDEX raw_message_dispatch_origin_tx_hash_idx ON raw_message_dispatch USING HASH (origin_tx_hash);
 ```
 
 **Key insight:** All fields come from `LogMeta` (transaction hash, block hash, block height) and `HyperlaneMessage` (message fields) - **no RPC calls required**.
@@ -153,34 +147,36 @@ CREATE TABLE raw_message_dispatch (
 
 ### Phase 1: Add Raw Message Storage (Scraper)
 
-**File:** `rust/main/agents/scraper/src/db/mod.rs`
+**File:** `rust/main/agents/scraper/src/db/raw_message_dispatch.rs`
 
 ```rust
 /// Store raw message dispatches - ALWAYS succeeds (no RPC dependency)
 pub async fn store_raw_message_dispatches(
     &self,
-    messages: Vec<(HyperlaneMessage, LogMeta)>,
-) -> Result<()> {
-    let raw_dispatches: Vec<RawMessageDispatch> = messages
-        .iter()
-        .map(|(msg, meta)| RawMessageDispatch {
-            msg_id: msg.id().into(),
-            origin_tx_hash: meta.transaction_id.into(),
-            origin_block_hash: meta.block_hash.into(),
-            origin_block_height: meta.block_number as i64,
-            nonce: msg.nonce as i64,
-            origin_domain: msg.origin as i32,
-            destination_domain: msg.destination as i32,
-            sender: msg.sender.into(),
-            recipient: msg.recipient.into(),
-            origin_mailbox: meta.address.into(),
-            transaction_index: meta.transaction_index as i64,
-            log_index: meta.log_index.to_string(), // U256 as string
-        })
-        .collect();
+    origin_mailbox: &H256,
+    messages: impl Iterator<Item = StorableRawMessageDispatch<'_>>,
+) -> Result<u64> {
+    let origin_mailbox = address_to_bytes(origin_mailbox);
 
-    self.insert_many_raw_message_dispatches(raw_dispatches).await?;
-    Ok(())
+    let models: Vec<raw_message_dispatch::ActiveModel> = messages
+        .map(|storable| raw_message_dispatch::ActiveModel {
+            id: NotSet,
+            time_created: Set(date_time::now()),
+            msg_id: Unchanged(h256_to_bytes(&storable.msg.id())),
+            origin_tx_hash: Set(h512_to_bytes(&storable.meta.transaction_id)),
+            origin_block_hash: Set(h256_to_bytes(&storable.meta.block_hash)),
+            origin_block_height: Set(storable.meta.block_number as i64),
+            nonce: Set(storable.msg.nonce as i32),
+            origin_domain: Unchanged(storable.msg.origin as i32),
+            destination_domain: Set(storable.msg.destination as i32),
+            sender: Set(address_to_bytes(&storable.msg.sender)),
+            recipient: Set(address_to_bytes(&storable.msg.recipient)),
+            origin_mailbox: Unchanged(origin_mailbox.clone()),
+        })
+        .collect_vec();
+
+    // Insert with chunking and transaction support...
+    Ok(models.len() as u64)
 }
 ```
 
@@ -346,9 +342,7 @@ INSERT INTO raw_message_dispatch (
     destination_domain,
     sender,
     recipient,
-    origin_mailbox,
-    transaction_index,
-    log_index
+    origin_mailbox
 )
 SELECT
     m.msg_id,
@@ -360,9 +354,7 @@ SELECT
     m.destination AS destination_domain,
     m.sender,
     m.recipient,
-    m.origin_mailbox,
-    t.tx_index AS transaction_index,
-    m.log_index
+    m.origin_mailbox
 FROM message AS m
 INNER JOIN transaction AS t ON m.origin_tx_id = t.id
 INNER JOIN block AS b ON t.block_id = b.id
