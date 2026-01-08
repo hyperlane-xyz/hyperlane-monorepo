@@ -8,7 +8,7 @@ import {
 import { type Address, assert, eqAddress } from '@hyperlane-xyz/utils';
 
 import { type WriteCommandContext } from '../context/types.js';
-import { logBlue, logGreen, logRed, logTable } from '../logger.js';
+import { logBlue, logGreen, logRed, logTable, warnYellow } from '../logger.js';
 
 interface IcaDeployParams {
   context: WriteCommandContext;
