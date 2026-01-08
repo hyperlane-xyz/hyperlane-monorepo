@@ -125,6 +125,9 @@
   "flare": {
     "validators": ["0xb65e52be342dba3ab2c088ceeb4290c744809134"]
   },
+  "flowmainnet": {
+    "validators": ["0xe132235c958ca1f3f24d772e5970dd58da4c0f6e"]
+  },
   "fluence": {
     "validators": ["0xabc8dd7594783c90a3c0fb760943f78c37ea6d75"]
   },

@@ -25,24 +25,29 @@ interface MainnetDockerTags extends BaseDockerTags {
 }
 
 export const mainnetDockerTags: MainnetDockerTags = {
-  relayer: '28f67ad-20260103-234517',
-  relayerRC: '28f67ad-20260103-234517',
-  validator: '28f67ad-20260103-234517',
-  validatorRC: '28f67ad-20260103-234517',
-  scraper: '28f67ad-20260103-234517',
-  keyFunder: 'ff24bc3-20260104-175430',
-  kathy: '8da6852-20251215-172511',
-  checkWarpDeploy: '8da6852-20251215-172511',
-  warpMonitor: 'eda7b03-20251230-135200',
-  rebalancer: 'be84fc0-20251229-194426',
+  // rust agents
+  relayer: '74d999b-20260108-145124',
+  relayerRC: '74d999b-20260108-145124',
+  validator: '74d999b-20260108-145124',
+  validatorRC: '74d999b-20260108-145124',
+  scraper: '74d999b-20260108-145124',
+  // monorepo services
+  keyFunder: '74d999b-20260108-145131',
+  kathy: '74d999b-20260108-145131',
+  checkWarpDeploy: '74d999b-20260108-145131',
+  // standalone services
+  warpMonitor: '74d999b-20260108-145128',
+  rebalancer: '74d999b-20260108-145129',
 };
 
 export const testnetDockerTags: BaseDockerTags = {
-  relayer: 'cd94774-20251217-100437',
-  relayerRC: 'cd94774-20251217-100437',
-  validator: 'cd94774-20251217-100437',
-  validatorRC: 'cd94774-20251217-100437',
-  scraper: 'f50feaa-20251219-084739',
-  keyFunder: '8da6852-20251215-172511',
-  kathy: '8da6852-20251215-172511',
+  // rust agents
+  relayer: '74d999b-20260108-145124',
+  relayerRC: '74d999b-20260108-145124',
+  validator: '74d999b-20260108-145124',
+  validatorRC: '74d999b-20260108-145124',
+  scraper: '74d999b-20260108-145124',
+  // monorepo services
+  keyFunder: '74d999b-20260108-145131',
+  kathy: '74d999b-20260108-145131',
 };
