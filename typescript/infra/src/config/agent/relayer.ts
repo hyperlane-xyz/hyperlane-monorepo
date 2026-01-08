@@ -255,18 +255,10 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
       '0x97a05beCc2e7891D07F382457Cd5d57FD242e4e8',
     ];
 
-    const flowAddresses = [
-      '0x9D9247F5C3F3B78F7EE2C480B9CDaB91393Bf4D6',
-      '0x2e7C4b71397f10c93dC0C2ba6f8f179A47F994e1',
-      '0x00000000000000000000000235aE95896583818d',
-    ];
-
     const uniqueAddresses = new Set(
-      [
-        ...sanctionedEthereumAdresses,
-        ...radiantExploiter,
-        ...flowAddresses,
-      ].map((address) => address.toLowerCase()),
+      [...sanctionedEthereumAdresses, ...radiantExploiter].map((address) =>
+        address.toLowerCase(),
+      ),
     );
 
     return Array.from(uniqueAddresses);
