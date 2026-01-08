@@ -1,5 +1,3 @@
-#![allow(dead_code)] // TODO: `rustc` 1.80.1 clippy issue
-
 use eyre::Result;
 use itertools::Itertools;
 use sea_orm::{prelude::*, ActiveValue::*, Insert, QuerySelect, TransactionTrait};
