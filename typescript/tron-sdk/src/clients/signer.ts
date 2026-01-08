@@ -1,3 +1,5 @@
+import { assert } from 'chai';
+
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 
 import { TronProvider } from './provider.js';
@@ -9,10 +11,28 @@ export class TronSigner
   extends TronProvider
   implements AltVM.ISigner<MockTransaction, MockReceipt>
 {
-  static async connectWithSigner(): Promise<
-    AltVM.ISigner<MockTransaction, MockReceipt>
-  > {
-    return new TronSigner();
+  static async connectWithSigner(
+    rpcUrls: string[],
+    privateKey: string,
+    extraParams?: Record<string, any>,
+  ): Promise<AltVM.ISigner<MockTransaction, MockReceipt>> {
+    assert(extraParams, `extra params not defined`);
+
+    const metadata = extraParams.metadata as Record<string, unknown>;
+    assert(metadata, `metadata not defined in extra params`);
+    assert(metadata.chainId, `chainId not defined in metadata extra params`);
+
+    const chainId = parseInt(metadata.chainId.toString());
+
+    return new TronSigner(rpcUrls, chainId, privateKey);
+  }
+
+  protected constructor(
+    rpcUrls: string[],
+    chainId: string | number,
+    privateKey: string,
+  ) {
+    super(rpcUrls, chainId, privateKey);
   }
 
   getSignerAddress(): string {

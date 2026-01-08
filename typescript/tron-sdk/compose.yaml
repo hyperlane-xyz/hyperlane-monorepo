@@ -1,6 +1,5 @@
 services:
   devnode:
     image: tronbox/tre
-    container_name: tron
     ports:
       - 9090:9090

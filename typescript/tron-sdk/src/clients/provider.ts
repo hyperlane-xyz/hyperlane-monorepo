@@ -1,28 +1,59 @@
+import { TronWeb } from 'tronweb';
+
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { assert, strip0x } from '@hyperlane-xyz/utils';
 
 type MockTransaction = any;
 
 export class TronProvider implements AltVM.IProvider {
-  static async connect(): Promise<TronProvider> {
-    return new TronProvider();
+  protected readonly rpcUrls: string[];
+  protected readonly chainId: number;
+
+  protected readonly tronweb: TronWeb;
+
+  static async connect(
+    rpcUrls: string[],
+    chainId: string | number,
+  ): Promise<TronProvider> {
+    assert(rpcUrls.length > 0, `got no rpcUrls`);
+
+    const { privateKey } = await new TronWeb({
+      fullHost: rpcUrls[0],
+    }).createRandom();
+    return new TronProvider(rpcUrls, chainId, privateKey);
+  }
+
+  constructor(rpcUrls: string[], chainId: string | number, privateKey: string) {
+    this.rpcUrls = rpcUrls;
+    this.chainId = +chainId;
+
+    console.log('privateKey', privateKey);
+
+    this.tronweb = new TronWeb({
+      fullHost: this.rpcUrls[0],
+      privateKey: strip0x(privateKey),
+    });
   }
 
   // ### QUERY BASE ###
 
   async isHealthy(): Promise<boolean> {
-    throw new Error(`not implemented`);
+    const block = await this.tronweb.trx.getCurrentBlock();
+    return block.block_header.raw_data.number > 0;
   }
 
   getRpcUrls(): string[] {
-    throw new Error(`not implemented`);
+    return this.rpcUrls;
   }
 
   async getHeight(): Promise<number> {
-    throw new Error(`not implemented`);
+    const block = await this.tronweb.trx.getCurrentBlock();
+    return block.block_header.raw_data.number;
   }
 
-  async getBalance(_req: AltVM.ReqGetBalance): Promise<bigint> {
-    throw new Error(`not implemented`);
+  async getBalance(req: AltVM.ReqGetBalance): Promise<bigint> {
+    const balance = await this.tronweb.trx.getBalance(req.address);
+    return BigInt(balance);
   }
 
   async getTotalSupply(_req: AltVM.ReqGetTotalSupply): Promise<bigint> {
@@ -37,8 +68,62 @@ export class TronProvider implements AltVM.IProvider {
 
   // ### QUERY CORE ###
 
-  async getMailbox(_req: AltVM.ReqGetMailbox): Promise<AltVM.ResGetMailbox> {
-    throw new Error(`not implemented`);
+  async getMailbox(req: AltVM.ReqGetMailbox): Promise<AltVM.ResGetMailbox> {
+    const abi = [
+      {
+        inputs: [],
+        name: 'defaultIsm',
+        outputs: [
+          {
+            internalType: 'contract IInterchainSecurityModule',
+            name: '',
+            type: 'address',
+          },
+        ],
+        stateMutability: 'view',
+        type: 'function',
+      },
+      {
+        inputs: [],
+        name: 'defaultHook',
+        outputs: [
+          {
+            internalType: 'contract IPostDispatchHook',
+            name: '',
+            type: 'address',
+          },
+        ],
+        stateMutability: 'view',
+        type: 'function',
+      },
+      {
+        inputs: [],
+        name: 'requiredHook',
+        outputs: [
+          {
+            internalType: 'contract IPostDispatchHook',
+            name: '',
+            type: 'address',
+          },
+        ],
+        stateMutability: 'view',
+        type: 'function',
+      },
+    ];
+
+    const mailbox = this.tronweb.contract(abi, req.mailboxAddress);
+    const result = await mailbox.defaultIsm().call();
+    console.log(result);
+
+    return {
+      address: req.mailboxAddress,
+      owner: '',
+      localDomain: 0,
+      defaultIsm: '',
+      defaultHook: '',
+      requiredHook: '',
+      nonce: 0,
+    };
   }
 
   async isMessageDelivered(
