@@ -20,6 +20,8 @@ import { RadixBase } from '../utils/base.js';
 import { NETWORKS, RadixProvider } from './provider.js';
 import { RadixSigner } from './signer.js';
 
+const DEFAULT_GAS_MULTIPLIER = 1.2;
+
 export class RadixProtocolProvider implements ProtocolProvider {
   createProvider(chainMetadata: ChainMetadataForAltVM): Promise<IProvider> {
     assert(chainMetadata.rpcUrls, 'rpc urls undefined');
@@ -62,7 +64,7 @@ export class RadixProtocolProvider implements ProtocolProvider {
     assert(gatewayUrl, 'gateway url undefined');
 
     // Get package address from metadata first
-    let packageAddress = (chainMetadata as any).packageAddress;
+    let packageAddress = chainMetadata.packageAddress;
 
     // If not in metadata, try to get from NETWORKS config as fallback
     if (!packageAddress) {
@@ -87,7 +89,6 @@ export class RadixProtocolProvider implements ProtocolProvider {
     });
 
     // Create RadixBase instance with default gas multiplier
-    const DEFAULT_GAS_MULTIPLIER = 1.2;
     const base = new RadixBase(
       networkId,
       gateway,
