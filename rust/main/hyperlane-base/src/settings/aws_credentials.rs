@@ -33,9 +33,11 @@ impl AwsChainCredentialsProvider {
         let auto_refreshing_provider =
             AutoRefreshingProvider::new(WebIdentityProvider::from_k8s_env())
                 .expect("Always returns Ok(...)");
+        let container_provider =
+            AutoRefreshingProvider::new(ContainerProvider::new()).expect("Always returns Ok(...)");
         AwsChainCredentialsProvider {
             environment_provider: EnvironmentProvider::default(),
-            container_provider: ContainerProvider::new(),
+            container_provider,
             web_identity_provider: auto_refreshing_provider,
         }
     }
