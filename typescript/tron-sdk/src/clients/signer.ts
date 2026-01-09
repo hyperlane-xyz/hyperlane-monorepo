@@ -62,9 +62,19 @@ export class TronSigner
   // ### TX CORE ###
 
   async createMailbox(
-    _req: Omit<AltVM.ReqCreateMailbox, 'signer'>,
+    req: Omit<AltVM.ReqCreateMailbox, 'signer'>,
   ): Promise<AltVM.ResCreateMailbox> {
-    throw new Error(`not implemented`);
+    const tx = await this.getCreateMailboxTransaction({
+      ...req,
+      signer: this.getSignerAddress(),
+    });
+
+    const signedTx = await this.tronweb.trx.sign(tx);
+    await this.tronweb.trx.sendRawTransaction(signedTx);
+
+    return {
+      mailboxAddress: this.tronweb.address.fromHex(tx.contract_address),
+    };
   }
 
   async setDefaultIsm(

@@ -11,8 +11,6 @@ const main = async () => {
     },
   );
 
-  const mailboxAddress = 'TRqttiD6S8MDQUjP3qE6B8AE6NDfNZvsGY';
-
   const height = await signer.getHeight();
   console.log('height', height);
 
@@ -21,7 +19,11 @@ const main = async () => {
   });
   console.log('balance', balance);
 
-  const mailbox = await signer.getMailbox({
+  const { mailboxAddress } = await signer.createMailbox({
+    domainId: 1234,
+  });
+
+  let mailbox = await signer.getMailbox({
     mailboxAddress,
   });
   console.log('mailbox', mailbox);
@@ -30,6 +32,11 @@ const main = async () => {
     mailboxAddress,
     ismAddress: mailbox.defaultIsm,
   });
+
+  mailbox = await signer.getMailbox({
+    mailboxAddress,
+  });
+  console.log('mailbox', mailbox);
 };
 
 main();

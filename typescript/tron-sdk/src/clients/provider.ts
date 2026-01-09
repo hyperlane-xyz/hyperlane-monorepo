@@ -161,12 +161,21 @@ export class TronProvider implements AltVM.IProvider {
   async getCreateMailboxTransaction(
     req: AltVM.ReqCreateMailbox,
   ): Promise<MockTransaction> {
-    return {
+    const options = {
+      feeLimit: 1_000_000_000,
+      callValue: 0,
+      userFeePercentage: 100,
+      originEnergyLimit: 10_000_000,
       abi: MailboxAbi.abi,
       bytecode: MailboxAbi.bytecode,
-      feeLimit: 100000000,
       parameters: [req.domainId],
+      name: MailboxAbi.contractName,
     };
+
+    return this.tronweb.transactionBuilder.createSmartContract(
+      options,
+      this.tronweb.address.toHex(req.signer),
+    );
   }
 
   async getSetDefaultIsmTransaction(
