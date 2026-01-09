@@ -98,8 +98,14 @@ export const StrategyConfigSchema = z.discriminatedUnion('rebalanceStrategy', [
   CollateralDeficitStrategySchema,
 ]);
 
-// Strategy config is always an array (single strategy = array with 1 element)
-export const RebalancerStrategySchema = z.array(StrategyConfigSchema).min(1);
+// Accept either a single strategy (backwards compatible) or an array of strategies
+// Normalizes to array internally so the rest of the code doesn't need to change
+export const RebalancerStrategySchema = z
+  .union([
+    StrategyConfigSchema, // Old format: single object
+    z.array(StrategyConfigSchema).min(1), // New format: array
+  ])
+  .transform((val) => (Array.isArray(val) ? val : [val]));
 
 export const RebalancerConfigSchema = z
   .object({

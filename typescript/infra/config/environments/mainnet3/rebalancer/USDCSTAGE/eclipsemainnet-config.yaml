@@ -1,27 +1,40 @@
 warpRouteId: USDCSTAGE/eclipsemainnet
 strategy:
+  # First: CollateralDeficitStrategy - uses FAST bridges for reactive rebalancing
+  # Note: arbitrum uses standard bridge (0x33e94B6D...) as it's the only one allowed for all destinations
+  - rebalanceStrategy: collateralDeficit
+    chains:
+      base:
+        buffer: 0
+        bridge: '0x584244d02b0fBf9054A5D5C9e9cE9A2E8adA0e28'
+      ethereum:
+        buffer: 0
+        bridge: '0xEE4a09db2C25592C04b8b342CB89f9a7f5E20BD2'
+      arbitrum:
+        buffer: 0
+        bridge: '0xb0B8D4C6EF212D76d5079df5Ff7A0888A27e9b32'
+
+  # Second: MinAmountStrategy - uses STANDARD bridges for baseline floors
   - rebalanceStrategy: minAmount
     chains:
       base:
         minAmount:
-          min: 0.000002
-          target: 0.000002
+          min: 0.000001
+          target: 0.000001
           type: 'absolute'
-        bridgeLockTime: 1800 # 30 mins in seconds
-        bridge: '0x5C4aFb7e23B1Dc1B409dc1702f89C64527b25975'
-
+        bridgeLockTime: 1800
+        bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
       ethereum:
         minAmount:
-          min: 0.000002
-          target: 0.000002
+          min: 0.000001
+          target: 0.000001
           type: 'absolute'
-        bridgeLockTime: 1800 # 30 mins in seconds
-        bridge: '0xedCBAa585FD0F80f20073F9958246476466205b8'
-
+        bridgeLockTime: 1800
+        bridge: '0x8c8D831E1e879604b4B304a2c951B8AEe3aB3a23'
       arbitrum:
         minAmount:
-          min: 0.000002
-          target: 0.000002
+          min: 0.000001
+          target: 0.000001
           type: 'absolute'
-        bridgeLockTime: 1800 # 30 mins in seconds
-        bridge: '0x8a82186EA618b91D13A2041fb7aC31Bf01C02aD2'
+        bridgeLockTime: 1800
+        bridge: '0x4c19c653a8419A475d9B6735511cB81C15b8d9b2'
