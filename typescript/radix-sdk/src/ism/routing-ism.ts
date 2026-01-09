@@ -12,7 +12,6 @@ import {
 import {
   DeployedIsmAddress,
   RawRoutingIsmArtifactConfig,
-  ismOnChainAddress,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import { TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import { eqAddressRadix, isNullish } from '@hyperlane-xyz/utils';
@@ -90,7 +89,7 @@ export class RadixRoutingIsmRawWriter
     const routes = Object.entries(config.domains).map(
       ([domainId, ismAddress]) => ({
         domainId: parseInt(domainId),
-        ismAddress: ismOnChainAddress(ismAddress),
+        ismAddress: ismAddress.deployed.address,
       }),
     );
 
@@ -129,10 +128,10 @@ export class RadixRoutingIsmRawWriter
     for (const [domainId, expectedIsm] of Object.entries(config.domains)) {
       const domain = parseInt(domainId);
       const currentIsmAddress = currentConfig.config.domains[domain]
-        ? ismOnChainAddress(currentConfig.config.domains[domain])
+        ? currentConfig.config.domains[domain].deployed.address
         : undefined;
 
-      const expectedIsmAddress = ismOnChainAddress(expectedIsm);
+      const expectedIsmAddress = expectedIsm.deployed.address;
 
       if (
         isNullish(currentIsmAddress) ||

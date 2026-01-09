@@ -4,7 +4,6 @@ import { IsmType as AltVMIsmType } from './altvm.js';
 import {
   Artifact,
   ArtifactDeployed,
-  ArtifactOnChain,
   IArtifactManager,
   RawArtifact,
 } from './artifact.js';
@@ -134,12 +133,6 @@ export interface IRawIsmArtifactManager
    * @returns The artifact configuration and deployment data
    */
   readIsm(address: string): Promise<DeployedRawIsmArtifact>;
-}
-
-export function ismOnChainAddress(
-  ism: ArtifactOnChain<IsmArtifactConfig, DeployedIsmAddress>,
-): string {
-  return ism.deployed.address;
 }
 
 export function altVMIsmTypeToProviderSdkType(

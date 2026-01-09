@@ -13,7 +13,6 @@ import {
   MultisigIsmConfig,
   RawRoutingIsmArtifactConfig,
   TestIsmConfig,
-  ismOnChainAddress,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import { assert, normalizeConfig } from '@hyperlane-xyz/utils';
@@ -227,10 +226,10 @@ describe('Radix ISMs (e2e)', function () {
       expect(readIsm.config.type).to.equal(AltVM.IsmType.ROUTING);
       expect(readIsm.config.owner).to.equal(TEST_RADIX_DEPLOYER_ADDRESS);
       expect(Object.keys(readIsm.config.domains)).to.have.length(2);
-      expect(ismOnChainAddress(readIsm.config.domains[DOMAIN_1])).to.equal(
+      expect(readIsm.config.domains[DOMAIN_1].deployed.address).to.equal(
         testIsmAddress,
       );
-      expect(ismOnChainAddress(readIsm.config.domains[DOMAIN_2])).to.equal(
+      expect(readIsm.config.domains[DOMAIN_2].deployed.address).to.equal(
         multisigIsmAddress,
       );
     });
@@ -266,7 +265,7 @@ describe('Radix ISMs (e2e)', function () {
 
       const reader = artifactManager.createReader(AltVM.IsmType.ROUTING);
       const readIsm = await reader.read(routingIsm.deployed.address);
-      expect(ismOnChainAddress(readIsm.config.domains[DOMAIN_3])).to.equal(
+      expect(readIsm.config.domains[DOMAIN_3].deployed.address).to.equal(
         testIsmAddress,
       );
       expect(Object.keys(readIsm.config.domains)).to.have.length(3);
@@ -342,7 +341,7 @@ describe('Radix ISMs (e2e)', function () {
 
       const reader = artifactManager.createReader(AltVM.IsmType.ROUTING);
       const readIsm = await reader.read(routingIsm.deployed.address);
-      expect(ismOnChainAddress(readIsm.config.domains[DOMAIN_1])).to.equal(
+      expect(readIsm.config.domains[DOMAIN_1].deployed.address).to.equal(
         multisigIsmAddress,
       );
     });
