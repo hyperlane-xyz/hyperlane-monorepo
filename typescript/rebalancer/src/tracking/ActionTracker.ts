@@ -50,6 +50,17 @@ export class ActionTracker implements IActionTracker {
   async initialize(): Promise<void> {
     this.logger.info('ActionTracker initializing');
 
+    // Log config for debugging
+    this.logger.debug(
+      {
+        routers: this.config.routers,
+        bridges: this.config.bridges,
+        rebalancerAddress: this.config.rebalancerAddress,
+        domains: this.config.domains,
+      },
+      'ActionTracker config',
+    );
+
     // 1. Startup recovery: query Explorer for inflight rebalance messages
     const inflightMessages =
       await this.explorerClient.getInflightRebalanceActions(
@@ -76,6 +87,9 @@ export class ActionTracker implements IActionTracker {
     await this.syncRebalanceIntents();
     await this.syncRebalanceActions();
 
+    // Log store contents for debugging
+    await this.logStoreContents();
+
     this.logger.info('ActionTracker initialized');
   }
 
@@ -98,6 +112,10 @@ export class ActionTracker implements IActionTracker {
       { count: inflightMessages.length },
       'Received inflight user transfers from Explorer',
     );
+
+    // Track counts for summary
+    let newTransfers = 0;
+    let completedTransfers = 0;
 
     // Process each message from Explorer
     for (const msg of inflightMessages) {
@@ -133,6 +151,7 @@ export class ActionTracker implements IActionTracker {
             updatedAt: Date.now(),
           };
           await this.transferStore.save(newTransfer);
+          newTransfers++;
           this.logger.debug(
             { id: newTransfer.id, amount: amount.toString() },
             'Created new transfer',
@@ -163,11 +182,20 @@ export class ActionTracker implements IActionTracker {
 
       if (delivered) {
         await this.transferStore.update(transfer.id, { status: 'complete' });
+        completedTransfers++;
         this.logger.debug({ id: transfer.id }, 'Transfer completed');
       }
     }
 
-    this.logger.debug('Transfers synced');
+    const inProgressCount = (await this.getInProgressTransfers()).length;
+    this.logger.info(
+      {
+        newTransfers,
+        completed: completedTransfers,
+        inProgress: inProgressCount,
+      },
+      'Transfers synced',
+    );
   }
 
   async syncRebalanceIntents(): Promise<void> {
@@ -191,6 +219,10 @@ export class ActionTracker implements IActionTracker {
   async syncRebalanceActions(): Promise<void> {
     this.logger.debug('Syncing rebalance actions');
 
+    // Track counts for summary
+    let discoveredActions = 0;
+    let completedActions = 0;
+
     // 1. Query Explorer for ALL inflight rebalance actions (including manual ones)
     const inflightMessages =
       await this.explorerClient.getInflightRebalanceActions(
@@ -207,9 +239,13 @@ export class ActionTracker implements IActionTracker {
       'Found inflight rebalance actions from Explorer',
     );
 
-    // 2. For each message from Explorer, check if it exists in our store
+    // 2. Get all existing actions for deduplication check by messageId
+    // Note: createRebalanceAction uses UUID for id, so we must check by messageId
+    const allActions = await this.rebalanceActionStore.getAll();
+
+    // 3. For each message from Explorer, check if it exists by messageId
     for (const msg of inflightMessages) {
-      const existingAction = await this.rebalanceActionStore.get(msg.msg_id);
+      const existingAction = allActions.find((a) => a.messageId === msg.msg_id);
 
       if (!existingAction) {
         // New action (manual rebalance or restart gap) - recover it
@@ -222,6 +258,7 @@ export class ActionTracker implements IActionTracker {
           'Discovered new rebalance action, recovering...',
         );
         await this.recoverAction(msg);
+        discoveredActions++;
       }
     }
 
@@ -236,11 +273,22 @@ export class ActionTracker implements IActionTracker {
 
       if (delivered) {
         await this.completeRebalanceAction(action.id);
+        completedActions++;
         this.logger.debug({ id: action.id }, 'RebalanceAction completed');
       }
     }
 
-    this.logger.debug('Rebalance actions synced');
+    const inProgressCount = (
+      await this.rebalanceActionStore.getByStatus('in_progress')
+    ).length;
+    this.logger.info(
+      {
+        discovered: discoveredActions,
+        completed: completedActions,
+        inProgress: inProgressCount,
+      },
+      'Actions synced',
+    );
   }
 
   // === Transfer Queries ===
@@ -256,11 +304,9 @@ export class ActionTracker implements IActionTracker {
   // === RebalanceIntent Queries ===
 
   async getActiveRebalanceIntents(): Promise<RebalanceIntent[]> {
-    const notStarted =
-      await this.rebalanceIntentStore.getByStatus('not_started');
-    const inProgress =
-      await this.rebalanceIntentStore.getByStatus('in_progress');
-    return [...notStarted, ...inProgress];
+    // Only return in_progress intents - their origin tx is confirmed
+    // so simulation only needs to add to destination (origin already deducted on-chain)
+    return this.rebalanceIntentStore.getByStatus('in_progress');
   }
 
   async getRebalanceIntentsByDestination(
@@ -281,6 +327,7 @@ export class ActionTracker implements IActionTracker {
       destination: params.destination,
       amount: params.amount,
       fulfilledAmount: 0n,
+      bridge: params.bridge,
       priority: params.priority,
       strategyType: params.strategyType,
       createdAt: Date.now(),
@@ -298,7 +345,7 @@ export class ActionTracker implements IActionTracker {
 
   async completeRebalanceIntent(id: string): Promise<void> {
     await this.rebalanceIntentStore.update(id, { status: 'complete' });
-    this.logger.debug({ id }, 'Completed RebalanceIntent');
+    this.logger.info({ id }, 'Intent completed');
   }
 
   async cancelRebalanceIntent(id: string): Promise<void> {
@@ -308,7 +355,7 @@ export class ActionTracker implements IActionTracker {
 
   async failRebalanceIntent(id: string): Promise<void> {
     await this.rebalanceIntentStore.update(id, { status: 'failed' });
-    this.logger.debug({ id }, 'Failed RebalanceIntent');
+    this.logger.info({ id }, 'Intent failed');
   }
 
   // === RebalanceAction Management ===
@@ -379,12 +426,88 @@ export class ActionTracker implements IActionTracker {
       await this.rebalanceIntentStore.update(intent.id, updates);
     }
 
-    this.logger.debug({ id }, 'Completed RebalanceAction');
+    this.logger.info({ id, intentId: action.intentId }, 'Action completed');
   }
 
   async failRebalanceAction(id: string): Promise<void> {
     await this.rebalanceActionStore.update(id, { status: 'failed' });
-    this.logger.debug({ id }, 'Failed RebalanceAction');
+    this.logger.info({ id }, 'Action failed');
+  }
+
+  // === Debug Helpers ===
+
+  /**
+   * Log the contents of all stores.
+   * Logs each item separately for full visibility (avoids [Object] truncation).
+   */
+  async logStoreContents(): Promise<void> {
+    const transfers = await this.transferStore.getAll();
+    const intents = await this.rebalanceIntentStore.getAll();
+    const actions = await this.rebalanceActionStore.getAll();
+
+    const activeIntents = intents.filter((i) =>
+      ['not_started', 'in_progress'].includes(i.status),
+    );
+    const inProgressTransfers = transfers.filter(
+      (t) => t.status === 'in_progress',
+    );
+    const inProgressActions = actions.filter((a) => a.status === 'in_progress');
+
+    // Log summary
+    this.logger.info(
+      {
+        transfers: inProgressTransfers.length,
+        intents: activeIntents.length,
+        actions: inProgressActions.length,
+      },
+      'Store summary',
+    );
+
+    // Log each transfer separately
+    for (const t of inProgressTransfers) {
+      this.logger.info(
+        {
+          type: 'transfer',
+          origin: t.origin,
+          destination: t.destination,
+          amount: t.amount.toString(),
+          messageId: t.messageId,
+        },
+        'In-progress transfer',
+      );
+    }
+
+    // Log each intent separately
+    for (const i of activeIntents) {
+      this.logger.info(
+        {
+          type: 'intent',
+          id: i.id,
+          origin: i.origin,
+          destination: i.destination,
+          amount: i.amount.toString(),
+          status: i.status,
+          bridge: i.bridge,
+        },
+        'Active intent',
+      );
+    }
+
+    // Log each action separately
+    for (const a of inProgressActions) {
+      this.logger.info(
+        {
+          type: 'action',
+          id: a.id,
+          origin: a.origin,
+          destination: a.destination,
+          amount: a.amount.toString(),
+          messageId: a.messageId,
+          intentId: a.intentId,
+        },
+        'In-progress action',
+      );
+    }
   }
 
   // === Private Helpers ===

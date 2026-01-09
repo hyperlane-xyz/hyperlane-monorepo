@@ -401,7 +401,7 @@ describe('ActionTracker', () => {
   });
 
   describe('getActiveRebalanceIntents', () => {
-    it('should return both not_started and in_progress intents', async () => {
+    it('should return only in_progress intents (origin tx confirmed)', async () => {
       await rebalanceIntentStore.save({
         id: 'intent-1',
         status: 'not_started',
@@ -435,12 +435,11 @@ describe('ActionTracker', () => {
         updatedAt: Date.now(),
       });
 
+      // Only in_progress intents are returned - their origin tx is confirmed
+      // so simulation only needs to add to destination (origin already deducted on-chain)
       const result = await tracker.getActiveRebalanceIntents();
-      expect(result).to.have.lengthOf(2);
-      expect(result.map((i) => i.id)).to.include.members([
-        'intent-1',
-        'intent-2',
-      ]);
+      expect(result).to.have.lengthOf(1);
+      expect(result[0].id).to.equal('intent-2');
     });
   });
 

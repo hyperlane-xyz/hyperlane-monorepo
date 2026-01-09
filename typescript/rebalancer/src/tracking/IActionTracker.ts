@@ -1,4 +1,4 @@
-import type { Domain } from '@hyperlane-xyz/utils';
+import type { Address, Domain } from '@hyperlane-xyz/utils';
 
 import type { RebalanceAction, RebalanceIntent, Transfer } from './types.js';
 
@@ -6,6 +6,7 @@ export interface CreateRebalanceIntentParams {
   origin: Domain;
   destination: Domain;
   amount: bigint;
+  bridge?: Address;
   priority?: number;
   strategyType?: string;
 }
@@ -125,4 +126,11 @@ export interface IActionTracker {
    * Mark a rebalance action as failed.
    */
   failRebalanceAction(id: string): Promise<void>;
+
+  // === Debug ===
+
+  /**
+   * Log the contents of all stores for debugging purposes.
+   */
+  logStoreContents(): Promise<void>;
 }
