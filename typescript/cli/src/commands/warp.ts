@@ -578,7 +578,6 @@ const fork: CommandModuleWithContext<
   SelectWarpRouteBuilder & {
     port?: number;
     'fork-config'?: string;
-    chains?: string;
     kill: boolean;
   }
 > = {
@@ -597,7 +596,6 @@ const fork: CommandModuleWithContext<
     warp,
     config,
     forkConfig: forkConfigPath,
-    chains: chainsArg,
   }) => {
     let forkConfig: RawForkedChainConfigByChain;
     if (forkConfigPath) {
@@ -608,31 +606,18 @@ const fork: CommandModuleWithContext<
       forkConfig = {};
     }
 
-    // Determine chains to fork
-    let chainsToFork: Set<string>;
-    if (chainsArg) {
-      // Use explicitly provided chains - no need to load warp configs
-      chainsToFork = new Set(chainsArg.split(',').map((chain) => chain.trim()));
-      logBlue(
-        `Forking explicitly specified chains: ${Array.from(chainsToFork).join(', ')}`,
-      );
-    } else {
-      // Use chains from warp configs - only load configs when needed
-      const { warpCoreConfig, warpDeployConfig } = await getWarpConfigs({
-        context,
-        warpRouteId,
-        symbol,
-        warpDeployConfigPath: config,
-        warpCoreConfigPath: warp,
-      });
-      chainsToFork = new Set([
-        ...warpCoreConfig.tokens.map((tokenConfig) => tokenConfig.chainName),
-        ...Object.keys(warpDeployConfig),
-      ]);
-      logBlue(
-        `Forking chains from warp config: ${Array.from(chainsToFork).join(', ')}`,
-      );
-    }
+    // Get chains from warp deploy config
+    const { warpDeployConfig } = await getWarpConfigs({
+      context,
+      warpRouteId,
+      symbol,
+      warpDeployConfigPath: config,
+      warpCoreConfigPath: warp,
+    });
+    const chainsToFork = new Set(Object.keys(warpDeployConfig));
+    logBlue(
+      `Forking chains from warp deploy config: ${Array.from(chainsToFork).join(', ')}`,
+    );
 
     await runForkCommand({
       context,

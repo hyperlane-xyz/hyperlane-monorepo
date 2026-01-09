@@ -277,11 +277,6 @@ export const forkCommandOptions: Record<string, Options> = {
     description:
       'The path to a configuration file that specifies how to build the forked chains',
   },
-  chains: {
-    type: 'string',
-    description:
-      'Comma-separated list of chain names to fork (e.g., "ethereum,arbitrum,base"). If provided, overrides chains from warp config.',
-  },
   kill: {
     type: 'boolean',
     default: false,
