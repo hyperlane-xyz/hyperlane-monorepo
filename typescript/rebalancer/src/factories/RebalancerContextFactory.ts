@@ -3,6 +3,7 @@ import { type Logger } from 'pino';
 import { IRegistry } from '@hyperlane-xyz/registry';
 import {
   type ChainMap,
+  HyperlaneCore,
   MultiProtocolProvider,
   MultiProvider,
   type Token,
@@ -16,15 +17,30 @@ import {
   getStrategyChainNames,
 } from '../config/types.js';
 import { Rebalancer } from '../core/Rebalancer.js';
-import { WithSemaphore } from '../core/WithSemaphore.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type { IStrategy } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
 import { PriceGetter } from '../metrics/PriceGetter.js';
 import { Monitor } from '../monitor/Monitor.js';
 import { StrategyFactory } from '../strategy/StrategyFactory.js';
+import {
+  ActionTracker,
+  type ActionTrackerConfig,
+  type IActionTracker,
+  InMemoryStore,
+  InflightContextAdapter,
+  type RebalanceAction,
+  type RebalanceActionStatus,
+  type RebalanceIntent,
+  type RebalanceIntentStatus,
+  type Transfer,
+  type TransferStatus,
+} from '../tracking/index.js';
+import { ExplorerClient } from '../utils/ExplorerClient.js';
 import { type BridgeConfigWithOverride } from '../utils/bridgeUtils.js';
 import { isCollateralizedTokenEligibleForRebalancing } from '../utils/index.js';
+
+const DEFAULT_EXPLORER_URL = 'https://explorer4.hasura.app/v1/graphql';
 
 export class RebalancerContextFactory {
   /**
@@ -202,14 +218,103 @@ export class RebalancerContextFactory {
       metrics,
     );
 
-    // Wrap with semaphore for concurrency control
-    const withSemaphore = new WithSemaphore(
-      this.config,
-      rebalancer,
+    return rebalancer;
+  }
+
+  /**
+   * Creates an ActionTracker for tracking inflight rebalance actions and user transfers.
+   * Returns both the tracker and adapter for use by RebalancerService.
+   *
+   * @param explorerUrl - Optional explorer URL (defaults to production Hyperlane Explorer)
+   */
+  public async createActionTracker(
+    explorerUrl: string = DEFAULT_EXPLORER_URL,
+  ): Promise<{
+    tracker: IActionTracker;
+    adapter: InflightContextAdapter;
+  }> {
+    this.logger.debug(
+      { warpRouteId: this.config.warpRouteId },
+      'Creating ActionTracker',
+    );
+
+    // 1. Create in-memory stores
+    const transferStore = new InMemoryStore<Transfer, TransferStatus>();
+    const intentStore = new InMemoryStore<
+      RebalanceIntent,
+      RebalanceIntentStatus
+    >();
+    const actionStore = new InMemoryStore<
+      RebalanceAction,
+      RebalanceActionStatus
+    >();
+
+    // 2. Create ExplorerClient
+    const explorerClient = new ExplorerClient(explorerUrl);
+
+    // 3. Get HyperlaneCore from registry
+    const addresses = await this.registry.getAddresses();
+    const hyperlaneCore = HyperlaneCore.fromAddressesMap(
+      addresses,
+      this.multiProvider,
+    );
+
+    // 4. Get rebalancer address from signer
+    // Use the first chain in the strategy to get the signer address
+    const chainNames = getStrategyChainNames(this.config.strategyConfig);
+    if (chainNames.length === 0) {
+      throw new Error('No chains configured in strategy');
+    }
+    const signer = this.multiProvider.getSigner(chainNames[0]);
+    const rebalancerAddress = await signer.getAddress();
+
+    // 5. Build config from warpCore and strategy
+    const routers = this.warpCore.tokens.map((t) => t.addressOrDenom);
+    const bridges = chainNames
+      .map((chain) => {
+        const config = getStrategyChainConfig(
+          this.config.strategyConfig,
+          chain,
+        );
+        return config?.bridge;
+      })
+      .filter((bridge): bridge is string => bridge !== undefined);
+    const domains = chainNames.map((chain) =>
+      this.multiProvider.getDomainId(chain),
+    );
+
+    const trackerConfig: ActionTrackerConfig = {
+      routers,
+      bridges,
+      rebalancerAddress,
+      domains: Array.from(new Set(domains)),
+    };
+
+    // 6. Create ActionTracker
+    const tracker = new ActionTracker(
+      transferStore,
+      intentStore,
+      actionStore,
+      explorerClient,
+      hyperlaneCore,
+      trackerConfig,
       this.logger,
     );
 
-    return withSemaphore;
+    // 7. Create InflightContextAdapter
+    const adapter = new InflightContextAdapter(tracker, this.multiProvider);
+
+    this.logger.debug(
+      {
+        warpRouteId: this.config.warpRouteId,
+        routerCount: routers.length,
+        bridgeCount: bridges.length,
+        domainCount: domains.length,
+      },
+      'ActionTracker created successfully',
+    );
+
+    return { tracker, adapter };
   }
 
   private async getInitialTotalCollateral(): Promise<bigint> {

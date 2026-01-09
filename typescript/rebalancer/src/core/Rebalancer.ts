@@ -1,10 +1,11 @@
-import { type PopulatedTransaction } from 'ethers';
+import { BigNumber, type PopulatedTransaction, type providers } from 'ethers';
 import { type Logger } from 'pino';
 
 import {
   type ChainMap,
   type ChainMetadata,
   EvmMovableCollateralAdapter,
+  HyperlaneCore,
   type InterchainGasQuote,
   type MultiProvider,
   type Token,
@@ -20,6 +21,7 @@ import {
 import type {
   IRebalancer,
   PreparedTransaction,
+  RebalanceExecutionResult,
 } from '../interfaces/IRebalancer.js';
 import type { RebalancingRoute } from '../interfaces/IStrategy.js';
 import { type Metrics } from '../metrics/Metrics.js';
@@ -42,65 +44,62 @@ export class Rebalancer implements IRebalancer {
     this.logger = logger.child({ class: Rebalancer.name });
   }
 
-  async rebalance(routes: RebalancingRoute[]): Promise<void> {
+  async rebalance(
+    routes: RebalancingRoute[],
+  ): Promise<RebalanceExecutionResult[]> {
     if (routes.length === 0) {
       this.logger.info('No routes to execute, exiting');
-      return;
+      return [];
     }
 
     this.logger.info({ numberOfRoutes: routes.length }, 'Rebalance initiated');
 
-    const { preparedTransactions, preparationFailures } =
+    const { preparedTransactions, preparationFailureResults } =
       await this.prepareTransactions(routes);
 
-    let gasEstimationFailures = 0;
-    let transactionFailures = 0;
-    let successfulTransactions: PreparedTransaction[] = [];
+    let executionResults: RebalanceExecutionResult[] = [];
 
     if (preparedTransactions.length > 0) {
       const filteredTransactions =
         this.filterTransactions(preparedTransactions);
       if (filteredTransactions.length > 0) {
-        ({
-          gasEstimationFailures,
-          transactionFailures,
-          successfulTransactions,
-        } = await this.executeTransactions(filteredTransactions));
+        executionResults = await this.executeTransactions(filteredTransactions);
       }
     }
 
-    if (
-      preparationFailures > 0 ||
-      gasEstimationFailures > 0 ||
-      transactionFailures > 0
-    ) {
+    // Combine preparation failures with execution results
+    const allResults = [...preparationFailureResults, ...executionResults];
+
+    // Record metrics for successful transactions
+    const successfulResults = allResults.filter((r) => r.success);
+    if (this.metrics && successfulResults.length > 0) {
+      for (const result of successfulResults) {
+        const token = this.tokensByChainName[result.route.origin];
+        if (token) {
+          this.metrics.recordRebalanceAmount(
+            result.route,
+            token.amount(result.route.amount),
+          );
+        }
+      }
+    }
+
+    const failures = allResults.filter((r) => !r.success);
+    if (failures.length > 0) {
       this.logger.error(
-        {
-          preparationFailures,
-          gasEstimationFailures,
-          transactionFailures,
-        },
-        'A rebalance stage failed.',
+        { failureCount: failures.length, totalRoutes: routes.length },
+        'Some rebalance operations failed.',
       );
-      throw new Error('❌ Some rebalance transaction failed');
+    } else {
+      this.logger.info('✅ Rebalance successful');
     }
 
-    if (this.metrics && successfulTransactions.length > 0) {
-      for (const transaction of successfulTransactions) {
-        this.metrics.recordRebalanceAmount(
-          transaction.route,
-          transaction.originTokenAmount,
-        );
-      }
-    }
-
-    this.logger.info('✅ Rebalance successful');
-    return;
+    return allResults;
   }
 
   private async prepareTransactions(routes: RebalancingRoute[]): Promise<{
     preparedTransactions: PreparedTransaction[];
-    preparationFailures: number;
+    preparationFailureResults: RebalanceExecutionResult[];
   }> {
     this.logger.info(
       { numRoutes: routes.length },
@@ -116,11 +115,28 @@ export class Rebalancer implements IRebalancer {
     const preparedTransactions = Array.from(fulfilled.values()).filter(
       (tx): tx is PreparedTransaction => !isNullish(tx),
     );
-    // Count rejections + null results as failures
-    const preparationFailures =
-      rejected.size + (fulfilled.size - preparedTransactions.length);
 
-    return { preparedTransactions, preparationFailures };
+    // Create failure results for tracking
+    const preparationFailureResults: RebalanceExecutionResult[] = [];
+    for (const [i, error] of rejected) {
+      preparationFailureResults.push({
+        route: routes[i],
+        success: false,
+        error: String(error),
+      });
+    }
+    // Also track null results (validation failures)
+    Array.from(fulfilled.entries()).forEach(([i, tx]) => {
+      if (isNullish(tx)) {
+        preparationFailureResults.push({
+          route: routes[i],
+          success: false,
+          error: 'Preparation returned null',
+        });
+      }
+    });
+
+    return { preparedTransactions, preparationFailureResults };
   }
 
   private async prepareTransaction(
@@ -184,14 +200,19 @@ export class Rebalancer implements IRebalancer {
       return null;
     }
 
-    // 3. Populate transaction
-    let populatedTx: PopulatedTransaction;
+    // 3. Get sender address for approval check
+    const signer = this.multiProvider.getSigner(origin);
+    const signerAddress = await signer.getAddress();
+
+    // 4. Populate transaction(s) - may include approval tx if needed
+    let populatedTxs: PopulatedTransaction[];
     try {
-      populatedTx = await originHypAdapter.populateRebalanceTx(
+      populatedTxs = await originHypAdapter.populateRebalanceTx(
         destinationChainMeta.domainId,
         amount,
         bridge,
         quotes,
+        signerAddress,
       );
     } catch (error) {
       this.logger.error(
@@ -207,7 +228,7 @@ export class Rebalancer implements IRebalancer {
       return null;
     }
 
-    return { populatedTx, route, originTokenAmount };
+    return { populatedTxs, route, originTokenAmount };
   }
 
   private async validateRoute(route: RebalancingRoute): Promise<boolean> {
@@ -327,95 +348,143 @@ export class Rebalancer implements IRebalancer {
 
   private async executeTransactions(
     transactions: PreparedTransaction[],
-  ): Promise<{
-    gasEstimationFailures: number;
-    transactionFailures: number;
-    successfulTransactions: PreparedTransaction[];
-  }> {
+  ): Promise<RebalanceExecutionResult[]> {
     this.logger.info(
       { numTransactions: transactions.length },
       'Estimating gas for all prepared transactions.',
     );
 
-    // 1. Estimate gas
-    const { fulfilled, rejected } = await mapAllSettled(
-      transactions,
-      async (transaction) => {
-        await this.multiProvider.estimateGas(
-          transaction.route.origin,
-          transaction.populatedTx,
-        );
+    const results: RebalanceExecutionResult[] = [];
+
+    // 1. Estimate gas for all transactions in each PreparedTransaction
+    const gasEstimateResults = await Promise.allSettled(
+      transactions.map(async (transaction) => {
+        // Estimate gas for each tx in the array (approval + rebalance)
+        // Skip gas estimation for approval txs (they're simple and predictable)
+        // This avoids issues with USDC-style tokens where gas estimation of
+        // the approve tx fails because the revoke tx hasn't been executed yet
+        for (let i = 0; i < transaction.populatedTxs.length; i++) {
+          const tx = transaction.populatedTxs[i];
+          const isApprovalTx = i < transaction.populatedTxs.length - 1;
+
+          if (isApprovalTx) {
+            // Set a fixed gas limit for approval txs (50k is plenty)
+            tx.gasLimit = BigNumber.from(50000);
+          } else {
+            await this.multiProvider.estimateGas(transaction.route.origin, tx);
+          }
+        }
         return transaction;
-      },
-      (_, i) => i,
+      }),
     );
 
-    // 2. Filter out failed transactions and log errors
-    const validTransactions = Array.from(fulfilled.values());
-    const gasEstimationFailures = rejected.size;
-    for (const [i, error] of rejected) {
-      const failedTransaction = transactions[i];
-      this.logger.error(
-        {
-          origin: failedTransaction.route.origin,
-          destination: failedTransaction.route.destination,
-          amount:
-            failedTransaction.originTokenAmount.getDecimalFormattedAmount(),
-          tokenName: failedTransaction.originTokenAmount.token.name,
-          error,
-        },
-        'Gas estimation failed for route.',
-      );
-    }
+    // 2. Filter out failed transactions and track failures
+    const validTransactions: PreparedTransaction[] = [];
+    gasEstimateResults.forEach((result, i) => {
+      if (result.status === 'fulfilled') {
+        validTransactions.push(result.value);
+      } else {
+        const failedTransaction = transactions[i];
+        this.logger.error(
+          {
+            origin: failedTransaction.route.origin,
+            destination: failedTransaction.route.destination,
+            amount:
+              failedTransaction.originTokenAmount.getDecimalFormattedAmount(),
+            tokenName: failedTransaction.originTokenAmount.token.name,
+            error: result.reason,
+          },
+          'Gas estimation failed for route.',
+        );
+        results.push({
+          route: failedTransaction.route,
+          success: false,
+          error: `Gas estimation failed: ${String(result.reason)}`,
+        });
+      }
+    });
 
     if (validTransactions.length === 0) {
       this.logger.info('No transactions to execute after gas estimation.');
-      return {
-        gasEstimationFailures,
-        transactionFailures: 0,
-        successfulTransactions: [],
-      };
+      return results;
     }
 
-    // 2. Send transactions
+    // 3. Send transactions
     this.logger.info(
       { numTransactions: validTransactions.length },
       'Sending valid transactions.',
     );
-    let transactionFailures = 0;
-    const successfulTransactions: PreparedTransaction[] = [];
+
     for (const transaction of validTransactions) {
       try {
         const { origin, destination } = transaction.route;
         const decimalFormattedAmount =
           transaction.originTokenAmount.getDecimalFormattedAmount();
         const tokenName = transaction.originTokenAmount.token.name;
-        this.logger.info(
-          {
-            origin,
-            destination,
-            amount: decimalFormattedAmount,
-            tokenName,
-          },
-          'Sending transaction for route.',
-        );
-        const receipt = await this.multiProvider.sendTransaction(
-          origin,
-          transaction.populatedTx,
-        );
-        this.logger.info(
-          {
-            origin,
-            destination,
-            amount: decimalFormattedAmount,
-            tokenName,
-            txHash: receipt.transactionHash,
-          },
-          'Transaction confirmed for route.',
-        );
-        successfulTransactions.push(transaction);
+
+        let rebalanceReceipt: providers.TransactionReceipt | undefined;
+
+        // Execute all transactions sequentially (approval first, then rebalance)
+        for (let i = 0; i < transaction.populatedTxs.length; i++) {
+          const tx = transaction.populatedTxs[i];
+          const isApprovalTx = i < transaction.populatedTxs.length - 1;
+
+          this.logger.info(
+            {
+              origin,
+              destination,
+              amount: decimalFormattedAmount,
+              tokenName,
+              txType: isApprovalTx ? 'approval' : 'rebalance',
+              txIndex: i + 1,
+              totalTxs: transaction.populatedTxs.length,
+            },
+            `Sending ${isApprovalTx ? 'approval' : 'rebalance'} transaction for route.`,
+          );
+
+          const receipt = await this.multiProvider.sendTransaction(origin, tx);
+
+          this.logger.info(
+            {
+              origin,
+              destination,
+              amount: decimalFormattedAmount,
+              tokenName,
+              txHash: receipt.transactionHash,
+              txType: isApprovalTx ? 'approval' : 'rebalance',
+            },
+            `${isApprovalTx ? 'Approval' : 'Rebalance'} transaction confirmed for route.`,
+          );
+
+          // Keep track of the rebalance (last) transaction receipt
+          if (!isApprovalTx) {
+            rebalanceReceipt = receipt;
+          }
+        }
+
+        // Extract messageId from the rebalance transaction receipt
+        let messageId: string | undefined;
+        if (rebalanceReceipt) {
+          try {
+            const dispatchedMessages =
+              HyperlaneCore.getDispatchedMessages(rebalanceReceipt);
+            messageId = dispatchedMessages[0]?.id;
+          } catch {
+            // Not all rebalance transactions dispatch messages (e.g., CCTP)
+            this.logger.debug(
+              { origin, destination },
+              'No dispatched message found in rebalance receipt.',
+            );
+          }
+        }
+
+        results.push({
+          route: transaction.route,
+          success: true,
+          messageId,
+          txHash: rebalanceReceipt?.transactionHash,
+        });
       } catch (error) {
-        transactionFailures++;
         this.logger.error(
           {
             origin: transaction.route.origin,
@@ -426,14 +495,15 @@ export class Rebalancer implements IRebalancer {
           },
           'Transaction failed for route.',
         );
+        results.push({
+          route: transaction.route,
+          success: false,
+          error: String(error),
+        });
       }
     }
 
-    return {
-      gasEstimationFailures,
-      transactionFailures,
-      successfulTransactions,
-    };
+    return results;
   }
 
   private filterTransactions(
