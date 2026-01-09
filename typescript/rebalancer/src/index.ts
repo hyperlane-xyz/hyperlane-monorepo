@@ -62,6 +62,7 @@ export type {
   IStrategy,
   RebalancingRoute,
   RawBalances,
+  InflightContext,
 } from './interfaces/IStrategy.js';
 export type { IMonitor } from './interfaces/IMonitor.js';
 export {
@@ -81,6 +82,9 @@ export type {
 export { getRawBalances } from './utils/balanceUtils.js';
 export { isCollateralizedTokenEligibleForRebalancing } from './utils/tokenUtils.js';
 export { ExplorerClient } from './utils/ExplorerClient.js';
+
+// Tracking
+export { InflightContextAdapter } from './tracking/InflightContextAdapter.js';
 
 // Factory
 export { RebalancerContextFactory } from './factories/RebalancerContextFactory.js';
