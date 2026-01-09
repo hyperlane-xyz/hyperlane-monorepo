@@ -3,6 +3,7 @@ import { ethers } from 'ethers';
 import { rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import type { z } from 'zod';
 
 import { writeYamlOrJson } from '@hyperlane-xyz/utils/fs';
 
@@ -14,6 +15,14 @@ import {
 } from './types.js';
 
 const TEST_CONFIG_PATH = join(tmpdir(), 'rebalancer-config-test.yaml');
+
+// Helper to get strategy as array (for test type safety)
+// Schema accepts both single object and array, but tests use array format
+function getStrategyArray(
+  data: RebalancerConfigFileInput,
+): z.input<typeof import('./types.js').StrategyConfigSchema>[] {
+  return Array.isArray(data.strategy) ? data.strategy : [data.strategy];
+}
 
 describe('RebalancerConfig', () => {
   let data: RebalancerConfigFileInput;
@@ -91,7 +100,7 @@ describe('RebalancerConfig', () => {
   });
 
   it('should throw if chains are not configured', () => {
-    data.strategy[0].chains = {};
+    getStrategyArray(data)[0].chains = {};
 
     writeYamlOrJson(TEST_CONFIG_PATH, data);
 
@@ -146,7 +155,7 @@ describe('RebalancerConfig', () => {
     expect(
       RebalancerConfig.load(TEST_CONFIG_PATH).strategyConfig[0].chains.chain1,
     ).to.deep.equal({
-      ...data.strategy[0].chains.chain1,
+      ...getStrategyArray(data)[0].chains.chain1,
       bridgeLockTime: 1_000,
     });
   });
@@ -186,7 +195,7 @@ describe('RebalancerConfig', () => {
     expect(
       RebalancerConfig.load(TEST_CONFIG_PATH).strategyConfig[0].chains.chain1,
     ).to.deep.equal({
-      ...data.strategy[0].chains.chain1,
+      ...getStrategyArray(data)[0].chains.chain1,
       bridgeLockTime: 1_000,
     });
   });
@@ -341,7 +350,7 @@ describe('RebalancerConfig', () => {
     });
 
     it('should allow multiple chain overrides', () => {
-      data.strategy[0].chains.chain1 = {
+      getStrategyArray(data)[0].chains.chain1 = {
         bridge: ethers.constants.AddressZero,
         bridgeMinAcceptedAmount: 3000,
         bridgeLockTime: 1,
@@ -359,7 +368,7 @@ describe('RebalancerConfig', () => {
         },
       };
 
-      data.strategy[0].chains.chain2 = {
+      getStrategyArray(data)[0].chains.chain2 = {
         bridge: ethers.constants.AddressZero,
         bridgeMinAcceptedAmount: 5000,
         bridgeLockTime: 1,
@@ -369,7 +378,7 @@ describe('RebalancerConfig', () => {
         },
       };
 
-      data.strategy[0].chains.chain3 = {
+      getStrategyArray(data)[0].chains.chain3 = {
         bridge: ethers.constants.AddressZero,
         bridgeMinAcceptedAmount: 6000,
         bridgeLockTime: 1,
