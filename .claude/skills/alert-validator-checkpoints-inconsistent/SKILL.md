@@ -23,16 +23,25 @@ description: Debug validator checkpoint inconsistencies where some validators ar
 
 ## Input Parameters
 
-| Parameter      | Required | Default       | Description                                                                                                              |
-| -------------- | -------- | ------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `origin_chain` | Yes      | -             | The origin chain where validators are signing checkpoints (e.g., `hyperevm`, `ethereum`, `arbitrum`)                     |
-| `app_context`  | No       | `default_ism` | The ISM/application context (e.g., `default_ism`, `EZETH/renzo-prod`)                                                    |
-| `time_range`   | No       | `1h`          | How far back to investigate                                                                                              |
-| `environment`  | No       | `mainnet3`    | Only possible values are `mainnet3` or `testnet4`. If told it's mainnet or testnet, pick the appropriate possible value. |
+| Parameter              | Required | Default       | Description                                                                                                                                                                                                                                                                                          |
+| ---------------------- | -------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `origin_chain`         | Yes      | -             | The origin chain where validators are signing checkpoints (e.g., `hyperevm`, `ethereum`, `arbitrum`)                                                                                                                                                                                                 |
+| `app_context`          | No       | `default_ism` | The ISM/application context (e.g., `default_ism`, `EZETH/renzo-prod`)                                                                                                                                                                                                                                |
+| `time_range`           | No       | `1h`          | How far back to investigate                                                                                                                                                                                                                                                                          |
+| `environment`          | No       | `mainnet3`    | Only possible values are `mainnet3` or `testnet4`. If told it's mainnet or testnet, pick the appropriate possible value.                                                                                                                                                                             |
+| `validator`            | No       | `*`           | Optional                                                                                                                                                                                                                                                                                             |
+| `evaluation_timestamp` | No       | Now           | A timestamp to consider as the current time. A timestamp in the past may be provided to backtest previous scenarios. Treat this timestamp as if it were the current time for all requests to tools, e.g. when querying Prometheus metrics. Never query any metrics after the `evaluation_timestamp`. |
 
 ## A note on metrics
 
 **CRITICAL: Use the relayer's perspective to see ALL validators (including external):**
+
+Use datasource uid `grafanacloud-prom` to interact with Prometheus.
+
+If a specific `evaluation_timestamp` is provided that is not Now, be sure to always behave as if `evaluation_timestamp` is the present time. This means:
+
+- All Prometheus metrics queried should be at `evaluation_timestamp` at the very newest - never query anything past this time
+- Fetching the latest Prometheus metric should mean that it's queried at the `evaluation_timestamp`
 
 The following metric exists that shows the relayer's perspective of all validators:
 
@@ -55,6 +64,20 @@ The metric shows the latest highest signed index by a validator as it's observed
 - It's possible that some validators are healthy and are just a couple seconds behind the rest of the pack, so the metric might show them as a tiny bit behind the rest. In this case, they aren't stalled, it's just that the relayer attempted to deliver a message shortly before the validator signed the checkpoint.
 
 ## Debugging Workflow
+
+### Step 0: Pick the app context
+
+Skip this step if an `app_context` was explicitly specified. Continue this step if no `app_context` was specified, even if it has a default value.
+
+Skip this step if no specific `validator` was specified.
+
+If any `validator` was specified, first use the `hyperlane_observed_validator_latest_index` metric to find the `app_context`s to focus on. Find the values of the `app_context` label for the metric:
+
+```
+hyperlane_observed_validator_latest_index{origin="[origin_chain]", validator="[validator]"}
+```
+
+If the list of app contexts includes `default_ism`, we will set the `app_context` for future use as `default_ism`. If not, pick any one of the returned values as the `app_context`.
 
 ### Step 1: Check the `hyperlane_observed_validator_latest_index` to see which validators may be behind
 
