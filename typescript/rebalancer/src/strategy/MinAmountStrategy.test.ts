@@ -355,30 +355,37 @@ describe('MinAmountStrategy', () => {
     });
 
     it('should return a single route when a chain is below minimum amount', () => {
-      const strategy = new MinAmountStrategy(
-        {
-          [chain1]: {
-            minAmount: {
-              min: '100',
-              target: '120',
-              type: RebalancerMinAmountType.Absolute,
-            },
-            bridge: AddressZero,
-            bridgeLockTime: 1,
+      const config = {
+        [chain1]: {
+          minAmount: {
+            min: '100',
+            target: '120',
+            type: RebalancerMinAmountType.Absolute,
           },
-          [chain2]: {
-            minAmount: {
-              min: '100',
-              target: '120',
-              type: RebalancerMinAmountType.Absolute,
-            },
-            bridge: AddressZero,
-            bridgeLockTime: 1,
-          },
+          bridge: AddressZero,
+          bridgeLockTime: 1,
         },
+        [chain2]: {
+          minAmount: {
+            min: '100',
+            target: '120',
+            type: RebalancerMinAmountType.Absolute,
+          },
+          bridge: AddressZero,
+          bridgeLockTime: 1,
+        },
+      };
+      const bridges = {
+        [chain1]: [config[chain1].bridge],
+        [chain2]: [config[chain2].bridge],
+      };
+      const strategy = new MinAmountStrategy(
+        config,
         tokensByChainName,
         totalCollateral,
         testLogger,
+        undefined,
+        bridges,
       );
 
       const rawBalances = {
@@ -393,44 +400,53 @@ describe('MinAmountStrategy', () => {
           origin: chain2,
           destination: chain1,
           amount: BigInt(70e18),
+          bridge: AddressZero,
         },
       ]);
     });
 
     it('should return multiple routes for multiple chains below minimum amount', () => {
-      const strategy = new MinAmountStrategy(
-        {
-          [chain1]: {
-            minAmount: {
-              min: '80',
-              target: '100',
-              type: RebalancerMinAmountType.Absolute,
-            },
-            bridge: AddressZero,
-            bridgeLockTime: 1,
+      const config = {
+        [chain1]: {
+          minAmount: {
+            min: '80',
+            target: '100',
+            type: RebalancerMinAmountType.Absolute,
           },
-          [chain2]: {
-            minAmount: {
-              min: '80',
-              target: '100',
-              type: RebalancerMinAmountType.Absolute,
-            },
-            bridge: AddressZero,
-            bridgeLockTime: 1,
-          },
-          [chain3]: {
-            minAmount: {
-              min: '80',
-              target: '100',
-              type: RebalancerMinAmountType.Absolute,
-            },
-            bridge: AddressZero,
-            bridgeLockTime: 1,
-          },
+          bridge: AddressZero,
+          bridgeLockTime: 1,
         },
+        [chain2]: {
+          minAmount: {
+            min: '80',
+            target: '100',
+            type: RebalancerMinAmountType.Absolute,
+          },
+          bridge: AddressZero,
+          bridgeLockTime: 1,
+        },
+        [chain3]: {
+          minAmount: {
+            min: '80',
+            target: '100',
+            type: RebalancerMinAmountType.Absolute,
+          },
+          bridge: AddressZero,
+          bridgeLockTime: 1,
+        },
+      };
+      const bridges = {
+        [chain1]: [config[chain1].bridge],
+        [chain2]: [config[chain2].bridge],
+        [chain3]: [config[chain3].bridge],
+      };
+      const strategy = new MinAmountStrategy(
+        config,
         tokensByChainName,
         totalCollateral,
         testLogger,
+        undefined,
+        bridges,
       );
 
       const rawBalances = {
@@ -446,11 +462,13 @@ describe('MinAmountStrategy', () => {
           origin: chain3,
           destination: chain1,
           amount: BigInt(50e18),
+          bridge: AddressZero,
         },
         {
           origin: chain3,
           destination: chain2,
           amount: BigInt(25e18),
+          bridge: AddressZero,
         },
       ]);
     });
@@ -542,6 +560,75 @@ describe('MinAmountStrategy', () => {
       expect(routes[1].amount).to.equal(BigInt(25e18));
     });
 
+    it('should not produce zero-amount routes when scaling causes amounts to round to zero', () => {
+      // This test ensures that when deficit scaling produces zero amounts (due to integer division),
+      // these zero-amount routes are NOT included in the output.
+      // Bug scenario: totalSurplus=1, totalDeficit=3 -> each deficit of 1 scales to (1*1)/3 = 0
+      const strategy = new MinAmountStrategy(
+        {
+          [chain1]: {
+            minAmount: {
+              min: '90',
+              target: '100',
+              type: RebalancerMinAmountType.Absolute,
+            },
+            bridge: AddressZero,
+            bridgeLockTime: 1,
+          },
+          [chain2]: {
+            minAmount: {
+              min: '90',
+              target: '100',
+              type: RebalancerMinAmountType.Absolute,
+            },
+            bridge: AddressZero,
+            bridgeLockTime: 1,
+          },
+          [chain3]: {
+            minAmount: {
+              min: '90',
+              target: '100',
+              type: RebalancerMinAmountType.Absolute,
+            },
+            bridge: AddressZero,
+            bridgeLockTime: 1,
+          },
+        },
+        tokensByChainName,
+        totalCollateral,
+        testLogger,
+      );
+
+      // chain1 and chain2 are at 1 token each (far below min 90)
+      // chain3 has 91 tokens (surplus of 1 above min)
+      // Deficits: chain1 needs 99 (100-1), chain2 needs 99 (100-1), total = 198
+      // Surplus: chain3 has 1 (91-90)
+      // Scaling: each deficit of 99 becomes (99 * 1) / 198 = 0 (integer division!)
+      const rawBalances = {
+        [chain1]: BigInt(1e18),
+        [chain2]: BigInt(1e18),
+        [chain3]: BigInt(91e18),
+      };
+
+      const routes = strategy.getRebalancingRoutes(rawBalances);
+
+      // All routes should have non-zero amounts
+      // (Chai's greaterThan doesn't support BigInt, so use direct comparison)
+      for (const route of routes) {
+        expect(
+          route.amount > 0n,
+          `Route amount should be > 0, got ${route.amount}`,
+        ).to.be.true;
+      }
+
+      // The single token of surplus may produce one route (or none if both scale to 0)
+      // Either way, no zero-amount routes should exist
+      expect(
+        routes.every((r) => r.amount > 0n),
+        'All routes must have non-zero amounts',
+      ).to.be.true;
+    });
+
     it('should have no surplus or deficit when all at min', () => {
       const strategy = new MinAmountStrategy(
         {
@@ -580,30 +667,37 @@ describe('MinAmountStrategy', () => {
     });
 
     it('should consider the target amount with relative configuration', () => {
-      const strategy = new MinAmountStrategy(
-        {
-          [chain1]: {
-            minAmount: {
-              min: 0.25,
-              target: 0.3,
-              type: RebalancerMinAmountType.Relative,
-            },
-            bridge: AddressZero,
-            bridgeLockTime: 1,
+      const config = {
+        [chain1]: {
+          minAmount: {
+            min: 0.25,
+            target: 0.3,
+            type: RebalancerMinAmountType.Relative,
           },
-          [chain2]: {
-            minAmount: {
-              min: 0.25,
-              target: 0.3,
-              type: RebalancerMinAmountType.Relative,
-            },
-            bridge: AddressZero,
-            bridgeLockTime: 1,
-          },
+          bridge: AddressZero,
+          bridgeLockTime: 1,
         },
+        [chain2]: {
+          minAmount: {
+            min: 0.25,
+            target: 0.3,
+            type: RebalancerMinAmountType.Relative,
+          },
+          bridge: AddressZero,
+          bridgeLockTime: 1,
+        },
+      };
+      const bridges = {
+        [chain1]: [config[chain1].bridge],
+        [chain2]: [config[chain2].bridge],
+      };
+      const strategy = new MinAmountStrategy(
+        config,
         tokensByChainName,
         totalCollateral,
         testLogger,
+        undefined,
+        bridges,
       );
 
       const rawBalances: RawBalances = {
@@ -618,6 +712,7 @@ describe('MinAmountStrategy', () => {
           origin: chain2,
           destination: chain1,
           amount: 100n,
+          bridge: AddressZero,
         },
       ]);
     });

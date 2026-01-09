@@ -220,20 +220,27 @@ describe('WeightedStrategy', () => {
     });
 
     it('should return a single route when a chain is unbalanced', () => {
-      const strategy = new WeightedStrategy(
-        {
-          [chain1]: {
-            weighted: { weight: 100n, tolerance: 0n },
-            bridge: ethers.constants.AddressZero,
-            bridgeLockTime: 1,
-          },
-          [chain2]: {
-            weighted: { weight: 100n, tolerance: 0n },
-            bridge: ethers.constants.AddressZero,
-            bridgeLockTime: 1,
-          },
+      const config = {
+        [chain1]: {
+          weighted: { weight: 100n, tolerance: 0n },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
         },
+        [chain2]: {
+          weighted: { weight: 100n, tolerance: 0n },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
+        },
+      };
+      const bridges = {
+        [chain1]: [config[chain1].bridge],
+        [chain2]: [config[chain2].bridge],
+      };
+      const strategy = new WeightedStrategy(
+        config,
         testLogger,
+        undefined,
+        bridges,
       );
 
       const rawBalances = {
@@ -248,6 +255,7 @@ describe('WeightedStrategy', () => {
           origin: chain2,
           destination: chain1,
           amount: ethers.utils.parseEther('50').toBigInt(),
+          bridge: ethers.constants.AddressZero,
         },
       ]);
     });
@@ -280,25 +288,33 @@ describe('WeightedStrategy', () => {
     });
 
     it('should return a single route when two chains are unbalanced and can be solved with a single transfer', () => {
-      const strategy = new WeightedStrategy(
-        {
-          [chain1]: {
-            weighted: { weight: 100n, tolerance: 0n },
-            bridge: ethers.constants.AddressZero,
-            bridgeLockTime: 1,
-          },
-          [chain2]: {
-            weighted: { weight: 100n, tolerance: 0n },
-            bridge: ethers.constants.AddressZero,
-            bridgeLockTime: 1,
-          },
-          [chain3]: {
-            weighted: { weight: 100n, tolerance: 0n },
-            bridge: ethers.constants.AddressZero,
-            bridgeLockTime: 1,
-          },
+      const config = {
+        [chain1]: {
+          weighted: { weight: 100n, tolerance: 0n },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
         },
+        [chain2]: {
+          weighted: { weight: 100n, tolerance: 0n },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
+        },
+        [chain3]: {
+          weighted: { weight: 100n, tolerance: 0n },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
+        },
+      };
+      const bridges = {
+        [chain1]: [config[chain1].bridge],
+        [chain2]: [config[chain2].bridge],
+        [chain3]: [config[chain3].bridge],
+      };
+      const strategy = new WeightedStrategy(
+        config,
         testLogger,
+        undefined,
+        bridges,
       );
 
       const rawBalances = {
@@ -314,29 +330,38 @@ describe('WeightedStrategy', () => {
           origin: chain3,
           destination: chain1,
           amount: ethers.utils.parseEther('100').toBigInt(),
+          bridge: ethers.constants.AddressZero,
         },
       ]);
     });
     it('should return two routes when two chains are unbalanced and cannot be solved with a single transfer', () => {
-      const strategy = new WeightedStrategy(
-        {
-          [chain1]: {
-            weighted: { weight: 100n, tolerance: 0n },
-            bridge: ethers.constants.AddressZero,
-            bridgeLockTime: 1,
-          },
-          [chain2]: {
-            weighted: { weight: 100n, tolerance: 0n },
-            bridge: ethers.constants.AddressZero,
-            bridgeLockTime: 1,
-          },
-          [chain3]: {
-            weighted: { weight: 100n, tolerance: 0n },
-            bridge: ethers.constants.AddressZero,
-            bridgeLockTime: 1,
-          },
+      const config = {
+        [chain1]: {
+          weighted: { weight: 100n, tolerance: 0n },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
         },
+        [chain2]: {
+          weighted: { weight: 100n, tolerance: 0n },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
+        },
+        [chain3]: {
+          weighted: { weight: 100n, tolerance: 0n },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
+        },
+      };
+      const bridges = {
+        [chain1]: [config[chain1].bridge],
+        [chain2]: [config[chain2].bridge],
+        [chain3]: [config[chain3].bridge],
+      };
+      const strategy = new WeightedStrategy(
+        config,
         testLogger,
+        undefined,
+        bridges,
       );
 
       const rawBalances = {
@@ -352,35 +377,45 @@ describe('WeightedStrategy', () => {
           origin: chain3,
           destination: chain1,
           amount: 133333333333333333333n,
+          bridge: ethers.constants.AddressZero,
         },
         {
           origin: chain3,
           destination: chain2,
           amount: 133333333333333333333n,
+          bridge: ethers.constants.AddressZero,
         },
       ]);
     });
 
     it('should return routes to balance different weighted chains', () => {
-      const strategy = new WeightedStrategy(
-        {
-          [chain1]: {
-            weighted: { weight: 50n, tolerance: 0n },
-            bridge: ethers.constants.AddressZero,
-            bridgeLockTime: 1,
-          },
-          [chain2]: {
-            weighted: { weight: 25n, tolerance: 0n },
-            bridge: ethers.constants.AddressZero,
-            bridgeLockTime: 1,
-          },
-          [chain3]: {
-            weighted: { weight: 25n, tolerance: 0n },
-            bridge: ethers.constants.AddressZero,
-            bridgeLockTime: 1,
-          },
+      const config = {
+        [chain1]: {
+          weighted: { weight: 50n, tolerance: 0n },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
         },
+        [chain2]: {
+          weighted: { weight: 25n, tolerance: 0n },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
+        },
+        [chain3]: {
+          weighted: { weight: 25n, tolerance: 0n },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
+        },
+      };
+      const bridges = {
+        [chain1]: [config[chain1].bridge],
+        [chain2]: [config[chain2].bridge],
+        [chain3]: [config[chain3].bridge],
+      };
+      const strategy = new WeightedStrategy(
+        config,
         testLogger,
+        undefined,
+        bridges,
       );
 
       const rawBalances = {
@@ -396,11 +431,13 @@ describe('WeightedStrategy', () => {
           origin: chain2,
           destination: chain1,
           amount: ethers.utils.parseEther('25').toBigInt(),
+          bridge: ethers.constants.AddressZero,
         },
         {
           origin: chain3,
           destination: chain1,
           amount: ethers.utils.parseEther('25').toBigInt(),
+          bridge: ethers.constants.AddressZero,
         },
       ]);
     });

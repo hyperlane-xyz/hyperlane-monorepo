@@ -73,16 +73,34 @@ export class StrategyFactory {
     metrics?: Metrics,
   ): IStrategy {
     switch (strategyConfig.rebalanceStrategy) {
-      case RebalancerStrategyOptions.Weighted:
-        return new WeightedStrategy(strategyConfig.chains, logger, metrics);
-      case RebalancerStrategyOptions.MinAmount:
+      case RebalancerStrategyOptions.Weighted: {
+        // Extract bridges from config into ChainMap<Address[]> format
+        const bridges: ChainMap<string[]> = {};
+        for (const [chain, config] of Object.entries(strategyConfig.chains)) {
+          bridges[chain] = [config.bridge];
+        }
+        return new WeightedStrategy(
+          strategyConfig.chains,
+          logger,
+          metrics,
+          bridges,
+        );
+      }
+      case RebalancerStrategyOptions.MinAmount: {
+        // Extract bridges from config into ChainMap<Address[]> format
+        const bridges: ChainMap<string[]> = {};
+        for (const [chain, config] of Object.entries(strategyConfig.chains)) {
+          bridges[chain] = [config.bridge];
+        }
         return new MinAmountStrategy(
           strategyConfig.chains,
           tokensByChainName,
           initialTotalCollateral,
           logger,
           metrics,
+          bridges,
         );
+      }
       case RebalancerStrategyOptions.CollateralDeficit: {
         // Extract bridges from config into ChainMap<Address[]> format
         const bridges: ChainMap<string[]> = {};

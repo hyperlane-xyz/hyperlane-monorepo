@@ -7,7 +7,10 @@ import {
   getStrategyChainConfig,
   getStrategyChainNames,
 } from '../config/types.js';
-import type { IRebalancer } from '../interfaces/IRebalancer.js';
+import type {
+  IRebalancer,
+  RebalanceExecutionResult,
+} from '../interfaces/IRebalancer.js';
 import type { RebalancingRoute } from '../interfaces/IStrategy.js';
 import { type ExplorerClient } from '../utils/ExplorerClient.js';
 
@@ -28,7 +31,9 @@ export class WithInflightGuard implements IRebalancer {
     this.logger = logger.child({ class: WithInflightGuard.name });
   }
 
-  async rebalance(routes: RebalancingRoute[]): Promise<void> {
+  async rebalance(
+    routes: RebalancingRoute[],
+  ): Promise<RebalanceExecutionResult[]> {
     // Always enforce the inflight guard
     if (routes.length === 0) {
       return this.rebalancer.rebalance(routes);
@@ -69,7 +74,7 @@ export class WithInflightGuard implements IRebalancer {
       this.logger.info(
         'Inflight rebalance detected via Explorer; skipping this cycle',
       );
-      return;
+      return [];
     }
 
     return this.rebalancer.rebalance(routes);
