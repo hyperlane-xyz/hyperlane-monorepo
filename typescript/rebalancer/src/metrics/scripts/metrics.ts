@@ -1,5 +1,5 @@
 import { type Logger } from 'pino';
-import { Counter, Registry } from 'prom-client';
+import { Counter, Gauge, Registry } from 'prom-client';
 
 import {
   type NativeWalletBalance,
@@ -40,6 +40,49 @@ export const rebalancerPollingErrorsTotal = new Counter({
   help: 'Total number of errors during the monitor polling phase.',
   registers: [metricsRegister],
   labelNames: ['warp_route_id'],
+});
+
+export const rebalancerIntentsCreatedTotal = new Counter({
+  name: 'hyperlane_rebalancer_intents_created_total',
+  help: 'Total number of rebalancing intents (routes) created.',
+  registers: [metricsRegister],
+  labelNames: ['warp_route_id', 'strategy', 'origin', 'destination'],
+});
+
+export const rebalancerActionsCreatedTotal = new Counter({
+  name: 'hyperlane_rebalancer_actions_created_total',
+  help: 'Total number of rebalancing actions (transactions) attempted.',
+  registers: [metricsRegister],
+  labelNames: ['warp_route_id', 'origin', 'destination', 'succeeded'],
+});
+
+const walletBalanceGauge = new Gauge({
+  // Mirror the rust/main/ethers-prometheus `wallet_balance` gauge metric.
+  name: 'hyperlane_wallet_balance',
+  help: 'Current balance of a wallet for a token',
+  registers: [metricsRegister],
+  labelNames: [
+    'chain',
+    'wallet_address',
+    'wallet_name',
+    'token_address',
+    'token_symbol',
+    'token_name',
+  ],
+});
+
+const xERC20LimitsGauge = new Gauge({
+  name: 'hyperlane_xerc20_limits',
+  help: 'Current minting and burning limits of xERC20 tokens',
+  registers: [metricsRegister],
+  labelNames: [
+    'chain_name',
+    'limit_type',
+    'token_name',
+    'bridge_address',
+    'token_address',
+    'bridge_label',
+  ],
 });
 
 /**

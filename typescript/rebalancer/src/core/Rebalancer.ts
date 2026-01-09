@@ -484,6 +484,7 @@ export class Rebalancer implements IRebalancer {
           messageId,
           txHash: rebalanceReceipt?.transactionHash,
         });
+        this.metrics?.recordActionAttempt(transaction.route, true);
       } catch (error) {
         this.logger.error(
           {
@@ -500,6 +501,7 @@ export class Rebalancer implements IRebalancer {
           success: false,
           error: String(error),
         });
+        this.metrics?.recordActionAttempt(transaction.route, false);
       }
     }
 
