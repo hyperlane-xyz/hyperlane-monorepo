@@ -1,60 +1,60 @@
 warpRouteId: USDC/pulsechain
 
 strategy:
-  - rebalanceStrategy: weighted
-    chains:
-      arbitrum:
-        weighted:
-          weight: 8 # should have 8% of all the collateral in this route
-          tolerance: 5 # 5% deviation on the expected balance before triggering a rebalance
-        bridgeLockTime: 1800 # 30 mins in seconds (required for CCTP latency)
-        bridgeMinAcceptedAmount: 3500
-        bridge: '0x8a82186EA618b91D13A2041fb7aC31Bf01C02aD2'
+  rebalanceStrategy: weighted
+  chains:
+    arbitrum:
+      weighted:
+        weight: 8 # should have 8% of all the collateral in this route
+        tolerance: 5 # 5% deviation on the expected balance before triggering a rebalance
+      bridgeLockTime: 1800 # 30 mins in seconds (required for CCTP latency)
+      bridgeMinAcceptedAmount: 3500
+      bridge: '0x8a82186EA618b91D13A2041fb7aC31Bf01C02aD2'
 
-      avalanche:
-        weighted:
-          weight: 8 # should have 8% of all the collateral in this route
-          tolerance: 5 # 5% deviation on the expected balance before triggering a rebalance
-        bridgeLockTime: 1800 # 30 mins in seconds (required for CCTP latency)
-        bridgeMinAcceptedAmount: 3500
-        bridge: '0x0E8Bc62865F539889fe7d8537F2ed6db5aa0F677'
+    avalanche:
+      weighted:
+        weight: 8 # should have 8% of all the collateral in this route
+        tolerance: 5 # 5% deviation on the expected balance before triggering a rebalance
+      bridgeLockTime: 1800 # 30 mins in seconds (required for CCTP latency)
+      bridgeMinAcceptedAmount: 3500
+      bridge: '0x0E8Bc62865F539889fe7d8537F2ed6db5aa0F677'
 
-      base:
-        weighted:
-          weight: 30 # should have 30% of all the collateral in this route
-          tolerance: 5 # 5% deviation on the expected balance before triggering a rebalance
-        bridgeLockTime: 1800 # 30 mins in seconds (required for CCTP latency)
-        bridgeMinAcceptedAmount: 3500
-        bridge: '0x5C4aFb7e23B1Dc1B409dc1702f89C64527b25975'
+    base:
+      weighted:
+        weight: 30 # should have 30% of all the collateral in this route
+        tolerance: 5 # 5% deviation on the expected balance before triggering a rebalance
+      bridgeLockTime: 1800 # 30 mins in seconds (required for CCTP latency)
+      bridgeMinAcceptedAmount: 3500
+      bridge: '0x5C4aFb7e23B1Dc1B409dc1702f89C64527b25975'
 
-      ethereum:
-        weighted:
-          weight: 30 # should have 30% of all the collateral in this route
-          tolerance: 5 # 5% deviation on the expected balance before triggering a rebalance
-        bridgeLockTime: 1800 # 30 mins in seconds (required for CCTP latency)
-        bridgeMinAcceptedAmount: 3500
-        bridge: '0xedCBAa585FD0F80f20073F9958246476466205b8'
+    ethereum:
+      weighted:
+        weight: 30 # should have 30% of all the collateral in this route
+        tolerance: 5 # 5% deviation on the expected balance before triggering a rebalance
+      bridgeLockTime: 1800 # 30 mins in seconds (required for CCTP latency)
+      bridgeMinAcceptedAmount: 3500
+      bridge: '0xedCBAa585FD0F80f20073F9958246476466205b8'
 
-      optimism:
-        weighted:
-          weight: 8 # should have 8% of all the collateral in this route
-          tolerance: 5 # 5% deviation on the expected balance before triggering a rebalance
-        bridgeLockTime: 1800 # 30 mins in seconds (required for CCTP latency)
-        bridgeMinAcceptedAmount: 3500
-        bridge: '0xfB7681ECB05F85c383A5ce4439C7dF5ED12c77DE'
+    optimism:
+      weighted:
+        weight: 8 # should have 8% of all the collateral in this route
+        tolerance: 5 # 5% deviation on the expected balance before triggering a rebalance
+      bridgeLockTime: 1800 # 30 mins in seconds (required for CCTP latency)
+      bridgeMinAcceptedAmount: 3500
+      bridge: '0xfB7681ECB05F85c383A5ce4439C7dF5ED12c77DE'
 
-      polygon:
-        weighted:
-          weight: 8 # should have 8% of all the collateral in this route
-          tolerance: 5 # 5% deviation on the expected balance before triggering a rebalance
-        bridgeLockTime: 1800 # 30 mins in seconds (required for CCTP latency)
-        bridgeMinAcceptedAmount: 3500
-        bridge: '0xa62F45662809f5F6535b58bae9A572a2EC4A1f84'
+    polygon:
+      weighted:
+        weight: 8 # should have 8% of all the collateral in this route
+        tolerance: 5 # 5% deviation on the expected balance before triggering a rebalance
+      bridgeLockTime: 1800 # 30 mins in seconds (required for CCTP latency)
+      bridgeMinAcceptedAmount: 3500
+      bridge: '0xa62F45662809f5F6535b58bae9A572a2EC4A1f84'
 
-      unichain:
-        weighted:
-          weight: 8 # should have 8% of all the collateral in this route
-          tolerance: 5 # 5% deviation on the expected balance before triggering a rebalance
-        bridgeLockTime: 1800 # 30 mins in seconds (required for CCTP latency)
-        bridgeMinAcceptedAmount: 3500
-        bridge: '0x296aF86bff91b23cF980f6a443bc15A3A5d30682'
+    unichain:
+      weighted:
+        weight: 8 # should have 8% of all the collateral in this route
+        tolerance: 5 # 5% deviation on the expected balance before triggering a rebalance
+      bridgeLockTime: 1800 # 30 mins in seconds (required for CCTP latency)
+      bridgeMinAcceptedAmount: 3500
+      bridge: '0x296aF86bff91b23cF980f6a443bc15A3A5d30682'
