@@ -145,7 +145,7 @@ export function ismOnChainAddress(
 export function altVMIsmTypeToProviderSdkType(
   altVMType: AltVMIsmType,
 ): IsmType {
-  const supportedTypes = [
+  const supportedTypes: AltVMIsmType[] = [
     AltVMIsmType.TEST_ISM,
     AltVMIsmType.MERKLE_ROOT_MULTISIG,
     AltVMIsmType.MESSAGE_ID_MULTISIG,
@@ -158,5 +158,7 @@ export function altVMIsmTypeToProviderSdkType(
     );
   }
 
-  return altVMType;
+  // After validation, we know altVMType is one of the supported types
+  // which map directly to IsmType string literals
+  return altVMType as IsmType;
 }
