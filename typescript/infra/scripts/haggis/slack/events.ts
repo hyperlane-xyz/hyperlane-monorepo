@@ -6,11 +6,6 @@ import type { App } from '@slack/bolt';
 
 import { executeClaudeQuery } from '../claude/executor.js';
 import { config, logger } from '../config.js';
-import {
-  buildContextPrompt,
-  extractGrafanaContext,
-  extractPagerDutyContext,
-} from '../context/pagerduty.js';
 
 import {
   formatError,
@@ -66,61 +61,17 @@ export function registerEventHandlers(app: App): void {
       return;
     }
 
-    // Get thread context for PagerDuty/Grafana info
-    let contextPrompt = '';
-    if (mentionEvent.thread_ts) {
-      try {
-        const replies = await client.conversations.replies({
-          channel: mentionEvent.channel,
-          ts: mentionEvent.thread_ts,
-        });
-
-        const messages = (replies.messages || []) as Array<{
-          text?: string;
-          attachments?: Array<{ text?: string }>;
-        }>;
-
-        // Try PagerDuty first, then Grafana
-        const pdContext = extractPagerDutyContext(messages);
-        if (pdContext.incidentUrl) {
-          contextPrompt = buildContextPrompt(pdContext);
-        } else {
-          const grafanaContext = extractGrafanaContext(messages);
-          if (grafanaContext.alertName) {
-            contextPrompt = `## Context from Thread
-
-**Grafana Alert:** ${grafanaContext.alertName}
-${grafanaContext.labels ? `**Labels:** ${JSON.stringify(grafanaContext.labels)}` : ''}
-
-Please investigate this alert using the available tools (Grafana, GCP logs, Hyperlane Explorer).
-
----
-
-`;
-          }
-        }
-      } catch (error) {
-        logger.warn({ error }, 'Failed to fetch thread context');
-      }
-    }
-
     // Stream Claude's response
     let buffer = '';
     let lastUpdate = Date.now();
     let hasResult = false;
 
     try {
-      for await (const msg of executeClaudeQuery(
-        threadTs,
-        userMessage,
-        contextPrompt,
-      )) {
+      for await (const msg of executeClaudeQuery(threadTs, userMessage)) {
         if (msg.type === 'thinking') {
           buffer += msg.content + '\n';
         } else if (msg.type === 'tool_call') {
           buffer += formatToolCall(msg.content) + '\n';
-        } else if (msg.type === 'tool_result') {
-          // Don't add tool results to buffer - too verbose
         }
 
         // Batch updates to avoid rate limits

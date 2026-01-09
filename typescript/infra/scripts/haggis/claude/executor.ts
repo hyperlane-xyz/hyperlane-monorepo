@@ -42,6 +42,8 @@ export async function* executeClaudeQuery(
         allowedTools: config.claude.allowedTools,
         maxTurns: config.claude.maxTurns,
         permissionMode: 'bypassPermissions',
+        // Load project settings to enable skill discovery from .claude/skills/
+        settingSources: ['project'],
       },
     })) {
       // Capture session ID on init
