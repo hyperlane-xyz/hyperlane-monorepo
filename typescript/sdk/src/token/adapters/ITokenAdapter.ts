@@ -77,12 +77,23 @@ export interface IMovableCollateralRouterAdapter<Tx> extends ITokenAdapter<Tx> {
   ): Promise<InterchainGasQuote[]>;
   getWrappedTokenAddress(): Promise<Address>;
 
+  /**
+   * Populates rebalance transaction(s).
+   * Returns an array of transactions: [approvalTx?, rebalanceTx]
+   * Approval tx is included only if current allowance for collateral fees is insufficient.
+   * @param domain - Destination domain
+   * @param amount - Amount to rebalance
+   * @param bridge - Bridge address
+   * @param quotes - Gas quotes from getRebalanceQuotes
+   * @param sender - Optional sender address for approval check
+   */
   populateRebalanceTx(
     domain: Domain,
     amount: Numberish,
     bridge: Address,
     quotes: InterchainGasQuote[],
-  ): Promise<Tx>;
+    sender?: Address,
+  ): Promise<Tx[]>;
 }
 
 export interface IHypTokenAdapter<Tx> extends ITokenAdapter<Tx> {
