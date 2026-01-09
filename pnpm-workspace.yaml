@@ -6,6 +6,7 @@ packages:
 
 catalog:
   '@anthropic-ai/claude-agent-sdk': ^0.2.1
+  '@anthropic-ai/sdk': ^0.71.0
   '@arbitrum/sdk': ^4.0.0
   '@aws-sdk/client-kms': ^3.577.0
   '@aws-sdk/client-s3': ^3.577.0

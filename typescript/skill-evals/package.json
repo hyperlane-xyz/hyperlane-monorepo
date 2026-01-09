@@ -1,0 +1,21 @@
+{
+  "name": "@hyperlane-xyz/skill-evals",
+  "description": "Evaluation framework for Claude Code skills",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "eval": "tsx src/run-evals.ts",
+    "eval:single": "tsx src/run-evals.ts --single"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "catalog:",
+    "@anthropic-ai/sdk": "catalog:",
+    "glob": "^10.3.10",
+    "p-limit": "^5.0.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "catalog:"
+  }
+}
