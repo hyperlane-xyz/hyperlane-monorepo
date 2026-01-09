@@ -11,6 +11,7 @@
     "@ethersproject/abi": "*",
     "@ethersproject/constants": "*",
     "@ethersproject/providers": "*",
+    "@hyperlane-xyz/aleo-sdk": "workspace:*",
     "@hyperlane-xyz/core": "workspace:*",
     "@hyperlane-xyz/cosmos-sdk": "workspace:*",
     "@hyperlane-xyz/deploy-sdk": "workspace:*",
