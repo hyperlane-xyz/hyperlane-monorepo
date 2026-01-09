@@ -4,7 +4,10 @@ import { type ChainMap, type Token } from '@hyperlane-xyz/sdk';
 import type { Address } from '@hyperlane-xyz/utils';
 import { toWei } from '@hyperlane-xyz/utils';
 
-import type { CollateralDeficitStrategyConfig } from '../config/types.js';
+import {
+  type CollateralDeficitStrategyConfig,
+  RebalancerStrategyOptions,
+} from '../config/types.js';
 import type {
   InflightContext,
   RawBalances,
@@ -25,6 +28,7 @@ import { BaseStrategy, type Delta } from './BaseStrategy.js';
  * 4. Positive simulated balance = potential surplus
  */
 export class CollateralDeficitStrategy extends BaseStrategy {
+  readonly name = RebalancerStrategyOptions.CollateralDeficit;
   private readonly config: CollateralDeficitStrategyConfig;
   protected readonly logger: Logger;
 
@@ -108,6 +112,20 @@ export class CollateralDeficitStrategy extends BaseStrategy {
       }
     }
 
+    this.logger.info(
+      {
+        surpluses: surpluses.map((s) => ({
+          chain: s.chain,
+          amount: s.amount.toString(),
+        })),
+        deficits: deficits.map((d) => ({
+          chain: d.chain,
+          amount: d.amount.toString(),
+        })),
+      },
+      'Balance categorization',
+    );
+
     return { surpluses, deficits };
   }
 
@@ -129,7 +147,9 @@ export class CollateralDeficitStrategy extends BaseStrategy {
 
   /**
    * Filter pending rebalances to only those using this strategy's configured bridges.
-   * A rebalance matches if its bridge is in the destination chain's configured bridges.
+   * A rebalance matches if:
+   * - Its bridge is in the origin chain's configured bridges, OR
+   * - It has no bridge (recovered from Explorer, can't verify - include to be safe)
    */
   private filterByConfiguredBridges(
     pendingRebalances?: RebalancingRoute[],
@@ -139,10 +159,16 @@ export class CollateralDeficitStrategy extends BaseStrategy {
     }
 
     return pendingRebalances.filter((rebalance) => {
+      // Include routes without bridge (recovered from Explorer, can't verify)
       if (!rebalance.bridge) {
-        return false;
+        this.logger.debug(
+          { origin: rebalance.origin, destination: rebalance.destination },
+          'Including pending rebalance without bridge (recovered intent)',
+        );
+        return true;
       }
-      const configuredBridges = this.bridges?.[rebalance.destination] ?? [];
+      // For routes with bridge, verify it's configured
+      const configuredBridges = this.bridges?.[rebalance.origin] ?? [];
       return configuredBridges.includes(rebalance.bridge);
     });
   }

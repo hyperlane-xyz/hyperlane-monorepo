@@ -176,7 +176,7 @@ describe('CollateralDeficitStrategy', () => {
           origin: chain2,
           destination: chain1,
           amount: 5_000_000n, // 5 USDC pending to chain1
-          bridge: BRIDGE1, // Matches chain1's bridge
+          bridge: BRIDGE2, // Matches chain2's bridge (origin)
         },
       ];
 
@@ -185,16 +185,17 @@ describe('CollateralDeficitStrategy', () => {
         pendingRebalances,
       );
 
-      // After simulation: chain1 = -10 + 5 = -5 USDC
+      // After simulation: chain1 = -10 + 5 = -5 USDC (destination increase)
       // Deficit = |-5| + 1000 = 1005 USDC
       expect(result.deficits).to.have.lengthOf(1);
       expect(result.deficits[0].chain).to.equal(chain1);
       expect(result.deficits[0].amount).to.equal(1_005_000_000n);
 
-      // chain2 after simulation: 20 - 5 = 15 USDC
+      // chain2 after simulation: 20 USDC (no change - origin already deducted on-chain)
+      // Simulation only adds to destination, doesn't subtract from origin
       expect(result.surpluses).to.have.lengthOf(1);
       expect(result.surpluses[0].chain).to.equal(chain2);
-      expect(result.surpluses[0].amount).to.equal(15_000_000n);
+      expect(result.surpluses[0].amount).to.equal(20_000_000n);
     });
 
     it('should filter out pending rebalances with different bridge', () => {
@@ -269,7 +270,7 @@ describe('CollateralDeficitStrategy', () => {
           origin: chain2,
           destination: chain1,
           amount: 10_000_000n, // 10 USDC pending - more than enough
-          bridge: BRIDGE1,
+          bridge: BRIDGE2, // Matches chain2's bridge (origin)
         },
       ];
 
@@ -439,7 +440,7 @@ describe('CollateralDeficitStrategy', () => {
   });
 
   describe('filterByConfiguredBridges', () => {
-    it('should filter rebalances by configured bridges', () => {
+    it('should filter rebalances by origin chain configured bridges', () => {
       const bridges: ChainMap<Address[]> = {
         [chain1]: [BRIDGE1],
         [chain2]: [BRIDGE2],
@@ -461,26 +462,96 @@ describe('CollateralDeficitStrategy', () => {
           origin: chain2,
           destination: chain1,
           amount: 5_000_000n,
-          bridge: BRIDGE1, // Matches chain1
+          bridge: BRIDGE2, // Matches chain2 (origin) → INCLUDED
         },
         {
           origin: chain1,
           destination: chain2,
           amount: 3_000_000n,
-          bridge: OTHER_BRIDGE, // Does NOT match
+          bridge: OTHER_BRIDGE, // Does NOT match chain1 (origin) → EXCLUDED
         },
         {
           origin: chain2,
           destination: chain1,
           amount: 2_000_000n,
-          bridge: undefined, // No bridge specified
+          bridge: undefined, // No bridge specified → INCLUDED
         },
       ];
 
       const filtered = strategy['filterByConfiguredBridges'](pendingRebalances);
 
+      // Should include: BRIDGE2 matches origin (chain2) + undefined bridge (recovered intent)
+      // Should exclude: OTHER_BRIDGE (doesn't match origin chain1's configured bridges)
+      expect(filtered).to.have.lengthOf(2);
+      expect(filtered[0].bridge).to.equal(BRIDGE2);
+      expect(filtered[1].bridge).to.be.undefined;
+    });
+
+    it('should include rebalance when bridge matches origin, not destination', () => {
+      // This test verifies the fix: we check ORIGIN bridges, not DESTINATION bridges
+      const bridges: ChainMap<Address[]> = {
+        [chain1]: [BRIDGE1],
+        [chain2]: [BRIDGE2],
+      };
+
+      const strategy = new CollateralDeficitStrategy(
+        {
+          [chain1]: { bridge: BRIDGE1, buffer: '1000' },
+          [chain2]: { bridge: BRIDGE2, buffer: '500' },
+        },
+        tokensByChainName,
+        testLogger,
+        undefined,
+        bridges,
+      );
+
+      // Route from chain2 → chain1 with chain2's bridge (origin bridge)
+      // This should be INCLUDED because bridge matches origin's configured bridges
+      const pendingRebalances: RebalancingRoute[] = [
+        {
+          origin: chain2,
+          destination: chain1,
+          amount: 5_000_000n,
+          bridge: BRIDGE2, // chain2's bridge (origin)
+        },
+      ];
+
+      const filtered = strategy['filterByConfiguredBridges'](pendingRebalances);
       expect(filtered).to.have.lengthOf(1);
-      expect(filtered[0].bridge).to.equal(BRIDGE1);
+      expect(filtered[0].bridge).to.equal(BRIDGE2);
+    });
+
+    it('should exclude rebalance when bridge matches destination but not origin', () => {
+      // This test verifies we do NOT match by destination
+      const bridges: ChainMap<Address[]> = {
+        [chain1]: [BRIDGE1],
+        [chain2]: [BRIDGE2],
+      };
+
+      const strategy = new CollateralDeficitStrategy(
+        {
+          [chain1]: { bridge: BRIDGE1, buffer: '1000' },
+          [chain2]: { bridge: BRIDGE2, buffer: '500' },
+        },
+        tokensByChainName,
+        testLogger,
+        undefined,
+        bridges,
+      );
+
+      // Route from chain2 → chain1 with chain1's bridge (destination bridge)
+      // This should be EXCLUDED because bridge doesn't match origin's (chain2's) bridges
+      const pendingRebalances: RebalancingRoute[] = [
+        {
+          origin: chain2,
+          destination: chain1,
+          amount: 5_000_000n,
+          bridge: BRIDGE1, // chain1's bridge (destination, NOT origin)
+        },
+      ];
+
+      const filtered = strategy['filterByConfiguredBridges'](pendingRebalances);
+      expect(filtered).to.have.lengthOf(0);
     });
 
     it('should return empty array for undefined pending rebalances', () => {
