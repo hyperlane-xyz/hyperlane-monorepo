@@ -3,6 +3,7 @@ import { z } from 'zod';
 export enum RebalancerStrategyOptions {
   Weighted = 'weighted',
   MinAmount = 'minAmount',
+  CollateralDeficit = 'collateralDeficit',
 }
 
 // Weighted strategy config schema
@@ -36,6 +37,7 @@ const RebalancerBridgeConfigSchema = z.object({
     .number()
     .positive()
     .transform((val) => val * 1_000)
+    .optional()
     .describe('Expected time in seconds for bridge to process a transfer'),
   bridgeIsWarp: z
     .boolean()
@@ -59,6 +61,11 @@ const MinAmountChainConfigSchema = RebalancerBaseChainConfigSchema.extend({
   minAmount: RebalancerMinAmountConfigSchema,
 });
 
+const CollateralDeficitChainConfigSchema =
+  RebalancerBaseChainConfigSchema.extend({
+    buffer: z.string().or(z.number()),
+  });
+
 const WeightedStrategySchema = z.object({
   rebalanceStrategy: z.literal(RebalancerStrategyOptions.Weighted),
   chains: z.record(z.string(), WeightedChainConfigSchema),
@@ -69,15 +76,26 @@ const MinAmountStrategySchema = z.object({
   chains: z.record(z.string(), MinAmountChainConfigSchema),
 });
 
+const CollateralDeficitStrategySchema = z.object({
+  rebalanceStrategy: z.literal(RebalancerStrategyOptions.CollateralDeficit),
+  chains: z.record(z.string(), CollateralDeficitChainConfigSchema),
+});
+
 export type WeightedStrategy = z.infer<typeof WeightedStrategySchema>;
 export type MinAmountStrategy = z.infer<typeof MinAmountStrategySchema>;
+export type CollateralDeficitStrategy = z.infer<
+  typeof CollateralDeficitStrategySchema
+>;
 
 export type WeightedStrategyConfig = WeightedStrategy['chains'];
 export type MinAmountStrategyConfig = MinAmountStrategy['chains'];
+export type CollateralDeficitStrategyConfig =
+  CollateralDeficitStrategy['chains'];
 
 export const StrategyConfigSchema = z.discriminatedUnion('rebalanceStrategy', [
   WeightedStrategySchema,
   MinAmountStrategySchema,
+  CollateralDeficitStrategySchema,
 ]);
 
 export const RebalancerConfigSchema = z
@@ -148,6 +166,9 @@ export type RebalancerWeightedChainConfig = z.infer<
 >;
 export type RebalancerMinAmountChainConfig = z.infer<
   typeof RebalancerMinAmountConfigSchema
+>;
+export type CollateralDeficitChainConfig = z.infer<
+  typeof CollateralDeficitChainConfigSchema
 >;
 
 export type StrategyConfig = z.infer<typeof StrategyConfigSchema>;

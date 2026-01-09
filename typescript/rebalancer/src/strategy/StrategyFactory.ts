@@ -9,6 +9,7 @@ import {
 import { type IStrategy } from '../interfaces/IStrategy.js';
 import { type Metrics } from '../metrics/Metrics.js';
 
+import { CollateralDeficitStrategy } from './CollateralDeficitStrategy.js';
 import { MinAmountStrategy } from './MinAmountStrategy.js';
 import { WeightedStrategy } from './WeightedStrategy.js';
 
@@ -39,6 +40,20 @@ export class StrategyFactory {
           logger,
           metrics,
         );
+      case RebalancerStrategyOptions.CollateralDeficit: {
+        // Extract bridges from config into ChainMap<Address[]> format
+        const bridges: ChainMap<string[]> = {};
+        for (const [chain, config] of Object.entries(strategyConfig.chains)) {
+          bridges[chain] = [config.bridge];
+        }
+        return new CollateralDeficitStrategy(
+          strategyConfig.chains,
+          tokensByChainName,
+          logger,
+          metrics,
+          bridges,
+        );
+      }
       default: {
         throw new Error('Unsupported strategy type');
       }
