@@ -47,6 +47,7 @@ export interface Transfer extends TrackedActionBase {
 export interface RebalanceIntent extends TrackedActionBase {
   status: RebalanceIntentStatus;
   fulfilledAmount: bigint;
+  bridge?: Address; // Optional - bridge contract used (missing for recovered intents)
   priority?: number; // Optional - missing for recovered intents
   strategyType?: string; // Optional - missing for recovered intents
 }
