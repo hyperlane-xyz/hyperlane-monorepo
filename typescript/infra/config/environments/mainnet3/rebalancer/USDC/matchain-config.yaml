@@ -5,7 +5,7 @@ strategy:
   chains:
     ethereum:
       weighted:
-        weight: 40
+        weight: 100
         tolerance: 5 # 5% deviation tolerance
       bridgeLockTime: 1800 # 30 mins in seconds (required for CCTP latency)
       bridgeMinAcceptedAmount: 3000
@@ -13,7 +13,7 @@ strategy:
 
     base:
       weighted:
-        weight: 60
+        weight: 100
         tolerance: 5 # 5% deviation tolerance
       bridgeLockTime: 1800 # 30 mins in seconds (required for CCTP latency)
       bridgeMinAcceptedAmount: 3000

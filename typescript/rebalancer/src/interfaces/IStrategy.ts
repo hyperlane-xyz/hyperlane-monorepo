@@ -16,6 +16,7 @@ export type InflightContext = {
 };
 
 export interface IStrategy {
+  readonly name: string;
   getRebalancingRoutes(
     rawBalances: RawBalances,
     inflightContext?: InflightContext,
