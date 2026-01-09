@@ -71,32 +71,15 @@ export class CosmosIsmArtifactManager implements IRawIsmArtifactManager {
    */
   async readIsm(address: string): Promise<DeployedRawIsmArtifact> {
     const query = await this.getQuery();
-
-    // Detect ISM type
     const altVMType = await getIsmType(query, address);
-
-    // Convert to provider-sdk type and read with appropriate reader
-    // Each case returns the correct type to satisfy the union
-    switch (altVMType) {
-      case AltVM.IsmType.TEST_ISM: {
-        const reader = new CosmosTestIsmReader(query);
-        return reader.read(address);
-      }
-      case AltVM.IsmType.MERKLE_ROOT_MULTISIG: {
-        const reader = new CosmosMerkleRootMultisigIsmReader(query);
-        return reader.read(address);
-      }
-      case AltVM.IsmType.MESSAGE_ID_MULTISIG: {
-        const reader = new CosmosMessageIdMultisigIsmReader(query);
-        return reader.read(address);
-      }
-      case AltVM.IsmType.ROUTING: {
-        const reader = new CosmosRoutingIsmRawReader(query);
-        return reader.read(address);
-      }
-      default:
-        throw new Error(`Unsupported ISM type: ${altVMType}`);
-    }
+    // Type assertion needed because getIsmType returns IsmType (union),
+    // but createReaderWithQuery expects a specific type T extends IsmType.
+    // The reader will return the correct artifact type at runtime.
+    const reader = this.createReaderWithQuery(
+      altVMType as keyof RawIsmArtifactConfigs,
+      query,
+    );
+    return reader.read(address);
   }
 
   /**
