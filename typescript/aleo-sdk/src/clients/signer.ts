@@ -676,13 +676,15 @@ export class AleoSigner
   async createNativeToken(
     req: Omit<AltVM.ReqCreateNativeToken, 'signer'>,
   ): Promise<AltVM.ResCreateNativeToken> {
-    if (this.warpSuffix) {
+    const suffix = req.warpSuffix || this.warpSuffix;
+
+    if (suffix) {
       const isAlreadyDeployed = await this.isProgramDeployed(
-        `${this.prefix}_native_${this.warpSuffix}.aleo`,
+        `${this.prefix}_native_${suffix}.aleo`,
       );
       if (isAlreadyDeployed) {
         throw new Error(
-          `Warp route with suffix ${this.warpSuffix} already deployed, please choose another suffix`,
+          `Warp route with suffix ${suffix} already deployed, please choose another suffix`,
         );
       }
     }
@@ -720,13 +722,15 @@ export class AleoSigner
   async createCollateralToken(
     req: Omit<AltVM.ReqCreateCollateralToken, 'signer'>,
   ): Promise<AltVM.ResCreateCollateralToken> {
-    if (this.warpSuffix) {
+    const suffix = req.warpSuffix || this.warpSuffix;
+
+    if (suffix) {
       const isAlreadyDeployed = await this.isProgramDeployed(
-        `${this.prefix}_collateral_${this.warpSuffix}.aleo`,
+        `${this.prefix}_collateral_${suffix}.aleo`,
       );
       if (isAlreadyDeployed) {
         throw new Error(
-          `Warp route with suffix ${this.warpSuffix} already deployed, please choose another suffix`,
+          `Warp route with suffix ${suffix} already deployed, please choose another suffix`,
         );
       }
     }
@@ -764,13 +768,15 @@ export class AleoSigner
   async createSyntheticToken(
     req: Omit<AltVM.ReqCreateSyntheticToken, 'signer'>,
   ): Promise<AltVM.ResCreateSyntheticToken> {
-    if (this.warpSuffix) {
+    const suffix = req.warpSuffix || this.warpSuffix;
+
+    if (suffix) {
       const isAlreadyDeployed = await this.isProgramDeployed(
-        `${this.prefix}_synthetic_${this.warpSuffix}.aleo`,
+        `${this.prefix}_synthetic_${suffix}.aleo`,
       );
       if (isAlreadyDeployed) {
         throw new Error(
-          `Warp route with suffix ${this.warpSuffix} already deployed, please choose another suffix`,
+          `Warp route with suffix ${suffix} already deployed, please choose another suffix`,
         );
       }
     }

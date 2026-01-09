@@ -20,7 +20,7 @@ const STARKNET_ADDRESS_REGEX = /^(0x)?[0-9a-fA-F]{64}$/;
 const RADIX_ADDRESS_REGEX =
   /^(account|component)_(rdx|loc|sim|tdx_[\d]_)[a-z0-9]{55}$/;
 const ALEO_ADDRESS_REGEX =
-  /^([A-Za-z0-9_]+\.aleo\/aleo1[a-z0-9]{58}|aleo1[a-z0-9]{58})$/;
+  /^([a-z0-9_]+\.aleo\/aleo1[a-z0-9]{58}|aleo1[a-z0-9]{58})$/;
 
 const HEX_BYTES32_REGEX = /^0x[a-fA-F0-9]{64}$/;
 
@@ -48,7 +48,7 @@ const COSMOS_NATIVE_ZEROISH_ADDRESS_REGEX = /^(0x)?0*$/;
 const STARKNET_ZEROISH_ADDRESS_REGEX = /^(0x)?0*$/;
 const RADIX_ZEROISH_ADDRESS_REGEX = /^0*$/;
 const ALEO_ZEROISH_ADDRESS_REGEX =
-  /^[A-Za-z0-9_]+\.aleo\/aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc$/;
+  /^[a-z0-9_]+\.aleo\/aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc$/;
 
 export const ZERO_ADDRESS_HEX_32 =
   '0x0000000000000000000000000000000000000000000000000000000000000000';

@@ -106,7 +106,7 @@ export function loadProgramsInDeployOrder(
           ),
         ),
       );
-    } else if (new RegExp(/^[A-Za-z0-9_]+\.aleo$/).test(upgradeAuthority)) {
+    } else if (new RegExp(/^[a-z0-9_]+\.aleo$/).test(upgradeAuthority)) {
       programs = programs.map((p) =>
         Program.fromString(
           `import ${upgradeAuthority};\n` +
