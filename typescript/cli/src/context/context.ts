@@ -163,6 +163,7 @@ export async function getContext({
     ProtocolType.Ethereum,
     ProtocolType.CosmosNative,
     ProtocolType.Radix,
+    ProtocolType.Aleo,
   ];
 
   return {

@@ -21,6 +21,7 @@ import {
 } from '../../../src/config/agent/relayer.js';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
+import { DockerImageRepos, testnetDockerTags } from '../../docker.js';
 import { getDomainId } from '../../registry.js';
 
 import { environment, ethereumChainNames } from './chains.js';
@@ -34,8 +35,6 @@ import { validatorChainConfig } from './validators.js';
 const releaseCandidateHelloworldMatchingList = routerMatchingList(
   helloWorld[Contexts.ReleaseCandidate].addresses,
 );
-
-const repo = 'gcr.io/abacus-labs-dev/hyperlane-agent';
 
 // The chains here must be consistent with the environment's supportedChainNames, which is
 // checked / enforced at runtime & in the CI pipeline.
@@ -345,8 +344,8 @@ const hyperlane: RootAgentConfig = {
   relayer: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
-      repo,
-      tag: 'cd94774-20251217-100437',
+      repo: DockerImageRepos.AGENT,
+      tag: testnetDockerTags.relayer,
     },
     blacklist: [...releaseCandidateHelloworldMatchingList, ...relayBlacklist],
     gasPaymentEnforcement,
@@ -366,8 +365,8 @@ const hyperlane: RootAgentConfig = {
   validators: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
-      repo,
-      tag: 'cd94774-20251217-100437',
+      repo: DockerImageRepos.AGENT,
+      tag: testnetDockerTags.validator,
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
     resources: validatorResources,
@@ -375,8 +374,8 @@ const hyperlane: RootAgentConfig = {
   scraper: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
-      repo,
-      tag: 'f50feaa-20251219-084739',
+      repo: DockerImageRepos.AGENT,
+      tag: testnetDockerTags.scraper,
     },
     resources: scraperResources,
   },
@@ -390,8 +389,8 @@ const releaseCandidate: RootAgentConfig = {
   relayer: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
-      repo,
-      tag: 'cd94774-20251217-100437',
+      repo: DockerImageRepos.AGENT,
+      tag: testnetDockerTags.relayerRC,
     },
     blacklist: relayBlacklist,
     gasPaymentEnforcement,
@@ -411,8 +410,8 @@ const releaseCandidate: RootAgentConfig = {
   validators: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
-      repo,
-      tag: 'cd94774-20251217-100437',
+      repo: DockerImageRepos.AGENT,
+      tag: testnetDockerTags.validatorRC,
     },
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
     resources: validatorResources,
@@ -438,8 +437,8 @@ const neutron: RootAgentConfig = {
   relayer: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
-      repo,
-      tag: 'cd94774-20251217-100437',
+      repo: DockerImageRepos.AGENT,
+      tag: testnetDockerTags.relayerRC,
     },
     blacklist: relayBlacklist,
     gasPaymentEnforcement,
@@ -459,8 +458,8 @@ const neutron: RootAgentConfig = {
   validators: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
-      repo,
-      tag: 'cd94774-20251217-100437',
+      repo: DockerImageRepos.AGENT,
+      tag: testnetDockerTags.validatorRC,
     },
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
     resources: validatorResources,
