@@ -17,6 +17,7 @@ export type Delta = { chain: ChainName; amount: bigint };
  * Base abstract class for rebalancing strategies
  */
 export abstract class BaseStrategy implements IStrategy {
+  abstract readonly name: string;
   protected readonly chains: ChainName[];
   protected readonly metrics?: Metrics;
   protected readonly logger: Logger;
@@ -45,23 +46,22 @@ export abstract class BaseStrategy implements IStrategy {
     rawBalances: RawBalances,
     inflightContext?: InflightContext,
   ): RebalancingRoute[] {
-    this.logger.info(
-      {
-        context: this.constructor.name,
-        rawBalances,
-      },
-      'Input rawBalances',
-    );
-    this.logger.info(
-      {
-        context: this.constructor.name,
-      },
-      'Calculating rebalancing routes',
-    );
-    this.validateRawBalances(rawBalances);
-
     const pendingRebalances = inflightContext?.pendingRebalances ?? [];
     const pendingTransfers = inflightContext?.pendingTransfers ?? [];
+
+    this.logger.info(
+      {
+        strategy: this.name,
+        balances: Object.entries(rawBalances).map(([c, b]) => ({
+          chain: c,
+          balance: b.toString(),
+        })),
+        pendingRebalances: pendingRebalances.length,
+        pendingTransfers: pendingTransfers.length,
+      },
+      'Strategy evaluating',
+    );
+    this.validateRawBalances(rawBalances);
 
     // Store original balances for filtering step
     const actualBalances = rawBalances;
@@ -166,24 +166,27 @@ export abstract class BaseStrategy implements IStrategy {
       const transferAmount =
         surplus.amount > deficit.amount ? deficit.amount : surplus.amount;
 
-      // Creates the balancing route
-      routes.push({
-        origin: surplus.chain,
-        destination: deficit.chain,
-        amount: transferAmount,
-      });
+      // Skip zero-amount routes (can occur after scaling when surpluses < deficits)
+      if (transferAmount > 0n) {
+        // Creates the balancing route
+        routes.push({
+          origin: surplus.chain,
+          destination: deficit.chain,
+          amount: transferAmount,
+        });
+      }
 
       // Decreases the amounts for the following iterations
       deficit.amount -= transferAmount;
       surplus.amount -= transferAmount;
 
-      // Removes the deficit if it is fully balanced
-      if (!deficit.amount) {
+      // Removes the deficit if it is fully balanced (including scaled-to-zero)
+      if (deficit.amount <= 0n) {
         deficits.shift();
       }
 
       // Removes the surplus if it has been drained
-      if (!surplus.amount) {
+      if (surplus.amount <= 0n) {
         surpluses.shift();
       }
     }
@@ -270,6 +273,10 @@ export abstract class BaseStrategy implements IStrategy {
     rawBalances: RawBalances,
     pendingTransfers: RebalancingRoute[],
   ): RawBalances {
+    if (pendingTransfers.length === 0) {
+      return rawBalances;
+    }
+
     const reserved = { ...rawBalances };
 
     for (const transfer of pendingTransfers) {
@@ -289,49 +296,66 @@ export abstract class BaseStrategy implements IStrategy {
       );
     }
 
+    this.logger.info(
+      {
+        reservations: pendingTransfers.map((t) => ({
+          destination: t.destination,
+          amount: t.amount.toString(),
+        })),
+      },
+      'Collateral reserved for pending transfers',
+    );
+
     return reserved;
   }
 
   /**
-   * Simulate pending rebalances by applying their effects to balances.
-   * Subtracts from origin, adds to destination.
+   * Simulate pending rebalances by adding to destination balances.
    *
-   * NOTE: This method is optional. Concrete strategies decide whether to invoke it.
-   * Per design: "simulatePendingRebalances is likely not the path we want to take"
-   * but we keep it available for strategies that need it.
+   * Only adds to destination - does NOT subtract from origin because:
+   * - pendingRebalances only contains in_progress intents (origin tx confirmed)
+   * - Origin balance is already deducted on-chain
    *
    * @param rawBalances - Current balances (may already have collateral reserved)
-   * @param pendingRebalances - In-flight rebalance operations
+   * @param pendingRebalances - In-flight rebalance operations (in_progress only)
    * @returns Simulated future balances after rebalances complete
    */
   protected simulatePendingRebalances(
     rawBalances: RawBalances,
     pendingRebalances: RebalancingRoute[],
   ): RawBalances {
+    if (pendingRebalances.length === 0) {
+      return rawBalances;
+    }
+
     const simulated = { ...rawBalances };
 
     for (const rebalance of pendingRebalances) {
-      // Subtract from origin
-      const originBalance = simulated[rebalance.origin] ?? 0n;
-      simulated[rebalance.origin] =
-        originBalance > rebalance.amount
-          ? originBalance - rebalance.amount
-          : 0n;
-
-      // Add to destination
+      // Only add to destination - origin is already deducted on-chain
+      // (pendingRebalances only contains in_progress intents with confirmed origin tx)
       simulated[rebalance.destination] =
         (simulated[rebalance.destination] ?? 0n) + rebalance.amount;
 
       this.logger.debug(
         {
           context: this.constructor.name,
-          origin: rebalance.origin,
           destination: rebalance.destination,
           amount: rebalance.amount.toString(),
         },
-        'Simulated pending rebalance',
+        'Simulated pending rebalance (destination increase)',
       );
     }
+
+    this.logger.info(
+      {
+        simulations: pendingRebalances.map((r) => ({
+          from: r.origin,
+          to: r.destination,
+          amount: r.amount.toString(),
+        })),
+      },
+      'Simulated pending rebalances',
+    );
 
     return simulated;
   }
