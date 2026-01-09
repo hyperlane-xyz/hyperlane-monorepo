@@ -22,7 +22,7 @@ pnpm-debug.log*
 .idea
 
 # === Additional exclusions for smaller Docker context ===
-.git/
+# Note: .git/ is NOT excluded because rust/Dockerfile needs it for vergen build-time info
 .github/
 .changeset/
 .vscode/
