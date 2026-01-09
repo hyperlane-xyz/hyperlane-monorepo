@@ -50,7 +50,6 @@ export abstract class BaseStrategy implements IStrategy {
     const pendingTransfers = inflightContext?.pendingTransfers ?? [];
     const proposedRebalances = inflightContext?.proposedRebalances ?? [];
 
-
     this.logger.info(
       {
         strategy: this.name,
@@ -210,6 +209,11 @@ export abstract class BaseStrategy implements IStrategy {
       'Found rebalancing routes',
     );
 
+    // Record metrics for each intent created
+    for (const route of routes) {
+      this.metrics?.recordIntentCreated(route, this.name);
+    }
+
     // Filter routes based on actual balance sufficiency
     const filteredRoutes = this.filterRebalances(routes, actualBalances);
 
@@ -282,7 +286,6 @@ export abstract class BaseStrategy implements IStrategy {
     if (pendingTransfers.length === 0) {
       return rawBalances;
     }
-
 
     const reserved = { ...rawBalances };
 
