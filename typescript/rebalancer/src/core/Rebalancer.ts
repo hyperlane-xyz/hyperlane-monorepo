@@ -1,4 +1,4 @@
-import { BigNumber, type PopulatedTransaction, type providers } from 'ethers';
+import { type PopulatedTransaction, type providers } from 'ethers';
 import { type Logger } from 'pino';
 
 import {
@@ -356,24 +356,17 @@ export class Rebalancer implements IRebalancer {
 
     const results: RebalanceExecutionResult[] = [];
 
-    // 1. Estimate gas for all transactions in each PreparedTransaction
+    // 1. Estimate gas for rebalance transactions only (skipping approvals)
     const gasEstimateResults = await Promise.allSettled(
       transactions.map(async (transaction) => {
-        // Estimate gas for each tx in the array (approval + rebalance)
-        // Skip gas estimation for approval txs (they're simple and predictable)
-        // This avoids issues with USDC-style tokens where gas estimation of
-        // the approve tx fails because the revoke tx hasn't been executed yet
-        for (let i = 0; i < transaction.populatedTxs.length; i++) {
-          const tx = transaction.populatedTxs[i];
-          const isApprovalTx = i < transaction.populatedTxs.length - 1;
-
-          if (isApprovalTx) {
-            // Set a fixed gas limit for approval txs (50k is plenty)
-            tx.gasLimit = BigNumber.from(50000);
-          } else {
-            await this.multiProvider.estimateGas(transaction.route.origin, tx);
-          }
-        }
+        // TEMPORARY: Only estimate gas for the rebalance tx (last one)
+        // Approvals are skipped since we're not using fast bridges
+        const rebalanceTx =
+          transaction.populatedTxs[transaction.populatedTxs.length - 1];
+        await this.multiProvider.estimateGas(
+          transaction.route.origin,
+          rebalanceTx,
+        );
         return transaction;
       }),
     );
@@ -424,43 +417,39 @@ export class Rebalancer implements IRebalancer {
 
         let rebalanceReceipt: providers.TransactionReceipt | undefined;
 
-        // Execute all transactions sequentially (approval first, then rebalance)
-        for (let i = 0; i < transaction.populatedTxs.length; i++) {
-          const tx = transaction.populatedTxs[i];
-          const isApprovalTx = i < transaction.populatedTxs.length - 1;
+        // TEMPORARY: Skip approval transactions, only execute the rebalance tx
+        // Approvals are not needed when not using fast bridges
+        const rebalanceTx =
+          transaction.populatedTxs[transaction.populatedTxs.length - 1];
 
-          this.logger.info(
-            {
-              origin,
-              destination,
-              amount: decimalFormattedAmount,
-              tokenName,
-              txType: isApprovalTx ? 'approval' : 'rebalance',
-              txIndex: i + 1,
-              totalTxs: transaction.populatedTxs.length,
-            },
-            `Sending ${isApprovalTx ? 'approval' : 'rebalance'} transaction for route.`,
-          );
+        this.logger.info(
+          {
+            origin,
+            destination,
+            amount: decimalFormattedAmount,
+            tokenName,
+            txType: 'rebalance',
+            skippedApprovals: transaction.populatedTxs.length - 1,
+          },
+          'Sending rebalance transaction for route (skipping approvals).',
+        );
 
-          const receipt = await this.multiProvider.sendTransaction(origin, tx);
+        rebalanceReceipt = await this.multiProvider.sendTransaction(
+          origin,
+          rebalanceTx,
+        );
 
-          this.logger.info(
-            {
-              origin,
-              destination,
-              amount: decimalFormattedAmount,
-              tokenName,
-              txHash: receipt.transactionHash,
-              txType: isApprovalTx ? 'approval' : 'rebalance',
-            },
-            `${isApprovalTx ? 'Approval' : 'Rebalance'} transaction confirmed for route.`,
-          );
-
-          // Keep track of the rebalance (last) transaction receipt
-          if (!isApprovalTx) {
-            rebalanceReceipt = receipt;
-          }
-        }
+        this.logger.info(
+          {
+            origin,
+            destination,
+            amount: decimalFormattedAmount,
+            tokenName,
+            txHash: rebalanceReceipt.transactionHash,
+            txType: 'rebalance',
+          },
+          'Rebalance transaction confirmed for route.',
+        );
 
         // Extract messageId from the rebalance transaction receipt
         let messageId: string | undefined;
