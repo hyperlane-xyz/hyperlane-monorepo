@@ -145,18 +145,18 @@ export function ismOnChainAddress(
 export function altVMIsmTypeToProviderSdkType(
   altVMType: AltVMIsmType,
 ): IsmType {
-  switch (altVMType) {
-    case AltVMIsmType.TEST_ISM:
-      return AltVMIsmType.TEST_ISM;
-    case AltVMIsmType.MERKLE_ROOT_MULTISIG:
-      return AltVMIsmType.MERKLE_ROOT_MULTISIG;
-    case AltVMIsmType.MESSAGE_ID_MULTISIG:
-      return AltVMIsmType.MESSAGE_ID_MULTISIG;
-    case AltVMIsmType.ROUTING:
-      return AltVMIsmType.ROUTING;
-    default:
-      throw new Error(
-        `Unsupported ISM type: AltVM ISM type ${altVMType} is not supported by the provider sdk`,
-      );
+  const supportedTypes = [
+    AltVMIsmType.TEST_ISM,
+    AltVMIsmType.MERKLE_ROOT_MULTISIG,
+    AltVMIsmType.MESSAGE_ID_MULTISIG,
+    AltVMIsmType.ROUTING,
+  ];
+
+  if (!supportedTypes.includes(altVMType)) {
+    throw new Error(
+      `Unsupported ISM type: AltVM ISM type ${altVMType} is not supported by the provider sdk`,
+    );
   }
+
+  return altVMType;
 }
