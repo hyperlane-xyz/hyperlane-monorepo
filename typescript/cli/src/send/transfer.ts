@@ -35,6 +35,7 @@ export async function sendTestTransfer({
   timeoutSec,
   skipWaitForDelivery,
   selfRelay,
+  skipValidation,
 }: {
   context: WriteCommandContext;
   warpCoreConfig: WarpCoreConfig;
@@ -44,6 +45,7 @@ export async function sendTestTransfer({
   timeoutSec: number;
   skipWaitForDelivery: boolean;
   selfRelay?: boolean;
+  skipValidation?: boolean;
 }) {
   await runPreflightChecksForChains({
     context,
@@ -67,6 +69,7 @@ export async function sendTestTransfer({
           recipient,
           skipWaitForDelivery,
           selfRelay,
+          skipValidation,
         }),
         timeoutSec * 1000,
         'Timed out waiting for messages to be delivered',
@@ -84,6 +87,7 @@ async function executeDelivery({
   recipient,
   skipWaitForDelivery,
   selfRelay,
+  skipValidation,
 }: {
   context: WriteCommandContext;
   origin: ChainName;
@@ -93,6 +97,7 @@ async function executeDelivery({
   recipient?: string;
   skipWaitForDelivery: boolean;
   selfRelay?: boolean;
+  skipValidation?: boolean;
 }) {
   const { multiProvider, registry } = context;
 
@@ -126,15 +131,17 @@ async function executeDelivery({
     token = warpCore.findToken(origin, routerAddress)!;
   }
 
-  const errors = await warpCore.validateTransfer({
-    originTokenAmount: token.amount(amount),
-    destination,
-    recipient,
-    sender: signerAddress,
-  });
-  if (errors) {
-    logRed('Error validating transfer', JSON.stringify(errors));
-    throw new Error('Error validating transfer');
+  if (!skipValidation) {
+    const errors = await warpCore.validateTransfer({
+      originTokenAmount: token.amount(amount),
+      destination,
+      recipient,
+      sender: signerAddress,
+    });
+    if (errors) {
+      logRed('Error validating transfer', JSON.stringify(errors));
+      throw new Error('Error validating transfer');
+    }
   }
 
   // TODO: override hook address for self-relay

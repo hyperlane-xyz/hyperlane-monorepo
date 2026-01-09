@@ -264,6 +264,7 @@ const send: CommandModuleWithWriteContext<
       amount: string;
       recipient?: string;
       chains?: string;
+      skipValidation?: boolean;
     }
 > = {
   command: 'send',
@@ -286,6 +287,11 @@ const send: CommandModuleWithWriteContext<
       demandOption: false,
       conflicts: ['origin', 'destination'],
     },
+    'skip-validation': {
+      type: 'boolean',
+      description: 'Skip transfer validation (e.g., collateral checks)',
+      default: false,
+    },
   },
   handler: async ({
     context,
@@ -300,6 +306,7 @@ const send: CommandModuleWithWriteContext<
     recipient,
     roundTrip,
     chains: chainsAsString,
+    skipValidation,
   }) => {
     const warpCoreConfig = await getWarpCoreConfigOrExit({
       symbol,
@@ -351,6 +358,7 @@ const send: CommandModuleWithWriteContext<
       timeoutSec: timeout,
       skipWaitForDelivery: quick,
       selfRelay: relay,
+      skipValidation,
     });
     logGreen(
       `✅ Successfully sent messages for chains: ${chains.join(' ➡️ ')}`,
