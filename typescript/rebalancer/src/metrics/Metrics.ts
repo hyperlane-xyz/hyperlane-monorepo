@@ -25,8 +25,10 @@ import { formatBigInt, tryFn } from '../utils/index.js';
 import { type PriceGetter } from './PriceGetter.js';
 import {
   metricsRegister,
+  rebalancerActionsCreatedTotal,
   rebalancerExecutionAmount,
   rebalancerExecutionTotal,
+  rebalancerIntentsCreatedTotal,
   rebalancerPollingErrorsTotal,
   updateManagedLockboxBalanceMetrics,
   updateNativeWalletBalanceMetrics,
@@ -88,6 +90,28 @@ export class Metrics implements IMetrics {
   recordPollingError() {
     rebalancerPollingErrorsTotal
       .labels({ warp_route_id: this.warpRouteId })
+      .inc();
+  }
+
+  recordIntentCreated(route: RebalancingRoute, strategy: string) {
+    rebalancerIntentsCreatedTotal
+      .labels({
+        warp_route_id: this.warpRouteId,
+        strategy,
+        origin: route.origin,
+        destination: route.destination,
+      })
+      .inc();
+  }
+
+  recordActionAttempt(route: RebalancingRoute, succeeded: boolean) {
+    rebalancerActionsCreatedTotal
+      .labels({
+        warp_route_id: this.warpRouteId,
+        origin: route.origin,
+        destination: route.destination,
+        succeeded: String(succeeded),
+      })
       .inc();
   }
 
