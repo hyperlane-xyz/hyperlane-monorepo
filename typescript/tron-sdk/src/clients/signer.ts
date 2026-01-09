@@ -36,7 +36,7 @@ export class TronSigner
   }
 
   getSignerAddress(): string {
-    throw new Error(`not implemented`);
+    return this.tronweb.defaultAddress.base58 || '';
   }
 
   supportsTransactionBatching(): boolean {
@@ -68,9 +68,19 @@ export class TronSigner
   }
 
   async setDefaultIsm(
-    _req: Omit<AltVM.ReqSetDefaultIsm, 'signer'>,
+    req: Omit<AltVM.ReqSetDefaultIsm, 'signer'>,
   ): Promise<AltVM.ResSetDefaultIsm> {
-    throw new Error(`not implemented`);
+    const tx = await this.getSetDefaultIsmTransaction({
+      ...req,
+      signer: this.getSignerAddress(),
+    });
+
+    const signedTx = await this.tronweb.trx.sign(tx.transaction);
+    await this.tronweb.trx.sendRawTransaction(signedTx);
+
+    return {
+      ismAddress: req.ismAddress,
+    };
   }
 
   async setDefaultHook(

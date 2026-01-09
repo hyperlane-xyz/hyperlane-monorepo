@@ -1,20 +1,35 @@
-import { TronProvider } from './clients/provider.js';
+import { TronSigner } from './clients/signer.js';
 
 const main = async () => {
-  const provider = await TronProvider.connect(['http://127.0.0.1:9090'], '9');
+  const signer = await TronSigner.connectWithSigner(
+    ['http://127.0.0.1:9090'],
+    '0000000000000000000000000000000000000000000000000000000000000001',
+    {
+      metadata: {
+        chainId: '9',
+      },
+    },
+  );
 
-  const height = await provider.getHeight();
+  const mailboxAddress = 'TRqttiD6S8MDQUjP3qE6B8AE6NDfNZvsGY';
+
+  const height = await signer.getHeight();
   console.log('height', height);
 
-  const balance = await provider.getBalance({
+  const balance = await signer.getBalance({
     address: 'TMVQGm1qAQYVdetCeGRRkTWYYrLXuHK2HC',
   });
   console.log('balance', balance);
 
-  const mailbox = await provider.getMailbox({
-    mailboxAddress: 'TMyup1LDrbXmc8V6qrW4CwX1DuN1CRjtZX',
+  const mailbox = await signer.getMailbox({
+    mailboxAddress,
   });
   console.log('mailbox', mailbox);
+
+  await signer.setDefaultIsm({
+    mailboxAddress,
+    ismAddress: mailbox.defaultIsm,
+  });
 };
 
 main();

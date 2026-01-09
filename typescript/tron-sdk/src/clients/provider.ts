@@ -174,7 +174,7 @@ export class TronProvider implements AltVM.IProvider {
   ): Promise<MockTransaction> {
     const functionSelector = 'setDefaultIsm(address)';
     const options = {
-      feeLimit: 100_000_000, // 100 TRX
+      feeLimit: 100_000_000,
       callValue: 0,
     };
 
