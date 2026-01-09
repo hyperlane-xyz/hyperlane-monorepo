@@ -42,7 +42,8 @@ COPY solidity/package.json ./solidity/
 COPY solhint-plugin/package.json ./solhint-plugin/
 COPY starknet/package.json ./starknet/
 
-RUN pnpm install --frozen-lockfile
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile
 
 # Copy source files
 COPY turbo.json ./
@@ -62,7 +63,14 @@ COPY solhint-plugin ./solhint-plugin
 COPY starknet ./starknet
 
 # Build and bundle the rebalancer (ncc creates a single-file bundle with all deps)
-RUN pnpm turbo run bundle --filter=@hyperlane-xyz/rebalancer
+ARG TURBO_TEAM
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
+    --mount=type=secret,id=TURBO_TOKEN \
+    TURBO_TOKEN=$(cat /run/secrets/TURBO_TOKEN 2>/dev/null || echo "") \
+    TURBO_API=https://cache.depot.dev \
+    TURBO_TEAM=${TURBO_TEAM} \
+    TURBO_TELEMETRY_DISABLED=1 \
+    pnpm turbo run bundle --filter=@hyperlane-xyz/rebalancer
 
 # Production stage - minimal Alpine image with just the bundled code
 FROM node:20-alpine AS runner

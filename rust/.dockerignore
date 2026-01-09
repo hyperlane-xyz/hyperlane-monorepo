@@ -1,1 +1,6 @@
 **/target
+.github/
+*.md
+docs/
+.vscode/
+.idea/

@@ -128,6 +128,9 @@ jobs:
           build-args: |
             FOUNDRY_VERSION=${{ env.FOUNDRY_VERSION }}
             REGISTRY_COMMIT=${{ env.REGISTRY_VERSION }}
+            TURBO_TEAM=${{ secrets.DEPOT_ORG_ID }}
+          secrets: |
+            TURBO_TOKEN=${{ secrets.DEPOT_TURBO_TOKEN }}
           platforms: ${{ steps.determine-platforms.outputs.platforms }}
 
       - name: Comment image tags on PR

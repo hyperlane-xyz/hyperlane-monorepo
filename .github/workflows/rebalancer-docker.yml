@@ -111,6 +111,9 @@ jobs:
           build-args: |
             FOUNDRY_VERSION=${{ steps.foundry-version.outputs.FOUNDRY_VERSION }}
             SERVICE_VERSION=${{ steps.taggen.outputs.TAG_SHA }}-${{ steps.taggen.outputs.TAG_DATE }}
+            TURBO_TEAM=${{ secrets.DEPOT_ORG_ID }}
+          secrets: |
+            TURBO_TOKEN=${{ secrets.DEPOT_TURBO_TOKEN }}
 
       - name: Comment image tags on PR
         if: github.event_name == 'pull_request'

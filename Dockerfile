@@ -46,7 +46,8 @@ COPY starknet/package.json ./starknet/
 # Set dummy DATABASE_URL for ccip-server prisma generate during install
 ENV DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder"
 
-RUN pnpm install --frozen-lockfile && pnpm store prune
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile && pnpm store prune
 
 # Copy everything else
 COPY turbo.json ./
@@ -55,7 +56,14 @@ COPY solidity ./solidity
 COPY solhint-plugin ./solhint-plugin
 COPY starknet ./starknet
 
-RUN pnpm build
+# Build with Turbo remote cache (secret mounted for security)
+ARG TURBO_TEAM
+RUN --mount=type=secret,id=TURBO_TOKEN \
+    TURBO_TOKEN=$(cat /run/secrets/TURBO_TOKEN 2>/dev/null || echo "") \
+    TURBO_API=https://cache.depot.dev \
+    TURBO_TEAM=${TURBO_TEAM} \
+    TURBO_TELEMETRY_DISABLED=1 \
+    pnpm build
 
 # Baked-in registry version
 # keep for back-compat until we update all usage of the monorepo image (e.g. key-funder)

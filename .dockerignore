@@ -20,3 +20,16 @@ typescript/**/tsconfig.tsbuildinfo
 pnpm-debug.log*
 
 .idea
+
+# === Additional exclusions for smaller Docker context ===
+.git/
+.github/
+.changeset/
+.vscode/
+.turbo/
+.nyc_output/
+coverage/
+docs/
+*.log
+junit.xml
+.eslintcache
