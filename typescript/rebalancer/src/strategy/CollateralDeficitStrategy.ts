@@ -112,7 +112,6 @@ export class CollateralDeficitStrategy extends BaseStrategy {
       }
     }
 
-<<<<<<< HEAD
     this.logger.info(
       {
         surpluses: surpluses.map((s) => ({
@@ -127,8 +126,6 @@ export class CollateralDeficitStrategy extends BaseStrategy {
       'Balance categorization',
     );
 
-=======
->>>>>>> 179c6206c (feat(rebalancer): add CollateralDeficitStrategy for just-in-time rebalancing)
     return { surpluses, deficits };
   }
 
@@ -278,13 +275,9 @@ export class CollateralDeficitStrategy extends BaseStrategy {
 
   /**
    * Filter pending rebalances to only those using this strategy's configured bridges.
-<<<<<<< HEAD
    * A rebalance matches if:
    * - Its bridge is in the origin chain's configured bridges, OR
    * - It has no bridge (recovered from Explorer, can't verify - include to be safe)
-=======
-   * A rebalance matches if its bridge is in the destination chain's configured bridges.
->>>>>>> 179c6206c (feat(rebalancer): add CollateralDeficitStrategy for just-in-time rebalancing)
    */
   private filterByConfiguredBridges(
     pendingRebalances?: RebalancingRoute[],
@@ -294,7 +287,6 @@ export class CollateralDeficitStrategy extends BaseStrategy {
     }
 
     return pendingRebalances.filter((rebalance) => {
-<<<<<<< HEAD
       // Include routes without bridge (recovered from Explorer, can't verify)
       if (!rebalance.bridge) {
         this.logger.debug(
@@ -305,12 +297,6 @@ export class CollateralDeficitStrategy extends BaseStrategy {
       }
       // For routes with bridge, verify it's configured
       const configuredBridges = this.bridges?.[rebalance.origin] ?? [];
-=======
-      if (!rebalance.bridge) {
-        return false;
-      }
-      const configuredBridges = this.bridges?.[rebalance.destination] ?? [];
->>>>>>> 179c6206c (feat(rebalancer): add CollateralDeficitStrategy for just-in-time rebalancing)
       return configuredBridges.includes(rebalance.bridge);
     });
   }

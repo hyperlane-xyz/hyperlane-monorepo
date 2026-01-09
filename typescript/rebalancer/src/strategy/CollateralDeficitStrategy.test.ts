@@ -270,11 +270,7 @@ describe('CollateralDeficitStrategy', () => {
           origin: chain2,
           destination: chain1,
           amount: 10_000_000n, // 10 USDC pending - more than enough
-<<<<<<< HEAD
           bridge: BRIDGE2, // Matches chain2's bridge (origin)
-=======
-          bridge: BRIDGE1,
->>>>>>> 179c6206c (feat(rebalancer): add CollateralDeficitStrategy for just-in-time rebalancing)
         },
       ];
 
@@ -444,11 +440,7 @@ describe('CollateralDeficitStrategy', () => {
   });
 
   describe('filterByConfiguredBridges', () => {
-<<<<<<< HEAD
     it('should filter rebalances by origin chain configured bridges', () => {
-=======
-    it('should filter rebalances by configured bridges', () => {
->>>>>>> 179c6206c (feat(rebalancer): add CollateralDeficitStrategy for just-in-time rebalancing)
       const bridges: ChainMap<Address[]> = {
         [chain1]: [BRIDGE1],
         [chain2]: [BRIDGE2],
@@ -470,37 +462,24 @@ describe('CollateralDeficitStrategy', () => {
           origin: chain2,
           destination: chain1,
           amount: 5_000_000n,
-<<<<<<< HEAD
           bridge: BRIDGE2, // Matches chain2 (origin) → INCLUDED
-=======
-          bridge: BRIDGE1, // Matches chain1
->>>>>>> 179c6206c (feat(rebalancer): add CollateralDeficitStrategy for just-in-time rebalancing)
         },
         {
           origin: chain1,
           destination: chain2,
           amount: 3_000_000n,
-<<<<<<< HEAD
           bridge: OTHER_BRIDGE, // Does NOT match chain1 (origin) → EXCLUDED
-=======
-          bridge: OTHER_BRIDGE, // Does NOT match
->>>>>>> 179c6206c (feat(rebalancer): add CollateralDeficitStrategy for just-in-time rebalancing)
         },
         {
           origin: chain2,
           destination: chain1,
           amount: 2_000_000n,
-<<<<<<< HEAD
           bridge: undefined, // No bridge specified → INCLUDED
-=======
-          bridge: undefined, // No bridge specified
->>>>>>> 179c6206c (feat(rebalancer): add CollateralDeficitStrategy for just-in-time rebalancing)
         },
       ];
 
       const filtered = strategy['filterByConfiguredBridges'](pendingRebalances);
 
-<<<<<<< HEAD
       // Should include: BRIDGE2 matches origin (chain2) + undefined bridge (recovered intent)
       // Should exclude: OTHER_BRIDGE (doesn't match origin chain1's configured bridges)
       expect(filtered).to.have.lengthOf(2);
@@ -573,10 +552,6 @@ describe('CollateralDeficitStrategy', () => {
 
       const filtered = strategy['filterByConfiguredBridges'](pendingRebalances);
       expect(filtered).to.have.lengthOf(0);
-=======
-      expect(filtered).to.have.lengthOf(1);
-      expect(filtered[0].bridge).to.equal(BRIDGE1);
->>>>>>> 179c6206c (feat(rebalancer): add CollateralDeficitStrategy for just-in-time rebalancing)
     });
 
     it('should return empty array for undefined pending rebalances', () => {
