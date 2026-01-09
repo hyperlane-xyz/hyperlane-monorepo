@@ -8,6 +8,7 @@ import { fromWei, toWei } from '@hyperlane-xyz/utils';
 import {
   type MinAmountStrategyConfig,
   RebalancerMinAmountType,
+  RebalancerStrategyOptions,
 } from '../config/types.js';
 import type { RawBalances, RebalancingRoute } from '../interfaces/IStrategy.js';
 import { type Metrics } from '../metrics/Metrics.js';
@@ -19,6 +20,7 @@ import { BaseStrategy, type Delta } from './BaseStrategy.js';
  * It ensures each chain has at least the specified minimum amount
  */
 export class MinAmountStrategy extends BaseStrategy {
+  readonly name = RebalancerStrategyOptions.MinAmount;
   private readonly config: MinAmountStrategyConfig = {};
   protected readonly logger: Logger;
 
