@@ -54,10 +54,14 @@ contract InterchainGasPaymaster is
     uint256 internal constant TOKEN_EXCHANGE_RATE_SCALE = 1e10;
     /// @notice default for user call if metadata not provided
     uint256 internal immutable DEFAULT_GAS_USAGE = 50_000;
+    /// @notice Sentinel address for native gas oracle lookups in tokenGasOracles
+    address public constant NATIVE_TOKEN = address(0);
 
     // ============ Public Storage ============
 
     /// @notice Destination domain => gas oracle and overhead gas amount.
+    /// @dev @deprecated Use tokenGasOracles with NATIVE_TOKEN (address(0)) for oracles
+    /// and destinationGasOverhead for overhead instead.
     mapping(uint32 destinationDomain => DomainGasConfig config)
         public destinationGasConfigs;
 
@@ -65,9 +69,14 @@ contract InterchainGasPaymaster is
     address public beneficiary;
 
     /// @notice Token => destination domain => gas oracle for token payments.
-    /// @dev Token payments reuse the native gasOverhead from destinationGasConfigs.
+    /// @dev Use NATIVE_TOKEN (address(0)) as the feeToken key for native gas payments.
     mapping(address feeToken => mapping(uint32 destinationDomain => IGasOracle gasOracle))
         public tokenGasOracles;
+
+    /// @notice Destination domain => gas overhead amount.
+    /// @dev This replaces the gasOverhead field from destinationGasConfigs.
+    mapping(uint32 destinationDomain => uint256 gasOverhead)
+        public destinationGasOverhead;
 
     // ============ Events ============
 
@@ -146,6 +155,8 @@ contract InterchainGasPaymaster is
 
     /**
      * @notice Sets the gas oracles for remote domains specified in the config array.
+     * @dev @deprecated Use setTokenGasOracles with NATIVE_TOKEN (address(0)) for oracles
+     * and setDestinationGasOverhead for overhead instead.
      * @param _configs An array of configs including the remote domain and gas oracles to set.
      */
     function setDestinationGasConfigs(
@@ -163,7 +174,7 @@ contract InterchainGasPaymaster is
 
     /**
      * @notice Sets the gas oracles for token payments.
-     * @dev Token payments reuse the native gasOverhead from destinationGasConfigs.
+     * @dev Use NATIVE_TOKEN (address(0)) as feeToken for native gas payments.
      * @param _configs An array of token gas oracle configs to set.
      */
     function setTokenGasOracles(
@@ -180,6 +191,19 @@ contract InterchainGasPaymaster is
                 address(_configs[i].gasOracle)
             );
         }
+    }
+
+    /**
+     * @notice Sets the gas overhead for a remote domain.
+     * @param _remoteDomain The remote domain.
+     * @param _gasOverhead The gas overhead amount.
+     */
+    function setDestinationGasOverhead(
+        uint32 _remoteDomain,
+        uint256 _gasOverhead
+    ) external onlyOwner {
+        destinationGasOverhead[_remoteDomain] = _gasOverhead;
+        emit DestinationGasOverheadSet(_remoteDomain, _gasOverhead);
     }
 
     /**
@@ -208,25 +232,43 @@ contract InterchainGasPaymaster is
         uint256 _gasLimit,
         address _refundAddress
     ) public payable override {
-        uint256 _requiredPayment = quoteGasPayment(
-            _destinationDomain,
-            _gasLimit
-        );
-        require(
-            msg.value >= _requiredPayment,
-            "IGP: insufficient interchain gas payment"
-        );
-        uint256 _overpayment = msg.value - _requiredPayment;
-        if (_overpayment > 0) {
-            require(_refundAddress != address(0), "no refund address");
-            payable(_refundAddress).sendValue(_overpayment);
-        }
-
-        emit GasPayment(
+        uint256 _payment = quoteGasPayment(_destinationDomain, _gasLimit);
+        _payForGas(
+            NATIVE_TOKEN,
             _messageId,
             _destinationDomain,
             _gasLimit,
-            _requiredPayment
+            _refundAddress,
+            _payment
+        );
+    }
+
+    /**
+     * @notice Pays for gas using an ERC20 token.
+     * @dev Requires prior approval of the fee token. The exact quoted amount is transferred.
+     * @param _feeToken The token to pay gas fees in.
+     * @param _messageId The ID of the message to pay for.
+     * @param _destinationDomain The domain of the message's destination chain.
+     * @param _gasLimit The amount of destination gas to pay for.
+     */
+    function payForGas(
+        address _feeToken,
+        bytes32 _messageId,
+        uint32 _destinationDomain,
+        uint256 _gasLimit
+    ) external {
+        uint256 _payment = quoteGasPayment(
+            _feeToken,
+            _destinationDomain,
+            _gasLimit
+        );
+        _payForGas(
+            _feeToken,
+            _messageId,
+            _destinationDomain,
+            _gasLimit,
+            msg.sender,
+            _payment
         );
     }
 
@@ -241,18 +283,15 @@ contract InterchainGasPaymaster is
         uint32 _destinationDomain,
         uint256 _gasLimit
     ) public view virtual override returns (uint256) {
-        return
-            _quoteGasPaymentForConfig(
-                destinationGasConfigs[_destinationDomain],
-                _destinationDomain,
-                _gasLimit
-            );
+        // Delegate to token version using NATIVE_TOKEN (address(0))
+        return quoteGasPayment(NATIVE_TOKEN, _destinationDomain, _gasLimit);
     }
 
     /**
      * @notice Quotes the amount of a specific token required to pay for gas.
-     * @dev Uses the token-specific gas oracle but reuses the native gasOverhead.
-     * @param _feeToken The token to pay gas fees in.
+     * @dev Uses tokenGasOracles for oracle lookup and destinationGasOverhead for overhead.
+     *      Use NATIVE_TOKEN (address(0)) for native gas payments.
+     * @param _feeToken The token to pay gas fees in, or NATIVE_TOKEN for native.
      * @param _destinationDomain The domain of the message's destination chain.
      * @param _gasLimit The amount of destination gas to pay for.
      * @return The amount of tokens required.
@@ -263,38 +302,30 @@ contract InterchainGasPaymaster is
         uint256 _gasLimit
     ) public view returns (uint256) {
         IGasOracle _oracle = tokenGasOracles[_feeToken][_destinationDomain];
-        // Reuse native overhead from destinationGasConfigs
-        uint96 _overhead = destinationGasConfigs[_destinationDomain]
-            .gasOverhead;
         return
-            _quoteGasPaymentForConfig(
-                DomainGasConfig(_oracle, _overhead),
-                _destinationDomain,
-                _gasLimit
-            );
+            _quoteGasPaymentForOracle(_oracle, _destinationDomain, _gasLimit);
     }
 
     /**
-     * @notice Calculates gas payment from a DomainGasConfig.
-     * @param _config The gas config containing oracle and overhead.
+     * @notice Calculates gas payment using a gas oracle.
+     * @param _oracle The gas oracle to use for price data.
      * @param _destinationDomain The destination domain.
      * @param _gasLimit The amount of destination gas to pay for.
      * @return The amount of tokens required.
      */
-    function _quoteGasPaymentForConfig(
-        DomainGasConfig memory _config,
+    function _quoteGasPaymentForOracle(
+        IGasOracle _oracle,
         uint32 _destinationDomain,
         uint256 _gasLimit
     ) private view returns (uint256) {
         require(
-            address(_config.gasOracle) != address(0),
+            address(_oracle) != address(0),
             string.concat(
                 "IGP: no gas oracle for domain ",
                 Strings.toString(_destinationDomain)
             )
         );
-        (uint128 _tokenExchangeRate, uint128 _gasPrice) = _config
-            .gasOracle
+        (uint128 _tokenExchangeRate, uint128 _gasPrice) = _oracle
             .getExchangeRateAndGasPrice(_destinationDomain);
         uint256 _destinationGasCost = _gasLimit * uint256(_gasPrice);
         return
@@ -317,8 +348,9 @@ contract InterchainGasPaymaster is
         override
         returns (uint128 tokenExchangeRate, uint128 gasPrice)
     {
-        IGasOracle _gasOracle = destinationGasConfigs[_destinationDomain]
-            .gasOracle;
+        IGasOracle _gasOracle = tokenGasOracles[NATIVE_TOKEN][
+            _destinationDomain
+        ];
 
         if (address(_gasOracle) == address(0)) {
             revert(
@@ -338,18 +370,54 @@ contract InterchainGasPaymaster is
      *      they want to use with the destination domain, but set the overhead to 0.
      * @param _destinationDomain The domain of the message's destination chain.
      * @param _gasLimit The amount of destination gas to pay for. This is only for application gas usage as
-     *      the gas usage for the mailbox and the ISM is already accounted in the DomainGasConfig.gasOverhead
+     *      the gas usage for the mailbox and the ISM is already accounted in destinationGasOverhead.
      */
     function destinationGasLimit(
         uint32 _destinationDomain,
         uint256 _gasLimit
     ) public view returns (uint256) {
-        return
-            uint256(destinationGasConfigs[_destinationDomain].gasOverhead) +
-            _gasLimit;
+        return uint256(destinationGasOverhead[_destinationDomain]) + _gasLimit;
     }
 
     // ============ Internal Functions ============
+
+    /**
+     * @notice Internal helper to handle gas payments for both native and ERC20 tokens.
+     * @dev For native: checks msg.value >= payment and refunds overpayment to _payer.
+     *      For tokens: transfers exact payment amount from _payer.
+     * @param _feeToken The token to pay with, or NATIVE_TOKEN (address(0)) for native.
+     * @param _messageId The ID of the message to pay for.
+     * @param _destinationDomain The domain of the message's destination chain.
+     * @param _gasLimit The amount of destination gas to pay for.
+     * @param _payer For native: refund address. For tokens: address to transfer from.
+     * @param _payment The payment amount (from quoteGasPayment).
+     */
+    function _payForGas(
+        address _feeToken,
+        bytes32 _messageId,
+        uint32 _destinationDomain,
+        uint256 _gasLimit,
+        address _payer,
+        uint256 _payment
+    ) internal {
+        if (_feeToken == address(0)) {
+            // Native payment: check msg.value and refund overpayment
+            require(
+                msg.value >= _payment,
+                "IGP: insufficient interchain gas payment"
+            );
+            uint256 _overpayment = msg.value - _payment;
+            if (_overpayment > 0) {
+                require(_payer != address(0), "no refund address");
+                payable(_payer).sendValue(_overpayment);
+            }
+        } else {
+            // Token payment: transfer exact amount from payer
+            IERC20(_feeToken).safeTransferFrom(_payer, address(this), _payment);
+        }
+
+        emit GasPayment(_messageId, _destinationDomain, _gasLimit, _payment);
+    }
 
     /// @inheritdoc AbstractPostDispatchHook
     function _postDispatch(
@@ -363,39 +431,23 @@ contract InterchainGasPaymaster is
             metadata.gasLimit(DEFAULT_GAS_USAGE)
         );
 
-        if (_feeToken == address(0)) {
-            // Native payment - existing logic
-            payForGas(
-                message.id(),
-                _destinationDomain,
-                _gasLimit,
-                metadata.refundAddress(message.senderAddress())
-            );
-        } else {
-            // Token payment - charge the message sender
-            // Note: Fee-on-transfer tokens will result in less received than quoted.
-            // ERC-777 tokens could trigger reentrancy but no state is modified after transfer.
-            // Token payments use same overhead as native via destinationGasLimit
-            uint256 _payment = quoteGasPayment(
-                _feeToken,
-                _destinationDomain,
-                _gasLimit
-            );
+        // Use appropriate quote function to support overrides (e.g., TestInterchainGasPaymaster)
+        uint256 _payment = _feeToken == address(0)
+            ? quoteGasPayment(_destinationDomain, _gasLimit)
+            : quoteGasPayment(_feeToken, _destinationDomain, _gasLimit);
 
-            // Pull tokens from message sender (requires prior approval)
-            IERC20(_feeToken).safeTransferFrom({
-                from: message.senderAddress(),
-                to: address(this),
-                value: _payment
-            });
+        address _payer = _feeToken == address(0)
+            ? metadata.refundAddress(message.senderAddress())
+            : message.senderAddress();
 
-            emit GasPayment(
-                message.id(),
-                _destinationDomain,
-                _gasLimit,
-                _payment
-            );
-        }
+        _payForGas(
+            _feeToken,
+            message.id(),
+            _destinationDomain,
+            _gasLimit,
+            _payer,
+            _payment
+        );
     }
 
     /// @inheritdoc AbstractPostDispatchHook
