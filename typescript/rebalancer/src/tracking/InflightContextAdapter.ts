@@ -28,6 +28,7 @@ export class InflightContextAdapter {
       // TODO: Review once inventory rebalancing is implemented and we expect
       // partially fulfilled intents. May need to use (amount - fulfilledAmount).
       amount: intent.amount,
+      bridge: intent.bridge,
     }));
 
     const pendingTransfers = transfers.map((transfer) => ({

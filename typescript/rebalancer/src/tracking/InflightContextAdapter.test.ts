@@ -74,6 +74,7 @@ describe('InflightContextAdapter', () => {
         origin: 'ethereum',
         destination: 'arbitrum',
         amount: 1000n,
+        bridge: undefined,
       });
 
       expect(result.pendingTransfers).to.have.lengthOf(1);
