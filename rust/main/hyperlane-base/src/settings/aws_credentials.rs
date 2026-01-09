@@ -21,7 +21,7 @@ use rusoto_sts::WebIdentityProvider;
 /// The IRSA approach follows security best practices and allows for key rotation.
 pub(crate) struct AwsChainCredentialsProvider {
     environment_provider: EnvironmentProvider,
-    container_provider: ContainerProvider,
+    container_provider: AutoRefreshingProvider<ContainerProvider>,
     web_identity_provider: AutoRefreshingProvider<WebIdentityProvider>,
 }
 
