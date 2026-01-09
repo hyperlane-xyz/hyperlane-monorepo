@@ -19,7 +19,7 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { runWarpRouteCheck } from '../check/warp.js';
+import { runWarpIcaOwnerCheck, runWarpRouteCheck } from '../check/warp.js';
 import { createWarpRouteDeployConfig } from '../config/warp.js';
 import {
   type CommandModuleWithContext,
@@ -359,12 +359,45 @@ const send: CommandModuleWithWriteContext<
   },
 };
 
-export const check: CommandModuleWithContext<SelectWarpRouteBuilder> = {
+export const check: CommandModuleWithContext<
+  SelectWarpRouteBuilder & {
+    ica?: boolean;
+    origin?: string;
+    destinations?: string;
+  }
+> = {
   command: 'check',
   describe:
     'Verifies that a warp route configuration matches the on chain configuration.',
-  builder: SELECT_WARP_ROUTE_BUILDER,
-  handler: async ({ context, symbol, warp, warpRouteId, config }) => {
+  builder: {
+    ...SELECT_WARP_ROUTE_BUILDER,
+    ica: {
+      type: 'boolean',
+      description:
+        'Check that destination chain owners match expected ICA addresses derived from origin chain owner',
+      default: false,
+    },
+    origin: {
+      type: 'string',
+      description:
+        'The origin chain to use for verification. Required when using --ica.',
+    },
+    destinations: {
+      type: 'string',
+      description:
+        'Comma-separated list of destination chains to check. Defaults to all chains except origin when using --ica.',
+    },
+  },
+  handler: async ({
+    context,
+    symbol,
+    warp,
+    warpRouteId,
+    config,
+    ica,
+    origin,
+    destinations,
+  }) => {
     logCommandHeader('Hyperlane Warp Check');
 
     let { warpCoreConfig, warpDeployConfig } = await getWarpConfigs({
@@ -379,6 +412,22 @@ export const check: CommandModuleWithContext<SelectWarpRouteBuilder> = {
       warpDeployConfig,
       warpCoreConfig,
     ));
+
+    // If --ica flag is set, run ICA owner check instead of the regular config check
+    if (ica) {
+      const destinationChains = destinations
+        ? destinations.split(',').map((c) => c.trim())
+        : undefined;
+
+      await runWarpIcaOwnerCheck({
+        context,
+        warpDeployConfig,
+        origin,
+        destinations: destinationChains,
+      });
+
+      process.exit(0);
+    }
 
     const deployedRoutersAddresses =
       getRouterAddressesFromWarpCoreConfig(warpCoreConfig);
