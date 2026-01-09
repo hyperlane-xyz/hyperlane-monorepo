@@ -3,7 +3,10 @@ import { type Logger } from 'pino';
 import type { ChainMap } from '@hyperlane-xyz/sdk';
 import type { Address } from '@hyperlane-xyz/utils';
 
-import type { WeightedStrategyConfig } from '../config/types.js';
+import {
+  RebalancerStrategyOptions,
+  type WeightedStrategyConfig,
+} from '../config/types.js';
 import type { RawBalances, RebalancingRoute } from '../interfaces/IStrategy.js';
 import { type Metrics } from '../metrics/Metrics.js';
 
@@ -14,6 +17,7 @@ import { BaseStrategy, type Delta } from './BaseStrategy.js';
  * It distributes funds across chains based on their weights
  */
 export class WeightedStrategy extends BaseStrategy {
+  readonly name = RebalancerStrategyOptions.Weighted;
   private readonly config: WeightedStrategyConfig;
   private readonly totalWeight: bigint;
   protected readonly logger: Logger;
