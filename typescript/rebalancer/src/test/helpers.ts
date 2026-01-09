@@ -2,12 +2,20 @@ import { ethers } from 'ethers';
 
 import type { RebalancerConfig } from '../config/RebalancerConfig.js';
 import { RebalancerStrategyOptions } from '../config/types.js';
-import type { IRebalancer } from '../interfaces/IRebalancer.js';
+import type {
+  IRebalancer,
+  RebalanceExecutionResult,
+} from '../interfaces/IRebalancer.js';
 import type { RebalancingRoute } from '../interfaces/IStrategy.js';
 
 export class MockRebalancer implements IRebalancer {
-  rebalance(_routes: RebalancingRoute[]): Promise<void> {
-    return Promise.resolve();
+  rebalance(routes: RebalancingRoute[]): Promise<RebalanceExecutionResult[]> {
+    return Promise.resolve(
+      routes.map((route) => ({
+        route,
+        success: true,
+      })),
+    );
   }
 }
 
@@ -30,16 +38,41 @@ export function buildTestConfig(
     {} as Record<string, any>,
   );
 
+  // Build the default strategy config
+  const defaultStrategyConfig = {
+    rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+    chains: baseChains,
+  };
+
+  // If overrides has strategyConfig as an array, use it directly
+  // Otherwise, wrap single strategy in an array
+  let strategyConfig;
+  if (overrides.strategyConfig) {
+    if (Array.isArray(overrides.strategyConfig)) {
+      strategyConfig = overrides.strategyConfig;
+    } else {
+      // Single strategy override - merge with baseChains and wrap in array
+      const singleConfig = overrides.strategyConfig as any;
+      strategyConfig = [
+        {
+          ...singleConfig,
+          chains: {
+            ...baseChains,
+            ...singleConfig.chains,
+          },
+        },
+      ];
+    }
+  } else {
+    strategyConfig = [defaultStrategyConfig];
+  }
+
+  // Destructure to exclude strategyConfig from overrides spread
+  const { strategyConfig: _, ...restOverrides } = overrides;
+
   return {
     warpRouteId: 'test-route',
-    strategyConfig: {
-      rebalanceStrategy: RebalancerStrategyOptions.Weighted,
-      chains: {
-        ...baseChains,
-        ...(overrides.strategyConfig?.chains ?? {}),
-      },
-      ...overrides.strategyConfig,
-    },
-    ...overrides,
+    ...restOverrides,
+    strategyConfig,
   } as any as RebalancerConfig;
 }
