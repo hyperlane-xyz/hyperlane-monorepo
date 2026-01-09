@@ -4,10 +4,12 @@ import {
   Artifact,
   ArtifactDeployed,
   ArtifactNew,
+  ArtifactOnChain,
   ArtifactState,
   ArtifactWriter,
   isArtifactDeployed,
   isArtifactNew,
+  isArtifactUnderived,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
@@ -55,21 +57,23 @@ export class RoutingIsmWriter
     const { config } = artifact;
     const allReceipts: TxReceipt[] = [];
 
-    const deployedDomainIsms: Record<number, DeployedIsmArtifact> = {};
+    const deployedDomainIsms: Record<
+      number,
+      ArtifactOnChain<IsmArtifactConfig, DeployedIsmAddress>
+    > = {};
     for (const [domainId, nestedArtifact] of Object.entries(config.domains)) {
       const domain = parseInt(domainId);
 
       if (isArtifactDeployed(nestedArtifact)) {
+        deployedDomainIsms[domain] = nestedArtifact;
+      } else if (isArtifactUnderived(nestedArtifact)) {
+        // Already deployed on-chain, pass through as-is
         deployedDomainIsms[domain] = nestedArtifact;
       } else if (isArtifactNew(nestedArtifact)) {
         const [deployedNested, receipts] =
           await this.deployDomainIsm(nestedArtifact);
         deployedDomainIsms[domain] = deployedNested;
         allReceipts.push(...receipts);
-      } else {
-        this.logger.error(
-          `Unexpected artifact state ${nestedArtifact.artifactState} for domain ${domainId}`,
-        );
       }
     }
 
@@ -111,7 +115,10 @@ export class RoutingIsmWriter
 
     const updateTxs = [];
 
-    const deployedDomains: Record<number, DeployedIsmArtifact> = {};
+    const deployedDomains: Record<
+      number,
+      ArtifactOnChain<IsmArtifactConfig, DeployedIsmAddress>
+    > = {};
 
     for (const [domainId, domainIsmConfig] of Object.entries(config.domains)) {
       if (!this.chainLookup.getChainName(parseInt(domainId))) {
@@ -149,12 +156,12 @@ export class RoutingIsmWriter
         updateTxs.push(...domainIsmUpdateTxs);
 
         deployedDomains[domain] = domainIsmConfig;
+      } else if (isArtifactUnderived(domainIsmConfig)) {
+        // Already deployed on-chain but config unknown, pass through as-is
+        // (no update possible without config)
+        deployedDomains[domain] = domainIsmConfig;
       } else if (isArtifactNew(domainIsmConfig)) {
         [deployedDomains[domain]] = await this.deployDomainIsm(domainIsmConfig);
-      } else {
-        this.logger.error(
-          `Unexpected artifact state ${domainIsmConfig.artifactState} for domain ${domainId}`,
-        );
       }
     }
 
