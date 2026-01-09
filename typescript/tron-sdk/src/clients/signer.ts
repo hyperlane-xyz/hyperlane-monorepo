@@ -2,6 +2,8 @@ import { assert } from 'chai';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 
+import { TRON_EMPTY_ADDRESS } from '../utils/index.js';
+
 import { TronProvider } from './provider.js';
 
 type MockTransaction = any;
@@ -72,8 +74,44 @@ export class TronSigner
     const signedTx = await this.tronweb.trx.sign(tx);
     await this.tronweb.trx.sendRawTransaction(signedTx);
 
+    const mailboxAddress = this.tronweb.address.fromHex(tx.contract_address);
+
+    // TODO: TRON
+    // include default hook and required hook in create mailbox altvm interface too
+    const { transaction } =
+      await this.tronweb.transactionBuilder.triggerSmartContract(
+        mailboxAddress,
+        'initialize(address,address,address,address)',
+        {
+          feeLimit: 100_000_000,
+          callValue: 0,
+        },
+        [
+          {
+            type: 'address',
+            value: this.getSignerAddress(),
+          },
+          {
+            type: 'address',
+            value: req.defaultIsmAddress || TRON_EMPTY_ADDRESS,
+          },
+          {
+            type: 'address',
+            value: req.defaultIsmAddress || TRON_EMPTY_ADDRESS,
+          },
+          {
+            type: 'address',
+            value: req.defaultIsmAddress || TRON_EMPTY_ADDRESS,
+          },
+        ],
+        this.tronweb.address.toHex(this.getSignerAddress()),
+      );
+
+    const initSignedTx = await this.tronweb.trx.sign(transaction);
+    await this.tronweb.trx.sendRawTransaction(initSignedTx);
+
     return {
-      mailboxAddress: this.tronweb.address.fromHex(tx.contract_address),
+      mailboxAddress,
     };
   }
 
@@ -85,7 +123,7 @@ export class TronSigner
       signer: this.getSignerAddress(),
     });
 
-    const signedTx = await this.tronweb.trx.sign(tx.transaction);
+    const signedTx = await this.tronweb.trx.sign(tx);
     await this.tronweb.trx.sendRawTransaction(signedTx);
 
     return {
@@ -148,21 +186,79 @@ export class TronSigner
   }
 
   async createNoopIsm(
-    _req: Omit<AltVM.ReqCreateNoopIsm, 'signer'>,
+    req: Omit<AltVM.ReqCreateNoopIsm, 'signer'>,
   ): Promise<AltVM.ResCreateNoopIsm> {
-    throw new Error(`not implemented`);
+    const tx = await this.getCreateNoopIsmTransaction({
+      ...req,
+      signer: this.getSignerAddress(),
+    });
+
+    const signedTx = await this.tronweb.trx.sign(tx);
+    await this.tronweb.trx.sendRawTransaction(signedTx);
+
+    return {
+      ismAddress: this.tronweb.address.fromHex(tx.contract_address),
+    };
   }
 
   async createMerkleTreeHook(
-    _req: Omit<AltVM.ReqCreateMerkleTreeHook, 'signer'>,
+    req: Omit<AltVM.ReqCreateMerkleTreeHook, 'signer'>,
   ): Promise<AltVM.ResCreateMerkleTreeHook> {
-    throw new Error(`not implemented`);
+    const tx = await this.getCreateMerkleTreeHookTransaction({
+      ...req,
+      signer: this.getSignerAddress(),
+    });
+
+    const signedTx = await this.tronweb.trx.sign(tx);
+    await this.tronweb.trx.sendRawTransaction(signedTx);
+
+    return {
+      hookAddress: this.tronweb.address.fromHex(tx.contract_address),
+    };
   }
 
   async createInterchainGasPaymasterHook(
-    _req: Omit<AltVM.ReqCreateInterchainGasPaymasterHook, 'signer'>,
+    req: Omit<AltVM.ReqCreateInterchainGasPaymasterHook, 'signer'>,
   ): Promise<AltVM.ResCreateInterchainGasPaymasterHook> {
-    throw new Error(`not implemented`);
+    const tx = await this.getCreateInterchainGasPaymasterHookTransaction({
+      ...req,
+      signer: this.getSignerAddress(),
+    });
+
+    const signedTx = await this.tronweb.trx.sign(tx);
+    await this.tronweb.trx.sendRawTransaction(signedTx);
+
+    const hookAddress = this.tronweb.address.fromHex(tx.contract_address);
+
+    // TODO: TRON
+    // include beneficiary
+    const { transaction } =
+      await this.tronweb.transactionBuilder.triggerSmartContract(
+        hookAddress,
+        'initialize(address,address)',
+        {
+          feeLimit: 100_000_000,
+          callValue: 0,
+        },
+        [
+          {
+            type: 'address',
+            value: this.getSignerAddress(),
+          },
+          {
+            type: 'address',
+            value: this.getSignerAddress(),
+          },
+        ],
+        this.tronweb.address.toHex(this.getSignerAddress()),
+      );
+
+    const initSignedTx = await this.tronweb.trx.sign(transaction);
+    await this.tronweb.trx.sendRawTransaction(initSignedTx);
+
+    return {
+      hookAddress,
+    };
   }
 
   async setInterchainGasPaymasterHookOwner(

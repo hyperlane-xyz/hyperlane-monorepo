@@ -19,9 +19,14 @@ const main = async () => {
   });
   console.log('balance', balance);
 
+  const { ismAddress } = await signer.createNoopIsm({});
+  console.log('ismAddress', ismAddress);
+
   const { mailboxAddress } = await signer.createMailbox({
     domainId: 1234,
+    defaultIsmAddress: ismAddress,
   });
+  console.log('mailboxAddress', mailboxAddress);
 
   let mailbox = await signer.getMailbox({
     mailboxAddress,

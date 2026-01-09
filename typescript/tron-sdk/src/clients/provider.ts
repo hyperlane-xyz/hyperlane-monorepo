@@ -3,7 +3,11 @@ import { TronWeb } from 'tronweb';
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert, strip0x } from '@hyperlane-xyz/utils';
 
+import InterchainGasPaymasterAbi from '../../abi/InterchainGasPaymaster.json' with { type: 'json' };
 import MailboxAbi from '../../abi/Mailbox.json' with { type: 'json' };
+import MerkleTreeHookAbi from '../../abi/MerkleTreeHook.json' with { type: 'json' };
+import NoopIsmAbi from '../../abi/NoopIsm.json' with { type: 'json' };
+import { IABI } from '../utils/types.js';
 
 type MockTransaction = any;
 
@@ -19,7 +23,7 @@ export class TronProvider implements AltVM.IProvider {
   ): Promise<TronProvider> {
     assert(rpcUrls.length > 0, `got no rpcUrls`);
 
-    const { privateKey } = await new TronWeb({
+    const { privateKey } = new TronWeb({
       fullHost: rpcUrls[0],
     }).createRandom();
     return new TronProvider(rpcUrls, chainId, privateKey);
@@ -33,6 +37,28 @@ export class TronProvider implements AltVM.IProvider {
       fullHost: this.rpcUrls[0],
       privateKey: strip0x(privateKey),
     });
+  }
+
+  private async createDeploymentTransaction(
+    abi: IABI,
+    signer: string,
+    parameters: unknown[],
+  ): Promise<any> {
+    const options = {
+      feeLimit: 1_000_000_000,
+      callValue: 0,
+      userFeePercentage: 100,
+      originEnergyLimit: 10_000_000,
+      abi: abi.abi,
+      bytecode: abi.bytecode,
+      parameters,
+      name: abi.contractName,
+    };
+
+    return this.tronweb.transactionBuilder.createSmartContract(
+      options,
+      this.tronweb.address.toHex(signer),
+    );
   }
 
   // ### QUERY BASE ###
@@ -161,44 +187,32 @@ export class TronProvider implements AltVM.IProvider {
   async getCreateMailboxTransaction(
     req: AltVM.ReqCreateMailbox,
   ): Promise<MockTransaction> {
-    const options = {
-      feeLimit: 1_000_000_000,
-      callValue: 0,
-      userFeePercentage: 100,
-      originEnergyLimit: 10_000_000,
-      abi: MailboxAbi.abi,
-      bytecode: MailboxAbi.bytecode,
-      parameters: [req.domainId],
-      name: MailboxAbi.contractName,
-    };
-
-    return this.tronweb.transactionBuilder.createSmartContract(
-      options,
-      this.tronweb.address.toHex(req.signer),
-    );
+    return this.createDeploymentTransaction(MailboxAbi, req.signer, [
+      req.domainId,
+    ]);
   }
 
   async getSetDefaultIsmTransaction(
     req: AltVM.ReqSetDefaultIsm,
   ): Promise<MockTransaction> {
-    const functionSelector = 'setDefaultIsm(address)';
-    const options = {
-      feeLimit: 100_000_000,
-      callValue: 0,
-    };
-
-    return this.tronweb.transactionBuilder.triggerSmartContract(
-      req.mailboxAddress,
-      functionSelector,
-      options,
-      [
+    const { transaction } =
+      await this.tronweb.transactionBuilder.triggerSmartContract(
+        req.mailboxAddress,
+        'setDefaultIsm(address)',
         {
-          type: 'address',
-          value: req.ismAddress,
+          feeLimit: 100_000_000,
+          callValue: 0,
         },
-      ],
-      this.tronweb.address.toHex(req.signer),
-    );
+        [
+          {
+            type: 'address',
+            value: req.ismAddress,
+          },
+        ],
+        this.tronweb.address.toHex(req.signer),
+      );
+
+    return transaction;
   }
 
   async getSetDefaultHookTransaction(
@@ -256,21 +270,27 @@ export class TronProvider implements AltVM.IProvider {
   }
 
   async getCreateNoopIsmTransaction(
-    _req: AltVM.ReqCreateNoopIsm,
+    req: AltVM.ReqCreateNoopIsm,
   ): Promise<MockTransaction> {
-    throw new Error(`not implemented`);
+    return this.createDeploymentTransaction(NoopIsmAbi, req.signer, []);
   }
 
   async getCreateMerkleTreeHookTransaction(
-    _req: AltVM.ReqCreateMerkleTreeHook,
+    req: AltVM.ReqCreateMerkleTreeHook,
   ): Promise<MockTransaction> {
-    throw new Error(`not implemented`);
+    return this.createDeploymentTransaction(MerkleTreeHookAbi, req.signer, [
+      req.mailboxAddress,
+    ]);
   }
 
   async getCreateInterchainGasPaymasterHookTransaction(
-    _req: AltVM.ReqCreateInterchainGasPaymasterHook,
+    req: AltVM.ReqCreateInterchainGasPaymasterHook,
   ): Promise<MockTransaction> {
-    throw new Error(`not implemented`);
+    return this.createDeploymentTransaction(
+      InterchainGasPaymasterAbi,
+      req.signer,
+      [],
+    );
   }
 
   async getSetInterchainGasPaymasterHookOwnerTransaction(
