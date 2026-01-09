@@ -204,6 +204,51 @@ export class EvmTokenAdapter<T extends ERC20 = ERC20>
     );
   }
 
+  /**
+   * Populates approval transactions that handle USDC-style tokens.
+   * USDC doesn't allow changing allowance from non-zero to non-zero,
+   * so we must reset to 0 first if there's an existing allowance.
+   * Approves MAX_UINT256 so we never need to approve again.
+   *
+   * @returns Array of transactions: [revokeTx?, approveTx] or [] if already approved for max
+   */
+  async populateForceApproveTxs({
+    owner,
+    recipient,
+  }: {
+    owner: Address;
+    recipient: Address;
+  }): Promise<PopulatedTransaction[]> {
+    const transactions: PopulatedTransaction[] = [];
+    const MAX_UINT256 = ethersConstants.MaxUint256;
+
+    // Check if there's an existing allowance
+    const currentAllowance = await this.contract.allowance(owner, recipient);
+
+    // If already approved for max, no need for any approval
+    if (currentAllowance.eq(MAX_UINT256)) {
+      return transactions;
+    }
+
+    if (!currentAllowance.isZero()) {
+      // Need to reset to 0 first for USDC-style tokens
+      const revokeTx = await this.contract.populateTransaction.approve(
+        recipient,
+        0,
+      );
+      transactions.push(revokeTx);
+    }
+
+    // Approve max so we never need to approve again
+    const approveTx = await this.contract.populateTransaction.approve(
+      recipient,
+      MAX_UINT256,
+    );
+    transactions.push(approveTx);
+
+    return transactions;
+  }
+
   override populateTransferTx({
     weiAmountOrId,
     recipient,
@@ -585,29 +630,90 @@ export class EvmMovableCollateralAdapter
   }
 
   /**
+   * Populates rebalance transaction(s).
+   * Returns an array of transactions: [approvalTx?, rebalanceTx]
+   * Approval tx is included only if current allowance for collateral fees is insufficient.
    * @param quotes - The quotes returned by getRebalanceQuotes
+   * @param sender - Optional sender address for approval check
    */
-  populateRebalanceTx(
+  async populateRebalanceTx(
     domain: Domain,
     amount: Numberish,
     bridge: Address,
     quotes: InterchainGasQuote[],
-  ): Promise<PopulatedTransaction> {
+    sender?: Address,
+  ): Promise<PopulatedTransaction[]> {
+    const transactions: PopulatedTransaction[] = [];
+
+    // 1. Check if collateral token approval is needed (e.g., USDC for CCTP fees)
+    if (sender) {
+      const collateralFee = this.getCollateralFeeFromQuotes(quotes);
+      if (collateralFee && collateralFee.amount > 0n) {
+        const tokenAdapter = new EvmTokenAdapter(
+          this.chainName,
+          this.multiProvider,
+          {
+            token: collateralFee.token,
+          },
+        );
+
+        // Check current allowance against MovableCollateralRouter
+        const needsApproval = await tokenAdapter.isApproveRequired(
+          sender,
+          this.addresses.token, // MovableCollateralRouter pulls fees from sender
+          collateralFee.amount,
+        );
+
+        if (needsApproval) {
+          const approvalTxs = await tokenAdapter.populateForceApproveTxs({
+            owner: sender,
+            recipient: this.addresses.token,
+          });
+          transactions.push(...approvalTxs);
+        }
+      }
+    }
+
+    // 2. Populate rebalance tx
     // Obtains the trx value by adding the amount of all quotes with no addressOrDenom (native tokens)
     const value = quotes.reduce(
-      (value, quote) =>
-        !quote.igpQuote.addressOrDenom ? value + quote.igpQuote.amount : value,
+      (v, quote) =>
+        !quote.igpQuote.addressOrDenom ? v + quote.igpQuote.amount : v,
       0n,
     );
 
-    return this.movableCollateral().populateTransaction.rebalance(
-      domain,
-      amount,
-      bridge,
-      {
-        value,
-      },
+    const rebalanceTx =
+      await this.movableCollateral().populateTransaction.rebalance(
+        domain,
+        amount,
+        bridge,
+        { value },
+      );
+    transactions.push(rebalanceTx);
+
+    return transactions;
+  }
+
+  /**
+   * Extract collateral token fee from quotes (non-native fees).
+   * These are fees paid in ERC20 tokens like USDC for CCTP bridges.
+   */
+  protected getCollateralFeeFromQuotes(
+    quotes: InterchainGasQuote[],
+  ): { token: Address; amount: bigint } | undefined {
+    // Find quotes with addressOrDenom set (non-native token fees)
+    const collateralFees = quotes.filter((q) => q.igpQuote.addressOrDenom);
+    if (collateralFees.length === 0) return undefined;
+
+    // Sum all collateral fees (they should all be the same token)
+    const totalAmount = collateralFees.reduce(
+      (sum, q) => sum + q.igpQuote.amount,
+      0n,
     );
+    return {
+      token: collateralFees[0].igpQuote.addressOrDenom!,
+      amount: totalAmount,
+    };
   }
 }
 
@@ -996,30 +1102,35 @@ export class EvmHypNativeAdapter
   }
 
   /**
+   * Override for native token rebalancing.
+   * Native adapter doesn't need USDC fee approvals since fees are paid in native token.
    * @param quotes - The quotes returned by getRebalanceQuotes
+   * @param _sender - Unused for native adapter (no ERC20 approvals needed)
    */
-  override populateRebalanceTx(
+  override async populateRebalanceTx(
     domain: Domain,
     amount: Numberish,
     bridge: Address,
     quotes: InterchainGasQuote[],
-  ): Promise<PopulatedTransaction> {
+    _sender?: Address,
+  ): Promise<PopulatedTransaction[]> {
     // Obtains the trx value by adding the amount of all quotes with no addressOrDenom (native tokens)
     const value = quotes.reduce(
-      (value, quote) =>
-        !quote.igpQuote.addressOrDenom ? value + quote.igpQuote.amount : value,
+      (v, quote) =>
+        !quote.igpQuote.addressOrDenom ? v + quote.igpQuote.amount : v,
       // Uses the amount to transfer as base value given that the amount is defined in native tokens for this adapter
       BigInt(amount),
     );
 
-    return this.movableCollateral().populateTransaction.rebalance(
-      domain,
-      amount,
-      bridge,
-      {
-        value,
-      },
-    );
+    const rebalanceTx =
+      await this.movableCollateral().populateTransaction.rebalance(
+        domain,
+        amount,
+        bridge,
+        { value },
+      );
+
+    return [rebalanceTx];
   }
 
   async populateTransferRemoteTx({
