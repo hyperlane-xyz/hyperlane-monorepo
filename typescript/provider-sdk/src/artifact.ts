@@ -119,14 +119,14 @@ export interface ArtifactWriter<C, D> extends ArtifactReader<C, D> {
 }
 
 /**
- * Utility type that transforms nested Artifact types to simple addresses.
+ * Utility type that converts Artifact<> references to ArtifactOnChain<> in a config type.
  * Used to create "raw" config types that protocol implementations work with.
  *
- * Transformations:
- * - Artifact<SomeConfig, SomeDeployed> → string (address)
- * - Record<K, Artifact<C, D>> → Record<K, string>
- * - Array<Artifact<C, D>> → Array<string>
- * - Recursively transforms nested objects
+ * Transformations (non-recursive, single level only):
+ * - Artifact<C, D> → ArtifactOnChain<C, D>
+ * - Record<K, Artifact<C, D>> → Record<K, ArtifactOnChain<C, D>>
+ * - Array<Artifact<C, D>> → Array<ArtifactOnChain<C, D>>
+ * - Other properties remain unchanged
  *
  * This enables defining compound configs once and deriving raw configs automatically.
  *
@@ -138,12 +138,12 @@ export interface ArtifactWriter<C, D> extends ArtifactReader<C, D> {
  *   domains: Record<number, Artifact<IsmConfig, IsmDeployed>>;
  * }
  *
- * type RawRoutingIsmConfig = RawArtifact<RoutingIsmConfig>;
+ * type RawRoutingIsmConfig = RawArtifact<RoutingIsmConfig, IsmDeployed>;
  * // Results in:
  * // {
  * //   type: 'routing';
  * //   owner: string;
- * //   domains: Record<number, string>;
+ * //   domains: Record<number, ArtifactOnChain<IsmConfig, IsmDeployed>>;
  * // }
  * ```
  */
