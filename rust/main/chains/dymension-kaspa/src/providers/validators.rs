@@ -17,7 +17,10 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use crate::endpoints::*;
-use crate::ops::{confirmation::ConfirmationFXG, deposit::DepositFXG, withdraw::WithdrawFXG};
+use crate::ops::{
+    confirmation::ConfirmationFXG, deposit::DepositFXG, migration::MigrationFXG,
+    withdraw::WithdrawFXG,
+};
 use kaspa_wallet_pskt::prelude::Bundle;
 
 #[derive(Clone)]
@@ -376,6 +379,35 @@ impl ValidatorsClient {
             .collect())
     }
 
+    pub async fn get_migration_sigs(&self, fxg: Arc<MigrationFXG>) -> ChainResult<Vec<Bundle>> {
+        let threshold = self.multisig_threshold_escrow();
+        let hosts = self.hosts();
+        let client = self.http_client.clone();
+        let metrics = self.metrics.clone();
+
+        let indexed_bundles = Self::collect_with_threshold(
+            hosts,
+            metrics,
+            "migration",
+            threshold,
+            move |host| {
+                let client = client.clone();
+                let fxg = fxg.clone();
+                Box::pin(
+                    async move { request_sign_migration_bundle(&client, host, fxg.as_ref()).await },
+                )
+            },
+            None::<fn(usize, &String, &Bundle) -> bool>,
+        )
+        .await?;
+
+        // Extract bundles (order doesn't matter for Kaspa Schnorr multisig)
+        Ok(indexed_bundles
+            .into_iter()
+            .map(|(_, bundle)| bundle)
+            .collect())
+    }
+
     pub fn multisig_threshold_hub_ism(&self) -> usize {
         self.conf.multisig_threshold_hub_ism
     }
@@ -479,6 +511,36 @@ pub async fn request_sign_withdrawal_bundle(
         let err_msg = res.text().await.unwrap_or_else(|_| status.to_string());
         Err(eyre::eyre!(
             "sign withdrawal bundle: {} - {}",
+            status,
+            err_msg
+        ))
+    }
+}
+
+pub async fn request_sign_migration_bundle(
+    client: &reqwest::Client,
+    host: String,
+    fxg: &MigrationFXG,
+) -> Result<Bundle> {
+    info!(
+        validator = %host,
+        "dymension: requesting migration sigs from validator"
+    );
+    let bz = Bytes::try_from(fxg)?;
+    let res = client
+        .post(format!("{}{}", host, ROUTE_SIGN_MIGRATION))
+        .body(bz)
+        .send()
+        .await?;
+
+    let status = res.status();
+    if status == StatusCode::OK {
+        let bundle = res.json::<Bundle>().await?;
+        Ok(bundle)
+    } else {
+        let err_msg = res.text().await.unwrap_or_else(|_| status.to_string());
+        Err(eyre::eyre!(
+            "sign migration bundle: {} - {}",
             status,
             err_msg
         ))

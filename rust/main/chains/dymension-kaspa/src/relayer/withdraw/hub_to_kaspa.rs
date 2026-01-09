@@ -415,7 +415,7 @@ async fn sign_relayer_fee(easy_wallet: &EasyKaspaWallet, fxg: &WithdrawFXG) -> R
 }
 
 /// accepts bundle of signer
-fn combine_all_bundles(bundles: Vec<Bundle>) -> Result<Vec<PSKT<Combiner>>> {
+pub fn combine_all_bundles(bundles: Vec<Bundle>) -> Result<Vec<PSKT<Combiner>>> {
     // each bundle is from a different actor (validator or relayer), and is a vector of pskt
     // therefore index i of each vector corresponds to the same TX i
 
@@ -481,6 +481,19 @@ fn finalize_txs(
     let transactions: Vec<RpcTransaction> = transactions_result?;
 
     Ok(transactions)
+}
+
+/// Finalize migration transactions (no relayer fee inputs).
+pub fn finalize_migration_txs(
+    txs_sigs: Vec<PSKT<Combiner>>,
+    escrow: &EscrowPublic,
+    relayer_pub_key: kaspa_bip32::secp256k1::PublicKey,
+    network_id: NetworkId,
+) -> Result<Vec<RpcTransaction>> {
+    txs_sigs
+        .into_iter()
+        .map(|tx| finalize_pskt(tx, escrow, &relayer_pub_key, network_id))
+        .collect()
 }
 
 // used by multisig demo AND real code
