@@ -108,6 +108,7 @@
     "deploy-helloworld": "tsx scripts/deploy.ts -e test -m helloworld",
     "deploy-hook": "tsx scripts/deploy.ts -e test -m hook",
     "haggis": "tsx scripts/haggis/haggis.ts",
+    "haggis:local": "tsx scripts/haggis/haggis-local.ts",
     "hardhat-esm": "NODE_OPTIONS='--import tsx/esm' hardhat --config hardhat.config.cts",
     "kathy": "pnpm tsx ./scripts/send-test-messages.ts",
     "prettier": "prettier --write ./src ./config ./scripts ./test",

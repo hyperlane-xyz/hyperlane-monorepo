@@ -9,7 +9,7 @@ import { config, logger } from '../config.js';
 
 import {
   formatError,
-  formatFinalResult,
+  formatFinalResults,
   formatStatus,
   formatThinkingMessage,
   formatToolCall,
@@ -93,11 +93,14 @@ export function registerEventHandlers(app: App): void {
         if (msg.type === 'result') {
           hasResult = true;
 
-          // Post final result as new message
-          await say({
-            thread_ts: threadTs,
-            ...formatFinalResult(msg.content),
-          });
+          // Post final result as multiple messages if needed
+          const resultMessages = formatFinalResults(msg.content);
+          for (const resultMessage of resultMessages) {
+            await say({
+              thread_ts: threadTs,
+              ...resultMessage,
+            });
+          }
 
           // Update thinking message to show completion
           await client.chat.update({

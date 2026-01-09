@@ -42,8 +42,8 @@ export async function* executeClaudeQuery(
         allowedTools: config.claude.allowedTools,
         maxTurns: config.claude.maxTurns,
         permissionMode: 'bypassPermissions',
-        // Load project settings to enable skill discovery from .claude/skills/
-        settingSources: ['project'],
+        // Load project settings (skills, CLAUDE.md) and user settings (MCP servers)
+        settingSources: ['project', 'user'],
       },
     })) {
       // Capture session ID on init
@@ -93,7 +93,9 @@ export async function* executeClaudeQuery(
         if (message.subtype === 'success') {
           const result = (message as any).result || 'Task completed';
           const cost = (message as any).total_cost_usd;
-          const costStr = cost ? ` (cost: $${cost.toFixed(4)})` : '';
+          const costStr = cost
+            ? ` (cost of previous query: $${cost.toFixed(4)})`
+            : '';
           yield { type: 'result', content: result + costStr };
         } else {
           // Error or other result type
