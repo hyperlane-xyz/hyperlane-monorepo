@@ -42,8 +42,7 @@ COPY solidity/package.json ./solidity/
 COPY solhint-plugin/package.json ./solhint-plugin/
 COPY starknet/package.json ./starknet/
 
-RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
-    pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile
 
 # Copy source files
 COPY turbo.json ./
@@ -64,8 +63,7 @@ COPY starknet ./starknet
 
 # Build and bundle the warp-monitor (ncc creates a single-file bundle with all deps)
 ARG TURBO_TEAM
-RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
-    --mount=type=secret,id=TURBO_TOKEN \
+RUN --mount=type=secret,id=TURBO_TOKEN \
     TURBO_TOKEN=$(cat /run/secrets/TURBO_TOKEN 2>/dev/null || echo "") \
     TURBO_API=https://cache.depot.dev \
     TURBO_TEAM=${TURBO_TEAM} \

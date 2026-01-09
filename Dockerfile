@@ -46,8 +46,7 @@ COPY starknet/package.json ./starknet/
 # Set dummy DATABASE_URL for ccip-server prisma generate during install
 ENV DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder"
 
-RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
-    pnpm install --frozen-lockfile && pnpm store prune
+RUN pnpm install --frozen-lockfile && pnpm store prune
 
 # Copy everything else
 COPY turbo.json ./

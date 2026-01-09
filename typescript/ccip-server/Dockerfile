@@ -48,8 +48,7 @@ COPY typescript/ccip-server/prisma ./typescript/ccip-server/prisma
 # Set dummy DATABASE_URL for prisma generate during install (actual URL provided at runtime)
 ENV DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder"
 
-RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
-    pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile
 
 # Run prisma generate after install (needed to generate Prisma client)
 RUN pnpm --filter @hyperlane-xyz/ccip-server prisma generate
@@ -73,8 +72,7 @@ COPY starknet ./starknet
 
 # Build the ccip-server
 ARG TURBO_TEAM
-RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
-    --mount=type=secret,id=TURBO_TOKEN \
+RUN --mount=type=secret,id=TURBO_TOKEN \
     TURBO_TOKEN=$(cat /run/secrets/TURBO_TOKEN 2>/dev/null || echo "") \
     TURBO_API=https://cache.depot.dev \
     TURBO_TEAM=${TURBO_TEAM} \
