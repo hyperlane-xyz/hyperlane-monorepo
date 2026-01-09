@@ -48,7 +48,13 @@ export class RoutingIsmWriter
   }
 
   async read(address: string): Promise<DeployedRoutingIsmArtifact> {
-    return this.ismReader.read(address) as Promise<DeployedRoutingIsmArtifact>;
+    const artifact = await this.ismReader.read(address);
+    if (artifact.config.type !== AltVM.IsmType.ROUTING) {
+      throw new Error(
+        `Expected ROUTING ISM at ${address}, got ${artifact.config.type}`,
+      );
+    }
+    return artifact as DeployedRoutingIsmArtifact;
   }
 
   async create(
