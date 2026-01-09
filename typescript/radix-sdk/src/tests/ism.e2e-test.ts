@@ -8,7 +8,7 @@ import {
   ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
-  DeployedIsmAddresses,
+  DeployedIsmAddress,
   IsmType,
   MultisigIsmConfig,
   RawRoutingIsmArtifactConfig,
@@ -169,7 +169,7 @@ describe('Radix ISMs (e2e)', function () {
     let config: RawRoutingIsmArtifactConfig;
     let routingIsmWriter: ArtifactWriter<
       RawRoutingIsmArtifactConfig,
-      DeployedIsmAddresses
+      DeployedIsmAddress
     >;
 
     before(async () => {
@@ -240,7 +240,7 @@ describe('Radix ISMs (e2e)', function () {
 
       const updatedConfig: ArtifactDeployed<
         RawRoutingIsmArtifactConfig,
-        DeployedIsmAddresses
+        DeployedIsmAddress
       > = {
         ...routingIsm,
         config: {
@@ -277,7 +277,7 @@ describe('Radix ISMs (e2e)', function () {
 
       const updatedConfig: ArtifactDeployed<
         RawRoutingIsmArtifactConfig,
-        DeployedIsmAddresses
+        DeployedIsmAddress
       > = {
         ...routingIsm,
         config: {
@@ -313,7 +313,7 @@ describe('Radix ISMs (e2e)', function () {
 
       const updatedConfig: ArtifactDeployed<
         RawRoutingIsmArtifactConfig,
-        DeployedIsmAddresses
+        DeployedIsmAddress
       > = {
         ...routingIsm,
         config: {
@@ -352,7 +352,7 @@ describe('Radix ISMs (e2e)', function () {
 
       const updatedConfig: ArtifactDeployed<
         RawRoutingIsmArtifactConfig,
-        DeployedIsmAddresses
+        DeployedIsmAddress
       > = {
         ...routingIsm,
         config: {

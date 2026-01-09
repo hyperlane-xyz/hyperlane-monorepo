@@ -9,7 +9,7 @@ import {
   ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
-  DeployedIsmAddresses,
+  DeployedIsmAddress,
   MultisigIsmConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import { TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
@@ -25,13 +25,13 @@ import {
 } from './ism-tx.js';
 
 export class RadixMessageIdMultisigIsmReader
-  implements ArtifactReader<MultisigIsmConfig, DeployedIsmAddresses>
+  implements ArtifactReader<MultisigIsmConfig, DeployedIsmAddress>
 {
   constructor(private readonly gateway: Readonly<GatewayApiClient>) {}
 
   async read(
     address: string,
-  ): Promise<ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddresses>> {
+  ): Promise<ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddress>> {
     const ismConfig = await getMultisigIsmConfig(this.gateway, address);
 
     return {
@@ -50,7 +50,7 @@ export class RadixMessageIdMultisigIsmReader
 
 export class RadixMessageIdMultisigIsmWriter
   extends RadixMessageIdMultisigIsmReader
-  implements ArtifactWriter<MultisigIsmConfig, DeployedIsmAddresses>
+  implements ArtifactWriter<MultisigIsmConfig, DeployedIsmAddress>
 {
   constructor(
     gateway: Readonly<GatewayApiClient>,
@@ -63,7 +63,7 @@ export class RadixMessageIdMultisigIsmWriter
   async create(
     artifact: ArtifactNew<MultisigIsmConfig>,
   ): Promise<
-    [ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddresses>, TxReceipt[]]
+    [ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddress>, TxReceipt[]]
   > {
     const { config } = artifact;
 
@@ -81,7 +81,7 @@ export class RadixMessageIdMultisigIsmWriter
 
     const deployedArtifact: ArtifactDeployed<
       MultisigIsmConfig,
-      DeployedIsmAddresses
+      DeployedIsmAddress
     > = {
       artifactState: ArtifactState.DEPLOYED,
       config: artifact.config,
@@ -94,7 +94,7 @@ export class RadixMessageIdMultisigIsmWriter
   }
 
   async update(
-    _artifact: ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddresses>,
+    _artifact: ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddress>,
   ): Promise<AnnotatedRadixTransaction[]> {
     // Multisig ISMs are immutable.
     // To change configuration, a new ISM must be deployed
@@ -103,13 +103,13 @@ export class RadixMessageIdMultisigIsmWriter
 }
 
 export class RadixMerkleRootMultisigIsmReader
-  implements ArtifactReader<MultisigIsmConfig, DeployedIsmAddresses>
+  implements ArtifactReader<MultisigIsmConfig, DeployedIsmAddress>
 {
   constructor(private readonly gateway: Readonly<GatewayApiClient>) {}
 
   async read(
     address: string,
-  ): Promise<ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddresses>> {
+  ): Promise<ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddress>> {
     const ismConfig = await getMultisigIsmConfig(this.gateway, address);
 
     return {
@@ -128,7 +128,7 @@ export class RadixMerkleRootMultisigIsmReader
 
 export class RadixMerkleRootMultisigIsmWriter
   extends RadixMerkleRootMultisigIsmReader
-  implements ArtifactWriter<MultisigIsmConfig, DeployedIsmAddresses>
+  implements ArtifactWriter<MultisigIsmConfig, DeployedIsmAddress>
 {
   constructor(
     gateway: Readonly<GatewayApiClient>,
@@ -141,7 +141,7 @@ export class RadixMerkleRootMultisigIsmWriter
   async create(
     artifact: ArtifactNew<MultisigIsmConfig>,
   ): Promise<
-    [ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddresses>, TxReceipt[]]
+    [ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddress>, TxReceipt[]]
   > {
     const { config } = artifact;
 
@@ -159,7 +159,7 @@ export class RadixMerkleRootMultisigIsmWriter
 
     const deployedArtifact: ArtifactDeployed<
       MultisigIsmConfig,
-      DeployedIsmAddresses
+      DeployedIsmAddress
     > = {
       artifactState: ArtifactState.DEPLOYED,
       config: artifact.config,
@@ -172,7 +172,7 @@ export class RadixMerkleRootMultisigIsmWriter
   }
 
   async update(
-    _artifact: ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddresses>,
+    _artifact: ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddress>,
   ): Promise<AnnotatedRadixTransaction[]> {
     // Multisig ISMs are immutable.
     // To change configuration, a new ISM must be deployed

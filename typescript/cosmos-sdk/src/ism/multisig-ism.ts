@@ -5,7 +5,7 @@ import {
   ArtifactState,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
-  DeployedIsmAddresses,
+  DeployedIsmAddress,
   MultisigIsmConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
 
@@ -20,13 +20,13 @@ import {
  * Uses message IDs for validator signature verification.
  */
 export class CosmosMessageIdMultisigIsmReader
-  implements ArtifactReader<MultisigIsmConfig, DeployedIsmAddresses>
+  implements ArtifactReader<MultisigIsmConfig, DeployedIsmAddress>
 {
   constructor(private readonly query: CosmosIsmQueryClient) {}
 
   async read(
     address: string,
-  ): Promise<ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddresses>> {
+  ): Promise<ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddress>> {
     const ismConfig = await getMessageIdMultisigIsmConfig(this.query, address);
 
     return {
@@ -48,13 +48,13 @@ export class CosmosMessageIdMultisigIsmReader
  * Uses merkle root proofs for validator signature verification.
  */
 export class CosmosMerkleRootMultisigIsmReader
-  implements ArtifactReader<MultisigIsmConfig, DeployedIsmAddresses>
+  implements ArtifactReader<MultisigIsmConfig, DeployedIsmAddress>
 {
   constructor(private readonly query: CosmosIsmQueryClient) {}
 
   async read(
     address: string,
-  ): Promise<ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddresses>> {
+  ): Promise<ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddress>> {
     const ismConfig = await getMerkleRootMultisigIsmConfig(this.query, address);
 
     return {

@@ -54,7 +54,7 @@ export type IsmModuleAddresses = {
 
 // Artifact API types
 
-export interface DeployedIsmAddresses {
+export interface DeployedIsmAddress {
   address: string;
 }
 
@@ -76,7 +76,7 @@ export type IsmArtifactConfig = IsmArtifactConfigs[IsmType];
  */
 export type DeployedIsmArtifact = ArtifactDeployed<
   IsmArtifactConfig,
-  DeployedIsmAddresses
+  DeployedIsmAddress
 >;
 
 /**
@@ -86,18 +86,18 @@ export type DeployedIsmArtifact = ArtifactDeployed<
 export type IIsmArtifactManager = IArtifactManager<
   IsmType,
   IsmArtifactConfigs,
-  DeployedIsmAddresses
+  DeployedIsmAddress
 >;
 
 export interface RoutingIsmArtifactConfig {
   type: 'domainRoutingIsm';
   owner: string;
-  domains: Record<number, Artifact<IsmArtifactConfig, DeployedIsmAddresses>>;
+  domains: Record<number, Artifact<IsmArtifactConfig, DeployedIsmAddress>>;
 }
 
 export type RawRoutingIsmArtifactConfig = RawArtifact<
   RoutingIsmArtifactConfig,
-  DeployedIsmAddresses
+  DeployedIsmAddress
 >;
 
 export interface RawIsmArtifactConfigs {
@@ -118,7 +118,7 @@ export type RawIsmArtifactConfig = RawIsmArtifactConfigs[IsmType];
  */
 export type DeployedRawIsmArtifact = ArtifactDeployed<
   RawIsmArtifactConfig,
-  DeployedIsmAddresses
+  DeployedIsmAddress
 >;
 
 /**
@@ -126,11 +126,7 @@ export type DeployedRawIsmArtifact = ArtifactDeployed<
  * ISMs on chain
  */
 export interface IRawIsmArtifactManager
-  extends IArtifactManager<
-    IsmType,
-    RawIsmArtifactConfigs,
-    DeployedIsmAddresses
-  > {
+  extends IArtifactManager<IsmType, RawIsmArtifactConfigs, DeployedIsmAddress> {
   /**
    * Read any ISM by detecting its type and delegating to the appropriate reader.
    * This is the generic entry point for reading ISMs of unknown types.
@@ -141,7 +137,7 @@ export interface IRawIsmArtifactManager
 }
 
 export function ismOnChainAddress(
-  ism: ArtifactOnChain<IsmArtifactConfig, DeployedIsmAddresses>,
+  ism: ArtifactOnChain<IsmArtifactConfig, DeployedIsmAddress>,
 ): string {
   return ism.deployed.address;
 }

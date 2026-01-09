@@ -9,7 +9,7 @@ import {
   ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
-  DeployedIsmAddresses,
+  DeployedIsmAddress,
   TestIsmConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import { TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
@@ -22,13 +22,13 @@ import { getTestIsmConfig } from './ism-query.js';
 import { getCreateNoopIsmTx } from './ism-tx.js';
 
 export class RadixTestIsmReader
-  implements ArtifactReader<TestIsmConfig, DeployedIsmAddresses>
+  implements ArtifactReader<TestIsmConfig, DeployedIsmAddress>
 {
   constructor(private readonly gateway: Readonly<GatewayApiClient>) {}
 
   async read(
     address: string,
-  ): Promise<ArtifactDeployed<TestIsmConfig, DeployedIsmAddresses>> {
+  ): Promise<ArtifactDeployed<TestIsmConfig, DeployedIsmAddress>> {
     const ismConfig = await getTestIsmConfig(this.gateway, address);
 
     return {
@@ -45,7 +45,7 @@ export class RadixTestIsmReader
 
 export class RadixTestIsmWriter
   extends RadixTestIsmReader
-  implements ArtifactWriter<TestIsmConfig, DeployedIsmAddresses>
+  implements ArtifactWriter<TestIsmConfig, DeployedIsmAddress>
 {
   constructor(
     gateway: Readonly<GatewayApiClient>,
@@ -58,7 +58,7 @@ export class RadixTestIsmWriter
   async create(
     artifact: ArtifactNew<TestIsmConfig>,
   ): Promise<
-    [ArtifactDeployed<TestIsmConfig, DeployedIsmAddresses>, TxReceipt[]]
+    [ArtifactDeployed<TestIsmConfig, DeployedIsmAddress>, TxReceipt[]]
   > {
     const transactionManifest = await getCreateNoopIsmTx(
       this.base,
@@ -70,7 +70,7 @@ export class RadixTestIsmWriter
 
     const deployedArtifact: ArtifactDeployed<
       TestIsmConfig,
-      DeployedIsmAddresses
+      DeployedIsmAddress
     > = {
       artifactState: ArtifactState.DEPLOYED,
       config: artifact.config,
@@ -83,7 +83,7 @@ export class RadixTestIsmWriter
   }
 
   async update(
-    _artifact: ArtifactDeployed<TestIsmConfig, DeployedIsmAddresses>,
+    _artifact: ArtifactDeployed<TestIsmConfig, DeployedIsmAddress>,
   ): Promise<AnnotatedRadixTransaction[]> {
     // NoopIsm has no mutable state
     return [];

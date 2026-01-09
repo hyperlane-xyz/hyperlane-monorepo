@@ -6,7 +6,7 @@ import {
   ArtifactUnderived,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
-  DeployedIsmAddresses,
+  DeployedIsmAddress,
   RawRoutingIsmArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
 
@@ -18,19 +18,19 @@ import { CosmosIsmQueryClient, getRoutingIsmConfig } from './ism-query.js';
  * The GenericIsmReader from deploy-sdk handles recursive expansion of nested ISMs.
  */
 export class CosmosRoutingIsmRawReader
-  implements ArtifactReader<RawRoutingIsmArtifactConfig, DeployedIsmAddresses>
+  implements ArtifactReader<RawRoutingIsmArtifactConfig, DeployedIsmAddress>
 {
   constructor(protected readonly query: CosmosIsmQueryClient) {}
 
   async read(
     address: string,
   ): Promise<
-    ArtifactDeployed<RawRoutingIsmArtifactConfig, DeployedIsmAddresses>
+    ArtifactDeployed<RawRoutingIsmArtifactConfig, DeployedIsmAddress>
   > {
     const ismConfig = await getRoutingIsmConfig(this.query, address);
 
     // Convert routes to UNDERIVED artifacts (address-only references)
-    const domains: Record<number, ArtifactUnderived<DeployedIsmAddresses>> = {};
+    const domains: Record<number, ArtifactUnderived<DeployedIsmAddress>> = {};
     for (const route of ismConfig.routes) {
       domains[route.domainId] = {
         deployed: {

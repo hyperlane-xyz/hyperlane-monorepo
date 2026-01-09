@@ -6,7 +6,7 @@ import {
   ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
-  DeployedIsmAddresses,
+  DeployedIsmAddress,
   DeployedRawIsmArtifact,
   IRawIsmArtifactManager,
   IsmType,
@@ -63,35 +63,35 @@ export class RadixIsmArtifactManager implements IRawIsmArtifactManager {
 
   createReader<T extends IsmType>(
     type: T,
-  ): ArtifactReader<RawIsmArtifactConfigs[T], DeployedIsmAddresses> {
+  ): ArtifactReader<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
     switch (type) {
       case AltVM.IsmType.TEST_ISM:
         return new RadixTestIsmReader(
           this.gateway,
         ) as unknown as ArtifactReader<
           RawIsmArtifactConfigs[T],
-          DeployedIsmAddresses
+          DeployedIsmAddress
         >;
       case AltVM.IsmType.MERKLE_ROOT_MULTISIG:
         return new RadixMerkleRootMultisigIsmReader(
           this.gateway,
         ) as unknown as ArtifactReader<
           RawIsmArtifactConfigs[T],
-          DeployedIsmAddresses
+          DeployedIsmAddress
         >;
       case AltVM.IsmType.MESSAGE_ID_MULTISIG:
         return new RadixMessageIdMultisigIsmReader(
           this.gateway,
         ) as unknown as ArtifactReader<
           RawIsmArtifactConfigs[T],
-          DeployedIsmAddresses
+          DeployedIsmAddress
         >;
       case AltVM.IsmType.ROUTING:
         return new RadixRoutingIsmRawReader(
           this.gateway,
         ) as unknown as ArtifactReader<
           RawIsmArtifactConfigs[T],
-          DeployedIsmAddresses
+          DeployedIsmAddress
         >;
       default:
         throw new Error(`Unsupported ISM type: ${type}`);
@@ -101,7 +101,7 @@ export class RadixIsmArtifactManager implements IRawIsmArtifactManager {
   createWriter<T extends IsmType>(
     type: T,
     signer: RadixSigner,
-  ): ArtifactWriter<RawIsmArtifactConfigs[T], DeployedIsmAddresses> {
+  ): ArtifactWriter<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
     const baseSigner = signer.getBaseSigner();
 
     switch (type) {
@@ -112,7 +112,7 @@ export class RadixIsmArtifactManager implements IRawIsmArtifactManager {
           this.base,
         ) as unknown as ArtifactWriter<
           RawIsmArtifactConfigs[T],
-          DeployedIsmAddresses
+          DeployedIsmAddress
         >;
       case AltVM.IsmType.MERKLE_ROOT_MULTISIG:
         return new RadixMerkleRootMultisigIsmWriter(
@@ -121,7 +121,7 @@ export class RadixIsmArtifactManager implements IRawIsmArtifactManager {
           this.base,
         ) as unknown as ArtifactWriter<
           RawIsmArtifactConfigs[T],
-          DeployedIsmAddresses
+          DeployedIsmAddress
         >;
       case AltVM.IsmType.MESSAGE_ID_MULTISIG:
         return new RadixMessageIdMultisigIsmWriter(
@@ -130,7 +130,7 @@ export class RadixIsmArtifactManager implements IRawIsmArtifactManager {
           this.base,
         ) as unknown as ArtifactWriter<
           RawIsmArtifactConfigs[T],
-          DeployedIsmAddresses
+          DeployedIsmAddress
         >;
       case AltVM.IsmType.ROUTING:
         return new RadixRoutingIsmRawWriter(
@@ -139,7 +139,7 @@ export class RadixIsmArtifactManager implements IRawIsmArtifactManager {
           this.base,
         ) as unknown as ArtifactWriter<
           RawIsmArtifactConfigs[T],
-          DeployedIsmAddresses
+          DeployedIsmAddress
         >;
       default:
         throw new Error(`Unsupported ISM type: ${type}`);

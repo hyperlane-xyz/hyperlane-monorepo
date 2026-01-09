@@ -10,7 +10,7 @@ import {
   ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
-  DeployedIsmAddresses,
+  DeployedIsmAddress,
   RawRoutingIsmArtifactConfig,
   ismOnChainAddress,
 } from '@hyperlane-xyz/provider-sdk/ism';
@@ -30,18 +30,18 @@ import {
 } from './ism-tx.js';
 
 export class RadixRoutingIsmRawReader
-  implements ArtifactReader<RawRoutingIsmArtifactConfig, DeployedIsmAddresses>
+  implements ArtifactReader<RawRoutingIsmArtifactConfig, DeployedIsmAddress>
 {
   constructor(protected readonly gateway: Readonly<GatewayApiClient>) {}
 
   async read(
     address: string,
   ): Promise<
-    ArtifactDeployed<RawRoutingIsmArtifactConfig, DeployedIsmAddresses>
+    ArtifactDeployed<RawRoutingIsmArtifactConfig, DeployedIsmAddress>
   > {
     const ismConfig = await getDomainRoutingIsmConfig(this.gateway, address);
 
-    const domains: Record<number, ArtifactUnderived<DeployedIsmAddresses>> = {};
+    const domains: Record<number, ArtifactUnderived<DeployedIsmAddress>> = {};
     for (const route of ismConfig.routes) {
       domains[route.domainId] = {
         deployed: {
@@ -67,7 +67,7 @@ export class RadixRoutingIsmRawReader
 
 export class RadixRoutingIsmRawWriter
   extends RadixRoutingIsmRawReader
-  implements ArtifactWriter<RawRoutingIsmArtifactConfig, DeployedIsmAddresses>
+  implements ArtifactWriter<RawRoutingIsmArtifactConfig, DeployedIsmAddress>
 {
   constructor(
     gateway: Readonly<GatewayApiClient>,
@@ -81,7 +81,7 @@ export class RadixRoutingIsmRawWriter
     artifact: ArtifactNew<RawRoutingIsmArtifactConfig>,
   ): Promise<
     [
-      ArtifactDeployed<RawRoutingIsmArtifactConfig, DeployedIsmAddresses>,
+      ArtifactDeployed<RawRoutingIsmArtifactConfig, DeployedIsmAddress>,
       TxReceipt[],
     ]
   > {
@@ -105,7 +105,7 @@ export class RadixRoutingIsmRawWriter
 
     const deployedArtifact: ArtifactDeployed<
       RawRoutingIsmArtifactConfig,
-      DeployedIsmAddresses
+      DeployedIsmAddress
     > = {
       artifactState: ArtifactState.DEPLOYED,
       config: artifact.config,
@@ -118,10 +118,7 @@ export class RadixRoutingIsmRawWriter
   }
 
   async update(
-    artifact: ArtifactDeployed<
-      RawRoutingIsmArtifactConfig,
-      DeployedIsmAddresses
-    >,
+    artifact: ArtifactDeployed<RawRoutingIsmArtifactConfig, DeployedIsmAddress>,
   ): Promise<AnnotatedRadixTransaction[]> {
     const { config, deployed } = artifact;
     const currentConfig = await this.read(deployed.address);

@@ -11,7 +11,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
-  DeployedIsmAddresses,
+  DeployedIsmAddress,
   DeployedIsmArtifact,
   IRawIsmArtifactManager,
   IsmArtifactConfig,
@@ -25,11 +25,11 @@ import { IsmReader } from './generic-ism.js';
 
 type DeployedRoutingIsmArtifact = ArtifactDeployed<
   RoutingIsmArtifactConfig,
-  DeployedIsmAddresses
+  DeployedIsmAddress
 >;
 
 export class RoutingIsmWriter
-  implements ArtifactWriter<RoutingIsmArtifactConfig, DeployedIsmAddresses>
+  implements ArtifactWriter<RoutingIsmArtifactConfig, DeployedIsmAddress>
 {
   protected readonly logger: Logger = rootLogger.child({
     module: RoutingIsmWriter.name,
@@ -80,7 +80,7 @@ export class RoutingIsmWriter
 
     const rawRoutingConfig: Artifact<
       RawRoutingIsmArtifactConfig,
-      DeployedIsmAddresses
+      DeployedIsmAddress
     > = {
       config: {
         type: config.type,
@@ -165,7 +165,7 @@ export class RoutingIsmWriter
 
     const rawRoutingArtifact: ArtifactDeployed<
       RawRoutingIsmArtifactConfig,
-      DeployedIsmAddresses
+      DeployedIsmAddress
     > = {
       artifactState: ArtifactState.DEPLOYED,
       config: {

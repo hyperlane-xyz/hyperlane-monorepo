@@ -5,7 +5,7 @@ import {
   ArtifactState,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
-  DeployedIsmAddresses,
+  DeployedIsmAddress,
   TestIsmConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
 
@@ -16,13 +16,13 @@ import { CosmosIsmQueryClient, getNoopIsmConfig } from './ism-query.js';
  * This is the simplest ISM type with no configuration beyond its address.
  */
 export class CosmosTestIsmReader
-  implements ArtifactReader<TestIsmConfig, DeployedIsmAddresses>
+  implements ArtifactReader<TestIsmConfig, DeployedIsmAddress>
 {
   constructor(private readonly query: CosmosIsmQueryClient) {}
 
   async read(
     address: string,
-  ): Promise<ArtifactDeployed<TestIsmConfig, DeployedIsmAddresses>> {
+  ): Promise<ArtifactDeployed<TestIsmConfig, DeployedIsmAddress>> {
     const ismConfig = await getNoopIsmConfig(this.query, address);
 
     return {

@@ -7,7 +7,7 @@ import {
   ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
-  DeployedIsmAddresses,
+  DeployedIsmAddress,
   DeployedRawIsmArtifact,
   IRawIsmArtifactManager,
   IsmType,
@@ -108,7 +108,7 @@ export class CosmosIsmArtifactManager implements IRawIsmArtifactManager {
    */
   createReader<T extends IsmType>(
     type: T,
-  ): ArtifactReader<RawIsmArtifactConfigs[T], DeployedIsmAddresses> {
+  ): ArtifactReader<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
     // For synchronous createReader, we return a wrapper that will initialize lazily
     return {
       read: async (address: string) => {
@@ -116,7 +116,7 @@ export class CosmosIsmArtifactManager implements IRawIsmArtifactManager {
         const reader = this.createReaderWithQuery(type, query);
         return reader.read(address);
       },
-    } as ArtifactReader<RawIsmArtifactConfigs[T], DeployedIsmAddresses>;
+    } as ArtifactReader<RawIsmArtifactConfigs[T], DeployedIsmAddress>;
   }
 
   /**
@@ -129,33 +129,33 @@ export class CosmosIsmArtifactManager implements IRawIsmArtifactManager {
   private createReaderWithQuery<T extends IsmType>(
     type: T,
     query: CosmosIsmQueryClient,
-  ): ArtifactReader<RawIsmArtifactConfigs[T], DeployedIsmAddresses> {
+  ): ArtifactReader<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
     switch (type) {
       case AltVM.IsmType.TEST_ISM:
         return new CosmosTestIsmReader(query) as unknown as ArtifactReader<
           RawIsmArtifactConfigs[T],
-          DeployedIsmAddresses
+          DeployedIsmAddress
         >;
       case AltVM.IsmType.MERKLE_ROOT_MULTISIG:
         return new CosmosMerkleRootMultisigIsmReader(
           query,
         ) as unknown as ArtifactReader<
           RawIsmArtifactConfigs[T],
-          DeployedIsmAddresses
+          DeployedIsmAddress
         >;
       case AltVM.IsmType.MESSAGE_ID_MULTISIG:
         return new CosmosMessageIdMultisigIsmReader(
           query,
         ) as unknown as ArtifactReader<
           RawIsmArtifactConfigs[T],
-          DeployedIsmAddresses
+          DeployedIsmAddress
         >;
       case AltVM.IsmType.ROUTING:
         return new CosmosRoutingIsmRawReader(
           query,
         ) as unknown as ArtifactReader<
           RawIsmArtifactConfigs[T],
-          DeployedIsmAddresses
+          DeployedIsmAddress
         >;
       default:
         throw new Error(`Unsupported ISM type: ${type}`);
@@ -174,7 +174,7 @@ export class CosmosIsmArtifactManager implements IRawIsmArtifactManager {
   createWriter<T extends IsmType>(
     type: T,
     _signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
-  ): ArtifactWriter<RawIsmArtifactConfigs[T], DeployedIsmAddresses> {
+  ): ArtifactWriter<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
     throw new Error(
       `ISM writers not yet implemented for Cosmos (requested type: ${type})`,
     );

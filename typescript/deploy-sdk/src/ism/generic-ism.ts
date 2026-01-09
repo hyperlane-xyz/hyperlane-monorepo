@@ -11,7 +11,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
-  DeployedIsmAddresses,
+  DeployedIsmAddress,
   DeployedIsmArtifact,
   DerivedIsmConfig,
   DomainRoutingIsmConfig,
@@ -100,7 +100,7 @@ function artifactToDerivedConfig(
  * and recursively expanding nested ISMs (e.g., for routing ISMs).
  */
 export class IsmReader
-  implements ArtifactReader<IsmArtifactConfig, DeployedIsmAddresses>
+  implements ArtifactReader<IsmArtifactConfig, DeployedIsmAddress>
 {
   protected readonly logger: Logger = rootLogger.child({
     module: IsmReader.name,
@@ -136,9 +136,9 @@ export class IsmReader
   private async expandRoutingIsm(
     rawArtifact: ArtifactDeployed<
       RawRoutingIsmArtifactConfig,
-      DeployedIsmAddresses
+      DeployedIsmAddress
     >,
-  ): Promise<ArtifactDeployed<RoutingIsmArtifactConfig, DeployedIsmAddresses>> {
+  ): Promise<ArtifactDeployed<RoutingIsmArtifactConfig, DeployedIsmAddress>> {
     const { artifactState, config, deployed } = rawArtifact;
     const domains: Record<number, DeployedIsmArtifact> = {};
 
