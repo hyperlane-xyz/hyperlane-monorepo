@@ -108,18 +108,29 @@ impl Default for RelayerDepositTimings {
 
 #[derive(Debug, Clone)]
 pub struct ValidationConf {
-    pub deposit_enabled: bool,
-    pub withdrawal_enabled: bool,
-    pub withdrawal_confirmation_enabled: bool,
+    pub validate_deposits: bool,
+    pub validate_withdrawals: bool,
+    pub validate_confirmations: bool,
+    /// When set, enables migration mode. Only migration TX signing and confirmation are allowed.
+    /// During migration, current escrow is treated as "old" and this address as "new".
+    pub migration_target_address: Option<String>,
 }
 
 impl Default for ValidationConf {
     fn default() -> Self {
         Self {
-            deposit_enabled: true,
-            withdrawal_enabled: true,
-            withdrawal_confirmation_enabled: true,
+            validate_deposits: true,
+            validate_withdrawals: true,
+            validate_confirmations: true,
+            migration_target_address: None,
         }
+    }
+}
+
+impl ValidationConf {
+    /// Returns true if migration mode is active.
+    pub fn is_migration_mode(&self) -> bool {
+        self.migration_target_address.is_some()
     }
 }
 
@@ -138,7 +149,7 @@ impl ConnectionConf {
         hub_grpc_urls: Vec<Url>,
         hub_mailbox_id: String,
         op_submission_config: OpSubmissionConfig,
-        _validation_conf: ValidationConf,
+        validation_conf: ValidationConf,
         min_deposit_sompi: U256,
         kaspa_time_config: Option<RelayerDepositTimings>,
 
@@ -177,11 +188,7 @@ impl ConnectionConf {
                         hub_mailbox_id,
                         kas_escrow_key_source,
                         kaspa_grpc_urls: kaspa_urls_grpc,
-                        toggles: ValidationConf {
-                            deposit_enabled: true,
-                            withdrawal_enabled: true,
-                            withdrawal_confirmation_enabled: true,
-                        },
+                        toggles: validation_conf,
                     })
                 }
             }

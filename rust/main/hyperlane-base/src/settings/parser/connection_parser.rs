@@ -404,24 +404,30 @@ pub fn build_kaspa_connection_conf(
 
     let validation_conf = {
         let mut conf = dymension_kaspa::ValidationConf::default();
-        conf.deposit_enabled = chain
+        conf.validate_deposits = chain
             .chain(err)
             .get_opt_key("validateDeposit")
             .parse_bool()
             .end()
-            .unwrap_or(conf.deposit_enabled);
-        conf.withdrawal_enabled = chain
+            .unwrap_or(conf.validate_deposits);
+        conf.validate_withdrawals = chain
             .chain(err)
             .get_opt_key("validateWithdrawal")
             .parse_bool()
             .end()
-            .unwrap_or(conf.withdrawal_enabled);
-        conf.withdrawal_confirmation_enabled = chain
+            .unwrap_or(conf.validate_withdrawals);
+        conf.validate_confirmations = chain
             .chain(err)
             .get_opt_key("validateWithdrawalConfirmation")
             .parse_bool()
             .end()
-            .unwrap_or(conf.withdrawal_confirmation_enabled);
+            .unwrap_or(conf.validate_confirmations);
+        conf.migration_target_address = chain
+            .chain(err)
+            .get_opt_key("migrationTargetAddress")
+            .parse_string()
+            .end()
+            .map(|s| s.to_string());
         conf
     };
 
