@@ -302,22 +302,6 @@ contract InterchainGasPaymaster is
         uint256 _gasLimit
     ) public view returns (uint256) {
         IGasOracle _oracle = tokenGasOracles[_feeToken][_destinationDomain];
-        return
-            _quoteGasPaymentForOracle(_oracle, _destinationDomain, _gasLimit);
-    }
-
-    /**
-     * @notice Calculates gas payment using a gas oracle.
-     * @param _oracle The gas oracle to use for price data.
-     * @param _destinationDomain The destination domain.
-     * @param _gasLimit The amount of destination gas to pay for.
-     * @return The amount of tokens required.
-     */
-    function _quoteGasPaymentForOracle(
-        IGasOracle _oracle,
-        uint32 _destinationDomain,
-        uint256 _gasLimit
-    ) private view returns (uint256) {
         require(
             address(_oracle) != address(0),
             string.concat(
