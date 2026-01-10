@@ -28,13 +28,11 @@ addr optimism interchainGasPaymaster
 - `merkleTreeHook` - Merkle tree hook
 - `interchainSecurityModule` - Default ISM
 
-## Implementation
+## Setup
 
-```bash
-addr() {
-  local registry="${HYPERLANE_REGISTRY:-$HOME/hypkey/hyperlane-registry}"
-  cat "${registry}/chains/${1}/addresses.yaml" | yq -r ".${2}"
-}
-```
+The `addr` function is defined in the team's Runes. See the [Runes Notion page](https://www.notion.so/hyperlanexyz/Runes-1616d35200d680b3a0dafcbd37e89ad3) for setup instructions.
 
-Requires: `yq` installed, registry cloned to `$HOME/hypkey/hyperlane-registry`
+Requires:
+
+- `yq` installed (`brew install yq`)
+- Registry cloned at `$HOME/hypkey/hyperlane-registry` (run `update_hypkey` to set up)

@@ -31,16 +31,11 @@ meta polygon rpc1               # Second RPC URL
 - `rpcUrls.0.http` - First RPC URL (shortcut: `rpc`)
 - `blockExplorers.0.url` - Block explorer URL
 
-## Implementation
+## Setup
 
-```bash
-meta() {
-  local registry="${HYPERLANE_REGISTRY:-$HOME/hypkey/hyperlane-registry}"
-  local keypath=$2
-  [[ $keypath == "rpc" ]] && keypath="rpcUrls.0.http"
-  [[ $keypath =~ ^rpc[0-9]+$ ]] && keypath="rpcUrls.${keypath#rpc}.http"
-  cat "${registry}/chains/${1}/metadata.yaml" | yq -r ".${keypath}"
-}
-```
+The `meta` function is defined in the team's Runes. See the [Runes Notion page](https://www.notion.so/hyperlanexyz/Runes-1616d35200d680b3a0dafcbd37e89ad3) for setup instructions.
 
-Requires: `yq` installed, registry cloned to `$HOME/hypkey/hyperlane-registry`
+Requires:
+
+- `yq` installed (`brew install yq`)
+- Registry cloned at `$HOME/hypkey/hyperlane-registry` (run `update_hypkey` to set up)
