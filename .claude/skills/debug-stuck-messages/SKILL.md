@@ -5,22 +5,27 @@ description: Diagnoses stuck or pending Hyperlane messages. Use when a message i
 
 # Debug Stuck Messages
 
-## Step 1: Check Explorer
+## Step 1: Check Explorer (GraphQL)
 
 ```bash
-curl -s "https://explorer.hyperlane.xyz/api/v1/messages?search=<tx_hash>" | jq '.data[0] | {status, originDomainId, destinationDomainId}'
+curl -X POST https://explorer4.hasura.app/v1/graphql \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "query ($search: String!) { message(where: {_or: [{origin_tx_hash: {_eq: $search}}, {msg_id: {_eq: $search}}]}) { msg_id is_delivered origin_domain_id destination_domain_id origin_tx_hash destination_tx_hash } }",
+    "variables": {"search": "<tx_hash>"}
+  }' | jq '.data.message[0]'
 ```
 
 Or visit: `https://explorer.hyperlane.xyz/?search=<tx_hash>`
 
 ## Step 2: Identify Root Cause
 
-| Status    | Likely Cause              | Check              |
-| --------- | ------------------------- | ------------------ |
-| `pending` | Validators haven't signed | Validator health   |
-| `pending` | Relayer hasn't picked up  | Relayer logs       |
-| `pending` | Gas estimation failing    | Recipient contract |
-| `failed`  | Insufficient gas paid     | IGP payment        |
+| Status                | Likely Cause              | Check              |
+| --------------------- | ------------------------- | ------------------ |
+| `is_delivered: false` | Validators haven't signed | Validator health   |
+| `is_delivered: false` | Relayer hasn't picked up  | Relayer logs       |
+| `is_delivered: false` | Gas estimation failing    | Recipient contract |
+| No destination_tx     | Insufficient gas paid     | IGP payment        |
 
 ## Step 3: GCP Logs (Internal)
 
