@@ -1,4 +1,4 @@
-import { type PopulatedTransaction, type providers } from 'ethers';
+import { type PopulatedTransaction } from 'ethers';
 import { type Logger } from 'pino';
 
 import {
@@ -403,8 +403,6 @@ export class Rebalancer implements IRebalancer {
           transaction.originTokenAmount.getDecimalFormattedAmount();
         const tokenName = transaction.originTokenAmount.token.name;
 
-        let rebalanceReceipt: providers.TransactionReceipt | undefined;
-
         // TEMPORARY: Skip approval transactions, only execute the rebalance tx
         // Approvals are not needed when not using fast bridges
         const rebalanceTx =
@@ -422,7 +420,7 @@ export class Rebalancer implements IRebalancer {
           'Sending rebalance transaction for route (skipping approvals).',
         );
 
-        rebalanceReceipt = await this.multiProvider.sendTransaction(
+        const rebalanceReceipt = await this.multiProvider.sendTransaction(
           origin,
           rebalanceTx,
         );
@@ -441,25 +439,23 @@ export class Rebalancer implements IRebalancer {
 
         // Extract messageId from the rebalance transaction receipt
         let messageId: string | undefined;
-        if (rebalanceReceipt) {
-          try {
-            const dispatchedMessages =
-              HyperlaneCore.getDispatchedMessages(rebalanceReceipt);
-            messageId = dispatchedMessages[0]?.id;
-          } catch {
-            // Not all rebalance transactions dispatch messages (e.g., CCTP)
-            this.logger.debug(
-              { origin, destination },
-              'No dispatched message found in rebalance receipt.',
-            );
-          }
+        try {
+          const dispatchedMessages =
+            HyperlaneCore.getDispatchedMessages(rebalanceReceipt);
+          messageId = dispatchedMessages[0]?.id;
+        } catch {
+          // Not all rebalance transactions dispatch messages (e.g., CCTP)
+          this.logger.debug(
+            { origin, destination },
+            'No dispatched message found in rebalance receipt.',
+          );
         }
 
         results.push({
           route: transaction.route,
           success: true,
           messageId,
-          txHash: rebalanceReceipt?.transactionHash,
+          txHash: rebalanceReceipt.transactionHash,
         });
         this.metrics?.recordActionAttempt(transaction.route, true);
       } catch (error) {

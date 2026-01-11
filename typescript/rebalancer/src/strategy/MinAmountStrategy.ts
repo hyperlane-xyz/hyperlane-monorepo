@@ -76,21 +76,30 @@ export class MinAmountStrategy extends BaseStrategy {
    * - For absolute values: Uses exact token amounts
    * - For relative values: Uses percentages of total balance across all chains
    *
-   * If pendingRebalances are provided (from earlier strategies in a CompositeStrategy),
-   * we simulate their effects on balances before calculating surpluses/deficits.
+   * Simulates both types of rebalances before calculating surpluses/deficits:
+   * - pendingRebalances: in-flight intents (origin tx confirmed, add to destination only)
+   * - proposedRebalances: routes from earlier strategies (subtract from origin AND add to destination)
+   *
    * This prevents over-rebalancing when multiple strategies run in sequence.
    */
   protected getCategorizedBalances(
     rawBalances: RawBalances,
     pendingRebalances?: RebalancingRoute[],
+    proposedRebalances?: RebalancingRoute[],
   ): {
     surpluses: Delta[];
     deficits: Delta[];
   } {
-    // Simulate pending rebalances to account for routes from earlier strategies
-    const simulatedBalances = this.simulatePendingRebalances(
+    // Step 1: Simulate pending rebalances (in-flight, origin already deducted on-chain)
+    let simulatedBalances = this.simulatePendingRebalances(
       rawBalances,
       pendingRebalances ?? [],
+    );
+
+    // Step 2: Simulate proposed rebalances (from earlier strategies, not yet executed)
+    simulatedBalances = this.simulateProposedRebalances(
+      simulatedBalances,
+      proposedRebalances ?? [],
     );
 
     const totalCollateral = this.chains.reduce(

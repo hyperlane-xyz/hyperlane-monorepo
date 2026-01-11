@@ -50,7 +50,7 @@ export class CollateralDeficitStrategy extends BaseStrategy {
   /**
    * Categorizes balances into surpluses and deficits.
    *
-   * 1. Filter pendingRebalances by configured bridges
+   * 1. Filter pendingRebalances/proposedRebalances by configured bridges
    * 2. Simulate those rebalances to get projected balances
    * 3. Negative balance = deficit (magnitude + buffer)
    * 4. Positive balance = potential surplus
@@ -58,27 +58,36 @@ export class CollateralDeficitStrategy extends BaseStrategy {
   protected getCategorizedBalances(
     rawBalances: RawBalances,
     pendingRebalances?: RebalancingRoute[],
+    proposedRebalances?: RebalancingRoute[],
   ): {
     surpluses: Delta[];
     deficits: Delta[];
   } {
     // Filter pending rebalances to only those using this strategy's bridges
-    const filteredRebalances =
-      this.filterByConfiguredBridges(pendingRebalances);
+    const filteredPending = this.filterByConfiguredBridges(pendingRebalances);
+    const filteredProposed = this.filterByConfiguredBridges(proposedRebalances);
 
     this.logger.debug(
       {
         context: this.constructor.name,
         totalPending: pendingRebalances?.length ?? 0,
-        filteredPending: filteredRebalances.length,
+        filteredPending: filteredPending.length,
+        totalProposed: proposedRebalances?.length ?? 0,
+        filteredProposed: filteredProposed.length,
       },
-      'Filtered pending rebalances by configured bridges',
+      'Filtered rebalances by configured bridges',
     );
 
-    // Simulate filtered rebalances to get projected balances
-    const simulatedBalances = this.simulatePendingRebalances(
+    // Step 1: Simulate pending rebalances (in-flight, origin already deducted on-chain)
+    let simulatedBalances = this.simulatePendingRebalances(
       rawBalances,
-      filteredRebalances,
+      filteredPending,
+    );
+
+    // Step 2: Simulate proposed rebalances (from earlier strategies, not yet executed)
+    simulatedBalances = this.simulateProposedRebalances(
+      simulatedBalances,
+      filteredProposed,
     );
 
     const surpluses: Delta[] = [];
