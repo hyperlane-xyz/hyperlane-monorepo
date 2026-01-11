@@ -48,6 +48,7 @@ export abstract class BaseStrategy implements IStrategy {
   ): RebalancingRoute[] {
     const pendingRebalances = inflightContext?.pendingRebalances ?? [];
     const pendingTransfers = inflightContext?.pendingTransfers ?? [];
+    const proposedRebalances = inflightContext?.proposedRebalances ?? [];
 
     this.logger.info(
       {
@@ -58,6 +59,7 @@ export abstract class BaseStrategy implements IStrategy {
         })),
         pendingRebalances: pendingRebalances.length,
         pendingTransfers: pendingTransfers.length,
+        proposedRebalances: proposedRebalances.length,
       },
       'Strategy evaluating',
     );
@@ -74,10 +76,11 @@ export abstract class BaseStrategy implements IStrategy {
     );
 
     // Get balances categorized by surplus and deficit
-    // Pass pending rebalances so strategy can account for them
+    // Pass pending and proposed rebalances so strategy can account for them
     const { surpluses, deficits } = this.getCategorizedBalances(
       effectiveBalances,
       pendingRebalances,
+      proposedRebalances,
     );
 
     this.logger.debug(
@@ -226,12 +229,14 @@ export abstract class BaseStrategy implements IStrategy {
    * Each specific strategy should implement its own logic
    *
    * @param balances - Effective balances (after collateral reservation)
-   * @param pendingRebalances - In-flight rebalances for strategy consideration
+   * @param pendingRebalances - In-flight rebalances (origin tx confirmed, balance already deducted)
+   * @param proposedRebalances - Routes from earlier strategies in same cycle (not yet executed)
    * @returns Categorized surpluses and deficits as Delta arrays
    */
   protected abstract getCategorizedBalances(
     balances: RawBalances,
     pendingRebalances?: RebalancingRoute[],
+    proposedRebalances?: RebalancingRoute[],
   ): {
     surpluses: Delta[];
     deficits: Delta[];
@@ -355,6 +360,62 @@ export abstract class BaseStrategy implements IStrategy {
         })),
       },
       'Simulated pending rebalances',
+    );
+
+    return simulated;
+  }
+
+  /**
+   * Simulate proposed rebalances by subtracting from origin AND adding to destination.
+   *
+   * Unlike pendingRebalances, proposedRebalances are routes from earlier strategies
+   * in the same cycle that haven't been executed yet. Therefore:
+   * - Origin balance has NOT been deducted on-chain
+   * - We must simulate both sides to maintain accurate total balance
+   *
+   * @param rawBalances - Current balances (may already have pending rebalances simulated)
+   * @param proposedRebalances - Routes from earlier strategies (not yet executed)
+   * @returns Simulated balances after proposed rebalances complete
+   */
+  protected simulateProposedRebalances(
+    rawBalances: RawBalances,
+    proposedRebalances: RebalancingRoute[],
+  ): RawBalances {
+    if (proposedRebalances.length === 0) {
+      return rawBalances;
+    }
+
+    const simulated = { ...rawBalances };
+
+    for (const rebalance of proposedRebalances) {
+      // Subtract from origin (not yet deducted on-chain)
+      simulated[rebalance.origin] =
+        (simulated[rebalance.origin] ?? 0n) - rebalance.amount;
+
+      // Add to destination
+      simulated[rebalance.destination] =
+        (simulated[rebalance.destination] ?? 0n) + rebalance.amount;
+
+      this.logger.debug(
+        {
+          context: this.constructor.name,
+          origin: rebalance.origin,
+          destination: rebalance.destination,
+          amount: rebalance.amount.toString(),
+        },
+        'Simulated proposed rebalance (origin decrease, destination increase)',
+      );
+    }
+
+    this.logger.info(
+      {
+        simulations: proposedRebalances.map((r) => ({
+          from: r.origin,
+          to: r.destination,
+          amount: r.amount.toString(),
+        })),
+      },
+      'Simulated proposed rebalances',
     );
 
     return simulated;

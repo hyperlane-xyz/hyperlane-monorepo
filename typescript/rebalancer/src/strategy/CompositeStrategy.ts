@@ -42,25 +42,28 @@ export class CompositeStrategy implements IStrategy {
   ): RebalancingRoute[] {
     const allRoutes: RebalancingRoute[] = [];
 
-    // Start with original pending rebalances
-    let accumulatedPendingRebalances = [
-      ...(inflightContext?.pendingRebalances ?? []),
-    ];
+    // Track routes from earlier strategies in this cycle as proposedRebalances
+    // These are NOT yet executed, so strategies need to simulate both origin and destination
+    let accumulatedProposedRebalances: RebalancingRoute[] = [];
 
     for (let i = 0; i < this.strategies.length; i++) {
       const strategy = this.strategies[i];
 
-      // Build context with accumulated routes from previous strategies
+      // Build context with:
+      // - pendingRebalances: actual in-flight intents (origin tx confirmed, passed through from caller)
+      // - proposedRebalances: routes from earlier strategies in THIS cycle (not yet executed)
       const contextForStrategy: InflightContext = {
         pendingTransfers: inflightContext?.pendingTransfers ?? [],
-        pendingRebalances: accumulatedPendingRebalances,
+        pendingRebalances: inflightContext?.pendingRebalances ?? [],
+        proposedRebalances: accumulatedProposedRebalances,
       };
 
       this.logger.debug(
         {
           strategyIndex: i,
           strategyName: strategy.name,
-          pendingRebalancesCount: accumulatedPendingRebalances.length,
+          pendingRebalancesCount: contextForStrategy.pendingRebalances.length,
+          proposedRebalancesCount: accumulatedProposedRebalances.length,
         },
         'Running sub-strategy',
       );
@@ -79,9 +82,9 @@ export class CompositeStrategy implements IStrategy {
         'Sub-strategy returned routes',
       );
 
-      // Add routes to accumulated for next strategy
-      accumulatedPendingRebalances = [
-        ...accumulatedPendingRebalances,
+      // Add routes to proposedRebalances for next strategy
+      accumulatedProposedRebalances = [
+        ...accumulatedProposedRebalances,
         ...routes,
       ];
 
