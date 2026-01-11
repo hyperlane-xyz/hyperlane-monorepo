@@ -12,6 +12,7 @@ import chalk from 'chalk';
 import { BigNumber, ethers } from 'ethers';
 
 import {
+  BaseFee__factory,
   ERC20__factory,
   HypXERC20Lockbox__factory,
   IXERC20VS__factory,
@@ -20,6 +21,7 @@ import {
   Ownable__factory,
   ProxyAdmin__factory,
   TimelockController__factory,
+  TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import {
   AnnotatedEV5Transaction,
@@ -27,9 +29,12 @@ import {
   ChainName,
   CoreConfig,
   DerivedIsmConfig,
+  DerivedTokenFeeConfig,
   EvmIsmReader,
+  EvmTokenFeeReader,
   InterchainAccount,
   MultiProvider,
+  TokenFeeType,
   TokenStandard,
   WarpCoreConfig,
   coreFactories,
@@ -43,6 +48,7 @@ import {
   bytes32ToAddress,
   deepEquals,
   eqAddress,
+  isZeroishAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -822,7 +828,8 @@ export class GovernTransactionReader {
       value: tx.value,
     });
 
-    let insight;
+    let insight: string | undefined;
+    let feeDetails: Record<string, any> | undefined;
     if (
       decoded.functionFragment.name ===
       tokenRouterInterface.functions['setHook(address)'].name
@@ -921,7 +928,14 @@ export class GovernTransactionReader {
       tokenRouterInterface.functions['setFeeRecipient(address)'].name
     ) {
       const [recipient] = decoded.args;
-      insight = `Set fee recipient to ${recipient}`;
+      // Read fee contract details (handles address(0), non-fee contracts gracefully)
+      const feeInfo = await this.readFeeContractDetails(
+        chain,
+        tx.to!,
+        recipient,
+      );
+      insight = feeInfo.insight;
+      feeDetails = feeInfo.feeDetails;
     }
 
     if (
@@ -984,6 +998,130 @@ export class GovernTransactionReader {
       insight,
       value: `${ethers.utils.formatEther(decoded.value)} ${symbol}`,
       signature: decoded.signature,
+      ...(feeDetails && { feeDetails }),
+    };
+  }
+
+  /**
+   * Reads fee contract details for a setFeeRecipient transaction.
+   * Returns enhanced insight and feeDetails if the recipient is a fee contract.
+   */
+  private async readFeeContractDetails(
+    chain: ChainName,
+    tokenRouterAddress: Address,
+    feeRecipientAddress: Address,
+  ): Promise<{ insight: string; feeDetails?: Record<string, any> }> {
+    // Handle address(0) case - fee is being removed
+    if (isZeroishAddress(feeRecipientAddress)) {
+      return { insight: `Remove fee recipient (setting to address(0))` };
+    }
+
+    try {
+      const provider = this.multiProvider.getProvider(chain);
+
+      // Check if it's a fee contract by calling feeType()
+      const baseFee = BaseFee__factory.connect(feeRecipientAddress, provider);
+      await baseFee.feeType(); // Will throw if not a fee contract
+
+      // Get routing destinations from the token router
+      const tokenRouter = TokenRouter__factory.connect(
+        tokenRouterAddress,
+        provider,
+      );
+      const domains = await tokenRouter.domains();
+
+      // Use EvmTokenFeeReader to derive full config
+      const feeReader = new EvmTokenFeeReader(this.multiProvider, chain);
+      const feeConfig = await feeReader.deriveTokenFeeConfig({
+        address: feeRecipientAddress,
+        routingDestinations: domains,
+      });
+
+      return this.formatFeeConfig(feeConfig);
+    } catch (e) {
+      // Not a fee contract or failed to read - return basic insight
+      return { insight: `Set fee recipient to ${feeRecipientAddress}` };
+    }
+  }
+
+  /**
+   * Formats a DerivedTokenFeeConfig into a human-readable insight and feeDetails object.
+   */
+  private formatFeeConfig(feeConfig: DerivedTokenFeeConfig): {
+    insight: string;
+    feeDetails: Record<string, any>;
+  } {
+    const shortOwner = `${feeConfig.owner.slice(0, 6)}...${feeConfig.owner.slice(-4)}`;
+
+    if (feeConfig.type === TokenFeeType.LinearFee) {
+      // bps is in basis points (1 bps = 0.01%), convert to percentage
+      const bps = feeConfig.bps ? Number(feeConfig.bps) : 0;
+      const percentFormatted = (bps / 100).toFixed(2);
+
+      return {
+        insight: `Set fee recipient to LinearFee contract (${percentFormatted}% fee, owner: ${shortOwner})`,
+        feeDetails: {
+          type: 'LinearFee',
+          address: feeConfig.address,
+          token: feeConfig.token,
+          owner: feeConfig.owner,
+          bps,
+          percent: `${percentFormatted}%`,
+        },
+      };
+    }
+
+    if (feeConfig.type === TokenFeeType.RoutingFee) {
+      const routes: Record<string, any> = {};
+      const routeInsights: string[] = [];
+
+      for (const [chainName, subConfig] of Object.entries(
+        feeConfig.feeContracts || {},
+      )) {
+        const bps = subConfig.bps ? Number(subConfig.bps) : 0;
+        const percent = (bps / 100).toFixed(2);
+
+        routes[chainName] = {
+          type: subConfig.type,
+          address: subConfig.address,
+          bps,
+          percent: `${percent}%`,
+        };
+
+        if (subConfig.type === TokenFeeType.LinearFee) {
+          routeInsights.push(`${chainName}: ${percent}%`);
+        } else {
+          routeInsights.push(`${chainName}: ${subConfig.type}`);
+        }
+      }
+
+      const routeCount = Object.keys(routes).length;
+      const routeSummary =
+        routeCount <= 3
+          ? routeInsights.join(', ')
+          : `${routeCount} routes configured`;
+
+      return {
+        insight: `Set fee recipient to RoutingFee contract (${routeSummary}, owner: ${shortOwner})`,
+        feeDetails: {
+          type: 'RoutingFee',
+          address: feeConfig.address,
+          token: feeConfig.token,
+          owner: feeConfig.owner,
+          routes,
+        },
+      };
+    }
+
+    // Fallback for other fee types (Progressive, Regressive)
+    return {
+      insight: `Set fee recipient to ${feeConfig.type} contract (owner: ${shortOwner})`,
+      feeDetails: {
+        type: feeConfig.type,
+        address: feeConfig.address,
+        token: feeConfig.token,
+        owner: feeConfig.owner,
+      },
     };
   }
 
