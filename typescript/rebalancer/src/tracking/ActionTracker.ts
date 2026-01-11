@@ -25,10 +25,9 @@ import type {
 } from './types.js';
 
 export interface ActionTrackerConfig {
-  routers: Address[]; // Warp route router addresses for user transfer queries
+  routersByDomain: Record<number, string>; // Domain ID → router address (source of truth)
   bridges: Address[]; // Bridge contract addresses for rebalance action queries
   rebalancerAddress: Address;
-  domains: number[];
 }
 
 /**
@@ -50,13 +49,14 @@ export class ActionTracker implements IActionTracker {
   async initialize(): Promise<void> {
     this.logger.info('ActionTracker initializing');
 
-    // Log config for debugging
+    // Log config for debugging (derive routers and domains for logging)
     this.logger.debug(
       {
-        routers: this.config.routers,
+        routersByDomain: this.config.routersByDomain,
+        routers: Object.values(this.config.routersByDomain),
+        domains: Object.keys(this.config.routersByDomain).map(Number),
         bridges: this.config.bridges,
         rebalancerAddress: this.config.rebalancerAddress,
-        domains: this.config.domains,
       },
       'ActionTracker config',
     );
@@ -66,7 +66,7 @@ export class ActionTracker implements IActionTracker {
       await this.explorerClient.getInflightRebalanceActions(
         {
           bridges: this.config.bridges,
-          domains: this.config.domains,
+          routersByDomain: this.config.routersByDomain,
           rebalancerAddress: this.config.rebalancerAddress,
         },
         this.logger,
@@ -101,8 +101,7 @@ export class ActionTracker implements IActionTracker {
     // Query Explorer for inflight user transfers
     const inflightMessages = await this.explorerClient.getInflightUserTransfers(
       {
-        routers: this.config.routers,
-        domains: this.config.domains,
+        routersByDomain: this.config.routersByDomain,
         excludeTxSender: this.config.rebalancerAddress,
       },
       this.logger,
@@ -228,7 +227,7 @@ export class ActionTracker implements IActionTracker {
       await this.explorerClient.getInflightRebalanceActions(
         {
           bridges: this.config.bridges,
-          domains: this.config.domains,
+          routersByDomain: this.config.routersByDomain,
           rebalancerAddress: this.config.rebalancerAddress,
         },
         this.logger,

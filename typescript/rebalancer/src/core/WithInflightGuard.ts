@@ -1,7 +1,5 @@
 import type { Logger } from 'pino';
 
-import { type ChainMetadataManager } from '@hyperlane-xyz/sdk';
-
 import { type RebalancerConfig } from '../config/RebalancerConfig.js';
 import {
   getStrategyChainConfig,
@@ -25,7 +23,7 @@ export class WithInflightGuard implements IRebalancer {
     private readonly rebalancer: IRebalancer,
     private readonly explorer: ExplorerClient,
     private readonly txSender: string,
-    private readonly chainManager: ChainMetadataManager,
+    private readonly routersByDomain: Record<number, string>,
     logger: Logger,
   ) {
     this.logger = logger.child({ class: WithInflightGuard.name });
@@ -49,14 +47,13 @@ export class WithInflightGuard implements IRebalancer {
         return chainConfig?.bridge;
       })
       .filter((bridge): bridge is string => bridge !== undefined);
-    const domains = chains.map((chain) => this.chainManager.getDomainId(chain));
 
     let hasInflightRebalances = false;
     try {
       hasInflightRebalances = await this.explorer.hasUndeliveredRebalance(
         {
           bridges,
-          domains: Array.from(new Set(domains)),
+          routersByDomain: this.routersByDomain,
           txSender: this.txSender,
           limit: 5,
         },

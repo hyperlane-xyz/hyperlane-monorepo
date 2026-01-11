@@ -2,21 +2,20 @@ import type { Logger } from 'pino';
 
 export type InflightRebalanceQueryParams = {
   bridges: string[];
-  domains: number[];
+  routersByDomain: Record<number, string>; // Domain ID → router address (derive routers and domains from this)
   txSender: string;
   limit?: number;
 };
 
 export type UserTransferQueryParams = {
-  routers: string[]; // Warp route router addresses
-  domains: number[]; // Domain IDs
+  routersByDomain: Record<number, string>; // Domain ID → router address (derive routers and domains from this)
   excludeTxSender: string; // Rebalancer address to exclude
   limit?: number;
 };
 
 export type RebalanceActionQueryParams = {
   bridges: string[]; // Bridge contract addresses
-  domains: number[]; // Domain IDs
+  routersByDomain: Record<number, string>; // Domain ID → router address (derive routers and domains from this)
   rebalancerAddress: string; // Only include rebalancer's txs
   limit?: number;
 };
@@ -29,6 +28,7 @@ export type ExplorerMessage = {
   recipient: string;
   origin_tx_hash: string;
   origin_tx_sender: string;
+  origin_tx_recipient: string;
   is_delivered: boolean;
   message_body: string;
 };
@@ -57,6 +57,7 @@ export class ExplorerClient {
       recipient: normalizeHex(msg.recipient),
       origin_tx_hash: normalizeHex(msg.origin_tx_hash),
       origin_tx_sender: normalizeHex(msg.origin_tx_sender),
+      origin_tx_recipient: normalizeHex(msg.origin_tx_recipient),
       is_delivered: msg.is_delivered,
       message_body: normalizeHex(msg.message_body),
     };
@@ -66,11 +67,16 @@ export class ExplorerClient {
     params: InflightRebalanceQueryParams,
     logger: Logger,
   ): Promise<boolean> {
-    const { bridges, domains, txSender, limit = 5 } = params;
+    const { bridges, routersByDomain, txSender, limit = 5 } = params;
+
+    // Derive routers and domains from routersByDomain
+    const routers = Object.values(routersByDomain);
+    const domains = Object.keys(routersByDomain).map(Number);
 
     const variables = {
       senders: bridges.map((a) => this.toBytea(a)),
       recipients: bridges.map((a) => this.toBytea(a)),
+      originTxRecipients: routers.map((a) => this.toBytea(a)),
       originDomains: domains,
       destDomains: domains,
       txSenders: [this.toBytea(txSender)],
@@ -83,6 +89,7 @@ export class ExplorerClient {
       query InflightRebalancesForRoute(
         $senders: [bytea!],
         $recipients: [bytea!],
+        $originTxRecipients: [bytea!],
         $originDomains: [Int!],
         $destDomains: [Int!],
         $txSenders: [bytea!],
@@ -94,6 +101,7 @@ export class ExplorerClient {
               { is_delivered: { _eq: false } },
               { sender: { _in: $senders } },
               { recipient: { _in: $recipients } },
+              { origin_tx_recipient: { _in: $originTxRecipients } },
               { origin_domain_id: { _in: $originDomains } },
               { destination_domain_id: { _in: $destDomains } },
               { origin_tx_sender: { _in: $txSenders } }
@@ -109,6 +117,7 @@ export class ExplorerClient {
           recipient
           origin_tx_hash
           origin_tx_sender
+          origin_tx_recipient
           is_delivered
           message_body
         }
@@ -143,7 +152,24 @@ export class ExplorerClient {
 
     logger.debug({ rows }, 'Explorer query rows');
 
-    return rows.length > 0;
+    // Post-query validation: verify each message's origin domain matches the expected router
+    const validatedRows = rows.filter((msg: any) => {
+      const expectedRouter = routersByDomain[msg.origin_domain_id];
+      if (!expectedRouter) return false;
+      const normalizedMsgRouter = msg.origin_tx_recipient?.startsWith('\\x')
+        ? '0x' + msg.origin_tx_recipient.slice(2)
+        : msg.origin_tx_recipient;
+      return (
+        normalizedMsgRouter?.toLowerCase() === expectedRouter.toLowerCase()
+      );
+    });
+
+    logger.debug(
+      { totalRows: rows.length, validatedRows: validatedRows.length },
+      'Post-query validation results',
+    );
+
+    return validatedRows.length > 0;
   }
 
   /**
@@ -154,7 +180,11 @@ export class ExplorerClient {
     params: UserTransferQueryParams,
     logger: Logger,
   ): Promise<ExplorerMessage[]> {
-    const { routers, domains, excludeTxSender, limit = 100 } = params;
+    const { routersByDomain, excludeTxSender, limit = 100 } = params;
+
+    // Derive routers and domains from routersByDomain
+    const routers = Object.values(routersByDomain);
+    const domains = Object.keys(routersByDomain).map(Number);
 
     const variables = {
       senders: routers.map((a) => this.toBytea(a)),
@@ -235,17 +265,24 @@ export class ExplorerClient {
 
   /**
    * Query inflight rebalance actions from the Explorer.
-   * Returns messages where sender/recipient are bridges and tx sender is the rebalancer.
+   * Returns messages where sender/recipient are bridges, origin_tx_recipient is a router,
+   * and tx sender is the rebalancer. Includes post-query validation to ensure
+   * each message's origin domain matches the expected router chain.
    */
   async getInflightRebalanceActions(
     params: RebalanceActionQueryParams,
     logger: Logger,
   ): Promise<ExplorerMessage[]> {
-    const { bridges, domains, rebalancerAddress, limit = 100 } = params;
+    const { bridges, routersByDomain, rebalancerAddress, limit = 100 } = params;
+
+    // Derive routers and domains from routersByDomain
+    const routers = Object.values(routersByDomain);
+    const domains = Object.keys(routersByDomain).map(Number);
 
     const variables = {
       senders: bridges.map((a) => this.toBytea(a)),
       recipients: bridges.map((a) => this.toBytea(a)),
+      originTxRecipients: routers.map((a) => this.toBytea(a)),
       originDomains: domains,
       destDomains: domains,
       txSender: this.toBytea(rebalancerAddress),
@@ -258,6 +295,7 @@ export class ExplorerClient {
       query InflightRebalanceActions(
         $senders: [bytea!],
         $recipients: [bytea!],
+        $originTxRecipients: [bytea!],
         $originDomains: [Int!],
         $destDomains: [Int!],
         $txSender: bytea!,
@@ -269,6 +307,7 @@ export class ExplorerClient {
               { is_delivered: { _eq: false } },
               { sender: { _in: $senders } },
               { recipient: { _in: $recipients } },
+              { origin_tx_recipient: { _in: $originTxRecipients } },
               { origin_domain_id: { _in: $originDomains } },
               { destination_domain_id: { _in: $destDomains } },
               { origin_tx_sender: { _eq: $txSender } }
@@ -284,6 +323,7 @@ export class ExplorerClient {
           recipient
           origin_tx_hash
           origin_tx_sender
+          origin_tx_recipient
           is_delivered
           message_body
         }
@@ -317,6 +357,47 @@ export class ExplorerClient {
 
     const json = await res.json();
     const messages = json?.data?.message_view ?? [];
-    return messages.map((msg: any) => this.normalizeExplorerMessage(msg));
+    const normalizedMessages = messages.map((msg: any) =>
+      this.normalizeExplorerMessage(msg),
+    );
+
+    // Post-query validation: verify each message's origin domain matches the expected router
+    const validatedMessages = normalizedMessages.filter(
+      (msg: ExplorerMessage) => {
+        const expectedRouter = routersByDomain[msg.origin_domain_id];
+        if (!expectedRouter) {
+          logger.debug(
+            { origin_domain_id: msg.origin_domain_id, msg_id: msg.msg_id },
+            'Filtered out message: no expected router for origin domain',
+          );
+          return false;
+        }
+        const matches =
+          msg.origin_tx_recipient?.toLowerCase() ===
+          expectedRouter.toLowerCase();
+        if (!matches) {
+          logger.debug(
+            {
+              msg_id: msg.msg_id,
+              origin_domain_id: msg.origin_domain_id,
+              origin_tx_recipient: msg.origin_tx_recipient,
+              expectedRouter,
+            },
+            'Filtered out message: origin_tx_recipient does not match expected router',
+          );
+        }
+        return matches;
+      },
+    );
+
+    logger.debug(
+      {
+        totalMessages: messages.length,
+        validatedMessages: validatedMessages.length,
+      },
+      'Post-query validation results for rebalance actions',
+    );
+
+    return validatedMessages;
   }
 }
