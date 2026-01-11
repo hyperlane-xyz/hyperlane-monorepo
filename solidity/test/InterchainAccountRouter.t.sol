@@ -15,6 +15,7 @@ import {CallLib, OwnableMulticall, InterchainAccountRouter, InterchainAccountMes
 import {AbstractPostDispatchHook} from "../contracts/hooks/libs/AbstractPostDispatchHook.sol";
 import {TestPostDispatchHook} from "../contracts/test/TestPostDispatchHook.sol";
 import {Message} from "../contracts/libs/Message.sol";
+import {HypERC20} from "../contracts/token/HypERC20.sol";
 
 contract Callable {
     mapping(address => bytes32) public data;
@@ -1261,5 +1262,128 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
 
         vm.expectRevert("ICA: Previous commitment pending execution");
         ica.setCommitment(commitment);
+    }
+
+    function test_callRemoteUnauthenticated() public {
+        // Arrange
+        originIcaRouter.enrollRemoteRouterAndIsm(
+            destination,
+            routerOverride,
+            ismOverride
+        );
+
+        bytes32 data = bytes32(uint256(123));
+        uint256 value = 0;
+        CallLib.Call[] memory calls = getCalls(data, value);
+
+        // Act
+        bytes32 remoteIca = originIcaRouter.callRemoteUnauthenticated{
+            value: gasPaymentQuote
+        }(destination, calls);
+
+        // Process the message
+        environment.processNextPendingMessage();
+
+        // Verify the call was executed
+        address ica = TypeCasts.bytes32ToAddress(remoteIca);
+        assertEq(target.data(ica), data);
+        assertEq(target.value(ica), value);
+    }
+}
+
+contract InterchainAccountRouterWarpTransferTest is
+    InterchainAccountRouterTestBase
+{
+    using TypeCasts for address;
+
+    HypERC20 internal originToken;
+    HypERC20 internal destinationToken;
+
+    function setUp() public override {
+        super.setUp();
+
+        // Deploy HypERC20 tokens on both chains
+        originToken = new HypERC20(
+            18,
+            1,
+            address(environment.mailboxes(origin))
+        );
+        originToken.initialize(
+            1000000e18,
+            "Test Token",
+            "TEST",
+            address(environment.igps(origin)),
+            address(environment.isms(origin)),
+            address(this)
+        );
+
+        destinationToken = new HypERC20(
+            18,
+            1,
+            address(environment.mailboxes(destination))
+        );
+        destinationToken.initialize(
+            1000000e18,
+            "Test Token",
+            "TEST",
+            address(environment.igps(destination)),
+            address(environment.isms(destination)),
+            address(this)
+        );
+
+        // Enroll remote routers
+        originToken.enrollRemoteRouter(
+            destination,
+            address(destinationToken).addressToBytes32()
+        );
+        destinationToken.enrollRemoteRouter(
+            origin,
+            address(originToken).addressToBytes32()
+        );
+
+        // Enroll ICA routers
+        originIcaRouter.enrollRemoteRouterAndIsm(
+            destination,
+            routerOverride,
+            ismOverride
+        );
+    }
+
+    function test_callRemoteUnauthenticatedWithWarpTransfer() public {
+        uint256 transferAmount = 1000e18;
+
+        CallLib.Call[] memory calls = new CallLib.Call[](1);
+        bytes memory data = abi.encodeWithSignature(
+            "transfer(address,uint256)",
+            address(this),
+            transferAmount
+        );
+        calls[0] = CallLib.Call({
+            to: address(destinationToken).addressToBytes32(),
+            value: 0,
+            data: data
+        });
+
+        // Get the remote ICA address and dispatch the call
+        bytes32 remoteIca = originIcaRouter.callRemoteUnauthenticated{
+            value: gasPaymentQuote
+        }(destination, calls);
+
+        vm.expectRevert("ERC20: transfer amount exceeds balance");
+        environment.processNextPendingMessage();
+
+        // Transfer tokens to the remote ICA first
+        originToken.transferRemote{value: gasPaymentQuote}(
+            destination,
+            remoteIca,
+            transferAmount
+        );
+
+        // Process the warp transfer - this must happen before ICA call can succeed
+        environment.processInboundMessage(1);
+
+        // Process the ICA message - should succeed now that ICA has tokens
+        vm.expectCall(address(destinationToken), data);
+        environment.processInboundMessage(0);
     }
 }
