@@ -1,9 +1,4 @@
-import {
-  ChainMap,
-  HypTokenRouterConfig,
-  TokenFeeType,
-  TokenType,
-} from '@hyperlane-xyz/sdk';
+import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { awSafes } from '../../governance/safe/aw.js';
@@ -13,6 +8,7 @@ import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
 import { WarpRouteIds } from '../warpIds.js';
 
 import {
+  getFixedRoutingFeeConfig,
   getRebalancingBridgesConfigFor,
   getRebalancingUSDCConfigForChain,
 } from './utils.js';
@@ -29,7 +25,7 @@ import {
  *
  * Features:
  * - CCTP V2 rebalancing bridges (Standard + Fast) on all EVM chains
- * - 5 bps linear fee on EVM transfers
+ * - Routing fee: 5 bps for EVM-to-EVM transfers, 0 bps for EVM-to-SVM transfers
  * - Contract version 10.1.3
  */
 const awProxyAdminAddresses: ChainMap<string> = {
@@ -86,6 +82,7 @@ const ownersByChain: Record<DeploymentChain, string> = {
   solanamainnet: chainOwners.solanamainnet.owner,
 };
 
+// TODO: can we read this from a config file?
 const PROGRAM_IDS = {
   eclipsemainnet: 'EqRSt9aUDMKYKhzd1DGMderr3KNp29VZH3x5P7LFTC8m',
   solanamainnet: '3EpVCPUgyjq2MfGeCttyey6bs5zya5wjYZ2BE6yDg6bm',
@@ -125,12 +122,12 @@ export const getEclipseUSDCWarpConfig = async (
           address: awProxyAdminAddresses[currentChain],
         },
         contractVersion: CONTRACT_VERSION,
-        tokenFee: {
-          type: TokenFeeType.LinearFee,
-          token: usdcTokenAddress,
-          owner: owner,
-          bps: 5n,
-        },
+        tokenFee: getFixedRoutingFeeConfig(
+          usdcTokenAddress,
+          DEPLOYER,
+          rebalanceableCollateralChains.filter((c) => c !== currentChain),
+          5n,
+        ),
       },
     ]);
   }

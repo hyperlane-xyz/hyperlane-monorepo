@@ -216,7 +216,22 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       }),
     );
 
-    const actualConfig = await this.read(params);
+    // Derive routingDestinations from target config's feeContracts if not provided
+    let routingDestinations = params?.routingDestinations;
+    if (
+      !routingDestinations &&
+      normalizedTargetConfig.type === TokenFeeType.RoutingFee &&
+      normalizedTargetConfig.feeContracts
+    ) {
+      routingDestinations = Object.keys(
+        normalizedTargetConfig.feeContracts,
+      ).map((chainName) => this.multiProvider.getDomainId(chainName));
+    }
+
+    const actualConfig = await this.read({
+      ...params,
+      routingDestinations,
+    });
     const normalizedActualConfig: TokenFeeConfig =
       normalizeConfig(actualConfig);
 
@@ -228,19 +243,22 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       return [];
     }
 
-    // Redeploy immutable fee types, if owner is the same, but the rest of the config is different
+    // Redeploy if fee type changes or if immutable fee type config differs (excluding owner)
+    const feeTypeChanged =
+      normalizedActualConfig.type !== normalizedTargetConfig.type;
     const nonOwnerDiffers = !deepEquals(
       objOmit(normalizedActualConfig, { owner: true }),
       objOmit(normalizedTargetConfig, { owner: true }),
     );
-    if (
-      ImmutableTokenFeeType.includes(
-        normalizedTargetConfig.type as (typeof ImmutableTokenFeeType)[number],
-      ) &&
-      nonOwnerDiffers
-    ) {
+    const isTargetImmutable = ImmutableTokenFeeType.includes(
+      normalizedTargetConfig.type as (typeof ImmutableTokenFeeType)[number],
+    );
+
+    if (feeTypeChanged || (isTargetImmutable && nonOwnerDiffers)) {
       this.logger.info(
-        `Immutable fee type ${normalizedTargetConfig.type}, redeploying`,
+        feeTypeChanged
+          ? `Fee type changed from ${normalizedActualConfig.type} to ${normalizedTargetConfig.type}, redeploying`
+          : `Immutable fee type ${normalizedTargetConfig.type}, redeploying`,
       );
       const contracts = await this.deploy({
         config: normalizedTargetConfig,
@@ -270,7 +288,8 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       ),
     ];
 
-    return updateTransactions;
+    // Deduplicate transactions (e.g., when multiple destinations share the same sub-contract)
+    return this.deduplicateTransactions(updateTransactions);
   }
 
   private async updateRoutingFee(targetConfig: DerivedRoutingFeeConfig) {
@@ -329,5 +348,27 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       expectedConfig,
       `${expectedConfig.type} Warp Route`,
     );
+  }
+
+  /**
+   * Deduplicate transactions based on chainId + to + data.
+   * This handles cases where multiple destinations share the same sub-contract,
+   * which would otherwise generate duplicate ownership transfer transactions.
+   */
+  private deduplicateTransactions(
+    transactions: AnnotatedEV5Transaction[],
+  ): AnnotatedEV5Transaction[] {
+    const seen = new Set<string>();
+    return transactions.filter((tx) => {
+      const key = `${tx.chainId}-${tx.to?.toLowerCase()}-${tx.data}`;
+      if (seen.has(key)) {
+        this.logger.debug(
+          `Deduplicating transaction: ${tx.annotation ?? 'unknown'}`,
+        );
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
   }
 }
