@@ -104,7 +104,7 @@ describe('CompositeStrategy', () => {
       expect(routes[1]).to.deep.equal(route2);
     });
 
-    it('should pass routes from earlier strategies as pendingRebalances to later strategies', () => {
+    it('should pass routes from earlier strategies as proposedRebalances to later strategies', () => {
       const route1: RebalancingRoute = {
         origin: chain1,
         destination: chain2,
@@ -126,21 +126,21 @@ describe('CompositeStrategy', () => {
 
       composite.getRebalancingRoutes(rawBalances);
 
-      // Strategy 1 should receive empty pendingRebalances (none provided initially)
-      expect(strategy1.lastInflightContext?.pendingRebalances).to.deep.equal(
+      // Strategy 1 should receive empty proposedRebalances (none from earlier strategies)
+      expect(strategy1.lastInflightContext?.proposedRebalances).to.deep.equal(
         [],
       );
 
-      // Strategy 2 should receive route1 as pendingRebalances
-      expect(strategy2.lastInflightContext?.pendingRebalances).to.have.lengthOf(
-        1,
-      );
-      expect(strategy2.lastInflightContext?.pendingRebalances[0]).to.deep.equal(
-        route1,
-      );
+      // Strategy 2 should receive route1 as proposedRebalances (from earlier strategy)
+      expect(
+        strategy2.lastInflightContext?.proposedRebalances,
+      ).to.have.lengthOf(1);
+      expect(
+        strategy2.lastInflightContext?.proposedRebalances?.[0],
+      ).to.deep.equal(route1);
     });
 
-    it('should accumulate routes across multiple strategies', () => {
+    it('should accumulate routes across multiple strategies as proposedRebalances', () => {
       const route1: RebalancingRoute = {
         origin: chain1,
         destination: chain2,
@@ -174,29 +174,29 @@ describe('CompositeStrategy', () => {
 
       composite.getRebalancingRoutes(rawBalances);
 
-      // Strategy 1: empty pendingRebalances
-      expect(strategy1.lastInflightContext?.pendingRebalances).to.deep.equal(
+      // Strategy 1: empty proposedRebalances (no earlier strategies)
+      expect(strategy1.lastInflightContext?.proposedRebalances).to.deep.equal(
         [],
       );
 
-      // Strategy 2: receives route1
-      expect(strategy2.lastInflightContext?.pendingRebalances).to.have.lengthOf(
-        1,
-      );
+      // Strategy 2: receives route1 as proposedRebalances
+      expect(
+        strategy2.lastInflightContext?.proposedRebalances,
+      ).to.have.lengthOf(1);
 
-      // Strategy 3: receives route1 + route2
-      expect(strategy3.lastInflightContext?.pendingRebalances).to.have.lengthOf(
-        2,
-      );
-      expect(strategy3.lastInflightContext?.pendingRebalances[0]).to.deep.equal(
-        route1,
-      );
-      expect(strategy3.lastInflightContext?.pendingRebalances[1]).to.deep.equal(
-        route2,
-      );
+      // Strategy 3: receives route1 + route2 as proposedRebalances
+      expect(
+        strategy3.lastInflightContext?.proposedRebalances,
+      ).to.have.lengthOf(2);
+      expect(
+        strategy3.lastInflightContext?.proposedRebalances?.[0],
+      ).to.deep.equal(route1);
+      expect(
+        strategy3.lastInflightContext?.proposedRebalances?.[1],
+      ).to.deep.equal(route2);
     });
 
-    it('should preserve original pendingRebalances in the context', () => {
+    it('should preserve original pendingRebalances and use proposedRebalances for new routes', () => {
       const originalPendingRebalance: RebalancingRoute = {
         origin: chain3,
         destination: chain1,
@@ -230,24 +230,32 @@ describe('CompositeStrategy', () => {
 
       composite.getRebalancingRoutes(rawBalances, inflightContext);
 
-      // Strategy 1 should receive the original pendingRebalance
+      // Both strategies should receive the SAME original pendingRebalances (inflight intents)
       expect(strategy1.lastInflightContext?.pendingRebalances).to.have.lengthOf(
         1,
       );
       expect(strategy1.lastInflightContext?.pendingRebalances[0]).to.deep.equal(
         originalPendingRebalance,
       );
-
-      // Strategy 2 should receive original + route1
       expect(strategy2.lastInflightContext?.pendingRebalances).to.have.lengthOf(
-        2,
+        1,
       );
       expect(strategy2.lastInflightContext?.pendingRebalances[0]).to.deep.equal(
         originalPendingRebalance,
       );
-      expect(strategy2.lastInflightContext?.pendingRebalances[1]).to.deep.equal(
-        route1,
+
+      // Strategy 1: empty proposedRebalances (no earlier strategies)
+      expect(strategy1.lastInflightContext?.proposedRebalances).to.deep.equal(
+        [],
       );
+
+      // Strategy 2: receives route1 as proposedRebalances (from earlier strategy)
+      expect(
+        strategy2.lastInflightContext?.proposedRebalances,
+      ).to.have.lengthOf(1);
+      expect(
+        strategy2.lastInflightContext?.proposedRebalances?.[0],
+      ).to.deep.equal(route1);
     });
 
     it('should preserve pendingTransfers for all strategies', () => {

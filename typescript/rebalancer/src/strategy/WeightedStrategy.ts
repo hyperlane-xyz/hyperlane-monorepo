@@ -62,14 +62,32 @@ export class WeightedStrategy extends BaseStrategy {
 
   /**
    * Gets balances categorized by surplus and deficit based on weights
+   *
+   * Simulates both types of rebalances before calculating surpluses/deficits:
+   * - pendingRebalances: in-flight intents (origin tx confirmed, add to destination only)
+   * - proposedRebalances: routes from earlier strategies (subtract from origin AND add to destination)
+   *
+   * This prevents over-rebalancing when multiple strategies run in sequence.
    */
   protected getCategorizedBalances(
     rawBalances: RawBalances,
-    _pendingRebalances?: RebalancingRoute[],
+    pendingRebalances?: RebalancingRoute[],
+    proposedRebalances?: RebalancingRoute[],
   ): {
     surpluses: Delta[];
     deficits: Delta[];
   } {
+    // Step 1: Simulate pending rebalances (in-flight, origin already deducted on-chain)
+    let simulatedBalances = this.simulatePendingRebalances(
+      rawBalances,
+      pendingRebalances ?? [],
+    );
+
+    // Step 2: Simulate proposed rebalances (from earlier strategies, not yet executed)
+    simulatedBalances = this.simulateProposedRebalances(
+      simulatedBalances,
+      proposedRebalances ?? [],
+    );
     // Get the total balance from all chains
     const total = this.chains.reduce(
       (sum, chain) => sum + rawBalances[chain],

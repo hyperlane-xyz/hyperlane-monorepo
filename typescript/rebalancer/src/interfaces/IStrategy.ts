@@ -11,8 +11,12 @@ export type RebalancingRoute = {
 };
 
 export type InflightContext = {
+  /** In-progress rebalance intents (origin tx confirmed, balance already deducted on-chain) */
   pendingRebalances: RebalancingRoute[];
+  /** Pending user transfers that need collateral reserved */
   pendingTransfers: RebalancingRoute[];
+  /** Routes from earlier strategies in same cycle (not yet executed, for CompositeStrategy) */
+  proposedRebalances?: RebalancingRoute[];
 };
 
 export interface IStrategy {
