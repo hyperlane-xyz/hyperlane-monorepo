@@ -119,7 +119,7 @@ export class RoutingIsmWriter
   async update(artifact: DeployedRoutingIsmArtifact): Promise<AnnotatedTx[]> {
     const { config, deployed } = artifact;
 
-    const updateTxs = [];
+    const updateTxs: AnnotatedTx[] = [];
 
     const deployedDomains: Record<
       number,
