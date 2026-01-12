@@ -118,6 +118,7 @@ export type HelmValues = Record<string, any>;
 export interface HelmCommandOptions {
   dryRun?: boolean;
   updateRepoCache?: boolean;
+  skipDependencyBuild?: boolean;
 }
 
 export abstract class HelmManager<T = HelmValues> {
@@ -137,6 +138,7 @@ export abstract class HelmManager<T = HelmValues> {
   ): Promise<void> {
     const dryRun = options?.dryRun ?? false;
     const updateRepoCache = options?.updateRepoCache ?? false;
+    const skipDependencyBuild = options?.skipDependencyBuild ?? false;
 
     const cmd = ['helm', action];
     if (dryRun) cmd.push('--dry-run');
@@ -168,24 +170,26 @@ export abstract class HelmManager<T = HelmValues> {
       }
     }
 
-    await buildHelmChartDependencies(this.helmChartPath, updateRepoCache);
+    if (!skipDependencyBuild) {
+      await buildHelmChartDependencies(this.helmChartPath, updateRepoCache);
+    }
 
-    // Create a temporary filepath
-    // Removes any files on exit
+    // Removes temp files on process exit
     tmp.setGracefulCleanup();
     const valuesTmpFile = tmp.fileSync({
       prefix: 'helm-values',
       postfix: `${this.helmReleaseName}-${this.namespace}.yaml`,
     });
     rootLogger.debug(`Writing values to ${valuesTmpFile.name}`);
-    // Write the values to the temporary file
     fs.writeFileSync(valuesTmpFile.name, stringifyObject(values, 'yaml'));
-    // If the process is interrupted, we still need to explicitly remove the temporary file
-    process.on('SIGINT', () => {
+
+    // Explicitly clean up temp file on interrupt since graceful cleanup may not trigger
+    const sigintHandler = () => {
       rootLogger.debug(`Cleaning up temp file ${valuesTmpFile.name}`);
       valuesTmpFile.removeCallback();
       process.exit(130);
-    });
+    };
+    process.once('SIGINT', sigintHandler);
 
     cmd.push(
       this.helmReleaseName,
@@ -201,9 +205,13 @@ export abstract class HelmManager<T = HelmValues> {
         `| kubectl diff --namespace ${this.namespace} --field-manager="Go-http-client" -f - || true`,
       );
     }
-    await execCmd(cmd, {}, false, true);
-    // Remove the temporary file
-    valuesTmpFile.removeCallback();
+
+    try {
+      await execCmd(cmd, {}, false, true);
+    } finally {
+      process.removeListener('SIGINT', sigintHandler);
+      valuesTmpFile.removeCallback();
+    }
   }
 
   static async doesHelmReleaseExist(
