@@ -4,7 +4,7 @@ import { execSync } from 'child_process';
 import fs from 'fs';
 import tmp from 'tmp';
 
-import { deepEquals, rootLogger, stringifyObject } from '@hyperlane-xyz/utils';
+import { rootLogger, stringifyObject } from '@hyperlane-xyz/utils';
 
 import {
   HelmChartConfig,
