@@ -17,8 +17,9 @@ const originChain = 'ethereum';
 
 // Main function to execute the script
 async function main() {
-  const { governanceType = GovernanceType.AbacusWorks } =
-    await withGovernanceType(yargs(process.argv.slice(2))).argv;
+  const { governanceType } = await withGovernanceType(
+    yargs(process.argv.slice(2)),
+  ).argv;
 
   const owner = getGovernanceSafes(governanceType)[originChain];
   assert(owner, `No ${governanceType} safe configured for ${originChain}`);
