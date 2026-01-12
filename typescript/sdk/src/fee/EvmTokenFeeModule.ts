@@ -7,6 +7,7 @@ import {
   assert,
   deepEquals,
   eqAddress,
+  isNullish,
   isZeroishAddress,
   objMap,
   objMerge,
@@ -256,14 +257,12 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     const isLinearFeeWithBps =
       normalizedActualConfig.type === TokenFeeType.LinearFee &&
       normalizedTargetConfig.type === TokenFeeType.LinearFee &&
-      'bps' in normalizedActualConfig &&
-      'bps' in normalizedTargetConfig &&
-      normalizedActualConfig.bps !== undefined &&
-      normalizedTargetConfig.bps !== undefined;
+      !isNullish(normalizedActualConfig.bps) &&
+      !isNullish(normalizedTargetConfig.bps);
 
     const fieldsToOmit = isLinearFeeWithBps
       ? { owner: true, maxFee: true, halfAmount: true }
-      : { owner: true };
+      : { owner: true, bps: true };
 
     const actualForComparison = objOmit(normalizedActualConfig, fieldsToOmit);
     const targetForComparison = objOmit(normalizedTargetConfig, fieldsToOmit);
