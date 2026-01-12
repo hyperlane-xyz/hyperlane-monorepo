@@ -1008,20 +1008,15 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       tokenReaderParams,
     );
     const { deployedFee } = tokenFeeModule.serialize();
-
-    // Only update fee recipient if it changed (e.g., fee contract was redeployed)
-    if (!eqAddress(currentTokenFee.address, deployedFee)) {
-      updateTransactions.push({
-        annotation: 'Updating routing fee...',
-        chainId: this.chainId,
-        to: this.args.addresses.deployedTokenRoute,
-        data: TokenRouter__factory.createInterface().encodeFunctionData(
-          'setFeeRecipient(address)',
-          [deployedFee],
-        ),
-      });
-    }
-
+    updateTransactions.push({
+      annotation: 'Updating routing fee...',
+      chainId: this.chainId,
+      to: this.args.addresses.deployedTokenRoute,
+      data: TokenRouter__factory.createInterface().encodeFunctionData(
+        'setFeeRecipient(address)',
+        [deployedFee],
+      ),
+    });
     return updateTransactions;
   }
 
