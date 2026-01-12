@@ -22,6 +22,7 @@ COPY pnpm-lock.yaml pnpm-workspace.yaml ./
 
 COPY patches ./patches
 
+COPY typescript/aleo-sdk/package.json ./typescript/aleo-sdk/
 COPY typescript/keyfunder/package.json ./typescript/keyfunder/
 COPY typescript/sdk/package.json ./typescript/sdk/
 COPY typescript/provider-sdk/package.json ./typescript/provider-sdk/
@@ -39,6 +40,7 @@ COPY starknet/package.json ./starknet/
 RUN pnpm install --frozen-lockfile
 
 COPY turbo.json ./
+COPY typescript/aleo-sdk ./typescript/aleo-sdk
 COPY typescript/keyfunder ./typescript/keyfunder
 COPY typescript/sdk ./typescript/sdk
 COPY typescript/provider-sdk ./typescript/provider-sdk

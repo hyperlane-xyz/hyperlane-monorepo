@@ -13,10 +13,6 @@ import type { KeyFunderMetrics } from '../metrics/Metrics.js';
 const MIN_DELTA_NUMERATOR = BigNumber.from(6);
 const MIN_DELTA_DENOMINATOR = BigNumber.from(10);
 
-const DEFAULT_SWEEP_ADDRESS = '0x478be6076f31E9666123B9721D0B6631baD944AF';
-const DEFAULT_TARGET_MULTIPLIER = 1.5;
-const DEFAULT_TRIGGER_MULTIPLIER = 2.0;
-
 const CHAIN_FUNDING_TIMEOUT_MS = 60_000;
 
 export interface KeyFunderOptions {
@@ -276,24 +272,24 @@ export class KeyFunder {
     chainConfig: ChainConfig,
   ): Promise<void> {
     const sweepConfig = chainConfig.sweep;
-    if (!sweepConfig?.enabled || !sweepConfig.threshold) {
+    if (!sweepConfig?.enabled) {
       return;
     }
 
     const logger = this.options.logger.child({ chain, operation: 'sweep' });
 
-    const sweepAddress = sweepConfig.address ?? DEFAULT_SWEEP_ADDRESS;
-    const targetMultiplier =
-      sweepConfig.targetMultiplier ?? DEFAULT_TARGET_MULTIPLIER;
-    const triggerMultiplier =
-      sweepConfig.triggerMultiplier ?? DEFAULT_TRIGGER_MULTIPLIER;
+    if (!sweepConfig.address || !sweepConfig.threshold) {
+      throw new Error(
+        `Sweep config is invalid for chain ${chain}: address and threshold are required when sweep is enabled`,
+      );
+    }
 
     const threshold = ethers.utils.parseEther(sweepConfig.threshold);
     const targetBalance = threshold
-      .mul(Math.floor(targetMultiplier * 100))
+      .mul(Math.round(sweepConfig.targetMultiplier * 100))
       .div(100);
     const triggerThreshold = threshold
-      .mul(Math.floor(triggerMultiplier * 100))
+      .mul(Math.round(sweepConfig.triggerMultiplier * 100))
       .div(100);
 
     const funderBalance = await this.multiProvider
@@ -315,13 +311,13 @@ export class KeyFunder {
       logger.info(
         {
           sweepAmount: ethers.utils.formatEther(sweepAmount),
-          sweepAddress,
+          sweepAddress: sweepConfig.address,
         },
         'Sweeping excess funds',
       );
 
       const tx = await this.multiProvider.sendTransaction(chain, {
-        to: sweepAddress,
+        to: sweepConfig.address,
         value: sweepAmount,
       });
 

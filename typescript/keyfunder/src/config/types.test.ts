@@ -45,6 +45,24 @@ describe('KeyFunderConfig Schemas', () => {
       expect(result.success).to.be.true;
     });
 
+    it('should reject enabled sweep config without address', () => {
+      const config = {
+        enabled: true,
+        threshold: '0.5',
+      };
+      const result = SweepConfigSchema.safeParse(config);
+      expect(result.success).to.be.false;
+    });
+
+    it('should reject enabled sweep config without threshold', () => {
+      const config = {
+        enabled: true,
+        address: '0x478be6076f31E9666123B9721D0B6631baD944AF',
+      };
+      const result = SweepConfigSchema.safeParse(config);
+      expect(result.success).to.be.false;
+    });
+
     it('should reject trigger multiplier less than target + 0.05', () => {
       const config = {
         enabled: true,
@@ -60,6 +78,7 @@ describe('KeyFunderConfig Schemas', () => {
     it('should use default multipliers', () => {
       const config = {
         enabled: true,
+        address: '0x478be6076f31E9666123B9721D0B6631baD944AF',
         threshold: '0.5',
       };
       const result = SweepConfigSchema.safeParse(config);
@@ -115,6 +134,7 @@ describe('KeyFunderConfig Schemas', () => {
         },
         sweep: {
           enabled: true,
+          address: '0x478be6076f31E9666123B9721D0B6631baD944AF',
           threshold: '0.3',
         },
       };
@@ -126,6 +146,26 @@ describe('KeyFunderConfig Schemas', () => {
       const config = {
         balances: {
           'hyperlane-relayer': 'not-a-number',
+        },
+      };
+      const result = ChainConfigSchema.safeParse(config);
+      expect(result.success).to.be.false;
+    });
+
+    it('should reject scientific notation in balances', () => {
+      const config = {
+        balances: {
+          'hyperlane-relayer': '1e3',
+        },
+      };
+      const result = ChainConfigSchema.safeParse(config);
+      expect(result.success).to.be.false;
+    });
+
+    it('should reject balances with too many decimals', () => {
+      const config = {
+        balances: {
+          'hyperlane-relayer': '1.1234567890123456789',
         },
       };
       const result = ChainConfigSchema.safeParse(config);
