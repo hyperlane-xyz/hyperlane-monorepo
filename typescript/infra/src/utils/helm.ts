@@ -1,15 +1,17 @@
+import { confirm } from '@inquirer/prompts';
+import chalk from 'chalk';
 import { execSync } from 'child_process';
 import fs from 'fs';
 import tmp from 'tmp';
 
-import { rootLogger, stringifyObject } from '@hyperlane-xyz/utils';
+import { deepEquals, rootLogger, stringifyObject } from '@hyperlane-xyz/utils';
 
 import {
   HelmChartConfig,
   HelmChartRepositoryConfig,
 } from '../config/infrastructure.js';
 
-import { execCmd } from './utils.js';
+import { execCmd, execCmdAndParseJson } from './utils.js';
 
 export enum HelmCommand {
   InstallOrUpgrade = 'upgrade --install',
@@ -263,6 +265,169 @@ export abstract class HelmManager<T = HelmValues> {
         encoding: 'utf-8',
       },
     );
+  }
+
+  /**
+   * Gets the currently deployed helm values for this release.
+   * Returns null if the release doesn't exist.
+   */
+  async getDeployedHelmValues(): Promise<HelmValues | null> {
+    const exists = await HelmManager.doesHelmReleaseExist(
+      this.helmReleaseName,
+      this.namespace,
+    );
+    if (!exists) {
+      return null;
+    }
+
+    try {
+      const values = await execCmdAndParseJson(
+        `helm get values ${this.helmReleaseName} --namespace ${this.namespace} -o json`,
+      );
+      return values;
+    } catch (error) {
+      rootLogger.warn(
+        `Failed to get deployed helm values for ${this.helmReleaseName}: ${error}`,
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Runs pre-flight checks before deployment.
+   * Compares the proposed deployment against what's currently running
+   * and prompts for confirmation if there are significant changes.
+   *
+   * @returns true if the deployment should proceed, false otherwise
+   */
+  async runPreflightChecksWithConfirmation(): Promise<boolean> {
+    const deployedValues = await this.getDeployedHelmValues();
+
+    // If there's no existing deployment, no pre-flight check needed
+    if (!deployedValues) {
+      console.log(
+        chalk.green(
+          `No existing deployment found for ${this.helmReleaseName}. Proceeding with fresh install.`,
+        ),
+      );
+      return true;
+    }
+
+    // Cast to HelmValues since helmValues() returns T which extends HelmValues
+    const proposedValues = (await this.helmValues()) as HelmValues;
+
+    // Compare chain configurations (most common source of contention issues)
+    const chainDiff = this.compareChainConfigurations(
+      deployedValues,
+      proposedValues,
+    );
+
+    // Compare docker image tags
+    const imageDiff = this.compareDockerImages(deployedValues, proposedValues);
+
+    // If there are no significant differences, proceed
+    if (!chainDiff.hasChanges && !imageDiff.hasChanges) {
+      console.log(
+        chalk.green(
+          `Pre-flight check passed for ${this.helmReleaseName}. No significant changes detected.`,
+        ),
+      );
+      return true;
+    }
+
+    // Display the differences
+    console.log(
+      chalk.yellow.bold(
+        `\n⚠️  Deployment changes detected for ${this.helmReleaseName}:\n`,
+      ),
+    );
+
+    if (chainDiff.hasChanges) {
+      console.log(chalk.cyan('Chain configuration changes:'));
+      if (chainDiff.added.length > 0) {
+        console.log(
+          chalk.green(`  + Adding chains: ${chainDiff.added.join(', ')}`),
+        );
+      }
+      if (chainDiff.removed.length > 0) {
+        console.log(
+          chalk.red(`  - Removing chains: ${chainDiff.removed.join(', ')}`),
+        );
+      }
+    }
+
+    if (imageDiff.hasChanges) {
+      console.log(chalk.cyan('Docker image changes:'));
+      if (imageDiff.currentTag && imageDiff.newTag) {
+        console.log(chalk.yellow(`  Current tag: ${imageDiff.currentTag}`));
+        console.log(chalk.yellow(`  New tag: ${imageDiff.newTag}`));
+      }
+    }
+
+    console.log('');
+
+    // Prompt for confirmation
+    return confirm({
+      message: chalk.yellow(
+        'Do you want to proceed with this deployment? (This may overwrite changes from other branches)',
+      ),
+      default: false,
+    });
+  }
+
+  /**
+   * Compares chain configurations between deployed and proposed values.
+   */
+  protected compareChainConfigurations(
+    deployed: HelmValues,
+    proposed: HelmValues,
+  ): { hasChanges: boolean; added: string[]; removed: string[] } {
+    const deployedChains = this.extractChainNames(deployed);
+    const proposedChains = this.extractChainNames(proposed);
+
+    const added = proposedChains.filter((c) => !deployedChains.includes(c));
+    const removed = deployedChains.filter((c) => !proposedChains.includes(c));
+
+    return {
+      hasChanges: added.length > 0 || removed.length > 0,
+      added,
+      removed,
+    };
+  }
+
+  /**
+   * Extracts chain names from helm values.
+   * Subclasses can override this for custom chain extraction logic.
+   */
+  protected extractChainNames(values: HelmValues): string[] {
+    // Default extraction from hyperlane.chains
+    if (values?.hyperlane?.chains && Array.isArray(values.hyperlane.chains)) {
+      return values.hyperlane.chains
+        .map((c: any) => c.name || c)
+        .filter(Boolean);
+    }
+    return [];
+  }
+
+  /**
+   * Compares docker images between deployed and proposed values.
+   */
+  protected compareDockerImages(
+    deployed: HelmValues,
+    proposed: HelmValues,
+  ): { hasChanges: boolean; currentTag?: string; newTag?: string } {
+    const deployedTag = deployed?.image?.tag;
+    const proposedTag = proposed?.image?.tag;
+
+    if (!deployedTag || !proposedTag) {
+      return { hasChanges: false };
+    }
+
+    return {
+      hasChanges: deployedTag !== proposedTag,
+      currentTag: deployedTag,
+      newTag: proposedTag,
+    };
   }
 }
 

@@ -1,3 +1,5 @@
+import chalk from 'chalk';
+
 import { concurrentMap, rootLogger } from '@hyperlane-xyz/utils';
 
 import {
@@ -32,6 +34,7 @@ export class AgentCli {
   dryRun = false;
   chains?: string[];
   concurrency = 1;
+  skipPreflightCheck = false;
 
   public async restartAgents() {
     await this.init();
@@ -55,6 +58,41 @@ export class AgentCli {
     }
 
     const managerList = Object.values(managers);
+
+    // Run pre-flight checks for install/upgrade commands (not for remove or dry-run)
+    if (
+      command === HelmCommand.InstallOrUpgrade &&
+      !this.dryRun &&
+      !this.skipPreflightCheck
+    ) {
+      console.log(chalk.cyan.bold('\n🔍 Running pre-flight checks...\n'));
+      const failedPreflightChecks: string[] = [];
+
+      for (const [key, manager] of Object.entries(managers)) {
+        const shouldProceed =
+          await manager.runPreflightChecksWithConfirmation();
+        if (!shouldProceed) {
+          failedPreflightChecks.push(key);
+        }
+      }
+
+      if (failedPreflightChecks.length > 0) {
+        console.log(
+          chalk.red.bold(
+            `\n❌ Pre-flight check declined for: ${failedPreflightChecks.join(', ')}`,
+          ),
+        );
+        console.log(
+          chalk.yellow(
+            'Deployment aborted. To skip pre-flight checks, use --skip-preflight-check flag.',
+          ),
+        );
+        process.exit(1);
+      }
+
+      console.log(chalk.green.bold('\n✅ All pre-flight checks passed.\n'));
+    }
+
     if (managerList.length > 0 && command !== HelmCommand.Remove) {
       rootLogger.info('Building helm chart dependencies...');
       await buildHelmChartDependencies(managerList[0].helmChartPath, false);
@@ -93,7 +131,12 @@ export class AgentCli {
       withChains(withAgentRolesRequired(withContext(getArgs()))),
     )
       .describe('dry-run', 'Run through the steps without making any changes')
-      .boolean('dry-run').argv;
+      .boolean('dry-run')
+      .describe(
+        'skip-preflight-check',
+        'Skip the pre-flight check that compares against currently deployed configuration',
+      )
+      .boolean('skip-preflight-check').argv;
 
     if (
       argv.chains &&
@@ -109,6 +152,7 @@ export class AgentCli {
     this.envConfig = envConfig;
     this.agentConfig = agentConfig;
     this.dryRun = argv.dryRun || false;
+    this.skipPreflightCheck = argv.skipPreflightCheck || false;
     this.initialized = true;
     this.chains = argv.chains;
     this.concurrency = argv.concurrency;
