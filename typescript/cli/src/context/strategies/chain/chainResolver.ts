@@ -155,16 +155,17 @@ async function resolveAgentChains(
       'Select the origin chain',
     ));
 
-  if (!argv.targets) {
+  if (!argv.targets || argv.targets.length === 0) {
     const selectedRelayChains = await runMultiChainSelectionStep({
       chainMetadata: chainMetadata,
       message: 'Select chains to relay between',
       requireNumber: 2,
     });
-    argv.targets = selectedRelayChains.join(',');
+    argv.targets = selectedRelayChains;
   }
 
-  return [argv.origin, ...argv.targets];
+  const targets = argv.targets.map((t: string) => t.trim());
+  return [argv.origin, ...targets];
 }
 
 async function resolveRelayerChains(
@@ -181,10 +182,8 @@ async function resolveRelayerChains(
     chains.add(argv.chain);
   }
 
-  if (argv.chains) {
-    const additionalChains = argv.chains
-      .split(',')
-      .map((item: string) => item.trim());
+  if (argv.chains && argv.chains.length > 0) {
+    const additionalChains = argv.chains.map((item: string) => item.trim());
     return Array.from(new Set([...chains, ...additionalChains]));
   }
 
