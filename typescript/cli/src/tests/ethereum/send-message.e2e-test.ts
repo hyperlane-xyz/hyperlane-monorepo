@@ -1,6 +1,14 @@
 import { expect } from 'chai';
 import { $ } from 'zx';
 
+import {
+  KeyBoardKeys,
+  SELECT_MAINNET_CHAIN_TYPE_STEP,
+  SETUP_CHAIN_SIGNER_MANUALLY_STEP,
+  type TestPromptAction,
+  handlePrompts,
+} from '../commands/helpers.js';
+
 import { hyperlaneCoreDeploy } from './commands/core.js';
 import {
   hyperlaneSendMessage,
@@ -12,6 +20,7 @@ import {
   CHAIN_NAME_3,
   CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
+  REGISTRY_PATH,
 } from './consts.js';
 
 const TEST_REGISTRY_PATH = './test-configs/test-registry';
@@ -87,6 +96,42 @@ describe('hyperlane send message e2e tests', async function () {
       expect(exitCode).to.equal(1);
       const output = stdout + stderr;
       expect(output).to.include('only supports EVM chains');
+    });
+  });
+
+  describe('interactive chain selection', () => {
+    it('should prompt for key and allow interactive chain selection', async () => {
+      const steps: TestPromptAction[] = [
+        SETUP_CHAIN_SIGNER_MANUALLY_STEP(ANVIL_KEY),
+        SELECT_MAINNET_CHAIN_TYPE_STEP,
+        {
+          check: (currentOutput: string) =>
+            currentOutput.includes('--Mainnet Chains--'),
+          input: `${CHAIN_NAME_2}${KeyBoardKeys.ENTER}`,
+        },
+        SELECT_MAINNET_CHAIN_TYPE_STEP,
+        {
+          check: (currentOutput: string) =>
+            currentOutput.includes('--Mainnet Chains--'),
+          input: `${CHAIN_NAME_3}${KeyBoardKeys.ENTER}`,
+        },
+      ];
+
+      const output = $`${localTestRunCmdPrefix()} hyperlane send message \
+        --registry ${REGISTRY_PATH} \
+        --verbosity debug \
+        --quick \
+        --yes`
+        .stdio('pipe')
+        .nothrow();
+
+      const finalOutput = await handlePrompts(output, steps);
+
+      expect(finalOutput.exitCode).to.equal(0);
+      expect(finalOutput.text()).to.include('Message ID:');
+      expect(finalOutput.text()).to.include(
+        `Sent message from ${CHAIN_NAME_2}`,
+      );
     });
   });
 });

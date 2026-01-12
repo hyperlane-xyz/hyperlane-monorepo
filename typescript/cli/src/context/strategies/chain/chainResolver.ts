@@ -170,25 +170,41 @@ async function resolveAgentChains(
 
 /**
  * Resolves chains for the 'send message' command.
- * Only returns the specific origin/destination chains provided, not all EVM chains.
- * This prevents asking for keys for chains that won't be used.
+ * If origin/destination are provided, return them (EVM-only).
+ * If either is missing, return all EVM chains so interactive selection can work.
  */
 async function resolveSendMessageChains(
   argv: Record<string, any>,
 ): Promise<ChainName[]> {
-  const chains: ChainName[] = [];
+  const { multiProvider } = argv.context;
+  const selectedChains = [argv.origin, argv.destination].filter(
+    Boolean,
+  ) as ChainName[];
 
-  if (argv.origin) {
-    chains.push(argv.origin);
+  if (selectedChains.length > 0) {
+    const nonEvmChains = selectedChains.filter(
+      (chain) => multiProvider.getProtocol(chain) !== ProtocolType.Ethereum,
+    );
+    if (nonEvmChains.length > 0) {
+      const chainDetails = nonEvmChains
+        .map((chain) => `'${chain}' (${multiProvider.getProtocol(chain)})`)
+        .join(', ');
+      throw new Error(
+        `'hyperlane send message' only supports EVM chains. Non-EVM chains found: ${chainDetails}`,
+      );
+    }
   }
 
-  if (argv.destination) {
-    chains.push(argv.destination);
+  if (selectedChains.length === 2) {
+    return selectedChains;
   }
 
-  // Return only the specified chains - the actual chain selection
-  // happens in sendTestMessage if origin/destination weren't provided
-  return chains;
+  return multiProvider
+    .getKnownChainNames()
+    .filter(
+      (chain: string) =>
+        ProtocolType.Ethereum === multiProvider.getProtocol(chain),
+    );
 }
 
 async function resolveRelayerChains(
