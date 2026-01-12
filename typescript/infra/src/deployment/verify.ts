@@ -16,5 +16,5 @@ export function extractBuildArtifact(buildArtifactPath: string): BuildArtifact {
 
 // fetch explorer API keys from GCP
 export async function fetchExplorerApiKeys(): Promise<ChainMap<string>> {
-  return (await fetchGCPSecret('explorer-api-keys', true)) as any;
+  return fetchGCPSecret<ChainMap<string>>('explorer-api-keys', true);
 }

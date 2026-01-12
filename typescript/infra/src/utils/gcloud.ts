@@ -22,10 +22,10 @@ const logger = rootLogger.child({ module: 'infra:utils:gcloud' });
 // and don't necessarily want to use gcloud from within k8s.
 // See tryGCPSecretFromEnvVariable for details on how to override via environment
 // variables.
-export async function fetchGCPSecret(
+export async function fetchGCPSecret<T = unknown>(
   secretName: string,
   parseJson = true,
-): Promise<unknown> {
+): Promise<T> {
   let output: string;
 
   const envVarOverride = tryGCPSecretFromEnvVariable(secretName);
@@ -46,9 +46,9 @@ export async function fetchGCPSecret(
   }
 
   if (parseJson) {
-    return JSON.parse(output);
+    return JSON.parse(output) as T;
   }
-  return output;
+  return output as T;
 }
 
 export async function fetchLatestGCPSecret(secretName: string) {

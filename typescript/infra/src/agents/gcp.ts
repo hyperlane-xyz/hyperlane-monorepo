@@ -216,9 +216,9 @@ export class AgentGCPKey extends CloudAgentKey {
 
   async fetch() {
     this.logger.debug('Fetching key');
-    const secret: SecretManagerPersistedKeys = (await fetchGCPSecret(
+    const secret = await fetchGCPSecret<SecretManagerPersistedKeys>(
       this.identifier,
-    )) as any;
+    );
 
     // For Starknet chains, we just read the key but never create or update
     if (this.chainName && isStarknetChain(this.chainName)) {

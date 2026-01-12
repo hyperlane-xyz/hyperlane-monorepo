@@ -509,10 +509,10 @@ async function persistAddressesInGcp(
   keys: KeyAsAddress[],
 ) {
   try {
-    const existingSecret = (await fetchGCPSecret(
+    const existingSecret = await fetchGCPSecret<KeyAsAddress[]>(
       addressesIdentifier(environment, context),
       true,
-    )) as KeyAsAddress[];
+    );
     if (deepEquals(keys, existingSecret)) {
       logger.debug(
         `Addresses already persisted to GCP for ${context} context in ${environment} environment`,

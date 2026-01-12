@@ -399,11 +399,11 @@ export function getSecretName(
 
 export async function getSecretAwsCredentials(agentConfig: AgentContextConfig) {
   return {
-    accessKeyId: await fetchGCPSecret(
+    accessKeyId: await fetchGCPSecret<string>(
       `${agentConfig.runEnv}-aws-access-key-id`,
       false,
     ),
-    secretAccessKey: await fetchGCPSecret(
+    secretAccessKey: await fetchGCPSecret<string>(
       `${agentConfig.runEnv}-aws-secret-access-key`,
       false,
     ),
@@ -414,17 +414,11 @@ export async function getSecretRpcEndpoints(
   environment: string,
   chainName: ChainName,
 ): Promise<string[]> {
-  const secret = await fetchGCPSecret(getSecretName(environment, chainName));
+  const secret = await fetchGCPSecret<string[]>(
+    getSecretName(environment, chainName),
+  );
 
-  if (!Array.isArray(secret)) {
-    throw Error(`Expected secret for ${chainName} rpc endpoint`);
-  }
-
-  return secret.map((i) => {
-    if (typeof i != 'string')
-      throw new Error(`Expected string in rpc endpoint array for ${chainName}`);
-    return i.trimEnd();
-  });
+  return secret.map((i) => i.trimEnd());
 }
 
 export async function getSecretRpcEndpointsLatestVersionName(

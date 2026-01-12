@@ -78,17 +78,14 @@ export class AgentAwsUser {
     accessKeyId: string;
     secretAccessKey: string;
   }> {
-    const accessKeyId = await fetchGCPSecret(this.accessKeyIdSecretName, false);
-    if (typeof accessKeyId != 'string')
-      throw Error('Expected accessKeyId to be a string');
-
-    const secretAccessKey = await fetchGCPSecret(
+    const accessKeyId = await fetchGCPSecret<string>(
+      this.accessKeyIdSecretName,
+      false,
+    );
+    const secretAccessKey = await fetchGCPSecret<string>(
       this.secretAccessKeySecretName,
       false,
     );
-    if (typeof secretAccessKey != 'string')
-      throw Error('Expected secretAccessKey to be a string');
-
     return { accessKeyId, secretAccessKey };
   }
 

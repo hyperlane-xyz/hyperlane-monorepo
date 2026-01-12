@@ -136,10 +136,9 @@ async function getPrometheusConfig(
 // Fetches a secret from GCP Secret Manager. The secret is expected to
 // be JSON with the shape of `PrometheusSecrets`.
 async function fetchPrometheusSecrets(): Promise<PrometheusSecrets> {
-  const secrets = await fetchGCPSecret(
+  return fetchGCPSecret<PrometheusSecrets>(
     'hyperlane-prometheus-remote_write_config',
   );
-  return secrets as PrometheusSecrets;
 }
 
 /**

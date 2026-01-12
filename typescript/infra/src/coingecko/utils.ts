@@ -9,10 +9,10 @@ export async function getCoinGeckoApiKey(
   const environment: DeployEnvironment = 'mainnet3';
   let apiKey: string | undefined;
   try {
-    apiKey = (await fetchGCPSecret(
+    apiKey = await fetchGCPSecret<string>(
       `${environment}-coingecko-api-key`,
       false,
-    )) as string;
+    );
   } catch (err) {
     logger.error(
       err,

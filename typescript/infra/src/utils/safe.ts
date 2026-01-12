@@ -89,7 +89,7 @@ export async function retrySafeApi<T>(runner: () => Promise<T>): Promise<T> {
 }
 
 export async function getSafeApiKey(): Promise<string> {
-  return (await fetchGCPSecret(safeApiKeySecretName, false)) as string;
+  return fetchGCPSecret<string>(safeApiKeySecretName, false);
 }
 
 export async function getSafeAndService(

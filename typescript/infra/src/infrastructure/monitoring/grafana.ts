@@ -75,10 +75,10 @@ export async function fetchGrafanaServiceAccountToken(): Promise<string> {
   }
 
   try {
-    saToken = (await fetchGCPSecret(
+    saToken = await fetchGCPSecret<string>(
       'grafana-balance-alert-thresholds-token',
       false,
-    )) as string;
+    );
   } catch (error) {
     logger.error(
       'Error fetching grafana service account token from GCP secrets:',
