@@ -33,8 +33,9 @@ export async function resolveChains(
   switch (commandKey) {
     case CommandType.WARP_DEPLOY:
       return resolveWarpRouteConfigChains(argv);
-    case CommandType.WARP_SEND:
     case CommandType.SEND_MESSAGE:
+      return resolveSendMessageChains(argv);
+    case CommandType.WARP_SEND:
     case CommandType.STATUS:
     case CommandType.RELAYER:
       return resolveRelayerChains(argv);
@@ -165,6 +166,29 @@ async function resolveAgentChains(
   }
 
   return [argv.origin, ...argv.targets];
+}
+
+/**
+ * Resolves chains for the 'send message' command.
+ * Only returns the specific origin/destination chains provided, not all EVM chains.
+ * This prevents asking for keys for chains that won't be used.
+ */
+async function resolveSendMessageChains(
+  argv: Record<string, any>,
+): Promise<ChainName[]> {
+  const chains: ChainName[] = [];
+
+  if (argv.origin) {
+    chains.push(argv.origin);
+  }
+
+  if (argv.destination) {
+    chains.push(argv.destination);
+  }
+
+  // Return only the specified chains - the actual chain selection
+  // happens in sendTestMessage if origin/destination weren't provided
+  return chains;
 }
 
 async function resolveRelayerChains(
