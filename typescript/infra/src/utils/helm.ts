@@ -306,10 +306,22 @@ export abstract class HelmManager<T = HelmValues> {
     const deployedValues = await this.getDeployedHelmValues();
 
     if (!deployedValues) {
+      // For new deployments, still show what will be deployed
+      const proposedValues = (await this.helmValues()) as HelmValues;
+      const proposedChains = this.extractChainNames(proposedValues);
+      const proposedTag = proposedValues?.image?.tag;
+
       return {
         releaseName: this.helmReleaseName,
-        chainDiff: { hasChanges: false, added: [], removed: [] },
-        imageDiff: { hasChanges: false },
+        chainDiff: {
+          hasChanges: proposedChains.length > 0,
+          added: proposedChains,
+          removed: [],
+        },
+        imageDiff: {
+          hasChanges: !!proposedTag,
+          newTag: proposedTag,
+        },
         isNewDeployment: true,
       };
     }
@@ -373,8 +385,12 @@ export abstract class HelmManager<T = HelmValues> {
     const deployedTag = deployed?.image?.tag;
     const proposedTag = proposed?.image?.tag;
 
-    if (!deployedTag || !proposedTag) {
+    if (!proposedTag) {
       return { hasChanges: false };
+    }
+
+    if (!deployedTag) {
+      return { hasChanges: true, newTag: proposedTag };
     }
 
     return {
