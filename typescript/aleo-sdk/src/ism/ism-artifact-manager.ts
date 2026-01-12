@@ -88,7 +88,7 @@ export class AleoIsmArtifactManager implements IRawIsmArtifactManager {
     _signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
   ): ArtifactWriter<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
     throw new Error(
-      `ISM writers not yet implemented for Cosmos (requested type: ${type})`,
+      `ISM writers not yet implemented for Aleo (requested type: ${type})`,
     );
   }
 }
