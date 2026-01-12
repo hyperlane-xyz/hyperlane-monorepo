@@ -1,3 +1,4 @@
+import { BigNumber, ethers } from 'ethers';
 import { join } from 'path';
 import YAML from 'yaml';
 import { fromZodError } from 'zod-validation-error';
@@ -18,6 +19,9 @@ import { DEFAULT_SWEEP_ADDRESS, KeyFunderConfig } from '../config/funding.js';
 import { FundableRole, Role } from '../roles.js';
 import { HelmManager } from '../utils/helm.js';
 import { getInfraPath, isEthereumProtocolChain } from '../utils/utils.js';
+
+const RC_FUNDING_DISCOUNT_NUMERATOR = BigNumber.from(2);
+const RC_FUNDING_DISCOUNT_DENOMINATOR = BigNumber.from(10);
 
 export class KeyFunderHelmManager extends HelmManager {
   readonly helmReleaseName: string = 'key-funder';
@@ -192,7 +196,11 @@ export class KeyFunderHelmManager extends HelmManager {
 
         const desiredBalance = this.getDesiredBalanceForRole(chain, role);
         if (desiredBalance && desiredBalance !== '0') {
-          balances[roleName] = desiredBalance;
+          const adjustedBalance =
+            context === Contexts.ReleaseCandidate
+              ? this.applyRcDiscount(desiredBalance)
+              : desiredBalance;
+          balances[roleName] = adjustedBalance;
         }
       }
     }
@@ -247,6 +255,14 @@ export class KeyFunderHelmManager extends HelmManager {
       default:
         return undefined;
     }
+  }
+
+  private applyRcDiscount(balance: string): string {
+    const discountedBalance = ethers.utils
+      .parseEther(balance)
+      .mul(RC_FUNDING_DISCOUNT_NUMERATOR)
+      .div(RC_FUNDING_DISCOUNT_DENOMINATOR);
+    return ethers.utils.formatEther(discountedBalance);
   }
 }
 
