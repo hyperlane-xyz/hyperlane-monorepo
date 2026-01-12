@@ -31,6 +31,7 @@ export class RebalancerHelmManager extends HelmManager {
   );
 
   private rebalancerConfigContent: string = '';
+  private rebalancerChains: string[] = [];
 
   constructor(
     readonly warpRouteId: string,
@@ -67,6 +68,9 @@ export class RebalancerHelmManager extends HelmManager {
       throw new Error('No chains configured');
     }
 
+    // Store the chains for helm values (used for private RPC secrets)
+    this.rebalancerChains = Object.keys(chains);
+
     // Store the config file content for helm values
     this.rebalancerConfigContent = fs.readFileSync(
       rebalancerConfigFile,
@@ -93,6 +97,8 @@ export class RebalancerHelmManager extends HelmManager {
         registryUri,
         rebalancerConfig: this.rebalancerConfigContent,
         withMetrics: this.withMetrics,
+        // Used for fetching private RPC secrets
+        chains: this.rebalancerChains,
       },
     };
   }
