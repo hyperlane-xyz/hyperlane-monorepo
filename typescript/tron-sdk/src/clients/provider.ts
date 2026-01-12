@@ -7,6 +7,8 @@ import InterchainGasPaymasterAbi from '../../abi/InterchainGasPaymaster.json' wi
 import MailboxAbi from '../../abi/Mailbox.json' with { type: 'json' };
 import MerkleTreeHookAbi from '../../abi/MerkleTreeHook.json' with { type: 'json' };
 import NoopIsmAbi from '../../abi/NoopIsm.json' with { type: 'json' };
+import MessageIdMultisigIsmAbi from '../../abi/StorageMessageIdMultisigIsm.json' with { type: 'json' };
+import ValidatorAnnounceAbi from '../../abi/ValidatorAnnounce.json' with { type: 'json' };
 import { IABI } from '../utils/types.js';
 
 type MockTransaction = any;
@@ -97,16 +99,28 @@ export class TronProvider implements AltVM.IProvider {
   // TODO: TRON
   // use multicall
   async getMailbox(req: AltVM.ReqGetMailbox): Promise<AltVM.ResGetMailbox> {
-    const mailbox = this.tronweb.contract(MailboxAbi.abi, req.mailboxAddress);
+    const contract = this.tronweb.contract(MailboxAbi.abi, req.mailboxAddress);
+
+    const defaultIsm = this.tronweb.address.fromHex(
+      await contract.defaultIsm().call(),
+    );
+
+    const defaultHook = this.tronweb.address.fromHex(
+      await contract.defaultHook().call(),
+    );
+
+    const requiredHook = this.tronweb.address.fromHex(
+      await contract.requiredHook().call(),
+    );
 
     return {
       address: req.mailboxAddress,
-      owner: await mailbox.owner().call(),
-      localDomain: Number(await mailbox.localDomain().call()),
-      defaultIsm: await mailbox.defaultIsm().call(),
-      defaultHook: await mailbox.defaultHook().call(),
-      requiredHook: await mailbox.requiredHook().call(),
-      nonce: Number(await mailbox.nonce().call()),
+      owner: this.tronweb.address.fromHex(await contract.owner().call()),
+      localDomain: Number(await contract.localDomain().call()),
+      defaultIsm: defaultIsm === req.mailboxAddress ? '' : defaultIsm,
+      defaultHook: defaultHook === req.mailboxAddress ? '' : defaultHook,
+      requiredHook: requiredHook === req.mailboxAddress ? '' : requiredHook,
+      nonce: Number(await contract.nonce().call()),
     };
   }
 
@@ -121,9 +135,18 @@ export class TronProvider implements AltVM.IProvider {
   }
 
   async getMessageIdMultisigIsm(
-    _req: AltVM.ReqMessageIdMultisigIsm,
+    req: AltVM.ReqMessageIdMultisigIsm,
   ): Promise<AltVM.ResMessageIdMultisigIsm> {
-    throw new Error(`not implemented`);
+    const contract = this.tronweb.contract(
+      MessageIdMultisigIsmAbi.abi,
+      req.ismAddress,
+    );
+
+    return {
+      address: req.ismAddress,
+      threshold: Number(await contract.threshold().call()),
+      validators: await contract.validators().call(),
+    };
   }
 
   async getMerkleRootMultisigIsm(
@@ -136,8 +159,15 @@ export class TronProvider implements AltVM.IProvider {
     throw new Error(`not implemented`);
   }
 
-  async getNoopIsm(_req: AltVM.ReqNoopIsm): Promise<AltVM.ResNoopIsm> {
-    throw new Error(`not implemented`);
+  async getNoopIsm(req: AltVM.ReqNoopIsm): Promise<AltVM.ResNoopIsm> {
+    const contract = this.tronweb.contract(NoopIsmAbi.abi, req.ismAddress);
+
+    const moduleType = await contract.moduleType().call();
+    assert(Number(moduleType) === 6, `module type does not equal NULL ISM`);
+
+    return {
+      address: req.ismAddress,
+    };
   }
 
   async getHookType(_req: AltVM.ReqGetHookType): Promise<AltVM.HookType> {
@@ -216,21 +246,72 @@ export class TronProvider implements AltVM.IProvider {
   }
 
   async getSetDefaultHookTransaction(
-    _req: AltVM.ReqSetDefaultHook,
+    req: AltVM.ReqSetDefaultHook,
   ): Promise<MockTransaction> {
-    throw new Error(`not implemented`);
+    const { transaction } =
+      await this.tronweb.transactionBuilder.triggerSmartContract(
+        req.mailboxAddress,
+        'setDefaultHook(address)',
+        {
+          feeLimit: 100_000_000,
+          callValue: 0,
+        },
+        [
+          {
+            type: 'address',
+            value: req.hookAddress,
+          },
+        ],
+        this.tronweb.address.toHex(req.signer),
+      );
+
+    return transaction;
   }
 
   async getSetRequiredHookTransaction(
-    _req: AltVM.ReqSetRequiredHook,
+    req: AltVM.ReqSetRequiredHook,
   ): Promise<MockTransaction> {
-    throw new Error(`not implemented`);
+    const { transaction } =
+      await this.tronweb.transactionBuilder.triggerSmartContract(
+        req.mailboxAddress,
+        'setRequiredHook(address)',
+        {
+          feeLimit: 100_000_000,
+          callValue: 0,
+        },
+        [
+          {
+            type: 'address',
+            value: req.hookAddress,
+          },
+        ],
+        this.tronweb.address.toHex(req.signer),
+      );
+
+    return transaction;
   }
 
   async getSetMailboxOwnerTransaction(
-    _req: AltVM.ReqSetMailboxOwner,
+    req: AltVM.ReqSetMailboxOwner,
   ): Promise<MockTransaction> {
-    throw new Error(`not implemented`);
+    const { transaction } =
+      await this.tronweb.transactionBuilder.triggerSmartContract(
+        req.mailboxAddress,
+        'transferOwnership(address)',
+        {
+          feeLimit: 100_000_000,
+          callValue: 0,
+        },
+        [
+          {
+            type: 'address',
+            value: req.newOwner,
+          },
+        ],
+        this.tronweb.address.toHex(req.signer),
+      );
+
+    return transaction;
   }
 
   async getCreateMerkleRootMultisigIsmTransaction(
@@ -240,9 +321,13 @@ export class TronProvider implements AltVM.IProvider {
   }
 
   async getCreateMessageIdMultisigIsmTransaction(
-    _req: AltVM.ReqCreateMessageIdMultisigIsm,
+    req: AltVM.ReqCreateMessageIdMultisigIsm,
   ): Promise<MockTransaction> {
-    throw new Error(`not implemented`);
+    return this.createDeploymentTransaction(
+      MessageIdMultisigIsmAbi,
+      req.signer,
+      [req.validators, req.threshold],
+    );
   }
 
   async getCreateRoutingIsmTransaction(
@@ -318,9 +403,11 @@ export class TronProvider implements AltVM.IProvider {
   }
 
   async getCreateValidatorAnnounceTransaction(
-    _req: AltVM.ReqCreateValidatorAnnounce,
+    req: AltVM.ReqCreateValidatorAnnounce,
   ): Promise<MockTransaction> {
-    throw new Error(`not implemented`);
+    return this.createDeploymentTransaction(ValidatorAnnounceAbi, req.signer, [
+      req.mailboxAddress,
+    ]);
   }
 
   // ### GET WARP TXS ###

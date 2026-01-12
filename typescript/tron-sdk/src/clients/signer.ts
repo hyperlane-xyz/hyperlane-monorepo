@@ -2,8 +2,6 @@ import { assert } from 'chai';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 
-import { TRON_EMPTY_ADDRESS } from '../utils/index.js';
-
 import { TronProvider } from './provider.js';
 
 type MockTransaction = any;
@@ -93,15 +91,15 @@ export class TronSigner
           },
           {
             type: 'address',
-            value: req.defaultIsmAddress || TRON_EMPTY_ADDRESS,
+            value: mailboxAddress,
           },
           {
             type: 'address',
-            value: req.defaultIsmAddress || TRON_EMPTY_ADDRESS,
+            value: mailboxAddress,
           },
           {
             type: 'address',
-            value: req.defaultIsmAddress || TRON_EMPTY_ADDRESS,
+            value: mailboxAddress,
           },
         ],
         this.tronweb.address.toHex(this.getSignerAddress()),
@@ -132,21 +130,51 @@ export class TronSigner
   }
 
   async setDefaultHook(
-    _req: Omit<AltVM.ReqSetDefaultHook, 'signer'>,
+    req: Omit<AltVM.ReqSetDefaultHook, 'signer'>,
   ): Promise<AltVM.ResSetDefaultHook> {
-    throw new Error(`not implemented`);
+    const tx = await this.getSetDefaultHookTransaction({
+      ...req,
+      signer: this.getSignerAddress(),
+    });
+
+    const signedTx = await this.tronweb.trx.sign(tx);
+    await this.tronweb.trx.sendRawTransaction(signedTx);
+
+    return {
+      hookAddress: req.hookAddress,
+    };
   }
 
   async setRequiredHook(
-    _req: Omit<AltVM.ReqSetRequiredHook, 'signer'>,
+    req: Omit<AltVM.ReqSetRequiredHook, 'signer'>,
   ): Promise<AltVM.ResSetRequiredHook> {
-    throw new Error(`not implemented`);
+    const tx = await this.getSetRequiredHookTransaction({
+      ...req,
+      signer: this.getSignerAddress(),
+    });
+
+    const signedTx = await this.tronweb.trx.sign(tx);
+    await this.tronweb.trx.sendRawTransaction(signedTx);
+
+    return {
+      hookAddress: req.hookAddress,
+    };
   }
 
   async setMailboxOwner(
-    _req: Omit<AltVM.ReqSetMailboxOwner, 'signer'>,
+    req: Omit<AltVM.ReqSetMailboxOwner, 'signer'>,
   ): Promise<AltVM.ResSetMailboxOwner> {
-    throw new Error(`not implemented`);
+    const tx = await this.getSetMailboxOwnerTransaction({
+      ...req,
+      signer: this.getSignerAddress(),
+    });
+
+    const signedTx = await this.tronweb.trx.sign(tx);
+    await this.tronweb.trx.sendRawTransaction(signedTx);
+
+    return {
+      newOwner: req.newOwner,
+    };
   }
 
   async createMerkleRootMultisigIsm(
@@ -156,9 +184,19 @@ export class TronSigner
   }
 
   async createMessageIdMultisigIsm(
-    _req: Omit<AltVM.ReqCreateMessageIdMultisigIsm, 'signer'>,
+    req: Omit<AltVM.ReqCreateMessageIdMultisigIsm, 'signer'>,
   ): Promise<AltVM.ResCreateMessageIdMultisigIsm> {
-    throw new Error(`not implemented`);
+    const tx = await this.getCreateMessageIdMultisigIsmTransaction({
+      ...req,
+      signer: this.getSignerAddress(),
+    });
+
+    const signedTx = await this.tronweb.trx.sign(tx);
+    await this.tronweb.trx.sendRawTransaction(signedTx);
+
+    return {
+      ismAddress: this.tronweb.address.fromHex(tx.contract_address),
+    };
   }
 
   async createRoutingIsm(
@@ -286,9 +324,19 @@ export class TronSigner
   }
 
   async createValidatorAnnounce(
-    _req: Omit<AltVM.ReqCreateValidatorAnnounce, 'signer'>,
+    req: Omit<AltVM.ReqCreateValidatorAnnounce, 'signer'>,
   ): Promise<AltVM.ResCreateValidatorAnnounce> {
-    throw new Error(`not implemented`);
+    const tx = await this.getCreateValidatorAnnounceTransaction({
+      ...req,
+      signer: this.getSignerAddress(),
+    });
+
+    const signedTx = await this.tronweb.trx.sign(tx);
+    await this.tronweb.trx.sendRawTransaction(signedTx);
+
+    return {
+      validatorAnnounceId: this.tronweb.address.fromHex(tx.contract_address),
+    };
   }
 
   // ### TX WARP ###

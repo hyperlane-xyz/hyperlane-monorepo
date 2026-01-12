@@ -2,7 +2,7 @@ import { TronSigner } from './clients/signer.js';
 
 const main = async () => {
   const signer = await TronSigner.connectWithSigner(
-    ['http://127.0.0.1:9090'],
+    ['http://localhost:9090'],
     '0000000000000000000000000000000000000000000000000000000000000001',
     {
       metadata: {
@@ -42,6 +42,11 @@ const main = async () => {
     mailboxAddress,
   });
   console.log('mailbox', mailbox);
+
+  const messageIdMultisigIsm = await signer.getMessageIdMultisigIsm({
+    ismAddress: '416cef53164c4a6da428b966fae404d26309ed131a',
+  });
+  console.log('messageIdMultisigIsm', messageIdMultisigIsm);
 };
 
 main();
