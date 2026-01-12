@@ -189,7 +189,8 @@ export class RoutingIsmWriter
       deployed: deployed,
     };
 
-    return rawRoutingWriter.update(rawRoutingArtifact);
+    const routingUpdateTxs = await rawRoutingWriter.update(rawRoutingArtifact);
+    return [...updateTxs, ...routingUpdateTxs];
   }
 
   private async deployDomainIsm(
