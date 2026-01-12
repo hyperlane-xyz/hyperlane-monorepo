@@ -5,7 +5,10 @@ import { assert, objFilter, rootLogger } from '@hyperlane-xyz/utils';
 
 import { getGovernanceSafes } from '../../../config/environments/mainnet3/governance/utils.js';
 import { supportedChainNames } from '../../../config/environments/mainnet3/supportedChainNames.js';
-import { legacyIcaChainRouters } from '../../../src/config/chain.js';
+import {
+  chainsToSkip,
+  legacyIcaChainRouters,
+} from '../../../src/config/chain.js';
 import { SafeMultiSend } from '../../../src/govern/multisend.js';
 import { GovernanceType, withGovernanceType } from '../../../src/governance.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../../core-utils.js';
@@ -50,7 +53,8 @@ async function main() {
       chain === 'arcadia' ||
       chain === originChain ||
       !icaChainAddresses[chain] ||
-      legacyIcaChainRouters[chain]
+      legacyIcaChainRouters[chain] ||
+      chainsToSkip.includes(chain)
     ) {
       continue;
     }
@@ -89,6 +93,7 @@ async function main() {
     remoteCalls.map((call) => ({
       to: call.to!,
       data: call.data!,
+      value: call.value,
     })),
   );
 }
