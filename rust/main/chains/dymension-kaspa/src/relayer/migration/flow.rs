@@ -1,21 +1,18 @@
 use crate::ops::migration::MigrationFXG;
 use crate::providers::ValidatorsClient;
-use crate::relayer::withdraw::hub_to_kaspa::{combine_all_bundles, finalize_migration_txs};
+use crate::relayer::withdraw::hub_to_kaspa::{
+    combine_all_bundles, create_pskt, finalize_migration_txs,
+};
 use dym_kas_core::escrow::EscrowPublic;
-use dym_kas_core::pskt::input_sighash_type;
+use dym_kas_core::pskt::{PopulatedInput, PopulatedInputBuilder};
 use dym_kas_core::wallet::EasyKaspaWallet;
 use eyre::{eyre, Result};
 use kaspa_addresses::Address;
-use kaspa_consensus_core::tx::{
-    TransactionInput, TransactionOutpoint, TransactionOutput, UtxoEntry,
-};
+use kaspa_consensus_core::tx::TransactionOutput;
 use kaspa_txscript::pay_to_address_script;
 use kaspa_wallet_pskt::prelude::*;
-use kaspa_wallet_pskt::pskt::{InputBuilder, OutputBuilder, PSKT};
 use std::sync::Arc;
 use tracing::info;
-
-type PopulatedInput = (TransactionInput, UtxoEntry, Option<Vec<u8>>);
 
 /// Execute escrow key migration.
 ///
@@ -60,19 +57,16 @@ pub async fn execute_migration(
     let inputs: Vec<PopulatedInput> = escrow_utxos
         .into_iter()
         .map(|utxo| {
-            let input = TransactionInput::new(
-                TransactionOutpoint::new(utxo.outpoint.transaction_id, utxo.outpoint.index),
-                vec![],
-                0,
-                sig_op_count,
-            );
-            let entry = UtxoEntry::new(
+            PopulatedInputBuilder::new(
+                utxo.outpoint.transaction_id,
+                utxo.outpoint.index,
                 utxo.utxo_entry.amount,
                 escrow.p2sh.clone(),
-                utxo.utxo_entry.block_daa_score,
-                utxo.utxo_entry.is_coinbase,
-            );
-            (input, entry, Some(escrow.redeem_script.clone()))
+            )
+            .sig_op_count(sig_op_count)
+            .block_daa_score(utxo.utxo_entry.block_daa_score)
+            .redeem_script(Some(escrow.redeem_script.clone()))
+            .build()
         })
         .collect();
 
@@ -81,16 +75,18 @@ pub async fn execute_migration(
     let new_escrow_script = pay_to_address_script(new_escrow_address);
     let output = TransactionOutput::new(total_amount, new_escrow_script);
 
-    let pskt = create_migration_pskt(inputs, vec![output])?;
+    // No payload for migration transactions
+    let pskt = create_pskt(inputs, vec![output], None)?;
     let bundle = Bundle::from(pskt);
     let fxg = MigrationFXG::new(bundle);
 
     info!("Built migration PSKT, collecting validator signatures");
 
     // 3. Collect signatures from validators
-    let fxg_arc = Arc::new(fxg);
+    // Note: get_migration_sigs uses collect_with_threshold internally,
+    // which already enforces the threshold requirement before returning
     let bundles = validators_client
-        .get_migration_sigs(fxg_arc.clone())
+        .get_migration_sigs(Arc::new(fxg))
         .await
         .map_err(|e| eyre!("Collect migration signatures: {}", e))?;
 
@@ -100,14 +96,6 @@ pub async fn execute_migration(
     );
 
     // 4. Combine signatures
-    let threshold = validators_client.multisig_threshold_escrow();
-    if bundles.len() < threshold {
-        return Err(eyre!(
-            "Not enough validator signatures: got {}, need {}",
-            bundles.len(),
-            threshold
-        ));
-    }
 
     let combined = combine_all_bundles(bundles)?;
     let finalized = finalize_migration_txs(
@@ -146,43 +134,4 @@ pub async fn execute_migration(
     );
 
     Ok(tx_ids)
-}
-
-fn create_migration_pskt(
-    inputs: Vec<PopulatedInput>,
-    outputs: Vec<TransactionOutput>,
-) -> Result<PSKT<Signer>> {
-    let mut pskt = PSKT::<Creator>::default()
-        .set_version(Version::One)
-        .constructor();
-
-    // Add inputs
-    for (input, entry, redeem_script) in inputs.into_iter() {
-        let mut b = InputBuilder::default();
-
-        b.utxo_entry(entry)
-            .previous_outpoint(input.previous_outpoint)
-            .sig_op_count(input.sig_op_count)
-            .sighash_type(input_sighash_type());
-
-        if let Some(script) = redeem_script {
-            b.redeem_script(script);
-        }
-
-        pskt = pskt.input(b.build().map_err(|e| eyre!("Build PSKT input: {}", e))?);
-    }
-
-    // Add outputs
-    for output in outputs.into_iter() {
-        let b = OutputBuilder::default()
-            .amount(output.value)
-            .script_public_key(output.script_public_key)
-            .build()
-            .map_err(|e| eyre!("Build PSKT output: {}", e))?;
-
-        pskt = pskt.output(b);
-    }
-
-    // No payload for migration
-    Ok(pskt.no_more_inputs().no_more_outputs().signer())
 }

@@ -217,7 +217,7 @@ pub fn build_withdrawal_pskt(
     let outputs_num = outputs.len();
     let payload_len = payload.len();
 
-    let pskt = create_withdrawal_pskt(inputs, outputs, payload)?;
+    let pskt = create_pskt(inputs, outputs, Some(payload))?;
 
     info!(
         inputs_count = inputs_num,
@@ -232,12 +232,12 @@ pub fn build_withdrawal_pskt(
     Ok(pskt)
 }
 
-/// CONTRACT:
-/// Escrow change is always the last output.
-fn create_withdrawal_pskt(
+/// Create a PSKT from inputs and outputs with optional payload.
+/// Used by both withdrawal and migration flows.
+pub fn create_pskt(
     inputs: Vec<PopulatedInput>,
     outputs: Vec<TransactionOutput>,
-    payload: Vec<u8>,
+    payload: Option<Vec<u8>>,
 ) -> Result<PSKT<Signer>> {
     let mut pskt = PSKT::<Creator>::default()
         .set_version(Version::One)
@@ -253,7 +253,6 @@ fn create_withdrawal_pskt(
             .sighash_type(input_sighash_type());
 
         if let Some(script) = redeem_script {
-            // escrow inputs need redeem_script
             b.redeem_script(script);
         }
 
@@ -269,16 +268,16 @@ fn create_withdrawal_pskt(
             .amount(output.value)
             .script_public_key(output.script_public_key)
             .build()
-            .map_err(|e| eyre::eyre!("Build pskt output for withdrawal: {}", e))?;
+            .map_err(|e| eyre::eyre!("Build pskt output: {}", e))?;
 
         pskt = pskt.output(b);
     }
 
-    Ok(pskt
-        .no_more_inputs()
-        .no_more_outputs()
-        .payload(Some(payload))?
-        .signer())
+    let pskt = pskt.no_more_inputs().no_more_outputs();
+    match payload {
+        Some(p) => Ok(pskt.payload(Some(p))?.signer()),
+        None => Ok(pskt.signer()),
+    }
 }
 
 /// Return outputs generated based on the provided messages. Filter out messages
