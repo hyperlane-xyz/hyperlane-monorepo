@@ -9,9 +9,9 @@ const AddressSchema = z
 
 const BalanceStringSchema = z
   .string()
-  .refine(
-    (val) => !isNaN(parseFloat(val)) && parseFloat(val) >= 0,
-    'Must be a valid non-negative number string',
+  .regex(
+    /^(?:\d+)(?:\.\d{1,18})?$/,
+    'Must be a valid non-negative decimal string (up to 18 decimals)',
   );
 
 export const RoleConfigSchema = z.object({
@@ -44,6 +44,14 @@ export const SweepConfigSchema = z
       .max(MAX_TRIGGER, `Trigger multiplier must be at most ${MAX_TRIGGER}`)
       .default(2.0),
     threshold: BalanceStringSchema.optional(),
+  })
+  .refine((data) => !data.enabled || !!data.address, {
+    message: 'Sweep address is required when sweep is enabled',
+    path: ['address'],
+  })
+  .refine((data) => !data.enabled || !!data.threshold, {
+    message: 'Sweep threshold is required when sweep is enabled',
+    path: ['threshold'],
   })
   .refine(
     (data) => {

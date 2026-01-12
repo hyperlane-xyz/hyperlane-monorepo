@@ -60,27 +60,27 @@ chainsToSkip: []
 
 ### Configuration Options
 
-| Field                                    | Description                                      |
-| ---------------------------------------- | ------------------------------------------------ |
-| `version`                                | Config version, must be "1"                      |
-| `roles`                                  | Role definitions (address per role)              |
-| `roles.<role>.address`                   | Ethereum address for this role                   |
-| `chains`                                 | Per-chain configuration                          |
-| `chains.<chain>.balances`                | Map of role name to desired balance              |
-| `chains.<chain>.balances.<role>`         | Target balance in native token (e.g., "0.5" ETH) |
-| `chains.<chain>.igp`                     | IGP claim configuration                          |
-| `chains.<chain>.igp.address`             | IGP contract address                             |
-| `chains.<chain>.igp.claimThreshold`      | Minimum IGP balance before claiming              |
-| `chains.<chain>.sweep`                   | Sweep excess funds configuration                 |
-| `chains.<chain>.sweep.enabled`           | Enable sweep functionality                       |
-| `chains.<chain>.sweep.address`           | Address to sweep funds to                        |
-| `chains.<chain>.sweep.threshold`         | Base threshold for sweep calculations            |
-| `chains.<chain>.sweep.targetMultiplier`  | Multiplier for target balance (default: 1.5)     |
-| `chains.<chain>.sweep.triggerMultiplier` | Multiplier for trigger threshold (default: 2.0)  |
-| `metrics.pushGateway`                    | Prometheus push gateway URL                      |
-| `metrics.jobName`                        | Job name for metrics                             |
-| `metrics.labels`                         | Additional labels for metrics                    |
-| `chainsToSkip`                           | Array of chain names to skip                     |
+| Field                                    | Description                                                                                      |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `version`                                | Config version, must be "1"                                                                      |
+| `roles`                                  | Role definitions (address per role)                                                              |
+| `roles.<role>.address`                   | Ethereum address for this role                                                                   |
+| `chains`                                 | Per-chain configuration                                                                          |
+| `chains.<chain>.balances`                | Map of role name to desired balance                                                              |
+| `chains.<chain>.balances.<role>`         | Target balance decimal string (e.g., "0.5" ETH; up to 18 decimals)                               |
+| `chains.<chain>.igp`                     | IGP claim configuration                                                                          |
+| `chains.<chain>.igp.address`             | IGP contract address                                                                             |
+| `chains.<chain>.igp.claimThreshold`      | Minimum IGP balance before claiming (decimal string; up to 18 decimals)                          |
+| `chains.<chain>.sweep`                   | Sweep excess funds configuration                                                                 |
+| `chains.<chain>.sweep.enabled`           | Enable sweep functionality                                                                       |
+| `chains.<chain>.sweep.address`           | Address to sweep funds to (required when enabled)                                                |
+| `chains.<chain>.sweep.threshold`         | Base threshold for sweep calculations (required when enabled; decimal string; up to 18 decimals) |
+| `chains.<chain>.sweep.targetMultiplier`  | Multiplier for target balance (default: 1.5)                                                     |
+| `chains.<chain>.sweep.triggerMultiplier` | Multiplier for trigger threshold (default: 2.0)                                                  |
+| `metrics.pushGateway`                    | Prometheus push gateway URL                                                                      |
+| `metrics.jobName`                        | Job name for metrics                                                                             |
+| `metrics.labels`                         | Additional labels for metrics                                                                    |
+| `chainsToSkip`                           | Array of chain names to skip                                                                     |
 
 ## Environment Variables
 
@@ -132,9 +132,9 @@ pnpm bundle
 
 ### Key Funding
 
-Keys are funded when their balance drops below 60% of the desired balance. The funding amount brings the balance up to the full desired balance.
+Keys are funded when their balance drops below 40% of the desired balance. The funding amount brings the balance up to the full desired balance.
 
-**Example**: If `desiredBalance` is `1.0 ETH` and current balance is `0.55 ETH` (55%), funding is triggered. The key receives `0.45 ETH` to reach the full `1.0 ETH`.
+**Example**: If `desiredBalance` is `1.0 ETH` and current balance is `0.39 ETH` (39%), funding is triggered. The key receives `0.61 ETH` to reach the full `1.0 ETH`.
 
 ### IGP Claims
 
