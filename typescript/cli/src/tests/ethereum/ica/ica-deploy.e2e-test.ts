@@ -7,14 +7,17 @@ import {
   type AccountConfig,
   type ChainMetadata,
   InterchainAccount,
+  isContractAddress,
 } from '@hyperlane-xyz/sdk';
 import {
   type Address,
   addressToBytes32,
   eqAddress,
+  isZeroishAddress,
 } from '@hyperlane-xyz/utils';
 
 import { getContext } from '../../../context/context.js';
+import { IcaDeployStatus } from '../../../deploy/ica.js';
 import { readYamlOrJson } from '../../../utils/files.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
 import { hyperlaneIcaDeploy } from '../commands/ica.js';
@@ -91,7 +94,7 @@ describe('hyperlane ica deploy e2e tests', async function () {
     }
 
     // Enroll chain3's router on chain2 if not already enrolled
-    if (chain3RouterOnChain2 === ethers.constants.HashZero) {
+    if (isZeroishAddress(chain3RouterOnChain2)) {
       const tx2 = await icaRouterChain2.enrollRemoteRouterAndIsm(
         chain3DomainId,
         addressToBytes32(chain3Addresses.interchainAccountRouter!),
@@ -117,8 +120,10 @@ describe('hyperlane ica deploy e2e tests', async function () {
       expect(exitCode).to.equal(0);
       expect(stdout).to.include(CHAIN_NAME_3);
       // Should show either 'deployed' or 'exists' status
-      expect(stdout.includes('deployed') || stdout.includes('exists')).to.be
-        .true;
+      expect(
+        stdout.includes(IcaDeployStatus.Deployed) ||
+          stdout.includes(IcaDeployStatus.Exists),
+      ).to.be.true;
     });
 
     it('should deploy ICA with address matching expected address', async function () {
@@ -129,8 +134,8 @@ describe('hyperlane ica deploy e2e tests', async function () {
       });
 
       const addressesMap: Record<string, Record<string, string>> = {
-        [CHAIN_NAME_2]: chain2Addresses as Record<string, string>,
-        [CHAIN_NAME_3]: chain3Addresses as Record<string, string>,
+        [CHAIN_NAME_2]: chain2Addresses,
+        [CHAIN_NAME_3]: chain3Addresses,
       };
 
       const ica = InterchainAccount.fromAddressesMap(
@@ -182,7 +187,7 @@ describe('hyperlane ica deploy e2e tests', async function () {
       );
 
       expect(exitCode).to.equal(0);
-      expect(stdout).to.include('exists');
+      expect(stdout).to.include(IcaDeployStatus.Exists);
     });
 
     it('should deploy ICAs on multiple destination chains', async function () {
@@ -224,8 +229,8 @@ describe('hyperlane ica deploy e2e tests', async function () {
 
       // Get chain addresses from registry
       const addressesMap: Record<string, Record<string, string>> = {
-        [CHAIN_NAME_2]: chain2Addresses as Record<string, string>,
-        [CHAIN_NAME_3]: chain3Addresses as Record<string, string>,
+        [CHAIN_NAME_2]: chain2Addresses,
+        [CHAIN_NAME_3]: chain3Addresses,
       };
 
       // Create InterchainAccount instance
@@ -243,9 +248,8 @@ describe('hyperlane ica deploy e2e tests', async function () {
       const icaAddress = await ica.getAccount(CHAIN_NAME_3, ownerConfig);
 
       // Verify the ICA contract exists
-      const provider = multiProvider.getProvider(CHAIN_NAME_3);
-      const code = await provider.getCode(icaAddress);
-      expect(code).to.not.equal('0x');
+      expect(await isContractAddress(multiProvider, CHAIN_NAME_3, icaAddress))
+        .to.be.true;
 
       // Send some ETH to the ICA so it can make calls
       const fundTx = await walletChain3.sendTransaction({

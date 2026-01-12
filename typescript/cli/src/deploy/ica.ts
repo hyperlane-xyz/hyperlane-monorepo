@@ -1,14 +1,27 @@
-import { ethers } from 'ethers';
-
 import {
   type AccountConfig,
   type ChainName,
   InterchainAccount,
+  isContractAddress,
 } from '@hyperlane-xyz/sdk';
-import { type Address, assert, eqAddress } from '@hyperlane-xyz/utils';
+import {
+  type Address,
+  assert,
+  eqAddress,
+  isAddressEvm,
+} from '@hyperlane-xyz/utils';
 
 import { type WriteCommandContext } from '../context/types.js';
 import { logBlue, logGreen, logRed, logTable, warnYellow } from '../logger.js';
+
+export const IcaDeployStatus = {
+  Deployed: 'deployed',
+  Exists: 'exists',
+  Error: 'error',
+};
+
+export type IcaDeployStatus =
+  (typeof IcaDeployStatus)[keyof typeof IcaDeployStatus];
 
 interface IcaDeployParams {
   context: WriteCommandContext;
@@ -20,7 +33,7 @@ interface IcaDeployParams {
 interface IcaDeployResult {
   chain: string;
   ica?: Address;
-  status: 'deployed' | 'exists' | 'error';
+  status: IcaDeployStatus;
   error?: string;
 }
 
@@ -33,7 +46,7 @@ export async function runIcaDeploy(params: IcaDeployParams): Promise<void> {
   const { registry, multiProvider } = context;
 
   // Validate owner address
-  if (!ethers.utils.isAddress(owner)) {
+  if (!isAddressEvm(owner)) {
     throw new Error(`Invalid owner address: ${owner}`);
   }
 
@@ -42,7 +55,7 @@ export async function runIcaDeploy(params: IcaDeployParams): Promise<void> {
 
   // Get chain addresses from the registry for all relevant chains
   const allChains = [origin, ...destinations];
-  const chainAddresses: Record<string, Record<string, string>> = {};
+  const chainAddresses: Record<ChainName, Record<string, string>> = {};
 
   for (const chain of allChains) {
     const addresses = await registry.getChainAddresses(chain);
@@ -73,17 +86,19 @@ export async function runIcaDeploy(params: IcaDeployParams): Promise<void> {
       // First, get the expected ICA address
       const expectedAccount = await ica.getAccount(destination, ownerConfig);
 
-      // Check if ICA already exists by checking if there's code at the address
-      const provider = multiProvider.getProvider(destination);
-      const code = await provider.getCode(expectedAccount);
-      const exists = code !== '0x';
+      // Check if ICA already exists
+      const exists = await isContractAddress(
+        multiProvider,
+        destination,
+        expectedAccount,
+      );
 
       if (exists) {
         logBlue(`ICA already exists on ${destination}: ${expectedAccount}`);
         return {
           chain: destination,
           ica: expectedAccount,
-          status: 'exists' as const,
+          status: IcaDeployStatus.Exists,
         };
       }
 
@@ -100,7 +115,7 @@ export async function runIcaDeploy(params: IcaDeployParams): Promise<void> {
       return {
         chain: destination,
         ica: deployedAccount,
-        status: 'deployed' as const,
+        status: IcaDeployStatus.Deployed,
       };
     }),
   );
@@ -118,7 +133,7 @@ export async function runIcaDeploy(params: IcaDeployParams): Promise<void> {
     logRed(`Failed to deploy ICA on ${destination}: ${errorMessage}`);
     return {
       chain: destination,
-      status: 'error',
+      status: IcaDeployStatus.Error,
       error: errorMessage,
     };
   });
@@ -135,9 +150,15 @@ export async function runIcaDeploy(params: IcaDeployParams): Promise<void> {
   );
 
   // Summary
-  const deployed = results.filter((r) => r.status === 'deployed').length;
-  const existing = results.filter((r) => r.status === 'exists').length;
-  const errors = results.filter((r) => r.status === 'error').length;
+  const deployed = results.filter(
+    (r) => r.status === IcaDeployStatus.Deployed,
+  ).length;
+  const existing = results.filter(
+    (r) => r.status === IcaDeployStatus.Exists,
+  ).length;
+  const errors = results.filter(
+    (r) => r.status === IcaDeployStatus.Error,
+  ).length;
 
   if (deployed > 0) {
     logGreen(`Successfully deployed ${deployed} ICA(s)`);
