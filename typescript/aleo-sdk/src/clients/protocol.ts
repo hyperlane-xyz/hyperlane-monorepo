@@ -64,8 +64,8 @@ export class AleoProtocolProvider implements ProtocolProvider {
 
     const aleoClient =
       chainId === AleoNetworkId.MAINNET
-        ? new AleoTestnetNetworkClient(rpcUrl)
-        : new AleoMainnetNetworkClient(rpcUrl);
+        ? new AleoMainnetNetworkClient(rpcUrl)
+        : new AleoTestnetNetworkClient(rpcUrl);
 
     return new AleoIsmArtifactManager(aleoClient);
   }
