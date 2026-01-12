@@ -1,7 +1,7 @@
 ---
 name: solidity-review
 description: Reviews Solidity code for security vulnerabilities, best practices, and code quality issues based on the Solcurity Standard. Use when the user asks to review, audit, or check Solidity contracts.
-allowed-tools: Read, Grep, Glob, Bash(forge test:*), Bash(yarn --cwd solidity:*), Bash(slither:*)
+allowed-tools: Read, Grep, Glob, Bash(forge test:*), Bash(yarn --cwd solidity:*), Bash(slither:*), Bash(gh:*), Bash(git diff:*), Bash(git show:*)
 ---
 
 # Solidity Code Review
@@ -15,8 +15,60 @@ This skill reviews Solidity smart contracts for security vulnerabilities, best p
 This skill accepts:
 
 1. **File path(s)** - One or more `.sol` file paths to review
-2. **PR/diff** - A git diff or PR to review Solidity changes
-3. **Contract name** - A contract name to find and review in the codebase
+2. **GitHub PR URL** - A GitHub pull request URL (e.g., `https://github.com/hyperlane-xyz/hyperlane-monorepo/pull/123`)
+3. **PR number** - Just the PR number (e.g., `#123` or `123`)
+4. **Local diff** - A git diff or branch comparison
+5. **Contract name** - A contract name to find and review in the codebase
+
+## GitHub PR Review Process
+
+When given a GitHub PR URL or number:
+
+### 1. Fetch PR Information
+
+```bash
+# Get PR metadata (title, description, author, base branch)
+gh pr view <PR_NUMBER> --json title,body,author,baseRefName,headRefName,files
+
+# Get the diff (Solidity files only)
+gh pr diff <PR_NUMBER> -- '*.sol'
+
+# List changed files
+gh pr view <PR_NUMBER> --json files --jq '.files[].path' | grep '\.sol$'
+```
+
+### 2. Understand the Context
+
+- Read the PR description for intent and scope
+- Check which contracts are modified
+- Identify if this is a new feature, bug fix, or refactor
+
+### 3. Fetch Full File Context
+
+For each modified `.sol` file, read the full file to understand:
+
+- The complete contract structure
+- Inheritance hierarchy
+- Storage layout
+- How the changed code fits into the whole
+
+```bash
+# View a specific file at the PR's head
+gh pr diff <PR_NUMBER> --patch
+```
+
+### 4. Focus Review on Changes
+
+- **Only flag issues in changed code** (lines with `+` in the diff)
+- Understand surrounding context but don't review unchanged code
+- Consider how changes interact with existing code
+
+### 5. Check CI Status
+
+```bash
+# View check status
+gh pr checks <PR_NUMBER>
+```
 
 ## Review Checklist
 
@@ -172,6 +224,30 @@ Present findings in severity order:
 - Hooks handle post-dispatch processing
 
 ## Commands
+
+### GitHub PR Commands
+
+```bash
+# View PR details
+gh pr view <PR_NUMBER>
+
+# Get PR diff (Solidity only)
+gh pr diff <PR_NUMBER> -- '*.sol'
+
+# Get PR metadata as JSON
+gh pr view <PR_NUMBER> --json title,body,author,baseRefName,headRefName,files,reviews
+
+# List changed Solidity files
+gh pr view <PR_NUMBER> --json files --jq '.files[].path' | grep '\.sol$'
+
+# Check CI status
+gh pr checks <PR_NUMBER>
+
+# Add a review comment
+gh pr review <PR_NUMBER> --comment --body "Review comment here"
+```
+
+### Local Testing Commands
 
 ```bash
 # Run all Solidity tests
