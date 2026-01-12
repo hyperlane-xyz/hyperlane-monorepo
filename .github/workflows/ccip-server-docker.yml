@@ -1,0 +1,125 @@
+name: Build and Push CCIP Server Image to GCR
+on:
+  push:
+    branches: [main]
+    tags:
+      - '**'
+  pull_request:
+    paths:
+      - 'typescript/ccip-server/**'
+      - '.github/workflows/ccip-server-docker.yml'
+  workflow_dispatch:
+    inputs:
+      include_arm64:
+        description: 'Include arm64 in the build'
+        required: false
+        default: 'false'
+
+concurrency:
+  group: build-push-ccip-server-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check-env:
+    runs-on: ubuntu-latest
+    outputs:
+      gcloud-service-key: ${{ steps.gcloud-service-key.outputs.defined }}
+    steps:
+      - id: gcloud-service-key
+        env:
+          GCLOUD_SERVICE_KEY: ${{ secrets.GCLOUD_SERVICE_KEY }}
+        if: "${{ env.GCLOUD_SERVICE_KEY != '' }}"
+        run: echo "defined=true" >> $GITHUB_OUTPUT
+
+  build-and-push-to-gcr:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+
+    needs: [check-env]
+    if: needs.check-env.outputs.gcloud-service-key == 'true'
+
+    steps:
+      - name: Generate GitHub App Token
+        id: generate-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.HYPER_GONK_APP_ID }}
+          private-key: ${{ secrets.HYPER_GONK_PRIVATE_KEY }}
+
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Generate tag data
+        id: taggen
+        run: |
+          echo "TAG_DATE=$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
+          echo "TAG_SHA=$(echo '${{ github.event.pull_request.head.sha || github.sha }}' | cut -b 1-7)" >> $GITHUB_OUTPUT
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            gcr.io/abacus-labs-dev/hyperlane-offchain-lookup-server
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=raw,value=${{ steps.taggen.outputs.TAG_SHA }}-${{ steps.taggen.outputs.TAG_DATE }}
+
+      - name: Set up Depot CLI
+        uses: depot/setup-action@v1
+
+      - name: Login to GCR
+        uses: docker/login-action@v3
+        with:
+          registry: gcr.io
+          username: _json_key
+          password: ${{ secrets.GCLOUD_SERVICE_KEY }}
+
+      - name: Determine platforms
+        id: determine-platforms
+        run: |
+          if [ "${{ github.event.inputs.include_arm64 }}" == "true" ]; then
+            echo "platforms=linux/amd64,linux/arm64" >> $GITHUB_OUTPUT
+          else
+            echo "platforms=linux/amd64" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Get Foundry version
+        id: foundry-version
+        run: |
+          FOUNDRY_VERSION=$(cat solidity/.foundryrc)
+          echo "FOUNDRY_VERSION=$FOUNDRY_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Build and push
+        id: build
+        uses: depot/build-push-action@v1
+        with:
+          project: 3cpjhx94qv
+          context: ./
+          file: ./typescript/ccip-server/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: ${{ steps.determine-platforms.outputs.platforms }}
+          build-args: |
+            FOUNDRY_VERSION=${{ steps.foundry-version.outputs.FOUNDRY_VERSION }}
+            SERVICE_VERSION=${{ steps.taggen.outputs.TAG_SHA }}-${{ steps.taggen.outputs.TAG_DATE }}
+
+      - name: Comment image tags on PR
+        if: github.event_name == 'pull_request'
+        uses: ./.github/actions/docker-image-comment
+        with:
+          comment_tag: ccip-server-docker-image
+          image_name: CCIP Server Docker Image
+          emoji: 🔍
+          image_tags: ${{ steps.meta.outputs.tags }}
+          pr_number: ${{ github.event.pull_request.number }}
+          github_token: ${{ steps.generate-token.outputs.token }}
+          job_status: ${{ job.status }}

@@ -4,32 +4,32 @@ import path from 'path';
 import { $ } from 'zx';
 
 import {
-  AbstractCcipReadIsm,
+  type AbstractCcipReadIsm,
   AbstractCcipReadIsm__factory,
-  ERC20Test,
+  type ERC20Test,
   ERC20Test__factory,
   ERC4626Test__factory,
-  FiatTokenTest,
+  type FiatTokenTest,
   FiatTokenTest__factory,
-  MockEverclearAdapter,
+  type MockEverclearAdapter,
   MockEverclearAdapter__factory,
   TestCcipReadIsm__factory,
-  XERC20LockboxTest,
+  type XERC20LockboxTest,
   XERC20LockboxTest__factory,
-  XERC20VSTest,
+  type XERC20VSTest,
   XERC20VSTest__factory,
 } from '@hyperlane-xyz/core';
-import { TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
+import { type TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
 import {
-  WarpCoreConfig,
+  type WarpCoreConfig,
   WarpCoreConfigSchema,
-  WarpRouteDeployConfig,
+  type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address, assert, inCIMode } from '@hyperlane-xyz/utils';
+import { type Address, assert, inCIMode } from '@hyperlane-xyz/utils';
 
 import { getContext } from '../../../context/context.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
-import { KeyBoardKeys, TestPromptAction } from '../../commands/helpers.js';
+import { KeyBoardKeys, type TestPromptAction } from '../../commands/helpers.js';
 import {
   ANVIL_KEY,
   REGISTRY_PATH,
@@ -353,12 +353,41 @@ export function localTestRunCmdPrefix() {
 export async function hyperlaneSendMessage(
   origin: string,
   destination: string,
+  { quick = false }: { quick?: boolean } = {},
 ) {
   return $`${localTestRunCmdPrefix()} hyperlane send message \
         --registry ${REGISTRY_PATH} \
         --origin ${origin} \
         --destination ${destination} \
         --key ${ANVIL_KEY} \
+        --verbosity debug \
+        ${quick ? ['--quick'] : []} \
+        --yes`;
+}
+
+export function hyperlaneStatus({
+  origin,
+  messageId,
+  dispatchTx,
+  relay,
+  key,
+  quick,
+}: {
+  origin: string;
+  messageId?: string;
+  dispatchTx?: string;
+  relay?: boolean;
+  key?: string;
+  quick?: boolean;
+}) {
+  return $`${localTestRunCmdPrefix()} hyperlane status \
+        --registry ${REGISTRY_PATH} \
+        --origin ${origin} \
+        ${messageId ? ['--id', messageId] : []} \
+        ${dispatchTx ? ['--dispatchTx', dispatchTx] : []} \
+        ${relay ? ['--relay'] : []} \
+        ${key ? ['--key', key] : []} \
+        ${quick ? ['--quick'] : []} \
         --verbosity debug \
         --yes`;
 }

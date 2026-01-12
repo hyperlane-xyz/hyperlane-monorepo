@@ -1,9 +1,10 @@
 import util from 'util';
 import { stringify as yamlStringify } from 'yaml';
-import { CommandModule } from 'yargs';
+import { type CommandModule } from 'yargs';
 
+import { RebalancerConfig, RebalancerService } from '@hyperlane-xyz/rebalancer';
 import {
-  RawForkedChainConfigByChain,
+  type RawForkedChainConfigByChain,
   RawForkedChainConfigByChainSchema,
   expandVirtualWarpDeployConfig,
   expandWarpDeployConfig,
@@ -15,15 +16,16 @@ import {
   difference,
   intersection,
   objFilter,
+  rootLogger,
 } from '@hyperlane-xyz/utils';
 
 import { runWarpRouteCheck } from '../check/warp.js';
 import { createWarpRouteDeployConfig } from '../config/warp.js';
 import {
-  CommandModuleWithContext,
-  CommandModuleWithWarpApplyContext,
-  CommandModuleWithWarpDeployContext,
-  CommandModuleWithWriteContext,
+  type CommandModuleWithContext,
+  type CommandModuleWithWarpApplyContext,
+  type CommandModuleWithWarpDeployContext,
+  type CommandModuleWithWriteContext,
 } from '../context/types.js';
 import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
 import { runForkCommand } from '../fork/fork.js';
@@ -35,7 +37,6 @@ import {
   logGreen,
 } from '../logger.js';
 import { getWarpRouteConfigsByCore, runWarpRouteRead } from '../read/warp.js';
-import { RebalancerRunner } from '../rebalancer/runner.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { ExtendedChainSubmissionStrategySchema } from '../submitters/types.js';
 import {
@@ -62,7 +63,7 @@ import {
   warpDeploymentConfigCommandOption,
   warpRouteIdCommandOption,
 } from './options.js';
-import { MessageOptionsArgTypes, messageSendOptions } from './send.js';
+import { type MessageOptionsArgTypes, messageSendOptions } from './send.js';
 
 /**
  * Parent command
@@ -263,6 +264,7 @@ const send: CommandModuleWithWriteContext<
       amount: string;
       recipient?: string;
       chains?: string;
+      skipValidation?: boolean;
     }
 > = {
   command: 'send',
@@ -285,6 +287,11 @@ const send: CommandModuleWithWriteContext<
       demandOption: false,
       conflicts: ['origin', 'destination'],
     },
+    'skip-validation': {
+      type: 'boolean',
+      description: 'Skip transfer validation (e.g., collateral checks)',
+      default: false,
+    },
   },
   handler: async ({
     context,
@@ -299,6 +306,7 @@ const send: CommandModuleWithWriteContext<
     recipient,
     roundTrip,
     chains: chainsAsString,
+    skipValidation,
   }) => {
     const warpCoreConfig = await getWarpCoreConfigOrExit({
       symbol,
@@ -350,6 +358,7 @@ const send: CommandModuleWithWriteContext<
       timeoutSec: timeout,
       skipWaitForDelivery: quick,
       selfRelay: relay,
+      skipValidation,
     });
     logGreen(
       `✅ Successfully sent messages for chains: ${chains.join(' ➡️ ')}`,
@@ -490,18 +499,63 @@ export const rebalancer: CommandModuleWithWriteContext<{
     },
   },
   handler: async (args) => {
-    let runner: RebalancerRunner;
-    try {
-      const { context, ...rest } = args;
-      runner = await RebalancerRunner.create(rest, context);
-    } catch (e: any) {
-      // exit on startup errors
-      errorRed(`Rebalancer startup error: ${util.format(e)}`);
-      process.exit(1);
-    }
+    const {
+      context,
+      config: configPath,
+      checkFrequency,
+      withMetrics,
+      monitorOnly,
+      manual,
+      origin,
+      destination,
+      amount,
+    } = args;
+
+    logCommandHeader('Hyperlane Warp Route Rebalancer');
 
     try {
-      await runner.run();
+      // Load rebalancer configuration
+      const rebalancerConfig = RebalancerConfig.load(configPath);
+
+      // Determine execution mode
+      const mode = manual ? 'manual' : 'daemon';
+
+      // Create rebalancer service
+      const service = new RebalancerService(
+        context.multiProvider,
+        context.multiProtocolProvider,
+        context.registry,
+        rebalancerConfig,
+        {
+          mode,
+          checkFrequency,
+          withMetrics,
+          monitorOnly,
+          coingeckoApiKey: process.env.COINGECKO_API_KEY,
+          logger: rootLogger.child({ module: 'rebalancer' }),
+        },
+      );
+
+      // Execute based on mode
+      if (manual) {
+        if (!origin || !destination || !amount) {
+          errorRed(
+            'Origin, destination, and amount are required for manual rebalance',
+          );
+          process.exit(1);
+        }
+
+        await service.executeManual({
+          origin,
+          destination,
+          amount,
+        });
+
+        logGreen('✅ Manual rebalance completed successfully');
+      } else {
+        // Start daemon mode
+        await service.start();
+      }
     } catch (e: any) {
       errorRed(`Rebalancer error: ${util.format(e)}`);
       process.exit(1);
@@ -551,14 +605,6 @@ const fork: CommandModuleWithContext<
     config,
     forkConfig: forkConfigPath,
   }) => {
-    const { warpCoreConfig, warpDeployConfig } = await getWarpConfigs({
-      context,
-      warpRouteId,
-      symbol,
-      warpDeployConfigPath: config,
-      warpCoreConfigPath: warp,
-    });
-
     let forkConfig: RawForkedChainConfigByChain;
     if (forkConfigPath) {
       forkConfig = RawForkedChainConfigByChainSchema.parse(
@@ -568,12 +614,22 @@ const fork: CommandModuleWithContext<
       forkConfig = {};
     }
 
+    // Get chains from warp deploy config
+    const { warpDeployConfig } = await getWarpConfigs({
+      context,
+      warpRouteId,
+      symbol,
+      warpDeployConfigPath: config,
+      warpCoreConfigPath: warp,
+    });
+    const chainsToFork = new Set(Object.keys(warpDeployConfig));
+    logBlue(
+      `Forking chains from warp deploy config: ${Array.from(chainsToFork).join(', ')}`,
+    );
+
     await runForkCommand({
       context,
-      chainsToFork: new Set([
-        ...warpCoreConfig.tokens.map((tokenConfig) => tokenConfig.chainName),
-        ...Object.keys(warpDeployConfig),
-      ]),
+      chainsToFork,
       forkConfig,
       basePort: port,
       kill,

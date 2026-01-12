@@ -1,3 +1,4 @@
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
 
 /**
@@ -11,6 +12,7 @@ export const DEFAULT_E2E_TEST_TIMEOUT = 100_000;
 export const TEST_COSMOS_CHAIN_METADATA: TestChainMetadata = {
   bech32Prefix: 'hyp',
   chainId: 'hyperlane-local-1',
+  protocol: ProtocolType.CosmosNative,
   domainId: 758986691,
   name: 'hyp1',
   nativeToken: {

@@ -90,9 +90,11 @@
     "slither": "slither .",
     "storage": "./storage.sh",
     "bytecode": "./bytecode.sh",
+    "interface": "./interface.sh",
     "version:update": "sh ./bytecodeversion.sh",
     "version:changed": "pnpm version:update && git diff --exit-code contracts/PackageVersioned.sol",
-    "version:exhaustive": "pnpm tsx ./test/exhaustiveversion.test.ts"
+    "version:exhaustive": "pnpm tsx ./test/exhaustiveversion.test.ts",
+    "test:interface": "pnpm tsx ./test/interface.test.ts"
   },
   "peerDependencies": {
     "@ethersproject/abi": "*",

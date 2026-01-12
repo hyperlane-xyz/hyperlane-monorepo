@@ -4,24 +4,24 @@ import chaiAsPromised from 'chai-as-promised';
 import { Wallet } from 'ethers';
 
 import {
-  ERC20Test,
+  type ERC20Test,
   EverclearTokenBridge__factory,
-  MockEverclearAdapter,
+  type MockEverclearAdapter,
   MovableCollateralRouter__factory,
 } from '@hyperlane-xyz/core';
 import {
-  ChainMetadata,
-  TokenFeeConfigInput,
+  type ChainMetadata,
+  type TokenFeeConfigInput,
   TokenFeeType,
   TokenType,
-  WarpCoreConfig,
-  WarpRouteDeployConfig,
-  WarpRouteDeployConfigMailboxRequired,
+  type WarpCoreConfig,
+  type WarpRouteDeployConfig,
+  type WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigSchema,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
 import {
-  Address,
+  type Address,
   addressToBytes32,
   assert,
   normalizeAddressEvm,

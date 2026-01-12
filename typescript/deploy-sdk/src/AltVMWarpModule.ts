@@ -42,7 +42,7 @@ export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
     const metadata = chainLookup.getChainMetadata(args.chain);
     this.chainName = metadata.name;
 
-    this.reader = new AltVMWarpRouteReader(chainLookup, signer);
+    this.reader = new AltVMWarpRouteReader(metadata, chainLookup, signer);
 
     this.logger = rootLogger.child({
       module: AltVMWarpModule.name,

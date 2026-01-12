@@ -8,6 +8,7 @@ import {
   TransactionSubmitterConfig,
 } from '@hyperlane-xyz/provider-sdk';
 import { IProvider } from '@hyperlane-xyz/provider-sdk/altvm';
+import { IRawIsmArtifactManager } from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -27,9 +28,12 @@ export class AleoProtocolProvider implements ProtocolProvider {
   ): Promise<AltVM.ISigner<AnnotatedTx, TxReceipt>> {
     assert(chainMetadata.rpcUrls, 'rpc urls undefined');
     const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
-    const { privateKey, ...extraParams } = config;
 
-    return AleoSigner.connectWithSigner(rpcUrls, privateKey, extraParams);
+    const { privateKey } = config;
+
+    return AleoSigner.connectWithSigner(rpcUrls, privateKey, {
+      metadata: chainMetadata,
+    });
   }
 
   createSubmitter<TConfig extends TransactionSubmitterConfig>(
@@ -38,6 +42,15 @@ export class AleoProtocolProvider implements ProtocolProvider {
   ): Promise<ITransactionSubmitter> {
     // @TODO Implement in a follow up PR
     throw Error('Not implemented');
+  }
+
+  createIsmArtifactManager(
+    _chainMetadata: ChainMetadataForAltVM,
+  ): IRawIsmArtifactManager {
+    // @TODO Implement when Aleo ISM artifact manager is available
+    throw new Error(
+      'ISM artifact manager not yet implemented for Aleo protocol',
+    );
   }
 
   getMinGas(): MinimumRequiredGasByAction {

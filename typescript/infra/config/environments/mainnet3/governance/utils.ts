@@ -7,13 +7,16 @@ import { awIcasLegacy } from './ica/_awLegacy.js';
 import { regularIcasLegacy } from './ica/_regularLegacy.js';
 import { awIcas } from './ica/aw.js';
 import { regularIcas } from './ica/regular.js';
+import { warpFeesIcas } from './ica/warpFees.js';
 import { awSafes } from './safe/aw.js';
 import { irregularSafes } from './safe/irregular.js';
 import { ousdtSafes } from './safe/ousdt.js';
 import { regularSafes } from './safe/regular.js';
+import { warpFeesSafes } from './safe/warpFees.js';
 import { awSigners, awThreshold } from './signers/aw.js';
 import { irregularSigners, irregularThreshold } from './signers/irregular.js';
 import { regularSigners, regularThreshold } from './signers/regular.js';
+import { warpFeesSigners, warpFeesThreshold } from './signers/warpFees.js';
 import { awTimelocks } from './timelock/aw.js';
 import { regularTimelocks } from './timelock/regular.js';
 
@@ -23,6 +26,8 @@ export function getGovernanceTimelocks(governanceType: GovernanceType) {
       return regularTimelocks;
     case GovernanceType.AbacusWorks:
       return awTimelocks;
+    case GovernanceType.WarpFees:
+      return {};
     case GovernanceType.Irregular:
       return {};
     case GovernanceType.OUSDT:
@@ -38,6 +43,8 @@ export function getGovernanceSafes(governanceType: GovernanceType) {
       return regularSafes;
     case GovernanceType.AbacusWorks:
       return awSafes;
+    case GovernanceType.WarpFees:
+      return warpFeesSafes;
     case GovernanceType.Irregular:
       return irregularSafes;
     case GovernanceType.OUSDT:
@@ -53,6 +60,8 @@ export function getLegacyGovernanceIcas(governanceType: GovernanceType) {
       return regularIcasLegacy;
     case GovernanceType.AbacusWorks:
       return awIcasLegacy;
+    case GovernanceType.WarpFees:
+      return {};
     case GovernanceType.Irregular:
       return {};
     case GovernanceType.OUSDT:
@@ -68,6 +77,8 @@ export function getGovernanceIcas(governanceType: GovernanceType) {
       return regularIcas;
     case GovernanceType.AbacusWorks:
       return awIcas;
+    case GovernanceType.WarpFees:
+      return warpFeesIcas;
     case GovernanceType.Irregular:
       return {};
     case GovernanceType.OUSDT:
@@ -92,6 +103,11 @@ export function getGovernanceSigners(governanceType: GovernanceType): {
         signers: awSigners,
         threshold: awThreshold,
       };
+    case GovernanceType.WarpFees:
+      return {
+        signers: warpFeesSigners,
+        threshold: warpFeesThreshold,
+      };
     case GovernanceType.Irregular:
       return {
         signers: irregularSigners,
@@ -107,6 +123,7 @@ export function getGovernanceSigners(governanceType: GovernanceType): {
 export function getSafeChains(): Set<ChainName> {
   return new Set(
     ...Object.keys(getGovernanceSafes(GovernanceType.AbacusWorks)),
+    ...Object.keys(getGovernanceSafes(GovernanceType.WarpFees)),
     ...Object.keys(getGovernanceSafes(GovernanceType.Regular)),
     ...Object.keys(getGovernanceSafes(GovernanceType.Irregular)),
     ...Object.keys(getGovernanceSafes(GovernanceType.OUSDT)),

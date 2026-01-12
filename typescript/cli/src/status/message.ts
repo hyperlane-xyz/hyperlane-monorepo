@@ -1,10 +1,18 @@
 import type { TransactionReceipt } from '@ethersproject/providers';
 import { input } from '@inquirer/prompts';
 
-import { ChainName, HyperlaneCore, HyperlaneRelayer } from '@hyperlane-xyz/sdk';
+import {
+  type ChainName,
+  type DispatchedMessage,
+  HyperlaneCore,
+  HyperlaneRelayer,
+} from '@hyperlane-xyz/sdk';
 
-import { WriteCommandContext } from '../context/types.js';
-import { log, logBlue, logGreen, logRed } from '../logger.js';
+import {
+  type CommandContext,
+  type WriteCommandContext,
+} from '../context/types.js';
+import { log, logBlue, logGreen, logRed, warnYellow } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import { stubMerkleTreeConfig } from '../utils/relay.js';
 
@@ -15,7 +23,7 @@ export async function checkMessageStatus({
   selfRelay,
   dispatchTx,
 }: {
-  context: WriteCommandContext;
+  context: CommandContext | WriteCommandContext;
   dispatchTx?: string;
   messageId?: string;
   origin?: ChainName;
@@ -99,12 +107,67 @@ export async function checkMessageStatus({
   }
 
   if (selfRelay && undelivered.length > 0) {
-    const relayer = new HyperlaneRelayer({ core });
-    for (const message of undelivered) {
-      const hookAddress = await core.getSenderHookAddress(message);
-      const merkleAddress = coreAddresses[origin].merkleTreeHook;
-      stubMerkleTreeConfig(relayer, origin, hookAddress, merkleAddress);
+    // Filter messages to only those we can relay (have signer for destination)
+    const { relayable, skipped } = filterRelayableMessages(
+      undelivered,
+      context.multiProvider,
+    );
+
+    if (skipped.length > 0) {
+      for (const msg of skipped) {
+        warnYellow(
+          `Skipping relay of message ${msg.id} to ${msg.parsed.destinationChain} - no signer available for destination chain`,
+        );
+      }
     }
-    await relayer.relayAll(dispatchedReceipt, undelivered);
+
+    if (relayable.length > 0) {
+      const relayer = new HyperlaneRelayer({ core });
+      for (const message of relayable) {
+        const hookAddress = await core.getSenderHookAddress(message);
+        const merkleAddress = coreAddresses[origin].merkleTreeHook;
+        stubMerkleTreeConfig(relayer, origin, hookAddress, merkleAddress);
+      }
+      await relayer.relayAll(dispatchedReceipt, relayable);
+    } else if (undelivered.length > 0) {
+      warnYellow(
+        'No messages could be relayed - missing signers for all destination chains',
+      );
+    }
   }
+}
+
+/**
+ * Filters messages into relayable (have signer) and skipped (no signer) groups
+ * @internal Exported for testing
+ */
+export function filterRelayableMessages(
+  messages: DispatchedMessage[],
+  multiProvider: CommandContext['multiProvider'],
+): { relayable: DispatchedMessage[]; skipped: DispatchedMessage[] } {
+  const relayable: DispatchedMessage[] = [];
+  const skipped: DispatchedMessage[] = [];
+
+  for (const message of messages) {
+    const destinationChain = message.parsed.destinationChain;
+    if (!destinationChain) {
+      skipped.push(message);
+      continue;
+    }
+
+    try {
+      // Check if we have a signer for this chain
+      const signer = multiProvider.tryGetSigner(destinationChain);
+      if (signer) {
+        relayable.push(message);
+      } else {
+        skipped.push(message);
+      }
+    } catch {
+      // Chain not known or signer not available
+      skipped.push(message);
+    }
+  }
+
+  return { relayable, skipped };
 }
