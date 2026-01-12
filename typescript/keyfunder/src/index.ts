@@ -18,5 +18,9 @@ export type {
   ResolvedKeyConfig,
 } from './config/types.js';
 
-export { KeyFunder, type KeyFunderOptions } from './core/KeyFunder.js';
+export {
+  KeyFunder,
+  calculateMultipliedBalance,
+  type KeyFunderOptions,
+} from './core/KeyFunder.js';
 export { KeyFunderMetrics } from './metrics/Metrics.js';

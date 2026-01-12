@@ -75,12 +75,17 @@ chainsToSkip: []
 | `chains.<chain>.sweep.enabled`           | Enable sweep functionality                                                                       |
 | `chains.<chain>.sweep.address`           | Address to sweep funds to (required when enabled)                                                |
 | `chains.<chain>.sweep.threshold`         | Base threshold for sweep calculations (required when enabled; decimal string; up to 18 decimals) |
-| `chains.<chain>.sweep.targetMultiplier`  | Multiplier for target balance (default: 1.5)                                                     |
-| `chains.<chain>.sweep.triggerMultiplier` | Multiplier for trigger threshold (default: 2.0)                                                  |
+| `chains.<chain>.sweep.targetMultiplier`  | Multiplier for target balance (default: 1.5; 2 decimal precision, floored)                       |
+| `chains.<chain>.sweep.triggerMultiplier` | Multiplier for trigger threshold (default: 2.0; 2 decimal precision, floored)                    |
 | `metrics.pushGateway`                    | Prometheus push gateway URL                                                                      |
 | `metrics.jobName`                        | Job name for metrics                                                                             |
 | `metrics.labels`                         | Additional labels for metrics                                                                    |
 | `chainsToSkip`                           | Array of chain names to skip                                                                     |
+
+### Precision Notes
+
+- **Balance strings**: Support up to 18 decimal places (standard ETH precision). Must include leading digit (e.g., `"0.5"` not `".5"`).
+- **Multipliers**: Calculated with 2 decimal precision using floor (e.g., `1.555` is treated as `1.55`, not `1.56`).
 
 ## Environment Variables
 

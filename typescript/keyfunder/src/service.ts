@@ -121,10 +121,20 @@ async function main(): Promise<void> {
       igp,
     });
 
-    await funder.fundAllChains();
+    let fundingError: Error | undefined;
+    try {
+      await funder.fundAllChains();
+    } catch (error) {
+      fundingError = error as Error;
+    }
 
+    // Always push metrics, even on failure (matches original fund-keys-from-deployer.ts behavior)
     await metrics.push();
     logger.info('Metrics pushed to gateway');
+
+    if (fundingError) {
+      throw fundingError;
+    }
 
     logger.info('KeyFunder completed successfully');
     process.exit(0);
