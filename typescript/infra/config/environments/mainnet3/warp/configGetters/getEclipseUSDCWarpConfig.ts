@@ -2,6 +2,7 @@ import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { awSafes } from '../../governance/safe/aw.js';
+import { getWarpFeeOwner } from '../../governance/utils.js';
 import { chainOwners } from '../../owners.js';
 import { usdcTokenAddresses } from '../cctp.js';
 import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
@@ -124,7 +125,7 @@ export const getEclipseUSDCWarpConfig = async (
         contractVersion: CONTRACT_VERSION,
         tokenFee: getFixedRoutingFeeConfig(
           usdcTokenAddress,
-          DEPLOYER,
+          getWarpFeeOwner(currentChain),
           rebalanceableCollateralChains.filter((c) => c !== currentChain),
           5n,
         ),
