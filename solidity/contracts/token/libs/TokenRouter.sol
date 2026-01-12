@@ -241,12 +241,13 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
 
             // Approve fee hook to pull fee tokens
             IERC20(_feeToken).approve(_feeHook, hookFee);
-        } else {
-            // Native fee hook: fee comes from msg.value
-            remainingNativeValue = token() != address(0)
-                ? _msgValue
-                : _msgValue - charge;
         }
+
+        // Calculate remaining native value for other hooks
+        // Even with ERC20 fee payments, other hooks may still need native value
+        remainingNativeValue = token() != address(0)
+            ? _msgValue
+            : _msgValue - charge;
 
         _transferFromSender(charge);
 
