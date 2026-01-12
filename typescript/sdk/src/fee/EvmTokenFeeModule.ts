@@ -246,9 +246,30 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     // Redeploy if fee type changes or if immutable fee type config differs (excluding owner)
     const feeTypeChanged =
       normalizedActualConfig.type !== normalizedTargetConfig.type;
+
+    // For LinearFee with bps defined, compare bps instead of derived maxFee/halfAmount.
+    // maxFee is computed as: uint256.max / token.totalSupply()
+    // Since totalSupply changes over time (e.g., USDC mints/burns), computed values
+    // will differ from on-chain values even when the fee rate (bps) is identical.
+    // Only apply this optimization when both configs have bps; otherwise fall back
+    // to comparing maxFee/halfAmount directly.
+    const isLinearFeeWithBps =
+      normalizedActualConfig.type === TokenFeeType.LinearFee &&
+      normalizedTargetConfig.type === TokenFeeType.LinearFee &&
+      'bps' in normalizedActualConfig &&
+      'bps' in normalizedTargetConfig &&
+      normalizedActualConfig.bps !== undefined &&
+      normalizedTargetConfig.bps !== undefined;
+
+    const fieldsToOmit = isLinearFeeWithBps
+      ? { owner: true, maxFee: true, halfAmount: true }
+      : { owner: true };
+
+    const actualForComparison = objOmit(normalizedActualConfig, fieldsToOmit);
+    const targetForComparison = objOmit(normalizedTargetConfig, fieldsToOmit);
     const nonOwnerDiffers = !deepEquals(
-      objOmit(normalizedActualConfig, { owner: true }),
-      objOmit(normalizedTargetConfig, { owner: true }),
+      actualForComparison,
+      targetForComparison,
     );
     const isTargetImmutable = ImmutableTokenFeeType.includes(
       normalizedTargetConfig.type as (typeof ImmutableTokenFeeType)[number],
