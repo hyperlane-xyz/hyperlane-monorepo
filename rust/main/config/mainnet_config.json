@@ -9396,7 +9396,9 @@
       "validatorAnnounce": "0xf3aa0d652226e21ae35cd9035c492ae41725edc9036edf0d6a48701b153b90a0",
       "technicalStack": "other",
       "availability": {
-        "reasons": ["deprecated"],
+        "reasons": [
+          "deprecated"
+        ],
         "status": "disabled"
       }
     },
