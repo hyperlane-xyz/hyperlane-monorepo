@@ -9,6 +9,7 @@ In particular, make sure to ensure that the evaluation:
   - Everstake is stalled
 - 4 out of 5 validators on the multisigIsm are healthy, so there is no immediate quorum risk
 - It's suggested to clean up the fact that some wrong validators are enrolled on the Kyve destination
+- Low or medium severity. NOT high severity.
 
 ## Example output that is ideal:
 

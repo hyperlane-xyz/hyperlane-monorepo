@@ -145,11 +145,11 @@ Always surface the **ENTIRE** validator address (NEVER truncate), alias, latest 
 Then summarize the key findings:
 
 - Are any stalled?
-- Surface the threshold and validator set size. Quorum means that we have at least `threshold` validators healthy. If the # of stalled validators means that we no longer meet the threshold of healthy validators, this is extremely concerning! If we are close, also surface this as concerning.
+- Surface the threshold and validator set size. Quorum means that we have at least `threshold` validators healthy. If the # of stalled validators means that we no longer meet the threshold of healthy validators, this is extremely concerning and is **high** priority! If we are close (i.e. if one more goes down), treat this as **medium** priority. Otherwise, treat this as **low** priority unless instructions below conflict with this.
 - Any stalled validators are an indication that there is some health risk at the moment. A validator that is stalled should be pinged and we should resolve this, even if we still have quorum.
 - If we still have quorum (or are uncertain if we still have quorum), surface the following priority:
   - Exactly 1 validator down - **HIGH** priority (show a warning emoji)
   - Exactly 2 validators down - **MEDIUM** priority (show a warning-error emoji)
   - 3 or more validators down - **HIGH** priority (show an error emoji)
-- If quorum is lost
+- If quorum is lost (the # of live validators is < the threshold)
   - **HIGH** priority (show an error emoji)

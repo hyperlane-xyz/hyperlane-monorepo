@@ -15,20 +15,17 @@ const JUDGE_SYSTEM_PROMPT = `You are evaluating if a Claude Code result meets ex
 Compare the RESULT against the EXPECTED outcomes. The result does NOT need to match word-for-word.
 Instead, evaluate whether the result covers all the KEY POINTS described in the expected outcomes.
 
-Consider a result passing if it:
-- Addresses the main objective(s) in the expected outcomes
-- Covers the essential steps or findings
-- Arrives at a correct or reasonable conclusion
-
-Consider a result failing if it:
-- Misses critical key points from the expected outcomes
-- Contains factual errors about the main topic
-- Fails to complete the core task described
+Rate the result on a scale of 1-10:
+- 1-3: Major issues, missed key objectives, factual errors
+- 4-5: Partially complete, significant gaps in key points
+- 6-7: Mostly complete, minor gaps or issues
+- 8-9: Good quality, meets all expectations
+- 10: Exceptional, exceeds expectations with additional insights
 
 Be lenient with formatting differences, additional helpful information, or minor variations in approach.
 
 Respond with ONLY valid JSON in this exact format:
-{"pass": true/false, "reasoning": "brief explanation (1-2 sentences)"}`;
+{"score": <1-10>, "reasoning": "brief explanation (1-2 sentences)"}`;
 
 /** Input token cost for Haiku per million tokens */
 const HAIKU_INPUT_COST_PER_M = 0.8;
@@ -90,6 +87,7 @@ export async function judgeResult(
   if (!textBlock || textBlock.type !== 'text') {
     return {
       pass: false,
+      score: 0,
       reasoning: 'Judge did not return a text response',
       judgeCost,
     };
@@ -97,17 +95,20 @@ export async function judgeResult(
 
   try {
     const json = JSON.parse(textBlock.text);
+    const score = Number(json.score) || 0;
     return {
-      pass: Boolean(json.pass),
+      pass: score >= 8,
+      score,
       reasoning: String(json.reasoning || 'No reasoning provided'),
       judgeCost,
     };
   } catch {
-    // If JSON parsing fails, try to extract pass/fail from text
-    const text = textBlock.text.toLowerCase();
-    const pass = text.includes('"pass": true') || text.includes('"pass":true');
+    // If JSON parsing fails, try to extract score from text
+    const scoreMatch = textBlock.text.match(/"score"\s*:\s*(\d+)/);
+    const score = scoreMatch ? Number(scoreMatch[1]) : 0;
     return {
-      pass,
+      pass: score >= 8,
+      score,
       reasoning: `Failed to parse judge response: ${textBlock.text.slice(0, 100)}`,
       judgeCost,
     };

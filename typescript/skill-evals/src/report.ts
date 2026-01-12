@@ -19,7 +19,10 @@ export function formatDuration(ms: number): string {
 /**
  * Print a single eval report.
  */
-export function printReport(report: EvalReport): void {
+export function printReport(
+  report: EvalReport,
+  verbose: boolean = false,
+): void {
   const evalName = `${basename(dirname(report.eval.evalPath))}/${basename(report.eval.evalPath)}`;
   const status = report.judge.pass ? '✓' : '✗';
   const statusColor = report.judge.pass ? '\x1b[32m' : '\x1b[31m';
@@ -27,11 +30,22 @@ export function printReport(report: EvalReport): void {
 
   console.log(`\n${statusColor}${status}${reset} ${evalName}`);
   console.log(
-    `  Cost: $${report.eval.cost.toFixed(2)} + $${report.judge.judgeCost.toFixed(4)} (judge) | Duration: ${formatDuration(report.eval.durationMs)} | ${report.judge.pass ? 'PASS' : 'FAIL'}`,
+    `  Score: ${report.judge.score}/10 | Cost: $${report.eval.cost.toFixed(2)} + $${report.judge.judgeCost.toFixed(4)} (judge) | Duration: ${formatDuration(report.eval.durationMs)} | ${report.judge.pass ? 'PASS' : 'FAIL'}`,
   );
 
-  if (!report.judge.pass) {
+  if (!report.judge.pass || verbose) {
     console.log(`  Reason: ${report.judge.reasoning}`);
+  }
+
+  if (verbose) {
+    console.log('\n  --- Eval Result ---');
+    console.log(
+      report.eval.result
+        .split('\n')
+        .map((line) => `  ${line}`)
+        .join('\n'),
+    );
+    console.log('  --- End Eval Result ---');
   }
 }
 

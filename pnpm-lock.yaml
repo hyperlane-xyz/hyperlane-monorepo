@@ -2052,7 +2052,19 @@ importers:
       p-limit:
         specifier: ^5.0.0
         version: 5.0.0
+      yargs:
+        specifier: 'catalog:'
+        version: 17.7.2
     devDependencies:
+      '@types/yargs':
+        specifier: 'catalog:'
+        version: 17.0.35
+      eslint:
+        specifier: 'catalog:'
+        version: 9.31.0(jiti@2.6.1)
+      prettier:
+        specifier: 'catalog:'
+        version: 3.5.3
       tsx:
         specifier: ^4.0.0
         version: 4.19.1

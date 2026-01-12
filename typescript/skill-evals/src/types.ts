@@ -22,9 +22,11 @@ export interface EvalResult {
  * Result from the Haiku judge evaluating an eval result.
  */
 export interface JudgeResult {
-  /** Whether the eval passed the judge's evaluation */
+  /** Whether the eval passed the judge's evaluation (score >= 8) */
   pass: boolean;
-  /** The judge's reasoning for the pass/fail decision */
+  /** Score from 1-10 evaluating the quality of the result */
+  score: number;
+  /** The judge's reasoning for the score */
   reasoning: string;
   /** Cost in USD for the judge API call */
   judgeCost: number;
