@@ -1,5 +1,8 @@
 import { IProvider, ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
-import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
+import {
+  ChainLookup,
+  ChainMetadataForAltVM,
+} from '@hyperlane-xyz/provider-sdk/chain';
 import { CoreConfig, CoreModuleType } from '@hyperlane-xyz/provider-sdk/core';
 import {
   AnnotatedTx,
@@ -16,7 +19,7 @@ import { AltVMCoreReader } from './AltVMCoreReader.js';
 class CoreModuleProvider implements ModuleProvider<CoreModuleType> {
   constructor(
     private chainLookup: ChainLookup,
-    private chainName: string,
+    private chainMetadata: ChainMetadataForAltVM,
   ) {}
 
   async createModule(
@@ -25,7 +28,7 @@ class CoreModuleProvider implements ModuleProvider<CoreModuleType> {
   ): Promise<HypModule<CoreModuleType>> {
     return await AltVMCoreModule.create({
       chainLookup: this.chainLookup,
-      chain: this.chainName,
+      chain: this.chainMetadata.name,
       signer,
       config,
     });
@@ -39,13 +42,13 @@ class CoreModuleProvider implements ModuleProvider<CoreModuleType> {
   }
 
   connectReader(provider: IProvider<any>): HypReader<CoreModuleType> {
-    return new AltVMCoreReader(this.chainLookup, provider);
+    return new AltVMCoreReader(this.chainMetadata, this.chainLookup, provider);
   }
 }
 
 export function coreModuleProvider(
   chainLookup: ChainLookup,
-  chainName: string,
+  chainMetadata: ChainMetadataForAltVM,
 ): ModuleProvider<CoreModuleType> {
-  return new CoreModuleProvider(chainLookup, chainName);
+  return new CoreModuleProvider(chainLookup, chainMetadata);
 }
