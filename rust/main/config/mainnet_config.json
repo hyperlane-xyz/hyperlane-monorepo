@@ -9255,6 +9255,10 @@
       "signer": {
         "key": "0x476e6d1e316263e22bf74e6cae6fcdf7ecc51cd4c0450e5661c35ccce3a85601"
       },
+      "index": {
+        "chunk": 50,
+        "from": 14207900
+      },
       "technicalStack": "other"
     },
     "citrea": {
@@ -9392,9 +9396,7 @@
       "validatorAnnounce": "0xf3aa0d652226e21ae35cd9035c492ae41725edc9036edf0d6a48701b153b90a0",
       "technicalStack": "other",
       "availability": {
-        "reasons": [
-          "deprecated"
-        ],
+        "reasons": ["deprecated"],
         "status": "disabled"
       }
     },
