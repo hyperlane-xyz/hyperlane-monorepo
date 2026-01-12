@@ -1,7 +1,7 @@
 ---
 name: solidity-review
-description: Reviews Solidity code for security vulnerabilities, best practices, and code quality issues based on the Solcurity Standard. Use when the user asks to review, audit, or check Solidity contracts.
-allowed-tools: Read, Grep, Glob, Bash(forge test:*), Bash(yarn --cwd solidity:*), Bash(slither:*), Bash(gh:*), Bash(git diff:*), Bash(git show:*)
+description: Reviews Solidity code for security vulnerabilities, best practices, and code quality issues based on the Solcurity Standard. Use when the user asks to review, audit, or check Solidity contracts. (project)
+allowed-tools: Read, Write, Grep, Glob, Bash(forge test:*), Bash(yarn --cwd solidity:*), Bash(slither:*), Bash(gh:*), Bash(git diff:*), Bash(git show:*)
 ---
 
 # Solidity Code Review
@@ -170,10 +170,42 @@ gh pr checks <PR_NUMBER>
 
 ## Output Format
 
-Present findings in severity order:
+Present findings in severity order and **write the review to a markdown file**.
+
+### File Output
+
+After completing the review, write the full report to `solidity/reviews/` (gitignored):
+
+- **For PR reviews**: `solidity/reviews/REVIEW-PR-<PR_NUMBER>.md`
+- **For file reviews**: `solidity/reviews/REVIEW-<CONTRACT_NAME>.md`
+- **For branch comparisons**: `solidity/reviews/REVIEW-<BRANCH_NAME>.md`
+
+The file should be self-contained and include:
+
+1. PR/file metadata (title, author, files changed)
+2. Executive summary with finding counts
+3. Detailed findings organized by severity
+4. Recommendations
+
+### Report Structure
 
 ```markdown
-## Review: <Contract Name>
+## Review: <Contract Name or PR Title>
+
+**Date:** YYYY-MM-DD
+**Reviewer:** Claude (automated)
+**PR/Files:** <link or file paths>
+
+### Summary
+
+| Severity      | Count |
+| ------------- | ----- |
+| Critical      | X     |
+| High          | X     |
+| Medium        | X     |
+| Low           | X     |
+| Informational | X     |
+| Gas           | X     |
 
 ### Critical
 
@@ -198,6 +230,10 @@ Present findings in severity order:
 ### Gas Optimizations
 
 - **[Optimization]** (Line X): Suggested improvement
+
+### Recommendations
+
+<Summary of key actions to take before merging>
 ```
 
 ## What NOT to Flag
