@@ -3,29 +3,26 @@ import yargs from 'yargs';
 import { InterchainAccount } from '@hyperlane-xyz/sdk';
 import { assert, objFilter, rootLogger } from '@hyperlane-xyz/utils';
 
-import { awSafes } from '../../../config/environments/mainnet3/governance/safe/aw.js';
-import { regularSafes } from '../../../config/environments/mainnet3/governance/safe/regular.js';
+import { getGovernanceSafes } from '../../../config/environments/mainnet3/governance/utils.js';
 import { supportedChainNames } from '../../../config/environments/mainnet3/supportedChainNames.js';
 import { legacyIcaChainRouters } from '../../../src/config/chain.js';
 import { SafeMultiSend } from '../../../src/govern/multisend.js';
-import { withGovernanceType } from '../../../src/governance.js';
+import { GovernanceType, withGovernanceType } from '../../../src/governance.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../../core-utils.js';
 
 const originChain = 'ethereum';
-const accountConfig = {
-  origin: originChain,
-  owner: awSafes[originChain],
-};
 
 // Main function to execute the script
 async function main() {
-  const { governanceType } = await withGovernanceType(
-    yargs(process.argv.slice(2)),
-  ).argv;
+  const { governanceType = GovernanceType.AbacusWorks } =
+    await withGovernanceType(yargs(process.argv.slice(2))).argv;
 
-  if (governanceType === 'regular') {
-    accountConfig.owner = regularSafes[originChain];
-  }
+  const owner = getGovernanceSafes(governanceType)[originChain];
+  assert(owner, `No ${governanceType} safe configured for ${originChain}`);
+  const accountConfig = {
+    origin: originChain,
+    owner,
+  };
 
   const environment = 'mainnet3';
   // Get the multiprovider for the environment
