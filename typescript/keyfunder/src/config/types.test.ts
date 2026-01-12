@@ -1,4 +1,7 @@
 import { expect } from 'chai';
+import { BigNumber } from 'ethers';
+
+import { calculateMultipliedBalance } from '../core/KeyFunder.js';
 
 import {
   ChainConfigSchema,
@@ -180,6 +183,60 @@ describe('KeyFunderConfig Schemas', () => {
       };
       const result = ChainConfigSchema.safeParse(config);
       expect(result.success).to.be.false;
+    });
+
+    it('should reject balance without leading digit (.5)', () => {
+      const config = {
+        balances: {
+          'hyperlane-relayer': '.5',
+        },
+      };
+      const result = ChainConfigSchema.safeParse(config);
+      expect(result.success).to.be.false;
+    });
+
+    it('should accept balance with leading zero (0.5)', () => {
+      const config = {
+        balances: {
+          'hyperlane-relayer': '0.5',
+        },
+      };
+      const result = ChainConfigSchema.safeParse(config);
+      expect(result.success).to.be.true;
+    });
+
+    it('should accept high precision balances (up to 18 decimals)', () => {
+      const config = {
+        balances: {
+          'hyperlane-relayer': '0.000000000000000001',
+        },
+      };
+      const result = ChainConfigSchema.safeParse(config);
+      expect(result.success).to.be.true;
+    });
+  });
+
+  describe('Multiplier precision (calculateMultipliedBalance)', () => {
+    const oneEther = BigNumber.from('1000000000000000000');
+
+    it('should calculate 1.5x correctly (1 ETH * 1.5 = 1.5 ETH)', () => {
+      const result = calculateMultipliedBalance(oneEther, 1.5);
+      expect(result.toString()).to.equal('1500000000000000000');
+    });
+
+    it('should calculate 2.0x correctly (1 ETH * 2.0 = 2 ETH)', () => {
+      const result = calculateMultipliedBalance(oneEther, 2.0);
+      expect(result.toString()).to.equal('2000000000000000000');
+    });
+
+    it('should floor third decimal (1 ETH * 1.555 = 1.55 ETH, not 1.56 ETH)', () => {
+      const result = calculateMultipliedBalance(oneEther, 1.555);
+      expect(result.toString()).to.equal('1550000000000000000');
+    });
+
+    it('should floor (1 ETH * 1.999 = 1.99 ETH, not 2 ETH)', () => {
+      const result = calculateMultipliedBalance(oneEther, 1.999);
+      expect(result.toString()).to.equal('1990000000000000000');
     });
   });
 

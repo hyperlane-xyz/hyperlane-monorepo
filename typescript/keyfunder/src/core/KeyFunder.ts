@@ -285,12 +285,14 @@ export class KeyFunder {
     }
 
     const threshold = ethers.utils.parseEther(sweepConfig.threshold);
-    const targetBalance = threshold
-      .mul(Math.round(sweepConfig.targetMultiplier * 100))
-      .div(100);
-    const triggerThreshold = threshold
-      .mul(Math.round(sweepConfig.triggerMultiplier * 100))
-      .div(100);
+    const targetBalance = calculateMultipliedBalance(
+      threshold,
+      sweepConfig.targetMultiplier,
+    );
+    const triggerThreshold = calculateMultipliedBalance(
+      threshold,
+      sweepConfig.triggerMultiplier,
+    );
 
     const funderBalance = await this.multiProvider
       .getSigner(chain)
@@ -339,6 +341,17 @@ export class KeyFunder {
       logger.debug('Funder balance below trigger threshold, no sweep needed');
     }
   }
+}
+
+/**
+ * Multiplies a BigNumber by a decimal multiplier with 2 decimal precision (floored).
+ * e.g., 1 ETH * 1.555 = 1.55 ETH (not 1.56 ETH)
+ */
+export function calculateMultipliedBalance(
+  base: BigNumber,
+  multiplier: number,
+): BigNumber {
+  return base.mul(Math.floor(multiplier * 100)).div(100);
 }
 
 function createTimeoutPromise(
