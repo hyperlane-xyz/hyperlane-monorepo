@@ -13,11 +13,7 @@ import {
 import { difference, rootLogger } from '@hyperlane-xyz/utils';
 
 import { DockerImageRepos, mainnetDockerTags } from '../../config/docker.js';
-import {
-  DEFAULT_REGISTRY_URI,
-  getRegistry,
-  getWarpCoreConfig,
-} from '../../config/registry.js';
+import { getRegistry, getWarpCoreConfig } from '../../config/registry.js';
 import { getEnvironmentConfig } from '../../scripts/core-utils.js';
 import { DeployEnvironment } from '../config/environment.js';
 import { REBALANCER_HELM_RELEASE_PREFIX } from '../utils/consts.js';
