@@ -9,9 +9,7 @@ import MerkleTreeHookAbi from '../../abi/MerkleTreeHook.json' with { type: 'json
 import NoopIsmAbi from '../../abi/NoopIsm.json' with { type: 'json' };
 import MessageIdMultisigIsmAbi from '../../abi/StorageMessageIdMultisigIsm.json' with { type: 'json' };
 import ValidatorAnnounceAbi from '../../abi/ValidatorAnnounce.json' with { type: 'json' };
-import { IABI } from '../utils/types.js';
-
-type MockTransaction = any;
+import { IABI, TronTransaction } from '../utils/types.js';
 
 export class TronProvider implements AltVM.IProvider {
   protected readonly rpcUrls: string[];
@@ -41,7 +39,7 @@ export class TronProvider implements AltVM.IProvider {
     });
   }
 
-  private async createDeploymentTransaction(
+  protected async createDeploymentTransaction(
     abi: IABI,
     signer: string,
     parameters: unknown[],
@@ -89,7 +87,7 @@ export class TronProvider implements AltVM.IProvider {
   }
 
   async estimateTransactionFee(
-    _req: AltVM.ReqEstimateTransactionFee<MockTransaction>,
+    _req: AltVM.ReqEstimateTransactionFee<TronTransaction>,
   ): Promise<AltVM.ResEstimateTransactionFee> {
     throw new Error(`not implemented`);
   }
@@ -163,7 +161,7 @@ export class TronProvider implements AltVM.IProvider {
     const contract = this.tronweb.contract(NoopIsmAbi.abi, req.ismAddress);
 
     const moduleType = await contract.moduleType().call();
-    assert(Number(moduleType) === 6, `module type does not equal NULL ISM`);
+    assert(Number(moduleType) === 6, `module type does not equal NULL_ISM`);
 
     return {
       address: req.ismAddress,
@@ -175,15 +173,73 @@ export class TronProvider implements AltVM.IProvider {
   }
 
   async getInterchainGasPaymasterHook(
-    _req: AltVM.ReqGetInterchainGasPaymasterHook,
+    req: AltVM.ReqGetInterchainGasPaymasterHook,
   ): Promise<AltVM.ResGetInterchainGasPaymasterHook> {
-    throw new Error(`not implemented`);
+    const igp = this.tronweb.contract(
+      InterchainGasPaymasterAbi.abi,
+      req.hookAddress,
+    );
+
+    const hookType = await igp.hookType().call();
+    assert(
+      Number(hookType) === 4,
+      `hook type does not equal INTERCHAIN_GAS_PAYMASTER`,
+    );
+
+    const domainIds = await igp.getAllDomainIds().call();
+
+    let destinationGasConfigs = {} as {
+      [domainId: string]: {
+        gasOracle: {
+          tokenExchangeRate: string;
+          gasPrice: string;
+        };
+        gasOverhead: string;
+      };
+    };
+
+    for (const domainId of domainIds) {
+      const c = await igp.destinationGasConfigs(domainId).call();
+
+      // console.log(domainId, c, this.tronweb.address.fromHex(c.gasOracle));
+
+      // const gasOracle = this.tronweb.contract(
+      //   StorageGasOracleAbi.abi,
+      //   this.tronweb.address.fromHex(c.gasOracle),
+      // );
+
+      // console.log('gasOracle', await gasOracle.remoteGasData(domainId).call());
+
+      destinationGasConfigs[domainId.toString()] = {
+        gasOracle: {
+          tokenExchangeRate: '0',
+          gasPrice: '0',
+        },
+        gasOverhead: c.gasOverhead.toString(),
+      };
+    }
+
+    return {
+      address: req.hookAddress,
+      owner: this.tronweb.address.fromHex(await igp.owner().call()),
+      destinationGasConfigs,
+    };
   }
 
   async getMerkleTreeHook(
-    _req: AltVM.ReqGetMerkleTreeHook,
+    req: AltVM.ReqGetMerkleTreeHook,
   ): Promise<AltVM.ResGetMerkleTreeHook> {
-    throw new Error(`not implemented`);
+    const contract = this.tronweb.contract(
+      MerkleTreeHookAbi.abi,
+      req.hookAddress,
+    );
+
+    const hookType = await contract.hookType().call();
+    assert(Number(hookType) === 3, `hook type does not equal MERKLE_TREE`);
+
+    return {
+      address: req.hookAddress,
+    };
   }
 
   async getNoopHook(_req: AltVM.ReqGetNoopHook): Promise<AltVM.ResGetNoopHook> {
@@ -216,7 +272,7 @@ export class TronProvider implements AltVM.IProvider {
 
   async getCreateMailboxTransaction(
     req: AltVM.ReqCreateMailbox,
-  ): Promise<MockTransaction> {
+  ): Promise<TronTransaction> {
     return this.createDeploymentTransaction(MailboxAbi, req.signer, [
       req.domainId,
     ]);
@@ -224,7 +280,7 @@ export class TronProvider implements AltVM.IProvider {
 
   async getSetDefaultIsmTransaction(
     req: AltVM.ReqSetDefaultIsm,
-  ): Promise<MockTransaction> {
+  ): Promise<TronTransaction> {
     const { transaction } =
       await this.tronweb.transactionBuilder.triggerSmartContract(
         req.mailboxAddress,
@@ -247,7 +303,7 @@ export class TronProvider implements AltVM.IProvider {
 
   async getSetDefaultHookTransaction(
     req: AltVM.ReqSetDefaultHook,
-  ): Promise<MockTransaction> {
+  ): Promise<TronTransaction> {
     const { transaction } =
       await this.tronweb.transactionBuilder.triggerSmartContract(
         req.mailboxAddress,
@@ -270,7 +326,7 @@ export class TronProvider implements AltVM.IProvider {
 
   async getSetRequiredHookTransaction(
     req: AltVM.ReqSetRequiredHook,
-  ): Promise<MockTransaction> {
+  ): Promise<TronTransaction> {
     const { transaction } =
       await this.tronweb.transactionBuilder.triggerSmartContract(
         req.mailboxAddress,
@@ -293,7 +349,7 @@ export class TronProvider implements AltVM.IProvider {
 
   async getSetMailboxOwnerTransaction(
     req: AltVM.ReqSetMailboxOwner,
-  ): Promise<MockTransaction> {
+  ): Promise<TronTransaction> {
     const { transaction } =
       await this.tronweb.transactionBuilder.triggerSmartContract(
         req.mailboxAddress,
@@ -316,13 +372,13 @@ export class TronProvider implements AltVM.IProvider {
 
   async getCreateMerkleRootMultisigIsmTransaction(
     _req: AltVM.ReqCreateMerkleRootMultisigIsm,
-  ): Promise<MockTransaction> {
+  ): Promise<TronTransaction> {
     throw new Error(`not implemented`);
   }
 
   async getCreateMessageIdMultisigIsmTransaction(
     req: AltVM.ReqCreateMessageIdMultisigIsm,
-  ): Promise<MockTransaction> {
+  ): Promise<TronTransaction> {
     return this.createDeploymentTransaction(
       MessageIdMultisigIsmAbi,
       req.signer,
@@ -332,37 +388,37 @@ export class TronProvider implements AltVM.IProvider {
 
   async getCreateRoutingIsmTransaction(
     _req: AltVM.ReqCreateRoutingIsm,
-  ): Promise<MockTransaction> {
+  ): Promise<TronTransaction> {
     throw new Error(`not implemented`);
   }
 
   async getSetRoutingIsmRouteTransaction(
     _req: AltVM.ReqSetRoutingIsmRoute,
-  ): Promise<MockTransaction> {
+  ): Promise<TronTransaction> {
     throw new Error(`not implemented`);
   }
 
   async getRemoveRoutingIsmRouteTransaction(
     _req: AltVM.ReqRemoveRoutingIsmRoute,
-  ): Promise<MockTransaction> {
+  ): Promise<TronTransaction> {
     throw new Error(`not implemented`);
   }
 
   async getSetRoutingIsmOwnerTransaction(
     _req: AltVM.ReqSetRoutingIsmOwner,
-  ): Promise<MockTransaction> {
+  ): Promise<TronTransaction> {
     throw new Error(`not implemented`);
   }
 
   async getCreateNoopIsmTransaction(
     req: AltVM.ReqCreateNoopIsm,
-  ): Promise<MockTransaction> {
+  ): Promise<TronTransaction> {
     return this.createDeploymentTransaction(NoopIsmAbi, req.signer, []);
   }
 
   async getCreateMerkleTreeHookTransaction(
     req: AltVM.ReqCreateMerkleTreeHook,
-  ): Promise<MockTransaction> {
+  ): Promise<TronTransaction> {
     return this.createDeploymentTransaction(MerkleTreeHookAbi, req.signer, [
       req.mailboxAddress,
     ]);
@@ -370,7 +426,7 @@ export class TronProvider implements AltVM.IProvider {
 
   async getCreateInterchainGasPaymasterHookTransaction(
     req: AltVM.ReqCreateInterchainGasPaymasterHook,
-  ): Promise<MockTransaction> {
+  ): Promise<TronTransaction> {
     return this.createDeploymentTransaction(
       InterchainGasPaymasterAbi,
       req.signer,
@@ -380,31 +436,69 @@ export class TronProvider implements AltVM.IProvider {
 
   async getSetInterchainGasPaymasterHookOwnerTransaction(
     _req: AltVM.ReqSetInterchainGasPaymasterHookOwner,
-  ): Promise<MockTransaction> {
+  ): Promise<TronTransaction> {
     throw new Error(`not implemented`);
   }
 
   async getSetDestinationGasConfigTransaction(
-    _req: AltVM.ReqSetDestinationGasConfig,
-  ): Promise<MockTransaction> {
-    throw new Error(`not implemented`);
+    req: AltVM.ReqSetDestinationGasConfig,
+  ): Promise<TronTransaction> {
+    const igp = this.tronweb.contract(
+      InterchainGasPaymasterAbi.abi,
+      req.hookAddress,
+    );
+
+    const hookType = await igp.hookType().call();
+    assert(
+      Number(hookType) === 4,
+      `hook type does not equal INTERCHAIN_GAS_PAYMASTER`,
+    );
+
+    const gasOracle = await igp.gasOracle().call();
+
+    const { transaction } =
+      await this.tronweb.transactionBuilder.triggerSmartContract(
+        req.hookAddress,
+        'setDestinationGasConfigs((uint32,(address,uint96))[])',
+        {
+          feeLimit: 100_000_000,
+          callValue: 0,
+        },
+        [
+          {
+            type: 'tuple(uint32 remoteDomain, tuple(address gasOracle, uint96 gasOverhead) config)[]',
+            value: [
+              {
+                remoteDomain: Number(req.destinationGasConfig.remoteDomainId),
+                config: {
+                  gasOracle: gasOracle.replace('41', '0x'),
+                  gasOverhead: req.destinationGasConfig.gasOverhead.toString(),
+                },
+              },
+            ],
+          },
+        ],
+        this.tronweb.address.toHex(req.signer),
+      );
+
+    return transaction;
   }
 
   async getRemoveDestinationGasConfigTransaction(
     _req: AltVM.ReqRemoveDestinationGasConfig,
-  ): Promise<MockTransaction> {
+  ): Promise<TronTransaction> {
     throw new Error(`not implemented`);
   }
 
   async getCreateNoopHookTransaction(
     _req: AltVM.ReqCreateNoopHook,
-  ): Promise<MockTransaction> {
+  ): Promise<TronTransaction> {
     throw new Error(`not implemented`);
   }
 
   async getCreateValidatorAnnounceTransaction(
     req: AltVM.ReqCreateValidatorAnnounce,
-  ): Promise<MockTransaction> {
+  ): Promise<TronTransaction> {
     return this.createDeploymentTransaction(ValidatorAnnounceAbi, req.signer, [
       req.mailboxAddress,
     ]);
@@ -414,61 +508,61 @@ export class TronProvider implements AltVM.IProvider {
 
   async getCreateNativeTokenTransaction(
     _req: AltVM.ReqCreateNativeToken,
-  ): Promise<MockTransaction> {
+  ): Promise<TronTransaction> {
     throw new Error(`not implemented`);
   }
 
   async getCreateCollateralTokenTransaction(
     _req: AltVM.ReqCreateCollateralToken,
-  ): Promise<MockTransaction> {
+  ): Promise<TronTransaction> {
     throw new Error(`not implemented`);
   }
 
   async getCreateSyntheticTokenTransaction(
     _req: AltVM.ReqCreateSyntheticToken,
-  ): Promise<MockTransaction> {
+  ): Promise<TronTransaction> {
     throw new Error(`not implemented`);
   }
 
   async getSetTokenOwnerTransaction(
     _req: AltVM.ReqSetTokenOwner,
-  ): Promise<MockTransaction> {
+  ): Promise<TronTransaction> {
     throw new Error(`not implemented`);
   }
 
   async getSetTokenIsmTransaction(
     _req: AltVM.ReqSetTokenIsm,
-  ): Promise<MockTransaction> {
+  ): Promise<TronTransaction> {
     throw new Error(`not implemented`);
   }
 
   async getSetTokenHookTransaction(
     _req: AltVM.ReqSetTokenHook,
-  ): Promise<MockTransaction> {
+  ): Promise<TronTransaction> {
     throw new Error(`not implemented`);
   }
 
   async getEnrollRemoteRouterTransaction(
     _req: AltVM.ReqEnrollRemoteRouter,
-  ): Promise<MockTransaction> {
+  ): Promise<TronTransaction> {
     throw new Error(`not implemented`);
   }
 
   async getUnenrollRemoteRouterTransaction(
     _req: AltVM.ReqUnenrollRemoteRouter,
-  ): Promise<MockTransaction> {
+  ): Promise<TronTransaction> {
     throw new Error(`not implemented`);
   }
 
   async getTransferTransaction(
     _req: AltVM.ReqTransfer,
-  ): Promise<MockTransaction> {
+  ): Promise<TronTransaction> {
     throw new Error(`not implemented`);
   }
 
   async getRemoteTransferTransaction(
     _req: AltVM.ReqRemoteTransfer,
-  ): Promise<MockTransaction> {
+  ): Promise<TronTransaction> {
     throw new Error(`not implemented`);
   }
 }

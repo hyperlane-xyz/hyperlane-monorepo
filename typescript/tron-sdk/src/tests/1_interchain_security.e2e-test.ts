@@ -14,13 +14,14 @@ const { expect } = chai;
 describe('1. tron sdk interchain security e2e tests', async function () {
   this.timeout(100_000);
 
+  const localnetRpc = 'http://127.0.0.1:9090';
+
   let signer: AltVM.ISigner<TronTransaction, TronReceipt>;
 
   let noop_ism: string;
   let routing_ism: string;
 
   before(async () => {
-    const localnetRpc = 'http://127.0.0.1:9090';
     // test private key with funds
     const privateKey =
       '0000000000000000000000000000000000000000000000000000000000000001';

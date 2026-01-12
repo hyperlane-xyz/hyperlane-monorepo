@@ -1,0 +1,3212 @@
+{
+  "contractName": "StorageGasOracle",
+  "abi": [
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "previousOwner",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "newOwner",
+          "type": "address"
+        }
+      ],
+      "name": "OwnershipTransferred",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint32",
+          "name": "remoteDomain",
+          "type": "uint32"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint128",
+          "name": "tokenExchangeRate",
+          "type": "uint128"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint128",
+          "name": "gasPrice",
+          "type": "uint128"
+        }
+      ],
+      "name": "RemoteGasDataSet",
+      "type": "event"
+    },
+    {
+      "inputs": [],
+      "name": "PACKAGE_VERSION",
+      "outputs": [
+        {
+          "internalType": "string",
+          "name": "",
+          "type": "string"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint32",
+          "name": "_destinationDomain",
+          "type": "uint32"
+        }
+      ],
+      "name": "getExchangeRateAndGasPrice",
+      "outputs": [
+        {
+          "internalType": "uint128",
+          "name": "tokenExchangeRate",
+          "type": "uint128"
+        },
+        {
+          "internalType": "uint128",
+          "name": "gasPrice",
+          "type": "uint128"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "owner",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint32",
+          "name": "remoteDomain",
+          "type": "uint32"
+        }
+      ],
+      "name": "remoteGasData",
+      "outputs": [
+        {
+          "internalType": "uint128",
+          "name": "tokenExchangeRate",
+          "type": "uint128"
+        },
+        {
+          "internalType": "uint128",
+          "name": "gasPrice",
+          "type": "uint128"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "renounceOwnership",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint32",
+              "name": "remoteDomain",
+              "type": "uint32"
+            },
+            {
+              "internalType": "uint128",
+              "name": "tokenExchangeRate",
+              "type": "uint128"
+            },
+            {
+              "internalType": "uint128",
+              "name": "gasPrice",
+              "type": "uint128"
+            }
+          ],
+          "internalType": "struct StorageGasOracle.RemoteGasDataConfig",
+          "name": "_config",
+          "type": "tuple"
+        }
+      ],
+      "name": "setRemoteGasData",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint32",
+              "name": "remoteDomain",
+              "type": "uint32"
+            },
+            {
+              "internalType": "uint128",
+              "name": "tokenExchangeRate",
+              "type": "uint128"
+            },
+            {
+              "internalType": "uint128",
+              "name": "gasPrice",
+              "type": "uint128"
+            }
+          ],
+          "internalType": "struct StorageGasOracle.RemoteGasDataConfig[]",
+          "name": "_configs",
+          "type": "tuple[]"
+        }
+      ],
+      "name": "setRemoteGasDataConfigs",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "newOwner",
+          "type": "address"
+        }
+      ],
+      "name": "transferOwnership",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x608060405234801561001057600080fd5b50d3801561001d57600080fd5b50d2801561002a57600080fd5b5061003433610039565b610089565b600080546001600160a01b038381166001600160a01b0319831681178455604051919092169283917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09190a35050565b6106e7806100986000396000f3fe608060405234801561001057600080fd5b50d3801561001d57600080fd5b50d2801561002a57600080fd5b50600436106100a25760003560e01c806393c448471161007557806393c4484714610180578063b08e56d0146101c9578063f2fde38b14610213578063f3a1495f1461022657600080fd5b806360fcef7c146100a7578063698faffc1461013b578063715018a6146101505780638da5cb5b14610158575b600080fd5b61010d6100b53660046104d5565b63ffffffff166000908152600160209081526040918290208251808401909352546fffffffffffffffffffffffffffffffff808216808552700100000000000000000000000000000000909204169290910182905291565b604080516fffffffffffffffffffffffffffffffff9384168152929091166020830152015b60405180910390f35b61014e610149366004610502565b610239565b005b61014e61027b565b60005460405173ffffffffffffffffffffffffffffffffffffffff9091168152602001610132565b6101bc6040518060400160405280600681526020017f31302e312e33000000000000000000000000000000000000000000000000000081525081565b6040516101329190610577565b61010d6101d73660046104d5565b6001602052600090815260409020546fffffffffffffffffffffffffffffffff8082169170010000000000000000000000000000000090041682565b61014e6102213660046105e4565b61028f565b61014e610234366004610638565b61034b565b61024161035c565b8060005b818110156102755761026d84848381811061026257610262610650565b9050606002016103dd565b600101610245565b50505050565b61028361035c565b61028d6000610460565b565b61029761035c565b73ffffffffffffffffffffffffffffffffffffffff811661033f576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602660248201527f4f776e61626c653a206e6577206f776e657220697320746865207a65726f206160448201527f646472657373000000000000000000000000000000000000000000000000000060648201526084015b60405180910390fd5b61034881610460565b50565b61035361035c565b610348816103dd565b60005473ffffffffffffffffffffffffffffffffffffffff16331461028d576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e65726044820152606401610336565b6103ea60208201826104d5565b63ffffffff167fb48c1cb713397fc0c0649596c221270fec0b3de3f85ccf6a734411a2fe57a694610421604084016020850161067f565b610431606085016040860161067f565b604080516fffffffffffffffffffffffffffffffff93841681529290911660208301520160405180910390a250565b6000805473ffffffffffffffffffffffffffffffffffffffff8381167fffffffffffffffffffffffff0000000000000000000000000000000000000000831681178455604051919092169283917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09190a35050565b6000602082840312156104e757600080fd5b813563ffffffff811681146104fb57600080fd5b9392505050565b6000806020838503121561051557600080fd5b823567ffffffffffffffff8082111561052d57600080fd5b818501915085601f83011261054157600080fd5b81358181111561055057600080fd5b86602060608302850101111561056557600080fd5b60209290920196919550909350505050565b60006020808352835180602085015260005b818110156105a557858101830151858201604001528201610589565b5060006040828601015260407fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0601f8301168501019250505092915050565b6000602082840312156105f657600080fd5b813574ffffffffffffffffffffffffffffffffffffffffff8116811461061b57600080fd5b73ffffffffffffffffffffffffffffffffffffffff169392505050565b60006060828403121561064a57600080fd5b50919050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052603260045260246000fd5b60006020828403121561069157600080fd5b81356fffffffffffffffffffffffffffffffff811681146104fb57600080fdfea26474726f6e58221220bd61a1cd84343f9325efa9d7740396a2bc76cb0bbec6b3f8765c8ff559c333cd64736f6c63430008160033",
+  "deployedBytecode": "0x608060405234801561001057600080fd5b50d3801561001d57600080fd5b50d2801561002a57600080fd5b50600436106100a25760003560e01c806393c448471161007557806393c4484714610180578063b08e56d0146101c9578063f2fde38b14610213578063f3a1495f1461022657600080fd5b806360fcef7c146100a7578063698faffc1461013b578063715018a6146101505780638da5cb5b14610158575b600080fd5b61010d6100b53660046104d5565b63ffffffff166000908152600160209081526040918290208251808401909352546fffffffffffffffffffffffffffffffff808216808552700100000000000000000000000000000000909204169290910182905291565b604080516fffffffffffffffffffffffffffffffff9384168152929091166020830152015b60405180910390f35b61014e610149366004610502565b610239565b005b61014e61027b565b60005460405173ffffffffffffffffffffffffffffffffffffffff9091168152602001610132565b6101bc6040518060400160405280600681526020017f31302e312e33000000000000000000000000000000000000000000000000000081525081565b6040516101329190610577565b61010d6101d73660046104d5565b6001602052600090815260409020546fffffffffffffffffffffffffffffffff8082169170010000000000000000000000000000000090041682565b61014e6102213660046105e4565b61028f565b61014e610234366004610638565b61034b565b61024161035c565b8060005b818110156102755761026d84848381811061026257610262610650565b9050606002016103dd565b600101610245565b50505050565b61028361035c565b61028d6000610460565b565b61029761035c565b73ffffffffffffffffffffffffffffffffffffffff811661033f576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602660248201527f4f776e61626c653a206e6577206f776e657220697320746865207a65726f206160448201527f646472657373000000000000000000000000000000000000000000000000000060648201526084015b60405180910390fd5b61034881610460565b50565b61035361035c565b610348816103dd565b60005473ffffffffffffffffffffffffffffffffffffffff16331461028d576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e65726044820152606401610336565b6103ea60208201826104d5565b63ffffffff167fb48c1cb713397fc0c0649596c221270fec0b3de3f85ccf6a734411a2fe57a694610421604084016020850161067f565b610431606085016040860161067f565b604080516fffffffffffffffffffffffffffffffff93841681529290911660208301520160405180910390a250565b6000805473ffffffffffffffffffffffffffffffffffffffff8381167fffffffffffffffffffffffff0000000000000000000000000000000000000000831681178455604051919092169283917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09190a35050565b6000602082840312156104e757600080fd5b813563ffffffff811681146104fb57600080fd5b9392505050565b6000806020838503121561051557600080fd5b823567ffffffffffffffff8082111561052d57600080fd5b818501915085601f83011261054157600080fd5b81358181111561055057600080fd5b86602060608302850101111561056557600080fd5b60209290920196919550909350505050565b60006020808352835180602085015260005b818110156105a557858101830151858201604001528201610589565b5060006040828601015260407fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0601f8301168501019250505092915050565b6000602082840312156105f657600080fd5b813574ffffffffffffffffffffffffffffffffffffffffff8116811461061b57600080fd5b73ffffffffffffffffffffffffffffffffffffffff169392505050565b60006060828403121561064a57600080fd5b50919050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052603260045260246000fd5b60006020828403121561069157600080fd5b81356fffffffffffffffffffffffffffffffff811681146104fb57600080fdfea26474726f6e58221220bd61a1cd84343f9325efa9d7740396a2bc76cb0bbec6b3f8765c8ff559c333cd64736f6c63430008160033",
+  "sourceMap": "538:2888:4:-:0;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;-1:-1:-1;936:32:44;719:10:62;936:18:44;:32::i;:::-;538:2888:4;;2426:187:44;2499:16;2518:6;;-1:-1:-1;;;;;2534:17:44;;;-1:-1:-1;;;;;;2534:17:44;;;;;;2566:40;;2518:6;;;;;;;2566:40;;2499:16;2566:40;2489:124;2426:187;:::o;538:2888:4:-;;;;;;;",
+  "deployedSourceMap": "538:2888:4:-:0;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;1842:411;;;;;;:::i;:::-;2133:55;;1983:25;2133:55;;;:13;:55;;;;;;;;;2093:95;;;;;;;;;;;;;;;;;;;;;;;;;;;;;1842:411;;;;;479:34:71;540:15;;;522:34;;592:15;;;;587:2;572:18;;565:43;442:18;1842:411:4;;;;;;;;2419:253;;;;;;:::i;:::-;;:::i;:::-;;1824:101:44;;;:::i;1201:85::-;1247:7;1273:6;1201:85;;1273:6;;;;1426:74:71;;1414:2;1399:18;1201:85:44;1280:226:71;234:49:0;;;;;;;;;;;;;;;;;;;;;;;;;;;;:::i;732:93:4:-;;;;;;:::i;:::-;;;;;;;;;;;;;;;;;;;;;;;2074:198:44;;;;;;:::i;:::-;;:::i;2839:140:4:-;;;;;;:::i;:::-;;:::i;2419:253::-;1094:13:44;:11;:13::i;:::-;2551:8:4;2536:12:::1;2576:90;2600:4;2596:1;:8;2576:90;;;2625:30;2643:8;;2652:1;2643:11;;;;;;;:::i;:::-;;;;;;2625:17;:30::i;:::-;2606:3;;2576:90;;;;2526:146;2419:253:::0;;:::o;1824:101:44:-;1094:13;:11;:13::i;:::-;1888:30:::1;1915:1;1888:18;:30::i;:::-;1824:101::o:0;2074:198::-;1094:13;:11;:13::i;:::-;2162:22:::1;::::0;::::1;2154:73;;;::::0;::::1;::::0;;3088:2:71;2154:73:44::1;::::0;::::1;3070:21:71::0;3127:2;3107:18;;;3100:30;3166:34;3146:18;;;3139:62;3237:8;3217:18;;;3210:36;3263:19;;2154:73:44::1;;;;;;;;;2237:28;2256:8;2237:18;:28::i;:::-;2074:198:::0;:::o;2839:140:4:-;1094:13:44;:11;:13::i;:::-;2946:26:4::1;2964:7;2946:17;:26::i;1359:130:44:-:0;1247:7;1273:6;1422:23;1273:6;719:10:62;1422:23:44;1414:68;;;;;;;3495:2:71;1414:68:44;;;3477:21:71;;;3514:18;;;3507:30;3573:34;3553:18;;;3546:62;3625:18;;1414:68:44;3293:356:71;3199:225:4;3318:20;;;;:7;:20;:::i;:::-;3288:129;;;3352:25;;;;;;;;:::i;:::-;3391:16;;;;;;;;:::i;:::-;3288:129;;;479:34:71;540:15;;;522:34;;592:15;;;;587:2;572:18;;565:43;442:18;3288:129:4;;;;;;;3199:225;:::o;2426:187:44:-;2499:16;2518:6;;;2534:17;;;;;;;;;;2566:40;;2518:6;;;;;;;2566:40;;2499:16;2566:40;2489:124;2426:187;:::o;14:276:71:-;72:6;125:2;113:9;104:7;100:23;96:32;93:52;;;141:1;138;131:12;93:52;180:9;167:23;230:10;223:5;219:22;212:5;209:33;199:61;;256:1;253;246:12;199:61;279:5;14:276;-1:-1:-1;;;14:276:71:o;619:656::-;743:6;751;804:2;792:9;783:7;779:23;775:32;772:52;;;820:1;817;810:12;772:52;860:9;847:23;889:18;930:2;922:6;919:14;916:34;;;946:1;943;936:12;916:34;984:6;973:9;969:22;959:32;;1029:7;1022:4;1018:2;1014:13;1010:27;1000:55;;1051:1;1048;1041:12;1000:55;1091:2;1078:16;1117:2;1109:6;1106:14;1103:34;;;1133:1;1130;1123:12;1103:34;1189:7;1184:2;1176:4;1168:6;1164:17;1160:2;1156:26;1152:35;1149:48;1146:68;;;1210:1;1207;1200:12;1146:68;1241:2;1233:11;;;;;1263:6;;-1:-1:-1;619:656:71;;-1:-1:-1;;;;619:656:71:o;1511:607::-;1623:4;1652:2;1681;1670:9;1663:21;1713:6;1707:13;1756:6;1751:2;1740:9;1736:18;1729:34;1781:1;1791:140;1805:6;1802:1;1799:13;1791:140;;;1900:14;;;1896:23;;1890:30;1866:17;;;1885:2;1862:26;1855:66;1820:10;;1791:140;;;1795:3;1980:1;1975:2;1966:6;1955:9;1951:22;1947:31;1940:42;2109:2;2039:66;2034:2;2026:6;2022:15;2018:88;2007:9;2003:104;1999:113;1991:121;;;;1511:607;;;;:::o;2123:360::-;2182:6;2235:2;2223:9;2214:7;2210:23;2206:32;2203:52;;;2251:1;2248;2241:12;2203:52;2290:9;2277:23;2340:44;2333:5;2329:56;2322:5;2319:67;2309:95;;2400:1;2397;2390:12;2309:95;2434:42;2423:54;;2123:360;-1:-1:-1;;;2123:360:71:o;2488:204::-;2585:6;2638:2;2626:9;2617:7;2613:23;2609:32;2606:52;;;2654:1;2651;2644:12;2606:52;-1:-1:-1;2677:9:71;2488:204;-1:-1:-1;2488:204:71:o;2697:184::-;2749:77;2746:1;2739:88;2846:4;2843:1;2836:15;2870:4;2867:1;2860:15;3654:301;3713:6;3766:2;3754:9;3745:7;3741:23;3737:32;3734:52;;;3782:1;3779;3772:12;3734:52;3821:9;3808:23;3871:34;3864:5;3860:46;3853:5;3850:57;3840:85;;3921:1;3918;3911:12",
+  "source": "// SPDX-License-Identifier: MIT OR Apache-2.0\npragma solidity >=0.8.0;\n\n// ============ Internal Imports ============\nimport {IGasOracle} from \"../../interfaces/IGasOracle.sol\";\nimport {PackageVersioned} from \"../../PackageVersioned.sol\";\n\n// ============ External Imports ============\nimport {Ownable} from \"@openzeppelin/contracts/access/Ownable.sol\";\n\n/**\n * @notice A gas oracle that uses data stored within the contract.\n * @dev This contract is intended to be owned by an address that will\n * update the stored remote gas data.\n */\ncontract StorageGasOracle is IGasOracle, Ownable, PackageVersioned {\n    // ============ Public Storage ============\n\n    /// @notice Keyed by remote domain, gas data on that remote domain.\n    mapping(uint32 remoteDomain => IGasOracle.RemoteGasData gasData)\n        public remoteGasData;\n\n    // ============ Events ============\n\n    /**\n     * @notice Emitted when an entry in `remoteGasData` is set.\n     * @param remoteDomain The remote domain in which the gas data was set for.\n     * @param tokenExchangeRate The exchange rate of the remote native token quoted in the local native token.\n     * @param gasPrice The gas price on the remote chain.\n     */\n    event RemoteGasDataSet(\n        uint32 indexed remoteDomain,\n        uint128 tokenExchangeRate,\n        uint128 gasPrice\n    );\n\n    struct RemoteGasDataConfig {\n        uint32 remoteDomain;\n        uint128 tokenExchangeRate;\n        uint128 gasPrice;\n    }\n\n    // ============ External Functions ============\n\n    /**\n     * @notice Returns the stored `remoteGasData` for the `_destinationDomain`.\n     * @param _destinationDomain The destination domain.\n     * @return tokenExchangeRate The exchange rate of the remote native token quoted in the local native token.\n     * @return gasPrice The gas price on the remote chain.\n     */\n    function getExchangeRateAndGasPrice(\n        uint32 _destinationDomain\n    )\n        external\n        view\n        override\n        returns (uint128 tokenExchangeRate, uint128 gasPrice)\n    {\n        // Intentionally allow unset / zero values\n        IGasOracle.RemoteGasData memory _data = remoteGasData[\n            _destinationDomain\n        ];\n        return (_data.tokenExchangeRate, _data.gasPrice);\n    }\n\n    /**\n     * @notice Sets the remote gas data for many remotes at a time.\n     * @param _configs The configs to use when setting the remote gas data.\n     */\n    function setRemoteGasDataConfigs(\n        RemoteGasDataConfig[] calldata _configs\n    ) external onlyOwner {\n        uint256 _len = _configs.length;\n        for (uint256 i = 0; i < _len; i++) {\n            _setRemoteGasData(_configs[i]);\n        }\n    }\n\n    /**\n     * @notice Sets the remote gas data using the values in `_config`.\n     * @param _config The config to use when setting the remote gas data.\n     */\n    function setRemoteGasData(\n        RemoteGasDataConfig calldata _config\n    ) external onlyOwner {\n        _setRemoteGasData(_config);\n    }\n\n    // ============ Internal functions ============\n\n    /**\n     * @notice Sets the remote gas data using the values in `_config`.\n     * @param _config The config to use when setting the remote gas data.\n     */\n    function _setRemoteGasData(RemoteGasDataConfig calldata _config) internal {\n        emit RemoteGasDataSet(\n            _config.remoteDomain,\n            _config.tokenExchangeRate,\n            _config.gasPrice\n        );\n    }\n}\n",
+  "sourcePath": "/Users/troykessler/work/hyperlane/hyperlane-tron/contracts/hooks/igp/StorageGasOracle.sol",
+  "ast": {
+    "absolutePath": "/Users/troykessler/work/hyperlane/hyperlane-tron/contracts/hooks/igp/StorageGasOracle.sol",
+    "exportedSymbols": {
+      "IGasOracle": [
+        1287
+      ],
+      "Ownable": [
+        8834
+      ],
+      "PackageVersioned": [
+        6
+      ],
+      "StorageGasOracle": [
+        936
+      ]
+    },
+    "id": 937,
+    "license": "MIT OR Apache-2.0",
+    "nodeType": "SourceUnit",
+    "nodes": [
+      {
+        "id": 808,
+        "literals": [
+          "solidity",
+          ">=",
+          "0.8",
+          ".0"
+        ],
+        "nodeType": "PragmaDirective",
+        "src": "46:24:4"
+      },
+      {
+        "absolutePath": "/Users/troykessler/work/hyperlane/hyperlane-tron/contracts/interfaces/IGasOracle.sol",
+        "file": "../../interfaces/IGasOracle.sol",
+        "id": 810,
+        "nameLocation": "-1:-1:-1",
+        "nodeType": "ImportDirective",
+        "scope": 937,
+        "sourceUnit": 1288,
+        "src": "118:59:4",
+        "symbolAliases": [
+          {
+            "foreign": {
+              "id": 809,
+              "name": "IGasOracle",
+              "nodeType": "Identifier",
+              "overloadedDeclarations": [],
+              "referencedDeclaration": 1287,
+              "src": "126:10:4",
+              "typeDescriptions": {}
+            },
+            "nameLocation": "-1:-1:-1"
+          }
+        ],
+        "unitAlias": ""
+      },
+      {
+        "absolutePath": "/Users/troykessler/work/hyperlane/hyperlane-tron/contracts/PackageVersioned.sol",
+        "file": "../../PackageVersioned.sol",
+        "id": 812,
+        "nameLocation": "-1:-1:-1",
+        "nodeType": "ImportDirective",
+        "scope": 937,
+        "sourceUnit": 7,
+        "src": "178:60:4",
+        "symbolAliases": [
+          {
+            "foreign": {
+              "id": 811,
+              "name": "PackageVersioned",
+              "nodeType": "Identifier",
+              "overloadedDeclarations": [],
+              "referencedDeclaration": 6,
+              "src": "186:16:4",
+              "typeDescriptions": {}
+            },
+            "nameLocation": "-1:-1:-1"
+          }
+        ],
+        "unitAlias": ""
+      },
+      {
+        "absolutePath": "@openzeppelin/contracts/access/Ownable.sol",
+        "file": "@openzeppelin/contracts/access/Ownable.sol",
+        "id": 814,
+        "nameLocation": "-1:-1:-1",
+        "nodeType": "ImportDirective",
+        "scope": 937,
+        "sourceUnit": 8835,
+        "src": "286:67:4",
+        "symbolAliases": [
+          {
+            "foreign": {
+              "id": 813,
+              "name": "Ownable",
+              "nodeType": "Identifier",
+              "overloadedDeclarations": [],
+              "referencedDeclaration": 8834,
+              "src": "294:7:4",
+              "typeDescriptions": {}
+            },
+            "nameLocation": "-1:-1:-1"
+          }
+        ],
+        "unitAlias": ""
+      },
+      {
+        "abstract": false,
+        "baseContracts": [
+          {
+            "baseName": {
+              "id": 816,
+              "name": "IGasOracle",
+              "nameLocations": [
+                "567:10:4"
+              ],
+              "nodeType": "IdentifierPath",
+              "referencedDeclaration": 1287,
+              "src": "567:10:4"
+            },
+            "id": 817,
+            "nodeType": "InheritanceSpecifier",
+            "src": "567:10:4"
+          },
+          {
+            "baseName": {
+              "id": 818,
+              "name": "Ownable",
+              "nameLocations": [
+                "579:7:4"
+              ],
+              "nodeType": "IdentifierPath",
+              "referencedDeclaration": 8834,
+              "src": "579:7:4"
+            },
+            "id": 819,
+            "nodeType": "InheritanceSpecifier",
+            "src": "579:7:4"
+          },
+          {
+            "baseName": {
+              "id": 820,
+              "name": "PackageVersioned",
+              "nameLocations": [
+                "588:16:4"
+              ],
+              "nodeType": "IdentifierPath",
+              "referencedDeclaration": 6,
+              "src": "588:16:4"
+            },
+            "id": 821,
+            "nodeType": "InheritanceSpecifier",
+            "src": "588:16:4"
+          }
+        ],
+        "canonicalName": "StorageGasOracle",
+        "contractDependencies": [],
+        "contractKind": "contract",
+        "documentation": {
+          "id": 815,
+          "nodeType": "StructuredDocumentation",
+          "src": "355:182:4",
+          "text": " @notice A gas oracle that uses data stored within the contract.\n @dev This contract is intended to be owned by an address that will\n update the stored remote gas data."
+        },
+        "fullyImplemented": true,
+        "id": 936,
+        "linearizedBaseContracts": [
+          936,
+          6,
+          8834,
+          12186,
+          1287
+        ],
+        "name": "StorageGasOracle",
+        "nameLocation": "547:16:4",
+        "nodeType": "ContractDefinition",
+        "nodes": [
+          {
+            "constant": false,
+            "documentation": {
+              "id": 822,
+              "nodeType": "StructuredDocumentation",
+              "src": "660:67:4",
+              "text": "@notice Keyed by remote domain, gas data on that remote domain."
+            },
+            "functionSelector": "b08e56d0",
+            "id": 827,
+            "mutability": "mutable",
+            "name": "remoteGasData",
+            "nameLocation": "812:13:4",
+            "nodeType": "VariableDeclaration",
+            "scope": 936,
+            "src": "732:93:4",
+            "stateVariable": true,
+            "storageLocation": "default",
+            "typeDescriptions": {
+              "typeIdentifier": "t_mapping$_t_uint32_$_t_struct$_RemoteGasData_$1277_storage_$",
+              "typeString": "mapping(uint32 => struct IGasOracle.RemoteGasData)"
+            },
+            "typeName": {
+              "id": 826,
+              "keyName": "remoteDomain",
+              "keyNameLocation": "747:12:4",
+              "keyType": {
+                "id": 823,
+                "name": "uint32",
+                "nodeType": "ElementaryTypeName",
+                "src": "740:6:4",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_uint32",
+                  "typeString": "uint32"
+                }
+              },
+              "nodeType": "Mapping",
+              "src": "732:64:4",
+              "typeDescriptions": {
+                "typeIdentifier": "t_mapping$_t_uint32_$_t_struct$_RemoteGasData_$1277_storage_$",
+                "typeString": "mapping(uint32 => struct IGasOracle.RemoteGasData)"
+              },
+              "valueName": "gasData",
+              "valueNameLocation": "788:7:4",
+              "valueType": {
+                "id": 825,
+                "nodeType": "UserDefinedTypeName",
+                "pathNode": {
+                  "id": 824,
+                  "name": "IGasOracle.RemoteGasData",
+                  "nameLocations": [
+                    "763:10:4",
+                    "774:13:4"
+                  ],
+                  "nodeType": "IdentifierPath",
+                  "referencedDeclaration": 1277,
+                  "src": "763:24:4"
+                },
+                "referencedDeclaration": 1277,
+                "src": "763:24:4",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_struct$_RemoteGasData_$1277_storage_ptr",
+                  "typeString": "struct IGasOracle.RemoteGasData"
+                }
+              }
+            },
+            "visibility": "public"
+          },
+          {
+            "anonymous": false,
+            "documentation": {
+              "id": 828,
+              "nodeType": "StructuredDocumentation",
+              "src": "873:324:4",
+              "text": " @notice Emitted when an entry in `remoteGasData` is set.\n @param remoteDomain The remote domain in which the gas data was set for.\n @param tokenExchangeRate The exchange rate of the remote native token quoted in the local native token.\n @param gasPrice The gas price on the remote chain."
+            },
+            "eventSelector": "b48c1cb713397fc0c0649596c221270fec0b3de3f85ccf6a734411a2fe57a694",
+            "id": 836,
+            "name": "RemoteGasDataSet",
+            "nameLocation": "1208:16:4",
+            "nodeType": "EventDefinition",
+            "parameters": {
+              "id": 835,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 830,
+                  "indexed": true,
+                  "mutability": "mutable",
+                  "name": "remoteDomain",
+                  "nameLocation": "1249:12:4",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 836,
+                  "src": "1234:27:4",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint32",
+                    "typeString": "uint32"
+                  },
+                  "typeName": {
+                    "id": 829,
+                    "name": "uint32",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "1234:6:4",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint32",
+                      "typeString": "uint32"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 832,
+                  "indexed": false,
+                  "mutability": "mutable",
+                  "name": "tokenExchangeRate",
+                  "nameLocation": "1279:17:4",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 836,
+                  "src": "1271:25:4",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint128",
+                    "typeString": "uint128"
+                  },
+                  "typeName": {
+                    "id": 831,
+                    "name": "uint128",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "1271:7:4",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint128",
+                      "typeString": "uint128"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 834,
+                  "indexed": false,
+                  "mutability": "mutable",
+                  "name": "gasPrice",
+                  "nameLocation": "1314:8:4",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 836,
+                  "src": "1306:16:4",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint128",
+                    "typeString": "uint128"
+                  },
+                  "typeName": {
+                    "id": 833,
+                    "name": "uint128",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "1306:7:4",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint128",
+                      "typeString": "uint128"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "1224:104:4"
+            },
+            "src": "1202:127:4"
+          },
+          {
+            "canonicalName": "StorageGasOracle.RemoteGasDataConfig",
+            "id": 843,
+            "members": [
+              {
+                "constant": false,
+                "id": 838,
+                "mutability": "mutable",
+                "name": "remoteDomain",
+                "nameLocation": "1379:12:4",
+                "nodeType": "VariableDeclaration",
+                "scope": 843,
+                "src": "1372:19:4",
+                "stateVariable": false,
+                "storageLocation": "default",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_uint32",
+                  "typeString": "uint32"
+                },
+                "typeName": {
+                  "id": 837,
+                  "name": "uint32",
+                  "nodeType": "ElementaryTypeName",
+                  "src": "1372:6:4",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint32",
+                    "typeString": "uint32"
+                  }
+                },
+                "visibility": "internal"
+              },
+              {
+                "constant": false,
+                "id": 840,
+                "mutability": "mutable",
+                "name": "tokenExchangeRate",
+                "nameLocation": "1409:17:4",
+                "nodeType": "VariableDeclaration",
+                "scope": 843,
+                "src": "1401:25:4",
+                "stateVariable": false,
+                "storageLocation": "default",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_uint128",
+                  "typeString": "uint128"
+                },
+                "typeName": {
+                  "id": 839,
+                  "name": "uint128",
+                  "nodeType": "ElementaryTypeName",
+                  "src": "1401:7:4",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint128",
+                    "typeString": "uint128"
+                  }
+                },
+                "visibility": "internal"
+              },
+              {
+                "constant": false,
+                "id": 842,
+                "mutability": "mutable",
+                "name": "gasPrice",
+                "nameLocation": "1444:8:4",
+                "nodeType": "VariableDeclaration",
+                "scope": 843,
+                "src": "1436:16:4",
+                "stateVariable": false,
+                "storageLocation": "default",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_uint128",
+                  "typeString": "uint128"
+                },
+                "typeName": {
+                  "id": 841,
+                  "name": "uint128",
+                  "nodeType": "ElementaryTypeName",
+                  "src": "1436:7:4",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint128",
+                    "typeString": "uint128"
+                  }
+                },
+                "visibility": "internal"
+              }
+            ],
+            "name": "RemoteGasDataConfig",
+            "nameLocation": "1342:19:4",
+            "nodeType": "StructDefinition",
+            "scope": 936,
+            "src": "1335:124:4",
+            "visibility": "public"
+          },
+          {
+            "baseFunctions": [
+              1286
+            ],
+            "body": {
+              "id": 869,
+              "nodeType": "Block",
+              "src": "2032:221:4",
+              "statements": [
+                {
+                  "assignments": [
+                    858
+                  ],
+                  "declarations": [
+                    {
+                      "constant": false,
+                      "id": 858,
+                      "mutability": "mutable",
+                      "name": "_data",
+                      "nameLocation": "2125:5:4",
+                      "nodeType": "VariableDeclaration",
+                      "scope": 869,
+                      "src": "2093:37:4",
+                      "stateVariable": false,
+                      "storageLocation": "memory",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_struct$_RemoteGasData_$1277_memory_ptr",
+                        "typeString": "struct IGasOracle.RemoteGasData"
+                      },
+                      "typeName": {
+                        "id": 857,
+                        "nodeType": "UserDefinedTypeName",
+                        "pathNode": {
+                          "id": 856,
+                          "name": "IGasOracle.RemoteGasData",
+                          "nameLocations": [
+                            "2093:10:4",
+                            "2104:13:4"
+                          ],
+                          "nodeType": "IdentifierPath",
+                          "referencedDeclaration": 1277,
+                          "src": "2093:24:4"
+                        },
+                        "referencedDeclaration": 1277,
+                        "src": "2093:24:4",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_struct$_RemoteGasData_$1277_storage_ptr",
+                          "typeString": "struct IGasOracle.RemoteGasData"
+                        }
+                      },
+                      "visibility": "internal"
+                    }
+                  ],
+                  "id": 862,
+                  "initialValue": {
+                    "baseExpression": {
+                      "id": 859,
+                      "name": "remoteGasData",
+                      "nodeType": "Identifier",
+                      "overloadedDeclarations": [],
+                      "referencedDeclaration": 827,
+                      "src": "2133:13:4",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_mapping$_t_uint32_$_t_struct$_RemoteGasData_$1277_storage_$",
+                        "typeString": "mapping(uint32 => struct IGasOracle.RemoteGasData storage ref)"
+                      }
+                    },
+                    "id": 861,
+                    "indexExpression": {
+                      "id": 860,
+                      "name": "_destinationDomain",
+                      "nodeType": "Identifier",
+                      "overloadedDeclarations": [],
+                      "referencedDeclaration": 846,
+                      "src": "2160:18:4",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_uint32",
+                        "typeString": "uint32"
+                      }
+                    },
+                    "isConstant": false,
+                    "isLValue": true,
+                    "isPure": false,
+                    "lValueRequested": false,
+                    "nodeType": "IndexAccess",
+                    "src": "2133:55:4",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_struct$_RemoteGasData_$1277_storage",
+                      "typeString": "struct IGasOracle.RemoteGasData storage ref"
+                    }
+                  },
+                  "nodeType": "VariableDeclarationStatement",
+                  "src": "2093:95:4"
+                },
+                {
+                  "expression": {
+                    "components": [
+                      {
+                        "expression": {
+                          "id": 863,
+                          "name": "_data",
+                          "nodeType": "Identifier",
+                          "overloadedDeclarations": [],
+                          "referencedDeclaration": 858,
+                          "src": "2206:5:4",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_struct$_RemoteGasData_$1277_memory_ptr",
+                            "typeString": "struct IGasOracle.RemoteGasData memory"
+                          }
+                        },
+                        "id": 864,
+                        "isConstant": false,
+                        "isLValue": true,
+                        "isPure": false,
+                        "lValueRequested": false,
+                        "memberLocation": "2212:17:4",
+                        "memberName": "tokenExchangeRate",
+                        "nodeType": "MemberAccess",
+                        "referencedDeclaration": 1274,
+                        "src": "2206:23:4",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_uint128",
+                          "typeString": "uint128"
+                        }
+                      },
+                      {
+                        "expression": {
+                          "id": 865,
+                          "name": "_data",
+                          "nodeType": "Identifier",
+                          "overloadedDeclarations": [],
+                          "referencedDeclaration": 858,
+                          "src": "2231:5:4",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_struct$_RemoteGasData_$1277_memory_ptr",
+                            "typeString": "struct IGasOracle.RemoteGasData memory"
+                          }
+                        },
+                        "id": 866,
+                        "isConstant": false,
+                        "isLValue": true,
+                        "isPure": false,
+                        "lValueRequested": false,
+                        "memberLocation": "2237:8:4",
+                        "memberName": "gasPrice",
+                        "nodeType": "MemberAccess",
+                        "referencedDeclaration": 1276,
+                        "src": "2231:14:4",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_uint128",
+                          "typeString": "uint128"
+                        }
+                      }
+                    ],
+                    "id": 867,
+                    "isConstant": false,
+                    "isInlineArray": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "lValueRequested": false,
+                    "nodeType": "TupleExpression",
+                    "src": "2205:41:4",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_tuple$_t_uint128_$_t_uint128_$",
+                      "typeString": "tuple(uint128,uint128)"
+                    }
+                  },
+                  "functionReturnParameters": 853,
+                  "id": 868,
+                  "nodeType": "Return",
+                  "src": "2198:48:4"
+                }
+              ]
+            },
+            "documentation": {
+              "id": 844,
+              "nodeType": "StructuredDocumentation",
+              "src": "1518:319:4",
+              "text": " @notice Returns the stored `remoteGasData` for the `_destinationDomain`.\n @param _destinationDomain The destination domain.\n @return tokenExchangeRate The exchange rate of the remote native token quoted in the local native token.\n @return gasPrice The gas price on the remote chain."
+            },
+            "functionSelector": "60fcef7c",
+            "id": 870,
+            "implemented": true,
+            "kind": "function",
+            "modifiers": [],
+            "name": "getExchangeRateAndGasPrice",
+            "nameLocation": "1851:26:4",
+            "nodeType": "FunctionDefinition",
+            "overrides": {
+              "id": 848,
+              "nodeType": "OverrideSpecifier",
+              "overrides": [],
+              "src": "1957:8:4"
+            },
+            "parameters": {
+              "id": 847,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 846,
+                  "mutability": "mutable",
+                  "name": "_destinationDomain",
+                  "nameLocation": "1894:18:4",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 870,
+                  "src": "1887:25:4",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint32",
+                    "typeString": "uint32"
+                  },
+                  "typeName": {
+                    "id": 845,
+                    "name": "uint32",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "1887:6:4",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint32",
+                      "typeString": "uint32"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "1877:41:4"
+            },
+            "returnParameters": {
+              "id": 853,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 850,
+                  "mutability": "mutable",
+                  "name": "tokenExchangeRate",
+                  "nameLocation": "1991:17:4",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 870,
+                  "src": "1983:25:4",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint128",
+                    "typeString": "uint128"
+                  },
+                  "typeName": {
+                    "id": 849,
+                    "name": "uint128",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "1983:7:4",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint128",
+                      "typeString": "uint128"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 852,
+                  "mutability": "mutable",
+                  "name": "gasPrice",
+                  "nameLocation": "2018:8:4",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 870,
+                  "src": "2010:16:4",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint128",
+                    "typeString": "uint128"
+                  },
+                  "typeName": {
+                    "id": 851,
+                    "name": "uint128",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "2010:7:4",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint128",
+                      "typeString": "uint128"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "1982:45:4"
+            },
+            "scope": 936,
+            "src": "1842:411:4",
+            "stateMutability": "view",
+            "virtual": false,
+            "visibility": "external"
+          },
+          {
+            "body": {
+              "id": 903,
+              "nodeType": "Block",
+              "src": "2526:146:4",
+              "statements": [
+                {
+                  "assignments": [
+                    881
+                  ],
+                  "declarations": [
+                    {
+                      "constant": false,
+                      "id": 881,
+                      "mutability": "mutable",
+                      "name": "_len",
+                      "nameLocation": "2544:4:4",
+                      "nodeType": "VariableDeclaration",
+                      "scope": 903,
+                      "src": "2536:12:4",
+                      "stateVariable": false,
+                      "storageLocation": "default",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_uint256",
+                        "typeString": "uint256"
+                      },
+                      "typeName": {
+                        "id": 880,
+                        "name": "uint256",
+                        "nodeType": "ElementaryTypeName",
+                        "src": "2536:7:4",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_uint256",
+                          "typeString": "uint256"
+                        }
+                      },
+                      "visibility": "internal"
+                    }
+                  ],
+                  "id": 884,
+                  "initialValue": {
+                    "expression": {
+                      "id": 882,
+                      "name": "_configs",
+                      "nodeType": "Identifier",
+                      "overloadedDeclarations": [],
+                      "referencedDeclaration": 875,
+                      "src": "2551:8:4",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_array$_t_struct$_RemoteGasDataConfig_$843_calldata_ptr_$dyn_calldata_ptr",
+                        "typeString": "struct StorageGasOracle.RemoteGasDataConfig calldata[] calldata"
+                      }
+                    },
+                    "id": 883,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "lValueRequested": false,
+                    "memberLocation": "2560:6:4",
+                    "memberName": "length",
+                    "nodeType": "MemberAccess",
+                    "src": "2551:15:4",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint256",
+                      "typeString": "uint256"
+                    }
+                  },
+                  "nodeType": "VariableDeclarationStatement",
+                  "src": "2536:30:4"
+                },
+                {
+                  "body": {
+                    "id": 901,
+                    "nodeType": "Block",
+                    "src": "2611:55:4",
+                    "statements": [
+                      {
+                        "expression": {
+                          "arguments": [
+                            {
+                              "baseExpression": {
+                                "id": 896,
+                                "name": "_configs",
+                                "nodeType": "Identifier",
+                                "overloadedDeclarations": [],
+                                "referencedDeclaration": 875,
+                                "src": "2643:8:4",
+                                "typeDescriptions": {
+                                  "typeIdentifier": "t_array$_t_struct$_RemoteGasDataConfig_$843_calldata_ptr_$dyn_calldata_ptr",
+                                  "typeString": "struct StorageGasOracle.RemoteGasDataConfig calldata[] calldata"
+                                }
+                              },
+                              "id": 898,
+                              "indexExpression": {
+                                "id": 897,
+                                "name": "i",
+                                "nodeType": "Identifier",
+                                "overloadedDeclarations": [],
+                                "referencedDeclaration": 886,
+                                "src": "2652:1:4",
+                                "typeDescriptions": {
+                                  "typeIdentifier": "t_uint256",
+                                  "typeString": "uint256"
+                                }
+                              },
+                              "isConstant": false,
+                              "isLValue": false,
+                              "isPure": false,
+                              "lValueRequested": false,
+                              "nodeType": "IndexAccess",
+                              "src": "2643:11:4",
+                              "typeDescriptions": {
+                                "typeIdentifier": "t_struct$_RemoteGasDataConfig_$843_calldata_ptr",
+                                "typeString": "struct StorageGasOracle.RemoteGasDataConfig calldata"
+                              }
+                            }
+                          ],
+                          "expression": {
+                            "argumentTypes": [
+                              {
+                                "typeIdentifier": "t_struct$_RemoteGasDataConfig_$843_calldata_ptr",
+                                "typeString": "struct StorageGasOracle.RemoteGasDataConfig calldata"
+                              }
+                            ],
+                            "id": 895,
+                            "name": "_setRemoteGasData",
+                            "nodeType": "Identifier",
+                            "overloadedDeclarations": [],
+                            "referencedDeclaration": 935,
+                            "src": "2625:17:4",
+                            "typeDescriptions": {
+                              "typeIdentifier": "t_function_internal_nonpayable$_t_struct$_RemoteGasDataConfig_$843_calldata_ptr_$returns$__$",
+                              "typeString": "function (struct StorageGasOracle.RemoteGasDataConfig calldata)"
+                            }
+                          },
+                          "id": 899,
+                          "isConstant": false,
+                          "isLValue": false,
+                          "isPure": false,
+                          "kind": "functionCall",
+                          "lValueRequested": false,
+                          "nameLocations": [],
+                          "names": [],
+                          "nodeType": "FunctionCall",
+                          "src": "2625:30:4",
+                          "tryCall": false,
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_tuple$__$",
+                            "typeString": "tuple()"
+                          }
+                        },
+                        "id": 900,
+                        "nodeType": "ExpressionStatement",
+                        "src": "2625:30:4"
+                      }
+                    ]
+                  },
+                  "condition": {
+                    "commonType": {
+                      "typeIdentifier": "t_uint256",
+                      "typeString": "uint256"
+                    },
+                    "id": 891,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "lValueRequested": false,
+                    "leftExpression": {
+                      "id": 889,
+                      "name": "i",
+                      "nodeType": "Identifier",
+                      "overloadedDeclarations": [],
+                      "referencedDeclaration": 886,
+                      "src": "2596:1:4",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_uint256",
+                        "typeString": "uint256"
+                      }
+                    },
+                    "nodeType": "BinaryOperation",
+                    "operator": "<",
+                    "rightExpression": {
+                      "id": 890,
+                      "name": "_len",
+                      "nodeType": "Identifier",
+                      "overloadedDeclarations": [],
+                      "referencedDeclaration": 881,
+                      "src": "2600:4:4",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_uint256",
+                        "typeString": "uint256"
+                      }
+                    },
+                    "src": "2596:8:4",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_bool",
+                      "typeString": "bool"
+                    }
+                  },
+                  "id": 902,
+                  "initializationExpression": {
+                    "assignments": [
+                      886
+                    ],
+                    "declarations": [
+                      {
+                        "constant": false,
+                        "id": 886,
+                        "mutability": "mutable",
+                        "name": "i",
+                        "nameLocation": "2589:1:4",
+                        "nodeType": "VariableDeclaration",
+                        "scope": 902,
+                        "src": "2581:9:4",
+                        "stateVariable": false,
+                        "storageLocation": "default",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_uint256",
+                          "typeString": "uint256"
+                        },
+                        "typeName": {
+                          "id": 885,
+                          "name": "uint256",
+                          "nodeType": "ElementaryTypeName",
+                          "src": "2581:7:4",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_uint256",
+                            "typeString": "uint256"
+                          }
+                        },
+                        "visibility": "internal"
+                      }
+                    ],
+                    "id": 888,
+                    "initialValue": {
+                      "hexValue": "30",
+                      "id": 887,
+                      "isConstant": false,
+                      "isLValue": false,
+                      "isPure": true,
+                      "kind": "number",
+                      "lValueRequested": false,
+                      "nodeType": "Literal",
+                      "src": "2593:1:4",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_rational_0_by_1",
+                        "typeString": "int_const 0"
+                      },
+                      "value": "0"
+                    },
+                    "nodeType": "VariableDeclarationStatement",
+                    "src": "2581:13:4"
+                  },
+                  "isSimpleCounterLoop": true,
+                  "loopExpression": {
+                    "expression": {
+                      "id": 893,
+                      "isConstant": false,
+                      "isLValue": false,
+                      "isPure": false,
+                      "lValueRequested": false,
+                      "nodeType": "UnaryOperation",
+                      "operator": "++",
+                      "prefix": false,
+                      "src": "2606:3:4",
+                      "subExpression": {
+                        "id": 892,
+                        "name": "i",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": 886,
+                        "src": "2606:1:4",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_uint256",
+                          "typeString": "uint256"
+                        }
+                      },
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_uint256",
+                        "typeString": "uint256"
+                      }
+                    },
+                    "id": 894,
+                    "nodeType": "ExpressionStatement",
+                    "src": "2606:3:4"
+                  },
+                  "nodeType": "ForStatement",
+                  "src": "2576:90:4"
+                }
+              ]
+            },
+            "documentation": {
+              "id": 871,
+              "nodeType": "StructuredDocumentation",
+              "src": "2259:155:4",
+              "text": " @notice Sets the remote gas data for many remotes at a time.\n @param _configs The configs to use when setting the remote gas data."
+            },
+            "functionSelector": "698faffc",
+            "id": 904,
+            "implemented": true,
+            "kind": "function",
+            "modifiers": [
+              {
+                "id": 878,
+                "kind": "modifierInvocation",
+                "modifierName": {
+                  "id": 877,
+                  "name": "onlyOwner",
+                  "nameLocations": [
+                    "2516:9:4"
+                  ],
+                  "nodeType": "IdentifierPath",
+                  "referencedDeclaration": 8753,
+                  "src": "2516:9:4"
+                },
+                "nodeType": "ModifierInvocation",
+                "src": "2516:9:4"
+              }
+            ],
+            "name": "setRemoteGasDataConfigs",
+            "nameLocation": "2428:23:4",
+            "nodeType": "FunctionDefinition",
+            "parameters": {
+              "id": 876,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 875,
+                  "mutability": "mutable",
+                  "name": "_configs",
+                  "nameLocation": "2492:8:4",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 904,
+                  "src": "2461:39:4",
+                  "stateVariable": false,
+                  "storageLocation": "calldata",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_array$_t_struct$_RemoteGasDataConfig_$843_calldata_ptr_$dyn_calldata_ptr",
+                    "typeString": "struct StorageGasOracle.RemoteGasDataConfig[]"
+                  },
+                  "typeName": {
+                    "baseType": {
+                      "id": 873,
+                      "nodeType": "UserDefinedTypeName",
+                      "pathNode": {
+                        "id": 872,
+                        "name": "RemoteGasDataConfig",
+                        "nameLocations": [
+                          "2461:19:4"
+                        ],
+                        "nodeType": "IdentifierPath",
+                        "referencedDeclaration": 843,
+                        "src": "2461:19:4"
+                      },
+                      "referencedDeclaration": 843,
+                      "src": "2461:19:4",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_struct$_RemoteGasDataConfig_$843_storage_ptr",
+                        "typeString": "struct StorageGasOracle.RemoteGasDataConfig"
+                      }
+                    },
+                    "id": 874,
+                    "nodeType": "ArrayTypeName",
+                    "src": "2461:21:4",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_array$_t_struct$_RemoteGasDataConfig_$843_storage_$dyn_storage_ptr",
+                      "typeString": "struct StorageGasOracle.RemoteGasDataConfig[]"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "2451:55:4"
+            },
+            "returnParameters": {
+              "id": 879,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "2526:0:4"
+            },
+            "scope": 936,
+            "src": "2419:253:4",
+            "stateMutability": "nonpayable",
+            "virtual": false,
+            "visibility": "external"
+          },
+          {
+            "body": {
+              "id": 917,
+              "nodeType": "Block",
+              "src": "2936:43:4",
+              "statements": [
+                {
+                  "expression": {
+                    "arguments": [
+                      {
+                        "id": 914,
+                        "name": "_config",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": 908,
+                        "src": "2964:7:4",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_struct$_RemoteGasDataConfig_$843_calldata_ptr",
+                          "typeString": "struct StorageGasOracle.RemoteGasDataConfig calldata"
+                        }
+                      }
+                    ],
+                    "expression": {
+                      "argumentTypes": [
+                        {
+                          "typeIdentifier": "t_struct$_RemoteGasDataConfig_$843_calldata_ptr",
+                          "typeString": "struct StorageGasOracle.RemoteGasDataConfig calldata"
+                        }
+                      ],
+                      "id": 913,
+                      "name": "_setRemoteGasData",
+                      "nodeType": "Identifier",
+                      "overloadedDeclarations": [],
+                      "referencedDeclaration": 935,
+                      "src": "2946:17:4",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_function_internal_nonpayable$_t_struct$_RemoteGasDataConfig_$843_calldata_ptr_$returns$__$",
+                        "typeString": "function (struct StorageGasOracle.RemoteGasDataConfig calldata)"
+                      }
+                    },
+                    "id": 915,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "kind": "functionCall",
+                    "lValueRequested": false,
+                    "nameLocations": [],
+                    "names": [],
+                    "nodeType": "FunctionCall",
+                    "src": "2946:26:4",
+                    "tryCall": false,
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_tuple$__$",
+                      "typeString": "tuple()"
+                    }
+                  },
+                  "id": 916,
+                  "nodeType": "ExpressionStatement",
+                  "src": "2946:26:4"
+                }
+              ]
+            },
+            "documentation": {
+              "id": 905,
+              "nodeType": "StructuredDocumentation",
+              "src": "2678:156:4",
+              "text": " @notice Sets the remote gas data using the values in `_config`.\n @param _config The config to use when setting the remote gas data."
+            },
+            "functionSelector": "f3a1495f",
+            "id": 918,
+            "implemented": true,
+            "kind": "function",
+            "modifiers": [
+              {
+                "id": 911,
+                "kind": "modifierInvocation",
+                "modifierName": {
+                  "id": 910,
+                  "name": "onlyOwner",
+                  "nameLocations": [
+                    "2926:9:4"
+                  ],
+                  "nodeType": "IdentifierPath",
+                  "referencedDeclaration": 8753,
+                  "src": "2926:9:4"
+                },
+                "nodeType": "ModifierInvocation",
+                "src": "2926:9:4"
+              }
+            ],
+            "name": "setRemoteGasData",
+            "nameLocation": "2848:16:4",
+            "nodeType": "FunctionDefinition",
+            "parameters": {
+              "id": 909,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 908,
+                  "mutability": "mutable",
+                  "name": "_config",
+                  "nameLocation": "2903:7:4",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 918,
+                  "src": "2874:36:4",
+                  "stateVariable": false,
+                  "storageLocation": "calldata",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_struct$_RemoteGasDataConfig_$843_calldata_ptr",
+                    "typeString": "struct StorageGasOracle.RemoteGasDataConfig"
+                  },
+                  "typeName": {
+                    "id": 907,
+                    "nodeType": "UserDefinedTypeName",
+                    "pathNode": {
+                      "id": 906,
+                      "name": "RemoteGasDataConfig",
+                      "nameLocations": [
+                        "2874:19:4"
+                      ],
+                      "nodeType": "IdentifierPath",
+                      "referencedDeclaration": 843,
+                      "src": "2874:19:4"
+                    },
+                    "referencedDeclaration": 843,
+                    "src": "2874:19:4",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_struct$_RemoteGasDataConfig_$843_storage_ptr",
+                      "typeString": "struct StorageGasOracle.RemoteGasDataConfig"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "2864:52:4"
+            },
+            "returnParameters": {
+              "id": 912,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "2936:0:4"
+            },
+            "scope": 936,
+            "src": "2839:140:4",
+            "stateMutability": "nonpayable",
+            "virtual": false,
+            "visibility": "external"
+          },
+          {
+            "body": {
+              "id": 934,
+              "nodeType": "Block",
+              "src": "3273:151:4",
+              "statements": [
+                {
+                  "eventCall": {
+                    "arguments": [
+                      {
+                        "expression": {
+                          "id": 926,
+                          "name": "_config",
+                          "nodeType": "Identifier",
+                          "overloadedDeclarations": [],
+                          "referencedDeclaration": 922,
+                          "src": "3318:7:4",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_struct$_RemoteGasDataConfig_$843_calldata_ptr",
+                            "typeString": "struct StorageGasOracle.RemoteGasDataConfig calldata"
+                          }
+                        },
+                        "id": 927,
+                        "isConstant": false,
+                        "isLValue": false,
+                        "isPure": false,
+                        "lValueRequested": false,
+                        "memberLocation": "3326:12:4",
+                        "memberName": "remoteDomain",
+                        "nodeType": "MemberAccess",
+                        "referencedDeclaration": 838,
+                        "src": "3318:20:4",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_uint32",
+                          "typeString": "uint32"
+                        }
+                      },
+                      {
+                        "expression": {
+                          "id": 928,
+                          "name": "_config",
+                          "nodeType": "Identifier",
+                          "overloadedDeclarations": [],
+                          "referencedDeclaration": 922,
+                          "src": "3352:7:4",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_struct$_RemoteGasDataConfig_$843_calldata_ptr",
+                            "typeString": "struct StorageGasOracle.RemoteGasDataConfig calldata"
+                          }
+                        },
+                        "id": 929,
+                        "isConstant": false,
+                        "isLValue": false,
+                        "isPure": false,
+                        "lValueRequested": false,
+                        "memberLocation": "3360:17:4",
+                        "memberName": "tokenExchangeRate",
+                        "nodeType": "MemberAccess",
+                        "referencedDeclaration": 840,
+                        "src": "3352:25:4",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_uint128",
+                          "typeString": "uint128"
+                        }
+                      },
+                      {
+                        "expression": {
+                          "id": 930,
+                          "name": "_config",
+                          "nodeType": "Identifier",
+                          "overloadedDeclarations": [],
+                          "referencedDeclaration": 922,
+                          "src": "3391:7:4",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_struct$_RemoteGasDataConfig_$843_calldata_ptr",
+                            "typeString": "struct StorageGasOracle.RemoteGasDataConfig calldata"
+                          }
+                        },
+                        "id": 931,
+                        "isConstant": false,
+                        "isLValue": false,
+                        "isPure": false,
+                        "lValueRequested": false,
+                        "memberLocation": "3399:8:4",
+                        "memberName": "gasPrice",
+                        "nodeType": "MemberAccess",
+                        "referencedDeclaration": 842,
+                        "src": "3391:16:4",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_uint128",
+                          "typeString": "uint128"
+                        }
+                      }
+                    ],
+                    "expression": {
+                      "argumentTypes": [
+                        {
+                          "typeIdentifier": "t_uint32",
+                          "typeString": "uint32"
+                        },
+                        {
+                          "typeIdentifier": "t_uint128",
+                          "typeString": "uint128"
+                        },
+                        {
+                          "typeIdentifier": "t_uint128",
+                          "typeString": "uint128"
+                        }
+                      ],
+                      "id": 925,
+                      "name": "RemoteGasDataSet",
+                      "nodeType": "Identifier",
+                      "overloadedDeclarations": [],
+                      "referencedDeclaration": 836,
+                      "src": "3288:16:4",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_function_event_nonpayable$_t_uint32_$_t_uint128_$_t_uint128_$returns$__$",
+                        "typeString": "function (uint32,uint128,uint128)"
+                      }
+                    },
+                    "id": 932,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "kind": "functionCall",
+                    "lValueRequested": false,
+                    "nameLocations": [],
+                    "names": [],
+                    "nodeType": "FunctionCall",
+                    "src": "3288:129:4",
+                    "tryCall": false,
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_tuple$__$",
+                      "typeString": "tuple()"
+                    }
+                  },
+                  "id": 933,
+                  "nodeType": "EmitStatement",
+                  "src": "3283:134:4"
+                }
+              ]
+            },
+            "documentation": {
+              "id": 919,
+              "nodeType": "StructuredDocumentation",
+              "src": "3038:156:4",
+              "text": " @notice Sets the remote gas data using the values in `_config`.\n @param _config The config to use when setting the remote gas data."
+            },
+            "id": 935,
+            "implemented": true,
+            "kind": "function",
+            "modifiers": [],
+            "name": "_setRemoteGasData",
+            "nameLocation": "3208:17:4",
+            "nodeType": "FunctionDefinition",
+            "parameters": {
+              "id": 923,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 922,
+                  "mutability": "mutable",
+                  "name": "_config",
+                  "nameLocation": "3255:7:4",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 935,
+                  "src": "3226:36:4",
+                  "stateVariable": false,
+                  "storageLocation": "calldata",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_struct$_RemoteGasDataConfig_$843_calldata_ptr",
+                    "typeString": "struct StorageGasOracle.RemoteGasDataConfig"
+                  },
+                  "typeName": {
+                    "id": 921,
+                    "nodeType": "UserDefinedTypeName",
+                    "pathNode": {
+                      "id": 920,
+                      "name": "RemoteGasDataConfig",
+                      "nameLocations": [
+                        "3226:19:4"
+                      ],
+                      "nodeType": "IdentifierPath",
+                      "referencedDeclaration": 843,
+                      "src": "3226:19:4"
+                    },
+                    "referencedDeclaration": 843,
+                    "src": "3226:19:4",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_struct$_RemoteGasDataConfig_$843_storage_ptr",
+                      "typeString": "struct StorageGasOracle.RemoteGasDataConfig"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "3225:38:4"
+            },
+            "returnParameters": {
+              "id": 924,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "3273:0:4"
+            },
+            "scope": 936,
+            "src": "3199:225:4",
+            "stateMutability": "nonpayable",
+            "virtual": false,
+            "visibility": "internal"
+          }
+        ],
+        "scope": 937,
+        "src": "538:2888:4",
+        "usedErrors": [],
+        "usedEvents": [
+          836,
+          8735
+        ]
+      }
+    ],
+    "src": "46:3381:4"
+  },
+  "legacyAST": {
+    "absolutePath": "/Users/troykessler/work/hyperlane/hyperlane-tron/contracts/hooks/igp/StorageGasOracle.sol",
+    "exportedSymbols": {
+      "IGasOracle": [
+        1287
+      ],
+      "Ownable": [
+        8834
+      ],
+      "PackageVersioned": [
+        6
+      ],
+      "StorageGasOracle": [
+        936
+      ]
+    },
+    "id": 937,
+    "license": "MIT OR Apache-2.0",
+    "nodeType": "SourceUnit",
+    "nodes": [
+      {
+        "id": 808,
+        "literals": [
+          "solidity",
+          ">=",
+          "0.8",
+          ".0"
+        ],
+        "nodeType": "PragmaDirective",
+        "src": "46:24:4"
+      },
+      {
+        "absolutePath": "/Users/troykessler/work/hyperlane/hyperlane-tron/contracts/interfaces/IGasOracle.sol",
+        "file": "../../interfaces/IGasOracle.sol",
+        "id": 810,
+        "nameLocation": "-1:-1:-1",
+        "nodeType": "ImportDirective",
+        "scope": 937,
+        "sourceUnit": 1288,
+        "src": "118:59:4",
+        "symbolAliases": [
+          {
+            "foreign": {
+              "id": 809,
+              "name": "IGasOracle",
+              "nodeType": "Identifier",
+              "overloadedDeclarations": [],
+              "referencedDeclaration": 1287,
+              "src": "126:10:4",
+              "typeDescriptions": {}
+            },
+            "nameLocation": "-1:-1:-1"
+          }
+        ],
+        "unitAlias": ""
+      },
+      {
+        "absolutePath": "/Users/troykessler/work/hyperlane/hyperlane-tron/contracts/PackageVersioned.sol",
+        "file": "../../PackageVersioned.sol",
+        "id": 812,
+        "nameLocation": "-1:-1:-1",
+        "nodeType": "ImportDirective",
+        "scope": 937,
+        "sourceUnit": 7,
+        "src": "178:60:4",
+        "symbolAliases": [
+          {
+            "foreign": {
+              "id": 811,
+              "name": "PackageVersioned",
+              "nodeType": "Identifier",
+              "overloadedDeclarations": [],
+              "referencedDeclaration": 6,
+              "src": "186:16:4",
+              "typeDescriptions": {}
+            },
+            "nameLocation": "-1:-1:-1"
+          }
+        ],
+        "unitAlias": ""
+      },
+      {
+        "absolutePath": "@openzeppelin/contracts/access/Ownable.sol",
+        "file": "@openzeppelin/contracts/access/Ownable.sol",
+        "id": 814,
+        "nameLocation": "-1:-1:-1",
+        "nodeType": "ImportDirective",
+        "scope": 937,
+        "sourceUnit": 8835,
+        "src": "286:67:4",
+        "symbolAliases": [
+          {
+            "foreign": {
+              "id": 813,
+              "name": "Ownable",
+              "nodeType": "Identifier",
+              "overloadedDeclarations": [],
+              "referencedDeclaration": 8834,
+              "src": "294:7:4",
+              "typeDescriptions": {}
+            },
+            "nameLocation": "-1:-1:-1"
+          }
+        ],
+        "unitAlias": ""
+      },
+      {
+        "abstract": false,
+        "baseContracts": [
+          {
+            "baseName": {
+              "id": 816,
+              "name": "IGasOracle",
+              "nameLocations": [
+                "567:10:4"
+              ],
+              "nodeType": "IdentifierPath",
+              "referencedDeclaration": 1287,
+              "src": "567:10:4"
+            },
+            "id": 817,
+            "nodeType": "InheritanceSpecifier",
+            "src": "567:10:4"
+          },
+          {
+            "baseName": {
+              "id": 818,
+              "name": "Ownable",
+              "nameLocations": [
+                "579:7:4"
+              ],
+              "nodeType": "IdentifierPath",
+              "referencedDeclaration": 8834,
+              "src": "579:7:4"
+            },
+            "id": 819,
+            "nodeType": "InheritanceSpecifier",
+            "src": "579:7:4"
+          },
+          {
+            "baseName": {
+              "id": 820,
+              "name": "PackageVersioned",
+              "nameLocations": [
+                "588:16:4"
+              ],
+              "nodeType": "IdentifierPath",
+              "referencedDeclaration": 6,
+              "src": "588:16:4"
+            },
+            "id": 821,
+            "nodeType": "InheritanceSpecifier",
+            "src": "588:16:4"
+          }
+        ],
+        "canonicalName": "StorageGasOracle",
+        "contractDependencies": [],
+        "contractKind": "contract",
+        "documentation": {
+          "id": 815,
+          "nodeType": "StructuredDocumentation",
+          "src": "355:182:4",
+          "text": " @notice A gas oracle that uses data stored within the contract.\n @dev This contract is intended to be owned by an address that will\n update the stored remote gas data."
+        },
+        "fullyImplemented": true,
+        "id": 936,
+        "linearizedBaseContracts": [
+          936,
+          6,
+          8834,
+          12186,
+          1287
+        ],
+        "name": "StorageGasOracle",
+        "nameLocation": "547:16:4",
+        "nodeType": "ContractDefinition",
+        "nodes": [
+          {
+            "constant": false,
+            "documentation": {
+              "id": 822,
+              "nodeType": "StructuredDocumentation",
+              "src": "660:67:4",
+              "text": "@notice Keyed by remote domain, gas data on that remote domain."
+            },
+            "functionSelector": "b08e56d0",
+            "id": 827,
+            "mutability": "mutable",
+            "name": "remoteGasData",
+            "nameLocation": "812:13:4",
+            "nodeType": "VariableDeclaration",
+            "scope": 936,
+            "src": "732:93:4",
+            "stateVariable": true,
+            "storageLocation": "default",
+            "typeDescriptions": {
+              "typeIdentifier": "t_mapping$_t_uint32_$_t_struct$_RemoteGasData_$1277_storage_$",
+              "typeString": "mapping(uint32 => struct IGasOracle.RemoteGasData)"
+            },
+            "typeName": {
+              "id": 826,
+              "keyName": "remoteDomain",
+              "keyNameLocation": "747:12:4",
+              "keyType": {
+                "id": 823,
+                "name": "uint32",
+                "nodeType": "ElementaryTypeName",
+                "src": "740:6:4",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_uint32",
+                  "typeString": "uint32"
+                }
+              },
+              "nodeType": "Mapping",
+              "src": "732:64:4",
+              "typeDescriptions": {
+                "typeIdentifier": "t_mapping$_t_uint32_$_t_struct$_RemoteGasData_$1277_storage_$",
+                "typeString": "mapping(uint32 => struct IGasOracle.RemoteGasData)"
+              },
+              "valueName": "gasData",
+              "valueNameLocation": "788:7:4",
+              "valueType": {
+                "id": 825,
+                "nodeType": "UserDefinedTypeName",
+                "pathNode": {
+                  "id": 824,
+                  "name": "IGasOracle.RemoteGasData",
+                  "nameLocations": [
+                    "763:10:4",
+                    "774:13:4"
+                  ],
+                  "nodeType": "IdentifierPath",
+                  "referencedDeclaration": 1277,
+                  "src": "763:24:4"
+                },
+                "referencedDeclaration": 1277,
+                "src": "763:24:4",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_struct$_RemoteGasData_$1277_storage_ptr",
+                  "typeString": "struct IGasOracle.RemoteGasData"
+                }
+              }
+            },
+            "visibility": "public"
+          },
+          {
+            "anonymous": false,
+            "documentation": {
+              "id": 828,
+              "nodeType": "StructuredDocumentation",
+              "src": "873:324:4",
+              "text": " @notice Emitted when an entry in `remoteGasData` is set.\n @param remoteDomain The remote domain in which the gas data was set for.\n @param tokenExchangeRate The exchange rate of the remote native token quoted in the local native token.\n @param gasPrice The gas price on the remote chain."
+            },
+            "eventSelector": "b48c1cb713397fc0c0649596c221270fec0b3de3f85ccf6a734411a2fe57a694",
+            "id": 836,
+            "name": "RemoteGasDataSet",
+            "nameLocation": "1208:16:4",
+            "nodeType": "EventDefinition",
+            "parameters": {
+              "id": 835,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 830,
+                  "indexed": true,
+                  "mutability": "mutable",
+                  "name": "remoteDomain",
+                  "nameLocation": "1249:12:4",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 836,
+                  "src": "1234:27:4",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint32",
+                    "typeString": "uint32"
+                  },
+                  "typeName": {
+                    "id": 829,
+                    "name": "uint32",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "1234:6:4",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint32",
+                      "typeString": "uint32"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 832,
+                  "indexed": false,
+                  "mutability": "mutable",
+                  "name": "tokenExchangeRate",
+                  "nameLocation": "1279:17:4",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 836,
+                  "src": "1271:25:4",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint128",
+                    "typeString": "uint128"
+                  },
+                  "typeName": {
+                    "id": 831,
+                    "name": "uint128",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "1271:7:4",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint128",
+                      "typeString": "uint128"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 834,
+                  "indexed": false,
+                  "mutability": "mutable",
+                  "name": "gasPrice",
+                  "nameLocation": "1314:8:4",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 836,
+                  "src": "1306:16:4",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint128",
+                    "typeString": "uint128"
+                  },
+                  "typeName": {
+                    "id": 833,
+                    "name": "uint128",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "1306:7:4",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint128",
+                      "typeString": "uint128"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "1224:104:4"
+            },
+            "src": "1202:127:4"
+          },
+          {
+            "canonicalName": "StorageGasOracle.RemoteGasDataConfig",
+            "id": 843,
+            "members": [
+              {
+                "constant": false,
+                "id": 838,
+                "mutability": "mutable",
+                "name": "remoteDomain",
+                "nameLocation": "1379:12:4",
+                "nodeType": "VariableDeclaration",
+                "scope": 843,
+                "src": "1372:19:4",
+                "stateVariable": false,
+                "storageLocation": "default",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_uint32",
+                  "typeString": "uint32"
+                },
+                "typeName": {
+                  "id": 837,
+                  "name": "uint32",
+                  "nodeType": "ElementaryTypeName",
+                  "src": "1372:6:4",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint32",
+                    "typeString": "uint32"
+                  }
+                },
+                "visibility": "internal"
+              },
+              {
+                "constant": false,
+                "id": 840,
+                "mutability": "mutable",
+                "name": "tokenExchangeRate",
+                "nameLocation": "1409:17:4",
+                "nodeType": "VariableDeclaration",
+                "scope": 843,
+                "src": "1401:25:4",
+                "stateVariable": false,
+                "storageLocation": "default",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_uint128",
+                  "typeString": "uint128"
+                },
+                "typeName": {
+                  "id": 839,
+                  "name": "uint128",
+                  "nodeType": "ElementaryTypeName",
+                  "src": "1401:7:4",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint128",
+                    "typeString": "uint128"
+                  }
+                },
+                "visibility": "internal"
+              },
+              {
+                "constant": false,
+                "id": 842,
+                "mutability": "mutable",
+                "name": "gasPrice",
+                "nameLocation": "1444:8:4",
+                "nodeType": "VariableDeclaration",
+                "scope": 843,
+                "src": "1436:16:4",
+                "stateVariable": false,
+                "storageLocation": "default",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_uint128",
+                  "typeString": "uint128"
+                },
+                "typeName": {
+                  "id": 841,
+                  "name": "uint128",
+                  "nodeType": "ElementaryTypeName",
+                  "src": "1436:7:4",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint128",
+                    "typeString": "uint128"
+                  }
+                },
+                "visibility": "internal"
+              }
+            ],
+            "name": "RemoteGasDataConfig",
+            "nameLocation": "1342:19:4",
+            "nodeType": "StructDefinition",
+            "scope": 936,
+            "src": "1335:124:4",
+            "visibility": "public"
+          },
+          {
+            "baseFunctions": [
+              1286
+            ],
+            "body": {
+              "id": 869,
+              "nodeType": "Block",
+              "src": "2032:221:4",
+              "statements": [
+                {
+                  "assignments": [
+                    858
+                  ],
+                  "declarations": [
+                    {
+                      "constant": false,
+                      "id": 858,
+                      "mutability": "mutable",
+                      "name": "_data",
+                      "nameLocation": "2125:5:4",
+                      "nodeType": "VariableDeclaration",
+                      "scope": 869,
+                      "src": "2093:37:4",
+                      "stateVariable": false,
+                      "storageLocation": "memory",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_struct$_RemoteGasData_$1277_memory_ptr",
+                        "typeString": "struct IGasOracle.RemoteGasData"
+                      },
+                      "typeName": {
+                        "id": 857,
+                        "nodeType": "UserDefinedTypeName",
+                        "pathNode": {
+                          "id": 856,
+                          "name": "IGasOracle.RemoteGasData",
+                          "nameLocations": [
+                            "2093:10:4",
+                            "2104:13:4"
+                          ],
+                          "nodeType": "IdentifierPath",
+                          "referencedDeclaration": 1277,
+                          "src": "2093:24:4"
+                        },
+                        "referencedDeclaration": 1277,
+                        "src": "2093:24:4",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_struct$_RemoteGasData_$1277_storage_ptr",
+                          "typeString": "struct IGasOracle.RemoteGasData"
+                        }
+                      },
+                      "visibility": "internal"
+                    }
+                  ],
+                  "id": 862,
+                  "initialValue": {
+                    "baseExpression": {
+                      "id": 859,
+                      "name": "remoteGasData",
+                      "nodeType": "Identifier",
+                      "overloadedDeclarations": [],
+                      "referencedDeclaration": 827,
+                      "src": "2133:13:4",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_mapping$_t_uint32_$_t_struct$_RemoteGasData_$1277_storage_$",
+                        "typeString": "mapping(uint32 => struct IGasOracle.RemoteGasData storage ref)"
+                      }
+                    },
+                    "id": 861,
+                    "indexExpression": {
+                      "id": 860,
+                      "name": "_destinationDomain",
+                      "nodeType": "Identifier",
+                      "overloadedDeclarations": [],
+                      "referencedDeclaration": 846,
+                      "src": "2160:18:4",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_uint32",
+                        "typeString": "uint32"
+                      }
+                    },
+                    "isConstant": false,
+                    "isLValue": true,
+                    "isPure": false,
+                    "lValueRequested": false,
+                    "nodeType": "IndexAccess",
+                    "src": "2133:55:4",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_struct$_RemoteGasData_$1277_storage",
+                      "typeString": "struct IGasOracle.RemoteGasData storage ref"
+                    }
+                  },
+                  "nodeType": "VariableDeclarationStatement",
+                  "src": "2093:95:4"
+                },
+                {
+                  "expression": {
+                    "components": [
+                      {
+                        "expression": {
+                          "id": 863,
+                          "name": "_data",
+                          "nodeType": "Identifier",
+                          "overloadedDeclarations": [],
+                          "referencedDeclaration": 858,
+                          "src": "2206:5:4",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_struct$_RemoteGasData_$1277_memory_ptr",
+                            "typeString": "struct IGasOracle.RemoteGasData memory"
+                          }
+                        },
+                        "id": 864,
+                        "isConstant": false,
+                        "isLValue": true,
+                        "isPure": false,
+                        "lValueRequested": false,
+                        "memberLocation": "2212:17:4",
+                        "memberName": "tokenExchangeRate",
+                        "nodeType": "MemberAccess",
+                        "referencedDeclaration": 1274,
+                        "src": "2206:23:4",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_uint128",
+                          "typeString": "uint128"
+                        }
+                      },
+                      {
+                        "expression": {
+                          "id": 865,
+                          "name": "_data",
+                          "nodeType": "Identifier",
+                          "overloadedDeclarations": [],
+                          "referencedDeclaration": 858,
+                          "src": "2231:5:4",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_struct$_RemoteGasData_$1277_memory_ptr",
+                            "typeString": "struct IGasOracle.RemoteGasData memory"
+                          }
+                        },
+                        "id": 866,
+                        "isConstant": false,
+                        "isLValue": true,
+                        "isPure": false,
+                        "lValueRequested": false,
+                        "memberLocation": "2237:8:4",
+                        "memberName": "gasPrice",
+                        "nodeType": "MemberAccess",
+                        "referencedDeclaration": 1276,
+                        "src": "2231:14:4",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_uint128",
+                          "typeString": "uint128"
+                        }
+                      }
+                    ],
+                    "id": 867,
+                    "isConstant": false,
+                    "isInlineArray": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "lValueRequested": false,
+                    "nodeType": "TupleExpression",
+                    "src": "2205:41:4",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_tuple$_t_uint128_$_t_uint128_$",
+                      "typeString": "tuple(uint128,uint128)"
+                    }
+                  },
+                  "functionReturnParameters": 853,
+                  "id": 868,
+                  "nodeType": "Return",
+                  "src": "2198:48:4"
+                }
+              ]
+            },
+            "documentation": {
+              "id": 844,
+              "nodeType": "StructuredDocumentation",
+              "src": "1518:319:4",
+              "text": " @notice Returns the stored `remoteGasData` for the `_destinationDomain`.\n @param _destinationDomain The destination domain.\n @return tokenExchangeRate The exchange rate of the remote native token quoted in the local native token.\n @return gasPrice The gas price on the remote chain."
+            },
+            "functionSelector": "60fcef7c",
+            "id": 870,
+            "implemented": true,
+            "kind": "function",
+            "modifiers": [],
+            "name": "getExchangeRateAndGasPrice",
+            "nameLocation": "1851:26:4",
+            "nodeType": "FunctionDefinition",
+            "overrides": {
+              "id": 848,
+              "nodeType": "OverrideSpecifier",
+              "overrides": [],
+              "src": "1957:8:4"
+            },
+            "parameters": {
+              "id": 847,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 846,
+                  "mutability": "mutable",
+                  "name": "_destinationDomain",
+                  "nameLocation": "1894:18:4",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 870,
+                  "src": "1887:25:4",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint32",
+                    "typeString": "uint32"
+                  },
+                  "typeName": {
+                    "id": 845,
+                    "name": "uint32",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "1887:6:4",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint32",
+                      "typeString": "uint32"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "1877:41:4"
+            },
+            "returnParameters": {
+              "id": 853,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 850,
+                  "mutability": "mutable",
+                  "name": "tokenExchangeRate",
+                  "nameLocation": "1991:17:4",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 870,
+                  "src": "1983:25:4",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint128",
+                    "typeString": "uint128"
+                  },
+                  "typeName": {
+                    "id": 849,
+                    "name": "uint128",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "1983:7:4",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint128",
+                      "typeString": "uint128"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 852,
+                  "mutability": "mutable",
+                  "name": "gasPrice",
+                  "nameLocation": "2018:8:4",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 870,
+                  "src": "2010:16:4",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint128",
+                    "typeString": "uint128"
+                  },
+                  "typeName": {
+                    "id": 851,
+                    "name": "uint128",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "2010:7:4",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint128",
+                      "typeString": "uint128"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "1982:45:4"
+            },
+            "scope": 936,
+            "src": "1842:411:4",
+            "stateMutability": "view",
+            "virtual": false,
+            "visibility": "external"
+          },
+          {
+            "body": {
+              "id": 903,
+              "nodeType": "Block",
+              "src": "2526:146:4",
+              "statements": [
+                {
+                  "assignments": [
+                    881
+                  ],
+                  "declarations": [
+                    {
+                      "constant": false,
+                      "id": 881,
+                      "mutability": "mutable",
+                      "name": "_len",
+                      "nameLocation": "2544:4:4",
+                      "nodeType": "VariableDeclaration",
+                      "scope": 903,
+                      "src": "2536:12:4",
+                      "stateVariable": false,
+                      "storageLocation": "default",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_uint256",
+                        "typeString": "uint256"
+                      },
+                      "typeName": {
+                        "id": 880,
+                        "name": "uint256",
+                        "nodeType": "ElementaryTypeName",
+                        "src": "2536:7:4",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_uint256",
+                          "typeString": "uint256"
+                        }
+                      },
+                      "visibility": "internal"
+                    }
+                  ],
+                  "id": 884,
+                  "initialValue": {
+                    "expression": {
+                      "id": 882,
+                      "name": "_configs",
+                      "nodeType": "Identifier",
+                      "overloadedDeclarations": [],
+                      "referencedDeclaration": 875,
+                      "src": "2551:8:4",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_array$_t_struct$_RemoteGasDataConfig_$843_calldata_ptr_$dyn_calldata_ptr",
+                        "typeString": "struct StorageGasOracle.RemoteGasDataConfig calldata[] calldata"
+                      }
+                    },
+                    "id": 883,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "lValueRequested": false,
+                    "memberLocation": "2560:6:4",
+                    "memberName": "length",
+                    "nodeType": "MemberAccess",
+                    "src": "2551:15:4",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint256",
+                      "typeString": "uint256"
+                    }
+                  },
+                  "nodeType": "VariableDeclarationStatement",
+                  "src": "2536:30:4"
+                },
+                {
+                  "body": {
+                    "id": 901,
+                    "nodeType": "Block",
+                    "src": "2611:55:4",
+                    "statements": [
+                      {
+                        "expression": {
+                          "arguments": [
+                            {
+                              "baseExpression": {
+                                "id": 896,
+                                "name": "_configs",
+                                "nodeType": "Identifier",
+                                "overloadedDeclarations": [],
+                                "referencedDeclaration": 875,
+                                "src": "2643:8:4",
+                                "typeDescriptions": {
+                                  "typeIdentifier": "t_array$_t_struct$_RemoteGasDataConfig_$843_calldata_ptr_$dyn_calldata_ptr",
+                                  "typeString": "struct StorageGasOracle.RemoteGasDataConfig calldata[] calldata"
+                                }
+                              },
+                              "id": 898,
+                              "indexExpression": {
+                                "id": 897,
+                                "name": "i",
+                                "nodeType": "Identifier",
+                                "overloadedDeclarations": [],
+                                "referencedDeclaration": 886,
+                                "src": "2652:1:4",
+                                "typeDescriptions": {
+                                  "typeIdentifier": "t_uint256",
+                                  "typeString": "uint256"
+                                }
+                              },
+                              "isConstant": false,
+                              "isLValue": false,
+                              "isPure": false,
+                              "lValueRequested": false,
+                              "nodeType": "IndexAccess",
+                              "src": "2643:11:4",
+                              "typeDescriptions": {
+                                "typeIdentifier": "t_struct$_RemoteGasDataConfig_$843_calldata_ptr",
+                                "typeString": "struct StorageGasOracle.RemoteGasDataConfig calldata"
+                              }
+                            }
+                          ],
+                          "expression": {
+                            "argumentTypes": [
+                              {
+                                "typeIdentifier": "t_struct$_RemoteGasDataConfig_$843_calldata_ptr",
+                                "typeString": "struct StorageGasOracle.RemoteGasDataConfig calldata"
+                              }
+                            ],
+                            "id": 895,
+                            "name": "_setRemoteGasData",
+                            "nodeType": "Identifier",
+                            "overloadedDeclarations": [],
+                            "referencedDeclaration": 935,
+                            "src": "2625:17:4",
+                            "typeDescriptions": {
+                              "typeIdentifier": "t_function_internal_nonpayable$_t_struct$_RemoteGasDataConfig_$843_calldata_ptr_$returns$__$",
+                              "typeString": "function (struct StorageGasOracle.RemoteGasDataConfig calldata)"
+                            }
+                          },
+                          "id": 899,
+                          "isConstant": false,
+                          "isLValue": false,
+                          "isPure": false,
+                          "kind": "functionCall",
+                          "lValueRequested": false,
+                          "nameLocations": [],
+                          "names": [],
+                          "nodeType": "FunctionCall",
+                          "src": "2625:30:4",
+                          "tryCall": false,
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_tuple$__$",
+                            "typeString": "tuple()"
+                          }
+                        },
+                        "id": 900,
+                        "nodeType": "ExpressionStatement",
+                        "src": "2625:30:4"
+                      }
+                    ]
+                  },
+                  "condition": {
+                    "commonType": {
+                      "typeIdentifier": "t_uint256",
+                      "typeString": "uint256"
+                    },
+                    "id": 891,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "lValueRequested": false,
+                    "leftExpression": {
+                      "id": 889,
+                      "name": "i",
+                      "nodeType": "Identifier",
+                      "overloadedDeclarations": [],
+                      "referencedDeclaration": 886,
+                      "src": "2596:1:4",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_uint256",
+                        "typeString": "uint256"
+                      }
+                    },
+                    "nodeType": "BinaryOperation",
+                    "operator": "<",
+                    "rightExpression": {
+                      "id": 890,
+                      "name": "_len",
+                      "nodeType": "Identifier",
+                      "overloadedDeclarations": [],
+                      "referencedDeclaration": 881,
+                      "src": "2600:4:4",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_uint256",
+                        "typeString": "uint256"
+                      }
+                    },
+                    "src": "2596:8:4",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_bool",
+                      "typeString": "bool"
+                    }
+                  },
+                  "id": 902,
+                  "initializationExpression": {
+                    "assignments": [
+                      886
+                    ],
+                    "declarations": [
+                      {
+                        "constant": false,
+                        "id": 886,
+                        "mutability": "mutable",
+                        "name": "i",
+                        "nameLocation": "2589:1:4",
+                        "nodeType": "VariableDeclaration",
+                        "scope": 902,
+                        "src": "2581:9:4",
+                        "stateVariable": false,
+                        "storageLocation": "default",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_uint256",
+                          "typeString": "uint256"
+                        },
+                        "typeName": {
+                          "id": 885,
+                          "name": "uint256",
+                          "nodeType": "ElementaryTypeName",
+                          "src": "2581:7:4",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_uint256",
+                            "typeString": "uint256"
+                          }
+                        },
+                        "visibility": "internal"
+                      }
+                    ],
+                    "id": 888,
+                    "initialValue": {
+                      "hexValue": "30",
+                      "id": 887,
+                      "isConstant": false,
+                      "isLValue": false,
+                      "isPure": true,
+                      "kind": "number",
+                      "lValueRequested": false,
+                      "nodeType": "Literal",
+                      "src": "2593:1:4",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_rational_0_by_1",
+                        "typeString": "int_const 0"
+                      },
+                      "value": "0"
+                    },
+                    "nodeType": "VariableDeclarationStatement",
+                    "src": "2581:13:4"
+                  },
+                  "isSimpleCounterLoop": true,
+                  "loopExpression": {
+                    "expression": {
+                      "id": 893,
+                      "isConstant": false,
+                      "isLValue": false,
+                      "isPure": false,
+                      "lValueRequested": false,
+                      "nodeType": "UnaryOperation",
+                      "operator": "++",
+                      "prefix": false,
+                      "src": "2606:3:4",
+                      "subExpression": {
+                        "id": 892,
+                        "name": "i",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": 886,
+                        "src": "2606:1:4",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_uint256",
+                          "typeString": "uint256"
+                        }
+                      },
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_uint256",
+                        "typeString": "uint256"
+                      }
+                    },
+                    "id": 894,
+                    "nodeType": "ExpressionStatement",
+                    "src": "2606:3:4"
+                  },
+                  "nodeType": "ForStatement",
+                  "src": "2576:90:4"
+                }
+              ]
+            },
+            "documentation": {
+              "id": 871,
+              "nodeType": "StructuredDocumentation",
+              "src": "2259:155:4",
+              "text": " @notice Sets the remote gas data for many remotes at a time.\n @param _configs The configs to use when setting the remote gas data."
+            },
+            "functionSelector": "698faffc",
+            "id": 904,
+            "implemented": true,
+            "kind": "function",
+            "modifiers": [
+              {
+                "id": 878,
+                "kind": "modifierInvocation",
+                "modifierName": {
+                  "id": 877,
+                  "name": "onlyOwner",
+                  "nameLocations": [
+                    "2516:9:4"
+                  ],
+                  "nodeType": "IdentifierPath",
+                  "referencedDeclaration": 8753,
+                  "src": "2516:9:4"
+                },
+                "nodeType": "ModifierInvocation",
+                "src": "2516:9:4"
+              }
+            ],
+            "name": "setRemoteGasDataConfigs",
+            "nameLocation": "2428:23:4",
+            "nodeType": "FunctionDefinition",
+            "parameters": {
+              "id": 876,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 875,
+                  "mutability": "mutable",
+                  "name": "_configs",
+                  "nameLocation": "2492:8:4",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 904,
+                  "src": "2461:39:4",
+                  "stateVariable": false,
+                  "storageLocation": "calldata",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_array$_t_struct$_RemoteGasDataConfig_$843_calldata_ptr_$dyn_calldata_ptr",
+                    "typeString": "struct StorageGasOracle.RemoteGasDataConfig[]"
+                  },
+                  "typeName": {
+                    "baseType": {
+                      "id": 873,
+                      "nodeType": "UserDefinedTypeName",
+                      "pathNode": {
+                        "id": 872,
+                        "name": "RemoteGasDataConfig",
+                        "nameLocations": [
+                          "2461:19:4"
+                        ],
+                        "nodeType": "IdentifierPath",
+                        "referencedDeclaration": 843,
+                        "src": "2461:19:4"
+                      },
+                      "referencedDeclaration": 843,
+                      "src": "2461:19:4",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_struct$_RemoteGasDataConfig_$843_storage_ptr",
+                        "typeString": "struct StorageGasOracle.RemoteGasDataConfig"
+                      }
+                    },
+                    "id": 874,
+                    "nodeType": "ArrayTypeName",
+                    "src": "2461:21:4",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_array$_t_struct$_RemoteGasDataConfig_$843_storage_$dyn_storage_ptr",
+                      "typeString": "struct StorageGasOracle.RemoteGasDataConfig[]"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "2451:55:4"
+            },
+            "returnParameters": {
+              "id": 879,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "2526:0:4"
+            },
+            "scope": 936,
+            "src": "2419:253:4",
+            "stateMutability": "nonpayable",
+            "virtual": false,
+            "visibility": "external"
+          },
+          {
+            "body": {
+              "id": 917,
+              "nodeType": "Block",
+              "src": "2936:43:4",
+              "statements": [
+                {
+                  "expression": {
+                    "arguments": [
+                      {
+                        "id": 914,
+                        "name": "_config",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": 908,
+                        "src": "2964:7:4",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_struct$_RemoteGasDataConfig_$843_calldata_ptr",
+                          "typeString": "struct StorageGasOracle.RemoteGasDataConfig calldata"
+                        }
+                      }
+                    ],
+                    "expression": {
+                      "argumentTypes": [
+                        {
+                          "typeIdentifier": "t_struct$_RemoteGasDataConfig_$843_calldata_ptr",
+                          "typeString": "struct StorageGasOracle.RemoteGasDataConfig calldata"
+                        }
+                      ],
+                      "id": 913,
+                      "name": "_setRemoteGasData",
+                      "nodeType": "Identifier",
+                      "overloadedDeclarations": [],
+                      "referencedDeclaration": 935,
+                      "src": "2946:17:4",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_function_internal_nonpayable$_t_struct$_RemoteGasDataConfig_$843_calldata_ptr_$returns$__$",
+                        "typeString": "function (struct StorageGasOracle.RemoteGasDataConfig calldata)"
+                      }
+                    },
+                    "id": 915,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "kind": "functionCall",
+                    "lValueRequested": false,
+                    "nameLocations": [],
+                    "names": [],
+                    "nodeType": "FunctionCall",
+                    "src": "2946:26:4",
+                    "tryCall": false,
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_tuple$__$",
+                      "typeString": "tuple()"
+                    }
+                  },
+                  "id": 916,
+                  "nodeType": "ExpressionStatement",
+                  "src": "2946:26:4"
+                }
+              ]
+            },
+            "documentation": {
+              "id": 905,
+              "nodeType": "StructuredDocumentation",
+              "src": "2678:156:4",
+              "text": " @notice Sets the remote gas data using the values in `_config`.\n @param _config The config to use when setting the remote gas data."
+            },
+            "functionSelector": "f3a1495f",
+            "id": 918,
+            "implemented": true,
+            "kind": "function",
+            "modifiers": [
+              {
+                "id": 911,
+                "kind": "modifierInvocation",
+                "modifierName": {
+                  "id": 910,
+                  "name": "onlyOwner",
+                  "nameLocations": [
+                    "2926:9:4"
+                  ],
+                  "nodeType": "IdentifierPath",
+                  "referencedDeclaration": 8753,
+                  "src": "2926:9:4"
+                },
+                "nodeType": "ModifierInvocation",
+                "src": "2926:9:4"
+              }
+            ],
+            "name": "setRemoteGasData",
+            "nameLocation": "2848:16:4",
+            "nodeType": "FunctionDefinition",
+            "parameters": {
+              "id": 909,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 908,
+                  "mutability": "mutable",
+                  "name": "_config",
+                  "nameLocation": "2903:7:4",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 918,
+                  "src": "2874:36:4",
+                  "stateVariable": false,
+                  "storageLocation": "calldata",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_struct$_RemoteGasDataConfig_$843_calldata_ptr",
+                    "typeString": "struct StorageGasOracle.RemoteGasDataConfig"
+                  },
+                  "typeName": {
+                    "id": 907,
+                    "nodeType": "UserDefinedTypeName",
+                    "pathNode": {
+                      "id": 906,
+                      "name": "RemoteGasDataConfig",
+                      "nameLocations": [
+                        "2874:19:4"
+                      ],
+                      "nodeType": "IdentifierPath",
+                      "referencedDeclaration": 843,
+                      "src": "2874:19:4"
+                    },
+                    "referencedDeclaration": 843,
+                    "src": "2874:19:4",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_struct$_RemoteGasDataConfig_$843_storage_ptr",
+                      "typeString": "struct StorageGasOracle.RemoteGasDataConfig"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "2864:52:4"
+            },
+            "returnParameters": {
+              "id": 912,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "2936:0:4"
+            },
+            "scope": 936,
+            "src": "2839:140:4",
+            "stateMutability": "nonpayable",
+            "virtual": false,
+            "visibility": "external"
+          },
+          {
+            "body": {
+              "id": 934,
+              "nodeType": "Block",
+              "src": "3273:151:4",
+              "statements": [
+                {
+                  "eventCall": {
+                    "arguments": [
+                      {
+                        "expression": {
+                          "id": 926,
+                          "name": "_config",
+                          "nodeType": "Identifier",
+                          "overloadedDeclarations": [],
+                          "referencedDeclaration": 922,
+                          "src": "3318:7:4",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_struct$_RemoteGasDataConfig_$843_calldata_ptr",
+                            "typeString": "struct StorageGasOracle.RemoteGasDataConfig calldata"
+                          }
+                        },
+                        "id": 927,
+                        "isConstant": false,
+                        "isLValue": false,
+                        "isPure": false,
+                        "lValueRequested": false,
+                        "memberLocation": "3326:12:4",
+                        "memberName": "remoteDomain",
+                        "nodeType": "MemberAccess",
+                        "referencedDeclaration": 838,
+                        "src": "3318:20:4",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_uint32",
+                          "typeString": "uint32"
+                        }
+                      },
+                      {
+                        "expression": {
+                          "id": 928,
+                          "name": "_config",
+                          "nodeType": "Identifier",
+                          "overloadedDeclarations": [],
+                          "referencedDeclaration": 922,
+                          "src": "3352:7:4",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_struct$_RemoteGasDataConfig_$843_calldata_ptr",
+                            "typeString": "struct StorageGasOracle.RemoteGasDataConfig calldata"
+                          }
+                        },
+                        "id": 929,
+                        "isConstant": false,
+                        "isLValue": false,
+                        "isPure": false,
+                        "lValueRequested": false,
+                        "memberLocation": "3360:17:4",
+                        "memberName": "tokenExchangeRate",
+                        "nodeType": "MemberAccess",
+                        "referencedDeclaration": 840,
+                        "src": "3352:25:4",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_uint128",
+                          "typeString": "uint128"
+                        }
+                      },
+                      {
+                        "expression": {
+                          "id": 930,
+                          "name": "_config",
+                          "nodeType": "Identifier",
+                          "overloadedDeclarations": [],
+                          "referencedDeclaration": 922,
+                          "src": "3391:7:4",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_struct$_RemoteGasDataConfig_$843_calldata_ptr",
+                            "typeString": "struct StorageGasOracle.RemoteGasDataConfig calldata"
+                          }
+                        },
+                        "id": 931,
+                        "isConstant": false,
+                        "isLValue": false,
+                        "isPure": false,
+                        "lValueRequested": false,
+                        "memberLocation": "3399:8:4",
+                        "memberName": "gasPrice",
+                        "nodeType": "MemberAccess",
+                        "referencedDeclaration": 842,
+                        "src": "3391:16:4",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_uint128",
+                          "typeString": "uint128"
+                        }
+                      }
+                    ],
+                    "expression": {
+                      "argumentTypes": [
+                        {
+                          "typeIdentifier": "t_uint32",
+                          "typeString": "uint32"
+                        },
+                        {
+                          "typeIdentifier": "t_uint128",
+                          "typeString": "uint128"
+                        },
+                        {
+                          "typeIdentifier": "t_uint128",
+                          "typeString": "uint128"
+                        }
+                      ],
+                      "id": 925,
+                      "name": "RemoteGasDataSet",
+                      "nodeType": "Identifier",
+                      "overloadedDeclarations": [],
+                      "referencedDeclaration": 836,
+                      "src": "3288:16:4",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_function_event_nonpayable$_t_uint32_$_t_uint128_$_t_uint128_$returns$__$",
+                        "typeString": "function (uint32,uint128,uint128)"
+                      }
+                    },
+                    "id": 932,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "kind": "functionCall",
+                    "lValueRequested": false,
+                    "nameLocations": [],
+                    "names": [],
+                    "nodeType": "FunctionCall",
+                    "src": "3288:129:4",
+                    "tryCall": false,
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_tuple$__$",
+                      "typeString": "tuple()"
+                    }
+                  },
+                  "id": 933,
+                  "nodeType": "EmitStatement",
+                  "src": "3283:134:4"
+                }
+              ]
+            },
+            "documentation": {
+              "id": 919,
+              "nodeType": "StructuredDocumentation",
+              "src": "3038:156:4",
+              "text": " @notice Sets the remote gas data using the values in `_config`.\n @param _config The config to use when setting the remote gas data."
+            },
+            "id": 935,
+            "implemented": true,
+            "kind": "function",
+            "modifiers": [],
+            "name": "_setRemoteGasData",
+            "nameLocation": "3208:17:4",
+            "nodeType": "FunctionDefinition",
+            "parameters": {
+              "id": 923,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 922,
+                  "mutability": "mutable",
+                  "name": "_config",
+                  "nameLocation": "3255:7:4",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 935,
+                  "src": "3226:36:4",
+                  "stateVariable": false,
+                  "storageLocation": "calldata",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_struct$_RemoteGasDataConfig_$843_calldata_ptr",
+                    "typeString": "struct StorageGasOracle.RemoteGasDataConfig"
+                  },
+                  "typeName": {
+                    "id": 921,
+                    "nodeType": "UserDefinedTypeName",
+                    "pathNode": {
+                      "id": 920,
+                      "name": "RemoteGasDataConfig",
+                      "nameLocations": [
+                        "3226:19:4"
+                      ],
+                      "nodeType": "IdentifierPath",
+                      "referencedDeclaration": 843,
+                      "src": "3226:19:4"
+                    },
+                    "referencedDeclaration": 843,
+                    "src": "3226:19:4",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_struct$_RemoteGasDataConfig_$843_storage_ptr",
+                      "typeString": "struct StorageGasOracle.RemoteGasDataConfig"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "3225:38:4"
+            },
+            "returnParameters": {
+              "id": 924,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "3273:0:4"
+            },
+            "scope": 936,
+            "src": "3199:225:4",
+            "stateMutability": "nonpayable",
+            "virtual": false,
+            "visibility": "internal"
+          }
+        ],
+        "scope": 937,
+        "src": "538:2888:4",
+        "usedErrors": [],
+        "usedEvents": [
+          836,
+          8735
+        ]
+      }
+    ],
+    "src": "46:3381:4"
+  },
+  "compiler": {
+    "name": "solc",
+    "version": "0.8.22+commit.5ed3e10f.Emscripten.clang"
+  },
+  "networks": {},
+  "schemaVersion": "2.0.1",
+  "updatedAt": "2026-01-12T16:24:45.824Z"
+}

@@ -2,20 +2,22 @@ import { assert } from 'chai';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 
-import { TronProvider } from './provider.js';
+import InterchainGasPaymasterAbi from '../../abi/InterchainGasPaymaster.json' with { type: 'json' };
+import GasOracleAbi from '../../abi/StorageGasOracle.json' with { type: 'json' };
+import StorageGasOracleAbi from '../../abi/StorageGasOracle.json' with { type: 'json' };
+import { TronReceipt, TronTransaction } from '../utils/types.js';
 
-type MockTransaction = any;
-type MockReceipt = any;
+import { TronProvider } from './provider.js';
 
 export class TronSigner
   extends TronProvider
-  implements AltVM.ISigner<MockTransaction, MockReceipt>
+  implements AltVM.ISigner<TronTransaction, TronReceipt>
 {
   static async connectWithSigner(
     rpcUrls: string[],
     privateKey: string,
     extraParams?: Record<string, any>,
-  ): Promise<AltVM.ISigner<MockTransaction, MockReceipt>> {
+  ): Promise<AltVM.ISigner<TronTransaction, TronReceipt>> {
     assert(extraParams, `extra params not defined`);
 
     const metadata = extraParams.metadata as Record<string, unknown>;
@@ -43,19 +45,19 @@ export class TronSigner
     throw new Error(`not implemented`);
   }
 
-  transactionToPrintableJson(_transaction: MockTransaction): Promise<object> {
+  transactionToPrintableJson(_transaction: TronTransaction): Promise<object> {
     throw new Error(`not implemented`);
   }
 
   async sendAndConfirmTransaction(
-    _transaction: MockTransaction,
-  ): Promise<MockReceipt> {
+    _transaction: TronTransaction,
+  ): Promise<TronReceipt> {
     throw new Error(`not implemented`);
   }
 
   async sendAndConfirmBatchTransactions(
-    _transactions: MockTransaction[],
-  ): Promise<MockReceipt> {
+    _transactions: TronTransaction[],
+  ): Promise<TronReceipt> {
     throw new Error(`not implemented`);
   }
 
@@ -268,8 +270,6 @@ export class TronSigner
 
     const hookAddress = this.tronweb.address.fromHex(tx.contract_address);
 
-    // TODO: TRON
-    // include beneficiary
     const { transaction } =
       await this.tronweb.transactionBuilder.triggerSmartContract(
         hookAddress,
@@ -294,6 +294,37 @@ export class TronSigner
     const initSignedTx = await this.tronweb.trx.sign(transaction);
     await this.tronweb.trx.sendRawTransaction(initSignedTx);
 
+    const oracleTx = await this.createDeploymentTransaction(
+      StorageGasOracleAbi,
+      this.getSignerAddress(),
+      [],
+    );
+
+    const oracleSignedTx = await this.tronweb.trx.sign(oracleTx);
+    await this.tronweb.trx.sendRawTransaction(oracleSignedTx);
+
+    const oracleAddress = this.tronweb.address.fromHex(tx.contract_address);
+
+    const { transaction: setOracleTx } =
+      await this.tronweb.transactionBuilder.triggerSmartContract(
+        hookAddress,
+        'setGasOracle(address)',
+        {
+          feeLimit: 100_000_000,
+          callValue: 0,
+        },
+        [
+          {
+            type: 'address',
+            value: oracleAddress,
+          },
+        ],
+        this.tronweb.address.toHex(this.getSignerAddress()),
+      );
+
+    const setOracleSignedTx = await this.tronweb.trx.sign(setOracleTx);
+    await this.tronweb.trx.sendRawTransaction(setOracleSignedTx);
+
     return {
       hookAddress,
     };
@@ -306,9 +337,50 @@ export class TronSigner
   }
 
   async setDestinationGasConfig(
-    _req: Omit<AltVM.ReqSetDestinationGasConfig, 'signer'>,
+    req: Omit<AltVM.ReqSetDestinationGasConfig, 'signer'>,
   ): Promise<AltVM.ResSetDestinationGasConfig> {
-    throw new Error(`not implemented`);
+    const tx = await this.getSetDestinationGasConfigTransaction({
+      ...req,
+      signer: this.getSignerAddress(),
+    });
+
+    const signedTx = await this.tronweb.trx.sign(tx);
+    await this.tronweb.trx.sendRawTransaction(signedTx);
+
+    const igp = this.tronweb.contract(
+      InterchainGasPaymasterAbi.abi,
+      req.hookAddress,
+    );
+
+    const hookType = await igp.hookType().call();
+    assert(
+      Number(hookType) === 4,
+      `hook type does not equal INTERCHAIN_GAS_PAYMASTER`,
+    );
+
+    const gasOracleAddress = this.tronweb.address.fromHex(
+      await igp.gasOracle().call(),
+    );
+
+    const gasOracle = this.tronweb.contract(GasOracleAbi.abi, gasOracleAddress);
+
+    const result = await gasOracle
+      .setRemoteGasData([
+        BigInt(req.destinationGasConfig.remoteDomainId),
+        BigInt(req.destinationGasConfig.gasOracle.tokenExchangeRate),
+        BigInt(req.destinationGasConfig.gasOracle.gasPrice),
+      ])
+      .send({
+        feeLimit: 100_000_000,
+        callValue: 0,
+        shouldPollResponse: true,
+      });
+
+    console.log('result', result);
+
+    return {
+      destinationGasConfig: req.destinationGasConfig,
+    };
   }
 
   async removeDestinationGasConfig(
