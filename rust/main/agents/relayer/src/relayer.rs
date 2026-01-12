@@ -108,6 +108,8 @@ pub struct Relayer {
     origins: HashMap<HyperlaneDomain, Origin>,
     /// The destination chains and their associated structures
     destinations: HashMap<HyperlaneDomain, Destination>,
+    /// If set, run escrow key migration to this address and exit
+    migrate_escrow_to: Option<String>,
 }
 
 impl Debug for Relayer {
@@ -302,11 +304,32 @@ impl BaseAgent for Relayer {
             dymension_kaspa_args: dymension_args,
             origins,
             destinations,
+            migrate_escrow_to: settings.migrate_escrow_to,
         })
     }
 
     #[allow(clippy::async_yields_async)]
     async fn run(mut self) {
+        // If migration mode is enabled, run migration and exit
+        if let Some(ref target_address) = self.migrate_escrow_to {
+            info!(
+                target_address,
+                "Migration mode: migrating escrow to new address"
+            );
+            match self.run_escrow_migration(target_address).await {
+                Ok(tx_ids) => {
+                    info!(tx_count = tx_ids.len(), "Migration completed successfully");
+                    for (i, tx_id) in tx_ids.iter().enumerate() {
+                        info!(index = i, tx_id = tx_id, "Migration transaction");
+                    }
+                }
+                Err(e) => {
+                    error!(error = ?e, "Migration failed");
+                }
+            }
+            return;
+        }
+
         let start = Instant::now();
         let mut start_entity_init = Instant::now();
 
@@ -1221,6 +1244,24 @@ impl Relayer {
                 }
             };
         tasks.push(message_db_loader);
+    }
+
+    /// Run escrow key migration to a new address.
+    /// This transfers all escrow funds to the new escrow address.
+    async fn run_escrow_migration(&self, target_address: &str) -> Result<Vec<String>> {
+        use dymension_kaspa::relayer::execute_migration;
+        use dymension_kaspa::KaspaAddress;
+
+        let args = self
+            .dymension_kaspa_args
+            .as_ref()
+            .ok_or_else(|| eyre::eyre!("Migration requires Kaspa bridge configuration"))?;
+
+        let target_addr = KaspaAddress::try_from(target_address)
+            .map_err(|e| eyre::eyre!("Invalid target address '{}': {}", target_address, e))?;
+
+        let tx_ids = execute_migration(&args.kas_provider, &target_addr).await?;
+        Ok(tx_ids.into_iter().map(|h| h.to_string()).collect())
     }
 }
 

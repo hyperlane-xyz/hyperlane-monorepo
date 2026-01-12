@@ -27,6 +27,7 @@ pub mod validator;
 // Direct reexports of lib stuff:
 pub use consts as hl_domains;
 pub use dym_kas_core;
+pub use kaspa_addresses::Address as KaspaAddress;
 
 // Re-export message module from ops as hl_message for semantic clarity
 pub use ops::message as hl_message;

@@ -1,11 +1,9 @@
 use crate::ops::migration::MigrationFXG;
-use crate::providers::ValidatorsClient;
+use crate::providers::KaspaProvider;
 use crate::relayer::withdraw::hub_to_kaspa::{
     combine_all_bundles, create_pskt, finalize_migration_txs,
 };
-use dym_kas_core::escrow::EscrowPublic;
 use dym_kas_core::pskt::{PopulatedInput, PopulatedInputBuilder};
-use dym_kas_core::wallet::EasyKaspaWallet;
 use eyre::{eyre, Result};
 use kaspa_addresses::Address;
 use kaspa_consensus_core::tx::TransactionOutput;
@@ -22,11 +20,12 @@ use tracing::info;
 /// 3. Collects signatures from validators
 /// 4. Combines signatures and broadcasts the transaction
 pub async fn execute_migration(
-    validators_client: &ValidatorsClient,
-    easy_wallet: &EasyKaspaWallet,
-    escrow: &EscrowPublic,
+    provider: &KaspaProvider,
     new_escrow_address: &Address,
 ) -> Result<Vec<kaspa_hashes::Hash>> {
+    let escrow = provider.escrow();
+    let easy_wallet = provider.wallet();
+    let validators_client = provider.validators();
     info!("Starting escrow key migration");
 
     // 1. Fetch all escrow UTXOs
@@ -100,7 +99,7 @@ pub async fn execute_migration(
     let combined = combine_all_bundles(bundles)?;
     let finalized = finalize_migration_txs(
         combined,
-        escrow,
+        &escrow,
         easy_wallet.pub_key().await?,
         easy_wallet.net.network_id,
     )?;
