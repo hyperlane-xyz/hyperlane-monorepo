@@ -5,7 +5,7 @@ import {
   ArtifactState,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
-  DeployedIsmAddresses,
+  DeployedIsmAddress,
   MultisigIsmConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
 
@@ -14,13 +14,13 @@ import { AnyAleoNetworkClient } from '../clients/base.js';
 import { getMessageIdMultisigIsmConfig } from './ism-query.js';
 
 export class AleoMessageIdMultisigIsmReader
-  implements ArtifactReader<MultisigIsmConfig, DeployedIsmAddresses>
+  implements ArtifactReader<MultisigIsmConfig, DeployedIsmAddress>
 {
   constructor(private readonly aleoClient: AnyAleoNetworkClient) {}
 
   async read(
     address: string,
-  ): Promise<ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddresses>> {
+  ): Promise<ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddress>> {
     const ismConfig = await getMessageIdMultisigIsmConfig(
       this.aleoClient,
       address,

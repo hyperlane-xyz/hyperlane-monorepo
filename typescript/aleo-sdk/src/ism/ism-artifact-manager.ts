@@ -4,7 +4,7 @@ import {
   ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
-  DeployedIsmAddresses,
+  DeployedIsmAddress,
   DeployedRawIsmArtifact,
   IRawIsmArtifactManager,
   IsmConfigs,
@@ -55,28 +55,28 @@ export class AleoIsmArtifactManager implements IRawIsmArtifactManager {
 
   createReader<T extends IsmType>(
     type: T,
-  ): ArtifactReader<RawIsmArtifactConfigs[T], DeployedIsmAddresses> {
+  ): ArtifactReader<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
     switch (type) {
       case AltVM.IsmType.TEST_ISM:
         return new AleoTestIsmReader(
           this.aleoClient,
         ) as unknown as ArtifactReader<
           RawIsmArtifactConfigs[T],
-          DeployedIsmAddresses
+          DeployedIsmAddress
         >;
       case AltVM.IsmType.MESSAGE_ID_MULTISIG:
         return new AleoMessageIdMultisigIsmReader(
           this.aleoClient,
         ) as unknown as ArtifactReader<
           RawIsmArtifactConfigs[T],
-          DeployedIsmAddresses
+          DeployedIsmAddress
         >;
       case AltVM.IsmType.ROUTING:
         return new AleoRoutingIsmRawReader(
           this.aleoClient,
         ) as unknown as ArtifactReader<
           RawIsmArtifactConfigs[T],
-          DeployedIsmAddresses
+          DeployedIsmAddress
         >;
       default:
         throw new Error(`Unsupported ISM type: ${type}`);
@@ -86,7 +86,7 @@ export class AleoIsmArtifactManager implements IRawIsmArtifactManager {
   createWriter<T extends keyof IsmConfigs>(
     type: T,
     _signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
-  ): ArtifactWriter<RawIsmArtifactConfigs[T], DeployedIsmAddresses> {
+  ): ArtifactWriter<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
     throw new Error(
       `ISM writers not yet implemented for Cosmos (requested type: ${type})`,
     );

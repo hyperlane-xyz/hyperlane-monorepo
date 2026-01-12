@@ -6,7 +6,7 @@ import {
   ArtifactUnderived,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
-  DeployedIsmAddresses,
+  DeployedIsmAddress,
   RawRoutingIsmArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
 
@@ -15,18 +15,18 @@ import { AnyAleoNetworkClient } from '../clients/base.js';
 import { getRoutingIsmConfig } from './ism-query.js';
 
 export class AleoRoutingIsmRawReader
-  implements ArtifactReader<RawRoutingIsmArtifactConfig, DeployedIsmAddresses>
+  implements ArtifactReader<RawRoutingIsmArtifactConfig, DeployedIsmAddress>
 {
   constructor(protected readonly aleoClient: AnyAleoNetworkClient) {}
 
   async read(
     address: string,
   ): Promise<
-    ArtifactDeployed<RawRoutingIsmArtifactConfig, DeployedIsmAddresses>
+    ArtifactDeployed<RawRoutingIsmArtifactConfig, DeployedIsmAddress>
   > {
     const ismConfig = await getRoutingIsmConfig(this.aleoClient, address);
 
-    const domains: Record<number, ArtifactUnderived<DeployedIsmAddresses>> = {};
+    const domains: Record<number, ArtifactUnderived<DeployedIsmAddress>> = {};
     for (const route of ismConfig.routes) {
       domains[route.domainId] = {
         deployed: {

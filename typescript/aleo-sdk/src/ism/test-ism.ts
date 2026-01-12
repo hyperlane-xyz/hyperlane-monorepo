@@ -5,7 +5,7 @@ import {
   ArtifactState,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
-  DeployedIsmAddresses,
+  DeployedIsmAddress,
   TestIsmConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
 
@@ -14,13 +14,13 @@ import { AnyAleoNetworkClient } from '../clients/base.js';
 import { getTestIsmConfig } from './ism-query.js';
 
 export class AleoTestIsmReader
-  implements ArtifactReader<TestIsmConfig, DeployedIsmAddresses>
+  implements ArtifactReader<TestIsmConfig, DeployedIsmAddress>
 {
   constructor(private readonly aleoClient: AnyAleoNetworkClient) {}
 
   async read(
     address: string,
-  ): Promise<ArtifactDeployed<TestIsmConfig, DeployedIsmAddresses>> {
+  ): Promise<ArtifactDeployed<TestIsmConfig, DeployedIsmAddress>> {
     const ismConfig = await getTestIsmConfig(this.aleoClient, address);
 
     return {
