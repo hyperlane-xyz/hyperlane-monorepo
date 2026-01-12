@@ -76,14 +76,15 @@ export const disableProxyCommandOption: Options = {
 /* Command-specific options */
 
 export const coreTargetsCommandOption: Options = {
-  type: 'string',
-  description:
-    'Comma separated list of chain names to which contracts will be deployed',
+  type: 'array',
+  string: true,
+  description: 'List of chain names to which contracts will be deployed',
 };
 
 export const agentTargetsCommandOption: Options = {
-  type: 'string',
-  description: 'Comma separated list of chains to relay between',
+  type: 'array',
+  string: true,
+  description: 'List of chains to relay between',
 };
 
 export const originCommandOption: Options = {
@@ -135,8 +136,9 @@ export const agentConfigCommandOption = (
 });
 
 export const chainTargetsCommandOption: Options = {
-  type: 'string',
-  description: 'Comma-separated list of chain names',
+  type: 'array',
+  string: true,
+  description: 'List of chain names',
   alias: 'c',
 };
 
@@ -187,8 +189,9 @@ export const symbolCommandOption: Options = {
 };
 
 export const validatorCommandOption: Options = {
-  type: 'string',
-  description: 'Comma separated list of validator addresses',
+  type: 'array',
+  string: true,
+  description: 'List of validator addresses',
   demandOption: true,
 };
 
