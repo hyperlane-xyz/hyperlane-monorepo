@@ -191,10 +191,8 @@ async function resolveRelayerChains(
     chains.add(argv.chain);
   }
 
-  if (argv.chains) {
-    const additionalChains = argv.chains
-      .split(',')
-      .map((item: string) => item.trim());
+  if (argv.chains && argv.chains.length > 0) {
+    const additionalChains = argv.chains.map((item: string) => item.trim());
     return Array.from(new Set([...chains, ...additionalChains]));
   }
 
