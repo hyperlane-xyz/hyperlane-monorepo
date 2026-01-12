@@ -157,26 +157,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         return _transferRemote(_destination, _recipient, _amount);
     }
 
-    /**
-     * @notice Internal transfer implementation.
-     * @dev Delegates transfer logic to `_transferFromSender` implementation.
-     * Emits `SentTransferRemote` event on the origin chain.
-     * Override with custom behavior for storing or forwarding tokens.
-     * Known overrides:
-     * - OPL2ToL1TokenBridgeNative: adds hook metadata for message dispatch.
-     * - EverclearTokenBridge: creates Everclear intent for cross-chain token transfer.
-     * - TokenBridgeCctpBase: adds CCTP-specific metadata for message dispatch.
-     * - HypERC4626Collateral: deposits into vault and handles shares.
-     * When overriding, mirror the general flow of this function for consistency:
-     * 1. Calculate fees and charge the sender.
-     * 2. Prepare the token message with recipient, amount, and any additional metadata.
-     * 3. Emit `SentTransferRemote` event.
-     * 4. Dispatch the message.
-     * @param _destination The identifier of the destination chain.
-     * @param _recipient The address of the recipient on the destination chain.
-     * @param _amount The amount or identifier of tokens to be sent to the remote recipient.
-     * @return messageId The identifier of the dispatched message.
-     */
+    /// @notice Internal transfer implementation.
     function _transferRemote(
         uint32 _destination,
         bytes32 _recipient,
@@ -260,24 +241,11 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
 
             // Approve IGP to pull fee tokens
             IERC20(_feeToken).approve(_igp, igpFee);
-
-            // For ERC20 IGP, no native value needed for dispatch
-            remainingNativeValue = 0;
         } else {
             // Native IGP: fee comes from msg.value
-
-            // Calculate remaining native value for IGP payment
-            // - ERC20 collateral: full msg.value goes to dispatch
-            // - Native collateral: msg.value - charge goes to dispatch
-            if (token() != address(0)) {
-                remainingNativeValue = _msgValue;
-            } else {
-                require(
-                    _msgValue >= charge,
-                    "Native: amount exceeds msg.value"
-                );
-                remainingNativeValue = _msgValue - charge;
-            }
+            remainingNativeValue = token() != address(0)
+                ? _msgValue
+                : _msgValue - charge;
         }
 
         _transferFromSender(charge);
@@ -487,18 +455,13 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
     ) internal view returns (bytes memory) {
         address _feeToken = feeToken();
         uint256 gasLimit = destinationGas[_destination];
-
-        if (_feeToken != address(0)) {
-            return
-                StandardHookMetadata.formatWithFeeToken(
-                    0,
-                    gasLimit,
-                    msg.sender,
-                    _feeToken
-                );
-        } else {
-            return StandardHookMetadata.format(0, gasLimit, msg.sender);
-        }
+        return
+            StandardHookMetadata.formatWithFeeToken(
+                0,
+                gasLimit,
+                msg.sender,
+                _feeToken
+            );
     }
 
     // ===========================

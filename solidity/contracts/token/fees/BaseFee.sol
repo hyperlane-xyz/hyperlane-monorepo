@@ -71,16 +71,6 @@ abstract contract BaseFee is Ownable, ITokenFee, PackageVersioned {
         quotes[0] = Quote(address(token), _quoteTransfer(_amount));
     }
 
-    function quoteTransferRemote(
-        uint32 /*_destination*/,
-        bytes32 /*_recipient*/,
-        uint256 _amount,
-        bytes calldata /*_hookMetadata*/
-    ) external view virtual returns (Quote[] memory quotes) {
-        quotes = new Quote[](1);
-        quotes[0] = Quote(address(token), _quoteTransfer(_amount));
-    }
-
     function _quoteTransfer(
         uint256 /*_amount*/
     ) internal view virtual returns (uint256 fee) {
