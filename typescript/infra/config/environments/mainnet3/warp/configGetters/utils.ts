@@ -9,7 +9,12 @@ import {
   TokenFeeType,
   TokenType,
 } from '@hyperlane-xyz/sdk';
-import { Address, arrayToObject, objMap } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  arrayToObject,
+  intersection,
+  objMap,
+} from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { getRegistry } from '../../../../registry.js';
@@ -29,10 +34,8 @@ type CCTPWarpRouteId =
 
 export function getRebalancingBridgesConfigFor(
   deploymentChains: readonly ChainName[],
-  warpRouteIds: CCTPWarpRouteId[],
+  warpRouteIds: [CCTPWarpRouteId, ...CCTPWarpRouteId[]],
 ): ChainMap<RebalancingConfig> {
-  assert(warpRouteIds.length > 0, 'At least one warp route ID required');
-
   const registry = getRegistry();
 
   // Fetch all warp routes and build bridge mappings
@@ -55,9 +58,12 @@ export function getRebalancingBridgesConfigFor(
   });
 
   // Intersection: only chains present in ALL routes
-  const rebalanceableChains = deploymentChains.filter((chain) =>
-    routeData.every(({ chainSet }) => chainSet.has(chain)),
-  );
+  const deploymentSet = new Set(deploymentChains);
+  const chainSets = routeData.map(({ chainSet }) => chainSet);
+  const allSets = [deploymentSet, ...chainSets];
+  const rebalanceableChains = [
+    ...allSets.reduce((acc, set) => intersection(acc, set)),
+  ];
 
   return objMap(
     arrayToObject(rebalanceableChains),
