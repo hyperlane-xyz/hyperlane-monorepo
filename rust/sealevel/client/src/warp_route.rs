@@ -61,16 +61,19 @@ fn create_metadata_pointer_initialize_instruction(
     // From spl-token-2022 v4.x: TokenInstruction::MetadataPointerExtension
     let token_instruction_discriminator: u8 = 39; // MetadataPointerExtension
     let metadata_pointer_instruction_discriminator: u8 = 0; // Initialize
-    
+
     // Format: [token_instruction(1), metadata_pointer_instruction(1), InitializeInstructionData(64)]
     // InitializeInstructionData = authority(32 bytes) + metadata_address(32 bytes)
     // OptionalNonZeroPubkey is just a Pubkey (32 bytes) - None is represented as Pubkey::default() (all zeros)
-    let mut data = vec![token_instruction_discriminator, metadata_pointer_instruction_discriminator];
-    
+    let mut data = vec![
+        token_instruction_discriminator,
+        metadata_pointer_instruction_discriminator,
+    ];
+
     // Serialize authority as OptionalNonZeroPubkey (32 bytes - Pubkey::default() if None)
     let authority_bytes = authority.unwrap_or_default();
     data.extend_from_slice(authority_bytes.as_ref());
-    
+
     // Serialize metadata_address as OptionalNonZeroPubkey (32 bytes - Pubkey::default() if None)
     let metadata_address_bytes = metadata_address.unwrap_or_default();
     data.extend_from_slice(metadata_address_bytes.as_ref());
@@ -314,11 +317,11 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
 
         let (token_pda, _token_bump) =
             Pubkey::find_program_address(hyperlane_token_pda_seeds!(), &program_id);
-        
+
         // Check if token PDA exists and is initialized
         if account_exists(client, &token_pda).unwrap() {
             println!("Token PDA exists at: {}", token_pda);
-            
+
             // For Synthetic/SyntheticMemo, also check if mint is initialized
             if matches!(
                 app_config.token_type,
@@ -341,7 +344,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                     }
                     _ => unreachable!(),
                 };
-                
+
                 // Check if mint account exists and has the right owner
                 match client.get_account(&mint_account) {
                     Ok(account) => {
@@ -351,7 +354,9 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                                  Owner: {}\n\
                                  Data length: {}\n\
                                  Skipping initialization.",
-                                mint_account, account.owner, account.data.len()
+                                mint_account,
+                                account.owner,
+                                account.data.len()
                             );
                             try_fund_ata_payer(ctx, client);
                             return;
@@ -475,7 +480,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                 )
                 .unwrap();
                 println!("  - Accounts: {}", init_ix.accounts.len());
-                
+
                 // 2. metadata pointer initialization (must happen before mint initialization)
                 println!("Step 2: Creating metadata_pointer initialize instruction");
                 let metadata_pointer_ix = create_metadata_pointer_initialize_instruction(
@@ -488,7 +493,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                     "  - Metadata pointer: authority={}, metadata_address={}",
                     ctx.payer_pubkey, mint_account
                 );
-                
+
                 // 3. initialize_mint2 (initializes the mint)
                 println!("Step 3: Creating initialize_mint2 instruction");
                 let init_mint_ix = spl_token_2022::instruction::initialize_mint2(
@@ -533,7 +538,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                 )
                 .unwrap();
                 println!("  - Accounts: {}", init_ix.accounts.len());
-                
+
                 // 2. metadata pointer initialization (must happen before mint initialization)
                 println!("Step 2: Creating metadata_pointer initialize instruction");
                 let metadata_pointer_ix = create_metadata_pointer_initialize_instruction(
@@ -546,7 +551,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                     "  - Metadata pointer: authority={}, metadata_address={}",
                     ctx.payer_pubkey, mint_account
                 );
-                
+
                 // 3. initialize_mint2 (initializes the mint)
                 println!("Step 3: Creating initialize_mint2 instruction");
                 let init_mint_ix = spl_token_2022::instruction::initialize_mint2(
@@ -630,7 +635,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                 token_metadata.symbol,
                 token_metadata.uri.as_deref().unwrap_or("")
             );
-            
+
             let mut cmd = Command::new(spl_token_binary_path.clone());
             cmd.args([
                 "initialize-metadata",
