@@ -78,7 +78,13 @@ export function isCosmosIbcDenomAddress(address: Address): boolean {
 }
 
 export function isAddressStarknet(address: Address) {
-  return STARKNET_ADDRESS_REGEX.test(address);
+  try {
+    return (
+      STARKNET_ADDRESS_REGEX.test(address) && !!validateAndParseAddress(address)
+    );
+  } catch {
+    return false;
+  }
 }
 
 export function isAddressRadix(address: Address) {
@@ -163,8 +169,11 @@ export function isValidAddressCosmos(address: Address) {
 
 export function isValidAddressStarknet(address: Address) {
   try {
-    const isValid = address && STARKNET_ADDRESS_REGEX.test(address);
-    return !!isValid;
+    return (
+      !!address &&
+      STARKNET_ADDRESS_REGEX.test(address) &&
+      !!validateAndParseAddress(address)
+    );
   } catch {
     return false;
   }
