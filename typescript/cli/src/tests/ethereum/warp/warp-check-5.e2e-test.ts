@@ -35,6 +35,7 @@ import {
   CHAIN_3_METADATA_PATH,
   CHAIN_NAME_2,
   CHAIN_NAME_3,
+  CHAIN_NAME_4,
   CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
   REGISTRY_PATH,
@@ -49,6 +50,7 @@ describe('hyperlane warp check e2e tests', async function () {
   let signer: Signer;
   let chain2Addresses: ChainAddresses = {};
   let chain3Addresses: ChainAddresses = {};
+  let chain4Addresses: ChainAddresses = {};
   let token: ERC20Test;
   let tokenSymbol: string;
   let ownerAddress: Address;
@@ -56,9 +58,10 @@ describe('hyperlane warp check e2e tests', async function () {
   let warpConfig: WarpRouteDeployConfig;
 
   before(async function () {
-    [chain2Addresses, chain3Addresses] = await Promise.all([
+    [chain2Addresses, chain3Addresses, chain4Addresses] = await Promise.all([
       deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY),
       deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, ANVIL_KEY),
+      deployOrUseExistingCore(CHAIN_NAME_4, CORE_CONFIG_PATH, ANVIL_KEY),
     ]);
 
     const chainMetadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
@@ -487,6 +490,58 @@ describe('hyperlane warp check e2e tests', async function () {
         destinations: [CHAIN_NAME_3],
       }).nothrow();
 
+      expect(output.exitCode).to.equal(0);
+      expect(output.text()).to.include('No violations found');
+    });
+
+    it('should only check ICA ownership on specified destinations when using --destinations with mixed ICA/EOA owners', async function () {
+      // Create 3-chain warp config with mixed ownership:
+      // - anvil2 (origin): ICA owner
+      // - anvil3: correct ICA address (should pass)
+      // - anvil4: wrong EOA owner (would fail if checked)
+      const wrongOwner = '0x1234567890123456789012345678901234567890';
+      const mixedOwnerConfig: WarpRouteDeployConfig = {
+        [CHAIN_NAME_2]: {
+          type: TokenType.collateral,
+          token: token.address,
+          mailbox: chain2Addresses.mailbox,
+          owner: icaOwnerAddress,
+        },
+        [CHAIN_NAME_3]: {
+          type: TokenType.synthetic,
+          mailbox: chain3Addresses.mailbox,
+          owner: expectedIcaAddress,
+        },
+        [CHAIN_NAME_4]: {
+          type: TokenType.synthetic,
+          mailbox: chain4Addresses.mailbox,
+          owner: wrongOwner,
+        },
+      };
+
+      // Deploy the 3-chain warp route
+      const symbol = await token.symbol();
+      const configPath = `${CHAIN_NAME_3}-${CHAIN_NAME_4}-ica-mixed`;
+      const currentWarpId = createWarpRouteConfigId(symbol, configPath);
+
+      // Write deploy config to path matching the warpRouteId
+      const warpDeployPath = getCombinedWarpRoutePath(symbol, [
+        configPath,
+      ]).replace('-config.yaml', '-deploy.yaml');
+      writeYamlOrJson(warpDeployPath, mixedOwnerConfig);
+
+      await hyperlaneWarpDeploy(warpDeployPath, currentWarpId);
+
+      // Run check with --destinations to only check anvil3 (ICA), skipping anvil4 (EOA)
+      const output = await hyperlaneWarpCheckRaw({
+        warpRouteId: currentWarpId,
+        ica: true,
+        origin: CHAIN_NAME_2,
+        destinations: [CHAIN_NAME_3],
+      }).nothrow();
+
+      // Should pass because we only checked anvil3 which has correct ICA owner
+      // anvil4 with wrong owner was skipped
       expect(output.exitCode).to.equal(0);
       expect(output.text()).to.include('No violations found');
     });
