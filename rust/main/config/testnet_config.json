@@ -2389,6 +2389,9 @@
       "validatorAnnounceProgram": "test_hyp_validator_announce.aleo",
       "signer": {
         "key": "0x1a1484a05bee53f5858a3888cdb5a397e433aee4d725e0f6c8a92cba3bb2b011"
+      },
+      "index": {
+        "chunk": 50
       }
     }
   }
