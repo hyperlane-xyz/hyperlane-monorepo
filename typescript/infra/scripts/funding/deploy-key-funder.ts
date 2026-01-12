@@ -5,6 +5,7 @@ import { join } from 'path';
 
 import { Contexts } from '../../config/contexts.js';
 import { KeyFunderHelmManager } from '../../src/funding/key-funder.js';
+import { checkKeyfunderImageExists } from '../../src/utils/gcloud.js';
 import { validateRegistryCommit } from '../../src/utils/git.js';
 import { HelmCommand } from '../../src/utils/helm.js';
 import { getMonorepoRoot } from '../../src/utils/utils.js';
@@ -24,6 +25,19 @@ async function main() {
     );
 
   await assertCorrectKubeContext(envConfig);
+
+  if (envConfig.keyFunderConfig?.docker.tag) {
+    const tag = envConfig.keyFunderConfig.docker.tag;
+    const exists = await checkKeyfunderImageExists(tag);
+    if (!exists) {
+      console.log(
+        chalk.red(
+          `Attempted to deploy key funder with image tag ${chalk.bold(tag)}, but it has not been published to GCR.`,
+        ),
+      );
+      process.exit(1);
+    }
+  }
 
   const defaultRegistryCommit = readRegistryRc();
   console.log(

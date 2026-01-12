@@ -1433,6 +1433,9 @@ importers:
       '@hyperlane-xyz/http-registry-server':
         specifier: workspace:*
         version: link:../http-registry-server
+      '@hyperlane-xyz/keyfunder':
+        specifier: workspace:*
+        version: link:../keyfunder
       '@hyperlane-xyz/metrics':
         specifier: workspace:*
         version: link:../metrics
@@ -25730,7 +25733,7 @@ snapshots:
 
   '@types/cors@2.8.19':
     dependencies:
-      '@types/node': 20.19.25
+      '@types/node': 22.19.1
 
   '@types/cross-spawn@6.0.6':
     dependencies:
@@ -25953,7 +25956,7 @@ snapshots:
 
   '@types/prompts@2.4.9':
     dependencies:
-      '@types/node': 20.19.25
+      '@types/node': 22.19.1
       kleur: 3.0.3
 
   '@types/prop-types@15.7.15': {}
@@ -26060,7 +26063,7 @@ snapshots:
 
   '@types/unzipper@0.10.11':
     dependencies:
-      '@types/node': 20.19.25
+      '@types/node': 22.19.1
 
   '@types/uuid@8.3.4': {}
 
@@ -27961,7 +27964,7 @@ snapshots:
     dependencies:
       '@babel/runtime': 7.26.0
       cosmiconfig: 7.1.0
-      resolve: 1.22.8
+      resolve: 1.22.11
 
   babel-plugin-polyfill-corejs2@0.4.14(@babel/core@7.28.5):
     dependencies:
@@ -31967,7 +31970,7 @@ snapshots:
 
   jest-message-util@29.7.0:
     dependencies:
-      '@babel/code-frame': 7.26.2
+      '@babel/code-frame': 7.27.1
       '@jest/types': 29.6.3
       '@types/stack-utils': 2.0.3
       chalk: 4.1.2
@@ -32009,7 +32012,7 @@ snapshots:
       jest-pnp-resolver: 1.2.3(jest-resolve@29.7.0)
       jest-util: 29.7.0
       jest-validate: 29.7.0
-      resolve: 1.22.8
+      resolve: 1.22.11
       resolve.exports: 2.0.3
       slash: 3.0.0
 
@@ -33621,7 +33624,7 @@ snapshots:
       got: 13.0.0
       registry-auth-token: 5.1.0
       registry-url: 6.0.1
-      semver: 7.7.2
+      semver: 7.7.3
 
   package-manager-detector@0.2.9: {}
 
@@ -33918,7 +33921,7 @@ snapshots:
       postcss: 8.5.6
       postcss-value-parser: 4.2.0
       read-cache: 1.0.0
-      resolve: 1.22.8
+      resolve: 1.22.11
 
   postcss-js@4.1.0(postcss@8.5.6):
     dependencies:
@@ -34118,7 +34121,7 @@ snapshots:
       '@protobufjs/path': 1.1.2
       '@protobufjs/pool': 1.1.0
       '@protobufjs/utf8': 1.1.0
-      '@types/node': 20.19.25
+      '@types/node': 22.19.1
       long: 5.3.2
 
   proxy-addr@2.0.7:
@@ -34365,7 +34368,7 @@ snapshots:
       '@types/doctrine': 0.0.9
       '@types/resolve': 1.20.6
       doctrine: 3.0.0
-      resolve: 1.22.8
+      resolve: 1.22.11
       strip-indent: 4.1.1
     transitivePeerDependencies:
       - supports-color
@@ -35240,7 +35243,7 @@ snapshots:
 
   simple-update-notifier@2.0.0:
     dependencies:
-      semver: 7.7.2
+      semver: 7.7.3
 
   sinon-chai@3.7.0(chai@4.5.0)(sinon@18.0.1):
     dependencies:
@@ -35847,7 +35850,7 @@ snapshots:
       methods: 1.1.2
       mime: 2.6.0
       qs: 6.14.0
-      semver: 7.7.2
+      semver: 7.7.3
     transitivePeerDependencies:
       - supports-color
 

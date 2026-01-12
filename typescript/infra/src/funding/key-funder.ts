@@ -1,6 +1,8 @@
 import { join } from 'path';
 import YAML from 'yaml';
+import { fromZodError } from 'zod-validation-error';
 
+import { KeyFunderConfigSchema } from '@hyperlane-xyz/keyfunder';
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 
 import { Contexts } from '../../config/contexts.js';
@@ -9,14 +11,10 @@ import rebalancerAddresses from '../../config/rebalancer.json' with { type: 'jso
 import { getEnvAddresses } from '../../config/registry.js';
 import { getAgentConfig } from '../../scripts/agent-utils.js';
 import { getEnvironmentConfig } from '../../scripts/core-utils.js';
-import {
-  fetchLocalKeyAddresses,
-  kathyAddresses,
-  relayerAddresses,
-} from '../agents/key-utils.js';
+import { kathyAddresses, relayerAddresses } from '../agents/key-utils.js';
 import { AgentContextConfig } from '../config/agent/agent.js';
 import { DeployEnvironment, EnvironmentConfig } from '../config/environment.js';
-import { ContextAndRolesMap, KeyFunderConfig } from '../config/funding.js';
+import { DEFAULT_SWEEP_ADDRESS, KeyFunderConfig } from '../config/funding.js';
 import { FundableRole, Role } from '../roles.js';
 import { HelmManager } from '../utils/helm.js';
 import { getInfraPath, isEthereumProtocolChain } from '../utils/utils.js';
@@ -115,9 +113,7 @@ export class KeyFunderHelmManager extends HelmManager {
         const override = this.config.sweepOverrides?.[chain];
         chainConfig.sweep = {
           enabled: true,
-          address:
-            override?.sweepAddress ??
-            '0x478be6076f31E9666123B9721D0B6631baD944AF',
+          address: override?.sweepAddress ?? DEFAULT_SWEEP_ADDRESS,
           threshold: sweepThreshold,
           targetMultiplier: override?.targetMultiplier ?? 1.5,
           triggerMultiplier: override?.triggerMultiplier ?? 2.0,
@@ -143,7 +139,14 @@ export class KeyFunderHelmManager extends HelmManager {
       chainsToSkip: this.config.chainsToSkip,
     };
 
-    return YAML.stringify(config);
+    const validationResult = KeyFunderConfigSchema.safeParse(config);
+    if (!validationResult.success) {
+      throw new Error(
+        `Invalid keyfunder config: ${fromZodError(validationResult.error).message}`,
+      );
+    }
+
+    return YAML.stringify(validationResult.data);
   }
 
   private buildRoleAddressMap(
@@ -158,10 +161,14 @@ export class KeyFunderHelmManager extends HelmManager {
 
       for (const role of roles) {
         const address = this.getAddressForRole(environment, context, role);
-        if (address) {
-          const roleName = `${context}-${role}`;
-          roleAddressMap[roleName] = address;
+        if (!address) {
+          throw new Error(
+            `No address found for role ${role} in context ${context} for environment ${environment}. ` +
+              `Ensure the role is configured in the appropriate addresses file.`,
+          );
         }
+        const roleName = `${context}-${role}`;
+        roleAddressMap[roleName] = address;
       }
     }
 

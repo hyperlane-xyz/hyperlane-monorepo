@@ -3,6 +3,7 @@ import fs from 'fs';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
 
+import { DockerImageNames } from '../../config/docker.js';
 import { rm, writeFile } from 'fs/promises';
 
 import { execCmd, execCmdAndParseJson } from './utils.js';
@@ -401,14 +402,35 @@ async function checkDockerTagExists({
 
 export async function checkAgentImageExists(tag: string) {
   return checkDockerTagExists({
-    image: 'hyperlane-agent',
+    image: DockerImageNames.AGENT,
     tag,
   });
 }
 
 export async function checkMonorepoImageExists(tag: string) {
   return checkDockerTagExists({
-    image: 'hyperlane-monorepo',
+    image: DockerImageNames.MONOREPO,
+    tag,
+  });
+}
+
+export async function checkKeyfunderImageExists(tag: string) {
+  return checkDockerTagExists({
+    image: DockerImageNames.KEYFUNDER,
+    tag,
+  });
+}
+
+export async function checkWarpMonitorImageExists(tag: string) {
+  return checkDockerTagExists({
+    image: DockerImageNames.WARP_MONITOR,
+    tag,
+  });
+}
+
+export async function checkRebalancerImageExists(tag: string) {
+  return checkDockerTagExists({
+    image: DockerImageNames.REBALANCER,
     tag,
   });
 }
