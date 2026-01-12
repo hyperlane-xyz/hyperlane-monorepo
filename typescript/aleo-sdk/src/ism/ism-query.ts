@@ -265,7 +265,7 @@ export async function getRoutingIsmConfig(
 
     routes.push({
       ismAddress: `${programId}/${routeIsmAddress}`,
-      domainId: routeKey.toObject().domain,
+      domainId: Number(routeKey.toObject().domain),
     });
   }
 
