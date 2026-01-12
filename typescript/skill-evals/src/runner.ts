@@ -3,15 +3,15 @@
  */
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { readFile } from 'node:fs/promises';
-import { basename, dirname } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 
 import type { EvalResult } from './types.js';
 
 /** Default max turns for Claude Code execution */
 const DEFAULT_MAX_TURNS = 30;
 
-/** Working directory for Claude Code */
-const CWD = '/Users/trevor/abacus-monorepo';
+/** Working directory for Claude Code - repo root is 3 levels up from src/ */
+const CWD = join(import.meta.dirname, '..', '..', '..');
 
 /**
  * Run an eval by executing its prompt through Claude Code.

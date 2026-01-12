@@ -5,8 +5,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "eval": "tsx src/run-evals.ts",
-    "eval:single": "tsx src/run-evals.ts --single"
+    "build": "tsc",
+    "eval": "tsx src/run-evals.ts"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "catalog:",
