@@ -71,6 +71,21 @@ pub enum KaspaEscrowKeySource {
     Aws(dym_kas_kms::AwsKeyConfig),
 }
 
+impl KaspaEscrowKeySource {
+    /// Load the Kaspa escrow keypair from the configured source.
+    pub async fn load_keypair(&self) -> eyre::Result<kaspa_bip32::secp256k1::Keypair> {
+        match self {
+            KaspaEscrowKeySource::Direct(json_str) => serde_json::from_str(json_str)
+                .map_err(|e| eyre::eyre!("parse Kaspa keypair from JSON: {}", e)),
+            KaspaEscrowKeySource::Aws(aws_config) => {
+                dym_kas_kms::load_kaspa_keypair_from_aws(aws_config)
+                    .await
+                    .map_err(|e| eyre::eyre!("load Kaspa keypair from AWS: {}", e))
+            }
+        }
+    }
+}
+
 pub use dym_kas_kms::AwsKeyConfig;
 
 #[derive(Debug, Clone)]
@@ -131,6 +146,13 @@ impl ValidationConf {
     /// Returns true if migration mode is active.
     pub fn is_migration_mode(&self) -> bool {
         self.migration_target_address.is_some()
+    }
+
+    /// Returns the parsed migration target address if in migration mode.
+    pub fn parsed_migration_target(&self) -> Option<kaspa_addresses::Address> {
+        self.migration_target_address
+            .as_ref()
+            .and_then(|s| kaspa_addresses::Address::try_from(s.as_str()).ok())
     }
 }
 

@@ -1,10 +1,12 @@
 use super::confirmation::validate_confirmed_withdrawals;
 use super::deposit::{validate_new_deposit, MustMatch as DepositMustMatch};
+use super::migration::validate_sign_migration_fxg;
 use super::withdraw::{validate_sign_withdrawal_fxg, MustMatch as WithdrawMustMatch};
 pub use super::KaspaSecpKeypair;
 use crate::conf::ValidatorStuff;
 use crate::endpoints::*;
 use crate::ops::deposit::DepositFXG;
+use crate::ops::migration::MigrationFXG;
 use crate::ops::{confirmation::ConfirmationFXG, withdraw::WithdrawFXG};
 use crate::providers::KaspaProvider;
 use axum::{
@@ -159,6 +161,11 @@ pub fn router<
         .route(
             ROUTE_SIGN_PSKTS,
             post(respond_sign_pskts::<S, H>)
+                .layer(RequestBodyLimitLayer::new(WITHDRAWAL_BODY_LIMIT)),
+        )
+        .route(
+            ROUTE_SIGN_MIGRATION,
+            post(respond_sign_migration::<S, H>)
                 .layer(RequestBodyLimitLayer::new(WITHDRAWAL_BODY_LIMIT)),
         )
         .route(
@@ -373,19 +380,7 @@ async fn respond_sign_pskts<
         val_stuff.toggles.validate_withdrawals,
         res.must_hub_rpc().query(),
         escrow,
-        || async move {
-            match &kas_key_source {
-                crate::conf::KaspaEscrowKeySource::Direct(json_str) => {
-                    serde_json::from_str(json_str)
-                        .map_err(|e| eyre::eyre!("parse Kaspa keypair from JSON: {}", e))
-                }
-                crate::conf::KaspaEscrowKeySource::Aws(aws_config) => {
-                    dym_kas_kms::load_kaspa_keypair_from_aws(aws_config)
-                        .await
-                        .map_err(|e| eyre::eyre!("load Kaspa keypair from AWS: {}", e))
-                }
-            }
-        },
+        || async move { kas_key_source.load_keypair().await },
         WithdrawMustMatch::new(
             res.must_wallet().net.address_prefix,
             res.must_escrow(),
@@ -508,4 +503,52 @@ async fn respond_validate_confirmed_withdrawals<
     info!("validator: signed confirmed withdrawal");
 
     Ok(Json(sig.signature))
+}
+
+async fn respond_sign_migration<
+    S: HyperlaneSigner + HyperlaneSignerExt + Send + Sync + 'static,
+    H: HyperlaneSigner + HyperlaneSignerExt + Clone + Send + Sync + 'static,
+>(
+    State(res): State<Arc<ValidatorServerResources<S, H>>>,
+    body: Bytes,
+) -> HandlerResult<Json<Bundle>> {
+    info!("validator: signing migration PSKT");
+
+    let val_stuff = res.must_val_stuff();
+
+    // Migration endpoint only works in migration mode
+    if !val_stuff.toggles.is_migration_mode() {
+        return Err(AppError(eyre::eyre!(
+            "Migration signing requires migration mode to be active"
+        )));
+    }
+
+    let migration_target_addr = val_stuff.toggles.parsed_migration_target().ok_or_else(|| {
+        AppError(eyre::eyre!(
+            "Migration target address not configured or invalid"
+        ))
+    })?;
+
+    let fxg: MigrationFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
+    let escrow = res.must_escrow();
+    let kas_key_source = res.kas_key_source().clone();
+    let kaspa_grpc = res.must_kaspa_grpc_client();
+
+    let bundle = validate_sign_migration_fxg(
+        fxg,
+        escrow,
+        &migration_target_addr,
+        res.must_hub_rpc().query(),
+        &kaspa_grpc,
+        || async move { kas_key_source.load_keypair().await },
+    )
+    .await
+    .map_err(|e| {
+        eprintln!("Migration validation and signing failed: {:?}", e);
+        AppError(e)
+    })?;
+
+    info!("validator: signed migration PSKT");
+
+    Ok(Json(bundle))
 }

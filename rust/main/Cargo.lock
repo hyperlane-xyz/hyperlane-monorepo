@@ -6538,7 +6538,7 @@ dependencies = [
 [[package]]
 name = "hyperlane-cosmos-dymension-rs"
 version = "0.1.4-dymension-v3.2.1"
-source = "git+https://github.com/dymensionxyz/hyperlane-cosmos-rs?rev=4cde36b#4cde36b75d6fd3a0adf3b5a24d4a0eb8c9db59bf"
+source = "git+https://github.com/dymensionxyz/hyperlane-cosmos-rs?rev=8fd5d6a#8fd5d6a08a74de2d6e2d81fba00ac51478fd47c3"
 dependencies = [
  "cosmrs 0.21.0",
  "prost 0.13.4",
