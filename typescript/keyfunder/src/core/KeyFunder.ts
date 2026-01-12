@@ -260,6 +260,9 @@ export class KeyFunder {
     const currentBalance = await this.multiProvider
       .getProvider(chain)
       .getBalance(address);
+    if (currentBalance.gte(desiredBalance)) {
+      return BigNumber.from(0);
+    }
     const delta = desiredBalance.sub(currentBalance);
     const minDelta = desiredBalance
       .mul(MIN_DELTA_NUMERATOR)
