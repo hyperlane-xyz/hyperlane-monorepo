@@ -1,15 +1,23 @@
+import { EncodeObject } from '@cosmjs/proto-signing';
+import { DeliverTxResponse } from '@cosmjs/stargate';
+
 import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   ArtifactDeployed,
+  ArtifactNew,
   ArtifactReader,
   ArtifactState,
+  ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   DeployedIsmAddress,
   TestIsmConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
 
+import { CosmosNativeSigner } from '../clients/signer.js';
+
 import { CosmosIsmQueryClient, getNoopIsmConfig } from './ism-query.js';
+import { getCreateTestIsmTx } from './ism-tx.js';
 
 /**
  * Reader for Cosmos NoopIsm (test ISM).
@@ -34,5 +42,53 @@ export class CosmosTestIsmReader
         address: ismConfig.address,
       },
     };
+  }
+}
+
+/**
+ * Writer for Cosmos NoopIsm (test ISM).
+ * Handles deployment of test ISMs which accept all messages without verification.
+ */
+export class CosmosTestIsmWriter
+  extends CosmosTestIsmReader
+  implements ArtifactWriter<TestIsmConfig, DeployedIsmAddress>
+{
+  constructor(
+    query: CosmosIsmQueryClient,
+    private readonly signer: CosmosNativeSigner,
+  ) {
+    super(query);
+  }
+
+  async create(
+    artifact: ArtifactNew<TestIsmConfig>,
+  ): Promise<
+    [ArtifactDeployed<TestIsmConfig, DeployedIsmAddress>, DeliverTxResponse[]]
+  > {
+    const transaction = await getCreateTestIsmTx(
+      this.signer.getSignerAddress(),
+    );
+
+    const { id, receipt } = await this.signer.submitTxWithReceipt(transaction);
+
+    const deployedArtifact: ArtifactDeployed<
+      TestIsmConfig,
+      DeployedIsmAddress
+    > = {
+      artifactState: ArtifactState.DEPLOYED,
+      config: artifact.config,
+      deployed: {
+        address: id,
+      },
+    };
+
+    return [deployedArtifact, [receipt]];
+  }
+
+  async update(
+    _artifact: ArtifactDeployed<TestIsmConfig, DeployedIsmAddress>,
+  ): Promise<EncodeObject[]> {
+    // NoopIsm has no mutable state
+    return [];
   }
 }

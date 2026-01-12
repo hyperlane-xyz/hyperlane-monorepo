@@ -159,6 +159,30 @@ export class CosmosNativeSigner
     );
   }
 
+  /**
+   * Submit a transaction and return the created component ID and receipt.
+   * Used by artifact writers that need access to both the new component's address and the full receipt.
+   * Only for create operations that return an ID (e.g., createMailbox, createIsm, createHook, etc.).
+   */
+  async submitTxWithReceipt(
+    msg: EncodeObject,
+  ): Promise<{ id: string; receipt: DeliverTxResponse }> {
+    const receipt = await this.signer.signAndBroadcast(
+      this.account.address,
+      [msg],
+      this.options.fee,
+      this.options.memo,
+    );
+    assertIsDeliverTxSuccess(receipt);
+
+    const msgResponse = receipt.msgResponses[0];
+    const decoded = this.getProtoConverter(msgResponse.typeUrl).decode(
+      msgResponse.value,
+    ) as { id: string };
+
+    return { id: decoded.id, receipt };
+  }
+
   getSignerAddress(): string {
     return this.account.address;
   }
