@@ -72,6 +72,7 @@ const getCCTPWarpConfig = (
         tokenMessenger: messengerAddresses[chain],
         cctpVersion: version,
         urls: [`${SERVICE_URL}/cctp/getCctpAttestation`],
+        contractVersion: '10.1.3',
       };
       return [chain, config];
     }),
