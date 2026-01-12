@@ -263,7 +263,7 @@ const send: CommandModuleWithWriteContext<
       router?: string;
       amount: string;
       recipient?: string;
-      chains?: string;
+      chains?: string[];
       skipValidation?: boolean;
     }
 > = {
@@ -282,8 +282,9 @@ const send: CommandModuleWithWriteContext<
       description: 'Token recipient address (defaults to sender)',
     },
     chains: {
-      type: 'string',
-      description: 'Comma separated list of chains to send messages to',
+      type: 'array',
+      string: true,
+      description: 'List of chains to send messages to',
       demandOption: false,
       conflicts: ['origin', 'destination'],
     },
@@ -305,7 +306,7 @@ const send: CommandModuleWithWriteContext<
     amount,
     recipient,
     roundTrip,
-    chains: chainsAsString,
+    chains: chainsArg,
     skipValidation,
   }) => {
     const warpCoreConfig = await getWarpCoreConfigOrExit({
@@ -313,7 +314,10 @@ const send: CommandModuleWithWriteContext<
       warp,
       context,
     });
-    const chainsToSend = chainsAsString?.split(',').map((_) => _.trim());
+    const chainsToSend =
+      chainsArg && chainsArg.length > 0
+        ? chainsArg.map((_) => _.trim())
+        : undefined;
     let chains = chainsToSend || [];
 
     if (origin && destination) {
@@ -372,7 +376,7 @@ export const check: CommandModuleWithContext<
     ica?: boolean;
     origin?: string;
     originOwner?: string;
-    destinations?: string;
+    destinations?: string[];
   }
 > = {
   command: 'check',
@@ -399,9 +403,10 @@ export const check: CommandModuleWithContext<
       implies: 'origin',
     },
     destinations: {
-      type: 'string',
+      type: 'array',
+      string: true,
       description:
-        'Comma-separated list of destination chains to check. Defaults to all chains except origin when using --ica.',
+        'List of destination chains to check. Defaults to all chains except origin when using --ica.',
       implies: 'ica',
     },
   },
@@ -433,11 +438,10 @@ export const check: CommandModuleWithContext<
 
     // If --ica flag is set, run ICA owner check instead of the regular config check
     if (ica) {
-      assert(origin, '--origin is required when using --ica');
-
-      const destinationChains = destinations
-        ? destinations.split(',').map((c) => c.trim())
-        : undefined;
+      const destinationChains =
+        destinations && destinations.length > 0
+          ? destinations.map((c) => c.trim())
+          : undefined;
 
       await runWarpIcaOwnerCheck({
         context,

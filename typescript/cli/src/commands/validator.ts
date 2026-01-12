@@ -67,7 +67,7 @@ const addressCommand: CommandModuleWithContext<{
 
 const preFlightCheckCommand: CommandModuleWithContext<{
   chain: string;
-  validators: string;
+  validators: string[];
 }> = {
   command: 'check',
   describe: 'Check the validator has announced correctly for a given chain',
@@ -96,7 +96,7 @@ const preFlightCheckCommand: CommandModuleWithContext<{
     }
 
     // validate validators addresses
-    const validatorList = validators.split(',');
+    const validatorList = validators.map((v) => v.trim());
     const invalidAddresses: Set<Address> = new Set();
     const validAddresses: Set<Address> = new Set();
 
