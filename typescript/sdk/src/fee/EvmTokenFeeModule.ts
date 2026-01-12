@@ -7,7 +7,6 @@ import {
   assert,
   deepEquals,
   eqAddress,
-  isNullish,
   isZeroishAddress,
   objMap,
   objMerge,
@@ -217,22 +216,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       }),
     );
 
-    // Derive routingDestinations from target config's feeContracts if not provided
-    let routingDestinations = params?.routingDestinations;
-    if (
-      !routingDestinations &&
-      normalizedTargetConfig.type === TokenFeeType.RoutingFee &&
-      normalizedTargetConfig.feeContracts
-    ) {
-      routingDestinations = Object.keys(
-        normalizedTargetConfig.feeContracts,
-      ).map((chainName) => this.multiProvider.getDomainId(chainName));
-    }
-
-    const actualConfig = await this.read({
-      ...params,
-      routingDestinations,
-    });
+    const actualConfig = await this.read(params);
     const normalizedActualConfig: TokenFeeConfig =
       normalizeConfig(actualConfig);
 
@@ -244,41 +228,19 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       return [];
     }
 
-    // Redeploy if fee type changes or if immutable fee type config differs (excluding owner)
-    const feeTypeChanged =
-      normalizedActualConfig.type !== normalizedTargetConfig.type;
-
-    // For LinearFee with bps defined, compare bps instead of derived maxFee/halfAmount.
-    // maxFee is computed as: uint256.max / token.totalSupply()
-    // Since totalSupply changes over time (e.g., USDC mints/burns), computed values
-    // will differ from on-chain values even when the fee rate (bps) is identical.
-    // Only apply this optimization when both configs have bps; otherwise fall back
-    // to comparing maxFee/halfAmount directly.
-    const isLinearFeeWithBps =
-      normalizedActualConfig.type === TokenFeeType.LinearFee &&
-      normalizedTargetConfig.type === TokenFeeType.LinearFee &&
-      !isNullish(normalizedActualConfig.bps) &&
-      !isNullish(normalizedTargetConfig.bps);
-
-    const fieldsToOmit = isLinearFeeWithBps
-      ? { owner: true, maxFee: true, halfAmount: true }
-      : { owner: true, bps: true };
-
-    const actualForComparison = objOmit(normalizedActualConfig, fieldsToOmit);
-    const targetForComparison = objOmit(normalizedTargetConfig, fieldsToOmit);
+    // Redeploy immutable fee types, if owner is the same, but the rest of the config is different
     const nonOwnerDiffers = !deepEquals(
-      actualForComparison,
-      targetForComparison,
+      objOmit(normalizedActualConfig, { owner: true }),
+      objOmit(normalizedTargetConfig, { owner: true }),
     );
-    const isTargetImmutable = ImmutableTokenFeeType.includes(
-      normalizedTargetConfig.type as (typeof ImmutableTokenFeeType)[number],
-    );
-
-    if (feeTypeChanged || (isTargetImmutable && nonOwnerDiffers)) {
+    if (
+      ImmutableTokenFeeType.includes(
+        normalizedTargetConfig.type as (typeof ImmutableTokenFeeType)[number],
+      ) &&
+      nonOwnerDiffers
+    ) {
       this.logger.info(
-        feeTypeChanged
-          ? `Fee type changed from ${normalizedActualConfig.type} to ${normalizedTargetConfig.type}, redeploying`
-          : `Immutable fee type ${normalizedTargetConfig.type}, redeploying`,
+        `Immutable fee type ${normalizedTargetConfig.type}, redeploying`,
       );
       const contracts = await this.deploy({
         config: normalizedTargetConfig,
@@ -308,8 +270,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       ),
     ];
 
-    // Deduplicate transactions (e.g., when multiple destinations share the same sub-contract)
-    return this.deduplicateTransactions(updateTransactions);
+    return updateTransactions;
   }
 
   private async updateRoutingFee(targetConfig: DerivedRoutingFeeConfig) {
@@ -368,27 +329,5 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       expectedConfig,
       `${expectedConfig.type} Warp Route`,
     );
-  }
-
-  /**
-   * Deduplicate transactions based on chainId + to + data.
-   * This handles cases where multiple destinations share the same sub-contract,
-   * which would otherwise generate duplicate ownership transfer transactions.
-   */
-  private deduplicateTransactions(
-    transactions: AnnotatedEV5Transaction[],
-  ): AnnotatedEV5Transaction[] {
-    const seen = new Set<string>();
-    return transactions.filter((tx) => {
-      const key = `${tx.chainId}-${tx.to?.toLowerCase()}-${tx.data}`;
-      if (seen.has(key)) {
-        this.logger.debug(
-          `Deduplicating transaction: ${tx.annotation ?? 'unknown'}`,
-        );
-        return false;
-      }
-      seen.add(key);
-      return true;
-    });
   }
 }
