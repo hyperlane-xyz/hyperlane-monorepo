@@ -285,6 +285,7 @@ export async function getWarpConfig(
   envConfig: EnvironmentConfig,
   warpRouteId: string,
   registryUris = [DEFAULT_REGISTRY_URI],
+  forceRegistryConfig = false,
 ): Promise<ChainMap<HypTokenRouterConfig>> {
   const routerConfig = await getRouterConfigsForAllVms(
     envConfig,
@@ -309,7 +310,7 @@ export async function getWarpConfig(
   });
 
   const warpConfigGetter = warpConfigGetterMap[warpRouteId];
-  if (warpConfigGetter) {
+  if (warpConfigGetter && !forceRegistryConfig) {
     return warpConfigGetter(
       routerConfigWithoutOwner,
       abacusWorksEnvOwnerConfig,
