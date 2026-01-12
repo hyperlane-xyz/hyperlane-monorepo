@@ -308,27 +308,20 @@ impl BaseAgent for Relayer {
     #[allow(clippy::async_yields_async)]
     async fn run(mut self) {
         // If migration mode is enabled, run migration and exit
-        if let Some(ref args) = self.dymension_kaspa_args {
-            if let Some(ref target_address) =
-                args.kas_provider.must_relayer_stuff().migrate_escrow_to
-            {
-                info!(
-                    target_address,
-                    "Migration mode: migrating escrow to new address"
-                );
-                match self.run_escrow_migration().await {
-                    Ok(tx_ids) => {
-                        info!(tx_count = tx_ids.len(), "Migration completed successfully");
-                        for (i, tx_id) in tx_ids.iter().enumerate() {
-                            info!(index = i, tx_id = tx_id, "Migration transaction");
-                        }
-                    }
-                    Err(e) => {
-                        error!(error = ?e, "Migration failed");
+        if let Some(target) = self.get_migration_target() {
+            info!(target, "Migration mode: migrating escrow to new address");
+            match self.run_escrow_migration(&target).await {
+                Ok(tx_ids) => {
+                    info!(tx_count = tx_ids.len(), "Migration completed successfully");
+                    for (i, tx_id) in tx_ids.iter().enumerate() {
+                        info!(index = i, tx_id = tx_id, "Migration transaction");
                     }
                 }
-                return;
+                Err(e) => {
+                    error!(error = ?e, "Migration failed");
+                }
             }
+            return;
         }
 
         let start = Instant::now();
@@ -1247,25 +1240,21 @@ impl Relayer {
         tasks.push(message_db_loader);
     }
 
-    /// Run escrow key migration to a new address.
-    /// This transfers all escrow funds to the new escrow address.
-    async fn run_escrow_migration(&self) -> Result<Vec<String>> {
+    fn get_migration_target(&self) -> Option<String> {
+        self.dymension_kaspa_args.as_ref().and_then(|args| {
+            args.kas_provider
+                .must_relayer_stuff()
+                .migrate_escrow_to
+                .clone()
+        })
+    }
+
+    async fn run_escrow_migration(&self, target_address: &str) -> Result<Vec<String>> {
         use dymension_kaspa::relayer::execute_migration;
         use dymension_kaspa::KaspaAddress;
 
-        let args = self
-            .dymension_kaspa_args
-            .as_ref()
-            .ok_or_else(|| eyre::eyre!("Migration requires Kaspa bridge configuration"))?;
-
-        let target_address = args
-            .kas_provider
-            .must_relayer_stuff()
-            .migrate_escrow_to
-            .as_ref()
-            .ok_or_else(|| eyre::eyre!("Migration target address not configured"))?;
-
-        let target_addr = KaspaAddress::try_from(target_address.as_str())
+        let args = self.dymension_kaspa_args.as_ref().unwrap();
+        let target_addr = KaspaAddress::try_from(target_address)
             .map_err(|e| eyre::eyre!("Invalid target address '{}': {}", target_address, e))?;
 
         let tx_ids = execute_migration(&args.kas_provider, &target_addr).await?;
