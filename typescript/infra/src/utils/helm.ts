@@ -1,5 +1,3 @@
-import { confirm } from '@inquirer/prompts';
-import chalk from 'chalk';
 import { execSync } from 'child_process';
 import fs from 'fs';
 import tmp from 'tmp';
@@ -329,77 +327,6 @@ export abstract class HelmManager<T = HelmValues> {
       imageDiff,
       isNewDeployment: false,
     };
-  }
-
-  /**
-   * Runs pre-flight checks before deployment.
-   * Compares the proposed deployment against what's currently running
-   * and prompts for confirmation if there are significant changes.
-   *
-   * @returns true if the deployment should proceed, false otherwise
-   */
-  async runPreflightChecksWithConfirmation(): Promise<boolean> {
-    const diff = await this.getPreflightDiff();
-
-    if (diff.isNewDeployment) {
-      console.log(
-        chalk.green(
-          `No existing deployment found for ${this.helmReleaseName}. Proceeding with fresh install.`,
-        ),
-      );
-      return true;
-    }
-
-    if (!diff.chainDiff.hasChanges && !diff.imageDiff.hasChanges) {
-      console.log(
-        chalk.green(
-          `Pre-flight check passed for ${this.helmReleaseName}. No significant changes detected.`,
-        ),
-      );
-      return true;
-    }
-
-    // Display the differences
-    console.log(
-      chalk.yellow.bold(
-        `\n⚠️  Deployment changes detected for ${this.helmReleaseName}:\n`,
-      ),
-    );
-
-    if (diff.chainDiff.hasChanges) {
-      console.log(chalk.cyan('Chain configuration changes:'));
-      if (diff.chainDiff.added.length > 0) {
-        console.log(
-          chalk.green(`  + Adding chains: ${diff.chainDiff.added.join(', ')}`),
-        );
-      }
-      if (diff.chainDiff.removed.length > 0) {
-        console.log(
-          chalk.red(
-            `  - Removing chains: ${diff.chainDiff.removed.join(', ')}`,
-          ),
-        );
-      }
-    }
-
-    if (diff.imageDiff.hasChanges) {
-      console.log(chalk.cyan('\nDocker image changes:'));
-      if (diff.imageDiff.currentTag && diff.imageDiff.newTag) {
-        console.log(
-          `  ${chalk.red(diff.imageDiff.currentTag)} → ${chalk.green(diff.imageDiff.newTag)}`,
-        );
-      }
-    }
-
-    console.log('');
-
-    // Prompt for confirmation
-    return confirm({
-      message: chalk.yellow(
-        'Do you want to proceed with this deployment? (This may overwrite changes from other branches)',
-      ),
-      default: false,
-    });
   }
 
   /**
