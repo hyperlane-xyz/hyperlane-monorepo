@@ -35,6 +35,7 @@ COPY typescript/utils/package.json ./typescript/utils/
 COPY typescript/cosmos-sdk/package.json ./typescript/cosmos-sdk/
 COPY typescript/cosmos-types/package.json ./typescript/cosmos-types/
 COPY typescript/radix-sdk/package.json ./typescript/radix-sdk/
+COPY typescript/aleo-sdk/package.json ./typescript/aleo-sdk/
 COPY typescript/tsconfig/package.json ./typescript/tsconfig/
 COPY typescript/eslint-config/package.json ./typescript/eslint-config/
 COPY solidity/package.json ./solidity/
@@ -62,6 +63,7 @@ COPY typescript/utils ./typescript/utils
 COPY typescript/cosmos-sdk ./typescript/cosmos-sdk
 COPY typescript/cosmos-types ./typescript/cosmos-types
 COPY typescript/radix-sdk ./typescript/radix-sdk
+COPY typescript/aleo-sdk ./typescript/aleo-sdk
 COPY typescript/tsconfig ./typescript/tsconfig
 COPY typescript/eslint-config ./typescript/eslint-config
 COPY solidity ./solidity

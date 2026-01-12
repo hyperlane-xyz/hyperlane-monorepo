@@ -1,4 +1,4 @@
-import { concurrentMap } from '@hyperlane-xyz/utils';
+import { concurrentMap, rootLogger } from '@hyperlane-xyz/utils';
 
 import {
   AgentHelmManager,
@@ -9,7 +9,10 @@ import {
 import { RootAgentConfig } from '../../src/config/agent/agent.js';
 import { EnvironmentConfig } from '../../src/config/environment.js';
 import { Role } from '../../src/roles.js';
-import { HelmCommand } from '../../src/utils/helm.js';
+import {
+  HelmCommand,
+  buildHelmChartDependencies,
+} from '../../src/utils/helm.js';
 import { K8sResourceType, refreshK8sResources } from '../../src/utils/k8s.js';
 import {
   assertCorrectKubeContext,
@@ -51,14 +54,37 @@ export class AgentCli {
       console.log('Dry run values:\n', JSON.stringify(values, null, 2));
     }
 
-    await concurrentMap(
-      this.concurrency,
-      Object.entries(managers),
-      async ([key, manager]) => {
-        console.log(`Running helm command for ${key}`);
-        await manager.runHelmCommand(command, { dryRun: this.dryRun });
-      },
-    );
+    const managerList = Object.values(managers);
+    if (managerList.length > 0 && command !== HelmCommand.Remove) {
+      rootLogger.info('Building helm chart dependencies...');
+      await buildHelmChartDependencies(managerList[0].helmChartPath, false);
+    }
+
+    const originalProcessMax = process.getMaxListeners();
+    const originalStdoutMax = process.stdout.getMaxListeners();
+    const originalStderrMax = process.stderr.getMaxListeners();
+    const requiredListeners = this.concurrency + 10;
+    process.setMaxListeners(requiredListeners);
+    process.stdout.setMaxListeners(requiredListeners);
+    process.stderr.setMaxListeners(requiredListeners);
+
+    try {
+      await concurrentMap(
+        this.concurrency,
+        Object.entries(managers),
+        async ([key, manager]) => {
+          console.log(`Running helm command for ${key}`);
+          await manager.runHelmCommand(command, {
+            dryRun: this.dryRun,
+            skipDependencyBuild: true,
+          });
+        },
+      );
+    } finally {
+      process.setMaxListeners(originalProcessMax);
+      process.stdout.setMaxListeners(originalStdoutMax);
+      process.stderr.setMaxListeners(originalStderrMax);
+    }
   }
 
   protected async init() {

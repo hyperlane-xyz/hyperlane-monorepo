@@ -69,11 +69,17 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   }
 
   async getBalance(req: AltVM.ReqGetBalance): Promise<bigint> {
-    if (req.denom && req.denom !== ALEO_NATIVE_DENOM) {
+    let aleoAddress = req.address;
+
+    if (aleoAddress.includes('/')) {
+      aleoAddress = req.address.split('/')[1];
+    }
+
+    if (req.denom && req.denom !== 'credits' && req.denom !== '0field') {
       const result = await this.queryMappingValue(
         'token_registry.aleo',
         'authorized_balances',
-        getBalanceKey(req.address, req.denom),
+        getBalanceKey(aleoAddress, req.denom),
       );
 
       if (!result) {
@@ -83,7 +89,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       return result['balance'];
     }
 
-    const balance = await this.aleoClient.getPublicBalance(req.address);
+    const balance = await this.aleoClient.getPublicBalance(aleoAddress);
     return BigInt(balance);
   }
 
@@ -99,7 +105,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     );
 
     if (!result) {
-      0n;
+      return 0n;
     }
 
     return result['max_supply'];
@@ -136,7 +142,8 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     } = await this.queryMappingValue(programId, 'mailbox', 'true');
 
     const hookManagerProgramId = getProgramIdFromSuffix(
-      'hook_manager',
+      this.prefix,
+      `hook_manager`,
       getProgramSuffix(programId),
     );
 
@@ -436,7 +443,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     token.hookAddress =
       tokenMetadata.hook === ALEO_NULL_ADDRESS
         ? ''
-        : `${getProgramIdFromSuffix('hook_manager', getProgramSuffix(mailboxProgramId))}/${tokenMetadata.hook}`;
+        : `${getProgramIdFromSuffix(this.prefix, 'hook_manager', getProgramSuffix(mailboxProgramId))}/${tokenMetadata.hook}`;
     token.denom = tokenMetadata.token_id || '';
 
     if (token.denom) {
@@ -839,13 +846,13 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     const suffix = getProgramSuffix(programId);
 
     return {
-      programName: getProgramIdFromSuffix('hook_manager', suffix),
+      programName: getProgramIdFromSuffix(this.prefix, 'hook_manager', suffix),
       functionName: 'init_merkle_tree',
       priorityFee: 0,
       privateFee: false,
       inputs: [
         getAddressFromProgramId(
-          getProgramIdFromSuffix('dispatch_proxy', suffix),
+          getProgramIdFromSuffix(this.prefix, 'dispatch_proxy', suffix),
         ),
       ],
     };
@@ -858,6 +865,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
 
     return {
       programName: getProgramIdFromSuffix(
+        this.prefix,
         'hook_manager',
         getProgramSuffix(programId),
       ),
@@ -921,6 +929,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
 
     return {
       programName: getProgramIdFromSuffix(
+        this.prefix,
         'hook_manager',
         getProgramSuffix(programId),
       ),

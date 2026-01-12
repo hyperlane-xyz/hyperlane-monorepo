@@ -287,6 +287,9 @@ overrides:
   '@typechain/ethers-v5': 11.1.2
 
 patchedDependencies:
+  '@provablehq/sdk@0.9.14':
+    hash: c53a252e5d7b2f4acbe743daa3febb6f448ac3b131eaad95952c9e3995999277
+    path: patches/@provablehq__sdk@0.9.14.patch
   node-fetch@2.7.0:
     hash: 59af5fd5e6879432f6c8aaafe72ade0e018951d8576db2aedda3d59e5a7bc024
     path: patches/node-fetch@2.7.0.patch
@@ -514,8 +517,8 @@ importers:
         specifier: workspace:*
         version: link:../utils
       '@provablehq/sdk':
-        specifier: ^0.9.13
-        version: 0.9.13
+        specifier: 0.9.14
+        version: 0.9.14(patch_hash=c53a252e5d7b2f4acbe743daa3febb6f448ac3b131eaad95952c9e3995999277)
       bignumber.js:
         specifier: 'catalog:'
         version: 9.3.1
@@ -725,6 +728,9 @@ importers:
       '@ethersproject/providers':
         specifier: '*'
         version: 5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
+      '@hyperlane-xyz/aleo-sdk':
+        specifier: workspace:*
+        version: link:../aleo-sdk
       '@hyperlane-xyz/core':
         specifier: workspace:*
         version: link:../../solidity
@@ -1024,6 +1030,9 @@ importers:
 
   typescript/deploy-sdk:
     dependencies:
+      '@hyperlane-xyz/aleo-sdk':
+        specifier: workspace:*
+        version: link:../aleo-sdk
       '@hyperlane-xyz/cosmos-sdk':
         specifier: workspace:*
         version: link:../cosmos-sdk
@@ -1853,6 +1862,9 @@ importers:
       '@ethersproject/abi':
         specifier: '*'
         version: 5.8.0
+      '@hyperlane-xyz/aleo-sdk':
+        specifier: workspace:*
+        version: link:../aleo-sdk
       '@hyperlane-xyz/core':
         specifier: workspace:*
         version: link:../../solidity
@@ -5534,11 +5546,11 @@ packages:
   '@protobufjs/utf8@1.1.0':
     resolution: {integrity: sha512-Vvn3zZrhQZkkBE8LSuW3em98c0FwgO4nxzv6OdSxPKJIEKY2bGbHn+mhGIPerzI4twdxaP8/0+06HBpwf345Lw==}
 
-  '@provablehq/sdk@0.9.13':
-    resolution: {integrity: sha512-WHx6jhnvNKkeMARySlo3nJ4q8Kj4UekE0mPgZ01IaX0Z//OByu/3IYAz3h8AZjU03LAwB4ZNVXibYohye2xN3w==}
+  '@provablehq/sdk@0.9.14':
+    resolution: {integrity: sha512-8xVL7tMTnu4bc1D8axXOy1tvjVIBjYXkjXCBw2yr26UjvNVX4snXMVPcVeJ+srtUOcwk+6WUcz1VT7HTx1tAGQ==}
 
-  '@provablehq/wasm@0.9.13':
-    resolution: {integrity: sha512-bphuKMgsvZcWcX/z5/uBtcST0yCw5LbUhBjS+T3bPCptpFbXo0voU0xZUJ/hqDi8ufKEsOXxZqA+GwfFr1uSjA==}
+  '@provablehq/wasm@0.9.14':
+    resolution: {integrity: sha512-Pkfo65bNJkW/UYoF+2+ZMF94N5YVOuh0jM1ZHMdk5kI78kQWoeYlZcGp/kadLsMgz9BcwSB/ZwvLYgDGozjGVA==}
 
   '@radix-ui/number@1.0.1':
     resolution: {integrity: sha512-T5gIdVO2mmPW3NNhjNgEP3cqMXjXL9UbO0BzWcXfvdBs+BohbQxvd/K5hSVKmn9/lbTdsQVKbUcP5WLCwvUbBg==}
@@ -21404,9 +21416,9 @@ snapshots:
 
   '@protobufjs/utf8@1.1.0': {}
 
-  '@provablehq/sdk@0.9.13':
+  '@provablehq/sdk@0.9.14(patch_hash=c53a252e5d7b2f4acbe743daa3febb6f448ac3b131eaad95952c9e3995999277)':
     dependencies:
-      '@provablehq/wasm': 0.9.13
+      '@provablehq/wasm': 0.9.14
       '@scure/base': 2.0.0
       comlink: 4.4.2
       core-js: 3.47.0
@@ -21414,7 +21426,7 @@ snapshots:
       sync-request: 6.1.0
       xmlhttprequest-ssl: 3.1.0
 
-  '@provablehq/wasm@0.9.13': {}
+  '@provablehq/wasm@0.9.14': {}
 
   '@radix-ui/number@1.0.1':
     dependencies:
