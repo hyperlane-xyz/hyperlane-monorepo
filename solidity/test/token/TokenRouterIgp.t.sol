@@ -61,7 +61,7 @@ contract TokenRouterIgpTest is Test {
     HypERC20 internal remoteRouter;
 
     // Events
-    event FeeTokenSet(address feeToken);
+    event UseTokenFeesSet(bool useTokenFees);
     event FeeHookSet(address feeHook);
     event SentTransferRemote(
         uint32 indexed destination,
@@ -187,18 +187,18 @@ contract TokenRouterIgpTest is Test {
 
     // ============ Setter Tests ============
 
-    function test_setFeeToken() public {
+    function test_setUseTokenFees() public {
         vm.expectEmit(true, true, true, true);
-        emit FeeTokenSet(address(feeToken));
-        collateralRouter.setFeeToken(address(feeToken));
+        emit UseTokenFeesSet(true);
+        collateralRouter.setUseTokenFees(true);
 
-        assertEq(collateralRouter.feeToken(), address(feeToken));
+        assertTrue(collateralRouter.useTokenFees());
     }
 
-    function test_setFeeToken_revertsIfNotOwner() public {
+    function test_setUseTokenFees_revertsIfNotOwner() public {
         vm.prank(ALICE);
         vm.expectRevert("Ownable: caller is not the owner");
-        collateralRouter.setFeeToken(address(feeToken));
+        collateralRouter.setUseTokenFees(true);
     }
 
     function test_setFeeHook() public {
@@ -218,8 +218,11 @@ contract TokenRouterIgpTest is Test {
     // ============ Quote Tests ============
 
     function test_quoteTransferRemote_withERC20Igp() public {
+        // Set up IGP gas config for collateralToken (which is token() for collateralRouter)
+        _setTokenGasConfig(address(collateralToken), DESTINATION, gasOracle);
+
         // Configure ERC20 IGP
-        collateralRouter.setFeeToken(address(feeToken));
+        collateralRouter.setUseTokenFees(true);
         collateralRouter.setFeeHook(address(igp));
         collateralRouter.setHook(address(igp));
 
@@ -229,11 +232,11 @@ contract TokenRouterIgpTest is Test {
             TRANSFER_AMT
         );
 
-        // Quote[0] should be the IGP fee in feeToken
+        // Quote[0] should be the IGP fee in collateralToken (the router's token())
         assertEq(
             quotes[0].token,
-            address(feeToken),
-            "Quote[0].token should be feeToken"
+            address(collateralToken),
+            "Quote[0].token should be collateralToken"
         );
         assertGt(quotes[0].amount, 0, "Quote[0].amount should be > 0");
 
@@ -269,10 +272,10 @@ contract TokenRouterIgpTest is Test {
     // ============ HypERC20Collateral Tests (feeToken == collateral) ============
 
     function test_transferRemote_withERC20Igp_sameToken() public {
-        // Use collateralToken as both collateral AND fee token
+        // Use collateralToken as both collateral AND fee token (token() returns collateralToken)
         _setTokenGasConfig(address(collateralToken), DESTINATION, gasOracle);
 
-        collateralRouter.setFeeToken(address(collateralToken));
+        collateralRouter.setUseTokenFees(true);
         collateralRouter.setFeeHook(address(igp));
         collateralRouter.setHook(address(igp));
 
@@ -316,121 +319,11 @@ contract TokenRouterIgpTest is Test {
         );
     }
 
-    // ============ HypERC20Collateral Tests (feeToken != collateral) ============
-
-    function test_transferRemote_withERC20Igp_differentToken() public {
-        // Configure feeToken (different from collateralToken)
-        collateralRouter.setFeeToken(address(feeToken));
-        collateralRouter.setFeeHook(address(igp));
-        collateralRouter.setHook(address(igp));
-
-        // Calculate expected IGP fee (token payments use same overhead as native)
-        uint256 totalGas = igp.destinationGasLimit(DESTINATION, GAS_LIMIT);
-        uint256 igpFee = igp.quoteGasPayment(
-            address(feeToken),
-            DESTINATION,
-            totalGas
-        );
-
-        // Approve router for collateral transfer
-        vm.startPrank(ALICE);
-        collateralToken.approve(address(collateralRouter), TRANSFER_AMT);
-        // Approve router for fee token pull
-        feeToken.approve(address(collateralRouter), igpFee);
-
-        uint256 aliceCollateralBefore = collateralToken.balanceOf(ALICE);
-        uint256 aliceFeeTokenBefore = feeToken.balanceOf(ALICE);
-
-        // Transfer with msg.value = 0 (ERC20 IGP)
-        collateralRouter.transferRemote{value: 0}(
-            DESTINATION,
-            BOB.addressToBytes32(),
-            TRANSFER_AMT
-        );
-        vm.stopPrank();
-
-        // Verify ALICE was charged collateral for transfer
-        assertEq(
-            aliceCollateralBefore - collateralToken.balanceOf(ALICE),
-            TRANSFER_AMT,
-            "ALICE should be charged collateral for transfer"
-        );
-
-        // Verify ALICE was charged fee tokens for IGP
-        assertEq(
-            aliceFeeTokenBefore - feeToken.balanceOf(ALICE),
-            igpFee,
-            "ALICE should be charged fee tokens for IGP"
-        );
-
-        // Verify IGP received the fee tokens
-        assertEq(
-            feeToken.balanceOf(address(igp)),
-            igpFee,
-            "IGP should receive fee tokens"
-        );
-    }
-
     // ============ HypERC20 (Synthetic) Tests ============
 
     function test_transferRemote_withERC20Igp_syntheticToken() public {
-        // Configure feeToken for synthetic router
-        syntheticRouter.setFeeToken(address(feeToken));
-        syntheticRouter.setFeeHook(address(igp));
-        syntheticRouter.setHook(address(igp));
-
-        // Calculate expected IGP fee
-        uint256 totalGas = igp.destinationGasLimit(DESTINATION, GAS_LIMIT);
-        uint256 igpFee = igp.quoteGasPayment(
-            address(feeToken),
-            DESTINATION,
-            totalGas
-        );
-
-        vm.startPrank(ALICE);
-        // Approve router to pull fee tokens
-        feeToken.approve(address(syntheticRouter), igpFee);
-
-        uint256 aliceSyntheticBefore = syntheticRouter.balanceOf(ALICE);
-        uint256 aliceFeeTokenBefore = feeToken.balanceOf(ALICE);
-
-        // Transfer with msg.value = 0 (ERC20 IGP)
-        syntheticRouter.transferRemote{value: 0}(
-            DESTINATION,
-            BOB.addressToBytes32(),
-            TRANSFER_AMT
-        );
-        vm.stopPrank();
-
-        // Verify synthetic tokens were burned
-        assertEq(
-            aliceSyntheticBefore - syntheticRouter.balanceOf(ALICE),
-            TRANSFER_AMT,
-            "Synthetic tokens should be burned"
-        );
-
-        // Verify ALICE was charged fee tokens for IGP
-        assertEq(
-            aliceFeeTokenBefore - feeToken.balanceOf(ALICE),
-            igpFee,
-            "ALICE should be charged fee tokens for IGP"
-        );
-
-        // Verify IGP received the fee tokens
-        assertEq(
-            feeToken.balanceOf(address(igp)),
-            igpFee,
-            "IGP should receive fee tokens"
-        );
-    }
-
-    // ============ HypERC20 (Synthetic) - feeToken == synthetic token ============
-
-    function test_transferRemote_withERC20Igp_syntheticToken_sameAsFeeToken()
-        public
-    {
-        // Configure feeToken to be the synthetic token itself
-        syntheticRouter.setFeeToken(address(syntheticRouter));
+        // Configure useTokenFees - for HypERC20, token() returns address(this)
+        syntheticRouter.setUseTokenFees(true);
         syntheticRouter.setFeeHook(address(igp));
         syntheticRouter.setHook(address(igp));
 
@@ -479,8 +372,8 @@ contract TokenRouterIgpTest is Test {
 
     // ============ Edge Cases ============
 
-    function test_transferRemote_nativeIgp_whenFeeTokenNotSet() public {
-        // Default: feeToken = address(0), igp = address(0)
+    function test_transferRemote_nativeIgp_whenUseTokenFeesNotSet() public {
+        // Default: useTokenFees = false, feeHook = address(0)
         // Should use native IGP (existing behavior)
 
         vm.startPrank(ALICE);
@@ -505,15 +398,16 @@ contract TokenRouterIgpTest is Test {
         );
     }
 
-    function test_transferRemote_withERC20Igp_insufficientFeeTokenAllowance()
-        public
-    {
-        collateralRouter.setFeeToken(address(feeToken));
+    function test_transferRemote_withERC20Igp_insufficientAllowance() public {
+        // Set up IGP gas config for collateralToken
+        _setTokenGasConfig(address(collateralToken), DESTINATION, gasOracle);
+
+        collateralRouter.setUseTokenFees(true);
         collateralRouter.setFeeHook(address(igp));
         collateralRouter.setHook(address(igp));
 
         vm.startPrank(ALICE);
-        // Only approve collateral, NOT fee tokens
+        // Only approve transfer amount, not transfer + IGP fee
         collateralToken.approve(address(collateralRouter), TRANSFER_AMT);
 
         vm.expectRevert("ERC20: insufficient allowance");
@@ -525,20 +419,21 @@ contract TokenRouterIgpTest is Test {
         vm.stopPrank();
     }
 
-    function test_transferRemote_withERC20Igp_insufficientFeeTokenBalance()
-        public
-    {
-        collateralRouter.setFeeToken(address(feeToken));
+    function test_transferRemote_withERC20Igp_insufficientBalance() public {
+        // Set up IGP gas config for collateralToken
+        _setTokenGasConfig(address(collateralToken), DESTINATION, gasOracle);
+
+        collateralRouter.setUseTokenFees(true);
         collateralRouter.setFeeHook(address(igp));
         collateralRouter.setHook(address(igp));
 
-        // Use a user with no fee tokens
+        // Use a user with only enough for transfer but not transfer + IGP fee
         address poorUser = address(0x999);
         collateralToken.transfer(poorUser, TRANSFER_AMT);
 
         vm.startPrank(poorUser);
-        collateralToken.approve(address(collateralRouter), TRANSFER_AMT);
-        feeToken.approve(address(collateralRouter), type(uint256).max);
+        // Approve max but only have TRANSFER_AMT balance (not enough for + IGP fee)
+        collateralToken.approve(address(collateralRouter), type(uint256).max);
 
         vm.expectRevert("ERC20: transfer amount exceeds balance");
         collateralRouter.transferRemote{value: 0}(
