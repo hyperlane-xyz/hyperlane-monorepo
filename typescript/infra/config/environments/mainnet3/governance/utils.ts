@@ -135,3 +135,22 @@ export function getAllSafesForChain(chain: ChainName): string[] {
     .map((governanceType) => getGovernanceSafes(governanceType)[chain])
     .filter((safe) => safe !== undefined);
 }
+
+/**
+ * Get the owner address for warp fee contracts on a given chain.
+ * - Ethereum: Uses Safe from warpFeesSafes
+ * - Other chains: Uses ICA from warpFeesIcas
+ */
+export function getWarpFeeOwner(chain: ChainName): Address {
+  const safes = getGovernanceSafes(GovernanceType.WarpFees);
+  if (safes[chain]) {
+    return safes[chain];
+  }
+
+  const icas = getGovernanceIcas(GovernanceType.WarpFees);
+  if (icas[chain]) {
+    return icas[chain];
+  }
+
+  throw new Error(`No warp fee owner configured for chain: ${chain}`);
+}
