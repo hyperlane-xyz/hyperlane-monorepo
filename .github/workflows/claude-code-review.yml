@@ -22,7 +22,7 @@ jobs:
     if: |
       github.event_name == 'pull_request' &&
       !contains(github.event.pull_request.title, '[skip-review]') &&
-      !contains(github.event.pull_request.labels.*.name, 'skip-review')
+      !contains(join(github.event.pull_request.labels.*.name, ','), 'skip-review')
     runs-on: depot-ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -60,12 +60,13 @@ jobs:
     if: |
       github.event_name == 'pull_request' &&
       !contains(github.event.pull_request.title, '[skip-review]') &&
-      !contains(github.event.pull_request.labels.*.name, 'skip-review')
+      !contains(join(github.event.pull_request.labels.*.name, ','), 'skip-review')
     runs-on: depot-ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: read
       pull-requests: write
+      issues: write
       id-token: write
     steps:
       - name: Checkout repository
