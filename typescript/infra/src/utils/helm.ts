@@ -117,6 +117,13 @@ export function removeHelmRelease(releaseName: string, namespace: string) {
 
 export type HelmValues = Record<string, any>;
 
+export interface PreflightDiff {
+  releaseName: string;
+  chainDiff: { hasChanges: boolean; added: string[]; removed: string[] };
+  imageDiff: { hasChanges: boolean; currentTag?: string; newTag?: string };
+  isNewDeployment: boolean;
+}
+
 export interface HelmCommandOptions {
   dryRun?: boolean;
   updateRepoCache?: boolean;
@@ -294,6 +301,37 @@ export abstract class HelmManager<T = HelmValues> {
   }
 
   /**
+   * Gets the pre-flight diff without logging or prompting.
+   * Used for batch processing multiple agents.
+   */
+  async getPreflightDiff(): Promise<PreflightDiff> {
+    const deployedValues = await this.getDeployedHelmValues();
+
+    if (!deployedValues) {
+      return {
+        releaseName: this.helmReleaseName,
+        chainDiff: { hasChanges: false, added: [], removed: [] },
+        imageDiff: { hasChanges: false },
+        isNewDeployment: true,
+      };
+    }
+
+    const proposedValues = (await this.helmValues()) as HelmValues;
+    const chainDiff = this.compareChainConfigurations(
+      deployedValues,
+      proposedValues,
+    );
+    const imageDiff = this.compareDockerImages(deployedValues, proposedValues);
+
+    return {
+      releaseName: this.helmReleaseName,
+      chainDiff,
+      imageDiff,
+      isNewDeployment: false,
+    };
+  }
+
+  /**
    * Runs pre-flight checks before deployment.
    * Compares the proposed deployment against what's currently running
    * and prompts for confirmation if there are significant changes.
@@ -301,10 +339,9 @@ export abstract class HelmManager<T = HelmValues> {
    * @returns true if the deployment should proceed, false otherwise
    */
   async runPreflightChecksWithConfirmation(): Promise<boolean> {
-    const deployedValues = await this.getDeployedHelmValues();
+    const diff = await this.getPreflightDiff();
 
-    // If there's no existing deployment, no pre-flight check needed
-    if (!deployedValues) {
+    if (diff.isNewDeployment) {
       console.log(
         chalk.green(
           `No existing deployment found for ${this.helmReleaseName}. Proceeding with fresh install.`,
@@ -313,20 +350,7 @@ export abstract class HelmManager<T = HelmValues> {
       return true;
     }
 
-    // Cast to HelmValues since helmValues() returns T which extends HelmValues
-    const proposedValues = (await this.helmValues()) as HelmValues;
-
-    // Compare chain configurations (most common source of contention issues)
-    const chainDiff = this.compareChainConfigurations(
-      deployedValues,
-      proposedValues,
-    );
-
-    // Compare docker image tags
-    const imageDiff = this.compareDockerImages(deployedValues, proposedValues);
-
-    // If there are no significant differences, proceed
-    if (!chainDiff.hasChanges && !imageDiff.hasChanges) {
+    if (!diff.chainDiff.hasChanges && !diff.imageDiff.hasChanges) {
       console.log(
         chalk.green(
           `Pre-flight check passed for ${this.helmReleaseName}. No significant changes detected.`,
@@ -342,25 +366,28 @@ export abstract class HelmManager<T = HelmValues> {
       ),
     );
 
-    if (chainDiff.hasChanges) {
+    if (diff.chainDiff.hasChanges) {
       console.log(chalk.cyan('Chain configuration changes:'));
-      if (chainDiff.added.length > 0) {
+      if (diff.chainDiff.added.length > 0) {
         console.log(
-          chalk.green(`  + Adding chains: ${chainDiff.added.join(', ')}`),
+          chalk.green(`  + Adding chains: ${diff.chainDiff.added.join(', ')}`),
         );
       }
-      if (chainDiff.removed.length > 0) {
+      if (diff.chainDiff.removed.length > 0) {
         console.log(
-          chalk.red(`  - Removing chains: ${chainDiff.removed.join(', ')}`),
+          chalk.red(
+            `  - Removing chains: ${diff.chainDiff.removed.join(', ')}`,
+          ),
         );
       }
     }
 
-    if (imageDiff.hasChanges) {
-      console.log(chalk.cyan('Docker image changes:'));
-      if (imageDiff.currentTag && imageDiff.newTag) {
-        console.log(chalk.yellow(`  Current tag: ${imageDiff.currentTag}`));
-        console.log(chalk.yellow(`  New tag: ${imageDiff.newTag}`));
+    if (diff.imageDiff.hasChanges) {
+      console.log(chalk.cyan('\nDocker image changes:'));
+      if (diff.imageDiff.currentTag && diff.imageDiff.newTag) {
+        console.log(
+          `  ${chalk.red(diff.imageDiff.currentTag)} → ${chalk.green(diff.imageDiff.newTag)}`,
+        );
       }
     }
 

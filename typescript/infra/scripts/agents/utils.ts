@@ -1,3 +1,4 @@
+import { confirm } from '@inquirer/prompts';
 import chalk from 'chalk';
 
 import { concurrentMap, rootLogger } from '@hyperlane-xyz/utils';
@@ -13,9 +14,11 @@ import { EnvironmentConfig } from '../../src/config/environment.js';
 import { Role } from '../../src/roles.js';
 import {
   HelmCommand,
+  PreflightDiff,
   buildHelmChartDependencies,
 } from '../../src/utils/helm.js';
 import { K8sResourceType, refreshK8sResources } from '../../src/utils/k8s.js';
+import { printPreflightSummaryTable } from '../../src/utils/log.js';
 import {
   assertCorrectKubeContext,
   getArgs,
@@ -59,29 +62,13 @@ export class AgentCli {
 
     const managerList = Object.values(managers);
 
-    // Run pre-flight checks for install/upgrade commands (not for remove or dry-run)
     if (
       command === HelmCommand.InstallOrUpgrade &&
       !this.dryRun &&
       !this.skipPreflightCheck
     ) {
-      console.log(chalk.cyan.bold('\n🔍 Running pre-flight checks...\n'));
-      const failedPreflightChecks: string[] = [];
-
-      for (const [key, manager] of Object.entries(managers)) {
-        const shouldProceed =
-          await manager.runPreflightChecksWithConfirmation();
-        if (!shouldProceed) {
-          failedPreflightChecks.push(key);
-        }
-      }
-
-      if (failedPreflightChecks.length > 0) {
-        console.log(
-          chalk.red.bold(
-            `\n❌ Pre-flight check declined for: ${failedPreflightChecks.join(', ')}`,
-          ),
-        );
+      const shouldProceed = await this.runPreflightChecks(managers);
+      if (!shouldProceed) {
         console.log(
           chalk.yellow(
             'Deployment aborted. To skip pre-flight checks, use --skip-preflight-check flag.',
@@ -89,8 +76,6 @@ export class AgentCli {
         );
         process.exit(1);
       }
-
-      console.log(chalk.green.bold('\n✅ All pre-flight checks passed.\n'));
     }
 
     if (managerList.length > 0 && command !== HelmCommand.Remove) {
@@ -158,10 +143,64 @@ export class AgentCli {
     this.concurrency = argv.concurrency;
   }
 
+  private async runPreflightChecks(
+    managers: Record<string, AgentHelmManager>,
+  ): Promise<boolean> {
+    console.log(chalk.cyan.bold('🔍 Running pre-flight checks...\n'));
+
+    const managerEntries = Object.entries(managers);
+    const diffResults = await Promise.allSettled(
+      managerEntries.map(async ([key, manager]) => ({
+        key,
+        diff: await manager.getPreflightDiff(),
+      })),
+    );
+
+    const diffs: Array<{ key: string; diff: PreflightDiff }> = [];
+    const failures: string[] = [];
+
+    for (const result of diffResults) {
+      if (result.status === 'fulfilled') {
+        diffs.push(result.value);
+      } else {
+        failures.push(result.reason?.message || 'Unknown error');
+      }
+    }
+
+    if (failures.length > 0) {
+      console.log(chalk.red.bold('\n❌ Failed to gather pre-flight diffs:'));
+      for (const failure of failures) {
+        console.log(chalk.red(`  - ${failure}`));
+      }
+      return false;
+    }
+
+    const hasAnyChanges = diffs.some(
+      ({ diff }) =>
+        diff.isNewDeployment ||
+        diff.chainDiff.hasChanges ||
+        diff.imageDiff.hasChanges,
+    );
+
+    if (!hasAnyChanges) {
+      console.log(
+        chalk.green('No changes detected. Proceeding with deployment.\n'),
+      );
+      return true;
+    }
+
+    printPreflightSummaryTable(diffs);
+
+    return confirm({
+      message: chalk.yellow(
+        `Proceed with deployment of ${diffs.length} agent(s)?`,
+      ),
+      default: false,
+    });
+  }
+
   private managers(): Record<string, AgentHelmManager> {
-    // use keys to ensure uniqueness
     const managers: Record<string, AgentHelmManager> = {};
-    // make all the managers first to ensure config validity
     for (const role of this.roles) {
       switch (role) {
         case Role.Validator: {
