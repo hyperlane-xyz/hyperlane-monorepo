@@ -15,11 +15,13 @@ Skills for common Hyperlane operations, automatically discovered by Claude.
 
 - **yq**: `brew install yq`
 - **jq**: `brew install jq`
-- **Registry**: Clone to `$HOME/hypkey/hyperlane-registry`
+- **Runes**: Shell helpers configured (see below)
 
 ## Shell Setup
 
-See the [Runes documentation](https://www.notion.so/hyperlanexyz/Runes-1616d35200d680b3a0dafcbd37e89ad3) for shell helper setup (`addr`, `meta`, etc.).
+These skills use the **Runes** shell helpers (`addr`, `meta`, etc.) as the interface. The Runes can be configured to point to your local registry clone, wherever it lives.
+
+See the [Runes documentation](https://www.notion.so/hyperlanexyz/Runes-1616d35200d680b3a0dafcbd37e89ad3) for setup instructions.
 
 ## Related
 
