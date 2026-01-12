@@ -62,7 +62,7 @@ contract TokenRouterIgpTest is Test {
 
     // Events
     event FeeTokenSet(address feeToken);
-    event IgpSet(address igp);
+    event FeeHookSet(address feeHook);
     event SentTransferRemote(
         uint32 indexed destination,
         bytes32 indexed recipient,
@@ -201,18 +201,18 @@ contract TokenRouterIgpTest is Test {
         collateralRouter.setFeeToken(address(feeToken));
     }
 
-    function test_setIgp() public {
+    function test_setFeeHook() public {
         vm.expectEmit(true, true, true, true);
-        emit IgpSet(address(igp));
-        collateralRouter.setIgp(address(igp));
+        emit FeeHookSet(address(igp));
+        collateralRouter.setFeeHook(address(igp));
 
-        assertEq(collateralRouter.igp(), address(igp));
+        assertEq(collateralRouter.feeHook(), address(igp));
     }
 
-    function test_setIgp_revertsIfNotOwner() public {
+    function test_setFeeHook_revertsIfNotOwner() public {
         vm.prank(ALICE);
         vm.expectRevert("Ownable: caller is not the owner");
-        collateralRouter.setIgp(address(igp));
+        collateralRouter.setFeeHook(address(igp));
     }
 
     // ============ Quote Tests ============
@@ -220,7 +220,7 @@ contract TokenRouterIgpTest is Test {
     function test_quoteTransferRemote_withERC20Igp() public {
         // Configure ERC20 IGP
         collateralRouter.setFeeToken(address(feeToken));
-        collateralRouter.setIgp(address(igp));
+        collateralRouter.setFeeHook(address(igp));
         collateralRouter.setHook(address(igp));
 
         Quote[] memory quotes = collateralRouter.quoteTransferRemote(
@@ -273,7 +273,7 @@ contract TokenRouterIgpTest is Test {
         _setTokenGasConfig(address(collateralToken), DESTINATION, gasOracle);
 
         collateralRouter.setFeeToken(address(collateralToken));
-        collateralRouter.setIgp(address(igp));
+        collateralRouter.setFeeHook(address(igp));
         collateralRouter.setHook(address(igp));
 
         // Calculate expected IGP fee (token payments use same overhead as native)
@@ -321,7 +321,7 @@ contract TokenRouterIgpTest is Test {
     function test_transferRemote_withERC20Igp_differentToken() public {
         // Configure feeToken (different from collateralToken)
         collateralRouter.setFeeToken(address(feeToken));
-        collateralRouter.setIgp(address(igp));
+        collateralRouter.setFeeHook(address(igp));
         collateralRouter.setHook(address(igp));
 
         // Calculate expected IGP fee (token payments use same overhead as native)
@@ -376,7 +376,7 @@ contract TokenRouterIgpTest is Test {
     function test_transferRemote_withERC20Igp_syntheticToken() public {
         // Configure feeToken for synthetic router
         syntheticRouter.setFeeToken(address(feeToken));
-        syntheticRouter.setIgp(address(igp));
+        syntheticRouter.setFeeHook(address(igp));
         syntheticRouter.setHook(address(igp));
 
         // Calculate expected IGP fee
@@ -431,7 +431,7 @@ contract TokenRouterIgpTest is Test {
     {
         // Configure feeToken to be the synthetic token itself
         syntheticRouter.setFeeToken(address(syntheticRouter));
-        syntheticRouter.setIgp(address(igp));
+        syntheticRouter.setFeeHook(address(igp));
         syntheticRouter.setHook(address(igp));
 
         // Set up IGP config for synthetic token
@@ -509,7 +509,7 @@ contract TokenRouterIgpTest is Test {
         public
     {
         collateralRouter.setFeeToken(address(feeToken));
-        collateralRouter.setIgp(address(igp));
+        collateralRouter.setFeeHook(address(igp));
         collateralRouter.setHook(address(igp));
 
         vm.startPrank(ALICE);
@@ -529,7 +529,7 @@ contract TokenRouterIgpTest is Test {
         public
     {
         collateralRouter.setFeeToken(address(feeToken));
-        collateralRouter.setIgp(address(igp));
+        collateralRouter.setFeeHook(address(igp));
         collateralRouter.setHook(address(igp));
 
         // Use a user with no fee tokens

@@ -65,11 +65,11 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
     bytes32 private constant FEE_RECIPIENT_SLOT =
         keccak256("FungibleTokenRouter.feeRecipient");
     bytes32 private constant FEE_TOKEN_SLOT = keccak256("TokenRouter.feeToken");
-    bytes32 private constant IGP_SLOT = keccak256("TokenRouter.igp");
+    bytes32 private constant FEE_HOOK_SLOT = keccak256("TokenRouter.feeHook");
 
     event FeeRecipientSet(address feeRecipient);
     event FeeTokenSet(address feeToken);
-    event IgpSet(address igp);
+    event FeeHookSet(address feeHook);
 
     constructor(uint256 _scale, address _mailbox) GasRouter(_mailbox) {
         scale = _scale;
@@ -213,36 +213,36 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         uint256 charge = _amount + feeAmount + externalFee;
 
         address _feeToken = feeToken();
-        address _igp = igp();
+        address _feeHook = feeHook();
 
-        // ERC20 IGP: configured feeToken for gas payments
-        if (_feeToken != address(0) && _igp != address(0)) {
-            uint256 igpFee = _quoteGasPayment(
+        // ERC20 fee hook: configured feeToken for gas payments
+        if (_feeToken != address(0) && _feeHook != address(0)) {
+            uint256 hookFee = _quoteGasPayment(
                 _destination,
                 _recipient,
                 _amount
             );
 
-            // For collateral routers (token() != address(this)), we can add IGP fee to charge
+            // For collateral routers (token() != address(this)), we can add hook fee to charge
             // because _transferFromSender pulls tokens TO the router.
             // For synthetic routers (token() == address(this)), we must pull separately
             // because _transferFromSender burns tokens, so router never receives them.
             if (token() == _feeToken && token() != address(this)) {
-                // Same token as collateral (not synthetic): add IGP fee to charge
-                charge += igpFee;
+                // Same token as collateral (not synthetic): add hook fee to charge
+                charge += hookFee;
             } else {
-                // Different token OR synthetic token: pull IGP fee tokens separately
+                // Different token OR synthetic token: pull hook fee tokens separately
                 IERC20(_feeToken).safeTransferFrom(
                     msg.sender,
                     address(this),
-                    igpFee
+                    hookFee
                 );
             }
 
-            // Approve IGP to pull fee tokens
-            IERC20(_feeToken).approve(_igp, igpFee);
+            // Approve fee hook to pull fee tokens
+            IERC20(_feeToken).approve(_feeHook, hookFee);
         } else {
-            // Native IGP: fee comes from msg.value
+            // Native fee hook: fee comes from msg.value
             remainingNativeValue = token() != address(0)
                 ? _msgValue
                 : _msgValue - charge;
@@ -304,17 +304,20 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
     }
 
     /**
-     * @notice Initializes the TokenRouter with ERC20 IGP configuration.
-     * @param _feeToken The ERC20 token used for IGP payments (address(0) for native).
-     * @param _igp The IGP contract address.
+     * @notice Initializes the TokenRouter with fee hook configuration.
+     * @param _feeToken The ERC20 token used for fee hook payments (address(0) for native).
+     * @param _feeHook The fee hook contract address.
      */
-    function _TokenRouter_initialize(address _feeToken, address _igp) internal {
+    function _TokenRouter_initialize(
+        address _feeToken,
+        address _feeHook
+    ) internal {
         _setFeeToken(_feeToken);
-        _setIgp(_igp);
+        _setFeeHook(_feeHook);
     }
 
     /**
-     * @notice Sets the ERC20 token used for IGP payments.
+     * @notice Sets the ERC20 token used for fee hook payments.
      * @param _feeToken The fee token address (address(0) for native).
      */
     function setFeeToken(address _feeToken) external onlyOwner {
@@ -322,11 +325,11 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
     }
 
     /**
-     * @notice Sets the IGP contract address.
-     * @param _igp The IGP address.
+     * @notice Sets the fee hook contract address.
+     * @param _feeHook The fee hook address.
      */
-    function setIgp(address _igp) external onlyOwner {
-        _setIgp(_igp);
+    function setFeeHook(address _feeHook) external onlyOwner {
+        _setFeeHook(_feeHook);
     }
 
     /**
@@ -339,17 +342,17 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
     }
 
     /**
-     * @notice Internal function to set the IGP address.
-     * @param _igp The IGP address.
+     * @notice Internal function to set the fee hook address.
+     * @param _feeHook The fee hook address.
      */
-    function _setIgp(address _igp) internal {
-        IGP_SLOT.getAddressSlot().value = _igp;
-        emit IgpSet(_igp);
+    function _setFeeHook(address _feeHook) internal {
+        FEE_HOOK_SLOT.getAddressSlot().value = _feeHook;
+        emit FeeHookSet(_feeHook);
     }
 
     /**
-     * @notice Returns the ERC20 token used for IGP payments.
-     * @dev Returns address(0) if native IGP payments are used.
+     * @notice Returns the ERC20 token used for fee hook payments.
+     * @dev Returns address(0) if native payments are used.
      * @return The fee token address.
      */
     function feeToken() public view returns (address) {
@@ -357,11 +360,11 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
     }
 
     /**
-     * @notice Returns the IGP contract address.
-     * @return The IGP address.
+     * @notice Returns the fee hook contract address.
+     * @return The fee hook address.
      */
-    function igp() public view returns (address) {
-        return IGP_SLOT.getAddressSlot().value;
+    function feeHook() public view returns (address) {
+        return FEE_HOOK_SLOT.getAddressSlot().value;
     }
 
     // To be overridden by derived contracts if they have additional fees
