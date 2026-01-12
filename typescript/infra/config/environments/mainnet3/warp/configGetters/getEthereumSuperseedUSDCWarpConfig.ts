@@ -11,7 +11,7 @@ import {
 } from '../../../../../src/config/warp.js';
 import { WarpRouteIds } from '../warpIds.js';
 
-import { getRebalancingBridgesConfigFor } from './utils.js';
+import { getUSDCRebalancingBridgesConfigFor } from './utils.js';
 
 const owners = {
   ethereum: '0x11BEBBf509248735203BAAAe90c1a27EEE70D567',
@@ -28,7 +28,7 @@ export const CONTRACT_VERSION = '8.0.0';
 export const getEthereumSuperseedUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const rebalancingConfig = getRebalancingBridgesConfigFor(
+  const rebalancingConfig = getUSDCRebalancingBridgesConfigFor(
     Object.keys(owners),
     [WarpRouteIds.MainnetCCTPV1],
   );

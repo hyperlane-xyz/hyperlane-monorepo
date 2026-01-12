@@ -9,7 +9,7 @@ import {
 } from '../consts.js';
 import { WarpRouteIds } from '../warpIds.js';
 
-import { getRebalancingBridgesConfigFor } from './utils.js';
+import { getUSDCRebalancingBridgesConfigFor } from './utils.js';
 
 const deploymentChains = [
   'arbitrum',
@@ -63,7 +63,7 @@ const ownersByChain: Record<DeploymentChain, string> = {
 export const getParadexUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const rebalancingConfigByChain = getRebalancingBridgesConfigFor(
+  const rebalancingConfigByChain = getUSDCRebalancingBridgesConfigFor(
     deploymentChains,
     [WarpRouteIds.MainnetCCTPV2Standard],
   );

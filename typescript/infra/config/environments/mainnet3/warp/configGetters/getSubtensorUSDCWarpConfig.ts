@@ -9,7 +9,7 @@ import { usdcTokenAddresses } from '../cctp.js';
 import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
 import { WarpRouteIds } from '../warpIds.js';
 
-import { getRebalancingBridgesConfigFor } from './utils.js';
+import { getUSDCRebalancingBridgesConfigFor } from './utils.js';
 
 const deploymentChains = [
   'arbitrum',
@@ -28,7 +28,7 @@ const syntheticChain: DeploymentChain = 'subtensor';
 export const getSubtensorUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const rebalancingConfigByChain = getRebalancingBridgesConfigFor(
+  const rebalancingConfigByChain = getUSDCRebalancingBridgesConfigFor(
     deploymentChains,
     [WarpRouteIds.MainnetCCTPV1],
   );

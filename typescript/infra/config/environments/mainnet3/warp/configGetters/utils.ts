@@ -32,7 +32,7 @@ type CCTPWarpRouteId =
   | WarpRouteIds.MainnetCCTPV2Standard
   | WarpRouteIds.MainnetCCTPV2Fast;
 
-export function getRebalancingBridgesConfigFor(
+export function getUSDCRebalancingBridgesConfigFor(
   deploymentChains: readonly ChainName[],
   warpRouteIds: [CCTPWarpRouteId, ...CCTPWarpRouteId[]],
 ): ChainMap<RebalancingConfig> {

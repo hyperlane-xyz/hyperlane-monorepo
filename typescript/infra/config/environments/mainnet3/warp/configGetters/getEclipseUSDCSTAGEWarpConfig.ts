@@ -7,8 +7,8 @@ import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
 import { WarpRouteIds } from '../warpIds.js';
 
 import {
-  getRebalancingBridgesConfigFor,
   getRebalancingUSDCConfigForChain,
+  getUSDCRebalancingBridgesConfigFor,
 } from './utils.js';
 
 const SOLANA_OWNER = '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf';
@@ -46,7 +46,7 @@ const STAGING_TOKEN_METADATA = {
 export const getEclipseUSDCSTAGEWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const rebalancingConfigByChain = getRebalancingBridgesConfigFor(
+  const rebalancingConfigByChain = getUSDCRebalancingBridgesConfigFor(
     rebalanceableCollateralChains,
     [WarpRouteIds.MainnetCCTPV1],
   );

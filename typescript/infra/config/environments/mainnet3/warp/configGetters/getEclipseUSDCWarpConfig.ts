@@ -10,8 +10,8 @@ import { WarpRouteIds } from '../warpIds.js';
 
 import {
   getFixedRoutingFeeConfig,
-  getRebalancingBridgesConfigFor,
   getRebalancingUSDCConfigForChain,
+  getUSDCRebalancingBridgesConfigFor,
 } from './utils.js';
 
 /**
@@ -94,7 +94,7 @@ const CONTRACT_VERSION = '10.1.3';
 export const getEclipseUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const rebalancingConfigByChain = getRebalancingBridgesConfigFor(
+  const rebalancingConfigByChain = getUSDCRebalancingBridgesConfigFor(
     rebalanceableCollateralChains,
     [WarpRouteIds.MainnetCCTPV2Standard, WarpRouteIds.MainnetCCTPV2Fast],
   );

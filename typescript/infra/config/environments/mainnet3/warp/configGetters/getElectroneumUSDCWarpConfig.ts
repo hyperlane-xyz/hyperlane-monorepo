@@ -5,9 +5,9 @@ import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { WarpRouteIds } from '../warpIds.js';
 
 import {
-  getRebalancingBridgesConfigFor,
   getRebalancingUSDCConfigForChain,
   getSyntheticTokenConfigForChain,
+  getUSDCRebalancingBridgesConfigFor,
 } from './utils.js';
 
 type DeploymentChains<T> = {
@@ -25,7 +25,7 @@ const ownersByChain: DeploymentChains<Address> = {
   ethereum: '0xe0eb6194A56cdb6a51BB5855cddEbd61c03a199d',
 };
 
-const rebalancingConfigByChain = getRebalancingBridgesConfigFor(
+const rebalancingConfigByChain = getUSDCRebalancingBridgesConfigFor(
   Object.keys(ownersByChain),
   [WarpRouteIds.MainnetCCTPV1],
 );

@@ -11,7 +11,7 @@ import {
 } from '../../../../../src/config/warp.js';
 import { WarpRouteIds } from '../warpIds.js';
 
-import { getRebalancingBridgesConfigFor } from './utils.js';
+import { getUSDCRebalancingBridgesConfigFor } from './utils.js';
 
 const owners = {
   ethereum: '0xA365Bf3Da1f1B01E2a80f9261Ec717B305b2Eb8F',
@@ -26,7 +26,7 @@ export const getRadixUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   _: ChainMap<OwnableConfig>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const rebalancingConfig = getRebalancingBridgesConfigFor(
+  const rebalancingConfig = getUSDCRebalancingBridgesConfigFor(
     Object.keys(owners),
     [WarpRouteIds.MainnetCCTPV1],
   );

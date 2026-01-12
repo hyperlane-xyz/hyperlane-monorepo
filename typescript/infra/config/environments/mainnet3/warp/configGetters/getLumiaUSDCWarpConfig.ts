@@ -12,7 +12,7 @@ import { usdcTokenAddresses } from '../cctp.js';
 import { WarpRouteIds } from '../warpIds.js';
 
 import { CONTRACT_VERSION } from './getEthereumSuperseedUSDCWarpConfig.js';
-import { getRebalancingBridgesConfigFor } from './utils.js';
+import { getUSDCRebalancingBridgesConfigFor } from './utils.js';
 
 const FIAT_COLLATERAL_CHAIN = 'lumiaprism';
 const FIAT_TOKEN = '0xFF297AC2CB0a236155605EB37cB55cFCAe6D3F01';
@@ -53,7 +53,7 @@ const submitterConfig = objMap(
 export const getLumiaUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const rebalancingConfig = getRebalancingBridgesConfigFor(
+  const rebalancingConfig = getUSDCRebalancingBridgesConfigFor(
     Object.keys(owners),
     [WarpRouteIds.MainnetCCTPV1],
   );
