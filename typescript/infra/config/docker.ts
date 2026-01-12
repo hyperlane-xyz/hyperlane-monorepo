@@ -1,10 +1,23 @@
-export const DockerImageRepos = {
-  AGENT: 'gcr.io/abacus-labs-dev/hyperlane-agent',
-  MONOREPO: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-  KEYFUNDER: 'gcr.io/abacus-labs-dev/hyperlane-keyfunder',
-  WARP_MONITOR: 'gcr.io/abacus-labs-dev/hyperlane-warp-monitor',
-  REBALANCER: 'gcr.io/abacus-labs-dev/hyperlane-rebalancer',
+const GCR_REGISTRY = 'gcr.io/abacus-labs-dev';
+
+export const DockerImageNames = {
+  AGENT: 'hyperlane-agent',
+  MONOREPO: 'hyperlane-monorepo',
+  KEYFUNDER: 'hyperlane-keyfunder',
+  WARP_MONITOR: 'hyperlane-warp-monitor',
+  REBALANCER: 'hyperlane-rebalancer',
 } as const;
+
+type DockerImageReposType = {
+  [K in keyof typeof DockerImageNames]: `${typeof GCR_REGISTRY}/${(typeof DockerImageNames)[K]}`;
+};
+
+export const DockerImageRepos = Object.fromEntries(
+  Object.entries(DockerImageNames).map(([key, name]) => [
+    key,
+    `${GCR_REGISTRY}/${name}`,
+  ]),
+) as DockerImageReposType;
 
 interface AgentDockerTags {
   relayer: string;
