@@ -7,7 +7,6 @@ import {
   DeployedIsmAddress,
   DeployedRawIsmArtifact,
   IRawIsmArtifactManager,
-  IsmConfigs,
   IsmType,
   RawIsmArtifactConfigs,
   altVMIsmTypeToProviderSdkType,
@@ -83,7 +82,7 @@ export class AleoIsmArtifactManager implements IRawIsmArtifactManager {
     }
   }
 
-  createWriter<T extends keyof IsmConfigs>(
+  createWriter<T extends IsmType>(
     type: T,
     _signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
   ): ArtifactWriter<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
