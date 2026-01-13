@@ -5,6 +5,7 @@ import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import InterchainGasPaymasterAbi from '../../abi/InterchainGasPaymaster.json' with { type: 'json' };
 import GasOracleAbi from '../../abi/StorageGasOracle.json' with { type: 'json' };
 import StorageGasOracleAbi from '../../abi/StorageGasOracle.json' with { type: 'json' };
+import { TRON_EMPTY_ADDRESS } from '../utils/index.js';
 import { TronReceipt, TronTransaction } from '../utils/types.js';
 
 import { TronProvider } from './provider.js';
@@ -519,9 +520,49 @@ export class TronSigner
   // ### TX WARP ###
 
   async createNativeToken(
-    _req: Omit<AltVM.ReqCreateNativeToken, 'signer'>,
+    req: Omit<AltVM.ReqCreateNativeToken, 'signer'>,
   ): Promise<AltVM.ResCreateNativeToken> {
-    throw new Error(`not implemented`);
+    const tx = await this.getCreateNativeTokenTransaction({
+      ...req,
+      signer: this.getSignerAddress(),
+    });
+
+    const signedTx = await this.tronweb.trx.sign(tx);
+    await this.tronweb.trx.sendRawTransaction(signedTx);
+
+    const tokenAddress = this.tronweb.address.fromHex(tx.contract_address);
+
+    const { transaction } =
+      await this.tronweb.transactionBuilder.triggerSmartContract(
+        tokenAddress,
+        'initialize(address,address,address)',
+        {
+          feeLimit: 100_000_000,
+          callValue: 0,
+        },
+        [
+          {
+            type: 'address',
+            value: TRON_EMPTY_ADDRESS,
+          },
+          {
+            type: 'address',
+            value: TRON_EMPTY_ADDRESS,
+          },
+          {
+            type: 'address',
+            value: this.getSignerAddress(),
+          },
+        ],
+        this.tronweb.address.toHex(this.getSignerAddress()),
+      );
+
+    const initSignedTx = await this.tronweb.trx.sign(transaction);
+    await this.tronweb.trx.sendRawTransaction(initSignedTx);
+
+    return {
+      tokenAddress,
+    };
   }
 
   async createCollateralToken(
@@ -537,21 +578,51 @@ export class TronSigner
   }
 
   async setTokenOwner(
-    _req: Omit<AltVM.ReqSetTokenOwner, 'signer'>,
+    req: Omit<AltVM.ReqSetTokenOwner, 'signer'>,
   ): Promise<AltVM.ResSetTokenOwner> {
-    throw new Error(`not implemented`);
+    const tx = await this.getSetTokenOwnerTransaction({
+      ...req,
+      signer: this.getSignerAddress(),
+    });
+
+    const signedTx = await this.tronweb.trx.sign(tx);
+    await this.tronweb.trx.sendRawTransaction(signedTx);
+
+    return {
+      newOwner: req.newOwner,
+    };
   }
 
   async setTokenIsm(
-    _req: Omit<AltVM.ReqSetTokenIsm, 'signer'>,
+    req: Omit<AltVM.ReqSetTokenIsm, 'signer'>,
   ): Promise<AltVM.ResSetTokenIsm> {
-    throw new Error(`not implemented`);
+    const tx = await this.getSetTokenIsmTransaction({
+      ...req,
+      signer: this.getSignerAddress(),
+    });
+
+    const signedTx = await this.tronweb.trx.sign(tx);
+    await this.tronweb.trx.sendRawTransaction(signedTx);
+
+    return {
+      ismAddress: req.ismAddress,
+    };
   }
 
   async setTokenHook(
-    _req: Omit<AltVM.ReqSetTokenHook, 'signer'>,
+    req: Omit<AltVM.ReqSetTokenHook, 'signer'>,
   ): Promise<AltVM.ResSetTokenHook> {
-    throw new Error(`not implemented`);
+    const tx = await this.getSetTokenHookTransaction({
+      ...req,
+      signer: this.getSignerAddress(),
+    });
+
+    const signedTx = await this.tronweb.trx.sign(tx);
+    await this.tronweb.trx.sendRawTransaction(signedTx);
+
+    return {
+      hookAddress: req.hookAddress,
+    };
   }
 
   async enrollRemoteRouter(

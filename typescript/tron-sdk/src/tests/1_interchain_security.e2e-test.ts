@@ -81,6 +81,7 @@ describe('1. tron sdk interchain security e2e tests', async function () {
   //   expect(ism.validators).deep.equal(validators);
   // });
 
+  // TODO: TRON
   // step('create new MerkleRootMultisig ISM', async () => {
   //   // ARRANGE
   //   const threshold = 2;
