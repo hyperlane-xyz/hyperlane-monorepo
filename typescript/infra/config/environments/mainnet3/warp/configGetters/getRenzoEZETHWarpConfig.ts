@@ -378,10 +378,12 @@ export const ezEthSafes: Record<(typeof ezEthChainsToDeploy)[number], string> =
     worldchain: '0x7Be36310285cA4e809C296526745DA983c8F8e0f',
     plasma: '0x76Cd13F5Bfb73f501795988Ef5d017606Bb16DBd',
     ink: '0x42A4E564836AE98C2522368Be2faA6e96Ff7a07f',
+    monad: '0xf2a0775ED23887F3C47Bf1f0D01cc580281dA2E4',
+    xlayer: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
     stable: '0x088Bc91C5e9A278FB9c5f80a226274fF0179E69c',
   };
 
-// Unless defined otherwise, most of these are Renzo's custom ICA-like owners
+// Unless defined otherwise, most of these are Renzo's custom ICA-like (L2Admin) owners
 export const ezEthOwners: Record<(typeof ezEthChainsToDeploy)[number], string> =
   {
     arbitrum: '0xE5219Cf568D366ae4b96Efb04d826E6f2e72DaA0',
@@ -402,8 +404,8 @@ export const ezEthOwners: Record<(typeof ezEthChainsToDeploy)[number], string> =
     worldchain: '0x672fb1C0F35DBD2074742765d23d18b80cbAAf22',
     plasma: '0x3eA4D0467C976e9877Adb96869Fdeb0551fd0930',
     ink: '0xf25484650484DE3d554fB0b7125e7696efA4ab99',
-    monad: '0xf2a0775ED23887F3C47Bf1f0D01cc580281dA2E4',
-    xlayer: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
+    monad: '0xf25484650484DE3d554fB0b7125e7696efA4ab99',
+    xlayer: '0x81F6e9914136Da1A1d3b1eFd14F7E0761c3d4cc7',
     stable: ezEthSafes.stable,
   };
 
@@ -464,10 +466,10 @@ export const ezEthChainOwnerOverrides: ChainOwnerOverrides = {
     proxyAdmin: ezEthSafes.ink,
   },
   monad: {
-    proxyAdmin: ezEthOwners.monad,
+    proxyAdmin: ezEthSafes.monad,
   },
   xlayer: {
-    proxyAdmin: ezEthOwners.xlayer,
+    proxyAdmin: ezEthSafes.xlayer,
   },
 };
 
