@@ -17,6 +17,7 @@ import {
 import { eqAddressCosmos, isNullish } from '@hyperlane-xyz/utils';
 
 import { CosmosNativeSigner } from '../clients/signer.js';
+import { getNewContractAddress } from '../utils/base.js';
 
 import { CosmosIsmQueryClient, getRoutingIsmConfig } from './ism-query.js';
 import {
@@ -105,7 +106,8 @@ export class CosmosRoutingIsmRawWriter
       routes,
     );
 
-    const { id, receipt } = await this.signer.submitTxWithReceipt(transaction);
+    const receipt = await this.signer.sendAndConfirmTransaction(transaction);
+    const ismAddress = getNewContractAddress(receipt);
 
     const deployedArtifact: ArtifactDeployed<
       RawRoutingIsmArtifactConfig,
@@ -114,7 +116,7 @@ export class CosmosRoutingIsmRawWriter
       artifactState: ArtifactState.DEPLOYED,
       config: artifact.config,
       deployed: {
-        address: id,
+        address: ismAddress,
       },
     };
 

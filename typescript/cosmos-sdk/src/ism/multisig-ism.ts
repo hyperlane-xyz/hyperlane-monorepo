@@ -15,6 +15,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/ism';
 
 import { CosmosNativeSigner } from '../clients/signer.js';
+import { getNewContractAddress } from '../utils/base.js';
 
 import {
   CosmosIsmQueryClient,
@@ -87,7 +88,8 @@ export class CosmosMessageIdMultisigIsmWriter
       },
     );
 
-    const { id, receipt } = await this.signer.submitTxWithReceipt(transaction);
+    const receipt = await this.signer.sendAndConfirmTransaction(transaction);
+    const ismAddress = getNewContractAddress(receipt);
 
     const deployedArtifact: ArtifactDeployed<
       MultisigIsmConfig,
@@ -96,7 +98,7 @@ export class CosmosMessageIdMultisigIsmWriter
       artifactState: ArtifactState.DEPLOYED,
       config: artifact.config,
       deployed: {
-        address: id,
+        address: ismAddress,
       },
     };
 
@@ -173,7 +175,8 @@ export class CosmosMerkleRootMultisigIsmWriter
       },
     );
 
-    const { id, receipt } = await this.signer.submitTxWithReceipt(transaction);
+    const receipt = await this.signer.sendAndConfirmTransaction(transaction);
+    const ismAddress = getNewContractAddress(receipt);
 
     const deployedArtifact: ArtifactDeployed<
       MultisigIsmConfig,
@@ -182,7 +185,7 @@ export class CosmosMerkleRootMultisigIsmWriter
       artifactState: ArtifactState.DEPLOYED,
       config: artifact.config,
       deployed: {
-        address: id,
+        address: ismAddress,
       },
     };
 

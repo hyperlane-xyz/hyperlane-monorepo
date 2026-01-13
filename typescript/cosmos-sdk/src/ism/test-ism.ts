@@ -15,6 +15,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/ism';
 
 import { CosmosNativeSigner } from '../clients/signer.js';
+import { getNewContractAddress } from '../utils/base.js';
 
 import { CosmosIsmQueryClient, getNoopIsmConfig } from './ism-query.js';
 import { getCreateTestIsmTx } from './ism-tx.js';
@@ -69,7 +70,8 @@ export class CosmosTestIsmWriter
       this.signer.getSignerAddress(),
     );
 
-    const { id, receipt } = await this.signer.submitTxWithReceipt(transaction);
+    const receipt = await this.signer.sendAndConfirmTransaction(transaction);
+    const ismAddress = getNewContractAddress(receipt);
 
     const deployedArtifact: ArtifactDeployed<
       TestIsmConfig,
@@ -78,7 +80,7 @@ export class CosmosTestIsmWriter
       artifactState: ArtifactState.DEPLOYED,
       config: artifact.config,
       deployed: {
-        address: id,
+        address: ismAddress,
       },
     };
 
