@@ -71,7 +71,7 @@ export async function getSetRoutingIsmRouteTx(
   ownerAddress: string,
   config: {
     ismAddress: string;
-    route: { domainId: number; ismAddress: string };
+    domainIsm: { domainId: number; ismAddress: string };
   },
 ): Promise<MsgSetRoutingIsmDomainEncodeObject> {
   return {
@@ -80,8 +80,8 @@ export async function getSetRoutingIsmRouteTx(
       owner: ownerAddress,
       ism_id: config.ismAddress,
       route: {
-        domain: config.route.domainId,
-        ism: config.route.ismAddress,
+        domain: config.domainIsm.domainId,
+        ism: config.domainIsm.ismAddress,
       },
     }),
   };

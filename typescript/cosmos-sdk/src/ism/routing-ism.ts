@@ -146,7 +146,7 @@ export class CosmosRoutingIsmRawWriter
           this.signer.getSignerAddress(),
           {
             ismAddress: deployed.address,
-            route: { domainId: domain, ismAddress: expectedIsmAddress },
+            domainIsm: { domainId: domain, ismAddress: expectedIsmAddress },
           },
         );
 
