@@ -9,6 +9,7 @@ use std::{
 };
 
 use derive_new::new;
+use ethers::utils::hex;
 use eyre::Result;
 use num_traits::cast::FromPrimitive;
 use serde::{Deserialize, Deserializer};
@@ -19,7 +20,7 @@ use hyperlane_core::{
     ReorgEventResponse, H256,
 };
 
-use crate::settings::matching_list::MatchingList;
+use crate::settings::matching_list::{MatchInfo, MatchingList};
 
 #[derive(Clone, Debug, PartialEq, thiserror::Error)]
 pub enum MetadataBuildError {
@@ -170,12 +171,46 @@ impl IsmAwareAppContextClassifier {
 }
 
 /// Classifies messages into an app context if they have one.
-#[derive(Debug, new)]
+#[derive(Debug)]
 pub struct AppContextClassifier {
-    app_matching_lists: Vec<(MatchingList, String)>,
+    app_matching_lists: Vec<AppMatchingList>,
+}
+
+#[derive(Debug)]
+struct AppMatchingList {
+    matching_list: MatchingList,
+    app_context: String,
+    origin_domains: Option<HashSet<u32>>,
+    destination_domains: Option<HashSet<u32>>,
+    has_body_regex: bool,
+}
+
+impl AppMatchingList {
+    fn new(matching_list: MatchingList, app_context: String) -> Self {
+        let has_body_regex = matching_list.has_body_regex();
+        let origin_domains = matching_list.origin_domains();
+        let destination_domains = matching_list.destination_domains();
+
+        Self {
+            matching_list,
+            app_context,
+            origin_domains,
+            destination_domains,
+            has_body_regex,
+        }
+    }
 }
 
 impl AppContextClassifier {
+    pub fn new(app_matching_lists: Vec<(MatchingList, String)>) -> Self {
+        let app_matching_lists = app_matching_lists
+            .into_iter()
+            .map(|(matching_list, app_context)| AppMatchingList::new(matching_list, app_context))
+            .collect();
+
+        Self { app_matching_lists }
+    }
+
     /// Classifies messages into an app context if they have one, or None
     /// if they don't.
     /// An app context is a string that identifies the app that sent the message
@@ -187,9 +222,32 @@ impl AppContextClassifier {
         // Give priority to the matching list. If the app from the matching list happens
         // to use the default ISM, it's preferable to use the app context from the matching
         // list.
-        for (matching_list, app_context) in self.app_matching_lists.iter() {
-            if matching_list.msg_matches(message, false) {
-                return Ok(Some(app_context.clone()));
+        let info = MatchInfo::from(message);
+        let mut body_hex = None;
+        for entry in self.app_matching_lists.iter() {
+            if let Some(origin_domains) = &entry.origin_domains {
+                if !origin_domains.contains(&info.src_domain) {
+                    continue;
+                }
+            }
+
+            if let Some(destination_domains) = &entry.destination_domains {
+                if !destination_domains.contains(&info.dst_domain) {
+                    continue;
+                }
+            }
+
+            let body_hex_ref = if entry.has_body_regex {
+                if body_hex.is_none() {
+                    body_hex = Some(hex::encode(info.body));
+                }
+                body_hex.as_deref()
+            } else {
+                None
+            };
+
+            if entry.matching_list.matches_info(&info, false, body_hex_ref) {
+                return Ok(Some(entry.app_context.clone()));
             }
         }
 

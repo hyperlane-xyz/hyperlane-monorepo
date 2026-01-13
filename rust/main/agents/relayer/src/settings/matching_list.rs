@@ -3,6 +3,7 @@
 //! ANY CHANGES HERE NEED TO BE REFLECTED IN THE TYPESCRIPT SDK.
 
 use std::{
+    collections::HashSet,
     fmt,
     fmt::{Debug, Display, Formatter},
     marker::PhantomData,
@@ -294,13 +295,13 @@ impl Display for ListElement {
 }
 
 #[derive(Clone, Debug)]
-struct MatchInfo<'a> {
+pub(crate) struct MatchInfo<'a> {
     src_msg_id: H256,
     src_domain: u32,
     src_addr: &'a H256,
     dst_domain: u32,
     dst_addr: &'a H256,
-    body: String,
+    body: &'a [u8],
 }
 
 impl<'a> From<&'a HyperlaneMessage> for MatchInfo<'a> {
@@ -311,7 +312,7 @@ impl<'a> From<&'a HyperlaneMessage> for MatchInfo<'a> {
             src_addr: &msg.sender,
             dst_domain: msg.destination,
             dst_addr: &msg.recipient,
-            body: hex::encode(&msg.body),
+            body: msg.body.as_ref(),
         }
     }
 }
@@ -324,12 +325,49 @@ impl<'a> From<&'a QueueOperation> for MatchInfo<'a> {
             src_addr: op.sender_address(),
             dst_domain: op.destination_domain().id(),
             dst_addr: op.recipient_address(),
-            body: hex::encode(op.body()),
+            body: op.body(),
         }
     }
 }
 
 impl MatchingList {
+    pub(crate) fn has_body_regex(&self) -> bool {
+        self.0
+            .as_ref()
+            .map(|rules| rules.iter().any(|rule| rule.body_regex.is_some()))
+            .unwrap_or(false)
+    }
+
+    pub(crate) fn origin_domains(&self) -> Option<HashSet<u32>> {
+        self.domain_filter(|rule| &rule.origin_domain)
+    }
+
+    pub(crate) fn destination_domains(&self) -> Option<HashSet<u32>> {
+        self.domain_filter(|rule| &rule.destination_domain)
+    }
+
+    fn domain_filter<F>(&self, filter: F) -> Option<HashSet<u32>>
+    where
+        F: Fn(&ListElement) -> &Filter<u32>,
+    {
+        let rules = match &self.0 {
+            Some(rules) => rules,
+            None => return Some(HashSet::new()),
+        };
+
+        let mut domains = HashSet::new();
+        for rule in rules {
+            match filter(rule) {
+                Filter::Wildcard => return None,
+                Filter::Enumerated(values) => {
+                    domains.extend(values.iter().copied());
+                }
+            }
+        }
+
+        Some(domains)
+    }
+
     pub fn with_message_id(message_id: H256) -> Self {
         Self(Some(vec![ListElement {
             message_id: Filter::Enumerated(vec![message_id]),
@@ -355,27 +393,43 @@ impl MatchingList {
     /// Check if a message matches any of the rules.
     /// - `default`: What to return if the matching list is empty.
     pub fn msg_matches(&self, msg: &HyperlaneMessage, default: bool) -> bool {
-        self.matches(msg.into(), default)
+        let info = MatchInfo::from(msg);
+        self.matches_info(&info, default, None)
     }
 
     /// Check if queue operation matches any of the rules.
     /// If the matching list is empty, we assume the queue operation does not match.
     pub fn op_matches(&self, op: &QueueOperation) -> bool {
-        self.matches(op.into(), false)
+        let info = MatchInfo::from(op);
+        self.matches_info(&info, false, None)
     }
 
-    /// Check if a message matches any of the rules.
+    /// Check if a message matches any of the rules with a precomputed body hex string.
     /// - `default`: What to return if the matching list is empty.
-    fn matches(&self, info: MatchInfo, default: bool) -> bool {
+    pub(crate) fn matches_info(
+        &self,
+        info: &MatchInfo,
+        default: bool,
+        body_hex: Option<&str>,
+    ) -> bool {
         if let Some(rules) = &self.0 {
-            matches_any_rule(rules.iter(), info)
+            matches_any_rule(rules.iter(), info, body_hex)
         } else {
             default
         }
     }
+
+    fn matches(&self, info: MatchInfo, default: bool) -> bool {
+        self.matches_info(&info, default, None)
+    }
 }
 
-fn matches_any_rule<'a>(mut rules: impl Iterator<Item = &'a ListElement>, info: MatchInfo) -> bool {
+fn matches_any_rule<'a>(
+    mut rules: impl Iterator<Item = &'a ListElement>,
+    info: &MatchInfo,
+    body_hex: Option<&str>,
+) -> bool {
+    let mut body_hex_owned = None;
     rules.any(|rule| {
         rule.message_id.matches(&info.src_msg_id)
             && rule.origin_domain.matches(&info.src_domain)
@@ -385,7 +439,17 @@ fn matches_any_rule<'a>(mut rules: impl Iterator<Item = &'a ListElement>, info: 
             && rule
                 .body_regex
                 .as_ref()
-                .map(|regex| regex.0.is_match(&info.body))
+                .map(|regex| {
+                    let body = match body_hex {
+                        Some(body_hex) => body_hex,
+                        None => {
+                            let body_hex =
+                                body_hex_owned.get_or_insert_with(|| hex::encode(info.body));
+                            body_hex.as_str()
+                        }
+                    };
+                    regex.0.is_match(body)
+                })
                 .unwrap_or(true)
     })
 }
@@ -445,7 +509,7 @@ mod test {
                 src_addr: &H256::default(),
                 dst_domain: 0,
                 dst_addr: &H256::default(),
-                body: "".into(),
+                body: b"",
             },
             false
         ));
@@ -460,7 +524,7 @@ mod test {
                     .into(),
                 dst_domain: 5456,
                 dst_addr: &H256::default(),
-                body: "".into(),
+                body: b"",
             },
             false
         ))
@@ -503,7 +567,7 @@ mod test {
                     .parse::<H160>()
                     .unwrap()
                     .into(),
-                body: "".into(),
+                body: b"",
             },
             false
         ));
@@ -518,7 +582,7 @@ mod test {
                     .into(),
                 dst_domain: 5456,
                 dst_addr: &H256::default(),
-                body: "".into(),
+                body: b"",
             },
             false
         ));
@@ -552,7 +616,7 @@ mod test {
             src_addr: &H256::default(),
             dst_domain: 0,
             dst_addr: &H256::default(),
-            body: "".into(),
+            body: b"",
         };
         // whitelist use
         assert!(MatchingList(None).matches(info.clone(), true));
@@ -598,7 +662,7 @@ mod test {
                     .parse::<H160>()
                     .unwrap()
                     .into(),
-                body: "0x123456789".into(),
+                body: b"0x123456789",
             },
             false
         ));
@@ -613,7 +677,7 @@ mod test {
                     .into(),
                 dst_domain: 5456,
                 dst_addr: &H256::default(),
-                body: "0xdefg".into(),
+                body: b"0xdefg",
             },
             false
         ));
@@ -644,7 +708,7 @@ mod test {
                     src_addr: &H256::default(),
                     dst_domain: 10, // Optimism
                     dst_addr: &H256::default(),
-                    body: commitment_message_body.into(),
+                    body: commitment_message_body.as_bytes(),
                 },
                 false
             ),
@@ -662,7 +726,7 @@ mod test {
                     src_addr: &H256::default(),
                     dst_domain: 10,
                     dst_addr: &H256::default(),
-                    body: calls_message_body.into(),
+                    body: calls_message_body.as_bytes(),
                 },
                 false
             ),
@@ -682,7 +746,7 @@ mod test {
                     src_addr: &H256::default(),
                     dst_domain: 1135, // Lisk
                     dst_addr: &H256::default(),
-                    body: reveal_message_body.into(),
+                    body: reveal_message_body.as_bytes(),
                 },
                 false
             ),
@@ -700,7 +764,7 @@ mod test {
                     src_addr: &H256::default(),
                     dst_domain: 10,
                     dst_addr: &H256::default(),
-                    body: different_owner_commitment.into(),
+                    body: different_owner_commitment.as_bytes(),
                 },
                 false
             ),
@@ -718,7 +782,7 @@ mod test {
                     src_addr: &H256::default(),
                     dst_domain: 42220, // Celo
                     dst_addr: &H256::default(),
-                    body: commitment_with_extra_data.into(),
+                    body: commitment_with_extra_data.as_bytes(),
                 },
                 false
             ),
@@ -738,7 +802,7 @@ mod test {
                     src_addr: &H256::default(),
                     dst_domain: 1135,
                     dst_addr: &H256::default(),
-                    body: reveal_message_body.into(),
+                    body: reveal_message_body.as_bytes(),
                 },
                 false
             ),
@@ -754,7 +818,7 @@ mod test {
                     src_addr: &H256::default(),
                     dst_domain: 10,
                     dst_addr: &H256::default(),
-                    body: calls_message_body.into(),
+                    body: calls_message_body.as_bytes(),
                 },
                 false
             ),
@@ -769,7 +833,7 @@ mod test {
                     src_addr: &H256::default(),
                     dst_domain: 10,
                     dst_addr: &H256::default(),
-                    body: commitment_message_body.into(),
+                    body: commitment_message_body.as_bytes(),
                 },
                 false
             ),
