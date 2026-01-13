@@ -5,7 +5,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
-  DeployedIsmAddresses,
+  DeployedIsmAddress,
   IsmArtifactConfig,
   IsmConfig,
   STATIC_ISM_TYPES,
@@ -50,7 +50,7 @@ export function ismConfigToArtifact(
   if (config.type === 'domainRoutingIsm') {
     const domains: Record<
       number,
-      Artifact<IsmArtifactConfig, DeployedIsmAddresses>
+      Artifact<IsmArtifactConfig, DeployedIsmAddress>
     > = {};
 
     for (const [chainName, nestedConfig] of Object.entries(config.domains)) {

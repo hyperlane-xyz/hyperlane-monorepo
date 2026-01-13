@@ -10,7 +10,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
-  DeployedIsmAddresses,
+  DeployedIsmAddress,
   DeployedIsmArtifact,
   IRawIsmArtifactManager,
   IsmArtifactConfig,
@@ -61,7 +61,7 @@ export function createIsmWriter(
  */
 export class IsmWriter
   extends IsmReader
-  implements ArtifactWriter<IsmArtifactConfig, DeployedIsmAddresses>
+  implements ArtifactWriter<IsmArtifactConfig, DeployedIsmAddress>
 {
   private readonly routingWriter: RoutingIsmWriter;
 
