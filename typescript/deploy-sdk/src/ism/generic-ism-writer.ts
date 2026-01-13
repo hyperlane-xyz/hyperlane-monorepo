@@ -72,8 +72,8 @@ export class IsmWriter
   ) {
     super(artifactManager, chainLookup);
     this.routingWriter = new RoutingIsmWriter(
-      chainLookup,
       artifactManager,
+      chainLookup,
       signer,
     );
   }

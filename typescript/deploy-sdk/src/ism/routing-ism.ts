@@ -40,8 +40,8 @@ export class RoutingIsmWriter
   private readonly ismReader: IsmReader;
 
   constructor(
-    protected readonly chainLookup: ChainLookup,
     protected readonly artifactManager: IRawIsmArtifactManager,
+    protected readonly chainLookup: ChainLookup,
     private readonly signer: ISigner<AnnotatedTx, TxReceipt>,
   ) {
     this.ismReader = new IsmReader(artifactManager, chainLookup);
