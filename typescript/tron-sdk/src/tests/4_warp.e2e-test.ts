@@ -55,8 +55,6 @@ describe('4. aleo sdk warp e2e tests', async function () {
       tokenAddress: txResponse.tokenAddress,
     });
 
-    console.log(JSON.stringify(token));
-
     expect(token).not.to.be.undefined;
     expect(token.owner).to.equal(signer.getSignerAddress());
     expect(token.mailboxAddress).to.equal(mailboxAddress);
@@ -187,34 +185,33 @@ describe('4. aleo sdk warp e2e tests', async function () {
     expect(token.hookAddress).to.equal(hookAddress);
   });
 
-  // TODO: TRON
-  // step('set token owner', async () => {
-  //   // ARRANGE
-  //   const { tokenAddress: newTokenAddress } = await signer.createNativeToken({
-  //     mailboxAddress,
-  //   });
+  step('set token owner', async () => {
+    // ARRANGE
+    const { tokenAddress: newTokenAddress } = await signer.createNativeToken({
+      mailboxAddress,
+    });
 
-  //   let token = await signer.getToken({
-  //     tokenAddress: newTokenAddress,
-  //   });
-  //   expect(token.owner).to.equal(signer.getSignerAddress());
+    let token = await signer.getToken({
+      tokenAddress: newTokenAddress,
+    });
+    expect(token.owner).to.equal(signer.getSignerAddress());
 
-  //   const newOwner = new TronWeb({
-  //     fullHost: localnetRpc,
-  //   }).createRandom().address;
+    const newOwner = new TronWeb({
+      fullHost: localnetRpc,
+    }).createRandom().address;
 
-  //   // ACT
-  //   await signer.setTokenOwner({
-  //     tokenAddress: newTokenAddress,
-  //     newOwner,
-  //   });
+    // ACT
+    await signer.setTokenOwner({
+      tokenAddress: newTokenAddress,
+      newOwner,
+    });
 
-  //   // ASSERT
-  //   token = await signer.getToken({
-  //     tokenAddress: newTokenAddress,
-  //   });
-  //   expect(token.owner).to.equal(newOwner);
-  // });
+    // ASSERT
+    token = await signer.getToken({
+      tokenAddress: newTokenAddress,
+    });
+    expect(token.owner).to.equal(newOwner);
+  });
 
   step('enroll remote router', async () => {
     // ARRANGE

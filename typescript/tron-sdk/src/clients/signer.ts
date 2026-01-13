@@ -6,7 +6,7 @@ import HypNativeAbi from '../../abi/HypNative.json' with { type: 'json' };
 import InterchainGasPaymasterAbi from '../../abi/InterchainGasPaymaster.json' with { type: 'json' };
 import GasOracleAbi from '../../abi/StorageGasOracle.json' with { type: 'json' };
 import StorageGasOracleAbi from '../../abi/StorageGasOracle.json' with { type: 'json' };
-import { TRON_EMPTY_ADDRESS } from '../utils/index.js';
+import { TRON_EMPTY_ADDRESS, decodeRevertReason } from '../utils/index.js';
 import { TronReceipt, TronTransaction } from '../utils/types.js';
 
 import { TronProvider } from './provider.js';
@@ -39,19 +39,44 @@ export class TronSigner
     super(rpcUrls, chainId, privateKey);
   }
 
-  protected async waitForTransaction(txId: string): Promise<any> {
-    let result = null;
-    while (!result) {
-      console.log('Checking for transaction...');
-      // getTransaction returns an empty object {} if the tx isn't in a block yet
-      const tx = await this.tronweb.trx.getTransaction(txId);
-      if (tx && tx.ret) {
-        result = tx;
-      } else {
-        await new Promise((resolve) => setTimeout(resolve, 3000)); // Wait 3 seconds
+  protected async waitForTransaction(
+    txid: string,
+    timeout = 30000,
+  ): Promise<any> {
+    const start = Date.now();
+
+    while (Date.now() - start < timeout) {
+      const info = await this.tronweb.trx.getTransactionInfo(txid);
+
+      if (info && info.id) {
+        const result = info.receipt?.result;
+
+        if (result === 'SUCCESS') {
+          return info;
+        }
+
+        if (result === 'REVERT' || result === 'FAILED') {
+          let revertReason = 'Unknown Error';
+
+          if (info.resMessage) {
+            revertReason = this.tronweb.toUtf8(info.resMessage);
+          } else if (info.contractResult && info.contractResult[0]) {
+            revertReason = decodeRevertReason(
+              info.contractResult[0],
+              this.tronweb,
+            );
+          }
+
+          throw new Error(
+            `Tron Transaction Failed: ${revertReason} (txid: ${txid})`,
+          );
+        }
       }
+
+      await new Promise((resolve) => setTimeout(resolve, 2000));
     }
-    return result;
+
+    throw new Error(`Transaction timed out: ${txid}`);
   }
 
   getSignerAddress(): string {
@@ -59,17 +84,21 @@ export class TronSigner
   }
 
   supportsTransactionBatching(): boolean {
-    throw new Error(`not implemented`);
+    return false;
   }
 
-  transactionToPrintableJson(_transaction: TronTransaction): Promise<object> {
-    throw new Error(`not implemented`);
+  transactionToPrintableJson(transaction: TronTransaction): Promise<object> {
+    return transaction;
   }
 
   async sendAndConfirmTransaction(
-    _transaction: TronTransaction,
+    transaction: TronTransaction,
   ): Promise<TronReceipt> {
-    throw new Error(`not implemented`);
+    const signedTx = await this.tronweb.trx.sign(transaction);
+    const result = await this.tronweb.trx.sendRawTransaction(signedTx);
+    const receipt = await this.waitForTransaction(result.txid);
+
+    return receipt;
   }
 
   async sendAndConfirmBatchTransactions(
@@ -88,10 +117,11 @@ export class TronSigner
       signer: this.getSignerAddress(),
     });
 
-    const signedTx = await this.tronweb.trx.sign(tx);
-    await this.tronweb.trx.sendRawTransaction(signedTx);
+    const receipt = await this.sendAndConfirmTransaction(tx);
 
-    const mailboxAddress = this.tronweb.address.fromHex(tx.contract_address);
+    const mailboxAddress = this.tronweb.address.fromHex(
+      receipt.contract_address,
+    );
 
     // TODO: TRON
     // include default hook and required hook in create mailbox altvm interface too
@@ -124,8 +154,7 @@ export class TronSigner
         this.tronweb.address.toHex(this.getSignerAddress()),
       );
 
-    const initSignedTx = await this.tronweb.trx.sign(transaction);
-    await this.tronweb.trx.sendRawTransaction(initSignedTx);
+    await this.sendAndConfirmTransaction(transaction);
 
     return {
       mailboxAddress,
@@ -140,8 +169,7 @@ export class TronSigner
       signer: this.getSignerAddress(),
     });
 
-    const signedTx = await this.tronweb.trx.sign(tx);
-    await this.tronweb.trx.sendRawTransaction(signedTx);
+    await this.sendAndConfirmTransaction(tx);
 
     return {
       ismAddress: req.ismAddress,
@@ -156,8 +184,7 @@ export class TronSigner
       signer: this.getSignerAddress(),
     });
 
-    const signedTx = await this.tronweb.trx.sign(tx);
-    await this.tronweb.trx.sendRawTransaction(signedTx);
+    await this.sendAndConfirmTransaction(tx);
 
     return {
       hookAddress: req.hookAddress,
@@ -172,8 +199,7 @@ export class TronSigner
       signer: this.getSignerAddress(),
     });
 
-    const signedTx = await this.tronweb.trx.sign(tx);
-    await this.tronweb.trx.sendRawTransaction(signedTx);
+    await this.sendAndConfirmTransaction(tx);
 
     return {
       hookAddress: req.hookAddress,
@@ -188,8 +214,7 @@ export class TronSigner
       signer: this.getSignerAddress(),
     });
 
-    const signedTx = await this.tronweb.trx.sign(tx);
-    await this.tronweb.trx.sendRawTransaction(signedTx);
+    await this.sendAndConfirmTransaction(tx);
 
     return {
       newOwner: req.newOwner,
@@ -204,11 +229,10 @@ export class TronSigner
       signer: this.getSignerAddress(),
     });
 
-    const signedTx = await this.tronweb.trx.sign(tx);
-    await this.tronweb.trx.sendRawTransaction(signedTx);
+    const receipt = await this.sendAndConfirmTransaction(tx);
 
     return {
-      ismAddress: this.tronweb.address.fromHex(tx.contract_address),
+      ismAddress: this.tronweb.address.fromHex(receipt.contract_address),
     };
   }
 
@@ -220,11 +244,10 @@ export class TronSigner
       signer: this.getSignerAddress(),
     });
 
-    const signedTx = await this.tronweb.trx.sign(tx);
-    await this.tronweb.trx.sendRawTransaction(signedTx);
+    const receipt = await this.sendAndConfirmTransaction(tx);
 
     return {
-      ismAddress: this.tronweb.address.fromHex(tx.contract_address),
+      ismAddress: this.tronweb.address.fromHex(receipt.contract_address),
     };
   }
 
@@ -236,10 +259,9 @@ export class TronSigner
       signer: this.getSignerAddress(),
     });
 
-    const signedTx = await this.tronweb.trx.sign(tx);
-    await this.tronweb.trx.sendRawTransaction(signedTx);
+    const receipt = await this.sendAndConfirmTransaction(tx);
 
-    const ismAddress = this.tronweb.address.fromHex(tx.contract_address);
+    const ismAddress = this.tronweb.address.fromHex(receipt.contract_address);
 
     const { transaction } =
       await this.tronweb.transactionBuilder.triggerSmartContract(
@@ -266,8 +288,7 @@ export class TronSigner
         this.tronweb.address.toHex(this.getSignerAddress()),
       );
 
-    const initSignedTx = await this.tronweb.trx.sign(transaction);
-    await this.tronweb.trx.sendRawTransaction(initSignedTx);
+    await this.sendAndConfirmTransaction(transaction);
 
     return {
       ismAddress,
@@ -282,8 +303,7 @@ export class TronSigner
       signer: this.getSignerAddress(),
     });
 
-    const signedTx = await this.tronweb.trx.sign(tx);
-    await this.tronweb.trx.sendRawTransaction(signedTx);
+    await this.sendAndConfirmTransaction(tx);
 
     return {
       route: req.route,
@@ -298,8 +318,7 @@ export class TronSigner
       signer: this.getSignerAddress(),
     });
 
-    const signedTx = await this.tronweb.trx.sign(tx);
-    await this.tronweb.trx.sendRawTransaction(signedTx);
+    await this.sendAndConfirmTransaction(tx);
 
     return {
       domainId: req.domainId,
@@ -314,8 +333,7 @@ export class TronSigner
       signer: this.getSignerAddress(),
     });
 
-    const signedTx = await this.tronweb.trx.sign(tx);
-    await this.tronweb.trx.sendRawTransaction(signedTx);
+    await this.sendAndConfirmTransaction(tx);
 
     return {
       newOwner: req.newOwner,
@@ -330,11 +348,10 @@ export class TronSigner
       signer: this.getSignerAddress(),
     });
 
-    const signedTx = await this.tronweb.trx.sign(tx);
-    await this.tronweb.trx.sendRawTransaction(signedTx);
+    const receipt = await this.sendAndConfirmTransaction(tx);
 
     return {
-      ismAddress: this.tronweb.address.fromHex(tx.contract_address),
+      ismAddress: this.tronweb.address.fromHex(receipt.contract_address),
     };
   }
 
@@ -346,11 +363,10 @@ export class TronSigner
       signer: this.getSignerAddress(),
     });
 
-    const signedTx = await this.tronweb.trx.sign(tx);
-    await this.tronweb.trx.sendRawTransaction(signedTx);
+    const receipt = await this.sendAndConfirmTransaction(tx);
 
     return {
-      hookAddress: this.tronweb.address.fromHex(tx.contract_address),
+      hookAddress: this.tronweb.address.fromHex(receipt.contract_address),
     };
   }
 
@@ -362,10 +378,9 @@ export class TronSigner
       signer: this.getSignerAddress(),
     });
 
-    const signedTx = await this.tronweb.trx.sign(tx);
-    await this.tronweb.trx.sendRawTransaction(signedTx);
+    const receipt = await this.sendAndConfirmTransaction(tx);
 
-    const hookAddress = this.tronweb.address.fromHex(tx.contract_address);
+    const hookAddress = this.tronweb.address.fromHex(receipt.contract_address);
 
     const { transaction } =
       await this.tronweb.transactionBuilder.triggerSmartContract(
@@ -388,8 +403,7 @@ export class TronSigner
         this.tronweb.address.toHex(this.getSignerAddress()),
       );
 
-    const initSignedTx = await this.tronweb.trx.sign(transaction);
-    await this.tronweb.trx.sendRawTransaction(initSignedTx);
+    await this.sendAndConfirmTransaction(transaction);
 
     const oracleTx = await this.createDeploymentTransaction(
       StorageGasOracleAbi,
@@ -397,11 +411,10 @@ export class TronSigner
       [],
     );
 
-    const oracleSignedTx = await this.tronweb.trx.sign(oracleTx);
-    await this.tronweb.trx.sendRawTransaction(oracleSignedTx);
+    const oracleReceipt = await this.sendAndConfirmTransaction(oracleTx);
 
     const oracleAddress = this.tronweb.address.fromHex(
-      oracleTx.contract_address,
+      oracleReceipt.contract_address,
     );
 
     const { transaction: setOracleTx } =
@@ -421,8 +434,7 @@ export class TronSigner
         this.tronweb.address.toHex(this.getSignerAddress()),
       );
 
-    const setOracleSignedTx = await this.tronweb.trx.sign(setOracleTx);
-    await this.tronweb.trx.sendRawTransaction(setOracleSignedTx);
+    await this.sendAndConfirmTransaction(setOracleTx);
 
     return {
       hookAddress,
@@ -437,8 +449,7 @@ export class TronSigner
       signer: this.getSignerAddress(),
     });
 
-    const signedTx = await this.tronweb.trx.sign(tx);
-    await this.tronweb.trx.sendRawTransaction(signedTx);
+    await this.sendAndConfirmTransaction(tx);
 
     return {
       newOwner: req.newOwner,
@@ -453,8 +464,7 @@ export class TronSigner
       signer: this.getSignerAddress(),
     });
 
-    const signedTx = await this.tronweb.trx.sign(tx);
-    await this.tronweb.trx.sendRawTransaction(signedTx);
+    await this.sendAndConfirmTransaction(tx);
 
     const igp = this.tronweb.contract(
       InterchainGasPaymasterAbi.abi,
@@ -504,11 +514,10 @@ export class TronSigner
       signer: this.getSignerAddress(),
     });
 
-    const signedTx = await this.tronweb.trx.sign(tx);
-    await this.tronweb.trx.sendRawTransaction(signedTx);
+    const receipt = await this.sendAndConfirmTransaction(tx);
 
     return {
-      hookAddress: this.tronweb.address.fromHex(tx.contract_address),
+      hookAddress: this.tronweb.address.fromHex(receipt.contract_address),
     };
   }
 
@@ -520,11 +529,12 @@ export class TronSigner
       signer: this.getSignerAddress(),
     });
 
-    const signedTx = await this.tronweb.trx.sign(tx);
-    await this.tronweb.trx.sendRawTransaction(signedTx);
+    const receipt = await this.sendAndConfirmTransaction(tx);
 
     return {
-      validatorAnnounceId: this.tronweb.address.fromHex(tx.contract_address),
+      validatorAnnounceId: this.tronweb.address.fromHex(
+        receipt.contract_address,
+      ),
     };
   }
 
@@ -538,10 +548,9 @@ export class TronSigner
       signer: this.getSignerAddress(),
     });
 
-    const signedTx = await this.tronweb.trx.sign(tx);
-    await this.tronweb.trx.sendRawTransaction(signedTx);
+    const receipt = await this.sendAndConfirmTransaction(tx);
 
-    const tokenAddress = this.tronweb.address.fromHex(tx.contract_address);
+    const tokenAddress = this.tronweb.address.fromHex(receipt.contract_address);
 
     const { transaction } =
       await this.tronweb.transactionBuilder.triggerSmartContract(
@@ -568,8 +577,7 @@ export class TronSigner
         this.tronweb.address.toHex(this.getSignerAddress()),
       );
 
-    const initSignedTx = await this.tronweb.trx.sign(transaction);
-    await this.tronweb.trx.sendRawTransaction(initSignedTx);
+    await this.sendAndConfirmTransaction(transaction);
 
     return {
       tokenAddress,
@@ -596,8 +604,7 @@ export class TronSigner
       signer: this.getSignerAddress(),
     });
 
-    const signedTx = await this.tronweb.trx.sign(tx);
-    await this.tronweb.trx.sendRawTransaction(signedTx);
+    await this.sendAndConfirmTransaction(tx);
 
     return {
       newOwner: req.newOwner,
@@ -612,8 +619,7 @@ export class TronSigner
       signer: this.getSignerAddress(),
     });
 
-    const signedTx = await this.tronweb.trx.sign(tx);
-    await this.tronweb.trx.sendRawTransaction(signedTx);
+    await this.sendAndConfirmTransaction(tx);
 
     return {
       ismAddress: req.ismAddress,
@@ -628,8 +634,7 @@ export class TronSigner
       signer: this.getSignerAddress(),
     });
 
-    const signedTx = await this.tronweb.trx.sign(tx);
-    await this.tronweb.trx.sendRawTransaction(signedTx);
+    await this.sendAndConfirmTransaction(tx);
 
     return {
       hookAddress: req.hookAddress,
@@ -644,8 +649,7 @@ export class TronSigner
       signer: this.getSignerAddress(),
     });
 
-    const signedTx = await this.tronweb.trx.sign(tx);
-    await this.tronweb.trx.sendRawTransaction(signedTx);
+    await this.sendAndConfirmTransaction(tx);
 
     const token = this.tronweb.contract(HypNativeAbi.abi, req.tokenAddress);
 
@@ -673,8 +677,7 @@ export class TronSigner
       signer: this.getSignerAddress(),
     });
 
-    const signedTx = await this.tronweb.trx.sign(tx);
-    await this.tronweb.trx.sendRawTransaction(signedTx);
+    await this.sendAndConfirmTransaction(tx);
 
     return {
       receiverDomainId: req.receiverDomainId,
@@ -695,8 +698,7 @@ export class TronSigner
       signer: this.getSignerAddress(),
     });
 
-    const signedTx = await this.tronweb.trx.sign(tx);
-    await this.tronweb.trx.sendRawTransaction(signedTx);
+    await this.sendAndConfirmTransaction(tx);
 
     return {
       tokenAddress: req.tokenAddress,
