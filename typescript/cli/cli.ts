@@ -8,7 +8,6 @@ import './env.js';
 import { avsCommand } from './src/commands/avs.js';
 import { configCommand } from './src/commands/config.js';
 import { coreCommand } from './src/commands/core.js';
-import { deployCommand } from './src/commands/deploy.js';
 import { forkCommand } from './src/commands/fork.js';
 import { hookCommand } from './src/commands/hook.js';
 import { ismCommand } from './src/commands/ism.js';
@@ -63,7 +62,6 @@ try {
     .command(avsCommand)
     .command(configCommand)
     .command(coreCommand)
-    .command(deployCommand)
     .command(hookCommand)
     .command(ismCommand)
     .command(registryCommand)
