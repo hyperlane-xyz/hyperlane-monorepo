@@ -86,11 +86,6 @@ export const agentTargetsCommandOption: Options = {
   description: 'Comma separated list of chains to relay between',
 };
 
-export const originCommandOption: Options = {
-  type: 'string',
-  description: 'The name of the origin chain to deploy to',
-};
-
 export const ismCommandOption: Options = {
   type: 'string',
   description:
@@ -122,17 +117,6 @@ export const warpCoreConfigCommandOption: Options = {
   description: 'File path to Warp Route config',
   alias: 'wc',
 };
-
-export const agentConfigCommandOption = (
-  isIn: boolean,
-  defaultPath?: string,
-): Options => ({
-  type: 'string',
-  description: `${
-    isIn ? 'Input' : 'Output'
-  } file path for the agent configuration`,
-  default: defaultPath,
-});
 
 export const chainTargetsCommandOption: Options = {
   type: 'string',

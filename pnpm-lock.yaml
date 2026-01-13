@@ -1574,6 +1574,9 @@ importers:
       chai-as-promised:
         specifier: 'catalog:'
         version: 8.0.2(chai@4.5.0)
+      cli-table3:
+        specifier: 0.6.5
+        version: 0.6.5
       ethereum-waffle:
         specifier: 'catalog:'
         version: 4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(@ethersproject/abi@5.8.0)(@ethersproject/providers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(typescript@5.8.3)
