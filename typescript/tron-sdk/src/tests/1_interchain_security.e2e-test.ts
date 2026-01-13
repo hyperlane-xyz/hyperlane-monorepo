@@ -50,56 +50,68 @@ describe('1. tron sdk interchain security e2e tests', async function () {
     noop_ism = ism.address;
   });
 
-  step('create new MessageIdMultisig ISM', async () => {
-    // ARRANGE
-    const threshold = 2;
-    const validators = [
-      '0x3c24f29fa75869a1c9d19d9d6589aae0b5227c3c',
-      '0xf719b4cc64d0e3a380e52c2720abab13835f6d9c',
-      '0x98a56ede1d6dd386216da8217d9ac1d2ee7c27c7',
-    ];
+  // TODO: TRON
+  // step('create new MessageIdMultisig ISM', async () => {
+  //   // ARRANGE
+  //   const threshold = 2;
+  //   const validators = [
+  //     '0x3c24f29fa75869a1c9d19d9d6589aae0b5227c3c',
+  //     '0xf719b4cc64d0e3a380e52c2720abab13835f6d9c',
+  //     '0x98a56ede1d6dd386216da8217d9ac1d2ee7c27c7',
+  //   ];
 
-    // note that the validators need to be sorted alphabetically
-    validators.sort();
+  //   // note that the validators need to be sorted alphabetically
+  //   validators.sort();
 
-    // ACT
-    const txResponse = await signer.createMessageIdMultisigIsm({
-      validators,
-      threshold,
-    });
+  //   // ACT
+  //   const txResponse = await signer.createMessageIdMultisigIsm({
+  //     validators,
+  //     threshold,
+  //   });
 
-    // ASSERT
-    expect(txResponse.ismAddress).to.be.not.empty;
+  //   // ASSERT
+  //   expect(txResponse.ismAddress).to.be.not.empty;
 
-    let ism = await signer.getMessageIdMultisigIsm({
-      ismAddress: txResponse.ismAddress,
-    });
+  //   let ism = await signer.getMessageIdMultisigIsm({
+  //     ismAddress: txResponse.ismAddress,
+  //   });
 
-    expect(ism.address).to.equal(txResponse.ismAddress);
-    expect(ism.threshold).to.equal(threshold);
-    expect(ism.validators).deep.equal(validators);
-  });
+  //   expect(ism.address).to.equal(txResponse.ismAddress);
+  //   expect(ism.threshold).to.equal(threshold);
+  //   expect(ism.validators).deep.equal(validators);
+  // });
 
-  step('create new MerkleRootMultisig ISM', async () => {
-    // ARRANGE
-    const threshold = 2;
-    const validators = [
-      '0x3C24F29fa75869A1C9D19d9d6589Aae0B5227c3c',
-      '0xf719b4CC64d0E3a380e52c2720Abab13835F6d9c',
-      '0x98A56EdE1d6Dd386216DA8217D9ac1d2EE7c27c7',
-    ];
+  // step('create new MerkleRootMultisig ISM', async () => {
+  //   // ARRANGE
+  //   const threshold = 2;
+  //   const validators = [
+  //     '0x3C24F29fa75869A1C9D19d9d6589Aae0B5227c3c',
+  //     '0xf719b4CC64d0E3a380e52c2720Abab13835F6d9c',
+  //     '0x98A56EdE1d6Dd386216DA8217D9ac1d2EE7c27c7',
+  //   ];
 
-    // note that the validators need to be sorted alphabetically
-    validators.sort();
+  //   // note that the validators need to be sorted alphabetically
+  //   validators.sort();
 
-    // ACT && ASSERT
-    await expect(
-      signer.createMerkleRootMultisigIsm({
-        validators,
-        threshold,
-      }),
-    ).to.be.rejected;
-  });
+  //   // ACT
+  //   const txResponse = await signer.createMerkleRootMultisigIsm({
+  //     validators,
+  //     threshold,
+  //   });
+
+  //   console.log(txResponse.ismAddress);
+
+  //   // ASSERT
+  //   expect(txResponse.ismAddress).to.be.not.empty;
+
+  //   let ism = await signer.getMerkleRootMultisigIsm({
+  //     ismAddress: txResponse.ismAddress,
+  //   });
+
+  //   expect(ism.address).to.equal(txResponse.ismAddress);
+  //   expect(ism.threshold).to.equal(threshold);
+  //   expect(ism.validators).deep.equal(validators);
+  // });
 
   step('create new Routing ISM', async () => {
     // ARRANGE

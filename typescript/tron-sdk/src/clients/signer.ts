@@ -195,9 +195,50 @@ export class TronSigner
   }
 
   async createMerkleRootMultisigIsm(
-    _req: Omit<AltVM.ReqCreateMerkleRootMultisigIsm, 'signer'>,
+    req: Omit<AltVM.ReqCreateMerkleRootMultisigIsm, 'signer'>,
   ): Promise<AltVM.ResCreateMerkleRootMultisigIsm> {
-    throw new Error(`not implemented`);
+    const tx = await this.getCreateMerkleRootMultisigIsmTransaction({
+      ...req,
+      signer: this.getSignerAddress(),
+    });
+
+    const signedTx = await this.tronweb.trx.sign(tx);
+    await this.tronweb.trx.sendRawTransaction(signedTx);
+
+    const ismAddress = this.tronweb.address.fromHex(tx.contract_address);
+
+    const { transaction } =
+      await this.tronweb.transactionBuilder.triggerSmartContract(
+        ismAddress,
+        'initialize(address,address[],uint8)',
+        {
+          feeLimit: 100_000_000,
+          callValue: 0,
+        },
+        [
+          {
+            type: 'address',
+            value: this.getSignerAddress(),
+          },
+          {
+            type: 'address[]',
+            value: [],
+          },
+          {
+            type: 'uint8',
+            value: 0,
+          },
+        ],
+        this.tronweb.address.toHex(this.getSignerAddress()),
+      );
+
+    const initSignedTx = await this.tronweb.trx.sign(transaction);
+    const result = await this.tronweb.trx.sendRawTransaction(initSignedTx);
+    console.log('result', result);
+
+    return {
+      ismAddress,
+    };
   }
 
   async createMessageIdMultisigIsm(
@@ -217,9 +258,51 @@ export class TronSigner
   }
 
   async createRoutingIsm(
-    _req: Omit<AltVM.ReqCreateRoutingIsm, 'signer'>,
+    req: Omit<AltVM.ReqCreateRoutingIsm, 'signer'>,
   ): Promise<AltVM.ResCreateRoutingIsm> {
-    throw new Error(`not implemented`);
+    const tx = await this.getCreateRoutingIsmTransaction({
+      ...req,
+      signer: this.getSignerAddress(),
+    });
+
+    const signedTx = await this.tronweb.trx.sign(tx);
+    await this.tronweb.trx.sendRawTransaction(signedTx);
+
+    const ismAddress = this.tronweb.address.fromHex(tx.contract_address);
+
+    // TODO: TRON
+    // include default hook and required hook in create mailbox altvm interface too
+    const { transaction } =
+      await this.tronweb.transactionBuilder.triggerSmartContract(
+        ismAddress,
+        'initialize(address,uint32[],address[])',
+        {
+          feeLimit: 100_000_000,
+          callValue: 0,
+        },
+        [
+          {
+            type: 'address',
+            value: this.getSignerAddress(),
+          },
+          {
+            type: 'uint32[]',
+            value: req.routes.map((r) => r.domainId),
+          },
+          {
+            type: 'address[]',
+            value: req.routes.map((r) => r.ismAddress),
+          },
+        ],
+        this.tronweb.address.toHex(this.getSignerAddress()),
+      );
+
+    const initSignedTx = await this.tronweb.trx.sign(transaction);
+    await this.tronweb.trx.sendRawTransaction(initSignedTx);
+
+    return {
+      ismAddress,
+    };
   }
 
   async setRoutingIsmRoute(

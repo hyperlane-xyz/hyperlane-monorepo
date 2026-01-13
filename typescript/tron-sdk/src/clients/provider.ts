@@ -3,12 +3,14 @@ import { TronWeb } from 'tronweb';
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert, strip0x } from '@hyperlane-xyz/utils';
 
+import DomainRoutingIsmAbi from '../../abi/DomainRoutingIsm.json' with { type: 'json' };
 import InterchainGasPaymasterAbi from '../../abi/InterchainGasPaymaster.json' with { type: 'json' };
 import MailboxAbi from '../../abi/Mailbox.json' with { type: 'json' };
 import MerkleTreeHookAbi from '../../abi/MerkleTreeHook.json' with { type: 'json' };
 import NoopIsmAbi from '../../abi/NoopIsm.json' with { type: 'json' };
 import StorageGasOracleAbi from '../../abi/StorageGasOracle.json' with { type: 'json' };
-import MessageIdMultisigIsmAbi from '../../abi/StorageMessageIdMultisigIsm.json' with { type: 'json' };
+import StorageMerkleRootMultisigIsmAbi from '../../abi/StorageMerkleRootMultisigIsm.json' with { type: 'json' };
+import StorageMessageIdMultisigIsmAbi from '../../abi/StorageMessageIdMultisigIsm.json' with { type: 'json' };
 import ValidatorAnnounceAbi from '../../abi/ValidatorAnnounce.json' with { type: 'json' };
 import { IABI, TronTransaction } from '../utils/types.js';
 
@@ -137,7 +139,7 @@ export class TronProvider implements AltVM.IProvider {
     req: AltVM.ReqMessageIdMultisigIsm,
   ): Promise<AltVM.ResMessageIdMultisigIsm> {
     const contract = this.tronweb.contract(
-      MessageIdMultisigIsmAbi.abi,
+      StorageMessageIdMultisigIsmAbi.abi,
       req.ismAddress,
     );
 
@@ -149,13 +151,45 @@ export class TronProvider implements AltVM.IProvider {
   }
 
   async getMerkleRootMultisigIsm(
-    _req: AltVM.ReqMerkleRootMultisigIsm,
+    req: AltVM.ReqMerkleRootMultisigIsm,
   ): Promise<AltVM.ResMerkleRootMultisigIsm> {
-    throw new Error(`not implemented`);
+    const contract = this.tronweb.contract(
+      StorageMerkleRootMultisigIsmAbi.abi,
+      req.ismAddress,
+    );
+
+    return {
+      address: req.ismAddress,
+      threshold: await contract.threshold().call(),
+      validators: await contract.validators().call(),
+    };
   }
 
-  async getRoutingIsm(_req: AltVM.ReqRoutingIsm): Promise<AltVM.ResRoutingIsm> {
-    throw new Error(`not implemented`);
+  async getRoutingIsm(req: AltVM.ReqRoutingIsm): Promise<AltVM.ResRoutingIsm> {
+    const contract = this.tronweb.contract(
+      DomainRoutingIsmAbi.abi,
+      req.ismAddress,
+    );
+
+    const routes = [];
+
+    const domainIds = await contract.domains().call();
+
+    for (const domainId of domainIds) {
+      const ismAddress = this.tronweb.address.fromHex(
+        await contract.module(domainId).call(),
+      );
+      routes.push({
+        domainId: Number(domainId),
+        ismAddress,
+      });
+    }
+
+    return {
+      address: req.ismAddress,
+      owner: this.tronweb.address.fromHex(await contract.owner().call()),
+      routes,
+    };
   }
 
   async getNoopIsm(req: AltVM.ReqNoopIsm): Promise<AltVM.ResNoopIsm> {
@@ -372,25 +406,33 @@ export class TronProvider implements AltVM.IProvider {
   }
 
   async getCreateMerkleRootMultisigIsmTransaction(
-    _req: AltVM.ReqCreateMerkleRootMultisigIsm,
+    req: AltVM.ReqCreateMerkleRootMultisigIsm,
   ): Promise<TronTransaction> {
-    throw new Error(`not implemented`);
+    return this.createDeploymentTransaction(
+      StorageMerkleRootMultisigIsmAbi,
+      req.signer,
+      [[], 0],
+    );
   }
 
   async getCreateMessageIdMultisigIsmTransaction(
     req: AltVM.ReqCreateMessageIdMultisigIsm,
   ): Promise<TronTransaction> {
     return this.createDeploymentTransaction(
-      MessageIdMultisigIsmAbi,
+      StorageMessageIdMultisigIsmAbi,
       req.signer,
       [req.validators, req.threshold],
     );
   }
 
   async getCreateRoutingIsmTransaction(
-    _req: AltVM.ReqCreateRoutingIsm,
+    req: AltVM.ReqCreateRoutingIsm,
   ): Promise<TronTransaction> {
-    throw new Error(`not implemented`);
+    return this.createDeploymentTransaction(
+      DomainRoutingIsmAbi,
+      req.signer,
+      [],
+    );
   }
 
   async getSetRoutingIsmRouteTransaction(
