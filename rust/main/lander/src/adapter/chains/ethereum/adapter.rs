@@ -154,19 +154,32 @@ impl EthereumAdapter {
         )
         .await;
 
-        // then, compare the estimated gas price with `current * escalation_multiplier`
-        let escalated_gas_price = gas_price::escalate_gas_price_if_needed(
-            &old_gas_price,
-            &estimated_gas_price,
-            &self.transaction_overrides,
-        );
+        // Only escalate gas price if transaction is in Mempool state
+        // If transaction is in PendingInclusion (dropped from mempool), use the fresh estimate
+        let new_gas_price = if matches!(tx.status, TransactionStatus::Mempool) {
+            // then, compare the estimated gas price with `current * escalation_multiplier`
+            let escalated_gas_price = gas_price::escalate_gas_price_if_needed(
+                &old_gas_price,
+                &estimated_gas_price,
+                &self.transaction_overrides,
+            );
 
-        let new_gas_price = match escalated_gas_price {
-            GasPrice::None => estimated_gas_price,
-            _ => escalated_gas_price,
+            match escalated_gas_price {
+                GasPrice::None => estimated_gas_price,
+                _ => escalated_gas_price,
+            }
+        } else {
+            // Transaction is not in mempool (PendingInclusion), use fresh estimate without escalation
+            estimated_gas_price
         };
 
-        info!(old=?old_tx_precursor, new=?new_gas_price, "estimated and escalated gas price for transaction");
+        info!(
+            old=?old_tx_precursor,
+            new=?new_gas_price,
+            status=?tx.status,
+            escalated=?matches!(tx.status, TransactionStatus::Mempool),
+            "estimated gas price for transaction"
+        );
         Ok(new_gas_price)
     }
 
