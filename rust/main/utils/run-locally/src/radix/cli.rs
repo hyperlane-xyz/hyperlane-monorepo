@@ -52,8 +52,8 @@ impl Clone for RadixCli {
     fn clone(&self) -> Self {
         Self {
             provider: self.provider.clone(),
-            package: self.package.clone(),
-            signer: self.signer.clone(),
+            package: self.package,
+            signer: self.signer,
             network: self.network.clone(),
             decoder: AddressBech32Decoder::new(&self.network),
             encoder: AddressBech32Encoder::new(&self.network),
@@ -166,7 +166,7 @@ impl RadixCli {
         log!("Publishing package from {:?}", code_path);
         let code = fs::read(code_path).expect("Failed to read package code from file");
         let package_definition: PackageDefinition =
-            manifest_decode(&fs::read(&rpd).expect("Failed to read package definition file"))
+            manifest_decode(&fs::read(rpd).expect("Failed to read package definition file"))
                 .expect("Failed to decode package definition");
         let update = self
             .send_tx(|builder| {
