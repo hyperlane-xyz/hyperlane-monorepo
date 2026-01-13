@@ -37,6 +37,21 @@ export class TronSigner
     super(rpcUrls, chainId, privateKey);
   }
 
+  protected async waitForTransaction(txId: string): Promise<any> {
+    let result = null;
+    while (!result) {
+      console.log('Checking for transaction...');
+      // getTransaction returns an empty object {} if the tx isn't in a block yet
+      const tx = await this.tronweb.trx.getTransaction(txId);
+      if (tx && tx.ret) {
+        result = tx;
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 3000)); // Wait 3 seconds
+      }
+    }
+    return result;
+  }
+
   getSignerAddress(): string {
     return this.tronweb.defaultAddress.base58 || '';
   }
