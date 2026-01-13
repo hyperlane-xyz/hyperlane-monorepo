@@ -1,4 +1,9 @@
-import { assert, ensure0x, isZeroishAddress } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  ensure0x,
+  isNullish,
+  isZeroishAddress,
+} from '@hyperlane-xyz/utils';
 
 import { AnyAleoNetworkClient } from '../clients/base.js';
 import {
@@ -91,7 +96,7 @@ function formatIsmMultisigInfo(raw: unknown): {
   threshold: number;
 } {
   assert(
-    typeof raw === 'object' && raw !== null,
+    typeof raw === 'object' && !isNullish(raw),
     `Expected multisig config to be an object but got ${typeof raw}`,
   );
 
@@ -168,7 +173,7 @@ export async function getMessageIdMultisigIsmConfig(
 
 function formatRoutingIsmData(raw: unknown): { owner: string } {
   assert(
-    typeof raw === 'object' && raw !== null,
+    typeof raw === 'object' && !isNullish(raw),
     `Expected routing ISM data to be an object but got ${typeof raw}`,
   );
 
