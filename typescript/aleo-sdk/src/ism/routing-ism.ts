@@ -17,7 +17,7 @@ import { getRoutingIsmConfig } from './ism-query.js';
 export class AleoRoutingIsmRawReader
   implements ArtifactReader<RawRoutingIsmArtifactConfig, DeployedIsmAddress>
 {
-  constructor(protected readonly aleoClient: AnyAleoNetworkClient) {}
+  constructor(private readonly aleoClient: AnyAleoNetworkClient) {}
 
   async read(
     address: string,
