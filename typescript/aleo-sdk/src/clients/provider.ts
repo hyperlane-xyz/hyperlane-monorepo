@@ -10,7 +10,10 @@ import {
   getRoutingIsmConfig,
   getTestIsmConfig,
 } from '../ism/ism-query.js';
-import { getCreateTestIsmTx } from '../ism/ism-tx.js';
+import {
+  getCreateMessageIdMultisigIsmTx,
+  getCreateTestIsmTx,
+} from '../ism/ism-tx.js';
 import {
   ALEO_NATIVE_DENOM,
   ALEO_NULL_ADDRESS,
@@ -700,33 +703,10 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async getCreateMessageIdMultisigIsmTransaction(
     req: AltVM.ReqCreateMessageIdMultisigIsm,
   ): Promise<AleoTransaction> {
-    const MAXIMUM_VALIDATORS = 6;
-
-    if (req.validators.length > MAXIMUM_VALIDATORS) {
-      throw new Error(`maximum ${MAXIMUM_VALIDATORS} validators allowed`);
-    }
-
-    const validators = fillArray(
-      req.validators.map((v) => ({
-        bytes: [...Buffer.from(strip0x(v), 'hex')].map((b) => `${b}u8`),
-      })),
-      MAXIMUM_VALIDATORS,
-      {
-        bytes: Array(20).fill(`0u8`),
-      },
-    );
-
-    return {
-      programName: this.ismManager,
-      functionName: 'init_message_id_multisig',
-      priorityFee: 0,
-      privateFee: false,
-      inputs: [
-        JSON.stringify(validators).replaceAll('"', ''),
-        `${req.validators.length}u8`,
-        `${req.threshold}u8`,
-      ],
-    };
+    return getCreateMessageIdMultisigIsmTx(this.ismManager, {
+      validators: req.validators,
+      threshold: req.threshold,
+    });
   }
 
   async getCreateRoutingIsmTransaction(
