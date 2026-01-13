@@ -21,32 +21,32 @@ import { AleoMessageIdMultisigIsmReader } from './multisig-ism.js';
 import { AleoRoutingIsmRawReader } from './routing-ism.js';
 import { AleoTestIsmReader } from './test-ism.js';
 
+/**
+ * Maps Aleo-specific ISM type values to provider-sdk ISM types.
+ */
+function aleoIsmTypeToAltVmType(aleoType: AleoIsmType): AltVM.IsmType {
+  switch (aleoType) {
+    case AleoIsmType.MESSAGE_ID_MULTISIG:
+      return AltVM.IsmType.MESSAGE_ID_MULTISIG;
+    case AleoIsmType.ROUTING:
+      return AltVM.IsmType.ROUTING;
+    case AleoIsmType.TEST_ISM:
+      return AltVM.IsmType.TEST_ISM;
+    case AleoIsmType.MERKLE_ROOT_MULTISIG:
+      throw new Error(
+        `${AltVM.IsmType.MERKLE_ROOT_MULTISIG} is not supported on Aleo`,
+      );
+    default:
+      throw new Error(`Unknown Aleo ISM type: ${aleoType}`);
+  }
+}
+
 export class AleoIsmArtifactManager implements IRawIsmArtifactManager {
   constructor(private readonly aleoClient: AnyAleoNetworkClient) {}
 
   async readIsm(address: string): Promise<DeployedRawIsmArtifact> {
     const aleoIsmType = await getIsmType(this.aleoClient, address);
-
-    // Map AleoIsmType to AltVM.IsmType
-    let altVMType: AltVM.IsmType;
-    switch (aleoIsmType) {
-      case AleoIsmType.MESSAGE_ID_MULTISIG:
-        altVMType = AltVM.IsmType.MESSAGE_ID_MULTISIG;
-        break;
-      case AleoIsmType.ROUTING:
-        altVMType = AltVM.IsmType.ROUTING;
-        break;
-      case AleoIsmType.TEST_ISM:
-        altVMType = AltVM.IsmType.TEST_ISM;
-        break;
-      case AleoIsmType.MERKLE_ROOT_MULTISIG:
-        throw new Error(
-          `${AltVM.IsmType.MERKLE_ROOT_MULTISIG} is not supported on Aleo`,
-        );
-      default:
-        throw new Error(`Unknown ISM type: ${aleoIsmType}`);
-    }
-
+    const altVMType = aleoIsmTypeToAltVmType(aleoIsmType);
     const artifactIsmType = altVMIsmTypeToProviderSdkType(altVMType);
     const reader = this.createReader(artifactIsmType);
     return reader.read(address);
