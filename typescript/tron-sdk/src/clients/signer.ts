@@ -318,7 +318,9 @@ export class TronSigner
     const oracleSignedTx = await this.tronweb.trx.sign(oracleTx);
     await this.tronweb.trx.sendRawTransaction(oracleSignedTx);
 
-    const oracleAddress = this.tronweb.address.fromHex(tx.contract_address);
+    const oracleAddress = this.tronweb.address.fromHex(
+      oracleTx.contract_address,
+    );
 
     const { transaction: setOracleTx } =
       await this.tronweb.transactionBuilder.triggerSmartContract(
@@ -346,9 +348,19 @@ export class TronSigner
   }
 
   async setInterchainGasPaymasterHookOwner(
-    _req: Omit<AltVM.ReqSetInterchainGasPaymasterHookOwner, 'signer'>,
+    req: Omit<AltVM.ReqSetInterchainGasPaymasterHookOwner, 'signer'>,
   ): Promise<AltVM.ResSetInterchainGasPaymasterHookOwner> {
-    throw new Error(`not implemented`);
+    const tx = await this.getSetInterchainGasPaymasterHookOwnerTransaction({
+      ...req,
+      signer: this.getSignerAddress(),
+    });
+
+    const signedTx = await this.tronweb.trx.sign(tx);
+    await this.tronweb.trx.sendRawTransaction(signedTx);
+
+    return {
+      newOwner: req.newOwner,
+    };
   }
 
   async setDestinationGasConfig(
@@ -379,7 +391,7 @@ export class TronSigner
 
     const gasOracle = this.tronweb.contract(GasOracleAbi.abi, gasOracleAddress);
 
-    const result = await gasOracle
+    await gasOracle
       .setRemoteGasData([
         BigInt(req.destinationGasConfig.remoteDomainId),
         BigInt(req.destinationGasConfig.gasOracle.tokenExchangeRate),
@@ -390,8 +402,6 @@ export class TronSigner
         callValue: 0,
         shouldPollResponse: true,
       });
-
-    console.log('result', result);
 
     return {
       destinationGasConfig: req.destinationGasConfig,

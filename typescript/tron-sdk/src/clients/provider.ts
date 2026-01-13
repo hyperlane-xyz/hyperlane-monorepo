@@ -7,6 +7,7 @@ import InterchainGasPaymasterAbi from '../../abi/InterchainGasPaymaster.json' wi
 import MailboxAbi from '../../abi/Mailbox.json' with { type: 'json' };
 import MerkleTreeHookAbi from '../../abi/MerkleTreeHook.json' with { type: 'json' };
 import NoopIsmAbi from '../../abi/NoopIsm.json' with { type: 'json' };
+import StorageGasOracleAbi from '../../abi/StorageGasOracle.json' with { type: 'json' };
 import MessageIdMultisigIsmAbi from '../../abi/StorageMessageIdMultisigIsm.json' with { type: 'json' };
 import ValidatorAnnounceAbi from '../../abi/ValidatorAnnounce.json' with { type: 'json' };
 import { IABI, TronTransaction } from '../utils/types.js';
@@ -201,19 +202,19 @@ export class TronProvider implements AltVM.IProvider {
     for (const domainId of domainIds) {
       const c = await igp.destinationGasConfigs(domainId).call();
 
-      // console.log(domainId, c, this.tronweb.address.fromHex(c.gasOracle));
+      const gasOracle = this.tronweb.contract(
+        StorageGasOracleAbi.abi,
+        this.tronweb.address.fromHex(c.gasOracle),
+      );
 
-      // const gasOracle = this.tronweb.contract(
-      //   StorageGasOracleAbi.abi,
-      //   this.tronweb.address.fromHex(c.gasOracle),
-      // );
-
-      // console.log('gasOracle', await gasOracle.remoteGasData(domainId).call());
+      const { tokenExchangeRate, gasPrice } = await gasOracle
+        .remoteGasData(domainId)
+        .call();
 
       destinationGasConfigs[domainId.toString()] = {
         gasOracle: {
-          tokenExchangeRate: '0',
-          gasPrice: '0',
+          tokenExchangeRate: tokenExchangeRate.toString(),
+          gasPrice: gasPrice.toString(),
         },
         gasOverhead: c.gasOverhead.toString(),
       };
@@ -435,9 +436,26 @@ export class TronProvider implements AltVM.IProvider {
   }
 
   async getSetInterchainGasPaymasterHookOwnerTransaction(
-    _req: AltVM.ReqSetInterchainGasPaymasterHookOwner,
+    req: AltVM.ReqSetInterchainGasPaymasterHookOwner,
   ): Promise<TronTransaction> {
-    throw new Error(`not implemented`);
+    const { transaction } =
+      await this.tronweb.transactionBuilder.triggerSmartContract(
+        req.hookAddress,
+        'transferOwnership(address)',
+        {
+          feeLimit: 100_000_000,
+          callValue: 0,
+        },
+        [
+          {
+            type: 'address',
+            value: req.newOwner,
+          },
+        ],
+        this.tronweb.address.toHex(req.signer),
+      );
+
+    return transaction;
   }
 
   async getSetDestinationGasConfigTransaction(
