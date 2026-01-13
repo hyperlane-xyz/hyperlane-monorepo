@@ -13,7 +13,6 @@ import {
   IsmType,
   RawIsmArtifactConfigs,
 } from '@hyperlane-xyz/provider-sdk/ism';
-import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 
 import { CosmosNativeSigner } from '../clients/signer.js';
 import { setupInterchainSecurityExtension } from '../hyperlane/interchain_security/query.js';
@@ -160,20 +159,18 @@ export class CosmosIsmArtifactManager implements IRawIsmArtifactManager {
    */
   createWriter<T extends IsmType>(
     type: T,
-    signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
+    signer: CosmosNativeSigner,
   ): ArtifactWriter<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
-    const cosmosSigner = signer as CosmosNativeSigner;
-
     // For synchronous createWriter, we return a wrapper that will initialize lazily
     return {
       create: async (artifact) => {
         const query = await this.getQuery();
-        const writer = this.createWriterWithQuery(type, query, cosmosSigner);
+        const writer = this.createWriterWithQuery(type, query, signer);
         return writer.create(artifact);
       },
       update: async (artifact) => {
         const query = await this.getQuery();
-        const writer = this.createWriterWithQuery(type, query, cosmosSigner);
+        const writer = this.createWriterWithQuery(type, query, signer);
         return writer.update(artifact);
       },
     } as ArtifactWriter<RawIsmArtifactConfigs[T], DeployedIsmAddress>;
