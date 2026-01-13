@@ -81,7 +81,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 2  # Only need recent commits for security diff analysis
+          fetch-depth: 2 # Only need recent commits for security diff analysis
 
       - name: Run Claude Security Review
         uses: anthropics/claude-code-security-review@25e460eb0a12077f0c6a1934d5dbae2f50785dda
