@@ -93,18 +93,6 @@ function getScaledTokenConfig(
 export async function getEniEthWarpConfig(
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> {
-  const ethereum: HypTokenRouterConfig = {
-    ...routerConfig.ethereum,
-    owner: owners.ethereum,
-    type: TokenType.native,
-    tokenFee: getFixedRoutingFeeConfig(
-      tokens.ethereum.USDC,
-      getWarpFeeOwner('ethereum'),
-      ['eni'],
-      WARP_FEE_BPS,
-    ),
-  };
-
   const eni: HypTokenRouterConfig = {
     ...routerConfig.eni,
     owner: owners.eni,
@@ -120,6 +108,12 @@ export async function getEniEthWarpConfig(
     ),
   };
 
+  const ethereum: HypTokenRouterConfig = {
+    ...routerConfig.ethereum,
+    owner: owners.ethereum,
+    type: TokenType.native,
+  };
+
   return {
     eni,
     ethereum,
@@ -129,19 +123,6 @@ export async function getEniEthWarpConfig(
 export async function getEniWbtcWarpConfig(
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> {
-  const ethereum: HypTokenRouterConfig = {
-    ...routerConfig.ethereum,
-    owner: owners.ethereum,
-    type: TokenType.collateral,
-    token: tokens.ethereum.WBTC,
-    tokenFee: getFixedRoutingFeeConfig(
-      tokens.ethereum.USDC,
-      getWarpFeeOwner('ethereum'),
-      ['eni'],
-      WARP_FEE_BPS,
-    ),
-  };
-
   const eni: HypTokenRouterConfig = {
     ...routerConfig.eni,
     owner: owners.eni,
@@ -155,6 +136,13 @@ export async function getEniWbtcWarpConfig(
       ['ethereum'],
       WARP_FEE_BPS,
     ),
+  };
+
+  const ethereum: HypTokenRouterConfig = {
+    ...routerConfig.ethereum,
+    owner: owners.ethereum,
+    type: TokenType.collateral,
+    token: tokens.ethereum.WBTC,
   };
 
   return {
@@ -189,8 +177,6 @@ export async function getEniUsdcWarpConfig(
     'polygon',
   ] as const;
 
-  const feeDestinations = [...allCollateralChains, 'eni'] as const;
-
   const configs: Array<[string, HypTokenRouterConfig]> = [];
 
   for (const chain of rebalanceableChains) {
@@ -207,12 +193,6 @@ export async function getEniUsdcWarpConfig(
         maxDecimals,
       ),
       ...rebalancingConfig,
-      tokenFee: getFixedRoutingFeeConfig(
-        usdcTokenAddresses[chain],
-        getWarpFeeOwner(chain),
-        feeDestinations.filter((c) => c !== chain),
-        WARP_FEE_BPS,
-      ),
     };
     configs.push([chain, config]);
   }
@@ -223,12 +203,6 @@ export async function getEniUsdcWarpConfig(
     type: TokenType.collateral,
     token: usdcTokenAddresses.bsc,
     ...getScaledTokenConfig('USD Coin', 'USDC', usdcDecimals.bsc, maxDecimals),
-    tokenFee: getFixedRoutingFeeConfig(
-      usdcTokenAddresses.bsc,
-      getWarpFeeOwner('bsc'),
-      feeDestinations.filter((c) => c !== 'bsc'),
-      WARP_FEE_BPS,
-    ),
   };
   configs.push(['bsc', bsc]);
 
@@ -262,8 +236,6 @@ export async function getEniUsdtWarpConfig(
     'polygon',
   ] as const;
 
-  const feeDestinations = [...allCollateralChains, 'eni'] as const;
-
   const configs: Array<[string, HypTokenRouterConfig]> = [];
 
   for (const chain of allCollateralChains) {
@@ -277,12 +249,6 @@ export async function getEniUsdtWarpConfig(
         'USDT',
         usdtDecimals[chain],
         maxDecimals,
-      ),
-      tokenFee: getFixedRoutingFeeConfig(
-        usdtTokenAddresses[chain],
-        getWarpFeeOwner(chain),
-        feeDestinations.filter((c) => c !== chain),
-        WARP_FEE_BPS,
       ),
     };
     configs.push([chain, config]);
