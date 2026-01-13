@@ -1,16 +1,16 @@
 import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
-  ArtifactDeployed,
-  ArtifactReader,
+  type ArtifactDeployed,
+  type ArtifactReader,
   ArtifactState,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
-  DeployedIsmAddress,
-  MultisigIsmConfig,
+  type DeployedIsmAddress,
+  type MultisigIsmConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
 
 import {
-  CosmosIsmQueryClient,
+  type CosmosIsmQueryClient,
   getMerkleRootMultisigIsmConfig,
   getMessageIdMultisigIsmConfig,
 } from './ism-query.js';

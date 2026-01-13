@@ -3,21 +3,24 @@ import { connectComet } from '@cosmjs/tendermint-rpc';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
-  ArtifactReader,
-  ArtifactWriter,
+  type ArtifactReader,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
-  DeployedIsmAddress,
-  DeployedRawIsmArtifact,
-  IRawIsmArtifactManager,
-  IsmType,
-  RawIsmArtifactConfigs,
+  type DeployedIsmAddress,
+  type DeployedRawIsmArtifact,
+  type IRawIsmArtifactManager,
+  type IsmType,
+  type RawIsmArtifactConfigs,
 } from '@hyperlane-xyz/provider-sdk/ism';
-import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
+import {
+  type AnnotatedTx,
+  type TxReceipt,
+} from '@hyperlane-xyz/provider-sdk/module';
 
 import { setupInterchainSecurityExtension } from '../hyperlane/interchain_security/query.js';
 
-import { CosmosIsmQueryClient, getIsmType } from './ism-query.js';
+import { type CosmosIsmQueryClient, getIsmType } from './ism-query.js';
 import {
   CosmosMerkleRootMultisigIsmReader,
   CosmosMessageIdMultisigIsmReader,
