@@ -206,7 +206,9 @@ describe('1. tron sdk interchain security e2e tests', async function () {
 
     expect(ism.owner).to.equal(signer.getSignerAddress());
 
-    const newOwner = new TronWeb({}).createRandom().address;
+    const newOwner = new TronWeb({
+      fullHost: localnetRpc,
+    }).createRandom().address;
 
     // ACT
     await signer.setRoutingIsmOwner({

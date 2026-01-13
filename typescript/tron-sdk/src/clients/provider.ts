@@ -4,6 +4,7 @@ import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert, strip0x } from '@hyperlane-xyz/utils';
 
 import DomainRoutingIsmAbi from '../../abi/DomainRoutingIsm.json' with { type: 'json' };
+import IInterchainSecurityModuleAbi from '../../abi/IInterchainSecurityModule.json' with { type: 'json' };
 import InterchainGasPaymasterAbi from '../../abi/InterchainGasPaymaster.json' with { type: 'json' };
 import MailboxAbi from '../../abi/Mailbox.json' with { type: 'json' };
 import MerkleTreeHookAbi from '../../abi/MerkleTreeHook.json' with { type: 'json' };
@@ -131,8 +132,26 @@ export class TronProvider implements AltVM.IProvider {
     throw new Error(`not implemented`);
   }
 
-  async getIsmType(_req: AltVM.ReqGetIsmType): Promise<AltVM.IsmType> {
-    throw new Error(`not implemented`);
+  async getIsmType(req: AltVM.ReqGetIsmType): Promise<AltVM.IsmType> {
+    const contract = this.tronweb.contract(
+      IInterchainSecurityModuleAbi.abi,
+      req.ismAddress,
+    );
+
+    const moduleType = Number(await contract.moduleType().call());
+
+    switch (moduleType) {
+      case 1:
+        return AltVM.IsmType.ROUTING;
+      case 4:
+        return AltVM.IsmType.MERKLE_ROOT_MULTISIG;
+      case 5:
+        return AltVM.IsmType.MESSAGE_ID_MULTISIG;
+      case 6:
+        return AltVM.IsmType.TEST_ISM;
+      default:
+        throw new Error(`Unknown ISM type for address: ${req.ismAddress}`);
+    }
   }
 
   async getMessageIdMultisigIsm(
@@ -436,21 +455,76 @@ export class TronProvider implements AltVM.IProvider {
   }
 
   async getSetRoutingIsmRouteTransaction(
-    _req: AltVM.ReqSetRoutingIsmRoute,
+    req: AltVM.ReqSetRoutingIsmRoute,
   ): Promise<TronTransaction> {
-    throw new Error(`not implemented`);
+    const { transaction } =
+      await this.tronweb.transactionBuilder.triggerSmartContract(
+        req.ismAddress,
+        'set(uint32,address)',
+        {
+          feeLimit: 100_000_000,
+          callValue: 0,
+        },
+        [
+          {
+            type: 'uint32',
+            value: req.route.domainId,
+          },
+          {
+            type: 'address',
+            value: req.route.ismAddress,
+          },
+        ],
+        this.tronweb.address.toHex(req.signer),
+      );
+
+    return transaction;
   }
 
   async getRemoveRoutingIsmRouteTransaction(
-    _req: AltVM.ReqRemoveRoutingIsmRoute,
+    req: AltVM.ReqRemoveRoutingIsmRoute,
   ): Promise<TronTransaction> {
-    throw new Error(`not implemented`);
+    const { transaction } =
+      await this.tronweb.transactionBuilder.triggerSmartContract(
+        req.ismAddress,
+        'remove(uint32)',
+        {
+          feeLimit: 100_000_000,
+          callValue: 0,
+        },
+        [
+          {
+            type: 'uint32',
+            value: req.domainId,
+          },
+        ],
+        this.tronweb.address.toHex(req.signer),
+      );
+
+    return transaction;
   }
 
   async getSetRoutingIsmOwnerTransaction(
-    _req: AltVM.ReqSetRoutingIsmOwner,
+    req: AltVM.ReqSetRoutingIsmOwner,
   ): Promise<TronTransaction> {
-    throw new Error(`not implemented`);
+    const { transaction } =
+      await this.tronweb.transactionBuilder.triggerSmartContract(
+        req.ismAddress,
+        'transferOwnership(address)',
+        {
+          feeLimit: 100_000_000,
+          callValue: 0,
+        },
+        [
+          {
+            type: 'address',
+            value: req.newOwner,
+          },
+        ],
+        this.tronweb.address.toHex(req.signer),
+      );
+
+    return transaction;
   }
 
   async getCreateNoopIsmTransaction(

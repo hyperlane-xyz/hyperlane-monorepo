@@ -205,39 +205,8 @@ export class TronSigner
     const signedTx = await this.tronweb.trx.sign(tx);
     await this.tronweb.trx.sendRawTransaction(signedTx);
 
-    const ismAddress = this.tronweb.address.fromHex(tx.contract_address);
-
-    const { transaction } =
-      await this.tronweb.transactionBuilder.triggerSmartContract(
-        ismAddress,
-        'initialize(address,address[],uint8)',
-        {
-          feeLimit: 100_000_000,
-          callValue: 0,
-        },
-        [
-          {
-            type: 'address',
-            value: this.getSignerAddress(),
-          },
-          {
-            type: 'address[]',
-            value: [],
-          },
-          {
-            type: 'uint8',
-            value: 0,
-          },
-        ],
-        this.tronweb.address.toHex(this.getSignerAddress()),
-      );
-
-    const initSignedTx = await this.tronweb.trx.sign(transaction);
-    const result = await this.tronweb.trx.sendRawTransaction(initSignedTx);
-    console.log('result', result);
-
     return {
-      ismAddress,
+      ismAddress: this.tronweb.address.fromHex(tx.contract_address),
     };
   }
 
@@ -270,8 +239,6 @@ export class TronSigner
 
     const ismAddress = this.tronweb.address.fromHex(tx.contract_address);
 
-    // TODO: TRON
-    // include default hook and required hook in create mailbox altvm interface too
     const { transaction } =
       await this.tronweb.transactionBuilder.triggerSmartContract(
         ismAddress,
@@ -306,21 +273,51 @@ export class TronSigner
   }
 
   async setRoutingIsmRoute(
-    _req: Omit<AltVM.ReqSetRoutingIsmRoute, 'signer'>,
+    req: Omit<AltVM.ReqSetRoutingIsmRoute, 'signer'>,
   ): Promise<AltVM.ResSetRoutingIsmRoute> {
-    throw new Error(`not implemented`);
+    const tx = await this.getSetRoutingIsmRouteTransaction({
+      ...req,
+      signer: this.getSignerAddress(),
+    });
+
+    const signedTx = await this.tronweb.trx.sign(tx);
+    await this.tronweb.trx.sendRawTransaction(signedTx);
+
+    return {
+      route: req.route,
+    };
   }
 
   async removeRoutingIsmRoute(
-    _req: Omit<AltVM.ReqRemoveRoutingIsmRoute, 'signer'>,
+    req: Omit<AltVM.ReqRemoveRoutingIsmRoute, 'signer'>,
   ): Promise<AltVM.ResRemoveRoutingIsmRoute> {
-    throw new Error(`not implemented`);
+    const tx = await this.getRemoveRoutingIsmRouteTransaction({
+      ...req,
+      signer: this.getSignerAddress(),
+    });
+
+    const signedTx = await this.tronweb.trx.sign(tx);
+    await this.tronweb.trx.sendRawTransaction(signedTx);
+
+    return {
+      domainId: req.domainId,
+    };
   }
 
   async setRoutingIsmOwner(
-    _req: Omit<AltVM.ReqSetRoutingIsmOwner, 'signer'>,
+    req: Omit<AltVM.ReqSetRoutingIsmOwner, 'signer'>,
   ): Promise<AltVM.ResSetRoutingIsmOwner> {
-    throw new Error(`not implemented`);
+    const tx = await this.getSetRoutingIsmOwnerTransaction({
+      ...req,
+      signer: this.getSignerAddress(),
+    });
+
+    const signedTx = await this.tronweb.trx.sign(tx);
+    await this.tronweb.trx.sendRawTransaction(signedTx);
+
+    return {
+      newOwner: req.newOwner,
+    };
   }
 
   async createNoopIsm(
