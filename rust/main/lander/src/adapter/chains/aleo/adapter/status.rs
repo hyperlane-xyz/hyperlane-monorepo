@@ -17,7 +17,7 @@ pub async fn get_tx_hash_status<P: AleoProviderForLander>(
     provider: &Arc<P>,
     hash: H512,
 ) -> Result<TransactionStatus, LanderError> {
-    debug!("Checking status of tx, hash: {}", hash);
+    debug!("Checking status of tx, hash: {:?}", hash);
 
     // First, check if the transaction is confirmed on-chain
     if let Ok(_confirmed_tx) = provider.request_confirmed_transaction(hash).await {
@@ -26,7 +26,7 @@ pub async fn get_tx_hash_status<P: AleoProviderForLander>(
         // we shall check if a confirmed Aleo transaction was rejected.
         // Meanwhile, we shall report transaction as finalized and use payload
         // success criteria to confirm if they have landed on the chain.
-        debug!("Transaction is finalized, hash: {}", hash);
+        debug!("Transaction is finalized, hash: {:?}", hash);
         return Ok(TransactionStatus::Finalized);
     }
 
@@ -35,7 +35,7 @@ pub async fn get_tx_hash_status<P: AleoProviderForLander>(
     // Not confirmed yet, check if it's in the mempool (unconfirmed)
     if let Ok(_unconfirmed_tx) = provider.request_unconfirmed_transaction(hash).await {
         // Transaction is in the mempool, waiting to be included in a block
-        debug!("Transaction found in mempool, hash: {}", hash);
+        debug!("Transaction found in mempool, hash: {:?}", hash);
         return Ok(TransactionStatus::Mempool);
     }
 
@@ -45,7 +45,7 @@ pub async fn get_tx_hash_status<P: AleoProviderForLander>(
     // 2. Transaction was dropped from the mempool
     // 3. Network error
     debug!(
-        "Transaction not found in confirmed or unconfirmed, hash: {}",
+        "Transaction not found in confirmed or unconfirmed, hash: {:?}",
         hash
     );
     Ok(TransactionStatus::PendingInclusion)
