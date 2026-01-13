@@ -1,6 +1,6 @@
 import { strip0x } from '@hyperlane-xyz/utils';
 
-import { fillArray } from '../utils/helper.js';
+import { fillArray, fromAleoAddress } from '../utils/helper.js';
 import { AleoTransaction } from '../utils/types.js';
 
 export function getCreateTestIsmTx(
@@ -45,5 +45,66 @@ export function getCreateMessageIdMultisigIsmTx(
       `${config.validators.length}u8`,
       `${config.threshold}u8`,
     ],
+  };
+}
+
+export function getCreateRoutingIsmTx(
+  ismManagerProgramId: string,
+): AleoTransaction {
+  return {
+    programName: ismManagerProgramId,
+    functionName: 'init_domain_routing',
+    priorityFee: 0,
+    privateFee: false,
+    inputs: [],
+  };
+}
+
+export function getSetRoutingIsmRouteTx(
+  ismAddress: string,
+  route: { domainId: number; ismAddress: string },
+): AleoTransaction {
+  const { programId, address } = fromAleoAddress(ismAddress);
+
+  return {
+    programName: programId,
+    functionName: 'set_domain',
+    priorityFee: 0,
+    privateFee: false,
+    inputs: [
+      address,
+      `${route.domainId}u32`,
+      fromAleoAddress(route.ismAddress).address,
+    ],
+  };
+}
+
+export function getRemoveRoutingIsmRouteTx(
+  ismAddress: string,
+  domainId: number,
+): AleoTransaction {
+  const { programId, address } = fromAleoAddress(ismAddress);
+
+  return {
+    programName: programId,
+    functionName: 'remove_domain',
+    priorityFee: 0,
+    privateFee: false,
+    inputs: [address, `${domainId}u32`],
+  };
+}
+
+export function getSetRoutingIsmOwnerTx(
+  ismAddress: string,
+  newOwner: string,
+): AleoTransaction {
+  const { programId, address } = fromAleoAddress(ismAddress);
+
+  return {
+    programName: programId,
+    functionName: 'transfer_routing_ism_ownership',
+    priorityFee: 0,
+    privateFee: false,
+    inputs: [address, newOwner],
   };
 }
