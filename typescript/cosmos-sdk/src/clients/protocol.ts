@@ -8,8 +8,11 @@ import {
   TransactionSubmitterConfig,
 } from '@hyperlane-xyz/provider-sdk';
 import { IProvider } from '@hyperlane-xyz/provider-sdk/altvm';
+import { IRawIsmArtifactManager } from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import { assert } from '@hyperlane-xyz/utils';
+
+import { CosmosIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 
 import { CosmosNativeProvider } from './provider.js';
 import { CosmosNativeSigner } from './signer.js';
@@ -41,6 +44,15 @@ export class CosmosNativeProtocolProvider implements ProtocolProvider {
   ): Promise<ITransactionSubmitter> {
     // @TODO Implement in a follow up PR
     throw Error('Not implemented');
+  }
+
+  createIsmArtifactManager(
+    chainMetadata: ChainMetadataForAltVM,
+  ): IRawIsmArtifactManager {
+    assert(chainMetadata.rpcUrls, 'rpc urls undefined');
+    const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
+
+    return new CosmosIsmArtifactManager(rpcUrls);
   }
 
   getMinGas(): MinimumRequiredGasByAction {

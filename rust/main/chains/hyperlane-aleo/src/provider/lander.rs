@@ -33,13 +33,13 @@ pub trait AleoProviderForLander: Send + Sync {
         I::IntoIter: ExactSizeIterator;
 
     /// Gets the status of a confirmed transaction by its ID
-    async fn get_confirmed_transaction(
+    async fn request_confirmed_transaction(
         &self,
         transaction_id: H512,
     ) -> ChainResult<ConfirmedTransaction<CurrentNetwork>>;
 
     /// Gets an unconfirmed transaction from the mempool by its ID
-    async fn get_unconfirmed_transaction(
+    async fn request_unconfirmed_transaction(
         &self,
         transaction_id: H512,
     ) -> ChainResult<Transaction<CurrentNetwork>>;
@@ -78,14 +78,14 @@ impl<C: AleoClient> AleoProviderForLander for AleoProvider<C> {
         self.submit_tx(program_id, function_name, input).await
     }
 
-    async fn get_confirmed_transaction(
+    async fn request_confirmed_transaction(
         &self,
         transaction_id: H512,
     ) -> ChainResult<ConfirmedTransaction<CurrentNetwork>> {
         self.get_confirmed_transaction(transaction_id).await
     }
 
-    async fn get_unconfirmed_transaction(
+    async fn request_unconfirmed_transaction(
         &self,
         transaction_id: H512,
     ) -> ChainResult<Transaction<CurrentNetwork>> {

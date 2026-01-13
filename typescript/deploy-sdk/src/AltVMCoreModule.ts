@@ -39,7 +39,7 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
     const metadata = chainLookup.getChainMetadata(args.chain);
     this.chainName = metadata.name;
 
-    this.coreReader = new AltVMCoreReader(chainLookup, signer);
+    this.coreReader = new AltVMCoreReader(metadata, chainLookup, signer);
   }
 
   /**

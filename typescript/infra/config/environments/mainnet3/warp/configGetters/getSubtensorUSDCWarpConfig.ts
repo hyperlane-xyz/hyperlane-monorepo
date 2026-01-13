@@ -30,7 +30,7 @@ export const getSubtensorUSDCWarpConfig = async (
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const rebalancingConfigByChain = getUSDCRebalancingBridgesConfigFor(
     deploymentChains,
-    WarpRouteIds.MainnetCCTPV1,
+    [WarpRouteIds.MainnetCCTPV1],
   );
 
   return Object.fromEntries(

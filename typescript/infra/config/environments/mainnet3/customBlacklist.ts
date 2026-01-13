@@ -190,4 +190,10 @@ export const blacklistedMessageIds = [
   // 11/26/2025 (or 2025-11-26)
   // warp messages with the USDC contract as a warp recipient.
   '0xdae65a8dd678bf8ea03faed7d53b99e52f5bdbae7c95834eff009cc37a18103c',
+
+  // USDC/mainnet-cctp-v2-standard
+  // 01/12/2026
+  // Frontrun by another relayer, CCTP nonce already used
+  '0xae99b5ef2f0116b205954c1d91ce277d42ad5d7ce32f3733f17dc791392247b7',
+  '0x3e1543a71103e080cddbdd7a441b7d80e5ac4607fe6c24c3980f3b2bb2b8a258',
 ];

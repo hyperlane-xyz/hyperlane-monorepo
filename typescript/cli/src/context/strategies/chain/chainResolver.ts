@@ -10,10 +10,7 @@ import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 import { CommandType } from '../../../commands/signCommands.js';
 import { readCoreDeployConfigs } from '../../../config/core.js';
 import { getWarpRouteDeployConfig } from '../../../config/warp.js';
-import {
-  runMultiChainSelectionStep,
-  runSingleChainSelectionStep,
-} from '../../../utils/chains.js';
+import { runSingleChainSelectionStep } from '../../../utils/chains.js';
 import {
   getWarpConfigs,
   getWarpCoreConfigOrExit,
@@ -33,8 +30,9 @@ export async function resolveChains(
   switch (commandKey) {
     case CommandType.WARP_DEPLOY:
       return resolveWarpRouteConfigChains(argv);
-    case CommandType.WARP_SEND:
     case CommandType.SEND_MESSAGE:
+      return resolveSendMessageChains(argv);
+    case CommandType.WARP_SEND:
     case CommandType.STATUS:
     case CommandType.RELAYER:
       return resolveRelayerChains(argv);
@@ -44,8 +42,7 @@ export async function resolveChains(
       return resolveWarpApplyChains(argv);
     case CommandType.WARP_REBALANCER:
       return resolveWarpRebalancerChains(argv);
-    case CommandType.AGENT_KURTOSIS:
-      return resolveAgentChains(argv);
+
     case CommandType.SUBMIT:
       return resolveWarpRouteConfigChains(argv); // Same as WARP_DEPLOY
     case CommandType.CORE_APPLY:
@@ -144,27 +141,43 @@ async function resolveWarpRebalancerChains(
   return chains;
 }
 
-async function resolveAgentChains(
+/**
+ * Resolves chains for the 'send message' command.
+ * If origin/destination are provided, return them (EVM-only).
+ * If either is missing, return all EVM chains so interactive selection can work.
+ */
+async function resolveSendMessageChains(
   argv: Record<string, any>,
 ): Promise<ChainName[]> {
-  const { chainMetadata } = argv.context;
-  argv.origin =
-    argv.origin ??
-    (await runSingleChainSelectionStep(
-      chainMetadata,
-      'Select the origin chain',
-    ));
+  const { multiProvider } = argv.context;
+  const selectedChains = [argv.origin, argv.destination].filter(
+    Boolean,
+  ) as ChainName[];
 
-  if (!argv.targets) {
-    const selectedRelayChains = await runMultiChainSelectionStep({
-      chainMetadata: chainMetadata,
-      message: 'Select chains to relay between',
-      requireNumber: 2,
-    });
-    argv.targets = selectedRelayChains.join(',');
+  if (selectedChains.length > 0) {
+    const nonEvmChains = selectedChains.filter(
+      (chain) => multiProvider.getProtocol(chain) !== ProtocolType.Ethereum,
+    );
+    if (nonEvmChains.length > 0) {
+      const chainDetails = nonEvmChains
+        .map((chain) => `'${chain}' (${multiProvider.getProtocol(chain)})`)
+        .join(', ');
+      throw new Error(
+        `'hyperlane send message' only supports EVM chains. Non-EVM chains found: ${chainDetails}`,
+      );
+    }
   }
 
-  return [argv.origin, ...argv.targets];
+  if (selectedChains.length === 2) {
+    return selectedChains;
+  }
+
+  return multiProvider
+    .getKnownChainNames()
+    .filter(
+      (chain: string) =>
+        ProtocolType.Ethereum === multiProvider.getProtocol(chain),
+    );
 }
 
 async function resolveRelayerChains(

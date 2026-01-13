@@ -55,7 +55,7 @@ export const getLumiaUSDCWarpConfig = async (
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const rebalancingConfig = getUSDCRebalancingBridgesConfigFor(
     Object.keys(owners),
-    WarpRouteIds.MainnetCCTPV1,
+    [WarpRouteIds.MainnetCCTPV1],
   );
 
   return objMap(owners, (chain, owner): HypTokenRouterConfig => {

@@ -11,3 +11,4 @@ export {
 
 export { RadixProvider } from './clients/provider.js';
 export { RadixSigner } from './clients/signer.js';
+export { RadixIsmArtifactManager } from './ism/ism-artifact-manager.js';
