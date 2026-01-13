@@ -497,9 +497,19 @@ export class TronSigner
   }
 
   async createNoopHook(
-    _req: Omit<AltVM.ReqCreateNoopHook, 'signer'>,
+    req: Omit<AltVM.ReqCreateNoopHook, 'signer'>,
   ): Promise<AltVM.ResCreateNoopHook> {
-    throw new Error(`not implemented`);
+    const tx = await this.getCreateNoopHookTransaction({
+      ...req,
+      signer: this.getSignerAddress(),
+    });
+
+    const signedTx = await this.tronweb.trx.sign(tx);
+    await this.tronweb.trx.sendRawTransaction(signedTx);
+
+    return {
+      hookAddress: this.tronweb.address.fromHex(tx.contract_address),
+    };
   }
 
   async createValidatorAnnounce(
@@ -656,9 +666,19 @@ export class TronSigner
   }
 
   async unenrollRemoteRouter(
-    _req: Omit<AltVM.ReqUnenrollRemoteRouter, 'signer'>,
+    req: Omit<AltVM.ReqUnenrollRemoteRouter, 'signer'>,
   ): Promise<AltVM.ResUnenrollRemoteRouter> {
-    throw new Error(`not implemented`);
+    const tx = await this.getUnenrollRemoteRouterTransaction({
+      ...req,
+      signer: this.getSignerAddress(),
+    });
+
+    const signedTx = await this.tronweb.trx.sign(tx);
+    await this.tronweb.trx.sendRawTransaction(signedTx);
+
+    return {
+      receiverDomainId: req.receiverDomainId,
+    };
   }
 
   async transfer(
@@ -668,8 +688,18 @@ export class TronSigner
   }
 
   async remoteTransfer(
-    _req: Omit<AltVM.ReqRemoteTransfer, 'signer'>,
+    req: Omit<AltVM.ReqRemoteTransfer, 'signer'>,
   ): Promise<AltVM.ResRemoteTransfer> {
-    throw new Error(`not implemented`);
+    const tx = await this.getRemoteTransferTransaction({
+      ...req,
+      signer: this.getSignerAddress(),
+    });
+
+    const signedTx = await this.tronweb.trx.sign(tx);
+    await this.tronweb.trx.sendRawTransaction(signedTx);
+
+    return {
+      tokenAddress: req.tokenAddress,
+    };
   }
 }

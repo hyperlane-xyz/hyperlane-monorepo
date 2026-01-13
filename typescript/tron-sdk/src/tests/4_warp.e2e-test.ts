@@ -362,58 +362,58 @@ describe('4. aleo sdk warp e2e tests', async function () {
   //   expect(quote.amount).to.equal(45n);
   // });
 
-  // step('remote transfer', async () => {
-  //   // ARRANGE
-  //   const { ismAddress } = await signer.createNoopIsm({});
-  //   const { hookAddress } = await signer.createMerkleTreeHook({
-  //     mailboxAddress,
-  //   });
-  //   const { hookAddress: noopHook } = await signer.createNoopHook({
-  //     mailboxAddress,
-  //   });
+  step('remote transfer', async () => {
+    // ARRANGE
+    const { ismAddress } = await signer.createNoopIsm({});
+    const { hookAddress } = await signer.createMerkleTreeHook({
+      mailboxAddress,
+    });
+    const { hookAddress: noopHook } = await signer.createNoopHook({
+      mailboxAddress,
+    });
 
-  //   await signer.setDefaultIsm({
-  //     mailboxAddress,
-  //     ismAddress,
-  //   });
+    await signer.setDefaultIsm({
+      mailboxAddress,
+      ismAddress,
+    });
 
-  //   await signer.setDefaultHook({
-  //     mailboxAddress,
-  //     hookAddress,
-  //   });
+    await signer.setDefaultHook({
+      mailboxAddress,
+      hookAddress,
+    });
 
-  //   await signer.setRequiredHook({
-  //     mailboxAddress,
-  //     hookAddress: noopHook,
-  //   });
+    await signer.setRequiredHook({
+      mailboxAddress,
+      hookAddress: noopHook,
+    });
 
-  //   let mailbox = await signer.getMailbox({
-  //     mailboxAddress,
-  //   });
-  //   expect(mailbox.nonce).to.equal(0);
+    let mailbox = await signer.getMailbox({
+      mailboxAddress,
+    });
+    expect(mailbox.nonce).to.equal(0);
 
-  //   const recipient =
-  //     '0xe98b09dff7176053c651a4dc025af3e4f6a442415e9b85dd076ac0ff66b4b1ed';
+    const recipient =
+      '0xe98b09dff7176053c651a4dc025af3e4f6a442415e9b85dd076ac0ff66b4b1ed';
 
-  //   // ACT
-  //   await signer.remoteTransfer({
-  //     tokenAddress: nativeTokenAddress,
-  //     destinationDomainId: domainId,
-  //     recipient,
-  //     amount: '1000000',
-  //     gasLimit: '200000',
-  //     maxFee: {
-  //       denom: ALEO_NATIVE_DENOM,
-  //       amount: '100',
-  //     },
-  //   });
+    // ACT
+    await signer.remoteTransfer({
+      tokenAddress: nativeTokenAddress,
+      destinationDomainId: domainId,
+      recipient,
+      amount: '1000000',
+      gasLimit: '200000',
+      maxFee: {
+        denom: '',
+        amount: '100',
+      },
+    });
 
-  //   // ASSERT
-  //   mailbox = await signer.getMailbox({
-  //     mailboxAddress,
-  //   });
-  //   expect(mailbox.nonce).to.equal(1);
-  // });
+    // ASSERT
+    mailbox = await signer.getMailbox({
+      mailboxAddress,
+    });
+    expect(mailbox.nonce).to.equal(1);
+  });
 
   // step('remote transfer with custom hook', async () => {
   //   // ARRANGE
@@ -556,23 +556,23 @@ describe('4. aleo sdk warp e2e tests', async function () {
   //   expect(mailbox.nonce).to.equal(3);
   // });
 
-  // step('unenroll remote router', async () => {
-  //   // ARRANGE
-  //   let remoteRouters = await signer.getRemoteRouters({
-  //     tokenAddress: nativeTokenAddress,
-  //   });
-  //   expect(remoteRouters.remoteRouters).to.have.lengthOf(1);
+  step('unenroll remote router', async () => {
+    // ARRANGE
+    let remoteRouters = await signer.getRemoteRouters({
+      tokenAddress: nativeTokenAddress,
+    });
+    expect(remoteRouters.remoteRouters).to.have.lengthOf(1);
 
-  //   // ACT
-  //   await signer.unenrollRemoteRouter({
-  //     tokenAddress: nativeTokenAddress,
-  //     receiverDomainId: domainId,
-  //   });
+    // ACT
+    await signer.unenrollRemoteRouter({
+      tokenAddress: nativeTokenAddress,
+      receiverDomainId: domainId,
+    });
 
-  //   // ASSERT
-  //   remoteRouters = await signer.getRemoteRouters({
-  //     tokenAddress: nativeTokenAddress,
-  //   });
-  //   expect(remoteRouters.remoteRouters).to.have.lengthOf(0);
-  // });
+    // ASSERT
+    remoteRouters = await signer.getRemoteRouters({
+      tokenAddress: nativeTokenAddress,
+    });
+    expect(remoteRouters.remoteRouters).to.have.lengthOf(0);
+  });
 });

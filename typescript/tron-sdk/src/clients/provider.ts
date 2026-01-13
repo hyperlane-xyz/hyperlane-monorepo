@@ -11,6 +11,7 @@ import InterchainGasPaymasterAbi from '../../abi/InterchainGasPaymaster.json' wi
 import MailboxAbi from '../../abi/Mailbox.json' with { type: 'json' };
 import MerkleTreeHookAbi from '../../abi/MerkleTreeHook.json' with { type: 'json' };
 import NoopIsmAbi from '../../abi/NoopIsm.json' with { type: 'json' };
+import PausableHookAbi from '../../abi/PausableHook.json' with { type: 'json' };
 import StorageGasOracleAbi from '../../abi/StorageGasOracle.json' with { type: 'json' };
 import StorageMerkleRootMultisigIsmAbi from '../../abi/StorageMerkleRootMultisigIsm.json' with { type: 'json' };
 import StorageMessageIdMultisigIsmAbi from '../../abi/StorageMessageIdMultisigIsm.json' with { type: 'json' };
@@ -238,6 +239,8 @@ export class TronProvider implements AltVM.IProvider {
         return AltVM.HookType.MERKLE_TREE;
       case 4:
         return AltVM.HookType.INTERCHAIN_GAS_PAYMASTER;
+      case 7:
+        return AltVM.HookType.PAUSABLE;
       default:
         throw new Error(`Unknown Hook type for address: ${req.hookAddress}`);
     }
@@ -313,8 +316,18 @@ export class TronProvider implements AltVM.IProvider {
     };
   }
 
-  async getNoopHook(_req: AltVM.ReqGetNoopHook): Promise<AltVM.ResGetNoopHook> {
-    throw new Error(`not implemented`);
+  async getNoopHook(req: AltVM.ReqGetNoopHook): Promise<AltVM.ResGetNoopHook> {
+    const contract = this.tronweb.contract(
+      PausableHookAbi.abi,
+      req.hookAddress,
+    );
+
+    const hookType = await contract.hookType().call();
+    assert(Number(hookType) === 7, `hook type does not equal PAUSABLE_HOOK`);
+
+    return {
+      address: req.hookAddress,
+    };
   }
 
   // ### QUERY WARP ###
@@ -704,9 +717,9 @@ export class TronProvider implements AltVM.IProvider {
   }
 
   async getCreateNoopHookTransaction(
-    _req: AltVM.ReqCreateNoopHook,
+    req: AltVM.ReqCreateNoopHook,
   ): Promise<TronTransaction> {
-    throw new Error(`not implemented`);
+    return this.createDeploymentTransaction(PausableHookAbi, req.signer, []);
   }
 
   async getCreateValidatorAnnounceTransaction(
@@ -837,9 +850,26 @@ export class TronProvider implements AltVM.IProvider {
   }
 
   async getUnenrollRemoteRouterTransaction(
-    _req: AltVM.ReqUnenrollRemoteRouter,
+    req: AltVM.ReqUnenrollRemoteRouter,
   ): Promise<TronTransaction> {
-    throw new Error(`not implemented`);
+    const { transaction } =
+      await this.tronweb.transactionBuilder.triggerSmartContract(
+        req.tokenAddress,
+        'unenrollRemoteRouter(uint32)',
+        {
+          feeLimit: 100_000_000,
+          callValue: 0,
+        },
+        [
+          {
+            type: 'uint32',
+            value: req.receiverDomainId,
+          },
+        ],
+        this.tronweb.address.toHex(req.signer),
+      );
+
+    return transaction;
   }
 
   async getTransferTransaction(
@@ -849,8 +879,33 @@ export class TronProvider implements AltVM.IProvider {
   }
 
   async getRemoteTransferTransaction(
-    _req: AltVM.ReqRemoteTransfer,
+    req: AltVM.ReqRemoteTransfer,
   ): Promise<TronTransaction> {
-    throw new Error(`not implemented`);
+    const { transaction } =
+      await this.tronweb.transactionBuilder.triggerSmartContract(
+        req.tokenAddress,
+        'transferRemote(uint32,bytes32,uint256)',
+        {
+          feeLimit: 100_000_000,
+          callValue: Number(req.amount),
+        },
+        [
+          {
+            type: 'uint32',
+            value: req.destinationDomainId,
+          },
+          {
+            type: 'bytes32',
+            value: req.recipient,
+          },
+          {
+            type: 'uint256',
+            value: req.amount,
+          },
+        ],
+        this.tronweb.address.toHex(req.signer),
+      );
+
+    return transaction;
   }
 }
