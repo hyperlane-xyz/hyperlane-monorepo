@@ -348,9 +348,32 @@ export class TronProvider implements AltVM.IProvider {
   }
 
   async getRemoteRouters(
-    _req: AltVM.ReqGetRemoteRouters,
+    req: AltVM.ReqGetRemoteRouters,
   ): Promise<AltVM.ResGetRemoteRouters> {
-    throw new Error(`not implemented`);
+    const contract = this.tronweb.contract(HypNativeAbi.abi, req.tokenAddress);
+
+    const remoteRouters: {
+      receiverDomainId: number;
+      receiverAddress: string;
+      gas: string;
+    }[] = [];
+
+    const domainIds = await contract.domains().call();
+
+    for (const domainId of domainIds) {
+      const { gasLimit } = await contract.destinationGas(domainId).call();
+
+      remoteRouters.push({
+        receiverDomainId: Number(domainId),
+        receiverAddress: await contract.routers(domainId).call(),
+        gas: gasLimit.toString(),
+      });
+    }
+
+    return {
+      address: req.tokenAddress,
+      remoteRouters,
+    };
   }
 
   async getBridgedSupply(_req: AltVM.ReqGetBridgedSupply): Promise<bigint> {
@@ -358,9 +381,24 @@ export class TronProvider implements AltVM.IProvider {
   }
 
   async quoteRemoteTransfer(
-    _req: AltVM.ReqQuoteRemoteTransfer,
+    req: AltVM.ReqQuoteRemoteTransfer,
   ): Promise<AltVM.ResQuoteRemoteTransfer> {
-    throw new Error(`not implemented`);
+    const contract = this.tronweb.contract(HypNativeAbi.abi, req.tokenAddress);
+
+    const { quotes } = await contract
+      .quoteTransferRemote(
+        req.destinationDomainId,
+        '0xe98b09dff7176053c651a4dc025af3e4f6a442415e9b85dd076ac0ff66b4b1ed',
+        0,
+      )
+      .call();
+
+    const denom = this.tronweb.address.fromHex(quotes[0].token);
+
+    return {
+      denom: denom === TRON_EMPTY_ADDRESS ? '' : denom,
+      amount: quotes[0].amount,
+    };
   }
 
   // ### GET CORE TXS ###
@@ -772,9 +810,30 @@ export class TronProvider implements AltVM.IProvider {
   }
 
   async getEnrollRemoteRouterTransaction(
-    _req: AltVM.ReqEnrollRemoteRouter,
+    req: AltVM.ReqEnrollRemoteRouter,
   ): Promise<TronTransaction> {
-    throw new Error(`not implemented`);
+    const { transaction } =
+      await this.tronweb.transactionBuilder.triggerSmartContract(
+        req.tokenAddress,
+        'enrollRemoteRouter(uint32,bytes32)',
+        {
+          feeLimit: 100_000_000,
+          callValue: 0,
+        },
+        [
+          {
+            type: 'uint32',
+            value: req.remoteRouter.receiverDomainId,
+          },
+          {
+            type: 'bytes32',
+            value: req.remoteRouter.receiverAddress,
+          },
+        ],
+        this.tronweb.address.toHex(req.signer),
+      );
+
+    return transaction;
   }
 
   async getUnenrollRemoteRouterTransaction(

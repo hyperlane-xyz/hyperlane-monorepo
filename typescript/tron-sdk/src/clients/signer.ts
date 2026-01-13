@@ -2,6 +2,7 @@ import { assert } from 'chai';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 
+import HypNativeAbi from '../../abi/HypNative.json' with { type: 'json' };
 import InterchainGasPaymasterAbi from '../../abi/InterchainGasPaymaster.json' with { type: 'json' };
 import GasOracleAbi from '../../abi/StorageGasOracle.json' with { type: 'json' };
 import StorageGasOracleAbi from '../../abi/StorageGasOracle.json' with { type: 'json' };
@@ -626,9 +627,32 @@ export class TronSigner
   }
 
   async enrollRemoteRouter(
-    _req: Omit<AltVM.ReqEnrollRemoteRouter, 'signer'>,
+    req: Omit<AltVM.ReqEnrollRemoteRouter, 'signer'>,
   ): Promise<AltVM.ResEnrollRemoteRouter> {
-    throw new Error(`not implemented`);
+    const tx = await this.getEnrollRemoteRouterTransaction({
+      ...req,
+      signer: this.getSignerAddress(),
+    });
+
+    const signedTx = await this.tronweb.trx.sign(tx);
+    await this.tronweb.trx.sendRawTransaction(signedTx);
+
+    const token = this.tronweb.contract(HypNativeAbi.abi, req.tokenAddress);
+
+    await token
+      .setDestinationGas(
+        req.remoteRouter.receiverDomainId,
+        req.remoteRouter.gas,
+      )
+      .send({
+        feeLimit: 100_000_000,
+        callValue: 0,
+        shouldPollResponse: true,
+      });
+
+    return {
+      receiverDomainId: req.remoteRouter.receiverDomainId,
+    };
   }
 
   async unenrollRemoteRouter(

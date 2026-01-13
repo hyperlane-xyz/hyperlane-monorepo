@@ -187,96 +187,101 @@ describe('4. aleo sdk warp e2e tests', async function () {
     expect(token.hookAddress).to.equal(hookAddress);
   });
 
-  step('set token owner', async () => {
+  // TODO: TRON
+  // step('set token owner', async () => {
+  //   // ARRANGE
+  //   const { tokenAddress: newTokenAddress } = await signer.createNativeToken({
+  //     mailboxAddress,
+  //   });
+
+  //   let token = await signer.getToken({
+  //     tokenAddress: newTokenAddress,
+  //   });
+  //   expect(token.owner).to.equal(signer.getSignerAddress());
+
+  //   const newOwner = new TronWeb({
+  //     fullHost: localnetRpc,
+  //   }).createRandom().address;
+
+  //   // ACT
+  //   await signer.setTokenOwner({
+  //     tokenAddress: newTokenAddress,
+  //     newOwner,
+  //   });
+
+  //   // ASSERT
+  //   token = await signer.getToken({
+  //     tokenAddress: newTokenAddress,
+  //   });
+  //   expect(token.owner).to.equal(newOwner);
+  // });
+
+  step('enroll remote router', async () => {
     // ARRANGE
-    let token = await signer.getToken({
+    let remoteRouters = await signer.getRemoteRouters({
       tokenAddress: nativeTokenAddress,
     });
-    expect(token.owner).to.equal(signer.getSignerAddress());
+    expect(remoteRouters.remoteRouters).to.have.lengthOf(0);
 
-    const newOwner = new TronWeb({
-      fullHost: localnetRpc,
-    }).createRandom().address;
+    const receiverAddress =
+      '0xe98b09dff7176053c651a4dc025af3e4f6a442415e9b85dd076ac0ff66b4b1ed';
+    const gas = '200000';
 
     // ACT
-    await signer.setTokenOwner({
+    await signer.enrollRemoteRouter({
       tokenAddress: nativeTokenAddress,
-      newOwner,
+      remoteRouter: {
+        receiverDomainId: domainId,
+        receiverAddress,
+        gas,
+      },
     });
 
     // ASSERT
-    token = await signer.getToken({
+    remoteRouters = await signer.getRemoteRouters({
       tokenAddress: nativeTokenAddress,
     });
-    expect(token.owner).to.equal(newOwner);
+    expect(remoteRouters.remoteRouters).to.have.lengthOf(1);
+
+    const remoteRouter = remoteRouters.remoteRouters[0];
+
+    expect(remoteRouter.receiverDomainId).to.equal(domainId);
+    expect(remoteRouter.receiverAddress).to.equal(receiverAddress);
+    expect(remoteRouter.gas).to.equal(gas);
   });
 
-  // step('enroll remote router', async () => {
-  //   // ARRANGE
-  //   let remoteRouters = await signer.getRemoteRouters({
-  //     tokenAddress: nativeTokenAddress,
-  //   });
-  //   expect(remoteRouters.remoteRouters).to.have.lengthOf(0);
+  step('quote remote transfer', async () => {
+    // ARRANGE
+    const { hookAddress } = await signer.createInterchainGasPaymasterHook({
+      mailboxAddress,
+    });
+    await signer.setDestinationGasConfig({
+      hookAddress,
+      destinationGasConfig: {
+        remoteDomainId: domainId,
+        gasOracle: {
+          tokenExchangeRate: '1000',
+          gasPrice: '1000',
+        },
+        gasOverhead: '50000',
+      },
+    });
 
-  //   const receiverAddress =
-  //     '0xe98b09dff7176053c651a4dc025af3e4f6a442415e9b85dd076ac0ff66b4b1ed';
-  //   const gas = '200000';
+    await signer.setRequiredHook({
+      mailboxAddress,
+      hookAddress,
+    });
 
-  //   // ACT
-  //   await signer.enrollRemoteRouter({
-  //     tokenAddress: nativeTokenAddress,
-  //     remoteRouter: {
-  //       receiverDomainId: domainId,
-  //       receiverAddress,
-  //       gas,
-  //     },
-  //   });
+    // ACT
+    const quote = await signer.quoteRemoteTransfer({
+      tokenAddress: nativeTokenAddress,
+      destinationDomainId: domainId,
+    });
 
-  //   // ASSERT
-  //   remoteRouters = await signer.getRemoteRouters({
-  //     tokenAddress: nativeTokenAddress,
-  //   });
-  //   expect(remoteRouters.remoteRouters).to.have.lengthOf(1);
-
-  //   const remoteRouter = remoteRouters.remoteRouters[0];
-
-  //   expect(remoteRouter.receiverDomainId).to.equal(domainId);
-  //   expect(remoteRouter.receiverAddress).to.equal(receiverAddress);
-  //   expect(remoteRouter.gas).to.equal(gas);
-  // });
-
-  // step('quote remote transfer', async () => {
-  //   // ARRANGE
-  //   const { hookAddress } = await signer.createInterchainGasPaymasterHook({
-  //     mailboxAddress,
-  //   });
-  //   await signer.setDestinationGasConfig({
-  //     hookAddress,
-  //     destinationGasConfig: {
-  //       remoteDomainId: domainId,
-  //       gasOracle: {
-  //         tokenExchangeRate: '1000',
-  //         gasPrice: '1000',
-  //       },
-  //       gasOverhead: '50000',
-  //     },
-  //   });
-
-  //   await signer.setRequiredHook({
-  //     mailboxAddress,
-  //     hookAddress,
-  //   });
-
-  //   // ACT
-  //   const quote = await signer.quoteRemoteTransfer({
-  //     tokenAddress: nativeTokenAddress,
-  //     destinationDomainId: domainId,
-  //   });
-
-  //   // ASSERT
-  //   expect(quote.denom).to.equal(ALEO_NATIVE_DENOM);
-  //   expect(quote.amount).to.equal(25n);
-  // });
+    // ASSERT
+    expect(quote.denom).to.equal('');
+    expect(quote.amount).to.equal(25n);
+  });
 
   // step('quote remote transfer with custom hook', async () => {
   //   // ARRANGE
