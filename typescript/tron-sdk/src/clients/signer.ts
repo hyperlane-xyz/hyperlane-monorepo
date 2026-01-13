@@ -96,11 +96,9 @@ export class TronSigner
   async sendAndConfirmTransaction(
     transaction: TronTransaction,
   ): Promise<TronReceipt> {
-    console.log('transaction', transaction);
     const signedTx = await this.tronweb.trx.sign(transaction);
     const result = await this.tronweb.trx.sendRawTransaction(signedTx);
     const receipt = await this.waitForTransaction(result.txid);
-    console.log('receipt', receipt);
 
     return receipt;
   }

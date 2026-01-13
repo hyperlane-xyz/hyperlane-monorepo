@@ -3,7 +3,13 @@ export type TronTransaction = {
   txID: string;
   raw_data_hex: string;
   raw_data: {
-    contract: any[];
+    contract: {
+      parameter: {
+        value: any;
+        type_url: string;
+      };
+      type: any;
+    }[];
     ref_block_bytes: string;
     ref_block_hash: string;
     expiration: number;
