@@ -122,7 +122,7 @@ describe('Address utilities', () => {
     });
 
     it('Rejects EVM addresses', () => {
-      const evmAddress = '0x0000000000000000000000000000000000000001';
+      const evmAddress = '0x67C6390e8782b0B4F913f4dA99c065238Fb7DB30';
       expect(isAddressStarknet(evmAddress)).to.be.false;
     });
 
@@ -141,7 +141,7 @@ describe('Address utilities', () => {
     });
 
     it('Rejects EVM addresses', () => {
-      const evmAddress = '0x0000000000000000000000000000000000000001';
+      const evmAddress = '0x67C6390e8782b0B4F913f4dA99c065238Fb7DB30';
       expect(isValidAddressStarknet(evmAddress)).to.be.false;
     });
 
