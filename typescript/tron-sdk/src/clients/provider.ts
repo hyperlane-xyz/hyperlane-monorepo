@@ -5,6 +5,7 @@ import { assert, strip0x } from '@hyperlane-xyz/utils';
 
 import DomainRoutingIsmAbi from '../../abi/DomainRoutingIsm.json' with { type: 'json' };
 import IInterchainSecurityModuleAbi from '../../abi/IInterchainSecurityModule.json' with { type: 'json' };
+import IPostDispatchHookAbi from '../../abi/IPostDispatchHook.json' with { type: 'json' };
 import InterchainGasPaymasterAbi from '../../abi/InterchainGasPaymaster.json' with { type: 'json' };
 import MailboxAbi from '../../abi/Mailbox.json' with { type: 'json' };
 import MerkleTreeHookAbi from '../../abi/MerkleTreeHook.json' with { type: 'json' };
@@ -222,8 +223,22 @@ export class TronProvider implements AltVM.IProvider {
     };
   }
 
-  async getHookType(_req: AltVM.ReqGetHookType): Promise<AltVM.HookType> {
-    throw new Error(`not implemented`);
+  async getHookType(req: AltVM.ReqGetHookType): Promise<AltVM.HookType> {
+    const contract = this.tronweb.contract(
+      IPostDispatchHookAbi.abi,
+      req.hookAddress,
+    );
+
+    const hookType = Number(await contract.hookType().call());
+
+    switch (hookType) {
+      case 3:
+        return AltVM.HookType.MERKLE_TREE;
+      case 4:
+        return AltVM.HookType.INTERCHAIN_GAS_PAYMASTER;
+      default:
+        throw new Error(`Unknown Hook type for address: ${req.hookAddress}`);
+    }
   }
 
   async getInterchainGasPaymasterHook(
