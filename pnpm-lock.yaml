@@ -2119,8 +2119,8 @@ importers:
         specifier: 'catalog:'
         version: 2.32.0(@typescript-eslint/parser@8.47.0(eslint@9.31.0(jiti@2.6.1))(typescript@5.8.3))(eslint-import-resolver-typescript@4.4.4)(eslint@9.31.0(jiti@2.6.1))
       eslint-plugin-yml:
-        specifier: ^1.18.0
-        version: 1.19.0(eslint@9.31.0(jiti@2.6.1))
+        specifier: ^1.19.1
+        version: 1.19.1(eslint@9.31.0(jiti@2.6.1))
       mocha:
         specifier: 'catalog:'
         version: 11.7.5
@@ -10798,8 +10798,8 @@ packages:
     peerDependencies:
       eslint: '>=8'
 
-  eslint-plugin-yml@1.19.0:
-    resolution: {integrity: sha512-S+4GbcCWksFKAvFJtf0vpdiCkZZvDJCV4Zsi9ahmYkYOYcf+LRqqzvzkb/ST7vTYV6sFwXOvawzYyL/jFT2nQA==}
+  eslint-plugin-yml@1.19.1:
+    resolution: {integrity: sha512-bYkOxyEiXh9WxUhVYPELdSHxGG5pOjCSeJOVkfdIyj6tuiHDxrES2WAW1dBxn3iaZQey57XflwLtCYRcNPOiOg==}
     engines: {node: ^14.17.0 || >=16.0.0}
     peerDependencies:
       eslint: '>=6.0.0'
@@ -29758,7 +29758,7 @@ snapshots:
       - supports-color
       - typescript
 
-  eslint-plugin-yml@1.19.0(eslint@9.31.0(jiti@2.6.1)):
+  eslint-plugin-yml@1.19.1(eslint@9.31.0(jiti@2.6.1)):
     dependencies:
       debug: 4.4.3(supports-color@5.5.0)
       diff-sequences: 27.5.1

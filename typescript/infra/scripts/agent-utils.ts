@@ -327,6 +327,13 @@ export function withConcurrentDeploy<T>(args: Argv<T>) {
     .default('concurrentDeploy', false);
 }
 
+export function withWritePlan<T>(args: Argv<T>) {
+  return args
+    .describe('writePlan', 'Write deployment plan YAML files to disk')
+    .boolean('writePlan')
+    .default('writePlan', false);
+}
+
 export function withConcurrency<T>(args: Argv<T>) {
   return args
     .describe('concurrency', 'Number of concurrent deploys')
@@ -586,7 +593,7 @@ export async function getMultiProviderForRole(
   await promiseObjAll(
     objMap(
       supportedChainNames.reduce((acc, chain) => {
-        if (chainMetadata[chain]) {
+        if (chainMetadata[chain] && chain !== 'zeronetwork') {
           acc[chain] = chainMetadata[chain];
         }
         return acc;

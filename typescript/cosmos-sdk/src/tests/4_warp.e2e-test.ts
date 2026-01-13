@@ -1,5 +1,5 @@
-import { EncodeObject } from '@cosmjs/proto-signing';
-import { DeliverTxResponse } from '@cosmjs/stargate';
+import { type EncodeObject } from '@cosmjs/proto-signing';
+import { type DeliverTxResponse } from '@cosmjs/stargate';
 import { expect } from 'chai';
 import { step } from 'mocha-steps';
 
@@ -45,7 +45,7 @@ describe('4. cosmos sdk warp e2e tests', async function () {
     expect(isValidAddressEvm(bytes32ToAddress(txResponse.tokenAddress))).to.be
       .true;
 
-    let token = await signer.getToken({
+    const token = await signer.getToken({
       tokenAddress: txResponse.tokenAddress,
     });
 
@@ -82,7 +82,7 @@ describe('4. cosmos sdk warp e2e tests', async function () {
     expect(isValidAddressEvm(bytes32ToAddress(txResponse.tokenAddress))).to.be
       .true;
 
-    let token = await signer.getToken({
+    const token = await signer.getToken({
       tokenAddress: txResponse.tokenAddress,
     });
 
@@ -200,7 +200,7 @@ describe('4. cosmos sdk warp e2e tests', async function () {
       },
     });
 
-    let remoteRouters = await signer.getRemoteRouters({
+    const remoteRouters = await signer.getRemoteRouters({
       tokenAddress,
     });
     expect(remoteRouters.remoteRouters).to.have.lengthOf(1);
@@ -239,7 +239,7 @@ describe('4. cosmos sdk warp e2e tests', async function () {
     expect(isValidAddressEvm(bytes32ToAddress(txResponse.tokenAddress))).to.be
       .true;
 
-    let mailbox = await signer.getMailbox({ mailboxAddress });
+    const mailbox = await signer.getMailbox({ mailboxAddress });
     expect(mailbox.nonce).to.equal(1);
   });
 

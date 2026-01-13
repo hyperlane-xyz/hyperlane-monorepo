@@ -1,15 +1,15 @@
 import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
-  ArtifactDeployed,
-  ArtifactReader,
+  type ArtifactDeployed,
+  type ArtifactReader,
   ArtifactState,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
-  DeployedIsmAddress,
-  TestIsmConfig,
+  type DeployedIsmAddress,
+  type TestIsmConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
 
-import { CosmosIsmQueryClient, getNoopIsmConfig } from './ism-query.js';
+import { type CosmosIsmQueryClient, getNoopIsmConfig } from './ism-query.js';
 
 /**
  * Reader for Cosmos NoopIsm (test ISM).

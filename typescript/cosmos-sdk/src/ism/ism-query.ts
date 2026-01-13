@@ -1,12 +1,12 @@
-import { QueryClient } from '@cosmjs/stargate';
+import { type QueryClient } from '@cosmjs/stargate';
 
-import { isTypes } from '@hyperlane-xyz/cosmos-types';
+import { type isTypes } from '@hyperlane-xyz/cosmos-types';
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert } from '@hyperlane-xyz/utils';
 
 import {
   IsmTypes as CosmosNativeIsmTypes,
-  InterchainSecurityExtension,
+  type InterchainSecurityExtension,
 } from '../hyperlane/interchain_security/query.js';
 
 /**
