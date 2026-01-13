@@ -2,4 +2,4 @@
 '@hyperlane-xyz/provider-sdk': minor
 ---
 
-Updated the `TestChainMetadata` to add the gasPrice field
+Added optional gasPrice field to `TestChainMetadata` type

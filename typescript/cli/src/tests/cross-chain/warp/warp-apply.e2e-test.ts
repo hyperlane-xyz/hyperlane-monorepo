@@ -1,6 +1,7 @@
 import * as chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import { Wallet } from 'ethers';
+import { type StartedTestContainer } from 'testcontainers';
 
 import {
   createSignerWithPrivateKey,
@@ -91,11 +92,16 @@ describe('hyperlane warp apply e2e tests', async function () {
 
   let coreAddressByChain: ChainMap<ChainAddresses>;
 
+  let cosmosNodeInstance: StartedTestContainer;
+  let evmNodeInstance: StartedTestContainer;
+
   before(async function () {
-    await runCosmosNode(
+    cosmosNodeInstance = await runCosmosNode(
       TEST_CHAIN_METADATA_BY_PROTOCOL.cosmosnative.CHAIN_NAME_1,
     );
-    await runEvmNode(TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2);
+    evmNodeInstance = await runEvmNode(
+      TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+    );
 
     const cosmosWallet = await createSignerWithPrivateKey(
       HYP_KEY_BY_PROTOCOL.cosmosnative,
@@ -124,6 +130,10 @@ describe('hyperlane warp apply e2e tests', async function () {
       [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]:
         evmChain1CoreCoreAddress,
     };
+  });
+
+  after(async () => {
+    await Promise.all([cosmosNodeInstance?.stop(), evmNodeInstance?.stop()]);
   });
 
   let warpDeployConfig: WarpRouteDeployConfig;
