@@ -14,16 +14,22 @@ use tracing::info;
 ///
 /// # Arguments
 /// * `client` - The HTTP client for querying Kaspa API transactions
-/// * `escrow_addresses` - The escrow address to trace transactions for
-/// * `new_out` - The new transaction outpoint to start tracing from
-/// * `old_out` - The old anchor transaction outpoint to trace to
+/// * `src_escrow` - Source escrow address (where anchor/old UTXOs are)
+/// * `dst_escrow` - Destination escrow address (where current UTXOs are)
+/// * `out_new_candidate` - The new transaction outpoint to start tracing from
+/// * `out_old` - The old anchor transaction outpoint to trace to
+///
+/// In normal operation, src and dst are the same address. During post-migration sync,
+/// src is the old escrow and dst is the new escrow, allowing the trace to cross the
+/// migration boundary.
 ///
 /// # Returns
 /// * `Result<ConfirmationFXG>` - The confirmation FXG containing the progress indication
 ///   with old and new outpoints and a list of processed withdrawal message IDs
 pub async fn expensive_trace_transactions(
     client: &HttpClient,
-    escrow_addresses: &str,
+    src_escrow: &str,
+    dst_escrow: &str,
     out_new_candidate: TransactionOutpoint,
     out_old: TransactionOutpoint,
 ) -> Result<ConfirmationFXG> {
@@ -32,7 +38,8 @@ pub async fn expensive_trace_transactions(
 
     recursive_trace_transactions(
         client,
-        escrow_addresses,
+        src_escrow,
+        dst_escrow,
         out_new_candidate,
         out_old,
         &mut outpoint_sequence,
@@ -56,9 +63,10 @@ pub async fn expensive_trace_transactions(
     ))
 }
 
-pub async fn recursive_trace_transactions(
+async fn recursive_trace_transactions(
     client_rest: &HttpClient,
-    escrow_addr: &str,
+    src_escrow: &str,
+    dst_escrow: &str,
     out_curr: TransactionOutpoint,
     out_old: TransactionOutpoint,
     outpoint_sequence: &mut Vec<TransactionOutpoint>,
@@ -84,8 +92,8 @@ pub async fn recursive_trace_transactions(
         .as_ref()
         .ok_or(Error::Custom("Inputs not found".to_string()))?;
 
-    // we skip inputs that are not from the escrow address
-    // we do recursive call for inputs that are from the escrow address
+    // we skip inputs that are not from escrow addresses
+    // we do recursive call for inputs that are from escrow addresses
     for input in inputs {
         let spent_escrow_funds = {
             let input_address = input
@@ -93,7 +101,8 @@ pub async fn recursive_trace_transactions(
                 .as_ref()
                 .ok_or(Error::Custom("Input address not found".to_string()))?;
 
-            input_address == escrow_addr
+            // Accept inputs from either src or dst escrow to handle migration boundary
+            input_address == src_escrow || input_address == dst_escrow
         };
         if !spent_escrow_funds {
             info!(input_index = ?input.index, "kaspa relayer: skipped input from non-escrow address");
@@ -108,7 +117,8 @@ pub async fn recursive_trace_transactions(
 
         let res = Box::pin(recursive_trace_transactions(
             client_rest,
-            escrow_addr,
+            src_escrow,
+            dst_escrow,
             out_input,
             out_old,
             outpoint_sequence,

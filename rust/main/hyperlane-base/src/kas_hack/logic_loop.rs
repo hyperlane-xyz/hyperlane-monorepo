@@ -2,7 +2,6 @@ use crate::contract_sync::cursors::Indexable;
 use dym_kas_core::finality::is_safe_against_reorg;
 use dymension_kaspa::hl_message::add_kaspa_metadata_hl_messsage;
 use dymension_kaspa::ops::{confirmation::ConfirmationFXG, deposit::DepositFXG};
-use dymension_kaspa::relayer::confirm::expensive_trace_transactions;
 use dymension_kaspa::relayer::deposit::{build_deposit_fxg, check_deposit_finality, KaspaTxError};
 use dymension_kaspa::{Deposit, KaspaProvider};
 use ethers::utils::hex::ToHex;
@@ -13,7 +12,6 @@ use hyperlane_core::{
     SignedCheckpointWithMessageId, TxOutcome, H256, U256,
 };
 use hyperlane_cosmos::native::{h512_to_cosmos_hash, CosmosNativeMailbox};
-use kaspa_consensus_core::tx::TransactionOutpoint;
 use std::{collections::HashSet, fmt::Debug, hash::Hash, sync::Arc, time::Duration};
 use tokio::{sync::Mutex, task::JoinHandle, time};
 use tokio_metrics::TaskMonitor;
@@ -521,86 +519,22 @@ where
     // Check if Hub's committed outpoint is already spent on Kaspa chain.
     // If not synced, prepare progress indication and submit to Hub.
     pub async fn sync_hub_if_needed(&self) -> Result<()> {
-        info!("Checking if hub is out of sync with Kaspa escrow account.");
-        use hyperlane_cosmos::{native::ModuleQueryClient, CosmosProvider};
-        let prov = self.hub_mailbox.provider();
-        let cosmos_prov = prov
-            .as_any()
-            .downcast_ref::<CosmosProvider<ModuleQueryClient>>()
-            .expect("Hub mailbox provider must be CosmosProvider");
-        let resp = cosmos_prov.query().outpoint(None).await?;
-        let anchor_old = resp
-            .outpoint
-            .map(|o| TransactionOutpoint {
-                transaction_id: kaspa_hashes::Hash::from_bytes(
-                    o.transaction_id.as_slice().try_into().unwrap(),
-                ),
-                index: o.index,
-            })
-            .ok_or_else(|| eyre::eyre!("No outpoint found"))?;
+        let escrow_str = self.provider.escrow_address().to_string();
+        let min_sigs = self.provider.validators().multisig_threshold_hub_ism() as usize;
 
-        let escrow_addr = self.provider.escrow_address();
+        // Create signature formatter closure
+        let format_sigs = |sigs: &mut Vec<Signature>| -> ChainResult<Vec<u8>> {
+            self.format_ad_hoc_signatures(sigs, min_sigs)
+        };
 
-        info!(
-            "Dymension, current anchor: {:?}, escrow address: {:?}",
-            anchor_old, escrow_addr
-        );
-
-        let utxos = self
-            .provider
-            .rpc_with_reconnect(|api| {
-                let addr = escrow_addr.clone();
-                async move {
-                    api.get_utxos_by_addresses(vec![addr])
-                        .await
-                        .map_err(|e| eyre::eyre!("{}", e))
-                }
-            })
-            .await?;
-
-        info!("Queried utxos for escrow address: {:?}", utxos.len());
-
-        // Check if anchor UTXO exists in current escrow UTXOs - if yes, we're synced
-        let synced = utxos.iter().any(|utxo| {
-            let ok = utxo.outpoint.transaction_id == anchor_old.transaction_id
-                && utxo.outpoint.index == anchor_old.index;
-            if ok {
-                info!(utxo = ?utxo, "Dymension, found utxo matching current anchor");
-            }
-            ok
-        });
-        if !synced {
-            info!("Dymension is not synced, preparing progress indication and submitting to hub");
-            // Find the next UTXO in sequence by tracing from anchor_old to each candidate
-            let mut found = false;
-            for utxo in utxos {
-                let candidate = TransactionOutpoint::from(utxo.outpoint);
-                let result = expensive_trace_transactions(
-                    &self.provider.rest().client.client,
-                    &escrow_addr.to_string(),
-                    candidate.clone(),
-                    anchor_old,
-                )
-                .await;
-                if !result.is_ok() {
-                    error!(
-                        "Dymension, tracing kaspa withdrawals for syncing: {:?}, candidate: {:?}",
-                        result.err(),
-                        candidate,
-                    );
-                    continue;
-                }
-                info!("Traced sequence of kaspa withdrawals for syncing");
-
-                self.confirm_withdrawal_on_hub(result.unwrap()).await?;
-                found = true;
-                break;
-            }
-            if !found {
-                return Err(eyre::eyre!("Dymension, no good utxo found for syncing"));
-            }
-        }
-        info!("Dymension hub is synced, proceeding with other tasks");
+        super::sync::ensure_hub_synced(
+            &self.provider,
+            &self.hub_mailbox,
+            &escrow_str,
+            &escrow_str,
+            format_sigs,
+        )
+        .await?;
 
         if let Err(e) = self.update_hub_anchor_point_metric().await {
             error!(error = ?e, "Failed to update hub anchor point metric after syncing");

@@ -43,6 +43,7 @@ use crate::{
 };
 use dymension_kaspa::{is_dym, is_kas, KaspaProvider};
 use hyperlane_base::kas_hack::logic_loop::Foo as KaspaBridgeFoo;
+use hyperlane_base::kas_hack::{format_ad_hoc_signatures, run_migration_with_sync};
 use hyperlane_base::{
     broadcast::BroadcastMpscSender,
     cache::{LocalCache, MeteredCache, MeteredCacheConfig, OptionalCache},
@@ -55,7 +56,7 @@ use hyperlane_base::{
 use hyperlane_core::{
     rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, ContractSyncCursor,
     HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, QueueOperation,
-    H512, U256,
+    Signature, H512, U256,
 };
 use hyperlane_cosmos::native::CosmosNativeMailbox;
 use lander::DispatcherMetrics;
@@ -307,6 +308,23 @@ impl BaseAgent for Relayer {
 
     #[allow(clippy::async_yields_async)]
     async fn run(mut self) {
+        // If migration mode is enabled, run migration and exit
+        if let Some(target) = self.get_migration_target() {
+            info!(target, "Migration mode: migrating escrow to new address");
+            match self.run_escrow_migration(&target).await {
+                Ok(tx_ids) => {
+                    info!(tx_count = tx_ids.len(), "Migration completed successfully");
+                    for (i, tx_id) in tx_ids.iter().enumerate() {
+                        info!(index = i, tx_id = tx_id, "Migration transaction");
+                    }
+                }
+                Err(e) => {
+                    error!(error = ?e, "Migration failed");
+                }
+            }
+            return;
+        }
+
         let start = Instant::now();
         let mut start_entity_init = Instant::now();
 
@@ -1221,6 +1239,34 @@ impl Relayer {
                 }
             };
         tasks.push(message_db_loader);
+    }
+
+    fn get_migration_target(&self) -> Option<String> {
+        self.dymension_kaspa_args.as_ref().and_then(|args| {
+            args.kas_provider
+                .must_relayer_stuff()
+                .migrate_escrow_to
+                .clone()
+        })
+    }
+
+    async fn run_escrow_migration(&self, target_address: &str) -> Result<Vec<String>> {
+        let args = self.dymension_kaspa_args.as_ref().unwrap();
+        let min_sigs = args.kas_provider.validators().multisig_threshold_hub_ism() as usize;
+
+        // Signature formatter using PendingMessageMetadataGetter
+        let metadata_getter = PendingMessageMetadataGetter::new();
+        let format_sigs = |sigs: &mut Vec<Signature>| -> ChainResult<Vec<u8>> {
+            format_ad_hoc_signatures(&metadata_getter, sigs, min_sigs)
+        };
+
+        run_migration_with_sync(
+            &args.kas_provider,
+            &args.dym_mailbox,
+            target_address,
+            format_sigs,
+        )
+        .await
     }
 }
 

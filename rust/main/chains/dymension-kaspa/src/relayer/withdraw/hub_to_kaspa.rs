@@ -217,7 +217,7 @@ pub fn build_withdrawal_pskt(
     let outputs_num = outputs.len();
     let payload_len = payload.len();
 
-    let pskt = create_withdrawal_pskt(inputs, outputs, payload)?;
+    let pskt = create_pskt(inputs, outputs, payload)?;
 
     info!(
         inputs_count = inputs_num,
@@ -232,9 +232,9 @@ pub fn build_withdrawal_pskt(
     Ok(pskt)
 }
 
-/// CONTRACT:
-/// Escrow change is always the last output.
-fn create_withdrawal_pskt(
+/// Create a PSKT from inputs and outputs with payload.
+/// Used by both withdrawal and migration flows.
+pub fn create_pskt(
     inputs: Vec<PopulatedInput>,
     outputs: Vec<TransactionOutput>,
     payload: Vec<u8>,
@@ -253,7 +253,6 @@ fn create_withdrawal_pskt(
             .sighash_type(input_sighash_type());
 
         if let Some(script) = redeem_script {
-            // escrow inputs need redeem_script
             b.redeem_script(script);
         }
 
@@ -269,16 +268,13 @@ fn create_withdrawal_pskt(
             .amount(output.value)
             .script_public_key(output.script_public_key)
             .build()
-            .map_err(|e| eyre::eyre!("Build pskt output for withdrawal: {}", e))?;
+            .map_err(|e| eyre::eyre!("Build pskt output: {}", e))?;
 
         pskt = pskt.output(b);
     }
 
-    Ok(pskt
-        .no_more_inputs()
-        .no_more_outputs()
-        .payload(Some(payload))?
-        .signer())
+    let pskt = pskt.no_more_inputs().no_more_outputs();
+    Ok(pskt.payload(Some(payload))?.signer())
 }
 
 /// Return outputs generated based on the provided messages. Filter out messages
@@ -385,7 +381,7 @@ pub async fn combine_bundles_with_fee(
             ));
         }
 
-        let bundle_relayer = sign_relayer_fee(easy_wallet, fxg).await?; // TODO: can add own sig in parallel to validator network request
+        let bundle_relayer = sign_relayer_fee(easy_wallet, &fxg.bundle).await?;
         info!("kaspa relayer: signed relayer fee bundle");
         bundles_validators.push(bundle_relayer);
         bundles_validators
@@ -393,7 +389,6 @@ pub async fn combine_bundles_with_fee(
     let txs_signed = combine_all_bundles(all_bundles)?;
     let finalized = finalize_txs(
         txs_signed,
-        fxg.messages.clone(),
         escrow,
         easy_wallet.pub_key().await?,
         easy_wallet.net.network_id,
@@ -401,21 +396,20 @@ pub async fn combine_bundles_with_fee(
     Ok(finalized)
 }
 
-async fn sign_relayer_fee(easy_wallet: &EasyKaspaWallet, fxg: &WithdrawFXG) -> Result<Bundle> {
+/// Sign relayer fee inputs in a PSKT bundle.
+/// Used by both withdrawal and migration flows.
+pub async fn sign_relayer_fee(easy_wallet: &EasyKaspaWallet, bundle: &Bundle) -> Result<Bundle> {
     let resources = easy_wallet.signing_resources().await?;
-
     let mut signed = Vec::new();
-    // Iterate over (PSKT; associated HL messages) pairs
-    for pskt in fxg.bundle.iter() {
+    for pskt in bundle.iter() {
         let pskt = PSKT::<Signer>::from(pskt.clone());
-
         signed.push(sign_pay_fee(pskt, &resources).await?);
     }
     Ok(Bundle::from(signed))
 }
 
 /// accepts bundle of signer
-fn combine_all_bundles(bundles: Vec<Bundle>) -> Result<Vec<PSKT<Combiner>>> {
+pub fn combine_all_bundles(bundles: Vec<Bundle>) -> Result<Vec<PSKT<Combiner>>> {
     // each bundle is from a different actor (validator or relayer), and is a vector of pskt
     // therefore index i of each vector corresponds to the same TX i
 
@@ -465,22 +459,18 @@ fn combine_all_bundles(bundles: Vec<Bundle>) -> Result<Vec<PSKT<Combiner>>> {
     Ok(ret)
 }
 
-fn finalize_txs(
+/// Finalize transactions by applying signatures.
+/// Used by both withdrawal and migration flows.
+pub fn finalize_txs(
     txs_sigs: Vec<PSKT<Combiner>>,
-    messages: Vec<Vec<HyperlaneMessage>>,
     escrow: &EscrowPublic,
     relayer_pub_key: kaspa_bip32::secp256k1::PublicKey,
     network_id: NetworkId,
 ) -> Result<Vec<RpcTransaction>> {
-    let transactions_result: Result<Vec<RpcTransaction>, _> = txs_sigs
+    txs_sigs
         .into_iter()
-        .zip(messages)
-        .map(|(tx, _)| finalize_pskt(tx, escrow, &relayer_pub_key, network_id))
-        .collect();
-
-    let transactions: Vec<RpcTransaction> = transactions_result?;
-
-    Ok(transactions)
+        .map(|tx| finalize_pskt(tx, escrow, &relayer_pub_key, network_id))
+        .collect()
 }
 
 // used by multisig demo AND real code
