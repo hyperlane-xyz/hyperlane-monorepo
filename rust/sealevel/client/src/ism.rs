@@ -8,21 +8,19 @@ use solana_program::pubkey::Pubkey;
 use crate::{Context, IsmCmd, IsmType};
 
 use hyperlane_sealevel_multisig_ism_message_id::{
-    access_control_pda_seeds, accounts::{AccessControlAccount, DomainDataAccount},
+    access_control_pda_seeds,
+    accounts::{AccessControlAccount, DomainDataAccount},
     domain_data_pda_seeds,
 };
 use hyperlane_sealevel_token::plugin::SyntheticPlugin;
 use hyperlane_sealevel_token_collateral::plugin::CollateralPlugin;
+use hyperlane_sealevel_token_lib::{accounts::HyperlaneTokenAccount, hyperlane_token_pda_seeds};
 use hyperlane_sealevel_token_native::plugin::NativePlugin;
-use hyperlane_sealevel_token_lib::{
-    accounts::HyperlaneTokenAccount,
-    hyperlane_token_pda_seeds,
-};
 
 /// Processes ISM commands
 pub(crate) fn process_ism_cmd(mut ctx: Context, cmd: IsmCmd) {
     let query = cmd.query;
-    
+
     // If token is provided, extract domains from token
     let domains = if let Some(token_program_id) = query.token {
         println!("🔍 Fetching domains from token: {}", token_program_id);
@@ -32,7 +30,11 @@ pub(crate) fn process_ism_cmd(mut ctx: Context, cmd: IsmCmd) {
                     println!("⚠️  Warning: Token has no remote routers configured");
                     None
                 } else {
-                    println!("✅ Found {} remote domain(s) from token: {:?}", domains.len(), domains);
+                    println!(
+                        "✅ Found {} remote domain(s) from token: {:?}",
+                        domains.len(),
+                        domains
+                    );
                     Some(domains)
                 }
             }
@@ -44,7 +46,7 @@ pub(crate) fn process_ism_cmd(mut ctx: Context, cmd: IsmCmd) {
     } else {
         query.domains
     };
-    
+
     match query.ism_type {
         IsmType::MultisigMessageId => {
             query_multisig_ism_message_id(&mut ctx, query.program_id, domains);
@@ -76,15 +78,24 @@ fn get_domains_from_token(
         .ok_or_else(|| "Token account not found".to_string())?;
 
     // Try to deserialize with different plugin types and extract ISM + remote_routers
-    let (ism, remote_routers): (Option<Pubkey>, std::collections::HashMap<u32, hyperlane_core::H256>) = {
+    let (ism, remote_routers): (
+        Option<Pubkey>,
+        std::collections::HashMap<u32, hyperlane_core::H256>,
+    ) = {
         // Try SyntheticPlugin first
-        if let Ok(token_account) = HyperlaneTokenAccount::<SyntheticPlugin>::fetch(&mut &account.data[..]) {
+        if let Ok(token_account) =
+            HyperlaneTokenAccount::<SyntheticPlugin>::fetch(&mut &account.data[..])
+        {
             let token = token_account.into_inner();
             (token.interchain_security_module, token.remote_routers)
-        } else if let Ok(token_account) = HyperlaneTokenAccount::<NativePlugin>::fetch(&mut &account.data[..]) {
+        } else if let Ok(token_account) =
+            HyperlaneTokenAccount::<NativePlugin>::fetch(&mut &account.data[..])
+        {
             let token = token_account.into_inner();
             (token.interchain_security_module, token.remote_routers)
-        } else if let Ok(token_account) = HyperlaneTokenAccount::<CollateralPlugin>::fetch(&mut &account.data[..]) {
+        } else if let Ok(token_account) =
+            HyperlaneTokenAccount::<CollateralPlugin>::fetch(&mut &account.data[..])
+        {
             let token = token_account.into_inner();
             (token.interchain_security_module, token.remote_routers)
         } else {
@@ -109,11 +120,7 @@ fn get_domains_from_token(
 }
 
 /// Queries a Multisig ISM Message ID program
-fn query_multisig_ism_message_id(
-    ctx: &mut Context,
-    program_id: Pubkey,
-    domains: Option<Vec<u32>>,
-) {
+fn query_multisig_ism_message_id(ctx: &mut Context, program_id: Pubkey, domains: Option<Vec<u32>>) {
     println!("=================================");
     println!("Multisig ISM Message ID Query");
     println!("Program ID: {}", program_id);
@@ -148,13 +155,13 @@ fn query_multisig_ism_message_id(
         println!("\n---------------------------------");
         println!("Domain Data");
         println!("---------------------------------");
-        
+
         for domain in domains {
             println!("\nDomain: {}", domain);
-            
+
             let (domain_data_pda_key, domain_data_bump) =
                 Pubkey::find_program_address(domain_data_pda_seeds!(domain), &program_id);
-            
+
             println!("  Domain Data PDA: {}", domain_data_pda_key);
             println!("  Domain Data Bump: {}", domain_data_bump);
 
@@ -168,12 +175,23 @@ fn query_multisig_ism_message_id(
                 let domain_data = DomainDataAccount::fetch(&mut &account.data[..])
                     .unwrap()
                     .into_inner();
-                
-                println!("  Validators ({}):", domain_data.validators_and_threshold.validators.len());
-                for (i, validator) in domain_data.validators_and_threshold.validators.iter().enumerate() {
+
+                println!(
+                    "  Validators ({}):",
+                    domain_data.validators_and_threshold.validators.len()
+                );
+                for (i, validator) in domain_data
+                    .validators_and_threshold
+                    .validators
+                    .iter()
+                    .enumerate()
+                {
                     println!("    {}: {}", i + 1, validator);
                 }
-                println!("  Threshold: {}", domain_data.validators_and_threshold.threshold);
+                println!(
+                    "  Threshold: {}",
+                    domain_data.validators_and_threshold.threshold
+                );
                 println!("  Bump Seed: {}", domain_data.bump_seed);
             } else {
                 println!("  Status: Not initialized");
@@ -262,4 +280,3 @@ fn query_test_ism(ctx: &mut Context, program_id: Pubkey) {
 
     println!("\n=================================");
 }
-
