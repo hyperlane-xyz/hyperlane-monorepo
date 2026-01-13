@@ -244,11 +244,18 @@ export async function getRoutingIsmConfig(
   );
 
   for (let i = 0; i < routeLengthRes; i++) {
-    const routeKey = await aleoClient.getProgramMappingPlaintext(
-      programId,
-      'route_iter',
-      `{ism:${address},index:${i}u32}`,
-    );
+    let routeKey;
+    try {
+      routeKey = await aleoClient.getProgramMappingPlaintext(
+        programId,
+        'route_iter',
+        `{ism:${address},index:${i}u32}`,
+      );
+    } catch (err) {
+      throw new Error(
+        `Failed to query route_iter for ISM ${ismAddress} at index ${i}: ${err}`,
+      );
+    }
 
     const routeIsmAddress = await tryQueryMappingValue(
       aleoClient,
