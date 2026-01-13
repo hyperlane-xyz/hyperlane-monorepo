@@ -1,6 +1,6 @@
 import { GenericContainer, Wait } from 'testcontainers';
 
-import { TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
+import { type TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
 
 export async function runCosmosNode({ rpcPort, restPort }: TestChainMetadata) {
   const container = await new GenericContainer(

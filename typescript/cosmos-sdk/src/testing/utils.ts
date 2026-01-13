@@ -1,6 +1,6 @@
 import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
 
-import { TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
+import { type TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
 import { strip0x } from '@hyperlane-xyz/utils';
 
 import { CosmosNativeSigner } from '../index.js';
