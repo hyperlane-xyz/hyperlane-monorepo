@@ -1,6 +1,7 @@
 import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
+import { awIcas } from '../../governance/ica/aw.js';
 import { awSafes } from '../../governance/safe/aw.js';
 import { getWarpFeeOwner } from '../../governance/utils.js';
 import { chainOwners } from '../../owners.js';
@@ -47,8 +48,6 @@ const awProxyAdminOwners: ChainMap<string | undefined> = {
   unichain: chainOwners.unichain.ownerOverrides?.proxyAdmin,
 } as const;
 
-const DEPLOYER = '0x3e0A78A330F2b97059A4D507ca9d8292b65B6FB5';
-
 const deploymentChains = [
   'ethereum',
   'arbitrum',
@@ -74,11 +73,11 @@ const rebalanceableCollateralChains = [
 
 const ownersByChain: Record<DeploymentChain, string> = {
   ethereum: awSafes.ethereum,
-  arbitrum: DEPLOYER,
-  base: DEPLOYER,
-  optimism: DEPLOYER,
-  polygon: DEPLOYER,
-  unichain: DEPLOYER,
+  arbitrum: awSafes.arbitrum,
+  base: awSafes.base,
+  optimism: awSafes.optimism,
+  polygon: awIcas.polygon,
+  unichain: awIcas.unichain,
   eclipsemainnet: chainOwners.eclipsemainnet.owner,
   solanamainnet: chainOwners.solanamainnet.owner,
 };
