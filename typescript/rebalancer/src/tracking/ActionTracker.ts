@@ -509,6 +509,38 @@ export class ActionTracker implements IActionTracker {
 
   // === Private Helpers ===
 
+  /**
+   * Get the confirmed block tag for a chain based on its reorgPeriod.
+   * This ensures delivery checks are in sync with Monitor's balance queries.
+   * For chains with string reorgPeriod (e.g., "finalized"), returns the string.
+   * For chains with numeric reorgPeriod, returns latestBlock - reorgPeriod.
+   * Falls back to undefined (latest) if unable to determine.
+   */
+  private async getConfirmedBlockTag(
+    chainName: string,
+  ): Promise<number | string | undefined> {
+    try {
+      const metadata = this.core.multiProvider.getChainMetadata(chainName);
+      const reorgPeriod = metadata.blocks?.reorgPeriod ?? 32;
+
+      // Handle string block tags (e.g., "finalized" for Polygon)
+      if (typeof reorgPeriod === 'string') {
+        return reorgPeriod;
+      }
+
+      // Handle numeric reorgPeriod: compute latestBlock - reorgPeriod
+      const provider = this.core.multiProvider.getProvider(chainName);
+      const latestBlock = await provider.getBlockNumber();
+      return Math.max(0, latestBlock - reorgPeriod);
+    } catch (error) {
+      this.logger.warn(
+        { chain: chainName, error: (error as Error).message },
+        'Failed to get confirmed block, using latest',
+      );
+      return undefined;
+    }
+  }
+
   private async isMessageDelivered(
     messageId: string,
     destination: Domain,
@@ -516,7 +548,17 @@ export class ActionTracker implements IActionTracker {
     try {
       const chainName = this.core.multiProvider.getChainName(destination);
       const mailbox = this.core.getContracts(chainName).mailbox;
-      return await mailbox.delivered(messageId);
+
+      // Query at confirmed block to sync with Monitor's balance queries
+      const blockTag = await this.getConfirmedBlockTag(chainName);
+      const delivered = await mailbox.delivered(messageId, { blockTag });
+
+      this.logger.debug(
+        { messageId, destination: chainName, blockTag, delivered },
+        'Checked message delivery at confirmed block',
+      );
+
+      return delivered;
     } catch (error) {
       this.logger.warn(
         { messageId, destination, error },
