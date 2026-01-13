@@ -587,9 +587,47 @@ export class TronSigner
   }
 
   async createCollateralToken(
-    _req: Omit<AltVM.ReqCreateCollateralToken, 'signer'>,
+    req: Omit<AltVM.ReqCreateCollateralToken, 'signer'>,
   ): Promise<AltVM.ResCreateCollateralToken> {
-    throw new Error(`not implemented`);
+    const tx = await this.getCreateCollateralTokenTransaction({
+      ...req,
+      signer: this.getSignerAddress(),
+    });
+
+    const receipt = await this.sendAndConfirmTransaction(tx);
+
+    const tokenAddress = this.tronweb.address.fromHex(receipt.contract_address);
+
+    const { transaction } =
+      await this.tronweb.transactionBuilder.triggerSmartContract(
+        tokenAddress,
+        'initialize(address,address,address)',
+        {
+          feeLimit: 100_000_000,
+          callValue: 0,
+        },
+        [
+          {
+            type: 'address',
+            value: TRON_EMPTY_ADDRESS,
+          },
+          {
+            type: 'address',
+            value: TRON_EMPTY_ADDRESS,
+          },
+          {
+            type: 'address',
+            value: this.getSignerAddress(),
+          },
+        ],
+        this.tronweb.address.toHex(this.getSignerAddress()),
+      );
+
+    await this.sendAndConfirmTransaction(transaction);
+
+    return {
+      tokenAddress,
+    };
   }
 
   async createSyntheticToken(

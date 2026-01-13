@@ -19,7 +19,7 @@ describe('4. aleo sdk warp e2e tests', async function () {
   let collateralDenom: string;
 
   let nativeTokenAddress: string;
-  // let collateralTokenAddress: string;
+  let collateralTokenAddress: string;
   // let syntheticTokenAddress: string;
 
   const domainId = 1234;
@@ -62,7 +62,7 @@ describe('4. aleo sdk warp e2e tests', async function () {
     );
 
     const receipt = await signer.sendAndConfirmTransaction(tx);
-    collateralDenom = receipt.contract_address;
+    collateralDenom = tronweb.address.fromHex(receipt.contract_address);
   });
 
   step('create new native token', async () => {
@@ -93,34 +93,34 @@ describe('4. aleo sdk warp e2e tests', async function () {
     nativeTokenAddress = txResponse.tokenAddress;
   });
 
-  // step('create new collateral token', async () => {
-  //   // ARRANGE
+  step('create new collateral token', async () => {
+    // ARRANGE
 
-  //   // ACT
-  //   const txResponse = await signer.createCollateralToken({
-  //     mailboxAddress,
-  //     collateralDenom,
-  //   });
+    // ACT
+    const txResponse = await signer.createCollateralToken({
+      mailboxAddress,
+      collateralDenom,
+    });
 
-  //   // ASSERT
-  //   expect(txResponse.tokenAddress).to.be.not.empty;
+    // ASSERT
+    expect(txResponse.tokenAddress).to.be.not.empty;
 
-  //   let token = await signer.getToken({
-  //     tokenAddress: txResponse.tokenAddress,
-  //   });
+    let token = await signer.getToken({
+      tokenAddress: txResponse.tokenAddress,
+    });
 
-  //   expect(token).not.to.be.undefined;
-  //   expect(token.owner).to.equal(signer.getSignerAddress());
-  //   expect(token.mailboxAddress).to.equal(mailboxAddress);
-  //   expect(token.denom).to.equal(collateralDenom);
-  //   expect(token.name).to.be.equal('test');
-  //   expect(token.symbol).to.be.equal('test');
-  //   expect(token.decimals).to.equal(6);
-  //   expect(token.ismAddress).to.be.empty;
-  //   expect(token.tokenType).to.equal(AltVM.TokenType.collateral);
+    expect(token).not.to.be.undefined;
+    expect(token.owner).to.equal(signer.getSignerAddress());
+    expect(token.mailboxAddress).to.equal(mailboxAddress);
+    expect(token.denom).to.equal(collateralDenom);
+    expect(token.name).to.be.equal('test');
+    expect(token.symbol).to.be.equal('test');
+    expect(token.decimals).to.equal(6);
+    expect(token.ismAddress).to.be.empty;
+    expect(token.tokenType).to.equal(AltVM.TokenType.collateral);
 
-  //   collateralTokenAddress = txResponse.tokenAddress;
-  // });
+    collateralTokenAddress = txResponse.tokenAddress;
+  });
 
   // step('create new synthetic token', async () => {
   //   // ARRANGE

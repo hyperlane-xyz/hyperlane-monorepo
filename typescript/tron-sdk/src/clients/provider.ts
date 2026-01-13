@@ -4,6 +4,7 @@ import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert, strip0x } from '@hyperlane-xyz/utils';
 
 import DomainRoutingIsmAbi from '../../abi/DomainRoutingIsm.json' with { type: 'json' };
+import HypERC20CollateralAbi from '../../abi/HypERC20Collateral.json' with { type: 'json' };
 import HypNativeAbi from '../../abi/HypNative.json' with { type: 'json' };
 import IERC20Abi from '../../abi/IERC20.json' with { type: 'json' };
 import IInterchainSecurityModuleAbi from '../../abi/IInterchainSecurityModule.json' with { type: 'json' };
@@ -351,6 +352,7 @@ export class TronProvider implements AltVM.IProvider {
     const hookAddress = this.tronweb.address.fromHex(
       await contract.hook().call(),
     );
+    const denom = this.tronweb.address.fromHex(await contract.token().call());
 
     const token = {
       address: req.tokenAddress,
@@ -361,7 +363,7 @@ export class TronProvider implements AltVM.IProvider {
       ),
       ismAddress: ismAddress === TRON_EMPTY_ADDRESS ? '' : ismAddress,
       hookAddress: hookAddress === TRON_EMPTY_ADDRESS ? '' : hookAddress,
-      denom: '',
+      denom: denom === TRON_EMPTY_ADDRESS ? '' : denom,
       name: '',
       symbol: '',
       decimals: 0,
@@ -752,9 +754,13 @@ export class TronProvider implements AltVM.IProvider {
   }
 
   async getCreateCollateralTokenTransaction(
-    _req: AltVM.ReqCreateCollateralToken,
+    req: AltVM.ReqCreateCollateralToken,
   ): Promise<TronTransaction> {
-    throw new Error(`not implemented`);
+    return this.createDeploymentTransaction(HypERC20CollateralAbi, req.signer, [
+      req.collateralDenom,
+      1,
+      req.mailboxAddress,
+    ]);
   }
 
   async getCreateSyntheticTokenTransaction(
