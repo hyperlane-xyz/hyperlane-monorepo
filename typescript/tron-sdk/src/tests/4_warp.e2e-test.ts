@@ -4,6 +4,7 @@ import { TronWeb } from 'tronweb';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 
+import ERC20TestAbi from '../../abi/ERC20Test.json' with { type: 'json' };
 import { TronSigner } from '../clients/signer.js';
 import { TronReceipt, TronTransaction } from '../utils/types.js';
 
@@ -15,7 +16,7 @@ describe('4. aleo sdk warp e2e tests', async function () {
   let signer: AltVM.ISigner<TronTransaction, TronReceipt>;
 
   let mailboxAddress: string;
-  // let collateralDenom: string;
+  let collateralDenom: string;
 
   let nativeTokenAddress: string;
   // let collateralTokenAddress: string;
@@ -38,6 +39,30 @@ describe('4. aleo sdk warp e2e tests', async function () {
       domainId: domainId,
     });
     mailboxAddress = mailbox.mailboxAddress;
+
+    const tronweb = new TronWeb({
+      fullHost: localnetRpc,
+      privateKey: privateKey,
+    });
+
+    const options = {
+      feeLimit: 1_000_000_000,
+      callValue: 0,
+      userFeePercentage: 100,
+      originEnergyLimit: 10_000_000,
+      abi: ERC20TestAbi.abi,
+      bytecode: ERC20TestAbi.bytecode,
+      parameters: ['TEST', 'TEST', 100_000_000, 6],
+      name: ERC20TestAbi.contractName,
+    };
+
+    const tx = await tronweb.transactionBuilder.createSmartContract(
+      options,
+      signer.getSignerAddress(),
+    );
+
+    const receipt = await signer.sendAndConfirmTransaction(tx);
+    collateralDenom = receipt.contract_address;
   });
 
   step('create new native token', async () => {

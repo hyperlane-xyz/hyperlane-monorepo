@@ -5,6 +5,7 @@ import { assert, strip0x } from '@hyperlane-xyz/utils';
 
 import DomainRoutingIsmAbi from '../../abi/DomainRoutingIsm.json' with { type: 'json' };
 import HypNativeAbi from '../../abi/HypNative.json' with { type: 'json' };
+import IERC20Abi from '../../abi/IERC20.json' with { type: 'json' };
 import IInterchainSecurityModuleAbi from '../../abi/IInterchainSecurityModule.json' with { type: 'json' };
 import IPostDispatchHookAbi from '../../abi/IPostDispatchHook.json' with { type: 'json' };
 import InterchainGasPaymasterAbi from '../../abi/InterchainGasPaymaster.json' with { type: 'json' };
@@ -63,10 +64,7 @@ export class TronProvider implements AltVM.IProvider {
       name: abi.contractName,
     };
 
-    return this.tronweb.transactionBuilder.createSmartContract(
-      options,
-      this.tronweb.address.toHex(signer),
-    );
+    return this.tronweb.transactionBuilder.createSmartContract(options, signer);
   }
 
   // ### QUERY BASE ###
@@ -86,12 +84,24 @@ export class TronProvider implements AltVM.IProvider {
   }
 
   async getBalance(req: AltVM.ReqGetBalance): Promise<bigint> {
+    if (req.denom) {
+      const erc20 = this.tronweb.contract(IERC20Abi.abi, req.denom);
+      const balance = await erc20.balanceOf(req.address).call();
+      return BigInt(balance);
+    }
+
     const balance = await this.tronweb.trx.getBalance(req.address);
     return BigInt(balance);
   }
 
-  async getTotalSupply(_req: AltVM.ReqGetTotalSupply): Promise<bigint> {
-    throw new Error(`not implemented`);
+  async getTotalSupply(req: AltVM.ReqGetTotalSupply): Promise<bigint> {
+    if (req.denom) {
+      const erc20 = this.tronweb.contract(IERC20Abi.abi, req.denom);
+      const supply = await erc20.totalSupply().call();
+      return BigInt(supply);
+    }
+
+    throw new Error(`Native TRX has no total supply`);
   }
 
   async estimateTransactionFee(
