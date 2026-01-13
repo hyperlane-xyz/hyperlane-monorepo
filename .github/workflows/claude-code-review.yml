@@ -2,27 +2,33 @@ name: Claude Code Review
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'solidity/**'
+      - 'rust/**'
+      - 'typescript/infra/**'
   pull_request_review_comment:
-    types: [created, edited]
-  pull_request_review:
-    types: [submitted]
+    types: [created]
   issue_comment:
-    types: [created, edited]
-  issues:
-    types: [opened]
+    types: [created]
 
 concurrency:
   group: claude-review-${{ github.event.pull_request.number || github.event.issue.number }}
   cancel-in-progress: false
 
 jobs:
-  # Automatic code review on PR open/update
+  # On-demand code review triggered by @claude review comment or 'claude-review' label
   code-review:
     if: |
-      github.event_name == 'pull_request' &&
-      !contains(github.event.pull_request.title, '[skip-review]') &&
-      !contains(join(github.event.pull_request.labels.*.name, ','), 'skip-review')
+      (
+        github.event_name == 'issue_comment' &&
+        github.event.issue.pull_request &&
+        contains(github.event.comment.body, '@claude review')
+      ) ||
+      (
+        github.event_name == 'pull_request' &&
+        contains(join(github.event.pull_request.labels.*.name, ','), 'claude-review')
+      )
     runs-on: depot-ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -32,9 +38,9 @@ jobs:
       id-token: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.event.issue.pull_request.head.sha }}
           fetch-depth: 0
 
       - name: Read code review prompt
@@ -51,14 +57,16 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: ${{ steps.prompt.outputs.content }}
+          track_progress: true
           claude_args: |
             --model claude-opus-4-5
             --max-turns 10
 
-  # Security-focused review using dedicated security action
+  # Security-focused review on mission-critical paths
   security-review:
     if: |
       github.event_name == 'pull_request' &&
+      !github.event.pull_request.draft &&
       !contains(github.event.pull_request.title, '[skip-review]') &&
       !contains(join(github.event.pull_request.labels.*.name, ','), 'skip-review')
     runs-on: depot-ubuntu-latest
@@ -70,10 +78,10 @@ jobs:
       id-token: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 2
+          fetch-depth: 2  # Only need recent commits for security diff analysis
 
       - name: Run Claude Security Review
         uses: anthropics/claude-code-security-review@25e460eb0a12077f0c6a1934d5dbae2f50785dda
@@ -86,13 +94,18 @@ jobs:
           claude-model: claude-opus-4-5
           custom-security-scan-instructions: '.github/prompts/security-scan.md'
 
-  # Interactive @claude mentions in comments and issues
+  # Interactive @claude mentions in comments
   interactive:
     if: |
-      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
-      (github.event_name == 'issues' && contains(github.event.issue.body, '@claude'))
+      (
+        github.event_name == 'issue_comment' &&
+        contains(github.event.comment.body, '@claude') &&
+        !contains(github.event.comment.body, '@claude review')
+      ) ||
+      (
+        github.event_name == 'pull_request_review_comment' &&
+        contains(github.event.comment.body, '@claude')
+      )
     runs-on: depot-ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -102,7 +115,7 @@ jobs:
       id-token: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -110,6 +123,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          track_progress: true
           claude_args: |
-            --model claude-opus-4-5
+            --model claude-sonnet-4-5
             --max-turns 15
