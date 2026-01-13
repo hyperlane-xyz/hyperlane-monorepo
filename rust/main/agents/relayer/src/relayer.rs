@@ -1,20 +1,26 @@
 use std::{
     collections::{HashMap, HashSet},
     fmt::{Debug, Formatter},
+    future::Future,
     hash::Hash,
+    pin::Pin,
     sync::Arc,
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use async_trait::async_trait;
 use axum::Router;
 use derive_more::AsRef;
 use eyre::Result;
-use futures_util::future::try_join_all;
+use futures_util::{
+    future::try_join_all,
+    stream::{FuturesUnordered, StreamExt},
+};
 use tokio::{
     sync::{
         broadcast::Sender as BroadcastSender,
         mpsc::{self, Receiver as MpscReceiver, UnboundedSender},
+        Mutex, RwLock,
     },
     task::JoinHandle,
 };
@@ -49,7 +55,7 @@ use crate::{
         db_loader::{MessageDbLoader, MessageDbLoaderMetrics},
         message_processor::{MessageProcessor, MessageProcessorMetrics},
         metadata::{
-            BaseMetadataBuilder, DefaultIsmCache, IsmAwareAppContextClassifier,
+            BaseMetadataBuilder, DefaultIsmCache, IsmAwareAppContextClassifier, IsmCacheConfig,
             IsmCachePolicyClassifier,
         },
         pending_message::MessageContext,
@@ -67,22 +73,37 @@ const CURSOR_BUILDING_ERROR: &str = "Error building cursor for origin";
 const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
 const ADVANCED_LOG_META: bool = false;
 
+/// Maximum number of retry attempts for chain initialization during startup
+const CHAIN_INIT_MAX_RETRIES: u32 = 10;
+/// Base delay between chain initialization retries (with exponential backoff)
+const CHAIN_INIT_RETRY_BASE_DELAY: Duration = Duration::from_secs(5);
+
 #[derive(Debug, Hash, PartialEq, Eq, Clone)]
-struct ContextKey {
-    origin: HyperlaneDomain,
-    destination: HyperlaneDomain,
+pub(crate) struct ContextKey {
+    pub origin: HyperlaneDomain,
+    /// Destination chain ID for O(1) lookup by (origin, destination_id)
+    pub destination_id: u32,
 }
 
-/// A relayer agent
+/// Dynamic chain maps that can be updated at runtime as chains become ready.
+///
+/// # Lock Ordering
+/// When acquiring multiple locks, always acquire in this order to prevent deadlocks:
+/// 1. `origins`
+/// 2. `destinations`
+/// 3. `msg_ctxs`
+/// 4. `send_channels`
+/// 5. `prep_queues`
+type DynamicOrigins = Arc<RwLock<HashMap<HyperlaneDomain, Origin>>>;
+type DynamicDestinations = Arc<RwLock<HashMap<HyperlaneDomain, Destination>>>;
+pub(crate) type DynamicMessageContexts = Arc<RwLock<HashMap<ContextKey, Arc<MessageContext>>>>;
+
 #[derive(AsRef)]
 pub struct Relayer {
     origin_chains: HashSet<HyperlaneDomain>,
     #[as_ref]
     core: HyperlaneAgentCore,
-    /// Context data for each (origin, destination) chain pair a message can be
-    /// sent between
-    msg_ctxs: HashMap<ContextKey, Arc<MessageContext>>,
-    /// The original reference to the relayer cache
+    msg_ctxs: DynamicMessageContexts,
     _cache: OptionalCache<MeteredCache<LocalCache>>,
     message_whitelist: Arc<MatchingList>,
     message_blacklist: Arc<MatchingList>,
@@ -91,29 +112,51 @@ pub struct Relayer {
     skip_transaction_gas_limit_for: HashSet<u32>,
     allow_local_checkpoint_syncers: bool,
     metric_app_contexts: Vec<(MatchingList, String)>,
+    ism_cache_configs: Vec<IsmCacheConfig>,
     max_retries: u32,
+    destination_wait_timeout: Duration,
     core_metrics: Arc<CoreMetrics>,
-    // TODO: decide whether to consolidate `agent_metrics` and `chain_metrics` into a single struct
-    // or move them in `core_metrics`, like the validator metrics
     agent_metrics: AgentMetrics,
     chain_metrics: ChainMetrics,
     runtime_metrics: RuntimeMetrics,
-    /// Tokio console server
     pub tokio_console_server: Option<console_subscriber::Server>,
 
-    /// The origin chains and their associated structures
-    origins: HashMap<HyperlaneDomain, Origin>,
-    /// The destination chains and their associated structures
-    destinations: HashMap<HyperlaneDomain, Destination>,
+    origins: DynamicOrigins,
+    destinations: DynamicDestinations,
+
+    pending_chain_init: Mutex<Option<PendingChainInit>>,
 }
+
+struct PendingChainInit {
+    origin_futures: Vec<OriginInitFuture>,
+    destination_futures: Vec<DestinationInitFuture>,
+}
+
+type OriginInitFuture = Pin<
+    Box<
+        dyn Future<Output = (HyperlaneDomain, Result<Origin, origin::FactoryError>)>
+            + Send
+            + 'static,
+    >,
+>;
+type DestinationInitFuture = Pin<
+    Box<
+        dyn Future<
+                Output = (
+                    HyperlaneDomain,
+                    Result<Destination, destination::FactoryError>,
+                ),
+            > + Send
+            + 'static,
+    >,
+>;
 
 impl Debug for Relayer {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Relayer {{ origin_chains: {:?}, destination_chains: {:?}, message_whitelist: {:?}, message_blacklist: {:?}, address_blacklist: {:?}, transaction_gas_limit: {:?}, skip_transaction_gas_limit_for: {:?}, allow_local_checkpoint_syncers: {:?} }}",
+            "Relayer {{ origin_chains: {:?}, message_whitelist: {:?}, message_blacklist: {:?}, address_blacklist: {:?}, transaction_gas_limit: {:?}, skip_transaction_gas_limit_for: {:?}, allow_local_checkpoint_syncers: {:?} }}",
             self.origin_chains,
-            self.destinations.values(),
             self.message_whitelist,
             self.message_blacklist,
             self.address_blacklist,
@@ -170,22 +213,28 @@ impl BaseAgent for Relayer {
         let db = DB::from_path(&settings.db)?;
 
         start_entity_init = Instant::now();
-        let origins =
-            Self::build_origins(&settings, db.clone(), core_metrics.clone(), &chain_metrics).await;
-        debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized origin chains", "Relayer startup duration measurement");
-
-        start_entity_init = Instant::now();
         let dispatcher_metrics = DispatcherMetrics::new(core_metrics.registry())
             .expect("Creating dispatcher metrics is infallible");
-        let destinations = Self::build_destinations(
-            &settings,
-            db.clone(),
-            core_metrics.clone(),
-            &chain_metrics,
-            dispatcher_metrics,
-        )
-        .await;
-        debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized destination chains", "Relayer startup duration measurement");
+
+        let (initial_origins, pending_origin_futures, initial_destinations, pending_dest_futures) =
+            Self::build_chains_incrementally(
+                &settings,
+                db.clone(),
+                core_metrics.clone(),
+                &chain_metrics,
+                dispatcher_metrics,
+                settings.initial_chain_readiness_timeout,
+            )
+            .await?;
+
+        debug!(
+            elapsed = ?start_entity_init.elapsed(),
+            initial_origins = initial_origins.len(),
+            pending_origins = pending_origin_futures.len(),
+            initial_destinations = initial_destinations.len(),
+            pending_destinations = pending_dest_futures.len(),
+            "Incremental chain initialization complete"
+        );
 
         let message_whitelist = Arc::new(settings.whitelist);
         let message_blacklist = Arc::new(settings.blacklist);
@@ -203,83 +252,37 @@ impl BaseAgent for Relayer {
         );
 
         start_entity_init = Instant::now();
-        let mut msg_ctxs = HashMap::new();
-        for (destination_domain, destination) in destinations.iter() {
-            let application_operation_verifier = destination.application_operation_verifier.clone();
-            let destination_chain_setup = destination.chain_conf.clone();
-            let destination_mailbox = destination.mailbox.clone();
-            let ccip_signer = destination.ccip_signer.clone();
-
-            let transaction_gas_limit: Option<U256> =
-                if skip_transaction_gas_limit_for.contains(&destination_domain.id()) {
-                    None
-                } else {
-                    transaction_gas_limit
-                };
-
-            let default_ism_getter = DefaultIsmCache::new(destination_mailbox.clone());
-
-            // only iterate through origin chains that were successfully instantiated
-            for (origin_domain, origin) in origins.iter() {
-                let db = &origin.database;
-
-                let origin_chain_setup = origin.chain_conf.clone();
-                let prover_sync = origin.prover_sync.clone();
-                let origin_gas_payment_enforcer = origin.gas_payment_enforcer.clone();
-                let validator_announce = origin.validator_announce.clone();
-
-                // Extract optional Ethereum signer for CCIP-read authentication
-                let metadata_builder = BaseMetadataBuilder::new(
-                    origin_domain.clone(),
-                    destination_chain_setup.clone(),
-                    prover_sync,
-                    validator_announce.clone(),
-                    settings.allow_local_checkpoint_syncers,
-                    core.metrics.clone(),
-                    cache.clone(),
-                    db.clone(),
-                    IsmAwareAppContextClassifier::new(
-                        default_ism_getter.clone(),
-                        settings.metric_app_contexts.clone(),
-                    ),
-                    IsmCachePolicyClassifier::new(
-                        default_ism_getter.clone(),
-                        settings.ism_cache_configs.clone(),
-                    ),
-                    ccip_signer.clone(),
-                    origin_chain_setup.ignore_reorg_reports,
-                );
-
-                msg_ctxs.insert(
-                    ContextKey {
-                        origin: origin_domain.clone(),
-                        destination: destination_domain.clone(),
-                    },
-                    Arc::new(MessageContext {
-                        destination_mailbox: destination_mailbox.clone(),
-                        origin_db: Arc::new(db.clone()),
-                        cache: cache.clone(),
-                        metadata_builder: Arc::new(metadata_builder),
-                        origin_gas_payment_enforcer,
-                        transaction_gas_limit,
-                        metrics: MessageSubmissionMetrics::new(
-                            &core_metrics,
-                            origin_domain,
-                            destination_domain,
-                        ),
-                        application_operation_verifier: application_operation_verifier.clone(),
-                    }),
-                );
-            }
-        }
+        let msg_ctxs = Self::build_message_contexts(
+            initial_origins.iter(),
+            initial_destinations.iter(),
+            &skip_transaction_gas_limit_for,
+            transaction_gas_limit,
+            settings.allow_local_checkpoint_syncers,
+            &core.metrics,
+            &cache,
+            &settings.metric_app_contexts,
+            &settings.ism_cache_configs,
+            &core_metrics,
+        );
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized message contexts", "Relayer startup duration measurement");
 
         debug!(elapsed = ?start.elapsed(), event = "fully initialized", "Relayer startup duration measurement");
 
+        let pending_chain_init = Mutex::new(
+            if pending_origin_futures.is_empty() && pending_dest_futures.is_empty() {
+                None
+            } else {
+                Some(PendingChainInit {
+                    origin_futures: pending_origin_futures,
+                    destination_futures: pending_dest_futures,
+                })
+            },
+        );
+
         Ok(Self {
             _cache: cache,
             origin_chains: settings.origin_chains,
-            msg_ctxs,
+            msg_ctxs: Arc::new(RwLock::new(msg_ctxs)),
             core,
             message_whitelist,
             message_blacklist,
@@ -288,14 +291,17 @@ impl BaseAgent for Relayer {
             skip_transaction_gas_limit_for,
             allow_local_checkpoint_syncers: settings.allow_local_checkpoint_syncers,
             metric_app_contexts: settings.metric_app_contexts,
+            ism_cache_configs: settings.ism_cache_configs,
             max_retries: settings.max_retries,
+            destination_wait_timeout: settings.destination_wait_timeout,
             core_metrics,
             agent_metrics,
             chain_metrics,
             runtime_metrics,
             tokio_console_server: Some(tokio_console_server),
-            origins,
-            destinations,
+            origins: Arc::new(RwLock::new(initial_origins)),
+            destinations: Arc::new(RwLock::new(initial_destinations)),
+            pending_chain_init,
         })
     }
 
@@ -326,204 +332,97 @@ impl BaseAgent for Relayer {
         debug!(elapsed = ?start_entity_init.elapsed(), event = "started tokio console server", "Relayer startup duration measurement");
 
         let sender = BroadcastSender::new(ENDPOINT_MESSAGES_QUEUE_SIZE);
-        // send channels by destination chain
-        let mut send_channels = HashMap::with_capacity(self.destinations.len());
-        let mut prep_queues = HashMap::with_capacity(self.destinations.len());
+        let send_channels: Arc<RwLock<HashMap<u32, UnboundedSender<QueueOperation>>>> =
+            Arc::new(RwLock::new(HashMap::new()));
+        let prep_queues: Arc<RwLock<PrepQueue>> = Arc::new(RwLock::new(HashMap::new()));
+
         start_entity_init = Instant::now();
-        for (dest_domain, destination) in &self.destinations {
-            let dest_conf = &destination.chain_conf;
-
-            let (send_channel, receive_channel) = mpsc::unbounded_channel::<QueueOperation>();
-            send_channels.insert(dest_domain.id(), send_channel);
-
-            let dispatcher_entrypoint = self
-                .destinations
-                .get(dest_domain)
-                .and_then(|d| d.dispatcher_entrypoint.clone());
-
-            let db = match self.origins.get(dest_domain) {
-                Some(origin) => origin.database.clone(),
-                None => {
-                    tracing::error!(domain=?dest_domain.name(), "DB missing");
-                    continue;
-                }
-            };
-
-            // Default to submitting one message at a time if there is no batch config
-            let max_batch_size = self
-                .core
-                .settings
-                .chains
-                .get(dest_domain)
-                .and_then(|chain| {
-                    chain
-                        .connection
-                        .operation_submission_config()
-                        .map(|c| c.max_batch_size)
-                })
-                .unwrap_or(1);
-            let max_submit_queue_len =
-                self.core
-                    .settings
-                    .chains
-                    .get(dest_domain)
-                    .and_then(|chain| {
-                        chain
-                            .connection
-                            .operation_submission_config()
-                            .and_then(|c| c.max_submit_queue_length)
-                    });
-            let message_processor = MessageProcessor::new(
-                dest_domain.clone(),
-                receive_channel,
-                &sender,
-                MessageProcessorMetrics::new(&self.core.metrics, dest_domain),
-                max_batch_size,
-                max_submit_queue_len,
-                task_monitor.clone(),
-                dispatcher_entrypoint,
-                db,
-            );
-            prep_queues.insert(dest_domain.id(), message_processor.prepare_queue().await);
-
-            tasks.push(self.run_destination_processor(
-                dest_domain,
-                message_processor,
-                task_monitor.clone(),
-            ));
-
-            let dispatcher = self
-                .destinations
-                .get(dest_domain)
-                .and_then(|d| d.dispatcher.clone());
-            if let Some(dispatcher) = dispatcher {
-                tasks.push(dispatcher.spawn().await);
-            }
-
-            let metrics_updater = match ChainSpecificMetricsUpdater::new(
-                dest_conf,
-                self.core_metrics.clone(),
-                self.agent_metrics.clone(),
-                self.chain_metrics.clone(),
-                Self::AGENT_NAME.to_string(),
-            )
-            .await
-            {
-                Ok(task) => task,
-                Err(err) => {
-                    Self::record_critical_error(
+        {
+            let destinations = self.destinations.read().await;
+            let origins = self.origins.read().await;
+            for (dest_domain, destination) in destinations.iter() {
+                let dest_tasks = self
+                    .spawn_destination_tasks(
                         dest_domain,
-                        &self.chain_metrics,
-                        &err,
-                        "Failed to build metrics updater",
-                    );
-                    continue;
-                }
-            };
-            tasks.push(metrics_updater.spawn());
+                        destination,
+                        &origins,
+                        &sender,
+                        send_channels.clone(),
+                        prep_queues.clone(),
+                        task_monitor.clone(),
+                    )
+                    .await;
+                tasks.extend(dest_tasks);
+            }
         }
         debug!(elapsed = ?start_entity_init.elapsed(), event = "started processors", "Relayer startup duration measurement");
 
         start_entity_init = Instant::now();
-        for (origin_domain, origin) in self.origins.iter() {
-            let maybe_broadcaster = origin.message_sync.get_broadcaster();
 
-            let message_sync = match self.run_message_sync(origin, task_monitor.clone()).await {
-                Ok(task) => task,
-                Err(err) => {
-                    Self::record_critical_error(
+        // Check if incremental startup is enabled BEFORE spawning origin tasks,
+        // so we can pass dynamic references if needed
+        let pending_init = self.pending_chain_init.lock().await.take();
+        let has_pending_init = pending_init.is_some();
+
+        {
+            let origins = self.origins.read().await;
+            for (origin_domain, origin) in origins.iter() {
+                // When incremental startup is enabled, use spawn_origin_tasks_static
+                // which accepts Arc<RwLock<...>> for send_channels and msg_ctxs.
+                // This allows initial origins to see destinations that are added
+                // during background initialization.
+                if has_pending_init {
+                    let origin_tasks = Self::spawn_origin_tasks_static(
                         origin_domain,
+                        origin,
+                        send_channels.clone(),
+                        task_monitor.clone(),
                         &self.chain_metrics,
-                        &err,
-                        "Failed to run message sync",
-                    );
-                    continue;
-                }
-            };
-            tasks.push(message_sync);
-
-            let interchain_gas_payment_sync = match self
-                .run_interchain_gas_payment_sync(
-                    origin,
-                    BroadcastMpscSender::map_get_receiver(maybe_broadcaster.as_ref()).await,
-                    task_monitor.clone(),
-                )
-                .await
-            {
-                Ok(task) => task,
-                Err(err) => {
-                    Self::record_critical_error(
-                        &origin.domain,
-                        &self.chain_metrics,
-                        &err,
-                        "Failed to run interchain gas payment sync",
-                    );
-                    continue;
-                }
-            };
-            if let Some(task) = interchain_gas_payment_sync {
-                tasks.push(task);
-            }
-
-            let merkle_tree_hook_sync = match self
-                .run_merkle_tree_hook_sync(
-                    origin,
-                    BroadcastMpscSender::map_get_receiver(maybe_broadcaster.as_ref()).await,
-                    task_monitor.clone(),
-                )
-                .await
-            {
-                Ok(task) => task,
-                Err(err) => {
-                    Self::record_critical_error(
-                        origin_domain,
-                        &self.chain_metrics,
-                        &err,
-                        "Failed to run merkle tree hook sync",
-                    );
-                    continue;
-                }
-            };
-            tasks.push(merkle_tree_hook_sync);
-
-            let message_db_loader = match self.run_message_db_loader(
-                origin,
-                send_channels.clone(),
-                task_monitor.clone(),
-            ) {
-                Ok(task) => task,
-                Err(err) => {
-                    Self::record_critical_error(
-                        origin_domain,
-                        &self.chain_metrics,
-                        &err,
-                        "Failed to run message db loader",
-                    );
-                    continue;
-                }
-            };
-            tasks.push(message_db_loader);
-
-            let merkle_tree_db_loader =
-                match self.run_merkle_tree_db_loader(origin, task_monitor.clone()) {
-                    Ok(task) => task,
-                    Err(err) => {
-                        Self::record_critical_error(
+                        &self.core_metrics,
+                        &self.destinations,
+                        self.msg_ctxs.clone(),
+                        &self.message_whitelist,
+                        &self.message_blacklist,
+                        &self.address_blacklist,
+                        &self.metric_app_contexts,
+                        self.max_retries,
+                        self.destination_wait_timeout,
+                    )
+                    .await;
+                    tasks.extend(origin_tasks);
+                } else {
+                    // Non-incremental startup: use snapshot-based method
+                    let send_channels_read = send_channels.read().await;
+                    let origin_tasks = self
+                        .spawn_origin_tasks(
                             origin_domain,
-                            &self.chain_metrics,
-                            &err,
-                            "Failed to run merkle tree db loader",
-                        );
-                        continue;
-                    }
-                };
-            tasks.push(merkle_tree_db_loader);
+                            origin,
+                            &send_channels_read,
+                            task_monitor.clone(),
+                        )
+                        .await;
+                    tasks.extend(origin_tasks);
+                }
+            }
         }
         debug!(elapsed = ?start_entity_init.elapsed(), event = "started message, IGP, merkle tree hook syncs, and message and merkle tree db loader", "Relayer startup duration measurement");
 
-        // run server
-        start_entity_init = Instant::now();
+        if let Some(pending_init) = pending_init {
+            let background_task = self.spawn_background_chain_init(
+                pending_init,
+                sender.clone(),
+                send_channels.clone(),
+                prep_queues.clone(),
+                task_monitor.clone(),
+            );
+            tasks.push(background_task);
+        }
 
+        start_entity_init = Instant::now();
+        // NOTE: The router is built once at startup using a snapshot of currently-ready chains.
+        // Chains that initialize in the background after startup won't have HTTP endpoints
+        // (retry, status, dispatcher commands) until a restart. This is an acceptable tradeoff
+        // for faster startup - the relayer will still process messages for these chains.
         let relayer_router = self.build_router(prep_queues, sender.clone()).await;
         let server = self
             .core
@@ -563,39 +462,37 @@ type PrepQueue = HashMap<
 impl Relayer {
     async fn build_router(
         &self,
-        prep_queues: PrepQueue,
+        prep_queues: Arc<RwLock<PrepQueue>>,
         sender: BroadcastSender<relayer_server::operations::message_retry::MessageRetryRequest>,
     ) -> Router {
-        // create a db mapping for server handlers
-        let dbs: HashMap<u32, HyperlaneRocksDB> = self
-            .origins
+        let origins = self.origins.read().await;
+        let destinations = self.destinations.read().await;
+        let msg_ctxs = self.msg_ctxs.read().await;
+
+        let dbs: HashMap<u32, HyperlaneRocksDB> = origins
             .iter()
             .map(|(origin_domain, origin)| (origin_domain.id(), origin.database.clone()))
             .chain(
-                self.destinations
+                destinations
                     .iter()
                     .map(|(dest_domain, dest)| (dest_domain.id(), dest.database.clone())),
             )
             .collect();
 
-        let gas_enforcers: HashMap<_, _> = self
-            .msg_ctxs
+        let gas_enforcers: HashMap<_, _> = msg_ctxs
             .iter()
             .map(|(key, ctx)| (key.origin.clone(), ctx.origin_gas_payment_enforcer.clone()))
             .collect();
 
-        let msg_ctxs = self
-            .msg_ctxs
+        let msg_ctxs_for_server = msg_ctxs
             .iter()
-            .map(|(key, value)| ((key.origin.id(), key.destination.id()), value.clone()))
+            .map(|(key, value)| ((key.origin.id(), key.destination_id), value.clone()))
             .collect();
-        let prover_syncs: HashMap<_, _> = self
-            .origins
+        let prover_syncs: HashMap<_, _> = origins
             .iter()
             .map(|(key, origin)| (key.id(), origin.prover_sync.clone()))
             .collect();
-        let dispatcher_entrypoints: HashMap<_, _> = self
-            .destinations
+        let dispatcher_entrypoints: HashMap<_, _> = destinations
             .iter()
             .filter_map(|(domain, dest)| {
                 dest.dispatcher_entrypoint.as_ref().map(|entrypoint| {
@@ -606,12 +503,15 @@ impl Relayer {
                 })
             })
             .collect();
-        relayer_server::Server::new(self.destinations.len())
+
+        let prep_queues_snapshot = prep_queues.read().await.clone();
+
+        relayer_server::Server::new(destinations.len())
             .with_op_retry(sender)
-            .with_message_queue(prep_queues)
+            .with_message_queue(prep_queues_snapshot)
             .with_dbs(dbs)
             .with_gas_enforcers(gas_enforcers)
-            .with_msg_ctxs(msg_ctxs)
+            .with_msg_ctxs(msg_ctxs_for_server)
             .with_prover_sync(prover_syncs)
             .with_dispatcher_command_entrypoints(dispatcher_entrypoints)
             .router()
@@ -826,44 +726,39 @@ impl Relayer {
     fn run_message_db_loader(
         &self,
         origin: &Origin,
-        send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
+        send_channels: &HashMap<u32, UnboundedSender<QueueOperation>>,
+        destinations: &HashMap<HyperlaneDomain, Destination>,
+        msg_ctxs: &HashMap<ContextKey, Arc<MessageContext>>,
         task_monitor: TaskMonitor,
     ) -> eyre::Result<JoinHandle<()>> {
-        let metrics = MessageDbLoaderMetrics::new(
-            &self.core.metrics,
-            &origin.domain,
-            self.destinations.keys(),
-        );
-        let destination_ctxs: HashMap<_, _> = self
-            .destinations
-            .keys()
-            .filter_map(|destination| {
-                let key = ContextKey {
-                    origin: origin.domain.clone(),
-                    destination: destination.clone(),
-                };
-                let context = self
-                    .msg_ctxs
-                    .get(&key)
-                    .map(|c| (destination.id(), c.clone()));
+        let metrics =
+            MessageDbLoaderMetrics::new(&self.core.metrics, &origin.domain, destinations.keys());
 
-                if context.is_none() {
-                    let err_msg = format!(
-                        "No message context found for origin {} and destination {}",
-                        origin.domain.name(),
-                        destination.name()
-                    );
-                    Self::record_critical_error(
-                        &origin.domain,
-                        &self.chain_metrics,
-                        &ChainCommunicationError::CustomError(err_msg.clone()),
-                        &err_msg,
-                    );
-                }
+        // For non-incremental startup, we still need to check for missing contexts
+        for destination in destinations.keys() {
+            let key = ContextKey {
+                origin: origin.domain.clone(),
+                destination_id: destination.id(),
+            };
+            if msg_ctxs.get(&key).is_none() {
+                let err_msg = format!(
+                    "No message context found for origin {} and destination {}",
+                    origin.domain.name(),
+                    destination.name()
+                );
+                Self::record_critical_error(
+                    &origin.domain,
+                    &self.chain_metrics,
+                    &ChainCommunicationError::CustomError(err_msg.clone()),
+                    &err_msg,
+                );
+            }
+        }
 
-                context
-            })
-            .collect();
+        // Wrap in Arc<RwLock<...>> for MessageDbLoader (required for dynamic updates
+        // during incremental startup, but also used for non-incremental startup for consistency)
+        let send_channels_dynamic = Arc::new(RwLock::new(send_channels.clone()));
+        let msg_ctxs_dynamic = Arc::new(RwLock::new(msg_ctxs.clone()));
 
         let message_db_loader = MessageDbLoader::new(
             origin.database.clone(),
@@ -871,10 +766,12 @@ impl Relayer {
             self.message_blacklist.clone(),
             self.address_blacklist.clone(),
             metrics,
-            send_channels,
-            destination_ctxs,
+            send_channels_dynamic,
+            origin.domain.clone(),
+            msg_ctxs_dynamic,
             self.metric_app_contexts.clone(),
             self.max_retries,
+            self.destination_wait_timeout,
         );
 
         let span = info_span!("MessageDbLoader", origin=%message_db_loader.domain());
@@ -1054,6 +951,1031 @@ impl Relayer {
             .origin_chains
             .iter()
             .for_each(|origin| chain_metrics.set_critical_error(origin.name(), false));
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn build_chains_incrementally(
+        settings: &RelayerSettings,
+        db: DB,
+        core_metrics: Arc<CoreMetrics>,
+        chain_metrics: &ChainMetrics,
+        dispatcher_metrics: DispatcherMetrics,
+        initial_chain_readiness_timeout: Duration,
+    ) -> Result<(
+        HashMap<HyperlaneDomain, Origin>,
+        Vec<OriginInitFuture>,
+        HashMap<HyperlaneDomain, Destination>,
+        Vec<DestinationInitFuture>,
+    )> {
+        use destination::DestinationFactory;
+        use origin::OriginFactory;
+
+        let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&core_metrics));
+        let origin_factory = Arc::new(OriginFactory::new(
+            db.clone(),
+            core_metrics.clone(),
+            contract_sync_metrics,
+            ADVANCED_LOG_META,
+            settings.tx_id_indexing_enabled,
+            settings.igp_indexing_enabled,
+        ));
+        let dest_factory = Arc::new(DestinationFactory::new(db, core_metrics.clone()));
+
+        // Track retry counts per domain
+        let mut origin_retry_counts: HashMap<HyperlaneDomain, u32> = HashMap::new();
+        let mut dest_retry_counts: HashMap<HyperlaneDomain, u32> = HashMap::new();
+
+        let gas_payment_enforcement = settings.gas_payment_enforcement.clone();
+        let mut origin_futures: FuturesUnordered<OriginInitFuture> = settings
+            .chains
+            .iter()
+            .map(|(domain, chain)| {
+                Self::create_origin_init_future(
+                    domain.clone(),
+                    chain.clone(),
+                    origin_factory.clone(),
+                    gas_payment_enforcement.clone(),
+                    0,
+                )
+            })
+            .collect();
+
+        let mut dest_futures: FuturesUnordered<DestinationInitFuture> = settings
+            .chains
+            .iter()
+            .map(|(domain, chain)| {
+                Self::create_destination_init_future(
+                    domain.clone(),
+                    chain.clone(),
+                    dest_factory.clone(),
+                    dispatcher_metrics.clone(),
+                    0,
+                )
+            })
+            .collect();
+
+        let mut ready_origins: HashMap<HyperlaneDomain, Origin> = HashMap::new();
+        let mut ready_destinations: HashMap<HyperlaneDomain, Destination> = HashMap::new();
+
+        let start = Instant::now();
+        // Use checked_add to avoid arithmetic side effects lint
+        let timeout_at = start
+            .checked_add(initial_chain_readiness_timeout)
+            .unwrap_or(start);
+
+        while (!origin_futures.is_empty() || !dest_futures.is_empty())
+            && (ready_origins.is_empty() || ready_destinations.is_empty())
+        {
+            let remaining_timeout = timeout_at.saturating_duration_since(Instant::now());
+            if remaining_timeout.is_zero() {
+                break;
+            }
+
+            tokio::select! {
+                biased;
+
+                Some((domain, outcome)) = origin_futures.next(), if !origin_futures.is_empty() => {
+                    match outcome {
+                        Ok(origin) => {
+                            info!(domain = %domain.name(), "Origin chain ready");
+                            ready_origins.insert(domain, origin);
+                        }
+                        Err(err) => {
+                            let retry_count = origin_retry_counts.entry(domain.clone()).or_insert(0);
+                            *retry_count = retry_count.saturating_add(1);
+
+                            if *retry_count < CHAIN_INIT_MAX_RETRIES {
+                                let delay = Self::calculate_retry_delay(*retry_count);
+                                warn!(
+                                    domain = %domain.name(),
+                                    retry_count = *retry_count,
+                                    max_retries = CHAIN_INIT_MAX_RETRIES,
+                                    delay_secs = delay.as_secs(),
+                                    error = %err,
+                                    "Origin chain initialization failed, scheduling retry"
+                                );
+
+                                if let Some(chain_conf) = settings.chains.get(&domain) {
+                                    let retry_future = Self::create_origin_init_future(
+                                        domain,
+                                        chain_conf.clone(),
+                                        origin_factory.clone(),
+                                        gas_payment_enforcement.clone(),
+                                        delay.as_secs(),
+                                    );
+                                    origin_futures.push(retry_future);
+                                }
+                            } else {
+                                Self::record_critical_error(
+                                    &domain,
+                                    chain_metrics,
+                                    &err,
+                                    "Critical error when building chain as origin (max retries exceeded)",
+                                );
+                            }
+                        }
+                    }
+                }
+
+                Some((domain, outcome)) = dest_futures.next(), if !dest_futures.is_empty() => {
+                    match outcome {
+                        Ok(destination) => {
+                            info!(domain = %domain.name(), "Destination chain ready");
+                            ready_destinations.insert(domain, destination);
+                        }
+                        Err(err) => {
+                            let retry_count = dest_retry_counts.entry(domain.clone()).or_insert(0);
+                            *retry_count = retry_count.saturating_add(1);
+
+                            if *retry_count < CHAIN_INIT_MAX_RETRIES {
+                                let delay = Self::calculate_retry_delay(*retry_count);
+                                warn!(
+                                    domain = %domain.name(),
+                                    retry_count = *retry_count,
+                                    max_retries = CHAIN_INIT_MAX_RETRIES,
+                                    delay_secs = delay.as_secs(),
+                                    error = %err,
+                                    "Destination chain initialization failed, scheduling retry"
+                                );
+
+                                if let Some(chain_conf) = settings.chains.get(&domain) {
+                                    let retry_future = Self::create_destination_init_future(
+                                        domain,
+                                        chain_conf.clone(),
+                                        dest_factory.clone(),
+                                        dispatcher_metrics.clone(),
+                                        delay.as_secs(),
+                                    );
+                                    dest_futures.push(retry_future);
+                                }
+                            } else {
+                                Self::record_critical_error(
+                                    &domain,
+                                    chain_metrics,
+                                    &err,
+                                    "Critical error when building chain as destination (max retries exceeded)",
+                                );
+                            }
+                        }
+                    }
+                }
+
+                _ = tokio::time::sleep(remaining_timeout) => {
+                    warn!(
+                        elapsed = ?start.elapsed(),
+                        ready_origins = ready_origins.len(),
+                        ready_destinations = ready_destinations.len(),
+                        pending_origins = origin_futures.len(),
+                        pending_destinations = dest_futures.len(),
+                        "Chain initialization timeout reached"
+                    );
+                    break;
+                }
+            }
+        }
+
+        if ready_origins.is_empty() || ready_destinations.is_empty() {
+            return Err(eyre::eyre!(
+                "Failed to initialize minimum required chains. Origins: {}, Destinations: {}",
+                ready_origins.len(),
+                ready_destinations.len()
+            ));
+        }
+
+        info!(
+            elapsed = ?start.elapsed(),
+            ready_origins = ready_origins.len(),
+            pending_origins = origin_futures.len(),
+            ready_destinations = ready_destinations.len(),
+            pending_destinations = dest_futures.len(),
+            "Initial chain readiness achieved"
+        );
+
+        settings
+            .origin_chains
+            .iter()
+            .filter(|domain| !settings.chains.contains_key(domain))
+            .for_each(|domain| {
+                Self::record_critical_error(
+                    domain,
+                    chain_metrics,
+                    &FactoryError::MissingConfiguration(domain.name().to_string()),
+                    "Critical error when building chain as origin",
+                );
+            });
+
+        settings
+            .destination_chains
+            .iter()
+            .filter(|domain| !settings.chains.contains_key(domain))
+            .for_each(|domain| {
+                Self::record_critical_error(
+                    domain,
+                    chain_metrics,
+                    &FactoryError::MissingConfiguration(domain.name().to_string()),
+                    "Critical error when building chain as destination",
+                );
+            });
+
+        // Convert FuturesUnordered to Vec for the pending futures
+        let pending_origin_futures: Vec<OriginInitFuture> = origin_futures.into_iter().collect();
+        let pending_dest_futures: Vec<DestinationInitFuture> = dest_futures.into_iter().collect();
+
+        Ok((
+            ready_origins,
+            pending_origin_futures,
+            ready_destinations,
+            pending_dest_futures,
+        ))
+    }
+
+    /// Calculate exponential backoff delay for retry attempts.
+    fn calculate_retry_delay(retry_count: u32) -> Duration {
+        // Exponential backoff with a cap: 5s, 10s, 20s, 40s, ...
+        let multiplier = 2u64.saturating_pow(retry_count.saturating_sub(1));
+        let delay_secs = CHAIN_INIT_RETRY_BASE_DELAY
+            .as_secs()
+            .saturating_mul(multiplier);
+        // Cap at 60 seconds
+        Duration::from_secs(delay_secs.min(60))
+    }
+
+    /// Create an origin initialization future with optional delay for retries.
+    fn create_origin_init_future(
+        domain: HyperlaneDomain,
+        chain_conf: hyperlane_base::settings::ChainConf,
+        factory: Arc<origin::OriginFactory>,
+        gas_payment_enforcement: Vec<crate::settings::GasPaymentEnforcementConf>,
+        delay_secs: u64,
+    ) -> OriginInitFuture {
+        use origin::Factory as OriginFactoryTrait;
+
+        Box::pin(async move {
+            if delay_secs > 0 {
+                tokio::time::sleep(Duration::from_secs(delay_secs)).await;
+            }
+            let result = factory
+                .create(domain.clone(), &chain_conf, gas_payment_enforcement)
+                .await;
+            (domain, result)
+        })
+    }
+
+    /// Create a destination initialization future with optional delay for retries.
+    fn create_destination_init_future(
+        domain: HyperlaneDomain,
+        chain_conf: hyperlane_base::settings::ChainConf,
+        factory: Arc<destination::DestinationFactory>,
+        dispatcher_metrics: DispatcherMetrics,
+        delay_secs: u64,
+    ) -> DestinationInitFuture {
+        use destination::Factory as DestinationFactoryTrait;
+
+        Box::pin(async move {
+            if delay_secs > 0 {
+                tokio::time::sleep(Duration::from_secs(delay_secs)).await;
+            }
+            let result = factory
+                .create(domain.clone(), chain_conf, dispatcher_metrics)
+                .await;
+            (domain, result)
+        })
+    }
+
+    /// Build message contexts for all origin-destination pairs.
+    ///
+    /// This function accepts iterators to work with both owned and borrowed collections.
+    #[allow(clippy::too_many_arguments)]
+    fn build_message_contexts<'a, O, D>(
+        origins: O,
+        destinations: D,
+        skip_transaction_gas_limit_for: &HashSet<u32>,
+        transaction_gas_limit: Option<U256>,
+        allow_local_checkpoint_syncers: bool,
+        metrics: &Arc<CoreMetrics>,
+        cache: &OptionalCache<MeteredCache<LocalCache>>,
+        metric_app_contexts: &[(MatchingList, String)],
+        ism_cache_configs: &[IsmCacheConfig],
+        core_metrics: &Arc<CoreMetrics>,
+    ) -> HashMap<ContextKey, Arc<MessageContext>>
+    where
+        O: IntoIterator<Item = (&'a HyperlaneDomain, &'a Origin)> + Clone,
+        D: IntoIterator<Item = (&'a HyperlaneDomain, &'a Destination)> + Clone,
+    {
+        let mut msg_ctxs = HashMap::new();
+
+        for (destination_domain, destination) in destinations.clone() {
+            let application_operation_verifier = destination.application_operation_verifier.clone();
+            let destination_chain_setup = destination.chain_conf.clone();
+            let destination_mailbox = destination.mailbox.clone();
+            let ccip_signer = destination.ccip_signer.clone();
+
+            let transaction_gas_limit: Option<U256> =
+                if skip_transaction_gas_limit_for.contains(&destination_domain.id()) {
+                    None
+                } else {
+                    transaction_gas_limit
+                };
+
+            let default_ism_getter = DefaultIsmCache::new(destination_mailbox.clone());
+
+            for (origin_domain, origin) in origins.clone() {
+                let db = &origin.database;
+
+                let origin_chain_setup = origin.chain_conf.clone();
+                let prover_sync = origin.prover_sync.clone();
+                let origin_gas_payment_enforcer = origin.gas_payment_enforcer.clone();
+                let validator_announce = origin.validator_announce.clone();
+
+                let metadata_builder = BaseMetadataBuilder::new(
+                    origin_domain.clone(),
+                    destination_chain_setup.clone(),
+                    prover_sync,
+                    validator_announce.clone(),
+                    allow_local_checkpoint_syncers,
+                    metrics.clone(),
+                    cache.clone(),
+                    db.clone(),
+                    IsmAwareAppContextClassifier::new(
+                        default_ism_getter.clone(),
+                        metric_app_contexts.to_vec(),
+                    ),
+                    IsmCachePolicyClassifier::new(
+                        default_ism_getter.clone(),
+                        ism_cache_configs.to_vec(),
+                    ),
+                    ccip_signer.clone(),
+                    origin_chain_setup.ignore_reorg_reports,
+                );
+
+                msg_ctxs.insert(
+                    ContextKey {
+                        origin: origin_domain.clone(),
+                        destination_id: destination_domain.id(),
+                    },
+                    Arc::new(MessageContext {
+                        destination_mailbox: destination_mailbox.clone(),
+                        origin_db: Arc::new(db.clone()),
+                        cache: cache.clone(),
+                        metadata_builder: Arc::new(metadata_builder),
+                        origin_gas_payment_enforcer,
+                        transaction_gas_limit,
+                        metrics: MessageSubmissionMetrics::new(
+                            core_metrics,
+                            origin_domain,
+                            destination_domain,
+                        ),
+                        application_operation_verifier: application_operation_verifier.clone(),
+                    }),
+                );
+            }
+        }
+
+        msg_ctxs
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn spawn_destination_tasks(
+        &self,
+        dest_domain: &HyperlaneDomain,
+        destination: &Destination,
+        origins: &HashMap<HyperlaneDomain, Origin>,
+        sender: &BroadcastSender<relayer_server::operations::message_retry::MessageRetryRequest>,
+        send_channels: Arc<RwLock<HashMap<u32, UnboundedSender<QueueOperation>>>>,
+        prep_queues: Arc<RwLock<PrepQueue>>,
+        task_monitor: TaskMonitor,
+    ) -> Vec<JoinHandle<()>> {
+        let mut tasks = vec![];
+        let dest_conf = &destination.chain_conf;
+
+        // Match original behavior: skip destination when origin DB is missing
+        let db = match origins.get(dest_domain) {
+            Some(origin) => origin.database.clone(),
+            None => {
+                error!(domain=?dest_domain.name(), "DB missing for destination, skipping destination tasks");
+                return tasks;
+            }
+        };
+
+        let (send_channel, receive_channel) = mpsc::unbounded_channel::<QueueOperation>();
+        send_channels
+            .write()
+            .await
+            .insert(dest_domain.id(), send_channel);
+
+        let dispatcher_entrypoint = destination.dispatcher_entrypoint.clone();
+
+        let max_batch_size = self
+            .core
+            .settings
+            .chains
+            .get(dest_domain)
+            .and_then(|chain| {
+                chain
+                    .connection
+                    .operation_submission_config()
+                    .map(|c| c.max_batch_size)
+            })
+            .unwrap_or(1);
+        let max_submit_queue_len = self
+            .core
+            .settings
+            .chains
+            .get(dest_domain)
+            .and_then(|chain| {
+                chain
+                    .connection
+                    .operation_submission_config()
+                    .and_then(|c| c.max_submit_queue_length)
+            });
+
+        let message_processor = MessageProcessor::new(
+            dest_domain.clone(),
+            receive_channel,
+            sender,
+            MessageProcessorMetrics::new(&self.core.metrics, dest_domain),
+            max_batch_size,
+            max_submit_queue_len,
+            task_monitor.clone(),
+            dispatcher_entrypoint,
+            db,
+        );
+        prep_queues
+            .write()
+            .await
+            .insert(dest_domain.id(), message_processor.prepare_queue().await);
+
+        tasks.push(self.run_destination_processor(
+            dest_domain,
+            message_processor,
+            task_monitor.clone(),
+        ));
+
+        if let Some(dispatcher) = destination.dispatcher.clone() {
+            tasks.push(dispatcher.spawn().await);
+        }
+
+        match ChainSpecificMetricsUpdater::new(
+            dest_conf,
+            self.core_metrics.clone(),
+            self.agent_metrics.clone(),
+            self.chain_metrics.clone(),
+            Self::AGENT_NAME.to_string(),
+        )
+        .await
+        {
+            Ok(task) => tasks.push(task.spawn()),
+            Err(err) => {
+                Self::record_critical_error(
+                    dest_domain,
+                    &self.chain_metrics,
+                    &err,
+                    "Failed to build metrics updater",
+                );
+            }
+        };
+
+        tasks
+    }
+
+    async fn spawn_origin_tasks(
+        &self,
+        origin_domain: &HyperlaneDomain,
+        origin: &Origin,
+        send_channels: &HashMap<u32, UnboundedSender<QueueOperation>>,
+        task_monitor: TaskMonitor,
+    ) -> Vec<JoinHandle<()>> {
+        let mut tasks = vec![];
+
+        let maybe_broadcaster = origin.message_sync.get_broadcaster();
+
+        match self.run_message_sync(origin, task_monitor.clone()).await {
+            Ok(task) => tasks.push(task),
+            Err(err) => {
+                Self::record_critical_error(
+                    origin_domain,
+                    &self.chain_metrics,
+                    &err,
+                    "Failed to run message sync",
+                );
+            }
+        }
+
+        match self
+            .run_interchain_gas_payment_sync(
+                origin,
+                BroadcastMpscSender::map_get_receiver(maybe_broadcaster.as_ref()).await,
+                task_monitor.clone(),
+            )
+            .await
+        {
+            Ok(Some(task)) => tasks.push(task),
+            Ok(None) => {}
+            Err(err) => {
+                Self::record_critical_error(
+                    &origin.domain,
+                    &self.chain_metrics,
+                    &err,
+                    "Failed to run interchain gas payment sync",
+                );
+            }
+        }
+
+        match self
+            .run_merkle_tree_hook_sync(
+                origin,
+                BroadcastMpscSender::map_get_receiver(maybe_broadcaster.as_ref()).await,
+                task_monitor.clone(),
+            )
+            .await
+        {
+            Ok(task) => tasks.push(task),
+            Err(err) => {
+                Self::record_critical_error(
+                    origin_domain,
+                    &self.chain_metrics,
+                    &err,
+                    "Failed to run merkle tree hook sync",
+                );
+            }
+        }
+
+        let destinations = self.destinations.read().await;
+        let msg_ctxs = self.msg_ctxs.read().await;
+        match self.run_message_db_loader(
+            origin,
+            send_channels,
+            &destinations,
+            &msg_ctxs,
+            task_monitor.clone(),
+        ) {
+            Ok(task) => tasks.push(task),
+            Err(err) => {
+                Self::record_critical_error(
+                    origin_domain,
+                    &self.chain_metrics,
+                    &err,
+                    "Failed to run message db loader",
+                );
+            }
+        }
+
+        match self.run_merkle_tree_db_loader(origin, task_monitor.clone()) {
+            Ok(task) => tasks.push(task),
+            Err(err) => {
+                Self::record_critical_error(
+                    origin_domain,
+                    &self.chain_metrics,
+                    &err,
+                    "Failed to run merkle tree db loader",
+                );
+            }
+        }
+
+        tasks
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn spawn_background_chain_init(
+        &self,
+        pending_init: PendingChainInit,
+        sender: BroadcastSender<relayer_server::operations::message_retry::MessageRetryRequest>,
+        send_channels: Arc<RwLock<HashMap<u32, UnboundedSender<QueueOperation>>>>,
+        prep_queues: Arc<RwLock<PrepQueue>>,
+        task_monitor: TaskMonitor,
+    ) -> JoinHandle<()> {
+        let origins = self.origins.clone();
+        let destinations = self.destinations.clone();
+        let msg_ctxs = self.msg_ctxs.clone();
+        let chain_metrics = self.chain_metrics.clone();
+        let core_metrics = self.core_metrics.clone();
+        let agent_metrics = self.agent_metrics.clone();
+        let chain_settings = self.core.settings.chains.clone();
+
+        let skip_transaction_gas_limit_for = self.skip_transaction_gas_limit_for.clone();
+        let transaction_gas_limit = self.transaction_gas_limit;
+        let allow_local_checkpoint_syncers = self.allow_local_checkpoint_syncers;
+        let metric_app_contexts = self.metric_app_contexts.clone();
+        let ism_cache_configs = self.ism_cache_configs.clone();
+        let message_whitelist = self.message_whitelist.clone();
+        let message_blacklist = self.message_blacklist.clone();
+        let address_blacklist = self.address_blacklist.clone();
+        let max_retries = self.max_retries;
+        let destination_wait_timeout = self.destination_wait_timeout;
+        let _cache = self._cache.clone();
+
+        tokio::spawn(
+            async move {
+                let PendingChainInit {
+                    origin_futures,
+                    destination_futures,
+                } = pending_init;
+
+                // Convert to FuturesUnordered to avoid futures being lost when select! switches branches
+                let mut origin_futures: FuturesUnordered<OriginInitFuture> = origin_futures.into_iter().collect();
+                let mut destination_futures: FuturesUnordered<DestinationInitFuture> = destination_futures.into_iter().collect();
+
+                while !origin_futures.is_empty() || !destination_futures.is_empty() {
+                    tokio::select! {
+                        biased;
+
+                        Some((domain, outcome)) = origin_futures.next(), if !origin_futures.is_empty() => {
+                            match outcome {
+                                Ok(origin) => {
+                                    info!(domain = %domain.name(), "Background: Origin chain ready");
+
+                                    origins.write().await.insert(domain.clone(), origin);
+
+                                    let origins_read = origins.read().await;
+                                    let destinations_read = destinations.read().await;
+
+                                    if let Some(origin_ref) = origins_read.get(&domain) {
+                                        let new_contexts = Self::build_message_contexts(
+                                            std::iter::once((&domain, origin_ref)),
+                                            destinations_read.iter(),
+                                            &skip_transaction_gas_limit_for,
+                                            transaction_gas_limit,
+                                            allow_local_checkpoint_syncers,
+                                            &core_metrics,
+                                            &_cache,
+                                            &metric_app_contexts,
+                                            &ism_cache_configs,
+                                            &core_metrics,
+                                        );
+
+                                        msg_ctxs.write().await.extend(new_contexts);
+
+                                        let origin_tasks = Self::spawn_origin_tasks_static(
+                                            &domain,
+                                            origin_ref,
+                                            send_channels.clone(),
+                                            task_monitor.clone(),
+                                            &chain_metrics,
+                                            &core_metrics,
+                                            &destinations,
+                                            msg_ctxs.clone(),
+                                            &message_whitelist,
+                                            &message_blacklist,
+                                            &address_blacklist,
+                                            &metric_app_contexts,
+                                            max_retries,
+                                            destination_wait_timeout,
+                                        ).await;
+
+                                        drop(origin_tasks);
+
+                                        // Check if this origin is also in destinations but its destination
+                                        // tasks were skipped earlier (because the origin wasn't ready yet).
+                                        // If so, spawn the destination tasks now.
+                                        if let Some(dest_ref) = destinations_read.get(&domain) {
+                                            let send_channels_read = send_channels.read().await;
+                                            let needs_destination_tasks = !send_channels_read.contains_key(&domain.id());
+                                            drop(send_channels_read);
+
+                                            if needs_destination_tasks {
+                                                info!(domain = %domain.name(), "Background: Spawning previously-skipped destination tasks for origin");
+                                                let dest_tasks = Self::spawn_destination_tasks_static(
+                                                    &domain,
+                                                    dest_ref,
+                                                    &origins_read,
+                                                    &sender,
+                                                    send_channels.clone(),
+                                                    prep_queues.clone(),
+                                                    task_monitor.clone(),
+                                                    &chain_metrics,
+                                                    &chain_settings,
+                                                    &core_metrics,
+                                                    &agent_metrics,
+                                                ).await;
+
+                                                drop(dest_tasks);
+                                            }
+                                        }
+                                    }
+                                }
+                                Err(err) => {
+                                    Self::record_critical_error(
+                                        &domain,
+                                        &chain_metrics,
+                                        &err,
+                                        "Background: Critical error when building chain as origin",
+                                    );
+                                }
+                            }
+                        }
+
+                        Some((domain, outcome)) = destination_futures.next(), if !destination_futures.is_empty() => {
+                            match outcome {
+                                Ok(destination) => {
+                                    info!(domain = %domain.name(), "Background: Destination chain ready");
+
+                                    let origins_read = origins.read().await;
+                                    let dest_tasks = Self::spawn_destination_tasks_static(
+                                        &domain,
+                                        &destination,
+                                        &origins_read,
+                                        &sender,
+                                        send_channels.clone(),
+                                        prep_queues.clone(),
+                                        task_monitor.clone(),
+                                        &chain_metrics,
+                                        &chain_settings,
+                                        &core_metrics,
+                                        &agent_metrics,
+                                    ).await;
+                                    drop(origins_read);
+
+                                    destinations.write().await.insert(domain.clone(), destination);
+
+                                    let origins_read = origins.read().await;
+                                    let destinations_read = destinations.read().await;
+
+                                    if let Some(dest_ref) = destinations_read.get(&domain) {
+                                        let new_contexts = Self::build_message_contexts(
+                                            origins_read.iter(),
+                                            std::iter::once((&domain, dest_ref)),
+                                            &skip_transaction_gas_limit_for,
+                                            transaction_gas_limit,
+                                            allow_local_checkpoint_syncers,
+                                            &core_metrics,
+                                            &_cache,
+                                            &metric_app_contexts,
+                                            &ism_cache_configs,
+                                            &core_metrics,
+                                        );
+
+                                        msg_ctxs.write().await.extend(new_contexts);
+                                    }
+
+                                    drop(dest_tasks);
+                                }
+                                Err(err) => {
+                                    Self::record_critical_error(
+                                        &domain,
+                                        &chain_metrics,
+                                        &err,
+                                        "Background: Critical error when building chain as destination",
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+
+                info!("Background chain initialization complete");
+            }
+            .instrument(info_span!("BackgroundChainInit")),
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn spawn_origin_tasks_static(
+        origin_domain: &HyperlaneDomain,
+        origin: &Origin,
+        send_channels: Arc<RwLock<HashMap<u32, UnboundedSender<QueueOperation>>>>,
+        task_monitor: TaskMonitor,
+        chain_metrics: &ChainMetrics,
+        core_metrics: &Arc<CoreMetrics>,
+        destinations: &DynamicDestinations,
+        msg_ctxs: DynamicMessageContexts,
+        message_whitelist: &Arc<MatchingList>,
+        message_blacklist: &Arc<MatchingList>,
+        address_blacklist: &Arc<AddressBlacklist>,
+        metric_app_contexts: &[(MatchingList, String)],
+        max_retries: u32,
+        destination_wait_timeout: Duration,
+    ) -> Vec<JoinHandle<()>> {
+        let mut tasks = vec![];
+
+        let maybe_broadcaster = origin.message_sync.get_broadcaster();
+
+        let index_settings = origin.chain_conf.index_settings().clone();
+        let contract_sync = origin.message_sync.clone();
+        let origin_domain_clone = origin_domain.clone();
+        let chain_metrics_clone = chain_metrics.clone();
+
+        let name = Self::contract_sync_task_name("message::", origin_domain.name());
+        let message_sync_task = tokio::task::Builder::new()
+            .name(&name)
+            .spawn(TaskMonitor::instrument(
+                &task_monitor,
+                async move {
+                    Self::message_sync_task(
+                        &origin_domain_clone,
+                        contract_sync,
+                        index_settings,
+                        chain_metrics_clone,
+                    )
+                    .await;
+                }
+                .instrument(info_span!("MessageSync")),
+            ))
+            .expect("spawning tokio task from Builder is infallible");
+        tasks.push(message_sync_task);
+
+        if let Some(igp_sync) = origin.interchain_gas_payment_sync.as_ref() {
+            let contract_sync = igp_sync.clone();
+            let index_settings = origin.chain_conf.index_settings().clone();
+            let origin_domain_clone = origin_domain.clone();
+            let chain_metrics_clone = chain_metrics.clone();
+            let tx_id_receiver =
+                BroadcastMpscSender::map_get_receiver(maybe_broadcaster.as_ref()).await;
+
+            let name = Self::contract_sync_task_name("gas_payment::", origin_domain.name());
+            let igp_task = tokio::task::Builder::new()
+                .name(&name)
+                .spawn(TaskMonitor::instrument(
+                    &task_monitor,
+                    async move {
+                        Self::interchain_gas_payments_sync_task(
+                            &origin_domain_clone,
+                            index_settings,
+                            contract_sync,
+                            chain_metrics_clone,
+                            tx_id_receiver,
+                        )
+                        .await;
+                    }
+                    .instrument(info_span!("IgpSync")),
+                ))
+                .expect("spawning tokio task from Builder is infallible");
+            tasks.push(igp_task);
+        }
+
+        let contract_sync = origin.merkle_tree_hook_sync.clone();
+        let index_settings = origin.chain_conf.index_settings().clone();
+        let origin_domain_clone = origin_domain.clone();
+        let chain_metrics_clone = chain_metrics.clone();
+        let tx_id_receiver =
+            BroadcastMpscSender::map_get_receiver(maybe_broadcaster.as_ref()).await;
+
+        let name = Self::contract_sync_task_name("merkle_tree::", origin_domain.name());
+        let merkle_task = tokio::task::Builder::new()
+            .name(&name)
+            .spawn(TaskMonitor::instrument(
+                &task_monitor,
+                async move {
+                    Self::merkle_tree_hook_sync_task(
+                        &origin_domain_clone,
+                        index_settings,
+                        contract_sync,
+                        chain_metrics_clone,
+                        tx_id_receiver,
+                    )
+                    .await;
+                }
+                .instrument(info_span!("MerkleTreeHookSync")),
+            ))
+            .expect("spawning tokio task from Builder is infallible");
+        tasks.push(merkle_task);
+
+        let destinations_read = destinations.read().await;
+
+        let metrics =
+            MessageDbLoaderMetrics::new(core_metrics, &origin.domain, destinations_read.keys());
+
+        // Drop the read lock before passing to MessageDbLoader
+        drop(destinations_read);
+
+        let message_db_loader = MessageDbLoader::new(
+            origin.database.clone(),
+            message_whitelist.clone(),
+            message_blacklist.clone(),
+            address_blacklist.clone(),
+            metrics,
+            send_channels,
+            origin_domain.clone(),
+            msg_ctxs,
+            metric_app_contexts.to_vec(),
+            max_retries,
+            destination_wait_timeout,
+        );
+
+        let span = info_span!("MessageDbLoader", origin=%message_db_loader.domain());
+        let db_loader = DbLoader::new(Box::new(message_db_loader), task_monitor.clone());
+        tasks.push(db_loader.spawn(span));
+
+        let metrics = MerkleTreeDbLoaderMetrics::new(core_metrics, &origin.domain);
+        let merkle_tree_db_loader =
+            MerkleTreeDbLoader::new(origin.database.clone(), metrics, origin.prover_sync.clone());
+        let span = info_span!("MerkleTreeDbLoader", origin=%merkle_tree_db_loader.domain());
+        let db_loader = DbLoader::new(Box::new(merkle_tree_db_loader), task_monitor.clone());
+        tasks.push(db_loader.spawn(span));
+
+        tasks
+    }
+
+    #[allow(clippy::panic)]
+    #[allow(clippy::too_many_arguments)]
+    async fn spawn_destination_tasks_static(
+        dest_domain: &HyperlaneDomain,
+        destination: &Destination,
+        origins: &HashMap<HyperlaneDomain, Origin>,
+        sender: &BroadcastSender<relayer_server::operations::message_retry::MessageRetryRequest>,
+        send_channels: Arc<RwLock<HashMap<u32, UnboundedSender<QueueOperation>>>>,
+        prep_queues: Arc<RwLock<PrepQueue>>,
+        task_monitor: TaskMonitor,
+        chain_metrics: &ChainMetrics,
+        chain_settings: &HashMap<HyperlaneDomain, hyperlane_base::settings::ChainConf>,
+        core_metrics: &Arc<CoreMetrics>,
+        agent_metrics: &AgentMetrics,
+    ) -> Vec<JoinHandle<()>> {
+        let mut tasks = vec![];
+        let dest_conf = &destination.chain_conf;
+
+        // Match original behavior: skip destination when origin DB is missing
+        let db = match origins.get(dest_domain) {
+            Some(origin) => origin.database.clone(),
+            None => {
+                error!(domain=?dest_domain.name(), "DB missing for destination, skipping destination tasks");
+                return tasks;
+            }
+        };
+
+        let (send_channel, receive_channel) = mpsc::unbounded_channel::<QueueOperation>();
+        send_channels
+            .write()
+            .await
+            .insert(dest_domain.id(), send_channel);
+
+        let dispatcher_entrypoint = destination.dispatcher_entrypoint.clone();
+
+        let max_batch_size = chain_settings
+            .get(dest_domain)
+            .and_then(|chain| {
+                chain
+                    .connection
+                    .operation_submission_config()
+                    .map(|c| c.max_batch_size)
+            })
+            .unwrap_or(1);
+        let max_submit_queue_len = chain_settings.get(dest_domain).and_then(|chain| {
+            chain
+                .connection
+                .operation_submission_config()
+                .and_then(|c| c.max_submit_queue_length)
+        });
+
+        let message_processor = MessageProcessor::new(
+            dest_domain.clone(),
+            receive_channel,
+            sender,
+            MessageProcessorMetrics::new(core_metrics, dest_domain),
+            max_batch_size,
+            max_submit_queue_len,
+            task_monitor.clone(),
+            dispatcher_entrypoint,
+            db,
+        );
+        prep_queues
+            .write()
+            .await
+            .insert(dest_domain.id(), message_processor.prepare_queue().await);
+
+        let span = info_span!("MessageProcessor", destination=%dest_domain);
+        let dest_domain_clone = dest_domain.clone();
+        let name = format!("message_processor::destination::{}", dest_domain.name());
+        let processor_task = tokio::task::Builder::new()
+            .name(&name)
+            .spawn(TaskMonitor::instrument(
+                &task_monitor,
+                async move {
+                    message_processor.spawn().await.unwrap_or_else(|err| {
+                        panic!(
+                            "destination processor panicked for destination {dest_domain_clone}: {err:?}"
+                        )
+                    });
+                }
+                .instrument(span),
+            ))
+            .expect("spawning tokio task from Builder is infallible");
+        tasks.push(processor_task);
+
+        if let Some(dispatcher) = destination.dispatcher.clone() {
+            tasks.push(dispatcher.spawn().await);
+        }
+
+        match ChainSpecificMetricsUpdater::new(
+            dest_conf,
+            core_metrics.clone(),
+            agent_metrics.clone(),
+            chain_metrics.clone(),
+            Relayer::AGENT_NAME.to_string(),
+        )
+        .await
+        {
+            Ok(task) => tasks.push(task.spawn()),
+            Err(err) => {
+                Self::record_critical_error(
+                    dest_domain,
+                    chain_metrics,
+                    &err,
+                    "Failed to build metrics updater",
+                );
+            }
+        };
+
+        tasks
     }
 }
 
