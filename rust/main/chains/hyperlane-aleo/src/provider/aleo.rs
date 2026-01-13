@@ -13,7 +13,7 @@ use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
 use snarkvm::{
     ledger::{
         store::{helpers::memory::ConsensusMemory, ConsensusStore},
-        ConfirmedTransaction,
+        ConfirmedTransaction, Transaction,
     },
     prelude::{
         cost_in_microcredits_v3, execution_cost_for_authorization, Authorization, CanaryV0,
@@ -471,9 +471,26 @@ impl<C: AleoClient> AleoProvider<C> {
         // Either use the proving service or generate the proof locally
         let transaction = match self.proving_service {
             Some(ref client) => client.proving_request(authorization, fee).await,
-            None => Ok(vm
-                .execute_authorization(authorization, Some(fee), Some(&self.client), &mut rng)
-                .map_err(HyperlaneAleoError::from)?),
+            None => {
+                let vm = vm.clone();
+                let client = self.client.clone();
+                let transaction = tokio::task::Builder::new()
+                    .name("aleo_execute_authorization")
+                    .spawn_blocking(move || {
+                        let transaction = vm
+                            .execute_authorization(
+                                authorization,
+                                Some(fee),
+                                Some(&client),
+                                &mut rng,
+                            )
+                            .map_err(HyperlaneAleoError::from)?;
+                        Result::<Transaction<N>, HyperlaneAleoError>::Ok(transaction)
+                    })
+                    .map_err(|e| HyperlaneAleoError::Other(format!("Failed to spawn task: {e}")))?
+                    .await??;
+                Ok(transaction)
+            }
         }?;
 
         let time = Instant::now().duration_since(start);
