@@ -481,7 +481,10 @@ async fn respond_validate_confirmed_withdrawals<
     let conf_fxg: ConfirmationFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
 
     if res.must_val_stuff().toggles.validate_confirmations {
-        validate_confirmed_withdrawals(&conf_fxg, res.must_rest_client(), &res.must_escrow().addr)
+        let src_escrow = &res.must_escrow().addr;
+        let migration_target = res.must_val_stuff().toggles.parsed_migration_target();
+        let dst_escrow = migration_target.as_ref().unwrap_or(src_escrow);
+        validate_confirmed_withdrawals(&conf_fxg, res.must_rest_client(), src_escrow, dst_escrow)
             .await
             .map_err(|e| {
                 eprintln!("Withdrawal confirmation validation failed: {:?}", e);

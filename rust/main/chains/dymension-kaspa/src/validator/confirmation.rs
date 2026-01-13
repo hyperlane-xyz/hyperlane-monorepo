@@ -33,10 +33,15 @@ fn proto_to_outpoint(
 /// that should start from the current hub anchor and end with the new one.
 /// The validator checks that indeed that set of outpoints is from a real withdrawal
 /// sequence on Kaspa chain.
+///
+/// `src_escrow` and `dst_escrow` define valid escrow addresses for the confirmation trace.
+/// Normally these are the same address. During migration, `src_escrow` is the old escrow
+/// and `dst_escrow` is the new escrow, allowing the trace to cross the migration boundary.
 pub async fn validate_confirmed_withdrawals(
     fxg: &ConfirmationFXG,
     client_rest: &HttpClient,
-    escrow_address: &Address,
+    src_escrow: &Address,
+    dst_escrow: &Address,
 ) -> Result<(), ValidationError> {
     info!("Validator: Starting validation of withdrawals confirmation");
 
@@ -90,7 +95,7 @@ pub async fn validate_confirmed_withdrawals(
         }
 
         // Validate that this transaction creates the current outpoint
-        escrow_outpoint_in_outputs(&tx, o, escrow_address)?;
+        escrow_outpoint_in_outputs(&tx, o, src_escrow, dst_escrow)?;
 
         let p = tx
             .payload
@@ -173,11 +178,12 @@ fn outpoint_in_inputs(
 }
 
 /// Validate that the anchor is referenced in the current transaction's outputs
-/// and it is an escrow change
+/// and it is an escrow change (either src or dst escrow).
 fn escrow_outpoint_in_outputs(
     tx_trusted: &TxModel,
-    escrow_outpoint_unstrusted: &TransactionOutpoint,
-    escrow_address: &Address,
+    escrow_outpoint_untrusted: &TransactionOutpoint,
+    src_escrow: &Address,
+    dst_escrow: &Address,
 ) -> Result<(), ValidationError> {
     let outs = tx_trusted
         .outputs
@@ -185,20 +191,24 @@ fn escrow_outpoint_in_outputs(
         .ok_or(ValidationError::MissingTransactionOutputs)?;
 
     let out_actual: &TxOutput = outs
-        .get(escrow_outpoint_unstrusted.index as usize)
+        .get(escrow_outpoint_untrusted.index as usize)
         .ok_or(ValidationError::NextAnchorNotFound)?;
 
-    // We already know this TX spends escrow funds, so it must be signed by validators
-    // Validators only sign withdrawals containing exactly one change output back to the escrow
-    // So this must be the unique change output
+    // We already know this TX spends escrow funds, so it must be signed by validators.
+    // Validators only sign withdrawals containing exactly one change output back to escrow.
+    // We accept both src and dst because the trace may span the migration boundary:
+    // pre-migration TXs output to src, the migration TX outputs to dst.
     let recipient_actual = out_actual
         .script_public_key_address
         .clone()
         .ok_or(ValidationError::MissingScriptPubKeyAddress)?;
 
-    if recipient_actual != escrow_address.address_to_string() {
+    let src_str = src_escrow.address_to_string();
+    let dst_str = dst_escrow.address_to_string();
+
+    if recipient_actual != src_str && recipient_actual != dst_str {
         return Err(ValidationError::NonEscrowAnchor {
-            o: *escrow_outpoint_unstrusted,
+            o: *escrow_outpoint_untrusted,
         });
     }
 
