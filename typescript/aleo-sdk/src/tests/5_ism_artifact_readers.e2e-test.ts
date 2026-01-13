@@ -40,96 +40,76 @@ describe('5. aleo sdk ISM artifact readers e2e tests', async function () {
     artifactManager = new AleoIsmArtifactManager(aleoClient);
   });
 
-  describe('Non composite ISMs', () => {
-    describe('Test ISM (NoopIsm)', () => {
-      let testIsmAddress: string;
-
-      step('should create and read a Test ISM', async () => {
-        // Create Test ISM using signer
-        const { ismAddress } = await signer.createNoopIsm({});
-        testIsmAddress = ismAddress;
-
-        expect(testIsmAddress).to.be.a('string').and.not.be.empty;
-
-        // Read using artifact manager's specific reader
-        const reader = artifactManager.createReader(AltVM.IsmType.TEST_ISM);
-        const readIsm = await reader.read(testIsmAddress);
-
-        expect(readIsm.artifactState).to.equal(ArtifactState.DEPLOYED);
+  // Test cases for simple (non-composite) ISMs
+  const simpleIsmTestCases = [
+    {
+      name: 'Test ISM (NoopIsm)',
+      ismType: AltVM.IsmType.TEST_ISM as AltVM.IsmType.TEST_ISM,
+      createIsm: async () => signer.createNoopIsm({}),
+      validateConfig: (readIsm: any) => {
         expect(readIsm.config.type).to.equal(AltVM.IsmType.TEST_ISM);
-        expect(readIsm.deployed.address).to.equal(testIsmAddress);
-      });
-
-      step(
-        'should read Test ISM using AleoIsmArtifactManager.readIsm()',
-        async () => {
-          // Read using the generic readIsm method that auto-detects ISM type
-          const readIsm = await artifactManager.readIsm(testIsmAddress);
-
-          expect(readIsm.artifactState).to.equal(ArtifactState.DEPLOYED);
-          expect(readIsm.config.type).to.equal(AltVM.IsmType.TEST_ISM);
-          expect(readIsm.deployed.address).to.equal(testIsmAddress);
-        },
-      );
-    });
-
-    describe('Message ID Multisig ISM', () => {
-      let multisigIsmAddress: string;
-      const threshold = 2;
-
-      step('should create and read a MessageId Multisig ISM', async () => {
-        // Create MessageId Multisig ISM using signer
-        const { ismAddress } = await signer.createMessageIdMultisigIsm({
+      },
+    },
+    {
+      name: 'Message ID Multisig ISM',
+      ismType: AltVM.IsmType
+        .MESSAGE_ID_MULTISIG as AltVM.IsmType.MESSAGE_ID_MULTISIG,
+      createIsm: async () =>
+        signer.createMessageIdMultisigIsm({
           validators,
-          threshold,
-        });
-        multisigIsmAddress = ismAddress;
-
-        expect(multisigIsmAddress).to.be.a('string').and.not.be.empty;
-
-        // Read using artifact manager's specific reader
-        const reader = artifactManager.createReader(
-          AltVM.IsmType.MESSAGE_ID_MULTISIG,
-        );
-        const readIsm = await reader.read(multisigIsmAddress);
-
-        expect(readIsm.artifactState).to.equal(ArtifactState.DEPLOYED);
+          threshold: 2,
+        }),
+      validateConfig: (readIsm: any) => {
         expect(readIsm.config.type).to.equal(AltVM.IsmType.MESSAGE_ID_MULTISIG);
-        expect(readIsm.deployed.address).to.equal(multisigIsmAddress);
-
         // Verify config matches expected values
         expect(normalizeConfig(readIsm.config)).to.deep.equal(
           normalizeConfig({
             type: AltVM.IsmType.MESSAGE_ID_MULTISIG,
             validators,
-            threshold,
+            threshold: 2,
           }),
         );
-      });
+      },
+    },
+  ];
 
-      step(
-        'should read MessageId Multisig ISM using AleoIsmArtifactManager.readIsm()',
-        async () => {
-          // Read using the generic readIsm method that auto-detects ISM type
-          const readIsm = await artifactManager.readIsm(multisigIsmAddress);
+  describe('Non composite ISMs', () => {
+    // Table-driven tests for simple ISMs
+    simpleIsmTestCases.forEach(
+      ({ name, ismType, createIsm, validateConfig }) => {
+        describe(name, () => {
+          let ismAddress: string;
 
-          expect(readIsm.artifactState).to.equal(ArtifactState.DEPLOYED);
-          expect(readIsm.config.type).to.equal(
-            AltVM.IsmType.MESSAGE_ID_MULTISIG,
+          step(`should create and read a ${name}`, async () => {
+            // Create ISM using signer
+            const { ismAddress: address } = await createIsm();
+            ismAddress = address;
+
+            expect(ismAddress).to.be.a('string').and.not.be.empty;
+
+            // Read using artifact manager's specific reader
+            const reader = artifactManager.createReader(ismType);
+            const readIsm = await reader.read(ismAddress);
+
+            expect(readIsm.artifactState).to.equal(ArtifactState.DEPLOYED);
+            expect(readIsm.deployed.address).to.equal(ismAddress);
+            validateConfig(readIsm);
+          });
+
+          step(
+            `should read ${name} using AleoIsmArtifactManager.readIsm()`,
+            async () => {
+              // Read using the generic readIsm method that auto-detects ISM type
+              const readIsm = await artifactManager.readIsm(ismAddress);
+
+              expect(readIsm.artifactState).to.equal(ArtifactState.DEPLOYED);
+              expect(readIsm.deployed.address).to.equal(ismAddress);
+              validateConfig(readIsm);
+            },
           );
-          expect(readIsm.deployed.address).to.equal(multisigIsmAddress);
-
-          // Verify config matches expected values
-          expect(normalizeConfig(readIsm.config)).to.deep.equal(
-            normalizeConfig({
-              type: AltVM.IsmType.MESSAGE_ID_MULTISIG,
-              validators,
-              threshold,
-            }),
-          );
-        },
-      );
-    });
+        });
+      },
+    );
 
     describe('MerkleRoot Multisig ISM (unsupported)', () => {
       step('should reject creation of MerkleRoot Multisig ISM', async () => {
