@@ -10,6 +10,7 @@ import {
   getRoutingIsmConfig,
   getTestIsmConfig,
 } from '../ism/ism-query.js';
+import { getCreateTestIsmTx } from '../ism/ism-tx.js';
 import {
   ALEO_NATIVE_DENOM,
   ALEO_NULL_ADDRESS,
@@ -789,13 +790,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async getCreateNoopIsmTransaction(
     _req: AltVM.ReqCreateNoopIsm,
   ): Promise<AleoTransaction> {
-    return {
-      programName: this.ismManager,
-      functionName: 'init_noop',
-      priorityFee: 0,
-      privateFee: false,
-      inputs: [],
-    };
+    return getCreateTestIsmTx(this.ismManager);
   }
 
   async getCreateMerkleTreeHookTransaction(
