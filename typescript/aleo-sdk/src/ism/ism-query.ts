@@ -243,7 +243,7 @@ export async function getRoutingIsmConfig(
     formatRouteLength,
   );
 
-  for (let i = 0; i < (routeLengthRes || 0); i++) {
+  for (let i = 0; i < routeLengthRes; i++) {
     const routeKey = await aleoClient.getProgramMappingPlaintext(
       programId,
       'route_iter',
