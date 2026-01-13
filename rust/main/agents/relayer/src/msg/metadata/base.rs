@@ -9,7 +9,6 @@ use std::{
 };
 
 use derive_new::new;
-use ethers::utils::hex;
 use eyre::Result;
 use num_traits::cast::FromPrimitive;
 use serde::{Deserialize, Deserializer};
@@ -20,7 +19,7 @@ use hyperlane_core::{
     ReorgEventResponse, H256,
 };
 
-use crate::settings::matching_list::{MatchInfo, MatchingList};
+use crate::settings::matching_list::MatchingList;
 
 #[derive(Clone, Debug, PartialEq, thiserror::Error)]
 pub enum MetadataBuildError {
@@ -182,12 +181,10 @@ struct AppMatchingList {
     app_context: String,
     origin_domains: Option<HashSet<u32>>,
     destination_domains: Option<HashSet<u32>>,
-    has_body_regex: bool,
 }
 
 impl AppMatchingList {
     fn new(matching_list: MatchingList, app_context: String) -> Self {
-        let has_body_regex = matching_list.has_body_regex();
         let origin_domains = matching_list.origin_domains();
         let destination_domains = matching_list.destination_domains();
 
@@ -196,7 +193,6 @@ impl AppMatchingList {
             app_context,
             origin_domains,
             destination_domains,
-            has_body_regex,
         }
     }
 }
@@ -222,31 +218,21 @@ impl AppContextClassifier {
         // Give priority to the matching list. If the app from the matching list happens
         // to use the default ISM, it's preferable to use the app context from the matching
         // list.
-        let info = MatchInfo::from(message);
-        let mut body_hex = None;
         for entry in self.app_matching_lists.iter() {
+            // Early rejection based on domains
             if let Some(origin_domains) = &entry.origin_domains {
-                if !origin_domains.contains(&info.src_domain) {
+                if !origin_domains.contains(&message.origin) {
                     continue;
                 }
             }
 
             if let Some(destination_domains) = &entry.destination_domains {
-                if !destination_domains.contains(&info.dst_domain) {
+                if !destination_domains.contains(&message.destination) {
                     continue;
                 }
             }
 
-            let body_hex_ref = if entry.has_body_regex {
-                if body_hex.is_none() {
-                    body_hex = Some(hex::encode(info.body));
-                }
-                body_hex.as_deref()
-            } else {
-                None
-            };
-
-            if entry.matching_list.matches_info(&info, false, body_hex_ref) {
+            if entry.matching_list.msg_matches(message, false) {
                 return Ok(Some(entry.app_context.clone()));
             }
         }
