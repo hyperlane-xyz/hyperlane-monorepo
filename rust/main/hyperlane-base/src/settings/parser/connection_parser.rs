@@ -312,9 +312,19 @@ pub fn build_kaspa_connection_conf(
             .collect()
     };
 
-    // Parse kaspaValidators as an array of objects with {host, ismAddress, escrowPub}
-    let kaspa_validators: Vec<dymension_kaspa::KaspaValidatorInfo> =
-        parse_kaspa_validators(chain, err)?;
+    // Parse kaspaValidatorsEscrow and kaspaValidatorsIsm as arrays of validator objects
+    let validators_escrow: Vec<dymension_kaspa::KaspaValidatorInfo> = parse_kaspa_validators(
+        chain,
+        err,
+        "kaspaValidatorsEscrow",
+        "failed to parse kaspaValidatorsEscrow array",
+    )?;
+    let validators_ism: Vec<dymension_kaspa::KaspaValidatorInfo> = parse_kaspa_validators(
+        chain,
+        err,
+        "kaspaValidatorsIsm",
+        "failed to parse kaspaValidatorsIsm array",
+    )?;
 
     let kaspa_escrow_key_source =
         if let Some(key_config) = chain.chain(err).get_opt_key("kaspaKey").end() {
@@ -486,7 +496,7 @@ pub fn build_kaspa_connection_conf(
         .map(|v| v as usize);
 
     // Parse KaspaTimeConfig if provided (only for relayer configs with validators)
-    let kaspa_time_config = if !kaspa_validators.is_empty() {
+    let kaspa_time_config = if !validators_escrow.is_empty() {
         Some(dymension_kaspa::RelayerDepositTimings {
             poll_interval: chain
                 .chain(err)
@@ -536,32 +546,33 @@ pub fn build_kaspa_connection_conf(
         .end()
         .unwrap_or(std::time::Duration::from_secs(15));
 
-    Some(ChainConnectionConf::Kaspa(
-        dymension_kaspa::ConnectionConf::new(
-            wallet_secret.to_owned(),
-            wallet_dir,
-            wrpc_urls,
-            rest_urls,
-            kaspa_validators,
-            kaspa_escrow_key_source,
-            grpc_urls,
-            threshold_ism as usize,
-            threshold_escrow as usize,
-            grpcs,
-            hub_mailbox_id.to_owned(),
-            operation_batch,
-            validation_conf,
-            kaspa_min_deposit_sompi,
-            kaspa_time_config,
-            hub_domain,
-            hub_token_id,
-            kas_domain,
-            kas_token_placeholder,
-            kaspa_tx_fee_multiplier,
-            max_sweep_inputs,
-            validator_request_timeout,
-        ),
-    ))
+    let conf = dymension_kaspa::ConnectionConf::new(
+        wallet_secret.to_owned(),
+        wallet_dir,
+        wrpc_urls,
+        rest_urls,
+        validators_escrow,
+        validators_ism,
+        kaspa_escrow_key_source,
+        grpc_urls,
+        threshold_ism as usize,
+        threshold_escrow as usize,
+        grpcs,
+        hub_mailbox_id.to_owned(),
+        operation_batch,
+        validation_conf,
+        kaspa_min_deposit_sompi,
+        kaspa_time_config,
+        hub_domain,
+        hub_token_id,
+        kas_domain,
+        kas_token_placeholder,
+        kaspa_tx_fee_multiplier,
+        max_sweep_inputs,
+        validator_request_timeout,
+    );
+
+    Some(ChainConnectionConf::Kaspa(conf))
 }
 
 fn build_sealevel_connection_conf(
@@ -859,20 +870,20 @@ pub fn build_radix_connection_conf(
     }
 }
 
-/// Parse kaspaValidators as an array of objects with {host, ismAddress, escrowPub}.
-/// Returns empty vec if the field is missing (valid for validator configs).
+/// Parse a kaspa validators array from config.
+/// Returns empty vec if the field is missing (valid for validator-only configs).
 fn parse_kaspa_validators(
     chain: &ValueParser,
     err: &mut ConfigParsingError,
+    key: &str,
+    err_msg: &'static str,
 ) -> Option<Vec<dymension_kaspa::KaspaValidatorInfo>> {
-    let validators_opt = chain.chain(err).get_opt_key("kaspaValidators").end();
+    let validators_opt = chain.chain(err).get_opt_key(key).end();
 
     match validators_opt {
         Some(value_parser) => {
-            let validators: Vec<dymension_kaspa::KaspaValidatorInfo> = value_parser
-                .chain(err)
-                .parse_value("failed to parse kaspaValidators array")
-                .end()?;
+            let validators: Vec<dymension_kaspa::KaspaValidatorInfo> =
+                value_parser.chain(err).parse_value(err_msg).end()?;
             Some(validators)
         }
         None => Some(Vec::new()),

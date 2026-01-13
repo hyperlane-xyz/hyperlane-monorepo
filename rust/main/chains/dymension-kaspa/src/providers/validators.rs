@@ -43,12 +43,31 @@ impl BlockNumberGetter for ValidatorsClient {
 }
 
 impl ValidatorsClient {
-    fn validators(&self) -> &[crate::KaspaValidatorInfo] {
-        &self.conf.relayer_stuff.as_ref().unwrap().validators
+    fn relayer_stuff(&self) -> &crate::RelayerStuff {
+        self.conf
+            .relayer_stuff
+            .as_ref()
+            .expect("ValidatorsClient methods require relayer config")
     }
 
-    fn hosts(&self) -> Vec<String> {
-        self.validators().iter().map(|v| v.host.clone()).collect()
+    fn validators_escrow(&self) -> &[crate::KaspaValidatorInfo] {
+        &self.relayer_stuff().validators_escrow
+    }
+
+    fn validators_ism(&self) -> &[crate::KaspaValidatorInfo] {
+        &self.relayer_stuff().validators_ism
+    }
+
+    fn hosts_from(validators: &[crate::KaspaValidatorInfo]) -> Vec<String> {
+        validators.iter().map(|v| v.host.clone()).collect()
+    }
+
+    fn hosts_escrow(&self) -> Vec<String> {
+        Self::hosts_from(self.validators_escrow())
+    }
+
+    fn hosts_ism(&self) -> Vec<String> {
+        Self::hosts_from(self.validators_ism())
     }
 
     /// Collects responses from validators until threshold is met.
@@ -197,10 +216,11 @@ impl ValidatorsClient {
     ) -> ChainResult<Vec<SignedCheckpointWithMessageId>> {
         let threshold = self.multisig_threshold_hub_ism();
         let client = self.http_client.clone();
-        let hosts = self.hosts();
-        // Extract ISM addresses from validators for signature verification
+        // Use ISM validators for deposit signatures
+        let hosts = self.hosts_ism();
+        // Extract ISM addresses from ISM validators for signature verification
         let expected_addresses: Vec<String> = self
-            .validators()
+            .validators_ism()
             .iter()
             .map(|v| v.ism_address.clone())
             .collect();
@@ -296,13 +316,14 @@ impl ValidatorsClient {
     ) -> ChainResult<Vec<Signature>> {
         let threshold = self.multisig_threshold_hub_ism();
         let client = self.http_client.clone();
-        let hosts = self.hosts();
+        // Use ISM validators for confirmation signatures
+        let hosts = self.hosts_ism();
         let metrics = self.metrics.clone();
         let fxg = fxg.clone();
 
-        // Get ISM addresses for sorting
+        // Get ISM addresses for sorting from ISM validators
         let ism_addresses: Vec<H160> = self
-            .validators()
+            .validators_ism()
             .iter()
             .enumerate()
             .map(|(idx, v)| {
@@ -311,7 +332,7 @@ impl ValidatorsClient {
                         validator_index = idx,
                         ism_address = %v.ism_address,
                         error = ?e,
-                        "kaspa: failed to parse ISM address, using default for sorting"
+                        "kaspa: ISM address parse failed, using default for sorting"
                     );
                     H160::default()
                 })
@@ -349,7 +370,7 @@ impl ValidatorsClient {
 
     pub async fn get_withdraw_sigs(&self, fxg: Arc<WithdrawFXG>) -> ChainResult<Vec<Bundle>> {
         let threshold = self.multisig_threshold_escrow();
-        let hosts = self.hosts();
+        let hosts = self.hosts_escrow();
         let client = self.http_client.clone();
         let metrics = self.metrics.clone();
 
