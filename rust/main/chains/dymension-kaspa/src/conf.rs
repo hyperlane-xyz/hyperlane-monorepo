@@ -8,26 +8,33 @@ use hyperlane_core::{
     config::OpSubmissionConfig, ChainCommunicationError, FixedPointNumber, H256, U256,
 };
 
-/// Unified validator configuration object.
-/// Each entry contains all info for one validator, keeping host/ism_address/escrow_pub together.
+/// Escrow validator configuration for withdrawals and migrations.
 ///
 /// # Ordering Requirements
 ///
 /// The order of validators in the config array is significant:
-///
-/// 1. **Escrow public keys order**: The `escrow_pub` keys are extracted in config order to derive
-///    the Kaspa multisig escrow address. Changing the order will produce a different escrow address.
-///    The order must match the existing production escrow for backwards compatibility.
-///
-/// 2. **ISM signature ordering**: Signatures for deposits and confirmations are sorted by ISM address
-///    at runtime (lexicographic order of H160 bytes) before submission to the Hub ISM.
-///    The relayer handles this sorting automatically.
+/// The `escrow_pub` keys are extracted in config order to derive the Kaspa multisig escrow address.
+/// Changing the order will produce a different escrow address.
+/// The order must match the existing production escrow for backwards compatibility.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct KaspaValidatorInfo {
+pub struct KaspaValidatorEscrow {
+    pub host: String,
+    pub escrow_pub: String,
+}
+
+/// ISM validator configuration for deposits and confirmations.
+///
+/// # Ordering Requirements
+///
+/// ISM signature ordering: Signatures for deposits and confirmations are sorted by ISM address
+/// at runtime (lexicographic order of H160 bytes) before submission to the Hub ISM.
+/// The relayer handles this sorting automatically.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KaspaValidatorIsm {
     pub host: String,
     pub ism_address: String,
-    pub escrow_pub: String,
 }
 
 #[derive(Debug, Clone)]
@@ -91,9 +98,9 @@ pub use dym_kas_kms::AwsKeyConfig;
 #[derive(Debug, Clone)]
 pub struct RelayerStuff {
     /// Escrow signers (for withdrawals and migration)
-    pub validators_escrow: Vec<KaspaValidatorInfo>,
+    pub validators_escrow: Vec<KaspaValidatorEscrow>,
     /// ISM signers (for deposits and confirmations)
-    pub validators_ism: Vec<KaspaValidatorInfo>,
+    pub validators_ism: Vec<KaspaValidatorIsm>,
     pub deposit_timings: RelayerDepositTimings,
     pub tx_fee_multiplier: f64,
     pub max_sweep_inputs: Option<usize>,
@@ -168,8 +175,8 @@ impl ConnectionConf {
         wallet_dir: Option<String>,
         kaspa_urls_wrpc: Vec<String>,
         kaspa_urls_rest: Vec<Url>,
-        validators_escrow: Vec<KaspaValidatorInfo>,
-        validators_ism: Vec<KaspaValidatorInfo>,
+        validators_escrow: Vec<KaspaValidatorEscrow>,
+        validators_ism: Vec<KaspaValidatorIsm>,
         kaspa_escrow_key_source: Option<KaspaEscrowKeySource>,
         kaspa_urls_grpc: Vec<String>,
         multisig_threshold_hub_ism: usize,

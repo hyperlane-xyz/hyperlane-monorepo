@@ -53,24 +53,26 @@ impl ValidatorsClient {
             .expect("ValidatorsClient methods require relayer config")
     }
 
-    fn validators_escrow(&self) -> &[crate::KaspaValidatorInfo] {
+    fn validators_escrow(&self) -> &[crate::KaspaValidatorEscrow] {
         &self.relayer_stuff().validators_escrow
     }
 
-    fn validators_ism(&self) -> &[crate::KaspaValidatorInfo] {
+    fn validators_ism(&self) -> &[crate::KaspaValidatorIsm] {
         &self.relayer_stuff().validators_ism
     }
 
-    fn hosts_from(validators: &[crate::KaspaValidatorInfo]) -> Vec<String> {
-        validators.iter().map(|v| v.host.clone()).collect()
-    }
-
     fn hosts_escrow(&self) -> Vec<String> {
-        Self::hosts_from(self.validators_escrow())
+        self.validators_escrow()
+            .iter()
+            .map(|v| v.host.clone())
+            .collect()
     }
 
     fn hosts_ism(&self) -> Vec<String> {
-        Self::hosts_from(self.validators_ism())
+        self.validators_ism()
+            .iter()
+            .map(|v| v.host.clone())
+            .collect()
     }
 
     /// Collects responses from validators until threshold is met.

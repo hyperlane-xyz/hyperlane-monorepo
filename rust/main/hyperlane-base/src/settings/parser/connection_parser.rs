@@ -313,13 +313,13 @@ pub fn build_kaspa_connection_conf(
     };
 
     // Parse kaspaValidatorsEscrow and kaspaValidatorsIsm as arrays of validator objects
-    let validators_escrow: Vec<dymension_kaspa::KaspaValidatorInfo> = parse_kaspa_validators(
+    let validators_escrow: Vec<dymension_kaspa::KaspaValidatorEscrow> = parse_kaspa_validators(
         chain,
         err,
         "kaspaValidatorsEscrow",
         "failed to parse kaspaValidatorsEscrow array",
     )?;
-    let validators_ism: Vec<dymension_kaspa::KaspaValidatorInfo> = parse_kaspa_validators(
+    let validators_ism: Vec<dymension_kaspa::KaspaValidatorIsm> = parse_kaspa_validators(
         chain,
         err,
         "kaspaValidatorsIsm",
@@ -880,18 +880,20 @@ pub fn build_radix_connection_conf(
 
 /// Parse a kaspa validators array from config.
 /// Returns empty vec if the field is missing (valid for validator-only configs).
-fn parse_kaspa_validators(
+fn parse_kaspa_validators<T>(
     chain: &ValueParser,
     err: &mut ConfigParsingError,
     key: &str,
     err_msg: &'static str,
-) -> Option<Vec<dymension_kaspa::KaspaValidatorInfo>> {
+) -> Option<Vec<T>>
+where
+    T: serde::de::DeserializeOwned,
+{
     let validators_opt = chain.chain(err).get_opt_key(key).end();
 
     match validators_opt {
         Some(value_parser) => {
-            let validators: Vec<dymension_kaspa::KaspaValidatorInfo> =
-                value_parser.chain(err).parse_value(err_msg).end()?;
+            let validators: Vec<T> = value_parser.chain(err).parse_value(err_msg).end()?;
             Some(validators)
         }
         None => Some(Vec::new()),
