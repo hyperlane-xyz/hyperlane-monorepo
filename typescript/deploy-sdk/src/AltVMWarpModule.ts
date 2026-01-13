@@ -434,14 +434,24 @@ export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
       (actualConfig.interchainSecurityModule as DerivedIsmConfig)?.address ??
       '';
 
-    // Read actual ISM state
-    const actualArtifact = await writer.read(actualIsmAddress);
-
     // Convert expected config to artifact format
     const expectedArtifact = ismConfigToArtifact(
       expectedConfig.interchainSecurityModule,
       this.chainLookup,
     );
+
+    // If no existing ISM, deploy new one directly (no comparison needed)
+    if (!actualIsmAddress) {
+      this.logger.debug(`No existing ISM found, deploying new one`);
+      const [deployed] = await writer.create(expectedArtifact);
+      return {
+        deployedIsm: deployed.deployed.address,
+        updateTransactions: [],
+      };
+    }
+
+    // Read actual ISM state (only when we have existing ISM to compare)
+    const actualArtifact = await writer.read(actualIsmAddress);
 
     this.logger.debug(
       `Comparing target ISM config with ${this.args.chain} chain`,
