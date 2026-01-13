@@ -41,7 +41,7 @@
     "eslint-config-prettier": "catalog:",
     "eslint-import-resolver-typescript": "catalog:",
     "eslint-plugin-import": "catalog:",
-    "eslint-plugin-yml": "^1.18.0",
+    "eslint-plugin-yml": "^1.19.1",
     "mocha": "catalog:",
     "prettier": "catalog:",
     "sinon": "catalog:",
