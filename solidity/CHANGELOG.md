@@ -1,5 +1,12 @@
 # @hyperlane-xyz/core
 
+## 10.1.4
+
+### Patch Changes
+
+- Updated dependencies [0bce4e7]
+  - @hyperlane-xyz/utils@21.0.0
+
 ## 10.1.3
 
 ### Patch Changes
