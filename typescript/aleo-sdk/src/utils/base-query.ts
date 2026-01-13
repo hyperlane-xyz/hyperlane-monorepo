@@ -55,24 +55,18 @@ export async function queryMappingValue<T>(
   key: string,
   formatter: (raw: unknown) => T,
 ): Promise<T> {
-  try {
-    const result = await tryQueryMappingValue(
-      aleoClient,
-      programId,
-      mappingName,
-      key,
-      formatter,
-    );
+  const result = await tryQueryMappingValue(
+    aleoClient,
+    programId,
+    mappingName,
+    key,
+    formatter,
+  );
 
-    assert(
-      !isNullish(result),
-      `Expected value to be defined in mapping ${mappingName} and key ${key}`,
-    );
+  assert(
+    !isNullish(result),
+    `Value not found in mapping ${programId}/${mappingName}/${key}`,
+  );
 
-    return result;
-  } catch (err) {
-    throw new Error(
-      `Failed to query mapping value for program ${programId}/${mappingName}/${key}: ${err}`,
-    );
-  }
+  return result;
 }
