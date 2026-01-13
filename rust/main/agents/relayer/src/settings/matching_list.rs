@@ -297,11 +297,11 @@ impl Display for ListElement {
 #[derive(Clone, Debug)]
 pub(crate) struct MatchInfo<'a> {
     src_msg_id: H256,
-    src_domain: u32,
+    pub(crate) src_domain: u32,
     src_addr: &'a H256,
-    dst_domain: u32,
+    pub(crate) dst_domain: u32,
     dst_addr: &'a H256,
-    body: &'a [u8],
+    pub(crate) body: &'a [u8],
 }
 
 impl<'a> From<&'a HyperlaneMessage> for MatchInfo<'a> {
@@ -417,10 +417,6 @@ impl MatchingList {
         } else {
             default
         }
-    }
-
-    fn matches(&self, info: MatchInfo, default: bool) -> bool {
-        self.matches_info(&info, default, None)
     }
 }
 
