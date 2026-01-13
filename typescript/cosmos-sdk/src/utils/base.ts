@@ -40,7 +40,7 @@ export function getNewContractAddress(receipt: DeliverTxResponse): string {
 
   assert(
     decodedInput.id,
-    'Expected the id field to be defined on component creation tx',
+    'Expected the id field to be defined on contract creation tx',
   );
   return decodedInput.id;
 }
