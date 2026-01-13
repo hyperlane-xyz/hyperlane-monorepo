@@ -1,5 +1,29 @@
 # @hyperlane-xyz/cli
 
+## 21.0.0
+
+### Major Changes
+
+- 68310db: feat: aleo cli support
+- 4f9bf92: Removed deprecated Kurtosis agent deployment functionality. The `hyperlane deploy kurtosis-agents` command was removed as it was no longer maintained.
+
+### Minor Changes
+
+- 239e1a1: Migrate AltVm JsonSubmittor and FileSubmittor to deploy-sdk (from provider-sdk and cli, respectively)
+- bc8b22f: Moved rebalancer-specific type definitions from `@hyperlane-xyz/sdk` to `@hyperlane-xyz/rebalancer`. Updated CLI and infra imports to use the new location. The rebalancer package is now self-contained and doesn't pollute the SDK with rebalancer-specific types.
+- 7032a7c: Added `hyperlane ica deploy` command to deploy Interchain Accounts (ICAs) on destination chains for a specified owner on an origin chain. The command accepts `--origin`, `--destinations`, `--owner`, and `--key` parameters, and outputs a table showing the deployment status for each destination chain.
+- 9963e0e: feat: separate rebalancer package
+
+  - Extract rebalancer logic from CLI into dedicated `@hyperlane-xyz/rebalancer` package
+  - New package supports both manual CLI execution and continuous daemon mode for K8s deployments
+  - CLI now imports from new package, maintaining backward compatibility for manual rebalancing
+
+### Patch Changes
+
+- e4fed47: Fixed CLI e2e tests failing locally by properly marking type imports with the `type` keyword. This ensures compatibility with tsx which reads JS files directly, while tests in CI continue to work with the bundled CLI.
+- fb12649: `hyperlane status` no longer requires private keys when checking message status. Keys are now only required when using `--relay` flag, and only for the destination chain protocol you're relaying to.
+- ed10fc1: Introduced the Artifact API for ISM operations on AltVMs. The new API provides a unified interface for reading and writing ISM configurations across different blockchain protocols. Radix ISM readers and writers fully implemented; Cosmos ISM readers implemented. The generic `IsmReader` in deploy-sdk replaces the legacy `AltVMIsmReader` and supports recursive expansion of routing ISM configurations.
+
 ## 20.1.0
 
 ### Minor Changes

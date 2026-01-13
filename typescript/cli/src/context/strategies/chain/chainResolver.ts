@@ -10,10 +10,7 @@ import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 import { CommandType } from '../../../commands/signCommands.js';
 import { readCoreDeployConfigs } from '../../../config/core.js';
 import { getWarpRouteDeployConfig } from '../../../config/warp.js';
-import {
-  runMultiChainSelectionStep,
-  runSingleChainSelectionStep,
-} from '../../../utils/chains.js';
+import { runSingleChainSelectionStep } from '../../../utils/chains.js';
 import {
   getWarpConfigs,
   getWarpCoreConfigOrExit,
@@ -45,8 +42,7 @@ export async function resolveChains(
       return resolveWarpApplyChains(argv);
     case CommandType.WARP_REBALANCER:
       return resolveWarpRebalancerChains(argv);
-    case CommandType.AGENT_KURTOSIS:
-      return resolveAgentChains(argv);
+
     case CommandType.SUBMIT:
       return resolveWarpRouteConfigChains(argv); // Same as WARP_DEPLOY
     case CommandType.CORE_APPLY:
@@ -143,29 +139,6 @@ async function resolveWarpRebalancerChains(
   assert(chains.length !== 0, 'No chains configured in rebalancer config');
 
   return chains;
-}
-
-async function resolveAgentChains(
-  argv: Record<string, any>,
-): Promise<ChainName[]> {
-  const { chainMetadata } = argv.context;
-  argv.origin =
-    argv.origin ??
-    (await runSingleChainSelectionStep(
-      chainMetadata,
-      'Select the origin chain',
-    ));
-
-  if (!argv.targets) {
-    const selectedRelayChains = await runMultiChainSelectionStep({
-      chainMetadata: chainMetadata,
-      message: 'Select chains to relay between',
-      requireNumber: 2,
-    });
-    argv.targets = selectedRelayChains.join(',');
-  }
-
-  return [argv.origin, ...argv.targets];
 }
 
 /**

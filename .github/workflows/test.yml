@@ -268,6 +268,8 @@ jobs:
           # Other commands
           - relay
           - status
+          # ICA
+          - ica-deploy
           # Warp Apply Commands
           - warp-apply-hook-updates
           - warp-apply-ism-updates
