@@ -43,6 +43,10 @@ export class AleoBase {
   protected readonly ismManager: string;
   protected readonly warpSuffix: string;
 
+  getIsmManager(): string {
+    return this.ismManager;
+  }
+
   constructor(rpcUrls: string[], chainId: string | number) {
     assert(
       +chainId === 0 || +chainId === 1,
