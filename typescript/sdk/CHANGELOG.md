@@ -1,5 +1,34 @@
 # @hyperlane-xyz/sdk
 
+## 21.0.0
+
+### Major Changes
+
+- 68310db: feat: aleo cli support
+
+### Minor Changes
+
+- bc8b22f: Moved rebalancer-specific type definitions from `@hyperlane-xyz/sdk` to `@hyperlane-xyz/rebalancer`. Updated CLI and infra imports to use the new location. The rebalancer package is now self-contained and doesn't pollute the SDK with rebalancer-specific types.
+
+### Patch Changes
+
+- c08fa32: Added default multisig ISM validator configs for eni and krown chains. Improved deployer contract verification to gracefully skip when no explorer API is configured instead of failing.
+- b6b206d: Fixed CCTP V2 deployer to allow maxFeeBps and minFinalityThreshold to be 0 by using explicit undefined checks instead of falsy checks.
+- ed10fc1: Introduced the Artifact API for ISM operations on AltVMs. The new API provides a unified interface for reading and writing ISM configurations across different blockchain protocols. Radix ISM readers and writers fully implemented; Cosmos ISM readers implemented. The generic `IsmReader` in deploy-sdk replaces the legacy `AltVMIsmReader` and supports recursive expansion of routing ISM configurations.
+- Updated dependencies [8006faf]
+- Updated dependencies [68310db]
+- Updated dependencies [239e1a1]
+- Updated dependencies [ed10fc1]
+- Updated dependencies [0bce4e7]
+  - @hyperlane-xyz/aleo-sdk@21.0.0
+  - @hyperlane-xyz/deploy-sdk@1.0.0
+  - @hyperlane-xyz/provider-sdk@1.0.0
+  - @hyperlane-xyz/radix-sdk@21.0.0
+  - @hyperlane-xyz/cosmos-sdk@21.0.0
+  - @hyperlane-xyz/utils@21.0.0
+  - @hyperlane-xyz/core@10.1.4
+  - @hyperlane-xyz/starknet-core@21.0.0
+
 ## 20.1.0
 
 ### Minor Changes
