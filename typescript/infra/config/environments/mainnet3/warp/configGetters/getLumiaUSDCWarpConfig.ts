@@ -9,6 +9,7 @@ import { objMap } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { usdcTokenAddresses } from '../cctp.js';
+import { WarpRouteIds } from '../warpIds.js';
 
 import { CONTRACT_VERSION } from './getEthereumSuperseedUSDCWarpConfig.js';
 import { getUSDCRebalancingBridgesConfigFor } from './utils.js';
@@ -54,6 +55,7 @@ export const getLumiaUSDCWarpConfig = async (
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const rebalancingConfig = getUSDCRebalancingBridgesConfigFor(
     Object.keys(owners),
+    [WarpRouteIds.MainnetCCTPV1],
   );
 
   return objMap(owners, (chain, owner): HypTokenRouterConfig => {

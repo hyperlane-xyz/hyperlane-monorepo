@@ -1,6 +1,7 @@
 import { KeyFunderConfig } from '../../../src/config/funding.js';
 import { Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
+import { DockerImageRepos, testnetDockerTags } from '../../docker.js';
 
 import { environment } from './chains.js';
 import { testnet4SupportedChainNames } from './supportedChainNames.js';
@@ -9,8 +10,8 @@ export const keyFunderConfig: KeyFunderConfig<
   typeof testnet4SupportedChainNames
 > = {
   docker: {
-    repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-    tag: '8da6852-20251215-172511',
+    repo: DockerImageRepos.MONOREPO,
+    tag: testnetDockerTags.keyFunder,
   },
   // We're currently using the same deployer key as testnet2.
   // To minimize nonce clobbering we offset the key funder cron
@@ -47,7 +48,6 @@ export const keyFunderConfig: KeyFunderConfig<
     incentivtestnet: '1',
     kyvetestnet: '0',
     megaethtestnet: '0.01',
-    milkywaytestnet: '0',
     modetestnet: '0.05',
     monadtestnet: '0.1',
     neuratestnet: '0.1',

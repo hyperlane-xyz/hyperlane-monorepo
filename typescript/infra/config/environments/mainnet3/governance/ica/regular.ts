@@ -48,7 +48,6 @@ export const regularIcas: ChainMap<Address> = {
   flare: '0x691a19F5eCEb2357606910d596EA5bD17e01Fed1',
   flowmainnet: '0xf2A87fd04C42D51D53c2A35E957981bA59b46F9e',
   fluence: '0x7F30B7724040fC3384864ef3812f7a437Bc80166',
-  form: '0xbAda620Da6f81819783621c57d9648A3A0cff5fc',
   fraxtal: '0xc96634cdc475FfC7702f123EFD77cB43c861956b',
   fusemainnet: '0x66148C55906967F4F55dCD6E45e74b43b8624444',
   galactica: '0x6C8210C82B17bE639CeDB3349A5aeDFF1471f72A',
@@ -59,7 +58,6 @@ export const regularIcas: ChainMap<Address> = {
   hemi: '0xAf6dC78dCA99812D3bB729e3C17C527F74CD261F',
   hyperevm: '0xD50d4E42F41392d5c7E9526423D3dc38a8d1f875',
   immutablezkevmmainnet: '0x71c47adC3270EA319705626b8769E0ee54D1EA41',
-  inevm: '0xCf0F066B8D5F14f264EA99D67CFa389D6c1De20E',
   ink: '0x20b3D70fA3d7B69Aba42b0bA9D8F25Ee0C656e78',
   kaia: '0x47bd809B484DB532F9E2Cf540cCE24af79341deA',
   katana: '0x53dE35b799fD29B129E683E43ef31cEEB3b88D22',
@@ -73,7 +71,6 @@ export const regularIcas: ChainMap<Address> = {
   merlin: '0xA5544aeadb395Ce08A49871CF0EA0a16B2fE444B',
   metal: '0x1547282562E9b32561C7bdD41cAfB5ce89Ff08dA',
   metis: '0xD998C3Ee6b8EE592C7d0bcf8e5b43F4Dc314C07F',
-  mint: '0x3C8bd6d095c77Dc8251D5802162b10898b1925Cd',
   miraclechain: '0x7c06d94A3177c550f17239442Dd1dA9C68c33a85',
   mode: '0x917445680fbd406747abFa78F381efd63F4aF599',
   molten: '0x07Db6F557F8C758a485cEb188EDb727c34D44FDf',
@@ -151,4 +148,13 @@ export const regularIcas: ChainMap<Address> = {
   lazai: '0xDFEa2EB38AA77EE41D50794aFaA34463EEabD4BB',
   megaeth: '0x8D628b83A2F915fab39f7F09e0cF7A3ea8F9bF42',
   adichain: '0xD0427bD81a0cDA1AdcdFb49DFDB95Ab3e059FFff',
+
+  // Jan 2, 2026
+  // ----------------------------------------------------------
+  citrea: '0x4fC003a348D6b244B01170D08CF69373c11FBf01',
+
+  // Jan 4, 2026
+  // ----------------------------------------------------------
+  eni: '0x2C5418067111F7e728D64C5D63bc87F3A7f8C6FC',
+  krown: '0x9F48298FF8c32F423fe14e71e6CBAcBa3c061e17',
 } as const;

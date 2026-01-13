@@ -6,7 +6,8 @@
   "typedocMain": "src/index.ts",
   "private": true,
   "files": [
-    "src"
+    "src",
+    "dist"
   ],
   "engines": {
     "node": ">=16"
@@ -29,39 +30,39 @@
     "@jest/globals": "^29.7.0",
     "@types/cors": "^2",
     "@types/express": "^4.17.1",
-    "@types/node": "^20.17.0",
+    "@types/node": "catalog:",
     "@types/pino-http": "^5.8.4",
-    "@typescript-eslint/eslint-plugin": "^8.1.6",
-    "@typescript-eslint/parser": "^8.1.6",
-    "eslint": "^9.31.0",
-    "eslint-import-resolver-typescript": "^4.4.4",
+    "@typescript-eslint/eslint-plugin": "catalog:",
+    "@typescript-eslint/parser": "catalog:",
+    "eslint": "catalog:",
+    "eslint-import-resolver-typescript": "catalog:",
     "jest": "^29.7.0",
     "nodemon": "^3.0.3",
-    "pino-pretty": "^13.0.0",
-    "prettier": "^3.5.3",
+    "pino-pretty": "catalog:",
+    "prettier": "catalog:",
     "ts-jest": "^29.1.2",
-    "tsx": "^4.19.1",
-    "typescript": "5.8.3"
+    "tsx": "catalog:",
+    "typescript": "catalog:"
   },
   "dependencies": {
     "@eth-optimism/core-utils": "^0.13.2",
-    "@eth-optimism/sdk": "^3.3.3",
+    "@eth-optimism/sdk": "catalog:",
     "@ethersproject/abi": "*",
     "@ethersproject/providers": "*",
-    "@google-cloud/pino-logging-gcp-config": "^1.0.6",
+    "@google-cloud/pino-logging-gcp-config": "catalog:",
     "@hyperlane-xyz/core": "workspace:*",
-    "@hyperlane-xyz/registry": "23.7.0",
+    "@hyperlane-xyz/registry": "catalog:",
     "@hyperlane-xyz/sdk": "workspace:*",
     "@hyperlane-xyz/utils": "workspace:*",
-    "pino": "^8.19.0",
+    "pino": "catalog:",
     "@prisma/client": "^6.8.2",
     "cors": "^2.8.5",
     "dotenv-flow": "^4.1.0",
-    "ethers": "^5.8.0",
+    "ethers": "catalog:",
     "express": "^4.17.1",
     "pino-http": "^8.6.1",
     "prisma": "^6.8.2",
-    "prom-client": "^14.0.1",
-    "zod": "^3.21.2"
+    "prom-client": "catalog:",
+    "zod": "catalog:"
   }
 }

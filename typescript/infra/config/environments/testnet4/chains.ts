@@ -12,6 +12,9 @@ export const ethereumChainNames = supportedChainNames.filter(
   isEthereumProtocolChain,
 );
 
+// Chains without CoinGecko listings - these won't be overwritten by print-token-prices.ts
+export const tokenPriceOverrides: ChainMap<string> = {};
+
 export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   bsctestnet: {
     transactionOverrides: {

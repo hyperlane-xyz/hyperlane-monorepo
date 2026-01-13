@@ -405,7 +405,10 @@ async fn test_svm_failure_to_estimate_costs_causes_tx_to_be_dropped() {
         ExpectedSvmTxState {
             compute_units: 1400000,
             compute_unit_price_micro_lamports: 0,
-            status: TransactionStatus::Dropped(TransactionDropReason::FailedSimulation),
+            status: TransactionStatus::Dropped(TransactionDropReason::Other(
+                "Non-retryable error: Chain communication error Transaction estimation failed"
+                    .to_string(),
+            )),
             retries: 0,
         },
     ];

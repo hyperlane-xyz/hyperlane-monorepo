@@ -573,26 +573,6 @@ export {
   PROTOCOL_TO_DEFAULT_PROVIDER_TYPE,
 } from './providers/ProviderType.js';
 export {
-  RebalancerBaseChainConfigSchema,
-  RebalancerConfigSchema,
-  RebalancerMinAmountConfigSchema,
-  RebalancerMinAmountType,
-  RebalancerStrategyOptions,
-  RebalancerWeightedChainConfigSchema,
-  StrategyConfigSchema,
-} from './rebalancer/types.js';
-export type {
-  MinAmountStrategy,
-  MinAmountStrategyConfig,
-  RebalancerConfig,
-  RebalancerConfigFileInput,
-  RebalancerMinAmountChainConfig,
-  RebalancerWeightedChainConfig,
-  StrategyConfig,
-  WeightedStrategy,
-  WeightedStrategyConfig,
-} from './rebalancer/types.js';
-export {
   EvmGasRouterAdapter,
   EvmRouterAdapter,
 } from './router/adapters/EvmRouterAdapter.js';
@@ -676,9 +656,28 @@ export {
   SealevelTokenAdapter,
 } from './token/adapters/SealevelTokenAdapter.js';
 export {
+  SealevelEnrollRemoteRouterInstruction,
+  SealevelEnrollRemoteRouterInstructionSchema,
+  SealevelEnrollRemoteRoutersInstruction,
+  SealevelEnrollRemoteRoutersInstructionSchema,
+  SealevelGasRouterConfig,
+  SealevelGasRouterConfigSchema,
   SealevelHyperlaneTokenData,
   SealevelHyperlaneTokenDataSchema,
   SealevelHypTokenInstruction,
+  SealevelHypTokenInstructionName,
+  SealevelHypTokenTransferOwnershipInstruction,
+  SealevelHypTokenTransferOwnershipInstructionSchema,
+  SealevelIgpConfig,
+  SealevelIgpConfigSchema,
+  SealevelRemoteRouterConfig,
+  SealevelRemoteRouterConfigSchema,
+  SealevelSetDestinationGasConfigsInstruction,
+  SealevelSetDestinationGasConfigsInstructionSchema,
+  SealevelSetInterchainGasPaymasterInstruction,
+  SealevelSetInterchainGasPaymasterInstructionSchema,
+  SealevelSetInterchainSecurityModuleInstruction,
+  SealevelSetInterchainSecurityModuleInstructionSchema,
   SealevelTransferRemoteInstruction,
   SealevelTransferRemoteSchema,
 } from './token/adapters/serialization.js';

@@ -12,11 +12,9 @@ export const awSafes: ChainMap<Address> = {
   optimism: '0xbd7db3821806bc72D223F0AE521Bf82FcBd6Ef4d',
   moonbeam: '0x594203849E52BF6ee0E511cD807Ca2D658893e37',
   gnosis: '0x0Ac72fBc82c9c39F81242229631dfC38aA13031B',
-  inevm: '0x77F3863ea99F2360D84d4BA1A2E441857D0357fa', // caldera + injective
   base: '0x3949eD0CD036D9FF662d97BD7aC1686051c4aeBF',
   scroll: '0x6EeEbB9F7FB18DD5E59F82658c59B846715eD4F7',
   polygonzkevm: '0x1610f578D4d77Fc4ae7ce2DD9AA0b98A5Cd0a9b2',
-  // injective: 'inj1632x8j35kenryam3mkrsez064sqg2y2fr0frzt',
   // solana: 'EzppBFV2taxWw8kEjxNYvby6q7W1biJEqwP3iC7YgRe3',
   blast: '0xaCD1865B262C89Fb0b50dcc8fB095330ae8F35b5',
   linea: '0xaCD1865B262C89Fb0b50dcc8fB095330ae8F35b5',

@@ -113,6 +113,10 @@ export class RadixSigner
     return false;
   }
 
+  getBaseSigner(): RadixBaseSigner {
+    return this.signer;
+  }
+
   async transactionToPrintableJson(
     transaction: RadixSDKTransaction,
   ): Promise<object> {

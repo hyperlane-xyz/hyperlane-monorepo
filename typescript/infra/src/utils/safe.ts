@@ -206,19 +206,14 @@ export async function executeTx(
 
 export async function createSafeTransaction(
   safeSdk: Safe.default,
-  safeService: SafeApiKit.default,
-  safeAddress: Address,
   transactions: MetaTransactionData[],
   onlyCalls?: boolean,
   nonce?: number,
 ): Promise<SafeTransaction> {
-  const nextNonce = await retrySafeApi(() =>
-    safeService.getNextNonce(safeAddress),
-  );
   return safeSdk.createTransaction({
     transactions,
     onlyCalls,
-    options: { nonce: Number(nonce ?? nextNonce) },
+    ...(nonce !== undefined ? { options: { nonce: Number(nonce) } } : {}),
   });
 }
 
@@ -264,6 +259,7 @@ export async function deleteAllPendingSafeTxs(
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
+      'User-Agent': 'node-fetch',
       Authorization: `Bearer ${safeApiKey}`,
     },
   });
@@ -304,6 +300,7 @@ export async function getSafeTx(
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
+          'User-Agent': 'node-fetch',
           Authorization: `Bearer ${safeApiKey}`,
         },
       });
@@ -342,6 +339,7 @@ export async function deleteSafeTx(
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
+      'User-Agent': 'node-fetch',
       Authorization: `Bearer ${safeApiKey}`,
     },
   });
@@ -416,6 +414,7 @@ export async function deleteSafeTx(
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
+        'User-Agent': 'node-fetch',
         Authorization: `Bearer ${safeApiKey}`,
       },
       body: JSON.stringify({ safeTxHash: safeTxHash, signature: signature }),

@@ -5,7 +5,6 @@ import { Address } from '@hyperlane-xyz/utils';
 // pnpm tsx ./scripts/keys/get-owner-ica.ts -e mainnet3 --ownerChain ethereum --destinationChains <chain1> <chain2> ...
 export const awIcasLegacy: ChainMap<Address> = {
   viction: '0x23ed65DE22ac29Ec1C16E75EddB0cE3A187357b4',
-  inevm: '0xFDF9EDcb2243D51f5f317b9CEcA8edD2bEEE036e',
 
   // Jul 26, 2024 batch
   // ----------------------------------------------------------
@@ -21,7 +20,6 @@ export const awIcasLegacy: ChainMap<Address> = {
   lukso: '0xc1e20A0D78E79B94D71d4bDBC8FD0Af7c856Dd7A',
   merlin: '0xCf867cEaeeE8CBe65C680c734D29d26440931D5b',
   metis: '0xb51e63CD0842D670a13c88B159fCFc268DA652A3',
-  mint: '0xb51e63CD0842D670a13c88B159fCFc268DA652A3',
   tangle: '0xCC2aeb692197C7894E561d31ADFE8F79746f7d9F',
   xai: '0x22d952d3b9F493442731a3c7660aCaD98e55C00A',
   // taiko: '0x483D218D2FEe7FC7204ba15F00C7901acbF9697D', // renzo chain
@@ -100,7 +98,6 @@ export const awIcasLegacy: ChainMap<Address> = {
   // ----------------------------------------------------------
   aurora: '0x853f40c807cbb08EDd19B326b9b6A669bf3c274c',
   // corn: '0x5926599B8Aff45f1708b804B30213babdAD78C83',
-  form: '0x5926599B8Aff45f1708b804B30213babdAD78C83',
   ink: '0xDde4Ce691d1c0579d48BCdd3491aA71472b6cC38',
   soneium: '0x5926599B8Aff45f1708b804B30213babdAD78C83',
   sonic: '0x5926599B8Aff45f1708b804B30213babdAD78C83',

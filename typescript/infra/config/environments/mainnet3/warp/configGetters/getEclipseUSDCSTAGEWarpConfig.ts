@@ -4,6 +4,7 @@ import { Address } from '@hyperlane-xyz/utils';
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { usdcTokenAddresses } from '../cctp.js';
 import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
+import { WarpRouteIds } from '../warpIds.js';
 
 import {
   getRebalancingUSDCConfigForChain,
@@ -47,6 +48,7 @@ export const getEclipseUSDCSTAGEWarpConfig = async (
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const rebalancingConfigByChain = getUSDCRebalancingBridgesConfigFor(
     rebalanceableCollateralChains,
+    [WarpRouteIds.MainnetCCTPV1],
   );
 
   // All EVM chains use the same owner (Safe)
