@@ -18,6 +18,8 @@ if [[ $? -ne 0 ]]; then
   exit 1
 fi
 
+sleep 10
+
 echo "Running E2E tests"
 
 pnpm mocha --config .mocharc-e2e.json
