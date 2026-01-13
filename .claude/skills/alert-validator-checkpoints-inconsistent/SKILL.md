@@ -42,7 +42,7 @@ If a specific `evaluation_timestamp` is provided that is not Now, be sure to alw
 
 - All Prometheus metrics queried should be at `evaluation_timestamp` at the very newest - never query anything past this time
 - Fetching the latest Prometheus metric should mean that it's queried at the `evaluation_timestamp`
-- Always use the `evaluation_timestamp` as the end time when querying any prometheus metrics, NOT the state time.
+- Always use the `evaluation_timestamp` as the end time when querying any prometheus metrics, NOT the start time.
 
 The following metric exists that shows the relayer's perspective of all validators:
 
