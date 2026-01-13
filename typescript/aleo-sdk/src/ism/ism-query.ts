@@ -270,9 +270,27 @@ export async function getRoutingIsmConfig(
     // deleted from the Routing ISM, its key remains in the map and `routes` simply returns null.
     if (!routeIsmAddress) continue;
 
+    const routeKeyObj = routeKey.toObject();
+
+    // Skip routes with invalid domain data. This could happen if the on-chain
+    // structure changes. Rather than failing the entire
+    // ISM read, we skip invalid entries to allow partial recovery.
+    // TODO: Add proper logging when aleo-sdk has a logging framework
+    if (
+      typeof routeKeyObj.domain !== 'number' &&
+      typeof routeKeyObj.domain !== 'string'
+    ) {
+      continue;
+    }
+
+    const domainId = Number(routeKeyObj.domain);
+    if (isNaN(domainId)) {
+      continue;
+    }
+
     routes.push({
       ismAddress: `${programId}/${routeIsmAddress}`,
-      domainId: Number(routeKey.toObject().domain),
+      domainId,
     });
   }
 
