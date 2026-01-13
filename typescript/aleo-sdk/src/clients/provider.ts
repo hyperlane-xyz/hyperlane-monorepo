@@ -12,7 +12,11 @@ import {
 } from '../ism/ism-query.js';
 import {
   getCreateMessageIdMultisigIsmTx,
+  getCreateRoutingIsmTx,
   getCreateTestIsmTx,
+  getRemoveRoutingIsmRouteTx,
+  getSetRoutingIsmOwnerTx,
+  getSetRoutingIsmRouteTx,
 } from '../ism/ism-tx.js';
 import {
   ALEO_NATIVE_DENOM,
@@ -712,59 +716,25 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async getCreateRoutingIsmTransaction(
     _req: AltVM.ReqCreateRoutingIsm,
   ): Promise<AleoTransaction> {
-    return {
-      programName: this.ismManager,
-      functionName: 'init_domain_routing',
-      priorityFee: 0,
-      privateFee: false,
-      inputs: [],
-    };
+    return getCreateRoutingIsmTx(this.ismManager);
   }
 
   async getSetRoutingIsmRouteTransaction(
     req: AltVM.ReqSetRoutingIsmRoute,
   ): Promise<AleoTransaction> {
-    const { programId, address } = fromAleoAddress(req.ismAddress);
-
-    return {
-      programName: programId,
-      functionName: 'set_domain',
-      priorityFee: 0,
-      privateFee: false,
-      inputs: [
-        address,
-        `${req.route.domainId}u32`,
-        fromAleoAddress(req.route.ismAddress).address,
-      ],
-    };
+    return getSetRoutingIsmRouteTx(req.ismAddress, req.route);
   }
 
   async getRemoveRoutingIsmRouteTransaction(
     req: AltVM.ReqRemoveRoutingIsmRoute,
   ): Promise<AleoTransaction> {
-    const { programId, address } = fromAleoAddress(req.ismAddress);
-
-    return {
-      programName: programId,
-      functionName: 'remove_domain',
-      priorityFee: 0,
-      privateFee: false,
-      inputs: [address, `${req.domainId}u32`],
-    };
+    return getRemoveRoutingIsmRouteTx(req.ismAddress, req.domainId);
   }
 
   async getSetRoutingIsmOwnerTransaction(
     req: AltVM.ReqSetRoutingIsmOwner,
   ): Promise<AleoTransaction> {
-    const { programId, address } = fromAleoAddress(req.ismAddress);
-
-    return {
-      programName: programId,
-      functionName: 'transfer_routing_ism_ownership',
-      priorityFee: 0,
-      privateFee: false,
-      inputs: [address, req.newOwner],
-    };
+    return getSetRoutingIsmOwnerTx(req.ismAddress, req.newOwner);
   }
 
   async getCreateNoopIsmTransaction(
