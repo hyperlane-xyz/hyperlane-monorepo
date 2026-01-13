@@ -1,8 +1,10 @@
 import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   type ArtifactDeployed,
+  type ArtifactNew,
   type ArtifactReader,
   ArtifactState,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedIsmAddress,
@@ -10,8 +12,12 @@ import {
 } from '@hyperlane-xyz/provider-sdk/ism';
 
 import { type AnyAleoNetworkClient } from '../clients/base.js';
+import { type AleoSigner } from '../clients/signer.js';
+import { type AleoReceipt, type AleoTransaction } from '../utils/types.js';
 
+import { getNewIsmAddress } from './base.js';
 import { getTestIsmConfig } from './ism-query.js';
+import { getCreateTestIsmTx } from './ism-tx.js';
 
 export class AleoTestIsmReader
   implements ArtifactReader<TestIsmConfig, DeployedIsmAddress>
@@ -32,5 +38,50 @@ export class AleoTestIsmReader
         address: ismConfig.address,
       },
     };
+  }
+}
+
+export class AleoTestIsmWriter
+  extends AleoTestIsmReader
+  implements ArtifactWriter<TestIsmConfig, DeployedIsmAddress>
+{
+  constructor(
+    aleoClient: AnyAleoNetworkClient,
+    private readonly signer: AleoSigner,
+  ) {
+    super(aleoClient);
+  }
+
+  async create(
+    artifact: ArtifactNew<TestIsmConfig>,
+  ): Promise<
+    [ArtifactDeployed<TestIsmConfig, DeployedIsmAddress>, AleoReceipt[]]
+  > {
+    const ismManagerProgramId = this.signer.getIsmManager();
+    const transaction = getCreateTestIsmTx(ismManagerProgramId);
+    const receipt = await this.signer.sendAndConfirmTransaction(transaction);
+    const ismAddress = await getNewIsmAddress(
+      this.aleoClient,
+      ismManagerProgramId,
+    );
+
+    const deployedArtifact: ArtifactDeployed<
+      TestIsmConfig,
+      DeployedIsmAddress
+    > = {
+      artifactState: ArtifactState.DEPLOYED,
+      config: artifact.config,
+      deployed: {
+        address: ismAddress,
+      },
+    };
+
+    return [deployedArtifact, [receipt]];
+  }
+
+  async update(
+    _artifact: ArtifactDeployed<TestIsmConfig, DeployedIsmAddress>,
+  ): Promise<AleoTransaction[]> {
+    return [];
   }
 }
