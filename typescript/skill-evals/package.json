@@ -1,0 +1,27 @@
+{
+  "name": "@hyperlane-xyz/skill-evals",
+  "description": "Evaluation framework for Claude Code skills",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "eval": "tsx src/run-evals.ts",
+    "lint": "eslint -c ./eslint.config.mjs",
+    "prettier": "prettier --write ./src"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "catalog:",
+    "@anthropic-ai/sdk": "catalog:",
+    "glob": "^10.3.10",
+    "p-limit": "^5.0.0",
+    "yargs": "catalog:"
+  },
+  "devDependencies": {
+    "@types/yargs": "catalog:",
+    "eslint": "catalog:",
+    "prettier": "catalog:",
+    "tsx": "^4.0.0",
+    "typescript": "catalog:"
+  }
+}

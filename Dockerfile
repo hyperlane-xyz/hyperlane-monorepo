@@ -35,6 +35,7 @@ COPY typescript/provider-sdk/package.json ./typescript/provider-sdk/
 COPY typescript/radix-sdk/package.json ./typescript/radix-sdk/
 COPY typescript/rebalancer/package.json ./typescript/rebalancer/
 COPY typescript/sdk/package.json ./typescript/sdk/
+COPY typescript/skill-evals/package.json ./typescript/skill-evals/
 COPY typescript/tsconfig/package.json ./typescript/tsconfig/
 COPY typescript/utils/package.json ./typescript/utils/
 COPY typescript/warp-monitor/package.json ./typescript/warp-monitor/
