@@ -421,8 +421,33 @@ export class TronProvider implements AltVM.IProvider {
     };
   }
 
-  async getBridgedSupply(_req: AltVM.ReqGetBridgedSupply): Promise<bigint> {
-    throw new Error(`not implemented`);
+  async getBridgedSupply(req: AltVM.ReqGetBridgedSupply): Promise<bigint> {
+    const { tokenType, denom } = await this.getToken({
+      tokenAddress: req.tokenAddress,
+    });
+
+    switch (tokenType) {
+      case AltVM.TokenType.native: {
+        return this.getBalance({
+          address: req.tokenAddress,
+          denom: '',
+        });
+      }
+      case AltVM.TokenType.synthetic: {
+        return this.getTotalSupply({
+          denom: req.tokenAddress,
+        });
+      }
+      case AltVM.TokenType.collateral: {
+        return this.getBalance({
+          address: req.tokenAddress,
+          denom,
+        });
+      }
+      default: {
+        throw new Error(`Unknown token type ${tokenType}`);
+      }
+    }
   }
 
   async quoteRemoteTransfer(
