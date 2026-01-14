@@ -154,6 +154,8 @@ export class EvmTokenFeeModule extends HyperlaneModule<
         params.chainName,
       );
 
+      // Use bps as the source of truth when provided. Only use explicit
+      // maxFee/halfAmount when bps is not available.
       if (config.bps !== undefined) {
         const derived = reader.convertFromBps(config.bps);
         maxFee = derived.maxFee;
