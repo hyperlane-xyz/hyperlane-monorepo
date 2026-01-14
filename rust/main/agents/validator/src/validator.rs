@@ -222,6 +222,15 @@ impl BaseAgent for Validator {
 
         if is_kas(&self.origin_chain) {
             let prov = self.dymension_kaspa_args.clone().unwrap().kas_provider;
+
+            let is_migration = prov.conf().is_migration_mode();
+            let migration_target = prov.conf().migrate_escrow_to.as_deref();
+            info!(
+                is_migration_mode = is_migration,
+                migration_target = migration_target,
+                "Kaspa validator mode"
+            );
+
             let signing = dymension_kaspa::ValidatorISMSigningResources::new(
                 Arc::new(self.raw_signer.clone()),
                 self.signer.clone(),

@@ -56,6 +56,12 @@ struct ValidatorInfoResponse {
     ism_address: String,
 }
 
+#[derive(Serialize)]
+struct MigrationStatusResponse {
+    is_migration_mode: bool,
+    migration_target: Option<String>,
+}
+
 #[derive(Clone)]
 pub struct ValidatorISMSigningResources<
     S: HyperlaneSigner + HyperlaneSignerExt + Send + Sync + 'static,
@@ -174,6 +180,7 @@ pub fn router<
         )
         .route("/version", get(respond_version::<S, H>))
         .route("/validator-info", get(respond_validator_info::<S, H>))
+        .route("/migration-status", get(respond_migration_status::<S, H>))
         .layer(DefaultBodyLimit::disable())
         .with_state(Arc::new(resources))
 }
@@ -208,6 +215,21 @@ async fn respond_validator_info<
     info!("validator: info requested");
     let ism_address = format!("{:?}", res.must_signing().ism_address());
     Ok(Json(ValidatorInfoResponse { ism_address }))
+}
+
+async fn respond_migration_status<
+    S: HyperlaneSigner + HyperlaneSignerExt + Send + Sync + 'static,
+    H: HyperlaneSigner + HyperlaneSignerExt + Clone + Send + Sync + 'static,
+>(
+    State(res): State<Arc<ValidatorServerResources<S, H>>>,
+) -> HandlerResult<Json<MigrationStatusResponse>> {
+    info!("validator: migration status requested");
+    let is_migration_mode = res.conf().is_migration_mode();
+    let migration_target = res.conf().migrate_escrow_to.clone();
+    Ok(Json(MigrationStatusResponse {
+        is_migration_mode,
+        migration_target,
+    }))
 }
 
 #[derive(Clone)]
