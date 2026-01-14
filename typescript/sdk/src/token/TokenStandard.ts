@@ -303,6 +303,21 @@ export const tokenTypeToStandard = (
         `token type ${tokenType} not available on protocol ${protocolType}`,
       );
     }
+    case ProtocolType.Tron: {
+      if (
+        TRON_SUPPORTED_TOKEN_TYPES.includes(
+          tokenType as TronSupportedTokenTypes,
+        )
+      ) {
+        return TRON_TOKEN_TYPE_TO_STANDARD[
+          tokenType as TronSupportedTokenTypes
+        ];
+      }
+
+      throw new Error(
+        `token type ${tokenType} not available on protocol ${protocolType}`,
+      );
+    }
     case ProtocolType.Sealevel: {
       const sealevelTokenStandard =
         SEALEVEL_TOKEN_TYPE_TO_STANDARD[
@@ -428,6 +443,23 @@ export const ALEO_TOKEN_TYPE_TO_STANDARD: Record<
   [TokenType.native]: TokenStandard.AleoHypNative,
   [TokenType.collateral]: TokenStandard.AleoHypCollateral,
   [TokenType.synthetic]: TokenStandard.AleoHypSynthetic,
+};
+
+export const TRON_SUPPORTED_TOKEN_TYPES = [
+  TokenType.native,
+  TokenType.collateral,
+  TokenType.synthetic,
+] as const;
+
+type TronSupportedTokenTypes = (typeof TRON_SUPPORTED_TOKEN_TYPES)[number];
+
+export const TRON_TOKEN_TYPE_TO_STANDARD: Record<
+  TronSupportedTokenTypes,
+  TokenStandard
+> = {
+  [TokenType.native]: TokenStandard.TronHypNative,
+  [TokenType.collateral]: TokenStandard.TronHypCollateral,
+  [TokenType.synthetic]: TokenStandard.TronHypSynthetic,
 };
 
 export const PROTOCOL_TO_NATIVE_STANDARD: Record<ProtocolType, TokenStandard> =
