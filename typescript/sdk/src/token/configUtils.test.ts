@@ -1,14 +1,17 @@
 import { Address } from '@arbitrum/sdk';
 import { expect } from 'chai';
+import { constants } from 'ethers';
 
 import { RoutingFeeInputConfig, TokenFeeType } from '../fee/types.js';
 import { HookType } from '../hook/types.js';
 import { IsmType } from '../ism/types.js';
 
+import { TokenType } from './config.js';
 import {
   resolveTokenFeeAddress,
   transformConfigToCheck,
 } from './configUtils.js';
+import { HypTokenConfig } from './types.js';
 
 describe('configUtils', () => {
   describe(transformConfigToCheck.name, () => {
@@ -198,43 +201,68 @@ describe('configUtils', () => {
   describe(resolveTokenFeeAddress.name, () => {
     const ROUTER_ADDRESS = '0x1234567890123456789012345678901234567890';
     const OWNER_ADDRESS = '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd';
-    const EXISTING_TOKEN = '0x9999999999999999999999999999999999999999';
+    const COLLATERAL_TOKEN = '0x9999999999999999999999999999999999999999';
 
-    it('should resolve undefined token to router address for LinearFee', () => {
+    const syntheticConfig: HypTokenConfig = {
+      type: TokenType.synthetic,
+    };
+
+    const collateralConfig: HypTokenConfig = {
+      type: TokenType.collateral,
+      token: COLLATERAL_TOKEN,
+    };
+
+    const nativeConfig: HypTokenConfig = {
+      type: TokenType.native,
+    };
+
+    it('should resolve token to router address for synthetic tokens', () => {
       const input = {
         type: TokenFeeType.LinearFee as const,
         owner: OWNER_ADDRESS,
         bps: 100n,
       };
 
-      const result = resolveTokenFeeAddress(input, ROUTER_ADDRESS);
+      const result = resolveTokenFeeAddress(
+        input,
+        ROUTER_ADDRESS,
+        syntheticConfig,
+      );
 
       expect(result.token).to.equal(ROUTER_ADDRESS);
       expect(result.owner).to.equal(OWNER_ADDRESS);
     });
 
-    it('should preserve existing token address for LinearFee', () => {
+    it('should resolve token to collateral address for collateral tokens', () => {
       const input = {
         type: TokenFeeType.LinearFee as const,
         owner: OWNER_ADDRESS,
         bps: 100n,
-        token: EXISTING_TOKEN,
       };
 
-      const result = resolveTokenFeeAddress(input, ROUTER_ADDRESS);
+      const result = resolveTokenFeeAddress(
+        input,
+        ROUTER_ADDRESS,
+        collateralConfig,
+      );
 
-      expect(result.token).to.equal(EXISTING_TOKEN);
+      expect(result.token).to.equal(COLLATERAL_TOKEN);
     });
 
-    it('should resolve undefined token to router address for RoutingFee', () => {
+    it('should resolve token to AddressZero for native tokens', () => {
       const input = {
-        type: TokenFeeType.RoutingFee as const,
+        type: TokenFeeType.LinearFee as const,
         owner: OWNER_ADDRESS,
+        bps: 100n,
       };
 
-      const result = resolveTokenFeeAddress(input, ROUTER_ADDRESS);
+      const result = resolveTokenFeeAddress(
+        input,
+        ROUTER_ADDRESS,
+        nativeConfig,
+      );
 
-      expect(result.token).to.equal(ROUTER_ADDRESS);
+      expect(result.token).to.equal(constants.AddressZero);
     });
 
     it('should resolve nested feeContracts tokens for RoutingFee', () => {
@@ -251,22 +279,25 @@ describe('configUtils', () => {
             type: TokenFeeType.LinearFee as const,
             owner: OWNER_ADDRESS,
             bps: 50n,
-            token: EXISTING_TOKEN,
           },
         },
       };
 
-      const result = resolveTokenFeeAddress(input, ROUTER_ADDRESS);
+      const result = resolveTokenFeeAddress(
+        input,
+        ROUTER_ADDRESS,
+        syntheticConfig,
+      );
 
       expect(result.token).to.equal(ROUTER_ADDRESS);
       expect(result.type).to.equal(TokenFeeType.RoutingFee);
 
-      const routingResult = result as RoutingFeeInputConfig;
+      const routingResult = result as RoutingFeeInputConfig & { token: string };
       expect(routingResult.feeContracts?.ethereum?.token).to.equal(
         ROUTER_ADDRESS,
       );
       expect(routingResult.feeContracts?.arbitrum?.token).to.equal(
-        EXISTING_TOKEN,
+        ROUTER_ADDRESS,
       );
     });
 
@@ -276,7 +307,11 @@ describe('configUtils', () => {
         owner: OWNER_ADDRESS,
       };
 
-      const result = resolveTokenFeeAddress(input, ROUTER_ADDRESS);
+      const result = resolveTokenFeeAddress(
+        input,
+        ROUTER_ADDRESS,
+        syntheticConfig,
+      );
 
       expect(result.token).to.equal(ROUTER_ADDRESS);
       expect(result.type).to.equal(TokenFeeType.RoutingFee);

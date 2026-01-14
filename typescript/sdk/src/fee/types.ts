@@ -49,10 +49,9 @@ export const BaseFeeConfigSchema = z.object({
 });
 export type BaseTokenFeeConfig = z.infer<typeof BaseFeeConfigSchema>;
 
-// For input configs - token is optional (resolved at deploy time for synthetic tokens)
+// For input configs - token is NOT specified by user, resolved at deploy time based on token type
 export const BaseFeeConfigInputSchema = z.object({
-  token: ZHash.optional(),
-  owner: ZHash,
+  owner: ZHash.optional(),
 });
 
 export const FeeParametersSchema = z.object({

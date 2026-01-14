@@ -775,7 +775,11 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
         }
 
         const router = this.router(deployedContractsMap[chain]);
-        tokenFeeInput = resolveTokenFeeAddress(tokenFeeInput, router.address);
+        tokenFeeInput = resolveTokenFeeAddress(
+          tokenFeeInput,
+          router.address,
+          config,
+        );
 
         this.logger.debug(`Deploying token fee on ${chain}...`);
         const processedTokenFee = await EvmTokenFeeModule.expandConfig({

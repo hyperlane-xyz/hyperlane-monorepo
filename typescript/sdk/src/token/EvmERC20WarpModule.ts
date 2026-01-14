@@ -956,6 +956,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     const resolvedTokenFee = resolveTokenFeeAddress(
       expectedConfig.tokenFee,
       routerAddress,
+      expectedConfig,
     );
 
     const currentTokenFee = actualConfig.tokenFee;
