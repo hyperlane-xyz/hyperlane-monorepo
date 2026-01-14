@@ -353,5 +353,80 @@ describe('EvmTokenFeeModule', () => {
       expect(linearFee.halfAmount > 0n).to.be.true;
       expect(linearFee.bps).to.equal(8n);
     });
+
+    it('should expand config with explicit maxFee/halfAmount (no bps) and preserve values', async () => {
+      const explicitMaxFee = 10_000n;
+      const explicitHalfAmount = 5_000n;
+      const expectedBps = convertToBps(explicitMaxFee, explicitHalfAmount);
+
+      // Using type assertion because we're testing the pre-schema-transform input path
+      // where bps is computed from maxFee/halfAmount at runtime
+      const inputConfig = {
+        type: TokenFeeType.LinearFee,
+        owner: signer.address,
+        token: token.address,
+        maxFee: explicitMaxFee,
+        halfAmount: explicitHalfAmount,
+      } as ResolvedTokenFeeConfigInput;
+
+      const expandedConfig = await EvmTokenFeeModule.expandConfig({
+        config: inputConfig,
+        multiProvider,
+        chainName: test4Chain,
+      });
+
+      assert(
+        expandedConfig.type === TokenFeeType.LinearFee,
+        `Must be ${TokenFeeType.LinearFee}`,
+      );
+      const linearConfig = expandedConfig as LinearFeeConfig;
+
+      expect(linearConfig.maxFee).to.equal(explicitMaxFee);
+      expect(linearConfig.halfAmount).to.equal(explicitHalfAmount);
+      expect(linearConfig.bps).to.equal(expectedBps);
+    });
+
+    it('should expand nested RoutingFee with explicit maxFee/halfAmount in child LinearFee', async () => {
+      const explicitMaxFee = 10_000n;
+      const explicitHalfAmount = 5_000n;
+
+      // Using type assertion because we're testing the pre-schema-transform input path
+      const inputConfig = {
+        type: TokenFeeType.RoutingFee,
+        owner: signer.address,
+        token: token.address,
+        feeContracts: {
+          [test4Chain]: {
+            type: TokenFeeType.LinearFee,
+            owner: signer.address,
+            token: token.address,
+            maxFee: explicitMaxFee,
+            halfAmount: explicitHalfAmount,
+          },
+        },
+      } as ResolvedTokenFeeConfigInput;
+
+      const expandedConfig = await EvmTokenFeeModule.expandConfig({
+        config: inputConfig,
+        multiProvider,
+        chainName: test4Chain,
+      });
+
+      assert(
+        expandedConfig.type === TokenFeeType.RoutingFee,
+        `Must be ${TokenFeeType.RoutingFee}`,
+      );
+      const routingConfig = expandedConfig as RoutingFeeConfig;
+      const nestedFee = routingConfig.feeContracts?.[test4Chain];
+      assert(nestedFee, 'Nested fee must exist');
+      assert(
+        nestedFee.type === TokenFeeType.LinearFee,
+        `Nested fee must be ${TokenFeeType.LinearFee}`,
+      );
+
+      const linearFee = nestedFee as LinearFeeConfig;
+      expect(linearFee.maxFee).to.equal(explicitMaxFee);
+      expect(linearFee.halfAmount).to.equal(explicitHalfAmount);
+    });
   });
 });

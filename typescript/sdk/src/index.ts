@@ -887,6 +887,7 @@ export {
   TokenFeeConfigSchema,
   TokenFeeConfigInputSchema,
   TokenFeeConfigInput,
+  LinearFeeConfig,
 } from './fee/types.js';
 export { convertToBps } from './fee/utils.js';
 

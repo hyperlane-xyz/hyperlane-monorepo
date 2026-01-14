@@ -160,6 +160,10 @@ export class EvmTokenFeeReader extends HyperlaneReader {
   }
 
   convertFromBps(bps: bigint): FeeParameters {
+    if (bps === 0n) {
+      throw new Error('bps must be > 0 to prevent division by zero');
+    }
+
     const maxFee =
       BigInt(constants.MaxUint256.toString()) /
       ASSUMED_MAX_AMOUNT_FOR_ZERO_SUPPLY;

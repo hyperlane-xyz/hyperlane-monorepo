@@ -120,6 +120,13 @@ describe('EvmTokenFeeReader', () => {
       const convertedBps = convertToBps(maxFee, halfAmount);
       expect(convertedBps).to.equal(bps);
     });
+
+    it('should reject bps = 0 to prevent division by zero', () => {
+      const reader = new EvmTokenFeeReader(multiProvider, TestChainName.test2);
+      expect(() => reader.convertFromBps(0n)).to.throw(
+        'bps must be > 0 to prevent division by zero',
+      );
+    });
   });
 
   describe('RoutingFee', () => {

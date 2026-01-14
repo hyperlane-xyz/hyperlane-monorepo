@@ -80,6 +80,16 @@ export const LinearFeeInputConfigSchema = BaseFeeConfigInputSchema.extend({
   .superRefine((v, ctx) => {
     const hasBps = v.bps !== undefined;
     const hasFeeParams = v.maxFee !== undefined && v.halfAmount !== undefined;
+
+    // Reject when both bps and maxFee/halfAmount are provided to prevent ambiguity
+    if (hasBps && hasFeeParams) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['bps'],
+        message: 'Provide either bps OR both maxFee/halfAmount, not both',
+      });
+    }
+
     if (!hasBps && !hasFeeParams) {
       ctx.addIssue({
         code: 'custom',
@@ -87,6 +97,16 @@ export const LinearFeeInputConfigSchema = BaseFeeConfigInputSchema.extend({
         message: 'Provide bps or both maxFee and halfAmount',
       });
     }
+
+    // Reject bps = 0 to prevent division by zero in convertFromBps
+    if (hasBps && BigInt(v.bps!) === 0n) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['bps'],
+        message: 'bps must be > 0',
+      });
+    }
+
     if (v.halfAmount === 0n) {
       // Prevents divide by 0
       ctx.addIssue({
