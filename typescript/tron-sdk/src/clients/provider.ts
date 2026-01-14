@@ -116,35 +116,34 @@ export class TronProvider implements AltVM.IProvider {
   // ### QUERY CORE ###
 
   async getMailbox(req: AltVM.ReqGetMailbox): Promise<AltVM.ResGetMailbox> {
-    const contract = this.tronweb.contract(MailboxAbi.abi, req.mailboxAddress);
+    const mailbox = this.tronweb.contract(MailboxAbi.abi, req.mailboxAddress);
 
     const defaultIsm = this.tronweb.address.fromHex(
-      await contract.defaultIsm().call(),
+      await mailbox.defaultIsm().call(),
     );
 
     const defaultHook = this.tronweb.address.fromHex(
-      await contract.defaultHook().call(),
+      await mailbox.defaultHook().call(),
     );
 
     const requiredHook = this.tronweb.address.fromHex(
-      await contract.requiredHook().call(),
+      await mailbox.requiredHook().call(),
     );
 
     return {
       address: req.mailboxAddress,
-      owner: this.tronweb.address.fromHex(await contract.owner().call()),
-      localDomain: Number(await contract.localDomain().call()),
+      owner: this.tronweb.address.fromHex(await mailbox.owner().call()),
+      localDomain: Number(await mailbox.localDomain().call()),
       defaultIsm: defaultIsm === req.mailboxAddress ? '' : defaultIsm,
       defaultHook: defaultHook === req.mailboxAddress ? '' : defaultHook,
       requiredHook: requiredHook === req.mailboxAddress ? '' : requiredHook,
-      nonce: Number(await contract.nonce().call()),
+      nonce: Number(await mailbox.nonce().call()),
     };
   }
 
-  async isMessageDelivered(
-    _req: AltVM.ReqIsMessageDelivered,
-  ): Promise<boolean> {
-    throw new Error(`not implemented`);
+  async isMessageDelivered(req: AltVM.ReqIsMessageDelivered): Promise<boolean> {
+    const mailbox = this.tronweb.contract(MailboxAbi.abi, req.mailboxAddress);
+    return mailbox.delivered(req.messageId).call();
   }
 
   async getIsmType(req: AltVM.ReqGetIsmType): Promise<AltVM.IsmType> {
