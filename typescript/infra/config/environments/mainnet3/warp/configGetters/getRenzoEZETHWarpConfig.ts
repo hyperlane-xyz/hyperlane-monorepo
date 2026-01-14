@@ -4,6 +4,7 @@ import { Mailbox__factory } from '@hyperlane-xyz/core';
 import {
   ChainMap,
   ChainName,
+  ChainSubmissionStrategy,
   HookConfig,
   HookType,
   HypTokenRouterConfig,
@@ -15,7 +16,6 @@ import {
 import { Address, assert, symmetricDifference } from '@hyperlane-xyz/utils';
 
 import { getEnvironmentConfig } from '../../../../../scripts/core-utils.js';
-import { getGnosisSafeBuilderStrategyConfigGenerator } from '../../../utils.js';
 import { getRegistry as getMainnet3Registry } from '../../chains.js';
 
 export const ezEthChainsToDeploy = [
@@ -628,5 +628,18 @@ export const getRenzoEZETHWarpConfig = getRenzoWarpConfigGenerator({
   chainOwnerOverrides: ezEthChainOwnerOverrides,
 });
 
-export const getEZETHGnosisSafeBuilderStrategyConfig =
-  getGnosisSafeBuilderStrategyConfigGenerator(ezEthOwners);
+export function getEZETHFileSubmitterStrategyConfig(): ChainSubmissionStrategy {
+  // 'file' submitter type is CLI-specific (not in SDK types), so we use type assertion
+  return Object.fromEntries(
+    Object.entries(ezEthOwners).map(([chain, _]) => [
+      chain,
+      {
+        submitter: {
+          type: 'file',
+          filepath: '/tmp/ezeth-combined.json',
+          chain,
+        },
+      },
+    ]),
+  ) as unknown as ChainSubmissionStrategy;
+}
