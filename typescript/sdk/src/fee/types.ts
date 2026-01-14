@@ -42,11 +42,18 @@ export const onChainTypeToTokenFeeTypeMap: Record<
 
 // ====== SHARED SCHEMAS ======
 
+// For deployed/read configs - token is required
 export const BaseFeeConfigSchema = z.object({
   token: ZHash,
   owner: ZHash,
 });
 export type BaseTokenFeeConfig = z.infer<typeof BaseFeeConfigSchema>;
+
+// For input configs - token is optional (resolved at deploy time for synthetic tokens)
+export const BaseFeeConfigInputSchema = z.object({
+  token: ZHash.optional(),
+  owner: ZHash,
+});
 
 export const FeeParametersSchema = z.object({
   maxFee: ZBigNumberish,
@@ -65,8 +72,8 @@ export const LinearFeeConfigSchema = StandardFeeConfigBaseSchema.extend({
 });
 export type LinearFeeConfig = z.infer<typeof LinearFeeConfigSchema>;
 
-// Linear Fee Input - only requires bps & type
-export const LinearFeeInputConfigSchema = BaseFeeConfigSchema.extend({
+// Linear Fee Input - only requires bps & type, token is optional
+export const LinearFeeInputConfigSchema = BaseFeeConfigInputSchema.extend({
   type: z.literal(TokenFeeType.LinearFee),
   bps: ZBigNumberish.optional(),
   ...FeeParametersSchema.partial().shape,
@@ -119,13 +126,16 @@ export const RoutingFeeConfigSchema = BaseFeeConfigSchema.extend({
 });
 export type RoutingFeeConfig = z.infer<typeof RoutingFeeConfigSchema>;
 
-export const RoutingFeeInputConfigSchema = RoutingFeeConfigSchema.extend({
+export const RoutingFeeInputConfigSchema = BaseFeeConfigInputSchema.extend({
+  type: z.literal(TokenFeeType.RoutingFee),
   feeContracts: z
     .record(
       ZChainName,
       z.lazy((): z.ZodSchema => TokenFeeConfigInputSchema),
     )
-    .optional(), // Destination -> Fee
+    .optional(),
+  maxFee: ZBigNumberish.optional(),
+  halfAmount: ZBigNumberish.optional(),
 });
 export type RoutingFeeInputConfig = z.infer<typeof RoutingFeeInputConfigSchema>;
 

@@ -32,6 +32,11 @@ import {
 } from '../contracts/types.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { EvmTokenFeeModule } from '../fee/EvmTokenFeeModule.js';
+import {
+  RoutingFeeInputConfig,
+  TokenFeeConfigInput,
+  TokenFeeType,
+} from '../fee/types.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { GasRouterDeployer } from '../router/GasRouterDeployer.js';
@@ -765,13 +770,19 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
     await Promise.all(
       Object.keys(deployedContractsMap).map(async (chain) => {
         const config = configMap[chain];
-        const tokenFeeInput = config?.tokenFee;
+        let tokenFeeInput = config?.tokenFee;
         if (!tokenFeeInput) return;
 
         if (this.multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
           this.logger.debug(`Skipping token fee on non-EVM chain ${chain}`);
           return;
         }
+
+        const router = this.router(deployedContractsMap[chain]);
+        tokenFeeInput = this.resolveTokenFeeAddress(
+          tokenFeeInput,
+          router.address,
+        );
 
         this.logger.debug(`Deploying token fee on ${chain}...`);
         const processedTokenFee = await EvmTokenFeeModule.expandConfig({
@@ -785,12 +796,36 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
           config: processedTokenFee,
         });
 
-        const router = this.router(deployedContractsMap[chain]);
         const { deployedFee } = module.serialize();
         const tx = await router.setFeeRecipient(deployedFee);
         await this.multiProvider.handleTx(chain, tx);
       }),
     );
+  }
+
+  private resolveTokenFeeAddress(
+    feeConfig: TokenFeeConfigInput,
+    routerAddress: Address,
+  ): TokenFeeConfigInput {
+    const resolved: TokenFeeConfigInput = { ...feeConfig };
+
+    if (feeConfig.token === undefined) {
+      resolved.token = routerAddress;
+    }
+
+    if (feeConfig.type === TokenFeeType.RoutingFee) {
+      const routingConfig = feeConfig as RoutingFeeInputConfig;
+      if (routingConfig.feeContracts) {
+        (resolved as RoutingFeeInputConfig).feeContracts = Object.fromEntries(
+          Object.entries(routingConfig.feeContracts).map(([chain, subFee]) => [
+            chain,
+            this.resolveTokenFeeAddress(subFee, routerAddress),
+          ]),
+        );
+      }
+    }
+
+    return resolved;
   }
 }
 

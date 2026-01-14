@@ -1,10 +1,14 @@
 import { Address } from '@arbitrum/sdk';
 import { expect } from 'chai';
 
+import { RoutingFeeInputConfig, TokenFeeType } from '../fee/types.js';
 import { HookType } from '../hook/types.js';
 import { IsmType } from '../ism/types.js';
 
-import { transformConfigToCheck } from './configUtils.js';
+import {
+  resolveTokenFeeAddress,
+  transformConfigToCheck,
+} from './configUtils.js';
 
 describe('configUtils', () => {
   describe(transformConfigToCheck.name, () => {
@@ -189,5 +193,93 @@ describe('configUtils', () => {
         expect(transformedObj).to.eql(expected);
       });
     }
+  });
+
+  describe(resolveTokenFeeAddress.name, () => {
+    const ROUTER_ADDRESS = '0x1234567890123456789012345678901234567890';
+    const OWNER_ADDRESS = '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd';
+    const EXISTING_TOKEN = '0x9999999999999999999999999999999999999999';
+
+    it('should resolve undefined token to router address for LinearFee', () => {
+      const input = {
+        type: TokenFeeType.LinearFee as const,
+        owner: OWNER_ADDRESS,
+        bps: 100n,
+      };
+
+      const result = resolveTokenFeeAddress(input, ROUTER_ADDRESS);
+
+      expect(result.token).to.equal(ROUTER_ADDRESS);
+      expect(result.owner).to.equal(OWNER_ADDRESS);
+    });
+
+    it('should preserve existing token address for LinearFee', () => {
+      const input = {
+        type: TokenFeeType.LinearFee as const,
+        owner: OWNER_ADDRESS,
+        bps: 100n,
+        token: EXISTING_TOKEN,
+      };
+
+      const result = resolveTokenFeeAddress(input, ROUTER_ADDRESS);
+
+      expect(result.token).to.equal(EXISTING_TOKEN);
+    });
+
+    it('should resolve undefined token to router address for RoutingFee', () => {
+      const input = {
+        type: TokenFeeType.RoutingFee as const,
+        owner: OWNER_ADDRESS,
+      };
+
+      const result = resolveTokenFeeAddress(input, ROUTER_ADDRESS);
+
+      expect(result.token).to.equal(ROUTER_ADDRESS);
+    });
+
+    it('should resolve nested feeContracts tokens for RoutingFee', () => {
+      const input = {
+        type: TokenFeeType.RoutingFee as const,
+        owner: OWNER_ADDRESS,
+        feeContracts: {
+          ethereum: {
+            type: TokenFeeType.LinearFee as const,
+            owner: OWNER_ADDRESS,
+            bps: 100n,
+          },
+          arbitrum: {
+            type: TokenFeeType.LinearFee as const,
+            owner: OWNER_ADDRESS,
+            bps: 50n,
+            token: EXISTING_TOKEN,
+          },
+        },
+      };
+
+      const result = resolveTokenFeeAddress(input, ROUTER_ADDRESS);
+
+      expect(result.token).to.equal(ROUTER_ADDRESS);
+      expect(result.type).to.equal(TokenFeeType.RoutingFee);
+
+      const routingResult = result as RoutingFeeInputConfig;
+      expect(routingResult.feeContracts?.ethereum?.token).to.equal(
+        ROUTER_ADDRESS,
+      );
+      expect(routingResult.feeContracts?.arbitrum?.token).to.equal(
+        EXISTING_TOKEN,
+      );
+    });
+
+    it('should handle RoutingFee without feeContracts', () => {
+      const input = {
+        type: TokenFeeType.RoutingFee as const,
+        owner: OWNER_ADDRESS,
+      };
+
+      const result = resolveTokenFeeAddress(input, ROUTER_ADDRESS);
+
+      expect(result.token).to.equal(ROUTER_ADDRESS);
+      expect(result.type).to.equal(TokenFeeType.RoutingFee);
+    });
   });
 });

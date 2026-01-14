@@ -37,6 +37,7 @@ import {
 import { EvmTokenFeeFactories } from './contracts.js';
 import {
   ImmutableTokenFeeType,
+  RoutingFeeInputConfig,
   TokenFeeConfig,
   TokenFeeConfigInput,
   TokenFeeConfigSchema,
@@ -125,31 +126,39 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       );
 
       let { maxFee, halfAmount } = config;
+      const { token } = config;
 
-      if (!isZeroishAddress(config.token)) {
-        const { maxFee: convertedMaxFee, halfAmount: convertedHalfAmount } =
-          await reader.convertFromBps(config.bps, config.token);
-        maxFee = convertedMaxFee;
-        halfAmount = convertedHalfAmount;
+      if (token && !isZeroishAddress(token)) {
+        try {
+          const { maxFee: convertedMaxFee, halfAmount: convertedHalfAmount } =
+            await reader.convertFromBps(config.bps, token);
+          maxFee = convertedMaxFee;
+          halfAmount = convertedHalfAmount;
+        } catch {
+          // Token may not be a standard ERC20 (e.g., synthetic router)
+          // Fall back to provided maxFee/halfAmount
+        }
       }
 
       assert(
         maxFee && halfAmount,
         'Config properties "maxFee" and "halfAmount" must be supplied when "token" is not supplied',
       );
+      assert(token, 'Token address must be provided');
 
       intermediaryConfig = {
         type: TokenFeeType.LinearFee,
-        token: config.token,
+        token,
         owner: config.owner,
         bps: config.bps,
         maxFee,
         halfAmount,
       };
     } else if (config.type === TokenFeeType.RoutingFee) {
-      const feeContracts = config.feeContracts
+      const routingConfig = config as RoutingFeeInputConfig;
+      const feeContracts = routingConfig.feeContracts
         ? await promiseObjAll(
-            objMap(config.feeContracts, async (_, innerConfig) => {
+            objMap(routingConfig.feeContracts, async (_, innerConfig) => {
               return EvmTokenFeeModule.expandConfig({
                 config: innerConfig,
                 multiProvider,
@@ -159,10 +168,14 @@ export class EvmTokenFeeModule extends HyperlaneModule<
           )
         : undefined;
 
+      assert(
+        routingConfig.token,
+        'Token address must be provided for routing fee',
+      );
       intermediaryConfig = {
         type: TokenFeeType.RoutingFee,
-        token: config.token,
-        owner: config.owner,
+        token: routingConfig.token,
+        owner: routingConfig.owner,
         maxFee: constants.MaxUint256.toBigInt(),
         halfAmount: constants.MaxUint256.toBigInt(),
         feeContracts,

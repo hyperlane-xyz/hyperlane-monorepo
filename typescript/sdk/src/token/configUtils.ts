@@ -22,6 +22,11 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { isProxy } from '../deploy/proxy.js';
+import {
+  RoutingFeeInputConfig,
+  TokenFeeConfigInput,
+  TokenFeeType,
+} from '../fee/types.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -322,9 +327,43 @@ export async function expandWarpDeployConfig(params: {
         }
       }
 
+      // Resolve tokenFee.token if undefined (for synthetic tokens)
+      if (chainConfig.tokenFee) {
+        const routerAddress = deployedRoutersAddresses[chain];
+        chainConfig.tokenFee = resolveTokenFeeAddress(
+          chainConfig.tokenFee,
+          routerAddress,
+        );
+      }
+
       return chainConfig;
     }),
   );
+}
+
+export function resolveTokenFeeAddress(
+  feeConfig: TokenFeeConfigInput,
+  routerAddress: Address,
+): TokenFeeConfigInput {
+  const resolved: TokenFeeConfigInput = { ...feeConfig };
+
+  if (feeConfig.token === undefined) {
+    resolved.token = routerAddress;
+  }
+
+  if (feeConfig.type === TokenFeeType.RoutingFee) {
+    const routingConfig = feeConfig as RoutingFeeInputConfig;
+    if (routingConfig.feeContracts) {
+      (resolved as RoutingFeeInputConfig).feeContracts = Object.fromEntries(
+        Object.entries(routingConfig.feeContracts).map(([chain, subFee]) => [
+          chain,
+          resolveTokenFeeAddress(subFee, routerAddress),
+        ]),
+      );
+    }
+  }
+
+  return resolved;
 }
 
 export async function expandVirtualWarpDeployConfig(params: {

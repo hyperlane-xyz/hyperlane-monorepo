@@ -228,6 +228,88 @@ describe('WarpRouteDeployConfigSchema refine', () => {
     });
   }
 
+  describe('tokenFee with optional token', () => {
+    it('should allow LinearFee without token for synthetic tokens', () => {
+      const parseResults = WarpRouteDeployConfigSchema.safeParse({
+        arbitrum: {
+          type: TokenType.synthetic,
+          owner: SOME_ADDRESS,
+          mailbox: SOME_ADDRESS,
+          name: 'Test Token',
+          symbol: 'TEST',
+          tokenFee: {
+            type: TokenFeeType.LinearFee,
+            owner: SOME_ADDRESS,
+            bps: 100n,
+          },
+        },
+      });
+
+      assert(parseResults.success, 'must be true');
+      expect(parseResults.data.arbitrum.tokenFee?.token).to.be.undefined;
+    });
+
+    it('should allow RoutingFee without token for synthetic tokens', () => {
+      const parseResults = WarpRouteDeployConfigSchema.safeParse({
+        arbitrum: {
+          type: TokenType.synthetic,
+          owner: SOME_ADDRESS,
+          mailbox: SOME_ADDRESS,
+          name: 'Test Token',
+          symbol: 'TEST',
+          tokenFee: {
+            type: TokenFeeType.RoutingFee,
+            owner: SOME_ADDRESS,
+            feeContracts: {
+              ethereum: {
+                type: TokenFeeType.LinearFee,
+                owner: SOME_ADDRESS,
+                bps: 100n,
+              },
+            },
+          },
+        },
+      });
+
+      assert(parseResults.success, 'must be true');
+      expect(parseResults.data.arbitrum.tokenFee?.token).to.be.undefined;
+    });
+
+    it('should allow nested RoutingFee feeContracts without token', () => {
+      const parseResults = WarpRouteDeployConfigSchema.safeParse({
+        arbitrum: {
+          type: TokenType.synthetic,
+          owner: SOME_ADDRESS,
+          mailbox: SOME_ADDRESS,
+          name: 'Test Token',
+          symbol: 'TEST',
+          tokenFee: {
+            type: TokenFeeType.RoutingFee,
+            owner: SOME_ADDRESS,
+            feeContracts: {
+              ethereum: {
+                type: TokenFeeType.LinearFee,
+                owner: SOME_ADDRESS,
+                bps: 100n,
+              },
+              optimism: {
+                type: TokenFeeType.LinearFee,
+                owner: SOME_ADDRESS,
+                bps: 50n,
+              },
+            },
+          },
+        },
+      });
+
+      assert(parseResults.success, 'must be true');
+      const feeConfig = parseResults.data.arbitrum.tokenFee;
+      assert(feeConfig?.type === TokenFeeType.RoutingFee, 'must be RoutingFee');
+      expect(feeConfig.feeContracts?.ethereum?.token).to.be.undefined;
+      expect(feeConfig.feeContracts?.optimism?.token).to.be.undefined;
+    });
+  });
+
   describe('xERC20 validation', () => {
     it('should allow xERC20 with xERC20Lockbox', () => {
       const config = {

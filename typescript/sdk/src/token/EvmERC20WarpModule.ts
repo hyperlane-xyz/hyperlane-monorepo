@@ -53,6 +53,11 @@ import {
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { EvmTokenFeeModule } from '../fee/EvmTokenFeeModule.js';
 import { TokenFeeReaderParams } from '../fee/EvmTokenFeeReader.js';
+import {
+  RoutingFeeInputConfig,
+  TokenFeeConfigInput,
+  TokenFeeType,
+} from '../fee/types.js';
 import { getEvmHookUpdateTransactions } from '../hook/updates.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -947,21 +952,23 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     expectedConfig: HypTokenRouterConfig,
     tokenReaderParams?: Partial<TokenFeeReaderParams>,
   ): Promise<AnnotatedEV5Transaction[]> {
-    // If no token fee is expected, return empty array
     if (!expectedConfig.tokenFee) {
       return [];
     }
 
-    // Get the current token fee configuration from the actual config
+    const routerAddress = this.args.addresses.deployedTokenRoute;
+    const resolvedTokenFee = this.resolveTokenFeeAddress(
+      expectedConfig.tokenFee,
+      routerAddress,
+    );
+
     const currentTokenFee = actualConfig.tokenFee;
 
-    // If there's no current token fee but we expect one, we need to deploy
     if (!currentTokenFee) {
       this.logger.info('No existing token fee found, creating new one');
 
-      // First expand the input config to a full config
       const expandedExpectedConfig = await EvmTokenFeeModule.expandConfig({
-        config: expectedConfig.tokenFee,
+        config: resolvedTokenFee,
         multiProvider: this.multiProvider,
         chainName: this.chainName,
       });
@@ -988,7 +995,6 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       ];
     }
 
-    // If there's an existing token fee, update it
     this.logger.info('Updating existing token fee configuration');
 
     const tokenFeeModule = new EvmTokenFeeModule(
@@ -1004,7 +1010,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     );
 
     const updateTransactions = await tokenFeeModule.update(
-      expectedConfig.tokenFee,
+      resolvedTokenFee,
       tokenReaderParams,
     );
     const { deployedFee } = tokenFeeModule.serialize();
@@ -1018,6 +1024,31 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       ),
     });
     return updateTransactions;
+  }
+
+  private resolveTokenFeeAddress(
+    feeConfig: TokenFeeConfigInput,
+    routerAddress: Address,
+  ): TokenFeeConfigInput {
+    const resolved: TokenFeeConfigInput = { ...feeConfig };
+
+    if (feeConfig.token === undefined) {
+      resolved.token = routerAddress;
+    }
+
+    if (feeConfig.type === TokenFeeType.RoutingFee) {
+      const routingConfig = feeConfig as RoutingFeeInputConfig;
+      if (routingConfig.feeContracts) {
+        (resolved as RoutingFeeInputConfig).feeContracts = Object.fromEntries(
+          Object.entries(routingConfig.feeContracts).map(([chain, subFee]) => [
+            chain,
+            this.resolveTokenFeeAddress(subFee, routerAddress),
+          ]),
+        );
+      }
+    }
+
+    return resolved;
   }
 
   /**
