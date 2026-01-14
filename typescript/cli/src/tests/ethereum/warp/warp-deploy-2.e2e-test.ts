@@ -606,8 +606,8 @@ describe('hyperlane warp deploy e2e tests', async function () {
       expect(collateralConfig.tokenFee?.type).to.equal(TokenFeeType.LinearFee);
 
       const tokenFee = collateralConfig.tokenFee as LinearFeeConfig;
-      expect(tokenFee.maxFee).to.equal(BigInt(explicitMaxFee));
-      expect(tokenFee.halfAmount).to.equal(BigInt(explicitHalfAmount));
+      expect(BigInt(tokenFee.maxFee)).to.equal(BigInt(explicitMaxFee));
+      expect(BigInt(tokenFee.halfAmount)).to.equal(BigInt(explicitHalfAmount));
       expect(tokenFee.bps).to.exist;
     });
 
@@ -651,7 +651,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       expect(syntheticConfig.tokenFee?.type).to.equal(TokenFeeType.LinearFee);
 
       const tokenFee = syntheticConfig.tokenFee as LinearFeeConfig;
-      expect(tokenFee.bps).to.equal(providedBps);
+      expect(BigInt(tokenFee.bps)).to.equal(providedBps);
       expect(tokenFee.maxFee).to.exist;
       expect(tokenFee.halfAmount).to.exist;
       expect(BigInt(tokenFee.maxFee) > 0n).to.be.true;
