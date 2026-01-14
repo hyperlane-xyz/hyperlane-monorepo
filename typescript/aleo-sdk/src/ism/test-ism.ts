@@ -13,6 +13,7 @@ import {
 
 import { type AnyAleoNetworkClient } from '../clients/base.js';
 import { type AleoSigner } from '../clients/signer.js';
+import { getNewContractExpectedNonce } from '../utils/base-query.js';
 import {
   type AleoReceipt,
   type AnnotatedAleoTransaction,
@@ -62,10 +63,17 @@ export class AleoTestIsmWriter
   > {
     const ismManagerProgramId = this.signer.getIsmManager();
     const transaction = getCreateTestIsmTx(ismManagerProgramId);
+
+    const expectedNonce = await getNewContractExpectedNonce(
+      this.aleoClient,
+      ismManagerProgramId,
+    );
+
     const receipt = await this.signer.sendAndConfirmTransaction(transaction);
     const ismAddress = await getNewIsmAddress(
       this.aleoClient,
       ismManagerProgramId,
+      expectedNonce,
     );
 
     const deployedArtifact: ArtifactDeployed<

@@ -15,6 +15,7 @@ import { eqAddressAleo, isNullish } from '@hyperlane-xyz/utils';
 
 import { type AnyAleoNetworkClient } from '../clients/base.js';
 import { type AleoSigner } from '../clients/signer.js';
+import { getNewContractExpectedNonce } from '../utils/base-query.js';
 import {
   type AleoReceipt,
   type AnnotatedAleoTransaction,
@@ -89,6 +90,12 @@ export class AleoRoutingIsmRawWriter
     const receipts: AleoReceipt[] = [];
 
     const createTransaction = getCreateRoutingIsmTx(ismManagerProgramId);
+
+    const expectedNonce = await getNewContractExpectedNonce(
+      this.aleoClient,
+      ismManagerProgramId,
+    );
+
     const createReceipt =
       await this.signer.sendAndConfirmTransaction(createTransaction);
     receipts.push(createReceipt);
@@ -96,6 +103,7 @@ export class AleoRoutingIsmRawWriter
     const ismAddress = await getNewIsmAddress(
       this.aleoClient,
       ismManagerProgramId,
+      expectedNonce,
     );
 
     for (const [domainId, domainIsm] of Object.entries(config.domains)) {
