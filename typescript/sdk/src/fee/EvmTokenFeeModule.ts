@@ -38,6 +38,7 @@ import {
   ResolvedTokenFeeConfigInput,
   TokenFeeConfig,
   TokenFeeConfigInput,
+  TokenFeeConfigInputSchema,
   TokenFeeConfigSchema,
   TokenFeeType,
 } from './types.js';
@@ -255,6 +256,8 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     targetConfig: TokenFeeConfigInput,
     params?: Partial<TokenFeeReaderParams>,
   ): Promise<AnnotatedEV5Transaction[]> {
+    TokenFeeConfigInputSchema.parse(targetConfig);
+
     let updateTransactions: AnnotatedEV5Transaction[] = [];
 
     const actualConfig = await this.read(params);

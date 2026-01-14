@@ -122,6 +122,9 @@ export const ProgressiveFeeInputConfigSchema = BaseFeeConfigInputSchema.extend({
   type: z.literal(TokenFeeType.ProgressiveFee),
   maxFee: ZBigNumberish,
   halfAmount: ZBigNumberish,
+}).refine((v) => BigInt(v.halfAmount) > 0n, {
+  path: ['halfAmount'],
+  message: 'halfAmount must be > 0',
 });
 export type ProgressiveFeeInputConfig = z.infer<
   typeof ProgressiveFeeInputConfigSchema
@@ -136,6 +139,9 @@ export const RegressiveFeeInputConfigSchema = BaseFeeConfigInputSchema.extend({
   type: z.literal(TokenFeeType.RegressiveFee),
   maxFee: ZBigNumberish,
   halfAmount: ZBigNumberish,
+}).refine((v) => BigInt(v.halfAmount) > 0n, {
+  path: ['halfAmount'],
+  message: 'halfAmount must be > 0',
 });
 export type RegressiveFeeInputConfig = z.infer<
   typeof RegressiveFeeInputConfigSchema
