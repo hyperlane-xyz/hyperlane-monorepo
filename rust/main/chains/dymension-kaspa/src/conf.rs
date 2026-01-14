@@ -231,6 +231,13 @@ impl ConnectionConf {
             None
         };
 
+        // Log early (before tracing is initialized) so migration mode is visible even if wallet connection fails
+        println!(
+            "Kaspa config: is_migration_mode={}, migration_target={:?}",
+            migrate_escrow_to.is_some(),
+            migrate_escrow_to.as_deref()
+        );
+
         Self {
             wallet_secret,
             wallet_dir,
