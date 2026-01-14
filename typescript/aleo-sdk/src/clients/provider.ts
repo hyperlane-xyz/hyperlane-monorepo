@@ -5,6 +5,12 @@ import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
 
 import {
+  getIsmType,
+  getMessageIdMultisigIsmConfig,
+  getRoutingIsmConfig,
+  getTestIsmConfig,
+} from '../ism/ism-query.js';
+import {
   ALEO_NATIVE_DENOM,
   ALEO_NULL_ADDRESS,
   U128ToString,
@@ -180,11 +186,9 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   }
 
   async getIsmType(req: AltVM.ReqGetIsmType): Promise<AltVM.IsmType> {
-    const { programId, address } = fromAleoAddress(req.ismAddress);
+    const aleoIsmType = await getIsmType(this.aleoClient, req.ismAddress);
 
-    const result = await this.queryMappingValue(programId, 'isms', address);
-
-    switch (result) {
+    switch (aleoIsmType) {
       case AleoIsmType.TEST_ISM:
         return AltVM.IsmType.TEST_ISM;
       case AleoIsmType.ROUTING:
@@ -201,20 +205,13 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async getMessageIdMultisigIsm(
     req: AltVM.ReqMessageIdMultisigIsm,
   ): Promise<AltVM.ResMessageIdMultisigIsm> {
-    const { programId, address } = fromAleoAddress(req.ismAddress);
-
-    const { validators, threshold } = await this.queryMappingValue(
-      programId,
-      'message_id_multisigs',
-      address,
-    );
+    const { address, threshold, validators } =
+      await getMessageIdMultisigIsmConfig(this.aleoClient, req.ismAddress);
 
     return {
-      address: req.ismAddress,
-      validators: validators
-        .map((v: any) => ensure0x(Buffer.from(v.bytes).toString('hex')))
-        .filter((v: any) => v !== '0x0000000000000000000000000000000000000000'),
-      threshold: threshold,
+      address,
+      validators,
+      threshold,
     };
   }
 
@@ -225,61 +222,23 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   }
 
   async getRoutingIsm(req: AltVM.ReqRoutingIsm): Promise<AltVM.ResRoutingIsm> {
-    const { programId, address } = fromAleoAddress(req.ismAddress);
-
-    const routes: { domainId: number; ismAddress: string }[] = [];
-
-    const ismData = await this.queryMappingValue(
-      programId,
-      'domain_routing_isms',
-      address,
+    const { owner, routes } = await getRoutingIsmConfig(
+      this.aleoClient,
+      req.ismAddress,
     );
-    const owner = ismData.ism_owner;
-
-    const routeLengthRes = await this.queryMappingValue(
-      programId,
-      'route_length',
-      address,
-    );
-
-    for (let i = 0; i < (routeLengthRes || 0); i++) {
-      const routeKey = await this.aleoClient.getProgramMappingPlaintext(
-        programId,
-        'route_iter',
-        `{ism:${address},index:${i}u32}`,
-      );
-
-      const ismAddress = await this.queryMappingValue(
-        programId,
-        'routes',
-        routeKey.toString(),
-      );
-
-      // This is necessary because `route_iter` maintains keys for all route entries,
-      // including those from domains that have already been removed. When a domain is
-      // deleted from the Routing ISM, its key remains in the map and `routes` simply returns null.
-      if (!ismAddress) continue;
-
-      routes.push({
-        ismAddress: `${this.ismManager}/${ismAddress}`,
-        domainId: routeKey.toObject().domain,
-      });
-    }
 
     return {
       address: req.ismAddress,
-      owner: owner,
-      routes: routes,
+      owner,
+      routes,
     };
   }
 
   async getNoopIsm(req: AltVM.ReqNoopIsm): Promise<AltVM.ResNoopIsm> {
-    const { programId, address } = fromAleoAddress(req.ismAddress);
-
-    await this.queryMappingValue(programId, 'isms', address);
+    const { address } = await getTestIsmConfig(this.aleoClient, req.ismAddress);
 
     return {
-      address: req.ismAddress,
+      address,
     };
   }
 

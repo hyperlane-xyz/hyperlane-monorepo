@@ -65,7 +65,13 @@ export function getCheckWarpDeployArgs() {
 }
 
 export function getCheckDeployArgs() {
-  return withRegistryUris(withWarpRouteId(withModule(getCheckBaseArgs())));
+  return withRegistryUris(withWarpRouteId(withModule(getCheckBaseArgs())))
+    .describe(
+      'forceRegistryConfig',
+      'Force using registry YAML config instead of config getter',
+    )
+    .boolean('forceRegistryConfig')
+    .default('forceRegistryConfig', false);
 }
 
 const ICA_ENABLED_MODULES = [
@@ -85,6 +91,7 @@ export async function getGovernor(
   govern?: boolean,
   multiProvider: MultiProvider | undefined = undefined,
   registryUris?: string[],
+  forceRegistryConfig?: boolean,
 ) {
   const envConfig = getEnvironmentConfig(environment);
   // If the multiProvider is not passed in, get it from the environment
@@ -247,6 +254,7 @@ export async function getGovernor(
       envConfig,
       warpRouteId,
       registryUris,
+      forceRegistryConfig,
     ).catch((error) => {
       console.log(
         `Fetching warp route deploy config failed for ${warpRouteId}. Exiting with error: ${error}`,

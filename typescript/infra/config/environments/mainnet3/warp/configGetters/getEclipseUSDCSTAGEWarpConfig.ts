@@ -48,7 +48,7 @@ export const getEclipseUSDCSTAGEWarpConfig = async (
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const rebalancingConfigByChain = getUSDCRebalancingBridgesConfigFor(
     rebalanceableCollateralChains,
-    WarpRouteIds.MainnetCCTPV1,
+    [WarpRouteIds.MainnetCCTPV1],
   );
 
   // All EVM chains use the same owner (Safe)
