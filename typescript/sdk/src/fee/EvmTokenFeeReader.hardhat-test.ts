@@ -13,7 +13,7 @@ import { normalizeConfig } from '../utils/ism.js';
 import { EvmTokenFeeDeployer } from './EvmTokenFeeDeployer.js';
 import { EvmTokenFeeReader } from './EvmTokenFeeReader.js';
 import { TokenFeeConfig, TokenFeeConfigSchema, TokenFeeType } from './types.js';
-import { convertToBps } from './utils.js';
+import { ASSUMED_MAX_AMOUNT_FOR_ZERO_SUPPLY, convertToBps } from './utils.js';
 
 export const MAX_FEE =
   1157920892373161954235709850086879078532699846656405640394n;
@@ -110,6 +110,30 @@ describe('EvmTokenFeeReader', () => {
 
       // Get bps using helper function
       const convertedBps = convertToBps(convertedMaxFee, convertedHalfAmount);
+      expect(convertedBps).to.equal(bps);
+    });
+
+    it('should use safe fallback for zero-supply token and round-trip bps correctly', async () => {
+      const factory = new ERC20Test__factory(signer);
+      const zeroSupplyToken = await factory.deploy('ZeroSupply', 'ZERO', 0, 18);
+      await zeroSupplyToken.deployed();
+
+      const bps = 8n;
+      const reader = new EvmTokenFeeReader(multiProvider, TestChainName.test2);
+      const { maxFee, halfAmount } = await reader.convertFromBps(
+        bps,
+        zeroSupplyToken.address,
+      );
+
+      expect(maxFee > 0n).to.be.true;
+      expect(halfAmount > 0n).to.be.true;
+
+      const expectedMaxFee =
+        BigInt(constants.MaxUint256.toString()) /
+        ASSUMED_MAX_AMOUNT_FOR_ZERO_SUPPLY;
+      expect(maxFee).to.equal(expectedMaxFee);
+
+      const convertedBps = convertToBps(maxFee, halfAmount);
       expect(convertedBps).to.equal(bps);
     });
   });

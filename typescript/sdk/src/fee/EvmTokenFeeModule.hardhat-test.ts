@@ -15,12 +15,14 @@ import { EvmTokenFeeModule } from './EvmTokenFeeModule.js';
 import { BPS, HALF_AMOUNT, MAX_FEE } from './EvmTokenFeeReader.hardhat-test.js';
 import { TokenFeeReaderParams } from './EvmTokenFeeReader.js';
 import {
+  LinearFeeConfig,
   RoutingFeeConfig,
   TokenFeeConfig,
   TokenFeeConfigInput,
   TokenFeeConfigSchema,
   TokenFeeType,
 } from './types.js';
+import { convertToBps } from './utils.js';
 
 describe('EvmTokenFeeModule', () => {
   const test4Chain = TestChainName.test4;
@@ -271,6 +273,85 @@ describe('EvmTokenFeeModule', () => {
       expect(
         normalizeConfig(onchainConfig.feeContracts?.[test4Chain]).owner,
       ).to.equal(newOwner);
+    });
+  });
+
+  describe('expandConfig', () => {
+    it('should expand config for zero-supply token using safe fallback', async () => {
+      const factory = new ERC20Test__factory(signer);
+      const zeroSupplyToken = await factory.deploy('ZeroSupply', 'ZERO', 0, 18);
+      await zeroSupplyToken.deployed();
+
+      const inputConfig: TokenFeeConfigInput = {
+        type: TokenFeeType.LinearFee,
+        owner: signer.address,
+        token: zeroSupplyToken.address,
+        bps: 8n,
+      };
+
+      const expandedConfig = await EvmTokenFeeModule.expandConfig({
+        config: inputConfig,
+        multiProvider,
+        chainName: test4Chain,
+      });
+
+      assert(
+        expandedConfig.type === TokenFeeType.LinearFee,
+        `Must be ${TokenFeeType.LinearFee}`,
+      );
+      const linearConfig = expandedConfig as LinearFeeConfig;
+      expect(linearConfig.maxFee > 0n).to.be.true;
+      expect(linearConfig.halfAmount > 0n).to.be.true;
+      expect(linearConfig.bps).to.equal(8n);
+
+      const roundTripBps = convertToBps(
+        linearConfig.maxFee,
+        linearConfig.halfAmount,
+      );
+      expect(roundTripBps).to.equal(8n);
+    });
+
+    it('should expand nested RoutingFee config for zero-supply token', async () => {
+      const factory = new ERC20Test__factory(signer);
+      const zeroSupplyToken = await factory.deploy('ZeroSupply', 'ZERO', 0, 18);
+      await zeroSupplyToken.deployed();
+
+      const inputConfig: TokenFeeConfigInput = {
+        type: TokenFeeType.RoutingFee,
+        owner: signer.address,
+        token: zeroSupplyToken.address,
+        feeContracts: {
+          [test4Chain]: {
+            type: TokenFeeType.LinearFee,
+            owner: signer.address,
+            token: zeroSupplyToken.address,
+            bps: 8n,
+          },
+        },
+      };
+
+      const expandedConfig = await EvmTokenFeeModule.expandConfig({
+        config: inputConfig,
+        multiProvider,
+        chainName: test4Chain,
+      });
+
+      assert(
+        expandedConfig.type === TokenFeeType.RoutingFee,
+        `Must be ${TokenFeeType.RoutingFee}`,
+      );
+      const routingConfig = expandedConfig as RoutingFeeConfig;
+      const nestedFee = routingConfig.feeContracts?.[test4Chain];
+      assert(nestedFee, 'Nested fee must exist');
+      assert(
+        nestedFee.type === TokenFeeType.LinearFee,
+        `Nested fee must be ${TokenFeeType.LinearFee}`,
+      );
+
+      const linearFee = nestedFee as LinearFeeConfig;
+      expect(linearFee.maxFee > 0n).to.be.true;
+      expect(linearFee.halfAmount > 0n).to.be.true;
+      expect(linearFee.bps).to.equal(8n);
     });
   });
 });

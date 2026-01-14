@@ -20,7 +20,11 @@ import {
   TokenFeeType,
   onChainTypeToTokenFeeTypeMap,
 } from './types.js';
-import { MAX_BPS, convertToBps } from './utils.js';
+import {
+  ASSUMED_MAX_AMOUNT_FOR_ZERO_SUPPLY,
+  MAX_BPS,
+  convertToBps,
+} from './utils.js';
 
 export type DerivedTokenFeeConfig = WithAddress<TokenFeeConfig>;
 
@@ -160,12 +164,17 @@ export class EvmTokenFeeReader extends HyperlaneReader {
     bps: bigint,
     tokenAddress: Address,
   ): Promise<FeeParameters> {
-    // Assume maxFee is uint256.max / token.totalSupply
     const token = ERC20__factory.connect(tokenAddress, this.provider);
     const totalSupplyBn = await token.totalSupply();
-    const maxFee = BigInt(constants.MaxUint256.div(totalSupplyBn).toString());
 
+    // For zero-supply tokens (e.g., newly deployed synthetics), use a safe assumed max amount
+    const divisor = totalSupplyBn.isZero()
+      ? ASSUMED_MAX_AMOUNT_FOR_ZERO_SUPPLY
+      : BigInt(totalSupplyBn.toString());
+
+    const maxFee = BigInt(constants.MaxUint256.toString()) / divisor;
     const halfAmount = ((maxFee / 2n) * MAX_BPS) / bps;
+
     return {
       maxFee,
       halfAmount,
