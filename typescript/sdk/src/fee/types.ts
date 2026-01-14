@@ -172,3 +172,8 @@ export const TokenFeeConfigInputSchema = z.union([
   RoutingFeeInputConfigSchema,
 ]);
 export type TokenFeeConfigInput = z.infer<typeof TokenFeeConfigInputSchema>;
+
+// After resolveTokenFeeAddress() adds the token field
+export type ResolvedTokenFeeConfigInput = TokenFeeConfigInput & {
+  token: string;
+};

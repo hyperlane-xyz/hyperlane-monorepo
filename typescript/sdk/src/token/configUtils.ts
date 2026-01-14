@@ -23,7 +23,11 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { isProxy } from '../deploy/proxy.js';
-import { TokenFeeConfigInput, TokenFeeType } from '../fee/types.js';
+import {
+  ResolvedTokenFeeConfigInput,
+  TokenFeeConfigInput,
+  TokenFeeType,
+} from '../fee/types.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -353,7 +357,7 @@ export function resolveTokenFeeAddress(
   feeConfig: TokenFeeConfigInput,
   routerAddress: Address,
   tokenConfig: HypTokenConfig,
-): TokenFeeConfigInput & { token: Address } {
+): ResolvedTokenFeeConfigInput {
   let feeToken: Address;
 
   if (isNativeTokenConfig(tokenConfig)) {
