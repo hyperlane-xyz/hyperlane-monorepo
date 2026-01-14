@@ -97,7 +97,7 @@ export class TronProvider implements AltVM.IProvider {
   }
 
   async getBalance(req: AltVM.ReqGetBalance): Promise<bigint> {
-    if (req.denom) {
+    if (req.denom && req.denom !== 'SUN') {
       const erc20 = this.tronweb.contract(IERC20Abi.abi, req.denom);
       const balance = await erc20.balanceOf(req.address).call();
       return BigInt(balance);
