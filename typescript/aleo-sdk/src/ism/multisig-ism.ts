@@ -13,7 +13,10 @@ import {
 
 import { type AnyAleoNetworkClient } from '../clients/base.js';
 import { type AleoSigner } from '../clients/signer.js';
-import { type AleoReceipt, type AleoTransaction } from '../utils/types.js';
+import {
+  type AleoReceipt,
+  type AnnotatedAleoTransaction,
+} from '../utils/types.js';
 
 import { getNewIsmAddress } from './base.js';
 import { getMessageIdMultisigIsmConfig } from './ism-query.js';
@@ -22,7 +25,7 @@ import { getCreateMessageIdMultisigIsmTx } from './ism-tx.js';
 export class AleoMessageIdMultisigIsmReader
   implements ArtifactReader<MultisigIsmConfig, DeployedIsmAddress>
 {
-  constructor(private readonly aleoClient: AnyAleoNetworkClient) {}
+  constructor(protected readonly aleoClient: AnyAleoNetworkClient) {}
 
   async read(
     address: string,
@@ -92,7 +95,7 @@ export class AleoMessageIdMultisigIsmWriter
 
   async update(
     _artifact: ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddress>,
-  ): Promise<AleoTransaction[]> {
+  ): Promise<AnnotatedAleoTransaction[]> {
     return [];
   }
 }
