@@ -423,6 +423,13 @@ describe('hyperlane warp deploy e2e tests', async function () {
           await tokenChain2.symbol(),
         );
 
+      const coreConfig: WarpCoreConfig = readYamlOrJson(
+        COMBINED_WARP_CORE_CONFIG_PATH,
+      );
+      const [syntheticTokenConfig] = coreConfig.tokens.filter(
+        (config) => config.chainName === CHAIN_NAME_3,
+      );
+
       const syntheticConfig = (
         await readWarpConfig(
           CHAIN_NAME_3,
@@ -433,8 +440,10 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       expect(syntheticConfig.tokenFee).to.exist;
       expect(syntheticConfig.tokenFee?.type).to.equal(TokenFeeType.LinearFee);
-      expect((syntheticConfig.tokenFee as TokenFeeConfig | undefined)?.token).to
-        .exist;
+      // For synthetic tokens, fee token should be resolved to the router address
+      expect(
+        (syntheticConfig.tokenFee as TokenFeeConfig | undefined)?.token,
+      ).to.equal(syntheticTokenConfig.addressOrDenom);
     });
 
     it(`should deploy a native Routing Fee when providing maxFee and halfAmount only`, async () => {

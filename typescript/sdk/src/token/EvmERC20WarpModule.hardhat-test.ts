@@ -53,7 +53,6 @@ import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
-import { BPS } from '../fee/EvmTokenFeeReader.hardhat-test.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
@@ -1764,7 +1763,6 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
           type: TokenFeeType.LinearFee,
           maxFee: 1000000000,
           halfAmount: 500000000,
-          bps: BPS,
         },
       });
       await sendTxs(await evmERC20WarpModule.update(expectedConfig));

@@ -387,10 +387,13 @@ export function resolveTokenFeeAddress(
           resolveTokenFeeAddress(subFee, routerAddress, tokenConfig),
         ]),
       ),
-    } as ResolvedTokenFeeConfigInput;
+    } satisfies ResolvedTokenFeeConfigInput;
   }
 
-  return { ...feeConfig, token: feeToken } as ResolvedTokenFeeConfigInput;
+  return {
+    ...feeConfig,
+    token: feeToken,
+  } satisfies ResolvedTokenFeeConfigInput;
 }
 
 export async function expandVirtualWarpDeployConfig(params: {
