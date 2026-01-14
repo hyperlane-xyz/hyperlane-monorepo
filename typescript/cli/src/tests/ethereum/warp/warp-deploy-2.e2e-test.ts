@@ -11,6 +11,7 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   type ChainMetadata,
+  type TokenFeeConfig,
   type TokenFeeConfigInput,
   TokenFeeType,
   TokenType,
@@ -337,7 +338,9 @@ describe('hyperlane warp deploy e2e tests', async function () {
         )
       )[CHAIN_NAME_2];
 
-      expect(collateralConfig.tokenFee?.token).to.equal(tokenChain2.address);
+      expect(
+        (collateralConfig.tokenFee as TokenFeeConfig | undefined)?.token,
+      ).to.equal(tokenChain2.address);
     });
 
     for (const tokenFee of [
@@ -429,7 +432,8 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       expect(syntheticConfig.tokenFee).to.exist;
       expect(syntheticConfig.tokenFee?.type).to.equal(TokenFeeType.LinearFee);
-      expect(syntheticConfig.tokenFee?.token).to.exist;
+      expect((syntheticConfig.tokenFee as TokenFeeConfig | undefined)?.token).to
+        .exist;
     });
 
     it(`should deploy a native Routing Fee when providing maxFee and halfAmount only`, async () => {

@@ -124,7 +124,6 @@ export const getEclipseUSDCWarpConfig = async (
           getWarpFeeOwner(currentChain),
           rebalanceableCollateralChains.filter((c) => c !== currentChain),
           5n,
-          usdcTokenAddress,
         ),
       },
     ]);
