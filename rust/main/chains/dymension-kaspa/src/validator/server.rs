@@ -264,6 +264,10 @@ impl<
         self.kas_provider.as_ref().unwrap().must_validator_stuff()
     }
 
+    fn conf(&self) -> &crate::conf::ConnectionConf {
+        self.kas_provider.as_ref().unwrap().conf()
+    }
+
     fn must_kaspa_grpc_client(&self) -> kaspa_grpc_client::GrpcClient {
         self.kas_provider
             .as_ref()
@@ -296,7 +300,7 @@ async fn respond_validate_new_deposits<
     info!("validator: checking new kaspa deposit");
 
     // Migration mode: deposits are disabled
-    if res.must_val_stuff().toggles.is_migration_mode() {
+    if res.conf().is_migration_mode() {
         return Err(AppError(eyre::eyre!(
             "Migration mode active: deposits disabled"
         )));
@@ -363,7 +367,7 @@ async fn respond_sign_pskts<
     info!("validator: signing pskts");
 
     // Migration mode: withdrawals are disabled
-    if res.must_val_stuff().toggles.is_migration_mode() {
+    if res.conf().is_migration_mode() {
         return Err(AppError(eyre::eyre!(
             "Migration mode active: withdrawals disabled"
         )));
@@ -482,7 +486,7 @@ async fn respond_validate_confirmed_withdrawals<
 
     if res.must_val_stuff().toggles.validate_confirmations {
         let src_escrow = &res.must_escrow().addr;
-        let migration_target = res.must_val_stuff().toggles.parsed_migration_target();
+        let migration_target = res.conf().parsed_migration_target();
         let dst_escrow = migration_target.as_ref().unwrap_or(src_escrow);
         validate_confirmed_withdrawals(&conf_fxg, res.must_rest_client(), src_escrow, dst_escrow)
             .await
@@ -517,16 +521,14 @@ async fn respond_sign_migration<
 ) -> HandlerResult<Json<Bundle>> {
     info!("validator: signing migration PSKT");
 
-    let val_stuff = res.must_val_stuff();
-
     // Migration endpoint only works in migration mode
-    if !val_stuff.toggles.is_migration_mode() {
+    if !res.conf().is_migration_mode() {
         return Err(AppError(eyre::eyre!(
             "Migration signing requires migration mode to be active"
         )));
     }
 
-    let migration_target_addr = val_stuff.toggles.parsed_migration_target().ok_or_else(|| {
+    let migration_target_addr = res.conf().parsed_migration_target().ok_or_else(|| {
         AppError(eyre::eyre!(
             "Migration target address not configured or invalid"
         ))

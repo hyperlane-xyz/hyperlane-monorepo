@@ -432,12 +432,6 @@ pub fn build_kaspa_connection_conf(
             .parse_bool()
             .end()
             .unwrap_or(conf.validate_confirmations);
-        conf.migration_target_address = chain
-            .chain(err)
-            .get_opt_key("migrationTargetAddress")
-            .parse_string()
-            .end()
-            .map(|s| s.to_string());
         conf
     };
 
