@@ -15,7 +15,10 @@ import { eqAddressAleo, isNullish } from '@hyperlane-xyz/utils';
 
 import { type AnyAleoNetworkClient } from '../clients/base.js';
 import { type AleoSigner } from '../clients/signer.js';
-import { type AleoReceipt, type AleoTransaction } from '../utils/types.js';
+import {
+  type AleoReceipt,
+  type AnnotatedAleoTransaction,
+} from '../utils/types.js';
 
 import { getNewIsmAddress } from './base.js';
 import { getRoutingIsmConfig } from './ism-query.js';
@@ -29,7 +32,7 @@ import {
 export class AleoRoutingIsmRawReader
   implements ArtifactReader<RawRoutingIsmArtifactConfig, DeployedIsmAddress>
 {
-  constructor(private readonly aleoClient: AnyAleoNetworkClient) {}
+  constructor(protected readonly aleoClient: AnyAleoNetworkClient) {}
 
   async read(
     address: string,
@@ -122,10 +125,10 @@ export class AleoRoutingIsmRawWriter
 
   async update(
     artifact: ArtifactDeployed<RawRoutingIsmArtifactConfig, DeployedIsmAddress>,
-  ): Promise<AleoTransaction[]> {
+  ): Promise<AnnotatedAleoTransaction[]> {
     const { config, deployed } = artifact;
     const currentConfig = await this.read(deployed.address);
-    const transactions: AleoTransaction[] = [];
+    const transactions: AnnotatedAleoTransaction[] = [];
 
     for (const [domainId, expectedIsm] of Object.entries(config.domains)) {
       const domain = parseInt(domainId);
