@@ -51,7 +51,7 @@ export type BaseTokenFeeConfig = z.infer<typeof BaseFeeConfigSchema>;
 
 // For input configs - token is NOT specified by user, resolved at deploy time based on token type
 export const BaseFeeConfigInputSchema = z.object({
-  owner: ZHash.optional(),
+  owner: ZHash,
 });
 
 export const FeeParametersSchema = z.object({
@@ -176,4 +176,10 @@ export type TokenFeeConfigInput = z.infer<typeof TokenFeeConfigInputSchema>;
 // After resolveTokenFeeAddress() adds the token field
 export type ResolvedTokenFeeConfigInput = TokenFeeConfigInput & {
   token: string;
+};
+
+// Resolved routing fee config with nested resolved fee contracts
+export type ResolvedRoutingFeeConfigInput = RoutingFeeInputConfig & {
+  token: string;
+  feeContracts?: Record<string, ResolvedTokenFeeConfigInput>;
 };

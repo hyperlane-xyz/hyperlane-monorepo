@@ -373,25 +373,24 @@ export function resolveTokenFeeAddress(
     throw new Error(`Unsupported token type for fee resolution`);
   }
 
-  const resolved = { ...feeConfig, token: feeToken };
-
   if (
     feeConfig.type === TokenFeeType.RoutingFee &&
     'feeContracts' in feeConfig &&
     feeConfig.feeContracts
   ) {
     return {
-      ...resolved,
+      ...feeConfig,
+      token: feeToken,
       feeContracts: Object.fromEntries(
         Object.entries(feeConfig.feeContracts).map(([chain, subFee]) => [
           chain,
           resolveTokenFeeAddress(subFee, routerAddress, tokenConfig),
         ]),
       ),
-    };
+    } as ResolvedTokenFeeConfigInput;
   }
 
-  return resolved;
+  return { ...feeConfig, token: feeToken } as ResolvedTokenFeeConfigInput;
 }
 
 export async function expandVirtualWarpDeployConfig(params: {

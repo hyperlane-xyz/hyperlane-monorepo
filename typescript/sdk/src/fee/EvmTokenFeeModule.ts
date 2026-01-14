@@ -4,7 +4,6 @@ import { RoutingFee__factory } from '@hyperlane-xyz/core';
 import {
   Address,
   ProtocolType,
-  assert,
   deepEquals,
   eqAddress,
   objMap,
@@ -37,8 +36,8 @@ import { EvmTokenFeeFactories } from './contracts.js';
 import {
   ImmutableTokenFeeType,
   ResolvedTokenFeeConfigInput,
-  RoutingFeeInputConfig,
   TokenFeeConfig,
+  TokenFeeConfigInput,
   TokenFeeConfigSchema,
   TokenFeeType,
 } from './types.js';
@@ -126,19 +125,23 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       let halfAmount: bigint;
       let bps: bigint;
 
-      if (config.maxFee !== undefined && config.halfAmount !== undefined) {
-        maxFee = BigInt(config.maxFee);
-        halfAmount = BigInt(config.halfAmount);
-        bps = config.bps ?? convertToBps(maxFee, halfAmount);
-      } else if (config.bps !== undefined) {
-        const reader = new EvmTokenFeeReader(
-          params.multiProvider,
-          params.chainName,
-        );
+      const reader = new EvmTokenFeeReader(
+        params.multiProvider,
+        params.chainName,
+      );
+
+      if (config.bps !== undefined) {
         const derived = reader.convertFromBps(config.bps);
         maxFee = derived.maxFee;
         halfAmount = derived.halfAmount;
         bps = config.bps;
+      } else if (
+        config.maxFee !== undefined &&
+        config.halfAmount !== undefined
+      ) {
+        maxFee = BigInt(config.maxFee);
+        halfAmount = BigInt(config.halfAmount);
+        bps = convertToBps(maxFee, halfAmount);
       } else {
         throw new Error(
           'LinearFee config must provide either bps or both maxFee and halfAmount',
@@ -154,7 +157,9 @@ export class EvmTokenFeeModule extends HyperlaneModule<
         halfAmount,
       };
     } else if (config.type === TokenFeeType.RoutingFee) {
-      const { token, owner, feeContracts: inputFeeContracts } = config;
+      const { token, owner } = config;
+      const inputFeeContracts =
+        'feeContracts' in config ? config.feeContracts : undefined;
 
       const feeContracts = inputFeeContracts
         ? await promiseObjAll(
@@ -225,17 +230,22 @@ export class EvmTokenFeeModule extends HyperlaneModule<
   ): Promise<AnnotatedEV5Transaction[]> {
     let updateTransactions: AnnotatedEV5Transaction[] = [];
 
+    const actualConfig = await this.read(params);
+    const normalizedActualConfig: TokenFeeConfig =
+      normalizeConfig(actualConfig);
+
+    const resolvedTargetConfig: ResolvedTokenFeeConfigInput = {
+      ...targetConfig,
+      token: actualConfig.token,
+    };
+
     const normalizedTargetConfig: TokenFeeConfig = normalizeConfig(
       await EvmTokenFeeModule.expandConfig({
-        config: targetConfig,
+        config: resolvedTargetConfig,
         multiProvider: this.multiProvider,
         chainName: this.chainName,
       }),
     );
-
-    const actualConfig = await this.read(params);
-    const normalizedActualConfig: TokenFeeConfig =
-      normalizeConfig(actualConfig);
 
     //If configs are the same, return empty array
     if (deepEquals(normalizedActualConfig, normalizedTargetConfig)) {

@@ -766,7 +766,7 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
     await Promise.all(
       Object.keys(deployedContractsMap).map(async (chain) => {
         const config = configMap[chain];
-        let tokenFeeInput = config?.tokenFee;
+        const tokenFeeInput = config?.tokenFee;
         if (!tokenFeeInput) return;
 
         if (this.multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
@@ -775,7 +775,7 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
         }
 
         const router = this.router(deployedContractsMap[chain]);
-        tokenFeeInput = resolveTokenFeeAddress(
+        const resolvedFeeInput = resolveTokenFeeAddress(
           tokenFeeInput,
           router.address,
           config,
@@ -783,7 +783,7 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
 
         this.logger.debug(`Deploying token fee on ${chain}...`);
         const processedTokenFee = await EvmTokenFeeModule.expandConfig({
-          config: tokenFeeInput,
+          config: resolvedFeeInput,
           multiProvider: this.multiProvider,
           chainName: chain,
         });

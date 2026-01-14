@@ -2,7 +2,7 @@ import { Address } from '@arbitrum/sdk';
 import { expect } from 'chai';
 import { constants } from 'ethers';
 
-import { RoutingFeeInputConfig, TokenFeeType } from '../fee/types.js';
+import { ResolvedRoutingFeeConfigInput, TokenFeeType } from '../fee/types.js';
 import { HookType } from '../hook/types.js';
 import { IsmType } from '../ism/types.js';
 
@@ -292,7 +292,7 @@ describe('configUtils', () => {
       expect(result.token).to.equal(ROUTER_ADDRESS);
       expect(result.type).to.equal(TokenFeeType.RoutingFee);
 
-      const routingResult = result as RoutingFeeInputConfig & { token: string };
+      const routingResult = result as ResolvedRoutingFeeConfigInput;
       expect(routingResult.feeContracts?.ethereum?.token).to.equal(
         ROUTER_ADDRESS,
       );

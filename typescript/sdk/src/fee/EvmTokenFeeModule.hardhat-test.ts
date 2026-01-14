@@ -16,9 +16,9 @@ import { BPS, HALF_AMOUNT, MAX_FEE } from './EvmTokenFeeReader.hardhat-test.js';
 import { TokenFeeReaderParams } from './EvmTokenFeeReader.js';
 import {
   LinearFeeConfig,
+  ResolvedTokenFeeConfigInput,
   RoutingFeeConfig,
   TokenFeeConfig,
-  TokenFeeConfigInput,
   TokenFeeConfigSchema,
   TokenFeeType,
 } from './types.js';
@@ -156,7 +156,7 @@ describe('EvmTokenFeeModule', () => {
         chain: test4Chain,
         config,
       });
-      const updatedConfig: TokenFeeConfigInput = {
+      const updatedConfig: ResolvedTokenFeeConfigInput = {
         type: TokenFeeType.LinearFee,
         owner: config.owner,
         token: config.token,
@@ -282,7 +282,7 @@ describe('EvmTokenFeeModule', () => {
       const zeroSupplyToken = await factory.deploy('ZeroSupply', 'ZERO', 0, 18);
       await zeroSupplyToken.deployed();
 
-      const inputConfig: TokenFeeConfigInput = {
+      const inputConfig: ResolvedTokenFeeConfigInput = {
         type: TokenFeeType.LinearFee,
         owner: signer.address,
         token: zeroSupplyToken.address,
@@ -316,7 +316,7 @@ describe('EvmTokenFeeModule', () => {
       const zeroSupplyToken = await factory.deploy('ZeroSupply', 'ZERO', 0, 18);
       await zeroSupplyToken.deployed();
 
-      const inputConfig: TokenFeeConfigInput = {
+      const inputConfig: ResolvedTokenFeeConfigInput = {
         type: TokenFeeType.RoutingFee,
         owner: signer.address,
         token: zeroSupplyToken.address,
