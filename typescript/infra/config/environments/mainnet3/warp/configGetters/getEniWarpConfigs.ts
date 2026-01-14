@@ -101,7 +101,6 @@ export async function getEniEthWarpConfig(
     symbol: 'ETH',
     decimals: 18,
     tokenFee: getFixedRoutingFeeConfig(
-      tokens.ethereum.USDC,
       getWarpFeeOwner('eni'),
       ['ethereum'],
       WARP_FEE_BPS,
@@ -131,7 +130,6 @@ export async function getEniWbtcWarpConfig(
     symbol: 'WBTC',
     decimals: 8,
     tokenFee: getFixedRoutingFeeConfig(
-      tokens.ethereum.USDC,
       getWarpFeeOwner('eni'),
       ['ethereum'],
       WARP_FEE_BPS,
@@ -212,7 +210,6 @@ export async function getEniUsdcWarpConfig(
     type: TokenType.synthetic,
     ...getScaledTokenConfig('USD Coin', 'USDC', usdcDecimals.eni, maxDecimals),
     tokenFee: getFixedRoutingFeeConfig(
-      tokens.ethereum.USDC,
       getWarpFeeOwner('eni'),
       allCollateralChains,
       WARP_FEE_BPS,
@@ -265,7 +262,6 @@ export async function getEniUsdtWarpConfig(
       maxDecimals,
     ),
     tokenFee: getFixedRoutingFeeConfig(
-      tokens.ethereum.USDT,
       getWarpFeeOwner('eni'),
       allCollateralChains,
       WARP_FEE_BPS,
