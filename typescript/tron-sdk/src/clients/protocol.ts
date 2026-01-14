@@ -8,6 +8,7 @@ import {
   type TransactionSubmitterConfig,
 } from '@hyperlane-xyz/provider-sdk';
 import { type IProvider } from '@hyperlane-xyz/provider-sdk/altvm';
+import { IRawIsmArtifactManager } from '@hyperlane-xyz/provider-sdk/ism';
 import {
   type AnnotatedTx,
   type TxReceipt,
@@ -42,6 +43,13 @@ export class TronProtocolProvider implements ProtocolProvider {
     _chainMetadata: ChainMetadataForAltVM,
     _config: TConfig,
   ): Promise<ITransactionSubmitter> {
+    // @TODO Implement in a follow up PR
+    throw Error('Not implemented');
+  }
+
+  createIsmArtifactManager(
+    _chainMetadata: ChainMetadataForAltVM,
+  ): IRawIsmArtifactManager {
     // @TODO Implement in a follow up PR
     throw Error('Not implemented');
   }

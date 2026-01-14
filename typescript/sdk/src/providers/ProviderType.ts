@@ -44,6 +44,11 @@ import {
   RadixSDKReceipt,
   RadixSDKTransaction,
 } from '@hyperlane-xyz/radix-sdk';
+import {
+  TronProvider as TronSDKProvider,
+  TronReceipt as TronSDKReceipt,
+  TronTransaction as TronSDKTransaction,
+} from '@hyperlane-xyz/tron-sdk';
 import { Annotated, ProtocolType } from '@hyperlane-xyz/utils';
 
 export enum ProviderType {
@@ -58,6 +63,7 @@ export enum ProviderType {
   ZkSync = 'zksync',
   Radix = 'radix',
   Aleo = 'aleo',
+  Tron = 'tron',
 }
 
 export const PROTOCOL_TO_DEFAULT_PROVIDER_TYPE: Record<
@@ -71,6 +77,7 @@ export const PROTOCOL_TO_DEFAULT_PROVIDER_TYPE: Record<
   [ProtocolType.Starknet]: ProviderType.Starknet,
   [ProtocolType.Radix]: ProviderType.Radix,
   [ProtocolType.Aleo]: ProviderType.Aleo,
+  [ProtocolType.Tron]: ProviderType.Tron,
 };
 
 export type ProviderMap<Value> = Partial<Record<ProviderType, Value>>;
@@ -117,6 +124,12 @@ type ProtocolTypesMapping = {
     provider: AleoProvider;
     contract: null;
     receipt: AleoTransactionReceipt;
+  };
+  [ProtocolType.Tron]: {
+    transaction: TronTransaction;
+    provider: TronProvider;
+    contract: null;
+    receipt: TronTransactionReceipt;
   };
 };
 
@@ -213,6 +226,11 @@ export interface AleoProvider extends TypedProviderBase<AleoSDKProvider> {
   provider: AleoSDKProvider;
 }
 
+export interface TronProvider extends TypedProviderBase<TronSDKProvider> {
+  type: ProviderType.Tron;
+  provider: TronSDKProvider;
+}
+
 export interface ZKSyncProvider extends TypedProviderBase<ZKSyncBaseProvider> {
   type: ProviderType.ZkSync;
   provider: ZKSyncBaseProvider;
@@ -229,7 +247,8 @@ export type TypedProvider =
   | StarknetJsProvider
   | ZKSyncProvider
   | RadixProvider
-  | AleoProvider;
+  | AleoProvider
+  | TronProvider;
 
 /**
  * Contracts with discriminated union of provider type
@@ -350,6 +369,12 @@ export interface AleoTransaction
   transaction: AleoSDKTransaction;
 }
 
+export interface TronTransaction
+  extends TypedTransactionBase<TronSDKTransaction> {
+  type: ProviderType.Tron;
+  transaction: TronSDKTransaction;
+}
+
 export interface ZKSyncTransaction
   extends TypedTransactionBase<zkSyncTypes.TransactionRequest> {
   type: ProviderType.ZkSync;
@@ -388,6 +413,8 @@ export type AnnotatedZKSyncTransaction =
 
 export type AnnotatedRadixTransaction = Annotated<RadixSDKTransaction>;
 
+export type AnnotatedTronTransaction = Annotated<TronSDKTransaction>;
+
 export type TypedAnnotatedTransaction =
   | AnnotatedEV5Transaction
   | AnnotatedViemTransaction
@@ -397,7 +424,8 @@ export type TypedAnnotatedTransaction =
   | AnnotatedCosmJsNativeTransaction
   | AnnotatedStarknetJsTransaction
   | AnnotatedZKSyncTransaction
-  | AnnotatedRadixTransaction;
+  | AnnotatedRadixTransaction
+  | AnnotatedTronTransaction;
 
 /**
  * Transaction receipt/response with discriminated union of provider type
@@ -468,6 +496,12 @@ export interface AleoTransactionReceipt
   receipt: AleoSDKReceipt;
 }
 
+export interface TronTransactionReceipt
+  extends TypedTransactionReceiptBase<TronSDKReceipt> {
+  type: ProviderType.Tron;
+  receipt: TronSDKReceipt;
+}
+
 export type TypedTransactionReceipt =
   | EthersV5TransactionReceipt
   | ViemTransactionReceipt
@@ -478,4 +512,5 @@ export type TypedTransactionReceipt =
   | StarknetJsTransactionReceipt
   | ZKSyncTransactionReceipt
   | RadixTransactionReceipt
-  | AleoTransactionReceipt;
+  | AleoTransactionReceipt
+  | TronTransactionReceipt;

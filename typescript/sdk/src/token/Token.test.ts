@@ -245,6 +245,11 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
   [TokenStandard.AleoHypNative]: null,
   [TokenStandard.AleoHypCollateral]: null,
   [TokenStandard.AleoHypSynthetic]: null,
+
+  [TokenStandard.TronNative]: null,
+  [TokenStandard.TronHypNative]: null,
+  [TokenStandard.TronHypCollateral]: null,
+  [TokenStandard.TronHypSynthetic]: null,
 };
 
 const PROTOCOL_TO_ADDRESS_FOR_BALANCE_CHECK: Partial<

@@ -113,6 +113,7 @@ export function useAccounts(
         [ProtocolType.Starknet]: starknetAccountInfo,
         [ProtocolType.Radix]: radixAccountInfo,
         [ProtocolType.Aleo]: evmAccountInfo, // TODO: implement this once we have a Aleo wallet connection
+        [ProtocolType.Tron]: evmAccountInfo, // TODO: implement this once we have a Tron wallet connection
       },
       readyAccounts,
     }),
@@ -226,6 +227,7 @@ export function useWalletDetails(): Record<ProtocolType, WalletDetails> {
       [ProtocolType.Starknet]: starknetWallet,
       [ProtocolType.Radix]: radixWallet,
       [ProtocolType.Aleo]: evmWallet, // TODO: implement this once we have a Aleo wallet connection
+      [ProtocolType.Tron]: evmWallet, // TODO: implement this once we have a Tron wallet connection
     }),
     [evmWallet, solWallet, cosmosWallet, starknetWallet, radixWallet],
   );
@@ -247,6 +249,7 @@ export function useConnectFns(): Record<ProtocolType, () => void> {
       [ProtocolType.Starknet]: onConnectStarknet,
       [ProtocolType.Radix]: onConnectRadix,
       [ProtocolType.Aleo]: () => {}, // TODO: implement this once we have a Aleo wallet connection
+      [ProtocolType.Tron]: () => {}, // TODO: implement this once we have a Tron wallet connection
     }),
     [
       onConnectEthereum,
@@ -303,6 +306,7 @@ export function useDisconnectFns(): Record<ProtocolType, () => Promise<void>> {
         disconnectRadix,
       ),
       [ProtocolType.Aleo]: onClickDisconnect(ProtocolType.Aleo, () => {}), // TODO: implement once we have Aleo wallet connection
+      [ProtocolType.Tron]: onClickDisconnect(ProtocolType.Tron, () => {}), // TODO: implement once we have Tron wallet connection
     }),
     [
       disconnectEvm,
@@ -342,6 +346,7 @@ export function useActiveChains(multiProvider: MultiProtocolProvider): {
         [ProtocolType.Starknet]: starknetChain,
         [ProtocolType.Radix]: radixChain,
         [ProtocolType.Aleo]: evmChain, // TODO: replace this once we have a Aleo implementation
+        [ProtocolType.Tron]: evmChain, // TODO: replace this once we have a Tron implementation
       },
       readyChains,
     }),
@@ -416,6 +421,12 @@ export function useTransactionFns(
         sendMultiTransaction: (): any => {},
         switchNetwork: (): any => {},
       },
+      [ProtocolType.Tron]: {
+        // TODO: implement once we have Tron wallet connection
+        sendTransaction: (): any => {},
+        sendMultiTransaction: (): any => {},
+        switchNetwork: (): any => {},
+      },
     }),
     [
       onSendEvmTx,
@@ -463,6 +474,9 @@ export function useWatchAsset(
       },
       [ProtocolType.Aleo]: {
         addAsset: (): any => {}, // TODO: implement once we have Aleo wallet connection
+      },
+      [ProtocolType.Tron]: {
+        addAsset: (): any => {}, // TODO: implement once we have Tron wallet connection
       },
     }),
     [

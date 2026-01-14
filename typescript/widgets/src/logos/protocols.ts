@@ -7,6 +7,7 @@ import { EthereumLogo } from './Ethereum.js';
 import { RadixLogo } from './Radix.js';
 import { SolanaLogo } from './Solana.js';
 import { StarknetLogo } from './Starknet.js';
+import { TronLogo } from './Tron.js';
 
 export const PROTOCOL_TO_LOGO: Record<
   ProtocolType,
@@ -18,5 +19,6 @@ export const PROTOCOL_TO_LOGO: Record<
   [ProtocolType.CosmosNative]: CosmosLogo,
   [ProtocolType.Starknet]: StarknetLogo,
   [ProtocolType.Radix]: RadixLogo,
+  [ProtocolType.Tron]: TronLogo,
   [ProtocolType.Aleo]: EthereumLogo, // TODO: replace with actual logo once Aleo is implemented
 };
