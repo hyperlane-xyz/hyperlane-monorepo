@@ -2,8 +2,8 @@ import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
-  Artifact,
   ArtifactDeployed,
+  ArtifactNew,
   ArtifactReader,
   ArtifactState,
   ArtifactWriter,
@@ -89,7 +89,7 @@ export class RadixIgpHookWriter
   }
 
   async create(
-    artifact: Artifact<IgpHookConfig, DeployedHookAddresses>,
+    artifact: ArtifactNew<IgpHookConfig>,
   ): Promise<
     [ArtifactDeployed<IgpHookConfig, DeployedHookAddresses>, TxReceipt[]]
   > {

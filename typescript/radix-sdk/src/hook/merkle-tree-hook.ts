@@ -2,8 +2,8 @@ import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
-  Artifact,
   ArtifactDeployed,
+  ArtifactNew,
   ArtifactReader,
   ArtifactState,
   ArtifactWriter,
@@ -57,7 +57,7 @@ export class RadixMerkleTreeHookWriter
   }
 
   async create(
-    artifact: Artifact<MerkleTreeHookConfig, DeployedHookAddresses>,
+    artifact: ArtifactNew<MerkleTreeHookConfig>,
   ): Promise<
     [ArtifactDeployed<MerkleTreeHookConfig, DeployedHookAddresses>, TxReceipt[]]
   > {
