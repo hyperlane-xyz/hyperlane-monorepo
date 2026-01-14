@@ -47,6 +47,29 @@ type TokenFeeModuleAddresses = {
   deployedFee: Address;
 };
 
+function resolveTokenForFeeConfig(
+  config: TokenFeeConfigInput,
+  token: Address,
+): ResolvedTokenFeeConfigInput {
+  if (
+    config.type === TokenFeeType.RoutingFee &&
+    'feeContracts' in config &&
+    config.feeContracts
+  ) {
+    return {
+      ...config,
+      token,
+      feeContracts: Object.fromEntries(
+        Object.entries(config.feeContracts).map(([chain, subFee]) => [
+          chain,
+          resolveTokenForFeeConfig(subFee, token),
+        ]),
+      ),
+    };
+  }
+  return { ...config, token };
+}
+
 export class EvmTokenFeeModule extends HyperlaneModule<
   ProtocolType.Ethereum,
   TokenFeeConfigInput,
@@ -166,8 +189,12 @@ export class EvmTokenFeeModule extends HyperlaneModule<
             objMap(
               inputFeeContracts as Record<string, ResolvedTokenFeeConfigInput>,
               async (_, innerConfig) => {
+                const resolvedInnerConfig: ResolvedTokenFeeConfigInput = {
+                  ...innerConfig,
+                  token: innerConfig.token ?? token,
+                };
                 return EvmTokenFeeModule.expandConfig({
-                  config: innerConfig,
+                  config: resolvedInnerConfig,
                   multiProvider,
                   chainName,
                 });
@@ -234,10 +261,10 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     const normalizedActualConfig: TokenFeeConfig =
       normalizeConfig(actualConfig);
 
-    const resolvedTargetConfig: ResolvedTokenFeeConfigInput = {
-      ...targetConfig,
-      token: actualConfig.token,
-    };
+    const resolvedTargetConfig = resolveTokenForFeeConfig(
+      targetConfig,
+      actualConfig.token,
+    );
 
     const normalizedTargetConfig: TokenFeeConfig = normalizeConfig(
       await EvmTokenFeeModule.expandConfig({

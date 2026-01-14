@@ -428,5 +428,35 @@ describe('EvmTokenFeeModule', () => {
       expect(linearFee.maxFee).to.equal(explicitMaxFee);
       expect(linearFee.halfAmount).to.equal(explicitHalfAmount);
     });
+
+    it('should propagate parent token to nested feeContracts without explicit token', async () => {
+      const inputConfig = {
+        type: TokenFeeType.RoutingFee,
+        owner: signer.address,
+        token: token.address,
+        feeContracts: {
+          [test4Chain]: {
+            type: TokenFeeType.LinearFee,
+            owner: signer.address,
+            bps: 8n,
+          },
+        },
+      } as ResolvedTokenFeeConfigInput;
+
+      const expandedConfig = await EvmTokenFeeModule.expandConfig({
+        config: inputConfig,
+        multiProvider,
+        chainName: test4Chain,
+      });
+
+      assert(
+        expandedConfig.type === TokenFeeType.RoutingFee,
+        `Must be ${TokenFeeType.RoutingFee}`,
+      );
+      const routingConfig = expandedConfig as RoutingFeeConfig;
+      const nestedFee = routingConfig.feeContracts?.[test4Chain];
+      assert(nestedFee, 'Nested fee must exist');
+      expect(nestedFee.token).to.equal(token.address);
+    });
   });
 });

@@ -84,7 +84,7 @@ describe('LinearFeeInputConfigSchema', () => {
     expect(result.error?.issues[0]?.message).to.include('bps must be > 0');
   });
 
-  it('should reject config with both bps and maxFee/halfAmount', () => {
+  it('should accept config with both bps and maxFee/halfAmount and use explicit bps', () => {
     const config = {
       type: TokenFeeType.LinearFee,
       owner: SOME_ADDRESS,
@@ -93,10 +93,10 @@ describe('LinearFeeInputConfigSchema', () => {
       halfAmount: 5_000n,
     };
     const result = LinearFeeInputConfigSchema.safeParse(config);
-    expect(result.success).to.be.false;
-    expect(result.error?.issues[0]?.message).to.include(
-      'Provide either bps OR both maxFee/halfAmount, not both',
-    );
+    expect(result.success).to.be.true;
+    if (result.success) {
+      expect(result.data.bps).to.equal(100n);
+    }
   });
 
   it('should compute bps from maxFee/halfAmount when only those are provided', () => {

@@ -81,15 +81,6 @@ export const LinearFeeInputConfigSchema = BaseFeeConfigInputSchema.extend({
     const hasBps = v.bps !== undefined;
     const hasFeeParams = v.maxFee !== undefined && v.halfAmount !== undefined;
 
-    // Reject when both bps and maxFee/halfAmount are provided to prevent ambiguity
-    if (hasBps && hasFeeParams) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['bps'],
-        message: 'Provide either bps OR both maxFee/halfAmount, not both',
-      });
-    }
-
     if (!hasBps && !hasFeeParams) {
       ctx.addIssue({
         code: 'custom',
