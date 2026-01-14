@@ -245,12 +245,6 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
             IERC20(_token).approve(_feeHook, hookFee);
         }
 
-        // Calculate remaining native value for other hooks
-        // Even with ERC20 fee payments, other hooks may still need native value
-        remainingNativeValue = token() != address(0)
-            ? _msgValue
-            : _msgValue - charge;
-
         _transferFromSender(charge);
 
         if (feeAmount > 0) {
@@ -258,6 +252,12 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
             // and fee balances separately
             _transferFee(_feeRecipient, feeAmount);
         }
+
+        // Calculate remaining native value for other hooks
+        // Even with ERC20 fee payments, other hooks may still need native value
+        remainingNativeValue = token() != address(0)
+            ? _msgValue
+            : _msgValue - charge;
     }
 
     // Emits the SentTransferRemote event and dispatches the message.

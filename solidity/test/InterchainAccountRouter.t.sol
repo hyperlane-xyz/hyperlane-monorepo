@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {StandardHookMetadata} from "../contracts/hooks/libs/StandardHookMetadata.sol";
 import {MockMailbox} from "../contracts/mock/MockMailbox.sol";
@@ -10,11 +11,15 @@ import {MockHyperlaneEnvironment} from "../contracts/mock/MockHyperlaneEnvironme
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
 import {IInterchainSecurityModule} from "../contracts/interfaces/IInterchainSecurityModule.sol";
 import {TestInterchainGasPaymaster} from "../contracts/test/TestInterchainGasPaymaster.sol";
+import {InterchainGasPaymaster} from "../contracts/hooks/igp/InterchainGasPaymaster.sol";
+import {StorageGasOracle} from "../contracts/hooks/igp/StorageGasOracle.sol";
+import {IGasOracle} from "../contracts/interfaces/IGasOracle.sol";
 import {IPostDispatchHook} from "../contracts/interfaces/hooks/IPostDispatchHook.sol";
 import {CallLib, OwnableMulticall, InterchainAccountRouter, InterchainAccountMessage, CommitmentReadIsm} from "../contracts/middleware/InterchainAccountRouter.sol";
 import {AbstractPostDispatchHook} from "../contracts/hooks/libs/AbstractPostDispatchHook.sol";
 import {TestPostDispatchHook} from "../contracts/test/TestPostDispatchHook.sol";
 import {Message} from "../contracts/libs/Message.sol";
+import {ERC20Test} from "../contracts/test/ERC20Test.sol";
 
 contract Callable {
     mapping(address => bytes32) public data;
@@ -1261,5 +1266,283 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
 
         vm.expectRevert("ICA: Previous commitment pending execution");
         ica.setCommitment(commitment);
+    }
+}
+
+/**
+ * @title InterchainAccountRouterERC20FeeTest
+ * @notice Tests for ERC20 fee payment in InterchainAccountRouter
+ */
+contract InterchainAccountRouterERC20FeeTest is Test {
+    using TypeCasts for address;
+
+    uint32 internal constant ORIGIN = 1;
+    uint32 internal constant DESTINATION = 2;
+    uint256 internal constant GAS_LIMIT = 100_000;
+    uint128 internal constant GAS_PRICE = 10;
+    uint128 internal constant TOKEN_EXCHANGE_RATE = 1e10;
+
+    MockHyperlaneEnvironment internal environment;
+    InterchainGasPaymaster internal igp;
+    StorageGasOracle internal gasOracle;
+    ERC20Test internal feeToken;
+
+    InterchainAccountRouter internal originRouter;
+    InterchainAccountRouter internal destinationRouter;
+
+    bytes32 internal routerOverride;
+    bytes32 internal ismOverride;
+
+    Callable internal target;
+
+    function setUp() public {
+        environment = new MockHyperlaneEnvironment(ORIGIN, DESTINATION);
+
+        // Deploy ERC20 fee token
+        feeToken = new ERC20Test("Fee Token", "FEE", 1_000_000e18, 18);
+
+        // Deploy IGP with ERC20 token support
+        igp = new InterchainGasPaymaster();
+        igp.initialize(address(this), address(this));
+
+        // Deploy gas oracle and configure for fee token
+        gasOracle = new StorageGasOracle();
+        _setTokenGasConfig(address(feeToken), DESTINATION);
+        _setRemoteGasData(DESTINATION, TOKEN_EXCHANGE_RATE, GAS_PRICE);
+
+        // Deploy ICA routers with IGP as hook
+        string[] memory urls = new string[](1);
+        originRouter = new InterchainAccountRouter(
+            address(environment.mailboxes(ORIGIN)),
+            address(igp),
+            address(this),
+            20_000,
+            urls
+        );
+
+        destinationRouter = new InterchainAccountRouter(
+            address(environment.mailboxes(DESTINATION)),
+            address(igp),
+            address(this),
+            20_000,
+            urls
+        );
+
+        // Set up router and ISM overrides
+        routerOverride = address(destinationRouter).addressToBytes32();
+        ismOverride = address(environment.isms(DESTINATION)).addressToBytes32();
+
+        // Enroll remote router
+        originRouter.enrollRemoteRouterAndIsm(
+            DESTINATION,
+            routerOverride,
+            ismOverride
+        );
+
+        target = new Callable();
+
+        // Fund test contract with fee tokens
+        feeToken.transfer(address(this), 100_000e18);
+    }
+
+    // ============ Quote Tests ============
+
+    function test_quoteGasPayment_erc20() public view {
+        uint256 quote = originRouter.quoteGasPayment(
+            address(feeToken),
+            DESTINATION,
+            GAS_LIMIT
+        );
+
+        uint256 expectedQuote = igp.quoteGasPayment(
+            address(feeToken),
+            DESTINATION,
+            GAS_LIMIT
+        );
+
+        assertEq(quote, expectedQuote, "ERC20 quote should match IGP quote");
+        assertGt(quote, 0, "Quote should be non-zero");
+    }
+
+    // ============ callRemote with ERC20 Fee Tests ============
+
+    function test_callRemote_withERC20Fee() public {
+        // Get the fee quote
+        uint256 feeQuote = originRouter.quoteGasPayment(
+            address(feeToken),
+            DESTINATION,
+            GAS_LIMIT
+        );
+
+        // Approve router to pull fee tokens
+        feeToken.approve(address(originRouter), feeQuote);
+
+        // Create hook metadata with fee token
+        bytes memory hookMetadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            GAS_LIMIT,
+            address(this),
+            address(feeToken)
+        );
+
+        // Create a simple call
+        CallLib.Call[] memory calls = new CallLib.Call[](1);
+        calls[0] = CallLib.Call({
+            to: address(target).addressToBytes32(),
+            value: 0,
+            data: abi.encodeCall(target.set, (bytes32("test")))
+        });
+
+        uint256 feeBalanceBefore = feeToken.balanceOf(address(this));
+
+        // Call remote with ERC20 fee (no native value needed)
+        originRouter.callRemote{value: 0}(DESTINATION, calls, hookMetadata);
+
+        uint256 feeBalanceAfter = feeToken.balanceOf(address(this));
+
+        // Verify fee tokens were charged
+        assertEq(
+            feeBalanceBefore - feeBalanceAfter,
+            feeQuote,
+            "Fee tokens should be charged"
+        );
+
+        // Verify IGP received the fee tokens
+        assertEq(
+            feeToken.balanceOf(address(igp)),
+            feeQuote,
+            "IGP should receive fee tokens"
+        );
+    }
+
+    function test_callRemote_withERC20Fee_insufficientAllowance() public {
+        // Get the fee quote
+        uint256 feeQuote = originRouter.quoteGasPayment(
+            address(feeToken),
+            DESTINATION,
+            GAS_LIMIT
+        );
+
+        // Don't approve - should fail
+        bytes memory hookMetadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            GAS_LIMIT,
+            address(this),
+            address(feeToken)
+        );
+
+        CallLib.Call[] memory calls = new CallLib.Call[](1);
+        calls[0] = CallLib.Call({
+            to: address(target).addressToBytes32(),
+            value: 0,
+            data: abi.encodeCall(target.set, (bytes32("test")))
+        });
+
+        vm.expectRevert("ERC20: insufficient allowance");
+        originRouter.callRemote{value: 0}(DESTINATION, calls, hookMetadata);
+    }
+
+    function test_callRemote_withERC20Fee_insufficientBalance() public {
+        // Transfer all tokens away
+        uint256 balance = feeToken.balanceOf(address(this));
+        feeToken.transfer(address(1), balance);
+
+        // Get the fee quote
+        uint256 feeQuote = originRouter.quoteGasPayment(
+            address(feeToken),
+            DESTINATION,
+            GAS_LIMIT
+        );
+
+        // Approve max but have no balance
+        feeToken.approve(address(originRouter), type(uint256).max);
+
+        bytes memory hookMetadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            GAS_LIMIT,
+            address(this),
+            address(feeToken)
+        );
+
+        CallLib.Call[] memory calls = new CallLib.Call[](1);
+        calls[0] = CallLib.Call({
+            to: address(target).addressToBytes32(),
+            value: 0,
+            data: abi.encodeCall(target.set, (bytes32("test")))
+        });
+
+        vm.expectRevert("ERC20: transfer amount exceeds balance");
+        originRouter.callRemote{value: 0}(DESTINATION, calls, hookMetadata);
+    }
+
+    function test_callRemoteWithOverrides_withERC20Fee() public {
+        uint256 feeQuote = originRouter.quoteGasPayment(
+            address(feeToken),
+            DESTINATION,
+            GAS_LIMIT
+        );
+
+        feeToken.approve(address(originRouter), feeQuote);
+
+        bytes memory hookMetadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            GAS_LIMIT,
+            address(this),
+            address(feeToken)
+        );
+
+        CallLib.Call[] memory calls = new CallLib.Call[](1);
+        calls[0] = CallLib.Call({
+            to: address(target).addressToBytes32(),
+            value: 0,
+            data: abi.encodeCall(target.set, (bytes32("test")))
+        });
+
+        uint256 feeBalanceBefore = feeToken.balanceOf(address(this));
+
+        originRouter.callRemoteWithOverrides{value: 0}(
+            DESTINATION,
+            routerOverride,
+            ismOverride,
+            calls,
+            hookMetadata
+        );
+
+        uint256 feeBalanceAfter = feeToken.balanceOf(address(this));
+
+        assertEq(
+            feeBalanceBefore - feeBalanceAfter,
+            feeQuote,
+            "Fee tokens should be charged"
+        );
+    }
+
+    // ============ Internal Helpers ============
+
+    function _setTokenGasConfig(address _token, uint32 _domain) internal {
+        InterchainGasPaymaster.TokenGasOracleConfig[]
+            memory params = new InterchainGasPaymaster.TokenGasOracleConfig[](
+                1
+            );
+        params[0] = InterchainGasPaymaster.TokenGasOracleConfig(
+            _token,
+            _domain,
+            IGasOracle(address(gasOracle))
+        );
+        igp.setTokenGasOracles(params);
+    }
+
+    function _setRemoteGasData(
+        uint32 _domain,
+        uint128 _exchangeRate,
+        uint128 _gasPrice
+    ) internal {
+        gasOracle.setRemoteGasData(
+            StorageGasOracle.RemoteGasDataConfig({
+                remoteDomain: _domain,
+                tokenExchangeRate: _exchangeRate,
+                gasPrice: _gasPrice
+            })
+        );
     }
 }

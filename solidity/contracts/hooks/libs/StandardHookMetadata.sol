@@ -123,6 +123,22 @@ library StandardHookMetadata {
     }
 
     /**
+     * @notice Returns the fee token address for token-based gas payments (memory version).
+     * @param _metadata ABI encoded standard hook metadata.
+     * @return _feeToken Fee token address at [86:106], or address(0) if metadata too short.
+     */
+    function feeToken(
+        bytes memory _metadata
+    ) internal pure returns (address _feeToken) {
+        if (_metadata.length < FEE_TOKEN_OFFSET + 20) return address(0);
+        assembly {
+            let data_start_ptr := add(_metadata, 32) // Skip length prefix
+            let mload_ptr := add(data_start_ptr, sub(FEE_TOKEN_OFFSET, 12))
+            _feeToken := mload(mload_ptr) // Loads 32 bytes; address takes lower 20 bytes
+        }
+    }
+
+    /**
      * @notice Formats the specified gas limit and refund address into standard hook metadata.
      * @param _msgValue msg.value for the message.
      * @param _gasLimit Gas limit for the message.
