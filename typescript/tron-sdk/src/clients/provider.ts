@@ -955,9 +955,38 @@ export class TronProvider implements AltVM.IProvider {
   }
 
   async getTransferTransaction(
-    _req: AltVM.ReqTransfer,
+    req: AltVM.ReqTransfer,
   ): Promise<TronTransaction> {
-    throw new Error(`not implemented`);
+    if (req.denom) {
+      const { transaction } =
+        await this.tronweb.transactionBuilder.triggerSmartContract(
+          req.denom,
+          'transfer(address,uint256)',
+          {
+            feeLimit: 100_000_000,
+            callValue: 0,
+          },
+          [
+            {
+              type: 'address',
+              value: [req.recipient],
+            },
+            {
+              type: 'uint256',
+              value: [req.amount],
+            },
+          ],
+          this.tronweb.address.toHex(req.signer),
+        );
+
+      return transaction;
+    }
+
+    return this.tronweb.transactionBuilder.sendTrx(
+      req.recipient,
+      parseInt(req.amount),
+      req.signer,
+    );
   }
 
   async getRemoteTransferTransaction(

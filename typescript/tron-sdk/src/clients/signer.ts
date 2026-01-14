@@ -784,9 +784,18 @@ export class TronSigner
   }
 
   async transfer(
-    _req: Omit<AltVM.ReqTransfer, 'signer'>,
+    req: Omit<AltVM.ReqTransfer, 'signer'>,
   ): Promise<AltVM.ResTransfer> {
-    throw new Error(`not implemented`);
+    const tx = await this.getTransferTransaction({
+      ...req,
+      signer: this.getSignerAddress(),
+    });
+
+    await this.sendAndConfirmTransaction(tx);
+
+    return {
+      recipient: req.recipient,
+    };
   }
 
   async remoteTransfer(
