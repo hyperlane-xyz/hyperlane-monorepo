@@ -9,7 +9,6 @@ import HypERC20Abi from '../../abi/HypERC20.json' with { type: 'json' };
 import HypERC20CollateralAbi from '../../abi/HypERC20Collateral.json' with { type: 'json' };
 import HypNativeAbi from '../../abi/HypNative.json' with { type: 'json' };
 import IERC20Abi from '../../abi/IERC20.json' with { type: 'json' };
-import IInterchainSecurityModuleAbi from '../../abi/IInterchainSecurityModule.json' with { type: 'json' };
 import IPostDispatchHookAbi from '../../abi/IPostDispatchHook.json' with { type: 'json' };
 import InterchainGasPaymasterAbi from '../../abi/InterchainGasPaymaster.json' with { type: 'json' };
 import MailboxAbi from '../../abi/Mailbox.json' with { type: 'json' };
@@ -20,6 +19,13 @@ import StorageGasOracleAbi from '../../abi/StorageGasOracle.json' with { type: '
 import StorageMerkleRootMultisigIsmAbi from '../../abi/StorageMerkleRootMultisigIsm.json' with { type: 'json' };
 import StorageMessageIdMultisigIsmAbi from '../../abi/StorageMessageIdMultisigIsm.json' with { type: 'json' };
 import ValidatorAnnounceAbi from '../../abi/ValidatorAnnounce.json' with { type: 'json' };
+import {
+  getIsmType,
+  getMerkleRootMultisigIsmConfig,
+  getMessageIdMultisigIsmConfig,
+  getNoopIsmConfig,
+  getRoutingIsmConfig,
+} from '../ism/ism-query.js';
 import { TRON_EMPTY_ADDRESS } from '../utils/index.js';
 import { IABI, TronTransaction } from '../utils/types.js';
 
@@ -157,93 +163,27 @@ export class TronProvider implements AltVM.IProvider {
   }
 
   async getIsmType(req: AltVM.ReqGetIsmType): Promise<AltVM.IsmType> {
-    const contract = this.tronweb.contract(
-      IInterchainSecurityModuleAbi.abi,
-      req.ismAddress,
-    );
-
-    const moduleType = Number(await contract.moduleType().call());
-
-    switch (moduleType) {
-      case 1:
-        return AltVM.IsmType.ROUTING;
-      case 4:
-        return AltVM.IsmType.MERKLE_ROOT_MULTISIG;
-      case 5:
-        return AltVM.IsmType.MESSAGE_ID_MULTISIG;
-      case 6:
-        return AltVM.IsmType.TEST_ISM;
-      default:
-        throw new Error(`Unknown ISM type for address: ${req.ismAddress}`);
-    }
+    return getIsmType(this.tronweb, req.ismAddress);
   }
 
   async getMessageIdMultisigIsm(
     req: AltVM.ReqMessageIdMultisigIsm,
   ): Promise<AltVM.ResMessageIdMultisigIsm> {
-    const contract = this.tronweb.contract(
-      StorageMessageIdMultisigIsmAbi.abi,
-      req.ismAddress,
-    );
-
-    return {
-      address: req.ismAddress,
-      threshold: Number(await contract.threshold().call()),
-      validators: await contract.validators().call(),
-    };
+    return getMessageIdMultisigIsmConfig(this.tronweb, req.ismAddress);
   }
 
   async getMerkleRootMultisigIsm(
     req: AltVM.ReqMerkleRootMultisigIsm,
   ): Promise<AltVM.ResMerkleRootMultisigIsm> {
-    const contract = this.tronweb.contract(
-      StorageMerkleRootMultisigIsmAbi.abi,
-      req.ismAddress,
-    );
-
-    return {
-      address: req.ismAddress,
-      threshold: await contract.threshold().call(),
-      validators: await contract.validators().call(),
-    };
+    return getMerkleRootMultisigIsmConfig(this.tronweb, req.ismAddress);
   }
 
   async getRoutingIsm(req: AltVM.ReqRoutingIsm): Promise<AltVM.ResRoutingIsm> {
-    const contract = this.tronweb.contract(
-      DomainRoutingIsmAbi.abi,
-      req.ismAddress,
-    );
-
-    const routes = [];
-
-    const domainIds = await contract.domains().call();
-
-    for (const domainId of domainIds) {
-      const ismAddress = this.tronweb.address.fromHex(
-        await contract.module(domainId).call(),
-      );
-      routes.push({
-        domainId: Number(domainId),
-        ismAddress,
-      });
-    }
-
-    return {
-      address: req.ismAddress,
-      owner: this.tronweb.address.fromHex(await contract.owner().call()),
-      routes,
-    };
+    return getRoutingIsmConfig(this.tronweb, req.ismAddress);
   }
 
   async getNoopIsm(req: AltVM.ReqNoopIsm): Promise<AltVM.ResNoopIsm> {
-    const contract = this.tronweb.contract(NoopIsmAbi.abi, req.ismAddress);
-
-    const moduleType = await contract.moduleType().call();
-    assert(Number(moduleType) === 6, `module type does not equal NULL_ISM`);
-
-    return {
-      address: req.ismAddress,
-    };
+    return getNoopIsmConfig(this.tronweb, req.ismAddress);
   }
 
   async getHookType(req: AltVM.ReqGetHookType): Promise<AltVM.HookType> {

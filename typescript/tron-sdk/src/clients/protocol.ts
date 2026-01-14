@@ -15,6 +15,8 @@ import {
 } from '@hyperlane-xyz/provider-sdk/module';
 import { assert } from '@hyperlane-xyz/utils';
 
+import { TronIsmArtifactManager } from '../ism/ism-artifact-manager.js';
+
 import { TronProvider } from './provider.js';
 import { TronSigner } from './signer.js';
 
@@ -48,10 +50,12 @@ export class TronProtocolProvider implements ProtocolProvider {
   }
 
   createIsmArtifactManager(
-    _chainMetadata: ChainMetadataForAltVM,
+    chainMetadata: ChainMetadataForAltVM,
   ): IRawIsmArtifactManager {
-    // @TODO Implement in a follow up PR
-    throw Error('Not implemented');
+    assert(chainMetadata.rpcUrls, 'rpc urls undefined');
+    const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
+
+    return new TronIsmArtifactManager(rpcUrls);
   }
 
   getMinGas(): MinimumRequiredGasByAction {
