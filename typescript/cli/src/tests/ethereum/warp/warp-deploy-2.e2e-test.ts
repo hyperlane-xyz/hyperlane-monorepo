@@ -393,6 +393,45 @@ describe('hyperlane warp deploy e2e tests', async function () {
       });
     }
 
+    it(`should deploy a synthetic token with LinearFee without specifying fee token (resolved to router)`, async () => {
+      const warpConfig = WarpRouteDeployConfigSchema.parse({
+        [CHAIN_NAME_2]: {
+          type: TokenType.collateral,
+          token: tokenChain2.address,
+          owner: ownerAddress,
+        },
+        [CHAIN_NAME_3]: {
+          type: TokenType.synthetic,
+          owner: ownerAddress,
+          tokenFee: {
+            type: TokenFeeType.LinearFee,
+            bps: 100n,
+          },
+        },
+      });
+
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+
+      const COMBINED_WARP_CORE_CONFIG_PATH =
+        GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH(
+          WARP_DEPLOY_OUTPUT_PATH,
+          await tokenChain2.symbol(),
+        );
+
+      const syntheticConfig = (
+        await readWarpConfig(
+          CHAIN_NAME_3,
+          COMBINED_WARP_CORE_CONFIG_PATH,
+          WARP_DEPLOY_OUTPUT_PATH,
+        )
+      )[CHAIN_NAME_3];
+
+      expect(syntheticConfig.tokenFee).to.exist;
+      expect(syntheticConfig.tokenFee?.type).to.equal(TokenFeeType.LinearFee);
+      expect(syntheticConfig.tokenFee?.token).to.exist;
+    });
+
     it(`should deploy a native Routing Fee when providing maxFee and halfAmount only`, async () => {
       const warpConfig = WarpRouteDeployConfigSchema.parse({
         [CHAIN_NAME_2]: {

@@ -53,11 +53,6 @@ import {
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { EvmTokenFeeModule } from '../fee/EvmTokenFeeModule.js';
 import { TokenFeeReaderParams } from '../fee/EvmTokenFeeReader.js';
-import {
-  RoutingFeeInputConfig,
-  TokenFeeConfigInput,
-  TokenFeeType,
-} from '../fee/types.js';
 import { getEvmHookUpdateTransactions } from '../hook/updates.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -67,6 +62,7 @@ import { ChainName, ChainNameOrId } from '../types.js';
 import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
 
 import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
+import { resolveTokenFeeAddress } from './configUtils.js';
 import { hypERC20contracts } from './contracts.js';
 import { HypERC20Deployer } from './deploy.js';
 import {
@@ -957,7 +953,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     }
 
     const routerAddress = this.args.addresses.deployedTokenRoute;
-    const resolvedTokenFee = this.resolveTokenFeeAddress(
+    const resolvedTokenFee = resolveTokenFeeAddress(
       expectedConfig.tokenFee,
       routerAddress,
     );
@@ -1024,31 +1020,6 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       ),
     });
     return updateTransactions;
-  }
-
-  private resolveTokenFeeAddress(
-    feeConfig: TokenFeeConfigInput,
-    routerAddress: Address,
-  ): TokenFeeConfigInput {
-    const resolved: TokenFeeConfigInput = { ...feeConfig };
-
-    if (feeConfig.token === undefined) {
-      resolved.token = routerAddress;
-    }
-
-    if (feeConfig.type === TokenFeeType.RoutingFee) {
-      const routingConfig = feeConfig as RoutingFeeInputConfig;
-      if (routingConfig.feeContracts) {
-        (resolved as RoutingFeeInputConfig).feeContracts = Object.fromEntries(
-          Object.entries(routingConfig.feeContracts).map(([chain, subFee]) => [
-            chain,
-            this.resolveTokenFeeAddress(subFee, routerAddress),
-          ]),
-        );
-      }
-    }
-
-    return resolved;
   }
 
   /**

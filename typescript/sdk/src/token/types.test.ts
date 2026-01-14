@@ -308,6 +308,26 @@ describe('WarpRouteDeployConfigSchema refine', () => {
       expect(feeConfig.feeContracts?.ethereum?.token).to.be.undefined;
       expect(feeConfig.feeContracts?.optimism?.token).to.be.undefined;
     });
+
+    it('should populate LinearFee token from collateral token address', () => {
+      const parseResults = WarpRouteDeployConfigSchema.safeParse({
+        ethereum: {
+          type: TokenType.collateral,
+          token: SOME_ADDRESS,
+          owner: SOME_ADDRESS,
+          mailbox: SOME_ADDRESS,
+          tokenFee: {
+            type: TokenFeeType.LinearFee,
+            owner: SOME_ADDRESS,
+            bps: 100n,
+          },
+        },
+      });
+
+      assert(parseResults.success, 'must be true');
+      // For collateral tokens, fee token is automatically set to config.token
+      expect(parseResults.data.ethereum.tokenFee?.token).to.equal(SOME_ADDRESS);
+    });
   });
 
   describe('xERC20 validation', () => {
