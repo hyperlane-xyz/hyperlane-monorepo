@@ -124,9 +124,49 @@ export class TronProvider implements AltVM.IProvider {
   }
 
   async estimateTransactionFee(
-    _req: AltVM.ReqEstimateTransactionFee<TronTransaction>,
+    req: AltVM.ReqEstimateTransactionFee<TronTransaction>,
   ): Promise<AltVM.ResEstimateTransactionFee> {
-    throw new Error(`not implemented`);
+    const value = req.transaction.raw_data.contract[0].parameter.value;
+    const contractAddress = value.contract_address;
+    const issuerAddress = value.owner_address;
+
+    const { result, energy_required } =
+      await this.tronweb.transactionBuilder.estimateEnergy(
+        contractAddress,
+        '',
+        {
+          input: value.data,
+        },
+        [],
+        issuerAddress,
+      );
+
+    if (!result.result) {
+      throw new Error(
+        `energy estimation failed for txid ${req.transaction.txID}`,
+      );
+    }
+
+    const energyPriceData = await this.tronweb.trx.getEnergyPrices();
+    const [_, energyPrice] = energyPriceData.split(',').at(-1)!.split(':');
+
+    const bandwidthPriceData = await this.tronweb.trx.getBandwidthPrices();
+    const [__, bandwidthPrice] = bandwidthPriceData
+      .split(',')
+      .at(-1)!
+      .split(':');
+
+    const txSize = BigInt(req.transaction.raw_data_hex.length / 2 + 134); // Signature + Result + Protobuf
+
+    const energyFee = BigInt(energy_required) * BigInt(energyPrice);
+    const bandwidthFee = txSize * BigInt(bandwidthPrice);
+    const totalFeeSun = energyFee + bandwidthFee;
+
+    return {
+      gasUnits: BigInt(energy_required),
+      gasPrice: parseInt(energyPrice),
+      fee: totalFeeSun,
+    };
   }
 
   // ### QUERY CORE ###
