@@ -154,20 +154,33 @@ export class EvmTokenFeeModule extends HyperlaneModule<
         params.chainName,
       );
 
-      // Use bps as the source of truth when provided. Only use explicit
-      // maxFee/halfAmount when bps is not available.
-      if (config.bps !== undefined) {
+      // Determine which values to use:
+      // - If maxFee/halfAmount are provided and bps matches what you'd compute from them,
+      //   the user provided explicit values (bps was auto-computed by schema) - use them
+      // - If bps doesn't match, the user explicitly provided a different bps - use bps
+      // - If only bps is provided, derive maxFee/halfAmount from bps
+      if (config.maxFee !== undefined && config.halfAmount !== undefined) {
+        const explicitMaxFee = BigInt(config.maxFee);
+        const explicitHalfAmount = BigInt(config.halfAmount);
+        const computedBps = convertToBps(explicitMaxFee, explicitHalfAmount);
+
+        if (config.bps === undefined || config.bps === computedBps) {
+          // bps was auto-computed or matches - use explicit values
+          maxFee = explicitMaxFee;
+          halfAmount = explicitHalfAmount;
+          bps = computedBps;
+        } else {
+          // User explicitly provided a different bps - use bps-derived values
+          const derived = reader.convertFromBps(config.bps);
+          maxFee = derived.maxFee;
+          halfAmount = derived.halfAmount;
+          bps = config.bps;
+        }
+      } else if (config.bps !== undefined) {
         const derived = reader.convertFromBps(config.bps);
         maxFee = derived.maxFee;
         halfAmount = derived.halfAmount;
         bps = config.bps;
-      } else if (
-        config.maxFee !== undefined &&
-        config.halfAmount !== undefined
-      ) {
-        maxFee = BigInt(config.maxFee);
-        halfAmount = BigInt(config.halfAmount);
-        bps = convertToBps(maxFee, halfAmount);
       } else {
         throw new Error(
           'LinearFee config must provide either bps or both maxFee and halfAmount',
