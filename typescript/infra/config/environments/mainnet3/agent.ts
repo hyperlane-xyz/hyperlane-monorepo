@@ -205,7 +205,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     xlayer: true,
     xrplevm: true,
     zerogravity: true,
-    zeronetwork: true,
+    zeronetwork: false,
     zetachain: true,
     zircuit: true,
     zksync: true,
@@ -348,7 +348,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     xlayer: true,
     xrplevm: true,
     zerogravity: true,
-    zeronetwork: true,
+    zeronetwork: false,
     zetachain: true,
     zircuit: true,
     zksync: true,
@@ -492,7 +492,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     xlayer: true,
     xrplevm: true,
     zerogravity: true,
-    zeronetwork: true,
+    zeronetwork: false,
     zetachain: true,
     zircuit: true,
     zksync: true,
@@ -726,18 +726,19 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
         helloWorld[Contexts.Hyperlane].addresses,
       ),
     },
-    {
-      name: 'merkly_erc20',
-      matchingList: routerMatchingList(merklyErc20Addresses),
-    },
-    {
-      name: 'merkly_eth',
-      matchingList: routerMatchingList(merklyEthAddresses),
-    },
-    {
-      name: 'merkly_nft',
-      matchingList: routerMatchingList(merklyNftAddresses),
-    },
+    // Removing merkly related addressed to avoid OOM
+    // {
+    //   name: 'merkly_erc20',
+    //   matchingList: routerMatchingList(merklyErc20Addresses),
+    // },
+    // {
+    //   name: 'merkly_eth',
+    //   matchingList: routerMatchingList(merklyEthAddresses),
+    // },
+    // {
+    //   name: 'merkly_nft',
+    //   matchingList: routerMatchingList(merklyNftAddresses),
+    // },
     {
       name: 'velo_message_module',
       // Almost all messages to / from this address relate to the Velo Message Module.

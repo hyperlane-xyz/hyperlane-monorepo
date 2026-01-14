@@ -1,5 +1,28 @@
 # @hyperlane-xyz/infra
 
+## 21.0.0
+
+### Minor Changes
+
+- bc8b22f: Moved rebalancer-specific type definitions from `@hyperlane-xyz/sdk` to `@hyperlane-xyz/rebalancer`. Updated CLI and infra imports to use the new location. The rebalancer package is now self-contained and doesn't pollute the SDK with rebalancer-specific types.
+
+### Patch Changes
+
+- b3027cf: Patched node-fetch@2.7.0 to avoid 429 errors with Safe API, reverting from premature upgrade to node-fetch@3
+- Updated dependencies [c08fa32]
+- Updated dependencies [68310db]
+- Updated dependencies [b6b206d]
+- Updated dependencies [bc8b22f]
+- Updated dependencies [ed10fc1]
+- Updated dependencies [9963e0e]
+- Updated dependencies [0bce4e7]
+  - @hyperlane-xyz/sdk@21.0.0
+  - @hyperlane-xyz/rebalancer@0.1.0
+  - @hyperlane-xyz/utils@21.0.0
+  - @hyperlane-xyz/helloworld@21.0.0
+  - @hyperlane-xyz/http-registry-server@21.0.0
+  - @hyperlane-xyz/core@10.1.4
+
 ## 20.1.0
 
 ### Patch Changes

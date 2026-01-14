@@ -1,11 +1,11 @@
 import {
-  MsgCreateMerkleRootMultisigIsmEncodeObject,
-  MsgCreateMessageIdMultisigIsmEncodeObject,
-  MsgCreateNoopIsmEncodeObject,
-  MsgCreateRoutingIsmEncodeObject,
-  MsgRemoveRoutingIsmDomainEncodeObject,
-  MsgSetRoutingIsmDomainEncodeObject,
-  MsgUpdateRoutingIsmOwnerEncodeObject,
+  type MsgCreateMerkleRootMultisigIsmEncodeObject,
+  type MsgCreateMessageIdMultisigIsmEncodeObject,
+  type MsgCreateNoopIsmEncodeObject,
+  type MsgCreateRoutingIsmEncodeObject,
+  type MsgRemoveRoutingIsmDomainEncodeObject,
+  type MsgSetRoutingIsmDomainEncodeObject,
+  type MsgUpdateRoutingIsmOwnerEncodeObject,
 } from '../hyperlane/interchain_security/messages.js';
 import { COSMOS_MODULE_MESSAGE_REGISTRY as MessageRegistry } from '../registry.js';
 

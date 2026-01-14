@@ -1,21 +1,21 @@
 import {
-  AccountData,
+  type AccountData,
   DirectSecp256k1HdWallet,
   DirectSecp256k1Wallet,
-  EncodeObject,
-  OfflineSigner,
+  type EncodeObject,
+  type OfflineSigner,
 } from '@cosmjs/proto-signing';
 import {
   AminoTypes,
-  DeliverTxResponse,
+  type DeliverTxResponse,
   GasPrice,
   SigningStargateClient,
-  StdFee,
+  type StdFee,
   assertIsDeliverTxSuccess,
 } from '@cosmjs/stargate';
-import { CometClient, connectComet } from '@cosmjs/tendermint-rpc';
+import { type CometClient, connectComet } from '@cosmjs/tendermint-rpc';
 
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { type AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert, isUrl, strip0x } from '@hyperlane-xyz/utils';
 
 import { COSMOS_MODULE_MESSAGE_REGISTRY as R } from '../registry.js';

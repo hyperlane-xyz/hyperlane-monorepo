@@ -1,6 +1,6 @@
-import { EncodeObject } from '@cosmjs/proto-signing';
+import { type EncodeObject } from '@cosmjs/proto-signing';
 
-import { Annotated } from '@hyperlane-xyz/utils';
+import { type Annotated } from '@hyperlane-xyz/utils';
 
 /**
  * Cosmos transaction with optional annotation field.

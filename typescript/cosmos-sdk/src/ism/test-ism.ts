@@ -1,23 +1,23 @@
-import { DeliverTxResponse } from '@cosmjs/stargate';
+import { type DeliverTxResponse } from '@cosmjs/stargate';
 
 import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
-  ArtifactDeployed,
-  ArtifactNew,
-  ArtifactReader,
+  type ArtifactDeployed,
+  type ArtifactNew,
+  type ArtifactReader,
   ArtifactState,
-  ArtifactWriter,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
-  DeployedIsmAddress,
-  TestIsmConfig,
+  type DeployedIsmAddress,
+  type TestIsmConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
 
-import { CosmosNativeSigner } from '../clients/signer.js';
+import { type CosmosNativeSigner } from '../clients/signer.js';
 import { getNewContractAddress } from '../utils/base.js';
-import { AnnotatedEncodeObject } from '../utils/types.js';
+import { type AnnotatedEncodeObject } from '../utils/types.js';
 
-import { CosmosIsmQueryClient, getNoopIsmConfig } from './ism-query.js';
+import { type CosmosIsmQueryClient, getNoopIsmConfig } from './ism-query.js';
 import { getCreateTestIsmTx } from './ism-tx.js';
 
 /**

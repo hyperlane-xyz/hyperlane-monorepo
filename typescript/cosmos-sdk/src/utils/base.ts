@@ -1,4 +1,4 @@
-import { DeliverTxResponse } from '@cosmjs/stargate';
+import { type DeliverTxResponse } from '@cosmjs/stargate';
 
 import { assert } from '@hyperlane-xyz/utils';
 

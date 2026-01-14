@@ -1,5 +1,7 @@
 # @hyperlane-xyz/github-proxy
 
+## 21.0.0
+
 ## 20.1.0
 
 ## 20.0.0
