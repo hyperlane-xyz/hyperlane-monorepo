@@ -93,6 +93,7 @@ export class CosmosRoutingIsmRawWriter
     ]
   > {
     const { config } = artifact;
+    const receipts: DeliverTxResponse[] = [];
 
     const routes = Object.entries(config.domains).map(
       ([domainId, artifact]) => ({
@@ -107,7 +108,23 @@ export class CosmosRoutingIsmRawWriter
     );
 
     const receipt = await this.signer.sendAndConfirmTransaction(transaction);
+    receipts.push(receipt);
     const ismAddress = getNewContractAddress(receipt);
+
+    // Transfer ownership if config.owner differs from signer
+    if (!eqAddressCosmos(config.owner, this.signer.getSignerAddress())) {
+      const ownerTransferTx = await getSetRoutingIsmOwnerTx(
+        this.signer.getSignerAddress(),
+        {
+          ismAddress,
+          newOwner: config.owner,
+        },
+      );
+
+      const ownerReceipt =
+        await this.signer.sendAndConfirmTransaction(ownerTransferTx);
+      receipts.push(ownerReceipt);
+    }
 
     const deployedArtifact: ArtifactDeployed<
       RawRoutingIsmArtifactConfig,
@@ -120,7 +137,7 @@ export class CosmosRoutingIsmRawWriter
       },
     };
 
-    return [deployedArtifact, [receipt]];
+    return [deployedArtifact, receipts];
   }
 
   async update(
