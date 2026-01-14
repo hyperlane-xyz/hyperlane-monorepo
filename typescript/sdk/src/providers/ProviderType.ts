@@ -392,7 +392,8 @@ export type TypedTransaction =
   | StarknetJsTransaction
   | ZKSyncTransaction
   | RadixTransaction
-  | AleoTransaction;
+  | AleoTransaction
+  | TronTransaction;
 
 export type AnnotatedEV5Transaction = Annotated<EV5Transaction>;
 

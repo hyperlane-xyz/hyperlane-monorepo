@@ -52,6 +52,15 @@ import {
   useStarknetWatchAsset,
 } from './starknet.js';
 import {
+  useTronAccount,
+  useTronActiveChain,
+  useTronConnectFn,
+  useTronDisconnectFn,
+  useTronTransactionFns,
+  useTronWalletDetails,
+  useTronWatchAsset,
+} from './tron.js';
+import {
   AccountInfo,
   ActiveChainInfo,
   ChainTransactionFns,
@@ -75,6 +84,7 @@ export function useAccounts(
   const cosmAccountInfo = useCosmosAccount(multiProvider);
   const starknetAccountInfo = useStarknetAccount(multiProvider);
   const radixAccountInfo = useRadixAccount(multiProvider);
+  const tronAccountInfo = useTronAccount(multiProvider);
   // Filtered ready accounts
   const readyAccounts = useMemo(
     () =>
@@ -84,6 +94,7 @@ export function useAccounts(
         cosmAccountInfo,
         starknetAccountInfo,
         radixAccountInfo,
+        tronAccountInfo,
       ].filter((a) => a.isReady),
     [
       evmAccountInfo,
@@ -91,6 +102,7 @@ export function useAccounts(
       cosmAccountInfo,
       starknetAccountInfo,
       radixAccountInfo,
+      tronAccountInfo,
     ],
   );
 
@@ -113,7 +125,7 @@ export function useAccounts(
         [ProtocolType.Starknet]: starknetAccountInfo,
         [ProtocolType.Radix]: radixAccountInfo,
         [ProtocolType.Aleo]: evmAccountInfo, // TODO: implement this once we have a Aleo wallet connection
-        [ProtocolType.Tron]: evmAccountInfo, // TODO: implement this once we have a Tron wallet connection
+        [ProtocolType.Tron]: tronAccountInfo,
       },
       readyAccounts,
     }),
@@ -123,6 +135,7 @@ export function useAccounts(
       cosmAccountInfo,
       starknetAccountInfo,
       radixAccountInfo,
+      tronAccountInfo,
       readyAccounts,
     ],
   );
@@ -217,6 +230,7 @@ export function useWalletDetails(): Record<ProtocolType, WalletDetails> {
   const cosmosWallet = useCosmosWalletDetails();
   const starknetWallet = useStarknetWalletDetails();
   const radixWallet = useRadixWalletDetails();
+  const tronWallet = useTronWalletDetails();
 
   return useMemo(
     () => ({
@@ -227,9 +241,16 @@ export function useWalletDetails(): Record<ProtocolType, WalletDetails> {
       [ProtocolType.Starknet]: starknetWallet,
       [ProtocolType.Radix]: radixWallet,
       [ProtocolType.Aleo]: evmWallet, // TODO: implement this once we have a Aleo wallet connection
-      [ProtocolType.Tron]: evmWallet, // TODO: implement this once we have a Tron wallet connection
+      [ProtocolType.Tron]: tronWallet,
     }),
-    [evmWallet, solWallet, cosmosWallet, starknetWallet, radixWallet],
+    [
+      evmWallet,
+      solWallet,
+      cosmosWallet,
+      starknetWallet,
+      radixWallet,
+      tronWallet,
+    ],
   );
 }
 
@@ -239,6 +260,7 @@ export function useConnectFns(): Record<ProtocolType, () => void> {
   const onConnectCosmos = useCosmosConnectFn();
   const onConnectStarknet = useStarknetConnectFn();
   const onConnectRadix = useRadixConnectFn();
+  const onConnectTron = useTronConnectFn();
 
   return useMemo(
     () => ({
@@ -249,7 +271,7 @@ export function useConnectFns(): Record<ProtocolType, () => void> {
       [ProtocolType.Starknet]: onConnectStarknet,
       [ProtocolType.Radix]: onConnectRadix,
       [ProtocolType.Aleo]: () => {}, // TODO: implement this once we have a Aleo wallet connection
-      [ProtocolType.Tron]: () => {}, // TODO: implement this once we have a Tron wallet connection
+      [ProtocolType.Tron]: onConnectTron,
     }),
     [
       onConnectEthereum,
@@ -257,6 +279,7 @@ export function useConnectFns(): Record<ProtocolType, () => void> {
       onConnectCosmos,
       onConnectStarknet,
       onConnectRadix,
+      onConnectTron,
     ],
   );
 }
@@ -267,6 +290,7 @@ export function useDisconnectFns(): Record<ProtocolType, () => Promise<void>> {
   const disconnectCosmos = useCosmosDisconnectFn();
   const disconnectStarknet = useStarknetDisconnectFn();
   const disconnectRadix = useRadixDisconnectFn();
+  const disconnectTron = useTronDisconnectFn();
 
   const onClickDisconnect =
     (env: ProtocolType, disconnectFn?: () => Promise<void> | void) =>
@@ -306,7 +330,7 @@ export function useDisconnectFns(): Record<ProtocolType, () => Promise<void>> {
         disconnectRadix,
       ),
       [ProtocolType.Aleo]: onClickDisconnect(ProtocolType.Aleo, () => {}), // TODO: implement once we have Aleo wallet connection
-      [ProtocolType.Tron]: onClickDisconnect(ProtocolType.Tron, () => {}), // TODO: implement once we have Tron wallet connection
+      [ProtocolType.Tron]: onClickDisconnect(ProtocolType.Tron, disconnectTron),
     }),
     [
       disconnectEvm,
@@ -314,6 +338,7 @@ export function useDisconnectFns(): Record<ProtocolType, () => Promise<void>> {
       disconnectCosmos,
       disconnectStarknet,
       disconnectRadix,
+      disconnectTron,
     ],
   );
 }
@@ -327,13 +352,19 @@ export function useActiveChains(multiProvider: MultiProtocolProvider): {
   const cosmChain = useCosmosActiveChain(multiProvider);
   const starknetChain = useStarknetActiveChain(multiProvider);
   const radixChain = useRadixActiveChain(multiProvider);
+  const tronChain = useTronActiveChain(multiProvider);
 
   const readyChains = useMemo(
     () =>
-      [evmChain, solChain, cosmChain, starknetChain, radixChain].filter(
-        (c) => !!c.chainDisplayName,
-      ),
-    [evmChain, solChain, cosmChain, starknetChain, radixChain],
+      [
+        evmChain,
+        solChain,
+        cosmChain,
+        starknetChain,
+        radixChain,
+        tronChain,
+      ].filter((c) => !!c.chainDisplayName),
+    [evmChain, solChain, cosmChain, starknetChain, radixChain, tronChain],
   );
 
   return useMemo(
@@ -346,11 +377,19 @@ export function useActiveChains(multiProvider: MultiProtocolProvider): {
         [ProtocolType.Starknet]: starknetChain,
         [ProtocolType.Radix]: radixChain,
         [ProtocolType.Aleo]: evmChain, // TODO: replace this once we have a Aleo implementation
-        [ProtocolType.Tron]: evmChain, // TODO: replace this once we have a Tron implementation
+        [ProtocolType.Tron]: tronChain,
       },
       readyChains,
     }),
-    [evmChain, solChain, cosmChain, readyChains, starknetChain, radixChain],
+    [
+      evmChain,
+      solChain,
+      cosmChain,
+      readyChains,
+      starknetChain,
+      radixChain,
+      tronChain,
+    ],
   );
 }
 
@@ -382,6 +421,11 @@ export function useTransactionFns(
     sendTransaction: onSendRadixTx,
     sendMultiTransaction: onSendMultiRadixTx,
   } = useRadixTransactionFns(multiProvider);
+  const {
+    switchNetwork: onSwitchTronNetwork,
+    sendTransaction: onSendTronTx,
+    sendMultiTransaction: onSendMultiTronTx,
+  } = useTronTransactionFns(multiProvider);
 
   return useMemo(
     () => ({
@@ -422,10 +466,9 @@ export function useTransactionFns(
         switchNetwork: (): any => {},
       },
       [ProtocolType.Tron]: {
-        // TODO: implement once we have Tron wallet connection
-        sendTransaction: (): any => {},
-        sendMultiTransaction: (): any => {},
-        switchNetwork: (): any => {},
+        sendTransaction: onSendTronTx,
+        sendMultiTransaction: onSendMultiTronTx,
+        switchNetwork: onSwitchTronNetwork,
       },
     }),
     [
@@ -439,6 +482,8 @@ export function useTransactionFns(
       onSwitchStarknetNetwork,
       onSendRadixTx,
       onSwitchRadixNetwork,
+      onSendTronTx,
+      onSwitchTronNetwork,
     ],
   );
 }
@@ -451,6 +496,7 @@ export function useWatchAsset(
   const { addAsset: cosmosAddAsset } = useCosmosWatchAsset(multiProvider);
   const { addAsset: starknetAddAsset } = useStarknetWatchAsset(multiProvider);
   const { addAsset: radixAddAsset } = useRadixWatchAsset(multiProvider);
+  const { addAsset: tronAddAsset } = useTronWatchAsset(multiProvider);
 
   return useMemo(
     () => ({
@@ -476,7 +522,7 @@ export function useWatchAsset(
         addAsset: (): any => {}, // TODO: implement once we have Aleo wallet connection
       },
       [ProtocolType.Tron]: {
-        addAsset: (): any => {}, // TODO: implement once we have Tron wallet connection
+        addAsset: tronAddAsset,
       },
     }),
     [
@@ -485,6 +531,7 @@ export function useWatchAsset(
       cosmosAddAsset,
       starknetAddAsset,
       radixAddAsset,
+      tronAddAsset,
     ],
   );
 }

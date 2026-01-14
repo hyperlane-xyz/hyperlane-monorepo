@@ -36,6 +36,9 @@ catalog:
   '@solana/web3.js': ^1.98.4
   '@starknet-react/chains': ^3.1.2
   '@trivago/prettier-plugin-sort-imports': ^5.2.2
+  '@tronweb3/tronwallet-adapter-react-hooks': ^1.1.11
+  '@tronweb3/tronwallet-adapter-tronlink': ^1.1.13
+  '@tronweb3/tronwallet-adapters': ^1.2.18
   '@turnkey/api-key-stamper': ^0.5.0
   '@turnkey/sdk-server': ^4.12.0
   '@turnkey/solana': ^1.1.12
