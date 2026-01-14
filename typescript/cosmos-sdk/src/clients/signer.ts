@@ -19,6 +19,7 @@ import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert, isUrl, strip0x } from '@hyperlane-xyz/utils';
 
 import { COSMOS_MODULE_MESSAGE_REGISTRY as R } from '../registry.js';
+import { getProtoConverter } from '../utils/base.js';
 
 import { CosmosNativeProvider } from './provider.js';
 
@@ -134,16 +135,6 @@ export class CosmosNativeSigner
     this.options = options;
   }
 
-  private getProtoConverter(typeUrl: string) {
-    for (const { proto } of Object.values(R)) {
-      if (typeUrl === proto.type) {
-        return proto.converter;
-      }
-    }
-
-    throw new Error(`found no proto converter for type ${typeUrl}`);
-  }
-
   private async submitTx(msg: EncodeObject): Promise<any> {
     const receipt = await this.signer.signAndBroadcast(
       this.account.address,
@@ -154,9 +145,7 @@ export class CosmosNativeSigner
     assertIsDeliverTxSuccess(receipt);
 
     const msgResponse = receipt.msgResponses[0];
-    return this.getProtoConverter(msgResponse.typeUrl).decode(
-      msgResponse.value,
-    );
+    return getProtoConverter(msgResponse.typeUrl).decode(msgResponse.value);
   }
 
   getSignerAddress(): string {
