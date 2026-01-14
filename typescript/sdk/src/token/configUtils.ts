@@ -335,6 +335,7 @@ export async function expandWarpDeployConfig(params: {
 
       if (chainConfig.tokenFee) {
         const routerAddress = deployedRoutersAddresses[chain];
+        assert(routerAddress, `Missing deployed router address for ${chain}`);
         chainConfig.tokenFee = resolveTokenFeeAddress(
           chainConfig.tokenFee,
           routerAddress,
