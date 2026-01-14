@@ -86,7 +86,7 @@ export class AleoRoutingIsmRawWriter
     ]
   > {
     const { config } = artifact;
-    const ismManagerProgramId = this.signer.getIsmManager();
+    const ismManagerProgramId = await this.signer.getIsmManager();
     const receipts: AleoReceipt[] = [];
 
     const createTransaction = getCreateRoutingIsmTx(ismManagerProgramId);

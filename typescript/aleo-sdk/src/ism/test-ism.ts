@@ -61,7 +61,7 @@ export class AleoTestIsmWriter
   ): Promise<
     [ArtifactDeployed<TestIsmConfig, DeployedIsmAddress>, AleoReceipt[]]
   > {
-    const ismManagerProgramId = this.signer.getIsmManager();
+    const ismManagerProgramId = await this.signer.getIsmManager();
     const transaction = getCreateTestIsmTx(ismManagerProgramId);
 
     const expectedNonce = await getNewContractExpectedNonce(
