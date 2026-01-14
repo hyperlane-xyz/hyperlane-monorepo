@@ -4,6 +4,8 @@ import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert, strip0x } from '@hyperlane-xyz/utils';
 
 import DomainRoutingIsmAbi from '../../abi/DomainRoutingIsm.json' with { type: 'json' };
+import ERC20TestAbi from '../../abi/ERC20Test.json' with { type: 'json' };
+import HypERC20Abi from '../../abi/HypERC20.json' with { type: 'json' };
 import HypERC20CollateralAbi from '../../abi/HypERC20Collateral.json' with { type: 'json' };
 import HypNativeAbi from '../../abi/HypNative.json' with { type: 'json' };
 import IERC20Abi from '../../abi/IERC20.json' with { type: 'json' };
@@ -113,8 +115,6 @@ export class TronProvider implements AltVM.IProvider {
 
   // ### QUERY CORE ###
 
-  // TODO: TRON
-  // use multicall
   async getMailbox(req: AltVM.ReqGetMailbox): Promise<AltVM.ResGetMailbox> {
     const contract = this.tronweb.contract(MailboxAbi.abi, req.mailboxAddress);
 
@@ -271,7 +271,7 @@ export class TronProvider implements AltVM.IProvider {
       `hook type does not equal INTERCHAIN_GAS_PAYMASTER`,
     );
 
-    const domainIds = await igp.getAllDomainIds().call();
+    const domainIds = await igp.domains().call();
 
     let destinationGasConfigs = {} as {
       [domainId: string]: {
@@ -354,10 +354,20 @@ export class TronProvider implements AltVM.IProvider {
     );
     const denom = this.tronweb.address.fromHex(await contract.token().call());
 
-    const token = {
+    let tokenType = AltVM.TokenType.native;
+
+    if (denom === TRON_EMPTY_ADDRESS) {
+      tokenType = AltVM.TokenType.native;
+    } else if (denom === req.tokenAddress) {
+      tokenType = AltVM.TokenType.synthetic;
+    } else {
+      tokenType = AltVM.TokenType.collateral;
+    }
+
+    let token = {
       address: req.tokenAddress,
       owner: this.tronweb.address.fromHex(await contract.owner().call()),
-      tokenType: AltVM.TokenType.native,
+      tokenType,
       mailboxAddress: this.tronweb.address.fromHex(
         await contract.mailbox().call(),
       ),
@@ -368,6 +378,16 @@ export class TronProvider implements AltVM.IProvider {
       symbol: '',
       decimals: 0,
     };
+
+    if (tokenType === AltVM.TokenType.native) {
+      return token;
+    }
+
+    const erc20 = this.tronweb.contract(ERC20TestAbi.abi, denom);
+
+    token.name = await erc20.name().call();
+    token.symbol = await erc20.symbol().call();
+    token.decimals = Number(await erc20.decimals().call());
 
     return token;
   }
@@ -723,9 +743,26 @@ export class TronProvider implements AltVM.IProvider {
   }
 
   async getRemoveDestinationGasConfigTransaction(
-    _req: AltVM.ReqRemoveDestinationGasConfig,
+    req: AltVM.ReqRemoveDestinationGasConfig,
   ): Promise<TronTransaction> {
-    throw new Error(`not implemented`);
+    const { transaction } =
+      await this.tronweb.transactionBuilder.triggerSmartContract(
+        req.hookAddress,
+        'removeDestinationGasConfigs(uint32[])',
+        {
+          feeLimit: 100_000_000,
+          callValue: 0,
+        },
+        [
+          {
+            type: 'uint32[]',
+            value: [req.remoteDomainId],
+          },
+        ],
+        this.tronweb.address.toHex(req.signer),
+      );
+
+    return transaction;
   }
 
   async getCreateNoopHookTransaction(
@@ -764,9 +801,13 @@ export class TronProvider implements AltVM.IProvider {
   }
 
   async getCreateSyntheticTokenTransaction(
-    _req: AltVM.ReqCreateSyntheticToken,
+    req: AltVM.ReqCreateSyntheticToken,
   ): Promise<TronTransaction> {
-    throw new Error(`not implemented`);
+    return this.createDeploymentTransaction(HypERC20Abi, req.signer, [
+      req.decimals,
+      1,
+      req.mailboxAddress,
+    ]);
   }
 
   async getSetTokenOwnerTransaction(

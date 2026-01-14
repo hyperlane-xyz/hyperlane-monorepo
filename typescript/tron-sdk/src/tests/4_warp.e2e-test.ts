@@ -20,7 +20,7 @@ describe('4. aleo sdk warp e2e tests', async function () {
 
   let nativeTokenAddress: string;
   let collateralTokenAddress: string;
-  // let syntheticTokenAddress: string;
+  let syntheticTokenAddress: string;
 
   const domainId = 1234;
 
@@ -52,7 +52,7 @@ describe('4. aleo sdk warp e2e tests', async function () {
       originEnergyLimit: 10_000_000,
       abi: ERC20TestAbi.abi,
       bytecode: ERC20TestAbi.bytecode,
-      parameters: ['TEST', 'TEST', 100_000_000, 6],
+      parameters: ['test', 'test', 100_000_000, 6],
       name: ERC20TestAbi.contractName,
     };
 
@@ -122,47 +122,36 @@ describe('4. aleo sdk warp e2e tests', async function () {
     collateralTokenAddress = txResponse.tokenAddress;
   });
 
-  // step('create new synthetic token', async () => {
-  //   // ARRANGE
+  step('create new synthetic token', async () => {
+    // ARRANGE
 
-  //   // ACT
-  //   const txResponse = await signer.createSyntheticToken({
-  //     mailboxAddress,
-  //     name: 'test',
-  //     denom: 'test',
-  //     decimals: 6,
-  //   });
+    // ACT
+    const txResponse = await signer.createSyntheticToken({
+      mailboxAddress,
+      name: 'test',
+      denom: 'test',
+      decimals: 6,
+    });
 
-  //   // ASSERT
-  //   expect(txResponse.tokenAddress).to.be.not.empty;
+    // ASSERT
+    expect(txResponse.tokenAddress).to.be.not.empty;
 
-  //   let token = await signer.getToken({
-  //     tokenAddress: txResponse.tokenAddress,
-  //   });
+    let token = await signer.getToken({
+      tokenAddress: txResponse.tokenAddress,
+    });
 
-  //   const denom = Field.fromBytesLe(
-  //     Program.fromString(
-  //       hyp_synthetic.replaceAll(
-  //         `hyp_synthetic.aleo`,
-  //         fromAleoAddress(txResponse.tokenAddress).programId,
-  //       ),
-  //     )
-  //       .address()
-  //       .toBytesLe(),
-  //   ).toString();
+    expect(token).not.to.be.undefined;
+    expect(token.owner).to.equal(signer.getSignerAddress());
+    expect(token.mailboxAddress).to.equal(mailboxAddress);
+    expect(token.denom).to.equal(txResponse.tokenAddress);
+    expect(token.name).to.be.equal('test');
+    expect(token.symbol).to.be.equal('test');
+    expect(token.decimals).to.equal(6);
+    expect(token.ismAddress).to.be.empty;
+    expect(token.tokenType).to.equal(AltVM.TokenType.synthetic);
 
-  //   expect(token).not.to.be.undefined;
-  //   expect(token.owner).to.equal(signer.getSignerAddress());
-  //   expect(token.mailboxAddress).to.equal(mailboxAddress);
-  //   expect(token.denom).to.equal(denom);
-  //   expect(token.name).to.be.equal('test');
-  //   expect(token.symbol).to.be.equal('test');
-  //   expect(token.decimals).to.equal(6);
-  //   expect(token.ismAddress).to.be.empty;
-  //   expect(token.tokenType).to.equal(AltVM.TokenType.synthetic);
-
-  //   syntheticTokenAddress = txResponse.tokenAddress;
-  // });
+    syntheticTokenAddress = txResponse.tokenAddress;
+  });
 
   step('set token ISM', async () => {
     // ARRANGE

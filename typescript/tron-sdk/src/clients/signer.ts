@@ -106,7 +106,7 @@ export class TronSigner
   async sendAndConfirmBatchTransactions(
     _transactions: TronTransaction[],
   ): Promise<TronReceipt> {
-    throw new Error(`not implemented`);
+    throw new Error(`${TronSigner.name} does not support transaction batching`);
   }
 
   // ### TX CORE ###
@@ -503,9 +503,18 @@ export class TronSigner
   }
 
   async removeDestinationGasConfig(
-    _req: Omit<AltVM.ReqRemoveDestinationGasConfig, 'signer'>,
+    req: Omit<AltVM.ReqRemoveDestinationGasConfig, 'signer'>,
   ): Promise<AltVM.ResRemoveDestinationGasConfig> {
-    throw new Error(`not implemented`);
+    const tx = await this.getRemoveDestinationGasConfigTransaction({
+      ...req,
+      signer: this.getSignerAddress(),
+    });
+
+    await this.sendAndConfirmTransaction(tx);
+
+    return {
+      remoteDomainId: req.remoteDomainId,
+    };
   }
 
   async createNoopHook(
@@ -631,9 +640,59 @@ export class TronSigner
   }
 
   async createSyntheticToken(
-    _req: Omit<AltVM.ReqCreateSyntheticToken, 'signer'>,
+    req: Omit<AltVM.ReqCreateSyntheticToken, 'signer'>,
   ): Promise<AltVM.ResCreateSyntheticToken> {
-    throw new Error(`not implemented`);
+    const tx = await this.getCreateSyntheticTokenTransaction({
+      ...req,
+      signer: this.getSignerAddress(),
+    });
+
+    const receipt = await this.sendAndConfirmTransaction(tx);
+
+    const tokenAddress = this.tronweb.address.fromHex(receipt.contract_address);
+
+    const { transaction } =
+      await this.tronweb.transactionBuilder.triggerSmartContract(
+        tokenAddress,
+        'initialize(uint256,string,string,address,address,address)',
+        {
+          feeLimit: 100_000_000,
+          callValue: 0,
+        },
+        [
+          {
+            type: 'uint256',
+            value: 0,
+          },
+          {
+            type: 'string',
+            value: req.name,
+          },
+          {
+            type: 'string',
+            value: req.denom,
+          },
+          {
+            type: 'address',
+            value: TRON_EMPTY_ADDRESS,
+          },
+          {
+            type: 'address',
+            value: TRON_EMPTY_ADDRESS,
+          },
+          {
+            type: 'address',
+            value: this.getSignerAddress(),
+          },
+        ],
+        this.tronweb.address.toHex(this.getSignerAddress()),
+      );
+
+    await this.sendAndConfirmTransaction(transaction);
+
+    return {
+      tokenAddress,
+    };
   }
 
   async setTokenOwner(
