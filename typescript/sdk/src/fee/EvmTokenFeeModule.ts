@@ -233,7 +233,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
         ...config,
         maxFee: BigInt(config.maxFee),
         halfAmount: BigInt(config.halfAmount),
-      } as TokenFeeConfig;
+      };
     }
 
     return TokenFeeConfigSchema.parse(intermediaryConfig);
