@@ -7,7 +7,6 @@ import {
   assert,
   deepEquals,
   eqAddress,
-  isZeroishAddress,
   objMap,
   objMerge,
   objOmit,
@@ -125,26 +124,10 @@ export class EvmTokenFeeModule extends HyperlaneModule<
         params.chainName,
       );
 
-      let { maxFee, halfAmount } = config;
       const { token } = config;
-
-      if (token && !isZeroishAddress(token)) {
-        try {
-          const { maxFee: convertedMaxFee, halfAmount: convertedHalfAmount } =
-            await reader.convertFromBps(config.bps, token);
-          maxFee = convertedMaxFee;
-          halfAmount = convertedHalfAmount;
-        } catch {
-          // Token may not be a standard ERC20 (e.g., synthetic router)
-          // Fall back to provided maxFee/halfAmount
-        }
-      }
-
-      assert(
-        maxFee && halfAmount,
-        'Config properties "maxFee" and "halfAmount" must be supplied when "token" is not supplied',
-      );
       assert(token, 'Token address must be provided');
+
+      const { maxFee, halfAmount } = reader.convertFromBps(config.bps);
 
       intermediaryConfig = {
         type: TokenFeeType.LinearFee,

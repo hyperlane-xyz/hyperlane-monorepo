@@ -2,7 +2,6 @@ import { constants } from 'ethers';
 
 import {
   BaseFee__factory,
-  ERC20__factory,
   LinearFee__factory,
   RoutingFee__factory,
 } from '@hyperlane-xyz/core';
@@ -160,19 +159,10 @@ export class EvmTokenFeeReader extends HyperlaneReader {
     };
   }
 
-  async convertFromBps(
-    bps: bigint,
-    tokenAddress: Address,
-  ): Promise<FeeParameters> {
-    const token = ERC20__factory.connect(tokenAddress, this.provider);
-    const totalSupplyBn = await token.totalSupply();
-
-    // For zero-supply tokens (e.g., newly deployed synthetics), use a safe assumed max amount
-    const divisor = totalSupplyBn.isZero()
-      ? ASSUMED_MAX_AMOUNT_FOR_ZERO_SUPPLY
-      : BigInt(totalSupplyBn.toString());
-
-    const maxFee = BigInt(constants.MaxUint256.toString()) / divisor;
+  convertFromBps(bps: bigint): FeeParameters {
+    const maxFee =
+      BigInt(constants.MaxUint256.toString()) /
+      ASSUMED_MAX_AMOUNT_FOR_ZERO_SUPPLY;
     const halfAmount = ((maxFee / 2n) * MAX_BPS) / bps;
 
     return {
