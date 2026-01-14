@@ -25,7 +25,7 @@ export async function getNewIsmAddress(
       const result = await aleoClient.getProgramMappingValue(
         ismManagerProgramId,
         'ism_addresses',
-        nonce!,
+        nonce,
       );
       if (result === null) {
         throw new Error(
