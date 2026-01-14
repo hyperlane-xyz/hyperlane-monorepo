@@ -4,6 +4,16 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import { COSMOS_MODULE_MESSAGE_REGISTRY as MessageRegistry } from '../registry.js';
 
+const protoConverterByUrlType = Object.fromEntries(
+  Object.values(MessageRegistry).map(({ proto }) => [
+    proto.type,
+    proto.converter,
+  ]),
+);
+
+type ProtoConverter =
+  (typeof MessageRegistry)[keyof typeof MessageRegistry]['proto']['converter'];
+
 /**
  * Looks up the protobuf converter for a given message type URL.
  *
@@ -11,16 +21,11 @@ import { COSMOS_MODULE_MESSAGE_REGISTRY as MessageRegistry } from '../registry.j
  * @returns The protobuf converter that can encode/decode messages of this type
  * @throws Error if no converter is found for the given type URL
  */
-export function getProtoConverter(
-  typeUrl: string,
-): (typeof MessageRegistry)[keyof typeof MessageRegistry]['proto']['converter'] {
-  for (const { proto } of Object.values(MessageRegistry)) {
-    if (typeUrl === proto.type) {
-      return proto.converter;
-    }
-  }
+export function getProtoConverter(typeUrl: string): ProtoConverter {
+  const maybeConverter = protoConverterByUrlType[typeUrl];
+  assert(maybeConverter, `found no proto converter for type ${typeUrl}`);
 
-  throw new Error(`found no proto converter for type ${typeUrl}`);
+  return maybeConverter;
 }
 
 /**
