@@ -67,8 +67,8 @@ export class AleoMessageIdMultisigIsmWriter
     [ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddress>, AleoReceipt[]]
   > {
     const { config } = artifact;
-    const ismManagerProgramId = this.signer.getIsmManager();
 
+    const ismManagerProgramId = await this.signer.getIsmManager();
     const transaction = getCreateMessageIdMultisigIsmTx(ismManagerProgramId, {
       validators: config.validators,
       threshold: config.threshold,
