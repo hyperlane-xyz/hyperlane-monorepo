@@ -3,11 +3,11 @@ import { TronWeb } from 'tronweb';
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert } from '@hyperlane-xyz/utils';
 
-import DomainRoutingIsmAbi from '../../abi/DomainRoutingIsm.json' with { type: 'json' };
-import IInterchainSecurityModuleAbi from '../../abi/IInterchainSecurityModule.json' with { type: 'json' };
-import NoopIsmAbi from '../../abi/NoopIsm.json' with { type: 'json' };
-import StorageMerkleRootMultisigIsmAbi from '../../abi/StorageMerkleRootMultisigIsm.json' with { type: 'json' };
-import StorageMessageIdMultisigIsmAbi from '../../abi/StorageMessageIdMultisigIsm.json' with { type: 'json' };
+import DomainRoutingIsmAbi from '../abi/DomainRoutingIsm.json' with { type: 'json' };
+import IInterchainSecurityModuleAbi from '../abi/IInterchainSecurityModule.json' with { type: 'json' };
+import NoopIsmAbi from '../abi/NoopIsm.json' with { type: 'json' };
+import StorageMerkleRootMultisigIsmAbi from '../abi/StorageMerkleRootMultisigIsm.json' with { type: 'json' };
+import StorageMessageIdMultisigIsmAbi from '../abi/StorageMessageIdMultisigIsm.json' with { type: 'json' };
 
 /**
  * Type alias for query client with ISM extension.

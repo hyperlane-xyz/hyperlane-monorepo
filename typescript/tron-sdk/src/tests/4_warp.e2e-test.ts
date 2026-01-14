@@ -4,7 +4,7 @@ import { TronWeb } from 'tronweb';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 
-import ERC20TestAbi from '../../abi/ERC20Test.json' with { type: 'json' };
+import ERC20TestAbi from '../abi/ERC20Test.json' with { type: 'json' };
 import { TronSigner } from '../clients/signer.js';
 import { TronReceipt, TronTransaction } from '../utils/types.js';
 

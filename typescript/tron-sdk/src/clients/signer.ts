@@ -2,10 +2,10 @@ import { assert } from 'chai';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 
-import HypNativeAbi from '../../abi/HypNative.json' with { type: 'json' };
-import InterchainGasPaymasterAbi from '../../abi/InterchainGasPaymaster.json' with { type: 'json' };
-import GasOracleAbi from '../../abi/StorageGasOracle.json' with { type: 'json' };
-import StorageGasOracleAbi from '../../abi/StorageGasOracle.json' with { type: 'json' };
+import HypNativeAbi from '../abi/HypNative.json' with { type: 'json' };
+import InterchainGasPaymasterAbi from '../abi/InterchainGasPaymaster.json' with { type: 'json' };
+import GasOracleAbi from '../abi/StorageGasOracle.json' with { type: 'json' };
+import StorageGasOracleAbi from '../abi/StorageGasOracle.json' with { type: 'json' };
 import { TRON_EMPTY_ADDRESS, decodeRevertReason } from '../utils/index.js';
 import { TronReceipt, TronTransaction } from '../utils/types.js';
 

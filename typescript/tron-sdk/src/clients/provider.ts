@@ -3,22 +3,22 @@ import { TronWeb } from 'tronweb';
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert, strip0x } from '@hyperlane-xyz/utils';
 
-import DomainRoutingIsmAbi from '../../abi/DomainRoutingIsm.json' with { type: 'json' };
-import ERC20TestAbi from '../../abi/ERC20Test.json' with { type: 'json' };
-import HypERC20Abi from '../../abi/HypERC20.json' with { type: 'json' };
-import HypERC20CollateralAbi from '../../abi/HypERC20Collateral.json' with { type: 'json' };
-import HypNativeAbi from '../../abi/HypNative.json' with { type: 'json' };
-import IERC20Abi from '../../abi/IERC20.json' with { type: 'json' };
-import IPostDispatchHookAbi from '../../abi/IPostDispatchHook.json' with { type: 'json' };
-import InterchainGasPaymasterAbi from '../../abi/InterchainGasPaymaster.json' with { type: 'json' };
-import MailboxAbi from '../../abi/Mailbox.json' with { type: 'json' };
-import MerkleTreeHookAbi from '../../abi/MerkleTreeHook.json' with { type: 'json' };
-import NoopIsmAbi from '../../abi/NoopIsm.json' with { type: 'json' };
-import PausableHookAbi from '../../abi/PausableHook.json' with { type: 'json' };
-import StorageGasOracleAbi from '../../abi/StorageGasOracle.json' with { type: 'json' };
-import StorageMerkleRootMultisigIsmAbi from '../../abi/StorageMerkleRootMultisigIsm.json' with { type: 'json' };
-import StorageMessageIdMultisigIsmAbi from '../../abi/StorageMessageIdMultisigIsm.json' with { type: 'json' };
-import ValidatorAnnounceAbi from '../../abi/ValidatorAnnounce.json' with { type: 'json' };
+import DomainRoutingIsmAbi from '../abi/DomainRoutingIsm.json' with { type: 'json' };
+import ERC20TestAbi from '../abi/ERC20Test.json' with { type: 'json' };
+import HypERC20Abi from '../abi/HypERC20.json' with { type: 'json' };
+import HypERC20CollateralAbi from '../abi/HypERC20Collateral.json' with { type: 'json' };
+import HypNativeAbi from '../abi/HypNative.json' with { type: 'json' };
+import IERC20Abi from '../abi/IERC20.json' with { type: 'json' };
+import IPostDispatchHookAbi from '../abi/IPostDispatchHook.json' with { type: 'json' };
+import InterchainGasPaymasterAbi from '../abi/InterchainGasPaymaster.json' with { type: 'json' };
+import MailboxAbi from '../abi/Mailbox.json' with { type: 'json' };
+import MerkleTreeHookAbi from '../abi/MerkleTreeHook.json' with { type: 'json' };
+import NoopIsmAbi from '../abi/NoopIsm.json' with { type: 'json' };
+import PausableHookAbi from '../abi/PausableHook.json' with { type: 'json' };
+import StorageGasOracleAbi from '../abi/StorageGasOracle.json' with { type: 'json' };
+import StorageMerkleRootMultisigIsmAbi from '../abi/StorageMerkleRootMultisigIsm.json' with { type: 'json' };
+import StorageMessageIdMultisigIsmAbi from '../abi/StorageMessageIdMultisigIsm.json' with { type: 'json' };
+import ValidatorAnnounceAbi from '../abi/ValidatorAnnounce.json' with { type: 'json' };
 import {
   getIsmType,
   getMerkleRootMultisigIsmConfig,
