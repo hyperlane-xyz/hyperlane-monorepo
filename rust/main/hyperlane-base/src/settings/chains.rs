@@ -93,6 +93,10 @@ pub struct ChainConf {
     /// Whether to ignore reorg reports from this chain
     /// when it is the origin of a message.
     pub ignore_reorg_reports: bool,
+    /// How long we should wait for this chain to initialize as an origin chain
+    pub origin_init_timeout_millis: Duration,
+    /// How long we should wait for this chain to initialize as a destination chain
+    pub destination_init_timeout_millis: Duration,
 }
 
 /// A sequence-aware indexer for messages
