@@ -348,6 +348,10 @@ impl KaspaProvider {
         self.conf.relayer_stuff.as_ref().unwrap()
     }
 
+    pub fn conf(&self) -> &ConnectionConf {
+        &self.conf
+    }
+
     pub fn grpc_client(&self) -> Option<kaspa_grpc_client::GrpcClient> {
         self.grpc_client.clone()
     }

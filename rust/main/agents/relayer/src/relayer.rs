@@ -1242,12 +1242,9 @@ impl Relayer {
     }
 
     fn get_migration_target(&self) -> Option<String> {
-        self.dymension_kaspa_args.as_ref().and_then(|args| {
-            args.kas_provider
-                .must_relayer_stuff()
-                .migrate_escrow_to
-                .clone()
-        })
+        self.dymension_kaspa_args
+            .as_ref()
+            .and_then(|args| args.kas_provider.conf().migrate_escrow_to.clone())
     }
 
     async fn run_escrow_migration(&self, target_address: &str) -> Result<Vec<String>> {

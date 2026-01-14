@@ -58,6 +58,11 @@ pub struct ConnectionConf {
     pub min_deposit_sompi: U256,
     pub validator_stuff: Option<ValidatorStuff>,
     pub relayer_stuff: Option<RelayerStuff>,
+
+    /// If set, enables migration mode.
+    /// For validators: only migration TX signing and confirmation are allowed.
+    /// For relayers: run escrow key migration to this address and exit.
+    pub migrate_escrow_to: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -106,8 +111,6 @@ pub struct RelayerStuff {
     pub max_sweep_inputs: Option<usize>,
     pub max_sweep_bundle_bytes: usize,
     pub validator_request_timeout: std::time::Duration,
-    /// If set, run escrow key migration to this address and exit.
-    pub migrate_escrow_to: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -138,9 +141,6 @@ pub struct ValidationConf {
     pub validate_deposits: bool,
     pub validate_withdrawals: bool,
     pub validate_confirmations: bool,
-    /// When set, enables migration mode. Only migration TX signing and confirmation are allowed.
-    /// During migration, current escrow is treated as "old" and this address as "new".
-    pub migration_target_address: Option<String>,
 }
 
 impl Default for ValidationConf {
@@ -149,22 +149,7 @@ impl Default for ValidationConf {
             validate_deposits: true,
             validate_withdrawals: true,
             validate_confirmations: true,
-            migration_target_address: None,
         }
-    }
-}
-
-impl ValidationConf {
-    /// Returns true if migration mode is active.
-    pub fn is_migration_mode(&self) -> bool {
-        self.migration_target_address.is_some()
-    }
-
-    /// Returns the parsed migration target address if in migration mode.
-    pub fn parsed_migration_target(&self) -> Option<kaspa_addresses::Address> {
-        self.migration_target_address
-            .as_ref()
-            .and_then(|s| kaspa_addresses::Address::try_from(s.as_str()).ok())
     }
 }
 
@@ -241,7 +226,6 @@ impl ConnectionConf {
                 max_sweep_inputs,
                 max_sweep_bundle_bytes: 8 * 1024 * 1024,
                 validator_request_timeout,
-                migrate_escrow_to,
             })
         } else {
             None
@@ -260,7 +244,20 @@ impl ConnectionConf {
             relayer_stuff: r,
             op_submission_config,
             min_deposit_sompi,
+            migrate_escrow_to,
         }
+    }
+
+    /// Returns true if migration mode is active.
+    pub fn is_migration_mode(&self) -> bool {
+        self.migrate_escrow_to.is_some()
+    }
+
+    /// Returns the parsed migration target address if in migration mode.
+    pub fn parsed_migration_target(&self) -> Option<kaspa_addresses::Address> {
+        self.migrate_escrow_to
+            .as_ref()
+            .and_then(|s| kaspa_addresses::Address::try_from(s.as_str()).ok())
     }
 }
 
