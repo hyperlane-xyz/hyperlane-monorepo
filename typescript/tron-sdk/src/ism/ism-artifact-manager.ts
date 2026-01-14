@@ -16,6 +16,7 @@ import {
   type AnnotatedTx,
   type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
+import { strip0x } from '@hyperlane-xyz/utils';
 
 import { type TronIsmQueryClient, getIsmType } from './ism-query.js';
 import {
@@ -56,13 +57,13 @@ export class TronIsmArtifactManager implements IRawIsmArtifactManager {
    * Creates a Tron query client with ISM extension.
    */
   private async createQuery(): Promise<TronIsmQueryClient> {
-    const privateKey = new TronWeb({
+    const { privateKey } = new TronWeb({
       fullHost: this.rpcUrls[0],
-    }).createRandom().privateKey;
+    }).createRandom();
 
     return new TronWeb({
       fullHost: this.rpcUrls[0],
-      privateKey,
+      privateKey: strip0x(privateKey),
     });
   }
 

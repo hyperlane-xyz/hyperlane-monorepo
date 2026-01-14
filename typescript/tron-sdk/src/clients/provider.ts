@@ -44,7 +44,7 @@ export class TronProvider implements AltVM.IProvider {
     const { privateKey } = new TronWeb({
       fullHost: rpcUrls[0],
     }).createRandom();
-    return new TronProvider(rpcUrls, chainId, privateKey);
+    return new TronProvider(rpcUrls, chainId, strip0x(privateKey));
   }
 
   constructor(
